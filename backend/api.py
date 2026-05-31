@@ -1,0 +1,276 @@
+import asyncio
+import os
+import time
+import re
+
+# 取得 api.py 所在目錄的絕對路徑，確保不論從哪裡啟動都能找到靜態檔案
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIR = os.path.join(BASE_DIR, "static")
+from fastapi import FastAPI
+from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+from sse_starlette.sse import EventSourceResponse
+from fastapi.middleware.cors import CORSMiddleware
+import threading
+import queue
+
+from financial_data import fetch_stock_data
+from agent_runner import run_analysis_pipeline, AGENT_NAMES
+from report_gen import generate_html_report, generate_markdown_report
+from config import OUTPUT_DIR
+
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+# 掛載靜態網頁檔案
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+# 儲存分析結果的記憶體快取 (ticker -> filepath)
+report_cache = {}
+
+# 全域鎖與執行中任務追蹤，防範多裝置或連線中斷重連導致的重複分析
+active_analyses_lock = threading.Lock()
+active_queues = {}  # ticker -> list of queue.Queue
+
+def broadcast_message(ticker: str, msg: dict):
+    with active_analyses_lock:
+        if ticker in active_queues:
+            for q in active_queues[ticker]:
+                q.put(msg)
+
+
+def cleanup_orphan_markdown_reports():
+    """移除沒有對應 HTML 的 Markdown 報告，避免前端刪除後後端殘留。"""
+    if not os.path.exists(OUTPUT_DIR):
+        return []
+
+    html_stems = {
+        os.path.splitext(filename)[0]
+        for filename in os.listdir(OUTPUT_DIR)
+        if filename.endswith(".html")
+    }
+    deleted = []
+    for filename in os.listdir(OUTPUT_DIR):
+        if not filename.endswith(".md"):
+            continue
+        stem = os.path.splitext(filename)[0]
+        if stem in html_stems:
+            continue
+        path = os.path.join(OUTPUT_DIR, filename)
+        try:
+            os.remove(path)
+            deleted.append(filename)
+        except OSError:
+            pass
+    return deleted
+
+
+@app.get("/api/reports")
+def get_reports():
+    """取得歷史報告清單"""
+    cleanup_orphan_markdown_reports()
+    reports = []
+    if os.path.exists(OUTPUT_DIR):
+        for filename in os.listdir(OUTPUT_DIR):
+            if filename.endswith(".html"):
+                filepath = os.path.join(OUTPUT_DIR, filename)
+                # Parse ticker and time from filename (e.g., 2449_TW_report_20260523_124313.html)
+                parts = filename.replace(".html", "").split("_report_")
+                if len(parts) == 2:
+                    ticker = parts[0].replace("_", ".")
+                    date_str = parts[1]
+                    try:
+                        dt = time.strptime(date_str, "%Y%m%d_%H%M%S")
+                        formatted_date = time.strftime("%Y-%m-%d %H:%M", dt)
+                    except:
+                        formatted_date = date_str
+                else:
+                    ticker = filename
+                    formatted_date = "未知時間"
+                    
+                # 動態解析 HTML 報告中的公司名稱
+                company_name = ticker
+                try:
+                    with open(filepath, "r", encoding="utf-8") as f:
+                        content = f.read()
+                        match = re.search(r'<div class="sidebar-name">([^<]+)</div>', content)
+                        if match:
+                            company_name = match.group(1).strip()
+                except Exception:
+                    pass
+
+                reports.append({
+                    "filename": filename,
+                    "ticker": ticker,
+                    "company_name": company_name,
+                    "date": formatted_date,
+                    "timestamp": os.path.getmtime(filepath)
+                })
+    # 依時間遞減排序
+    reports.sort(key=lambda x: x["timestamp"], reverse=True)
+    return {"reports": reports}
+
+@app.delete("/api/reports/{filename}")
+def delete_report(filename: str):
+    """刪除特定歷史報告"""
+    # 簡單防範路徑穿越
+    if "/" in filename or "\\" in filename:
+        return {"success": False, "error": "Invalid filename"}
+    if not filename.endswith(".html"):
+        return {"success": False, "error": "Only HTML report filenames can be deleted"}
+        
+    html_path = os.path.join(OUTPUT_DIR, filename)
+    md_filename = filename[:-5] + ".md"
+    md_path = os.path.join(OUTPUT_DIR, md_filename)
+
+    if not os.path.exists(html_path) and not os.path.exists(md_path):
+        return {"success": False, "error": "File not found"}
+
+    deleted = []
+    errors = []
+    for path in [html_path, md_path]:
+        if os.path.exists(path):
+            try:
+                os.remove(path)
+                deleted.append(os.path.basename(path))
+            except Exception as e:
+                errors.append(f"{os.path.basename(path)}: {e}")
+
+    if errors:
+        return {"success": False, "error": "; ".join(errors), "deleted": deleted}
+
+    for ticker, cached_filename in list(report_cache.items()):
+        if cached_filename == filename:
+            del report_cache[ticker]
+
+    return {"success": True, "deleted": deleted}
+
+@app.get("/")
+def read_root():
+    return FileResponse(os.path.join(STATIC_DIR, "index.html"))
+
+@app.get("/api/analyze/{ticker}")
+async def analyze_stock(ticker: str):
+    """使用 SSE 即時推播分析進度"""
+    ticker_upper = ticker.strip().upper()
+    q = queue.Queue()
+    
+    start_thread = False
+    with active_analyses_lock:
+        if ticker_upper not in active_queues:
+            active_queues[ticker_upper] = [q]
+            start_thread = True
+        else:
+            active_queues[ticker_upper].append(q)
+            
+    def progress_callback(current, total, name):
+        broadcast_message(ticker_upper, {"type": "progress", "current": current, "total": total, "name": name})
+        
+    def run_pipeline():
+        try:
+            broadcast_message(ticker_upper, {"type": "status", "message": f"正在獲取 {ticker_upper} 財務數據..."})
+            data = fetch_stock_data(ticker_upper)
+            if "error" in data:
+                broadcast_message(ticker_upper, {"type": "status", "message": f"財務數據獲取有誤：{data['error']}，將繼續分析"})
+                
+            broadcast_message(ticker_upper, {"type": "status", "message": "開始執行分析 Agent..."})
+            context = run_analysis_pipeline(data, progress_callback=progress_callback)
+
+            if context.get("blocking_issues"):
+                issue_text = "；".join(context["blocking_issues"][:3])
+                broadcast_message(
+                    ticker_upper,
+                    {
+                        "type": "error",
+                        "message": f"報告未儲存：公司身分一致性檢查未通過。{issue_text}",
+                    },
+                )
+                return
+            
+            broadcast_message(ticker_upper, {"type": "status", "message": "生成 HTML 報告..."})
+            html_content = generate_html_report(context)
+            md_content = generate_markdown_report(context)
+            
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            safe_ticker = ticker_upper.replace(".", "_")
+            filename = f"{safe_ticker}_report_{timestamp}.html"
+            filepath = os.path.join(OUTPUT_DIR, filename)
+            md_filename = f"{safe_ticker}_report_{timestamp}.md"
+            md_filepath = os.path.join(OUTPUT_DIR, md_filename)
+            
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(html_content)
+            with open(md_filepath, "w", encoding="utf-8") as f:
+                f.write(md_content)
+                
+            report_cache[ticker_upper] = filename
+            
+            broadcast_message(ticker_upper, {"type": "done", "filename": filename})
+            
+        except Exception as e:
+            broadcast_message(ticker_upper, {"type": "error", "message": str(e)})
+        finally:
+            with active_analyses_lock:
+                if ticker_upper in active_queues:
+                    del active_queues[ticker_upper]
+
+    if start_thread:
+        threading.Thread(target=run_pipeline, daemon=True).start()
+        
+    async def event_generator():
+        try:
+            while True:
+                try:
+                    # 使用 await asyncio.to_thread 避免阻擋事件迴圈
+                    msg = await asyncio.to_thread(q.get, True, 0.5)
+                    yield {"data": str(msg).replace("'", '"')}  # 簡單轉為 JSON 格式字串
+                    
+                    if msg["type"] in ["done", "error"]:
+                        break
+                except queue.Empty:
+                    # 保持連線活躍 (Keep-alive)
+                    yield {"event": "ping", "data": "ping"}
+                    await asyncio.sleep(0.5)
+        finally:
+            # 客戶端斷線或串流結束時，將其 queue 從 active_queues 中移除，避免記憶體殘留
+            with active_analyses_lock:
+                if ticker_upper in active_queues:
+                    if q in active_queues[ticker_upper]:
+                        active_queues[ticker_upper].remove(q)
+
+                
+    return EventSourceResponse(event_generator())
+
+@app.get("/api/report/{filename}")
+async def get_report(filename: str):
+    """取得生成的 HTML 報告"""
+    filepath = os.path.join(OUTPUT_DIR, filename)
+    if os.path.exists(filepath):
+        return FileResponse(filepath, media_type="text/html")
+    return HTMLResponse("<h1>找不到報告</h1>", status_code=404)
+
+@app.get("/api/report/{filename}/download/html")
+async def download_html_report(filename: str):
+    """下載生成的 HTML 報告"""
+    filepath = os.path.join(OUTPUT_DIR, filename)
+    if os.path.exists(filepath):
+        return FileResponse(filepath, filename=filename, media_type="text/html", headers={"Content-Disposition": f"attachment; filename={filename}"})
+    return HTMLResponse("<h1>找不到報告</h1>", status_code=404)
+
+@app.get("/api/report/{filename}/download/md")
+async def download_md_report(filename: str):
+    """下載生成的 Markdown 報告"""
+    md_filename = filename.replace(".html", ".md")
+    filepath = os.path.join(OUTPUT_DIR, md_filename)
+    if os.path.exists(filepath):
+        return FileResponse(filepath, filename=md_filename, media_type="text/markdown", headers={"Content-Disposition": f"attachment; filename={md_filename}"})
+    return HTMLResponse("<h1>找不到報告 Markdown 版本</h1>", status_code=404)

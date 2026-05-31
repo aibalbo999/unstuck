@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wall Street AI</title>
+    <!-- 引入 Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <!-- 背景特效 -->
+    <div class="bg-glow bg-glow-left"></div>
+    <div class="bg-glow bg-glow-right"></div>
+
+    <!-- 首頁區域 -->
+    <main id="home-view" class="view-container active">
+        <div class="glass-panel text-center">
+            <h1 class="gradient-text title">Wall Street AI</h1>
+            <p class="subtitle">連續式股票分析 Agent</p>
+            
+            <div class="input-group">
+                <label for="ticker-input">輸入股票代號</label>
+                <input type="text" id="ticker-input" placeholder="例如: 2449.TW 或 AAPL" autocomplete="off" spellcheck="false" />
+            </div>
+
+            <button id="analyze-btn" class="glow-button">
+                <span>開始深度分析</span>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+            </button>
+            
+            <!-- 歷史報告區域 -->
+            <div class="history-section">
+                <div class="history-title">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg>
+                    歷史報告
+                </div>
+                <div id="history-list" class="history-list">
+                    <!-- 動態載入 -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 載入中區域 -->
+    <main id="loading-view" class="view-container">
+        <div class="glass-panel text-center">
+            <div class="pulse-ring"></div>
+            <h2 class="gradient-text mt-6">分析進行中</h2>
+            <p id="loading-status" class="status-text">連接系統...</p>
+            <p id="loading-msg" class="msg-text">正在獲取市場資料</p>
+            
+            <div class="progress-bar-container">
+                <div id="progress-bar" class="progress-bar-fill"></div>
+            </div>
+            
+            <p class="hint-text">請稍候，7 位 AI 分析師正在為您撰寫深度研報...</p>
+        </div>
+    </main>
+
+    <!-- 報告區域 -->
+    <main id="report-view" class="view-container full-width">
+        <div class="report-header glass-panel-flat">
+            <button id="back-btn" class="text-button">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg>
+                返回
+            </button>
+            <h3 class="report-title" id="report-ticker-title">報告</h3>
+            <div class="report-actions" style="margin-left: auto; display: flex; gap: 8px;">
+                <button id="download-html-btn" class="secondary-button" style="padding: 6px 12px; font-size: 0.9rem; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #fff; border-radius: 6px; cursor: pointer;">
+                    下載 HTML
+                </button>
+                <button id="download-md-btn" class="primary-button" style="padding: 6px 12px; font-size: 0.9rem; border: none; background: #3b82f6; color: #fff; border-radius: 6px; cursor: pointer;">
+                    下載 Markdown
+                </button>
+            </div>
+        </div>
+        <div class="iframe-wrapper">
+            <iframe id="report-iframe" src="" frameborder="0"></iframe>
+        </div>
+    </main>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

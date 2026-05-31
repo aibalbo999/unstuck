@@ -1,0 +1,28 @@
+.DS_Store
+*.py[cod]
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local secrets and environment files
+.env
+backend/.env
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Runtime outputs
+output/
+backend/output/
+*.log
+
+# Local virtual environments
+.venv/
+venv/
+env/
+
+# Editor and OS noise
+.idea/
+.vscode/
