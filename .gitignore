@@ -16,6 +16,7 @@ backend/.env
 # Runtime outputs
 output/
 backend/output/
+backend/cache/
 *.log
 
 # Local virtual environments

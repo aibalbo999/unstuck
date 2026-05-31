@@ -13,11 +13,13 @@ from sse_starlette.sse import EventSourceResponse
 from fastapi.middleware.cors import CORSMiddleware
 import threading
 import queue
+from typing import Optional
 
 from financial_data import fetch_stock_data
 from agent_runner import run_analysis_pipeline, AGENT_NAMES
 from report_gen import generate_html_report, generate_markdown_report
-from config import OUTPUT_DIR
+from config import OUTPUT_DIR, REPORT_RETENTION_DAYS, ANALYSIS_WORKER_COUNT
+from task_queue import LocalTaskQueue
 
 app = FastAPI()
 
@@ -36,16 +38,51 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # 儲存分析結果的記憶體快取 (ticker -> filepath)
 report_cache = {}
+analysis_task_queue = LocalTaskQueue(max_workers=ANALYSIS_WORKER_COUNT)
 
 # 全域鎖與執行中任務追蹤，防範多裝置或連線中斷重連導致的重複分析
 active_analyses_lock = threading.Lock()
 active_queues = {}  # ticker -> list of queue.Queue
+
+
+def is_safe_report_filename(filename: str, suffix: Optional[str] = None) -> bool:
+    if "/" in filename or "\\" in filename or filename != os.path.basename(filename):
+        return False
+    if suffix and not filename.endswith(suffix):
+        return False
+    return True
+
 
 def broadcast_message(ticker: str, msg: dict):
     with active_analyses_lock:
         if ticker in active_queues:
             for q in active_queues[ticker]:
                 q.put(msg)
+
+
+def cleanup_expired_reports(retention_days: int = REPORT_RETENTION_DAYS):
+    """刪除超過保留天數的 HTML/Markdown 報告，避免 output 無限成長。"""
+    if not os.path.exists(OUTPUT_DIR) or retention_days <= 0:
+        return []
+
+    cutoff = time.time() - retention_days * 24 * 60 * 60
+    deleted = []
+    for filename in os.listdir(OUTPUT_DIR):
+        if not filename.endswith((".html", ".md")):
+            continue
+        path = os.path.join(OUTPUT_DIR, filename)
+        try:
+            if os.path.getmtime(path) < cutoff:
+                os.remove(path)
+                deleted.append(filename)
+        except OSError:
+            pass
+
+    if deleted:
+        for ticker, cached_filename in list(report_cache.items()):
+            if cached_filename in deleted:
+                del report_cache[ticker]
+    return deleted
 
 
 def cleanup_orphan_markdown_reports():
@@ -77,6 +114,7 @@ def cleanup_orphan_markdown_reports():
 @app.get("/api/reports")
 def get_reports():
     """取得歷史報告清單"""
+    cleanup_expired_reports()
     cleanup_orphan_markdown_reports()
     reports = []
     if os.path.exists(OUTPUT_DIR):
@@ -123,10 +161,8 @@ def get_reports():
 def delete_report(filename: str):
     """刪除特定歷史報告"""
     # 簡單防範路徑穿越
-    if "/" in filename or "\\" in filename:
+    if not is_safe_report_filename(filename, ".html"):
         return {"success": False, "error": "Invalid filename"}
-    if not filename.endswith(".html"):
-        return {"success": False, "error": "Only HTML report filenames can be deleted"}
         
     html_path = os.path.join(OUTPUT_DIR, filename)
     md_filename = filename[:-5] + ".md"
@@ -224,7 +260,7 @@ async def analyze_stock(ticker: str):
                     del active_queues[ticker_upper]
 
     if start_thread:
-        threading.Thread(target=run_pipeline, daemon=True).start()
+        analysis_task_queue.submit(f"analysis:{ticker_upper}", run_pipeline)
         
     async def event_generator():
         try:
@@ -253,6 +289,8 @@ async def analyze_stock(ticker: str):
 @app.get("/api/report/{filename}")
 async def get_report(filename: str):
     """取得生成的 HTML 報告"""
+    if not is_safe_report_filename(filename, ".html"):
+        return HTMLResponse("<h1>Invalid filename</h1>", status_code=400)
     filepath = os.path.join(OUTPUT_DIR, filename)
     if os.path.exists(filepath):
         return FileResponse(filepath, media_type="text/html")
@@ -261,6 +299,8 @@ async def get_report(filename: str):
 @app.get("/api/report/{filename}/download/html")
 async def download_html_report(filename: str):
     """下載生成的 HTML 報告"""
+    if not is_safe_report_filename(filename, ".html"):
+        return HTMLResponse("<h1>Invalid filename</h1>", status_code=400)
     filepath = os.path.join(OUTPUT_DIR, filename)
     if os.path.exists(filepath):
         return FileResponse(filepath, filename=filename, media_type="text/html", headers={"Content-Disposition": f"attachment; filename={filename}"})
@@ -269,6 +309,8 @@ async def download_html_report(filename: str):
 @app.get("/api/report/{filename}/download/md")
 async def download_md_report(filename: str):
     """下載生成的 Markdown 報告"""
+    if not is_safe_report_filename(filename, ".html"):
+        return HTMLResponse("<h1>Invalid filename</h1>", status_code=400)
     md_filename = filename.replace(".html", ".md")
     filepath = os.path.join(OUTPUT_DIR, md_filename)
     if os.path.exists(filepath):

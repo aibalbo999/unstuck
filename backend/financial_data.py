@@ -7,6 +7,8 @@ import pandas as pd
 from datetime import datetime, timedelta
 from functools import lru_cache
 import warnings
+from cache_store import get_cache_json, set_cache_json
+from config import FINANCIAL_DATA_CACHE_SECONDS
 warnings.filterwarnings("ignore")
 
 try:
@@ -205,6 +207,15 @@ def fetch_stock_data(ticker: str) -> dict:
     從 yfinance 獲取股票完整財務數據
     返回格式化的數據字典
     """
+    ticker = ticker.strip().upper()
+    original_ticker = ticker
+    cache_key = f"financial_data:{original_ticker}"
+    cached = get_cache_json(cache_key)
+    if cached:
+        cached["_cache_hit"] = True
+        print(f"  ✅ 使用快取的 {cached.get('ticker', original_ticker)} 財務數據")
+        return cached
+
     print(f"  📊 正在獲取 {ticker} 財務數據...")
     
     try:
@@ -537,6 +548,24 @@ def fetch_stock_data(ticker: str) -> dict:
                             recent_monthly_revenue.append(f"{rm_year}年{rm_month}月: NT${val_yi:.2f}億")
             except Exception as e:
                 print(f"    ⚠️  FinMind 營收獲取失敗：{e}")
+
+        # === 欄位缺漏備援補值 ===
+        data_source_notes = []
+        if market_cap == "N/A" and isinstance(current_price, (int, float)) and isinstance(shares_outstanding, (int, float)):
+            market_cap = current_price * shares_outstanding
+            data_source_notes.append("市值由 current price × shares outstanding 推算，因 yfinance marketCap 缺值。")
+
+        if revenue_ttm == "N/A" and revenue_history:
+            latest_revenue_b = next((v for v in reversed(revenue_history) if v), None)
+            if latest_revenue_b:
+                revenue_ttm = latest_revenue_b * 1e9
+                data_source_notes.append("TTM 營收缺值，暫以最新年度營收補值；估值時需保守看待。")
+
+        if free_cash_flow == "N/A" and fcf_history:
+            latest_fcf_b = next((v for v in reversed(fcf_history) if v is not None), None)
+            if latest_fcf_b is not None:
+                free_cash_flow = latest_fcf_b * 1e9
+                data_source_notes.append("自由現金流缺值，暫以最新年度 FCF 補值；DCF 應使用 normalized FCF。")
         
         # === 整合所有數據 ===
         data = {
@@ -629,12 +658,19 @@ def fetch_stock_data(ticker: str) -> dict:
             "total_assets_history": total_assets_history,
             "price_history": price_history,
             "recent_monthly_revenue": recent_monthly_revenue,
+            "data_source_notes": data_source_notes,
             "equity_multiplier": equity_multiplier,
             "equity_multiplier_note": equity_multiplier_note,
             "dupont_identity_note": dupont_identity_note,
             "wacc_capital_structure_note": wacc_capital_structure_note,
         }
         
+        data["cache_generated_at"] = datetime.now().isoformat(timespec="seconds")
+        set_cache_json(cache_key, data, FINANCIAL_DATA_CACHE_SECONDS)
+        resolved_cache_key = f"financial_data:{ticker}"
+        if resolved_cache_key != cache_key:
+            set_cache_json(resolved_cache_key, data, FINANCIAL_DATA_CACHE_SECONDS)
+
         print(f"  ✅ {company_name} 數據獲取完成")
         return data
         
@@ -801,6 +837,14 @@ def format_data_for_prompt(data: dict) -> str:
         lines.append("【近期每月營收動能 (FinMind 官方數據)】")
         for rm in recent_monthly_revenue:
             lines.append(f"  {rm}")
+
+    data_source_notes = data.get("data_source_notes")
+    if data_source_notes:
+        lines.append("")
+        lines.append("【資料補值與限制】")
+        for note in data_source_notes:
+            lines.append(f"  - {note}")
+        lines.append("  ⚠️ 補值欄位只能作為交叉檢查，不可包裝成官方完整資料。")
             
     # 加入歷史財務數據
     if data.get("years") and data.get("revenue_history"):

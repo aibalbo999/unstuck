@@ -13,6 +13,11 @@
 - 多 Agent 串接分析流程
 - 產生 HTML 與 Markdown 報告
 - 內建報告刪除 API，會同步刪除 `.html` 與 `.md`
+- Agent 3 / 4 / 7 使用 JSON 結構化輸出優先解析，正則表達式僅保留為備援
+- 財務資料使用本地 SQLite 持久化快取，預設 24 小時
+- yfinance 欄位缺漏時會用可追溯的衍生補值補上市值、TTM 營收或 FCF，並在 prompt 中揭露限制
+- 歷史報告會自動清理孤立 Markdown，並刪除超過保留天數的舊報告
+- 長任務透過本地任務佇列抽象執行，避免 API route 直接管理裸 Thread
 - 針對常見財務錯誤加入品質檢查，例如 DuPont、DCF / P/E、WACC、FCF 與公司身分一致性
 
 ## 專案結構
@@ -22,9 +27,14 @@ stock-agent/
 ├── backend/
 │   ├── api.py              # FastAPI 服務與報告 API
 │   ├── agent_runner.py     # 多 Agent prompt、模型呼叫、品質檢查
+│   ├── prompt_loader.py    # 從 prompts/ 載入 prompt 設定
+│   ├── cache_store.py      # SQLite JSON 快取
+│   ├── task_queue.py       # 本地長任務佇列抽象，可替換為 RQ/Celery
 │   ├── config.py           # 模型與環境變數設定
 │   ├── financial_data.py   # 財務資料抓取與 prompt 資料摘要
 │   ├── report_gen.py       # HTML / Markdown 報告產生器
+│   ├── prompts/            # Agent system / analysis prompt JSON
+│   ├── templates/          # Jinja2 HTML 報告模板
 │   ├── requirements.txt    # Python 套件
 │   ├── static/             # 前端頁面
 │   └── output/             # 產生的報告，已被 Git 忽略
@@ -62,15 +72,24 @@ export GEMINI_API_KEYS="your_key_1,your_key_2"
 - `GOOGLE_API_KEY_1` 到 `GOOGLE_API_KEY_10`
 - `GEMINI_API_KEY_1` 到 `GEMINI_API_KEY_10`
 
+可選設定：
+
+- `OUTPUT_DIR`：報告輸出目錄，預設 `backend/output/`
+- `CACHE_DB_PATH`：SQLite 快取檔位置，預設 `backend/cache/stock_agent_cache.sqlite3`
+- `FINANCIAL_DATA_CACHE_SECONDS`：財務資料快取秒數，預設 `86400`
+- `REPORT_RETENTION_DAYS`：舊報告保留天數，預設 `30`
+- `ANALYSIS_WORKER_COUNT`：本地分析 worker 數，預設 `2`
+
 不要提交這些內容：
 
 - `backend/.env`
 - `backend/output/`
+- `backend/cache/`
 - API key、token、私鑰、憑證檔
 
 ## 安裝
 
-建議使用 Python 3.10 以上。
+建議使用 Python 3.10 以上；目前程式碼仍相容 Python 3.9。
 
 ```bash
 cd backend
@@ -166,6 +185,8 @@ backend/output/
 
 `backend/output/` 已在 `.gitignore` 中，不會被提交。
 
+`backend/cache/` 也已被 Git 忽略。財務資料快取預設保存 24 小時，可透過 `FINANCIAL_DATA_CACHE_SECONDS` 調整。歷史報告預設保留 30 天，可透過 `REPORT_RETENTION_DAYS` 調整；前端刪除 HTML 報告時，後端會同步刪除同名 Markdown。
+
 ## 常見問題
 
 ### 1. 顯示缺少 API key
@@ -217,13 +238,15 @@ xattr -d com.apple.quarantine start_mac.command
 
 - 不要把生成報告提交到 Git。
 - 不要把真實 API key 寫進程式碼。
+- Prompt 主要放在 `backend/prompts/agents.json`，修改後請確認 1 到 7 號 Agent 都保留 system 與 analysis prompt。
+- HTML 報告版型主要放在 `backend/templates/report.html.j2`，Python 只負責整理資料與渲染模板。
 - 修改 prompt 或品質檢查後，建議至少跑一次 `python3 -m py_compile`。
 - 若調整公司身分檢查，請測試「同業比較」與「公司錯置」兩種情境，避免誤殺產業普通名詞。
 
 ## 快速檢查
 
 ```bash
-python3 -m py_compile backend/config.py backend/agent_runner.py backend/api.py backend/financial_data.py backend/report_gen.py main.py
+python3 -m py_compile backend/config.py backend/cache_store.py backend/task_queue.py backend/prompt_loader.py backend/agent_runner.py backend/api.py backend/financial_data.py backend/report_gen.py main.py
 rg -n "API_KEY|PRIVATE KEY|github[_-]pat" .
 ```
 

@@ -79,3 +79,14 @@ INTER_AGENT_DELAY = 13  # 保守設定，避免超過 RPM
 
 # 輸出目錄
 OUTPUT_DIR = os.getenv("OUTPUT_DIR", str(BASE_DIR / "output"))
+
+# 本地持久化快取
+CACHE_DIR = Path(os.getenv("CACHE_DIR", str(BASE_DIR / "cache")))
+CACHE_DB_PATH = os.getenv("CACHE_DB_PATH", str(CACHE_DIR / "stock_agent_cache.sqlite3"))
+FINANCIAL_DATA_CACHE_SECONDS = int(os.getenv("FINANCIAL_DATA_CACHE_SECONDS", str(24 * 60 * 60)))
+
+# 報告生命週期
+REPORT_RETENTION_DAYS = int(os.getenv("REPORT_RETENTION_DAYS", "30"))
+
+# 本地分析任務佇列 worker 數
+ANALYSIS_WORKER_COUNT = int(os.getenv("ANALYSIS_WORKER_COUNT", "2"))
