@@ -15,9 +15,10 @@
 - 內建報告刪除 API，會同步刪除 `.html` 與 `.md`
 - Agent 3 / 4 / 7 使用 JSON 結構化輸出優先解析，正則表達式僅保留為備援
 - 財務資料使用本地 SQLite 持久化快取，預設 24 小時
-- yfinance 欄位缺漏時會用可追溯的衍生補值補上市值、TTM 營收或 FCF，並在 prompt 中揭露限制
+- yfinance 欄位缺漏時會用 FMP（需 API key）或可追溯的衍生補值補上市場欄位、TTM 營收或 FCF，並在 prompt 中揭露限制
 - 歷史報告會自動清理孤立 Markdown，並刪除超過保留天數的舊報告
-- 長任務透過本地任務佇列抽象執行，避免 API route 直接管理裸 Thread
+- 長任務透過 SQLite job/event store 與任務佇列抽象執行，可用本地 worker 或切換 RQ/Redis
+- 財務抓取與 Gemini 分析管線提供 async 版本，API 生成報告時走非同步 pipeline
 - 針對常見財務錯誤加入品質檢查，例如 DuPont、DCF / P/E、WACC、FCF 與公司身分一致性
 
 ## 專案結構
@@ -29,7 +30,9 @@ stock-agent/
 │   ├── agent_runner.py     # 多 Agent prompt、模型呼叫、品質檢查
 │   ├── prompt_loader.py    # 從 prompts/ 載入 prompt 設定
 │   ├── cache_store.py      # SQLite JSON 快取
-│   ├── task_queue.py       # 本地長任務佇列抽象，可替換為 RQ/Celery
+│   ├── job_store.py        # SQLite job / SSE event store
+│   ├── analysis_jobs.py    # 可匯入的分析任務入口，本地/RQ worker 共用
+│   ├── task_queue.py       # 本地長任務佇列抽象，可切換 RQ
 │   ├── config.py           # 模型與環境變數設定
 │   ├── financial_data.py   # 財務資料抓取與 prompt 資料摘要
 │   ├── report_gen.py       # HTML / Markdown 報告產生器
@@ -78,7 +81,15 @@ export GEMINI_API_KEYS="your_key_1,your_key_2"
 - `CACHE_DB_PATH`：SQLite 快取檔位置，預設 `backend/cache/stock_agent_cache.sqlite3`
 - `FINANCIAL_DATA_CACHE_SECONDS`：財務資料快取秒數，預設 `86400`
 - `REPORT_RETENTION_DAYS`：舊報告保留天數，預設 `30`
+- `REPORT_CLEANUP_INTERVAL_SECONDS`：背景清理週期秒數，預設 `86400`
 - `ANALYSIS_WORKER_COUNT`：本地分析 worker 數，預設 `2`
+- `TASK_QUEUE_BACKEND`：任務佇列後端，`local` 或 `rq`，預設 `local`
+- `REDIS_URL`：RQ 模式使用的 Redis 連線，預設 `redis://localhost:6379/0`
+- `TASK_QUEUE_NAME`：RQ queue 名稱，預設 `stock-analysis`
+- `TASK_DB_PATH`：任務與 SSE event SQLite 檔位置，預設 `backend/cache/analysis_jobs.sqlite3`
+- `ANALYSIS_JOB_STALE_SECONDS`：queued/running 任務超過此秒數未更新時不再被視為活躍，預設 `21600`
+- `FMP_API_KEY`：可選，yfinance 缺少即時報價、市值、P/E、52 週高低時，用 FMP stable quote API 補值
+- `FMP_BASE_URL`：FMP API base URL，預設 `https://financialmodelingprep.com/stable`
 
 不要提交這些內容：
 
@@ -187,6 +198,32 @@ backend/output/
 
 `backend/cache/` 也已被 Git 忽略。財務資料快取預設保存 24 小時，可透過 `FINANCIAL_DATA_CACHE_SECONDS` 調整。歷史報告預設保留 30 天，可透過 `REPORT_RETENTION_DAYS` 調整；前端刪除 HTML 報告時，後端會同步刪除同名 Markdown。
 
+## 任務佇列
+
+預設使用本地 worker：
+
+```bash
+TASK_QUEUE_BACKEND=local
+ANALYSIS_WORKER_COUNT=2
+```
+
+若要切換為 RQ / Redis，先啟動 Redis，並在 `backend/.env` 設定：
+
+```bash
+TASK_QUEUE_BACKEND=rq
+REDIS_URL=redis://localhost:6379/0
+TASK_QUEUE_NAME=stock-analysis
+```
+
+API 會把任務送進 RQ。另開 worker：
+
+```bash
+cd backend
+rq worker stock-analysis --url redis://localhost:6379/0
+```
+
+任務狀態與 SSE 事件會寫入 `TASK_DB_PATH` 指定的 SQLite 檔，所以 API 與 worker 需要共用同一個檔案路徑。
+
 ## 常見問題
 
 ### 1. 顯示缺少 API key
@@ -246,7 +283,7 @@ xattr -d com.apple.quarantine start_mac.command
 ## 快速檢查
 
 ```bash
-python3 -m py_compile backend/config.py backend/cache_store.py backend/task_queue.py backend/prompt_loader.py backend/agent_runner.py backend/api.py backend/financial_data.py backend/report_gen.py main.py
+python3 -m py_compile backend/config.py backend/cache_store.py backend/job_store.py backend/analysis_jobs.py backend/task_queue.py backend/prompt_loader.py backend/agent_runner.py backend/api.py backend/financial_data.py backend/report_gen.py main.py
 rg -n "API_KEY|PRIVATE KEY|github[_-]pat" .
 ```
 

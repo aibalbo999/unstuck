@@ -4,8 +4,10 @@
 # ============================================================
 
 import json
+import asyncio
 import time
 import re
+import inspect
 from typing import Optional
 import google.generativeai as genai
 from config import API_KEYS, AGENT_MODELS, RPM_LIMITS, INTER_AGENT_DELAY
@@ -68,6 +70,27 @@ class KeyRotator:
         print(f"    ⏳ 所有 API Key 已達 RPM 限制，等待 60 秒...")
         time.sleep(60)
         return self.get_key(model)
+
+    async def async_get_key(self, model: str) -> str:
+        """非同步取得可用 API Key，避免在 async pipeline 中阻塞 event loop。"""
+        rpm_limit = RPM_LIMITS.get(model, 5)
+
+        for attempt in range(len(self.keys)):
+            key = self.keys[self.index]
+            self.index = (self.index + 1) % len(self.keys)
+
+            self._clean_old_calls(key, model)
+            current_calls = len(self.call_log[key][model])
+
+            if current_calls < rpm_limit:
+                self.call_log[key][model].append(time.time())
+                key_preview = f"{key[:8]}...{key[-4:]}"
+                print(f"    🔑 使用 Key {self.keys.index(key)+1}/5 ({key_preview})")
+                return key
+
+        print(f"    ⏳ 所有 API Key 已達 RPM 限制，非同步等待 60 秒...")
+        await asyncio.sleep(60)
+        return await self.async_get_key(model)
     
     def get_status(self) -> dict:
         """取得各 Key 的使用狀態"""
@@ -509,6 +532,89 @@ def run_single_agent(
         return f"[Agent {agent_num} 執行失敗且備援無效：{str(e)[:50]}]"
 
 
+async def _generate_content_async(model, prompt: str):
+    """Call Gemini async API when available, otherwise isolate sync call in a thread."""
+    async_method = getattr(model, "generate_content_async", None)
+    if async_method:
+        return await async_method(prompt)
+    return await asyncio.to_thread(model.generate_content, prompt)
+
+
+async def run_single_agent_async(
+    agent_num: int,
+    data: dict,
+    context: dict,
+    rotator: KeyRotator,
+    max_retries: int = 3
+) -> str:
+    """
+    非同步執行單個分析 Agent。
+    - 優先使用 Gemini generate_content_async
+    - 舊 SDK 或備用模型不支援 async 時，退回 asyncio.to_thread
+    """
+    model_id = AGENT_MODELS[agent_num]
+    prompt = build_prompt(agent_num, data, context)
+
+    for attempt in range(max_retries):
+        try:
+            api_key = await rotator.async_get_key(model_id)
+            genai.configure(api_key=api_key)
+
+            model = genai.GenerativeModel(
+                model_name=model_id,
+                system_instruction=SYSTEM_PROMPTS[agent_num],
+                generation_config=build_generation_config(agent_num),
+            )
+
+            response = await _generate_content_async(model, prompt)
+            result = process_agent_response(agent_num, response.text, context)
+
+            if result and len(result) > 100:
+                return result
+
+            print(f"    ⚠️  回應過短，重試 ({attempt+1}/{max_retries})")
+            await asyncio.sleep(5)
+
+        except Exception as e:
+            error_msg = str(e)
+            if "429" in error_msg or "quota" in error_msg.lower() or "rate" in error_msg.lower():
+                wait_time = 65 * (attempt + 1)
+                print(f"    ⏳ 速率限制，非同步等待 {wait_time} 秒... ({attempt+1}/{max_retries})")
+                await asyncio.sleep(wait_time)
+            elif "404" in error_msg or "not found" in error_msg.lower():
+                print(f"    ❌ 模型 {model_id} 不可用，嘗試非同步備用模型...")
+                backup_models = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"]
+                for backup in backup_models:
+                    try:
+                        genai.configure(api_key=await rotator.async_get_key(backup))
+                        model = genai.GenerativeModel(
+                            model_name=backup,
+                            system_instruction=SYSTEM_PROMPTS[agent_num],
+                            generation_config=build_generation_config(agent_num),
+                        )
+                        response = await _generate_content_async(model, prompt)
+                        return process_agent_response(agent_num, response.text, context)
+                    except Exception:
+                        continue
+                return f"[Agent {agent_num} 執行失敗：模型不可用]"
+            else:
+                print(f"    ❌ 錯誤：{error_msg[:100]}... 非同步重試 ({attempt+1}/{max_retries})")
+                await asyncio.sleep(10 * (attempt + 1))
+
+    print(f"    ⚠️ 模型 {model_id} 多次失敗，啟用非同步備援機制 (gemini-3.5-flash)...")
+    try:
+        genai.configure(api_key=await rotator.async_get_key("gemini-3.5-flash"))
+        model = genai.GenerativeModel(
+            model_name="gemini-3.5-flash",
+            system_instruction=SYSTEM_PROMPTS[agent_num],
+            generation_config=build_generation_config(agent_num),
+        )
+        response = await _generate_content_async(model, build_prompt(agent_num, data, context))
+        return process_agent_response(agent_num, response.text, context)
+    except Exception as e:
+        return f"[Agent {agent_num} 執行失敗且備援無效：{str(e)[:50]}]"
+
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 主要執行管道
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -899,6 +1005,111 @@ def run_analysis_pipeline(data: dict, progress_callback=None) -> dict:
     print(f"  🎉 分析完成！總耗時：{context['total_time']:.1f} 秒")
     print(f"{'='*60}\n")
     
+    return context
+
+
+async def _call_progress_callback(progress_callback, current: int, total: int, name: str):
+    if not progress_callback:
+        return
+    result = progress_callback(current, total, name)
+    if inspect.isawaitable(result):
+        await result
+
+
+async def run_analysis_pipeline_async(data: dict, progress_callback=None) -> dict:
+    """
+    非同步執行完整 7-Agent 管道。
+    主要差異：Gemini 呼叫與 agent 間等待使用 await，避免阻塞 worker event loop。
+    """
+    ticker = data["ticker"]
+    name = data["company_name"]
+
+    rotator = KeyRotator(API_KEYS)
+    context = {
+        "ticker": ticker,
+        "company_name": name,
+        "data": data,
+        "analyses": {},
+        "structured_outputs": {},
+        "start_time": time.time(),
+        "execution_mode": "async",
+    }
+
+    print(f"\n{'='*60}")
+    print(f"  🚀 開始非同步分析 {ticker} {name}")
+    print(f"  📅 時間：{time.strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"  🔑 可用 API Keys：{len(API_KEYS)} 組（輪調中）")
+    print(f"{'='*60}\n")
+
+    for agent_num in range(1, 8):
+        agent_name = AGENT_NAMES[agent_num]
+        model_id = AGENT_MODELS[agent_num]
+
+        print(f"{'─'*60}")
+        print(f"  📌 Agent {agent_num}/7：{agent_name}")
+        print(f"  🤖 模型：{model_id}")
+        print(f"{'─'*60}")
+
+        start = time.time()
+
+        context["structured_outputs"].pop(agent_num, None)
+        result = await run_single_agent_async(agent_num, data, context, rotator)
+        result = sanitize_model_output(result)
+
+        identity_issues = validate_company_identity(result, data)
+        if identity_issues:
+            print("  🚨 公司身分一致性檢查未通過，退回 Agent 非同步重寫...")
+            for issue in identity_issues:
+                print(f"     - {issue}")
+            context["_identity_retry_instruction"] = build_identity_retry_instruction(data, identity_issues)
+            context["structured_outputs"].pop(agent_num, None)
+            retry_result = await run_single_agent_async(agent_num, data, context, rotator)
+            retry_result = sanitize_model_output(retry_result)
+            retry_issues = validate_company_identity(retry_result, data)
+            context.pop("_identity_retry_instruction", None)
+
+            result = retry_result
+            identity_issues = retry_issues
+            if identity_issues:
+                print("  ❌ 重寫後仍未通過公司身分一致性檢查，停止產生正式報告。")
+                for issue in identity_issues:
+                    print(f"     - {issue}")
+                context.setdefault("blocking_issues", []).extend(
+                    f"Agent {agent_num} {agent_name}: {issue}"
+                    for issue in identity_issues
+                )
+                result = append_identity_warnings(result, identity_issues)
+            else:
+                print("  ✅ 重寫後通過公司身分一致性檢查。")
+
+        result = append_quality_warnings(agent_num, result)
+
+        elapsed = time.time() - start
+        context["analyses"][agent_num] = result
+
+        print(f"  ✅ 完成！耗時 {elapsed:.1f} 秒")
+        print(f"  📝 輸出長度：{len(result)} 字元")
+
+        preview = result[:120].replace("\n", " ")
+        print(f"  💬 預覽：{preview}...")
+
+        await _call_progress_callback(progress_callback, agent_num, 7, agent_name)
+
+        if context.get("blocking_issues"):
+            break
+
+        if agent_num < 7:
+            wait = INTER_AGENT_DELAY
+            print(f"\n  ⏰ 非同步等待 {wait} 秒後執行下一個 Agent...\n")
+            await asyncio.sleep(wait)
+
+    context["parsed"] = parse_structured_data(context)
+    context["total_time"] = time.time() - context["start_time"]
+
+    print(f"\n{'='*60}")
+    print(f"  🎉 非同步分析完成！總耗時：{context['total_time']:.1f} 秒")
+    print(f"{'='*60}\n")
+
     return context
 
 

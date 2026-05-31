@@ -2,13 +2,15 @@
 # financial_data.py - 從 yfinance 獲取完整財務數據
 # ============================================================
 
+import asyncio
 import yfinance as yf
 import pandas as pd
+import requests
 from datetime import datetime, timedelta
 from functools import lru_cache
 import warnings
 from cache_store import get_cache_json, set_cache_json
-from config import FINANCIAL_DATA_CACHE_SECONDS
+from config import FINANCIAL_DATA_CACHE_SECONDS, FMP_API_KEY, FMP_BASE_URL
 warnings.filterwarnings("ignore")
 
 try:
@@ -168,6 +170,46 @@ def safe_get(obj, key, default="N/A"):
         return val
     except Exception:
         return default
+
+
+def is_missing_value(value) -> bool:
+    if value is None or value == "N/A":
+        return True
+    try:
+        return bool(pd.isna(value))
+    except Exception:
+        return False
+
+
+def first_number(*values):
+    for value in values:
+        if is_missing_value(value):
+            continue
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def fetch_fmp_quote_fallback(ticker: str) -> dict:
+    """Fetch optional FMP quote data when yfinance misses key market fields."""
+    if not FMP_API_KEY:
+        return {}
+
+    symbol = ticker.strip().upper()
+    url = f"{FMP_BASE_URL}/quote"
+    try:
+        response = requests.get(url, params={"symbol": symbol, "apikey": FMP_API_KEY}, timeout=8)
+        response.raise_for_status()
+        payload = response.json()
+        if isinstance(payload, list) and payload:
+            return payload[0] if isinstance(payload[0], dict) else {}
+        if isinstance(payload, dict):
+            return payload
+    except Exception as e:
+        print(f"    ⚠️  FMP 備援資料獲取失敗：{e}")
+    return {}
 
 
 def format_number(num, unit="億", decimals=2):
@@ -551,17 +593,34 @@ def fetch_stock_data(ticker: str) -> dict:
 
         # === 欄位缺漏備援補值 ===
         data_source_notes = []
-        if market_cap == "N/A" and isinstance(current_price, (int, float)) and isinstance(shares_outstanding, (int, float)):
+        fmp_quote = {}
+        if any(is_missing_value(v) for v in [current_price, market_cap, pe_ratio, week_52_high, week_52_low]):
+            fmp_quote = fetch_fmp_quote_fallback(ticker)
+            if fmp_quote:
+                data_source_notes.append("部分市場欄位由 FMP stable quote API 補值，因 yfinance 欄位缺漏。")
+
+        if is_missing_value(current_price):
+            current_price = first_number(fmp_quote.get("price"), fmp_quote.get("previousClose"))
+        if is_missing_value(market_cap):
+            market_cap = first_number(fmp_quote.get("marketCap"))
+        if is_missing_value(pe_ratio):
+            pe_ratio = first_number(fmp_quote.get("pe"), fmp_quote.get("peRatio"))
+        if is_missing_value(week_52_high):
+            week_52_high = first_number(fmp_quote.get("yearHigh"), fmp_quote.get("priceAvg200"))
+        if is_missing_value(week_52_low):
+            week_52_low = first_number(fmp_quote.get("yearLow"))
+
+        if is_missing_value(market_cap) and isinstance(current_price, (int, float)) and isinstance(shares_outstanding, (int, float)):
             market_cap = current_price * shares_outstanding
             data_source_notes.append("市值由 current price × shares outstanding 推算，因 yfinance marketCap 缺值。")
 
-        if revenue_ttm == "N/A" and revenue_history:
+        if is_missing_value(revenue_ttm) and revenue_history:
             latest_revenue_b = next((v for v in reversed(revenue_history) if v), None)
             if latest_revenue_b:
                 revenue_ttm = latest_revenue_b * 1e9
                 data_source_notes.append("TTM 營收缺值，暫以最新年度營收補值；估值時需保守看待。")
 
-        if free_cash_flow == "N/A" and fcf_history:
+        if is_missing_value(free_cash_flow) and fcf_history:
             latest_fcf_b = next((v for v in reversed(fcf_history) if v is not None), None)
             if latest_fcf_b is not None:
                 free_cash_flow = latest_fcf_b * 1e9
@@ -684,6 +743,11 @@ def fetch_stock_data(ticker: str) -> dict:
             "error": str(e),
             "fetch_date": datetime.now().strftime("%Y年%m月%d日"),
         }
+
+
+async def async_fetch_stock_data(ticker: str) -> dict:
+    """非同步包裝既有 yfinance/FinMind 抓取流程，避免阻塞 async worker event loop。"""
+    return await asyncio.to_thread(fetch_stock_data, ticker)
 
 
 def format_data_for_prompt(data: dict) -> str:

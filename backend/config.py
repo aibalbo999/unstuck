@@ -85,8 +85,18 @@ CACHE_DIR = Path(os.getenv("CACHE_DIR", str(BASE_DIR / "cache")))
 CACHE_DB_PATH = os.getenv("CACHE_DB_PATH", str(CACHE_DIR / "stock_agent_cache.sqlite3"))
 FINANCIAL_DATA_CACHE_SECONDS = int(os.getenv("FINANCIAL_DATA_CACHE_SECONDS", str(24 * 60 * 60)))
 
+# 可選外部資料備援來源
+FMP_API_KEY = os.getenv("FMP_API_KEY", "").strip()
+FMP_BASE_URL = os.getenv("FMP_BASE_URL", "https://financialmodelingprep.com/stable").rstrip("/")
+
 # 報告生命週期
 REPORT_RETENTION_DAYS = int(os.getenv("REPORT_RETENTION_DAYS", "30"))
+REPORT_CLEANUP_INTERVAL_SECONDS = int(os.getenv("REPORT_CLEANUP_INTERVAL_SECONDS", str(24 * 60 * 60)))
 
 # 本地分析任務佇列 worker 數
 ANALYSIS_WORKER_COUNT = int(os.getenv("ANALYSIS_WORKER_COUNT", "2"))
+TASK_QUEUE_BACKEND = os.getenv("TASK_QUEUE_BACKEND", "local").strip().lower()
+TASK_QUEUE_NAME = os.getenv("TASK_QUEUE_NAME", "stock-analysis")
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+TASK_DB_PATH = os.getenv("TASK_DB_PATH", str(CACHE_DIR / "analysis_jobs.sqlite3"))
+ANALYSIS_JOB_STALE_SECONDS = int(os.getenv("ANALYSIS_JOB_STALE_SECONDS", str(6 * 60 * 60)))

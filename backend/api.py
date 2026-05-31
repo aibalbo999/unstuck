@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import time
 import re
@@ -12,14 +13,12 @@ from fastapi.staticfiles import StaticFiles
 from sse_starlette.sse import EventSourceResponse
 from fastapi.middleware.cors import CORSMiddleware
 import threading
-import queue
 from typing import Optional
 
-from financial_data import fetch_stock_data
-from agent_runner import run_analysis_pipeline, AGENT_NAMES
-from report_gen import generate_html_report, generate_markdown_report
-from config import OUTPUT_DIR, REPORT_RETENTION_DAYS, ANALYSIS_WORKER_COUNT
-from task_queue import LocalTaskQueue
+from analysis_jobs import run_stock_analysis_job
+from config import OUTPUT_DIR, REPORT_CLEANUP_INTERVAL_SECONDS, REPORT_RETENTION_DAYS
+from job_store import append_event, create_job, find_active_job, get_events_since, get_job, update_job
+from task_queue import create_task_queue
 
 app = FastAPI()
 
@@ -38,11 +37,21 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # 儲存分析結果的記憶體快取 (ticker -> filepath)
 report_cache = {}
-analysis_task_queue = LocalTaskQueue(max_workers=ANALYSIS_WORKER_COUNT)
+analysis_task_queue = create_task_queue()
 
-# 全域鎖與執行中任務追蹤，防範多裝置或連線中斷重連導致的重複分析
+# 全域鎖用於防範多裝置同時建立同一 ticker 任務。
 active_analyses_lock = threading.Lock()
-active_queues = {}  # ticker -> list of queue.Queue
+
+
+@app.on_event("startup")
+async def start_report_cleanup_loop():
+    async def cleanup_loop():
+        while True:
+            await asyncio.to_thread(cleanup_expired_reports)
+            await asyncio.to_thread(cleanup_orphan_markdown_reports)
+            await asyncio.sleep(REPORT_CLEANUP_INTERVAL_SECONDS)
+
+    asyncio.create_task(cleanup_loop())
 
 
 def is_safe_report_filename(filename: str, suffix: Optional[str] = None) -> bool:
@@ -51,13 +60,6 @@ def is_safe_report_filename(filename: str, suffix: Optional[str] = None) -> bool
     if suffix and not filename.endswith(suffix):
         return False
     return True
-
-
-def broadcast_message(ticker: str, msg: dict):
-    with active_analyses_lock:
-        if ticker in active_queues:
-            for q in active_queues[ticker]:
-                q.put(msg)
 
 
 def cleanup_expired_reports(retention_days: int = REPORT_RETENTION_DAYS):
@@ -198,90 +200,57 @@ def read_root():
 async def analyze_stock(ticker: str):
     """使用 SSE 即時推播分析進度"""
     ticker_upper = ticker.strip().upper()
-    q = queue.Queue()
-    
-    start_thread = False
+
+    should_enqueue = False
     with active_analyses_lock:
-        if ticker_upper not in active_queues:
-            active_queues[ticker_upper] = [q]
-            start_thread = True
+        active_job = find_active_job(ticker_upper)
+        if active_job:
+            job_id = active_job["job_id"]
         else:
-            active_queues[ticker_upper].append(q)
-            
-    def progress_callback(current, total, name):
-        broadcast_message(ticker_upper, {"type": "progress", "current": current, "total": total, "name": name})
-        
-    def run_pipeline():
+            job_id = create_job(ticker_upper)
+            should_enqueue = True
+
+    if should_enqueue:
         try:
-            broadcast_message(ticker_upper, {"type": "status", "message": f"正在獲取 {ticker_upper} 財務數據..."})
-            data = fetch_stock_data(ticker_upper)
-            if "error" in data:
-                broadcast_message(ticker_upper, {"type": "status", "message": f"財務數據獲取有誤：{data['error']}，將繼續分析"})
-                
-            broadcast_message(ticker_upper, {"type": "status", "message": "開始執行分析 Agent..."})
-            context = run_analysis_pipeline(data, progress_callback=progress_callback)
-
-            if context.get("blocking_issues"):
-                issue_text = "；".join(context["blocking_issues"][:3])
-                broadcast_message(
-                    ticker_upper,
-                    {
-                        "type": "error",
-                        "message": f"報告未儲存：公司身分一致性檢查未通過。{issue_text}",
-                    },
-                )
-                return
-            
-            broadcast_message(ticker_upper, {"type": "status", "message": "生成 HTML 報告..."})
-            html_content = generate_html_report(context)
-            md_content = generate_markdown_report(context)
-            
-            timestamp = time.strftime("%Y%m%d_%H%M%S")
-            safe_ticker = ticker_upper.replace(".", "_")
-            filename = f"{safe_ticker}_report_{timestamp}.html"
-            filepath = os.path.join(OUTPUT_DIR, filename)
-            md_filename = f"{safe_ticker}_report_{timestamp}.md"
-            md_filepath = os.path.join(OUTPUT_DIR, md_filename)
-            
-            with open(filepath, "w", encoding="utf-8") as f:
-                f.write(html_content)
-            with open(md_filepath, "w", encoding="utf-8") as f:
-                f.write(md_content)
-                
-            report_cache[ticker_upper] = filename
-            
-            broadcast_message(ticker_upper, {"type": "done", "filename": filename})
-            
+            analysis_task_queue.enqueue(f"analysis:{job_id}", run_stock_analysis_job, job_id, ticker_upper)
         except Exception as e:
-            broadcast_message(ticker_upper, {"type": "error", "message": str(e)})
-        finally:
-            with active_analyses_lock:
-                if ticker_upper in active_queues:
-                    del active_queues[ticker_upper]
-
-    if start_thread:
-        analysis_task_queue.submit(f"analysis:{ticker_upper}", run_pipeline)
+            message = f"分析任務送入佇列失敗：{e}"
+            update_job(job_id, "error", error=message)
+            append_event(job_id, {"type": "error", "message": message})
         
     async def event_generator():
+        last_event_id = 0
+        terminal_sent = False
         try:
             while True:
-                try:
-                    # 使用 await asyncio.to_thread 避免阻擋事件迴圈
-                    msg = await asyncio.to_thread(q.get, True, 0.5)
-                    yield {"data": str(msg).replace("'", '"')}  # 簡單轉為 JSON 格式字串
-                    
-                    if msg["type"] in ["done", "error"]:
+                events = await asyncio.to_thread(get_events_since, job_id, last_event_id)
+                for event in events:
+                    last_event_id = event["id"]
+                    payload = event["payload"]
+                    yield {"data": json.dumps(payload, ensure_ascii=False)}
+
+                    if payload.get("type") in ["done", "error"]:
+                        terminal_sent = True
                         break
-                except queue.Empty:
-                    # 保持連線活躍 (Keep-alive)
+
+                if terminal_sent:
+                    break
+
+                job = await asyncio.to_thread(get_job, job_id)
+                if job.get("status") in ["done", "error"]:
+                    payload = (
+                        {"type": "done", "filename": job.get("filename")}
+                        if job.get("status") == "done"
+                        else {"type": "error", "message": job.get("error", "分析任務失敗")}
+                    )
+                    yield {"data": json.dumps(payload, ensure_ascii=False)}
+                    break
+
+                if not events:
                     yield {"event": "ping", "data": "ping"}
-                    await asyncio.sleep(0.5)
+                await asyncio.sleep(0.5)
         finally:
-            # 客戶端斷線或串流結束時，將其 queue 從 active_queues 中移除，避免記憶體殘留
-            with active_analyses_lock:
-                if ticker_upper in active_queues:
-                    if q in active_queues[ticker_upper]:
-                        active_queues[ticker_upper].remove(q)
+            pass
 
                 
     return EventSourceResponse(event_generator())
