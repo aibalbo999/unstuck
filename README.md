@@ -18,7 +18,7 @@
 - yfinance 欄位缺漏時會用 FMP（需 API key）或可追溯的衍生補值補上市場欄位、TTM 營收或 FCF，並在 prompt 中揭露限制
 - 歷史報告會自動清理孤立 Markdown，並刪除超過保留天數的舊報告
 - 長任務透過 SQLite job/event store 與任務佇列抽象執行，可用本地 worker 或切換 RQ/Redis
-- 財務抓取與 Gemini 分析管線提供 async 版本，API 生成報告時走非同步 pipeline
+- 財務抓取與 Gemini 分析管線提供 async 版本，API 生成報告時走新版 `google-genai` 非同步 client
 - 針對常見財務錯誤加入品質檢查，例如 DuPont、DCF / P/E、WACC、FCF 與公司身分一致性
 
 ## 專案結構
@@ -79,8 +79,8 @@ export GEMINI_API_KEYS="your_key_1,your_key_2"
 
 可選設定：
 
-- `GEMINI_FLASH_FALLBACK_MODELS`：`gemini-3.5-flash` 配額用盡時的備援順序，預設先用 `gemma-4-31b-it`
-- `GEMMA_FALLBACK_MODELS`：`gemma-4-31b-it` 不可用時的備援順序
+- `GEMINI_FLASH_FALLBACK_MODELS`：`gemini-3.5-flash` 配額用盡時的備援順序，預設為 `gemini-flash-latest,gemini-3-flash-preview,gemini-2.5-flash,gemma-4-31b-it`
+- `GEMMA_FALLBACK_MODELS`：`gemma-4-31b-it` 不可用時的備援順序，預設為 `gemini-flash-latest,gemini-3.5-flash,gemini-2.5-flash`
 - `OUTPUT_DIR`：報告輸出目錄，預設 `backend/output/`
 - `CACHE_DB_PATH`：SQLite 快取檔位置，預設 `backend/cache/stock_agent_cache.sqlite3`
 - `FINANCIAL_DATA_CACHE_SECONDS`：財務資料快取秒數，預設 `86400`
@@ -104,7 +104,7 @@ export GEMINI_API_KEYS="your_key_1,your_key_2"
 
 ## 安裝
 
-建議使用 Python 3.10 以上；目前程式碼仍相容 Python 3.9。
+建議使用 Python 3.10 以上；目前程式碼仍相容 Python 3.9。Gemini 呼叫使用新版 `google-genai` SDK，不再使用已停止維護的 `google-generativeai`。
 
 ```bash
 cd backend

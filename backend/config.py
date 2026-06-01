@@ -99,11 +99,11 @@ AGENT_MODELS = {
 MODEL_FALLBACKS = {
     "gemini-3.5-flash": _split_keys(os.getenv(
         "GEMINI_FLASH_FALLBACK_MODELS",
-        "gemma-4-31b-it,gemini-1.5-flash,gemini-1.5-pro,gemini-pro",
+        "gemini-flash-latest,gemini-3-flash-preview,gemini-2.5-flash,gemma-4-31b-it",
     )),
     "gemma-4-31b-it": _split_keys(os.getenv(
         "GEMMA_FALLBACK_MODELS",
-        "gemini-1.5-flash,gemini-1.5-pro,gemini-3.5-flash,gemini-pro",
+        "gemini-flash-latest,gemini-3.5-flash,gemini-2.5-flash",
     )),
 }
 

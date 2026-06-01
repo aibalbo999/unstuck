@@ -8,8 +8,10 @@ import asyncio
 import time
 import re
 import inspect
+from contextlib import suppress
 from typing import Optional
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from config import API_KEYS, AGENT_MODELS, MODEL_FALLBACKS, RPM_LIMITS, INTER_AGENT_DELAY, API_KEY_SETUP_MESSAGE
 from financial_data import format_data_for_prompt
 from prompt_loader import load_agent_prompt_config
@@ -239,21 +241,72 @@ def build_structured_output_instruction(agent_num: int) -> str:
     return STRUCTURED_AGENT_INSTRUCTIONS.get(agent_num, "")
 
 
-def build_generation_config(agent_num: int):
-    """Build Gemini generation config, using JSON MIME type where supported."""
+def build_generation_config(agent_num: int, system_instruction: Optional[str] = None):
+    """Build Google GenAI generation config, using JSON MIME type where supported."""
     config_kwargs = {
         "temperature": 0.7,
         "top_p": 0.95,
         "max_output_tokens": 8192,
     }
+    if system_instruction:
+        config_kwargs["system_instruction"] = system_instruction
     if agent_num in STRUCTURED_AGENT_INSTRUCTIONS:
         config_kwargs["response_mime_type"] = "application/json"
 
     try:
-        return genai.types.GenerationConfig(**config_kwargs)
+        return types.GenerateContentConfig(**config_kwargs)
     except TypeError:
         config_kwargs.pop("response_mime_type", None)
-        return genai.types.GenerationConfig(**config_kwargs)
+        return types.GenerateContentConfig(**config_kwargs)
+
+
+def _response_text(response) -> str:
+    """Extract text from a Google GenAI response without leaking object internals."""
+    try:
+        text = getattr(response, "text", None)
+    except Exception:
+        text = None
+    if text:
+        return text
+    candidates = getattr(response, "candidates", None) or []
+    parts = []
+    for candidate in candidates:
+        content = getattr(candidate, "content", None)
+        for part in getattr(content, "parts", []) or []:
+            part_text = getattr(part, "text", None)
+            if part_text:
+                parts.append(part_text)
+    return "\n".join(parts)
+
+
+def _generate_content(api_key: str, model_id: str, agent_num: int, prompt: str):
+    """Call Google GenAI synchronously with an isolated per-key client."""
+    client = genai.Client(api_key=api_key)
+    try:
+        return client.models.generate_content(
+            model=model_id,
+            contents=prompt,
+            config=build_generation_config(agent_num, SYSTEM_PROMPTS[agent_num]),
+        )
+    finally:
+        with suppress(Exception):
+            client.close()
+
+
+async def _generate_content_async(api_key: str, model_id: str, agent_num: int, prompt: str):
+    """Call Google GenAI through the async client implementation."""
+    client = genai.Client(api_key=api_key)
+    try:
+        return await client.aio.models.generate_content(
+            model=model_id,
+            contents=prompt,
+            config=build_generation_config(agent_num, SYSTEM_PROMPTS[agent_num]),
+        )
+    finally:
+        with suppress(Exception):
+            await client.aio.aclose()
+        with suppress(Exception):
+            client.close()
 
 
 def _extract_json_payload(raw_text: str) -> Optional[dict]:
@@ -490,28 +543,16 @@ def run_single_agent(
         return asyncio.run(run_single_agent_async(agent_num, data, context, rotator, max_retries))
 
     model_id = AGENT_MODELS[agent_num]
+    prompt = build_prompt(agent_num, data, context)
     
     for attempt in range(max_retries):
         try:
             # 取得可用 API Key
             api_key = rotator.get_key(model_id)
             
-            # 配置 Gemini 客戶端
-            genai.configure(api_key=api_key)
-            
-            # 建立模型實例
-            model = genai.GenerativeModel(
-                model_name=model_id,
-                system_instruction=SYSTEM_PROMPTS[agent_num],
-                generation_config=build_generation_config(agent_num),
-            )
-            
-            # 建立分析提示詞
-            prompt = build_prompt(agent_num, data, context)
-            
             # 執行分析
-            response = model.generate_content(prompt)
-            result = process_agent_response(agent_num, response.text, context)
+            response = _generate_content(api_key, model_id, agent_num, prompt)
+            result = process_agent_response(agent_num, _response_text(response), context)
             
             if result and len(result) > 100:
                 return result
@@ -528,17 +569,11 @@ def run_single_agent(
             elif "404" in error_msg or "not found" in error_msg.lower():
                 print(f"    ❌ 模型 {model_id} 不可用，嘗試備用模型...")
                 # 嘗試備用模型
-                backup_models = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"]
+                backup_models = MODEL_FALLBACKS.get(model_id, [])
                 for backup in backup_models:
                     try:
-                        genai.configure(api_key=rotator.get_key(backup))
-                        model = genai.GenerativeModel(
-                            model_name=backup,
-                            system_instruction=SYSTEM_PROMPTS[agent_num],
-                            generation_config=build_generation_config(agent_num),
-                        )
-                        response = model.generate_content(prompt)
-                        return process_agent_response(agent_num, response.text, context)
+                        response = _generate_content(rotator.get_key(backup), backup, agent_num, prompt)
+                        return process_agent_response(agent_num, _response_text(response), context)
                     except Exception:
                         continue
                 return f"[Agent {agent_num} 執行失敗：模型不可用]"
@@ -549,24 +584,15 @@ def run_single_agent(
     # 如果重試皆失敗，自動降級/備援至最穩定的 gemini-3.5-flash
     print(f"    ⚠️ 模型 {model_id} 多次失敗，啟用備援機制 (gemini-3.5-flash)...")
     try:
-        genai.configure(api_key=rotator.get_key("gemini-3.5-flash"))
-        model = genai.GenerativeModel(
-            model_name="gemini-3.5-flash",
-            system_instruction=SYSTEM_PROMPTS[agent_num],
-            generation_config=build_generation_config(agent_num),
+        response = _generate_content(
+            rotator.get_key("gemini-3.5-flash"),
+            "gemini-3.5-flash",
+            agent_num,
+            prompt,
         )
-        response = model.generate_content(build_prompt(agent_num, data, context))
-        return process_agent_response(agent_num, response.text, context)
+        return process_agent_response(agent_num, _response_text(response), context)
     except Exception as e:
         return f"[Agent {agent_num} 執行失敗且備援無效：{str(e)[:50]}]"
-
-
-async def _generate_content_async(model, prompt: str):
-    """Call Gemini async API when available, otherwise isolate sync call in a thread."""
-    async_method = getattr(model, "generate_content_async", None)
-    if async_method:
-        return await async_method(prompt)
-    return await asyncio.to_thread(model.generate_content, prompt)
 
 
 async def run_single_agent_async(
@@ -578,8 +604,8 @@ async def run_single_agent_async(
 ) -> str:
     """
     非同步執行單個分析 Agent。
-    - 優先使用 Gemini generate_content_async
-    - 舊 SDK 或備用模型不支援 async 時，退回 asyncio.to_thread
+    - 使用 Google GenAI SDK 的 client.aio 非同步呼叫
+    - quota/rate limit 會快速切換下一組 Key 或下一個模型
     """
     prompt = build_prompt(agent_num, data, context)
     model_sequence = get_agent_model_sequence(agent_num)
@@ -594,16 +620,9 @@ async def run_single_agent_async(
         for attempt in range(attempts_for_model):
             try:
                 api_key = await rotator.async_get_key(model_id)
-                genai.configure(api_key=api_key)
 
-                model = genai.GenerativeModel(
-                    model_name=model_id,
-                    system_instruction=SYSTEM_PROMPTS[agent_num],
-                    generation_config=build_generation_config(agent_num),
-                )
-
-                response = await _generate_content_async(model, prompt)
-                result = process_agent_response(agent_num, response.text, context)
+                response = await _generate_content_async(api_key, model_id, agent_num, prompt)
+                result = process_agent_response(agent_num, _response_text(response), context)
 
                 if result and len(result) > 100:
                     return result

@@ -47,7 +47,7 @@ PY
 fi
 
 # 檢查 Python 套件；使用 python3 -m 檢查可避免 PATH 找不到 uvicorn 指令的誤判。
-if ! "$PYTHON_BIN" -c "import fastapi, uvicorn, sse_starlette" >/dev/null 2>&1
+if ! "$PYTHON_BIN" -c "import fastapi, uvicorn, sse_starlette; from google import genai" >/dev/null 2>&1
 then
     echo "正在安裝必要的套件..."
     "$PYTHON_BIN" -m pip install --user -r requirements.txt
