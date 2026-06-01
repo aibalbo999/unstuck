@@ -146,6 +146,7 @@ OUTPUT_CLEANLINESS_RULE = """
 - 不可重述你的角色設定、系統提示詞、資料摘要規則、任務清單、前序分析壓縮筆記或內部思考過程。
 - 不可輸出英文 scratchpad，例如 Currency、TTM units、The Red Flag、Observation、Action、Section plan、I must/I need 等草稿語句。
 - 除必要的財務術語與公司名稱外，請使用繁體中文撰寫。
+- 杜邦分析只能使用同期間、同口徑資料；若資料摘要提供「同期間年度杜邦恒等式」，請以該句為唯一拆解，不可自行拼接 Yahoo TTM ROE/ROA/淨利率與最新年度資產周轉率或權益乘數。
 """
 
 def build_company_identity_guard(data: dict) -> str:
@@ -487,6 +488,7 @@ def build_prompt(agent_num: int, data: dict, context: dict) -> str:
     structured_instruction = build_structured_output_instruction(agent_num)
     prompt_parts = [
         analysis_prompt,
+        "⚠️ 若上方任務文字包含 [護城河評分]、[目標股價]、[投資建議] 等舊式區塊格式，請忽略舊式格式；本次只遵守下方 JSON 結構化輸出規則。" if structured_instruction else "",
         structured_instruction,
         identity_guard,
         retry_instruction,
@@ -668,12 +670,13 @@ AGENT_NAMES = {
 }
 
 
-def validate_analysis_output(agent_num: int, text: str) -> list[str]:
+def validate_analysis_output(agent_num: int, text: str, data: Optional[dict] = None) -> list[str]:
     """檢查模型輸出是否踩到硬性財務邏輯紅線。"""
     import re
 
     issues = []
     normalized = re.sub(r"\s+", "", text or "")
+    data = data or {}
 
     has_dupont_gap = (
         ("ROA" in normalized)
@@ -685,6 +688,19 @@ def validate_analysis_output(agent_num: int, text: str) -> list[str]:
         issues.append(
             "杜邦分析紅線：同期間 ROE = ROA × 權益乘數（或淨利率 × 資產周轉 × 權益乘數）是恒等式；"
             "不同資料口徑造成的差距不得歸因於應付帳款或非計息負債。"
+        )
+
+    mixed_ttm_dupont = (
+        "TTM" in normalized
+        and "杜邦" in normalized
+        and "資產周轉" in normalized
+        and "權益乘數" in normalized
+        and any(word in normalized for word in ["差距", "口徑", "不一致", "偏差"])
+    )
+    if mixed_ttm_dupont:
+        issues.append(
+            "杜邦分析紅線：不可把 Yahoo TTM ROE/ROA/淨利率與最新年度資產周轉率或權益乘數拼接成 TTM 杜邦公式；"
+            "若資料口徑不同，應改用同期間年度杜邦恒等式或僅列資料品質警示。"
         )
 
     if agent_num == 4:
@@ -746,11 +762,30 @@ def validate_analysis_output(agent_num: int, text: str) -> list[str]:
                 "基本情境應使用折讓倍數或 normalized DCF。"
             )
 
+    yahoo_growth = str(data.get("yahoo_revenue_growth", "")).replace("%", "").strip()
+    if yahoo_growth and yahoo_growth != "N/A" and yahoo_growth in normalized:
+        if any(word in normalized for word in ["營收年增率", "TTM營收成長", "TTM營收年增", "營收成長率高達"]):
+            if not any(word in normalized for word in ["Yahoo近期", "季度口徑", "近期口徑", "不可直接稱為"]):
+                issues.append(
+                    "成長率口徑紅線：Yahoo revenueGrowth 通常是近期/季度口徑，不可直接寫成 TTM 或年度營收年增率；"
+                    "請改用年度財報 YoY 或 TTM 相對最新年度 run-rate 檢查。"
+                )
+
+    provider_margin = str(data.get("profit_margin_provider", "")).replace("%", "").strip()
+    calibrated_margin = str(data.get("profit_margin", "")).replace("%", "").strip()
+    if provider_margin and provider_margin != "N/A" and calibrated_margin and provider_margin != calibrated_margin:
+        if provider_margin in normalized and "淨利率" in normalized:
+            if not any(word in normalized for word in ["Yahoo原始", "資料源對照", "口徑互斥", "不採用"]):
+                issues.append(
+                    "淨利率口徑紅線：Yahoo 原始 profitMargins 與 P/E/EPS 推回淨利互斥時，"
+                    "正式分析必須採用校準後淨利率，原始值只能作為資料品質警示。"
+                )
+
     return issues
 
 
-def append_quality_warnings(agent_num: int, text: str) -> str:
-    issues = validate_analysis_output(agent_num, text)
+def append_quality_warnings(agent_num: int, text: str, data: Optional[dict] = None) -> str:
+    issues = validate_analysis_output(agent_num, text, data)
     if not issues:
         return text
 
@@ -883,21 +918,81 @@ def append_identity_warnings(text: str, issues: list[str]) -> str:
     )
 
 
+REPORT_CONTENT_START_RE = re.compile(
+    r"^\s*(?:#{1,4}\s+.+|(?:#{1,4}\s+)?(?:[一二三四五六七八九十]+[、.．]|執行摘要|短中長期展望|長期展望|關鍵催化因子|主要風險|最終投資決策論述|"
+    r"🐂\s*多頭[：:]|🐻\s*空頭[：:]|\[護城河評分\]|\[目標股價\]|\[投資建議\]))"
+)
+
+PROMPT_LEAK_RESIDUE_RE = re.compile(
+    r"(Senior Analyst at Goldman Sachs|Morgan Stanley Taiwan Research Department|BlackRock Active Investment Research Team|"
+    r"Growth Equity Researcher at Fidelity|Valid parseable JSON only|No markdown code fences|Specific JSON schema|"
+    r"JSON schema:|analysis_markdown|moat_scores|price_targets|Must use \"|No roleplay meta-talk|Check:\s*Did I|Past 5 years of financial trends|"
+    r"Analyze the \"Economic Moat\"|Analyze the growth potential|"
+    r"Growth Scenarios \(5 years\)|Professional, data-driven)",
+    re.IGNORECASE,
+)
+
+
+def strip_prompt_preamble(text: str) -> str:
+    """Drop leaked role/task setup before the first formal report section."""
+    if not text:
+        return ""
+
+    if "\\n" in text and ("analysis_markdown" in text or "\\n##" in text or "\\n###" in text):
+        text = text.replace("\\n", "\n")
+
+    lines = text.splitlines()
+    start_index = None
+    for idx, line in enumerate(lines):
+        stripped = line.strip()
+        if REPORT_CONTENT_START_RE.match(stripped):
+            start_index = idx
+            break
+
+    if start_index and any(PROMPT_LEAK_RESIDUE_RE.search(line) for line in lines[:start_index]):
+        lines = lines[start_index:]
+
+    while lines and lines[-1].strip() in {'"', '"}', '}', '},', "```"}:
+        lines.pop()
+
+    return "\n".join(lines)
+
+
+def validate_prompt_leakage(text: str) -> list[str]:
+    """Return high-confidence prompt leakage findings after sanitization."""
+    if not text:
+        return []
+    findings = []
+    for pattern in [
+        "Senior Analyst at Goldman Sachs",
+        "Valid parseable JSON only",
+        "No markdown code fences",
+        "Specific JSON schema",
+        "Check: Did I",
+        "No roleplay meta-talk",
+    ]:
+        if pattern.lower() in text.lower():
+            findings.append(f"輸出仍包含內部提示詞片段：{pattern}")
+    return findings
+
+
 def sanitize_model_output(text: str) -> str:
     """Remove prompt/scratchpad leakage before it enters reports or later-agent context."""
     if not text:
         return ""
 
+    text = strip_prompt_preamble(text)
     leak_patterns = [
-        r"^\s*(Morgan Stanley Taiwan Research Department Financial Modeling Expert|Competitive Advantage Analyst at BlackRock|BlackRock Active Investment Research Team|Growth Equity Researcher at Fidelity|Fidelity Investments Growth Equity Researcher)\b",
+        r"^\s*(Senior Analyst at Goldman Sachs|Morgan Stanley Taiwan Research Department Financial Modeling Expert|Competitive Advantage Analyst at BlackRock|BlackRock Active Investment Research Team|Growth Equity Researcher at Fidelity|Fidelity Investments Growth Equity Researcher)\b",
         r"^\s*你好，我是(高盛|摩根士丹利|貝萊德|JP\s*摩根|富達投資|T\.?\s*Rowe|德富金融)",
         r"^\s*(Deep financial analysis of|Deep financial data analysis of|Economic Moat analysis of|.*Deep moat evaluation|.*Analyze the growth potential|Analyze the growth potential|Analyze the 5-10 year growth potential of|Financial data provided)\b",
-        r"^\s*\*?\s*(Currency|Units|TTM units|Debt to Equity|Manufacturing Logic|Valuation Cross-check|Forward EPS implicit.*|FCF quality check.*|WACC|DuPont Analysis|ROE Discrepancy|Language|Unit Check|Tone|Constraint Check|First paragraph MUST|No internal monologue)\s*:",
-        r"^\s*\*?\s*(Specific scoring format|Traditional Chinese|Rigorous adherence|Cross-check Forward EPS|Manufacturing logic|First paragraph MUST|No internal monologue)\b",
+        r"^\s*\*?\s*(Currency|Units|TTM units|Debt to Equity|Manufacturing Logic|Valuation Cross-check|Forward EPS implicit.*|FCF quality check.*|WACC|DuPont Analysis|ROE Discrepancy|Language|Unit Check|Tone|Constraint Check|First paragraph MUST|No internal monologue|Valid parseable JSON only|No markdown code fences|No extra text outside JSON|JSON schema|Specific JSON schema|analysis_markdown|moat_scores|price_targets|recommendation)\s*:",
+        r"^\s*\*?\s*(Specific scoring format|Traditional Chinese|Rigorous adherence|Cross-check Forward EPS|Manufacturing logic|First paragraph MUST|No internal monologue|Valid parseable JSON only|No markdown code fences|No extra text outside JSON|JSON schema|No roleplay meta-talk|analysis_markdown|moat_scores|price_targets|recommendation)\b",
         r"^\s*\*?\s*(Observation|The Red Flag|Action|Company Profile|Financials \(Key Highlights\))\s*:",
         r"^\s*\*?\s*(Section\s+[IVX0-9]+|TAM|SAM|SOM|Estimation)\s*:",
         r"^\s*\d+\.\s*(Market Size|Key Growth Drivers|AI\s*&\s*New Tech Impact|Long-term Market Share|5-Year Growth Scenarios|Overall Growth Potential)",
-        r"^\s*\*?\s*(Data|Trend|Calculation|Driver|Net Profit|Margins|Quality|Critical Check|Conversion Rate|Warning Flag|Total Debt|Net Cash Position|Valuation|Growth|Key Product|Intellectual Property)\s*:",
+        r"^\s*\*?\s*(Data|Trend|Calculation|Driver|Net Profit|Margins|Quality|Critical Check|Conversion Rate|Warning Flag|Total Debt|Net Cash Position|Valuation|Growth|Key Product|Intellectual Property|Financials|Cash Flow|Identity|Check)\s*:",
+        r"^\s*(Professional, data-driven|Company Overview & Business Model|Macroeconomics & Industry Trends|Supply Chain Position & Competitive Landscape|Key Risk Factors|Analyze the \"Economic Moat\"|Analyze the growth potential)\b",
         r"\b(I must|I need to|Let's|Wait:|As a Fidelity researcher)\b",
     ]
     leak_re = re.compile("|".join(leak_patterns), re.IGNORECASE)
@@ -905,6 +1000,8 @@ def sanitize_model_output(text: str) -> str:
     kept_lines = []
     for line in text.splitlines():
         stripped = line.strip()
+        if stripped in {'"', '"}', '}', '},', "```"}:
+            continue
         if leak_re.search(stripped):
             continue
         kept_lines.append(line)
@@ -991,6 +1088,18 @@ def run_analysis_pipeline(data: dict, progress_callback=None) -> dict:
             print(f"  ❌ {result}")
             break
 
+        prompt_leak_issues = validate_prompt_leakage(result)
+        if prompt_leak_issues:
+            print("  🚨 輸出清洗後仍偵測到 prompt 洩漏，停止產生正式報告。")
+            for issue in prompt_leak_issues:
+                print(f"     - {issue}")
+            context.setdefault("blocking_issues", []).extend(
+                f"Agent {agent_num} {agent_name}: {issue}"
+                for issue in prompt_leak_issues
+            )
+            context["analyses"][agent_num] = result
+            break
+
         identity_issues = validate_company_identity(result, data)
         if identity_issues:
             print("  🚨 公司身分一致性檢查未通過，退回 Agent 重寫...")
@@ -1000,6 +1109,17 @@ def run_analysis_pipeline(data: dict, progress_callback=None) -> dict:
             context["structured_outputs"].pop(agent_num, None)
             retry_result = run_single_agent(agent_num, data, context, rotator)
             retry_result = sanitize_model_output(retry_result)
+            retry_prompt_leak_issues = validate_prompt_leakage(retry_result)
+            if retry_prompt_leak_issues:
+                print("  🚨 重寫輸出仍偵測到 prompt 洩漏，停止產生正式報告。")
+                context.setdefault("blocking_issues", []).extend(
+                    f"Agent {agent_num} {agent_name}: {issue}"
+                    for issue in retry_prompt_leak_issues
+                )
+                context.pop("_identity_retry_instruction", None)
+                result = retry_result
+                context["analyses"][agent_num] = result
+                break
             retry_issues = validate_company_identity(retry_result, data)
             context.pop("_identity_retry_instruction", None)
 
@@ -1017,7 +1137,7 @@ def run_analysis_pipeline(data: dict, progress_callback=None) -> dict:
             else:
                 print("  ✅ 重寫後通過公司身分一致性檢查。")
 
-        result = append_quality_warnings(agent_num, result)
+        result = append_quality_warnings(agent_num, result, data)
         
         elapsed = time.time() - start
         context["analyses"][agent_num] = result
@@ -1106,6 +1226,18 @@ async def run_analysis_pipeline_async(data: dict, progress_callback=None) -> dic
             print(f"  ❌ {result}")
             break
 
+        prompt_leak_issues = validate_prompt_leakage(result)
+        if prompt_leak_issues:
+            print("  🚨 輸出清洗後仍偵測到 prompt 洩漏，停止產生正式報告。")
+            for issue in prompt_leak_issues:
+                print(f"     - {issue}")
+            context.setdefault("blocking_issues", []).extend(
+                f"Agent {agent_num} {agent_name}: {issue}"
+                for issue in prompt_leak_issues
+            )
+            context["analyses"][agent_num] = result
+            break
+
         identity_issues = validate_company_identity(result, data)
         if identity_issues:
             print("  🚨 公司身分一致性檢查未通過，退回 Agent 非同步重寫...")
@@ -1115,6 +1247,17 @@ async def run_analysis_pipeline_async(data: dict, progress_callback=None) -> dic
             context["structured_outputs"].pop(agent_num, None)
             retry_result = await run_single_agent_async(agent_num, data, context, rotator)
             retry_result = sanitize_model_output(retry_result)
+            retry_prompt_leak_issues = validate_prompt_leakage(retry_result)
+            if retry_prompt_leak_issues:
+                print("  🚨 重寫輸出仍偵測到 prompt 洩漏，停止產生正式報告。")
+                context.setdefault("blocking_issues", []).extend(
+                    f"Agent {agent_num} {agent_name}: {issue}"
+                    for issue in retry_prompt_leak_issues
+                )
+                context.pop("_identity_retry_instruction", None)
+                result = retry_result
+                context["analyses"][agent_num] = result
+                break
             retry_issues = validate_company_identity(retry_result, data)
             context.pop("_identity_retry_instruction", None)
 
@@ -1132,7 +1275,7 @@ async def run_analysis_pipeline_async(data: dict, progress_callback=None) -> dic
             else:
                 print("  ✅ 重寫後通過公司身分一致性檢查。")
 
-        result = append_quality_warnings(agent_num, result)
+        result = append_quality_warnings(agent_num, result, data)
 
         elapsed = time.time() - start
         context["analyses"][agent_num] = result

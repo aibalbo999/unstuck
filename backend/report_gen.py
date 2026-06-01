@@ -23,28 +23,72 @@ def render_report_template(template_name: str, values: dict) -> str:
     return JINJA_ENV.get_template(template_name).render(**values)
 
 
+REPORT_CONTENT_START_RE = re.compile(
+    r"^\s*(?:#{1,4}\s+.+|(?:#{1,4}\s+)?(?:[一二三四五六七八九十]+[、.．]|執行摘要|短中長期展望|長期展望|關鍵催化因子|主要風險|最終投資決策論述|"
+    r"🐂\s*多頭[：:]|🐻\s*空頭[：:]|\[護城河評分\]|\[目標股價\]|\[投資建議\]))"
+)
+
+PROMPT_LEAK_RESIDUE_RE = re.compile(
+    r"(Senior Analyst at Goldman Sachs|Morgan Stanley Taiwan Research Department|BlackRock Active Investment Research Team|"
+    r"Growth Equity Researcher at Fidelity|Valid parseable JSON only|No markdown code fences|Specific JSON schema|"
+    r"JSON schema:|analysis_markdown|moat_scores|price_targets|Must use \"|No roleplay meta-talk|Check:\s*Did I|Past 5 years of financial trends|"
+    r"Analyze the \"Economic Moat\"|Analyze the growth potential|"
+    r"Growth Scenarios \(5 years\)|Professional, data-driven)",
+    re.IGNORECASE,
+)
+
+
+def strip_prompt_preamble(text: str) -> str:
+    """Drop leaked role/task setup before the first formal report section."""
+    if not text:
+        return ""
+
+    if "\\n" in text and ("analysis_markdown" in text or "\\n##" in text or "\\n###" in text):
+        text = text.replace("\\n", "\n")
+
+    lines = text.splitlines()
+    start_index = None
+    for idx, line in enumerate(lines):
+        if REPORT_CONTENT_START_RE.match(line.strip()):
+            start_index = idx
+            break
+
+    if start_index and any(PROMPT_LEAK_RESIDUE_RE.search(line) for line in lines[:start_index]):
+        lines = lines[start_index:]
+
+    while lines and lines[-1].strip() in {'"', '"}', '}', '},', "```"}:
+        lines.pop()
+
+    return "\n".join(lines)
+
+
 def sanitize_report_text(text: str) -> str:
     """移除模型把提示詞、角色設定或 scratchpad 洩漏到正文的內容。"""
     if not text:
         return ""
 
+    text = strip_prompt_preamble(text)
     leak_patterns = [
-        r"^\s*(Morgan Stanley Taiwan Research Department Financial Modeling Expert|Competitive Advantage Analyst at BlackRock|BlackRock Active Investment Research Team|Growth Equity Researcher at Fidelity|Fidelity Investments Growth Equity Researcher)\b",
+        r"^\s*(Senior Analyst at Goldman Sachs|Morgan Stanley Taiwan Research Department Financial Modeling Expert|Competitive Advantage Analyst at BlackRock|BlackRock Active Investment Research Team|Growth Equity Researcher at Fidelity|Fidelity Investments Growth Equity Researcher)\b",
         r"^\s*你好，我是(高盛|摩根士丹利|貝萊德|JP\s*摩根|富達投資|T\.?\s*Rowe|德富金融)",
         r"^\s*(Deep financial analysis of|Deep financial data analysis of|Economic Moat analysis of|.*Deep moat evaluation|.*Analyze the growth potential|Analyze the growth potential|Analyze the 5-10 year growth potential of|Financial data provided)\b",
-        r"^\s*\*?\s*(Currency|Units|TTM units|Debt to Equity|Manufacturing Logic|Valuation Cross-check|Forward EPS implicit.*|FCF quality check.*|WACC|DuPont Analysis|ROE Discrepancy|Language|Unit Check|Tone|Constraint Check|First paragraph MUST|No internal monologue)\s*:",
-        r"^\s*\*?\s*(Specific scoring format|Traditional Chinese|Rigorous adherence|Cross-check Forward EPS|Manufacturing logic|First paragraph MUST|No internal monologue)\b",
+        r"^\s*\*?\s*(Currency|Units|TTM units|Debt to Equity|Manufacturing Logic|Valuation Cross-check|Forward EPS implicit.*|FCF quality check.*|WACC|DuPont Analysis|ROE Discrepancy|Language|Unit Check|Tone|Constraint Check|First paragraph MUST|No internal monologue|Valid parseable JSON only|No markdown code fences|No extra text outside JSON|JSON schema|Specific JSON schema|analysis_markdown|moat_scores|price_targets|recommendation)\s*:",
+        r"^\s*\*?\s*(Specific scoring format|Traditional Chinese|Rigorous adherence|Cross-check Forward EPS|Manufacturing logic|First paragraph MUST|No internal monologue|Valid parseable JSON only|No markdown code fences|No extra text outside JSON|JSON schema|No roleplay meta-talk|analysis_markdown|moat_scores|price_targets|recommendation)\b",
         r"^\s*\*?\s*(Observation|The Red Flag|Action|Company Profile|Financials \(Key Highlights\))\s*:",
         r"^\s*\*?\s*(Section\s+[IVX0-9]+|TAM|SAM|SOM|Estimation)\s*:",
         r"^\s*\d+\.\s*(Market Size|Key Growth Drivers|AI\s*&\s*New Tech Impact|Long-term Market Share|5-Year Growth Scenarios|Overall Growth Potential)",
-        r"^\s*\*?\s*(Data|Trend|Calculation|Driver|Net Profit|Margins|Quality|Critical Check|Conversion Rate|Warning Flag|Total Debt|Net Cash Position|Valuation|Growth|Key Product|Intellectual Property)\s*:",
+        r"^\s*\*?\s*(Data|Trend|Calculation|Driver|Net Profit|Margins|Quality|Critical Check|Conversion Rate|Warning Flag|Total Debt|Net Cash Position|Valuation|Growth|Key Product|Intellectual Property|Financials|Cash Flow|Identity|Check)\s*:",
+        r"^\s*(Professional, data-driven|Company Overview & Business Model|Macroeconomics & Industry Trends|Supply Chain Position & Competitive Landscape|Key Risk Factors|Analyze the \"Economic Moat\"|Analyze the growth potential)\b",
         r"\b(I must|I need to|Let's|Wait:|As a Fidelity researcher)\b",
     ]
     leak_re = re.compile("|".join(leak_patterns), re.IGNORECASE)
 
     kept_lines = []
     for line in text.splitlines():
-        if leak_re.search(line.strip()):
+        stripped = line.strip()
+        if stripped in {'"', '"}', '}', '},', "```"}:
+            continue
+        if leak_re.search(stripped):
             continue
         kept_lines.append(line)
 

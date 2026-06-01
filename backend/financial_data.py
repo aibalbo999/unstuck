@@ -13,6 +13,8 @@ from cache_store import get_cache_json, set_cache_json
 from config import FINANCIAL_DATA_CACHE_SECONDS, FMP_API_KEY, FMP_BASE_URL
 warnings.filterwarnings("ignore")
 
+DATA_SCHEMA_VERSION = 2
+
 try:
     from FinMind.data import DataLoader
 except ImportError:
@@ -253,10 +255,12 @@ def fetch_stock_data(ticker: str) -> dict:
     original_ticker = ticker
     cache_key = f"financial_data:{original_ticker}"
     cached = get_cache_json(cache_key)
-    if cached:
+    if cached and cached.get("data_schema_version") == DATA_SCHEMA_VERSION:
         cached["_cache_hit"] = True
         print(f"  ✅ 使用快取的 {cached.get('ticker', original_ticker)} 財務數據")
         return cached
+    if cached:
+        print(f"  ♻️  {original_ticker} 快取資料口徑已更新，重新抓取財務數據...")
 
     print(f"  📊 正在獲取 {ticker} 財務數據...")
     
@@ -625,9 +629,91 @@ def fetch_stock_data(ticker: str) -> dict:
             if latest_fcf_b is not None:
                 free_cash_flow = latest_fcf_b * 1e9
                 data_source_notes.append("自由現金流缺值，暫以最新年度 FCF 補值；DCF 應使用 normalized FCF。")
+
+        # === 財務一致性校準 ===
+        # yfinance 的 info 欄位可能混用 TTM、季度年化與市場估值口徑。
+        # 若 profitMargins/netIncomeToCommon 與 trailing EPS/P/E 推回的淨利互斥，
+        # 報告端優先採用可與 P/E、市值、EPS 自洽的淨利與淨利率。
+        data_quality_notes = []
+        yahoo_revenue_growth_raw = revenue_growth
+        yahoo_earnings_growth_raw = earnings_growth
+        provider_profit_margin = profit_margin
+        provider_net_income = safe_get(info, "netIncomeToCommon", "N/A")
+
+        def _is_number(value):
+            return isinstance(value, (int, float)) and not is_missing_value(value)
+
+        def _relative_gap(a, b):
+            if not _is_number(a) or not _is_number(b):
+                return None
+            denominator = max(abs(float(a)), abs(float(b)), 1.0)
+            return abs(float(a) - float(b)) / denominator
+
+        net_income_from_eps = None
+        if _is_number(shares_outstanding) and _is_number(trailing_eps):
+            net_income_from_eps = float(shares_outstanding) * float(trailing_eps)
+
+        net_income_from_pe = None
+        if _is_number(market_cap) and _is_number(pe_ratio) and float(pe_ratio) > 0:
+            net_income_from_pe = float(market_cap) / float(pe_ratio)
+
+        net_income_ttm = first_number(net_income_from_eps, net_income_from_pe, provider_net_income)
+        net_income_source = "trailing EPS × shares"
+        if net_income_ttm == net_income_from_pe and net_income_from_eps is None:
+            net_income_source = "market cap ÷ TTM P/E"
+        elif net_income_ttm == provider_net_income and net_income_from_eps is None and net_income_from_pe is None:
+            net_income_source = "Yahoo netIncomeToCommon"
+
+        eps_pe_gap = _relative_gap(net_income_from_eps, net_income_from_pe)
+        if eps_pe_gap is not None and eps_pe_gap > 0.05:
+            data_quality_notes.append(
+                "trailing EPS × shares 與 market cap ÷ P/E 推回的 TTM 淨利差異超過 5%，"
+                "P/E/EPS 欄位需人工複核。"
+            )
+
+        provider_gap = _relative_gap(provider_net_income, net_income_ttm)
+        if provider_gap is not None and provider_gap > 0.25:
+            data_quality_notes.append(
+                "Yahoo netIncomeToCommon/profitMargins 與 trailing EPS/P/E 口徑互斥；"
+                f"已以 {net_income_source} 作為報告校準淨利，Yahoo 原始淨利率僅列為參考。"
+            )
+
+        if _is_number(revenue_ttm) and _is_number(net_income_ttm) and float(revenue_ttm) > 0:
+            derived_profit_margin = float(net_income_ttm) / float(revenue_ttm)
+            margin_gap = None
+            if _is_number(provider_profit_margin):
+                margin_gap = abs(float(provider_profit_margin) - derived_profit_margin)
+            if margin_gap is not None and margin_gap > 0.05:
+                data_quality_notes.append(
+                    "TTM 淨利率已由校準淨利 ÷ TTM 營收重算，避免與 P/E、市值、EPS 互相矛盾。"
+                )
+            profit_margin = derived_profit_margin
+
+        latest_annual_revenue_growth = None
+        if len(revenue_history) >= 2 and revenue_history[-2] and revenue_history[-1] and revenue_history[-2] > 0:
+            latest_annual_revenue_growth = (revenue_history[-1] / revenue_history[-2] - 1) * 100
+
+        ttm_vs_latest_annual_revenue_change = None
+        if _is_number(revenue_ttm) and revenue_history and revenue_history[-1] and revenue_history[-1] > 0:
+            ttm_vs_latest_annual_revenue_change = (float(revenue_ttm) / (revenue_history[-1] * 1e9) - 1) * 100
+
+        latest_annual_net_income_growth = None
+        if len(net_income_history) >= 2 and net_income_history[-2] and net_income_history[-1] and net_income_history[-2] > 0:
+            latest_annual_net_income_growth = (net_income_history[-1] / net_income_history[-2] - 1) * 100
+
+        if _is_number(yahoo_revenue_growth_raw) and latest_annual_revenue_growth is not None:
+            yahoo_growth_pct = float(yahoo_revenue_growth_raw) * 100
+            if abs(yahoo_growth_pct - latest_annual_revenue_growth) > 50:
+                data_quality_notes.append(
+                    "Yahoo revenueGrowth 與年度營收表推算差異過大；該欄通常是近期/季度成長率，"
+                    "不可直接稱為 TTM 年增率。"
+                )
+
+        data_source_notes.extend(data_quality_notes)
         
         # === 整合所有數據 ===
         data = {
+            "data_schema_version": DATA_SCHEMA_VERSION,
             # 基本資訊
             "ticker": ticker,
             "company_name": company_name,
@@ -662,6 +748,7 @@ def fetch_stock_data(ticker: str) -> dict:
             "forward_eps": forward_eps,
             "trailing_eps": trailing_eps,
             "forward_pe_raw": forward_pe,
+            "pe_ratio_raw": pe_ratio,
             
             # 財務指標（格式化）
             "revenue_ttm": format_number(revenue_ttm, "億"),
@@ -670,6 +757,11 @@ def fetch_stock_data(ticker: str) -> dict:
             "operating_margin": format_pct(operating_margin),
             "profit_margin": format_pct(profit_margin),
             "profit_margin_raw": profit_margin,
+            "profit_margin_provider": format_pct(provider_profit_margin),
+            "profit_margin_provider_raw": provider_profit_margin,
+            "net_income_ttm": format_number(net_income_ttm, "億"),
+            "net_income_ttm_raw": net_income_ttm,
+            "net_income_ttm_source": net_income_source,
             "ebitda_fmt": format_number(ebitda, "億"),
             
             # 現金流（格式化）
@@ -692,8 +784,13 @@ def fetch_stock_data(ticker: str) -> dict:
             "payout_ratio": format_pct(payout_ratio),
             
             # 成長率（格式化）
-            "revenue_growth": format_pct(revenue_growth),
-            "earnings_growth": format_pct(earnings_growth),
+            "revenue_growth": f"{latest_annual_revenue_growth:.1f}%（最新年度 YoY）" if latest_annual_revenue_growth is not None else "N/A",
+            "earnings_growth": f"{latest_annual_net_income_growth:.1f}%（最新年度 YoY）" if latest_annual_net_income_growth is not None else "N/A",
+            "latest_annual_revenue_growth": f"{latest_annual_revenue_growth:.1f}%" if latest_annual_revenue_growth is not None else "N/A",
+            "ttm_vs_latest_annual_revenue_change": f"{ttm_vs_latest_annual_revenue_change:.1f}%" if ttm_vs_latest_annual_revenue_change is not None else "N/A",
+            "latest_annual_net_income_growth": f"{latest_annual_net_income_growth:.1f}%" if latest_annual_net_income_growth is not None else "N/A",
+            "yahoo_revenue_growth": format_pct(yahoo_revenue_growth_raw),
+            "yahoo_earnings_growth": format_pct(yahoo_earnings_growth_raw),
             "revenue_cagr_5yr": revenue_cagr,
             
             # 分析師評級
@@ -826,6 +923,7 @@ def format_data_for_prompt(data: dict) -> str:
         f"  總發行股數：{data.get('shares_outstanding', 'N/A')}",
         f"  近四季 EPS (Trailing EPS)：NT${data.get('trailing_eps', 'N/A')}",
         f"  預估 EPS (Forward EPS)：NT${data.get('forward_eps', 'N/A')}",
+        f"  校準 TTM 淨利：{data.get('net_income_ttm', 'N/A')}（來源：{data.get('net_income_ttm_source', 'N/A')}）",
         f"  隱含預估未來淨利 (Forward EPS × 股數)：{implied_forward_ni_fmt}",
         f"  若維持目前淨利率，Forward EPS 隱含所需營收：約 {implied_forward_revenue_fmt}（相對 TTM 營收成長 {implied_forward_revenue_growth_fmt}）",
         "  ⚠️ 警告：當你預測未來的營收與淨利時，必須與上述的「隱含預估未來淨利」進行交叉比對。若你預測的未來總營收甚至低於此淨利，代表你的營收預測過度保守，或是華爾街的 Forward P/E 給出的預期過度樂觀。請在報告中提出合理質疑！",
@@ -860,9 +958,11 @@ def format_data_for_prompt(data: dict) -> str:
         "",
         "【財務體質】",
         f"  年營收（TTM）：{data.get('revenue_ttm', 'N/A')}",
+        f"  TTM 淨利（校準後）：{data.get('net_income_ttm', 'N/A')}",
         f"  毛利率：{data.get('gross_margin', 'N/A')}",
         f"  營業利潤率：{data.get('operating_margin', 'N/A')}",
-        f"  淨利率：{data.get('profit_margin', 'N/A')}",
+        f"  淨利率（校準後）：{data.get('profit_margin', 'N/A')}",
+        f"  Yahoo 原始淨利率（僅供資料源對照）：{data.get('profit_margin_provider', 'N/A')}",
         f"  EBITDA：{data.get('ebitda_fmt', 'N/A')}",
         "",
         "【現金流】",
@@ -884,8 +984,11 @@ def format_data_for_prompt(data: dict) -> str:
         f"  配息率：{data.get('payout_ratio', 'N/A')}",
         "",
         "【成長指標】",
-        f"  營收年增率：{data.get('revenue_growth', 'N/A')}",
-        f"  獲利年增率：{data.get('earnings_growth', 'N/A')}",
+        f"  最新年度營收年增率：{data.get('revenue_growth', 'N/A')}",
+        f"  TTM 營收相對最新年度變化：{data.get('ttm_vs_latest_annual_revenue_change', 'N/A')}（run-rate 檢查，不等於 YoY）",
+        f"  最新年度獲利年增率：{data.get('earnings_growth', 'N/A')}",
+        f"  Yahoo 近期營收成長率：{data.get('yahoo_revenue_growth', 'N/A')}（通常為季度/近期口徑，不可直接稱為 TTM 年增率）",
+        f"  Yahoo 近期獲利成長率：{data.get('yahoo_earnings_growth', 'N/A')}（通常為季度/近期口徑，不可直接稱為全年獲利年增率）",
         f"  5年營收 CAGR：{data.get('revenue_cagr_5yr', 'N/A')}",
         "",
         "【市場參考】",
@@ -905,7 +1008,7 @@ def format_data_for_prompt(data: dict) -> str:
     data_source_notes = data.get("data_source_notes")
     if data_source_notes:
         lines.append("")
-        lines.append("【資料補值與限制】")
+        lines.append("【資料品質、補值與限制】")
         for note in data_source_notes:
             lines.append(f"  - {note}")
         lines.append("  ⚠️ 補值欄位只能作為交叉檢查，不可包裝成官方完整資料。")
