@@ -95,6 +95,18 @@ AGENT_MODELS = {
     7: "gemini-3.5-flash",   # 最終投資決策（綜合判斷）
 }
 
+# 模型備援順序。當主模型 quota 用盡或不可用時，會依序嘗試這些模型。
+MODEL_FALLBACKS = {
+    "gemini-3.5-flash": _split_keys(os.getenv(
+        "GEMINI_FLASH_FALLBACK_MODELS",
+        "gemma-4-31b-it,gemini-1.5-flash,gemini-1.5-pro,gemini-pro",
+    )),
+    "gemma-4-31b-it": _split_keys(os.getenv(
+        "GEMMA_FALLBACK_MODELS",
+        "gemini-1.5-flash,gemini-1.5-pro,gemini-3.5-flash,gemini-pro",
+    )),
+}
+
 # 速率限制（每個 API Key）
 RPM_LIMITS = {
     "gemini-3.5-flash": 5,    # 每分鐘 5 次

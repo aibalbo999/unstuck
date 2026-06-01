@@ -10,7 +10,7 @@ import re
 import inspect
 from typing import Optional
 import google.generativeai as genai
-from config import API_KEYS, AGENT_MODELS, RPM_LIMITS, INTER_AGENT_DELAY, API_KEY_SETUP_MESSAGE
+from config import API_KEYS, AGENT_MODELS, MODEL_FALLBACKS, RPM_LIMITS, INTER_AGENT_DELAY, API_KEY_SETUP_MESSAGE
 from financial_data import format_data_for_prompt
 from prompt_loader import load_agent_prompt_config
 
@@ -60,7 +60,7 @@ class KeyRotator:
             if current_calls < rpm_limit:
                 self.call_log[key][model].append(time.time())
                 key_preview = f"{key[:8]}...{key[-4:]}"
-                print(f"    🔑 使用 Key {self.keys.index(key)+1}/5 ({key_preview})")
+                print(f"    🔑 使用 Key {self.keys.index(key)+1}/{len(self.keys)} ({key_preview})")
                 return key
         
         # 所有 Key 都已超限，等待最早的呼叫過期
@@ -82,7 +82,7 @@ class KeyRotator:
             if current_calls < rpm_limit:
                 self.call_log[key][model].append(time.time())
                 key_preview = f"{key[:8]}...{key[-4:]}"
-                print(f"    🔑 使用 Key {self.keys.index(key)+1}/5 ({key_preview})")
+                print(f"    🔑 使用 Key {self.keys.index(key)+1}/{len(self.keys)} ({key_preview})")
                 return key
 
         print(f"    ⏳ 所有 API Key 已達 RPM 限制，非同步等待 60 秒...")
@@ -109,6 +109,33 @@ class KeyRotator:
 PROMPT_CONFIG = load_agent_prompt_config()
 SYSTEM_PROMPTS = {int(k): v for k, v in PROMPT_CONFIG["system_prompts"].items()}
 ANALYSIS_PROMPTS = {int(k): v for k, v in PROMPT_CONFIG["analysis_prompts"].items()}
+
+
+def get_agent_model_sequence(agent_num: int) -> list[str]:
+    """Return primary model plus configured fallbacks without duplicates."""
+    primary = AGENT_MODELS[agent_num]
+    sequence = [primary, *MODEL_FALLBACKS.get(primary, [])]
+    return list(dict.fromkeys(model for model in sequence if model))
+
+
+def is_quota_or_rate_error(error_msg: str) -> bool:
+    normalized = (error_msg or "").lower()
+    return (
+        "429" in normalized
+        or "quota" in normalized
+        or "rate" in normalized
+        or "resource_exhausted" in normalized
+        or "resource exhausted" in normalized
+    )
+
+
+def is_missing_model_error(error_msg: str) -> bool:
+    normalized = (error_msg or "").lower()
+    return "404" in normalized or "not found" in normalized
+
+
+def is_agent_execution_failure(text: str) -> bool:
+    return bool(text and text.startswith("[Agent ") and "執行失敗" in text)
 
 
 OUTPUT_CLEANLINESS_RULE = """
@@ -457,6 +484,11 @@ def run_single_agent(
     - 超限時自動重試
     - 錯誤時返回錯誤訊息
     """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(run_single_agent_async(agent_num, data, context, rotator, max_retries))
+
     model_id = AGENT_MODELS[agent_num]
     
     for attempt in range(max_retries):
@@ -549,67 +581,57 @@ async def run_single_agent_async(
     - 優先使用 Gemini generate_content_async
     - 舊 SDK 或備用模型不支援 async 時，退回 asyncio.to_thread
     """
-    model_id = AGENT_MODELS[agent_num]
     prompt = build_prompt(agent_num, data, context)
+    model_sequence = get_agent_model_sequence(agent_num)
+    last_error = ""
 
-    for attempt in range(max_retries):
-        try:
-            api_key = await rotator.async_get_key(model_id)
-            genai.configure(api_key=api_key)
+    for model_index, model_id in enumerate(model_sequence):
+        if model_index > 0:
+            print(f"    🔁 切換備援模型：{model_id}")
 
-            model = genai.GenerativeModel(
-                model_name=model_id,
-                system_instruction=SYSTEM_PROMPTS[agent_num],
-                generation_config=build_generation_config(agent_num),
-            )
+        attempts_for_model = max(max_retries, len(rotator.keys)) if model_index == 0 else len(rotator.keys)
 
-            response = await _generate_content_async(model, prompt)
-            result = process_agent_response(agent_num, response.text, context)
+        for attempt in range(attempts_for_model):
+            try:
+                api_key = await rotator.async_get_key(model_id)
+                genai.configure(api_key=api_key)
 
-            if result and len(result) > 100:
-                return result
+                model = genai.GenerativeModel(
+                    model_name=model_id,
+                    system_instruction=SYSTEM_PROMPTS[agent_num],
+                    generation_config=build_generation_config(agent_num),
+                )
 
-            print(f"    ⚠️  回應過短，重試 ({attempt+1}/{max_retries})")
-            await asyncio.sleep(5)
+                response = await _generate_content_async(model, prompt)
+                result = process_agent_response(agent_num, response.text, context)
 
-        except Exception as e:
-            error_msg = str(e)
-            if "429" in error_msg or "quota" in error_msg.lower() or "rate" in error_msg.lower():
-                wait_time = 65 * (attempt + 1)
-                print(f"    ⏳ 速率限制，非同步等待 {wait_time} 秒... ({attempt+1}/{max_retries})")
-                await asyncio.sleep(wait_time)
-            elif "404" in error_msg or "not found" in error_msg.lower():
-                print(f"    ❌ 模型 {model_id} 不可用，嘗試非同步備用模型...")
-                backup_models = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"]
-                for backup in backup_models:
-                    try:
-                        genai.configure(api_key=await rotator.async_get_key(backup))
-                        model = genai.GenerativeModel(
-                            model_name=backup,
-                            system_instruction=SYSTEM_PROMPTS[agent_num],
-                            generation_config=build_generation_config(agent_num),
-                        )
-                        response = await _generate_content_async(model, prompt)
-                        return process_agent_response(agent_num, response.text, context)
-                    except Exception:
-                        continue
-                return f"[Agent {agent_num} 執行失敗：模型不可用]"
-            else:
-                print(f"    ❌ 錯誤：{error_msg[:100]}... 非同步重試 ({attempt+1}/{max_retries})")
-                await asyncio.sleep(10 * (attempt + 1))
+                if result and len(result) > 100:
+                    return result
 
-    print(f"    ⚠️ 模型 {model_id} 多次失敗，啟用非同步備援機制 (gemini-3.5-flash)...")
-    try:
-        genai.configure(api_key=await rotator.async_get_key("gemini-3.5-flash"))
-        model = genai.GenerativeModel(
-            model_name="gemini-3.5-flash",
-            system_instruction=SYSTEM_PROMPTS[agent_num],
-            generation_config=build_generation_config(agent_num),
-        )
-        response = await _generate_content_async(model, build_prompt(agent_num, data, context))
-        return process_agent_response(agent_num, response.text, context)
-    except Exception as e:
-        return f"[Agent {agent_num} 執行失敗且備援無效：{str(e)[:50]}]"
+                last_error = "回應過短"
+                print(f"    ⚠️  {model_id} 回應過短，嘗試下一組 Key/模型 ({attempt+1}/{attempts_for_model})")
+                await asyncio.sleep(1)
+
+            except Exception as e:
+                error_msg = str(e)
+                last_error = error_msg
+
+                if is_quota_or_rate_error(error_msg):
+                    print(
+                        f"    ⏭️  {model_id} 配額/速率限制：{error_msg[:90]}... "
+                        f"改試下一組 Key/模型 ({attempt+1}/{attempts_for_model})"
+                    )
+                    await asyncio.sleep(1)
+                    continue
+
+                if is_missing_model_error(error_msg):
+                    print(f"    ❌ 模型 {model_id} 不可用，改試下一個備援模型...")
+                    break
+
+                print(f"    ❌ {model_id} 錯誤：{error_msg[:100]}... 非同步重試 ({attempt+1}/{attempts_for_model})")
+                await asyncio.sleep(min(10 * (attempt + 1), 30))
+
+    return f"[Agent {agent_num} 執行失敗：所有模型/Key 不可用，最後錯誤：{last_error[:120]}]"
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -944,6 +966,12 @@ def run_analysis_pipeline(data: dict, progress_callback=None) -> dict:
         result = run_single_agent(agent_num, data, context, rotator)
         result = sanitize_model_output(result)
 
+        if is_agent_execution_failure(result):
+            context.setdefault("blocking_issues", []).append(f"Agent {agent_num} {agent_name}: {result}")
+            context["analyses"][agent_num] = result
+            print(f"  ❌ {result}")
+            break
+
         identity_issues = validate_company_identity(result, data)
         if identity_issues:
             print("  🚨 公司身分一致性檢查未通過，退回 Agent 重寫...")
@@ -1052,6 +1080,12 @@ async def run_analysis_pipeline_async(data: dict, progress_callback=None) -> dic
         context["structured_outputs"].pop(agent_num, None)
         result = await run_single_agent_async(agent_num, data, context, rotator)
         result = sanitize_model_output(result)
+
+        if is_agent_execution_failure(result):
+            context.setdefault("blocking_issues", []).append(f"Agent {agent_num} {agent_name}: {result}")
+            context["analyses"][agent_num] = result
+            print(f"  ❌ {result}")
+            break
 
         identity_issues = validate_company_identity(result, data)
         if identity_issues:
