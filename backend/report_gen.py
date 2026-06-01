@@ -6,6 +6,7 @@
 import json
 import re
 from datetime import datetime
+from html import escape
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
@@ -114,6 +115,72 @@ def strip_structured_blocks(text: str) -> str:
     text = re.sub(r"\[目標股價\].*?\[/目標股價\]", "", text, flags=re.DOTALL)
     text = re.sub(r"\[投資建議\].*?\[/投資建議\]", "", text, flags=re.DOTALL)
     return re.sub(r"\n{3,}", "\n\n", text).strip()
+
+
+def build_audit_sections(context: dict) -> list[tuple[str, list[str]]]:
+    """Collect final audit and preserved abnormality notes for rendering."""
+    audit = context.get("final_audit", {}) or {}
+    sections = []
+
+    critical = list(audit.get("critical", []) or [])
+    blocking = [
+        issue for issue in (context.get("blocking_issues", []) or [])
+        if issue not in critical
+    ]
+    if critical or blocking:
+        sections.append(("仍需注意的異常", [*critical[:10], *blocking[:6]]))
+
+    repair_log = context.get("audit_repair_log", []) or []
+    if repair_log:
+        sections.append(("AI 修復紀錄", repair_log[:10]))
+
+    corrections = audit.get("corrections", []) or []
+    if corrections:
+        sections.append(("系統已套用校正", corrections[:8]))
+
+    warnings = audit.get("warnings", []) or []
+    if warnings:
+        sections.append(("非阻斷提醒", warnings[:8]))
+
+    return [(title, items) for title, items in sections if items]
+
+
+def build_audit_banner_html(context: dict) -> str:
+    """Render a visible report warning when final audit found abnormalities."""
+    sections = build_audit_sections(context)
+    if not sections:
+        return ""
+
+    section_html = []
+    for title, items in sections:
+        lis = "".join(f"<li>{escape(str(item))}</li>" for item in items)
+        section_html.append(f"<div class=\"audit-section\"><strong>{escape(title)}</strong><ul>{lis}</ul></div>")
+
+    return f"""
+        <div class="audit-banner">
+            <div class="audit-title">系統異常提醒：本報告已保留供檢視</div>
+            <div class="audit-subtitle">系統已嘗試自動修復可定位的 Agent 輸出；若仍有異常，請優先閱讀下列提醒再使用本報告。</div>
+            {''.join(section_html)}
+        </div>
+    """
+
+
+def build_audit_markdown(context: dict) -> str:
+    sections = build_audit_sections(context)
+    if not sections:
+        return ""
+
+    lines = [
+        "## ⚠️ 系統異常提醒：本報告已保留供檢視",
+        "",
+        "系統已嘗試自動修復可定位的 Agent 輸出；若仍有異常，請優先閱讀下列提醒再使用本報告。",
+        "",
+    ]
+    for title, items in sections:
+        lines.append(f"### {title}")
+        lines.extend(f"- {item}" for item in items)
+        lines.append("")
+    return "\n".join(lines).strip()
 
 
 def filter_future_price_history(price_history: dict) -> dict:
@@ -355,6 +422,7 @@ def generate_html_report(context: dict) -> str:
     target_6m = get_rec_val(recommendation, "6個月", "N/A")
     target_12m = get_rec_val(recommendation, "12個月", "N/A")
     confidence = get_rec_val(recommendation, "信心", "N/A")
+    audit_banner_html = build_audit_banner_html(context)
     
     # 格式化各 Agent 分析文字
     analysis_1 = clean_markdown(strip_structured_blocks(sanitize_report_text(analyses.get(1, "分析進行中..."))))
@@ -478,6 +546,7 @@ def generate_markdown_report(context: dict) -> str:
     target_6m = get_rec_val(recommendation, "6個月", "N/A")
     target_12m = get_rec_val(recommendation, "12個月", "N/A")
     confidence = get_rec_val(recommendation, "信心", "N/A")
+    audit_markdown = build_audit_markdown(context)
     
     analysis_1 = strip_structured_blocks(sanitize_report_text(analyses.get(1, "分析進行中...")))
     analysis_2 = strip_structured_blocks(sanitize_report_text(analyses.get(2, "分析進行中...")))
@@ -496,6 +565,7 @@ def generate_markdown_report(context: dict) -> str:
     md = f"""# {ticker} {name} - 華爾街深度研究報告
 📅 分析日期：{fetch_date}
 
+{audit_markdown + chr(10) + chr(10) if audit_markdown else ""}
 ## 📊 關鍵指標
 - **股價:** {data.get("current_price_fmt", "N/A")}
 - **市值:** {data.get("market_cap_fmt", "N/A")}

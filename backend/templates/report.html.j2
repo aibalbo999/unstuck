@@ -308,6 +308,43 @@
             margin-left: auto;
             text-align: right;
         }
+
+        .audit-banner {
+            background: rgba(245, 158, 11, 0.12);
+            border: 1px solid rgba(245, 158, 11, 0.45);
+            border-radius: 12px;
+            padding: 18px 22px;
+            margin-top: 18px;
+            color: var(--text-secondary);
+        }
+
+        .audit-title {
+            font-size: 18px;
+            font-weight: 800;
+            color: #f59e0b;
+            margin-bottom: 6px;
+        }
+
+        .audit-subtitle {
+            font-size: 13px;
+            line-height: 1.6;
+            margin-bottom: 12px;
+        }
+
+        .audit-section {
+            margin-top: 10px;
+            font-size: 13px;
+            line-height: 1.55;
+        }
+
+        .audit-section strong {
+            color: var(--text-primary);
+        }
+
+        .audit-section ul {
+            margin: 6px 0 0 18px;
+            padding: 0;
+        }
         
         .verdict-meta .vm-label {
             font-size: 11px;
@@ -920,6 +957,8 @@
                 <div class="vm-value">{{ confidence }}</div>
             </div>
         </div>
+
+        {{ audit_banner_html }}
     </div>
     
     <!-- ─── 內容區 ─── -->

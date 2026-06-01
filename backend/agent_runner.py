@@ -9,7 +9,7 @@ import time
 import re
 import inspect
 from contextlib import suppress
-from typing import Optional
+from typing import Any, Optional
 from google import genai
 from google.genai import types
 from config import API_KEYS, AGENT_MODELS, MODEL_FALLBACKS, RPM_LIMITS, INTER_AGENT_DELAY, API_KEY_SETUP_MESSAGE
@@ -129,6 +129,72 @@ def is_quota_or_rate_error(error_msg: str) -> bool:
         or "resource_exhausted" in normalized
         or "resource exhausted" in normalized
     )
+
+
+def describe_quota_or_rate_error(error: Any) -> str:
+    """Return a concise, secret-safe description of a Google quota/rate error."""
+    raw = str(error)
+    details = getattr(error, "details", None)
+    code = getattr(error, "code", None)
+    status = getattr(error, "status", None)
+    message = getattr(error, "message", None)
+
+    found: list[str] = []
+    seen: set[str] = set()
+
+    def add(label: str, value: Any):
+        if value is None or value == "":
+            return
+        if isinstance(value, (dict, list)):
+            value = json.dumps(value, ensure_ascii=False, sort_keys=True)
+        text = f"{label}={value}"
+        if text not in seen:
+            seen.add(text)
+            found.append(text)
+
+    def walk(value: Any):
+        if isinstance(value, dict):
+            for key, item in value.items():
+                lowered = str(key).lower()
+                if lowered in {"quotametric", "quotaid", "quotavalue", "retrydelay", "reason"}:
+                    add(key, item)
+                elif lowered == "quotadimensions" and isinstance(item, dict):
+                    for dim_key in ("model", "location"):
+                        if dim_key in item:
+                            add(f"quotaDimensions.{dim_key}", item[dim_key])
+                elif lowered == "metadata" and isinstance(item, dict):
+                    for meta_key, meta_value in item.items():
+                        meta_lowered = str(meta_key).lower()
+                        if "quota" in meta_lowered and meta_lowered != "consumer":
+                            add(f"metadata.{meta_key}", meta_value)
+                walk(item)
+        elif isinstance(value, list):
+            for item in value:
+                walk(item)
+
+    walk(details)
+
+    signature = " ".join([raw, json.dumps(details, ensure_ascii=False) if details else ""]).lower()
+    if "tokensperminute" in signature or "tokens_per_minute" in signature or "tpm" in signature:
+        condition = "每分鐘 token 額度（TPM）"
+    elif "requestsperminute" in signature or "requests_per_minute" in signature or "rpm" in signature:
+        condition = "每分鐘請求額度（RPM）"
+    elif "requestsperday" in signature or "requests_per_day" in signature or "perday" in signature:
+        condition = "每日請求額度（RPD）"
+    elif "free_tier" in signature or "free-tier" in signature or "freetier" in signature:
+        condition = "免費層/專案配額"
+    else:
+        condition = "Google API 配額或速率限制（未提供細項）"
+
+    summary_parts = []
+    if code or status:
+        summary_parts.append(" ".join(str(x) for x in (code, status) if x))
+    if message:
+        summary_parts.append(str(message))
+    summary_parts.append(condition)
+    summary_parts.extend(found[:6])
+
+    return "；".join(summary_parts)
 
 
 def is_missing_model_error(error_msg: str) -> bool:
@@ -476,6 +542,7 @@ def build_prompt(agent_num: int, data: dict, context: dict) -> str:
     prev = _format_previous(context, agent_num)
     identity_guard = build_company_identity_guard(data)
     retry_instruction = context.get("_identity_retry_instruction", "")
+    audit_retry_instruction = context.get("_audit_retry_instruction", "")
 
     template = ANALYSIS_PROMPTS[agent_num]
     analysis_prompt = template.format(
@@ -492,6 +559,7 @@ def build_prompt(agent_num: int, data: dict, context: dict) -> str:
         structured_instruction,
         identity_guard,
         retry_instruction,
+        audit_retry_instruction,
         OUTPUT_CLEANLINESS_RULE,
     ]
     return "\n\n".join(part for part in prompt_parts if part)
@@ -564,9 +632,10 @@ def run_single_agent(
                 
         except Exception as e:
             error_msg = str(e)
-            if "429" in error_msg or "quota" in error_msg.lower() or "rate" in error_msg.lower():
+            if is_quota_or_rate_error(error_msg):
                 wait_time = 65 * (attempt + 1)
-                print(f"    ⏳ 速率限制，等待 {wait_time} 秒... ({attempt+1}/{max_retries})")
+                quota_detail = describe_quota_or_rate_error(e)
+                print(f"    ⏳ 配額/速率限制：{quota_detail[:160]}... 等待 {wait_time} 秒 ({attempt+1}/{max_retries})")
                 time.sleep(wait_time)
             elif "404" in error_msg or "not found" in error_msg.lower():
                 print(f"    ❌ 模型 {model_id} 不可用，嘗試備用模型...")
@@ -594,7 +663,9 @@ def run_single_agent(
         )
         return process_agent_response(agent_num, _response_text(response), context)
     except Exception as e:
-        return f"[Agent {agent_num} 執行失敗且備援無效：{str(e)[:50]}]"
+        if is_quota_or_rate_error(str(e)):
+            return f"[Agent {agent_num} 執行失敗且備援無效：{describe_quota_or_rate_error(e)[:120]}]"
+        return f"[Agent {agent_num} 執行失敗且備援無效：{str(e)[:120]}]"
 
 
 async def run_single_agent_async(
@@ -638,8 +709,10 @@ async def run_single_agent_async(
                 last_error = error_msg
 
                 if is_quota_or_rate_error(error_msg):
+                    quota_detail = describe_quota_or_rate_error(e)
+                    last_error = quota_detail
                     print(
-                        f"    ⏭️  {model_id} 配額/速率限制：{error_msg[:90]}... "
+                        f"    ⏭️  {model_id} 配額/速率限制：{quota_detail[:160]}... "
                         f"改試下一組 Key/模型 ({attempt+1}/{attempts_for_model})"
                     )
                     await asyncio.sleep(1)
@@ -1161,9 +1234,13 @@ def run_analysis_pipeline(data: dict, progress_callback=None) -> dict:
             print(f"\n  ⏰ 等待 {wait} 秒後執行下一個 Agent...\n")
             time.sleep(wait)
     
-    # 解析結構化數據並執行跨 Agent 最終稽核
+    # 解析結構化數據、嘗試修復跨 Agent 稽核問題，再輸出最終稽核摘要。
     context["parsed"] = parse_structured_data(context)
-    context["final_audit"] = run_final_report_audit(context)
+    initial_audit = run_final_report_audit(context, append_section=False)
+    if initial_audit.get("critical"):
+        attempt_final_audit_repair(context, initial_audit, rotator)
+        context["parsed"] = parse_structured_data(context)
+    context["final_audit"] = run_final_report_audit(context, append_section=True)
     context["total_time"] = time.time() - context["start_time"]
     
     print(f"\n{'='*60}")
@@ -1298,7 +1375,11 @@ async def run_analysis_pipeline_async(data: dict, progress_callback=None) -> dic
             await asyncio.sleep(wait)
 
     context["parsed"] = parse_structured_data(context)
-    context["final_audit"] = run_final_report_audit(context)
+    initial_audit = run_final_report_audit(context, append_section=False)
+    if initial_audit.get("critical"):
+        await attempt_final_audit_repair_async(context, initial_audit, rotator)
+        context["parsed"] = parse_structured_data(context)
+    context["final_audit"] = run_final_report_audit(context, append_section=True)
     context["total_time"] = time.time() - context["start_time"]
 
     print(f"\n{'='*60}")
@@ -1471,12 +1552,20 @@ def _append_final_audit_section(context: dict, audit: dict):
     if 7 not in context.get("analyses", {}):
         return
 
+    critical = audit.get("critical", [])
     warnings = audit.get("warnings", [])
     corrections = audit.get("corrections", [])
-    if not warnings and not corrections:
+    repair_log = context.get("audit_repair_log", [])
+    if not critical and not warnings and not corrections and not repair_log:
         return
 
     lines = ["## 系統最終稽核"]
+    if critical:
+        lines.append("### 仍需注意的異常")
+        lines.extend(f"- {item}" for item in critical[:8])
+    if repair_log:
+        lines.append("### AI 修復紀錄")
+        lines.extend(f"- {item}" for item in repair_log[:8])
     if corrections:
         lines.append("### 已套用校正")
         lines.extend(f"- {item}" for item in corrections[:8])
@@ -1487,13 +1576,116 @@ def _append_final_audit_section(context: dict, audit: dict):
     context["_final_audit_appended"] = True
 
 
-def run_final_report_audit(context: dict) -> dict:
-    """
-    Cross-agent final gate before report rendering.
+def build_audit_retry_instruction(agent_num: int, issues: list[str]) -> str:
+    """Build a focused rewrite instruction for final audit failures."""
+    issue_lines = "\n".join(f"- {issue}" for issue in issues[:8])
+    return (
+        "🚨【最終跨 Agent 稽核要求重寫本段】\n"
+        "系統在正式報告存檔前發現以下問題，請完全重寫本 Agent 的輸出正文，"
+        "保留原本段落任務，但必須修正所有問題：\n"
+        f"{issue_lines}\n\n"
+        "修復規則：\n"
+        "- 只使用資料摘要中明確提供的數字；若資料口徑衝突，請列為資料品質警示，不可硬湊公式。\n"
+        "- 杜邦分析只能使用同期間年度杜邦恒等式；不可混用 Yahoo TTM ROE/ROA/淨利率與最新年度資產周轉率或權益乘數。\n"
+        "- Yahoo revenueGrowth/earningsGrowth 若被標為近期或季度口徑，不可寫成年度或 TTM 年增率。\n"
+        "- 若原始 Yahoo 淨利率與 EPS/P/E 推回淨利互斥，正式分析必須採用校準後淨利率，原始值只能作為資料源對照。\n"
+        "- 不要提及你在修復、不要輸出本段修復指令、不要保留錯誤原文。"
+    )
 
-    This is intentionally deterministic: it does not ask another model to fix a
-    model's mistake. Critical issues are promoted to blocking_issues so API/CLI
-    callers do not persist a contradictory report.
+
+def _repair_agent_output(agent_num: int, data: dict, context: dict, rotator: KeyRotator, issues: list[str]) -> tuple[bool, str]:
+    """Synchronously ask the relevant agent to rewrite after final audit failure."""
+    previous_instruction = context.get("_audit_retry_instruction")
+    try:
+        context["_audit_retry_instruction"] = build_audit_retry_instruction(agent_num, issues)
+        context["structured_outputs"].pop(agent_num, None)
+        result = run_single_agent(agent_num, data, context, rotator, max_retries=1)
+        result = sanitize_model_output(result)
+        if is_agent_execution_failure(result):
+            return False, result
+        prompt_issues = validate_prompt_leakage(result)
+        identity_issues = validate_company_identity(result, data)
+        if prompt_issues or identity_issues:
+            return False, "；".join(prompt_issues + identity_issues)
+        result = append_quality_warnings(agent_num, result, data)
+        context["analyses"][agent_num] = result
+        return True, "已重寫並重新套用品質檢查"
+    except Exception as exc:
+        return False, str(exc)[:160]
+    finally:
+        if previous_instruction is None:
+            context.pop("_audit_retry_instruction", None)
+        else:
+            context["_audit_retry_instruction"] = previous_instruction
+
+
+async def _repair_agent_output_async(agent_num: int, data: dict, context: dict, rotator: KeyRotator, issues: list[str]) -> tuple[bool, str]:
+    """Asynchronously ask the relevant agent to rewrite after final audit failure."""
+    previous_instruction = context.get("_audit_retry_instruction")
+    try:
+        context["_audit_retry_instruction"] = build_audit_retry_instruction(agent_num, issues)
+        context["structured_outputs"].pop(agent_num, None)
+        result = await run_single_agent_async(agent_num, data, context, rotator, max_retries=1)
+        result = sanitize_model_output(result)
+        if is_agent_execution_failure(result):
+            return False, result
+        prompt_issues = validate_prompt_leakage(result)
+        identity_issues = validate_company_identity(result, data)
+        if prompt_issues or identity_issues:
+            return False, "；".join(prompt_issues + identity_issues)
+        result = append_quality_warnings(agent_num, result, data)
+        context["analyses"][agent_num] = result
+        return True, "已重寫並重新套用品質檢查"
+    except Exception as exc:
+        return False, str(exc)[:160]
+    finally:
+        if previous_instruction is None:
+            context.pop("_audit_retry_instruction", None)
+        else:
+            context["_audit_retry_instruction"] = previous_instruction
+
+
+def attempt_final_audit_repair(context: dict, audit: dict, rotator: KeyRotator):
+    repair_requests = audit.get("repair_agent_issues", {}) or {}
+    if not repair_requests:
+        context.setdefault("audit_repair_log", []).append("最終稽核發現問題，但沒有可定位到單一 Agent 的自動重寫項目；報告會保留並標示異常。")
+        return
+
+    print("  🛠️  最終稽核發現異常，嘗試請相關 Agent 自動重寫修復...")
+    data = context.get("data", {})
+    for agent_num in sorted(repair_requests):
+        agent_name = AGENT_NAMES.get(agent_num, f"Agent {agent_num}")
+        ok, message = _repair_agent_output(agent_num, data, context, rotator, repair_requests[agent_num])
+        status = "成功" if ok else "失敗"
+        log = f"{agent_name} AI 修復{status}：{message}"
+        context.setdefault("audit_repair_log", []).append(log)
+        print(f"     - {log}")
+
+
+async def attempt_final_audit_repair_async(context: dict, audit: dict, rotator: KeyRotator):
+    repair_requests = audit.get("repair_agent_issues", {}) or {}
+    if not repair_requests:
+        context.setdefault("audit_repair_log", []).append("最終稽核發現問題，但沒有可定位到單一 Agent 的自動重寫項目；報告會保留並標示異常。")
+        return
+
+    print("  🛠️  最終稽核發現異常，嘗試請相關 Agent 非同步重寫修復...")
+    data = context.get("data", {})
+    for agent_num in sorted(repair_requests):
+        agent_name = AGENT_NAMES.get(agent_num, f"Agent {agent_num}")
+        ok, message = await _repair_agent_output_async(agent_num, data, context, rotator, repair_requests[agent_num])
+        status = "成功" if ok else "失敗"
+        log = f"{agent_name} AI 修復{status}：{message}"
+        context.setdefault("audit_repair_log", []).append(log)
+        print(f"     - {log}")
+
+
+def run_final_report_audit(context: dict, append_section: bool = True) -> dict:
+    """
+    Cross-agent final audit before report rendering.
+
+    The audit is deterministic. It classifies serious issues, asks the pipeline
+    to repair them in a separate pass, and always leaves enough information for
+    the renderer to preserve a report with visible abnormality notes.
     """
     data = context.get("data", {}) or {}
     analyses = context.get("analyses", {}) or {}
@@ -1503,6 +1695,11 @@ def run_final_report_audit(context: dict) -> dict:
     critical: list[str] = []
     warnings: list[str] = []
     corrections: list[str] = []
+    repair_agent_issues: dict[int, list[str]] = {}
+
+    def add_agent_repair_issue(agent_num: int, issue: str):
+        repair_agent_issues.setdefault(agent_num, [])
+        _add_unique_issue(repair_agent_issues[agent_num], issue)
 
     completed_agents = set(analyses.keys())
     missing_agents = [num for num in range(1, 8) if num not in completed_agents or not str(analyses.get(num, "")).strip()]
@@ -1518,12 +1715,15 @@ def run_final_report_audit(context: dict) -> dict:
 
         for issue in validate_prompt_leakage(str(text)):
             _add_unique_issue(critical, f"{agent_name}: {issue}")
+            add_agent_repair_issue(agent_num, issue)
         for issue in validate_company_identity(str(text), data):
             _add_unique_issue(critical, f"{agent_name}: {issue}")
+            add_agent_repair_issue(agent_num, issue)
 
         for issue in validate_analysis_output(agent_num, str(text), data):
             if any(marker in issue for marker in ["成長率口徑紅線", "淨利率口徑紅線", "不可把 Yahoo TTM", "應付帳款"]):
                 _add_unique_issue(critical, f"{agent_name}: {issue}")
+                add_agent_repair_issue(agent_num, issue)
             else:
                 _add_unique_issue(warnings, f"{agent_name}: {issue}")
 
@@ -1532,12 +1732,14 @@ def run_final_report_audit(context: dict) -> dict:
     for agent_num, label in [(3, "護城河評分"), (4, "三情境目標價"), (7, "最終投資建議")]:
         if agent_num in completed_agents and agent_num not in structured_outputs:
             _add_unique_issue(critical, f"Agent {agent_num} {label} 未提供可解析 JSON 結構化輸出。")
+            add_agent_repair_issue(agent_num, f"{label} 未提供可解析 JSON 結構化輸出。")
 
     price_targets = parsed.get("price_targets", {}) or {}
     required_targets = ["熊市情境", "基本情境", "牛市情境"]
     missing_targets = [key for key in required_targets if key not in price_targets]
     if missing_targets:
         _add_unique_issue(critical, f"Agent 4 缺少目標價情境：{', '.join(missing_targets)}")
+        add_agent_repair_issue(4, f"缺少目標價情境：{', '.join(missing_targets)}")
 
     current_price = data.get("current_price")
     numeric_targets = {
@@ -1552,6 +1754,7 @@ def run_final_report_audit(context: dict) -> dict:
         ]
         if tiny_targets:
             _add_unique_issue(critical, f"目標價疑似單位縮小錯誤：{', '.join(tiny_targets)}")
+            add_agent_repair_issue(4, f"目標價疑似單位縮小錯誤：{', '.join(tiny_targets)}")
 
     if all(key in numeric_targets for key in required_targets):
         bear = numeric_targets["熊市情境"]
@@ -1559,23 +1762,28 @@ def run_final_report_audit(context: dict) -> dict:
         bull = numeric_targets["牛市情境"]
         if not (bear <= base <= bull):
             _add_unique_issue(critical, f"三情境目標價順序不合理：熊市 {bear:g}、基本 {base:g}、牛市 {bull:g}。")
+            add_agent_repair_issue(4, f"三情境目標價順序不合理：熊市 {bear:g}、基本 {base:g}、牛市 {bull:g}。")
 
     moat_scores = parsed.get("moat_scores", {}) or {}
     required_moat = {"品牌影響力", "網路效應", "轉換成本", "成本優勢", "專利技術", "整體護城河"}
     if not required_moat.issubset(moat_scores.keys()):
         missing = sorted(required_moat - set(moat_scores.keys()))
         _add_unique_issue(critical, f"Agent 3 護城河評分缺少欄位：{', '.join(missing)}")
+        add_agent_repair_issue(3, f"護城河評分缺少欄位：{', '.join(missing)}")
 
     recommendation = parsed.get("recommendation", {}) or {}
     if not recommendation:
         _add_unique_issue(critical, "Agent 7 缺少最終投資建議結構化資料。")
+        add_agent_repair_issue(7, "缺少最終投資建議結構化資料。")
     else:
         rec_text = _recommendation_value(recommendation, "建議")
         if not any(word in rec_text for word in ["買入", "持有", "避免"]):
             _add_unique_issue(critical, f"Agent 7 投資建議不在允許值內：{rec_text or '空白'}")
+            add_agent_repair_issue(7, f"投資建議不在允許值內：{rec_text or '空白'}")
         for label in ["3個月", "6個月", "12個月", "信心"]:
             if not _recommendation_value(recommendation, label):
                 _add_unique_issue(critical, f"Agent 7 缺少 {label} 欄位。")
+                add_agent_repair_issue(7, f"缺少 {label} 欄位。")
 
         target_12m = _extract_first_price(_recommendation_value(recommendation, "12個月"))
         if target_12m is not None and all(key in numeric_targets for key in required_targets):
@@ -1595,21 +1803,24 @@ def run_final_report_audit(context: dict) -> dict:
     if any("revenueGrowth" in note for note in data_notes):
         _add_unique_issue(corrections, "Yahoo revenueGrowth 已降級為近期/季度口徑，不得直接當年度或 TTM 年增率。")
 
-    status = "failed" if critical else "passed"
+    status = "needs_attention" if critical else "passed"
     audit = {
         "status": status,
         "critical": critical,
         "warnings": warnings,
         "corrections": corrections,
+        "repair_agent_issues": repair_agent_issues,
+        "report_preserved": True,
     }
 
-    if critical:
-        context.setdefault("blocking_issues", []).extend(f"Final Audit: {issue}" for issue in critical)
-    else:
+    if append_section:
         _append_final_audit_section(context, audit)
 
     if critical:
-        print("  🚨 最終跨 Agent 稽核未通過，報告不會被儲存。")
+        if append_section:
+            print("  ⚠️  最終跨 Agent 稽核仍有異常；報告會保留，並在報告內標示異常提醒。")
+        else:
+            print("  ⚠️  最終跨 Agent 稽核發現異常，準備嘗試 AI 自動修復。")
         for issue in critical[:8]:
             print(f"     - {issue}")
     elif warnings or corrections:

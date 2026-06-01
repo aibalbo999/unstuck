@@ -35,10 +35,10 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str) -> str:
 
         if context.get("blocking_issues"):
             issue_text = "；".join(context["blocking_issues"][:3])
-            message = f"報告未儲存：最終品質檢查未通過。{issue_text}"
-            update_job(job_id, "error", error=message)
-            append_event(job_id, {"type": "error", "message": message})
-            return ""
+            append_event(job_id, {
+                "type": "status",
+                "message": f"品質檢查仍有異常，系統會保留報告並在內文標示提醒：{issue_text}",
+            })
 
         append_event(job_id, {"type": "status", "message": "生成 HTML / Markdown 報告..."})
         html_content = generate_html_report(context)

@@ -202,12 +202,11 @@ def main():
         issue_text = "\n".join(f"- {issue}" for issue in context["blocking_issues"][:8])
         console.print()
         console.print(Panel(
-            f"[bold red]報告未輸出：最終品質檢查未通過。[/bold red]\n\n{issue_text}",
-            title="[bold]品質檢查失敗[/bold]",
-            border_style="red",
+            f"[bold yellow]品質檢查仍有異常；系統會繼續輸出報告，並在報告內標示提醒。[/bold yellow]\n\n{issue_text}",
+            title="[bold]品質檢查提醒[/bold]",
+            border_style="yellow",
             padding=(1, 2),
         ))
-        return context
     
     # ─── 顯示分析摘要 ─────────────────────────────────────────
     console.print()
