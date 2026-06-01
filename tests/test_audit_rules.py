@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 import agent_runner as ar  # noqa: E402
+import report_gen  # noqa: E402
 
 
 def base_data():
@@ -154,6 +155,25 @@ class AuditRuleTests(unittest.TestCase):
                 issues = ar.validate_analysis_output(agent_num, text, data)
                 self.assert_has_issue(issues, expected)
 
+    def test_audit_allows_annual_dupont_with_ttm_caveat(self):
+        text = (
+            "根據 2025 同期間年度數據，年度杜邦恒等式為："
+            "淨利率 12.0% × 資產周轉率 0.847x × 權益乘數 1.427x = ROE 14.5%。"
+            "Yahoo TTM ROE 37.2% 與 ROA 12.9% 僅供對照，屬於不同期間平均資產計算之口徑偏差。"
+        )
+        issues = ar.validate_analysis_output(2, text, {})
+        self.assertNotIn("杜邦分析紅線", "\n".join(issues))
+
+    def test_generated_quality_warning_does_not_self_trigger_audit(self):
+        text = (
+            "根據 2025 同期間年度數據，年度杜邦恒等式為："
+            "淨利率 12.0% × 資產周轉率 0.847x × 權益乘數 1.427x = ROE 14.5%。"
+            "\n\n## 系統品質檢查警示\n"
+            "- 杜邦分析紅線：不可把 Yahoo TTM ROE/ROA/淨利率與最新年度資產周轉率或權益乘數拼接成 TTM 杜邦公式。"
+        )
+        issues = ar.validate_analysis_output(2, text, {})
+        self.assertNotIn("杜邦分析紅線", "\n".join(issues))
+
     def test_prompt_and_identity_regressions(self):
         self.assert_has_issue(
             ar.validate_prompt_leakage("Senior Analyst at Goldman Sachs\n正式內容"),
@@ -212,6 +232,19 @@ class AuditRuleTests(unittest.TestCase):
         context["data"]["price_history"] = {"2999-01-01": 123}
         audit = ar.run_final_report_audit(context, append_section=False)
         self.assert_has_issue(audit["corrections"], "歷史股價含未來日期")
+
+    def test_passed_audit_corrections_do_not_render_abnormal_banner(self):
+        context = complete_context()
+        context["final_audit"] = {
+            "status": "passed",
+            "critical": [],
+            "warnings": [],
+            "corrections": ["資料源口徑已校正"],
+            "report_preserved": True,
+        }
+        context["audit_repair_log"] = ["商業模式與整體分析 AI 修復成功：已重寫並通過品質檢查"]
+        self.assertEqual(report_gen.build_audit_sections(context), [])
+        self.assertEqual(report_gen.build_audit_banner_html(context), "")
 
 
 if __name__ == "__main__":

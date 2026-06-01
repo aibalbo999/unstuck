@@ -127,6 +127,9 @@ def build_audit_sections(context: dict) -> list[tuple[str, list[str]]]:
         issue for issue in (context.get("blocking_issues", []) or [])
         if issue not in critical
     ]
+    if not critical and not blocking:
+        return []
+
     if critical or blocking:
         sections.append(("仍需注意的異常", [*critical[:10], *blocking[:6]]))
 

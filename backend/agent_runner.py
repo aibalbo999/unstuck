@@ -585,7 +585,8 @@ def _format_previous(context: dict, current_agent: int) -> str:
         if i in analyses:
             name = agent_names.get(i, f"Agent {i}")
             # 只取前 800 字避免 prompt 過長
-            content = analyses[i][:800] + "..." if len(analyses[i]) > 800 else analyses[i]
+            clean_analysis = strip_generated_audit_sections(str(analyses[i]))
+            content = clean_analysis[:800] + "..." if len(clean_analysis) > 800 else clean_analysis
             parts.append(f"【{name}】\n{content}")
     
     return "\n\n".join(parts) if parts else "（無前序分析）"
@@ -780,14 +781,37 @@ def _has_data_quality_caveat(normalized: str) -> bool:
             "資料品質警示",
             "口徑差異",
             "口徑不同",
+            "口徑偏差",
+            "口徑互斥",
             "不可直接",
             "不得直接",
             "不能直接",
             "不應直接",
             "僅列為警示",
+            "僅供對照",
             "需人工複核",
+            "同期間年度",
+            "年度杜邦恒等式",
         ]
     )
+
+
+def strip_generated_audit_sections(text: str) -> str:
+    """Remove system-generated warning/audit tails before re-validating model text."""
+    if not text:
+        return ""
+    generated_headers = [
+        "\n## 系統品質檢查警示",
+        "\n## 系統身分一致性警示",
+        "\n## 系統最終稽核",
+        "\n### 系統品質檢查警示",
+        "\n### 系統身分一致性警示",
+        "\n### 系統最終稽核",
+    ]
+    indexes = [text.find(header) for header in generated_headers if text.find(header) != -1]
+    if not indexes:
+        return text
+    return text[:min(indexes)].rstrip()
 
 
 def _extract_revenue_mentions(normalized: str) -> list[dict]:
@@ -885,7 +909,7 @@ def _append_deep_numeric_consistency_issues(issues: list[str], normalized: str):
 def validate_analysis_output(agent_num: int, text: str, data: Optional[dict] = None) -> list[str]:
     """檢查模型輸出是否踩到硬性財務邏輯紅線。"""
     issues = []
-    normalized = re.sub(r"\s+", "", text or "")
+    normalized = re.sub(r"\s+", "", strip_generated_audit_sections(text or ""))
     data = data or {}
 
     has_dupont_gap = (
@@ -906,6 +930,7 @@ def validate_analysis_output(agent_num: int, text: str, data: Optional[dict] = N
         and "資產周轉" in normalized
         and "權益乘數" in normalized
         and any(word in normalized for word in ["差距", "口徑", "不一致", "偏差"])
+        and not _has_data_quality_caveat(normalized)
     )
     if mixed_ttm_dupont:
         issues.append(
@@ -1748,20 +1773,33 @@ def _repair_agent_output(agent_num: int, data: dict, context: dict, rotator: Key
     """Synchronously ask the relevant agent to rewrite after final audit failure."""
     previous_instruction = context.get("_audit_retry_instruction")
     try:
-        context["_audit_retry_instruction"] = build_audit_retry_instruction(agent_num, issues)
-        context["structured_outputs"].pop(agent_num, None)
-        result = run_single_agent(agent_num, data, context, rotator, max_retries=1)
-        result = sanitize_model_output(result)
-        if is_agent_execution_failure(result):
-            return False, result
-        prompt_issues = validate_prompt_leakage(result)
-        identity_issues = validate_company_identity(result, data)
-        if prompt_issues or identity_issues:
-            return False, "；".join(prompt_issues + identity_issues)
-        result = append_quality_warnings(agent_num, result, data)
-        context["analyses"][agent_num] = result
-        _clear_agent_blocking_issues(context, agent_num)
-        return True, "已重寫並重新套用品質檢查"
+        current_issues = list(issues)
+        last_result = None
+        last_quality_issues = []
+        for repair_attempt in range(2):
+            context["_audit_retry_instruction"] = build_audit_retry_instruction(agent_num, current_issues)
+            context["structured_outputs"].pop(agent_num, None)
+            result = run_single_agent(agent_num, data, context, rotator, max_retries=1)
+            result = sanitize_model_output(result)
+            if is_agent_execution_failure(result):
+                return False, result
+            prompt_issues = validate_prompt_leakage(result)
+            identity_issues = validate_company_identity(result, data)
+            if prompt_issues or identity_issues:
+                return False, "；".join(prompt_issues + identity_issues)
+            quality_issues = validate_analysis_output(agent_num, result, data)
+            if quality_issues:
+                last_result = append_quality_warnings(agent_num, result, data)
+                last_quality_issues = quality_issues
+                current_issues = quality_issues
+                print(f"       ↳ 第 {repair_attempt + 1} 次重寫仍觸發品質紅線，改用紅線重新要求修復。")
+                continue
+            context["analyses"][agent_num] = strip_generated_audit_sections(result)
+            _clear_agent_blocking_issues(context, agent_num)
+            return True, "已重寫並通過品質檢查"
+        if last_result:
+            context["analyses"][agent_num] = last_result
+        return False, "重寫後仍觸發品質紅線：" + "；".join(last_quality_issues[:3])
     except Exception as exc:
         return False, str(exc)[:160]
     finally:
@@ -1775,20 +1813,33 @@ async def _repair_agent_output_async(agent_num: int, data: dict, context: dict, 
     """Asynchronously ask the relevant agent to rewrite after final audit failure."""
     previous_instruction = context.get("_audit_retry_instruction")
     try:
-        context["_audit_retry_instruction"] = build_audit_retry_instruction(agent_num, issues)
-        context["structured_outputs"].pop(agent_num, None)
-        result = await run_single_agent_async(agent_num, data, context, rotator, max_retries=1)
-        result = sanitize_model_output(result)
-        if is_agent_execution_failure(result):
-            return False, result
-        prompt_issues = validate_prompt_leakage(result)
-        identity_issues = validate_company_identity(result, data)
-        if prompt_issues or identity_issues:
-            return False, "；".join(prompt_issues + identity_issues)
-        result = append_quality_warnings(agent_num, result, data)
-        context["analyses"][agent_num] = result
-        _clear_agent_blocking_issues(context, agent_num)
-        return True, "已重寫並重新套用品質檢查"
+        current_issues = list(issues)
+        last_result = None
+        last_quality_issues = []
+        for repair_attempt in range(2):
+            context["_audit_retry_instruction"] = build_audit_retry_instruction(agent_num, current_issues)
+            context["structured_outputs"].pop(agent_num, None)
+            result = await run_single_agent_async(agent_num, data, context, rotator, max_retries=1)
+            result = sanitize_model_output(result)
+            if is_agent_execution_failure(result):
+                return False, result
+            prompt_issues = validate_prompt_leakage(result)
+            identity_issues = validate_company_identity(result, data)
+            if prompt_issues or identity_issues:
+                return False, "；".join(prompt_issues + identity_issues)
+            quality_issues = validate_analysis_output(agent_num, result, data)
+            if quality_issues:
+                last_result = append_quality_warnings(agent_num, result, data)
+                last_quality_issues = quality_issues
+                current_issues = quality_issues
+                print(f"       ↳ 第 {repair_attempt + 1} 次重寫仍觸發品質紅線，改用紅線重新要求修復。")
+                continue
+            context["analyses"][agent_num] = strip_generated_audit_sections(result)
+            _clear_agent_blocking_issues(context, agent_num)
+            return True, "已重寫並通過品質檢查"
+        if last_result:
+            context["analyses"][agent_num] = last_result
+        return False, "重寫後仍觸發品質紅線：" + "；".join(last_quality_issues[:3])
     except Exception as exc:
         return False, str(exc)[:160]
     finally:
@@ -1863,34 +1914,24 @@ def run_final_report_audit(context: dict, append_section: bool = True) -> dict:
 
     for agent_num, text in analyses.items():
         agent_name = AGENT_NAMES.get(agent_num, f"Agent {agent_num}")
-        if is_agent_execution_failure(text):
+        audited_text = strip_generated_audit_sections(str(text))
+        if is_agent_execution_failure(str(text)):
             _add_unique_issue(critical, f"{agent_name} 輸出為失敗訊息，不能產生正式報告。")
             add_agent_repair_issue(agent_num, "前次輸出為失敗訊息，請重新執行本 Agent。")
-        if "分析進行中" in str(text):
+        if "分析進行中" in audited_text:
             _add_unique_issue(critical, f"{agent_name} 仍含佔位文字「分析進行中」。")
             add_agent_repair_issue(agent_num, "前次輸出仍是佔位文字，請補齊正式分析。")
 
-        for issue in validate_prompt_leakage(str(text)):
+        for issue in validate_prompt_leakage(audited_text):
             _add_unique_issue(critical, f"{agent_name}: {issue}")
             add_agent_repair_issue(agent_num, issue)
-        for issue in validate_company_identity(str(text), data):
+        for issue in validate_company_identity(audited_text, data):
             _add_unique_issue(critical, f"{agent_name}: {issue}")
             add_agent_repair_issue(agent_num, issue)
 
-        for issue in validate_analysis_output(agent_num, str(text), data):
-            if any(marker in issue for marker in [
-                "成長率口徑紅線",
-                "淨利率口徑紅線",
-                "不可把 Yahoo TTM",
-                "應付帳款",
-                "算術一致性紅線",
-                "估值一致性紅線",
-                "杜邦數值一致性紅線",
-            ]):
-                _add_unique_issue(critical, f"{agent_name}: {issue}")
-                add_agent_repair_issue(agent_num, issue)
-            else:
-                _add_unique_issue(warnings, f"{agent_name}: {issue}")
+        for issue in validate_analysis_output(agent_num, audited_text, data):
+            _add_unique_issue(critical, f"{agent_name}: {issue}")
+            add_agent_repair_issue(agent_num, issue)
 
     # Structured agents must remain parseable. Regex/default fallbacks are useful
     # for old reports but should not silently pass new production reports.
@@ -1995,7 +2036,7 @@ def run_final_report_audit(context: dict, append_section: bool = True) -> dict:
         "report_preserved": True,
     }
 
-    if append_section:
+    if append_section and critical:
         _append_final_audit_section(context, audit)
 
     if critical:
