@@ -9,6 +9,7 @@ import time
 import re
 import inspect
 from contextlib import suppress
+from datetime import date, datetime
 from typing import Any, Optional
 from google import genai
 from google.genai import types
@@ -743,10 +744,146 @@ AGENT_NAMES = {
 }
 
 
+def _safe_float(value) -> Optional[float]:
+    if value is None or value == "N/A":
+        return None
+    try:
+        if isinstance(value, str):
+            value = value.replace(",", "").replace("x", "").replace("%", "").strip()
+            if not value:
+                return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _relative_gap(a: float, b: float) -> float:
+    return abs(a - b) / max(abs(a), abs(b), 1.0)
+
+
+def _money_text_to_billion(raw_num: str, unit: str = "") -> Optional[float]:
+    value = _safe_float(raw_num)
+    if value is None:
+        return None
+    unit = unit or ""
+    if unit == "億":
+        return value / 10
+    if unit == "兆":
+        return value * 1000
+    return value
+
+
+def _has_data_quality_caveat(normalized: str) -> bool:
+    return any(
+        word in normalized
+        for word in [
+            "資料品質警示",
+            "口徑差異",
+            "口徑不同",
+            "不可直接",
+            "不得直接",
+            "不能直接",
+            "不應直接",
+            "僅列為警示",
+            "需人工複核",
+        ]
+    )
+
+
+def _extract_revenue_mentions(normalized: str) -> list[dict]:
+    mentions = []
+    pattern = re.compile(
+        r"(?P<label>TTM|LTM|20\d{2}年|最新年度|前一年度)?"
+        r"營收(?:為|=|:|：|達|約)?(?:NT\$?)?"
+        r"(?P<num>\d+(?:\.\d+)?)(?P<unit>B|億|兆)?",
+        re.IGNORECASE,
+    )
+    for match in pattern.finditer(normalized):
+        value_b = _money_text_to_billion(match.group("num"), match.group("unit") or "")
+        if value_b is None:
+            continue
+        mentions.append({
+            "label": match.group("label") or "",
+            "value_b": value_b,
+            "start": match.start(),
+        })
+    return mentions
+
+
+def _extract_first_money_billion(pattern: str, normalized: str) -> Optional[float]:
+    match = re.search(pattern, normalized, flags=re.IGNORECASE)
+    if not match:
+        return None
+    return _money_text_to_billion(match.group("num"), match.groupdict().get("unit") or "")
+
+
+def _extract_first_percent(pattern: str, normalized: str) -> Optional[float]:
+    match = re.search(pattern, normalized, flags=re.IGNORECASE)
+    if not match:
+        return None
+    return _safe_float(match.group("num"))
+
+
+def _append_deep_numeric_consistency_issues(issues: list[str], normalized: str):
+    """Catch arithmetic contradictions that do not depend on a named rule."""
+    revenue_mentions = _extract_revenue_mentions(normalized)
+    revenue_growth_claim = _extract_first_percent(
+        r"營收(?:年增率|成長率|年增|成長|增長|暴增)(?:高達|達|為|=|:|：|約)?(?P<num>-?\d+(?:\.\d+)?)%",
+        normalized,
+    )
+    if revenue_growth_claim is not None and len(revenue_mentions) >= 2:
+        current = next((item for item in revenue_mentions if item["label"].upper() in {"TTM", "LTM"}), revenue_mentions[-1])
+        base_candidates = [item for item in revenue_mentions if item is not current and item["value_b"] > 0]
+        if base_candidates:
+            base = base_candidates[-1] if current["start"] > base_candidates[-1]["start"] else base_candidates[0]
+            expected_growth = (current["value_b"] / base["value_b"] - 1) * 100
+            if abs(revenue_growth_claim - expected_growth) > max(10, abs(expected_growth) * 0.35):
+                issues.append(
+                    "算術一致性紅線：報告列出的營收基期與 TTM/最新營收推不出所宣稱的營收成長率；"
+                    f"依文中數字約為 {expected_growth:.1f}%，不是 {revenue_growth_claim:.1f}%。"
+                )
+
+    revenue_b = next((item["value_b"] for item in revenue_mentions if item["label"].upper() in {"TTM", "LTM"}), None)
+    if revenue_b is None and revenue_mentions:
+        revenue_b = revenue_mentions[0]["value_b"]
+    margin_pct = _extract_first_percent(r"淨利率(?:為|=|:|：|約|高達)?(?P<num>-?\d+(?:\.\d+)?)%", normalized)
+    market_cap_b = _extract_first_money_billion(
+        r"市值(?:為|=|:|：|約)?(?:NT\$?)?(?P<num>\d+(?:\.\d+)?)(?P<unit>B|億|兆)?",
+        normalized,
+    )
+    pe = _extract_first_percent(
+        r"(?:TTM)?(?:P/E|本益比)(?:為|=|:|：|約)?(?P<num>\d+(?:\.\d+)?)x?",
+        normalized,
+    )
+    if revenue_b and margin_pct is not None and market_cap_b and pe and pe > 0:
+        implied_income_from_margin = revenue_b * margin_pct / 100
+        implied_income_from_pe = market_cap_b / pe
+        if _relative_gap(implied_income_from_margin, implied_income_from_pe) > 0.25:
+            issues.append(
+                "估值一致性紅線：文中 TTM 營收×淨利率 推回淨利，與 市值÷P/E 推回淨利差異超過 25%；"
+                "必須標示資料口徑互斥並採用校準後口徑。"
+            )
+
+    if not _has_data_quality_caveat(normalized):
+        roe = _extract_first_percent(r"ROE(?:為|=|:|：|約)?(?P<num>-?\d+(?:\.\d+)?)%", normalized)
+        roa = _extract_first_percent(r"ROA(?:為|=|:|：|約)?(?P<num>-?\d+(?:\.\d+)?)%", normalized)
+        equity_multiplier_match = re.search(
+            r"權益乘數(?:為|=|:|：|約)?(?P<num>\d+(?:\.\d+)?)(?:x|倍)?",
+            normalized,
+            flags=re.IGNORECASE,
+        )
+        equity_multiplier = _safe_float(equity_multiplier_match.group("num")) if equity_multiplier_match else None
+        if roe is not None and roa is not None and equity_multiplier is not None:
+            implied_roe = roa * equity_multiplier
+            if abs(implied_roe - roe) > max(3, abs(roe) * 0.15):
+                issues.append(
+                    "杜邦數值一致性紅線：文中 ROA×權益乘數 與 ROE 差距過大；"
+                    "若不是同期間同口徑資料，不可作為杜邦恒等式拆解。"
+                )
+
+
 def validate_analysis_output(agent_num: int, text: str, data: Optional[dict] = None) -> list[str]:
     """檢查模型輸出是否踩到硬性財務邏輯紅線。"""
-    import re
-
     issues = []
     normalized = re.sub(r"\s+", "", text or "")
     data = data or {}
@@ -853,6 +990,8 @@ def validate_analysis_output(agent_num: int, text: str, data: Optional[dict] = N
                     "淨利率口徑紅線：Yahoo 原始 profitMargins 與 P/E/EPS 推回淨利互斥時，"
                     "正式分析必須採用校準後淨利率，原始值只能作為資料品質警示。"
                 )
+
+    _append_deep_numeric_consistency_issues(issues, normalized)
 
     return issues
 
@@ -1581,16 +1720,28 @@ def build_audit_retry_instruction(agent_num: int, issues: list[str]) -> str:
     issue_lines = "\n".join(f"- {issue}" for issue in issues[:8])
     return (
         "🚨【最終跨 Agent 稽核要求重寫本段】\n"
-        "系統在正式報告存檔前發現以下問題，請完全重寫本 Agent 的輸出正文，"
+        "系統在正式報告存檔前發現以下問題，請完全重寫或補跑本 Agent 的輸出正文，"
         "保留原本段落任務，但必須修正所有問題：\n"
         f"{issue_lines}\n\n"
         "修復規則：\n"
+        "- 若前次輸出缺失、失敗或仍是佔位文字，請從零生成本 Agent 的完整正式輸出。\n"
         "- 只使用資料摘要中明確提供的數字；若資料口徑衝突，請列為資料品質警示，不可硬湊公式。\n"
         "- 杜邦分析只能使用同期間年度杜邦恒等式；不可混用 Yahoo TTM ROE/ROA/淨利率與最新年度資產周轉率或權益乘數。\n"
         "- Yahoo revenueGrowth/earningsGrowth 若被標為近期或季度口徑，不可寫成年度或 TTM 年增率。\n"
         "- 若原始 Yahoo 淨利率與 EPS/P/E 推回淨利互斥，正式分析必須採用校準後淨利率，原始值只能作為資料源對照。\n"
         "- 不要提及你在修復、不要輸出本段修復指令、不要保留錯誤原文。"
     )
+
+
+def _clear_agent_blocking_issues(context: dict, agent_num: int):
+    agent_name = AGENT_NAMES.get(agent_num, f"Agent {agent_num}")
+    prefixes = (f"Agent {agent_num} ", f"Agent {agent_num}: ", f"{agent_name}: ")
+    context["blocking_issues"] = [
+        issue for issue in context.get("blocking_issues", [])
+        if not str(issue).startswith(prefixes)
+    ]
+    if not context["blocking_issues"]:
+        context.pop("blocking_issues", None)
 
 
 def _repair_agent_output(agent_num: int, data: dict, context: dict, rotator: KeyRotator, issues: list[str]) -> tuple[bool, str]:
@@ -1609,6 +1760,7 @@ def _repair_agent_output(agent_num: int, data: dict, context: dict, rotator: Key
             return False, "；".join(prompt_issues + identity_issues)
         result = append_quality_warnings(agent_num, result, data)
         context["analyses"][agent_num] = result
+        _clear_agent_blocking_issues(context, agent_num)
         return True, "已重寫並重新套用品質檢查"
     except Exception as exc:
         return False, str(exc)[:160]
@@ -1635,6 +1787,7 @@ async def _repair_agent_output_async(agent_num: int, data: dict, context: dict, 
             return False, "；".join(prompt_issues + identity_issues)
         result = append_quality_warnings(agent_num, result, data)
         context["analyses"][agent_num] = result
+        _clear_agent_blocking_issues(context, agent_num)
         return True, "已重寫並重新套用品質檢查"
     except Exception as exc:
         return False, str(exc)[:160]
@@ -1705,13 +1858,17 @@ def run_final_report_audit(context: dict, append_section: bool = True) -> dict:
     missing_agents = [num for num in range(1, 8) if num not in completed_agents or not str(analyses.get(num, "")).strip()]
     if missing_agents:
         _add_unique_issue(critical, f"缺少 Agent 輸出：{', '.join(str(num) for num in missing_agents)}")
+        for agent_num in missing_agents:
+            add_agent_repair_issue(agent_num, "缺少 Agent 輸出，請補跑本 Agent 並產生完整正式段落。")
 
     for agent_num, text in analyses.items():
         agent_name = AGENT_NAMES.get(agent_num, f"Agent {agent_num}")
         if is_agent_execution_failure(text):
             _add_unique_issue(critical, f"{agent_name} 輸出為失敗訊息，不能產生正式報告。")
+            add_agent_repair_issue(agent_num, "前次輸出為失敗訊息，請重新執行本 Agent。")
         if "分析進行中" in str(text):
             _add_unique_issue(critical, f"{agent_name} 仍含佔位文字「分析進行中」。")
+            add_agent_repair_issue(agent_num, "前次輸出仍是佔位文字，請補齊正式分析。")
 
         for issue in validate_prompt_leakage(str(text)):
             _add_unique_issue(critical, f"{agent_name}: {issue}")
@@ -1721,7 +1878,15 @@ def run_final_report_audit(context: dict, append_section: bool = True) -> dict:
             add_agent_repair_issue(agent_num, issue)
 
         for issue in validate_analysis_output(agent_num, str(text), data):
-            if any(marker in issue for marker in ["成長率口徑紅線", "淨利率口徑紅線", "不可把 Yahoo TTM", "應付帳款"]):
+            if any(marker in issue for marker in [
+                "成長率口徑紅線",
+                "淨利率口徑紅線",
+                "不可把 Yahoo TTM",
+                "應付帳款",
+                "算術一致性紅線",
+                "估值一致性紅線",
+                "杜邦數值一致性紅線",
+            ]):
                 _add_unique_issue(critical, f"{agent_name}: {issue}")
                 add_agent_repair_issue(agent_num, issue)
             else:
@@ -1802,6 +1967,23 @@ def run_final_report_audit(context: dict, append_section: bool = True) -> dict:
         _add_unique_issue(corrections, "資料源出現淨利/淨利率口徑互斥時，報告已採用 EPS/P/E 自洽的校準口徑。")
     if any("revenueGrowth" in note for note in data_notes):
         _add_unique_issue(corrections, "Yahoo revenueGrowth 已降級為近期/季度口徑，不得直接當年度或 TTM 年增率。")
+
+    price_history = data.get("price_history", {}) or {}
+    if isinstance(price_history, dict):
+        future_dates = []
+        today = date.today()
+        for raw_date in price_history.keys():
+            try:
+                parsed_date = datetime.fromisoformat(str(raw_date)[:10]).date()
+            except ValueError:
+                continue
+            if parsed_date > today:
+                future_dates.append(str(raw_date)[:10])
+        if future_dates:
+            _add_unique_issue(
+                corrections,
+                f"歷史股價含未來日期，報告圖表會忽略：{', '.join(sorted(future_dates)[:5])}。"
+            )
 
     status = "needs_attention" if critical else "passed"
     audit = {
