@@ -197,6 +197,17 @@ def main():
     
     elapsed = time.time() - start_time
     console.print(f"\n[bold green]✅ 所有分析完成！總耗時：{elapsed:.0f} 秒 ({elapsed/60:.1f} 分鐘)[/bold green]")
+
+    if context.get("blocking_issues"):
+        issue_text = "\n".join(f"- {issue}" for issue in context["blocking_issues"][:8])
+        console.print()
+        console.print(Panel(
+            f"[bold red]報告未輸出：最終品質檢查未通過。[/bold red]\n\n{issue_text}",
+            title="[bold]品質檢查失敗[/bold]",
+            border_style="red",
+            padding=(1, 2),
+        ))
+        return context
     
     # ─── 顯示分析摘要 ─────────────────────────────────────────
     console.print()
