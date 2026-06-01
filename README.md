@@ -62,6 +62,8 @@ cp backend/.env.example backend/.env
 GEMINI_API_KEYS=your_key_1,your_key_2
 ```
 
+`replace_with_key_1`、`your_key_1` 這類範例字串會被系統忽略。設定或修改 `backend/.env` 後，請重新啟動 `start_mac.command` 或 uvicorn。
+
 也可以直接用環境變數：
 
 ```bash

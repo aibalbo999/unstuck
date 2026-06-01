@@ -5,7 +5,7 @@ import os
 import time
 
 from agent_runner import run_analysis_pipeline_async
-from config import OUTPUT_DIR
+from config import API_KEY_SETUP_MESSAGE, OUTPUT_DIR, has_api_keys
 from financial_data import async_fetch_stock_data
 from job_store import append_event, update_job
 from report_gen import generate_html_report, generate_markdown_report
@@ -17,6 +17,11 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str) -> str:
     update_job(job_id, "running")
 
     try:
+        if not has_api_keys():
+            update_job(job_id, "error", error=API_KEY_SETUP_MESSAGE)
+            append_event(job_id, {"type": "error", "message": API_KEY_SETUP_MESSAGE})
+            return ""
+
         append_event(job_id, {"type": "status", "message": f"正在獲取 {ticker_upper} 財務數據..."})
         data = await async_fetch_stock_data(ticker_upper)
         if "error" in data:

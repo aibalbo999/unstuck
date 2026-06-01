@@ -10,7 +10,7 @@ import re
 import inspect
 from typing import Optional
 import google.generativeai as genai
-from config import API_KEYS, AGENT_MODELS, RPM_LIMITS, INTER_AGENT_DELAY
+from config import API_KEYS, AGENT_MODELS, RPM_LIMITS, INTER_AGENT_DELAY, API_KEY_SETUP_MESSAGE
 from financial_data import format_data_for_prompt
 from prompt_loader import load_agent_prompt_config
 
@@ -29,10 +29,7 @@ class KeyRotator:
     
     def __init__(self, keys: list):
         if not keys:
-            raise RuntimeError(
-                "未設定 Gemini API key。請設定 GEMINI_API_KEYS / GOOGLE_API_KEYS，"
-                "或在 backend/.env 放入 GEMINI_API_KEYS=key1,key2。"
-            )
+            raise RuntimeError(API_KEY_SETUP_MESSAGE)
         self.keys = keys
         self.index = 0
         # 格式：{key: {model: [timestamp, ...]}}

@@ -16,7 +16,7 @@ import threading
 from typing import Optional
 
 from analysis_jobs import run_stock_analysis_job
-from config import OUTPUT_DIR, REPORT_CLEANUP_INTERVAL_SECONDS, REPORT_RETENTION_DAYS
+from config import API_KEY_SETUP_MESSAGE, OUTPUT_DIR, REPORT_CLEANUP_INTERVAL_SECONDS, REPORT_RETENTION_DAYS, has_api_keys
 from job_store import append_event, create_job, find_active_job, get_events_since, get_job, update_job
 from task_queue import create_task_queue
 
@@ -200,6 +200,12 @@ def read_root():
 async def analyze_stock(ticker: str):
     """使用 SSE 即時推播分析進度"""
     ticker_upper = ticker.strip().upper()
+
+    if not has_api_keys():
+        async def missing_key_event_generator():
+            yield {"data": json.dumps({"type": "error", "message": API_KEY_SETUP_MESSAGE}, ensure_ascii=False)}
+
+        return EventSourceResponse(missing_key_event_generator())
 
     should_enqueue = False
     with active_analyses_lock:

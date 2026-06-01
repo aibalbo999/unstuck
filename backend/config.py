@@ -22,12 +22,25 @@ def _load_local_env():
         key, value = line.split("=", 1)
         key = key.strip()
         value = value.strip().strip('"').strip("'")
-        if key and key not in os.environ:
+        if key and (key not in os.environ or _is_placeholder_key(os.environ[key])):
             os.environ[key] = value
 
 
 def _split_keys(raw: str) -> list[str]:
     return [key.strip() for key in raw.replace("\n", ",").split(",") if key.strip()]
+
+
+def _is_placeholder_key(key: str) -> bool:
+    lowered = key.lower()
+    return any(
+        marker in lowered
+        for marker in [
+            "replace_with",
+            "your_key",
+            "example",
+            "placeholder",
+        ]
+    )
 
 
 def _load_api_keys() -> list[str]:
@@ -42,13 +55,32 @@ def _load_api_keys() -> list[str]:
         if key:
             keys.append(key.strip())
 
-    # Preserve order while removing duplicates.
-    return list(dict.fromkeys(keys))
+    # Preserve order while removing duplicates and ignoring unedited examples.
+    return [key for key in dict.fromkeys(keys) if not _is_placeholder_key(key)]
 
 
 # API keys must come from environment variables or backend/.env.
-# See backend/.env.example for local setup.
-API_KEYS = _load_api_keys()
+# See backend/.env.example for local setup. Keep the same list object so modules
+# importing API_KEYS see refreshes made after the server starts.
+API_KEYS = []
+
+
+def refresh_api_keys() -> list[str]:
+    API_KEYS[:] = _load_api_keys()
+    return API_KEYS
+
+
+def has_api_keys() -> bool:
+    return bool(refresh_api_keys())
+
+
+API_KEY_SETUP_MESSAGE = (
+    "未設定 Gemini API key。請設定 GEMINI_API_KEYS / GOOGLE_API_KEYS，"
+    "或在 backend/.env 放入 GEMINI_API_KEYS=key1,key2，然後重新啟動系統。"
+)
+
+
+refresh_api_keys()
 
 # 各 Agent 的模型分配
 # gemini-3.5-flash：複雜推理分析（商業、估值、辯論、決策）

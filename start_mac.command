@@ -20,8 +20,29 @@ cd "$DIR/backend" || {
 
 if [ ! -f "$DIR/backend/.env" ] && [ -z "${GEMINI_API_KEYS}${GOOGLE_API_KEYS}${GOOGLE_API_KEY_1}${GEMINI_API_KEY_1}" ]; then
     echo "提醒：尚未偵測到 Gemini API key。"
-    echo "請複製 backend/.env.example 為 backend/.env，並填入 GEMINI_API_KEYS。"
-    echo "伺服器仍會啟動，但按下分析時會提示缺少 API key。"
+    echo "請貼上 Gemini API key；若有多組 key，請用逗號分隔。"
+    echo "若先不設定，直接按 Enter，伺服器仍會啟動，但分析會被擋下並提示缺少 API key。"
+    read -r -p "GEMINI_API_KEYS: " GEMINI_KEYS_INPUT
+    if [ -n "$GEMINI_KEYS_INPUT" ]; then
+        cp "$DIR/backend/.env.example" "$DIR/backend/.env"
+        "$PYTHON_BIN" - "$DIR/backend/.env" "$GEMINI_KEYS_INPUT" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+keys = sys.argv[2].strip()
+lines = path.read_text(encoding="utf-8").splitlines()
+for i, line in enumerate(lines):
+    if line.startswith("GEMINI_API_KEYS="):
+        lines[i] = f"GEMINI_API_KEYS={keys}"
+        break
+else:
+    lines.append(f"GEMINI_API_KEYS={keys}")
+path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+PY
+        chmod 600 "$DIR/backend/.env" 2>/dev/null || true
+        echo "已建立 backend/.env。"
+    fi
     echo ""
 fi
 
