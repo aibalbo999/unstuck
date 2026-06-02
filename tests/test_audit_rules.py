@@ -227,6 +227,50 @@ class AuditRuleTests(unittest.TestCase):
         audit = ar.run_final_report_audit(context, append_section=False)
         self.assertIn(2, audit["repair_agent_issues"])
 
+    def test_agent7_dupont_redline_can_repair_to_clean_report(self):
+        context = complete_context()
+        context["analyses"][7] = (
+            "[投資建議]\n"
+            "建議: 避免\n短期目標（3個月）: NT$2500\n中期目標（6個月）: NT$2300\n"
+            "長期目標（12個月）: NT$2150\n長期潛力（5年）: NT$3500\n信心指數: 8/10\n"
+            "[/投資建議]\n\n"
+            "最終決策使用 Yahoo TTM ROE/ROA/淨利率與最新年度資產周轉率及權益乘數拼接成 TTM 杜邦公式，"
+            "並把差距解讀為應付帳款營運槓桿。"
+        )
+        context["parsed"] = ar.parse_structured_data(context)
+        audit = ar.run_final_report_audit(context, append_section=False)
+        self.assertIn(7, audit["repair_agent_issues"])
+        self.assert_has_issue(audit["critical"], "最終投資決策: 杜邦分析紅線")
+
+        def repaired_agent(agent_num, data, ctx, rotator, max_retries=1):
+            self.assertEqual(agent_num, 7)
+            ctx["structured_outputs"][7] = {
+                "recommendation": {
+                    "建議": "避免",
+                    "短期目標（3個月）": "NT$2500",
+                    "中期目標（6個月）": "NT$2300",
+                    "長期目標（12個月）": "NT$2150",
+                    "長期潛力（5年）": "NT$3500",
+                    "信心指數": "8/10",
+                }
+            }
+            return (
+                "## 最終投資決策\n"
+                "建議避免。杜邦分析僅引用同期間年度杜邦恒等式，"
+                "Yahoo TTM ROE/ROA 僅作資料品質警示，不進行跨期拼接。"
+            )
+
+        with patch.object(ar, "run_single_agent", side_effect=repaired_agent):
+            ar.attempt_final_audit_repair(context, audit, object())
+
+        context["parsed"] = ar.parse_structured_data(context)
+        final_audit = ar.run_final_report_audit(context, append_section=False)
+        self.assertEqual(final_audit["status"], "passed")
+        context["final_audit"] = final_audit
+        html = report_gen.generate_html_report(context)
+        self.assertNotIn("系統異常提醒", html)
+        self.assertNotIn("系統品質檢查警示", html)
+
     def test_final_audit_marks_future_price_history_as_correction(self):
         context = complete_context()
         context["data"]["price_history"] = {"2999-01-01": 123}
