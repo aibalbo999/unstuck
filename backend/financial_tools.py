@@ -1,0 +1,243 @@
+"""Deterministic financial calculation tools for agent prompts and Gemini tools."""
+
+from __future__ import annotations
+
+import math
+from typing import Any, Optional
+
+
+def safe_float(value: Any) -> Optional[float]:
+    """Return a float for numeric-looking values, otherwise None."""
+    if value is None or value == "N/A":
+        return None
+    try:
+        if isinstance(value, str):
+            cleaned = value.replace(",", "").replace("NT$", "").replace("$", "")
+            cleaned = cleaned.replace("x", "").replace("%", "").strip()
+            if not cleaned:
+                return None
+            value = cleaned
+        number = float(value)
+        if not math.isfinite(number):
+            return None
+        return number
+    except (TypeError, ValueError):
+        return None
+
+
+def raw_twd_to_billion_twd(value: Any) -> Optional[float]:
+    number = safe_float(value)
+    if number is None:
+        return None
+    return round(number / 1e9, 4)
+
+
+def pct_from_ratio(value: Any) -> Optional[float]:
+    number = safe_float(value)
+    if number is None:
+        return None
+    return round(number * 100, 4)
+
+
+def calculate_cagr(start_value: float, end_value: float, periods: int) -> dict:
+    """Calculate CAGR as percentage points from positive start/end values."""
+    if start_value <= 0 or end_value <= 0 or periods <= 0:
+        return {"error": "start_value, end_value, and periods must be positive"}
+    cagr_pct = ((end_value / start_value) ** (1 / periods) - 1) * 100
+    return {
+        "start_value": round(start_value, 4),
+        "end_value": round(end_value, 4),
+        "periods": periods,
+        "cagr_pct": round(cagr_pct, 4),
+    }
+
+
+def calculate_wacc(
+    market_cap_twd: float,
+    total_debt_twd: float,
+    cost_of_equity_pct: float = 10.0,
+    cost_of_debt_pct: float = 3.0,
+    tax_rate_pct: float = 20.0,
+) -> dict:
+    """Calculate market-value WACC weights and WACC percentage."""
+    market_cap_twd = max(float(market_cap_twd or 0), 0)
+    total_debt_twd = max(float(total_debt_twd or 0), 0)
+    invested_capital = market_cap_twd + total_debt_twd
+    if invested_capital <= 0:
+        return {"error": "market_cap_twd + total_debt_twd must be positive"}
+
+    equity_weight = market_cap_twd / invested_capital
+    debt_weight = total_debt_twd / invested_capital
+    after_tax_debt_cost = cost_of_debt_pct * (1 - tax_rate_pct / 100)
+    wacc_pct = equity_weight * cost_of_equity_pct + debt_weight * after_tax_debt_cost
+    return {
+        "market_cap_billion_twd": round(market_cap_twd / 1e9, 4),
+        "total_debt_billion_twd": round(total_debt_twd / 1e9, 4),
+        "equity_weight_pct": round(equity_weight * 100, 4),
+        "debt_weight_pct": round(debt_weight * 100, 4),
+        "cost_of_equity_pct": round(cost_of_equity_pct, 4),
+        "after_tax_cost_of_debt_pct": round(after_tax_debt_cost, 4),
+        "wacc_pct": round(wacc_pct, 4),
+    }
+
+
+def calculate_dcf(
+    base_fcf_billion_twd: float,
+    growth_rate_pct: float,
+    wacc_pct: float,
+    terminal_growth_pct: float,
+    shares_outstanding: float,
+    forecast_years: int = 5,
+    net_debt_billion_twd: float = 0.0,
+) -> dict:
+    """Calculate a simple FCF DCF and return per-share value in TWD."""
+    if base_fcf_billion_twd <= 0:
+        return {"error": "base_fcf_billion_twd must be positive"}
+    if shares_outstanding <= 0:
+        return {"error": "shares_outstanding must be positive"}
+    if forecast_years <= 0:
+        return {"error": "forecast_years must be positive"}
+
+    growth = growth_rate_pct / 100
+    wacc = wacc_pct / 100
+    terminal_growth = terminal_growth_pct / 100
+    if wacc <= terminal_growth:
+        return {"error": "wacc_pct must exceed terminal_growth_pct"}
+
+    projected_fcf = []
+    present_value_fcf = []
+    for year in range(1, forecast_years + 1):
+        fcf = base_fcf_billion_twd * ((1 + growth) ** year)
+        pv = fcf / ((1 + wacc) ** year)
+        projected_fcf.append(round(fcf, 4))
+        present_value_fcf.append(round(pv, 4))
+
+    terminal_fcf = projected_fcf[-1] * (1 + terminal_growth)
+    terminal_value = terminal_fcf / (wacc - terminal_growth)
+    present_value_terminal = terminal_value / ((1 + wacc) ** forecast_years)
+    enterprise_value = sum(present_value_fcf) + present_value_terminal
+    equity_value = enterprise_value - net_debt_billion_twd
+    price_per_share_twd = equity_value * 1e9 / shares_outstanding
+
+    return {
+        "base_fcf_billion_twd": round(base_fcf_billion_twd, 4),
+        "growth_rate_pct": round(growth_rate_pct, 4),
+        "wacc_pct": round(wacc_pct, 4),
+        "terminal_growth_pct": round(terminal_growth_pct, 4),
+        "forecast_years": forecast_years,
+        "projected_fcf_billion_twd": projected_fcf,
+        "present_value_fcf_billion_twd": present_value_fcf,
+        "terminal_value_billion_twd": round(terminal_value, 4),
+        "present_value_terminal_billion_twd": round(present_value_terminal, 4),
+        "enterprise_value_billion_twd": round(enterprise_value, 4),
+        "net_debt_billion_twd": round(net_debt_billion_twd, 4),
+        "equity_value_billion_twd": round(equity_value, 4),
+        "price_per_share_twd": round(price_per_share_twd, 4),
+    }
+
+
+def _latest_numeric(values: list[Any]) -> Optional[float]:
+    for value in reversed(values or []):
+        number = safe_float(value)
+        if number is not None:
+            return number
+    return None
+
+
+def build_financial_tool_context(data: dict) -> dict:
+    """Precompute deterministic tool outputs that agents can cite directly."""
+    revenue_history = data.get("revenue_history", []) or []
+    net_income_history = data.get("net_income_history", []) or []
+    fcf_history = data.get("fcf_history", []) or []
+
+    tool_context: dict[str, Any] = {
+        "unit_contract": {
+            "money": "billion_twd",
+            "percent": "percentage_points",
+            "price": "twd_per_share",
+        },
+        "calculations": {},
+    }
+
+    valid_revenue = [safe_float(v) for v in revenue_history if safe_float(v) is not None and safe_float(v) > 0]
+    if len(valid_revenue) >= 2:
+        tool_context["calculations"]["revenue_cagr"] = calculate_cagr(
+            valid_revenue[0],
+            valid_revenue[-1],
+            len(valid_revenue) - 1,
+        )
+
+    latest_revenue_growth_pct = None
+    if len(revenue_history) >= 2:
+        prev_revenue = safe_float(revenue_history[-2])
+        latest_revenue = safe_float(revenue_history[-1])
+        if prev_revenue and latest_revenue:
+            latest_revenue_growth_pct = (latest_revenue / prev_revenue - 1) * 100
+            tool_context["calculations"]["latest_annual_revenue_growth"] = {
+                "growth_pct": round(latest_revenue_growth_pct, 4),
+                "formula": "latest annual revenue / prior annual revenue - 1",
+            }
+
+    latest_net_income = _latest_numeric(net_income_history)
+    latest_fcf = _latest_numeric(fcf_history)
+    if latest_net_income and latest_fcf is not None:
+        fcf_conversion_pct = latest_fcf / latest_net_income * 100
+        tool_context["calculations"]["latest_fcf_conversion"] = {
+            "fcf_conversion_pct": round(fcf_conversion_pct, 4),
+            "formula": "latest annual FCF / latest annual net income",
+        }
+
+    market_cap = safe_float(data.get("market_cap_raw"))
+    total_debt = safe_float(data.get("total_debt_raw"))
+    total_cash = safe_float(data.get("total_cash_raw"))
+    shares = safe_float(data.get("shares_raw"))
+    if market_cap is not None and total_debt is not None:
+        wacc = calculate_wacc(market_cap, total_debt)
+        tool_context["calculations"]["market_value_wacc_default"] = wacc
+    else:
+        wacc = {}
+
+    base_fcf = raw_twd_to_billion_twd(data.get("free_cash_flow_raw"))
+    if base_fcf is None:
+        base_fcf = latest_fcf
+    base_note = "latest available FCF"
+    fcf_conversion = tool_context["calculations"].get("latest_fcf_conversion", {}).get("fcf_conversion_pct")
+    if (
+        base_fcf is not None
+        and latest_net_income
+        and latest_revenue_growth_pct is not None
+        and latest_revenue_growth_pct > 50
+        and fcf_conversion is not None
+        and fcf_conversion > 100
+    ):
+        base_fcf = max(min(base_fcf, latest_net_income * 0.8), 0.01)
+        base_note = "normalized to 80% of latest annual net income because high growth plus FCF/net income > 100% is not treated as steady state"
+
+    wacc_pct = safe_float(wacc.get("wacc_pct"))
+    net_debt = None
+    if total_debt is not None or total_cash is not None:
+        net_debt = (total_debt or 0) / 1e9 - (total_cash or 0) / 1e9
+
+    if base_fcf and shares and wacc_pct:
+        scenarios = {
+            "bear": {"growth_rate_pct": max(min((latest_revenue_growth_pct or 0) * 0.15, 6), -5), "terminal_growth_pct": 1.0},
+            "base": {"growth_rate_pct": max(min((latest_revenue_growth_pct or 5) * 0.25, 10), 0), "terminal_growth_pct": 2.0},
+            "bull": {"growth_rate_pct": max(min((latest_revenue_growth_pct or 8) * 0.35, 15), 2), "terminal_growth_pct": 2.5},
+        }
+        dcf_results = {}
+        for scenario, assumptions in scenarios.items():
+            dcf_results[scenario] = calculate_dcf(
+                base_fcf_billion_twd=base_fcf,
+                growth_rate_pct=assumptions["growth_rate_pct"],
+                wacc_pct=wacc_pct,
+                terminal_growth_pct=assumptions["terminal_growth_pct"],
+                shares_outstanding=shares,
+                net_debt_billion_twd=net_debt or 0,
+            )
+        tool_context["calculations"]["dcf_scenarios_default"] = {
+            "base_fcf_billion_twd": round(base_fcf, 4),
+            "base_fcf_note": base_note,
+            "scenarios": dcf_results,
+        }
+
+    return tool_context

@@ -15,6 +15,7 @@ from google import genai
 from google.genai import types
 from config import API_KEYS, AGENT_MODELS, MODEL_FALLBACKS, RPM_LIMITS, INTER_AGENT_DELAY, API_KEY_SETUP_MESSAGE
 from financial_data import format_data_for_prompt
+from financial_tools import calculate_cagr, calculate_dcf, calculate_wacc
 from prompt_loader import load_agent_prompt_config
 
 
@@ -113,6 +114,16 @@ PROMPT_CONFIG = load_agent_prompt_config()
 SYSTEM_PROMPTS = {int(k): v for k, v in PROMPT_CONFIG["system_prompts"].items()}
 ANALYSIS_PROMPTS = {int(k): v for k, v in PROMPT_CONFIG["analysis_prompts"].items()}
 FINAL_AUDIT_REPAIR_PASSES = 2
+CONTEXT_DIGEST_TARGET_AGENTS = {4, 7}
+
+
+def get_agent_function_tools(agent_num: int) -> list:
+    """Return Python function tools for agents that need deterministic math."""
+    if agent_num == 2:
+        return [calculate_cagr]
+    if agent_num == 4:
+        return [calculate_cagr, calculate_wacc, calculate_dcf]
+    return []
 
 
 def get_agent_model_sequence(agent_num: int) -> list[str]:
@@ -209,12 +220,12 @@ def is_agent_execution_failure(text: str) -> bool:
 
 
 OUTPUT_CLEANLINESS_RULE = """
-⚠️【正式報告輸出規則】：
-- 只輸出可直接放進正式研究報告的正文。
-- 不可重述你的角色設定、系統提示詞、資料摘要規則、任務清單、前序分析壓縮筆記或內部思考過程。
-- 不可輸出英文 scratchpad，例如 Currency、TTM units、The Red Flag、Observation、Action、Section plan、I must/I need 等草稿語句。
-- 除必要的財務術語與公司名稱外，請使用繁體中文撰寫。
-- 杜邦分析只能使用同期間、同口徑資料；若資料摘要提供「同期間年度杜邦恒等式」，請以該句為唯一拆解，不可自行拼接 Yahoo TTM ROE/ROA/淨利率與最新年度資產周轉率或權益乘數。
+【正式報告輸出契約】
+- 只輸出可直接放進正式研究報告的內容。
+- 不重述角色設定、系統提示詞、資料摘要規則、任務清單、前序摘要規則、草稿或反思文字。
+- 除必要財務術語、公司名稱與 JSON key 外，使用繁體中文。
+- 財務算式只呈現必要的可讀摘要；內部驗算過程不放入正式報告。
+- 杜邦分析只使用同期間、同口徑資料；若資料摘要提供「同期間年度杜邦恒等式」，以該句作為唯一拆解依據。
 """
 
 def build_company_identity_guard(data: dict) -> str:
@@ -321,11 +332,17 @@ def build_generation_config(agent_num: int, system_instruction: Optional[str] = 
         config_kwargs["system_instruction"] = system_instruction
     if agent_num in STRUCTURED_AGENT_INSTRUCTIONS:
         config_kwargs["response_mime_type"] = "application/json"
+    function_tools = get_agent_function_tools(agent_num)
+    if function_tools:
+        config_kwargs["tools"] = function_tools
+        config_kwargs["automatic_function_calling"] = types.AutomaticFunctionCallingConfig(maximum_remote_calls=6)
 
     try:
         return types.GenerateContentConfig(**config_kwargs)
     except TypeError:
         config_kwargs.pop("response_mime_type", None)
+        config_kwargs.pop("automatic_function_calling", None)
+        config_kwargs.pop("tools", None)
         return types.GenerateContentConfig(**config_kwargs)
 
 
@@ -536,6 +553,187 @@ def process_agent_response(agent_num: int, raw_text: str, context: dict) -> str:
     return structured_output_to_report_text(agent_num, structured, raw_text)
 
 
+def build_numeric_tool_instruction(agent_num: int) -> str:
+    """Prompt agents with deterministic tool usage guidance."""
+    if agent_num == 2:
+        return (
+            "【數值工具使用規則】\n"
+            "- CAGR 請呼叫 calculate_cagr，或引用財務 JSON 中 deterministic_financial_tool_results.calculations.revenue_cagr。\n"
+            "- FCF/淨利、年度成長率與杜邦恒等式應以 JSON 欄位與工具結果為準，不自行心算替換單位。\n"
+            "- 正式輸出可列簡短公式摘要，但不要輸出內部驗算草稿。"
+        )
+    if agent_num == 4:
+        return (
+            "【估值工具使用規則】\n"
+            "- WACC 權重請呼叫 calculate_wacc，或引用 deterministic_financial_tool_results.calculations.market_value_wacc_default。\n"
+            "- DCF 情境請呼叫 calculate_dcf，或引用 deterministic_financial_tool_results.calculations.dcf_scenarios_default。\n"
+            "- 若自行調整成長率、折現率或 normalized FCF，需清楚列出參數，計算結果以工具回傳值為準。\n"
+            "- 本益比估值與 DCF 必須分開呈現；正式輸出只保留必要算式摘要。"
+        )
+    return ""
+
+
+def _format_structured_outputs_for_context(context: dict) -> str:
+    structured = context.get("structured_outputs", {}) or {}
+    if not structured:
+        return "{}"
+    try:
+        return json.dumps(structured, ensure_ascii=False, indent=2, sort_keys=True)
+    except TypeError:
+        return str(structured)
+
+
+def _build_context_digest_prompt(current_agent: int, context: dict) -> str:
+    target = AGENT_NAMES.get(current_agent, f"Agent {current_agent}")
+    previous = _format_previous(context, current_agent, include_digest=False)
+    return (
+        "請擔任投資研究提煉 Agent，將前序分析整理成給下一位分析師使用的結構化摘要。\n"
+        f"下一位分析師：Agent {current_agent} {target}\n\n"
+        "輸出請使用合法 JSON，不要 Markdown code fence。JSON schema:\n"
+        "{\n"
+        '  "decision_relevant_facts": ["..."],\n'
+        '  "financial_cross_checks": ["..."],\n'
+        '  "valuation_or_recommendation_implications": ["..."],\n'
+        '  "risks_and_counterarguments": ["..."],\n'
+        '  "open_data_quality_issues": ["..."]\n'
+        "}\n\n"
+        "已解析的結構化輸出：\n"
+        f"{_format_structured_outputs_for_context(context)}\n\n"
+        "完整前序分析（未截斷）：\n"
+        f"{previous}"
+    )
+
+
+def _build_digest_generation_config():
+    return types.GenerateContentConfig(
+        temperature=0.2,
+        top_p=0.9,
+        max_output_tokens=4096,
+        response_mime_type="application/json",
+        system_instruction=(
+            "你是金融研究流程中的提煉 Agent。你的任務是保留決策所需事實、數字、假設、"
+            "衝突與風險，不新增外部資料，不替下一個 Agent 下結論。"
+        ),
+    )
+
+
+def _generate_context_digest_content(api_key: str, model_id: str, prompt: str):
+    client = genai.Client(api_key=api_key)
+    try:
+        return client.models.generate_content(
+            model=model_id,
+            contents=prompt,
+            config=_build_digest_generation_config(),
+        )
+    finally:
+        with suppress(Exception):
+            client.close()
+
+
+async def _generate_context_digest_content_async(api_key: str, model_id: str, prompt: str):
+    client = genai.Client(api_key=api_key)
+    try:
+        return await client.aio.models.generate_content(
+            model=model_id,
+            contents=prompt,
+            config=_build_digest_generation_config(),
+        )
+    finally:
+        with suppress(Exception):
+            await client.aio.aclose()
+        with suppress(Exception):
+            client.close()
+
+
+def _normalize_digest_text(text: str, current_agent: int, context: dict) -> str:
+    payload = _extract_json_payload(text or "")
+    if isinstance(payload, dict):
+        return json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True)
+    return json.dumps(
+        _fallback_context_digest_payload(current_agent, context, reason="提煉 Agent 未回傳可解析 JSON"),
+        ensure_ascii=False,
+        indent=2,
+        sort_keys=True,
+    )
+
+
+def _fallback_context_digest_payload(current_agent: int, context: dict, reason: str) -> dict:
+    completed = sorted(context.get("analyses", {}).keys())
+    return {
+        "digest_type": "deterministic_fallback",
+        "reason": reason,
+        "target_agent": current_agent,
+        "completed_agents": completed,
+        "structured_outputs": context.get("structured_outputs", {}),
+        "instruction": "提煉摘要不可用時，下一個 Agent 必須直接閱讀下方完整前序分析；系統不再截斷前序內容。",
+    }
+
+
+def ensure_context_digest(agent_num: int, context: dict, rotator: KeyRotator):
+    """Run a lightweight summarization agent before high-dependency agents."""
+    if agent_num not in CONTEXT_DIGEST_TARGET_AGENTS:
+        return
+    digests = context.setdefault("context_digests", {})
+    if agent_num in digests:
+        return
+
+    prompt = _build_context_digest_prompt(agent_num, context)
+    for model_id in get_agent_model_sequence(agent_num):
+        try:
+            response = _generate_context_digest_content(rotator.get_key(model_id), model_id, prompt)
+            digests[agent_num] = _normalize_digest_text(_response_text(response), agent_num, context)
+            print(f"  🧾 Agent {agent_num} 前序提煉摘要完成。")
+            return
+        except Exception as exc:
+            if is_missing_model_error(str(exc)):
+                continue
+            if is_quota_or_rate_error(str(exc)):
+                print(f"  ⏭️  提煉 Agent 遇到配額限制，改用 fallback 摘要：{describe_quota_or_rate_error(exc)[:120]}")
+                break
+            print(f"  ⚠️  提煉 Agent 失敗，改用 fallback 摘要：{str(exc)[:120]}")
+            break
+
+    digests[agent_num] = json.dumps(
+        _fallback_context_digest_payload(agent_num, context, reason="提煉 Agent 呼叫失敗"),
+        ensure_ascii=False,
+        indent=2,
+        sort_keys=True,
+    )
+
+
+async def ensure_context_digest_async(agent_num: int, context: dict, rotator: KeyRotator):
+    """Async summarization agent before Agent 4/7."""
+    if agent_num not in CONTEXT_DIGEST_TARGET_AGENTS:
+        return
+    digests = context.setdefault("context_digests", {})
+    if agent_num in digests:
+        return
+
+    prompt = _build_context_digest_prompt(agent_num, context)
+    for model_id in get_agent_model_sequence(agent_num):
+        try:
+            api_key = await rotator.async_get_key(model_id)
+            response = await _generate_context_digest_content_async(api_key, model_id, prompt)
+            digests[agent_num] = _normalize_digest_text(_response_text(response), agent_num, context)
+            print(f"  🧾 Agent {agent_num} 前序提煉摘要完成。")
+            return
+        except Exception as exc:
+            if is_missing_model_error(str(exc)):
+                continue
+            if is_quota_or_rate_error(str(exc)):
+                print(f"  ⏭️  提煉 Agent 遇到配額限制，改用 fallback 摘要：{describe_quota_or_rate_error(exc)[:120]}")
+                break
+            print(f"  ⚠️  提煉 Agent 失敗，改用 fallback 摘要：{str(exc)[:120]}")
+            break
+
+    digests[agent_num] = json.dumps(
+        _fallback_context_digest_payload(agent_num, context, reason="提煉 Agent 呼叫失敗"),
+        ensure_ascii=False,
+        indent=2,
+        sort_keys=True,
+    )
+
+
 def build_prompt(agent_num: int, data: dict, context: dict) -> str:
     """根據 Agent 編號建立分析提示詞。"""
     ticker = data["ticker"]
@@ -543,8 +741,10 @@ def build_prompt(agent_num: int, data: dict, context: dict) -> str:
     fin_data = format_data_for_prompt(data)
     prev = _format_previous(context, agent_num)
     identity_guard = build_company_identity_guard(data)
+    numeric_tool_instruction = build_numeric_tool_instruction(agent_num)
     retry_instruction = context.get("_identity_retry_instruction", "")
     audit_retry_instruction = context.get("_audit_retry_instruction", "")
+    audit_reflection_instruction = context.get("_audit_reflection_instruction", "")
 
     template = ANALYSIS_PROMPTS[agent_num]
     analysis_prompt = template.format(
@@ -559,14 +759,16 @@ def build_prompt(agent_num: int, data: dict, context: dict) -> str:
         analysis_prompt,
         "⚠️ 若上方任務文字包含 [護城河評分]、[目標股價]、[投資建議] 等舊式區塊格式，請忽略舊式格式；本次只遵守下方 JSON 結構化輸出規則。" if structured_instruction else "",
         structured_instruction,
+        numeric_tool_instruction,
         identity_guard,
         retry_instruction,
+        audit_reflection_instruction,
         audit_retry_instruction,
         OUTPUT_CLEANLINESS_RULE,
     ]
     return "\n\n".join(part for part in prompt_parts if part)
 
-def _format_previous(context: dict, current_agent: int) -> str:
+def _format_previous(context: dict, current_agent: int, include_digest: bool = True) -> str:
     """格式化前序分析摘要"""
     analyses = context.get("analyses", {})
     if not analyses:
@@ -582,13 +784,16 @@ def _format_previous(context: dict, current_agent: int) -> str:
     }
     
     parts = []
+    digest = (context.get("context_digests", {}) or {}).get(current_agent)
+    if include_digest and digest:
+        parts.append(f"【提煉 Agent 結構化摘要】\n{digest}")
+        parts.append("【完整前序分析（未截斷）】")
+
     for i in range(1, current_agent):
         if i in analyses:
             name = agent_names.get(i, f"Agent {i}")
-            # 只取前 800 字避免 prompt 過長
             clean_analysis = strip_generated_audit_sections(str(analyses[i]))
-            content = clean_analysis[:800] + "..." if len(clean_analysis) > 800 else clean_analysis
-            parts.append(f"【{name}】\n{content}")
+            parts.append(f"【{name}】\n{clean_analysis}")
     
     return "\n\n".join(parts) if parts else "（無前序分析）"
 
@@ -1315,8 +1520,9 @@ def run_analysis_pipeline(data: dict, progress_callback=None) -> dict:
         print(f"{'─'*60}")
         
         start = time.time()
-        
+
         context["structured_outputs"].pop(agent_num, None)
+        ensure_context_digest(agent_num, context, rotator)
         result = run_single_agent(agent_num, data, context, rotator)
         result = sanitize_model_output(result)
 
@@ -1455,6 +1661,7 @@ async def run_analysis_pipeline_async(data: dict, progress_callback=None) -> dic
         start = time.time()
 
         context["structured_outputs"].pop(agent_num, None)
+        await ensure_context_digest_async(agent_num, context, rotator)
         result = await run_single_agent_async(agent_num, data, context, rotator)
         result = sanitize_model_output(result)
 
@@ -1731,6 +1938,120 @@ def _append_final_audit_section(context: dict, audit: dict):
     context["_final_audit_appended"] = True
 
 
+def _build_reflection_generation_config():
+    return types.GenerateContentConfig(
+        temperature=0.2,
+        top_p=0.9,
+        max_output_tokens=1200,
+        system_instruction=(
+            "你是金融分析品質稽核的反思助手。你只分析前次輸出為何踩到紅線，"
+            "並提出下一次重寫時的修正策略；不要產生正式報告段落。"
+        ),
+    )
+
+
+def _build_audit_reflection_prompt(agent_num: int, issues: list[str], previous_text: str, data: dict) -> str:
+    issue_lines = "\n".join(f"- {issue}" for issue in issues[:8])
+    previous_clean = strip_generated_audit_sections(previous_text or "")
+    return (
+        f"Agent {agent_num}「{AGENT_NAMES.get(agent_num, f'Agent {agent_num}')}」前次輸出被退件。\n"
+        "請先輸出一段繁體中文反思，回答：\n"
+        "1. 前次輸出可能在哪個資料口徑、公式或單位步驟出錯？\n"
+        "2. 這次重寫應如何改用提供的 JSON、deterministic_financial_tool_results 或 Python 工具？\n"
+        "3. 哪些結論需要降低信心或改列資料品質限制？\n\n"
+        f"退件原因：\n{issue_lines}\n\n"
+        f"標的：{data.get('ticker', 'N/A')} {data.get('company_name', 'N/A')}\n\n"
+        "前次輸出：\n"
+        f"{previous_clean}"
+    )
+
+
+def _fallback_audit_reflection(agent_num: int, issues: list[str]) -> str:
+    issue_lines = "；".join(str(issue) for issue in issues[:4])
+    return (
+        f"反思摘要：Agent {agent_num} 前次輸出觸發紅線（{issue_lines}）。"
+        "重寫時應回到財務 JSON 與 deterministic_financial_tool_results，逐項校準單位、公式與資料口徑；"
+        "若數字互斥，改列資料品質限制，不把錯誤公式包裝成結論。"
+    )
+
+
+def _generate_reflection_content(api_key: str, model_id: str, prompt: str):
+    client = genai.Client(api_key=api_key)
+    try:
+        return client.models.generate_content(
+            model=model_id,
+            contents=prompt,
+            config=_build_reflection_generation_config(),
+        )
+    finally:
+        with suppress(Exception):
+            client.close()
+
+
+async def _generate_reflection_content_async(api_key: str, model_id: str, prompt: str):
+    client = genai.Client(api_key=api_key)
+    try:
+        return await client.aio.models.generate_content(
+            model=model_id,
+            contents=prompt,
+            config=_build_reflection_generation_config(),
+        )
+    finally:
+        with suppress(Exception):
+            await client.aio.aclose()
+        with suppress(Exception):
+            client.close()
+
+
+def generate_audit_reflection(agent_num: int, issues: list[str], previous_text: str, data: dict, rotator: KeyRotator) -> str:
+    """Generate a pre-rewrite reflection, falling back deterministically if needed."""
+    if not isinstance(rotator, KeyRotator):
+        return _fallback_audit_reflection(agent_num, issues)
+
+    prompt = _build_audit_reflection_prompt(agent_num, issues, previous_text, data)
+    for model_id in get_agent_model_sequence(agent_num):
+        try:
+            response = _generate_reflection_content(rotator.get_key(model_id), model_id, prompt)
+            text = sanitize_model_output(_response_text(response))
+            return text or _fallback_audit_reflection(agent_num, issues)
+        except Exception as exc:
+            if is_missing_model_error(str(exc)):
+                continue
+            print(f"       ↳ 反思步驟呼叫失敗，改用 deterministic reflection：{str(exc)[:100]}")
+            break
+    return _fallback_audit_reflection(agent_num, issues)
+
+
+async def generate_audit_reflection_async(agent_num: int, issues: list[str], previous_text: str, data: dict, rotator: KeyRotator) -> str:
+    """Async pre-rewrite reflection."""
+    if not isinstance(rotator, KeyRotator):
+        return _fallback_audit_reflection(agent_num, issues)
+
+    prompt = _build_audit_reflection_prompt(agent_num, issues, previous_text, data)
+    for model_id in get_agent_model_sequence(agent_num):
+        try:
+            api_key = await rotator.async_get_key(model_id)
+            response = await _generate_reflection_content_async(api_key, model_id, prompt)
+            text = sanitize_model_output(_response_text(response))
+            return text or _fallback_audit_reflection(agent_num, issues)
+        except Exception as exc:
+            if is_missing_model_error(str(exc)):
+                continue
+            print(f"       ↳ 非同步反思步驟呼叫失敗，改用 deterministic reflection：{str(exc)[:100]}")
+            break
+    return _fallback_audit_reflection(agent_num, issues)
+
+
+def build_audit_reflection_instruction(reflection: str) -> str:
+    if not reflection:
+        return ""
+    return (
+        "【前次退件反思摘要（供重寫使用，不可輸出到正式報告）】\n"
+        f"{reflection}\n"
+        "請根據此反思修正下一版內容；正式輸出不得提及反思步驟或退件流程。"
+    )
+
+
 def build_audit_retry_instruction(agent_num: int, issues: list[str]) -> str:
     """Build a focused rewrite instruction for final audit failures."""
     issue_lines = "\n".join(f"- {issue}" for issue in issues[:8])
@@ -1763,11 +2084,20 @@ def _clear_agent_blocking_issues(context: dict, agent_num: int):
 def _repair_agent_output(agent_num: int, data: dict, context: dict, rotator: KeyRotator, issues: list[str]) -> tuple[bool, str]:
     """Synchronously ask the relevant agent to rewrite after final audit failure."""
     previous_instruction = context.get("_audit_retry_instruction")
+    previous_reflection_instruction = context.get("_audit_reflection_instruction")
     try:
         current_issues = list(issues)
         last_result = None
         last_quality_issues = []
         for repair_attempt in range(2):
+            reflection = generate_audit_reflection(
+                agent_num,
+                current_issues,
+                last_result or context.get("analyses", {}).get(agent_num, ""),
+                data,
+                rotator,
+            )
+            context["_audit_reflection_instruction"] = build_audit_reflection_instruction(reflection)
             context["_audit_retry_instruction"] = build_audit_retry_instruction(agent_num, current_issues)
             context["structured_outputs"].pop(agent_num, None)
             result = run_single_agent(agent_num, data, context, rotator, max_retries=1)
@@ -1798,16 +2128,29 @@ def _repair_agent_output(agent_num: int, data: dict, context: dict, rotator: Key
             context.pop("_audit_retry_instruction", None)
         else:
             context["_audit_retry_instruction"] = previous_instruction
+        if previous_reflection_instruction is None:
+            context.pop("_audit_reflection_instruction", None)
+        else:
+            context["_audit_reflection_instruction"] = previous_reflection_instruction
 
 
 async def _repair_agent_output_async(agent_num: int, data: dict, context: dict, rotator: KeyRotator, issues: list[str]) -> tuple[bool, str]:
     """Asynchronously ask the relevant agent to rewrite after final audit failure."""
     previous_instruction = context.get("_audit_retry_instruction")
+    previous_reflection_instruction = context.get("_audit_reflection_instruction")
     try:
         current_issues = list(issues)
         last_result = None
         last_quality_issues = []
         for repair_attempt in range(2):
+            reflection = await generate_audit_reflection_async(
+                agent_num,
+                current_issues,
+                last_result or context.get("analyses", {}).get(agent_num, ""),
+                data,
+                rotator,
+            )
+            context["_audit_reflection_instruction"] = build_audit_reflection_instruction(reflection)
             context["_audit_retry_instruction"] = build_audit_retry_instruction(agent_num, current_issues)
             context["structured_outputs"].pop(agent_num, None)
             result = await run_single_agent_async(agent_num, data, context, rotator, max_retries=1)
@@ -1838,6 +2181,10 @@ async def _repair_agent_output_async(agent_num: int, data: dict, context: dict, 
             context.pop("_audit_retry_instruction", None)
         else:
             context["_audit_retry_instruction"] = previous_instruction
+        if previous_reflection_instruction is None:
+            context.pop("_audit_reflection_instruction", None)
+        else:
+            context["_audit_reflection_instruction"] = previous_reflection_instruction
 
 
 def attempt_final_audit_repair(context: dict, audit: dict, rotator: KeyRotator):

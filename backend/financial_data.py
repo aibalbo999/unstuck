@@ -3,6 +3,7 @@
 # ============================================================
 
 import asyncio
+import json
 import yfinance as yf
 import pandas as pd
 import requests
@@ -11,9 +12,10 @@ from functools import lru_cache
 import warnings
 from cache_store import get_cache_json, set_cache_json
 from config import FINANCIAL_DATA_CACHE_SECONDS, FMP_API_KEY, FMP_BASE_URL
+from financial_tools import build_financial_tool_context, raw_twd_to_billion_twd, safe_float
 warnings.filterwarnings("ignore")
 
-DATA_SCHEMA_VERSION = 2
+DATA_SCHEMA_VERSION = 3
 
 try:
     from FinMind.data import DataLoader
@@ -754,7 +756,9 @@ def fetch_stock_data(ticker: str) -> dict:
             "revenue_ttm": format_number(revenue_ttm, "億"),
             "revenue_ttm_raw": revenue_ttm,
             "gross_margin": format_pct(gross_margin),
+            "gross_margin_raw": gross_margin,
             "operating_margin": format_pct(operating_margin),
+            "operating_margin_raw": operating_margin,
             "profit_margin": format_pct(profit_margin),
             "profit_margin_raw": profit_margin,
             "profit_margin_provider": format_pct(provider_profit_margin),
@@ -763,6 +767,7 @@ def fetch_stock_data(ticker: str) -> dict:
             "net_income_ttm_raw": net_income_ttm,
             "net_income_ttm_source": net_income_source,
             "ebitda_fmt": format_number(ebitda, "億"),
+            "ebitda_raw": ebitda,
             
             # 現金流（格式化）
             "free_cash_flow": format_number(free_cash_flow, "億"),
@@ -772,7 +777,9 @@ def fetch_stock_data(ticker: str) -> dict:
             
             # 資產負債（格式化）
             "total_debt": format_number(total_debt, "億"),
+            "total_debt_raw": total_debt,
             "total_cash": format_number(total_cash, "億"),
+            "total_cash_raw": total_cash,
             "debt_to_equity": f"{debt_to_equity:.2f}%" if isinstance(debt_to_equity, (int, float)) else "N/A",
             "current_ratio": f"{current_ratio:.2f}" if isinstance(current_ratio, (int, float)) else "N/A",
             
@@ -847,200 +854,180 @@ async def async_fetch_stock_data(ticker: str) -> dict:
     return await asyncio.to_thread(fetch_stock_data, ticker)
 
 
-def format_data_for_prompt(data: dict) -> str:
-    """將財務數據格式化為 Agent 可讀的文字"""
-    # 計算隱含預估淨利
-    implied_forward_ni_fmt = "N/A"
-    implied_forward_revenue_fmt = "N/A"
-    implied_forward_revenue_growth_fmt = "N/A"
-    shares = data.get("shares_raw")
-    f_eps = data.get("forward_eps")
-    profit_margin_raw = data.get("profit_margin_raw")
-    revenue_ttm_raw = data.get("revenue_ttm_raw")
-    if isinstance(shares, (int, float)) and isinstance(f_eps, (int, float)) and shares != "N/A":
-        implied_ni = shares * f_eps
-        implied_forward_ni_fmt = format_number(implied_ni, "億")
-        if isinstance(profit_margin_raw, (int, float)) and profit_margin_raw > 0:
-            implied_revenue = implied_ni / profit_margin_raw
-            implied_forward_revenue_fmt = format_number(implied_revenue, "億")
-            if isinstance(revenue_ttm_raw, (int, float)) and revenue_ttm_raw > 0:
-                implied_growth = (implied_revenue / revenue_ttm_raw - 1) * 100
-                implied_forward_revenue_growth_fmt = f"{implied_growth:.1f}%"
+def _prompt_number(value, decimals=4):
+    number = safe_float(value)
+    if number is None:
+        return None
+    try:
+        if pd.isna(number):
+            return None
+    except Exception:
+        pass
+    return round(number, decimals)
 
-    latest_revenue_growth_fmt = "N/A"
-    latest_fcf_conversion_fmt = "N/A"
-    rev_hist = data.get("revenue_history", [])
-    ni_hist = data.get("net_income_history", [])
-    fcf_hist = data.get("fcf_history", [])
-    if len(rev_hist) >= 2 and rev_hist[-2] and rev_hist[-1] and rev_hist[-2] > 0:
-        latest_revenue_growth = (rev_hist[-1] / rev_hist[-2] - 1) * 100
-        latest_revenue_growth_fmt = f"{latest_revenue_growth:.1f}%"
-    if ni_hist and fcf_hist and ni_hist[-1] and fcf_hist[-1]:
-        latest_fcf_conversion = (fcf_hist[-1] / ni_hist[-1]) * 100
-        latest_fcf_conversion_fmt = f"{latest_fcf_conversion:.1f}%"
 
+def _prompt_ratio_to_pct(value, decimals=4):
+    number = _prompt_number(value, decimals + 2)
+    if number is None:
+        return None
+    return round(number * 100, decimals)
+
+
+def _prompt_history_rows(data: dict) -> list[dict]:
+    years = data.get("years", []) or []
+    rows = []
+    for idx, year in enumerate(years):
+        def at(key):
+            values = data.get(key, []) or []
+            return values[idx] if idx < len(values) else None
+
+        rows.append({
+            "year": str(year),
+            "revenue_billion_twd": _prompt_number(at("revenue_history")),
+            "net_income_billion_twd": _prompt_number(at("net_income_history")),
+            "gross_profit_billion_twd": _prompt_number(at("gross_profit_history")),
+            "operating_income_billion_twd": _prompt_number(at("operating_income_history")),
+            "free_cash_flow_billion_twd": _prompt_number(at("fcf_history")),
+            "gross_margin_pct": _prompt_number(at("gross_margin_history")),
+            "operating_margin_pct": _prompt_number(at("op_margin_history")),
+            "net_margin_pct": _prompt_number(at("net_margin_history")),
+            "roe_pct": _prompt_number(at("roe_history")),
+            "total_assets_billion_twd": _prompt_number(at("total_assets_history")),
+            "total_equity_billion_twd": _prompt_number(at("total_equity_history")),
+        })
+    return rows
+
+
+def _prompt_company_identity(data: dict) -> dict:
     identity = data.get("company_identity", {}) or {}
-    official_name = identity.get("official_name")
-    legal_name = identity.get("legal_name")
-    english_names = identity.get("english_names", [])
-    forbidden_aliases = identity.get("forbidden_aliases", [])
-    preferred_name = official_name or data.get("company_name", data.get("ticker", "本公司"))
+    return {
+        "ticker": data.get("ticker"),
+        "company_name": data.get("company_name"),
+        "stock_id": identity.get("stock_id"),
+        "official_name": identity.get("official_name"),
+        "legal_name": identity.get("legal_name"),
+        "allowed_aliases": identity.get("allowed_aliases", []),
+        "forbidden_aliases": identity.get("forbidden_aliases", []),
+        "industry_categories": identity.get("industry_categories", []),
+        "same_industry_peers": identity.get("same_industry_peers", []),
+    }
 
-    identity_lines = []
-    if identity:
-        identity_lines = [
-            "",
-            "🚨【標的身份鎖定（最高優先級）】",
-            f"  本報告唯一分析標的：{data.get('ticker', 'N/A')} {data.get('company_name', 'N/A')}",
-            f"  股票代號：{identity.get('stock_id', data.get('ticker', 'N/A'))}",
-            f"  官方中文簡稱：{official_name or 'N/A'}",
-            f"  官方/法定名稱：{legal_name or 'N/A'}",
-            f"  英文名稱：{', '.join(english_names) if english_names else 'N/A'}",
-            f"  全篇稱呼標的時，請使用「{preferred_name}」或「{data.get('ticker', 'N/A')}」。",
-            "  嚴禁把同業、可比公司、新聞案例或其他股票代號的公司名稱當作本公司。",
-            "  若前序摘要或外部常識與本身份鎖定衝突，必須以本段為準，並明確修正錯誤。",
-        ]
-        if forbidden_aliases:
-            identity_lines.append(
-                f"  特別禁止：不可把 {', '.join(forbidden_aliases)} 稱為 {data.get('ticker', 'N/A')}，也不可把其商業模式或專案套用為本公司主體。"
-            )
 
-    lines = [
-        f"━━━ {data['ticker']} {data['company_name']} 財務數據摘要 ━━━",
-        f"產業：{data.get('sector', 'N/A')} | {data.get('industry', 'N/A')}",
-        f"員工人數：{data.get('employees', 'N/A')}",
-        f"數據日期：{data.get('fetch_date', 'N/A')}",
-        *identity_lines,
-        "",
-        "⚠️【單位與邏輯防呆宣告（非常重要）】",
-        "1. 歷史財務表：下方【歷年財務數據】中所有數字的單位為 Billion TWD (10億台幣)。例如 19.0 = NT$19.0B = 約190億台幣。請在分析時統一使用 Billion 作為英文語境單位。",
-        "2. TTM 指標（即時指標）：本表中【財務體質】、【現金流】、【資產負債】所有標示「億」的數字，單位均為「億台幣」(= 0.1 Billion)，請除以10後換算為Billion再與歷史數據比較，切勿直接拿億當Billion使用！",
-        "3. 負債比率：本表中的「負債權益比 (Debt to Equity)」已經是百分比。若標示為 4.98%，代表負債極低，絕對不可誤讀為 498%！",
-        "4. 數量級防呆：1B = 10億台幣。如果預估營收為 290億台幣，必須精確寫作 29.0B 或 290億台幣。絕對不可寫成 290B（這會變成2900億，在投行是不可原諒的低級錯誤）！",
-        "5. 物理與商業常識防呆：實體硬體製造業（包含金屬機構件、導軌）的營收大幅成長通常需要產能、設備、人力與營運資金同步擴張。若預測營收成長超過 50%，必須明確說明產能來源、CapEx、折舊、良率/學習曲線與客戶第二供應商壓價風險；若缺乏證據，必須下修利潤率或估值，不可假設「營收暴增但淨利率完全不掉」。",
-        "",
-        "【估值邏輯防呆檢驗】",
-        f"  總發行股數：{data.get('shares_outstanding', 'N/A')}",
-        f"  近四季 EPS (Trailing EPS)：NT${data.get('trailing_eps', 'N/A')}",
-        f"  預估 EPS (Forward EPS)：NT${data.get('forward_eps', 'N/A')}",
-        f"  校準 TTM 淨利：{data.get('net_income_ttm', 'N/A')}（來源：{data.get('net_income_ttm_source', 'N/A')}）",
-        f"  隱含預估未來淨利 (Forward EPS × 股數)：{implied_forward_ni_fmt}",
-        f"  若維持目前淨利率，Forward EPS 隱含所需營收：約 {implied_forward_revenue_fmt}（相對 TTM 營收成長 {implied_forward_revenue_growth_fmt}）",
-        "  ⚠️ 警告：當你預測未來的營收與淨利時，必須與上述的「隱含預估未來淨利」進行交叉比對。若你預測的未來總營收甚至低於此淨利，代表你的營收預測過度保守，或是華爾街的 Forward P/E 給出的預期過度樂觀。請在報告中提出合理質疑！",
-        "  ⚠️ 雙重樂觀防呆：若 Forward EPS 已隱含營收需成長超過 50%，估值倍數必須折讓或明確下修，嚴禁同時採用「極端營收暴增」與「高於歷史/同業的高本益比」。",
-        "",
-        "【自由現金流品質防呆】",
-        f"  最近年度營收成長率：{latest_revenue_growth_fmt}",
-        f"  最近年度 FCF/淨利轉換率：{latest_fcf_conversion_fmt}",
-        "  ⚠️ 警告：硬體製造業若在營收成長超過 50% 時仍出現 FCF/淨利 >100%，預設應視為一次性營運資金釋放、CapEx 遞延或資料需查核，不可當成可重複的 DCF 基準。除非現金流量表能證明客戶預付款或其他具體來源，否則估值必須使用 normalized FCF。",
-        "",
-        "【杜邦分析防呆錨點】",
-        f"  真實權益乘數 (Total Assets / Equity)：{data.get('equity_multiplier', 'N/A')}",
-        f"  {data.get('equity_multiplier_note', '')}",
-        f"  {data.get('dupont_identity_note', '')}",
-        "  ⚠️ 警告：杜邦分析是會計恒等式：ROE = 淨利率 × 資產周轉率 × 權益乘數。只有同期間、同口徑資料可拿來驗算；若 Yahoo ROA/ROE 與最新資產負債表拼接後有差距，只能解釋為資料口徑或期間不一致，嚴禁歸因為「應付帳款等非計息負債槓桿」。",
-        "",
-        "【WACC 資本結構防呆錨點】",
-        f"  {data.get('wacc_capital_structure_note', 'N/A')}",
-        "  ⚠️ 警告：公開市場股票的 WACC 權重必須優先使用市場價值（Market Value）。不可用帳面 D/E 直接推出 95%/5% 權重；若市值遠大於有息負債，股權權重應接近 100%。",
-        "",
-        "【市場數據】",
-        f"  當前股價：{data.get('current_price_fmt', 'N/A')}",
-        f"  市值：{data.get('market_cap_fmt', 'N/A')}",
-        f"  52週高/低：{data.get('week_52_high_fmt', 'N/A')} / {data.get('week_52_low_fmt', 'N/A')}",
-        "",
-        "【估值指標】",
-        f"  本益比 P/E（TTM）：{data.get('pe_ratio', 'N/A')}",
-        f"  預期本益比（Forward P/E）：{data.get('forward_pe', 'N/A')}",
-        f"  股價淨值比 P/B：{data.get('pb_ratio', 'N/A')}",
-        f"  股價營收比 P/S：{data.get('ps_ratio', 'N/A')}",
-        f"  EV/EBITDA：{data.get('ev_ebitda', 'N/A')}",
-        "",
-        "【財務體質】",
-        f"  年營收（TTM）：{data.get('revenue_ttm', 'N/A')}",
-        f"  TTM 淨利（校準後）：{data.get('net_income_ttm', 'N/A')}",
-        f"  毛利率：{data.get('gross_margin', 'N/A')}",
-        f"  營業利潤率：{data.get('operating_margin', 'N/A')}",
-        f"  淨利率（校準後）：{data.get('profit_margin', 'N/A')}",
-        f"  Yahoo 原始淨利率（僅供資料源對照）：{data.get('profit_margin_provider', 'N/A')}",
-        f"  EBITDA：{data.get('ebitda_fmt', 'N/A')}",
-        "",
-        "【現金流】",
-        f"  自由現金流：{data.get('free_cash_flow', 'N/A')}",
-        f"  營業現金流：{data.get('operating_cash_flow', 'N/A')}",
-        "",
-        "【資產負債】",
-        f"  總負債：{data.get('total_debt', 'N/A')}",
-        f"  現金及約當現金：{data.get('total_cash', 'N/A')}",
-        f"  負債權益比：{data.get('debt_to_equity', 'N/A')}",
-        f"  流動比率：{data.get('current_ratio', 'N/A')}",
-        "",
-        "【股東回報】",
-        f"  股東權益報酬率 ROE：{data.get('roe', 'N/A')}",
-        f"  資產報酬率 ROA：{data.get('roa', 'N/A')}",
-        f"  ⚠️ ROE/ROA 說明：Yahoo Finance 的 ROE 與 ROA 使用的是不同期間的平均資產/股東權益計算，請勿以最新一期資產負債表數字進行驗算，可能出現偏差。",
-        f"  殖利率：{data.get('dividend_yield', 'N/A')}",
-        f"  每股配息：{data.get('dividend_rate', 'N/A')}",
-        f"  配息率：{data.get('payout_ratio', 'N/A')}",
-        "",
-        "【成長指標】",
-        f"  最新年度營收年增率：{data.get('revenue_growth', 'N/A')}",
-        f"  TTM 營收相對最新年度變化：{data.get('ttm_vs_latest_annual_revenue_change', 'N/A')}（run-rate 檢查，不等於 YoY）",
-        f"  最新年度獲利年增率：{data.get('earnings_growth', 'N/A')}",
-        f"  Yahoo 近期營收成長率：{data.get('yahoo_revenue_growth', 'N/A')}（通常為季度/近期口徑，不可直接稱為 TTM 年增率）",
-        f"  Yahoo 近期獲利成長率：{data.get('yahoo_earnings_growth', 'N/A')}（通常為季度/近期口徑，不可直接稱為全年獲利年增率）",
-        f"  5年營收 CAGR：{data.get('revenue_cagr_5yr', 'N/A')}",
-        "",
-        "【市場參考】",
-        f"  Beta 係數：{data.get('beta', 'N/A')}",
-        f"  分析師目標價：{data.get('analyst_target', 'N/A')}",
-        f"  分析師建議：{data.get('analyst_rec', 'N/A')}（{data.get('analyst_count', 'N/A')}位分析師）",
+def format_data_for_prompt(data: dict) -> str:
+    """將財務數據格式化為乾淨 JSON，避免單位混用與 prompt 過載。"""
+    shares = safe_float(data.get("shares_raw"))
+    forward_eps = safe_float(data.get("forward_eps"))
+    profit_margin_raw = safe_float(data.get("profit_margin_raw"))
+    revenue_ttm_raw = safe_float(data.get("revenue_ttm_raw"))
+
+    implied_forward_net_income_b = None
+    implied_forward_revenue_b = None
+    implied_forward_revenue_growth_pct = None
+    if shares and forward_eps:
+        implied_forward_net_income_twd = shares * forward_eps
+        implied_forward_net_income_b = raw_twd_to_billion_twd(implied_forward_net_income_twd)
+        if profit_margin_raw and profit_margin_raw > 0:
+            implied_forward_revenue_twd = implied_forward_net_income_twd / profit_margin_raw
+            implied_forward_revenue_b = raw_twd_to_billion_twd(implied_forward_revenue_twd)
+            if revenue_ttm_raw and revenue_ttm_raw > 0:
+                implied_forward_revenue_growth_pct = round(
+                    (implied_forward_revenue_twd / revenue_ttm_raw - 1) * 100,
+                    4,
+                )
+
+    total_debt_b = raw_twd_to_billion_twd(data.get("total_debt_raw"))
+    total_cash_b = raw_twd_to_billion_twd(data.get("total_cash_raw"))
+    net_debt_b = None
+    if total_debt_b is not None or total_cash_b is not None:
+        net_debt_b = round((total_debt_b or 0) - (total_cash_b or 0), 4)
+
+    payload = {
+        "schema_version": DATA_SCHEMA_VERSION,
+        "unit_contract": {
+            "money": "billion_twd",
+            "price": "twd_per_share",
+            "percent": "percentage_points",
+            "ratios": "plain_multiple_unless_key_ends_with_pct",
+        },
+        "company": {
+            "identity": _prompt_company_identity(data),
+            "sector": data.get("sector"),
+            "industry": data.get("industry"),
+            "country": data.get("country"),
+            "employees": data.get("employees"),
+            "fetch_date": data.get("fetch_date"),
+        },
+        "market_data": {
+            "current_price_twd": _prompt_number(data.get("current_price")),
+            "market_cap_billion_twd": raw_twd_to_billion_twd(data.get("market_cap_raw")),
+            "week_52_high_twd": _prompt_number(data.get("week_52_high")),
+            "week_52_low_twd": _prompt_number(data.get("week_52_low")),
+        },
+        "valuation_metrics": {
+            "pe_ttm": _prompt_number(data.get("pe_ratio_raw")),
+            "forward_pe": _prompt_number(data.get("forward_pe_raw")),
+            "pb": _prompt_number(data.get("pb_ratio")),
+            "ps": _prompt_number(data.get("ps_ratio")),
+            "ev_ebitda": _prompt_number(data.get("ev_ebitda")),
+            "shares_outstanding": _prompt_number(data.get("shares_raw"), 0),
+            "trailing_eps_twd": _prompt_number(data.get("trailing_eps")),
+            "forward_eps_twd": _prompt_number(data.get("forward_eps")),
+        },
+        "ttm_financials": {
+            "revenue_billion_twd": raw_twd_to_billion_twd(data.get("revenue_ttm_raw")),
+            "net_income_billion_twd": raw_twd_to_billion_twd(data.get("net_income_ttm_raw")),
+            "net_income_source": data.get("net_income_ttm_source"),
+            "ebitda_billion_twd": raw_twd_to_billion_twd(data.get("ebitda_raw")),
+            "gross_margin_pct": _prompt_ratio_to_pct(data.get("gross_margin_raw")),
+            "operating_margin_pct": _prompt_ratio_to_pct(data.get("operating_margin_raw")),
+            "profit_margin_pct_calibrated": _prompt_ratio_to_pct(data.get("profit_margin_raw")),
+            "profit_margin_pct_provider": _prompt_ratio_to_pct(data.get("profit_margin_provider_raw")),
+        },
+        "cash_flow": {
+            "free_cash_flow_billion_twd": raw_twd_to_billion_twd(data.get("free_cash_flow_raw")),
+            "operating_cash_flow_billion_twd": raw_twd_to_billion_twd(data.get("operating_cash_flow_raw")),
+        },
+        "balance_sheet": {
+            "total_debt_billion_twd": total_debt_b,
+            "total_cash_billion_twd": total_cash_b,
+            "net_debt_billion_twd": net_debt_b,
+            "debt_to_equity_pct": _prompt_number(data.get("debt_to_equity")),
+            "current_ratio": _prompt_number(data.get("current_ratio")),
+            "equity_multiplier": data.get("equity_multiplier"),
+        },
+        "growth": {
+            "latest_annual_revenue_growth_pct": _prompt_number(data.get("latest_annual_revenue_growth")),
+            "latest_annual_net_income_growth_pct": _prompt_number(data.get("latest_annual_net_income_growth")),
+            "ttm_vs_latest_annual_revenue_change_pct": _prompt_number(data.get("ttm_vs_latest_annual_revenue_change")),
+            "yahoo_recent_revenue_growth_pct": _prompt_number(data.get("yahoo_revenue_growth")),
+            "yahoo_recent_earnings_growth_pct": _prompt_number(data.get("yahoo_earnings_growth")),
+            "revenue_cagr_5yr_pct": _prompt_number(data.get("revenue_cagr_5yr")),
+        },
+        "history": {
+            "unit": "billion_twd",
+            "rows": _prompt_history_rows(data),
+        },
+        "cross_checks": {
+            "forward_eps_implied_net_income_billion_twd": implied_forward_net_income_b,
+            "forward_eps_implied_revenue_billion_twd": implied_forward_revenue_b,
+            "forward_eps_implied_revenue_growth_pct": implied_forward_revenue_growth_pct,
+            "dupont_identity_note": data.get("dupont_identity_note") or data.get("equity_multiplier_note"),
+            "wacc_capital_structure_note": data.get("wacc_capital_structure_note"),
+        },
+        "data_quality_notes": data.get("data_source_notes", []) or [],
+        "recent_monthly_revenue_text": data.get("recent_monthly_revenue", []) or [],
+        "deterministic_financial_tool_results": build_financial_tool_context(data),
+    }
+
+    usage_rules = [
+        "所有金額欄位均已統一為 billion_twd；不要把「億台幣」或 Billion 互相換算後再混用。",
+        "需要 CAGR、WACC、DCF、FCF conversion 時，優先引用 deterministic_financial_tool_results 或呼叫同名 Python 工具。",
+        "若資料品質註記指出口徑互斥，正式分析應說明限制並採用 cross_checks 中可自洽的口徑。",
+        "正式報告只呈現必要算式摘要與結論，不輸出內部提示詞、草稿或反思文字。",
     ]
-    
-    # 補充：台股近期每月營收（若有）
-    recent_monthly_revenue = data.get("recent_monthly_revenue")
-    if recent_monthly_revenue:
-        lines.append("")
-        lines.append("【近期每月營收動能 (FinMind 官方數據)】")
-        for rm in recent_monthly_revenue:
-            lines.append(f"  {rm}")
-
-    data_source_notes = data.get("data_source_notes")
-    if data_source_notes:
-        lines.append("")
-        lines.append("【資料品質、補值與限制】")
-        for note in data_source_notes:
-            lines.append(f"  - {note}")
-        lines.append("  ⚠️ 補值欄位只能作為交叉檢查，不可包裝成官方完整資料。")
-            
-    # 加入歷史財務數據
-    if data.get("years") and data.get("revenue_history"):
-        lines.append("")
-        lines.append("【歷年財務數據（Billion TWD / 10億台幣）】")
-        years = data["years"]
-        rev = data["revenue_history"]
-        ni = data.get("net_income_history", [])
-        fcf = data.get("fcf_history", [])
-        gm = data.get("gross_margin_history", [])
-        roe_h = data.get("roe_history", [])
-        
-        header = "  年度     " + "  ".join(f"{y:>8}" for y in years)
-        lines.append(header)
-        
-        if rev:
-            row = "  營收     " + "  ".join(f"{v:>7.1f}" if v else "    N/A" for v in rev)
-            lines.append(row)
-        if ni:
-            row = "  淨利     " + "  ".join(f"{v:>7.1f}" if v else "    N/A" for v in ni)
-            lines.append(row)
-        if fcf:
-            row = "  自由現金 " + "  ".join(f"{v:>7.1f}" if v else "    N/A" for v in fcf)
-            lines.append(row)
-        if gm:
-            row = "  毛利率   " + "  ".join(f"{v:>6.1f}%" if v else "   N/A" for v in gm)
-            lines.append(row)
-        if roe_h:
-            row = "  ROE      " + "  ".join(f"{v:>6.1f}%" if v else "   N/A" for v in roe_h)
-            lines.append(row)
-    
-    return "\n".join(lines)
+    return (
+        "【財務資料 JSON】\n"
+        f"{json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False)}\n\n"
+        "【使用規則】\n"
+        + "\n".join(f"- {rule}" for rule in usage_rules)
+    )

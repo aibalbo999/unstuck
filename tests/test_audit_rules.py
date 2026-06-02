@@ -1,4 +1,5 @@
 import sys
+import json
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -8,6 +9,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 import agent_runner as ar  # noqa: E402
+import financial_data  # noqa: E402
+import financial_tools  # noqa: E402
 import report_gen  # noqa: E402
 
 
@@ -244,6 +247,7 @@ class AuditRuleTests(unittest.TestCase):
 
         def repaired_agent(agent_num, data, ctx, rotator, max_retries=1):
             self.assertEqual(agent_num, 7)
+            self.assertIn("前次退件反思摘要", ctx.get("_audit_reflection_instruction", ""))
             ctx["structured_outputs"][7] = {
                 "recommendation": {
                     "建議": "避免",
@@ -351,6 +355,115 @@ class AuditRuleTests(unittest.TestCase):
         context["audit_repair_log"] = ["商業模式與整體分析 AI 修復成功：已重寫並通過品質檢查"]
         self.assertEqual(report_gen.build_audit_sections(context), [])
         self.assertEqual(report_gen.build_audit_banner_html(context), "")
+
+    def test_previous_context_is_not_truncated(self):
+        long_agent_1 = "## 商業模式\n" + ("完整內容A" * 260)
+        long_agent_2 = "## 財務分析\n" + ("完整內容B" * 260)
+        context = {
+            "analyses": {1: long_agent_1, 2: long_agent_2},
+            "context_digests": {4: '{"decision_relevant_facts":["摘要"]}'},
+        }
+
+        formatted = ar._format_previous(context, 4)
+
+        self.assertIn("【提煉 Agent 結構化摘要】", formatted)
+        self.assertIn("完整內容A" * 20, formatted)
+        self.assertIn("完整內容B" * 20, formatted)
+        self.assertNotIn("完整內容A" * 80 + "...", formatted)
+
+    def test_financial_prompt_is_clean_json_with_tool_results(self):
+        data = base_data()
+        data.update({
+            "sector": "科技業",
+            "industry": "電子零組件",
+            "country": "Taiwan",
+            "employees": 1000,
+            "market_cap_raw": 100_000_000_000,
+            "week_52_high": 120,
+            "week_52_low": 80,
+            "pe_ratio_raw": 20,
+            "forward_pe_raw": 15,
+            "pb_ratio": "2.0x",
+            "ps_ratio": "3.0x",
+            "ev_ebitda": "8.0x",
+            "shares_raw": 1_000_000_000,
+            "trailing_eps": 5,
+            "forward_eps": 6,
+            "revenue_ttm_raw": 20_000_000_000,
+            "net_income_ttm_raw": 2_000_000_000,
+            "net_income_ttm_source": "trailing EPS × shares",
+            "ebitda_raw": 3_000_000_000,
+            "gross_margin_raw": 0.25,
+            "operating_margin_raw": 0.12,
+            "profit_margin_raw": 0.10,
+            "profit_margin_provider_raw": 0.11,
+            "free_cash_flow_raw": 1_500_000_000,
+            "operating_cash_flow_raw": 2_500_000_000,
+            "total_debt_raw": 5_000_000_000,
+            "total_cash_raw": 2_000_000_000,
+            "debt_to_equity": "5.0%",
+            "current_ratio": "2.0",
+            "years": ["2023", "2024", "2025"],
+            "revenue_history": [10, 15, 20],
+            "net_income_history": [1, 1.5, 2],
+            "gross_profit_history": [2.5, 3.5, 5],
+            "operating_income_history": [1, 1.8, 2.4],
+            "fcf_history": [0.8, 1.0, 1.5],
+            "gross_margin_history": [25, 23.3, 25],
+            "op_margin_history": [10, 12, 12],
+            "net_margin_history": [10, 10, 10],
+            "roe_history": [8, 9, 10],
+            "total_assets_history": [20, 24, 28],
+            "total_equity_history": [12, 15, 18],
+            "latest_annual_revenue_growth": "33.3%",
+            "latest_annual_net_income_growth": "33.3%",
+            "ttm_vs_latest_annual_revenue_change": "0.0%",
+            "yahoo_revenue_growth": "12.0%",
+            "yahoo_earnings_growth": "10.0%",
+            "revenue_cagr_5yr": "41.4%",
+        })
+
+        prompt = financial_data.format_data_for_prompt(data)
+        payload_text = prompt.split("【財務資料 JSON】\n", 1)[1].split("\n\n【使用規則】", 1)[0]
+        payload = json.loads(payload_text)
+
+        self.assertEqual(payload["unit_contract"]["money"], "billion_twd")
+        self.assertEqual(payload["market_data"]["market_cap_billion_twd"], 100.0)
+        self.assertEqual(payload["ttm_financials"]["revenue_billion_twd"], 20.0)
+        self.assertIn("deterministic_financial_tool_results", payload)
+        self.assertIn("revenue_cagr", payload["deterministic_financial_tool_results"]["calculations"])
+        self.assertNotIn("不可原諒", prompt)
+        self.assertNotIn("⚠️【單位與邏輯防呆", prompt)
+
+    def test_financial_tool_calculations(self):
+        cagr = financial_tools.calculate_cagr(10, 20, 2)
+        self.assertAlmostEqual(cagr["cagr_pct"], 41.4214, places=4)
+
+        wacc = financial_tools.calculate_wacc(
+            market_cap_twd=95_000_000_000,
+            total_debt_twd=5_000_000_000,
+            cost_of_equity_pct=10,
+            cost_of_debt_pct=4,
+            tax_rate_pct=20,
+        )
+        self.assertEqual(wacc["equity_weight_pct"], 95.0)
+        self.assertAlmostEqual(wacc["wacc_pct"], 9.66, places=2)
+
+        dcf = financial_tools.calculate_dcf(
+            base_fcf_billion_twd=1,
+            growth_rate_pct=5,
+            wacc_pct=10,
+            terminal_growth_pct=2,
+            shares_outstanding=100_000_000,
+        )
+        self.assertGreater(dcf["price_per_share_twd"], 100)
+
+    def test_agent_function_tools_are_registered(self):
+        self.assertEqual([tool.__name__ for tool in ar.get_agent_function_tools(2)], ["calculate_cagr"])
+        self.assertEqual(
+            [tool.__name__ for tool in ar.get_agent_function_tools(4)],
+            ["calculate_cagr", "calculate_wacc", "calculate_dcf"],
+        )
 
 
 if __name__ == "__main__":
