@@ -198,8 +198,15 @@ def main():
     elapsed = time.time() - start_time
     console.print(f"\n[bold green]✅ 所有分析完成！總耗時：{elapsed:.0f} 秒 ({elapsed/60:.1f} 分鐘)[/bold green]")
 
-    if context.get("blocking_issues"):
-        issue_text = "\n".join(f"- {issue}" for issue in context["blocking_issues"][:8])
+    final_audit = context.get("final_audit", {}) or {}
+    audit_critical = list(final_audit.get("critical", []) or [])
+    blocking_issues = [
+        issue for issue in (context.get("blocking_issues", []) or [])
+        if issue not in audit_critical
+    ]
+    audit_issues = [*audit_critical[:8], *blocking_issues[:4]]
+    if audit_issues:
+        issue_text = "\n".join(f"- {issue}" for issue in audit_issues)
         console.print()
         console.print(Panel(
             f"[bold yellow]品質檢查仍有異常；系統會繼續輸出報告，並在報告內標示提醒。[/bold yellow]\n\n{issue_text}",

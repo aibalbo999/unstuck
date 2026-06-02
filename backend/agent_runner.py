@@ -112,6 +112,7 @@ class KeyRotator:
 PROMPT_CONFIG = load_agent_prompt_config()
 SYSTEM_PROMPTS = {int(k): v for k, v in PROMPT_CONFIG["system_prompts"].items()}
 ANALYSIS_PROMPTS = {int(k): v for k, v in PROMPT_CONFIG["analysis_prompts"].items()}
+FINAL_AUDIT_REPAIR_PASSES = 2
 
 
 def get_agent_model_sequence(agent_num: int) -> list[str]:
@@ -1399,12 +1400,7 @@ def run_analysis_pipeline(data: dict, progress_callback=None) -> dict:
             time.sleep(wait)
     
     # 解析結構化數據、嘗試修復跨 Agent 稽核問題，再輸出最終稽核摘要。
-    context["parsed"] = parse_structured_data(context)
-    initial_audit = run_final_report_audit(context, append_section=False)
-    if initial_audit.get("critical"):
-        attempt_final_audit_repair(context, initial_audit, rotator)
-        context["parsed"] = parse_structured_data(context)
-    context["final_audit"] = run_final_report_audit(context, append_section=True)
+    finalize_final_audit(context, rotator)
     context["total_time"] = time.time() - context["start_time"]
     
     print(f"\n{'='*60}")
@@ -1538,12 +1534,7 @@ async def run_analysis_pipeline_async(data: dict, progress_callback=None) -> dic
             print(f"\n  ⏰ 非同步等待 {wait} 秒後執行下一個 Agent...\n")
             await asyncio.sleep(wait)
 
-    context["parsed"] = parse_structured_data(context)
-    initial_audit = run_final_report_audit(context, append_section=False)
-    if initial_audit.get("critical"):
-        await attempt_final_audit_repair_async(context, initial_audit, rotator)
-        context["parsed"] = parse_structured_data(context)
-    context["final_audit"] = run_final_report_audit(context, append_section=True)
+    await finalize_final_audit_async(context, rotator)
     context["total_time"] = time.time() - context["start_time"]
 
     print(f"\n{'='*60}")
@@ -1881,6 +1872,73 @@ async def attempt_final_audit_repair_async(context: dict, audit: dict, rotator: 
         log = f"{agent_name} AI 修復{status}：{message}"
         context.setdefault("audit_repair_log", []).append(log)
         print(f"     - {log}")
+
+
+def _summarize_audit_issues(audit: dict, limit: int = 3) -> str:
+    issues = [str(item) for item in (audit.get("critical", []) or [])[:limit]]
+    return "；".join(issues) if issues else "無可列示異常"
+
+
+def finalize_final_audit(
+    context: dict,
+    rotator: KeyRotator,
+    max_repair_passes: int = FINAL_AUDIT_REPAIR_PASSES,
+) -> dict:
+    """Run final audit, repair repairable failures, re-audit, then preserve report state."""
+    last_audit = None
+    for repair_pass in range(max_repair_passes + 1):
+        context["parsed"] = parse_structured_data(context)
+        last_audit = run_final_report_audit(context, append_section=False)
+        if not last_audit.get("critical"):
+            context["final_audit"] = run_final_report_audit(context, append_section=True)
+            return context["final_audit"]
+
+        if repair_pass >= max_repair_passes:
+            remaining = _summarize_audit_issues(last_audit)
+            context.setdefault("audit_repair_log", []).append(
+                f"最終稽核自動修復已達 {max_repair_passes} 輪上限；報告會保留並標示剩餘異常：{remaining}"
+            )
+            break
+
+        print(f"  🧭 最終稽核第 {repair_pass + 1}/{max_repair_passes} 輪修復，完成後會重新稽核。")
+        attempt_final_audit_repair(context, last_audit, rotator)
+        if not last_audit.get("repair_agent_issues"):
+            break
+
+    context["parsed"] = parse_structured_data(context)
+    context["final_audit"] = run_final_report_audit(context, append_section=True)
+    return context["final_audit"]
+
+
+async def finalize_final_audit_async(
+    context: dict,
+    rotator: KeyRotator,
+    max_repair_passes: int = FINAL_AUDIT_REPAIR_PASSES,
+) -> dict:
+    """Async final audit flow with repair and mandatory re-audit before rendering."""
+    last_audit = None
+    for repair_pass in range(max_repair_passes + 1):
+        context["parsed"] = parse_structured_data(context)
+        last_audit = run_final_report_audit(context, append_section=False)
+        if not last_audit.get("critical"):
+            context["final_audit"] = run_final_report_audit(context, append_section=True)
+            return context["final_audit"]
+
+        if repair_pass >= max_repair_passes:
+            remaining = _summarize_audit_issues(last_audit)
+            context.setdefault("audit_repair_log", []).append(
+                f"最終稽核自動修復已達 {max_repair_passes} 輪上限；報告會保留並標示剩餘異常：{remaining}"
+            )
+            break
+
+        print(f"  🧭 最終稽核第 {repair_pass + 1}/{max_repair_passes} 輪非同步修復，完成後會重新稽核。")
+        await attempt_final_audit_repair_async(context, last_audit, rotator)
+        if not last_audit.get("repair_agent_issues"):
+            break
+
+    context["parsed"] = parse_structured_data(context)
+    context["final_audit"] = run_final_report_audit(context, append_section=True)
+    return context["final_audit"]
 
 
 def run_final_report_audit(context: dict, append_section: bool = True) -> dict:

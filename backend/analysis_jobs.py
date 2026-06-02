@@ -11,6 +11,40 @@ from job_store import append_event, update_job
 from report_gen import generate_html_report, generate_markdown_report
 
 
+def build_operator_audit_notice(context: dict) -> dict:
+    """Summarize final audit state for progress events and UI notices."""
+    audit = context.get("final_audit", {}) or {}
+    critical = list(audit.get("critical", []) or [])
+    blocking = [
+        issue for issue in (context.get("blocking_issues", []) or [])
+        if issue not in critical
+    ]
+    warnings = list(audit.get("warnings", []) or [])
+    corrections = list(audit.get("corrections", []) or [])
+    repair_log = list(context.get("audit_repair_log", []) or [])
+
+    if critical or blocking:
+        issues = [*critical[:5], *blocking[:3]]
+        first_issue = issues[0] if issues else "最終稽核仍有異常"
+        return {
+            "status": "needs_attention",
+            "message": f"最終稽核仍有異常，報告已保留並標示提醒：{first_issue}",
+            "issues": issues,
+            "repair_log": repair_log[:5],
+        }
+
+    if warnings or corrections or repair_log:
+        details = [*warnings[:3], *corrections[:3], *repair_log[:3]]
+        return {
+            "status": "passed_with_notes",
+            "message": "最終稽核已通過；系統曾自動修復或套用非阻斷校正。",
+            "issues": details,
+            "repair_log": repair_log[:5],
+        }
+
+    return {"status": "passed", "message": "最終稽核已通過。", "issues": [], "repair_log": []}
+
+
 async def run_stock_analysis_job_async(job_id: str, ticker: str) -> str:
     """Run the full stock analysis and persist progress events for SSE clients."""
     ticker_upper = ticker.strip().upper()
@@ -32,13 +66,15 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str) -> str:
 
         append_event(job_id, {"type": "status", "message": "開始執行非同步分析 Agent..."})
         context = await run_analysis_pipeline_async(data, progress_callback=progress_callback)
+        audit_notice = build_operator_audit_notice(context)
 
-        if context.get("blocking_issues"):
-            issue_text = "；".join(context["blocking_issues"][:3])
+        if audit_notice["status"] == "needs_attention":
             append_event(job_id, {
                 "type": "status",
-                "message": f"品質檢查仍有異常，系統會保留報告並在內文標示提醒：{issue_text}",
+                "message": audit_notice["message"],
             })
+        elif audit_notice["status"] == "passed_with_notes":
+            append_event(job_id, {"type": "status", "message": audit_notice["message"]})
 
         append_event(job_id, {"type": "status", "message": "生成 HTML / Markdown 報告..."})
         html_content = generate_html_report(context)
@@ -56,7 +92,7 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str) -> str:
             f.write(md_content)
 
         update_job(job_id, "done", filename=filename)
-        append_event(job_id, {"type": "done", "filename": filename})
+        append_event(job_id, {"type": "done", "filename": filename, "audit": audit_notice})
         return filename
 
     except Exception as e:

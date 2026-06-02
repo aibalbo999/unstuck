@@ -247,6 +247,24 @@ input:focus {
     font-size: 1.2rem;
     color: var(--text-primary);
 }
+.report-audit-notice {
+    width: 100%;
+    padding: 10px 24px;
+    border-bottom: 1px solid var(--glass-border);
+    font-size: 0.92rem;
+    line-height: 1.45;
+}
+.report-audit-notice[hidden] {
+    display: none;
+}
+.report-audit-notice.is-warning {
+    background: rgba(146, 64, 14, 0.96);
+    color: #fffbeb;
+}
+.report-audit-notice.is-note {
+    background: rgba(30, 64, 175, 0.96);
+    color: #eff6ff;
+}
 .iframe-wrapper {
     flex: 1;
     width: 100%;

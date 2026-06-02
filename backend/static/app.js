@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const reportIframe = document.getElementById('report-iframe');
     const reportTickerTitle = document.getElementById('report-ticker-title');
+    const reportAuditNotice = document.getElementById('report-audit-notice');
     const historyList = document.getElementById('history-list');
     
     const downloadHtmlBtn = document.getElementById('download-html-btn');
@@ -20,6 +21,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let eventSource = null;
     let currentReportFilename = null;
+    let pendingAuditNotice = null;
+
+    function setAuditNotice(audit) {
+        if (!reportAuditNotice) return;
+        if (!audit || audit.status === 'passed') {
+            reportAuditNotice.hidden = true;
+            reportAuditNotice.textContent = '';
+            reportAuditNotice.className = 'report-audit-notice';
+            return;
+        }
+
+        const label = audit.status === 'needs_attention' ? '稽核提醒' : '稽核註記';
+        const detail = audit.status !== 'needs_attention' && Array.isArray(audit.issues) && audit.issues.length > 0
+            ? ` ${audit.issues.slice(0, 2).join('；')}`
+            : '';
+        reportAuditNotice.textContent = `${label}：${audit.message || '請查看報告內的系統稽核區塊。'}${detail}`;
+        reportAuditNotice.className = `report-audit-notice ${audit.status === 'needs_attention' ? 'is-warning' : 'is-note'}`;
+        reportAuditNotice.hidden = false;
+    }
 
     // 載入歷史報告
     async function loadHistory() {
@@ -53,6 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.openReport = function(filename, ticker) {
         currentReportFilename = filename;
         reportTickerTitle.textContent = `${ticker} 深度分析報告`;
+        setAuditNotice(null);
         reportIframe.src = `/api/report/${filename}`;
         switchView('report-view');
     };
@@ -125,6 +146,8 @@ document.addEventListener('DOMContentLoaded', () => {
         loadingStatus.textContent = '連接 Wall Street 系統...';
         loadingMsg.textContent = '';
         progressBar.style.width = '0%';
+        pendingAuditNotice = null;
+        setAuditNotice(null);
         switchView('loading-view');
 
         // 啟動 SSE
@@ -151,6 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // 載入報告
                     currentReportFilename = data.filename;
                     reportTickerTitle.textContent = `${ticker} 深度分析報告`;
+                    setAuditNotice(data.audit || pendingAuditNotice);
                     reportIframe.src = `/api/report/${data.filename}`;
                     
                     // 等待一下下再切換，讓進度條跑滿動畫看完
@@ -166,6 +190,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     setTimeout(() => {
                         switchView('home-view');
                     }, 5000);
+                } else if (data.type === 'audit') {
+                    pendingAuditNotice = data.audit || data;
+                    if (pendingAuditNotice.status === 'needs_attention') {
+                        loadingStatus.textContent = pendingAuditNotice.message;
+                    }
                 }
             } catch (err) {
                 console.error("Parse error:", err);

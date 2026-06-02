@@ -271,6 +271,68 @@ class AuditRuleTests(unittest.TestCase):
         self.assertNotIn("系統異常提醒", html)
         self.assertNotIn("系統品質檢查警示", html)
 
+    def test_finalize_audit_retries_until_reaudit_passes(self):
+        context = complete_context()
+        bad_agent7 = (
+            "## 最終投資決策\n"
+            "TTM 杜邦分析使用 Yahoo TTM ROE/ROA/淨利率與最新年度資產周轉率及權益乘數拼接，"
+            "並解釋口徑差距。"
+        )
+        context["analyses"][7] = bad_agent7
+        context["parsed"] = ar.parse_structured_data(context)
+        repair_calls = []
+
+        def staged_repair(agent_num, data, ctx, rotator, issues):
+            self.assertEqual(agent_num, 7)
+            repair_calls.append(list(issues))
+            if len(repair_calls) == 1:
+                ctx["analyses"][7] = bad_agent7
+                return False, "第一次重寫仍未修正杜邦紅線"
+
+            ctx["structured_outputs"][7] = {
+                "recommendation": {
+                    "建議": "持有",
+                    "短期目標（3個月）": "NT$900",
+                    "中期目標（6個月）": "NT$1000",
+                    "長期目標（12個月）": "NT$1100",
+                    "長期潛力（5年）": "NT$1500",
+                    "信心指數": "6/10",
+                }
+            }
+            ctx["analyses"][7] = (
+                "## 最終投資決策\n"
+                "建議持有。杜邦分析僅引用同期間年度杜邦恒等式；"
+                "Yahoo TTM ROE/ROA 僅列為資料品質警示，不跨期拼接。"
+            )
+            return True, "第二次重寫後通過品質檢查"
+
+        with patch.object(ar, "_repair_agent_output", side_effect=staged_repair):
+            audit = ar.finalize_final_audit(context, object(), max_repair_passes=2)
+
+        self.assertEqual(audit["status"], "passed")
+        self.assertEqual(len(repair_calls), 2)
+        html = report_gen.generate_html_report(context)
+        self.assertNotIn("系統異常提醒", html)
+
+    def test_finalize_audit_preserves_report_when_repair_still_fails(self):
+        context = complete_context()
+        context["analyses"][7] = (
+            "## 最終投資決策\n"
+            "TTM 杜邦分析使用 Yahoo TTM ROE/ROA/淨利率與最新年度資產周轉率及權益乘數拼接，"
+            "並解釋口徑差距。"
+        )
+        context["parsed"] = ar.parse_structured_data(context)
+
+        with patch.object(ar, "_repair_agent_output", return_value=(False, "模型仍輸出錯誤")):
+            audit = ar.finalize_final_audit(context, object(), max_repair_passes=1)
+
+        self.assertEqual(audit["status"], "needs_attention")
+        self.assertTrue(audit["report_preserved"])
+        self.assertTrue(any("報告會保留" in item for item in context["audit_repair_log"]))
+        html = report_gen.generate_html_report(context)
+        self.assertIn("系統異常提醒", html)
+        self.assertIn("本報告已保留供檢視", html)
+
     def test_final_audit_marks_future_price_history_as_correction(self):
         context = complete_context()
         context["data"]["price_history"] = {"2999-01-01": 123}
