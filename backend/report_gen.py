@@ -31,6 +31,8 @@ REPORT_CONTENT_START_RE = re.compile(
 
 PROMPT_LEAK_RESIDUE_RE = re.compile(
     r"(Senior Analyst at Goldman Sachs|Morgan Stanley Taiwan Research Department|BlackRock Active Investment Research Team|"
+    r"Taiwan Stock Research Report Editor|Compress a full research report|Investment recommendation, target price|"
+    r"No title, no Markdown|Just one single paragraph of summary text|Ticker/Company:|"
     r"Growth Equity Researcher at Fidelity|Valid parseable JSON only|No markdown code fences|Specific JSON schema|"
     r"JSON schema:|analysis_markdown|moat_scores|price_targets|Must use \"|No roleplay meta-talk|Check:\s*Did I|Past 5 years of financial trends|"
     r"Analyze the \"Economic Moat\"|Analyze the growth potential|"
@@ -71,6 +73,7 @@ def sanitize_report_text(text: str) -> str:
     text = strip_prompt_preamble(text)
     leak_patterns = [
         r"^\s*(Senior Analyst at Goldman Sachs|Morgan Stanley Taiwan Research Department Financial Modeling Expert|Competitive Advantage Analyst at BlackRock|BlackRock Active Investment Research Team|Growth Equity Researcher at Fidelity|Fidelity Investments Growth Equity Researcher)\b",
+        r"^\s*(Taiwan Stock Research Report Editor|Compress a full research report|Investment recommendation, target price|No title, no Markdown|Just one single paragraph of summary text|Ticker/Company:)\b",
         r"^\s*你好，我是(高盛|摩根士丹利|貝萊德|JP\s*摩根|富達投資|T\.?\s*Rowe|德富金融)",
         r"^\s*(Deep financial analysis of|Deep financial data analysis of|Economic Moat analysis of|.*Deep moat evaluation|.*Analyze the growth potential|Analyze the growth potential|Analyze the 5-10 year growth potential of|Financial data provided)\b",
         r"^\s*\*?\s*(Currency|Units|TTM units|Debt to Equity|Manufacturing Logic|Valuation Cross-check|Forward EPS implicit.*|FCF quality check.*|WACC|DuPont Analysis|ROE Discrepancy|Language|Unit Check|Tone|Constraint Check|First paragraph MUST|No internal monologue|Valid parseable JSON only|No markdown code fences|No extra text outside JSON|JSON schema|Specific JSON schema|analysis_markdown|moat_scores|price_targets|recommendation)\s*:",
@@ -95,6 +98,11 @@ def sanitize_report_text(text: str) -> str:
 
     cleaned = normalize_bad_number_commas("\n".join(kept_lines))
     return re.sub(r"\n{3,}", "\n\n", cleaned).strip()
+
+
+def contains_prompt_leak_residue(text: str) -> bool:
+    """Return True when a rendered report fragment still looks like leaked instructions."""
+    return bool(PROMPT_LEAK_RESIDUE_RE.search(text or ""))
 
 
 def normalize_bad_number_commas(text: str) -> str:
@@ -219,6 +227,23 @@ def normalize_moat_scores(moat_scores: dict) -> dict:
         for key in allowed
         if key in moat_scores and isinstance(moat_scores[key], (int, float))
     }
+
+
+def billion_twd_series_to_yi_twd(values: list) -> list:
+    """Convert chart money series from billion_twd to 億台幣 for display."""
+    converted = []
+    for value in values or []:
+        if isinstance(value, bool) or value is None:
+            converted.append(value)
+            continue
+        if isinstance(value, (int, float)):
+            converted.append(round(value * 10, 4))
+            continue
+        try:
+            converted.append(round(float(str(value).replace(",", "")) * 10, 4))
+        except (TypeError, ValueError):
+            converted.append(value)
+    return converted
 
 
 def clean_markdown(text: str) -> str:
@@ -379,7 +404,9 @@ def build_tear_sheet_summary(context: dict) -> str:
     """Build a one-page style summary, preferring model output when available."""
     model_summary = str(context.get("tear_sheet_summary", "") or "").strip()
     if model_summary:
-        return sanitize_report_text(model_summary)
+        sanitized = sanitize_report_text(model_summary)
+        if sanitized and not contains_prompt_leak_residue(sanitized):
+            return sanitized[:900]
 
     data = context.get("data", {}) or {}
     parsed = context.get("parsed", {}) or {}
@@ -439,6 +466,13 @@ def generate_html_report(context: dict) -> str:
     # 目標股價
     price_targets = parsed.get("price_targets", {})
     recommendation = parsed.get("recommendation", {})
+    pe_river = data.get("pe_river_chart", {}) or {}
+    pe_river_source = str(pe_river.get("source", "") or "")
+    pe_river_title = (
+        "P/E 河流圖（EPS × 預設本益比通道）"
+        if "default" in pe_river_source.lower()
+        else "P/E 河流圖（EPS × 歷史本益比通道）"
+    )
     
     def get_rec_val(rec_dict, target_sub, default="N/A"):
         for k, v in rec_dict.items():
@@ -481,9 +515,11 @@ def generate_html_report(context: dict) -> str:
     # 準備 JSON 數據給圖表
     chart_data = {
         "years": years,
-        "revenue": [v for v in revenue_data],
-        "netIncome": [v for v in net_income_data],
-        "fcf": [v for v in fcf_data],
+        "moneyUnit": "hundred_million_twd",
+        "sourceMoneyUnit": "billion_twd",
+        "revenue": billion_twd_series_to_yi_twd(revenue_data),
+        "netIncome": billion_twd_series_to_yi_twd(net_income_data),
+        "fcf": billion_twd_series_to_yi_twd(fcf_data),
         "grossMargin": [v for v in gross_margin_data],
         "opMargin": [v for v in op_margin_data],
         "netMargin": [v for v in net_margin_data],
@@ -492,7 +528,7 @@ def generate_html_report(context: dict) -> str:
         "moatLabels": moat_labels,
         "moatValues": moat_values,
         "priceTargets": price_targets,
-        "peRiver": data.get("pe_river_chart", {}) or {},
+        "peRiver": pe_river,
     }
     
     chart_data_json = json.dumps(chart_data, ensure_ascii=False)

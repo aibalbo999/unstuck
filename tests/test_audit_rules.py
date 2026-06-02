@@ -525,6 +525,48 @@ class AuditRuleTests(unittest.TestCase):
         self.assertIn("One-Page Tear Sheet", html)
         self.assertIn("peRiverChart", html)
         self.assertIn("P/E 河流圖", html)
+        self.assertIn("P/E 河流圖（EPS × 歷史本益比通道）", html)
+
+    def test_chart_money_series_are_converted_from_billion_to_yi_twd(self):
+        context = complete_context()
+        context["data"].update({
+            "years": ["2024", "2025"],
+            "revenue_history": [5.53, 5.37],
+            "net_income_history": [1.31, 1.49],
+            "fcf_history": [0.70, 1.43],
+            "gross_margin_history": [49.2, 54.2],
+            "op_margin_history": [25.9, 30.0],
+            "net_margin_history": [23.7, 27.7],
+            "roe_history": [52.8, 22.9],
+            "pe_river_chart": {"source": "default multiples"},
+        })
+
+        html = report_gen.generate_html_report(context)
+        payload_text = html.split("const CHART_DATA = ", 1)[1].split(";\n", 1)[0]
+        chart_data = json.loads(payload_text)
+
+        self.assertEqual(chart_data["sourceMoneyUnit"], "billion_twd")
+        self.assertEqual(chart_data["moneyUnit"], "hundred_million_twd")
+        self.assertEqual(chart_data["revenue"], [55.3, 53.7])
+        self.assertEqual(chart_data["netIncome"], [13.1, 14.9])
+        self.assertEqual(chart_data["fcf"], [7.0, 14.3])
+        self.assertIn("年度營收與淨利（億元台幣）", html)
+        self.assertIn("P/E 河流圖（EPS × 預設本益比通道）", html)
+
+    def test_tear_sheet_prompt_leak_falls_back_to_deterministic_summary(self):
+        context = complete_context()
+        context["tear_sheet_summary"] = (
+            "Taiwan Stock Research Report Editor.\n"
+            "Compress a full research report into a one-page practical summary.\n"
+            "Investment recommendation, target price, fundamental highlights.\n"
+            "No title, no Markdown. Just one single paragraph of summary text."
+        )
+
+        summary = report_gen.build_tear_sheet_summary(context)
+
+        self.assertNotIn("Taiwan Stock Research Report Editor", summary)
+        self.assertNotIn("Compress a full research report", summary)
+        self.assertIn("一頁式摘要", summary)
 
     def test_pe_river_default_calculation(self):
         chart = financial_data.build_pe_river_chart_data(

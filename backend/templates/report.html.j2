@@ -1108,7 +1108,7 @@
                     </div>
                 </div>
                 <div class="chart-card full-width">
-                    <div class="chart-title">P/E 河流圖（EPS × 歷史本益比通道）</div>
+                    <div class="chart-title">{{ pe_river_title }}</div>
                     <div class="chart-canvas-wrapper tall">
                         <canvas id="peRiverChart"></canvas>
                     </div>
@@ -1566,6 +1566,13 @@
             tension: 0.25,
         }));
         const currentPrice = {{ current_price_numeric }};
+        const positiveBandValues = Object.values(bands)
+            .flat()
+            .map(Number)
+            .filter(v => Number.isFinite(v) && v > 0);
+        const maxBandValue = positiveBandValues.length ? Math.max(...positiveBandValues) : 0;
+        const minBandValue = positiveBandValues.length ? Math.min(...positiveBandValues) : 0;
+        const useLogScale = currentPrice > 0 && maxBandValue > 0 && minBandValue > 0 && currentPrice / maxBandValue > 2;
         if (currentPrice > 0) {
             bandDatasets.push({
                 label: '當前股價',
@@ -1598,8 +1605,15 @@
                     scales: {
                         x: { grid: { color: 'rgba(255,255,255,0.05)' } },
                         y: {
+                            type: useLogScale ? 'logarithmic' : 'linear',
                             grid: { color: 'rgba(255,255,255,0.05)' },
                             ticks: { callback: v => `NT$${v}` },
+                            title: {
+                                display: useLogScale,
+                                text: '對數刻度：股價高於河流通道',
+                                color: '#94a3b8',
+                                font: { size: 11 },
+                            },
                             beginAtZero: false,
                         }
                     }
