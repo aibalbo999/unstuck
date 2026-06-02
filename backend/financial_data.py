@@ -290,6 +290,44 @@ def fetch_google_search_catalysts(ticker: str, company_name: str, identity: dict
     return records
 
 
+def fetch_google_peer_discovery_results(ticker: str, company_name: str, sector: str, industry: str) -> list[dict]:
+    """Fetch search snippets that can help Agent 3 identify real global peers."""
+    if not GOOGLE_SEARCH_API_KEY or not GOOGLE_CSE_ID:
+        return []
+
+    query = f"{company_name} {ticker} global competitors peers gross margin {industry} {sector}"
+    try:
+        response = requests.get(
+            "https://www.googleapis.com/customsearch/v1",
+            params={
+                "key": GOOGLE_SEARCH_API_KEY,
+                "cx": GOOGLE_CSE_ID,
+                "q": query,
+                "num": 5,
+            },
+            timeout=8,
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except Exception as e:
+        print(f"    ⚠️  Google Search 同業 discovery 失敗：{e}")
+        return []
+
+    records = []
+    for item in payload.get("items", []) or []:
+        title = str(item.get("title", "")).strip()
+        if not title:
+            continue
+        records.append({
+            "title": title,
+            "snippet": str(item.get("snippet", "")).strip(),
+            "source": item.get("displayLink", "Google Search"),
+            "link": item.get("link", ""),
+            "source_type": "google_peer_discovery",
+        })
+    return _dedupe_records(records, limit=5)
+
+
 def fetch_fmp_news_catalysts(ticker: str) -> list[dict]:
     """Fetch optional FMP stock news when an API key is available."""
     if not FMP_API_KEY:
@@ -923,6 +961,12 @@ def fetch_stock_data(ticker: str) -> dict:
             dynamic_peer_metrics = []
 
         try:
+            peer_discovery_results = fetch_google_peer_discovery_results(ticker, company_name, sector, industry)
+        except Exception as e:
+            print(f"    ⚠️  同業 discovery 資料彙整失敗：{e}")
+            peer_discovery_results = []
+
+        try:
             pe_river_chart = build_pe_river_chart_data(ticker, years, net_income_history, shares_outstanding)
         except Exception as e:
             print(f"    ⚠️  P/E 河流圖資料彙整失敗：{e}")
@@ -1158,6 +1202,7 @@ def fetch_stock_data(ticker: str) -> dict:
             "recent_catalysts": recent_catalysts,
             "institutional_trading": institutional_trading,
             "dynamic_peer_metrics": dynamic_peer_metrics,
+            "peer_discovery_results": peer_discovery_results,
             "pe_river_chart": pe_river_chart,
             "data_source_notes": data_source_notes,
             "equity_multiplier": equity_multiplier,
@@ -1355,6 +1400,7 @@ def format_data_for_prompt(data: dict) -> str:
         "institutional_trading": data.get("institutional_trading", {}) or {},
         "peer_context": {
             "dynamic_peer_metrics": data.get("dynamic_peer_metrics", []) or [],
+            "search_discovery_results": data.get("peer_discovery_results", []) or [],
         },
         "local_valuation_context": {
             "pe_river_chart": data.get("pe_river_chart", {}) or {},

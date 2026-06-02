@@ -421,6 +421,7 @@ class AuditRuleTests(unittest.TestCase):
             "yahoo_revenue_growth": "12.0%",
             "yahoo_earnings_growth": "10.0%",
             "revenue_cagr_5yr": "41.4%",
+            "peer_discovery_results": [{"title": "global peers", "source_type": "google_peer_discovery"}],
         })
 
         prompt = financial_data.format_data_for_prompt(data)
@@ -435,6 +436,7 @@ class AuditRuleTests(unittest.TestCase):
         self.assertIn("market_catalysts", payload)
         self.assertIn("institutional_trading", payload)
         self.assertIn("peer_context", payload)
+        self.assertEqual(payload["peer_context"]["search_discovery_results"][0]["source_type"], "google_peer_discovery")
         self.assertIn("local_valuation_context", payload)
         self.assertNotIn("不可原諒", prompt)
         self.assertNotIn("⚠️【單位與邏輯防呆", prompt)

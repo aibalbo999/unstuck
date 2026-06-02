@@ -586,6 +586,7 @@ def build_data_enrichment_instruction(agent_num: int) -> str:
         return (
             "【動態同業比較規則】\n"
             "- 護城河評分請參考 peer_context.dynamic_peer_metrics 的本地與全球同業毛利率、淨利率、P/E、P/B。\n"
+            "- peer_context.search_discovery_results 僅作全球競品 discovery 線索，需與已提供的財務指標分開標示。\n"
             "- 同業資料只能作比較，不得把同業商業模式或新聞套用到本公司。"
         )
     if agent_num == 4:
