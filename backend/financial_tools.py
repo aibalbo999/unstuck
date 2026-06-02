@@ -136,6 +136,29 @@ def calculate_dcf(
     }
 
 
+def calculate_ddm(
+    dividend_per_share_twd: float,
+    cost_of_equity_pct: float,
+    dividend_growth_pct: float = 2.0,
+) -> dict:
+    """Calculate Gordon-growth dividend discount model value per share."""
+    if dividend_per_share_twd <= 0:
+        return {"error": "dividend_per_share_twd must be positive"}
+    cost_of_equity = cost_of_equity_pct / 100
+    growth = dividend_growth_pct / 100
+    if cost_of_equity <= growth:
+        return {"error": "cost_of_equity_pct must exceed dividend_growth_pct"}
+    next_dividend = dividend_per_share_twd * (1 + growth)
+    value = next_dividend / (cost_of_equity - growth)
+    return {
+        "dividend_per_share_twd": round(dividend_per_share_twd, 4),
+        "next_dividend_twd": round(next_dividend, 4),
+        "cost_of_equity_pct": round(cost_of_equity_pct, 4),
+        "dividend_growth_pct": round(dividend_growth_pct, 4),
+        "value_per_share_twd": round(value, 4),
+    }
+
+
 def _latest_numeric(values: list[Any]) -> Optional[float]:
     for value in reversed(values or []):
         number = safe_float(value)
@@ -149,6 +172,8 @@ def build_financial_tool_context(data: dict) -> dict:
     revenue_history = data.get("revenue_history", []) or []
     net_income_history = data.get("net_income_history", []) or []
     fcf_history = data.get("fcf_history", []) or []
+    sector = str(data.get("sector", "") or "")
+    industry = str(data.get("industry", "") or "")
 
     tool_context: dict[str, Any] = {
         "unit_contract": {
@@ -238,6 +263,21 @@ def build_financial_tool_context(data: dict) -> dict:
             "base_fcf_billion_twd": round(base_fcf, 4),
             "base_fcf_note": base_note,
             "scenarios": dcf_results,
+        }
+
+    dividend_rate = safe_float(data.get("dividend_rate_raw"))
+    dividend_yield = safe_float(data.get("dividend_yield_raw"))
+    is_financial = any(keyword in f"{sector} {industry}" for keyword in ["Financial", "銀行", "金融", "保險", "金控"])
+    if dividend_rate and (is_financial or (dividend_yield is not None and dividend_yield >= 0.05)):
+        ddm_scenarios = {
+            "conservative": calculate_ddm(dividend_rate, cost_of_equity_pct=9.0, dividend_growth_pct=0.5),
+            "base": calculate_ddm(dividend_rate, cost_of_equity_pct=8.0, dividend_growth_pct=1.5),
+            "optimistic": calculate_ddm(dividend_rate, cost_of_equity_pct=7.0, dividend_growth_pct=2.0),
+        }
+        tool_context["calculations"]["ddm_scenarios_default"] = {
+            "reason": "financial sector or dividend yield above 5%; use DDM/PB as primary valuation cross-check",
+            "dividend_yield_pct": round(dividend_yield * 100, 4) if dividend_yield is not None else None,
+            "scenarios": ddm_scenarios,
         }
 
     return tool_context

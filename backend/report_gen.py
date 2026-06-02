@@ -375,6 +375,39 @@ def format_debate_text(text: str) -> str:
     return '\n'.join(result)
 
 
+def build_tear_sheet_summary(context: dict) -> str:
+    """Build a one-page style summary, preferring model output when available."""
+    model_summary = str(context.get("tear_sheet_summary", "") or "").strip()
+    if model_summary:
+        return sanitize_report_text(model_summary)
+
+    data = context.get("data", {}) or {}
+    parsed = context.get("parsed", {}) or {}
+    recommendation = parsed.get("recommendation", {}) or {}
+    price_targets = parsed.get("price_targets", {}) or {}
+
+    rec = next((str(v) for k, v in recommendation.items() if "建議" in str(k)), "持有")
+    confidence = next((str(v) for k, v in recommendation.items() if "信心" in str(k)), "N/A")
+    base_target = price_targets.get("基本情境", "N/A")
+    catalysts = data.get("recent_catalysts", []) or []
+    top_catalyst = catalysts[0]["title"] if catalysts and catalysts[0].get("title") else "近期催化劑資料不足"
+    institutional = data.get("institutional_trading", {}) or {}
+    chip_trend = institutional.get("trend", "N/A")
+    chip_net = institutional.get("total_net_buy_thousand_shares", "N/A")
+    pe_river = data.get("pe_river_chart", {}) or {}
+    pe_source = pe_river.get("source", "N/A")
+
+    return (
+        f"一頁式摘要：{data.get('ticker', 'N/A')} {data.get('company_name', '')} 的綜合建議為「{rec}」，"
+        f"信心指數 {confidence}，基本情境目標價為 NT${base_target if base_target != 'N/A' else 'N/A'}。"
+        f"基本面重點在於 {data.get('industry', 'N/A')} 景氣、獲利品質與現金流能否支撐估值；"
+        f"近 30 日關鍵催化劑為「{top_catalyst}」。"
+        f"籌碼面顯示三大法人趨勢為 {chip_trend}，累計買賣超約 {chip_net} 張。"
+        f"台股在地估值另以 P/E 河流圖檢視位階（來源：{pe_source}），"
+        "若基本面、籌碼與河流圖位階互相背離，短線操作應降低部位與信心。"
+    )
+
+
 def generate_html_report(context: dict) -> str:
     """生成完整的 HTML 報告"""
     
@@ -426,6 +459,7 @@ def generate_html_report(context: dict) -> str:
     target_12m = get_rec_val(recommendation, "12個月", "N/A")
     confidence = get_rec_val(recommendation, "信心", "N/A")
     audit_banner_html = build_audit_banner_html(context)
+    tear_sheet_summary = clean_markdown(build_tear_sheet_summary(context))
     
     # 格式化各 Agent 分析文字
     analysis_1 = clean_markdown(strip_structured_blocks(sanitize_report_text(analyses.get(1, "分析進行中..."))))
@@ -458,6 +492,7 @@ def generate_html_report(context: dict) -> str:
         "moatLabels": moat_labels,
         "moatValues": moat_values,
         "priceTargets": price_targets,
+        "peRiver": data.get("pe_river_chart", {}) or {},
     }
     
     chart_data_json = json.dumps(chart_data, ensure_ascii=False)
@@ -550,6 +585,7 @@ def generate_markdown_report(context: dict) -> str:
     target_12m = get_rec_val(recommendation, "12個月", "N/A")
     confidence = get_rec_val(recommendation, "信心", "N/A")
     audit_markdown = build_audit_markdown(context)
+    tear_sheet_summary = build_tear_sheet_summary(context)
     
     analysis_1 = strip_structured_blocks(sanitize_report_text(analyses.get(1, "分析進行中...")))
     analysis_2 = strip_structured_blocks(sanitize_report_text(analyses.get(2, "分析進行中...")))
@@ -569,6 +605,9 @@ def generate_markdown_report(context: dict) -> str:
 📅 分析日期：{fetch_date}
 
 {audit_markdown + chr(10) + chr(10) if audit_markdown else ""}
+## 一頁式摘要
+{tear_sheet_summary}
+
 ## 📊 關鍵指標
 - **股價:** {data.get("current_price_fmt", "N/A")}
 - **市值:** {data.get("market_cap_fmt", "N/A")}
@@ -630,7 +669,8 @@ def generate_markdown_report(context: dict) -> str:
 | 資料來源 | 涉及內容 | 註記 |
 |---|---|---|
 | **Yahoo Finance (yfinance)** | 市場即時資料、年度財務報表、估值指標、負債結構、分析師評等 | pypi.org/project/yfinance |
-| **FinMind Open Data** | 台股每月營收官方數據（公開資訊觀測站 / TWSE） | finmindtrade.com |
+| **FinMind Open Data** | 台股每月營收、新聞、三大法人買賣超、PER/PBR 河流圖資料 | finmindtrade.com |
+| **Google Custom Search / FMP / Yahoo News** | 近期新聞、法說會、供應鏈與市場催化劑 | 依環境變數與可用 API 自動 fallback |
 | **Google Gemini AI** | 七位 AI 分析師論述（gemini-3.5-flash 、gemma-4-31b-it） | Goldman Sachs / Morgan Stanley / BlackRock / JPMorgan / Fidelity / T. Rowe Price 人設 |
 | **公開資訊觀測站 (MOPS/TWSE)** | 台灣證券交易所官方財務公邖 | 可作為數據核對基準 |
 

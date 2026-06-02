@@ -432,6 +432,10 @@ class AuditRuleTests(unittest.TestCase):
         self.assertEqual(payload["ttm_financials"]["revenue_billion_twd"], 20.0)
         self.assertIn("deterministic_financial_tool_results", payload)
         self.assertIn("revenue_cagr", payload["deterministic_financial_tool_results"]["calculations"])
+        self.assertIn("market_catalysts", payload)
+        self.assertIn("institutional_trading", payload)
+        self.assertIn("peer_context", payload)
+        self.assertIn("local_valuation_context", payload)
         self.assertNotIn("不可原諒", prompt)
         self.assertNotIn("⚠️【單位與邏輯防呆", prompt)
 
@@ -458,12 +462,77 @@ class AuditRuleTests(unittest.TestCase):
         )
         self.assertGreater(dcf["price_per_share_twd"], 100)
 
+        ddm = financial_tools.calculate_ddm(
+            dividend_per_share_twd=5,
+            cost_of_equity_pct=8,
+            dividend_growth_pct=2,
+        )
+        self.assertAlmostEqual(ddm["value_per_share_twd"], 85.0, places=2)
+
     def test_agent_function_tools_are_registered(self):
         self.assertEqual([tool.__name__ for tool in ar.get_agent_function_tools(2)], ["calculate_cagr"])
         self.assertEqual(
             [tool.__name__ for tool in ar.get_agent_function_tools(4)],
-            ["calculate_cagr", "calculate_wacc", "calculate_dcf"],
+            ["calculate_cagr", "calculate_wacc", "calculate_dcf", "calculate_ddm"],
         )
+
+    def test_cyclical_low_pe_redline(self):
+        data = {
+            "company_name": "測試航運",
+            "industry": "航運",
+            "sector": "運輸",
+            "pe_ratio_raw": 3.8,
+        }
+        issues = ar.validate_analysis_output(
+            4,
+            "本益比偏低，估值便宜，因此可判斷被低估並上修買入。",
+            data,
+        )
+        self.assert_has_issue(issues, "景氣循環股紅線")
+
+        clean = ar.validate_analysis_output(
+            4,
+            "本益比偏低，但航運屬景氣循環股，需先判斷是否處於獲利高峰與循環反轉風險。",
+            data,
+        )
+        self.assertNotIn("景氣循環股紅線", "\n".join(clean))
+
+    def test_pe_river_and_tear_sheet_render(self):
+        context = complete_context()
+        context["data"].update({
+            "industry": "航運",
+            "recent_catalysts": [{"title": "法說會釋出保守展望"}],
+            "institutional_trading": {
+                "trend": "accumulation",
+                "total_net_buy_thousand_shares": 1234.5,
+            },
+            "pe_river_chart": {
+                "years": ["2023", "2024", "2025"],
+                "eps_twd": [5, 8, 10],
+                "multiples": [8, 10, 12, 15],
+                "bands": {
+                    "8x": [40, 64, 80],
+                    "10x": [50, 80, 100],
+                    "12x": [60, 96, 120],
+                    "15x": [75, 120, 150],
+                },
+                "source": "test",
+            },
+        })
+        html = report_gen.generate_html_report(context)
+        self.assertIn("One-Page Tear Sheet", html)
+        self.assertIn("peRiverChart", html)
+        self.assertIn("P/E 河流圖", html)
+
+    def test_pe_river_default_calculation(self):
+        chart = financial_data.build_pe_river_chart_data(
+            "TEST",
+            ["2024", "2025"],
+            [1, 2],
+            100_000_000,
+        )
+        self.assertEqual(chart["eps_twd"], [10.0, 20.0])
+        self.assertEqual(chart["bands"]["10x"], [100.0, 200.0])
 
 
 if __name__ == "__main__":

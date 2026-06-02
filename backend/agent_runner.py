@@ -15,7 +15,7 @@ from google import genai
 from google.genai import types
 from config import API_KEYS, AGENT_MODELS, MODEL_FALLBACKS, RPM_LIMITS, INTER_AGENT_DELAY, API_KEY_SETUP_MESSAGE
 from financial_data import format_data_for_prompt
-from financial_tools import calculate_cagr, calculate_dcf, calculate_wacc
+from financial_tools import calculate_cagr, calculate_dcf, calculate_ddm, calculate_wacc
 from prompt_loader import load_agent_prompt_config
 
 
@@ -122,7 +122,7 @@ def get_agent_function_tools(agent_num: int) -> list:
     if agent_num == 2:
         return [calculate_cagr]
     if agent_num == 4:
-        return [calculate_cagr, calculate_wacc, calculate_dcf]
+        return [calculate_cagr, calculate_wacc, calculate_dcf, calculate_ddm]
     return []
 
 
@@ -567,8 +567,44 @@ def build_numeric_tool_instruction(agent_num: int) -> str:
             "【估值工具使用規則】\n"
             "- WACC 權重請呼叫 calculate_wacc，或引用 deterministic_financial_tool_results.calculations.market_value_wacc_default。\n"
             "- DCF 情境請呼叫 calculate_dcf，或引用 deterministic_financial_tool_results.calculations.dcf_scenarios_default。\n"
+            "- 金融股或殖利率高於 5% 的標的，請呼叫 calculate_ddm 或引用 ddm_scenarios_default，並提高 DDM/P/B 權重。\n"
             "- 若自行調整成長率、折現率或 normalized FCF，需清楚列出參數，計算結果以工具回傳值為準。\n"
             "- 本益比估值與 DCF 必須分開呈現；正式輸出只保留必要算式摘要。"
+        )
+    return ""
+
+
+def build_data_enrichment_instruction(agent_num: int) -> str:
+    """Tell agents which enriched context slices are decision-relevant."""
+    if agent_num == 1:
+        return (
+            "【即時催化劑使用規則】\n"
+            "- 商業模式與產業趨勢請納入 market_catalysts.items 中近 30 日新聞/法說/供應鏈標題。\n"
+            "- 若 catalyst 來源不足，請明確標示資料限制，不要用既有常識假裝近期事件。"
+        )
+    if agent_num == 3:
+        return (
+            "【動態同業比較規則】\n"
+            "- 護城河評分請參考 peer_context.dynamic_peer_metrics 的本地與全球同業毛利率、淨利率、P/E、P/B。\n"
+            "- 同業資料只能作比較，不得把同業商業模式或新聞套用到本公司。"
+        )
+    if agent_num == 4:
+        return (
+            "【台股在地估值規則】\n"
+            "- 請參考 local_valuation_context.pe_river_chart，以 P/E 河流圖通道判斷目前股價位階。\n"
+            "- 金融股、高殖利率或成熟傳產，請提高 DDM/P/B 權重，DCF 只作交叉檢查。"
+        )
+    if agent_num == 5:
+        return (
+            "【成長催化劑使用規則】\n"
+            "- 成長假設請連結 market_catalysts.items 中的近期訂單、法說展望、供應鏈或產業新聞。\n"
+            "- 若催化劑只支持短期題材，請和 5-10 年長期成長邏輯分開。"
+        )
+    if agent_num == 7:
+        return (
+            "【短中期籌碼使用規則】\n"
+            "- 3-6 個月目標與信心指數需參考 institutional_trading 的外資、投信、自營商近 30 日買賣超趨勢。\n"
+            "- 若基本面與籌碼面背離，請降低短期信心或清楚區分長短期觀點。"
         )
     return ""
 
@@ -734,6 +770,110 @@ async def ensure_context_digest_async(agent_num: int, context: dict, rotator: Ke
     )
 
 
+def _build_tear_sheet_prompt(context: dict) -> str:
+    data = context.get("data", {}) or {}
+    parsed = context.get("parsed", {}) or {}
+    analyses = context.get("analyses", {}) or {}
+    compact_analyses = "\n\n".join(
+        f"Agent {agent_num}: {strip_generated_audit_sections(str(text))[:1200]}"
+        for agent_num, text in sorted(analyses.items())
+    )
+    payload = {
+        "ticker": data.get("ticker"),
+        "company_name": data.get("company_name"),
+        "industry": data.get("industry"),
+        "current_price": data.get("current_price"),
+        "price_targets": parsed.get("price_targets", {}),
+        "recommendation": parsed.get("recommendation", {}),
+        "recent_catalysts": data.get("recent_catalysts", [])[:3],
+        "institutional_trading": data.get("institutional_trading", {}),
+        "pe_river_chart": data.get("pe_river_chart", {}),
+    }
+    return (
+        "請用繁體中文生成一份投資報告一頁式摘要，約 300 字。\n"
+        "內容需包含：投資建議、目標價、基本面重點、近期催化劑、籌碼面、估值位階與最大風險。\n"
+        "不要輸出標題、Markdown、項目符號或免責聲明，只輸出可放在報告頂部的一段摘要。\n\n"
+        f"結構化資料：\n{json.dumps(payload, ensure_ascii=False, indent=2)}\n\n"
+        f"各 Agent 摘要：\n{compact_analyses}"
+    )
+
+
+def _build_tear_sheet_generation_config():
+    return types.GenerateContentConfig(
+        temperature=0.35,
+        top_p=0.9,
+        max_output_tokens=900,
+        system_instruction="你是台股研究報告的編輯，負責把完整研究壓縮成實戰可讀的一頁式摘要。",
+    )
+
+
+def _generate_tear_sheet_content(api_key: str, model_id: str, prompt: str):
+    client = genai.Client(api_key=api_key)
+    try:
+        return client.models.generate_content(
+            model=model_id,
+            contents=prompt,
+            config=_build_tear_sheet_generation_config(),
+        )
+    finally:
+        with suppress(Exception):
+            client.close()
+
+
+async def _generate_tear_sheet_content_async(api_key: str, model_id: str, prompt: str):
+    client = genai.Client(api_key=api_key)
+    try:
+        return await client.aio.models.generate_content(
+            model=model_id,
+            contents=prompt,
+            config=_build_tear_sheet_generation_config(),
+        )
+    finally:
+        with suppress(Exception):
+            await client.aio.aclose()
+        with suppress(Exception):
+            client.close()
+
+
+def ensure_tear_sheet_summary(context: dict, rotator: KeyRotator):
+    if context.get("tear_sheet_summary") or not isinstance(rotator, KeyRotator):
+        return
+    prompt = _build_tear_sheet_prompt(context)
+    for model_id in get_agent_model_sequence(2):
+        try:
+            response = _generate_tear_sheet_content(rotator.get_key(model_id), model_id, prompt)
+            summary = sanitize_model_output(_response_text(response))
+            if summary:
+                context["tear_sheet_summary"] = summary[:900]
+                print("  🧾 一頁式摘要已生成。")
+                return
+        except Exception as exc:
+            if is_missing_model_error(str(exc)):
+                continue
+            print(f"  ⚠️  一頁式摘要生成失敗，報表將使用 fallback 摘要：{str(exc)[:120]}")
+            return
+
+
+async def ensure_tear_sheet_summary_async(context: dict, rotator: KeyRotator):
+    if context.get("tear_sheet_summary") or not isinstance(rotator, KeyRotator):
+        return
+    prompt = _build_tear_sheet_prompt(context)
+    for model_id in get_agent_model_sequence(2):
+        try:
+            api_key = await rotator.async_get_key(model_id)
+            response = await _generate_tear_sheet_content_async(api_key, model_id, prompt)
+            summary = sanitize_model_output(_response_text(response))
+            if summary:
+                context["tear_sheet_summary"] = summary[:900]
+                print("  🧾 一頁式摘要已生成。")
+                return
+        except Exception as exc:
+            if is_missing_model_error(str(exc)):
+                continue
+            print(f"  ⚠️  一頁式摘要生成失敗，報表將使用 fallback 摘要：{str(exc)[:120]}")
+            return
+
+
 def build_prompt(agent_num: int, data: dict, context: dict) -> str:
     """根據 Agent 編號建立分析提示詞。"""
     ticker = data["ticker"]
@@ -742,6 +882,7 @@ def build_prompt(agent_num: int, data: dict, context: dict) -> str:
     prev = _format_previous(context, agent_num)
     identity_guard = build_company_identity_guard(data)
     numeric_tool_instruction = build_numeric_tool_instruction(agent_num)
+    enrichment_instruction = build_data_enrichment_instruction(agent_num)
     retry_instruction = context.get("_identity_retry_instruction", "")
     audit_retry_instruction = context.get("_audit_retry_instruction", "")
     audit_reflection_instruction = context.get("_audit_reflection_instruction", "")
@@ -760,6 +901,7 @@ def build_prompt(agent_num: int, data: dict, context: dict) -> str:
         "⚠️ 若上方任務文字包含 [護城河評分]、[目標股價]、[投資建議] 等舊式區塊格式，請忽略舊式格式；本次只遵守下方 JSON 結構化輸出規則。" if structured_instruction else "",
         structured_instruction,
         numeric_tool_instruction,
+        enrichment_instruction,
         identity_guard,
         retry_instruction,
         audit_reflection_instruction,
@@ -1002,6 +1144,35 @@ def _has_data_quality_caveat(normalized: str) -> bool:
     )
 
 
+CYCLICAL_INDUSTRY_KEYWORDS = [
+    "航運",
+    "海運",
+    "貨櫃",
+    "散裝",
+    "面板",
+    "顯示器",
+    "LCD",
+    "OLED",
+    "記憶體",
+    "DRAM",
+    "NAND",
+    "Memory",
+    "Shipping",
+    "Marine",
+    "Display",
+]
+
+
+def _is_cyclical_low_pe_setup(data: dict) -> bool:
+    signature = " ".join(str(data.get(key, "") or "") for key in ["company_name", "sector", "industry"])
+    if not any(keyword.lower() in signature.lower() for keyword in CYCLICAL_INDUSTRY_KEYWORDS):
+        return False
+    pe = _safe_float(data.get("pe_ratio_raw"))
+    if pe is None:
+        pe = _safe_float(data.get("pe_ratio"))
+    return pe is not None and 0 < pe < 5
+
+
 def strip_generated_audit_sections(text: str) -> str:
     """Remove system-generated warning/audit tails before re-validating model text."""
     if not text:
@@ -1201,6 +1372,18 @@ def validate_analysis_output(agent_num: int, text: str, data: Optional[dict] = N
             issues.append(
                 "雙重樂觀紅線：若 Forward EPS/財測已隱含營收暴增，不應再套用高 Forward P/E 重複計價成長；"
                 "基本情境應使用折讓倍數或 normalized DCF。"
+            )
+
+    if agent_num in (4, 7) and _is_cyclical_low_pe_setup(data):
+        low_pe_bargain_claim = (
+            any(word in normalized for word in ["低本益比", "本益比偏低", "P/E偏低", "PE偏低", "本益比低", "P/E低", "PE低"])
+            and any(word in normalized for word in ["低估", "被低估", "便宜", "估值便宜", "買入", "上修"])
+        )
+        has_cycle_caveat = any(word in normalized for word in ["景氣循環", "循環股", "高PE買", "低PE賣", "獲利高峰", "谷底", "庫存循環"])
+        if low_pe_bargain_claim and not has_cycle_caveat:
+            issues.append(
+                "景氣循環股紅線：航運、面板、記憶體等循環產業在 P/E < 5x 時，"
+                "不可單靠低本益比推論低估；需先判斷是否處於獲利高峰與循環反轉風險。"
             )
 
     yahoo_growth = str(data.get("yahoo_revenue_growth", "")).replace("%", "").strip()
@@ -1607,6 +1790,7 @@ def run_analysis_pipeline(data: dict, progress_callback=None) -> dict:
     
     # 解析結構化數據、嘗試修復跨 Agent 稽核問題，再輸出最終稽核摘要。
     finalize_final_audit(context, rotator)
+    ensure_tear_sheet_summary(context, rotator)
     context["total_time"] = time.time() - context["start_time"]
     
     print(f"\n{'='*60}")
@@ -1742,6 +1926,7 @@ async def run_analysis_pipeline_async(data: dict, progress_callback=None) -> dic
             await asyncio.sleep(wait)
 
     await finalize_final_audit_async(context, rotator)
+    await ensure_tear_sheet_summary_async(context, rotator)
     context["total_time"] = time.time() - context["start_time"]
 
     print(f"\n{'='*60}")

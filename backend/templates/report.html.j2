@@ -345,6 +345,30 @@
             margin: 6px 0 0 18px;
             padding: 0;
         }
+
+        .tear-sheet {
+            background: rgba(255,255,255,0.045);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 18px 22px;
+            margin-top: 18px;
+        }
+
+        .tear-sheet-title {
+            font-size: 13px;
+            font-weight: 800;
+            color: var(--accent-cyan);
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+            margin-bottom: 8px;
+        }
+
+        .tear-sheet-body p {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.75;
+            margin-bottom: 0;
+        }
         
         .verdict-meta .vm-label {
             font-size: 11px;
@@ -959,6 +983,13 @@
         </div>
 
         {{ audit_banner_html }}
+
+        <div class="tear-sheet">
+            <div class="tear-sheet-title">One-Page Tear Sheet</div>
+            <div class="tear-sheet-body">
+                {{ tear_sheet_summary }}
+            </div>
+        </div>
     </div>
     
     <!-- ─── 內容區 ─── -->
@@ -1076,6 +1107,12 @@
                         <canvas id="valuationChart"></canvas>
                     </div>
                 </div>
+                <div class="chart-card full-width">
+                    <div class="chart-title">P/E 河流圖（EPS × 歷史本益比通道）</div>
+                    <div class="chart-canvas-wrapper tall">
+                        <canvas id="peRiverChart"></canvas>
+                    </div>
+                </div>
             </div>
             
             <div class="analysis-card">
@@ -1149,7 +1186,14 @@
                     <span class="ref-icon">🇹🇼</span>
                     <div>
                         <div class="ref-name">FinMind Open Data</div>
-                        <div class="ref-desc">台股每月營收官方數據（來源：公開資訊觀測站 / TWSE）<br>API：<code style="font-size:10px; color:#60a5fa;">finmindtrade.com</code></div>
+                        <div class="ref-desc">台股每月營收、新聞、三大法人買賣超、PER/PBR 河流圖資料<br>API：<code style="font-size:10px; color:#60a5fa;">finmindtrade.com</code></div>
+                    </div>
+                </div>
+                <div class="ref-item">
+                    <span class="ref-icon">📰</span>
+                    <div>
+                        <div class="ref-name">Search / News Fallback</div>
+                        <div class="ref-desc">近期新聞、法說會、供應鏈與市場催化劑；依環境變數與可用 API 自動 fallback</div>
                     </div>
                 </div>
                 <div class="ref-item">
@@ -1495,6 +1539,65 @@
                     scales: {
                         x: { grid: { color: 'rgba(255,255,255,0.05)' } },
                         y: { 
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { callback: v => `NT$${v}` },
+                            beginAtZero: false,
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    // ─── 7. P/E 河流圖 ──────────────────────────────────────
+    const peRiverCtx = document.getElementById('peRiverChart')?.getContext('2d');
+    if (peRiverCtx && CHART_DATA.peRiver && (CHART_DATA.peRiver.years || []).length > 0) {
+        const riverYears = CHART_DATA.peRiver.years || [];
+        const bands = CHART_DATA.peRiver.bands || {};
+        const palette = ['#64748b', '#3b82f6', '#8b5cf6', '#10b981', '#f59e0b'];
+        const bandDatasets = Object.keys(bands).map((label, idx) => ({
+            label,
+            data: bands[label],
+            borderColor: palette[idx % palette.length],
+            backgroundColor: 'rgba(59,130,246,0.04)',
+            borderWidth: 2,
+            pointRadius: 3,
+            fill: false,
+            tension: 0.25,
+        }));
+        const currentPrice = {{ current_price_numeric }};
+        if (currentPrice > 0) {
+            bandDatasets.push({
+                label: '當前股價',
+                data: riverYears.map(() => currentPrice),
+                borderColor: '#ef4444',
+                borderDash: [6, 6],
+                borderWidth: 2,
+                pointRadius: 0,
+                fill: false,
+            });
+        }
+        if (bandDatasets.length > 0) {
+            new Chart(peRiverCtx, {
+                type: 'line',
+                data: {
+                    labels: riverYears,
+                    datasets: bandDatasets,
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { padding: 12, font: { size: 11 } } },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => `${ctx.dataset.label}: NT$${Number(ctx.raw || 0).toFixed(0)}`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { grid: { color: 'rgba(255,255,255,0.05)' } },
+                        y: {
                             grid: { color: 'rgba(255,255,255,0.05)' },
                             ticks: { callback: v => `NT$${v}` },
                             beginAtZero: false,
