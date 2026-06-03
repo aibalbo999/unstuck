@@ -26,7 +26,7 @@ sys.path.insert(0, BACKEND_DIR)
 from financial_data import fetch_stock_data, format_data_for_prompt
 from agent_runner import run_analysis_pipeline, AGENT_NAMES, AGENT_MODELS
 from report_gen import generate_html_report
-from config import OUTPUT_DIR, API_KEYS
+from config import OUTPUT_DIR, API_KEYS, format_model_routes
 
 console = Console()
 
@@ -44,7 +44,7 @@ def print_banner():
     console.print(Panel(
         "[bold blue]🏦 股票連續式分析 Agent 系統[/bold blue]\n"
         f"[dim]7 位頂級華爾街分析師 · {len(API_KEYS)}組 API Key 輪調 · 雙模型架構[/dim]\n"
-        "[dim]Agent 1-6: gemma-4-31b-it · Agent 7/稽核: gemini-3.5-flash[/dim]",
+        f"[dim]{format_model_routes()}[/dim]",
         title="[bold white]Wall Street AI Research System[/bold white]",
         border_style="blue",
         padding=(1, 4),
@@ -285,7 +285,7 @@ def main():
         f"股票：[bold]{ticker} {data.get('company_name', '')}[/bold]\n"
         f"總耗時：{elapsed:.0f} 秒\n"
         f"分析 Agent：7 個\n"
-        f"使用模型：Agent 1-6 使用 gemma-4-31b-it；Agent 7/稽核使用 gemini-3.5-flash",
+        f"使用模型：{format_model_routes()}",
         title="[bold]✨ 分析完成[/bold]",
         border_style="blue",
     ))

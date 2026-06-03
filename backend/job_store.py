@@ -16,8 +16,10 @@ _JOB_LOCK = threading.Lock()
 def _connect():
     path = Path(TASK_DB_PATH)
     path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path)
+    conn = sqlite3.connect(path, timeout=30)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS analysis_jobs (
@@ -74,14 +76,14 @@ def update_job(job_id: str, status: str, filename: str = None, error: str = None
 
 
 def get_job(job_id: str) -> dict:
-    with _JOB_LOCK, _connect() as conn:
+    with _connect() as conn:
         row = conn.execute("SELECT * FROM analysis_jobs WHERE job_id = ?", (job_id,)).fetchone()
     return dict(row) if row else {}
 
 
 def find_active_job(ticker: str) -> dict:
     cutoff = time.time() - ANALYSIS_JOB_STALE_SECONDS
-    with _JOB_LOCK, _connect() as conn:
+    with _connect() as conn:
         row = conn.execute(
             """
             SELECT * FROM analysis_jobs
@@ -108,7 +110,7 @@ def append_event(job_id: str, payload: dict) -> None:
 
 
 def get_events_since(job_id: str, after_id: int = 0) -> list[dict]:
-    with _JOB_LOCK, _connect() as conn:
+    with _connect() as conn:
         rows = conn.execute(
             """
             SELECT id, payload, created_at

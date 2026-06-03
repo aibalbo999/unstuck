@@ -3,561 +3,38 @@
 # ============================================================
 
 import asyncio
-import json
 import yfinance as yf
 import pandas as pd
-import requests
 from datetime import datetime, timedelta
-from functools import lru_cache
 import warnings
 from cache_store import get_cache_json, set_cache_json
-from config import (
-    CATALYST_LOOKBACK_DAYS,
-    FINANCIAL_DATA_CACHE_SECONDS,
-    FMP_API_KEY,
-    FMP_BASE_URL,
-    GOOGLE_CSE_ID,
-    GOOGLE_SEARCH_API_KEY,
-    INSTITUTIONAL_LOOKBACK_DAYS,
+from config import FINANCIAL_DATA_CACHE_SECONDS
+from market_data_fetchers import (
+    DataLoader,
+    _align_finmind_history,
+    _dedupe_records,
+    _history_has_values,
+    _run_named_fetches,
+    build_company_identity,
+    build_pe_river_chart_data,
+    fetch_dynamic_peer_metrics,
+    fetch_finmind_financial_statement_fallback,
+    fetch_fmp_news_catalysts_async,
+    fetch_fmp_quote_fallback,
+    fetch_google_peer_discovery_results,
+    fetch_google_peer_discovery_results_async,
+    fetch_google_search_catalysts_async,
+    fetch_institutional_trading_trend,
+    fetch_recent_catalysts,
+    first_number,
+    is_missing_value,
+    is_taiwan_ticker,
+    safe_get,
 )
-from financial_tools import build_financial_tool_context, raw_twd_to_billion_twd, safe_float
+from prompt_builder import format_data_for_prompt
 warnings.filterwarnings("ignore")
 
-DATA_SCHEMA_VERSION = 3
-
-try:
-    from FinMind.data import DataLoader
-except ImportError:
-    DataLoader = None
-
-
-TAIWAN_BROAD_INDUSTRY_CATEGORIES = {
-    "上市股票",
-    "上櫃股票",
-    "興櫃股票",
-    "電子工業",
-    "金融保險業",
-}
-
-TAIWAN_IDENTITY_OVERRIDES = {
-    "1623": {
-        "official_name": "大東電",
-        "legal_name": "大東電業廠股份有限公司",
-        "forbidden_aliases": ["大亞", "大亞電線電纜", "TA YA", "Ta Ya Electric"],
-    },
-    "1609": {
-        "official_name": "大亞",
-        "legal_name": "大亞電線電纜股份有限公司",
-        "forbidden_aliases": ["大東電", "大東電業", "TA TUN", "Ta Tun Electric"],
-    },
-    "6806": {
-        "official_name": "森崴能源",
-        "legal_name": "森崴能源股份有限公司",
-        "aliases": ["森崴能"],
-        "forbidden_aliases": [],
-    },
-}
-
-
-@lru_cache(maxsize=1)
-def load_taiwan_stock_info_records() -> list[dict]:
-    """讀取台股官方代號/中文簡稱，用於防止同業名稱被套到錯誤代號。"""
-    if DataLoader is None:
-        return []
-    try:
-        df = DataLoader().taiwan_stock_info()
-        records = []
-        for _, row in df.iterrows():
-            stock_id = str(row.get("stock_id", "")).strip()
-            stock_name = str(row.get("stock_name", "")).strip()
-            industry_category = str(row.get("industry_category", "")).strip()
-            if stock_id and stock_name:
-                records.append({
-                    "stock_id": stock_id,
-                    "stock_name": stock_name,
-                    "industry_category": industry_category,
-                    "type": str(row.get("type", "")).strip(),
-                })
-        return records
-    except Exception as e:
-        print(f"    ⚠️  台股公司身分資料獲取失敗：{e}")
-        return []
-
-
-def unique_nonempty(values) -> list[str]:
-    """保留順序的去重工具。"""
-    result = []
-    seen = set()
-    for value in values:
-        if value is None:
-            continue
-        value = str(value).strip()
-        if not value or value == "N/A" or value in seen:
-            continue
-        result.append(value)
-        seen.add(value)
-    return result
-
-
-def build_company_identity(ticker: str, info: dict, company_name: str) -> dict:
-    """建立可放進 prompt 與輸出驗證的公司身分錨點。"""
-    stock_id = ticker.replace(".TW", "").replace(".TWO", "")
-    is_taiwan_stock = ticker.endswith(".TW") or ticker.endswith(".TWO") or (stock_id.isdigit() and len(stock_id) == 4)
-    override = TAIWAN_IDENTITY_OVERRIDES.get(stock_id, {})
-
-    official_name = override.get("official_name")
-    legal_name = override.get("legal_name")
-    industry_categories = []
-    same_industry_peers = []
-
-    if is_taiwan_stock:
-        records = load_taiwan_stock_info_records()
-        current_rows = [r for r in records if r["stock_id"] == stock_id]
-        if current_rows:
-            official_name = official_name or current_rows[0]["stock_name"]
-            industry_categories = unique_nonempty(r["industry_category"] for r in current_rows)
-
-            narrow_categories = [
-                cat for cat in industry_categories
-                if cat and cat not in TAIWAN_BROAD_INDUSTRY_CATEGORIES
-            ]
-            peer_categories = narrow_categories or industry_categories[:1]
-            peer_seen = set()
-            for row in records:
-                if row["stock_id"] == stock_id:
-                    continue
-                if row["industry_category"] not in peer_categories:
-                    continue
-                peer_key = (row["stock_id"], row["stock_name"])
-                if peer_key in peer_seen:
-                    continue
-                same_industry_peers.append({
-                    "stock_id": row["stock_id"],
-                    "stock_name": row["stock_name"],
-                })
-                peer_seen.add(peer_key)
-
-    english_names = unique_nonempty([
-        safe_get(info, "longName", None),
-        safe_get(info, "shortName", None),
-        company_name,
-    ])
-
-    display_name = company_name
-    if official_name:
-        english_display = next((name for name in english_names if official_name not in name), "")
-        display_name = f"{official_name} / {english_display}" if english_display else official_name
-
-    allowed_aliases = unique_nonempty([
-        official_name,
-        legal_name,
-        *override.get("aliases", []),
-        display_name,
-        company_name,
-        ticker,
-        stock_id,
-        *english_names,
-    ])
-
-    return {
-        "ticker": ticker,
-        "stock_id": stock_id,
-        "official_name": official_name,
-        "legal_name": legal_name,
-        "display_name": display_name,
-        "english_names": english_names,
-        "allowed_aliases": allowed_aliases,
-        "forbidden_aliases": unique_nonempty(override.get("forbidden_aliases", [])),
-        "industry_categories": industry_categories,
-        "same_industry_peers": same_industry_peers,
-    }
-
-
-def safe_get(obj, key, default="N/A"):
-    """安全取得字典值"""
-    try:
-        val = obj.get(key, default)
-        if val is None or (isinstance(val, float) and pd.isna(val)):
-            return default
-        return val
-    except Exception:
-        return default
-
-
-def is_missing_value(value) -> bool:
-    if value is None or value == "N/A":
-        return True
-    try:
-        return bool(pd.isna(value))
-    except Exception:
-        return False
-
-
-def first_number(*values):
-    for value in values:
-        if is_missing_value(value):
-            continue
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            continue
-    return None
-
-
-def fetch_fmp_quote_fallback(ticker: str) -> dict:
-    """Fetch optional FMP quote data when yfinance misses key market fields."""
-    if not FMP_API_KEY:
-        return {}
-
-    symbol = ticker.strip().upper()
-    url = f"{FMP_BASE_URL}/quote"
-    try:
-        response = requests.get(url, params={"symbol": symbol, "apikey": FMP_API_KEY}, timeout=8)
-        response.raise_for_status()
-        payload = response.json()
-        if isinstance(payload, list) and payload:
-            return payload[0] if isinstance(payload[0], dict) else {}
-        if isinstance(payload, dict):
-            return payload
-    except Exception as e:
-        print(f"    ⚠️  FMP 備援資料獲取失敗：{e}")
-    return {}
-
-
-def is_taiwan_ticker(ticker: str) -> bool:
-    stock_id = str(ticker).replace(".TW", "").replace(".TWO", "")
-    return ticker.endswith(".TW") or ticker.endswith(".TWO") or (stock_id.isdigit() and len(stock_id) == 4)
-
-
-def _stock_id_from_ticker(ticker: str) -> str:
-    return str(ticker).replace(".TW", "").replace(".TWO", "")
-
-
-def _dedupe_records(records: list[dict], key: str = "title", limit: int = 6) -> list[dict]:
-    kept = []
-    seen = set()
-    for record in records:
-        marker = str(record.get(key) or record.get("link") or "").strip().lower()
-        if not marker or marker in seen:
-            continue
-        kept.append(record)
-        seen.add(marker)
-        if len(kept) >= limit:
-            break
-    return kept
-
-
-def fetch_google_search_catalysts(ticker: str, company_name: str, identity: dict) -> list[dict]:
-    """Fetch catalyst-like headlines from Google Custom Search when configured."""
-    if not GOOGLE_SEARCH_API_KEY or not GOOGLE_CSE_ID:
-        return []
-
-    official_name = identity.get("official_name") or company_name or ticker
-    query = f"{official_name} {ticker} 法說會 展望 供應鏈 營收 投資"
-    try:
-        response = requests.get(
-            "https://www.googleapis.com/customsearch/v1",
-            params={
-                "key": GOOGLE_SEARCH_API_KEY,
-                "cx": GOOGLE_CSE_ID,
-                "q": query,
-                "num": 5,
-                "dateRestrict": f"d{CATALYST_LOOKBACK_DAYS}",
-                "lr": "lang_zh-TW",
-            },
-            timeout=8,
-        )
-        response.raise_for_status()
-        payload = response.json()
-    except Exception as e:
-        print(f"    ⚠️  Google Search 催化劑資料獲取失敗：{e}")
-        return []
-
-    records = []
-    for item in payload.get("items", []) or []:
-        title = str(item.get("title", "")).strip()
-        if not title:
-            continue
-        metatags = item.get("pagemap", {}).get("metatags", [{}]) or [{}]
-        records.append({
-            "date": metatags[0].get("article:published_time", ""),
-            "title": title,
-            "summary": str(item.get("snippet", "")).strip(),
-            "source": item.get("displayLink", "Google Search"),
-            "link": item.get("link", ""),
-            "source_type": "google_search",
-        })
-    return records
-
-
-def fetch_google_peer_discovery_results(ticker: str, company_name: str, sector: str, industry: str) -> list[dict]:
-    """Fetch search snippets that can help Agent 3 identify real global peers."""
-    if not GOOGLE_SEARCH_API_KEY or not GOOGLE_CSE_ID:
-        return []
-
-    query = f"{company_name} {ticker} global competitors peers gross margin {industry} {sector}"
-    try:
-        response = requests.get(
-            "https://www.googleapis.com/customsearch/v1",
-            params={
-                "key": GOOGLE_SEARCH_API_KEY,
-                "cx": GOOGLE_CSE_ID,
-                "q": query,
-                "num": 5,
-            },
-            timeout=8,
-        )
-        response.raise_for_status()
-        payload = response.json()
-    except Exception as e:
-        print(f"    ⚠️  Google Search 同業 discovery 失敗：{e}")
-        return []
-
-    records = []
-    for item in payload.get("items", []) or []:
-        title = str(item.get("title", "")).strip()
-        if not title:
-            continue
-        records.append({
-            "title": title,
-            "snippet": str(item.get("snippet", "")).strip(),
-            "source": item.get("displayLink", "Google Search"),
-            "link": item.get("link", ""),
-            "source_type": "google_peer_discovery",
-        })
-    return _dedupe_records(records, limit=5)
-
-
-def fetch_fmp_news_catalysts(ticker: str) -> list[dict]:
-    """Fetch optional FMP stock news when an API key is available."""
-    if not FMP_API_KEY:
-        return []
-    symbol = ticker.strip().upper()
-    candidates = [
-        ("https://financialmodelingprep.com/api/v3/stock_news", {"tickers": symbol, "limit": 5, "apikey": FMP_API_KEY}),
-        (f"{FMP_BASE_URL}/stock_news", {"tickers": symbol, "limit": 5, "apikey": FMP_API_KEY}),
-    ]
-    for url, params in candidates:
-        try:
-            response = requests.get(url, params=params, timeout=8)
-            response.raise_for_status()
-            payload = response.json()
-            if not isinstance(payload, list):
-                continue
-            records = []
-            for item in payload:
-                if not isinstance(item, dict) or not item.get("title"):
-                    continue
-                records.append({
-                    "date": item.get("publishedDate") or item.get("date") or "",
-                    "title": str(item.get("title", "")).strip(),
-                    "summary": str(item.get("text") or item.get("summary") or "")[:280],
-                    "source": item.get("site") or "FMP",
-                    "link": item.get("url") or "",
-                    "source_type": "fmp_news",
-                })
-            if records:
-                return records
-        except Exception:
-            continue
-    return []
-
-
-def fetch_finmind_news_catalysts(ticker: str) -> list[dict]:
-    if DataLoader is None or not is_taiwan_ticker(ticker):
-        return []
-    stock_id = _stock_id_from_ticker(ticker)
-    start_date = (datetime.now() - timedelta(days=CATALYST_LOOKBACK_DAYS)).strftime("%Y-%m-%d")
-    try:
-        df = DataLoader().taiwan_stock_news(stock_id=stock_id, start_date=start_date)
-    except Exception as e:
-        print(f"    ⚠️  FinMind 新聞資料獲取失敗：{e}")
-        return []
-    if df is None or df.empty:
-        return []
-    records = []
-    for _, row in df.tail(20).iloc[::-1].iterrows():
-        title = str(row.get("title", "")).strip()
-        if not title:
-            continue
-        records.append({
-            "date": str(row.get("date", ""))[:19],
-            "title": title,
-            "summary": str(row.get("description", "") or "")[:280],
-            "source": str(row.get("source", "FinMind")).strip() or "FinMind",
-            "link": str(row.get("link", "")).strip(),
-            "source_type": "finmind_news",
-        })
-    return records
-
-
-def fetch_yfinance_news_catalysts(stock) -> list[dict]:
-    try:
-        news = getattr(stock, "news", []) or []
-    except Exception:
-        return []
-    records = []
-    for item in news[:10]:
-        content = item.get("content", item) if isinstance(item, dict) else {}
-        if not isinstance(content, dict):
-            continue
-        title = str(content.get("title", "")).strip()
-        if not title:
-            continue
-        records.append({
-            "date": content.get("pubDate") or content.get("displayTime") or "",
-            "title": title,
-            "summary": str(content.get("summary") or content.get("description") or "")[:280],
-            "source": content.get("provider", {}).get("displayName") if isinstance(content.get("provider"), dict) else "Yahoo Finance",
-            "link": content.get("clickThroughUrl", {}).get("url") if isinstance(content.get("clickThroughUrl"), dict) else "",
-            "source_type": "yfinance_news",
-        })
-    return records
-
-
-def fetch_recent_catalysts(ticker: str, company_name: str, identity: dict, stock) -> list[dict]:
-    records = []
-    records.extend(fetch_google_search_catalysts(ticker, company_name, identity))
-    records.extend(fetch_fmp_news_catalysts(ticker))
-    records.extend(fetch_finmind_news_catalysts(ticker))
-    records.extend(fetch_yfinance_news_catalysts(stock))
-    return _dedupe_records(records, limit=5)[:5]
-
-
-def fetch_institutional_trading_trend(ticker: str) -> dict:
-    """Summarize Taiwan 3-institution net buy/sell over the recent window."""
-    if DataLoader is None or not is_taiwan_ticker(ticker):
-        return {}
-    stock_id = _stock_id_from_ticker(ticker)
-    start_date = (datetime.now() - timedelta(days=max(INSTITUTIONAL_LOOKBACK_DAYS + 15, 45))).strftime("%Y-%m-%d")
-    try:
-        df = DataLoader().taiwan_stock_institutional_investors(stock_id=stock_id, start_date=start_date)
-    except Exception as e:
-        print(f"    ⚠️  三大法人資料獲取失敗：{e}")
-        return {}
-    if df is None or df.empty:
-        return {}
-
-    df = df.copy()
-    df["net_buy"] = df["buy"].astype(float) - df["sell"].astype(float)
-    df["category"] = df["name"].map(lambda name: (
-        "foreign" if "Foreign" in str(name)
-        else "investment_trust" if "Investment_Trust" in str(name)
-        else "dealer"
-    ))
-    by_day = df.groupby(["date", "category"], as_index=False)["net_buy"].sum()
-    dates = sorted(by_day["date"].unique())[-INSTITUTIONAL_LOOKBACK_DAYS:]
-    recent = by_day[by_day["date"].isin(dates)]
-    totals = recent.groupby("category")["net_buy"].sum().to_dict()
-    daily_total = recent.groupby("date")["net_buy"].sum().tail(10)
-    total_net = sum(totals.values())
-    last_5_net = recent[recent["date"].isin(dates[-5:])]["net_buy"].sum() if dates else 0
-    if total_net > 0 and last_5_net > 0:
-        trend = "accumulation"
-    elif total_net < 0 and last_5_net < 0:
-        trend = "distribution"
-    else:
-        trend = "mixed"
-
-    return {
-        "source": "FinMind TaiwanStockInstitutionalInvestorsBuySell",
-        "lookback_trading_days": len(dates),
-        "latest_date": str(dates[-1]) if dates else "",
-        "net_buy_shares_by_category": {key: int(value) for key, value in totals.items()},
-        "net_buy_thousand_shares_by_category": {key: round(value / 1000, 2) for key, value in totals.items()},
-        "total_net_buy_shares": int(total_net),
-        "total_net_buy_thousand_shares": round(total_net / 1000, 2),
-        "last_5_trading_days_net_buy_thousand_shares": round(last_5_net / 1000, 2),
-        "trend": trend,
-        "daily_total_net_buy_last_10": [
-            {"date": str(date), "net_buy_thousand_shares": round(value / 1000, 2)}
-            for date, value in daily_total.items()
-        ],
-    }
-
-
-GLOBAL_PEER_HINTS = [
-    (["半導體", "Semiconductor", "晶圓", "foundry"], [("Intel", "INTC"), ("Samsung Electronics", "005930.KS"), ("UMC", "2303.TW"), ("SMIC", "0981.HK")]),
-    (["記憶體", "Memory", "DRAM", "NAND"], [("Micron", "MU"), ("SK hynix", "000660.KS"), ("Samsung Electronics", "005930.KS")]),
-    (["面板", "Display", "LCD", "OLED"], [("AUO", "2409.TW"), ("Innolux", "3481.TW"), ("LG Display", "LPL"), ("BOE", "000725.SZ")]),
-    (["航運", "Shipping", "Marine"], [("Evergreen Marine", "2603.TW"), ("Yang Ming", "2609.TW"), ("Wan Hai", "2615.TW"), ("Maersk", "MAERSK-B.CO")]),
-]
-
-
-def infer_global_peer_tickers(ticker: str, company_name: str, sector: str, industry: str) -> list[tuple[str, str]]:
-    signature = f"{company_name} {sector} {industry}"
-    peers = []
-    for keywords, candidates in GLOBAL_PEER_HINTS:
-        if any(keyword.lower() in signature.lower() for keyword in keywords):
-            peers.extend(candidates)
-    return [(name, symbol) for name, symbol in peers if symbol.upper() != ticker.upper()][:5]
-
-
-def fetch_dynamic_peer_metrics(ticker: str, company_name: str, sector: str, industry: str, identity: dict) -> list[dict]:
-    peers = []
-    for peer in (identity.get("same_industry_peers", []) or [])[:3]:
-        stock_id = peer.get("stock_id")
-        if stock_id:
-            peers.append((peer.get("stock_name", stock_id), f"{stock_id}.TW"))
-    peers.extend(infer_global_peer_tickers(ticker, company_name, sector, industry))
-
-    records = []
-    seen = set()
-    for name, symbol in peers:
-        if symbol in seen:
-            continue
-        seen.add(symbol)
-        try:
-            info = yf.Ticker(symbol).info
-        except Exception:
-            info = {}
-        records.append({
-            "name": name,
-            "ticker": symbol,
-            "source": "FinMind industry peer + yfinance metrics" if symbol.endswith(".TW") else "global peer heuristic + yfinance metrics",
-            "gross_margin_pct": round(float(info.get("grossMargins")) * 100, 2) if isinstance(info.get("grossMargins"), (int, float)) else None,
-            "operating_margin_pct": round(float(info.get("operatingMargins")) * 100, 2) if isinstance(info.get("operatingMargins"), (int, float)) else None,
-            "profit_margin_pct": round(float(info.get("profitMargins")) * 100, 2) if isinstance(info.get("profitMargins"), (int, float)) else None,
-            "pe_ttm": round(float(info.get("trailingPE")), 2) if isinstance(info.get("trailingPE"), (int, float)) else None,
-            "pb": round(float(info.get("priceToBook")), 2) if isinstance(info.get("priceToBook"), (int, float)) else None,
-        })
-        if len(records) >= 5:
-            break
-    return records
-
-
-def build_pe_river_chart_data(ticker: str, years: list[str], net_income_history: list, shares_outstanding) -> dict:
-    shares = safe_float(shares_outstanding)
-    eps = []
-    for value in net_income_history or []:
-        number = safe_float(value)
-        eps.append(round(number * 1e9 / shares, 2) if number is not None and shares else None)
-
-    multiples = [10, 12, 15, 18]
-    source = "default multiples"
-    if DataLoader is not None and is_taiwan_ticker(ticker):
-        start_date = (datetime.now() - timedelta(days=365 * 5 + 30)).strftime("%Y-%m-%d")
-        try:
-            df = DataLoader().taiwan_stock_per_pbr(stock_id=_stock_id_from_ticker(ticker), start_date=start_date)
-            per_values = [float(v) for v in df.get("PER", []) if isinstance(v, (int, float)) and 0 < float(v) < 100]
-            if len(per_values) >= 20:
-                series = pd.Series(per_values)
-                multiples = sorted({round(float(series.quantile(q)), 1) for q in [0.25, 0.5, 0.75, 0.9]})
-                source = "FinMind 5-year PER quantiles"
-        except Exception as e:
-            print(f"    ⚠️  P/E 河流圖資料獲取失敗：{e}")
-
-    bands = {
-        f"{multiple:g}x": [round(e * multiple, 2) if e is not None else None for e in eps]
-        for multiple in multiples
-    }
-    return {
-        "years": years or [],
-        "eps_twd": eps,
-        "multiples": multiples,
-        "bands": bands,
-        "source": source,
-    }
+DATA_SCHEMA_VERSION = 4
 
 
 def format_number(num, unit="億", decimals=2):
@@ -592,7 +69,7 @@ def format_pct(val):
         return "N/A"
 
 
-def fetch_stock_data(ticker: str) -> dict:
+def fetch_stock_data(ticker: str, skip_optional_http: bool = False) -> dict:
     """
     從 yfinance 獲取股票完整財務數據
     返回格式化的數據字典
@@ -719,6 +196,7 @@ def fetch_stock_data(ticker: str) -> dict:
         analyst_target = safe_get(info, "targetMeanPrice", "N/A")
         analyst_rec = safe_get(info, "recommendationKey", "N/A")
         analyst_count = safe_get(info, "numberOfAnalystOpinions", "N/A")
+        data_source_notes = []
         
         # === 歷史財務報表（5年）===
         revenue_history = []
@@ -798,6 +276,47 @@ def fetch_stock_data(ticker: str) -> dict:
                 total_assets_history = list(reversed(assets_raw))
         except Exception as e:
             print(f"    ⚠️  資產負債表獲取失敗：{e}")
+
+        # === FinMind 台股財報備援 ===
+        if is_taiwan_ticker(ticker) and DataLoader is not None:
+            needs_finmind_fallback = (
+                not _history_has_values(revenue_history)
+                or not _history_has_values(net_income_history)
+                or not _history_has_values(total_assets_history)
+                or not _history_has_values(total_equity_history)
+                or not _history_has_values(fcf_history)
+            )
+            if needs_finmind_fallback:
+                try:
+                    finmind_fallback = fetch_finmind_financial_statement_fallback(ticker)
+                except Exception as e:
+                    print(f"    ⚠️  FinMind 財報備援資料獲取失敗：{e}")
+                    finmind_fallback = {}
+
+                if finmind_fallback:
+                    fallback_years = finmind_fallback.get("years", []) or []
+                    rows_by_year = finmind_fallback.get("rows_by_year", {}) or {}
+                    if not years or not _history_has_values(revenue_history) or not _history_has_values(net_income_history):
+                        years = fallback_years
+
+                    if not _history_has_values(revenue_history):
+                        revenue_history = _align_finmind_history(years, rows_by_year, "revenue")
+                    if not _history_has_values(net_income_history):
+                        net_income_history = _align_finmind_history(years, rows_by_year, "net_income")
+                    if not _history_has_values(gross_profit_history):
+                        gross_profit_history = _align_finmind_history(years, rows_by_year, "gross_profit")
+                    if not _history_has_values(operating_income_history):
+                        operating_income_history = _align_finmind_history(years, rows_by_year, "operating_income")
+                    if not _history_has_values(fcf_history):
+                        fcf_history = _align_finmind_history(years, rows_by_year, "free_cash_flow")
+                    if not _history_has_values(total_assets_history):
+                        total_assets_history = _align_finmind_history(years, rows_by_year, "total_assets")
+                    if not _history_has_values(total_equity_history):
+                        total_equity_history = _align_finmind_history(years, rows_by_year, "total_equity")
+
+                    data_source_notes.append(
+                        "yfinance 年度財報/資產負債/現金流資料缺漏時，已使用 FinMind 台股財報 API 補齊可用年度欄位。"
+                    )
         
         # === 計算衍生指標 ===
         # 計算毛利率歷史
@@ -942,38 +461,51 @@ def fetch_stock_data(ticker: str) -> dict:
                 print(f"    ⚠️  FinMind 營收獲取失敗：{e}")
 
         # === 即時/質性資料擴充 ===
-        try:
-            recent_catalysts = fetch_recent_catalysts(ticker, company_name, company_identity, stock)
-        except Exception as e:
-            print(f"    ⚠️  新聞催化劑資料彙整失敗：{e}")
-            recent_catalysts = []
-
-        try:
-            institutional_trading = fetch_institutional_trading_trend(ticker)
-        except Exception as e:
-            print(f"    ⚠️  法人籌碼資料彙整失敗：{e}")
-            institutional_trading = {}
-
-        try:
-            dynamic_peer_metrics = fetch_dynamic_peer_metrics(ticker, company_name, sector, industry, company_identity)
-        except Exception as e:
-            print(f"    ⚠️  動態同業資料彙整失敗：{e}")
-            dynamic_peer_metrics = []
-
-        try:
-            peer_discovery_results = fetch_google_peer_discovery_results(ticker, company_name, sector, industry)
-        except Exception as e:
-            print(f"    ⚠️  同業 discovery 資料彙整失敗：{e}")
-            peer_discovery_results = []
-
-        try:
-            pe_river_chart = build_pe_river_chart_data(ticker, years, net_income_history, shares_outstanding)
-        except Exception as e:
-            print(f"    ⚠️  P/E 河流圖資料彙整失敗：{e}")
-            pe_river_chart = {"years": years, "eps_twd": [], "multiples": [10, 12, 15, 18], "bands": {}, "source": "unavailable"}
+        enrichment = _run_named_fetches(
+            {
+                "recent_catalysts": (
+                    fetch_recent_catalysts,
+                    (ticker, company_name, company_identity, stock, skip_optional_http),
+                    [],
+                    "新聞催化劑資料彙整失敗",
+                ),
+                "institutional_trading": (
+                    fetch_institutional_trading_trend,
+                    (ticker,),
+                    {},
+                    "法人籌碼資料彙整失敗",
+                ),
+                "dynamic_peer_metrics": (
+                    fetch_dynamic_peer_metrics,
+                    (ticker, company_name, sector, industry, company_identity),
+                    [],
+                    "動態同業資料彙整失敗",
+                ),
+                "peer_discovery_results": (
+                    (lambda *_args: []) if skip_optional_http else fetch_google_peer_discovery_results,
+                    (ticker, company_name, sector, industry),
+                    [],
+                    "同業 discovery 資料彙整失敗",
+                ),
+                "pe_river_chart": (
+                    build_pe_river_chart_data,
+                    (ticker, years, net_income_history, shares_outstanding),
+                    {"years": years, "eps_twd": [], "multiples": [10, 12, 15, 18], "bands": {}, "source": "unavailable"},
+                    "P/E 河流圖資料彙整失敗",
+                ),
+            },
+            max_workers=5,
+        )
+        recent_catalysts = enrichment.get("recent_catalysts", [])
+        institutional_trading = enrichment.get("institutional_trading", {})
+        dynamic_peer_metrics = enrichment.get("dynamic_peer_metrics", [])
+        peer_discovery_results = enrichment.get("peer_discovery_results", [])
+        pe_river_chart = enrichment.get(
+            "pe_river_chart",
+            {"years": years, "eps_twd": [], "multiples": [10, 12, 15, 18], "bands": {}, "source": "unavailable"},
+        )
 
         # === 欄位缺漏備援補值 ===
-        data_source_notes = []
         fmp_quote = {}
         if any(is_missing_value(v) for v in [current_price, market_cap, pe_ratio, week_52_high, week_52_low]):
             fmp_quote = fetch_fmp_quote_fallback(ticker)
@@ -1232,200 +764,115 @@ def fetch_stock_data(ticker: str) -> dict:
         }
 
 
+def _cache_financial_data(data: dict, original_ticker: str):
+    if not data or "error" in data:
+        return
+
+    cacheable = dict(data)
+    cacheable.pop("_cache_hit", None)
+    resolved_ticker = cacheable.get("ticker", original_ticker)
+    set_cache_json(f"financial_data:{original_ticker}", cacheable, FINANCIAL_DATA_CACHE_SECONDS)
+    if resolved_ticker != original_ticker:
+        set_cache_json(f"financial_data:{resolved_ticker}", cacheable, FINANCIAL_DATA_CACHE_SECONDS)
+
+
+def _merge_optional_http_bundle(data: dict, http_bundle: dict) -> dict:
+    """Merge async HTTP-backed enrichment into a base yfinance/FinMind payload."""
+    if not data or "error" in data or not http_bundle:
+        return data
+
+    combined_catalysts = list(data.get("recent_catalysts", []) or [])
+    combined_catalysts.extend(http_bundle.get("google_catalysts", []) or [])
+    combined_catalysts.extend(http_bundle.get("fmp_news", []) or [])
+    if combined_catalysts:
+        data["recent_catalysts"] = _dedupe_records(combined_catalysts, limit=5)[:5]
+
+    peer_discovery = http_bundle.get("google_peer_discovery", []) or []
+    if peer_discovery:
+        data["peer_discovery_results"] = _dedupe_records(peer_discovery, limit=5)
+
+    fmp_quote = http_bundle.get("fmp_quote", {}) or {}
+    if isinstance(fmp_quote, dict) and fmp_quote:
+        updated_fields = []
+        if is_missing_value(data.get("current_price")):
+            current_price = first_number(fmp_quote.get("price"), fmp_quote.get("previousClose"))
+            if current_price is not None:
+                data["current_price"] = current_price
+                data["current_price_fmt"] = f"NT${current_price:.2f}"
+                updated_fields.append("current_price")
+        if is_missing_value(data.get("market_cap_raw")):
+            market_cap = first_number(fmp_quote.get("marketCap"))
+            if market_cap is not None:
+                data["market_cap_raw"] = market_cap
+                data["market_cap_fmt"] = format_number(market_cap, "億")
+                updated_fields.append("market_cap")
+        if is_missing_value(data.get("pe_ratio_raw")):
+            pe_ratio = first_number(fmp_quote.get("pe"), fmp_quote.get("peRatio"))
+            if pe_ratio is not None:
+                data["pe_ratio_raw"] = pe_ratio
+                data["pe_ratio"] = f"{pe_ratio:.1f}x"
+                updated_fields.append("pe_ratio")
+        if is_missing_value(data.get("week_52_high")):
+            week_52_high = first_number(fmp_quote.get("yearHigh"), fmp_quote.get("priceAvg200"))
+            if week_52_high is not None:
+                data["week_52_high"] = week_52_high
+                data["week_52_high_fmt"] = f"NT${week_52_high:.2f}"
+                updated_fields.append("week_52_high")
+        if is_missing_value(data.get("week_52_low")):
+            week_52_low = first_number(fmp_quote.get("yearLow"))
+            if week_52_low is not None:
+                data["week_52_low"] = week_52_low
+                data["week_52_low_fmt"] = f"NT${week_52_low:.2f}"
+                updated_fields.append("week_52_low")
+
+        if updated_fields:
+            data.setdefault("data_source_notes", []).append(
+                "部分市場欄位由 async FMP quote bundle 補值：" + ", ".join(updated_fields)
+            )
+
+    return data
+
+
 async def async_fetch_stock_data(ticker: str) -> dict:
-    """非同步包裝既有 yfinance/FinMind 抓取流程，避免阻塞 async worker event loop。"""
-    return await asyncio.to_thread(fetch_stock_data, ticker)
+    """Fetch stock data with blocking SDK work offloaded and HTTP enrichment concurrent."""
+    ticker = ticker.strip().upper()
+    fmp_news_task = asyncio.create_task(fetch_fmp_news_catalysts_async(ticker))
 
-
-def _prompt_number(value, decimals=4):
-    number = safe_float(value)
-    if number is None:
-        return None
     try:
-        if pd.isna(number):
-            return None
+        data = await asyncio.to_thread(fetch_stock_data, ticker, True)
     except Exception:
-        pass
-    return round(number, decimals)
+        await asyncio.gather(fmp_news_task, return_exceptions=True)
+        raise
 
+    if not data or "error" in data:
+        await asyncio.gather(fmp_news_task, return_exceptions=True)
+        return data
 
-def _prompt_ratio_to_pct(value, decimals=4):
-    number = _prompt_number(value, decimals + 2)
-    if number is None:
-        return None
-    return round(number * 100, decimals)
+    resolved_ticker = str(data.get("ticker") or ticker).strip().upper()
+    company_name = str(data.get("company_name") or resolved_ticker).strip()
+    identity = data.get("company_identity") if isinstance(data.get("company_identity"), dict) else {}
+    sector = str(data.get("sector") or "")
+    industry = str(data.get("industry") or "")
 
-
-def _prompt_history_rows(data: dict) -> list[dict]:
-    years = data.get("years", []) or []
-    rows = []
-    for idx, year in enumerate(years):
-        def at(key):
-            values = data.get(key, []) or []
-            return values[idx] if idx < len(values) else None
-
-        rows.append({
-            "year": str(year),
-            "revenue_billion_twd": _prompt_number(at("revenue_history")),
-            "net_income_billion_twd": _prompt_number(at("net_income_history")),
-            "gross_profit_billion_twd": _prompt_number(at("gross_profit_history")),
-            "operating_income_billion_twd": _prompt_number(at("operating_income_history")),
-            "free_cash_flow_billion_twd": _prompt_number(at("fcf_history")),
-            "gross_margin_pct": _prompt_number(at("gross_margin_history")),
-            "operating_margin_pct": _prompt_number(at("op_margin_history")),
-            "net_margin_pct": _prompt_number(at("net_margin_history")),
-            "roe_pct": _prompt_number(at("roe_history")),
-            "total_assets_billion_twd": _prompt_number(at("total_assets_history")),
-            "total_equity_billion_twd": _prompt_number(at("total_equity_history")),
-        })
-    return rows
-
-
-def _prompt_company_identity(data: dict) -> dict:
-    identity = data.get("company_identity", {}) or {}
-    return {
-        "ticker": data.get("ticker"),
-        "company_name": data.get("company_name"),
-        "stock_id": identity.get("stock_id"),
-        "official_name": identity.get("official_name"),
-        "legal_name": identity.get("legal_name"),
-        "allowed_aliases": identity.get("allowed_aliases", []),
-        "forbidden_aliases": identity.get("forbidden_aliases", []),
-        "industry_categories": identity.get("industry_categories", []),
-        "same_industry_peers": identity.get("same_industry_peers", []),
-    }
-
-
-def format_data_for_prompt(data: dict) -> str:
-    """將財務數據格式化為乾淨 JSON，避免單位混用與 prompt 過載。"""
-    shares = safe_float(data.get("shares_raw"))
-    forward_eps = safe_float(data.get("forward_eps"))
-    profit_margin_raw = safe_float(data.get("profit_margin_raw"))
-    revenue_ttm_raw = safe_float(data.get("revenue_ttm_raw"))
-
-    implied_forward_net_income_b = None
-    implied_forward_revenue_b = None
-    implied_forward_revenue_growth_pct = None
-    if shares and forward_eps:
-        implied_forward_net_income_twd = shares * forward_eps
-        implied_forward_net_income_b = raw_twd_to_billion_twd(implied_forward_net_income_twd)
-        if profit_margin_raw and profit_margin_raw > 0:
-            implied_forward_revenue_twd = implied_forward_net_income_twd / profit_margin_raw
-            implied_forward_revenue_b = raw_twd_to_billion_twd(implied_forward_revenue_twd)
-            if revenue_ttm_raw and revenue_ttm_raw > 0:
-                implied_forward_revenue_growth_pct = round(
-                    (implied_forward_revenue_twd / revenue_ttm_raw - 1) * 100,
-                    4,
-                )
-
-    total_debt_b = raw_twd_to_billion_twd(data.get("total_debt_raw"))
-    total_cash_b = raw_twd_to_billion_twd(data.get("total_cash_raw"))
-    net_debt_b = None
-    if total_debt_b is not None or total_cash_b is not None:
-        net_debt_b = round((total_debt_b or 0) - (total_cash_b or 0), 4)
-
-    payload = {
-        "schema_version": DATA_SCHEMA_VERSION,
-        "unit_contract": {
-            "money": "billion_twd",
-            "price": "twd_per_share",
-            "percent": "percentage_points",
-            "ratios": "plain_multiple_unless_key_ends_with_pct",
-        },
-        "company": {
-            "identity": _prompt_company_identity(data),
-            "sector": data.get("sector"),
-            "industry": data.get("industry"),
-            "country": data.get("country"),
-            "employees": data.get("employees"),
-            "fetch_date": data.get("fetch_date"),
-        },
-        "market_data": {
-            "current_price_twd": _prompt_number(data.get("current_price")),
-            "market_cap_billion_twd": raw_twd_to_billion_twd(data.get("market_cap_raw")),
-            "week_52_high_twd": _prompt_number(data.get("week_52_high")),
-            "week_52_low_twd": _prompt_number(data.get("week_52_low")),
-        },
-        "valuation_metrics": {
-            "pe_ttm": _prompt_number(data.get("pe_ratio_raw")),
-            "forward_pe": _prompt_number(data.get("forward_pe_raw")),
-            "pb": _prompt_number(data.get("pb_ratio")),
-            "ps": _prompt_number(data.get("ps_ratio")),
-            "ev_ebitda": _prompt_number(data.get("ev_ebitda")),
-            "shares_outstanding": _prompt_number(data.get("shares_raw"), 0),
-            "trailing_eps_twd": _prompt_number(data.get("trailing_eps")),
-            "forward_eps_twd": _prompt_number(data.get("forward_eps")),
-            "dividend_yield_pct": _prompt_ratio_to_pct(data.get("dividend_yield_raw")),
-            "dividend_per_share_twd": _prompt_number(data.get("dividend_rate_raw")),
-            "payout_ratio_pct": _prompt_ratio_to_pct(data.get("payout_ratio_raw")),
-        },
-        "ttm_financials": {
-            "revenue_billion_twd": raw_twd_to_billion_twd(data.get("revenue_ttm_raw")),
-            "net_income_billion_twd": raw_twd_to_billion_twd(data.get("net_income_ttm_raw")),
-            "net_income_source": data.get("net_income_ttm_source"),
-            "ebitda_billion_twd": raw_twd_to_billion_twd(data.get("ebitda_raw")),
-            "gross_margin_pct": _prompt_ratio_to_pct(data.get("gross_margin_raw")),
-            "operating_margin_pct": _prompt_ratio_to_pct(data.get("operating_margin_raw")),
-            "profit_margin_pct_calibrated": _prompt_ratio_to_pct(data.get("profit_margin_raw")),
-            "profit_margin_pct_provider": _prompt_ratio_to_pct(data.get("profit_margin_provider_raw")),
-        },
-        "cash_flow": {
-            "free_cash_flow_billion_twd": raw_twd_to_billion_twd(data.get("free_cash_flow_raw")),
-            "operating_cash_flow_billion_twd": raw_twd_to_billion_twd(data.get("operating_cash_flow_raw")),
-        },
-        "balance_sheet": {
-            "total_debt_billion_twd": total_debt_b,
-            "total_cash_billion_twd": total_cash_b,
-            "net_debt_billion_twd": net_debt_b,
-            "debt_to_equity_pct": _prompt_number(data.get("debt_to_equity")),
-            "current_ratio": _prompt_number(data.get("current_ratio")),
-            "equity_multiplier": data.get("equity_multiplier"),
-        },
-        "growth": {
-            "latest_annual_revenue_growth_pct": _prompt_number(data.get("latest_annual_revenue_growth")),
-            "latest_annual_net_income_growth_pct": _prompt_number(data.get("latest_annual_net_income_growth")),
-            "ttm_vs_latest_annual_revenue_change_pct": _prompt_number(data.get("ttm_vs_latest_annual_revenue_change")),
-            "yahoo_recent_revenue_growth_pct": _prompt_number(data.get("yahoo_revenue_growth")),
-            "yahoo_recent_earnings_growth_pct": _prompt_number(data.get("yahoo_earnings_growth")),
-            "revenue_cagr_5yr_pct": _prompt_number(data.get("revenue_cagr_5yr")),
-        },
-        "history": {
-            "unit": "billion_twd",
-            "rows": _prompt_history_rows(data),
-        },
-        "market_catalysts": {
-            "lookback_days": CATALYST_LOOKBACK_DAYS,
-            "items": data.get("recent_catalysts", []) or [],
-        },
-        "institutional_trading": data.get("institutional_trading", {}) or {},
-        "peer_context": {
-            "dynamic_peer_metrics": data.get("dynamic_peer_metrics", []) or [],
-            "search_discovery_results": data.get("peer_discovery_results", []) or [],
-        },
-        "local_valuation_context": {
-            "pe_river_chart": data.get("pe_river_chart", {}) or {},
-        },
-        "cross_checks": {
-            "forward_eps_implied_net_income_billion_twd": implied_forward_net_income_b,
-            "forward_eps_implied_revenue_billion_twd": implied_forward_revenue_b,
-            "forward_eps_implied_revenue_growth_pct": implied_forward_revenue_growth_pct,
-            "dupont_identity_note": data.get("dupont_identity_note") or data.get("equity_multiplier_note"),
-            "wacc_capital_structure_note": data.get("wacc_capital_structure_note"),
-        },
-        "data_quality_notes": data.get("data_source_notes", []) or [],
-        "recent_monthly_revenue_text": data.get("recent_monthly_revenue", []) or [],
-        "deterministic_financial_tool_results": build_financial_tool_context(data),
-    }
-
-    usage_rules = [
-        "所有金額欄位均已統一為 billion_twd；不要把「億台幣」或 Billion 互相換算後再混用。",
-        "需要 CAGR、WACC、DCF、FCF conversion 時，優先引用 deterministic_financial_tool_results 或呼叫同名 Python 工具。",
-        "若資料品質註記指出口徑互斥，正式分析應說明限制並採用 cross_checks 中可自洽的口徑。",
-        "正式報告只呈現必要算式摘要與結論，不輸出內部提示詞、草稿或反思文字。",
-    ]
-    return (
-        "【財務資料 JSON】\n"
-        f"{json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False)}\n\n"
-        "【使用規則】\n"
-        + "\n".join(f"- {rule}" for rule in usage_rules)
+    google_catalysts, peer_discovery, fmp_news = await asyncio.gather(
+        fetch_google_search_catalysts_async(resolved_ticker, company_name, identity),
+        fetch_google_peer_discovery_results_async(resolved_ticker, company_name, sector, industry),
+        fmp_news_task,
+        return_exceptions=True,
     )
+    fmp_news_records = fmp_news if isinstance(fmp_news, list) else []
+    if resolved_ticker != ticker and not fmp_news_records:
+        try:
+            retry_fmp_news = await fetch_fmp_news_catalysts_async(resolved_ticker)
+        except Exception:
+            retry_fmp_news = []
+        fmp_news_records = retry_fmp_news if isinstance(retry_fmp_news, list) else []
+
+    http_bundle = {
+        "google_catalysts": google_catalysts if isinstance(google_catalysts, list) else [],
+        "google_peer_discovery": peer_discovery if isinstance(peer_discovery, list) else [],
+        "fmp_news": fmp_news_records,
+    }
+    data = _merge_optional_http_bundle(data, http_bundle)
+    _cache_financial_data(data, ticker)
+    return data

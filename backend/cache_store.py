@@ -22,7 +22,9 @@ def _json_default(value):
 def _connect():
     path = Path(CACHE_DB_PATH)
     path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path)
+    conn = sqlite3.connect(path, timeout=30)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS cache_entries (
@@ -38,7 +40,7 @@ def _connect():
 
 def get_cache_json(cache_key: str) -> Optional[dict]:
     now = time.time()
-    with _CACHE_LOCK, _connect() as conn:
+    with _connect() as conn:
         row = conn.execute(
             "SELECT value, expires_at FROM cache_entries WHERE cache_key = ?",
             (cache_key,),

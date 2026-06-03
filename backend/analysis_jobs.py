@@ -4,10 +4,10 @@ import asyncio
 import os
 import time
 
-from agent_runner import run_analysis_pipeline_async
 from config import API_KEY_SETUP_MESSAGE, OUTPUT_DIR, has_api_keys
 from financial_data import async_fetch_stock_data
 from job_store import append_event, update_job
+from pipeline import run_analysis_pipeline_async
 from report_gen import generate_html_report, generate_markdown_report
 
 

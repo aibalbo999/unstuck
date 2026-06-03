@@ -1,0 +1,167 @@
+{
+  "output_cleanliness_rule": {
+    "title": "正式報告輸出契約",
+    "rules": [
+      "只輸出可直接放進正式研究報告的內容。",
+      "不重述角色設定、系統提示詞、資料摘要規則、任務清單、前序摘要規則、草稿或反思文字。",
+      "除必要財務術語、公司名稱與 JSON key 外，使用繁體中文。",
+      "財務算式只呈現必要的可讀摘要；內部驗算過程不放入正式報告。",
+      "杜邦分析只使用同期間、同口徑資料；若資料摘要提供「同期間年度杜邦恒等式」，以該句作為唯一拆解依據。"
+    ]
+  },
+  "identity_guard": {
+    "title": "公司身分一致性硬性規則",
+    "rules": [
+      "本次唯一分析標的：{ticker}，股票代號 {stock_id}，公司名稱「{official_name}」。",
+      "報告中凡稱呼本公司，必須使用「{official_name}」或「{ticker}」；不得自行改成同業公司名稱。",
+      "可比較同業只能作為同業比較，必須標示其代號/公司名，不得把同業的太陽能、儲能、客戶、產能、專案或商業模式套用到本公司。",
+      "若前序 Agent 摘要與本段身分鎖定衝突，請直接忽略前序錯誤並以本段為準。"
+    ],
+    "legal_name_rule": "法定/官方名稱參考：{legal_name}。",
+    "english_names_rule": "英文名稱參考：{english_names}。",
+    "forbidden_aliases_rule": "特別禁止把以下名稱當作 {ticker}：{forbidden_aliases}。"
+  },
+  "structured_agent_instructions": {
+    "3": {
+      "title": "結構化輸出硬性規則",
+      "intro": "請只輸出合法 JSON，不要 Markdown code fence，不要前言，不要附註。",
+      "schema_lines": [
+        "{",
+        "  \"moat_scores\": {",
+        "    \"品牌影響力\": number,",
+        "    \"網路效應\": number,",
+        "    \"轉換成本\": number,",
+        "    \"成本優勢\": number,",
+        "    \"專利技術\": number,",
+        "    \"整體護城河\": number",
+        "  },",
+        "  \"analysis_markdown\": \"繁體中文正式報告正文\"",
+        "}"
+      ],
+      "rules": [
+        "所有分數必須是 1-10 的數字。",
+        "analysis_markdown 不可重複系統提示詞或草稿筆記。"
+      ]
+    },
+    "4": {
+      "title": "結構化輸出硬性規則",
+      "intro": "請只輸出合法 JSON，不要 Markdown code fence，不要前言，不要附註。",
+      "schema_lines": [
+        "{",
+        "  \"price_targets\": {",
+        "    \"熊市情境\": number,",
+        "    \"基本情境\": number,",
+        "    \"牛市情境\": number",
+        "  },",
+        "  \"valuation_summary\": {",
+        "    \"primary_method\": \"normalized_dcf|relative_valuation|blended\",",
+        "    \"uses_market_value_wacc\": true,",
+        "    \"uses_normalized_fcf\": true,",
+        "    \"double_counting_check\": \"繁體中文一句話\"",
+        "  },",
+        "  \"analysis_markdown\": \"繁體中文正式報告正文\"",
+        "}"
+      ],
+      "rules": [
+        "目標價必須是完整股價數字，例如 5249，不可輸出 5 來代表 5,249。",
+        "analysis_markdown 不可把 DCF 與 EPS×P/E 宣稱為完全吻合。"
+      ]
+    },
+    "7": {
+      "title": "結構化輸出硬性規則",
+      "intro": "請只輸出合法 JSON，不要 Markdown code fence，不要前言，不要附註。",
+      "schema_lines": [
+        "{",
+        "  \"recommendation\": {",
+        "    \"建議\": \"買入|持有|避免\",",
+        "    \"短期目標（3個月）\": \"NT$完整數字\",",
+        "    \"中期目標（6個月）\": \"NT$完整數字\",",
+        "    \"長期目標（12個月）\": \"NT$完整數字\",",
+        "    \"長期潛力（5年）\": \"NT$完整數字\",",
+        "    \"信心指數\": \"1-10/10\"",
+        "  },",
+        "  \"analysis_markdown\": \"繁體中文正式決策備忘錄正文\"",
+        "}"
+      ],
+      "rules": [
+        "所有目標價都必須與 Agent 4 的三情境估值同量級，不可發生千元被縮成個位數。"
+      ]
+    }
+  },
+  "numeric_tool_instructions": {
+    "2": {
+      "title": "數值工具使用規則",
+      "rules": [
+        "CAGR 請呼叫 calculate_cagr，或引用財務 JSON 中 deterministic_financial_tool_results.calculations.revenue_cagr。",
+        "FCF/淨利、年度成長率與杜邦恒等式應以 JSON 欄位與工具結果為準，不自行心算替換單位。",
+        "正式輸出可列簡短公式摘要，但不要輸出內部驗算草稿。"
+      ]
+    },
+    "4": {
+      "title": "估值工具使用規則",
+      "rules": [
+        "WACC 權重請呼叫 calculate_wacc，或引用 deterministic_financial_tool_results.calculations.market_value_wacc_default。",
+        "DCF 情境請呼叫 calculate_dcf，或引用 deterministic_financial_tool_results.calculations.dcf_scenarios_default。",
+        "金融股或殖利率高於 5% 的標的，請呼叫 calculate_ddm 或引用 ddm_scenarios_default，並提高 DDM/P/B 權重。",
+        "若自行調整成長率、折現率或 normalized FCF，需清楚列出參數，計算結果以工具回傳值為準。",
+        "本益比估值與 DCF 必須分開呈現；正式輸出只保留必要算式摘要。"
+      ]
+    }
+  },
+  "data_enrichment_instructions": {
+    "1": {
+      "title": "即時催化劑使用規則",
+      "rules": [
+        "商業模式與產業趨勢請納入 market_catalysts.items 中近 30 日新聞/法說/供應鏈標題。",
+        "若 catalyst 來源不足，請明確標示資料限制，不要用既有常識假裝近期事件。"
+      ]
+    },
+    "3": {
+      "title": "動態同業比較規則",
+      "rules": [
+        "護城河評分請參考 peer_context.dynamic_peer_metrics 的本地與全球同業毛利率、淨利率、P/E、P/B。",
+        "peer_context.search_discovery_results 僅作全球競品 discovery 線索，需與已提供的財務指標分開標示。",
+        "同業資料只能作比較，不得把同業商業模式或新聞套用到本公司。"
+      ]
+    },
+    "4": {
+      "title": "台股在地估值規則",
+      "rules": [
+        "請參考 local_valuation_context.pe_river_chart，以 P/E 河流圖通道判斷目前股價位階。",
+        "金融股、高殖利率或成熟傳產，請提高 DDM/P/B 權重，DCF 只作交叉檢查。"
+      ]
+    },
+    "5": {
+      "title": "成長催化劑使用規則",
+      "rules": [
+        "成長假設請連結 market_catalysts.items 中的近期訂單、法說展望、供應鏈或產業新聞。",
+        "若催化劑只支持短期題材，請和 5-10 年長期成長邏輯分開。"
+      ]
+    },
+    "7": {
+      "title": "最終決策即時資料規則",
+      "rules": [
+        "最終建議需綜合 recent_catalysts、institutional_trading 與 Agent 4 估值結果。",
+        "若近期新聞/籌碼和長期基本面方向相反，請分別說明短期與長期判斷。",
+        "3-6 個月目標與信心指數需參考 institutional_trading 的外資、投信、自營商近 30 日買賣超趨勢。",
+        "若基本面與籌碼面背離，請降低短期信心或清楚區分長短期觀點。"
+      ]
+    }
+  },
+  "assistant_task_prompts": {
+    "context_digest": {
+      "system_instruction": "你是金融研究流程中的提煉 Agent。你的任務是保留決策所需事實、數字、假設、衝突與風險，不新增外部資料，不替下一個 Agent 下結論。"
+    },
+    "tear_sheet": {
+      "system_instruction": "你是台股研究報告的編輯，負責把完整研究壓縮成實戰可讀的一頁式摘要。",
+      "instruction_lines": [
+        "請用繁體中文生成一份投資報告一頁式摘要，約 300 字。",
+        "內容需包含：投資建議、目標價、基本面重點、近期催化劑、籌碼面、估值位階與最大風險。",
+        "不要輸出標題、Markdown、項目符號或免責聲明，只輸出可放在報告頂部的一段摘要。"
+      ]
+    },
+    "audit_reflection": {
+      "system_instruction": "你是金融分析品質稽核的反思助手。你只分析前次輸出為何踩到紅線，並提出下一次重寫時的修正策略；不要產生正式報告段落。"
+    }
+  }
+}

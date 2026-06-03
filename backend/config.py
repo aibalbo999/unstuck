@@ -3,10 +3,14 @@
 # ============================================================
 
 import os
+import json
+import re
 from pathlib import Path
+from typing import Optional
 
 
 BASE_DIR = Path(__file__).resolve().parent
+DEFAULT_MODEL_ROUTES_FILE = BASE_DIR / "model_routes.json"
 
 
 def _load_local_env():
@@ -28,6 +32,78 @@ def _load_local_env():
 
 def _split_keys(raw: str) -> list[str]:
     return [key.strip() for key in raw.replace("\n", ",").split(",") if key.strip()]
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
+def _env_float(name: str, default: float) -> float:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
+
+
+def _env_str(name: str, default: str = "") -> str:
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return str(default or "").strip()
+    return raw.strip()
+
+
+def _json_env_dict(name: str) -> dict:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw)
+        return parsed if isinstance(parsed, dict) else {}
+    except json.JSONDecodeError:
+        return {}
+
+
+def _load_model_routes() -> dict:
+    routes_path = Path(_env_str("MODEL_ROUTES_FILE", str(DEFAULT_MODEL_ROUTES_FILE))).expanduser()
+    if not routes_path.exists():
+        return {}
+    try:
+        parsed = json.loads(routes_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _route_section(section_name: str) -> dict:
+    section = MODEL_ROUTES.get(section_name, {})
+    return section if isinstance(section, dict) else {}
+
+
+def _route_str(name: str, default: str = "") -> str:
+    return str(MODEL_ROUTES.get(name, default) or "").strip()
+
+
+def _route_limit_defaults(section_name: str) -> dict[str, int]:
+    limits = {}
+    for model, value in _route_section(section_name).items():
+        try:
+            limits[str(model)] = int(value)
+        except (TypeError, ValueError):
+            continue
+    return limits
+
+
+def _model_env_suffix(model: str) -> str:
+    return re.sub(r"[^A-Z0-9]+", "_", model.upper()).strip("_")
 
 
 def _is_placeholder_key(key: str) -> bool:
@@ -82,34 +158,112 @@ API_KEY_SETUP_MESSAGE = (
 
 refresh_api_keys()
 
-# 各 Agent 的模型分配
-# Agent 1-6 與提煉摘要：統一使用 gemma-4-31b-it
-# Agent 7（最終投資決策）與最終稽核/修復：使用 gemini-3.5-flash
-CONTEXT_DIGEST_MODEL = "gemma-4-31b-it"
-AUDIT_MODEL = "gemini-3.5-flash"
-AGENT_MODELS = {
-    1: "gemma-4-31b-it",     # 商業模式與整體分析
-    2: "gemma-4-31b-it",     # 五年財務數據分析
-    3: "gemma-4-31b-it",     # 競爭護城河評估
-    4: "gemma-4-31b-it",     # 估值分析
-    5: "gemma-4-31b-it",     # 未來成長潛力
-    6: "gemma-4-31b-it",     # 多空辯論
-    7: "gemini-3.5-flash",   # 最終投資決策（綜合判斷）
-}
+MODEL_ROUTES = _load_model_routes()
 
-# 速率限制（每個 API Key）
-RPM_LIMITS = {
-    "gemini-3.5-flash": 5,    # 每分鐘 5 次
-    "gemma-4-31b-it": 30,     # 每分鐘 30 次
-}
+DEFAULT_ANALYSIS_MODEL = _env_str("DEFAULT_ANALYSIS_MODEL", _route_str("default_analysis_model"))
+DEFAULT_DECISION_MODEL = _env_str("DEFAULT_DECISION_MODEL", _route_str("default_decision_model"))
+CONTEXT_DIGEST_MODEL = _env_str("CONTEXT_DIGEST_MODEL", _route_str("context_digest_model", DEFAULT_ANALYSIS_MODEL))
+AUDIT_MODEL = _env_str("AUDIT_MODEL", _route_str("audit_model", DEFAULT_DECISION_MODEL))
 
-RPD_LIMITS = {
-    "gemini-3.5-flash": 25,   # 每天 25 次
-    "gemma-4-31b-it": 14400,  # 每天 14400 次
-}
+if not DEFAULT_ANALYSIS_MODEL or not DEFAULT_DECISION_MODEL:
+    raise RuntimeError(
+        "缺少模型路由設定。請設定 backend/model_routes.json、MODEL_ROUTES_FILE，"
+        "或在 backend/.env 提供 DEFAULT_ANALYSIS_MODEL / DEFAULT_DECISION_MODEL。"
+    )
 
-# Agent 呼叫之間的最小延遲（秒）
-INTER_AGENT_DELAY = 13  # 保守設定，避免超過 RPM
+
+def _load_agent_models() -> dict[int, str]:
+    route_agents = _route_section("agents")
+    models = {}
+    for agent_num in range(1, 7):
+        configured = route_agents.get(str(agent_num), DEFAULT_ANALYSIS_MODEL)
+        models[agent_num] = str(configured or DEFAULT_ANALYSIS_MODEL).strip()
+    models[7] = str(route_agents.get("7", DEFAULT_DECISION_MODEL) or DEFAULT_DECISION_MODEL).strip()
+
+    for raw_key, value in _json_env_dict("AGENT_MODELS_JSON").items():
+        try:
+            agent_num = int(raw_key)
+        except (TypeError, ValueError):
+            continue
+        if 1 <= agent_num <= 7 and str(value).strip():
+            models[agent_num] = str(value).strip()
+
+    for agent_num in range(1, 8):
+        override = os.getenv(f"AGENT_MODEL_{agent_num}", "").strip()
+        if override:
+            models[agent_num] = override
+
+    return models
+
+
+def _load_model_limits(json_env_name: str, default_env_name: str, builtins: dict[str, int], default_limit: int) -> dict[str, int]:
+    limits = {"*": _env_int(default_env_name, default_limit)}
+    limits.update(builtins)
+    for model, value in _json_env_dict(json_env_name).items():
+        try:
+            limits[str(model)] = int(value)
+        except (TypeError, ValueError):
+            continue
+
+    configured_models = {*AGENT_MODELS.values(), CONTEXT_DIGEST_MODEL, AUDIT_MODEL}
+    for model in configured_models:
+        suffix = _model_env_suffix(model)
+        override = os.getenv(f"{json_env_name.removesuffix('_JSON')}_{suffix}", "").strip()
+        if override:
+            try:
+                limits[model] = int(override)
+            except ValueError:
+                pass
+    return limits
+
+
+AGENT_MODELS = _load_agent_models()
+
+# Per-key dynamic limits used by llm_client.KeyRotator. Override in backend/.env.
+ROUTE_RPM_LIMITS = _route_limit_defaults("rpm_limits")
+ROUTE_TPM_LIMITS = _route_limit_defaults("tpm_limits")
+ROUTE_RPD_LIMITS = _route_limit_defaults("rpd_limits")
+DEFAULT_MODEL_RPM_LIMITS = dict(ROUTE_RPM_LIMITS)
+DEFAULT_MODEL_RPM_LIMITS[DEFAULT_ANALYSIS_MODEL] = _env_int(
+    "DEFAULT_ANALYSIS_RPM_LIMIT",
+    DEFAULT_MODEL_RPM_LIMITS.get(DEFAULT_ANALYSIS_MODEL, 30),
+)
+DEFAULT_MODEL_RPM_LIMITS[DEFAULT_DECISION_MODEL] = _env_int(
+    "DEFAULT_DECISION_RPM_LIMIT",
+    DEFAULT_MODEL_RPM_LIMITS.get(DEFAULT_DECISION_MODEL, 5),
+)
+RPM_LIMITS = _load_model_limits(
+    "RPM_LIMITS_JSON",
+    "DEFAULT_RPM_LIMIT",
+    DEFAULT_MODEL_RPM_LIMITS,
+    5,
+)
+TPM_LIMITS = _load_model_limits("TPM_LIMITS_JSON", "DEFAULT_TPM_LIMIT", ROUTE_TPM_LIMITS, 0)
+RPD_LIMITS = _load_model_limits("RPD_LIMITS_JSON", "DEFAULT_RPD_LIMIT", ROUTE_RPD_LIMITS, 0)
+
+
+def format_model_routes(agent_models: Optional[dict[int, str]] = None) -> str:
+    models = agent_models or AGENT_MODELS
+    analysis_models = [models.get(agent_num, "N/A") for agent_num in range(1, 7)]
+    unique_analysis_models = list(dict.fromkeys(analysis_models))
+    if len(unique_analysis_models) == 1:
+        parts = [f"Agent 1-6: {unique_analysis_models[0]}"]
+    else:
+        parts = [", ".join(f"A{agent_num}: {models.get(agent_num, 'N/A')}" for agent_num in range(1, 7))]
+
+    decision_model = models.get(7, "N/A")
+    if AUDIT_MODEL == decision_model:
+        parts.append(f"Agent 7/稽核: {decision_model}")
+    else:
+        parts.append(f"Agent 7: {decision_model}")
+        parts.append(f"稽核: {AUDIT_MODEL}")
+
+    if CONTEXT_DIGEST_MODEL and CONTEXT_DIGEST_MODEL not in unique_analysis_models:
+        parts.append(f"提煉摘要: {CONTEXT_DIGEST_MODEL}")
+    return "；".join(parts)
+
+# Optional legacy pacing. Dynamic RPM/TPM buckets are authoritative by default.
+INTER_AGENT_DELAY = _env_float("INTER_AGENT_DELAY", 0.0)
 
 # 輸出目錄
 OUTPUT_DIR = os.getenv("OUTPUT_DIR", str(BASE_DIR / "output"))

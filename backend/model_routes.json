@@ -1,0 +1,21 @@
+{
+  "default_analysis_model": "gemma-4-31b-it",
+  "default_decision_model": "gemini-3.5-flash",
+  "context_digest_model": "gemma-4-31b-it",
+  "audit_model": "gemini-3.5-flash",
+  "agents": {
+    "1": "gemma-4-31b-it",
+    "2": "gemma-4-31b-it",
+    "3": "gemma-4-31b-it",
+    "4": "gemma-4-31b-it",
+    "5": "gemma-4-31b-it",
+    "6": "gemma-4-31b-it",
+    "7": "gemini-3.5-flash"
+  },
+  "rpm_limits": {
+    "gemma-4-31b-it": 30,
+    "gemini-3.5-flash": 5
+  },
+  "tpm_limits": {},
+  "rpd_limits": {}
+}

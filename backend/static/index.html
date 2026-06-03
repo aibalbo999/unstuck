@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/style.css?v=20260603-optimization">
 </head>
 <body>
     <!-- 背景特效 -->
@@ -37,8 +37,20 @@
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg>
                     歷史報告
                 </div>
+                <div class="history-controls">
+                    <input type="search" id="history-search" class="history-search" placeholder="搜尋代號或公司" autocomplete="off" spellcheck="false" />
+                </div>
                 <div id="history-list" class="history-list">
                     <!-- 動態載入 -->
+                </div>
+                <div class="history-pagination" id="history-pagination" hidden>
+                    <button id="history-prev" class="pager-btn" type="button" aria-label="上一頁">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                    </button>
+                    <span id="history-page-info" class="history-page-info"></span>
+                    <button id="history-next" class="pager-btn" type="button" aria-label="下一頁">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                    </button>
                 </div>
             </div>
         </div>
@@ -83,6 +95,6 @@
         </div>
     </main>
 
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=20260603-optimization"></script>
 </body>
 </html>

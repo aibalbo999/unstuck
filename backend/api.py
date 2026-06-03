@@ -7,7 +7,7 @@ import re
 # 取得 api.py 所在目錄的絕對路徑，確保不論從哪裡啟動都能找到靜態檔案
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
-from fastapi import FastAPI
+from fastapi import FastAPI, Query, Request
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from sse_starlette.sse import EventSourceResponse
@@ -114,11 +114,16 @@ def cleanup_orphan_markdown_reports():
 
 
 @app.get("/api/reports")
-def get_reports():
+def get_reports(
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    q: str = Query("", max_length=80),
+):
     """取得歷史報告清單"""
     cleanup_expired_reports()
     cleanup_orphan_markdown_reports()
     reports = []
+    query = q.strip().lower()
     if os.path.exists(OUTPUT_DIR):
         for filename in os.listdir(OUTPUT_DIR):
             if filename.endswith(".html"):
@@ -148,16 +153,36 @@ def get_reports():
                 except Exception:
                     pass
 
-                reports.append({
+                report = {
                     "filename": filename,
                     "ticker": ticker,
                     "company_name": company_name,
                     "date": formatted_date,
                     "timestamp": os.path.getmtime(filepath)
-                })
+                }
+                searchable = f"{filename} {ticker} {company_name}".lower()
+                if query and query not in searchable:
+                    continue
+                reports.append(report)
     # 依時間遞減排序
     reports.sort(key=lambda x: x["timestamp"], reverse=True)
-    return {"reports": reports}
+    total = len(reports)
+    start = (page - 1) * limit
+    end = start + limit
+    page_reports = reports[start:end]
+    total_pages = max((total + limit - 1) // limit, 1)
+    return {
+        "reports": page_reports,
+        "pagination": {
+            "page": page,
+            "limit": limit,
+            "total": total,
+            "total_pages": total_pages,
+            "has_prev": page > 1,
+            "has_next": page < total_pages,
+            "query": q,
+        },
+    }
 
 @app.delete("/api/reports/{filename}")
 def delete_report(filename: str):
@@ -197,7 +222,12 @@ def read_root():
     return FileResponse(os.path.join(STATIC_DIR, "index.html"))
 
 @app.get("/api/analyze/{ticker}")
-async def analyze_stock(ticker: str):
+async def analyze_stock(
+    ticker: str,
+    request: Request,
+    job_id: Optional[str] = Query(None),
+    last_event_id: Optional[int] = Query(None, ge=0),
+):
     """使用 SSE 即時推播分析進度"""
     ticker_upper = ticker.strip().upper()
 
@@ -207,14 +237,26 @@ async def analyze_stock(ticker: str):
 
         return EventSourceResponse(missing_key_event_generator())
 
+    header_last_event_id = request.headers.get("last-event-id")
+    if last_event_id is None and header_last_event_id:
+        try:
+            last_event_id = int(header_last_event_id)
+        except ValueError:
+            last_event_id = 0
+    resume_after_id = int(last_event_id or 0)
+
     should_enqueue = False
     with active_analyses_lock:
-        active_job = find_active_job(ticker_upper)
-        if active_job:
-            job_id = active_job["job_id"]
+        requested_job = get_job(job_id) if job_id else {}
+        if requested_job and requested_job.get("ticker") == ticker_upper:
+            job_id = requested_job["job_id"]
         else:
-            job_id = create_job(ticker_upper)
-            should_enqueue = True
+            active_job = find_active_job(ticker_upper)
+            if active_job:
+                job_id = active_job["job_id"]
+            else:
+                job_id = create_job(ticker_upper)
+                should_enqueue = True
 
     if should_enqueue:
         try:
@@ -225,15 +267,21 @@ async def analyze_stock(ticker: str):
             append_event(job_id, {"type": "error", "message": message})
         
     async def event_generator():
-        last_event_id = 0
+        last_sent_event_id = resume_after_id
         terminal_sent = False
+        yield {
+            "data": json.dumps(
+                {"type": "job", "job_id": job_id, "ticker": ticker_upper, "resume_after_id": resume_after_id},
+                ensure_ascii=False,
+            )
+        }
         try:
             while True:
-                events = await asyncio.to_thread(get_events_since, job_id, last_event_id)
+                events = await asyncio.to_thread(get_events_since, job_id, last_sent_event_id)
                 for event in events:
-                    last_event_id = event["id"]
+                    last_sent_event_id = event["id"]
                     payload = event["payload"]
-                    yield {"data": json.dumps(payload, ensure_ascii=False)}
+                    yield {"id": str(event["id"]), "data": json.dumps(payload, ensure_ascii=False)}
 
                     if payload.get("type") in ["done", "error"]:
                         terminal_sent = True

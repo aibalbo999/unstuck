@@ -1,3 +1,4 @@
+import asyncio
 import sys
 import json
 import unittest
@@ -9,6 +10,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 import agent_runner as ar  # noqa: E402
+import config  # noqa: E402
+import external_data_clients as edc  # noqa: E402
 import financial_data  # noqa: E402
 import financial_tools  # noqa: E402
 import report_gen  # noqa: E402
@@ -479,17 +482,138 @@ class AuditRuleTests(unittest.TestCase):
         )
 
     def test_model_routing_policy(self):
+        configured_agents = {
+            int(agent_num): model
+            for agent_num, model in config.MODEL_ROUTES.get("agents", {}).items()
+        }
         for agent_num in range(1, 7):
-            self.assertEqual(ar.AGENT_MODELS[agent_num], "gemma-4-31b-it")
-            self.assertEqual(ar.get_agent_model_sequence(agent_num), ["gemma-4-31b-it"])
+            expected = configured_agents.get(agent_num, config.DEFAULT_ANALYSIS_MODEL)
+            self.assertEqual(ar.AGENT_MODELS[agent_num], expected)
+            self.assertEqual(ar.get_agent_model_sequence(agent_num), [expected])
 
-        self.assertEqual(ar.AGENT_MODELS[7], "gemini-3.5-flash")
-        self.assertEqual(ar.get_agent_model_sequence(7), ["gemini-3.5-flash"])
-        self.assertEqual(ar.get_audit_model_sequence(), ["gemini-3.5-flash"])
-        self.assertEqual(ar.get_context_digest_model_sequence(), ["gemma-4-31b-it"])
+        expected_decision = configured_agents.get(7, config.DEFAULT_DECISION_MODEL)
+        self.assertEqual(ar.AGENT_MODELS[7], expected_decision)
+        self.assertEqual(ar.get_agent_model_sequence(7), [expected_decision])
+        self.assertEqual(ar.get_audit_model_sequence(), [config.AUDIT_MODEL])
+        self.assertEqual(ar.get_context_digest_model_sequence(), [config.CONTEXT_DIGEST_MODEL])
 
         context = {"_model_sequence_override": {2: ar.get_audit_model_sequence()}}
-        self.assertEqual(ar.get_runtime_model_sequence(2, context), ["gemini-3.5-flash"])
+        self.assertEqual(ar.get_runtime_model_sequence(2, context), [config.AUDIT_MODEL])
+
+    def test_external_http_clients_parse_sync_and_async_payloads(self):
+        old_fmp_key = edc.FMP_API_KEY
+        old_google_key = edc.GOOGLE_SEARCH_API_KEY
+        old_google_cse = edc.GOOGLE_CSE_ID
+        edc.FMP_API_KEY = "test-fmp"
+        edc.GOOGLE_SEARCH_API_KEY = "test-google"
+        edc.GOOGLE_CSE_ID = "test-cse"
+
+        def fake_sync_json_get(url, params):
+            if "customsearch" in url:
+                return {
+                    "items": [{
+                        "title": "法說會釋出展望",
+                        "snippet": "營收與供應鏈展望",
+                        "displayLink": "example.com",
+                        "link": "https://example.test/news",
+                        "pagemap": {"metatags": [{"article:published_time": "2026-06-04"}]},
+                    }]
+                }
+            if "stock_news" in url:
+                return [{"title": "FMP headline", "date": "2026-06-04", "site": "FMP", "url": "https://example.test/fmp"}]
+            return [{"price": 123.4, "marketCap": 1000}]
+
+        async def fake_async_json_get(client, url, params):
+            return fake_sync_json_get(url, params)
+
+        try:
+            with patch.object(edc, "_sync_json_get", side_effect=fake_sync_json_get):
+                quote = edc.fetch_fmp_quote_fallback("2330.TW")
+                catalysts = edc.fetch_google_search_catalysts("2330.TW", "台積電", {"official_name": "台積電"})
+                fmp_news = edc.fetch_fmp_news_catalysts("2330.TW")
+
+            self.assertEqual(quote["price"], 123.4)
+            self.assertEqual(catalysts[0]["source_type"], "google_search")
+            self.assertEqual(fmp_news[0]["source_type"], "fmp_news")
+
+            async def run_async_checks():
+                with patch.object(edc, "_async_json_get", side_effect=fake_async_json_get):
+                    quote_async = await edc.fetch_fmp_quote_fallback_async("2330.TW")
+                    catalysts_async = await edc.fetch_google_search_catalysts_async("2330.TW", "台積電", {"official_name": "台積電"})
+                    fmp_news_async = await edc.fetch_fmp_news_catalysts_async("2330.TW")
+                    bundle = await edc.fetch_optional_http_data_bundle(
+                        "2330.TW",
+                        "台積電",
+                        {"official_name": "台積電"},
+                        sector="Technology",
+                        industry="Semiconductor",
+                        include_quote=True,
+                    )
+                return quote_async, catalysts_async, fmp_news_async, bundle
+
+            quote_async, catalysts_async, fmp_news_async, bundle = asyncio.run(run_async_checks())
+            self.assertEqual(quote_async["price"], 123.4)
+            self.assertEqual(catalysts_async[0]["source_type"], "google_search")
+            self.assertEqual(fmp_news_async[0]["title"], "FMP headline")
+            self.assertEqual(bundle["fmp_quote"]["price"], 123.4)
+            self.assertEqual(bundle["google_peer_discovery"][0]["source_type"], "google_peer_discovery")
+        finally:
+            edc.FMP_API_KEY = old_fmp_key
+            edc.GOOGLE_SEARCH_API_KEY = old_google_key
+            edc.GOOGLE_CSE_ID = old_google_cse
+
+    def test_async_stock_fetch_merges_optional_http_bundle(self):
+        def fake_fetch_stock_data(ticker, skip_optional_http=False):
+            self.assertEqual(ticker, "2330")
+            self.assertTrue(skip_optional_http)
+            return {
+                "ticker": "2330.TW",
+                "company_name": "台積電 / Taiwan Semiconductor",
+                "company_identity": {
+                    "official_name": "台積電",
+                    "legal_name": "台灣積體電路製造股份有限公司",
+                },
+                "sector": "Technology",
+                "industry": "Semiconductor",
+                "recent_catalysts": [{"title": "Yahoo headline", "source_type": "yfinance_news"}],
+                "peer_discovery_results": [],
+                "data_source_notes": [],
+            }
+
+        calls = {}
+
+        async def fake_google_catalysts(ticker, company_name, identity):
+            calls["google"] = (ticker, company_name, identity)
+            return [{"title": "Google headline", "source_type": "google_search"}]
+
+        async def fake_peer_discovery(ticker, company_name, sector, industry):
+            calls["peer"] = (ticker, company_name, sector, industry)
+            return [{"title": "Peer result", "source_type": "google_peer_discovery"}]
+
+        async def fake_fmp_news(ticker):
+            calls.setdefault("fmp", []).append(ticker)
+            if ticker == "2330":
+                return []
+            return [{"title": "FMP headline", "source_type": "fmp_news"}]
+
+        with patch.object(financial_data, "fetch_stock_data", side_effect=fake_fetch_stock_data), \
+                patch.object(financial_data, "fetch_google_search_catalysts_async", side_effect=fake_google_catalysts), \
+                patch.object(financial_data, "fetch_google_peer_discovery_results_async", side_effect=fake_peer_discovery), \
+                patch.object(financial_data, "fetch_fmp_news_catalysts_async", side_effect=fake_fmp_news), \
+                patch.object(financial_data, "set_cache_json") as cache_mock:
+            data = asyncio.run(financial_data.async_fetch_stock_data("2330"))
+
+        titles = [item["title"] for item in data["recent_catalysts"]]
+        self.assertIn("Yahoo headline", titles)
+        self.assertIn("Google headline", titles)
+        self.assertIn("FMP headline", titles)
+        self.assertEqual(data["peer_discovery_results"][0]["source_type"], "google_peer_discovery")
+        self.assertEqual(calls["google"][0], "2330.TW")
+        self.assertEqual(calls["google"][1], "台積電 / Taiwan Semiconductor")
+        self.assertEqual(calls["google"][2]["official_name"], "台積電")
+        self.assertEqual(calls["peer"], ("2330.TW", "台積電 / Taiwan Semiconductor", "Technology", "Semiconductor"))
+        self.assertEqual(calls["fmp"], ["2330", "2330.TW"])
+        self.assertTrue(cache_mock.called)
 
     def test_cyclical_low_pe_redline(self):
         data = {

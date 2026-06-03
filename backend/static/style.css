@@ -296,6 +296,15 @@ iframe {
     align-items: center;
     gap: 8px;
 }
+.history-controls {
+    margin-bottom: 12px;
+}
+.history-search {
+    min-height: 42px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 0.95rem;
+}
 .history-list {
     display: flex;
     flex-direction: column;
@@ -371,4 +380,42 @@ iframe {
 }
 .delete-btn:hover {
     background: rgba(239, 68, 68, 0.1);
+}
+.history-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    min-height: 36px;
+    margin-top: 12px;
+}
+.history-pagination[hidden] {
+    display: none;
+}
+.pager-btn {
+    width: 34px;
+    height: 34px;
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.65);
+    color: var(--text-primary);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+.pager-btn:hover:not(:disabled) {
+    border-color: rgba(0, 255, 204, 0.35);
+    color: var(--accent);
+}
+.pager-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.42;
+}
+.history-page-info {
+    min-width: 72px;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    text-align: center;
 }

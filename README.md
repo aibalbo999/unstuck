@@ -79,7 +79,7 @@ export GEMINI_API_KEYS="your_key_1,your_key_2"
 
 可選設定：
 
-- 模型路由固定為 Agent 1-6 與提煉摘要使用 `gemma-4-31b-it`，Agent 7 與最終稽核/修復使用 `gemini-3.5-flash`
+- 模型路由預設由 `backend/model_routes.json` 管理，也可用 `MODEL_ROUTES_FILE`、`DEFAULT_ANALYSIS_MODEL`、`DEFAULT_DECISION_MODEL`、`AGENT_MODELS_JSON` 或 `AGENT_MODEL_1` 到 `AGENT_MODEL_7` 覆寫
 - `OUTPUT_DIR`：報告輸出目錄，預設 `backend/output/`
 - `CACHE_DB_PATH`：SQLite 快取檔位置，預設 `backend/cache/stock_agent_cache.sqlite3`
 - `FINANCIAL_DATA_CACHE_SECONDS`：財務資料快取秒數，預設 `86400`

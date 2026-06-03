@@ -11,12 +11,32 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
 
+from config import AGENT_MODELS, format_model_routes
+
 
 TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 JINJA_ENV = Environment(
     loader=FileSystemLoader(str(TEMPLATE_DIR)),
     autoescape=False,
 )
+
+
+AGENT_INSTITUTIONS = {
+    1: "Goldman Sachs",
+    2: "Morgan Stanley",
+    3: "BlackRock",
+    4: "JPMorgan",
+    5: "Fidelity",
+    6: "Financial Media",
+    7: "Bridgewater",
+}
+
+
+def build_agent_model_labels() -> dict[int, str]:
+    return {
+        agent_num: f"{institution} · {AGENT_MODELS.get(agent_num, 'N/A')}"
+        for agent_num, institution in AGENT_INSTITUTIONS.items()
+    }
 
 
 def render_report_template(template_name: str, values: dict) -> str:
@@ -587,6 +607,8 @@ def generate_html_report(context: dict) -> str:
     
     total_time = context.get("total_time", 0)
     time_str = f"{total_time:.0f} 秒" if total_time else "N/A"
+    agent_model_labels = build_agent_model_labels()
+    model_route_summary = format_model_routes()
     
     current_price_numeric = data.get("current_price", 0) if isinstance(data.get("current_price", 0), (int, float)) else 0
     template_context = dict(locals())
@@ -622,6 +644,7 @@ def generate_markdown_report(context: dict) -> str:
     confidence = get_rec_val(recommendation, "信心", "N/A")
     audit_markdown = build_audit_markdown(context)
     tear_sheet_summary = build_tear_sheet_summary(context)
+    model_route_summary = format_model_routes()
     
     analysis_1 = strip_structured_blocks(sanitize_report_text(analyses.get(1, "分析進行中...")))
     analysis_2 = strip_structured_blocks(sanitize_report_text(analyses.get(2, "分析進行中...")))
@@ -707,7 +730,7 @@ def generate_markdown_report(context: dict) -> str:
 | **Yahoo Finance (yfinance)** | 市場即時資料、年度財務報表、估值指標、負債結構、分析師評等 | pypi.org/project/yfinance |
 | **FinMind Open Data** | 台股每月營收、新聞、三大法人買賣超、PER/PBR 河流圖資料 | finmindtrade.com |
 | **Google Custom Search / FMP / Yahoo News** | 近期新聞、法說會、供應鏈與市場催化劑 | 依環境變數與可用 API 自動 fallback |
-| **Google Gemini AI** | 七位 AI 分析師論述（Agent 1-6: gemma-4-31b-it；Agent 7/最終稽核: gemini-3.5-flash） | Goldman Sachs / Morgan Stanley / BlackRock / JPMorgan / Fidelity / T. Rowe Price 人設 |
+| **Google Gemini AI** | 七位 AI 分析師論述（{model_route_summary}） | Goldman Sachs / Morgan Stanley / BlackRock / JPMorgan / Fidelity / T. Rowe Price 人設 |
 | **公開資訊觀測站 (MOPS/TWSE)** | 台灣證券交易所官方財務公邖 | 可作為數據核對基準 |
 
 > ⚠️ **數據誤差訴明**：Yahoo Finance 所提供的台股歷史財務報表有時存在年份缺失或延遲問題；`Debt to Equity` 指標已轉換為百分比形式；歷史營收、淨利、現金流等數據單位為 **Billion TWD (10億台幣)**。建議將本報告筆記的財務數據与公開資訊觀測站進行交叉比對。
