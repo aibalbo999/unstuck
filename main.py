@@ -44,7 +44,7 @@ def print_banner():
     console.print(Panel(
         "[bold blue]🏦 股票連續式分析 Agent 系統[/bold blue]\n"
         f"[dim]7 位頂級華爾街分析師 · {len(API_KEYS)}組 API Key 輪調 · 雙模型架構[/dim]\n"
-        "[dim]gemini-3.5-flash × gemma-4-31b-it[/dim]",
+        "[dim]Agent 1-6: gemma-4-31b-it · Agent 7/稽核: gemini-3.5-flash[/dim]",
         title="[bold white]Wall Street AI Research System[/bold white]",
         border_style="blue",
         padding=(1, 4),
@@ -285,7 +285,7 @@ def main():
         f"股票：[bold]{ticker} {data.get('company_name', '')}[/bold]\n"
         f"總耗時：{elapsed:.0f} 秒\n"
         f"分析 Agent：7 個\n"
-        f"使用模型：gemini-3.5-flash + gemma-4-31b-it",
+        f"使用模型：Agent 1-6 使用 gemma-4-31b-it；Agent 7/稽核使用 gemini-3.5-flash",
         title="[bold]✨ 分析完成[/bold]",
         border_style="blue",
     ))

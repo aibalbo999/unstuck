@@ -13,7 +13,7 @@ from datetime import date, datetime
 from typing import Any, Optional
 from google import genai
 from google.genai import types
-from config import API_KEYS, AGENT_MODELS, MODEL_FALLBACKS, RPM_LIMITS, INTER_AGENT_DELAY, API_KEY_SETUP_MESSAGE
+from config import API_KEYS, AGENT_MODELS, AUDIT_MODEL, CONTEXT_DIGEST_MODEL, RPM_LIMITS, INTER_AGENT_DELAY, API_KEY_SETUP_MESSAGE
 from financial_data import format_data_for_prompt
 from financial_tools import calculate_cagr, calculate_dcf, calculate_ddm, calculate_wacc
 from prompt_loader import load_agent_prompt_config
@@ -127,10 +127,27 @@ def get_agent_function_tools(agent_num: int) -> list:
 
 
 def get_agent_model_sequence(agent_num: int) -> list[str]:
-    """Return primary model plus configured fallbacks without duplicates."""
-    primary = AGENT_MODELS[agent_num]
-    sequence = [primary, *MODEL_FALLBACKS.get(primary, [])]
-    return list(dict.fromkeys(model for model in sequence if model))
+    """Return the strict single-model route for an analysis agent."""
+    return [AGENT_MODELS[agent_num]]
+
+
+def get_audit_model_sequence() -> list[str]:
+    """Return the strict single-model route reserved for final audit reflection and rewrites."""
+    return [AUDIT_MODEL]
+
+
+def get_context_digest_model_sequence() -> list[str]:
+    """Return the strict single-model route for context digest generation."""
+    return [CONTEXT_DIGEST_MODEL]
+
+
+def get_runtime_model_sequence(agent_num: int, context: Optional[dict] = None) -> list[str]:
+    """Return the active model sequence, honoring temporary audit overrides."""
+    override = (context or {}).get("_model_sequence_override", {})
+    if isinstance(override, dict) and agent_num in override:
+        models = override.get(agent_num) or []
+        return list(dict.fromkeys(model for model in models if model))
+    return get_agent_model_sequence(agent_num)
 
 
 def is_quota_or_rate_error(error_msg: str) -> bool:
@@ -715,7 +732,7 @@ def ensure_context_digest(agent_num: int, context: dict, rotator: KeyRotator):
         return
 
     prompt = _build_context_digest_prompt(agent_num, context)
-    for model_id in get_agent_model_sequence(agent_num):
+    for model_id in get_context_digest_model_sequence():
         try:
             response = _generate_context_digest_content(rotator.get_key(model_id), model_id, prompt)
             digests[agent_num] = _normalize_digest_text(_response_text(response), agent_num, context)
@@ -747,7 +764,7 @@ async def ensure_context_digest_async(agent_num: int, context: dict, rotator: Ke
         return
 
     prompt = _build_context_digest_prompt(agent_num, context)
-    for model_id in get_agent_model_sequence(agent_num):
+    for model_id in get_context_digest_model_sequence():
         try:
             api_key = await rotator.async_get_key(model_id)
             response = await _generate_context_digest_content_async(api_key, model_id, prompt)
@@ -963,7 +980,8 @@ def run_single_agent(
     except RuntimeError:
         return asyncio.run(run_single_agent_async(agent_num, data, context, rotator, max_retries))
 
-    model_id = AGENT_MODELS[agent_num]
+    model_sequence = get_runtime_model_sequence(agent_num, context)
+    model_id = model_sequence[0]
     prompt = build_prompt(agent_num, data, context)
     
     for attempt in range(max_retries):
@@ -991,7 +1009,7 @@ def run_single_agent(
             elif "404" in error_msg or "not found" in error_msg.lower():
                 print(f"    ❌ 模型 {model_id} 不可用，嘗試備用模型...")
                 # 嘗試備用模型
-                backup_models = MODEL_FALLBACKS.get(model_id, [])
+                backup_models = [model for model in model_sequence[1:] if model != model_id]
                 for backup in backup_models:
                     try:
                         response = _generate_content(rotator.get_key(backup), backup, agent_num, prompt)
@@ -1003,20 +1021,7 @@ def run_single_agent(
                 print(f"    ❌ 錯誤：{error_msg[:100]}... 重試 ({attempt+1}/{max_retries})")
                 time.sleep(10 * (attempt + 1))
     
-    # 如果重試皆失敗，自動降級/備援至最穩定的 gemini-3.5-flash
-    print(f"    ⚠️ 模型 {model_id} 多次失敗，啟用備援機制 (gemini-3.5-flash)...")
-    try:
-        response = _generate_content(
-            rotator.get_key("gemini-3.5-flash"),
-            "gemini-3.5-flash",
-            agent_num,
-            prompt,
-        )
-        return process_agent_response(agent_num, _response_text(response), context)
-    except Exception as e:
-        if is_quota_or_rate_error(str(e)):
-            return f"[Agent {agent_num} 執行失敗且備援無效：{describe_quota_or_rate_error(e)[:120]}]"
-        return f"[Agent {agent_num} 執行失敗且備援無效：{str(e)[:120]}]"
+    return f"[Agent {agent_num} 執行失敗：模型 {model_id} 多次失敗，未啟用跨模型 fallback]"
 
 
 async def run_single_agent_async(
@@ -1032,7 +1037,7 @@ async def run_single_agent_async(
     - quota/rate limit 會快速切換下一組 Key 或下一個模型
     """
     prompt = build_prompt(agent_num, data, context)
-    model_sequence = get_agent_model_sequence(agent_num)
+    model_sequence = get_runtime_model_sequence(agent_num, context)
     last_error = ""
 
     for model_index, model_id in enumerate(model_sequence):
@@ -2195,7 +2200,7 @@ def generate_audit_reflection(agent_num: int, issues: list[str], previous_text: 
         return _fallback_audit_reflection(agent_num, issues)
 
     prompt = _build_audit_reflection_prompt(agent_num, issues, previous_text, data)
-    for model_id in get_agent_model_sequence(agent_num):
+    for model_id in get_audit_model_sequence():
         try:
             response = _generate_reflection_content(rotator.get_key(model_id), model_id, prompt)
             text = sanitize_model_output(_response_text(response))
@@ -2214,7 +2219,7 @@ async def generate_audit_reflection_async(agent_num: int, issues: list[str], pre
         return _fallback_audit_reflection(agent_num, issues)
 
     prompt = _build_audit_reflection_prompt(agent_num, issues, previous_text, data)
-    for model_id in get_agent_model_sequence(agent_num):
+    for model_id in get_audit_model_sequence():
         try:
             api_key = await rotator.async_get_key(model_id)
             response = await _generate_reflection_content_async(api_key, model_id, prompt)
@@ -2271,6 +2276,7 @@ def _repair_agent_output(agent_num: int, data: dict, context: dict, rotator: Key
     """Synchronously ask the relevant agent to rewrite after final audit failure."""
     previous_instruction = context.get("_audit_retry_instruction")
     previous_reflection_instruction = context.get("_audit_reflection_instruction")
+    previous_model_override = context.get("_model_sequence_override")
     try:
         current_issues = list(issues)
         last_result = None
@@ -2285,6 +2291,9 @@ def _repair_agent_output(agent_num: int, data: dict, context: dict, rotator: Key
             )
             context["_audit_reflection_instruction"] = build_audit_reflection_instruction(reflection)
             context["_audit_retry_instruction"] = build_audit_retry_instruction(agent_num, current_issues)
+            model_override = dict(context.get("_model_sequence_override", {}) or {})
+            model_override[agent_num] = get_audit_model_sequence()
+            context["_model_sequence_override"] = model_override
             context["structured_outputs"].pop(agent_num, None)
             result = run_single_agent(agent_num, data, context, rotator, max_retries=1)
             result = sanitize_model_output(result)
@@ -2318,12 +2327,17 @@ def _repair_agent_output(agent_num: int, data: dict, context: dict, rotator: Key
             context.pop("_audit_reflection_instruction", None)
         else:
             context["_audit_reflection_instruction"] = previous_reflection_instruction
+        if previous_model_override is None:
+            context.pop("_model_sequence_override", None)
+        else:
+            context["_model_sequence_override"] = previous_model_override
 
 
 async def _repair_agent_output_async(agent_num: int, data: dict, context: dict, rotator: KeyRotator, issues: list[str]) -> tuple[bool, str]:
     """Asynchronously ask the relevant agent to rewrite after final audit failure."""
     previous_instruction = context.get("_audit_retry_instruction")
     previous_reflection_instruction = context.get("_audit_reflection_instruction")
+    previous_model_override = context.get("_model_sequence_override")
     try:
         current_issues = list(issues)
         last_result = None
@@ -2338,6 +2352,9 @@ async def _repair_agent_output_async(agent_num: int, data: dict, context: dict, 
             )
             context["_audit_reflection_instruction"] = build_audit_reflection_instruction(reflection)
             context["_audit_retry_instruction"] = build_audit_retry_instruction(agent_num, current_issues)
+            model_override = dict(context.get("_model_sequence_override", {}) or {})
+            model_override[agent_num] = get_audit_model_sequence()
+            context["_model_sequence_override"] = model_override
             context["structured_outputs"].pop(agent_num, None)
             result = await run_single_agent_async(agent_num, data, context, rotator, max_retries=1)
             result = sanitize_model_output(result)
@@ -2371,6 +2388,10 @@ async def _repair_agent_output_async(agent_num: int, data: dict, context: dict, 
             context.pop("_audit_reflection_instruction", None)
         else:
             context["_audit_reflection_instruction"] = previous_reflection_instruction
+        if previous_model_override is None:
+            context.pop("_model_sequence_override", None)
+        else:
+            context["_model_sequence_override"] = previous_model_override
 
 
 def attempt_final_audit_repair(context: dict, audit: dict, rotator: KeyRotator):

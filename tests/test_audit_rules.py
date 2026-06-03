@@ -478,6 +478,19 @@ class AuditRuleTests(unittest.TestCase):
             ["calculate_cagr", "calculate_wacc", "calculate_dcf", "calculate_ddm"],
         )
 
+    def test_model_routing_policy(self):
+        for agent_num in range(1, 7):
+            self.assertEqual(ar.AGENT_MODELS[agent_num], "gemma-4-31b-it")
+            self.assertEqual(ar.get_agent_model_sequence(agent_num), ["gemma-4-31b-it"])
+
+        self.assertEqual(ar.AGENT_MODELS[7], "gemini-3.5-flash")
+        self.assertEqual(ar.get_agent_model_sequence(7), ["gemini-3.5-flash"])
+        self.assertEqual(ar.get_audit_model_sequence(), ["gemini-3.5-flash"])
+        self.assertEqual(ar.get_context_digest_model_sequence(), ["gemma-4-31b-it"])
+
+        context = {"_model_sequence_override": {2: ar.get_audit_model_sequence()}}
+        self.assertEqual(ar.get_runtime_model_sequence(2, context), ["gemini-3.5-flash"])
+
     def test_cyclical_low_pe_redline(self):
         data = {
             "company_name": "測試航運",

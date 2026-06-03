@@ -707,7 +707,7 @@ def generate_markdown_report(context: dict) -> str:
 | **Yahoo Finance (yfinance)** | 市場即時資料、年度財務報表、估值指標、負債結構、分析師評等 | pypi.org/project/yfinance |
 | **FinMind Open Data** | 台股每月營收、新聞、三大法人買賣超、PER/PBR 河流圖資料 | finmindtrade.com |
 | **Google Custom Search / FMP / Yahoo News** | 近期新聞、法說會、供應鏈與市場催化劑 | 依環境變數與可用 API 自動 fallback |
-| **Google Gemini AI** | 七位 AI 分析師論述（gemini-3.5-flash 、gemma-4-31b-it） | Goldman Sachs / Morgan Stanley / BlackRock / JPMorgan / Fidelity / T. Rowe Price 人設 |
+| **Google Gemini AI** | 七位 AI 分析師論述（Agent 1-6: gemma-4-31b-it；Agent 7/最終稽核: gemini-3.5-flash） | Goldman Sachs / Morgan Stanley / BlackRock / JPMorgan / Fidelity / T. Rowe Price 人設 |
 | **公開資訊觀測站 (MOPS/TWSE)** | 台灣證券交易所官方財務公邖 | 可作為數據核對基準 |
 
 > ⚠️ **數據誤差訴明**：Yahoo Finance 所提供的台股歷史財務報表有時存在年份缺失或延遲問題；`Debt to Equity` 指標已轉換為百分比形式；歷史營收、淨利、現金流等數據單位為 **Billion TWD (10億台幣)**。建議將本報告筆記的財務數據与公開資訊觀測站進行交叉比對。

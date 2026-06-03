@@ -79,8 +79,7 @@ export GEMINI_API_KEYS="your_key_1,your_key_2"
 
 可選設定：
 
-- `GEMINI_FLASH_FALLBACK_MODELS`：`gemini-3.5-flash` 配額用盡時的備援順序，預設為 `gemini-flash-latest,gemini-3-flash-preview,gemini-2.5-flash,gemma-4-31b-it`
-- `GEMMA_FALLBACK_MODELS`：`gemma-4-31b-it` 不可用時的備援順序，預設為 `gemini-flash-latest,gemini-3.5-flash,gemini-2.5-flash`
+- 模型路由固定為 Agent 1-6 與提煉摘要使用 `gemma-4-31b-it`，Agent 7 與最終稽核/修復使用 `gemini-3.5-flash`
 - `OUTPUT_DIR`：報告輸出目錄，預設 `backend/output/`
 - `CACHE_DB_PATH`：SQLite 快取檔位置，預設 `backend/cache/stock_agent_cache.sqlite3`
 - `FINANCIAL_DATA_CACHE_SECONDS`：財務資料快取秒數，預設 `86400`

@@ -83,28 +83,18 @@ API_KEY_SETUP_MESSAGE = (
 refresh_api_keys()
 
 # 各 Agent 的模型分配
-# gemini-3.5-flash：複雜推理分析（商業、估值、辯論、決策）
-# gemma-4-31b-it：資料處理分析（財務、護城河、成長）
+# Agent 1-6 與提煉摘要：統一使用 gemma-4-31b-it
+# Agent 7（最終投資決策）與最終稽核/修復：使用 gemini-3.5-flash
+CONTEXT_DIGEST_MODEL = "gemma-4-31b-it"
+AUDIT_MODEL = "gemini-3.5-flash"
 AGENT_MODELS = {
-    1: "gemini-3.5-flash",   # 商業模式與整體分析（需深度推理）
-    2: "gemma-4-31b-it",     # 五年財務數據分析（資料密集）
-    3: "gemma-4-31b-it",     # 競爭護城河評估（結構化評分）
-    4: "gemini-3.5-flash",   # 估值分析（複雜金融建模）
-    5: "gemma-4-31b-it",     # 未來成長潛力（市場分析）
-    6: "gemini-3.5-flash",   # 多空辯論（創意對話生成）
+    1: "gemma-4-31b-it",     # 商業模式與整體分析
+    2: "gemma-4-31b-it",     # 五年財務數據分析
+    3: "gemma-4-31b-it",     # 競爭護城河評估
+    4: "gemma-4-31b-it",     # 估值分析
+    5: "gemma-4-31b-it",     # 未來成長潛力
+    6: "gemma-4-31b-it",     # 多空辯論
     7: "gemini-3.5-flash",   # 最終投資決策（綜合判斷）
-}
-
-# 模型備援順序。當主模型 quota 用盡或不可用時，會依序嘗試這些模型。
-MODEL_FALLBACKS = {
-    "gemini-3.5-flash": _split_keys(os.getenv(
-        "GEMINI_FLASH_FALLBACK_MODELS",
-        "gemini-flash-latest,gemini-3-flash-preview,gemini-2.5-flash,gemma-4-31b-it",
-    )),
-    "gemma-4-31b-it": _split_keys(os.getenv(
-        "GEMMA_FALLBACK_MODELS",
-        "gemini-flash-latest,gemini-3.5-flash,gemini-2.5-flash",
-    )),
 }
 
 # 速率限制（每個 API Key）
