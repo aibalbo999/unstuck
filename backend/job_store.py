@@ -96,6 +96,34 @@ def find_active_job(ticker: str) -> dict:
     return dict(row) if row else {}
 
 
+def mark_incomplete_jobs_abandoned(reason: str) -> int:
+    """Mark queued/running local jobs as abandoned after a server restart."""
+    now = time.time()
+    with _JOB_LOCK, _connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT job_id
+            FROM analysis_jobs
+            WHERE status IN ('queued', 'running')
+            """
+        ).fetchall()
+        job_ids = [row["job_id"] for row in rows]
+        if job_ids:
+            conn.executemany(
+                """
+                UPDATE analysis_jobs
+                SET status = 'error', error = ?, updated_at = ?
+                WHERE job_id = ?
+                """,
+                [(reason, now, job_id) for job_id in job_ids],
+            )
+
+    for job_id in job_ids:
+        append_event(job_id, {"type": "error", "message": reason})
+
+    return len(job_ids)
+
+
 def append_event(job_id: str, payload: dict) -> None:
     now = time.time()
     with _JOB_LOCK, _connect() as conn:
@@ -107,6 +135,24 @@ def append_event(job_id: str, payload: dict) -> None:
             "UPDATE analysis_jobs SET updated_at = ? WHERE job_id = ? AND status IN ('queued', 'running')",
             (now, job_id),
         )
+    _print_job_event(job_id, payload)
+
+
+def _print_job_event(job_id: str, payload: dict) -> None:
+    event_type = payload.get("type", "event")
+    message = payload.get("message") or payload.get("name") or payload.get("filename") or ""
+    if event_type == "progress":
+        message = f"Agent {payload.get('current')}/{payload.get('total')} 完成：{payload.get('name', '')}"
+    elif event_type == "done":
+        message = f"報告生成完成：{payload.get('filename', '')}"
+    elif event_type == "error":
+        message = f"錯誤：{message}"
+
+    detail = payload.get("detail")
+    line = f"[job {job_id[:8]}] {event_type}: {message}"
+    if detail:
+        line += f" | {detail}"
+    print(line[:500], flush=True)
 
 
 def get_events_since(job_id: str, after_id: int = 0) -> list[dict]:

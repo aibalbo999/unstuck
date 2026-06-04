@@ -4,9 +4,11 @@
 # ============================================================
 
 import asyncio
-import time
-from typing import Any, Optional
+from typing import Optional
 from google.genai import types
+from tenacity import AsyncRetrying, Retrying, retry_if_exception_type, stop_after_attempt, wait_exponential
+
+from analysis_types import AnalysisContext, AuditResult, StockData
 from agent_catalog import AGENT_NAMES
 from assistant_tasks import (
     CONTEXT_DIGEST_TARGET_AGENTS,
@@ -35,6 +37,7 @@ from llm_client import (
     retry_delay_seconds,
 )
 from prompt_loader import load_agent_prompt_config
+from prompt_builder import render_prompt_template
 from prompt_rules import (
     build_agent_rule_block,
     build_identity_guard_rule_lines,
@@ -46,6 +49,7 @@ from structured_outputs import (
     _coerce_number,
     _extract_json_payload,
     build_structured_output_instruction,
+    get_structured_response_schema,
     normalize_structured_output,
     parse_structured_data,
     price_targets_have_unit_error,
@@ -78,6 +82,31 @@ ANALYSIS_PROMPTS = {int(k): v for k, v in PROMPT_CONFIG["analysis_prompts"].item
 FINAL_AUDIT_REPAIR_PASSES = 2
 
 
+class AgentRetryableError(Exception):
+    """Base class for errors that should be retried by tenacity."""
+
+
+class AgentShortResponseError(AgentRetryableError):
+    """Raised when the model returns content too short to be report-ready."""
+
+
+class AgentTransientError(AgentRetryableError):
+    """Raised for provider-side transient failures such as 503/timeouts."""
+
+
+class AgentRateLimitError(AgentRetryableError):
+    """Raised for quota/rate-limit responses with provider-aware wait time."""
+
+    def __init__(self, detail: str, wait_seconds: float):
+        super().__init__(detail)
+        self.detail = detail
+        self.wait_seconds = wait_seconds
+
+
+class AgentMissingModelError(Exception):
+    """Raised when the selected model is unavailable and should not be retried."""
+
+
 def get_agent_function_tools(agent_num: int) -> list:
     """Return Python function tools for agents that need deterministic math."""
     if agent_num == 2:
@@ -102,7 +131,7 @@ def get_context_digest_model_sequence() -> list[str]:
     return [CONTEXT_DIGEST_MODEL]
 
 
-def get_runtime_model_sequence(agent_num: int, context: Optional[dict] = None) -> list[str]:
+def get_runtime_model_sequence(agent_num: int, context: Optional[AnalysisContext] = None) -> list[str]:
     """Return the active model sequence, honoring temporary audit overrides."""
     override = (context or {}).get("_model_sequence_override", {})
     if isinstance(override, dict) and agent_num in override:
@@ -117,7 +146,7 @@ def is_agent_execution_failure(text: str) -> bool:
 
 OUTPUT_CLEANLINESS_RULE = build_output_cleanliness_rule()
 
-def build_company_identity_guard(data: dict) -> str:
+def build_company_identity_guard(data: StockData) -> str:
     """Build a hard identity lock so agents do not assign peer facts to the target company."""
     identity = data.get("company_identity", {}) or {}
     if not identity:
@@ -142,6 +171,11 @@ def build_company_identity_guard(data: dict) -> str:
     return "\n".join(lines)
 
 
+def _generate_config_supports(field_name: str) -> bool:
+    fields = getattr(types.GenerateContentConfig, "model_fields", {}) or {}
+    return field_name in fields
+
+
 def build_generation_config(agent_num: int, system_instruction: Optional[str] = None):
     """Build Google GenAI generation config, using JSON MIME type where supported."""
     config_kwargs = {
@@ -153,6 +187,9 @@ def build_generation_config(agent_num: int, system_instruction: Optional[str] = 
         config_kwargs["system_instruction"] = system_instruction
     if agent_num in STRUCTURED_AGENT_INSTRUCTIONS:
         config_kwargs["response_mime_type"] = "application/json"
+        response_schema = get_structured_response_schema(agent_num)
+        if response_schema and _generate_config_supports("response_schema"):
+            config_kwargs["response_schema"] = response_schema
     function_tools = get_agent_function_tools(agent_num)
     if function_tools:
         config_kwargs["tools"] = function_tools
@@ -161,6 +198,12 @@ def build_generation_config(agent_num: int, system_instruction: Optional[str] = 
     try:
         return types.GenerateContentConfig(**config_kwargs)
     except TypeError:
+        if "response_schema" in config_kwargs:
+            config_kwargs.pop("response_schema", None)
+            try:
+                return types.GenerateContentConfig(**config_kwargs)
+            except TypeError:
+                pass
         config_kwargs.pop("response_mime_type", None)
         config_kwargs.pop("automatic_function_calling", None)
         config_kwargs.pop("tools", None)
@@ -181,6 +224,103 @@ async def _generate_content_async(api_key: str, model_id: str, agent_num: int, p
     return await generate_content_async(api_key, model_id, prompt, config)
 
 
+BASE_AGENT_RETRY_WAIT = wait_exponential(multiplier=2, min=1, max=30)
+
+
+def _is_transient_provider_error(error_msg: str) -> bool:
+    normalized = (error_msg or "").lower()
+    return any(
+        marker in normalized
+        for marker in [
+            "503",
+            "500",
+            "unavailable",
+            "deadline",
+            "timeout",
+            "temporarily",
+            "connection",
+        ]
+    )
+
+
+def _agent_retry_wait(retry_state) -> float:
+    exc = retry_state.outcome.exception() if retry_state.outcome else None
+    if isinstance(exc, AgentRateLimitError):
+        return max(float(exc.wait_seconds), 1.0)
+    return BASE_AGENT_RETRY_WAIT(retry_state)
+
+
+def _log_agent_retry(retry_state):
+    exc = retry_state.outcome.exception() if retry_state.outcome else None
+    sleep = getattr(retry_state.next_action, "sleep", 0) or 0
+    attempt = retry_state.attempt_number
+    if isinstance(exc, AgentRateLimitError):
+        print(f"    ⏳ 配額/速率限制：{exc.detail[:160]}... 等待 {sleep:.1f} 秒後重試（第 {attempt} 次）")
+    elif isinstance(exc, AgentShortResponseError):
+        print(f"    ⚠️  回應過短，等待 {sleep:.1f} 秒後重試（第 {attempt} 次）")
+    else:
+        print(f"    ❌ 暫時性錯誤：{str(exc)[:120]}... 等待 {sleep:.1f} 秒後重試（第 {attempt} 次）")
+
+
+def _raise_agent_call_error(exc: Exception, api_key: Optional[str], model_id: str, rotator: KeyRotator, quota_default: float):
+    error_msg = str(exc)
+    if is_quota_or_rate_error(error_msg):
+        wait_time = retry_delay_seconds(exc, default=quota_default)
+        if api_key:
+            rotator.penalize(api_key, model_id, wait_time)
+        raise AgentRateLimitError(describe_quota_or_rate_error(exc), wait_time) from exc
+
+    if is_missing_model_error(error_msg):
+        raise AgentMissingModelError(error_msg) from exc
+
+    if _is_transient_provider_error(error_msg):
+        raise AgentTransientError(error_msg) from exc
+
+    raise AgentTransientError(error_msg) from exc
+
+
+def _run_agent_once(
+    agent_num: int,
+    context: AnalysisContext,
+    rotator: KeyRotator,
+    model_id: str,
+    prompt: str,
+    quota_default: float = 65,
+) -> str:
+    api_key = None
+    try:
+        api_key = rotator.get_key(model_id, estimate_text_tokens(prompt, response_budget=8192))
+        response = _generate_content(api_key, model_id, agent_num, prompt)
+        result = process_agent_response(agent_num, _response_text(response), context)
+    except Exception as exc:
+        _raise_agent_call_error(exc, api_key, model_id, rotator, quota_default)
+
+    if result and len(result) > 100:
+        return result
+    raise AgentShortResponseError("模型回應過短，無法形成正式報告段落")
+
+
+async def _run_agent_once_async(
+    agent_num: int,
+    context: AnalysisContext,
+    rotator: KeyRotator,
+    model_id: str,
+    prompt: str,
+    quota_default: float = 1,
+) -> str:
+    api_key = None
+    try:
+        api_key = await rotator.async_get_key(model_id, estimate_text_tokens(prompt, response_budget=8192))
+        response = await _generate_content_async(api_key, model_id, agent_num, prompt)
+        result = process_agent_response(agent_num, _response_text(response), context)
+    except Exception as exc:
+        _raise_agent_call_error(exc, api_key, model_id, rotator, quota_default)
+
+    if result and len(result) > 100:
+        return result
+    raise AgentShortResponseError("模型回應過短，無法形成正式報告段落")
+
+
 def build_numeric_tool_instruction(agent_num: int) -> str:
     """Prompt agents with deterministic tool usage guidance."""
     return build_agent_rule_block("numeric_tool_instructions", agent_num)
@@ -191,7 +331,7 @@ def build_data_enrichment_instruction(agent_num: int) -> str:
     return build_agent_rule_block("data_enrichment_instructions", agent_num)
 
 
-def build_prompt(agent_num: int, data: dict, context: dict) -> str:
+def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> str:
     """根據 Agent 編號建立分析提示詞。"""
     ticker = data["ticker"]
     name = data["company_name"]
@@ -205,11 +345,17 @@ def build_prompt(agent_num: int, data: dict, context: dict) -> str:
     audit_reflection_instruction = context.get("_audit_reflection_instruction", "")
 
     template = ANALYSIS_PROMPTS[agent_num]
-    analysis_prompt = template.format(
-        ticker=ticker,
-        name=name,
-        fin_data=fin_data,
-        prev=prev,
+    analysis_prompt = render_prompt_template(
+        template,
+        {
+            "ticker": ticker,
+            "name": name,
+            "fin_data": fin_data,
+            "prev": prev,
+            "data": data,
+            "context": context,
+            "agent_num": agent_num,
+        },
     )
 
     structured_instruction = build_structured_output_instruction(agent_num)
@@ -233,8 +379,8 @@ def build_prompt(agent_num: int, data: dict, context: dict) -> str:
 
 def run_single_agent(
     agent_num: int,
-    data: dict,
-    context: dict,
+    data: StockData,
+    context: AnalysisContext,
     rotator: KeyRotator,
     max_retries: int = 3
 ) -> str:
@@ -250,57 +396,40 @@ def run_single_agent(
         return asyncio.run(run_single_agent_async(agent_num, data, context, rotator, max_retries))
 
     model_sequence = get_runtime_model_sequence(agent_num, context)
-    model_id = model_sequence[0]
     prompt = build_prompt(agent_num, data, context)
-    
-    for attempt in range(max_retries):
-        api_key = None
+    last_error = ""
+
+    for model_index, model_id in enumerate(model_sequence):
+        if model_index > 0:
+            print(f"    🔁 切換備援模型：{model_id}")
+
+        retryer = Retrying(
+            stop=stop_after_attempt(max(1, max_retries)),
+            wait=_agent_retry_wait,
+            retry=retry_if_exception_type(AgentRetryableError),
+            before_sleep=_log_agent_retry,
+            reraise=True,
+        )
         try:
-            # 取得可用 API Key
-            api_key = rotator.get_key(model_id, estimate_text_tokens(prompt, response_budget=8192))
-            
-            # 執行分析
-            response = _generate_content(api_key, model_id, agent_num, prompt)
-            result = process_agent_response(agent_num, _response_text(response), context)
-            
-            if result and len(result) > 100:
-                return result
-            else:
-                print(f"    ⚠️  回應過短，重試 ({attempt+1}/{max_retries})")
-                time.sleep(5)
-                
-        except Exception as e:
-            error_msg = str(e)
-            if is_quota_or_rate_error(error_msg):
-                wait_time = retry_delay_seconds(e, default=65 * (attempt + 1))
-                if api_key:
-                    rotator.penalize(api_key, model_id, wait_time)
-                quota_detail = describe_quota_or_rate_error(e)
-                print(f"    ⏳ 配額/速率限制：{quota_detail[:160]}... 等待 {wait_time} 秒 ({attempt+1}/{max_retries})")
-                time.sleep(wait_time)
-            elif "404" in error_msg or "not found" in error_msg.lower():
-                print(f"    ❌ 模型 {model_id} 不可用，嘗試備用模型...")
-                # 嘗試備用模型
-                backup_models = [model for model in model_sequence[1:] if model != model_id]
-                for backup in backup_models:
-                    try:
-                        backup_key = rotator.get_key(backup, estimate_text_tokens(prompt, response_budget=8192))
-                        response = _generate_content(backup_key, backup, agent_num, prompt)
-                        return process_agent_response(agent_num, _response_text(response), context)
-                    except Exception:
-                        continue
-                return f"[Agent {agent_num} 執行失敗：模型不可用]"
-            else:
-                print(f"    ❌ 錯誤：{error_msg[:100]}... 重試 ({attempt+1}/{max_retries})")
-                time.sleep(10 * (attempt + 1))
-    
-    return f"[Agent {agent_num} 執行失敗：模型 {model_id} 多次失敗，未啟用跨模型 fallback]"
+            for attempt in retryer:
+                with attempt:
+                    return _run_agent_once(agent_num, context, rotator, model_id, prompt)
+        except AgentMissingModelError as exc:
+            last_error = str(exc)
+            print(f"    ❌ 模型 {model_id} 不可用，改試下一個備援模型...")
+            continue
+        except AgentRetryableError as exc:
+            last_error = str(exc)
+            print(f"    ❌ {model_id} 多次重試後仍失敗：{last_error[:120]}")
+            continue
+
+    return f"[Agent {agent_num} 執行失敗：所有模型/Key 不可用，最後錯誤：{last_error[:120]}]"
 
 
 async def run_single_agent_async(
     agent_num: int,
-    data: dict,
-    context: dict,
+    data: StockData,
+    context: AnalysisContext,
     rotator: KeyRotator,
     max_retries: int = 3
 ) -> str:
@@ -318,45 +447,25 @@ async def run_single_agent_async(
             print(f"    🔁 切換備援模型：{model_id}")
 
         attempts_for_model = max(max_retries, len(rotator.keys)) if model_index == 0 else len(rotator.keys)
-
-        for attempt in range(attempts_for_model):
-            api_key = None
-            try:
-                api_key = await rotator.async_get_key(model_id, estimate_text_tokens(prompt, response_budget=8192))
-
-                response = await _generate_content_async(api_key, model_id, agent_num, prompt)
-                result = process_agent_response(agent_num, _response_text(response), context)
-
-                if result and len(result) > 100:
-                    return result
-
-                last_error = "回應過短"
-                print(f"    ⚠️  {model_id} 回應過短，嘗試下一組 Key/模型 ({attempt+1}/{attempts_for_model})")
-                await asyncio.sleep(1)
-
-            except Exception as e:
-                error_msg = str(e)
-                last_error = error_msg
-
-                if is_quota_or_rate_error(error_msg):
-                    quota_detail = describe_quota_or_rate_error(e)
-                    wait_time = retry_delay_seconds(e, default=1)
-                    if api_key:
-                        rotator.penalize(api_key, model_id, wait_time)
-                    last_error = quota_detail
-                    print(
-                        f"    ⏭️  {model_id} 配額/速率限制：{quota_detail[:160]}... "
-                        f"改試下一組 Key/模型 ({attempt+1}/{attempts_for_model})"
-                    )
-                    await asyncio.sleep(1)
-                    continue
-
-                if is_missing_model_error(error_msg):
-                    print(f"    ❌ 模型 {model_id} 不可用，改試下一個備援模型...")
-                    break
-
-                print(f"    ❌ {model_id} 錯誤：{error_msg[:100]}... 非同步重試 ({attempt+1}/{attempts_for_model})")
-                await asyncio.sleep(min(10 * (attempt + 1), 30))
+        retryer = AsyncRetrying(
+            stop=stop_after_attempt(max(1, attempts_for_model)),
+            wait=_agent_retry_wait,
+            retry=retry_if_exception_type(AgentRetryableError),
+            before_sleep=_log_agent_retry,
+            reraise=True,
+        )
+        try:
+            async for attempt in retryer:
+                with attempt:
+                    return await _run_agent_once_async(agent_num, context, rotator, model_id, prompt)
+        except AgentMissingModelError as exc:
+            last_error = str(exc)
+            print(f"    ❌ 模型 {model_id} 不可用，改試下一個備援模型...")
+            continue
+        except AgentRetryableError as exc:
+            last_error = str(exc)
+            print(f"    ❌ {model_id} 多次重試後仍失敗：{last_error[:120]}")
+            continue
 
     return f"[Agent {agent_num} 執行失敗：所有模型/Key 不可用，最後錯誤：{last_error[:120]}]"
 
@@ -365,14 +474,14 @@ async def run_single_agent_async(
 # 主要執行管道
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-def run_analysis_pipeline(data: dict, progress_callback=None) -> dict:
+def run_analysis_pipeline(data: StockData, progress_callback=None) -> AnalysisContext:
     """Compatibility wrapper; orchestration lives in pipeline.py."""
     from pipeline import run_analysis_pipeline as _run_analysis_pipeline
 
     return _run_analysis_pipeline(data, progress_callback=progress_callback)
 
 
-async def run_analysis_pipeline_async(data: dict, progress_callback=None) -> dict:
+async def run_analysis_pipeline_async(data: StockData, progress_callback=None) -> AnalysisContext:
     """Compatibility wrapper; async DAG orchestration lives in pipeline.py."""
     from pipeline import run_analysis_pipeline_async as _run_analysis_pipeline_async
 
@@ -388,7 +497,7 @@ def _build_reflection_generation_config():
     )
 
 
-def _build_audit_reflection_prompt(agent_num: int, issues: list[str], previous_text: str, data: dict) -> str:
+def _build_audit_reflection_prompt(agent_num: int, issues: list[str], previous_text: str, data: StockData) -> str:
     issue_lines = "\n".join(f"- {issue}" for issue in issues[:8])
     previous_clean = strip_generated_audit_sections(previous_text or "")
     return (
@@ -421,7 +530,7 @@ async def _generate_reflection_content_async(api_key: str, model_id: str, prompt
     return await generate_content_async(api_key, model_id, prompt, _build_reflection_generation_config())
 
 
-def generate_audit_reflection(agent_num: int, issues: list[str], previous_text: str, data: dict, rotator: KeyRotator) -> str:
+def generate_audit_reflection(agent_num: int, issues: list[str], previous_text: str, data: StockData, rotator: KeyRotator) -> str:
     """Generate a pre-rewrite reflection, falling back deterministically if needed."""
     if not isinstance(rotator, KeyRotator):
         return _fallback_audit_reflection(agent_num, issues)
@@ -441,7 +550,7 @@ def generate_audit_reflection(agent_num: int, issues: list[str], previous_text: 
     return _fallback_audit_reflection(agent_num, issues)
 
 
-async def generate_audit_reflection_async(agent_num: int, issues: list[str], previous_text: str, data: dict, rotator: KeyRotator) -> str:
+async def generate_audit_reflection_async(agent_num: int, issues: list[str], previous_text: str, data: StockData, rotator: KeyRotator) -> str:
     """Async pre-rewrite reflection."""
     if not isinstance(rotator, KeyRotator):
         return _fallback_audit_reflection(agent_num, issues)
@@ -489,7 +598,7 @@ def build_audit_retry_instruction(agent_num: int, issues: list[str]) -> str:
     )
 
 
-def _clear_agent_blocking_issues(context: dict, agent_num: int):
+def _clear_agent_blocking_issues(context: AnalysisContext, agent_num: int):
     agent_name = AGENT_NAMES.get(agent_num, f"Agent {agent_num}")
     prefixes = (f"Agent {agent_num} ", f"Agent {agent_num}: ", f"{agent_name}: ")
     context["blocking_issues"] = [
@@ -500,7 +609,7 @@ def _clear_agent_blocking_issues(context: dict, agent_num: int):
         context.pop("blocking_issues", None)
 
 
-def _repair_agent_output(agent_num: int, data: dict, context: dict, rotator: KeyRotator, issues: list[str]) -> tuple[bool, str]:
+def _repair_agent_output(agent_num: int, data: StockData, context: AnalysisContext, rotator: KeyRotator, issues: list[str]) -> tuple[bool, str]:
     """Synchronously ask the relevant agent to rewrite after final audit failure."""
     previous_instruction = context.get("_audit_retry_instruction")
     previous_reflection_instruction = context.get("_audit_reflection_instruction")
@@ -561,7 +670,7 @@ def _repair_agent_output(agent_num: int, data: dict, context: dict, rotator: Key
             context["_model_sequence_override"] = previous_model_override
 
 
-async def _repair_agent_output_async(agent_num: int, data: dict, context: dict, rotator: KeyRotator, issues: list[str]) -> tuple[bool, str]:
+async def _repair_agent_output_async(agent_num: int, data: StockData, context: AnalysisContext, rotator: KeyRotator, issues: list[str]) -> tuple[bool, str]:
     """Asynchronously ask the relevant agent to rewrite after final audit failure."""
     previous_instruction = context.get("_audit_retry_instruction")
     previous_reflection_instruction = context.get("_audit_reflection_instruction")
@@ -622,7 +731,7 @@ async def _repair_agent_output_async(agent_num: int, data: dict, context: dict, 
             context["_model_sequence_override"] = previous_model_override
 
 
-def attempt_final_audit_repair(context: dict, audit: dict, rotator: KeyRotator):
+def attempt_final_audit_repair(context: AnalysisContext, audit: AuditResult, rotator: KeyRotator):
     repair_requests = audit.get("repair_agent_issues", {}) or {}
     if not repair_requests:
         context.setdefault("audit_repair_log", []).append("最終稽核發現問題，但沒有可定位到單一 Agent 的自動重寫項目；報告會保留並標示異常。")
@@ -639,7 +748,7 @@ def attempt_final_audit_repair(context: dict, audit: dict, rotator: KeyRotator):
         print(f"     - {log}")
 
 
-async def attempt_final_audit_repair_async(context: dict, audit: dict, rotator: KeyRotator):
+async def attempt_final_audit_repair_async(context: AnalysisContext, audit: AuditResult, rotator: KeyRotator):
     repair_requests = audit.get("repair_agent_issues", {}) or {}
     if not repair_requests:
         context.setdefault("audit_repair_log", []).append("最終稽核發現問題，但沒有可定位到單一 Agent 的自動重寫項目；報告會保留並標示異常。")
@@ -656,16 +765,16 @@ async def attempt_final_audit_repair_async(context: dict, audit: dict, rotator: 
         print(f"     - {log}")
 
 
-def _summarize_audit_issues(audit: dict, limit: int = 3) -> str:
+def _summarize_audit_issues(audit: AuditResult, limit: int = 3) -> str:
     issues = [str(item) for item in (audit.get("critical", []) or [])[:limit]]
     return "；".join(issues) if issues else "無可列示異常"
 
 
 def finalize_final_audit(
-    context: dict,
+    context: AnalysisContext,
     rotator: KeyRotator,
     max_repair_passes: int = FINAL_AUDIT_REPAIR_PASSES,
-) -> dict:
+) -> AuditResult:
     """Run final audit, repair repairable failures, re-audit, then preserve report state."""
     last_audit = None
     for repair_pass in range(max_repair_passes + 1):
@@ -693,10 +802,10 @@ def finalize_final_audit(
 
 
 async def finalize_final_audit_async(
-    context: dict,
+    context: AnalysisContext,
     rotator: KeyRotator,
     max_repair_passes: int = FINAL_AUDIT_REPAIR_PASSES,
-) -> dict:
+) -> AuditResult:
     """Async final audit flow with repair and mandatory re-audit before rendering."""
     last_audit = None
     for repair_pass in range(max_repair_passes + 1):

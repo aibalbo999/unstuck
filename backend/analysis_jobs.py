@@ -61,8 +61,19 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str) -> str:
         if "error" in data:
             append_event(job_id, {"type": "status", "message": f"財務數據獲取有誤：{data['error']}，將繼續分析"})
 
-        def progress_callback(current, total, name):
-            append_event(job_id, {"type": "progress", "current": current, "total": total, "name": name})
+        def progress_callback(current, total, name, phase="completed", message=None):
+            if phase == "completed":
+                append_event(job_id, {"type": "progress", "current": current, "total": total, "name": name})
+                return
+
+            append_event(job_id, {
+                "type": "status",
+                "message": message or f"{name} 進行中...",
+                "detail": f"Agent {current}/{total} · {name}" if current and current <= total else str(name),
+                "current": current,
+                "total": total,
+                "phase": phase,
+            })
 
         append_event(job_id, {"type": "status", "message": "開始執行非同步分析 Agent..."})
         context = await run_analysis_pipeline_async(data, progress_callback=progress_callback)

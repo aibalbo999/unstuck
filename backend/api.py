@@ -1,8 +1,14 @@
 import asyncio
 import json
 import os
+import sys
 import time
 import re
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(line_buffering=True)
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(line_buffering=True)
 
 # 取得 api.py 所在目錄的絕對路徑，確保不論從哪裡啟動都能找到靜態檔案
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -16,8 +22,8 @@ import threading
 from typing import Optional
 
 from analysis_jobs import run_stock_analysis_job
-from config import API_KEY_SETUP_MESSAGE, OUTPUT_DIR, REPORT_CLEANUP_INTERVAL_SECONDS, REPORT_RETENTION_DAYS, has_api_keys
-from job_store import append_event, create_job, find_active_job, get_events_since, get_job, update_job
+from config import API_KEY_SETUP_MESSAGE, OUTPUT_DIR, REPORT_CLEANUP_INTERVAL_SECONDS, REPORT_RETENTION_DAYS, TASK_QUEUE_BACKEND, has_api_keys
+from job_store import append_event, create_job, find_active_job, get_events_since, get_job, mark_incomplete_jobs_abandoned, update_job
 from task_queue import create_task_queue
 
 app = FastAPI()
@@ -43,8 +49,30 @@ analysis_task_queue = create_task_queue()
 active_analyses_lock = threading.Lock()
 
 
+def print_streamed_event(job_id: str, payload: dict) -> None:
+    if TASK_QUEUE_BACKEND != "rq":
+        return
+    event_type = payload.get("type", "event")
+    message = payload.get("message") or payload.get("name") or payload.get("filename") or ""
+    if event_type == "progress":
+        message = f"Agent {payload.get('current')}/{payload.get('total')} 完成：{payload.get('name', '')}"
+    detail = payload.get("detail")
+    line = f"[stream {job_id[:8]}] {event_type}: {message}"
+    if detail:
+        line += f" | {detail}"
+    print(line[:500], flush=True)
+
+
 @app.on_event("startup")
 async def start_report_cleanup_loop():
+    if TASK_QUEUE_BACKEND == "local":
+        abandoned = await asyncio.to_thread(
+            mark_incomplete_jobs_abandoned,
+            "伺服器已重啟，舊的本地分析任務已中止；請重新送出分析。",
+        )
+        if abandoned:
+            print(f"已清理 {abandoned} 筆重啟後遺留的本地分析任務。", flush=True)
+
     async def cleanup_loop():
         while True:
             await asyncio.to_thread(cleanup_expired_reports)
@@ -281,6 +309,7 @@ async def analyze_stock(
                 for event in events:
                     last_sent_event_id = event["id"]
                     payload = event["payload"]
+                    print_streamed_event(job_id, payload)
                     yield {"id": str(event["id"]), "data": json.dumps(payload, ensure_ascii=False)}
 
                     if payload.get("type") in ["done", "error"]:

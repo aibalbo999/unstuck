@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Optional
 
+from analysis_types import AnalysisContext, AuditResult
 from agent_catalog import AGENT_NAMES
 from validators import (
     _extract_price_numbers,
@@ -39,7 +40,7 @@ def _add_unique_issue(items: list[str], issue: str):
         items.append(issue)
 
 
-def _append_final_audit_section(context: dict, audit: dict):
+def _append_final_audit_section(context: AnalysisContext, audit: AuditResult):
     """Expose non-blocking final audit notes in the final decision section."""
     if context.get("_final_audit_appended"):
         return
@@ -70,7 +71,7 @@ def _append_final_audit_section(context: dict, audit: dict):
     context["_final_audit_appended"] = True
 
 
-def run_final_report_audit(context: dict, append_section: bool = True) -> dict:
+def run_final_report_audit(context: AnalysisContext, append_section: bool = True) -> AuditResult:
     """
     Cross-agent final audit before report rendering.
 

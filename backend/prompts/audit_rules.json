@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "description": "Configurable text/regex hallucination guard rules for final audit and per-agent quality checks.",
+  "rules": [
+    {
+      "id": "dupont_gap_misattribution",
+      "all_substrings": ["ROA", "權益乘數"],
+      "any_substring_groups": [
+        ["差距", "落差", "不一致", "偏差"],
+        ["應付帳款", "非計息負債", "無息流動負債", "營運槓桿"]
+      ],
+      "issue": "杜邦分析紅線：同期間 ROE = ROA × 權益乘數（或淨利率 × 資產周轉 × 權益乘數）是恒等式；不同資料口徑造成的差距不得歸因於應付帳款或非計息負債。"
+    },
+    {
+      "id": "mixed_ttm_dupont",
+      "all_substrings": ["TTM", "杜邦", "資產周轉", "權益乘數"],
+      "any_substring_groups": [["差距", "口徑", "不一致", "偏差"]],
+      "requires_no_data_quality_caveat": true,
+      "issue": "杜邦分析紅線：不可把 Yahoo TTM ROE/ROA/淨利率與最新年度資產周轉率或權益乘數拼接成 TTM 杜邦公式；若資料口徑不同，應改用同期間年度杜邦恒等式或僅列資料品質警示。"
+    },
+    {
+      "id": "dcf_pe_blend",
+      "agents": [4],
+      "all_substrings": ["DCF"],
+      "any_substring_groups": [
+        ["ForwardEPS", "預估EPS"],
+        ["完全吻合", "完全相符", "完全等於", "數學防呆"]
+      ],
+      "issue": "估值方法紅線：DCF 與 EPS × P/E 是兩套不同估值法；P/E 乘法只能作相對估值交叉檢查，不得宣稱 DCF 必須與其完全吻合。"
+    },
+    {
+      "id": "book_value_wacc",
+      "agents": [4],
+      "all_substrings": ["WACC"],
+      "any_substring_groups": [["D/E", "負債權益比", "帳面"]],
+      "all_regex": ["權益權重.{0,12}9[0-6]%"],
+      "issue": "WACC 紅線：上市公司 WACC 權重應採市場價值資本結構；不可用帳面 D/E 直接推出股權權重。"
+    },
+    {
+      "id": "high_growth_fcf",
+      "any_regex_groups": [
+        ["營收.{0,30}(?:成長|增加|提升|暴增).{0,12}(?:[5-9]\\d|1\\d\\d)%"],
+        [
+          "FCF.{0,20}(?:轉換率|/淨利).{0,12}(?:1\\d\\d|超過100|>100)%",
+          "自由現金流.{0,20}(?:轉換率|/淨利).{0,12}(?:1\\d\\d|超過100|>100)%"
+        ]
+      ],
+      "not_any_substrings": ["不可持續", "一次性", "異常", "需查核", "質疑", "預收", "營運資金", "資本支出", "CapEx", "遞延"],
+      "issue": "FCF 品質紅線：硬體製造業在營收成長超過 50% 時仍有 FCF/淨利 >100%，不可視為常態；需拆解營運資金、預收款與 CapEx，DCF 應使用 normalized FCF。"
+    },
+    {
+      "id": "manufacturing_aggressive_growth",
+      "agents": [4, 5, 7],
+      "any_regex_groups": [["營收.{0,30}(?:成長|增加|提升).{0,12}(?:[5-9]\\d|1\\d\\d)%"]],
+      "not_any_substrings": ["CapEx", "資本支出", "折舊", "產能", "良率", "第二供應商"],
+      "issue": "製造業情境紅線：營收成長超過 50% 時，必須同步討論產能、CapEx、折舊、良率與客戶議價風險。"
+    },
+    {
+      "id": "double_counting_growth",
+      "agents": [4, 7],
+      "any_regex_groups": [
+        ["(?:ForwardP/E|目標本益比|合理ForwardP/E|給予).{0,20}(?:2[5-9]|[3-9]\\d)(?:\\.\\d+)?x"],
+        [
+          "營收.{0,40}(?:成長|增長|暴增|增加|提升).{0,20}(?:[5-9]\\d|1\\d\\d)%",
+          "ForwardEPS.{0,20}隱含.{0,20}(?:營收需|營收必須|營收要)"
+        ]
+      ],
+      "issue": "雙重樂觀紅線：若 Forward EPS/財測已隱含營收暴增，不應再套用高 Forward P/E 重複計價成長；基本情境應使用折讓倍數或 normalized DCF。"
+    }
+  ]
+}

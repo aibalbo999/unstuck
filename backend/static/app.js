@@ -277,6 +277,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (data.type === 'status') {
             loadingStatus.textContent = data.message;
+            if (data.detail) {
+                loadingMsg.textContent = data.detail;
+            }
         } else if (data.type === 'progress') {
             loadingStatus.textContent = `分析中：Agent ${data.current}/${data.total}`;
             loadingMsg.textContent = data.name;

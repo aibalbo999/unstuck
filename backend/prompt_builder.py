@@ -4,14 +4,33 @@ from __future__ import annotations
 
 import json
 import os
+import re
 
 import pandas as pd
+from jinja2 import ChainableUndefined, Environment
 
 from config import CATALYST_LOOKBACK_DAYS
 from financial_tools import build_financial_tool_context, raw_twd_to_billion_twd, safe_float
 
 
 PROMPT_DATA_SCHEMA_VERSION = int(os.getenv("PROMPT_DATA_SCHEMA_VERSION", "3"))
+PROMPT_ENV = Environment(
+    autoescape=False,
+    undefined=ChainableUndefined,
+    trim_blocks=True,
+    lstrip_blocks=True,
+)
+LEGACY_PROMPT_FIELDS = {"ticker", "name", "fin_data", "prev"}
+LEGACY_PLACEHOLDER_RE = re.compile(r"\{(" + "|".join(sorted(LEGACY_PROMPT_FIELDS)) + r")\}")
+
+
+def render_prompt_template(template: str, variables: dict) -> str:
+    """Render agent prompts with Jinja2 while accepting legacy {ticker} placeholders."""
+    if not template:
+        return ""
+
+    jinja_template = LEGACY_PLACEHOLDER_RE.sub(r"{{ \1 }}", template)
+    return PROMPT_ENV.from_string(jinja_template).render(**variables)
 
 
 def _prompt_number(value, decimals=4):

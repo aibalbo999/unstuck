@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+import re
 
 from google.genai import types
 
+from analysis_types import AnalysisContext
 from agent_catalog import AGENT_NAMES
 from config import AGENT_MODELS, CONTEXT_DIGEST_MODEL
 from llm_client import (
@@ -24,9 +26,30 @@ from validators import sanitize_model_output, strip_generated_audit_sections
 
 
 CONTEXT_DIGEST_TARGET_AGENTS = {4, 7}
+CONTEXT_TOTAL_CHAR_BUDGET = 11000
+CONTEXT_PER_AGENT_CHAR_BUDGET = 2200
+
+AGENT_CONTEXT_KEYWORDS = {
+    4: [
+        "估值", "DCF", "WACC", "FCF", "自由現金流", "本益比", "P/E", "Forward EPS",
+        "目標價", "折現", "同業", "護城河", "風險", "CapEx", "產能", "淨利率",
+    ],
+    5: [
+        "成長", "TAM", "SAM", "SOM", "市場", "催化", "AI", "技術", "產能", "CapEx",
+        "營收", "市佔", "長期", "風險",
+    ],
+    6: [
+        "多頭", "空頭", "風險", "催化", "估值", "財務", "營收", "FCF", "護城河",
+        "目標價", "反方", "爭議",
+    ],
+    7: [
+        "建議", "目標價", "估值", "DCF", "P/E", "風險", "催化", "成長", "護城河",
+        "財務", "FCF", "籌碼", "短期", "長期", "信心", "避免", "買入", "持有",
+    ],
+}
 
 
-def _format_structured_outputs_for_context(context: dict) -> str:
+def _format_structured_outputs_for_context(context: AnalysisContext) -> str:
     structured = context.get("structured_outputs", {}) or {}
     if not structured:
         return "{}"
@@ -36,8 +59,73 @@ def _format_structured_outputs_for_context(context: dict) -> str:
         return str(structured)
 
 
-def _format_previous(context: dict, current_agent: int, include_digest: bool = True) -> str:
-    """Format previous agent outputs without truncating them."""
+def _split_context_chunks(text: str) -> list[str]:
+    cleaned = strip_generated_audit_sections(str(text or "")).strip()
+    if not cleaned:
+        return []
+    chunks = re.split(r"\n{2,}", cleaned)
+    return [chunk.strip() for chunk in chunks if chunk.strip()]
+
+
+def _score_context_chunk(chunk: str, current_agent: int, source_agent: int, index: int) -> int:
+    normalized = chunk.lower()
+    keywords = AGENT_CONTEXT_KEYWORDS.get(current_agent, [])
+    score = sum(normalized.count(keyword.lower()) for keyword in keywords)
+    if index == 0:
+        score += 2
+    if re.search(r"^#{1,4}\s+", chunk):
+        score += 1
+    if source_agent == 2 and current_agent in {4, 7}:
+        score += sum(normalized.count(term.lower()) for term in ["財務", "fcf", "roe", "營收", "淨利"])
+    if source_agent == 4 and current_agent == 7:
+        score += sum(normalized.count(term.lower()) for term in ["目標價", "估值", "dcf", "wacc"])
+    return score
+
+
+def _clip_chunk(chunk: str, max_chars: int) -> str:
+    if len(chunk) <= max_chars:
+        return chunk
+    return chunk[: max(max_chars - 24, 0)].rstrip() + "\n...（片段截斷）"
+
+
+def _select_relevant_context(text: str, current_agent: int, source_agent: int, max_chars: int) -> str:
+    chunks = _split_context_chunks(text)
+    if not chunks:
+        return ""
+
+    scored = [
+        (_score_context_chunk(chunk, current_agent, source_agent, idx), idx, chunk)
+        for idx, chunk in enumerate(chunks)
+    ]
+    scored.sort(key=lambda item: (-item[0], item[1]))
+
+    selected: list[tuple[int, str]] = []
+    used = 0
+    for _, idx, chunk in scored:
+        remaining = max_chars - used
+        if remaining <= 120:
+            break
+        snippet = _clip_chunk(chunk, min(len(chunk), remaining))
+        selected.append((idx, snippet))
+        used += len(snippet) + 2
+        if used >= max_chars:
+            break
+
+    selected.sort(key=lambda item: item[0])
+    output = "\n\n".join(snippet for _, snippet in selected).strip()
+    omitted = max(len(str(text or "")) - len(output), 0)
+    if omitted > 0:
+        output = f"{output}\n\n（系統已依 Agent {current_agent} 任務精選前序片段，約省略 {omitted} 字。）"
+    return output
+
+
+def _format_previous(
+    context: AnalysisContext,
+    current_agent: int,
+    include_digest: bool = True,
+    max_total_chars: int = CONTEXT_TOTAL_CHAR_BUDGET,
+) -> str:
+    """Format previous agent outputs as digest plus task-relevant slices."""
     analyses = context.get("analyses", {})
     if not analyses:
         return "（無前序分析）"
@@ -55,13 +143,30 @@ def _format_previous(context: dict, current_agent: int, include_digest: bool = T
     digest = (context.get("context_digests", {}) or {}).get(current_agent)
     if include_digest and digest:
         parts.append(f"【提煉 Agent 結構化摘要】\n{digest}")
-        parts.append("【完整前序分析（未截斷）】")
+
+    structured_context = _format_structured_outputs_for_context(context)
+    if structured_context != "{}":
+        parts.append(f"【已解析結構化輸出】\n{structured_context}")
+
+    parts.append("【前序分析精選片段（非全文，依下一位 Agent 任務檢索）】")
 
     for i in range(1, current_agent):
         if i in analyses:
             name = agent_names.get(i, f"Agent {i}")
-            clean_analysis = strip_generated_audit_sections(str(analyses[i]))
-            parts.append(f"【{name}】\n{clean_analysis}")
+            used_chars = len("\n\n".join(parts))
+            if used_chars >= max_total_chars:
+                parts.append("（前序片段已達系統 context 預算上限，後續 Agent 請以結構化輸出與提煉摘要為準。）")
+                break
+            remaining_budget = max_total_chars - used_chars
+            per_agent_budget = min(CONTEXT_PER_AGENT_CHAR_BUDGET, remaining_budget)
+            clean_analysis = _select_relevant_context(
+                str(analyses[i]),
+                current_agent=current_agent,
+                source_agent=i,
+                max_chars=per_agent_budget,
+            )
+            if clean_analysis:
+                parts.append(f"【{name}｜精選片段】\n{clean_analysis}")
 
     return "\n\n".join(parts) if parts else "（無前序分析）"
 
@@ -74,9 +179,9 @@ def _tear_sheet_model_sequence() -> list[str]:
     return [AGENT_MODELS[2]]
 
 
-def _build_context_digest_prompt(current_agent: int, context: dict) -> str:
+def _build_context_digest_prompt(current_agent: int, context: AnalysisContext) -> str:
     target = AGENT_NAMES.get(current_agent, f"Agent {current_agent}")
-    previous = _format_previous(context, current_agent, include_digest=False)
+    previous = _format_previous(context, current_agent, include_digest=False, max_total_chars=16000)
     return (
         "請擔任投資研究提煉 Agent，將前序分析整理成給下一位分析師使用的結構化摘要。\n"
         f"下一位分析師：Agent {current_agent} {target}\n\n"
@@ -90,7 +195,7 @@ def _build_context_digest_prompt(current_agent: int, context: dict) -> str:
         "}\n\n"
         "已解析的結構化輸出：\n"
         f"{_format_structured_outputs_for_context(context)}\n\n"
-        "完整前序分析（未截斷）：\n"
+        "前序分析精選片段（非全文，請只根據片段與結構化輸出提煉）：\n"
         f"{previous}"
     )
 
@@ -133,7 +238,7 @@ def _fallback_context_digest_payload(current_agent: int, context: dict, reason: 
         "target_agent": current_agent,
         "completed_agents": completed,
         "structured_outputs": context.get("structured_outputs", {}),
-        "instruction": "提煉摘要不可用時，下一個 Agent 必須直接閱讀下方完整前序分析；系統不再截斷前序內容。",
+        "instruction": "提煉摘要不可用時，下一個 Agent 必須優先使用結構化輸出與系統提供的前序精選片段，不應假設已讀全文。",
     }
 
 

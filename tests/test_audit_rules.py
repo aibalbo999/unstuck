@@ -14,7 +14,9 @@ import config  # noqa: E402
 import external_data_clients as edc  # noqa: E402
 import financial_data  # noqa: E402
 import financial_tools  # noqa: E402
+import prompt_builder  # noqa: E402
 import report_gen  # noqa: E402
+import structured_outputs  # noqa: E402
 
 
 def base_data():
@@ -359,9 +361,9 @@ class AuditRuleTests(unittest.TestCase):
         self.assertEqual(report_gen.build_audit_sections(context), [])
         self.assertEqual(report_gen.build_audit_banner_html(context), "")
 
-    def test_previous_context_is_not_truncated(self):
-        long_agent_1 = "## 商業模式\n" + ("完整內容A" * 260)
-        long_agent_2 = "## 財務分析\n" + ("完整內容B" * 260)
+    def test_previous_context_uses_relevant_slices_instead_of_full_context(self):
+        long_agent_1 = "## 商業模式\n" + ("完整內容A" * 900)
+        long_agent_2 = "## 財務分析\n" + ("完整內容B" * 900)
         context = {
             "analyses": {1: long_agent_1, 2: long_agent_2},
             "context_digests": {4: '{"decision_relevant_facts":["摘要"]}'},
@@ -370,9 +372,12 @@ class AuditRuleTests(unittest.TestCase):
         formatted = ar._format_previous(context, 4)
 
         self.assertIn("【提煉 Agent 結構化摘要】", formatted)
+        self.assertIn("【前序分析精選片段（非全文，依下一位 Agent 任務檢索）】", formatted)
+        self.assertIn("系統已依 Agent 4 任務精選前序片段", formatted)
         self.assertIn("完整內容A" * 20, formatted)
         self.assertIn("完整內容B" * 20, formatted)
-        self.assertNotIn("完整內容A" * 80 + "...", formatted)
+        self.assertNotIn("完整前序分析（未截斷）", formatted)
+        self.assertLess(len(formatted), len(long_agent_1) + len(long_agent_2))
 
     def test_financial_prompt_is_clean_json_with_tool_results(self):
         data = base_data()
@@ -480,6 +485,26 @@ class AuditRuleTests(unittest.TestCase):
             [tool.__name__ for tool in ar.get_agent_function_tools(4)],
             ["calculate_cagr", "calculate_wacc", "calculate_dcf", "calculate_ddm"],
         )
+
+    def test_structured_agents_use_native_response_schema(self):
+        config_obj = ar.build_generation_config(3, "system")
+        self.assertEqual(getattr(config_obj, "response_mime_type", None), "application/json")
+        self.assertIsNotNone(getattr(config_obj, "response_schema", None))
+
+    def test_structured_schema_omits_additional_properties_for_genai(self):
+        schema = structured_outputs.MoatStructuredOutput.model_json_schema(by_alias=True)
+        self.assertNotIn("additionalProperties", json.dumps(schema, ensure_ascii=False))
+
+    def test_prompt_builder_supports_jinja_and_legacy_placeholders(self):
+        rendered = prompt_builder.render_prompt_template(
+            "標的 {ticker} {{ name }}{% if data.dividend_yield_raw > 0.05 %} DDM{% endif %}",
+            {
+                "ticker": "2330.TW",
+                "name": "台積電",
+                "data": {"dividend_yield_raw": 0.06},
+            },
+        )
+        self.assertEqual(rendered, "標的 2330.TW 台積電 DDM")
 
     def test_model_routing_policy(self):
         configured_agents = {

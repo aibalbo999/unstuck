@@ -11,7 +11,13 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
 
+from analysis_types import AnalysisContext
 from config import AGENT_MODELS, format_model_routes
+
+try:
+    import markdown as markdown_lib
+except Exception:  # pragma: no cover - dependency fallback for older local installs
+    markdown_lib = None
 
 
 TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
@@ -145,7 +151,7 @@ def strip_structured_blocks(text: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", text).strip()
 
 
-def build_audit_sections(context: dict) -> list[tuple[str, list[str]]]:
+def build_audit_sections(context: AnalysisContext) -> list[tuple[str, list[str]]]:
     """Collect final audit and preserved abnormality notes for rendering."""
     audit = context.get("final_audit", {}) or {}
     sections = []
@@ -176,7 +182,7 @@ def build_audit_sections(context: dict) -> list[tuple[str, list[str]]]:
     return [(title, items) for title, items in sections if items]
 
 
-def build_audit_banner_html(context: dict) -> str:
+def build_audit_banner_html(context: AnalysisContext) -> str:
     """Render a visible report warning when final audit found abnormalities."""
     sections = build_audit_sections(context)
     if not sections:
@@ -196,7 +202,7 @@ def build_audit_banner_html(context: dict) -> str:
     """
 
 
-def build_audit_markdown(context: dict) -> str:
+def build_audit_markdown(context: AnalysisContext) -> str:
     sections = build_audit_sections(context)
     if not sections:
         return ""
@@ -267,85 +273,22 @@ def billion_twd_series_to_yi_twd(values: list) -> list:
 
 
 def clean_markdown(text: str) -> str:
-    """將 Markdown 文字轉換為 HTML"""
+    """Render Markdown to HTML with a standard parser."""
     if not text:
         return ""
-    
-    # 處理標題
-    text = re.sub(r'^## (.*?)$', r'<h3>\1</h3>', text, flags=re.MULTILINE)
-    text = re.sub(r'^### (.*?)$', r'<h4>\1</h4>', text, flags=re.MULTILINE)
-    text = re.sub(r'^#### (.*?)$', r'<h5>\1</h5>', text, flags=re.MULTILINE)
-    
-    # 處理粗體
-    text = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', text)
-    text = re.sub(r'__(.*?)__', r'<strong>\1</strong>', text)
-    
-    # 處理斜體
-    text = re.sub(r'\*(.*?)\*', r'<em>\1</em>', text)
-    
-    # 處理表格
-    lines = text.split('\n')
-    result_lines = []
-    in_table = False
-    table_started = False
-    
-    for i, line in enumerate(lines):
-        if '|' in line and line.strip().startswith('|'):
-            if not in_table:
-                result_lines.append('<div class="table-wrapper"><table class="data-table">')
-                in_table = True
-                table_started = False
-            
-            # 跳過分隔行
-            if re.match(r'^\|[\s\-:|]+\|', line):
-                table_started = True
-                continue
-            
-            cells = [c.strip() for c in line.split('|')[1:-1]]
-            if not table_started:
-                cell_html = ''.join(f'<th>{c}</th>' for c in cells)
-                result_lines.append(f'<tr>{cell_html}</tr>')
-            else:
-                cell_html = ''.join(f'<td>{c}</td>' for c in cells)
-                result_lines.append(f'<tr>{cell_html}</tr>')
-        else:
-            if in_table:
-                result_lines.append('</table></div>')
-                in_table = False
-                table_started = False
-            result_lines.append(line)
-    
-    if in_table:
-        result_lines.append('</table></div>')
-    
-    text = '\n'.join(result_lines)
-    
-    # 處理列表（無序）- 使用暫時標記避免與有序列表衝突
-    text = re.sub(r'^\s*[-*]\s+(.*?)$', r'<__ul_li__>\1</__ul_li__>', text, flags=re.MULTILINE)
-    text = re.sub(r'(<__ul_li__>.*?</__ul_li__>\n?)+', lambda m: f'<ul>{m.group()}</ul>', text, flags=re.DOTALL)
-    text = text.replace('<__ul_li__>', '<li>').replace('</__ul_li__>', '</li>')
-    
-    # 處理有序列表 - 使用暫時標記並正確包裹為 <ol>
-    text = re.sub(r'^\s*\d+\.\s+(.*?)$', r'<__ol_li__>\1</__ol_li__>', text, flags=re.MULTILINE)
-    text = re.sub(r'(<__ol_li__>.*?</__ol_li__>\n?)+', lambda m: f'<ol>{m.group()}</ol>', text, flags=re.DOTALL)
-    text = text.replace('<__ol_li__>', '<li>').replace('</__ol_li__>', '</li>')
-    
-    # 處理換行
-    text = text.replace('\n\n', '</p><p>')
-    text = f'<p>{text}</p>'
-    
-    # 清理空段落
-    text = re.sub(r'<p>\s*</p>', '', text)
-    text = re.sub(r'<p>(<h[3-5]>)', r'\1', text)
-    text = re.sub(r'(</h[3-5]>)</p>', r'\1', text)
-    text = re.sub(r'<p>(<ul>)', r'\1', text)
-    text = re.sub(r'(</ul>)</p>', r'\1', text)
-    text = re.sub(r'<p>(<ol>)', r'\1', text)
-    text = re.sub(r'(</ol>)</p>', r'\1', text)
-    text = re.sub(r'<p>(<div class="table-wrapper">)', r'\1', text)
-    text = re.sub(r'(</div>)</p>', r'\1', text)
-    
-    return text
+
+    if markdown_lib is None:
+        escaped = escape(text)
+        return f"<p>{escaped.replace(chr(10) + chr(10), '</p><p>').replace(chr(10), '<br>')}</p>"
+
+    html = markdown_lib.markdown(
+        text,
+        extensions=["extra", "sane_lists", "nl2br"],
+        output_format="html5",
+    )
+    html = re.sub(r"<table>", '<div class="table-wrapper"><table class="data-table">', html)
+    html = html.replace("</table>", "</table></div>")
+    return html
 
 
 def get_recommendation_color(rec: str) -> str:
@@ -420,7 +363,7 @@ def format_debate_text(text: str) -> str:
     return '\n'.join(result)
 
 
-def build_tear_sheet_summary(context: dict) -> str:
+def build_tear_sheet_summary(context: AnalysisContext) -> str:
     """Build a one-page style summary, preferring model output when available."""
     model_summary = str(context.get("tear_sheet_summary", "") or "").strip()
     if model_summary:
@@ -455,7 +398,7 @@ def build_tear_sheet_summary(context: dict) -> str:
     )
 
 
-def generate_html_report(context: dict) -> str:
+def generate_html_report(context: AnalysisContext) -> str:
     """生成完整的 HTML 報告"""
     
     data = context.get("data", {})
@@ -614,7 +557,7 @@ def generate_html_report(context: dict) -> str:
     template_context = dict(locals())
     return render_report_template("report.html.j2", template_context)
 
-def generate_markdown_report(context: dict) -> str:
+def generate_markdown_report(context: AnalysisContext) -> str:
     """生成 Markdown 格式報告"""
     data = context.get("data", {})
     analyses = context.get("analyses", {})

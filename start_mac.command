@@ -62,7 +62,7 @@ if [ -n "$OLD_PIDS" ]; then
 fi
 
 echo "啟動伺服器..."
-"$PYTHON_BIN" -m uvicorn api:app --host 0.0.0.0 --port 8080 &
+PYTHONUNBUFFERED=1 "$PYTHON_BIN" -u -m uvicorn api:app --host 0.0.0.0 --port 8080 &
 SERVER_PID=$!
 
 cleanup() {

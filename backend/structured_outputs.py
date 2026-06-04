@@ -1,16 +1,84 @@
-"""Structured agent output parsing and legacy report block conversion."""
+"""Structured agent output models, parsing, and legacy report block conversion."""
 
 from __future__ import annotations
 
 import re
-from typing import Optional
+from typing import Literal, Optional
 
+from pydantic import BaseModel, ConfigDict, Field
+
+from analysis_types import AnalysisContext
 from json_utils import extract_json_payload
 from prompt_rules import build_structured_agent_instructions
 from validators import _extract_price_numbers, _parse_price_number
 
 
 STRUCTURED_AGENT_INSTRUCTIONS = build_structured_agent_instructions()
+
+
+class StructuredModel(BaseModel):
+    """Base model for native Google GenAI response_schema payloads."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class MoatScores(StructuredModel):
+    brand_influence: float = Field(..., ge=1, le=10, alias="品牌影響力")
+    network_effect: float = Field(..., ge=1, le=10, alias="網路效應")
+    switching_cost: float = Field(..., ge=1, le=10, alias="轉換成本")
+    cost_advantage: float = Field(..., ge=1, le=10, alias="成本優勢")
+    patent_technology: float = Field(..., ge=1, le=10, alias="專利技術")
+    overall_moat: float = Field(..., ge=1, le=10, alias="整體護城河")
+
+
+class MoatStructuredOutput(StructuredModel):
+    moat_scores: MoatScores
+    analysis_markdown: str = Field(..., min_length=1)
+
+
+class PriceTargets(StructuredModel):
+    bear_case: float = Field(..., ge=0, alias="熊市情境")
+    base_case: float = Field(..., ge=0, alias="基本情境")
+    bull_case: float = Field(..., ge=0, alias="牛市情境")
+
+
+class ValuationSummary(StructuredModel):
+    primary_method: Literal["normalized_dcf", "relative_valuation", "blended"]
+    uses_market_value_wacc: bool
+    uses_normalized_fcf: bool
+    double_counting_check: str = Field(..., min_length=1)
+
+
+class PriceTargetStructuredOutput(StructuredModel):
+    price_targets: PriceTargets
+    valuation_summary: ValuationSummary
+    analysis_markdown: str = Field(..., min_length=1)
+
+
+class RecommendationFields(StructuredModel):
+    recommendation: Literal["買入", "持有", "避免"] = Field(..., alias="建議")
+    target_3m: str = Field(..., min_length=1, alias="短期目標（3個月）")
+    target_6m: str = Field(..., min_length=1, alias="中期目標（6個月）")
+    target_12m: str = Field(..., min_length=1, alias="長期目標（12個月）")
+    long_term_potential_5y: str = Field(..., min_length=1, alias="長期潛力（5年）")
+    confidence: str = Field(..., min_length=1, alias="信心指數")
+
+
+class RecommendationStructuredOutput(StructuredModel):
+    recommendation: RecommendationFields
+    analysis_markdown: str = Field(..., min_length=1)
+
+
+STRUCTURED_AGENT_RESPONSE_SCHEMAS: dict[int, type[StructuredModel]] = {
+    3: MoatStructuredOutput,
+    4: PriceTargetStructuredOutput,
+    7: RecommendationStructuredOutput,
+}
+
+
+def get_structured_response_schema(agent_num: int) -> Optional[type[StructuredModel]]:
+    """Return the native response schema model for structured agents."""
+    return STRUCTURED_AGENT_RESPONSE_SCHEMAS.get(agent_num)
 
 
 def build_structured_output_instruction(agent_num: int) -> str:
@@ -37,6 +105,13 @@ def _coerce_number(value, minimum=None, maximum=None):
     return round(number, 2)
 
 
+def _pick_mapping_value(mapping: dict, *keys):
+    for key in keys:
+        if key in mapping:
+            return mapping.get(key)
+    return None
+
+
 def normalize_structured_output(agent_num: int, payload: Optional[dict]) -> Optional[dict]:
     """Validate and normalize JSON payloads from structured agents."""
     if not isinstance(payload, dict):
@@ -44,10 +119,17 @@ def normalize_structured_output(agent_num: int, payload: Optional[dict]) -> Opti
 
     if agent_num == 3:
         raw_scores = payload.get("moat_scores", {})
-        allowed = ["品牌影響力", "網路效應", "轉換成本", "成本優勢", "專利技術", "整體護城河"]
+        allowed = {
+            "品牌影響力": ("品牌影響力", "brand_influence"),
+            "網路效應": ("網路效應", "network_effect"),
+            "轉換成本": ("轉換成本", "switching_cost"),
+            "成本優勢": ("成本優勢", "cost_advantage"),
+            "專利技術": ("專利技術", "patent_technology"),
+            "整體護城河": ("整體護城河", "overall_moat"),
+        }
         scores = {}
-        for key in allowed:
-            score = _coerce_number(raw_scores.get(key), 1, 10)
+        for key, aliases in allowed.items():
+            score = _coerce_number(_pick_mapping_value(raw_scores, *aliases), 1, 10)
             if score is not None:
                 scores[key] = score
         if not scores:
@@ -59,7 +141,15 @@ def normalize_structured_output(agent_num: int, payload: Optional[dict]) -> Opti
 
     if agent_num == 4:
         raw_targets = payload.get("price_targets", {})
-        target_map = {"熊": "熊市情境", "基本": "基本情境", "Base": "基本情境", "牛": "牛市情境"}
+        target_map = {
+            "熊": "熊市情境",
+            "bear": "熊市情境",
+            "基本": "基本情境",
+            "base": "基本情境",
+            "Base": "基本情境",
+            "牛": "牛市情境",
+            "bull": "牛市情境",
+        }
         targets = {}
         for raw_key, raw_value in raw_targets.items():
             canonical = None
@@ -84,8 +174,20 @@ def normalize_structured_output(agent_num: int, payload: Optional[dict]) -> Opti
         raw_rec = payload.get("recommendation", {})
         if not isinstance(raw_rec, dict) or not raw_rec:
             return None
+        key_aliases = {
+            "recommendation": "建議",
+            "target_3m": "短期目標（3個月）",
+            "target_6m": "中期目標（6個月）",
+            "target_12m": "長期目標（12個月）",
+            "long_term_potential_5y": "長期潛力（5年）",
+            "confidence": "信心指數",
+        }
+        normalized_rec = {}
+        for key, value in raw_rec.items():
+            normalized_key = key_aliases.get(str(key).strip(), str(key).strip())
+            normalized_rec[normalized_key] = str(value).strip()
         return {
-            "recommendation": {str(k).strip(): str(v).strip() for k, v in raw_rec.items()},
+            "recommendation": normalized_rec,
             "analysis_markdown": str(payload.get("analysis_markdown", "")).strip(),
         }
 
@@ -131,7 +233,7 @@ def price_targets_have_unit_error(targets: dict, current_price) -> bool:
     return bool(prices) and any(price < current_price * 0.05 for price in prices)
 
 
-def process_agent_response(agent_num: int, raw_text: str, context: dict) -> str:
+def process_agent_response(agent_num: int, raw_text: str, context: AnalysisContext) -> str:
     """Persist JSON structured output and return report-ready text."""
     if agent_num not in STRUCTURED_AGENT_INSTRUCTIONS:
         return raw_text or ""
@@ -157,7 +259,7 @@ def process_agent_response(agent_num: int, raw_text: str, context: dict) -> str:
     return structured_output_to_report_text(agent_num, structured, raw_text)
 
 
-def parse_structured_data(context: dict) -> dict:
+def parse_structured_data(context: AnalysisContext) -> dict:
     """Parse moat scores, price targets, and recommendations from agent outputs."""
     parsed = {
         "moat_scores": {},

@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from typing import Optional
 
+from audit_rule_engine import evaluate_configured_audit_rules
+
 
 def _safe_float(value) -> Optional[float]:
     if value is None or value == "N/A":
@@ -202,90 +204,13 @@ def validate_analysis_output(agent_num: int, text: str, data: Optional[dict] = N
     normalized = re.sub(r"\s+", "", strip_generated_audit_sections(text or ""))
     data = data or {}
 
-    has_dupont_gap = (
-        ("ROA" in normalized)
-        and ("權益乘數" in normalized)
-        and any(word in normalized for word in ["差距", "落差", "不一致", "偏差"])
-        and any(word in normalized for word in ["應付帳款", "非計息負債", "無息流動負債", "營運槓桿"])
-    )
-    if has_dupont_gap:
-        issues.append(
-            "杜邦分析紅線：同期間 ROE = ROA × 權益乘數（或淨利率 × 資產周轉 × 權益乘數）是恒等式；"
-            "不同資料口徑造成的差距不得歸因於應付帳款或非計息負債。"
-        )
-
-    mixed_ttm_dupont = (
-        "TTM" in normalized
-        and "杜邦" in normalized
-        and "資產周轉" in normalized
-        and "權益乘數" in normalized
-        and any(word in normalized for word in ["差距", "口徑", "不一致", "偏差"])
-        and not _has_data_quality_caveat(normalized)
-    )
-    if mixed_ttm_dupont:
-        issues.append(
-            "杜邦分析紅線：不可把 Yahoo TTM ROE/ROA/淨利率與最新年度資產周轉率或權益乘數拼接成 TTM 杜邦公式；"
-            "若資料口徑不同，應改用同期間年度杜邦恒等式或僅列資料品質警示。"
-        )
-
-    if agent_num == 4:
-        dcf_pe_blend = (
-            "DCF" in normalized
-            and any(word in normalized for word in ["ForwardEPS", "預估EPS"])
-            and any(word in normalized for word in ["完全吻合", "完全相符", "完全等於", "數學防呆"])
-        )
-        if dcf_pe_blend:
-            issues.append(
-                "估值方法紅線：DCF 與 EPS × P/E 是兩套不同估值法；P/E 乘法只能作相對估值交叉檢查，"
-                "不得宣稱 DCF 必須與其完全吻合。"
-            )
-
-        book_value_wacc = (
-            "WACC" in normalized
-            and any(word in normalized for word in ["D/E", "負債權益比", "帳面"])
-            and re.search(r"權益權重.{0,12}9[0-6]%", normalized)
-        )
-        if book_value_wacc:
-            issues.append(
-                "WACC 紅線：上市公司 WACC 權重應採市場價值資本結構；不可用帳面 D/E 直接推出股權權重。"
-            )
-
-    high_growth_fcf = (
-        re.search(r"營收.{0,30}(?:成長|增加|提升|暴增).{0,12}(?:[5-9]\d|1\d\d)%", normalized)
-        and (
-            re.search(r"FCF.{0,20}(?:轉換率|/淨利).{0,12}(?:1\d\d|超過100|>100)%", normalized)
-            or re.search(r"自由現金流.{0,20}(?:轉換率|/淨利).{0,12}(?:1\d\d|超過100|>100)%", normalized)
+    issues.extend(
+        evaluate_configured_audit_rules(
+            agent_num,
+            normalized,
+            has_data_quality_caveat=_has_data_quality_caveat(normalized),
         )
     )
-    fcf_has_caution = any(
-        word in normalized
-        for word in ["不可持續", "一次性", "異常", "需查核", "質疑", "預收", "營運資金", "資本支出", "CapEx", "遞延"]
-    )
-    if high_growth_fcf and not fcf_has_caution:
-        issues.append(
-            "FCF 品質紅線：硬體製造業在營收成長超過 50% 時仍有 FCF/淨利 >100%，不可視為常態；"
-            "需拆解營運資金、預收款與 CapEx，DCF 應使用 normalized FCF。"
-        )
-
-    if agent_num in (4, 5, 7):
-        aggressive_growth = re.search(r"營收.{0,30}(?:成長|增加|提升).{0,12}(?:[5-9]\d|1\d\d)%", normalized)
-        no_capacity_cost = not any(word in normalized for word in ["CapEx", "資本支出", "折舊", "產能", "良率", "第二供應商"])
-        if aggressive_growth and no_capacity_cost:
-            issues.append(
-                "製造業情境紅線：營收成長超過 50% 時，必須同步討論產能、CapEx、折舊、良率與客戶議價風險。"
-            )
-
-    if agent_num in (4, 7):
-        high_multiple = re.search(r"(?:ForwardP/E|目標本益比|合理ForwardP/E|給予).{0,20}(?:2[5-9]|[3-9]\d)(?:\.\d+)?x", normalized)
-        high_implied_growth = (
-            re.search(r"營收.{0,40}(?:成長|增長|暴增|增加|提升).{0,20}(?:[5-9]\d|1\d\d)%", normalized)
-            or ("ForwardEPS" in normalized and "隱含" in normalized and any(word in normalized for word in ["營收需", "營收必須", "營收要"]))
-        )
-        if high_multiple and high_implied_growth:
-            issues.append(
-                "雙重樂觀紅線：若 Forward EPS/財測已隱含營收暴增，不應再套用高 Forward P/E 重複計價成長；"
-                "基本情境應使用折讓倍數或 normalized DCF。"
-            )
 
     if agent_num in (4, 7) and _is_cyclical_low_pe_setup(data):
         low_pe_bargain_claim = (
@@ -320,7 +245,7 @@ def validate_analysis_output(agent_num: int, text: str, data: Optional[dict] = N
 
     _append_deep_numeric_consistency_issues(issues, normalized)
 
-    return issues
+    return list(dict.fromkeys(issues))
 
 
 def append_quality_warnings(agent_num: int, text: str, data: Optional[dict] = None) -> str:
