@@ -205,12 +205,6 @@ def estimate_text_tokens(text: str, response_budget: int = 0) -> int:
 
 def response_text(response) -> str:
     """Extract text from a Google GenAI response without leaking object internals."""
-    try:
-        text = getattr(response, "text", None)
-    except Exception:
-        text = None
-    if text:
-        return text
     candidates = getattr(response, "candidates", None) or []
     parts = []
     for candidate in candidates:
@@ -219,7 +213,14 @@ def response_text(response) -> str:
             part_text = getattr(part, "text", None)
             if part_text:
                 parts.append(part_text)
-    return "\n".join(parts)
+    if parts:
+        return "\n".join(parts)
+
+    try:
+        text = getattr(response, "text", None)
+    except Exception:
+        text = None
+    return text or ""
 
 
 def generate_content(api_key: str, model_id: str, prompt: str, config):

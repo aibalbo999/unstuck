@@ -97,10 +97,11 @@ class AgentTransientError(AgentRetryableError):
 class AgentRateLimitError(AgentRetryableError):
     """Raised for quota/rate-limit responses with provider-aware wait time."""
 
-    def __init__(self, detail: str, wait_seconds: float):
+    def __init__(self, detail: str, retry_wait_seconds: float, key_cooldown_seconds: float):
         super().__init__(detail)
         self.detail = detail
-        self.wait_seconds = wait_seconds
+        self.retry_wait_seconds = retry_wait_seconds
+        self.key_cooldown_seconds = key_cooldown_seconds
 
 
 class AgentMissingModelError(Exception):
@@ -246,7 +247,7 @@ def _is_transient_provider_error(error_msg: str) -> bool:
 def _agent_retry_wait(retry_state) -> float:
     exc = retry_state.outcome.exception() if retry_state.outcome else None
     if isinstance(exc, AgentRateLimitError):
-        return max(float(exc.wait_seconds), 1.0)
+        return max(float(exc.retry_wait_seconds), 1.0)
     return BASE_AGENT_RETRY_WAIT(retry_state)
 
 
@@ -255,7 +256,10 @@ def _log_agent_retry(retry_state):
     sleep = getattr(retry_state.next_action, "sleep", 0) or 0
     attempt = retry_state.attempt_number
     if isinstance(exc, AgentRateLimitError):
-        print(f"    ⏳ 配額/速率限制：{exc.detail[:160]}... 等待 {sleep:.1f} 秒後重試（第 {attempt} 次）")
+        print(
+            f"    ⏭️  配額/速率限制：{exc.detail[:150]}... "
+            f"該 Key 冷卻 {exc.key_cooldown_seconds:.1f} 秒，{sleep:.1f} 秒後改試其他 Key（第 {attempt} 次）"
+        )
     elif isinstance(exc, AgentShortResponseError):
         print(f"    ⚠️  回應過短，等待 {sleep:.1f} 秒後重試（第 {attempt} 次）")
     else:
@@ -265,10 +269,11 @@ def _log_agent_retry(retry_state):
 def _raise_agent_call_error(exc: Exception, api_key: Optional[str], model_id: str, rotator: KeyRotator, quota_default: float):
     error_msg = str(exc)
     if is_quota_or_rate_error(error_msg):
-        wait_time = retry_delay_seconds(exc, default=quota_default)
+        key_cooldown = retry_delay_seconds(exc, default=quota_default)
         if api_key:
-            rotator.penalize(api_key, model_id, wait_time)
-        raise AgentRateLimitError(describe_quota_or_rate_error(exc), wait_time) from exc
+            rotator.penalize(api_key, model_id, key_cooldown)
+        retry_wait = 1.0 if len(getattr(rotator, "keys", []) or []) > 1 else key_cooldown
+        raise AgentRateLimitError(describe_quota_or_rate_error(exc), retry_wait, key_cooldown) from exc
 
     if is_missing_model_error(error_msg):
         raise AgentMissingModelError(error_msg) from exc
