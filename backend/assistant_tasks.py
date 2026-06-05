@@ -25,7 +25,7 @@ from structured_outputs import _extract_json_payload
 from validators import sanitize_model_output, strip_generated_audit_sections
 
 
-CONTEXT_DIGEST_TARGET_AGENTS = {4, 7}
+CONTEXT_DIGEST_TARGET_AGENTS = {4, 7, 14, 16}
 CONTEXT_TOTAL_CHAR_BUDGET = 11000
 CONTEXT_PER_AGENT_CHAR_BUDGET = 2200
 
@@ -46,7 +46,48 @@ AGENT_CONTEXT_KEYWORDS = {
         "建議", "目標價", "估值", "DCF", "P/E", "風險", "催化", "成長", "護城河",
         "財務", "FCF", "籌碼", "短期", "長期", "信心", "避免", "買入", "持有",
     ],
+    11: [
+        "總經", "利率", "通膨", "地緣", "政策", "產業週期", "去庫存", "擴張",
+        "供需", "順風", "逆風", "關稅", "補貼",
+    ],
+    12: [
+        "商業模式", "護城河", "品牌", "網路效應", "轉換成本", "成本優勢",
+        "專利", "毛利率", "淨利率", "競爭", "市佔",
+    ],
+    13: [
+        "財務", "FCF", "自由現金流", "轉換率", "庫存", "應收", "CapEx",
+        "杜邦", "ROE", "槓桿", "流動比率", "債務", "紅旗",
+    ],
+    14: [
+        "估值", "成長", "DCF", "WACC", "FCF", "本益比", "P/E", "Forward EPS",
+        "目標價", "TAM", "SAM", "催化", "雙重樂觀", "同業",
+    ],
+    15: [
+        "籌碼", "三大法人", "外資", "投信", "自營商", "買賣超", "P/E 河流圖",
+        "情緒", "催化", "新聞", "技術面", "動能", "擁擠交易",
+    ],
+    16: [
+        "交易決策", "建議", "目標價", "估值", "籌碼", "總經", "排雷", "紅旗",
+        "風控", "進出場", "左側交易", "動能", "買入", "持有", "避免",
+    ],
 }
+
+AGENT_CONTEXT_DEPENDENCIES = {
+    5: (1, 2, 3),
+    12: (11,),
+    13: (11,),
+    14: (11, 12, 13),
+    15: (11, 12, 13, 14),
+    16: (11, 12, 13, 14, 15),
+}
+
+
+def _previous_agent_numbers(current_agent: int) -> list[int]:
+    """Return the upstream agents visible to the current agent."""
+    explicit_dependencies = AGENT_CONTEXT_DEPENDENCIES.get(current_agent)
+    if explicit_dependencies is not None:
+        return list(explicit_dependencies)
+    return list(range(1, current_agent))
 
 
 def _format_structured_outputs_for_context(context: AnalysisContext) -> str:
@@ -150,7 +191,7 @@ def _format_previous(
 
     parts.append("【前序分析精選片段（非全文，依下一位 Agent 任務檢索）】")
 
-    for i in range(1, current_agent):
+    for i in _previous_agent_numbers(current_agent):
         if i in analyses:
             name = agent_names.get(i, f"Agent {i}")
             used_chars = len("\n\n".join(parts))
@@ -188,6 +229,18 @@ def _build_context_digest_prompt(current_agent: int, context: AnalysisContext) -
         "輸出請使用合法 JSON，不要 Markdown code fence。JSON schema:\n"
         "{\n"
         '  "decision_relevant_facts": ["..."],\n'
+        '  "hard_metrics": {\n'
+        '    "agent_2_fcf_conversion_rate": "精準數字、年度/期間、來源或 null",\n'
+        '    "agent_2_normalized_fcf": "精準數字、單位、來源或 null",\n'
+        '    "agent_2_margin_or_roe_flags": ["..."],\n'
+        '    "agent_3_weakest_moat_factor": "弱項名稱、分數與原因或 null",\n'
+        '    "agent_3_moat_score_matrix": {"品牌影響力": "分數或 null", "網路效應": "分數或 null", "轉換成本": "分數或 null", "成本優勢": "分數或 null", "專利技術": "分數或 null", "整體護城河": "分數或 null"},\n'
+        '    "agent_4_price_target_band": {"熊市情境": "價格或 null", "基本情境": "價格或 null", "牛市情境": "價格或 null"},\n'
+        '    "agent_5_growth_scenarios": ["情境、年營收、CAGR、資料限制或 null"],\n'
+        '    "agent_14_price_target_band": {"熊市情境": "價格或 null", "基本情境": "價格或 null", "牛市情境": "價格或 null"},\n'
+        '    "agent_15_chip_momentum": "外資/投信/自營商買賣超、P/E 河流圖位階與短線動能或 null"\n'
+        "  },\n"
+        '  "moat_weakness_matrix": [{"factor": "...", "score": "...", "weakness": "...", "evidence": "..."}],\n'
         '  "financial_cross_checks": ["..."],\n'
         '  "valuation_or_recommendation_implications": ["..."],\n'
         '  "risks_and_counterarguments": ["..."],\n'
@@ -221,6 +274,7 @@ async def _generate_context_digest_content_async(api_key: str, model_id: str, pr
 def _normalize_digest_text(text: str, current_agent: int, context: dict) -> str:
     payload = _extract_json_payload(text or "")
     if isinstance(payload, dict):
+        payload = _ensure_digest_payload_shape(payload)
         return json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True)
     return json.dumps(
         _fallback_context_digest_payload(current_agent, context, reason="提煉 Agent 未回傳可解析 JSON"),
@@ -232,7 +286,7 @@ def _normalize_digest_text(text: str, current_agent: int, context: dict) -> str:
 
 def _fallback_context_digest_payload(current_agent: int, context: dict, reason: str) -> dict:
     completed = sorted(context.get("analyses", {}).keys())
-    return {
+    payload = {
         "digest_type": "deterministic_fallback",
         "reason": reason,
         "target_agent": current_agent,
@@ -240,6 +294,33 @@ def _fallback_context_digest_payload(current_agent: int, context: dict, reason: 
         "structured_outputs": context.get("structured_outputs", {}),
         "instruction": "提煉摘要不可用時，下一個 Agent 必須優先使用結構化輸出與系統提供的前序精選片段，不應假設已讀全文。",
     }
+    return _ensure_digest_payload_shape(payload)
+
+
+def _ensure_digest_payload_shape(payload: dict) -> dict:
+    """Keep digest JSON stable so downstream agents receive hard data slots."""
+    payload = dict(payload)
+    payload.setdefault("decision_relevant_facts", [])
+    payload.setdefault("financial_cross_checks", [])
+    payload.setdefault("valuation_or_recommendation_implications", [])
+    payload.setdefault("risks_and_counterarguments", [])
+    payload.setdefault("open_data_quality_issues", [])
+    payload.setdefault("moat_weakness_matrix", [])
+
+    hard_metrics = payload.get("hard_metrics")
+    if not isinstance(hard_metrics, dict):
+        hard_metrics = {}
+    hard_metrics.setdefault("agent_2_fcf_conversion_rate", None)
+    hard_metrics.setdefault("agent_2_normalized_fcf", None)
+    hard_metrics.setdefault("agent_2_margin_or_roe_flags", [])
+    hard_metrics.setdefault("agent_3_weakest_moat_factor", None)
+    hard_metrics.setdefault("agent_3_moat_score_matrix", {})
+    hard_metrics.setdefault("agent_4_price_target_band", {})
+    hard_metrics.setdefault("agent_5_growth_scenarios", [])
+    hard_metrics.setdefault("agent_14_price_target_band", {})
+    hard_metrics.setdefault("agent_15_chip_momentum", None)
+    payload["hard_metrics"] = hard_metrics
+    return payload
 
 
 def ensure_context_digest(agent_num: int, context: dict, rotator: KeyRotator):
@@ -276,7 +357,7 @@ def ensure_context_digest(agent_num: int, context: dict, rotator: KeyRotator):
 
 
 async def ensure_context_digest_async(agent_num: int, context: dict, rotator: KeyRotator):
-    """Async summarization agent before Agent 4/7."""
+    """Async summarization agent before high-dependency agents."""
     if agent_num not in CONTEXT_DIGEST_TARGET_AGENTS:
         return
     digests = context.setdefault("context_digests", {})

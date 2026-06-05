@@ -15,7 +15,13 @@
     "4": "gemma-4-31b-it",
     "5": "gemma-4-31b-it",
     "6": "gemma-4-31b-it",
-    "7": "gemini-3.5-flash"
+    "7": "gemini-3.5-flash",
+    "11": "gemma-4-31b-it",
+    "12": "gemma-4-31b-it",
+    "13": "gemma-4-31b-it",
+    "14": "gemma-4-31b-it",
+    "15": "gemini-3.5-flash",
+    "16": "gemini-3.5-flash"
   },
   "agent_fallbacks": {
     "1": ["gemini-2.5-flash"],
@@ -24,7 +30,13 @@
     "4": ["gemini-2.5-flash"],
     "5": ["gemini-2.5-flash"],
     "6": ["gemini-2.5-flash"],
-    "7": []
+    "7": [],
+    "11": ["gemini-2.5-flash"],
+    "12": ["gemini-2.5-flash"],
+    "13": ["gemini-2.5-flash"],
+    "14": ["gemini-2.5-flash"],
+    "15": [],
+    "16": []
   },
   "rpm_limits": {
     "gemma-4-31b-it": 30,

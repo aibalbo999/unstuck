@@ -1,4 +1,4 @@
-"""Shared metadata for the seven analysis agents."""
+"""Shared metadata for analysis agents across pipeline modes."""
 
 AGENT_NAMES = {
     1: "商業模式與整體分析",
@@ -8,4 +8,10 @@ AGENT_NAMES = {
     5: "未來成長潛力",
     6: "多空辯論",
     7: "最終投資決策",
+    11: "總經環境與產業週期",
+    12: "商業模式與競爭護城河",
+    13: "財務排雷與體質評估",
+    14: "估值模型與成長預測",
+    15: "籌碼流動與市場情緒",
+    16: "實戰交易決策",
 }

@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=20260603-optimization">
+    <link rel="stylesheet" href="/static/style.css?v=20260605-pipeline-v2">
 </head>
 <body>
     <!-- 背景特效 -->
@@ -24,6 +24,23 @@
             <div class="input-group">
                 <label for="ticker-input">輸入股票代號</label>
                 <input type="text" id="ticker-input" placeholder="例如: 2449.TW 或 AAPL" autocomplete="off" spellcheck="false" />
+            </div>
+
+            <div class="pipeline-selector" role="radiogroup" aria-label="選擇分析模式">
+                <label class="pipeline-option">
+                    <input type="radio" name="pipeline-mode" value="v1" checked />
+                    <span>
+                        <strong>模式 A</strong>
+                        <small>學術深度派 · 7 Agent</small>
+                    </span>
+                </label>
+                <label class="pipeline-option">
+                    <input type="radio" name="pipeline-mode" value="v2" />
+                    <span>
+                        <strong>模式 B</strong>
+                        <small>實戰交易派 · 6 Agent</small>
+                    </span>
+                </label>
             </div>
 
             <button id="analyze-btn" class="glow-button">
@@ -68,7 +85,7 @@
                 <div id="progress-bar" class="progress-bar-fill"></div>
             </div>
             
-            <p class="hint-text">請稍候，7 位 AI 分析師正在為您撰寫深度研報...</p>
+            <p id="loading-hint" class="hint-text">請稍候，AI 分析師正在為您撰寫研報...</p>
         </div>
     </main>
 
@@ -95,6 +112,6 @@
         </div>
     </main>
 
-    <script src="/static/app.js?v=20260603-optimization"></script>
+    <script src="/static/app.js?v=20260605-pipeline-v2"></script>
 </body>
 </html>

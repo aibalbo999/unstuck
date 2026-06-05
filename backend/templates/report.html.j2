@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ ticker }} {{ name }} - 華爾街深度研究報告</title>
+    <title>{{ ticker }} {{ name }} - {{ report_title }}</title>
     <meta name="description" content="{{ name }}（{{ ticker }}）完整股票研究報告，包含商業分析、財務分析、護城河評估、估值分析及投資建議">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
@@ -1005,7 +1005,7 @@
             <div class="report-cover-title">{{ name }}（{{ ticker }}）</div>
             <div class="report-cover-meta">
                 {{ data.get('sector', 'N/A') }} · {{ data.get('industry', 'N/A') }} · {{ fetch_date }}<br>
-                AI Research Stack · {{ model_route_summary }}
+                {{ pipeline_label }} · {{ model_route_summary }}
             </div>
         </div>
     </section>
@@ -1014,7 +1014,7 @@
     <!-- ─── Hero 頭部 ─── -->
     <div class="hero"{% if not report_cover_image %} id="overview"{% endif %}>
         <div class="hero-badge">
-            ★ 華爾街深度研究報告 ★
+            ★ {{ report_title }} ★
         </div>
         <div class="hero-title">
             <span class="ticker-highlight">{{ ticker }}</span> {{ name }}
@@ -1034,7 +1034,7 @@
             <div class="verdict-text">
                 <div class="verdict-label">最終投資建議</div>
                 <div class="verdict-main">{{ rec_text }}</div>
-                <div class="verdict-sub">基於 7 位頂級分析師完整研究</div>
+                <div class="verdict-sub">{{ report_subtitle }}</div>
             </div>
             <div class="verdict-meta">
                 <div class="vm-label">3個月目標</div>
@@ -1096,39 +1096,15 @@
             </div>
         </div>
         
-        <!-- ─── Agent 1：商業模式分析 ─── -->
-        <div class="section" id="section-1">
+        {% for section in agent_sections %}
+        <div class="section" id="section-{{ section.agent_num }}">
             <div class="section-header">
-                <div class="section-num">1</div>
-                <div class="section-title">商業模式與整體分析</div>
-                <div class="section-model">{{ agent_model_labels[1] }}</div>
+                <div class="section-num">{{ section.display_num }}</div>
+                <div class="section-title">{{ section.title }}</div>
+                <div class="section-model">{{ section.model_label }}</div>
             </div>
-            <div class="analysis-card">
-                {{ analysis_1 }}
-            </div>
-        </div>
-        
-        <!-- ─── Agent 2：財務分析 ─── -->
-        <div class="section" id="section-2">
-            <div class="section-header">
-                <div class="section-num">2</div>
-                <div class="section-title">五年財務深度分析</div>
-                <div class="section-model">{{ agent_model_labels[2] }}</div>
-            </div>
-            <div class="analysis-card">
-                {{ analysis_2 }}
-            </div>
-        </div>
-        
-        <!-- ─── Agent 3：護城河 ─── -->
-        <div class="section" id="section-3">
-            <div class="section-header">
-                <div class="section-num">3</div>
-                <div class="section-title">競爭護城河評估</div>
-                <div class="section-model">{{ agent_model_labels[3] }}</div>
-            </div>
-            
-            <!-- 護城河雷達圖 + 評分 -->
+
+            {% if section.kind == "moat" %}
             <div class="moat-grid" style="margin-bottom: 24px;">
                 <div class="chart-card">
                     <div class="chart-title">護城河雷達圖</div>
@@ -1138,7 +1114,6 @@
                 </div>
                 <div>
                     <div class="moat-scores-list">
-                        <!-- 護城河分數條 -->
                     </div>
                     <div class="moat-overall">
                         <div class="moat-overall-score" id="moat-overall-score">--</div>
@@ -1146,26 +1121,10 @@
                     </div>
                 </div>
             </div>
-            
-            <div class="analysis-card">
-                {{ analysis_3 }}
-            </div>
-        </div>
-        
-        <!-- ─── Agent 4：估值分析 ─── -->
-        <div class="section" id="section-4">
-            <div class="section-header">
-                <div class="section-num">4</div>
-                <div class="section-title">投資銀行估值分析</div>
-                <div class="section-model">{{ agent_model_labels[4] }}</div>
-            </div>
-            
-            <!-- 目標股價 -->
+            {% elif section.kind == "valuation" %}
             <div class="price-targets-grid">
                 {{ price_targets_html }}
             </div>
-            
-            <!-- 圖表 -->
             <div class="charts-grid" style="margin-bottom: 24px;">
                 <div class="chart-card full-width">
                     <div class="chart-title">DCF 三情境估值 vs 當前股價</div>
@@ -1180,46 +1139,7 @@
                     </div>
                 </div>
             </div>
-            
-            <div class="analysis-card">
-                {{ analysis_4 }}
-            </div>
-        </div>
-        
-        <!-- ─── Agent 5：成長潛力 ─── -->
-        <div class="section" id="section-5">
-            <div class="section-header">
-                <div class="section-num">5</div>
-                <div class="section-title">未來成長潛力分析</div>
-                <div class="section-model">{{ agent_model_labels[5] }}</div>
-            </div>
-            <div class="analysis-card">
-                {{ analysis_5 }}
-            </div>
-        </div>
-        
-        <!-- ─── Agent 6：多空辯論 ─── -->
-        <div class="section" id="section-6">
-            <div class="section-header">
-                <div class="section-num">6</div>
-                <div class="section-title">多空辯論</div>
-                <div class="section-model">{{ agent_model_labels[6] }}</div>
-            </div>
-            <div class="analysis-card">
-                <div class="debate-container">
-                    {{ analysis_6 }}
-                </div>
-            </div>
-        </div>
-        
-        <!-- ─── Agent 7：最終決策 ─── -->
-        <div class="section" id="section-7">
-            <div class="section-header">
-                <div class="section-num">7</div>
-                <div class="section-title">最終投資決策</div>
-                <div class="section-model">{{ agent_model_labels[7] }}</div>
-            </div>
-            
+            {% elif section.kind == "final" %}
             <div class="final-verdict">
                 <div class="fv-header">
                     <div class="fv-badge">{{ rec_text }}</div>
@@ -1231,11 +1151,19 @@
                     </div>
                 </div>
             </div>
-            
+            {% endif %}
+
             <div class="analysis-card">
-                {{ analysis_7 }}
+                {% if section.is_debate %}
+                <div class="debate-container">
+                    {{ section.body }}
+                </div>
+                {% else %}
+                {{ section.body }}
+                {% endif %}
             </div>
         </div>
+        {% endfor %}
         
         <!-- ─── 參考資料來源 ─── -->
         <div class="references">
@@ -1266,7 +1194,7 @@
                     <span class="ref-icon">🤖</span>
                     <div>
                         <div class="ref-name">Google Gemini AI</div>
-                        <div class="ref-desc">七位處於不同機構（Goldman Sachs、Morgan Stanley、BlackRock、JPMorgan、Fidelity、T. Rowe Price）的 AI 分析師論述：{{ model_route_summary }}</div>
+                        <div class="ref-desc">{{ pipeline_label }} AI 分析師論述：{{ model_route_summary }}</div>
                     </div>
                 </div>
                 <div class="ref-item">

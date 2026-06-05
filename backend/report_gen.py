@@ -16,6 +16,7 @@ from google.genai import types
 from jinja2 import Environment, FileSystemLoader
 
 from analysis_types import AnalysisContext
+from agent_catalog import AGENT_NAMES
 from config import (
     AGENT_MODELS,
     API_KEYS,
@@ -35,6 +36,7 @@ from llm_client import (
     is_quota_or_rate_error,
     retry_delay_seconds,
 )
+from pipeline_modes import get_pipeline_definition
 
 try:
     import markdown as markdown_lib
@@ -57,6 +59,12 @@ AGENT_INSTITUTIONS = {
     5: "Fidelity",
     6: "Financial Media",
     7: "Bridgewater",
+    11: "Macro Hedge Fund",
+    12: "Morningstar / BlackRock",
+    13: "Muddy Waters / Morgan Stanley",
+    14: "Goldman Sachs",
+    15: "Point72",
+    16: "Citadel",
 }
 
 
@@ -186,7 +194,7 @@ PROMPT_LEAK_RESIDUE_RE = re.compile(
     r"Taiwan Stock Research Report Editor|Compress a full research report|Investment recommendation, target price|"
     r"No title, no Markdown|Just one single paragraph of summary text|Ticker/Company:|"
     r"Growth Equity Researcher at Fidelity|Valid parseable JSON only|No markdown code fences|Specific JSON schema|"
-    r"JSON schema:|analysis_markdown|moat_scores|price_targets|Must use \"|No roleplay meta-talk|Check:\s*Did I|Past 5 years of financial trends|"
+    r"JSON schema:|analysis_markdown|reasoning_steps|valuation_reasoning|hard_metrics|moat_weakness_matrix|moat_scores|price_targets|dcf_reasoning|peer_reasoning|scenario_reasoning|Must use \"|No roleplay meta-talk|Check:\s*Did I|Past 5 years of financial trends|"
     r"Analyze the \"Economic Moat\"|Analyze the growth potential|"
     r"Growth Scenarios \(5 years\)|Professional, data-driven)",
     re.IGNORECASE,
@@ -228,8 +236,8 @@ def sanitize_report_text(text: str) -> str:
         r"^\s*(Taiwan Stock Research Report Editor|Compress a full research report|Investment recommendation, target price|No title, no Markdown|Just one single paragraph of summary text|Ticker/Company:)\b",
         r"^\s*你好，我是(高盛|摩根士丹利|貝萊德|JP\s*摩根|富達投資|T\.?\s*Rowe|德富金融)",
         r"^\s*(Deep financial analysis of|Deep financial data analysis of|Economic Moat analysis of|.*Deep moat evaluation|.*Analyze the growth potential|Analyze the growth potential|Analyze the 5-10 year growth potential of|Financial data provided)\b",
-        r"^\s*\*?\s*(Currency|Units|TTM units|Debt to Equity|Manufacturing Logic|Valuation Cross-check|Forward EPS implicit.*|FCF quality check.*|WACC|DuPont Analysis|ROE Discrepancy|Language|Unit Check|Tone|Constraint Check|First paragraph MUST|No internal monologue|Valid parseable JSON only|No markdown code fences|No extra text outside JSON|JSON schema|Specific JSON schema|analysis_markdown|moat_scores|price_targets|recommendation)\s*:",
-        r"^\s*\*?\s*(Specific scoring format|Traditional Chinese|Rigorous adherence|Cross-check Forward EPS|Manufacturing logic|First paragraph MUST|No internal monologue|Valid parseable JSON only|No markdown code fences|No extra text outside JSON|JSON schema|No roleplay meta-talk|analysis_markdown|moat_scores|price_targets|recommendation)\b",
+        r"^\s*\*?\s*(Currency|Units|TTM units|Debt to Equity|Manufacturing Logic|Valuation Cross-check|Forward EPS implicit.*|FCF quality check.*|WACC|DuPont Analysis|ROE Discrepancy|Language|Unit Check|Tone|Constraint Check|First paragraph MUST|No internal monologue|Valid parseable JSON only|No markdown code fences|No extra text outside JSON|JSON schema|Specific JSON schema|analysis_markdown|reasoning_steps|valuation_reasoning|hard_metrics|moat_weakness_matrix|moat_scores|price_targets|dcf_reasoning|peer_reasoning|scenario_reasoning|recommendation)\s*:",
+        r"^\s*\*?\s*(Specific scoring format|Traditional Chinese|Rigorous adherence|Cross-check Forward EPS|Manufacturing logic|First paragraph MUST|No internal monologue|Valid parseable JSON only|No markdown code fences|No extra text outside JSON|JSON schema|No roleplay meta-talk|analysis_markdown|reasoning_steps|valuation_reasoning|hard_metrics|moat_weakness_matrix|moat_scores|price_targets|dcf_reasoning|peer_reasoning|scenario_reasoning|recommendation)\b",
         r"^\s*\*?\s*(Observation|The Red Flag|Action|Company Profile|Financials \(Key Highlights\))\s*:",
         r"^\s*\*?\s*(Section\s+[IVX0-9]+|TAM|SAM|SOM|Estimation)\s*:",
         r"^\s*\d+\.\s*(Market Size|Key Growth Drivers|AI\s*&\s*New Tech Impact|Long-term Market Share|5-Year Growth Scenarios|Overall Growth Potential)",
@@ -489,6 +497,56 @@ def format_debate_text(text: str) -> str:
     return '\n'.join(result)
 
 
+def _strip_legacy_structured_tags(text: str) -> str:
+    for tag in [
+        "[護城河評分]",
+        "[/護城河評分]",
+        "[目標股價]",
+        "[/目標股價]",
+        "[投資建議]",
+        "[/投資建議]",
+    ]:
+        text = text.replace(tag, "")
+    return text.strip()
+
+
+def build_agent_sections(context: AnalysisContext, *, html: bool = True) -> list[dict]:
+    pipeline_def = get_pipeline_definition(context.get("pipeline_id", "v1"))
+    analyses = context.get("analyses", {}) or {}
+    agent_model_labels = build_agent_model_labels()
+    structured_agents = pipeline_def["structured_agents"]
+    debate_agents = set(pipeline_def.get("debate_agents", ()))
+    sections = []
+
+    for display_num, agent_num in enumerate(pipeline_def["agents"], 1):
+        raw = strip_structured_blocks(sanitize_report_text(analyses.get(agent_num, "分析進行中...")))
+        raw = _strip_legacy_structured_tags(raw)
+        if html:
+            body = format_debate_text(raw) if agent_num in debate_agents else clean_markdown(raw)
+        else:
+            body = raw
+
+        kind = "standard"
+        if agent_num == structured_agents.get("moat"):
+            kind = "moat"
+        elif agent_num == structured_agents.get("valuation"):
+            kind = "valuation"
+        elif agent_num == structured_agents.get("recommendation"):
+            kind = "final"
+
+        sections.append({
+            "display_num": display_num,
+            "agent_num": agent_num,
+            "title": AGENT_NAMES.get(agent_num, f"Agent {agent_num}"),
+            "model_label": agent_model_labels.get(agent_num, AGENT_MODELS.get(agent_num, "N/A")),
+            "body": body,
+            "kind": kind,
+            "is_debate": agent_num in debate_agents,
+        })
+
+    return sections
+
+
 def build_tear_sheet_summary(context: AnalysisContext) -> str:
     """Build a one-page style summary, preferring model output when available."""
     model_summary = str(context.get("tear_sheet_summary", "") or "").strip()
@@ -534,6 +592,10 @@ def generate_html_report(context: AnalysisContext) -> str:
     ticker = context.get("ticker", "N/A")
     name = context.get("company_name", ticker)
     fetch_date = data.get("fetch_date", datetime.now().strftime("%Y年%m月%d日"))
+    pipeline_def = get_pipeline_definition(context.get("pipeline_id", "v1"))
+    report_title = pipeline_def["report_title"]
+    report_subtitle = pipeline_def["report_subtitle"]
+    pipeline_label = pipeline_def["label"]
     
     # 準備圖表數據
     years = data.get("years", [])
@@ -587,22 +649,7 @@ def generate_html_report(context: AnalysisContext) -> str:
     report_cover_image = report_cover.get("image", "")
     report_cover_model = report_cover.get("model", "")
     
-    # 格式化各 Agent 分析文字
-    analysis_1 = clean_markdown(strip_structured_blocks(sanitize_report_text(analyses.get(1, "分析進行中..."))))
-    analysis_2 = clean_markdown(strip_structured_blocks(sanitize_report_text(analyses.get(2, "分析進行中..."))))
-    analysis_3 = clean_markdown(strip_structured_blocks(sanitize_report_text(analyses.get(3, "分析進行中..."))))
-    analysis_4 = clean_markdown(strip_structured_blocks(sanitize_report_text(analyses.get(4, "分析進行中..."))))
-    analysis_5 = clean_markdown(strip_structured_blocks(sanitize_report_text(analyses.get(5, "分析進行中..."))))
-    analysis_6_raw = strip_structured_blocks(sanitize_report_text(analyses.get(6, "分析進行中...")))
-    analysis_6 = format_debate_text(analysis_6_raw)
-    analysis_7 = clean_markdown(strip_structured_blocks(sanitize_report_text(analyses.get(7, "分析進行中..."))))
-    
-    # 移除結構化標記（避免顯示在報告中）
-    for tag in ["[護城河評分]", "[/護城河評分]", "[目標股價]", "[/目標股價]", 
-                "[投資建議]", "[/投資建議]"]:
-        analysis_3 = analysis_3.replace(tag, "")
-        analysis_4 = analysis_4.replace(tag, "")
-        analysis_7 = analysis_7.replace(tag, "")
+    agent_sections = build_agent_sections(context, html=True)
     
     # 準備 JSON 數據給圖表
     chart_data = {
@@ -680,7 +727,7 @@ def generate_html_report(context: AnalysisContext) -> str:
     total_time = context.get("total_time", 0)
     time_str = f"{total_time:.0f} 秒" if total_time else "N/A"
     agent_model_labels = build_agent_model_labels()
-    model_route_summary = format_model_routes()
+    model_route_summary = format_model_routes(pipeline_id=pipeline_def["id"])
     
     current_price_numeric = data.get("current_price", 0) if isinstance(data.get("current_price", 0), (int, float)) else 0
     template_context = dict(locals())
@@ -695,6 +742,8 @@ def generate_markdown_report(context: AnalysisContext) -> str:
     ticker = context.get("ticker", "N/A")
     name = context.get("company_name", ticker)
     fetch_date = data.get("fetch_date", datetime.now().strftime("%Y年%m月%d日"))
+    pipeline_def = get_pipeline_definition(context.get("pipeline_id", "v1"))
+    report_title = pipeline_def["report_title"]
     
     price_targets = parsed.get("price_targets", {})
     recommendation = parsed.get("recommendation", {})
@@ -716,23 +765,14 @@ def generate_markdown_report(context: AnalysisContext) -> str:
     confidence = get_rec_val(recommendation, "信心", "N/A")
     audit_markdown = build_audit_markdown(context)
     tear_sheet_summary = build_tear_sheet_summary(context)
-    model_route_summary = format_model_routes()
-    
-    analysis_1 = strip_structured_blocks(sanitize_report_text(analyses.get(1, "分析進行中...")))
-    analysis_2 = strip_structured_blocks(sanitize_report_text(analyses.get(2, "分析進行中...")))
-    analysis_3 = strip_structured_blocks(sanitize_report_text(analyses.get(3, "分析進行中...")))
-    analysis_4 = strip_structured_blocks(sanitize_report_text(analyses.get(4, "分析進行中...")))
-    analysis_5 = strip_structured_blocks(sanitize_report_text(analyses.get(5, "分析進行中...")))
-    analysis_6 = strip_structured_blocks(sanitize_report_text(analyses.get(6, "分析進行中...")))
-    analysis_7 = strip_structured_blocks(sanitize_report_text(analyses.get(7, "分析進行中...")))
-    
-    for tag in ["[護城河評分]", "[/護城河評分]", "[目標股價]", "[/目標股價]", 
-                "[投資建議]", "[/投資建議]"]:
-        analysis_3 = analysis_3.replace(tag, "")
-        analysis_4 = analysis_4.replace(tag, "")
-        analysis_7 = analysis_7.replace(tag, "")
-    
-    md = f"""# {ticker} {name} - 華爾街深度研究報告
+    model_route_summary = format_model_routes(pipeline_id=pipeline_def["id"])
+    agent_sections = build_agent_sections(context, html=False)
+    agent_markdown = "\n\n---\n\n".join(
+        f"## {section['display_num']}. {section['title']} (Agent {section['agent_num']})\n{section['body']}"
+        for section in agent_sections
+    )
+
+    md = f"""# {ticker} {name} - {report_title}
 📅 分析日期：{fetch_date}
 
 {audit_markdown + chr(10) + chr(10) if audit_markdown else ""}
@@ -760,38 +800,7 @@ def generate_markdown_report(context: AnalysisContext) -> str:
 
 ---
 
-## 1. 商業模式與整體分析 (Agent 1)
-{analysis_1}
-
----
-
-## 2. 財務深度分析 (Agent 2)
-{analysis_2}
-
----
-
-## 3. 競爭護城河評估 (Agent 3)
-{analysis_3}
-
----
-
-## 4. 投資銀行估值分析 (Agent 4)
-{analysis_4}
-
----
-
-## 5. 未來成長潛力 (Agent 5)
-{analysis_5}
-
----
-
-## 6. 多空辯論 (Agent 6)
-{analysis_6}
-
----
-
-## 7. 最終投資決策 (Agent 7)
-{analysis_7}
+{agent_markdown}
 
 ---
 
@@ -802,7 +811,7 @@ def generate_markdown_report(context: AnalysisContext) -> str:
 | **Yahoo Finance (yfinance)** | 市場即時資料、年度財務報表、估值指標、負債結構、分析師評等 | pypi.org/project/yfinance |
 | **FinMind Open Data** | 台股每月營收、新聞、三大法人買賣超、PER/PBR 河流圖資料 | finmindtrade.com |
 | **Google Custom Search / FMP / Yahoo News** | 近期新聞、法說會、供應鏈與市場催化劑 | 依環境變數與可用 API 自動 fallback |
-| **Google Gemini AI** | 七位 AI 分析師論述（{model_route_summary}） | Goldman Sachs / Morgan Stanley / BlackRock / JPMorgan / Fidelity / T. Rowe Price 人設 |
+| **Google Gemini AI** | AI 分析師論述（{model_route_summary}） | Pipeline {pipeline_def["id"].upper()}：{pipeline_def["label"]} |
 | **公開資訊觀測站 (MOPS/TWSE)** | 台灣證券交易所官方財務公邖 | 可作為數據核對基準 |
 
 > ⚠️ **數據誤差訴明**：Yahoo Finance 所提供的台股歷史財務報表有時存在年份缺失或延遲問題；`Debt to Equity` 指標已轉換為百分比形式；歷史營收、淨利、現金流等數據單位為 **Billion TWD (10億台幣)**。建議將本報告筆記的財務數據与公開資訊觀測站進行交叉比對。

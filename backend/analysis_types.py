@@ -59,3 +59,8 @@ class AnalysisContext(TypedDict, total=False):
     total_time: float
     start_time: float
     execution_mode: str
+    pipeline_id: str
+    pipeline_label: str
+    agent_sequence: tuple[int, ...]
+    agent_positions: dict[int, int]
+    agent_total: int

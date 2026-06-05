@@ -24,6 +24,7 @@ from typing import Optional
 from analysis_jobs import run_stock_analysis_job
 from config import API_KEY_SETUP_MESSAGE, OUTPUT_DIR, REPORT_CLEANUP_INTERVAL_SECONDS, REPORT_RETENTION_DAYS, TASK_QUEUE_BACKEND, has_api_keys
 from job_store import append_event, create_job, find_active_job, get_events_since, get_job, mark_incomplete_jobs_abandoned, update_job
+from pipeline_modes import get_pipeline_definition, normalize_pipeline_id
 from task_queue import create_task_queue
 
 app = FastAPI()
@@ -156,10 +157,15 @@ def get_reports(
         for filename in os.listdir(OUTPUT_DIR):
             if filename.endswith(".html"):
                 filepath = os.path.join(OUTPUT_DIR, filename)
-                # Parse ticker and time from filename (e.g., 2449_TW_report_20260523_124313.html)
+                # Parse ticker, optional pipeline, and time from filename
                 parts = filename.replace(".html", "").split("_report_")
                 if len(parts) == 2:
-                    ticker = parts[0].replace("_", ".")
+                    raw_ticker = parts[0]
+                    pipeline_id = "v1"
+                    if raw_ticker.endswith("_v1") or raw_ticker.endswith("_v2"):
+                        pipeline_id = raw_ticker[-2:]
+                        raw_ticker = raw_ticker[:-3]
+                    ticker = raw_ticker.replace("_", ".")
                     date_str = parts[1]
                     try:
                         dt = time.strptime(date_str, "%Y%m%d_%H%M%S")
@@ -169,6 +175,7 @@ def get_reports(
                 else:
                     ticker = filename
                     formatted_date = "未知時間"
+                    pipeline_id = "v1"
                     
                 # 動態解析 HTML 報告中的公司名稱
                 company_name = ticker
@@ -186,7 +193,9 @@ def get_reports(
                     "ticker": ticker,
                     "company_name": company_name,
                     "date": formatted_date,
-                    "timestamp": os.path.getmtime(filepath)
+                    "timestamp": os.path.getmtime(filepath),
+                    "pipeline_id": pipeline_id,
+                    "pipeline_label": get_pipeline_definition(pipeline_id)["short_label"],
                 }
                 searchable = f"{filename} {ticker} {company_name}".lower()
                 if query and query not in searchable:
@@ -255,9 +264,12 @@ async def analyze_stock(
     request: Request,
     job_id: Optional[str] = Query(None),
     last_event_id: Optional[int] = Query(None, ge=0),
+    pipeline: str = Query("v1", max_length=24),
 ):
     """使用 SSE 即時推播分析進度"""
     ticker_upper = ticker.strip().upper()
+    pipeline_id = normalize_pipeline_id(pipeline)
+    pipeline_def = get_pipeline_definition(pipeline_id)
 
     if not has_api_keys():
         async def missing_key_event_generator():
@@ -276,19 +288,19 @@ async def analyze_stock(
     should_enqueue = False
     with active_analyses_lock:
         requested_job = get_job(job_id) if job_id else {}
-        if requested_job and requested_job.get("ticker") == ticker_upper:
+        if requested_job and requested_job.get("ticker") == ticker_upper and requested_job.get("pipeline_id", "v1") == pipeline_id:
             job_id = requested_job["job_id"]
         else:
-            active_job = find_active_job(ticker_upper)
+            active_job = find_active_job(ticker_upper, pipeline_id)
             if active_job:
                 job_id = active_job["job_id"]
             else:
-                job_id = create_job(ticker_upper)
+                job_id = create_job(ticker_upper, pipeline_id)
                 should_enqueue = True
 
     if should_enqueue:
         try:
-            analysis_task_queue.enqueue(f"analysis:{job_id}", run_stock_analysis_job, job_id, ticker_upper)
+            analysis_task_queue.enqueue(f"analysis:{job_id}", run_stock_analysis_job, job_id, ticker_upper, pipeline_id)
         except Exception as e:
             message = f"分析任務送入佇列失敗：{e}"
             update_job(job_id, "error", error=message)
@@ -299,7 +311,15 @@ async def analyze_stock(
         terminal_sent = False
         yield {
             "data": json.dumps(
-                {"type": "job", "job_id": job_id, "ticker": ticker_upper, "resume_after_id": resume_after_id},
+                {
+                    "type": "job",
+                    "job_id": job_id,
+                    "ticker": ticker_upper,
+                    "resume_after_id": resume_after_id,
+                    "pipeline_id": pipeline_id,
+                    "pipeline_label": pipeline_def["label"],
+                    "agent_total": len(pipeline_def["agents"]),
+                },
                 ensure_ascii=False,
             )
         }

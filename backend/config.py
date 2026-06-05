@@ -8,6 +8,9 @@ import re
 from pathlib import Path
 from typing import Optional
 
+from agent_catalog import AGENT_NAMES
+from pipeline_modes import get_pipeline_agents
+
 
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_MODEL_ROUTES_FILE = BASE_DIR / "model_routes.json"
@@ -222,20 +225,21 @@ if not DEFAULT_ANALYSIS_MODEL or not DEFAULT_DECISION_MODEL:
 def _load_agent_models() -> dict[int, str]:
     route_agents = _route_section("agents")
     models = {}
-    for agent_num in range(1, 7):
-        configured = route_agents.get(str(agent_num), DEFAULT_ANALYSIS_MODEL)
-        models[agent_num] = str(configured or DEFAULT_ANALYSIS_MODEL).strip()
-    models[7] = str(route_agents.get("7", DEFAULT_DECISION_MODEL) or DEFAULT_DECISION_MODEL).strip()
+    decision_agents = {7, 16}
+    for agent_num in sorted(AGENT_NAMES):
+        default_model = DEFAULT_DECISION_MODEL if agent_num in decision_agents else DEFAULT_ANALYSIS_MODEL
+        configured = route_agents.get(str(agent_num), default_model)
+        models[agent_num] = str(configured or default_model).strip()
 
     for raw_key, value in _json_env_dict("AGENT_MODELS_JSON").items():
         try:
             agent_num = int(raw_key)
         except (TypeError, ValueError):
             continue
-        if 1 <= agent_num <= 7 and str(value).strip():
+        if agent_num in AGENT_NAMES and str(value).strip():
             models[agent_num] = str(value).strip()
 
-    for agent_num in range(1, 8):
+    for agent_num in sorted(AGENT_NAMES):
         override = os.getenv(f"AGENT_MODEL_{agent_num}", "").strip()
         if override:
             models[agent_num] = override
@@ -250,8 +254,9 @@ def _load_agent_fallbacks() -> dict[int, list[str]]:
         _route_list("analysis_fallback_models"),
     )
     models: dict[int, list[str]] = {}
-    for agent_num in range(1, 8):
-        configured = route_fallbacks.get(str(agent_num), default_analysis_fallbacks if agent_num <= 6 else [])
+    decision_agents = {7, 16}
+    for agent_num in sorted(AGENT_NAMES):
+        configured = route_fallbacks.get(str(agent_num), [] if agent_num in decision_agents else default_analysis_fallbacks)
         if isinstance(configured, list):
             models[agent_num] = [str(model).strip() for model in configured if str(model).strip()]
         elif isinstance(configured, str):
@@ -264,14 +269,14 @@ def _load_agent_fallbacks() -> dict[int, list[str]]:
             agent_num = int(raw_key)
         except (TypeError, ValueError):
             continue
-        if not (1 <= agent_num <= 7):
+        if agent_num not in AGENT_NAMES:
             continue
         if isinstance(value, list):
             models[agent_num] = [str(model).strip() for model in value if str(model).strip()]
         elif isinstance(value, str):
             models[agent_num] = [model.strip() for model in value.split(",") if model.strip()]
 
-    for agent_num in range(1, 8):
+    for agent_num in sorted(AGENT_NAMES):
         override = _env_list(f"AGENT_FALLBACK_MODELS_{agent_num}", models.get(agent_num, []))
         models[agent_num] = override
 
@@ -335,20 +340,23 @@ TPM_LIMITS = _load_model_limits("TPM_LIMITS_JSON", "DEFAULT_TPM_LIMIT", ROUTE_TP
 RPD_LIMITS = _load_model_limits("RPD_LIMITS_JSON", "DEFAULT_RPD_LIMIT", ROUTE_RPD_LIMITS, 0)
 
 
-def format_model_routes(agent_models: Optional[dict[int, str]] = None) -> str:
+def format_model_routes(agent_models: Optional[dict[int, str]] = None, pipeline_id: str = "v1") -> str:
     models = agent_models or AGENT_MODELS
-    analysis_models = [models.get(agent_num, "N/A") for agent_num in range(1, 7)]
+    agent_nums = list(get_pipeline_agents(pipeline_id))
+    decision_agent = agent_nums[-1]
+    analysis_agents = agent_nums[:-1]
+    analysis_models = [models.get(agent_num, "N/A") for agent_num in analysis_agents]
     unique_analysis_models = list(dict.fromkeys(analysis_models))
-    if len(unique_analysis_models) == 1:
-        parts = [f"Agent 1-6: {unique_analysis_models[0]}"]
+    if len(unique_analysis_models) == 1 and analysis_agents:
+        parts = [f"Agent {analysis_agents[0]}-{analysis_agents[-1]}: {unique_analysis_models[0]}"]
     else:
-        parts = [", ".join(f"A{agent_num}: {models.get(agent_num, 'N/A')}" for agent_num in range(1, 7))]
+        parts = [", ".join(f"A{agent_num}: {models.get(agent_num, 'N/A')}" for agent_num in analysis_agents)]
 
-    decision_model = models.get(7, "N/A")
+    decision_model = models.get(decision_agent, "N/A")
     if AUDIT_MODEL == decision_model:
-        parts.append(f"Agent 7/稽核: {decision_model}")
+        parts.append(f"Agent {decision_agent}/稽核: {decision_model}")
     else:
-        parts.append(f"Agent 7: {decision_model}")
+        parts.append(f"Agent {decision_agent}: {decision_model}")
         parts.append(f"稽核: {AUDIT_MODEL}")
 
     if CONTEXT_DIGEST_MODEL and CONTEXT_DIGEST_MODEL not in unique_analysis_models:

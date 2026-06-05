@@ -10,11 +10,14 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 import agent_runner as ar  # noqa: E402
+import assistant_tasks  # noqa: E402
 import config  # noqa: E402
 import external_data_clients as edc  # noqa: E402
 import financial_data  # noqa: E402
 import financial_tools  # noqa: E402
 import prompt_builder  # noqa: E402
+import pipeline_modes  # noqa: E402
+import rag_service  # noqa: E402
 import report_gen  # noqa: E402
 import structured_outputs  # noqa: E402
 
@@ -481,8 +484,13 @@ class AuditRuleTests(unittest.TestCase):
 
     def test_agent_function_tools_are_registered(self):
         self.assertEqual([tool.__name__ for tool in ar.get_agent_function_tools(2)], ["calculate_cagr"])
+        self.assertEqual([tool.__name__ for tool in ar.get_agent_function_tools(13)], ["calculate_cagr"])
         self.assertEqual(
             [tool.__name__ for tool in ar.get_agent_function_tools(4)],
+            ["calculate_cagr", "calculate_wacc", "calculate_dcf", "calculate_ddm"],
+        )
+        self.assertEqual(
+            [tool.__name__ for tool in ar.get_agent_function_tools(14)],
             ["calculate_cagr", "calculate_wacc", "calculate_dcf", "calculate_ddm"],
         )
 
@@ -490,10 +498,172 @@ class AuditRuleTests(unittest.TestCase):
         config_obj = ar.build_generation_config(3, "system")
         self.assertEqual(getattr(config_obj, "response_mime_type", None), "application/json")
         self.assertIsNotNone(getattr(config_obj, "response_schema", None))
+        v2_config_obj = ar.build_generation_config(14, "system")
+        self.assertEqual(getattr(v2_config_obj, "response_mime_type", None), "application/json")
+        self.assertIsNotNone(getattr(v2_config_obj, "response_schema", None))
 
     def test_structured_schema_omits_additional_properties_for_genai(self):
         schema = structured_outputs.MoatStructuredOutput.model_json_schema(by_alias=True)
         self.assertNotIn("additionalProperties", json.dumps(schema, ensure_ascii=False))
+
+    def test_structured_schemas_include_reasoning_fields(self):
+        moat_schema = structured_outputs.MoatStructuredOutput.model_json_schema(by_alias=True)
+        price_schema = structured_outputs.PriceTargetStructuredOutput.model_json_schema(by_alias=True)
+        recommendation_schema = structured_outputs.RecommendationStructuredOutput.model_json_schema(by_alias=True)
+
+        self.assertIn("reasoning_steps", json.dumps(moat_schema, ensure_ascii=False))
+        self.assertIn("dcf_reasoning", json.dumps(price_schema, ensure_ascii=False))
+        self.assertIn("peer_reasoning", json.dumps(price_schema, ensure_ascii=False))
+        self.assertIn("scenario_reasoning", json.dumps(price_schema, ensure_ascii=False))
+        self.assertIn("reasoning_steps", json.dumps(recommendation_schema, ensure_ascii=False))
+
+    def test_pipeline_v2_definition_and_prompt_registration(self):
+        v2 = pipeline_modes.get_pipeline_definition("v2")
+        self.assertEqual(v2["agents"], (11, 12, 13, 14, 15, 16))
+        self.assertEqual(v2["structured_agents"], {"moat": 12, "valuation": 14, "recommendation": 16})
+        for agent_num in v2["agents"]:
+            self.assertIn(agent_num, ar.AGENT_NAMES)
+            self.assertIn(agent_num, ar.SYSTEM_PROMPTS)
+            self.assertIn(agent_num, ar.ANALYSIS_PROMPTS)
+            self.assertIn(agent_num, ar.AGENT_MODELS)
+
+    def test_pipeline_v2_parses_structured_outputs_and_renders_sections(self):
+        context = {
+            "pipeline_id": "v2",
+            "agent_sequence": (11, 12, 13, 14, 15, 16),
+            "data": base_data(),
+            "analyses": {
+                11: "## 總經\n中性。",
+                12: "## 護城河\n中等。",
+                13: "## 財務排雷\n尚可。",
+                14: "## 估值\n基本情境 NT$1000。",
+                15: "## 籌碼\n偏多。",
+                16: "## 實戰決策\n持有。",
+            },
+            "structured_outputs": {
+                12: {
+                    "moat_scores": {
+                        "品牌影響力": 4,
+                        "網路效應": 2,
+                        "轉換成本": 5,
+                        "成本優勢": 6,
+                        "專利技術": 4,
+                        "整體護城河": 5,
+                    }
+                },
+                14: {"price_targets": {"熊市情境": 800, "基本情境": 1000, "牛市情境": 1200}},
+                16: {
+                    "recommendation": {
+                        "建議": "持有",
+                        "短期目標（3個月）": "NT$900",
+                        "中期目標（6個月）": "NT$1000",
+                        "長期目標（12個月）": "NT$1100",
+                        "長期潛力（5年）": "NT$1500",
+                        "信心指數": "6/10",
+                    }
+                },
+            },
+        }
+
+        parsed = ar.parse_structured_data(context)
+        context["parsed"] = parsed
+        sections = report_gen.build_agent_sections(context, html=False)
+        markdown = report_gen.generate_markdown_report(context)
+
+        self.assertEqual(parsed["price_targets"]["基本情境"], 1000)
+        self.assertEqual(parsed["recommendation"]["建議"], "持有")
+        self.assertEqual([section["agent_num"] for section in sections], [11, 12, 13, 14, 15, 16])
+        self.assertIn("實戰交易決策報告", markdown)
+        self.assertIn("## 6. 實戰交易決策 (Agent 16)", markdown)
+
+    def test_normalized_structured_outputs_preserve_reasoning_without_polluting_prices(self):
+        moat = structured_outputs.normalize_structured_output(3, {
+            "reasoning_steps": ["品牌證據支持 6 分", "轉換成本較強", "網路效應偏弱"],
+            "moat_scores": {
+                "品牌影響力": 6,
+                "網路效應": 3,
+                "轉換成本": 7,
+                "成本優勢": 6,
+                "專利技術": 5,
+                "整體護城河": 6,
+            },
+            "analysis_markdown": "正文",
+        })
+        self.assertEqual(moat["reasoning_steps"][0], "品牌證據支持 6 分")
+
+        valuation = structured_outputs.normalize_structured_output(4, {
+            "price_targets": {
+                "dcf_reasoning": "normalized FCF 搭配市場價值 WACC。",
+                "peer_reasoning": "同業倍數只作交叉檢查。",
+                "scenario_reasoning": "熊市折讓需求下修，牛市反映產能開出。",
+                "熊市情境": 800,
+                "基本情境": 1000,
+                "牛市情境": 1200,
+            },
+            "valuation_summary": {
+                "primary_method": "blended",
+                "uses_market_value_wacc": True,
+                "uses_normalized_fcf": True,
+                "double_counting_check": "未重複計價高成長。",
+            },
+            "analysis_markdown": "正文",
+        })
+        self.assertEqual(set(valuation["price_targets"].keys()), {"熊市情境", "基本情境", "牛市情境"})
+        self.assertEqual(valuation["valuation_reasoning"]["dcf_reasoning"], "normalized FCF 搭配市場價值 WACC。")
+
+        recommendation = structured_outputs.normalize_structured_output(7, {
+            "reasoning_steps": ["估值合理", "風險仍高", "空方指出下修風險"],
+            "recommendation": {
+                "建議": "持有",
+                "短期目標（3個月）": "NT$900",
+                "中期目標（6個月）": "NT$1000",
+                "長期目標（12個月）": "NT$1100",
+                "長期潛力（5年）": "NT$1500",
+                "信心指數": "6/10",
+            },
+            "analysis_markdown": "正文",
+        })
+        self.assertIn("空方指出下修風險", recommendation["reasoning_steps"])
+
+    def test_agent_5_context_skips_agent_4_to_avoid_valuation_anchoring(self):
+        context = {
+            "analyses": {
+                1: "Agent 1 商業模式。",
+                2: "Agent 2 FCF 轉換率 80%。",
+                3: "Agent 3 護城河弱項是網路效應。",
+                4: "Agent 4 基本情境目標價 NT$1000。",
+                5: "Agent 5 成長情境。",
+            }
+        }
+
+        agent_5_context = ar._format_previous(context, 5)
+        agent_6_context = ar._format_previous(context, 6)
+
+        self.assertIn("Agent 2 FCF 轉換率", agent_5_context)
+        self.assertNotIn("Agent 4 基本情境目標價", agent_5_context)
+        self.assertIn("Agent 4 基本情境目標價", agent_6_context)
+
+    def test_context_digest_fallback_contains_hard_metric_slots(self):
+        payload = assistant_tasks._fallback_context_digest_payload(
+            4,
+            {"analyses": {1: "商業模式"}, "structured_outputs": {}},
+            reason="test",
+        )
+        self.assertIn("hard_metrics", payload)
+        self.assertIn("agent_2_fcf_conversion_rate", payload["hard_metrics"])
+        self.assertIn("moat_weakness_matrix", payload)
+
+    def test_agent_6_rag_query_targets_negative_signals(self):
+        query = rag_service.AGENT_RAG_QUERIES[6]
+        self.assertIn("downgrade", query)
+        self.assertIn("下修", query)
+        self.assertIn("warning", query)
+
+    def test_agent_15_rag_query_targets_chip_and_sentiment(self):
+        query = rag_service.AGENT_RAG_QUERIES[15]
+        self.assertIn("institutional", query)
+        self.assertIn("籌碼", query)
+        self.assertIn("河流圖", query)
 
     def test_prompt_builder_supports_jinja_and_legacy_placeholders(self):
         rendered = prompt_builder.render_prompt_template(
@@ -521,6 +691,10 @@ class AuditRuleTests(unittest.TestCase):
         expected_decision_sequence = list(dict.fromkeys([expected_decision, *config.AGENT_FALLBACK_MODELS.get(7, [])]))
         self.assertEqual(ar.AGENT_MODELS[7], expected_decision)
         self.assertEqual(ar.get_agent_model_sequence(7), expected_decision_sequence)
+        expected_trading_decision = configured_agents.get(16, config.DEFAULT_DECISION_MODEL)
+        expected_trading_decision_sequence = list(dict.fromkeys([expected_trading_decision, *config.AGENT_FALLBACK_MODELS.get(16, [])]))
+        self.assertEqual(ar.AGENT_MODELS[16], expected_trading_decision)
+        self.assertEqual(ar.get_agent_model_sequence(16), expected_trading_decision_sequence)
         self.assertEqual(ar.get_audit_model_sequence(), [config.AUDIT_MODEL])
         self.assertEqual(ar.get_context_digest_model_sequence(), [config.CONTEXT_DIGEST_MODEL])
 

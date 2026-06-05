@@ -27,6 +27,9 @@
       "intro": "請只輸出合法 JSON，不要 Markdown code fence，不要前言，不要附註。",
       "schema_lines": [
         "{",
+        "  \"reasoning_steps\": [",
+        "    \"先用一句話自問：哪個證據支持/削弱品牌、網路效應、轉換成本、成本優勢或專利技術？再用一句話回答。至少 3 項。\"",
+        "  ],",
         "  \"moat_scores\": {",
         "    \"品牌影響力\": number,",
         "    \"網路效應\": number,",
@@ -39,6 +42,7 @@
         "}"
       ],
       "rules": [
+        "reasoning_steps 必須先於 moat_scores 產生，且每一步都要連結具體證據、反證或資料限制。",
         "所有分數必須是 1-10 的數字。",
         "analysis_markdown 不可重複系統提示詞或草稿筆記。"
       ]
@@ -49,6 +53,9 @@
       "schema_lines": [
         "{",
         "  \"price_targets\": {",
+        "    \"dcf_reasoning\": \"DCF 假設、normalized FCF、WACC、終值與資料限制推論摘要\",",
+        "    \"peer_reasoning\": \"同業 P/E、P/B 或 EV/EBITDA 比較推論摘要\",",
+        "    \"scenario_reasoning\": \"熊市、基本與牛市差異、風險折讓與上行條件推論摘要\",",
         "    \"熊市情境\": number,",
         "    \"基本情境\": number,",
         "    \"牛市情境\": number",
@@ -63,6 +70,7 @@
         "}"
       ],
       "rules": [
+        "必須先完成 dcf_reasoning、peer_reasoning、scenario_reasoning，再輸出三個目標價。",
         "目標價必須是完整股價數字，例如 5249，不可輸出 5 來代表 5,249。",
         "analysis_markdown 不可把 DCF 與 EPS×P/E 宣稱為完全吻合。"
       ]
@@ -72,6 +80,9 @@
       "intro": "請只輸出合法 JSON，不要 Markdown code fence，不要前言，不要附註。",
       "schema_lines": [
         "{",
+        "  \"reasoning_steps\": [",
+        "    \"先用一句話自問：估值、財務、護城河、成長、風險或籌碼如何影響最終建議？再用一句話回答。至少 3 項。\"",
+        "  ],",
         "  \"recommendation\": {",
         "    \"建議\": \"買入|持有|避免\",",
         "    \"短期目標（3個月）\": \"NT$完整數字\",",
@@ -84,7 +95,85 @@
         "}"
       ],
       "rules": [
+        "reasoning_steps 必須先於 recommendation 產生，且至少涵蓋估值、風險與一項前序 Agent 的反方觀點。",
         "所有目標價都必須與 Agent 4 的三情境估值同量級，不可發生千元被縮成個位數。"
+      ]
+    },
+    "12": {
+      "title": "結構化輸出硬性規則",
+      "intro": "請只輸出合法 JSON，不要 Markdown code fence，不要前言，不要附註。",
+      "schema_lines": [
+        "{",
+        "  \"reasoning_steps\": [",
+        "    \"先用一句話自問：哪個證據支持/削弱品牌、網路效應、轉換成本、成本優勢或專利技術？再用一句話回答。至少 3 項。\"",
+        "  ],",
+        "  \"moat_scores\": {",
+        "    \"品牌影響力\": number,",
+        "    \"網路效應\": number,",
+        "    \"轉換成本\": number,",
+        "    \"成本優勢\": number,",
+        "    \"專利技術\": number,",
+        "    \"整體護城河\": number",
+        "  },",
+        "  \"analysis_markdown\": \"繁體中文正式報告正文\"",
+        "}"
+      ],
+      "rules": [
+        "reasoning_steps 必須先於 moat_scores 產生，且每一步都要連結具體證據、反證或資料限制。",
+        "所有分數必須是 1-10 的數字。",
+        "analysis_markdown 不可重複系統提示詞或草稿筆記。"
+      ]
+    },
+    "14": {
+      "title": "結構化輸出硬性規則",
+      "intro": "請只輸出合法 JSON，不要 Markdown code fence，不要前言，不要附註。",
+      "schema_lines": [
+        "{",
+        "  \"price_targets\": {",
+        "    \"dcf_reasoning\": \"DCF 假設、normalized FCF、WACC、終值與資料限制推論摘要\",",
+        "    \"peer_reasoning\": \"同業 P/E、P/B 或 EV/EBITDA 比較推論摘要\",",
+        "    \"scenario_reasoning\": \"熊市、基本與牛市差異、風險折讓與上行條件推論摘要\",",
+        "    \"熊市情境\": number,",
+        "    \"基本情境\": number,",
+        "    \"牛市情境\": number",
+        "  },",
+        "  \"valuation_summary\": {",
+        "    \"primary_method\": \"normalized_dcf|relative_valuation|blended\",",
+        "    \"uses_market_value_wacc\": true,",
+        "    \"uses_normalized_fcf\": true,",
+        "    \"double_counting_check\": \"繁體中文一句話\"",
+        "  },",
+        "  \"analysis_markdown\": \"繁體中文正式報告正文\"",
+        "}"
+      ],
+      "rules": [
+        "必須先完成 dcf_reasoning、peer_reasoning、scenario_reasoning，再輸出三個目標價。",
+        "目標價必須是完整股價數字，例如 5249，不可輸出 5 來代表 5,249。",
+        "analysis_markdown 不可把 DCF 與 EPS×P/E 宣稱為完全吻合。"
+      ]
+    },
+    "16": {
+      "title": "結構化輸出硬性規則",
+      "intro": "請只輸出合法 JSON，不要 Markdown code fence，不要前言，不要附註。",
+      "schema_lines": [
+        "{",
+        "  \"reasoning_steps\": [",
+        "    \"先用一句話自問：估值、財務、護城河、總經、籌碼或交易風控如何影響最終建議？再用一句話回答。至少 3 項。\"",
+        "  ],",
+        "  \"recommendation\": {",
+        "    \"建議\": \"買入|持有|避免\",",
+        "    \"短期目標（3個月）\": \"NT$完整數字\",",
+        "    \"中期目標（6個月）\": \"NT$完整數字\",",
+        "    \"長期目標（12個月）\": \"NT$完整數字\",",
+        "    \"長期潛力（5年）\": \"NT$完整數字\",",
+        "    \"信心指數\": \"1-10/10\"",
+        "  },",
+        "  \"analysis_markdown\": \"繁體中文正式交易決策備忘錄正文\"",
+        "}"
+      ],
+      "rules": [
+        "reasoning_steps 必須先於 recommendation 產生，且至少涵蓋估值、籌碼與一項排雷/總經反方觀點。",
+        "所有目標價都必須與 Agent 14 的三情境估值同量級，不可發生千元被縮成個位數。"
       ]
     }
   },
@@ -98,6 +187,24 @@
       ]
     },
     "4": {
+      "title": "估值工具使用規則",
+      "rules": [
+        "WACC 權重請呼叫 calculate_wacc，或引用 deterministic_financial_tool_results.calculations.market_value_wacc_default。",
+        "DCF 情境請呼叫 calculate_dcf，或引用 deterministic_financial_tool_results.calculations.dcf_scenarios_default。",
+        "金融股或殖利率高於 5% 的標的，請呼叫 calculate_ddm 或引用 ddm_scenarios_default，並提高 DDM/P/B 權重。",
+        "若自行調整成長率、折現率或 normalized FCF，需清楚列出參數，計算結果以工具回傳值為準。",
+        "本益比估值與 DCF 必須分開呈現；正式輸出只保留必要算式摘要。"
+      ]
+    },
+    "13": {
+      "title": "數值工具使用規則",
+      "rules": [
+        "CAGR 請呼叫 calculate_cagr，或引用財務 JSON 中 deterministic_financial_tool_results.calculations.revenue_cagr。",
+        "FCF/淨利、年度成長率與杜邦恒等式應以 JSON 欄位與工具結果為準，不自行心算替換單位。",
+        "正式輸出可列簡短公式摘要，但不要輸出內部驗算草稿。"
+      ]
+    },
+    "14": {
       "title": "估值工具使用規則",
       "rules": [
         "WACC 權重請呼叫 calculate_wacc，或引用 deterministic_financial_tool_results.calculations.market_value_wacc_default。",
@@ -145,6 +252,43 @@
         "若近期新聞/籌碼和長期基本面方向相反，請分別說明短期與長期判斷。",
         "3-6 個月目標與信心指數需參考 institutional_trading 的外資、投信、自營商近 30 日買賣超趨勢。",
         "若基本面與籌碼面背離，請降低短期信心或清楚區分長短期觀點。"
+      ]
+    },
+    "11": {
+      "title": "總經與產業催化劑使用規則",
+      "rules": [
+        "總經與產業週期請納入 market_catalysts.items 中近 30 日新聞、法說、政策或供應鏈標題。",
+        "若 catalyst 來源不足，請明確標示資料限制，不要用既有常識假裝近期事件。"
+      ]
+    },
+    "12": {
+      "title": "動態同業比較規則",
+      "rules": [
+        "護城河評分請參考 peer_context.dynamic_peer_metrics 的本地與全球同業毛利率、淨利率、P/E、P/B。",
+        "同業資料只能作比較，不得把同業商業模式或新聞套用到本公司。"
+      ]
+    },
+    "14": {
+      "title": "成長估值在地規則",
+      "rules": [
+        "估值需同時連結 market_catalysts.items、local_valuation_context.pe_river_chart 與前序財務排雷結果。",
+        "Forward EPS 或財測已隱含高成長時，不得再用高 Forward P/E 重複計價。"
+      ]
+    },
+    "15": {
+      "title": "籌碼與情緒資料規則",
+      "rules": [
+        "短線動能請優先引用 institutional_trading 的外資、投信、自營商近 30 日買賣超趨勢。",
+        "P/E 河流圖只作交易位階與安全邊際判斷，不可自行推出長期 DCF 目標價。",
+        "若近期新聞與法人籌碼背離，請明確判斷是利多出盡、利空出盡或多空分歧。"
+      ]
+    },
+    "16": {
+      "title": "實戰決策即時資料規則",
+      "rules": [
+        "最終交易決策需綜合 Agent 14 估值區間、Agent 15 籌碼動能、recent_catalysts 與 institutional_trading。",
+        "若基本面與籌碼面背離，請降低短期信心或提出分批/觀望/停損等風控策略。",
+        "3-6 個月目標與信心指數需反映外資、投信、自營商近 30 日趨勢。"
       ]
     }
   },

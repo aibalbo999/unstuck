@@ -110,9 +110,9 @@ class AgentMissingModelError(Exception):
 
 def get_agent_function_tools(agent_num: int) -> list:
     """Return Python function tools for agents that need deterministic math."""
-    if agent_num == 2:
+    if agent_num in {2, 13}:
         return [calculate_cagr]
-    if agent_num == 4:
+    if agent_num in {4, 14}:
         return [calculate_cagr, calculate_wacc, calculate_dcf, calculate_ddm]
     return []
 
@@ -496,18 +496,26 @@ async def run_single_agent_async(
 # 主要執行管道
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-def run_analysis_pipeline(data: StockData, progress_callback=None) -> AnalysisContext:
+def run_analysis_pipeline(data: StockData, progress_callback=None, pipeline_id: str = "v1") -> AnalysisContext:
     """Compatibility wrapper; orchestration lives in pipeline.py."""
     from pipeline import run_analysis_pipeline as _run_analysis_pipeline
 
-    return _run_analysis_pipeline(data, progress_callback=progress_callback)
+    return _run_analysis_pipeline(data, progress_callback=progress_callback, pipeline_id=pipeline_id)
 
 
-async def run_analysis_pipeline_async(data: StockData, progress_callback=None) -> AnalysisContext:
+async def run_analysis_pipeline_async(
+    data: StockData,
+    progress_callback=None,
+    pipeline_id: str = "v1",
+) -> AnalysisContext:
     """Compatibility wrapper; async DAG orchestration lives in pipeline.py."""
     from pipeline import run_analysis_pipeline_async as _run_analysis_pipeline_async
 
-    return await _run_analysis_pipeline_async(data, progress_callback=progress_callback)
+    return await _run_analysis_pipeline_async(
+        data,
+        progress_callback=progress_callback,
+        pipeline_id=pipeline_id,
+    )
 
 
 def _build_reflection_generation_config():

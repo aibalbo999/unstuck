@@ -8,6 +8,7 @@ from config import API_KEY_SETUP_MESSAGE, OUTPUT_DIR, has_api_keys
 from financial_data import async_fetch_stock_data
 from job_store import append_event, update_job
 from pipeline import run_analysis_pipeline_async
+from pipeline_modes import get_pipeline_definition, normalize_pipeline_id
 from report_gen import generate_html_report_async, generate_markdown_report
 
 
@@ -45,9 +46,11 @@ def build_operator_audit_notice(context: dict) -> dict:
     return {"status": "passed", "message": "最終稽核已通過。", "issues": [], "repair_log": []}
 
 
-async def run_stock_analysis_job_async(job_id: str, ticker: str) -> str:
+async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: str = "v1") -> str:
     """Run the full stock analysis and persist progress events for SSE clients."""
     ticker_upper = ticker.strip().upper()
+    normalized_pipeline_id = normalize_pipeline_id(pipeline_id)
+    pipeline_def = get_pipeline_definition(normalized_pipeline_id)
     update_job(job_id, "running")
 
     try:
@@ -56,7 +59,12 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str) -> str:
             append_event(job_id, {"type": "error", "message": API_KEY_SETUP_MESSAGE})
             return ""
 
-        append_event(job_id, {"type": "status", "message": f"正在獲取 {ticker_upper} 財務數據..."})
+        append_event(job_id, {
+            "type": "status",
+            "message": f"正在獲取 {ticker_upper} 財務數據...",
+            "pipeline_id": normalized_pipeline_id,
+            "pipeline_label": pipeline_def["label"],
+        })
         data = await async_fetch_stock_data(ticker_upper)
         if "error" in data:
             append_event(job_id, {"type": "status", "message": f"財務數據獲取有誤：{data['error']}，將繼續分析"})
@@ -75,8 +83,14 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str) -> str:
                 "phase": phase,
             })
 
-        append_event(job_id, {"type": "status", "message": "開始執行非同步分析 Agent..."})
-        context = await run_analysis_pipeline_async(data, progress_callback=progress_callback)
+        append_event(job_id, {
+            "type": "status",
+            "message": f"開始執行 {pipeline_def['label']}（{len(pipeline_def['agents'])} 位 Agent）...",
+            "pipeline_id": normalized_pipeline_id,
+            "pipeline_label": pipeline_def["label"],
+            "agent_total": len(pipeline_def["agents"]),
+        })
+        context = await run_analysis_pipeline_async(data, progress_callback=progress_callback, pipeline_id=normalized_pipeline_id)
         audit_notice = build_operator_audit_notice(context)
 
         if audit_notice["status"] == "needs_attention":
@@ -94,8 +108,8 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str) -> str:
         os.makedirs(OUTPUT_DIR, exist_ok=True)
         timestamp = time.strftime("%Y%m%d_%H%M%S")
         safe_ticker = ticker_upper.replace(".", "_")
-        filename = f"{safe_ticker}_report_{timestamp}.html"
-        md_filename = f"{safe_ticker}_report_{timestamp}.md"
+        filename = f"{safe_ticker}_{normalized_pipeline_id}_report_{timestamp}.html"
+        md_filename = f"{safe_ticker}_{normalized_pipeline_id}_report_{timestamp}.md"
 
         with open(os.path.join(OUTPUT_DIR, filename), "w", encoding="utf-8") as f:
             f.write(html_content)
@@ -103,7 +117,7 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str) -> str:
             f.write(md_content)
 
         update_job(job_id, "done", filename=filename)
-        append_event(job_id, {"type": "done", "filename": filename, "audit": audit_notice})
+        append_event(job_id, {"type": "done", "filename": filename, "audit": audit_notice, "pipeline_id": normalized_pipeline_id})
         return filename
 
     except Exception as e:
@@ -113,6 +127,6 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str) -> str:
         raise
 
 
-def run_stock_analysis_job(job_id: str, ticker: str) -> str:
+def run_stock_analysis_job(job_id: str, ticker: str, pipeline_id: str = "v1") -> str:
     """Synchronous importable wrapper for RQ and local ThreadPool workers."""
-    return asyncio.run(run_stock_analysis_job_async(job_id, ticker))
+    return asyncio.run(run_stock_analysis_job_async(job_id, ticker, pipeline_id))

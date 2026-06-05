@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import re
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from analysis_types import AnalysisContext
 from json_utils import extract_json_payload
+from pipeline_modes import get_structured_agent_num
 from prompt_rules import build_structured_agent_instructions
 from validators import _extract_price_numbers, _parse_price_number
 
@@ -32,11 +33,19 @@ class MoatScores(StructuredModel):
 
 
 class MoatStructuredOutput(StructuredModel):
+    reasoning_steps: list[str] = Field(
+        ...,
+        min_length=3,
+        description="先列出 3-6 個可稽核推論步驟，逐步連結證據、反證與評分邏輯。",
+    )
     moat_scores: MoatScores
     analysis_markdown: str = Field(..., min_length=1)
 
 
 class PriceTargets(StructuredModel):
+    dcf_reasoning: str = Field(..., min_length=1, description="DCF 假設、normalized FCF、WACC 與終值推論摘要。")
+    peer_reasoning: str = Field(..., min_length=1, description="同業本益比、P/B 或 EV/EBITDA 比較推論摘要。")
+    scenario_reasoning: str = Field(..., min_length=1, description="熊市、基本與牛市情境差異及風險折讓推論摘要。")
     bear_case: float = Field(..., ge=0, alias="熊市情境")
     base_case: float = Field(..., ge=0, alias="基本情境")
     bull_case: float = Field(..., ge=0, alias="牛市情境")
@@ -65,6 +74,11 @@ class RecommendationFields(StructuredModel):
 
 
 class RecommendationStructuredOutput(StructuredModel):
+    reasoning_steps: list[str] = Field(
+        ...,
+        min_length=3,
+        description="先列出 3-6 個決策推論步驟，逐步連結估值、財務、護城河、成長、風險與籌碼。",
+    )
     recommendation: RecommendationFields
     analysis_markdown: str = Field(..., min_length=1)
 
@@ -73,6 +87,9 @@ STRUCTURED_AGENT_RESPONSE_SCHEMAS: dict[int, type[StructuredModel]] = {
     3: MoatStructuredOutput,
     4: PriceTargetStructuredOutput,
     7: RecommendationStructuredOutput,
+    12: MoatStructuredOutput,
+    14: PriceTargetStructuredOutput,
+    16: RecommendationStructuredOutput,
 }
 
 
@@ -112,13 +129,35 @@ def _pick_mapping_value(mapping: dict, *keys):
     return None
 
 
+def _coerce_reasoning_steps(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        candidates = [value]
+    elif isinstance(value, list):
+        candidates = value
+    else:
+        return []
+    steps = []
+    for item in candidates:
+        text = str(item).strip()
+        if text:
+            steps.append(text)
+    return steps
+
+
+def _coerce_text(value: Any) -> str:
+    return str(value).strip() if value is not None else ""
+
+
 def normalize_structured_output(agent_num: int, payload: Optional[dict]) -> Optional[dict]:
     """Validate and normalize JSON payloads from structured agents."""
     if not isinstance(payload, dict):
         return None
 
-    if agent_num == 3:
+    if agent_num in {3, 12}:
         raw_scores = payload.get("moat_scores", {})
+        reasoning_steps = _coerce_reasoning_steps(payload.get("reasoning_steps"))
         allowed = {
             "品牌影響力": ("品牌影響力", "brand_influence"),
             "網路效應": ("網路效應", "network_effect"),
@@ -135,12 +174,27 @@ def normalize_structured_output(agent_num: int, payload: Optional[dict]) -> Opti
         if not scores:
             return None
         return {
+            "reasoning_steps": reasoning_steps,
             "moat_scores": scores,
             "analysis_markdown": str(payload.get("analysis_markdown", "")).strip(),
         }
 
-    if agent_num == 4:
+    if agent_num in {4, 14}:
         raw_targets = payload.get("price_targets", {})
+        if not isinstance(raw_targets, dict):
+            raw_targets = {}
+        valuation_reasoning = {}
+        valuation_reasoning = {
+            "dcf_reasoning": _coerce_text(_pick_mapping_value(raw_targets, "dcf_reasoning", "DCF推論", "DCF 推論")),
+            "peer_reasoning": _coerce_text(_pick_mapping_value(raw_targets, "peer_reasoning", "同業推論", "同業比較推論")),
+            "scenario_reasoning": _coerce_text(_pick_mapping_value(raw_targets, "scenario_reasoning", "情境推論", "情境差異推論")),
+        }
+        raw_root_reasoning = payload.get("valuation_reasoning")
+        if isinstance(raw_root_reasoning, dict):
+            for key in ("dcf_reasoning", "peer_reasoning", "scenario_reasoning"):
+                if not valuation_reasoning.get(key):
+                    valuation_reasoning[key] = _coerce_text(raw_root_reasoning.get(key))
+        valuation_reasoning = {key: value for key, value in valuation_reasoning.items() if value}
         target_map = {
             "熊": "熊市情境",
             "bear": "熊市情境",
@@ -166,12 +220,14 @@ def normalize_structured_output(agent_num: int, payload: Optional[dict]) -> Opti
             return None
         return {
             "price_targets": targets,
+            "valuation_reasoning": valuation_reasoning,
             "valuation_summary": payload.get("valuation_summary", {}) if isinstance(payload.get("valuation_summary"), dict) else {},
             "analysis_markdown": str(payload.get("analysis_markdown", "")).strip(),
         }
 
-    if agent_num == 7:
+    if agent_num in {7, 16}:
         raw_rec = payload.get("recommendation", {})
+        reasoning_steps = _coerce_reasoning_steps(payload.get("reasoning_steps"))
         if not isinstance(raw_rec, dict) or not raw_rec:
             return None
         key_aliases = {
@@ -187,6 +243,7 @@ def normalize_structured_output(agent_num: int, payload: Optional[dict]) -> Opti
             normalized_key = key_aliases.get(str(key).strip(), str(key).strip())
             normalized_rec[normalized_key] = str(value).strip()
         return {
+            "reasoning_steps": reasoning_steps,
             "recommendation": normalized_rec,
             "analysis_markdown": str(payload.get("analysis_markdown", "")).strip(),
         }
@@ -198,12 +255,12 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
     """Convert parsed JSON into the legacy report text expected by renderers."""
     body = structured.get("analysis_markdown") or fallback_text
 
-    if agent_num == 3:
+    if agent_num in {3, 12}:
         scores = structured.get("moat_scores", {})
         score_lines = "\n".join(f"{key}: {scores[key]}" for key in scores)
         return f"[護城河評分]\n{score_lines}\n[/護城河評分]\n\n{body}".strip()
 
-    if agent_num == 4:
+    if agent_num in {4, 14}:
         targets = structured.get("price_targets", {})
         order = ["熊市情境", "基本情境", "牛市情境"]
         price_lines = "\n".join(
@@ -217,7 +274,7 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
             )
         return f"[目標股價]\n{price_lines}\n[/目標股價]\n\n{body}{summary_text}".strip()
 
-    if agent_num == 7:
+    if agent_num in {7, 16}:
         rec = structured.get("recommendation", {})
         rec_lines = "\n".join(f"{key}: {value}" for key, value in rec.items())
         return f"[投資建議]\n{rec_lines}\n[/投資建議]\n\n{body}".strip()
@@ -243,7 +300,7 @@ def process_agent_response(agent_num: int, raw_text: str, context: AnalysisConte
     if not structured:
         return raw_text or ""
 
-    if agent_num == 4:
+    if agent_num in {4, 14}:
         current_price = context.get("data", {}).get("current_price")
         targets = structured.get("price_targets", {})
         if price_targets_have_unit_error(targets, current_price):
@@ -268,15 +325,18 @@ def parse_structured_data(context: AnalysisContext) -> dict:
     }
 
     structured_outputs = context.get("structured_outputs", {})
-    if 3 in structured_outputs:
-        parsed["moat_scores"] = dict(structured_outputs[3].get("moat_scores", {}))
-    if 4 in structured_outputs:
-        parsed["price_targets"] = dict(structured_outputs[4].get("price_targets", {}))
-    if 7 in structured_outputs:
-        parsed["recommendation"] = dict(structured_outputs[7].get("recommendation", {}))
+    moat_agent = get_structured_agent_num("moat", context) or 3
+    valuation_agent = get_structured_agent_num("valuation", context) or 4
+    recommendation_agent = get_structured_agent_num("recommendation", context) or 7
+    if moat_agent in structured_outputs:
+        parsed["moat_scores"] = dict(structured_outputs[moat_agent].get("moat_scores", {}))
+    if valuation_agent in structured_outputs:
+        parsed["price_targets"] = dict(structured_outputs[valuation_agent].get("price_targets", {}))
+    if recommendation_agent in structured_outputs:
+        parsed["recommendation"] = dict(structured_outputs[recommendation_agent].get("recommendation", {}))
 
-    if not parsed["moat_scores"] and 3 in context["analyses"]:
-        text = context["analyses"][3]
+    if not parsed["moat_scores"] and moat_agent in context["analyses"]:
+        text = context["analyses"][moat_agent]
         try:
             allowed_moat_keys = {"品牌影響力", "網路效應", "轉換成本", "成本優勢", "專利技術", "整體護城河"}
             moat_section = re.search(r"\[護城河評分\](.*?)\[/護城河評分\]", text, re.DOTALL)
@@ -308,8 +368,8 @@ def parse_structured_data(context: AnalysisContext) -> dict:
             "整體護城河": 6,
         }
 
-    if not parsed["price_targets"] and 4 in context["analyses"]:
-        text = context["analyses"][4]
+    if not parsed["price_targets"] and valuation_agent in context["analyses"]:
+        text = context["analyses"][valuation_agent]
         try:
             price_section = re.search(r"\[目標股價\](.*?)\[/目標股價\]", text, re.DOTALL)
             if price_section:
@@ -368,8 +428,8 @@ def parse_structured_data(context: AnalysisContext) -> dict:
         except Exception:
             pass
 
-    if not parsed["recommendation"] and 7 in context["analyses"]:
-        text = context["analyses"][7]
+    if not parsed["recommendation"] and recommendation_agent in context["analyses"]:
+        text = context["analyses"][recommendation_agent]
         try:
             rec_section = re.search(r"\[投資建議\](.*?)\[/投資建議\]", text, re.DOTALL)
             if rec_section:

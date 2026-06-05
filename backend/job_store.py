@@ -25,6 +25,7 @@ def _connect():
         CREATE TABLE IF NOT EXISTS analysis_jobs (
             job_id TEXT PRIMARY KEY,
             ticker TEXT NOT NULL,
+            pipeline_id TEXT NOT NULL DEFAULT 'v1',
             status TEXT NOT NULL,
             filename TEXT,
             error TEXT,
@@ -33,6 +34,12 @@ def _connect():
         )
         """
     )
+    columns = {
+        row["name"]
+        for row in conn.execute("PRAGMA table_info(analysis_jobs)").fetchall()
+    }
+    if "pipeline_id" not in columns:
+        conn.execute("ALTER TABLE analysis_jobs ADD COLUMN pipeline_id TEXT NOT NULL DEFAULT 'v1'")
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS analysis_events (
@@ -44,22 +51,23 @@ def _connect():
         """
     )
     conn.execute("CREATE INDEX IF NOT EXISTS idx_analysis_jobs_ticker_status ON analysis_jobs(ticker, status)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_analysis_jobs_ticker_pipeline_status ON analysis_jobs(ticker, pipeline_id, status)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_analysis_events_job_id_id ON analysis_events(job_id, id)")
     return conn
 
 
-def create_job(ticker: str) -> str:
+def create_job(ticker: str, pipeline_id: str = "v1") -> str:
     job_id = uuid.uuid4().hex
     now = time.time()
     with _JOB_LOCK, _connect() as conn:
         conn.execute(
             """
-            INSERT INTO analysis_jobs (job_id, ticker, status, created_at, updated_at)
-            VALUES (?, ?, 'queued', ?, ?)
+            INSERT INTO analysis_jobs (job_id, ticker, pipeline_id, status, created_at, updated_at)
+            VALUES (?, ?, ?, 'queued', ?, ?)
             """,
-            (job_id, ticker, now, now),
+            (job_id, ticker, pipeline_id, now, now),
         )
-    append_event(job_id, {"type": "status", "message": f"已建立 {ticker} 分析任務"})
+    append_event(job_id, {"type": "status", "message": f"已建立 {ticker} 分析任務", "pipeline_id": pipeline_id})
     return job_id
 
 
@@ -81,17 +89,17 @@ def get_job(job_id: str) -> dict:
     return dict(row) if row else {}
 
 
-def find_active_job(ticker: str) -> dict:
+def find_active_job(ticker: str, pipeline_id: str = "v1") -> dict:
     cutoff = time.time() - ANALYSIS_JOB_STALE_SECONDS
     with _connect() as conn:
         row = conn.execute(
             """
             SELECT * FROM analysis_jobs
-            WHERE ticker = ? AND status IN ('queued', 'running') AND updated_at >= ?
+            WHERE ticker = ? AND pipeline_id = ? AND status IN ('queued', 'running') AND updated_at >= ?
             ORDER BY created_at DESC
             LIMIT 1
             """,
-            (ticker, cutoff),
+            (ticker, pipeline_id, cutoff),
         ).fetchone()
     return dict(row) if row else {}
 

@@ -7,6 +7,7 @@ from typing import Optional
 
 from analysis_types import AnalysisContext, AuditResult
 from agent_catalog import AGENT_NAMES
+from pipeline_modes import get_pipeline_definition, get_structured_agent_num
 from validators import (
     _extract_price_numbers,
     strip_generated_audit_sections,
@@ -44,7 +45,8 @@ def _append_final_audit_section(context: AnalysisContext, audit: AuditResult):
     """Expose non-blocking final audit notes in the final decision section."""
     if context.get("_final_audit_appended"):
         return
-    if 7 not in context.get("analyses", {}):
+    final_agent = get_structured_agent_num("recommendation", context) or 7
+    if final_agent not in context.get("analyses", {}):
         return
 
     critical = audit.get("critical", [])
@@ -67,7 +69,7 @@ def _append_final_audit_section(context: AnalysisContext, audit: AuditResult):
     if warnings:
         lines.append("### 非阻斷提醒")
         lines.extend(f"- {item}" for item in warnings[:8])
-    context["analyses"][7] = f"{context['analyses'][7].rstrip()}\n\n" + "\n".join(lines)
+    context["analyses"][final_agent] = f"{context['analyses'][final_agent].rstrip()}\n\n" + "\n".join(lines)
     context["_final_audit_appended"] = True
 
 
@@ -83,6 +85,11 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
     analyses = context.get("analyses", {}) or {}
     parsed = context.get("parsed", {}) or {}
     structured_outputs = context.get("structured_outputs", {}) or {}
+    pipeline_def = get_pipeline_definition(context.get("pipeline_id", "v1"))
+    required_agents = tuple(context.get("agent_sequence") or pipeline_def["agents"])
+    moat_agent = get_structured_agent_num("moat", context) or 3
+    valuation_agent = get_structured_agent_num("valuation", context) or 4
+    recommendation_agent = get_structured_agent_num("recommendation", context) or 7
 
     critical: list[str] = []
     warnings: list[str] = []
@@ -94,7 +101,7 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
         _add_unique_issue(repair_agent_issues[agent_num], issue)
 
     completed_agents = set(analyses.keys())
-    missing_agents = [num for num in range(1, 8) if num not in completed_agents or not str(analyses.get(num, "")).strip()]
+    missing_agents = [num for num in required_agents if num not in completed_agents or not str(analyses.get(num, "")).strip()]
     if missing_agents:
         _add_unique_issue(critical, f"缺少 Agent 輸出：{', '.join(str(num) for num in missing_agents)}")
         for agent_num in missing_agents:
@@ -121,7 +128,7 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
             _add_unique_issue(critical, f"{agent_name}: {issue}")
             add_agent_repair_issue(agent_num, issue)
 
-    for agent_num, label in [(3, "護城河評分"), (4, "三情境目標價"), (7, "最終投資建議")]:
+    for agent_num, label in [(moat_agent, "護城河評分"), (valuation_agent, "三情境目標價"), (recommendation_agent, "最終投資建議")]:
         if agent_num in completed_agents and agent_num not in structured_outputs:
             _add_unique_issue(critical, f"Agent {agent_num} {label} 未提供可解析 JSON 結構化輸出。")
             add_agent_repair_issue(agent_num, f"{label} 未提供可解析 JSON 結構化輸出。")
@@ -130,8 +137,8 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
     required_targets = ["熊市情境", "基本情境", "牛市情境"]
     missing_targets = [key for key in required_targets if key not in price_targets]
     if missing_targets:
-        _add_unique_issue(critical, f"Agent 4 缺少目標價情境：{', '.join(missing_targets)}")
-        add_agent_repair_issue(4, f"缺少目標價情境：{', '.join(missing_targets)}")
+        _add_unique_issue(critical, f"Agent {valuation_agent} 缺少目標價情境：{', '.join(missing_targets)}")
+        add_agent_repair_issue(valuation_agent, f"缺少目標價情境：{', '.join(missing_targets)}")
 
     current_price = data.get("current_price")
     numeric_targets = {
@@ -146,7 +153,7 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
         ]
         if tiny_targets:
             _add_unique_issue(critical, f"目標價疑似單位縮小錯誤：{', '.join(tiny_targets)}")
-            add_agent_repair_issue(4, f"目標價疑似單位縮小錯誤：{', '.join(tiny_targets)}")
+            add_agent_repair_issue(valuation_agent, f"目標價疑似單位縮小錯誤：{', '.join(tiny_targets)}")
 
     if all(key in numeric_targets for key in required_targets):
         bear = numeric_targets["熊市情境"]
@@ -154,28 +161,28 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
         bull = numeric_targets["牛市情境"]
         if not (bear <= base <= bull):
             _add_unique_issue(critical, f"三情境目標價順序不合理：熊市 {bear:g}、基本 {base:g}、牛市 {bull:g}。")
-            add_agent_repair_issue(4, f"三情境目標價順序不合理：熊市 {bear:g}、基本 {base:g}、牛市 {bull:g}。")
+            add_agent_repair_issue(valuation_agent, f"三情境目標價順序不合理：熊市 {bear:g}、基本 {base:g}、牛市 {bull:g}。")
 
     moat_scores = parsed.get("moat_scores", {}) or {}
     required_moat = {"品牌影響力", "網路效應", "轉換成本", "成本優勢", "專利技術", "整體護城河"}
     if not required_moat.issubset(moat_scores.keys()):
         missing = sorted(required_moat - set(moat_scores.keys()))
-        _add_unique_issue(critical, f"Agent 3 護城河評分缺少欄位：{', '.join(missing)}")
-        add_agent_repair_issue(3, f"護城河評分缺少欄位：{', '.join(missing)}")
+        _add_unique_issue(critical, f"Agent {moat_agent} 護城河評分缺少欄位：{', '.join(missing)}")
+        add_agent_repair_issue(moat_agent, f"護城河評分缺少欄位：{', '.join(missing)}")
 
     recommendation = parsed.get("recommendation", {}) or {}
     if not recommendation:
-        _add_unique_issue(critical, "Agent 7 缺少最終投資建議結構化資料。")
-        add_agent_repair_issue(7, "缺少最終投資建議結構化資料。")
+        _add_unique_issue(critical, f"Agent {recommendation_agent} 缺少最終投資建議結構化資料。")
+        add_agent_repair_issue(recommendation_agent, "缺少最終投資建議結構化資料。")
     else:
         rec_text = _recommendation_value(recommendation, "建議")
         if not any(word in rec_text for word in ["買入", "持有", "避免"]):
-            _add_unique_issue(critical, f"Agent 7 投資建議不在允許值內：{rec_text or '空白'}")
-            add_agent_repair_issue(7, f"投資建議不在允許值內：{rec_text or '空白'}")
+            _add_unique_issue(critical, f"Agent {recommendation_agent} 投資建議不在允許值內：{rec_text or '空白'}")
+            add_agent_repair_issue(recommendation_agent, f"投資建議不在允許值內：{rec_text or '空白'}")
         for label in ["3個月", "6個月", "12個月", "信心"]:
             if not _recommendation_value(recommendation, label):
-                _add_unique_issue(critical, f"Agent 7 缺少 {label} 欄位。")
-                add_agent_repair_issue(7, f"缺少 {label} 欄位。")
+                _add_unique_issue(critical, f"Agent {recommendation_agent} 缺少 {label} 欄位。")
+                add_agent_repair_issue(recommendation_agent, f"缺少 {label} 欄位。")
 
         target_12m = _extract_first_price(_recommendation_value(recommendation, "12個月"))
         if target_12m is not None and all(key in numeric_targets for key in required_targets):
@@ -186,7 +193,7 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
             if not (lower <= target_12m <= upper):
                 _add_unique_issue(
                     warnings,
-                    f"Agent 7 的 12 個月目標價 NT${target_12m:g} 與 Agent 4 三情境區間差距較大，需人工確認。"
+                    f"Agent {recommendation_agent} 的 12 個月目標價 NT${target_12m:g} 與 Agent {valuation_agent} 三情境區間差距較大，需人工確認。"
                 )
 
     data_notes = data.get("data_source_notes", []) or []
