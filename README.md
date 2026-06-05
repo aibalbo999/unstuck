@@ -103,20 +103,20 @@ export GEMINI_API_KEYS="your_key_1,your_key_2"
 
 ## 安裝
 
-建議使用 Python 3.10 以上；目前程式碼仍相容 Python 3.9。Gemini 呼叫使用新版 `google-genai` SDK，不再使用已停止維護的 `google-generativeai`。
-
-```bash
-cd backend
-python3 -m pip install --user -r requirements.txt
-```
-
-如果想使用虛擬環境：
+建議使用 Python 3.10 到 3.13；macOS 建議使用 Homebrew / python.org Python，避免 Apple Command Line Tools Python 3.9 與 LibreSSL 觸發 Google 套件與 urllib3 相容性警告。本機已驗證 Python 3.13 + OpenSSL 可消除這些 warning。Gemini 呼叫使用新版 `google-genai` SDK，不再使用已停止維護的 `google-generativeai`。
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-cd backend
-python -m pip install -r requirements.txt
+python -m pip install -r backend/requirements.txt
+```
+
+如果你的 `python3` 仍是 macOS 系統 Python，可改用 Homebrew Python 3.13：
+
+```bash
+/opt/homebrew/bin/python3.13 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r backend/requirements.txt
 ```
 
 ## 啟動方式
@@ -129,7 +129,7 @@ python -m pip install -r requirements.txt
 start_mac.command
 ```
 
-腳本會啟動後端並開啟：
+腳本會優先使用專案 `.venv`；若尚未建立，會優先用 `/opt/homebrew/bin/python3.13` 建立虛擬環境並安裝 `backend/requirements.txt`，再啟動後端並開啟：
 
 ```text
 http://127.0.0.1:8080

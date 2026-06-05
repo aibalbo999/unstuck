@@ -9,7 +9,7 @@ from google.genai import types
 
 from analysis_types import AnalysisContext
 from agent_catalog import AGENT_NAMES
-from config import AGENT_MODELS, CONTEXT_DIGEST_MODEL
+from config import CONTEXT_DIGEST_MODEL, TEAR_SHEET_MODEL
 from llm_client import (
     KeyRotator,
     describe_quota_or_rate_error,
@@ -176,7 +176,7 @@ def _context_digest_model_sequence() -> list[str]:
 
 
 def _tear_sheet_model_sequence() -> list[str]:
-    return [AGENT_MODELS[2]]
+    return [TEAR_SHEET_MODEL]
 
 
 def _build_context_digest_prompt(current_agent: int, context: AnalysisContext) -> str:

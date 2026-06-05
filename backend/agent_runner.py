@@ -21,7 +21,7 @@ from assistant_tasks import (
     ensure_tear_sheet_summary,
     ensure_tear_sheet_summary_async,
 )
-from config import API_KEYS, AGENT_MODELS, AUDIT_MODEL, CONTEXT_DIGEST_MODEL, INTER_AGENT_DELAY
+from config import API_KEYS, AGENT_FALLBACK_MODELS, AGENT_MODELS, AUDIT_MODEL, CONTEXT_DIGEST_MODEL, INTER_AGENT_DELAY
 from financial_data import format_data_for_prompt
 from financial_tools import calculate_cagr, calculate_dcf, calculate_ddm, calculate_wacc
 from final_audit import run_final_report_audit
@@ -118,8 +118,10 @@ def get_agent_function_tools(agent_num: int) -> list:
 
 
 def get_agent_model_sequence(agent_num: int) -> list[str]:
-    """Return the strict single-model route for an analysis agent."""
-    return [AGENT_MODELS[agent_num]]
+    """Return the configured model route for an analysis agent."""
+    primary = AGENT_MODELS[agent_num]
+    fallbacks = AGENT_FALLBACK_MODELS.get(agent_num, [])
+    return list(dict.fromkeys([primary, *fallbacks]))
 
 
 def get_audit_model_sequence() -> list[str]:
@@ -139,6 +141,17 @@ def get_runtime_model_sequence(agent_num: int, context: Optional[AnalysisContext
         models = override.get(agent_num) or []
         return list(dict.fromkeys(model for model in models if model))
     return get_agent_model_sequence(agent_num)
+
+
+def _attempts_for_model(model_index: int, model_sequence: list[str], max_retries: int, rotator: KeyRotator) -> int:
+    """
+    Keep primary gemma retries bounded so provider-side 429s can move to
+    Gemini 2.5 Flash fallback after each available key has been tried once.
+    """
+    key_count = max(1, len(getattr(rotator, "keys", []) or []))
+    if model_index == 0 and len(model_sequence) > 1:
+        return key_count
+    return max(1, max_retries)
 
 
 def is_agent_execution_failure(text: str) -> bool:
@@ -342,6 +355,7 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     name = data["company_name"]
     fin_data = format_data_for_prompt(data)
     prev = _format_previous(context, agent_num)
+    rag_context = (context.get("rag_context", {}) or {}).get(agent_num, "")
     identity_guard = build_company_identity_guard(data)
     numeric_tool_instruction = build_numeric_tool_instruction(agent_num)
     enrichment_instruction = build_data_enrichment_instruction(agent_num)
@@ -357,6 +371,7 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
             "name": name,
             "fin_data": fin_data,
             "prev": prev,
+            "rag_context": rag_context,
             "data": data,
             "context": context,
             "agent_num": agent_num,
@@ -366,6 +381,7 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     structured_instruction = build_structured_output_instruction(agent_num)
     prompt_parts = [
         analysis_prompt,
+        rag_context,
         "⚠️ 若上方任務文字包含 [護城河評分]、[目標股價]、[投資建議] 等舊式區塊格式，請忽略舊式格式；本次只遵守下方 JSON 結構化輸出規則。" if structured_instruction else "",
         structured_instruction,
         numeric_tool_instruction,
@@ -408,8 +424,9 @@ def run_single_agent(
         if model_index > 0:
             print(f"    🔁 切換備援模型：{model_id}")
 
+        attempts_for_model = _attempts_for_model(model_index, model_sequence, max_retries, rotator)
         retryer = Retrying(
-            stop=stop_after_attempt(max(1, max_retries)),
+            stop=stop_after_attempt(attempts_for_model),
             wait=_agent_retry_wait,
             retry=retry_if_exception_type(AgentRetryableError),
             before_sleep=_log_agent_retry,
@@ -451,9 +468,9 @@ async def run_single_agent_async(
         if model_index > 0:
             print(f"    🔁 切換備援模型：{model_id}")
 
-        attempts_for_model = max(max_retries, len(rotator.keys)) if model_index == 0 else len(rotator.keys)
+        attempts_for_model = _attempts_for_model(model_index, model_sequence, max_retries, rotator)
         retryer = AsyncRetrying(
-            stop=stop_after_attempt(max(1, attempts_for_model)),
+            stop=stop_after_attempt(attempts_for_model),
             wait=_agent_retry_wait,
             retry=retry_if_exception_type(AgentRetryableError),
             before_sleep=_log_agent_retry,

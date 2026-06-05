@@ -8,7 +8,7 @@ from config import API_KEY_SETUP_MESSAGE, OUTPUT_DIR, has_api_keys
 from financial_data import async_fetch_stock_data
 from job_store import append_event, update_job
 from pipeline import run_analysis_pipeline_async
-from report_gen import generate_html_report, generate_markdown_report
+from report_gen import generate_html_report_async, generate_markdown_report
 
 
 def build_operator_audit_notice(context: dict) -> dict:
@@ -88,7 +88,7 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str) -> str:
             append_event(job_id, {"type": "status", "message": audit_notice["message"]})
 
         append_event(job_id, {"type": "status", "message": "生成 HTML / Markdown 報告..."})
-        html_content = generate_html_report(context)
+        html_content = await generate_html_report_async(context)
         md_content = generate_markdown_report(context)
 
         os.makedirs(OUTPUT_DIR, exist_ok=True)

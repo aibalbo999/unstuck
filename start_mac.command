@@ -6,12 +6,52 @@
 set -e
 
 APP_URL="http://127.0.0.1:8080"
-PYTHON_BIN="${PYTHON_BIN:-python3}"
 
 echo "啟動 Wall Street AI 股票分析系統..."
 
 # 切換到腳本所在目錄的 backend 資料夾
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+if [ -n "$PYTHON_BIN" ]; then
+    BASE_PYTHON="$PYTHON_BIN"
+elif [ -x "$DIR/.venv/bin/python" ]; then
+    BASE_PYTHON="$DIR/.venv/bin/python"
+elif [ -x "/opt/homebrew/bin/python3.13" ]; then
+    BASE_PYTHON="/opt/homebrew/bin/python3.13"
+elif [ -x "/opt/homebrew/bin/python3.12" ]; then
+    BASE_PYTHON="/opt/homebrew/bin/python3.12"
+elif [ -x "/opt/homebrew/bin/python3.11" ]; then
+    BASE_PYTHON="/opt/homebrew/bin/python3.11"
+elif [ -x "/opt/homebrew/bin/python3" ]; then
+    BASE_PYTHON="/opt/homebrew/bin/python3"
+else
+    BASE_PYTHON="$(command -v python3)"
+fi
+
+PYTHON_VERSION="$("$BASE_PYTHON" - <<'PY'
+import sys
+print(f"{sys.version_info.major}.{sys.version_info.minor}")
+PY
+)"
+
+if [ -x "$DIR/.venv/bin/python" ]; then
+    PYTHON_BIN="$DIR/.venv/bin/python"
+elif "$BASE_PYTHON" - <<'PY'
+import sys
+raise SystemExit(0 if sys.version_info >= (3, 10) else 1)
+PY
+then
+    echo "建立本機虛擬環境：$DIR/.venv（Python $PYTHON_VERSION）"
+    "$BASE_PYTHON" -m venv "$DIR/.venv"
+    PYTHON_BIN="$DIR/.venv/bin/python"
+else
+    echo "警告：目前 Python $PYTHON_VERSION 低於建議版本 3.10，可能出現 Google 套件支援警告。"
+    echo "建議安裝 Homebrew Python，或用 PYTHON_BIN 指定 Python 3.10+。"
+    PYTHON_BIN="$BASE_PYTHON"
+fi
+
+echo "使用 Python：$PYTHON_BIN"
+
 cd "$DIR/backend" || {
     echo "找不到 backend 資料夾：$DIR/backend"
     read -r -p "按 Enter 關閉視窗..."
@@ -46,12 +86,9 @@ PY
     echo ""
 fi
 
-# 檢查 Python 套件；使用 python3 -m 檢查可避免 PATH 找不到 uvicorn 指令的誤判。
-if ! "$PYTHON_BIN" -c "import fastapi, uvicorn, sse_starlette; from google import genai" >/dev/null 2>&1
-then
-    echo "正在安裝必要的套件..."
-    "$PYTHON_BIN" -m pip install --user -r requirements.txt
-fi
+# 確認 Python 套件版本；每次執行 requirements 可避免舊版 google-genai / pydantic 留在環境中。
+echo "正在確認 Python 套件版本..."
+"$PYTHON_BIN" -m pip install -r requirements.txt
 
 # 如果 8080 已有舊服務，先停止，避免啟動後立刻因 port 被占用而失敗。
 OLD_PIDS="$(lsof -ti tcp:8080 2>/dev/null || true)"

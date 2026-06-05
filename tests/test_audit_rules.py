@@ -513,12 +513,14 @@ class AuditRuleTests(unittest.TestCase):
         }
         for agent_num in range(1, 7):
             expected = configured_agents.get(agent_num, config.DEFAULT_ANALYSIS_MODEL)
+            expected_sequence = list(dict.fromkeys([expected, *config.AGENT_FALLBACK_MODELS.get(agent_num, [])]))
             self.assertEqual(ar.AGENT_MODELS[agent_num], expected)
-            self.assertEqual(ar.get_agent_model_sequence(agent_num), [expected])
+            self.assertEqual(ar.get_agent_model_sequence(agent_num), expected_sequence)
 
         expected_decision = configured_agents.get(7, config.DEFAULT_DECISION_MODEL)
+        expected_decision_sequence = list(dict.fromkeys([expected_decision, *config.AGENT_FALLBACK_MODELS.get(7, [])]))
         self.assertEqual(ar.AGENT_MODELS[7], expected_decision)
-        self.assertEqual(ar.get_agent_model_sequence(7), [expected_decision])
+        self.assertEqual(ar.get_agent_model_sequence(7), expected_decision_sequence)
         self.assertEqual(ar.get_audit_model_sequence(), [config.AUDIT_MODEL])
         self.assertEqual(ar.get_context_digest_model_sequence(), [config.CONTEXT_DIGEST_MODEL])
 

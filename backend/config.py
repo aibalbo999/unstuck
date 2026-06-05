@@ -54,11 +54,31 @@ def _env_float(name: str, default: float) -> float:
         return default
 
 
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
 def _env_str(name: str, default: str = "") -> str:
     raw = os.getenv(name)
     if raw is None or not raw.strip():
         return str(default or "").strip()
     return raw.strip()
+
+
+def _env_list(name: str, default: Optional[list[str]] = None) -> list[str]:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return list(default or [])
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, list):
+            return [str(item).strip() for item in parsed if str(item).strip()]
+    except json.JSONDecodeError:
+        pass
+    return [item.strip() for item in raw.split(",") if item.strip()]
 
 
 def _json_env_dict(name: str) -> dict:
@@ -90,6 +110,15 @@ def _route_section(section_name: str) -> dict:
 
 def _route_str(name: str, default: str = "") -> str:
     return str(MODEL_ROUTES.get(name, default) or "").strip()
+
+
+def _route_list(name: str, default: Optional[list[str]] = None) -> list[str]:
+    value = MODEL_ROUTES.get(name, default or [])
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, str):
+        return [item.strip() for item in value.split(",") if item.strip()]
+    return list(default or [])
 
 
 def _route_limit_defaults(section_name: str) -> dict[str, int]:
@@ -163,7 +192,25 @@ MODEL_ROUTES = _load_model_routes()
 DEFAULT_ANALYSIS_MODEL = _env_str("DEFAULT_ANALYSIS_MODEL", _route_str("default_analysis_model"))
 DEFAULT_DECISION_MODEL = _env_str("DEFAULT_DECISION_MODEL", _route_str("default_decision_model"))
 CONTEXT_DIGEST_MODEL = _env_str("CONTEXT_DIGEST_MODEL", _route_str("context_digest_model", DEFAULT_ANALYSIS_MODEL))
+TEAR_SHEET_MODEL = _env_str("TEAR_SHEET_MODEL", _route_str("tear_sheet_model", CONTEXT_DIGEST_MODEL))
 AUDIT_MODEL = _env_str("AUDIT_MODEL", _route_str("audit_model", DEFAULT_DECISION_MODEL))
+EMBEDDING_MODEL = _env_str("EMBEDDING_MODEL", _route_str("embedding_model", "gemini-embedding-2"))
+REPORT_COVER_MODEL = _env_str("REPORT_COVER_MODEL", _route_str("report_cover_model", "imagen-4.0-generate-001"))
+REPORT_COVER_FALLBACK_MODELS = _env_list(
+    "REPORT_COVER_FALLBACK_MODELS",
+    _route_list("report_cover_fallback_models"),
+)
+ENABLE_REPORT_COVER = _env_bool("ENABLE_REPORT_COVER", _env_bool("REPORT_COVER_ENABLED", True))
+REPORT_COVER_IMAGE_SIZE = _env_str("REPORT_COVER_IMAGE_SIZE", _route_str("report_cover_image_size", "1K"))
+REPORT_COVER_ASPECT_RATIO = _env_str("REPORT_COVER_ASPECT_RATIO", _route_str("report_cover_aspect_ratio", "16:9"))
+
+RAG_ENABLED = _env_bool("RAG_ENABLED", _env_bool("ENABLE_RAG", True))
+RAG_CHUNK_SIZE = _env_int("RAG_CHUNK_SIZE", 1600)
+RAG_CHUNK_OVERLAP = _env_int("RAG_CHUNK_OVERLAP", 220)
+RAG_MIN_SOURCE_CHARS = _env_int("RAG_MIN_SOURCE_CHARS", 280)
+RAG_MAX_INDEX_CHUNKS = _env_int("RAG_MAX_INDEX_CHUNKS", 48)
+RAG_MAX_CHUNKS_PER_AGENT = _env_int("RAG_MAX_CHUNKS_PER_AGENT", 5)
+RAG_MAX_CONTEXT_CHARS = _env_int("RAG_MAX_CONTEXT_CHARS", 5200)
 
 if not DEFAULT_ANALYSIS_MODEL or not DEFAULT_DECISION_MODEL:
     raise RuntimeError(
@@ -196,6 +243,41 @@ def _load_agent_models() -> dict[int, str]:
     return models
 
 
+def _load_agent_fallbacks() -> dict[int, list[str]]:
+    route_fallbacks = _route_section("agent_fallbacks")
+    default_analysis_fallbacks = _env_list(
+        "DEFAULT_ANALYSIS_FALLBACK_MODELS",
+        _route_list("analysis_fallback_models"),
+    )
+    models: dict[int, list[str]] = {}
+    for agent_num in range(1, 8):
+        configured = route_fallbacks.get(str(agent_num), default_analysis_fallbacks if agent_num <= 6 else [])
+        if isinstance(configured, list):
+            models[agent_num] = [str(model).strip() for model in configured if str(model).strip()]
+        elif isinstance(configured, str):
+            models[agent_num] = [model.strip() for model in configured.split(",") if model.strip()]
+        else:
+            models[agent_num] = []
+
+    for raw_key, value in _json_env_dict("AGENT_FALLBACK_MODELS_JSON").items():
+        try:
+            agent_num = int(raw_key)
+        except (TypeError, ValueError):
+            continue
+        if not (1 <= agent_num <= 7):
+            continue
+        if isinstance(value, list):
+            models[agent_num] = [str(model).strip() for model in value if str(model).strip()]
+        elif isinstance(value, str):
+            models[agent_num] = [model.strip() for model in value.split(",") if model.strip()]
+
+    for agent_num in range(1, 8):
+        override = _env_list(f"AGENT_FALLBACK_MODELS_{agent_num}", models.get(agent_num, []))
+        models[agent_num] = override
+
+    return models
+
+
 def _load_model_limits(json_env_name: str, default_env_name: str, builtins: dict[str, int], default_limit: int) -> dict[str, int]:
     limits = {"*": _env_int(default_env_name, default_limit)}
     limits.update(builtins)
@@ -205,7 +287,17 @@ def _load_model_limits(json_env_name: str, default_env_name: str, builtins: dict
         except (TypeError, ValueError):
             continue
 
-    configured_models = {*AGENT_MODELS.values(), CONTEXT_DIGEST_MODEL, AUDIT_MODEL}
+    configured_models = {
+        *AGENT_MODELS.values(),
+        CONTEXT_DIGEST_MODEL,
+        TEAR_SHEET_MODEL,
+        AUDIT_MODEL,
+        EMBEDDING_MODEL,
+        REPORT_COVER_MODEL,
+        *REPORT_COVER_FALLBACK_MODELS,
+    }
+    for fallback_models in AGENT_FALLBACK_MODELS.values():
+        configured_models.update(fallback_models)
     for model in configured_models:
         suffix = _model_env_suffix(model)
         override = os.getenv(f"{json_env_name.removesuffix('_JSON')}_{suffix}", "").strip()
@@ -218,6 +310,7 @@ def _load_model_limits(json_env_name: str, default_env_name: str, builtins: dict
 
 
 AGENT_MODELS = _load_agent_models()
+AGENT_FALLBACK_MODELS = _load_agent_fallbacks()
 
 # Per-key dynamic limits used by llm_client.KeyRotator. Override in backend/.env.
 ROUTE_RPM_LIMITS = _route_limit_defaults("rpm_limits")
@@ -260,6 +353,11 @@ def format_model_routes(agent_models: Optional[dict[int, str]] = None) -> str:
 
     if CONTEXT_DIGEST_MODEL and CONTEXT_DIGEST_MODEL not in unique_analysis_models:
         parts.append(f"提煉摘要: {CONTEXT_DIGEST_MODEL}")
+    if TEAR_SHEET_MODEL and TEAR_SHEET_MODEL != CONTEXT_DIGEST_MODEL:
+        parts.append(f"一頁式摘要: {TEAR_SHEET_MODEL}")
+    fallback_models = list(dict.fromkeys(model for models_for_agent in AGENT_FALLBACK_MODELS.values() for model in models_for_agent))
+    if fallback_models:
+        parts.append("備援: " + ", ".join(fallback_models))
     return "；".join(parts)
 
 # Optional legacy pacing. Dynamic RPM/TPM buckets are authoritative by default.

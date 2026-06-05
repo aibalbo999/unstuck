@@ -148,6 +148,55 @@
             margin-left: var(--nav-width);
             min-height: 100vh;
         }
+
+        /* ─── Imagen 專屬報告封面 ─── */
+        .report-cover {
+            min-height: 58vh;
+            padding: 56px 48px 44px;
+            display: flex;
+            align-items: flex-end;
+            position: relative;
+            overflow: hidden;
+            background-size: cover;
+            background-position: center;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .report-cover::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                linear-gradient(90deg, rgba(5,11,26,0.92) 0%, rgba(5,11,26,0.55) 48%, rgba(5,11,26,0.18) 100%),
+                linear-gradient(0deg, rgba(5,11,26,0.78) 0%, rgba(5,11,26,0.08) 56%);
+        }
+
+        .report-cover-content {
+            position: relative;
+            max-width: 880px;
+        }
+
+        .report-cover-kicker {
+            font-size: 12px;
+            font-weight: 800;
+            color: var(--accent-cyan);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 12px;
+        }
+
+        .report-cover-title {
+            font-size: 48px;
+            font-weight: 800;
+            line-height: 1.08;
+            margin-bottom: 12px;
+        }
+
+        .report-cover-meta {
+            font-size: 15px;
+            color: var(--text-secondary);
+            line-height: 1.7;
+        }
         
         /* ─── Hero 頭部 ─── */
         .hero {
@@ -874,6 +923,7 @@
         @media (max-width: 1024px) {
             .sidebar { display: none; }
             .main { margin-left: 0; }
+            .report-cover { min-height: 52vh; padding: 40px 24px 32px; }
             .hero { padding: 32px 24px; }
             .content { padding: 24px; }
             .charts-grid { grid-template-columns: 1fr; }
@@ -882,6 +932,7 @@
         }
         
         @media (max-width: 640px) {
+            .report-cover-title { font-size: 32px; }
             .hero-title { font-size: 28px; }
             .metrics-grid { grid-template-columns: repeat(2, 1fr); }
         }
@@ -946,9 +997,22 @@
 
 <!-- ─── 主要內容 ─── -->
 <main class="main">
+
+    {% if report_cover_image %}
+    <section class="report-cover" id="overview" style="background-image: url('{{ report_cover_image }}');">
+        <div class="report-cover-content">
+            <div class="report-cover-kicker">Wall Street Equity Research</div>
+            <div class="report-cover-title">{{ name }}（{{ ticker }}）</div>
+            <div class="report-cover-meta">
+                {{ data.get('sector', 'N/A') }} · {{ data.get('industry', 'N/A') }} · {{ fetch_date }}<br>
+                AI Research Stack · {{ model_route_summary }}
+            </div>
+        </div>
+    </section>
+    {% endif %}
     
     <!-- ─── Hero 頭部 ─── -->
-    <div class="hero" id="overview">
+    <div class="hero"{% if not report_cover_image %} id="overview"{% endif %}>
         <div class="hero-badge">
             ★ 華爾街深度研究報告 ★
         </div>

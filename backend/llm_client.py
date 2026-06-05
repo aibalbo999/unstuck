@@ -245,6 +245,50 @@ async def generate_content_async(api_key: str, model_id: str, prompt: str, confi
             client.close()
 
 
+def embed_content(api_key: str, model_id: str, contents, config):
+    """Call Google GenAI embeddings synchronously with an isolated per-key client."""
+    client = genai.Client(api_key=api_key)
+    try:
+        return client.models.embed_content(model=model_id, contents=contents, config=config)
+    finally:
+        with suppress(Exception):
+            client.close()
+
+
+async def embed_content_async(api_key: str, model_id: str, contents, config):
+    """Call Google GenAI embeddings through the async client implementation."""
+    client = genai.Client(api_key=api_key)
+    try:
+        return await client.aio.models.embed_content(model=model_id, contents=contents, config=config)
+    finally:
+        with suppress(Exception):
+            await client.aio.aclose()
+        with suppress(Exception):
+            client.close()
+
+
+def generate_images(api_key: str, model_id: str, prompt: str, config):
+    """Call Imagen synchronously with an isolated per-key client."""
+    client = genai.Client(api_key=api_key)
+    try:
+        return client.models.generate_images(model=model_id, prompt=prompt, config=config)
+    finally:
+        with suppress(Exception):
+            client.close()
+
+
+async def generate_images_async(api_key: str, model_id: str, prompt: str, config):
+    """Call Imagen through the async client implementation."""
+    client = genai.Client(api_key=api_key)
+    try:
+        return await client.aio.models.generate_images(model=model_id, prompt=prompt, config=config)
+    finally:
+        with suppress(Exception):
+            await client.aio.aclose()
+        with suppress(Exception):
+            client.close()
+
+
 def is_quota_or_rate_error(error_msg: str) -> bool:
     normalized = (error_msg or "").lower()
     return (

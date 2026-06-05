@@ -48,10 +48,14 @@ class AnalysisContext(TypedDict, total=False):
     structured_outputs: dict[int, dict[str, Any]]
     parsed: ParsedStructuredData
     context_digests: dict[int, str]
+    rag_context: dict[int, str]
+    rag_status: dict[str, Any]
+    rag_index: Any
     blocking_issues: list[str]
     audit_repair_log: list[str]
     final_audit: AuditResult
     tear_sheet_summary: str
+    report_cover: dict[str, Any]
     total_time: float
     start_time: float
     execution_mode: str

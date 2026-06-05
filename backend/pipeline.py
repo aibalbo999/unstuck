@@ -8,8 +8,14 @@ import time
 
 import agent_runner as ar
 from analysis_types import AnalysisContext, StockData
-from config import AGENT_MODELS, API_KEYS, INTER_AGENT_DELAY
+from config import AGENT_MODELS, API_KEYS, EMBEDDING_MODEL, INTER_AGENT_DELAY
 from llm_client import KeyRotator
+from rag_service import (
+    build_rag_index,
+    build_rag_index_async,
+    ensure_agent_rag_context,
+    ensure_agent_rag_context_async,
+)
 from validators import (
     append_identity_warnings,
     append_quality_warnings,
@@ -67,6 +73,16 @@ def run_analysis_pipeline(data: StockData, progress_callback=None) -> AnalysisCo
     print(f"  🔑 可用 API Keys：{len(API_KEYS)} 組（輪調中）")
     print(f"{'='*60}\n")
 
+    rag_index = build_rag_index(data, rotator)
+    if rag_index is not None:
+        context["rag_index"] = rag_index
+        context["rag_status"] = {
+            "model": EMBEDDING_MODEL,
+            "chunks": len(getattr(rag_index, "chunks", []) or []),
+            "embedded": bool(getattr(rag_index, "has_embeddings", False)),
+        }
+        print(f"  🔎 RAG 長文本索引完成：{context['rag_status']['chunks']} 個片段。")
+
     for agent_num in range(1, 8):
         agent_name = ar.AGENT_NAMES[agent_num]
         model_id = AGENT_MODELS[agent_num]
@@ -97,6 +113,15 @@ def run_analysis_pipeline(data: StockData, progress_callback=None) -> AnalysisCo
                 f"Agent {agent_num}/7 正在提煉前序分析摘要...",
             )
         ar.ensure_context_digest(agent_num, context, rotator)
+        _call_progress_callback_sync(
+            progress_callback,
+            agent_num,
+            7,
+            agent_name,
+            "rag_retrieval",
+            f"Agent {agent_num}/7 正在執行 RAG 語意檢索...",
+        )
+        ensure_agent_rag_context(agent_num, context, rotator)
         _call_progress_callback_sync(
             progress_callback,
             agent_num,
@@ -289,6 +314,15 @@ async def _run_agent_with_quality_gates_async(
         agent_num,
         7,
         agent_name,
+        "rag_retrieval",
+        f"Agent {agent_num}/7 正在執行 RAG 語意檢索...",
+    )
+    await ensure_agent_rag_context_async(agent_num, context, rotator)
+    await _call_progress_callback(
+        progress_callback,
+        agent_num,
+        7,
+        agent_name,
         "model_call",
         f"Agent {agent_num}/7 正在呼叫模型並生成分析...",
     )
@@ -402,6 +436,16 @@ async def run_analysis_pipeline_async(data: StockData, progress_callback=None) -
     print(f"  📅 時間：{time.strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"  🔑 可用 API Keys：{len(API_KEYS)} 組（輪調中）")
     print(f"{'='*60}\n")
+
+    rag_index = await build_rag_index_async(data, rotator)
+    if rag_index is not None:
+        context["rag_index"] = rag_index
+        context["rag_status"] = {
+            "model": EMBEDDING_MODEL,
+            "chunks": len(getattr(rag_index, "chunks", []) or []),
+            "embedded": bool(getattr(rag_index, "has_embeddings", False)),
+        }
+        print(f"  🔎 RAG 長文本索引完成：{context['rag_status']['chunks']} 個片段。")
 
     agent_groups = [(1, 2, 3), (4,), (5,), (6,), (7,)]
     for group in agent_groups:

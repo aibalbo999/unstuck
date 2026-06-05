@@ -1,8 +1,13 @@
 {
   "default_analysis_model": "gemma-4-31b-it",
   "default_decision_model": "gemini-3.5-flash",
-  "context_digest_model": "gemma-4-31b-it",
+  "analysis_fallback_models": ["gemini-2.5-flash"],
+  "context_digest_model": "gemini-3.1-flash-lite",
+  "tear_sheet_model": "gemini-3.1-flash-lite",
   "audit_model": "gemini-3.5-flash",
+  "embedding_model": "gemini-embedding-2",
+  "report_cover_model": "imagen-4.0-generate-001",
+  "report_cover_fallback_models": ["imagen-4.0-ultra-generate-001"],
   "agents": {
     "1": "gemma-4-31b-it",
     "2": "gemma-4-31b-it",
@@ -12,9 +17,23 @@
     "6": "gemma-4-31b-it",
     "7": "gemini-3.5-flash"
   },
+  "agent_fallbacks": {
+    "1": ["gemini-2.5-flash"],
+    "2": ["gemini-2.5-flash"],
+    "3": ["gemini-2.5-flash"],
+    "4": ["gemini-2.5-flash"],
+    "5": ["gemini-2.5-flash"],
+    "6": ["gemini-2.5-flash"],
+    "7": []
+  },
   "rpm_limits": {
     "gemma-4-31b-it": 30,
-    "gemini-3.5-flash": 5
+    "gemini-2.5-flash": 10,
+    "gemini-3.1-flash-lite": 30,
+    "gemini-3.5-flash": 5,
+    "gemini-embedding-2": 30,
+    "imagen-4.0-generate-001": 2,
+    "imagen-4.0-ultra-generate-001": 1
   },
   "tpm_limits": {},
   "rpd_limits": {}
