@@ -81,6 +81,76 @@ def complete_context():
     return context
 
 
+def complete_v2_context():
+    data = base_data()
+    data.update({
+        "ticker": "2449.TW",
+        "company_name": "京元電子 / King Yuan Electronics Co., Ltd.",
+        "current_price_fmt": "NT$309.50",
+        "market_cap_fmt": "NT$3784.40億",
+        "pe_ratio": "47.6x",
+        "pb_ratio": "6.95x",
+        "gross_margin": "37.4%",
+        "roe": "17.6%",
+        "dividend_yield": "1.24%",
+        "beta": "0.91",
+    })
+    context = {
+        "ticker": "2449.TW",
+        "company_name": "京元電子 / King Yuan Electronics Co., Ltd.",
+        "pipeline_id": "v2",
+        "data": data,
+        "analyses": {
+            11: (
+                "Chief Economist and Industry Strategist at a top Wall Street Macro Hedge Fund.\n"
+                "Analyze 2449.TW regarding macro environment and industry cycle.\n"
+                "* No target prices, buy/sell/hold recommendations.\n\n"
+                "## 一、 總體經濟與政策影響\n"
+                "AI 與高階測試需求帶來溫和順風。\n\n"
+                "## 三、 宏觀定調結論\n"
+                "未來 6-12 個月為【溫和順風】。"
+            ),
+            12: "## 一、 核心商業模式解析\n京元電子以半導體測試服務收費。",
+            13: (
+                "Forensic Accountant / Financial Risk Specialist.\n"
+                "* No target price.\n"
+                "Financial JSON and previous agent summaries.\n\n"
+                "# 2449.TW 京元電子財務排雷與體質評估報告\n"
+                "## 三、 財務紅旗總結\n"
+                "財務體質評級：【尚可】。"
+            ),
+            14: "## 一、 未來 3-5 年成長驅動力預測\nAI/HPC 測試為核心成長來源。",
+            15: "## 四、 交易動能總結\n資金動能評估：【中性】。",
+            16: "## 一、 實戰交易邏輯 (Investment Thesis)\n採取持有並等待回檔。",
+        },
+        "structured_outputs": {
+            12: {
+                "moat_scores": {
+                    "品牌影響力": 4,
+                    "網路效應": 2,
+                    "轉換成本": 7,
+                    "成本優勢": 6,
+                    "專利技術": 7,
+                    "整體護城河": 5.2,
+                }
+            },
+            14: {"price_targets": {"熊市情境": 182, "基本情境": 273, "牛市情境": 379}},
+            16: {
+                "recommendation": {
+                    "建議": "持有",
+                    "短期目標（3個月）": "NT$273",
+                    "中期目標（6個月）": "NT$310",
+                    "長期目標（12個月）": "NT$350",
+                    "長期潛力（5年）": "NT$500",
+                    "信心指數": "7/10",
+                }
+            },
+        },
+    }
+    context["parsed"] = ar.parse_structured_data(context)
+    return context
+
+
 class AuditRuleTests(unittest.TestCase):
     def assert_has_issue(self, issues, expected):
         joined = "\n".join(issues)
@@ -191,9 +261,50 @@ class AuditRuleTests(unittest.TestCase):
             "內部提示詞片段",
         )
         self.assert_has_issue(
+            ar.validate_prompt_leakage("Chief Economist and Industry Strategist\n正式內容"),
+            "內部提示詞片段",
+        )
+        self.assert_has_issue(
             ar.validate_company_identity("大亞（1623.TW）是能源鏈整合服務商。大亞具備儲能業務。", base_data()),
             "公司身分錯置",
         )
+
+    def test_v2_report_sanitizes_prompt_leak_and_inserts_structured_blocks(self):
+        md = report_gen.generate_markdown_report(complete_v2_context())
+
+        for header in [
+            "## 1. 總經環境與產業週期 (Agent 11)",
+            "## 2. 商業模式與競爭護城河 (Agent 12)",
+            "## 3. 財務排雷與體質評估 (Agent 13)",
+            "## 4. 估值模型與成長預測 (Agent 14)",
+            "## 5. 籌碼流動與市場情緒 (Agent 15)",
+            "## 6. 實戰交易決策 (Agent 16)",
+        ]:
+            self.assertIn(header, md)
+        for leaked in [
+            "Chief Economist and Industry Strategist",
+            "Forensic Accountant",
+            "No target price",
+            "Financial JSON and previous agent summaries",
+            "Analyze 2449.TW",
+        ]:
+            self.assertNotIn(leaked, md)
+
+        self.assertIn("[護城河評分]", md)
+        self.assertIn("整體護城河: 5.2/10", md)
+        self.assertIn("[目標股價]", md)
+        self.assertIn("基本情境: NT$273", md)
+        self.assertIn("[投資建議]", md)
+        self.assertIn("長期潛力（5年）：NT$500", md)
+
+    def test_final_audit_detects_v2_prompt_leak(self):
+        context = complete_v2_context()
+        audit = ar.run_final_report_audit(context, append_section=False)
+        joined = "\n".join(audit["critical"])
+        self.assertIn("總經環境與產業週期: 輸出仍包含內部提示詞片段", joined)
+        self.assertIn("財務排雷與體質評估: 輸出仍包含內部提示詞片段", joined)
+        self.assertIn(11, audit["repair_agent_issues"])
+        self.assertIn(13, audit["repair_agent_issues"])
 
     def test_final_audit_structured_and_target_rules(self):
         context = complete_context()

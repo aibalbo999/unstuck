@@ -196,7 +196,10 @@ PROMPT_LEAK_RESIDUE_RE = re.compile(
     r"Growth Equity Researcher at Fidelity|Valid parseable JSON only|No markdown code fences|Specific JSON schema|"
     r"JSON schema:|analysis_markdown|reasoning_steps|valuation_reasoning|hard_metrics|moat_weakness_matrix|moat_scores|price_targets|dcf_reasoning|peer_reasoning|scenario_reasoning|Must use \"|No roleplay meta-talk|Check:\s*Did I|Past 5 years of financial trends|"
     r"Analyze the \"Economic Moat\"|Analyze the growth potential|"
-    r"Growth Scenarios \(5 years\)|Professional, data-driven)",
+    r"Growth Scenarios \(5 years\)|Professional, data-driven|"
+    r"Chief Economist and Industry Strategist|Macro Hedge Fund|Forensic Accountant|Financial Risk Specialist|"
+    r"Analyze \d{4}\.TW|Financial JSON and previous agent summaries|Strict company identity|"
+    r"No target prices?|No buy/sell/hold recommendations|Ensure no|Correction:)",
     re.IGNORECASE,
 )
 
@@ -232,10 +235,10 @@ def sanitize_report_text(text: str) -> str:
 
     text = strip_prompt_preamble(text)
     leak_patterns = [
-        r"^\s*(Senior Analyst at Goldman Sachs|Morgan Stanley Taiwan Research Department Financial Modeling Expert|Competitive Advantage Analyst at BlackRock|BlackRock Active Investment Research Team|Growth Equity Researcher at Fidelity|Fidelity Investments Growth Equity Researcher)\b",
+        r"^\s*(Senior Analyst at Goldman Sachs|Morgan Stanley Taiwan Research Department Financial Modeling Expert|Competitive Advantage Analyst at BlackRock|BlackRock Active Investment Research Team|Growth Equity Researcher at Fidelity|Fidelity Investments Growth Equity Researcher|Chief Economist and Industry Strategist|Forensic Accountant|Financial Risk Specialist)\b",
         r"^\s*(Taiwan Stock Research Report Editor|Compress a full research report|Investment recommendation, target price|No title, no Markdown|Just one single paragraph of summary text|Ticker/Company:)\b",
         r"^\s*你好，我是(高盛|摩根士丹利|貝萊德|JP\s*摩根|富達投資|T\.?\s*Rowe|德富金融)",
-        r"^\s*(Deep financial analysis of|Deep financial data analysis of|Economic Moat analysis of|.*Deep moat evaluation|.*Analyze the growth potential|Analyze the growth potential|Analyze the 5-10 year growth potential of|Financial data provided)\b",
+        r"^\s*(Deep financial analysis of|Deep financial data analysis of|Economic Moat analysis of|.*Deep moat evaluation|.*Analyze the growth potential|Analyze the growth potential|Analyze the 5-10 year growth potential of|Analyze \d{4}\.TW|Financial data provided|Financial JSON and previous agent summaries)\b",
         r"^\s*\*?\s*(Currency|Units|TTM units|Debt to Equity|Manufacturing Logic|Valuation Cross-check|Forward EPS implicit.*|FCF quality check.*|WACC|DuPont Analysis|ROE Discrepancy|Language|Unit Check|Tone|Constraint Check|First paragraph MUST|No internal monologue|Valid parseable JSON only|No markdown code fences|No extra text outside JSON|JSON schema|Specific JSON schema|analysis_markdown|reasoning_steps|valuation_reasoning|hard_metrics|moat_weakness_matrix|moat_scores|price_targets|dcf_reasoning|peer_reasoning|scenario_reasoning|recommendation)\s*:",
         r"^\s*\*?\s*(Specific scoring format|Traditional Chinese|Rigorous adherence|Cross-check Forward EPS|Manufacturing logic|First paragraph MUST|No internal monologue|Valid parseable JSON only|No markdown code fences|No extra text outside JSON|JSON schema|No roleplay meta-talk|analysis_markdown|reasoning_steps|valuation_reasoning|hard_metrics|moat_weakness_matrix|moat_scores|price_targets|dcf_reasoning|peer_reasoning|scenario_reasoning|recommendation)\b",
         r"^\s*\*?\s*(Observation|The Red Flag|Action|Company Profile|Financials \(Key Highlights\))\s*:",
@@ -510,6 +513,69 @@ def _strip_legacy_structured_tags(text: str) -> str:
     return text.strip()
 
 
+def _format_report_value(value) -> str:
+    if value is None or value == "":
+        return "N/A"
+    if isinstance(value, bool):
+        return str(value)
+    if isinstance(value, (int, float)):
+        return f"NT${value:.0f}"
+    return str(value)
+
+
+def _get_dict_value_by_substring(values: dict, needle: str, default="N/A"):
+    for key, value in (values or {}).items():
+        if needle in str(key):
+            return value
+    return default
+
+
+def build_structured_intro_block(agent_num: int, context: AnalysisContext) -> str:
+    """Render the mandatory first-block format for structured-response agents."""
+    pipeline_def = get_pipeline_definition(context.get("pipeline_id", "v1"))
+    structured_agents = pipeline_def["structured_agents"]
+    parsed = context.get("parsed", {}) or {}
+
+    if agent_num == structured_agents.get("moat"):
+        moat_scores = normalize_moat_scores(parsed.get("moat_scores", {}))
+        if not moat_scores:
+            return ""
+        lines = ["[護城河評分]"]
+        for key in ["品牌影響力", "網路效應", "轉換成本", "成本優勢", "專利技術"]:
+            lines.append(f"{key}: {moat_scores.get(key, 'N/A')}")
+        lines.append(f"整體護城河: {moat_scores.get('整體護城河', 'N/A')}/10")
+        lines.append("[/護城河評分]")
+        return "\n".join(lines)
+
+    if agent_num == structured_agents.get("valuation"):
+        price_targets = parsed.get("price_targets", {}) or {}
+        if not price_targets:
+            return ""
+        lines = ["[目標股價]"]
+        for key in ["熊市情境", "基本情境", "牛市情境"]:
+            lines.append(f"{key}: {_format_report_value(price_targets.get(key, 'N/A'))}")
+        lines.append("[/目標股價]")
+        return "\n".join(lines)
+
+    if agent_num == structured_agents.get("recommendation"):
+        recommendation = parsed.get("recommendation", {}) or {}
+        if not recommendation:
+            return ""
+        lines = [
+            "[投資建議]",
+            f"建議：{_get_dict_value_by_substring(recommendation, '建議', 'N/A')}",
+            f"短期目標（3個月）：{_get_dict_value_by_substring(recommendation, '3個月', 'N/A')}",
+            f"中期目標（6個月）：{_get_dict_value_by_substring(recommendation, '6個月', 'N/A')}",
+            f"長期目標（12個月）：{_get_dict_value_by_substring(recommendation, '12個月', 'N/A')}",
+            f"長期潛力（5年）：{_get_dict_value_by_substring(recommendation, '5年', 'N/A')}",
+            f"信心指數：{_get_dict_value_by_substring(recommendation, '信心', 'N/A')}",
+            "[/投資建議]",
+        ]
+        return "\n".join(lines)
+
+    return ""
+
+
 def build_agent_sections(context: AnalysisContext, *, html: bool = True) -> list[dict]:
     pipeline_def = get_pipeline_definition(context.get("pipeline_id", "v1"))
     analyses = context.get("analyses", {}) or {}
@@ -521,6 +587,9 @@ def build_agent_sections(context: AnalysisContext, *, html: bool = True) -> list
     for display_num, agent_num in enumerate(pipeline_def["agents"], 1):
         raw = strip_structured_blocks(sanitize_report_text(analyses.get(agent_num, "分析進行中...")))
         raw = _strip_legacy_structured_tags(raw)
+        structured_intro = build_structured_intro_block(agent_num, context)
+        if structured_intro and structured_intro not in raw:
+            raw = f"{structured_intro}\n\n{raw}".strip()
         if html:
             body = format_debate_text(raw) if agent_num in debate_agents else clean_markdown(raw)
         else:

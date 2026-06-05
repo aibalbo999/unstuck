@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=20260605-pipeline-v2">
+    <link rel="stylesheet" href="/static/style.css?v=20260606-report-preview-mode-badges">
 </head>
 <body>
     <!-- 背景特效 -->
@@ -54,20 +54,64 @@
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg>
                     歷史報告
                 </div>
-                <div class="history-controls">
-                    <input type="search" id="history-search" class="history-search" placeholder="搜尋代號或公司" autocomplete="off" spellcheck="false" />
-                </div>
-                <div id="history-list" class="history-list">
-                    <!-- 動態載入 -->
-                </div>
-                <div class="history-pagination" id="history-pagination" hidden>
-                    <button id="history-prev" class="pager-btn" type="button" aria-label="上一頁">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-                    </button>
-                    <span id="history-page-info" class="history-page-info"></span>
-                    <button id="history-next" class="pager-btn" type="button" aria-label="下一頁">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-                    </button>
+                <div class="history-workspace">
+                    <div class="history-list-pane">
+                        <div class="history-controls">
+                            <input type="search" id="history-search" class="history-search" placeholder="搜尋代號或公司" autocomplete="off" spellcheck="false" />
+                        </div>
+                        <div id="history-list" class="history-list">
+                            <!-- 動態載入 -->
+                        </div>
+                        <div class="history-pagination" id="history-pagination" hidden>
+                            <button id="history-prev" class="pager-btn" type="button" aria-label="上一頁">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                            </button>
+                            <span id="history-page-info" class="history-page-info"></span>
+                            <button id="history-next" class="pager-btn" type="button" aria-label="下一頁">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <section id="report-preview" class="report-preview" hidden aria-live="polite">
+                        <div class="preview-header">
+                            <div>
+                                <div id="preview-mode" class="preview-mode"></div>
+                                <h2 id="preview-title" class="preview-title">投資建議</h2>
+                            </div>
+                            <button id="preview-close-btn" class="icon-button" type="button" aria-label="關閉投資建議預覽">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                            </button>
+                        </div>
+                        <div class="preview-decision-row">
+                            <div class="preview-decision">
+                                <span class="preview-label">建議</span>
+                                <strong id="preview-recommendation">N/A</strong>
+                            </div>
+                            <div class="preview-decision">
+                                <span class="preview-label">信心</span>
+                                <strong id="preview-confidence">N/A</strong>
+                            </div>
+                        </div>
+                        <div class="preview-targets">
+                            <div>
+                                <span>3個月</span>
+                                <strong id="preview-target-3m">N/A</strong>
+                            </div>
+                            <div>
+                                <span>6個月</span>
+                                <strong id="preview-target-6m">N/A</strong>
+                            </div>
+                            <div>
+                                <span>12個月</span>
+                                <strong id="preview-target-12m">N/A</strong>
+                            </div>
+                        </div>
+                        <p id="preview-summary" class="preview-summary"></p>
+                        <button id="preview-open-report-btn" class="preview-open-button" type="button">
+                            <span>查看完整報告</span>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg>
+                        </button>
+                    </section>
                 </div>
             </div>
         </div>
@@ -112,6 +156,6 @@
         </div>
     </main>
 
-    <script src="/static/app.js?v=20260605-pipeline-v2"></script>
+    <script src="/static/app.js?v=20260606-report-preview-mode-badges"></script>
 </body>
 </html>

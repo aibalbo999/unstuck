@@ -142,6 +142,95 @@ def cleanup_orphan_markdown_reports():
     return deleted
 
 
+def clean_report_text(value: str, limit: int = 360) -> str:
+    """Collapse report markdown/html text for compact API summaries."""
+    text = re.sub(r"<[^>]+>", " ", str(value or ""))
+    text = re.sub(r"\s+", " ", text).strip()
+    if len(text) <= limit:
+        return text
+    return text[:limit].rstrip() + "..."
+
+
+def extract_section(markdown_text: str, heading: str) -> str:
+    pattern = re.compile(
+        rf"^##\s+{re.escape(heading)}\s*$\n(?P<body>.*?)(?=^##\s+|\Z)",
+        re.MULTILINE | re.DOTALL,
+    )
+    match = pattern.search(markdown_text or "")
+    return match.group("body").strip() if match else ""
+
+
+def parse_recommendation_summary(filename: str) -> dict:
+    """Extract the decision snapshot shown before opening a full report."""
+    summary = {
+        "recommendation": "N/A",
+        "target_3m": "N/A",
+        "target_6m": "N/A",
+        "target_12m": "N/A",
+        "confidence": "N/A",
+        "summary": "",
+    }
+    if not is_safe_report_filename(filename, ".html"):
+        return summary
+
+    md_filename = filename[:-5] + ".md"
+    md_path = os.path.join(OUTPUT_DIR, md_filename)
+    if not os.path.exists(md_path):
+        return summary
+
+    try:
+        with open(md_path, "r", encoding="utf-8") as f:
+            markdown_text = f.read()
+    except OSError:
+        return summary
+
+    one_page = extract_section(markdown_text, "一頁式摘要")
+    if one_page:
+        summary["summary"] = clean_report_text(one_page)
+
+    recommendation_section = extract_section(markdown_text, "🎯 最終投資建議")
+    field_map = {
+        "綜合建議": "recommendation",
+        "3個月目標": "target_3m",
+        "6個月目標": "target_6m",
+        "12個月目標": "target_12m",
+        "信心指數": "confidence",
+    }
+    for raw_label, key in field_map.items():
+        match = re.search(
+            rf"^\s*-\s*\*\*{re.escape(raw_label)}:\*\*\s*(?P<value>.+?)\s*$",
+            recommendation_section,
+            re.MULTILINE,
+        )
+        if match:
+            summary[key] = clean_report_text(match.group("value"), limit=80)
+
+    # Some older markdown reports may omit the top recommendation card but keep
+    # the final block in the decision agent section.
+    if summary["recommendation"] == "N/A":
+        match = re.search(r"\[投資建議\](?P<body>.*?)\[/投資建議\]", markdown_text, re.DOTALL)
+        if match:
+            body = match.group("body")
+            fallback_map = {
+                "建議": "recommendation",
+                "3個月": "target_3m",
+                "6個月": "target_6m",
+                "12個月": "target_12m",
+                "信心": "confidence",
+            }
+            for label, key in fallback_map.items():
+                field = re.search(rf"^\s*.*{label}.*?[：:]\s*(?P<value>.+?)\s*$", body, re.MULTILINE)
+                if field:
+                    summary[key] = clean_report_text(field.group("value"), limit=80)
+
+    if not summary["summary"]:
+        title_match = re.search(r"^#\s+(.+)$", markdown_text, re.MULTILINE)
+        if title_match:
+            summary["summary"] = clean_report_text(title_match.group(1))
+
+    return summary
+
+
 @app.get("/api/reports")
 def get_reports(
     page: int = Query(1, ge=1),
@@ -196,6 +285,7 @@ def get_reports(
                     "timestamp": os.path.getmtime(filepath),
                     "pipeline_id": pipeline_id,
                     "pipeline_label": get_pipeline_definition(pipeline_id)["short_label"],
+                    "recommendation": parse_recommendation_summary(filename),
                 }
                 searchable = f"{filename} {ticker} {company_name}".lower()
                 if query and query not in searchable:

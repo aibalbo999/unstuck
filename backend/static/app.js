@@ -22,6 +22,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const historyPrev = document.getElementById('history-prev');
     const historyNext = document.getElementById('history-next');
     const historyPageInfo = document.getElementById('history-page-info');
+    const reportPreview = document.getElementById('report-preview');
+    const previewMode = document.getElementById('preview-mode');
+    const previewTitle = document.getElementById('preview-title');
+    const previewRecommendation = document.getElementById('preview-recommendation');
+    const previewConfidence = document.getElementById('preview-confidence');
+    const previewTarget3m = document.getElementById('preview-target-3m');
+    const previewTarget6m = document.getElementById('preview-target-6m');
+    const previewTarget12m = document.getElementById('preview-target-12m');
+    const previewSummary = document.getElementById('preview-summary');
+    const previewOpenReportBtn = document.getElementById('preview-open-report-btn');
+    const previewCloseBtn = document.getElementById('preview-close-btn');
     
     const downloadHtmlBtn = document.getElementById('download-html-btn');
     const downloadMdBtn = document.getElementById('download-md-btn');
@@ -30,7 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentReportFilename = null;
     let pendingAuditNotice = null;
     let historyPage = 1;
-    const historyLimit = 10;
+    const historyLimit = 20;
     let historySearchTimer = null;
     let currentJobId = null;
     let lastEventId = 0;
@@ -38,6 +49,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let reconnectAttempts = 0;
     let streamClosedByClient = false;
     let currentPipeline = 'v1';
+    let historyReports = new Map();
+    let previewReport = null;
 
     const PIPELINE_META = {
         v1: {
@@ -61,6 +74,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function pipelineMeta(pipelineId) {
         return PIPELINE_META[pipelineId] || PIPELINE_META.v1;
+    }
+
+    function pipelineModeClass(pipelineId) {
+        return pipelineId === 'v2' ? 'is-v2' : 'is-v1';
+    }
+
+    function pipelineModeLabel(pipelineId) {
+        return pipelineId === 'v2' ? '模式 B · 實戰交易派' : '模式 A · 學術深度派';
+    }
+
+    function renderPipelineModeBadge(pipelineId) {
+        return `<span class="history-mode ${pipelineModeClass(pipelineId)}">${escapeHtml(pipelineModeLabel(pipelineId))}</span>`;
+    }
+
+    function normalizeRecommendation(value) {
+        const text = String(value || 'N/A');
+        if (text.includes('買入')) return '買入';
+        if (text.includes('避免') || text.includes('賣出')) return '避免';
+        if (text.includes('持有')) return '持有';
+        return text;
+    }
+
+    function recommendationTone(value) {
+        const text = normalizeRecommendation(value);
+        if (text === '買入') return 'is-buy';
+        if (text === '避免') return 'is-avoid';
+        return 'is-hold';
     }
 
     function escapeHtml(value) {
@@ -103,6 +143,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch(`/api/reports?${params.toString()}`);
             const data = await res.json();
             const pagination = data.pagination || { page: 1, total_pages: 1, total: 0, has_prev: false, has_next: false };
+            historyReports = new Map((data.reports || []).map(report => [report.filename, report]));
             
             if (data.reports && data.reports.length > 0) {
                 historyList.innerHTML = data.reports.map(r => `
@@ -111,15 +152,31 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="history-ticker">
                                 ${escapeHtml(r.ticker)}${r.company_name && r.company_name !== r.ticker ? `<span class="history-company">${escapeHtml(r.company_name)}</span>` : ''}
                             </div>
-                            <div class="history-date">${escapeHtml(r.date)}<span class="history-mode">${escapeHtml(r.pipeline_label || pipelineMeta(r.pipeline_id).shortLabel)}</span></div>
+                            <div class="history-date">
+                                <span>${escapeHtml(r.date)}</span>
+                                ${renderPipelineModeBadge(r.pipeline_id || 'v1')}
+                            </div>
+                            <div class="history-decision">
+                                <span class="history-rec ${recommendationTone(r.recommendation?.recommendation)}">${escapeHtml(normalizeRecommendation(r.recommendation?.recommendation))}</span>
+                                <span>${escapeHtml(r.recommendation?.target_12m || 'N/A')}</span>
+                                <span>${escapeHtml(r.recommendation?.confidence || 'N/A')}</span>
+                            </div>
                         </div>
                         <button class="delete-btn" title="刪除報告" data-delete-filename="${escapeHtml(r.filename)}">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
                         </button>
                     </div>
                 `).join('');
+                if (previewReport && historyReports.has(previewReport.filename)) {
+                    historyList.querySelectorAll('.history-item').forEach(item => {
+                        item.classList.toggle('is-selected', item.dataset.filename === previewReport.filename);
+                    });
+                } else if (previewReport) {
+                    hideReportPreview();
+                }
             } else {
                 historyList.innerHTML = '<div style="color: var(--text-secondary); font-size: 0.9rem; text-align: center; padding: 20px 0;">尚無報告紀錄</div>';
+                hideReportPreview();
             }
             renderHistoryPagination(pagination);
         } catch (err) {
@@ -137,6 +194,37 @@ document.addEventListener('DOMContentLoaded', () => {
         historyPageInfo.textContent = `${historyPage} / ${totalPages}`;
     }
 
+    function hideReportPreview() {
+        previewReport = null;
+        if (reportPreview) reportPreview.hidden = true;
+        historyList.querySelectorAll('.history-item.is-selected').forEach(item => {
+            item.classList.remove('is-selected');
+        });
+    }
+
+    function showReportPreview(filename) {
+        const report = historyReports.get(filename);
+        if (!report || !reportPreview) return;
+        previewReport = report;
+        const rec = report.recommendation || {};
+        const pipelineId = report.pipeline_id || 'v1';
+
+        previewMode.innerHTML = `${renderPipelineModeBadge(pipelineId)}<span class="preview-date">${escapeHtml(report.date || '')}</span>`;
+        previewTitle.textContent = `${report.ticker} 投資建議`;
+        previewRecommendation.textContent = normalizeRecommendation(rec.recommendation);
+        previewRecommendation.className = recommendationTone(rec.recommendation);
+        previewConfidence.textContent = rec.confidence || 'N/A';
+        previewTarget3m.textContent = rec.target_3m || 'N/A';
+        previewTarget6m.textContent = rec.target_6m || 'N/A';
+        previewTarget12m.textContent = rec.target_12m || 'N/A';
+        previewSummary.textContent = rec.summary || '這份報告沒有可讀的一頁式摘要，可直接查看完整報告。';
+
+        historyList.querySelectorAll('.history-item').forEach(item => {
+            item.classList.toggle('is-selected', item.dataset.filename === filename);
+        });
+        reportPreview.hidden = false;
+    }
+
     historyList.addEventListener('click', (event) => {
         const deleteBtn = event.target.closest('.delete-btn');
         if (deleteBtn) {
@@ -145,14 +233,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const item = event.target.closest('.history-item');
         if (item) {
-            openReport(item.dataset.filename, item.dataset.ticker, item.dataset.pipeline || 'v1');
+            showReportPreview(item.dataset.filename);
         }
     });
 
     historyList.addEventListener('keydown', (event) => {
         if (event.key !== 'Enter') return;
         const item = event.target.closest('.history-item');
-        if (item) openReport(item.dataset.filename, item.dataset.ticker, item.dataset.pipeline || 'v1');
+        if (item) showReportPreview(item.dataset.filename);
     });
 
     // 開啟報告
@@ -165,6 +253,17 @@ document.addEventListener('DOMContentLoaded', () => {
         switchView('report-view');
     }
     window.openReport = openReport;
+
+    if (previewOpenReportBtn) {
+        previewOpenReportBtn.addEventListener('click', () => {
+            if (!previewReport) return;
+            openReport(previewReport.filename, previewReport.ticker, previewReport.pipeline_id || 'v1');
+        });
+    }
+
+    if (previewCloseBtn) {
+        previewCloseBtn.addEventListener('click', hideReportPreview);
+    }
 
     if (downloadHtmlBtn) {
         downloadHtmlBtn.addEventListener('click', () => {
@@ -190,6 +289,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const res = await fetch(`/api/reports/${encodeURIComponent(filename)}`, { method: 'DELETE' });
                 const result = await res.json();
                 if (result.success) {
+                    if (previewReport && previewReport.filename === filename) hideReportPreview();
                     loadHistory();
                 } else {
                     alert('刪除失敗：' + result.error);
