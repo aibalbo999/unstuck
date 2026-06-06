@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" role="img" aria-label="Wall Street AI">
+  <defs>
+    <linearGradient id="bg" x1="28" y1="24" x2="156" y2="166" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#111827"/>
+    </linearGradient>
+    <linearGradient id="line" x1="42" y1="118" x2="138" y2="54" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#a3e635"/>
+    </linearGradient>
+  </defs>
+  <rect width="180" height="180" rx="38" fill="url(#bg)"/>
+  <rect x="23" y="25" width="134" height="132" rx="30" fill="none" stroke="#334155" stroke-width="6"/>
+  <path d="M45 126V78M74 126V96M103 126V68M132 126V52" stroke="#475569" stroke-width="10" stroke-linecap="round"/>
+  <path d="M39 118L72 96L98 105L139 61" fill="none" stroke="url(#line)" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="139" cy="61" r="11" fill="#a3e635"/>
+</svg>

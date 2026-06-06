@@ -638,6 +638,13 @@ class AuditRuleTests(unittest.TestCase):
             self.assertIn(agent_num, ar.ANALYSIS_PROMPTS)
             self.assertIn(agent_num, ar.AGENT_MODELS)
 
+    def test_dual_pipeline_run_mode_sequence(self):
+        self.assertEqual(pipeline_modes.normalize_pipeline_run_id("both"), "both")
+        self.assertEqual(pipeline_modes.normalize_pipeline_run_id("a+b"), "both")
+        self.assertEqual(pipeline_modes.get_pipeline_run_sequence("both"), ("v1", "v2"))
+        self.assertEqual(pipeline_modes.get_pipeline_run_agent_total("both"), 13)
+        self.assertEqual(pipeline_modes.get_pipeline_run_sequence("v2"), ("v2",))
+
     def test_pipeline_v2_parses_structured_outputs_and_renders_sections(self):
         context = {
             "pipeline_id": "v2",

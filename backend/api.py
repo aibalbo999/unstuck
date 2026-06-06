@@ -24,7 +24,13 @@ from typing import Optional
 from analysis_jobs import run_stock_analysis_job
 from config import API_KEY_SETUP_MESSAGE, OUTPUT_DIR, REPORT_CLEANUP_INTERVAL_SECONDS, REPORT_RETENTION_DAYS, TASK_QUEUE_BACKEND, has_api_keys
 from job_store import append_event, create_job, find_active_job, get_events_since, get_job, mark_incomplete_jobs_abandoned, update_job
-from pipeline_modes import get_pipeline_definition, normalize_pipeline_id
+from pipeline_modes import (
+    get_pipeline_definition,
+    get_pipeline_run_agent_total,
+    get_pipeline_run_label,
+    get_pipeline_run_sequence,
+    normalize_pipeline_run_id,
+)
 from task_queue import create_task_queue
 
 app = FastAPI()
@@ -394,6 +400,18 @@ def delete_report(filename: str):
 def read_root():
     return FileResponse(os.path.join(STATIC_DIR, "index.html"))
 
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    return FileResponse(os.path.join(STATIC_DIR, "favicon.ico"), media_type="image/x-icon")
+
+
+@app.get("/apple-touch-icon.png", include_in_schema=False)
+@app.get("/apple-touch-icon-precomposed.png", include_in_schema=False)
+def apple_touch_icon():
+    return FileResponse(os.path.join(STATIC_DIR, "apple-touch-icon.png"), media_type="image/png")
+
+
 @app.get("/api/analyze/{ticker}")
 async def analyze_stock(
     ticker: str,
@@ -404,8 +422,10 @@ async def analyze_stock(
 ):
     """使用 SSE 即時推播分析進度"""
     ticker_upper = ticker.strip().upper()
-    pipeline_id = normalize_pipeline_id(pipeline)
-    pipeline_def = get_pipeline_definition(pipeline_id)
+    pipeline_id = normalize_pipeline_run_id(pipeline)
+    pipeline_sequence = get_pipeline_run_sequence(pipeline_id)
+    pipeline_label = get_pipeline_run_label(pipeline_id)
+    agent_total = get_pipeline_run_agent_total(pipeline_id)
 
     if not has_api_keys():
         async def missing_key_event_generator():
@@ -453,8 +473,9 @@ async def analyze_stock(
                     "ticker": ticker_upper,
                     "resume_after_id": resume_after_id,
                     "pipeline_id": pipeline_id,
-                    "pipeline_label": pipeline_def["label"],
-                    "agent_total": len(pipeline_def["agents"]),
+                    "pipeline_label": pipeline_label,
+                    "pipeline_sequence": list(pipeline_sequence),
+                    "agent_total": agent_total,
                 },
                 ensure_ascii=False,
             )
@@ -477,11 +498,17 @@ async def analyze_stock(
 
                 job = await asyncio.to_thread(get_job, job_id)
                 if job.get("status") in ["done", "error"]:
-                    payload = (
-                        {"type": "done", "filename": job.get("filename")}
-                        if job.get("status") == "done"
-                        else {"type": "error", "message": job.get("error", "分析任務失敗")}
-                    )
+                    if job.get("status") == "done":
+                        job_pipeline_id = job.get("pipeline_id", pipeline_id)
+                        job_pipeline_sequence = get_pipeline_run_sequence(job_pipeline_id)
+                        payload = {
+                            "type": "done",
+                            "filename": job.get("filename"),
+                            "pipeline_id": job_pipeline_id,
+                            "last_pipeline_id": job_pipeline_sequence[-1],
+                        }
+                    else:
+                        payload = {"type": "error", "message": job.get("error", "分析任務失敗")}
                     yield {"data": json.dumps(payload, ensure_ascii=False)}
                     break
 

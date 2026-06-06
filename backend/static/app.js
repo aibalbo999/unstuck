@@ -67,6 +67,12 @@ document.addEventListener('DOMContentLoaded', () => {
             shortLabel: '實戰交易派',
             reportSuffix: '實戰交易決策報告',
             hint: '請稍候，6 位 AI 分析師正在整合總經、籌碼與進出場策略...'
+        },
+        both: {
+            label: '連續模式：模式 A → 模式 B',
+            shortLabel: 'A+B 連續',
+            reportSuffix: '雙模式分析完成',
+            hint: '將先執行學術深度派，再接續實戰交易派；完成後會產出兩份獨立報告。'
         }
     };
 
@@ -80,10 +86,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function pipelineModeClass(pipelineId) {
+        if (pipelineId === 'both') return 'is-both';
         return pipelineId === 'v2' ? 'is-v2' : 'is-v1';
     }
 
     function pipelineModeLabel(pipelineId) {
+        if (pipelineId === 'both') return '連續 A+B · 兩份報告';
         return pipelineId === 'v2' ? '模式 B · 實戰交易派' : '模式 A · 學術深度派';
     }
 
@@ -428,16 +436,32 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.detail) {
                 loadingMsg.textContent = data.detail;
             }
+        } else if (data.type === 'pipeline_start') {
+            loadingStatus.textContent = data.message || '開始下一段分析';
+            loadingMsg.textContent = data.pipeline_label || '';
+            if (loadingHint && data.pipeline_total > 1) {
+                loadingHint.textContent = `連續模式進度：第 ${data.pipeline_index}/${data.pipeline_total} 段`;
+            }
         } else if (data.type === 'progress') {
             loadingStatus.textContent = `分析中：第 ${data.current}/${data.total} 位分析師`;
             loadingMsg.textContent = data.name;
             const percent = (data.current / data.total) * 100;
             progressBar.style.width = `${percent}%`;
+        } else if (data.type === 'report_done') {
+            const remaining = Number(data.pipeline_total || 1) - Number(data.pipeline_index || 1);
+            loadingStatus.textContent = `${pipelineModeLabel(data.pipeline_id)} 報告完成`;
+            loadingMsg.textContent = remaining > 0 ? '正在接續下一種分析模式...' : '正在整理最終報告...';
+            if (remaining > 0) loadHistory();
         } else if (data.type === 'done') {
             closeAnalysisStream();
 
             currentReportFilename = data.filename;
-            reportTickerTitle.textContent = `${ticker} ${pipelineMeta(data.pipeline_id || currentPipeline).reportSuffix}`;
+            const reportPipeline = data.last_pipeline_id || (data.pipeline_id === 'both' ? 'v2' : data.pipeline_id) || currentPipeline;
+            currentPipeline = reportPipeline;
+            const reportCount = Array.isArray(data.filenames) ? data.filenames.length : 1;
+            reportTickerTitle.textContent = reportCount > 1
+                ? `${ticker} 雙模式分析完成`
+                : `${ticker} ${pipelineMeta(reportPipeline).reportSuffix}`;
             setAuditNotice(data.audit || pendingAuditNotice);
             reportIframe.src = `/api/report/${encodeURIComponent(data.filename)}`;
 

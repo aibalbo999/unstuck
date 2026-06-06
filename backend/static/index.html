@@ -4,11 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wall Street AI</title>
+    <meta name="theme-color" content="#0f172a">
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="icon" href="/static/site-icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
     <!-- 引入 Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=20260606-report-history-filters">
+    <link rel="stylesheet" href="/static/style.css?v=20260606-dual-pipeline-mode">
 </head>
 <body>
     <!-- 背景特效 -->
@@ -39,6 +43,13 @@
                     <span>
                         <strong>模式 B</strong>
                         <small>實戰交易派 · 6 Agent</small>
+                    </span>
+                </label>
+                <label class="pipeline-option">
+                    <input type="radio" name="pipeline-mode" value="both" />
+                    <span>
+                        <strong>連續 A+B</strong>
+                        <small>先學術再實戰 · 13 Agent</small>
                     </span>
                 </label>
             </div>
@@ -179,6 +190,6 @@
         </div>
     </main>
 
-    <script src="/static/app.js?v=20260606-report-history-filters"></script>
+    <script src="/static/app.js?v=20260606-dual-pipeline-mode"></script>
 </body>
 </html>

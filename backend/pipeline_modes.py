@@ -6,6 +6,7 @@ from typing import Any, Literal, TypedDict
 
 
 PipelineId = Literal["v1", "v2"]
+PipelineRunId = Literal["v1", "v2", "both"]
 
 
 class PipelineDefinition(TypedDict):
@@ -50,15 +51,74 @@ PIPELINE_DEFINITIONS: dict[str, PipelineDefinition] = {
 
 
 DEFAULT_PIPELINE_ID: PipelineId = "v1"
+DUAL_PIPELINE_RUN_ID: PipelineRunId = "both"
+
+
+PIPELINE_RUN_LABELS: dict[str, dict[str, str]] = {
+    "both": {
+        "label": "連續模式：模式 A → 模式 B",
+        "short_label": "A+B 連續",
+        "hint_text": "將先執行學術深度派，再接續實戰交易派；完成後會產出兩份獨立報告。",
+    }
+}
 
 
 def normalize_pipeline_id(value: Any) -> PipelineId:
     normalized = str(value or DEFAULT_PIPELINE_ID).strip().lower()
-    if normalized in {"a", "classic", "academic", "pipeline_v1", "pipeline-v1"}:
+    if normalized in {"a", "mode_a", "mode-a", "classic", "academic", "pipeline_v1", "pipeline-v1"}:
         return "v1"
-    if normalized in {"b", "trading", "practical", "pipeline_v2", "pipeline-v2"}:
+    if normalized in {"b", "mode_b", "mode-b", "trading", "practical", "pipeline_v2", "pipeline-v2"}:
         return "v2"
     return normalized if normalized in PIPELINE_DEFINITIONS else DEFAULT_PIPELINE_ID
+
+
+def normalize_pipeline_run_id(value: Any) -> PipelineRunId:
+    normalized = str(value or DEFAULT_PIPELINE_ID).strip().lower()
+    if normalized in {
+        "both",
+        "all",
+        "dual",
+        "a+b",
+        "ab",
+        "v1v2",
+        "v1+v2",
+        "v1/v2",
+        "v1_v2",
+        "v1-v2",
+        "mode_a_b",
+        "mode-a-b",
+        "pipeline_both",
+        "both_modes",
+        "all_modes",
+        "mode_ab",
+    }:
+        return DUAL_PIPELINE_RUN_ID
+    return normalize_pipeline_id(normalized)
+
+
+def get_pipeline_run_sequence(run_id: Any = DEFAULT_PIPELINE_ID) -> tuple[PipelineId, ...]:
+    normalized_run_id = normalize_pipeline_run_id(run_id)
+    if normalized_run_id == DUAL_PIPELINE_RUN_ID:
+        return ("v1", "v2")
+    return (normalized_run_id,)
+
+
+def get_pipeline_run_label(run_id: Any = DEFAULT_PIPELINE_ID) -> str:
+    normalized_run_id = normalize_pipeline_run_id(run_id)
+    if normalized_run_id == DUAL_PIPELINE_RUN_ID:
+        return PIPELINE_RUN_LABELS[DUAL_PIPELINE_RUN_ID]["label"]
+    return get_pipeline_definition(normalized_run_id)["label"]
+
+
+def get_pipeline_run_hint(run_id: Any = DEFAULT_PIPELINE_ID) -> str:
+    normalized_run_id = normalize_pipeline_run_id(run_id)
+    if normalized_run_id == DUAL_PIPELINE_RUN_ID:
+        return PIPELINE_RUN_LABELS[DUAL_PIPELINE_RUN_ID]["hint_text"]
+    return get_pipeline_definition(normalized_run_id)["hint_text"]
+
+
+def get_pipeline_run_agent_total(run_id: Any = DEFAULT_PIPELINE_ID) -> int:
+    return sum(len(get_pipeline_definition(pipeline_id)["agents"]) for pipeline_id in get_pipeline_run_sequence(run_id))
 
 
 def get_pipeline_definition(pipeline_id: Any = DEFAULT_PIPELINE_ID) -> PipelineDefinition:

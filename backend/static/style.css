@@ -156,7 +156,7 @@ input:focus {
 
 .pipeline-selector {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 10px;
     margin-bottom: 24px;
 }
@@ -180,6 +180,11 @@ input:focus {
     border-color: rgba(0, 255, 204, 0.75);
     background: rgba(0, 255, 204, 0.12);
     box-shadow: 0 0 0 1px rgba(0, 255, 204, 0.18) inset;
+}
+.pipeline-option:has(input[value="both"]:checked) {
+    border-color: rgba(163, 230, 53, 0.78);
+    background: rgba(20, 83, 45, 0.34);
+    box-shadow: 0 0 0 1px rgba(163, 230, 53, 0.2) inset;
 }
 .pipeline-option input {
     position: absolute;
