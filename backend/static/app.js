@@ -18,6 +18,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const reportAuditNotice = document.getElementById('report-audit-notice');
     const historyList = document.getElementById('history-list');
     const historySearch = document.getElementById('history-search');
+    const historyPipelineFilter = document.getElementById('history-pipeline-filter');
+    const historyRecommendationFilter = document.getElementById('history-recommendation-filter');
     const historyPagination = document.getElementById('history-pagination');
     const historyPrev = document.getElementById('history-prev');
     const historyNext = document.getElementById('history-next');
@@ -25,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const reportPreview = document.getElementById('report-preview');
     const previewMode = document.getElementById('preview-mode');
     const previewTitle = document.getElementById('preview-title');
+    const previewPrice = document.getElementById('preview-price');
     const previewRecommendation = document.getElementById('preview-recommendation');
     const previewConfidence = document.getElementById('preview-confidence');
     const previewTarget3m = document.getElementById('preview-target-3m');
@@ -135,11 +138,15 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadHistory() {
         try {
             const query = historySearch ? historySearch.value.trim() : '';
+            const pipelineFilter = historyPipelineFilter ? historyPipelineFilter.value : 'all';
+            const recommendationFilter = historyRecommendationFilter ? historyRecommendationFilter.value : 'all';
             const params = new URLSearchParams({
                 page: String(historyPage),
                 limit: String(historyLimit)
             });
             if (query) params.set('q', query);
+            if (pipelineFilter !== 'all') params.set('pipeline', pipelineFilter);
+            if (recommendationFilter !== 'all') params.set('recommendation', recommendationFilter);
             const res = await fetch(`/api/reports?${params.toString()}`);
             const data = await res.json();
             const pagination = data.pagination || { page: 1, total_pages: 1, total: 0, has_prev: false, has_next: false };
@@ -211,6 +218,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         previewMode.innerHTML = `${renderPipelineModeBadge(pipelineId)}<span class="preview-date">${escapeHtml(report.date || '')}</span>`;
         previewTitle.textContent = `${report.ticker} 投資建議`;
+        previewPrice.textContent = rec.current_price || 'N/A';
         previewRecommendation.textContent = normalizeRecommendation(rec.recommendation);
         previewRecommendation.className = recommendationTone(rec.recommendation);
         previewConfidence.textContent = rec.confidence || 'N/A';
@@ -314,6 +322,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 200);
         });
     }
+
+    [historyPipelineFilter, historyRecommendationFilter].forEach(filter => {
+        if (!filter) return;
+        filter.addEventListener('change', () => {
+            historyPage = 1;
+            hideReportPreview();
+            loadHistory();
+        });
+    });
 
     if (historyPrev) {
         historyPrev.addEventListener('click', () => {

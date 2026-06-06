@@ -375,6 +375,37 @@ iframe {
 .history-controls {
     margin-bottom: 12px;
 }
+.history-filter-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 10px;
+}
+.history-filter-field {
+    display: grid;
+    gap: 6px;
+}
+.history-filter-field span {
+    color: var(--text-secondary);
+    font-size: 0.76rem;
+    font-weight: 700;
+}
+.history-filter-select {
+    width: 100%;
+    min-height: 42px;
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.78);
+    color: var(--text-primary);
+    padding: 9px 10px;
+    font-size: 0.9rem;
+    font-family: 'Inter', sans-serif;
+    outline: none;
+}
+.history-filter-select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+}
 .history-workspace {
     display: grid;
     grid-template-columns: minmax(360px, 0.95fr) minmax(400px, 1.05fr);
@@ -621,7 +652,7 @@ iframe {
     gap: 8px;
 }
 .preview-decision-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     margin-bottom: 8px;
 }
 .preview-decision,
@@ -712,6 +743,9 @@ iframe {
     .history-item {
         align-items: flex-start;
         gap: 8px;
+    }
+    .history-filter-row {
+        grid-template-columns: 1fr;
     }
     .history-company {
         display: block;

@@ -164,6 +164,7 @@ def parse_recommendation_summary(filename: str) -> dict:
     """Extract the decision snapshot shown before opening a full report."""
     summary = {
         "recommendation": "N/A",
+        "current_price": "N/A",
         "target_3m": "N/A",
         "target_6m": "N/A",
         "target_12m": "N/A",
@@ -187,6 +188,15 @@ def parse_recommendation_summary(filename: str) -> dict:
     one_page = extract_section(markdown_text, "一頁式摘要")
     if one_page:
         summary["summary"] = clean_report_text(one_page)
+
+    metrics_section = extract_section(markdown_text, "📊 關鍵指標")
+    price_match = re.search(
+        r"^\s*-\s*\*\*股價:\*\*\s*(?P<value>.+?)\s*$",
+        metrics_section,
+        re.MULTILINE,
+    )
+    if price_match:
+        summary["current_price"] = clean_report_text(price_match.group("value"), limit=80)
 
     recommendation_section = extract_section(markdown_text, "🎯 最終投資建議")
     field_map = {
@@ -231,17 +241,42 @@ def parse_recommendation_summary(filename: str) -> dict:
     return summary
 
 
+def normalize_recommendation_label(value: str) -> str:
+    text = str(value or "").strip()
+    if "買入" in text or text.lower() == "buy":
+        return "買入"
+    if "避免" in text or "賣出" in text or text.lower() in {"avoid", "sell"}:
+        return "避免"
+    if "持有" in text or text.lower() == "hold":
+        return "持有"
+    return text or "N/A"
+
+
 @app.get("/api/reports")
 def get_reports(
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=100),
     q: str = Query("", max_length=80),
+    pipeline: str = Query("all", max_length=24),
+    recommendation: str = Query("all", max_length=24),
 ):
     """取得歷史報告清單"""
     cleanup_expired_reports()
     cleanup_orphan_markdown_reports()
     reports = []
     query = q.strip().lower()
+    pipeline_filter = pipeline.strip().lower()
+    if pipeline_filter in {"mode_a", "a", "academic"}:
+        pipeline_filter = "v1"
+    elif pipeline_filter in {"mode_b", "b", "trading"}:
+        pipeline_filter = "v2"
+    if pipeline_filter not in {"all", "v1", "v2"}:
+        pipeline_filter = "all"
+
+    recommendation_filter = normalize_recommendation_label(recommendation)
+    if recommendation_filter not in {"買入", "持有", "避免"}:
+        recommendation_filter = "all"
+
     if os.path.exists(OUTPUT_DIR):
         for filename in os.listdir(OUTPUT_DIR):
             if filename.endswith(".html"):
@@ -277,6 +312,15 @@ def get_reports(
                 except Exception:
                     pass
 
+                recommendation_summary = parse_recommendation_summary(filename)
+                if pipeline_filter != "all" and pipeline_id != pipeline_filter:
+                    continue
+                if (
+                    recommendation_filter != "all"
+                    and normalize_recommendation_label(recommendation_summary.get("recommendation")) != recommendation_filter
+                ):
+                    continue
+
                 report = {
                     "filename": filename,
                     "ticker": ticker,
@@ -285,9 +329,9 @@ def get_reports(
                     "timestamp": os.path.getmtime(filepath),
                     "pipeline_id": pipeline_id,
                     "pipeline_label": get_pipeline_definition(pipeline_id)["short_label"],
-                    "recommendation": parse_recommendation_summary(filename),
+                    "recommendation": recommendation_summary,
                 }
-                searchable = f"{filename} {ticker} {company_name}".lower()
+                searchable = f"{filename} {ticker} {company_name} {recommendation_summary.get('recommendation', '')}".lower()
                 if query and query not in searchable:
                     continue
                 reports.append(report)
@@ -308,6 +352,8 @@ def get_reports(
             "has_prev": page > 1,
             "has_next": page < total_pages,
             "query": q,
+            "pipeline": pipeline_filter,
+            "recommendation": recommendation_filter,
         },
     }
 

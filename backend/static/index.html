@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=20260606-report-preview-mode-badges">
+    <link rel="stylesheet" href="/static/style.css?v=20260606-report-history-filters">
 </head>
 <body>
     <!-- 背景特效 -->
@@ -58,6 +58,25 @@
                     <div class="history-list-pane">
                         <div class="history-controls">
                             <input type="search" id="history-search" class="history-search" placeholder="搜尋代號或公司" autocomplete="off" spellcheck="false" />
+                            <div class="history-filter-row">
+                                <label class="history-filter-field">
+                                    <span>報告類型</span>
+                                    <select id="history-pipeline-filter" class="history-filter-select">
+                                        <option value="all">全部類型</option>
+                                        <option value="v1">模式 A · 學術深度派</option>
+                                        <option value="v2">模式 B · 實戰交易派</option>
+                                    </select>
+                                </label>
+                                <label class="history-filter-field">
+                                    <span>投資建議</span>
+                                    <select id="history-recommendation-filter" class="history-filter-select">
+                                        <option value="all">全部建議</option>
+                                        <option value="買入">買入</option>
+                                        <option value="持有">持有</option>
+                                        <option value="避免">避免</option>
+                                    </select>
+                                </label>
+                            </div>
                         </div>
                         <div id="history-list" class="history-list">
                             <!-- 動態載入 -->
@@ -83,6 +102,10 @@
                             </button>
                         </div>
                         <div class="preview-decision-row">
+                            <div class="preview-decision">
+                                <span class="preview-label">當日股價</span>
+                                <strong id="preview-price">N/A</strong>
+                            </div>
                             <div class="preview-decision">
                                 <span class="preview-label">建議</span>
                                 <strong id="preview-recommendation">N/A</strong>
@@ -156,6 +179,6 @@
         </div>
     </main>
 
-    <script src="/static/app.js?v=20260606-report-preview-mode-badges"></script>
+    <script src="/static/app.js?v=20260606-report-history-filters"></script>
 </body>
 </html>
