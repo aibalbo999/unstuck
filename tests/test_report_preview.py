@@ -9,8 +9,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 import api  # noqa: E402
+import api_report_service  # noqa: E402
+import job_store  # noqa: E402
 import report_index  # noqa: E402
 from data_fetch import FetchResult  # noqa: E402
+from reporting import ReportBundle  # noqa: E402
 
 
 def test_parse_recommendation_summary_from_markdown(tmp_path, monkeypatch):
@@ -88,6 +91,22 @@ def write_data_snapshot(output_dir: Path, filename: str, status: str = "fresh"):
     "notes": ["測試資料可信度"]
   }},
   "source_audit": []
+  ,
+  "data": {{
+    "data_schema_version": 4,
+    "ticker": "2449.TW",
+    "company_name": "京元電子",
+    "current_price": 309.5,
+    "data_trust": {{
+      "status": "{status}",
+      "critical_failures": [],
+      "stale_sources": [],
+      "last_market_data_at": "2026-06-06T01:00:00+00:00",
+      "notes": ["測試資料可信度"]
+    }},
+    "source_freshness": {{}},
+    "source_audit": []
+  }}
 }}""",
         encoding="utf-8",
     )
@@ -194,11 +213,18 @@ def test_refresh_data_snapshot_endpoint_updates_trust(tmp_path, monkeypatch):
     body = response.json()
     assert body["success"] is True
     assert body["data_trust"]["status"] == "fresh"
+    assert body["analysis_text_stale"] is True
+    assert "分析本文" in body["analysis_text_stale_message"]
     assert body["refresh_diff"]["data_trust_status"] == {"before": "stale", "after": "fresh", "changed": True}
     assert "可信度 stale → fresh" in body["refresh_diff"]["summary"]
     saved = json.loads((tmp_path / filename.replace(".html", ".data.json")).read_text(encoding="utf-8"))
     assert saved["data_trust"]["status"] == "fresh"
     assert saved["refreshed_from_report"] == filename
+    assert saved["refreshed_without_analysis_rerun"] is True
+
+    reports = api.get_reports(page=1, limit=20, q="", pipeline="v2", recommendation="持有")
+    assert reports["reports"][0]["analysis_text_stale"] is True
+    assert "分析本文" in reports["reports"][0]["analysis_text_stale_message"]
 
 
 def test_refresh_data_snapshot_endpoint_rejects_legacy_without_snapshot(tmp_path, monkeypatch):
@@ -210,3 +236,150 @@ def test_refresh_data_snapshot_endpoint_rejects_legacy_without_snapshot(tmp_path
     response = client.post(f"/api/report/{filename}/refresh/data")
 
     assert response.status_code == 404
+
+
+def test_rerun_report_endpoint_mode_b_queues_job(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
+    monkeypatch.setattr(job_store, "TASK_DB_PATH", str(tmp_path / "jobs.sqlite3"))
+    filename = "2449_v2_report_20260606_010000.html"
+    write_report_pair(tmp_path, filename, "持有")
+    write_data_snapshot(tmp_path, filename, "fresh")
+
+    class FakeTaskQueue:
+        def __init__(self):
+            self.calls = []
+
+        def enqueue(self, *args):
+            self.calls.append(args)
+
+    fake_queue = FakeTaskQueue()
+    monkeypatch.setattr(api, "analysis_task_queue", fake_queue)
+
+    client = TestClient(api.app)
+    response = client.post(f"/api/report/{filename}/rerun", params={"scope": "mode_b"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["success"] is True
+    assert body["queued"] is True
+    assert body["scope"] == "mode_b"
+    assert body["filename"] == filename
+    assert body["stream_url"].endswith(f"job_id={body['job_id']}")
+    assert fake_queue.calls[0][0] == f"report-rerun:{body['job_id']}"
+    assert fake_queue.calls[0][2:] == (body["job_id"], filename, "mode_b")
+    job = job_store.get_job(body["job_id"])
+    assert job["ticker"] == filename
+    assert job["pipeline_id"] == "rerun:mode_b"
+
+
+def test_rerun_report_stream_replays_terminal_event(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(job_store, "TASK_DB_PATH", str(tmp_path / "jobs.sqlite3"))
+    filename = "2449_v2_report_20260606_010000.html"
+    job_id = job_store.create_job(filename, "rerun:final_recommendation")
+    job_store.update_job(job_id, "done", filename="2449_v2_report_20260607_010000.html")
+    job_store.append_event(job_id, {
+        "type": "done",
+        "filename": "2449_v2_report_20260607_010000.html",
+        "rerun_scope": "final_recommendation",
+        "source_filename": filename,
+    })
+
+    client = TestClient(api.app)
+    response = client.get(f"/api/report/{filename}/rerun/stream", params={"job_id": job_id})
+
+    assert response.status_code == 200
+    assert '"type": "job"' in response.text
+    assert '"type": "done"' in response.text
+    assert "2449_v2_report_20260607_010000.html" in response.text
+
+
+def test_final_rerun_uses_snapshot_rerun_context_without_markdown(tmp_path, monkeypatch):
+    filename = "2449_v2_report_20260606_010000.html"
+    write_report_pair(tmp_path, filename, "持有")
+    (tmp_path / filename.replace(".html", ".md")).unlink()
+    analyses = {str(agent): f"Agent {agent} analysis" for agent in [11, 12, 13, 14, 15]}
+    snapshot = {
+        "snapshot_schema_version": 3,
+        "ticker": "2449.TW",
+        "company_name": "京元電子",
+        "pipeline": "v2",
+        "generated_at": "2026-06-07T00:00:00+00:00",
+        "data_schema_version": 4,
+        "source_freshness": {},
+        "source_audit": [],
+        "data_trust": {"status": "fresh", "critical_failures": [], "stale_sources": [], "last_market_data_at": None, "notes": []},
+        "rerun_context": {
+            "analyses": analyses,
+            "structured_outputs": {"14": {"price_targets": {"基本情境": 273}}},
+        },
+        "data": {"data_schema_version": 4, "ticker": "2449.TW", "company_name": "京元電子"},
+    }
+    (tmp_path / filename.replace(".html", ".data.json")).write_text(json.dumps(snapshot), encoding="utf-8")
+
+    async def fake_run_agent(agent_num, data, context, rotator):
+        context["analyses"][agent_num] = "final recommendation rerun"
+        context["structured_outputs"][agent_num] = {"recommendation": {"建議": "持有"}}
+        return "final recommendation rerun"
+
+    class FakeReportRenderer:
+        async def render_async(self, request):
+            return ReportBundle(
+                html='<div class="sidebar-name">京元電子</div>',
+                markdown="# report",
+                data_snapshot={
+                    "snapshot_schema_version": 3,
+                    "ticker": "2449.TW",
+                    "company_name": "京元電子",
+                    "pipeline": request.pipeline_id,
+                    "generated_at": "2026-06-07T00:00:00+00:00",
+                    "data_schema_version": 4,
+                    "source_freshness": {},
+                    "source_audit": [],
+                    "data_trust": snapshot["data_trust"],
+                    "rerun_context": request.context.get("rerun_context", {}),
+                    "data": request.context["data"],
+                },
+            )
+
+    monkeypatch.setattr(api_report_service, "run_agent_with_quality_gates_async", fake_run_agent)
+    monkeypatch.setattr(api_report_service, "run_final_report_audit", lambda context, append_section=True: {"warnings": []})
+    monkeypatch.setattr(api_report_service, "parse_structured_data", lambda context: {"recommendation": {"建議": "持有"}})
+
+    result = api_report_service.rerun_report_analysis(
+        filename,
+        scope="final_recommendation",
+        output_dir=str(tmp_path),
+        pipeline_runner=object(),
+        report_renderer=FakeReportRenderer(),
+    )
+    import asyncio
+
+    body = asyncio.run(result)
+
+    assert body["success"] is True
+    assert body["scope"] == "final_recommendation"
+    assert (tmp_path / body["filename"]).exists()
+
+
+def test_parse_agent_sections_from_markdown_supports_final_rerun_context():
+    markdown = """# report
+
+## 1. 總經分析 (Agent 11)
+總經段落
+
+---
+
+## 2. 商業模式 (Agent 12)
+商業模式段落
+
+---
+
+## 來源審計
+表格
+"""
+
+    sections = api_report_service.parse_agent_sections_from_markdown(markdown)
+
+    assert sections == {11: "總經段落", 12: "商業模式段落"}

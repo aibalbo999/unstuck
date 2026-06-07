@@ -24,7 +24,7 @@ from storage.migrations import MigrationRunner, column_names
 
 _REPORT_INDEX_LOCK = threading.Lock()
 REPORT_INDEX_MIGRATION_KEY = "report_index"
-REPORT_INDEX_SCHEMA_VERSION = 3
+REPORT_INDEX_SCHEMA_VERSION = 4
 
 
 def _column_names(conn, table_name: str) -> set[str]:
@@ -57,9 +57,16 @@ def _run_report_index_migrations(conn) -> None:
         if "data_trust_status" not in columns:
             migration_conn.execute("ALTER TABLE reports ADD COLUMN data_trust_status TEXT NOT NULL DEFAULT 'unknown'")
 
+    def migrate_v4(migration_conn):
+        columns = _column_names(migration_conn, "reports")
+        if "analysis_text_stale" not in columns:
+            migration_conn.execute("ALTER TABLE reports ADD COLUMN analysis_text_stale INTEGER NOT NULL DEFAULT 0")
+        if "analysis_text_stale_message" not in columns:
+            migration_conn.execute("ALTER TABLE reports ADD COLUMN analysis_text_stale_message TEXT NOT NULL DEFAULT ''")
+
     MigrationRunner(conn, REPORT_INDEX_MIGRATION_KEY).run(
         REPORT_INDEX_SCHEMA_VERSION,
-        {1: lambda _conn: None, 2: migrate_v2, 3: migrate_v3},
+        {1: lambda _conn: None, 2: migrate_v2, 3: migrate_v3, 4: migrate_v4},
     )
 
 
@@ -290,6 +297,20 @@ def _report_index_mtime(output_dir: str, filename: str) -> float:
     return max(_safe_mtime(html_path), _safe_mtime(md_path), _safe_mtime(data_path))
 
 
+def _read_snapshot_report_flags(data_snapshot_path: str) -> dict:
+    if not os.path.exists(data_snapshot_path):
+        return {"analysis_text_stale": False, "analysis_text_stale_message": ""}
+    try:
+        with open(data_snapshot_path, "r", encoding="utf-8") as f:
+            snapshot = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {"analysis_text_stale": False, "analysis_text_stale_message": ""}
+    return {
+        "analysis_text_stale": bool(snapshot.get("refreshed_without_analysis_rerun")),
+        "analysis_text_stale_message": str(snapshot.get("analysis_text_stale_message") or "")[:240],
+    }
+
+
 def build_report_metadata(
     filename: str,
     output_dir: Optional[str] = None,
@@ -322,6 +343,7 @@ def build_report_metadata(
         if data_trust is not None
         else read_data_trust_from_snapshot(data_snapshot_path)
     )
+    snapshot_flags = _read_snapshot_report_flags(data_snapshot_path)
     normalized_recommendation = normalize_recommendation_label(recommendation.get("recommendation"))
     search_text = " ".join([
         filename,
@@ -344,6 +366,8 @@ def build_report_metadata(
         "data_snapshot_filename": data_snapshot_filename if os.path.exists(data_snapshot_path) else "",
         "data_trust": data_trust_summary,
         "data_trust_status": data_trust_summary.get("status", "unknown"),
+        "analysis_text_stale": snapshot_flags["analysis_text_stale"],
+        "analysis_text_stale_message": snapshot_flags["analysis_text_stale_message"],
         "normalized_recommendation": normalized_recommendation,
         "search_text": search_text,
     }
@@ -367,9 +391,10 @@ def upsert_report_metadata(
                 output_dir, filename, md_filename, ticker, company_name, report_date,
                 timestamp, file_mtime, pipeline_id, recommendation_json,
                 normalized_recommendation, search_text, data_snapshot_filename,
-                data_trust_json, data_trust_status, updated_at
+                data_trust_json, data_trust_status, analysis_text_stale,
+                analysis_text_stale_message, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(output_dir, filename) DO UPDATE SET
                 md_filename = excluded.md_filename,
                 ticker = excluded.ticker,
@@ -384,6 +409,8 @@ def upsert_report_metadata(
                 data_snapshot_filename = excluded.data_snapshot_filename,
                 data_trust_json = excluded.data_trust_json,
                 data_trust_status = excluded.data_trust_status,
+                analysis_text_stale = excluded.analysis_text_stale,
+                analysis_text_stale_message = excluded.analysis_text_stale_message,
                 updated_at = excluded.updated_at
             """,
             (
@@ -402,6 +429,8 @@ def upsert_report_metadata(
                 metadata["data_snapshot_filename"],
                 json.dumps(metadata["data_trust"], ensure_ascii=False),
                 metadata["data_trust_status"],
+                1 if metadata.get("analysis_text_stale") else 0,
+                metadata.get("analysis_text_stale_message", ""),
                 time.time(),
             ),
         )
@@ -479,6 +508,8 @@ def _row_to_report(row) -> dict:
         "data_snapshot_filename": row["data_snapshot_filename"] if "data_snapshot_filename" in row.keys() else "",
         "data_trust": data_trust,
         "data_trust_status": row["data_trust_status"] if "data_trust_status" in row.keys() else data_trust.get("status", "unknown"),
+        "analysis_text_stale": bool(row["analysis_text_stale"]) if "analysis_text_stale" in row.keys() else False,
+        "analysis_text_stale_message": row["analysis_text_stale_message"] if "analysis_text_stale_message" in row.keys() else "",
     }
 
 

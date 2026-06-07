@@ -11,12 +11,8 @@ from agent_runtime.audit_repair import finalize_final_audit, finalize_final_audi
 from agent_runtime.routing import is_agent_execution_failure
 from agent_runtime.single_agent import run_single_agent
 from analysis_types import AnalysisContext, StockData
-from assistant_tasks import (
-    CONTEXT_DIGEST_TARGET_AGENTS,
-    ensure_context_digest,
-    ensure_tear_sheet_summary,
-    ensure_tear_sheet_summary_async,
-)
+from context_digest_tasks import CONTEXT_DIGEST_TARGET_AGENTS, ensure_context_digest
+from tear_sheet_tasks import ensure_tear_sheet_summary, ensure_tear_sheet_summary_async
 from config import AGENT_MODELS, API_KEYS, EMBEDDING_MODEL, INTER_AGENT_DELAY
 from llm_client import KeyRotator
 from pipeline_modes import get_pipeline_definition, normalize_pipeline_id

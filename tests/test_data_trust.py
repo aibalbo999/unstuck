@@ -127,6 +127,56 @@ def test_data_snapshot_sanitizes_sensitive_keys():
     assert snapshot["deterministic_fallbacks"][0]["trigger"] == "repair_429_failure"
 
 
+def test_data_snapshot_saves_sanitized_rerun_context():
+    snapshot = data_trust.build_data_snapshot(
+        {
+            "ticker": "TEST",
+            "pipeline_id": "v2",
+            "analyses": {
+                11: "macro analysis",
+                16: "final recommendation",
+            },
+            "structured_outputs": {
+                16: {
+                    "recommendation": {"建議": "持有"},
+                    "retry_metadata": "SHOULD_NOT_APPEAR",
+                }
+            },
+            "parsed": {"recommendation": {"建議": "持有"}},
+            "prompt": "DO NOT SAVE PROMPT",
+            "data": {
+                "data_schema_version": DATA_SCHEMA_VERSION,
+                "ticker": "TEST",
+                "source_audit": [],
+                "data_trust": data_trust.unknown_data_trust(),
+            },
+        }
+    )
+    encoded = json.dumps(snapshot, ensure_ascii=False)
+
+    assert snapshot["snapshot_schema_version"] == data_trust.DATA_SNAPSHOT_SCHEMA_VERSION
+    assert snapshot["rerun_context"]["analyses"]["11"] == "macro analysis"
+    assert snapshot["rerun_context"]["structured_outputs"]["16"]["recommendation"]["建議"] == "持有"
+    assert "DO NOT SAVE PROMPT" not in encoded
+    assert "SHOULD_NOT_APPEAR" not in encoded
+
+
+def test_data_snapshot_accepts_legacy_v2_schema():
+    snapshot = {
+        "snapshot_schema_version": 2,
+        "ticker": "TEST",
+        "pipeline": "v1",
+        "generated_at": "2026-06-07T00:00:00+00:00",
+        "data_schema_version": DATA_SCHEMA_VERSION,
+        "source_freshness": {},
+        "source_audit": [],
+        "data_trust": data_trust.unknown_data_trust(),
+        "data": {"ticker": "TEST"},
+    }
+
+    assert data_trust.validate_data_snapshot(snapshot)["valid"] is True
+
+
 def test_data_snapshot_schema_validation_and_truncation():
     audit = [
         data_trust.build_source_audit_entry(

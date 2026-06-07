@@ -8,6 +8,7 @@ sys.path.insert(0, str(ROOT / "backend"))
 
 import agent_runtime.audit_repair as audit_repair  # noqa: E402
 import agent_runtime.legacy_agent_runner as ar  # noqa: E402
+import agent_runtime.repair_circuit_breaker as repair_breaker  # noqa: E402
 
 
 def base_data():
@@ -122,6 +123,34 @@ def test_structured_repair_uses_fallback_when_model_repair_is_429_unavailable():
     assert context["deterministic_fallbacks"][0]["trigger"] == "repair_429_failure"
     assert "429" in context["deterministic_fallbacks"][0]["raw_failure"]
     assert set(context["structured_outputs"][14]["price_targets"]) == {"熊市情境", "基本情境", "牛市情境"}
+
+
+def test_repair_429_circuit_persists_to_sqlite(tmp_path, monkeypatch):
+    monkeypatch.setattr(repair_breaker.config, "TASK_DB_PATH", str(tmp_path / "jobs.sqlite3"))
+    repair_breaker.clear_repair_429_circuit()
+
+    updated = repair_breaker.record_repair_429_failure(16, "429 RESOURCE_EXHAUSTED")
+
+    assert updated["open"] is True
+    state = repair_breaker.repair_429_circuit_state(16)
+    assert state["open"] is True
+    assert state["failures"] == 1
+    assert "429" in state["last_error"]
+
+    repair_breaker.clear_repair_429_circuit(16)
+    assert repair_breaker.repair_429_circuit_state(16) == {"open": False, "failures": 0}
+
+
+def test_repair_429_circuit_expires_after_cooldown(tmp_path, monkeypatch):
+    monkeypatch.setattr(repair_breaker.config, "TASK_DB_PATH", str(tmp_path / "jobs.sqlite3"))
+    monkeypatch.setenv("REPAIR_429_CIRCUIT_BREAKER_COOLDOWN_SECONDS", "10")
+    times = iter([100.0, 111.5])
+    monkeypatch.setattr(repair_breaker, "_now", lambda: next(times))
+    repair_breaker.clear_repair_429_circuit()
+
+    repair_breaker.record_repair_429_failure(16, "too many requests")
+
+    assert repair_breaker.repair_429_circuit_state(16) == {"open": False, "failures": 0}
 
 
 def test_structured_repair_does_not_fallback_for_non_429_execution_failure():

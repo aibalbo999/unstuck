@@ -2,7 +2,7 @@
 
 from analysis_types import AnalysisContext, StockData
 from agent_catalog import AGENT_NAMES
-from assistant_tasks import _format_previous
+from assistant_context import _format_previous
 from prompt_builder import format_data_for_prompt, render_prompt_template
 from prompt_rules import (
     build_agent_rule_block,

@@ -1,4 +1,5 @@
 import sys
+import subprocess
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -76,6 +77,66 @@ def test_provider_sla_api_returns_alerts(monkeypatch):
 
     assert response.status_code == 200
     assert response.json()["alerts"][0]["provider"] == "fake"
+
+
+def test_provider_sla_api_applies_window_server_side(monkeypatch):
+    monkeypatch.setattr(api, "get_provider_sla_summary", lambda limit=100: [{
+        "source": "market_data",
+        "provider": "fake",
+        "attempts": 10,
+        "success_count": 10,
+        "error_count": 0,
+        "success_rate": 1.0,
+        "avg_duration_ms": 10,
+        "total_records": 10,
+        "last_status": "success",
+        "last_message": "",
+        "alert_level": "ok",
+        "alert_message": "",
+        "windows": {
+            "last_24h": {
+                "attempts": 3,
+                "success_count": 1,
+                "error_count": 2,
+                "success_rate": 0.3333,
+                "avg_duration_ms": 20,
+                "total_records": 1,
+            }
+        },
+    }])
+    monkeypatch.setattr(api, "get_provider_sla_alerts", lambda limit=100: [])
+
+    client = TestClient(api.app)
+    response = client.get("/api/observability/provider-sla", params={"window": "last_24h"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["selected_window"] == "last_24h"
+    assert body["providers"][0]["attempts"] == 3
+    assert body["providers"][0]["success_rate"] == 0.3333
+    assert body["providers"][0]["alert_level"] == "critical"
+    assert body["alerts"][0]["provider"] == "fake"
+
+
+def test_api_uses_lifespan_and_router_modules():
+    source = (ROOT / "backend" / "api.py").read_text(encoding="utf-8")
+
+    assert "@app.on_event" not in source
+    assert "FastAPI(lifespan=lifespan)" in source
+    assert "include_router" in source
+    assert "api_routes.analysis" in source
+
+
+def test_runtime_policy_script_is_non_strict_for_local_runtime():
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "check_runtime.py")],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "Python" in result.stdout
 
 
 def test_analyze_sse_contract_streams_job_progress_and_done(monkeypatch):

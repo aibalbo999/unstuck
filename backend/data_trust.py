@@ -10,8 +10,9 @@ from pathlib import Path
 from typing import Any, Optional
 
 
-DATA_SNAPSHOT_SCHEMA_VERSION = 2
-SUPPORTED_DATA_SNAPSHOT_SCHEMA_VERSIONS = {1, DATA_SNAPSHOT_SCHEMA_VERSION}
+DATA_SNAPSHOT_SCHEMA_VERSION = 3
+SUPPORTED_DATA_SNAPSHOT_SCHEMA_VERSIONS = {1, 2, DATA_SNAPSHOT_SCHEMA_VERSION}
+SNAPSHOT_RERUN_ANALYSIS_MAX_CHARS = 12000
 SNAPSHOT_TRIMMABLE_LIST_FIELDS = (
     "recent_catalysts",
     "peer_discovery_results",
@@ -376,6 +377,35 @@ def sanitize_for_snapshot(value: Any) -> Any:
     return str(value)
 
 
+def _snapshot_text(value: Any, *, max_chars: int = SNAPSHOT_RERUN_ANALYSIS_MAX_CHARS) -> str:
+    text = str(value or "")
+    if len(text) <= max_chars:
+        return text
+    return text[:max_chars] + "\n[Snapshot truncated for size]"
+
+
+def _sanitize_rerun_context(context: dict) -> dict:
+    if not isinstance(context, dict):
+        return {"analyses": {}, "structured_outputs": {}, "parsed": {}}
+
+    analyses = {}
+    raw_analyses = context.get("analyses", {})
+    if isinstance(raw_analyses, dict):
+        for agent_num, text in raw_analyses.items():
+            if text is None:
+                continue
+            analyses[str(agent_num)] = _snapshot_text(text)
+
+    return sanitize_for_snapshot({
+        "analyses": analyses,
+        "structured_outputs": context.get("structured_outputs", {}),
+        "parsed": context.get("parsed", {}),
+        "pipeline_id": context.get("pipeline_id"),
+        "pipeline_label": context.get("pipeline_label"),
+        "agent_sequence": context.get("agent_sequence"),
+    })
+
+
 def build_data_snapshot(
     context: dict,
     pipeline_id: Optional[str] = None,
@@ -404,6 +434,7 @@ def build_data_snapshot(
         "data_source_notes": sanitize_for_snapshot(data.get("data_source_notes", [])),
         "deterministic_fallbacks": sanitize_for_snapshot(context.get("deterministic_fallbacks", [])),
         "report_lint": sanitize_for_snapshot(context.get("report_lint", {})),
+        "rerun_context": _sanitize_rerun_context(context),
         "data": sanitize_for_snapshot(data),
     }
     return apply_snapshot_size_governance(snapshot, max_bytes=max_bytes)
@@ -480,6 +511,29 @@ def apply_snapshot_size_governance(snapshot: dict, max_bytes: Optional[int] = No
         if removed_keys:
             governed["snapshot_omitted_sections"].append(f"data.non_core_fields:{len(removed_keys)}")
 
+    size = snapshot_size_bytes(governed)
+    rerun_context = governed.get("rerun_context") if isinstance(governed.get("rerun_context"), dict) else {}
+    analyses = rerun_context.get("analyses") if isinstance(rerun_context.get("analyses"), dict) else {}
+    if size > limit and analyses:
+        shortened = {}
+        omitted_chars = 0
+        for agent_num, text in analyses.items():
+            text_value = str(text or "")
+            shortened_text = _snapshot_text(text_value, max_chars=2000)
+            omitted_chars += max(0, len(text_value) - len(shortened_text))
+            shortened[str(agent_num)] = shortened_text
+        rerun_context["analyses"] = shortened
+        if omitted_chars:
+            governed["snapshot_omitted_sections"].append(f"rerun_context.analyses_chars:{omitted_chars}")
+
+    size = snapshot_size_bytes(governed)
+    if size > limit and rerun_context:
+        removed_keys = [key for key in ("parsed", "structured_outputs") if key in rerun_context]
+        for key in removed_keys:
+            rerun_context.pop(key, None)
+        if removed_keys:
+            governed["snapshot_omitted_sections"].append(f"rerun_context.non_essential:{len(removed_keys)}")
+
     return _set_stable_snapshot_size(governed)
 
 
@@ -529,6 +583,7 @@ def build_legacy_report_snapshot(
         "legacy_report_metadata": sanitize_for_snapshot({
             "recommendation": recommendation or {},
         }),
+        "rerun_context": {"analyses": {}, "structured_outputs": {}, "parsed": {}},
         "data": {
             "ticker": ticker,
             "company_name": company_name or ticker,

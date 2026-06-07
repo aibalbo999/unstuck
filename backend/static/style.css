@@ -394,6 +394,21 @@ iframe {
     justify-content: space-between;
     gap: 12px;
 }
+.provider-sla-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.provider-sla-window {
+    min-height: 34px;
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.72);
+    color: var(--text-primary);
+    padding: 0 28px 0 10px;
+    font-size: 0.76rem;
+    font-weight: 800;
+}
 .provider-sla-kicker {
     display: block;
     color: var(--text-secondary);
@@ -423,6 +438,11 @@ iframe {
     background: rgba(15, 23, 42, 0.55);
     font-size: 0.76rem;
     font-weight: 700;
+}
+.provider-sla-chip em {
+    color: var(--text-secondary);
+    font-style: normal;
+    font-weight: 800;
 }
 .provider-sla-chip.is-ok {
     color: #bbf7d0;
@@ -783,6 +803,17 @@ iframe {
     overflow-y: auto;
     padding-right: 4px;
 }
+.preview-stale-notice {
+    margin: 12px 0 0;
+    border: 1px solid rgba(245, 158, 11, 0.38);
+    border-radius: 8px;
+    background: rgba(245, 158, 11, 0.11);
+    color: #fde68a;
+    padding: 10px 12px;
+    font-size: 0.82rem;
+    line-height: 1.55;
+    font-weight: 700;
+}
 .preview-open-button {
     width: 100%;
     min-height: 46px;
@@ -820,6 +851,30 @@ iframe {
     color: var(--accent);
 }
 .preview-refresh-button:disabled {
+    cursor: wait;
+    opacity: 0.58;
+}
+.preview-rerun-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+}
+.preview-rerun-button {
+    min-height: 40px;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 8px;
+    background: rgba(30, 41, 59, 0.66);
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+.preview-rerun-button:hover:not(:disabled) {
+    border-color: rgba(96, 165, 250, 0.46);
+    color: #bfdbfe;
+}
+.preview-rerun-button:disabled {
     cursor: wait;
     opacity: 0.58;
 }

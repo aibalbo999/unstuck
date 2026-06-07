@@ -6,7 +6,7 @@ import time
 
 from agent_catalog import AGENT_NAMES
 from analysis_types import AnalysisContext, StockData
-from assistant_tasks import CONTEXT_DIGEST_TARGET_AGENTS, ensure_context_digest_async
+from context_digest_tasks import CONTEXT_DIGEST_TARGET_AGENTS, ensure_context_digest_async
 from llm_client import KeyRotator
 from rag_runtime import ensure_agent_rag_context_async
 from runtime_events import emit_log, emit_status_async

@@ -12,7 +12,7 @@ echo "啟動 Wall Street AI 股票分析系統..."
 # 切換到腳本所在目錄的 backend 資料夾
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-if [ -n "$PYTHON_BIN" ]; then
+if [ -n "${PYTHON_BIN:-}" ]; then
     BASE_PYTHON="$PYTHON_BIN"
 elif [ -x "$DIR/.venv/bin/python" ]; then
     BASE_PYTHON="$DIR/.venv/bin/python"
@@ -38,19 +38,20 @@ if [ -x "$DIR/.venv/bin/python" ]; then
     PYTHON_BIN="$DIR/.venv/bin/python"
 elif "$BASE_PYTHON" - <<'PY'
 import sys
-raise SystemExit(0 if sys.version_info >= (3, 10) else 1)
+raise SystemExit(0 if sys.version_info >= (3, 11) else 1)
 PY
 then
     echo "建立本機虛擬環境：$DIR/.venv（Python $PYTHON_VERSION）"
     "$BASE_PYTHON" -m venv "$DIR/.venv"
     PYTHON_BIN="$DIR/.venv/bin/python"
 else
-    echo "警告：目前 Python $PYTHON_VERSION 低於建議版本 3.10，可能出現 Google 套件支援警告。"
-    echo "建議安裝 Homebrew Python，或用 PYTHON_BIN 指定 Python 3.10+。"
+    echo "警告：目前 Python $PYTHON_VERSION 低於建議版本 3.11，可能出現 Google 套件支援警告。"
+    echo "建議安裝 Homebrew Python，或用 PYTHON_BIN 指定 Python 3.11+。"
     PYTHON_BIN="$BASE_PYTHON"
 fi
 
 echo "使用 Python：$PYTHON_BIN"
+"$PYTHON_BIN" "$DIR/scripts/check_runtime.py" --strict
 
 cd "$DIR/backend" || {
     echo "找不到 backend 資料夾：$DIR/backend"

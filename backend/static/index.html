@@ -71,9 +71,17 @@
                             <span class="provider-sla-kicker">資料來源健康度</span>
                             <strong id="provider-sla-summary">載入中</strong>
                         </div>
-                        <button id="provider-sla-refresh" class="icon-button" type="button" aria-label="刷新資料來源健康度">
-                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M16 8h5V3"/></svg>
-                        </button>
+                        <div class="provider-sla-actions">
+                            <select id="provider-sla-window" class="provider-sla-window" aria-label="資料來源健康度時間範圍">
+                                <option value="all">全部</option>
+                                <option value="last_1h">1 小時</option>
+                                <option value="last_24h">24 小時</option>
+                                <option value="last_7d">7 天</option>
+                            </select>
+                            <button id="provider-sla-refresh" class="icon-button" type="button" aria-label="刷新資料來源健康度">
+                                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M16 8h5V3"/></svg>
+                            </button>
+                        </div>
                     </div>
                     <div id="provider-sla-list" class="provider-sla-list"></div>
                 </section>
@@ -164,6 +172,7 @@
                             </div>
                         </div>
                         <p id="preview-summary" class="preview-summary"></p>
+                        <p id="preview-stale-notice" class="preview-stale-notice" hidden></p>
                         <button id="preview-open-report-btn" class="preview-open-button" type="button">
                             <span>查看完整報告</span>
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg>
@@ -172,6 +181,14 @@
                             <span>刷新資料快照</span>
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M16 8h5V3"/></svg>
                         </button>
+                        <div class="preview-rerun-row">
+                            <button id="preview-rerun-final-btn" class="preview-rerun-button" type="button">
+                                <span>重跑最終建議</span>
+                            </button>
+                            <button id="preview-rerun-modeb-btn" class="preview-rerun-button" type="button">
+                                <span>重跑模式 B</span>
+                            </button>
+                        </div>
                     </section>
                 </div>
             </div>
@@ -220,6 +237,8 @@
         </div>
     </main>
 
-    <script src="/static/app.js?v=20260607-dual-pipeline-selection"></script>
+    <script src="/static/provider_sla_panel.js?v=20260607-provider-sla-module"></script>
+    <script src="/static/report_rerun.js?v=20260607-rerun-stream"></script>
+    <script src="/static/app.js?v=20260607-rerun-modules"></script>
 </body>
 </html>

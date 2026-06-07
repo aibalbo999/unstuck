@@ -103,20 +103,24 @@ export GEMINI_API_KEYS="your_key_1,your_key_2"
 
 ## 安裝
 
-建議使用 Python 3.10 到 3.13；macOS 建議使用 Homebrew / python.org Python，避免 Apple Command Line Tools Python 3.9 與 LibreSSL 觸發 Google 套件與 urllib3 相容性警告。本機已驗證 Python 3.13 + OpenSSL 可消除這些 warning。Gemini 呼叫使用新版 `google-genai` SDK，不再使用已停止維護的 `google-generativeai`。
+建議使用 Python 3.13；macOS 建議使用 Homebrew / python.org Python，避免 Apple Command Line Tools Python 3.9 與 LibreSSL 觸發 Google 套件與 urllib3 相容性警告。專案根目錄提供 `.python-version`，部署前可用 `.venv/bin/python scripts/check_runtime.py --strict` 擋掉過舊 runtime。本機已驗證 Python 3.13 + OpenSSL 可消除這些 warning。Gemini 呼叫使用新版 `google-genai` SDK，不再使用已停止維護的 `google-generativeai`。
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r backend/requirements.txt
+scripts/bootstrap_venv.sh
 ```
 
-如果你的 `python3` 仍是 macOS 系統 Python，可改用 Homebrew Python 3.13：
+如果你的 `python3` 仍是 macOS 系統 Python，也可以手動指定 Homebrew Python 3.13：
 
 ```bash
 /opt/homebrew/bin/python3.13 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r backend/requirements.txt
+```
+
+CI 與 smoke scripts 會優先使用 `PYTHON_BIN`，其次使用專案 `.venv/bin/python`：
+
+```bash
+scripts/ci_gate.sh
 ```
 
 ## 啟動方式

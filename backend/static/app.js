@@ -36,12 +36,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const previewTarget6m = document.getElementById('preview-target-6m');
     const previewTarget12m = document.getElementById('preview-target-12m');
     const previewSummary = document.getElementById('preview-summary');
+    const previewStaleNotice = document.getElementById('preview-stale-notice');
     const previewOpenReportBtn = document.getElementById('preview-open-report-btn');
     const previewRefreshDataBtn = document.getElementById('preview-refresh-data-btn');
+    const previewRerunFinalBtn = document.getElementById('preview-rerun-final-btn');
+    const previewRerunModeBBtn = document.getElementById('preview-rerun-modeb-btn');
     const previewCloseBtn = document.getElementById('preview-close-btn');
     const providerSlaSummary = document.getElementById('provider-sla-summary');
     const providerSlaList = document.getElementById('provider-sla-list');
     const providerSlaRefresh = document.getElementById('provider-sla-refresh');
+    const providerSlaWindow = document.getElementById('provider-sla-window');
     
     const downloadHtmlBtn = document.getElementById('download-html-btn');
     const downloadMdBtn = document.getElementById('download-md-btn');
@@ -61,6 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentPipeline = 'v1';
     let historyReports = new Map();
     let previewReport = null;
+    let providerSlaPayload = null;
 
     const PIPELINE_META = {
         v1: {
@@ -127,36 +132,25 @@ document.addEventListener('DOMContentLoaded', () => {
         return `<span class="data-trust-badge is-${dataTrustClass(trust)}">${escapeHtml(dataTrustLabel(trust))}</span>`;
     }
 
-    function providerSlaClass(level) {
-        return ['ok', 'warning', 'critical'].includes(level) ? level : 'ok';
-    }
-
-    function formatSuccessRate(value) {
-        const numeric = Number(value);
-        if (!Number.isFinite(numeric)) return 'N/A';
-        return `${Math.round(numeric * 100)}%`;
+    function renderProviderSla(payload) {
+        window.StockAgentProviderSlaPanel.render(payload, {
+            summaryEl: providerSlaSummary,
+            listEl: providerSlaList,
+            windowEl: providerSlaWindow,
+            escapeHtml
+        });
     }
 
     async function loadProviderSla() {
         if (!providerSlaSummary || !providerSlaList) return;
         try {
             if (providerSlaRefresh) providerSlaRefresh.setAttribute('disabled', 'disabled');
-            const res = await fetch('/api/observability/provider-sla?limit=12');
+            const params = new URLSearchParams({ limit: '12' });
+            if (providerSlaWindow) params.set('window', providerSlaWindow.value || 'all');
+            const res = await fetch(`/api/observability/provider-sla?${params.toString()}`);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const payload = await res.json();
-            const providers = payload.providers || [];
-            const alerts = payload.alerts || [];
-            providerSlaSummary.textContent = alerts.length
-                ? `${alerts.length} 個來源需要注意`
-                : (providers.length ? '所有近期來源狀態正常' : '尚無來源審計紀錄');
-            providerSlaList.innerHTML = providers.length
-                ? providers.slice(0, 8).map(item => `
-                    <span class="provider-sla-chip is-${providerSlaClass(item.alert_level)}" title="${escapeHtml(item.alert_message || item.last_message || '')}">
-                        ${escapeHtml(item.source || 'unknown')} · ${escapeHtml(item.provider || 'unknown')}
-                        <strong>${escapeHtml(formatSuccessRate(item.success_rate))}</strong>
-                    </span>
-                `).join('')
-                : '<span class="provider-sla-chip is-ok">等待下一次分析紀錄</span>';
+            providerSlaPayload = await res.json();
+            renderProviderSla(providerSlaPayload);
         } catch (err) {
             console.error('Failed to load provider SLA', err);
             providerSlaSummary.textContent = '來源健康度讀取失敗';
@@ -316,6 +310,12 @@ document.addEventListener('DOMContentLoaded', () => {
         previewTarget6m.textContent = rec.target_6m || 'N/A';
         previewTarget12m.textContent = rec.target_12m || 'N/A';
         previewSummary.textContent = rec.summary || '這份報告沒有可讀的一頁式摘要，可直接查看完整報告。';
+        if (previewStaleNotice) {
+            const staleMessage = report.analysis_text_stale_message
+                || '資料快照已刷新，但這份 HTML/Markdown 分析本文尚未重新執行。';
+            previewStaleNotice.textContent = staleMessage;
+            previewStaleNotice.hidden = !report.analysis_text_stale;
+        }
 
         historyList.querySelectorAll('.history-item').forEach(item => {
             item.classList.toggle('is-selected', item.dataset.filename === filename);
@@ -339,7 +339,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const updated = {
                 ...previewReport,
                 data_trust: payload.data_trust || previewReport.data_trust,
-                data_snapshot_filename: payload.data_filename || previewReport.data_snapshot_filename
+                data_snapshot_filename: payload.data_filename || previewReport.data_snapshot_filename,
+                analysis_text_stale: payload.analysis_text_stale || previewReport.analysis_text_stale,
+                analysis_text_stale_message: payload.analysis_text_stale_message || previewReport.analysis_text_stale_message
             };
             historyReports.set(filename, updated);
             previewReport = updated;
@@ -357,6 +359,21 @@ document.addEventListener('DOMContentLoaded', () => {
             previewRefreshDataBtn.disabled = false;
             if (label) label.textContent = originalText;
         }
+    }
+
+    async function rerunPreviewReport(scope) {
+        return window.StockAgentReportRerun.rerunPreviewReport({
+            scope,
+            previewReport,
+            buttons: {
+                final: previewRerunFinalBtn,
+                modeB: previewRerunModeBBtn
+            },
+            statusEl: previewStaleNotice,
+            loadHistory,
+            loadProviderSla,
+            openReport
+        });
     }
 
     historyList.addEventListener('click', (event) => {
@@ -397,6 +414,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (previewRefreshDataBtn) {
         previewRefreshDataBtn.addEventListener('click', refreshPreviewDataSnapshot);
+    }
+
+    if (previewRerunFinalBtn) {
+        previewRerunFinalBtn.addEventListener('click', () => rerunPreviewReport('final_recommendation'));
+    }
+
+    if (previewRerunModeBBtn) {
+        previewRerunModeBBtn.addEventListener('click', () => rerunPreviewReport('mode_b'));
     }
 
     if (previewCloseBtn) {
@@ -454,6 +479,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (providerSlaRefresh) {
         providerSlaRefresh.addEventListener('click', loadProviderSla);
+    }
+
+    if (providerSlaWindow) {
+        providerSlaWindow.addEventListener('change', loadProviderSla);
     }
 
     if (historySearch) {
