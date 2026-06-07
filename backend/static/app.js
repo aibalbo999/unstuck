@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const tickerInput = document.getElementById('ticker-input');
     const analyzeBtn = document.getElementById('analyze-btn');
+    const analyzeBtnText = analyzeBtn ? analyzeBtn.querySelector('span') : null;
     const backBtn = document.getElementById('back-btn');
     
     const loadingStatus = document.getElementById('loading-status');
@@ -77,7 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     function getSelectedPipeline() {
-        const selected = pipelineInputs.find(input => input.checked);
+        const selected = document.querySelector('input[name="pipeline-mode"]:checked') || pipelineInputs.find(input => input.checked);
         return selected ? selected.value : 'v1';
     }
 
@@ -97,6 +98,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderPipelineModeBadge(pipelineId) {
         return `<span class="history-mode ${pipelineModeClass(pipelineId)}">${escapeHtml(pipelineModeLabel(pipelineId))}</span>`;
+    }
+
+    function updateAnalyzeButtonCopy() {
+        if (!analyzeBtnText) return;
+        const selectedPipeline = getSelectedPipeline();
+        if (selectedPipeline === 'both') {
+            analyzeBtnText.textContent = '連續執行 A+B';
+        } else if (selectedPipeline === 'v2') {
+            analyzeBtnText.textContent = '開始模式 B 分析';
+        } else {
+            analyzeBtnText.textContent = '開始模式 A 分析';
+        }
     }
 
     function normalizeRecommendation(value) {
@@ -339,6 +352,11 @@ document.addEventListener('DOMContentLoaded', () => {
             loadHistory();
         });
     });
+
+    pipelineInputs.forEach(input => {
+        input.addEventListener('change', updateAnalyzeButtonCopy);
+    });
+    updateAnalyzeButtonCopy();
 
     if (historyPrev) {
         historyPrev.addEventListener('click', () => {

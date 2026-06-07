@@ -161,6 +161,7 @@ input:focus {
     margin-bottom: 24px;
 }
 .pipeline-option {
+    position: relative;
     min-height: 58px;
     border: 1px solid var(--glass-border);
     border-radius: 10px;
@@ -188,13 +189,15 @@ input:focus {
 }
 .pipeline-option input {
     position: absolute;
+    inset: 0;
     opacity: 0;
-    pointer-events: none;
+    cursor: pointer;
 }
 .pipeline-option span {
     display: grid;
     gap: 4px;
     text-align: left;
+    pointer-events: none;
 }
 .pipeline-option strong {
     font-size: 0.95rem;
