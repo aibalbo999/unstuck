@@ -1,0 +1,150 @@
+/* Inputs */
+.input-group {
+    text-align: left;
+    margin-bottom: 18px;
+}
+.input-group label {
+    display: block;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+input {
+    width: 100%;
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 16px 20px;
+    color: var(--text-primary);
+    font-size: 1.2rem;
+    outline: none;
+    transition: all 0.3s ease;
+    font-family: 'Inter', sans-serif;
+}
+input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px var(--accent-glow);
+}
+
+.pipeline-selector {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 24px;
+}
+.pipeline-option {
+    position: relative;
+    min-height: 58px;
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.62);
+    color: var(--text-primary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+}
+.pipeline-option:hover {
+    border-color: rgba(0, 255, 204, 0.35);
+    background: rgba(30, 41, 59, 0.78);
+}
+.pipeline-option:has(input:checked) {
+    border-color: rgba(0, 255, 204, 0.75);
+    background: rgba(0, 255, 204, 0.12);
+    box-shadow: 0 0 0 1px rgba(0, 255, 204, 0.18) inset;
+}
+.pipeline-option:has(input[value="both"]:checked) {
+    border-color: rgba(163, 230, 53, 0.78);
+    background: rgba(20, 83, 45, 0.34);
+    box-shadow: 0 0 0 1px rgba(163, 230, 53, 0.2) inset;
+}
+.pipeline-option input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+.pipeline-option span {
+    display: grid;
+    gap: 4px;
+    text-align: left;
+    pointer-events: none;
+}
+.pipeline-option strong {
+    font-size: 0.95rem;
+    line-height: 1.1;
+}
+.pipeline-option small {
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    line-height: 1.25;
+}
+.pipeline-option:has(input:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+/* Buttons */
+.glow-button {
+    width: 100%;
+    background: var(--accent);
+    color: var(--bg-dark);
+    border: none;
+    border-radius: 12px;
+    padding: 18px 24px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    font-family: 'Outfit', sans-serif;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+    box-shadow: 0 0 20px var(--accent-glow);
+}
+.glow-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px var(--accent-glow);
+}
+.glow-button:active {
+    transform: translateY(1px);
+}
+.text-button {
+    background: transparent;
+    border: none;
+    color: var(--accent);
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 8px;
+    border-radius: 8px;
+    transition: background 0.2s;
+}
+.text-button:hover {
+    background: rgba(0, 255, 204, 0.1);
+}
+.icon-button {
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.58);
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+}
+.icon-button:hover,
+.icon-button:focus-visible {
+    border-color: rgba(0, 255, 204, 0.45);
+    color: var(--accent);
+    background: rgba(0, 255, 204, 0.08);
+}

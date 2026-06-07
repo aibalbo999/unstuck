@@ -1,0 +1,360 @@
+        /* ─── 主要內容區 ─── */
+        .main {
+            margin-left: var(--nav-width);
+            min-height: 100vh;
+        }
+
+        /* ─── Imagen 專屬報告封面 ─── */
+        .report-cover {
+            min-height: 58vh;
+            padding: 56px 48px 44px;
+            display: flex;
+            align-items: flex-end;
+            position: relative;
+            overflow: hidden;
+            background-size: cover;
+            background-position: center;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .report-cover::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                linear-gradient(90deg, rgba(5,11,26,0.92) 0%, rgba(5,11,26,0.55) 48%, rgba(5,11,26,0.18) 100%),
+                linear-gradient(0deg, rgba(5,11,26,0.78) 0%, rgba(5,11,26,0.08) 56%);
+        }
+
+        .report-cover-content {
+            position: relative;
+            max-width: 880px;
+        }
+
+        .report-cover-kicker {
+            font-size: 12px;
+            font-weight: 800;
+            color: var(--accent-cyan);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 12px;
+        }
+
+        .report-cover-title {
+            font-size: 48px;
+            font-weight: 800;
+            line-height: 1.08;
+            margin-bottom: 12px;
+        }
+
+        .report-cover-meta {
+            font-size: 15px;
+            color: var(--text-secondary);
+            line-height: 1.7;
+        }
+        
+        /* ─── Hero 頭部 ─── */
+        .hero {
+            background: linear-gradient(135deg, #0a1628 0%, #0f1f3d 50%, #0a1628 100%);
+            border-bottom: 1px solid var(--border);
+            padding: 48px 48px 40px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -10%;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(59,130,246,0.08) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        
+        .hero::after {
+            content: '';
+            position: absolute;
+            bottom: -30%;
+            left: 20%;
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, rgba(139,92,246,0.06) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(59,130,246,0.15);
+            border: 1px solid rgba(59,130,246,0.3);
+            color: var(--accent-blue);
+            font-size: 11px;
+            font-weight: 600;
+            padding: 4px 12px;
+            border-radius: 20px;
+            margin-bottom: 16px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .hero-title {
+            font-size: 42px;
+            font-weight: 800;
+            letter-spacing: -1px;
+            line-height: 1.1;
+            margin-bottom: 8px;
+        }
+        
+        .hero-title .ticker-highlight {
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6, #06b6d4);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .hero-subtitle {
+            font-size: 16px;
+            color: var(--text-secondary);
+            margin-bottom: 32px;
+            font-weight: 300;
+        }
+        
+        /* ─── 關鍵指標卡片 ─── */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+        
+        .metric-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            transition: all 0.2s;
+        }
+        
+        .metric-card:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--border-bright);
+            transform: translateY(-2px);
+        }
+        
+        .metric-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+        
+        .metric-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        
+        /* ─── 投資建議大卡片 ─── */
+        .verdict-banner {
+            background: {{ rec_color }}15;
+            border: 1px solid {{ rec_color }}40;
+            border-radius: 16px;
+            padding: 20px 28px;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-top: 8px;
+        }
+        
+        .verdict-icon {
+            width: 64px;
+            height: 64px;
+            background: {{ rec_color }}25;
+            border: 2px solid {{ rec_color }};
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            font-weight: 800;
+            color: {{ rec_color }};
+            flex-shrink: 0;
+        }
+        
+        .verdict-text .verdict-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .verdict-text .verdict-main {
+            font-size: 28px;
+            font-weight: 800;
+            color: {{ rec_color }};
+            line-height: 1;
+            margin: 4px 0;
+        }
+        
+        .verdict-text .verdict-sub {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+        
+        .verdict-meta {
+            margin-left: auto;
+            text-align: right;
+        }
+
+        .audit-banner {
+            background: rgba(245, 158, 11, 0.12);
+            border: 1px solid rgba(245, 158, 11, 0.45);
+            border-radius: 12px;
+            padding: 18px 22px;
+            margin-top: 18px;
+            color: var(--text-secondary);
+        }
+
+        .audit-title {
+            font-size: 18px;
+            font-weight: 800;
+            color: #f59e0b;
+            margin-bottom: 6px;
+        }
+
+        .audit-subtitle {
+            font-size: 13px;
+            line-height: 1.6;
+            margin-bottom: 12px;
+        }
+
+        .audit-section {
+            margin-top: 10px;
+            font-size: 13px;
+            line-height: 1.55;
+        }
+
+        .audit-section strong {
+            color: var(--text-primary);
+        }
+
+        .audit-section ul {
+            margin: 6px 0 0 18px;
+            padding: 0;
+        }
+
+        .tear-sheet {
+            background: rgba(255,255,255,0.045);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 18px 22px;
+            margin-top: 18px;
+        }
+
+        .tear-sheet-title {
+            font-size: 13px;
+            font-weight: 800;
+            color: var(--accent-cyan);
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+            margin-bottom: 8px;
+        }
+
+        .tear-sheet-body p {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.75;
+            margin-bottom: 0;
+        }
+
+        .data-trust-card {
+            margin-top: 18px;
+            padding: 16px 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(148, 163, 184, 0.22);
+            background: rgba(15, 23, 42, 0.45);
+        }
+
+        .data-trust-head {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .data-trust-head strong {
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .data-trust-badge {
+            display: inline-flex;
+            align-items: center;
+            min-height: 24px;
+            padding: 3px 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 800;
+            color: #e2e8f0;
+            background: rgba(148, 163, 184, 0.18);
+            border: 1px solid rgba(148, 163, 184, 0.28);
+        }
+
+        .data-trust-fresh .data-trust-badge {
+            color: #bbf7d0;
+            background: rgba(22, 163, 74, 0.18);
+            border-color: rgba(34, 197, 94, 0.42);
+        }
+
+        .data-trust-partial .data-trust-badge,
+        .data-trust-stale .data-trust-badge {
+            color: #fde68a;
+            background: rgba(180, 83, 9, 0.22);
+            border-color: rgba(245, 158, 11, 0.45);
+        }
+
+        .data-trust-error .data-trust-badge {
+            color: #fecaca;
+            background: rgba(185, 28, 28, 0.22);
+            border-color: rgba(239, 68, 68, 0.45);
+        }
+
+        .data-trust-notes {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .data-trust-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .data-trust-meta span {
+            font-size: 11px;
+            color: var(--text-muted);
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            border-radius: 8px;
+            padding: 3px 8px;
+            background: rgba(15, 23, 42, 0.35);
+        }
+        
+        .verdict-meta .vm-label {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        
+        .verdict-meta .vm-value {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }

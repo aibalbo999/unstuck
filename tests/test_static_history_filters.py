@@ -8,10 +8,11 @@ STATIC_DIR = ROOT / "backend" / "static"
 def test_history_data_trust_filter_is_wired_to_api_params():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     app_js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
+    api_client_js = (STATIC_DIR / "api_client.js").read_text(encoding="utf-8")
 
     assert 'id="history-data-trust-filter"' in index_html
     assert "historyDataTrustFilter" in app_js
-    assert "params.set('data_trust', dataTrustFilter)" in app_js
+    assert "params.set('data_trust', dataTrust)" in api_client_js
 
 
 def test_provider_sla_and_manual_refresh_controls_are_wired():
@@ -22,6 +23,8 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     analysis_stream_js = (STATIC_DIR / "analysis_stream.js").read_text(encoding="utf-8")
     history_panel_js = (STATIC_DIR / "history_panel.js").read_text(encoding="utf-8")
     report_preview_js = (STATIC_DIR / "report_preview_panel.js").read_text(encoding="utf-8")
+    api_client_js = (STATIC_DIR / "api_client.js").read_text(encoding="utf-8")
+    ui_helpers_js = (STATIC_DIR / "ui_helpers.js").read_text(encoding="utf-8")
 
     assert 'id="provider-sla-panel"' in index_html
     assert 'id="provider-sla-window"' in index_html
@@ -35,6 +38,8 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "/static/analysis_stream.js" in index_html
     assert "/static/history_panel.js" in index_html
     assert "/static/report_preview_panel.js" in index_html
+    assert "/static/ui_helpers.js" in index_html
+    assert "/static/api_client.js" in index_html
     assert "providerSlaWindow" in app_js
     assert "StockAgentProviderSlaPanel.render" in app_js
     assert "StockAgentHistoryPanel.create" in app_js
@@ -54,6 +59,22 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "resetAndConnect" in analysis_stream_js
     assert "/api/analyze/" in analysis_stream_js
     assert "new EventSource" in analysis_stream_js
-    assert "params.set('window'" in app_js
-    assert "/api/observability/provider-sla" in app_js
-    assert "/refresh/data" in app_js
+    assert "params.set('window'" in api_client_js
+    assert "/api/observability/provider-sla" in api_client_js
+    assert "renderPipelineModeBadge" in ui_helpers_js
+    assert "/refresh/data" in api_client_js
+
+
+def test_frontend_static_modules_are_sized():
+    size_limits = {
+        "app.js": 500,
+        "ui_helpers.js": 140,
+        "api_client.js": 80,
+        "style.css": 40,
+        "styles/history_list.css": 320,
+        "styles/preview_panel.css": 220,
+        "styles/provider_sla.css": 120,
+    }
+    for relative_path, limit in size_limits.items():
+        path = STATIC_DIR / relative_path
+        assert len(path.read_text(encoding="utf-8").splitlines()) < limit, relative_path

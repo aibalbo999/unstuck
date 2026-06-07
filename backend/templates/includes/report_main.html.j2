@@ -1,0 +1,226 @@
+<!-- ─── 主要內容 ─── -->
+<main class="main">
+
+    {% if report_cover_image %}
+    <section class="report-cover" id="overview" style="background-image: url('{{ report_cover_image }}');">
+        <div class="report-cover-content">
+            <div class="report-cover-kicker">Wall Street Equity Research</div>
+            <div class="report-cover-title">{{ name }}（{{ ticker }}）</div>
+            <div class="report-cover-meta">
+                {{ data.get('sector', 'N/A') }} · {{ data.get('industry', 'N/A') }} · {{ fetch_date }}<br>
+                {{ pipeline_label }} · {{ model_route_summary }}
+            </div>
+        </div>
+    </section>
+    {% endif %}
+    
+    <!-- ─── Hero 頭部 ─── -->
+    <div class="hero"{% if not report_cover_image %} id="overview"{% endif %}>
+        <div class="hero-badge">
+            ★ {{ report_title }} ★
+        </div>
+        <div class="hero-title">
+            <span class="ticker-highlight">{{ ticker }}</span> {{ name }}
+        </div>
+        <div class="hero-subtitle">
+            {{ data.get('sector', 'N/A') }} · {{ data.get('industry', 'N/A') }} · 分析日期：{{ fetch_date }}
+        </div>
+        
+        <!-- 關鍵指標 -->
+        <div class="metrics-grid">
+            {{ metrics_html }}
+        </div>
+        
+        <!-- 投資建議橫幅 -->
+        <div class="verdict-banner">
+            <div class="verdict-icon">{{ rec_icon }}</div>
+            <div class="verdict-text">
+                <div class="verdict-label">最終投資建議</div>
+                <div class="verdict-main">{{ rec_text }}</div>
+                <div class="verdict-sub">{{ report_subtitle }}</div>
+            </div>
+            <div class="verdict-meta">
+                <div class="vm-label">3個月目標</div>
+                <div class="vm-value">{{ target_3m }}</div>
+                <div class="vm-label" style="margin-top:8px">6個月目標</div>
+                <div class="vm-value">{{ target_6m }}</div>
+                <div class="vm-label" style="margin-top:8px">12個月目標</div>
+                <div class="vm-value">{{ target_12m }}</div>
+                <div class="vm-label" style="margin-top:8px">信心指數</div>
+                <div class="vm-value">{{ confidence }}</div>
+            </div>
+        </div>
+
+        {{ audit_banner_html }}
+
+        {% include "includes/data_trust.html.j2" %}
+
+        <div class="tear-sheet">
+            <div class="tear-sheet-title">One-Page Tear Sheet</div>
+            <div class="tear-sheet-body">
+                {{ tear_sheet_summary }}
+            </div>
+        </div>
+    </div>
+    
+    <!-- ─── 內容區 ─── -->
+    <div class="content">
+        
+        <!-- ─── 歷史數據圖表 ─── -->
+        <div class="section">
+            <div class="section-header">
+                <div class="section-num">📈</div>
+                <div class="section-title">歷史財務數據總覽</div>
+            </div>
+            
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <div class="chart-title">年度營收與淨利（億元台幣）</div>
+                    <div class="chart-canvas-wrapper">
+                        <canvas id="revenueChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-title">利潤率趨勢（%）</div>
+                    <div class="chart-canvas-wrapper">
+                        <canvas id="marginChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-title">自由現金流（億元台幣）</div>
+                    <div class="chart-canvas-wrapper">
+                        <canvas id="fcfChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-title">股東權益報酬率 ROE（%）</div>
+                    <div class="chart-canvas-wrapper">
+                        <canvas id="roeChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        {% for section in agent_sections %}
+        <div class="section" id="section-{{ section.agent_num }}">
+            <div class="section-header">
+                <div class="section-num">{{ section.display_num }}</div>
+                <div class="section-title">{{ section.title }}</div>
+                <div class="section-model">{{ section.model_label }}</div>
+            </div>
+
+            {% if section.kind == "moat" %}
+            <div class="moat-grid" style="margin-bottom: 24px;">
+                <div class="chart-card">
+                    <div class="chart-title">護城河雷達圖</div>
+                    <div class="chart-canvas-wrapper">
+                        <canvas id="moatChart"></canvas>
+                    </div>
+                </div>
+                <div>
+                    <div class="moat-scores-list">
+                    </div>
+                    <div class="moat-overall">
+                        <div class="moat-overall-score" id="moat-overall-score">--</div>
+                        <div class="moat-overall-label">整體護城河強度（滿分10）</div>
+                    </div>
+                </div>
+            </div>
+            {% elif section.kind == "valuation" %}
+            <div class="price-targets-grid">
+                {{ price_targets_html }}
+            </div>
+            <div class="charts-grid" style="margin-bottom: 24px;">
+                <div class="chart-card full-width">
+                    <div class="chart-title">DCF 三情境估值 vs 當前股價</div>
+                    <div class="chart-canvas-wrapper">
+                        <canvas id="valuationChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card full-width">
+                    <div class="chart-title">{{ pe_river_title }}</div>
+                    <div class="chart-canvas-wrapper tall">
+                        <canvas id="peRiverChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            {% elif section.kind == "final" %}
+            <div class="final-verdict">
+                <div class="fv-header">
+                    <div class="fv-badge">{{ rec_text }}</div>
+                    <div class="fv-meta">
+                        3個月目標：{{ target_3m }}<br>
+                        6個月目標：{{ target_6m }}<br>
+                        12個月目標：{{ target_12m }}<br>
+                        信心指數：{{ confidence }}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="analysis-card">
+                {% if section.is_debate %}
+                <div class="debate-container">
+                    {{ section.body }}
+                </div>
+                {% else %}
+                {{ section.body }}
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+        
+        <!-- ─── 參考資料來源 ─── -->
+        <div class="references">
+            <h4>📚 參考資料來源與數據誤差訴明</h4>
+            {% include "includes/source_audit.html.j2" %}
+            <div class="references-grid">
+                <div class="ref-item">
+                    <span class="ref-icon">📊</span>
+                    <div>
+                        <div class="ref-name">Yahoo Finance (yfinance)</div>
+                        <div class="ref-desc">市場即時資料、年度財務報表、估值指標、負債結構、分析師評等<br>API：<code style="font-size:10px; color:#60a5fa;">pypi.org/project/yfinance</code></div>
+                    </div>
+                </div>
+                <div class="ref-item">
+                    <span class="ref-icon">🇹🇼</span>
+                    <div>
+                        <div class="ref-name">FinMind Open Data</div>
+                        <div class="ref-desc">台股每月營收、新聞、三大法人買賣超、PER/PBR 河流圖資料<br>API：<code style="font-size:10px; color:#60a5fa;">finmindtrade.com</code></div>
+                    </div>
+                </div>
+                <div class="ref-item">
+                    <span class="ref-icon">📰</span>
+                    <div>
+                        <div class="ref-name">Search / News Fallback</div>
+                        <div class="ref-desc">近期新聞、法說會、供應鏈與市場催化劑；依環境變數與可用 API 自動 fallback</div>
+                    </div>
+                </div>
+                <div class="ref-item">
+                    <span class="ref-icon">🤖</span>
+                    <div>
+                        <div class="ref-name">Google Gemini AI</div>
+                        <div class="ref-desc">{{ pipeline_label }} AI 分析師論述：{{ model_route_summary }}</div>
+                    </div>
+                </div>
+                <div class="ref-item">
+                    <span class="ref-icon">🏷️</span>
+                    <div>
+                        <div class="ref-name">公開資訊觀測站 (MOPS)</div>
+                        <div class="ref-desc">台灣證券交易所（台證所 TWSE）指定的官方財務公邖渠道，可作為數據核對基準</div>
+                    </div>
+                </div>
+            </div>
+            <p style="font-size:11px; color:var(--text-muted); margin-top:12px; line-height:1.5;">
+                ⚠️ <strong>數據誤差訴明</strong>：Yahoo Finance 所提供的台股歷史財務報表有時存在年份缺失或延遲問題；<code>Debt to Equity</code> 指標已轉換為百分比形式；歷史營收、淨利、現金流等數據單位為 <strong>Billion TWD (10億台幣)</strong>。
+                建議將本報告筆記的財務數據与公開資訊觀測站進行交叉比對。
+            </p>
+        </div>
+        
+        <!-- ─── 免責聲明 ─── -->
+        <div class="disclaimer">
+            ⚠️ <strong>免責聲明：</strong>本報告由 AI 系統自動生成，僅供投資研究參考，不構成任何投資建議。股票投資有風險，市場可能出現預期外的變化。投資前請諮詢專業財務顧問，並自行評估風險承受能力。本報告中的財務數據來源於公開資訊，分析結論僅代表 AI 模型的判斷，不保證準確性或完整性。
+        </div>
+        
+    </div>
+</main>

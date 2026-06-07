@@ -106,6 +106,20 @@ def test_api_report_service_is_facade_sized():
     assert line_count < 120
 
 
+def test_data_trust_facade_is_sized():
+    path = BACKEND / "data_trust.py"
+    line_count = len(path.read_text(encoding="utf-8").splitlines())
+
+    assert line_count < 120
+
+
+def test_report_template_entrypoint_is_sized():
+    path = BACKEND / "templates" / "report.html.j2"
+    line_count = len(path.read_text(encoding="utf-8").splitlines())
+
+    assert line_count < 80
+
+
 def test_pipeline_runtime_does_not_print_directly():
     paths = [
         BACKEND / "pipeline.py",

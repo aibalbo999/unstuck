@@ -1,0 +1,48 @@
+@media (max-width: 920px) {
+    #home-view {
+        max-width: min(720px, 100%);
+    }
+    .history-workspace {
+        grid-template-columns: 1fr;
+    }
+    .history-list-pane,
+    .report-preview {
+        min-height: auto;
+    }
+    .history-list {
+        max-height: min(58vh, 520px);
+    }
+    .report-preview[hidden] {
+        display: none;
+    }
+}
+
+@media (max-width: 560px) {
+    .pipeline-selector {
+        grid-template-columns: 1fr;
+    }
+    .glass-panel {
+        padding: 28px 20px;
+        border-radius: 18px;
+    }
+    .title {
+        font-size: 2.7rem;
+    }
+    .history-item {
+        align-items: flex-start;
+        gap: 8px;
+    }
+    .history-filter-row {
+        grid-template-columns: 1fr;
+    }
+    .history-company {
+        display: block;
+        max-width: 100%;
+        margin-left: 0;
+        margin-top: 2px;
+    }
+    .preview-decision-row,
+    .preview-targets {
+        grid-template-columns: 1fr;
+    }
+}

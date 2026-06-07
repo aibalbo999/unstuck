@@ -1,0 +1,253 @@
+        /* ─── 多空辯論 ─── */
+        .debate-container {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        .debate-bubble {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            max-width: 85%;
+        }
+        
+        .bull-bubble {
+            align-self: flex-start;
+        }
+        
+        .bear-bubble {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+        }
+        
+        .debate-avatar {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            white-space: nowrap;
+            flex-shrink: 0;
+            margin-top: 4px;
+        }
+        
+        .bull-avatar {
+            background: rgba(16,185,129,0.15);
+            border: 1px solid rgba(16,185,129,0.3);
+            color: #10b981;
+        }
+        
+        .bear-avatar {
+            background: rgba(239,68,68,0.15);
+            border: 1px solid rgba(239,68,68,0.3);
+            color: #ef4444;
+        }
+        
+        .debate-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px 18px;
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+        
+        .bull-bubble .debate-content {
+            border-left: 3px solid #10b981;
+        }
+        
+        .bear-bubble .debate-content {
+            border-right: 3px solid #ef4444;
+        }
+        
+        .debate-conclusion {
+            background: rgba(139,92,246,0.08);
+            border: 1px solid rgba(139,92,246,0.25);
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin-top: 8px;
+        }
+        
+        .debate-conclusion-icon {
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+        
+        .debate-conclusion-text {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.7;
+        }
+        
+        .debate-narration {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-align: center;
+            font-style: italic;
+            margin: 4px 0;
+        }
+        
+        /* ─── 最終決策 ─── */
+        .final-verdict {
+            background: linear-gradient(135deg, {{ rec_color }}10 0%, transparent 100%);
+            border: 1px solid {{ rec_color }}30;
+            border-radius: 20px;
+            padding: 32px;
+            margin-bottom: 24px;
+        }
+        
+        .fv-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        
+        .fv-badge {
+            font-size: 40px;
+            font-weight: 900;
+            color: {{ rec_color }};
+            background: {{ rec_color }}20;
+            border: 2px solid {{ rec_color }}50;
+            padding: 8px 24px;
+            border-radius: 12px;
+            letter-spacing: 2px;
+        }
+        
+        .fv-meta {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+        
+        /* ─── 免責聲明 ─── */
+        .disclaimer {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px 20px;
+            font-size: 11px;
+            color: var(--text-muted);
+            line-height: 1.6;
+            margin-top: 32px;
+        }
+        
+        /* ─── 參考資料來源 ─── */
+        .references {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px 24px;
+            margin-top: 24px;
+        }
+        .references h4 {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 14px;
+        }
+        .references-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 10px;
+        }
+        .ref-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 10px 14px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 8px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        .ref-icon {
+            font-size: 16px;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+        .ref-name {
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 2px;
+        }
+        .ref-desc {
+            color: var(--text-muted);
+            font-size: 11px;
+            line-height: 1.5;
+        }
+
+        .source-audit-block {
+            margin-bottom: 18px;
+        }
+
+        .source-audit-block h4 {
+            margin-bottom: 10px;
+        }
+
+        .source-audit-empty {
+            color: var(--text-muted);
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .source-audit-scroll {
+            overflow-x: auto;
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 10px;
+        }
+
+        .source-audit-table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 920px;
+            font-size: 12px;
+        }
+
+        .source-audit-table th {
+            background: rgba(59,130,246,0.1);
+            color: #bfdbfe;
+            padding: 9px 10px;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        .source-audit-table td {
+            border-top: 1px solid rgba(255,255,255,0.06);
+            padding: 8px 10px;
+            color: var(--text-secondary);
+            vertical-align: top;
+        }
+
+        .audit-status {
+            display: inline-flex;
+            align-items: center;
+            min-height: 22px;
+            padding: 2px 8px;
+            border-radius: 8px;
+            background: rgba(148, 163, 184, 0.15);
+            color: #cbd5e1;
+            white-space: nowrap;
+        }
+
+        .audit-status-success,
+        .audit-status-skipped_fresh_cache {
+            color: #bbf7d0;
+            background: rgba(22, 163, 74, 0.16);
+        }
+
+        .audit-status-unavailable {
+            color: #fde68a;
+            background: rgba(180, 83, 9, 0.18);
+        }
+
+        .audit-status-error {
+            color: #fecaca;
+            background: rgba(185, 28, 28, 0.18);
+        }

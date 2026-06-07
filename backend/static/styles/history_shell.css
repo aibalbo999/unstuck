@@ -1,0 +1,16 @@
+/* History List */
+.history-section {
+    margin-top: 32px;
+    text-align: left;
+    border-top: 1px solid var(--glass-border);
+    padding-top: 24px;
+}
+.history-title {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-weight: 500;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}

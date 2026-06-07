@@ -1,0 +1,126 @@
+:root {
+    --bg-dark: #0f172a;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --accent: #00ffcc;
+    --accent-glow: rgba(0, 255, 204, 0.4);
+    --glass-bg: rgba(30, 41, 59, 0.6);
+    --glass-border: rgba(255, 255, 255, 0.1);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-dark);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+/* Background Glow Effects */
+.bg-glow {
+    position: absolute;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(0,255,204,0.15) 0%, rgba(15,23,42,0) 70%);
+    border-radius: 50%;
+    z-index: -1;
+    filter: blur(60px);
+}
+.bg-glow-left {
+    top: -200px;
+    left: -200px;
+}
+.bg-glow-right {
+    bottom: -200px;
+    right: -200px;
+}
+
+/* Views Management */
+.view-container {
+    display: none;
+    width: 100%;
+    max-width: 600px;
+    padding: 20px;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.view-container.active {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    margin: 0 auto;
+    min-height: 100vh;
+    opacity: 1;
+    transform: translateY(0);
+}
+#home-view {
+    max-width: min(1180px, 100%);
+}
+#home-view .glass-panel {
+    width: 100%;
+}
+.full-width {
+    max-width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    padding: 0;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10;
+    background-color: var(--bg-dark);
+}
+
+/* Glassmorphism Panels */
+.glass-panel {
+    background: var(--glass-bg);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--glass-border);
+    border-radius: 24px;
+    padding: 40px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+.glass-panel-flat {
+    background: var(--glass-bg);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--glass-border);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+}
+
+/* Typography */
+h1, h2, h3 {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 800;
+}
+.gradient-text {
+    background: linear-gradient(135deg, #fff 0%, var(--accent) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+.title {
+    font-size: 3.5rem;
+    margin-bottom: 8px;
+    letter-spacing: -1px;
+}
+.subtitle {
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+    margin-bottom: 40px;
+    font-weight: 300;
+}
+.text-center { text-align: center; }
+.mt-6 { margin-top: 24px; }
