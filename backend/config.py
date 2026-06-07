@@ -411,6 +411,7 @@ def format_model_routes(agent_models: Optional[dict[int, str]] = None, pipeline_
 
 # Optional legacy pacing. Dynamic RPM/TPM buckets are authoritative by default.
 INTER_AGENT_DELAY = _env_float("INTER_AGENT_DELAY", 0.0)
+LLM_AGENT_CALL_TIMEOUT_SECONDS = _env_float("LLM_AGENT_CALL_TIMEOUT_SECONDS", 120.0)
 
 # 輸出目錄
 OUTPUT_DIR = os.getenv("OUTPUT_DIR", str(BASE_DIR / "output"))

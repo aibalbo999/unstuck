@@ -15,6 +15,7 @@ from .llm_calls import (
     _run_agent_once,
     _run_agent_once_async,
 )
+from .cancellation import raise_if_cancelled
 from .prompting import build_prompt
 from .routing import _attempts_for_model, get_runtime_model_sequence
 from runtime_events import emit_context_event, emit_context_event_async, emit_log, make_runtime_event
@@ -68,6 +69,7 @@ def run_single_agent(
     last_error = ""
 
     for model_index, model_id in enumerate(model_sequence):
+        raise_if_cancelled(context)
         if model_index > 0:
             message = f"切換備援模型：{model_id}"
             emit_log(f"    🔁 {message}")
@@ -83,6 +85,7 @@ def run_single_agent(
         )
         try:
             for attempt in retryer:
+                raise_if_cancelled(context)
                 with attempt:
                     return _run_agent_once(agent_num, context, rotator, model_id, prompt)
         except AgentMissingModelError as exc:
@@ -118,6 +121,7 @@ async def run_single_agent_async(
     last_error = ""
 
     for model_index, model_id in enumerate(model_sequence):
+        raise_if_cancelled(context)
         if model_index > 0:
             message = f"切換備援模型：{model_id}"
             emit_log(f"    🔁 {message}")
@@ -133,6 +137,7 @@ async def run_single_agent_async(
         )
         try:
             async for attempt in retryer:
+                raise_if_cancelled(context)
                 with attempt:
                     return await _run_agent_once_async(agent_num, context, rotator, model_id, prompt)
         except AgentMissingModelError as exc:

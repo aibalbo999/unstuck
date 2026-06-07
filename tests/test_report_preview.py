@@ -12,6 +12,7 @@ import api  # noqa: E402
 import api_report_service  # noqa: E402
 import job_store  # noqa: E402
 import report_index  # noqa: E402
+import report_rerun_service  # noqa: E402
 from data_fetch import FetchResult  # noqa: E402
 from reporting import ReportBundle  # noqa: E402
 
@@ -295,6 +296,21 @@ def test_rerun_report_stream_replays_terminal_event(tmp_path, monkeypatch):
     assert "2449_v2_report_20260607_010000.html" in response.text
 
 
+def test_rerun_report_cancel_endpoint_requests_cancel(tmp_path, monkeypatch):
+    monkeypatch.setattr(job_store, "TASK_DB_PATH", str(tmp_path / "jobs.sqlite3"))
+    filename = "2449_v2_report_20260606_010000.html"
+    job_id = job_store.create_job(filename, "rerun:mode_b")
+
+    client = TestClient(api.app)
+    response = client.post(f"/api/report/{filename}/rerun/cancel", params={"job_id": job_id})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+    assert body["status"] == "cancelling"
+    assert job_store.is_job_cancel_requested(job_id) is True
+
+
 def test_final_rerun_uses_snapshot_rerun_context_without_markdown(tmp_path, monkeypatch):
     filename = "2449_v2_report_20260606_010000.html"
     write_report_pair(tmp_path, filename, "持有")
@@ -343,9 +359,9 @@ def test_final_rerun_uses_snapshot_rerun_context_without_markdown(tmp_path, monk
                 },
             )
 
-    monkeypatch.setattr(api_report_service, "run_agent_with_quality_gates_async", fake_run_agent)
-    monkeypatch.setattr(api_report_service, "run_final_report_audit", lambda context, append_section=True: {"warnings": []})
-    monkeypatch.setattr(api_report_service, "parse_structured_data", lambda context: {"recommendation": {"建議": "持有"}})
+    monkeypatch.setattr(report_rerun_service, "run_agent_with_quality_gates_async", fake_run_agent)
+    monkeypatch.setattr(report_rerun_service, "run_final_report_audit", lambda context, append_section=True: {"warnings": []})
+    monkeypatch.setattr(report_rerun_service, "parse_structured_data", lambda context: {"recommendation": {"建議": "持有"}})
 
     result = api_report_service.rerun_report_analysis(
         filename,

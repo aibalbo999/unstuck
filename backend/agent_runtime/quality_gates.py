@@ -18,6 +18,7 @@ from validators import (
     validate_company_identity,
     validate_prompt_leakage,
 )
+from .cancellation import raise_if_cancelled
 from .routing import get_runtime_model_sequence, is_agent_execution_failure
 from .single_agent import run_single_agent_async
 
@@ -36,6 +37,7 @@ async def run_agent_with_quality_gates_async(
     agent_total = int(context.get("agent_total") or len(context.get("agent_sequence", []) or []) or 7)
     pipeline_id = context.get("pipeline_id")
     pipeline_label = context.get("pipeline_label")
+    raise_if_cancelled(context)
 
     emit_log(
         f"{'─'*60}\n"
@@ -57,6 +59,7 @@ async def run_agent_with_quality_gates_async(
         pipeline_label=pipeline_label,
     )
     context["structured_outputs"].pop(agent_num, None)
+    raise_if_cancelled(context)
     if agent_num in CONTEXT_DIGEST_TARGET_AGENTS:
         await emit_status_async(
             progress_callback,
@@ -70,6 +73,7 @@ async def run_agent_with_quality_gates_async(
             pipeline_label=pipeline_label,
         )
     await ensure_context_digest_async(agent_num, context, rotator, progress_callback=progress_callback)
+    raise_if_cancelled(context)
     await emit_status_async(
         progress_callback,
         f"Agent {agent_num}（{agent_position}/{agent_total}）正在執行 RAG 語意檢索...",
@@ -82,6 +86,7 @@ async def run_agent_with_quality_gates_async(
         pipeline_label=pipeline_label,
     )
     await ensure_agent_rag_context_async(agent_num, context, rotator)
+    raise_if_cancelled(context)
     await emit_status_async(
         progress_callback,
         f"Agent {agent_num}（{agent_position}/{agent_total}）正在呼叫模型並生成分析...",
@@ -94,6 +99,7 @@ async def run_agent_with_quality_gates_async(
         pipeline_label=pipeline_label,
     )
     result = await run_single_agent_async(agent_num, data, context, rotator)
+    raise_if_cancelled(context)
     result = sanitize_model_output(result)
     await emit_status_async(
         progress_callback,
@@ -142,6 +148,7 @@ async def run_agent_with_quality_gates_async(
             emit_log(f"     - {issue}")
         context["_identity_retry_instruction"] = build_identity_retry_instruction(data, identity_issues)
         context["structured_outputs"].pop(agent_num, None)
+        raise_if_cancelled(context)
         retry_result = await run_single_agent_async(agent_num, data, context, rotator)
         retry_result = sanitize_model_output(retry_result)
         retry_prompt_leak_issues = validate_prompt_leakage(retry_result)

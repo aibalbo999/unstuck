@@ -9,7 +9,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 import api_observability_service
-import api_report_service
+import report_history_service
+import report_refresh_service
+import report_rerun_service
 from agent_runtime import AnalysisPipelineRunner
 from analysis_jobs import run_stock_analysis_job
 from api_routes.analysis import AnalysisRouteDeps, create_analysis_router
@@ -70,7 +72,7 @@ active_analyses_lock = threading.Lock()
 
 
 def parse_recommendation_summary(filename: str) -> dict:
-    return api_report_service.parse_recommendation_summary(filename, output_dir=OUTPUT_DIR)
+    return report_history_service.parse_recommendation_summary(filename, output_dir=OUTPUT_DIR)
 
 
 def print_streamed_event(job_id: str, payload: dict) -> None:
@@ -94,15 +96,15 @@ def require_mutation_authorized(request: Request) -> None:
         raise HTTPException(status_code=403, detail="Mutation endpoint requires a valid admin token")
 
 
-_refresh_data_diff = api_report_service.refresh_data_diff
+_refresh_data_diff = report_refresh_service.refresh_data_diff
 
 
 def cleanup_expired_reports(retention_days: int = REPORT_RETENTION_DAYS):
-    return api_report_service.cleanup_expired_reports(OUTPUT_DIR, report_cache, retention_days)
+    return report_history_service.cleanup_expired_reports(OUTPUT_DIR, report_cache, retention_days)
 
 
 def cleanup_orphan_markdown_reports():
-    return api_report_service.cleanup_orphan_markdown_reports(OUTPUT_DIR)
+    return report_history_service.cleanup_orphan_markdown_reports(OUTPUT_DIR)
 
 
 async def _mark_abandoned_local_jobs() -> None:
@@ -201,7 +203,7 @@ def get_reports(
     recommendation: str = Query("all", max_length=24),
     data_trust: str = Query("all", max_length=24),
 ):
-    return api_report_service.list_reports(
+    return report_history_service.list_reports(
         page=page,
         limit=limit,
         q=q,
@@ -215,7 +217,7 @@ def get_reports(
 
 def delete_report(filename: str, request: Request):
     require_mutation_authorized(request)
-    return api_report_service.delete_report_files(filename, OUTPUT_DIR, report_cache)
+    return report_history_service.delete_report_files(filename, OUTPUT_DIR, report_cache)
 
 
 async def provider_sla_summary(limit: int = Query(100, ge=1, le=1000), window: str = Query("all", max_length=24)):
@@ -229,7 +231,7 @@ async def provider_sla_summary(limit: int = Query(100, ge=1, le=1000), window: s
 
 async def refresh_report_data_snapshot(filename: str, request: Request):
     require_mutation_authorized(request)
-    return await api_report_service.refresh_report_data_snapshot(
+    return await report_refresh_service.refresh_report_data_snapshot(
         filename,
         output_dir=OUTPUT_DIR,
         refresh_service=data_refresh_service,
@@ -238,7 +240,7 @@ async def refresh_report_data_snapshot(filename: str, request: Request):
 
 async def rerun_report_analysis(filename: str, request: Request, scope: str = "final_recommendation"):
     require_mutation_authorized(request)
-    return await api_report_service.rerun_report_analysis(
+    return await report_rerun_service.rerun_report_analysis(
         filename,
         scope=scope,
         output_dir=OUTPUT_DIR,

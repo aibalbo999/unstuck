@@ -41,6 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const previewRefreshDataBtn = document.getElementById('preview-refresh-data-btn');
     const previewRerunFinalBtn = document.getElementById('preview-rerun-final-btn');
     const previewRerunModeBBtn = document.getElementById('preview-rerun-modeb-btn');
+    const previewRerunCancelBtn = document.getElementById('preview-rerun-cancel-btn');
     const previewCloseBtn = document.getElementById('preview-close-btn');
     const providerSlaSummary = document.getElementById('provider-sla-summary');
     const providerSlaList = document.getElementById('provider-sla-list');
@@ -51,17 +52,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const downloadMdBtn = document.getElementById('download-md-btn');
     const downloadDataBtn = document.getElementById('download-data-btn');
 
-    let eventSource = null;
     let currentReportFilename = null;
     let pendingAuditNotice = null;
     let historyPage = 1;
     const historyLimit = 20;
     let historySearchTimer = null;
-    let currentJobId = null;
-    let lastEventId = 0;
-    let reconnectTimer = null;
-    let reconnectAttempts = 0;
-    let streamClosedByClient = false;
     let currentPipeline = 'v1';
     let historyReports = new Map();
     let previewReport = null;
@@ -367,7 +362,8 @@ document.addEventListener('DOMContentLoaded', () => {
             previewReport,
             buttons: {
                 final: previewRerunFinalBtn,
-                modeB: previewRerunModeBBtn
+                modeB: previewRerunModeBBtn,
+                cancel: previewRerunCancelBtn
             },
             statusEl: previewStaleNotice,
             loadHistory,
@@ -544,115 +540,31 @@ document.addEventListener('DOMContentLoaded', () => {
         target.classList.add('active');
     }
 
-    function closeAnalysisStream() {
-        streamClosedByClient = true;
-        clearTimeout(reconnectTimer);
-        reconnectTimer = null;
-        if (eventSource) {
-            eventSource.close();
-            eventSource = null;
-        }
-    }
-
-    function connectAnalysisStream(ticker, pipelineId) {
-        clearTimeout(reconnectTimer);
-        streamClosedByClient = false;
-        if (eventSource) eventSource.close();
-
-        const params = new URLSearchParams();
-        params.set('pipeline', pipelineId || 'v1');
-        if (currentJobId) params.set('job_id', currentJobId);
-        if (lastEventId) params.set('last_event_id', String(lastEventId));
-        const query = params.toString();
-        const url = `/api/analyze/${encodeURIComponent(ticker)}${query ? `?${query}` : ''}`;
-        eventSource = new EventSource(url);
-
-        eventSource.onmessage = (event) => {
-            reconnectAttempts = 0;
-            if (event.lastEventId) {
-                const parsedId = Number(event.lastEventId);
-                if (Number.isFinite(parsedId)) lastEventId = Math.max(lastEventId, parsedId);
+    const analysisStream = window.StockAgentAnalysisStream.create({
+        loadingStatus,
+        loadingMsg,
+        loadingHint,
+        progressBar,
+        reportTickerTitle,
+        reportIframe,
+        pipelineMeta,
+        pipelineModeLabel,
+        setAuditNotice,
+        switchView,
+        loadHistory,
+        getState: () => ({ currentPipeline, pendingAuditNotice }),
+        setState: (patch) => {
+            if (Object.prototype.hasOwnProperty.call(patch, 'currentReportFilename')) {
+                currentReportFilename = patch.currentReportFilename;
             }
-
-            try {
-                handleAnalysisEvent(JSON.parse(event.data), ticker);
-            } catch (err) {
-                console.error("Parse error:", err);
+            if (Object.prototype.hasOwnProperty.call(patch, 'currentPipeline')) {
+                currentPipeline = patch.currentPipeline;
             }
-        };
-
-        eventSource.onerror = () => {
-            if (streamClosedByClient) return;
-            if (eventSource) eventSource.close();
-            const delay = Math.min(30000, 1000 * (2 ** reconnectAttempts));
-            reconnectAttempts += 1;
-            loadingMsg.textContent = `連線中斷，${Math.ceil(delay / 1000)} 秒後自動接續...`;
-            reconnectTimer = setTimeout(() => connectAnalysisStream(ticker, pipelineId), delay);
-        };
-    }
-
-    function handleAnalysisEvent(data, ticker) {
-        if (data.type === 'job') {
-            currentJobId = data.job_id || currentJobId;
-            currentPipeline = data.pipeline_id || currentPipeline;
-            if (loadingHint) loadingHint.textContent = pipelineMeta(currentPipeline).hint;
-            if (data.resume_after_id) lastEventId = Math.max(lastEventId, Number(data.resume_after_id) || 0);
-            return;
-        }
-
-        if (data.type === 'status') {
-            loadingStatus.textContent = data.message;
-            if (data.detail) {
-                loadingMsg.textContent = data.detail;
-            }
-        } else if (data.type === 'pipeline_start') {
-            loadingStatus.textContent = data.message || '開始下一段分析';
-            loadingMsg.textContent = data.pipeline_label || '';
-            if (loadingHint && data.pipeline_total > 1) {
-                loadingHint.textContent = `連續模式進度：第 ${data.pipeline_index}/${data.pipeline_total} 段`;
-            }
-        } else if (data.type === 'progress') {
-            loadingStatus.textContent = `分析中：第 ${data.current}/${data.total} 位分析師`;
-            loadingMsg.textContent = data.name;
-            const percent = (data.current / data.total) * 100;
-            progressBar.style.width = `${percent}%`;
-        } else if (data.type === 'report_done') {
-            const remaining = Number(data.pipeline_total || 1) - Number(data.pipeline_index || 1);
-            loadingStatus.textContent = `${pipelineModeLabel(data.pipeline_id)} 報告完成`;
-            loadingMsg.textContent = remaining > 0 ? '正在接續下一種分析模式...' : '正在整理最終報告...';
-            if (remaining > 0) loadHistory();
-        } else if (data.type === 'done') {
-            closeAnalysisStream();
-
-            currentReportFilename = data.filename;
-            const reportPipeline = data.last_pipeline_id || (data.pipeline_id === 'both' ? 'v2' : data.pipeline_id) || currentPipeline;
-            currentPipeline = reportPipeline;
-            const reportCount = Array.isArray(data.filenames) ? data.filenames.length : 1;
-            reportTickerTitle.textContent = reportCount > 1
-                ? `${ticker} 雙模式分析完成`
-                : `${ticker} ${pipelineMeta(reportPipeline).reportSuffix}`;
-            setAuditNotice(data.audit || pendingAuditNotice);
-            reportIframe.src = `/api/report/${encodeURIComponent(data.filename)}`;
-
-            setTimeout(() => {
-                switchView('report-view');
-                loadHistory();
-            }, 800);
-        } else if (data.type === 'error') {
-            loadingStatus.textContent = '發生錯誤';
-            loadingMsg.textContent = data.message;
-            closeAnalysisStream();
-
-            setTimeout(() => {
-                switchView('home-view');
-            }, 5000);
-        } else if (data.type === 'audit') {
-            pendingAuditNotice = data.audit || data;
-            if (pendingAuditNotice.status === 'needs_attention') {
-                loadingStatus.textContent = pendingAuditNotice.message;
+            if (Object.prototype.hasOwnProperty.call(patch, 'pendingAuditNotice')) {
+                pendingAuditNotice = patch.pendingAuditNotice;
             }
         }
-    }
+    });
 
     analyzeBtn.addEventListener('click', () => {
         const ticker = tickerInput.value.trim().toUpperCase();
@@ -667,17 +579,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (loadingHint) loadingHint.textContent = pipelineMeta(currentPipeline).hint;
         progressBar.style.width = '0%';
         pendingAuditNotice = null;
-        currentJobId = null;
-        lastEventId = 0;
-        reconnectAttempts = 0;
         setAuditNotice(null);
-        closeAnalysisStream();
+        analysisStream.close();
         switchView('loading-view');
-        connectAnalysisStream(ticker, currentPipeline);
+        analysisStream.resetAndConnect(ticker, currentPipeline);
     });
 
     backBtn.addEventListener('click', () => {
-        closeAnalysisStream();
+        analysisStream.close();
         reportIframe.src = 'about:blank'; // 清除記憶體
         tickerInput.value = ''; // 清空輸入框
         switchView('home-view');

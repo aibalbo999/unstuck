@@ -19,15 +19,18 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     app_js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
     provider_sla_js = (STATIC_DIR / "provider_sla_panel.js").read_text(encoding="utf-8")
     report_rerun_js = (STATIC_DIR / "report_rerun.js").read_text(encoding="utf-8")
+    analysis_stream_js = (STATIC_DIR / "analysis_stream.js").read_text(encoding="utf-8")
 
     assert 'id="provider-sla-panel"' in index_html
     assert 'id="provider-sla-window"' in index_html
     assert 'id="preview-refresh-data-btn"' in index_html
     assert 'id="preview-rerun-final-btn"' in index_html
     assert 'id="preview-rerun-modeb-btn"' in index_html
+    assert 'id="preview-rerun-cancel-btn"' in index_html
     assert 'id="preview-stale-notice"' in index_html
     assert "/static/provider_sla_panel.js" in index_html
     assert "/static/report_rerun.js" in index_html
+    assert "/static/analysis_stream.js" in index_html
     assert "providerSlaWindow" in app_js
     assert "StockAgentProviderSlaPanel.render" in app_js
     assert "providerSlaStatsForWindow" in provider_sla_js
@@ -35,7 +38,13 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "rerunPreviewReport" in app_js
     assert "StockAgentReportRerun.rerunPreviewReport" in app_js
     assert "/rerun?scope=" in report_rerun_js
+    assert "/rerun/cancel" in report_rerun_js
+    assert "buttons.cancel" in report_rerun_js
     assert "new EventSource" in report_rerun_js
+    assert "StockAgentAnalysisStream.create" in app_js
+    assert "resetAndConnect" in analysis_stream_js
+    assert "/api/analyze/" in analysis_stream_js
+    assert "new EventSource" in analysis_stream_js
     assert "params.set('window'" in app_js
     assert "/api/observability/provider-sla" in app_js
     assert "/refresh/data" in app_js

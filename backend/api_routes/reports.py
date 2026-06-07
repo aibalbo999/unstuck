@@ -12,7 +12,11 @@ from typing import Any, Optional
 from fastapi import APIRouter, HTTPException, Query, Request
 from sse_starlette.sse import EventSourceResponse
 
-import api_report_service
+from data_trust import data_snapshot_filename_for_report
+from report_index import is_safe_report_filename
+import report_history_service
+import report_refresh_service
+import report_rerun_service
 
 
 @dataclass(frozen=True)
@@ -46,7 +50,7 @@ def create_reports_router(deps: ReportRouteDeps) -> APIRouter:
         recommendation: str = Query("all", max_length=24),
         data_trust: str = Query("all", max_length=24),
     ):
-        return api_report_service.list_reports(
+        return report_history_service.list_reports(
             page=page,
             limit=limit,
             q=q,
@@ -60,28 +64,28 @@ def create_reports_router(deps: ReportRouteDeps) -> APIRouter:
     @router.delete("/api/reports/{filename}")
     def delete_report(filename: str, request: Request):
         deps.require_mutation_authorized(request)
-        return api_report_service.delete_report_files(filename, deps.get_output_dir(), deps.get_report_cache())
+        return report_history_service.delete_report_files(filename, deps.get_output_dir(), deps.get_report_cache())
 
     @router.get("/api/report/{filename}")
     async def get_report(filename: str):
-        return api_report_service.get_report_file(filename, deps.get_output_dir())
+        return report_history_service.get_report_file(filename, deps.get_output_dir())
 
     @router.get("/api/report/{filename}/download/html")
     async def download_html_report(filename: str):
-        return api_report_service.download_report_file(filename, deps.get_output_dir(), "html")
+        return report_history_service.download_report_file(filename, deps.get_output_dir(), "html")
 
     @router.get("/api/report/{filename}/download/md")
     async def download_md_report(filename: str):
-        return api_report_service.download_report_file(filename, deps.get_output_dir(), "md")
+        return report_history_service.download_report_file(filename, deps.get_output_dir(), "md")
 
     @router.get("/api/report/{filename}/download/data")
     async def download_data_snapshot(filename: str):
-        return api_report_service.download_report_file(filename, deps.get_output_dir(), "data")
+        return report_history_service.download_report_file(filename, deps.get_output_dir(), "data")
 
     @router.post("/api/report/{filename}/refresh/data")
     async def refresh_report_data_snapshot(filename: str, request: Request):
         deps.require_mutation_authorized(request)
-        return await api_report_service.refresh_report_data_snapshot(
+        return await report_refresh_service.refresh_report_data_snapshot(
             filename,
             output_dir=deps.get_output_dir(),
             refresh_service=deps.get_refresh_service(),
@@ -94,13 +98,13 @@ def create_reports_router(deps: ReportRouteDeps) -> APIRouter:
         scope: str = Query("final_recommendation", max_length=32),
     ):
         deps.require_mutation_authorized(request)
-        normalized_scope = api_report_service.normalize_rerun_scope(scope)
-        if not api_report_service.is_safe_report_filename(filename, ".html"):
+        normalized_scope = report_rerun_service.normalize_rerun_scope(scope)
+        if not is_safe_report_filename(filename, ".html"):
             raise HTTPException(status_code=400, detail="Invalid filename")
         html_path = os.path.join(deps.get_output_dir(), filename)
         if not os.path.exists(html_path):
             raise HTTPException(status_code=404, detail="找不到報告")
-        data_path = os.path.join(deps.get_output_dir(), api_report_service.data_snapshot_filename_for_report(filename))
+        data_path = os.path.join(deps.get_output_dir(), data_snapshot_filename_for_report(filename))
         if not os.path.exists(data_path):
             raise HTTPException(status_code=404, detail="舊報告沒有資料快照，無法局部重跑")
 
@@ -124,7 +128,7 @@ def create_reports_router(deps: ReportRouteDeps) -> APIRouter:
             "job_id": job_id,
             "filename": filename,
             "scope": normalized_scope,
-            "scope_label": api_report_service.RERUN_SCOPE_LABELS.get(normalized_scope, normalized_scope),
+            "scope_label": report_rerun_service.RERUN_SCOPE_LABELS.get(normalized_scope, normalized_scope),
             "stream_url": f"/api/report/{filename}/rerun/stream?job_id={job_id}",
         }
 
@@ -136,7 +140,7 @@ def create_reports_router(deps: ReportRouteDeps) -> APIRouter:
         last_event_id: Optional[int] = Query(None, ge=0),
         cancel_on_disconnect: bool = Query(False),
     ):
-        if not api_report_service.is_safe_report_filename(filename, ".html"):
+        if not is_safe_report_filename(filename, ".html"):
             raise HTTPException(status_code=400, detail="Invalid filename")
         job = deps.get_job(job_id)
         if not job or job.get("ticker") != filename or not str(job.get("pipeline_id", "")).startswith("rerun:"):

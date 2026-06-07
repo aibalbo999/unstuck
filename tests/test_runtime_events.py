@@ -15,6 +15,7 @@ from runtime_events import (  # noqa: E402
     emit_runtime_event_async,
     emit_status,
     format_event_log_line,
+    make_runtime_event,
 )
 
 
@@ -110,3 +111,35 @@ def test_format_event_log_line_has_stable_summaries():
         format_event_log_line("abcdef123456", {"type": "error", "message": "boom"}, prefix="stream")
         == "[stream abcdef12] error: 錯誤：boom"
     )
+
+
+def test_runtime_event_schema_preserves_frontend_contract_fields():
+    event = make_runtime_event(
+        "status",
+        phase="model_call",
+        level="info",
+        message="calling",
+        detail="v1 · Agent 7",
+        current=7,
+        total=7,
+        name="投資決策",
+        agent_num=7,
+        pipeline_id="v1",
+        pipeline_label="模式 A",
+        metadata={"model_id": "fake-model", "timeout_seconds": 120},
+    )
+
+    assert event == {
+        "type": "status",
+        "phase": "model_call",
+        "level": "info",
+        "message": "calling",
+        "detail": "v1 · Agent 7",
+        "current": 7,
+        "total": 7,
+        "name": "投資決策",
+        "agent_num": 7,
+        "pipeline_id": "v1",
+        "pipeline_label": "模式 A",
+        "metadata": {"model_id": "fake-model", "timeout_seconds": 120},
+    }

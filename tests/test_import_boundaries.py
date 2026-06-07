@@ -6,7 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 BACKEND = ROOT / "backend"
-FORBIDDEN_ROOT_SHIMS = {"agent_runner", "financial_data", "market_data_fetchers", "rag_service", "report_gen"}
+FORBIDDEN_ROOT_SHIMS = {"agent_runner", "api_report_service", "financial_data", "market_data_fetchers", "rag_service", "report_gen"}
 FORBIDDEN_MODULES = {
     "data_fetch.core_assembler",
     "data_fetch.core_builder",
@@ -16,6 +16,7 @@ FORBIDDEN_MODULES = {
 }
 ALLOWED_SHIM_FILES = {
     BACKEND / "agent_runner.py",
+    BACKEND / "api_report_service.py",
     BACKEND / "financial_data.py",
     BACKEND / "market_data_fetchers.py",
     BACKEND / "rag_service.py",
@@ -93,6 +94,13 @@ def test_market_data_fetchers_is_facade_sized():
 
 def test_rag_service_is_facade_sized():
     path = BACKEND / "rag_service.py"
+    line_count = len(path.read_text(encoding="utf-8").splitlines())
+
+    assert line_count < 120
+
+
+def test_api_report_service_is_facade_sized():
+    path = BACKEND / "api_report_service.py"
     line_count = len(path.read_text(encoding="utf-8").splitlines())
 
     assert line_count < 120

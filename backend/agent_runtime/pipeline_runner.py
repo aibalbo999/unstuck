@@ -16,6 +16,7 @@ class AnalysisPipelineRunner:
             request.data,
             progress_callback=request.progress_callback,
             pipeline_id=request.pipeline_id,
+            cancel_check=request.cancel_check,
         )
         duration_ms = max(0, int(round((time.time() - started) * 1000)))
         return AnalysisResult(

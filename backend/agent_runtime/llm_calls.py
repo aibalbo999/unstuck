@@ -1,11 +1,13 @@
 # Split from legacy_agent_runner.py. Keep this module logic-only; root compatibility lives in backend/agent_runner.py.
 
+import asyncio
 from typing import Optional
 
 from google.genai import types
 from tenacity import retry_if_exception_type, wait_exponential
 
 from analysis_types import AnalysisContext
+from config import LLM_AGENT_CALL_TIMEOUT_SECONDS
 from llm_client import (
     KeyRotator,
     describe_quota_or_rate_error,
@@ -104,6 +106,16 @@ def _generate_content(api_key: str, model_id: str, agent_num: int, prompt: str):
 async def _generate_content_async(api_key: str, model_id: str, agent_num: int, prompt: str):
     config = build_generation_config(agent_num, SYSTEM_PROMPTS[agent_num])
     return await generate_content_async(api_key, model_id, prompt, config)
+
+
+async def _await_with_agent_timeout(coro, *, model_id: str):
+    timeout = float(LLM_AGENT_CALL_TIMEOUT_SECONDS or 0)
+    if timeout <= 0:
+        return await coro
+    try:
+        return await asyncio.wait_for(coro, timeout=timeout)
+    except asyncio.TimeoutError as exc:
+        raise AgentTransientError(f"LLM timeout after {timeout:.1f}s for model {model_id}") from exc
 
 
 BASE_AGENT_RETRY_WAIT = wait_exponential(multiplier=2, min=1, max=30)
@@ -275,11 +287,18 @@ async def _run_agent_once_async(
                 agent_num=agent_num,
                 pipeline_id=context.get("pipeline_id"),
                 pipeline_label=context.get("pipeline_label"),
-                metadata={"model_id": model_id, "estimated_tokens": estimate_text_tokens(prompt, response_budget=8192)},
+                metadata={
+                    "model_id": model_id,
+                    "estimated_tokens": estimate_text_tokens(prompt, response_budget=8192),
+                    "timeout_seconds": float(LLM_AGENT_CALL_TIMEOUT_SECONDS or 0),
+                },
             ),
         )
         api_key = await rotator.async_get_key(model_id, estimate_text_tokens(prompt, response_budget=8192))
-        response = await _generate_content_async(api_key, model_id, agent_num, prompt)
+        response = await _await_with_agent_timeout(
+            _generate_content_async(api_key, model_id, agent_num, prompt),
+            model_id=model_id,
+        )
         result = process_agent_response(agent_num, _response_text(response), context)
     except Exception as exc:
         _raise_agent_call_error(exc, api_key, model_id, rotator, quota_default)

@@ -878,6 +878,15 @@ iframe {
     cursor: wait;
     opacity: 0.58;
 }
+.preview-rerun-cancel-button {
+    grid-column: 1 / -1;
+    border-color: rgba(248, 113, 113, 0.38);
+    color: #fecaca;
+}
+.preview-rerun-cancel-button:hover:not(:disabled) {
+    border-color: rgba(248, 113, 113, 0.68);
+    color: #fee2e2;
+}
 .preview-open-button:hover {
     transform: translateY(-1px);
     box-shadow: 0 8px 24px rgba(0, 255, 204, 0.24);

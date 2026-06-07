@@ -7,10 +7,10 @@ from typing import Any
 
 from fastapi import HTTPException
 
-import api_report_service
 from agent_runtime import AnalysisPipelineRunner
 from config import API_KEY_SETUP_MESSAGE, OUTPUT_DIR, has_api_keys
 from job_store import append_event, is_job_cancel_requested, update_job
+import report_rerun_service
 from reporting import ReportRenderer
 
 
@@ -29,10 +29,10 @@ def _raise_if_cancelled(job_id: str) -> None:
 
 def _scope_label(scope: str) -> str:
     try:
-        normalized = api_report_service.normalize_rerun_scope(scope)
+        normalized = report_rerun_service.normalize_rerun_scope(scope)
     except HTTPException:
         normalized = str(scope or "final_recommendation")
-    return api_report_service.RERUN_SCOPE_LABELS.get(normalized, normalized)
+    return report_rerun_service.RERUN_SCOPE_LABELS.get(normalized, normalized)
 
 
 def _append_progress_event(job_id: str, filename: str, scope: str, raw_event: Any) -> None:
@@ -62,7 +62,7 @@ async def run_report_rerun_job_async(
     report_renderer: Any = None,
 ) -> str:
     """Run a partial report rerun and persist job events for SSE clients."""
-    normalized_scope = api_report_service.normalize_rerun_scope(scope)
+    normalized_scope = report_rerun_service.normalize_rerun_scope(scope)
     scope_label = _scope_label(normalized_scope)
     update_job(job_id, "running")
 
@@ -84,7 +84,7 @@ async def run_report_rerun_job_async(
         def progress_callback(event):
             _append_progress_event(job_id, filename, normalized_scope, event)
 
-        result = await api_report_service.rerun_report_analysis(
+        result = await report_rerun_service.rerun_report_analysis(
             filename,
             scope=normalized_scope,
             output_dir=output_dir,

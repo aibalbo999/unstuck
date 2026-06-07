@@ -109,6 +109,76 @@ def test_agent_executor_uses_split_runtime(monkeypatch):
     assert result.duration_ms >= 0
 
 
+def test_single_agent_async_honors_context_cancel_check(monkeypatch):
+    import agent_runtime.single_agent as single_agent_module
+    from agent_runtime.cancellation import attach_cancel_check
+
+    class CancelledForTest(Exception):
+        pass
+
+    async def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("LLM call should not start after cancellation")
+
+    context = {"structured_outputs": {}}
+    attach_cancel_check(context, lambda: (_ for _ in ()).throw(CancelledForTest("cancelled")))
+    monkeypatch.setattr(single_agent_module, "build_prompt", lambda *_args, **_kwargs: "prompt")
+    monkeypatch.setattr(single_agent_module, "get_runtime_model_sequence", lambda *_args, **_kwargs: ["fake-model"])
+    monkeypatch.setattr(single_agent_module, "_run_agent_once_async", fail_if_called)
+
+    try:
+        asyncio.run(
+            single_agent_module.run_single_agent_async(
+                7,
+                {"ticker": "AAPL", "company_name": "Apple"},
+                context,
+                object(),
+            )
+        )
+    except CancelledForTest:
+        pass
+    else:
+        raise AssertionError("cancel check should abort single-agent execution")
+
+
+def test_llm_async_call_timeout_becomes_retryable(monkeypatch):
+    import agent_runtime.llm_calls as llm_calls
+
+    class FakeRotator:
+        async def async_get_key(self, model_id, estimated_tokens=0):
+            return "fake-key"
+
+        def penalize(self, *_args, **_kwargs):
+            pass
+
+    async def slow_generate(*_args, **_kwargs):
+        await asyncio.sleep(0.05)
+        return object()
+
+    monkeypatch.setattr(llm_calls, "LLM_AGENT_CALL_TIMEOUT_SECONDS", 0.001)
+    monkeypatch.setattr(llm_calls, "_generate_content_async", slow_generate)
+
+    try:
+        asyncio.run(
+            llm_calls._run_agent_once_async(
+                7,
+                {
+                    "agent_positions": {7: 1},
+                    "agent_total": 1,
+                    "pipeline_id": "v1",
+                    "pipeline_label": "test",
+                    "structured_outputs": {},
+                },
+                FakeRotator(),
+                "fake-model",
+                "prompt",
+            )
+        )
+    except llm_calls.AgentTransientError as exc:
+        assert "timeout" in str(exc).lower()
+    else:
+        raise AssertionError("LLM timeout should become AgentTransientError")
+
+
 def test_report_renderer_returns_bundle_with_snapshot(monkeypatch):
     import reporting.renderer as renderer_module
 

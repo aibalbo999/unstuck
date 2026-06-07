@@ -8,6 +8,7 @@ import time
 from agent_catalog import AGENT_NAMES
 from agent_runtime import run_agent_with_quality_gates_async
 from agent_runtime.audit_repair import finalize_final_audit, finalize_final_audit_async
+from agent_runtime.cancellation import attach_cancel_check, raise_if_cancelled
 from agent_runtime.routing import is_agent_execution_failure
 from agent_runtime.single_agent import run_single_agent
 from analysis_types import AnalysisContext, StockData
@@ -304,7 +305,7 @@ def run_analysis_pipeline(
 
     return context
 
-async def run_analysis_pipeline_async(data: StockData, progress_callback=None, pipeline_id: str = "v1") -> AnalysisContext:
+async def run_analysis_pipeline_async(data: StockData, progress_callback=None, pipeline_id: str = "v1", cancel_check=None) -> AnalysisContext:
     """Run the selected async DAG analysis pipeline."""
     ticker = data["ticker"]
     name = data["company_name"]
@@ -331,6 +332,8 @@ async def run_analysis_pipeline_async(data: StockData, progress_callback=None, p
     }
     if progress_callback:
         context[RUNTIME_EVENT_CALLBACK_KEY] = progress_callback
+    attach_cancel_check(context, cancel_check)
+    raise_if_cancelled(context)
 
     emit_log(
         f"\n{'='*60}\n"
@@ -363,6 +366,7 @@ async def run_analysis_pipeline_async(data: StockData, progress_callback=None, p
 
     agent_groups = pipeline_def["groups"]
     for group_index, group in enumerate(agent_groups):
+        raise_if_cancelled(context)
         if len(group) > 1:
             emit_log(f"  ⚡ 平行啟動 Agent {', '.join(str(num) for num in group)}（共享同一 DAG 依賴資料）")
             await emit_status_async(
@@ -381,6 +385,7 @@ async def run_analysis_pipeline_async(data: StockData, progress_callback=None, p
 
             tasks = [asyncio.create_task(run_and_return(agent_num)) for agent_num in group]
             for task in asyncio.as_completed(tasks):
+                raise_if_cancelled(context)
                 completed_agent_num, _ = await task
                 await emit_progress_async(
                     progress_callback,
@@ -393,6 +398,7 @@ async def run_analysis_pipeline_async(data: StockData, progress_callback=None, p
                 )
         else:
             agent_num = group[0]
+            raise_if_cancelled(context)
             completed_agent_num, _ = await run_agent_with_quality_gates_async(agent_num, data, context, rotator, progress_callback)
             await emit_progress_async(
                 progress_callback,
@@ -408,9 +414,11 @@ async def run_analysis_pipeline_async(data: StockData, progress_callback=None, p
             break
 
         if group_index < len(agent_groups) - 1 and INTER_AGENT_DELAY > 0:
+            raise_if_cancelled(context)
             emit_log(f"\n  ⏰ 額外等待 {INTER_AGENT_DELAY:.1f} 秒後執行下一階段...\n")
             await asyncio.sleep(INTER_AGENT_DELAY)
 
+    raise_if_cancelled(context)
     await emit_status_async(
         progress_callback,
         "正在執行最終跨 Agent 稽核與必要修復...",

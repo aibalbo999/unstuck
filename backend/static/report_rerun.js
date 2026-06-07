@@ -15,6 +15,13 @@
         });
     }
 
+    function configureCancelButton(button, visible, handler) {
+        if (!button) return;
+        button.hidden = !visible;
+        button.disabled = false;
+        button.onclick = handler || null;
+    }
+
     function setStatus(statusEl, message) {
         if (!statusEl) return;
         statusEl.textContent = message || '';
@@ -70,6 +77,7 @@
         const button = buttonForScope(scope, buttons);
         const originalText = button ? (button.querySelector('span')?.textContent || '局部重跑') : '局部重跑';
         disableButtons(buttons, true);
+        configureCancelButton(buttons.cancel, false);
         setButtonLabel(button, '排入重跑');
         setStatus(options.statusEl, '正在建立報告重跑任務...');
 
@@ -82,6 +90,24 @@
             }
 
             setButtonLabel(button, '重跑中');
+            if (payload.job_id) {
+                configureCancelButton(buttons.cancel, true, async () => {
+                    if (!buttons.cancel || buttons.cancel.disabled) return;
+                    buttons.cancel.disabled = true;
+                    setStatus(options.statusEl, '已送出取消要求，正在等待目前步驟收尾...');
+                    try {
+                        const cancelUrl = `/api/report/${encodeURIComponent(filename)}/rerun/cancel?job_id=${encodeURIComponent(payload.job_id)}`;
+                        const cancelRes = await fetch(cancelUrl, { method: 'POST' });
+                        if (!cancelRes.ok) {
+                            const cancelPayload = await cancelRes.json().catch(() => ({}));
+                            throw new Error(cancelPayload.detail || cancelPayload.message || `HTTP ${cancelRes.status}`);
+                        }
+                    } catch (err) {
+                        buttons.cancel.disabled = false;
+                        setStatus(options.statusEl, `取消重跑失敗：${err.message || err}`);
+                    }
+                });
+            }
             const donePayload = payload.queued && payload.stream_url
                 ? await openRerunStream({
                     streamUrl: payload.stream_url,
@@ -106,6 +132,7 @@
             window.alert(`局部重跑失敗：${err.message || err}`);
         } finally {
             disableButtons(buttons, false);
+            configureCancelButton(buttons.cancel, false);
             setButtonLabel(button, originalText);
         }
     }

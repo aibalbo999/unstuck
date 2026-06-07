@@ -189,6 +189,7 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
                     data=dict(data),
                     progress_callback=progress_callback,
                     pipeline_id=current_pipeline_id,
+                    cancel_check=lambda: _raise_if_cancelled(job_id),
                 )
             )
             _raise_if_cancelled(job_id)
