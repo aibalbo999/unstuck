@@ -19,6 +19,7 @@ from data_trust_constants import (
     TRUST_STATUS_UNKNOWN,
     TRUST_STATUSES,
 )
+from data_trust_sla_policy import apply_provider_sla_to_trust
 
 
 def trust_status_label(status: str) -> str:
@@ -38,13 +39,20 @@ def normalize_data_trust(value: Any) -> dict:
     elif not isinstance(notes, list):
         notes = []
 
-    return {
+    normalized = {
         "status": status,
         "critical_failures": string_list(value.get("critical_failures")),
         "stale_sources": string_list(value.get("stale_sources")),
         "last_market_data_at": value.get("last_market_data_at"),
         "notes": [str(item) for item in notes if str(item).strip()],
     }
+    alerts = value.get("provider_sla_alerts")
+    if isinstance(alerts, list):
+        normalized["provider_sla_alerts"] = [
+            item for item in alerts
+            if isinstance(item, dict)
+        ][:10]
+    return normalized
 
 
 def unknown_data_trust() -> dict:
@@ -100,13 +108,16 @@ def build_data_trust(data: dict) -> dict:
     if data.get("data_source_notes"):
         notes.append("另有資料口徑或備援補值註記，詳見報告參考資料區。")
 
-    return {
-        "status": status,
-        "critical_failures": core_failures,
-        "stale_sources": stale_sources,
-        "last_market_data_at": last_market_data_at(data, source_freshness, latest_audit),
-        "notes": notes,
-    }
+    return apply_provider_sla_to_trust(
+        data,
+        {
+            "status": status,
+            "critical_failures": core_failures,
+            "stale_sources": stale_sources,
+            "last_market_data_at": last_market_data_at(data, source_freshness, latest_audit),
+            "notes": notes,
+        },
+    )
 
 
 def finalize_data_trust(data: dict) -> dict:

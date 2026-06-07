@@ -7,57 +7,37 @@ from datetime import datetime, timezone
 from typing import Optional, Sequence
 
 from config import (
-    FINANCIAL_DATA_CACHE_SECONDS,
-    FINANCIAL_DATA_MARKET_CACHE_SECONDS,
-    FINANCIAL_DATA_OFFHOURS_CACHE_SECONDS,
-    SOURCE_FRESHNESS_MAX_AGE_SECONDS,
+    FINANCIAL_DATA_CACHE_SECONDS as _DEFAULT_FINANCIAL_DATA_CACHE_SECONDS,
+    FINANCIAL_DATA_MARKET_CACHE_SECONDS as _DEFAULT_FINANCIAL_DATA_MARKET_CACHE_SECONDS,
+    FINANCIAL_DATA_OFFHOURS_CACHE_SECONDS as _DEFAULT_FINANCIAL_DATA_OFFHOURS_CACHE_SECONDS,
+    SOURCE_FRESHNESS_MAX_AGE_SECONDS as _DEFAULT_SOURCE_FRESHNESS_MAX_AGE_SECONDS,
+)
+from data_freshness_market import is_likely_market_session, is_taiwan_ticker, market_now
+from data_freshness_policy import (
+    CORE_CACHE_SOURCES,
+    SOURCE_FRESHNESS_SOURCES,
 )
 
-SOURCE_FRESHNESS_SOURCES = (
-    "market_data",
-    "financial_statements",
-    "monthly_revenue",
-    "recent_catalysts",
-    "institutional_trading",
-    "dynamic_peer_metrics",
-    "peer_discovery",
-    "pe_river_chart",
-)
-CORE_CACHE_SOURCES = (
-    "market_data",
-    "financial_statements",
-    "monthly_revenue",
-    "institutional_trading",
-    "dynamic_peer_metrics",
-    "pe_river_chart",
-)
-
-try:
-    from zoneinfo import ZoneInfo
-except ImportError:  # pragma: no cover - Python < 3.9 fallback
-    ZoneInfo = None
+FINANCIAL_DATA_MARKET_CACHE_SECONDS = _DEFAULT_FINANCIAL_DATA_MARKET_CACHE_SECONDS
+FINANCIAL_DATA_OFFHOURS_CACHE_SECONDS = _DEFAULT_FINANCIAL_DATA_OFFHOURS_CACHE_SECONDS
+FINANCIAL_DATA_CACHE_SECONDS = _DEFAULT_FINANCIAL_DATA_CACHE_SECONDS
+SOURCE_FRESHNESS_MAX_AGE_SECONDS = dict(_DEFAULT_SOURCE_FRESHNESS_MAX_AGE_SECONDS)
 
 
-def is_taiwan_ticker(ticker: str) -> bool:
-    stock_id = str(ticker).replace(".TW", "").replace(".TWO", "")
-    return str(ticker).endswith(".TW") or str(ticker).endswith(".TWO") or (stock_id.isdigit() and len(stock_id) == 4)
+def freshness_policy(ticker: str, market_session: Optional[bool] = None) -> dict:
+    session = is_likely_market_session(ticker) if market_session is None else bool(market_session)
+    return {
+        "policy": "market_session" if session else "offhours_or_weekend",
+        "market_session": session,
+        "max_age_seconds": FINANCIAL_DATA_MARKET_CACHE_SECONDS
+        if session else FINANCIAL_DATA_OFFHOURS_CACHE_SECONDS,
+    }
 
 
-def market_now(ticker: str) -> datetime:
-    if ZoneInfo is None:
-        return datetime.now()
-    zone_name = "Asia/Taipei" if is_taiwan_ticker(ticker) else "America/New_York"
-    return datetime.now(ZoneInfo(zone_name))
-
-
-def is_likely_market_session(ticker: str) -> bool:
-    now = market_now(ticker)
-    if now.weekday() >= 5:
-        return False
-    minutes = now.hour * 60 + now.minute
-    if is_taiwan_ticker(ticker):
-        return 9 * 60 <= minutes <= 13 * 60 + 30
-    return 9 * 60 + 30 <= minutes <= 16 * 60
+def source_max_age_seconds(source: str, ticker: str, market_session: Optional[bool] = None) -> int:
+    if source == "market_data":
+        return int(freshness_policy(ticker, market_session=market_session)["max_age_seconds"])
+    return int(SOURCE_FRESHNESS_MAX_AGE_SECONDS.get(source, FINANCIAL_DATA_CACHE_SECONDS))
 
 
 def cache_timestamp_epoch(cached: dict) -> Optional[float]:
@@ -74,22 +54,6 @@ def cache_timestamp_epoch(cached: dict) -> Optional[float]:
         return parsed.timestamp()
     except ValueError:
         return None
-
-
-def freshness_policy(ticker: str, market_session: Optional[bool] = None) -> dict:
-    if market_session is None:
-        market_session = is_likely_market_session(ticker)
-    return {
-        "market_session": market_session,
-        "max_age_seconds": FINANCIAL_DATA_MARKET_CACHE_SECONDS if market_session else FINANCIAL_DATA_OFFHOURS_CACHE_SECONDS,
-        "policy": "market_session" if market_session else "offhours_or_weekend",
-    }
-
-
-def source_max_age_seconds(source: str, ticker: str, market_session: Optional[bool] = None) -> int:
-    if source == "market_data":
-        return int(freshness_policy(ticker, market_session=market_session)["max_age_seconds"])
-    return int(SOURCE_FRESHNESS_MAX_AGE_SECONDS.get(source, FINANCIAL_DATA_CACHE_SECONDS))
 
 
 def source_timestamp_epoch(data: dict, source: str) -> Optional[float]:

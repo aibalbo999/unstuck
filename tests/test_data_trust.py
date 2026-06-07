@@ -95,6 +95,46 @@ def test_data_trust_statuses_fresh_stale_error_unknown():
     assert data_trust.build_data_trust({})["status"] == "unknown"
 
 
+def test_provider_sla_alert_downgrades_current_provider_trust(monkeypatch):
+    import provider_sla
+
+    payload = {
+        "current_price": 100,
+        "years": ["2025"],
+        "revenue_history": [10],
+        "net_income_history": [2],
+        "source_freshness": {
+            "market_data": {"stale": False, "fetched_at": "2026-06-07T00:00:00+00:00"},
+            "financial_statements": {"stale": False, "fetched_at": "2026-06-07T00:00:00+00:00"},
+        },
+        "source_audit": [
+            data_trust.build_source_audit_entry("market_data", "fake-yfinance", "success", record_count=1),
+            data_trust.build_source_audit_entry("financial_statements", "fake-yfinance", "success", record_count=1),
+        ],
+    }
+    monkeypatch.setattr(
+        provider_sla,
+        "get_provider_sla_alerts",
+        lambda limit=100: [
+            {
+                "source": "market_data",
+                "provider": "fake-yfinance",
+                "alert_level": "warning",
+                "alert_message": "success rate low",
+                "success_rate": 0.5,
+                "last_status": "error",
+                "alert_basis": "last_24h",
+            }
+        ],
+    )
+
+    trust = data_trust.build_data_trust(payload)
+
+    assert trust["status"] == "partial"
+    assert trust["provider_sla_alerts"][0]["provider"] == "fake-yfinance"
+    assert any("來源健康度警示" in note for note in trust["notes"])
+
+
 def test_data_snapshot_sanitizes_sensitive_keys():
     snapshot = data_trust.build_data_snapshot(
         {

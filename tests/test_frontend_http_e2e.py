@@ -1,3 +1,4 @@
+import asyncio
 import json
 import sys
 from pathlib import Path
@@ -9,7 +10,14 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 import api  # noqa: E402
+import analysis_jobs  # noqa: E402
+import job_store  # noqa: E402
+import provider_sla  # noqa: E402
 import report_index  # noqa: E402
+import reporting.html_renderer as html_renderer  # noqa: E402
+from agent_runtime import AnalysisResult  # noqa: E402
+from data_fetch import FetchResult  # noqa: E402
+from data_trust import build_data_trust, build_source_audit_entry  # noqa: E402
 
 
 STATIC_DIR = ROOT / "backend" / "static"
@@ -137,6 +145,141 @@ def test_frontend_shell_static_assets_and_report_history_flow(tmp_path, monkeypa
     data = client.get(f"/api/report/{stale_filename}/download/data")
     assert data.status_code == 200
     assert data.json()["data_trust"]["status"] == "stale"
+
+
+def test_fake_provider_job_generates_report_snapshot_visible_in_history(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(analysis_jobs, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.sqlite3"))
+    monkeypatch.setattr(job_store, "TASK_DB_PATH", str(tmp_path / "tasks.sqlite3"))
+    monkeypatch.setattr(provider_sla, "TASK_DB_PATH", str(tmp_path / "tasks.sqlite3"))
+    monkeypatch.setattr(provider_sla, "get_provider_sla_alerts", lambda limit=100: [])
+    monkeypatch.setattr(analysis_jobs, "has_api_keys", lambda: True)
+
+    async def no_cover(context):
+        return {}
+
+    monkeypatch.setattr(html_renderer, "prepare_report_cover_async", no_cover)
+
+    class FakeStockDataService:
+        async def fetch_async(self, request):
+            data = {
+                "data_schema_version": 4,
+                "ticker": request.ticker,
+                "company_name": "Fake Semiconductor",
+                "current_price": 123.45,
+                "current_price_fmt": "US$123.45",
+                "market_cap_fmt": "US$12.3B",
+                "pe_ratio": "18.2",
+                "pb_ratio": "3.1",
+                "gross_margin": "45.0%",
+                "roe": "18.0%",
+                "dividend_yield": "1.2%",
+                "beta": "1.05",
+                "industry": "Semiconductors",
+                "fetch_date": "2026年06月07日",
+                "years": ["2024", "2025"],
+                "revenue_history": [10.0, 12.0],
+                "net_income_history": [1.2, 1.8],
+                "fcf_history": [0.8, 1.1],
+                "gross_margin_history": [42.0, 45.0],
+                "op_margin_history": [15.0, 18.0],
+                "net_margin_history": [12.0, 15.0],
+                "roe_history": [14.0, 18.0],
+                "price_history": {"2026-06-05": 121.0, "2026-06-06": 123.45},
+                "recent_catalysts": [{"title": "Fake provider catalyst"}],
+                "institutional_trading": {"trend": "neutral", "total_net_buy_thousand_shares": 0},
+                "pe_river_chart": {"source": "fake-provider", "series": []},
+                "source_freshness": {
+                    "market_data": {
+                        "stale": False,
+                        "fetched_at": "2026-06-07T00:00:00+00:00",
+                        "fetched_at_epoch": 1780761600,
+                    },
+                    "financial_statements": {
+                        "stale": False,
+                        "fetched_at": "2026-06-07T00:00:00+00:00",
+                        "fetched_at_epoch": 1780761600,
+                    },
+                },
+                "source_audit": [
+                    build_source_audit_entry("market_data", "fake-provider", "success", record_count=2),
+                    build_source_audit_entry("financial_statements", "fake-provider", "success", record_count=2),
+                ],
+            }
+            data["data_trust"] = build_data_trust(data)
+            return FetchResult(
+                request=request,
+                data=data,
+                source_audit=data["source_audit"],
+                data_trust=data["data_trust"],
+            )
+
+    class FakePipelineRunner:
+        async def run_async(self, request):
+            data = request.data
+            if request.progress_callback:
+                request.progress_callback(1, 7, "Fake Agent")
+            parsed = {
+                "moat_scores": {
+                    "品牌影響力": 6,
+                    "網路效應": 5,
+                    "轉換成本": 6,
+                    "成本優勢": 7,
+                    "專利技術": 6,
+                    "整體護城河": 6,
+                },
+                "price_targets": {"熊市情境": 105, "基本情境": 130, "牛市情境": 155},
+                "recommendation": {
+                    "建議": "持有",
+                    "短期目標（3個月）": "US$130",
+                    "中期目標（6個月）": "US$138",
+                    "長期目標（12個月）": "US$150",
+                    "長期潛力（5年）": "穩健成長",
+                    "信心指數": "6/10",
+                },
+            }
+            analyses = {
+                agent_num: "Fake provider E2E analysis keeps report rendering deterministic."
+                for agent_num in range(1, 17)
+            }
+            context = {
+                "ticker": data["ticker"],
+                "company_name": data["company_name"],
+                "data": data,
+                "pipeline_id": request.pipeline_id,
+                "analyses": analyses,
+                "parsed": parsed,
+                "structured_outputs": {},
+                "tear_sheet_summary": "Fake provider E2E summary with fresh audited data.",
+                "final_audit": {"status": "passed", "critical": [], "warnings": [], "corrections": []},
+            }
+            return AnalysisResult(context=context, pipeline_id=request.pipeline_id)
+
+    monkeypatch.setattr(analysis_jobs, "STOCK_DATA_SERVICE", FakeStockDataService())
+    monkeypatch.setattr(analysis_jobs, "PIPELINE_RUNNER", FakePipelineRunner())
+
+    job_id = job_store.create_job("FAKE", "v1")
+    filename = asyncio.run(analysis_jobs.run_stock_analysis_job_async(job_id, "FAKE", "v1"))
+
+    assert filename.startswith("FAKE_v1_report_")
+    assert (tmp_path / filename).exists()
+    assert (tmp_path / filename.replace(".html", ".data.json")).exists()
+
+    client = TestClient(api.app)
+    reports = client.get("/api/reports", params={"q": "Fake Semiconductor", "data_trust": "fresh", "limit": 20})
+    assert reports.status_code == 200
+    reports_payload = reports.json()
+    assert reports_payload["pagination"]["total"] == 1
+    assert reports_payload["reports"][0]["filename"] == filename
+    assert reports_payload["reports"][0]["data_trust"]["status"] == "fresh"
+
+    data_snapshot = client.get(f"/api/report/{filename}/download/data")
+    assert data_snapshot.status_code == 200
+    snapshot = data_snapshot.json()
+    assert snapshot["data_trust"]["status"] == "fresh"
+    assert snapshot["source_audit"][0]["provider"] == "fake-provider"
+    assert snapshot["data"]["ticker"] == "FAKE"
 
 
 def test_static_css_modules_keep_expected_component_selectors():
