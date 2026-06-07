@@ -1,0 +1,23 @@
+"""Shared data-fetch payload constants."""
+
+DATA_SCHEMA_VERSION = 4
+
+SOURCE_FRESHNESS_SOURCES = (
+    "market_data",
+    "financial_statements",
+    "monthly_revenue",
+    "recent_catalysts",
+    "institutional_trading",
+    "dynamic_peer_metrics",
+    "peer_discovery",
+    "pe_river_chart",
+)
+
+CORE_CACHE_SOURCES = (
+    "market_data",
+    "financial_statements",
+    "monthly_revenue",
+    "institutional_trading",
+    "dynamic_peer_metrics",
+    "pe_river_chart",
+)

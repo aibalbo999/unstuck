@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const historySearch = document.getElementById('history-search');
     const historyPipelineFilter = document.getElementById('history-pipeline-filter');
     const historyRecommendationFilter = document.getElementById('history-recommendation-filter');
+    const historyDataTrustFilter = document.getElementById('history-data-trust-filter');
     const historyPagination = document.getElementById('history-pagination');
     const historyPrev = document.getElementById('history-prev');
     const historyNext = document.getElementById('history-next');
@@ -36,10 +37,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const previewTarget12m = document.getElementById('preview-target-12m');
     const previewSummary = document.getElementById('preview-summary');
     const previewOpenReportBtn = document.getElementById('preview-open-report-btn');
+    const previewRefreshDataBtn = document.getElementById('preview-refresh-data-btn');
     const previewCloseBtn = document.getElementById('preview-close-btn');
+    const providerSlaSummary = document.getElementById('provider-sla-summary');
+    const providerSlaList = document.getElementById('provider-sla-list');
+    const providerSlaRefresh = document.getElementById('provider-sla-refresh');
     
     const downloadHtmlBtn = document.getElementById('download-html-btn');
     const downloadMdBtn = document.getElementById('download-md-btn');
+    const downloadDataBtn = document.getElementById('download-data-btn');
 
     let eventSource = null;
     let currentReportFilename = null;
@@ -98,6 +104,66 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderPipelineModeBadge(pipelineId) {
         return `<span class="history-mode ${pipelineModeClass(pipelineId)}">${escapeHtml(pipelineModeLabel(pipelineId))}</span>`;
+    }
+
+    function dataTrustLabel(trust) {
+        const status = trust && trust.status ? trust.status : 'unknown';
+        const labels = {
+            fresh: '資料新鮮',
+            partial: '部分異常',
+            stale: '部分過期',
+            error: '來源異常',
+            unknown: '未記錄'
+        };
+        return labels[status] || labels.unknown;
+    }
+
+    function dataTrustClass(trust) {
+        const status = trust && trust.status ? trust.status : 'unknown';
+        return ['fresh', 'partial', 'stale', 'error'].includes(status) ? status : 'unknown';
+    }
+
+    function renderDataTrustBadge(trust) {
+        return `<span class="data-trust-badge is-${dataTrustClass(trust)}">${escapeHtml(dataTrustLabel(trust))}</span>`;
+    }
+
+    function providerSlaClass(level) {
+        return ['ok', 'warning', 'critical'].includes(level) ? level : 'ok';
+    }
+
+    function formatSuccessRate(value) {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) return 'N/A';
+        return `${Math.round(numeric * 100)}%`;
+    }
+
+    async function loadProviderSla() {
+        if (!providerSlaSummary || !providerSlaList) return;
+        try {
+            if (providerSlaRefresh) providerSlaRefresh.setAttribute('disabled', 'disabled');
+            const res = await fetch('/api/observability/provider-sla?limit=12');
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const payload = await res.json();
+            const providers = payload.providers || [];
+            const alerts = payload.alerts || [];
+            providerSlaSummary.textContent = alerts.length
+                ? `${alerts.length} 個來源需要注意`
+                : (providers.length ? '所有近期來源狀態正常' : '尚無來源審計紀錄');
+            providerSlaList.innerHTML = providers.length
+                ? providers.slice(0, 8).map(item => `
+                    <span class="provider-sla-chip is-${providerSlaClass(item.alert_level)}" title="${escapeHtml(item.alert_message || item.last_message || '')}">
+                        ${escapeHtml(item.source || 'unknown')} · ${escapeHtml(item.provider || 'unknown')}
+                        <strong>${escapeHtml(formatSuccessRate(item.success_rate))}</strong>
+                    </span>
+                `).join('')
+                : '<span class="provider-sla-chip is-ok">等待下一次分析紀錄</span>';
+        } catch (err) {
+            console.error('Failed to load provider SLA', err);
+            providerSlaSummary.textContent = '來源健康度讀取失敗';
+            providerSlaList.innerHTML = '<span class="provider-sla-chip is-warning">請稍後重試</span>';
+        } finally {
+            if (providerSlaRefresh) providerSlaRefresh.removeAttribute('disabled');
+        }
     }
 
     function updateAnalyzeButtonCopy() {
@@ -161,6 +227,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const query = historySearch ? historySearch.value.trim() : '';
             const pipelineFilter = historyPipelineFilter ? historyPipelineFilter.value : 'all';
             const recommendationFilter = historyRecommendationFilter ? historyRecommendationFilter.value : 'all';
+            const dataTrustFilter = historyDataTrustFilter ? historyDataTrustFilter.value : 'all';
             const params = new URLSearchParams({
                 page: String(historyPage),
                 limit: String(historyLimit)
@@ -168,6 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (query) params.set('q', query);
             if (pipelineFilter !== 'all') params.set('pipeline', pipelineFilter);
             if (recommendationFilter !== 'all') params.set('recommendation', recommendationFilter);
+            if (dataTrustFilter !== 'all') params.set('data_trust', dataTrustFilter);
             const res = await fetch(`/api/reports?${params.toString()}`);
             const data = await res.json();
             const pagination = data.pagination || { page: 1, total_pages: 1, total: 0, has_prev: false, has_next: false };
@@ -183,6 +251,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="history-date">
                                 <span>${escapeHtml(r.date)}</span>
                                 ${renderPipelineModeBadge(r.pipeline_id || 'v1')}
+                                ${renderDataTrustBadge(r.data_trust)}
                             </div>
                             <div class="history-decision">
                                 <span class="history-rec ${recommendationTone(r.recommendation?.recommendation)}">${escapeHtml(normalizeRecommendation(r.recommendation?.recommendation))}</span>
@@ -237,7 +306,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const rec = report.recommendation || {};
         const pipelineId = report.pipeline_id || 'v1';
 
-        previewMode.innerHTML = `${renderPipelineModeBadge(pipelineId)}<span class="preview-date">${escapeHtml(report.date || '')}</span>`;
+        previewMode.innerHTML = `${renderPipelineModeBadge(pipelineId)}${renderDataTrustBadge(report.data_trust)}<span class="preview-date">${escapeHtml(report.date || '')}</span>`;
         previewTitle.textContent = `${report.ticker} 投資建議`;
         previewPrice.textContent = rec.current_price || 'N/A';
         previewRecommendation.textContent = normalizeRecommendation(rec.recommendation);
@@ -252,6 +321,38 @@ document.addEventListener('DOMContentLoaded', () => {
             item.classList.toggle('is-selected', item.dataset.filename === filename);
         });
         reportPreview.hidden = false;
+    }
+
+    async function refreshPreviewDataSnapshot() {
+        if (!previewReport || !previewRefreshDataBtn) return;
+        const filename = previewReport.filename;
+        const label = previewRefreshDataBtn.querySelector('span');
+        const originalText = label ? label.textContent : '刷新資料快照';
+        previewRefreshDataBtn.disabled = true;
+        if (label) label.textContent = '刷新中';
+        try {
+            const res = await fetch(`/api/report/${encodeURIComponent(filename)}/refresh/data`, { method: 'POST' });
+            const payload = await res.json();
+            if (!res.ok || payload.success === false) {
+                throw new Error(payload.error || `HTTP ${res.status}`);
+            }
+            const updated = {
+                ...previewReport,
+                data_trust: payload.data_trust || previewReport.data_trust,
+                data_snapshot_filename: payload.data_filename || previewReport.data_snapshot_filename
+            };
+            historyReports.set(filename, updated);
+            previewReport = updated;
+            showReportPreview(filename);
+            await loadHistory();
+            await loadProviderSla();
+        } catch (err) {
+            console.error('Failed to refresh data snapshot', err);
+            alert(`刷新資料快照失敗：${err.message || err}`);
+        } finally {
+            previewRefreshDataBtn.disabled = false;
+            if (label) label.textContent = originalText;
+        }
     }
 
     historyList.addEventListener('click', (event) => {
@@ -290,6 +391,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    if (previewRefreshDataBtn) {
+        previewRefreshDataBtn.addEventListener('click', refreshPreviewDataSnapshot);
+    }
+
     if (previewCloseBtn) {
         previewCloseBtn.addEventListener('click', hideReportPreview);
     }
@@ -306,6 +411,14 @@ document.addEventListener('DOMContentLoaded', () => {
         downloadMdBtn.addEventListener('click', () => {
             if (currentReportFilename) {
                 window.location.href = `/api/report/${encodeURIComponent(currentReportFilename)}/download/md`;
+            }
+        });
+    }
+
+    if (downloadDataBtn) {
+        downloadDataBtn.addEventListener('click', () => {
+            if (currentReportFilename) {
+                window.location.href = `/api/report/${encodeURIComponent(currentReportFilename)}/download/data`;
             }
         });
     }
@@ -333,6 +446,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 初始化時載入歷史
     loadHistory();
+    loadProviderSla();
+
+    if (providerSlaRefresh) {
+        providerSlaRefresh.addEventListener('click', loadProviderSla);
+    }
 
     if (historySearch) {
         historySearch.addEventListener('input', () => {
@@ -344,7 +462,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    [historyPipelineFilter, historyRecommendationFilter].forEach(filter => {
+    [historyPipelineFilter, historyRecommendationFilter, historyDataTrustFilter].forEach(filter => {
         if (!filter) return;
         filter.addEventListener('change', () => {
             historyPage = 1;

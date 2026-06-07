@@ -8,6 +8,7 @@ from typing import Optional
 from analysis_types import AnalysisContext, AuditResult
 from agent_catalog import AGENT_NAMES
 from pipeline_modes import get_pipeline_definition, get_structured_agent_num
+from runtime_events import emit_log
 from validators import (
     _extract_price_numbers,
     strip_generated_audit_sections,
@@ -34,6 +35,18 @@ def _extract_first_price(value: str) -> Optional[float]:
     except Exception:
         return None
     return prices[0] if prices else None
+
+
+def _extract_confidence_score(value: str) -> Optional[float]:
+    import re
+
+    match = re.search(r"(\d+(?:\.\d+)?)", str(value or ""))
+    if not match:
+        return None
+    score = float(match.group(1))
+    if score <= 1:
+        return score * 10
+    return score
 
 
 def _add_unique_issue(items: list[str], issue: str):
@@ -184,6 +197,15 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
                 _add_unique_issue(critical, f"Agent {recommendation_agent} 缺少 {label} 欄位。")
                 add_agent_repair_issue(recommendation_agent, f"缺少 {label} 欄位。")
 
+        data_trust = data.get("data_trust", {}) if isinstance(data.get("data_trust"), dict) else {}
+        data_trust_status = data_trust.get("status", "unknown")
+        confidence_score = _extract_confidence_score(_recommendation_value(recommendation, "信心"))
+        if data_trust_status != "fresh" and confidence_score is not None and confidence_score >= 8:
+            _add_unique_issue(
+                warnings,
+                f"Agent {recommendation_agent} 在 data_trust={data_trust_status} 時給出高信心，報告需明確揭露資料限制。"
+            )
+
         target_12m = _extract_first_price(_recommendation_value(recommendation, "12個月"))
         if target_12m is not None and all(key in numeric_targets for key in required_targets):
             bear = numeric_targets["熊市情境"]
@@ -201,6 +223,9 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
         _add_unique_issue(corrections, "資料源出現淨利/淨利率口徑互斥時，報告已採用 EPS/P/E 自洽的校準口徑。")
     if any("revenueGrowth" in note for note in data_notes):
         _add_unique_issue(corrections, "Yahoo revenueGrowth 已降級為近期/季度口徑，不得直接當年度或 TTM 年增率。")
+
+    for warning in context.get("structured_quality_warnings", []) or []:
+        _add_unique_issue(warnings, str(warning))
 
     price_history = data.get("price_history", {}) or {}
     if isinstance(price_history, dict):
@@ -234,14 +259,14 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
 
     if critical:
         if append_section:
-            print("  ⚠️  最終跨 Agent 稽核仍有異常；報告會保留，並在報告內標示異常提醒。")
+            emit_log("  ⚠️  最終跨 Agent 稽核仍有異常；報告會保留，並在報告內標示異常提醒。")
         else:
-            print("  ⚠️  最終跨 Agent 稽核發現異常，準備嘗試 AI 自動修復。")
+            emit_log("  ⚠️  最終跨 Agent 稽核發現異常，準備嘗試 AI 自動修復。")
         for issue in critical[:8]:
-            print(f"     - {issue}")
+            emit_log(f"     - {issue}")
     elif warnings or corrections:
-        print("  ✅ 最終跨 Agent 稽核通過，已附加非阻斷稽核註記。")
+        emit_log("  ✅ 最終跨 Agent 稽核通過，已附加非阻斷稽核註記。")
     else:
-        print("  ✅ 最終跨 Agent 稽核通過。")
+        emit_log("  ✅ 最終跨 Agent 稽核通過。")
 
     return audit

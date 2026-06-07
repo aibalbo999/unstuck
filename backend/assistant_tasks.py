@@ -9,7 +9,13 @@ from google.genai import types
 
 from analysis_types import AnalysisContext
 from agent_catalog import AGENT_NAMES
-from config import CONTEXT_DIGEST_MODEL, TEAR_SHEET_MODEL
+from config import (
+    BLIND_CONTEXT_AGENTS,
+    CONTEXT_DIGEST_MODEL,
+    CONTEXT_TOTAL_CHAR_BUDGET,
+    TEAR_SHEET_MODEL,
+    get_agent_context_budgets,
+)
 from llm_client import (
     KeyRotator,
     describe_quota_or_rate_error,
@@ -21,14 +27,12 @@ from llm_client import (
     response_text,
 )
 from prompt_rules import get_task_instruction_lines, get_task_system_instruction
+from runtime_events import emit_context_event, emit_context_event_async, emit_log, make_runtime_event
 from structured_outputs import _extract_json_payload
 from validators import sanitize_model_output, strip_generated_audit_sections
 
 
 CONTEXT_DIGEST_TARGET_AGENTS = {4, 7, 14, 16}
-CONTEXT_TOTAL_CHAR_BUDGET = 11000
-CONTEXT_PER_AGENT_CHAR_BUDGET = 2200
-
 AGENT_CONTEXT_KEYWORDS = {
     4: [
         "估值", "DCF", "WACC", "FCF", "自由現金流", "本益比", "P/E", "Forward EPS",
@@ -167,9 +171,16 @@ def _format_previous(
     max_total_chars: int = CONTEXT_TOTAL_CHAR_BUDGET,
 ) -> str:
     """Format previous agent outputs as digest plus task-relevant slices."""
+    if current_agent in BLIND_CONTEXT_AGENTS:
+        return "（盲測模式：本 Agent 僅使用原始財務資料、工具結果與自身檢索資料，不引用前序 Agent 分析。）"
+
     analyses = context.get("analyses", {})
     if not analyses:
         return "（無前序分析）"
+
+    dynamic_total_budget, per_agent_char_budget = get_agent_context_budgets(current_agent)
+    if max_total_chars == CONTEXT_TOTAL_CHAR_BUDGET:
+        max_total_chars = dynamic_total_budget
 
     agent_names = {
         1: "整體分析",
@@ -199,7 +210,7 @@ def _format_previous(
                 parts.append("（前序片段已達系統 context 預算上限，後續 Agent 請以結構化輸出與提煉摘要為準。）")
                 break
             remaining_budget = max_total_chars - used_chars
-            per_agent_budget = min(CONTEXT_PER_AGENT_CHAR_BUDGET, remaining_budget)
+            per_agent_budget = min(per_agent_char_budget, remaining_budget)
             clean_analysis = _select_relevant_context(
                 str(analyses[i]),
                 current_agent=current_agent,
@@ -323,7 +334,7 @@ def _ensure_digest_payload_shape(payload: dict) -> dict:
     return payload
 
 
-def ensure_context_digest(agent_num: int, context: dict, rotator: KeyRotator):
+def ensure_context_digest(agent_num: int, context: dict, rotator: KeyRotator, progress_callback=None):
     """Run a lightweight summarization agent before high-dependency agents."""
     if agent_num not in CONTEXT_DIGEST_TARGET_AGENTS:
         return
@@ -334,18 +345,105 @@ def ensure_context_digest(agent_num: int, context: dict, rotator: KeyRotator):
     prompt = _build_context_digest_prompt(agent_num, context)
     for model_id in _context_digest_model_sequence():
         try:
+            emit_context_event(
+                context,
+                make_runtime_event(
+                    "status",
+                    phase="context_digest_model_call",
+                    level="info",
+                    message=f"Agent {agent_num} 前序摘要正在呼叫模型 {model_id}...",
+                    current=context.get("agent_positions", {}).get(agent_num, agent_num),
+                    total=context.get("agent_total"),
+                    name=AGENT_NAMES.get(agent_num, f"Agent {agent_num}"),
+                    agent_num=agent_num,
+                    pipeline_id=context.get("pipeline_id"),
+                    pipeline_label=context.get("pipeline_label"),
+                    metadata={"model_id": model_id, "task": "context_digest"},
+                ),
+                progress_callback,
+            )
             api_key = rotator.get_key(model_id, estimate_text_tokens(prompt, response_budget=4096))
             response = _generate_context_digest_content(api_key, model_id, prompt)
             digests[agent_num] = _normalize_digest_text(response_text(response), agent_num, context)
-            print(f"  🧾 Agent {agent_num} 前序提煉摘要完成。")
+            emit_log(f"  🧾 Agent {agent_num} 前序提煉摘要完成。")
+            emit_context_event(
+                context,
+                make_runtime_event(
+                    "status",
+                    phase="context_digest_done",
+                    level="info",
+                    message=f"Agent {agent_num} 前序提煉摘要完成。",
+                    current=context.get("agent_positions", {}).get(agent_num, agent_num),
+                    total=context.get("agent_total"),
+                    name=AGENT_NAMES.get(agent_num, f"Agent {agent_num}"),
+                    agent_num=agent_num,
+                    pipeline_id=context.get("pipeline_id"),
+                    pipeline_label=context.get("pipeline_label"),
+                    metadata={"model_id": model_id, "task": "context_digest"},
+                ),
+                progress_callback,
+            )
             return
         except Exception as exc:
             if is_missing_model_error(str(exc)):
+                emit_context_event(
+                    context,
+                    make_runtime_event(
+                        "status",
+                        phase="model_fallback",
+                        level="warning",
+                        message=f"Context digest 模型 {model_id} 不可用，嘗試備援模型。",
+                        current=context.get("agent_positions", {}).get(agent_num, agent_num),
+                        total=context.get("agent_total"),
+                        name=AGENT_NAMES.get(agent_num, f"Agent {agent_num}"),
+                        agent_num=agent_num,
+                        pipeline_id=context.get("pipeline_id"),
+                        pipeline_label=context.get("pipeline_label"),
+                        metadata={"model_id": model_id, "task": "context_digest"},
+                    ),
+                    progress_callback,
+                )
                 continue
             if is_quota_or_rate_error(str(exc)):
-                print(f"  ⏭️  提煉 Agent 遇到配額限制，改用 fallback 摘要：{describe_quota_or_rate_error(exc)[:120]}")
+                message = f"提煉 Agent 遇到配額限制，改用 fallback 摘要：{describe_quota_or_rate_error(exc)[:120]}"
+                emit_log(f"  ⏭️  {message}")
+                emit_context_event(
+                    context,
+                    make_runtime_event(
+                        "status",
+                        phase="context_digest_fallback",
+                        level="warning",
+                        message=message,
+                        current=context.get("agent_positions", {}).get(agent_num, agent_num),
+                        total=context.get("agent_total"),
+                        name=AGENT_NAMES.get(agent_num, f"Agent {agent_num}"),
+                        agent_num=agent_num,
+                        pipeline_id=context.get("pipeline_id"),
+                        pipeline_label=context.get("pipeline_label"),
+                        metadata={"model_id": model_id, "task": "context_digest", "error_kind": exc.__class__.__name__},
+                    ),
+                    progress_callback,
+                )
                 break
-            print(f"  ⚠️  提煉 Agent 失敗，改用 fallback 摘要：{str(exc)[:120]}")
+            message = f"提煉 Agent 失敗，改用 fallback 摘要：{str(exc)[:120]}"
+            emit_log(f"  ⚠️  {message}")
+            emit_context_event(
+                context,
+                make_runtime_event(
+                    "status",
+                    phase="context_digest_fallback",
+                    level="warning",
+                    message=message,
+                    current=context.get("agent_positions", {}).get(agent_num, agent_num),
+                    total=context.get("agent_total"),
+                    name=AGENT_NAMES.get(agent_num, f"Agent {agent_num}"),
+                    agent_num=agent_num,
+                    pipeline_id=context.get("pipeline_id"),
+                    pipeline_label=context.get("pipeline_label"),
+                    metadata={"model_id": model_id, "task": "context_digest", "error_kind": exc.__class__.__name__},
+                ),
+                progress_callback,
+            )
             break
 
     digests[agent_num] = json.dumps(
@@ -356,7 +454,7 @@ def ensure_context_digest(agent_num: int, context: dict, rotator: KeyRotator):
     )
 
 
-async def ensure_context_digest_async(agent_num: int, context: dict, rotator: KeyRotator):
+async def ensure_context_digest_async(agent_num: int, context: dict, rotator: KeyRotator, progress_callback=None):
     """Async summarization agent before high-dependency agents."""
     if agent_num not in CONTEXT_DIGEST_TARGET_AGENTS:
         return
@@ -367,18 +465,105 @@ async def ensure_context_digest_async(agent_num: int, context: dict, rotator: Ke
     prompt = _build_context_digest_prompt(agent_num, context)
     for model_id in _context_digest_model_sequence():
         try:
+            await emit_context_event_async(
+                context,
+                make_runtime_event(
+                    "status",
+                    phase="context_digest_model_call",
+                    level="info",
+                    message=f"Agent {agent_num} 前序摘要正在呼叫模型 {model_id}...",
+                    current=context.get("agent_positions", {}).get(agent_num, agent_num),
+                    total=context.get("agent_total"),
+                    name=AGENT_NAMES.get(agent_num, f"Agent {agent_num}"),
+                    agent_num=agent_num,
+                    pipeline_id=context.get("pipeline_id"),
+                    pipeline_label=context.get("pipeline_label"),
+                    metadata={"model_id": model_id, "task": "context_digest"},
+                ),
+                progress_callback,
+            )
             api_key = await rotator.async_get_key(model_id, estimate_text_tokens(prompt, response_budget=4096))
             response = await _generate_context_digest_content_async(api_key, model_id, prompt)
             digests[agent_num] = _normalize_digest_text(response_text(response), agent_num, context)
-            print(f"  🧾 Agent {agent_num} 前序提煉摘要完成。")
+            emit_log(f"  🧾 Agent {agent_num} 前序提煉摘要完成。")
+            await emit_context_event_async(
+                context,
+                make_runtime_event(
+                    "status",
+                    phase="context_digest_done",
+                    level="info",
+                    message=f"Agent {agent_num} 前序提煉摘要完成。",
+                    current=context.get("agent_positions", {}).get(agent_num, agent_num),
+                    total=context.get("agent_total"),
+                    name=AGENT_NAMES.get(agent_num, f"Agent {agent_num}"),
+                    agent_num=agent_num,
+                    pipeline_id=context.get("pipeline_id"),
+                    pipeline_label=context.get("pipeline_label"),
+                    metadata={"model_id": model_id, "task": "context_digest"},
+                ),
+                progress_callback,
+            )
             return
         except Exception as exc:
             if is_missing_model_error(str(exc)):
+                await emit_context_event_async(
+                    context,
+                    make_runtime_event(
+                        "status",
+                        phase="model_fallback",
+                        level="warning",
+                        message=f"Context digest 模型 {model_id} 不可用，嘗試備援模型。",
+                        current=context.get("agent_positions", {}).get(agent_num, agent_num),
+                        total=context.get("agent_total"),
+                        name=AGENT_NAMES.get(agent_num, f"Agent {agent_num}"),
+                        agent_num=agent_num,
+                        pipeline_id=context.get("pipeline_id"),
+                        pipeline_label=context.get("pipeline_label"),
+                        metadata={"model_id": model_id, "task": "context_digest"},
+                    ),
+                    progress_callback,
+                )
                 continue
             if is_quota_or_rate_error(str(exc)):
-                print(f"  ⏭️  提煉 Agent 遇到配額限制，改用 fallback 摘要：{describe_quota_or_rate_error(exc)[:120]}")
+                message = f"提煉 Agent 遇到配額限制，改用 fallback 摘要：{describe_quota_or_rate_error(exc)[:120]}"
+                emit_log(f"  ⏭️  {message}")
+                await emit_context_event_async(
+                    context,
+                    make_runtime_event(
+                        "status",
+                        phase="context_digest_fallback",
+                        level="warning",
+                        message=message,
+                        current=context.get("agent_positions", {}).get(agent_num, agent_num),
+                        total=context.get("agent_total"),
+                        name=AGENT_NAMES.get(agent_num, f"Agent {agent_num}"),
+                        agent_num=agent_num,
+                        pipeline_id=context.get("pipeline_id"),
+                        pipeline_label=context.get("pipeline_label"),
+                        metadata={"model_id": model_id, "task": "context_digest", "error_kind": exc.__class__.__name__},
+                    ),
+                    progress_callback,
+                )
                 break
-            print(f"  ⚠️  提煉 Agent 失敗，改用 fallback 摘要：{str(exc)[:120]}")
+            message = f"提煉 Agent 失敗，改用 fallback 摘要：{str(exc)[:120]}"
+            emit_log(f"  ⚠️  {message}")
+            await emit_context_event_async(
+                context,
+                make_runtime_event(
+                    "status",
+                    phase="context_digest_fallback",
+                    level="warning",
+                    message=message,
+                    current=context.get("agent_positions", {}).get(agent_num, agent_num),
+                    total=context.get("agent_total"),
+                    name=AGENT_NAMES.get(agent_num, f"Agent {agent_num}"),
+                    agent_num=agent_num,
+                    pipeline_id=context.get("pipeline_id"),
+                    pipeline_label=context.get("pipeline_label"),
+                    metadata={"model_id": model_id, "task": "context_digest", "error_kind": exc.__class__.__name__},
+                ),
+                progress_callback,
+            )
             break
 
     digests[agent_num] = json.dumps(
@@ -434,41 +619,171 @@ async def _generate_tear_sheet_content_async(api_key: str, model_id: str, prompt
     return await generate_content_async(api_key, model_id, prompt, _build_tear_sheet_generation_config())
 
 
-def ensure_tear_sheet_summary(context: dict, rotator: KeyRotator):
+def ensure_tear_sheet_summary(context: dict, rotator: KeyRotator, progress_callback=None):
     if context.get("tear_sheet_summary") or not isinstance(rotator, KeyRotator):
         return
     prompt = _build_tear_sheet_prompt(context)
     for model_id in _tear_sheet_model_sequence():
         try:
+            emit_context_event(
+                context,
+                make_runtime_event(
+                    "status",
+                    phase="tear_sheet_model_call",
+                    level="info",
+                    message=f"一頁式摘要正在呼叫模型 {model_id}...",
+                    current=context.get("agent_total"),
+                    total=context.get("agent_total"),
+                    name="一頁式摘要",
+                    pipeline_id=context.get("pipeline_id"),
+                    pipeline_label=context.get("pipeline_label"),
+                    metadata={"model_id": model_id, "task": "tear_sheet"},
+                ),
+                progress_callback,
+            )
             api_key = rotator.get_key(model_id, estimate_text_tokens(prompt, response_budget=900))
             response = _generate_tear_sheet_content(api_key, model_id, prompt)
             summary = sanitize_model_output(response_text(response))
             if summary:
                 context["tear_sheet_summary"] = summary[:900]
-                print("  🧾 一頁式摘要已生成。")
+                emit_log("  🧾 一頁式摘要已生成。")
+                emit_context_event(
+                    context,
+                    make_runtime_event(
+                        "status",
+                        phase="tear_sheet_done",
+                        level="info",
+                        message="一頁式摘要已生成。",
+                        current=context.get("agent_total"),
+                        total=context.get("agent_total"),
+                        name="一頁式摘要",
+                        pipeline_id=context.get("pipeline_id"),
+                        pipeline_label=context.get("pipeline_label"),
+                        metadata={"model_id": model_id, "task": "tear_sheet"},
+                    ),
+                    progress_callback,
+                )
                 return
         except Exception as exc:
             if is_missing_model_error(str(exc)):
+                emit_context_event(
+                    context,
+                    make_runtime_event(
+                        "status",
+                        phase="model_fallback",
+                        level="warning",
+                        message=f"一頁式摘要模型 {model_id} 不可用，嘗試備援模型。",
+                        current=context.get("agent_total"),
+                        total=context.get("agent_total"),
+                        name="一頁式摘要",
+                        pipeline_id=context.get("pipeline_id"),
+                        pipeline_label=context.get("pipeline_label"),
+                        metadata={"model_id": model_id, "task": "tear_sheet"},
+                    ),
+                    progress_callback,
+                )
                 continue
-            print(f"  ⚠️  一頁式摘要生成失敗，報表將使用 fallback 摘要：{str(exc)[:120]}")
+            message = f"一頁式摘要生成失敗，報表將使用 fallback 摘要：{str(exc)[:120]}"
+            emit_log(f"  ⚠️  {message}")
+            emit_context_event(
+                context,
+                make_runtime_event(
+                    "status",
+                    phase="tear_sheet_fallback",
+                    level="warning",
+                    message=message,
+                    current=context.get("agent_total"),
+                    total=context.get("agent_total"),
+                    name="一頁式摘要",
+                    pipeline_id=context.get("pipeline_id"),
+                    pipeline_label=context.get("pipeline_label"),
+                    metadata={"model_id": model_id, "task": "tear_sheet", "error_kind": exc.__class__.__name__},
+                ),
+                progress_callback,
+            )
             return
 
 
-async def ensure_tear_sheet_summary_async(context: dict, rotator: KeyRotator):
+async def ensure_tear_sheet_summary_async(context: dict, rotator: KeyRotator, progress_callback=None):
     if context.get("tear_sheet_summary") or not isinstance(rotator, KeyRotator):
         return
     prompt = _build_tear_sheet_prompt(context)
     for model_id in _tear_sheet_model_sequence():
         try:
+            await emit_context_event_async(
+                context,
+                make_runtime_event(
+                    "status",
+                    phase="tear_sheet_model_call",
+                    level="info",
+                    message=f"一頁式摘要正在呼叫模型 {model_id}...",
+                    current=context.get("agent_total"),
+                    total=context.get("agent_total"),
+                    name="一頁式摘要",
+                    pipeline_id=context.get("pipeline_id"),
+                    pipeline_label=context.get("pipeline_label"),
+                    metadata={"model_id": model_id, "task": "tear_sheet"},
+                ),
+                progress_callback,
+            )
             api_key = await rotator.async_get_key(model_id, estimate_text_tokens(prompt, response_budget=900))
             response = await _generate_tear_sheet_content_async(api_key, model_id, prompt)
             summary = sanitize_model_output(response_text(response))
             if summary:
                 context["tear_sheet_summary"] = summary[:900]
-                print("  🧾 一頁式摘要已生成。")
+                emit_log("  🧾 一頁式摘要已生成。")
+                await emit_context_event_async(
+                    context,
+                    make_runtime_event(
+                        "status",
+                        phase="tear_sheet_done",
+                        level="info",
+                        message="一頁式摘要已生成。",
+                        current=context.get("agent_total"),
+                        total=context.get("agent_total"),
+                        name="一頁式摘要",
+                        pipeline_id=context.get("pipeline_id"),
+                        pipeline_label=context.get("pipeline_label"),
+                        metadata={"model_id": model_id, "task": "tear_sheet"},
+                    ),
+                    progress_callback,
+                )
                 return
         except Exception as exc:
             if is_missing_model_error(str(exc)):
+                await emit_context_event_async(
+                    context,
+                    make_runtime_event(
+                        "status",
+                        phase="model_fallback",
+                        level="warning",
+                        message=f"一頁式摘要模型 {model_id} 不可用，嘗試備援模型。",
+                        current=context.get("agent_total"),
+                        total=context.get("agent_total"),
+                        name="一頁式摘要",
+                        pipeline_id=context.get("pipeline_id"),
+                        pipeline_label=context.get("pipeline_label"),
+                        metadata={"model_id": model_id, "task": "tear_sheet"},
+                    ),
+                    progress_callback,
+                )
                 continue
-            print(f"  ⚠️  一頁式摘要生成失敗，報表將使用 fallback 摘要：{str(exc)[:120]}")
+            message = f"一頁式摘要生成失敗，報表將使用 fallback 摘要：{str(exc)[:120]}"
+            emit_log(f"  ⚠️  {message}")
+            await emit_context_event_async(
+                context,
+                make_runtime_event(
+                    "status",
+                    phase="tear_sheet_fallback",
+                    level="warning",
+                    message=message,
+                    current=context.get("agent_total"),
+                    total=context.get("agent_total"),
+                    name="一頁式摘要",
+                    pipeline_id=context.get("pipeline_id"),
+                    pipeline_label=context.get("pipeline_label"),
+                    metadata={"model_id": model_id, "task": "tear_sheet", "error_kind": exc.__class__.__name__},
+                ),
+                progress_callback,
+            )
             return

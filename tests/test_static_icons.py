@@ -17,6 +17,7 @@ def test_browser_icon_paths_are_served():
         "/favicon.ico": "image/x-icon",
         "/apple-touch-icon.png": "image/png",
         "/apple-touch-icon-precomposed.png": "image/png",
+        "/static/site-icon.svg": "image/svg+xml",
     }
 
     for path, content_type in expected_types.items():

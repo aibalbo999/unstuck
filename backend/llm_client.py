@@ -14,6 +14,7 @@ from typing import Any
 from google import genai
 
 from config import API_KEY_SETUP_MESSAGE, RPM_LIMITS, TPM_LIMITS
+from runtime_events import emit_log
 
 
 @dataclass
@@ -142,11 +143,11 @@ class KeyRotator:
                     self._reserve_for_key(key, model, estimated_tokens)
 
             if wait > 0:
-                print(f"    ⏳ {model} 動態限速等待 {wait:.1f} 秒...")
+                emit_log(f"    ⏳ {model} 動態限速等待 {wait:.1f} 秒...")
                 time.sleep(wait)
                 continue
 
-            print(f"    🔑 使用 Key {self.keys.index(key)+1}/{len(self.keys)} ({self._preview_key(key)})")
+            emit_log(f"    🔑 使用 Key {self.keys.index(key)+1}/{len(self.keys)} ({self._preview_key(key)})")
             return key
 
     async def async_get_key(self, model: str, estimated_tokens: int = 0) -> str:
@@ -163,11 +164,11 @@ class KeyRotator:
                     self._reserve_for_key(key, model, estimated_tokens)
 
             if wait > 0:
-                print(f"    ⏳ {model} 動態限速等待 {wait:.1f} 秒...")
+                emit_log(f"    ⏳ {model} 動態限速等待 {wait:.1f} 秒...")
                 await asyncio.sleep(wait)
                 continue
 
-            print(f"    🔑 使用 Key {self.keys.index(key)+1}/{len(self.keys)} ({self._preview_key(key)})")
+            emit_log(f"    🔑 使用 Key {self.keys.index(key)+1}/{len(self.keys)} ({self._preview_key(key)})")
             return key
 
     def penalize(self, key: str, model: str, wait_seconds: float = 60) -> None:

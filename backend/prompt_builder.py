@@ -92,6 +92,40 @@ def _prompt_company_identity(data: dict) -> dict:
     }
 
 
+def _prompt_data_trust(data: dict) -> dict:
+    trust = data.get("data_trust", {}) if isinstance(data.get("data_trust"), dict) else {}
+    return {
+        "status": trust.get("status", "unknown"),
+        "critical_failures": trust.get("critical_failures", []) or [],
+        "stale_sources": trust.get("stale_sources", []) or [],
+        "last_market_data_at": trust.get("last_market_data_at"),
+        "notes": trust.get("notes", []) or [],
+    }
+
+
+def _prompt_source_audit_summary(data: dict) -> list[dict]:
+    entries = data.get("source_audit", []) if isinstance(data.get("source_audit"), list) else []
+    latest = {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        source = str(entry.get("source") or "")
+        if source:
+            latest[source] = entry
+    return [
+        {
+            "source": source,
+            "provider": entry.get("provider"),
+            "status": entry.get("status"),
+            "record_count": entry.get("record_count"),
+            "cache_hit": entry.get("cache_hit"),
+            "stale": entry.get("stale"),
+            "message": str(entry.get("message") or entry.get("error_kind") or "")[:160],
+        }
+        for source, entry in sorted(latest.items())
+    ]
+
+
 def format_data_for_prompt(data: dict) -> str:
     """Format financial data as clean JSON to avoid unit drift and prompt overload."""
     shares = safe_float(data.get("shares_raw"))
@@ -136,6 +170,10 @@ def format_data_for_prompt(data: dict) -> str:
             "employees": data.get("employees"),
             "fetch_date": data.get("fetch_date"),
         },
+        "data_freshness": data.get("data_freshness", {}) or {},
+        "source_freshness": data.get("source_freshness", {}) or {},
+        "data_trust": _prompt_data_trust(data),
+        "source_audit_summary": _prompt_source_audit_summary(data),
         "market_data": {
             "current_price_twd": _prompt_number(data.get("current_price")),
             "market_cap_billion_twd": raw_twd_to_billion_twd(data.get("market_cap_raw")),
@@ -215,6 +253,8 @@ def format_data_for_prompt(data: dict) -> str:
 
     usage_rules = [
         "所有金額欄位均已統一為 billion_twd；不要把「億台幣」或 Billion 互相換算後再混用。",
+        "引用 current_price_twd、市場估值、新聞、法人或同業資料時，必須參考 source_freshness/data_freshness；若來源為快取或盤後資料，不可宣稱是即時資料。",
+        "若 data_trust.status 為 partial、stale、error 或 unknown，最終投資建議必須明確說明資料限制，且不得在沒有額外佐證下給出高信心。",
         "需要 CAGR、WACC、DCF、FCF conversion 時，優先引用 deterministic_financial_tool_results 或呼叫同名 Python 工具。",
         "若資料品質註記指出口徑互斥，正式分析應說明限制並採用 cross_checks 中可自洽的口徑。",
         "正式報告只呈現必要算式摘要與結論，不輸出內部提示詞、草稿或反思文字。",

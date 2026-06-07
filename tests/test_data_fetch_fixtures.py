@@ -1,0 +1,222 @@
+import asyncio
+import sys
+from pathlib import Path
+
+import pandas as pd
+
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "backend"))
+
+import data_fetch.cache_helpers as cache_helpers  # noqa: E402
+import data_fetch.optional_enrichment as optional_enrichment  # noqa: E402
+import data_fetch.yfinance_payload as yfinance_payload  # noqa: E402
+import data_fetch.yfinance_sync_enrichment as sync_enrichment  # noqa: E402
+import data_fetch.yfinance_legacy_fetch as financial_data  # noqa: E402
+
+
+class FakeStock:
+    def __init__(self):
+        cols = pd.to_datetime(["2025-12-31", "2024-12-31"])
+        self.financials = pd.DataFrame(
+            {
+                cols[0]: {
+                    "Total Revenue": 1_200_000_000,
+                    "Net Income": 240_000_000,
+                    "Gross Profit": 600_000_000,
+                    "Operating Income": 360_000_000,
+                },
+                cols[1]: {
+                    "Total Revenue": 1_000_000_000,
+                    "Net Income": 200_000_000,
+                    "Gross Profit": 500_000_000,
+                    "Operating Income": 300_000_000,
+                },
+            }
+        )
+        self.cashflow = pd.DataFrame(
+            {
+                cols[0]: {"Operating Cash Flow": 300_000_000, "Capital Expenditure": -80_000_000},
+                cols[1]: {"Operating Cash Flow": 260_000_000, "Capital Expenditure": -60_000_000},
+            }
+        )
+        self.balance_sheet = pd.DataFrame(
+            {
+                cols[0]: {"Total Assets": 2_000_000_000, "Stockholders Equity": 1_000_000_000},
+                cols[1]: {"Total Assets": 1_800_000_000, "Stockholders Equity": 900_000_000},
+            }
+        )
+
+    def history(self, period="1y"):
+        return pd.DataFrame(
+            {"Close": [95.0, 100.0]},
+            index=pd.to_datetime(["2025-01-31", "2025-02-28"]),
+        )
+
+
+class FakeProvider:
+    name = "fake-yfinance"
+
+    def __init__(self, resolved_ticker: str, country: str = "Taiwan"):
+        self.resolved_ticker = resolved_ticker
+        self.country = country
+
+    def resolve_stock(self, ticker: str):
+        info = {
+            "longName": "Fixture Corp",
+            "shortName": "Fixture",
+            "sector": "Technology",
+            "industry": "Semiconductors",
+            "country": self.country,
+            "currentPrice": 100.0,
+            "marketCap": 10_000_000_000,
+            "fiftyTwoWeekHigh": 120.0,
+            "fiftyTwoWeekLow": 80.0,
+            "averageVolume": 1_000_000,
+            "trailingPE": 20.0,
+            "forwardPE": 18.0,
+            "priceToBook": 4.0,
+            "priceToSalesTrailing12Months": 5.0,
+            "enterpriseToEbitda": 12.0,
+            "enterpriseValue": 11_000_000_000,
+            "sharesOutstanding": 100_000_000,
+            "forwardEps": 5.5,
+            "trailingEps": 5.0,
+            "totalRevenue": 1_250_000_000,
+            "grossMargins": 0.5,
+            "operatingMargins": 0.3,
+            "profitMargins": 0.2,
+            "ebitda": 400_000_000,
+            "freeCashflow": 220_000_000,
+            "operatingCashflow": 300_000_000,
+            "totalDebt": 100_000_000,
+            "totalCash": 200_000_000,
+            "debtToEquity": 10.0,
+            "currentRatio": 2.0,
+            "returnOnEquity": 0.2,
+            "returnOnAssets": 0.1,
+            "dividendYield": 0.02,
+            "dividendRate": 2.0,
+            "payoutRatio": 0.4,
+            "revenueGrowth": 0.1,
+            "earningsGrowth": 0.12,
+            "earningsQuarterlyGrowth": 0.11,
+            "beta": 1.0,
+            "targetMeanPrice": 115.0,
+            "recommendationKey": "hold",
+            "numberOfAnalystOpinions": 3,
+        }
+        return FakeStock(), info, True, self.resolved_ticker, [{"ticker": ticker, "valid": True}]
+
+
+class EmptyMonthlyRevenueLoader:
+    def taiwan_stock_month_revenue(self, stock_id: str, start_date: str):
+        return pd.DataFrame()
+
+
+class ExplodingLoader:
+    def __init__(self):
+        raise AssertionError("US stocks should not request FinMind monthly revenue")
+
+
+def _patch_common_fetch_dependencies(monkeypatch, resolved_ticker="2330.TW", country="Taiwan"):
+    monkeypatch.setattr(financial_data, "get_cache_json", lambda key: None)
+    monkeypatch.setattr(financial_data, "set_cache_json", lambda *args: None)
+    monkeypatch.setattr(yfinance_payload, "set_cache_json", lambda *args: None)
+    monkeypatch.setattr(cache_helpers, "set_cache_json", lambda *args: None)
+    monkeypatch.setattr(financial_data, "_is_likely_market_session", lambda ticker: False)
+    monkeypatch.setattr(financial_data.time_module, "time", lambda: 1_780_800_000.0)
+    monkeypatch.setattr(
+        financial_data,
+        "get_market_data_provider",
+        lambda ticker: FakeProvider(resolved_ticker=resolved_ticker, country=country),
+    )
+    monkeypatch.setattr(financial_data, "fetch_recent_catalysts", lambda *args, **kwargs: [])
+    monkeypatch.setattr(sync_enrichment, "fetch_finmind_news_catalysts", lambda *args, **kwargs: [])
+    monkeypatch.setattr(sync_enrichment, "fetch_yfinance_news_catalysts", lambda *args, **kwargs: [])
+    monkeypatch.setattr(sync_enrichment, "fetch_google_search_catalysts", lambda *args, **kwargs: [])
+    monkeypatch.setattr(sync_enrichment, "fetch_fmp_news_catalysts", lambda *args, **kwargs: [])
+    monkeypatch.setattr(sync_enrichment, "fetch_institutional_trading_trend", lambda *args, **kwargs: {})
+    monkeypatch.setattr(sync_enrichment, "fetch_dynamic_peer_metrics", lambda *args, **kwargs: [])
+    monkeypatch.setattr(sync_enrichment, "fetch_google_peer_discovery_results", lambda *args, **kwargs: [])
+    monkeypatch.setattr(financial_data, "fetch_fmp_quote_fallback", lambda *args, **kwargs: {})
+    monkeypatch.setattr(
+        financial_data,
+        "fetch_finmind_financial_statement_fallback",
+        lambda *args, **kwargs: {},
+    )
+    monkeypatch.setattr(
+        sync_enrichment,
+        "build_pe_river_chart_data",
+        lambda *args, **kwargs: {"years": ["2024", "2025"], "eps_twd": [2, 3], "bands": {"15": [30, 45]}},
+    )
+
+
+def test_taiwan_fixture_records_unavailable_finmind_monthly_revenue(monkeypatch):
+    _patch_common_fetch_dependencies(monkeypatch, resolved_ticker="2330.TW", country="Taiwan")
+    monkeypatch.setattr(financial_data, "DataLoader", EmptyMonthlyRevenueLoader)
+
+    data = financial_data.fetch_stock_data("2330.TW", skip_optional_http=True)
+
+    monthly_entries = [
+        entry for entry in data["source_audit"]
+        if entry["source"] == "monthly_revenue" and entry["provider"] == "FinMind TaiwanStockMonthRevenue"
+    ]
+    assert monthly_entries
+    assert monthly_entries[-1]["status"] == "unavailable"
+    assert data["recent_monthly_revenue"] == []
+
+
+def test_us_fixture_has_no_monthly_revenue_without_finmind_call(monkeypatch):
+    _patch_common_fetch_dependencies(monkeypatch, resolved_ticker="AAPL", country="United States")
+    monkeypatch.setattr(financial_data, "DataLoader", ExplodingLoader)
+
+    data = financial_data.fetch_stock_data("AAPL", skip_optional_http=True)
+
+    monthly_entries = [entry for entry in data["source_audit"] if entry["source"] == "monthly_revenue"]
+    assert data["recent_monthly_revenue"] == []
+    assert monthly_entries
+    assert monthly_entries[-1]["status"] == "unavailable"
+
+
+def test_async_fixture_records_google_and_fmp_failures(monkeypatch):
+    def fake_fetch_stock_data(ticker, skip_optional_http=False):
+        return {
+            "data_schema_version": financial_data.DATA_SCHEMA_VERSION,
+            "ticker": "2330.TW",
+            "company_name": "Fixture Corp",
+            "company_identity": {},
+            "sector": "Technology",
+            "industry": "Semiconductors",
+            "current_price": 100,
+            "years": ["2025"],
+            "revenue_history": [10],
+            "net_income_history": [2],
+            "source_audit": [],
+            "source_freshness": {
+                "recent_catalysts": {"fetched_at_epoch": 1_780_700_000.0, "stale": True},
+                "peer_discovery": {"fetched_at_epoch": 1_780_700_000.0, "stale": True},
+            },
+        }
+
+    async def fail_google(*args, **kwargs):
+        raise RuntimeError("google down")
+
+    async def fail_fmp(*args, **kwargs):
+        raise RuntimeError("fmp down")
+
+    monkeypatch.setattr(financial_data, "fetch_stock_data", fake_fetch_stock_data)
+    monkeypatch.setattr(optional_enrichment, "fetch_google_search_catalysts_async", fail_google)
+    monkeypatch.setattr(optional_enrichment, "fetch_fmp_news_catalysts_async", fail_fmp)
+    monkeypatch.setattr(optional_enrichment, "fetch_google_peer_discovery_results_async", fail_google)
+    monkeypatch.setattr(cache_helpers, "set_cache_json", lambda *args: None)
+    monkeypatch.setattr(financial_data.time_module, "time", lambda: 1_780_800_200.0)
+
+    data = asyncio.run(financial_data.async_fetch_stock_data("2330"))
+
+    errors = [
+        entry for entry in data["source_audit"]
+        if entry["status"] == "error" and entry["provider"] in {"Google Search", "FMP news"}
+    ]
+    assert {entry["provider"] for entry in errors} == {"Google Search", "FMP news"}
+    assert data["data_trust"]["status"] == "partial"

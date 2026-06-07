@@ -9,16 +9,20 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
-import agent_runner as ar  # noqa: E402
+import agent_runtime.legacy_agent_runner as ar  # noqa: E402
+import agent_runtime.audit_repair as audit_repair  # noqa: E402
 import assistant_tasks  # noqa: E402
 import config  # noqa: E402
 import external_data_clients as edc  # noqa: E402
-import financial_data  # noqa: E402
+import data_fetch.cache_helpers as cache_helpers  # noqa: E402
+import data_fetch.optional_enrichment as optional_enrichment  # noqa: E402
+import data_fetch.yfinance_legacy_fetch as financial_data  # noqa: E402
 import financial_tools  # noqa: E402
 import prompt_builder  # noqa: E402
 import pipeline_modes  # noqa: E402
-import rag_service  # noqa: E402
-import report_gen  # noqa: E402
+import rag_runtime  # noqa: E402
+import reporting.legacy_report_gen as report_gen  # noqa: E402
+import reporting.utils as report_utils  # noqa: E402
 import structured_outputs  # noqa: E402
 
 
@@ -152,6 +156,9 @@ def complete_v2_context():
 
 
 class AuditRuleTests(unittest.TestCase):
+    def setUp(self):
+        audit_repair.clear_repair_429_circuit()
+
     def assert_has_issue(self, issues, expected):
         joined = "\n".join(issues)
         self.assertIn(expected, joined)
@@ -265,9 +272,46 @@ class AuditRuleTests(unittest.TestCase):
             "內部提示詞片段",
         )
         self.assert_has_issue(
+            ar.validate_prompt_leakage("Senior Financial Media Host. Bull thesis 與 Bear thesis 開場。\n正式內容"),
+            "內部提示詞片段",
+        )
+        self.assertNotIn(
+            "Senior Financial Media Host",
+            ar.sanitize_model_output("Senior Financial Media Host. Bull thesis 與 Bear thesis 開場。\n\n## 多空辯論\n正式內容"),
+        )
+        self.assert_has_issue(
             ar.validate_company_identity("大亞（1623.TW）是能源鏈整合服務商。大亞具備儲能業務。", base_data()),
             "公司身分錯置",
         )
+
+    def test_sanitizers_remove_leaked_role_bylines_and_debate_prompt_blocks(self):
+        leaked_debate = (
+            "Bull (Dr. Chen) vs. Bear (Dr. Li) on 2449.TW (King Yuan Electronics).\n"
+            "        *   Round 1: Fundamentals/Moat (Bull starts).\n"
+            "        *   Fixed prefixes: 🐂 多頭: and 🐻 空頭:.\n"
+            "        *   Use provided Target Prices and Growth Scenarios.\n\n"
+            "歡迎收看今天的《財經大辯論》，我是主持人。\n\n"
+            "### Round 1：基本面與護城河\n"
+            "🐂 多頭：AI/HPC 測試需求提升，有利測試 ASP。\n"
+            "🐻 空頭：高 CapEx 與負自由現金流仍需警惕。"
+        )
+        for sanitizer in (ar.sanitize_model_output, report_utils.sanitize_report_text):
+            cleaned = sanitizer(leaked_debate)
+            self.assertIn("歡迎收看", cleaned)
+            self.assertIn("🐂 多頭", cleaned)
+            self.assertNotIn("Bull (Dr. Chen)", cleaned)
+            self.assertNotIn("Fixed prefixes", cleaned)
+            self.assertNotIn("Use provided Target Prices", cleaned)
+
+        byline = (
+            "# 京元電子研究報告\n\n"
+            "**分析師：** 高盛 (Goldman Sachs) 股票研究部門\n"
+            "**研究對象：** 京元電子\n\n"
+            "## 一、公司概述\n京元電子是半導體測試廠。"
+        )
+        cleaned = ar.sanitize_model_output(byline)
+        self.assertNotIn("高盛", cleaned)
+        self.assertIn("公司概述", cleaned)
 
     def test_v2_report_sanitizes_prompt_leak_and_inserts_structured_blocks(self):
         md = report_gen.generate_markdown_report(complete_v2_context())
@@ -393,6 +437,121 @@ class AuditRuleTests(unittest.TestCase):
         html = report_gen.generate_html_report(context)
         self.assertNotIn("系統異常提醒", html)
         self.assertNotIn("系統品質檢查警示", html)
+
+    def test_structured_repair_falls_back_when_valuation_json_remains_unparseable(self):
+        context = complete_v2_context()
+        context["structured_outputs"].pop(14)
+        context["analyses"][14] = (
+            '{\n  "price_targets": {\n'
+            '    "dcf_reasoning": "估值文字存在，但 JSON 在 peer_reasoning 中斷裂。",\n'
+            '    "peer_reasoning": "Intel 毛利率 37.2%、營業利益率 6.88%\n'
+        )
+        ok, message = audit_repair._deterministic_structured_fallback(
+            14,
+            context["data"],
+            context,
+            context["analyses"][14],
+        )
+
+        self.assertTrue(ok)
+        self.assertIn("三情境估值 fallback", message)
+        self.assertEqual(
+            set(context["structured_outputs"][14]["price_targets"]),
+            {"熊市情境", "基本情境", "牛市情境"},
+        )
+        self.assertIn("[目標股價]", context["analyses"][14])
+        self.assertNotIn('"peer_reasoning": "Intel', context["analyses"][14])
+
+    def test_structured_repair_uses_fallback_when_model_repair_is_unavailable(self):
+        context = complete_v2_context()
+        context["structured_outputs"].pop(14)
+        context["analyses"][14] = "## 二、DCF 模型與情境分析\n模型文字存在，但未提供可解析三情境 JSON。"
+        with patch.object(
+            audit_repair,
+            "run_single_agent",
+            return_value="[Agent 14 執行失敗：所有模型/Key 不可用，最後錯誤：429 RESOURCE_EXHAUSTED]",
+        ):
+            ok, message = audit_repair._repair_agent_output(
+                14,
+                context["data"],
+                context,
+                object(),
+                ["三情境目標價 未提供可解析 JSON 結構化輸出。"],
+            )
+
+        self.assertTrue(ok)
+        self.assertIn("AI 修復不可用", message)
+        self.assertEqual(context["deterministic_fallbacks"][0]["trigger"], "repair_429_failure")
+        self.assertIn("429", context["deterministic_fallbacks"][0]["raw_failure"])
+        self.assertEqual(
+            set(context["structured_outputs"][14]["price_targets"]),
+            {"熊市情境", "基本情境", "牛市情境"},
+        )
+
+    def test_structured_repair_does_not_fallback_for_non_429_execution_failure(self):
+        context = complete_v2_context()
+        context["structured_outputs"].pop(14)
+        context["analyses"][14] = "## 二、DCF 模型與情境分析\n模型文字存在，但未提供可解析三情境 JSON。"
+        with patch.object(
+            audit_repair,
+            "run_single_agent",
+            return_value="[Agent 14 執行失敗：所有模型/Key 不可用，最後錯誤：503 UNAVAILABLE]",
+        ):
+            ok, message = audit_repair._repair_agent_output(
+                14,
+                context["data"],
+                context,
+                object(),
+                ["三情境目標價 未提供可解析 JSON 結構化輸出。"],
+            )
+
+        self.assertFalse(ok)
+        self.assertIn("503 UNAVAILABLE", message)
+        self.assertNotIn(14, context["structured_outputs"])
+        self.assertNotIn("deterministic_fallbacks", context)
+
+    def test_recommendation_structured_fallback_preserves_report_contract(self):
+        context = complete_v2_context()
+        context["structured_outputs"].pop(16)
+        context["parsed"] = ar.parse_structured_data(context)
+        ok, message = audit_repair._deterministic_structured_fallback(
+            16,
+            context["data"],
+            context,
+            "[投資建議]\n建議: 持有\n信心指數: 6/10\n[/投資建議]",
+        )
+
+        self.assertTrue(ok)
+        self.assertIn("投資建議 fallback", message)
+        self.assertIn("[投資建議]", context["analyses"][16])
+        self.assertIn("建議: 持有", context["analyses"][16])
+
+    def test_financial_quality_repair_uses_safe_fallback_when_model_unavailable(self):
+        context = complete_context()
+        context["analyses"][2] = (
+            "Yahoo TTM ROE/ROA/淨利率與最新年度資產周轉率及權益乘數拼接成 TTM 杜邦公式，"
+            "2025年營收為72.7B，TTM營收為99.79B，營收年增率高達196.0%。"
+        )
+        issues = ar.validate_analysis_output(2, context["analyses"][2], context["data"])
+        self.assertTrue(issues)
+        with patch.object(
+            audit_repair,
+            "run_single_agent",
+            return_value="[Agent 2 執行失敗：所有模型/Key 不可用，最後錯誤：429 RESOURCE_EXHAUSTED]",
+        ):
+            ok, message = audit_repair._repair_agent_output(
+                2,
+                context["data"],
+                context,
+                object(),
+                issues,
+            )
+
+        self.assertTrue(ok)
+        self.assertIn("財務品質 fallback", message)
+        self.assertIn("保守口徑", context["analyses"][2])
+        self.assertEqual(context["deterministic_fallbacks"][0]["trigger"], "repair_429_failure")
+        self.assertEqual(ar.validate_analysis_output(2, context["analyses"][2], context["data"]), [])
 
     def test_finalize_audit_retries_until_reaudit_passes(self):
         context = complete_context()
@@ -772,13 +931,13 @@ class AuditRuleTests(unittest.TestCase):
         self.assertIn("moat_weakness_matrix", payload)
 
     def test_agent_6_rag_query_targets_negative_signals(self):
-        query = rag_service.AGENT_RAG_QUERIES[6]
+        query = rag_runtime.AGENT_RAG_QUERIES[6]
         self.assertIn("downgrade", query)
         self.assertIn("下修", query)
         self.assertIn("warning", query)
 
     def test_agent_15_rag_query_targets_chip_and_sentiment(self):
-        query = rag_service.AGENT_RAG_QUERIES[15]
+        query = rag_runtime.AGENT_RAG_QUERIES[15]
         self.assertIn("institutional", query)
         self.assertIn("籌碼", query)
         self.assertIn("河流圖", query)
@@ -916,10 +1075,10 @@ class AuditRuleTests(unittest.TestCase):
             return [{"title": "FMP headline", "source_type": "fmp_news"}]
 
         with patch.object(financial_data, "fetch_stock_data", side_effect=fake_fetch_stock_data), \
-                patch.object(financial_data, "fetch_google_search_catalysts_async", side_effect=fake_google_catalysts), \
-                patch.object(financial_data, "fetch_google_peer_discovery_results_async", side_effect=fake_peer_discovery), \
-                patch.object(financial_data, "fetch_fmp_news_catalysts_async", side_effect=fake_fmp_news), \
-                patch.object(financial_data, "set_cache_json") as cache_mock:
+                patch.object(optional_enrichment, "fetch_google_search_catalysts_async", side_effect=fake_google_catalysts), \
+                patch.object(optional_enrichment, "fetch_google_peer_discovery_results_async", side_effect=fake_peer_discovery), \
+                patch.object(optional_enrichment, "fetch_fmp_news_catalysts_async", side_effect=fake_fmp_news), \
+                patch.object(cache_helpers, "set_cache_json") as cache_mock:
             data = asyncio.run(financial_data.async_fetch_stock_data("2330"))
 
         titles = [item["title"] for item in data["recent_catalysts"]]

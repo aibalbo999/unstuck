@@ -8,9 +8,11 @@ from pathlib import Path
 from typing import Optional
 
 from config import CACHE_DB_PATH
+from storage.migrations import MigrationRunner
 
 
 _CACHE_LOCK = threading.Lock()
+CACHE_STORE_SCHEMA_VERSION = 1
 
 
 def _json_default(value):
@@ -34,6 +36,14 @@ def _connect():
             updated_at REAL NOT NULL
         )
         """
+    )
+    MigrationRunner(conn, "cache_store").run(
+        CACHE_STORE_SCHEMA_VERSION,
+        {
+            1: lambda migration_conn: migration_conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_cache_entries_expires_at ON cache_entries(expires_at)"
+            )
+        },
     )
     return conn
 

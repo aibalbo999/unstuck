@@ -214,6 +214,20 @@ RAG_MIN_SOURCE_CHARS = _env_int("RAG_MIN_SOURCE_CHARS", 280)
 RAG_MAX_INDEX_CHUNKS = _env_int("RAG_MAX_INDEX_CHUNKS", 48)
 RAG_MAX_CHUNKS_PER_AGENT = _env_int("RAG_MAX_CHUNKS_PER_AGENT", 5)
 RAG_MAX_CONTEXT_CHARS = _env_int("RAG_MAX_CONTEXT_CHARS", 5200)
+RAG_LARGE_CONTEXT_CHARS = _env_int("RAG_LARGE_CONTEXT_CHARS", 16000)
+RAG_LARGE_CONTEXT_CHUNKS = _env_int("RAG_LARGE_CONTEXT_CHUNKS", 8)
+RAG_EMBEDDING_CACHE_SECONDS = _env_int("RAG_EMBEDDING_CACHE_SECONDS", 30 * 24 * 60 * 60)
+
+CONTEXT_TOTAL_CHAR_BUDGET = _env_int("CONTEXT_TOTAL_CHAR_BUDGET", 11000)
+CONTEXT_PER_AGENT_CHAR_BUDGET = _env_int("CONTEXT_PER_AGENT_CHAR_BUDGET", 2200)
+LARGE_CONTEXT_MODEL_PATTERN = _env_str("LARGE_CONTEXT_MODEL_PATTERN", r"(gemini|flash)")
+LARGE_CONTEXT_TOTAL_CHAR_BUDGET = _env_int("LARGE_CONTEXT_TOTAL_CHAR_BUDGET", 28000)
+LARGE_CONTEXT_PER_AGENT_CHAR_BUDGET = _env_int("LARGE_CONTEXT_PER_AGENT_CHAR_BUDGET", 5200)
+BLIND_CONTEXT_AGENTS = {
+    int(agent_num)
+    for agent_num in _env_list("BLIND_CONTEXT_AGENTS", ["13"])
+    if str(agent_num).strip().isdigit()
+}
 
 if not DEFAULT_ANALYSIS_MODEL or not DEFAULT_DECISION_MODEL:
     raise RuntimeError(
@@ -317,6 +331,33 @@ def _load_model_limits(json_env_name: str, default_env_name: str, builtins: dict
 AGENT_MODELS = _load_agent_models()
 AGENT_FALLBACK_MODELS = _load_agent_fallbacks()
 
+
+def is_large_context_model(model_id: str) -> bool:
+    """Return True for models configured to receive a larger prompt budget."""
+    pattern = str(LARGE_CONTEXT_MODEL_PATTERN or "").strip()
+    if not pattern:
+        return False
+    try:
+        return bool(re.search(pattern, str(model_id or ""), re.IGNORECASE))
+    except re.error:
+        return False
+
+
+def get_agent_context_budgets(agent_num: int) -> tuple[int, int]:
+    """Return total/per-upstream-agent context character budgets."""
+    model_id = AGENT_MODELS.get(int(agent_num), "")
+    if is_large_context_model(model_id):
+        return LARGE_CONTEXT_TOTAL_CHAR_BUDGET, LARGE_CONTEXT_PER_AGENT_CHAR_BUDGET
+    return CONTEXT_TOTAL_CHAR_BUDGET, CONTEXT_PER_AGENT_CHAR_BUDGET
+
+
+def get_agent_rag_budget(agent_num: int) -> tuple[int, int]:
+    """Return RAG max chars/top-k budget for the agent's primary model."""
+    model_id = AGENT_MODELS.get(int(agent_num), "")
+    if is_large_context_model(model_id):
+        return RAG_LARGE_CONTEXT_CHARS, RAG_LARGE_CONTEXT_CHUNKS
+    return RAG_MAX_CONTEXT_CHARS, RAG_MAX_CHUNKS_PER_AGENT
+
 # Per-key dynamic limits used by llm_client.KeyRotator. Override in backend/.env.
 ROUTE_RPM_LIMITS = _route_limit_defaults("rpm_limits")
 ROUTE_TPM_LIMITS = _route_limit_defaults("tpm_limits")
@@ -374,10 +415,54 @@ INTER_AGENT_DELAY = _env_float("INTER_AGENT_DELAY", 0.0)
 # 輸出目錄
 OUTPUT_DIR = os.getenv("OUTPUT_DIR", str(BASE_DIR / "output"))
 
+# CORS 白名單。若確定只做本機同源服務，可保留預設；雲端部署請用環境變數覆寫。
+ALLOWED_ORIGINS = _env_list(
+    "ALLOWED_ORIGINS",
+    [
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+)
+
 # 本地持久化快取
 CACHE_DIR = Path(os.getenv("CACHE_DIR", str(BASE_DIR / "cache")))
 CACHE_DB_PATH = os.getenv("CACHE_DB_PATH", str(CACHE_DIR / "stock_agent_cache.sqlite3"))
+DATA_SNAPSHOT_MAX_BYTES = _env_int("DATA_SNAPSHOT_MAX_BYTES", 2 * 1024 * 1024)
 FINANCIAL_DATA_CACHE_SECONDS = int(os.getenv("FINANCIAL_DATA_CACHE_SECONDS", str(24 * 60 * 60)))
+FINANCIAL_DATA_MARKET_CACHE_SECONDS = _env_int("FINANCIAL_DATA_MARKET_CACHE_SECONDS", 15 * 60)
+FINANCIAL_DATA_OFFHOURS_CACHE_SECONDS = _env_int(
+    "FINANCIAL_DATA_OFFHOURS_CACHE_SECONDS",
+    FINANCIAL_DATA_CACHE_SECONDS,
+)
+
+
+def _load_source_freshness_seconds() -> dict[str, int]:
+    defaults = {
+        "market_data": FINANCIAL_DATA_MARKET_CACHE_SECONDS,
+        "financial_statements": FINANCIAL_DATA_CACHE_SECONDS,
+        "monthly_revenue": 24 * 60 * 60,
+        "recent_catalysts": 30 * 60,
+        "institutional_trading": 6 * 60 * 60,
+        "dynamic_peer_metrics": 24 * 60 * 60,
+        "peer_discovery": 24 * 60 * 60,
+        "pe_river_chart": 24 * 60 * 60,
+    }
+    for key in list(defaults):
+        env_name = f"SOURCE_FRESHNESS_{key.upper()}_SECONDS"
+        defaults[key] = _env_int(env_name, defaults[key])
+    for key, value in _json_env_dict("SOURCE_FRESHNESS_SECONDS_JSON").items():
+        try:
+            defaults[str(key)] = int(value)
+        except (TypeError, ValueError):
+            continue
+    return defaults
+
+
+SOURCE_FRESHNESS_MAX_AGE_SECONDS = _load_source_freshness_seconds()
 
 # 可選外部資料備援來源
 FMP_API_KEY = os.getenv("FMP_API_KEY", "").strip()

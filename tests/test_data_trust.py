@@ -1,0 +1,187 @@
+import json
+import sys
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "backend"))
+
+import data_trust  # noqa: E402
+import data_fetch.audit_helpers as audit_helpers  # noqa: E402
+from data_fetch.constants import DATA_SCHEMA_VERSION  # noqa: E402
+
+
+def test_source_audit_success_error_and_skipped_cache_entries():
+    data = {
+        "ticker": "2330.TW",
+        "current_price": 100,
+        "years": ["2024", "2025"],
+        "revenue_history": [10, 12],
+        "net_income_history": [2, 3],
+        "recent_catalysts": [{"title": "cached"}],
+        "source_freshness": {
+            "market_data": {"fetched_at_epoch": 100.0, "stale": False},
+            "financial_statements": {"fetched_at_epoch": 100.0, "stale": False},
+            "recent_catalysts": {"fetched_at_epoch": 100.0, "stale": False},
+        },
+    }
+
+    audit_helpers._append_source_fetch_audit(
+        data,
+        "market_data",
+        "yfinance",
+        data_trust.AUDIT_STATUS_SUCCESS,
+        fetched_at_epoch=100.0,
+        started_at_epoch=99.5,
+        finished_at_epoch=100.0,
+    )
+    audit_helpers._append_source_fetch_audit(
+        data,
+        "financial_statements",
+        "yfinance",
+        data_trust.AUDIT_STATUS_ERROR,
+        fetched_at_epoch=100.0,
+        started_at_epoch=99.0,
+        finished_at_epoch=100.0,
+        record_count=0,
+        error_kind="missing_data",
+        message="annual statement missing",
+    )
+    audit_helpers._append_skipped_fresh_cache_audit(data, ("recent_catalysts",), now_epoch=105.0)
+
+    entries = data["source_audit"]
+    assert entries[0]["status"] == "success"
+    assert entries[0]["duration_ms"] == 500
+    assert entries[1]["status"] == "error"
+    assert entries[1]["error_kind"] == "missing_data"
+    assert entries[2]["status"] == "skipped_fresh_cache"
+    assert entries[2]["cache_hit"] is True
+
+
+def test_data_trust_statuses_fresh_stale_error_unknown():
+    fresh = {
+        "current_price": 100,
+        "years": ["2025"],
+        "revenue_history": [10],
+        "source_freshness": {
+            "market_data": {"stale": False, "fetched_at": "2026-06-07T00:00:00+00:00"},
+            "financial_statements": {"stale": False, "fetched_at": "2026-06-07T00:00:00+00:00"},
+        },
+        "source_audit": [
+            data_trust.build_source_audit_entry("market_data", "yfinance", "success", record_count=1),
+            data_trust.build_source_audit_entry("financial_statements", "yfinance", "success", record_count=1),
+        ],
+    }
+    assert data_trust.build_data_trust(fresh)["status"] == "fresh"
+
+    stale = dict(fresh)
+    stale["source_freshness"] = {
+        "market_data": {"stale": True, "fetched_at": "2026-06-01T00:00:00+00:00"},
+        "financial_statements": {"stale": False, "fetched_at": "2026-06-07T00:00:00+00:00"},
+    }
+    assert data_trust.build_data_trust(stale)["status"] == "stale"
+    assert "market_data" in data_trust.build_data_trust(stale)["stale_sources"]
+
+    error = {
+        "source_audit": [
+            data_trust.build_source_audit_entry("market_data", "yfinance", "error", record_count=0),
+            data_trust.build_source_audit_entry("financial_statements", "yfinance", "error", record_count=0),
+        ]
+    }
+    trust = data_trust.build_data_trust(error)
+    assert trust["status"] == "error"
+    assert trust["critical_failures"] == ["market_data", "financial_statements"]
+
+    assert data_trust.build_data_trust({})["status"] == "unknown"
+
+
+def test_data_snapshot_sanitizes_sensitive_keys():
+    snapshot = data_trust.build_data_snapshot(
+        {
+            "ticker": "TEST",
+            "pipeline_id": "v1",
+            "deterministic_fallbacks": [
+                {
+                    "agent_num": 14,
+                    "trigger": "repair_429_failure",
+                    "message": "已套用 deterministic 三情境估值 fallback",
+                }
+            ],
+            "data": {
+                "ticker": "TEST",
+                "api_key": "SHOULD_NOT_APPEAR",
+                "nested": {
+                    "prompt": "DO NOT SAVE PROMPT",
+                    "safe_value": 123,
+                },
+                "source_audit": [],
+                "data_trust": data_trust.unknown_data_trust(),
+            },
+        }
+    )
+    encoded = json.dumps(snapshot, ensure_ascii=False)
+
+    assert "SHOULD_NOT_APPEAR" not in encoded
+    assert "DO NOT SAVE PROMPT" not in encoded
+    assert snapshot["data"]["nested"]["safe_value"] == 123
+    assert snapshot["deterministic_fallbacks"][0]["trigger"] == "repair_429_failure"
+
+
+def test_data_snapshot_schema_validation_and_truncation():
+    audit = [
+        data_trust.build_source_audit_entry(
+            "market_data",
+            "fake",
+            "success",
+            record_count=2,
+            message="kept in full audit",
+        )
+    ]
+    context = {
+        "ticker": "BIG",
+        "pipeline_id": "v2",
+        "data": {
+            "data_schema_version": DATA_SCHEMA_VERSION,
+            "ticker": "BIG",
+            "company_name": "Big Fixture",
+            "current_price": 100,
+            "years": ["2024", "2025"],
+            "revenue_history": [10, 12],
+            "net_income_history": [2, 3],
+            "source_freshness": {
+                "market_data": {"stale": False, "fetched_at": "2026-06-07T00:00:00+00:00"},
+                "financial_statements": {"stale": False, "fetched_at": "2026-06-07T00:00:00+00:00"},
+            },
+            "source_audit": audit,
+            "data_trust": {
+                "status": "fresh",
+                "critical_failures": [],
+                "stale_sources": [],
+                "last_market_data_at": "2026-06-07T00:00:00+00:00",
+                "notes": ["fixture"],
+            },
+            "recent_catalysts": [{"title": "x" * 180} for _ in range(20)],
+            "peer_discovery_results": [{"title": "y" * 180} for _ in range(20)],
+            "dynamic_peer_metrics": [{"name": "z" * 180} for _ in range(20)],
+            "internal_retry_metadata": "SHOULD_NOT_APPEAR",
+        },
+    }
+
+    snapshot = data_trust.build_data_snapshot(context, max_bytes=1600)
+    encoded = json.dumps(snapshot, ensure_ascii=False)
+
+    assert snapshot["snapshot_schema_version"] == data_trust.DATA_SNAPSHOT_SCHEMA_VERSION
+    assert snapshot["snapshot_truncated"] is True
+    assert snapshot["snapshot_size_bytes"] == data_trust.snapshot_size_bytes(snapshot)
+    assert snapshot["snapshot_omitted_sections"]
+    assert snapshot["source_audit"] == audit
+    assert snapshot["data_trust"]["status"] == "fresh"
+    assert "SHOULD_NOT_APPEAR" not in encoded
+    assert data_trust.validate_data_snapshot(snapshot)["valid"] is True
+
+
+def test_data_snapshot_schema_validation_rejects_old_shape():
+    validation = data_trust.validate_data_snapshot({"ticker": "OLD"})
+
+    assert validation["valid"] is False
+    assert "unsupported snapshot_schema_version" in validation["errors"]

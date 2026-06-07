@@ -1,13 +1,15 @@
 """Importable analysis job entrypoints for local workers or RQ workers."""
 
 import asyncio
+import json
 import os
 import time
 
 from config import API_KEY_SETUP_MESSAGE, OUTPUT_DIR, has_api_keys
-from financial_data import async_fetch_stock_data
-from job_store import append_event, update_job
-from pipeline import run_analysis_pipeline_async
+from agent_runtime import AnalysisPipelineRunner, AnalysisRequest
+from data_fetch import FetchRequest, StockDataService
+from data_trust import data_snapshot_filename_for_report
+from job_store import append_event, is_job_cancel_requested, update_job
 from pipeline_modes import (
     get_pipeline_definition,
     get_pipeline_run_agent_total,
@@ -15,7 +17,22 @@ from pipeline_modes import (
     get_pipeline_run_sequence,
     normalize_pipeline_run_id,
 )
-from report_gen import generate_html_report_async, generate_markdown_report
+from report_index import upsert_report_metadata
+from reporting import ReportRenderer, ReportRequest
+
+
+STOCK_DATA_SERVICE = StockDataService()
+PIPELINE_RUNNER = AnalysisPipelineRunner()
+REPORT_RENDERER = ReportRenderer()
+
+
+class AnalysisJobCancelled(Exception):
+    pass
+
+
+def _raise_if_cancelled(job_id: str) -> None:
+    if is_job_cancel_requested(job_id):
+        raise AnalysisJobCancelled("分析任務已取消。")
 
 
 def build_operator_audit_notice(context: dict) -> dict:
@@ -67,6 +84,7 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
             append_event(job_id, {"type": "error", "message": API_KEY_SETUP_MESSAGE})
             return ""
 
+        _raise_if_cancelled(job_id)
         append_event(job_id, {
             "type": "status",
             "message": f"正在獲取 {ticker_upper} 財務數據...",
@@ -74,7 +92,9 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
             "pipeline_label": run_label,
             "pipeline_sequence": list(pipeline_sequence),
         })
-        data = await async_fetch_stock_data(ticker_upper)
+        data_result = await STOCK_DATA_SERVICE.fetch_async(FetchRequest.from_ticker(ticker_upper))
+        _raise_if_cancelled(job_id)
+        data = data_result.data
         if "error" in data:
             append_event(job_id, {"type": "status", "message": f"財務數據獲取有誤：{data['error']}，將繼續分析"})
 
@@ -83,8 +103,11 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
         sequence_total = len(pipeline_sequence)
 
         for sequence_index, current_pipeline_id in enumerate(pipeline_sequence, start=1):
+            _raise_if_cancelled(job_id)
             pipeline_def = get_pipeline_definition(current_pipeline_id)
             agent_count = len(pipeline_def["agents"])
+            pipeline_completed_count = 0
+            last_event_current = completed_agent_offset
             append_event(job_id, {
                 "type": "status",
                 "message": f"開始執行 {pipeline_def['label']}（{sequence_index}/{sequence_total}，{agent_count} 位 Agent）...",
@@ -105,10 +128,26 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
                 "agent_total": total_agents,
             })
 
-            def progress_callback(current, total, name, phase="completed", message=None):
+            def progress_callback(current, total=None, name=None, phase="completed", message=None):
+                nonlocal pipeline_completed_count, last_event_current
+                _raise_if_cancelled(job_id)
+                raw_event = current if isinstance(current, dict) else {}
+                if raw_event:
+                    current = raw_event.get("current", 0)
+                    total = raw_event.get("total", total)
+                    name = raw_event.get("name") or raw_event.get("message") or name
+                    phase = raw_event.get("phase") or ("completed" if raw_event.get("type") == "progress" else "status")
+                    message = raw_event.get("message", message)
                 current = int(current or 0)
                 local_total = int(total or agent_count)
-                global_current = min(total_agents, completed_agent_offset + max(current, 0))
+                if phase == "completed":
+                    pipeline_completed_count = min(local_total, pipeline_completed_count + 1)
+                    calculated_current = completed_agent_offset + pipeline_completed_count
+                else:
+                    active_increment = 1 if current and pipeline_completed_count < local_total else 0
+                    calculated_current = completed_agent_offset + pipeline_completed_count + active_increment
+                global_current = min(total_agents, max(last_event_current, calculated_current))
+                last_event_current = global_current
                 event_name = f"{pipeline_def['short_label']} · {name}" if sequence_total > 1 else name
                 if phase == "completed":
                     append_event(job_id, {
@@ -116,6 +155,7 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
                         "current": global_current,
                         "total": total_agents,
                         "name": event_name,
+                        "agent_num": raw_event.get("agent_num") if raw_event else None,
                         "pipeline_id": current_pipeline_id,
                         "pipeline_label": pipeline_def["label"],
                         "pipeline_current": current,
@@ -135,13 +175,24 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
                     "current": global_current,
                     "total": total_agents,
                     "phase": phase,
+                    "level": raw_event.get("level") if raw_event else None,
+                    "agent_num": raw_event.get("agent_num") if raw_event else None,
+                    "metadata": raw_event.get("metadata") if raw_event else None,
                     "pipeline_id": current_pipeline_id,
                     "pipeline_label": pipeline_def["label"],
                     "pipeline_current": current,
                     "pipeline_total": local_total,
                 })
 
-            context = await run_analysis_pipeline_async(dict(data), progress_callback=progress_callback, pipeline_id=current_pipeline_id)
+            analysis_result = await PIPELINE_RUNNER.run_async(
+                AnalysisRequest(
+                    data=dict(data),
+                    progress_callback=progress_callback,
+                    pipeline_id=current_pipeline_id,
+                )
+            )
+            _raise_if_cancelled(job_id)
+            context = analysis_result.context
             audit_notice = build_operator_audit_notice(context)
 
             if audit_notice["status"] == "needs_attention":
@@ -165,24 +216,42 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
                 "pipeline_id": current_pipeline_id,
                 "pipeline_label": pipeline_def["label"],
             })
-            html_content = await generate_html_report_async(context)
-            md_content = generate_markdown_report(context)
-
+            _raise_if_cancelled(job_id)
             os.makedirs(OUTPUT_DIR, exist_ok=True)
             timestamp = time.strftime("%Y%m%d_%H%M%S")
             safe_ticker = ticker_upper.replace(".", "_")
             filename = f"{safe_ticker}_{current_pipeline_id}_report_{timestamp}.html"
             md_filename = f"{safe_ticker}_{current_pipeline_id}_report_{timestamp}.md"
+            data_filename = data_snapshot_filename_for_report(filename)
+            report_bundle = await REPORT_RENDERER.render_async(
+                ReportRequest(
+                    context=context,
+                    pipeline_id=current_pipeline_id,
+                    filename=filename,
+                )
+            )
 
             with open(os.path.join(OUTPUT_DIR, filename), "w", encoding="utf-8") as f:
-                f.write(html_content)
+                f.write(report_bundle.html)
             with open(os.path.join(OUTPUT_DIR, md_filename), "w", encoding="utf-8") as f:
-                f.write(md_content)
+                f.write(report_bundle.markdown)
+            data_snapshot = report_bundle.data_snapshot
+            with open(os.path.join(OUTPUT_DIR, data_filename), "w", encoding="utf-8") as f:
+                json.dump(data_snapshot, f, ensure_ascii=False, indent=2)
+            upsert_report_metadata(
+                filename,
+                output_dir=OUTPUT_DIR,
+                html_content=report_bundle.html,
+                markdown_content=report_bundle.markdown,
+                data_trust=data_snapshot.get("data_trust"),
+            )
 
             report_event = {
                 "type": "report_done",
                 "filename": filename,
                 "md_filename": md_filename,
+                "data_filename": data_filename,
+                "data_trust": data_snapshot.get("data_trust"),
                 "audit": audit_notice,
                 "pipeline_id": current_pipeline_id,
                 "pipeline_label": pipeline_def["label"],
@@ -193,6 +262,7 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
             append_event(job_id, report_event)
             completed_agent_offset += agent_count
 
+        _raise_if_cancelled(job_id)
         final_report = reports[-1] if reports else {}
         final_filename = final_report.get("filename", "")
         final_pipeline_id = final_report.get("pipeline_id", pipeline_sequence[-1])
@@ -212,6 +282,11 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
         })
         return final_filename
 
+    except AnalysisJobCancelled as e:
+        message = str(e)
+        update_job(job_id, "cancelled", error=message)
+        append_event(job_id, {"type": "error", "phase": "cancelled", "level": "warning", "message": message})
+        return ""
     except Exception as e:
         message = str(e)
         update_job(job_id, "error", error=message)

@@ -290,6 +290,35 @@ def price_targets_have_unit_error(targets: dict, current_price) -> bool:
     return bool(prices) and any(price < current_price * 0.05 for price in prices)
 
 
+def _confidence_score(value: str) -> Optional[float]:
+    match = re.search(r"(\d+(?:\.\d+)?)", str(value or ""))
+    if not match:
+        return None
+    score = float(match.group(1))
+    if score <= 1:
+        return score * 10
+    return score
+
+
+def _warn_high_confidence_with_low_trust(agent_num: int, structured: dict, context: AnalysisContext) -> None:
+    if agent_num not in {7, 16}:
+        return
+    trust = context.get("data", {}).get("data_trust", {}) if isinstance(context.get("data"), dict) else {}
+    status = trust.get("status", "unknown") if isinstance(trust, dict) else "unknown"
+    if status == "fresh":
+        return
+    confidence = ""
+    for key, value in (structured.get("recommendation", {}) or {}).items():
+        if "信心" in str(key):
+            confidence = str(value)
+            break
+    score = _confidence_score(confidence)
+    if score is not None and score >= 8:
+        context.setdefault("structured_quality_warnings", []).append(
+            f"Agent {agent_num} 在 data_trust={status} 時給出高信心（{confidence}），需於報告中明確說明資料限制。"
+        )
+
+
 def process_agent_response(agent_num: int, raw_text: str, context: AnalysisContext) -> str:
     """Persist JSON structured output and return report-ready text."""
     if agent_num not in STRUCTURED_AGENT_INSTRUCTIONS:
@@ -312,6 +341,7 @@ def process_agent_response(agent_num: int, raw_text: str, context: AnalysisConte
             body = structured.get("analysis_markdown") or raw_text or ""
             return f"{body}\n\n{warning}".strip()
 
+    _warn_high_confidence_with_low_trust(agent_num, structured, context)
     context.setdefault("structured_outputs", {})[agent_num] = structured
     return structured_output_to_report_text(agent_num, structured, raw_text)
 

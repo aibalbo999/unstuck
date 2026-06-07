@@ -3,19 +3,36 @@
 from __future__ import annotations
 
 import asyncio
-import inspect
 import time
 
-import agent_runner as ar
+from agent_catalog import AGENT_NAMES
+from agent_runtime import run_agent_with_quality_gates_async
+from agent_runtime.audit_repair import finalize_final_audit, finalize_final_audit_async
+from agent_runtime.routing import is_agent_execution_failure
+from agent_runtime.single_agent import run_single_agent
 from analysis_types import AnalysisContext, StockData
+from assistant_tasks import (
+    CONTEXT_DIGEST_TARGET_AGENTS,
+    ensure_context_digest,
+    ensure_tear_sheet_summary,
+    ensure_tear_sheet_summary_async,
+)
 from config import AGENT_MODELS, API_KEYS, EMBEDDING_MODEL, INTER_AGENT_DELAY
 from llm_client import KeyRotator
 from pipeline_modes import get_pipeline_definition, normalize_pipeline_id
-from rag_service import (
+from rag_runtime import (
     build_rag_index,
     build_rag_index_async,
     ensure_agent_rag_context,
     ensure_agent_rag_context_async,
+)
+from runtime_events import (
+    RUNTIME_EVENT_CALLBACK_KEY,
+    emit_log,
+    emit_progress,
+    emit_progress_async,
+    emit_status,
+    emit_status_async,
 )
 from validators import (
     append_identity_warnings,
@@ -25,27 +42,6 @@ from validators import (
     validate_company_identity,
     validate_prompt_leakage,
 )
-
-
-def _call_progress_callback_sync(
-    progress_callback,
-    current: int,
-    total: int,
-    name: str,
-    phase: str = "completed",
-    message: str | None = None,
-):
-    if not progress_callback:
-        return
-    try:
-        result = progress_callback(current, total, name, phase, message)
-    except TypeError:
-        if phase == "completed":
-            result = progress_callback(current, total, name)
-        else:
-            return
-    if inspect.isawaitable(result):
-        return
 
 
 def run_analysis_pipeline(
@@ -80,12 +76,16 @@ def run_analysis_pipeline(
         "agent_positions": agent_positions,
         "agent_total": agent_total,
     }
+    if progress_callback:
+        context[RUNTIME_EVENT_CALLBACK_KEY] = progress_callback
 
-    print(f"\n{'='*60}")
-    print(f"  🚀 開始分析 {ticker} {name}")
-    print(f"  📅 時間：{time.strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"  🔑 可用 API Keys：{len(API_KEYS)} 組（輪調中）")
-    print(f"{'='*60}\n")
+    emit_log(
+        f"\n{'='*60}\n"
+        f"  🚀 開始分析 {ticker} {name}\n"
+        f"  📅 時間：{time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+        f"  🔑 可用 API Keys：{len(API_KEYS)} 組（輪調中）\n"
+        f"{'='*60}\n"
+    )
 
     rag_index = build_rag_index(data, rotator)
     if rag_index is not None:
@@ -95,78 +95,106 @@ def run_analysis_pipeline(
             "chunks": len(getattr(rag_index, "chunks", []) or []),
             "embedded": bool(getattr(rag_index, "has_embeddings", False)),
         }
-        print(f"  🔎 RAG 長文本索引完成：{context['rag_status']['chunks']} 個片段。")
+        emit_log(f"  🔎 RAG 長文本索引完成：{context['rag_status']['chunks']} 個片段。")
+        emit_status(
+            progress_callback,
+            f"RAG 長文本索引完成：{context['rag_status']['chunks']} 個片段。",
+            phase="rag_index",
+            current=0,
+            total=agent_total,
+            name="RAG 索引",
+            pipeline_id=pipeline_def["id"],
+            pipeline_label=pipeline_def["label"],
+            metadata=context["rag_status"],
+        )
 
     for agent_num in agent_sequence:
-        agent_name = ar.AGENT_NAMES[agent_num]
+        agent_name = AGENT_NAMES[agent_num]
         model_id = AGENT_MODELS[agent_num]
         agent_position = agent_positions.get(agent_num, agent_num)
 
-        print(f"{'─'*60}")
-        print(f"  📌 Agent {agent_num}（{agent_position}/{agent_total}）：{agent_name}")
-        print(f"  🤖 模型：{model_id}")
-        print(f"{'─'*60}")
+        emit_log(
+            f"{'─'*60}\n"
+            f"  📌 Agent {agent_num}（{agent_position}/{agent_total}）：{agent_name}\n"
+            f"  🤖 模型：{model_id}\n"
+            f"{'─'*60}"
+        )
 
         start = time.time()
 
-        _call_progress_callback_sync(
+        emit_status(
             progress_callback,
-            agent_position,
-            agent_total,
-            agent_name,
-            "started",
             f"開始 Agent {agent_num}（{agent_position}/{agent_total}）：{agent_name}（{model_id}）",
+            phase="started",
+            current=agent_position,
+            total=agent_total,
+            name=agent_name,
+            agent_num=agent_num,
+            pipeline_id=pipeline_def["id"],
+            pipeline_label=pipeline_def["label"],
         )
         context["structured_outputs"].pop(agent_num, None)
-        if agent_num in ar.CONTEXT_DIGEST_TARGET_AGENTS:
-            _call_progress_callback_sync(
+        if agent_num in CONTEXT_DIGEST_TARGET_AGENTS:
+            emit_status(
                 progress_callback,
-                agent_position,
-                agent_total,
-                agent_name,
-                "context_digest",
                 f"Agent {agent_num}（{agent_position}/{agent_total}）正在提煉前序分析摘要...",
+                phase="context_digest",
+                current=agent_position,
+                total=agent_total,
+                name=agent_name,
+                agent_num=agent_num,
+                pipeline_id=pipeline_def["id"],
+                pipeline_label=pipeline_def["label"],
             )
-        ar.ensure_context_digest(agent_num, context, rotator)
-        _call_progress_callback_sync(
+        ensure_context_digest(agent_num, context, rotator, progress_callback=progress_callback)
+        emit_status(
             progress_callback,
-            agent_position,
-            agent_total,
-            agent_name,
-            "rag_retrieval",
             f"Agent {agent_num}（{agent_position}/{agent_total}）正在執行 RAG 語意檢索...",
+            phase="rag_retrieval",
+            current=agent_position,
+            total=agent_total,
+            name=agent_name,
+            agent_num=agent_num,
+            pipeline_id=pipeline_def["id"],
+            pipeline_label=pipeline_def["label"],
         )
         ensure_agent_rag_context(agent_num, context, rotator)
-        _call_progress_callback_sync(
+        emit_status(
             progress_callback,
-            agent_position,
-            agent_total,
-            agent_name,
-            "model_call",
             f"Agent {agent_num}（{agent_position}/{agent_total}）正在呼叫模型並生成分析...",
+            phase="model_call",
+            current=agent_position,
+            total=agent_total,
+            name=agent_name,
+            agent_num=agent_num,
+            pipeline_id=pipeline_def["id"],
+            pipeline_label=pipeline_def["label"],
         )
-        result = ar.run_single_agent(agent_num, data, context, rotator)
+        result = run_single_agent(agent_num, data, context, rotator)
         result = sanitize_model_output(result)
-        _call_progress_callback_sync(
+        emit_status(
             progress_callback,
-            agent_position,
-            agent_total,
-            agent_name,
-            "quality_gate",
             f"Agent {agent_num}（{agent_position}/{agent_total}）正在執行輸出清洗與品質檢查...",
+            phase="quality_gate",
+            current=agent_position,
+            total=agent_total,
+            name=agent_name,
+            agent_num=agent_num,
+            pipeline_id=pipeline_def["id"],
+            pipeline_label=pipeline_def["label"],
         )
 
-        if ar.is_agent_execution_failure(result):
+        if is_agent_execution_failure(result):
             context.setdefault("blocking_issues", []).append(f"Agent {agent_num} {agent_name}: {result}")
             context["analyses"][agent_num] = result
-            print(f"  ❌ {result}")
+            emit_log(f"  ❌ {result}")
             break
 
         prompt_leak_issues = validate_prompt_leakage(result)
         if prompt_leak_issues:
-            print("  🚨 輸出清洗後仍偵測到 prompt 洩漏，停止產生正式報告。")
+            emit_log("  🚨 輸出清洗後仍偵測到 prompt 洩漏，停止產生正式報告。")
             for issue in prompt_leak_issues:
-                print(f"     - {issue}")
+                emit_log(f"     - {issue}")
             context.setdefault("blocking_issues", []).extend(
                 f"Agent {agent_num} {agent_name}: {issue}"
                 for issue in prompt_leak_issues
@@ -176,24 +204,27 @@ def run_analysis_pipeline(
 
         identity_issues = validate_company_identity(result, data)
         if identity_issues:
-            _call_progress_callback_sync(
+            emit_status(
                 progress_callback,
-                agent_position,
-                agent_total,
-                agent_name,
-                "identity_retry",
                 f"Agent {agent_num}（{agent_position}/{agent_total}）身分一致性檢查未通過，正在要求重寫...",
+                phase="identity_retry",
+                current=agent_position,
+                total=agent_total,
+                name=agent_name,
+                agent_num=agent_num,
+                pipeline_id=pipeline_def["id"],
+                pipeline_label=pipeline_def["label"],
             )
-            print("  🚨 公司身分一致性檢查未通過，退回 Agent 重寫...")
+            emit_log("  🚨 公司身分一致性檢查未通過，退回 Agent 重寫...")
             for issue in identity_issues:
-                print(f"     - {issue}")
+                emit_log(f"     - {issue}")
             context["_identity_retry_instruction"] = build_identity_retry_instruction(data, identity_issues)
             context["structured_outputs"].pop(agent_num, None)
-            retry_result = ar.run_single_agent(agent_num, data, context, rotator)
+            retry_result = run_single_agent(agent_num, data, context, rotator)
             retry_result = sanitize_model_output(retry_result)
             retry_prompt_leak_issues = validate_prompt_leakage(retry_result)
             if retry_prompt_leak_issues:
-                print("  🚨 重寫輸出仍偵測到 prompt 洩漏，停止產生正式報告。")
+                emit_log("  🚨 重寫輸出仍偵測到 prompt 洩漏，停止產生正式報告。")
                 context.setdefault("blocking_issues", []).extend(
                     f"Agent {agent_num} {agent_name}: {issue}"
                     for issue in retry_prompt_leak_issues
@@ -208,230 +239,74 @@ def run_analysis_pipeline(
             result = retry_result
             identity_issues = retry_issues
             if identity_issues:
-                print("  ❌ 重寫後仍未通過公司身分一致性檢查，停止產生正式報告。")
+                emit_log("  ❌ 重寫後仍未通過公司身分一致性檢查，停止產生正式報告。")
                 for issue in identity_issues:
-                    print(f"     - {issue}")
+                    emit_log(f"     - {issue}")
                 context.setdefault("blocking_issues", []).extend(
                     f"Agent {agent_num} {agent_name}: {issue}"
                     for issue in identity_issues
                 )
                 result = append_identity_warnings(result, identity_issues)
             else:
-                print("  ✅ 重寫後通過公司身分一致性檢查。")
+                emit_log("  ✅ 重寫後通過公司身分一致性檢查。")
 
         result = append_quality_warnings(agent_num, result, data)
 
         elapsed = time.time() - start
         context["analyses"][agent_num] = result
 
-        print(f"  ✅ 完成！耗時 {elapsed:.1f} 秒")
-        print(f"  📝 輸出長度：{len(result)} 字元")
-
         preview = result[:120].replace("\n", " ")
-        print(f"  💬 預覽：{preview}...")
+        emit_log(
+            f"  ✅ 完成！耗時 {elapsed:.1f} 秒\n"
+            f"  📝 輸出長度：{len(result)} 字元\n"
+            f"  💬 預覽：{preview}..."
+        )
 
-        _call_progress_callback_sync(progress_callback, agent_position, agent_total, agent_name)
+        emit_progress(
+            progress_callback,
+            agent_position,
+            agent_total,
+            agent_name,
+            agent_num=agent_num,
+            pipeline_id=pipeline_def["id"],
+            pipeline_label=pipeline_def["label"],
+        )
 
         if context.get("blocking_issues"):
             break
 
         if agent_position < agent_total and INTER_AGENT_DELAY > 0:
             wait = INTER_AGENT_DELAY
-            print(f"\n  ⏰ 額外等待 {wait:.1f} 秒後執行下一個 Agent...\n")
+            emit_log(f"\n  ⏰ 額外等待 {wait:.1f} 秒後執行下一個 Agent...\n")
             time.sleep(wait)
 
-    _call_progress_callback_sync(
+    emit_status(
         progress_callback,
-        agent_total,
-        agent_total,
-        "最終稽核",
-        "final_audit",
         "正在執行最終跨 Agent 稽核與必要修復...",
+        phase="final_audit",
+        current=agent_total,
+        total=agent_total,
+        name="最終稽核",
+        pipeline_id=pipeline_def["id"],
+        pipeline_label=pipeline_def["label"],
     )
-    ar.finalize_final_audit(context, rotator)
-    _call_progress_callback_sync(
+    finalize_final_audit(context, rotator, progress_callback=progress_callback)
+    emit_status(
         progress_callback,
-        agent_total,
-        agent_total,
-        "一頁式摘要",
-        "tear_sheet",
         "正在生成一頁式摘要並整理報告素材...",
+        phase="tear_sheet",
+        current=agent_total,
+        total=agent_total,
+        name="一頁式摘要",
+        pipeline_id=pipeline_def["id"],
+        pipeline_label=pipeline_def["label"],
     )
-    ar.ensure_tear_sheet_summary(context, rotator)
+    ensure_tear_sheet_summary(context, rotator, progress_callback=progress_callback)
     context["total_time"] = time.time() - context["start_time"]
 
-    print(f"\n{'='*60}")
-    print(f"  🎉 分析完成！總耗時：{context['total_time']:.1f} 秒")
-    print(f"{'='*60}\n")
+    emit_log(f"\n{'='*60}\n  🎉 分析完成！總耗時：{context['total_time']:.1f} 秒\n{'='*60}\n")
 
     return context
-
-
-async def _call_progress_callback(
-    progress_callback,
-    current: int,
-    total: int,
-    name: str,
-    phase: str = "completed",
-    message: str | None = None,
-):
-    if not progress_callback:
-        return
-    try:
-        result = progress_callback(current, total, name, phase, message)
-    except TypeError:
-        if phase != "completed":
-            return
-        result = progress_callback(current, total, name)
-    if inspect.isawaitable(result):
-        await result
-
-
-async def _run_agent_with_quality_gates_async(
-    agent_num: int,
-    data: StockData,
-    context: AnalysisContext,
-    rotator: KeyRotator,
-    progress_callback=None,
-) -> tuple[int, str]:
-    """Run one async agent and apply the same output gates as the sequential pipeline."""
-    agent_name = ar.AGENT_NAMES[agent_num]
-    model_id = ar.get_runtime_model_sequence(agent_num, context)[0]
-    agent_positions = context.get("agent_positions", {}) or {}
-    agent_position = agent_positions.get(agent_num, agent_num)
-    agent_total = int(context.get("agent_total") or len(context.get("agent_sequence", []) or []) or 7)
-
-    print(f"{'─'*60}")
-    print(f"  📌 Agent {agent_num}（{agent_position}/{agent_total}）：{agent_name}")
-    print(f"  🤖 模型：{model_id}")
-    print(f"{'─'*60}")
-
-    start = time.time()
-
-    await _call_progress_callback(
-        progress_callback,
-        agent_position,
-        agent_total,
-        agent_name,
-        "started",
-        f"開始 Agent {agent_num}（{agent_position}/{agent_total}）：{agent_name}（{model_id}）",
-    )
-    context["structured_outputs"].pop(agent_num, None)
-    if agent_num in ar.CONTEXT_DIGEST_TARGET_AGENTS:
-        await _call_progress_callback(
-            progress_callback,
-            agent_position,
-            agent_total,
-            agent_name,
-            "context_digest",
-            f"Agent {agent_num}（{agent_position}/{agent_total}）正在提煉前序分析摘要...",
-        )
-    await ar.ensure_context_digest_async(agent_num, context, rotator)
-    await _call_progress_callback(
-        progress_callback,
-        agent_position,
-        agent_total,
-        agent_name,
-        "rag_retrieval",
-        f"Agent {agent_num}（{agent_position}/{agent_total}）正在執行 RAG 語意檢索...",
-    )
-    await ensure_agent_rag_context_async(agent_num, context, rotator)
-    await _call_progress_callback(
-        progress_callback,
-        agent_position,
-        agent_total,
-        agent_name,
-        "model_call",
-        f"Agent {agent_num}（{agent_position}/{agent_total}）正在呼叫模型並生成分析...",
-    )
-    result = await ar.run_single_agent_async(agent_num, data, context, rotator)
-    result = sanitize_model_output(result)
-    await _call_progress_callback(
-        progress_callback,
-        agent_position,
-        agent_total,
-        agent_name,
-        "quality_gate",
-        f"Agent {agent_num}（{agent_position}/{agent_total}）正在執行輸出清洗與品質檢查...",
-    )
-
-    if ar.is_agent_execution_failure(result):
-        context.setdefault("blocking_issues", []).append(f"Agent {agent_num} {agent_name}: {result}")
-        context["analyses"][agent_num] = result
-        print(f"  ❌ {result}")
-        return agent_num, result
-
-    prompt_leak_issues = validate_prompt_leakage(result)
-    if prompt_leak_issues:
-        print("  🚨 輸出清洗後仍偵測到 prompt 洩漏，停止產生正式報告。")
-        for issue in prompt_leak_issues:
-            print(f"     - {issue}")
-        context.setdefault("blocking_issues", []).extend(
-            f"Agent {agent_num} {agent_name}: {issue}"
-            for issue in prompt_leak_issues
-        )
-        context["analyses"][agent_num] = result
-        return agent_num, result
-
-    identity_issues = validate_company_identity(result, data)
-    if identity_issues:
-        await _call_progress_callback(
-            progress_callback,
-            agent_position,
-            agent_total,
-            agent_name,
-            "identity_retry",
-            f"Agent {agent_num}（{agent_position}/{agent_total}）身分一致性檢查未通過，正在要求重寫...",
-        )
-        print("  🚨 公司身分一致性檢查未通過，退回 Agent 非同步重寫...")
-        for issue in identity_issues:
-            print(f"     - {issue}")
-        context["_identity_retry_instruction"] = build_identity_retry_instruction(data, identity_issues)
-        context["structured_outputs"].pop(agent_num, None)
-        retry_result = await ar.run_single_agent_async(agent_num, data, context, rotator)
-        retry_result = sanitize_model_output(retry_result)
-        retry_prompt_leak_issues = validate_prompt_leakage(retry_result)
-        if retry_prompt_leak_issues:
-            print("  🚨 重寫輸出仍偵測到 prompt 洩漏，停止產生正式報告。")
-            context.setdefault("blocking_issues", []).extend(
-                f"Agent {agent_num} {agent_name}: {issue}"
-                for issue in retry_prompt_leak_issues
-            )
-            context.pop("_identity_retry_instruction", None)
-            result = retry_result
-            context["analyses"][agent_num] = result
-            return agent_num, result
-
-        retry_issues = validate_company_identity(retry_result, data)
-        context.pop("_identity_retry_instruction", None)
-
-        result = retry_result
-        identity_issues = retry_issues
-        if identity_issues:
-            print("  ❌ 重寫後仍未通過公司身分一致性檢查，停止產生正式報告。")
-            for issue in identity_issues:
-                print(f"     - {issue}")
-            context.setdefault("blocking_issues", []).extend(
-                f"Agent {agent_num} {agent_name}: {issue}"
-                for issue in identity_issues
-            )
-            result = append_identity_warnings(result, identity_issues)
-        else:
-            print("  ✅ 重寫後通過公司身分一致性檢查。")
-
-    result = append_quality_warnings(agent_num, result, data)
-
-    elapsed = time.time() - start
-    context["analyses"][agent_num] = result
-
-    print(f"  ✅ 完成！耗時 {elapsed:.1f} 秒")
-    print(f"  📝 輸出長度：{len(result)} 字元")
-
-    preview = result[:120].replace("\n", " ")
-    print(f"  💬 預覽：{preview}...")
-
-    return agent_num, result
-
 
 async def run_analysis_pipeline_async(data: StockData, progress_callback=None, pipeline_id: str = "v1") -> AnalysisContext:
     """Run the selected async DAG analysis pipeline."""
@@ -458,12 +333,16 @@ async def run_analysis_pipeline_async(data: StockData, progress_callback=None, p
         "agent_positions": agent_positions,
         "agent_total": agent_total,
     }
+    if progress_callback:
+        context[RUNTIME_EVENT_CALLBACK_KEY] = progress_callback
 
-    print(f"\n{'='*60}")
-    print(f"  🚀 開始非同步分析 {ticker} {name}｜{pipeline_def['label']}")
-    print(f"  📅 時間：{time.strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"  🔑 可用 API Keys：{len(API_KEYS)} 組（輪調中）")
-    print(f"{'='*60}\n")
+    emit_log(
+        f"\n{'='*60}\n"
+        f"  🚀 開始非同步分析 {ticker} {name}｜{pipeline_def['label']}\n"
+        f"  📅 時間：{time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+        f"  🔑 可用 API Keys：{len(API_KEYS)} 組（輪調中）\n"
+        f"{'='*60}\n"
+    )
 
     rag_index = await build_rag_index_async(data, rotator)
     if rag_index is not None:
@@ -473,72 +352,93 @@ async def run_analysis_pipeline_async(data: StockData, progress_callback=None, p
             "chunks": len(getattr(rag_index, "chunks", []) or []),
             "embedded": bool(getattr(rag_index, "has_embeddings", False)),
         }
-        print(f"  🔎 RAG 長文本索引完成：{context['rag_status']['chunks']} 個片段。")
+        emit_log(f"  🔎 RAG 長文本索引完成：{context['rag_status']['chunks']} 個片段。")
+        await emit_status_async(
+            progress_callback,
+            f"RAG 長文本索引完成：{context['rag_status']['chunks']} 個片段。",
+            phase="rag_index",
+            current=0,
+            total=agent_total,
+            name="RAG 索引",
+            pipeline_id=pipeline_def["id"],
+            pipeline_label=pipeline_def["label"],
+            metadata=context["rag_status"],
+        )
 
     agent_groups = pipeline_def["groups"]
     for group_index, group in enumerate(agent_groups):
         if len(group) > 1:
-            print(f"  ⚡ 平行啟動 Agent {', '.join(str(num) for num in group)}（共享同一 DAG 依賴資料）")
-            await _call_progress_callback(
+            emit_log(f"  ⚡ 平行啟動 Agent {', '.join(str(num) for num in group)}（共享同一 DAG 依賴資料）")
+            await emit_status_async(
                 progress_callback,
-                0,
-                agent_total,
-                "平行分析",
-                "agent_group",
                 f"平行啟動 Agent {', '.join(str(num) for num in group)}，共享同一 DAG 依賴資料...",
+                phase="agent_group",
+                current=0,
+                total=agent_total,
+                name="平行分析",
+                pipeline_id=pipeline_def["id"],
+                pipeline_label=pipeline_def["label"],
             )
 
             async def run_and_return(agent_num: int):
-                return await _run_agent_with_quality_gates_async(agent_num, data, context, rotator, progress_callback)
+                return await run_agent_with_quality_gates_async(agent_num, data, context, rotator, progress_callback)
 
             tasks = [asyncio.create_task(run_and_return(agent_num)) for agent_num in group]
             for task in asyncio.as_completed(tasks):
                 completed_agent_num, _ = await task
-                await _call_progress_callback(
+                await emit_progress_async(
                     progress_callback,
                     agent_positions.get(completed_agent_num, completed_agent_num),
                     agent_total,
-                    ar.AGENT_NAMES[completed_agent_num],
+                    AGENT_NAMES[completed_agent_num],
+                    agent_num=completed_agent_num,
+                    pipeline_id=pipeline_def["id"],
+                    pipeline_label=pipeline_def["label"],
                 )
         else:
             agent_num = group[0]
-            completed_agent_num, _ = await _run_agent_with_quality_gates_async(agent_num, data, context, rotator, progress_callback)
-            await _call_progress_callback(
+            completed_agent_num, _ = await run_agent_with_quality_gates_async(agent_num, data, context, rotator, progress_callback)
+            await emit_progress_async(
                 progress_callback,
                 agent_positions.get(completed_agent_num, completed_agent_num),
                 agent_total,
-                ar.AGENT_NAMES[completed_agent_num],
+                AGENT_NAMES[completed_agent_num],
+                agent_num=completed_agent_num,
+                pipeline_id=pipeline_def["id"],
+                pipeline_label=pipeline_def["label"],
             )
 
         if context.get("blocking_issues"):
             break
 
         if group_index < len(agent_groups) - 1 and INTER_AGENT_DELAY > 0:
-            print(f"\n  ⏰ 額外等待 {INTER_AGENT_DELAY:.1f} 秒後執行下一階段...\n")
+            emit_log(f"\n  ⏰ 額外等待 {INTER_AGENT_DELAY:.1f} 秒後執行下一階段...\n")
             await asyncio.sleep(INTER_AGENT_DELAY)
 
-    await _call_progress_callback(
+    await emit_status_async(
         progress_callback,
-        agent_total,
-        agent_total,
-        "最終稽核",
-        "final_audit",
         "正在執行最終跨 Agent 稽核與必要修復...",
+        phase="final_audit",
+        current=agent_total,
+        total=agent_total,
+        name="最終稽核",
+        pipeline_id=pipeline_def["id"],
+        pipeline_label=pipeline_def["label"],
     )
-    await ar.finalize_final_audit_async(context, rotator)
-    await _call_progress_callback(
+    await finalize_final_audit_async(context, rotator, progress_callback=progress_callback)
+    await emit_status_async(
         progress_callback,
-        agent_total,
-        agent_total,
-        "一頁式摘要",
-        "tear_sheet",
         "正在生成一頁式摘要並整理報告素材...",
+        phase="tear_sheet",
+        current=agent_total,
+        total=agent_total,
+        name="一頁式摘要",
+        pipeline_id=pipeline_def["id"],
+        pipeline_label=pipeline_def["label"],
     )
-    await ar.ensure_tear_sheet_summary_async(context, rotator)
+    await ensure_tear_sheet_summary_async(context, rotator, progress_callback=progress_callback)
     context["total_time"] = time.time() - context["start_time"]
 
-    print(f"\n{'='*60}")
-    print(f"  🎉 非同步分析完成！總耗時：{context['total_time']:.1f} 秒")
-    print(f"{'='*60}\n")
+    emit_log(f"\n{'='*60}\n  🎉 非同步分析完成！總耗時：{context['total_time']:.1f} 秒\n{'='*60}\n")
 
     return context
