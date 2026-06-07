@@ -4,6 +4,7 @@
         const pipelineEl = options.pipelineEl;
         const recommendationEl = options.recommendationEl;
         const dataTrustEl = options.dataTrustEl;
+        const includeVersionsEl = options.includeVersionsEl;
         const debounceMs = options.debounceMs || 200;
         let searchTimer = null;
 
@@ -12,7 +13,8 @@
                 query: searchEl ? searchEl.value.trim() : '',
                 pipelineFilter: pipelineEl ? pipelineEl.value : 'all',
                 recommendationFilter: recommendationEl ? recommendationEl.value : 'all',
-                dataTrustFilter: dataTrustEl ? dataTrustEl.value : 'all'
+                dataTrustFilter: dataTrustEl ? dataTrustEl.value : 'all',
+                includeVersions: includeVersionsEl ? includeVersionsEl.checked : false
             };
         }
 
@@ -27,7 +29,7 @@
                 });
             }
 
-            [pipelineEl, recommendationEl, dataTrustEl].forEach(filter => {
+            [pipelineEl, recommendationEl, dataTrustEl, includeVersionsEl].forEach(filter => {
                 if (!filter) return;
                 filter.addEventListener('change', onFilter);
             });

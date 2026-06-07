@@ -75,6 +75,14 @@ def cleanup_orphan_markdown_reports(output_dir: str) -> list[str]:
     return deleted
 
 
+def _normalize_include_versions(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return False
+
+
 def list_reports(
     *,
     page: int,
@@ -83,6 +91,7 @@ def list_reports(
     pipeline: str,
     recommendation: str,
     data_trust: str,
+    include_versions: bool = False,
     output_dir: str,
     report_cache: dict,
     repository: ReportRepository = DEFAULT_REPORT_REPOSITORY,
@@ -105,6 +114,7 @@ def list_reports(
     data_trust_filter = data_trust_value.strip().lower()
     if data_trust_filter not in {"all", "fresh", "partial", "stale", "error", "unknown"}:
         data_trust_filter = "all"
+    include_versions_filter = _normalize_include_versions(include_versions)
 
     if os.path.exists(output_dir):
         reports, total = repository.query(
@@ -115,6 +125,7 @@ def list_reports(
                 pipeline=pipeline_filter,
                 recommendation=recommendation_filter,
                 data_trust=data_trust_filter,
+                include_versions=include_versions_filter,
                 output_dir=output_dir,
             )
         )
@@ -135,6 +146,7 @@ def list_reports(
             "pipeline": pipeline_filter,
             "recommendation": recommendation_filter,
             "data_trust": data_trust_filter,
+            "include_versions": include_versions_filter,
         },
     }
 

@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const historyPipelineFilter = document.getElementById('history-pipeline-filter');
     const historyRecommendationFilter = document.getElementById('history-recommendation-filter');
     const historyDataTrustFilter = document.getElementById('history-data-trust-filter');
+    const historyIncludeVersions = document.getElementById('history-include-versions');
     const historyPagination = document.getElementById('history-pagination');
     const historyPrev = document.getElementById('history-prev');
     const historyNext = document.getElementById('history-next');
@@ -179,6 +180,7 @@ document.addEventListener('DOMContentLoaded', () => {
             historyPipelineFilter,
             historyRecommendationFilter,
             historyDataTrustFilter,
+            historyIncludeVersions,
             historyPagination,
             historyPrev,
             historyNext,

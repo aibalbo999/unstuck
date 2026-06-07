@@ -16,6 +16,7 @@ class ReportListQuery:
     pipeline: str = "all"
     recommendation: str = "all"
     data_trust: str = "all"
+    include_versions: bool = False
     output_dir: Optional[str] = None
 
 
@@ -53,6 +54,7 @@ class ReportRepository:
             pipeline=query.pipeline,
             recommendation=query.recommendation,
             data_trust=query.data_trust,
+            include_versions=query.include_versions,
             output_dir=query.output_dir,
         )
 

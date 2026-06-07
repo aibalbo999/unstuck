@@ -32,6 +32,28 @@
     border-color: var(--accent);
     box-shadow: 0 0 0 3px var(--accent-glow);
 }
+.history-version-toggle {
+    grid-column: 1 / -1;
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.62);
+    color: var(--text-primary);
+    padding: 9px 10px;
+    font-size: 0.86rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+.history-version-toggle input {
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent);
+}
 .history-workspace {
     display: grid;
     grid-template-columns: minmax(360px, 0.95fr) minmax(400px, 1.05fr);

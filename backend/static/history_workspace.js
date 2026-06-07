@@ -10,7 +10,8 @@
             searchEl: elements.historySearch,
             pipelineEl: elements.historyPipelineFilter,
             recommendationEl: elements.historyRecommendationFilter,
-            dataTrustEl: elements.historyDataTrustFilter
+            dataTrustEl: elements.historyDataTrustFilter,
+            includeVersionsEl: elements.historyIncludeVersions
         });
 
         const historyPanel = window.StockAgentHistoryPanel.create({
@@ -52,14 +53,15 @@
 
         async function loadHistory() {
             try {
-                const { query, pipelineFilter, recommendationFilter, dataTrustFilter } = historyFilters.values();
+                const { query, pipelineFilter, recommendationFilter, dataTrustFilter, includeVersions } = historyFilters.values();
                 const data = await apiClient.fetchReports({
                     page: historyPage,
                     limit: historyLimit,
                     query,
                     pipeline: pipelineFilter,
                     recommendation: recommendationFilter,
-                    dataTrust: dataTrustFilter
+                    dataTrust: dataTrustFilter,
+                    includeVersions
                 });
                 const pagination = data.pagination || { page: 1, total_pages: 1, total: 0, has_prev: false, has_next: false };
                 const reports = data.reports || [];

@@ -9,10 +9,17 @@ def test_history_data_trust_filter_is_wired_to_api_params():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     app_js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
     api_client_js = (STATIC_DIR / "api_client.js").read_text(encoding="utf-8")
+    history_filters_js = (STATIC_DIR / "history_filters.js").read_text(encoding="utf-8")
+    history_workspace_js = (STATIC_DIR / "history_workspace.js").read_text(encoding="utf-8")
 
     assert 'id="history-data-trust-filter"' in index_html
+    assert 'id="history-include-versions"' in index_html
     assert "historyDataTrustFilter" in app_js
+    assert "historyIncludeVersions" in app_js
+    assert "includeVersionsEl" in history_filters_js
+    assert "includeVersions" in history_workspace_js
     assert "params.set('data_trust', dataTrust)" in api_client_js
+    assert "params.set('include_versions', '1')" in api_client_js
 
 
 def test_provider_sla_and_manual_refresh_controls_are_wired():

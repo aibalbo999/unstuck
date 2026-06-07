@@ -19,7 +19,7 @@
         return jsonRequest(`/api/observability/active-jobs?${params.toString()}`);
     }
 
-    async function fetchReports({ page, limit, query, pipeline, recommendation, dataTrust }) {
+    async function fetchReports({ page, limit, query, pipeline, recommendation, dataTrust, includeVersions }) {
         const params = new URLSearchParams({
             page: String(page),
             limit: String(limit)
@@ -28,6 +28,7 @@
         if (pipeline && pipeline !== 'all') params.set('pipeline', pipeline);
         if (recommendation && recommendation !== 'all') params.set('recommendation', recommendation);
         if (dataTrust && dataTrust !== 'all') params.set('data_trust', dataTrust);
+        if (includeVersions) params.set('include_versions', '1');
         return jsonRequest(`/api/reports?${params.toString()}`);
     }
 

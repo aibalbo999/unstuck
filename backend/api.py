@@ -220,6 +220,7 @@ def get_reports(
     pipeline: str = Query("all", max_length=24),
     recommendation: str = Query("all", max_length=24),
     data_trust: str = Query("all", max_length=24),
+    include_versions: bool = Query(False),
 ):
     return report_history_service.list_reports(
         page=page,
@@ -228,6 +229,7 @@ def get_reports(
         pipeline=pipeline,
         recommendation=recommendation,
         data_trust=data_trust,
+        include_versions=include_versions,
         output_dir=OUTPUT_DIR,
         report_cache=report_cache,
     )

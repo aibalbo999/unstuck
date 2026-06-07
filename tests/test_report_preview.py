@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -157,6 +158,7 @@ def test_report_history_uses_repository_boundary(tmp_path):
         pipeline="mode_b",
         recommendation="持有",
         data_trust="fresh",
+        include_versions=True,
         output_dir=str(tmp_path),
         report_cache={},
         repository=repository,
@@ -166,7 +168,60 @@ def test_report_history_uses_repository_boundary(tmp_path):
     assert repository.query_arg.pipeline == "v2"
     assert repository.query_arg.q == "2449"
     assert repository.query_arg.data_trust == "fresh"
+    assert repository.query_arg.include_versions is True
+    assert result["pagination"]["include_versions"] is True
     assert result["pagination"]["total"] == 1
+
+
+def test_get_reports_defaults_to_latest_report_per_ticker_and_mode(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
+    filenames = [
+        "2449_report_20260606_010000.html",
+        "2449_report_20260606_020000.html",
+        "2449_v2_report_20260606_010000.html",
+        "2449_v2_report_20260606_020000.html",
+    ]
+    for filename in filenames:
+        write_report_pair(tmp_path, filename, "持有")
+
+    old_v1 = tmp_path / "2449_report_20260606_010000.html"
+    old_v2 = tmp_path / "2449_v2_report_20260606_010000.html"
+    future_mtime = 1_900_000_000
+    os.utime(old_v1, (future_mtime, future_mtime))
+    os.utime(old_v2, (future_mtime, future_mtime))
+
+    result = api.get_reports(page=1, limit=20, q="", pipeline="all", recommendation="all")
+
+    returned = {report["filename"] for report in result["reports"]}
+    assert result["pagination"]["include_versions"] is False
+    assert result["pagination"]["total"] == 2
+    assert returned == {
+        "2449_report_20260606_020000.html",
+        "2449_v2_report_20260606_020000.html",
+    }
+
+
+def test_get_reports_can_include_old_report_versions(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
+    filenames = [
+        "2449_report_20260606_010000.html",
+        "2449_report_20260606_020000.html",
+        "2449_v2_report_20260606_010000.html",
+        "2449_v2_report_20260606_020000.html",
+    ]
+    for filename in filenames:
+        write_report_pair(tmp_path, filename, "持有")
+
+    client = TestClient(api.app)
+    response = client.get("/api/reports", params={"limit": 20, "include_versions": "1"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["pagination"]["include_versions"] is True
+    assert body["pagination"]["total"] == 4
+    assert {report["filename"] for report in body["reports"]} == set(filenames)
 
 
 def test_get_reports_filters_data_trust_status(tmp_path, monkeypatch):

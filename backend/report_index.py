@@ -203,6 +203,7 @@ def query_report_metadata(
     pipeline: str = "all",
     recommendation: str = "all",
     data_trust: str = "all",
+    include_versions: bool = False,
     output_dir: Optional[str] = None,
 ) -> tuple[list[dict], int]:
     out_dir = output_dir_key(output_dir)
@@ -226,19 +227,29 @@ def query_report_metadata(
 
     where_sql = " AND ".join(clauses)
     offset = max(page - 1, 0) * limit
+    order_sql = "report_date DESC, filename DESC, timestamp DESC"
     with _connect() as conn:
-        total = conn.execute(
-            f"SELECT COUNT(*) FROM reports WHERE {where_sql}",
-            params,
-        ).fetchone()[0]
-        rows = conn.execute(
-            f"""
-            SELECT * FROM reports
-            WHERE {where_sql}
-            ORDER BY timestamp DESC
-            LIMIT ? OFFSET ?
-            """,
-            [*params, limit, offset],
-        ).fetchall()
+        if include_versions:
+            total = conn.execute(
+                f"SELECT COUNT(*) FROM reports WHERE {where_sql}",
+                params,
+            ).fetchone()[0]
+            rows_sql = f"""
+                SELECT * FROM reports WHERE {where_sql}
+                ORDER BY {order_sql} LIMIT ? OFFSET ?
+            """
+        else:
+            latest_sql = f"""
+                FROM (
+                    SELECT reports.*, ROW_NUMBER() OVER (
+                        PARTITION BY ticker, pipeline_id ORDER BY {order_sql}
+                    ) AS version_rank
+                    FROM reports WHERE {where_sql}
+                )
+                WHERE version_rank = 1
+            """
+            total = conn.execute(f"SELECT COUNT(*) {latest_sql}", params).fetchone()[0]
+            rows_sql = f"SELECT * {latest_sql} ORDER BY {order_sql} LIMIT ? OFFSET ?"
+        rows = conn.execute(rows_sql, [*params, limit, offset]).fetchall()
 
     return [row_to_report(row) for row in rows], int(total)

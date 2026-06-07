@@ -49,6 +49,7 @@ def create_reports_router(deps: ReportRouteDeps) -> APIRouter:
         pipeline: str = Query("all", max_length=24),
         recommendation: str = Query("all", max_length=24),
         data_trust: str = Query("all", max_length=24),
+        include_versions: bool = Query(False),
     ):
         return report_history_service.list_reports(
             page=page,
@@ -57,6 +58,7 @@ def create_reports_router(deps: ReportRouteDeps) -> APIRouter:
             pipeline=pipeline,
             recommendation=recommendation,
             data_trust=data_trust,
+            include_versions=include_versions,
             output_dir=deps.get_output_dir(),
             report_cache=deps.get_report_cache(),
         )
