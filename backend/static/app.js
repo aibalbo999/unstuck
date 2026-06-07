@@ -49,6 +49,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const providerSlaList = document.getElementById('provider-sla-list');
     const providerSlaRefresh = document.getElementById('provider-sla-refresh');
     const providerSlaWindow = document.getElementById('provider-sla-window');
+    const activeJobsSummary = document.getElementById('active-jobs-summary');
+    const activeJobsList = document.getElementById('active-jobs-list');
+    const activeJobsRefresh = document.getElementById('active-jobs-refresh');
     
     const downloadHtmlBtn = document.getElementById('download-html-btn');
     const downloadMdBtn = document.getElementById('download-md-btn');
@@ -97,6 +100,25 @@ document.addEventListener('DOMContentLoaded', () => {
             providerSlaList.innerHTML = '<span class="provider-sla-chip is-warning">請稍後重試</span>';
         } finally {
             if (providerSlaRefresh) providerSlaRefresh.removeAttribute('disabled');
+        }
+    }
+
+    async function loadActiveJobs() {
+        if (!activeJobsSummary || !activeJobsList) return;
+        try {
+            if (activeJobsRefresh) activeJobsRefresh.setAttribute('disabled', 'disabled');
+            const payload = await apiClient.fetchActiveJobs({ limit: 5, eventLimit: 40 });
+            window.StockAgentActiveJobsPanel.render(payload, {
+                summaryEl: activeJobsSummary,
+                listEl: activeJobsList,
+                escapeHtml: ui.escapeHtml
+            });
+        } catch (err) {
+            console.error('Failed to load active jobs', err);
+            activeJobsSummary.textContent = '任務狀態讀取失敗';
+            activeJobsList.innerHTML = '<span class="provider-sla-chip is-warning">請稍後重試</span>';
+        } finally {
+            if (activeJobsRefresh) activeJobsRefresh.removeAttribute('disabled');
         }
     }
 
@@ -192,6 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     loadHistory();
     loadProviderSla();
+    loadActiveJobs();
 
     if (providerSlaRefresh) {
         providerSlaRefresh.addEventListener('click', loadProviderSla);
@@ -199,6 +222,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (providerSlaWindow) {
         providerSlaWindow.addEventListener('change', loadProviderSla);
+    }
+
+    if (activeJobsRefresh) {
+        activeJobsRefresh.addEventListener('click', loadActiveJobs);
     }
 
     pipelineInputs.forEach(input => {

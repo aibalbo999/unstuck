@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 import api  # noqa: E402
+import job_observability  # noqa: E402
 import job_store  # noqa: E402
 import provider_sla  # noqa: E402
 from data_fetch import FetchResult  # noqa: E402
@@ -118,6 +119,57 @@ def test_provider_sla_api_applies_window_server_side(monkeypatch):
     assert body["providers"][0]["success_rate"] == 0.3333
     assert body["providers"][0]["alert_level"] == "critical"
     assert body["alerts"][0]["provider"] == "fake"
+
+
+def test_active_jobs_observability_summarizes_latest_events(monkeypatch, tmp_path):
+    monkeypatch.setattr(job_store, "TASK_DB_PATH", str(tmp_path / "jobs.sqlite3"))
+    job_store.reset_job_store_for_tests()
+    job_id = job_store.create_job("2449.TW", "both")
+    job_store.append_event(
+        job_id,
+        {
+            "type": "status",
+            "phase": "llm_model_call",
+            "level": "info",
+            "message": "calling",
+            "agent_num": 12,
+            "pipeline_id": "v2",
+            "metadata": {"model_id": "gemma-4-31b-it", "timeout_seconds": 15.0},
+        },
+    )
+    job_store.append_event(
+        job_id,
+        {
+            "type": "status",
+            "phase": "llm_model_error",
+            "level": "warning",
+            "message": "failed",
+            "agent_num": 12,
+            "pipeline_id": "v2",
+            "metadata": {"model_id": "gemma-4-31b-it", "error_category": "timeout"},
+        },
+    )
+
+    payload = job_observability.build_active_jobs_snapshot(db_path=str(tmp_path / "jobs.sqlite3"))
+
+    assert payload["active_count"] == 1
+    job = payload["jobs"][0]
+    assert job["job_id"] == job_id
+    assert job["last_event"]["phase"] == "llm_model_error"
+    assert job["llm_error_counts"]["gemma-4-31b-it:timeout"] == 1
+
+
+def test_active_jobs_api(monkeypatch):
+    async def fake_active_jobs_payload(limit=10, event_limit=80):
+        return {"jobs": [], "active_count": 0}
+
+    monkeypatch.setattr(api.api_observability_service, "build_active_jobs_payload", fake_active_jobs_payload)
+
+    client = TestClient(api.app)
+    response = client.get("/api/observability/active-jobs")
+
+    assert response.status_code == 200
+    assert response.json()["active_count"] == 0
 
 
 def test_api_uses_lifespan_and_router_modules():

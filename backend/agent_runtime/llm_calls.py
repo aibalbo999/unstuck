@@ -36,9 +36,9 @@ from .retry_policy import (
 )
 
 
-async def _await_with_agent_timeout(coro, *, model_id: str):
+async def _await_with_agent_timeout(coro, *, model_id: str, timeout_seconds: float | None = None):
     """Compatibility timeout seam; tests may monkeypatch the module constant."""
-    timeout = float(LLM_AGENT_CALL_TIMEOUT_SECONDS or 0)
+    timeout = float(LLM_AGENT_CALL_TIMEOUT_SECONDS if timeout_seconds is None else timeout_seconds)
     if timeout <= 0:
         return await coro
     try:
@@ -80,7 +80,7 @@ def _run_agent_once(
                 phase="llm_model_call",
                 level="info",
                 message=f"Agent {agent_num} 正在呼叫模型 {model_id}...",
-                **_model_event_fields(context, agent_num, model_id, prompt),
+                **_model_event_fields(context, agent_num, model_id, prompt, timeout_seconds=timeout_seconds),
             ),
         )
         api_key = rotator.get_key(model_id, estimate_text_tokens(prompt, response_budget=8192))
@@ -94,7 +94,7 @@ def _run_agent_once(
             message=f"Agent {agent_num} 模型 {model_id} 呼叫失敗。",
             level="warning",
             error_category=_agent_error_category(exc),
-            **_model_event_fields(context, agent_num, model_id, prompt),
+            **_model_event_fields(context, agent_num, model_id, prompt, timeout_seconds=timeout_seconds),
         )
         _raise_agent_call_error(exc, api_key, model_id, rotator, quota_default)
 
@@ -106,7 +106,7 @@ def _run_agent_once(
                 phase="llm_model_response",
                 level="info",
                 message=f"Agent {agent_num} 模型 {model_id} 回應完成。",
-                **_model_event_fields(context, agent_num, model_id, prompt, output_chars=len(result)),
+                **_model_event_fields(context, agent_num, model_id, prompt, timeout_seconds=timeout_seconds, output_chars=len(result)),
             ),
         )
         return result
@@ -120,6 +120,7 @@ async def _run_agent_once_async(
     model_id: str,
     prompt: str,
     quota_default: float = 1,
+    timeout_seconds: float | None = None,
 ) -> str:
     api_key = None
     try:
@@ -137,6 +138,7 @@ async def _run_agent_once_async(
         response = await _await_with_agent_timeout(
             _generate_content_async(api_key, model_id, agent_num, prompt),
             model_id=model_id,
+            timeout_seconds=timeout_seconds,
         )
         result = process_agent_response(agent_num, _response_text(response), context)
     except Exception as exc:

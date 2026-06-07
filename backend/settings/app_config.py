@@ -20,6 +20,14 @@ def validate_runtime_settings() -> list[str]:
         warnings.append("ANALYSIS_WORKER_COUNT 必須大於 0。")
     if LLM_AGENT_CALL_TIMEOUT_SECONDS < 0:
         warnings.append("LLM_AGENT_CALL_TIMEOUT_SECONDS 不可為負數。")
+    if PRIMARY_LLM_AGENT_CALL_TIMEOUT_SECONDS <= 0:
+        warnings.append("PRIMARY_LLM_AGENT_CALL_TIMEOUT_SECONDS 必須大於 0。")
+    if FALLBACK_LLM_AGENT_CALL_TIMEOUT_SECONDS < 0:
+        warnings.append("FALLBACK_LLM_AGENT_CALL_TIMEOUT_SECONDS 不可為負數。")
+    if PRIMARY_MODEL_TRANSIENT_MAX_ATTEMPTS <= 0 or PRIMARY_MODEL_QUOTA_MAX_ATTEMPTS <= 0:
+        warnings.append("PRIMARY_MODEL_*_MAX_ATTEMPTS 必須大於 0。")
+    if LLM_MODEL_CIRCUIT_THRESHOLD <= 0 or LLM_MODEL_CIRCUIT_COOLDOWN_SECONDS <= 0:
+        warnings.append("LLM_MODEL_CIRCUIT_* 必須大於 0。")
     if not ALLOWED_ORIGINS:
         warnings.append("ALLOWED_ORIGINS 為空，瀏覽器前端可能無法呼叫 API。")
     invalid_freshness = [

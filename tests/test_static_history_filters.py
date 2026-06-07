@@ -19,6 +19,7 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     app_js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
     provider_sla_js = (STATIC_DIR / "provider_sla_panel.js").read_text(encoding="utf-8")
+    active_jobs_js = (STATIC_DIR / "active_jobs_panel.js").read_text(encoding="utf-8")
     report_rerun_js = (STATIC_DIR / "report_rerun.js").read_text(encoding="utf-8")
     analysis_stream_js = (STATIC_DIR / "analysis_stream.js").read_text(encoding="utf-8")
     history_workspace_js = (STATIC_DIR / "history_workspace.js").read_text(encoding="utf-8")
@@ -28,6 +29,7 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     ui_helpers_js = (STATIC_DIR / "ui_helpers.js").read_text(encoding="utf-8")
 
     assert 'id="provider-sla-panel"' in index_html
+    assert 'id="active-jobs-panel"' in index_html
     assert 'id="provider-sla-window"' in index_html
     assert 'id="preview-refresh-data-btn"' in index_html
     assert 'id="preview-rerun-final-btn"' in index_html
@@ -35,6 +37,7 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert 'id="preview-rerun-cancel-btn"' in index_html
     assert 'id="preview-stale-notice"' in index_html
     assert "/static/provider_sla_panel.js" in index_html
+    assert "/static/active_jobs_panel.js" in index_html
     assert "/static/report_rerun.js" in index_html
     assert "/static/analysis_stream.js" in index_html
     assert "/static/history_panel.js" in index_html
@@ -47,6 +50,7 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "/static/api_client.js" in index_html
     assert "providerSlaWindow" in app_js
     assert "StockAgentProviderSlaPanel.render" in app_js
+    assert "StockAgentActiveJobsPanel.render" in app_js
     assert "StockAgentHistoryPanel.create" in history_workspace_js
     assert "StockAgentReportPreviewPanel.create" in history_workspace_js
     assert "StockAgentViewController.create" in app_js
@@ -69,6 +73,8 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "new EventSource" in analysis_stream_js
     assert "params.set('window'" in api_client_js
     assert "/api/observability/provider-sla" in api_client_js
+    assert "/api/observability/active-jobs" in api_client_js
+    assert "llm_error_counts" in active_jobs_js
     assert "renderPipelineModeBadge" in ui_helpers_js
     assert "renderDataTrustReason" in ui_helpers_js
     assert "data-trust-reason" in ui_helpers_js

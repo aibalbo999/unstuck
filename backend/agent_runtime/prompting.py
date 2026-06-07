@@ -3,6 +3,7 @@
 from analysis_types import AnalysisContext, StockData
 from agent_catalog import AGENT_NAMES
 from assistant_context import _format_previous
+from config import PRIMARY_PROMPT_CONTEXT_TOTAL_CHAR_BUDGET, PRIMARY_PROMPT_RAG_CONTEXT_CHARS
 from prompt_builder import format_data_for_prompt, render_prompt_template
 from prompt_rules import (
     build_agent_rule_block,
@@ -40,8 +41,6 @@ def build_company_identity_guard(data: StockData) -> str:
     return "\n".join(lines)
 
 
-OUTPUT_CLEANLINESS_RULE = build_output_cleanliness_rule()
-
 def build_numeric_tool_instruction(agent_num: int) -> str:
     """Prompt agents with deterministic tool usage guidance."""
     return build_agent_rule_block("numeric_tool_instructions", agent_num)
@@ -56,9 +55,16 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     """根據 Agent 編號建立分析提示詞。"""
     ticker = data["ticker"]
     name = data["company_name"]
-    fin_data = format_data_for_prompt(data)
-    prev = _format_previous(context, agent_num)
+    compact_primary = bool(context.get("_primary_probe_prompt"))
+    fin_data = format_data_for_prompt(data, compact=compact_primary)
+    prev = (
+        _format_previous(context, agent_num, max_total_chars=PRIMARY_PROMPT_CONTEXT_TOTAL_CHAR_BUDGET)
+        if compact_primary
+        else _format_previous(context, agent_num)
+    )
     rag_context = (context.get("rag_context", {}) or {}).get(agent_num, "")
+    if compact_primary and len(rag_context) > PRIMARY_PROMPT_RAG_CONTEXT_CHARS:
+        rag_context = rag_context[: max(PRIMARY_PROMPT_RAG_CONTEXT_CHARS - 32, 0)].rstrip() + "\n...（RAG 片段截斷）"
     identity_guard = build_company_identity_guard(data)
     numeric_tool_instruction = build_numeric_tool_instruction(agent_num)
     enrichment_instruction = build_data_enrichment_instruction(agent_num)

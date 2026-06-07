@@ -127,7 +127,23 @@ def _prompt_source_audit_summary(data: dict) -> list[dict]:
     ]
 
 
-def format_data_for_prompt(data: dict) -> str:
+def _compact_list(items, limit: int) -> list:
+    return list(items or [])[: max(0, int(limit))]
+
+
+def _compact_pe_river(pe_river: dict) -> dict:
+    if not isinstance(pe_river, dict):
+        return {}
+    bands = pe_river.get("bands") if isinstance(pe_river.get("bands"), dict) else {}
+    return {
+        "source": pe_river.get("source"),
+        "years": _compact_list((pe_river.get("years", []) or [])[-5:], 5),
+        "multiples": _compact_list(pe_river.get("multiples", []), 5),
+        "band_labels": list(bands.keys())[:5],
+    }
+
+
+def format_data_for_prompt(data: dict, *, compact: bool = False) -> str:
     """Format financial data as clean JSON to avoid unit drift and prompt overload."""
     shares = safe_float(data.get("shares_raw"))
     forward_eps = safe_float(data.get("forward_eps"))
@@ -230,15 +246,15 @@ def format_data_for_prompt(data: dict) -> str:
         },
         "market_catalysts": {
             "lookback_days": CATALYST_LOOKBACK_DAYS,
-            "items": data.get("recent_catalysts", []) or [],
+            "items": _compact_list(data.get("recent_catalysts", []), 3) if compact else data.get("recent_catalysts", []) or [],
         },
         "institutional_trading": data.get("institutional_trading", {}) or {},
         "peer_context": {
-            "dynamic_peer_metrics": data.get("dynamic_peer_metrics", []) or [],
-            "search_discovery_results": data.get("peer_discovery_results", []) or [],
+            "dynamic_peer_metrics": _compact_list(data.get("dynamic_peer_metrics", []), 5) if compact else data.get("dynamic_peer_metrics", []) or [],
+            "search_discovery_results": [] if compact else data.get("peer_discovery_results", []) or [],
         },
         "local_valuation_context": {
-            "pe_river_chart": data.get("pe_river_chart", {}) or {},
+            "pe_river_chart": _compact_pe_river(data.get("pe_river_chart", {}) or {}) if compact else data.get("pe_river_chart", {}) or {},
         },
         "cross_checks": {
             "forward_eps_implied_net_income_billion_twd": implied_forward_net_income_b,
@@ -247,8 +263,8 @@ def format_data_for_prompt(data: dict) -> str:
             "dupont_identity_note": data.get("dupont_identity_note") or data.get("equity_multiplier_note"),
             "wacc_capital_structure_note": data.get("wacc_capital_structure_note"),
         },
-        "data_quality_notes": data.get("data_source_notes", []) or [],
-        "recent_monthly_revenue_text": data.get("recent_monthly_revenue", []) or [],
+        "data_quality_notes": _compact_list(data.get("data_source_notes", []), 5) if compact else data.get("data_source_notes", []) or [],
+        "recent_monthly_revenue_text": _compact_list(data.get("recent_monthly_revenue", []), 4) if compact else data.get("recent_monthly_revenue", []) or [],
         "deterministic_financial_tool_results": build_financial_tool_context(data),
     }
 

@@ -31,5 +31,11 @@ def create_observability_router(deps: ObservabilityRouteDeps) -> APIRouter:
             window=window,
         )
 
-    return router
+    @router.get("/active-jobs")
+    async def active_jobs(
+        limit: int = Query(10, ge=1, le=50),
+        event_limit: int = Query(80, ge=1, le=300),
+    ):
+        return await api_observability_service.build_active_jobs_payload(limit, event_limit)
 
+    return router

@@ -6,6 +6,7 @@ import asyncio
 from collections.abc import Callable
 
 from provider_sla import SLA_CRITICAL_SUCCESS_RATE, SLA_WARNING_SUCCESS_RATE
+from job_observability import build_active_jobs_snapshot
 
 
 VALID_SLA_WINDOWS = {"all", "last_1h", "last_24h", "last_7d"}
@@ -103,3 +104,7 @@ async def build_provider_sla_payload(
         "alerts": alerts_from_providers(windowed_providers),
         "selected_window": normalized_window,
     }
+
+
+async def build_active_jobs_payload(limit: int = 10, event_limit: int = 80) -> dict:
+    return await asyncio.to_thread(build_active_jobs_snapshot, limit, event_limit)

@@ -14,6 +14,11 @@
         return jsonRequest(`/api/observability/provider-sla?${params.toString()}`);
     }
 
+    async function fetchActiveJobs({ limit = 5, eventLimit = 40 } = {}) {
+        const params = new URLSearchParams({ limit: String(limit), event_limit: String(eventLimit) });
+        return jsonRequest(`/api/observability/active-jobs?${params.toString()}`);
+    }
+
     async function fetchReports({ page, limit, query, pipeline, recommendation, dataTrust }) {
         const params = new URLSearchParams({
             page: String(page),
@@ -36,6 +41,7 @@
 
     window.StockAgentApiClient = {
         fetchProviderSla,
+        fetchActiveJobs,
         fetchReports,
         refreshReportDataSnapshot,
         deleteReport

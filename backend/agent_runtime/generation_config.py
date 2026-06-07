@@ -69,8 +69,8 @@ async def _generate_content_async(api_key: str, model_id: str, agent_num: int, p
     return await generate_content_async(api_key, model_id, prompt, config)
 
 
-async def _await_with_agent_timeout(coro, *, model_id: str):
-    timeout = float(LLM_AGENT_CALL_TIMEOUT_SECONDS or 0)
+async def _await_with_agent_timeout(coro, *, model_id: str, timeout_seconds: float | None = None):
+    timeout = float(LLM_AGENT_CALL_TIMEOUT_SECONDS if timeout_seconds is None else timeout_seconds)
     if timeout <= 0:
         return await coro
     try:
