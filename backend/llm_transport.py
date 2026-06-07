@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from contextlib import suppress
 
 from google import genai
@@ -37,67 +38,49 @@ def _genai_http_options():
     return types.HttpOptions(timeout=max(1, int(round(timeout_seconds * 1000))))
 
 
+_client_cache: dict[str, genai.Client] = {}
+_client_lock = threading.Lock()
+
+
+def _get_client(api_key: str) -> genai.Client:
+    with _client_lock:
+        if api_key not in _client_cache:
+            _client_cache[api_key] = genai.Client(api_key=api_key, http_options=_genai_http_options())
+        return _client_cache[api_key]
+
+
 def generate_content(api_key: str, model_id: str, prompt: str, config):
     """Call Google GenAI synchronously with an isolated per-key client."""
-    client = genai.Client(api_key=api_key, http_options=_genai_http_options())
-    try:
-        return client.models.generate_content(model=model_id, contents=prompt, config=config)
-    finally:
-        with suppress(Exception):
-            client.close()
+    client = _get_client(api_key)
+    return client.models.generate_content(model=model_id, contents=prompt, config=config)
 
 
 async def generate_content_async(api_key: str, model_id: str, prompt: str, config):
     """Call Google GenAI through the async client implementation."""
-    client = genai.Client(api_key=api_key, http_options=_genai_http_options())
-    try:
-        return await client.aio.models.generate_content(model=model_id, contents=prompt, config=config)
-    finally:
-        with suppress(Exception):
-            await client.aio.aclose()
-        with suppress(Exception):
-            client.close()
+    client = _get_client(api_key)
+    return await client.aio.models.generate_content(model=model_id, contents=prompt, config=config)
 
 
 def embed_content(api_key: str, model_id: str, contents, config):
     """Call Google GenAI embeddings synchronously with an isolated per-key client."""
-    client = genai.Client(api_key=api_key, http_options=_genai_http_options())
-    try:
-        return client.models.embed_content(model=model_id, contents=contents, config=config)
-    finally:
-        with suppress(Exception):
-            client.close()
+    client = _get_client(api_key)
+    return client.models.embed_content(model=model_id, contents=contents, config=config)
 
 
 async def embed_content_async(api_key: str, model_id: str, contents, config):
     """Call Google GenAI embeddings through the async client implementation."""
-    client = genai.Client(api_key=api_key, http_options=_genai_http_options())
-    try:
-        return await client.aio.models.embed_content(model=model_id, contents=contents, config=config)
-    finally:
-        with suppress(Exception):
-            await client.aio.aclose()
-        with suppress(Exception):
-            client.close()
+    client = _get_client(api_key)
+    return await client.aio.models.embed_content(model=model_id, contents=contents, config=config)
 
 
 def generate_images(api_key: str, model_id: str, prompt: str, config):
     """Call Imagen synchronously with an isolated per-key client."""
-    client = genai.Client(api_key=api_key, http_options=_genai_http_options())
-    try:
-        return client.models.generate_images(model=model_id, prompt=prompt, config=config)
-    finally:
-        with suppress(Exception):
-            client.close()
+    client = _get_client(api_key)
+    return client.models.generate_images(model=model_id, prompt=prompt, config=config)
 
 
 async def generate_images_async(api_key: str, model_id: str, prompt: str, config):
     """Call Imagen through the async client implementation."""
-    client = genai.Client(api_key=api_key, http_options=_genai_http_options())
-    try:
-        return await client.aio.models.generate_images(model=model_id, prompt=prompt, config=config)
-    finally:
-        with suppress(Exception):
-            await client.aio.aclose()
-        with suppress(Exception):
-            client.close()
+    client = _get_client(api_key)
+    return await client.aio.models.generate_images(model=model_id, prompt=prompt, config=config)
+

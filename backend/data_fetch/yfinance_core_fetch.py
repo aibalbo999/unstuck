@@ -44,7 +44,7 @@ from .yfinance_derived import (
 from .yfinance_extractors import extract_financial_histories, extract_price_history, fetch_monthly_revenue_records
 from .yfinance_sync_enrichment import fetch_sync_enrichment_bundle
 
-warnings.filterwarnings("ignore")
+warnings.filterwarnings("ignore", module="yfinance")
 
 
 def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_provider=None) -> dict:
@@ -238,7 +238,26 @@ def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_
         )
 
         # === 欄位缺漏備援補值與財務一致性校準 ===
-        quality_updates = apply_market_fallbacks_and_quality_calibration(locals())
+        quality_updates = apply_market_fallbacks_and_quality_calibration(
+            current_price=current_price,
+            market_cap=market_cap,
+            pe_ratio=pe_ratio,
+            week_52_high=week_52_high,
+            week_52_low=week_52_low,
+            shares_outstanding=shares_outstanding,
+            revenue_ttm=revenue_ttm,
+            free_cash_flow=free_cash_flow,
+            fcf_history=fcf_history,
+            revenue_history=revenue_history,
+            net_income_history=net_income_history,
+            trailing_eps=trailing_eps,
+            revenue_growth=revenue_growth,
+            earnings_growth=earnings_growth,
+            profit_margin=profit_margin,
+            info=info,
+            ticker=ticker,
+            data_source_notes=data_source_notes,
+        )
         current_price = quality_updates["current_price"]
         market_cap = quality_updates["market_cap"]
         pe_ratio = quality_updates["pe_ratio"]
@@ -258,7 +277,82 @@ def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_
         fmp_quote_audit = quality_updates["fmp_quote_audit"]
         
         # === 整合所有數據 ===
-        data = build_legacy_payload(locals())
+        payload_vars = {
+            "ticker": ticker,
+            "company_name": company_name,
+            "raw_company_name": raw_company_name,
+            "company_identity": company_identity,
+            "sector": sector,
+            "industry": industry,
+            "country": country,
+            "employees": employees,
+            "current_price": current_price,
+            "market_cap": market_cap,
+            "week_52_high": week_52_high,
+            "week_52_low": week_52_low,
+            "pe_ratio": pe_ratio,
+            "forward_pe": forward_pe,
+            "pb_ratio": pb_ratio,
+            "ps_ratio": ps_ratio,
+            "ev_ebitda": ev_ebitda,
+            "shares_outstanding": shares_outstanding,
+            "forward_eps": forward_eps,
+            "trailing_eps": trailing_eps,
+            "revenue_ttm": revenue_ttm,
+            "gross_margin": gross_margin,
+            "operating_margin": operating_margin,
+            "profit_margin": profit_margin,
+            "provider_profit_margin": provider_profit_margin,
+            "net_income_ttm": net_income_ttm,
+            "net_income_source": net_income_source,
+            "ebitda": ebitda,
+            "free_cash_flow": free_cash_flow,
+            "operating_cash_flow": operating_cash_flow,
+            "total_debt": total_debt,
+            "total_cash": total_cash,
+            "debt_to_equity": debt_to_equity,
+            "current_ratio": current_ratio,
+            "roe": roe,
+            "roa": roa,
+            "dividend_yield": dividend_yield,
+            "dividend_rate": dividend_rate,
+            "payout_ratio": payout_ratio,
+            "latest_annual_revenue_growth": latest_annual_revenue_growth,
+            "latest_annual_net_income_growth": latest_annual_net_income_growth,
+            "ttm_vs_latest_annual_revenue_change": ttm_vs_latest_annual_revenue_change,
+            "yahoo_revenue_growth_raw": yahoo_revenue_growth_raw,
+            "yahoo_earnings_growth_raw": yahoo_earnings_growth_raw,
+            "revenue_cagr": revenue_cagr,
+            "beta": beta,
+            "analyst_target": analyst_target,
+            "analyst_rec": analyst_rec,
+            "analyst_count": analyst_count,
+            "years": years,
+            "revenue_history": revenue_history,
+            "net_income_history": net_income_history,
+            "gross_profit_history": gross_profit_history,
+            "operating_income_history": operating_income_history,
+            "fcf_history": fcf_history,
+            "gross_margin_history": gross_margin_history,
+            "op_margin_history": op_margin_history,
+            "net_margin_history": net_margin_history,
+            "roe_history": roe_history,
+            "total_equity_history": total_equity_history,
+            "total_assets_history": total_assets_history,
+            "price_history": price_history,
+            "recent_monthly_revenue": recent_monthly_revenue,
+            "recent_catalysts": recent_catalysts,
+            "institutional_trading": institutional_trading,
+            "dynamic_peer_metrics": dynamic_peer_metrics,
+            "peer_discovery_results": peer_discovery_results,
+            "pe_river_chart": pe_river_chart,
+            "data_source_notes": data_source_notes,
+            "equity_multiplier": equity_multiplier,
+            "equity_multiplier_note": equity_multiplier_note,
+            "dupont_identity_note": dupont_identity_note,
+            "wacc_capital_structure_note": wacc_capital_structure_note,
+        }
+        data = build_legacy_payload(payload_vars)
         
         data = finalize_and_cache_legacy_payload(
             data=data,

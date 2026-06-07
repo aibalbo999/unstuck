@@ -9,7 +9,7 @@ from agent_runtime.audit_repair import finalize_final_audit
 from agent_runtime.routing import is_agent_execution_failure
 from agent_runtime.single_agent import run_single_agent
 from analysis_types import AnalysisContext, StockData
-from config import AGENT_MODELS, API_KEYS, EMBEDDING_MODEL, INTER_AGENT_DELAY
+from config import AGENT_MODELS, API_KEYS, EMBEDDING_MODEL
 from context_digest_tasks import CONTEXT_DIGEST_TARGET_AGENTS, ensure_context_digest
 from llm_client import KeyRotator
 from pipeline_modes import get_pipeline_definition, normalize_pipeline_id
@@ -75,11 +75,7 @@ def run_analysis_pipeline(
         if context.get("blocking_issues"):
             break
 
-        agent_position = agent_positions.get(agent_num, agent_num)
-        if agent_position < agent_total and INTER_AGENT_DELAY > 0:
-            wait = INTER_AGENT_DELAY
-            emit_log(f"\n  ⏰ 額外等待 {wait:.1f} 秒後執行下一個 Agent...\n")
-            time.sleep(wait)
+
 
     _finalize_sync_pipeline(context, rotator, progress_callback, agent_total, pipeline_def)
     return context

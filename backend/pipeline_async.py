@@ -10,7 +10,7 @@ from agent_runtime import run_agent_with_quality_gates_async
 from agent_runtime.audit_repair import finalize_final_audit_async
 from agent_runtime.cancellation import attach_cancel_check, raise_if_cancelled
 from analysis_types import AnalysisContext, StockData
-from config import API_KEYS, EMBEDDING_MODEL, INTER_AGENT_DELAY
+from config import API_KEYS, EMBEDDING_MODEL
 from llm_client import KeyRotator
 from pipeline_modes import get_pipeline_definition, normalize_pipeline_id
 from rag_runtime import build_rag_index_async
@@ -98,10 +98,6 @@ async def _run_agent_groups(data, context, rotator, progress_callback, agent_tot
         if context.get("blocking_issues"):
             break
 
-        if group_index < len(agent_groups) - 1 and INTER_AGENT_DELAY > 0:
-            raise_if_cancelled(context)
-            emit_log(f"\n  ⏰ 額外等待 {INTER_AGENT_DELAY:.1f} 秒後執行下一階段...\n")
-            await asyncio.sleep(INTER_AGENT_DELAY)
 
 
 async def _run_parallel_group(group, data, context, rotator, progress_callback, agent_total, pipeline_def) -> None:

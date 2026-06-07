@@ -18,13 +18,12 @@ _JOB_LOCK = threading.Lock()
 JOB_STORE_SCHEMA_VERSION = 4
 
 
-def _connect():
-    path = Path(TASK_DB_PATH)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path, timeout=30)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA busy_timeout=5000")
+_local = threading.local()
+_schema_initialized = False
+_SCHEMA_LOCK = threading.Lock()
+
+
+def _init_schema(conn: sqlite3.Connection):
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS analysis_jobs (
@@ -79,6 +78,27 @@ def _connect():
     conn.execute("CREATE INDEX IF NOT EXISTS idx_analysis_jobs_ticker_pipeline_status ON analysis_jobs(ticker, pipeline_id, status)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_analysis_events_job_id_id ON analysis_events(job_id, id)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_analysis_events_type_phase_created ON analysis_events(event_type, phase, created_at)")
+
+
+def _connect():
+    global _schema_initialized
+    if hasattr(_local, "conn"):
+        return _local.conn
+
+    path = Path(TASK_DB_PATH)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(path, timeout=30)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
+
+    if not _schema_initialized:
+        with _SCHEMA_LOCK:
+            if not _schema_initialized:
+                _init_schema(conn)
+                _schema_initialized = True
+
+    _local.conn = conn
     return conn
 
 

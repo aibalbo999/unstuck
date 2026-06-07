@@ -21,12 +21,12 @@ def _json_default(value):
     return str(value)
 
 
-def _connect():
-    path = Path(CACHE_DB_PATH)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path, timeout=30)
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA busy_timeout=5000")
+_local = threading.local()
+_schema_initialized = False
+_SCHEMA_LOCK = threading.Lock()
+
+
+def _init_schema(conn: sqlite3.Connection):
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS cache_entries (
@@ -45,6 +45,26 @@ def _connect():
             )
         },
     )
+
+
+def _connect():
+    global _schema_initialized
+    if hasattr(_local, "conn"):
+        return _local.conn
+
+    path = Path(CACHE_DB_PATH)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(path, timeout=30)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
+
+    if not _schema_initialized:
+        with _SCHEMA_LOCK:
+            if not _schema_initialized:
+                _init_schema(conn)
+                _schema_initialized = True
+
+    _local.conn = conn
     return conn
 
 
@@ -70,6 +90,7 @@ def get_cache_json(cache_key: str) -> Optional[dict]:
             return None
 
 
+
 def set_cache_json(cache_key: str, value: dict, ttl_seconds: int) -> None:
     expires_at = time.time() + ttl_seconds
     serialized = json.dumps(value, ensure_ascii=False, default=_json_default)
@@ -85,3 +106,11 @@ def set_cache_json(cache_key: str, value: dict, ttl_seconds: int) -> None:
             """,
             (cache_key, serialized, expires_at, time.time()),
         )
+
+
+def cleanup_expired_cache_entries() -> int:
+    """Delete expired entries from the cache to prevent unbounded growth."""
+    now = time.time()
+    with _CACHE_LOCK, _connect() as conn:
+        cursor = conn.execute("DELETE FROM cache_entries WHERE expires_at < ?", (now,))
+        return cursor.rowcount

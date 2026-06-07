@@ -55,7 +55,8 @@ class StockDataService:
 
     def _build_result(self, request: FetchRequest, data: dict, duration_ms: int) -> FetchResult:
         audit_entries = data.get("source_audit", []) if isinstance(data.get("source_audit"), list) else []
-        with suppress(Exception):
+        import sqlite3
+        with suppress(sqlite3.Error):
             record_source_audit_entries(audit_entries)
         provider_results = []
         if request.options.include_provider_results:

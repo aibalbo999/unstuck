@@ -89,8 +89,6 @@ def require_mutation_authorized(request: Request) -> None:
     supplied = (
         request.headers.get("x-admin-token")
         or request.headers.get("x-mutation-token")
-        or request.query_params.get("admin_token")
-        or request.query_params.get("mutation_token")
         or ""
     ).strip()
     if supplied != token:
@@ -120,9 +118,12 @@ async def _mark_abandoned_local_jobs() -> None:
 
 
 async def _cleanup_reports_forever() -> None:
+    from cache_store import cleanup_expired_cache_entries
+
     while True:
         await asyncio.to_thread(cleanup_expired_reports)
         await asyncio.to_thread(cleanup_orphan_markdown_reports)
+        await asyncio.to_thread(cleanup_expired_cache_entries)
         await asyncio.sleep(REPORT_CLEANUP_INTERVAL_SECONDS)
 
 

@@ -9,6 +9,7 @@ from storage.legacy_reports import migrate_legacy_reports
 from market_calendar_store import update_market_calendars
 from provider_sla_maintenance import cleanup_provider_sla_events
 from snapshot_maintenance import verify_snapshots
+from storage_inventory import build_storage_summary
 
 
 def main() -> int:
@@ -28,6 +29,12 @@ def main() -> int:
     snapshot_parser.add_argument("--write", action="store_true")
     sla_parser = subparsers.add_parser("cleanup-provider-sla")
     sla_parser.add_argument("--retention-days", type=int, default=None)
+    storage_parser = subparsers.add_parser("storage-summary")
+    storage_parser.add_argument("--output-dir", default=None)
+    storage_parser.add_argument("--cache-dir", default=None)
+    storage_parser.add_argument("--cache-db-path", default=None)
+    storage_parser.add_argument("--task-db-path", default=None)
+    storage_parser.add_argument("--market-calendar-dir", default=None)
 
     args = parser.parse_args()
     if args.command == "migrate-legacy-reports":
@@ -49,6 +56,16 @@ def main() -> int:
         return 0
     if args.command == "cleanup-provider-sla":
         result = cleanup_provider_sla_events(retention_days=args.retention_days)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
+    if args.command == "storage-summary":
+        result = build_storage_summary(
+            output_dir=args.output_dir,
+            cache_dir=args.cache_dir,
+            cache_db_path=args.cache_db_path,
+            task_db_path=args.task_db_path,
+            market_calendar_dir=args.market_calendar_dir,
+        )
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
     parser.error(f"Unknown command: {args.command}")

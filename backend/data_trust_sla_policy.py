@@ -35,7 +35,8 @@ def matched_provider_sla_alerts(data: dict, alerts: list[dict] | None = None) ->
     if not pairs:
         return []
     if alerts is None:
-        with suppress(Exception):
+        import sqlite3
+        with suppress(ImportError, sqlite3.Error):
             from provider_sla import get_provider_sla_alerts
 
             alerts = get_provider_sla_alerts(limit=100)

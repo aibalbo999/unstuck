@@ -211,6 +211,7 @@ def test_runtime_and_job_helpers_are_split_into_focused_modules():
         "market_calendar_store.py",
         "provider_sla_maintenance.py",
         "snapshot_maintenance.py",
+        "storage_inventory.py",
     ]
     for filename in expected:
         assert (BACKEND / filename).exists()

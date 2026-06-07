@@ -7,7 +7,7 @@ import os
 from .env import env_float
 
 
-INTER_AGENT_DELAY = env_float("INTER_AGENT_DELAY", 0.0)
+
 LLM_AGENT_CALL_TIMEOUT_SECONDS = env_float("LLM_AGENT_CALL_TIMEOUT_SECONDS", 120.0)
 ANALYSIS_WORKER_COUNT = int(os.getenv("ANALYSIS_WORKER_COUNT", "2"))
 TASK_QUEUE_BACKEND = os.getenv("TASK_QUEUE_BACKEND", "local").strip().lower()

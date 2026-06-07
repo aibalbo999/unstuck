@@ -59,30 +59,31 @@ def calculate_revenue_cagr(revenue_history: list) -> str:
     return "N/A"
 
 
-def apply_market_fallbacks_and_quality_calibration(ctx: dict) -> dict:
+def apply_market_fallbacks_and_quality_calibration(
+    *,
+    current_price,
+    market_cap,
+    pe_ratio,
+    week_52_high,
+    week_52_low,
+    shares_outstanding,
+    revenue_ttm,
+    free_cash_flow,
+    fcf_history,
+    revenue_history,
+    net_income_history,
+    trailing_eps,
+    revenue_growth,
+    earnings_growth,
+    profit_margin,
+    info,
+    ticker,
+    data_source_notes,
+) -> dict:
     from source_audit import audited_fetch
 
     from .market_sources.common import first_number, is_missing_value, safe_get
     from .market_sources.http_enrichment import fetch_fmp_quote_fallback
-
-    current_price = ctx["current_price"]
-    market_cap = ctx["market_cap"]
-    pe_ratio = ctx["pe_ratio"]
-    week_52_high = ctx["week_52_high"]
-    week_52_low = ctx["week_52_low"]
-    shares_outstanding = ctx["shares_outstanding"]
-    revenue_ttm = ctx["revenue_ttm"]
-    free_cash_flow = ctx["free_cash_flow"]
-    fcf_history = ctx["fcf_history"]
-    revenue_history = ctx["revenue_history"]
-    net_income_history = ctx["net_income_history"]
-    trailing_eps = ctx["trailing_eps"]
-    revenue_growth = ctx["revenue_growth"]
-    earnings_growth = ctx["earnings_growth"]
-    profit_margin = ctx["profit_margin"]
-    info = ctx["info"]
-    ticker = ctx["ticker"]
-    data_source_notes = ctx["data_source_notes"]
 
     fmp_quote = {}
     fmp_quote_audit = None

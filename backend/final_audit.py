@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+import re
 from typing import Optional
 
 from analysis_types import AnalysisContext, AuditResult
@@ -38,8 +39,6 @@ def _extract_first_price(value: str) -> Optional[float]:
 
 
 def _extract_confidence_score(value: str) -> Optional[float]:
-    import re
-
     match = re.search(r"(\d+(?:\.\d+)?)", str(value or ""))
     if not match:
         return None
