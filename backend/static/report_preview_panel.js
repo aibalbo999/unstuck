@@ -1,4 +1,15 @@
 (function () {
+    function setButtonText(button, text) {
+        const label = button ? button.querySelector('span') : null;
+        if (label) label.textContent = text;
+    }
+
+    function configureRerunButtons(elements, pipelineId) {
+        const isModeB = pipelineId === 'v2';
+        setButtonText(elements.rerunFinalBtn, isModeB ? '重跑模式 B 最終建議' : '重跑模式 A 最終建議');
+        setButtonText(elements.rerunModeBBtn, isModeB ? '重跑完整模式 B' : '產生模式 B 報告');
+    }
+
     function create(options) {
         const elements = options.elements || {};
 
@@ -8,6 +19,7 @@
             const pipelineId = report.pipeline_id || 'v1';
 
             elements.mode.innerHTML = `${options.renderPipelineModeBadge(pipelineId)}${options.renderDataTrustBadge(report.data_trust)}<span class="preview-date">${options.escapeHtml(report.date || '')}</span>`;
+            configureRerunButtons(elements, pipelineId);
             elements.title.textContent = `${report.ticker} 投資建議`;
             elements.price.textContent = rec.current_price || 'N/A';
             elements.recommendation.textContent = options.normalizeRecommendation(rec.recommendation);

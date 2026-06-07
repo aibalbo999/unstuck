@@ -142,6 +142,8 @@
     cursor: pointer;
     font-size: 0.82rem;
     font-weight: 800;
+    line-height: 1.25;
+    padding: 6px 8px;
 }
 .preview-rerun-button:hover:not(:disabled) {
     border-color: rgba(96, 165, 250, 0.46);

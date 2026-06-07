@@ -61,6 +61,12 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "StockAgentReportActions.bindDownloads" in app_js
     assert "history-item" in history_panel_js
     assert "preview-date" in report_preview_js
+    assert "configureRerunButtons" in report_preview_js
+    assert "重跑模式 A 最終建議" in report_preview_js
+    assert "重跑模式 B 最終建議" in report_preview_js
+    assert "重跑完整模式 B" in report_preview_js
+    assert "產生模式 B 報告" in report_preview_js
+    assert "產生模式 B 報告" in index_html
     assert "history-item" not in app_js
     assert "providerSlaStatsForWindow" in provider_sla_js
     assert "groupedProviderRows" in provider_sla_js

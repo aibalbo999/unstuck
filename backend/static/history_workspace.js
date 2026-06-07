@@ -39,7 +39,9 @@
                 target6m: elements.previewTarget6m,
                 target12m: elements.previewTarget12m,
                 summary: elements.previewSummary,
-                staleNotice: elements.previewStaleNotice
+                staleNotice: elements.previewStaleNotice,
+                rerunFinalBtn: elements.previewRerunFinalBtn,
+                rerunModeBBtn: elements.previewRerunModeBBtn
             },
             escapeHtml: ui.escapeHtml,
             renderPipelineModeBadge: ui.renderPipelineModeBadge,
