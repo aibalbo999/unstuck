@@ -21,6 +21,7 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     provider_sla_js = (STATIC_DIR / "provider_sla_panel.js").read_text(encoding="utf-8")
     report_rerun_js = (STATIC_DIR / "report_rerun.js").read_text(encoding="utf-8")
     analysis_stream_js = (STATIC_DIR / "analysis_stream.js").read_text(encoding="utf-8")
+    history_workspace_js = (STATIC_DIR / "history_workspace.js").read_text(encoding="utf-8")
     history_panel_js = (STATIC_DIR / "history_panel.js").read_text(encoding="utf-8")
     report_preview_js = (STATIC_DIR / "report_preview_panel.js").read_text(encoding="utf-8")
     api_client_js = (STATIC_DIR / "api_client.js").read_text(encoding="utf-8")
@@ -41,22 +42,23 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "/static/view_controller.js" in index_html
     assert "/static/history_filters.js" in index_html
     assert "/static/report_actions.js" in index_html
+    assert "/static/history_workspace.js" in index_html
     assert "/static/ui_helpers.js" in index_html
     assert "/static/api_client.js" in index_html
     assert "providerSlaWindow" in app_js
     assert "StockAgentProviderSlaPanel.render" in app_js
-    assert "StockAgentHistoryPanel.create" in app_js
-    assert "StockAgentReportPreviewPanel.create" in app_js
+    assert "StockAgentHistoryPanel.create" in history_workspace_js
+    assert "StockAgentReportPreviewPanel.create" in history_workspace_js
     assert "StockAgentViewController.create" in app_js
-    assert "StockAgentHistoryFilters.create" in app_js
+    assert "StockAgentHistoryFilters.create" in history_workspace_js
     assert "StockAgentReportActions.bindDownloads" in app_js
     assert "history-item" in history_panel_js
     assert "preview-date" in report_preview_js
     assert "history-item" not in app_js
     assert "providerSlaStatsForWindow" in provider_sla_js
-    assert "analysis_text_stale" in app_js
-    assert "rerunPreviewReport" in app_js
-    assert "StockAgentReportRerun.rerunPreviewReport" in app_js
+    assert "analysis_text_stale" in history_workspace_js
+    assert "rerunPreviewReport" in history_workspace_js
+    assert "StockAgentReportRerun.rerunPreviewReport" in history_workspace_js
     assert "/rerun?scope=" in report_rerun_js
     assert "/rerun/cancel" in report_rerun_js
     assert "buttons.cancel" in report_rerun_js
@@ -73,7 +75,8 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
 
 def test_frontend_static_modules_are_sized():
     size_limits = {
-        "app.js": 430,
+        "app.js": 300,
+        "history_workspace.js": 260,
         "ui_helpers.js": 140,
         "api_client.js": 80,
         "view_controller.js": 40,

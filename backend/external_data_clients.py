@@ -1,11 +1,11 @@
-"""HTTP clients for optional external market data sources."""
+"""Compatibility facade for optional external market data HTTP clients."""
 
 from __future__ import annotations
 
 import asyncio
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any
 
+import external_data_fmp as _fmp
+import external_data_google as _google
 from config import (
     CATALYST_LOOKBACK_DAYS,
     FMP_API_KEY,
@@ -13,295 +13,68 @@ from config import (
     GOOGLE_CSE_ID,
     GOOGLE_SEARCH_API_KEY,
 )
-from external_http_client import (
-    async_client,
-    async_json_get,
-    build_http_warning,
-    log_http_warning,
-    sync_json_get,
-)
+from external_http_client import async_json_get, build_http_warning, log_http_warning, sync_json_get
 
 
-GOOGLE_SEARCH_URL = "https://www.googleapis.com/customsearch/v1"
-FMP_LEGACY_NEWS_URL = "https://financialmodelingprep.com/api/v3/stock_news"
+GOOGLE_SEARCH_URL = _google.GOOGLE_SEARCH_URL
+FMP_LEGACY_NEWS_URL = _fmp.FMP_LEGACY_NEWS_URL
 _sync_json_get = sync_json_get
 _async_json_get = async_json_get
 
 
-def _dedupe_records(records: list[dict], key: str = "title", limit: int = 6) -> list[dict]:
-    kept = []
-    seen = set()
-    for record in records:
-        marker = str(record.get(key) or record.get("link") or "").strip().lower()
-        if not marker or marker in seen:
-            continue
-        kept.append(record)
-        seen.add(marker)
-        if len(kept) >= limit:
-            break
-    return kept
+def _sync_source_seams() -> None:
+    _fmp.FMP_API_KEY = FMP_API_KEY
+    _fmp.FMP_BASE_URL = FMP_BASE_URL
+    _fmp._sync_json_get = _sync_json_get
+    _fmp._async_json_get = _async_json_get
+    _fmp.log_http_warning = log_http_warning
 
-
-def _parse_fmp_quote_payload(payload: Any) -> dict:
-    if isinstance(payload, list) and payload:
-        return payload[0] if isinstance(payload[0], dict) else {}
-    return payload if isinstance(payload, dict) else {}
-
-
-def _parse_google_catalyst_payload(payload: Any) -> list[dict]:
-    records = []
-    if not isinstance(payload, dict):
-        return records
-
-    for item in payload.get("items", []) or []:
-        title = str(item.get("title", "")).strip()
-        if not title:
-            continue
-        metatags = item.get("pagemap", {}).get("metatags", [{}]) or [{}]
-        records.append({
-            "date": metatags[0].get("article:published_time", ""),
-            "title": title,
-            "summary": str(item.get("snippet", "")).strip(),
-            "source": item.get("displayLink", "Google Search"),
-            "link": item.get("link", ""),
-            "source_type": "google_search",
-        })
-    return records
-
-
-def _parse_google_peer_payload(payload: Any) -> list[dict]:
-    records = []
-    if not isinstance(payload, dict):
-        return records
-
-    for item in payload.get("items", []) or []:
-        title = str(item.get("title", "")).strip()
-        if not title:
-            continue
-        records.append({
-            "title": title,
-            "snippet": str(item.get("snippet", "")).strip(),
-            "source": item.get("displayLink", "Google Search"),
-            "link": item.get("link", ""),
-            "source_type": "google_peer_discovery",
-        })
-    return _dedupe_records(records, limit=5)
-
-
-def _parse_fmp_news_payload(payload: Any) -> list[dict]:
-    if not isinstance(payload, list):
-        return []
-
-    records = []
-    for item in payload:
-        if not isinstance(item, dict) or not item.get("title"):
-            continue
-        records.append({
-            "date": item.get("publishedDate") or item.get("date") or "",
-            "title": str(item.get("title", "")).strip(),
-            "summary": str(item.get("text") or item.get("summary") or "")[:280],
-            "source": item.get("site") or "FMP",
-            "link": item.get("url") or "",
-            "source_type": "fmp_news",
-        })
-    return records
+    _google.CATALYST_LOOKBACK_DAYS = CATALYST_LOOKBACK_DAYS
+    _google.GOOGLE_SEARCH_API_KEY = GOOGLE_SEARCH_API_KEY
+    _google.GOOGLE_CSE_ID = GOOGLE_CSE_ID
+    _google._sync_json_get = _sync_json_get
+    _google._async_json_get = _async_json_get
+    _google.log_http_warning = log_http_warning
 
 
 def fetch_fmp_quote_fallback(ticker: str) -> dict:
-    """Fetch optional FMP quote data when yfinance misses key market fields."""
-    if not FMP_API_KEY:
-        return {}
-
-    symbol = ticker.strip().upper()
-    try:
-        payload = _sync_json_get(
-            f"{FMP_BASE_URL}/quote",
-            {"symbol": symbol, "apikey": FMP_API_KEY},
-        )
-        return _parse_fmp_quote_payload(payload)
-    except Exception as exc:
-        log_http_warning("FMP", "quote fallback", exc)
-        return {}
+    _sync_source_seams()
+    return _fmp.fetch_fmp_quote_fallback(ticker)
 
 
 async def fetch_fmp_quote_fallback_async(ticker: str) -> dict:
-    if not FMP_API_KEY:
-        return {}
-
-    symbol = ticker.strip().upper()
-    try:
-        async with async_client() as client:
-            payload = await _async_json_get(
-                client,
-                f"{FMP_BASE_URL}/quote",
-                {"symbol": symbol, "apikey": FMP_API_KEY},
-            )
-        return _parse_fmp_quote_payload(payload)
-    except Exception as exc:
-        log_http_warning("FMP", "quote fallback async", exc)
-        return {}
+    _sync_source_seams()
+    return await _fmp.fetch_fmp_quote_fallback_async(ticker)
 
 
 def fetch_google_search_catalysts(ticker: str, company_name: str, identity: dict) -> list[dict]:
-    """Fetch catalyst-like headlines from Google Custom Search when configured."""
-    if not GOOGLE_SEARCH_API_KEY or not GOOGLE_CSE_ID:
-        return []
-
-    official_name = identity.get("official_name") or company_name or ticker
-    query = f"{official_name} {ticker} 法說會 展望 供應鏈 營收 投資"
-    try:
-        payload = _sync_json_get(
-            GOOGLE_SEARCH_URL,
-            {
-                "key": GOOGLE_SEARCH_API_KEY,
-                "cx": GOOGLE_CSE_ID,
-                "q": query,
-                "num": 5,
-                "dateRestrict": f"d{CATALYST_LOOKBACK_DAYS}",
-                "lr": "lang_zh-TW",
-            },
-        )
-        return _parse_google_catalyst_payload(payload)
-    except Exception as exc:
-        log_http_warning("Google Search", "recent catalysts", exc)
-        return []
+    _sync_source_seams()
+    return _google.fetch_google_search_catalysts(ticker, company_name, identity)
 
 
 async def fetch_google_search_catalysts_async(ticker: str, company_name: str, identity: dict) -> list[dict]:
-    if not GOOGLE_SEARCH_API_KEY or not GOOGLE_CSE_ID:
-        return []
-
-    official_name = identity.get("official_name") or company_name or ticker
-    query = f"{official_name} {ticker} 法說會 展望 供應鏈 營收 投資"
-    try:
-        async with async_client() as client:
-            payload = await _async_json_get(
-                client,
-                GOOGLE_SEARCH_URL,
-                {
-                    "key": GOOGLE_SEARCH_API_KEY,
-                    "cx": GOOGLE_CSE_ID,
-                    "q": query,
-                    "num": 5,
-                    "dateRestrict": f"d{CATALYST_LOOKBACK_DAYS}",
-                    "lr": "lang_zh-TW",
-                },
-        )
-        return _parse_google_catalyst_payload(payload)
-    except Exception as exc:
-        log_http_warning("Google Search", "recent catalysts async", exc)
-        return []
+    _sync_source_seams()
+    return await _google.fetch_google_search_catalysts_async(ticker, company_name, identity)
 
 
 def fetch_google_peer_discovery_results(ticker: str, company_name: str, sector: str, industry: str) -> list[dict]:
-    """Fetch search snippets that can help Agent 3 identify real global peers."""
-    if not GOOGLE_SEARCH_API_KEY or not GOOGLE_CSE_ID:
-        return []
-
-    query = f"{company_name} {ticker} global competitors peers gross margin {industry} {sector}"
-    try:
-        payload = _sync_json_get(
-            GOOGLE_SEARCH_URL,
-            {
-                "key": GOOGLE_SEARCH_API_KEY,
-                "cx": GOOGLE_CSE_ID,
-                "q": query,
-                "num": 5,
-            },
-        )
-        return _parse_google_peer_payload(payload)
-    except Exception as exc:
-        log_http_warning("Google Search", "peer discovery", exc)
-        return []
+    _sync_source_seams()
+    return _google.fetch_google_peer_discovery_results(ticker, company_name, sector, industry)
 
 
 async def fetch_google_peer_discovery_results_async(ticker: str, company_name: str, sector: str, industry: str) -> list[dict]:
-    if not GOOGLE_SEARCH_API_KEY or not GOOGLE_CSE_ID:
-        return []
-
-    query = f"{company_name} {ticker} global competitors peers gross margin {industry} {sector}"
-    try:
-        async with async_client() as client:
-            payload = await _async_json_get(
-                client,
-                GOOGLE_SEARCH_URL,
-                {
-                    "key": GOOGLE_SEARCH_API_KEY,
-                    "cx": GOOGLE_CSE_ID,
-                    "q": query,
-                    "num": 5,
-                },
-        )
-        return _parse_google_peer_payload(payload)
-    except Exception as exc:
-        log_http_warning("Google Search", "peer discovery async", exc)
-        return []
-
-
-def _fmp_news_candidates(symbol: str) -> list[tuple[str, dict]]:
-    return [
-        (FMP_LEGACY_NEWS_URL, {"tickers": symbol, "limit": 5, "apikey": FMP_API_KEY}),
-        (f"{FMP_BASE_URL}/stock_news", {"tickers": symbol, "limit": 5, "apikey": FMP_API_KEY}),
-    ]
+    _sync_source_seams()
+    return await _google.fetch_google_peer_discovery_results_async(ticker, company_name, sector, industry)
 
 
 def fetch_fmp_news_catalysts(ticker: str) -> list[dict]:
-    """Fetch optional FMP stock news when an API key is available."""
-    if not FMP_API_KEY:
-        return []
-
-    symbol = ticker.strip().upper()
-
-    def fetch_endpoint(url: str, params: dict) -> list[dict]:
-        try:
-            payload = _sync_json_get(url, params)
-        except Exception as exc:
-            log_http_warning("FMP", f"news candidate {url}", exc)
-            return []
-        return _parse_fmp_news_payload(payload)
-
-    candidates = _fmp_news_candidates(symbol)
-    with ThreadPoolExecutor(max_workers=len(candidates)) as executor:
-        futures = {
-            executor.submit(fetch_endpoint, url, params): index
-            for index, (url, params) in enumerate(candidates)
-        }
-        ordered_results = {}
-        for future in as_completed(futures):
-            ordered_results[futures[future]] = future.result()
-
-    for index in range(len(candidates)):
-        records = ordered_results.get(index) or []
-        if records:
-            return records
-    return []
+    _sync_source_seams()
+    return _fmp.fetch_fmp_news_catalysts(ticker)
 
 
 async def fetch_fmp_news_catalysts_async(ticker: str) -> list[dict]:
-    if not FMP_API_KEY:
-        return []
-
-    symbol = ticker.strip().upper()
-    candidates = _fmp_news_candidates(symbol)
-
-    async def fetch_endpoint(client, url: str, params: dict) -> list[dict]:
-        try:
-            payload = await _async_json_get(client, url, params)
-        except Exception as exc:
-            log_http_warning("FMP", f"news async candidate {url}", exc)
-            return []
-        return _parse_fmp_news_payload(payload)
-
-    async with async_client() as client:
-        results = await asyncio.gather(
-            *(fetch_endpoint(client, url, params) for url, params in candidates),
-            return_exceptions=False,
-        )
-
-    for records in results:
-        if records:
-            return records
-    return []
+    _sync_source_seams()
+    return await _fmp.fetch_fmp_news_catalysts_async(ticker)
 
 
 async def fetch_optional_http_data_bundle(

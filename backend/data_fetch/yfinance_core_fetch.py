@@ -6,81 +6,31 @@ imports are kept in data_fetch.yfinance_legacy_fetch only.
 
 import asyncio
 import time as time_module
-from datetime import timedelta, timezone
-from typing import Optional, Sequence
 import warnings
 from cache_store import get_cache_json, set_cache_json
-from config import (
-    FINANCIAL_DATA_CACHE_SECONDS,
-    FINANCIAL_DATA_MARKET_CACHE_SECONDS,
-    FINANCIAL_DATA_OFFHOURS_CACHE_SECONDS,
-    SOURCE_FRESHNESS_MAX_AGE_SECONDS,
-)
-from data_trust import (
-    AUDIT_STATUS_SKIPPED_FRESH_CACHE,
-    AUDIT_STATUS_SUCCESS,
-    AUDIT_STATUS_UNAVAILABLE,
-    append_source_audit,
-    build_source_audit_entry,
-    finalize_data_trust,
-    source_record_count,
-)
-import data_freshness as freshness_helpers
 from .market_sources.common import (
-    _dedupe_records,
-    _run_named_fetches,
-    first_number,
-    is_missing_value,
     safe_get,
 )
 from .market_sources.http_enrichment import (
-    fetch_fmp_news_catalysts,
-    fetch_fmp_news_catalysts_async,
     fetch_fmp_quote_fallback,
-    fetch_google_peer_discovery_results,
-    fetch_google_peer_discovery_results_async,
-    fetch_google_search_catalysts,
-    fetch_google_search_catalysts_async,
     fetch_recent_catalysts,
-    fetch_yfinance_news_catalysts,
 )
-from .market_sources.identity import build_company_identity, is_taiwan_ticker
-from .market_sources.peers import fetch_dynamic_peer_metrics
+from .market_sources.identity import build_company_identity
 from .market_sources.taiwan import (
     DataLoader,
-    _align_finmind_history,
-    _history_has_values,
     fetch_finmind_financial_statement_fallback,
-    fetch_finmind_news_catalysts,
-    fetch_institutional_trading_trend,
 )
 from .market_sources.ticker_resolver import get_market_data_provider
 from .market_sources.valuation import build_pe_river_chart_data
 from prompt_builder import format_data_for_prompt
 from runtime_events import emit_log
-from source_audit import append_audit_entry, audited_fetch, audited_fetch_async
 from .audit_helpers import (
     _append_cache_audit_entries,
-    _append_full_fetch_audit,
-    _append_skipped_fresh_cache_audit,
     _append_source_fetch_audit,
     _assess_cached_financial_data,
-    _build_data_freshness,
-    _build_source_freshness,
-    _build_source_freshness_entry,
-    _cache_timestamp_epoch,
-    _freshness_policy,
     _is_likely_market_session,
-    _market_now,
-    _mark_market_data_fetched,
-    _mark_sources_fetched,
-    _source_is_stale,
-    _source_max_age_seconds,
-    _source_timestamp_epoch,
 )
-from .cache_helpers import _cache_financial_data
-from .constants import CORE_CACHE_SOURCES, DATA_SCHEMA_VERSION, SOURCE_FRESHNESS_SOURCES
-from .formatting import format_pct
+from .constants import DATA_SCHEMA_VERSION
 from .optional_enrichment import enrich_optional_http_async
 from .yfinance_cache_gate import build_fresh_cache_payload
 from .yfinance_capital_notes import build_capital_structure_notes

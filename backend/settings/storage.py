@@ -1,18 +1,52 @@
 """Storage, cache, report lifecycle, and data freshness settings."""
 
-from .app_config import (
-    ANALYSIS_JOB_STALE_SECONDS,
-    CACHE_DB_PATH,
-    CACHE_DIR,
-    DATA_SNAPSHOT_MAX_BYTES,
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+from .env import BASE_DIR, env_int, json_env_dict
+
+
+OUTPUT_DIR = os.getenv("OUTPUT_DIR", str(BASE_DIR / "output"))
+CACHE_DIR = Path(os.getenv("CACHE_DIR", str(BASE_DIR / "cache")))
+CACHE_DB_PATH = os.getenv("CACHE_DB_PATH", str(CACHE_DIR / "stock_agent_cache.sqlite3"))
+DATA_SNAPSHOT_MAX_BYTES = env_int("DATA_SNAPSHOT_MAX_BYTES", 2 * 1024 * 1024)
+FINANCIAL_DATA_CACHE_SECONDS = int(os.getenv("FINANCIAL_DATA_CACHE_SECONDS", str(24 * 60 * 60)))
+FINANCIAL_DATA_MARKET_CACHE_SECONDS = env_int("FINANCIAL_DATA_MARKET_CACHE_SECONDS", 15 * 60)
+FINANCIAL_DATA_OFFHOURS_CACHE_SECONDS = env_int(
+    "FINANCIAL_DATA_OFFHOURS_CACHE_SECONDS",
     FINANCIAL_DATA_CACHE_SECONDS,
-    FINANCIAL_DATA_MARKET_CACHE_SECONDS,
-    FINANCIAL_DATA_OFFHOURS_CACHE_SECONDS,
-    OUTPUT_DIR,
-    REPORT_CLEANUP_INTERVAL_SECONDS,
-    REPORT_RETENTION_DAYS,
-    SOURCE_FRESHNESS_MAX_AGE_SECONDS,
-    TASK_DB_PATH,
 )
+
+
+def _load_source_freshness_seconds() -> dict[str, int]:
+    defaults = {
+        "market_data": FINANCIAL_DATA_MARKET_CACHE_SECONDS,
+        "financial_statements": FINANCIAL_DATA_CACHE_SECONDS,
+        "monthly_revenue": 24 * 60 * 60,
+        "recent_catalysts": 30 * 60,
+        "institutional_trading": 6 * 60 * 60,
+        "dynamic_peer_metrics": 24 * 60 * 60,
+        "peer_discovery": 24 * 60 * 60,
+        "pe_river_chart": 24 * 60 * 60,
+    }
+    for key in list(defaults):
+        defaults[key] = env_int(f"SOURCE_FRESHNESS_{key.upper()}_SECONDS", defaults[key])
+    for key, value in json_env_dict("SOURCE_FRESHNESS_SECONDS_JSON").items():
+        try:
+            defaults[str(key)] = int(value)
+        except (TypeError, ValueError):
+            continue
+    return defaults
+
+
+SOURCE_FRESHNESS_MAX_AGE_SECONDS = _load_source_freshness_seconds()
+
+REPORT_RETENTION_DAYS = int(os.getenv("REPORT_RETENTION_DAYS", "30"))
+REPORT_CLEANUP_INTERVAL_SECONDS = int(os.getenv("REPORT_CLEANUP_INTERVAL_SECONDS", str(24 * 60 * 60)))
+TASK_DB_PATH = os.getenv("TASK_DB_PATH", str(CACHE_DIR / "analysis_jobs.sqlite3"))
+ANALYSIS_JOB_STALE_SECONDS = int(os.getenv("ANALYSIS_JOB_STALE_SECONDS", str(6 * 60 * 60)))
+
 
 __all__ = [name for name in globals() if name.isupper()]

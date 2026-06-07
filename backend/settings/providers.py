@@ -1,16 +1,52 @@
 """External data provider and API-key settings."""
 
-from .app_config import (
-    API_KEYS,
-    API_KEY_SETUP_MESSAGE,
-    CATALYST_LOOKBACK_DAYS,
-    FMP_API_KEY,
-    FMP_BASE_URL,
-    GOOGLE_CSE_ID,
-    GOOGLE_SEARCH_API_KEY,
-    INSTITUTIONAL_LOOKBACK_DAYS,
-    has_api_keys,
-    refresh_api_keys,
+from __future__ import annotations
+
+import os
+
+from .env import is_placeholder_key, load_local_env, split_keys
+
+
+def _load_api_keys() -> list[str]:
+    load_local_env()
+    keys = []
+    for env_name in ("GEMINI_API_KEYS", "GOOGLE_API_KEYS"):
+        keys.extend(split_keys(os.getenv(env_name, "")))
+
+    for i in range(1, 11):
+        key = os.getenv(f"GOOGLE_API_KEY_{i}") or os.getenv(f"GEMINI_API_KEY_{i}")
+        if key:
+            keys.append(key.strip())
+
+    return [key for key in dict.fromkeys(keys) if not is_placeholder_key(key)]
+
+
+API_KEYS = []
+
+
+def refresh_api_keys() -> list[str]:
+    API_KEYS[:] = _load_api_keys()
+    return API_KEYS
+
+
+def has_api_keys() -> bool:
+    return bool(refresh_api_keys())
+
+
+API_KEY_SETUP_MESSAGE = (
+    "未設定 Gemini API key。請設定 GEMINI_API_KEYS / GOOGLE_API_KEYS，"
+    "或在 backend/.env 放入 GEMINI_API_KEYS=key1,key2，然後重新啟動系統。"
 )
+
+
+refresh_api_keys()
+
+FMP_API_KEY = os.getenv("FMP_API_KEY", "").strip()
+FMP_BASE_URL = os.getenv("FMP_BASE_URL", "https://financialmodelingprep.com/stable").rstrip("/")
+GOOGLE_SEARCH_API_KEY = os.getenv("GOOGLE_SEARCH_API_KEY", "").strip()
+GOOGLE_CSE_ID = os.getenv("GOOGLE_CSE_ID", "").strip()
+CATALYST_LOOKBACK_DAYS = int(os.getenv("CATALYST_LOOKBACK_DAYS", "30"))
+INSTITUTIONAL_LOOKBACK_DAYS = int(os.getenv("INSTITUTIONAL_LOOKBACK_DAYS", "30"))
+
 
 __all__ = [name for name in globals() if name.isupper() or name in {"has_api_keys", "refresh_api_keys"}]

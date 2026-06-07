@@ -56,11 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let currentReportFilename = null;
     let pendingAuditNotice = null;
-    let historyPage = 1;
-    const historyLimit = 20;
     let currentPipeline = 'v1';
-    let historyReports = new Map();
-    let previewReport = null;
     let providerSlaPayload = null;
 
     const viewController = window.StockAgentViewController.create({
@@ -71,13 +67,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     const switchView = viewController.switchView;
-
-    const historyFilters = window.StockAgentHistoryFilters.create({
-        searchEl: historySearch,
-        pipelineEl: historyPipelineFilter,
-        recommendationEl: historyRecommendationFilter,
-        dataTrustEl: historyDataTrustFilter
-    });
 
     function getSelectedPipeline() {
         const selected = document.querySelector('input[name="pipeline-mode"]:checked') || pipelineInputs.find(input => input.checked);
@@ -141,132 +130,6 @@ document.addEventListener('DOMContentLoaded', () => {
         reportAuditNotice.hidden = false;
     }
 
-    const historyPanel = window.StockAgentHistoryPanel.create({
-        listEl: historyList,
-        paginationEl: historyPagination,
-        prevBtn: historyPrev,
-        nextBtn: historyNext,
-        pageInfoEl: historyPageInfo,
-        escapeHtml: ui.escapeHtml,
-        renderPipelineModeBadge: ui.renderPipelineModeBadge,
-        renderDataTrustBadge: ui.renderDataTrustBadge,
-        recommendationTone: ui.recommendationTone,
-        normalizeRecommendation: ui.normalizeRecommendation
-    });
-
-    const reportPreviewPanel = window.StockAgentReportPreviewPanel.create({
-        elements: {
-            root: reportPreview,
-            mode: previewMode,
-            title: previewTitle,
-            price: previewPrice,
-            recommendation: previewRecommendation,
-            confidence: previewConfidence,
-            target3m: previewTarget3m,
-            target6m: previewTarget6m,
-            target12m: previewTarget12m,
-            summary: previewSummary,
-            staleNotice: previewStaleNotice
-        },
-        escapeHtml: ui.escapeHtml,
-        renderPipelineModeBadge: ui.renderPipelineModeBadge,
-        renderDataTrustBadge: ui.renderDataTrustBadge,
-        recommendationTone: ui.recommendationTone,
-        normalizeRecommendation: ui.normalizeRecommendation
-    });
-
-    // 載入歷史報告
-    async function loadHistory() {
-        try {
-            const { query, pipelineFilter, recommendationFilter, dataTrustFilter } = historyFilters.values();
-            const data = await apiClient.fetchReports({
-                page: historyPage,
-                limit: historyLimit,
-                query,
-                pipeline: pipelineFilter,
-                recommendation: recommendationFilter,
-                dataTrust: dataTrustFilter
-            });
-            const pagination = data.pagination || { page: 1, total_pages: 1, total: 0, has_prev: false, has_next: false };
-            const reports = data.reports || [];
-            historyReports = new Map(reports.map(report => [report.filename, report]));
-            historyPanel.renderReports(reports, previewReport && previewReport.filename);
-            if (!reports.length || (previewReport && !historyReports.has(previewReport.filename))) {
-                hideReportPreview();
-            }
-            historyPage = historyPanel.renderPagination(pagination);
-        } catch (err) {
-            console.error('Failed to load history', err);
-        }
-    }
-
-    function hideReportPreview() {
-        previewReport = null;
-        reportPreviewPanel.hide();
-        historyPanel.clearSelection();
-    }
-
-    function showReportPreview(filename) {
-        const report = historyReports.get(filename);
-        if (!report) return;
-        previewReport = report;
-        if (reportPreviewPanel.show(report)) {
-            historyPanel.select(filename);
-        }
-    }
-
-    async function refreshPreviewDataSnapshot() {
-        if (!previewReport || !previewRefreshDataBtn) return;
-        const filename = previewReport.filename;
-        const label = previewRefreshDataBtn.querySelector('span');
-        const originalText = label ? label.textContent : '刷新資料快照';
-        previewRefreshDataBtn.disabled = true;
-        if (label) label.textContent = '刷新中';
-        try {
-            const payload = await apiClient.refreshReportDataSnapshot(filename);
-            const updated = {
-                ...previewReport,
-                data_trust: payload.data_trust || previewReport.data_trust,
-                data_snapshot_filename: payload.data_filename || previewReport.data_snapshot_filename,
-                analysis_text_stale: payload.analysis_text_stale || previewReport.analysis_text_stale,
-                analysis_text_stale_message: payload.analysis_text_stale_message || previewReport.analysis_text_stale_message
-            };
-            historyReports.set(filename, updated);
-            previewReport = updated;
-            showReportPreview(filename);
-            await loadHistory();
-            await loadProviderSla();
-            const summary = payload.refresh_diff && Array.isArray(payload.refresh_diff.summary)
-                ? payload.refresh_diff.summary.slice(0, 3).join('；')
-                : '資料快照已刷新';
-            alert(`資料快照已刷新：${summary}`);
-        } catch (err) {
-            console.error('Failed to refresh data snapshot', err);
-            alert(`刷新資料快照失敗：${err.message || err}`);
-        } finally {
-            previewRefreshDataBtn.disabled = false;
-            if (label) label.textContent = originalText;
-        }
-    }
-
-    async function rerunPreviewReport(scope) {
-        return window.StockAgentReportRerun.rerunPreviewReport({
-            scope,
-            previewReport,
-            buttons: {
-                final: previewRerunFinalBtn,
-                modeB: previewRerunModeBBtn,
-                cancel: previewRerunCancelBtn
-            },
-            statusEl: previewStaleNotice,
-            loadHistory,
-            loadProviderSla,
-            openReport
-        });
-    }
-
-    historyPanel.bindEvents({ onDelete: deleteReport, onSelect: showReportPreview });
-
     // 開啟報告
     function openReport(filename, ticker, pipelineId = 'v1') {
         currentReportFilename = filename;
@@ -283,21 +146,42 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     window.openReport = openReport;
 
-    if (previewOpenReportBtn) {
-        previewOpenReportBtn.addEventListener('click', () => {
-            if (!previewReport) return;
-            openReport(previewReport.filename, previewReport.ticker, previewReport.pipeline_id || 'v1');
-        });
-    }
-
-    [
-        [previewRefreshDataBtn, refreshPreviewDataSnapshot],
-        [previewRerunFinalBtn, () => rerunPreviewReport('final_recommendation')],
-        [previewRerunModeBBtn, () => rerunPreviewReport('mode_b')],
-        [previewCloseBtn, hideReportPreview]
-    ].forEach(([button, handler]) => {
-        if (button) button.addEventListener('click', handler);
+    const historyWorkspace = window.StockAgentHistoryWorkspace.create({
+        apiClient,
+        ui,
+        loadProviderSla,
+        openReport,
+        elements: {
+            historyList,
+            historySearch,
+            historyPipelineFilter,
+            historyRecommendationFilter,
+            historyDataTrustFilter,
+            historyPagination,
+            historyPrev,
+            historyNext,
+            historyPageInfo,
+            reportPreview,
+            previewMode,
+            previewTitle,
+            previewPrice,
+            previewRecommendation,
+            previewConfidence,
+            previewTarget3m,
+            previewTarget6m,
+            previewTarget12m,
+            previewSummary,
+            previewStaleNotice,
+            previewOpenReportBtn,
+            previewRefreshDataBtn,
+            previewRerunFinalBtn,
+            previewRerunModeBBtn,
+            previewRerunCancelBtn,
+            previewCloseBtn
+        }
     });
+    historyWorkspace.bindEvents();
+    const loadHistory = historyWorkspace.loadHistory;
 
     window.StockAgentReportActions.bindDownloads({
         htmlBtn: downloadHtmlBtn,
@@ -305,25 +189,6 @@ document.addEventListener('DOMContentLoaded', () => {
         dataBtn: downloadDataBtn,
         getFilename: () => currentReportFilename
     });
-
-    async function deleteReport(filename, event) {
-        event.stopPropagation();
-        if (confirm('確定要刪除這份報告嗎？')) {
-            try {
-                const result = await apiClient.deleteReport(filename);
-                if (result.success) {
-                    if (previewReport && previewReport.filename === filename) hideReportPreview();
-                    loadHistory();
-                } else {
-                    alert('刪除失敗：' + result.error);
-                }
-            } catch (err) {
-                console.error(err);
-                alert('刪除失敗');
-            }
-        }
-    }
-    window.deleteReport = deleteReport;
 
     loadHistory();
     loadProviderSla();
@@ -336,38 +201,10 @@ document.addEventListener('DOMContentLoaded', () => {
         providerSlaWindow.addEventListener('change', loadProviderSla);
     }
 
-    historyFilters.bind({
-        onSearch: () => {
-            historyPage = 1;
-            loadHistory();
-        },
-        onFilter: () => {
-            historyPage = 1;
-            hideReportPreview();
-            loadHistory();
-        }
-    });
-
     pipelineInputs.forEach(input => {
         input.addEventListener('change', updateAnalyzeButtonCopy);
     });
     updateAnalyzeButtonCopy();
-
-    if (historyPrev) {
-        historyPrev.addEventListener('click', () => {
-            if (historyPage > 1) {
-                historyPage -= 1;
-                loadHistory();
-            }
-        });
-    }
-
-    if (historyNext) {
-        historyNext.addEventListener('click', () => {
-            historyPage += 1;
-            loadHistory();
-        });
-    }
 
     const analysisStream = window.StockAgentAnalysisStream.create({
         loadingStatus,

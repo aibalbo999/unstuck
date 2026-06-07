@@ -22,6 +22,7 @@ from validators import (  # noqa: F401
     validate_prompt_leakage,
 )
 
+from . import audit_repair as _audit_repair
 from .audit_repair import *  # noqa: F401,F403
 from .llm_calls import *  # noqa: F401,F403
 from .pipeline_compat import *  # noqa: F401,F403
@@ -43,63 +44,12 @@ def _clear_agent_blocking_issues(context, agent_num):
 
 
 def _repair_agent_output(agent_num, data, context, rotator, issues):
-    previous_instruction = context.get("_audit_retry_instruction")
-    previous_reflection_instruction = context.get("_audit_reflection_instruction")
-    previous_model_override = context.get("_model_sequence_override")
+    previous = _audit_repair.run_single_agent
+    _audit_repair.run_single_agent = run_single_agent
     try:
-        current_issues = list(issues)
-        last_result = None
-        last_quality_issues = []
-        for repair_attempt in range(2):
-            reflection = generate_audit_reflection(
-                agent_num,
-                current_issues,
-                last_result or context.get("analyses", {}).get(agent_num, ""),
-                data,
-                rotator,
-            )
-            context["_audit_reflection_instruction"] = build_audit_reflection_instruction(reflection)
-            context["_audit_retry_instruction"] = build_audit_retry_instruction(agent_num, current_issues)
-            model_override = dict(context.get("_model_sequence_override", {}) or {})
-            model_override[agent_num] = get_audit_model_sequence()
-            context["_model_sequence_override"] = model_override
-            context["structured_outputs"].pop(agent_num, None)
-            result = run_single_agent(agent_num, data, context, rotator, max_retries=1)
-            result = sanitize_model_output(result)
-            if is_agent_execution_failure(result):
-                return False, result
-            prompt_issues = validate_prompt_leakage(result)
-            identity_issues = validate_company_identity(result, data)
-            if prompt_issues or identity_issues:
-                return False, "；".join(prompt_issues + identity_issues)
-            quality_issues = validate_analysis_output(agent_num, result, data)
-            if quality_issues:
-                last_result = append_quality_warnings(agent_num, result, data)
-                last_quality_issues = quality_issues
-                current_issues = quality_issues
-                emit_log(f"       ↳ 第 {repair_attempt + 1} 次重寫仍觸發品質紅線，改用紅線重新要求修復。")
-                continue
-            context["analyses"][agent_num] = strip_generated_audit_sections(result)
-            _clear_agent_blocking_issues(context, agent_num)
-            return True, "已重寫並通過品質檢查"
-        if last_result:
-            context["analyses"][agent_num] = last_result
-        return False, "重寫後仍觸發品質紅線：" + "；".join(last_quality_issues[:3])
-    except Exception as exc:
-        return False, str(exc)[:160]
+        return _audit_repair._repair_agent_output(agent_num, data, context, rotator, issues)
     finally:
-        if previous_instruction is None:
-            context.pop("_audit_retry_instruction", None)
-        else:
-            context["_audit_retry_instruction"] = previous_instruction
-        if previous_reflection_instruction is None:
-            context.pop("_audit_reflection_instruction", None)
-        else:
-            context["_audit_reflection_instruction"] = previous_reflection_instruction
-        if previous_model_override is None:
-            context.pop("_model_sequence_override", None)
-        else:
-            context["_model_sequence_override"] = previous_model_override
+        _audit_repair.run_single_agent = previous
 
 
 def attempt_final_audit_repair(context, audit, rotator):

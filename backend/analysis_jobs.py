@@ -1,14 +1,12 @@
 """Importable analysis job entrypoints for local workers or RQ workers."""
 
 import asyncio
-import json
-import os
-import time
 
 from config import API_KEY_SETUP_MESSAGE, OUTPUT_DIR, has_api_keys
 from agent_runtime import AnalysisPipelineRunner, AnalysisRequest
+from analysis_job_progress import make_pipeline_progress_callback
+from analysis_job_reports import render_and_persist_report
 from data_fetch import FetchRequest, StockDataService
-from data_trust import data_snapshot_filename_for_report
 from job_store import append_event, is_job_cancel_requested, update_job
 from pipeline_modes import (
     get_pipeline_definition,
@@ -17,8 +15,7 @@ from pipeline_modes import (
     get_pipeline_run_sequence,
     normalize_pipeline_run_id,
 )
-from report_index import upsert_report_metadata
-from reporting import ReportRenderer, ReportRequest
+from reporting import ReportRenderer
 
 
 STOCK_DATA_SERVICE = StockDataService()
@@ -106,8 +103,6 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
             _raise_if_cancelled(job_id)
             pipeline_def = get_pipeline_definition(current_pipeline_id)
             agent_count = len(pipeline_def["agents"])
-            pipeline_completed_count = 0
-            last_event_current = completed_agent_offset
             append_event(job_id, {
                 "type": "status",
                 "message": f"開始執行 {pipeline_def['label']}（{sequence_index}/{sequence_total}，{agent_count} 位 Agent）...",
@@ -128,61 +123,17 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
                 "agent_total": total_agents,
             })
 
-            def progress_callback(current, total=None, name=None, phase="completed", message=None):
-                nonlocal pipeline_completed_count, last_event_current
-                _raise_if_cancelled(job_id)
-                raw_event = current if isinstance(current, dict) else {}
-                if raw_event:
-                    current = raw_event.get("current", 0)
-                    total = raw_event.get("total", total)
-                    name = raw_event.get("name") or raw_event.get("message") or name
-                    phase = raw_event.get("phase") or ("completed" if raw_event.get("type") == "progress" else "status")
-                    message = raw_event.get("message", message)
-                current = int(current or 0)
-                local_total = int(total or agent_count)
-                if phase == "completed":
-                    pipeline_completed_count = min(local_total, pipeline_completed_count + 1)
-                    calculated_current = completed_agent_offset + pipeline_completed_count
-                else:
-                    active_increment = 1 if current and pipeline_completed_count < local_total else 0
-                    calculated_current = completed_agent_offset + pipeline_completed_count + active_increment
-                global_current = min(total_agents, max(last_event_current, calculated_current))
-                last_event_current = global_current
-                event_name = f"{pipeline_def['short_label']} · {name}" if sequence_total > 1 else name
-                if phase == "completed":
-                    append_event(job_id, {
-                        "type": "progress",
-                        "current": global_current,
-                        "total": total_agents,
-                        "name": event_name,
-                        "agent_num": raw_event.get("agent_num") if raw_event else None,
-                        "pipeline_id": current_pipeline_id,
-                        "pipeline_label": pipeline_def["label"],
-                        "pipeline_current": current,
-                        "pipeline_total": local_total,
-                    })
-                    return
-
-                detail = (
-                    f"{pipeline_def['short_label']} Agent {current}/{local_total} · {name}"
-                    if current and current <= local_total
-                    else f"{pipeline_def['short_label']} · {name}"
-                )
-                append_event(job_id, {
-                    "type": "status",
-                    "message": message or f"{event_name} 進行中...",
-                    "detail": detail,
-                    "current": global_current,
-                    "total": total_agents,
-                    "phase": phase,
-                    "level": raw_event.get("level") if raw_event else None,
-                    "agent_num": raw_event.get("agent_num") if raw_event else None,
-                    "metadata": raw_event.get("metadata") if raw_event else None,
-                    "pipeline_id": current_pipeline_id,
-                    "pipeline_label": pipeline_def["label"],
-                    "pipeline_current": current,
-                    "pipeline_total": local_total,
-                })
+            progress_callback = make_pipeline_progress_callback(
+                job_id=job_id,
+                pipeline_def=pipeline_def,
+                current_pipeline_id=current_pipeline_id,
+                sequence_total=sequence_total,
+                total_agents=total_agents,
+                completed_agent_offset=completed_agent_offset,
+                agent_count=agent_count,
+                cancel_check=lambda: _raise_if_cancelled(job_id),
+                append_event_func=append_event,
+            )
 
             analysis_result = await PIPELINE_RUNNER.run_async(
                 AnalysisRequest(
@@ -211,54 +162,20 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
                     "pipeline_label": pipeline_def["label"],
                 })
 
-            append_event(job_id, {
-                "type": "status",
-                "message": f"生成 {pipeline_def['short_label']} HTML / Markdown 報告...",
-                "pipeline_id": current_pipeline_id,
-                "pipeline_label": pipeline_def["label"],
-            })
-            _raise_if_cancelled(job_id)
-            os.makedirs(OUTPUT_DIR, exist_ok=True)
-            timestamp = time.strftime("%Y%m%d_%H%M%S")
-            safe_ticker = ticker_upper.replace(".", "_")
-            filename = f"{safe_ticker}_{current_pipeline_id}_report_{timestamp}.html"
-            md_filename = f"{safe_ticker}_{current_pipeline_id}_report_{timestamp}.md"
-            data_filename = data_snapshot_filename_for_report(filename)
-            report_bundle = await REPORT_RENDERER.render_async(
-                ReportRequest(
-                    context=context,
-                    pipeline_id=current_pipeline_id,
-                    filename=filename,
-                )
-            )
-
-            with open(os.path.join(OUTPUT_DIR, filename), "w", encoding="utf-8") as f:
-                f.write(report_bundle.html)
-            with open(os.path.join(OUTPUT_DIR, md_filename), "w", encoding="utf-8") as f:
-                f.write(report_bundle.markdown)
-            data_snapshot = report_bundle.data_snapshot
-            with open(os.path.join(OUTPUT_DIR, data_filename), "w", encoding="utf-8") as f:
-                json.dump(data_snapshot, f, ensure_ascii=False, indent=2)
-            upsert_report_metadata(
-                filename,
+            report_event = await render_and_persist_report(
+                job_id=job_id,
+                ticker_upper=ticker_upper,
+                current_pipeline_id=current_pipeline_id,
+                pipeline_def=pipeline_def,
+                sequence_index=sequence_index,
+                sequence_total=sequence_total,
+                context=context,
+                audit_notice=audit_notice,
+                renderer=REPORT_RENDERER,
+                cancel_check=lambda: _raise_if_cancelled(job_id),
+                append_event_func=append_event,
                 output_dir=OUTPUT_DIR,
-                html_content=report_bundle.html,
-                markdown_content=report_bundle.markdown,
-                data_trust=data_snapshot.get("data_trust"),
             )
-
-            report_event = {
-                "type": "report_done",
-                "filename": filename,
-                "md_filename": md_filename,
-                "data_filename": data_filename,
-                "data_trust": data_snapshot.get("data_trust"),
-                "audit": audit_notice,
-                "pipeline_id": current_pipeline_id,
-                "pipeline_label": pipeline_def["label"],
-                "pipeline_index": sequence_index,
-                "pipeline_total": sequence_total,
-            }
             reports.append(report_event)
             append_event(job_id, report_event)
             completed_agent_offset += agent_count

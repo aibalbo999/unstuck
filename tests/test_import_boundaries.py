@@ -120,13 +120,36 @@ def test_data_trust_facade_is_sized():
 def test_validation_and_provider_facades_are_sized():
     limits = {
         BACKEND / "config.py": 40,
-        BACKEND / "settings" / "app_config.py": 450,
-        BACKEND / "data_fetch" / "yfinance_core_fetch.py": 370,
+        BACKEND / "settings" / "app_config.py": 80,
+        BACKEND / "data_fetch" / "yfinance_core_fetch.py": 300,
         BACKEND / "validators.py": 90,
         BACKEND / "structured_outputs.py": 90,
         BACKEND / "data_fetch" / "providers.py": 80,
         BACKEND / "data_fetch" / "yfinance_legacy_fetch.py": 60,
         BACKEND / "report_index.py": 260,
+    }
+
+    for path, limit in limits.items():
+        line_count = len(path.read_text(encoding="utf-8").splitlines())
+        assert line_count < limit, str(path.relative_to(ROOT))
+
+
+def test_backend_python_modules_stay_split_below_threshold():
+    offenders = []
+    for path in BACKEND.rglob("*.py"):
+        if "__pycache__" in path.parts:
+            continue
+        line_count = len(path.read_text(encoding="utf-8").splitlines())
+        if line_count >= 300:
+            offenders.append(f"{path.relative_to(ROOT)} has {line_count} lines")
+
+    assert offenders == []
+
+
+def test_frontend_bootstrap_is_split_into_focused_modules():
+    limits = {
+        ROOT / "backend" / "static" / "app.js": 300,
+        ROOT / "backend" / "static" / "history_workspace.js": 260,
     }
 
     for path, limit in limits.items():
@@ -168,6 +191,23 @@ def test_config_settings_are_split_into_grouped_modules():
 
     config_text = (BACKEND / "config.py").read_text(encoding="utf-8")
     assert "from settings.app_config import *" in config_text
+    assert len((BACKEND / "settings" / "models.py").read_text(encoding="utf-8").splitlines()) < 300
+
+
+def test_runtime_and_job_helpers_are_split_into_focused_modules():
+    expected = [
+        "runtime_event_core.py",
+        "runtime_event_emitters.py",
+        "runtime_event_logs.py",
+        "analysis_job_progress.py",
+        "analysis_job_reports.py",
+        "context_digest_payload.py",
+        "external_data_fmp.py",
+        "external_data_google.py",
+        "external_data_parsers.py",
+    ]
+    for filename in expected:
+        assert (BACKEND / filename).exists()
 
 
 def test_report_index_is_split_into_focused_modules():
