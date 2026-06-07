@@ -38,12 +38,18 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "/static/analysis_stream.js" in index_html
     assert "/static/history_panel.js" in index_html
     assert "/static/report_preview_panel.js" in index_html
+    assert "/static/view_controller.js" in index_html
+    assert "/static/history_filters.js" in index_html
+    assert "/static/report_actions.js" in index_html
     assert "/static/ui_helpers.js" in index_html
     assert "/static/api_client.js" in index_html
     assert "providerSlaWindow" in app_js
     assert "StockAgentProviderSlaPanel.render" in app_js
     assert "StockAgentHistoryPanel.create" in app_js
     assert "StockAgentReportPreviewPanel.create" in app_js
+    assert "StockAgentViewController.create" in app_js
+    assert "StockAgentHistoryFilters.create" in app_js
+    assert "StockAgentReportActions.bindDownloads" in app_js
     assert "history-item" in history_panel_js
     assert "preview-date" in report_preview_js
     assert "history-item" not in app_js
@@ -67,9 +73,12 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
 
 def test_frontend_static_modules_are_sized():
     size_limits = {
-        "app.js": 500,
+        "app.js": 430,
         "ui_helpers.js": 140,
         "api_client.js": 80,
+        "view_controller.js": 40,
+        "history_filters.js": 50,
+        "report_actions.js": 45,
         "style.css": 40,
         "styles/history_list.css": 320,
         "styles/preview_panel.css": 220,
@@ -78,3 +87,15 @@ def test_frontend_static_modules_are_sized():
     for relative_path, limit in size_limits.items():
         path = STATIC_DIR / relative_path
         assert len(path.read_text(encoding="utf-8").splitlines()) < limit, relative_path
+
+
+def test_visual_regression_script_is_documented():
+    script = ROOT / "scripts" / "visual_regression.sh"
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert script.exists()
+    assert "tests/test_frontend_visual_optional.py" in script.read_text(encoding="utf-8")
+    assert "tests/test_report_chart_visual_optional.py" in script.read_text(encoding="utf-8")
+    assert "VISUAL_REGRESSION_REQUIRED" in script.read_text(encoding="utf-8")
+    assert "scripts/visual_regression.sh" in readme
+    assert "RUN_VISUAL_REGRESSION=1 scripts/ci_gate.sh" in readme

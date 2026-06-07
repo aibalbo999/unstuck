@@ -12,7 +12,9 @@ FORBIDDEN_MODULES = {
     "data_fetch.core_builder",
     "data_fetch.orchestrator",
     "data_fetch.payload_assembler",
+    "data_fetch.providers",
     "data_fetch.yfinance_payload_builder",
+    "data_fetch.yfinance_legacy_fetch",
 }
 ALLOWED_SHIM_FILES = {
     BACKEND / "agent_runner.py",
@@ -26,8 +28,10 @@ ALLOWED_SHIM_FILES = {
     BACKEND / "data_fetch" / "core_builder.py",
     BACKEND / "data_fetch" / "orchestrator.py",
     BACKEND / "data_fetch" / "payload_assembler.py",
+    BACKEND / "data_fetch" / "providers.py",
     BACKEND / "data_fetch" / "legacy_orchestrator.py",
     BACKEND / "data_fetch" / "yfinance_payload_builder.py",
+    BACKEND / "data_fetch" / "yfinance_legacy_fetch.py",
 }
 
 
@@ -111,6 +115,55 @@ def test_data_trust_facade_is_sized():
     line_count = len(path.read_text(encoding="utf-8").splitlines())
 
     assert line_count < 120
+
+
+def test_validation_and_provider_facades_are_sized():
+    limits = {
+        BACKEND / "config.py": 40,
+        BACKEND / "validators.py": 90,
+        BACKEND / "structured_outputs.py": 90,
+        BACKEND / "data_fetch" / "providers.py": 80,
+        BACKEND / "data_fetch" / "yfinance_legacy_fetch.py": 60,
+    }
+
+    for path, limit in limits.items():
+        line_count = len(path.read_text(encoding="utf-8").splitlines())
+        assert line_count < limit, str(path.relative_to(ROOT))
+
+
+def test_report_chart_entrypoint_is_include_only():
+    entry = BACKEND / "templates" / "includes" / "report_charts.html.j2"
+    text = entry.read_text(encoding="utf-8")
+
+    assert len(text.splitlines()) < 20
+    assert "const CHART_DATA" not in text
+    assert text.count("{% include") == 5
+
+
+def test_provider_service_imports_registry_not_compat_facade():
+    for path in [
+        BACKEND / "data_fetch" / "service.py",
+        BACKEND / "data_fetch" / "workflow.py",
+    ]:
+        text = path.read_text(encoding="utf-8")
+        assert ".providers import" not in text
+        assert ".provider_registry import ProviderRegistry" in text
+
+
+def test_config_settings_are_split_into_grouped_modules():
+    expected = [
+        "app_config.py",
+        "models.py",
+        "providers.py",
+        "security.py",
+        "storage.py",
+        "runtime_limits.py",
+    ]
+    for filename in expected:
+        assert (BACKEND / "settings" / filename).exists()
+
+    config_text = (BACKEND / "config.py").read_text(encoding="utf-8")
+    assert "from settings.app_config import *" in config_text
 
 
 def test_report_template_entrypoint_is_sized():

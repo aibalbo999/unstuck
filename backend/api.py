@@ -49,6 +49,7 @@ from provider_sla import get_provider_sla_alerts, get_provider_sla_summary
 from report_rerun_jobs import run_report_rerun_job
 from reporting import ReportRenderer
 from runtime_events import emit_log, format_event_log_line
+from settings import validate_runtime_settings
 from task_queue import create_task_queue
 
 
@@ -127,6 +128,8 @@ async def _cleanup_reports_forever() -> None:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    for warning in validate_runtime_settings():
+        emit_log(f"設定檢查警告：{warning}")
     await _mark_abandoned_local_jobs()
     cleanup_task = asyncio.create_task(_cleanup_reports_forever())
     try:

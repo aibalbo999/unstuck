@@ -6,8 +6,6 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
-import httpx
-
 from config import (
     CATALYST_LOOKBACK_DAYS,
     FMP_API_KEY,
@@ -15,24 +13,19 @@ from config import (
     GOOGLE_CSE_ID,
     GOOGLE_SEARCH_API_KEY,
 )
-from runtime_events import emit_log
+from external_http_client import (
+    async_client,
+    async_json_get,
+    build_http_warning,
+    log_http_warning,
+    sync_json_get,
+)
 
 
-HTTP_TIMEOUT_SECONDS = 8.0
 GOOGLE_SEARCH_URL = "https://www.googleapis.com/customsearch/v1"
 FMP_LEGACY_NEWS_URL = "https://financialmodelingprep.com/api/v3/stock_news"
-
-
-def _sync_json_get(url: str, params: dict[str, Any]) -> Any:
-    response = httpx.get(url, params=params, timeout=HTTP_TIMEOUT_SECONDS)
-    response.raise_for_status()
-    return response.json()
-
-
-async def _async_json_get(client: httpx.AsyncClient, url: str, params: dict[str, Any]) -> Any:
-    response = await client.get(url, params=params)
-    response.raise_for_status()
-    return response.json()
+_sync_json_get = sync_json_get
+_async_json_get = async_json_get
 
 
 def _dedupe_records(records: list[dict], key: str = "title", limit: int = 6) -> list[dict]:
@@ -126,8 +119,8 @@ def fetch_fmp_quote_fallback(ticker: str) -> dict:
             {"symbol": symbol, "apikey": FMP_API_KEY},
         )
         return _parse_fmp_quote_payload(payload)
-    except Exception as e:
-        emit_log(f"    ⚠️  FMP 備援資料獲取失敗：{e}")
+    except Exception as exc:
+        log_http_warning("FMP", "quote fallback", exc)
         return {}
 
 
@@ -137,14 +130,15 @@ async def fetch_fmp_quote_fallback_async(ticker: str) -> dict:
 
     symbol = ticker.strip().upper()
     try:
-        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_SECONDS) as client:
+        async with async_client() as client:
             payload = await _async_json_get(
                 client,
                 f"{FMP_BASE_URL}/quote",
                 {"symbol": symbol, "apikey": FMP_API_KEY},
             )
         return _parse_fmp_quote_payload(payload)
-    except Exception:
+    except Exception as exc:
+        log_http_warning("FMP", "quote fallback async", exc)
         return {}
 
 
@@ -168,8 +162,8 @@ def fetch_google_search_catalysts(ticker: str, company_name: str, identity: dict
             },
         )
         return _parse_google_catalyst_payload(payload)
-    except Exception as e:
-        emit_log(f"    ⚠️  Google Search 催化劑資料獲取失敗：{e}")
+    except Exception as exc:
+        log_http_warning("Google Search", "recent catalysts", exc)
         return []
 
 
@@ -180,7 +174,7 @@ async def fetch_google_search_catalysts_async(ticker: str, company_name: str, id
     official_name = identity.get("official_name") or company_name or ticker
     query = f"{official_name} {ticker} 法說會 展望 供應鏈 營收 投資"
     try:
-        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_SECONDS) as client:
+        async with async_client() as client:
             payload = await _async_json_get(
                 client,
                 GOOGLE_SEARCH_URL,
@@ -192,9 +186,10 @@ async def fetch_google_search_catalysts_async(ticker: str, company_name: str, id
                     "dateRestrict": f"d{CATALYST_LOOKBACK_DAYS}",
                     "lr": "lang_zh-TW",
                 },
-            )
+        )
         return _parse_google_catalyst_payload(payload)
-    except Exception:
+    except Exception as exc:
+        log_http_warning("Google Search", "recent catalysts async", exc)
         return []
 
 
@@ -215,8 +210,8 @@ def fetch_google_peer_discovery_results(ticker: str, company_name: str, sector: 
             },
         )
         return _parse_google_peer_payload(payload)
-    except Exception as e:
-        emit_log(f"    ⚠️  Google Search 同業 discovery 失敗：{e}")
+    except Exception as exc:
+        log_http_warning("Google Search", "peer discovery", exc)
         return []
 
 
@@ -226,7 +221,7 @@ async def fetch_google_peer_discovery_results_async(ticker: str, company_name: s
 
     query = f"{company_name} {ticker} global competitors peers gross margin {industry} {sector}"
     try:
-        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_SECONDS) as client:
+        async with async_client() as client:
             payload = await _async_json_get(
                 client,
                 GOOGLE_SEARCH_URL,
@@ -236,9 +231,10 @@ async def fetch_google_peer_discovery_results_async(ticker: str, company_name: s
                     "q": query,
                     "num": 5,
                 },
-            )
+        )
         return _parse_google_peer_payload(payload)
-    except Exception:
+    except Exception as exc:
+        log_http_warning("Google Search", "peer discovery async", exc)
         return []
 
 
@@ -259,7 +255,8 @@ def fetch_fmp_news_catalysts(ticker: str) -> list[dict]:
     def fetch_endpoint(url: str, params: dict) -> list[dict]:
         try:
             payload = _sync_json_get(url, params)
-        except Exception:
+        except Exception as exc:
+            log_http_warning("FMP", f"news candidate {url}", exc)
             return []
         return _parse_fmp_news_payload(payload)
 
@@ -287,14 +284,15 @@ async def fetch_fmp_news_catalysts_async(ticker: str) -> list[dict]:
     symbol = ticker.strip().upper()
     candidates = _fmp_news_candidates(symbol)
 
-    async def fetch_endpoint(client: httpx.AsyncClient, url: str, params: dict) -> list[dict]:
+    async def fetch_endpoint(client, url: str, params: dict) -> list[dict]:
         try:
             payload = await _async_json_get(client, url, params)
-        except Exception:
+        except Exception as exc:
+            log_http_warning("FMP", f"news async candidate {url}", exc)
             return []
         return _parse_fmp_news_payload(payload)
 
-    async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_SECONDS) as client:
+    async with async_client() as client:
         results = await asyncio.gather(
             *(fetch_endpoint(client, url, params) for url, params in candidates),
             return_exceptions=False,
@@ -330,9 +328,13 @@ async def fetch_optional_http_data_bundle(
     names = list(tasks.keys())
     results = await asyncio.gather(*tasks.values(), return_exceptions=True)
     bundle = {}
+    warnings = []
     for name, result in zip(names, results):
         if isinstance(result, Exception):
             bundle[name] = {} if name == "fmp_quote" else []
+            warnings.append(build_http_warning("optional_http_bundle", name, result))
         else:
             bundle[name] = result
+    if warnings:
+        bundle["_warnings"] = warnings
     return bundle

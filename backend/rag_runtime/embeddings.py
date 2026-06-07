@@ -20,6 +20,7 @@ from llm_client import (
     is_quota_or_rate_error,
     retry_delay_seconds,
 )
+from runtime_events import classify_runtime_error
 
 from .types import RagChunk
 
@@ -132,11 +133,12 @@ def _attach_vectors(chunks: list[RagChunk], vectors: list[list[float]]) -> int:
 
 
 def _embedding_warning(exc: Exception, scope: str) -> str:
+    category = classify_runtime_error(exc, default="provider")
     if is_quota_or_rate_error(str(exc)):
-        return f"RAG {scope} embedding quota/rate limit; using lexical retrieval: {describe_quota_or_rate_error(exc)[:120]}"
+        return f"RAG {scope} embedding quota/rate limit ({category}); using lexical retrieval: {describe_quota_or_rate_error(exc)[:120]}"
     if is_missing_model_error(str(exc)):
-        return f"RAG {scope} embedding model unavailable; using lexical retrieval: {str(exc)[:120]}"
-    return f"RAG {scope} embedding failed; using lexical retrieval: {str(exc)[:120]}"
+        return f"RAG {scope} embedding model unavailable ({category}); using lexical retrieval: {str(exc)[:120]}"
+    return f"RAG {scope} embedding failed ({category}); using lexical retrieval: {str(exc)[:120]}"
 
 
 def embed_index_chunks(chunks: list[RagChunk], data: dict, rotator: Optional[KeyRotator]) -> list[str]:

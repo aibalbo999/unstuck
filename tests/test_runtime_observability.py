@@ -123,6 +123,7 @@ def test_api_uses_lifespan_and_router_modules():
 
     assert "@app.on_event" not in source
     assert "FastAPI(lifespan=lifespan)" in source
+    assert "validate_runtime_settings()" in source
     assert "include_router" in source
     assert "api_routes.analysis" in source
 

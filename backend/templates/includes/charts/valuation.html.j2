@@ -1,0 +1,129 @@
+    // ─── 6. 估值圖 ───────────────────────────────────────────
+    const valCtx = document.getElementById('valuationChart')?.getContext('2d');
+    if (valCtx) {
+        const currentPrice = {{ current_price_numeric }};
+        const targets = CHART_DATA.priceTargets;
+
+        const scenarios = Object.keys(targets);
+        const prices = Object.values(targets);
+
+        const colors = scenarios.map(s => {
+            if (s.includes('熊')) return 'rgba(239,68,68,0.7)';
+            if (s.includes('牛')) return 'rgba(16,185,129,0.7)';
+            return 'rgba(59,130,246,0.7)';
+        });
+
+        const allLabels = ['當前股價', ...scenarios];
+        const allPrices = [currentPrice, ...prices];
+        const allColors = ['rgba(245,158,11,0.7)', ...colors];
+
+        if (allPrices.some(p => p > 0)) {
+            new Chart(valCtx, {
+                type: 'bar',
+                data: {
+                    labels: allLabels,
+                    datasets: [{
+                        label: '股價（NT$）',
+                        data: allPrices,
+                        backgroundColor: allColors,
+                        borderColor: allColors.map(c => c.replace('0.7', '1')),
+                        borderWidth: 1,
+                        borderRadius: 6,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => `NT$${ctx.raw.toFixed(0)}`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { grid: { color: 'rgba(255,255,255,0.05)' } },
+                        y: {
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { callback: v => `NT$${v}` },
+                            beginAtZero: false,
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    // ─── 7. P/E 河流圖 ──────────────────────────────────────
+    const peRiverCtx = document.getElementById('peRiverChart')?.getContext('2d');
+    if (peRiverCtx && CHART_DATA.peRiver && (CHART_DATA.peRiver.years || []).length > 0) {
+        const riverYears = CHART_DATA.peRiver.years || [];
+        const bands = CHART_DATA.peRiver.bands || {};
+        const palette = ['#64748b', '#3b82f6', '#8b5cf6', '#10b981', '#f59e0b'];
+        const bandDatasets = Object.keys(bands).map((label, idx) => ({
+            label,
+            data: bands[label],
+            borderColor: palette[idx % palette.length],
+            backgroundColor: 'rgba(59,130,246,0.04)',
+            borderWidth: 2,
+            pointRadius: 3,
+            fill: false,
+            tension: 0.25,
+        }));
+        const currentPrice = {{ current_price_numeric }};
+        const positiveBandValues = Object.values(bands)
+            .flat()
+            .map(Number)
+            .filter(v => Number.isFinite(v) && v > 0);
+        const maxBandValue = positiveBandValues.length ? Math.max(...positiveBandValues) : 0;
+        const minBandValue = positiveBandValues.length ? Math.min(...positiveBandValues) : 0;
+        const useLogScale = currentPrice > 0 && maxBandValue > 0 && minBandValue > 0 && currentPrice / maxBandValue > 2;
+        if (currentPrice > 0) {
+            bandDatasets.push({
+                label: '當前股價',
+                data: riverYears.map(() => currentPrice),
+                borderColor: '#ef4444',
+                borderDash: [6, 6],
+                borderWidth: 2,
+                pointRadius: 0,
+                fill: false,
+            });
+        }
+        if (bandDatasets.length > 0) {
+            new Chart(peRiverCtx, {
+                type: 'line',
+                data: {
+                    labels: riverYears,
+                    datasets: bandDatasets,
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { padding: 12, font: { size: 11 } } },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => `${ctx.dataset.label}: NT$${Number(ctx.raw || 0).toFixed(0)}`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { grid: { color: 'rgba(255,255,255,0.05)' } },
+                        y: {
+                            type: useLogScale ? 'logarithmic' : 'linear',
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { callback: v => `NT$${v}` },
+                            title: {
+                                display: useLogScale,
+                                text: '對數刻度：股價高於河流通道',
+                                color: '#94a3b8',
+                                font: { size: 11 },
+                            },
+                            beginAtZero: false,
+                        }
+                    }
+                }
+            });
+        }
+    }

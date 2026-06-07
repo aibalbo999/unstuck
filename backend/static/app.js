@@ -58,11 +58,26 @@ document.addEventListener('DOMContentLoaded', () => {
     let pendingAuditNotice = null;
     let historyPage = 1;
     const historyLimit = 20;
-    let historySearchTimer = null;
     let currentPipeline = 'v1';
     let historyReports = new Map();
     let previewReport = null;
     let providerSlaPayload = null;
+
+    const viewController = window.StockAgentViewController.create({
+        views: {
+            'home-view': homeView,
+            'loading-view': loadingView,
+            'report-view': reportView
+        }
+    });
+    const switchView = viewController.switchView;
+
+    const historyFilters = window.StockAgentHistoryFilters.create({
+        searchEl: historySearch,
+        pipelineEl: historyPipelineFilter,
+        recommendationEl: historyRecommendationFilter,
+        dataTrustEl: historyDataTrustFilter
+    });
 
     function getSelectedPipeline() {
         const selected = document.querySelector('input[name="pipeline-mode"]:checked') || pipelineInputs.find(input => input.checked);
@@ -163,10 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 載入歷史報告
     async function loadHistory() {
         try {
-            const query = historySearch ? historySearch.value.trim() : '';
-            const pipelineFilter = historyPipelineFilter ? historyPipelineFilter.value : 'all';
-            const recommendationFilter = historyRecommendationFilter ? historyRecommendationFilter.value : 'all';
-            const dataTrustFilter = historyDataTrustFilter ? historyDataTrustFilter.value : 'all';
+            const { query, pipelineFilter, recommendationFilter, dataTrustFilter } = historyFilters.values();
             const data = await apiClient.fetchReports({
                 page: historyPage,
                 limit: historyLimit,
@@ -259,7 +271,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function openReport(filename, ticker, pipelineId = 'v1') {
         currentReportFilename = filename;
         currentPipeline = pipelineId;
-        reportTickerTitle.textContent = `${ticker} ${ui.pipelineMeta(pipelineId).reportSuffix}`;
+        window.StockAgentReportActions.setReportTitle({
+            titleEl: reportTickerTitle,
+            ticker,
+            pipelineId,
+            pipelineMeta: ui.pipelineMeta
+        });
         setAuditNotice(null);
         reportIframe.src = `/api/report/${encodeURIComponent(filename)}`;
         switchView('report-view');
@@ -273,47 +290,22 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    if (previewRefreshDataBtn) {
-        previewRefreshDataBtn.addEventListener('click', refreshPreviewDataSnapshot);
-    }
+    [
+        [previewRefreshDataBtn, refreshPreviewDataSnapshot],
+        [previewRerunFinalBtn, () => rerunPreviewReport('final_recommendation')],
+        [previewRerunModeBBtn, () => rerunPreviewReport('mode_b')],
+        [previewCloseBtn, hideReportPreview]
+    ].forEach(([button, handler]) => {
+        if (button) button.addEventListener('click', handler);
+    });
 
-    if (previewRerunFinalBtn) {
-        previewRerunFinalBtn.addEventListener('click', () => rerunPreviewReport('final_recommendation'));
-    }
+    window.StockAgentReportActions.bindDownloads({
+        htmlBtn: downloadHtmlBtn,
+        mdBtn: downloadMdBtn,
+        dataBtn: downloadDataBtn,
+        getFilename: () => currentReportFilename
+    });
 
-    if (previewRerunModeBBtn) {
-        previewRerunModeBBtn.addEventListener('click', () => rerunPreviewReport('mode_b'));
-    }
-
-    if (previewCloseBtn) {
-        previewCloseBtn.addEventListener('click', hideReportPreview);
-    }
-
-    if (downloadHtmlBtn) {
-        downloadHtmlBtn.addEventListener('click', () => {
-            if (currentReportFilename) {
-                window.location.href = `/api/report/${encodeURIComponent(currentReportFilename)}/download/html`;
-            }
-        });
-    }
-
-    if (downloadMdBtn) {
-        downloadMdBtn.addEventListener('click', () => {
-            if (currentReportFilename) {
-                window.location.href = `/api/report/${encodeURIComponent(currentReportFilename)}/download/md`;
-            }
-        });
-    }
-
-    if (downloadDataBtn) {
-        downloadDataBtn.addEventListener('click', () => {
-            if (currentReportFilename) {
-                window.location.href = `/api/report/${encodeURIComponent(currentReportFilename)}/download/data`;
-            }
-        });
-    }
-
-    // 刪除報告
     async function deleteReport(filename, event) {
         event.stopPropagation();
         if (confirm('確定要刪除這份報告嗎？')) {
@@ -333,7 +325,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     window.deleteReport = deleteReport;
 
-    // 初始化時載入歷史
     loadHistory();
     loadProviderSla();
 
@@ -345,23 +336,16 @@ document.addEventListener('DOMContentLoaded', () => {
         providerSlaWindow.addEventListener('change', loadProviderSla);
     }
 
-    if (historySearch) {
-        historySearch.addEventListener('input', () => {
-            clearTimeout(historySearchTimer);
-            historySearchTimer = setTimeout(() => {
-                historyPage = 1;
-                loadHistory();
-            }, 200);
-        });
-    }
-
-    [historyPipelineFilter, historyRecommendationFilter, historyDataTrustFilter].forEach(filter => {
-        if (!filter) return;
-        filter.addEventListener('change', () => {
+    historyFilters.bind({
+        onSearch: () => {
+            historyPage = 1;
+            loadHistory();
+        },
+        onFilter: () => {
             historyPage = 1;
             hideReportPreview();
             loadHistory();
-        });
+        }
     });
 
     pipelineInputs.forEach(input => {
@@ -383,25 +367,6 @@ document.addEventListener('DOMContentLoaded', () => {
             historyPage += 1;
             loadHistory();
         });
-    }
-
-    function switchView(viewId) {
-        // 隱藏所有 view
-        [homeView, loadingView, reportView].forEach(v => {
-            v.classList.remove('active');
-            setTimeout(() => {
-                if (!v.classList.contains('active')) {
-                    v.style.display = 'none';
-                }
-            }, 500); // match CSS transition time
-        });
-
-        // 顯示目標 view
-        const target = document.getElementById(viewId);
-        target.style.display = 'flex';
-        // force reflow
-        void target.offsetWidth;
-        target.classList.add('active');
     }
 
     const analysisStream = window.StockAgentAnalysisStream.create({
@@ -456,7 +421,6 @@ document.addEventListener('DOMContentLoaded', () => {
         switchView('home-view');
     });
 
-    // 支援 Enter 鍵送出
     tickerInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
             analyzeBtn.click();

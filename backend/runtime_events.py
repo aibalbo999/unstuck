@@ -39,6 +39,43 @@ def make_runtime_event(event_type: str = "status", **fields: Any) -> RuntimeEven
     return event
 
 
+def classify_runtime_error(exc: BaseException | str, *, default: str = "provider") -> str:
+    text = str(exc or "").lower()
+    kind = exc.__class__.__name__.lower() if isinstance(exc, BaseException) else ""
+    if any(marker in text for marker in ("quota", "rate limit", "429", "resource_exhausted")):
+        return "quota"
+    if any(marker in text for marker in ("timeout", "deadline", "timed out")) or "timeout" in kind:
+        return "timeout"
+    if any(marker in text for marker in ("model not found", "not found for api version", "missing model", "unknown model")):
+        return "missing_model"
+    if any(marker in text for marker in ("json", "schema", "structured", "validation", "pydantic")):
+        return "schema"
+    return default
+
+
+def make_runtime_error_event(
+    phase: str,
+    exc: BaseException,
+    *,
+    message: str | None = None,
+    level: str = "warning",
+    error_category: str | None = None,
+    **fields: Any,
+) -> RuntimeEvent:
+    metadata = dict(fields.pop("metadata", {}) or {})
+    metadata.setdefault("error_kind", exc.__class__.__name__)
+    metadata.setdefault("error_category", error_category or classify_runtime_error(exc))
+    metadata.setdefault("error_message", str(exc)[:240])
+    return make_runtime_event(
+        "status",
+        phase=phase,
+        level=level,
+        message=message or str(exc)[:240],
+        metadata=metadata,
+        **fields,
+    )
+
+
 def _legacy_callback_args(event: RuntimeEvent) -> tuple[Any, Any, Any, str, Any]:
     phase = event.get("phase")
     if not phase:
@@ -207,6 +244,33 @@ def emit_context_event(
     return emit_runtime_event(callback, event)
 
 
+def emit_context_error(
+    context: dict | None,
+    phase: str,
+    exc: BaseException,
+    *,
+    message: str | None = None,
+    level: str = "warning",
+    error_category: str | None = None,
+    callback: Callable[..., Any] | None = None,
+    store: bool = True,
+    **fields: Any,
+) -> Any:
+    return emit_context_event(
+        context,
+        make_runtime_error_event(
+            phase,
+            exc,
+            message=message,
+            level=level,
+            error_category=error_category,
+            **fields,
+        ),
+        callback=callback,
+        store=store,
+    )
+
+
 async def emit_context_event_async(
     context: dict | None,
     event: RuntimeEvent,
@@ -218,3 +282,30 @@ async def emit_context_event_async(
         context.setdefault(RUNTIME_EVENT_LOG_KEY, []).append(_context_event_copy(event))
     callback = callback or (context or {}).get(RUNTIME_EVENT_CALLBACK_KEY)
     return await emit_runtime_event_async(callback, event)
+
+
+async def emit_context_error_async(
+    context: dict | None,
+    phase: str,
+    exc: BaseException,
+    *,
+    message: str | None = None,
+    level: str = "warning",
+    error_category: str | None = None,
+    callback: Callable[..., Any] | None = None,
+    store: bool = True,
+    **fields: Any,
+) -> Any:
+    return await emit_context_event_async(
+        context,
+        make_runtime_error_event(
+            phase,
+            exc,
+            message=message,
+            level=level,
+            error_category=error_category,
+            **fields,
+        ),
+        callback=callback,
+        store=store,
+    )

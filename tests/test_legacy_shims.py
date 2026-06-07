@@ -91,6 +91,18 @@ def test_core_builder_compatibility_aggregator_exports_legacy_helpers():
     assert callable(core_builder._append_source_fetch_audit)
 
 
+def test_yfinance_legacy_fetch_shim_warns_on_fetch(monkeypatch):
+    import data_fetch.yfinance_core_fetch as core_fetch
+    import data_fetch.yfinance_legacy_fetch as legacy_fetch
+
+    monkeypatch.setattr(core_fetch, "fetch_stock_data", lambda ticker, skip_optional_http=False, market_data_provider=None: {"ticker": ticker})
+
+    with pytest.warns(DeprecationWarning):
+        data = legacy_fetch.fetch_stock_data("AAPL", skip_optional_http=True)
+
+    assert data["ticker"] == "AAPL"
+
+
 def test_market_data_fetchers_shim_warns_on_helper_call():
     import market_data_fetchers
 

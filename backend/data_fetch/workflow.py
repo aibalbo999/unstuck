@@ -18,7 +18,7 @@ from .audit_helpers import (
 from .constants import DATA_SCHEMA_VERSION
 from .enrichment_merge import _merge_optional_http_bundle
 from .payload_cache import cache_financial_payload
-from .providers import ProviderRegistry
+from .provider_registry import ProviderRegistry
 from .types import FetchRequest, ProviderResult
 from .market_sources.http_enrichment import fetch_fmp_news_catalysts_async
 from .yfinance_snapshot import fetch_stock_data_from_snapshot

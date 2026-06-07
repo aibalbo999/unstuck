@@ -19,7 +19,7 @@ from llm_client import (
     response_text,
     retry_delay_seconds,
 )
-from runtime_events import emit_context_event, emit_context_event_async, emit_log, make_runtime_event
+from runtime_events import emit_context_error, emit_context_error_async, emit_context_event, emit_context_event_async, emit_log, make_runtime_event
 from structured_outputs import (
     STRUCTURED_AGENT_INSTRUCTIONS,
     get_structured_response_schema,
@@ -211,6 +211,17 @@ def _raise_agent_call_error(exc: Exception, api_key: Optional[str], model_id: st
     raise AgentTransientError(error_msg) from exc
 
 
+def _agent_error_category(exc: Exception) -> str:
+    error_msg = str(exc)
+    if is_quota_or_rate_error(error_msg):
+        return "quota"
+    if is_missing_model_error(error_msg):
+        return "missing_model"
+    if _is_transient_provider_error(error_msg):
+        return "timeout" if "timeout" in error_msg.lower() or "deadline" in error_msg.lower() else "provider"
+    return "provider"
+
+
 def _run_agent_once(
     agent_num: int,
     context: AnalysisContext,
@@ -241,6 +252,21 @@ def _run_agent_once(
         response = _generate_content(api_key, model_id, agent_num, prompt)
         result = process_agent_response(agent_num, _response_text(response), context)
     except Exception as exc:
+        emit_context_error(
+            context,
+            "llm_model_error",
+            exc,
+            message=f"Agent {agent_num} 模型 {model_id} 呼叫失敗。",
+            level="warning",
+            error_category=_agent_error_category(exc),
+            current=(context.get("agent_positions", {}) or {}).get(agent_num, agent_num),
+            total=context.get("agent_total"),
+            name=f"Agent {agent_num}",
+            agent_num=agent_num,
+            pipeline_id=context.get("pipeline_id"),
+            pipeline_label=context.get("pipeline_label"),
+            metadata={"model_id": model_id},
+        )
         _raise_agent_call_error(exc, api_key, model_id, rotator, quota_default)
 
     if result and len(result) > 100:
@@ -301,6 +327,21 @@ async def _run_agent_once_async(
         )
         result = process_agent_response(agent_num, _response_text(response), context)
     except Exception as exc:
+        await emit_context_error_async(
+            context,
+            "llm_model_error",
+            exc,
+            message=f"Agent {agent_num} 模型 {model_id} 呼叫失敗。",
+            level="warning",
+            error_category=_agent_error_category(exc),
+            current=(context.get("agent_positions", {}) or {}).get(agent_num, agent_num),
+            total=context.get("agent_total"),
+            name=f"Agent {agent_num}",
+            agent_num=agent_num,
+            pipeline_id=context.get("pipeline_id"),
+            pipeline_label=context.get("pipeline_label"),
+            metadata={"model_id": model_id},
+        )
         _raise_agent_call_error(exc, api_key, model_id, rotator, quota_default)
 
     if result and len(result) > 100:

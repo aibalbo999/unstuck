@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 
 import pytest
 
@@ -8,7 +9,13 @@ STATIC_DIR = ROOT / "backend" / "static"
 
 
 def test_history_preview_visual_regression_optional(tmp_path):
-    sync_api = pytest.importorskip("playwright.sync_api")
+    required = os.getenv("VISUAL_REGRESSION_REQUIRED") == "1"
+    try:
+        import playwright.sync_api as sync_api
+    except ImportError as exc:
+        if required:
+            pytest.fail(f"Playwright is required for visual regression: {exc}")
+        pytest.skip(f"Playwright is unavailable: {exc}")
     css = "\n".join(
         path.read_text(encoding="utf-8")
         for path in (
@@ -87,4 +94,6 @@ def test_history_preview_visual_regression_optional(tmp_path):
             assert preview_box["width"] >= 360
             browser.close()
     except Exception as exc:
+        if required:
+            pytest.fail(f"Playwright browser is required for visual regression: {exc}")
         pytest.skip(f"Playwright browser is unavailable: {exc}")

@@ -10,7 +10,7 @@ import data_fetch.audit_helpers as audit_helpers  # noqa: E402
 import data_fetch.cache_helpers as cache_helpers  # noqa: E402
 import data_fetch.optional_enrichment as optional_enrichment  # noqa: E402
 from data_fetch.constants import DATA_SCHEMA_VERSION  # noqa: E402
-import data_fetch.yfinance_legacy_fetch as financial_data  # noqa: E402
+import data_fetch.yfinance_core_fetch as financial_data  # noqa: E402
 import data_freshness  # noqa: E402
 
 

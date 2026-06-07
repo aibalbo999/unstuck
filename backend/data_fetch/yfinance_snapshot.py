@@ -43,7 +43,7 @@ class SnapshotMarketDataProvider:
 
 def fetch_stock_data_from_snapshot(snapshot: dict, skip_optional_http: bool = False) -> dict:
     """Assemble a legacy-compatible payload from a pre-resolved yfinance snapshot."""
-    from .yfinance_legacy_fetch import fetch_stock_data
+    from .yfinance_core_fetch import fetch_stock_data
 
     snapshot = snapshot or {}
     original_ticker = str(snapshot.get("original_ticker") or snapshot.get("ticker") or "").strip().upper()

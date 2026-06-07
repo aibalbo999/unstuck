@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 
-from .yfinance_legacy_fetch import fetch_stock_data
+from .yfinance_core_fetch import fetch_stock_data
 
 
 async def fetch_market_snapshot_async(ticker: str) -> dict:

@@ -7,7 +7,7 @@ from agent_catalog import AGENT_NAMES
 from final_audit import run_final_report_audit
 from llm_client import KeyRotator
 from pipeline_modes import get_structured_agent_num
-from runtime_events import emit_context_event, emit_context_event_async, emit_log, make_runtime_event
+from runtime_events import emit_context_error, emit_context_error_async, emit_context_event, emit_context_event_async, emit_log, make_runtime_event
 from structured_outputs import parse_structured_data
 from validators import (
     append_quality_warnings,
@@ -149,6 +149,18 @@ def _repair_agent_output(agent_num: int, data: StockData, context: AnalysisConte
             return True, fallback_message
         return False, "重寫後仍觸發品質紅線：" + "；".join(last_quality_issues[:3])
     except Exception as exc:
+        emit_context_error(
+            context,
+            "final_audit_repair_failed",
+            exc,
+            message=f"Agent {agent_num} 稽核修復失敗。",
+            level="error",
+            error_category="repair_failed",
+            name=AGENT_NAMES.get(agent_num, f"Agent {agent_num}"),
+            agent_num=agent_num,
+            pipeline_id=context.get("pipeline_id"),
+            pipeline_label=context.get("pipeline_label"),
+        )
         return False, str(exc)[:160]
     finally:
         if previous_instruction is None:
@@ -263,6 +275,18 @@ async def _repair_agent_output_async(agent_num: int, data: StockData, context: A
             return True, fallback_message
         return False, "重寫後仍觸發品質紅線：" + "；".join(last_quality_issues[:3])
     except Exception as exc:
+        await emit_context_error_async(
+            context,
+            "final_audit_repair_failed",
+            exc,
+            message=f"Agent {agent_num} 稽核修復失敗。",
+            level="error",
+            error_category="repair_failed",
+            name=AGENT_NAMES.get(agent_num, f"Agent {agent_num}"),
+            agent_num=agent_num,
+            pipeline_id=context.get("pipeline_id"),
+            pipeline_label=context.get("pipeline_label"),
+        )
         return False, str(exc)[:160]
     finally:
         if previous_instruction is None:

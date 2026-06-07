@@ -14,9 +14,10 @@ import agent_runtime.audit_repair as audit_repair  # noqa: E402
 import assistant_tasks  # noqa: E402
 import config  # noqa: E402
 import external_data_clients as edc  # noqa: E402
+import external_http_client  # noqa: E402
 import data_fetch.cache_helpers as cache_helpers  # noqa: E402
 import data_fetch.optional_enrichment as optional_enrichment  # noqa: E402
-import data_fetch.yfinance_legacy_fetch as financial_data  # noqa: E402
+import data_fetch.yfinance_core_fetch as financial_data  # noqa: E402
 import financial_tools  # noqa: E402
 import prompt_builder  # noqa: E402
 import pipeline_modes  # noqa: E402
@@ -924,6 +925,61 @@ class AuditRuleTests(unittest.TestCase):
             edc.FMP_API_KEY = old_fmp_key
             edc.GOOGLE_SEARCH_API_KEY = old_google_key
             edc.GOOGLE_CSE_ID = old_google_cse
+
+    def test_external_http_failures_emit_structured_warnings(self):
+        warning = external_http_client.build_http_warning("FMP", "quote", RuntimeError("boom"))
+        self.assertEqual(warning["type"], "external_http_warning")
+        self.assertEqual(warning["provider"], "FMP")
+        self.assertEqual(warning["operation"], "quote")
+        self.assertEqual(warning["error_kind"], "RuntimeError")
+        self.assertIn("boom", warning["message"])
+
+        old_fmp_key = edc.FMP_API_KEY
+        edc.FMP_API_KEY = "test-fmp"
+        captured = []
+
+        def capture_warning(provider, operation, exc):
+            captured.append(external_http_client.build_http_warning(provider, operation, exc))
+            return captured[-1]
+
+        try:
+            with patch.object(edc, "_sync_json_get", side_effect=RuntimeError("quote down")), \
+                    patch.object(edc, "log_http_warning", side_effect=capture_warning):
+                quote = edc.fetch_fmp_quote_fallback("2330.TW")
+
+            self.assertEqual(quote, {})
+            self.assertEqual(captured[0]["provider"], "FMP")
+            self.assertEqual(captured[0]["operation"], "quote fallback")
+            self.assertEqual(captured[0]["error_kind"], "RuntimeError")
+            self.assertIn("quote down", captured[0]["message"])
+        finally:
+            edc.FMP_API_KEY = old_fmp_key
+
+    def test_optional_http_bundle_records_task_warnings(self):
+        async def boom(*args, **kwargs):
+            raise RuntimeError("google down")
+
+        async def empty(*args, **kwargs):
+            return []
+
+        async def run_check():
+            with patch.object(edc, "fetch_google_search_catalysts_async", boom), \
+                    patch.object(edc, "fetch_fmp_news_catalysts_async", empty), \
+                    patch.object(edc, "fetch_google_peer_discovery_results_async", empty):
+                return await edc.fetch_optional_http_data_bundle(
+                    "2330.TW",
+                    "台積電",
+                    {"official_name": "台積電"},
+                    sector="Technology",
+                    industry="Semiconductor",
+                )
+
+        bundle = asyncio.run(run_check())
+
+        self.assertEqual(bundle["google_catalysts"], [])
+        self.assertEqual(bundle["_warnings"][0]["provider"], "optional_http_bundle")
+        self.assertEqual(bundle["_warnings"][0]["operation"], "google_catalysts")
+        self.assertEqual(bundle["_warnings"][0]["error_kind"], "RuntimeError")
 
     def test_async_stock_fetch_merges_optional_http_bundle(self):
         def fake_fetch_stock_data(ticker, skip_optional_http=False):

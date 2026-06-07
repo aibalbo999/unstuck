@@ -12,9 +12,11 @@ import api  # noqa: E402
 import api_report_service  # noqa: E402
 import job_store  # noqa: E402
 import report_index  # noqa: E402
+import report_history_service  # noqa: E402
 import report_rerun_service  # noqa: E402
 from data_fetch import FetchResult  # noqa: E402
 from reporting import ReportBundle  # noqa: E402
+from report_repository import ReportListQuery  # noqa: E402
 
 
 def test_parse_recommendation_summary_from_markdown(tmp_path, monkeypatch):
@@ -136,6 +138,35 @@ def test_get_reports_marks_old_reports_without_snapshot_unknown(tmp_path, monkey
     result = api.get_reports(page=1, limit=20, q="", pipeline="v2", recommendation="持有")
 
     assert result["reports"][0]["data_trust"]["status"] == "unknown"
+
+
+def test_report_history_uses_repository_boundary(tmp_path):
+    class FakeRepository:
+        def __init__(self):
+            self.query_arg = None
+
+        def query(self, query):
+            self.query_arg = query
+            return ([{"filename": "fake.html", "data_trust": {"status": "fresh"}}], 1)
+
+    repository = FakeRepository()
+    result = report_history_service.list_reports(
+        page=2,
+        limit=5,
+        q="  2449  ",
+        pipeline="mode_b",
+        recommendation="持有",
+        data_trust="fresh",
+        output_dir=str(tmp_path),
+        report_cache={},
+        repository=repository,
+    )
+
+    assert isinstance(repository.query_arg, ReportListQuery)
+    assert repository.query_arg.pipeline == "v2"
+    assert repository.query_arg.q == "2449"
+    assert repository.query_arg.data_trust == "fresh"
+    assert result["pagination"]["total"] == 1
 
 
 def test_get_reports_filters_data_trust_status(tmp_path, monkeypatch):

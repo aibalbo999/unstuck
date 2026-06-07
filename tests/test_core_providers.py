@@ -10,18 +10,14 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 import data_fetch.yfinance_snapshot as yfinance_builder  # noqa: E402
-import data_fetch.yfinance_legacy_fetch as legacy_fetch  # noqa: E402
+import data_fetch.yfinance_core_fetch as core_fetch  # noqa: E402
 import data_fetch.market_sources.http_enrichment as http_sources  # noqa: E402
 import data_fetch.market_sources.taiwan as taiwan_sources  # noqa: E402
 from data_fetch import FetchRequest  # noqa: E402
-from data_fetch.providers import (  # noqa: E402
-    FmpProvider,
-    FinMindProvider,
-    MonthlyRevenueProvider,
-    ProviderRegistry,
-    YahooProvider,
-    YFinanceProvider,
-)
+from data_fetch.enrichment_providers import YahooProvider  # noqa: E402
+from data_fetch.provider_registry import ProviderRegistry  # noqa: E402
+from data_fetch.quote_providers import FmpProvider, YFinanceProvider  # noqa: E402
+from data_fetch.taiwan_providers import FinMindProvider, MonthlyRevenueProvider  # noqa: E402
 
 
 class FakeMarketProvider:
@@ -51,7 +47,7 @@ def test_snapshot_payload_adapter_does_not_mutate_provider_factory(monkeypatch):
         calls["resolved"] = market_data_provider.resolve_stock(ticker)
         raise RuntimeError("stop after adapter")
 
-    monkeypatch.setattr(legacy_fetch, "fetch_stock_data", fake_fetch_stock_data)
+    monkeypatch.setattr(core_fetch, "fetch_stock_data", fake_fetch_stock_data)
     snapshot = {
         "original_ticker": "2330",
         "ticker": "2330.TW",

@@ -1,22 +1,17 @@
 """Canonical data-fetching API."""
 
-from .providers import (
-    CallableProvider,
-    DataProvider,
+from .enrichment_providers import (
     DynamicPeerMetricsProvider,
-    FinMindProvider,
-    FmpProvider,
     FmpNewsProvider,
     GooglePeerDiscoveryProvider,
     GoogleSearchProvider,
-    InstitutionalTradingProvider,
-    MonthlyRevenueProvider,
     PeRiverChartProvider,
-    ProviderRegistry,
     YahooProvider,
-    YFinanceProvider,
-    infer_market,
 )
+from .provider_base import CallableProvider, DataProvider, infer_market
+from .provider_registry import ProviderRegistry
+from .quote_providers import FmpProvider, YFinanceProvider
+from .taiwan_providers import FinMindProvider, InstitutionalTradingProvider, MonthlyRevenueProvider
 from .service import DEFAULT_STOCK_DATA_SERVICE, StockDataService, fetch_stock_data_async
 from .types import FetchOptions, FetchRequest, FetchResult, ProviderResult
 

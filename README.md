@@ -124,6 +124,14 @@ CI 與 smoke scripts 會優先使用 `PYTHON_BIN`，其次使用專案 `.venv/bi
 scripts/ci_gate.sh
 ```
 
+前端/報告圖表視覺回歸可用 Playwright 跑；直接執行時會要求瀏覽器可用：
+
+```bash
+scripts/visual_regression.sh
+```
+
+CI 可用 `RUN_VISUAL_REGRESSION=1 scripts/ci_gate.sh` 一併執行；一般 `pytest` 仍會在 Playwright 不可用時 skip。
+
 ## 啟動方式
 
 ### macOS 一鍵啟動

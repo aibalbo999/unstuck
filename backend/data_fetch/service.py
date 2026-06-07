@@ -8,7 +8,7 @@ from typing import Awaitable, Callable, Optional
 
 from provider_sla import record_source_audit_entries
 
-from .providers import ProviderRegistry
+from .provider_registry import ProviderRegistry
 from .types import FetchRequest, FetchResult, ProviderResult
 from .workflow import fetch_payload_async
 

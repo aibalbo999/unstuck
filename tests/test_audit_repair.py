@@ -76,6 +76,7 @@ def complete_v2_context():
 
 def setup_function():
     audit_repair.clear_repair_429_circuit()
+    repair_breaker.clear_repair_429_circuit()
 
 
 def test_structured_repair_falls_back_when_valuation_json_remains_unparseable():

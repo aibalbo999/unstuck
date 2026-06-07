@@ -1,0 +1,156 @@
+"""HTTP/news/peer enrichment providers."""
+
+from __future__ import annotations
+
+from source_audit import audited_fetch, audited_fetch_async
+
+from .market_sources.common import first_number
+from .provider_base import DataProvider, provider_result_from_audited, unavailable_provider_result
+from .types import FetchRequest, ProviderResult
+
+
+class GoogleSearchProvider(DataProvider):
+    name = "Google Search"
+    source = "recent_catalysts"
+
+    async def fetch_async(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
+        from .market_sources.http_enrichment import fetch_google_search_catalysts_async
+
+        context = context or {}
+        data = context.get("data", {}) or {}
+        ticker = str(data.get("ticker") or request.ticker).strip().upper()
+        company_name = str(data.get("company_name") or ticker).strip()
+        identity = data.get("company_identity") if isinstance(data.get("company_identity"), dict) else {}
+        cache_hit = bool(data.get("_cache_hit"))
+        result = await audited_fetch_async(
+            self.source,
+            self.name,
+            fetch_google_search_catalysts_async,
+            (ticker, company_name, identity),
+            default=[],
+            cache_hit=cache_hit,
+            unavailable_message="Google Search 未回傳近期催化劑。",
+        )
+        return provider_result_from_audited(result, self.source, self.name)
+
+
+class YahooProvider(DataProvider):
+    name = "Yahoo Finance"
+    source = "recent_catalysts"
+
+    def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
+        from .market_sources.http_enrichment import fetch_yfinance_news_catalysts
+
+        context = context or {}
+        stock = context.get("stock") or (context.get("market_snapshot") or {}).get("stock")
+        if stock is None:
+            return unavailable_provider_result(self.source, self.name, "Yahoo news provider 需要 yfinance stock 物件。")
+        result = audited_fetch(
+            self.source,
+            "Yahoo Finance news",
+            fetch_yfinance_news_catalysts,
+            (stock,),
+            default=[],
+            unavailable_message="Yahoo Finance 未回傳近期新聞。",
+        )
+        return provider_result_from_audited(result, self.source, "Yahoo Finance news")
+
+
+class FmpNewsProvider(DataProvider):
+    name = "FMP news"
+    source = "recent_catalysts"
+
+    async def fetch_async(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
+        from .market_sources.http_enrichment import fetch_fmp_news_catalysts_async
+
+        context = context or {}
+        data = context.get("data", {}) or {}
+        ticker = str(context.get("original_ticker") or data.get("ticker") or request.ticker).strip().upper()
+        cache_hit = bool(data.get("_cache_hit"))
+        result = await audited_fetch_async(
+            self.source,
+            self.name,
+            fetch_fmp_news_catalysts_async,
+            (ticker,),
+            default=[],
+            cache_hit=cache_hit,
+            unavailable_message="FMP news 未回傳近期新聞。",
+        )
+        return provider_result_from_audited(result, self.source, self.name)
+
+
+class GooglePeerDiscoveryProvider(DataProvider):
+    name = "Google Search"
+    source = "peer_discovery"
+
+    async def fetch_async(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
+        from .market_sources.http_enrichment import fetch_google_peer_discovery_results_async
+
+        context = context or {}
+        data = context.get("data", {}) or {}
+        ticker = str(data.get("ticker") or request.ticker).strip().upper()
+        company_name = str(data.get("company_name") or ticker).strip()
+        sector = str(data.get("sector") or "")
+        industry = str(data.get("industry") or "")
+        cache_hit = bool(data.get("_cache_hit"))
+        result = await audited_fetch_async(
+            self.source,
+            self.name,
+            fetch_google_peer_discovery_results_async,
+            (ticker, company_name, sector, industry),
+            default=[],
+            cache_hit=cache_hit,
+            unavailable_message="Google Search 未回傳同業 discovery 結果。",
+        )
+        return provider_result_from_audited(result, self.source, self.name)
+
+
+class DynamicPeerMetricsProvider(DataProvider):
+    name = "FinMind/yfinance"
+    source = "dynamic_peer_metrics"
+
+    def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
+        from .market_sources.peers import fetch_dynamic_peer_metrics
+
+        data = (context or {}).get("data", {}) if isinstance((context or {}).get("data"), dict) else {}
+        result = audited_fetch(
+            self.source,
+            self.name,
+            fetch_dynamic_peer_metrics,
+            (
+                str(data.get("ticker") or request.ticker).strip().upper(),
+                str(data.get("company_name") or request.ticker),
+                str(data.get("sector") or ""),
+                str(data.get("industry") or ""),
+                data.get("company_identity") if isinstance(data.get("company_identity"), dict) else {},
+            ),
+            default=[],
+            unavailable_message="同業指標暫無可用資料。",
+        )
+        return provider_result_from_audited(result, self.source, self.name)
+
+
+class PeRiverChartProvider(DataProvider):
+    name = "FinMind/default multiples"
+    source = "pe_river_chart"
+
+    def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
+        from .market_sources.valuation import build_pe_river_chart_data
+
+        data = (context or {}).get("data", {}) if isinstance((context or {}).get("data"), dict) else {}
+        value = data.get("shares_raw", data.get("shares_outstanding"))
+        shares = first_number(value)
+        result = audited_fetch(
+            self.source,
+            self.name,
+            build_pe_river_chart_data,
+            (
+                str(data.get("ticker") or request.ticker).strip().upper(),
+                list(data.get("years") or []),
+                list(data.get("net_income_history") or []),
+                shares,
+            ),
+            default={"years": list(data.get("years") or []), "eps_twd": [], "multiples": [10, 12, 15, 18], "bands": {}, "source": "unavailable"},
+            unavailable_message="P/E 河流圖資料暫無可用資料。",
+        )
+        return provider_result_from_audited(result, self.source, self.name)

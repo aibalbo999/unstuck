@@ -12,7 +12,7 @@ import data_fetch.cache_helpers as cache_helpers  # noqa: E402
 import data_fetch.optional_enrichment as optional_enrichment  # noqa: E402
 import data_fetch.yfinance_payload as yfinance_payload  # noqa: E402
 import data_fetch.yfinance_sync_enrichment as sync_enrichment  # noqa: E402
-import data_fetch.yfinance_legacy_fetch as financial_data  # noqa: E402
+import data_fetch.yfinance_core_fetch as financial_data  # noqa: E402
 
 
 class FakeStock:

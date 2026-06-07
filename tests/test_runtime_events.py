@@ -8,6 +8,8 @@ sys.path.insert(0, str(ROOT / "backend"))
 
 from runtime_events import (  # noqa: E402
     RUNTIME_EVENT_LOG_KEY,
+    classify_runtime_error,
+    emit_context_error,
     emit_context_event,
     emit_context_event_async,
     emit_progress,
@@ -15,6 +17,7 @@ from runtime_events import (  # noqa: E402
     emit_runtime_event_async,
     emit_status,
     format_event_log_line,
+    make_runtime_error_event,
     make_runtime_event,
 )
 
@@ -143,3 +146,33 @@ def test_runtime_event_schema_preserves_frontend_contract_fields():
         "pipeline_label": "模式 A",
         "metadata": {"model_id": "fake-model", "timeout_seconds": 120},
     }
+
+
+def test_runtime_error_event_classifies_common_failures():
+    assert classify_runtime_error(RuntimeError("429 quota exhausted")) == "quota"
+    assert classify_runtime_error(TimeoutError("deadline exceeded")) == "timeout"
+    assert classify_runtime_error(RuntimeError("response schema validation failed")) == "schema"
+
+    event = make_runtime_error_event(
+        "llm_model_error",
+        RuntimeError("provider down"),
+        message="模型呼叫失敗",
+        agent_num=7,
+        metadata={"model_id": "fake"},
+    )
+
+    assert event["phase"] == "llm_model_error"
+    assert event["metadata"]["error_kind"] == "RuntimeError"
+    assert event["metadata"]["error_category"] == "provider"
+    assert event["metadata"]["model_id"] == "fake"
+
+
+def test_emit_context_error_records_structured_metadata():
+    context = {}
+
+    emit_context_error(context, "final_audit_repair_failed", RuntimeError("repair exploded"), error_category="repair_failed")
+
+    event = context[RUNTIME_EVENT_LOG_KEY][0]
+    assert event["phase"] == "final_audit_repair_failed"
+    assert event["metadata"]["error_category"] == "repair_failed"
+    assert event["metadata"]["error_kind"] == "RuntimeError"

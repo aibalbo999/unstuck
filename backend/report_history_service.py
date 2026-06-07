@@ -9,13 +9,8 @@ from fastapi.responses import FileResponse, HTMLResponse
 
 from config import REPORT_RETENTION_DAYS
 from data_trust import data_snapshot_filename_for_report
-from report_index import (
-    delete_report_metadata,
-    is_safe_report_filename,
-    normalize_recommendation_label,
-    parse_recommendation_summary as parse_report_recommendation_summary,
-    query_report_metadata,
-)
+from report_index import is_safe_report_filename, normalize_recommendation_label, parse_recommendation_summary as parse_report_recommendation_summary
+from report_repository import DEFAULT_REPORT_REPOSITORY, ReportListQuery, ReportRepository
 
 
 def parse_recommendation_summary(filename: str, output_dir: str) -> dict:
@@ -26,6 +21,7 @@ def cleanup_expired_reports(
     output_dir: str,
     report_cache: dict,
     retention_days: int = REPORT_RETENTION_DAYS,
+    repository: ReportRepository = DEFAULT_REPORT_REPOSITORY,
 ) -> list[str]:
     """Delete old HTML/Markdown/data snapshots so output does not grow forever."""
     if not os.path.exists(output_dir) or retention_days <= 0:
@@ -42,7 +38,7 @@ def cleanup_expired_reports(
                 os.remove(path)
                 deleted.append(filename)
                 if filename.endswith(".html"):
-                    delete_report_metadata(filename, output_dir)
+                    repository.delete(filename, output_dir)
         except OSError:
             pass
 
@@ -89,6 +85,7 @@ def list_reports(
     data_trust: str,
     output_dir: str,
     report_cache: dict,
+    repository: ReportRepository = DEFAULT_REPORT_REPOSITORY,
 ) -> dict:
     cleanup_expired_reports(output_dir, report_cache)
     cleanup_orphan_markdown_reports(output_dir)
@@ -110,14 +107,16 @@ def list_reports(
         data_trust_filter = "all"
 
     if os.path.exists(output_dir):
-        reports, total = query_report_metadata(
-            page=page,
-            limit=limit,
-            q=query,
-            pipeline=pipeline_filter,
-            recommendation=recommendation_filter,
-            data_trust=data_trust_filter,
-            output_dir=output_dir,
+        reports, total = repository.query(
+            ReportListQuery(
+                page=page,
+                limit=limit,
+                q=query,
+                pipeline=pipeline_filter,
+                recommendation=recommendation_filter,
+                data_trust=data_trust_filter,
+                output_dir=output_dir,
+            )
         )
     else:
         reports, total = [], 0
@@ -140,7 +139,12 @@ def list_reports(
     }
 
 
-def delete_report_files(filename: str, output_dir: str, report_cache: dict) -> dict:
+def delete_report_files(
+    filename: str,
+    output_dir: str,
+    report_cache: dict,
+    repository: ReportRepository = DEFAULT_REPORT_REPOSITORY,
+) -> dict:
     if not is_safe_report_filename(filename, ".html"):
         return {"success": False, "error": "Invalid filename"}
 
@@ -169,7 +173,7 @@ def delete_report_files(filename: str, output_dir: str, report_cache: dict) -> d
     for ticker, cached_filename in list(report_cache.items()):
         if cached_filename == filename:
             del report_cache[ticker]
-    delete_report_metadata(filename, output_dir)
+    repository.delete(filename, output_dir)
     return {"success": True, "deleted": deleted}
 
 
