@@ -91,7 +91,7 @@ export GEMINI_API_KEYS="your_key_1,your_key_2"
 - `TASK_QUEUE_NAME`：RQ queue 名稱，預設 `stock-analysis`
 - `TASK_DB_PATH`：任務與 SSE event SQLite 檔位置，預設 `backend/cache/analysis_jobs.sqlite3`
 - `ANALYSIS_JOB_STALE_SECONDS`：queued/running 任務超過此秒數未更新時不再被視為活躍，預設 `21600`
-- `LLM_AGENT_CALL_TIMEOUT_SECONDS`：單次 Agent LLM 非同步呼叫 timeout 秒數，預設 `120`；設為 `0` 可關閉外層 timeout
+- `LLM_AGENT_CALL_TIMEOUT_SECONDS`：單次 Agent LLM 呼叫 timeout 秒數，預設 `120`；會傳入 Google GenAI `HttpOptions.timeout`，非同步路徑另有外層 `asyncio.wait_for` 保護，設為 `0` 可關閉
 - `FMP_API_KEY`：可選，yfinance 缺少即時報價、市值、P/E、52 週高低時，用 FMP stable quote API 補值
 - `FMP_BASE_URL`：FMP API base URL，預設 `https://financialmodelingprep.com/stable`
 

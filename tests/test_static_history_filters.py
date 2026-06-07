@@ -20,6 +20,8 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     provider_sla_js = (STATIC_DIR / "provider_sla_panel.js").read_text(encoding="utf-8")
     report_rerun_js = (STATIC_DIR / "report_rerun.js").read_text(encoding="utf-8")
     analysis_stream_js = (STATIC_DIR / "analysis_stream.js").read_text(encoding="utf-8")
+    history_panel_js = (STATIC_DIR / "history_panel.js").read_text(encoding="utf-8")
+    report_preview_js = (STATIC_DIR / "report_preview_panel.js").read_text(encoding="utf-8")
 
     assert 'id="provider-sla-panel"' in index_html
     assert 'id="provider-sla-window"' in index_html
@@ -31,8 +33,15 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "/static/provider_sla_panel.js" in index_html
     assert "/static/report_rerun.js" in index_html
     assert "/static/analysis_stream.js" in index_html
+    assert "/static/history_panel.js" in index_html
+    assert "/static/report_preview_panel.js" in index_html
     assert "providerSlaWindow" in app_js
     assert "StockAgentProviderSlaPanel.render" in app_js
+    assert "StockAgentHistoryPanel.create" in app_js
+    assert "StockAgentReportPreviewPanel.create" in app_js
+    assert "history-item" in history_panel_js
+    assert "preview-date" in report_preview_js
+    assert "history-item" not in app_js
     assert "providerSlaStatsForWindow" in provider_sla_js
     assert "analysis_text_stale" in app_js
     assert "rerunPreviewReport" in app_js

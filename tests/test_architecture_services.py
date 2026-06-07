@@ -179,6 +179,31 @@ def test_llm_async_call_timeout_becomes_retryable(monkeypatch):
         raise AssertionError("LLM timeout should become AgentTransientError")
 
 
+def test_genai_client_receives_request_timeout(monkeypatch):
+    import llm_client
+
+    captured = {}
+
+    class FakeModels:
+        def generate_content(self, **_kwargs):
+            return object()
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+            self.models = FakeModels()
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(llm_client, "LLM_AGENT_CALL_TIMEOUT_SECONDS", 12.5)
+    monkeypatch.setattr(llm_client.genai, "Client", FakeClient)
+
+    llm_client.generate_content("fake-key", "fake-model", "prompt", object())
+
+    assert captured["http_options"].timeout == 12500
+
+
 def test_report_renderer_returns_bundle_with_snapshot(monkeypatch):
     import reporting.renderer as renderer_module
 

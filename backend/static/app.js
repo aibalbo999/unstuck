@@ -210,6 +210,40 @@ document.addEventListener('DOMContentLoaded', () => {
         reportAuditNotice.hidden = false;
     }
 
+    const historyPanel = window.StockAgentHistoryPanel.create({
+        listEl: historyList,
+        paginationEl: historyPagination,
+        prevBtn: historyPrev,
+        nextBtn: historyNext,
+        pageInfoEl: historyPageInfo,
+        escapeHtml,
+        renderPipelineModeBadge,
+        renderDataTrustBadge,
+        recommendationTone,
+        normalizeRecommendation
+    });
+
+    const reportPreviewPanel = window.StockAgentReportPreviewPanel.create({
+        elements: {
+            root: reportPreview,
+            mode: previewMode,
+            title: previewTitle,
+            price: previewPrice,
+            recommendation: previewRecommendation,
+            confidence: previewConfidence,
+            target3m: previewTarget3m,
+            target6m: previewTarget6m,
+            target12m: previewTarget12m,
+            summary: previewSummary,
+            staleNotice: previewStaleNotice
+        },
+        escapeHtml,
+        renderPipelineModeBadge,
+        renderDataTrustBadge,
+        recommendationTone,
+        normalizeRecommendation
+    });
+
     // 載入歷史報告
     async function loadHistory() {
         try {
@@ -228,94 +262,31 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch(`/api/reports?${params.toString()}`);
             const data = await res.json();
             const pagination = data.pagination || { page: 1, total_pages: 1, total: 0, has_prev: false, has_next: false };
-            historyReports = new Map((data.reports || []).map(report => [report.filename, report]));
-            
-            if (data.reports && data.reports.length > 0) {
-                historyList.innerHTML = data.reports.map(r => `
-                    <div class="history-item" data-filename="${escapeHtml(r.filename)}" data-ticker="${escapeHtml(r.ticker)}" data-pipeline="${escapeHtml(r.pipeline_id || 'v1')}">
-                        <div class="history-info" role="button" tabindex="0">
-                            <div class="history-ticker">
-                                ${escapeHtml(r.ticker)}${r.company_name && r.company_name !== r.ticker ? `<span class="history-company">${escapeHtml(r.company_name)}</span>` : ''}
-                            </div>
-                            <div class="history-date">
-                                <span>${escapeHtml(r.date)}</span>
-                                ${renderPipelineModeBadge(r.pipeline_id || 'v1')}
-                                ${renderDataTrustBadge(r.data_trust)}
-                            </div>
-                            <div class="history-decision">
-                                <span class="history-rec ${recommendationTone(r.recommendation?.recommendation)}">${escapeHtml(normalizeRecommendation(r.recommendation?.recommendation))}</span>
-                                <span>${escapeHtml(r.recommendation?.target_12m || 'N/A')}</span>
-                                <span>${escapeHtml(r.recommendation?.confidence || 'N/A')}</span>
-                            </div>
-                        </div>
-                        <button class="delete-btn" title="刪除報告" data-delete-filename="${escapeHtml(r.filename)}">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-                        </button>
-                    </div>
-                `).join('');
-                if (previewReport && historyReports.has(previewReport.filename)) {
-                    historyList.querySelectorAll('.history-item').forEach(item => {
-                        item.classList.toggle('is-selected', item.dataset.filename === previewReport.filename);
-                    });
-                } else if (previewReport) {
-                    hideReportPreview();
-                }
-            } else {
-                historyList.innerHTML = '<div style="color: var(--text-secondary); font-size: 0.9rem; text-align: center; padding: 20px 0;">尚無報告紀錄</div>';
+            const reports = data.reports || [];
+            historyReports = new Map(reports.map(report => [report.filename, report]));
+            historyPanel.renderReports(reports, previewReport && previewReport.filename);
+            if (!reports.length || (previewReport && !historyReports.has(previewReport.filename))) {
                 hideReportPreview();
             }
-            renderHistoryPagination(pagination);
+            historyPage = historyPanel.renderPagination(pagination);
         } catch (err) {
             console.error('Failed to load history', err);
         }
     }
 
-    function renderHistoryPagination(pagination) {
-        if (!historyPagination || !historyPrev || !historyNext || !historyPageInfo) return;
-        const totalPages = pagination.total_pages || 1;
-        historyPagination.hidden = totalPages <= 1;
-        historyPrev.disabled = !pagination.has_prev;
-        historyNext.disabled = !pagination.has_next;
-        historyPage = pagination.page || 1;
-        historyPageInfo.textContent = `${historyPage} / ${totalPages}`;
-    }
-
     function hideReportPreview() {
         previewReport = null;
-        if (reportPreview) reportPreview.hidden = true;
-        historyList.querySelectorAll('.history-item.is-selected').forEach(item => {
-            item.classList.remove('is-selected');
-        });
+        reportPreviewPanel.hide();
+        historyPanel.clearSelection();
     }
 
     function showReportPreview(filename) {
         const report = historyReports.get(filename);
-        if (!report || !reportPreview) return;
+        if (!report) return;
         previewReport = report;
-        const rec = report.recommendation || {};
-        const pipelineId = report.pipeline_id || 'v1';
-
-        previewMode.innerHTML = `${renderPipelineModeBadge(pipelineId)}${renderDataTrustBadge(report.data_trust)}<span class="preview-date">${escapeHtml(report.date || '')}</span>`;
-        previewTitle.textContent = `${report.ticker} 投資建議`;
-        previewPrice.textContent = rec.current_price || 'N/A';
-        previewRecommendation.textContent = normalizeRecommendation(rec.recommendation);
-        previewRecommendation.className = recommendationTone(rec.recommendation);
-        previewConfidence.textContent = rec.confidence || 'N/A';
-        previewTarget3m.textContent = rec.target_3m || 'N/A';
-        previewTarget6m.textContent = rec.target_6m || 'N/A';
-        previewTarget12m.textContent = rec.target_12m || 'N/A';
-        previewSummary.textContent = rec.summary || '這份報告沒有可讀的一頁式摘要，可直接查看完整報告。';
-        if (previewStaleNotice) {
-            const staleMessage = report.analysis_text_stale_message
-                || '資料快照已刷新，但這份 HTML/Markdown 分析本文尚未重新執行。';
-            previewStaleNotice.textContent = staleMessage;
-            previewStaleNotice.hidden = !report.analysis_text_stale;
+        if (reportPreviewPanel.show(report)) {
+            historyPanel.select(filename);
         }
-
-        historyList.querySelectorAll('.history-item').forEach(item => {
-            item.classList.toggle('is-selected', item.dataset.filename === filename);
-        });
-        reportPreview.hidden = false;
     }
 
     async function refreshPreviewDataSnapshot() {
@@ -372,23 +343,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    historyList.addEventListener('click', (event) => {
-        const deleteBtn = event.target.closest('.delete-btn');
-        if (deleteBtn) {
-            deleteReport(deleteBtn.dataset.deleteFilename, event);
-            return;
-        }
-        const item = event.target.closest('.history-item');
-        if (item) {
-            showReportPreview(item.dataset.filename);
-        }
-    });
-
-    historyList.addEventListener('keydown', (event) => {
-        if (event.key !== 'Enter') return;
-        const item = event.target.closest('.history-item');
-        if (item) showReportPreview(item.dataset.filename);
-    });
+    historyPanel.bindEvents({ onDelete: deleteReport, onSelect: showReportPreview });
 
     // 開啟報告
     function openReport(filename, ticker, pipelineId = 'v1') {
