@@ -11,6 +11,7 @@ class FetchOptions:
     skip_optional_http: bool = False
     force_refresh: bool = False
     include_provider_results: bool = True
+    record_provider_sla: bool = True
 
 
 @dataclass(frozen=True)

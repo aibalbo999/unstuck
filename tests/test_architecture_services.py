@@ -8,6 +8,7 @@ sys.path.insert(0, str(ROOT / "backend"))
 
 from agent_runtime import AgentExecutor, AgentRunRequest  # noqa: E402
 from data_fetch import FetchRequest, StockDataService  # noqa: E402
+import data_fetch.service as data_fetch_service  # noqa: E402
 from data_fetch.providers import (  # noqa: E402
     CallableProvider,
     FinMindProvider,
@@ -44,6 +45,29 @@ def test_stock_data_service_returns_typed_fetch_result_from_fake_provider():
     assert result.data["ticker"] == "AAPL"
     assert result.provider_results[0].provider == "fake"
     assert result.provider_results[0].status == "success"
+
+
+def test_stock_data_service_can_skip_system_provider_sla_recording(monkeypatch):
+    recorded = []
+
+    async def fake_fetcher(request):
+        return {
+            "ticker": request.ticker,
+            "source_audit": [
+                {"source": "market_data", "provider": "fake", "status": "success", "record_count": 1}
+            ],
+        }
+
+    monkeypatch.setattr(data_fetch_service, "record_source_audit_entries", lambda entries: recorded.append(list(entries)))
+
+    result = asyncio.run(
+        StockDataService(fetcher=fake_fetcher).fetch_async(
+            FetchRequest.from_ticker("aapl", record_provider_sla=False)
+        )
+    )
+
+    assert result.provider_results[0].provider == "fake"
+    assert recorded == []
 
 
 def test_provider_registry_routes_by_market():

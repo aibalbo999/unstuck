@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=20260607-dual-pipeline-selection">
+    <link rel="stylesheet" href="/static/style.css?v=20260607-system-report-trust">
 </head>
 <body>
     <!-- 背景特效 -->
@@ -68,17 +68,17 @@
                 <section id="provider-sla-panel" class="provider-sla-panel" aria-live="polite">
                     <div class="provider-sla-header">
                         <div>
-                            <span class="provider-sla-kicker">資料來源健康度</span>
+                            <span class="provider-sla-kicker">全系統資料來源狀態</span>
                             <strong id="provider-sla-summary">載入中</strong>
                         </div>
                         <div class="provider-sla-actions">
-                            <select id="provider-sla-window" class="provider-sla-window" aria-label="資料來源健康度時間範圍">
+                            <select id="provider-sla-window" class="provider-sla-window" aria-label="全系統資料來源狀態時間範圍">
                                 <option value="all">全部</option>
                                 <option value="last_1h">1 小時</option>
-                                <option value="last_24h">24 小時</option>
+                                <option value="last_24h" selected>24 小時</option>
                                 <option value="last_7d">7 天</option>
                             </select>
-                            <button id="provider-sla-refresh" class="icon-button" type="button" aria-label="刷新資料來源健康度">
+                            <button id="provider-sla-refresh" class="icon-button" type="button" aria-label="刷新全系統資料來源狀態">
                                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M16 8h5V3"/></svg>
                             </button>
                         </div>
@@ -120,7 +120,7 @@
                                     </select>
                                 </label>
                                 <label class="history-filter-field">
-                                    <span>資料可信度</span>
+                                    <span>本報告資料狀態</span>
                                     <select id="history-data-trust-filter" class="history-filter-select">
                                         <option value="all">全部狀態</option>
                                         <option value="fresh">資料新鮮</option>
@@ -252,9 +252,9 @@
         </div>
     </main>
 
-    <script src="/static/ui_helpers.js?v=20260607-ui-helpers"></script>
+    <script src="/static/ui_helpers.js?v=20260607-system-report-trust"></script>
     <script src="/static/api_client.js?v=20260607-api-client"></script>
-    <script src="/static/provider_sla_panel.js?v=20260607-provider-sla-module"></script>
+    <script src="/static/provider_sla_panel.js?v=20260607-system-report-trust"></script>
     <script src="/static/active_jobs_panel.js?v=20260607-active-jobs"></script>
     <script src="/static/report_rerun.js?v=20260607-rerun-stream"></script>
     <script src="/static/analysis_stream.js?v=20260607-analysis-stream"></script>
@@ -264,6 +264,6 @@
     <script src="/static/history_filters.js?v=20260607-history-filters"></script>
     <script src="/static/report_actions.js?v=20260607-report-actions"></script>
     <script src="/static/history_workspace.js?v=20260607-history-workspace"></script>
-    <script src="/static/app.js?v=20260607-app-modules"></script>
+    <script src="/static/app.js?v=20260607-system-report-trust"></script>
 </body>
 </html>

@@ -115,7 +115,9 @@ async def refresh_report_data_snapshot(
     if not ticker:
         raise HTTPException(status_code=400, detail="資料快照缺少 ticker")
 
-    result = await refresh_service.fetch_async(FetchRequest.from_ticker(ticker, force_refresh=True))
+    result = await refresh_service.fetch_async(
+        FetchRequest.from_ticker(ticker, force_refresh=True, record_provider_sla=False)
+    )
     refreshed_data = result.data or {}
     if not isinstance(refreshed_data, dict) or "error" in refreshed_data:
         message = refreshed_data.get("error") if isinstance(refreshed_data, dict) else "資料刷新失敗"

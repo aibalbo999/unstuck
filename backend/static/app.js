@@ -96,7 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderProviderSla(providerSlaPayload);
         } catch (err) {
             console.error('Failed to load provider SLA', err);
-            providerSlaSummary.textContent = '來源健康度讀取失敗';
+            providerSlaSummary.textContent = '全系統資料來源狀態讀取失敗';
             providerSlaList.innerHTML = '<span class="provider-sla-chip is-warning">請稍後重試</span>';
         } finally {
             if (providerSlaRefresh) providerSlaRefresh.removeAttribute('disabled');

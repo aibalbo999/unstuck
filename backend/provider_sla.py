@@ -164,7 +164,9 @@ def get_provider_sla_summary(limit: int = 100) -> list[dict]:
     for row in rows:
         attempts = int(row["attempts"] or 0)
         success_count = int(row["success_count"] or 0)
+        skipped_fresh_cache_count = int(row["skipped_fresh_cache_count"] or 0)
         total_duration_ms = int(row["total_duration_ms"] or 0)
+        healthy_count = success_count + skipped_fresh_cache_count
         item = {
             "source": row["source"],
             "provider": row["provider"],
@@ -172,8 +174,8 @@ def get_provider_sla_summary(limit: int = 100) -> list[dict]:
             "success_count": success_count,
             "error_count": int(row["error_count"] or 0),
             "unavailable_count": int(row["unavailable_count"] or 0),
-            "skipped_fresh_cache_count": int(row["skipped_fresh_cache_count"] or 0),
-            "success_rate": round(success_count / attempts, 4) if attempts else 0.0,
+            "skipped_fresh_cache_count": skipped_fresh_cache_count,
+            "success_rate": round(healthy_count / attempts, 4) if attempts else 0.0,
             "avg_duration_ms": round(total_duration_ms / attempts, 2) if attempts else 0.0,
             "total_records": int(row["total_records"] or 0),
             "last_status": row["last_status"],
@@ -222,14 +224,16 @@ def _window_stats_for_provider(conn: sqlite3.Connection, source: str, provider: 
             windows[label] = _empty_window_stats()
             continue
         success_count = int(row["success_count"] or 0)
+        skipped_fresh_cache_count = int(row["skipped_fresh_cache_count"] or 0)
         total_duration_ms = int(row["total_duration_ms"] or 0)
+        healthy_count = success_count + skipped_fresh_cache_count
         windows[label] = {
             "attempts": attempts,
             "success_count": success_count,
             "error_count": int(row["error_count"] or 0),
             "unavailable_count": int(row["unavailable_count"] or 0),
-            "skipped_fresh_cache_count": int(row["skipped_fresh_cache_count"] or 0),
-            "success_rate": round(success_count / attempts, 4),
+            "skipped_fresh_cache_count": skipped_fresh_cache_count,
+            "success_rate": round(healthy_count / attempts, 4),
             "avg_duration_ms": round(total_duration_ms / attempts, 2),
             "total_records": int(row["total_records"] or 0),
         }
@@ -247,13 +251,13 @@ def _provider_alert_fields(item: dict) -> dict:
     if attempts >= 3 and (success_rate < SLA_CRITICAL_SUCCESS_RATE or error_count >= 3):
         return {
             "alert_level": "critical",
-            "alert_message": f"{item.get('provider')} {basis_label}成功率偏低（{success_rate:.0%}），最近狀態：{last_status or 'unknown'}",
+            "alert_message": f"{item.get('provider')} {basis_label}資料取得率偏低（{success_rate:.0%}），最近狀態：{last_status or 'unknown'}",
             "alert_basis": basis_label,
         }
     if last_status in {"error", "unavailable"} or (attempts >= 3 and success_rate < SLA_WARNING_SUCCESS_RATE):
         return {
             "alert_level": "warning",
-            "alert_message": f"{item.get('provider')} 最近有來源異常或 {basis_label}成功率低於 {SLA_WARNING_SUCCESS_RATE:.0%}",
+            "alert_message": f"{item.get('provider')} 最近有來源異常或 {basis_label}資料取得率低於 {SLA_WARNING_SUCCESS_RATE:.0%}",
             "alert_basis": basis_label,
         }
     return {"alert_level": "ok", "alert_message": "", "alert_basis": basis_label}

@@ -66,6 +66,12 @@ def test_provider_sla_aggregates_source_audit(monkeypatch, tmp_path):
     assert yfinance["windows"]["last_1h"]["attempts"] == 2
     assert yfinance["windows"]["last_1h"]["success_rate"] == 0.5
     assert yfinance["alert_level"] == "warning"
+    google = next(row for row in summary if row["provider"] == "Google Search")
+    assert google["attempts"] == 1
+    assert google["skipped_fresh_cache_count"] == 1
+    assert google["success_rate"] == 1.0
+    assert google["windows"]["last_1h"]["success_rate"] == 1.0
+    assert google["alert_level"] == "ok"
     alerts = provider_sla.get_provider_sla_alerts()
     assert alerts and alerts[0]["provider"] == "yfinance"
     assert "windows" in alerts[0]

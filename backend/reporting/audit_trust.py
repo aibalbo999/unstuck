@@ -100,9 +100,9 @@ def _reason_label(code: str) -> str:
         "critical_sources_error": "核心來源異常",
         "missing_usable_critical_data": "缺少可用核心資料",
         "data_source_notes_present": "含資料口徑註記",
-        "provider_sla_critical": "Provider SLA critical",
-        "provider_sla_warning_note": "Provider SLA warning",
-        "missing_data_trust_snapshot": "未記錄可信度快照",
+        "provider_sla_critical": "系統來源當時不穩",
+        "provider_sla_warning_note": "來源穩定度提醒",
+        "missing_data_trust_snapshot": "未記錄報告資料狀態",
         "source_error": "來源異常",
         "source_stale": "來源過期",
     }
@@ -138,7 +138,7 @@ def build_data_trust_html(data: dict) -> str:
         <div class="data-trust-card data-trust-{escape(status)}">
             <div class="data-trust-head">
                 <span class="data-trust-badge">{escape(trust_status_label(status))}</span>
-                <strong>資料可信度</strong>
+                <strong>本報告資料可信度</strong>
             </div>
             <div class="data-trust-notes">{notes_html}</div>
             <div class="data-trust-meta">{detail_html}</div>
@@ -152,7 +152,7 @@ def build_source_audit_html(data: dict) -> str:
         return """
             <div class="source-audit-block">
                 <h4>來源審計</h4>
-                <p class="source-audit-empty">本報告未記錄 source_audit；舊報告仍可正常閱讀，但資料可信度標示為未記錄。</p>
+                <p class="source-audit-empty">本報告未記錄 source_audit；舊報告仍可正常閱讀，但本報告資料可信度標示為未記錄。</p>
             </div>
         """
 
@@ -198,7 +198,7 @@ def build_data_trust_markdown(data: dict) -> str:
     notes = _as_notes(trust.get("notes")) or unknown_data_trust()["notes"]
     reasons = _reason_labels(trust, limit=8)
     lines = [
-        "## 資料可信度",
+        "## 本報告資料可信度",
         f"- **狀態:** {trust_status_label(trust.get('status', 'unknown'))}",
         f"- **市場資料時間:** {trust.get('last_market_data_at') or 'N/A'}",
         f"- **核心異常:** {', '.join(source_label(source) for source in trust.get('critical_failures', []) or []) or '無'}",

@@ -87,10 +87,10 @@ def test_html_and_markdown_include_data_trust_and_source_audit():
     html = report_gen.generate_html_report(context)
     markdown = report_gen.generate_markdown_report(context)
 
-    assert "資料可信度" in html
+    assert "本報告資料可信度" in html
     assert "資料新鮮" in html
     assert "來源審計" in html
     assert "yfinance" in html
-    assert "## 資料可信度" in markdown
+    assert "## 本報告資料可信度" in markdown
     assert "## 來源審計" in markdown
     assert "| 市場資料 | yfinance | 成功 |" in markdown

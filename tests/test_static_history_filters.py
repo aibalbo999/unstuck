@@ -29,8 +29,11 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     ui_helpers_js = (STATIC_DIR / "ui_helpers.js").read_text(encoding="utf-8")
 
     assert 'id="provider-sla-panel"' in index_html
+    assert "全系統資料來源狀態" in index_html
+    assert "本報告資料狀態" in index_html
     assert 'id="active-jobs-panel"' in index_html
     assert 'id="provider-sla-window"' in index_html
+    assert '<option value="last_24h" selected>24 小時</option>' in index_html
     assert 'id="preview-refresh-data-btn"' in index_html
     assert 'id="preview-rerun-final-btn"' in index_html
     assert 'id="preview-rerun-modeb-btn"' in index_html
@@ -60,6 +63,13 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "preview-date" in report_preview_js
     assert "history-item" not in app_js
     assert "providerSlaStatsForWindow" in provider_sla_js
+    assert "groupedProviderRows" in provider_sla_js
+    assert "股價與基本資料" in provider_sla_js
+    assert "同業指標" in provider_sla_js
+    assert "可安心使用" in provider_sla_js
+    assert "provider-sla-insight" in provider_sla_js
+    assert "正式分析流程" in provider_sla_js
+    assert "資料取得率" in provider_sla_js
     assert "analysis_text_stale" in history_workspace_js
     assert "rerunPreviewReport" in history_workspace_js
     assert "StockAgentReportRerun.rerunPreviewReport" in history_workspace_js
@@ -78,6 +88,8 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "renderPipelineModeBadge" in ui_helpers_js
     assert "renderDataTrustReason" in ui_helpers_js
     assert "data-trust-reason" in ui_helpers_js
+    assert "本報告資料新鮮" in ui_helpers_js
+    assert "系統來源當時不穩" in ui_helpers_js
     assert "/refresh/data" in api_client_js
 
 
@@ -87,6 +99,7 @@ def test_frontend_static_modules_are_sized():
         "history_workspace.js": 260,
         "ui_helpers.js": 140,
         "api_client.js": 80,
+        "provider_sla_panel.js": 160,
         "view_controller.js": 40,
         "history_filters.js": 50,
         "report_actions.js": 45,

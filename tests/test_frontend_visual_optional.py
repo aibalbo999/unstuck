@@ -44,14 +44,14 @@ def test_history_preview_visual_regression_optional(tmp_path):
                   <div class="history-filter-row">
                     <label class="history-filter-field"><span>報告類型</span><select class="history-filter-select"><option>模式 B</option></select></label>
                     <label class="history-filter-field"><span>投資建議</span><select class="history-filter-select"><option>持有</option></select></label>
-                    <label class="history-filter-field"><span>資料可信度</span><select class="history-filter-select"><option>部分過期</option></select></label>
+                    <label class="history-filter-field"><span>本報告資料狀態</span><select class="history-filter-select"><option>部分過期</option></select></label>
                   </div>
                 </div>
                 <div class="history-list">
                   <div class="history-item is-selected" data-pipeline="v2">
                     <div class="history-info">
                       <div><span class="history-ticker">2449.TW</span><span class="history-company">京元電子</span></div>
-                      <div class="history-date"><span class="history-mode is-v2">模式 B · 實戰交易派</span><span class="data-trust-badge is-stale">部分過期</span></div>
+                      <div class="history-date"><span class="history-mode is-v2">模式 B · 實戰交易派</span><span class="data-trust-badge is-stale">本報告部分過期</span></div>
                       <div class="history-decision"><span class="history-rec is-hold">持有</span><span>NT$309.50</span><span>7/10</span></div>
                     </div>
                   </div>

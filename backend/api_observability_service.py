@@ -27,13 +27,13 @@ def _alert_fields_for_window(item: dict, window: str) -> dict:
     if attempts >= 3 and (success_rate < SLA_CRITICAL_SUCCESS_RATE or error_count >= 3):
         return {
             "alert_level": "critical",
-            "alert_message": f"{item.get('provider')} {label}成功率偏低（{success_rate:.0%}），最近狀態：{last_status or 'unknown'}",
+            "alert_message": f"{item.get('provider')} {label}資料取得率偏低（{success_rate:.0%}），最近狀態：{last_status or 'unknown'}",
             "alert_basis": label,
         }
     if last_status in {"error", "unavailable"} or (attempts >= 3 and success_rate < SLA_WARNING_SUCCESS_RATE):
         return {
             "alert_level": "warning",
-            "alert_message": f"{item.get('provider')} 最近有來源異常或 {label}成功率低於 {SLA_WARNING_SUCCESS_RATE:.0%}",
+            "alert_message": f"{item.get('provider')} 最近有來源異常或 {label}資料取得率低於 {SLA_WARNING_SUCCESS_RATE:.0%}",
             "alert_basis": label,
         }
     return {"alert_level": "ok", "alert_message": "", "alert_basis": label}

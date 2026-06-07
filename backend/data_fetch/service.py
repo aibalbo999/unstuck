@@ -34,6 +34,7 @@ class StockDataService:
             skip_optional_http=request.options.skip_optional_http,
             force_refresh=request.options.force_refresh,
             include_provider_results=request.options.include_provider_results,
+            record_provider_sla=request.options.record_provider_sla,
         )
 
         if self._fetcher is not None:
@@ -56,8 +57,9 @@ class StockDataService:
     def _build_result(self, request: FetchRequest, data: dict, duration_ms: int) -> FetchResult:
         audit_entries = data.get("source_audit", []) if isinstance(data.get("source_audit"), list) else []
         import sqlite3
-        with suppress(sqlite3.Error):
-            record_source_audit_entries(audit_entries)
+        if request.options.record_provider_sla:
+            with suppress(sqlite3.Error):
+                record_source_audit_entries(audit_entries)
         provider_results = []
         if request.options.include_provider_results:
             provider_results = [

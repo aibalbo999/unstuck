@@ -37,11 +37,11 @@
     function dataTrustLabel(trust) {
         const status = trust && trust.status ? trust.status : 'unknown';
         const labels = {
-            fresh: '資料新鮮',
-            partial: '部分異常',
-            stale: '部分過期',
-            error: '來源異常',
-            unknown: '未記錄'
+            fresh: '本報告資料新鮮',
+            partial: '本報告部分異常',
+            stale: '本報告部分過期',
+            error: '本報告來源異常',
+            unknown: '本報告未記錄'
         };
         return labels[status] || labels.unknown;
     }
@@ -60,9 +60,9 @@
             critical_sources_error: '核心來源異常',
             missing_usable_critical_data: '缺少核心資料',
             data_source_notes_present: '含口徑註記',
-            provider_sla_critical: 'Provider SLA critical',
-            provider_sla_warning_note: 'Provider SLA warning',
-            missing_data_trust_snapshot: '未記錄可信度',
+            provider_sla_critical: '系統來源當時不穩',
+            provider_sla_warning_note: '來源穩定度提醒',
+            missing_data_trust_snapshot: '未記錄報告資料狀態',
             source_error: '來源異常',
             source_stale: '來源過期'
         };
@@ -106,7 +106,8 @@
     }
 
     function renderDataTrustBadge(trust) {
-        return `<span class="data-trust-badge is-${dataTrustClass(trust)}">${escapeHtml(dataTrustLabel(trust))}</span>`;
+        const label = dataTrustLabel(trust);
+        return `<span class="data-trust-badge is-${dataTrustClass(trust)}" title="${escapeHtml(label)}">${escapeHtml(label)}</span>`;
     }
 
     function renderDataTrustReason(trust) {

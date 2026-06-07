@@ -210,9 +210,11 @@ def test_refresh_data_snapshot_endpoint_updates_trust(tmp_path, monkeypatch):
     filename = "2449_v2_report_20260606_010000.html"
     write_report_pair(tmp_path, filename, "持有")
     write_data_snapshot(tmp_path, filename, "stale")
+    refresh_options = []
 
     class FakeRefreshService:
         async def fetch_async(self, request):
+            refresh_options.append(request.options)
             return FetchResult(
                 request=request,
                 data={
@@ -247,6 +249,8 @@ def test_refresh_data_snapshot_endpoint_updates_trust(tmp_path, monkeypatch):
     assert body["data_trust"]["status"] == "fresh"
     assert body["analysis_text_stale"] is True
     assert "分析本文" in body["analysis_text_stale_message"]
+    assert [item.force_refresh for item in refresh_options] == [True]
+    assert [item.record_provider_sla for item in refresh_options] == [False]
     assert body["refresh_diff"]["data_trust_status"] == {"before": "stale", "after": "fresh", "changed": True}
     assert "可信度 stale → fresh" in body["refresh_diff"]["summary"]
     saved = json.loads((tmp_path / filename.replace(".html", ".data.json")).read_text(encoding="utf-8"))
