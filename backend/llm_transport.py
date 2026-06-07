@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import threading
 from contextlib import suppress
+from inspect import isawaitable
 
 from google import genai
 from google.genai import types
@@ -49,6 +50,37 @@ def _get_client(api_key: str) -> genai.Client:
         return _client_cache[api_key]
 
 
+def close_cached_clients() -> None:
+    """Close cached sync clients and clear the process-local client cache."""
+    with _client_lock:
+        clients = list(_client_cache.values())
+        _client_cache.clear()
+    for client in clients:
+        close = getattr(client, "close", None)
+        if callable(close):
+            with suppress(Exception):
+                close()
+
+
+async def close_cached_clients_async() -> None:
+    """Close cached sync and async clients during app shutdown."""
+    with _client_lock:
+        clients = list(_client_cache.values())
+        _client_cache.clear()
+    for client in clients:
+        close = getattr(client, "close", None)
+        if callable(close):
+            with suppress(Exception):
+                close()
+        aio_client = getattr(client, "aio", None)
+        aclose = getattr(aio_client, "aclose", None)
+        if callable(aclose):
+            with suppress(Exception):
+                result = aclose()
+                if isawaitable(result):
+                    await result
+
+
 def generate_content(api_key: str, model_id: str, prompt: str, config):
     """Call Google GenAI synchronously with an isolated per-key client."""
     client = _get_client(api_key)
@@ -83,4 +115,3 @@ async def generate_images_async(api_key: str, model_id: str, prompt: str, config
     """Call Imagen through the async client implementation."""
     client = _get_client(api_key)
     return await client.aio.models.generate_images(model=model_id, prompt=prompt, config=config)
-

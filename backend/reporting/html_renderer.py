@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import json
 from datetime import datetime
+from html import escape
 
 from analysis_types import AnalysisContext
 from config import format_model_routes
@@ -12,6 +12,7 @@ from pipeline_modes import get_pipeline_definition
 from .audit_trust import build_audit_banner_html, build_data_trust_html, build_source_audit_html
 from .common import build_agent_model_labels, render_report_template
 from .cover import prepare_report_cover_async
+from .html_sanitizer import sanitize_report_image_url, sanitize_report_plain_text
 from .sections import build_agent_sections, build_tear_sheet_summary
 from .utils import (
     billion_twd_series_to_yi_twd,
@@ -32,12 +33,15 @@ async def generate_html_report_async(context: AnalysisContext) -> str:
 def generate_html_report(context: AnalysisContext) -> str:
     """生成完整的 HTML 報告"""
     
-    data = context.get("data", {})
+    data = dict(context.get("data", {}) or {})
+    for text_key in ("company_name", "sector", "industry", "fetch_date", "current_price_fmt", "market_cap_fmt"):
+        if text_key in data:
+            data[text_key] = sanitize_report_plain_text(data.get(text_key))
     analyses = context.get("analyses", {})
     parsed = context.get("parsed", {})
     
-    ticker = context.get("ticker", "N/A")
-    name = context.get("company_name", ticker)
+    ticker = sanitize_report_plain_text(context.get("ticker", "N/A")) or "N/A"
+    name = sanitize_report_plain_text(context.get("company_name", ticker)) or ticker
     fetch_date = data.get("fetch_date", datetime.now().strftime("%Y年%m月%d日"))
     pipeline_def = get_pipeline_definition(context.get("pipeline_id", "v1"))
     report_title = pipeline_def["report_title"]
@@ -62,7 +66,11 @@ def generate_html_report(context: AnalysisContext) -> str:
     overall_moat = moat_scores.get("整體護城河", 0)
     
     # 目標股價
-    price_targets = parsed.get("price_targets", {})
+    raw_price_targets = parsed.get("price_targets", {}) or {}
+    price_targets = {
+        sanitize_report_plain_text(key) or "情境": value
+        for key, value in raw_price_targets.items()
+    }
     recommendation = parsed.get("recommendation", {})
     pe_river = data.get("pe_river_chart", {}) or {}
     pe_river_source = str(pe_river.get("source", "") or "")
@@ -78,7 +86,7 @@ def generate_html_report(context: AnalysisContext) -> str:
                 return v
         return default
         
-    rec_text = get_rec_val(recommendation, "建議", "持有")
+    rec_text = sanitize_report_plain_text(get_rec_val(recommendation, "建議", "持有")) or "持有"
     if "買入" in rec_text or "Buy" in rec_text or "BUY" in rec_text: rec_text = "買入"
     elif "避免" in rec_text or "Avoid" in rec_text or "AVOID" in rec_text or "賣出" in rec_text: rec_text = "避免"
     else: rec_text = "持有"
@@ -86,16 +94,16 @@ def generate_html_report(context: AnalysisContext) -> str:
     rec_color = get_recommendation_color(rec_text)
     rec_icon = get_recommendation_icon(rec_text)
     
-    target_3m = get_rec_val(recommendation, "3個月", "N/A")
-    target_6m = get_rec_val(recommendation, "6個月", "N/A")
-    target_12m = get_rec_val(recommendation, "12個月", "N/A")
-    confidence = get_rec_val(recommendation, "信心", "N/A")
+    target_3m = sanitize_report_plain_text(get_rec_val(recommendation, "3個月", "N/A")) or "N/A"
+    target_6m = sanitize_report_plain_text(get_rec_val(recommendation, "6個月", "N/A")) or "N/A"
+    target_12m = sanitize_report_plain_text(get_rec_val(recommendation, "12個月", "N/A")) or "N/A"
+    confidence = sanitize_report_plain_text(get_rec_val(recommendation, "信心", "N/A")) or "N/A"
     audit_banner_html = build_audit_banner_html(context)
     data_trust_html = build_data_trust_html(data)
     source_audit_html = build_source_audit_html(data)
     tear_sheet_summary = clean_markdown(build_tear_sheet_summary(context))
     report_cover = context.get("report_cover", {}) or {}
-    report_cover_image = report_cover.get("image", "")
+    report_cover_image = sanitize_report_image_url(report_cover.get("image", ""))
     report_cover_model = report_cover.get("model", "")
     
     agent_sections = build_agent_sections(context, html=True)
@@ -119,8 +127,6 @@ def generate_html_report(context: AnalysisContext) -> str:
         "peRiver": pe_river,
     }
     
-    chart_data_json = json.dumps(chart_data, ensure_ascii=False)
-    
     # 關鍵指標卡片
     key_metrics = [
         ("股價", data.get("current_price_fmt", "N/A"), ""),
@@ -137,13 +143,14 @@ def generate_html_report(context: AnalysisContext) -> str:
     for label, value, hint in key_metrics:
         metrics_html += f'''
             <div class="metric-card">
-                <div class="metric-label">{label}</div>
-                <div class="metric-value">{value}</div>
+                <div class="metric-label">{escape(str(label))}</div>
+                <div class="metric-value">{escape(str(value))}</div>
             </div>'''
     
     # 目標股價卡片
     price_targets_html = ""
     for scenario, price in price_targets.items():
+        scenario_text = sanitize_report_plain_text(scenario)
         if "熊" in scenario:
             color = "#ef4444"
             icon = "↓"
@@ -155,17 +162,24 @@ def generate_html_report(context: AnalysisContext) -> str:
             icon = "→"
         
         current = data.get("current_price", 0)
-        if isinstance(current, (int, float)) and current > 0:
-            pct = ((price - current) / current) * 100
+        price_num = price if isinstance(price, (int, float)) else None
+        if price_num is None:
+            try:
+                price_num = float(str(price).replace(",", ""))
+            except (TypeError, ValueError):
+                price_num = None
+        if isinstance(current, (int, float)) and current > 0 and price_num is not None:
+            pct = ((price_num - current) / current) * 100
             pct_str = f"({'+' if pct > 0 else ''}{pct:.1f}%)"
         else:
             pct_str = ""
+        price_display = f"NT${price_num:.0f}" if price_num is not None else escape(str(price))
         
         price_targets_html += f'''
             <div class="price-target-card" style="border-color: {color};">
-                <div class="pt-scenario">{scenario}</div>
-                <div class="pt-price" style="color: {color};">{icon} NT${price:.0f}</div>
-                <div class="pt-pct" style="color: {color};">{pct_str}</div>
+                <div class="pt-scenario">{escape(scenario_text)}</div>
+                <div class="pt-price" style="color: {color};">{icon} {price_display}</div>
+                <div class="pt-pct" style="color: {color};">{escape(pct_str)}</div>
             </div>'''
     
     # 競爭對手比較表格中的值

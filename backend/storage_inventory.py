@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+import shutil
 from pathlib import Path
 from typing import Optional
 
@@ -56,6 +57,55 @@ def build_storage_summary(
     }
 
 
+def clear_runtime_storage(
+    *,
+    output_dir: Optional[str] = None,
+    cache_dir: Optional[str] = None,
+    cache_db_path: Optional[str] = None,
+    task_db_path: Optional[str] = None,
+    market_calendar_dir: Optional[str] = None,
+    confirm_delete: bool = False,
+) -> dict:
+    """Delete generated reports, cache files, and runtime SQLite databases."""
+    if not confirm_delete:
+        raise ValueError("clear_runtime_storage requires confirm_delete=True")
+
+    output_path = Path(output_dir or OUTPUT_DIR)
+    cache_path = Path(cache_dir or CACHE_DIR)
+    cache_db = Path(cache_db_path or CACHE_DB_PATH)
+    task_db = Path(task_db_path or TASK_DB_PATH)
+    calendar_path = Path(market_calendar_dir or MARKET_CALENDAR_DIR)
+    removed: list[str] = []
+    seen: set[Path] = set()
+
+    for base in (output_path, cache_path):
+        if not base.exists():
+            continue
+        for child in base.iterdir():
+            _remove_path(child, removed, seen)
+
+    for db_path in (cache_db, task_db):
+        _remove_sqlite_family(db_path, removed, seen)
+    _remove_path(calendar_path, removed, seen)
+
+    output_path.mkdir(parents=True, exist_ok=True)
+    cache_path.mkdir(parents=True, exist_ok=True)
+
+    summary = build_storage_summary(
+        output_dir=str(output_path),
+        cache_dir=str(cache_path),
+        cache_db_path=str(cache_db),
+        task_db_path=str(task_db),
+        market_calendar_dir=str(calendar_path),
+    )
+    return {
+        "confirmed": True,
+        "removed_count": len(removed),
+        "removed_paths": removed,
+        "summary": summary,
+    }
+
+
 def _report_file_counts(output_path: Path) -> dict:
     if not output_path.exists():
         return {"exists": False, "html": 0, "markdown": 0, "data_snapshots": 0}
@@ -88,3 +138,20 @@ def _table_count(conn: sqlite3.Connection, table_name: str) -> int | None:
     if not exists:
         return None
     return int(conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0])
+
+
+def _remove_sqlite_family(path: Path, removed: list[str], seen: set[Path]) -> None:
+    for candidate in (path, Path(f"{path}-wal"), Path(f"{path}-shm")):
+        _remove_path(candidate, removed, seen)
+
+
+def _remove_path(path: Path, removed: list[str], seen: set[Path]) -> None:
+    resolved = path.expanduser().resolve(strict=False)
+    if resolved in seen or not path.exists():
+        return
+    seen.add(resolved)
+    if path.is_dir():
+        shutil.rmtree(path)
+    else:
+        path.unlink()
+    removed.append(str(path))

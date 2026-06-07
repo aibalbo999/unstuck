@@ -13,6 +13,8 @@ ANALYSIS_WORKER_COUNT = int(os.getenv("ANALYSIS_WORKER_COUNT", "2"))
 TASK_QUEUE_BACKEND = os.getenv("TASK_QUEUE_BACKEND", "local").strip().lower()
 TASK_QUEUE_NAME = os.getenv("TASK_QUEUE_NAME", "stock-analysis")
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+LLM_RATE_LIMIT_BACKEND = os.getenv("LLM_RATE_LIMIT_BACKEND", "auto").strip().lower()
+PROVIDER_CIRCUIT_BACKEND = os.getenv("PROVIDER_CIRCUIT_BACKEND", "auto").strip().lower()
 
 
 __all__ = [name for name in globals() if name.isupper()]

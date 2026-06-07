@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 from config import API_KEY_SETUP_MESSAGE, RPM_LIMITS, TPM_LIMITS
 from runtime_events import emit_log
+from shared_runtime_guards import create_shared_llm_limiter
 
 
 @dataclass
@@ -86,6 +87,7 @@ class KeyRotator:
         self._tpm_buckets: dict[tuple[str, str], TokenBucket] = {}
         self._sync_lock = threading.Lock()
         self._async_lock = asyncio.Lock()
+        self._shared_limiter = create_shared_llm_limiter()
 
     def _bucket(self, store: dict, key: str, model: str, limit: int | float) -> TokenBucket:
         bucket_key = (key, model)
@@ -103,6 +105,19 @@ class KeyRotator:
             wait = max(wait, token_wait)
 
         return wait
+
+    def _reserve_shared_for_key(self, key: str, model: str, estimated_tokens: int = 0) -> float:
+        if not self._shared_limiter or not self._shared_limiter.enabled:
+            return 0.0
+        rpm_limit = RPM_LIMITS.get(model, RPM_LIMITS.get("*", 5))
+        tpm_limit = TPM_LIMITS.get(model) or TPM_LIMITS.get("*")
+        return self._shared_limiter.reserve(
+            key,
+            model,
+            rpm_limit=rpm_limit,
+            tpm_limit=tpm_limit,
+            estimated_tokens=estimated_tokens,
+        )
 
     def _wait_for_key(self, key: str, model: str, estimated_tokens: int = 0) -> float:
         rpm_limit = RPM_LIMITS.get(model, RPM_LIMITS.get("*", 5))
@@ -131,7 +146,10 @@ class KeyRotator:
                 reservations = [(self._wait_for_key(key, model, estimated_tokens), key) for key in candidates]
                 wait, key = min(reservations, key=lambda item: item[0])
                 if wait <= 0:
-                    self._reserve_for_key(key, model, estimated_tokens)
+                    wait = max(
+                        self._reserve_for_key(key, model, estimated_tokens),
+                        self._reserve_shared_for_key(key, model, estimated_tokens),
+                    )
 
             if wait > 0:
                 emit_log(f"    ⏳ {model} 動態限速等待 {wait:.1f} 秒...")
@@ -149,7 +167,10 @@ class KeyRotator:
                 reservations = [(self._wait_for_key(key, model, estimated_tokens), key) for key in candidates]
                 wait, key = min(reservations, key=lambda item: item[0])
                 if wait <= 0:
-                    self._reserve_for_key(key, model, estimated_tokens)
+                    wait = max(
+                        self._reserve_for_key(key, model, estimated_tokens),
+                        self._reserve_shared_for_key(key, model, estimated_tokens),
+                    )
 
             if wait > 0:
                 emit_log(f"    ⏳ {model} 動態限速等待 {wait:.1f} 秒...")
@@ -167,6 +188,8 @@ class KeyRotator:
             tpm_limit = TPM_LIMITS.get(model) or TPM_LIMITS.get("*")
             if tpm_limit:
                 self._bucket(self._tpm_buckets, key, model, tpm_limit).penalize(wait_seconds)
+            if self._shared_limiter:
+                self._shared_limiter.penalize(key, model, wait_seconds)
 
     def get_status(self) -> dict:
         now = time.monotonic()

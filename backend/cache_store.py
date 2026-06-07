@@ -4,11 +4,11 @@ import json
 import sqlite3
 import threading
 import time
-from pathlib import Path
 from typing import Optional
 
 from config import CACHE_DB_PATH
 from storage.migrations import MigrationRunner
+from storage.sqlite_resource import ThreadLocalSqliteResource
 
 
 _CACHE_LOCK = threading.Lock()
@@ -19,11 +19,6 @@ def _json_default(value):
     if hasattr(value, "item"):
         return value.item()
     return str(value)
-
-
-_local = threading.local()
-_schema_initialized = False
-_SCHEMA_LOCK = threading.Lock()
 
 
 def _init_schema(conn: sqlite3.Connection):
@@ -47,25 +42,19 @@ def _init_schema(conn: sqlite3.Connection):
     )
 
 
+_resource = ThreadLocalSqliteResource(lambda: CACHE_DB_PATH, init_schema=_init_schema)
+
+
 def _connect():
-    global _schema_initialized
-    if hasattr(_local, "conn"):
-        return _local.conn
+    return _resource.connect()
 
-    path = Path(CACHE_DB_PATH)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path, timeout=30)
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA busy_timeout=5000")
 
-    if not _schema_initialized:
-        with _SCHEMA_LOCK:
-            if not _schema_initialized:
-                _init_schema(conn)
-                _schema_initialized = True
+def close_cache_store() -> None:
+    _resource.close_current_thread()
 
-    _local.conn = conn
-    return conn
+
+def reset_cache_store_for_tests() -> None:
+    _resource.reset()
 
 
 def get_cache_json(cache_key: str) -> Optional[dict]:

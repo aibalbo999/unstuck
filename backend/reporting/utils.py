@@ -7,6 +7,7 @@ from datetime import datetime
 from html import escape
 
 from .common import markdown_lib
+from .html_sanitizer import sanitize_report_html, sanitize_report_plain_text
 
 REPORT_CONTENT_START_RE = re.compile(
     r"^\s*(?:#{1,4}\s+.+|(?:#{1,4}\s+)?(?:[一二三四五六七八九十]+[、.．]|執行摘要|短中長期展望|長期展望|關鍵催化因子|主要風險|最終投資決策論述|"
@@ -177,7 +178,7 @@ def clean_markdown(text: str) -> str:
 
     if markdown_lib is None:
         escaped = escape(text)
-        return f"<p>{escaped.replace(chr(10) + chr(10), '</p><p>').replace(chr(10), '<br>')}</p>"
+        return sanitize_report_html(f"<p>{escaped.replace(chr(10) + chr(10), '</p><p>').replace(chr(10), '<br>')}</p>")
 
     html = markdown_lib.markdown(
         text,
@@ -186,7 +187,7 @@ def clean_markdown(text: str) -> str:
     )
     html = re.sub(r"<table>", '<div class="table-wrapper"><table class="data-table">', html)
     html = html.replace("</table>", "</table></div>")
-    return html
+    return sanitize_report_html(html)
 
 
 def get_recommendation_color(rec: str) -> str:
@@ -228,34 +229,39 @@ def format_debate_text(text: str) -> str:
             # 多頭發言
             content = re.sub(r'^[🐂]*\s*陳博士[（(][^）)]*[）)]?[：:]\s*', '', line)
             content = re.sub(r'^🐂\s*', '', content)
+            content = sanitize_report_plain_text(content)
             if content:
                 result.append(f'''
                 <div class="debate-bubble bull-bubble">
                     <div class="debate-avatar bull-avatar">🐂 多頭</div>
-                    <div class="debate-content">{content}</div>
+                    <div class="debate-content">{escape(content)}</div>
                 </div>''')
         elif '🐻' in line or '李博士' in line or '空頭' in line:
             # 空頭發言
             content = re.sub(r'^[🐻]*\s*李博士[（(][^）)]*[）)]?[：:]\s*', '', line)
             content = re.sub(r'^🐻\s*', '', content)
+            content = sanitize_report_plain_text(content)
             if content:
                 result.append(f'''
                 <div class="debate-bubble bear-bubble">
-                    <div class="debate-content">{content}</div>
+                    <div class="debate-content">{escape(content)}</div>
                     <div class="debate-avatar bear-avatar">🐻 空頭</div>
                 </div>''')
         elif '主持人' in line or '---' in line:
             content = re.sub(r'^[*-]*\s*主持人[總結]?[：:]\s*', '', line).replace('---', '').strip()
             content = re.sub(r'^\*+\s*主持人總結[：:]\s*\*+', '', content).strip()
             content = re.sub(r'^主持人總結[：:]\s*', '', content).strip()
+            content = sanitize_report_plain_text(content)
             if content:
                 result.append(f'''
                 <div class="debate-conclusion">
                     <div class="debate-conclusion-icon">⚖️</div>
-                    <div class="debate-conclusion-text"><strong>主持人總結：</strong>{content}</div>
+                    <div class="debate-conclusion-text"><strong>主持人總結：</strong>{escape(content)}</div>
                 </div>''')
         else:
             if line and not line.startswith('#') and len(line) > 10:
-                result.append(f'<p class="debate-narration">{line}</p>')
+                line = sanitize_report_plain_text(line)
+                if line:
+                    result.append(f'<p class="debate-narration">{escape(line)}</p>')
     
-    return '\n'.join(result)
+    return sanitize_report_html('\n'.join(result))

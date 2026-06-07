@@ -7,20 +7,15 @@ import sqlite3
 import threading
 import time
 import uuid
-from pathlib import Path
 
 from config import ANALYSIS_JOB_STALE_SECONDS, TASK_DB_PATH
 from runtime_events import emit_log, format_event_log_line
 from storage.migrations import MigrationRunner, column_names
+from storage.sqlite_resource import ThreadLocalSqliteResource
 
 
 _JOB_LOCK = threading.Lock()
 JOB_STORE_SCHEMA_VERSION = 4
-
-
-_local = threading.local()
-_schema_initialized = False
-_SCHEMA_LOCK = threading.Lock()
 
 
 def _init_schema(conn: sqlite3.Connection):
@@ -80,26 +75,19 @@ def _init_schema(conn: sqlite3.Connection):
     conn.execute("CREATE INDEX IF NOT EXISTS idx_analysis_events_type_phase_created ON analysis_events(event_type, phase, created_at)")
 
 
+_resource = ThreadLocalSqliteResource(lambda: TASK_DB_PATH, init_schema=_init_schema, row_factory=sqlite3.Row)
+
+
 def _connect():
-    global _schema_initialized
-    if hasattr(_local, "conn"):
-        return _local.conn
+    return _resource.connect()
 
-    path = Path(TASK_DB_PATH)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path, timeout=30)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA busy_timeout=5000")
 
-    if not _schema_initialized:
-        with _SCHEMA_LOCK:
-            if not _schema_initialized:
-                _init_schema(conn)
-                _schema_initialized = True
+def close_job_store() -> None:
+    _resource.close_current_thread()
 
-    _local.conn = conn
-    return conn
+
+def reset_job_store_for_tests() -> None:
+    _resource.reset()
 
 
 def create_job(ticker: str, pipeline_id: str = "v1") -> str:

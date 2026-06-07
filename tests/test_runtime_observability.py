@@ -2,6 +2,8 @@ import sys
 import subprocess
 from pathlib import Path
 
+import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 
@@ -199,6 +201,25 @@ def test_mutation_endpoints_require_admin_token_when_configured(monkeypatch):
     assert allowed.status_code == 200
     assert allowed.json()["ok"] is True
     monkeypatch.setattr(api, "MUTATION_API_TOKEN", "")
+
+
+def test_unconfigured_mutation_token_is_localhost_only(monkeypatch):
+    class FakeClient:
+        def __init__(self, host):
+            self.host = host
+
+    class FakeRequest:
+        headers = {}
+
+        def __init__(self, host):
+            self.client = FakeClient(host)
+
+    monkeypatch.setattr(api, "MUTATION_API_TOKEN", "")
+
+    api.require_mutation_authorized(FakeRequest("127.0.0.1"))
+    api.require_mutation_authorized(FakeRequest("testclient"))
+    with pytest.raises(HTTPException):
+        api.require_mutation_authorized(FakeRequest("203.0.113.10"))
 
 
 def test_report_cover_config_does_not_send_unsupported_enhance_prompt():

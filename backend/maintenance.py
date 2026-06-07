@@ -9,7 +9,7 @@ from storage.legacy_reports import migrate_legacy_reports
 from market_calendar_store import update_market_calendars
 from provider_sla_maintenance import cleanup_provider_sla_events
 from snapshot_maintenance import verify_snapshots
-from storage_inventory import build_storage_summary
+from storage_inventory import build_storage_summary, clear_runtime_storage
 
 
 def main() -> int:
@@ -35,6 +35,13 @@ def main() -> int:
     storage_parser.add_argument("--cache-db-path", default=None)
     storage_parser.add_argument("--task-db-path", default=None)
     storage_parser.add_argument("--market-calendar-dir", default=None)
+    clear_parser = subparsers.add_parser("clear-runtime-storage")
+    clear_parser.add_argument("--output-dir", default=None)
+    clear_parser.add_argument("--cache-dir", default=None)
+    clear_parser.add_argument("--cache-db-path", default=None)
+    clear_parser.add_argument("--task-db-path", default=None)
+    clear_parser.add_argument("--market-calendar-dir", default=None)
+    clear_parser.add_argument("--confirm-delete", action="store_true")
 
     args = parser.parse_args()
     if args.command == "migrate-legacy-reports":
@@ -65,6 +72,17 @@ def main() -> int:
             cache_db_path=args.cache_db_path,
             task_db_path=args.task_db_path,
             market_calendar_dir=args.market_calendar_dir,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
+    if args.command == "clear-runtime-storage":
+        result = clear_runtime_storage(
+            output_dir=args.output_dir,
+            cache_dir=args.cache_dir,
+            cache_db_path=args.cache_db_path,
+            task_db_path=args.task_db_path,
+            market_calendar_dir=args.market_calendar_dir,
+            confirm_delete=args.confirm_delete,
         )
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0

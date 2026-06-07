@@ -9,6 +9,8 @@ import time
 from dataclasses import dataclass
 from typing import Any, Callable
 
+from shared_runtime_guards import create_shared_provider_circuit_store
+
 
 class ProviderCircuitOpenError(RuntimeError):
     """Raised when a provider is temporarily circuit-open."""
@@ -22,6 +24,16 @@ class ProviderCircuitState:
 
 
 _CIRCUITS: dict[str, ProviderCircuitState] = {}
+_SHARED_CIRCUIT_STORE = None
+
+
+def _shared_circuit_store():
+    global _SHARED_CIRCUIT_STORE
+    if _SHARED_CIRCUIT_STORE is None:
+        _SHARED_CIRCUIT_STORE = create_shared_provider_circuit_store()
+    if _SHARED_CIRCUIT_STORE is not None and not _SHARED_CIRCUIT_STORE.enabled:
+        return None
+    return _SHARED_CIRCUIT_STORE
 
 
 def _env_int(name: str, default: int) -> int:
@@ -55,6 +67,9 @@ def provider_circuit_cooldown_seconds() -> float:
 
 
 def clear_provider_circuits(provider: str | None = None) -> None:
+    store = _shared_circuit_store()
+    if store is not None:
+        store.clear(provider)
     if provider is None:
         _CIRCUITS.clear()
         return
@@ -62,6 +77,11 @@ def clear_provider_circuits(provider: str | None = None) -> None:
 
 
 def provider_circuit_state(provider: str) -> dict:
+    store = _shared_circuit_store()
+    if store is not None:
+        state = store.state(provider)
+        if state is not None:
+            return state
     state = _CIRCUITS.get(str(provider))
     if not state:
         return {"open": False, "failures": 0}
@@ -74,6 +94,16 @@ def provider_circuit_state(provider: str) -> dict:
 
 
 def _ensure_circuit_closed(provider: str) -> None:
+    store = _shared_circuit_store()
+    if store is not None:
+        state = store.state(provider)
+        if state is not None:
+            if state.get("open"):
+                raise ProviderCircuitOpenError(
+                    f"{provider} circuit open for {max(0.0, state.get('opened_until', 0) - time.time()):.1f}s; "
+                    f"last_error={str(state.get('last_error') or '')[:160]}"
+                )
+            return
     state = _CIRCUITS.get(str(provider))
     if state and state.opened_until > time.time():
         raise ProviderCircuitOpenError(
@@ -82,10 +112,25 @@ def _ensure_circuit_closed(provider: str) -> None:
 
 
 def _record_success(provider: str) -> None:
+    store = _shared_circuit_store()
+    if store is not None:
+        store.record_success(provider)
+        if store.enabled:
+            return
     _CIRCUITS.pop(str(provider), None)
 
 
 def _record_failure(provider: str, exc: BaseException) -> None:
+    store = _shared_circuit_store()
+    if store is not None:
+        store.record_failure(
+            str(provider),
+            str(exc),
+            provider_circuit_threshold(),
+            provider_circuit_cooldown_seconds(),
+        )
+        if store.enabled:
+            return
     state = _CIRCUITS.setdefault(str(provider), ProviderCircuitState())
     state.failures += 1
     state.last_error = str(exc)[:240]

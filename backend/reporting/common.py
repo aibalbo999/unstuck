@@ -16,7 +16,7 @@ except Exception:  # pragma: no cover - dependency fallback for older local inst
 TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "templates"
 JINJA_ENV = Environment(
     loader=FileSystemLoader(str(TEMPLATE_DIR)),
-    autoescape=False,
+    autoescape=True,
 )
 
 AGENT_INSTITUTIONS = {

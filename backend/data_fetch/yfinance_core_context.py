@@ -1,0 +1,113 @@
+"""Context assembly helpers for the canonical yfinance fetcher."""
+
+from __future__ import annotations
+
+from .yfinance_derived import apply_market_fallbacks_and_quality_calibration
+
+
+_QUALITY_INPUT_KEYS = (
+    "current_price",
+    "market_cap",
+    "pe_ratio",
+    "week_52_high",
+    "week_52_low",
+    "shares_outstanding",
+    "revenue_ttm",
+    "free_cash_flow",
+    "fcf_history",
+    "revenue_history",
+    "net_income_history",
+    "trailing_eps",
+    "revenue_growth",
+    "earnings_growth",
+    "profit_margin",
+    "info",
+    "ticker",
+    "data_source_notes",
+)
+
+
+_PAYLOAD_KEYS = (
+    "ticker",
+    "company_name",
+    "raw_company_name",
+    "company_identity",
+    "sector",
+    "industry",
+    "country",
+    "employees",
+    "current_price",
+    "market_cap",
+    "week_52_high",
+    "week_52_low",
+    "pe_ratio",
+    "forward_pe",
+    "pb_ratio",
+    "ps_ratio",
+    "ev_ebitda",
+    "shares_outstanding",
+    "forward_eps",
+    "trailing_eps",
+    "revenue_ttm",
+    "gross_margin",
+    "operating_margin",
+    "profit_margin",
+    "provider_profit_margin",
+    "net_income_ttm",
+    "net_income_source",
+    "ebitda",
+    "free_cash_flow",
+    "operating_cash_flow",
+    "total_debt",
+    "total_cash",
+    "debt_to_equity",
+    "current_ratio",
+    "roe",
+    "roa",
+    "dividend_yield",
+    "dividend_rate",
+    "payout_ratio",
+    "latest_annual_revenue_growth",
+    "latest_annual_net_income_growth",
+    "ttm_vs_latest_annual_revenue_change",
+    "yahoo_revenue_growth_raw",
+    "yahoo_earnings_growth_raw",
+    "revenue_cagr",
+    "beta",
+    "analyst_target",
+    "analyst_rec",
+    "analyst_count",
+    "years",
+    "revenue_history",
+    "net_income_history",
+    "gross_profit_history",
+    "operating_income_history",
+    "fcf_history",
+    "gross_margin_history",
+    "op_margin_history",
+    "net_margin_history",
+    "roe_history",
+    "total_equity_history",
+    "total_assets_history",
+    "price_history",
+    "recent_monthly_revenue",
+    "recent_catalysts",
+    "institutional_trading",
+    "dynamic_peer_metrics",
+    "peer_discovery_results",
+    "pe_river_chart",
+    "data_source_notes",
+    "equity_multiplier",
+    "equity_multiplier_note",
+    "dupont_identity_note",
+    "wacc_capital_structure_note",
+)
+
+
+def build_yfinance_payload_vars(fetch_scope: dict) -> tuple[dict, dict]:
+    """Apply final quality updates and return legacy payload variables."""
+    context = dict(fetch_scope)
+    quality_inputs = {key: context[key] for key in _QUALITY_INPUT_KEYS}
+    context.update(apply_market_fallbacks_and_quality_calibration(**quality_inputs))
+    payload_vars = {key: context[key] for key in _PAYLOAD_KEYS}
+    return payload_vars, context

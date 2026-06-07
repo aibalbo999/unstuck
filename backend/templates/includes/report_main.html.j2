@@ -28,7 +28,7 @@
         
         <!-- 關鍵指標 -->
         <div class="metrics-grid">
-            {{ metrics_html }}
+            {{ metrics_html|safe }}
         </div>
         
         <!-- 投資建議橫幅 -->
@@ -51,14 +51,14 @@
             </div>
         </div>
 
-        {{ audit_banner_html }}
+        {{ audit_banner_html|safe }}
 
         {% include "includes/data_trust.html.j2" %}
 
         <div class="tear-sheet">
             <div class="tear-sheet-title">One-Page Tear Sheet</div>
             <div class="tear-sheet-body">
-                {{ tear_sheet_summary }}
+                {{ tear_sheet_summary|safe }}
             </div>
         </div>
     </div>
@@ -128,7 +128,7 @@
             </div>
             {% elif section.kind == "valuation" %}
             <div class="price-targets-grid">
-                {{ price_targets_html }}
+                {{ price_targets_html|safe }}
             </div>
             <div class="charts-grid" style="margin-bottom: 24px;">
                 <div class="chart-card full-width">
@@ -161,10 +161,10 @@
             <div class="analysis-card">
                 {% if section.is_debate %}
                 <div class="debate-container">
-                    {{ section.body }}
+                    {{ section.body|safe }}
                 </div>
                 {% else %}
-                {{ section.body }}
+                {{ section.body|safe }}
                 {% endif %}
             </div>
         </div>

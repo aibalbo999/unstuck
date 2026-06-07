@@ -31,6 +31,7 @@ from config import (
 from data_fetch import StockDataService
 from job_store import (
     append_event,
+    close_job_store,
     create_job,
     find_active_job,
     get_events_since,
@@ -70,6 +71,7 @@ data_refresh_service = StockDataService()
 analysis_pipeline_runner = AnalysisPipelineRunner()
 report_renderer = ReportRenderer()
 active_analyses_lock = threading.Lock()
+LOCAL_MUTATION_HOSTS = {"127.0.0.1", "::1", "localhost", "testclient"}
 
 
 def parse_recommendation_summary(filename: str) -> dict:
@@ -85,7 +87,13 @@ def print_streamed_event(job_id: str, payload: dict) -> None:
 def require_mutation_authorized(request: Request) -> None:
     token = str(MUTATION_API_TOKEN or "").strip()
     if not token:
-        return
+        client_host = str(getattr(getattr(request, "client", None), "host", "") or "").lower()
+        if client_host in LOCAL_MUTATION_HOSTS:
+            return
+        raise HTTPException(
+            status_code=403,
+            detail="Mutation endpoint requires MUTATION_API_TOKEN outside localhost",
+        )
     supplied = (
         request.headers.get("x-admin-token")
         or request.headers.get("x-mutation-token")
@@ -139,6 +147,12 @@ async def lifespan(_app: FastAPI):
         cleanup_task.cancel()
         with suppress(asyncio.CancelledError):
             await cleanup_task
+        from cache_store import close_cache_store
+        from llm_transport import close_cached_clients_async
+
+        close_job_store()
+        close_cache_store()
+        await close_cached_clients_async()
 
 
 def create_app() -> FastAPI:
