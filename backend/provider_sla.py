@@ -283,6 +283,7 @@ def get_provider_sla_alerts(limit: int = 100) -> list[dict]:
             "alert_level": item["alert_level"],
             "alert_message": item["alert_message"],
             "success_rate": item["success_rate"],
+            "attempts": item["attempts"],
             "last_status": item["last_status"],
             "alert_basis": item.get("alert_basis"),
             "windows": item.get("windows", {}),

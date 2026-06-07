@@ -58,7 +58,7 @@ def test_report_index_migration_from_empty_db(monkeypatch, tmp_path):
         ).fetchone()["version"]
 
     assert version == report_index.REPORT_INDEX_SCHEMA_VERSION
-    assert {"data_snapshot_filename", "data_trust_json", "data_trust_status"}.issubset(_columns(db_path))
+    assert {"data_snapshot_filename", "data_trust_json", "data_trust_status", "data_snapshot_hash"}.issubset(_columns(db_path))
 
 
 def test_report_index_migration_upgrades_v1_and_v2_idempotently(monkeypatch, tmp_path):
@@ -71,7 +71,7 @@ def test_report_index_migration_upgrades_v1_and_v2_idempotently(monkeypatch, tmp
     with report_index._connect():
         pass
 
-    assert {"data_snapshot_filename", "data_trust_json", "data_trust_status"}.issubset(_columns(db_path))
+    assert {"data_snapshot_filename", "data_trust_json", "data_trust_status", "data_snapshot_hash"}.issubset(_columns(db_path))
     assert _migration_version(db_path) == report_index.REPORT_INDEX_SCHEMA_VERSION
 
     v2_path = tmp_path / "cache_v2.db"
@@ -84,5 +84,5 @@ def test_report_index_migration_upgrades_v1_and_v2_idempotently(monkeypatch, tmp
     with report_index._connect():
         pass
 
-    assert "data_trust_status" in _columns(v2_path)
+    assert {"data_trust_status", "data_snapshot_hash"}.issubset(_columns(v2_path))
     assert _migration_version(v2_path) == report_index.REPORT_INDEX_SCHEMA_VERSION

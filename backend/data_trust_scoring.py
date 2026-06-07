@@ -45,6 +45,7 @@ def normalize_data_trust(value: Any) -> dict:
         "stale_sources": string_list(value.get("stale_sources")),
         "last_market_data_at": value.get("last_market_data_at"),
         "notes": [str(item) for item in notes if str(item).strip()],
+        "reason_codes": string_list(value.get("reason_codes")),
     }
     alerts = value.get("provider_sla_alerts")
     if isinstance(alerts, list):
@@ -62,6 +63,7 @@ def unknown_data_trust() -> dict:
         "stale_sources": [],
         "last_market_data_at": None,
         "notes": ["未記錄資料可信度快照。"],
+        "reason_codes": ["missing_data_trust_snapshot"],
     }
 
 
@@ -95,18 +97,23 @@ def build_data_trust(data: dict) -> dict:
     if critical_failures and not has_usable_critical_data(data, latest_audit):
         status = TRUST_STATUS_ERROR
         notes = ["核心市場或財報來源失敗，且沒有足夠可用資料。"]
+        reason_codes = ["critical_sources_error", "missing_usable_critical_data"]
     elif critical_failures or core_failures or error_sources:
         status = TRUST_STATUS_PARTIAL
         notes = ["部分來源異常或使用備援資料，請搭配來源審計表檢視。"]
+        reason_codes = [f"source_error:{source}" for source in sorted(set(core_failures + error_sources))]
     elif stale_sources:
         status = TRUST_STATUS_STALE
         notes = ["部分資料來源超過新鮮度門檻，分析已保留過期標記。"]
+        reason_codes = [f"source_stale:{source}" for source in stale_sources]
     else:
         status = TRUST_STATUS_FRESH
         notes = ["核心資料在新鮮度門檻內，來源審計未見主要異常。"]
+        reason_codes = ["fresh_core_sources"]
 
     if data.get("data_source_notes"):
         notes.append("另有資料口徑或備援補值註記，詳見報告參考資料區。")
+        reason_codes.append("data_source_notes_present")
 
     return apply_provider_sla_to_trust(
         data,
@@ -116,6 +123,7 @@ def build_data_trust(data: dict) -> dict:
             "stale_sources": stale_sources,
             "last_market_data_at": last_market_data_at(data, source_freshness, latest_audit),
             "notes": notes,
+            "reason_codes": reason_codes,
         },
     )
 

@@ -58,9 +58,11 @@ from data_trust_snapshot import (
     sanitize_for_snapshot,
     sanitize_rerun_context as _sanitize_rerun_context,
     set_stable_snapshot_size as _set_stable_snapshot_size,
+    snapshot_content_hash,
     snapshot_size_bytes,
     snapshot_text as _snapshot_text,
     validate_data_snapshot,
+    verify_data_snapshot_integrity,
     write_data_snapshot,
 )
 

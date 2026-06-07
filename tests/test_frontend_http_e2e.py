@@ -17,7 +17,7 @@ import report_index  # noqa: E402
 import reporting.html_renderer as html_renderer  # noqa: E402
 from agent_runtime import AnalysisResult  # noqa: E402
 from data_fetch import FetchResult  # noqa: E402
-from data_trust import build_data_trust, build_source_audit_entry  # noqa: E402
+from fixtures.data_payloads import fresh_audited_payload  # noqa: E402
 
 
 STATIC_DIR = ROOT / "backend" / "static"
@@ -163,51 +163,7 @@ def test_fake_provider_job_generates_report_snapshot_visible_in_history(tmp_path
 
     class FakeStockDataService:
         async def fetch_async(self, request):
-            data = {
-                "data_schema_version": 4,
-                "ticker": request.ticker,
-                "company_name": "Fake Semiconductor",
-                "current_price": 123.45,
-                "current_price_fmt": "US$123.45",
-                "market_cap_fmt": "US$12.3B",
-                "pe_ratio": "18.2",
-                "pb_ratio": "3.1",
-                "gross_margin": "45.0%",
-                "roe": "18.0%",
-                "dividend_yield": "1.2%",
-                "beta": "1.05",
-                "industry": "Semiconductors",
-                "fetch_date": "2026年06月07日",
-                "years": ["2024", "2025"],
-                "revenue_history": [10.0, 12.0],
-                "net_income_history": [1.2, 1.8],
-                "fcf_history": [0.8, 1.1],
-                "gross_margin_history": [42.0, 45.0],
-                "op_margin_history": [15.0, 18.0],
-                "net_margin_history": [12.0, 15.0],
-                "roe_history": [14.0, 18.0],
-                "price_history": {"2026-06-05": 121.0, "2026-06-06": 123.45},
-                "recent_catalysts": [{"title": "Fake provider catalyst"}],
-                "institutional_trading": {"trend": "neutral", "total_net_buy_thousand_shares": 0},
-                "pe_river_chart": {"source": "fake-provider", "series": []},
-                "source_freshness": {
-                    "market_data": {
-                        "stale": False,
-                        "fetched_at": "2026-06-07T00:00:00+00:00",
-                        "fetched_at_epoch": 1780761600,
-                    },
-                    "financial_statements": {
-                        "stale": False,
-                        "fetched_at": "2026-06-07T00:00:00+00:00",
-                        "fetched_at_epoch": 1780761600,
-                    },
-                },
-                "source_audit": [
-                    build_source_audit_entry("market_data", "fake-provider", "success", record_count=2),
-                    build_source_audit_entry("financial_statements", "fake-provider", "success", record_count=2),
-                ],
-            }
-            data["data_trust"] = build_data_trust(data)
+            data = fresh_audited_payload(ticker=request.ticker)
             return FetchResult(
                 request=request,
                 data=data,
@@ -273,11 +229,14 @@ def test_fake_provider_job_generates_report_snapshot_visible_in_history(tmp_path
     assert reports_payload["pagination"]["total"] == 1
     assert reports_payload["reports"][0]["filename"] == filename
     assert reports_payload["reports"][0]["data_trust"]["status"] == "fresh"
+    assert reports_payload["reports"][0]["data_snapshot_hash"]
 
     data_snapshot = client.get(f"/api/report/{filename}/download/data")
     assert data_snapshot.status_code == 200
     snapshot = data_snapshot.json()
     assert snapshot["data_trust"]["status"] == "fresh"
+    assert snapshot["snapshot_hash"] == reports_payload["reports"][0]["data_snapshot_hash"]
+    assert "fresh_core_sources" in snapshot["data_trust"]["reason_codes"]
     assert snapshot["source_audit"][0]["provider"] == "fake-provider"
     assert snapshot["data"]["ticker"] == "FAKE"
 

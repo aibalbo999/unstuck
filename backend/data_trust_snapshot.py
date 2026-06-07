@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 from typing import Any, Optional
 
@@ -103,6 +104,39 @@ def snapshot_size_bytes(snapshot: dict) -> int:
     return len(json.dumps(snapshot, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
 
 
+def snapshot_content_hash(snapshot: dict) -> str:
+    if not isinstance(snapshot, dict):
+        return ""
+    stable = {
+        key: value for key, value in snapshot.items()
+        if key not in {"snapshot_hash", "content_hash", "snapshot_size_bytes"}
+    }
+    encoded = json.dumps(stable, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def set_snapshot_integrity(snapshot: dict) -> dict:
+    digest = snapshot_content_hash(snapshot)
+    snapshot["snapshot_hash"] = digest
+    snapshot["content_hash"] = digest
+    return set_stable_snapshot_size(snapshot)
+
+
+def verify_data_snapshot_integrity(snapshot: Any) -> dict:
+    if not isinstance(snapshot, dict):
+        return {"valid": False, "hash": "", "expected_hash": "", "errors": ["snapshot must be an object"]}
+    expected = str(snapshot.get("snapshot_hash") or snapshot.get("content_hash") or "")
+    if not expected:
+        return {"valid": True, "hash": "", "expected_hash": "", "errors": []}
+    actual = snapshot_content_hash(snapshot)
+    return {
+        "valid": actual == expected,
+        "hash": actual,
+        "expected_hash": expected,
+        "errors": [] if actual == expected else ["snapshot_hash mismatch"],
+    }
+
+
 def set_stable_snapshot_size(snapshot: dict) -> dict:
     previous_size = -1
     while True:
@@ -135,6 +169,8 @@ def validate_data_snapshot(snapshot: Any) -> dict:
         errors.append("source_audit must be a list")
     if not isinstance(snapshot.get("data_trust", {}), dict):
         errors.append("data_trust must be an object")
+    integrity = verify_data_snapshot_integrity(snapshot)
+    errors.extend(integrity.get("errors", []))
     return {"valid": not errors, "errors": errors}
 
 
@@ -153,7 +189,7 @@ def apply_snapshot_size_governance(snapshot: dict, max_bytes: Optional[int] = No
 
     size = snapshot_size_bytes(governed)
     if size <= limit:
-        return set_stable_snapshot_size(governed)
+        return set_snapshot_integrity(governed)
 
     governed["snapshot_truncated"] = True
     data = governed.get("data") if isinstance(governed.get("data"), dict) else {}
@@ -194,7 +230,7 @@ def apply_snapshot_size_governance(snapshot: dict, max_bytes: Optional[int] = No
         if removed_keys:
             governed["snapshot_omitted_sections"].append(f"rerun_context.non_essential:{len(removed_keys)}")
 
-    return set_stable_snapshot_size(governed)
+    return set_snapshot_integrity(governed)
 
 
 def write_data_snapshot(path: str | Path, context: dict, pipeline_id: Optional[str] = None) -> dict:

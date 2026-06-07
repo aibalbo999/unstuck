@@ -34,15 +34,16 @@ def report_index_mtime(output_dir: str, filename: str) -> float:
 
 def read_snapshot_report_flags(data_snapshot_path: str) -> dict:
     if not os.path.exists(data_snapshot_path):
-        return {"analysis_text_stale": False, "analysis_text_stale_message": ""}
+        return {"analysis_text_stale": False, "analysis_text_stale_message": "", "data_snapshot_hash": ""}
     try:
         with open(data_snapshot_path, "r", encoding="utf-8") as f:
             snapshot = json.load(f)
     except (OSError, json.JSONDecodeError):
-        return {"analysis_text_stale": False, "analysis_text_stale_message": ""}
+        return {"analysis_text_stale": False, "analysis_text_stale_message": "", "data_snapshot_hash": ""}
     return {
         "analysis_text_stale": bool(snapshot.get("refreshed_without_analysis_rerun")),
         "analysis_text_stale_message": str(snapshot.get("analysis_text_stale_message") or "")[:240],
+        "data_snapshot_hash": str(snapshot.get("snapshot_hash") or snapshot.get("content_hash") or ""),
     }
 
 
@@ -103,6 +104,7 @@ def build_report_metadata(
         "data_trust_status": data_trust_summary.get("status", "unknown"),
         "analysis_text_stale": snapshot_flags["analysis_text_stale"],
         "analysis_text_stale_message": snapshot_flags["analysis_text_stale_message"],
+        "data_snapshot_hash": snapshot_flags["data_snapshot_hash"],
         "normalized_recommendation": normalized_recommendation,
         "search_text": search_text,
     }

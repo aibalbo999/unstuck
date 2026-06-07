@@ -100,6 +100,7 @@ def _prompt_data_trust(data: dict) -> dict:
         "stale_sources": trust.get("stale_sources", []) or [],
         "last_market_data_at": trust.get("last_market_data_at"),
         "notes": trust.get("notes", []) or [],
+        "reason_codes": trust.get("reason_codes", []) or [],
     }
 
 

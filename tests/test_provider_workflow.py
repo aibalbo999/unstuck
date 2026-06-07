@@ -10,6 +10,9 @@ from data_fetch import CallableProvider, FetchRequest, ProviderRegistry, Provide
 from data_fetch.constants import DATA_SCHEMA_VERSION  # noqa: E402
 import data_fetch.workflow as workflow  # noqa: E402
 import data_freshness  # noqa: E402
+import provider_sla  # noqa: E402
+from data_trust import build_source_audit_entry  # noqa: E402
+from fixtures.data_payloads import FRESH_AT, FRESH_AT_EPOCH, financial_history, fresh_audited_payload  # noqa: E402
 
 
 def test_stock_data_service_uses_provider_plan_for_optional_enrichment(monkeypatch):
@@ -75,6 +78,92 @@ def test_stock_data_service_uses_provider_plan_for_optional_enrichment(monkeypat
     assert [item["title"] for item in result.data["recent_catalysts"]] == ["Google catalyst", "FMP catalyst"]
     assert result.data["peer_discovery_results"][0]["title"] == "Peer discovery"
     assert {entry["provider"] for entry in result.data["source_audit"]} >= {"Google Search", "FMP news"}
+
+
+def test_stock_data_service_fake_registry_e2e_cache_audit_and_trust(monkeypatch, tmp_path):
+    calls = []
+    cached_payloads = {}
+    monkeypatch.setattr(data_freshness.time_module, "time", lambda: FRESH_AT_EPOCH + 60)
+    monkeypatch.setattr(provider_sla, "TASK_DB_PATH", str(tmp_path / "tasks.sqlite3"))
+    monkeypatch.setattr(provider_sla, "get_provider_sla_alerts", lambda limit=100: [])
+    monkeypatch.setattr(workflow, "get_cache_json", lambda key: cached_payloads.get(key))
+
+    def fake_cache_financial_payload(data, ticker):
+        cached = dict(data)
+        cached["cache_generated_at_epoch"] = FRESH_AT_EPOCH
+        cached["market_data_fetched_at_epoch"] = FRESH_AT_EPOCH
+        source_freshness = dict(cached.get("source_freshness", {}) or {})
+        for source in data_freshness.CORE_CACHE_SOURCES:
+            source_freshness.setdefault(source, {"fetched_at_epoch": FRESH_AT_EPOCH, "stale": False})
+        cached["source_freshness"] = source_freshness
+        cached_payloads[f"financial_data:{ticker}"] = cached
+
+    monkeypatch.setattr(workflow, "cache_financial_payload", fake_cache_financial_payload)
+
+    def market_provider(request, context):
+        calls.append("market")
+        payload = fresh_audited_payload(ticker=request.ticker, provider="fake-market", include_financials=False)
+        return ProviderResult(
+            source="market_data",
+            provider="fake-market",
+            status="success",
+            value=payload,
+            audit=payload["source_audit"][0],
+        )
+
+    def financial_provider(request, context):
+        calls.append("financial")
+        return ProviderResult(
+            source="financial_statements",
+            provider="fake-financials",
+            status="success",
+            value=financial_history(),
+            audit=build_source_audit_entry(
+                "financial_statements",
+                "fake-financials",
+                "success",
+                fetched_at=FRESH_AT,
+                record_count=2,
+            ),
+        )
+
+    def catalysts_provider(request, context):
+        calls.append("catalysts")
+        return ProviderResult(
+            source="recent_catalysts",
+            provider="Google Search",
+            status="success",
+            value=[{"title": "Fake provider catalyst"}],
+            audit=build_source_audit_entry("recent_catalysts", "Google Search", "success", fetched_at=FRESH_AT, record_count=1),
+        )
+
+    def peers_provider(request, context):
+        calls.append("peers")
+        return ProviderResult(
+            source="peer_discovery",
+            provider="Google Search",
+            status="success",
+            value=[{"title": "Fake peer"}],
+            audit=build_source_audit_entry("peer_discovery", "Google Search", "success", fetched_at=FRESH_AT, record_count=1),
+        )
+
+    registry = ProviderRegistry([
+        CallableProvider("market_data", "fake-market", market_provider),
+        CallableProvider("financial_statements", "fake-financials", financial_provider),
+        CallableProvider("recent_catalysts", "Google Search", catalysts_provider),
+        CallableProvider("peer_discovery", "Google Search", peers_provider),
+    ])
+    service = StockDataService(registry=registry)
+
+    first = asyncio.run(service.fetch_async(FetchRequest.from_ticker("FAKE")))
+    second = asyncio.run(service.fetch_async(FetchRequest.from_ticker("FAKE")))
+
+    assert first.data["data_trust"]["status"] == "fresh"
+    assert {"fake-market", "fake-financials", "Google Search"} <= {entry["provider"] for entry in first.source_audit}
+    assert cached_payloads["financial_data:FAKE"]["data_trust"]["status"] == "fresh"
+    assert second.cache_hit is True
+    assert calls == ["market", "financial", "catalysts", "peers"]
+    assert {entry["status"] for entry in second.source_audit} <= {"skipped_fresh_cache"}
 
 
 def test_provider_workflow_skips_fresh_optional_sources(monkeypatch):

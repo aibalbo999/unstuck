@@ -1,6 +1,8 @@
 import asyncio
 import sys
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -12,6 +14,7 @@ import data_fetch.optional_enrichment as optional_enrichment  # noqa: E402
 from data_fetch.constants import DATA_SCHEMA_VERSION  # noqa: E402
 import data_fetch.yfinance_core_fetch as financial_data  # noqa: E402
 import data_freshness  # noqa: E402
+import data_freshness_market  # noqa: E402
 
 
 def test_cached_financial_data_stales_quickly_during_market_session(monkeypatch):
@@ -30,6 +33,26 @@ def test_cached_financial_data_stales_quickly_during_market_session(monkeypatch)
     assert freshness["policy"] == "market_session"
     assert freshness["age_seconds"] == 100
     assert freshness["max_age_seconds"] == 60
+
+
+def test_market_session_respects_us_holiday_and_early_close():
+    holiday = datetime(2026, 7, 3, 10, 0, tzinfo=ZoneInfo("America/New_York"))
+    early_close_grace = datetime(2026, 11, 27, 13, 10, tzinfo=ZoneInfo("America/New_York"))
+    after_grace = datetime(2026, 11, 27, 13, 30, tzinfo=ZoneInfo("America/New_York"))
+
+    assert data_freshness_market.is_market_holiday("AAPL", holiday) is True
+    assert data_freshness_market.is_likely_market_session("AAPL", holiday) is False
+    assert data_freshness_market.is_likely_market_session("AAPL", early_close_grace, grace_minutes=15) is True
+    assert data_freshness_market.is_likely_market_session("AAPL", after_grace, grace_minutes=15) is False
+
+
+def test_market_session_respects_taiwan_holiday_calendar():
+    holiday = datetime(2026, 6, 19, 10, 0, tzinfo=ZoneInfo("Asia/Taipei"))
+    trading_time = datetime(2026, 6, 18, 10, 0, tzinfo=ZoneInfo("Asia/Taipei"))
+
+    assert data_freshness_market.is_market_holiday("2330.TW", holiday) is True
+    assert data_freshness_market.is_likely_market_session("2330.TW", holiday) is False
+    assert data_freshness_market.is_likely_market_session("2330.TW", trading_time) is True
 
 
 def test_cache_write_preserves_market_data_timestamp(monkeypatch):

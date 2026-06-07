@@ -90,6 +90,32 @@ def _as_notes(value) -> list[str]:
     return []
 
 
+def _reason_label(code: str) -> str:
+    code = str(code or "")
+    source = ""
+    if ":" in code:
+        code, source = code.split(":", 1)
+    labels = {
+        "fresh_core_sources": "核心資料新鮮",
+        "critical_sources_error": "核心來源異常",
+        "missing_usable_critical_data": "缺少可用核心資料",
+        "data_source_notes_present": "含資料口徑註記",
+        "provider_sla_critical": "Provider SLA critical",
+        "provider_sla_warning_note": "Provider SLA warning",
+        "missing_data_trust_snapshot": "未記錄可信度快照",
+        "source_error": "來源異常",
+        "source_stale": "來源過期",
+    }
+    label = labels.get(code, code)
+    if source:
+        label = f"{label}：{source_label(source)}"
+    return label
+
+
+def _reason_labels(trust: dict, limit: int = 4) -> list[str]:
+    return [_reason_label(code) for code in (trust.get("reason_codes", []) or [])[:limit]]
+
+
 def build_data_trust_html(data: dict) -> str:
     trust = normalize_data_trust(data.get("data_trust") if isinstance(data, dict) else None)
     status = trust.get("status", "unknown")
@@ -103,6 +129,9 @@ def build_data_trust_html(data: dict) -> str:
         detail_parts.append("核心異常：" + "、".join(escape(source_label(source)) for source in critical[:4]))
     if stale:
         detail_parts.append("過期：" + "、".join(escape(source_label(source)) for source in stale[:4]))
+    reasons = _reason_labels(trust)
+    if reasons:
+        detail_parts.append("原因：" + "、".join(escape(reason) for reason in reasons))
     detail_html = "".join(f"<span>{part}</span>" for part in detail_parts)
     notes_html = " ".join(escape(note) for note in notes[:2])
     return f"""
@@ -167,12 +196,14 @@ def build_source_audit_html(data: dict) -> str:
 def build_data_trust_markdown(data: dict) -> str:
     trust = normalize_data_trust(data.get("data_trust") if isinstance(data, dict) else None)
     notes = _as_notes(trust.get("notes")) or unknown_data_trust()["notes"]
+    reasons = _reason_labels(trust, limit=8)
     lines = [
         "## 資料可信度",
         f"- **狀態:** {trust_status_label(trust.get('status', 'unknown'))}",
         f"- **市場資料時間:** {trust.get('last_market_data_at') or 'N/A'}",
         f"- **核心異常:** {', '.join(source_label(source) for source in trust.get('critical_failures', []) or []) or '無'}",
         f"- **過期來源:** {', '.join(source_label(source) for source in trust.get('stale_sources', []) or []) or '無'}",
+        f"- **原因:** {', '.join(reasons) or '無'}",
         f"- **摘要:** {'；'.join(notes)}",
     ]
     return "\n".join(lines)
@@ -207,4 +238,3 @@ def build_source_audit_markdown(data: dict) -> str:
             f"{message} |"
         )
     return "\n".join(lines)
-

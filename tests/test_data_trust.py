@@ -9,6 +9,7 @@ sys.path.insert(0, str(ROOT / "backend"))
 import data_trust  # noqa: E402
 import data_fetch.audit_helpers as audit_helpers  # noqa: E402
 from data_fetch.constants import DATA_SCHEMA_VERSION  # noqa: E402
+from fixtures.data_payloads import fresh_audited_payload, provider_sla_alert, stale_audited_payload  # noqa: E402
 
 
 def test_source_audit_success_error_and_skipped_cache_entries():
@@ -59,26 +60,11 @@ def test_source_audit_success_error_and_skipped_cache_entries():
 
 
 def test_data_trust_statuses_fresh_stale_error_unknown():
-    fresh = {
-        "current_price": 100,
-        "years": ["2025"],
-        "revenue_history": [10],
-        "source_freshness": {
-            "market_data": {"stale": False, "fetched_at": "2026-06-07T00:00:00+00:00"},
-            "financial_statements": {"stale": False, "fetched_at": "2026-06-07T00:00:00+00:00"},
-        },
-        "source_audit": [
-            data_trust.build_source_audit_entry("market_data", "yfinance", "success", record_count=1),
-            data_trust.build_source_audit_entry("financial_statements", "yfinance", "success", record_count=1),
-        ],
-    }
+    fresh = fresh_audited_payload(provider="yfinance")
     assert data_trust.build_data_trust(fresh)["status"] == "fresh"
+    assert "fresh_core_sources" in data_trust.build_data_trust(fresh)["reason_codes"]
 
-    stale = dict(fresh)
-    stale["source_freshness"] = {
-        "market_data": {"stale": True, "fetched_at": "2026-06-01T00:00:00+00:00"},
-        "financial_statements": {"stale": False, "fetched_at": "2026-06-07T00:00:00+00:00"},
-    }
+    stale = stale_audited_payload(source="market_data")
     assert data_trust.build_data_trust(stale)["status"] == "stale"
     assert "market_data" in data_trust.build_data_trust(stale)["stale_sources"]
 
@@ -92,46 +78,44 @@ def test_data_trust_statuses_fresh_stale_error_unknown():
     assert trust["status"] == "error"
     assert trust["critical_failures"] == ["market_data", "financial_statements"]
 
-    assert data_trust.build_data_trust({})["status"] == "unknown"
+    unknown = data_trust.build_data_trust({})
+    assert unknown["status"] == "unknown"
+    assert "missing_data_trust_snapshot" in unknown["reason_codes"]
 
 
-def test_provider_sla_alert_downgrades_current_provider_trust(monkeypatch):
+def test_provider_sla_warning_notes_current_provider_without_downgrade(monkeypatch):
     import provider_sla
 
-    payload = {
-        "current_price": 100,
-        "years": ["2025"],
-        "revenue_history": [10],
-        "net_income_history": [2],
-        "source_freshness": {
-            "market_data": {"stale": False, "fetched_at": "2026-06-07T00:00:00+00:00"},
-            "financial_statements": {"stale": False, "fetched_at": "2026-06-07T00:00:00+00:00"},
-        },
-        "source_audit": [
-            data_trust.build_source_audit_entry("market_data", "fake-yfinance", "success", record_count=1),
-            data_trust.build_source_audit_entry("financial_statements", "fake-yfinance", "success", record_count=1),
-        ],
-    }
+    payload = fresh_audited_payload(provider="fake-yfinance")
     monkeypatch.setattr(
         provider_sla,
         "get_provider_sla_alerts",
-        lambda limit=100: [
-            {
-                "source": "market_data",
-                "provider": "fake-yfinance",
-                "alert_level": "warning",
-                "alert_message": "success rate low",
-                "success_rate": 0.5,
-                "last_status": "error",
-                "alert_basis": "last_24h",
-            }
-        ],
+        lambda limit=100: [provider_sla_alert(provider="fake-yfinance", level="warning", attempts=3)],
+    )
+
+    trust = data_trust.build_data_trust(payload)
+
+    assert trust["status"] == "fresh"
+    assert trust["provider_sla_alerts"][0]["provider"] == "fake-yfinance"
+    assert "provider_sla_warning_note" in trust["reason_codes"]
+    assert any("來源健康度觀察" in note for note in trust["notes"])
+
+
+def test_provider_sla_critical_downgrades_current_provider_trust(monkeypatch):
+    import provider_sla
+
+    payload = fresh_audited_payload(provider="fake-yfinance")
+    monkeypatch.setattr(
+        provider_sla,
+        "get_provider_sla_alerts",
+        lambda limit=100: [provider_sla_alert(provider="fake-yfinance", level="critical", attempts=3)],
     )
 
     trust = data_trust.build_data_trust(payload)
 
     assert trust["status"] == "partial"
     assert trust["provider_sla_alerts"][0]["provider"] == "fake-yfinance"
+    assert "provider_sla_critical" in trust["reason_codes"]
     assert any("來源健康度警示" in note for note in trust["notes"])
 
 
@@ -165,6 +149,11 @@ def test_data_snapshot_sanitizes_sensitive_keys():
     assert "DO NOT SAVE PROMPT" not in encoded
     assert snapshot["data"]["nested"]["safe_value"] == 123
     assert snapshot["deterministic_fallbacks"][0]["trigger"] == "repair_429_failure"
+    assert snapshot["snapshot_hash"] == data_trust.snapshot_content_hash(snapshot)
+    assert data_trust.verify_data_snapshot_integrity(snapshot)["valid"] is True
+    tampered = dict(snapshot)
+    tampered["ticker"] = "TAMPERED"
+    assert data_trust.validate_data_snapshot(tampered)["valid"] is False
 
 
 def test_data_snapshot_saves_sanitized_rerun_context():
@@ -263,6 +252,8 @@ def test_data_snapshot_schema_validation_and_truncation():
     assert snapshot["snapshot_schema_version"] == data_trust.DATA_SNAPSHOT_SCHEMA_VERSION
     assert snapshot["snapshot_truncated"] is True
     assert snapshot["snapshot_size_bytes"] == data_trust.snapshot_size_bytes(snapshot)
+    assert snapshot["snapshot_hash"] == data_trust.snapshot_content_hash(snapshot)
+    assert data_trust.verify_data_snapshot_integrity(snapshot)["valid"] is True
     assert snapshot["snapshot_omitted_sections"]
     assert snapshot["source_audit"] == audit
     assert snapshot["data_trust"]["status"] == "fresh"
