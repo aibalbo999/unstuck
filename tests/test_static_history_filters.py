@@ -91,11 +91,15 @@ def test_frontend_static_modules_are_sized():
 
 def test_visual_regression_script_is_documented():
     script = ROOT / "scripts" / "visual_regression.sh"
+    setup_script = ROOT / "scripts" / "setup_visual_regression.sh"
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
     assert script.exists()
+    assert setup_script.exists()
     assert "tests/test_frontend_visual_optional.py" in script.read_text(encoding="utf-8")
     assert "tests/test_report_chart_visual_optional.py" in script.read_text(encoding="utf-8")
     assert "VISUAL_REGRESSION_REQUIRED" in script.read_text(encoding="utf-8")
+    assert "playwright install chromium" in setup_script.read_text(encoding="utf-8")
+    assert "scripts/setup_visual_regression.sh" in readme
     assert "scripts/visual_regression.sh" in readme
     assert "RUN_VISUAL_REGRESSION=1 scripts/ci_gate.sh" in readme

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 from typing import Any, Callable
+from runtime_logging import log_runtime_message
 
 RuntimeEvent = dict[str, Any]
 RUNTIME_EVENT_CALLBACK_KEY = "_runtime_event_callback"
@@ -218,7 +219,7 @@ def emit_log(message_or_event: str | RuntimeEvent, *, level: str = "info") -> No
     else:
         message = str(message_or_event)
     if message:
-        print(message[:500], flush=True)
+        log_runtime_message(message, level=level)
 
 
 def _context_event_copy(event: RuntimeEvent) -> RuntimeEvent:

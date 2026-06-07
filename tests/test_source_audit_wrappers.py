@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 import source_audit  # noqa: E402
+import provider_resilience  # noqa: E402
 from data_trust import (  # noqa: E402
     AUDIT_STATUS_ERROR,
     AUDIT_STATUS_SUCCESS,
@@ -16,6 +17,7 @@ from data_fetch.market_sources.common import _run_named_fetches  # noqa: E402
 
 
 def test_audited_fetch_records_success_error_and_unavailable():
+    provider_resilience.clear_provider_circuits()
     success = source_audit.audited_fetch(
         "recent_catalysts",
         "fake provider",
@@ -54,6 +56,7 @@ def test_audited_fetch_records_success_error_and_unavailable():
 
 
 def test_audited_fetch_async_records_cache_hit():
+    provider_resilience.clear_provider_circuits()
     async def fake_async():
         return ["cached headline"]
 
@@ -94,3 +97,26 @@ def test_run_named_fetches_include_audit_preserves_old_mode():
 
     legacy = _run_named_fetches({"ok": (lambda: [1], (), [], "legacy warning")}, max_workers=1)
     assert legacy == {"ok": [1]}
+
+
+def test_provider_resilience_retries_and_opens_circuit(monkeypatch):
+    provider_resilience.clear_provider_circuits()
+    monkeypatch.setenv("PROVIDER_RETRY_ATTEMPTS", "2")
+    monkeypatch.setenv("PROVIDER_RETRY_BACKOFF_SECONDS", "0")
+    monkeypatch.setenv("PROVIDER_CIRCUIT_BREAKER_THRESHOLD", "1")
+    monkeypatch.setenv("PROVIDER_CIRCUIT_BREAKER_COOLDOWN_SECONDS", "60")
+    calls = {"count": 0}
+
+    def flaky():
+        calls["count"] += 1
+        raise RuntimeError("down")
+
+    failed = source_audit.audited_fetch("market_data", "retry-provider", flaky, default={})
+    assert calls["count"] == 2
+    assert failed["audit"]["status"] == AUDIT_STATUS_ERROR
+    assert provider_resilience.provider_circuit_state("retry-provider")["open"] is True
+
+    skipped = source_audit.audited_fetch("market_data", "retry-provider", lambda: {"ok": True}, default={})
+    assert skipped["audit"]["status"] == AUDIT_STATUS_UNAVAILABLE
+    assert skipped["audit"]["error_kind"] == "ProviderCircuitOpenError"
+    provider_resilience.clear_provider_circuits()

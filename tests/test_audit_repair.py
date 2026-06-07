@@ -196,6 +196,8 @@ def test_recommendation_structured_fallback_preserves_report_contract():
 
 
 def test_financial_quality_repair_uses_safe_fallback_when_model_429_unavailable():
+    audit_repair.clear_repair_429_circuit(2)
+    repair_breaker.clear_repair_429_circuit(2)
     context = complete_context()
     context["analyses"][2] = (
         "Yahoo TTM ROE/ROA/淨利率與最新年度資產周轉率及權益乘數拼接成 TTM 杜邦公式，"

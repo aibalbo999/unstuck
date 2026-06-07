@@ -10,89 +10,19 @@ from typing import Optional
 
 from agent_catalog import AGENT_NAMES
 from pipeline_modes import get_pipeline_agents
-
-
-BASE_DIR = Path(__file__).resolve().parents[1]
-DEFAULT_MODEL_ROUTES_FILE = BASE_DIR / "model_routes.json"
-
-
-def _load_local_env():
-    """Load backend/.env for local runs without adding a dependency."""
-    env_path = BASE_DIR / ".env"
-    if not env_path.exists():
-        return
-
-    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip().strip('"').strip("'")
-        if key and (key not in os.environ or _is_placeholder_key(os.environ[key])):
-            os.environ[key] = value
-
-
-def _split_keys(raw: str) -> list[str]:
-    return [key.strip() for key in raw.replace("\n", ",").split(",") if key.strip()]
-
-
-def _env_int(name: str, default: int) -> int:
-    raw = os.getenv(name, "").strip()
-    if not raw:
-        return default
-    try:
-        return int(raw)
-    except ValueError:
-        return default
-
-
-def _env_float(name: str, default: float) -> float:
-    raw = os.getenv(name, "").strip()
-    if not raw:
-        return default
-    try:
-        return float(raw)
-    except ValueError:
-        return default
-
-
-def _env_bool(name: str, default: bool = False) -> bool:
-    raw = os.getenv(name)
-    if raw is None or not raw.strip():
-        return default
-    return raw.strip().lower() in {"1", "true", "yes", "y", "on"}
-
-
-def _env_str(name: str, default: str = "") -> str:
-    raw = os.getenv(name)
-    if raw is None or not raw.strip():
-        return str(default or "").strip()
-    return raw.strip()
-
-
-def _env_list(name: str, default: Optional[list[str]] = None) -> list[str]:
-    raw = os.getenv(name, "").strip()
-    if not raw:
-        return list(default or [])
-    try:
-        parsed = json.loads(raw)
-        if isinstance(parsed, list):
-            return [str(item).strip() for item in parsed if str(item).strip()]
-    except json.JSONDecodeError:
-        pass
-    return [item.strip() for item in raw.split(",") if item.strip()]
-
-
-def _json_env_dict(name: str) -> dict:
-    raw = os.getenv(name, "").strip()
-    if not raw:
-        return {}
-    try:
-        parsed = json.loads(raw)
-        return parsed if isinstance(parsed, dict) else {}
-    except json.JSONDecodeError:
-        return {}
+from .env import (
+    BASE_DIR,
+    DEFAULT_MODEL_ROUTES_FILE,
+    env_bool as _env_bool,
+    env_float as _env_float,
+    env_int as _env_int,
+    env_list as _env_list,
+    env_str as _env_str,
+    is_placeholder_key as _is_placeholder_key,
+    json_env_dict as _json_env_dict,
+    load_local_env as _load_local_env,
+    split_keys as _split_keys,
+)
 
 
 def _load_model_routes() -> dict:
@@ -136,19 +66,6 @@ def _route_limit_defaults(section_name: str) -> dict[str, int]:
 
 def _model_env_suffix(model: str) -> str:
     return re.sub(r"[^A-Z0-9]+", "_", model.upper()).strip("_")
-
-
-def _is_placeholder_key(key: str) -> bool:
-    lowered = key.lower()
-    return any(
-        marker in lowered
-        for marker in [
-            "replace_with",
-            "your_key",
-            "example",
-            "placeholder",
-        ]
-    )
 
 
 def _load_api_keys() -> list[str]:

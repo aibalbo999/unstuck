@@ -120,10 +120,13 @@ def test_data_trust_facade_is_sized():
 def test_validation_and_provider_facades_are_sized():
     limits = {
         BACKEND / "config.py": 40,
+        BACKEND / "settings" / "app_config.py": 450,
+        BACKEND / "data_fetch" / "yfinance_core_fetch.py": 370,
         BACKEND / "validators.py": 90,
         BACKEND / "structured_outputs.py": 90,
         BACKEND / "data_fetch" / "providers.py": 80,
         BACKEND / "data_fetch" / "yfinance_legacy_fetch.py": 60,
+        BACKEND / "report_index.py": 260,
     }
 
     for path, limit in limits.items():
@@ -153,6 +156,7 @@ def test_provider_service_imports_registry_not_compat_facade():
 def test_config_settings_are_split_into_grouped_modules():
     expected = [
         "app_config.py",
+        "env.py",
         "models.py",
         "providers.py",
         "security.py",
@@ -166,6 +170,31 @@ def test_config_settings_are_split_into_grouped_modules():
     assert "from settings.app_config import *" in config_text
 
 
+def test_report_index_is_split_into_focused_modules():
+    expected = [
+        "report_index.py",
+        "report_index_metadata.py",
+        "report_index_migrations.py",
+        "report_index_rows.py",
+        "report_repository.py",
+    ]
+    for filename in expected:
+        assert (BACKEND / filename).exists()
+
+    index_text = (BACKEND / "report_index.py").read_text(encoding="utf-8")
+    assert "run_report_index_migrations" in index_text
+    assert "row_to_report" in index_text
+    assert "build_report_metadata" in index_text
+
+
+def test_provider_resilience_module_is_wired_to_source_audit():
+    assert (BACKEND / "provider_resilience.py").exists()
+    source_text = (BACKEND / "source_audit.py").read_text(encoding="utf-8")
+
+    assert "call_provider_with_resilience" in source_text
+    assert "ProviderCircuitOpenError" in source_text
+
+
 def test_report_template_entrypoint_is_sized():
     path = BACKEND / "templates" / "report.html.j2"
     line_count = len(path.read_text(encoding="utf-8").splitlines())
@@ -177,6 +206,7 @@ def test_pipeline_runtime_does_not_print_directly():
     paths = [
         BACKEND / "pipeline.py",
         BACKEND / "agent_runtime" / "quality_gates.py",
+        BACKEND / "runtime_events.py",
     ]
 
     offenders = [

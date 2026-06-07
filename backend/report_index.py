@@ -11,16 +11,8 @@ from pathlib import Path
 from typing import Optional
 
 from config import CACHE_DB_PATH, OUTPUT_DIR
-from data_trust import (
-    data_snapshot_filename_for_report,
-    normalize_data_trust,
-    read_data_trust_from_snapshot,
-    unknown_data_trust,
-)
-from pipeline_modes import get_pipeline_definition
 from report_index_parsing import (
     clean_report_text,
-    extract_company_name as _extract_company_name,
     extract_section,
     is_safe_report_filename,
     normalize_recommendation_label,
@@ -28,55 +20,12 @@ from report_index_parsing import (
     parse_recommendation_summary,
     parse_report_filename,
 )
-from storage.migrations import MigrationRunner, column_names
+from report_index_metadata import build_report_metadata, report_index_mtime
+from report_index_migrations import REPORT_INDEX_MIGRATION_KEY, REPORT_INDEX_SCHEMA_VERSION, run_report_index_migrations
+from report_index_rows import row_to_report
 
 
 _REPORT_INDEX_LOCK = threading.Lock()
-REPORT_INDEX_MIGRATION_KEY = "report_index"
-REPORT_INDEX_SCHEMA_VERSION = 4
-
-
-def _column_names(conn, table_name: str) -> set[str]:
-    return column_names(conn, table_name)
-
-
-def _set_schema_version(conn, version: int) -> None:
-    conn.execute(
-        """
-        INSERT INTO schema_migrations (component, version, updated_at)
-        VALUES (?, ?, ?)
-        ON CONFLICT(component) DO UPDATE SET
-            version = excluded.version,
-            updated_at = excluded.updated_at
-        """,
-        (REPORT_INDEX_MIGRATION_KEY, int(version), time.time()),
-    )
-
-
-def _run_report_index_migrations(conn) -> None:
-    def migrate_v2(migration_conn):
-        columns = _column_names(migration_conn, "reports")
-        if "data_snapshot_filename" not in columns:
-            migration_conn.execute("ALTER TABLE reports ADD COLUMN data_snapshot_filename TEXT NOT NULL DEFAULT ''")
-        if "data_trust_json" not in columns:
-            migration_conn.execute("ALTER TABLE reports ADD COLUMN data_trust_json TEXT NOT NULL DEFAULT '{}'")
-
-    def migrate_v3(migration_conn):
-        columns = _column_names(migration_conn, "reports")
-        if "data_trust_status" not in columns:
-            migration_conn.execute("ALTER TABLE reports ADD COLUMN data_trust_status TEXT NOT NULL DEFAULT 'unknown'")
-
-    def migrate_v4(migration_conn):
-        columns = _column_names(migration_conn, "reports")
-        if "analysis_text_stale" not in columns:
-            migration_conn.execute("ALTER TABLE reports ADD COLUMN analysis_text_stale INTEGER NOT NULL DEFAULT 0")
-        if "analysis_text_stale_message" not in columns:
-            migration_conn.execute("ALTER TABLE reports ADD COLUMN analysis_text_stale_message TEXT NOT NULL DEFAULT ''")
-
-    MigrationRunner(conn, REPORT_INDEX_MIGRATION_KEY).run(
-        REPORT_INDEX_SCHEMA_VERSION,
-        {1: lambda _conn: None, 2: migrate_v2, 3: migrate_v3, 4: migrate_v4},
-    )
 
 
 def _connect():
@@ -106,7 +55,7 @@ def _connect():
         )
         """
     )
-    _run_report_index_migrations(conn)
+    run_report_index_migrations(conn)
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_reports_output_timestamp "
         "ON reports (output_dir, timestamp DESC)"
@@ -124,96 +73,6 @@ def _connect():
         "ON reports (output_dir, data_trust_status)"
     )
     return conn
-
-
-def _safe_mtime(path: str) -> float:
-    try:
-        return os.path.getmtime(path)
-    except OSError:
-        return 0.0
-
-
-def _report_index_mtime(output_dir: str, filename: str) -> float:
-    html_path = os.path.join(output_dir, filename)
-    md_path = os.path.join(output_dir, filename[:-5] + ".md")
-    data_path = os.path.join(output_dir, data_snapshot_filename_for_report(filename))
-    return max(_safe_mtime(html_path), _safe_mtime(md_path), _safe_mtime(data_path))
-
-
-def _read_snapshot_report_flags(data_snapshot_path: str) -> dict:
-    if not os.path.exists(data_snapshot_path):
-        return {"analysis_text_stale": False, "analysis_text_stale_message": ""}
-    try:
-        with open(data_snapshot_path, "r", encoding="utf-8") as f:
-            snapshot = json.load(f)
-    except (OSError, json.JSONDecodeError):
-        return {"analysis_text_stale": False, "analysis_text_stale_message": ""}
-    return {
-        "analysis_text_stale": bool(snapshot.get("refreshed_without_analysis_rerun")),
-        "analysis_text_stale_message": str(snapshot.get("analysis_text_stale_message") or "")[:240],
-    }
-
-
-def build_report_metadata(
-    filename: str,
-    output_dir: Optional[str] = None,
-    html_content: Optional[str] = None,
-    markdown_content: Optional[str] = None,
-    data_trust: Optional[dict] = None,
-) -> Optional[dict]:
-    if not is_safe_report_filename(filename, ".html"):
-        return None
-
-    out_dir = output_dir_key(output_dir)
-    html_path = os.path.join(out_dir, filename)
-    if html_content is None and not os.path.exists(html_path):
-        return None
-
-    parsed = parse_report_filename(filename)
-    html_mtime = _safe_mtime(html_path) or time.time()
-    file_mtime = max(html_mtime, _report_index_mtime(out_dir, filename))
-
-    company_name = _extract_company_name(filename, parsed["ticker"], out_dir, html_content)
-    recommendation = parse_recommendation_summary(
-        filename,
-        output_dir=out_dir,
-        markdown_text=markdown_content,
-    )
-    data_snapshot_filename = data_snapshot_filename_for_report(filename)
-    data_snapshot_path = os.path.join(out_dir, data_snapshot_filename)
-    data_trust_summary = (
-        normalize_data_trust(data_trust)
-        if data_trust is not None
-        else read_data_trust_from_snapshot(data_snapshot_path)
-    )
-    snapshot_flags = _read_snapshot_report_flags(data_snapshot_path)
-    normalized_recommendation = normalize_recommendation_label(recommendation.get("recommendation"))
-    search_text = " ".join([
-        filename,
-        parsed["ticker"],
-        company_name,
-        str(recommendation.get("recommendation", "")),
-    ]).lower()
-
-    return {
-        "output_dir": out_dir,
-        "filename": filename,
-        "md_filename": filename[:-5] + ".md",
-        "ticker": parsed["ticker"],
-        "company_name": company_name,
-        "date": parsed["date"],
-        "timestamp": html_mtime,
-        "file_mtime": file_mtime,
-        "pipeline_id": parsed["pipeline_id"],
-        "recommendation": recommendation,
-        "data_snapshot_filename": data_snapshot_filename if os.path.exists(data_snapshot_path) else "",
-        "data_trust": data_trust_summary,
-        "data_trust_status": data_trust_summary.get("status", "unknown"),
-        "analysis_text_stale": snapshot_flags["analysis_text_stale"],
-        "analysis_text_stale_message": snapshot_flags["analysis_text_stale_message"],
-        "normalized_recommendation": normalized_recommendation,
-        "search_text": search_text,
-    }
 
 
 def upsert_report_metadata(
@@ -315,7 +174,7 @@ def sync_report_metadata(output_dir: Optional[str] = None) -> None:
         path = os.path.join(out_dir, filename)
         if not os.path.exists(path):
             continue
-        file_mtime = _report_index_mtime(out_dir, filename)
+        file_mtime = report_index_mtime(out_dir, filename)
         if filename not in existing_mtimes or abs(existing_mtimes[filename] - file_mtime) > 0.001:
             upsert_report_metadata(filename, output_dir=out_dir)
 
@@ -326,34 +185,6 @@ def sync_report_metadata(output_dir: Optional[str] = None) -> None:
                 "DELETE FROM reports WHERE output_dir = ? AND filename = ?",
                 [(out_dir, filename) for filename in stale],
             )
-
-
-def _row_to_report(row) -> dict:
-    try:
-        recommendation = json.loads(row["recommendation_json"])
-    except (TypeError, json.JSONDecodeError):
-        recommendation = parse_recommendation_summary(row["filename"], output_dir=row["output_dir"])
-    try:
-        data_trust = normalize_data_trust(json.loads(row["data_trust_json"]))
-    except (KeyError, TypeError, json.JSONDecodeError):
-        data_trust = unknown_data_trust()
-
-    pipeline_id = row["pipeline_id"] or "v1"
-    return {
-        "filename": row["filename"],
-        "ticker": row["ticker"],
-        "company_name": row["company_name"],
-        "date": row["report_date"],
-        "timestamp": row["timestamp"],
-        "pipeline_id": pipeline_id,
-        "pipeline_label": get_pipeline_definition(pipeline_id)["short_label"],
-        "recommendation": recommendation,
-        "data_snapshot_filename": row["data_snapshot_filename"] if "data_snapshot_filename" in row.keys() else "",
-        "data_trust": data_trust,
-        "data_trust_status": row["data_trust_status"] if "data_trust_status" in row.keys() else data_trust.get("status", "unknown"),
-        "analysis_text_stale": bool(row["analysis_text_stale"]) if "analysis_text_stale" in row.keys() else False,
-        "analysis_text_stale_message": row["analysis_text_stale_message"] if "analysis_text_stale_message" in row.keys() else "",
-    }
 
 
 def query_report_metadata(
@@ -401,4 +232,4 @@ def query_report_metadata(
             [*params, limit, offset],
         ).fetchall()
 
-    return [_row_to_report(row) for row in rows], int(total)
+    return [row_to_report(row) for row in rows], int(total)

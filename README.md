@@ -127,6 +127,7 @@ scripts/ci_gate.sh
 前端/報告圖表視覺回歸可用 Playwright 跑；直接執行時會要求瀏覽器可用：
 
 ```bash
+scripts/setup_visual_regression.sh
 scripts/visual_regression.sh
 ```
 

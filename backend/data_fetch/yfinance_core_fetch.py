@@ -5,9 +5,8 @@ imports are kept in data_fetch.yfinance_legacy_fetch only.
 """
 
 import asyncio
-import pandas as pd
 import time as time_module
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta, timezone
 from typing import Optional, Sequence
 import warnings
 from cache_store import get_cache_json, set_cache_json
@@ -18,12 +17,10 @@ from config import (
     SOURCE_FRESHNESS_MAX_AGE_SECONDS,
 )
 from data_trust import (
-    AUDIT_STATUS_ERROR,
     AUDIT_STATUS_SKIPPED_FRESH_CACHE,
     AUDIT_STATUS_SUCCESS,
     AUDIT_STATUS_UNAVAILABLE,
     append_source_audit,
-    build_data_trust,
     build_source_audit_entry,
     finalize_data_trust,
     source_record_count,
@@ -83,8 +80,11 @@ from .audit_helpers import (
 )
 from .cache_helpers import _cache_financial_data
 from .constants import CORE_CACHE_SOURCES, DATA_SCHEMA_VERSION, SOURCE_FRESHNESS_SOURCES
-from .formatting import format_number, format_pct
+from .formatting import format_pct
 from .optional_enrichment import enrich_optional_http_async
+from .yfinance_cache_gate import build_fresh_cache_payload
+from .yfinance_capital_notes import build_capital_structure_notes
+from .yfinance_error_payload import build_fetch_error_payload
 from .yfinance_payload import build_legacy_payload, finalize_and_cache_legacy_payload
 from .yfinance_derived import (
     apply_market_fallbacks_and_quality_calibration,
@@ -107,25 +107,23 @@ def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_
     cache_key = f"financial_data:{original_ticker}"
     fetch_started_epoch = time_module.time()
     cached = get_cache_json(cache_key)
-    if cached and cached.get("data_schema_version") == DATA_SCHEMA_VERSION:
-        cache_ticker = str(cached.get("ticker") or original_ticker).strip().upper()
-        is_fresh, freshness = _assess_cached_financial_data(cached, cache_ticker)
-        if is_fresh:
-            cached = dict(cached)
-            cached["_cache_hit"] = True
-            cached["source_audit"] = []
-            cached["data_freshness"] = freshness
-            cached["source_freshness"] = freshness.get("source_freshness", {})
-            _append_cache_audit_entries(cached, cache_ticker, now_epoch=time_module.time())
-            age_minutes = (freshness.get("age_seconds") or 0) / 60
-            emit_log(f"  ✅ 使用快取的 {cached.get('ticker', original_ticker)} 財務數據（市場資料約 {age_minutes:.1f} 分鐘前更新）")
-            return cached
-        stale_sources = freshness.get("stale_sources", []) or ["market_data"]
+    fresh_cached, stale_sources, schema_mismatch = build_fresh_cache_payload(
+        original_ticker,
+        cached,
+        assess_cached=_assess_cached_financial_data,
+        append_cache_audit=_append_cache_audit_entries,
+        now_epoch=time_module.time(),
+    )
+    if fresh_cached:
+        age_minutes = (fresh_cached.get("data_freshness", {}).get("age_seconds") or 0) / 60
+        emit_log(f"  ✅ 使用快取的 {fresh_cached.get('ticker', original_ticker)} 財務數據（市場資料約 {age_minutes:.1f} 分鐘前更新）")
+        return fresh_cached
+    if stale_sources:
         stale_labels = ", ".join(stale_sources)
         emit_log(
-            f"  ♻️  {cache_ticker} 快取來源已過期（{stale_labels}），重新抓取核心分析資料..."
+            f"  ♻️  {original_ticker} 快取來源已過期（{stale_labels}），重新抓取核心分析資料..."
         )
-    if cached and cached.get("data_schema_version") != DATA_SCHEMA_VERSION:
+    if schema_mismatch:
         emit_log(f"  ♻️  {original_ticker} 快取資料口徑已更新，重新抓取財務數據...")
 
     emit_log(f"  📊 正在獲取 {ticker} 財務數據...")
@@ -242,58 +240,20 @@ def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_
         roe_history = margin_histories["roe_history"]
         
         # 計算權益乘數（Equity Multiplier = Total Assets / Equity）
-        equity_multiplier = "N/A"
-        equity_multiplier_note = ""
-        dupont_identity_note = ""
-        wacc_capital_structure_note = ""
-        try:
-            balance_latest = stock.balance_sheet
-            if balance_latest is not None and not balance_latest.empty:
-                ta_0 = balance_latest.loc["Total Assets"].iloc[0] if "Total Assets" in balance_latest.index else None
-                eq_0 = balance_latest.loc["Stockholders Equity"].iloc[0] if "Stockholders Equity" in balance_latest.index else (
-                    balance_latest.loc["Total Equity Gross Minority Interest"].iloc[0] if "Total Equity Gross Minority Interest" in balance_latest.index else None)
-                if ta_0 and eq_0 and float(eq_0) > 0 and not pd.isna(ta_0) and not pd.isna(eq_0):
-                    em = float(ta_0) / float(eq_0)
-                    equity_multiplier = f"{em:.3f}x"
-                    # Yahoo 的 ROA/ROE 多為 TTM/平均資產口徑，不能和最新一期資產負債表硬湊恒等式。
-                    roa_raw = safe_get(info, "returnOnAssets", None)
-                    if roa_raw and roa_raw != "N/A":
-                        dupont_roe = float(roa_raw) * em * 100
-                        equity_multiplier_note = (
-                            f"(僅供口徑差異提示：Yahoo ROA {float(roa_raw)*100:.1f}% × 最新期 EM "
-                            f"{em:.3f}x = {dupont_roe:.1f}%，不可解讀為嚴格杜邦恒等式)"
-                        )
-
-                    if revenue_history and net_income_history and total_assets_history and total_equity_history:
-                        latest_rev = revenue_history[-1]
-                        latest_ni = net_income_history[-1]
-                        latest_assets = total_assets_history[-1]
-                        latest_equity = total_equity_history[-1]
-                        if latest_rev and latest_ni and latest_assets and latest_equity:
-                            same_period_margin = latest_ni / latest_rev
-                            same_period_turnover = latest_rev / latest_assets
-                            same_period_em = latest_assets / latest_equity
-                            same_period_roe = same_period_margin * same_period_turnover * same_period_em * 100
-                            dupont_identity_note = (
-                                f"同期間年度杜邦恒等式：淨利率 {same_period_margin*100:.1f}% × "
-                                f"資產周轉率 {same_period_turnover:.3f}x × 權益乘數 {same_period_em:.3f}x "
-                                f"= ROE {same_period_roe:.1f}%（等同淨利/股東權益）"
-                            )
-        except Exception:
-            pass
-
-        try:
-            if isinstance(market_cap, (int, float)) and isinstance(total_debt, (int, float)):
-                invested_capital = market_cap + total_debt
-                if invested_capital > 0:
-                    equity_weight = market_cap / invested_capital * 100
-                    debt_weight = total_debt / invested_capital * 100
-                    wacc_capital_structure_note = (
-                        f"WACC 市值權重：股權 {equity_weight:.2f}% / 有息負債 {debt_weight:.2f}% "
-                        f"（以市值 {format_number(market_cap, '億')} 與有息負債 {format_number(total_debt, '億')} 計算）"
-                    )
-        except Exception:
-            pass
+        capital_notes = build_capital_structure_notes(
+            stock,
+            info,
+            revenue_history=revenue_history,
+            net_income_history=net_income_history,
+            total_assets_history=total_assets_history,
+            total_equity_history=total_equity_history,
+            market_cap=market_cap,
+            total_debt=total_debt,
+        )
+        equity_multiplier = capital_notes["equity_multiplier"]
+        equity_multiplier_note = capital_notes["equity_multiplier_note"]
+        dupont_identity_note = capital_notes["dupont_identity_note"]
+        wacc_capital_structure_note = capital_notes["wacc_capital_structure_note"]
         
         # 計算收入 CAGR（5年）
         revenue_cagr = calculate_revenue_cagr(revenue_history)
@@ -368,29 +328,13 @@ def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_
         
     except Exception as e:
         emit_log(f"  ❌ 數據獲取失敗：{e}")
-        failed = {
-            "ticker": ticker,
-            "company_name": ticker,
-            "sector": "N/A",
-            "industry": "N/A",
-            "error": str(e),
-            "fetch_date": datetime.now().strftime("%Y年%m月%d日"),
-        }
-        _append_source_fetch_audit(
-            failed,
-            "market_data",
-            "market_data_provider",
-            AUDIT_STATUS_ERROR,
-            started_at_epoch=fetch_started_epoch,
+        return build_fetch_error_payload(
+            ticker,
+            e,
+            fetch_started_epoch=fetch_started_epoch,
             finished_at_epoch=time_module.time(),
-            record_count=0,
-            cache_hit=False,
-            stale=True,
-            error_kind=e.__class__.__name__,
-            message=str(e)[:240],
+            append_source_fetch_audit=_append_source_fetch_audit,
         )
-        failed["data_trust"] = build_data_trust(failed)
-        return failed
 
 
 async def async_fetch_stock_data(ticker: str) -> dict:

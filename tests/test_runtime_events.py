@@ -176,3 +176,14 @@ def test_emit_context_error_records_structured_metadata():
     assert event["phase"] == "final_audit_repair_failed"
     assert event["metadata"]["error_category"] == "repair_failed"
     assert event["metadata"]["error_kind"] == "RuntimeError"
+
+
+def test_emit_log_uses_runtime_logger(monkeypatch):
+    import runtime_events
+
+    calls = []
+    monkeypatch.setattr(runtime_events, "log_runtime_message", lambda message, level="info": calls.append((message, level)))
+
+    runtime_events.emit_log("hello", level="warning")
+
+    assert calls == [("hello", "warning")]

@@ -1,0 +1,108 @@
+"""Metadata extraction helpers for generated report files."""
+
+from __future__ import annotations
+
+import json
+import os
+import time
+from typing import Optional
+
+from data_trust import data_snapshot_filename_for_report, normalize_data_trust, read_data_trust_from_snapshot
+from report_index_parsing import (
+    extract_company_name as _extract_company_name,
+    is_safe_report_filename,
+    normalize_recommendation_label,
+    output_dir_key,
+    parse_recommendation_summary,
+    parse_report_filename,
+)
+
+
+def safe_mtime(path: str) -> float:
+    try:
+        return os.path.getmtime(path)
+    except OSError:
+        return 0.0
+
+
+def report_index_mtime(output_dir: str, filename: str) -> float:
+    html_path = os.path.join(output_dir, filename)
+    md_path = os.path.join(output_dir, filename[:-5] + ".md")
+    data_path = os.path.join(output_dir, data_snapshot_filename_for_report(filename))
+    return max(safe_mtime(html_path), safe_mtime(md_path), safe_mtime(data_path))
+
+
+def read_snapshot_report_flags(data_snapshot_path: str) -> dict:
+    if not os.path.exists(data_snapshot_path):
+        return {"analysis_text_stale": False, "analysis_text_stale_message": ""}
+    try:
+        with open(data_snapshot_path, "r", encoding="utf-8") as f:
+            snapshot = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {"analysis_text_stale": False, "analysis_text_stale_message": ""}
+    return {
+        "analysis_text_stale": bool(snapshot.get("refreshed_without_analysis_rerun")),
+        "analysis_text_stale_message": str(snapshot.get("analysis_text_stale_message") or "")[:240],
+    }
+
+
+def build_report_metadata(
+    filename: str,
+    output_dir: Optional[str] = None,
+    html_content: Optional[str] = None,
+    markdown_content: Optional[str] = None,
+    data_trust: Optional[dict] = None,
+) -> Optional[dict]:
+    if not is_safe_report_filename(filename, ".html"):
+        return None
+
+    out_dir = output_dir_key(output_dir)
+    html_path = os.path.join(out_dir, filename)
+    if html_content is None and not os.path.exists(html_path):
+        return None
+
+    parsed = parse_report_filename(filename)
+    html_mtime = safe_mtime(html_path) or time.time()
+    file_mtime = max(html_mtime, report_index_mtime(out_dir, filename))
+
+    company_name = _extract_company_name(filename, parsed["ticker"], out_dir, html_content)
+    recommendation = parse_recommendation_summary(
+        filename,
+        output_dir=out_dir,
+        markdown_text=markdown_content,
+    )
+    data_snapshot_filename = data_snapshot_filename_for_report(filename)
+    data_snapshot_path = os.path.join(out_dir, data_snapshot_filename)
+    data_trust_summary = (
+        normalize_data_trust(data_trust)
+        if data_trust is not None
+        else read_data_trust_from_snapshot(data_snapshot_path)
+    )
+    snapshot_flags = read_snapshot_report_flags(data_snapshot_path)
+    normalized_recommendation = normalize_recommendation_label(recommendation.get("recommendation"))
+    search_text = " ".join([
+        filename,
+        parsed["ticker"],
+        company_name,
+        str(recommendation.get("recommendation", "")),
+    ]).lower()
+
+    return {
+        "output_dir": out_dir,
+        "filename": filename,
+        "md_filename": filename[:-5] + ".md",
+        "ticker": parsed["ticker"],
+        "company_name": company_name,
+        "date": parsed["date"],
+        "timestamp": html_mtime,
+        "file_mtime": file_mtime,
+        "pipeline_id": parsed["pipeline_id"],
+        "recommendation": recommendation,
+        "data_snapshot_filename": data_snapshot_filename if os.path.exists(data_snapshot_path) else "",
+        "data_trust": data_trust_summary,
+        "data_trust_status": data_trust_summary.get("status", "unknown"),
+        "analysis_text_stale": snapshot_flags["analysis_text_stale"],
+        "analysis_text_stale_message": snapshot_flags["analysis_text_stale_message"],
+        "normalized_recommendation": normalized_recommendation,
+        "search_text": search_text,
+    }

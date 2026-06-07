@@ -15,6 +15,7 @@ from data_trust import (
     finalize_data_trust,
     source_record_count,
 )
+from provider_resilience import ProviderCircuitOpenError, call_provider_with_resilience, call_provider_with_resilience_async
 
 
 def record_count_from_value(value: Any) -> int:
@@ -48,7 +49,24 @@ def audited_fetch(
 ) -> dict:
     started = time.time()
     try:
-        value = func(*args, **(kwargs or {}))
+        value = call_provider_with_resilience(provider, func, args, kwargs or {})
+    except ProviderCircuitOpenError as exc:
+        finished = time.time()
+        return {
+            "value": default,
+            "audit": build_source_audit_entry(
+                source,
+                provider,
+                AUDIT_STATUS_UNAVAILABLE,
+                started_at_epoch=started,
+                finished_at_epoch=finished,
+                record_count=0,
+                cache_hit=cache_hit,
+                stale=stale,
+                error_kind=exc.__class__.__name__,
+                message=str(exc)[:240],
+            ),
+        }
     except Exception as exc:
         finished = time.time()
         return {
@@ -108,12 +126,24 @@ async def audited_fetch_async(
 ) -> dict:
     started = time.time()
     try:
-        if inspect.isawaitable(func_or_awaitable):
-            value = await func_or_awaitable
-        else:
-            value = func_or_awaitable(*args, **(kwargs or {}))
-            if inspect.isawaitable(value):
-                value = await value
+        value = await call_provider_with_resilience_async(provider, func_or_awaitable, args, kwargs or {})
+    except ProviderCircuitOpenError as exc:
+        finished = time.time()
+        return {
+            "value": default,
+            "audit": build_source_audit_entry(
+                source,
+                provider,
+                AUDIT_STATUS_UNAVAILABLE,
+                started_at_epoch=started,
+                finished_at_epoch=finished,
+                record_count=0,
+                cache_hit=cache_hit,
+                stale=stale,
+                error_kind=exc.__class__.__name__,
+                message=str(exc)[:240],
+            ),
+        }
     except Exception as exc:
         finished = time.time()
         return {
