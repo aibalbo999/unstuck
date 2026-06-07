@@ -51,6 +51,31 @@
         return ['fresh', 'partial', 'stale', 'error'].includes(status) ? status : 'unknown';
     }
 
+    function dataTrustReasonLabel(code) {
+        const parts = String(code || '').split(':');
+        const base = parts[0];
+        const source = parts[1] || '';
+        const labels = {
+            fresh_core_sources: '核心資料新鮮',
+            critical_sources_error: '核心來源異常',
+            missing_usable_critical_data: '缺少核心資料',
+            data_source_notes_present: '含口徑註記',
+            provider_sla_critical: 'Provider SLA critical',
+            provider_sla_warning_note: 'Provider SLA warning',
+            missing_data_trust_snapshot: '未記錄可信度',
+            source_error: '來源異常',
+            source_stale: '來源過期'
+        };
+        const sourceLabels = { market_data: '市場資料', financial_statements: '年度財報', monthly_revenue: '月營收', institutional_trading: '法人籌碼', dynamic_peer_metrics: '同業指標', pe_river_chart: 'P/E 河流圖', recent_catalysts: '近期催化劑', peer_discovery: '同業搜尋' };
+        return `${labels[base] || base}${source ? `：${sourceLabels[source] || source}` : ''}`;
+    }
+
+    function dataTrustReasonSummary(trust) {
+        const codes = trust && Array.isArray(trust.reason_codes) ? trust.reason_codes : [];
+        if (!codes.length) return '';
+        return codes.slice(0, 2).map(dataTrustReasonLabel).join('、');
+    }
+
     function normalizeRecommendation(value) {
         const text = String(value || 'N/A');
         if (text.includes('買入')) return '買入';
@@ -84,6 +109,11 @@
         return `<span class="data-trust-badge is-${dataTrustClass(trust)}">${escapeHtml(dataTrustLabel(trust))}</span>`;
     }
 
+    function renderDataTrustReason(trust) {
+        const summary = dataTrustReasonSummary(trust);
+        return summary ? `<span class="data-trust-reason">${escapeHtml(summary)}</span>` : '';
+    }
+
     window.StockAgentUi = {
         PIPELINE_META,
         pipelineMeta,
@@ -91,10 +121,12 @@
         pipelineModeLabel,
         dataTrustLabel,
         dataTrustClass,
+        dataTrustReasonSummary,
         normalizeRecommendation,
         recommendationTone,
         escapeHtml,
         renderPipelineModeBadge,
-        renderDataTrustBadge
+        renderDataTrustBadge,
+        renderDataTrustReason
     };
 })();

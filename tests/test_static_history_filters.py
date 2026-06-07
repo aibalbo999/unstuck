@@ -70,6 +70,8 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "params.set('window'" in api_client_js
     assert "/api/observability/provider-sla" in api_client_js
     assert "renderPipelineModeBadge" in ui_helpers_js
+    assert "renderDataTrustReason" in ui_helpers_js
+    assert "data-trust-reason" in ui_helpers_js
     assert "/refresh/data" in api_client_js
 
 

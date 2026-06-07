@@ -35,4 +35,7 @@ def row_to_report(row) -> dict:
         "analysis_text_stale": bool(row["analysis_text_stale"]) if "analysis_text_stale" in row.keys() else False,
         "analysis_text_stale_message": row["analysis_text_stale_message"] if "analysis_text_stale_message" in row.keys() else "",
         "data_snapshot_hash": row["data_snapshot_hash"] if "data_snapshot_hash" in row.keys() else "",
+        "html_hash": row["html_hash"] if "html_hash" in row.keys() else "",
+        "markdown_hash": row["markdown_hash"] if "markdown_hash" in row.keys() else "",
+        "data_file_hash": row["data_file_hash"] if "data_file_hash" in row.keys() else "",
     }

@@ -4,12 +4,17 @@ from __future__ import annotations
 
 from contextlib import suppress
 
+from config import (
+    PROVIDER_SLA_CRITICAL_MIN_ATTEMPTS,
+    PROVIDER_SLA_DEGRADE_LEVELS,
+    PROVIDER_SLA_WARNING_MIN_ATTEMPTS,
+)
 from data_trust_constants import TRUST_STATUS_ERROR, TRUST_STATUS_PARTIAL, TRUST_STATUS_UNKNOWN
 
 
-SLA_WARNING_MIN_ATTEMPTS = 3
-SLA_CRITICAL_MIN_ATTEMPTS = 3
-SLA_DEGRADE_LEVELS = {"critical"}
+SLA_WARNING_MIN_ATTEMPTS = PROVIDER_SLA_WARNING_MIN_ATTEMPTS
+SLA_CRITICAL_MIN_ATTEMPTS = PROVIDER_SLA_CRITICAL_MIN_ATTEMPTS
+SLA_DEGRADE_LEVELS = {str(item).strip().lower() for item in PROVIDER_SLA_DEGRADE_LEVELS}
 
 
 def current_provider_pairs(data: dict) -> set[tuple[str, str]]:

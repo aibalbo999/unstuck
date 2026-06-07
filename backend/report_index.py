@@ -94,9 +94,10 @@ def upsert_report_metadata(
                 timestamp, file_mtime, pipeline_id, recommendation_json,
                 normalized_recommendation, search_text, data_snapshot_filename,
                 data_trust_json, data_trust_status, analysis_text_stale,
-                analysis_text_stale_message, data_snapshot_hash, updated_at
+                analysis_text_stale_message, data_snapshot_hash, html_hash,
+                markdown_hash, data_file_hash, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(output_dir, filename) DO UPDATE SET
                 md_filename = excluded.md_filename,
                 ticker = excluded.ticker,
@@ -114,6 +115,9 @@ def upsert_report_metadata(
                 analysis_text_stale = excluded.analysis_text_stale,
                 analysis_text_stale_message = excluded.analysis_text_stale_message,
                 data_snapshot_hash = excluded.data_snapshot_hash,
+                html_hash = excluded.html_hash,
+                markdown_hash = excluded.markdown_hash,
+                data_file_hash = excluded.data_file_hash,
                 updated_at = excluded.updated_at
             """,
             (
@@ -135,6 +139,9 @@ def upsert_report_metadata(
                 1 if metadata.get("analysis_text_stale") else 0,
                 metadata.get("analysis_text_stale_message", ""),
                 metadata.get("data_snapshot_hash", ""),
+                metadata.get("html_hash", ""),
+                metadata.get("markdown_hash", ""),
+                metadata.get("data_file_hash", ""),
                 time.time(),
             ),
         )

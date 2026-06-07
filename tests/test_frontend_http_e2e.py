@@ -133,6 +133,9 @@ def test_frontend_shell_static_assets_and_report_history_flow(tmp_path, monkeypa
     assert payload["pagination"]["total"] == 1
     assert payload["reports"][0]["filename"] == stale_filename
     assert payload["reports"][0]["data_trust"]["status"] == "stale"
+    assert payload["reports"][0]["html_hash"]
+    assert payload["reports"][0]["markdown_hash"]
+    assert payload["reports"][0]["data_file_hash"]
 
     html = client.get(f"/api/report/{stale_filename}")
     assert html.status_code == 200
@@ -230,6 +233,9 @@ def test_fake_provider_job_generates_report_snapshot_visible_in_history(tmp_path
     assert reports_payload["reports"][0]["filename"] == filename
     assert reports_payload["reports"][0]["data_trust"]["status"] == "fresh"
     assert reports_payload["reports"][0]["data_snapshot_hash"]
+    assert reports_payload["reports"][0]["html_hash"]
+    assert reports_payload["reports"][0]["markdown_hash"]
+    assert reports_payload["reports"][0]["data_file_hash"]
 
     data_snapshot = client.get(f"/api/report/{filename}/download/data")
     assert data_snapshot.status_code == 200
@@ -243,7 +249,7 @@ def test_fake_provider_job_generates_report_snapshot_visible_in_history(tmp_path
 
 def test_static_css_modules_keep_expected_component_selectors():
     selectors = {
-        STATIC_DIR / "styles" / "history_list.css": [".history-item", ".history-pagination", ".data-trust-badge"],
+        STATIC_DIR / "styles" / "history_list.css": [".history-item", ".history-pagination", ".data-trust-badge", ".data-trust-reason"],
         STATIC_DIR / "styles" / "provider_sla.css": [".provider-sla-panel", ".provider-sla-chip"],
         STATIC_DIR / "styles" / "preview_panel.css": [".report-preview", ".preview-open-button"],
     }

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import hashlib
 import time
 from typing import Optional
 
@@ -23,6 +24,18 @@ def safe_mtime(path: str) -> float:
         return os.path.getmtime(path)
     except OSError:
         return 0.0
+
+
+def file_sha256(path: str, content: Optional[str] = None) -> str:
+    try:
+        if content is not None:
+            return hashlib.sha256(content.encode("utf-8")).hexdigest()
+        if not os.path.exists(path):
+            return ""
+        with open(path, "rb") as f:
+            return hashlib.sha256(f.read()).hexdigest()
+    except OSError:
+        return ""
 
 
 def report_index_mtime(output_dir: str, filename: str) -> float:
@@ -59,6 +72,7 @@ def build_report_metadata(
 
     out_dir = output_dir_key(output_dir)
     html_path = os.path.join(out_dir, filename)
+    md_path = os.path.join(out_dir, filename[:-5] + ".md")
     if html_content is None and not os.path.exists(html_path):
         return None
 
@@ -105,6 +119,9 @@ def build_report_metadata(
         "analysis_text_stale": snapshot_flags["analysis_text_stale"],
         "analysis_text_stale_message": snapshot_flags["analysis_text_stale_message"],
         "data_snapshot_hash": snapshot_flags["data_snapshot_hash"],
+        "html_hash": file_sha256(html_path, content=html_content),
+        "markdown_hash": file_sha256(md_path, content=markdown_content),
+        "data_file_hash": file_sha256(data_snapshot_path),
         "normalized_recommendation": normalized_recommendation,
         "search_text": search_text,
     }

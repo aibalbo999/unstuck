@@ -24,6 +24,7 @@
                             <span>${escapeHtml(r.date)}</span>
                             ${options.renderPipelineModeBadge(r.pipeline_id || 'v1')}
                             ${options.renderDataTrustBadge(r.data_trust)}
+                            ${options.renderDataTrustReason(r.data_trust)}
                         </div>
                         <div class="history-decision">
                             <span class="history-rec ${options.recommendationTone(r.recommendation?.recommendation)}">${escapeHtml(options.normalizeRecommendation(r.recommendation?.recommendation))}</span>

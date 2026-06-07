@@ -183,6 +183,14 @@
     border-color: rgba(239, 68, 68, 0.5);
     background: rgba(185, 28, 28, 0.18);
 }
+.data-trust-reason {
+    color: #94a3b8;
+    font-size: 0.74rem;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 .history-decision {
     display: flex;
     flex-wrap: wrap;

@@ -22,6 +22,7 @@
             escapeHtml: ui.escapeHtml,
             renderPipelineModeBadge: ui.renderPipelineModeBadge,
             renderDataTrustBadge: ui.renderDataTrustBadge,
+            renderDataTrustReason: ui.renderDataTrustReason,
             recommendationTone: ui.recommendationTone,
             normalizeRecommendation: ui.normalizeRecommendation
         });
