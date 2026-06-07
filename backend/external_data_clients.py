@@ -15,6 +15,7 @@ from config import (
     GOOGLE_CSE_ID,
     GOOGLE_SEARCH_API_KEY,
 )
+from runtime_events import emit_log
 
 
 HTTP_TIMEOUT_SECONDS = 8.0
@@ -126,7 +127,7 @@ def fetch_fmp_quote_fallback(ticker: str) -> dict:
         )
         return _parse_fmp_quote_payload(payload)
     except Exception as e:
-        print(f"    ⚠️  FMP 備援資料獲取失敗：{e}")
+        emit_log(f"    ⚠️  FMP 備援資料獲取失敗：{e}")
         return {}
 
 
@@ -168,7 +169,7 @@ def fetch_google_search_catalysts(ticker: str, company_name: str, identity: dict
         )
         return _parse_google_catalyst_payload(payload)
     except Exception as e:
-        print(f"    ⚠️  Google Search 催化劑資料獲取失敗：{e}")
+        emit_log(f"    ⚠️  Google Search 催化劑資料獲取失敗：{e}")
         return []
 
 
@@ -215,7 +216,7 @@ def fetch_google_peer_discovery_results(ticker: str, company_name: str, sector: 
         )
         return _parse_google_peer_payload(payload)
     except Exception as e:
-        print(f"    ⚠️  Google Search 同業 discovery 失敗：{e}")
+        emit_log(f"    ⚠️  Google Search 同業 discovery 失敗：{e}")
         return []
 
 

@@ -58,6 +58,7 @@ from .market_sources.taiwan import (
 from .market_sources.ticker_resolver import get_market_data_provider
 from .market_sources.valuation import build_pe_river_chart_data
 from prompt_builder import format_data_for_prompt
+from runtime_events import emit_log
 from source_audit import append_audit_entry, audited_fetch, audited_fetch_async
 from .audit_helpers import (
     _append_cache_audit_entries,
@@ -115,17 +116,17 @@ def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_
             cached["source_freshness"] = freshness.get("source_freshness", {})
             _append_cache_audit_entries(cached, cache_ticker, now_epoch=time_module.time())
             age_minutes = (freshness.get("age_seconds") or 0) / 60
-            print(f"  ✅ 使用快取的 {cached.get('ticker', original_ticker)} 財務數據（市場資料約 {age_minutes:.1f} 分鐘前更新）")
+            emit_log(f"  ✅ 使用快取的 {cached.get('ticker', original_ticker)} 財務數據（市場資料約 {age_minutes:.1f} 分鐘前更新）")
             return cached
         stale_sources = freshness.get("stale_sources", []) or ["market_data"]
         stale_labels = ", ".join(stale_sources)
-        print(
+        emit_log(
             f"  ♻️  {cache_ticker} 快取來源已過期（{stale_labels}），重新抓取核心分析資料..."
         )
     if cached and cached.get("data_schema_version") != DATA_SCHEMA_VERSION:
-        print(f"  ♻️  {original_ticker} 快取資料口徑已更新，重新抓取財務數據...")
+        emit_log(f"  ♻️  {original_ticker} 快取資料口徑已更新，重新抓取財務數據...")
 
-    print(f"  📊 正在獲取 {ticker} 財務數據...")
+    emit_log(f"  📊 正在獲取 {ticker} 財務數據...")
     
     try:
         provider = market_data_provider or get_market_data_provider(ticker)
@@ -133,7 +134,7 @@ def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_
         for index, attempt in enumerate(attempts[1:], start=1):
             previous = attempts[index - 1]
             if not previous.get("valid"):
-                print(f"    ⚠️ {previous.get('ticker')} 查無資料，嘗試 {attempt.get('ticker')}...")
+                emit_log(f"    ⚠️ {previous.get('ticker')} 查無資料，嘗試 {attempt.get('ticker')}...")
         if is_valid:
             ticker = resolved_ticker
 
@@ -360,11 +361,11 @@ def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_
             finmind_financial_fallback_audit=finmind_financial_fallback_audit,
         )
 
-        print(f"  ✅ {company_name} 數據獲取完成")
+        emit_log(f"  ✅ {company_name} 數據獲取完成")
         return data
         
     except Exception as e:
-        print(f"  ❌ 數據獲取失敗：{e}")
+        emit_log(f"  ❌ 數據獲取失敗：{e}")
         failed = {
             "ticker": ticker,
             "company_name": ticker,

@@ -59,9 +59,12 @@ def test_provider_sla_aggregates_source_audit(monkeypatch, tmp_path):
     assert yfinance["error_count"] == 1
     assert yfinance["success_rate"] == 0.5
     assert yfinance["avg_duration_ms"] == 75
+    assert yfinance["windows"]["last_1h"]["attempts"] == 2
+    assert yfinance["windows"]["last_1h"]["success_rate"] == 0.5
     assert yfinance["alert_level"] == "warning"
     alerts = provider_sla.get_provider_sla_alerts()
     assert alerts and alerts[0]["provider"] == "yfinance"
+    assert "windows" in alerts[0]
 
 
 def test_provider_sla_api_returns_alerts(monkeypatch):
@@ -106,6 +109,7 @@ def test_analyze_sse_contract_streams_job_progress_and_done(monkeypatch):
 
 def test_cancel_analysis_endpoint_requests_cancel(monkeypatch):
     cancelled = []
+    monkeypatch.setattr(api, "MUTATION_API_TOKEN", "")
     monkeypatch.setattr(api, "get_job", lambda job_id: {"job_id": job_id, "ticker": "2449", "pipeline_id": "both", "status": "running"})
     monkeypatch.setattr(api, "request_job_cancel", lambda job_id, reason: cancelled.append((job_id, reason)) or True)
 
@@ -115,6 +119,24 @@ def test_cancel_analysis_endpoint_requests_cancel(monkeypatch):
     assert response.status_code == 200
     assert response.json()["ok"] is True
     assert cancelled and cancelled[0][0] == "job-1"
+
+
+def test_mutation_endpoints_require_admin_token_when_configured(monkeypatch):
+    monkeypatch.setattr(api, "MUTATION_API_TOKEN", "secret-token")
+    monkeypatch.setattr(api, "get_job", lambda job_id: {"job_id": job_id, "ticker": "2449", "pipeline_id": "both", "status": "running"})
+    monkeypatch.setattr(api, "request_job_cancel", lambda job_id, reason: True)
+
+    client = TestClient(api.app)
+    denied = client.post("/api/analyze/2449/cancel?job_id=job-1&pipeline=both")
+    allowed = client.post(
+        "/api/analyze/2449/cancel?job_id=job-1&pipeline=both",
+        headers={"X-Admin-Token": "secret-token"},
+    )
+
+    assert denied.status_code == 403
+    assert allowed.status_code == 200
+    assert allowed.json()["ok"] is True
+    monkeypatch.setattr(api, "MUTATION_API_TOKEN", "")
 
 
 def test_report_cover_config_does_not_send_unsupported_enhance_prompt():

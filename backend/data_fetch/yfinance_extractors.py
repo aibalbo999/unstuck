@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 
+from runtime_events import emit_log
 from .market_sources.taiwan import (
     DataLoader,
     _align_finmind_history,
@@ -64,7 +65,7 @@ def extract_financial_histories(stock, ticker: str, data_source_notes: list, dat
             gross_profit_history = list(reversed(gross_profit_history))
             operating_income_history = list(reversed(operating_income_history))
     except Exception as e:
-        print(f"    ⚠️  財務報表獲取失敗：{e}")
+        emit_log(f"    ⚠️  財務報表獲取失敗：{e}")
 
     try:
         cashflow = stock.cashflow
@@ -79,7 +80,7 @@ def extract_financial_histories(stock, ticker: str, data_source_notes: list, dat
                 fcf_by_year[yr_key] = round(ocf_val + capex_val_f, 2) if ocf_val is not None else None
             fcf_history = [fcf_by_year.get(y, None) for y in years]
     except Exception as e:
-        print(f"    ⚠️  現金流數據獲取失敗：{e}")
+        emit_log(f"    ⚠️  現金流數據獲取失敗：{e}")
 
     try:
         balance = stock.balance_sheet
@@ -95,7 +96,7 @@ def extract_financial_histories(stock, ticker: str, data_source_notes: list, dat
             total_equity_history = list(reversed(equity_raw))
             total_assets_history = list(reversed(assets_raw))
     except Exception as e:
-        print(f"    ⚠️  資產負債表獲取失敗：{e}")
+        emit_log(f"    ⚠️  資產負債表獲取失敗：{e}")
 
     if data_loader_cls is not None and (ticker.endswith(".TW") or ticker.endswith(".TWO")):
         needs_finmind_fallback = (

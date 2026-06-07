@@ -346,6 +346,10 @@ document.addEventListener('DOMContentLoaded', () => {
             showReportPreview(filename);
             await loadHistory();
             await loadProviderSla();
+            const summary = payload.refresh_diff && Array.isArray(payload.refresh_diff.summary)
+                ? payload.refresh_diff.summary.slice(0, 3).join('；')
+                : '資料快照已刷新';
+            alert(`資料快照已刷新：${summary}`);
         } catch (err) {
             console.error('Failed to refresh data snapshot', err);
             alert(`刷新資料快照失敗：${err.message || err}`);

@@ -194,6 +194,8 @@ def test_refresh_data_snapshot_endpoint_updates_trust(tmp_path, monkeypatch):
     body = response.json()
     assert body["success"] is True
     assert body["data_trust"]["status"] == "fresh"
+    assert body["refresh_diff"]["data_trust_status"] == {"before": "stale", "after": "fresh", "changed": True}
+    assert "可信度 stale → fresh" in body["refresh_diff"]["summary"]
     saved = json.loads((tmp_path / filename.replace(".html", ".data.json")).read_text(encoding="utf-8"))
     assert saved["data_trust"]["status"] == "fresh"
     assert saved["refreshed_from_report"] == filename

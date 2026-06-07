@@ -12,6 +12,7 @@ from assistant_tasks import (  # noqa: F401
 from config import AGENT_MODELS  # noqa: F401
 from final_audit import run_final_report_audit  # noqa: F401
 from structured_outputs import parse_structured_data  # noqa: F401
+from runtime_events import emit_log
 from validators import (  # noqa: F401
     append_quality_warnings,
     sanitize_model_output,
@@ -76,7 +77,7 @@ def _repair_agent_output(agent_num, data, context, rotator, issues):
                 last_result = append_quality_warnings(agent_num, result, data)
                 last_quality_issues = quality_issues
                 current_issues = quality_issues
-                print(f"       ↳ 第 {repair_attempt + 1} 次重寫仍觸發品質紅線，改用紅線重新要求修復。")
+                emit_log(f"       ↳ 第 {repair_attempt + 1} 次重寫仍觸發品質紅線，改用紅線重新要求修復。")
                 continue
             context["analyses"][agent_num] = strip_generated_audit_sections(result)
             _clear_agent_blocking_issues(context, agent_num)
@@ -107,7 +108,7 @@ def attempt_final_audit_repair(context, audit, rotator):
         context.setdefault("audit_repair_log", []).append("最終稽核發現問題，但沒有可定位到單一 Agent 的自動重寫項目；報告會保留並標示異常。")
         return
 
-    print("  🛠️  最終稽核發現異常，嘗試請相關 Agent 自動重寫修復...")
+    emit_log("  🛠️  最終稽核發現異常，嘗試請相關 Agent 自動重寫修復...")
     data = context.get("data", {})
     for agent_num in sorted(repair_requests):
         agent_name = AGENT_NAMES.get(agent_num, f"Agent {agent_num}")
@@ -115,7 +116,7 @@ def attempt_final_audit_repair(context, audit, rotator):
         status = "成功" if ok else "失敗"
         log = f"{agent_name} AI 修復{status}：{message}"
         context.setdefault("audit_repair_log", []).append(log)
-        print(f"     - {log}")
+        emit_log(f"     - {log}")
 
 
 def _summarize_audit_issues(audit, limit: int = 3) -> str:
@@ -139,7 +140,7 @@ def finalize_final_audit(context, rotator, max_repair_passes=FINAL_AUDIT_REPAIR_
             )
             break
 
-        print(f"  🧭 最終稽核第 {repair_pass + 1}/{max_repair_passes} 輪修復，完成後會重新稽核。")
+        emit_log(f"  🧭 最終稽核第 {repair_pass + 1}/{max_repair_passes} 輪修復，完成後會重新稽核。")
         attempt_final_audit_repair(context, last_audit, rotator)
         if not last_audit.get("repair_agent_issues"):
             break

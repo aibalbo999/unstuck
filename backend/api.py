@@ -21,9 +21,9 @@ import threading
 from typing import Optional
 
 from analysis_jobs import run_stock_analysis_job
-from config import ALLOWED_ORIGINS, API_KEY_SETUP_MESSAGE, OUTPUT_DIR, REPORT_CLEANUP_INTERVAL_SECONDS, REPORT_RETENTION_DAYS, TASK_QUEUE_BACKEND, has_api_keys
+from config import ALLOWED_ORIGINS, API_KEY_SETUP_MESSAGE, MUTATION_API_TOKEN, OUTPUT_DIR, REPORT_CLEANUP_INTERVAL_SECONDS, REPORT_RETENTION_DAYS, TASK_QUEUE_BACKEND, has_api_keys
 from data_fetch import FetchRequest, StockDataService
-from data_trust import build_data_snapshot, data_snapshot_filename_for_report
+from data_trust import build_data_snapshot, data_snapshot_filename_for_report, normalize_data_trust
 from job_store import (
     append_event,
     create_job,
@@ -84,6 +84,93 @@ def print_streamed_event(job_id: str, payload: dict) -> None:
     if TASK_QUEUE_BACKEND != "rq":
         return
     emit_log(format_event_log_line(job_id, payload, prefix="stream"))
+
+
+def require_mutation_authorized(request: Request) -> None:
+    token = str(MUTATION_API_TOKEN or "").strip()
+    if not token:
+        return
+    supplied = (
+        request.headers.get("x-admin-token")
+        or request.headers.get("x-mutation-token")
+        or request.query_params.get("admin_token")
+        or request.query_params.get("mutation_token")
+        or ""
+    ).strip()
+    if supplied != token:
+        raise HTTPException(status_code=403, detail="Mutation endpoint requires a valid admin token")
+
+
+def _source_status_map(snapshot: dict) -> dict:
+    status_map = {}
+    entries = snapshot.get("source_audit", []) if isinstance(snapshot, dict) else []
+    if not isinstance(entries, list):
+        return status_map
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        source = str(entry.get("source") or "unknown")
+        provider = str(entry.get("provider") or "unknown")
+        status_map[(source, provider)] = {
+            "source": source,
+            "provider": provider,
+            "status": str(entry.get("status") or "unknown"),
+            "message": str(entry.get("message") or entry.get("error_kind") or "")[:160],
+        }
+    return status_map
+
+
+def _refresh_data_diff(previous_snapshot: dict, refreshed_snapshot: dict) -> dict:
+    before_trust = normalize_data_trust(previous_snapshot.get("data_trust") if isinstance(previous_snapshot, dict) else None)
+    after_trust = normalize_data_trust(refreshed_snapshot.get("data_trust") if isinstance(refreshed_snapshot, dict) else None)
+    before_stale = set(before_trust.get("stale_sources", []) or [])
+    after_stale = set(after_trust.get("stale_sources", []) or [])
+    before_failures = set(before_trust.get("critical_failures", []) or [])
+    after_failures = set(after_trust.get("critical_failures", []) or [])
+    before_status = _source_status_map(previous_snapshot)
+    after_status = _source_status_map(refreshed_snapshot)
+    source_status_changes = []
+    for key in sorted(set(before_status) | set(after_status)):
+        before = before_status.get(key, {"source": key[0], "provider": key[1], "status": "missing", "message": ""})
+        after = after_status.get(key, {"source": key[0], "provider": key[1], "status": "missing", "message": ""})
+        if before["status"] != after["status"]:
+            source_status_changes.append({
+                "source": key[0],
+                "provider": key[1],
+                "before": before["status"],
+                "after": after["status"],
+                "message": after.get("message") or before.get("message") or "",
+            })
+
+    summary = []
+    if before_trust.get("status") != after_trust.get("status"):
+        summary.append(f"可信度 {before_trust.get('status')} → {after_trust.get('status')}")
+    removed_stale = sorted(before_stale - after_stale)
+    added_stale = sorted(after_stale - before_stale)
+    removed_failures = sorted(before_failures - after_failures)
+    added_failures = sorted(after_failures - before_failures)
+    if removed_stale:
+        summary.append("解除過期：" + "、".join(removed_stale[:4]))
+    if added_stale:
+        summary.append("新增過期：" + "、".join(added_stale[:4]))
+    if removed_failures:
+        summary.append("解除核心異常：" + "、".join(removed_failures[:4]))
+    if added_failures:
+        summary.append("新增核心異常：" + "、".join(added_failures[:4]))
+    if not summary:
+        summary.append("資料可信度狀態未變更")
+
+    return {
+        "data_trust_status": {
+            "before": before_trust.get("status"),
+            "after": after_trust.get("status"),
+            "changed": before_trust.get("status") != after_trust.get("status"),
+        },
+        "stale_sources": {"removed": removed_stale, "added": added_stale},
+        "critical_failures": {"removed": removed_failures, "added": added_failures},
+        "source_status_changes": source_status_changes[:20],
+        "summary": summary,
+    }
 
 
 @app.on_event("startup")
@@ -220,8 +307,9 @@ def get_reports(
     }
 
 @app.delete("/api/reports/{filename}")
-def delete_report(filename: str):
+def delete_report(filename: str, request: Request):
     """刪除特定歷史報告"""
+    require_mutation_authorized(request)
     # 簡單防範路徑穿越
     if not is_safe_report_filename(filename, ".html"):
         return {"success": False, "error": "Invalid filename"}
@@ -413,10 +501,12 @@ async def provider_sla_summary(limit: int = Query(100, ge=1, le=1000)):
 
 @app.post("/api/analyze/{ticker}/cancel")
 async def cancel_analysis_job(
+    request: Request,
     ticker: str,
     job_id: str = Query(..., min_length=1),
     pipeline: str = Query("v1", max_length=24),
 ):
+    require_mutation_authorized(request)
     ticker_upper = ticker.strip().upper()
     pipeline_id = normalize_pipeline_run_id(pipeline)
     job = get_job(job_id)
@@ -474,8 +564,9 @@ async def download_data_snapshot(filename: str):
 
 
 @app.post("/api/report/{filename}/refresh/data")
-async def refresh_report_data_snapshot(filename: str):
+async def refresh_report_data_snapshot(filename: str, request: Request):
     """重新抓取報告 ticker 的資料快照，不重跑 Agent 或改寫 HTML/Markdown。"""
+    require_mutation_authorized(request)
     if not is_safe_report_filename(filename, ".html"):
         raise HTTPException(status_code=400, detail="Invalid filename")
     html_path = os.path.join(OUTPUT_DIR, filename)
@@ -513,6 +604,7 @@ async def refresh_report_data_snapshot(filename: str):
         "refreshed_from_report": filename,
     }
     refreshed_snapshot = build_data_snapshot(context, pipeline_id=previous_snapshot.get("pipeline"))
+    refresh_diff = _refresh_data_diff(previous_snapshot, refreshed_snapshot)
 
     with open(data_path, "w", encoding="utf-8") as f:
         json.dump(refreshed_snapshot, f, ensure_ascii=False, indent=2)
@@ -527,5 +619,6 @@ async def refresh_report_data_snapshot(filename: str):
         "data_filename": data_filename,
         "data_trust": refreshed_snapshot.get("data_trust"),
         "source_audit": refreshed_snapshot.get("source_audit", [])[:12],
+        "refresh_diff": refresh_diff,
         "metadata": metadata or {},
     }

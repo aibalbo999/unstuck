@@ -427,6 +427,7 @@ ALLOWED_ORIGINS = _env_list(
         "http://127.0.0.1:5173",
     ],
 )
+MUTATION_API_TOKEN = _env_str("MUTATION_API_TOKEN", _env_str("ADMIN_API_TOKEN", ""))
 
 # 本地持久化快取
 CACHE_DIR = Path(os.getenv("CACHE_DIR", str(BASE_DIR / "cache")))
