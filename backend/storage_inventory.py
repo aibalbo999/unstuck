@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from config import CACHE_DB_PATH, CACHE_DIR, MARKET_CALENDAR_DIR, OUTPUT_DIR, TASK_DB_PATH
+from job_store_maintenance import analysis_history_summary
 from report_index_maintenance import report_index_orphan_summary
 
 
@@ -51,6 +52,7 @@ def build_storage_summary(
                     "schema_migrations",
                 ),
             ),
+            "analysis_history": analysis_history_summary(task_db_path=str(task_db)),
         },
         "market_calendars": {
             "exists": calendar_path.exists(),

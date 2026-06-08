@@ -91,7 +91,11 @@ export GEMINI_API_KEYS="your_key_1,your_key_2"
 - `TASK_QUEUE_NAME`：RQ queue 名稱，預設 `stock-analysis`
 - `TASK_DB_PATH`：任務與 SSE event SQLite 檔位置，預設 `backend/cache/analysis_jobs.sqlite3`
 - `ANALYSIS_JOB_STALE_SECONDS`：queued/running 任務超過此秒數未更新時不再被視為活躍，預設 `21600`
+- `ANALYSIS_JOB_HISTORY_RETENTION_DAYS`：已完成/失敗/取消任務紀錄保留天數，預設 `30`
 - `LLM_AGENT_CALL_TIMEOUT_SECONDS`：單次 Agent LLM 呼叫 timeout 秒數，預設 `120`；會傳入 Google GenAI `HttpOptions.timeout`，非同步路徑另有外層 `asyncio.wait_for` 保護，設為 `0` 可關閉
+- `LLM_SERVER_ERROR_MAX_ATTEMPTS`：模型服務 500/503/忙碌時的持續嘗試次數，預設 `6`
+- `LLM_SERVER_ERROR_RETRY_MAX_WAIT_SECONDS`：模型服務 5xx 重試 backoff 單次等待上限，預設 `45`
+- 429 quota / rate-limit 會至少輪完所有 API key 才判定該模型不可用；任務事件只記錄 `key_slot/key_count`，不保存 key 明文
 - `FMP_API_KEY`：可選，yfinance 缺少即時報價、市值、P/E、52 週高低時，用 FMP stable quote API 補值
 - `FMP_BASE_URL`：FMP API base URL，預設 `https://financialmodelingprep.com/stable`
 
@@ -141,10 +145,12 @@ CI 可用 `RUN_VISUAL_REGRESSION=1 scripts/ci_gate.sh` 一併執行；一般 `py
 scripts/maintenance.sh storage-summary
 scripts/maintenance.sh cleanup-provider-sla
 scripts/maintenance.sh cleanup-report-index --write
+scripts/maintenance.sh cleanup-analysis-history --write
 scripts/maintenance.sh verify-snapshots --write
 ```
 
 `cleanup-report-index` 預設只會 dry-run；加上 `--write` 才會刪除已不存在輸出目錄的報告索引列。
+`cleanup-analysis-history` 預設也只會 dry-run；加上 `--write` 才會刪除過舊且已結束的任務與孤兒事件，queued/running 任務會保留。
 
 ## 啟動方式
 

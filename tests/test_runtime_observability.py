@@ -1,5 +1,6 @@
 import sys
 import subprocess
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,7 @@ sys.path.insert(0, str(ROOT / "backend"))
 import api  # noqa: E402
 import job_observability  # noqa: E402
 import job_store  # noqa: E402
+import job_store_maintenance  # noqa: E402
 import provider_sla  # noqa: E402
 from data_fetch import FetchResult  # noqa: E402
 from data_trust import DATA_SNAPSHOT_SCHEMA_VERSION, unknown_data_trust  # noqa: E402
@@ -155,14 +157,27 @@ def test_active_jobs_observability_summarizes_latest_events(monkeypatch, tmp_pat
             "metadata": {"model_id": "gemma-4-31b-it", "error_category": "timeout"},
         },
     )
+    job_store.append_event(
+        job_id,
+        {
+            "type": "status",
+            "phase": "llm_server_error_retry",
+            "level": "warning",
+            "message": "retry server error",
+            "agent_num": 12,
+            "pipeline_id": "v2",
+            "metadata": {"model_id": "gemma-4-31b-it"},
+        },
+    )
 
     payload = job_observability.build_active_jobs_snapshot(db_path=str(tmp_path / "jobs.sqlite3"))
 
     assert payload["active_count"] == 1
     job = payload["jobs"][0]
     assert job["job_id"] == job_id
-    assert job["last_event"]["phase"] == "llm_model_error"
+    assert job["last_event"]["phase"] == "llm_server_error_retry"
     assert job["llm_error_counts"]["gemma-4-31b-it:timeout"] == 1
+    assert job["llm_retry_counts"]["gemma-4-31b-it"] == 1
 
 
 def test_active_jobs_api(monkeypatch):
@@ -176,6 +191,48 @@ def test_active_jobs_api(monkeypatch):
 
     assert response.status_code == 200
     assert response.json()["active_count"] == 0
+
+
+def test_maintenance_api_summarizes_and_cleans_job_history(monkeypatch):
+    now = 2_000_000.0
+    old = now - 40 * 24 * 60 * 60
+    monkeypatch.setattr(job_store_maintenance.time, "time", lambda: now)
+
+    job_id = job_store.create_job("6282", "both")
+    job_store.update_job(job_id, "done")
+    with sqlite3.connect(job_store.TASK_DB_PATH) as conn:
+        conn.execute("UPDATE analysis_jobs SET created_at = ?, updated_at = ? WHERE job_id = ?", (old, old, job_id))
+        conn.executemany(
+            """
+            INSERT INTO analysis_jobs (job_id, ticker, pipeline_id, status, created_at, updated_at)
+            VALUES (?, '6282', 'both', 'done', ?, ?)
+            """,
+            [(f"old-{index}", old, old) for index in range(20)],
+        )
+        conn.executemany(
+            "INSERT INTO analysis_events (job_id, payload, created_at) VALUES (?, '{}', ?)",
+            [(f"old-{index}", old) for index in range(20)],
+        )
+        conn.execute(
+            "INSERT INTO analysis_events (job_id, payload, created_at) VALUES ('orphan', '{}', ?)",
+            (old,),
+        )
+
+    client = TestClient(api.app)
+    summary_response = client.get("/api/maintenance/storage-summary")
+    cleanup_response = client.post(
+        "/api/maintenance/cleanup-analysis-history",
+        params={"retention_days": 30, "keep_recent_jobs": 0, "write": "true"},
+    )
+
+    assert summary_response.status_code == 200
+    history = summary_response.json()["summary"]["task_db"]["analysis_history"]
+    assert history["stale_terminal_jobs"] == 1
+    assert history["orphan_events"] == 1
+    assert cleanup_response.status_code == 200
+    result = cleanup_response.json()["result"]
+    assert result["deleted_jobs"] == 21
+    assert result["deleted_events"] == 22
 
 
 def test_api_uses_lifespan_and_router_modules():

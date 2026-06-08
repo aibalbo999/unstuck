@@ -63,6 +63,19 @@ def _model_event_fields(context: AnalysisContext, agent_num: int, model_id: str,
     }
 
 
+def _key_slot_fields(rotator: KeyRotator, api_key: str | None) -> dict:
+    keys = list(getattr(rotator, "keys", []) or [])
+    if not keys:
+        return {}
+    fields = {"key_count": len(keys)}
+    if api_key:
+        try:
+            fields["key_slot"] = keys.index(api_key) + 1
+        except ValueError:
+            pass
+    return fields
+
+
 def _run_agent_once(
     agent_num: int,
     context: AnalysisContext,
@@ -95,7 +108,14 @@ def _run_agent_once(
             message=f"Agent {agent_num} 模型 {model_id} 呼叫失敗。",
             level="warning",
             error_category=_agent_error_category(exc),
-            **_model_event_fields(context, agent_num, model_id, prompt, timeout_seconds=timeout_seconds),
+            **_model_event_fields(
+                context,
+                agent_num,
+                model_id,
+                prompt,
+                timeout_seconds=timeout_seconds,
+                **_key_slot_fields(rotator, api_key),
+            ),
         )
         _raise_agent_call_error(exc, api_key, model_id, rotator, quota_default)
 
@@ -107,7 +127,15 @@ def _run_agent_once(
                 phase="llm_model_response",
                 level="info",
                 message=f"Agent {agent_num} 模型 {model_id} 回應完成。",
-                **_model_event_fields(context, agent_num, model_id, prompt, timeout_seconds=timeout_seconds, output_chars=len(result)),
+                **_model_event_fields(
+                    context,
+                    agent_num,
+                    model_id,
+                    prompt,
+                    timeout_seconds=timeout_seconds,
+                    output_chars=len(result),
+                    **_key_slot_fields(rotator, api_key),
+                ),
             ),
         )
         return result
@@ -150,7 +178,14 @@ async def _run_agent_once_async(
             message=f"Agent {agent_num} 模型 {model_id} 呼叫失敗。",
             level="warning",
             error_category=_agent_error_category(exc),
-            **_model_event_fields(context, agent_num, model_id, prompt, timeout_seconds=timeout_seconds),
+            **_model_event_fields(
+                context,
+                agent_num,
+                model_id,
+                prompt,
+                timeout_seconds=timeout_seconds,
+                **_key_slot_fields(rotator, api_key),
+            ),
         )
         _raise_agent_call_error(exc, api_key, model_id, rotator, quota_default)
 
@@ -162,7 +197,15 @@ async def _run_agent_once_async(
                 phase="llm_model_response",
                 level="info",
                 message=f"Agent {agent_num} 模型 {model_id} 回應完成。",
-                **_model_event_fields(context, agent_num, model_id, prompt, timeout_seconds=timeout_seconds, output_chars=len(result)),
+                **_model_event_fields(
+                    context,
+                    agent_num,
+                    model_id,
+                    prompt,
+                    timeout_seconds=timeout_seconds,
+                    output_chars=len(result),
+                    **_key_slot_fields(rotator, api_key),
+                ),
             ),
         )
         return result

@@ -18,10 +18,10 @@ from .llm_calls import (
 from .cancellation import raise_if_cancelled
 from .model_policy import (
     is_model_circuit_open,
+    make_model_retry_stop,
     model_attempt_policy,
     record_model_failure,
     record_model_success,
-    should_stop_retry,
     timeout_for_model_call,
 )
 from .prompting import build_prompt
@@ -97,7 +97,7 @@ def run_single_agent(
         finally:
             context.pop("_primary_probe_prompt", None)
         retryer = Retrying(
-            stop=lambda retry_state: should_stop_retry(retry_state, policy),
+            stop=make_model_retry_stop(policy),
             wait=_agent_retry_wait,
             retry=retry_if_exception_type(AgentRetryableError),
             before_sleep=make_agent_retry_logger(context, agent_num, model_id),
@@ -180,7 +180,7 @@ async def run_single_agent_async(
         finally:
             context.pop("_primary_probe_prompt", None)
         retryer = AsyncRetrying(
-            stop=lambda retry_state: should_stop_retry(retry_state, policy),
+            stop=make_model_retry_stop(policy),
             wait=_agent_retry_wait,
             retry=retry_if_exception_type(AgentRetryableError),
             before_sleep=make_agent_retry_logger(context, agent_num, model_id),

@@ -27,6 +27,7 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     app_js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
     provider_sla_js = (STATIC_DIR / "provider_sla_panel.js").read_text(encoding="utf-8")
     active_jobs_js = (STATIC_DIR / "active_jobs_panel.js").read_text(encoding="utf-8")
+    maintenance_js = (STATIC_DIR / "maintenance_panel.js").read_text(encoding="utf-8")
     report_rerun_js = (STATIC_DIR / "report_rerun.js").read_text(encoding="utf-8")
     analysis_stream_js = (STATIC_DIR / "analysis_stream.js").read_text(encoding="utf-8")
     history_workspace_js = (STATIC_DIR / "history_workspace.js").read_text(encoding="utf-8")
@@ -39,6 +40,9 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "全系統資料來源狀態" in index_html
     assert "本報告資料狀態" in index_html
     assert 'id="active-jobs-panel"' in index_html
+    assert 'id="maintenance-panel"' in index_html
+    assert "本機維護" in index_html
+    assert "清理任務紀錄" in index_html
     assert 'id="provider-sla-window"' in index_html
     assert '<option value="last_24h" selected>24 小時</option>' in index_html
     assert 'id="preview-refresh-data-btn"' in index_html
@@ -48,6 +52,7 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert 'id="preview-stale-notice"' in index_html
     assert "/static/provider_sla_panel.js" in index_html
     assert "/static/active_jobs_panel.js" in index_html
+    assert "/static/maintenance_panel.js" in index_html
     assert "/static/report_rerun.js" in index_html
     assert "/static/analysis_stream.js" in index_html
     assert "/static/history_panel.js" in index_html
@@ -86,6 +91,8 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "先使用仍有效的快取" in provider_sla_js
     assert "系統會優先補快取" not in provider_sla_js
     assert "資料取得率" in provider_sla_js
+    assert "來源明細" in provider_sla_js
+    assert "provider-sla-provider-list" in provider_sla_js
     assert "analysis_text_stale" in history_workspace_js
     assert "rerunPreviewReport" in history_workspace_js
     assert "StockAgentReportRerun.rerunPreviewReport" in history_workspace_js
@@ -100,6 +107,10 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "params.set('window'" in api_client_js
     assert "/api/observability/provider-sla" in api_client_js
     assert "/api/observability/active-jobs" in api_client_js
+    assert "/api/maintenance/storage-summary" in api_client_js
+    assert "cleanupAnalysisHistory" in api_client_js
+    assert "StockAgentMaintenancePanel" in maintenance_js
+    assert "maintenance-clean-provider-sla" in maintenance_js
     assert "llm_error_counts" in active_jobs_js
     assert "最近完成任務" in active_jobs_js
     assert "模型重試" in active_jobs_js
@@ -118,14 +129,15 @@ def test_frontend_static_modules_are_sized():
         "history_workspace.js": 260,
         "ui_helpers.js": 140,
         "api_client.js": 80,
-        "provider_sla_panel.js": 160,
+        "provider_sla_panel.js": 210,
+        "maintenance_panel.js": 150,
         "view_controller.js": 40,
         "history_filters.js": 50,
         "report_actions.js": 45,
         "style.css": 40,
         "styles/history_list.css": 320,
         "styles/preview_panel.css": 220,
-        "styles/provider_sla.css": 120,
+        "styles/provider_sla.css": 220,
     }
     for relative_path, limit in size_limits.items():
         path = STATIC_DIR / relative_path

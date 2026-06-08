@@ -76,15 +76,28 @@
                 attempts: 0,
                 healthyCount: 0,
                 totalRecords: 0,
-                providers: [],
+                providerRows: [],
                 messages: []
             };
             const level = providerSlaClass(item.alert_level);
+            const attempts = Number(stats.attempts || 0);
+            const healthyCount = Number(stats.success_count || 0) + Number(stats.skipped_fresh_cache_count || 0);
             if ((LEVEL_WEIGHT[level] || 0) > (LEVEL_WEIGHT[current.level] || 0)) current.level = level;
-            current.attempts += Number(stats.attempts || 0);
-            current.healthyCount += Number(stats.success_count || 0) + Number(stats.skipped_fresh_cache_count || 0);
+            current.attempts += attempts;
+            current.healthyCount += healthyCount;
             current.totalRecords += Number(stats.total_records || 0);
-            if (item.provider) current.providers.push(item.provider);
+            if (item.provider) {
+                current.providerRows.push({
+                    provider: item.provider,
+                    level,
+                    attempts,
+                    healthyCount,
+                    successRate: attempts ? healthyCount / attempts : NaN,
+                    totalRecords: Number(stats.total_records || 0),
+                    lastStatus: item.last_status || '',
+                    lastMessage: item.alert_message || item.last_message || ''
+                });
+            }
             if (item.alert_message || item.last_message) current.messages.push(item.alert_message || item.last_message);
             groups.set(source, current);
         });
@@ -108,6 +121,33 @@
         if (row.level === 'critical') return `${sourceImpact(row.source)}，這次分析可能需要稍後重跑。`;
         if (row.level === 'warning') return `${sourceImpact(row.source)}；近期偶有失敗，分析時會先使用仍有效的快取，必要時嘗試備援來源。`;
         return `${sourceImpact(row.source)}，最近抓取順利。`;
+    }
+
+    function providerStatusLabel(status) {
+        if (status === 'success') return '成功';
+        if (status === 'skipped_fresh_cache') return '有效快取';
+        if (status === 'error') return '失敗';
+        if (status === 'unavailable') return '不可用';
+        return status || '未記錄';
+    }
+
+    function providerDetailsHtml(row, escapeHtml) {
+        const providerRows = (row.providerRows || []).slice().sort((a, b) => {
+            const levelDelta = (LEVEL_WEIGHT[b.level] || 0) - (LEVEL_WEIGHT[a.level] || 0);
+            return levelDelta || Number(b.attempts || 0) - Number(a.attempts || 0);
+        }).slice(0, 4);
+        if (!providerRows.length) return '';
+        return `
+            <span class="provider-sla-provider-list" aria-label="來源明細">
+                <span class="provider-sla-provider-title">來源明細</span>
+                ${providerRows.map(provider => `
+                    <span class="provider-sla-provider is-${provider.level}" title="${escapeHtml(provider.lastMessage || '')}">
+                        <strong>${escapeHtml(provider.provider)}</strong>
+                        <em>${escapeHtml(formatSuccessRate(provider.successRate))} · ${escapeHtml(providerStatusLabel(provider.lastStatus))} · ${escapeHtml(String(provider.attempts || 0))} 次</em>
+                    </span>
+                `).join('')}
+            </span>
+        `;
     }
 
     function render(payload, options) {
@@ -136,6 +176,7 @@
                         </span>
                         <span class="provider-sla-detail">${escapeHtml(insightText(row))}</span>
                         <span class="provider-sla-meta">${escapeHtml(recordsLabel)} · 資料取得率 ${escapeHtml(formatSuccessRate(successRate))} · ${escapeHtml(checksLabel)}</span>
+                        ${providerDetailsHtml(row, escapeHtml)}
                     </span>
                 `;
             }).join('')

@@ -9,12 +9,19 @@ sys.path.insert(0, str(ROOT / "backend"))
 
 from agent_runtime.model_policy import (  # noqa: E402
     is_model_circuit_open,
+    make_model_retry_stop,
     model_attempt_policy,
     record_model_failure,
     should_stop_retry,
     timeout_for_model_call,
 )
-from agent_runtime.retry_policy import AgentRateLimitError, AgentTransientError  # noqa: E402
+from agent_runtime.retry_policy import (  # noqa: E402
+    AgentRateLimitError,
+    AgentServerError,
+    AgentTransientError,
+    _agent_error_category,
+    _raise_agent_call_error,
+)
 
 
 def _retry_state(attempt, exc):
@@ -26,9 +33,80 @@ def test_primary_policy_uses_short_timeout_and_fast_transient_fallback():
 
     assert timeout_for_model_call(model_index=0, has_fallback=True) == 1.0
     assert timeout_for_model_call(model_index=1, has_fallback=False) == 120.0
-    assert should_stop_retry(_retry_state(1, AgentTransientError("500 INTERNAL")), policy) is True
+    assert should_stop_retry(_retry_state(1, AgentTransientError("LLM timeout after 1.0s")), policy) is True
     assert should_stop_retry(_retry_state(1, AgentRateLimitError("429", 1, 60)), policy) is False
-    assert should_stop_retry(_retry_state(2, AgentRateLimitError("429", 1, 60)), policy) is True
+    assert should_stop_retry(_retry_state(2, AgentRateLimitError("429", 1, 60)), policy) is False
+    assert should_stop_retry(_retry_state(6, AgentRateLimitError("429", 1, 60)), policy) is True
+
+
+def test_quota_policy_exhausts_all_keys_before_model_fails():
+    primary_policy = model_attempt_policy(model_index=0, has_fallback=True, max_retries=3, key_count=8)
+    fallback_policy = model_attempt_policy(model_index=1, has_fallback=False, max_retries=3, key_count=8)
+
+    assert primary_policy.quota_attempts == 8
+    assert fallback_policy.quota_attempts == 8
+    assert should_stop_retry(_retry_state(7, AgentRateLimitError("429", 1, 60)), primary_policy) is False
+    assert should_stop_retry(_retry_state(8, AgentRateLimitError("429", 1, 60)), primary_policy) is True
+
+
+def test_stateful_retry_stop_does_not_let_5xx_consume_quota_key_budget():
+    policy = model_attempt_policy(model_index=1, has_fallback=False, max_retries=3, key_count=6)
+    stop = make_model_retry_stop(policy)
+
+    assert stop(_retry_state(1, AgentServerError("503 UNAVAILABLE"))) is False
+    for attempt, key_slot in enumerate([1, 2, 3, 4, 5], start=2):
+        assert stop(_retry_state(attempt, AgentRateLimitError("429", 1, 60, key_slot=key_slot, key_count=6))) is False
+    assert stop(_retry_state(7, AgentRateLimitError("429", 1, 60, key_slot=6, key_count=6))) is True
+
+
+def test_stateful_retry_stop_keeps_trying_when_quota_slots_repeat():
+    policy = model_attempt_policy(model_index=1, has_fallback=False, max_retries=3, key_count=6)
+    stop = make_model_retry_stop(policy)
+
+    for attempt, key_slot in enumerate([1, 2, 3, 4, 5, 1], start=1):
+        assert stop(_retry_state(attempt, AgentRateLimitError("429", 1, 60, key_slot=key_slot, key_count=6))) is False
+    assert stop(_retry_state(7, AgentRateLimitError("429", 1, 60, key_slot=6, key_count=6))) is True
+
+
+def test_server_5xx_policy_keeps_retrying_longer_than_primary_timeout():
+    policy = model_attempt_policy(model_index=0, has_fallback=True, max_retries=3, key_count=6)
+
+    assert should_stop_retry(_retry_state(1, AgentServerError("503 UNAVAILABLE")), policy) is False
+    assert should_stop_retry(_retry_state(5, AgentServerError("500 INTERNAL")), policy) is False
+    assert should_stop_retry(_retry_state(6, AgentServerError("500 INTERNAL")), policy) is True
+
+
+def test_503_is_classified_as_server_error_not_plain_transient():
+    class FakeRotator:
+        keys = ["k1"]
+
+        def penalize(self, *_args, **_kwargs):
+            raise AssertionError("5xx should not penalize API key as quota")
+
+    try:
+        _raise_agent_call_error(RuntimeError("503 UNAVAILABLE high demand"), None, "model", FakeRotator(), 1)
+    except AgentServerError:
+        pass
+    else:
+        raise AssertionError("503 should become AgentServerError")
+
+    assert _agent_error_category(RuntimeError("503 UNAVAILABLE high demand")) == "server_5xx"
+
+
+def test_rate_limit_error_records_key_slot_metadata():
+    class FakeRotator:
+        keys = ["key-a", "key-b", "key-c"]
+
+        def penalize(self, *_args, **_kwargs):
+            pass
+
+    try:
+        _raise_agent_call_error(RuntimeError("429 RESOURCE_EXHAUSTED"), "key-b", "model", FakeRotator(), 1)
+    except AgentRateLimitError as exc:
+        assert exc.key_slot == 2
+        assert exc.key_count == 3
+    else:
+        raise AssertionError("429 should become AgentRateLimitError")
 
 
 def test_model_circuit_opens_after_repeated_failures():

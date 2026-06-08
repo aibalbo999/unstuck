@@ -250,7 +250,7 @@ def test_fake_provider_job_generates_report_snapshot_visible_in_history(tmp_path
 def test_static_css_modules_keep_expected_component_selectors():
     selectors = {
         STATIC_DIR / "styles" / "history_list.css": [".history-item", ".history-pagination", ".data-trust-badge", ".data-trust-reason"],
-        STATIC_DIR / "styles" / "provider_sla.css": [".provider-sla-panel", ".provider-sla-chip"],
+        STATIC_DIR / "styles" / "provider_sla.css": [".provider-sla-panel", ".provider-sla-chip", ".maintenance-actions"],
         STATIC_DIR / "styles" / "preview_panel.css": [".report-preview", ".preview-open-button"],
     }
     for path, expected in selectors.items():

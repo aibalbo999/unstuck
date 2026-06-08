@@ -19,6 +19,28 @@
         return jsonRequest(`/api/observability/active-jobs?${params.toString()}`);
     }
 
+    async function fetchMaintenanceSummary() {
+        return jsonRequest('/api/maintenance/storage-summary');
+    }
+
+    async function cleanupReportIndex() {
+        return jsonRequest('/api/maintenance/cleanup-report-index?write=true', { method: 'POST' });
+    }
+
+    async function cleanupAnalysisHistory({ retentionDays = 30, keepRecentJobs = 20 } = {}) {
+        const params = new URLSearchParams({
+            write: 'true',
+            retention_days: String(retentionDays),
+            keep_recent_jobs: String(keepRecentJobs)
+        });
+        return jsonRequest(`/api/maintenance/cleanup-analysis-history?${params.toString()}`, { method: 'POST' });
+    }
+
+    async function cleanupProviderSla({ retentionDays = 90 } = {}) {
+        const params = new URLSearchParams({ retention_days: String(retentionDays) });
+        return jsonRequest(`/api/maintenance/cleanup-provider-sla?${params.toString()}`, { method: 'POST' });
+    }
+
     async function fetchReports({ page, limit, query, pipeline, recommendation, dataTrust, includeVersions }) {
         const params = new URLSearchParams({
             page: String(page),
@@ -43,6 +65,10 @@
     window.StockAgentApiClient = {
         fetchProviderSla,
         fetchActiveJobs,
+        fetchMaintenanceSummary,
+        cleanupReportIndex,
+        cleanupAnalysisHistory,
+        cleanupProviderSla,
         fetchReports,
         refreshReportDataSnapshot,
         deleteReport

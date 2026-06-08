@@ -10,6 +10,7 @@ sys.path.insert(0, str(ROOT / "backend"))
 import provider_sla  # noqa: E402
 import provider_sla_maintenance  # noqa: E402
 import report_index_maintenance  # noqa: E402
+import job_store_maintenance  # noqa: E402
 from data_trust_snapshot import build_data_snapshot  # noqa: E402
 from market_calendar_store import update_market_calendars  # noqa: E402
 from snapshot_maintenance import verify_snapshots  # noqa: E402
@@ -88,6 +89,81 @@ def test_cleanup_report_index_orphans_requires_write(tmp_path):
     assert cleaned["orphan_rows"] == 0
 
 
+def test_cleanup_analysis_history_keeps_recent_and_active_jobs(monkeypatch, tmp_path):
+    task_db = tmp_path / "jobs.sqlite3"
+    now = 2_000_000.0
+    old = now - 40 * 24 * 60 * 60
+    with sqlite3.connect(task_db) as conn:
+        conn.execute(
+            """
+            CREATE TABLE analysis_jobs (
+                job_id TEXT PRIMARY KEY,
+                ticker TEXT NOT NULL,
+                pipeline_id TEXT NOT NULL,
+                status TEXT NOT NULL,
+                created_at REAL NOT NULL,
+                updated_at REAL NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE analysis_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                job_id TEXT NOT NULL,
+                payload TEXT NOT NULL,
+                created_at REAL NOT NULL
+            )
+            """
+        )
+        conn.executemany(
+            """
+            INSERT INTO analysis_jobs (job_id, ticker, pipeline_id, status, created_at, updated_at)
+            VALUES (?, '6282', 'both', ?, ?, ?)
+            """,
+            [
+                ("old-done", "done", old, old),
+                ("recent-done", "done", now - 10, now - 10),
+                ("running-old", "running", old, old),
+            ],
+        )
+        conn.executemany(
+            "INSERT INTO analysis_events (job_id, payload, created_at) VALUES (?, '{}', ?)",
+            [
+                ("old-done", old),
+                ("recent-done", now - 10),
+                ("running-old", old),
+                ("orphan", old),
+            ],
+        )
+
+    monkeypatch.setattr(job_store_maintenance.time, "time", lambda: now)
+    dry_run = job_store_maintenance.cleanup_analysis_history(
+        task_db_path=str(task_db),
+        retention_days=30,
+        keep_recent_jobs=1,
+        write=False,
+    )
+    cleaned = job_store_maintenance.cleanup_analysis_history(
+        task_db_path=str(task_db),
+        retention_days=30,
+        keep_recent_jobs=1,
+        write=True,
+    )
+
+    with sqlite3.connect(task_db) as conn:
+        remaining_jobs = [row[0] for row in conn.execute("SELECT job_id FROM analysis_jobs ORDER BY job_id")]
+        remaining_events = [row[0] for row in conn.execute("SELECT job_id FROM analysis_events ORDER BY job_id")]
+
+    assert dry_run["dry_run"] is True
+    assert dry_run["stale_terminal_jobs"] == 1
+    assert dry_run["orphan_events"] == 1
+    assert cleaned["deleted_jobs"] == 1
+    assert cleaned["deleted_events"] == 2
+    assert remaining_jobs == ["recent-done", "running-old"]
+    assert remaining_events == ["recent-done", "running-old"]
+
+
 def test_maintenance_wrapper_sets_backend_pythonpath():
     script = ROOT / "scripts" / "maintenance.sh"
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
@@ -96,3 +172,4 @@ def test_maintenance_wrapper_sets_backend_pythonpath():
     assert "PYTHONPATH=backend" in script.read_text(encoding="utf-8")
     assert "scripts/maintenance.sh storage-summary" in readme
     assert "cleanup-report-index --write" in readme
+    assert "cleanup-analysis-history --write" in readme

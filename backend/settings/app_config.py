@@ -26,6 +26,8 @@ def validate_runtime_settings() -> list[str]:
         warnings.append("FALLBACK_LLM_AGENT_CALL_TIMEOUT_SECONDS 不可為負數。")
     if PRIMARY_MODEL_TRANSIENT_MAX_ATTEMPTS <= 0 or PRIMARY_MODEL_QUOTA_MAX_ATTEMPTS <= 0:
         warnings.append("PRIMARY_MODEL_*_MAX_ATTEMPTS 必須大於 0。")
+    if LLM_SERVER_ERROR_MAX_ATTEMPTS <= 0 or LLM_SERVER_ERROR_RETRY_MAX_WAIT_SECONDS <= 0:
+        warnings.append("LLM_SERVER_ERROR_* 必須大於 0。")
     if LLM_MODEL_CIRCUIT_THRESHOLD <= 0 or LLM_MODEL_CIRCUIT_COOLDOWN_SECONDS <= 0:
         warnings.append("LLM_MODEL_CIRCUIT_* 必須大於 0。")
     if not ALLOWED_ORIGINS:

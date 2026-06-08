@@ -72,7 +72,7 @@ def _job_snapshot(conn: sqlite3.Connection, job: dict, event_limit: int) -> dict
         model_id = metadata.get("model_id") or "unknown"
         if event.get("phase") == "llm_model_error":
             llm_errors[(model_id, metadata.get("error_category") or "unknown")] += 1
-        if event.get("phase") in {"llm_transient_retry", "llm_rate_limit_retry"}:
+        if event.get("phase") in {"llm_transient_retry", "llm_rate_limit_retry", "llm_server_error_retry"}:
             llm_retries[model_id] += 1
         if event.get("phase") == "llm_model_call":
             model_calls[model_id] += 1

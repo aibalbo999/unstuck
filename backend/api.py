@@ -15,6 +15,7 @@ import report_rerun_service
 from agent_runtime import AnalysisPipelineRunner
 from analysis_jobs import run_stock_analysis_job
 from api_routes.analysis import AnalysisRouteDeps, create_analysis_router
+from api_routes.maintenance import MaintenanceRouteDeps, create_maintenance_router
 from api_routes.observability import ObservabilityRouteDeps, create_observability_router
 from api_routes.reports import ReportRouteDeps, create_reports_router
 from api_routes.static_files import create_static_router
@@ -40,6 +41,7 @@ from job_store import (
     request_job_cancel,
     update_job,
 )
+from job_store_maintenance import cleanup_analysis_history
 from pipeline_modes import (
     get_pipeline_run_agent_total,
     get_pipeline_run_label,
@@ -47,10 +49,13 @@ from pipeline_modes import (
     normalize_pipeline_run_id,
 )
 from provider_sla import get_provider_sla_alerts, get_provider_sla_summary
+from provider_sla_maintenance import cleanup_provider_sla_events
 from report_rerun_jobs import run_report_rerun_job
+from report_index_maintenance import cleanup_report_index_orphans
 from reporting import ReportRenderer
 from runtime_events import emit_log, format_event_log_line
 from settings import validate_runtime_settings
+from storage_inventory import build_storage_summary
 from task_queue import create_task_queue
 
 
@@ -186,6 +191,13 @@ def create_app() -> FastAPI:
     app.include_router(create_observability_router(ObservabilityRouteDeps(
         get_provider_sla_summary=lambda limit: get_provider_sla_summary(limit),
         get_provider_sla_alerts=lambda limit: get_provider_sla_alerts(limit),
+    )))
+    app.include_router(create_maintenance_router(MaintenanceRouteDeps(
+        require_mutation_authorized=require_mutation_authorized,
+        build_storage_summary=build_storage_summary,
+        cleanup_report_index_orphans=cleanup_report_index_orphans,
+        cleanup_provider_sla_events=cleanup_provider_sla_events,
+        cleanup_analysis_history=cleanup_analysis_history,
     )))
     app.include_router(create_analysis_router(AnalysisRouteDeps(
         active_analyses_lock=active_analyses_lock,

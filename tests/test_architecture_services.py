@@ -193,6 +193,75 @@ def test_single_agent_async_uses_short_primary_timeout_before_fallback(monkeypat
     assert calls == [("primary-model", 1.0), ("fallback-model", 120.0)]
 
 
+def test_single_agent_async_retries_primary_5xx_before_fallback(monkeypatch):
+    import agent_runtime.single_agent as single_agent_module
+    from agent_runtime.retry_policy import AgentServerError
+
+    calls = []
+
+    async def fake_run_once(agent_num, context, rotator, model_id, prompt, quota_default=1, timeout_seconds=None):
+        calls.append((model_id, timeout_seconds))
+        if len(calls) < 3:
+            raise AgentServerError("503 UNAVAILABLE high demand")
+        return "primary recovered result " * 20
+
+    monkeypatch.setattr(single_agent_module, "build_prompt", lambda *_args, **_kwargs: "prompt")
+    monkeypatch.setattr(single_agent_module, "get_runtime_model_sequence", lambda *_args, **_kwargs: ["primary-model", "fallback-model"])
+    monkeypatch.setattr(single_agent_module, "_agent_retry_wait", lambda _retry_state: 0)
+    monkeypatch.setattr(single_agent_module, "_run_agent_once_async", fake_run_once)
+
+    result = asyncio.run(
+        single_agent_module.run_single_agent_async(
+            7,
+            {"ticker": "AAPL", "company_name": "Apple"},
+            {"structured_outputs": {}},
+            object(),
+        )
+    )
+
+    assert "primary recovered result" in result
+    assert calls == [("primary-model", 1.0), ("primary-model", 1.0), ("primary-model", 1.0)]
+
+
+def test_single_agent_async_exhausts_quota_across_all_keys_before_fallback(monkeypatch):
+    import agent_runtime.single_agent as single_agent_module
+    from agent_runtime.retry_policy import AgentRateLimitError
+
+    class FakeRotator:
+        keys = ["k1", "k2", "k3", "k4"]
+
+    calls = []
+
+    async def fake_run_once(agent_num, context, rotator, model_id, prompt, quota_default=1, timeout_seconds=None):
+        calls.append((model_id, timeout_seconds))
+        if model_id == "primary-model":
+            raise AgentRateLimitError("429", 0, 60)
+        return "fallback result " * 20
+
+    monkeypatch.setattr(single_agent_module, "build_prompt", lambda *_args, **_kwargs: "prompt")
+    monkeypatch.setattr(single_agent_module, "get_runtime_model_sequence", lambda *_args, **_kwargs: ["primary-model", "fallback-model"])
+    monkeypatch.setattr(single_agent_module, "_agent_retry_wait", lambda _retry_state: 0)
+    monkeypatch.setattr(single_agent_module, "_run_agent_once_async", fake_run_once)
+
+    result = asyncio.run(
+        single_agent_module.run_single_agent_async(
+            7,
+            {"ticker": "AAPL", "company_name": "Apple"},
+            {"structured_outputs": {}},
+            FakeRotator(),
+        )
+    )
+
+    assert "fallback result" in result
+    assert calls == [
+        ("primary-model", 1.0),
+        ("primary-model", 1.0),
+        ("primary-model", 1.0),
+        ("primary-model", 1.0),
+        ("fallback-model", 120.0),
+    ]
+
+
 def test_llm_async_call_timeout_becomes_retryable(monkeypatch):
     import agent_runtime.llm_calls as llm_calls
 
@@ -241,6 +310,8 @@ def test_llm_sync_call_records_timeout_metadata_without_name_error(monkeypatch):
     import agent_runtime.llm_calls as llm_calls
 
     class FakeRotator:
+        keys = ["fake-key", "backup-key"]
+
         def get_key(self, model_id, estimated_tokens=0):
             return "fake-key"
 
@@ -268,6 +339,8 @@ def test_llm_sync_call_records_timeout_metadata_without_name_error(monkeypatch):
 
     assert "sync result" in result
     assert context["_runtime_events"][0]["metadata"]["timeout_seconds"] == 1.0
+    assert context["_runtime_events"][-1]["metadata"]["key_slot"] == 1
+    assert context["_runtime_events"][-1]["metadata"]["key_count"] == 2
     assert context["_runtime_events"][-1]["metadata"]["output_chars"] == len(result)
 
 
