@@ -133,6 +133,19 @@ scripts/visual_regression.sh
 
 CI 可用 `RUN_VISUAL_REGRESSION=1 scripts/ci_gate.sh` 一併執行；一般 `pytest` 仍會在 Playwright 不可用時 skip。
 
+## 維護工具
+
+本機維護命令請透過 wrapper 執行，腳本會自動套用專案 Python 與 `PYTHONPATH`：
+
+```bash
+scripts/maintenance.sh storage-summary
+scripts/maintenance.sh cleanup-provider-sla
+scripts/maintenance.sh cleanup-report-index --write
+scripts/maintenance.sh verify-snapshots --write
+```
+
+`cleanup-report-index` 預設只會 dry-run；加上 `--write` 才會刪除已不存在輸出目錄的報告索引列。
+
 ## 啟動方式
 
 ### macOS 一鍵啟動

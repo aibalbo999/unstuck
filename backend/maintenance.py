@@ -8,6 +8,7 @@ import json
 from storage.legacy_reports import migrate_legacy_reports
 from market_calendar_store import update_market_calendars
 from provider_sla_maintenance import cleanup_provider_sla_events
+from report_index_maintenance import cleanup_report_index_orphans
 from snapshot_maintenance import verify_snapshots
 from storage_inventory import build_storage_summary, clear_runtime_storage
 
@@ -29,6 +30,9 @@ def main() -> int:
     snapshot_parser.add_argument("--write", action="store_true")
     sla_parser = subparsers.add_parser("cleanup-provider-sla")
     sla_parser.add_argument("--retention-days", type=int, default=None)
+    report_index_parser = subparsers.add_parser("cleanup-report-index")
+    report_index_parser.add_argument("--cache-db-path", default=None)
+    report_index_parser.add_argument("--write", action="store_true")
     storage_parser = subparsers.add_parser("storage-summary")
     storage_parser.add_argument("--output-dir", default=None)
     storage_parser.add_argument("--cache-dir", default=None)
@@ -63,6 +67,10 @@ def main() -> int:
         return 0
     if args.command == "cleanup-provider-sla":
         result = cleanup_provider_sla_events(retention_days=args.retention_days)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
+    if args.command == "cleanup-report-index":
+        result = cleanup_report_index_orphans(cache_db_path=args.cache_db_path, write=args.write)
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
     if args.command == "storage-summary":

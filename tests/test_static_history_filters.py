@@ -82,6 +82,9 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "可安心使用" in provider_sla_js
     assert "provider-sla-insight" in provider_sla_js
     assert "正式分析流程" in provider_sla_js
+    assert "有效快取或備援來源" in provider_sla_js
+    assert "先使用仍有效的快取" in provider_sla_js
+    assert "系統會優先補快取" not in provider_sla_js
     assert "資料取得率" in provider_sla_js
     assert "analysis_text_stale" in history_workspace_js
     assert "rerunPreviewReport" in history_workspace_js
@@ -98,6 +101,9 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "/api/observability/provider-sla" in api_client_js
     assert "/api/observability/active-jobs" in api_client_js
     assert "llm_error_counts" in active_jobs_js
+    assert "最近完成任務" in active_jobs_js
+    assert "模型重試" in active_jobs_js
+    assert "模型錯誤" in active_jobs_js
     assert "renderPipelineModeBadge" in ui_helpers_js
     assert "renderDataTrustReason" in ui_helpers_js
     assert "data-trust-reason" in ui_helpers_js

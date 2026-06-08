@@ -164,6 +164,35 @@ def test_single_agent_async_honors_context_cancel_check(monkeypatch):
         raise AssertionError("cancel check should abort single-agent execution")
 
 
+def test_single_agent_async_uses_short_primary_timeout_before_fallback(monkeypatch):
+    import agent_runtime.single_agent as single_agent_module
+    from agent_runtime.retry_policy import AgentTransientError
+
+    calls = []
+
+    async def fake_run_once(agent_num, context, rotator, model_id, prompt, quota_default=1, timeout_seconds=None):
+        calls.append((model_id, timeout_seconds))
+        if model_id == "primary-model":
+            raise AgentTransientError("primary timeout")
+        return "fallback result " * 20
+
+    monkeypatch.setattr(single_agent_module, "build_prompt", lambda *_args, **_kwargs: "prompt")
+    monkeypatch.setattr(single_agent_module, "get_runtime_model_sequence", lambda *_args, **_kwargs: ["primary-model", "fallback-model"])
+    monkeypatch.setattr(single_agent_module, "_run_agent_once_async", fake_run_once)
+
+    result = asyncio.run(
+        single_agent_module.run_single_agent_async(
+            7,
+            {"ticker": "AAPL", "company_name": "Apple"},
+            {"structured_outputs": {}},
+            object(),
+        )
+    )
+
+    assert "fallback result" in result
+    assert calls == [("primary-model", 1.0), ("fallback-model", 120.0)]
+
+
 def test_llm_async_call_timeout_becomes_retryable(monkeypatch):
     import agent_runtime.llm_calls as llm_calls
 
@@ -181,26 +210,65 @@ def test_llm_async_call_timeout_becomes_retryable(monkeypatch):
     monkeypatch.setattr(llm_calls, "LLM_AGENT_CALL_TIMEOUT_SECONDS", 0.001)
     monkeypatch.setattr(llm_calls, "_generate_content_async", slow_generate)
 
+    context = {
+        "agent_positions": {7: 1},
+        "agent_total": 1,
+        "pipeline_id": "v1",
+        "pipeline_label": "test",
+        "structured_outputs": {},
+    }
+
     try:
         asyncio.run(
             llm_calls._run_agent_once_async(
                 7,
-                {
-                    "agent_positions": {7: 1},
-                    "agent_total": 1,
-                    "pipeline_id": "v1",
-                    "pipeline_label": "test",
-                    "structured_outputs": {},
-                },
+                context,
                 FakeRotator(),
                 "fake-model",
                 "prompt",
+                timeout_seconds=0.001,
             )
         )
     except llm_calls.AgentTransientError as exc:
         assert "timeout" in str(exc).lower()
+        error_event = context["_runtime_events"][-1]
+        assert error_event["metadata"]["timeout_seconds"] == 0.001
     else:
         raise AssertionError("LLM timeout should become AgentTransientError")
+
+
+def test_llm_sync_call_records_timeout_metadata_without_name_error(monkeypatch):
+    import agent_runtime.llm_calls as llm_calls
+
+    class FakeRotator:
+        def get_key(self, model_id, estimated_tokens=0):
+            return "fake-key"
+
+        def penalize(self, *_args, **_kwargs):
+            pass
+
+    monkeypatch.setattr(llm_calls, "_generate_content", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(llm_calls, "_response_text", lambda _response: "sync result " * 20)
+
+    context = {
+        "agent_positions": {7: 1},
+        "agent_total": 1,
+        "pipeline_id": "v1",
+        "pipeline_label": "test",
+        "structured_outputs": {},
+    }
+    result = llm_calls._run_agent_once(
+        7,
+        context,
+        FakeRotator(),
+        "fake-model",
+        "prompt",
+        timeout_seconds=1.0,
+    )
+
+    assert "sync result" in result
+    assert context["_runtime_events"][0]["metadata"]["timeout_seconds"] == 1.0
+    assert context["_runtime_events"][-1]["metadata"]["output_chars"] == len(result)
 
 
 def test_genai_client_receives_request_timeout(monkeypatch):

@@ -70,6 +70,7 @@ def _run_agent_once(
     model_id: str,
     prompt: str,
     quota_default: float = 65,
+    timeout_seconds: float | None = None,
 ) -> str:
     api_key = None
     try:
@@ -131,7 +132,7 @@ async def _run_agent_once_async(
                 phase="llm_model_call",
                 level="info",
                 message=f"Agent {agent_num} 正在呼叫模型 {model_id}...",
-                **_model_event_fields(context, agent_num, model_id, prompt),
+                **_model_event_fields(context, agent_num, model_id, prompt, timeout_seconds=timeout_seconds),
             ),
         )
         api_key = await rotator.async_get_key(model_id, estimate_text_tokens(prompt, response_budget=8192))
@@ -149,7 +150,7 @@ async def _run_agent_once_async(
             message=f"Agent {agent_num} 模型 {model_id} 呼叫失敗。",
             level="warning",
             error_category=_agent_error_category(exc),
-            **_model_event_fields(context, agent_num, model_id, prompt),
+            **_model_event_fields(context, agent_num, model_id, prompt, timeout_seconds=timeout_seconds),
         )
         _raise_agent_call_error(exc, api_key, model_id, rotator, quota_default)
 
@@ -161,7 +162,7 @@ async def _run_agent_once_async(
                 phase="llm_model_response",
                 level="info",
                 message=f"Agent {agent_num} 模型 {model_id} 回應完成。",
-                **_model_event_fields(context, agent_num, model_id, prompt, output_chars=len(result)),
+                **_model_event_fields(context, agent_num, model_id, prompt, timeout_seconds=timeout_seconds, output_chars=len(result)),
             ),
         )
         return result

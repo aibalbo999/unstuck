@@ -89,6 +89,7 @@ def run_single_agent(
             continue
 
         has_fallback = len(model_sequence) > model_index + 1
+        timeout_seconds = timeout_for_model_call(model_index, has_fallback)
         policy = model_attempt_policy(model_index, has_fallback, max_retries, len(getattr(rotator, "keys", []) or []))
         try:
             context["_primary_probe_prompt"] = model_index == 0 and has_fallback
@@ -106,7 +107,14 @@ def run_single_agent(
             for attempt in retryer:
                 raise_if_cancelled(context)
                 with attempt:
-                    result = _run_agent_once(agent_num, context, rotator, model_id, prompt)
+                    result = _run_agent_once(
+                        agent_num,
+                        context,
+                        rotator,
+                        model_id,
+                        prompt,
+                        timeout_seconds=timeout_seconds,
+                    )
                     record_model_success(context, model_id)
                     return result
         except AgentMissingModelError as exc:

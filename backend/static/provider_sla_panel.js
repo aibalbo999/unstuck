@@ -12,8 +12,8 @@
     const SOURCE_IMPACT = {
         market_data: '影響目前股價、估值與報告起點',
         financial_statements: '影響營收、獲利與財務比率',
-        recent_catalysts: '影響近期題材與風險事件',
-        peer_discovery: '影響同業比較與估值參照',
+        recent_catalysts: '補充資料，影響近期題材與風險事件',
+        peer_discovery: '補充資料，影響同業比較與估值參照',
         monthly_revenue: '影響台股月營收判讀',
         institutional_trading: '影響法人籌碼判讀',
         dynamic_peer_metrics: '影響同業財務與估值指標',
@@ -99,14 +99,14 @@
         const critical = rows.filter(row => row.level === 'critical').length;
         const warning = rows.filter(row => row.level === 'warning').length;
         if (critical) return `正式分析流程 · ${windowLabel} · ${critical} 類資料可能影響分析，建議稍後重試`;
-        if (warning) return `正式分析流程 · ${windowLabel} · ${warning} 類資料較不穩，系統會改用快取或備援`;
+        if (warning) return `正式分析流程 · ${windowLabel} · ${warning} 類資料近期不穩，分析時會使用有效快取或備援來源`;
         return `正式分析流程 · ${windowLabel} · 資料抓取穩定，可放心分析`;
     }
 
     function insightText(row) {
         if (!row.attempts) return '這段時間還沒有用到這類資料。';
         if (row.level === 'critical') return `${sourceImpact(row.source)}，這次分析可能需要稍後重跑。`;
-        if (row.level === 'warning') return `${sourceImpact(row.source)}；系統會優先補快取或其他來源。`;
+        if (row.level === 'warning') return `${sourceImpact(row.source)}；近期偶有失敗，分析時會先使用仍有效的快取，必要時嘗試備援來源。`;
         return `${sourceImpact(row.source)}，最近抓取順利。`;
     }
 

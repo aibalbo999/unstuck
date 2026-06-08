@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from config import CACHE_DB_PATH, CACHE_DIR, MARKET_CALENDAR_DIR, OUTPUT_DIR, TASK_DB_PATH
+from report_index_maintenance import report_index_orphan_summary
 
 
 def build_storage_summary(
@@ -36,6 +37,7 @@ def build_storage_summary(
         "cache_db": {
             "exists": cache_db.exists(),
             "tables": _sqlite_table_counts(cache_db, ("cache_entries", "reports", "schema_migrations")),
+            "report_index_orphans": report_index_orphan_summary(str(cache_db)),
         },
         "task_db": {
             "exists": task_db.exists(),
