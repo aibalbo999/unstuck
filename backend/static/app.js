@@ -213,6 +213,7 @@ document.addEventListener('DOMContentLoaded', () => {
         dataBtn: downloadDataBtn,
         getFilename: () => currentReportFilename
     });
+    window.StockAgentReportNavigation.bind(reportIframe);
 
     loadHistory();
     loadProviderSla();

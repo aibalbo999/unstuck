@@ -1,18 +1,50 @@
-    // ─── 導航高亮 ────────────────────────────────────────────
-    const sections = document.querySelectorAll('.section[id], #overview');
-    const navItems = document.querySelectorAll('.nav-item');
+    // ─── 側欄導覽與高亮 ──────────────────────────────────────
+    (function () {
+        const sections = Array.from(document.querySelectorAll('#overview, .section[id]'));
+        const navItems = Array.from(document.querySelectorAll('.nav-item'));
+        if (!sections.length || !navItems.length) return;
 
-    const observer = new IntersectionObserver(entries => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                navItems.forEach(item => {
-                    item.classList.remove('active');
-                    if (item.getAttribute('href') === '#' + entry.target.id) {
-                        item.classList.add('active');
-                    }
-                });
+        function scrollBehavior() {
+            return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+        }
+
+        function targetForItem(item, index) {
+            const href = item.getAttribute('href') || '';
+            const id = href.startsWith('#') ? href.slice(1) : '';
+            return (id && document.getElementById(id)) || sections[index] || null;
+        }
+
+        function activate(targetId) {
+            navItems.forEach(item => item.classList.toggle('active', item.dataset.targetId === targetId));
+        }
+
+        navItems.forEach((item, index) => {
+            const target = targetForItem(item, index);
+            if (!target || !target.id) {
+                item.classList.add('is-disabled');
+                item.setAttribute('aria-disabled', 'true');
+                return;
             }
+            item.dataset.targetId = target.id;
+            item.setAttribute('href', `#${target.id}`);
+            item.addEventListener('click', event => {
+                event.preventDefault();
+                target.scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
+                activate(target.id);
+                if (window.history && window.history.pushState) window.history.pushState(null, '', `#${target.id}`);
+            });
         });
-    }, { threshold: 0.3 });
 
-    sections.forEach(s => observer.observe(s));
+        if (!('IntersectionObserver' in window)) {
+            activate(sections[0].id);
+            return;
+        }
+
+        const observer = new IntersectionObserver(entries => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) activate(entry.target.id);
+            });
+        }, { rootMargin: '-15% 0px -60% 0px', threshold: 0.01 });
+
+        sections.forEach(section => observer.observe(section));
+    })();

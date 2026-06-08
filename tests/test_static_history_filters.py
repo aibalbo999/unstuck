@@ -33,6 +33,7 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     history_workspace_js = (STATIC_DIR / "history_workspace.js").read_text(encoding="utf-8")
     history_panel_js = (STATIC_DIR / "history_panel.js").read_text(encoding="utf-8")
     report_preview_js = (STATIC_DIR / "report_preview_panel.js").read_text(encoding="utf-8")
+    report_navigation_js = (STATIC_DIR / "report_navigation.js").read_text(encoding="utf-8")
     api_client_js = (STATIC_DIR / "api_client.js").read_text(encoding="utf-8")
     ui_helpers_js = (STATIC_DIR / "ui_helpers.js").read_text(encoding="utf-8")
 
@@ -60,6 +61,7 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "/static/view_controller.js" in index_html
     assert "/static/history_filters.js" in index_html
     assert "/static/report_actions.js" in index_html
+    assert "/static/report_navigation.js" in index_html
     assert "/static/history_workspace.js" in index_html
     assert "/static/ui_helpers.js" in index_html
     assert "/static/api_client.js" in index_html
@@ -71,6 +73,11 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "StockAgentViewController.create" in app_js
     assert "StockAgentHistoryFilters.create" in history_workspace_js
     assert "StockAgentReportActions.bindDownloads" in app_js
+    assert "StockAgentReportNavigation.bind" in app_js
+    assert "targetForItem" in report_navigation_js
+    assert "scrollIntoView" in report_navigation_js
+    assert "sections[index]" in report_navigation_js
+    assert "ensureLabel" in report_navigation_js
     assert "history-item" in history_panel_js
     assert "preview-date" in report_preview_js
     assert "configureRerunButtons" in report_preview_js
@@ -134,6 +141,7 @@ def test_frontend_static_modules_are_sized():
         "view_controller.js": 40,
         "history_filters.js": 50,
         "report_actions.js": 45,
+        "report_navigation.js": 100,
         "style.css": 40,
         "styles/history_list.css": 320,
         "styles/preview_panel.css": 220,

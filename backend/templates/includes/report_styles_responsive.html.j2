@@ -7,6 +7,11 @@
         .section {
             animation: slideIn 0.5s ease forwards;
         }
+
+        @media (prefers-reduced-motion: reduce) {
+            html { scroll-behavior: auto; }
+            .section { animation: none; }
+        }
         
         /* ─── 響應式 ─── */
         @media (max-width: 1024px) {

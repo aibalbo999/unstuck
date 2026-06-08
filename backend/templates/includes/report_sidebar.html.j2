@@ -13,36 +13,14 @@
         <div class="nav-section-title">分析報告</div>
         <a class="nav-item" href="#overview">
             <span class="nav-num">0</span>
-            概覽總覽
+            <span class="nav-label">概覽總覽</span>
         </a>
-        <a class="nav-item" href="#section-1">
-            <span class="nav-num">1</span>
-            商業模式分析
+        {% for section in agent_sections %}
+        <a class="nav-item" href="#section-{{ section.agent_num }}">
+            <span class="nav-num">{{ section.display_num }}</span>
+            <span class="nav-label">{{ section.title }}</span>
         </a>
-        <a class="nav-item" href="#section-2">
-            <span class="nav-num">2</span>
-            財務數據分析
-        </a>
-        <a class="nav-item" href="#section-3">
-            <span class="nav-num">3</span>
-            競爭護城河
-        </a>
-        <a class="nav-item" href="#section-4">
-            <span class="nav-num">4</span>
-            估值分析
-        </a>
-        <a class="nav-item" href="#section-5">
-            <span class="nav-num">5</span>
-            成長潛力
-        </a>
-        <a class="nav-item" href="#section-6">
-            <span class="nav-num">6</span>
-            多空辯論
-        </a>
-        <a class="nav-item" href="#section-7">
-            <span class="nav-num">7</span>
-            投資決策
-        </a>
+        {% endfor %}
     </div>
     
     <div class="sidebar-footer">

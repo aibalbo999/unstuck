@@ -22,6 +22,10 @@
         }
         
         * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html {
+            scroll-behavior: smooth;
+        }
         
         body {
             font-family: 'Inter', 'Noto Sans TC', -apple-system, sans-serif;
@@ -96,6 +100,7 @@
             align-items: center;
             gap: 8px;
             padding: 9px 16px;
+            min-height: 44px;
             cursor: pointer;
             font-size: 12.5px;
             color: var(--text-secondary);
@@ -108,6 +113,17 @@
             color: var(--text-primary);
             background: rgba(59,130,246,0.1);
             border-left-color: var(--accent-blue);
+        }
+
+        .nav-item:focus-visible {
+            outline: 2px solid var(--accent-cyan);
+            outline-offset: -2px;
+        }
+
+        .nav-item.is-disabled {
+            opacity: 0.45;
+            cursor: default;
+            pointer-events: none;
         }
         
         .nav-item .nav-num {
@@ -122,6 +138,11 @@
             font-weight: 700;
             color: var(--accent-blue);
             flex-shrink: 0;
+        }
+
+        .nav-label {
+            min-width: 0;
+            line-height: 1.35;
         }
         
         .sidebar-footer {
