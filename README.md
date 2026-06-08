@@ -93,6 +93,8 @@ export GEMINI_API_KEYS="your_key_1,your_key_2"
 - `ANALYSIS_JOB_STALE_SECONDS`：queued/running 任務超過此秒數未更新時不再被視為活躍，預設 `21600`
 - `ANALYSIS_JOB_HISTORY_RETENTION_DAYS`：已完成/失敗/取消任務紀錄保留天數，預設 `30`
 - `LLM_AGENT_CALL_TIMEOUT_SECONDS`：單次 Agent LLM 呼叫 timeout 秒數，預設 `120`；會傳入 Google GenAI `HttpOptions.timeout`，非同步路徑另有外層 `asyncio.wait_for` 保護，設為 `0` 可關閉
+- `PRIMARY_LLM_AGENT_CALL_TIMEOUT_SECONDS`：有備援模型時 primary model 單次呼叫 timeout 秒數，預設 `360`，讓 Gemma 等大型 primary 模型有較完整的產出時間
+- `FALLBACK_LLM_AGENT_CALL_TIMEOUT_SECONDS`：備援模型單次呼叫 timeout 秒數，預設沿用 `LLM_AGENT_CALL_TIMEOUT_SECONDS`
 - `LLM_SERVER_ERROR_MAX_ATTEMPTS`：模型服務 500/503/忙碌時的持續嘗試次數，預設 `6`
 - `LLM_SERVER_ERROR_RETRY_MAX_WAIT_SECONDS`：模型服務 5xx 重試 backoff 單次等待上限，預設 `45`
 - 429 quota / rate-limit 會至少輪完所有 API key 才判定該模型不可用；任務事件只記錄 `key_slot/key_count`，不保存 key 明文

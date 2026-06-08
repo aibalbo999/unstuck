@@ -28,12 +28,12 @@ def _retry_state(attempt, exc):
     return SimpleNamespace(attempt_number=attempt, outcome=SimpleNamespace(exception=lambda: exc))
 
 
-def test_primary_policy_uses_short_timeout_and_fast_transient_fallback():
+def test_primary_policy_uses_configured_timeout_and_fast_transient_fallback():
     policy = model_attempt_policy(model_index=0, has_fallback=True, max_retries=3, key_count=6)
 
-    assert timeout_for_model_call(model_index=0, has_fallback=True) == 1.0
+    assert timeout_for_model_call(model_index=0, has_fallback=True) == 360.0
     assert timeout_for_model_call(model_index=1, has_fallback=False) == 120.0
-    assert should_stop_retry(_retry_state(1, AgentTransientError("LLM timeout after 1.0s")), policy) is True
+    assert should_stop_retry(_retry_state(1, AgentTransientError("LLM timeout after 360.0s")), policy) is True
     assert should_stop_retry(_retry_state(1, AgentRateLimitError("429", 1, 60)), policy) is False
     assert should_stop_retry(_retry_state(2, AgentRateLimitError("429", 1, 60)), policy) is False
     assert should_stop_retry(_retry_state(6, AgentRateLimitError("429", 1, 60)), policy) is True

@@ -164,7 +164,7 @@ def test_single_agent_async_honors_context_cancel_check(monkeypatch):
         raise AssertionError("cancel check should abort single-agent execution")
 
 
-def test_single_agent_async_uses_short_primary_timeout_before_fallback(monkeypatch):
+def test_single_agent_async_uses_configured_primary_timeout_before_fallback(monkeypatch):
     import agent_runtime.single_agent as single_agent_module
     from agent_runtime.retry_policy import AgentTransientError
 
@@ -190,7 +190,7 @@ def test_single_agent_async_uses_short_primary_timeout_before_fallback(monkeypat
     )
 
     assert "fallback result" in result
-    assert calls == [("primary-model", 1.0), ("fallback-model", 120.0)]
+    assert calls == [("primary-model", 360.0), ("fallback-model", 120.0)]
 
 
 def test_single_agent_async_retries_primary_5xx_before_fallback(monkeypatch):
@@ -220,7 +220,7 @@ def test_single_agent_async_retries_primary_5xx_before_fallback(monkeypatch):
     )
 
     assert "primary recovered result" in result
-    assert calls == [("primary-model", 1.0), ("primary-model", 1.0), ("primary-model", 1.0)]
+    assert calls == [("primary-model", 360.0), ("primary-model", 360.0), ("primary-model", 360.0)]
 
 
 def test_single_agent_async_exhausts_quota_across_all_keys_before_fallback(monkeypatch):
@@ -254,10 +254,10 @@ def test_single_agent_async_exhausts_quota_across_all_keys_before_fallback(monke
 
     assert "fallback result" in result
     assert calls == [
-        ("primary-model", 1.0),
-        ("primary-model", 1.0),
-        ("primary-model", 1.0),
-        ("primary-model", 1.0),
+        ("primary-model", 360.0),
+        ("primary-model", 360.0),
+        ("primary-model", 360.0),
+        ("primary-model", 360.0),
         ("fallback-model", 120.0),
     ]
 

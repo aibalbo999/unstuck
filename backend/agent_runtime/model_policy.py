@@ -118,7 +118,7 @@ def make_model_retry_stop(policy: ModelAttemptPolicy):
 
 
 def timeout_for_model_call(model_index: int, has_fallback: bool) -> float:
-    """Use the shortest primary timeout when a fallback route exists."""
+    """Use the configured primary timeout before switching to a fallback route."""
     if model_index == 0 and has_fallback:
         return max(1.0, float(PRIMARY_LLM_AGENT_CALL_TIMEOUT_SECONDS or 0))
     return max(0.0, float(FALLBACK_LLM_AGENT_CALL_TIMEOUT_SECONDS or 0))
