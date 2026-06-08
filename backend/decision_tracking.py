@@ -1,0 +1,122 @@
+"""Decision snapshot and performance tracking for generated reports."""
+
+from __future__ import annotations
+
+import json
+import os
+from typing import Optional
+
+from price_parser import extract_price_numbers
+from report_index_parsing import normalize_recommendation_label
+
+
+def parse_optional_price(value) -> Optional[float]:
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return round(float(value), 4)
+    try:
+        numbers = extract_price_numbers(str(value))
+    except (TypeError, ValueError):
+        return None
+    if not numbers:
+        return None
+    return round(float(numbers[0]), 4)
+
+
+def _pct_change(after: Optional[float], before: Optional[float]) -> Optional[float]:
+    if after is None or before is None or before == 0:
+        return None
+    return round((after / before - 1) * 100, 4)
+
+
+def _read_snapshot(path: str) -> dict:
+    if not path or not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            snapshot = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return snapshot if isinstance(snapshot, dict) else {}
+
+
+def _snapshot_current_price(snapshot: dict) -> Optional[float]:
+    data = snapshot.get("data") if isinstance(snapshot.get("data"), dict) else {}
+    return parse_optional_price(data.get("current_price") or data.get("current_price_fmt"))
+
+
+def _price_updated_at(snapshot: dict) -> str:
+    trust = snapshot.get("data_trust") if isinstance(snapshot.get("data_trust"), dict) else {}
+    if trust.get("last_market_data_at"):
+        return str(trust.get("last_market_data_at"))
+    data = snapshot.get("data") if isinstance(snapshot.get("data"), dict) else {}
+    freshness = data.get("source_freshness") if isinstance(data.get("source_freshness"), dict) else {}
+    market = freshness.get("market_data") if isinstance(freshness.get("market_data"), dict) else {}
+    return str(market.get("fetched_at") or snapshot.get("generated_at") or "")
+
+
+def _tracking_status(tracking: dict) -> str:
+    if tracking.get("latest_price") is None or tracking.get("initial_price") is None:
+        return "unavailable"
+    target_12m = tracking.get("target_12m")
+    latest_price = tracking.get("latest_price")
+    recommendation = tracking.get("recommendation")
+    if recommendation == "買入" and target_12m and latest_price >= target_12m:
+        return "target_hit"
+    if recommendation == "避免" and tracking.get("return_pct", 0) < 0:
+        return "avoided_loss"
+    return "tracked"
+
+
+def _target_progress(latest: Optional[float], initial: Optional[float], target: Optional[float]) -> Optional[float]:
+    if latest is None or initial is None or target is None or target == initial:
+        return None
+    return round(((latest - initial) / (target - initial)) * 100, 4)
+
+
+def _summary(tracking: dict) -> str:
+    if tracking.get("status") == "unavailable":
+        return "缺少建議時股價或最新股價，尚無法追蹤績效。"
+    parts = []
+    return_pct = tracking.get("return_pct")
+    if return_pct is not None:
+        sign = "+" if return_pct > 0 else ""
+        parts.append(f"建議後報酬 {sign}{return_pct:.2f}%")
+    gap = tracking.get("target_12m_gap_pct")
+    if gap is not None:
+        sign = "+" if gap > 0 else ""
+        parts.append(f"距 12 個月目標 {sign}{gap:.2f}%")
+    return "；".join(parts) or "已建立決策追蹤。"
+
+
+def build_decision_tracking(recommendation: dict, data_snapshot_path: str = "") -> dict:
+    """Build a compact decision-performance snapshot for list/report APIs."""
+    recommendation = recommendation if isinstance(recommendation, dict) else {}
+    snapshot = _read_snapshot(data_snapshot_path)
+    initial_price = parse_optional_price(recommendation.get("current_price"))
+    latest_price = _snapshot_current_price(snapshot)
+    if latest_price is None:
+        latest_price = initial_price
+    tracking = {
+        "status": "unavailable",
+        "recommendation": normalize_recommendation_label(recommendation.get("recommendation", "")),
+        "initial_price": initial_price,
+        "latest_price": latest_price,
+        "target_3m": parse_optional_price(recommendation.get("target_3m")),
+        "target_6m": parse_optional_price(recommendation.get("target_6m")),
+        "target_12m": parse_optional_price(recommendation.get("target_12m")),
+        "confidence": str(recommendation.get("confidence") or "N/A"),
+        "price_updated_at": _price_updated_at(snapshot),
+        "refreshed_without_analysis_rerun": bool(snapshot.get("refreshed_without_analysis_rerun")),
+    }
+    tracking["return_pct"] = _pct_change(tracking["latest_price"], tracking["initial_price"])
+    tracking["target_12m_gap_pct"] = _pct_change(tracking["target_12m"], tracking["latest_price"])
+    tracking["target_12m_progress_pct"] = _target_progress(
+        tracking["latest_price"],
+        tracking["initial_price"],
+        tracking["target_12m"],
+    )
+    tracking["status"] = _tracking_status(tracking)
+    tracking["summary"] = _summary(tracking)
+    return tracking

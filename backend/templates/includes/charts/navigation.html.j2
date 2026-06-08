@@ -11,7 +11,7 @@
         function targetForItem(item, index) {
             const href = item.getAttribute('href') || '';
             const id = href.startsWith('#') ? href.slice(1) : '';
-            return (id && document.getElementById(id)) || sections[index] || null;
+            return id ? document.getElementById(id) : sections[index] || null;
         }
 
         function activate(targetId) {
@@ -21,6 +21,7 @@
         navItems.forEach((item, index) => {
             const target = targetForItem(item, index);
             if (!target || !target.id) {
+                item.hidden = true;
                 item.classList.add('is-disabled');
                 item.setAttribute('aria-disabled', 'true');
                 return;

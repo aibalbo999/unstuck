@@ -22,7 +22,7 @@ def test_chart_modules_keep_expected_canvas_bindings():
         "financial.html.j2": ["revenueChart", "marginChart", "fcfChart", "roeChart"],
         "moat.html.j2": ["moatChart", "moat-scores-list", "moat-overall-score"],
         "valuation.html.j2": ["valuationChart", "peRiverChart"],
-        "navigation.html.j2": ["scrollIntoView", "targetForItem", "sections[index]", "history.pushState"],
+        "navigation.html.j2": ["scrollIntoView", "targetForItem", "document.getElementById(id)", "history.pushState"],
     }
     for filename, tokens in expected.items():
         text = (TEMPLATE_DIR / "includes" / "charts" / filename).read_text(encoding="utf-8")

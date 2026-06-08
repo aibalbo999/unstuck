@@ -32,6 +32,16 @@ def test_report_lint_blocks_prompt_and_execution_failure_leaks():
         assert_report_lint_passed("<p>ok</p>", "peer_reasoning: leaked JSON key")
 
 
+def test_report_lint_allows_visible_audit_repair_notice():
+    result = assert_report_lint_passed(
+        '<div class="audit-banner">系統異常提醒：本報告已保留供檢視。自動修復失敗：模型修復暫不可用。</div>',
+        "## 系統異常提醒\n\n- 自動修復失敗：模型修復暫不可用。",
+    )
+
+    assert result["status"] == "warning"
+    assert result["blocking_issues"] == []
+
+
 def test_report_renderer_stores_lint_summary_in_snapshot(monkeypatch):
     async def fake_html(_context):
         return "<html><body><h1>乾淨報告</h1></body></html>"

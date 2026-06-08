@@ -6,7 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 from reporting.html_renderer import generate_html_report  # noqa: E402
-from reporting.html_sanitizer import sanitize_report_image_url  # noqa: E402
+from reporting.html_sanitizer import sanitize_report_html, sanitize_report_image_url  # noqa: E402
 from reporting.utils import clean_markdown, format_debate_text  # noqa: E402
 
 
@@ -75,3 +75,11 @@ def test_report_cover_image_url_allowlist():
     assert sanitize_report_image_url(data_url) == data_url
     assert sanitize_report_image_url("https://example.com/cover.jpg") == "https://example.com/cover.jpg"
     assert sanitize_report_image_url("javascript:alert(1)") == ""
+
+
+def test_taiwan_ticker_autolinks_use_real_quote_pages():
+    html = sanitize_report_html("主要競爭對手包括台達電（2308.TW）與 https://example.com")
+
+    assert 'href="https://tw.stock.yahoo.com/quote/2308.TW"' in html
+    assert 'href="http://2308.TW"' not in html
+    assert 'href="https://example.com"' in html

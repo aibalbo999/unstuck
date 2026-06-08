@@ -1,4 +1,24 @@
 (function () {
+    function formatPct(value) {
+        const number = Number(value);
+        if (!Number.isFinite(number)) return 'N/A';
+        return `${number > 0 ? '+' : ''}${number.toFixed(2)}%`;
+    }
+
+    function trackingTone(tracking) {
+        const value = Number(tracking && tracking.return_pct);
+        if (!Number.isFinite(value) || value === 0) return 'is-neutral';
+        if (tracking.status === 'target_hit' || tracking.status === 'avoided_loss') return 'is-positive';
+        if (tracking.recommendation === '避免') return value < 0 ? 'is-positive' : 'is-negative';
+        return value > 0 ? 'is-positive' : 'is-negative';
+    }
+
+    function renderTrackingBadge(tracking, escapeHtml) {
+        if (!tracking || !tracking.status || tracking.status === 'unavailable' || !Number.isFinite(Number(tracking.return_pct))) return '';
+        const title = tracking.summary || '決策追蹤';
+        return `<span class="history-tracking ${trackingTone(tracking)}" title="${escapeHtml(title)}">追蹤 ${escapeHtml(formatPct(tracking.return_pct))}</span>`;
+    }
+
     function create(options) {
         const listEl = options.listEl;
         const paginationEl = options.paginationEl;
@@ -30,6 +50,7 @@
                             <span class="history-rec ${options.recommendationTone(r.recommendation?.recommendation)}">${escapeHtml(options.normalizeRecommendation(r.recommendation?.recommendation))}</span>
                             <span>${escapeHtml(r.recommendation?.target_12m || 'N/A')}</span>
                             <span>${escapeHtml(r.recommendation?.confidence || 'N/A')}</span>
+                            ${renderTrackingBadge(r.decision_tracking, escapeHtml)}
                         </div>
                     </div>
                     <button class="delete-btn" title="刪除報告" data-delete-filename="${escapeHtml(r.filename)}">

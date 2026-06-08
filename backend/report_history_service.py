@@ -11,6 +11,7 @@ from config import REPORT_RETENTION_DAYS
 from data_trust import data_snapshot_filename_for_report
 from report_index import is_safe_report_filename, normalize_recommendation_label, parse_recommendation_summary as parse_report_recommendation_summary
 from report_repository import DEFAULT_REPORT_REPOSITORY, ReportListQuery, ReportRepository
+from report_view_repair import repair_report_html_for_view
 
 
 def parse_recommendation_summary(filename: str, output_dir: str) -> dict:
@@ -194,7 +195,12 @@ def get_report_file(filename: str, output_dir: str):
         return HTMLResponse("<h1>Invalid filename</h1>", status_code=400)
     filepath = os.path.join(output_dir, filename)
     if os.path.exists(filepath):
-        return FileResponse(filepath, media_type="text/html")
+        try:
+            with open(filepath, "r", encoding="utf-8") as report_file:
+                html = repair_report_html_for_view(report_file.read())
+            return HTMLResponse(html, media_type="text/html")
+        except OSError:
+            return HTMLResponse("<h1>找不到報告</h1>", status_code=404)
     return HTMLResponse("<h1>找不到報告</h1>", status_code=404)
 
 

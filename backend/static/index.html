@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=20260607-latest-report-versions">
+    <link rel="stylesheet" href="/static/style.css?v=20260608-history-analysis">
 </head>
 <body>
     <!-- 背景特效 -->
@@ -24,107 +24,54 @@
         <div class="glass-panel text-center">
             <h1 class="gradient-text title">Wall Street AI</h1>
             <p class="subtitle">連續式股票分析 Agent</p>
-            
-            <div class="input-group">
-                <label for="ticker-input">輸入股票代號</label>
-                <input type="text" id="ticker-input" placeholder="例如: 2449.TW 或 AAPL" autocomplete="off" spellcheck="false" />
+
+            <div class="home-tabs" role="tablist" aria-label="首頁頁籤">
+                <button id="home-tab-analysis" class="home-tab-button is-active" type="button" role="tab" aria-selected="true" aria-controls="home-panel-analysis" data-home-tab="analysis">分析</button>
+                <button id="home-tab-ops" class="home-tab-button" type="button" role="tab" aria-selected="false" aria-controls="home-panel-ops" data-home-tab="ops">報告與維運</button>
             </div>
 
-            <div class="pipeline-selector" role="radiogroup" aria-label="選擇分析模式">
-                <label class="pipeline-option">
-                    <input type="radio" name="pipeline-mode" value="v1" checked />
-                    <span>
-                        <strong>模式 A</strong>
-                        <small>學術深度派 · 7 Agent</small>
-                    </span>
-                </label>
-                <label class="pipeline-option">
-                    <input type="radio" name="pipeline-mode" value="v2" />
-                    <span>
-                        <strong>模式 B</strong>
-                        <small>實戰交易派 · 6 Agent</small>
-                    </span>
-                </label>
-                <label class="pipeline-option">
-                    <input type="radio" name="pipeline-mode" value="both" />
-                    <span>
-                        <strong>連續 A+B</strong>
-                        <small>先學術再實戰 · 13 Agent</small>
-                    </span>
-                </label>
-            </div>
-
-            <button id="analyze-btn" class="glow-button">
-                <span>開始深度分析</span>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
-            </button>
-            
-            <!-- 歷史報告區域 -->
-            <div class="history-section">
-                <div class="history-title">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg>
-                    歷史報告
+            <section id="home-panel-analysis" class="home-tab-panel is-active" role="tabpanel" aria-labelledby="home-tab-analysis">
+                <div class="input-group">
+                    <label for="ticker-input">輸入股票代號</label>
+                    <input type="text" id="ticker-input" placeholder="例如: 2449.TW 或 AAPL" autocomplete="off" spellcheck="false" />
                 </div>
-                <section id="provider-sla-panel" class="provider-sla-panel" aria-live="polite">
-                    <div class="provider-sla-header">
-                        <div>
-                            <span class="provider-sla-kicker">全系統資料來源狀態</span>
-                            <strong id="provider-sla-summary">載入中</strong>
-                        </div>
-                        <div class="provider-sla-actions">
-                            <select id="provider-sla-window" class="provider-sla-window" aria-label="全系統資料來源狀態時間範圍">
-                                <option value="all">全部</option>
-                                <option value="last_1h">1 小時</option>
-                                <option value="last_24h" selected>24 小時</option>
-                                <option value="last_7d">7 天</option>
-                            </select>
-                            <button id="provider-sla-refresh" class="icon-button" type="button" aria-label="刷新全系統資料來源狀態">
-                                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M16 8h5V3"/></svg>
-                            </button>
-                        </div>
+
+                <div class="pipeline-selector" role="radiogroup" aria-label="選擇分析模式">
+                    <label class="pipeline-option">
+                        <input type="radio" name="pipeline-mode" value="v1" checked />
+                        <span>
+                            <strong>模式 A</strong>
+                            <small>學術深度派 · 7 Agent</small>
+                        </span>
+                    </label>
+                    <label class="pipeline-option">
+                        <input type="radio" name="pipeline-mode" value="v2" />
+                        <span>
+                            <strong>模式 B</strong>
+                            <small>實戰交易派 · 6 Agent</small>
+                        </span>
+                    </label>
+                    <label class="pipeline-option">
+                        <input type="radio" name="pipeline-mode" value="both" />
+                        <span>
+                            <strong>連續 A+B</strong>
+                            <small>先學術再實戰 · 13 Agent</small>
+                        </span>
+                    </label>
+                </div>
+
+                <button id="analyze-btn" class="glow-button">
+                    <span>開始深度分析</span>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+                </button>
+
+                <!-- 歷史報告區域 -->
+                <div class="history-section">
+                    <div class="history-title">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg>
+                        歷史報告
                     </div>
-                    <div id="provider-sla-list" class="provider-sla-list"></div>
-                </section>
-                <section id="active-jobs-panel" class="provider-sla-panel" aria-live="polite">
-                    <div class="provider-sla-header">
-                        <div>
-                            <span class="provider-sla-kicker">分析任務狀態</span>
-                            <strong id="active-jobs-summary">載入中</strong>
-                        </div>
-                        <button id="active-jobs-refresh" class="icon-button" type="button" aria-label="刷新分析任務狀態">
-                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M16 8h5V3"/></svg>
-                        </button>
-                    </div>
-                    <div id="active-jobs-list" class="provider-sla-list"></div>
-                </section>
-                <section id="maintenance-panel" class="provider-sla-panel maintenance-panel" aria-live="polite">
-                    <div class="provider-sla-header">
-                        <div>
-                            <span class="provider-sla-kicker">本機維護</span>
-                            <strong id="maintenance-summary">載入中</strong>
-                        </div>
-                        <button id="maintenance-refresh" class="icon-button" type="button" aria-label="刷新本機維護狀態">
-                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M16 8h5V3"/></svg>
-                        </button>
-                    </div>
-                    <div id="maintenance-list" class="provider-sla-list"></div>
-                    <div class="maintenance-actions">
-                        <button id="maintenance-clean-report-index" class="maintenance-button" type="button">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
-                            <span>清理報告索引</span>
-                        </button>
-                        <button id="maintenance-clean-analysis-history" class="maintenance-button" type="button">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 3"/><path d="M3.05 11a9 9 0 1 1 2.64 6.36"/><path d="M3 17v-6h6"/></svg>
-                            <span>清理任務紀錄</span>
-                        </button>
-                        <button id="maintenance-clean-provider-sla" class="maintenance-button" type="button">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16v-5"/><path d="M12 16V8"/><path d="M16 16v-3"/></svg>
-                            <span>清理來源健康紀錄</span>
-                        </button>
-                    </div>
-                    <p id="maintenance-result" class="maintenance-result"></p>
-                </section>
-                <div class="history-workspace">
+                    <div class="history-workspace">
                     <div class="history-list-pane">
                         <div class="history-controls">
                             <input type="search" id="history-search" class="history-search" placeholder="搜尋代號或公司" autocomplete="off" spellcheck="false" />
@@ -214,6 +161,21 @@
                                 <strong id="preview-target-12m">N/A</strong>
                             </div>
                         </div>
+                        <div id="preview-tracking" class="preview-tracking" hidden>
+                            <div>
+                                <span>最新股價</span>
+                                <strong id="preview-tracking-latest">N/A</strong>
+                            </div>
+                            <div>
+                                <span>建議後報酬</span>
+                                <strong id="preview-tracking-return">N/A</strong>
+                            </div>
+                            <div>
+                                <span>距12月目標</span>
+                                <strong id="preview-tracking-gap">N/A</strong>
+                            </div>
+                            <p id="preview-tracking-summary" class="preview-tracking-summary"></p>
+                        </div>
                         <p id="preview-summary" class="preview-summary"></p>
                         <p id="preview-stale-notice" class="preview-stale-notice" hidden></p>
                         <button id="preview-open-report-btn" class="preview-open-button" type="button">
@@ -238,6 +200,75 @@
                     </section>
                 </div>
             </div>
+            </section>
+
+            <section id="home-panel-ops" class="home-tab-panel" role="tabpanel" aria-labelledby="home-tab-ops" hidden>
+                <div class="history-section">
+                    <div class="history-title">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16v-5"/><path d="M12 16V8"/><path d="M16 16v-3"/></svg>
+                        系統狀態與維護
+                    </div>
+                    <section id="provider-sla-panel" class="provider-sla-panel" aria-live="polite">
+                        <div class="provider-sla-header">
+                            <div>
+                                <span class="provider-sla-kicker">全系統資料來源狀態</span>
+                                <strong id="provider-sla-summary">載入中</strong>
+                            </div>
+                            <div class="provider-sla-actions">
+                                <select id="provider-sla-window" class="provider-sla-window" aria-label="全系統資料來源狀態時間範圍">
+                                    <option value="all">全部</option>
+                                    <option value="last_1h">1 小時</option>
+                                    <option value="last_24h" selected>24 小時</option>
+                                    <option value="last_7d">7 天</option>
+                                </select>
+                                <button id="provider-sla-refresh" class="icon-button" type="button" aria-label="刷新全系統資料來源狀態">
+                                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M16 8h5V3"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="provider-sla-list" class="provider-sla-list"></div>
+                    </section>
+                    <section id="active-jobs-panel" class="provider-sla-panel" aria-live="polite">
+                        <div class="provider-sla-header">
+                            <div>
+                                <span class="provider-sla-kicker">分析任務狀態</span>
+                                <strong id="active-jobs-summary">載入中</strong>
+                            </div>
+                            <button id="active-jobs-refresh" class="icon-button" type="button" aria-label="刷新分析任務狀態">
+                                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M16 8h5V3"/></svg>
+                            </button>
+                        </div>
+                        <div id="active-jobs-list" class="provider-sla-list"></div>
+                    </section>
+                    <section id="maintenance-panel" class="provider-sla-panel maintenance-panel" aria-live="polite">
+                        <div class="provider-sla-header">
+                            <div>
+                                <span class="provider-sla-kicker">本機維護</span>
+                                <strong id="maintenance-summary">載入中</strong>
+                            </div>
+                            <button id="maintenance-refresh" class="icon-button" type="button" aria-label="刷新本機維護狀態">
+                                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M16 8h5V3"/></svg>
+                            </button>
+                        </div>
+                        <div id="maintenance-list" class="provider-sla-list"></div>
+                        <div class="maintenance-actions">
+                            <button id="maintenance-clean-report-index" class="maintenance-button" type="button">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+                                <span>清理報告索引</span>
+                            </button>
+                            <button id="maintenance-clean-analysis-history" class="maintenance-button" type="button">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 3"/><path d="M3.05 11a9 9 0 1 1 2.64 6.36"/><path d="M3 17v-6h6"/></svg>
+                                <span>清理任務紀錄</span>
+                            </button>
+                            <button id="maintenance-clean-provider-sla" class="maintenance-button" type="button">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16v-5"/><path d="M12 16V8"/><path d="M16 16v-3"/></svg>
+                                <span>清理來源健康紀錄</span>
+                            </button>
+                        </div>
+                        <p id="maintenance-result" class="maintenance-result"></p>
+                    </section>
+                </div>
+            </section>
         </div>
     </main>
 
@@ -288,14 +319,15 @@
     <script src="/static/provider_sla_panel.js?v=20260608-provider-drilldown"></script>
     <script src="/static/active_jobs_panel.js?v=20260608-active-jobs"></script>
     <script src="/static/maintenance_panel.js?v=20260608-local-maintenance"></script>
+    <script src="/static/home_tabs.js?v=20260608-home-tabs"></script>
     <script src="/static/report_rerun.js?v=20260607-rerun-stream"></script>
     <script src="/static/analysis_stream.js?v=20260607-analysis-stream"></script>
-    <script src="/static/history_panel.js?v=20260607-history-panel"></script>
-    <script src="/static/report_preview_panel.js?v=20260607-rerun-labels"></script>
+    <script src="/static/history_panel.js?v=20260608-decision-tracking"></script>
+    <script src="/static/report_preview_panel.js?v=20260608-decision-tracking"></script>
     <script src="/static/view_controller.js?v=20260607-view-controller"></script>
     <script src="/static/history_filters.js?v=20260607-latest-report-versions"></script>
     <script src="/static/report_actions.js?v=20260607-report-actions"></script>
-    <script src="/static/report_navigation.js?v=20260608-report-navigation"></script>
+    <script src="/static/report_navigation.js?v=20260608-report-navigation-fix"></script>
     <script src="/static/history_workspace.js?v=20260607-latest-report-versions"></script>
     <script src="/static/app.js?v=20260608-report-navigation"></script>
 </body>

@@ -164,6 +164,47 @@ def test_single_agent_async_honors_context_cancel_check(monkeypatch):
         raise AssertionError("cancel check should abort single-agent execution")
 
 
+def test_async_parallel_group_cancels_pending_agent_after_blocking_issue(monkeypatch):
+    import pipeline_async
+
+    cancelled = []
+    started = None
+
+    async def fake_run_agent(agent_num, data, context, rotator, progress_callback=None):
+        if agent_num == 5:
+            started.set()
+            try:
+                await asyncio.sleep(60)
+            except asyncio.CancelledError:
+                cancelled.append(agent_num)
+                raise
+        await started.wait()
+        context.setdefault("blocking_issues", []).append("Agent 4 failed")
+        return agent_num, "blocked"
+
+    async def run_group():
+        nonlocal started
+        started = asyncio.Event()
+        context = {"agent_positions": {4: 4, 5: 5}, "agent_total": 7}
+        await pipeline_async._run_parallel_group(
+            (4, 5),
+            {},
+            context,
+            object(),
+            None,
+            7,
+            {"id": "v1", "label": "test"},
+        )
+        return context
+
+    monkeypatch.setattr(pipeline_async, "run_agent_with_quality_gates_async", fake_run_agent)
+
+    context = asyncio.run(run_group())
+
+    assert context["blocking_issues"] == ["Agent 4 failed"]
+    assert cancelled == [5]
+
+
 def test_single_agent_async_uses_configured_primary_timeout_before_fallback(monkeypatch):
     import agent_runtime.single_agent as single_agent_module
     from agent_runtime.retry_policy import AgentTransientError

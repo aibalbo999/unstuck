@@ -73,7 +73,7 @@ def _append_final_audit_section(context: AnalysisContext, audit: AuditResult):
         lines.append("### 仍需注意的異常")
         lines.extend(f"- {item}" for item in critical[:8])
     if repair_log:
-        lines.append("### AI 修復紀錄")
+        lines.append("### 自動修復紀錄")
         lines.extend(f"- {item}" for item in repair_log[:8])
     if corrections:
         lines.append("### 已套用校正")

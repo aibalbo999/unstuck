@@ -3,10 +3,31 @@
 from __future__ import annotations
 
 import json
+import os
 
 from data_trust import normalize_data_trust, unknown_data_trust
+from decision_tracking import build_decision_tracking
 from pipeline_modes import get_pipeline_definition
 from report_index_parsing import parse_recommendation_summary
+
+
+def _snapshot_path(row) -> str:
+    try:
+        filename = row["data_snapshot_filename"] if "data_snapshot_filename" in row.keys() else ""
+        output_dir = row["output_dir"]
+    except (KeyError, IndexError):
+        return ""
+    return os.path.join(output_dir, filename) if filename else ""
+
+
+def _decision_tracking(row, recommendation: dict) -> dict:
+    try:
+        decision_tracking = json.loads(row["decision_tracking_json"])
+    except (KeyError, TypeError, json.JSONDecodeError):
+        decision_tracking = {}
+    if not isinstance(decision_tracking, dict) or not decision_tracking.get("status"):
+        return build_decision_tracking(recommendation, _snapshot_path(row))
+    return decision_tracking
 
 
 def row_to_report(row) -> dict:
@@ -18,6 +39,7 @@ def row_to_report(row) -> dict:
         data_trust = normalize_data_trust(json.loads(row["data_trust_json"]))
     except (KeyError, TypeError, json.JSONDecodeError):
         data_trust = unknown_data_trust()
+    decision_tracking = _decision_tracking(row, recommendation)
 
     pipeline_id = row["pipeline_id"] or "v1"
     return {
@@ -29,6 +51,7 @@ def row_to_report(row) -> dict:
         "pipeline_id": pipeline_id,
         "pipeline_label": get_pipeline_definition(pipeline_id)["short_label"],
         "recommendation": recommendation,
+        "decision_tracking": decision_tracking,
         "data_snapshot_filename": row["data_snapshot_filename"] if "data_snapshot_filename" in row.keys() else "",
         "data_trust": data_trust,
         "data_trust_status": row["data_trust_status"] if "data_trust_status" in row.keys() else data_trust.get("status", "unknown"),

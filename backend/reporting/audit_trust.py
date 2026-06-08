@@ -12,6 +12,7 @@ from data_trust import (
     trust_status_label,
     unknown_data_trust,
 )
+from .evidence import build_key_evidence_html, build_key_evidence_markdown
 
 def build_audit_sections(context: AnalysisContext) -> list[tuple[str, list[str]]]:
     """Collect final audit and preserved abnormality notes for rendering."""
@@ -31,7 +32,7 @@ def build_audit_sections(context: AnalysisContext) -> list[tuple[str, list[str]]
 
     repair_log = context.get("audit_repair_log", []) or []
     if repair_log:
-        sections.append(("AI 修復紀錄", repair_log[:10]))
+        sections.append(("自動修復紀錄", repair_log[:10]))
 
     corrections = audit.get("corrections", []) or []
     if corrections:
@@ -147,9 +148,10 @@ def build_data_trust_html(data: dict) -> str:
 
 
 def build_source_audit_html(data: dict) -> str:
+    evidence_html = build_key_evidence_html(data)
     entries = data.get("source_audit") if isinstance(data, dict) else []
     if not isinstance(entries, list) or not entries:
-        return """
+        return evidence_html + """
             <div class="source-audit-block">
                 <h4>來源審計</h4>
                 <p class="source-audit-empty">本報告未記錄 source_audit；舊報告仍可正常閱讀，但本報告資料可信度標示為未記錄。</p>
@@ -175,7 +177,7 @@ def build_source_audit_html(data: dict) -> str:
             "</tr>"
         )
 
-    return f"""
+    return evidence_html + f"""
         <div class="source-audit-block">
             <h4>來源審計</h4>
             <div class="source-audit-scroll">
@@ -211,12 +213,13 @@ def build_data_trust_markdown(data: dict) -> str:
 
 def build_source_audit_markdown(data: dict) -> str:
     entries = data.get("source_audit") if isinstance(data, dict) else []
-    lines = [
+    lines = build_key_evidence_markdown(data if isinstance(data, dict) else {})
+    lines.extend([
         "## 來源審計",
         "",
         "| 來源 | Provider | 狀態 | 抓取時間 | 耗時 ms | 筆數 | 快取 | 過期 | 訊息 |",
         "|---|---|---|---|---:|---:|---|---|---|",
-    ]
+    ])
     if not isinstance(entries, list) or not entries:
         lines.append("| 未記錄 | N/A | 未記錄 | N/A | N/A | 0 | N/A | N/A | 舊報告未保存 source_audit。 |")
         return "\n".join(lines)

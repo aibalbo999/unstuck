@@ -28,6 +28,7 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     provider_sla_js = (STATIC_DIR / "provider_sla_panel.js").read_text(encoding="utf-8")
     active_jobs_js = (STATIC_DIR / "active_jobs_panel.js").read_text(encoding="utf-8")
     maintenance_js = (STATIC_DIR / "maintenance_panel.js").read_text(encoding="utf-8")
+    home_tabs_js = (STATIC_DIR / "home_tabs.js").read_text(encoding="utf-8")
     report_rerun_js = (STATIC_DIR / "report_rerun.js").read_text(encoding="utf-8")
     analysis_stream_js = (STATIC_DIR / "analysis_stream.js").read_text(encoding="utf-8")
     history_workspace_js = (STATIC_DIR / "history_workspace.js").read_text(encoding="utf-8")
@@ -38,6 +39,12 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     ui_helpers_js = (STATIC_DIR / "ui_helpers.js").read_text(encoding="utf-8")
 
     assert 'id="provider-sla-panel"' in index_html
+    assert 'id="home-tab-analysis"' in index_html
+    assert 'id="home-tab-ops"' in index_html
+    assert 'id="home-panel-ops"' in index_html
+    assert 'role="tablist"' in index_html
+    assert index_html.index('id="home-panel-analysis"') < index_html.index('id="history-search"') < index_html.index('id="home-panel-ops"')
+    assert "系統狀態與維護" in index_html
     assert "全系統資料來源狀態" in index_html
     assert "本報告資料狀態" in index_html
     assert 'id="active-jobs-panel"' in index_html
@@ -51,9 +58,12 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert 'id="preview-rerun-modeb-btn"' in index_html
     assert 'id="preview-rerun-cancel-btn"' in index_html
     assert 'id="preview-stale-notice"' in index_html
+    assert 'id="preview-tracking"' in index_html
+    assert 'id="preview-tracking-return"' in index_html
     assert "/static/provider_sla_panel.js" in index_html
     assert "/static/active_jobs_panel.js" in index_html
     assert "/static/maintenance_panel.js" in index_html
+    assert "/static/home_tabs.js" in index_html
     assert "/static/report_rerun.js" in index_html
     assert "/static/analysis_stream.js" in index_html
     assert "/static/history_panel.js" in index_html
@@ -74,12 +84,18 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "StockAgentHistoryFilters.create" in history_workspace_js
     assert "StockAgentReportActions.bindDownloads" in app_js
     assert "StockAgentReportNavigation.bind" in app_js
+    assert "StockAgentHomeTabs" in home_tabs_js
+    assert "data-home-tab" in home_tabs_js
     assert "targetForItem" in report_navigation_js
     assert "scrollIntoView" in report_navigation_js
-    assert "sections[index]" in report_navigation_js
+    assert "doc.getElementById(id)" in report_navigation_js
     assert "ensureLabel" in report_navigation_js
     assert "history-item" in history_panel_js
+    assert "history-tracking" in history_panel_js
+    assert "decision_tracking" in history_panel_js
     assert "preview-date" in report_preview_js
+    assert "preview-tracking-latest" in report_preview_js
+    assert "decision_tracking" in report_preview_js
     assert "configureRerunButtons" in report_preview_js
     assert "重跑模式 A 最終建議" in report_preview_js
     assert "重跑模式 B 最終建議" in report_preview_js
@@ -142,6 +158,7 @@ def test_frontend_static_modules_are_sized():
         "history_filters.js": 50,
         "report_actions.js": 45,
         "report_navigation.js": 100,
+        "home_tabs.js": 50,
         "style.css": 40,
         "styles/history_list.css": 320,
         "styles/preview_panel.css": 220,

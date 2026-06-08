@@ -120,7 +120,7 @@ def test_structured_repair_uses_fallback_when_model_repair_is_429_unavailable():
         )
 
     assert ok is True
-    assert "AI 修復不可用" in message
+    assert "模型修復暫不可用" in message
     assert context["deterministic_fallbacks"][0]["trigger"] == "repair_429_failure"
     assert "429" in context["deterministic_fallbacks"][0]["raw_failure"]
     assert set(context["structured_outputs"][14]["price_targets"]) == {"熊市情境", "基本情境", "牛市情境"}
@@ -221,5 +221,7 @@ def test_financial_quality_repair_uses_safe_fallback_when_model_429_unavailable(
     assert ok is True
     assert "財務品質 fallback" in message
     assert "保守口徑" in context["analyses"][2]
+    assert "大東電" in context["analyses"][2]
+    assert "京元電子" not in context["analyses"][2]
     assert context["deterministic_fallbacks"][0]["trigger"] == "repair_429_failure"
     assert ar.validate_analysis_output(2, context["analyses"][2], context["data"]) == []

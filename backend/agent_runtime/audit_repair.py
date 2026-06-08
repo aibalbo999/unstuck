@@ -107,7 +107,7 @@ async def attempt_final_audit_repair_async(context: AnalysisContext, audit: Audi
 
 def _record_repair_result(context: AnalysisContext, progress_callback, agent_num: int, agent_name: str, ok: bool, message: str) -> None:
     status = "成功" if ok else "失敗"
-    log = f"{agent_name} AI 修復{status}：{message}"
+    log = f"{agent_name} 自動修復{status}：{message}"
     context.setdefault("audit_repair_log", []).append(log)
     emit_log(f"     - {log}")
     emit_context_event(
@@ -119,7 +119,7 @@ def _record_repair_result(context: AnalysisContext, progress_callback, agent_num
 
 async def _record_repair_result_async(context: AnalysisContext, progress_callback, agent_num: int, agent_name: str, ok: bool, message: str) -> None:
     status = "成功" if ok else "失敗"
-    log = f"{agent_name} AI 修復{status}：{message}"
+    log = f"{agent_name} 自動修復{status}：{message}"
     context.setdefault("audit_repair_log", []).append(log)
     emit_log(f"     - {log}")
     await emit_context_event_async(

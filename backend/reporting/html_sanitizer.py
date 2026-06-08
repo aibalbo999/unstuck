@@ -6,6 +6,8 @@ import re
 from html import escape
 from urllib.parse import urlparse
 
+from ticker_links import quote_url_from_autolink_href
+
 try:
     import bleach
 except Exception:  # pragma: no cover - dependency fallback for older installs
@@ -107,6 +109,9 @@ def _link_attrs(attrs, _new=False):
     href_key = (None, "href")
     if href_key not in attrs:
         return attrs
+    quote_url = quote_url_from_autolink_href(attrs[href_key])
+    if quote_url:
+        attrs[href_key] = quote_url
     attrs[(None, "rel")] = "nofollow noopener noreferrer"
     attrs[(None, "target")] = "_blank"
     return attrs

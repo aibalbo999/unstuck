@@ -6,7 +6,7 @@ from storage.migrations import MigrationRunner, column_names
 
 
 REPORT_INDEX_MIGRATION_KEY = "report_index"
-REPORT_INDEX_SCHEMA_VERSION = 6
+REPORT_INDEX_SCHEMA_VERSION = 7
 
 
 def run_report_index_migrations(conn) -> None:
@@ -40,7 +40,20 @@ def run_report_index_migrations(conn) -> None:
             if column not in columns:
                 migration_conn.execute(f"ALTER TABLE reports ADD COLUMN {column} TEXT NOT NULL DEFAULT ''")
 
+    def migrate_v7(migration_conn):
+        columns = column_names(migration_conn, "reports")
+        if "decision_tracking_json" not in columns:
+            migration_conn.execute("ALTER TABLE reports ADD COLUMN decision_tracking_json TEXT NOT NULL DEFAULT '{}'")
+
     MigrationRunner(conn, REPORT_INDEX_MIGRATION_KEY).run(
         REPORT_INDEX_SCHEMA_VERSION,
-        {1: lambda _conn: None, 2: migrate_v2, 3: migrate_v3, 4: migrate_v4, 5: migrate_v5, 6: migrate_v6},
+        {
+            1: lambda _conn: None,
+            2: migrate_v2,
+            3: migrate_v3,
+            4: migrate_v4,
+            5: migrate_v5,
+            6: migrate_v6,
+            7: migrate_v7,
+        },
     )

@@ -82,7 +82,7 @@ def write_report_pair(output_dir: Path, filename: str, recommendation: str):
     )
 
 
-def write_data_snapshot(output_dir: Path, filename: str, status: str = "fresh"):
+def write_data_snapshot(output_dir: Path, filename: str, status: str = "fresh", current_price: float = 309.5):
     (output_dir / filename.replace(".html", ".data.json")).write_text(
         f"""{{
   "ticker": "2449.TW",
@@ -100,7 +100,7 @@ def write_data_snapshot(output_dir: Path, filename: str, status: str = "fresh"):
     "data_schema_version": 4,
     "ticker": "2449.TW",
     "company_name": "京元電子",
-    "current_price": 309.5,
+    "current_price": {current_price},
     "data_trust": {{
       "status": "{status}",
       "critical_failures": [],
@@ -129,6 +129,12 @@ def test_get_reports_filters_pipeline_and_recommendation(tmp_path, monkeypatch):
     assert result["pagination"]["total"] == 1
     assert result["reports"][0]["filename"] == "2449_v2_report_20260606_010000.html"
     assert result["reports"][0]["recommendation"]["current_price"] == "NT$309.50"
+    tracking = result["reports"][0]["decision_tracking"]
+    assert tracking["status"] == "tracked"
+    assert tracking["initial_price"] == 309.5
+    assert tracking["latest_price"] == 309.5
+    assert tracking["target_12m"] == 350.0
+    assert tracking["return_pct"] == 0.0
     assert result["reports"][0]["data_trust"]["status"] == "fresh"
 
 
@@ -139,6 +145,25 @@ def test_get_reports_marks_old_reports_without_snapshot_unknown(tmp_path, monkey
     result = api.get_reports(page=1, limit=20, q="", pipeline="v2", recommendation="持有")
 
     assert result["reports"][0]["data_trust"]["status"] == "unknown"
+
+
+def test_get_reports_rebuilds_empty_legacy_decision_tracking(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
+    filename = "2449_v2_report_20260606_010000.html"
+    write_report_pair(tmp_path, filename, "持有")
+    write_data_snapshot(tmp_path, filename, "fresh")
+
+    api.get_reports(page=1, limit=20, q="", pipeline="v2", recommendation="持有")
+    with report_index._connect() as conn:
+        conn.execute("UPDATE reports SET decision_tracking_json = '{}'")
+
+    result = api.get_reports(page=1, limit=20, q="", pipeline="v2", recommendation="持有")
+
+    tracking = result["reports"][0]["decision_tracking"]
+    assert tracking["status"] == "tracked"
+    assert tracking["latest_price"] == 309.5
+    assert tracking["return_pct"] == 0.0
 
 
 def test_report_history_uses_repository_boundary(tmp_path):
@@ -284,6 +309,7 @@ def test_refresh_data_snapshot_endpoint_updates_trust(tmp_path, monkeypatch):
                         {"source": "market_data", "provider": "fake", "status": "success", "record_count": 1},
                         {"source": "financial_statements", "provider": "fake", "status": "success", "record_count": 1},
                     ],
+                    "current_price": 330.0,
                     "data_trust": {
                         "status": "fresh",
                         "critical_failures": [],
@@ -316,6 +342,11 @@ def test_refresh_data_snapshot_endpoint_updates_trust(tmp_path, monkeypatch):
     reports = api.get_reports(page=1, limit=20, q="", pipeline="v2", recommendation="持有")
     assert reports["reports"][0]["analysis_text_stale"] is True
     assert "分析本文" in reports["reports"][0]["analysis_text_stale_message"]
+    tracking = reports["reports"][0]["decision_tracking"]
+    assert tracking["latest_price"] == 330.0
+    assert tracking["return_pct"] == 6.6236
+    assert tracking["target_12m_gap_pct"] == 6.0606
+    assert tracking["refreshed_without_analysis_rerun"] is True
 
 
 def test_refresh_data_snapshot_endpoint_rejects_legacy_without_snapshot(tmp_path, monkeypatch):

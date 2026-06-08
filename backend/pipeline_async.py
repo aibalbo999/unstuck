@@ -117,10 +117,19 @@ async def _run_parallel_group(group, data, context, rotator, progress_callback, 
         return await run_agent_with_quality_gates_async(agent_num, data, context, rotator, progress_callback)
 
     tasks = [asyncio.create_task(run_and_return(agent_num)) for agent_num in group]
-    for task in asyncio.as_completed(tasks):
-        raise_if_cancelled(context)
-        completed_agent_num, _ = await task
-        await _emit_agent_completed(context, progress_callback, completed_agent_num, agent_total, pipeline_def)
+    try:
+        for task in asyncio.as_completed(tasks):
+            raise_if_cancelled(context)
+            completed_agent_num, _ = await task
+            await _emit_agent_completed(context, progress_callback, completed_agent_num, agent_total, pipeline_def)
+            if context.get("blocking_issues"):
+                break
+    finally:
+        pending = [task for task in tasks if not task.done()]
+        for task in pending:
+            task.cancel()
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
 
 
 async def _run_single_group_agent(agent_num, data, context, rotator, progress_callback, agent_total, pipeline_def) -> None:

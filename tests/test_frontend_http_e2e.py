@@ -106,6 +106,7 @@ def test_frontend_shell_static_assets_and_report_history_flow(tmp_path, monkeypa
     assert shell.status_code == 200
     assert "/static/ui_helpers.js" in shell.text
     assert "/static/api_client.js" in shell.text
+    assert "/static/home_tabs.js" in shell.text
     assert "/static/history_panel.js" in shell.text
 
     style = client.get("/static/style.css")
@@ -118,6 +119,7 @@ def test_frontend_shell_static_assets_and_report_history_flow(tmp_path, monkeypa
         "/static/styles/preview_panel.css",
         "/static/ui_helpers.js",
         "/static/api_client.js",
+        "/static/home_tabs.js",
         "/static/app.js",
     ):
         response = client.get(asset)
@@ -133,6 +135,8 @@ def test_frontend_shell_static_assets_and_report_history_flow(tmp_path, monkeypa
     assert payload["pagination"]["total"] == 1
     assert payload["reports"][0]["filename"] == stale_filename
     assert payload["reports"][0]["data_trust"]["status"] == "stale"
+    assert payload["reports"][0]["decision_tracking"]["status"] == "tracked"
+    assert payload["reports"][0]["decision_tracking"]["return_pct"] == 0.0
     assert payload["reports"][0]["html_hash"]
     assert payload["reports"][0]["markdown_hash"]
     assert payload["reports"][0]["data_file_hash"]
@@ -249,9 +253,9 @@ def test_fake_provider_job_generates_report_snapshot_visible_in_history(tmp_path
 
 def test_static_css_modules_keep_expected_component_selectors():
     selectors = {
-        STATIC_DIR / "styles" / "history_list.css": [".history-item", ".history-pagination", ".data-trust-badge", ".data-trust-reason"],
+        STATIC_DIR / "styles" / "history_list.css": [".history-item", ".history-pagination", ".data-trust-badge", ".data-trust-reason", ".history-tracking"],
         STATIC_DIR / "styles" / "provider_sla.css": [".provider-sla-panel", ".provider-sla-chip", ".maintenance-actions"],
-        STATIC_DIR / "styles" / "preview_panel.css": [".report-preview", ".preview-open-button"],
+        STATIC_DIR / "styles" / "preview_panel.css": [".report-preview", ".preview-open-button", ".preview-tracking"],
     }
     for path, expected in selectors.items():
         css = path.read_text(encoding="utf-8")

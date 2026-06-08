@@ -119,7 +119,7 @@ def _repair_agent_output(agent_num: int, data: StockData, context: AnalysisConte
                 {"circuit": open_state},
             )
             if fallback_ok:
-                return True, f"{fallback_message}（AI 修復不可用：429 熔斷中）"
+                return True, f"{fallback_message}（模型修復暫不可用：429 熔斷中）"
         current_issues = list(issues)
         last_result = None
         last_quality_issues = []
@@ -152,7 +152,7 @@ def _repair_agent_output(agent_num: int, data: StockData, context: AnalysisConte
                         {"circuit": circuit},
                     )
                     if fallback_ok:
-                        return True, f"{fallback_message}（AI 修復不可用：429）"
+                        return True, f"{fallback_message}（模型修復暫不可用：429）"
                 return False, result
             prompt_issues = validate_prompt_leakage(result)
             identity_issues = validate_company_identity(result, data)
@@ -218,7 +218,7 @@ async def _repair_agent_output_async(agent_num: int, data: StockData, context: A
                 {"circuit": open_state},
             )
             if fallback_ok:
-                return True, f"{fallback_message}（AI 修復不可用：429 熔斷中）"
+                return True, f"{fallback_message}（模型修復暫不可用：429 熔斷中）"
         current_issues = list(issues)
         last_result = None
         last_quality_issues = []
@@ -251,7 +251,7 @@ async def _repair_agent_output_async(agent_num: int, data: StockData, context: A
                         {"circuit": circuit},
                     )
                     if fallback_ok:
-                        return True, f"{fallback_message}（AI 修復不可用：429）"
+                        return True, f"{fallback_message}（模型修復暫不可用：429）"
                 return False, result
             prompt_issues = validate_prompt_leakage(result)
             identity_issues = validate_company_identity(result, data)

@@ -32,6 +32,36 @@ def _raise_if_cancelled(job_id: str) -> None:
         raise AnalysisJobCancelled("分析任務已取消。")
 
 
+def build_data_fetch_blocking_notice(data_result) -> dict | None:
+    """Return a terminal notice when core data is too weak for model analysis."""
+    data = data_result.data if isinstance(getattr(data_result, "data", None), dict) else {}
+    trust = (
+        data_result.data_trust
+        if isinstance(getattr(data_result, "data_trust", None), dict)
+        else data.get("data_trust", {}) if isinstance(data.get("data_trust"), dict) else {}
+    )
+    trust_status = str(trust.get("status") or "unknown")
+    has_market_or_financials = bool(
+        data.get("current_price")
+        or data.get("market_cap_raw")
+        or data.get("years")
+        or data.get("revenue_history")
+    )
+    has_unusable_error_payload = bool(data.get("error")) and not has_market_or_financials
+
+    if trust_status == "error":
+        return {
+            "message": "核心市場或財報來源異常，且沒有足夠可用資料；已停止本次分析，請稍後重試或檢查資料來源設定。",
+            "data_trust": trust,
+        }
+    if has_unusable_error_payload:
+        return {
+            "message": f"財務資料獲取失敗且沒有可用核心資料：{data.get('error')}",
+            "data_trust": trust,
+        }
+    return None
+
+
 def build_operator_audit_notice(context: dict) -> dict:
     """Summarize final audit state for progress events and UI notices."""
     audit = context.get("final_audit", {}) or {}
@@ -92,6 +122,19 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
         data_result = await STOCK_DATA_SERVICE.fetch_async(FetchRequest.from_ticker(ticker_upper))
         _raise_if_cancelled(job_id)
         data = data_result.data
+        blocking_data_notice = build_data_fetch_blocking_notice(data_result)
+        if blocking_data_notice:
+            message = blocking_data_notice["message"]
+            update_job(job_id, "error", error=message)
+            append_event(job_id, {
+                "type": "error",
+                "phase": "data_trust",
+                "message": message,
+                "data_trust": blocking_data_notice.get("data_trust", {}),
+                "pipeline_id": run_id,
+                "pipeline_label": run_label,
+            })
+            return ""
         if "error" in data:
             append_event(job_id, {"type": "status", "message": f"財務數據獲取有誤：{data['error']}，將繼續分析"})
 

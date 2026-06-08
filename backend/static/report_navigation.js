@@ -6,7 +6,7 @@
     function targetForItem(doc, sections, item, index) {
         const href = item.getAttribute('href') || '';
         const id = href.startsWith('#') ? href.slice(1) : '';
-        return (id && doc.getElementById(id)) || sections[index] || null;
+        return id ? doc.getElementById(id) : sections[index] || null;
     }
 
     function labelForTarget(target) {
