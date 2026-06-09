@@ -14,6 +14,7 @@ import watchlist_service
 
 @dataclass(frozen=True)
 class WatchlistRouteDeps:
+    get_output_dir: Callable[[], str]
     get_task_queue: Callable[[], Any]
     run_stock_analysis_job: Callable[[str, str, str], str]
     create_job: Callable[[str, str], str]
@@ -26,7 +27,10 @@ def create_watchlist_router(deps: WatchlistRouteDeps) -> APIRouter:
 
     @router.get("")
     async def get_watchlist():
-        return await asyncio.to_thread(watchlist_service.list_watchlist)
+        return await asyncio.to_thread(
+            watchlist_service.list_watchlist_with_report_alerts,
+            deps.get_output_dir(),
+        )
 
     @router.post("")
     async def upsert_watchlist_item(request: Request):

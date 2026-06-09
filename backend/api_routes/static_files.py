@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import os
 from collections.abc import Callable
+from typing import Optional
 
 from fastapi import APIRouter
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 
-def create_static_router(get_static_dir: Callable[[], str]) -> APIRouter:
+def create_static_router(
+    get_static_dir: Callable[[], str],
+    get_client_config: Optional[Callable[[], dict]] = None,
+) -> APIRouter:
     router = APIRouter()
 
     @router.get("/")
@@ -25,5 +29,11 @@ def create_static_router(get_static_dir: Callable[[], str]) -> APIRouter:
     def apple_touch_icon():
         return FileResponse(os.path.join(get_static_dir(), "apple-touch-icon.png"), media_type="image/png")
 
-    return router
+    @router.get("/api/client-config")
+    def client_config():
+        headers = {"Cache-Control": "no-store"}
+        if get_client_config is None:
+            return JSONResponse({"mutation_header": "X-Mutation-Token", "mutation_token": ""}, headers=headers)
+        return JSONResponse(get_client_config(), headers=headers)
 
+    return router

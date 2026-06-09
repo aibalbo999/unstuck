@@ -17,7 +17,7 @@ def _run_due_watchlist_batch(
     run_stock_analysis_job: Callable[[str, str, str], str],
     emit_log: Callable[[str], None],
 ) -> dict:
-    due_items = watchlist_service.due_watchlist_items()
+    due_items = watchlist_service.claim_due_watchlist_items()
     if not due_items:
         return {"success": True, "queued": [], "skipped": []}
     result = watchlist_service.enqueue_watchlist_items(

@@ -12,17 +12,18 @@
 - 自動切換 `.TW` / `.TWO` 查詢
 - 多 Agent 串接分析流程
 - 產生 HTML 與 Markdown 報告
-- 前端分成「分析」與「報告與維運」頁籤；歷史報告、預覽、比較留在分析頁，API 額度、watchlist、來源健康與本機維護集中在維運頁
+- 前端分成「分析」與「報告與維運」頁籤；歷史報告、預覽、比較留在分析頁，API 額度、watchlist、來源健康與本機維護集中在維運頁並於首次開啟時載入
 - 歷史報告支援資料可信度、決策追蹤、版本篩選、報告比較與相容性提示
 - 報告預覽可只刷新資料快照，也可排隊重跑最終投資建議、Mode B 或完整報告
+- 歷史 API 回傳 `decision_freshness`，明確區分「資料快照已更新」與「投資結論是否已依新資料重跑」
 - 內建報告刪除 API，會同步刪除 `.html`、`.md` 與資料快照
 - Agent 3 / 4 / 7 使用 JSON 結構化輸出優先解析，正則表達式僅保留為備援
 - 財務資料使用本地 SQLite 持久化快取，預設 24 小時
 - yfinance 欄位缺漏時會用 FMP（需 API key）或可追溯的衍生補值補上市場欄位、TTM 營收或 FCF，並在 prompt 中揭露限制
 - 歷史報告會自動清理孤立 Markdown，並刪除超過保留天數的舊報告
 - 長任務透過 SQLite job/event store 與任務佇列抽象執行，可用本地 worker 或切換 RQ/Redis
-- API 額度儀表板使用 `api_usage_events` ledger 統計 Gemini、Google Custom Search 與 FMP 本機觀測用量
-- Watchlist 可設定盤前/盤後批次分析，儲存在 SQLite 並保留舊 JSON 一次性匯入相容
+- API 額度儀表板使用 `api_usage_events` ledger 統計 Gemini provider request、Google Custom Search 與 FMP 本機觀測用量
+- Watchlist 可設定盤前/盤後批次分析，儲存在 SQLite，排程執行會先原子認領 due slot 並保留舊 JSON 一次性匯入相容
 - 財務抓取與 Gemini 分析管線提供 async 版本，API 生成報告時走新版 `google-genai` 非同步 client
 - 針對常見財務錯誤加入品質檢查，例如 DuPont、DCF / P/E、WACC、FCF 與公司身分一致性
 
@@ -38,6 +39,7 @@ stock-agent/
 │   ├── job_store.py        # SQLite job / SSE event store
 │   ├── api_usage_store.py  # API 用量 ledger
 │   ├── watchlist_service.py # Watchlist SQLite 儲存與批次排程 helper
+│   ├── watchlist_claim_store.py # Watchlist 排程 due slot 原子認領
 │   ├── analysis_jobs.py    # 可匯入的分析任務入口，本地/RQ worker 共用
 │   ├── report_rerun_service.py # 報告局部/完整重跑 orchestration
 │   ├── task_queue.py       # 本地長任務佇列抽象，可切換 RQ
@@ -50,9 +52,23 @@ stock-agent/
 │   ├── static/             # 前端頁面
 │   └── output/             # 產生的報告，已被 Git 忽略
 ├── main.py                 # CLI 入口
+├── docs/
+│   ├── architecture.md     # 系統邊界與資料流程
+│   ├── operator-guide.md   # 操作者日常流程與維護指南
+│   └── api.md              # API 與 mutation token 範例
+├── scripts/
+│   ├── demo_report.sh      # 列出目前本機報告摘要
+│   └── secret_scan.py      # 離線 secret 掃描
 ├── start_mac.command       # macOS 一鍵啟動腳本
 └── README.md
 ```
+
+## 文件入口
+
+- [docs/architecture.md](docs/architecture.md)：系統資料流、服務邊界、`decision_freshness` 與 mutation token 設計。
+- [docs/operator-guide.md](docs/operator-guide.md)：操作者日常分析、報告重跑、維護與安全注意事項。
+- [docs/api.md](docs/api.md)：常用 API、修改端點 token header、維護 dry-run 範例。
+- [scripts/demo_report.sh](scripts/demo_report.sh)：不啟動伺服器也能列出本機報告摘要。
 
 ## 安全設定
 
@@ -76,6 +92,14 @@ GEMINI_API_KEYS=your_key_1,your_key_2
 
 ```bash
 export GEMINI_API_KEYS="your_key_1,your_key_2"
+```
+
+修改端點會要求 `X-Mutation-Token`。若沒有設定 `MUTATION_API_TOKEN`，後端會在啟動時產生同源 runtime token，前端會自動透過 `/api/client-config` 取得；自動化腳本可參考 [docs/api.md](docs/api.md)。
+
+提交前可執行離線 secret 掃描：
+
+```bash
+"$(scripts/project_python.sh)" scripts/secret_scan.py
 ```
 
 支援的 key 名稱：
@@ -186,7 +210,7 @@ http://127.0.0.1:8080
 
 ```bash
 cd backend
-python3 -m uvicorn api:app --host 0.0.0.0 --port 8080
+python3 -m uvicorn api:app --host 127.0.0.1 --port 8080
 ```
 
 然後打開：
@@ -208,7 +232,7 @@ http://127.0.0.1:8080
 日常操作建議：
 
 - 「分析」頁籤：新分析、查找歷史報告、篩選 Mode A/B、查看決策追蹤、刷新資料快照、重跑報告與比較報告。
-- 「報告與維運」頁籤：查看 API 額度、本機 watchlist、來源健康、任務狀態與清理工具；這些通常不需要每次操作都看。
+- 「報告與維運」頁籤：查看 API 額度、本機 watchlist、來源健康、任務狀態與清理工具；首次打開頁籤才會載入這些維運資料。
 - 「資料快照已刷新，但 HTML/Markdown 分析本文未重新執行」代表只更新了 `.data.json` 的最新股價/來源/可信度，原本報告正文和投資結論還是舊模型在原生成時間做出的判斷；若要讓文字與結論一起更新，請使用重跑功能。
 
 ## API
@@ -240,18 +264,28 @@ curl "http://127.0.0.1:8080/api/reports/compare?left=<old.html>&right=<new.html>
 
 回傳會包含 `compatibility`，用來提示是否同股票、同 pipeline，以及左右時間順序是否合理。
 
+修改端點需先取得 mutation token：
+
+```bash
+TOKEN="$(curl -fsS http://127.0.0.1:8080/api/client-config | python -c 'import json,sys; print(json.load(sys.stdin)["mutation_token"])')"
+```
+
 刷新資料快照：
 
 ```bash
-curl -X POST http://127.0.0.1:8080/api/report/<filename>/refresh/data
+curl -X POST -H "X-Mutation-Token: $TOKEN" \
+  http://127.0.0.1:8080/api/report/<filename>/refresh/data
 ```
 
 重跑報告：
 
 ```bash
-curl -X POST "http://127.0.0.1:8080/api/report/<filename>/rerun?scope=final_recommendation"
-curl -X POST "http://127.0.0.1:8080/api/report/<filename>/rerun?scope=mode_b"
-curl -X POST "http://127.0.0.1:8080/api/report/<filename>/rerun?scope=full"
+curl -X POST -H "X-Mutation-Token: $TOKEN" \
+  "http://127.0.0.1:8080/api/report/<filename>/rerun?scope=final_recommendation"
+curl -X POST -H "X-Mutation-Token: $TOKEN" \
+  "http://127.0.0.1:8080/api/report/<filename>/rerun?scope=mode_b"
+curl -X POST -H "X-Mutation-Token: $TOKEN" \
+  "http://127.0.0.1:8080/api/report/<filename>/rerun?scope=full"
 ```
 
 `full` 會先強制刷新資料，再用原報告 pipeline 完整重跑；`final_recommendation` 只重跑最終投資建議 Agent。
@@ -259,7 +293,8 @@ curl -X POST "http://127.0.0.1:8080/api/report/<filename>/rerun?scope=full"
 刪除報告：
 
 ```bash
-curl -X DELETE http://127.0.0.1:8080/api/reports/<filename>
+curl -X DELETE -H "X-Mutation-Token: $TOKEN" \
+  http://127.0.0.1:8080/api/reports/<filename>
 ```
 
 歷史報告預覽支援資料快照刷新與局部重跑；局部重跑會建立 background job 並透過 SSE 回放進度，可用 `/api/report/<filename>/rerun/cancel?job_id=<job_id>` 要求取消。
@@ -269,7 +304,7 @@ curl -X DELETE http://127.0.0.1:8080/api/reports/<filename>
 ```bash
 curl http://127.0.0.1:8080/api/observability/api-quotas
 curl http://127.0.0.1:8080/api/observability/provider-sla
-curl http://127.0.0.1:8080/api/maintenance/storage-summary
+curl -H "X-Mutation-Token: $TOKEN" http://127.0.0.1:8080/api/maintenance/storage-summary
 curl http://127.0.0.1:8080/api/watchlist
 ```
 
@@ -372,7 +407,7 @@ xattr -d com.apple.quarantine start_mac.command
 - Google Custom Search：每日 quota 也以 Pacific Time 00:00 為常見基準。
 - Financial Modeling Prep：FAQ 使用 3 PM EST 字樣，台灣時間約為隔日 04:00；若其系統依美東夏令時間運作，可能約為隔日 03:00。
 
-前端「API 額度」只顯示本機 `api_usage_events` 觀測到的使用量；最終剩餘額度仍以 Google Cloud / AI Studio / FMP 後台為準。
+前端「API 額度」只顯示本機 `api_usage_events` 觀測到的 provider request；最終剩餘額度仍以 Google Cloud / AI Studio / FMP 後台為準。
 
 ### 7. 為什麼顯示「資料快照已刷新，但 HTML/Markdown 分析本文未重新執行」？
 

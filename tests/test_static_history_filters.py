@@ -5,6 +5,23 @@ ROOT = Path(__file__).resolve().parents[1]
 STATIC_DIR = ROOT / "backend" / "static"
 
 
+def _contrast_ratio(foreground: str, background: str) -> float:
+    def channel(value: int) -> float:
+        value = value / 255
+        return value / 12.92 if value <= 0.03928 else ((value + 0.055) / 1.055) ** 2.4
+
+    def luminance(color: str) -> float:
+        color = color.lstrip("#")
+        red, green, blue = (int(color[index:index + 2], 16) for index in (0, 2, 4))
+        red_lum, green_lum, blue_lum = (channel(value) for value in (red, green, blue))
+        return 0.2126 * red_lum + 0.7152 * green_lum + 0.0722 * blue_lum
+
+    foreground_lum = luminance(foreground)
+    background_lum = luminance(background)
+    high, low = max(foreground_lum, background_lum), min(foreground_lum, background_lum)
+    return (high + 0.05) / (low + 0.05)
+
+
 def test_history_data_trust_filter_is_wired_to_api_params():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     app_js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
@@ -36,13 +53,20 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     history_workspace_js = (STATIC_DIR / "history_workspace.js").read_text(encoding="utf-8")
     history_panel_js = (STATIC_DIR / "history_panel.js").read_text(encoding="utf-8")
     report_preview_js = (STATIC_DIR / "report_preview_panel.js").read_text(encoding="utf-8")
+    report_compare_js = (STATIC_DIR / "report_compare_panel.js").read_text(encoding="utf-8")
     report_navigation_js = (STATIC_DIR / "report_navigation.js").read_text(encoding="utf-8")
     api_client_js = (STATIC_DIR / "api_client.js").read_text(encoding="utf-8")
     ui_helpers_js = (STATIC_DIR / "ui_helpers.js").read_text(encoding="utf-8")
+    notification_center_js = (STATIC_DIR / "notification_center.js").read_text(encoding="utf-8")
+    history_list_css = (STATIC_DIR / "styles" / "history_list.css").read_text(encoding="utf-8")
+    preview_panel_css = (STATIC_DIR / "styles" / "preview_panel.css").read_text(encoding="utf-8")
+    loading_report_css = (STATIC_DIR / "styles" / "loading_report.css").read_text(encoding="utf-8")
 
     assert 'id="provider-sla-panel"' in index_html
     assert 'id="api-quota-panel"' in index_html
     assert 'id="watchlist-panel"' in index_html
+    assert 'id="toast-region"' in index_html
+    assert 'id="confirm-dialog"' in index_html
     assert 'id="home-tab-analysis"' in index_html
     assert 'id="home-tab-ops"' in index_html
     assert 'id="home-panel-ops"' in index_html
@@ -87,9 +111,24 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "/static/ui_helpers.js" in index_html
     assert "/static/api_client.js" in index_html
     assert "/static/api_client_extensions.js" in index_html
+    assert "/static/notification_center.js" in index_html
+    assert "StockAgentNotificationCenter.create" in app_js
+    assert "StockAgentNotificationCenter" in notification_center_js
+    assert "aria-live" in notification_center_js
+    assert "confirm(" not in history_workspace_js
+    assert "alert(" not in app_js
+    assert "alert(" not in history_workspace_js
+    assert "window.alert" not in report_rerun_js
+    assert "notify.confirm" in history_workspace_js
+    assert "notify.success" in history_workspace_js
+    assert "notify.error" in history_workspace_js
+    assert "notify.success" in report_rerun_js
+    assert "notify.error" in report_rerun_js
     assert "providerSlaWindow" in ops_workspace_js
     assert "StockAgentProviderSlaPanel.render" in ops_workspace_js
     assert "StockAgentActiveJobsPanel.render" in ops_workspace_js
+    assert "decision_priority" in (STATIC_DIR / "watchlist_panel.js").read_text(encoding="utf-8")
+    assert "需重跑" in (STATIC_DIR / "watchlist_panel.js").read_text(encoding="utf-8")
     assert "StockAgentOpsWorkspace.create" in app_js
     assert "StockAgentHistoryPanel.create" in history_workspace_js
     assert "StockAgentReportPreviewPanel.create" in history_workspace_js
@@ -99,6 +138,15 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "StockAgentReportNavigation.bind" in app_js
     assert "StockAgentHomeTabs" in home_tabs_js
     assert "data-home-tab" in home_tabs_js
+    assert "onActivate" in home_tabs_js
+    assert "loadAllOnce" in app_js
+    assert "refreshProviderSlaIfLoaded" in app_js
+    assert "refreshProviderSlaIfLoaded" in ops_workspace_js
+    assert "providerSlaDirty" in ops_workspace_js
+    assert "loadProviderSla" not in history_workspace_js
+    assert "refreshProviderSlaIfLoaded" in history_workspace_js
+    assert "refreshProviderSlaIfLoaded" in report_rerun_js
+    assert "opsWorkspace.loadAll();" not in app_js
     assert "targetForItem" in report_navigation_js
     assert "scrollIntoView" in report_navigation_js
     assert "doc.getElementById(id)" in report_navigation_js
@@ -110,6 +158,8 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "preview-date" in report_preview_js
     assert "preview-tracking-latest" in report_preview_js
     assert "decision_tracking" in report_preview_js
+    assert "decision_freshness" in report_preview_js
+    assert "requires_rerun" in report_preview_js
     assert "configureRerunButtons" in report_preview_js
     assert "重跑模式 A 最終建議" in report_preview_js
     assert "重跑模式 B 最終建議" in report_preview_js
@@ -148,8 +198,11 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "/api/observability/active-jobs" in api_client_js
     assert "/api/observability/api-quotas" in api_client_extensions_js
     assert "/api/reports/compare" in api_client_extensions_js
+    assert "決策狀態" in report_compare_js
+    assert "decision_freshness" in report_compare_js
     assert "/api/watchlist" in api_client_extensions_js
     assert "/api/maintenance/storage-summary" in api_client_js
+    assert "mutation: true" in api_client_js
     assert "cleanupAnalysisHistory" in api_client_js
     assert "StockAgentMaintenancePanel" in maintenance_js
     assert "maintenance-clean-provider-sla" in maintenance_js
@@ -164,6 +217,97 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "本報告資料新鮮" in ui_helpers_js
     assert "系統來源當時不穩" in ui_helpers_js
     assert "/refresh/data" in api_client_js
+    assert "historyWorkspaceEl" in app_js
+    assert "workspace: elements.historyWorkspace" in history_workspace_js
+    assert ".history-workspace.has-preview" in history_list_css
+    assert ".report-preview[hidden]" in preview_panel_css
+    assert "display: none" in preview_panel_css
+    assert "visibility: hidden" not in preview_panel_css
+    assert "style=" not in index_html
+    assert ".report-actions" in loading_report_css
+    assert ".report-download-button" in loading_report_css
+    assert "@media (max-width: 640px)" in loading_report_css
+    assert "await res.text()" in api_client_js
+    assert "JSON.parse" in api_client_js
+    assert "payload.message" in api_client_js
+    assert "/api/client-config" in api_client_js
+    assert "mutation_token" in api_client_js
+    assert "X-Mutation-Token" in api_client_js
+    assert "window.StockAgentApiClient.requestJson" in api_client_extensions_js
+    assert "apiClient.requestJson" in report_rerun_js
+
+
+def test_frontend_uiux_accessibility_contracts_are_wired():
+    base_css = (STATIC_DIR / "styles" / "base.css").read_text(encoding="utf-8")
+    forms_css = (STATIC_DIR / "styles" / "forms_controls.css").read_text(encoding="utf-8")
+    history_shell_css = (STATIC_DIR / "styles" / "history_shell.css").read_text(encoding="utf-8")
+    history_list_css = (STATIC_DIR / "styles" / "history_list.css").read_text(encoding="utf-8")
+    loading_report_css = (STATIC_DIR / "styles" / "loading_report.css").read_text(encoding="utf-8")
+    notifications_css = (STATIC_DIR / "styles" / "notifications.css").read_text(encoding="utf-8")
+    preview_panel_css = (STATIC_DIR / "styles" / "preview_panel.css").read_text(encoding="utf-8")
+    provider_sla_css = (STATIC_DIR / "styles" / "provider_sla.css").read_text(encoding="utf-8")
+    watchlist_css = (STATIC_DIR / "styles" / "watchlist.css").read_text(encoding="utf-8")
+    history_panel_js = (STATIC_DIR / "history_panel.js").read_text(encoding="utf-8")
+    home_tabs_js = (STATIC_DIR / "home_tabs.js").read_text(encoding="utf-8")
+    notification_center_js = (STATIC_DIR / "notification_center.js").read_text(encoding="utf-8")
+
+    assert _contrast_ratio("#ffffff", "#1d4ed8") >= 4.5
+    assert _contrast_ratio("#94a3b8", "#0f172a") >= 4.5
+    assert "--primary-action: #1d4ed8" in base_css
+    assert ".hint-text" in loading_report_css
+    assert "color: var(--text-secondary)" in loading_report_css
+    assert "background: var(--primary-action)" in loading_report_css
+
+    assert 'aria-label="預覽 ${escapeHtml(r.ticker' in history_panel_js
+    assert 'aria-label="刪除 ${escapeHtml(r.ticker' in history_panel_js
+    assert 'role="button" tabindex="0" aria-label="預覽 ${escapeHtml(report.ticker' in history_panel_js
+    assert "isActivationKey" in history_panel_js
+    assert "event.key === ' '" in history_panel_js
+    assert "event.preventDefault()" in history_panel_js
+
+    assert "activateNextTab" in home_tabs_js
+    assert "ArrowRight" in home_tabs_js
+    assert "ArrowLeft" in home_tabs_js
+    assert "Home" in home_tabs_js
+    assert "End" in home_tabs_js
+    assert "tabIndex" in home_tabs_js
+
+    assert "focusableSelectors" in notification_center_js
+    assert "trapFocus" in notification_center_js
+    assert "event.key === 'Tab'" in notification_center_js
+    assert "firstFocusable" in notification_center_js
+    assert "lastFocusable" in notification_center_js
+
+    combined_css = "\n".join([
+        base_css,
+        forms_css,
+        history_shell_css,
+        history_list_css,
+        loading_report_css,
+        notifications_css,
+        preview_panel_css,
+        provider_sla_css,
+        watchlist_css,
+    ])
+    assert "transition: all" not in combined_css
+    assert "@media (prefers-reduced-motion: reduce)" in base_css
+    assert "transition-duration: 0.01ms" in base_css
+    assert "animation: none" in base_css
+
+    assert ".home-tab-button" in history_shell_css and "min-height: 44px" in history_shell_css
+    assert ".history-filter-select" in history_list_css and "min-height: 44px" in history_list_css
+    assert ".history-version-toggle" in history_list_css and "min-height: 44px" in history_list_css
+    assert ".history-search" in history_list_css and "min-height: 44px" in history_list_css
+    assert ".delete-btn" in history_list_css and "min-width: 44px" in history_list_css
+    assert ".pager-btn" in history_list_css and "width: 44px" in history_list_css
+    assert ".report-download-button" in loading_report_css and "min-height: 44px" in loading_report_css
+    assert ".confirm-dialog-button" in notifications_css and "min-height: 44px" in notifications_css
+    assert ".toast-close" in notifications_css and "width: 44px" in notifications_css
+    assert ".preview-refresh-button" in preview_panel_css and "min-height: 44px" in preview_panel_css
+    assert ".preview-rerun-button" in preview_panel_css and "min-height: 44px" in preview_panel_css
+    assert ".provider-sla-window" in provider_sla_css and "min-height: 44px" in provider_sla_css
+    assert ".maintenance-button" in provider_sla_css and "min-height: 44px" in provider_sla_css
+    assert ".watchlist-delete-button" in watchlist_css and "min-height: 44px" in watchlist_css
 
 
 def test_frontend_static_modules_are_sized():
@@ -171,7 +315,7 @@ def test_frontend_static_modules_are_sized():
         "app.js": 300,
         "history_workspace.js": 260,
         "ui_helpers.js": 140,
-        "api_client.js": 80,
+        "api_client.js": 110,
         "provider_sla_panel.js": 210,
         "maintenance_panel.js": 150,
         "view_controller.js": 40,
@@ -180,8 +324,10 @@ def test_frontend_static_modules_are_sized():
         "report_navigation.js": 100,
         "home_tabs.js": 50,
         "style.css": 40,
+        "notification_center.js": 120,
         "styles/history_list.css": 320,
         "styles/decision_tracking.css": 80,
+        "styles/notifications.css": 160,
         "styles/preview_panel.css": 220,
         "styles/report_compare.css": 90,
         "styles/provider_sla.css": 220,

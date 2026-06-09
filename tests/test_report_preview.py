@@ -20,6 +20,21 @@ from reporting import ReportBundle  # noqa: E402
 from report_repository import ReportListQuery  # noqa: E402
 
 
+def list_reports_for_test(output_dir: Path, **overrides):
+    params = {
+        "page": 1,
+        "limit": 20,
+        "q": "",
+        "pipeline": "all",
+        "recommendation": "all",
+        "data_trust": "all",
+        "output_dir": str(output_dir),
+        "report_cache": {},
+    }
+    params.update(overrides)
+    return report_history_service.list_reports(**params)
+
+
 def test_parse_recommendation_summary_from_markdown(tmp_path, monkeypatch):
     monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
     (tmp_path / "2449_v2_report_20260606_010000.html").write_text("<html></html>", encoding="utf-8")
@@ -44,7 +59,10 @@ def test_parse_recommendation_summary_from_markdown(tmp_path, monkeypatch):
         encoding="utf-8",
     )
 
-    summary = api.parse_recommendation_summary("2449_v2_report_20260606_010000.html")
+    summary = report_history_service.parse_recommendation_summary(
+        "2449_v2_report_20260606_010000.html",
+        output_dir=str(tmp_path),
+    )
 
     assert summary["recommendation"] == "持有"
     assert summary["current_price"] == "NT$309.50"
@@ -122,7 +140,7 @@ def test_get_reports_filters_pipeline_and_recommendation(tmp_path, monkeypatch):
     write_data_snapshot(tmp_path, "2449_v2_report_20260606_010000.html", "fresh")
     write_report_pair(tmp_path, "2449_report_20260606_005900.html", "買入")
 
-    result = api.get_reports(page=1, limit=20, q="", pipeline="v2", recommendation="持有")
+    result = list_reports_for_test(tmp_path, pipeline="v2", recommendation="持有")
 
     assert result["pagination"]["pipeline"] == "v2"
     assert result["pagination"]["recommendation"] == "持有"
@@ -135,6 +153,9 @@ def test_get_reports_filters_pipeline_and_recommendation(tmp_path, monkeypatch):
     assert tracking["latest_price"] == 309.5
     assert tracking["target_12m"] == 350.0
     assert tracking["return_pct"] == 0.0
+    freshness = result["reports"][0]["decision_freshness"]
+    assert freshness["status"] == "current"
+    assert freshness["requires_rerun"] is False
     assert result["reports"][0]["data_trust"]["status"] == "fresh"
 
 
@@ -163,6 +184,41 @@ def test_report_compare_api_returns_decision_and_tracking_deltas(tmp_path, monke
     assert body["diff"]["tracking"]["latest_price"]["delta"] == 20
 
 
+def test_report_compare_warns_when_compared_conclusion_needs_rerun(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    left = "2449_v2_report_20260606_010000.html"
+    right = "2449_v2_report_20260607_010000.html"
+    write_report_pair(tmp_path, left, "持有")
+    write_report_pair(tmp_path, right, "持有")
+    write_data_snapshot(tmp_path, left, "fresh", current_price=100)
+    write_data_snapshot(tmp_path, right, "fresh", current_price=120)
+    right_snapshot_path = tmp_path / right.replace(".html", ".data.json")
+    right_snapshot = json.loads(right_snapshot_path.read_text(encoding="utf-8"))
+    right_snapshot.update({
+        "refreshed_without_analysis_rerun": True,
+        "analysis_text_stale_message": "資料快照已刷新，但投資結論仍以原報告生成時間為準。",
+        "decision_validity_status": "needs_rerun",
+        "conclusion_generated_at": "2026-06-07T01:00:00+00:00",
+        "snapshot_refreshed_at": "2026-06-08T01:00:00+00:00",
+    })
+    right_snapshot_path.write_text(json.dumps(right_snapshot, ensure_ascii=False), encoding="utf-8")
+
+    client = TestClient(api.app)
+    response = client.get("/api/reports/compare", params={"left": left, "right": right})
+
+    assert response.status_code == 200
+    body = response.json()
+    warning_codes = {item["code"] for item in body["compatibility"]["warnings"]}
+    assert "right_decision_needs_rerun" in warning_codes
+    assert body["right"]["decision_freshness"]["status"] == "needs_rerun"
+    assert body["diff"]["decision_freshness"] == {
+        "status_before": "current",
+        "status_after": "needs_rerun",
+        "requires_rerun_before": False,
+        "requires_rerun_after": True,
+    }
+
+
 def test_report_compare_api_warns_for_incompatible_reports(tmp_path, monkeypatch):
     monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
     left = "2449_v2_report_20260608_010000.html"
@@ -188,7 +244,7 @@ def test_get_reports_marks_old_reports_without_snapshot_unknown(tmp_path, monkey
     monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
     write_report_pair(tmp_path, "2449_v2_report_20260606_010000.html", "持有")
 
-    result = api.get_reports(page=1, limit=20, q="", pipeline="v2", recommendation="持有")
+    result = list_reports_for_test(tmp_path, pipeline="v2", recommendation="持有")
 
     assert result["reports"][0]["data_trust"]["status"] == "unknown"
 
@@ -200,11 +256,11 @@ def test_get_reports_rebuilds_empty_legacy_decision_tracking(tmp_path, monkeypat
     write_report_pair(tmp_path, filename, "持有")
     write_data_snapshot(tmp_path, filename, "fresh")
 
-    api.get_reports(page=1, limit=20, q="", pipeline="v2", recommendation="持有")
+    list_reports_for_test(tmp_path, pipeline="v2", recommendation="持有")
     with report_index._connect() as conn:
         conn.execute("UPDATE reports SET decision_tracking_json = '{}'")
 
-    result = api.get_reports(page=1, limit=20, q="", pipeline="v2", recommendation="持有")
+    result = list_reports_for_test(tmp_path, pipeline="v2", recommendation="持有")
 
     tracking = result["reports"][0]["decision_tracking"]
     assert tracking["status"] == "tracked"
@@ -262,7 +318,7 @@ def test_get_reports_defaults_to_latest_report_per_ticker_and_mode(tmp_path, mon
     os.utime(old_v1, (future_mtime, future_mtime))
     os.utime(old_v2, (future_mtime, future_mtime))
 
-    result = api.get_reports(page=1, limit=20, q="", pipeline="all", recommendation="all")
+    result = list_reports_for_test(tmp_path)
 
     returned = {report["filename"] for report in result["reports"]}
     assert result["pagination"]["include_versions"] is False
@@ -330,7 +386,7 @@ def test_download_data_snapshot_endpoint(tmp_path, monkeypatch):
     assert missing.status_code == 404
 
 
-def test_refresh_data_snapshot_endpoint_updates_trust(tmp_path, monkeypatch):
+def test_refresh_data_snapshot_endpoint_updates_trust(tmp_path, monkeypatch, mutation_headers):
     monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
     monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
     filename = "2449_v2_report_20260606_010000.html"
@@ -368,7 +424,7 @@ def test_refresh_data_snapshot_endpoint_updates_trust(tmp_path, monkeypatch):
 
     monkeypatch.setattr(api, "data_refresh_service", FakeRefreshService())
     client = TestClient(api.app)
-    response = client.post(f"/api/report/{filename}/refresh/data")
+    response = client.post(f"/api/report/{filename}/refresh/data", headers=mutation_headers)
 
     assert response.status_code == 200
     body = response.json()
@@ -376,6 +432,10 @@ def test_refresh_data_snapshot_endpoint_updates_trust(tmp_path, monkeypatch):
     assert body["data_trust"]["status"] == "fresh"
     assert body["analysis_text_stale"] is True
     assert "分析本文" in body["analysis_text_stale_message"]
+    assert body["decision_freshness"]["status"] == "needs_rerun"
+    assert body["decision_freshness"]["requires_rerun"] is True
+    assert body["decision_freshness"]["snapshot_refreshed_at"]
+    assert "投資結論仍以原報告生成時間為準" in body["decision_freshness"]["requires_rerun_reason"]
     assert [item.force_refresh for item in refresh_options] == [True]
     assert [item.record_provider_sla for item in refresh_options] == [False]
     assert body["refresh_diff"]["data_trust_status"] == {"before": "stale", "after": "fresh", "changed": True}
@@ -384,10 +444,15 @@ def test_refresh_data_snapshot_endpoint_updates_trust(tmp_path, monkeypatch):
     assert saved["data_trust"]["status"] == "fresh"
     assert saved["refreshed_from_report"] == filename
     assert saved["refreshed_without_analysis_rerun"] is True
+    assert saved["decision_validity_status"] == "needs_rerun"
+    assert saved["conclusion_generated_at"]
+    assert saved["snapshot_refreshed_at"]
 
-    reports = api.get_reports(page=1, limit=20, q="", pipeline="v2", recommendation="持有")
+    reports = list_reports_for_test(tmp_path, pipeline="v2", recommendation="持有")
     assert reports["reports"][0]["analysis_text_stale"] is True
     assert "分析本文" in reports["reports"][0]["analysis_text_stale_message"]
+    assert reports["reports"][0]["decision_freshness"]["status"] == "needs_rerun"
+    assert reports["reports"][0]["decision_freshness"]["requires_rerun"] is True
     tracking = reports["reports"][0]["decision_tracking"]
     assert tracking["latest_price"] == 330.0
     assert tracking["return_pct"] == 6.6236
@@ -395,18 +460,18 @@ def test_refresh_data_snapshot_endpoint_updates_trust(tmp_path, monkeypatch):
     assert tracking["refreshed_without_analysis_rerun"] is True
 
 
-def test_refresh_data_snapshot_endpoint_rejects_legacy_without_snapshot(tmp_path, monkeypatch):
+def test_refresh_data_snapshot_endpoint_rejects_legacy_without_snapshot(tmp_path, monkeypatch, mutation_headers):
     monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
     filename = "2449_v2_report_20260606_010000.html"
     write_report_pair(tmp_path, filename, "持有")
 
     client = TestClient(api.app)
-    response = client.post(f"/api/report/{filename}/refresh/data")
+    response = client.post(f"/api/report/{filename}/refresh/data", headers=mutation_headers)
 
     assert response.status_code == 404
 
 
-def test_rerun_report_endpoint_mode_b_queues_job(tmp_path, monkeypatch):
+def test_rerun_report_endpoint_mode_b_queues_job(tmp_path, monkeypatch, mutation_headers):
     monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
     monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
     monkeypatch.setattr(job_store, "TASK_DB_PATH", str(tmp_path / "jobs.sqlite3"))
@@ -425,7 +490,7 @@ def test_rerun_report_endpoint_mode_b_queues_job(tmp_path, monkeypatch):
     monkeypatch.setattr(api, "analysis_task_queue", fake_queue)
 
     client = TestClient(api.app)
-    response = client.post(f"/api/report/{filename}/rerun", params={"scope": "mode_b"})
+    response = client.post(f"/api/report/{filename}/rerun", params={"scope": "mode_b"}, headers=mutation_headers)
 
     assert response.status_code == 200
     body = response.json()
@@ -441,7 +506,7 @@ def test_rerun_report_endpoint_mode_b_queues_job(tmp_path, monkeypatch):
     assert job["pipeline_id"] == "rerun:mode_b"
 
 
-def test_rerun_report_endpoint_full_report_queues_job(tmp_path, monkeypatch):
+def test_rerun_report_endpoint_full_report_queues_job(tmp_path, monkeypatch, mutation_headers):
     monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
     monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
     monkeypatch.setattr(job_store, "TASK_DB_PATH", str(tmp_path / "jobs.sqlite3"))
@@ -460,7 +525,7 @@ def test_rerun_report_endpoint_full_report_queues_job(tmp_path, monkeypatch):
     monkeypatch.setattr(api, "analysis_task_queue", fake_queue)
 
     client = TestClient(api.app)
-    response = client.post(f"/api/report/{filename}/rerun", params={"scope": "full"})
+    response = client.post(f"/api/report/{filename}/rerun", params={"scope": "full"}, headers=mutation_headers)
 
     assert response.status_code == 200
     body = response.json()
@@ -582,13 +647,13 @@ def test_rerun_report_stream_replays_terminal_event(tmp_path, monkeypatch):
     assert "2449_v2_report_20260607_010000.html" in response.text
 
 
-def test_rerun_report_cancel_endpoint_requests_cancel(tmp_path, monkeypatch):
+def test_rerun_report_cancel_endpoint_requests_cancel(tmp_path, monkeypatch, mutation_headers):
     monkeypatch.setattr(job_store, "TASK_DB_PATH", str(tmp_path / "jobs.sqlite3"))
     filename = "2449_v2_report_20260606_010000.html"
     job_id = job_store.create_job(filename, "rerun:mode_b")
 
     client = TestClient(api.app)
-    response = client.post(f"/api/report/{filename}/rerun/cancel", params={"job_id": job_id})
+    response = client.post(f"/api/report/{filename}/rerun/cancel", params={"job_id": job_id}, headers=mutation_headers)
 
     assert response.status_code == 200
     body = response.json()

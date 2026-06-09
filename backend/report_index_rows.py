@@ -6,7 +6,7 @@ import json
 import os
 
 from data_trust import normalize_data_trust, unknown_data_trust
-from decision_tracking import build_decision_tracking
+from decision_tracking import build_decision_freshness, build_decision_tracking
 from pipeline_modes import get_pipeline_definition
 from report_index_parsing import parse_recommendation_summary
 
@@ -40,6 +40,10 @@ def row_to_report(row) -> dict:
     except (KeyError, TypeError, json.JSONDecodeError):
         data_trust = unknown_data_trust()
     decision_tracking = _decision_tracking(row, recommendation)
+    decision_freshness = build_decision_freshness(
+        _snapshot_path(row),
+        report_generated_at=row["report_date"] if "report_date" in row.keys() else "",
+    )
 
     pipeline_id = row["pipeline_id"] or "v1"
     return {
@@ -52,6 +56,7 @@ def row_to_report(row) -> dict:
         "pipeline_label": get_pipeline_definition(pipeline_id)["short_label"],
         "recommendation": recommendation,
         "decision_tracking": decision_tracking,
+        "decision_freshness": decision_freshness,
         "data_snapshot_filename": row["data_snapshot_filename"] if "data_snapshot_filename" in row.keys() else "",
         "data_trust": data_trust,
         "data_trust_status": row["data_trust_status"] if "data_trust_status" in row.keys() else data_trust.get("status", "unknown"),

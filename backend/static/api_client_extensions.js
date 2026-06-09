@@ -1,12 +1,5 @@
 (function () {
-    async function jsonRequest(url, options) {
-        const res = await fetch(url, options);
-        const payload = await res.json();
-        if (!res.ok || payload.success === false) {
-            throw new Error(payload.error || payload.detail || `HTTP ${res.status}`);
-        }
-        return payload;
-    }
+    const jsonRequest = window.StockAgentApiClient.requestJson;
 
     async function fetchApiQuotas() {
         return jsonRequest('/api/observability/api-quotas');

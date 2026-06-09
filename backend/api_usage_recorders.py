@@ -15,12 +15,25 @@ def record_runtime_event_usage(
     db_path: str | Path | None = None,
 ) -> None:
     phase = str(payload.get("phase") or "")
-    if phase not in {"llm_model_call", "llm_model_error", "llm_model_response"}:
+    if phase not in {"llm_model_call", "llm_provider_request", "llm_model_error", "llm_model_response"}:
         return
     metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
     model_id = str(metadata.get("model_id") or "unknown")
     message = str(payload.get("message") or "")
     if phase == "llm_model_call":
+        record_api_usage(
+            service="Gemini / Google AI",
+            provider="google_ai",
+            operation=phase,
+            model_id=model_id,
+            status="planned",
+            units=0,
+            metadata={"job_id": job_id, **metadata},
+            created_at=created_at,
+            db_path=db_path,
+        )
+        return
+    if phase == "llm_provider_request":
         record_api_usage(
             service="Gemini / Google AI",
             provider="google_ai",
@@ -75,7 +88,7 @@ def record_provider_audit_usage(
     if not isinstance(entry, dict):
         return
     status = str(entry.get("status") or "unknown")
-    units = 0 if status == "skipped_fresh_cache" else 1
+    units = _provider_usage_units(entry, status)
     record_api_usage(
         service="Data Provider",
         provider=str(entry.get("provider") or "unknown"),
@@ -90,6 +103,15 @@ def record_provider_audit_usage(
         created_at=created_at,
         db_path=db_path,
     )
+
+
+def _provider_usage_units(entry: dict, status: str) -> int:
+    if status == "skipped_fresh_cache":
+        return 0
+    message = str(entry.get("message") or "").lower()
+    if status == "unavailable" and ("略過" in message or "skip" in message):
+        return 0
+    return 1
 
 
 __all__ = ["record_provider_audit_usage", "record_runtime_event_usage"]

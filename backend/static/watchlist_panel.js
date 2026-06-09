@@ -24,6 +24,13 @@
         if (elements.postMarketInput) elements.postMarketInput.checked = false;
     }
 
+    function priorityLabel(item) {
+        if (item.decision_priority === 'high') return '需重跑';
+        if (item.decision_priority === 'medium') return '待分析';
+        if (item.decision_priority === 'low') return '停用';
+        return '有效';
+    }
+
     function create(options) {
         const apiClient = options.apiClient;
         const elements = options.elements || {};
@@ -42,11 +49,13 @@
             elements.listEl.innerHTML = items.length
                 ? items.map(item => {
                     const disabled = item.enabled ? '' : ' · 停用';
+                    const priorityClass = item.decision_priority === 'high' ? 'is-critical' : (item.decision_priority === 'medium' ? 'is-warning' : '');
                     return `
-                        <span class="provider-sla-chip watchlist-chip ${item.enabled ? 'is-ok' : 'is-warning'}">
+                        <span class="provider-sla-chip watchlist-chip ${priorityClass || (item.enabled ? 'is-ok' : 'is-warning')}">
                             <strong>${escapeHtml(item.ticker)}</strong>
                             <em>${escapeHtml((item.pipeline || 'v1').toUpperCase())}${disabled}</em>
                             <span>${escapeHtml(slotLabel(item.schedule_slots, payload.schedules))}</span>
+                            <span>${escapeHtml(priorityLabel(item))}</span>
                             <button class="watchlist-delete-button" type="button" data-watchlist-delete="${escapeHtml(item.ticker)}" data-watchlist-pipeline="${escapeHtml(item.pipeline || 'v1')}" aria-label="刪除 ${escapeHtml(item.ticker)}">
                                 刪除
                             </button>

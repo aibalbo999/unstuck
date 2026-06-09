@@ -25,6 +25,10 @@
         return `<span class="history-tracking ${trackingTone(tracking)}" title="${escapeHtml(title)}">追蹤 ${escapeHtml(formatPct(tracking.return_pct))}</span>`;
     }
 
+    function isActivationKey(event) {
+        return event.key === 'Enter' || event.key === ' ';
+    }
+
     function create(options) {
         const listEl = options.listEl;
         const trackingTableEl = options.trackingTableEl;
@@ -61,7 +65,7 @@
                         ${rows.map(report => {
                             const tracking = report.decision_tracking || {};
                             return `
-                                <tr data-filename="${escapeHtml(report.filename)}">
+                                <tr data-filename="${escapeHtml(report.filename)}" role="button" tabindex="0" aria-label="預覽 ${escapeHtml(report.ticker || 'N/A')} 決策追蹤">
                                     <td>${escapeHtml(report.ticker || 'N/A')}</td>
                                     <td>${escapeHtml(options.normalizeRecommendation(tracking.recommendation || report.recommendation?.recommendation))}</td>
                                     <td>${escapeHtml(formatNumber(tracking.latest_price))}</td>
@@ -86,7 +90,7 @@
             renderTrackingTable(reports);
             listEl.innerHTML = reports.map(r => `
                 <div class="history-item" data-filename="${escapeHtml(r.filename)}" data-ticker="${escapeHtml(r.ticker)}" data-pipeline="${escapeHtml(r.pipeline_id || 'v1')}">
-                    <div class="history-info" role="button" tabindex="0">
+                    <div class="history-info" role="button" tabindex="0" aria-label="預覽 ${escapeHtml(r.ticker || 'N/A')} 報告">
                         <div class="history-ticker">
                             ${escapeHtml(r.ticker)}${r.company_name && r.company_name !== r.ticker ? `<span class="history-company">${escapeHtml(r.company_name)}</span>` : ''}
                         </div>
@@ -103,7 +107,7 @@
                             ${renderTrackingBadge(r.decision_tracking, escapeHtml)}
                         </div>
                     </div>
-                    <button class="delete-btn" title="刪除報告" data-delete-filename="${escapeHtml(r.filename)}">
+                    <button class="delete-btn" title="刪除報告" aria-label="刪除 ${escapeHtml(r.ticker || r.filename)} 報告" data-delete-filename="${escapeHtml(r.filename)}">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
                     </button>
                 </div>
@@ -155,12 +159,21 @@
                     const row = event.target.closest('tr[data-filename]');
                     if (row) callbacks.onSelect(row.dataset.filename);
                 });
+                trackingTableEl.addEventListener('keydown', (event) => {
+                    if (!isActivationKey(event)) return;
+                    const row = event.target.closest('tr[data-filename]');
+                    if (!row) return;
+                    event.preventDefault();
+                    callbacks.onSelect(row.dataset.filename);
+                });
             }
 
             listEl.addEventListener('keydown', (event) => {
-                if (event.key !== 'Enter') return;
+                if (!isActivationKey(event)) return;
                 const item = event.target.closest('.history-item');
-                if (item) callbacks.onSelect(item.dataset.filename);
+                if (!item) return;
+                event.preventDefault();
+                callbacks.onSelect(item.dataset.filename);
             });
         }
 

@@ -9,7 +9,7 @@ import time
 from typing import Optional
 
 from data_trust import data_snapshot_filename_for_report, normalize_data_trust, read_data_trust_from_snapshot
-from decision_tracking import build_decision_tracking
+from decision_tracking import build_decision_freshness, build_decision_tracking
 from report_index_parsing import (
     extract_company_name as _extract_company_name,
     is_safe_report_filename,
@@ -96,6 +96,7 @@ def build_report_metadata(
     )
     snapshot_flags = read_snapshot_report_flags(data_snapshot_path)
     decision_tracking = build_decision_tracking(recommendation, data_snapshot_path)
+    decision_freshness = build_decision_freshness(data_snapshot_path, report_generated_at=parsed["date"])
     normalized_recommendation = normalize_recommendation_label(recommendation.get("recommendation"))
     search_text = " ".join([
         filename,
@@ -125,6 +126,7 @@ def build_report_metadata(
         "markdown_hash": file_sha256(md_path, content=markdown_content),
         "data_file_hash": file_sha256(data_snapshot_path),
         "decision_tracking": decision_tracking,
+        "decision_freshness": decision_freshness,
         "normalized_recommendation": normalized_recommendation,
         "search_text": search_text,
     }

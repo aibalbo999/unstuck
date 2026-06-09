@@ -120,3 +120,50 @@ def build_decision_tracking(recommendation: dict, data_snapshot_path: str = "") 
     tracking["status"] = _tracking_status(tracking)
     tracking["summary"] = _summary(tracking)
     return tracking
+
+
+def build_decision_freshness(data_snapshot_path: str = "", report_generated_at: str = "") -> dict:
+    """Describe whether the investment conclusion matches the current data snapshot."""
+    snapshot = _read_snapshot(data_snapshot_path)
+    if not snapshot:
+        return {
+            "status": "unknown",
+            "requires_rerun": False,
+            "conclusion_generated_at": str(report_generated_at or ""),
+            "snapshot_refreshed_at": "",
+            "data_snapshot_generated_at": "",
+            "requires_rerun_reason": "",
+            "message": "尚無資料快照，無法判斷投資結論是否仍對應最新資料。",
+        }
+
+    stale = bool(snapshot.get("refreshed_without_analysis_rerun"))
+    data_snapshot_generated_at = str(snapshot.get("generated_at") or "")
+    conclusion_generated_at = str(
+        snapshot.get("conclusion_generated_at")
+        or report_generated_at
+        or data_snapshot_generated_at
+        or ""
+    )
+    snapshot_refreshed_at = str(
+        snapshot.get("snapshot_refreshed_at")
+        or (data_snapshot_generated_at if stale else "")
+        or ""
+    )
+    status = str(snapshot.get("decision_validity_status") or ("needs_rerun" if stale else "current"))
+    requires_rerun = status == "needs_rerun" or stale
+    reason = str(
+        snapshot.get("requires_rerun_reason")
+        or snapshot.get("analysis_text_stale_message")
+        or ""
+    )
+    if requires_rerun and not reason:
+        reason = "資料快照已刷新，但投資結論尚未依最新資料重新產生。"
+    return {
+        "status": status,
+        "requires_rerun": requires_rerun,
+        "conclusion_generated_at": conclusion_generated_at,
+        "snapshot_refreshed_at": snapshot_refreshed_at,
+        "data_snapshot_generated_at": data_snapshot_generated_at,
+        "requires_rerun_reason": reason,
+        "message": reason if requires_rerun else "投資結論與目前資料快照一致。",
+    }

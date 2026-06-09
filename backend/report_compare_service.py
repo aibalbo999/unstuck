@@ -76,6 +76,7 @@ def _side(metadata: dict) -> dict:
         },
         "data_trust": trust,
         "decision_tracking": metadata.get("decision_tracking") or {},
+        "decision_freshness": metadata.get("decision_freshness") or {},
         "analysis_text_stale": bool(metadata.get("analysis_text_stale")),
     }
 
@@ -114,6 +115,12 @@ def _diff(left: dict, right: dict) -> dict:
                 left.get("data_trust", {}).get("score"),
                 right.get("data_trust", {}).get("score"),
             ),
+        },
+        "decision_freshness": {
+            "status_before": left.get("decision_freshness", {}).get("status"),
+            "status_after": right.get("decision_freshness", {}).get("status"),
+            "requires_rerun_before": bool(left.get("decision_freshness", {}).get("requires_rerun")),
+            "requires_rerun_after": bool(right.get("decision_freshness", {}).get("requires_rerun")),
         },
         "tracking": {
             "return_pct": _numeric_delta(
@@ -183,6 +190,15 @@ def _compatibility(left: dict, right: dict) -> dict:
             "code": "reverse_chronology",
             "message": "左側報告時間晚於右側；差異仍依目前左右順序計算。",
         })
+    for side_name, side in (("left", left), ("right", right)):
+        freshness = side.get("decision_freshness") if isinstance(side.get("decision_freshness"), dict) else {}
+        if freshness.get("requires_rerun"):
+            label = "左側" if side_name == "left" else "右側"
+            warnings.append({
+                "level": "warning",
+                "code": f"{side_name}_decision_needs_rerun",
+                "message": f"{label}報告資料快照已更新，但投資結論尚未重跑。",
+            })
     return {
         "same_ticker": same_ticker,
         "same_pipeline": same_pipeline,

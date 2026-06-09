@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const historyNext = document.getElementById('history-next');
     const historyPageInfo = document.getElementById('history-page-info');
     const historyTrackingTable = document.getElementById('history-tracking-table');
+    const historyWorkspaceEl = document.querySelector('.history-workspace');
     const reportPreview = document.getElementById('report-preview');
     const previewMode = document.getElementById('preview-mode');
     const previewTitle = document.getElementById('preview-title');
@@ -60,6 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentReportFilename = null;
     let pendingAuditNotice = null;
     let currentPipeline = 'v1';
+    const notify = window.StockAgentNotificationCenter.create();
 
     const viewController = window.StockAgentViewController.create({
         views: {
@@ -122,14 +124,15 @@ document.addEventListener('DOMContentLoaded', () => {
     window.openReport = openReport;
 
     const opsWorkspace = window.StockAgentOpsWorkspace.create({ apiClient, ui });
-    const loadProviderSla = opsWorkspace.loadProviderSla;
 
     const historyWorkspace = window.StockAgentHistoryWorkspace.create({
         apiClient,
         ui,
-        loadProviderSla,
+        notify,
+        refreshProviderSlaIfLoaded: opsWorkspace.refreshProviderSlaIfLoaded,
         openReport,
         elements: {
+            historyWorkspace: historyWorkspaceEl,
             historyList,
             historySearch,
             historyPipelineFilter,
@@ -178,7 +181,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     loadHistory();
     opsWorkspace.bindEvents();
-    opsWorkspace.loadAll();
+    window.StockAgentHomeTabs.bind({
+        onActivate: tabName => {
+            if (tabName === 'ops') opsWorkspace.loadAllOnce();
+        }
+    });
 
     pipelineInputs.forEach(input => {
         input.addEventListener('change', updateAnalyzeButtonCopy);
@@ -214,7 +221,7 @@ document.addEventListener('DOMContentLoaded', () => {
     analyzeBtn.addEventListener('click', () => {
         const ticker = tickerInput.value.trim().toUpperCase();
         if (!ticker) {
-            alert('請輸入股票代號！');
+            notify.error('請輸入股票代號。');
             return;
         }
 

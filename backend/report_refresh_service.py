@@ -9,7 +9,8 @@ from typing import Any
 from fastapi import HTTPException
 
 from data_fetch import FetchRequest
-from data_trust import build_data_snapshot, data_snapshot_filename_for_report, normalize_data_trust
+from data_trust import build_data_snapshot, data_snapshot_filename_for_report, normalize_data_trust, utc_now_iso
+from decision_tracking import build_decision_freshness
 from report_index import is_safe_report_filename, upsert_report_metadata
 
 
@@ -123,24 +124,32 @@ async def refresh_report_data_snapshot(
         message = refreshed_data.get("error") if isinstance(refreshed_data, dict) else "資料刷新失敗"
         raise HTTPException(status_code=502, detail=message)
 
+    refresh_generated_at = utc_now_iso()
     context = {
         "ticker": refreshed_data.get("ticker") or ticker,
         "company_name": refreshed_data.get("company_name") or previous_snapshot.get("company_name") or ticker,
         "pipeline_id": previous_snapshot.get("pipeline"),
         "data": refreshed_data,
+        "conclusion_generated_at": previous_snapshot.get("conclusion_generated_at") or previous_snapshot.get("generated_at"),
+        "snapshot_refreshed_at": refresh_generated_at,
+        "decision_validity_status": "needs_rerun",
+        "requires_rerun_reason": ANALYSIS_TEXT_STALE_MESSAGE,
         "deterministic_fallbacks": previous_snapshot.get("deterministic_fallbacks", []),
         "report_lint": previous_snapshot.get("report_lint", {}),
         "refreshed_from_report": filename,
         "refreshed_without_analysis_rerun": True,
         "analysis_text_stale_message": ANALYSIS_TEXT_STALE_MESSAGE,
     }
-    refreshed_snapshot = build_data_snapshot(context, pipeline_id=previous_snapshot.get("pipeline"))
-    refreshed_snapshot["refreshed_without_analysis_rerun"] = True
-    refreshed_snapshot["analysis_text_stale_message"] = ANALYSIS_TEXT_STALE_MESSAGE
+    refreshed_snapshot = build_data_snapshot(
+        context,
+        pipeline_id=previous_snapshot.get("pipeline"),
+        generated_at=refresh_generated_at,
+    )
     refresh_diff = refresh_data_diff(previous_snapshot, refreshed_snapshot)
 
     with open(data_path, "w", encoding="utf-8") as f:
         json.dump(refreshed_snapshot, f, ensure_ascii=False, indent=2)
+    decision_freshness = build_decision_freshness(data_path)
     metadata = upsert_report_metadata(
         filename,
         output_dir=output_dir,
@@ -155,5 +164,6 @@ async def refresh_report_data_snapshot(
         "refresh_diff": refresh_diff,
         "analysis_text_stale": True,
         "analysis_text_stale_message": ANALYSIS_TEXT_STALE_MESSAGE,
+        "decision_freshness": decision_freshness,
         "metadata": metadata or {},
     }

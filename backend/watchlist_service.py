@@ -6,6 +6,8 @@ import time
 from datetime import datetime
 
 from pipeline_modes import normalize_pipeline_run_id
+import report_history_service
+import watchlist_claim_store
 import watchlist_store
 
 
@@ -28,6 +30,72 @@ def reset_watchlist_store_for_tests() -> None:
 def list_watchlist() -> dict:
     _sync_store_config()
     return watchlist_store.list_watchlist()
+
+
+def _ticker_matches(report: dict, ticker: str) -> bool:
+    report_ticker = str(report.get("ticker") or "").upper()
+    ticker_upper = str(ticker or "").upper()
+    return report_ticker == ticker_upper or report_ticker.split(".", 1)[0] == ticker_upper.split(".", 1)[0]
+
+
+def _latest_report_for_item(item: dict, output_dir: str) -> dict:
+    ticker = str(item.get("ticker") or "").strip().upper()
+    if not ticker or not output_dir:
+        return {}
+    result = report_history_service.list_reports(
+        page=1,
+        limit=5,
+        q=ticker.split(".", 1)[0],
+        pipeline=item.get("pipeline") or "all",
+        recommendation="all",
+        data_trust="all",
+        output_dir=output_dir,
+        report_cache={},
+    )
+    reports = result.get("reports", [])
+    for report in reports:
+        if _ticker_matches(report, ticker):
+            return report
+    return reports[0] if reports else {}
+
+
+def _priority_for_item(item: dict, latest_report: dict) -> tuple[str, dict]:
+    if not item.get("enabled"):
+        return "low", {"reason": "disabled", "message": "watchlist 項目已停用。"}
+    if not latest_report:
+        return "medium", {"reason": "missing_report", "message": "尚未產生最新報告。"}
+    freshness = latest_report.get("decision_freshness") if isinstance(latest_report.get("decision_freshness"), dict) else {}
+    if freshness.get("requires_rerun"):
+        return "high", {"reason": "needs_rerun", "message": freshness.get("message") or "資料已更新，投資結論需重跑。"}
+    return "normal", {"reason": "current", "message": "最新報告結論有效。"}
+
+
+def list_watchlist_with_report_alerts(output_dir: str) -> dict:
+    payload = list_watchlist()
+    priority_counts = {"high": 0, "medium": 0, "normal": 0, "low": 0}
+    items = []
+    for item in payload.get("items", []):
+        latest_report = _latest_report_for_item(item, output_dir)
+        priority, alert = _priority_for_item(item, latest_report)
+        priority_counts[priority] += 1
+        compact_report = {}
+        if latest_report:
+            compact_report = {
+                "filename": latest_report.get("filename"),
+                "date": latest_report.get("date"),
+                "decision_freshness": latest_report.get("decision_freshness") or {},
+                "data_trust": latest_report.get("data_trust") or {},
+            }
+        items.append({
+            **item,
+            "decision_priority": priority,
+            "decision_alert": alert,
+            "latest_report": compact_report,
+        })
+    priority_order = {"high": 0, "medium": 1, "normal": 2, "low": 3}
+    payload["items"] = sorted(items, key=lambda item: (priority_order.get(item.get("decision_priority"), 9), item.get("ticker", "")))
+    payload["priority_counts"] = priority_counts
+    return payload
 
 
 def upsert_watchlist_item(payload: dict) -> dict:
@@ -74,6 +142,11 @@ def due_watchlist_items(now: datetime | None = None) -> list[dict]:
                 continue
             due.append({**item, "due_slot": slot, "due_label": DEFAULT_SCHEDULES[slot]["label"], "due_date": today})
     return due
+
+
+def claim_due_watchlist_items(now: datetime | None = None) -> list[dict]:
+    _sync_store_config()
+    return watchlist_claim_store.claim_due_watchlist_items(now)
 
 
 def enqueue_watchlist_items(items: list[dict], *, create_job, find_active_job, task_queue, run_stock_analysis_job) -> dict:

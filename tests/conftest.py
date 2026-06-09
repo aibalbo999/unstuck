@@ -47,3 +47,11 @@ def isolate_runtime_cache_db(monkeypatch, tmp_path):
     cache_store.reset_cache_store_for_tests()
     yield
     cache_store.reset_cache_store_for_tests()
+
+
+@pytest.fixture
+def mutation_headers(monkeypatch):
+    import api
+
+    monkeypatch.setattr(api, "MUTATION_API_TOKEN", "test-mutation-token")
+    return {"X-Mutation-Token": "test-mutation-token"}

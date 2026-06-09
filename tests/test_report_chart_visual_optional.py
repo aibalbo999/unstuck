@@ -1,4 +1,3 @@
-import json
 import os
 from pathlib import Path
 
@@ -37,7 +36,7 @@ def test_report_chart_canvas_pixels_optional():
         },
     }
     script = env.get_template("includes/report_charts.html.j2").render(
-        chart_data_json=json.dumps(chart_data, ensure_ascii=False),
+        chart_data=chart_data,
         current_price_numeric=125,
     )
     canvas_ids = ["revenueChart", "marginChart", "fcfChart", "roeChart", "moatChart", "valuationChart", "peRiverChart"]

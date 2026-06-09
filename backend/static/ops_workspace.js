@@ -18,6 +18,8 @@
             apiQuotaList: byId('api-quota-list'),
             apiQuotaRefresh: byId('api-quota-refresh')
         };
+        let loaded = false;
+        let providerSlaDirty = false;
         const watchlistPanel = window.StockAgentWatchlistPanel.create({
             apiClient,
             escapeHtml: ui.escapeHtml,
@@ -110,18 +112,44 @@
         }
 
         function loadAll() {
-            loadProviderSla();
-            loadActiveJobs();
-            loadApiQuotas();
-            watchlistPanel.load();
+            return Promise.allSettled([
+                loadProviderSla(),
+                loadActiveJobs(),
+                loadApiQuotas(),
+                watchlistPanel.load()
+            ]);
+        }
+
+        function loadAllOnce() {
+            if (!loaded) {
+                loaded = true;
+                providerSlaDirty = false;
+                return loadAll();
+            }
+            if (providerSlaDirty) {
+                providerSlaDirty = false;
+                return loadProviderSla();
+            }
+            return Promise.resolve();
+        }
+
+        function refreshProviderSlaIfLoaded() {
+            if (!loaded) {
+                providerSlaDirty = true;
+                return Promise.resolve();
+            }
+            providerSlaDirty = false;
+            return loadProviderSla();
         }
 
         return {
             bindEvents,
             loadActiveJobs,
             loadAll,
+            loadAllOnce,
             loadApiQuotas,
-            loadProviderSla
+            loadProviderSla,
+            refreshProviderSlaIfLoaded
         };
     }
 

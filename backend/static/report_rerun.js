@@ -74,6 +74,9 @@
         const previewReport = options.previewReport;
         if (!previewReport) return;
 
+        const apiClient = options.apiClient || window.StockAgentApiClient;
+        const notify = options.notify || { success: () => {}, error: () => {} };
+        const refreshProviderSlaIfLoaded = options.refreshProviderSlaIfLoaded || (() => Promise.resolve());
         const scope = options.scope || 'final_recommendation';
         const buttons = options.buttons || {};
         const button = buttonForScope(scope, buttons);
@@ -85,11 +88,10 @@
 
         try {
             const filename = previewReport.filename;
-            const res = await fetch(`/api/report/${encodeURIComponent(filename)}/rerun?scope=${encodeURIComponent(scope)}`, { method: 'POST' });
-            const payload = await res.json();
-            if (!res.ok || payload.success === false) {
-                throw new Error(payload.error || payload.detail || `HTTP ${res.status}`);
-            }
+            const payload = await apiClient.requestJson(
+                `/api/report/${encodeURIComponent(filename)}/rerun?scope=${encodeURIComponent(scope)}`,
+                { method: 'POST' }
+            );
 
             setButtonLabel(button, '重跑中');
             if (payload.job_id) {
@@ -99,11 +101,7 @@
                     setStatus(options.statusEl, '已送出取消要求，正在等待目前步驟收尾...');
                     try {
                         const cancelUrl = `/api/report/${encodeURIComponent(filename)}/rerun/cancel?job_id=${encodeURIComponent(payload.job_id)}`;
-                        const cancelRes = await fetch(cancelUrl, { method: 'POST' });
-                        if (!cancelRes.ok) {
-                            const cancelPayload = await cancelRes.json().catch(() => ({}));
-                            throw new Error(cancelPayload.detail || cancelPayload.message || `HTTP ${cancelRes.status}`);
-                        }
+                        await apiClient.requestJson(cancelUrl, { method: 'POST' });
                     } catch (err) {
                         buttons.cancel.disabled = false;
                         setStatus(options.statusEl, `取消重跑失敗：${err.message || err}`);
@@ -118,7 +116,7 @@
                 : payload;
 
             await options.loadHistory();
-            await options.loadProviderSla();
+            await refreshProviderSlaIfLoaded();
             if (donePayload.filename) {
                 options.openReport(
                     donePayload.filename,
@@ -127,11 +125,11 @@
                 );
             }
             setStatus(options.statusEl, '');
-            window.alert(`${payload.scope_label || donePayload.scope_label || '局部重跑'}完成：${donePayload.filename || '已產生新報告'}`);
+            notify.success(`${payload.scope_label || donePayload.scope_label || '局部重跑'}完成：${donePayload.filename || '已產生新報告'}`);
         } catch (err) {
             console.error('Failed to rerun report', err);
             setStatus(options.statusEl, `局部重跑失敗：${err.message || err}`);
-            window.alert(`局部重跑失敗：${err.message || err}`);
+            notify.error(`局部重跑失敗：${err.message || err}`);
         } finally {
             disableButtons(buttons, false);
             configureCancelButton(buttons.cancel, false);

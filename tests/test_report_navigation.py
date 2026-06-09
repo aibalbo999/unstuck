@@ -6,6 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 from reporting.html_renderer import generate_html_report  # noqa: E402
+from report_history_service import download_report_file  # noqa: E402
 from report_view_repair import repair_report_html_for_view  # noqa: E402
 
 
@@ -95,3 +96,37 @@ def test_report_view_repair_rebuilds_legacy_mode_b_sidebar():
     assert 'href="#section-16"' in repaired
     assert '<span class="nav-label">實戰交易決策</span>' in repaired
     assert 'href="https://tw.stock.yahoo.com/quote/2308.TW"' in repaired
+
+
+def test_downloaded_html_uses_same_view_repairs(tmp_path):
+    filename = "2308_v2_report_20260608_010000.html"
+    (tmp_path / filename).write_text(
+        """
+        <nav class="sidebar">
+          <div class="nav-section">
+            <div class="nav-section-title">分析報告</div>
+            <a class="nav-item" href="#overview"><span class="nav-num">0</span>概覽總覽</a>
+            <a class="nav-item" href="#section-7"><span class="nav-num">7</span>投資決策</a>
+          </div>
+          <div class="sidebar-footer">生成日期</div>
+        </nav>
+        <div id="overview"></div>
+        <div class="section" id="section-16">
+          <div class="section-header">
+            <div class="section-num">6</div>
+            <div class="section-title">實戰交易決策</div>
+          </div>
+          <p>台達電（<a href="http://2308.TW">2308.TW</a>）</p>
+        </div>
+        """,
+        encoding="utf-8",
+    )
+
+    response = download_report_file(filename, str(tmp_path), "html")
+    body = response.body.decode("utf-8")
+
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == f"attachment; filename={filename}"
+    assert 'href="#section-7"' not in body
+    assert 'href="#section-16"' in body
+    assert 'href="https://tw.stock.yahoo.com/quote/2308.TW"' in body

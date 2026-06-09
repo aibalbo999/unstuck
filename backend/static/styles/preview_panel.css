@@ -4,9 +4,7 @@
     flex-direction: column;
 }
 .report-preview[hidden] {
-    display: flex;
-    visibility: hidden;
-    pointer-events: none;
+    display: none;
 }
 .preview-header {
     display: flex;
@@ -145,7 +143,7 @@
 }
 .preview-refresh-button {
     width: 100%;
-    min-height: 42px;
+    min-height: 44px;
     margin-top: 10px;
     display: inline-flex;
     align-items: center;
@@ -173,7 +171,7 @@
     margin-top: 10px;
 }
 .preview-rerun-button {
-    min-height: 40px;
+    min-height: 44px;
     border: 1px solid rgba(148, 163, 184, 0.28);
     border-radius: 8px;
     background: rgba(30, 41, 59, 0.66);

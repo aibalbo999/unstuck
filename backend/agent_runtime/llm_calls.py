@@ -98,6 +98,23 @@ def _run_agent_once(
             ),
         )
         api_key = rotator.get_key(model_id, estimate_text_tokens(prompt, response_budget=8192))
+        emit_context_event(
+            context,
+            make_runtime_event(
+                "status",
+                phase="llm_provider_request",
+                level="info",
+                message=f"Agent {agent_num} 已取得 API key，送出模型請求。",
+                **_model_event_fields(
+                    context,
+                    agent_num,
+                    model_id,
+                    prompt,
+                    timeout_seconds=timeout_seconds,
+                    **_key_slot_fields(rotator, api_key),
+                ),
+            ),
+        )
         response = _generate_content(api_key, model_id, agent_num, prompt)
         result = process_agent_response(agent_num, _response_text(response), context)
     except Exception as exc:
@@ -164,6 +181,23 @@ async def _run_agent_once_async(
             ),
         )
         api_key = await rotator.async_get_key(model_id, estimate_text_tokens(prompt, response_budget=8192))
+        await emit_context_event_async(
+            context,
+            make_runtime_event(
+                "status",
+                phase="llm_provider_request",
+                level="info",
+                message=f"Agent {agent_num} 已取得 API key，送出模型請求。",
+                **_model_event_fields(
+                    context,
+                    agent_num,
+                    model_id,
+                    prompt,
+                    timeout_seconds=timeout_seconds,
+                    **_key_slot_fields(rotator, api_key),
+                ),
+            ),
+        )
         response = await _await_with_agent_timeout(
             _generate_content_async(api_key, model_id, agent_num, prompt),
             model_id=model_id,

@@ -37,7 +37,7 @@ def test_history_preview_visual_regression_optional(tmp_path):
       <main id="home-view" class="view-container active">
         <div class="glass-panel text-center">
           <div class="history-section">
-            <div class="history-workspace">
+            <div class="history-workspace has-preview">
               <div class="history-list-pane">
                 <div class="history-controls">
                   <input class="history-search" value="2449" />

@@ -371,14 +371,14 @@
                 返回
             </button>
             <h3 class="report-title" id="report-ticker-title">報告</h3>
-            <div class="report-actions" style="margin-left: auto; display: flex; gap: 8px;">
-                <button id="download-html-btn" class="secondary-button" style="padding: 6px 12px; font-size: 0.9rem; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #fff; border-radius: 6px; cursor: pointer;">
+            <div class="report-actions">
+                <button id="download-html-btn" class="report-download-button" type="button">
                     下載 HTML
                 </button>
-                <button id="download-md-btn" class="primary-button" style="padding: 6px 12px; font-size: 0.9rem; border: none; background: #3b82f6; color: #fff; border-radius: 6px; cursor: pointer;">
+                <button id="download-md-btn" class="report-download-button is-primary" type="button">
                     下載 Markdown
                 </button>
-                <button id="download-data-btn" class="secondary-button" style="padding: 6px 12px; font-size: 0.9rem; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #fff; border-radius: 6px; cursor: pointer;">
+                <button id="download-data-btn" class="report-download-button" type="button">
                     下載資料 JSON
                 </button>
             </div>
@@ -388,6 +388,19 @@
             <iframe id="report-iframe" src="" frameborder="0"></iframe>
         </div>
     </main>
+
+    <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+    <div id="confirm-dialog" class="confirm-dialog" hidden>
+        <div class="confirm-dialog-backdrop" data-confirm-cancel></div>
+        <div class="confirm-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title">
+            <h2 id="confirm-dialog-title" data-confirm-title>確認操作</h2>
+            <p data-confirm-message></p>
+            <div class="confirm-dialog-actions">
+                <button class="confirm-dialog-button" type="button" data-confirm-cancel-button>取消</button>
+                <button class="confirm-dialog-button is-primary" type="button" data-confirm-ok-button>確認</button>
+            </div>
+        </div>
+    </div>
 
     <script src="/static/ui_helpers.js?v=20260608-data-trust-score"></script>
     <script src="/static/api_client.js?v=20260608-api-quota-watchlist"></script>
@@ -409,6 +422,7 @@
     <script src="/static/report_navigation.js?v=20260608-report-navigation-fix"></script>
     <script src="/static/report_compare_panel.js?v=20260608-report-compare"></script>
     <script src="/static/history_workspace.js?v=20260608-report-compare"></script>
+    <script src="/static/notification_center.js?v=20260609-front-end-ops"></script>
     <script src="/static/app.js?v=20260608-watchlist-quota"></script>
 </body>
 </html>

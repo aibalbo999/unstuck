@@ -60,6 +60,10 @@
         elements.trackingGap = elements.trackingGap || document.getElementById('preview-tracking-gap');
         elements.trackingSummary = elements.trackingSummary || document.getElementById('preview-tracking-summary');
 
+        function setPreviewOpen(open) {
+            if (elements.workspace) elements.workspace.classList.toggle('has-preview', open);
+        }
+
         function show(report) {
             if (!report || !elements.root) return false;
             const rec = report.recommendation || {};
@@ -79,19 +83,24 @@
             renderTracking(report.decision_tracking, elements);
 
             if (elements.staleNotice) {
-                const staleMessage = report.analysis_text_stale_message
+                const freshness = report.decision_freshness || {};
+                const staleMessage = freshness.message
+                    || freshness.requires_rerun_reason
+                    || report.analysis_text_stale_message
                     || '資料快照已刷新，但這份 HTML/Markdown 分析本文尚未重新執行。';
                 elements.staleNotice.textContent = staleMessage;
-                elements.staleNotice.hidden = !report.analysis_text_stale;
+                elements.staleNotice.hidden = !(report.analysis_text_stale || freshness.requires_rerun);
             }
 
             elements.root.hidden = false;
+            setPreviewOpen(true);
             return true;
         }
 
         function hide() {
             if (elements.root) elements.root.hidden = true;
             if (elements.trackingRoot) elements.trackingRoot.hidden = true;
+            setPreviewOpen(false);
         }
 
         function setStatus(message) {

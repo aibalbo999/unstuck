@@ -9,17 +9,23 @@ from config import PROVIDER_SLA_RETENTION_DAYS
 from provider_sla import _connect
 
 
-def cleanup_provider_sla_events(retention_days: Optional[int] = None) -> dict:
+def cleanup_provider_sla_events(retention_days: Optional[int] = None, write: bool = True) -> dict:
     days = int(retention_days or PROVIDER_SLA_RETENTION_DAYS)
     cutoff = time.time() - max(days, 1) * 24 * 60 * 60
     with _connect() as conn:
         before = conn.execute("SELECT COUNT(*) FROM provider_sla_events").fetchone()[0]
-        conn.execute("DELETE FROM provider_sla_events WHERE created_at < ?", (cutoff,))
-        after = conn.execute("SELECT COUNT(*) FROM provider_sla_events").fetchone()[0]
-        _rebuild_provider_sla_stats(conn)
+        stale = conn.execute("SELECT COUNT(*) FROM provider_sla_events WHERE created_at < ?", (cutoff,)).fetchone()[0]
+        if write:
+            conn.execute("DELETE FROM provider_sla_events WHERE created_at < ?", (cutoff,))
+            after = conn.execute("SELECT COUNT(*) FROM provider_sla_events").fetchone()[0]
+            _rebuild_provider_sla_stats(conn)
+        else:
+            after = before
     return {
+        "dry_run": not write,
         "retention_days": days,
         "deleted": int(before - after),
+        "stale_events": int(stale),
         "remaining": int(after),
     }
 

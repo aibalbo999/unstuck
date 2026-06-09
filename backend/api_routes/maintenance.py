@@ -29,7 +29,7 @@ def create_maintenance_router(deps: MaintenanceRouteDeps) -> APIRouter:
         return {"success": True, "summary": summary}
 
     @router.post("/cleanup-report-index")
-    async def cleanup_report_index(request: Request, write: bool = Query(True)):
+    async def cleanup_report_index(request: Request, write: bool = Query(False)):
         deps.require_mutation_authorized(request)
         result = await asyncio.to_thread(deps.cleanup_report_index_orphans, write=write)
         return _maintenance_result(result)
@@ -38,9 +38,10 @@ def create_maintenance_router(deps: MaintenanceRouteDeps) -> APIRouter:
     async def cleanup_provider_sla(
         request: Request,
         retention_days: Optional[int] = Query(None, ge=1, le=3650),
+        write: bool = Query(False),
     ):
         deps.require_mutation_authorized(request)
-        result = await asyncio.to_thread(deps.cleanup_provider_sla_events, retention_days=retention_days)
+        result = await asyncio.to_thread(deps.cleanup_provider_sla_events, retention_days=retention_days, write=write)
         return _maintenance_result(result)
 
     @router.post("/cleanup-analysis-history")
@@ -48,7 +49,7 @@ def create_maintenance_router(deps: MaintenanceRouteDeps) -> APIRouter:
         request: Request,
         retention_days: Optional[int] = Query(None, ge=1, le=3650),
         keep_recent_jobs: int = Query(20, ge=0, le=500),
-        write: bool = Query(True),
+        write: bool = Query(False),
     ):
         deps.require_mutation_authorized(request)
         result = await asyncio.to_thread(

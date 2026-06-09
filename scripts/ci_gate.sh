@@ -6,6 +6,7 @@ cd "$(dirname "$0")/.."
 PYTHON_BIN="${PYTHON_BIN:-$(scripts/project_python.sh)}"
 
 "$PYTHON_BIN" scripts/check_runtime.py --strict
+"$PYTHON_BIN" scripts/secret_scan.py
 "$PYTHON_BIN" -m compileall backend
 "$PYTHON_BIN" -m pytest -q -m "not live"
 

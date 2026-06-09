@@ -5,6 +5,9 @@
     .history-workspace {
         grid-template-columns: 1fr;
     }
+    .history-workspace.has-preview {
+        grid-template-columns: 1fr;
+    }
     .history-list-pane,
     .report-preview {
         min-height: auto;

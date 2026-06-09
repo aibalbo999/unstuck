@@ -76,6 +76,7 @@ def build_data_snapshot(
     if not isinstance(data, dict):
         data = {}
     data_trust = normalize_data_trust(data.get("data_trust")) if data.get("data_trust") else build_data_trust(data)
+    snapshot_generated_at = generated_at or utc_now_iso()
     snapshot = {
         "snapshot_schema_version": DATA_SNAPSHOT_SCHEMA_VERSION,
         "snapshot_truncated": False,
@@ -85,8 +86,14 @@ def build_data_snapshot(
         "ticker": context.get("ticker") or data.get("ticker"),
         "company_name": context.get("company_name") or data.get("company_name"),
         "pipeline": pipeline_id or context.get("pipeline_id"),
-        "generated_at": generated_at or utc_now_iso(),
+        "generated_at": snapshot_generated_at,
+        "conclusion_generated_at": sanitize_for_snapshot(context.get("conclusion_generated_at") or snapshot_generated_at),
+        "snapshot_refreshed_at": sanitize_for_snapshot(context.get("snapshot_refreshed_at", "")),
+        "decision_validity_status": sanitize_for_snapshot(context.get("decision_validity_status") or "current"),
+        "requires_rerun_reason": sanitize_for_snapshot(context.get("requires_rerun_reason", "")),
         "refreshed_from_report": sanitize_for_snapshot(context.get("refreshed_from_report", "")),
+        "refreshed_without_analysis_rerun": bool(context.get("refreshed_without_analysis_rerun")),
+        "analysis_text_stale_message": sanitize_for_snapshot(context.get("analysis_text_stale_message", "")),
         "data_schema_version": data.get("data_schema_version"),
         "source_freshness": sanitize_for_snapshot(data.get("source_freshness", {})),
         "source_audit": sanitize_for_snapshot(data.get("source_audit", [])),

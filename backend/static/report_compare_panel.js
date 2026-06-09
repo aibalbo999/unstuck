@@ -15,6 +15,13 @@
         return '時間未知';
     }
 
+    function decisionStatusLabel(freshness) {
+        if (!freshness) return 'N/A';
+        if (freshness.requires_rerun || freshness.status === 'needs_rerun') return '需重跑';
+        if (freshness.status === 'current') return '有效';
+        return freshness.status || 'N/A';
+    }
+
     function create(options) {
         const apiClient = options.apiClient;
         const elements = options.elements || {};
@@ -79,6 +86,10 @@
                     <span>
                         <strong>資料可信度</strong>
                         <em>${escapeHtml(diff.data_trust?.status_before || 'N/A')} → ${escapeHtml(diff.data_trust?.status_after || 'N/A')} · ${escapeHtml(formatDelta(diff.data_trust?.score))}</em>
+                    </span>
+                    <span>
+                        <strong>決策狀態</strong>
+                        <em>${escapeHtml(decisionStatusLabel(left.decision_freshness))} → ${escapeHtml(decisionStatusLabel(right.decision_freshness))}</em>
                     </span>
                     <span>
                         <strong>追蹤報酬</strong>

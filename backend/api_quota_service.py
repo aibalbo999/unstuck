@@ -94,7 +94,7 @@ def build_api_quota_payload(provider_summary_fetcher) -> dict:
 
     gemini_usage = _llm_usage_since(pacific_prev_utc)
     google_usage = _provider_attempts(providers, {"Google Search"}, pacific_prev_utc)
-    fmp_usage = _provider_attempts(providers, {"FMP quote", "FMP news", "FMP news retry"}, fmp_prev_utc)
+    fmp_usage = _provider_attempts(providers, {"FMP quote", "FMP stable quote", "FMP news", "FMP news retry"}, fmp_prev_utc)
 
     return {
         "generated_at": _fmt_dt(datetime.now(TAIPEI)),

@@ -210,9 +210,13 @@ def download_report_file(filename: str, output_dir: str, kind: str):
     if kind == "html":
         filepath = os.path.join(output_dir, filename)
         if os.path.exists(filepath):
-            return FileResponse(
-                filepath,
-                filename=filename,
+            try:
+                with open(filepath, "r", encoding="utf-8") as report_file:
+                    html = repair_report_html_for_view(report_file.read())
+            except OSError:
+                return HTMLResponse("<h1>找不到報告</h1>", status_code=404)
+            return HTMLResponse(
+                html,
                 media_type="text/html",
                 headers={"Content-Disposition": f"attachment; filename={filename}"},
             )

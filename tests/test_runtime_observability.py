@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 import api  # noqa: E402
+import api_observability_service  # noqa: E402
 import api_quota_service  # noqa: E402
 import api_usage_store  # noqa: E402
 import job_observability  # noqa: E402
@@ -48,6 +49,28 @@ def test_job_store_indexes_events_and_cancel_flag(monkeypatch, tmp_path):
     assert job_store.request_job_cancel(job_id, "cancel please") is True
     assert job_store.is_job_cancel_requested(job_id) is True
     assert job_store.find_active_job("2449.TW", "both") == {}
+
+
+def test_job_store_preserves_terminal_state_invariants(monkeypatch, tmp_path):
+    monkeypatch.setattr(job_store, "TASK_DB_PATH", str(tmp_path / "jobs.sqlite3"))
+
+    job_id = job_store.create_job("2449.TW", "both")
+    assert job_store.request_job_cancel(job_id, "stop now") is True
+
+    job_store.update_job(job_id, "done", filename="should-not-win.html")
+    cancelled = job_store.get_job(job_id)
+
+    assert cancelled["status"] == "cancelled"
+    assert cancelled["filename"] is None
+    assert "stop now" in cancelled["error"]
+
+    job_store.update_job(job_id, "done", filename="late.html")
+    job_store.update_job(job_id, "error", error="late error")
+    still_cancelled = job_store.get_job(job_id)
+
+    assert still_cancelled["status"] == "cancelled"
+    assert still_cancelled["filename"] is None
+    assert "stop now" in still_cancelled["error"]
 
 
 def test_provider_sla_aggregates_source_audit(monkeypatch, tmp_path):
@@ -190,7 +213,7 @@ def test_active_jobs_api(monkeypatch):
     async def fake_active_jobs_payload(limit=10, event_limit=80):
         return {"jobs": [], "active_count": 0}
 
-    monkeypatch.setattr(api.api_observability_service, "build_active_jobs_payload", fake_active_jobs_payload)
+    monkeypatch.setattr(api_observability_service, "build_active_jobs_payload", fake_active_jobs_payload)
 
     client = TestClient(api.app)
     response = client.get("/api/observability/active-jobs")
@@ -203,7 +226,7 @@ def test_api_quota_observability_api(monkeypatch):
     async def fake_api_quota_payload(summary_fetcher):
         return {"services": [{"service": "Gemini / Google AI", "configured": True}], "timezone": "Asia/Taipei"}
 
-    monkeypatch.setattr(api.api_observability_service, "build_api_quota_payload", fake_api_quota_payload)
+    monkeypatch.setattr(api_observability_service, "build_api_quota_payload", fake_api_quota_payload)
 
     client = TestClient(api.app)
     response = client.get("/api/observability/api-quotas")
@@ -226,6 +249,16 @@ def test_api_usage_ledger_records_llm_job_events(monkeypatch, tmp_path):
         "level": "info",
         "message": "calling",
         "metadata": {"model_id": "gemini-2.5-pro"},
+    })
+    usage_before_provider = api_usage_store.summarize_llm_usage_since(datetime.fromtimestamp(0, tz=timezone.utc))
+    assert usage_before_provider["observed_calls_since_reset"] == 0
+
+    job_store.append_event(job_id, {
+        "type": "status",
+        "phase": "llm_provider_request",
+        "level": "info",
+        "message": "provider request",
+        "metadata": {"model_id": "gemini-2.5-pro", "key_slot": 1, "key_count": 2},
     })
     job_store.append_event(job_id, {
         "type": "status",
@@ -279,7 +312,35 @@ def test_api_quota_payload_uses_persistent_usage_ledger(monkeypatch, tmp_path):
     assert fmp["usage"]["observed_24h_errors"] == 1
 
 
-def test_maintenance_api_summarizes_and_cleans_job_history(monkeypatch):
+def test_provider_usage_counts_real_fmp_stable_quote_attempts_only(monkeypatch, tmp_path):
+    db_path = tmp_path / "api_usage.sqlite3"
+    monkeypatch.setattr(api_usage_store, "API_USAGE_DB_PATH", str(db_path))
+    api_usage_store.reset_api_usage_store_for_tests()
+    timestamp = datetime.now(timezone.utc).timestamp()
+    api_usage_store.record_provider_audit_usage(
+        {"source": "market_data", "provider": "FMP stable quote", "status": "success"},
+        created_at=timestamp,
+    )
+    api_usage_store.record_provider_audit_usage(
+        {
+            "source": "market_data",
+            "provider": "FMP stable quote",
+            "status": "unavailable",
+            "message": "核心市場欄位已有資料，略過 FMP quote fallback。",
+        },
+        created_at=timestamp,
+    )
+
+    payload = api_quota_service.build_api_quota_payload(lambda limit=100: [
+        {"source": "market_data", "provider": "FMP stable quote", "last_status": "success", "alert_level": "ok"},
+    ])
+
+    fmp = next(item for item in payload["services"] if item["service"] == "Financial Modeling Prep")
+    assert fmp["usage"]["observed_24h_attempts"] == 1
+    assert fmp["usage"]["observed_24h_errors"] == 0
+
+
+def test_maintenance_api_summarizes_and_cleans_job_history(monkeypatch, mutation_headers):
     now = 2_000_000.0
     old = now - 40 * 24 * 60 * 60
     monkeypatch.setattr(job_store_maintenance.time, "time", lambda: now)
@@ -305,10 +366,11 @@ def test_maintenance_api_summarizes_and_cleans_job_history(monkeypatch):
         )
 
     client = TestClient(api.app)
-    summary_response = client.get("/api/maintenance/storage-summary")
+    summary_response = client.get("/api/maintenance/storage-summary", headers=mutation_headers)
     cleanup_response = client.post(
         "/api/maintenance/cleanup-analysis-history",
         params={"retention_days": 30, "keep_recent_jobs": 0, "write": "true"},
+        headers=mutation_headers,
     )
 
     assert summary_response.status_code == 200
@@ -321,6 +383,30 @@ def test_maintenance_api_summarizes_and_cleans_job_history(monkeypatch):
     assert result["deleted_events"] == 22
 
 
+def test_maintenance_cleanup_api_defaults_to_dry_run(monkeypatch, mutation_headers):
+    now = 2_000_000.0
+    old = now - 40 * 24 * 60 * 60
+    monkeypatch.setattr(job_store_maintenance.time, "time", lambda: now)
+
+    job_id = job_store.create_job("6282", "both")
+    job_store.update_job(job_id, "done")
+    with sqlite3.connect(job_store.TASK_DB_PATH) as conn:
+        conn.execute("UPDATE analysis_jobs SET created_at = ?, updated_at = ? WHERE job_id = ?", (old, old, job_id))
+
+    client = TestClient(api.app)
+    response = client.post(
+        "/api/maintenance/cleanup-analysis-history",
+        params={"retention_days": 30, "keep_recent_jobs": 0},
+        headers=mutation_headers,
+    )
+
+    assert response.status_code == 200
+    result = response.json()["result"]
+    assert result["dry_run"] is True
+    assert result["deleted_jobs"] == 0
+    assert job_store.get_job(job_id)["status"] == "done"
+
+
 def test_api_uses_lifespan_and_router_modules():
     source = (ROOT / "backend" / "api.py").read_text(encoding="utf-8")
 
@@ -329,6 +415,15 @@ def test_api_uses_lifespan_and_router_modules():
     assert "validate_runtime_settings()" in source
     assert "include_router" in source
     assert "api_routes.analysis" in source
+    for legacy_function in [
+        "parse_recommendation_summary",
+        "get_reports",
+        "delete_report",
+        "provider_sla_summary",
+        "refresh_report_data_snapshot",
+        "rerun_report_analysis",
+    ]:
+        assert f"def {legacy_function}(" not in source
 
 
 def test_runtime_policy_script_is_non_strict_for_local_runtime():
@@ -372,14 +467,13 @@ def test_analyze_sse_contract_streams_job_progress_and_done(monkeypatch):
     assert '"type": "done"' in text
 
 
-def test_cancel_analysis_endpoint_requests_cancel(monkeypatch):
+def test_cancel_analysis_endpoint_requests_cancel(monkeypatch, mutation_headers):
     cancelled = []
-    monkeypatch.setattr(api, "MUTATION_API_TOKEN", "")
     monkeypatch.setattr(api, "get_job", lambda job_id: {"job_id": job_id, "ticker": "2449", "pipeline_id": "both", "status": "running"})
     monkeypatch.setattr(api, "request_job_cancel", lambda job_id, reason: cancelled.append((job_id, reason)) or True)
 
     client = TestClient(api.app)
-    response = client.post("/api/analyze/2449/cancel?job_id=job-1&pipeline=both")
+    response = client.post("/api/analyze/2449/cancel?job_id=job-1&pipeline=both", headers=mutation_headers)
 
     assert response.status_code == 200
     assert response.json()["ok"] is True
@@ -404,23 +498,56 @@ def test_mutation_endpoints_require_admin_token_when_configured(monkeypatch):
     monkeypatch.setattr(api, "MUTATION_API_TOKEN", "")
 
 
-def test_unconfigured_mutation_token_is_localhost_only(monkeypatch):
+def test_unconfigured_mutation_token_requires_runtime_header_even_on_localhost(monkeypatch):
     class FakeClient:
         def __init__(self, host):
             self.host = host
 
     class FakeRequest:
-        headers = {}
-
-        def __init__(self, host):
+        def __init__(self, host, headers=None):
             self.client = FakeClient(host)
+            self.headers = headers or {}
 
     monkeypatch.setattr(api, "MUTATION_API_TOKEN", "")
+    monkeypatch.setattr(api, "RUNTIME_MUTATION_API_TOKEN", "runtime-test-token", raising=False)
 
-    api.require_mutation_authorized(FakeRequest("127.0.0.1"))
-    api.require_mutation_authorized(FakeRequest("testclient"))
+    with pytest.raises(HTTPException):
+        api.require_mutation_authorized(FakeRequest("127.0.0.1"))
+    api.require_mutation_authorized(FakeRequest("127.0.0.1", {"x-mutation-token": "runtime-test-token"}))
     with pytest.raises(HTTPException):
         api.require_mutation_authorized(FakeRequest("203.0.113.10"))
+
+
+def test_client_config_exposes_runtime_mutation_header(monkeypatch):
+    monkeypatch.setattr(api, "MUTATION_API_TOKEN", "")
+    monkeypatch.setattr(api, "RUNTIME_MUTATION_API_TOKEN", "runtime-test-token", raising=False)
+
+    client = TestClient(api.app)
+    response = client.get("/api/client-config")
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    assert response.json()["mutation_header"] == "X-Mutation-Token"
+    assert response.json()["mutation_token"] == "runtime-test-token"
+
+
+def test_client_config_does_not_expose_configured_admin_token(monkeypatch):
+    monkeypatch.setattr(api, "MUTATION_API_TOKEN", "long-lived-admin-token")
+    monkeypatch.setattr(api, "RUNTIME_MUTATION_API_TOKEN", "runtime-test-token", raising=False)
+
+    client = TestClient(api.app)
+    response = client.get("/api/client-config")
+
+    assert response.status_code == 200
+    assert response.json()["mutation_token"] == "runtime-test-token"
+    api.require_mutation_authorized(type("Req", (), {
+        "headers": {"x-mutation-token": "runtime-test-token"},
+        "client": None,
+    })())
+    api.require_mutation_authorized(type("Req", (), {
+        "headers": {"x-admin-token": "long-lived-admin-token"},
+        "client": None,
+    })())
 
 
 def test_report_cover_config_does_not_send_unsupported_enhance_prompt():

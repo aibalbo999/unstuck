@@ -1,6 +1,8 @@
 (function () {
     function create(options) {
-        const { apiClient, ui, elements, loadProviderSla, openReport } = options;
+        const { apiClient, ui, elements, openReport } = options;
+        const notify = options.notify || { success: () => {}, error: () => {}, confirm: async () => false };
+        const refreshProviderSlaIfLoaded = options.refreshProviderSlaIfLoaded || (() => Promise.resolve());
         let historyPage = 1;
         const historyLimit = 20;
         let historyReports = new Map();
@@ -31,6 +33,7 @@
 
         const reportPreviewPanel = window.StockAgentReportPreviewPanel.create({
             elements: {
+                workspace: elements.historyWorkspace,
                 root: elements.reportPreview,
                 mode: elements.previewMode,
                 title: elements.previewTitle,
@@ -119,20 +122,21 @@
                     data_trust: payload.data_trust || previewReport.data_trust,
                     data_snapshot_filename: payload.data_filename || previewReport.data_snapshot_filename,
                     analysis_text_stale: payload.analysis_text_stale || previewReport.analysis_text_stale,
-                    analysis_text_stale_message: payload.analysis_text_stale_message || previewReport.analysis_text_stale_message
+                    analysis_text_stale_message: payload.analysis_text_stale_message || previewReport.analysis_text_stale_message,
+                    decision_freshness: payload.decision_freshness || previewReport.decision_freshness
                 };
                 historyReports.set(filename, updated);
                 previewReport = updated;
                 showReportPreview(filename);
                 await loadHistory();
-                await loadProviderSla();
+                await refreshProviderSlaIfLoaded();
                 const summary = payload.refresh_diff && Array.isArray(payload.refresh_diff.summary)
                     ? payload.refresh_diff.summary.slice(0, 3).join('；')
                     : '資料快照已刷新';
-                alert(`資料快照已刷新：${summary}`);
+                notify.success(`資料快照已刷新：${summary}`);
             } catch (err) {
                 console.error('Failed to refresh data snapshot', err);
-                alert(`刷新資料快照失敗：${err.message || err}`);
+                notify.error(`刷新資料快照失敗：${err.message || err}`);
             } finally {
                 button.disabled = false;
                 if (label) label.textContent = originalText;
@@ -141,6 +145,7 @@
 
         async function rerunPreviewReport(scope) {
             return window.StockAgentReportRerun.rerunPreviewReport({
+                apiClient,
                 scope,
                 previewReport,
                 buttons: {
@@ -151,25 +156,30 @@
                 },
                 statusEl: elements.previewStaleNotice,
                 loadHistory,
-                loadProviderSla,
+                notify,
+                refreshProviderSlaIfLoaded,
                 openReport
             });
         }
 
         async function deleteReport(filename, event) {
             event.stopPropagation();
-            if (!confirm('確定要刪除這份報告嗎？')) return;
+            const confirmed = await notify.confirm ('確定要刪除這份報告嗎？', {
+                title: '刪除報告',
+                confirmLabel: '刪除'
+            });
+            if (!confirmed) return;
             try {
                 const result = await apiClient.deleteReport(filename);
                 if (result.success) {
                     if (previewReport && previewReport.filename === filename) hideReportPreview();
                     loadHistory();
                 } else {
-                    alert('刪除失敗：' + result.error);
+                    notify.error('刪除失敗：' + result.error);
                 }
             } catch (err) {
                 console.error(err);
-                alert('刪除失敗');
+                notify.error('刪除失敗');
             }
         }
 

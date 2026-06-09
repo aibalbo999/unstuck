@@ -19,7 +19,7 @@ input {
     color: var(--text-primary);
     font-size: 1.2rem;
     outline: none;
-    transition: all 0.3s ease;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease, background 0.3s ease;
     font-family: 'Inter', sans-serif;
 }
 input:focus {
@@ -102,7 +102,7 @@ input:focus {
     justify-content: center;
     align-items: center;
     gap: 8px;
-    transition: all 0.3s ease;
+    transition: background 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
     box-shadow: 0 0 20px var(--accent-glow);
 }
 .glow-button:hover {

@@ -1,17 +1,15 @@
 import asyncio
 import os
+import secrets
 import sys
 import threading
 from contextlib import asynccontextmanager, suppress
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-import api_observability_service
 import report_history_service
-import report_refresh_service
-import report_rerun_service
 from agent_runtime import AnalysisPipelineRunner
 from analysis_jobs import run_stock_analysis_job
 from api_routes.analysis import AnalysisRouteDeps, create_analysis_router
@@ -77,11 +75,8 @@ data_refresh_service = StockDataService()
 analysis_pipeline_runner = AnalysisPipelineRunner()
 report_renderer = ReportRenderer()
 active_analyses_lock = threading.Lock()
-LOCAL_MUTATION_HOSTS = {"127.0.0.1", "::1", "localhost", "testclient"}
-
-def parse_recommendation_summary(filename: str) -> dict:
-    return report_history_service.parse_recommendation_summary(filename, output_dir=OUTPUT_DIR)
-
+MUTATION_HEADER_NAME = "X-Mutation-Token"
+RUNTIME_MUTATION_API_TOKEN = secrets.token_urlsafe(32)
 
 def print_streamed_event(job_id: str, payload: dict) -> None:
     if TASK_QUEUE_BACKEND != "rq":
@@ -90,25 +85,28 @@ def print_streamed_event(job_id: str, payload: dict) -> None:
 
 
 def require_mutation_authorized(request: Request) -> None:
-    token = str(MUTATION_API_TOKEN or "").strip()
-    if not token:
-        client_host = str(getattr(getattr(request, "client", None), "host", "") or "").lower()
-        if client_host in LOCAL_MUTATION_HOSTS:
-            return
-        raise HTTPException(
-            status_code=403,
-            detail="Mutation endpoint requires MUTATION_API_TOKEN outside localhost",
-        )
     supplied = (
         request.headers.get("x-admin-token")
         or request.headers.get("x-mutation-token")
         or ""
     ).strip()
-    if supplied != token:
-        raise HTTPException(status_code=403, detail="Mutation endpoint requires a valid admin token")
+    if supplied not in get_allowed_mutation_tokens():
+        raise HTTPException(status_code=403, detail="Mutation endpoint requires a valid mutation token")
 
 
-_refresh_data_diff = report_refresh_service.refresh_data_diff
+def get_runtime_mutation_token() -> str:
+    return str(RUNTIME_MUTATION_API_TOKEN or "").strip()
+
+
+def get_allowed_mutation_tokens() -> set[str]:
+    return {
+        token for token in {
+            get_runtime_mutation_token(),
+            str(MUTATION_API_TOKEN or "").strip(),
+        }
+        if token
+    }
+
 
 def cleanup_expired_reports(retention_days: int = REPORT_RETENTION_DAYS):
     return report_history_service.cleanup_expired_reports(OUTPUT_DIR, report_cache, retention_days)
@@ -179,7 +177,13 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-    app.include_router(create_static_router(lambda: STATIC_DIR))
+    app.include_router(create_static_router(
+        lambda: STATIC_DIR,
+        get_client_config=lambda: {
+            "mutation_header": MUTATION_HEADER_NAME,
+            "mutation_token": get_runtime_mutation_token(),
+        },
+    ))
     app.include_router(create_reports_router(ReportRouteDeps(
         get_output_dir=lambda: OUTPUT_DIR,
         get_report_cache=lambda: report_cache,
@@ -202,6 +206,7 @@ def create_app() -> FastAPI:
         get_provider_sla_alerts=lambda limit: get_provider_sla_alerts(limit),
     )))
     app.include_router(create_watchlist_router(WatchlistRouteDeps(
+        get_output_dir=lambda: OUTPUT_DIR,
         get_task_queue=lambda: analysis_task_queue,
         run_stock_analysis_job=run_stock_analysis_job,
         create_job=lambda ticker, pipeline_id: create_job(ticker, pipeline_id),
@@ -239,60 +244,3 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
-
-
-def get_reports(
-    page: int = Query(1, ge=1),
-    limit: int = Query(10, ge=1, le=100),
-    q: str = Query("", max_length=80),
-    pipeline: str = Query("all", max_length=24),
-    recommendation: str = Query("all", max_length=24),
-    data_trust: str = Query("all", max_length=24),
-    include_versions: bool = Query(False),
-):
-    return report_history_service.list_reports(
-        page=page,
-        limit=limit,
-        q=q,
-        pipeline=pipeline,
-        recommendation=recommendation,
-        data_trust=data_trust,
-        include_versions=include_versions,
-        output_dir=OUTPUT_DIR,
-        report_cache=report_cache,
-    )
-
-
-def delete_report(filename: str, request: Request):
-    require_mutation_authorized(request)
-    return report_history_service.delete_report_files(filename, OUTPUT_DIR, report_cache)
-
-
-async def provider_sla_summary(limit: int = Query(100, ge=1, le=1000), window: str = Query("all", max_length=24)):
-    return await api_observability_service.build_provider_sla_payload(
-        get_provider_sla_summary,
-        get_provider_sla_alerts,
-        limit,
-        window=window,
-    )
-
-
-async def refresh_report_data_snapshot(filename: str, request: Request):
-    require_mutation_authorized(request)
-    return await report_refresh_service.refresh_report_data_snapshot(
-        filename,
-        output_dir=OUTPUT_DIR,
-        refresh_service=data_refresh_service,
-    )
-
-
-async def rerun_report_analysis(filename: str, request: Request, scope: str = "final_recommendation"):
-    require_mutation_authorized(request)
-    return await report_rerun_service.rerun_report_analysis(
-        filename,
-        scope=scope,
-        output_dir=OUTPUT_DIR,
-        pipeline_runner=analysis_pipeline_runner,
-        report_renderer=report_renderer,
-        refresh_service=data_refresh_service,
-    )

@@ -129,7 +129,7 @@ def _metadata_from_row(row: sqlite3.Row) -> dict:
 
 
 def _error_like_status(status: str) -> bool:
-    return status in {"error", "quota_error", "rate_limited", "unavailable"}
+    return status in {"error", "quota_error", "rate_limited"}
 
 
 def summarize_llm_usage_since(since_utc: datetime | float | int) -> dict:
@@ -140,7 +140,7 @@ def summarize_llm_usage_since(since_utc: datetime | float | int) -> dict:
             SELECT COALESCE(SUM(units), 0) AS calls
             FROM api_usage_events
             WHERE service = 'Gemini / Google AI'
-              AND operation = 'llm_model_call'
+              AND operation IN ('llm_model_call', 'llm_provider_request')
               AND created_at >= ?
             """,
             (since_ts,),
@@ -150,7 +150,7 @@ def summarize_llm_usage_since(since_utc: datetime | float | int) -> dict:
             SELECT COALESCE(model_id, 'unknown') AS model_id, COALESCE(SUM(units), 0) AS calls
             FROM api_usage_events
             WHERE service = 'Gemini / Google AI'
-              AND operation = 'llm_model_call'
+              AND operation IN ('llm_model_call', 'llm_provider_request')
               AND created_at >= ?
             GROUP BY COALESCE(model_id, 'unknown')
             ORDER BY calls DESC, model_id ASC
