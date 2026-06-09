@@ -45,8 +45,7 @@ async def fetch_fmp_quote_fallback_async(ticker: str) -> dict:
 
 def _fmp_news_candidates(symbol: str) -> list[tuple[str, dict]]:
     return [
-        (FMP_LEGACY_NEWS_URL, {"tickers": symbol, "limit": 5, "apikey": FMP_API_KEY}),
-        (f"{FMP_BASE_URL}/stock_news", {"tickers": symbol, "limit": 5, "apikey": FMP_API_KEY}),
+        (f"{FMP_BASE_URL}/news/stock", {"symbols": symbol, "limit": 5, "apikey": FMP_API_KEY}),
     ]
 
 

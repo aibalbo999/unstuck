@@ -1,4 +1,5 @@
 import asyncio
+import httpx
 import sys
 import json
 import unittest
@@ -883,7 +884,7 @@ class AuditRuleTests(unittest.TestCase):
                         "pagemap": {"metatags": [{"article:published_time": "2026-06-04"}]},
                     }]
                 }
-            if "stock_news" in url:
+            if "news/stock" in url:
                 return [{"title": "FMP headline", "date": "2026-06-04", "site": "FMP", "url": "https://example.test/fmp"}]
             return [{"price": 123.4, "marketCap": 1000}]
 
@@ -926,6 +927,32 @@ class AuditRuleTests(unittest.TestCase):
             edc.GOOGLE_SEARCH_API_KEY = old_google_key
             edc.GOOGLE_CSE_ID = old_google_cse
 
+    def test_fmp_news_uses_stable_search_stock_news_endpoint(self):
+        old_fmp_key = edc.FMP_API_KEY
+        old_fmp_base_url = edc.FMP_BASE_URL
+        edc.FMP_API_KEY = "test-fmp"
+        edc.FMP_BASE_URL = "https://financialmodelingprep.com/stable"
+        calls = []
+
+        def fake_sync_json_get(url, params):
+            calls.append((url, dict(params)))
+            if url == "https://financialmodelingprep.com/stable/news/stock":
+                return [{"title": "FMP headline", "date": "2026-06-04", "site": "FMP", "url": "https://example.test/fmp"}]
+            return []
+
+        try:
+            with patch.object(edc, "_sync_json_get", side_effect=fake_sync_json_get):
+                fmp_news = edc.fetch_fmp_news_catalysts("2330.tw")
+
+            self.assertEqual(fmp_news[0]["title"], "FMP headline")
+            self.assertEqual(calls, [(
+                "https://financialmodelingprep.com/stable/news/stock",
+                {"symbols": "2330.TW", "limit": 5, "apikey": "test-fmp"},
+            )])
+        finally:
+            edc.FMP_API_KEY = old_fmp_key
+            edc.FMP_BASE_URL = old_fmp_base_url
+
     def test_external_http_failures_emit_structured_warnings(self):
         warning = external_http_client.build_http_warning("FMP", "quote", RuntimeError("boom"))
         self.assertEqual(warning["type"], "external_http_warning")
@@ -954,6 +981,24 @@ class AuditRuleTests(unittest.TestCase):
             self.assertIn("quote down", captured[0]["message"])
         finally:
             edc.FMP_API_KEY = old_fmp_key
+
+    def test_external_http_warning_redacts_api_keys_from_messages(self):
+        request = httpx.Request(
+            "GET",
+            "https://financialmodelingprep.com/stable/news/stock?symbols=2330.TW&limit=5&apikey=secret-fmp-key",
+        )
+        response = httpx.Response(403, request=request)
+        exc = httpx.HTTPStatusError(
+            "Client error '403 Forbidden' for url "
+            "'https://financialmodelingprep.com/stable/news/stock?symbols=2330.TW&limit=5&apikey=secret-fmp-key'",
+            request=request,
+            response=response,
+        )
+
+        warning = external_http_client.build_http_warning("FMP", "news", exc)
+
+        self.assertNotIn("secret-fmp-key", warning["message"])
+        self.assertIn("apikey=<redacted>", warning["message"])
 
     def test_optional_http_bundle_records_task_warnings(self):
         async def boom(*args, **kwargs):
