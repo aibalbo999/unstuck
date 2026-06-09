@@ -6,7 +6,7 @@ from datetime import datetime, time as dt_time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from config import API_KEYS, FMP_API_KEY, GOOGLE_CSE_ID, GOOGLE_SEARCH_API_KEY, RPD_LIMITS
-from job_store import query_events
+from api_usage_store import summarize_llm_usage_since, summarize_provider_usage_since
 
 
 TAIPEI = ZoneInfo("Asia/Taipei")
@@ -34,64 +34,17 @@ def _fmt_dt(value: datetime) -> str:
     return value.isoformat(timespec="seconds")
 
 
-def _event_payload(event: dict) -> dict:
-    payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
-    return payload if isinstance(payload, dict) else {}
-
-
 def _llm_usage_since(since_utc: datetime) -> dict:
-    since_ts = since_utc.timestamp()
-    events = query_events(limit=1000)
-    calls = 0
-    quota_errors = 0
-    recent_quota = []
-    models: dict[str, int] = {}
-    for event in events:
-        if float(event.get("created_at") or 0) < since_ts:
-            continue
-        payload = _event_payload(event)
-        metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
-        model_id = str(metadata.get("model_id") or "unknown")
-        phase = str(event.get("phase") or payload.get("phase") or "")
-        message = str(payload.get("message") or "")
-        if phase == "llm_model_call":
-            calls += 1
-            models[model_id] = models.get(model_id, 0) + 1
-        if (
-            phase == "llm_model_error"
-            and (
-                metadata.get("error_category") == "quota"
-                or "429" in message
-                or "quota" in message.lower()
-                or "rate" in message.lower()
-            )
-        ):
-            quota_errors += 1
-            if len(recent_quota) < 5:
-                recent_quota.append({
-                    "at": event.get("created_at"),
-                    "model_id": model_id,
-                    "message": message[:180],
-                })
-    return {
-        "observed_calls_since_reset": calls,
-        "observed_model_calls": models,
-        "observed_quota_errors_since_reset": quota_errors,
-        "recent_quota_events": recent_quota,
-    }
+    return summarize_llm_usage_since(since_utc)
 
 
-def _provider_attempts(providers: list[dict], provider_names: set[str]) -> dict:
-    attempts = 0
-    errors = 0
+def _provider_attempts(providers: list[dict], provider_names: set[str], since_utc: datetime) -> dict:
+    usage = summarize_provider_usage_since(since_utc, provider_names)
     latest = []
     for item in providers:
         provider = str(item.get("provider") or "")
         if provider not in provider_names:
             continue
-        window = (item.get("windows") or {}).get("last_24h") or {}
-        attempts += int(window.get("attempts") or item.get("attempts") or 0)
-        errors += int(window.get("error_count") or item.get("error_count") or 0)
         latest.append({
             "source": item.get("source"),
             "provider": provider,
@@ -99,7 +52,7 @@ def _provider_attempts(providers: list[dict], provider_names: set[str]) -> dict:
             "alert_level": item.get("alert_level"),
             "success_rate": item.get("success_rate"),
         })
-    return {"observed_24h_attempts": attempts, "observed_24h_errors": errors, "providers": latest[:6]}
+    return {**usage, "providers": latest[:6]}
 
 
 def _quota_row(
@@ -132,6 +85,7 @@ def build_api_quota_payload(provider_summary_fetcher) -> dict:
     pacific_next, pacific_tw = _next_reset_at(dt_time(0, 0), PACIFIC)
     pacific_prev_utc = _previous_reset_at(dt_time(0, 0), PACIFIC)
     fmp_next, fmp_tw = _next_reset_at(dt_time(15, 0), EST_FIXED)
+    fmp_prev_utc = _previous_reset_at(dt_time(15, 0), EST_FIXED)
 
     try:
         providers = provider_summary_fetcher(100)
@@ -139,8 +93,8 @@ def build_api_quota_payload(provider_summary_fetcher) -> dict:
         providers = []
 
     gemini_usage = _llm_usage_since(pacific_prev_utc)
-    google_usage = _provider_attempts(providers, {"Google Search"})
-    fmp_usage = _provider_attempts(providers, {"FMP quote", "FMP news", "FMP news retry"})
+    google_usage = _provider_attempts(providers, {"Google Search"}, pacific_prev_utc)
+    fmp_usage = _provider_attempts(providers, {"FMP quote", "FMP news", "FMP news retry"}, fmp_prev_utc)
 
     return {
         "generated_at": _fmt_dt(datetime.now(TAIPEI)),
@@ -157,7 +111,7 @@ def build_api_quota_payload(provider_summary_fetcher) -> dict:
                 usage=gemini_usage,
                 notes=[
                     "Gemini RPD 依 Google project 計算，不是依單支 API key 分開計算。",
-                    "本機用量為 job event 估算；實際額度請以 AI Studio / Google Cloud 為準。",
+                    "本機用量來自 api_usage_events ledger；實際額度請以 AI Studio / Google Cloud 為準。",
                 ],
             ),
             _quota_row(

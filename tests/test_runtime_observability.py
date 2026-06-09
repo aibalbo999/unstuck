@@ -1,6 +1,7 @@
 import sys
 import subprocess
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 import api  # noqa: E402
+import api_quota_service  # noqa: E402
+import api_usage_store  # noqa: E402
 import job_observability  # noqa: E402
 import job_store  # noqa: E402
 import job_store_maintenance  # noqa: E402
@@ -207,6 +210,73 @@ def test_api_quota_observability_api(monkeypatch):
 
     assert response.status_code == 200
     assert response.json()["services"][0]["service"] == "Gemini / Google AI"
+
+
+def test_api_usage_ledger_records_llm_job_events(monkeypatch, tmp_path):
+    db_path = tmp_path / "jobs.sqlite3"
+    monkeypatch.setattr(job_store, "TASK_DB_PATH", str(db_path))
+    monkeypatch.setattr(api_usage_store, "API_USAGE_DB_PATH", str(db_path))
+    job_store.reset_job_store_for_tests()
+    api_usage_store.reset_api_usage_store_for_tests()
+
+    job_id = job_store.create_job("2449.TW", "v2")
+    job_store.append_event(job_id, {
+        "type": "status",
+        "phase": "llm_model_call",
+        "level": "info",
+        "message": "calling",
+        "metadata": {"model_id": "gemini-2.5-pro"},
+    })
+    job_store.append_event(job_id, {
+        "type": "status",
+        "phase": "llm_model_error",
+        "level": "warning",
+        "message": "429 quota exhausted",
+        "metadata": {"model_id": "gemini-2.5-pro", "error_category": "quota"},
+    })
+
+    usage = api_usage_store.summarize_llm_usage_since(datetime.fromtimestamp(0, tz=timezone.utc))
+
+    assert usage["observed_calls_since_reset"] == 1
+    assert usage["observed_model_calls"]["gemini-2.5-pro"] == 1
+    assert usage["observed_quota_errors_since_reset"] == 1
+    assert usage["recent_quota_events"][0]["model_id"] == "gemini-2.5-pro"
+
+
+def test_api_quota_payload_uses_persistent_usage_ledger(monkeypatch, tmp_path):
+    db_path = tmp_path / "api_usage.sqlite3"
+    monkeypatch.setattr(api_usage_store, "API_USAGE_DB_PATH", str(db_path))
+    api_usage_store.reset_api_usage_store_for_tests()
+    timestamp = datetime.now(timezone.utc).timestamp()
+    api_usage_store.record_api_usage(
+        service="Gemini / Google AI",
+        provider="google_ai",
+        operation="llm_model_call",
+        model_id="gemini-2.5-pro",
+        units=1,
+        created_at=timestamp,
+    )
+    api_usage_store.record_provider_audit_usage(
+        {"source": "recent_catalysts", "provider": "Google Search", "status": "success"},
+        created_at=timestamp,
+    )
+    api_usage_store.record_provider_audit_usage(
+        {"source": "market_data", "provider": "FMP quote", "status": "error", "message": "quota"},
+        created_at=timestamp,
+    )
+
+    payload = api_quota_service.build_api_quota_payload(lambda limit=100: [
+        {"source": "recent_catalysts", "provider": "Google Search", "last_status": "success", "alert_level": "ok"},
+        {"source": "market_data", "provider": "FMP quote", "last_status": "error", "alert_level": "warning"},
+    ])
+
+    gemini = next(item for item in payload["services"] if item["service"] == "Gemini / Google AI")
+    google = next(item for item in payload["services"] if item["service"] == "Google Custom Search")
+    fmp = next(item for item in payload["services"] if item["service"] == "Financial Modeling Prep")
+    assert gemini["usage"]["observed_calls_since_reset"] == 1
+    assert gemini["usage"]["ledger_source"] == "api_usage_events"
+    assert google["usage"]["observed_24h_attempts"] == 1
+    assert fmp["usage"]["observed_24h_errors"] == 1
 
 
 def test_maintenance_api_summarizes_and_cleans_job_history(monkeypatch):

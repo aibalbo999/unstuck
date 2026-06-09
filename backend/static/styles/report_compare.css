@@ -25,6 +25,16 @@
 .report-compare-result[hidden] {
     display: none;
 }
+.report-compare-compatibility {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+}
+.report-compare-compatibility .provider-sla-chip {
+    min-width: 0;
+    max-width: 100%;
+}
 .report-compare-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));

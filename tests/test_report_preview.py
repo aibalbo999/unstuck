@@ -153,10 +153,35 @@ def test_report_compare_api_returns_decision_and_tracking_deltas(tmp_path, monke
     assert response.status_code == 200
     body = response.json()
     assert body["success"] is True
+    assert body["compatibility"]["same_ticker"] is True
+    assert body["compatibility"]["same_pipeline"] is True
+    assert body["compatibility"]["date_order"] == "chronological"
+    assert body["compatibility"]["warnings"] == []
     assert body["diff"]["recommendation_changed"] is True
     assert body["diff"]["recommendation"] == {"before": "持有", "after": "買入"}
     assert body["diff"]["data_trust"]["score"]["delta"] is not None
     assert body["diff"]["tracking"]["latest_price"]["delta"] == 20
+
+
+def test_report_compare_api_warns_for_incompatible_reports(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    left = "2449_v2_report_20260608_010000.html"
+    right = "2308_report_20260607_010000.html"
+    write_report_pair(tmp_path, left, "持有")
+    write_report_pair(tmp_path, right, "買入")
+
+    client = TestClient(api.app)
+    response = client.get("/api/reports/compare", params={"left": left, "right": right})
+
+    assert response.status_code == 200
+    compatibility = response.json()["compatibility"]
+    warning_codes = {item["code"] for item in compatibility["warnings"]}
+    assert compatibility["same_ticker"] is False
+    assert compatibility["same_pipeline"] is False
+    assert compatibility["date_order"] == "reverse"
+    assert compatibility["is_comparable"] is False
+    assert {"different_ticker", "different_pipeline", "reverse_chronology"} <= warning_codes
+    assert compatibility["suggested_order"] == {"left": right, "right": left}
 
 
 def test_get_reports_marks_old_reports_without_snapshot_unknown(tmp_path, monkeypatch):
@@ -443,6 +468,96 @@ def test_rerun_report_endpoint_full_report_queues_job(tmp_path, monkeypatch):
     assert "完整重跑" in body["scope_label"]
     assert fake_queue.calls[0][2:] == (body["job_id"], filename, "full_report")
     assert job_store.get_job(body["job_id"])["pipeline_id"] == "rerun:full_report"
+
+
+def test_rerun_report_analysis_full_report_refreshes_data_before_pipeline(tmp_path, monkeypatch):
+    import asyncio
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
+    filename = "2449_v2_report_20260606_010000.html"
+    write_report_pair(tmp_path, filename, "持有")
+    write_data_snapshot(tmp_path, filename, "stale", current_price=309.5)
+    refresh_requests = []
+    runner_requests = []
+    progress_events = []
+
+    class FakeRefreshService:
+        async def fetch_async(self, request):
+            refresh_requests.append(request)
+            return FetchResult(
+                request=request,
+                data={
+                    "data_schema_version": 4,
+                    "ticker": request.ticker,
+                    "company_name": "京元電子",
+                    "current_price": 333.0,
+                    "source_freshness": {"market_data": {"stale": False}},
+                    "source_audit": [{"source": "market_data", "provider": "fake", "status": "success"}],
+                    "data_trust": {
+                        "status": "fresh",
+                        "critical_failures": [],
+                        "stale_sources": [],
+                        "last_market_data_at": "2026-06-07T00:00:00+00:00",
+                        "notes": ["完整重跑使用刷新資料"],
+                    },
+                },
+            )
+
+    class FakePipelineRunner:
+        async def run_async(self, request):
+            runner_requests.append(request)
+            return SimpleNamespace(
+                context={
+                    "ticker": request.data["ticker"],
+                    "company_name": request.data["company_name"],
+                    "data": request.data,
+                    "analyses": {11: "macro"},
+                    "structured_outputs": {},
+                    "start_time": 0,
+                    "pipeline_id": request.pipeline_id,
+                }
+            )
+
+    class FakeReportRenderer:
+        async def render_async(self, request):
+            return ReportBundle(
+                html='<div class="sidebar-name">京元電子</div>',
+                markdown="# refreshed report",
+                data_snapshot={
+                    "snapshot_schema_version": 3,
+                    "ticker": request.context["ticker"],
+                    "company_name": request.context["company_name"],
+                    "pipeline": request.pipeline_id,
+                    "generated_at": "2026-06-07T00:00:00+00:00",
+                    "data_schema_version": 4,
+                    "source_freshness": request.context["data"].get("source_freshness", {}),
+                    "source_audit": request.context["data"].get("source_audit", []),
+                    "data_trust": request.context["data"]["data_trust"],
+                    "rerun_context": {},
+                    "data": request.context["data"],
+                },
+            )
+
+    body = asyncio.run(
+        report_rerun_service.rerun_report_analysis(
+            filename,
+            scope="full_report",
+            output_dir=str(tmp_path),
+            pipeline_runner=FakePipelineRunner(),
+            report_renderer=FakeReportRenderer(),
+            refresh_service=FakeRefreshService(),
+            progress_callback=progress_events.append,
+        )
+    )
+
+    assert body["success"] is True
+    assert body["scope"] == "full_report"
+    assert body["data_trust"]["status"] == "fresh"
+    assert [request.options.force_refresh for request in refresh_requests] == [True]
+    assert runner_requests[0].pipeline_id == "v2"
+    assert runner_requests[0].data["current_price"] == 333.0
+    assert any(event.get("phase") == "rerun_refresh_data" for event in progress_events)
 
 
 def test_rerun_report_stream_replays_terminal_event(tmp_path, monkeypatch):

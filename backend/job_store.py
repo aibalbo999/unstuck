@@ -9,6 +9,7 @@ import time
 import uuid
 
 from config import ANALYSIS_JOB_STALE_SECONDS, TASK_DB_PATH
+from api_usage_recorders import record_runtime_event_usage
 from runtime_events import emit_log, format_event_log_line
 from storage.migrations import MigrationRunner, column_names
 from storage.sqlite_resource import ThreadLocalSqliteResource
@@ -195,7 +196,6 @@ def is_job_cancel_requested(job_id: str) -> bool:
         row = conn.execute("SELECT cancel_requested FROM analysis_jobs WHERE job_id = ?", (job_id,)).fetchone()
     return bool(row and row["cancel_requested"])
 
-
 def append_event(job_id: str, payload: dict) -> None:
     now = time.time()
     event_type = str(payload.get("type") or "event")
@@ -213,12 +213,15 @@ def append_event(job_id: str, payload: dict) -> None:
             "UPDATE analysis_jobs SET updated_at = ? WHERE job_id = ? AND status IN ('queued', 'running')",
             (now, job_id),
         )
+    try:
+        record_runtime_event_usage(job_id, payload, created_at=now, db_path=TASK_DB_PATH)
+    except Exception:
+        pass
     _print_job_event(job_id, payload)
 
 
 def _print_job_event(job_id: str, payload: dict) -> None:
     emit_log(format_event_log_line(job_id, payload, prefix="job"))
-
 
 def get_events_since(job_id: str, after_id: int = 0) -> list[dict]:
     with _connect() as conn:

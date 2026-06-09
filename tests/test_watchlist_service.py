@@ -43,6 +43,60 @@ def test_watchlist_due_items_enqueue_and_mark_run(monkeypatch, tmp_path):
     assert stored["last_run_dates"]["pre_market"] == "2026-06-08"
 
 
+def test_watchlist_store_uses_sqlite_and_preserves_run_dates(monkeypatch, tmp_path):
+    monkeypatch.setattr(watchlist_service, "WATCHLIST_PATH", tmp_path / "watchlist.json")
+    watchlist_service.reset_watchlist_store_for_tests()
+
+    watchlist_service.upsert_watchlist_item({
+        "ticker": "2308.TW",
+        "pipeline": "v2",
+        "schedule_slots": ["pre_market"],
+        "enabled": True,
+    })
+    watchlist_service.mark_watchlist_run("2308.TW", "v2", "pre_market", run_date="2026-06-08")
+    watchlist_service.upsert_watchlist_item({
+        "ticker": "2308.TW",
+        "pipeline": "v2",
+        "schedule_slots": ["post_market"],
+        "enabled": False,
+    })
+
+    assert (tmp_path / "watchlist.sqlite3").exists()
+    assert not (tmp_path / "watchlist.json").exists()
+    stored = watchlist_service.list_watchlist()["items"][0]
+    assert stored["enabled"] is False
+    assert stored["schedule_slots"] == ["post_market"]
+    assert stored["last_run_dates"]["pre_market"] == "2026-06-08"
+
+
+def test_watchlist_imports_legacy_json_once(monkeypatch, tmp_path):
+    legacy_path = tmp_path / "watchlist.json"
+    legacy_path.write_text(
+        """{
+  "items": [{
+    "ticker": "2308.TW",
+    "pipeline": "v2",
+    "enabled": true,
+    "schedule_slots": ["pre_market"],
+    "last_run_dates": {"pre_market": "2026-06-08"},
+    "created_at": "2026-06-08T08:00:00+08:00",
+    "updated_at": "2026-06-08T08:00:00+08:00"
+  }],
+  "updated_at": "2026-06-08T08:00:00+08:00"
+}""",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(watchlist_service, "WATCHLIST_PATH", legacy_path)
+    watchlist_service.reset_watchlist_store_for_tests()
+
+    first = watchlist_service.list_watchlist()
+    watchlist_service.delete_watchlist_item("2308.TW", "v2")
+    second = watchlist_service.list_watchlist()
+
+    assert first["items"][0]["ticker"] == "2308.TW"
+    assert second["items"] == []
+
+
 def test_watchlist_api_upserts_and_lists_items(monkeypatch, tmp_path):
     monkeypatch.setattr(watchlist_service, "WATCHLIST_PATH", tmp_path / "watchlist.json")
     client = TestClient(api.app)

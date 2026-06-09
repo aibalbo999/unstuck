@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import datetime
 from typing import Any
 
 from fastapi import HTTPException
@@ -127,6 +128,71 @@ def _diff(left: dict, right: dict) -> dict:
     }
 
 
+def _parse_side_datetime(side: dict) -> datetime | None:
+    for value in (side.get("generated_at"), side.get("date")):
+        text = str(value or "").strip()
+        if not text:
+            continue
+        try:
+            return datetime.fromisoformat(text.replace("Z", "+00:00"))
+        except ValueError:
+            pass
+        for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S"):
+            try:
+                return datetime.strptime(text, fmt)
+            except ValueError:
+                continue
+    return None
+
+
+def _date_order(left: dict, right: dict) -> tuple[str, dict]:
+    left_dt = _parse_side_datetime(left)
+    right_dt = _parse_side_datetime(right)
+    if left_dt is None or right_dt is None:
+        return "unknown", {}
+    if (left_dt.tzinfo is None) != (right_dt.tzinfo is None):
+        left_dt = left_dt.replace(tzinfo=None)
+        right_dt = right_dt.replace(tzinfo=None)
+    if left_dt == right_dt:
+        return "same", {}
+    if left_dt < right_dt:
+        return "chronological", {"left": left.get("filename"), "right": right.get("filename")}
+    return "reverse", {"left": right.get("filename"), "right": left.get("filename")}
+
+
+def _compatibility(left: dict, right: dict) -> dict:
+    warnings = []
+    same_ticker = left.get("ticker") == right.get("ticker")
+    same_pipeline = left.get("pipeline_id") == right.get("pipeline_id")
+    order, suggested_order = _date_order(left, right)
+    if not same_ticker:
+        warnings.append({
+            "level": "warning",
+            "code": "different_ticker",
+            "message": f"兩份報告股票不同：{left.get('ticker') or 'N/A'} vs {right.get('ticker') or 'N/A'}。",
+        })
+    if not same_pipeline:
+        warnings.append({
+            "level": "warning",
+            "code": "different_pipeline",
+            "message": f"兩份報告 pipeline 不同：{left.get('pipeline_id') or 'N/A'} vs {right.get('pipeline_id') or 'N/A'}。",
+        })
+    if order == "reverse":
+        warnings.append({
+            "level": "info",
+            "code": "reverse_chronology",
+            "message": "左側報告時間晚於右側；差異仍依目前左右順序計算。",
+        })
+    return {
+        "same_ticker": same_ticker,
+        "same_pipeline": same_pipeline,
+        "date_order": order,
+        "suggested_order": suggested_order,
+        "is_comparable": same_ticker and same_pipeline,
+        "warnings": warnings,
+    }
+
+
 def compare_reports(left_filename: str, right_filename: str, *, output_dir: str) -> dict:
     left = _side(_metadata(left_filename, output_dir))
     right = _side(_metadata(right_filename, output_dir))
@@ -134,5 +200,6 @@ def compare_reports(left_filename: str, right_filename: str, *, output_dir: str)
         "success": True,
         "left": left,
         "right": right,
+        "compatibility": _compatibility(left, right),
         "diff": _diff(left, right),
     }

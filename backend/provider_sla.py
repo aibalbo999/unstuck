@@ -7,12 +7,16 @@ import time
 from pathlib import Path
 
 from config import TASK_DB_PATH
+from api_usage_recorders import record_provider_audit_usage
+from provider_sla_alert_policy import (
+    SLA_CRITICAL_SUCCESS_RATE,
+    SLA_WARNING_SUCCESS_RATE,
+    provider_alert_fields,
+)
 from storage.migrations import MigrationRunner
 
 
 PROVIDER_SLA_SCHEMA_VERSION = 2
-SLA_WARNING_SUCCESS_RATE = 0.8
-SLA_CRITICAL_SUCCESS_RATE = 0.5
 SLA_WINDOWS = {
     "last_1h": 60 * 60,
     "last_24h": 24 * 60 * 60,
@@ -77,6 +81,7 @@ def record_source_audit_entries(entries: list[dict] | tuple[dict, ...]) -> None:
         return
     now = time.time()
     rows = []
+    usage_entries = []
     for entry in entries:
         if not isinstance(entry, dict):
             continue
@@ -85,7 +90,16 @@ def record_source_audit_entries(entries: list[dict] | tuple[dict, ...]) -> None:
         status = str(entry.get("status") or "unknown")
         duration_ms = int(entry.get("duration_ms") or 0)
         record_count = int(entry.get("record_count") or 0)
-        rows.append((source, provider, status, duration_ms, record_count, str(entry.get("message") or "")[:240], now))
+        message = str(entry.get("message") or "")[:240]
+        rows.append((source, provider, status, duration_ms, record_count, message, now))
+        usage_entries.append({
+            "source": source,
+            "provider": provider,
+            "status": status,
+            "duration_ms": duration_ms,
+            "record_count": record_count,
+            "message": message,
+        })
     if not rows:
         return
     with _connect() as conn:
@@ -141,6 +155,11 @@ def record_source_audit_entries(entries: list[dict] | tuple[dict, ...]) -> None:
                     timestamp,
                 ),
             )
+    for entry in usage_entries:
+        try:
+            record_provider_audit_usage(entry, created_at=now, db_path=TASK_DB_PATH)
+        except Exception:
+            pass
 
 
 def get_provider_sla_summary(limit: int = 100) -> list[dict]:
@@ -183,7 +202,7 @@ def get_provider_sla_summary(limit: int = 100) -> list[dict]:
             "last_at": row["last_at"],
             "windows": windows_by_provider.get((row["source"], row["provider"]), {}),
         }
-        item.update(_provider_alert_fields(item))
+        item.update(provider_alert_fields(item))
         summary.append(item)
     return summary
 
@@ -238,44 +257,6 @@ def _window_stats_for_provider(conn: sqlite3.Connection, source: str, provider: 
             "total_records": int(row["total_records"] or 0),
         }
     return windows
-
-
-def _provider_alert_fields(item: dict) -> dict:
-    basis = _alert_basis(item)
-    attempts = int(basis.get("attempts") or 0)
-    success_rate = float(basis.get("success_rate") or 0.0)
-    error_count = int(basis.get("error_count") or 0)
-    last_status = str(item.get("last_status") or "")
-    basis_label = basis.get("label") or "累積"
-
-    if attempts >= 3 and (success_rate < SLA_CRITICAL_SUCCESS_RATE or error_count >= 3):
-        return {
-            "alert_level": "critical",
-            "alert_message": f"{item.get('provider')} {basis_label}資料取得率偏低（{success_rate:.0%}），最近狀態：{last_status or 'unknown'}",
-            "alert_basis": basis_label,
-        }
-    if last_status in {"error", "unavailable"} or (attempts >= 3 and success_rate < SLA_WARNING_SUCCESS_RATE):
-        return {
-            "alert_level": "warning",
-            "alert_message": f"{item.get('provider')} 最近有來源異常或 {basis_label}資料取得率低於 {SLA_WARNING_SUCCESS_RATE:.0%}",
-            "alert_basis": basis_label,
-        }
-    return {"alert_level": "ok", "alert_message": "", "alert_basis": basis_label}
-
-
-def _alert_basis(item: dict) -> dict:
-    windows = item.get("windows") if isinstance(item.get("windows"), dict) else {}
-    for label in ("last_1h", "last_24h", "last_7d"):
-        stats = dict(windows.get(label) or {})
-        if int(stats.get("attempts") or 0) >= 3:
-            stats["label"] = label
-            return stats
-    return {
-        "label": "累積",
-        "attempts": int(item.get("attempts") or 0),
-        "success_rate": float(item.get("success_rate") or 0.0),
-        "error_count": int(item.get("error_count") or 0),
-    }
 
 
 def get_provider_sla_alerts(limit: int = 100) -> list[dict]:

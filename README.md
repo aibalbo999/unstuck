@@ -12,12 +12,17 @@
 - 自動切換 `.TW` / `.TWO` 查詢
 - 多 Agent 串接分析流程
 - 產生 HTML 與 Markdown 報告
-- 內建報告刪除 API，會同步刪除 `.html` 與 `.md`
+- 前端分成「分析」與「報告與維運」頁籤；歷史報告、預覽、比較留在分析頁，API 額度、watchlist、來源健康與本機維護集中在維運頁
+- 歷史報告支援資料可信度、決策追蹤、版本篩選、報告比較與相容性提示
+- 報告預覽可只刷新資料快照，也可排隊重跑最終投資建議、Mode B 或完整報告
+- 內建報告刪除 API，會同步刪除 `.html`、`.md` 與資料快照
 - Agent 3 / 4 / 7 使用 JSON 結構化輸出優先解析，正則表達式僅保留為備援
 - 財務資料使用本地 SQLite 持久化快取，預設 24 小時
 - yfinance 欄位缺漏時會用 FMP（需 API key）或可追溯的衍生補值補上市場欄位、TTM 營收或 FCF，並在 prompt 中揭露限制
 - 歷史報告會自動清理孤立 Markdown，並刪除超過保留天數的舊報告
 - 長任務透過 SQLite job/event store 與任務佇列抽象執行，可用本地 worker 或切換 RQ/Redis
+- API 額度儀表板使用 `api_usage_events` ledger 統計 Gemini、Google Custom Search 與 FMP 本機觀測用量
+- Watchlist 可設定盤前/盤後批次分析，儲存在 SQLite 並保留舊 JSON 一次性匯入相容
 - 財務抓取與 Gemini 分析管線提供 async 版本，API 生成報告時走新版 `google-genai` 非同步 client
 - 針對常見財務錯誤加入品質檢查，例如 DuPont、DCF / P/E、WACC、FCF 與公司身分一致性
 
@@ -31,7 +36,10 @@ stock-agent/
 │   ├── prompt_loader.py    # 從 prompts/ 載入 prompt 設定
 │   ├── cache_store.py      # SQLite JSON 快取
 │   ├── job_store.py        # SQLite job / SSE event store
+│   ├── api_usage_store.py  # API 用量 ledger
+│   ├── watchlist_service.py # Watchlist SQLite 儲存與批次排程 helper
 │   ├── analysis_jobs.py    # 可匯入的分析任務入口，本地/RQ worker 共用
+│   ├── report_rerun_service.py # 報告局部/完整重跑 orchestration
 │   ├── task_queue.py       # 本地長任務佇列抽象，可切換 RQ
 │   ├── config.py           # 模型與環境變數設定
 │   ├── financial_data.py   # 財務資料抓取與 prompt 資料摘要
@@ -76,6 +84,8 @@ export GEMINI_API_KEYS="your_key_1,your_key_2"
 - `GOOGLE_API_KEYS`
 - `GOOGLE_API_KEY_1` 到 `GOOGLE_API_KEY_10`
 - `GEMINI_API_KEY_1` 到 `GEMINI_API_KEY_10`
+- `GOOGLE_SEARCH_API_KEY`、`GOOGLE_CSE_ID`：可選，用於近期新聞與催化劑搜尋
+- `FMP_API_KEY`：可選，用於 yfinance 缺漏時補市場欄位與新聞
 
 可選設定：
 
@@ -90,6 +100,9 @@ export GEMINI_API_KEYS="your_key_1,your_key_2"
 - `REDIS_URL`：RQ 模式使用的 Redis 連線，預設 `redis://localhost:6379/0`
 - `TASK_QUEUE_NAME`：RQ queue 名稱，預設 `stock-analysis`
 - `TASK_DB_PATH`：任務與 SSE event SQLite 檔位置，預設 `backend/cache/analysis_jobs.sqlite3`
+- `API_USAGE_DB_PATH`：API 用量 ledger SQLite 檔位置，預設跟隨 `TASK_DB_PATH`
+- `WATCHLIST_PATH`：舊版 watchlist JSON 位置；若存在會一次性匯入 SQLite，預設 `backend/cache/watchlist.json`
+- `WATCHLIST_DB_PATH`：watchlist SQLite 檔位置，預設為 `WATCHLIST_PATH` 同名 `.sqlite3`
 - `ANALYSIS_JOB_STALE_SECONDS`：queued/running 任務超過此秒數未更新時不再被視為活躍，預設 `21600`
 - `ANALYSIS_JOB_HISTORY_RETENTION_DAYS`：已完成/失敗/取消任務紀錄保留天數，預設 `30`
 - `LLM_AGENT_CALL_TIMEOUT_SECONDS`：單次 Agent LLM 呼叫 timeout 秒數，預設 `120`；會傳入 Google GenAI `HttpOptions.timeout`，非同步路徑另有外層 `asyncio.wait_for` 保護，設為 `0` 可關閉
@@ -98,7 +111,6 @@ export GEMINI_API_KEYS="your_key_1,your_key_2"
 - `LLM_SERVER_ERROR_MAX_ATTEMPTS`：模型服務 500/503/忙碌時的持續嘗試次數，預設 `6`
 - `LLM_SERVER_ERROR_RETRY_MAX_WAIT_SECONDS`：模型服務 5xx 重試 backoff 單次等待上限，預設 `45`
 - 429 quota / rate-limit 會至少輪完所有 API key 才判定該模型不可用；任務事件只記錄 `key_slot/key_count`，不保存 key 明文
-- `FMP_API_KEY`：可選，yfinance 缺少即時報價、市值、P/E、52 週高低時，用 FMP stable quote API 補值
 - `FMP_BASE_URL`：FMP API base URL，預設 `https://financialmodelingprep.com/stable`
 
 不要提交這些內容：
@@ -185,13 +197,19 @@ http://127.0.0.1:8080
 
 ## 使用方式
 
-1. 開啟首頁。
+1. 開啟首頁，預設停在「分析」頁籤。
 2. 輸入股票代號，例如 `2330`、`2059`、`6806.TW`。
 3. 按下分析。
-4. 等待 7 個 Agent 依序完成。
-5. 報告完成後會出現在歷史清單。
+4. 等待 Agent 依序完成。
+5. 報告完成後會出現在同一頁的歷史清單，可直接預覽、下載、比較或重跑。
 
 分析時間會受模型回應速度與 API 額度影響。部分個股可能需要 10 分鐘以上。
+
+日常操作建議：
+
+- 「分析」頁籤：新分析、查找歷史報告、篩選 Mode A/B、查看決策追蹤、刷新資料快照、重跑報告與比較報告。
+- 「報告與維運」頁籤：查看 API 額度、本機 watchlist、來源健康、任務狀態與清理工具；這些通常不需要每次操作都看。
+- 「資料快照已刷新，但 HTML/Markdown 分析本文未重新執行」代表只更新了 `.data.json` 的最新股價/來源/可信度，原本報告正文和投資結論還是舊模型在原生成時間做出的判斷；若要讓文字與結論一起更新，請使用重跑功能。
 
 ## API
 
@@ -199,6 +217,7 @@ http://127.0.0.1:8080
 
 ```bash
 curl http://127.0.0.1:8080/api/reports
+curl "http://127.0.0.1:8080/api/reports?q=2308&pipeline=v2&include_versions=true"
 ```
 
 分析股票：
@@ -213,6 +232,30 @@ curl -N http://127.0.0.1:8080/api/analyze/2330
 http://127.0.0.1:8080/api/report/<filename>
 ```
 
+比較兩份報告：
+
+```bash
+curl "http://127.0.0.1:8080/api/reports/compare?left=<old.html>&right=<new.html>"
+```
+
+回傳會包含 `compatibility`，用來提示是否同股票、同 pipeline，以及左右時間順序是否合理。
+
+刷新資料快照：
+
+```bash
+curl -X POST http://127.0.0.1:8080/api/report/<filename>/refresh/data
+```
+
+重跑報告：
+
+```bash
+curl -X POST "http://127.0.0.1:8080/api/report/<filename>/rerun?scope=final_recommendation"
+curl -X POST "http://127.0.0.1:8080/api/report/<filename>/rerun?scope=mode_b"
+curl -X POST "http://127.0.0.1:8080/api/report/<filename>/rerun?scope=full"
+```
+
+`full` 會先強制刷新資料，再用原報告 pipeline 完整重跑；`final_recommendation` 只重跑最終投資建議 Agent。
+
 刪除報告：
 
 ```bash
@@ -220,6 +263,15 @@ curl -X DELETE http://127.0.0.1:8080/api/reports/<filename>
 ```
 
 歷史報告預覽支援資料快照刷新與局部重跑；局部重跑會建立 background job 並透過 SSE 回放進度，可用 `/api/report/<filename>/rerun/cancel?job_id=<job_id>` 要求取消。
+
+觀測與維護：
+
+```bash
+curl http://127.0.0.1:8080/api/observability/api-quotas
+curl http://127.0.0.1:8080/api/observability/provider-sla
+curl http://127.0.0.1:8080/api/maintenance/storage-summary
+curl http://127.0.0.1:8080/api/watchlist
+```
 
 ## 輸出檔案
 
@@ -233,10 +285,13 @@ backend/output/
 
 - `.html`
 - `.md`
+- `.data.json`
 
 `backend/output/` 已在 `.gitignore` 中，不會被提交。
 
-`backend/cache/` 也已被 Git 忽略。財務資料快取預設保存 24 小時，可透過 `FINANCIAL_DATA_CACHE_SECONDS` 調整。歷史報告預設保留 30 天，可透過 `REPORT_RETENTION_DAYS` 調整；前端刪除 HTML 報告時，後端會同步刪除同名 Markdown。
+`.data.json` 是資料快照，包含來源審計、資料可信度、決策追蹤基準與重跑 context。只刷新資料快照時，HTML / Markdown 正文不會自動改寫。
+
+`backend/cache/` 也已被 Git 忽略。財務資料快取預設保存 24 小時，可透過 `FINANCIAL_DATA_CACHE_SECONDS` 調整。歷史報告預設保留 30 天，可透過 `REPORT_RETENTION_DAYS` 調整；前端刪除 HTML 報告時，後端會同步刪除同名 Markdown 與資料快照。
 
 ## 任務佇列
 
@@ -262,7 +317,7 @@ cd backend
 rq worker stock-analysis --url redis://localhost:6379/0
 ```
 
-任務狀態與 SSE 事件會寫入 `TASK_DB_PATH` 指定的 SQLite 檔，所以 API 與 worker 需要共用同一個檔案路徑。
+任務狀態、SSE 事件與預設 API 用量 ledger 會寫入 `TASK_DB_PATH` 指定的 SQLite 檔，所以 API 與 worker 需要共用同一個檔案路徑。若另外設定 `API_USAGE_DB_PATH` 或 `WATCHLIST_DB_PATH`，也要讓 API 與背景 worker 指向同一份檔案。
 
 ## 常見問題
 
@@ -310,6 +365,18 @@ chmod +x start_mac.command
 ```bash
 xattr -d com.apple.quarantine start_mac.command
 ```
+
+### 6. API key 每天什麼時候重置額度？
+
+- Gemini / Google AI：每日額度通常依 Google project 在 Pacific Time 00:00 重置，台灣時間會隨夏令時間約為 15:00 或 16:00。
+- Google Custom Search：每日 quota 也以 Pacific Time 00:00 為常見基準。
+- Financial Modeling Prep：FAQ 使用 3 PM EST 字樣，台灣時間約為隔日 04:00；若其系統依美東夏令時間運作，可能約為隔日 03:00。
+
+前端「API 額度」只顯示本機 `api_usage_events` 觀測到的使用量；最終剩餘額度仍以 Google Cloud / AI Studio / FMP 後台為準。
+
+### 7. 為什麼顯示「資料快照已刷新，但 HTML/Markdown 分析本文未重新執行」？
+
+這代表系統只更新了該報告旁邊的 `.data.json`，例如最新股價、來源審計與資料可信度；原 HTML / Markdown 的段落文字、估值敘述與投資結論仍是原本生成時間的模型輸出。若要更新結論，請在報告預覽使用重跑功能。
 
 ## 開發注意事項
 

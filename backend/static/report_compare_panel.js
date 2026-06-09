@@ -8,6 +8,13 @@
         return `${number > 0 ? '+' : ''}${number.toLocaleString('zh-TW', { maximumFractionDigits: 2 })}${pctText}`;
     }
 
+    function dateOrderLabel(order) {
+        if (order === 'chronological') return '舊→新';
+        if (order === 'reverse') return '新→舊';
+        if (order === 'same') return '同時間';
+        return '時間未知';
+    }
+
     function create(options) {
         const apiClient = options.apiClient;
         const elements = options.elements || {};
@@ -30,8 +37,24 @@
             const diff = payload?.diff || {};
             const left = payload?.left || {};
             const right = payload?.right || {};
+            const compatibility = payload?.compatibility || {};
+            const warnings = Array.isArray(compatibility.warnings) ? compatibility.warnings : [];
+            const compatibilityHtml = warnings.length
+                ? `<div class="report-compare-compatibility">
+                    ${warnings.map(item => `
+                        <span class="provider-sla-chip is-${item.level === 'info' ? 'warning' : 'critical'}">
+                            ${escapeHtml(item.message || item)}
+                        </span>
+                    `).join('')}
+                </div>`
+                : `<div class="report-compare-compatibility">
+                    <span class="provider-sla-chip is-ok">
+                        可比較 · ${escapeHtml(dateOrderLabel(compatibility.date_order))}
+                    </span>
+                </div>`;
             elements.resultEl.hidden = false;
             elements.resultEl.innerHTML = `
+                ${compatibilityHtml}
                 <div class="report-compare-grid">
                     <span>
                         <strong>${escapeHtml(left.ticker || 'Left')}</strong>

@@ -185,6 +185,7 @@ async def rerun_report_analysis(
     output_dir: str,
     pipeline_runner: Any,
     report_renderer: Any,
+    refresh_service: Any = None,
     progress_callback: Any = None,
     cancel_check: Any = None,
 ) -> dict:
