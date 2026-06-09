@@ -16,6 +16,7 @@
 
         const historyPanel = window.StockAgentHistoryPanel.create({
             listEl: elements.historyList,
+            trackingTableEl: elements.historyTrackingTable,
             paginationEl: elements.historyPagination,
             prevBtn: elements.historyPrev,
             nextBtn: elements.historyNext,
@@ -42,6 +43,7 @@
                 summary: elements.previewSummary,
                 staleNotice: elements.previewStaleNotice,
                 rerunFinalBtn: elements.previewRerunFinalBtn,
+                rerunFullBtn: elements.previewRerunFullBtn,
                 rerunModeBBtn: elements.previewRerunModeBBtn
             },
             escapeHtml: ui.escapeHtml,
@@ -49,6 +51,17 @@
             renderDataTrustBadge: ui.renderDataTrustBadge,
             recommendationTone: ui.recommendationTone,
             normalizeRecommendation: ui.normalizeRecommendation
+        });
+
+        const reportComparePanel = window.StockAgentReportComparePanel.create({
+            apiClient,
+            escapeHtml: ui.escapeHtml,
+            elements: {
+                addBtn: elements.previewCompareAddBtn,
+                summaryEl: elements.reportCompareSummary,
+                resultEl: elements.reportCompareResult,
+                clearBtn: elements.reportCompareClearBtn
+            }
         });
 
         async function loadHistory() {
@@ -132,6 +145,7 @@
                 previewReport,
                 buttons: {
                     final: elements.previewRerunFinalBtn,
+                    full: elements.previewRerunFullBtn,
                     modeB: elements.previewRerunModeBBtn,
                     cancel: elements.previewRerunCancelBtn
                 },
@@ -171,11 +185,13 @@
             [
                 [elements.previewRefreshDataBtn, refreshPreviewDataSnapshot],
                 [elements.previewRerunFinalBtn, () => rerunPreviewReport('final_recommendation')],
+                [elements.previewRerunFullBtn, () => rerunPreviewReport('full_report')],
                 [elements.previewRerunModeBBtn, () => rerunPreviewReport('mode_b')],
                 [elements.previewCloseBtn, hideReportPreview]
             ].forEach(([button, handler]) => {
                 if (button) button.addEventListener('click', handler);
             });
+            reportComparePanel.bindEvents(() => previewReport);
 
             historyFilters.bind({
                 onSearch: () => {

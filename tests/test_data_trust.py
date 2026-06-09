@@ -61,12 +61,16 @@ def test_source_audit_success_error_and_skipped_cache_entries():
 
 def test_data_trust_statuses_fresh_stale_error_unknown():
     fresh = fresh_audited_payload(provider="yfinance")
-    assert data_trust.build_data_trust(fresh)["status"] == "fresh"
-    assert "fresh_core_sources" in data_trust.build_data_trust(fresh)["reason_codes"]
+    fresh_trust = data_trust.build_data_trust(fresh)
+    assert fresh_trust["status"] == "fresh"
+    assert fresh_trust["score"] >= 90
+    assert "fresh_core_sources" in fresh_trust["reason_codes"]
 
     stale = stale_audited_payload(source="market_data")
-    assert data_trust.build_data_trust(stale)["status"] == "stale"
-    assert "market_data" in data_trust.build_data_trust(stale)["stale_sources"]
+    stale_trust = data_trust.build_data_trust(stale)
+    assert stale_trust["status"] == "stale"
+    assert 0 <= stale_trust["score"] < fresh_trust["score"]
+    assert "market_data" in stale_trust["stale_sources"]
 
     error = {
         "source_audit": [
@@ -76,10 +80,13 @@ def test_data_trust_statuses_fresh_stale_error_unknown():
     }
     trust = data_trust.build_data_trust(error)
     assert trust["status"] == "error"
+    assert trust["score"] <= 20
     assert trust["critical_failures"] == ["market_data", "financial_statements"]
 
     unknown = data_trust.build_data_trust({})
     assert unknown["status"] == "unknown"
+    assert unknown["score"] == 35
+    assert unknown["score_reasons"]
     assert "missing_data_trust_snapshot" in unknown["reason_codes"]
 
 

@@ -12,6 +12,7 @@ from agent_runtime import AnalysisRequest
 from agent_runtime.cancellation import attach_cancel_check
 from agent_runtime.quality_gates import run_agent_with_quality_gates_async
 from config import API_KEYS
+from data_fetch import FetchRequest
 from final_audit import run_final_report_audit
 from llm_client import KeyRotator
 from pipeline_modes import get_pipeline_definition, get_structured_agent_num, normalize_pipeline_id
@@ -35,25 +36,47 @@ async def _run_full_pipeline_rerun(
     pipeline_runner: Any,
     report_renderer: Any,
     source_filename: str,
+    pipeline_id: str,
+    scope: str,
+    refresh_service: Any = None,
     progress_callback: Any = None,
     cancel_check: Any = None,
 ) -> dict:
     data = dict(snapshot.get("data") or {})
     if not data:
         raise HTTPException(status_code=400, detail="資料快照缺少 data payload")
+    if refresh_service is not None:
+        ticker = str(snapshot.get("ticker") or data.get("ticker") or "").strip().upper()
+        if not ticker:
+            raise HTTPException(status_code=400, detail="資料快照缺少 ticker，無法完整重抓資料")
+        if callable(progress_callback):
+            progress_callback({
+                "type": "status",
+                "phase": "rerun_refresh_data",
+                "message": "完整重跑前正在刷新資料快照...",
+                "pipeline_id": pipeline_id,
+            })
+        fetch_result = await refresh_service.fetch_async(
+            FetchRequest.from_ticker(ticker, force_refresh=True)
+        )
+        refreshed_data = fetch_result.data or {}
+        if not isinstance(refreshed_data, dict) or refreshed_data.get("error"):
+            message = refreshed_data.get("error") if isinstance(refreshed_data, dict) else "資料刷新失敗"
+            raise HTTPException(status_code=502, detail=f"完整重跑前資料刷新失敗：{message}")
+        data = refreshed_data
     if callable(cancel_check):
         cancel_check()
     analysis_result = await pipeline_runner.run_async(
-        AnalysisRequest(data=data, pipeline_id="v2", progress_callback=progress_callback, cancel_check=cancel_check)
+        AnalysisRequest(data=data, pipeline_id=pipeline_id, progress_callback=progress_callback, cancel_check=cancel_check)
     )
     if callable(cancel_check):
         cancel_check()
     return await render_and_save_rerun_report(
         context=analysis_result.context,
-        pipeline_id="v2",
+        pipeline_id=pipeline_id,
         output_dir=output_dir,
         report_renderer=report_renderer,
-        scope="mode_b",
+        scope=scope,
         source_filename=source_filename,
     )
 
@@ -102,6 +125,7 @@ async def _run_final_recommendation_rerun(
     snapshot: dict,
     output_dir: str,
     report_renderer: Any,
+    refresh_service: Any = None,
     progress_callback: Any = None,
     cancel_check: Any = None,
 ) -> dict:
@@ -171,6 +195,20 @@ async def rerun_report_analysis(
         raise HTTPException(status_code=404, detail="找不到報告")
 
     snapshot = read_report_snapshot(filename, output_dir)
+    source_pipeline_id = normalize_pipeline_id(snapshot.get("pipeline") or parse_report_filename(filename)["pipeline_id"])
+    if normalized_scope == "full_report":
+        return await _run_full_pipeline_rerun(
+            snapshot=snapshot,
+            output_dir=output_dir,
+            pipeline_runner=pipeline_runner,
+            report_renderer=report_renderer,
+            source_filename=filename,
+            pipeline_id=source_pipeline_id,
+            scope="full_report",
+            refresh_service=refresh_service,
+            progress_callback=progress_callback,
+            cancel_check=cancel_check,
+        )
     if normalized_scope == "mode_b":
         return await _run_full_pipeline_rerun(
             snapshot=snapshot,
@@ -178,6 +216,8 @@ async def rerun_report_analysis(
             pipeline_runner=pipeline_runner,
             report_renderer=report_renderer,
             source_filename=filename,
+            pipeline_id="v2",
+            scope="mode_b",
             progress_callback=progress_callback,
             cancel_check=cancel_check,
         )

@@ -176,6 +176,9 @@ def test_active_jobs_observability_summarizes_latest_events(monkeypatch, tmp_pat
     job = payload["jobs"][0]
     assert job["job_id"] == job_id
     assert job["last_event"]["phase"] == "llm_server_error_retry"
+    assert job["stage_summary"]["phase"] == "llm_server_error_retry"
+    assert job["stage_summary"]["llm_retry_count_sampled"] == 1
+    assert job["stage_summary"]["llm_error_count_sampled"] == 1
     assert job["llm_error_counts"]["gemma-4-31b-it:timeout"] == 1
     assert job["llm_retry_counts"]["gemma-4-31b-it"] == 1
 
@@ -191,6 +194,19 @@ def test_active_jobs_api(monkeypatch):
 
     assert response.status_code == 200
     assert response.json()["active_count"] == 0
+
+
+def test_api_quota_observability_api(monkeypatch):
+    async def fake_api_quota_payload(summary_fetcher):
+        return {"services": [{"service": "Gemini / Google AI", "configured": True}], "timezone": "Asia/Taipei"}
+
+    monkeypatch.setattr(api.api_observability_service, "build_api_quota_payload", fake_api_quota_payload)
+
+    client = TestClient(api.app)
+    response = client.get("/api/observability/api-quotas")
+
+    assert response.status_code == 200
+    assert response.json()["services"][0]["service"] == "Gemini / Google AI"
 
 
 def test_maintenance_api_summarizes_and_cleans_job_history(monkeypatch):

@@ -5,6 +5,12 @@
         return `${number > 0 ? '+' : ''}${number.toFixed(2)}%`;
     }
 
+    function formatNumber(value) {
+        const number = Number(value);
+        if (!Number.isFinite(number)) return 'N/A';
+        return number.toLocaleString('zh-TW', { maximumFractionDigits: 2 });
+    }
+
     function trackingTone(tracking) {
         const value = Number(tracking && tracking.return_pct);
         if (!Number.isFinite(value) || value === 0) return 'is-neutral';
@@ -21,19 +27,63 @@
 
     function create(options) {
         const listEl = options.listEl;
+        const trackingTableEl = options.trackingTableEl;
         const paginationEl = options.paginationEl;
         const prevBtn = options.prevBtn;
         const nextBtn = options.nextBtn;
         const pageInfoEl = options.pageInfoEl;
         const escapeHtml = options.escapeHtml;
 
+        function renderTrackingTable(reports) {
+            if (!trackingTableEl) return;
+            const rows = (reports || [])
+                .filter(report => report.decision_tracking && report.decision_tracking.status && report.decision_tracking.status !== 'unavailable')
+                .slice(0, 6);
+            if (!rows.length) {
+                trackingTableEl.hidden = true;
+                trackingTableEl.innerHTML = '';
+                return;
+            }
+            trackingTableEl.hidden = false;
+            trackingTableEl.innerHTML = `
+                <div class="decision-tracking-title">決策追蹤表</div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>代號</th>
+                            <th>建議</th>
+                            <th>最新股價</th>
+                            <th>報酬</th>
+                            <th>距12月目標</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rows.map(report => {
+                            const tracking = report.decision_tracking || {};
+                            return `
+                                <tr data-filename="${escapeHtml(report.filename)}">
+                                    <td>${escapeHtml(report.ticker || 'N/A')}</td>
+                                    <td>${escapeHtml(options.normalizeRecommendation(tracking.recommendation || report.recommendation?.recommendation))}</td>
+                                    <td>${escapeHtml(formatNumber(tracking.latest_price))}</td>
+                                    <td class="${trackingTone(tracking)}">${escapeHtml(formatPct(tracking.return_pct))}</td>
+                                    <td>${escapeHtml(formatPct(tracking.target_12m_gap_pct))}</td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
         function renderReports(reports, selectedFilename) {
             if (!listEl) return;
             if (!reports || reports.length === 0) {
+                renderTrackingTable([]);
                 listEl.innerHTML = '<div style="color: var(--text-secondary); font-size: 0.9rem; text-align: center; padding: 20px 0;">尚無報告紀錄</div>';
                 return;
             }
 
+            renderTrackingTable(reports);
             listEl.innerHTML = reports.map(r => `
                 <div class="history-item" data-filename="${escapeHtml(r.filename)}" data-ticker="${escapeHtml(r.ticker)}" data-pipeline="${escapeHtml(r.pipeline_id || 'v1')}">
                     <div class="history-info" role="button" tabindex="0">
@@ -77,6 +127,11 @@
             listEl.querySelectorAll('.history-item').forEach(item => {
                 item.classList.toggle('is-selected', Boolean(filename) && item.dataset.filename === filename);
             });
+            if (trackingTableEl) {
+                trackingTableEl.querySelectorAll('tr[data-filename]').forEach(row => {
+                    row.classList.toggle('is-selected', Boolean(filename) && row.dataset.filename === filename);
+                });
+            }
         }
 
         function clearSelection() {
@@ -94,6 +149,13 @@
                 const item = event.target.closest('.history-item');
                 if (item) callbacks.onSelect(item.dataset.filename);
             });
+
+            if (trackingTableEl) {
+                trackingTableEl.addEventListener('click', (event) => {
+                    const row = event.target.closest('tr[data-filename]');
+                    if (row) callbacks.onSelect(row.dataset.filename);
+                });
+            }
 
             listEl.addEventListener('keydown', (event) => {
                 if (event.key !== 'Enter') return;

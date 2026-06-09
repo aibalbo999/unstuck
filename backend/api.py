@@ -19,6 +19,7 @@ from api_routes.maintenance import MaintenanceRouteDeps, create_maintenance_rout
 from api_routes.observability import ObservabilityRouteDeps, create_observability_router
 from api_routes.reports import ReportRouteDeps, create_reports_router
 from api_routes.static_files import create_static_router
+from api_routes.watchlist import WatchlistRouteDeps, create_watchlist_router
 from config import (
     ALLOWED_ORIGINS,
     API_KEY_SETUP_MESSAGE,
@@ -57,7 +58,7 @@ from runtime_events import emit_log, format_event_log_line
 from settings import validate_runtime_settings
 from storage_inventory import build_storage_summary
 from task_queue import create_task_queue
-
+from watchlist_scheduler import create_watchlist_scheduler_task
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(line_buffering=True)
@@ -77,7 +78,6 @@ analysis_pipeline_runner = AnalysisPipelineRunner()
 report_renderer = ReportRenderer()
 active_analyses_lock = threading.Lock()
 LOCAL_MUTATION_HOSTS = {"127.0.0.1", "::1", "localhost", "testclient"}
-
 
 def parse_recommendation_summary(filename: str) -> dict:
     return report_history_service.parse_recommendation_summary(filename, output_dir=OUTPUT_DIR)
@@ -109,7 +109,6 @@ def require_mutation_authorized(request: Request) -> None:
 
 
 _refresh_data_diff = report_refresh_service.refresh_data_diff
-
 
 def cleanup_expired_reports(retention_days: int = REPORT_RETENTION_DAYS):
     return report_history_service.cleanup_expired_reports(OUTPUT_DIR, report_cache, retention_days)
@@ -146,12 +145,22 @@ async def lifespan(_app: FastAPI):
         emit_log(f"設定檢查警告：{warning}")
     await _mark_abandoned_local_jobs()
     cleanup_task = asyncio.create_task(_cleanup_reports_forever())
+    watchlist_task = create_watchlist_scheduler_task(
+        create_job=lambda ticker, pipeline_id: create_job(ticker, pipeline_id),
+        find_active_job=lambda ticker, pipeline_id: find_active_job(ticker, pipeline_id),
+        task_queue=analysis_task_queue,
+        run_stock_analysis_job=run_stock_analysis_job,
+        emit_log=emit_log,
+    )
     try:
         yield
     finally:
         cleanup_task.cancel()
+        watchlist_task.cancel()
         with suppress(asyncio.CancelledError):
             await cleanup_task
+        with suppress(asyncio.CancelledError):
+            await watchlist_task
         from cache_store import close_cache_store
         from llm_transport import close_cached_clients_async
 
@@ -191,6 +200,13 @@ def create_app() -> FastAPI:
     app.include_router(create_observability_router(ObservabilityRouteDeps(
         get_provider_sla_summary=lambda limit: get_provider_sla_summary(limit),
         get_provider_sla_alerts=lambda limit: get_provider_sla_alerts(limit),
+    )))
+    app.include_router(create_watchlist_router(WatchlistRouteDeps(
+        get_task_queue=lambda: analysis_task_queue,
+        run_stock_analysis_job=run_stock_analysis_job,
+        create_job=lambda ticker, pipeline_id: create_job(ticker, pipeline_id),
+        find_active_job=lambda ticker, pipeline_id: find_active_job(ticker, pipeline_id),
+        require_mutation_authorized=require_mutation_authorized,
     )))
     app.include_router(create_maintenance_router(MaintenanceRouteDeps(
         require_mutation_authorized=require_mutation_authorized,
@@ -278,4 +294,5 @@ async def rerun_report_analysis(filename: str, request: Request, scope: str = "f
         output_dir=OUTPUT_DIR,
         pipeline_runner=analysis_pipeline_runner,
         report_renderer=report_renderer,
+        refresh_service=data_refresh_service,
     )

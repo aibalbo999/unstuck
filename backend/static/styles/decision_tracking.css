@@ -1,0 +1,44 @@
+.decision-tracking-table {
+    margin-bottom: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 8px;
+    background: rgba(2, 6, 23, 0.18);
+    overflow: hidden;
+}
+.decision-tracking-table[hidden] {
+    display: none;
+}
+.decision-tracking-title {
+    padding: 8px 10px 0;
+    color: var(--text-primary);
+    font-size: 0.78rem;
+    font-weight: 900;
+}
+.decision-tracking-table table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+.decision-tracking-table th,
+.decision-tracking-table td {
+    padding: 7px 9px;
+    color: var(--text-secondary);
+    font-size: 0.68rem;
+    font-weight: 800;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+.decision-tracking-table th {
+    color: var(--text-muted);
+    font-size: 0.63rem;
+}
+.decision-tracking-table tbody tr {
+    cursor: pointer;
+}
+.decision-tracking-table tbody tr:hover,
+.decision-tracking-table tbody tr.is-selected {
+    background: rgba(0, 255, 204, 0.07);
+}

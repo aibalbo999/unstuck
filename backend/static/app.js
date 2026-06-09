@@ -29,6 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const historyPrev = document.getElementById('history-prev');
     const historyNext = document.getElementById('history-next');
     const historyPageInfo = document.getElementById('history-page-info');
+    const historyTrackingTable = document.getElementById('history-tracking-table');
     const reportPreview = document.getElementById('report-preview');
     const previewMode = document.getElementById('preview-mode');
     const previewTitle = document.getElementById('preview-title');
@@ -42,17 +43,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const previewStaleNotice = document.getElementById('preview-stale-notice');
     const previewOpenReportBtn = document.getElementById('preview-open-report-btn');
     const previewRefreshDataBtn = document.getElementById('preview-refresh-data-btn');
+    const previewCompareAddBtn = document.getElementById('preview-compare-add-btn');
     const previewRerunFinalBtn = document.getElementById('preview-rerun-final-btn');
+    const previewRerunFullBtn = document.getElementById('preview-rerun-full-btn');
     const previewRerunModeBBtn = document.getElementById('preview-rerun-modeb-btn');
     const previewRerunCancelBtn = document.getElementById('preview-rerun-cancel-btn');
     const previewCloseBtn = document.getElementById('preview-close-btn');
-    const providerSlaSummary = document.getElementById('provider-sla-summary');
-    const providerSlaList = document.getElementById('provider-sla-list');
-    const providerSlaRefresh = document.getElementById('provider-sla-refresh');
-    const providerSlaWindow = document.getElementById('provider-sla-window');
-    const activeJobsSummary = document.getElementById('active-jobs-summary');
-    const activeJobsList = document.getElementById('active-jobs-list');
-    const activeJobsRefresh = document.getElementById('active-jobs-refresh');
+    const reportCompareSummary = document.getElementById('report-compare-summary');
+    const reportCompareResult = document.getElementById('report-compare-result');
+    const reportCompareClearBtn = document.getElementById('report-compare-clear-btn');
     
     const downloadHtmlBtn = document.getElementById('download-html-btn');
     const downloadMdBtn = document.getElementById('download-md-btn');
@@ -61,7 +60,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentReportFilename = null;
     let pendingAuditNotice = null;
     let currentPipeline = 'v1';
-    let providerSlaPayload = null;
 
     const viewController = window.StockAgentViewController.create({
         views: {
@@ -75,52 +73,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function getSelectedPipeline() {
         const selected = document.querySelector('input[name="pipeline-mode"]:checked') || pipelineInputs.find(input => input.checked);
         return selected ? selected.value : 'v1';
-    }
-
-    function renderProviderSla(payload) {
-        window.StockAgentProviderSlaPanel.render(payload, {
-            summaryEl: providerSlaSummary,
-            listEl: providerSlaList,
-            windowEl: providerSlaWindow,
-            escapeHtml: ui.escapeHtml
-        });
-    }
-
-    async function loadProviderSla() {
-        if (!providerSlaSummary || !providerSlaList) return;
-        try {
-            if (providerSlaRefresh) providerSlaRefresh.setAttribute('disabled', 'disabled');
-            providerSlaPayload = await apiClient.fetchProviderSla({
-                windowValue: providerSlaWindow ? providerSlaWindow.value || 'all' : 'all',
-                limit: 12
-            });
-            renderProviderSla(providerSlaPayload);
-        } catch (err) {
-            console.error('Failed to load provider SLA', err);
-            providerSlaSummary.textContent = '全系統資料來源狀態讀取失敗';
-            providerSlaList.innerHTML = '<span class="provider-sla-chip is-warning">請稍後重試</span>';
-        } finally {
-            if (providerSlaRefresh) providerSlaRefresh.removeAttribute('disabled');
-        }
-    }
-
-    async function loadActiveJobs() {
-        if (!activeJobsSummary || !activeJobsList) return;
-        try {
-            if (activeJobsRefresh) activeJobsRefresh.setAttribute('disabled', 'disabled');
-            const payload = await apiClient.fetchActiveJobs({ limit: 5, eventLimit: 40 });
-            window.StockAgentActiveJobsPanel.render(payload, {
-                summaryEl: activeJobsSummary,
-                listEl: activeJobsList,
-                escapeHtml: ui.escapeHtml
-            });
-        } catch (err) {
-            console.error('Failed to load active jobs', err);
-            activeJobsSummary.textContent = '任務狀態讀取失敗';
-            activeJobsList.innerHTML = '<span class="provider-sla-chip is-warning">請稍後重試</span>';
-        } finally {
-            if (activeJobsRefresh) activeJobsRefresh.removeAttribute('disabled');
-        }
     }
 
     function updateAnalyzeButtonCopy() {
@@ -169,6 +121,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     window.openReport = openReport;
 
+    const opsWorkspace = window.StockAgentOpsWorkspace.create({ apiClient, ui });
+    const loadProviderSla = opsWorkspace.loadProviderSla;
+
     const historyWorkspace = window.StockAgentHistoryWorkspace.create({
         apiClient,
         ui,
@@ -185,6 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
             historyPrev,
             historyNext,
             historyPageInfo,
+            historyTrackingTable,
             reportPreview,
             previewMode,
             previewTitle,
@@ -198,10 +154,15 @@ document.addEventListener('DOMContentLoaded', () => {
             previewStaleNotice,
             previewOpenReportBtn,
             previewRefreshDataBtn,
+            previewCompareAddBtn,
             previewRerunFinalBtn,
+            previewRerunFullBtn,
             previewRerunModeBBtn,
             previewRerunCancelBtn,
-            previewCloseBtn
+            previewCloseBtn,
+            reportCompareSummary,
+            reportCompareResult,
+            reportCompareClearBtn
         }
     });
     historyWorkspace.bindEvents();
@@ -216,20 +177,8 @@ document.addEventListener('DOMContentLoaded', () => {
     window.StockAgentReportNavigation.bind(reportIframe);
 
     loadHistory();
-    loadProviderSla();
-    loadActiveJobs();
-
-    if (providerSlaRefresh) {
-        providerSlaRefresh.addEventListener('click', loadProviderSla);
-    }
-
-    if (providerSlaWindow) {
-        providerSlaWindow.addEventListener('change', loadProviderSla);
-    }
-
-    if (activeJobsRefresh) {
-        activeJobsRefresh.addEventListener('click', loadActiveJobs);
-    }
+    opsWorkspace.bindEvents();
+    opsWorkspace.loadAll();
 
     pipelineInputs.forEach(input => {
         input.addEventListener('change', updateAnalyzeButtonCopy);

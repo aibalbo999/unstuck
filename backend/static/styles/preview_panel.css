@@ -168,7 +168,7 @@
 }
 .preview-rerun-row {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
     margin-top: 10px;
 }
@@ -204,4 +204,9 @@
 .preview-open-button:hover {
     transform: translateY(-1px);
     box-shadow: 0 8px 24px rgba(0, 255, 204, 0.24);
+}
+@media (max-width: 720px) {
+    .preview-rerun-row {
+        grid-template-columns: 1fr;
+    }
 }

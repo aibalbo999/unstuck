@@ -6,6 +6,7 @@ import asyncio
 from collections.abc import Callable
 
 from provider_sla import SLA_CRITICAL_SUCCESS_RATE, SLA_WARNING_SUCCESS_RATE
+from api_quota_service import build_api_quota_payload as _build_api_quota_payload
 from job_observability import build_active_jobs_snapshot
 
 
@@ -108,3 +109,7 @@ async def build_provider_sla_payload(
 
 async def build_active_jobs_payload(limit: int = 10, event_limit: int = 80) -> dict:
     return await asyncio.to_thread(build_active_jobs_snapshot, limit, event_limit)
+
+
+async def build_api_quota_payload(summary_fetcher: Callable[[int], list[dict]]) -> dict:
+    return await asyncio.to_thread(_build_api_quota_payload, summary_fetcher)

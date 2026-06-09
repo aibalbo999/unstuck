@@ -19,21 +19,17 @@
             hint: '將先執行學術深度派，再接續實戰交易派；完成後會產出兩份獨立報告。'
         }
     };
-
     function pipelineMeta(pipelineId) {
         return PIPELINE_META[pipelineId] || PIPELINE_META.v1;
     }
-
     function pipelineModeClass(pipelineId) {
         if (pipelineId === 'both') return 'is-both';
         return pipelineId === 'v2' ? 'is-v2' : 'is-v1';
     }
-
     function pipelineModeLabel(pipelineId) {
         if (pipelineId === 'both') return '連續 A+B · 兩份報告';
         return pipelineId === 'v2' ? '模式 B · 實戰交易派' : '模式 A · 學術深度派';
     }
-
     function dataTrustLabel(trust) {
         const status = trust && trust.status ? trust.status : 'unknown';
         const labels = {
@@ -45,12 +41,10 @@
         };
         return labels[status] || labels.unknown;
     }
-
     function dataTrustClass(trust) {
         const status = trust && trust.status ? trust.status : 'unknown';
         return ['fresh', 'partial', 'stale', 'error'].includes(status) ? status : 'unknown';
     }
-
     function dataTrustReasonLabel(code) {
         const parts = String(code || '').split(':');
         const base = parts[0];
@@ -72,8 +66,16 @@
 
     function dataTrustReasonSummary(trust) {
         const codes = trust && Array.isArray(trust.reason_codes) ? trust.reason_codes : [];
-        if (!codes.length) return '';
-        return codes.slice(0, 2).map(dataTrustReasonLabel).join('、');
+        const reasons = codes.slice(0, 2).map(dataTrustReasonLabel);
+        const scoreReasons = trust && Array.isArray(trust.score_reasons) ? trust.score_reasons : [];
+        if (!reasons.length && scoreReasons.length) return scoreReasons.slice(0, 2).join('、');
+        return reasons.join('、');
+    }
+
+    function dataTrustScoreLabel(trust) {
+        const score = trust && Number(trust.score);
+        if (!Number.isFinite(score)) return '';
+        return `${Math.max(0, Math.min(100, Math.round(score)))}分`;
     }
 
     function normalizeRecommendation(value) {
@@ -107,7 +109,9 @@
 
     function renderDataTrustBadge(trust) {
         const label = dataTrustLabel(trust);
-        return `<span class="data-trust-badge is-${dataTrustClass(trust)}" title="${escapeHtml(label)}">${escapeHtml(label)}</span>`;
+        const score = dataTrustScoreLabel(trust);
+        const text = score ? `${label} · ${score}` : label;
+        return `<span class="data-trust-badge is-${dataTrustClass(trust)}" title="${escapeHtml(text)}">${escapeHtml(text)}</span>`;
     }
 
     function renderDataTrustReason(trust) {
@@ -123,6 +127,7 @@
         dataTrustLabel,
         dataTrustClass,
         dataTrustReasonSummary,
+        dataTrustScoreLabel,
         normalizeRecommendation,
         recommendationTone,
         escapeHtml,

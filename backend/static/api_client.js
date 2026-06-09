@@ -3,7 +3,7 @@
         const res = await fetch(url, options);
         const payload = await res.json();
         if (!res.ok || payload.success === false) {
-            throw new Error(payload.error || `HTTP ${res.status}`);
+            throw new Error(payload.error || payload.detail || `HTTP ${res.status}`);
         }
         return payload;
     }

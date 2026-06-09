@@ -4,12 +4,25 @@
     }
 
     function llmSummary(job) {
-        const retries = countValues(job.llm_retry_counts);
-        const errors = countValues(job.llm_error_counts);
+        const stage = job.stage_summary || {};
+        const retries = Number(stage.llm_retry_count_sampled ?? countValues(job.llm_retry_counts));
+        const errors = Number(stage.llm_error_count_sampled ?? countValues(job.llm_error_counts));
         const parts = [];
         if (retries) parts.push(`模型重試 ${retries} 次`);
         if (errors) parts.push(`模型錯誤 ${errors} 次`);
         return parts.join(' · ');
+    }
+
+    function progressLabel(stage) {
+        const current = Number(stage?.progress_current);
+        const total = Number(stage?.progress_total);
+        if (Number.isFinite(current) && Number.isFinite(total) && total > 0) {
+            return `${current}/${total}`;
+        }
+        if (Number.isFinite(stage?.report_done_count_sampled) && Number(stage.report_done_count_sampled) > 0) {
+            return `已產生 ${Number(stage.report_done_count_sampled)} 份`;
+        }
+        return '';
     }
 
     function statusLabel(job, showingHistory) {
@@ -34,15 +47,17 @@
             : (jobs.length ? '目前無執行中任務，以下為最近完成任務' : '尚無任務紀錄');
         listEl.innerHTML = jobs.length
             ? jobs.slice(0, 5).map(job => {
-                const last = job.last_event || {};
+                const stage = job.stage_summary || {};
                 const modelHealth = llmSummary(job);
                 const tone = job.status === 'running' ? 'warning' : job.status === 'done' ? 'ok' : 'critical';
-                const phase = last.phase || (job.status === 'done' ? '完成' : 'idle');
+                const phase = stage.phase || (job.status === 'done' ? '完成' : 'idle');
+                const progress = progressLabel(stage);
+                const details = [phase, progress, modelHealth].filter(Boolean).join(' · ');
                 return `
-                    <span class="provider-sla-chip is-${tone}" title="${escapeHtml(last.message || job.error || '')}">
+                    <span class="provider-sla-chip is-${tone}" title="${escapeHtml(stage.message || job.error || '')}">
                         ${escapeHtml(job.ticker || 'N/A')} · ${escapeHtml(job.pipeline_id || 'N/A')}
                         <strong>${escapeHtml(statusLabel(job, showingHistory))}</strong>
-                        <em>${escapeHtml(phase)}${modelHealth ? ` · ${escapeHtml(modelHealth)}` : ''}</em>
+                        <em>${escapeHtml(details)}</em>
                     </span>
                 `;
             }).join('')

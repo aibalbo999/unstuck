@@ -27,6 +27,8 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     app_js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
     provider_sla_js = (STATIC_DIR / "provider_sla_panel.js").read_text(encoding="utf-8")
     active_jobs_js = (STATIC_DIR / "active_jobs_panel.js").read_text(encoding="utf-8")
+    api_client_extensions_js = (STATIC_DIR / "api_client_extensions.js").read_text(encoding="utf-8")
+    ops_workspace_js = (STATIC_DIR / "ops_workspace.js").read_text(encoding="utf-8")
     maintenance_js = (STATIC_DIR / "maintenance_panel.js").read_text(encoding="utf-8")
     home_tabs_js = (STATIC_DIR / "home_tabs.js").read_text(encoding="utf-8")
     report_rerun_js = (STATIC_DIR / "report_rerun.js").read_text(encoding="utf-8")
@@ -39,6 +41,8 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     ui_helpers_js = (STATIC_DIR / "ui_helpers.js").read_text(encoding="utf-8")
 
     assert 'id="provider-sla-panel"' in index_html
+    assert 'id="api-quota-panel"' in index_html
+    assert 'id="watchlist-panel"' in index_html
     assert 'id="home-tab-analysis"' in index_html
     assert 'id="home-tab-ops"' in index_html
     assert 'id="home-panel-ops"' in index_html
@@ -55,13 +59,20 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert '<option value="last_24h" selected>24 小時</option>' in index_html
     assert 'id="preview-refresh-data-btn"' in index_html
     assert 'id="preview-rerun-final-btn"' in index_html
+    assert 'id="preview-rerun-full-btn"' in index_html
     assert 'id="preview-rerun-modeb-btn"' in index_html
     assert 'id="preview-rerun-cancel-btn"' in index_html
+    assert 'id="preview-compare-add-btn"' in index_html
+    assert 'id="report-compare-panel"' in index_html
     assert 'id="preview-stale-notice"' in index_html
     assert 'id="preview-tracking"' in index_html
     assert 'id="preview-tracking-return"' in index_html
+    assert 'id="history-tracking-table"' in index_html
     assert "/static/provider_sla_panel.js" in index_html
+    assert "/static/api_quota_panel.js" in index_html
     assert "/static/active_jobs_panel.js" in index_html
+    assert "/static/watchlist_panel.js" in index_html
+    assert "/static/ops_workspace.js" in index_html
     assert "/static/maintenance_panel.js" in index_html
     assert "/static/home_tabs.js" in index_html
     assert "/static/report_rerun.js" in index_html
@@ -75,9 +86,11 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "/static/history_workspace.js" in index_html
     assert "/static/ui_helpers.js" in index_html
     assert "/static/api_client.js" in index_html
-    assert "providerSlaWindow" in app_js
-    assert "StockAgentProviderSlaPanel.render" in app_js
-    assert "StockAgentActiveJobsPanel.render" in app_js
+    assert "/static/api_client_extensions.js" in index_html
+    assert "providerSlaWindow" in ops_workspace_js
+    assert "StockAgentProviderSlaPanel.render" in ops_workspace_js
+    assert "StockAgentActiveJobsPanel.render" in ops_workspace_js
+    assert "StockAgentOpsWorkspace.create" in app_js
     assert "StockAgentHistoryPanel.create" in history_workspace_js
     assert "StockAgentReportPreviewPanel.create" in history_workspace_js
     assert "StockAgentViewController.create" in app_js
@@ -93,12 +106,15 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "history-item" in history_panel_js
     assert "history-tracking" in history_panel_js
     assert "decision_tracking" in history_panel_js
+    assert "decision-tracking-title" in history_panel_js
     assert "preview-date" in report_preview_js
     assert "preview-tracking-latest" in report_preview_js
     assert "decision_tracking" in report_preview_js
     assert "configureRerunButtons" in report_preview_js
     assert "重跑模式 A 最終建議" in report_preview_js
     assert "重跑模式 B 最終建議" in report_preview_js
+    assert "完整重跑模式 A" in report_preview_js
+    assert "full_report" in report_rerun_js
     assert "重跑完整模式 B" in report_preview_js
     assert "產生模式 B 報告" in report_preview_js
     assert "產生模式 B 報告" in index_html
@@ -130,11 +146,15 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "params.set('window'" in api_client_js
     assert "/api/observability/provider-sla" in api_client_js
     assert "/api/observability/active-jobs" in api_client_js
+    assert "/api/observability/api-quotas" in api_client_extensions_js
+    assert "/api/reports/compare" in api_client_extensions_js
+    assert "/api/watchlist" in api_client_extensions_js
     assert "/api/maintenance/storage-summary" in api_client_js
     assert "cleanupAnalysisHistory" in api_client_js
     assert "StockAgentMaintenancePanel" in maintenance_js
     assert "maintenance-clean-provider-sla" in maintenance_js
     assert "llm_error_counts" in active_jobs_js
+    assert "stage_summary" in active_jobs_js
     assert "最近完成任務" in active_jobs_js
     assert "模型重試" in active_jobs_js
     assert "模型錯誤" in active_jobs_js
@@ -161,8 +181,16 @@ def test_frontend_static_modules_are_sized():
         "home_tabs.js": 50,
         "style.css": 40,
         "styles/history_list.css": 320,
+        "styles/decision_tracking.css": 80,
         "styles/preview_panel.css": 220,
+        "styles/report_compare.css": 90,
         "styles/provider_sla.css": 220,
+        "styles/watchlist.css": 80,
+        "api_client_extensions.js": 90,
+        "ops_workspace.js": 160,
+        "api_quota_panel.js": 100,
+        "watchlist_panel.js": 180,
+        "report_compare_panel.js": 160,
     }
     for relative_path, limit in size_limits.items():
         path = STATIC_DIR / relative_path

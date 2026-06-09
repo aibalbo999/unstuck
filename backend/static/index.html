@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=20260608-history-analysis">
+    <link rel="stylesheet" href="/static/style.css?v=20260608-optimization-suite">
 </head>
 <body>
     <!-- 背景特效 -->
@@ -110,6 +110,7 @@
                                 </label>
                             </div>
                         </div>
+                        <div id="history-tracking-table" class="decision-tracking-table" aria-live="polite"></div>
                         <div id="history-list" class="history-list">
                             <!-- 動態載入 -->
                         </div>
@@ -186,9 +187,16 @@
                             <span>刷新資料快照</span>
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M16 8h5V3"/></svg>
                         </button>
+                        <button id="preview-compare-add-btn" class="preview-refresh-button" type="button">
+                            <span>加入比較</span>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3H5a2 2 0 0 0-2 2v5"/><path d="M14 21h5a2 2 0 0 0 2-2v-5"/><path d="M21 10V5a2 2 0 0 0-2-2h-5"/><path d="M3 14v5a2 2 0 0 0 2 2h5"/></svg>
+                        </button>
                         <div class="preview-rerun-row">
                             <button id="preview-rerun-final-btn" class="preview-rerun-button" type="button">
                                 <span>重跑最終建議</span>
+                            </button>
+                            <button id="preview-rerun-full-btn" class="preview-rerun-button" type="button">
+                                <span>完整重跑報告</span>
                             </button>
                             <button id="preview-rerun-modeb-btn" class="preview-rerun-button" type="button">
                                 <span>產生模式 B 報告</span>
@@ -196,6 +204,16 @@
                             <button id="preview-rerun-cancel-btn" class="preview-rerun-button preview-rerun-cancel-button" type="button" hidden>
                                 <span>取消重跑</span>
                             </button>
+                        </div>
+                        <div id="report-compare-panel" class="report-compare-panel">
+                            <div class="report-compare-header">
+                                <strong>報告比較</strong>
+                                <button id="report-compare-clear-btn" class="icon-button" type="button" aria-label="清除報告比較">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                                </button>
+                            </div>
+                            <p id="report-compare-summary" class="report-compare-summary"></p>
+                            <div id="report-compare-result" class="report-compare-result" hidden></div>
                         </div>
                     </section>
                 </div>
@@ -208,6 +226,63 @@
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16v-5"/><path d="M12 16V8"/><path d="M16 16v-3"/></svg>
                         系統狀態與維護
                     </div>
+                    <section id="api-quota-panel" class="provider-sla-panel" aria-live="polite">
+                        <div class="provider-sla-header">
+                            <div>
+                                <span class="provider-sla-kicker">API 額度</span>
+                                <strong id="api-quota-summary">載入中</strong>
+                            </div>
+                            <button id="api-quota-refresh" class="icon-button" type="button" aria-label="刷新 API 額度">
+                                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M16 8h5V3"/></svg>
+                            </button>
+                        </div>
+                        <div id="api-quota-list" class="provider-sla-list"></div>
+                    </section>
+                    <section id="watchlist-panel" class="provider-sla-panel" aria-live="polite">
+                        <div class="provider-sla-header">
+                            <div>
+                                <span class="provider-sla-kicker">盤前/盤後 Watchlist</span>
+                                <strong id="watchlist-summary">載入中</strong>
+                            </div>
+                            <div class="provider-sla-actions">
+                                <button id="watchlist-run-btn" class="maintenance-button" type="button">
+                                    <span>批次分析</span>
+                                </button>
+                                <button id="watchlist-refresh" class="icon-button" type="button" aria-label="刷新 watchlist">
+                                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M16 8h5V3"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="watchlist-form">
+                            <label class="history-filter-field">
+                                <span>股票代號</span>
+                                <input id="watchlist-ticker-input" class="history-search" type="text" placeholder="例如 2308.TW" autocomplete="off" spellcheck="false" />
+                            </label>
+                            <label class="history-filter-field">
+                                <span>模式</span>
+                                <select id="watchlist-pipeline-select" class="history-filter-select">
+                                    <option value="v1">模式 A</option>
+                                    <option value="v2">模式 B</option>
+                                </select>
+                            </label>
+                            <label class="history-version-toggle watchlist-toggle">
+                                <span>盤前</span>
+                                <input id="watchlist-pre-market" type="checkbox" checked aria-label="盤前" />
+                            </label>
+                            <label class="history-version-toggle watchlist-toggle">
+                                <span>盤後</span>
+                                <input id="watchlist-post-market" type="checkbox" aria-label="盤後" />
+                            </label>
+                            <label class="history-version-toggle watchlist-toggle">
+                                <span>啟用</span>
+                                <input id="watchlist-enabled" type="checkbox" checked aria-label="啟用 watchlist 項目" />
+                            </label>
+                            <button id="watchlist-save-btn" class="maintenance-button" type="button">
+                                <span>儲存</span>
+                            </button>
+                        </div>
+                        <div id="watchlist-list" class="provider-sla-list watchlist-list"></div>
+                    </section>
                     <section id="provider-sla-panel" class="provider-sla-panel" aria-live="polite">
                         <div class="provider-sla-header">
                             <div>
@@ -314,21 +389,26 @@
         </div>
     </main>
 
-    <script src="/static/ui_helpers.js?v=20260607-system-report-trust"></script>
-    <script src="/static/api_client.js?v=20260607-latest-report-versions"></script>
+    <script src="/static/ui_helpers.js?v=20260608-data-trust-score"></script>
+    <script src="/static/api_client.js?v=20260608-api-quota-watchlist"></script>
+    <script src="/static/api_client_extensions.js?v=20260608-api-tools"></script>
     <script src="/static/provider_sla_panel.js?v=20260608-provider-drilldown"></script>
-    <script src="/static/active_jobs_panel.js?v=20260608-active-jobs"></script>
+    <script src="/static/api_quota_panel.js?v=20260608-api-quota"></script>
+    <script src="/static/active_jobs_panel.js?v=20260608-stage-summary"></script>
+    <script src="/static/watchlist_panel.js?v=20260608-watchlist"></script>
+    <script src="/static/ops_workspace.js?v=20260608-ops-workspace"></script>
     <script src="/static/maintenance_panel.js?v=20260608-local-maintenance"></script>
     <script src="/static/home_tabs.js?v=20260608-home-tabs"></script>
-    <script src="/static/report_rerun.js?v=20260607-rerun-stream"></script>
+    <script src="/static/report_rerun.js?v=20260608-full-report"></script>
     <script src="/static/analysis_stream.js?v=20260607-analysis-stream"></script>
-    <script src="/static/history_panel.js?v=20260608-decision-tracking"></script>
-    <script src="/static/report_preview_panel.js?v=20260608-decision-tracking"></script>
+    <script src="/static/history_panel.js?v=20260608-tracking-table"></script>
+    <script src="/static/report_preview_panel.js?v=20260608-full-report"></script>
     <script src="/static/view_controller.js?v=20260607-view-controller"></script>
     <script src="/static/history_filters.js?v=20260607-latest-report-versions"></script>
     <script src="/static/report_actions.js?v=20260607-report-actions"></script>
     <script src="/static/report_navigation.js?v=20260608-report-navigation-fix"></script>
-    <script src="/static/history_workspace.js?v=20260607-latest-report-versions"></script>
-    <script src="/static/app.js?v=20260608-report-navigation"></script>
+    <script src="/static/report_compare_panel.js?v=20260608-report-compare"></script>
+    <script src="/static/history_workspace.js?v=20260608-report-compare"></script>
+    <script src="/static/app.js?v=20260608-watchlist-quota"></script>
 </body>
 </html>

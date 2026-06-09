@@ -9,6 +9,7 @@ from fastapi import HTTPException
 
 from agent_runtime import AnalysisPipelineRunner
 from config import API_KEY_SETUP_MESSAGE, OUTPUT_DIR, has_api_keys
+from data_fetch import StockDataService
 from job_store import append_event, is_job_cancel_requested, update_job
 import report_rerun_service
 from reporting import ReportRenderer
@@ -16,6 +17,7 @@ from reporting import ReportRenderer
 
 PIPELINE_RUNNER = AnalysisPipelineRunner()
 REPORT_RENDERER = ReportRenderer()
+REFRESH_SERVICE = StockDataService()
 
 
 class ReportRerunJobCancelled(Exception):
@@ -60,6 +62,7 @@ async def run_report_rerun_job_async(
     output_dir: str = OUTPUT_DIR,
     pipeline_runner: Any = None,
     report_renderer: Any = None,
+    refresh_service: Any = None,
 ) -> str:
     """Run a partial report rerun and persist job events for SSE clients."""
     normalized_scope = report_rerun_service.normalize_rerun_scope(scope)
@@ -90,6 +93,7 @@ async def run_report_rerun_job_async(
             output_dir=output_dir,
             pipeline_runner=pipeline_runner or PIPELINE_RUNNER,
             report_renderer=report_renderer or REPORT_RENDERER,
+            refresh_service=refresh_service or REFRESH_SERVICE,
             progress_callback=progress_callback,
             cancel_check=lambda: _raise_if_cancelled(job_id),
         )

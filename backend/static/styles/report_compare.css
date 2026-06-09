@@ -1,0 +1,65 @@
+.report-compare-panel {
+    margin-top: 12px;
+    border-top: 1px solid rgba(148, 163, 184, 0.2);
+    padding-top: 12px;
+}
+.report-compare-header {
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+.report-compare-header strong {
+    color: var(--text-primary);
+    font-size: 0.88rem;
+}
+.report-compare-summary {
+    min-height: 18px;
+    margin: 4px 0 0;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 800;
+    line-height: 1.45;
+}
+.report-compare-result[hidden] {
+    display: none;
+}
+.report-compare-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+}
+.report-compare-grid span {
+    min-width: 0;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 8px;
+    background: rgba(2, 6, 23, 0.22);
+    padding: 8px 9px;
+}
+.report-compare-grid strong,
+.report-compare-grid em {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.report-compare-grid strong {
+    color: var(--text-primary);
+    font-size: 0.74rem;
+}
+.report-compare-grid em {
+    margin-top: 3px;
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+    font-style: normal;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+@media (max-width: 720px) {
+    .report-compare-grid {
+        grid-template-columns: 1fr;
+    }
+}

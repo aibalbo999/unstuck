@@ -17,6 +17,7 @@ from report_index import is_safe_report_filename
 import report_history_service
 import report_refresh_service
 import report_rerun_service
+import report_compare_service
 
 
 @dataclass(frozen=True)
@@ -61,6 +62,17 @@ def create_reports_router(deps: ReportRouteDeps) -> APIRouter:
             include_versions=include_versions,
             output_dir=deps.get_output_dir(),
             report_cache=deps.get_report_cache(),
+        )
+
+    @router.get("/api/reports/compare")
+    def compare_reports(
+        left: str = Query(..., min_length=1, max_length=180),
+        right: str = Query(..., min_length=1, max_length=180),
+    ):
+        return report_compare_service.compare_reports(
+            left,
+            right,
+            output_dir=deps.get_output_dir(),
         )
 
     @router.delete("/api/reports/{filename}")

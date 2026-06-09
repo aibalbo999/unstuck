@@ -138,6 +138,27 @@ def test_get_reports_filters_pipeline_and_recommendation(tmp_path, monkeypatch):
     assert result["reports"][0]["data_trust"]["status"] == "fresh"
 
 
+def test_report_compare_api_returns_decision_and_tracking_deltas(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    left = "2449_v2_report_20260606_010000.html"
+    right = "2449_v2_report_20260607_010000.html"
+    write_report_pair(tmp_path, left, "持有")
+    write_report_pair(tmp_path, right, "買入")
+    write_data_snapshot(tmp_path, left, "stale", current_price=100)
+    write_data_snapshot(tmp_path, right, "fresh", current_price=120)
+
+    client = TestClient(api.app)
+    response = client.get("/api/reports/compare", params={"left": left, "right": right})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["success"] is True
+    assert body["diff"]["recommendation_changed"] is True
+    assert body["diff"]["recommendation"] == {"before": "持有", "after": "買入"}
+    assert body["diff"]["data_trust"]["score"]["delta"] is not None
+    assert body["diff"]["tracking"]["latest_price"]["delta"] == 20
+
+
 def test_get_reports_marks_old_reports_without_snapshot_unknown(tmp_path, monkeypatch):
     monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
     write_report_pair(tmp_path, "2449_v2_report_20260606_010000.html", "持有")
@@ -393,6 +414,35 @@ def test_rerun_report_endpoint_mode_b_queues_job(tmp_path, monkeypatch):
     job = job_store.get_job(body["job_id"])
     assert job["ticker"] == filename
     assert job["pipeline_id"] == "rerun:mode_b"
+
+
+def test_rerun_report_endpoint_full_report_queues_job(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
+    monkeypatch.setattr(job_store, "TASK_DB_PATH", str(tmp_path / "jobs.sqlite3"))
+    filename = "2449_v2_report_20260606_010000.html"
+    write_report_pair(tmp_path, filename, "持有")
+    write_data_snapshot(tmp_path, filename, "fresh")
+
+    class FakeTaskQueue:
+        def __init__(self):
+            self.calls = []
+
+        def enqueue(self, *args):
+            self.calls.append(args)
+
+    fake_queue = FakeTaskQueue()
+    monkeypatch.setattr(api, "analysis_task_queue", fake_queue)
+
+    client = TestClient(api.app)
+    response = client.post(f"/api/report/{filename}/rerun", params={"scope": "full"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["scope"] == "full_report"
+    assert "完整重跑" in body["scope_label"]
+    assert fake_queue.calls[0][2:] == (body["job_id"], filename, "full_report")
+    assert job_store.get_job(body["job_id"])["pipeline_id"] == "rerun:full_report"
 
 
 def test_rerun_report_stream_replays_terminal_event(tmp_path, monkeypatch):

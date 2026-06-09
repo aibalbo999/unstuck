@@ -2,7 +2,10 @@
 @import url("/static/styles/forms_controls.css?v=20260607-css-modules");
 @import url("/static/styles/loading_report.css?v=20260607-css-modules");
 @import url("/static/styles/history_shell.css?v=20260608-history-analysis");
-@import url("/static/styles/provider_sla.css?v=20260607-system-report-trust");
-@import url("/static/styles/history_list.css?v=20260608-home-tabs");
-@import url("/static/styles/preview_panel.css?v=20260608-decision-tracking");
+@import url("/static/styles/provider_sla.css?v=20260608-watchlist");
+@import url("/static/styles/history_list.css?v=20260608-tracking-table");
+@import url("/static/styles/decision_tracking.css?v=20260608-tracking-table");
+@import url("/static/styles/preview_panel.css?v=20260608-report-compare");
+@import url("/static/styles/report_compare.css?v=20260608-report-compare");
+@import url("/static/styles/watchlist.css?v=20260608-watchlist");
 @import url("/static/styles/responsive.css?v=20260607-css-modules");

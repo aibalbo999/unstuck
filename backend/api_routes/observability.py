@@ -38,4 +38,10 @@ def create_observability_router(deps: ObservabilityRouteDeps) -> APIRouter:
     ):
         return await api_observability_service.build_active_jobs_payload(limit, event_limit)
 
+    @router.get("/api-quotas")
+    async def api_quotas():
+        return await api_observability_service.build_api_quota_payload(
+            deps.get_provider_sla_summary
+        )
+
     return router

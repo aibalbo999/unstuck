@@ -1,6 +1,8 @@
 (function () {
     function buttonForScope(scope, buttons) {
-        return scope === 'mode_b' ? buttons.modeB : buttons.final;
+        if (scope === 'mode_b') return buttons.modeB;
+        if (scope === 'full_report') return buttons.full;
+        return buttons.final;
     }
 
     function setButtonLabel(button, text) {
@@ -9,7 +11,7 @@
     }
 
     function disableButtons(buttons, disabled) {
-        [buttons.final, buttons.modeB].forEach(button => {
+        [buttons.final, buttons.full, buttons.modeB].forEach(button => {
             if (!button) return;
             button.disabled = disabled;
         });

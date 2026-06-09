@@ -15,6 +15,7 @@ from report_index import is_safe_report_filename
 
 RERUN_SCOPE_LABELS = {
     "final_recommendation": "只重跑最終建議",
+    "full_report": "完整重跑同模式報告",
     "mode_b": "只重跑模式 B",
 }
 
@@ -25,13 +26,17 @@ def normalize_rerun_scope(scope: str) -> str:
         "final": "final_recommendation",
         "recommendation": "final_recommendation",
         "final_agent": "final_recommendation",
+        "full": "full_report",
+        "full_rerun": "full_report",
+        "full_report_rerun": "full_report",
+        "same_pipeline": "full_report",
         "modeb": "mode_b",
         "v2": "mode_b",
         "trading": "mode_b",
     }
     value = aliases.get(value, value)
     if value not in RERUN_SCOPE_LABELS:
-        raise HTTPException(status_code=400, detail="scope must be final_recommendation or mode_b")
+        raise HTTPException(status_code=400, detail="scope must be final_recommendation, full_report, or mode_b")
     return value
 
 

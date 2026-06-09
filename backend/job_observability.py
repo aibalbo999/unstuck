@@ -78,6 +78,7 @@ def _job_snapshot(conn: sqlite3.Connection, job: dict, event_limit: int) -> dict
             model_calls[model_id] += 1
 
     now = time.time()
+    stage_summary = _stage_summary(events, job, llm_errors, llm_retries, model_calls)
     return {
         "job_id": job.get("job_id"),
         "ticker": job.get("ticker"),
@@ -89,10 +90,40 @@ def _job_snapshot(conn: sqlite3.Connection, job: dict, event_limit: int) -> dict
         "updated_at": job.get("updated_at"),
         "seconds_since_update": round(now - float(job.get("updated_at") or now), 1),
         "last_event": latest,
+        "stage_summary": stage_summary,
         "llm_error_counts": _counter_to_dict(llm_errors),
         "llm_retry_counts": dict(llm_retries),
         "llm_model_call_counts": dict(model_calls),
         "recent_events": events[:10],
+    }
+
+
+def _stage_summary(
+    events: list[dict],
+    job: dict,
+    llm_errors: Counter,
+    llm_retries: Counter,
+    model_calls: Counter,
+) -> dict:
+    latest = events[0] if events else {}
+    progress_events = [event for event in events if event.get("event_type") == "progress"]
+    latest_progress = progress_events[0] if progress_events else {}
+    report_count = sum(1 for event in events if event.get("event_type") == "report_done")
+    error_count = sum(1 for event in events if event.get("event_type") == "error")
+    current = latest_progress.get("current")
+    total = latest_progress.get("total")
+    return {
+        "phase": latest.get("phase") or ("done" if job.get("status") == "done" else job.get("status") or "idle"),
+        "message": latest.get("message") or job.get("error") or "",
+        "progress_current": current,
+        "progress_total": total,
+        "latest_agent": latest.get("agent_num"),
+        "event_count_sampled": len(events),
+        "report_done_count_sampled": report_count,
+        "error_count_sampled": error_count,
+        "llm_retry_count_sampled": sum(llm_retries.values()),
+        "llm_error_count_sampled": sum(llm_errors.values()),
+        "llm_call_count_sampled": sum(model_calls.values()),
     }
 
 
@@ -108,6 +139,9 @@ def _decode_event(row: sqlite3.Row) -> dict:
         "phase": row["phase"],
         "level": row["level"],
         "message": payload.get("message"),
+        "current": payload.get("current"),
+        "total": payload.get("total"),
+        "name": payload.get("name"),
         "agent_num": payload.get("agent_num"),
         "pipeline_id": payload.get("pipeline_id"),
         "metadata": payload.get("metadata"),
