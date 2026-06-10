@@ -21,13 +21,7 @@ def _snapshot_path(row) -> str:
 
 
 def _decision_tracking(row, recommendation: dict) -> dict:
-    try:
-        decision_tracking = json.loads(row["decision_tracking_json"])
-    except (KeyError, TypeError, json.JSONDecodeError):
-        decision_tracking = {}
-    if not isinstance(decision_tracking, dict) or not decision_tracking.get("status"):
-        return build_decision_tracking(recommendation, _snapshot_path(row))
-    return decision_tracking
+    return build_decision_tracking(recommendation, _snapshot_path(row))
 
 
 def row_to_report(row) -> dict:

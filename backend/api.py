@@ -14,6 +14,7 @@ import report_history_service
 from agent_runtime import AnalysisPipelineRunner
 from analysis_jobs import run_stock_analysis_job
 from api_routes.analysis import AnalysisRouteDeps, create_analysis_router
+from api_routes.decision_tracking import DecisionTrackingRouteDeps, create_decision_tracking_router
 from api_routes.maintenance import MaintenanceRouteDeps, create_maintenance_router
 from api_routes.observability import ObservabilityRouteDeps, create_observability_router
 from api_routes.reports import ReportRouteDeps, create_reports_router
@@ -59,6 +60,7 @@ from runtime_events import emit_log, format_event_log_line
 from settings import validate_runtime_settings
 from storage_inventory import build_storage_summary
 from task_queue import create_task_queue
+from decision_tracking_scheduler import create_decision_tracking_scheduler_task
 from watchlist_scheduler import create_watchlist_scheduler_task
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -193,15 +195,20 @@ async def lifespan(_app: FastAPI):
         run_stock_analysis_job=run_stock_analysis_job,
         emit_log=emit_log,
     )
+    decision_tracking_task = create_decision_tracking_scheduler_task(
+        get_output_dir=lambda: OUTPUT_DIR,
+        get_refresh_service=lambda: data_refresh_service,
+        emit_log=emit_log,
+    )
+    background_tasks = [cleanup_task, watchlist_task, decision_tracking_task]
     try:
         yield
     finally:
-        cleanup_task.cancel()
-        watchlist_task.cancel()
-        with suppress(asyncio.CancelledError):
-            await cleanup_task
-        with suppress(asyncio.CancelledError):
-            await watchlist_task
+        for task in background_tasks:
+            task.cancel()
+        for task in background_tasks:
+            with suppress(asyncio.CancelledError):
+                await task
         from cache_store import close_cache_store
         from llm_transport import close_cached_clients_async
 
@@ -223,10 +230,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-    app.include_router(create_static_router(
-        lambda: STATIC_DIR,
-        get_client_config=get_client_config,
-    ))
+    app.include_router(create_static_router(lambda: STATIC_DIR, get_client_config=get_client_config))
     app.include_router(create_reports_router(ReportRouteDeps(
         get_output_dir=lambda: OUTPUT_DIR,
         get_report_cache=lambda: report_cache,
@@ -242,6 +246,11 @@ def create_app() -> FastAPI:
         append_event=append_event,
         request_job_cancel=lambda job_id, reason: request_job_cancel(job_id, reason),
         print_streamed_event=print_streamed_event,
+        require_mutation_authorized=require_mutation_authorized,
+    )))
+    app.include_router(create_decision_tracking_router(DecisionTrackingRouteDeps(
+        get_output_dir=lambda: OUTPUT_DIR,
+        get_refresh_service=lambda: data_refresh_service,
         require_mutation_authorized=require_mutation_authorized,
     )))
     app.include_router(create_observability_router(ObservabilityRouteDeps(

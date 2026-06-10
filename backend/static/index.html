@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=20260610-operator-workbench-2">
+    <link rel="stylesheet" href="/static/style.css?v=20260610-dual-tracking">
 </head>
 <body>
     <!-- 背景特效 -->
@@ -137,6 +137,17 @@
                                     <span>顯示舊版報告</span>
                                     <input type="checkbox" id="history-include-versions" aria-label="顯示舊版報告" />
                                 </label>
+                            </div>
+                        </div>
+                        <div class="decision-tracking-controls">
+                            <strong id="decision-tracking-summary">每日決策追蹤載入中</strong>
+                            <div class="decision-tracking-actions">
+                                <button id="decision-tracking-density" class="maintenance-button" type="button">
+                                    <span>精簡追蹤表</span>
+                                </button>
+                                <button id="decision-tracking-refresh" class="maintenance-button" type="button">
+                                    <span>刷新追蹤股價</span>
+                                </button>
                             </div>
                         </div>
                         <div id="history-tracking-table" class="decision-tracking-table" aria-live="polite"></div>
@@ -436,7 +447,7 @@
 
     <script src="/static/ui_helpers.js?v=20260608-data-trust-score"></script>
     <script src="/static/api_client.js?v=20260608-api-quota-watchlist"></script>
-    <script src="/static/api_client_extensions.js?v=20260608-api-tools"></script>
+    <script src="/static/api_client_extensions.js?v=20260610-dual-tracking"></script>
     <script src="/static/provider_sla_panel.js?v=20260608-provider-drilldown"></script>
     <script src="/static/api_quota_panel.js?v=20260608-api-quota"></script>
     <script src="/static/active_jobs_panel.js?v=20260608-stage-summary"></script>
@@ -447,15 +458,16 @@
     <script src="/static/home_tabs.js?v=20260608-home-tabs"></script>
     <script src="/static/report_rerun.js?v=20260608-full-report"></script>
     <script src="/static/analysis_stream.js?v=20260607-analysis-stream"></script>
-    <script src="/static/history_panel.js?v=20260610-operator-workbench"></script>
+    <script src="/static/history_panel.js?v=20260610-dual-tracking"></script>
     <script src="/static/report_preview_panel.js?v=20260608-full-report"></script>
     <script src="/static/view_controller.js?v=20260607-view-controller"></script>
     <script src="/static/history_filters.js?v=20260607-latest-report-versions"></script>
     <script src="/static/report_actions.js?v=20260607-report-actions"></script>
     <script src="/static/report_navigation.js?v=20260608-report-navigation-fix"></script>
     <script src="/static/report_compare_panel.js?v=20260608-report-compare"></script>
-    <script src="/static/history_workspace.js?v=20260608-report-compare"></script>
+    <script src="/static/decision_tracking_panel.js?v=20260610-dual-tracking"></script>
+    <script src="/static/history_workspace.js?v=20260610-dual-tracking"></script>
     <script src="/static/notification_center.js?v=20260609-front-end-ops"></script>
-    <script src="/static/app.js?v=20260608-watchlist-quota"></script>
+    <script src="/static/app.js?v=20260610-dual-tracking"></script>
 </body>
 </html>

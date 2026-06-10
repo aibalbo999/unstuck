@@ -30,6 +30,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const historyNext = document.getElementById('history-next');
     const historyPageInfo = document.getElementById('history-page-info');
     const historyTrackingTable = document.getElementById('history-tracking-table');
+    const decisionTrackingSummary = document.getElementById('decision-tracking-summary');
+    const decisionTrackingRefresh = document.getElementById('decision-tracking-refresh');
+    const decisionTrackingDensity = document.getElementById('decision-tracking-density');
     const historyWorkspaceEl = document.querySelector('.history-workspace');
     const reportPreview = document.getElementById('report-preview');
     const previewMode = document.getElementById('preview-mode');
@@ -145,6 +148,9 @@ document.addEventListener('DOMContentLoaded', () => {
             historyNext,
             historyPageInfo,
             historyTrackingTable,
+            decisionTrackingSummary,
+            decisionTrackingRefresh,
+            decisionTrackingDensity,
             reportPreview,
             previewMode,
             previewTitle,

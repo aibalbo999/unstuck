@@ -35,12 +35,40 @@
         });
     }
 
+    async function fetchDecisionTracking() {
+        return jsonRequest('/api/decision-tracking');
+    }
+
+    async function saveDecisionTrackingItem(item) {
+        return jsonRequest('/api/decision-tracking', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(item || {})
+        });
+    }
+
+    async function deleteDecisionTrackingItem(ticker) {
+        return jsonRequest(`/api/decision-tracking/${encodeURIComponent(ticker)}`, { method: 'DELETE' });
+    }
+
+    async function refreshDecisionTracking(tickers) {
+        return jsonRequest('/api/decision-tracking/refresh', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(Array.isArray(tickers) ? { tickers } : {})
+        });
+    }
+
     Object.assign(window.StockAgentApiClient, {
         fetchApiQuotas,
         compareReports,
         fetchWatchlist,
         saveWatchlistItem,
         deleteWatchlistItem,
-        runWatchlist
+        runWatchlist,
+        fetchDecisionTracking,
+        saveDecisionTrackingItem,
+        deleteDecisionTrackingItem,
+        refreshDecisionTracking
     });
 })();

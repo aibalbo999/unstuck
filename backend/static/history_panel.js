@@ -46,6 +46,16 @@
         return `<span class="history-action-badge is-${tone}" title="${escapeHtml(detail)}">${escapeHtml(label)}</span>`;
     }
 
+    function targetComparisonCell(tracking, key, escapeHtml) {
+        const comparison = tracking?.target_comparisons?.[key] || {};
+        const period = { target_3m: '3月目標', target_6m: '6月目標', target_12m: '12月目標' }[key] || '目標';
+        const status = comparison.status || 'unavailable';
+        const label = comparison.label || (status === 'below_target' ? '低於目標' : (status === 'near_target' ? '接近目標' : (status === 'above_target' ? '已高於目標' : '無法比較')));
+        const className = String(status).replace(/_/g, '-');
+        const title = comparison.gap_pct === null || comparison.gap_pct === undefined ? label : `${label} ${formatPct(comparison.gap_pct)}`;
+        return `<span class="tracking-target-cell is-${className}" title="${escapeHtml(title)}"><span>${escapeHtml(period)}</span><strong>${escapeHtml(formatNumber(comparison.target || tracking?.[key]))}</strong><span>${escapeHtml(label)}</span></span>`;
+    }
+
     function isActivationKey(event) {
         return event.key === 'Enter' || event.key === ' ';
     }
@@ -58,57 +68,107 @@
         const nextBtn = options.nextBtn;
         const pageInfoEl = options.pageInfoEl;
         const escapeHtml = options.escapeHtml;
+        let trackedTickers = new Set();
+        let trackingGroups = [];
+        let trackingCompact = false;
 
-        function renderTrackingTable(reports) {
+        function reportTracked(report) {
+            return trackedTickers.has(String(report?.ticker || '').toUpperCase());
+        }
+
+        function trackButton(report) {
+            const tracked = reportTracked(report);
+            const label = tracked ? '取消追蹤' : '加入追蹤';
+            return `<button class="decision-track-toggle ${tracked ? 'is-tracked' : ''}" type="button" data-track-filename="${escapeHtml(report.filename)}" aria-label="${escapeHtml(label)} ${escapeHtml(report.ticker || '')}">${escapeHtml(label)}</button>`;
+        }
+
+        function reportHasTracking(report) {
+            return report.decision_tracking && report.decision_tracking.status && report.decision_tracking.status !== 'unavailable';
+        }
+
+        function groupLatestReport(group) {
+            return (group.reports || []).reduce((best, report) => (
+                !best || Number(report.timestamp || 0) > Number(best.timestamp || 0) ? report : best
+            ), null);
+        }
+
+        function reportCard(report) {
+            const tracking = report.decision_tracking || {};
+            return `
+                <div class="tracking-report-card" data-filename="${escapeHtml(report.filename)}" role="button" tabindex="0" aria-label="預覽 ${escapeHtml(report.ticker || 'N/A')} ${escapeHtml(report.pipeline_label || '')} 追蹤">
+                    <div class="tracking-report-cell">
+                        <strong>${escapeHtml(report.pipeline_label || report.pipeline_id || '報告')}</strong>
+                        <span class="tracking-report-date">${escapeHtml(report.date || '')}</span>
+                    </div>
+                    <div class="tracking-report-line">
+                        <span>${escapeHtml(options.normalizeRecommendation(tracking.recommendation || report.recommendation?.recommendation))}</span>
+                        <strong>${escapeHtml(formatNumber(tracking.latest_price))}</strong>
+                        <span class="${trackingTone(tracking)}">${escapeHtml(tracking.tracking_summary_status || formatPct(tracking.return_pct))}</span>
+                    </div>
+                    ${trackingCompact ? '' : `<div class="tracking-target-grid">${targetComparisonCell(tracking, 'target_3m', escapeHtml)}${targetComparisonCell(tracking, 'target_6m', escapeHtml)}${targetComparisonCell(tracking, 'target_12m', escapeHtml)}</div>`}
+                </div>
+            `;
+        }
+
+        function renderTrackingGroups(groups) {
             if (!trackingTableEl) return;
-            const rows = (reports || [])
-                .filter(report => report.decision_tracking && report.decision_tracking.status && report.decision_tracking.status !== 'unavailable')
-                .slice(0, 6);
-            if (!rows.length) {
+            trackingGroups = groups || [];
+            const visibleGroups = trackingGroups
+                .map(group => ({ ...group, reports: (group.reports || []).filter(reportHasTracking) }))
+                .filter(group => group.reports.length)
+                .slice(0, 8);
+            if (!visibleGroups.length) {
                 trackingTableEl.hidden = true;
                 trackingTableEl.innerHTML = '';
                 return;
             }
             trackingTableEl.hidden = false;
+            trackingTableEl.classList.toggle('is-compact', trackingCompact);
             trackingTableEl.innerHTML = `
-                <div class="decision-tracking-title">決策追蹤表</div>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>代號</th>
-                            <th>建議</th>
-                            <th>最新股價</th>
-                            <th>報酬</th>
-                            <th>距12月目標</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${rows.map(report => {
-                            const tracking = report.decision_tracking || {};
-                            return `
-                                <tr data-filename="${escapeHtml(report.filename)}" role="button" tabindex="0" aria-label="預覽 ${escapeHtml(report.ticker || 'N/A')} 決策追蹤">
-                                    <td>${escapeHtml(report.ticker || 'N/A')}</td>
-                                    <td>${escapeHtml(options.normalizeRecommendation(tracking.recommendation || report.recommendation?.recommendation))}</td>
-                                    <td>${escapeHtml(formatNumber(tracking.latest_price))}</td>
-                                    <td class="${trackingTone(tracking)}">${escapeHtml(formatPct(tracking.return_pct))}</td>
-                                    <td>${escapeHtml(formatPct(tracking.target_12m_gap_pct))}</td>
-                                </tr>
-                            `;
-                        }).join('')}
-                    </tbody>
-                </table>
+                <div class="decision-tracking-title">每日決策追蹤表<span>${trackingCompact ? '精簡比較' : '雙報告比較'}</span></div>
+                <div class="tracking-group-list">
+                    ${visibleGroups.map(group => {
+                        const latest = groupLatestReport(group) || {};
+                        const tracking = latest.decision_tracking || {};
+                        return `
+                            <section class="tracking-stock-group">
+                                <div class="tracking-stock-cell">
+                                    <strong>${escapeHtml(group.ticker || latest.ticker || 'N/A')}</strong>
+                                    <span class="tracking-company-name">${escapeHtml(group.company_name || latest.company_name || '')}</span>
+                                </div>
+                                <div class="tracking-group-summary">
+                                    <span>最新股價 <strong>${escapeHtml(formatNumber(tracking.latest_price))}</strong></span>
+                                    <span>${escapeHtml(group.reports.map(report => report.pipeline_label || report.pipeline_id).join(' / '))}</span>
+                                </div>
+                                <div class="tracking-group-reports">${group.reports.map(reportCard).join('')}</div>
+                            </section>
+                        `;
+                    }).join('')}
+                </div>
             `;
+        }
+
+        function renderTrackingTable(reports) {
+            const groups = (reports || []).map(report => ({
+                ticker: report.ticker,
+                company_name: report.company_name,
+                reports: [report]
+            }));
+            renderTrackingGroups(groups);
+        }
+
+        function setTrackingCompact(value) {
+            trackingCompact = Boolean(value);
+            renderTrackingGroups(trackingGroups);
         }
 
         function renderReports(reports, selectedFilename) {
             if (!listEl) return;
             if (!reports || reports.length === 0) {
-                renderTrackingTable([]);
                 listEl.innerHTML = '<div style="color: var(--text-secondary); font-size: 0.9rem; text-align: center; padding: 20px 0;">尚無報告紀錄</div>';
                 return;
             }
 
-            renderTrackingTable(reports);
             listEl.innerHTML = reports.map(r => `
                 <div class="history-item" data-filename="${escapeHtml(r.filename)}" data-ticker="${escapeHtml(r.ticker)}" data-pipeline="${escapeHtml(r.pipeline_id || 'v1')}">
                     <div class="history-info" role="button" tabindex="0" aria-label="預覽 ${escapeHtml(r.ticker || 'N/A')} 報告">
@@ -129,6 +189,7 @@
                             ${renderTrackingBadge(r.decision_tracking, escapeHtml)}
                         </div>
                     </div>
+                    ${trackButton(r)}
                     <button class="delete-btn" title="刪除報告" aria-label="刪除 ${escapeHtml(r.ticker || r.filename)} 報告" data-delete-filename="${escapeHtml(r.filename)}">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
                     </button>
@@ -154,7 +215,7 @@
                 item.classList.toggle('is-selected', Boolean(filename) && item.dataset.filename === filename);
             });
             if (trackingTableEl) {
-                trackingTableEl.querySelectorAll('tr[data-filename]').forEach(row => {
+                trackingTableEl.querySelectorAll('[data-filename]').forEach(row => {
                     row.classList.toggle('is-selected', Boolean(filename) && row.dataset.filename === filename);
                 });
             }
@@ -172,18 +233,23 @@
                     callbacks.onDelete(deleteBtn.dataset.deleteFilename, event);
                     return;
                 }
+                const trackBtn = event.target.closest('.decision-track-toggle');
+                if (trackBtn) {
+                    callbacks.onToggleTracking(trackBtn.dataset.trackFilename, event);
+                    return;
+                }
                 const item = event.target.closest('.history-item');
                 if (item) callbacks.onSelect(item.dataset.filename);
             });
 
             if (trackingTableEl) {
                 trackingTableEl.addEventListener('click', (event) => {
-                    const row = event.target.closest('tr[data-filename]');
+                    const row = event.target.closest('[data-filename]');
                     if (row) callbacks.onSelect(row.dataset.filename);
                 });
                 trackingTableEl.addEventListener('keydown', (event) => {
                     if (!isActivationKey(event)) return;
-                    const row = event.target.closest('tr[data-filename]');
+                    const row = event.target.closest('[data-filename]');
                     if (!row) return;
                     event.preventDefault();
                     callbacks.onSelect(row.dataset.filename);
@@ -204,7 +270,11 @@
             clearSelection,
             renderPagination,
             renderReports,
-            select
+            renderTrackingTable,
+            renderTrackingGroups,
+            select,
+            setTrackingCompact,
+            setTrackedTickers: (value) => { trackedTickers = value || new Set(); }
         };
     }
 

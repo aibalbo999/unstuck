@@ -302,6 +302,58 @@ def test_operator_workbench_surfaces_actionable_daily_workflow():
     assert ".operator-action-button" in operator_css
 
 
+def test_decision_tracking_controls_and_target_statuses_are_wired():
+    index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    api_client_extensions_js = (STATIC_DIR / "api_client_extensions.js").read_text(encoding="utf-8")
+    history_workspace_js = (STATIC_DIR / "history_workspace.js").read_text(encoding="utf-8")
+    history_panel_js = (STATIC_DIR / "history_panel.js").read_text(encoding="utf-8")
+    decision_tracking_css = (STATIC_DIR / "styles" / "decision_tracking.css").read_text(encoding="utf-8")
+
+    assert 'id="decision-tracking-refresh"' in index_html
+    assert 'id="decision-tracking-summary"' in index_html
+    assert 'id="decision-tracking-density"' in index_html
+    assert "fetchDecisionTracking" in api_client_extensions_js
+    assert "saveDecisionTrackingItem" in api_client_extensions_js
+    assert "deleteDecisionTrackingItem" in api_client_extensions_js
+    assert "refreshDecisionTracking" in api_client_extensions_js
+
+    assert "trackedTickers" in history_workspace_js
+    assert "toggleDecisionTracking" in history_workspace_js
+    assert "setTrackingCompact" in history_workspace_js
+    assert "previewCompactMode" in history_workspace_js
+    assert "decision-track-toggle" in history_panel_js
+    assert "加入追蹤" in history_panel_js
+    assert "取消追蹤" in history_panel_js
+    assert "renderTrackingGroups" in history_panel_js
+    assert "tracking-stock-group" in history_panel_js
+    assert "tracking-report-card" in history_panel_js
+    assert "tracking-group-reports" in history_panel_js
+    assert "latest_reports" in (STATIC_DIR / "decision_tracking_panel.js").read_text(encoding="utf-8")
+    assert "tracking-stock-cell" in history_panel_js
+    assert "tracking-company-name" in history_panel_js
+    assert "tracking-report-cell" in history_panel_js
+    assert "tracking-report-date" in history_panel_js
+
+    assert "targetComparisonCell" in history_panel_js
+    assert "3月目標" in history_panel_js
+    assert "6月目標" in history_panel_js
+    assert "12月目標" in history_panel_js
+    assert "低於目標" in history_panel_js
+    assert "接近目標" in history_panel_js
+    assert "已高於目標" in history_panel_js
+    assert "tracking-target-cell" in history_panel_js
+    assert ".tracking-target-cell" in decision_tracking_css
+    assert ".is-below-target" in decision_tracking_css
+    assert ".is-near-target" in decision_tracking_css
+    assert ".is-above-target" in decision_tracking_css
+    assert ".tracking-stock-cell" in decision_tracking_css
+    assert ".tracking-report-cell" in decision_tracking_css
+    assert ".tracking-stock-group" in decision_tracking_css
+    assert ".tracking-report-card" in decision_tracking_css
+    assert ".is-compact" in decision_tracking_css
+    assert "white-space: normal" in decision_tracking_css
+
+
 def test_frontend_uiux_accessibility_contracts_are_wired():
     base_css = (STATIC_DIR / "styles" / "base.css").read_text(encoding="utf-8")
     forms_css = (STATIC_DIR / "styles" / "forms_controls.css").read_text(encoding="utf-8")
@@ -403,6 +455,7 @@ def test_frontend_static_modules_are_sized():
         "watchlist_panel.js": 180,
         "report_compare_panel.js": 160,
         "operator_summary_panel.js": 150,
+        "decision_tracking_panel.js": 160,
     }
     for relative_path, limit in size_limits.items():
         path = STATIC_DIR / relative_path

@@ -75,6 +75,42 @@ def _target_progress(latest: Optional[float], initial: Optional[float], target: 
     return round(((latest - initial) / (target - initial)) * 100, 4)
 
 
+def _target_comparison(latest: Optional[float], target: Optional[float], label: str) -> dict:
+    gap_pct = _pct_change(target, latest)
+    if latest is None or target is None or gap_pct is None:
+        return {"period_label": label, "target": target, "gap_pct": None, "status": "unavailable", "label": "無法比較"}
+    if abs(gap_pct) <= 3:
+        status, status_label = "near_target", "接近目標"
+    elif latest > target:
+        status, status_label = "above_target", "已高於目標"
+    else:
+        status, status_label = "below_target", "低於目標"
+    return {"period_label": label, "target": target, "gap_pct": gap_pct, "status": status, "label": status_label}
+
+
+def _target_comparisons(tracking: dict) -> dict:
+    latest = tracking.get("latest_price")
+    return {
+        "target_3m": _target_comparison(latest, tracking.get("target_3m"), "3月目標"),
+        "target_6m": _target_comparison(latest, tracking.get("target_6m"), "6月目標"),
+        "target_12m": _target_comparison(latest, tracking.get("target_12m"), "12月目標"),
+    }
+
+
+def _summary_status(comparisons: dict) -> str:
+    for key in ("target_12m", "target_6m", "target_3m"):
+        item = comparisons.get(key) or {}
+        label = str(item.get("period_label") or "").replace("目標", "")
+        if item.get("status") == "above_target":
+            return f"高於{label}目標"
+        if item.get("status") == "near_target":
+            return f"接近{label}目標"
+    target_12m = comparisons.get("target_12m") or {}
+    if target_12m.get("gap_pct") is not None:
+        return f"距12月目標 {target_12m['gap_pct']:+.2f}%"
+    return "尚無法比較目標"
+
+
 def _summary(tracking: dict) -> str:
     if tracking.get("status") == "unavailable":
         return "缺少建議時股價或最新股價，尚無法追蹤績效。"
@@ -117,6 +153,8 @@ def build_decision_tracking(recommendation: dict, data_snapshot_path: str = "") 
         tracking["initial_price"],
         tracking["target_12m"],
     )
+    tracking["target_comparisons"] = _target_comparisons(tracking)
+    tracking["tracking_summary_status"] = _summary_status(tracking["target_comparisons"])
     tracking["status"] = _tracking_status(tracking)
     tracking["summary"] = _summary(tracking)
     return tracking

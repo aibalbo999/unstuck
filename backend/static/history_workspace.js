@@ -5,14 +5,12 @@
         const refreshProviderSlaIfLoaded = options.refreshProviderSlaIfLoaded || (() => Promise.resolve());
         let historyPage = 1;
         const historyLimit = 20;
-        let historyReports = new Map();
-        let previewReport = null;
+        let historyReports = new Map(), previewReport = null, trackedTickers = new Set();
+        let trackingCompact = false, previewCompactMode = false;
 
         const historyFilters = window.StockAgentHistoryFilters.create({
-            searchEl: elements.historySearch,
-            pipelineEl: elements.historyPipelineFilter,
-            recommendationEl: elements.historyRecommendationFilter,
-            dataTrustEl: elements.historyDataTrustFilter,
+            searchEl: elements.historySearch, pipelineEl: elements.historyPipelineFilter,
+            recommendationEl: elements.historyRecommendationFilter, dataTrustEl: elements.historyDataTrustFilter,
             includeVersionsEl: elements.historyIncludeVersions
         });
 
@@ -59,16 +57,24 @@
         const reportComparePanel = window.StockAgentReportComparePanel.create({
             apiClient,
             escapeHtml: ui.escapeHtml,
-            elements: {
-                addBtn: elements.previewCompareAddBtn,
-                summaryEl: elements.reportCompareSummary,
-                resultEl: elements.reportCompareResult,
-                clearBtn: elements.reportCompareClearBtn
-            }
+            elements: { addBtn: elements.previewCompareAddBtn, summaryEl: elements.reportCompareSummary, resultEl: elements.reportCompareResult, clearBtn: elements.reportCompareClearBtn }
         });
-
+        const decisionTrackingPanel = window.StockAgentDecisionTrackingPanel.create({
+            apiClient, historyPanel, notify,
+            elements: { summaryEl: elements.decisionTrackingSummary, refreshBtn: elements.decisionTrackingRefresh },
+            onChange: tickers => { trackedTickers = tickers; historyPanel.setTrackedTickers(trackedTickers); }
+        });
+        function setTrackingCompact(value, fromPreview = false) {
+            trackingCompact = Boolean(value);
+            previewCompactMode = Boolean(fromPreview && trackingCompact);
+            historyPanel.setTrackingCompact(trackingCompact);
+            const density = elements.decisionTrackingDensity, label = density?.querySelector('span');
+            if (label) label.textContent = trackingCompact ? '展開追蹤表' : '精簡追蹤表';
+            if (density) density.setAttribute('aria-pressed', String(trackingCompact));
+        }
         async function loadHistory() {
             try {
+                await decisionTrackingPanel.load();
                 const { query, pipelineFilter, recommendationFilter, dataTrustFilter, includeVersions } = historyFilters.values();
                 const data = await apiClient.fetchReports({
                     page: historyPage,
@@ -96,12 +102,14 @@
             previewReport = null;
             reportPreviewPanel.hide();
             historyPanel.clearSelection();
+            if (previewCompactMode) setTrackingCompact(false);
         }
 
         function showReportPreview(filename) {
             const report = historyReports.get(filename);
             if (!report) return;
             previewReport = report;
+            setTrackingCompact(true, true);
             if (reportPreviewPanel.show(report)) {
                 historyPanel.select(filename);
             }
@@ -183,8 +191,14 @@
             }
         }
 
+        async function toggleDecisionTracking(filename, event) {
+            event.stopPropagation();
+            const report = historyReports.get(filename);
+            if (report) { await decisionTrackingPanel.toggleDecisionTracking(report); await loadHistory(); }
+        }
+
         function bindEvents() {
-            historyPanel.bindEvents({ onDelete: deleteReport, onSelect: showReportPreview });
+            historyPanel.bindEvents({ onDelete: deleteReport, onSelect: showReportPreview, onToggleTracking: toggleDecisionTracking });
             if (elements.previewOpenReportBtn) {
                 elements.previewOpenReportBtn.addEventListener('click', () => {
                     if (!previewReport) return;
@@ -201,6 +215,7 @@
             ].forEach(([button, handler]) => {
                 if (button) button.addEventListener('click', handler);
             });
+            if (elements.decisionTrackingDensity) elements.decisionTrackingDensity.addEventListener('click', () => setTrackingCompact(!trackingCompact));
             reportComparePanel.bindEvents(() => previewReport);
 
             historyFilters.bind({
