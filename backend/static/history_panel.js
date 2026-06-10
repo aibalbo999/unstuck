@@ -25,6 +25,27 @@
         return `<span class="history-tracking ${trackingTone(tracking)}" title="${escapeHtml(title)}">追蹤 ${escapeHtml(formatPct(tracking.return_pct))}</span>`;
     }
 
+    function reportActionBadge(report, escapeHtml) {
+        const status = report?.data_trust?.status || 'unknown';
+        let label = '可直接使用';
+        let tone = 'ok';
+        let detail = '資料與結論可直接查看';
+        if (status === 'error') {
+            label = '暫勿採用';
+            tone = 'critical';
+            detail = '來源異常，請先重跑或改看其他報告';
+        } else if (report?.analysis_text_stale || report?.decision_freshness?.requires_rerun || report?.requires_rerun) {
+            label = '建議完整重跑';
+            tone = 'critical';
+            detail = '結論可能已落後於最新資料';
+        } else if (status === 'stale' || status === 'partial') {
+            label = '建議刷新資料';
+            tone = 'warning';
+            detail = '先刷新資料快照再決策';
+        }
+        return `<span class="history-action-badge is-${tone}" title="${escapeHtml(detail)}">${escapeHtml(label)}</span>`;
+    }
+
     function isActivationKey(event) {
         return event.key === 'Enter' || event.key === ' ';
     }
@@ -99,6 +120,7 @@
                             ${options.renderPipelineModeBadge(r.pipeline_id || 'v1')}
                             ${options.renderDataTrustBadge(r.data_trust)}
                             ${options.renderDataTrustReason(r.data_trust)}
+                            ${reportActionBadge(r, escapeHtml)}
                         </div>
                         <div class="history-decision">
                             <span class="history-rec ${options.recommendationTone(r.recommendation?.recommendation)}">${escapeHtml(options.normalizeRecommendation(r.recommendation?.recommendation))}</span>

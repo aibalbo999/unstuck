@@ -5,7 +5,7 @@ from __future__ import annotations
 from source_audit import audited_fetch, audited_fetch_async
 
 from .market_sources.common import first_number
-from .provider_base import DataProvider, provider_result_from_audited, unavailable_provider_result
+from .provider_base import DataProvider, not_configured_provider_result, provider_result_from_audited, unavailable_provider_result
 from .types import FetchRequest, ProviderResult
 
 
@@ -14,8 +14,15 @@ class GoogleSearchProvider(DataProvider):
     source = "recent_catalysts"
 
     async def fetch_async(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
+        from config import GOOGLE_CSE_ID, GOOGLE_SEARCH_API_KEY
         from .market_sources.http_enrichment import fetch_google_search_catalysts_async
 
+        if not GOOGLE_SEARCH_API_KEY or not GOOGLE_CSE_ID:
+            return not_configured_provider_result(
+                self.source,
+                self.name,
+                "Google Custom Search 未設定，略過近期催化劑 enrichment。",
+            )
         context = context or {}
         data = context.get("data", {}) or {}
         ticker = str(data.get("ticker") or request.ticker).strip().upper()
@@ -61,8 +68,15 @@ class FmpNewsProvider(DataProvider):
     source = "recent_catalysts"
 
     async def fetch_async(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
+        from config import FMP_API_KEY
         from .market_sources.http_enrichment import fetch_fmp_news_catalysts_async
 
+        if not FMP_API_KEY:
+            return not_configured_provider_result(
+                self.source,
+                self.name,
+                "FMP_API_KEY 未設定，略過 FMP news enrichment。",
+            )
         context = context or {}
         data = context.get("data", {}) or {}
         ticker = str(context.get("original_ticker") or data.get("ticker") or request.ticker).strip().upper()
@@ -84,8 +98,15 @@ class GooglePeerDiscoveryProvider(DataProvider):
     source = "peer_discovery"
 
     async def fetch_async(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
+        from config import GOOGLE_CSE_ID, GOOGLE_SEARCH_API_KEY
         from .market_sources.http_enrichment import fetch_google_peer_discovery_results_async
 
+        if not GOOGLE_SEARCH_API_KEY or not GOOGLE_CSE_ID:
+            return not_configured_provider_result(
+                self.source,
+                self.name,
+                "Google Custom Search 未設定，略過同業搜尋 enrichment。",
+            )
         context = context or {}
         data = context.get("data", {}) or {}
         ticker = str(data.get("ticker") or request.ticker).strip().upper()

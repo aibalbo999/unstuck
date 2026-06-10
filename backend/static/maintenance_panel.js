@@ -19,8 +19,8 @@
         const orphanEvents = Number(history.orphan_events || 0);
         const warnings = orphanRows + staleJobs + orphanEvents;
         summaryEl.textContent = warnings
-            ? `${warnings} 筆可清理資料，正式分析不受影響`
-            : '本機儲存狀態正常';
+            ? `健康摘要：${warnings} 筆可清理資料，正式分析不受影響`
+            : '健康摘要：本機儲存狀態正常';
         listEl.innerHTML = `
             <span class="provider-sla-chip maintenance-chip ${orphanRows ? 'is-warning' : 'is-ok'}">
                 報告索引 <strong>${escapeHtml(String(tableCount(summary, 'reports')))}</strong>
@@ -36,7 +36,7 @@
             </span>
         `;
         if (resultEl && !resultEl.textContent) {
-            resultEl.textContent = '可直接清理過舊任務、孤兒索引與來源健康事件。';
+            resultEl.textContent = '健康摘要已更新；需要時再展開清理過舊任務、孤兒索引與來源健康事件。';
         }
     }
 

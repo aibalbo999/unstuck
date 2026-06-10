@@ -96,7 +96,7 @@
                 });
             } catch (err) {
                 console.error('Failed to load API quotas', err);
-                elements.apiQuotaSummary.textContent = 'API 額度讀取失敗';
+                elements.apiQuotaSummary.textContent = 'LLM 健康讀取失敗';
                 elements.apiQuotaList.innerHTML = '<span class="provider-sla-chip is-warning">請稍後重試</span>';
             } finally {
                 if (elements.apiQuotaRefresh) elements.apiQuotaRefresh.disabled = false;

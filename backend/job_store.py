@@ -34,16 +34,20 @@ def reset_job_store_for_tests() -> None:
     _resource.reset()
 
 
-def create_job(ticker: str, pipeline_id: str = "v1") -> str:
+def create_job(ticker: str, pipeline_id: str = "v1", worker_instance_id: str | None = None) -> str:
     job_id = uuid.uuid4().hex
     now = time.time()
+    owner = str(worker_instance_id or "").strip() or None
     with _JOB_LOCK, _connect() as conn:
         conn.execute(
             """
-            INSERT INTO analysis_jobs (job_id, ticker, pipeline_id, status, created_at, updated_at)
-            VALUES (?, ?, ?, 'queued', ?, ?)
+            INSERT INTO analysis_jobs (
+                job_id, ticker, pipeline_id, status, created_at, updated_at,
+                worker_instance_id, claimed_at
+            )
+            VALUES (?, ?, ?, 'queued', ?, ?, ?, ?)
             """,
-            (job_id, ticker, pipeline_id, now, now),
+            (job_id, ticker, pipeline_id, now, now, owner, now if owner else None),
         )
     append_event(job_id, {"type": "status", "message": f"已建立 {ticker} 分析任務", "pipeline_id": pipeline_id})
     return job_id
@@ -98,26 +102,35 @@ def find_active_job(ticker: str, pipeline_id: str = "v1") -> dict:
     return dict(row) if row else {}
 
 
-def mark_incomplete_jobs_abandoned(reason: str) -> int:
+def mark_incomplete_jobs_abandoned(reason: str, worker_instance_id: str | None = None) -> int:
     """Mark queued/running local jobs as abandoned after a server restart."""
     now = time.time()
+    owner = str(worker_instance_id or "").strip()
+    owner_clause = "AND worker_instance_id = ?" if owner else ""
+    params = (owner,) if owner else ()
     with _JOB_LOCK, _connect() as conn:
         rows = conn.execute(
-            """
+            f"""
             SELECT job_id
             FROM analysis_jobs
             WHERE status IN ('queued', 'running')
-            """
+            {owner_clause}
+            """,
+            params,
         ).fetchall()
         job_ids = [row["job_id"] for row in rows]
         if job_ids:
             conn.executemany(
                 """
                 UPDATE analysis_jobs
-                SET status = 'error', error = ?, updated_at = ?
+                SET status = 'error',
+                    error = ?,
+                    cancel_requested = 1,
+                    cancelled_at = COALESCE(cancelled_at, ?),
+                    updated_at = ?
                 WHERE job_id = ?
                 """,
-                [(reason, now, job_id) for job_id in job_ids],
+                [(reason, now, now, job_id) for job_id in job_ids],
             )
 
     for job_id in job_ids:

@@ -44,6 +44,8 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     app_js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
     provider_sla_js = (STATIC_DIR / "provider_sla_panel.js").read_text(encoding="utf-8")
     active_jobs_js = (STATIC_DIR / "active_jobs_panel.js").read_text(encoding="utf-8")
+    operator_summary_js = (STATIC_DIR / "operator_summary_panel.js").read_text(encoding="utf-8")
+    api_quota_panel_js = (STATIC_DIR / "api_quota_panel.js").read_text(encoding="utf-8")
     api_client_extensions_js = (STATIC_DIR / "api_client_extensions.js").read_text(encoding="utf-8")
     ops_workspace_js = (STATIC_DIR / "ops_workspace.js").read_text(encoding="utf-8")
     maintenance_js = (STATIC_DIR / "maintenance_panel.js").read_text(encoding="utf-8")
@@ -63,6 +65,11 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     loading_report_css = (STATIC_DIR / "styles" / "loading_report.css").read_text(encoding="utf-8")
 
     assert 'id="provider-sla-panel"' in index_html
+    assert 'id="operator-summary-panel"' in index_html
+    assert 'id="operator-active-jobs"' in index_html
+    assert 'id="operator-data-trust"' in index_html
+    assert 'id="operator-api-quota"' in index_html
+    assert 'id="operator-rerun"' in index_html
     assert 'id="api-quota-panel"' in index_html
     assert 'id="watchlist-panel"' in index_html
     assert 'id="toast-region"' in index_html
@@ -95,6 +102,7 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "/static/provider_sla_panel.js" in index_html
     assert "/static/api_quota_panel.js" in index_html
     assert "/static/active_jobs_panel.js" in index_html
+    assert "/static/operator_summary_panel.js" in index_html
     assert "/static/watchlist_panel.js" in index_html
     assert "/static/ops_workspace.js" in index_html
     assert "/static/maintenance_panel.js" in index_html
@@ -130,6 +138,8 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "decision_priority" in (STATIC_DIR / "watchlist_panel.js").read_text(encoding="utf-8")
     assert "需重跑" in (STATIC_DIR / "watchlist_panel.js").read_text(encoding="utf-8")
     assert "StockAgentOpsWorkspace.create" in app_js
+    assert "StockAgentOperatorSummaryPanel.create" in app_js
+    assert "operatorSummary.load" in app_js
     assert "StockAgentHistoryPanel.create" in history_workspace_js
     assert "StockAgentReportPreviewPanel.create" in history_workspace_js
     assert "StockAgentViewController.create" in app_js
@@ -206,7 +216,14 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "cleanupAnalysisHistory" in api_client_js
     assert "StockAgentMaintenancePanel" in maintenance_js
     assert "maintenance-clean-provider-sla" in maintenance_js
+    assert "LLM 健康" in index_html
+    assert "刷新 LLM 健康" in index_html
+    assert "LLM 健康讀取失敗" in ops_workspace_js
+    assert "LLM/API 健康" in api_quota_panel_js
+    assert "LLM 健康" in operator_summary_js
     assert "llm_error_counts" in active_jobs_js
+    assert "token_estimate" not in active_jobs_js
+    assert "估算 token" not in active_jobs_js
     assert "stage_summary" in active_jobs_js
     assert "最近完成任務" in active_jobs_js
     assert "模型重試" in active_jobs_js
@@ -235,6 +252,54 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "X-Mutation-Token" in api_client_js
     assert "window.StockAgentApiClient.requestJson" in api_client_extensions_js
     assert "apiClient.requestJson" in report_rerun_js
+    assert "fetchActiveJobs" in operator_summary_js
+    assert "fetchApiQuotas" in operator_summary_js
+    assert "fetchReports" in operator_summary_js
+    assert "requires_rerun" in operator_summary_js
+    assert "operator-summary-item" in operator_summary_js
+
+
+def test_operator_workbench_surfaces_actionable_daily_workflow():
+    index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    operator_summary_js = (STATIC_DIR / "operator_summary_panel.js").read_text(encoding="utf-8")
+    history_panel_js = (STATIC_DIR / "history_panel.js").read_text(encoding="utf-8")
+    watchlist_panel_js = (STATIC_DIR / "watchlist_panel.js").read_text(encoding="utf-8")
+    maintenance_js = (STATIC_DIR / "maintenance_panel.js").read_text(encoding="utf-8")
+    operator_css = (STATIC_DIR / "styles" / "operator_summary.css").read_text(encoding="utf-8")
+    history_css = (STATIC_DIR / "styles" / "history_list.css").read_text(encoding="utf-8")
+    watchlist_css = (STATIC_DIR / "styles" / "watchlist.css").read_text(encoding="utf-8")
+    provider_sla_css = (STATIC_DIR / "styles" / "provider_sla.css").read_text(encoding="utf-8")
+
+    assert 'id="operator-action-list"' in index_html
+    assert "今日待處理" in index_html
+    assert "operatorActionItems" in operator_summary_js
+    assert "fetchWatchlist" in operator_summary_js
+    assert "runWatchlist" in operator_summary_js
+    assert "data-operator-action" in operator_summary_js
+    assert "查看報告" in operator_summary_js
+    assert "批次分析" in operator_summary_js
+    assert "系統維護" in operator_summary_js
+
+    assert "reportActionBadge" in history_panel_js
+    assert "可直接使用" in history_panel_js
+    assert "建議刷新資料" in history_panel_js
+    assert "建議完整重跑" in history_panel_js
+    assert "暫勿採用" in history_panel_js
+    assert "history-action-badge" in history_panel_js
+    assert ".history-action-badge" in history_css
+
+    assert "watchlistDailyBoard" in watchlist_panel_js
+    assert "今日工作台" in watchlist_panel_js
+    assert "需處理" in watchlist_panel_js
+    assert "watchlist-daily-board" in watchlist_panel_js
+    assert ".watchlist-daily-board" in watchlist_css
+
+    assert "<details" in index_html
+    assert "maintenance-details" in index_html
+    assert "健康摘要" in maintenance_js
+    assert ".maintenance-details" in provider_sla_css
+    assert ".operator-action-list" in operator_css
+    assert ".operator-action-button" in operator_css
 
 
 def test_frontend_uiux_accessibility_contracts_are_wired():
@@ -337,6 +402,7 @@ def test_frontend_static_modules_are_sized():
         "api_quota_panel.js": 100,
         "watchlist_panel.js": 180,
         "report_compare_panel.js": 160,
+        "operator_summary_panel.js": 150,
     }
     for relative_path, limit in size_limits.items():
         path = STATIC_DIR / relative_path

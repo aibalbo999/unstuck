@@ -1,3 +1,4 @@
+import asyncio
 import sys
 import subprocess
 import sqlite3
@@ -73,6 +74,44 @@ def test_job_store_preserves_terminal_state_invariants(monkeypatch, tmp_path):
     assert "stop now" in still_cancelled["error"]
 
 
+def test_abandoned_local_jobs_are_scoped_to_worker_owner(monkeypatch, tmp_path):
+    monkeypatch.setattr(job_store, "TASK_DB_PATH", str(tmp_path / "jobs.sqlite3"))
+    job_store.reset_job_store_for_tests()
+
+    mine = job_store.create_job("2449.TW", "v1", worker_instance_id="server-a")
+    other = job_store.create_job("2330.TW", "v1", worker_instance_id="server-b")
+    legacy = job_store.create_job("AAPL", "v1")
+    job_store.update_job(mine, "running")
+    job_store.update_job(other, "running")
+    job_store.update_job(legacy, "running")
+
+    abandoned = job_store.mark_incomplete_jobs_abandoned("restart cleanup", worker_instance_id="server-a")
+
+    assert abandoned == 1
+    assert job_store.get_job(mine)["status"] == "error"
+    assert job_store.get_job(mine)["cancel_requested"] == 1
+    assert job_store.get_job(other)["status"] == "running"
+    assert job_store.get_job(legacy)["status"] == "running"
+
+
+def test_runtime_instance_lock_prevents_second_startup_abandonment(monkeypatch, tmp_path):
+    lock_path = tmp_path / "runtime.lock"
+    first = api.acquire_local_runtime_instance_lock(str(lock_path))
+    cleaned = []
+    monkeypatch.setattr(api, "LOCAL_RUNTIME_INSTANCE_ID", "server-a", raising=False)
+    monkeypatch.setattr(api, "TASK_QUEUE_BACKEND", "local")
+    monkeypatch.setattr(api, "LOCAL_RUNTIME_LOCK_PATH", str(lock_path), raising=False)
+    monkeypatch.setattr(api, "mark_incomplete_jobs_abandoned", lambda reason, worker_instance_id=None: cleaned.append(worker_instance_id) or 3)
+
+    try:
+        skipped = asyncio.run(api._mark_abandoned_local_jobs())
+    finally:
+        first.close()
+
+    assert skipped == 0
+    assert cleaned == []
+
+
 def test_provider_sla_aggregates_source_audit(monkeypatch, tmp_path):
     monkeypatch.setattr(provider_sla, "TASK_DB_PATH", str(tmp_path / "provider.sqlite3"))
 
@@ -103,6 +142,27 @@ def test_provider_sla_aggregates_source_audit(monkeypatch, tmp_path):
     alerts = provider_sla.get_provider_sla_alerts()
     assert alerts and alerts[0]["provider"] == "yfinance"
     assert "windows" in alerts[0]
+
+
+def test_provider_sla_tracks_not_configured_without_alerting(monkeypatch, tmp_path):
+    monkeypatch.setattr(provider_sla, "TASK_DB_PATH", str(tmp_path / "provider.sqlite3"))
+
+    provider_sla.record_source_audit_entries(
+        [
+            {"source": "recent_catalysts", "provider": "Google Search", "status": "not_configured", "duration_ms": 0},
+            {"source": "recent_catalysts", "provider": "Google Search", "status": "not_configured", "duration_ms": 0},
+            {"source": "recent_catalysts", "provider": "Google Search", "status": "not_configured", "duration_ms": 0},
+        ]
+    )
+
+    summary = provider_sla.get_provider_sla_summary()
+    google = next(row for row in summary if row["provider"] == "Google Search")
+    assert google["attempts"] == 3
+    assert google["availability_attempts"] == 0
+    assert google["not_configured_count"] == 3
+    assert google["success_rate"] == 1.0
+    assert google["alert_level"] == "ok"
+    assert provider_sla.get_provider_sla_alerts() == []
 
 
 def test_provider_sla_api_returns_alerts(monkeypatch):
@@ -168,7 +228,7 @@ def test_active_jobs_observability_summarizes_latest_events(monkeypatch, tmp_pat
             "message": "calling",
             "agent_num": 12,
             "pipeline_id": "v2",
-            "metadata": {"model_id": "gemma-4-31b-it", "timeout_seconds": 15.0},
+            "metadata": {"model_id": "gemma-4-31b-it", "timeout_seconds": 15.0, "estimated_tokens": 4096},
         },
     )
     job_store.append_event(
@@ -207,6 +267,9 @@ def test_active_jobs_observability_summarizes_latest_events(monkeypatch, tmp_pat
     assert job["stage_summary"]["llm_error_count_sampled"] == 1
     assert job["llm_error_counts"]["gemma-4-31b-it:timeout"] == 1
     assert job["llm_retry_counts"]["gemma-4-31b-it"] == 1
+    assert job["token_estimate"]["sampled_total"] == 4096
+    assert job["token_estimate"]["latest"] == 4096
+    assert job["token_estimate"]["mode"] == "display_only"
 
 
 def test_active_jobs_api(monkeypatch):
@@ -518,9 +581,25 @@ def test_unconfigured_mutation_token_requires_runtime_header_even_on_localhost(m
         api.require_mutation_authorized(FakeRequest("203.0.113.10"))
 
 
+def test_server_deployment_mode_does_not_allow_or_expose_runtime_token(monkeypatch):
+    class FakeRequest:
+        headers = {"x-mutation-token": "runtime-test-token"}
+        client = None
+
+    monkeypatch.setattr(api, "DEPLOYMENT_MODE", "server", raising=False)
+    monkeypatch.setattr(api, "MUTATION_API_TOKEN", "", raising=False)
+    monkeypatch.setattr(api, "RUNTIME_MUTATION_API_TOKEN", "runtime-test-token", raising=False)
+
+    assert api.get_allowed_mutation_tokens() == set()
+    assert api.get_client_config()["mutation_token"] == ""
+    with pytest.raises(HTTPException):
+        api.require_mutation_authorized(FakeRequest())
+
+
 def test_client_config_exposes_runtime_mutation_header(monkeypatch):
     monkeypatch.setattr(api, "MUTATION_API_TOKEN", "")
     monkeypatch.setattr(api, "RUNTIME_MUTATION_API_TOKEN", "runtime-test-token", raising=False)
+    monkeypatch.setattr(api, "DEPLOYMENT_MODE", "local", raising=False)
 
     client = TestClient(api.app)
     response = client.get("/api/client-config")
@@ -534,6 +613,7 @@ def test_client_config_exposes_runtime_mutation_header(monkeypatch):
 def test_client_config_does_not_expose_configured_admin_token(monkeypatch):
     monkeypatch.setattr(api, "MUTATION_API_TOKEN", "long-lived-admin-token")
     monkeypatch.setattr(api, "RUNTIME_MUTATION_API_TOKEN", "runtime-test-token", raising=False)
+    monkeypatch.setattr(api, "DEPLOYMENT_MODE", "local", raising=False)
 
     client = TestClient(api.app)
     response = client.get("/api/client-config")

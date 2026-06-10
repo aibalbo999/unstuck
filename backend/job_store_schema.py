@@ -7,7 +7,7 @@ import sqlite3
 from storage.migrations import MigrationRunner, column_names
 
 
-JOB_STORE_SCHEMA_VERSION = 4
+JOB_STORE_SCHEMA_VERSION = 5
 
 
 def init_job_store_schema(conn: sqlite3.Connection):
@@ -57,14 +57,25 @@ def init_job_store_schema(conn: sqlite3.Connection):
         if "cancelled_at" not in columns:
             migration_conn.execute("ALTER TABLE analysis_jobs ADD COLUMN cancelled_at REAL")
 
+    def migrate_v5(migration_conn):
+        columns = column_names(migration_conn, "analysis_jobs")
+        if "worker_instance_id" not in columns:
+            migration_conn.execute("ALTER TABLE analysis_jobs ADD COLUMN worker_instance_id TEXT")
+        if "claimed_at" not in columns:
+            migration_conn.execute("ALTER TABLE analysis_jobs ADD COLUMN claimed_at REAL")
+
     MigrationRunner(conn, "job_store").run(
         JOB_STORE_SCHEMA_VERSION,
-        {1: lambda _conn: None, 2: migrate_v2, 3: migrate_v3, 4: migrate_v4},
+        {1: lambda _conn: None, 2: migrate_v2, 3: migrate_v3, 4: migrate_v4, 5: migrate_v5},
     )
     conn.execute("CREATE INDEX IF NOT EXISTS idx_analysis_jobs_ticker_status ON analysis_jobs(ticker, status)")
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_analysis_jobs_ticker_pipeline_status "
         "ON analysis_jobs(ticker, pipeline_id, status)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_analysis_jobs_worker_status "
+        "ON analysis_jobs(worker_instance_id, status)"
     )
     conn.execute("CREATE INDEX IF NOT EXISTS idx_analysis_events_job_id_id ON analysis_events(job_id, id)")
     conn.execute(

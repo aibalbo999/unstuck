@@ -19,6 +19,24 @@
 .watchlist-list {
     align-items: stretch;
 }
+.watchlist-daily-board {
+    flex: 1 1 100%;
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    gap: 8px;
+    align-items: center;
+    border: 1px solid rgba(96, 165, 250, 0.28);
+    border-radius: 8px;
+    padding: 8px 10px;
+    background: rgba(30, 64, 175, 0.12);
+}
+.watchlist-daily-board span,
+.watchlist-daily-board em {
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+    font-style: normal;
+    font-weight: 850;
+}
 .watchlist-chip {
     flex: 1 1 220px;
     justify-content: space-between;
@@ -53,5 +71,8 @@
     }
     .watchlist-chip {
         flex-basis: 100%;
+    }
+    .watchlist-daily-board {
+        grid-template-columns: 1fr;
     }
 }

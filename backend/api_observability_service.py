@@ -19,7 +19,7 @@ def normalize_sla_window(window: str) -> str:
 
 
 def _alert_fields_for_window(item: dict, window: str) -> dict:
-    attempts = int(item.get("attempts") or 0)
+    attempts = int(item.get("availability_attempts", item.get("attempts")) or 0)
     success_rate = float(item.get("success_rate") or 0.0)
     error_count = int(item.get("error_count") or 0)
     last_status = str(item.get("last_status") or "")
@@ -51,10 +51,13 @@ def apply_provider_sla_window(providers: list[dict], window: str) -> list[dict]:
         stats = dict(((item.get("windows") or {}).get(normalized_window)) or {})
         for key in (
             "attempts",
+            "availability_attempts",
             "success_count",
             "error_count",
             "unavailable_count",
             "skipped_fresh_cache_count",
+            "not_configured_count",
+            "degraded_enrichment_count",
             "success_rate",
             "avg_duration_ms",
             "total_records",

@@ -124,6 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.openReport = openReport;
 
     const opsWorkspace = window.StockAgentOpsWorkspace.create({ apiClient, ui });
+    const operatorSummary = window.StockAgentOperatorSummaryPanel.create({ apiClient, ui });
 
     const historyWorkspace = window.StockAgentHistoryWorkspace.create({
         apiClient,
@@ -180,6 +181,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.StockAgentReportNavigation.bind(reportIframe);
 
     loadHistory();
+    operatorSummary.load();
     opsWorkspace.bindEvents();
     window.StockAgentHomeTabs.bind({
         onActivate: tabName => {

@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=20260608-optimization-suite">
+    <link rel="stylesheet" href="/static/style.css?v=20260610-operator-workbench-2">
 </head>
 <body>
     <!-- 背景特效 -->
@@ -64,6 +64,35 @@
                     <span>開始深度分析</span>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
                 </button>
+
+                <section id="operator-summary-panel" class="provider-sla-panel operator-summary-panel" aria-live="polite">
+                    <div id="operator-active-jobs" class="operator-summary-item">
+                        <span>任務</span>
+                        <strong>載入中</strong>
+                        <em></em>
+                    </div>
+                    <div id="operator-data-trust" class="operator-summary-item">
+                        <span>資料信任</span>
+                        <strong>載入中</strong>
+                        <em></em>
+                    </div>
+                    <div id="operator-api-quota" class="operator-summary-item">
+                        <span>LLM 健康</span>
+                        <strong>載入中</strong>
+                        <em></em>
+                    </div>
+                    <div id="operator-rerun" class="operator-summary-item">
+                        <span>重跑判斷</span>
+                        <strong>載入中</strong>
+                        <em></em>
+                    </div>
+                    <div id="operator-action-list" class="operator-action-list" aria-label="今日待處理">
+                        <div class="operator-action-list-header">
+                            <strong>今日待處理</strong>
+                            <span>載入中</span>
+                        </div>
+                    </div>
+                </section>
 
                 <!-- 歷史報告區域 -->
                 <div class="history-section">
@@ -229,10 +258,10 @@
                     <section id="api-quota-panel" class="provider-sla-panel" aria-live="polite">
                         <div class="provider-sla-header">
                             <div>
-                                <span class="provider-sla-kicker">API 額度</span>
+                                <span class="provider-sla-kicker">LLM 健康</span>
                                 <strong id="api-quota-summary">載入中</strong>
                             </div>
-                            <button id="api-quota-refresh" class="icon-button" type="button" aria-label="刷新 API 額度">
+                            <button id="api-quota-refresh" class="icon-button" type="button" aria-label="刷新 LLM 健康">
                                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M16 8h5V3"/></svg>
                             </button>
                         </div>
@@ -325,22 +354,25 @@
                                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M16 8h5V3"/></svg>
                             </button>
                         </div>
-                        <div id="maintenance-list" class="provider-sla-list"></div>
-                        <div class="maintenance-actions">
-                            <button id="maintenance-clean-report-index" class="maintenance-button" type="button">
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
-                                <span>清理報告索引</span>
-                            </button>
-                            <button id="maintenance-clean-analysis-history" class="maintenance-button" type="button">
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 3"/><path d="M3.05 11a9 9 0 1 1 2.64 6.36"/><path d="M3 17v-6h6"/></svg>
-                                <span>清理任務紀錄</span>
-                            </button>
-                            <button id="maintenance-clean-provider-sla" class="maintenance-button" type="button">
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16v-5"/><path d="M12 16V8"/><path d="M16 16v-3"/></svg>
-                                <span>清理來源健康紀錄</span>
-                            </button>
-                        </div>
-                        <p id="maintenance-result" class="maintenance-result"></p>
+                        <details id="maintenance-details" class="maintenance-details">
+                            <summary>健康摘要與清理工具</summary>
+                            <div id="maintenance-list" class="provider-sla-list"></div>
+                            <div class="maintenance-actions">
+                                <button id="maintenance-clean-report-index" class="maintenance-button" type="button">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+                                    <span>清理報告索引</span>
+                                </button>
+                                <button id="maintenance-clean-analysis-history" class="maintenance-button" type="button">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 3"/><path d="M3.05 11a9 9 0 1 1 2.64 6.36"/><path d="M3 17v-6h6"/></svg>
+                                    <span>清理任務紀錄</span>
+                                </button>
+                                <button id="maintenance-clean-provider-sla" class="maintenance-button" type="button">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16v-5"/><path d="M12 16V8"/><path d="M16 16v-3"/></svg>
+                                    <span>清理來源健康紀錄</span>
+                                </button>
+                            </div>
+                            <p id="maintenance-result" class="maintenance-result"></p>
+                        </details>
                     </section>
                 </div>
             </section>
@@ -408,13 +440,14 @@
     <script src="/static/provider_sla_panel.js?v=20260608-provider-drilldown"></script>
     <script src="/static/api_quota_panel.js?v=20260608-api-quota"></script>
     <script src="/static/active_jobs_panel.js?v=20260608-stage-summary"></script>
-    <script src="/static/watchlist_panel.js?v=20260608-watchlist"></script>
+    <script src="/static/operator_summary_panel.js?v=20260610-operator-workbench"></script>
+    <script src="/static/watchlist_panel.js?v=20260610-operator-workbench"></script>
     <script src="/static/ops_workspace.js?v=20260608-ops-workspace"></script>
-    <script src="/static/maintenance_panel.js?v=20260608-local-maintenance"></script>
+    <script src="/static/maintenance_panel.js?v=20260610-operator-workbench"></script>
     <script src="/static/home_tabs.js?v=20260608-home-tabs"></script>
     <script src="/static/report_rerun.js?v=20260608-full-report"></script>
     <script src="/static/analysis_stream.js?v=20260607-analysis-stream"></script>
-    <script src="/static/history_panel.js?v=20260608-tracking-table"></script>
+    <script src="/static/history_panel.js?v=20260610-operator-workbench"></script>
     <script src="/static/report_preview_panel.js?v=20260608-full-report"></script>
     <script src="/static/view_controller.js?v=20260607-view-controller"></script>
     <script src="/static/history_filters.js?v=20260607-latest-report-versions"></script>

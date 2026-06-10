@@ -90,6 +90,52 @@ def test_data_trust_statuses_fresh_stale_error_unknown():
     assert "missing_data_trust_snapshot" in unknown["reason_codes"]
 
 
+def test_optional_not_configured_sources_do_not_degrade_fresh_core_data(monkeypatch):
+    import provider_sla
+
+    monkeypatch.setattr(provider_sla, "get_provider_sla_alerts", lambda limit=100: [])
+    payload = fresh_audited_payload(provider="fake-yfinance")
+    payload["source_audit"].append(
+        data_trust.build_source_audit_entry(
+            "recent_catalysts",
+            "Google Search",
+            "not_configured",
+            record_count=0,
+            message="Google Custom Search 未設定，僅略過補充催化劑。",
+        )
+    )
+
+    trust = data_trust.build_data_trust(payload)
+
+    assert trust["status"] == "fresh"
+    assert "optional_source_not_configured:recent_catalysts" in trust["reason_codes"]
+    assert "recent_catalysts" not in trust["critical_failures"]
+    assert any("補充來源未設定" in note for note in trust["notes"])
+
+
+def test_optional_degraded_enrichment_is_not_treated_as_core_failure(monkeypatch):
+    import provider_sla
+
+    monkeypatch.setattr(provider_sla, "get_provider_sla_alerts", lambda limit=100: [])
+    payload = fresh_audited_payload(provider="fake-yfinance")
+    payload["source_audit"].append(
+        data_trust.build_source_audit_entry(
+            "peer_discovery",
+            "Google Search",
+            "degraded_enrichment",
+            record_count=0,
+            message="同業搜尋補充來源降級，核心財務資料仍可用。",
+        )
+    )
+
+    trust = data_trust.build_data_trust(payload)
+
+    assert trust["status"] == "fresh"
+    assert "optional_source_degraded:peer_discovery" in trust["reason_codes"]
+    assert "peer_discovery" not in trust["critical_failures"]
+    assert any("補充來源降級" in note for note in trust["notes"])
+
+
 def test_provider_sla_warning_notes_current_provider_without_downgrade(monkeypatch):
     import provider_sla
 

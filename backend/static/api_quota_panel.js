@@ -46,8 +46,8 @@
         const services = payload?.services || [];
         const configured = services.filter(service => service.configured).length;
         summaryEl.textContent = services.length
-            ? `${configured}/${services.length} 組 API 已設定`
-            : 'API 額度狀態尚無資料';
+            ? `LLM/API 健康：${configured}/${services.length} 組服務已設定`
+            : 'LLM/API 健康狀態尚無資料';
         listEl.innerHTML = services.length
             ? services.map(service => {
                 const tone = service.configured ? 'ok' : 'warning';
@@ -66,7 +66,7 @@
                     </span>
                 `;
             }).join('')
-            : '<span class="provider-sla-chip is-warning">尚無 API 額度資料</span>';
+            : '<span class="provider-sla-chip is-warning">尚無 LLM/API 健康資料</span>';
     }
 
     window.StockAgentApiQuotaPanel = { render };

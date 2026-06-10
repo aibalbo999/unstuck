@@ -94,7 +94,36 @@ def _job_snapshot(conn: sqlite3.Connection, job: dict, event_limit: int) -> dict
         "llm_error_counts": _counter_to_dict(llm_errors),
         "llm_retry_counts": dict(llm_retries),
         "llm_model_call_counts": dict(model_calls),
+        "token_estimate": _token_estimate_summary(events),
         "recent_events": events[:10],
+    }
+
+
+def _token_estimate_summary(events: list[dict]) -> dict:
+    sampled_total = 0
+    latest = None
+    by_model = Counter()
+    event_count = 0
+    for event in events:
+        metadata = event.get("metadata") or {}
+        try:
+            estimated = int(metadata.get("estimated_tokens"))
+        except (TypeError, ValueError):
+            continue
+        if estimated <= 0:
+            continue
+        model_id = str(metadata.get("model_id") or "unknown")
+        sampled_total += estimated
+        by_model[model_id] += estimated
+        event_count += 1
+        if latest is None:
+            latest = estimated
+    return {
+        "mode": "display_only",
+        "sampled_total": sampled_total,
+        "latest": latest or 0,
+        "event_count_sampled": event_count,
+        "by_model": dict(by_model),
     }
 
 

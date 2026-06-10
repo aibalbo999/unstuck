@@ -7,7 +7,7 @@ import inspect
 import time
 from collections.abc import Callable
 
-from data_trust import AUDIT_STATUS_SUCCESS, AUDIT_STATUS_UNAVAILABLE
+from data_trust import AUDIT_STATUS_NOT_CONFIGURED, AUDIT_STATUS_SUCCESS, AUDIT_STATUS_UNAVAILABLE
 
 from .market_sources.identity import is_taiwan_ticker
 from .types import FetchRequest, ProviderResult
@@ -120,6 +120,24 @@ def unavailable_provider_result(source: str, provider: str, message: str = "") -
             "source": source,
             "provider": provider,
             "status": AUDIT_STATUS_UNAVAILABLE,
+            "record_count": 0,
+            "cache_hit": False,
+            "stale": False,
+            "message": message,
+        },
+    )
+
+
+def not_configured_provider_result(source: str, provider: str, message: str = "") -> ProviderResult:
+    return ProviderResult(
+        source=source,
+        provider=provider,
+        status=AUDIT_STATUS_NOT_CONFIGURED,
+        value=None,
+        audit={
+            "source": source,
+            "provider": provider,
+            "status": AUDIT_STATUS_NOT_CONFIGURED,
             "record_count": 0,
             "cache_hit": False,
             "stale": False,

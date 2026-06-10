@@ -19,6 +19,7 @@ ALLOWED_ORIGINS = env_list(
     ],
 )
 MUTATION_API_TOKEN = env_str("MUTATION_API_TOKEN", env_str("ADMIN_API_TOKEN", ""))
+DEPLOYMENT_MODE = env_str("DEPLOYMENT_MODE", "local").strip().lower()
 
 
-__all__ = ["ALLOWED_ORIGINS", "MUTATION_API_TOKEN"]
+__all__ = ["ALLOWED_ORIGINS", "MUTATION_API_TOKEN", "DEPLOYMENT_MODE"]

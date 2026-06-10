@@ -31,6 +31,19 @@
         return '有效';
     }
 
+    function watchlistDailyBoard(items, escapeHtml) {
+        const enabled = items.filter(item => item.enabled !== false);
+        const needs = enabled.filter(item => ['high', 'medium'].includes(item.decision_priority));
+        const next = needs.slice(0, 3).map(item => item.ticker).join('、') || '無急件';
+        return `
+            <div class="watchlist-daily-board">
+                <strong>今日工作台</strong>
+                <span>需處理 ${escapeHtml(String(needs.length))} 檔</span>
+                <em>${escapeHtml(next)}</em>
+            </div>
+        `;
+    }
+
     function create(options) {
         const apiClient = options.apiClient;
         const elements = options.elements || {};
@@ -46,7 +59,7 @@
             const items = payload.items || [];
             if (!elements.listEl) return;
             setSummary(items.length ? `${items.length} 檔追蹤中` : '尚未建立追蹤清單');
-            elements.listEl.innerHTML = items.length
+            elements.listEl.innerHTML = watchlistDailyBoard(items, escapeHtml) + (items.length
                 ? items.map(item => {
                     const disabled = item.enabled ? '' : ' · 停用';
                     const priorityClass = item.decision_priority === 'high' ? 'is-critical' : (item.decision_priority === 'medium' ? 'is-warning' : '');
@@ -62,7 +75,7 @@
                         </span>
                     `;
                 }).join('')
-                : '<span class="provider-sla-chip is-warning">尚無 watchlist</span>';
+                : '<span class="provider-sla-chip is-warning">尚無 watchlist</span>');
         }
 
         async function load() {

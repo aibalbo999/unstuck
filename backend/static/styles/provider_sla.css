@@ -173,6 +173,22 @@
 .maintenance-button span {
     overflow-wrap: anywhere;
 }
+.maintenance-details {
+    margin-top: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: 8px;
+    padding: 8px 10px 10px;
+    background: rgba(2, 6, 23, 0.18);
+}
+.maintenance-details summary {
+    min-height: 34px;
+    display: flex;
+    align-items: center;
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-weight: 900;
+}
 .maintenance-chip {
     flex: 1 1 150px;
     justify-content: space-between;

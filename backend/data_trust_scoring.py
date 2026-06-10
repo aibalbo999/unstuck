@@ -6,7 +6,9 @@ from typing import Any, Optional
 
 from data_trust_audit import source_record_count, string_list
 from data_trust_constants import (
+    AUDIT_STATUS_DEGRADED_ENRICHMENT,
     AUDIT_STATUS_ERROR,
+    AUDIT_STATUS_NOT_CONFIGURED,
     AUDIT_STATUS_SKIPPED_FRESH_CACHE,
     AUDIT_STATUS_SUCCESS,
     CORE_DATA_SOURCES,
@@ -130,6 +132,15 @@ def build_data_trust(data: dict) -> dict:
         notes = ["核心資料在新鮮度門檻內，來源審計未見主要異常。"]
         reason_codes = ["fresh_core_sources"]
 
+    optional_not_configured = optional_sources_with_status(latest_audit, AUDIT_STATUS_NOT_CONFIGURED)
+    optional_degraded = optional_sources_with_status(latest_audit, AUDIT_STATUS_DEGRADED_ENRICHMENT)
+    if optional_not_configured:
+        notes.append("補充來源未設定，系統已略過該 enrichment，不影響核心資料可信度。")
+        reason_codes.extend(f"optional_source_not_configured:{source}" for source in optional_not_configured)
+    if optional_degraded:
+        notes.append("補充來源降級，核心市場與財報資料仍按既有可信度處理。")
+        reason_codes.extend(f"optional_source_degraded:{source}" for source in optional_degraded)
+
     if data.get("data_source_notes"):
         notes.append("另有資料口徑或備援補值註記，詳見報告參考資料區。")
         reason_codes.append("data_source_notes_present")
@@ -182,6 +193,17 @@ def stale_sources_from(source_freshness: dict, latest_audit: dict) -> list[str]:
         if isinstance(entry, dict) and entry.get("stale"):
             sources.add(str(source))
     return sorted(sources)
+
+
+def optional_sources_with_status(latest_audit: dict, status: str) -> list[str]:
+    core_sources = set(CORE_DATA_SOURCES)
+    return sorted(
+        source
+        for source, entry in latest_audit.items()
+        if source not in core_sources
+        and isinstance(entry, dict)
+        and entry.get("status") == status
+    )
 
 
 def last_market_data_at(data: dict, source_freshness: dict, latest_audit: dict) -> Optional[str]:
