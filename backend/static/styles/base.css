@@ -68,7 +68,7 @@ body {
     transform: translateY(0);
 }
 #home-view {
-    max-width: min(1180px, 100%);
+    max-width: min(1360px, 100%);
 }
 #home-view .glass-panel {
     width: 100%;

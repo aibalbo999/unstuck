@@ -1,11 +1,11 @@
-@import url("/static/styles/base.css?v=20260610-operator-workbench");
+@import url("/static/styles/base.css?v=20260610-dense-tracking");
 @import url("/static/styles/forms_controls.css?v=20260607-css-modules");
 @import url("/static/styles/loading_report.css?v=20260607-css-modules");
 @import url("/static/styles/history_shell.css?v=20260608-history-analysis");
 @import url("/static/styles/provider_sla.css?v=20260610-operator-workbench");
 @import url("/static/styles/operator_summary.css?v=20260610-operator-workbench");
-@import url("/static/styles/history_list.css?v=20260610-operator-workbench");
-@import url("/static/styles/decision_tracking.css?v=20260610-dual-tracking");
+@import url("/static/styles/history_list.css?v=20260610-dense-tracking");
+@import url("/static/styles/decision_tracking.css?v=20260610-dense-tracking");
 @import url("/static/styles/preview_panel.css?v=20260608-report-compare");
 @import url("/static/styles/report_compare.css?v=20260608-report-compare");
 @import url("/static/styles/watchlist.css?v=20260610-operator-workbench");

@@ -354,6 +354,36 @@ def test_decision_tracking_controls_and_target_statuses_are_wired():
     assert "white-space: normal" in decision_tracking_css
 
 
+def test_decision_tracking_dense_layout_uses_workspace_efficiently():
+    index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    base_css = (STATIC_DIR / "styles" / "base.css").read_text(encoding="utf-8")
+    history_list_css = (STATIC_DIR / "styles" / "history_list.css").read_text(encoding="utf-8")
+    decision_tracking_css = (STATIC_DIR / "styles" / "decision_tracking.css").read_text(encoding="utf-8")
+    history_panel_js = (STATIC_DIR / "history_panel.js").read_text(encoding="utf-8")
+    style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
+
+    assert "style.css?v=20260610-dense-tracking" in index_html
+    assert "/static/history_panel.js?v=20260610-dense-tracking" in index_html
+    assert "decision_tracking.css?v=20260610-dense-tracking" in style_css
+    assert "max-width: min(1360px, 100%)" in base_css
+    assert "grid-template-columns: minmax(520px, 1.35fr) minmax(360px, 0.85fr)" in history_list_css
+    assert "tracking-density-row" in history_panel_js
+    assert "tracking-report-head" in history_panel_js
+    assert "tracking-report-metrics" in history_panel_js
+    assert "tracking-target-chip" in history_panel_js
+    assert "tracking-target-period" in history_panel_js
+    assert "tracking-target-value" in history_panel_js
+    assert "tracking-target-label" in history_panel_js
+    assert "高密度雙報告比較" in history_panel_js
+    assert ".tracking-stock-group { display: grid; grid-template-columns: minmax(96px, 0.24fr) minmax(0, 1fr)" in decision_tracking_css
+    assert ".tracking-report-card { min-height: 58px; display: grid; grid-template-columns: minmax(82px, 0.75fr) minmax(88px, 0.7fr) minmax(150px, 1.55fr)" in decision_tracking_css
+    assert ".tracking-target-chip" in decision_tracking_css
+    assert ".tracking-target-period" in decision_tracking_css
+    assert ".tracking-target-value" in decision_tracking_css
+    assert ".tracking-target-label" in decision_tracking_css
+    assert ".decision-tracking-table.is-compact .tracking-report-card" in decision_tracking_css
+
+
 def test_frontend_uiux_accessibility_contracts_are_wired():
     base_css = (STATIC_DIR / "styles" / "base.css").read_text(encoding="utf-8")
     forms_css = (STATIC_DIR / "styles" / "forms_controls.css").read_text(encoding="utf-8")

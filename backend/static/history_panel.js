@@ -48,12 +48,14 @@
 
     function targetComparisonCell(tracking, key, escapeHtml) {
         const comparison = tracking?.target_comparisons?.[key] || {};
-        const period = { target_3m: '3月目標', target_6m: '6月目標', target_12m: '12月目標' }[key] || '目標';
+        const period = { target_3m: '3月', target_6m: '6月', target_12m: '12月' }[key] || '目標';
+        const fullPeriod = { target_3m: '3月目標', target_6m: '6月目標', target_12m: '12月目標' }[key] || '目標';
         const status = comparison.status || 'unavailable';
         const label = comparison.label || (status === 'below_target' ? '低於目標' : (status === 'near_target' ? '接近目標' : (status === 'above_target' ? '已高於目標' : '無法比較')));
+        const shortLabel = { below_target: '低於', near_target: '接近', above_target: '高於' }[status] || '無法';
         const className = String(status).replace(/_/g, '-');
-        const title = comparison.gap_pct === null || comparison.gap_pct === undefined ? label : `${label} ${formatPct(comparison.gap_pct)}`;
-        return `<span class="tracking-target-cell is-${className}" title="${escapeHtml(title)}"><span>${escapeHtml(period)}</span><strong>${escapeHtml(formatNumber(comparison.target || tracking?.[key]))}</strong><span>${escapeHtml(label)}</span></span>`;
+        const title = comparison.gap_pct === null || comparison.gap_pct === undefined ? `${fullPeriod} ${label}` : `${fullPeriod} ${label} ${formatPct(comparison.gap_pct)}`;
+        return `<span class="tracking-target-cell tracking-target-chip is-${className}" title="${escapeHtml(title)}"><span class="tracking-target-period">${escapeHtml(period)}</span><strong class="tracking-target-value">${escapeHtml(formatNumber(comparison.target || tracking?.[key]))}</strong><span class="tracking-target-label">${escapeHtml(shortLabel)}</span></span>`;
     }
 
     function isActivationKey(event) {
@@ -96,13 +98,13 @@
             const tracking = report.decision_tracking || {};
             return `
                 <div class="tracking-report-card" data-filename="${escapeHtml(report.filename)}" role="button" tabindex="0" aria-label="預覽 ${escapeHtml(report.ticker || 'N/A')} ${escapeHtml(report.pipeline_label || '')} 追蹤">
-                    <div class="tracking-report-cell">
+                    <div class="tracking-report-cell tracking-report-head">
                         <strong>${escapeHtml(report.pipeline_label || report.pipeline_id || '報告')}</strong>
                         <span class="tracking-report-date">${escapeHtml(report.date || '')}</span>
                     </div>
-                    <div class="tracking-report-line">
-                        <span>${escapeHtml(options.normalizeRecommendation(tracking.recommendation || report.recommendation?.recommendation))}</span>
-                        <strong>${escapeHtml(formatNumber(tracking.latest_price))}</strong>
+                    <div class="tracking-report-line tracking-report-metrics">
+                        <span class="tracking-recommendation">${escapeHtml(options.normalizeRecommendation(tracking.recommendation || report.recommendation?.recommendation))}</span>
+                        <strong class="tracking-latest-price">${escapeHtml(formatNumber(tracking.latest_price))}</strong>
                         <span class="${trackingTone(tracking)}">${escapeHtml(tracking.tracking_summary_status || formatPct(tracking.return_pct))}</span>
                     </div>
                     ${trackingCompact ? '' : `<div class="tracking-target-grid">${targetComparisonCell(tracking, 'target_3m', escapeHtml)}${targetComparisonCell(tracking, 'target_6m', escapeHtml)}${targetComparisonCell(tracking, 'target_12m', escapeHtml)}</div>`}
@@ -125,20 +127,17 @@
             trackingTableEl.hidden = false;
             trackingTableEl.classList.toggle('is-compact', trackingCompact);
             trackingTableEl.innerHTML = `
-                <div class="decision-tracking-title">每日決策追蹤表<span>${trackingCompact ? '精簡比較' : '雙報告比較'}</span></div>
+                <div class="decision-tracking-title">每日決策追蹤表<span>${trackingCompact ? '精簡比較' : '高密度雙報告比較'}</span></div>
                 <div class="tracking-group-list">
                     ${visibleGroups.map(group => {
                         const latest = groupLatestReport(group) || {};
                         const tracking = latest.decision_tracking || {};
                         return `
-                            <section class="tracking-stock-group">
+                            <section class="tracking-stock-group tracking-density-row">
                                 <div class="tracking-stock-cell">
                                     <strong>${escapeHtml(group.ticker || latest.ticker || 'N/A')}</strong>
                                     <span class="tracking-company-name">${escapeHtml(group.company_name || latest.company_name || '')}</span>
-                                </div>
-                                <div class="tracking-group-summary">
-                                    <span>最新股價 <strong>${escapeHtml(formatNumber(tracking.latest_price))}</strong></span>
-                                    <span>${escapeHtml(group.reports.map(report => report.pipeline_label || report.pipeline_id).join(' / '))}</span>
+                                    <span class="tracking-stock-price">最新 ${escapeHtml(formatNumber(tracking.latest_price))}</span>
                                 </div>
                                 <div class="tracking-group-reports">${group.reports.map(reportCard).join('')}</div>
                             </section>
