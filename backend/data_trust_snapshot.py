@@ -76,6 +76,12 @@ def build_data_snapshot(
     if not isinstance(data, dict):
         data = {}
     data_trust = normalize_data_trust(data.get("data_trust")) if data.get("data_trust") else build_data_trust(data)
+    try:
+        from reporting.evidence_matrix import build_evidence_matrix_rows
+
+        evidence_matrix = build_evidence_matrix_rows(context)
+    except Exception:
+        evidence_matrix = []
     snapshot_generated_at = generated_at or utc_now_iso()
     snapshot = {
         "snapshot_schema_version": DATA_SNAPSHOT_SCHEMA_VERSION,
@@ -98,6 +104,7 @@ def build_data_snapshot(
         "source_freshness": sanitize_for_snapshot(data.get("source_freshness", {})),
         "source_audit": sanitize_for_snapshot(data.get("source_audit", [])),
         "data_trust": data_trust,
+        "evidence_matrix": sanitize_for_snapshot(evidence_matrix),
         "data_source_notes": sanitize_for_snapshot(data.get("data_source_notes", [])),
         "deterministic_fallbacks": sanitize_for_snapshot(context.get("deterministic_fallbacks", [])),
         "report_lint": sanitize_for_snapshot(context.get("report_lint", {})),
@@ -257,41 +264,3 @@ def read_data_trust_from_snapshot(path: str | Path) -> dict:
     except (OSError, json.JSONDecodeError):
         return unknown_data_trust()
     return normalize_data_trust(snapshot.get("data_trust") if isinstance(snapshot, dict) else {})
-
-
-def build_legacy_report_snapshot(
-    *,
-    ticker: str,
-    company_name: str = "",
-    pipeline: str = "v1",
-    generated_at: Optional[str] = None,
-    recommendation: Optional[dict] = None,
-) -> dict:
-    trust = unknown_data_trust()
-    return apply_snapshot_size_governance({
-        "snapshot_schema_version": DATA_SNAPSHOT_SCHEMA_VERSION,
-        "snapshot_truncated": False,
-        "snapshot_size_bytes": 0,
-        "snapshot_omitted_sections": [],
-        "snapshot_migrated_from_legacy": True,
-        "ticker": ticker,
-        "company_name": company_name or ticker,
-        "pipeline": pipeline,
-        "generated_at": generated_at or utc_now_iso(),
-        "data_schema_version": None,
-        "source_freshness": {},
-        "source_audit": [],
-        "data_trust": trust,
-        "data_source_notes": ["此資料快照由舊報告遷移產生，未包含原始分析資料。"],
-        "legacy_report_metadata": sanitize_for_snapshot({
-            "recommendation": recommendation or {},
-        }),
-        "rerun_context": {"analyses": {}, "structured_outputs": {}, "parsed": {}},
-        "data": {
-            "ticker": ticker,
-            "company_name": company_name or ticker,
-            "source_audit": [],
-            "data_trust": trust,
-            "data_source_notes": ["此資料快照由舊報告遷移產生，未包含原始分析資料。"],
-        },
-    })

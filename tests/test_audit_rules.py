@@ -789,6 +789,40 @@ class AuditRuleTests(unittest.TestCase):
         })
         self.assertIn("空方指出下修風險", recommendation["reasoning_steps"])
 
+    def test_incomplete_structured_outputs_are_rejected_before_report_contract(self):
+        self.assertIsNone(structured_outputs.normalize_structured_output(3, {
+            "moat_scores": {
+                "品牌影響力": 6,
+                "網路效應": 3,
+                "轉換成本": 7,
+                "成本優勢": 6,
+                "專利技術": 5,
+                "整體護城河": 6,
+            },
+            "analysis_markdown": "正文",
+        }))
+
+        self.assertIsNone(structured_outputs.normalize_structured_output(4, {
+            "price_targets": {
+                "dcf_reasoning": "normalized FCF 搭配市場價值 WACC。",
+                "熊市情境": 800,
+                "基本情境": 1000,
+                "牛市情境": 1200,
+            },
+            "analysis_markdown": "正文",
+        }))
+
+        self.assertIsNone(structured_outputs.normalize_structured_output(7, {
+            "reasoning_steps": ["估值合理", "風險仍高", "空方指出下修風險"],
+            "recommendation": {
+                "建議": "持有",
+                "短期目標（3個月）": "NT$900",
+                "中期目標（6個月）": "NT$1000",
+                "信心指數": "6/10",
+            },
+            "analysis_markdown": "正文",
+        }))
+
     def test_agent_5_context_skips_agent_4_to_avoid_valuation_anchoring(self):
         context = {
             "analyses": {

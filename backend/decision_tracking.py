@@ -6,6 +6,7 @@ import json
 import os
 from typing import Optional
 
+from confidence_calibration import build_confidence_calibration
 from price_parser import extract_price_numbers
 from report_index_parsing import normalize_recommendation_label
 
@@ -155,6 +156,10 @@ def build_decision_tracking(recommendation: dict, data_snapshot_path: str = "") 
     )
     tracking["target_comparisons"] = _target_comparisons(tracking)
     tracking["tracking_summary_status"] = _summary_status(tracking["target_comparisons"])
+    tracking["confidence_calibration"] = build_confidence_calibration(
+        recommendation,
+        snapshot.get("data_trust") if isinstance(snapshot.get("data_trust"), dict) else {},
+    )
     tracking["status"] = _tracking_status(tracking)
     tracking["summary"] = _summary(tracking)
     return tracking

@@ -1,8 +1,10 @@
+import asyncio
 import json
 import os
 import sys
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 
@@ -728,6 +730,40 @@ def test_final_rerun_uses_snapshot_rerun_context_without_markdown(tmp_path, monk
     assert body["success"] is True
     assert body["scope"] == "final_recommendation"
     assert (tmp_path / body["filename"]).exists()
+
+
+def test_final_rerun_rejects_refreshed_snapshot_that_needs_full_analysis(tmp_path):
+    filename = "2449_v2_report_20260606_010000.html"
+    write_report_pair(tmp_path, filename, "持有")
+    analyses = {str(agent): f"Agent {agent} analysis" for agent in [11, 12, 13, 14, 15]}
+    snapshot = {
+        "snapshot_schema_version": 3,
+        "ticker": "2449.TW",
+        "company_name": "京元電子",
+        "pipeline": "v2",
+        "generated_at": "2026-06-08T00:00:00+00:00",
+        "conclusion_generated_at": "2026-06-06T00:00:00+00:00",
+        "snapshot_refreshed_at": "2026-06-08T00:00:00+00:00",
+        "refreshed_without_analysis_rerun": True,
+        "decision_validity_status": "needs_rerun",
+        "requires_rerun_reason": "資料快照已刷新，但前序分析本文未重新執行。",
+        "data_schema_version": 4,
+        "source_freshness": {},
+        "source_audit": [],
+        "data_trust": {"status": "fresh", "critical_failures": [], "stale_sources": [], "last_market_data_at": None, "notes": []},
+        "rerun_context": {
+            "analyses": analyses,
+            "structured_outputs": {"14": {"price_targets": {"基本情境": 273}}},
+        },
+        "data": {"data_schema_version": 4, "ticker": "2449.TW", "company_name": "京元電子"},
+    }
+    (tmp_path / filename.replace(".html", ".data.json")).write_text(json.dumps(snapshot), encoding="utf-8")
+
+    with pytest.raises(report_rerun_service.HTTPException) as exc_info:
+        report_rerun_service._build_final_rerun_context(filename, snapshot, str(tmp_path))
+
+    assert exc_info.value.status_code == 409
+    assert "完整重跑" in str(exc_info.value.detail)
 
 
 def test_parse_agent_sections_from_markdown_supports_final_rerun_context():

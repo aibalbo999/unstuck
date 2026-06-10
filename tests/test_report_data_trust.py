@@ -6,6 +6,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 import reporting.legacy_report_gen as report_gen  # noqa: E402
+from data_trust import build_data_snapshot  # noqa: E402
+from reporting.evidence import build_key_evidence_rows  # noqa: E402
 
 
 def minimal_context():
@@ -98,3 +100,65 @@ def test_html_and_markdown_include_data_trust_and_source_audit():
     assert "## 來源審計" in markdown
     assert "| 股價與市值 | 市場資料 | yfinance | 成功 |" in markdown
     assert "| 市場資料 | yfinance | 成功 |" in markdown
+
+
+def test_key_evidence_prefers_successful_provider_over_later_empty_provider():
+    data = minimal_context()["data"]
+    data["recent_catalysts"] = [{"title": "Google catalyst"}]
+    data["source_audit"] = [
+        {
+            "source": "recent_catalysts",
+            "provider": "Google Search",
+            "status": "success",
+            "fetched_at": "2026-06-07T00:00:00+00:00",
+            "record_count": 1,
+            "cache_hit": False,
+            "stale": False,
+        },
+        {
+            "source": "recent_catalysts",
+            "provider": "FMP news",
+            "status": "unavailable",
+            "fetched_at": "2026-06-07T00:00:01+00:00",
+            "record_count": 0,
+            "cache_hit": False,
+            "stale": False,
+        },
+    ]
+
+    rows = build_key_evidence_rows(data)
+    catalyst_row = next(row for row in rows if row["label"] == "近期催化劑")
+
+    assert catalyst_row["status"] == "success"
+    assert catalyst_row["provider"] == "Google Search"
+    assert catalyst_row["record_count"] == 1
+
+
+def test_report_artifacts_include_evidence_matrix_for_key_conclusions():
+    context = minimal_context()
+    context["parsed"]["price_targets"] = {
+        "熊市情境": 80,
+        "基本情境": 100,
+        "牛市情境": 120,
+    }
+    context["parsed"]["moat_scores"] = {
+        "品牌力": 8,
+        "規模經濟": 9,
+        "轉換成本": 7,
+        "整體護城河": 8,
+    }
+    context["data"]["data_source_notes"] = ["TTM 淨利率已依最新財報補值。"]
+
+    html = report_gen.generate_html_report(context)
+    markdown = report_gen.generate_markdown_report(context)
+    snapshot = build_data_snapshot(context, pipeline_id="v1")
+
+    assert "報告證據矩陣" in html
+    assert "估值結論" in html
+    assert "TTM 淨利率已依最新財報補值。" in html
+    assert "## 報告證據矩陣" in markdown
+    assert "| 估值結論 |" in markdown
+    assert "| 最終投資建議 |" in markdown
+    assert snapshot["evidence_matrix"][0]["claim"] == "估值結論"
+    assert any(row["claim"] == "最終投資建議" for row in snapshot["evidence_matrix"])
+    assert any("TTM 淨利率已依最新財報補值。" in row["limitation"] for row in snapshot["evidence_matrix"])

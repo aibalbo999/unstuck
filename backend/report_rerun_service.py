@@ -88,6 +88,12 @@ def _build_final_rerun_context(filename: str, snapshot: dict, output_dir: str) -
     final_agent = get_structured_agent_num("recommendation", pipeline_id)
     if final_agent is None:
         raise HTTPException(status_code=400, detail="此 pipeline 沒有可重跑的最終建議 Agent")
+    if snapshot.get("refreshed_without_analysis_rerun") or snapshot.get("decision_validity_status") == "needs_rerun":
+        reason = str(snapshot.get("requires_rerun_reason") or snapshot.get("analysis_text_stale_message") or "").strip()
+        detail = "資料快照已刷新，但前序分析、估值與風險段落仍來自舊資料；請使用完整重跑產生一致報告。"
+        if reason:
+            detail = f"{detail} 原因：{reason}"
+        raise HTTPException(status_code=409, detail=detail)
 
     analyses, structured_outputs = rerun_context_from_snapshot(snapshot)
     required_previous = [agent for agent in pipeline_def["agents"] if agent < final_agent]

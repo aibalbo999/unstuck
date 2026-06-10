@@ -43,7 +43,7 @@ def generate_markdown_report(context: AnalysisContext) -> str:
     confidence = get_rec_val(recommendation, "信心", "N/A")
     audit_markdown = build_audit_markdown(context)
     data_trust_markdown = build_data_trust_markdown(data)
-    source_audit_markdown = build_source_audit_markdown(data)
+    source_audit_markdown = build_source_audit_markdown(data, context)
     tear_sheet_summary = build_tear_sheet_summary(context)
     model_route_summary = format_model_routes(pipeline_id=pipeline_def["id"])
     agent_sections = build_agent_sections(context, html=False)

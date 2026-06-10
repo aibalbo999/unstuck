@@ -100,7 +100,7 @@ def generate_html_report(context: AnalysisContext) -> str:
     confidence = sanitize_report_plain_text(get_rec_val(recommendation, "信心", "N/A")) or "N/A"
     audit_banner_html = build_audit_banner_html(context)
     data_trust_html = build_data_trust_html(data)
-    source_audit_html = build_source_audit_html(data)
+    source_audit_html = build_source_audit_html(data, context)
     tear_sheet_summary = clean_markdown(build_tear_sheet_summary(context))
     report_cover = context.get("report_cover", {}) or {}
     report_cover_image = sanitize_report_image_url(report_cover.get("image", ""))

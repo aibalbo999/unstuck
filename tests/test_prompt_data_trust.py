@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 import final_audit  # noqa: E402
+import decision_tracking  # noqa: E402
 import prompt_builder  # noqa: E402
 import structured_outputs  # noqa: E402
 
@@ -115,3 +116,41 @@ def test_final_audit_warns_on_high_confidence_with_low_trust():
     audit = final_audit.run_final_report_audit(context, append_section=False)
 
     assert any("data_trust=partial" in warning for warning in audit["warnings"])
+    assert audit["confidence_calibration"]["status"] == "needs_downgrade"
+    assert audit["confidence_calibration"]["max_recommended_confidence"] == 7
+    assert any("建議信心上限 7/10" in warning for warning in audit["warnings"])
+
+
+def test_decision_tracking_includes_confidence_calibration_from_snapshot(tmp_path):
+    snapshot_path = tmp_path / "report.data.json"
+    snapshot_path.write_text(
+        json.dumps(
+            {
+                "data_trust": {
+                    "status": "stale",
+                    "critical_failures": [],
+                    "stale_sources": ["market_data"],
+                    "last_market_data_at": "2026-06-07T00:00:00+00:00",
+                    "notes": ["市場資料過期。"],
+                },
+                "data": {"current_price": 100},
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    tracking = decision_tracking.build_decision_tracking(
+        {
+            "recommendation": "持有",
+            "current_price": "NT$100",
+            "target_3m": "NT$100",
+            "target_6m": "NT$105",
+            "target_12m": "NT$110",
+            "confidence": "9/10",
+        },
+        str(snapshot_path),
+    )
+
+    assert tracking["confidence_calibration"]["status"] == "needs_downgrade"
+    assert tracking["confidence_calibration"]["max_recommended_confidence"] == 7

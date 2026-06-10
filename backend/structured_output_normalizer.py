@@ -5,6 +5,35 @@ from __future__ import annotations
 import re
 from typing import Any, Optional
 
+from pydantic import ValidationError
+
+from confidence_calibration import build_confidence_calibration, confidence_score
+from structured_output_models import (
+    MoatStructuredOutput,
+    PriceTargetStructuredOutput,
+    RecommendationStructuredOutput,
+)
+
+
+STRICT_STRUCTURED_SCHEMAS = {
+    3: MoatStructuredOutput,
+    4: PriceTargetStructuredOutput,
+    7: RecommendationStructuredOutput,
+    12: MoatStructuredOutput,
+    14: PriceTargetStructuredOutput,
+    16: RecommendationStructuredOutput,
+}
+
+
+def _validated_payload(agent_num: int, payload: dict) -> Optional[dict]:
+    schema = STRICT_STRUCTURED_SCHEMAS.get(agent_num)
+    if schema is None:
+        return payload
+    try:
+        return schema.model_validate(payload).model_dump(by_alias=True)
+    except ValidationError:
+        return None
+
 
 def _coerce_number(value, minimum=None, maximum=None):
     if isinstance(value, str):
@@ -52,6 +81,9 @@ def _coerce_text(value: Any) -> str:
 def normalize_structured_output(agent_num: int, payload: Optional[dict]) -> Optional[dict]:
     """Validate and normalize JSON payloads from structured agents."""
     if not isinstance(payload, dict):
+        return None
+    payload = _validated_payload(agent_num, payload)
+    if payload is None:
         return None
 
     if agent_num in {3, 12}:
@@ -188,33 +220,20 @@ def price_targets_have_unit_error(targets: dict, current_price) -> bool:
     return bool(prices) and any(price < current_price * 0.05 for price in prices)
 
 
-def confidence_score(value: str) -> Optional[float]:
-    match = re.search(r"(\d+(?:\.\d+)?)", str(value or ""))
-    if not match:
-        return None
-    score = float(match.group(1))
-    if score <= 1:
-        return score * 10
-    return score
-
-
 def warn_high_confidence_with_low_trust(agent_num: int, structured: dict, context: dict) -> None:
     if agent_num not in {7, 16}:
         return
     trust = context.get("data", {}).get("data_trust", {}) if isinstance(context.get("data"), dict) else {}
-    status = trust.get("status", "unknown") if isinstance(trust, dict) else "unknown"
-    if status == "fresh":
+    calibration = build_confidence_calibration(structured.get("recommendation", {}) or {}, trust)
+    context["confidence_calibration"] = calibration
+    if calibration.get("status") != "needs_downgrade":
         return
-    confidence = ""
-    for key, value in (structured.get("recommendation", {}) or {}).items():
-        if "信心" in str(key):
-            confidence = str(value)
-            break
-    score = confidence_score(confidence)
-    if score is not None and score >= 8:
-        context.setdefault("structured_quality_warnings", []).append(
-            f"Agent {agent_num} 在 data_trust={status} 時給出高信心（{confidence}），需於報告中明確說明資料限制。"
-        )
+    status = calibration.get("data_trust_status", "unknown")
+    confidence = calibration.get("raw_confidence", "N/A")
+    cap = calibration.get("max_recommended_confidence")
+    context.setdefault("structured_quality_warnings", []).append(
+        f"Agent {agent_num} 在 data_trust={status} 時給出高信心（{confidence}），建議信心上限 {cap}/10，需於報告中明確說明資料限制。"
+    )
 
 
 _confidence_score = confidence_score
