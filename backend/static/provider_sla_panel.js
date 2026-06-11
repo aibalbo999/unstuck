@@ -14,7 +14,7 @@
     const LEVEL_WEIGHT = { ok: 0, warning: 1, critical: 2 };
     const EXPECTED_CONTEXT_SOURCES = [
         { source: 'global_market_context', provider: 'yfinance global context', message: '尚未建立檢查樣本；下一次新分析或重新抓取後會更新全球市場脈絡。' },
-        { source: 'international_news_context', provider: 'GDELT', message: '尚未建立檢查樣本；下一次新分析或重新抓取後會更新國際新聞脈絡。' }
+        { source: 'international_news_context', provider: 'GDELT / Google News RSS', message: '尚未建立檢查樣本；下一次新分析或重新抓取後會更新國際新聞脈絡。' }
     ];
 
     function providerSlaClass(level) {

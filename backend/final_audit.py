@@ -9,6 +9,7 @@ from typing import Optional
 from analysis_types import AnalysisContext, AuditResult
 from agent_catalog import AGENT_NAMES
 from confidence_calibration import build_confidence_calibration
+from final_audit_context_coverage import missing_final_context_labels
 from pipeline_modes import get_pipeline_definition, get_structured_agent_num
 from runtime_events import emit_log
 from validators import (
@@ -196,6 +197,13 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
             if not _recommendation_value(recommendation, label):
                 _add_unique_issue(critical, f"Agent {recommendation_agent} 缺少 {label} 欄位。")
                 add_agent_repair_issue(recommendation_agent, f"缺少 {label} 欄位。")
+
+        missing_context_labels = missing_final_context_labels(data, str(analyses.get(recommendation_agent, "")))
+        if missing_context_labels:
+            _add_unique_issue(
+                warnings,
+                f"Agent {recommendation_agent} 最終建議未說明可用的{'、'.join(missing_context_labels)}是否影響結論。"
+            )
 
         data_trust = data.get("data_trust", {}) if isinstance(data.get("data_trust"), dict) else {}
         confidence_calibration = build_confidence_calibration(recommendation, data_trust)

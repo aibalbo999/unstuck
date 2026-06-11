@@ -189,12 +189,20 @@ def build_evidence_matrix_rows(context: dict) -> list[dict]:
         rows.append(_row(
             claim="最終投資建議",
             basis=recommendation_basis,
-            source_labels=[source_label("market_data"), source_label("financial_statements")],
+            source_labels=[
+                source_label("market_data"),
+                source_label("financial_statements"),
+                source_label("recent_catalysts"),
+                source_label("global_market_context"),
+                source_label("international_news_context"),
+            ],
             evidence_rows=[
                 row for row in (
                     evidence_by_label.get("股價與市值"),
                     evidence_by_label.get("年度財報"),
                     evidence_by_label.get("近期催化劑"),
+                    evidence_by_label.get("全球市場脈絡"),
+                    evidence_by_label.get("國際新聞脈絡"),
                 )
                 if row
             ],

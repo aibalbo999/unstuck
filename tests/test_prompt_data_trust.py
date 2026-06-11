@@ -112,6 +112,10 @@ def test_runtime_rules_require_agents_to_cite_or_disclose_global_context():
     rules = json.loads((ROOT / "backend" / "prompts" / "runtime_rules.json").read_text(encoding="utf-8"))
     enrichment_rules = rules["data_enrichment_instructions"]
 
+    assert any("global_market_context" in rule for rule in enrichment_rules["1"]["rules"])
+    assert any("international_news_context" in rule for rule in enrichment_rules["1"]["rules"])
+    assert any("global_market_context" in rule and "Round 3" in rule for rule in enrichment_rules["6"]["rules"])
+    assert any("international_news_context" in rule and "最終" in rule for rule in enrichment_rules["7"]["rules"])
     assert any("global_market_context" in rule for rule in enrichment_rules["11"]["rules"])
     assert any("international_news_context" in rule for rule in enrichment_rules["11"]["rules"])
     assert any("global_market_context" in rule and "籌碼" in rule for rule in enrichment_rules["15"]["rules"])
@@ -172,6 +176,46 @@ def test_final_audit_warns_on_high_confidence_with_low_trust():
     assert audit["confidence_calibration"]["status"] == "needs_downgrade"
     assert audit["confidence_calibration"]["max_recommended_confidence"] == 7
     assert any("建議信心上限 7/10" in warning for warning in audit["warnings"])
+
+
+def test_final_audit_warns_when_final_decision_omits_available_global_context():
+    context = {
+        "pipeline_id": "v1",
+        "agent_sequence": [7],
+        "data": {
+            "current_price": 100,
+            "global_market_context": {
+                "items": [{"symbol": "QQQ", "change_5d_pct": 2.4, "source": "yfinance"}],
+            },
+            "international_news_context": {
+                "topics": [{"tag": "macro", "headline": "Fed path drives risk appetite", "source": "GDELT"}],
+            },
+            "data_trust": {"status": "fresh"},
+        },
+        "analyses": {7: "正式最終投資建議段落，只討論估值與財務。"},
+        "structured_outputs": {7: _recommendation_payload("6/10")},
+        "parsed": {
+            "moat_scores": {
+                "品牌影響力": 5,
+                "網路效應": 5,
+                "轉換成本": 5,
+                "成本優勢": 5,
+                "專利技術": 5,
+                "整體護城河": 5,
+            },
+            "price_targets": {"熊市情境": 80, "基本情境": 100, "牛市情境": 120},
+            "recommendation": _recommendation_payload("6/10")["recommendation"],
+        },
+    }
+
+    audit = final_audit.run_final_report_audit(context, append_section=False)
+
+    assert any("全球市場脈絡" in warning and "國際新聞脈絡" in warning for warning in audit["warnings"])
+
+    context["analyses"][7] = "最終建議已檢查全球市場脈絡與國際新聞脈絡；兩者未改變持有結論。"
+    clean_audit = final_audit.run_final_report_audit(context, append_section=False)
+
+    assert not any("全球市場脈絡" in warning and "國際新聞脈絡" in warning for warning in clean_audit["warnings"])
 
 
 def test_decision_tracking_includes_confidence_calibration_from_snapshot(tmp_path):

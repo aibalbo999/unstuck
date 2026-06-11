@@ -122,7 +122,7 @@ class GlobalMarketContextProvider(DataProvider):
 
 
 class InternationalNewsContextProvider(DataProvider):
-    name = "GDELT"
+    name = "GDELT / Google News RSS"
     source = "international_news_context"
 
     async def fetch_async(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:

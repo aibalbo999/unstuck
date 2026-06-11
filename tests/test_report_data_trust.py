@@ -134,6 +134,41 @@ def test_key_evidence_prefers_successful_provider_over_later_empty_provider():
     assert catalyst_row["record_count"] == 1
 
 
+def test_key_evidence_includes_global_market_and_international_news_context():
+    data = minimal_context()["data"]
+    data["global_market_context"] = {
+        "items": [{"symbol": "QQQ", "change_5d_pct": 2.4, "source": "yfinance"}],
+    }
+    data["international_news_context"] = {
+        "topics": [{"tag": "macro", "headline": "Fed path drives risk appetite", "source": "GDELT"}],
+    }
+    data["source_audit"].extend([
+        {
+            "source": "global_market_context",
+            "provider": "yfinance global context",
+            "status": "success",
+            "fetched_at": "2026-06-07T00:00:00+00:00",
+            "record_count": 1,
+            "cache_hit": False,
+            "stale": False,
+        },
+        {
+            "source": "international_news_context",
+            "provider": "GDELT",
+            "status": "success",
+            "fetched_at": "2026-06-07T00:00:01+00:00",
+            "record_count": 1,
+            "cache_hit": False,
+            "stale": False,
+        },
+    ])
+
+    rows = build_key_evidence_rows(data)
+
+    assert any(row["label"] == "全球市場脈絡" and row["provider"] == "yfinance global context" for row in rows)
+    assert any(row["label"] == "國際新聞脈絡" and row["provider"] == "GDELT" for row in rows)
+
+
 def test_report_artifacts_include_evidence_matrix_for_key_conclusions():
     context = minimal_context()
     context["parsed"]["price_targets"] = {
@@ -147,6 +182,12 @@ def test_report_artifacts_include_evidence_matrix_for_key_conclusions():
         "轉換成本": 7,
         "整體護城河": 8,
     }
+    context["data"]["global_market_context"] = {"items": [{"symbol": "QQQ", "change_5d_pct": 2.4}]}
+    context["data"]["international_news_context"] = {"topics": [{"tag": "macro", "headline": "Fed path"}]}
+    context["data"]["source_audit"].extend([
+        {"source": "global_market_context", "provider": "yfinance global context", "status": "success", "record_count": 1, "stale": False},
+        {"source": "international_news_context", "provider": "GDELT", "status": "success", "record_count": 1, "stale": False},
+    ])
     context["data"]["data_source_notes"] = ["TTM 淨利率已依最新財報補值。"]
 
     html = report_gen.generate_html_report(context)
@@ -161,4 +202,8 @@ def test_report_artifacts_include_evidence_matrix_for_key_conclusions():
     assert "| 最終投資建議 |" in markdown
     assert snapshot["evidence_matrix"][0]["claim"] == "估值結論"
     assert any(row["claim"] == "最終投資建議" for row in snapshot["evidence_matrix"])
+    assert any(
+        row["claim"] == "最終投資建議" and "全球市場脈絡" in row["source"] and "國際新聞脈絡" in row["source"]
+        for row in snapshot["evidence_matrix"]
+    )
     assert any("TTM 淨利率已依最新財報補值。" in row["limitation"] for row in snapshot["evidence_matrix"])

@@ -14,6 +14,7 @@ import data_fetch.optional_enrichment as optional_enrichment  # noqa: E402
 import data_fetch.yfinance_payload as yfinance_payload  # noqa: E402
 import data_fetch.yfinance_sync_enrichment as sync_enrichment  # noqa: E402
 import data_fetch.yfinance_core_fetch as financial_data  # noqa: E402
+import external_data_gdelt  # noqa: E402
 import external_data_parsers  # noqa: E402
 
 
@@ -176,6 +177,117 @@ def test_gdelt_article_payload_parses_international_news_topics():
         "source": "GDELT",
         "url": "https://example.com/story",
     }]
+
+
+def test_google_news_rss_payload_parses_international_news_topics():
+    payload = """<?xml version="1.0" encoding="UTF-8"?>
+    <rss><channel>
+      <item>
+        <title>AI chip supply chain expands - Reuters</title>
+        <link>https://news.google.com/rss/articles/example</link>
+        <pubDate>Fri, 12 Jun 2026 01:02:03 GMT</pubDate>
+        <source url="https://www.reuters.com">Reuters</source>
+      </item>
+      <item><title></title><link>https://example.com/empty</link></item>
+    </channel></rss>
+    """
+
+    records = external_data_parsers.parse_google_news_rss_payload(payload, tag="semiconductors_ai")
+
+    assert records == [{
+        "tag": "semiconductors_ai",
+        "headline": "AI chip supply chain expands - Reuters",
+        "summary": "Reuters",
+        "published_at": "Fri, 12 Jun 2026 01:02:03 GMT",
+        "source": "Google News RSS",
+        "url": "https://news.google.com/rss/articles/example",
+    }]
+
+
+def test_gdelt_context_limits_topic_requests_and_spaces_calls(monkeypatch):
+    class FakeAsyncClient:
+        async def __aenter__(self):
+            return object()
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+    calls = []
+    sleeps = []
+
+    async def fake_json_get(_client, _url, params):
+        calls.append(params["query"])
+        return {
+            "articles": [{
+                "title": f"Story for {params['query']}",
+                "seendate": "20260612T010203Z",
+                "sourcecountry": "United States",
+                "domain": "example.com",
+                "url": f"https://example.com/{len(calls)}",
+            }]
+        }
+
+    async def fake_sleep(seconds):
+        sleeps.append(seconds)
+
+    monkeypatch.setattr(external_data_gdelt, "async_client", lambda: FakeAsyncClient())
+    monkeypatch.setattr(external_data_gdelt, "async_json_get", fake_json_get)
+    monkeypatch.setattr(external_data_gdelt.asyncio, "sleep", fake_sleep)
+
+    context = asyncio.run(external_data_gdelt.fetch_gdelt_international_news_context(
+        "Technology",
+        "Semiconductors",
+        max_topics=2,
+        request_spacing_seconds=5.0,
+    ))
+
+    assert len(calls) == 2
+    assert sleeps == [5.0]
+    assert len(context["topics"]) == 2
+
+
+def test_gdelt_context_falls_back_to_google_news_rss(monkeypatch):
+    rss_payload = """<?xml version="1.0" encoding="UTF-8"?>
+    <rss><channel><item>
+      <title>AI chip policy reshapes supply chain - Reuters</title>
+      <link>https://news.google.com/rss/articles/fallback</link>
+      <pubDate>Fri, 12 Jun 2026 01:02:03 GMT</pubDate>
+      <source>Reuters</source>
+    </item></channel></rss>
+    """
+
+    class FakeResponse:
+        text = rss_payload
+
+        def raise_for_status(self):
+            return None
+
+    class FakeAsyncClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, _url, params):
+            assert params["q"]
+            return FakeResponse()
+
+    async def failing_json_get(_client, _url, _params):
+        raise RuntimeError("gdelt unavailable")
+
+    monkeypatch.setattr(external_data_gdelt, "async_client", lambda: FakeAsyncClient())
+    monkeypatch.setattr(external_data_gdelt, "async_json_get", failing_json_get)
+
+    context = asyncio.run(external_data_gdelt.fetch_gdelt_international_news_context(
+        "Technology",
+        "Semiconductors",
+        max_topics=1,
+        request_spacing_seconds=0,
+    ))
+
+    assert context["topics"][0]["source"] == "Google News RSS"
+    assert context["topics"][0]["headline"] == "AI chip policy reshapes supply chain - Reuters"
 
 
 def _patch_common_fetch_dependencies(monkeypatch, resolved_ticker="2330.TW", country="Taiwan"):
