@@ -64,6 +64,10 @@
         if (level === 'warning') return '需要留意';
         return '可安心使用';
     }
+    function rowStateLabel(row) {
+        if (row.level === 'ok' && !row.attempts) return '無檢查樣本';
+        return stateLabel(row.level);
+    }
 
     function groupedProviderRows(providers, selectedWindow) {
         const groups = new Map();
@@ -109,6 +113,7 @@
 
     function summaryText(rows, windowLabel, providers) {
         if (!providers.length) return `正式分析流程 · ${windowLabel} · 尚未建立全系統來源紀錄`;
+        if (rows.length && rows.every(row => !row.attempts)) return `正式分析流程 · ${windowLabel} · 尚無檢查樣本，請查看 24 小時或全部紀錄`;
         const critical = rows.filter(row => row.level === 'critical').length;
         const warning = rows.filter(row => row.level === 'warning').length;
         if (critical) return `正式分析流程 · ${windowLabel} · ${critical} 類資料可能影響分析，建議稍後重試`;
@@ -167,12 +172,12 @@
                 const successRate = row.attempts ? row.healthyCount / row.attempts : NaN;
                 const recordsLabel = row.totalRecords ? `取得 ${row.totalRecords} 筆資料` : '資料量尚少';
                 const checksLabel = row.attempts ? `檢查 ${row.attempts} 次` : '尚未檢查';
-                const title = `${readableSource(row.source)}：${stateLabel(row.level)}。${insightText(row)}`;
+                const title = `${readableSource(row.source)}：${rowStateLabel(row)}。${insightText(row)}`;
                 return `
                     <span class="provider-sla-chip provider-sla-insight is-${row.level}" title="${escapeHtml(title)}">
                         <span class="provider-sla-insight-top">
                             <strong>${escapeHtml(readableSource(row.source))}</strong>
-                            <em>${escapeHtml(stateLabel(row.level))}</em>
+                            <em>${escapeHtml(rowStateLabel(row))}</em>
                         </span>
                         <span class="provider-sla-detail">${escapeHtml(insightText(row))}</span>
                         <span class="provider-sla-meta">${escapeHtml(recordsLabel)} · 資料取得率 ${escapeHtml(formatSuccessRate(successRate))} · ${escapeHtml(checksLabel)}</span>

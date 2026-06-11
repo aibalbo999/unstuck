@@ -25,6 +25,8 @@ def _alert_fields_for_window(item: dict, window: str) -> dict:
     last_status = str(item.get("last_status") or "")
     label = "累積" if window == "all" else window
 
+    if window != "all" and attempts == 0:
+        return {"alert_level": "ok", "alert_message": "", "alert_basis": label}
     if attempts >= 3 and (success_rate < SLA_CRITICAL_SUCCESS_RATE or error_count >= 3):
         return {
             "alert_level": "critical",

@@ -307,19 +307,47 @@ def test_operator_workbench_surfaces_actionable_daily_workflow():
 def test_report_actions_do_not_prompt_refresh_for_provider_sla_only_partial_reports():
     history_panel_js = (STATIC_DIR / "history_panel.js").read_text(encoding="utf-8")
     operator_summary_js = (STATIC_DIR / "operator_summary_panel.js").read_text(encoding="utf-8")
+    ui_helpers_js = (STATIC_DIR / "ui_helpers.js").read_text(encoding="utf-8")
 
     for source in (history_panel_js, operator_summary_js):
         assert "hasRefreshableDataTrustIssue" in source
         assert "provider_sla_critical" in source
         assert "status === 'stale' || status === 'partial'" not in source
 
-    assert "來源需留意" in history_panel_js
+    assert "providerSlaOnlyPartial" in ui_helpers_js
+    assert "本報告來源提醒" in ui_helpers_js
+    assert "本報告部分異常" not in ui_helpers_js
+    assert "來源提醒" in history_panel_js
+    assert "來源需留意" not in history_panel_js
     assert "isSourceNotice" in operator_summary_js
     assert "requiresDataTrustAction" in operator_summary_js
     assert "sourceNoticeReports" in operator_summary_js
     assert "來源提醒" in operator_summary_js
     assert "無需刷新/重跑" in operator_summary_js
     assert "份需留意" not in operator_summary_js
+
+
+def test_operator_signals_avoid_misleading_health_and_tracking_copy():
+    index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    provider_sla_js = (STATIC_DIR / "provider_sla_panel.js").read_text(encoding="utf-8")
+    api_quota_js = (STATIC_DIR / "api_quota_panel.js").read_text(encoding="utf-8")
+    operator_summary_js = (STATIC_DIR / "operator_summary_panel.js").read_text(encoding="utf-8")
+    history_panel_js = (STATIC_DIR / "history_panel.js").read_text(encoding="utf-8")
+    report_preview_js = (STATIC_DIR / "report_preview_panel.js").read_text(encoding="utf-8")
+
+    assert "<span>近期資料信任</span>" in index_html
+    assert "無檢查樣本" in provider_sla_js
+    assert "尚無檢查樣本，請查看 24 小時或全部紀錄" in provider_sla_js
+    assert "rowStateLabel" in provider_sla_js
+    assert "row.level === 'ok' && !row.attempts" in provider_sla_js
+    assert "quotaHealth" in api_quota_js
+    assert "quotaHealth" in operator_summary_js
+    assert "LLM/API 健康警示" in api_quota_js
+    assert "is-${quotaHealth(service).tone}" in api_quota_js
+    assert "awaitingTrackingPrice" in history_panel_js
+    assert "待新價格" in history_panel_js
+    assert "awaitingTrackingPrice" in report_preview_js
+    assert "尚待新價格" in report_preview_js
 
 
 def test_decision_tracking_controls_and_target_statuses_are_wired():
@@ -383,7 +411,7 @@ def test_decision_tracking_dense_layout_uses_workspace_efficiently():
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
 
     assert "style.css?v=20260610-dense-tracking" in index_html
-    assert "/static/history_panel.js?v=20260610-dense-tracking" in index_html
+    assert "/static/history_panel.js?v=20260611-operator-clarity" in index_html
     assert "decision_tracking.css?v=20260610-dense-tracking" in style_css
     assert "max-width: min(1360px, 100%)" in base_css
     assert "grid-template-columns: minmax(520px, 1.35fr) minmax(360px, 0.85fr)" in history_list_css

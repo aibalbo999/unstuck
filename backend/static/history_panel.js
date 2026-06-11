@@ -19,8 +19,13 @@
         return value > 0 ? 'is-positive' : 'is-negative';
     }
 
+    function awaitingTrackingPrice(tracking) {
+        return tracking?.status === 'tracked' && Number(tracking.return_pct) === 0 && Number(tracking.initial_price) === Number(tracking.latest_price);
+    }
+
     function renderTrackingBadge(tracking, escapeHtml) {
         if (!tracking || !tracking.status || tracking.status === 'unavailable' || !Number.isFinite(Number(tracking.return_pct))) return '';
+        if (awaitingTrackingPrice(tracking)) return '<span class="history-tracking is-neutral" title="尚待下一筆價格更新">追蹤 待新價格</span>';
         const title = tracking.summary || '決策追蹤';
         return `<span class="history-tracking ${trackingTone(tracking)}" title="${escapeHtml(title)}">追蹤 ${escapeHtml(formatPct(tracking.return_pct))}</span>`;
     }
@@ -68,7 +73,7 @@
             tone = 'warning';
             detail = '先刷新資料快照再決策';
         } else if (status === 'partial') {
-            label = hasProviderSlaOnlyPartial(report) ? '來源需留意' : '資料需留意';
+            label = hasProviderSlaOnlyPartial(report) ? '來源提醒' : '資料需留意';
             tone = 'warning';
             detail = '資料已是最新快照，請查看來源審計與健康度';
         }
