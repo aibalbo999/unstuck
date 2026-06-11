@@ -8,7 +8,6 @@
         if (strong) strong.textContent = value;
         if (em) em.textContent = detail || '';
     }
-
     function quotaErrorCount(service) {
         const usage = service?.usage || {};
         return Number(usage.observed_quota_errors_since_reset || usage.observed_24h_errors || 0);
@@ -20,20 +19,25 @@
         if (active) return { tone: 'warning', value: `${active} 個進行中`, detail: jobs[0]?.ticker || '' };
         return { tone: 'ok', value: '無進行中任務', detail: jobs[0] ? `最近 ${jobs[0].ticker || 'N/A'}` : '等待下一次分析' };
     }
-
+    const dataTrustReasonCodes = report => Array.isArray(report?.data_trust?.reason_codes) ? report.data_trust.reason_codes.map(code => String(code || '')) : [];
+    const reportNeedsRerun = report => Boolean(report?.analysis_text_stale || report?.decision_freshness?.requires_rerun || report?.requires_rerun);
+    function requiresDataTrustAction(report) {
+        const status = report?.data_trust?.status || 'unknown';
+        const codes = dataTrustReasonCodes(report);
+        return status === 'error' || hasRefreshableDataTrustIssue(report) || reportNeedsRerun(report) || codes.some(code => code.startsWith('source_error:'));
+    }
+    const isSourceNotice = report => report?.data_trust?.status === 'partial' && !requiresDataTrustAction(report) && dataTrustReasonCodes(report).includes('provider_sla_critical');
+    const sourceNoticeReports = reports => reports.filter(isSourceNotice);
     function trustText(payload) {
         const reports = payload?.reports || [];
-        const counts = reports.reduce((acc, report) => {
-            const status = report?.data_trust?.status || 'unknown';
-            acc[status] = (acc[status] || 0) + 1;
-            return acc;
-        }, {});
-        const risk = Number(counts.error || 0) + Number(counts.stale || 0) + Number(counts.partial || 0);
         if (!reports.length) return { tone: 'warning', value: '尚無報告', detail: '等待資料快照' };
-        if (risk) return { tone: 'warning', value: `${risk} 份需留意`, detail: `fresh ${counts.fresh || 0} / sampled ${reports.length}` };
+        const fresh = reports.filter(report => report?.data_trust?.status === 'fresh').length;
+        const actionCount = reports.filter(requiresDataTrustAction).length;
+        if (actionCount) return { tone: 'warning', value: `${actionCount} 份需處理`, detail: `fresh ${fresh} / sampled ${reports.length}` };
+        const notices = sourceNoticeReports(reports).length;
+        if (notices) return { tone: 'warning', value: `${notices} 份來源提醒`, detail: `無需刷新/重跑 · fresh ${fresh} / sampled ${reports.length}` };
         return { tone: 'ok', value: '近期資料正常', detail: `${reports.length} 份近期報告` };
     }
-
     function quotaText(payload) {
         const services = payload?.services || [];
         const configured = services.filter(service => service.configured);
@@ -44,13 +48,10 @@
 
     function rerunText(payload) {
         const reports = payload?.reports || [];
-        const needs = reports.filter(report => report?.decision_freshness?.requires_rerun || report?.requires_rerun);
+        const needs = reports.filter(reportNeedsRerun);
         if (needs.length) return { tone: 'warning', value: `${needs.length} 份需重跑`, detail: needs[0]?.ticker || '' };
         return { tone: 'ok', value: '無立即重跑', detail: reports.length ? '依近期報告判斷' : '尚無判斷資料' };
     }
-    const dataTrustReasonCodes = report => Array.isArray(report?.data_trust?.reason_codes)
-        ? report.data_trust.reason_codes.map(code => String(code || ''))
-        : [];
     function hasRefreshableDataTrustIssue(report) {
         const trust = report?.data_trust || {};
         const sources = trust.stale_sources;
@@ -60,9 +61,9 @@
     function reportAction(report) {
         const status = report?.data_trust?.status;
         if (status === 'error') return { title: '暫勿採用', detail: '來源異常，先查看報告' };
-        if (report?.analysis_text_stale || report?.decision_freshness?.requires_rerun || report?.requires_rerun) return { title: '建議完整重跑', detail: '結論與資料可能不同步' };
+        if (reportNeedsRerun(report)) return { title: '建議完整重跑', detail: '結論與資料可能不同步' };
         if (hasRefreshableDataTrustIssue(report)) return { title: '建議刷新資料', detail: '先更新快照再判斷', action: 'refresh-report', label: '刷新資料' };
-        if (status === 'partial') return { title: dataTrustReasonCodes(report).includes('provider_sla_critical') ? '來源需留意' : '資料需留意', detail: '資料已是最新快照，請查看來源審計' };
+        if (status === 'partial' && !isSourceNotice(report)) return { title: '資料需留意', detail: '資料已是最新快照，請查看來源審計' };
         return null;
     }
     function operatorActionItems(jobsPayload, quotaPayload, reportPayload, watchlistPayload) {

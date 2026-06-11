@@ -311,8 +311,15 @@ def test_report_actions_do_not_prompt_refresh_for_provider_sla_only_partial_repo
     for source in (history_panel_js, operator_summary_js):
         assert "hasRefreshableDataTrustIssue" in source
         assert "provider_sla_critical" in source
-        assert "來源需留意" in source
         assert "status === 'stale' || status === 'partial'" not in source
+
+    assert "來源需留意" in history_panel_js
+    assert "isSourceNotice" in operator_summary_js
+    assert "requiresDataTrustAction" in operator_summary_js
+    assert "sourceNoticeReports" in operator_summary_js
+    assert "來源提醒" in operator_summary_js
+    assert "無需刷新/重跑" in operator_summary_js
+    assert "份需留意" not in operator_summary_js
 
 
 def test_decision_tracking_controls_and_target_statuses_are_wired():
