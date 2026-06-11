@@ -3,8 +3,10 @@
 from .enrichment_providers import (
     DynamicPeerMetricsProvider,
     FmpNewsProvider,
+    GlobalMarketContextProvider,
     GooglePeerDiscoveryProvider,
     GoogleSearchProvider,
+    InternationalNewsContextProvider,
     PeRiverChartProvider,
     YahooProvider,
 )
@@ -26,8 +28,10 @@ __all__ = [
     "FinMindProvider",
     "FmpProvider",
     "FmpNewsProvider",
+    "GlobalMarketContextProvider",
     "GooglePeerDiscoveryProvider",
     "GoogleSearchProvider",
+    "InternationalNewsContextProvider",
     "InstitutionalTradingProvider",
     "MonthlyRevenueProvider",
     "PeRiverChartProvider",

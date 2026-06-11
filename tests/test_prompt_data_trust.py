@@ -65,6 +65,59 @@ def test_prompt_payload_includes_data_trust_and_audit_summary():
     assert "不得在沒有額外佐證下給出高信心" in prompt
 
 
+def test_prompt_payload_includes_global_market_and_international_news_context():
+    data = {
+        "data_schema_version": 4,
+        "ticker": "2330.TW",
+        "company_name": "台積電",
+        "global_market_context": {
+            "as_of": "2026-06-12T00:00:00+00:00",
+            "lookback_days": 5,
+            "items": [
+                {"symbol": "QQQ", "category": "us_growth", "change_5d_pct": 3.2, "source": "yfinance"},
+                {"symbol": "SMH", "category": "semiconductors_ai", "change_5d_pct": 4.1, "source": "yfinance"},
+                {"symbol": "NVDA", "category": "semiconductors_ai", "change_5d_pct": 5.0, "source": "yfinance"},
+                {"symbol": "TSM", "category": "semiconductors_ai", "change_5d_pct": 2.5, "source": "yfinance"},
+            ],
+            "coverage_notes": [],
+        },
+        "international_news_context": {
+            "lookback_days": 7,
+            "topics": [
+                {"tag": "macro", "headline": "Fed rate path drives global risk appetite", "source": "GDELT"},
+                {"tag": "semiconductors_ai", "headline": "AI chip demand lifts suppliers", "source": "GDELT"},
+                {"tag": "policy_trade", "headline": "Export controls remain in focus", "source": "GDELT"},
+            ],
+            "coverage_notes": [],
+        },
+    }
+
+    prompt = prompt_builder.format_data_for_prompt(data)
+    compact_prompt = prompt_builder.format_data_for_prompt(data, compact=True)
+    payload = json.loads(prompt.split("【財務資料 JSON】\n", 1)[1].split("\n\n【使用規則】", 1)[0])
+    compact_payload = json.loads(compact_prompt.split("【財務資料 JSON】\n", 1)[1].split("\n\n【使用規則】", 1)[0])
+
+    assert payload["global_market_context"]["items"][0]["symbol"] == "QQQ"
+    assert payload["international_news_context"]["topics"][0]["tag"] == "macro"
+    assert [item["symbol"] for item in compact_payload["global_market_context"]["items"]] == ["QQQ", "SMH", "NVDA"]
+    assert [item["headline"] for item in compact_payload["international_news_context"]["topics"]] == [
+        "Fed rate path drives global risk appetite",
+        "AI chip demand lifts suppliers",
+    ]
+    assert "美股帶動" in prompt
+    assert "global_market_context" in prompt
+
+
+def test_runtime_rules_require_agents_to_cite_or_disclose_global_context():
+    rules = json.loads((ROOT / "backend" / "prompts" / "runtime_rules.json").read_text(encoding="utf-8"))
+    enrichment_rules = rules["data_enrichment_instructions"]
+
+    assert any("global_market_context" in rule for rule in enrichment_rules["11"]["rules"])
+    assert any("international_news_context" in rule for rule in enrichment_rules["11"]["rules"])
+    assert any("global_market_context" in rule and "籌碼" in rule for rule in enrichment_rules["15"]["rules"])
+    assert any("global_market_context" in rule and "最終" in rule for rule in enrichment_rules["16"]["rules"])
+
+
 def test_structured_output_warns_on_high_confidence_with_low_trust():
     context = {
         "data": {"data_trust": {"status": "stale"}},

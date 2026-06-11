@@ -338,6 +338,10 @@ def test_operator_signals_avoid_misleading_health_and_tracking_copy():
     assert "<span>近期資料信任</span>" in index_html
     assert "無檢查樣本" in provider_sla_js
     assert "尚無檢查樣本，請查看 24 小時或全部紀錄" in provider_sla_js
+    assert "全球市場脈絡" in provider_sla_js
+    assert "國際新聞脈絡" in provider_sla_js
+    assert "總經、匯率、利率與美股風險偏好" in provider_sla_js
+    assert "國際重大新聞與供應鏈事件" in provider_sla_js
     assert "rowStateLabel" in provider_sla_js
     assert "row.level === 'ok' && !row.attempts" in provider_sla_js
     assert "quotaHealth" in api_quota_js
