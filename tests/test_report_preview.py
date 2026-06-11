@@ -16,8 +16,10 @@ import api_report_service  # noqa: E402
 import job_store  # noqa: E402
 import report_index  # noqa: E402
 import report_history_service  # noqa: E402
+import report_rerun_rendering  # noqa: E402
 import report_rerun_service  # noqa: E402
 from data_fetch import FetchResult  # noqa: E402
+from data_trust_snapshot import build_data_snapshot, verify_data_snapshot_integrity  # noqa: E402
 from reporting import ReportBundle  # noqa: E402
 from report_repository import ReportListQuery  # noqa: E402
 
@@ -647,6 +649,78 @@ def test_rerun_report_analysis_full_report_refreshes_data_before_pipeline(tmp_pa
     assert runner_requests[0].pipeline_id == "v2"
     assert runner_requests[0].data["current_price"] == 333.0
     assert any(event.get("phase") == "rerun_refresh_data" for event in progress_events)
+
+
+def test_rerun_report_persists_valid_snapshot_hash_after_metadata_added(tmp_path, monkeypatch):
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
+    context = {
+        "ticker": "2449.TW",
+        "company_name": "京元電子",
+        "pipeline_id": "v2",
+        "data": {
+            "data_schema_version": 4,
+            "ticker": "2449.TW",
+            "company_name": "京元電子",
+            "current_price": 100.0,
+            "source_freshness": {},
+            "source_audit": [],
+            "data_trust": {
+                "status": "fresh",
+                "critical_failures": [],
+                "stale_sources": [],
+                "last_market_data_at": "2026-06-07T00:00:00+00:00",
+                "notes": [],
+            },
+        },
+        "analyses": {},
+        "structured_outputs": {},
+    }
+
+    class FakeReportRenderer:
+        async def render_async(self, request):
+            snapshot = build_data_snapshot(
+                request.context,
+                pipeline_id=request.pipeline_id,
+                generated_at="2026-06-07T00:00:00+00:00",
+            )
+            assert verify_data_snapshot_integrity(snapshot)["valid"] is True
+            return ReportBundle(
+                html='<div class="sidebar-name">京元電子</div>',
+                markdown="""# 2449.TW 京元電子 - 報告
+
+## 一頁式摘要
+測試摘要。
+
+## 📊 關鍵指標
+- **股價:** NT$100.00
+
+---
+
+## 🎯 最終投資建議
+- **綜合建議:** 持有
+- **3個月目標:** NT$90
+- **6個月目標:** NT$110
+- **12個月目標:** NT$120
+- **信心指數:** 6/10
+""",
+                data_snapshot=snapshot,
+            )
+
+    body = asyncio.run(
+        report_rerun_rendering.render_and_save_rerun_report(
+            context=context,
+            pipeline_id="v2",
+            output_dir=str(tmp_path),
+            report_renderer=FakeReportRenderer(),
+            scope="full_report",
+            source_filename="2449_v2_report_20260606_010000.html",
+        )
+    )
+    stored = json.loads((tmp_path / body["data_filename"]).read_text(encoding="utf-8"))
+
+    assert stored["partial_rerun"]["source_report"] == "2449_v2_report_20260606_010000.html"
+    assert stored["rerun_scope"] == "full_report"
+    assert verify_data_snapshot_integrity(stored)["valid"] is True
 
 
 def test_rerun_report_stream_replays_terminal_event(tmp_path, monkeypatch):

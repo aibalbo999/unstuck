@@ -6,6 +6,7 @@ from datetime import datetime
 from html import escape
 
 from analysis_types import AnalysisContext
+from company_display import company_display_name
 from config import format_model_routes
 from pipeline_modes import get_pipeline_definition
 
@@ -41,7 +42,7 @@ def generate_html_report(context: AnalysisContext) -> str:
     parsed = context.get("parsed", {})
     
     ticker = sanitize_report_plain_text(context.get("ticker", "N/A")) or "N/A"
-    name = sanitize_report_plain_text(context.get("company_name", ticker)) or ticker
+    name = sanitize_report_plain_text(company_display_name(data, context.get("company_name", ticker))) or ticker
     fetch_date = data.get("fetch_date", datetime.now().strftime("%Y年%m月%d日"))
     pipeline_def = get_pipeline_definition(context.get("pipeline_id", "v1"))
     report_title = pipeline_def["report_title"]

@@ -11,6 +11,7 @@ from fastapi import HTTPException
 from agent_runtime import AnalysisRequest
 from agent_runtime.cancellation import attach_cancel_check
 from agent_runtime.quality_gates import run_agent_with_quality_gates_async
+from company_display import company_display_name
 from config import API_KEYS
 from data_fetch import FetchRequest
 from final_audit import run_final_report_audit
@@ -110,7 +111,7 @@ def _build_final_rerun_context(filename: str, snapshot: dict, output_dir: str) -
 
     context = {
         "ticker": snapshot.get("ticker") or data.get("ticker"),
-        "company_name": snapshot.get("company_name") or data.get("company_name") or data.get("ticker"),
+        "company_name": company_display_name(data, snapshot.get("company_name") or data.get("ticker")),
         "data": data,
         "analyses": analyses,
         "structured_outputs": structured_outputs,

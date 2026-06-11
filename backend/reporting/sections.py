@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from analysis_types import AnalysisContext
+from company_display import company_display_name
 from agent_catalog import AGENT_NAMES
 from config import AGENT_MODELS
 from pipeline_modes import get_pipeline_definition
@@ -158,7 +159,7 @@ def build_tear_sheet_summary(context: AnalysisContext) -> str:
     pe_source = pe_river.get("source", "N/A")
 
     return (
-        f"一頁式摘要：{data.get('ticker', 'N/A')} {data.get('company_name', '')} 的綜合建議為「{rec}」，"
+        f"一頁式摘要：{data.get('ticker', 'N/A')} {company_display_name(data)} 的綜合建議為「{rec}」，"
         f"信心指數 {confidence}，基本情境目標價為 NT${base_target if base_target != 'N/A' else 'N/A'}。"
         f"基本面重點在於 {data.get('industry', 'N/A')} 景氣、獲利品質與現金流能否支撐估值；"
         f"近 30 日關鍵催化劑為「{top_catalyst}」。"
@@ -166,4 +167,3 @@ def build_tear_sheet_summary(context: AnalysisContext) -> str:
         f"台股在地估值另以 P/E 河流圖檢視位階（來源：{pe_source}），"
         "若基本面、籌碼與河流圖位階互相背離，短線操作應降低部位與信心。"
     )
-

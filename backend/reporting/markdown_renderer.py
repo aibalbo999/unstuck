@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from analysis_types import AnalysisContext
+from company_display import company_display_name
 from config import format_model_routes
 from pipeline_modes import get_pipeline_definition
 
@@ -18,7 +19,7 @@ def generate_markdown_report(context: AnalysisContext) -> str:
     parsed = context.get("parsed", {})
     
     ticker = context.get("ticker", "N/A")
-    name = context.get("company_name", ticker)
+    name = company_display_name(data, context.get("company_name", ticker))
     fetch_date = data.get("fetch_date", datetime.now().strftime("%Y年%m月%d日"))
     pipeline_def = get_pipeline_definition(context.get("pipeline_id", "v1"))
     report_title = pipeline_def["report_title"]

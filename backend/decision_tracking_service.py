@@ -116,11 +116,25 @@ async def refresh_tracking_items(
             errors.append({"ticker": ticker, "error": message})
             continue
         try:
+            refreshed_for_ticker = 0
             for report in reports:
+                freshness = report.get("decision_freshness") if isinstance(report.get("decision_freshness"), dict) else {}
+                if report.get("analysis_text_stale") or freshness.get("requires_rerun"):
+                    skipped.append({
+                        "ticker": ticker,
+                        "filename": report.get("filename", ""),
+                        "reason": "needs_full_rerun",
+                    })
+                    continue
                 await refresh_report_data_snapshot(report["filename"], output_dir=output_dir, refresh_service=refresh_service)
+                refreshed_for_ticker += 1
                 updated_reports_count += 1
-            decision_tracking_store.mark_refresh(ticker, status="success", message="最新股價已刷新。", now=now)
-            updated_count += 1
+            if refreshed_for_ticker:
+                decision_tracking_store.mark_refresh(ticker, status="success", message="最新股價已刷新。", now=now)
+                updated_count += 1
+            else:
+                message = "最新報告已標示需完整重跑，略過資料快照刷新。"
+                decision_tracking_store.mark_refresh(ticker, status="needs_full_rerun", message=message, now=now)
         except HTTPException as exc:
             message = str(exc.detail or exc)
             decision_tracking_store.mark_refresh(ticker, status="error", message=message, now=now)

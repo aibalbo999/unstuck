@@ -8,6 +8,7 @@ from typing import Any
 
 from fastapi import HTTPException
 
+from company_display import company_display_name
 from data_fetch import FetchRequest
 from data_trust import build_data_snapshot, data_snapshot_filename_for_report, normalize_data_trust, utc_now_iso
 from decision_tracking import build_decision_freshness
@@ -127,7 +128,7 @@ async def refresh_report_data_snapshot(
     refresh_generated_at = utc_now_iso()
     context = {
         "ticker": refreshed_data.get("ticker") or ticker,
-        "company_name": refreshed_data.get("company_name") or previous_snapshot.get("company_name") or ticker,
+        "company_name": company_display_name(refreshed_data, previous_snapshot.get("company_name") or ticker),
         "pipeline_id": previous_snapshot.get("pipeline"),
         "data": refreshed_data,
         "conclusion_generated_at": previous_snapshot.get("conclusion_generated_at") or previous_snapshot.get("generated_at"),

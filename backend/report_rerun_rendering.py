@@ -8,6 +8,7 @@ import time
 from typing import Any
 
 from data_trust import data_snapshot_filename_for_report
+from data_trust_snapshot import set_snapshot_integrity
 from report_index import upsert_report_metadata
 from reporting import ReportRequest
 from report_rerun_context import RERUN_SCOPE_LABELS
@@ -50,6 +51,7 @@ async def render_and_save_rerun_report(
     data_snapshot["partial_rerun"] = context["partial_rerun"]
     data_snapshot["rerun_from_report"] = source_filename
     data_snapshot["rerun_scope"] = scope
+    set_snapshot_integrity(data_snapshot)
 
     with open(os.path.join(output_dir, filename), "w", encoding="utf-8") as f:
         f.write(report_bundle.html)

@@ -11,7 +11,7 @@ import provider_sla  # noqa: E402
 import provider_sla_maintenance  # noqa: E402
 import report_index_maintenance  # noqa: E402
 import job_store_maintenance  # noqa: E402
-from data_trust_snapshot import build_data_snapshot  # noqa: E402
+from data_trust_snapshot import build_data_snapshot, verify_data_snapshot_integrity  # noqa: E402
 from market_calendar_store import update_market_calendars  # noqa: E402
 from snapshot_maintenance import verify_snapshots  # noqa: E402
 from storage_inventory import build_storage_summary  # noqa: E402
@@ -41,6 +41,22 @@ def test_verify_snapshots_backfills_missing_hash(tmp_path):
     assert before["missing_hash"] == 1
     assert after["backfilled"] == 1
     assert stored["snapshot_hash"]
+
+
+def test_verify_snapshots_write_repairs_mismatched_hash(tmp_path):
+    snapshot = build_data_snapshot({"ticker": "TEST", "pipeline_id": "v1", "data": {"ticker": "TEST"}})
+    snapshot["data"]["current_price"] = 123
+    path = tmp_path / "TEST_v1_report_20260607_000000.data.json"
+    path.write_text(json.dumps(snapshot, ensure_ascii=False), encoding="utf-8")
+
+    before = verify_snapshots(output_dir=str(tmp_path), write=False)
+    after = verify_snapshots(output_dir=str(tmp_path), write=True)
+    stored = json.loads(path.read_text(encoding="utf-8"))
+
+    assert before["mismatch"] == 1
+    assert after["mismatch"] == 0
+    assert after["repaired"] == 1
+    assert verify_data_snapshot_integrity(stored)["valid"] is True
 
 
 def test_cleanup_provider_sla_events_applies_retention_and_rebuilds_stats(monkeypatch, tmp_path):
