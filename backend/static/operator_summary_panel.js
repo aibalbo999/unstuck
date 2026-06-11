@@ -48,15 +48,23 @@
         if (needs.length) return { tone: 'warning', value: `${needs.length} 份需重跑`, detail: needs[0]?.ticker || '' };
         return { tone: 'ok', value: '無立即重跑', detail: reports.length ? '依近期報告判斷' : '尚無判斷資料' };
     }
-
+    const dataTrustReasonCodes = report => Array.isArray(report?.data_trust?.reason_codes)
+        ? report.data_trust.reason_codes.map(code => String(code || ''))
+        : [];
+    function hasRefreshableDataTrustIssue(report) {
+        const trust = report?.data_trust || {};
+        const sources = trust.stale_sources;
+        return trust.status === 'stale' || (Array.isArray(sources) && sources.filter(Boolean).length > 0)
+            || dataTrustReasonCodes(report).some(code => code.startsWith('source_stale:'));
+    }
     function reportAction(report) {
         const status = report?.data_trust?.status;
         if (status === 'error') return { title: '暫勿採用', detail: '來源異常，先查看報告' };
         if (report?.analysis_text_stale || report?.decision_freshness?.requires_rerun || report?.requires_rerun) return { title: '建議完整重跑', detail: '結論與資料可能不同步' };
-        if (status === 'stale' || status === 'partial') return { title: '建議刷新資料', detail: '先更新快照再判斷', action: 'refresh-report', label: '刷新資料' };
+        if (hasRefreshableDataTrustIssue(report)) return { title: '建議刷新資料', detail: '先更新快照再判斷', action: 'refresh-report', label: '刷新資料' };
+        if (status === 'partial') return { title: dataTrustReasonCodes(report).includes('provider_sla_critical') ? '來源需留意' : '資料需留意', detail: '資料已是最新快照，請查看來源審計' };
         return null;
     }
-
     function operatorActionItems(jobsPayload, quotaPayload, reportPayload, watchlistPayload) {
         const items = [];
         (reportPayload?.reports || []).some(report => {

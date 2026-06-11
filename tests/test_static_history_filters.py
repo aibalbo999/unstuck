@@ -193,6 +193,8 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "來源明細" in provider_sla_js
     assert "provider-sla-provider-list" in provider_sla_js
     assert "analysis_text_stale" in history_workspace_js
+    assert "payload.analysis_text_stale ?? previewReport.analysis_text_stale" in history_workspace_js
+    assert "payload.analysis_text_stale_message ?? previewReport.analysis_text_stale_message" in history_workspace_js
     assert "rerunPreviewReport" in history_workspace_js
     assert "StockAgentReportRerun.rerunPreviewReport" in history_workspace_js
     assert "/rerun?scope=" in report_rerun_js
@@ -300,6 +302,17 @@ def test_operator_workbench_surfaces_actionable_daily_workflow():
     assert ".maintenance-details" in provider_sla_css
     assert ".operator-action-list" in operator_css
     assert ".operator-action-button" in operator_css
+
+
+def test_report_actions_do_not_prompt_refresh_for_provider_sla_only_partial_reports():
+    history_panel_js = (STATIC_DIR / "history_panel.js").read_text(encoding="utf-8")
+    operator_summary_js = (STATIC_DIR / "operator_summary_panel.js").read_text(encoding="utf-8")
+
+    for source in (history_panel_js, operator_summary_js):
+        assert "hasRefreshableDataTrustIssue" in source
+        assert "provider_sla_critical" in source
+        assert "來源需留意" in source
+        assert "status === 'stale' || status === 'partial'" not in source
 
 
 def test_decision_tracking_controls_and_target_statuses_are_wired():

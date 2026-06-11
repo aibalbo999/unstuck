@@ -486,6 +486,55 @@ def test_refresh_data_snapshot_endpoint_updates_trust(tmp_path, monkeypatch, mut
     assert tracking["refreshed_without_analysis_rerun"] is True
 
 
+def test_refresh_data_snapshot_keeps_decision_current_when_only_provider_sla_changes(tmp_path, monkeypatch, mutation_headers):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
+    filename = "2449_v2_report_20260606_010000.html"
+    write_report_pair(tmp_path, filename, "持有")
+    write_data_snapshot(tmp_path, filename, "fresh", current_price=309.5)
+
+    class FakeRefreshService:
+        async def fetch_async(self, request):
+            return FetchResult(
+                request=request,
+                data={
+                    "data_schema_version": 4,
+                    "ticker": request.ticker,
+                    "company_name": "京元電子",
+                    "source_freshness": {
+                        "market_data": {"stale": False, "fetched_at": "2026-06-06T01:00:00+00:00"},
+                        "financial_statements": {"stale": False, "fetched_at": "2026-06-06T01:00:00+00:00"},
+                    },
+                    "source_audit": [
+                        {"source": "market_data", "provider": "fake", "status": "success", "record_count": 1},
+                        {"source": "financial_statements", "provider": "fake", "status": "success", "record_count": 1},
+                    ],
+                    "current_price": 309.5,
+                    "data_trust": {
+                        "status": "partial",
+                        "critical_failures": [],
+                        "stale_sources": [],
+                        "last_market_data_at": "2026-06-06T01:00:00+00:00",
+                        "notes": ["來源健康度警示，但核心資料未變動。"],
+                        "reason_codes": ["fresh_core_sources", "provider_sla_critical"],
+                    },
+                },
+            )
+
+    monkeypatch.setattr(api, "data_refresh_service", FakeRefreshService())
+    client = TestClient(api.app)
+    response = client.post(f"/api/report/{filename}/refresh/data", headers=mutation_headers)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["analysis_text_stale"] is False
+    assert body["decision_freshness"]["status"] == "current"
+    assert body["decision_freshness"]["requires_rerun"] is False
+    saved = json.loads((tmp_path / filename.replace(".html", ".data.json")).read_text(encoding="utf-8"))
+    assert saved["refreshed_without_analysis_rerun"] is False
+    assert saved["decision_validity_status"] == "current"
+
+
 def test_refresh_data_snapshot_endpoint_rejects_legacy_without_snapshot(tmp_path, monkeypatch, mutation_headers):
     monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
     filename = "2449_v2_report_20260606_010000.html"

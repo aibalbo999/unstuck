@@ -129,9 +129,9 @@
                     ...previewReport,
                     data_trust: payload.data_trust || previewReport.data_trust,
                     data_snapshot_filename: payload.data_filename || previewReport.data_snapshot_filename,
-                    analysis_text_stale: payload.analysis_text_stale || previewReport.analysis_text_stale,
-                    analysis_text_stale_message: payload.analysis_text_stale_message || previewReport.analysis_text_stale_message,
-                    decision_freshness: payload.decision_freshness || previewReport.decision_freshness
+                    analysis_text_stale: payload.analysis_text_stale ?? previewReport.analysis_text_stale,
+                    analysis_text_stale_message: payload.analysis_text_stale_message ?? previewReport.analysis_text_stale_message,
+                    decision_freshness: payload.decision_freshness ?? previewReport.decision_freshness
                 };
                 historyReports.set(filename, updated);
                 previewReport = updated;
