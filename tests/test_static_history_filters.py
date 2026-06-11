@@ -354,6 +354,17 @@ def test_operator_signals_avoid_misleading_health_and_tracking_copy():
     assert "尚待新價格" in report_preview_js
 
 
+def test_provider_sla_shows_global_context_sources_before_first_sample():
+    provider_sla_js = (STATIC_DIR / "provider_sla_panel.js").read_text(encoding="utf-8")
+
+    assert "EXPECTED_CONTEXT_SOURCES" in provider_sla_js
+    assert "mergeExpectedContextRows" in provider_sla_js
+    assert "global_market_context" in provider_sla_js
+    assert "international_news_context" in provider_sla_js
+    assert "hasSource" in provider_sla_js
+    assert "尚未建立檢查樣本" in provider_sla_js
+
+
 def test_decision_tracking_controls_and_target_statuses_are_wired():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     api_client_extensions_js = (STATIC_DIR / "api_client_extensions.js").read_text(encoding="utf-8")

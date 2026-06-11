@@ -1,29 +1,21 @@
 (function () {
     const SOURCE_LABELS = {
-        market_data: '股價與基本資料',
-        financial_statements: '財報資料',
-        recent_catalysts: '新聞與事件',
-        global_market_context: '全球市場脈絡',
-        international_news_context: '國際新聞脈絡',
-        peer_discovery: '同業比較',
-        monthly_revenue: '月營收',
-        institutional_trading: '法人籌碼',
-        dynamic_peer_metrics: '同業指標',
-        pe_river_chart: '估值區間'
+        market_data: '股價與基本資料', financial_statements: '財報資料', recent_catalysts: '新聞與事件',
+        global_market_context: '全球市場脈絡', international_news_context: '國際新聞脈絡', peer_discovery: '同業比較',
+        monthly_revenue: '月營收', institutional_trading: '法人籌碼', dynamic_peer_metrics: '同業指標', pe_river_chart: '估值區間'
     };
     const SOURCE_IMPACT = {
-        market_data: '影響目前股價、估值與報告起點',
-        financial_statements: '影響營收、獲利與財務比率',
-        recent_catalysts: '補充資料，影響近期題材與風險事件',
-        global_market_context: '補充資料，影響總經、匯率、利率與美股風險偏好判讀',
-        international_news_context: '補充資料，影響國際重大新聞與供應鏈事件判讀',
-        peer_discovery: '補充資料，影響同業比較與估值參照',
-        monthly_revenue: '影響台股月營收判讀',
-        institutional_trading: '影響法人籌碼判讀',
-        dynamic_peer_metrics: '影響同業財務與估值指標',
-        pe_river_chart: '影響本益比區間參考'
+        market_data: '影響目前股價、估值與報告起點', financial_statements: '影響營收、獲利與財務比率',
+        recent_catalysts: '補充資料，影響近期題材與風險事件', global_market_context: '補充資料，影響總經、匯率、利率與美股風險偏好判讀',
+        international_news_context: '補充資料，影響國際重大新聞與供應鏈事件判讀', peer_discovery: '補充資料，影響同業比較與估值參照',
+        monthly_revenue: '影響台股月營收判讀', institutional_trading: '影響法人籌碼判讀',
+        dynamic_peer_metrics: '影響同業財務與估值指標', pe_river_chart: '影響本益比區間參考'
     };
     const LEVEL_WEIGHT = { ok: 0, warning: 1, critical: 2 };
+    const EXPECTED_CONTEXT_SOURCES = [
+        { source: 'global_market_context', provider: 'yfinance global context', message: '尚未建立檢查樣本；下一次新分析或重新抓取後會更新全球市場脈絡。' },
+        { source: 'international_news_context', provider: 'GDELT', message: '尚未建立檢查樣本；下一次新分析或重新抓取後會更新國際新聞脈絡。' }
+    ];
 
     function providerSlaClass(level) {
         return ['ok', 'warning', 'critical'].includes(level) ? level : 'ok';
@@ -36,12 +28,7 @@
     }
 
     function providerSlaWindowLabel(windowKey) {
-        const labels = {
-            all: '全部紀錄',
-            last_1h: '近 1 小時',
-            last_24h: '近 24 小時',
-            last_7d: '近 7 天'
-        };
+        const labels = { all: '全部紀錄', last_1h: '近 1 小時', last_24h: '近 24 小時', last_7d: '近 7 天' };
         return labels[windowKey] || labels.all;
     }
 
@@ -78,15 +65,7 @@
         providers.forEach(item => {
             const stats = providerSlaStatsForWindow(item, selectedWindow);
             const source = item.source || 'unknown';
-            const current = groups.get(source) || {
-                source,
-                level: 'ok',
-                attempts: 0,
-                healthyCount: 0,
-                totalRecords: 0,
-                providerRows: [],
-                messages: []
-            };
+            const current = groups.get(source) || { source, level: 'ok', attempts: 0, healthyCount: 0, totalRecords: 0, providerRows: [], messages: [] };
             const level = providerSlaClass(item.alert_level);
             const attempts = Number(stats.attempts || 0);
             const healthyCount = Number(stats.success_count || 0) + Number(stats.skipped_fresh_cache_count || 0);
@@ -95,16 +74,8 @@
             current.healthyCount += healthyCount;
             current.totalRecords += Number(stats.total_records || 0);
             if (item.provider) {
-                current.providerRows.push({
-                    provider: item.provider,
-                    level,
-                    attempts,
-                    healthyCount,
-                    successRate: attempts ? healthyCount / attempts : NaN,
-                    totalRecords: Number(stats.total_records || 0),
-                    lastStatus: item.last_status || '',
-                    lastMessage: item.alert_message || item.last_message || ''
-                });
+                current.providerRows.push({ provider: item.provider, level, attempts, healthyCount, successRate: attempts ? healthyCount / attempts : NaN,
+                    totalRecords: Number(stats.total_records || 0), lastStatus: item.last_status || '', lastMessage: item.alert_message || item.last_message || '' });
             }
             if (item.alert_message || item.last_message) current.messages.push(item.alert_message || item.last_message);
             groups.set(source, current);
@@ -113,6 +84,29 @@
             const levelDelta = (LEVEL_WEIGHT[b.level] || 0) - (LEVEL_WEIGHT[a.level] || 0);
             return levelDelta || b.attempts - a.attempts;
         });
+    }
+
+    function hasSource(rows, source) {
+        return rows.some(row => row.source === source);
+    }
+
+    function mergeExpectedContextRows(rows) {
+        const merged = rows.slice();
+        EXPECTED_CONTEXT_SOURCES.forEach(expected => {
+            if (hasSource(merged, expected.source)) return;
+            merged.push({ source: expected.source, level: 'ok', attempts: 0, healthyCount: 0, totalRecords: 0, messages: [expected.message], expectedContext: true,
+                providerRows: [{ provider: expected.provider, level: 'ok', attempts: 0, healthyCount: 0, successRate: NaN, totalRecords: 0, lastStatus: '', lastMessage: expected.message }] });
+        });
+        return merged;
+    }
+
+    function visibleProviderRows(rows) {
+        const visible = rows.slice(0, 6);
+        EXPECTED_CONTEXT_SOURCES.forEach(expected => {
+            const contextRow = rows.find(row => row.source === expected.source);
+            if (contextRow && !hasSource(visible, expected.source)) visible.push(contextRow);
+        });
+        return visible;
     }
 
     function summaryText(rows, windowLabel, providers) {
@@ -126,6 +120,7 @@
     }
 
     function insightText(row) {
+        if (!row.attempts && row.expectedContext) return '尚未建立檢查樣本；下一次新分析或重新抓取後會更新。';
         if (!row.attempts) return '這段時間還沒有用到這類資料。';
         if (row.level === 'critical') return `${sourceImpact(row.source)}，這次分析可能需要稍後重跑。`;
         if (row.level === 'warning') return `${sourceImpact(row.source)}；近期偶有失敗，分析時會先使用仍有效的快取，必要時嘗試備援來源。`;
@@ -169,10 +164,10 @@
         const providers = payload?.providers || [];
         const selectedWindow = windowEl ? windowEl.value : 'all';
         const windowLabel = providerSlaWindowLabel(selectedWindow);
-        const rows = groupedProviderRows(providers, selectedWindow);
+        const rows = mergeExpectedContextRows(groupedProviderRows(providers, selectedWindow));
         summaryEl.textContent = summaryText(rows, windowLabel, providers);
         listEl.innerHTML = rows.length
-            ? rows.slice(0, 6).map(row => {
+            ? visibleProviderRows(rows).map(row => {
                 const successRate = row.attempts ? row.healthyCount / row.attempts : NaN;
                 const recordsLabel = row.totalRecords ? `取得 ${row.totalRecords} 筆資料` : '資料量尚少';
                 const checksLabel = row.attempts ? `檢查 ${row.attempts} 次` : '尚未檢查';
@@ -196,6 +191,8 @@
         render,
         providerSlaStatsForWindow,
         providerSlaWindowLabel,
-        groupedProviderRows
+        groupedProviderRows,
+        mergeExpectedContextRows,
+        visibleProviderRows
     };
 })();
