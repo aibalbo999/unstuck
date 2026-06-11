@@ -36,7 +36,12 @@ TAIWAN_IDENTITY_OVERRIDES = {
 
 
 def _stock_id_from_ticker(ticker: str) -> str:
-    return str(ticker).replace(".TW", "").replace(".TWO", "")
+    text = str(ticker)
+    if text.endswith(".TWO"):
+        return text[:-4]
+    if text.endswith(".TW"):
+        return text[:-3]
+    return text
 
 
 def is_taiwan_ticker(ticker: str) -> bool:

@@ -13,7 +13,7 @@ except ImportError:  # pragma: no cover - Python < 3.9 fallback
 
 
 def is_taiwan_ticker(ticker: str) -> bool:
-    stock_id = str(ticker).replace(".TW", "").replace(".TWO", "")
+    stock_id = str(ticker).replace(".TWO", "").replace(".TW", "")
     return str(ticker).endswith(".TW") or str(ticker).endswith(".TWO") or (stock_id.isdigit() and len(stock_id) == 4)
 
 

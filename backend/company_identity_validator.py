@@ -45,7 +45,7 @@ def validate_company_identity(text: str, data: dict) -> list[str]:
 
     issues = []
     ticker = data.get("ticker", identity.get("ticker", ""))
-    stock_id = identity.get("stock_id", ticker.replace(".TW", "").replace(".TWO", ""))
+    stock_id = identity.get("stock_id", ticker.replace(".TWO", "").replace(".TW", ""))
     official_name = identity.get("official_name")
     allowed_aliases = set(identity.get("allowed_aliases", []))
     forbidden_aliases = set(identity.get("forbidden_aliases", []))
