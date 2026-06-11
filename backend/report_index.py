@@ -244,7 +244,9 @@ def query_report_metadata(
             latest_sql = f"""
                 FROM (
                     SELECT reports.*, ROW_NUMBER() OVER (
-                        PARTITION BY ticker, pipeline_id ORDER BY {order_sql}
+                        PARTITION BY
+                            lower(CASE WHEN instr(ticker, '.') > 0 THEN substr(ticker, 1, instr(ticker, '.') - 1) ELSE ticker END),
+                            pipeline_id ORDER BY {order_sql}
                     ) AS version_rank
                     FROM reports WHERE {where_sql}
                 )

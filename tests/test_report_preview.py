@@ -331,6 +331,28 @@ def test_get_reports_defaults_to_latest_report_per_ticker_and_mode(tmp_path, mon
     }
 
 
+def test_get_reports_treats_exchange_suffix_as_same_ticker_version(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
+    filenames = [
+        "2449_v1_report_20260606_010000.html",
+        "2449_TW_v1_report_20260606_020000.html",
+        "2449_v2_report_20260606_010000.html",
+        "2449_TW_v2_report_20260606_020000.html",
+    ]
+    for filename in filenames:
+        write_report_pair(tmp_path, filename, "持有")
+
+    result = list_reports_for_test(tmp_path)
+
+    assert result["pagination"]["include_versions"] is False
+    assert result["pagination"]["total"] == 2
+    assert {report["filename"] for report in result["reports"]} == {
+        "2449_TW_v1_report_20260606_020000.html",
+        "2449_TW_v2_report_20260606_020000.html",
+    }
+
+
 def test_get_reports_can_include_old_report_versions(tmp_path, monkeypatch):
     monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
     monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
