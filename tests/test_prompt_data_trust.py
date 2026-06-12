@@ -108,6 +108,31 @@ def test_prompt_payload_includes_global_market_and_international_news_context():
     assert "global_market_context" in prompt
 
 
+def test_compact_prompt_keeps_macro_commodity_and_regional_context_representatives():
+    data = {
+        "ticker": "2330.TW",
+        "company_name": "台積電",
+        "global_market_context": {
+            "items": [
+                {"symbol": "SPY", "category": "us_broad", "change_5d_pct": 0.2, "source": "yfinance"},
+                {"symbol": "QQQ", "category": "us_growth", "change_5d_pct": 1.1, "source": "yfinance"},
+                {"symbol": "SMH", "category": "semiconductors_ai", "change_5d_pct": 1.4, "source": "yfinance"},
+                {"symbol": "^TNX", "category": "rates", "change_5d_pct": -0.5, "source": "yfinance"},
+                {"symbol": "DX-Y.NYB", "category": "fx", "change_5d_pct": 0.4, "source": "yfinance"},
+                {"symbol": "CL=F", "category": "commodity_energy", "change_5d_pct": 2.3, "source": "yfinance"},
+                {"symbol": "^TWII", "category": "regional_taiwan", "change_5d_pct": 1.7, "source": "yfinance"},
+            ],
+            "coverage_notes": [],
+        },
+    }
+
+    compact_prompt = prompt_builder.format_data_for_prompt(data, compact=True)
+    compact_payload = json.loads(compact_prompt.split("【財務資料 JSON】\n", 1)[1].split("\n\n【使用規則】", 1)[0])
+    symbols = {item["symbol"] for item in compact_payload["global_market_context"]["items"]}
+
+    assert {"^TNX", "DX-Y.NYB", "CL=F", "^TWII"}.issubset(symbols)
+
+
 def test_runtime_rules_require_agents_to_cite_or_disclose_global_context():
     rules = json.loads((ROOT / "backend" / "prompts" / "runtime_rules.json").read_text(encoding="utf-8"))
     enrichment_rules = rules["data_enrichment_instructions"]

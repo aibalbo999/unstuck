@@ -152,6 +152,25 @@ def test_global_market_context_summarizes_market_proxy_history(monkeypatch):
     assert context["items"][0]["source"] == "yfinance"
 
 
+def test_global_market_context_includes_no_key_macro_commodity_and_regional_sources(monkeypatch):
+    monkeypatch.setattr(global_context.yf, "Ticker", lambda symbol: FakeMarketProxy([100.0, 104.0, 110.0]))
+
+    context = global_context.fetch_global_market_context(
+        "2330.TW",
+        "Taiwan Semiconductor",
+        "Technology",
+        "Semiconductors",
+    )
+    by_symbol = {item["symbol"]: item for item in context["items"]}
+
+    assert {"^TNX", "DX-Y.NYB", "CL=F", "GC=F", "^TWII", "EWT", "EWJ", "EWY"}.issubset(by_symbol)
+    assert by_symbol["^TNX"]["category"] == "rates"
+    assert by_symbol["DX-Y.NYB"]["category"] == "fx"
+    assert by_symbol["CL=F"]["category"] == "commodity_energy"
+    assert by_symbol["GC=F"]["category"] == "commodity_safe_haven"
+    assert by_symbol["^TWII"]["category"] == "regional_taiwan"
+
+
 def test_gdelt_article_payload_parses_international_news_topics():
     payload = {
         "articles": [
