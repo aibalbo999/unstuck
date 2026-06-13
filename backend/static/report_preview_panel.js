@@ -25,6 +25,10 @@
         return value > 0 ? 'is-positive' : 'is-negative';
     }
 
+    function awaitingTrackingPrice(tracking) {
+        return tracking?.status === 'tracked' && Number(tracking.return_pct) === 0 && Number(tracking.initial_price) === Number(tracking.latest_price);
+    }
+
     function setButtonText(button, text) {
         const label = button ? button.querySelector('span') : null;
         if (label) label.textContent = text;
@@ -34,7 +38,10 @@
         const isModeB = pipelineId === 'v2';
         setButtonText(elements.rerunFinalBtn, isModeB ? '重跑模式 B 最終建議' : '重跑模式 A 最終建議');
         setButtonText(elements.rerunFullBtn, isModeB ? '完整重跑模式 B' : '完整重跑模式 A');
-        setButtonText(elements.rerunModeBBtn, isModeB ? '重跑完整模式 B' : '產生模式 B 報告');
+        if (elements.rerunModeBBtn) {
+            elements.rerunModeBBtn.hidden = isModeB;
+            if (!isModeB) setButtonText(elements.rerunModeBBtn, '產生模式 B 報告');
+        }
     }
 
     function renderTracking(tracking, elements) {
@@ -44,11 +51,11 @@
             return;
         }
         elements.trackingLatest.textContent = formatNumber(tracking.latest_price);
-        elements.trackingReturn.textContent = formatPct(tracking.return_pct);
+        elements.trackingReturn.textContent = awaitingTrackingPrice(tracking) ? '待新價格' : formatPct(tracking.return_pct);
         elements.trackingReturn.className = returnTone(tracking);
         elements.trackingGap.textContent = formatPct(tracking.target_12m_gap_pct);
         elements.trackingGap.className = pctTone(tracking.target_12m_gap_pct);
-        elements.trackingSummary.textContent = tracking.summary || '已建立決策追蹤。';
+        elements.trackingSummary.textContent = awaitingTrackingPrice(tracking) ? '尚待新價格更新後計算建議後報酬。' : (tracking.summary || '已建立決策追蹤。');
         elements.trackingRoot.hidden = false;
     }
 

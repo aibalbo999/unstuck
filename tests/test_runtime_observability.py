@@ -215,6 +215,46 @@ def test_provider_sla_api_applies_window_server_side(monkeypatch):
     assert body["alerts"][0]["provider"] == "fake"
 
 
+def test_provider_sla_window_without_samples_does_not_reuse_stale_alert(monkeypatch):
+    monkeypatch.setattr(api, "get_provider_sla_summary", lambda limit=100: [{
+        "source": "recent_catalysts",
+        "provider": "fake-news",
+        "attempts": 10,
+        "availability_attempts": 10,
+        "success_count": 1,
+        "error_count": 0,
+        "success_rate": 0.1,
+        "avg_duration_ms": 10,
+        "total_records": 1,
+        "last_status": "unavailable",
+        "last_message": "older outage",
+        "alert_level": "critical",
+        "alert_message": "older outage",
+        "windows": {
+            "last_1h": {
+                "attempts": 0,
+                "availability_attempts": 0,
+                "success_count": 0,
+                "error_count": 0,
+                "success_rate": 0.0,
+                "avg_duration_ms": 0,
+                "total_records": 0,
+            }
+        },
+    }])
+    monkeypatch.setattr(api, "get_provider_sla_alerts", lambda limit=100: [{"provider": "fake-news", "alert_level": "critical"}])
+
+    client = TestClient(api.app)
+    response = client.get("/api/observability/provider-sla", params={"window": "last_1h"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["providers"][0]["attempts"] == 0
+    assert body["providers"][0]["alert_level"] == "ok"
+    assert body["providers"][0]["alert_message"] == ""
+    assert body["alerts"] == []
+
+
 def test_active_jobs_observability_summarizes_latest_events(monkeypatch, tmp_path):
     monkeypatch.setattr(job_store, "TASK_DB_PATH", str(tmp_path / "jobs.sqlite3"))
     job_store.reset_job_store_for_tests()

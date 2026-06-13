@@ -52,10 +52,10 @@ from data_trust_scoring import (
     trust_status_label,
     unknown_data_trust,
 )
+from data_trust_legacy_snapshot import build_legacy_report_snapshot
 from data_trust_snapshot import (
     apply_snapshot_size_governance,
     build_data_snapshot,
-    build_legacy_report_snapshot,
     read_data_trust_from_snapshot,
     sanitize_for_snapshot,
     sanitize_rerun_context as _sanitize_rerun_context,

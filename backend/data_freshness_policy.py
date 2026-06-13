@@ -18,6 +18,8 @@ SOURCE_FRESHNESS_SOURCES = (
     "financial_statements",
     "monthly_revenue",
     "recent_catalysts",
+    "global_market_context",
+    "international_news_context",
     "institutional_trading",
     "dynamic_peer_metrics",
     "peer_discovery",

@@ -30,11 +30,15 @@
         if (pipelineId === 'both') return '連續 A+B · 兩份報告';
         return pipelineId === 'v2' ? '模式 B · 實戰交易派' : '模式 A · 學術深度派';
     }
+    function providerSlaOnlyPartial(trust) {
+        const codes = trust && Array.isArray(trust.reason_codes) ? trust.reason_codes : [], stale = trust && Array.isArray(trust.stale_sources) ? trust.stale_sources.filter(Boolean) : [], failures = trust && Array.isArray(trust.critical_failures) ? trust.critical_failures.filter(Boolean) : [];
+        return trust?.status === 'partial' && codes.includes('provider_sla_critical') && !stale.length && !failures.length;
+    }
     function dataTrustLabel(trust) {
         const status = trust && trust.status ? trust.status : 'unknown';
         const labels = {
             fresh: '本報告資料新鮮',
-            partial: '本報告部分異常',
+            partial: providerSlaOnlyPartial(trust) ? '本報告來源提醒' : '本報告資料需留意',
             stale: '本報告部分過期',
             error: '本報告來源異常',
             unknown: '本報告未記錄'
@@ -63,7 +67,6 @@
         const sourceLabels = { market_data: '市場資料', financial_statements: '年度財報', monthly_revenue: '月營收', institutional_trading: '法人籌碼', dynamic_peer_metrics: '同業指標', pe_river_chart: 'P/E 河流圖', recent_catalysts: '近期催化劑', peer_discovery: '同業搜尋' };
         return `${labels[base] || base}${source ? `：${sourceLabels[source] || source}` : ''}`;
     }
-
     function dataTrustReasonSummary(trust) {
         const codes = trust && Array.isArray(trust.reason_codes) ? trust.reason_codes : [];
         const reasons = codes.slice(0, 2).map(dataTrustReasonLabel);
@@ -71,13 +74,11 @@
         if (!reasons.length && scoreReasons.length) return scoreReasons.slice(0, 2).join('、');
         return reasons.join('、');
     }
-
     function dataTrustScoreLabel(trust) {
         const score = trust && Number(trust.score);
         if (!Number.isFinite(score)) return '';
         return `${Math.max(0, Math.min(100, Math.round(score)))}分`;
     }
-
     function normalizeRecommendation(value) {
         const text = String(value || 'N/A');
         if (text.includes('買入')) return '買入';
@@ -85,14 +86,12 @@
         if (text.includes('持有')) return '持有';
         return text;
     }
-
     function recommendationTone(value) {
         const text = normalizeRecommendation(value);
         if (text === '買入') return 'is-buy';
         if (text === '避免') return 'is-avoid';
         return 'is-hold';
     }
-
     function escapeHtml(value) {
         return String(value ?? '').replace(/[&<>"']/g, (char) => ({
             '&': '&amp;',
@@ -102,18 +101,15 @@
             "'": '&#39;'
         }[char]));
     }
-
     function renderPipelineModeBadge(pipelineId) {
         return `<span class="history-mode ${pipelineModeClass(pipelineId)}">${escapeHtml(pipelineModeLabel(pipelineId))}</span>`;
     }
-
     function renderDataTrustBadge(trust) {
         const label = dataTrustLabel(trust);
         const score = dataTrustScoreLabel(trust);
         const text = score ? `${label} · ${score}` : label;
         return `<span class="data-trust-badge is-${dataTrustClass(trust)}" title="${escapeHtml(text)}">${escapeHtml(text)}</span>`;
     }
-
     function renderDataTrustReason(trust) {
         const summary = dataTrustReasonSummary(trust);
         return summary ? `<span class="data-trust-reason">${escapeHtml(summary)}</span>` : '';
@@ -131,6 +127,7 @@
         normalizeRecommendation,
         recommendationTone,
         escapeHtml,
+        providerSlaOnlyPartial,
         renderPipelineModeBadge,
         renderDataTrustBadge,
         renderDataTrustReason

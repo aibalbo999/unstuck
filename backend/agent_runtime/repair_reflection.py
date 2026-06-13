@@ -12,6 +12,7 @@ from llm_client import (
     generate_content,
     generate_content_async,
     is_missing_model_error,
+    is_quota_or_rate_error,
 )
 from prompt_rules import get_task_system_instruction
 from runtime_events import emit_log
@@ -76,7 +77,8 @@ def generate_audit_reflection(agent_num: int, issues: list[str], previous_text: 
             text = sanitize_model_output(_response_text(response))
             return text or _fallback_audit_reflection(agent_num, issues)
         except Exception as exc:
-            if is_missing_model_error(str(exc)):
+            if is_missing_model_error(str(exc)) or is_quota_or_rate_error(str(exc)):
+                emit_log(f"       ↳ 反思步驟模型 {model_id} 不可用或額度受限，改試下一個 audit model。")
                 continue
             emit_log(f"       ↳ 反思步驟呼叫失敗，改用 deterministic reflection：{str(exc)[:100]}")
             break
@@ -96,7 +98,8 @@ async def generate_audit_reflection_async(agent_num: int, issues: list[str], pre
             text = sanitize_model_output(_response_text(response))
             return text or _fallback_audit_reflection(agent_num, issues)
         except Exception as exc:
-            if is_missing_model_error(str(exc)):
+            if is_missing_model_error(str(exc)) or is_quota_or_rate_error(str(exc)):
+                emit_log(f"       ↳ 非同步反思步驟模型 {model_id} 不可用或額度受限，改試下一個 audit model。")
                 continue
             emit_log(f"       ↳ 非同步反思步驟呼叫失敗，改用 deterministic reflection：{str(exc)[:100]}")
             break

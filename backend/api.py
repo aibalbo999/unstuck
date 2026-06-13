@@ -17,7 +17,9 @@ from api_routes.analysis import AnalysisRouteDeps, create_analysis_router
 from api_routes.decision_tracking import DecisionTrackingRouteDeps, create_decision_tracking_router
 from api_routes.maintenance import MaintenanceRouteDeps, create_maintenance_router
 from api_routes.observability import ObservabilityRouteDeps, create_observability_router
+from api_routes.performance import PerformanceRouteDeps, create_performance_router
 from api_routes.reports import ReportRouteDeps, create_reports_router
+from api_routes.review import ReviewRouteDeps, create_review_router
 from api_routes.static_files import create_static_router
 from api_routes.watchlist import WatchlistRouteDeps, create_watchlist_router
 from config import (
@@ -246,6 +248,13 @@ def create_app() -> FastAPI:
         append_event=append_event,
         request_job_cancel=lambda job_id, reason: request_job_cancel(job_id, reason),
         print_streamed_event=print_streamed_event,
+        require_mutation_authorized=require_mutation_authorized,
+    )))
+    app.include_router(create_performance_router(PerformanceRouteDeps(
+        get_output_dir=lambda: OUTPUT_DIR,
+    )))
+    app.include_router(create_review_router(ReviewRouteDeps(
+        get_output_dir=lambda: OUTPUT_DIR,
         require_mutation_authorized=require_mutation_authorized,
     )))
     app.include_router(create_decision_tracking_router(DecisionTrackingRouteDeps(

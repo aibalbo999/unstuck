@@ -93,6 +93,60 @@ class FmpNewsProvider(DataProvider):
         return provider_result_from_audited(result, self.source, self.name)
 
 
+class GlobalMarketContextProvider(DataProvider):
+    name = "yfinance global context"
+    source = "global_market_context"
+
+    def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
+        from .market_sources.global_context import fetch_global_market_context
+
+        context = context or {}
+        data = context.get("data", {}) or {}
+        cache_hit = bool(data.get("_cache_hit"))
+        result = audited_fetch(
+            self.source,
+            self.name,
+            fetch_global_market_context,
+            (
+                str(data.get("ticker") or request.ticker).strip().upper(),
+                str(data.get("company_name") or request.ticker),
+                str(data.get("sector") or ""),
+                str(data.get("industry") or ""),
+            ),
+            default={"lookback_days": 5, "items": [], "coverage_notes": ["全球市場脈絡暫無可用資料。"]},
+            record_counter=lambda value: len(value.get("items", [])) if isinstance(value, dict) else 0,
+            cache_hit=cache_hit,
+            unavailable_message="yfinance global context 未回傳全球市場脈絡。",
+        )
+        return provider_result_from_audited(result, self.source, self.name)
+
+
+class InternationalNewsContextProvider(DataProvider):
+    name = "GDELT / Google News RSS"
+    source = "international_news_context"
+
+    async def fetch_async(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
+        from external_data_gdelt import fetch_gdelt_international_news_context
+
+        context = context or {}
+        data = context.get("data", {}) or {}
+        cache_hit = bool(data.get("_cache_hit"))
+        result = await audited_fetch_async(
+            self.source,
+            self.name,
+            fetch_gdelt_international_news_context,
+            (
+                str(data.get("sector") or ""),
+                str(data.get("industry") or ""),
+            ),
+            default={"lookback_days": 7, "topics": [], "coverage_notes": ["國際新聞脈絡暫無可用資料。"]},
+            record_counter=lambda value: len(value.get("topics", [])) if isinstance(value, dict) else 0,
+            cache_hit=cache_hit,
+            unavailable_message="GDELT 未回傳國際新聞脈絡。",
+        )
+        return provider_result_from_audited(result, self.source, self.name)
+
+
 class GooglePeerDiscoveryProvider(DataProvider):
     name = "Google Search"
     source = "peer_discovery"

@@ -234,6 +234,7 @@
       "title": "即時催化劑使用規則",
       "rules": [
         "商業模式與產業趨勢請納入 market_catalysts.items 中近 30 日新聞/法說/供應鏈標題。",
+        "總經、美股帶動、匯率、利率或國際供應鏈敘述必須引用 global_market_context 與 international_news_context；若缺資料，請明確標示全球脈絡未驗證。",
         "若 catalyst 來源不足，請明確標示資料限制，不要用既有常識假裝近期事件。"
       ]
     },
@@ -265,10 +266,18 @@
         "高成長催化劑需區分「已落地訂單/產能」與「尚未驗證題材」，資料不足時請降低信心。"
       ]
     },
+    "6": {
+      "title": "多空辯論全球脈絡規則",
+      "rules": [
+        "Round 3 近期催化劑攻防需檢查 global_market_context / international_news_context 是否形成全球風險偏好、匯率、利率或國際供應鏈順逆風。",
+        "若全球市場或國際新聞脈絡與近期催化劑方向相反，多空雙方至少一方需指出這項反證或資料限制。"
+      ]
+    },
     "7": {
       "title": "最終決策即時資料規則",
       "rules": [
-        "最終建議需綜合 recent_catalysts、institutional_trading 與 Agent 4 估值結果。",
+        "最終建議需綜合 recent_catalysts、institutional_trading、global_market_context、international_news_context 與 Agent 4 估值結果。",
+        "最終風險報酬必須說明 global_market_context / international_news_context 是否影響結論；若缺資料，請明確揭露未納入全球脈絡。",
         "若近期新聞/籌碼和長期基本面方向相反，請分別說明短期與長期判斷。",
         "3-6 個月目標與信心指數需參考 institutional_trading 的外資、投信、自營商近 30 日買賣超趨勢。",
         "若基本面與籌碼面背離，請降低短期信心或清楚區分長短期觀點。"
@@ -278,6 +287,7 @@
       "title": "總經與產業催化劑使用規則",
       "rules": [
         "總經與產業週期請納入 market_catalysts.items 中近 30 日新聞、法說、政策或供應鏈標題。",
+        "總經、美股帶動、匯率、利率與全球半導體循環判斷必須引用 global_market_context 與 international_news_context；若缺資料，請明確標示全球脈絡未驗證。",
         "若 catalyst 來源不足，請明確標示資料限制，不要用既有常識假裝近期事件。"
       ]
     },
@@ -303,6 +313,7 @@
       "title": "籌碼與情緒資料規則",
       "rules": [
         "短線動能請優先引用 institutional_trading 的外資、投信、自營商近 30 日買賣超趨勢。",
+        "籌碼與情緒判斷需區分 institutional_trading 的本地法人趨勢與 global_market_context / international_news_context 的全球風險偏好，不可混為同一訊號。",
         "P/E 河流圖只作交易位階與安全邊際判斷，不可自行推出長期 DCF 目標價。",
         "若近期新聞與法人籌碼背離，請明確判斷是利多出盡、利空出盡或多空分歧。"
       ]
@@ -310,7 +321,8 @@
     "16": {
       "title": "實戰決策即時資料規則",
       "rules": [
-        "最終交易決策需綜合 Agent 14 估值區間、Agent 15 籌碼動能、recent_catalysts 與 institutional_trading。",
+        "最終交易決策需綜合 Agent 14 估值區間、Agent 15 籌碼動能、recent_catalysts、institutional_trading 與 global_market_context。",
+        "最終風險報酬必須說明 global_market_context / international_news_context 是否影響結論；若缺資料，請明確揭露未納入全球脈絡。",
         "若基本面與籌碼面背離，請降低短期信心或提出分批/觀望/停損等風控策略。",
         "3-6 個月目標與信心指數需反映外資、投信、自營商近 30 日趨勢。"
       ]

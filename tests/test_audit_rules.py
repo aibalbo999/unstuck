@@ -4,6 +4,7 @@ import sys
 import json
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 
@@ -12,6 +13,7 @@ sys.path.insert(0, str(ROOT / "backend"))
 
 import agent_runtime.legacy_agent_runner as ar  # noqa: E402
 import agent_runtime.audit_repair as audit_repair  # noqa: E402
+import agent_runtime.repair_reflection as repair_reflection  # noqa: E402
 import assistant_tasks  # noqa: E402
 import config  # noqa: E402
 import external_data_clients as edc  # noqa: E402
@@ -26,6 +28,7 @@ import rag_runtime  # noqa: E402
 import reporting.legacy_report_gen as report_gen  # noqa: E402
 import reporting.utils as report_utils  # noqa: E402
 import structured_outputs  # noqa: E402
+from llm_client import KeyRotator  # noqa: E402
 
 
 def base_data():
@@ -789,6 +792,40 @@ class AuditRuleTests(unittest.TestCase):
         })
         self.assertIn("空方指出下修風險", recommendation["reasoning_steps"])
 
+    def test_incomplete_structured_outputs_are_rejected_before_report_contract(self):
+        self.assertIsNone(structured_outputs.normalize_structured_output(3, {
+            "moat_scores": {
+                "品牌影響力": 6,
+                "網路效應": 3,
+                "轉換成本": 7,
+                "成本優勢": 6,
+                "專利技術": 5,
+                "整體護城河": 6,
+            },
+            "analysis_markdown": "正文",
+        }))
+
+        self.assertIsNone(structured_outputs.normalize_structured_output(4, {
+            "price_targets": {
+                "dcf_reasoning": "normalized FCF 搭配市場價值 WACC。",
+                "熊市情境": 800,
+                "基本情境": 1000,
+                "牛市情境": 1200,
+            },
+            "analysis_markdown": "正文",
+        }))
+
+        self.assertIsNone(structured_outputs.normalize_structured_output(7, {
+            "reasoning_steps": ["估值合理", "風險仍高", "空方指出下修風險"],
+            "recommendation": {
+                "建議": "持有",
+                "短期目標（3個月）": "NT$900",
+                "中期目標（6個月）": "NT$1000",
+                "信心指數": "6/10",
+            },
+            "analysis_markdown": "正文",
+        }))
+
     def test_agent_5_context_skips_agent_4_to_avoid_valuation_anchoring(self):
         context = {
             "analyses": {
@@ -859,11 +896,47 @@ class AuditRuleTests(unittest.TestCase):
         expected_trading_decision_sequence = list(dict.fromkeys([expected_trading_decision, *config.AGENT_FALLBACK_MODELS.get(16, [])]))
         self.assertEqual(ar.AGENT_MODELS[16], expected_trading_decision)
         self.assertEqual(ar.get_agent_model_sequence(16), expected_trading_decision_sequence)
-        self.assertEqual(ar.get_audit_model_sequence(), [config.AUDIT_MODEL])
+        expected_audit_sequence = list(dict.fromkeys([config.AUDIT_MODEL, *config.AUDIT_FALLBACK_MODELS]))
+        self.assertEqual(ar.get_audit_model_sequence(), expected_audit_sequence)
+        self.assertGreaterEqual(len(ar.get_audit_model_sequence()), 2)
+        self.assertTrue(config.AGENT_FALLBACK_MODELS.get(7))
+        self.assertTrue(config.AGENT_FALLBACK_MODELS.get(15))
+        self.assertTrue(config.AGENT_FALLBACK_MODELS.get(16))
         self.assertEqual(ar.get_context_digest_model_sequence(), [config.CONTEXT_DIGEST_MODEL])
 
         context = {"_model_sequence_override": {2: ar.get_audit_model_sequence()}}
-        self.assertEqual(ar.get_runtime_model_sequence(2, context), [config.AUDIT_MODEL])
+        self.assertEqual(ar.get_runtime_model_sequence(2, context), expected_audit_sequence)
+
+    def test_peer_contamination_requires_explicit_peer_context(self):
+        data = base_data()
+        issues = ar.validate_company_identity(
+            "大東電主要依賴大亞的儲能案場與太陽能工程收入。大亞同時是本公司核心成長來源。",
+            data,
+        )
+
+        self.assert_has_issue(issues, "同業「大亞」在未標示為同業")
+
+    def test_audit_reflection_tries_fallback_model_after_primary_quota_error(self):
+        calls = []
+
+        def fake_generate(api_key, model_id, prompt):
+            calls.append(model_id)
+            if model_id == "audit-primary":
+                raise RuntimeError("429 RESOURCE_EXHAUSTED")
+            return SimpleNamespace(text="fallback reflection")
+
+        with patch.object(repair_reflection, "get_audit_model_sequence", return_value=["audit-primary", "audit-fallback"]):
+            with patch.object(repair_reflection, "_generate_reflection_content", side_effect=fake_generate):
+                reflection = repair_reflection.generate_audit_reflection(
+                    2,
+                    ["口徑紅線"],
+                    "前次輸出",
+                    {"ticker": "2330.TW", "company_name": "台積電"},
+                    KeyRotator(["test-key"]),
+                )
+
+        self.assertEqual(calls, ["audit-primary", "audit-fallback"])
+        self.assertEqual(reflection, "fallback reflection")
 
     def test_external_http_clients_parse_sync_and_async_payloads(self):
         old_fmp_key = edc.FMP_API_KEY

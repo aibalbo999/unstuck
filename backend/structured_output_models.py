@@ -60,6 +60,48 @@ class PriceTargetStructuredOutput(StructuredModel):
     analysis_markdown: str = Field(..., min_length=1)
 
 
+class ConfidenceBasis(StructuredModel):
+    """信心依據：要求 AI 明確說明信心分數來自哪些具體佐證。"""
+    evidence_items: list[str] = Field(
+        ...,
+        min_length=3,
+        description=(
+            "支持此信心分數的具體佐證，至少 3 項。每項需引用具體數據或事件，"
+            "不可僅寫「因為AI趨勢」等泛泛措辭。例如："
+            "['TTM 毛利率 52.3% 優於同業均值 38%（來源：財務JSON）',"
+            " '近三年 FCF/淨利轉換率均超過 90%（來源：deterministic_tool_results）',"
+            " '2024Q4 法說會法人共識上修目標價']。"
+        ),
+    )
+    key_risks_acknowledged: list[str] = Field(
+        ...,
+        min_length=2,
+        description="已納入信心評估的關鍵風險，至少 2 項。必須是具體風險，非通用語句。",
+    )
+    data_gaps: list[str] = Field(
+        default_factory=list,
+        description="已知資料缺口。若無缺口，可填空列表，但不可省略此欄位。",
+    )
+
+
+class ScenarioTrigger(StructuredModel):
+    """情境觸發器：定義需重新評估投資結論的具體條件。"""
+    trigger_condition: str = Field(
+        ...,
+        min_length=10,
+        description="需要重新評估的具體觸發條件，例如：「季度毛利率低於 43%」或「競爭對手取得關鍵大客戶訂單」。",
+    )
+    action: str = Field(
+        ...,
+        min_length=5,
+        description="觸發後建議的行動，例如：「下調至持有，重新評估目標價」。",
+    )
+    direction: Literal["bullish_upgrade", "bearish_downgrade", "neutral_review"] = Field(
+        ...,
+        description="觸發後對結論的影響方向。",
+    )
+
+
 class RecommendationFields(StructuredModel):
     recommendation: Literal["買入", "持有", "避免"] = Field(..., alias="建議")
     target_3m: str = Field(..., min_length=1, alias="短期目標（3個月）")
@@ -76,6 +118,16 @@ class RecommendationStructuredOutput(StructuredModel):
         description="先列出 3-6 個決策推論步驟，逐步連結估值、財務、護城河、成長、風險與籌碼。",
     )
     recommendation: RecommendationFields
+    confidence_basis: ConfidenceBasis = Field(
+        ...,
+        description="信心依據：必須列出至少 3 項具體佐證與 2 項已納入考量的風險。",
+    )
+    scenario_triggers: list[ScenarioTrigger] = Field(
+        ...,
+        min_length=2,
+        max_length=5,
+        description="情境觸發器：列出 2-5 個需要重新評估投資結論的具體條件。",
+    )
     analysis_markdown: str = Field(..., min_length=1)
 
 

@@ -61,6 +61,18 @@ def _write_report(output_dir: Path, filename: str, ticker: str = "2449.TW", pric
     (output_dir / filename.replace(".html", ".data.json")).write_text(json.dumps(snapshot, ensure_ascii=False), encoding="utf-8")
 
 
+def _mark_snapshot_needs_rerun(output_dir: Path, filename: str):
+    path = output_dir / filename.replace(".html", ".data.json")
+    snapshot = json.loads(path.read_text(encoding="utf-8"))
+    snapshot.update({
+        "refreshed_without_analysis_rerun": True,
+        "decision_validity_status": "needs_rerun",
+        "snapshot_refreshed_at": "2026-06-10T12:00:00+00:00",
+        "analysis_text_stale_message": "資料快照已刷新，但投資結論仍以原報告生成時間為準。",
+    })
+    path.write_text(json.dumps(snapshot, ensure_ascii=False), encoding="utf-8")
+
+
 def test_decision_tracking_compares_latest_price_to_all_targets(tmp_path):
     snapshot_path = tmp_path / "sample.data.json"
     snapshot_path.write_text(json.dumps({"data": {"current_price": 108.0}}, ensure_ascii=False), encoding="utf-8")
@@ -186,3 +198,48 @@ def test_decision_tracking_api_tracks_selected_tickers_and_refreshes_latest_pric
     assert [report["decision_tracking"]["latest_price"] for report in row["latest_reports"]] == [132.0, 132.0]
     assert row["latest_report"]["decision_tracking"]["target_comparisons"]["target_12m"]["status"] == "near_target"
     assert {item["ticker"] for item in body["items"]} == {"2449.TW"}
+
+
+def test_decision_tracking_refresh_skips_reports_that_already_need_full_rerun(tmp_path, monkeypatch, mutation_headers):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.sqlite3"))
+    monkeypatch.setattr(decision_tracking_store, "DECISION_TRACKING_DB_PATH", str(tmp_path / "decision_tracking.sqlite3"))
+    decision_tracking_store.reset_decision_tracking_store_for_tests()
+    _write_report(tmp_path, "2449_report_20260609_090000.html", price=100.0)
+    _write_report(tmp_path, "2449_v2_report_20260610_090000.html", price=108.0)
+    _mark_snapshot_needs_rerun(tmp_path, "2449_report_20260609_090000.html")
+    refresh_requests = []
+
+    class FakeRefreshService:
+        async def fetch_async(self, request):
+            refresh_requests.append(request.ticker)
+            return FetchResult(
+                request=request,
+                data={
+                    "ticker": request.ticker,
+                    "company_name": "測試公司",
+                    "current_price": 132.0,
+                    "data_trust": {"status": "fresh", "critical_failures": [], "stale_sources": [], "last_market_data_at": "2026-06-10T00:00:00+00:00", "notes": []},
+                    "source_freshness": {"market_data": {"fetched_at": "2026-06-10T00:00:00+00:00"}},
+                    "source_audit": [{"source": "market_data", "provider": "fake", "status": "success", "record_count": 1}],
+                },
+            )
+
+    monkeypatch.setattr(api, "data_refresh_service", FakeRefreshService())
+    client = TestClient(api.app)
+    client.post("/api/decision-tracking", json={"ticker": "2449.TW"}, headers=mutation_headers)
+
+    refreshed = client.post("/api/decision-tracking/refresh", headers=mutation_headers)
+
+    assert refreshed.status_code == 200
+    body = refreshed.json()
+    assert body["updated_count"] == 1
+    assert body["updated_reports_count"] == 1
+    assert refresh_requests == ["2449.TW"]
+    assert body["skipped"] == [
+        {
+            "ticker": "2449.TW",
+            "filename": "2449_report_20260609_090000.html",
+            "reason": "needs_full_rerun",
+        }
+    ]

@@ -1,8 +1,10 @@
+import asyncio
 import json
 import os
 import sys
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 
@@ -14,8 +16,10 @@ import api_report_service  # noqa: E402
 import job_store  # noqa: E402
 import report_index  # noqa: E402
 import report_history_service  # noqa: E402
+import report_rerun_rendering  # noqa: E402
 import report_rerun_service  # noqa: E402
 from data_fetch import FetchResult  # noqa: E402
+from data_trust_snapshot import build_data_snapshot, verify_data_snapshot_integrity  # noqa: E402
 from reporting import ReportBundle  # noqa: E402
 from report_repository import ReportListQuery  # noqa: E402
 
@@ -329,6 +333,28 @@ def test_get_reports_defaults_to_latest_report_per_ticker_and_mode(tmp_path, mon
     }
 
 
+def test_get_reports_treats_exchange_suffix_as_same_ticker_version(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
+    filenames = [
+        "2449_v1_report_20260606_010000.html",
+        "2449_TW_v1_report_20260606_020000.html",
+        "2449_v2_report_20260606_010000.html",
+        "2449_TW_v2_report_20260606_020000.html",
+    ]
+    for filename in filenames:
+        write_report_pair(tmp_path, filename, "持有")
+
+    result = list_reports_for_test(tmp_path)
+
+    assert result["pagination"]["include_versions"] is False
+    assert result["pagination"]["total"] == 2
+    assert {report["filename"] for report in result["reports"]} == {
+        "2449_TW_v1_report_20260606_020000.html",
+        "2449_TW_v2_report_20260606_020000.html",
+    }
+
+
 def test_get_reports_can_include_old_report_versions(tmp_path, monkeypatch):
     monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
     monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
@@ -458,6 +484,55 @@ def test_refresh_data_snapshot_endpoint_updates_trust(tmp_path, monkeypatch, mut
     assert tracking["return_pct"] == 6.6236
     assert tracking["target_12m_gap_pct"] == 6.0606
     assert tracking["refreshed_without_analysis_rerun"] is True
+
+
+def test_refresh_data_snapshot_keeps_decision_current_when_only_provider_sla_changes(tmp_path, monkeypatch, mutation_headers):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
+    filename = "2449_v2_report_20260606_010000.html"
+    write_report_pair(tmp_path, filename, "持有")
+    write_data_snapshot(tmp_path, filename, "fresh", current_price=309.5)
+
+    class FakeRefreshService:
+        async def fetch_async(self, request):
+            return FetchResult(
+                request=request,
+                data={
+                    "data_schema_version": 4,
+                    "ticker": request.ticker,
+                    "company_name": "京元電子",
+                    "source_freshness": {
+                        "market_data": {"stale": False, "fetched_at": "2026-06-06T01:00:00+00:00"},
+                        "financial_statements": {"stale": False, "fetched_at": "2026-06-06T01:00:00+00:00"},
+                    },
+                    "source_audit": [
+                        {"source": "market_data", "provider": "fake", "status": "success", "record_count": 1},
+                        {"source": "financial_statements", "provider": "fake", "status": "success", "record_count": 1},
+                    ],
+                    "current_price": 309.5,
+                    "data_trust": {
+                        "status": "partial",
+                        "critical_failures": [],
+                        "stale_sources": [],
+                        "last_market_data_at": "2026-06-06T01:00:00+00:00",
+                        "notes": ["來源健康度警示，但核心資料未變動。"],
+                        "reason_codes": ["fresh_core_sources", "provider_sla_critical"],
+                    },
+                },
+            )
+
+    monkeypatch.setattr(api, "data_refresh_service", FakeRefreshService())
+    client = TestClient(api.app)
+    response = client.post(f"/api/report/{filename}/refresh/data", headers=mutation_headers)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["analysis_text_stale"] is False
+    assert body["decision_freshness"]["status"] == "current"
+    assert body["decision_freshness"]["requires_rerun"] is False
+    saved = json.loads((tmp_path / filename.replace(".html", ".data.json")).read_text(encoding="utf-8"))
+    assert saved["refreshed_without_analysis_rerun"] is False
+    assert saved["decision_validity_status"] == "current"
 
 
 def test_refresh_data_snapshot_endpoint_rejects_legacy_without_snapshot(tmp_path, monkeypatch, mutation_headers):
@@ -625,6 +700,78 @@ def test_rerun_report_analysis_full_report_refreshes_data_before_pipeline(tmp_pa
     assert any(event.get("phase") == "rerun_refresh_data" for event in progress_events)
 
 
+def test_rerun_report_persists_valid_snapshot_hash_after_metadata_added(tmp_path, monkeypatch):
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
+    context = {
+        "ticker": "2449.TW",
+        "company_name": "京元電子",
+        "pipeline_id": "v2",
+        "data": {
+            "data_schema_version": 4,
+            "ticker": "2449.TW",
+            "company_name": "京元電子",
+            "current_price": 100.0,
+            "source_freshness": {},
+            "source_audit": [],
+            "data_trust": {
+                "status": "fresh",
+                "critical_failures": [],
+                "stale_sources": [],
+                "last_market_data_at": "2026-06-07T00:00:00+00:00",
+                "notes": [],
+            },
+        },
+        "analyses": {},
+        "structured_outputs": {},
+    }
+
+    class FakeReportRenderer:
+        async def render_async(self, request):
+            snapshot = build_data_snapshot(
+                request.context,
+                pipeline_id=request.pipeline_id,
+                generated_at="2026-06-07T00:00:00+00:00",
+            )
+            assert verify_data_snapshot_integrity(snapshot)["valid"] is True
+            return ReportBundle(
+                html='<div class="sidebar-name">京元電子</div>',
+                markdown="""# 2449.TW 京元電子 - 報告
+
+## 一頁式摘要
+測試摘要。
+
+## 📊 關鍵指標
+- **股價:** NT$100.00
+
+---
+
+## 🎯 最終投資建議
+- **綜合建議:** 持有
+- **3個月目標:** NT$90
+- **6個月目標:** NT$110
+- **12個月目標:** NT$120
+- **信心指數:** 6/10
+""",
+                data_snapshot=snapshot,
+            )
+
+    body = asyncio.run(
+        report_rerun_rendering.render_and_save_rerun_report(
+            context=context,
+            pipeline_id="v2",
+            output_dir=str(tmp_path),
+            report_renderer=FakeReportRenderer(),
+            scope="full_report",
+            source_filename="2449_v2_report_20260606_010000.html",
+        )
+    )
+    stored = json.loads((tmp_path / body["data_filename"]).read_text(encoding="utf-8"))
+
+    assert stored["partial_rerun"]["source_report"] == "2449_v2_report_20260606_010000.html"
+    assert stored["rerun_scope"] == "full_report"
+    assert verify_data_snapshot_integrity(stored)["valid"] is True
+
+
 def test_rerun_report_stream_replays_terminal_event(tmp_path, monkeypatch):
     monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
     monkeypatch.setattr(job_store, "TASK_DB_PATH", str(tmp_path / "jobs.sqlite3"))
@@ -728,6 +875,40 @@ def test_final_rerun_uses_snapshot_rerun_context_without_markdown(tmp_path, monk
     assert body["success"] is True
     assert body["scope"] == "final_recommendation"
     assert (tmp_path / body["filename"]).exists()
+
+
+def test_final_rerun_rejects_refreshed_snapshot_that_needs_full_analysis(tmp_path):
+    filename = "2449_v2_report_20260606_010000.html"
+    write_report_pair(tmp_path, filename, "持有")
+    analyses = {str(agent): f"Agent {agent} analysis" for agent in [11, 12, 13, 14, 15]}
+    snapshot = {
+        "snapshot_schema_version": 3,
+        "ticker": "2449.TW",
+        "company_name": "京元電子",
+        "pipeline": "v2",
+        "generated_at": "2026-06-08T00:00:00+00:00",
+        "conclusion_generated_at": "2026-06-06T00:00:00+00:00",
+        "snapshot_refreshed_at": "2026-06-08T00:00:00+00:00",
+        "refreshed_without_analysis_rerun": True,
+        "decision_validity_status": "needs_rerun",
+        "requires_rerun_reason": "資料快照已刷新，但前序分析本文未重新執行。",
+        "data_schema_version": 4,
+        "source_freshness": {},
+        "source_audit": [],
+        "data_trust": {"status": "fresh", "critical_failures": [], "stale_sources": [], "last_market_data_at": None, "notes": []},
+        "rerun_context": {
+            "analyses": analyses,
+            "structured_outputs": {"14": {"price_targets": {"基本情境": 273}}},
+        },
+        "data": {"data_schema_version": 4, "ticker": "2449.TW", "company_name": "京元電子"},
+    }
+    (tmp_path / filename.replace(".html", ".data.json")).write_text(json.dumps(snapshot), encoding="utf-8")
+
+    with pytest.raises(report_rerun_service.HTTPException) as exc_info:
+        report_rerun_service._build_final_rerun_context(filename, snapshot, str(tmp_path))
+
+    assert exc_info.value.status_code == 409
+    assert "完整重跑" in str(exc_info.value.detail)
 
 
 def test_parse_agent_sections_from_markdown_supports_final_rerun_context():

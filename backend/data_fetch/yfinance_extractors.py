@@ -162,7 +162,7 @@ def fetch_monthly_revenue_records(ticker: str, data_loader_cls=DataLoader) -> tu
 
     def fetch_records():
         fm_dl = data_loader_cls()
-        fm_stock_id = ticker.replace(".TW", "").replace(".TWO", "")
+        fm_stock_id = ticker.replace(".TWO", "").replace(".TW", "")
         start_date = (datetime.now() - timedelta(days=240)).strftime("%Y-%m-%d")
         df_rev = fm_dl.taiwan_stock_month_revenue(stock_id=fm_stock_id, start_date=start_date)
         records = []

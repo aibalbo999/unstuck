@@ -9,10 +9,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 import data_fetch.cache_helpers as cache_helpers  # noqa: E402
+import data_fetch.market_sources.global_context as global_context  # noqa: E402
 import data_fetch.optional_enrichment as optional_enrichment  # noqa: E402
 import data_fetch.yfinance_payload as yfinance_payload  # noqa: E402
 import data_fetch.yfinance_sync_enrichment as sync_enrichment  # noqa: E402
 import data_fetch.yfinance_core_fetch as financial_data  # noqa: E402
+import external_data_gdelt  # noqa: E402
+import external_data_parsers  # noqa: E402
 
 
 class FakeStock:
@@ -117,6 +120,193 @@ class EmptyMonthlyRevenueLoader:
 class ExplodingLoader:
     def __init__(self):
         raise AssertionError("US stocks should not request FinMind monthly revenue")
+
+
+class FakeMarketProxy:
+    def __init__(self, closes):
+        self._closes = closes
+
+    def history(self, period="5d"):
+        return pd.DataFrame(
+            {"Close": self._closes},
+            index=pd.to_datetime(["2026-06-08", "2026-06-09", "2026-06-10"]),
+        )
+
+
+def test_global_market_context_summarizes_market_proxy_history(monkeypatch):
+    monkeypatch.setattr(global_context.yf, "Ticker", lambda symbol: FakeMarketProxy([100.0, 104.0, 110.0]))
+
+    context = global_context.fetch_global_market_context(
+        "2330.TW",
+        "Taiwan Semiconductor",
+        "Technology",
+        "Semiconductors",
+        symbols=[("QQQ", "Nasdaq 100 ETF", "us_growth")],
+    )
+
+    assert context["lookback_days"] == 5
+    assert context["items"][0]["symbol"] == "QQQ"
+    assert context["items"][0]["latest"] == 110.0
+    assert context["items"][0]["change_1d_pct"] == 5.7692
+    assert context["items"][0]["change_5d_pct"] == 10.0
+    assert context["items"][0]["source"] == "yfinance"
+
+
+def test_global_market_context_includes_no_key_macro_commodity_and_regional_sources(monkeypatch):
+    monkeypatch.setattr(global_context.yf, "Ticker", lambda symbol: FakeMarketProxy([100.0, 104.0, 110.0]))
+
+    context = global_context.fetch_global_market_context(
+        "2330.TW",
+        "Taiwan Semiconductor",
+        "Technology",
+        "Semiconductors",
+    )
+    by_symbol = {item["symbol"]: item for item in context["items"]}
+
+    assert {"^TNX", "DX-Y.NYB", "CL=F", "GC=F", "^TWII", "EWT", "EWJ", "EWY"}.issubset(by_symbol)
+    assert by_symbol["^TNX"]["category"] == "rates"
+    assert by_symbol["DX-Y.NYB"]["category"] == "fx"
+    assert by_symbol["CL=F"]["category"] == "commodity_energy"
+    assert by_symbol["GC=F"]["category"] == "commodity_safe_haven"
+    assert by_symbol["^TWII"]["category"] == "regional_taiwan"
+
+
+def test_gdelt_article_payload_parses_international_news_topics():
+    payload = {
+        "articles": [
+            {
+                "title": "US chip policy reshapes AI server supply chain",
+                "seendate": "20260612T010203Z",
+                "sourcecountry": "United States",
+                "domain": "example.com",
+                "url": "https://example.com/story",
+                "socialimage": "https://example.com/image.jpg",
+            },
+            {"title": "", "url": "https://example.com/empty"},
+        ]
+    }
+
+    records = external_data_parsers.parse_gdelt_article_payload(payload, tag="semiconductors_ai")
+
+    assert records == [{
+        "tag": "semiconductors_ai",
+        "headline": "US chip policy reshapes AI server supply chain",
+        "summary": "example.com · United States",
+        "published_at": "20260612T010203Z",
+        "source": "GDELT",
+        "url": "https://example.com/story",
+    }]
+
+
+def test_google_news_rss_payload_parses_international_news_topics():
+    payload = """<?xml version="1.0" encoding="UTF-8"?>
+    <rss><channel>
+      <item>
+        <title>AI chip supply chain expands - Reuters</title>
+        <link>https://news.google.com/rss/articles/example</link>
+        <pubDate>Fri, 12 Jun 2026 01:02:03 GMT</pubDate>
+        <source url="https://www.reuters.com">Reuters</source>
+      </item>
+      <item><title></title><link>https://example.com/empty</link></item>
+    </channel></rss>
+    """
+
+    records = external_data_parsers.parse_google_news_rss_payload(payload, tag="semiconductors_ai")
+
+    assert records == [{
+        "tag": "semiconductors_ai",
+        "headline": "AI chip supply chain expands - Reuters",
+        "summary": "Reuters",
+        "published_at": "Fri, 12 Jun 2026 01:02:03 GMT",
+        "source": "Google News RSS",
+        "url": "https://news.google.com/rss/articles/example",
+    }]
+
+
+def test_gdelt_context_limits_topic_requests_and_spaces_calls(monkeypatch):
+    class FakeAsyncClient:
+        async def __aenter__(self):
+            return object()
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+    calls = []
+    sleeps = []
+
+    async def fake_json_get(_client, _url, params):
+        calls.append(params["query"])
+        return {
+            "articles": [{
+                "title": f"Story for {params['query']}",
+                "seendate": "20260612T010203Z",
+                "sourcecountry": "United States",
+                "domain": "example.com",
+                "url": f"https://example.com/{len(calls)}",
+            }]
+        }
+
+    async def fake_sleep(seconds):
+        sleeps.append(seconds)
+
+    monkeypatch.setattr(external_data_gdelt, "async_client", lambda: FakeAsyncClient())
+    monkeypatch.setattr(external_data_gdelt, "async_json_get", fake_json_get)
+    monkeypatch.setattr(external_data_gdelt.asyncio, "sleep", fake_sleep)
+
+    context = asyncio.run(external_data_gdelt.fetch_gdelt_international_news_context(
+        "Technology",
+        "Semiconductors",
+        max_topics=2,
+        request_spacing_seconds=5.0,
+    ))
+
+    assert len(calls) == 2
+    assert sleeps == [5.0]
+    assert len(context["topics"]) == 2
+
+
+def test_gdelt_context_falls_back_to_google_news_rss(monkeypatch):
+    rss_payload = """<?xml version="1.0" encoding="UTF-8"?>
+    <rss><channel><item>
+      <title>AI chip policy reshapes supply chain - Reuters</title>
+      <link>https://news.google.com/rss/articles/fallback</link>
+      <pubDate>Fri, 12 Jun 2026 01:02:03 GMT</pubDate>
+      <source>Reuters</source>
+    </item></channel></rss>
+    """
+
+    class FakeResponse:
+        text = rss_payload
+
+        def raise_for_status(self):
+            return None
+
+    class FakeAsyncClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, _url, params):
+            assert params["q"]
+            return FakeResponse()
+
+    async def failing_json_get(_client, _url, _params):
+        raise RuntimeError("gdelt unavailable")
+
+    monkeypatch.setattr(external_data_gdelt, "async_client", lambda: FakeAsyncClient())
+    monkeypatch.setattr(external_data_gdelt, "async_json_get", failing_json_get)
+
+    context = asyncio.run(external_data_gdelt.fetch_gdelt_international_news_context(
+        "Technology",
+        "Semiconductors",
+        max_topics=1,
+        request_spacing_seconds=0,
+    ))
+
+    assert context["topics"][0]["source"] == "Google News RSS"
+    assert context["topics"][0]["headline"] == "AI chip policy reshapes supply chain - Reuters"
 
 
 def _patch_common_fetch_dependencies(monkeypatch, resolved_ticker="2330.TW", country="Taiwan"):

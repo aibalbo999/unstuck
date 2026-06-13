@@ -8,6 +8,9 @@ from typing import Optional
 
 from analysis_types import AnalysisContext, AuditResult
 from agent_catalog import AGENT_NAMES
+from confidence_calibration import build_confidence_calibration
+from final_audit_context_coverage import missing_final_context_labels
+from forward_consistency_checker import run_forward_consistency_checks
 from pipeline_modes import get_pipeline_definition, get_structured_agent_num
 from runtime_events import emit_log
 from validators import (
@@ -196,13 +199,22 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
                 _add_unique_issue(critical, f"Agent {recommendation_agent} 缺少 {label} 欄位。")
                 add_agent_repair_issue(recommendation_agent, f"缺少 {label} 欄位。")
 
-        data_trust = data.get("data_trust", {}) if isinstance(data.get("data_trust"), dict) else {}
-        data_trust_status = data_trust.get("status", "unknown")
-        confidence_score = _extract_confidence_score(_recommendation_value(recommendation, "信心"))
-        if data_trust_status != "fresh" and confidence_score is not None and confidence_score >= 8:
+        missing_context_labels = missing_final_context_labels(data, str(analyses.get(recommendation_agent, "")))
+        if missing_context_labels:
             _add_unique_issue(
                 warnings,
-                f"Agent {recommendation_agent} 在 data_trust={data_trust_status} 時給出高信心，報告需明確揭露資料限制。"
+                f"Agent {recommendation_agent} 最終建議未說明可用的{'、'.join(missing_context_labels)}是否影響結論。"
+            )
+
+        data_trust = data.get("data_trust", {}) if isinstance(data.get("data_trust"), dict) else {}
+        confidence_calibration = build_confidence_calibration(recommendation, data_trust)
+        if confidence_calibration.get("status") == "needs_downgrade":
+            data_trust_status = confidence_calibration.get("data_trust_status", "unknown")
+            raw_confidence = confidence_calibration.get("raw_confidence", "N/A")
+            cap = confidence_calibration.get("max_recommended_confidence")
+            _add_unique_issue(
+                warnings,
+                f"Agent {recommendation_agent} 在 data_trust={data_trust_status} 時給出高信心（{raw_confidence}），建議信心上限 {cap}/10，報告需明確揭露資料限制。"
             )
 
         target_12m = _extract_first_price(_recommendation_value(recommendation, "12個月"))
@@ -217,6 +229,25 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
                     f"Agent {recommendation_agent} 的 12 個月目標價 NT${target_12m:g} 與 Agent {valuation_agent} 三情境區間差距較大，需人工確認。"
                 )
 
+        # Forward consistency checks
+        target_3m = _extract_first_price(_recommendation_value(recommendation, "3個月"))
+        target_6m = _extract_first_price(_recommendation_value(recommendation, "6個月"))
+        rec_text = _recommendation_value(recommendation, "建議")
+        
+        forward_checks = run_forward_consistency_checks(
+            recommendation=rec_text,
+            current_price=current_price,
+            target_3m=target_3m,
+            target_6m=target_6m,
+            target_12m=target_12m,
+        )
+        for issue in forward_checks.get("critical", []):
+            _add_unique_issue(critical, issue)
+            add_agent_repair_issue(recommendation_agent, issue)
+        for issue in forward_checks.get("warnings", []):
+            _add_unique_issue(warnings, issue)
+
+    confidence_calibration = build_confidence_calibration(recommendation, data.get("data_trust", {}))
     data_notes = data.get("data_source_notes", []) or []
     if any("口徑互斥" in note for note in data_notes):
         _add_unique_issue(corrections, "資料源出現淨利/淨利率口徑互斥時，報告已採用 EPS/P/E 自洽的校準口徑。")
@@ -250,6 +281,7 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
         "warnings": warnings,
         "corrections": corrections,
         "repair_agent_issues": repair_agent_issues,
+        "confidence_calibration": confidence_calibration,
         "report_preserved": True,
     }
 

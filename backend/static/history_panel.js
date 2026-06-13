@@ -19,10 +19,40 @@
         return value > 0 ? 'is-positive' : 'is-negative';
     }
 
+    function awaitingTrackingPrice(tracking) {
+        return tracking?.status === 'tracked' && Number(tracking.return_pct) === 0 && Number(tracking.initial_price) === Number(tracking.latest_price);
+    }
+
     function renderTrackingBadge(tracking, escapeHtml) {
         if (!tracking || !tracking.status || tracking.status === 'unavailable' || !Number.isFinite(Number(tracking.return_pct))) return '';
+        if (awaitingTrackingPrice(tracking)) return '<span class="history-tracking is-neutral" title="尚待下一筆價格更新">追蹤 待新價格</span>';
         const title = tracking.summary || '決策追蹤';
         return `<span class="history-tracking ${trackingTone(tracking)}" title="${escapeHtml(title)}">追蹤 ${escapeHtml(formatPct(tracking.return_pct))}</span>`;
+    }
+
+    function dataTrustReasonCodes(report) {
+        const codes = report?.data_trust?.reason_codes;
+        return Array.isArray(codes) ? codes.map(code => String(code || '')) : [];
+    }
+
+    function dataTrustStaleSources(report) {
+        const sources = report?.data_trust?.stale_sources;
+        return Array.isArray(sources) ? sources.filter(Boolean) : [];
+    }
+
+    function hasRefreshableDataTrustIssue(report) {
+        const status = report?.data_trust?.status || 'unknown';
+        const reasonCodes = dataTrustReasonCodes(report);
+        return status === 'stale'
+            || dataTrustStaleSources(report).length > 0
+            || reasonCodes.some(code => code.startsWith('source_stale:'));
+    }
+
+    function hasProviderSlaOnlyPartial(report) {
+        const reasonCodes = dataTrustReasonCodes(report);
+        return report?.data_trust?.status === 'partial'
+            && !hasRefreshableDataTrustIssue(report)
+            && reasonCodes.includes('provider_sla_critical');
     }
 
     function reportActionBadge(report, escapeHtml) {
@@ -38,10 +68,14 @@
             label = '建議完整重跑';
             tone = 'critical';
             detail = '結論可能已落後於最新資料';
-        } else if (status === 'stale' || status === 'partial') {
+        } else if (hasRefreshableDataTrustIssue(report)) {
             label = '建議刷新資料';
             tone = 'warning';
             detail = '先刷新資料快照再決策';
+        } else if (status === 'partial') {
+            label = hasProviderSlaOnlyPartial(report) ? '來源提醒' : '資料需留意';
+            tone = 'warning';
+            detail = '資料已是最新快照，請查看來源審計與健康度';
         }
         return `<span class="history-action-badge is-${tone}" title="${escapeHtml(detail)}">${escapeHtml(label)}</span>`;
     }
