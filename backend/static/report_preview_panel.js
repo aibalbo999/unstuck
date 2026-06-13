@@ -38,7 +38,10 @@
         const isModeB = pipelineId === 'v2';
         setButtonText(elements.rerunFinalBtn, isModeB ? '重跑模式 B 最終建議' : '重跑模式 A 最終建議');
         setButtonText(elements.rerunFullBtn, isModeB ? '完整重跑模式 B' : '完整重跑模式 A');
-        setButtonText(elements.rerunModeBBtn, isModeB ? '重跑完整模式 B' : '產生模式 B 報告');
+        if (elements.rerunModeBBtn) {
+            elements.rerunModeBBtn.hidden = isModeB;
+            if (!isModeB) setButtonText(elements.rerunModeBBtn, '產生模式 B 報告');
+        }
     }
 
     function renderTracking(tracking, elements) {

@@ -175,7 +175,7 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "重跑模式 B 最終建議" in report_preview_js
     assert "完整重跑模式 A" in report_preview_js
     assert "full_report" in report_rerun_js
-    assert "重跑完整模式 B" in report_preview_js
+    assert "rerunModeBBtn.hidden = isModeB" in report_preview_js
     assert "產生模式 B 報告" in report_preview_js
     assert "產生模式 B 報告" in index_html
     assert "history-item" not in app_js

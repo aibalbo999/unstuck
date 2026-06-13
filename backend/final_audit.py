@@ -10,6 +10,7 @@ from analysis_types import AnalysisContext, AuditResult
 from agent_catalog import AGENT_NAMES
 from confidence_calibration import build_confidence_calibration
 from final_audit_context_coverage import missing_final_context_labels
+from forward_consistency_checker import run_forward_consistency_checks
 from pipeline_modes import get_pipeline_definition, get_structured_agent_num
 from runtime_events import emit_log
 from validators import (
@@ -227,6 +228,24 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
                     warnings,
                     f"Agent {recommendation_agent} 的 12 個月目標價 NT${target_12m:g} 與 Agent {valuation_agent} 三情境區間差距較大，需人工確認。"
                 )
+
+        # Forward consistency checks
+        target_3m = _extract_first_price(_recommendation_value(recommendation, "3個月"))
+        target_6m = _extract_first_price(_recommendation_value(recommendation, "6個月"))
+        rec_text = _recommendation_value(recommendation, "建議")
+        
+        forward_checks = run_forward_consistency_checks(
+            recommendation=rec_text,
+            current_price=current_price,
+            target_3m=target_3m,
+            target_6m=target_6m,
+            target_12m=target_12m,
+        )
+        for issue in forward_checks.get("critical", []):
+            _add_unique_issue(critical, issue)
+            add_agent_repair_issue(recommendation_agent, issue)
+        for issue in forward_checks.get("warnings", []):
+            _add_unique_issue(warnings, issue)
 
     confidence_calibration = build_confidence_calibration(recommendation, data.get("data_trust", {}))
     data_notes = data.get("data_source_notes", []) or []

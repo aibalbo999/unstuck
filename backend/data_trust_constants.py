@@ -94,6 +94,7 @@ SOURCE_AUDIT_SOURCES = (
     "global_market_context",
     "international_news_context",
     "peer_discovery",
+    "twse_official_data",
 )
 CORE_DATA_SOURCES = (
     "market_data",
@@ -129,6 +130,7 @@ SOURCE_LABELS = {
     "global_market_context": "全球市場脈絡",
     "international_news_context": "國際新聞脈絡",
     "peer_discovery": "同業搜尋",
+    "twse_official_data": "證交所/公開資訊觀測站",
 }
 
 AUDIT_STATUS_LABELS = {

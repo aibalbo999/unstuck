@@ -59,11 +59,12 @@
             if (!report || !report.ticker) return;
             const ticker = report.ticker;
             try {
-                const payload = trackedTickers.has(ticker)
+                const wasTracked = trackedTickers.has(ticker);
+                const payload = wasTracked
                     ? await apiClient.deleteDecisionTrackingItem(ticker)
                     : await apiClient.saveDecisionTrackingItem({ ticker });
                 applyPayload(payload);
-                notify.success(trackedTickers.has(ticker) ? `已加入追蹤 ${ticker}` : `已取消追蹤 ${ticker}`);
+                notify.success(wasTracked ? `已取消追蹤 ${ticker}` : `已加入追蹤 ${ticker}`);
             } catch (err) {
                 console.error('Decision tracking toggle failed', err);
                 notify.error(`追蹤設定失敗：${err.message || err}`);

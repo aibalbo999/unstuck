@@ -172,9 +172,15 @@ def normalize_structured_output(agent_num: int, payload: Optional[dict]) -> Opti
         for key, value in raw_rec.items():
             normalized_key = key_aliases.get(str(key).strip(), str(key).strip())
             normalized_rec[normalized_key] = str(value).strip()
+            
+        confidence_basis = payload.get("confidence_basis")
+        if isinstance(confidence_basis, dict):
+            normalized_rec["confidence_basis"] = confidence_basis
+
         return {
             "reasoning_steps": reasoning_steps,
             "recommendation": normalized_rec,
+            "scenario_triggers": payload.get("scenario_triggers", []),
             "analysis_markdown": str(payload.get("analysis_markdown", "")).strip(),
         }
 
@@ -206,8 +212,28 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
 
     if agent_num in {7, 16}:
         rec = structured.get("recommendation", {})
-        rec_lines = "\n".join(f"{key}: {value}" for key, value in rec.items())
-        return f"[投資建議]\n{rec_lines}\n[/投資建議]\n\n{body}".strip()
+        display_rec = {k: v for k, v in rec.items() if not isinstance(v, dict)}
+        rec_lines = "\n".join(f"{key}: {value}" for key, value in display_rec.items())
+        
+        basis = rec.get("confidence_basis", {})
+        basis_text = ""
+        if basis:
+            basis_text += "\n\n### 信心依據\n"
+            for ev in basis.get("evidence_items", []):
+                basis_text += f"- **具體佐證**: {ev}\n"
+            for rsk in basis.get("key_risks_acknowledged", []):
+                basis_text += f"- **已納入考量的風險**: {rsk}\n"
+            for gap in basis.get("data_gaps", []):
+                basis_text += f"- **已知缺口**: {gap}\n"
+                
+        triggers = structured.get("scenario_triggers", [])
+        trigger_text = ""
+        if triggers:
+            trigger_text += "\n\n### 情境觸發器\n"
+            for t in triggers:
+                trigger_text += f"- 若「{t.get('trigger_condition', '')}」：建議 {t.get('action', '')}\n"
+
+        return f"[投資建議]\n{rec_lines}\n[/投資建議]\n\n{body}{basis_text}{trigger_text}".strip()
 
     return fallback_text
 

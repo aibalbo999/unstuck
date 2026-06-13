@@ -145,3 +145,28 @@ async def refresh_tracking_items(
             errors.append({"ticker": ticker, "error": message})
     payload = list_decision_tracking(output_dir)
     return {"success": not errors, "updated_count": updated_count, "updated_reports_count": updated_reports_count, "skipped": skipped, "errors": errors, **payload}
+
+
+def compute_tracking_performance_stats(output_dir: str) -> dict:
+    """
+    Compute aggregate performance statistics for tracked reports.
+    (Stub for future automated return calculations)
+    """
+    items = list_decision_tracking(output_dir).get("items", [])
+    
+    total_tracked = len(items)
+    active_tracked = sum(1 for item in items if item.get("enabled"))
+    
+    # In the future, this will loop through tracking histories and compare current_price
+    # with the initial report price to calculate hit rates, avg return, etc.
+    
+    return {
+        "summary": {
+            "total_tracked_stocks": total_tracked,
+            "active_tracked_stocks": active_tracked,
+            "average_return_pct": 0.0,
+            "hit_rate_pct": 0.0,
+        },
+        "details": [],
+        "message": "績效統計服務架構已建置，等待歷史決策紀錄累積後自動計算。",
+    }
