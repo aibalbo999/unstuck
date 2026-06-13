@@ -16,6 +16,7 @@ from pipeline_modes import (
     normalize_pipeline_run_id,
 )
 from reporting import ReportRenderer
+from quant_engine import QuantEngine
 
 
 STOCK_DATA_SERVICE = StockDataService()
@@ -137,6 +138,12 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
             return ""
         if "error" in data:
             append_event(job_id, {"type": "status", "message": f"財務數據獲取有誤：{data['error']}，將繼續分析"})
+            
+        metrics_snapshot = QuantEngine.compute_all(data)
+        data["quant_metrics"] = metrics_snapshot
+        
+        # Persist snapshots to db
+        update_job(job_id, "running", data_snapshot=data, metrics_snapshot=metrics_snapshot)
 
         reports = []
         completed_agent_offset = 0
@@ -256,5 +263,8 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
 
 
 def run_stock_analysis_job(job_id: str, ticker: str, pipeline_id: str = "v1") -> str:
-    """Synchronous importable wrapper for RQ and local ThreadPool workers."""
+    """Synchronous importable wrapper for RQ and local workers."""
+    from config import TASK_QUEUE_BACKEND
+    if TASK_QUEUE_BACKEND == "local":
+        return run_stock_analysis_job_async(job_id, ticker, pipeline_id)
     return asyncio.run(run_stock_analysis_job_async(job_id, ticker, pipeline_id))

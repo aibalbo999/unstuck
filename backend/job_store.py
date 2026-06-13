@@ -53,7 +53,7 @@ def create_job(ticker: str, pipeline_id: str = "v1", worker_instance_id: str | N
     return job_id
 
 
-def update_job(job_id: str, status: str, filename: str = None, error: str = None) -> None:
+def update_job(job_id: str, status: str, filename: str = None, error: str = None, data_snapshot: dict = None, metrics_snapshot: dict = None) -> None:
     with _JOB_LOCK, _connect() as conn:
         current = conn.execute(
             "SELECT status, error, cancel_requested FROM analysis_jobs WHERE job_id = ?",
@@ -70,13 +70,25 @@ def update_job(job_id: str, status: str, filename: str = None, error: str = None
             next_status = "cancelled"
             next_filename = None
             next_error = current["error"] or "任務已取消，忽略完成狀態。"
+        set_clauses = ["status = ?", "filename = COALESCE(?, filename)", "error = ?", "updated_at = ?"]
+        params = [next_status, next_filename, next_error, time.time()]
+        
+        if data_snapshot is not None:
+            set_clauses.append("data_snapshot = ?")
+            params.append(json.dumps(data_snapshot, ensure_ascii=False))
+        if metrics_snapshot is not None:
+            set_clauses.append("metrics_snapshot = ?")
+            params.append(json.dumps(metrics_snapshot, ensure_ascii=False))
+            
+        params.append(job_id)
+        
         conn.execute(
-            """
+            f"""
             UPDATE analysis_jobs
-            SET status = ?, filename = COALESCE(?, filename), error = ?, updated_at = ?
+            SET {', '.join(set_clauses)}
             WHERE job_id = ?
             """,
-            (next_status, next_filename, next_error, time.time(), job_id),
+            tuple(params),
         )
 
 
