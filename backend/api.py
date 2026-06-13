@@ -186,6 +186,10 @@ async def _cleanup_reports_forever() -> None:
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     global _LOCAL_RUNTIME_LOCK_HANDLE
+    
+    if hasattr(analysis_task_queue, "start_workers"):
+        analysis_task_queue.start_workers()
+
     for warning in validate_runtime_settings():
         emit_log(f"設定檢查警告：{warning}")
     await _mark_abandoned_local_jobs()
@@ -217,6 +221,8 @@ async def lifespan(_app: FastAPI):
         close_job_store()
         close_cache_store()
         await close_cached_clients_async()
+        if hasattr(analysis_task_queue, "stop_workers"):
+            await analysis_task_queue.stop_workers()
         if _LOCAL_RUNTIME_LOCK_HANDLE is not None:
             _LOCAL_RUNTIME_LOCK_HANDLE.close()
             _LOCAL_RUNTIME_LOCK_HANDLE = None
