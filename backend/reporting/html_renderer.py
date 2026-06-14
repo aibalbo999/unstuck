@@ -6,6 +6,7 @@ from datetime import datetime
 from html import escape
 
 from analysis_types import AnalysisContext
+from company_display import company_display_name
 from config import format_model_routes
 from pipeline_modes import get_pipeline_definition
 
@@ -41,7 +42,7 @@ def generate_html_report(context: AnalysisContext) -> str:
     parsed = context.get("parsed", {})
     
     ticker = sanitize_report_plain_text(context.get("ticker", "N/A")) or "N/A"
-    name = sanitize_report_plain_text(context.get("company_name", ticker)) or ticker
+    name = sanitize_report_plain_text(company_display_name(data, context.get("company_name", ticker))) or ticker
     fetch_date = data.get("fetch_date", datetime.now().strftime("%Y年%m月%d日"))
     pipeline_def = get_pipeline_definition(context.get("pipeline_id", "v1"))
     report_title = pipeline_def["report_title"]
@@ -100,7 +101,7 @@ def generate_html_report(context: AnalysisContext) -> str:
     confidence = sanitize_report_plain_text(get_rec_val(recommendation, "信心", "N/A")) or "N/A"
     audit_banner_html = build_audit_banner_html(context)
     data_trust_html = build_data_trust_html(data)
-    source_audit_html = build_source_audit_html(data)
+    source_audit_html = build_source_audit_html(data, context)
     tear_sheet_summary = clean_markdown(build_tear_sheet_summary(context))
     report_cover = context.get("report_cover", {}) or {}
     report_cover_image = sanitize_report_image_url(report_cover.get("image", ""))

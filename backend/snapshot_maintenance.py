@@ -21,6 +21,7 @@ def verify_snapshots(output_dir: Optional[str] = None, write: bool = False) -> d
         "checked": len(results),
         "missing_hash": sum(1 for item in results if item["status"] == "missing_hash"),
         "backfilled": sum(1 for item in results if item["status"] == "backfilled"),
+        "repaired": sum(1 for item in results if item["status"] == "repaired"),
         "mismatch": sum(1 for item in results if item["status"] == "mismatch"),
         "invalid": sum(1 for item in results if item["status"] == "invalid_json"),
         "results": results,
@@ -38,6 +39,16 @@ def _verify_one(path: Path, write: bool = False) -> dict:
     has_hash = bool(snapshot.get("snapshot_hash") or snapshot.get("content_hash"))
     integrity = verify_data_snapshot_integrity(snapshot)
     if has_hash and not integrity["valid"]:
+        if write:
+            previous_hash = integrity.get("expected_hash", "")
+            set_snapshot_integrity(snapshot)
+            path.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8")
+            return {
+                "file": path.name,
+                "status": "repaired",
+                "hash": snapshot.get("snapshot_hash", ""),
+                "previous_hash": previous_hash,
+            }
         return {
             "file": path.name,
             "status": "mismatch",

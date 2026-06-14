@@ -10,6 +10,7 @@ from agent_runtime import run_agent_with_quality_gates_async
 from agent_runtime.audit_repair import finalize_final_audit_async
 from agent_runtime.cancellation import attach_cancel_check, raise_if_cancelled
 from analysis_types import AnalysisContext, StockData
+from company_display import company_display_name
 from config import API_KEYS, EMBEDDING_MODEL
 from llm_client import KeyRotator
 from pipeline_modes import get_pipeline_definition, normalize_pipeline_id
@@ -21,7 +22,7 @@ from tear_sheet_tasks import ensure_tear_sheet_summary_async
 async def run_analysis_pipeline_async(data: StockData, progress_callback=None, pipeline_id: str = "v1", cancel_check=None) -> AnalysisContext:
     """Run the selected async DAG analysis pipeline."""
     ticker = data["ticker"]
-    name = data["company_name"]
+    name = company_display_name(data, data.get("company_name", ticker))
     pipeline_def = get_pipeline_definition(normalize_pipeline_id(pipeline_id))
     agent_sequence = pipeline_def["agents"]
     agent_positions = {agent_num: idx + 1 for idx, agent_num in enumerate(agent_sequence)}

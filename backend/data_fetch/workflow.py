@@ -73,6 +73,8 @@ async def _run_optional_provider_plan(request: FetchRequest, registry: ProviderR
     resolved_ticker = str(data.get("ticker") or ticker).strip().upper()
     cache_hit = bool(data.get("_cache_hit"))
     refresh_catalysts = (not cache_hit) or source_is_stale(data, "recent_catalysts", resolved_ticker)
+    refresh_global_market = (not cache_hit) or source_is_stale(data, "global_market_context", resolved_ticker)
+    refresh_international_news = (not cache_hit) or source_is_stale(data, "international_news_context", resolved_ticker)
     refresh_peer_discovery = (not cache_hit) or source_is_stale(data, "peer_discovery", resolved_ticker)
 
     providers = []
@@ -83,6 +85,22 @@ async def _run_optional_provider_plan(request: FetchRequest, registry: ProviderR
         )
     else:
         _append_skipped_fresh_cache_audit(data, ("recent_catalysts",))
+
+    if refresh_global_market:
+        providers.extend(
+            provider for provider in registry.for_request(request, source="global_market_context")
+            if getattr(provider, "execute_in_workflow", True)
+        )
+    else:
+        _append_skipped_fresh_cache_audit(data, ("global_market_context",))
+
+    if refresh_international_news:
+        providers.extend(
+            provider for provider in registry.for_request(request, source="international_news_context")
+            if getattr(provider, "execute_in_workflow", True)
+        )
+    else:
+        _append_skipped_fresh_cache_audit(data, ("international_news_context",))
 
     if refresh_peer_discovery:
         providers.extend(
@@ -114,11 +132,17 @@ async def _run_optional_provider_plan(request: FetchRequest, registry: ProviderR
     http_bundle = {
         "google_catalysts": provider_value(provider_results, "recent_catalysts", "Google Search"),
         "fmp_news": fmp_news_records,
+        "global_market_context": _provider_context_value(provider_results, "global_market_context"),
+        "international_news_context": _provider_context_value(provider_results, "international_news_context"),
         "google_peer_discovery": provider_value(provider_results, "peer_discovery", "Google Search"),
     }
     refreshed_sources = []
     if refresh_catalysts:
         refreshed_sources.append("recent_catalysts")
+    if refresh_global_market:
+        refreshed_sources.append("global_market_context")
+    if refresh_international_news:
+        refreshed_sources.append("international_news_context")
     if refresh_peer_discovery:
         refreshed_sources.append("peer_discovery")
 
@@ -133,6 +157,13 @@ async def _run_optional_provider_plan(request: FetchRequest, registry: ProviderR
     finalize_data_trust(data)
     cache_financial_payload(data, ticker)
     return data
+
+
+def _provider_context_value(results: list[ProviderResult], source: str) -> dict:
+    for result in results:
+        if result.source == source and isinstance(result.value, dict):
+            return result.value
+    return {}
 
 
 async def _run_missing_core_provider_plan(request: FetchRequest, registry: ProviderRegistry, data: dict) -> dict:

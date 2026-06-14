@@ -7,8 +7,10 @@ from collections.abc import Iterable
 from .enrichment_providers import (
     DynamicPeerMetricsProvider,
     FmpNewsProvider,
+    GlobalMarketContextProvider,
     GooglePeerDiscoveryProvider,
     GoogleSearchProvider,
+    InternationalNewsContextProvider,
     PeRiverChartProvider,
     YahooProvider,
 )
@@ -49,6 +51,8 @@ def default_providers() -> list[DataProvider]:
         GoogleSearchProvider(),
         FmpNewsProvider(),
         YahooProvider(),
+        GlobalMarketContextProvider(),
+        InternationalNewsContextProvider(),
         GooglePeerDiscoveryProvider(),
         MonthlyRevenueProvider(),
         InstitutionalTradingProvider(),

@@ -3,7 +3,7 @@
 from typing import Optional
 
 from analysis_types import AnalysisContext
-from config import AGENT_FALLBACK_MODELS, AGENT_MODELS, AUDIT_MODEL, CONTEXT_DIGEST_MODEL
+from config import AGENT_FALLBACK_MODELS, AGENT_MODELS, AUDIT_FALLBACK_MODELS, AUDIT_MODEL, CONTEXT_DIGEST_MODEL
 from financial_tools import calculate_cagr, calculate_dcf, calculate_ddm, calculate_wacc
 from llm_client import KeyRotator
 
@@ -24,8 +24,8 @@ def get_agent_model_sequence(agent_num: int) -> list[str]:
 
 
 def get_audit_model_sequence() -> list[str]:
-    """Return the strict single-model route reserved for final audit reflection and rewrites."""
-    return [AUDIT_MODEL]
+    """Return the model route reserved for final audit reflection and rewrites."""
+    return list(dict.fromkeys([AUDIT_MODEL, *AUDIT_FALLBACK_MODELS]))
 
 
 def get_context_digest_model_sequence() -> list[str]:
@@ -55,4 +55,3 @@ def _attempts_for_model(model_index: int, model_sequence: list[str], max_retries
 
 def is_agent_execution_failure(text: str) -> bool:
     return bool(text and text.startswith("[Agent ") and "執行失敗" in text)
-

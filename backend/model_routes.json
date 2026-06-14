@@ -5,6 +5,7 @@
   "context_digest_model": "gemini-3.1-flash-lite",
   "tear_sheet_model": "gemini-3.1-flash-lite",
   "audit_model": "gemini-3.5-flash",
+  "audit_fallback_models": ["gemini-2.5-flash"],
   "embedding_model": "gemini-embedding-2",
   "report_cover_model": "imagen-4.0-generate-001",
   "report_cover_fallback_models": ["imagen-4.0-ultra-generate-001"],
@@ -30,13 +31,13 @@
     "4": ["gemini-2.5-flash"],
     "5": ["gemini-2.5-flash"],
     "6": ["gemini-2.5-flash"],
-    "7": [],
+    "7": ["gemini-2.5-flash"],
     "11": ["gemini-2.5-flash"],
     "12": ["gemini-2.5-flash"],
     "13": ["gemini-2.5-flash"],
     "14": ["gemini-2.5-flash"],
-    "15": [],
-    "16": []
+    "15": ["gemini-2.5-flash"],
+    "16": ["gemini-2.5-flash"]
   },
   "rpm_limits": {
     "gemma-4-31b-it": 30,

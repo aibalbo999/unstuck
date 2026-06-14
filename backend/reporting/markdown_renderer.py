@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from analysis_types import AnalysisContext
+from company_display import company_display_name
 from config import format_model_routes
 from pipeline_modes import get_pipeline_definition
 
@@ -18,7 +19,7 @@ def generate_markdown_report(context: AnalysisContext) -> str:
     parsed = context.get("parsed", {})
     
     ticker = context.get("ticker", "N/A")
-    name = context.get("company_name", ticker)
+    name = company_display_name(data, context.get("company_name", ticker))
     fetch_date = data.get("fetch_date", datetime.now().strftime("%Y年%m月%d日"))
     pipeline_def = get_pipeline_definition(context.get("pipeline_id", "v1"))
     report_title = pipeline_def["report_title"]
@@ -43,7 +44,7 @@ def generate_markdown_report(context: AnalysisContext) -> str:
     confidence = get_rec_val(recommendation, "信心", "N/A")
     audit_markdown = build_audit_markdown(context)
     data_trust_markdown = build_data_trust_markdown(data)
-    source_audit_markdown = build_source_audit_markdown(data)
+    source_audit_markdown = build_source_audit_markdown(data, context)
     tear_sheet_summary = build_tear_sheet_summary(context)
     model_route_summary = format_model_routes(pipeline_id=pipeline_def["id"])
     agent_sections = build_agent_sections(context, html=False)

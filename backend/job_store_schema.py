@@ -7,7 +7,7 @@ import sqlite3
 from storage.migrations import MigrationRunner, column_names
 
 
-JOB_STORE_SCHEMA_VERSION = 5
+JOB_STORE_SCHEMA_VERSION = 6
 
 
 def init_job_store_schema(conn: sqlite3.Connection):
@@ -64,9 +64,16 @@ def init_job_store_schema(conn: sqlite3.Connection):
         if "claimed_at" not in columns:
             migration_conn.execute("ALTER TABLE analysis_jobs ADD COLUMN claimed_at REAL")
 
+    def migrate_v6(migration_conn):
+        columns = column_names(migration_conn, "analysis_jobs")
+        if "data_snapshot" not in columns:
+            migration_conn.execute("ALTER TABLE analysis_jobs ADD COLUMN data_snapshot TEXT")
+        if "metrics_snapshot" not in columns:
+            migration_conn.execute("ALTER TABLE analysis_jobs ADD COLUMN metrics_snapshot TEXT")
+
     MigrationRunner(conn, "job_store").run(
         JOB_STORE_SCHEMA_VERSION,
-        {1: lambda _conn: None, 2: migrate_v2, 3: migrate_v3, 4: migrate_v4, 5: migrate_v5},
+        {1: lambda _conn: None, 2: migrate_v2, 3: migrate_v3, 4: migrate_v4, 5: migrate_v5, 6: migrate_v6},
     )
     conn.execute("CREATE INDEX IF NOT EXISTS idx_analysis_jobs_ticker_status ON analysis_jobs(ticker, status)")
     conn.execute(

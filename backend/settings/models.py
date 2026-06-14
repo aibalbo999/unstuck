@@ -65,6 +65,7 @@ DEFAULT_DECISION_MODEL = env_str("DEFAULT_DECISION_MODEL", _route_str("default_d
 CONTEXT_DIGEST_MODEL = env_str("CONTEXT_DIGEST_MODEL", _route_str("context_digest_model", DEFAULT_ANALYSIS_MODEL))
 TEAR_SHEET_MODEL = env_str("TEAR_SHEET_MODEL", _route_str("tear_sheet_model", CONTEXT_DIGEST_MODEL))
 AUDIT_MODEL = env_str("AUDIT_MODEL", _route_str("audit_model", DEFAULT_DECISION_MODEL))
+AUDIT_FALLBACK_MODELS = env_list("AUDIT_FALLBACK_MODELS", _route_list("audit_fallback_models"))
 EMBEDDING_MODEL = env_str("EMBEDDING_MODEL", _route_str("embedding_model", "gemini-embedding-2"))
 REPORT_COVER_MODEL = env_str("REPORT_COVER_MODEL", _route_str("report_cover_model", "imagen-4.0-generate-001"))
 REPORT_COVER_FALLBACK_MODELS = env_list("REPORT_COVER_FALLBACK_MODELS", _route_list("report_cover_fallback_models"))
@@ -200,6 +201,7 @@ def _load_model_limits(json_env_name: str, default_env_name: str, builtins: dict
         CONTEXT_DIGEST_MODEL,
         TEAR_SHEET_MODEL,
         AUDIT_MODEL,
+        *AUDIT_FALLBACK_MODELS,
         EMBEDDING_MODEL,
         REPORT_COVER_MODEL,
         *REPORT_COVER_FALLBACK_MODELS,
@@ -246,11 +248,13 @@ def format_model_routes(agent_models: Optional[dict[int, str]] = None, pipeline_
         parts = [", ".join(f"A{agent_num}: {models.get(agent_num, 'N/A')}" for agent_num in analysis_agents)]
 
     decision_model = models.get(decision_agent, "N/A")
-    if AUDIT_MODEL == decision_model:
+    audit_models = list(dict.fromkeys([AUDIT_MODEL, *AUDIT_FALLBACK_MODELS]))
+    audit_label = " → ".join(audit_models)
+    if AUDIT_MODEL == decision_model and not AUDIT_FALLBACK_MODELS:
         parts.append(f"Agent {decision_agent}/稽核: {decision_model}")
     else:
         parts.append(f"Agent {decision_agent}: {decision_model}")
-        parts.append(f"稽核: {AUDIT_MODEL}")
+        parts.append(f"稽核: {audit_label}")
 
     if CONTEXT_DIGEST_MODEL and CONTEXT_DIGEST_MODEL not in unique_analysis_models:
         parts.append(f"提煉摘要: {CONTEXT_DIGEST_MODEL}")

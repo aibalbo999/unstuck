@@ -8,6 +8,7 @@ from typing import Any
 
 from fastapi import HTTPException
 
+from company_display import company_display_name
 from data_fetch import FetchRequest
 from data_trust import build_data_snapshot, data_snapshot_filename_for_report, normalize_data_trust, utc_now_iso
 from decision_tracking import build_decision_freshness
@@ -15,6 +16,32 @@ from report_index import is_safe_report_filename, upsert_report_metadata
 
 
 ANALYSIS_TEXT_STALE_MESSAGE = "資料快照已刷新，但 HTML/Markdown 分析本文未重新執行；投資結論仍以原報告生成時間為準。"
+DECISION_RELEVANT_DATA_KEYS = (
+    "current_price",
+    "market_cap_raw",
+    "pe_ratio_raw",
+    "pb_ratio",
+    "ps_ratio",
+    "ev_ebitda",
+    "revenue_ttm_raw",
+    "net_income_ttm_raw",
+    "free_cash_flow_raw",
+    "total_debt_raw",
+    "total_cash_raw",
+    "years",
+    "revenue_history",
+    "net_income_history",
+    "gross_profit_history",
+    "operating_income_history",
+    "fcf_history",
+    "gross_margin_history",
+    "op_margin_history",
+    "net_margin_history",
+    "roe_history",
+    "recent_monthly_revenue",
+    "institutional_trading",
+    "pe_river_chart",
+)
 
 
 def _source_status_map(snapshot: dict) -> dict:
@@ -89,6 +116,54 @@ def refresh_data_diff(previous_snapshot: dict, refreshed_snapshot: dict) -> dict
     }
 
 
+def refresh_requires_analysis_rerun(previous_snapshot: dict, refreshed_snapshot: dict, refresh_diff: dict) -> bool:
+    if previous_snapshot.get("refreshed_without_analysis_rerun") or previous_snapshot.get("decision_validity_status") == "needs_rerun":
+        return True
+    before_data = previous_snapshot.get("data") if isinstance(previous_snapshot.get("data"), dict) else {}
+    after_data = refreshed_snapshot.get("data") if isinstance(refreshed_snapshot.get("data"), dict) else {}
+    for key in DECISION_RELEVANT_DATA_KEYS:
+        if _stable_data_value(before_data, key) != _stable_data_value(after_data, key):
+            return True
+
+    if refresh_diff.get("stale_sources", {}).get("removed") or refresh_diff.get("stale_sources", {}).get("added"):
+        return True
+    if refresh_diff.get("critical_failures", {}).get("removed") or refresh_diff.get("critical_failures", {}).get("added"):
+        return True
+
+    before_trust = normalize_data_trust(previous_snapshot.get("data_trust") if isinstance(previous_snapshot, dict) else None)
+    after_trust = normalize_data_trust(refreshed_snapshot.get("data_trust") if isinstance(refreshed_snapshot, dict) else None)
+    if _actionable_reason_codes(before_trust) != _actionable_reason_codes(after_trust):
+        return True
+    if before_trust.get("status") != after_trust.get("status"):
+        return not _provider_sla_only_partial(after_trust)
+    return False
+
+
+def _stable_data_value(data: dict, key: str) -> str:
+    if key not in data:
+        return "__missing__"
+    return json.dumps(data.get(key), ensure_ascii=False, sort_keys=True, default=str)
+
+
+def _actionable_reason_codes(trust: dict) -> set[str]:
+    return {
+        code for code in (trust.get("reason_codes") or [])
+        if str(code).startswith(("source_error:", "source_stale:"))
+        or code in {"critical_sources_error", "missing_usable_critical_data"}
+    }
+
+
+def _provider_sla_only_partial(trust: dict) -> bool:
+    codes = set(trust.get("reason_codes") or [])
+    return (
+        trust.get("status") == "partial"
+        and "provider_sla_critical" in codes
+        and not trust.get("critical_failures")
+        and not trust.get("stale_sources")
+        and not _actionable_reason_codes(trust)
+    )
+
+
 async def refresh_report_data_snapshot(
     filename: str,
     *,
@@ -127,25 +202,33 @@ async def refresh_report_data_snapshot(
     refresh_generated_at = utc_now_iso()
     context = {
         "ticker": refreshed_data.get("ticker") or ticker,
-        "company_name": refreshed_data.get("company_name") or previous_snapshot.get("company_name") or ticker,
+        "company_name": company_display_name(refreshed_data, previous_snapshot.get("company_name") or ticker),
         "pipeline_id": previous_snapshot.get("pipeline"),
         "data": refreshed_data,
         "conclusion_generated_at": previous_snapshot.get("conclusion_generated_at") or previous_snapshot.get("generated_at"),
         "snapshot_refreshed_at": refresh_generated_at,
-        "decision_validity_status": "needs_rerun",
-        "requires_rerun_reason": ANALYSIS_TEXT_STALE_MESSAGE,
         "deterministic_fallbacks": previous_snapshot.get("deterministic_fallbacks", []),
         "report_lint": previous_snapshot.get("report_lint", {}),
         "refreshed_from_report": filename,
-        "refreshed_without_analysis_rerun": True,
-        "analysis_text_stale_message": ANALYSIS_TEXT_STALE_MESSAGE,
     }
+    provisional_snapshot = build_data_snapshot(
+        context,
+        pipeline_id=previous_snapshot.get("pipeline"),
+        generated_at=refresh_generated_at,
+    )
+    refresh_diff = refresh_data_diff(previous_snapshot, provisional_snapshot)
+    analysis_text_stale = refresh_requires_analysis_rerun(previous_snapshot, provisional_snapshot, refresh_diff)
+    context.update({
+        "decision_validity_status": "needs_rerun" if analysis_text_stale else "current",
+        "requires_rerun_reason": ANALYSIS_TEXT_STALE_MESSAGE if analysis_text_stale else "",
+        "refreshed_without_analysis_rerun": analysis_text_stale,
+        "analysis_text_stale_message": ANALYSIS_TEXT_STALE_MESSAGE if analysis_text_stale else "",
+    })
     refreshed_snapshot = build_data_snapshot(
         context,
         pipeline_id=previous_snapshot.get("pipeline"),
         generated_at=refresh_generated_at,
     )
-    refresh_diff = refresh_data_diff(previous_snapshot, refreshed_snapshot)
 
     with open(data_path, "w", encoding="utf-8") as f:
         json.dump(refreshed_snapshot, f, ensure_ascii=False, indent=2)
@@ -162,8 +245,8 @@ async def refresh_report_data_snapshot(
         "data_trust": refreshed_snapshot.get("data_trust"),
         "source_audit": refreshed_snapshot.get("source_audit", [])[:12],
         "refresh_diff": refresh_diff,
-        "analysis_text_stale": True,
-        "analysis_text_stale_message": ANALYSIS_TEXT_STALE_MESSAGE,
+        "analysis_text_stale": analysis_text_stale,
+        "analysis_text_stale_message": ANALYSIS_TEXT_STALE_MESSAGE if analysis_text_stale else "",
         "decision_freshness": decision_freshness,
         "metadata": metadata or {},
     }

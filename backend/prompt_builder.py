@@ -11,6 +11,7 @@ from jinja2 import ChainableUndefined, Environment
 
 from config import CATALYST_LOOKBACK_DAYS
 from financial_tools import build_financial_tool_context, raw_twd_to_billion_twd, safe_float
+from prompt_context_sections import prompt_global_market_context, prompt_international_news_context
 
 
 PROMPT_DATA_SCHEMA_VERSION = int(os.getenv("PROMPT_DATA_SCHEMA_VERSION", "3"))
@@ -248,6 +249,8 @@ def format_data_for_prompt(data: dict, *, compact: bool = False) -> str:
             "lookback_days": CATALYST_LOOKBACK_DAYS,
             "items": _compact_list(data.get("recent_catalysts", []), 3) if compact else data.get("recent_catalysts", []) or [],
         },
+        "global_market_context": prompt_global_market_context(data, compact=compact),
+        "international_news_context": prompt_international_news_context(data, compact=compact),
         "institutional_trading": data.get("institutional_trading", {}) or {},
         "peer_context": {
             "dynamic_peer_metrics": _compact_list(data.get("dynamic_peer_metrics", []), 5) if compact else data.get("dynamic_peer_metrics", []) or [],
@@ -271,6 +274,7 @@ def format_data_for_prompt(data: dict, *, compact: bool = False) -> str:
     usage_rules = [
         "所有金額欄位均已統一為 billion_twd；不要把「億台幣」或 Billion 互相換算後再混用。",
         "引用 current_price_twd、市場估值、新聞、法人或同業資料時，必須參考 source_freshness/data_freshness；若來源為快取或盤後資料，不可宣稱是即時資料。",
+        "總經、產業循環、美股帶動或國際局勢敘述必須引用 global_market_context / international_news_context；若缺資料，必須明確標示未驗證。",
         "若 data_trust.status 為 partial、stale、error 或 unknown，最終投資建議必須明確說明資料限制，且不得在沒有額外佐證下給出高信心。",
         "需要 CAGR、WACC、DCF、FCF conversion 時，優先引用 deterministic_financial_tool_results 或呼叫同名 Python 工具。",
         "若資料品質註記指出口徑互斥，正式分析應說明限制並採用 cross_checks 中可自洽的口徑。",

@@ -42,6 +42,14 @@ def _merge_optional_http_bundle(
     if peer_discovery:
         data["peer_discovery_results"] = _dedupe_records(peer_discovery, limit=5)
 
+    global_context = http_bundle.get("global_market_context", {}) or {}
+    if isinstance(global_context, dict) and global_context:
+        data["global_market_context"] = global_context
+
+    news_context = http_bundle.get("international_news_context", {}) or {}
+    if isinstance(news_context, dict) and news_context:
+        data["international_news_context"] = news_context
+
     fmp_quote = http_bundle.get("fmp_quote", {}) or {}
     if isinstance(fmp_quote, dict) and fmp_quote:
         updated_fields = []
@@ -125,7 +133,7 @@ def _merge_optional_http_bundle(
             _append_source_fetch_audit(
                 data,
                 source,
-                "Google Search/FMP" if source == "recent_catalysts" else "Google Search",
+                _optional_provider_label(source),
                 status,
                 fetched_at_epoch=refresh_epoch,
                 finished_at_epoch=refresh_epoch,
@@ -138,3 +146,13 @@ def _merge_optional_http_bundle(
 
     finalize_data_trust(data)
     return data
+
+
+def _optional_provider_label(source: str) -> str:
+    if source == "recent_catalysts":
+        return "Google Search/FMP"
+    if source == "global_market_context":
+        return "Global market context"
+    if source == "international_news_context":
+        return "International news context"
+    return "Google Search"

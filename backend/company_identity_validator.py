@@ -45,7 +45,7 @@ def validate_company_identity(text: str, data: dict) -> list[str]:
 
     issues = []
     ticker = data.get("ticker", identity.get("ticker", ""))
-    stock_id = identity.get("stock_id", ticker.replace(".TW", "").replace(".TWO", ""))
+    stock_id = identity.get("stock_id", ticker.replace(".TWO", "").replace(".TW", ""))
     official_name = identity.get("official_name")
     allowed_aliases = set(identity.get("allowed_aliases", []))
     forbidden_aliases = set(identity.get("forbidden_aliases", []))
@@ -67,6 +67,21 @@ def validate_company_identity(text: str, data: dict) -> list[str]:
                 return True
         return False
 
+    for peer in identity.get("same_industry_peers", []):
+        peer_name = peer.get("stock_name", "")
+        peer_code = peer.get("stock_id", "")
+        if not peer_name or peer_name in allowed_aliases:
+            continue
+        if alias_bound_to_current_ticker(peer_name):
+            issues.append(f"公司身分錯置：同業「{peer_name}」被綁定到本次標的 {ticker}。")
+            continue
+        if len(peer_name) < 2:
+            continue
+        unqualified_count = count_unqualified_alias(text, peer_name, peer_code=peer_code)
+        threshold = 2 if peer_name in forbidden_aliases else 4
+        if unqualified_count >= threshold:
+            issues.append(f"公司身分污染：同業「{peer_name}」在未標示為同業的脈絡中出現 {unqualified_count} 次。")
+
     for alias in identity.get("forbidden_aliases", []):
         if len(alias) < 2:
             continue
@@ -76,20 +91,6 @@ def validate_company_identity(text: str, data: dict) -> list[str]:
         unqualified_count = count_unqualified_alias(text, alias)
         if unqualified_count >= 2:
             issues.append(f"公司身分污染：輸出中多次以「{alias}」作為主體，疑似套用了錯誤公司。")
-
-    for peer in identity.get("same_industry_peers", []):
-        peer_name = peer.get("stock_name", "")
-        peer_code = peer.get("stock_id", "")
-        if not peer_name or peer_name in allowed_aliases or peer_name in forbidden_aliases:
-            continue
-        if alias_bound_to_current_ticker(peer_name):
-            issues.append(f"公司身分錯置：同業「{peer_name}」被綁定到本次標的 {ticker}。")
-            continue
-        if len(peer_name) < 3:
-            continue
-        unqualified_count = count_unqualified_alias(text, peer_name, peer_code=peer_code)
-        if unqualified_count >= 4:
-            issues.append(f"公司身分污染：同業「{peer_name}」在未標示為同業的脈絡中出現 {unqualified_count} 次。")
 
     if official_name and issues and official_name not in text:
         issues.append(f"公司身分缺失：輸出未使用官方中文名稱「{official_name}」。")

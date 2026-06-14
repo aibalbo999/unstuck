@@ -15,18 +15,21 @@ KEY_EVIDENCE_DEFINITIONS = (
     ("同業指標", "dynamic_peer_metrics", ("dynamic_peer_metrics",)),
     ("P/E 河流圖", "pe_river_chart", ("pe_river_chart",)),
     ("近期催化劑", "recent_catalysts", ("recent_catalysts",)),
+    ("全球市場脈絡", "global_market_context", ("global_market_context",)),
+    ("國際新聞脈絡", "international_news_context", ("international_news_context",)),
 )
 
 
-def _latest_audit_entries(data: dict) -> dict:
+def _audit_entries_by_source(data: dict) -> dict[str, list[dict]]:
     entries = data.get("source_audit") if isinstance(data, dict) else []
-    latest = {}
+    grouped: dict[str, list[dict]] = {}
     if not isinstance(entries, list):
-        return latest
+        return grouped
     for entry in entries:
-        if isinstance(entry, dict) and entry.get("source"):
-            latest[str(entry.get("source"))] = entry
-    return latest
+        if not isinstance(entry, dict) or not entry.get("source"):
+            continue
+        grouped.setdefault(str(entry.get("source")), []).append(entry)
+    return grouped
 
 
 def _has_evidence_value(data: dict, keys: tuple[str, ...]) -> bool:
@@ -38,15 +41,47 @@ def _has_evidence_value(data: dict, keys: tuple[str, ...]) -> bool:
     return False
 
 
+def _record_count(entry: dict) -> int:
+    try:
+        return max(0, int(entry.get("record_count") or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _source_evidence_entry(data: dict, source: str, keys: tuple[str, ...]) -> dict:
+    entries = _audit_entries_by_source(data).get(source, [])
+    if not entries:
+        return {}
+    successful = [
+        entry for entry in entries
+        if str(entry.get("status") or "") in {"success", "skipped_fresh_cache"}
+        and _record_count(entry) > 0
+    ]
+    if _has_evidence_value(data, keys) and successful:
+        providers = []
+        for entry in successful:
+            provider = str(entry.get("provider") or "").strip()
+            if provider and provider not in providers:
+                providers.append(provider)
+        fetched_at = next((entry.get("fetched_at") for entry in reversed(successful) if entry.get("fetched_at")), None)
+        return {
+            "provider": " + ".join(providers) if providers else "未記錄",
+            "status": "success",
+            "fetched_at": fetched_at or "N/A",
+            "record_count": sum(_record_count(entry) for entry in successful),
+            "stale": all(bool(entry.get("stale")) for entry in successful),
+        }
+    return entries[-1]
+
+
 def build_key_evidence_rows(data: dict) -> list[dict]:
     if not isinstance(data, dict):
         return []
-    latest = _latest_audit_entries(data)
     rows = []
     for label, source, keys in KEY_EVIDENCE_DEFINITIONS:
         if not _has_evidence_value(data, keys):
             continue
-        entry = latest.get(source, {})
+        entry = _source_evidence_entry(data, source, keys)
         rows.append({
             "label": label,
             "source_label": source_label(source),

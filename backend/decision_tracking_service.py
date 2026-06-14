@@ -116,11 +116,25 @@ async def refresh_tracking_items(
             errors.append({"ticker": ticker, "error": message})
             continue
         try:
+            refreshed_for_ticker = 0
             for report in reports:
+                freshness = report.get("decision_freshness") if isinstance(report.get("decision_freshness"), dict) else {}
+                if report.get("analysis_text_stale") or freshness.get("requires_rerun"):
+                    skipped.append({
+                        "ticker": ticker,
+                        "filename": report.get("filename", ""),
+                        "reason": "needs_full_rerun",
+                    })
+                    continue
                 await refresh_report_data_snapshot(report["filename"], output_dir=output_dir, refresh_service=refresh_service)
+                refreshed_for_ticker += 1
                 updated_reports_count += 1
-            decision_tracking_store.mark_refresh(ticker, status="success", message="最新股價已刷新。", now=now)
-            updated_count += 1
+            if refreshed_for_ticker:
+                decision_tracking_store.mark_refresh(ticker, status="success", message="最新股價已刷新。", now=now)
+                updated_count += 1
+            else:
+                message = "最新報告已標示需完整重跑，略過資料快照刷新。"
+                decision_tracking_store.mark_refresh(ticker, status="needs_full_rerun", message=message, now=now)
         except HTTPException as exc:
             message = str(exc.detail or exc)
             decision_tracking_store.mark_refresh(ticker, status="error", message=message, now=now)
@@ -131,3 +145,28 @@ async def refresh_tracking_items(
             errors.append({"ticker": ticker, "error": message})
     payload = list_decision_tracking(output_dir)
     return {"success": not errors, "updated_count": updated_count, "updated_reports_count": updated_reports_count, "skipped": skipped, "errors": errors, **payload}
+
+
+def compute_tracking_performance_stats(output_dir: str) -> dict:
+    """
+    Compute aggregate performance statistics for tracked reports.
+    (Stub for future automated return calculations)
+    """
+    items = list_decision_tracking(output_dir).get("items", [])
+    
+    total_tracked = len(items)
+    active_tracked = sum(1 for item in items if item.get("enabled"))
+    
+    # In the future, this will loop through tracking histories and compare current_price
+    # with the initial report price to calculate hit rates, avg return, etc.
+    
+    return {
+        "summary": {
+            "total_tracked_stocks": total_tracked,
+            "active_tracked_stocks": active_tracked,
+            "average_return_pct": 0.0,
+            "hit_rate_pct": 0.0,
+        },
+        "details": [],
+        "message": "績效統計服務架構已建置，等待歷史決策紀錄累積後自動計算。",
+    }

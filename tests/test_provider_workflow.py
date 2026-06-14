@@ -80,6 +80,112 @@ def test_stock_data_service_uses_provider_plan_for_optional_enrichment(monkeypat
     assert {entry["provider"] for entry in result.data["source_audit"]} >= {"Google Search", "FMP news"}
 
 
+def test_stock_data_service_merges_global_market_and_international_news_context(monkeypatch):
+    monkeypatch.setattr(workflow, "cache_financial_payload", lambda data, ticker: None)
+    monkeypatch.setattr(workflow, "get_cache_json", lambda key: None)
+
+    def core_provider(request, context):
+        payload = fresh_audited_payload(ticker=request.ticker, provider="fake-core")
+        payload["sector"] = "Technology"
+        payload["industry"] = "Semiconductors"
+        return ProviderResult(
+            source="market_data",
+            provider="fake-core",
+            status="success",
+            value=payload,
+            audit=payload["source_audit"][0],
+        )
+
+    def global_market_provider(request, context):
+        return ProviderResult(
+            source="global_market_context",
+            provider="yfinance global context",
+            status="success",
+            value={
+                "as_of": FRESH_AT,
+                "lookback_days": 5,
+                "items": [
+                    {
+                        "symbol": "QQQ",
+                        "label": "Nasdaq 100 ETF",
+                        "category": "us_growth",
+                        "latest": 500.0,
+                        "change_1d_pct": 1.2,
+                        "change_5d_pct": 3.4,
+                        "source": "yfinance",
+                        "fetched_at": FRESH_AT,
+                    }
+                ],
+                "coverage_notes": [],
+            },
+            audit=build_source_audit_entry(
+                "global_market_context",
+                "yfinance global context",
+                "success",
+                fetched_at=FRESH_AT,
+                record_count=1,
+            ),
+        )
+
+    def international_news_provider(request, context):
+        return ProviderResult(
+            source="international_news_context",
+            provider="GDELT",
+            status="success",
+            value={
+                "lookback_days": 7,
+                "topics": [
+                    {
+                        "tag": "semiconductors_ai",
+                        "headline": "AI chip demand lifts global semiconductor supply chain",
+                        "summary": "Global AI chip demand remains a cross-market driver.",
+                        "published_at": FRESH_AT,
+                        "source": "GDELT",
+                        "url": "https://example.com/ai-chip",
+                    }
+                ],
+                "coverage_notes": [],
+            },
+            audit=build_source_audit_entry(
+                "international_news_context",
+                "GDELT",
+                "success",
+                fetched_at=FRESH_AT,
+                record_count=1,
+            ),
+        )
+
+    registry = ProviderRegistry([
+        CallableProvider("market_data", "fake-core", core_provider),
+        CallableProvider("global_market_context", "yfinance global context", global_market_provider),
+        CallableProvider("international_news_context", "GDELT", international_news_provider),
+    ])
+
+    result = asyncio.run(StockDataService(registry=registry).fetch_async(FetchRequest.from_ticker("2330.TW")))
+
+    assert result.data["global_market_context"]["items"][0]["symbol"] == "QQQ"
+    assert result.data["international_news_context"]["topics"][0]["tag"] == "semiconductors_ai"
+    latest_sources = {entry["source"]: entry for entry in result.data["source_audit"]}
+    assert latest_sources["global_market_context"]["status"] == "success"
+    assert latest_sources["international_news_context"]["status"] == "success"
+    assert "global_market_context" not in result.data["data_trust"]["stale_sources"]
+    assert "international_news_context" not in result.data["data_trust"]["stale_sources"]
+    assert not any(
+        code in {
+            "source_stale:global_market_context",
+            "source_stale:international_news_context",
+        }
+        for code in result.data["data_trust"].get("reason_codes", [])
+    )
+
+
+def test_default_provider_registry_includes_global_context_sources():
+    sources = {provider.source for provider in ProviderRegistry().providers}
+
+    assert "global_market_context" in sources
+    assert "international_news_context" in sources
+
+
 def test_stock_data_service_fake_registry_e2e_cache_audit_and_trust(monkeypatch, tmp_path):
     calls = []
     cached_payloads = {}
