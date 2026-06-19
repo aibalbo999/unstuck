@@ -31,6 +31,8 @@ import reporting.utils as report_utils  # noqa: E402
 import structured_outputs  # noqa: E402
 from quant_engine import QuantEngine  # noqa: E402
 from llm_client import KeyRotator  # noqa: E402
+from openai_structured_outputs import openai_json_schema_response_format  # noqa: E402
+from structured_output_models import PriceTargetStructuredOutput  # noqa: E402
 
 
 def base_data():
@@ -714,6 +716,37 @@ class AuditRuleTests(unittest.TestCase):
     def test_structured_schema_omits_additional_properties_for_genai(self):
         schema = structured_outputs.MoatStructuredOutput.model_json_schema(by_alias=True)
         self.assertNotIn("additionalProperties", json.dumps(schema, ensure_ascii=False))
+
+    def test_openai_structured_output_schema_is_strict_without_changing_genai_schema(self):
+        genai_schema = PriceTargetStructuredOutput.model_json_schema(by_alias=True)
+        openai_format = openai_json_schema_response_format("price_target", PriceTargetStructuredOutput)
+
+        self.assertNotIn("additionalProperties", json.dumps(genai_schema, ensure_ascii=False))
+        self.assertEqual(openai_format["type"], "json_schema")
+        self.assertIs(openai_format["json_schema"]["strict"], True)
+        self.assertIn(
+            '"additionalProperties": false',
+            json.dumps(openai_format, ensure_ascii=False),
+        )
+
+    def test_openai_structured_output_adapter_requires_all_fields_and_valid_name(self):
+        schema = openai_json_schema_response_format(
+            "price_target",
+            PriceTargetStructuredOutput,
+        )["json_schema"]["schema"]
+        pending = [schema]
+        while pending:
+            node = pending.pop()
+            if isinstance(node, dict):
+                if node.get("type") == "object":
+                    self.assertIs(node.get("additionalProperties"), False)
+                    self.assertEqual(set(node.get("required", [])), set(node.get("properties", {})))
+                pending.extend(node.values())
+            elif isinstance(node, list):
+                pending.extend(node)
+
+        with self.assertRaises(ValueError):
+            openai_json_schema_response_format("invalid schema name!", PriceTargetStructuredOutput)
 
     def test_structured_schemas_include_reasoning_fields(self):
         moat_schema = structured_outputs.MoatStructuredOutput.model_json_schema(by_alias=True)
