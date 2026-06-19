@@ -20,7 +20,7 @@ from .provider_base import (
 )
 from .provider_registry import ProviderRegistry, default_providers
 from .quote_providers import FmpProvider, YFinanceProvider
-from .taiwan_providers import FinMindProvider, InstitutionalTradingProvider, MonthlyRevenueProvider
+from .taiwan_providers import FinMindProvider, InstitutionalTradingProvider, MonthlyRevenueProvider, TwseOfficialProvider
 
 __all__ = [
     name

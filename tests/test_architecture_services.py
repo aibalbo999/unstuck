@@ -17,6 +17,7 @@ from data_fetch.providers import (  # noqa: E402
     MonthlyRevenueProvider,
     PeRiverChartProvider,
     ProviderRegistry,
+    TwseOfficialProvider,
     infer_market,
 )
 from reporting import ReportRenderer, ReportRequest  # noqa: E402
@@ -90,6 +91,7 @@ def test_default_core_provider_registry_exposes_expected_source_routes():
         FmpProvider(),
         MonthlyRevenueProvider(),
         InstitutionalTradingProvider(),
+        TwseOfficialProvider(),
         PeRiverChartProvider(),
     ])
     tw_request = FetchRequest.from_ticker("2330.TW")
@@ -98,9 +100,11 @@ def test_default_core_provider_registry_exposes_expected_source_routes():
     assert registry.provider_names(tw_request, source="financial_statements") == ["FinMind"]
     assert registry.provider_names(tw_request, source="monthly_revenue") == ["FinMind TaiwanStockMonthRevenue"]
     assert registry.provider_names(tw_request, source="institutional_trading") == ["FinMind"]
+    assert registry.provider_names(tw_request, source="twse_official") == ["FinMind TWSE official"]
     assert registry.provider_names(tw_request, source="pe_river_chart") == ["FinMind/default multiples"]
     assert registry.provider_names(us_request, source="monthly_revenue") == []
     assert registry.provider_names(us_request, source="institutional_trading") == []
+    assert registry.provider_names(us_request, source="twse_official") == []
     assert registry.provider_names(us_request, source="market_data") == ["FMP stable quote"]
     assert registry.first_provider(us_request, source="market_data") is None
 

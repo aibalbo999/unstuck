@@ -29,6 +29,15 @@
       "issue": "估值方法紅線：DCF 與 EPS × P/E 是兩套不同估值法；P/E 乘法只能作相對估值交叉檢查，不得宣稱 DCF 必須與其完全吻合。"
     },
     {
+      "id": "dual_dcf_conflict",
+      "agents": [7],
+      "all_substrings": ["DCF"],
+      "any_substring_groups": [
+        ["另一方法計算", "系統計算結果", "quant_metrics 顯示", "自動計算"]
+      ],
+      "issue": "DCF 來源衝突：報告同時引用了 Agent 手動 DCF 與系統自動 DCF，應選一為準並說明差異原因。"
+    },
+    {
       "id": "book_value_wacc",
       "agents": [4, 14],
       "all_substrings": ["WACC"],

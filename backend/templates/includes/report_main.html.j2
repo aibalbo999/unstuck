@@ -174,6 +174,11 @@
         <div class="references">
             <h4>📚 參考資料來源與數據誤差訴明</h4>
             {% include "includes/source_audit.html.j2" %}
+            {% if twse_official_unavailable %}
+            <p style="font-size:12px; color:#f59e0b; margin:10px 0 14px; line-height:1.5;">
+                ⚠ 台股官方財務資料（TWSE/MOPS）本次未取得，請以公開財報為準
+            </p>
+            {% endif %}
             <div class="references-grid">
                 <div class="ref-item">
                     <span class="ref-icon">📊</span>

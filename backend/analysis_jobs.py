@@ -141,6 +141,8 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
             
         metrics_snapshot = QuantEngine.compute_all(data)
         data["quant_metrics"] = metrics_snapshot
+        if metrics_snapshot.get("fallback_fields"):
+            data["quant_metrics"]["__has_fallback"] = True
         
         # Persist snapshots to db
         update_job(job_id, "running", data_snapshot=data, metrics_snapshot=metrics_snapshot)

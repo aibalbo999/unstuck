@@ -20,7 +20,9 @@
 - 結構化 Agent 使用 JSON 輸出優先解析；Mode A/B 會解析護城河、估值與投資建議，Mode C 會解析泡沫狙擊建議
 - Mode C 的 Agent 19 報告會強制保留做空觸發條件、防軋空停損點，並將 `[投資建議]` 區塊固定放在最終段落尾端
 - 財務資料使用本地 SQLite 持久化快取，預設 24 小時
+- 台股會嘗試以 FinMind / TWSE 官方資料補抓最近四季財報，成功時納入跨來源比對；未取得時 HTML 報告會顯示官方財務資料警示
 - yfinance 欄位缺漏時會用 FMP（需 API key）或可追溯的衍生補值補上市場欄位、TTM 營收或 FCF，並在 prompt 中揭露限制
+- QuantEngine 若因缺少 `total_equity`、`total_debt`、`free_cash_flows` 等欄位而使用預設假設，會在 `quant_metrics` 標記 `fallback_fields` 與 `data_quality_warning`
 - 歷史報告會自動清理孤立 Markdown，並刪除超過保留天數的舊報告
 - 長任務透過 SQLite job/event store 與任務佇列抽象執行，可用本地 worker 或切換 RQ/Redis
 - API 額度儀表板使用 `api_usage_events` ledger 統計 Gemini provider request、Google Custom Search 與 FMP 本機觀測用量
@@ -111,6 +113,7 @@ export GEMINI_API_KEYS="your_key_1,your_key_2"
 - `GEMINI_API_KEY_1` 到 `GEMINI_API_KEY_10`
 - `GOOGLE_SEARCH_API_KEY`、`GOOGLE_CSE_ID`：可選，用於近期新聞與催化劑搜尋
 - `FMP_API_KEY`：可選，用於 yfinance 缺漏時補市場欄位與新聞
+- `FINMIND_API_TOKEN`：可選，用於提高 FinMind 台股官方財報、月營收與法人資料抓取穩定度；未設定時仍會嘗試公開額度
 
 可選設定：
 
@@ -137,6 +140,9 @@ export GEMINI_API_KEYS="your_key_1,your_key_2"
 - `LLM_SERVER_ERROR_RETRY_MAX_WAIT_SECONDS`：模型服務 5xx 重試 backoff 單次等待上限，預設 `45`
 - 429 quota / rate-limit 會至少輪完所有 API key 才判定該模型不可用；任務事件只記錄 `key_slot/key_count`，不保存 key 明文
 - `FMP_BASE_URL`：FMP API base URL，預設 `https://financialmodelingprep.com/stable`
+- `WACC_COST_OF_EQUITY_PCT`：系統 DCF/WACC 的預設股權成本，預設 `10.0`
+- `WACC_COST_OF_DEBT_PCT`：系統 DCF/WACC 的預設債務成本，預設 `3.0`
+- `WACC_TAX_RATE_PCT`：系統 DCF/WACC 的預設稅率，預設 `20.0`
 - `GDELT_RATE_LIMIT_COOLDOWN_SECONDS`：GDELT 國際新聞遇到 HTTP 429 後的冷卻秒數，預設 `900`
 - GDELT 國際新聞會先使用 topic cache；遇到 429 時會進入 cooldown，優先讀快取，否則改用 Google News RSS 備援，避免單次分析連續打爆 GDELT
 
@@ -383,7 +389,7 @@ GEMINI_API_KEYS=...
 
 ### 3. FinMind 顯示 `Requests reach the upper limit`
 
-這代表 FinMind 公開資料額度已達上限。系統仍會使用 Yahoo Finance / yfinance 資料繼續分析，但近期月營收或官方中文名稱可能缺漏。部分常用台股名稱已加入 fallback。
+這代表 FinMind 公開資料額度已達上限。系統仍會使用 Yahoo Finance / yfinance 資料繼續分析，但近期月營收、官方四季財報或法人資料可能缺漏；HTML 報告會標示「台股官方財務資料（TWSE/MOPS）本次未取得」。若你有 FinMind token，可設定 `FINMIND_API_TOKEN` 後重啟。
 
 ### 4. 8080 port 被占用
 
@@ -427,6 +433,8 @@ xattr -d com.apple.quarantine start_mac.command
 - Prompt 主要放在 `backend/prompts/agents.json`，修改後請確認各 pipeline 的 Agent 都保留 system 與 analysis prompt；Mode C 使用 Agent 17 / 18 / 19。
 - HTML 報告版型主要放在 `backend/templates/report.html.j2`，Python 只負責整理資料與渲染模板。
 - 修改 prompt 或品質檢查後，建議至少跑一次 `python3 -m py_compile`。
+- 修改 DCF/WACC 或 `quant_metrics` 時，請確認 `fallback_fields`、`data_quality_warning`、Agent 7【資料警示】與 final audit 的 DCF 衝突檢查仍一致。
+- 修改台股資料 provider 時，請確認 `twse_official` source audit、跨來源比對與報告警示仍能同時運作。
 - 若調整公司身分檢查，請測試「同業比較」與「公司錯置」兩種情境，避免誤殺產業普通名詞。
 
 ## 快速檢查

@@ -16,7 +16,7 @@ from .enrichment_providers import (
 )
 from .provider_base import DataProvider
 from .quote_providers import FmpProvider, YFinanceProvider
-from .taiwan_providers import FinMindProvider, InstitutionalTradingProvider, MonthlyRevenueProvider
+from .taiwan_providers import FinMindProvider, InstitutionalTradingProvider, MonthlyRevenueProvider, TwseOfficialProvider
 from .types import FetchRequest
 
 
@@ -54,6 +54,7 @@ def default_providers() -> list[DataProvider]:
         GlobalMarketContextProvider(),
         InternationalNewsContextProvider(),
         GooglePeerDiscoveryProvider(),
+        TwseOfficialProvider(),
         MonthlyRevenueProvider(),
         InstitutionalTradingProvider(),
         DynamicPeerMetricsProvider(),

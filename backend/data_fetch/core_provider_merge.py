@@ -2,7 +2,20 @@
 
 from __future__ import annotations
 
+from data_cross_validator import apply_cross_validation_to_data
+
 from .types import ProviderResult
+
+
+TWSE_OFFICIAL_FIELDS = (
+    "revenue_ttm_raw",
+    "net_income_ttm_raw",
+    "free_cash_flow_raw",
+    "gross_margin_raw",
+    "operating_margin_raw",
+    "profit_margin_raw",
+    "total_debt_raw",
+)
 
 
 def merge_core_provider_result(data: dict, result: ProviderResult) -> None:
@@ -23,6 +36,12 @@ def merge_core_provider_result(data: dict, result: ProviderResult) -> None:
     elif result.source == "monthly_revenue" and isinstance(value, list):
         if not data.get("recent_monthly_revenue"):
             data["recent_monthly_revenue"] = value
+    elif result.source == "twse_official" and isinstance(value, dict) and value:
+        data["twse_official"] = value
+        for key in TWSE_OFFICIAL_FIELDS:
+            if data.get(key) in (None, "", "N/A") and value.get(key) is not None:
+                data[key] = value.get(key)
+        apply_cross_validation_to_data(data, {"twse": value})
     elif result.source == "institutional_trading" and isinstance(value, dict):
         if not data.get("institutional_trading"):
             data["institutional_trading"] = value

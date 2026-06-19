@@ -234,6 +234,7 @@ def _provider_context_value(results: list[ProviderResult], source: str) -> dict:
 async def _run_missing_core_provider_plan(request: FetchRequest, registry: ProviderRegistry, data: dict) -> dict:
     core_sources = (
         "financial_statements",
+        "twse_official",
         "monthly_revenue",
         "institutional_trading",
         "dynamic_peer_metrics",

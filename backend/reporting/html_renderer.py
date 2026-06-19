@@ -104,6 +104,14 @@ def generate_html_report(context: AnalysisContext) -> str:
     audit_banner_html = build_audit_banner_html(context)
     data_trust_html = build_data_trust_html(data)
     source_audit_html = build_source_audit_html(data, context)
+    audit_entries = data.get("source_audit", []) if isinstance(data.get("source_audit"), list) else []
+    report_ticker = str(data.get("ticker") or ticker)
+    is_taiwan_ticker = report_ticker.split(".")[0].isdigit()
+    twse_official_unavailable = is_taiwan_ticker and not any(
+        entry.get("source") == "twse_official" and entry.get("status") == "success"
+        for entry in audit_entries
+        if isinstance(entry, dict)
+    )
     tear_sheet_summary = clean_markdown(build_tear_sheet_summary(context))
     report_cover = context.get("report_cover", {}) or {}
     report_cover_image = sanitize_report_image_url(report_cover.get("image", ""))

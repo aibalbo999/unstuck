@@ -43,10 +43,14 @@ refresh_api_keys()
 
 FMP_API_KEY = os.getenv("FMP_API_KEY", "").strip()
 FMP_BASE_URL = os.getenv("FMP_BASE_URL", "https://financialmodelingprep.com/stable").rstrip("/")
+FINMIND_API_TOKEN = os.getenv("FINMIND_API_TOKEN", "").strip()
 GOOGLE_SEARCH_API_KEY = os.getenv("GOOGLE_SEARCH_API_KEY", "").strip()
 GOOGLE_CSE_ID = os.getenv("GOOGLE_CSE_ID", "").strip()
 CATALYST_LOOKBACK_DAYS = int(os.getenv("CATALYST_LOOKBACK_DAYS", "30"))
 INSTITUTIONAL_LOOKBACK_DAYS = int(os.getenv("INSTITUTIONAL_LOOKBACK_DAYS", "30"))
+WACC_COST_OF_EQUITY_DEFAULT_PCT = float(os.getenv("WACC_COST_OF_EQUITY_PCT", "10.0"))
+WACC_COST_OF_DEBT_DEFAULT_PCT = float(os.getenv("WACC_COST_OF_DEBT_PCT", "3.0"))
+WACC_TAX_RATE_DEFAULT_PCT = float(os.getenv("WACC_TAX_RATE_PCT", "20.0"))
 
 
 __all__ = [name for name in globals() if name.isupper() or name in {"has_api_keys", "refresh_api_keys"}]

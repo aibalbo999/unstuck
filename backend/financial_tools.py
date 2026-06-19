@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from typing import Any, Optional
 
+from config import WACC_COST_OF_DEBT_DEFAULT_PCT, WACC_COST_OF_EQUITY_DEFAULT_PCT, WACC_TAX_RATE_DEFAULT_PCT
 
 def safe_float(value: Any) -> Optional[float]:
     """Return a float for numeric-looking values, otherwise None."""
@@ -51,9 +52,9 @@ def calculate_cagr(start_value: float, end_value: float, periods: int) -> dict:
 def calculate_wacc(
     market_cap_twd: float,
     total_debt_twd: float,
-    cost_of_equity_pct: float = 10.0,
-    cost_of_debt_pct: float = 3.0,
-    tax_rate_pct: float = 20.0,
+    cost_of_equity_pct: float = WACC_COST_OF_EQUITY_DEFAULT_PCT,
+    cost_of_debt_pct: float = WACC_COST_OF_DEBT_DEFAULT_PCT,
+    tax_rate_pct: float = WACC_TAX_RATE_DEFAULT_PCT,
 ) -> dict:
     """Calculate market-value WACC weights and WACC percentage."""
     market_cap_twd = max(float(market_cap_twd or 0), 0)

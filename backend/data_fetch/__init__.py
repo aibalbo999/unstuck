@@ -13,7 +13,7 @@ from .enrichment_providers import (
 from .provider_base import CallableProvider, DataProvider, infer_market
 from .provider_registry import ProviderRegistry
 from .quote_providers import FmpProvider, YFinanceProvider
-from .taiwan_providers import FinMindProvider, InstitutionalTradingProvider, MonthlyRevenueProvider
+from .taiwan_providers import FinMindProvider, InstitutionalTradingProvider, MonthlyRevenueProvider, TwseOfficialProvider
 from .service import DEFAULT_STOCK_DATA_SERVICE, StockDataService, fetch_stock_data_async
 from .types import FetchOptions, FetchRequest, FetchResult, ProviderResult
 
@@ -38,6 +38,7 @@ __all__ = [
     "ProviderRegistry",
     "ProviderResult",
     "StockDataService",
+    "TwseOfficialProvider",
     "YahooProvider",
     "YFinanceProvider",
     "fetch_stock_data_async",

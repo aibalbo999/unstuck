@@ -29,6 +29,7 @@ import rag_runtime  # noqa: E402
 import reporting.legacy_report_gen as report_gen  # noqa: E402
 import reporting.utils as report_utils  # noqa: E402
 import structured_outputs  # noqa: E402
+from quant_engine import QuantEngine  # noqa: E402
 from llm_client import KeyRotator  # noqa: E402
 
 
@@ -642,6 +643,49 @@ class AuditRuleTests(unittest.TestCase):
             dividend_growth_pct=2,
         )
         self.assertAlmostEqual(ddm["value_per_share_twd"], 85.0, places=2)
+
+    def test_quant_engine_records_fallback_fields_and_warning(self):
+        metrics = QuantEngine.compute_all({
+            "current_price": 100,
+            "shares_outstanding": 100,
+            "total_debt": 500,
+            "tax_rate": 0.20,
+            "free_cash_flows": [100, 110, 120, 130, 140],
+            "eps": 5,
+        })
+
+        self.assertIn("total_equity", metrics["fallback_fields"])
+        self.assertTrue(metrics["data_quality_warning"])
+
+    def test_agent7_prompt_requires_quant_fallback_data_warning(self):
+        self.assertIn("quant_metrics", ar.SYSTEM_PROMPTS[7])
+        self.assertIn("【資料警示】", ar.SYSTEM_PROMPTS[7])
+        self.assertIn("__has_fallback=True", ar.SYSTEM_PROMPTS[7])
+
+    def test_wacc_defaults_are_consistent_across_calculators(self):
+        tool_wacc = financial_tools.calculate_wacc(95_000_000_000, 5_000_000_000)
+        quant_wacc_pct = QuantEngine.calculate_wacc(
+            95_000_000_000,
+            5_000_000_000,
+            config.WACC_COST_OF_EQUITY_DEFAULT_PCT / 100,
+            config.WACC_COST_OF_DEBT_DEFAULT_PCT / 100,
+            config.WACC_TAX_RATE_DEFAULT_PCT / 100,
+        ) * 100
+
+        self.assertLess(abs(tool_wacc["wacc_pct"] - quant_wacc_pct), 0.0001)
+
+    def test_final_audit_warns_on_dual_dcf_conflict(self):
+        context = complete_context()
+        context["data"]["quant_metrics"] = {"dcf_intrinsic_value": 100.0}
+        context["analyses"][4] = (
+            "## 估值\n"
+            "DCF 模型顯示基本情境目標價 NT$200，與市場價格相比仍有上行空間。"
+        )
+        context["parsed"] = ar.parse_structured_data(context)
+
+        audit = ar.run_final_report_audit(context, append_section=False)
+
+        self.assert_has_issue(audit["warnings"], "DCF 來源衝突")
 
     def test_agent_function_tools_are_registered(self):
         self.assertEqual([tool.__name__ for tool in ar.get_agent_function_tools(2)], ["calculate_cagr"])

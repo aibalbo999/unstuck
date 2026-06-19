@@ -60,6 +60,7 @@ SNAPSHOT_CORE_DATA_KEYS = {
     "global_market_context",
     "international_news_context",
     "institutional_trading",
+    "twse_official",
     "pe_river_chart",
     "data_source_notes",
     "data_freshness",
@@ -94,6 +95,7 @@ SOURCE_AUDIT_SOURCES = (
     "global_market_context",
     "international_news_context",
     "peer_discovery",
+    "twse_official",
     "twse_official_data",
 )
 CORE_DATA_SOURCES = (
@@ -101,6 +103,7 @@ CORE_DATA_SOURCES = (
     "financial_statements",
     "monthly_revenue",
     "institutional_trading",
+    "twse_official",
     "dynamic_peer_metrics",
     "pe_river_chart",
 )
@@ -130,6 +133,7 @@ SOURCE_LABELS = {
     "global_market_context": "全球市場脈絡",
     "international_news_context": "國際新聞脈絡",
     "peer_discovery": "同業搜尋",
+    "twse_official": "證交所/公開資訊觀測站",
     "twse_official_data": "證交所/公開資訊觀測站",
 }
 

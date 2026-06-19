@@ -17,7 +17,7 @@ from data_fetch import FetchRequest  # noqa: E402
 from data_fetch.enrichment_providers import YahooProvider  # noqa: E402
 from data_fetch.provider_registry import ProviderRegistry  # noqa: E402
 from data_fetch.quote_providers import FmpProvider, YFinanceProvider  # noqa: E402
-from data_fetch.taiwan_providers import FinMindProvider, MonthlyRevenueProvider  # noqa: E402
+from data_fetch.taiwan_providers import FinMindProvider, MonthlyRevenueProvider, TwseOfficialProvider  # noqa: E402
 
 
 class FakeMarketProvider:
@@ -88,6 +88,29 @@ def test_finmind_provider_fetches_financial_statement_fallback(monkeypatch):
     assert result.value["years"] == ["2025"]
 
 
+def test_twse_official_provider_fetches_cross_validation_payload(monkeypatch):
+    import external_data_twse
+
+    payload = {
+        "revenue_ttm_raw": 4_600.0,
+        "net_income_ttm_raw": 460.0,
+        "free_cash_flow_raw": 400.0,
+        "gross_margin_raw": 0.4,
+        "operating_margin_raw": 0.2,
+        "profit_margin_raw": 0.1,
+        "total_debt_raw": 700.0,
+        "source": "FinMind_TWSE",
+        "fetch_date": "2026-06-19",
+    }
+    monkeypatch.setattr(external_data_twse, "fetch_twse_official_data", lambda ticker: payload)
+
+    result = TwseOfficialProvider().fetch(FetchRequest.from_ticker("2330.TW"))
+
+    assert result.status == "success"
+    assert result.source == "twse_official"
+    assert result.value["source"] == "FinMind_TWSE"
+
+
 class EmptyMonthlyRevenueLoader:
     def taiwan_stock_month_revenue(self, stock_id, start_date):
         return pd.DataFrame()
@@ -103,10 +126,11 @@ def test_monthly_revenue_provider_records_unavailable_for_empty_finmind(monkeypa
 
 
 def test_tw_only_providers_are_not_routed_for_us_tickers():
-    registry = ProviderRegistry([FinMindProvider(), MonthlyRevenueProvider()])
+    registry = ProviderRegistry([FinMindProvider(), MonthlyRevenueProvider(), TwseOfficialProvider()])
 
     assert registry.provider_names(FetchRequest.from_ticker("AAPL"), source="financial_statements") == []
     assert registry.provider_names(FetchRequest.from_ticker("AAPL"), source="monthly_revenue") == []
+    assert registry.provider_names(FetchRequest.from_ticker("AAPL"), source="twse_official") == []
 
 
 def test_yahoo_provider_records_fetch_error(monkeypatch):

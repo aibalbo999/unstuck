@@ -9,6 +9,7 @@ from analysis_types import AnalysisContext, AuditResult
 from agent_catalog import AGENT_NAMES
 from confidence_calibration import build_confidence_calibration
 from final_audit_context_coverage import missing_final_context_labels
+from final_audit_dcf import dcf_conflict_warnings
 from final_audit_v3 import v3_recommendation_contract_issues
 from forward_consistency_checker import run_forward_consistency_checks
 from pipeline_modes import get_pipeline_definition, get_structured_agent_num
@@ -245,6 +246,9 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
 
     for warning in context.get("structured_quality_warnings", []) or []:
         _add_unique_issue(warnings, str(warning))
+
+    for warning in dcf_conflict_warnings(analyses, data):
+        _add_unique_issue(warnings, warning)
 
     price_history = data.get("price_history", {}) or {}
     if isinstance(price_history, dict):

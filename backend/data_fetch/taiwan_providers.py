@@ -28,6 +28,25 @@ class FinMindProvider(DataProvider):
         return provider_result_from_audited(result, self.source, "FinMind financial statement fallback")
 
 
+class TwseOfficialProvider(DataProvider):
+    name = "FinMind TWSE official"
+    source = "twse_official"
+    markets = {"tw"}
+
+    def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
+        import external_data_twse
+
+        result = audited_fetch(
+            self.source,
+            self.name,
+            external_data_twse.fetch_twse_official_data,
+            (request.ticker,),
+            default={},
+            unavailable_message="台股官方財務資料（TWSE/MOPS）本次未取得。",
+        )
+        return provider_result_from_audited(result, self.source, self.name)
+
+
 class MonthlyRevenueProvider(DataProvider):
     name = "FinMind TaiwanStockMonthRevenue"
     source = "monthly_revenue"
