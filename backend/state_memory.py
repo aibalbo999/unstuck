@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import uuid
+from datetime import date, datetime
 from typing import Any
 
 from agent_state import AgentReport, AgentState
@@ -30,16 +31,20 @@ def initialize_agent_state(data: dict[str, Any], *, run_id: str | None = None) -
         run_id=run_id or str(uuid.uuid4()),
         ticker=str(data.get("ticker") or ""),
         company_name=str(data.get("company_name") or data.get("name") or data.get("ticker") or ""),
-        company_identity=dict(data.get("company_identity") or {}),
+        company_identity=copy.deepcopy(data.get("company_identity") or {}),
         raw_financial_data={"input": copy.deepcopy(data)},
         normalized_financials=copy.deepcopy(data),
-        source_audit=list(data.get("source_audit") or []),
-        peer_context={"dynamic_peer_metrics": list(data.get("dynamic_peer_metrics") or [])},
-        quant_metrics=dict(data.get("deterministic_financial_tool_results") or {}),
+        source_audit=copy.deepcopy(data.get("source_audit") or []),
+        peer_context={"dynamic_peer_metrics": copy.deepcopy(data.get("dynamic_peer_metrics") or [])},
+        quant_metrics=copy.deepcopy(data.get("deterministic_financial_tool_results") or {}),
     )
 
 
 def merge_agent_report(state: AgentState, report: AgentReport) -> AgentState:
+    prior_report = state.agent_reports.get(report.agent_id)
+    if prior_report is not None:
+        prior_flag_ids = {flag.id for flag in prior_report.risk_flags}
+        state.risk_flags = [flag for flag in state.risk_flags if flag.id not in prior_flag_ids]
     state.agent_reports[report.agent_id] = report
     state.risk_flags.extend(report.risk_flags)
     return state
@@ -50,14 +55,22 @@ def sync_context_from_state(context: dict[str, Any], state: AgentState) -> dict[
     analyses = context.setdefault("analyses", {})
     structured_outputs = context.setdefault("structured_outputs", {})
     for agent_id, report in state.agent_reports.items():
-        analyses[agent_id] = report.markdown
+        legacy_agent_id = _legacy_agent_key(agent_id)
+        if legacy_agent_id != agent_id:
+            analyses.pop(agent_id, None)
+            structured_outputs.pop(agent_id, None)
+        analyses[legacy_agent_id] = report.markdown
         if report.structured_output is not None:
-            structured_outputs[agent_id] = report.structured_output
+            structured_outputs[legacy_agent_id] = report.structured_output
     return context
 
 
 def _pick(mapping: dict[str, Any], keys: list[str]) -> dict[str, Any]:
-    return {key: copy.deepcopy(mapping[key]) for key in keys if key in mapping}
+    return {key: _jsonable(mapping[key]) for key in keys if key in mapping}
+
+
+def _legacy_agent_key(agent_id: str) -> str | int:
+    return int(agent_id) if agent_id.isdecimal() else agent_id
 
 
 def state_view_for(role: str | int, state: AgentState) -> dict[str, Any]:
@@ -93,4 +106,8 @@ def _jsonable(value: Any) -> Any:
         return [_jsonable(item) for item in value]
     if isinstance(value, dict):
         return {key: _jsonable(item) for key, item in value.items()}
+    if isinstance(value, datetime):
+        return value.isoformat().replace("+00:00", "Z")
+    if isinstance(value, date):
+        return value.isoformat()
     return copy.deepcopy(value)
