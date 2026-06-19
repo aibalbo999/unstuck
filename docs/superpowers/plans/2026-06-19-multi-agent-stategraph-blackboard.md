@@ -540,7 +540,7 @@ git commit -m "feat: add financial data circuit breaker"
 - Modify: `backend/pipeline_async.py`
 - Test: `tests/test_data_cross_validator.py`
 
-- [ ] **Step 1: Add failing reconciliation-plan tests**
+- [x] **Step 1: Add failing reconciliation-plan tests**
 
 Append to `tests/test_data_cross_validator.py`:
 
@@ -564,7 +564,7 @@ def test_build_reconciliation_plan_requests_fresh_retry_and_mops_for_blocking_fi
     assert plan["resume_condition"]["max_diff_pct"] == 2.0
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run:
 
@@ -574,7 +574,7 @@ PYTHON_BIN=$(scripts/project_python.sh); "$PYTHON_BIN" -m pytest tests/test_data
 
 Expected: FAIL because `data_reconciliation` is missing.
 
-- [ ] **Step 3: Implement reconciliation plan builder**
+- [x] **Step 3: Implement reconciliation plan builder**
 
 Create `backend/data_reconciliation.py`:
 
@@ -631,7 +631,7 @@ def build_reconciliation_plan(state: AgentState) -> dict[str, Any]:
     }
 ```
 
-- [ ] **Step 4: Store reconciliation plan when pipeline opens the breaker**
+- [x] **Step 4: Store reconciliation plan when pipeline opens the breaker**
 
 Modify `backend/pipeline_async.py` after `validate_state_provider_values(...)`:
 
@@ -645,7 +645,7 @@ if context["agent_state"].circuit_breaker.status == "open":
     )
 ```
 
-- [ ] **Step 5: Run focused tests**
+- [x] **Step 5: Run focused tests**
 
 Run:
 
@@ -655,7 +655,7 @@ PYTHON_BIN=$(scripts/project_python.sh); "$PYTHON_BIN" -m pytest tests/test_data
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend/data_reconciliation.py backend/pipeline_async.py tests/test_data_cross_validator.py
