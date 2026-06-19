@@ -249,3 +249,46 @@ def test_run_analysis_pipeline_returns_before_finalize_when_agent_groups_block(m
     assert finalize_called is False
     assert context["blocking_issues"] == ["Critical financial provider conflict blocks analysis."]
     assert "total_time" in context
+
+
+def test_run_analysis_pipeline_skips_rag_when_initial_data_circuit_breaker_is_open(monkeypatch):
+    rag_called = False
+    agent_groups_called = False
+
+    async def fake_build_rag(*_args, **_kwargs):
+        nonlocal rag_called
+        rag_called = True
+
+    async def fake_run_agent_groups(*_args, **_kwargs):
+        nonlocal agent_groups_called
+        agent_groups_called = True
+
+    monkeypatch.setattr("pipeline_async._build_rag_index_async", fake_build_rag)
+    monkeypatch.setattr("pipeline_async._run_agent_groups", fake_run_agent_groups)
+
+    context = asyncio.run(
+        run_analysis_pipeline_async(
+            {
+                "ticker": "2308.TW",
+                "company_name": "台達電",
+                "financial_metric_validation": {
+                    "comparisons": {
+                        "total_debt": {
+                            "field": "total_debt",
+                            "source_a": "yfinance",
+                            "source_b": "finmind",
+                            "source_a_value": 100.0,
+                            "source_b_value": 125.0,
+                        },
+                    },
+                },
+            }
+        )
+    )
+
+    assert rag_called is False
+    assert agent_groups_called is False
+    assert context["agent_state"].circuit_breaker.status == "open"
+    assert context["blocking_issues"] == [
+        "Critical financial provider conflict blocks analysis for fields: total_debt."
+    ]

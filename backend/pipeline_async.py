@@ -59,6 +59,10 @@ async def run_analysis_pipeline_async(data: StockData, progress_callback=None, p
         f"{'='*60}\n"
     )
 
+    if context.get("blocking_issues"):
+        context["total_time"] = time.time() - context["start_time"]
+        return context
+
     await _build_rag_index_async(data, rotator, context, progress_callback, agent_total, pipeline_def)
     await _run_agent_groups(data, context, rotator, progress_callback, agent_total, pipeline_def)
     raise_if_cancelled(context)
