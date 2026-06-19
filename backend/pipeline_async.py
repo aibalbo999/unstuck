@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from datetime import date
 
 from agent_catalog import AGENT_NAMES
 from agent_runtime import run_agent_with_quality_gates_async
@@ -14,7 +15,7 @@ from analysis_types import AnalysisContext, StockData
 from company_display import company_display_name
 from config import API_KEYS, EMBEDDING_MODEL
 from data_financial_metric_validator import load_provider_values_from_payload, validate_state_provider_values
-from data_reconciliation import build_reconciliation_plan
+from data_reconciliation import build_reconciliation_plan, reconcile_with_official_filing
 from llm_client import KeyRotator
 from pipeline_modes import get_pipeline_definition, normalize_pipeline_id
 from rag_runtime import build_rag_index_async
@@ -231,6 +232,13 @@ def _initialize_agent_state_context(data: StockData, context: AnalysisContext) -
     context["agent_state"] = initialize_agent_state(data)
     load_provider_values_from_payload(context["agent_state"], data)
     validate_state_provider_values(context["agent_state"])
+    if context["agent_state"].circuit_breaker.status == "open":
+        year, season = _latest_closed_quarter_for_reconciliation(data)
+        context["official_reconciliation"] = reconcile_with_official_filing(
+            context["agent_state"],
+            year=year,
+            season=season,
+        )
     sync_context_from_state(context, context["agent_state"])
     context["data_reconciliation_plan"] = build_reconciliation_plan(context["agent_state"])
     circuit_breaker = context["agent_state"].circuit_breaker
@@ -240,3 +248,23 @@ def _initialize_agent_state_context(data: StockData, context: AnalysisContext) -
             f"關鍵財務欄位跨來源衝突（{fields}），已建立 MOPS reconciliation plan，暫停估值與後續分析。"
         )
     return context
+
+
+def _latest_closed_quarter_for_reconciliation(data: StockData) -> tuple[int, int]:
+    year = data.get("year") or data.get("fiscal_year")
+    season = data.get("season") or data.get("quarter")
+    try:
+        year_int = int(year)
+        season_int = int(season)
+    except (TypeError, ValueError):
+        today = date.today()
+        current_quarter = (today.month - 1) // 3 + 1
+        closed_quarter = current_quarter - 1
+        closed_year = today.year
+        if closed_quarter == 0:
+            closed_quarter = 4
+            closed_year -= 1
+        return closed_year, closed_quarter
+    if season_int not in {1, 2, 3, 4}:
+        return _latest_closed_quarter_for_reconciliation({})
+    return year_int, season_int

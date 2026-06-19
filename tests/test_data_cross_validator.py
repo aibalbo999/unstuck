@@ -16,7 +16,7 @@ from data_financial_metric_validator import (  # noqa: E402
     load_provider_values_from_payload,
     validate_state_provider_values,
 )
-from data_reconciliation import build_reconciliation_plan  # noqa: E402
+from data_reconciliation import build_reconciliation_plan, reconcile_with_official_filing  # noqa: E402
 from pipeline_async import _initialize_agent_state_context, _run_agent_groups, run_analysis_pipeline_async  # noqa: E402
 from state_memory import initialize_agent_state  # noqa: E402
 
@@ -90,6 +90,143 @@ def test_build_reconciliation_plan_requests_fresh_retry_and_mops_for_blocking_fi
     assert plan["steps"][1]["action"] == "mops_statement_lookup"
     assert "公開資訊觀測站" in plan["steps"][1]["description"]
     assert plan["resume_condition"]["max_diff_pct"] == 2.0
+
+
+def test_open_breaker_fetches_mops_and_resolves_matching_debt(monkeypatch):
+    state = initialize_agent_state({"ticker": "2330.TW", "company_name": "台積電"}, run_id="reconcile-mops")
+    state.provider_values["total_debt"] = [
+        ProviderValue(provider="yfinance", field="total_debt", value=900.0, unit="thousand_twd", period="2025Q4"),
+        ProviderValue(provider="finmind", field="total_debt", value=920.0, unit="thousand_twd", period="2025Q4"),
+    ]
+    validate_state_provider_values(state, fields=("total_debt",), threshold_pct=1.0)
+    monkeypatch.setattr(
+        "data_reconciliation.fetch_mops_balance_sheet",
+        lambda *_args, **_kwargs: {
+            "source": "MOPS",
+            "unit": "thousand_twd",
+            "statement_scope": "consolidated",
+            "year": 2025,
+            "season": 4,
+            "total_liabilities": 910.0,
+        },
+    )
+
+    result = reconcile_with_official_filing(state, year=2025, season=4, tolerance_pct=2.0)
+
+    assert result["status"] == "resolved"
+    assert state.provider_values["total_debt"][-1].provider == "MOPS"
+    assert state.raw_financial_data["official_filings"][0]["source"] == "MOPS"
+    assert state.circuit_breaker.status == "closed"
+    assert state.validation_issues == []
+
+
+def test_unknown_mops_unit_keeps_breaker_open(monkeypatch):
+    state = initialize_agent_state({"ticker": "2330.TW", "company_name": "台積電"}, run_id="reconcile-open")
+    state.provider_values["total_debt"] = [
+        ProviderValue(provider="yfinance", field="total_debt", value=100.0, unit="thousand_twd", period="2025Q4"),
+        ProviderValue(provider="finmind", field="total_debt", value=130.0, unit="thousand_twd", period="2025Q4"),
+    ]
+    validate_state_provider_values(state, fields=("total_debt",), threshold_pct=5.0)
+    monkeypatch.setattr(
+        "data_reconciliation.fetch_mops_balance_sheet",
+        lambda *_args, **_kwargs: {"source": "MOPS", "unit": "unknown", "total_liabilities": 115.0},
+    )
+
+    result = reconcile_with_official_filing(state, year=2025, season=4)
+
+    assert result["status"] == "unresolved"
+    assert state.circuit_breaker.status == "open"
+    assert "official_filings" not in state.raw_financial_data
+
+
+def test_mops_value_without_provider_alignment_keeps_breaker_open(monkeypatch):
+    state = initialize_agent_state({"ticker": "2330.TW", "company_name": "台積電"}, run_id="reconcile-mismatch")
+    state.provider_values["total_debt"] = [
+        ProviderValue(provider="yfinance", field="total_debt", value=100.0, unit="thousand_twd", period="2025Q4"),
+        ProviderValue(provider="finmind", field="total_debt", value=130.0, unit="thousand_twd", period="2025Q4"),
+    ]
+    validate_state_provider_values(state, fields=("total_debt",), threshold_pct=5.0)
+    monkeypatch.setattr(
+        "data_reconciliation.fetch_mops_balance_sheet",
+        lambda *_args, **_kwargs: {
+            "source": "MOPS",
+            "unit": "thousand_twd",
+            "statement_scope": "consolidated",
+            "year": 2025,
+            "season": 4,
+            "total_liabilities": 500.0,
+        },
+    )
+
+    result = reconcile_with_official_filing(state, year=2025, season=4, tolerance_pct=2.0)
+
+    assert result["status"] == "unresolved"
+    assert result["reason"] == "no_provider_aligned_with_official"
+    assert state.circuit_breaker.status == "open"
+    assert "official_filings" not in state.raw_financial_data
+
+
+def test_mops_alignment_requires_unit_period_and_statement_scope(monkeypatch):
+    state = initialize_agent_state({"ticker": "2330.TW", "company_name": "台積電"}, run_id="reconcile-metadata")
+    state.provider_values["total_debt"] = [
+        ProviderValue(
+            provider="yfinance",
+            field="total_debt",
+            value=900.0,
+            unit="billion_twd",
+            period="2024Q4",
+            statement_type="parent_only",
+        ),
+        ProviderValue(provider="finmind", field="total_debt", value=1300.0, unit="billion_twd", period="2024Q4"),
+    ]
+    validate_state_provider_values(state, fields=("total_debt",), threshold_pct=5.0)
+    monkeypatch.setattr(
+        "data_reconciliation.fetch_mops_balance_sheet",
+        lambda *_args, **_kwargs: {
+            "source": "MOPS",
+            "unit": "thousand_twd",
+            "statement_scope": "consolidated",
+            "year": 2025,
+            "season": 4,
+            "total_liabilities": 900.0,
+        },
+    )
+
+    result = reconcile_with_official_filing(state, year=2025, season=4, tolerance_pct=2.0)
+
+    assert result["status"] == "unresolved"
+    assert state.circuit_breaker.status == "open"
+    assert "official_filings" not in state.raw_financial_data
+
+
+def test_mixed_blocking_fields_remain_fail_closed(monkeypatch):
+    state = initialize_agent_state({"ticker": "2330.TW", "company_name": "台積電"}, run_id="reconcile-mixed")
+    state.provider_values["total_debt"] = [
+        ProviderValue(provider="yfinance", field="total_debt", value=900.0, unit="thousand_twd", period="2025Q4"),
+        ProviderValue(provider="finmind", field="total_debt", value=1000.0, unit="thousand_twd", period="2025Q4"),
+    ]
+    state.provider_values["revenue"] = [
+        ProviderValue(provider="yfinance", field="revenue", value=100.0),
+        ProviderValue(provider="finmind", field="revenue", value=80.0),
+    ]
+    validate_state_provider_values(state, fields=("total_debt", "revenue"), threshold_pct=5.0)
+    monkeypatch.setattr(
+        "data_reconciliation.fetch_mops_balance_sheet",
+        lambda *_args, **_kwargs: {
+            "source": "MOPS",
+            "unit": "thousand_twd",
+            "statement_scope": "consolidated",
+            "year": 2025,
+            "season": 4,
+            "total_liabilities": 900.0,
+        },
+    )
+
+    result = reconcile_with_official_filing(state, year=2025, season=4)
+
+    assert result["status"] == "unsupported"
+    assert set(result["blocking_fields"]) == {"total_debt", "revenue"}
+    assert state.circuit_breaker.status == "open"
 
 
 def test_load_provider_values_from_payload_bridges_existing_comparisons_to_circuit_breaker():
@@ -224,6 +361,42 @@ def test_pipeline_state_initialization_surfaces_open_circuit_as_blocking_issue()
     ]
 
 
+def test_pipeline_state_initialization_resumes_when_mops_reconciles(monkeypatch):
+    payload = {
+        "ticker": "2330.TW",
+        "company_name": "台積電",
+        "financial_metric_validation": {
+            "comparisons": {
+                "total_debt": {
+                    "field": "total_debt",
+                    "source_a": "yfinance",
+                    "source_b": "finmind",
+                    "source_a_value": 900.0,
+                    "source_b_value": 1000.0,
+                },
+            },
+        },
+    }
+    monkeypatch.setattr(
+        "data_reconciliation.fetch_mops_balance_sheet",
+        lambda *_args, **_kwargs: {
+            "source": "MOPS",
+            "unit": "thousand_twd",
+            "statement_scope": "consolidated",
+            "year": 2025,
+            "season": 4,
+            "total_liabilities": 900.0,
+        },
+    )
+    context = {"analyses": {}, "structured_outputs": {}}
+
+    _initialize_agent_state_context(payload, context)
+
+    assert context["agent_state"].circuit_breaker.status == "closed"
+    assert context["official_reconciliation"]["status"] == "resolved"
+    assert "blocking_issues" not in context
+
+
 def test_run_agent_groups_skips_agent_execution_when_blocking_issue_exists(monkeypatch):
     called = False
 
@@ -284,6 +457,7 @@ def test_run_analysis_pipeline_skips_rag_when_initial_data_circuit_breaker_is_op
 
     monkeypatch.setattr("pipeline_async._build_rag_index_async", fake_build_rag)
     monkeypatch.setattr("pipeline_async._run_agent_groups", fake_run_agent_groups)
+    monkeypatch.setattr("data_reconciliation.fetch_mops_balance_sheet", lambda *_args, **_kwargs: None)
 
     context = asyncio.run(
         run_analysis_pipeline_async(
