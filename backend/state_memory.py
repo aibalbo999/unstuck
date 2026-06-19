@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import copy
+import math
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Any
 
 from agent_state import AgentReport, AgentState
@@ -41,28 +43,26 @@ def initialize_agent_state(data: dict[str, Any], *, run_id: str | None = None) -
 
 
 def merge_agent_report(state: AgentState, report: AgentReport) -> AgentState:
-    prior_report = state.agent_reports.get(report.agent_id)
-    if prior_report is not None:
-        prior_flag_ids = {flag.id for flag in prior_report.risk_flags}
-        state.risk_flags = [flag for flag in state.risk_flags if flag.id not in prior_flag_ids]
     state.agent_reports[report.agent_id] = report
-    state.risk_flags.extend(report.risk_flags)
+    state.risk_flags = [
+        flag
+        for current_report in state.agent_reports.values()
+        for flag in current_report.risk_flags
+    ]
     return state
 
 
 def sync_context_from_state(context: dict[str, Any], state: AgentState) -> dict[str, Any]:
     context["agent_state"] = state
-    analyses = context.setdefault("analyses", {})
-    structured_outputs = context.setdefault("structured_outputs", {})
+    analyses: dict[str | int, str] = {}
+    structured_outputs: dict[str | int, dict[str, Any]] = {}
     for agent_id, report in state.agent_reports.items():
         legacy_agent_id = _legacy_agent_key(agent_id)
-        if legacy_agent_id != agent_id:
-            analyses.pop(agent_id, None)
-            structured_outputs.pop(agent_id, None)
         analyses[legacy_agent_id] = report.markdown
-        structured_outputs.pop(legacy_agent_id, None)
         if report.structured_output is not None:
             structured_outputs[legacy_agent_id] = report.structured_output
+    context["analyses"] = analyses
+    context["structured_outputs"] = structured_outputs
     return context
 
 
@@ -102,9 +102,25 @@ def state_view_for(role: str | int, state: AgentState) -> dict[str, Any]:
 
 def _jsonable(value: Any) -> Any:
     if hasattr(value, "model_dump"):
-        return value.model_dump(mode="json")
+        return _jsonable(value.model_dump(mode="json"))
+    if isinstance(value, Decimal):
+        if value.is_nan():
+            return None
+        if value.is_infinite():
+            return "Infinity" if value > 0 else "-Infinity"
+        return float(value)
+    if isinstance(value, float) and not math.isfinite(value):
+        if math.isnan(value):
+            return None
+        return "Infinity" if value > 0 else "-Infinity"
     if isinstance(value, list):
         return [_jsonable(item) for item in value]
+    if isinstance(value, tuple):
+        return [_jsonable(item) for item in value]
+    if isinstance(value, set):
+        return [_jsonable(item) for item in sorted(value, key=repr)]
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
     if isinstance(value, dict):
         return {key: _jsonable(item) for key, item in value.items()}
     if isinstance(value, datetime):

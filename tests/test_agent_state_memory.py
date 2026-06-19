@@ -1,6 +1,7 @@
 import json
 import sys
 from datetime import datetime, timezone
+from decimal import Decimal
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -120,6 +121,36 @@ def test_sync_context_from_state_clears_stale_structured_output_for_current_repo
     assert 4 not in context["structured_outputs"]
 
 
+def test_sync_context_from_state_rebuilds_managed_legacy_maps_from_current_reports():
+    state = initialize_agent_state({"ticker": "2330.TW", "company_name": "台積電"}, run_id="run-authoritative")
+    state = merge_agent_report(
+        state,
+        AgentReport(
+            agent_id="4",
+            role="估值分析師",
+            markdown="## 估值\nCurrent valuation.",
+            structured_output={"price_targets": {"基本情境": 120}},
+        ),
+    )
+    context = {
+        "analyses": {
+            4: "old valuation",
+            99: "stale absent report",
+        },
+        "structured_outputs": {
+            4: {"price_targets": {"基本情境": 100}},
+            99: {"stale": True},
+        },
+        "metadata": {"preserve": True},
+    }
+
+    sync_context_from_state(context, state)
+
+    assert context["analyses"] == {4: "## 估值\nCurrent valuation."}
+    assert context["structured_outputs"] == {4: {"price_targets": {"基本情境": 120}}}
+    assert context["metadata"] == {"preserve": True}
+
+
 def test_merge_agent_report_replaces_stale_risk_flags_on_retry():
     state = initialize_agent_state({"ticker": "2330.TW", "company_name": "台積電"}, run_id="run-retry")
     stale_flag = RiskFlag(
@@ -154,6 +185,55 @@ def test_merge_agent_report_replaces_stale_risk_flags_on_retry():
     assert [flag.id for flag in state.risk_flags] == ["valuation:replacement"]
 
 
+def test_merge_agent_report_rebuilds_risk_flags_without_dropping_other_agent_same_id():
+    state = initialize_agent_state({"ticker": "2330.TW", "company_name": "台積電"}, run_id="run-same-flag")
+    shared_from_agent_4 = RiskFlag(
+        id="shared:drawdown",
+        severity=Severity.warning,
+        category="valuation",
+        title="Agent 4 shared flag",
+        source_agents=["4"],
+        impact="Valuation impact.",
+        confidence=0.6,
+    )
+    shared_from_agent_5 = RiskFlag(
+        id="shared:drawdown",
+        severity=Severity.high,
+        category="growth",
+        title="Agent 5 shared flag",
+        source_agents=["5"],
+        impact="Growth impact.",
+        confidence=0.8,
+    )
+    replacement_from_agent_4 = RiskFlag(
+        id="valuation:new",
+        severity=Severity.warning,
+        category="valuation",
+        title="Agent 4 replacement flag",
+        source_agents=["4"],
+        impact="Updated valuation impact.",
+        confidence=0.7,
+    )
+
+    state = merge_agent_report(
+        state,
+        AgentReport(agent_id="4", role="估值分析師", markdown="old", risk_flags=[shared_from_agent_4]),
+    )
+    state = merge_agent_report(
+        state,
+        AgentReport(agent_id="5", role="成長分析師", markdown="growth", risk_flags=[shared_from_agent_5]),
+    )
+    state = merge_agent_report(
+        state,
+        AgentReport(agent_id="4", role="估值分析師", markdown="new", risk_flags=[replacement_from_agent_4]),
+    )
+
+    assert [(flag.id, flag.source_agents) for flag in state.risk_flags] == [
+        ("valuation:new", ["4"]),
+        ("shared:drawdown", ["5"]),
+    ]
+
+
 def test_state_view_for_valuation_uses_whitelisted_paths_only():
     state = initialize_agent_state({"ticker": "2317.TW", "company_name": "鴻海"}, run_id="run-3")
     state.normalized_financials = {"revenue_history": [100, 110], "secret_debug": "do-not-include"}
@@ -184,3 +264,29 @@ def test_state_view_for_valuation_returns_json_safe_whitelisted_sections():
 
     assert view["quant_metrics"]["calculations"]["provider_value"]["fetched_at"] == "2026-06-19T12:00:00Z"
     json.dumps(view)
+
+
+def test_state_view_for_valuation_jsonable_handles_exotic_values_and_nonfinite_floats():
+    state = initialize_agent_state({"ticker": "2317.TW", "company_name": "鴻海"}, run_id="run-json-exotic")
+    state.quant_metrics = {
+        "calculations": {
+            "decimal": Decimal("12.34"),
+            "set": {"b", "a"},
+            "tuple": ("x", Decimal("1.5")),
+            "bytes": b"hello\xffworld",
+            "inf": float("inf"),
+            "negative_inf": float("-inf"),
+            "nan": float("nan"),
+        }
+    }
+
+    view = state_view_for("valuation", state)
+
+    assert view["quant_metrics"]["calculations"]["decimal"] == 12.34
+    assert view["quant_metrics"]["calculations"]["set"] == ["a", "b"]
+    assert view["quant_metrics"]["calculations"]["tuple"] == ["x", 1.5]
+    assert view["quant_metrics"]["calculations"]["bytes"] == "hello\ufffdworld"
+    assert view["quant_metrics"]["calculations"]["inf"] == "Infinity"
+    assert view["quant_metrics"]["calculations"]["negative_inf"] == "-Infinity"
+    assert view["quant_metrics"]["calculations"]["nan"] is None
+    json.dumps(view, allow_nan=False)
