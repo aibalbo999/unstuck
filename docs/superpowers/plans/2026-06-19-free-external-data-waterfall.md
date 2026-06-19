@@ -295,7 +295,7 @@ git commit -m "feat: integrate free data providers"
 - Test: `tests/test_data_cross_validator.py`
 - Test: `tests/test_agent_state_memory.py`
 
-- [ ] **Step 1: Write failing state reconciliation tests**
+- [x] **Step 1: Write failing state reconciliation tests**
 
 ```python
 def test_open_breaker_fetches_mops_and_resolves_matching_debt(monkeypatch):
@@ -314,16 +314,16 @@ def test_unknown_mops_unit_keeps_breaker_open(monkeypatch):
 
 Cover period mismatch, consolidated mismatch, MOPS unavailable and multiple blocking fields.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run: `pytest tests/test_data_cross_validator.py tests/test_agent_state_memory.py -q`
 Expected: FAIL because reconciliation is currently plan-only.
 
-- [ ] **Step 3: Implement official reconciliation**
+- [x] **Step 3: Implement official reconciliation**
 
 Add a typed reconciliation result, append official `ProviderValue` entries, preserve filing payload, rerun existing critical-field validation, resolve only compatible fields within tolerance, and sync updated State back to context before valuation agents run.
 
-- [ ] **Step 4: Verify GREEN and commit**
+- [x] **Step 4: Verify GREEN and commit**
 
 Run: `pytest tests/test_data_cross_validator.py tests/test_agent_state_memory.py -q`
 Expected: PASS.
