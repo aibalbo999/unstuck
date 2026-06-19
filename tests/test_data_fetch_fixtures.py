@@ -362,6 +362,60 @@ def test_gdelt_429_enters_cooldown_and_skips_remaining_gdelt_calls(monkeypatch):
     assert external_data_gdelt._gdelt_cooldown_until == 1300.0
 
 
+def test_gdelt_429_uses_cooldown_without_warning_log(monkeypatch):
+    class FakeResponse:
+        status_code = 429
+        text = """<?xml version="1.0" encoding="UTF-8"?>
+        <rss><channel><item>
+          <title>Fallback chip news - Reuters</title>
+          <link>https://news.google.com/rss/articles/fallback-chip</link>
+          <pubDate>Fri, 12 Jun 2026 01:02:03 GMT</pubDate>
+          <source>Reuters</source>
+        </item></channel></rss>
+        """
+
+        def raise_for_status(self):
+            return None
+
+    class FakeAsyncClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, _url, params):
+            assert params["q"]
+            return FakeResponse()
+
+    class FakeHTTPStatusError(Exception):
+        response = FakeResponse()
+
+    warning_calls = []
+
+    async def rate_limited_json_get(_client, _url, _params):
+        raise FakeHTTPStatusError("429 Too Many Requests")
+
+    monkeypatch.setattr(external_data_gdelt, "_gdelt_cooldown_until", 0.0)
+    monkeypatch.setattr(external_data_gdelt, "_now", lambda: 1000.0)
+    monkeypatch.setattr(external_data_gdelt, "async_client", lambda: FakeAsyncClient())
+    monkeypatch.setattr(external_data_gdelt, "async_json_get", rate_limited_json_get)
+    monkeypatch.setattr(external_data_gdelt, "log_http_warning", lambda *args: warning_calls.append(args))
+
+    context = asyncio.run(external_data_gdelt.fetch_gdelt_international_news_context(
+        "Technology",
+        "Semiconductors",
+        max_topics=1,
+        request_spacing_seconds=0,
+        rate_limit_cooldown_seconds=300,
+    ))
+
+    assert warning_calls == []
+    assert context["topics"][0]["source"] == "Google News RSS"
+    assert context["coverage_notes"] == ["semiconductors_ai GDELT 429 rate limited，使用 Google News RSS 備援。"]
+    assert external_data_gdelt._gdelt_cooldown_until == 1300.0
+
+
 def _patch_common_fetch_dependencies(monkeypatch, resolved_ticker="2330.TW", country="Taiwan"):
     monkeypatch.setattr(financial_data, "get_cache_json", lambda key: None)
     monkeypatch.setattr(financial_data, "set_cache_json", lambda *args: None)

@@ -102,9 +102,9 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
     structured_outputs = context.get("structured_outputs", {}) or {}
     pipeline_def = get_pipeline_definition(context.get("pipeline_id", "v1"))
     required_agents = tuple(context.get("agent_sequence") or pipeline_def["agents"])
-    moat_agent = get_structured_agent_num("moat", context) or 3
-    valuation_agent = get_structured_agent_num("valuation", context) or 4
-    recommendation_agent = get_structured_agent_num("recommendation", context) or 7
+    moat_agent = get_structured_agent_num("moat", context)
+    valuation_agent = get_structured_agent_num("valuation", context)
+    recommendation_agent = get_structured_agent_num("recommendation", context)
 
     critical: list[str] = []
     warnings: list[str] = []
@@ -144,28 +144,23 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
             add_agent_repair_issue(agent_num, issue)
 
     for agent_num, label in [(moat_agent, "護城河評分"), (valuation_agent, "三情境目標價"), (recommendation_agent, "最終投資建議")]:
+        if agent_num is None:
+            continue
         if agent_num in completed_agents and agent_num not in structured_outputs:
             _add_unique_issue(critical, f"Agent {agent_num} {label} 未提供可解析 JSON 結構化輸出。")
             add_agent_repair_issue(agent_num, f"{label} 未提供可解析 JSON 結構化輸出。")
 
     price_targets = parsed.get("price_targets", {}) or {}
     required_targets = ["熊市情境", "基本情境", "牛市情境"]
-    missing_targets = [key for key in required_targets if key not in price_targets]
-    if missing_targets:
+    missing_targets = [key for key in required_targets if key not in price_targets] if valuation_agent is not None else []
+    if valuation_agent is not None and missing_targets:
         _add_unique_issue(critical, f"Agent {valuation_agent} 缺少目標價情境：{', '.join(missing_targets)}")
         add_agent_repair_issue(valuation_agent, f"缺少目標價情境：{', '.join(missing_targets)}")
 
     current_price = data.get("current_price")
-    numeric_targets = {
-        key: value for key, value in price_targets.items()
-        if isinstance(value, (int, float))
-    }
+    numeric_targets = {key: value for key, value in price_targets.items() if isinstance(value, (int, float))}
     if isinstance(current_price, (int, float)) and current_price > 100:
-        tiny_targets = [
-            f"{key}=NT${value:g}"
-            for key, value in numeric_targets.items()
-            if value < current_price * 0.05
-        ]
+        tiny_targets = [f"{key}=NT${value:g}" for key, value in numeric_targets.items() if value < current_price * 0.05]
         if tiny_targets:
             _add_unique_issue(critical, f"目標價疑似單位縮小錯誤：{', '.join(tiny_targets)}")
             add_agent_repair_issue(valuation_agent, f"目標價疑似單位縮小錯誤：{', '.join(tiny_targets)}")
@@ -180,18 +175,21 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
 
     moat_scores = parsed.get("moat_scores", {}) or {}
     required_moat = {"品牌影響力", "網路效應", "轉換成本", "成本優勢", "專利技術", "整體護城河"}
-    if not required_moat.issubset(moat_scores.keys()):
+    if moat_agent is not None and not required_moat.issubset(moat_scores.keys()):
         missing = sorted(required_moat - set(moat_scores.keys()))
         _add_unique_issue(critical, f"Agent {moat_agent} 護城河評分缺少欄位：{', '.join(missing)}")
         add_agent_repair_issue(moat_agent, f"護城河評分缺少欄位：{', '.join(missing)}")
 
     recommendation = parsed.get("recommendation", {}) or {}
-    if not recommendation:
+    if recommendation_agent is None:
+        _add_unique_issue(critical, "此 pipeline 未宣告最終投資建議 Agent。")
+    elif not recommendation:
         _add_unique_issue(critical, f"Agent {recommendation_agent} 缺少最終投資建議結構化資料。")
         add_agent_repair_issue(recommendation_agent, "缺少最終投資建議結構化資料。")
     else:
         rec_text = _recommendation_value(recommendation, "建議")
-        if not any(word in rec_text for word in ["買入", "持有", "避免"]):
+        allowed_recommendations = ["強烈放空", "避免", "持有", "買進"] if pipeline_def["id"] == "v3" else ["買入", "持有", "避免"]
+        if not any(word in rec_text for word in allowed_recommendations):
             _add_unique_issue(critical, f"Agent {recommendation_agent} 投資建議不在允許值內：{rec_text or '空白'}")
             add_agent_repair_issue(recommendation_agent, f"投資建議不在允許值內：{rec_text or '空白'}")
         for label in ["3個月", "6個月", "12個月", "信心"]:
@@ -201,10 +199,7 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
 
         missing_context_labels = missing_final_context_labels(data, str(analyses.get(recommendation_agent, "")))
         if missing_context_labels:
-            _add_unique_issue(
-                warnings,
-                f"Agent {recommendation_agent} 最終建議未說明可用的{'、'.join(missing_context_labels)}是否影響結論。"
-            )
+            _add_unique_issue(warnings, f"Agent {recommendation_agent} 最終建議未說明可用的{'、'.join(missing_context_labels)}是否影響結論。")
 
         data_trust = data.get("data_trust", {}) if isinstance(data.get("data_trust"), dict) else {}
         confidence_calibration = build_confidence_calibration(recommendation, data_trust)
@@ -212,13 +207,10 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
             data_trust_status = confidence_calibration.get("data_trust_status", "unknown")
             raw_confidence = confidence_calibration.get("raw_confidence", "N/A")
             cap = confidence_calibration.get("max_recommended_confidence")
-            _add_unique_issue(
-                warnings,
-                f"Agent {recommendation_agent} 在 data_trust={data_trust_status} 時給出高信心（{raw_confidence}），建議信心上限 {cap}/10，報告需明確揭露資料限制。"
-            )
+            _add_unique_issue(warnings, f"Agent {recommendation_agent} 在 data_trust={data_trust_status} 時給出高信心（{raw_confidence}），建議信心上限 {cap}/10，報告需明確揭露資料限制。")
 
         target_12m = _extract_first_price(_recommendation_value(recommendation, "12個月"))
-        if target_12m is not None and all(key in numeric_targets for key in required_targets):
+        if valuation_agent is not None and target_12m is not None and all(key in numeric_targets for key in required_targets):
             bear = numeric_targets["熊市情境"]
             bull = numeric_targets["牛市情境"]
             lower = bear * 0.7

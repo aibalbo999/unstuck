@@ -52,6 +52,13 @@
                         </span>
                     </label>
                     <label class="pipeline-option">
+                        <input type="radio" name="pipeline-mode" value="v3" />
+                        <span>
+                            <strong>模式 C</strong>
+                            <small>逆勢泡沫狙擊 · 3 Agent</small>
+                        </span>
+                    </label>
+                    <label class="pipeline-option">
                         <input type="radio" name="pipeline-mode" value="both" />
                         <span>
                             <strong>連續 A+B</strong>
@@ -111,6 +118,7 @@
                                         <option value="all">全部類型</option>
                                         <option value="v1">模式 A · 學術深度派</option>
                                         <option value="v2">模式 B · 實戰交易派</option>
+                                        <option value="v3">模式 C · 逆勢泡沫狙擊</option>
                                     </select>
                                 </label>
                                 <label class="history-filter-field">
@@ -118,8 +126,10 @@
                                     <select id="history-recommendation-filter" class="history-filter-select">
                                         <option value="all">全部建議</option>
                                         <option value="買入">買入</option>
+                                        <option value="買進">買進</option>
                                         <option value="持有">持有</option>
                                         <option value="避免">避免</option>
+                                        <option value="強烈放空">強烈放空</option>
                                     </select>
                                 </label>
                                 <label class="history-filter-field">
@@ -303,6 +313,7 @@
                                 <select id="watchlist-pipeline-select" class="history-filter-select">
                                     <option value="v1">模式 A</option>
                                     <option value="v2">模式 B</option>
+                                    <option value="v3">模式 C</option>
                                 </select>
                             </label>
                             <label class="history-version-toggle watchlist-toggle">

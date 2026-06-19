@@ -419,10 +419,10 @@ class AuditRuleTests(unittest.TestCase):
             ctx["structured_outputs"][7] = {
                 "recommendation": {
                     "建議": "避免",
-                    "短期目標（3個月）": "NT$2500",
-                    "中期目標（6個月）": "NT$2300",
-                    "長期目標（12個月）": "NT$2150",
-                    "長期潛力（5年）": "NT$3500",
+                    "短期目標（3個月）": "NT$950",
+                    "中期目標（6個月）": "NT$900",
+                    "長期目標（12個月）": "NT$850",
+                    "長期潛力（5年）": "NT$1100",
                     "信心指數": "8/10",
                 }
             }
@@ -645,6 +645,7 @@ class AuditRuleTests(unittest.TestCase):
     def test_agent_function_tools_are_registered(self):
         self.assertEqual([tool.__name__ for tool in ar.get_agent_function_tools(2)], ["calculate_cagr"])
         self.assertEqual([tool.__name__ for tool in ar.get_agent_function_tools(13)], ["calculate_cagr"])
+        self.assertEqual([tool.__name__ for tool in ar.get_agent_function_tools(18)], ["calculate_cagr"])
         self.assertEqual(
             [tool.__name__ for tool in ar.get_agent_function_tools(4)],
             ["calculate_cagr", "calculate_wacc", "calculate_dcf", "calculate_ddm"],
@@ -661,6 +662,9 @@ class AuditRuleTests(unittest.TestCase):
         v2_config_obj = ar.build_generation_config(14, "system")
         self.assertEqual(getattr(v2_config_obj, "response_mime_type", None), "application/json")
         self.assertIsNotNone(getattr(v2_config_obj, "response_schema", None))
+        v3_config_obj = ar.build_generation_config(19, "system")
+        self.assertEqual(getattr(v3_config_obj, "response_mime_type", None), "application/json")
+        self.assertIsNotNone(getattr(v3_config_obj, "response_schema", None))
 
     def test_structured_schema_omits_additional_properties_for_genai(self):
         schema = structured_outputs.MoatStructuredOutput.model_json_schema(by_alias=True)
@@ -676,6 +680,8 @@ class AuditRuleTests(unittest.TestCase):
         self.assertIn("peer_reasoning", json.dumps(price_schema, ensure_ascii=False))
         self.assertIn("scenario_reasoning", json.dumps(price_schema, ensure_ascii=False))
         self.assertIn("reasoning_steps", json.dumps(recommendation_schema, ensure_ascii=False))
+        bubble_schema = structured_outputs.BubbleSniperStructuredOutput.model_json_schema(by_alias=True)
+        self.assertIn("強烈放空", json.dumps(bubble_schema, ensure_ascii=False))
 
     def test_pipeline_v2_definition_and_prompt_registration(self):
         v2 = pipeline_modes.get_pipeline_definition("v2")
@@ -687,12 +693,27 @@ class AuditRuleTests(unittest.TestCase):
             self.assertIn(agent_num, ar.ANALYSIS_PROMPTS)
             self.assertIn(agent_num, ar.AGENT_MODELS)
 
+    def test_pipeline_v3_definition_and_prompt_registration(self):
+        v3 = pipeline_modes.get_pipeline_definition("v3")
+        self.assertEqual(v3["agents"], (17, 18, 19))
+        self.assertEqual(v3["groups"], ((17,), (18,), (19,)))
+        self.assertEqual(v3["structured_agents"], {"recommendation": 19})
+        self.assertEqual(pipeline_modes.normalize_pipeline_id("mode_c"), "v3")
+        for agent_num in v3["agents"]:
+            self.assertIn(agent_num, ar.AGENT_NAMES)
+            self.assertIn(agent_num, ar.SYSTEM_PROMPTS)
+            self.assertIn(agent_num, ar.ANALYSIS_PROMPTS)
+            self.assertIn(agent_num, ar.AGENT_MODELS)
+        self.assertIn("Traditional Chinese", ar.SYSTEM_PROMPTS[19])
+        self.assertIn("強烈放空", ar.SYSTEM_PROMPTS[19])
+
     def test_dual_pipeline_run_mode_sequence(self):
         self.assertEqual(pipeline_modes.normalize_pipeline_run_id("both"), "both")
         self.assertEqual(pipeline_modes.normalize_pipeline_run_id("a+b"), "both")
         self.assertEqual(pipeline_modes.get_pipeline_run_sequence("both"), ("v1", "v2"))
         self.assertEqual(pipeline_modes.get_pipeline_run_agent_total("both"), 13)
         self.assertEqual(pipeline_modes.get_pipeline_run_sequence("v2"), ("v2",))
+        self.assertEqual(pipeline_modes.get_pipeline_run_sequence("v3"), ("v3",))
 
     def test_pipeline_v2_parses_structured_outputs_and_renders_sections(self):
         context = {
@@ -743,6 +764,42 @@ class AuditRuleTests(unittest.TestCase):
         self.assertIn("實戰交易決策報告", markdown)
         self.assertIn("## 6. 實戰交易決策 (Agent 16)", markdown)
 
+    def test_pipeline_v3_parses_recommendation_without_moat_or_valuation(self):
+        context = {
+            "pipeline_id": "v3",
+            "agent_sequence": (17, 18, 19),
+            "data": base_data(),
+            "analyses": {
+                17: "## 泡沫情緒\nFOMO 過熱。",
+                18: "## 法證財務\n法人高檔派發。",
+                19: "## 泡沫狙擊\n## 做空觸發條件（Catalyst for crash）\n財測下修。\n\n## 防軋空停損點（Stop-loss level）\n突破前高。",
+            },
+            "structured_outputs": {
+                19: {
+                    "recommendation": {
+                        "建議": "強烈放空",
+                        "短期目標（3個月）": "NT$700",
+                        "中期目標（6個月）": "NT$600",
+                        "長期目標（12個月）": "NT$500",
+                        "長期潛力（5年）": "NT$650",
+                        "信心指數": "8/10",
+                    }
+                },
+            },
+        }
+
+        parsed = ar.parse_structured_data(context)
+        context["parsed"] = parsed
+        sections = report_gen.build_agent_sections(context, html=False)
+        markdown = report_gen.generate_markdown_report(context)
+
+        self.assertEqual(parsed["recommendation"]["建議"], "強烈放空")
+        self.assertEqual(parsed["moat_scores"], {})
+        self.assertEqual(parsed["price_targets"], {})
+        self.assertEqual([section["agent_num"] for section in sections], [17, 18, 19])
+        self.assertIn("泡沫狙擊研究報告", markdown)
+        self.assertIn("## 3. 泡沫狙擊報告 (Agent 19)", markdown)
+
     def test_normalized_structured_outputs_preserve_reasoning_without_polluting_prices(self):
         moat = structured_outputs.normalize_structured_output(3, {
             "reasoning_steps": ["品牌證據支持 6 分", "轉換成本較強", "網路效應偏弱"],
@@ -788,9 +845,44 @@ class AuditRuleTests(unittest.TestCase):
                 "長期潛力（5年）": "NT$1500",
                 "信心指數": "6/10",
             },
+            "confidence_basis": {
+                "evidence_items": ["估值位於區間內", "現金流資料可用", "籌碼未明顯惡化"],
+                "key_risks_acknowledged": ["需求下修", "估值收縮"],
+                "data_gaps": [],
+            },
+            "scenario_triggers": [
+                {"trigger_condition": "季度毛利率低於歷史區間", "action": "下調建議等級", "direction": "bearish_downgrade"},
+                {"trigger_condition": "營收連續兩季優於預期", "action": "重新評估假設", "direction": "neutral_review"},
+            ],
             "analysis_markdown": "正文",
         })
         self.assertIn("空方指出下修風險", recommendation["reasoning_steps"])
+
+        bubble_recommendation = structured_outputs.normalize_structured_output(19, {
+            "reasoning_steps": ["題材過熱", "財務現實不支持", "籌碼轉為派發"],
+            "recommendation": {
+                "建議": "強烈放空",
+                "短期目標（3個月）": "NT$700",
+                "中期目標（6個月）": "NT$600",
+                "長期目標（12個月）": "NT$500",
+                "長期潛力（5年）": "NT$650",
+                "信心指數": "8/10",
+            },
+            "confidence_basis": {
+                "evidence_items": ["P/E 河流圖高檔", "毛利率落後同業", "外資連續賣超"],
+                "key_risks_acknowledged": ["政策利多軋空", "資料延遲"],
+                "data_gaps": [],
+            },
+            "scenario_triggers": [
+                {"trigger_condition": "下一次法說會下修全年財測", "action": "提高避險部位", "direction": "bearish_downgrade"},
+                {"trigger_condition": "股價放量突破前波停損價", "action": "回補空單並觀望", "direction": "neutral_review"},
+            ],
+            "analysis_markdown": "## 做空觸發條件（Catalyst for crash）\n財測下修。\n\n## 防軋空停損點（Stop-loss level）\n突破前高。",
+        })
+        self.assertEqual(bubble_recommendation["recommendation"]["建議"], "強烈放空")
+        report_text = structured_outputs.structured_output_to_report_text(19, bubble_recommendation)
+        self.assertTrue(report_text.endswith("[/投資建議]"))
+        self.assertIn("建議：強烈放空", report_text)
 
     def test_incomplete_structured_outputs_are_rejected_before_report_contract(self):
         self.assertIsNone(structured_outputs.normalize_structured_output(3, {
@@ -882,7 +974,7 @@ class AuditRuleTests(unittest.TestCase):
             int(agent_num): model
             for agent_num, model in config.MODEL_ROUTES.get("agents", {}).items()
         }
-        for agent_num in range(1, 7):
+        for agent_num in [*range(1, 7), 17, 18]:
             expected = configured_agents.get(agent_num, config.DEFAULT_ANALYSIS_MODEL)
             expected_sequence = list(dict.fromkeys([expected, *config.AGENT_FALLBACK_MODELS.get(agent_num, [])]))
             self.assertEqual(ar.AGENT_MODELS[agent_num], expected)
@@ -896,12 +988,17 @@ class AuditRuleTests(unittest.TestCase):
         expected_trading_decision_sequence = list(dict.fromkeys([expected_trading_decision, *config.AGENT_FALLBACK_MODELS.get(16, [])]))
         self.assertEqual(ar.AGENT_MODELS[16], expected_trading_decision)
         self.assertEqual(ar.get_agent_model_sequence(16), expected_trading_decision_sequence)
+        expected_bubble_decision = configured_agents.get(19, config.DEFAULT_DECISION_MODEL)
+        expected_bubble_decision_sequence = list(dict.fromkeys([expected_bubble_decision, *config.AGENT_FALLBACK_MODELS.get(19, [])]))
+        self.assertEqual(ar.AGENT_MODELS[19], expected_bubble_decision)
+        self.assertEqual(ar.get_agent_model_sequence(19), expected_bubble_decision_sequence)
         expected_audit_sequence = list(dict.fromkeys([config.AUDIT_MODEL, *config.AUDIT_FALLBACK_MODELS]))
         self.assertEqual(ar.get_audit_model_sequence(), expected_audit_sequence)
         self.assertGreaterEqual(len(ar.get_audit_model_sequence()), 2)
         self.assertTrue(config.AGENT_FALLBACK_MODELS.get(7))
         self.assertTrue(config.AGENT_FALLBACK_MODELS.get(15))
         self.assertTrue(config.AGENT_FALLBACK_MODELS.get(16))
+        self.assertTrue(config.AGENT_FALLBACK_MODELS.get(19))
         self.assertEqual(ar.get_context_digest_model_sequence(), [config.CONTEXT_DIGEST_MODEL])
 
         context = {"_model_sequence_override": {2: ar.get_audit_model_sequence()}}

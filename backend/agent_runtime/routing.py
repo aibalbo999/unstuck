@@ -9,7 +9,7 @@ from llm_client import KeyRotator
 
 def get_agent_function_tools(agent_num: int) -> list:
     """Return Python function tools for agents that need deterministic math."""
-    if agent_num in {2, 13}:
+    if agent_num in {2, 13, 18}:
         return [calculate_cagr]
     if agent_num in {4, 14}:
         return [calculate_cagr, calculate_wacc, calculate_dcf, calculate_ddm]

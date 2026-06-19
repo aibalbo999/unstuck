@@ -193,9 +193,9 @@ def clean_markdown(text: str) -> str:
 def get_recommendation_color(rec: str) -> str:
     """根據建議返回顏色"""
     rec = rec.strip().lower()
-    if "買入" in rec or "buy" in rec:
+    if "買入" in rec or "買進" in rec or "buy" in rec:
         return "#10b981"  # 綠色
-    elif "避免" in rec or "sell" in rec or "avoid" in rec:
+    elif "強烈放空" in rec or "放空" in rec or "避免" in rec or "sell" in rec or "avoid" in rec:
         return "#ef4444"  # 紅色
     else:
         return "#f59e0b"  # 黃色（持有）
@@ -204,9 +204,9 @@ def get_recommendation_color(rec: str) -> str:
 def get_recommendation_icon(rec: str) -> str:
     """根據建議返回圖示"""
     rec_lower = rec.strip().lower()
-    if "買入" in rec_lower or "buy" in rec_lower:
+    if "買入" in rec_lower or "買進" in rec_lower or "buy" in rec_lower:
         return "↑"
-    elif "避免" in rec_lower or "sell" in rec_lower or "avoid" in rec_lower:
+    elif "強烈放空" in rec_lower or "放空" in rec_lower or "避免" in rec_lower or "sell" in rec_lower or "avoid" in rec_lower:
         return "↓"
     else:
         return "→"

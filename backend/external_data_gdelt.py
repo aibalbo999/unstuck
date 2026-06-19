@@ -68,10 +68,11 @@ async def fetch_gdelt_international_news_context(
                         },
                     )
                 except Exception as exc:
-                    log_http_warning("GDELT", f"international news {quote(tag)}", exc)
                     if _is_gdelt_rate_limit_error(exc):
                         _mark_gdelt_rate_limited(cooldown_seconds)
                         fallback_reason = "GDELT 429 rate limited"
+                    else:
+                        log_http_warning("GDELT", f"international news {quote(tag)}", exc)
             parsed_topics = parse_gdelt_article_payload(payload, tag=tag)
             if not parsed_topics:
                 parsed_topics = await _fetch_google_news_rss_fallback(client, tag, query)

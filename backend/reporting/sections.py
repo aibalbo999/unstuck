@@ -149,7 +149,7 @@ def build_tear_sheet_summary(context: AnalysisContext) -> str:
 
     rec = next((str(v) for k, v in recommendation.items() if "建議" in str(k)), "持有")
     confidence = next((str(v) for k, v in recommendation.items() if "信心" in str(k)), "N/A")
-    base_target = price_targets.get("基本情境", "N/A")
+    base_target = price_targets.get("基本情境") or next((str(v) for k, v in recommendation.items() if "12個月" in str(k)), "N/A")
     catalysts = data.get("recent_catalysts", []) or []
     top_catalyst = catalysts[0]["title"] if catalysts and catalysts[0].get("title") else "近期催化劑資料不足"
     institutional = data.get("institutional_trading", {}) or {}

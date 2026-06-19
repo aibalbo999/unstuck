@@ -171,9 +171,10 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "decision_freshness" in report_preview_js
     assert "requires_rerun" in report_preview_js
     assert "configureRerunButtons" in report_preview_js
-    assert "重跑模式 A 最終建議" in report_preview_js
-    assert "重跑模式 B 最終建議" in report_preview_js
-    assert "完整重跑模式 A" in report_preview_js
+    assert "shortLabel" in report_preview_js
+    assert "重跑${shortLabel}最終建議" in report_preview_js
+    assert "完整重跑${shortLabel}" in report_preview_js
+    assert "模式 C：逆勢交易與泡沫狙擊" in ui_helpers_js
     assert "full_report" in report_rerun_js
     assert "rerunModeBBtn.hidden = isModeB" in report_preview_js
     assert "產生模式 B 報告" in report_preview_js

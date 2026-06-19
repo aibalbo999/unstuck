@@ -118,27 +118,27 @@ def parse_structured_data(context: AnalysisContext) -> dict:
 
     structured_outputs = context.get("structured_outputs", {})
     analyses = context.get("analyses", {})
-    moat_agent = get_structured_agent_num("moat", context) or 3
-    valuation_agent = get_structured_agent_num("valuation", context) or 4
-    recommendation_agent = get_structured_agent_num("recommendation", context) or 7
-    if moat_agent in structured_outputs:
+    moat_agent = get_structured_agent_num("moat", context)
+    valuation_agent = get_structured_agent_num("valuation", context)
+    recommendation_agent = get_structured_agent_num("recommendation", context)
+    if moat_agent is not None and moat_agent in structured_outputs:
         parsed["moat_scores"] = dict(structured_outputs[moat_agent].get("moat_scores", {}))
-    if valuation_agent in structured_outputs:
+    if valuation_agent is not None and valuation_agent in structured_outputs:
         parsed["price_targets"] = dict(structured_outputs[valuation_agent].get("price_targets", {}))
-    if recommendation_agent in structured_outputs:
+    if recommendation_agent is not None and recommendation_agent in structured_outputs:
         parsed["recommendation"] = dict(structured_outputs[recommendation_agent].get("recommendation", {}))
 
-    if not parsed["moat_scores"] and moat_agent in analyses:
+    if moat_agent is not None and not parsed["moat_scores"] and moat_agent in analyses:
         parsed["moat_scores"] = parse_moat_scores_from_text(analyses[moat_agent])
 
-    if not parsed["moat_scores"]:
+    if moat_agent is not None and not parsed["moat_scores"]:
         parsed["moat_scores"] = dict(DEFAULT_MOAT_SCORES)
 
-    if not parsed["price_targets"] and valuation_agent in analyses:
+    if valuation_agent is not None and not parsed["price_targets"] and valuation_agent in analyses:
         current_price = context.get("data", {}).get("current_price") if isinstance(context.get("data"), dict) else None
         parsed["price_targets"] = parse_price_targets_from_text(analyses[valuation_agent], current_price)
 
-    if not parsed["recommendation"] and recommendation_agent in analyses:
+    if recommendation_agent is not None and not parsed["recommendation"] and recommendation_agent in analyses:
         parsed["recommendation"] = parse_recommendation_from_text(analyses[recommendation_agent])
 
     return parsed

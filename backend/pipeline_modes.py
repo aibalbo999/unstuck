@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import Any, Literal, TypedDict
 
 
-PipelineId = Literal["v1", "v2"]
-PipelineRunId = Literal["v1", "v2", "both"]
+PipelineId = Literal["v1", "v2", "v3"]
+PipelineRunId = Literal["v1", "v2", "v3", "both"]
 
 
 class PipelineDefinition(TypedDict):
@@ -47,6 +47,18 @@ PIPELINE_DEFINITIONS: dict[str, PipelineDefinition] = {
         "structured_agents": {"moat": 12, "valuation": 14, "recommendation": 16},
         "debate_agents": (),
     },
+    "v3": {
+        "id": "v3",
+        "label": "模式 C：逆勢交易與泡沫狙擊",
+        "short_label": "逆勢泡沫狙擊",
+        "report_title": "泡沫狙擊研究報告",
+        "report_subtitle": "基於 3 位逆勢分析師檢驗市場預期、財務現實與籌碼派發",
+        "hint_text": "請稍候，3 位 AI 逆勢分析師正在檢驗題材泡沫、財務漏洞與做空觸發條件...",
+        "agents": (17, 18, 19),
+        "groups": ((17,), (18,), (19,)),
+        "structured_agents": {"recommendation": 19},
+        "debate_agents": (),
+    },
 }
 
 
@@ -69,6 +81,19 @@ def normalize_pipeline_id(value: Any) -> PipelineId:
         return "v1"
     if normalized in {"b", "mode_b", "mode-b", "trading", "practical", "pipeline_v2", "pipeline-v2"}:
         return "v2"
+    if normalized in {
+        "c",
+        "mode_c",
+        "mode-c",
+        "contrarian",
+        "bubble",
+        "short",
+        "short_selling",
+        "short-selling",
+        "pipeline_v3",
+        "pipeline-v3",
+    }:
+        return "v3"
     return normalized if normalized in PIPELINE_DEFINITIONS else DEFAULT_PIPELINE_ID
 
 

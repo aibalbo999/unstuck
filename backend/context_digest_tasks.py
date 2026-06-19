@@ -28,7 +28,7 @@ from prompt_rules import get_task_system_instruction
 from runtime_events import emit_context_event, emit_context_event_async, emit_log, make_runtime_event
 
 
-CONTEXT_DIGEST_TARGET_AGENTS = {4, 7, 14, 16}
+CONTEXT_DIGEST_TARGET_AGENTS = {4, 7, 14, 16, 19}
 
 
 def _context_digest_model_sequence() -> list[str]:

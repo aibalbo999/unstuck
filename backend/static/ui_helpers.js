@@ -1,33 +1,21 @@
 (function () {
     const PIPELINE_META = {
-        v1: {
-            label: '模式 A：學術深度派',
-            shortLabel: '學術深度派',
-            reportSuffix: '深度分析報告',
-            hint: '請稍候，7 位 AI 分析師正在為您撰寫深度研報...'
-        },
-        v2: {
-            label: '模式 B：實戰交易派',
-            shortLabel: '實戰交易派',
-            reportSuffix: '實戰交易決策報告',
-            hint: '請稍候，6 位 AI 分析師正在整合總經、籌碼與進出場策略...'
-        },
-        both: {
-            label: '連續模式：模式 A → 模式 B',
-            shortLabel: 'A+B 連續',
-            reportSuffix: '雙模式分析完成',
-            hint: '將先執行學術深度派，再接續實戰交易派；完成後會產出兩份獨立報告。'
-        }
+        v1: { label: '模式 A：學術深度派', shortLabel: '學術深度派', reportSuffix: '深度分析報告', hint: '請稍候，7 位 AI 分析師正在為您撰寫深度研報...' },
+        v2: { label: '模式 B：實戰交易派', shortLabel: '實戰交易派', reportSuffix: '實戰交易決策報告', hint: '請稍候，6 位 AI 分析師正在整合總經、籌碼與進出場策略...' },
+        v3: { label: '模式 C：逆勢交易與泡沫狙擊', shortLabel: '逆勢泡沫狙擊', reportSuffix: '泡沫狙擊研究報告', hint: '請稍候，3 位 AI 逆勢分析師正在檢驗題材泡沫、財務漏洞與做空觸發條件...' },
+        both: { label: '連續模式：模式 A → 模式 B', shortLabel: 'A+B 連續', reportSuffix: '雙模式分析完成', hint: '將先執行學術深度派，再接續實戰交易派；完成後會產出兩份獨立報告。' }
     };
     function pipelineMeta(pipelineId) {
         return PIPELINE_META[pipelineId] || PIPELINE_META.v1;
     }
     function pipelineModeClass(pipelineId) {
         if (pipelineId === 'both') return 'is-both';
+        if (pipelineId === 'v3') return 'is-v3';
         return pipelineId === 'v2' ? 'is-v2' : 'is-v1';
     }
     function pipelineModeLabel(pipelineId) {
         if (pipelineId === 'both') return '連續 A+B · 兩份報告';
+        if (pipelineId === 'v3') return '模式 C · 逆勢泡沫狙擊';
         return pipelineId === 'v2' ? '模式 B · 實戰交易派' : '模式 A · 學術深度派';
     }
     function providerSlaOnlyPartial(trust) {
@@ -81,15 +69,17 @@
     }
     function normalizeRecommendation(value) {
         const text = String(value || 'N/A');
+        if (text.includes('強烈放空')) return '強烈放空';
+        if (text.includes('買進')) return '買進';
         if (text.includes('買入')) return '買入';
-        if (text.includes('避免') || text.includes('賣出')) return '避免';
+        if (text.includes('避免') || text.includes('賣出') || text.includes('放空')) return '避免';
         if (text.includes('持有')) return '持有';
         return text;
     }
     function recommendationTone(value) {
         const text = normalizeRecommendation(value);
-        if (text === '買入') return 'is-buy';
-        if (text === '避免') return 'is-avoid';
+        if (text === '買入' || text === '買進') return 'is-buy';
+        if (text === '避免' || text === '強烈放空') return 'is-avoid';
         return 'is-hold';
     }
     function escapeHtml(value) {

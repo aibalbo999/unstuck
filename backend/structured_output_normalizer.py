@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from confidence_calibration import build_confidence_calibration, confidence_score
 from structured_output_models import (
+    BubbleSniperStructuredOutput,
     MoatStructuredOutput,
     PriceTargetStructuredOutput,
     RecommendationStructuredOutput,
@@ -22,6 +23,7 @@ STRICT_STRUCTURED_SCHEMAS = {
     12: MoatStructuredOutput,
     14: PriceTargetStructuredOutput,
     16: RecommendationStructuredOutput,
+    19: BubbleSniperStructuredOutput,
 }
 
 
@@ -155,7 +157,7 @@ def normalize_structured_output(agent_num: int, payload: Optional[dict]) -> Opti
             "analysis_markdown": str(payload.get("analysis_markdown", "")).strip(),
         }
 
-    if agent_num in {7, 16}:
+    if agent_num in {7, 16, 19}:
         raw_rec = payload.get("recommendation", {})
         reasoning_steps = _coerce_reasoning_steps(payload.get("reasoning_steps"))
         if not isinstance(raw_rec, dict) or not raw_rec:
@@ -210,10 +212,11 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
             )
         return f"[目標股價]\n{price_lines}\n[/目標股價]\n\n{body}{summary_text}".strip()
 
-    if agent_num in {7, 16}:
+    if agent_num in {7, 16, 19}:
         rec = structured.get("recommendation", {})
         display_rec = {k: v for k, v in rec.items() if not isinstance(v, dict)}
-        rec_lines = "\n".join(f"{key}: {value}" for key, value in display_rec.items())
+        separator = "：" if agent_num == 19 else ": "
+        rec_lines = "\n".join(f"{key}{separator}{value}" for key, value in display_rec.items())
         
         basis = rec.get("confidence_basis", {})
         basis_text = ""
@@ -233,7 +236,10 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
             for t in triggers:
                 trigger_text += f"- 若「{t.get('trigger_condition', '')}」：建議 {t.get('action', '')}\n"
 
-        return f"[投資建議]\n{rec_lines}\n[/投資建議]\n\n{body}{basis_text}{trigger_text}".strip()
+        recommendation_block = f"[投資建議]\n{rec_lines}\n[/投資建議]"
+        if agent_num == 19:
+            return f"{body}{basis_text}{trigger_text}\n\n{recommendation_block}".strip()
+        return f"{recommendation_block}\n\n{body}{basis_text}{trigger_text}".strip()
 
     return fallback_text
 
@@ -247,7 +253,7 @@ def price_targets_have_unit_error(targets: dict, current_price) -> bool:
 
 
 def warn_high_confidence_with_low_trust(agent_num: int, structured: dict, context: dict) -> None:
-    if agent_num not in {7, 16}:
+    if agent_num not in {7, 16, 19}:
         return
     trust = context.get("data", {}).get("data_trust", {}) if isinstance(context.get("data"), dict) else {}
     calibration = build_confidence_calibration(structured.get("recommendation", {}) or {}, trust)

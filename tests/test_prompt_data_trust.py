@@ -23,6 +23,15 @@ def _recommendation_payload(confidence: str = "9/10") -> dict:
             "長期潛力（5年）": "穩健",
             "信心指數": confidence,
         },
+        "confidence_basis": {
+            "evidence_items": ["估值區間可用", "財務資料可用", "風險已揭露"],
+            "key_risks_acknowledged": ["資料過期", "籌碼波動"],
+            "data_gaps": [],
+        },
+        "scenario_triggers": [
+            {"trigger_condition": "資料可信度降至 error", "action": "降低信心分數", "direction": "neutral_review"},
+            {"trigger_condition": "12個月目標價偏離估值區間", "action": "重新評估建議", "direction": "neutral_review"},
+        ],
         "analysis_markdown": "資料限制已揭露的正式段落。",
     }
 

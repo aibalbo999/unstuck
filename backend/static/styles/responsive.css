@@ -2,6 +2,9 @@
     #home-view {
         max-width: min(720px, 100%);
     }
+    .pipeline-selector {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
     .history-workspace {
         grid-template-columns: 1fr;
     }

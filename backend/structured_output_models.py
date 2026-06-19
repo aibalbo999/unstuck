@@ -131,6 +131,35 @@ class RecommendationStructuredOutput(StructuredModel):
     analysis_markdown: str = Field(..., min_length=1)
 
 
+class BubbleSniperRecommendationFields(StructuredModel):
+    recommendation: Literal["強烈放空", "避免", "持有", "買進"] = Field(..., alias="建議")
+    target_3m: str = Field(..., min_length=1, alias="短期目標（3個月）")
+    target_6m: str = Field(..., min_length=1, alias="中期目標（6個月）")
+    target_12m: str = Field(..., min_length=1, alias="長期目標（12個月）")
+    long_term_potential_5y: str = Field(..., min_length=1, alias="長期潛力（5年）")
+    confidence: str = Field(..., min_length=1, alias="信心指數")
+
+
+class BubbleSniperStructuredOutput(StructuredModel):
+    reasoning_steps: list[str] = Field(
+        ...,
+        min_length=3,
+        description="先列出 3-6 個逆勢交易推論步驟，逐步連結市場泡沫、財務漏洞、籌碼派發、崩盤催化與停損風控。",
+    )
+    recommendation: BubbleSniperRecommendationFields
+    confidence_basis: ConfidenceBasis = Field(
+        ...,
+        description="信心依據：必須列出至少 3 項具體佐證與 2 項已納入考量的軋空或資料風險。",
+    )
+    scenario_triggers: list[ScenarioTrigger] = Field(
+        ...,
+        min_length=2,
+        max_length=5,
+        description="情境觸發器：列出 2-5 個崩盤催化、軋空停損或重新評估條件。",
+    )
+    analysis_markdown: str = Field(..., min_length=1)
+
+
 STRUCTURED_AGENT_RESPONSE_SCHEMAS: dict[int, type[StructuredModel]] = {
     3: MoatStructuredOutput,
     4: PriceTargetStructuredOutput,
@@ -138,6 +167,7 @@ STRUCTURED_AGENT_RESPONSE_SCHEMAS: dict[int, type[StructuredModel]] = {
     12: MoatStructuredOutput,
     14: PriceTargetStructuredOutput,
     16: RecommendationStructuredOutput,
+    19: BubbleSniperStructuredOutput,
 }
 
 

@@ -50,14 +50,14 @@
     },
     {
       "id": "manufacturing_aggressive_growth",
-      "agents": [4, 5, 7, 14, 16],
+      "agents": [4, 5, 7, 14, 16, 19],
       "any_regex_groups": [["營收.{0,30}(?:成長|增加|提升).{0,12}(?:[5-9]\\d|1\\d\\d)%"]],
       "not_any_substrings": ["CapEx", "資本支出", "折舊", "產能", "良率", "第二供應商"],
       "issue": "製造業情境紅線：營收成長超過 50% 時，必須同步討論產能、CapEx、折舊、良率與客戶議價風險。"
     },
     {
       "id": "double_counting_growth",
-      "agents": [4, 7, 14, 16],
+      "agents": [4, 7, 14, 16, 19],
       "any_regex_groups": [
         ["(?:ForwardP/E|目標本益比|合理ForwardP/E|給予).{0,20}(?:2[5-9]|[3-9]\\d)(?:\\.\\d+)?x"],
         [

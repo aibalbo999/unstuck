@@ -244,11 +244,26 @@ def build_financial_tool_context(data: dict) -> dict:
         net_debt = (total_debt or 0) / 1e9 - (total_cash or 0) / 1e9
 
     if base_fcf and shares and wacc_pct:
-        scenarios = {
-            "bear": {"growth_rate_pct": max(min((latest_revenue_growth_pct or 0) * 0.15, 6), -5), "terminal_growth_pct": 1.0},
-            "base": {"growth_rate_pct": max(min((latest_revenue_growth_pct or 5) * 0.25, 10), 0), "terminal_growth_pct": 2.0},
-            "bull": {"growth_rate_pct": max(min((latest_revenue_growth_pct or 8) * 0.35, 15), 2), "terminal_growth_pct": 2.5},
-        }
+        # 依公司成長階段動態調整 DCF 成長率上限
+        # 高成長期（年增 > 30%）：上限放寬，反映 AI / 高科技供應鏈的真實成長潛力
+        # 穩定期（年增 ≤ 30%）：維持原有保守上限
+        _rev_g = latest_revenue_growth_pct or 0
+        if _rev_g > 30:
+            # 高成長期：乘數提高、上限放寬；terminal growth 也略為上調
+            _growth_phase = "high_growth"
+            scenarios = {
+                "bear": {"growth_rate_pct": max(min(_rev_g * 0.25, 15), 0),  "terminal_growth_pct": 1.5},
+                "base": {"growth_rate_pct": max(min(_rev_g * 0.40, 25), 5),  "terminal_growth_pct": 2.5},
+                "bull": {"growth_rate_pct": max(min(_rev_g * 0.55, 35), 8),  "terminal_growth_pct": 3.0},
+            }
+        else:
+            # 穩定期：維持原有保守邏輯
+            _growth_phase = "stable"
+            scenarios = {
+                "bear": {"growth_rate_pct": max(min(_rev_g * 0.15, 6),  -5), "terminal_growth_pct": 1.0},
+                "base": {"growth_rate_pct": max(min(_rev_g * 0.25, 10),  0), "terminal_growth_pct": 2.0},
+                "bull": {"growth_rate_pct": max(min(_rev_g * 0.35, 15),  2), "terminal_growth_pct": 2.5},
+            }
         dcf_results = {}
         for scenario, assumptions in scenarios.items():
             dcf_results[scenario] = calculate_dcf(
@@ -262,6 +277,14 @@ def build_financial_tool_context(data: dict) -> dict:
         tool_context["calculations"]["dcf_scenarios_default"] = {
             "base_fcf_billion_twd": round(base_fcf, 4),
             "base_fcf_note": base_note,
+            "growth_phase": _growth_phase,
+            "growth_phase_note": (
+                "高成長期（年增>30%）：DCF 成長率上限已放寬至 bear=15% / base=25% / bull=35%，"
+                "反映高科技供應鏈實際成長潛力；估值 agent 應優先以 Forward P/E 相對估值交叉驗證。"
+                if _growth_phase == "high_growth"
+                else
+                "穩定期（年增≤30%）：DCF 成長率採保守上限，bear=6% / base=10% / bull=15%。"
+            ),
             "scenarios": dcf_results,
         }
 

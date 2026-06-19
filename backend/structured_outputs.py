@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from structured_output_models import (
+    BubbleSniperRecommendationFields,
+    BubbleSniperStructuredOutput,
     STRUCTURED_AGENT_INSTRUCTIONS,
     STRUCTURED_AGENT_RESPONSE_SCHEMAS,
     MoatScores,

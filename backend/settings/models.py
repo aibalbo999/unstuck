@@ -103,7 +103,7 @@ if not DEFAULT_ANALYSIS_MODEL or not DEFAULT_DECISION_MODEL:
 def _load_agent_models() -> dict[int, str]:
     route_agents = _route_section("agents")
     models = {}
-    decision_agents = {7, 16}
+    decision_agents = {7, 16, 19}
     for agent_num in sorted(AGENT_NAMES):
         default_model = DEFAULT_DECISION_MODEL if agent_num in decision_agents else DEFAULT_ANALYSIS_MODEL
         configured = route_agents.get(str(agent_num), default_model)
@@ -129,7 +129,7 @@ def _load_agent_fallbacks() -> dict[int, list[str]]:
     route_fallbacks = _route_section("agent_fallbacks")
     default_analysis_fallbacks = env_list("DEFAULT_ANALYSIS_FALLBACK_MODELS", _route_list("analysis_fallback_models"))
     models: dict[int, list[str]] = {}
-    decision_agents = {7, 16}
+    decision_agents = {7, 16, 19}
     for agent_num in sorted(AGENT_NAMES):
         configured = route_fallbacks.get(str(agent_num), [] if agent_num in decision_agents else default_analysis_fallbacks)
         if isinstance(configured, list):

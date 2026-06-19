@@ -195,7 +195,7 @@ def validate_analysis_output(agent_num: int, text: str, data: Optional[dict] = N
         )
     )
 
-    if agent_num in (4, 7, 14, 16) and is_cyclical_low_pe_setup(data):
+    if agent_num in (4, 7, 14, 16, 19) and is_cyclical_low_pe_setup(data):
         low_pe_bargain_claim = (
             any(word in normalized for word in ["低本益比", "本益比偏低", "P/E偏低", "PE偏低", "本益比低", "P/E低", "PE低"])
             and any(word in normalized for word in ["低估", "被低估", "便宜", "估值便宜", "買入", "上修"])

@@ -105,11 +105,13 @@ def list_reports(
         pipeline_filter = "v1"
     elif pipeline_filter in {"mode_b", "b", "trading"}:
         pipeline_filter = "v2"
-    if pipeline_filter not in {"all", "v1", "v2"}:
+    elif pipeline_filter in {"mode_c", "c", "contrarian", "bubble", "short"}:
+        pipeline_filter = "v3"
+    if pipeline_filter not in {"all", "v1", "v2", "v3"}:
         pipeline_filter = "all"
 
     recommendation_filter = normalize_recommendation_label(recommendation)
-    if recommendation_filter not in {"買入", "持有", "避免"}:
+    if recommendation_filter not in {"買入", "買進", "持有", "避免", "強烈放空"}:
         recommendation_filter = "all"
     data_trust_value = data_trust if isinstance(data_trust, str) else "all"
     data_trust_filter = data_trust_value.strip().lower()

@@ -34,8 +34,10 @@ def generate_markdown_report(context: AnalysisContext) -> str:
         return default
         
     rec_text = get_rec_val(recommendation, "建議", "持有")
-    if "買入" in rec_text or "Buy" in rec_text or "BUY" in rec_text: rec_text = "買入"
-    elif "避免" in rec_text or "Avoid" in rec_text or "AVOID" in rec_text or "賣出" in rec_text: rec_text = "避免"
+    if "強烈放空" in rec_text: rec_text = "強烈放空"
+    elif "買進" in rec_text: rec_text = "買進"
+    elif "買入" in rec_text or "Buy" in rec_text or "BUY" in rec_text: rec_text = "買入"
+    elif "避免" in rec_text or "Avoid" in rec_text or "AVOID" in rec_text or "賣出" in rec_text or "放空" in rec_text: rec_text = "避免"
     else: rec_text = "持有"
 
     target_3m = get_rec_val(recommendation, "3個月", "N/A")

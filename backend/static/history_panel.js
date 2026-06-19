@@ -15,7 +15,7 @@
         const value = Number(tracking && tracking.return_pct);
         if (!Number.isFinite(value) || value === 0) return 'is-neutral';
         if (tracking.status === 'target_hit' || tracking.status === 'avoided_loss') return 'is-positive';
-        if (tracking.recommendation === '避免') return value < 0 ? 'is-positive' : 'is-negative';
+        if (tracking.recommendation === '避免' || tracking.recommendation === '強烈放空') return value < 0 ? 'is-positive' : 'is-negative';
         return value > 0 ? 'is-positive' : 'is-negative';
     }
 

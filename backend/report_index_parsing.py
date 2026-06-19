@@ -43,6 +43,10 @@ def extract_section(markdown_text: str, heading: str) -> str:
 
 def normalize_recommendation_label(value: str) -> str:
     text = str(value or "").strip()
+    if "強烈放空" in text:
+        return "強烈放空"
+    if "買進" in text:
+        return "買進"
     if "買入" in text or text.lower() == "buy":
         return "買入"
     if "避免" in text or "賣出" in text or text.lower() in {"avoid", "sell"}:
@@ -140,7 +144,7 @@ def parse_report_filename(filename: str) -> dict:
     if len(parts) == 2:
         raw_ticker = parts[0]
         pipeline_id = "v1"
-        if raw_ticker.endswith("_v1") or raw_ticker.endswith("_v2"):
+        if raw_ticker.endswith("_v1") or raw_ticker.endswith("_v2") or raw_ticker.endswith("_v3"):
             pipeline_id = raw_ticker[-2:]
             raw_ticker = raw_ticker[:-3]
         ticker = raw_ticker.replace("_", ".")

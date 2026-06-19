@@ -23,6 +23,9 @@ AGENT_RAG_QUERIES = {
     14: "growth valuation DCF TAM SAM catalysts revenue growth FCF growth WACC forward PE PB estimate revision double counting 估值 成長 本益比 目標價 法說 催化 雙重樂觀 下修",
     15: "institutional trading foreign investors investment trust dealer net buy sell technical sentiment PE river chart crowded trade breakout momentum 法人 外資 投信 自營商 買賣超 籌碼 技術面 情緒 河流圖 動能",
     16: "portfolio manager trading decision bull bear actionable plan risk control entry exit timing valuation chip flow macro red flags left side trade 實戰交易 進出場 風控 多空 籌碼 估值 總經 紅旗 左側交易",
+    17: "behavioral finance sentiment hype narrative FOMO bubble catalyst conference call forward EPS PE river chart overvaluation AI 6G space theme 情緒 泡沫 題材 狂熱 法說 河流圖 估值乖離 預期",
+    18: "forensic accounting revenue CAGR DuPont ROE asset turnover gross margin peers institutional flow foreign investors distribution insider selling 財務紅旗 杜邦 資產周轉率 毛利率 法人 外資 派發 倒貨",
+    19: "short seller bubble attack report crash catalyst stop loss squeeze risk downside target liquidation value pessimistic DCF 做空 放空 泡沫狙擊 崩盤催化 停損 軋空 避險 清算價值",
 }
 
 
