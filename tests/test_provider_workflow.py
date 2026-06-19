@@ -8,11 +8,215 @@ sys.path.insert(0, str(ROOT / "backend"))
 
 from data_fetch import CallableProvider, FetchRequest, ProviderRegistry, ProviderResult, StockDataService  # noqa: E402
 from data_fetch.constants import DATA_SCHEMA_VERSION  # noqa: E402
+from data_fetch.market_sources.peers import CompanyProfile, rank_peer_candidates, select_peer_profiles  # noqa: E402
+import data_fetch.market_sources.peers as peer_sources  # noqa: E402
 import data_fetch.workflow as workflow  # noqa: E402
 import data_freshness  # noqa: E402
 import provider_sla  # noqa: E402
 from data_trust import build_source_audit_entry  # noqa: E402
 from fixtures.data_payloads import FRESH_AT, FRESH_AT_EPOCH, financial_history, fresh_audited_payload  # noqa: E402
+
+
+def test_peer_selection_filters_market_cap_outliers_and_scores_business_overlap():
+    target = CompanyProfile(
+        ticker="2308.TW",
+        name="台達電",
+        gics_code="20104010",
+        market="TW",
+        market_cap_twd=5_000_000_000_000,
+        revenue_twd=400_000_000_000,
+        business_tags={"power", "thermal", "industrial_automation"},
+        product_keywords={"power_supply", "cooling"},
+        segment_revenue_tags={"datacenter_power"},
+    )
+    micro_cap = CompanyProfile(
+        "2429.TW",
+        "銘旺科",
+        "20104010",
+        "TW",
+        4_000_000_000,
+        2_000_000_000,
+        {"electronics"},
+        {"cable"},
+        set(),
+    )
+    global_peer = CompanyProfile(
+        "ETN",
+        "Eaton",
+        "20104010",
+        "US",
+        4_500_000_000_000,
+        950_000_000_000,
+        {"power", "industrial_automation"},
+        {"power_supply"},
+        {"datacenter_power"},
+    )
+
+    ranked = rank_peer_candidates(target, [micro_cap, global_peer])
+
+    assert [row["ticker"] for row in ranked] == ["ETN"]
+    assert ranked[0]["market_cap_ratio"] == 0.9
+    assert ranked[0]["score"] > 0.55
+
+
+def test_peer_selection_rejects_revenue_outliers_and_unrelated_businesses():
+    target = CompanyProfile(
+        "2308.TW",
+        "台達電",
+        "20104010",
+        "TW",
+        5_000_000_000_000,
+        400_000_000_000,
+        {"power"},
+        {"power_supply"},
+        {"datacenter_power"},
+    )
+    unrelated = CompanyProfile(
+        "UNRELATED",
+        "Unrelated",
+        "20104010",
+        "US",
+        5_000_000_000_000,
+        400_000_000_000,
+        {"aerospace"},
+        {"jet_engine"},
+        {"defense"},
+    )
+    revenue_outlier = CompanyProfile(
+        "TOO-LARGE",
+        "Too Large",
+        "20104010",
+        "US",
+        5_000_000_000_000,
+        4_000_000_000_000,
+        {"power"},
+        {"power_supply"},
+        {"datacenter_power"},
+    )
+    relevant = CompanyProfile(
+        "ETN",
+        "Eaton",
+        "20104010",
+        "US",
+        4_500_000_000_000,
+        950_000_000_000,
+        {"power"},
+        {"power_supply"},
+        {"datacenter_power"},
+    )
+
+    ranked = rank_peer_candidates(target, [unrelated, revenue_outlier, relevant])
+
+    assert [row["ticker"] for row in ranked] == ["ETN"]
+
+
+def test_select_peer_profiles_expands_globally_when_local_peers_are_insufficient():
+    target = CompanyProfile(
+        "2308.TW",
+        "台達電",
+        "20104010",
+        "TW",
+        5_000_000_000_000,
+        400_000_000_000,
+        {"power"},
+        {"power_supply"},
+        set(),
+    )
+    local_bad = CompanyProfile(
+        "9999.TW",
+        "微型同業",
+        "20104010",
+        "TW",
+        1_000_000_000,
+        1_000_000_000,
+        {"power"},
+        {"power_supply"},
+        set(),
+    )
+    global_good = CompanyProfile(
+        "ETN",
+        "Eaton",
+        "20104010",
+        "US",
+        4_500_000_000_000,
+        950_000_000_000,
+        {"power"},
+        {"power_supply"},
+        set(),
+    )
+
+    result = select_peer_profiles(target, [local_bad, global_good], min_peers=1)
+
+    assert result["expansion_used"] is True
+    assert result["selected_peers"][0]["ticker"] == "ETN"
+
+
+def test_dynamic_peer_metrics_uses_ranked_profiles_and_exposes_selection_policy(monkeypatch):
+    fetched_tickers = []
+
+    class FakeTicker:
+        def __init__(self, ticker):
+            fetched_tickers.append(ticker)
+            self.info = {
+                "grossMargins": 0.38,
+                "operatingMargins": 0.21,
+                "profitMargins": 0.16,
+                "trailingPE": 28.0,
+                "priceToBook": 5.0,
+            }
+
+    monkeypatch.setattr(peer_sources.yf, "Ticker", FakeTicker)
+    identity = {
+        "company_profile": {
+            "ticker": "2308.TW",
+            "name": "台達電",
+            "gics_code": "20104010",
+            "market": "TW",
+            "market_cap_twd": 5_000_000_000_000,
+            "revenue_twd": 400_000_000_000,
+            "business_tags": ["power", "thermal"],
+            "product_keywords": ["power_supply"],
+            "segment_revenue_tags": ["datacenter_power"],
+        },
+        "peer_profiles": [
+            {
+                "ticker": "2429.TW",
+                "name": "銘旺科",
+                "gics_code": "20104010",
+                "market": "TW",
+                "market_cap_twd": 4_000_000_000,
+                "revenue_twd": 2_000_000_000,
+                "business_tags": ["electronics"],
+                "product_keywords": ["cable"],
+                "segment_revenue_tags": [],
+            },
+            {
+                "ticker": "ETN",
+                "name": "Eaton",
+                "gics_code": "20104010",
+                "market": "US",
+                "market_cap_twd": 4_500_000_000_000,
+                "revenue_twd": 950_000_000_000,
+                "business_tags": ["power", "industrial_automation"],
+                "product_keywords": ["power_supply"],
+                "segment_revenue_tags": ["datacenter_power"],
+            },
+        ],
+    }
+
+    records = peer_sources.fetch_dynamic_peer_metrics(
+        "2308.TW",
+        "台達電",
+        "Industrials",
+        "Electrical Equipment",
+        identity,
+    )
+
+    assert fetched_tickers == ["ETN"]
+    assert records[0]["ticker"] == "ETN"
+    assert records[0]["selection_score"] > 0.55
+    assert records[0]["selection_policy"]["market_cap_band"] == "0.2x-5.0x"
+    assert records[0]["selection_policy"]["expansion_used"] is True
 
 
 def test_stock_data_service_uses_provider_plan_for_optional_enrichment(monkeypatch):
