@@ -161,7 +161,7 @@ git commit -m "feat: add safe article text extraction"
 - Create: `backend/official_financials.py`
 - Create: `tests/test_official_financials.py`
 
-- [ ] **Step 1: Write failing TWSE and MOPS parser tests**
+- [x] **Step 1: Write failing TWSE and MOPS parser tests**
 
 ```python
 def test_twse_filters_ticker_and_normalizes_net_trades(fake_session):
@@ -181,16 +181,16 @@ def test_mops_posts_period_and_extracts_balance_sheet(fake_session, monkeypatch)
 
 Cover comma/parentheses numbers, ROC year conversion, MultiIndex columns, no-table HTML, unknown unit, timeout and non-Taiwan ticker.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run: `pytest tests/test_official_financials.py -v`
 Expected: collection FAIL because `official_financials` does not exist.
 
-- [ ] **Step 3: Implement official adapters**
+- [x] **Step 3: Implement official adapters**
 
 Use injected `requests.Session`, fixed endpoints, browser-like headers and `(connect, read)` timeout. Flatten pandas columns, identify account/value columns, preserve `raw_line_items`, and only populate canonical totals when unit and statement period are known.
 
-- [ ] **Step 4: Verify GREEN and commit**
+- [x] **Step 4: Verify GREEN and commit**
 
 Run: `pytest tests/test_official_financials.py -v`
 Expected: PASS.
