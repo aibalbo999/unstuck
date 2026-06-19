@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 DIVERGENCE_THRESHOLD_PCT = 5.0
 HIGH_DISCREPANCY_FLAG = "High_Discrepancy"
 CRITICAL_FINANCIAL_FIELDS = ("revenue", "net_income", "total_debt", "free_cash_flow")
+PROVIDER_CONFLICT_CAUSE_PREFIX = "provider_conflict:"
 DEFAULT_FINANCIAL_METRIC_FIELDS = (
     "eps",
     "monthly_revenue",
@@ -129,11 +130,11 @@ def validate_state_provider_values(
     """Open the AgentState circuit breaker when critical provider values conflict."""
     selected_fields = tuple(fields)
     blocking_fields: list[str] = []
-    previous_blocking_fields = list(state.circuit_breaker.blocking_fields)
+    previous_blocking_fields = set(state.circuit_breaker.blocking_fields)
 
     state.validation_issues = [
         issue for issue in state.validation_issues
-        if issue.field not in selected_fields
+        if not _is_provider_conflict_validation_issue(issue, selected_fields)
     ]
     state.risk_flags = [
         flag for flag in state.risk_flags
@@ -167,7 +168,7 @@ def validate_state_provider_values(
                 values=[left, right],
                 diff_pct=rounded_diff,
                 threshold_pct=float(threshold_pct),
-                likely_cause=_infer_conflict_cause(left, right),
+                likely_cause=f"{PROVIDER_CONFLICT_CAUSE_PREFIX}{_infer_conflict_cause(left, right)}",
                 resolution="Reconcile provider values before relying on critical financial metrics.",
             )
         )
@@ -189,7 +190,7 @@ def validate_state_provider_values(
 
     if blocking_fields:
         state.circuit_breaker.blocking_fields = list(dict.fromkeys([*state.circuit_breaker.blocking_fields, *blocking_fields]))
-        if state.circuit_breaker.status != "open" or state.circuit_breaker.blocking_fields != previous_blocking_fields:
+        if state.circuit_breaker.status != "open" or set(state.circuit_breaker.blocking_fields) != previous_blocking_fields:
             state.circuit_breaker.attempts += 1
         state.circuit_breaker.status = "open"
         state.circuit_breaker.reason = "Critical financial provider values conflict above validation threshold."
@@ -200,6 +201,10 @@ def validate_state_provider_values(
         state.circuit_breaker.reason = None
 
     return state
+
+
+def _is_provider_conflict_validation_issue(issue: ValidationIssue, fields: Iterable[str]) -> bool:
+    return issue.field in fields and (issue.likely_cause or "").startswith(PROVIDER_CONFLICT_CAUSE_PREFIX)
 
 
 def _is_provider_conflict_risk_flag(flag: RiskFlag, fields: Iterable[str]) -> bool:

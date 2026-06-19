@@ -9,7 +9,7 @@ sys.path.insert(0, str(ROOT / "backend"))
 from data_cross_validator import validate_financial_metrics  # noqa: E402
 import pytest  # noqa: E402
 
-from agent_state import ProviderValue  # noqa: E402
+from agent_state import ProviderValue, Severity, ValidationIssue  # noqa: E402
 from data_financial_metric_validator import (  # noqa: E402
     CircuitBreakerOpen,
     load_provider_values_from_payload,
@@ -134,3 +134,44 @@ def test_validate_state_provider_values_clears_stale_conflict_when_values_align(
     assert state.circuit_breaker.status == "closed"
     assert state.circuit_breaker.blocking_fields == []
     assert state.circuit_breaker.reason is None
+
+
+def test_validate_state_provider_values_preserves_external_same_field_issue():
+    state = initialize_agent_state({"ticker": "2308.TW", "company_name": "台達電"}, run_id="validation-preserve")
+    state.validation_issues.append(
+        ValidationIssue(
+            field="revenue",
+            severity=Severity.warning,
+            providers=["manual"],
+            likely_cause="manual_review",
+        )
+    )
+    state.provider_values["revenue"] = [
+        ProviderValue(provider="yfinance", field="revenue", value=100.0),
+        ProviderValue(provider="finmind", field="revenue", value=99.0),
+    ]
+
+    validate_state_provider_values(state, fields=("revenue",), threshold_pct=5.0)
+
+    assert len(state.validation_issues) == 1
+    assert state.validation_issues[0].likely_cause == "manual_review"
+    assert state.circuit_breaker.status == "closed"
+
+
+def test_validate_state_provider_values_attempts_ignore_blocking_field_order():
+    state = initialize_agent_state({"ticker": "2308.TW", "company_name": "台達電"}, run_id="validation-attempts")
+    state.provider_values["revenue"] = [
+        ProviderValue(provider="yfinance", field="revenue", value=100.0),
+        ProviderValue(provider="finmind", field="revenue", value=80.0),
+    ]
+    state.provider_values["total_debt"] = [
+        ProviderValue(provider="yfinance", field="total_debt", value=100.0),
+        ProviderValue(provider="finmind", field="total_debt", value=125.0),
+    ]
+
+    validate_state_provider_values(state, fields=("revenue", "total_debt"), threshold_pct=5.0)
+    attempts = state.circuit_breaker.attempts
+    validate_state_provider_values(state, fields=("total_debt", "revenue"), threshold_pct=5.0)
+
+    assert state.circuit_breaker.attempts == attempts
+    assert set(state.circuit_breaker.blocking_fields) == {"revenue", "total_debt"}
