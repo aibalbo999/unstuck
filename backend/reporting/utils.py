@@ -36,7 +36,12 @@ def strip_prompt_preamble(text: str) -> str:
     if not text:
         return ""
 
-    if "\\n" in text and ("analysis_markdown" in text or "\\n##" in text or "\\n###" in text):
+    if "\\n" in text and (
+        "analysis_markdown" in text
+        or "\\n##" in text
+        or "\\n###" in text
+        or re.search(r"^#{1,4}\s+.+\\n", text, re.MULTILINE)
+    ):
         text = text.replace("\\n", "\n")
 
     lines = text.splitlines()

@@ -7,6 +7,7 @@ from company_display import company_display_name
 from agent_catalog import AGENT_NAMES
 from config import AGENT_MODELS
 from pipeline_modes import get_pipeline_definition
+from structured_output_normalizer import structured_output_to_report_text
 
 from .common import build_agent_model_labels
 from .utils import (
@@ -94,6 +95,10 @@ def build_structured_intro_block(agent_num: int, context: AnalysisContext) -> st
     return ""
 
 
+def _structured_block_belongs_at_tail(agent_num: int, pipeline_def: dict, structured_agents: dict) -> bool:
+    return pipeline_def.get("id") == "v3" and agent_num == structured_agents.get("recommendation")
+
+
 def build_agent_sections(context: AnalysisContext, *, html: bool = True) -> list[dict]:
     pipeline_def = get_pipeline_definition(context.get("pipeline_id", "v1"))
     analyses = context.get("analyses", {}) or {}
@@ -103,11 +108,19 @@ def build_agent_sections(context: AnalysisContext, *, html: bool = True) -> list
     sections = []
 
     for display_num, agent_num in enumerate(pipeline_def["agents"], 1):
-        raw = strip_structured_blocks(sanitize_report_text(analyses.get(agent_num, "分析進行中...")))
-        raw = _strip_legacy_structured_tags(raw)
+        raw_source = analyses.get(agent_num, "分析進行中...")
         structured_intro = build_structured_intro_block(agent_num, context)
-        if structured_intro and structured_intro not in raw:
-            raw = f"{structured_intro}\n\n{raw}".strip()
+        if _structured_block_belongs_at_tail(agent_num, pipeline_def, structured_agents):
+            structured = (context.get("structured_outputs", {}) or {}).get(agent_num)
+            if isinstance(structured, dict):
+                raw_source = structured_output_to_report_text(agent_num, structured, str(raw_source))
+        raw = strip_structured_blocks(sanitize_report_text(raw_source))
+        raw = _strip_legacy_structured_tags(raw)
+        if structured_intro:
+            if _structured_block_belongs_at_tail(agent_num, pipeline_def, structured_agents):
+                raw = f"{raw}\n\n{structured_intro}".strip()
+            elif structured_intro not in raw:
+                raw = f"{structured_intro}\n\n{raw}".strip()
         if html:
             body = format_debate_text(raw) if agent_num in debate_agents else clean_markdown(raw)
         else:

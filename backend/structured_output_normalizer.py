@@ -14,6 +14,11 @@ from structured_output_models import (
     PriceTargetStructuredOutput,
     RecommendationStructuredOutput,
 )
+from structured_output_rendering import (
+    ensure_agent19_required_sections,
+    format_recommendation_block,
+    normalize_escaped_newlines,
+)
 
 
 STRICT_STRUCTURED_SCHEMAS = {
@@ -191,7 +196,7 @@ def normalize_structured_output(agent_num: int, payload: Optional[dict]) -> Opti
 
 def structured_output_to_report_text(agent_num: int, structured: dict, fallback_text: str = "") -> str:
     """Convert parsed JSON into the legacy report text expected by renderers."""
-    body = structured.get("analysis_markdown") or fallback_text
+    body = normalize_escaped_newlines(structured.get("analysis_markdown") or fallback_text)
 
     if agent_num in {3, 12}:
         scores = structured.get("moat_scores", {})
@@ -214,9 +219,6 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
 
     if agent_num in {7, 16, 19}:
         rec = structured.get("recommendation", {})
-        display_rec = {k: v for k, v in rec.items() if not isinstance(v, dict)}
-        separator = "：" if agent_num == 19 else ": "
-        rec_lines = "\n".join(f"{key}{separator}{value}" for key, value in display_rec.items())
         
         basis = rec.get("confidence_basis", {})
         basis_text = ""
@@ -236,8 +238,9 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
             for t in triggers:
                 trigger_text += f"- 若「{t.get('trigger_condition', '')}」：建議 {t.get('action', '')}\n"
 
-        recommendation_block = f"[投資建議]\n{rec_lines}\n[/投資建議]"
+        recommendation_block = format_recommendation_block(agent_num, rec)
         if agent_num == 19:
+            body = ensure_agent19_required_sections(body, structured)
             return f"{body}{basis_text}{trigger_text}\n\n{recommendation_block}".strip()
         return f"{recommendation_block}\n\n{body}{basis_text}{trigger_text}".strip()
 

@@ -14,6 +14,7 @@ sys.path.insert(0, str(ROOT / "backend"))
 import agent_runtime.legacy_agent_runner as ar  # noqa: E402
 import agent_runtime.audit_repair as audit_repair  # noqa: E402
 import agent_runtime.repair_reflection as repair_reflection  # noqa: E402
+from agent_runtime.deterministic_fallbacks import _deterministic_structured_fallback  # noqa: E402
 import assistant_tasks  # noqa: E402
 import config  # noqa: E402
 import external_data_clients as edc  # noqa: E402
@@ -800,6 +801,75 @@ class AuditRuleTests(unittest.TestCase):
         self.assertIn("泡沫狙擊研究報告", markdown)
         self.assertIn("## 3. 泡沫狙擊報告 (Agent 19)", markdown)
 
+    def test_pipeline_v3_final_section_keeps_investment_block_at_tail(self):
+        context = {
+            "pipeline_id": "v3",
+            "agent_sequence": (17, 18, 19),
+            "data": base_data(),
+            "analyses": {
+                17: "## 泡沫情緒\nFOMO 過熱。",
+                18: "## 法證財務\n法人高檔派發。",
+                19: (
+                    "[投資建議]\n"
+                    "建議：強烈放空\n"
+                    "短期目標（3個月）：NT$700\n"
+                    "中期目標（6個月）：NT$600\n"
+                    "長期目標（12個月）：NT$500\n"
+                    "長期潛力（5年）：NT$650\n"
+                    "信心指數：8/10\n"
+                    "[/投資建議]\n\n"
+                    "## 一、泡沫狙擊結論\\n市場題材已超前基本面。"
+                ),
+            },
+            "structured_outputs": {
+                19: {
+                    "analysis_markdown": "## 一、泡沫狙擊結論\\n市場題材已超前基本面。",
+                    "recommendation": {
+                        "建議": "強烈放空",
+                        "短期目標（3個月）": "NT$700",
+                        "中期目標（6個月）": "NT$600",
+                        "長期目標（12個月）": "NT$500",
+                        "長期潛力（5年）": "NT$650",
+                        "信心指數": "8/10",
+                    },
+                    "scenario_triggers": [
+                        {"trigger_condition": "財測下修", "action": "提高避險部位", "direction": "bearish_downgrade"},
+                        {"trigger_condition": "突破前高", "action": "回補空單並觀望", "direction": "neutral_review"},
+                    ],
+                },
+            },
+        }
+
+        context["parsed"] = ar.parse_structured_data(context)
+        section = report_gen.build_agent_sections(context, html=False)[-1]
+
+        self.assertIn("## 一、泡沫狙擊結論\n市場題材已超前基本面。", section["body"])
+        self.assertIn("## 做空觸發條件（Catalyst for crash）", section["body"])
+        self.assertIn("財測下修", section["body"])
+        self.assertIn("## 防軋空停損點（Stop-loss level）", section["body"])
+        self.assertIn("突破前高", section["body"])
+        self.assertLess(section["body"].index("## 一、泡沫狙擊結論"), section["body"].index("[投資建議]"))
+        self.assertTrue(section["body"].rstrip().endswith("[/投資建議]"))
+
+    def test_pipeline_v3_final_audit_requires_contrarian_risk_sections(self):
+        context = {
+            "pipeline_id": "v3",
+            "agent_sequence": (17, 18, 19),
+            "data": base_data(),
+            "analyses": {
+                17: "## 泡沫情緒\nFOMO 過熱。",
+                18: "## 法證財務\n法人高檔派發。",
+                19: "## 一、泡沫狙擊結論\n市場題材已超前基本面。",
+            },
+            "structured_outputs": {},
+        }
+        context["parsed"] = ar.parse_structured_data(context)
+
+        audit = ar.run_final_report_audit(context, append_section=False)
+
+        self.assertIn("缺少做空觸發條件", "\n".join(audit["critical"]))
+        self.assertIn("缺少防軋空停損點", "\n".join(audit["critical"]))
+
     def test_normalized_structured_outputs_preserve_reasoning_without_polluting_prices(self):
         moat = structured_outputs.normalize_structured_output(3, {
             "reasoning_steps": ["品牌證據支持 6 分", "轉換成本較強", "網路效應偏弱"],
@@ -883,6 +953,56 @@ class AuditRuleTests(unittest.TestCase):
         report_text = structured_outputs.structured_output_to_report_text(19, bubble_recommendation)
         self.assertTrue(report_text.endswith("[/投資建議]"))
         self.assertIn("建議：強烈放空", report_text)
+
+    def test_agent19_renderer_inserts_required_sections_before_tail_block(self):
+        bubble_recommendation = structured_outputs.normalize_structured_output(19, {
+            "reasoning_steps": ["題材過熱", "財務現實不支持", "籌碼轉為派發"],
+            "recommendation": {
+                "建議": "避免",
+                "短期目標（3個月）": "NT$80",
+                "中期目標（6個月）": "NT$70",
+                "長期目標（12個月）": "NT$60",
+                "長期潛力（5年）": "NT$75",
+                "信心指數": "7/10",
+            },
+            "confidence_basis": {
+                "evidence_items": ["P/E 河流圖高檔", "毛利率落後同業", "外資連續賣超"],
+                "key_risks_acknowledged": ["政策利多軋空", "資料延遲"],
+                "data_gaps": [],
+            },
+            "scenario_triggers": [
+                {"trigger_condition": "下一次法說會下修全年財測", "action": "提高避險部位", "direction": "bearish_downgrade"},
+                {"trigger_condition": "股價放量突破前波高點", "action": "回補空單並觀望", "direction": "neutral_review"},
+            ],
+            "analysis_markdown": "## 一、泡沫狙擊結論\\n市場題材已超前基本面。",
+        })
+
+        report_text = structured_outputs.structured_output_to_report_text(19, bubble_recommendation)
+
+        self.assertIn("## 一、泡沫狙擊結論\n市場題材已超前基本面。", report_text)
+        self.assertIn("## 做空觸發條件（Catalyst for crash）", report_text)
+        self.assertIn("下一次法說會下修全年財測", report_text)
+        self.assertIn("## 防軋空停損點（Stop-loss level）", report_text)
+        self.assertIn("股價放量突破前波高點", report_text)
+        self.assertLess(report_text.index("## 防軋空停損點（Stop-loss level）"), report_text.index("[投資建議]"))
+        self.assertTrue(report_text.rstrip().endswith("[/投資建議]"))
+
+    def test_agent19_deterministic_fallback_outputs_required_contract(self):
+        context = {
+            "pipeline_id": "v3",
+            "analyses": {19: "Agent 19 未提供可解析 JSON。"},
+            "structured_outputs": {},
+        }
+
+        ok, message = _deterministic_structured_fallback(19, {"current_price": 100.0}, context, "")
+        text = context["analyses"][19]
+
+        self.assertTrue(ok)
+        self.assertIn("泡沫狙擊 fallback", message)
+        self.assertIn("## 做空觸發條件（Catalyst for crash）", text)
+        self.assertIn("## 防軋空停損點（Stop-loss level）", text)
+        self.assertIn("建議：避免", text)
+        self.assertTrue(text.rstrip().endswith("[/投資建議]"))
 
     def test_incomplete_structured_outputs_are_rejected_before_report_contract(self):
         self.assertIsNone(structured_outputs.normalize_structured_output(3, {

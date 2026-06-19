@@ -24,20 +24,17 @@ def safe_float(value: Any) -> Optional[float]:
     except (TypeError, ValueError):
         return None
 
-
 def raw_twd_to_billion_twd(value: Any) -> Optional[float]:
     number = safe_float(value)
     if number is None:
         return None
     return round(number / 1e9, 4)
 
-
 def pct_from_ratio(value: Any) -> Optional[float]:
     number = safe_float(value)
     if number is None:
         return None
     return round(number * 100, 4)
-
 
 def calculate_cagr(start_value: float, end_value: float, periods: int) -> dict:
     """Calculate CAGR as percentage points from positive start/end values."""
@@ -50,7 +47,6 @@ def calculate_cagr(start_value: float, end_value: float, periods: int) -> dict:
         "periods": periods,
         "cagr_pct": round(cagr_pct, 4),
     }
-
 
 def calculate_wacc(
     market_cap_twd: float,
@@ -79,7 +75,6 @@ def calculate_wacc(
         "after_tax_cost_of_debt_pct": round(after_tax_debt_cost, 4),
         "wacc_pct": round(wacc_pct, 4),
     }
-
 
 def calculate_dcf(
     base_fcf_billion_twd: float,
@@ -135,7 +130,6 @@ def calculate_dcf(
         "price_per_share_twd": round(price_per_share_twd, 4),
     }
 
-
 def calculate_ddm(
     dividend_per_share_twd: float,
     cost_of_equity_pct: float,
@@ -158,14 +152,12 @@ def calculate_ddm(
         "value_per_share_twd": round(value, 4),
     }
 
-
 def _latest_numeric(values: list[Any]) -> Optional[float]:
     for value in reversed(values or []):
         number = safe_float(value)
         if number is not None:
             return number
     return None
-
 
 def build_financial_tool_context(data: dict) -> dict:
     """Precompute deterministic tool outputs that agents can cite directly."""

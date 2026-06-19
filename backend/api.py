@@ -70,7 +70,6 @@ if hasattr(sys.stdout, "reconfigure"):
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(line_buffering=True)
 
-
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 LOCAL_RUNTIME_LOCK_PATH = os.getenv("LOCAL_RUNTIME_LOCK_PATH", os.path.join(BASE_DIR, "cache", "local-runtime.lock"))
@@ -89,15 +88,14 @@ MUTATION_HEADER_NAME = "X-Mutation-Token"
 RUNTIME_MUTATION_API_TOKEN = secrets.token_urlsafe(32)
 _LOCAL_RUNTIME_LOCK_HANDLE = None
 
-
 def acquire_local_runtime_instance_lock(path: str = LOCAL_RUNTIME_LOCK_PATH):
     return _acquire_local_runtime_instance_lock(path, LOCAL_RUNTIME_INSTANCE_ID)
+
 
 def print_streamed_event(job_id: str, payload: dict) -> None:
     if TASK_QUEUE_BACKEND != "rq":
         return
     emit_log(format_event_log_line(job_id, payload, prefix="stream"))
-
 
 def require_mutation_authorized(request: Request) -> None:
     supplied = (
@@ -108,14 +106,11 @@ def require_mutation_authorized(request: Request) -> None:
     if supplied not in get_allowed_mutation_tokens():
         raise HTTPException(status_code=403, detail="Mutation endpoint requires a valid mutation token")
 
-
 def get_runtime_mutation_token() -> str:
     return str(RUNTIME_MUTATION_API_TOKEN or "").strip()
 
-
 def is_local_deployment_mode() -> bool:
     return str(DEPLOYMENT_MODE or "local").strip().lower() == "local"
-
 
 def get_allowed_mutation_tokens() -> set[str]:
     runtime_token = get_runtime_mutation_token() if is_local_deployment_mode() else ""
@@ -127,14 +122,12 @@ def get_allowed_mutation_tokens() -> set[str]:
         if token
     }
 
-
 def get_client_config() -> dict:
     return {
         "mutation_header": MUTATION_HEADER_NAME,
         "mutation_token": get_runtime_mutation_token() if is_local_deployment_mode() else "",
         "deployment_mode": str(DEPLOYMENT_MODE or "local").strip().lower(),
     }
-
 
 def create_runtime_job(ticker: str, pipeline_id: str = "v1") -> str:
     try:
@@ -144,14 +137,11 @@ def create_runtime_job(ticker: str, pipeline_id: str = "v1") -> str:
             raise
         return create_job(ticker, pipeline_id)
 
-
 def cleanup_expired_reports(retention_days: int = REPORT_RETENTION_DAYS):
     return report_history_service.cleanup_expired_reports(OUTPUT_DIR, report_cache, retention_days)
 
-
 def cleanup_orphan_markdown_reports():
     return report_history_service.cleanup_orphan_markdown_reports(OUTPUT_DIR)
-
 
 async def _mark_abandoned_local_jobs() -> None:
     global _LOCAL_RUNTIME_LOCK_HANDLE
@@ -172,7 +162,6 @@ async def _mark_abandoned_local_jobs() -> None:
         emit_log(f"已清理 {abandoned} 筆重啟後遺留的本地分析任務。")
     return abandoned
 
-
 async def _cleanup_reports_forever() -> None:
     from cache_store import cleanup_expired_cache_entries
 
@@ -181,7 +170,6 @@ async def _cleanup_reports_forever() -> None:
         await asyncio.to_thread(cleanup_orphan_markdown_reports)
         await asyncio.to_thread(cleanup_expired_cache_entries)
         await asyncio.sleep(REPORT_CLEANUP_INTERVAL_SECONDS)
-
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -226,7 +214,6 @@ async def lifespan(_app: FastAPI):
         if _LOCAL_RUNTIME_LOCK_HANDLE is not None:
             _LOCAL_RUNTIME_LOCK_HANDLE.close()
             _LOCAL_RUNTIME_LOCK_HANDLE = None
-
 
 def create_app() -> FastAPI:
     app = FastAPI(lifespan=lifespan)
@@ -308,6 +295,5 @@ def create_app() -> FastAPI:
         require_mutation_authorized=require_mutation_authorized,
     )))
     return app
-
 
 app = create_app()

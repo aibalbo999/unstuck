@@ -84,7 +84,7 @@ def test_dual_pipeline_job_runs_v1_then_v2(monkeypatch, tmp_path):
     monkeypatch.setattr(analysis_jobs, "PIPELINE_RUNNER", FakePipelineRunner())
     monkeypatch.setattr(analysis_jobs, "REPORT_RENDERER", FakeReportRenderer())
     monkeypatch.setattr(analysis_jobs, "append_event", lambda job_id, payload: events.append(payload))
-    monkeypatch.setattr(analysis_jobs, "update_job", lambda job_id, status, filename=None, error=None: updates.append((status, filename, error)))
+    monkeypatch.setattr(analysis_jobs, "update_job", lambda job_id, status, filename=None, error=None, **kwargs: updates.append((status, filename, error)))
 
     filename = asyncio.run(analysis_jobs.run_stock_analysis_job_async("job-test", "2449.TW", "both"))
 
@@ -142,7 +142,7 @@ def test_analysis_job_stops_when_core_data_trust_is_error(monkeypatch, tmp_path)
     monkeypatch.setattr(analysis_jobs, "STOCK_DATA_SERVICE", FakeStockDataService())
     monkeypatch.setattr(analysis_jobs, "PIPELINE_RUNNER", FailPipelineRunner())
     monkeypatch.setattr(analysis_jobs, "append_event", lambda job_id, payload: events.append(payload))
-    monkeypatch.setattr(analysis_jobs, "update_job", lambda job_id, status, filename=None, error=None: updates.append((status, filename, error)))
+    monkeypatch.setattr(analysis_jobs, "update_job", lambda job_id, status, filename=None, error=None, **kwargs: updates.append((status, filename, error)))
     monkeypatch.setattr(analysis_jobs, "is_job_cancel_requested", lambda job_id: False)
 
     filename = asyncio.run(analysis_jobs.run_stock_analysis_job_async("job-data-error", "NOPE", "v1"))

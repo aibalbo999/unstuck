@@ -115,6 +115,56 @@ def _deterministic_structured_fallback(
         _clear_agent_blocking_issues(context, agent_num)
         return True, "已套用 deterministic 護城河 fallback"
 
+    if agent_num == 19:
+        current_price = data.get("current_price") if isinstance(data, dict) else None
+        base_price = float(current_price or 100)
+
+        def _target(multiplier: float) -> str:
+            return f"NT${base_price * multiplier:,.0f}" if current_price else "資料不足，需以最新收盤價折讓估算"
+
+        structured = {
+            "reasoning_steps": [
+                "可解析泡沫狙擊 JSON 不足，採用保守逆勢風險框架。",
+                "在資料不足下不主張積極追價，優先保留避險或避免立場。",
+                "需等待明確財測下修、估值均值回歸或法人派發擴大作為交易觸發。",
+            ],
+            "recommendation": {
+                "建議": "避免",
+                "短期目標（3個月）": _target(0.85),
+                "中期目標（6個月）": _target(0.75),
+                "長期目標（12個月）": _target(0.65),
+                "長期潛力（5年）": _target(0.8),
+                "信心指數": "5/10",
+            },
+            "scenario_triggers": [
+                {
+                    "trigger_condition": "後續財測下修、毛利率壓縮或估值均值回歸開始發生",
+                    "action": "提高避險或放空觀察權重",
+                    "direction": "bearish_downgrade",
+                },
+                {
+                    "trigger_condition": "股價放量突破前高且基本面證據同步改善",
+                    "action": "回補空方部位並重新檢驗泡沫假設",
+                    "direction": "neutral_review",
+                },
+            ],
+            "analysis_markdown": (
+                "## 保守泡沫狙擊摘要\n\n"
+                "Agent 19 未能提供完整可解析結構化輸出，系統改用保守 fallback。"
+                "本段不新增未驗證的借券、空單或內線資料，只保留資料受限下的避險框架。\n\n"
+                "## 做空觸發條件（Catalyst for crash）\n"
+                "- 後續財測下修、毛利率壓縮或估值均值回歸開始發生。\n"
+                "- 外資或法人派發擴大，且價格無法再由基本面數據支撐。\n\n"
+                "## 防軋空停損點（Stop-loss level）\n"
+                "- 股價放量突破前高且基本面證據同步改善時，應回補空方部位並重新檢驗泡沫假設。\n"
+                "- 若資料可信度不足以支持做空，應以避免或避險取代積極放空。"
+            ),
+        }
+        structured_outputs[agent_num] = structured
+        context["analyses"][agent_num] = structured_output_to_report_text(agent_num, structured, "")
+        _clear_agent_blocking_issues(context, agent_num)
+        return True, "已套用 deterministic 泡沫狙擊 fallback"
+
     if agent_num in {7, 16}:
         temp_context = dict(context)
         temp_context["structured_outputs"] = {}

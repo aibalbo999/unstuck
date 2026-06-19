@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-import re
 from typing import Optional
 
 from analysis_types import AnalysisContext, AuditResult
 from agent_catalog import AGENT_NAMES
 from confidence_calibration import build_confidence_calibration
 from final_audit_context_coverage import missing_final_context_labels
+from final_audit_v3 import v3_recommendation_contract_issues
 from forward_consistency_checker import run_forward_consistency_checks
 from pipeline_modes import get_pipeline_definition, get_structured_agent_num
 from runtime_events import emit_log
@@ -39,16 +39,6 @@ def _extract_first_price(value: str) -> Optional[float]:
     except Exception:
         return None
     return prices[0] if prices else None
-
-
-def _extract_confidence_score(value: str) -> Optional[float]:
-    match = re.search(r"(\d+(?:\.\d+)?)", str(value or ""))
-    if not match:
-        return None
-    score = float(match.group(1))
-    if score <= 1:
-        return score * 10
-    return score
 
 
 def _add_unique_issue(items: list[str], issue: str):
@@ -142,6 +132,13 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
         for issue in validate_analysis_output(agent_num, audited_text, data):
             _add_unique_issue(critical, f"{agent_name}: {issue}")
             add_agent_repair_issue(agent_num, issue)
+
+    if pipeline_def["id"] == "v3":
+        for issue in v3_recommendation_contract_issues(
+            analyses, structured_outputs, recommendation_agent, completed_agents
+        ):
+            _add_unique_issue(critical, f"Agent {recommendation_agent} {issue}")
+            add_agent_repair_issue(recommendation_agent, issue)
 
     for agent_num, label in [(moat_agent, "護城河評分"), (valuation_agent, "三情境目標價"), (recommendation_agent, "最終投資建議")]:
         if agent_num is None:
