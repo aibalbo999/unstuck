@@ -121,7 +121,7 @@ git commit -m "feat: add free news and PTT fetchers"
 - Create: `backend/text_extractor.py`
 - Create: `tests/test_text_extractor.py`
 
-- [ ] **Step 1: Write failing extraction and SSRF tests**
+- [x] **Step 1: Write failing extraction and SSRF tests**
 
 ```python
 def test_extract_article_text_returns_clean_bounded_text(monkeypatch):
@@ -136,16 +136,16 @@ def test_extract_article_text_rejects_unsafe_urls(url):
 
 Cover timeout, blocked response, empty extraction and redirect to private host.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run: `pytest tests/test_text_extractor.py -v`
 Expected: collection FAIL because `text_extractor` does not exist.
 
-- [ ] **Step 3: Implement bounded secure extraction**
+- [x] **Step 3: Implement bounded secure extraction**
 
 Validate scheme/hostname with `urllib.parse` and `ipaddress`; resolve public DNS before request and validate final response URL. Download with timeout and maximum response bytes, call `trafilatura.extract(include_comments=False, include_tables=False)`, normalize whitespace, truncate to `max_chars`, and return `None` on controlled failures.
 
-- [ ] **Step 4: Verify GREEN and commit**
+- [x] **Step 4: Verify GREEN and commit**
 
 Run: `pytest tests/test_text_extractor.py -v`
 Expected: PASS.
