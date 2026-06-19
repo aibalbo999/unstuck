@@ -13,6 +13,7 @@ from analysis_types import AnalysisContext, StockData
 from company_display import company_display_name
 from config import API_KEYS, EMBEDDING_MODEL
 from data_financial_metric_validator import load_provider_values_from_payload, validate_state_provider_values
+from data_reconciliation import build_reconciliation_plan
 from llm_client import KeyRotator
 from pipeline_modes import get_pipeline_definition, normalize_pipeline_id
 from rag_runtime import build_rag_index_async
@@ -195,10 +196,11 @@ def _initialize_agent_state_context(data: StockData, context: AnalysisContext) -
     load_provider_values_from_payload(context["agent_state"], data)
     validate_state_provider_values(context["agent_state"])
     sync_context_from_state(context, context["agent_state"])
+    context["data_reconciliation_plan"] = build_reconciliation_plan(context["agent_state"])
     circuit_breaker = context["agent_state"].circuit_breaker
     if circuit_breaker.status == "open":
         fields = ", ".join(circuit_breaker.blocking_fields)
         context.setdefault("blocking_issues", []).append(
-            f"Critical financial provider conflict blocks analysis for fields: {fields}."
+            f"關鍵財務欄位跨來源衝突（{fields}），已建立 MOPS reconciliation plan，暫停估值與後續分析。"
         )
     return context

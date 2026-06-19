@@ -16,6 +16,7 @@ from data_financial_metric_validator import (  # noqa: E402
     load_provider_values_from_payload,
     validate_state_provider_values,
 )
+from data_reconciliation import build_reconciliation_plan  # noqa: E402
 from pipeline_async import _initialize_agent_state_context, _run_agent_groups, run_analysis_pipeline_async  # noqa: E402
 from state_memory import initialize_agent_state  # noqa: E402
 
@@ -73,6 +74,22 @@ def test_validate_state_provider_values_can_raise_for_hard_stop():
 
     with pytest.raises(CircuitBreakerOpen):
         validate_state_provider_values(state, fields=("revenue",), threshold_pct=5.0, raise_on_open=True)
+
+
+def test_build_reconciliation_plan_requests_fresh_retry_and_mops_for_blocking_fields():
+    state = initialize_agent_state({"ticker": "2308.TW", "company_name": "台達電"}, run_id="reconcile-1")
+    state.circuit_breaker.status = "open"
+    state.circuit_breaker.blocking_fields = ["revenue", "total_debt"]
+    state.circuit_breaker.reason = "critical_provider_conflict"
+
+    plan = build_reconciliation_plan(state)
+
+    assert plan["status"] == "required"
+    assert plan["blocking_fields"] == ["revenue", "total_debt"]
+    assert plan["steps"][0]["action"] == "fresh_provider_retry"
+    assert plan["steps"][1]["action"] == "mops_statement_lookup"
+    assert "公開資訊觀測站" in plan["steps"][1]["description"]
+    assert plan["resume_condition"]["max_diff_pct"] == 2.0
 
 
 def test_load_provider_values_from_payload_bridges_existing_comparisons_to_circuit_breaker():
@@ -200,8 +217,10 @@ def test_pipeline_state_initialization_surfaces_open_circuit_as_blocking_issue()
     _initialize_agent_state_context(payload, context)
 
     assert context["agent_state"].circuit_breaker.status == "open"
+    assert context["data_reconciliation_plan"]["status"] == "required"
+    assert context["data_reconciliation_plan"]["steps"][1]["action"] == "mops_statement_lookup"
     assert context["blocking_issues"] == [
-        "Critical financial provider conflict blocks analysis for fields: revenue."
+        "關鍵財務欄位跨來源衝突（revenue），已建立 MOPS reconciliation plan，暫停估值與後續分析。"
     ]
 
 
@@ -290,5 +309,5 @@ def test_run_analysis_pipeline_skips_rag_when_initial_data_circuit_breaker_is_op
     assert agent_groups_called is False
     assert context["agent_state"].circuit_breaker.status == "open"
     assert context["blocking_issues"] == [
-        "Critical financial provider conflict blocks analysis for fields: total_debt."
+        "關鍵財務欄位跨來源衝突（total_debt），已建立 MOPS reconciliation plan，暫停估值與後續分析。"
     ]
