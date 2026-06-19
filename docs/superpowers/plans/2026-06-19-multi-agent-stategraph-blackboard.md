@@ -673,7 +673,7 @@ git commit -m "feat: add data reconciliation fallback plan"
 - Test: `tests/test_prompt_data_trust.py`
 - Test: `tests/test_audit_rules.py`
 
-- [ ] **Step 1: Write failing prompt tests**
+- [x] **Step 1: Write failing prompt tests**
 
 Add to `tests/test_prompt_data_trust.py`:
 
@@ -699,7 +699,7 @@ def test_valuation_prompt_includes_state_view_and_deemphasizes_previous_summary(
     assert "你不再讀取前序摘要" in prompt
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run:
 
@@ -709,7 +709,7 @@ PYTHON_BIN=$(scripts/project_python.sh); "$PYTHON_BIN" -m pytest tests/test_prom
 
 Expected: FAIL because prompts do not include `state_view`.
 
-- [ ] **Step 3: Add state view rendering in prompt builder**
+- [x] **Step 3: Add state view rendering in prompt builder**
 
 Modify `backend/agent_runtime/prompting.py`:
 
@@ -741,7 +741,7 @@ prompt_parts = [
 ]
 ```
 
-- [ ] **Step 4: Update valuation prompt wording**
+- [x] **Step 4: Update valuation prompt wording**
 
 Modify Agent 4 and Agent 14 in `backend/prompts/agents.json` so each starts with:
 
@@ -750,7 +750,7 @@ Modify Agent 4 and Agent 14 in `backend/prompts/agents.json` so each starts with
 若 circuit_breaker.status 不是 closed，必須先列 data_quality_blockers，不得輸出目標股價。
 ```
 
-- [ ] **Step 5: Add runtime rule for State path citation**
+- [x] **Step 5: Add runtime rule for State path citation**
 
 In `backend/prompts/runtime_rules.json`, add a shared rule under valuation agents:
 
@@ -758,7 +758,7 @@ In `backend/prompts/runtime_rules.json`, add a shared rule under valuation agent
 "正式報告中的關鍵數字必須能追溯到 AgentState view 的 state path，例如 normalized_financials、quant_metrics、peer_context 或 tool_results；不可只引用前序摘要。"
 ```
 
-- [ ] **Step 6: Run prompt tests**
+- [x] **Step 6: Run prompt tests**
 
 Run:
 
@@ -768,7 +768,7 @@ PYTHON_BIN=$(scripts/project_python.sh); "$PYTHON_BIN" -m pytest tests/test_prom
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend/agent_runtime/prompting.py backend/prompts/agents.json backend/prompts/runtime_rules.json tests/test_prompt_data_trust.py
