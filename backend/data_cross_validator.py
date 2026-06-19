@@ -8,6 +8,12 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from data_financial_metric_validator import (
+    DEFAULT_FINANCIAL_METRIC_FIELDS,
+    HIGH_DISCREPANCY_FLAG,
+    validate_financial_metrics,
+)
+
 
 # ------------------------------------------------------------------
 # Configuration

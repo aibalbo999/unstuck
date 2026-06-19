@@ -9,6 +9,7 @@ sys.path.insert(0, str(ROOT / "backend"))
 
 import rag_runtime  # noqa: E402
 import rag_runtime.chunking as chunking  # noqa: E402
+import rag_runtime.documents as rag_documents  # noqa: E402
 import rag_runtime.embeddings as embeddings  # noqa: E402
 from llm_client import KeyRotator  # noqa: E402
 
@@ -56,6 +57,35 @@ def test_chunking_stable_ids_and_max_chunks(monkeypatch):
 
     assert len(chunks) == 1
     assert direct[0].chunk_id == repeated[0].chunk_id
+
+
+def test_markdown_aware_chunker_preserves_header_sections_and_tables():
+    markdown = """# 2025 Annual Report
+
+Opening summary.
+
+## Revenue
+
+| Month | Revenue |
+| --- | ---: |
+| Jan | 100 |
+| Feb | 120 |
+
+Revenue commentary stays with the table.
+
+## EPS
+
+EPS commentary for the same filing.
+"""
+
+    chunks = chunking.MarkdownAwareChunker(chunk_size=220, overlap=0).chunk("annual.md", markdown)
+
+    revenue_chunk = next(item for item in chunks if item.metadata.get("heading") == "Revenue")
+    assert "## Revenue" in revenue_chunk.text
+    assert "| Jan | 100 |" in revenue_chunk.text
+    assert "Revenue commentary stays with the table." in revenue_chunk.text
+    assert revenue_chunk.metadata["headers"] == ["2025 Annual Report", "Revenue"]
+    assert all("| Month | Revenue |" not in item.text or "| Feb | 120 |" in item.text for item in chunks)
 
 
 def test_embedding_cache_key_and_query_cache_write(monkeypatch):
@@ -115,6 +145,43 @@ def test_vector_and_lexical_search_preserve_order_and_truncation():
     assert vector_results[0].chunk.chunk_id == "a"
     assert "RAG 片段截斷" in vector_results[0].chunk.text
     assert lexical_results[0].chunk.chunk_id == "b"
+
+
+def test_hybrid_search_reranks_top_twenty_candidates_to_top_five():
+    chunks = [
+        rag_runtime.RagChunk(f"c{i}", "source", f"generic filing note {i}", {}, [0.9, 0.1])
+        for i in range(18)
+    ]
+    chunks.extend([
+        rag_runtime.RagChunk("margin", "source", "gross margin expanded because AI server mix improved", {}, [0.1, 0.9]),
+        rag_runtime.RagChunk("eps", "source", "EPS revision and monthly revenue acceleration", {}, [0.1, 0.8]),
+        rag_runtime.RagChunk("cash", "source", "free cash flow conversion", {}, [0.1, 0.7]),
+    ])
+    index = rag_runtime.InMemoryRagIndex(chunks)
+
+    class PreferKeywordReranker(rag_documents.Reranker):
+        async def rerank(self, query, results, top_k=5):
+            reranked = sorted(
+                results,
+                key=lambda item: ("gross margin" in item.chunk.text, item.score),
+                reverse=True,
+            )
+            return reranked[:top_k]
+
+    results = asyncio.run(
+        rag_documents.hybrid_search_async(
+            index,
+            "gross margin EPS monthly revenue",
+            query_embedding=[1.0, 0.0],
+            candidate_k=20,
+            top_k=5,
+            reranker=PreferKeywordReranker(),
+        )
+    )
+
+    assert len(results) == 5
+    assert results[0].chunk.chunk_id == "margin"
+    assert "hybrid_scores" in results[0].chunk.metadata
 
 
 def test_ensure_agent_rag_context_records_warnings(monkeypatch):

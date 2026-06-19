@@ -2,7 +2,30 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
+from typing import Pattern
+
+
+DEFAULT_SAFE_OUTPUT_MESSAGE = "系統偵測到輸出包含不安全內容，已改以安全訊息取代。"
+
+
+class SecurityViolationError(RuntimeError):
+    """Raised when sanitized LLM output still contains unsafe instructions."""
+
+
+TAIWAN_ID_RE = re.compile(r"\b[A-Z][12]\d{8}\b", re.IGNORECASE)
+BANK_ACCOUNT_RE = re.compile(r"\b\d{3,4}[- ]\d{6,14}(?:[- ]\d{1,6})?\b")
+CONTEXTUAL_BANK_ACCOUNT_RE = re.compile(
+    r"(?P<label>(?:銀行帳號|銀行戶號|帳戶號碼|非公開的銀行帳號|bank account|account number)[^\n\r]{0,24}?)(?P<account>\b\d{10,16}\b)",
+    re.IGNORECASE,
+)
+PROMPT_INJECTION_OUTPUT_RE = re.compile(
+    r"(system\s+prompt|developer\s+message|hidden\s+instruction|ignore\s+(?:all\s+)?previous\s+instructions|"
+    r"reveal\s+(?:the\s+)?(?:system|developer)|bypass\s+(?:safety|policy)|jailbreak|DAN\s+mode|"
+    r"內部(?:系統)?指令|系統提示詞|開發者訊息|忽略(?:所有)?先前指令|越獄|繞過安全|揭露(?:系統|開發者))",
+    re.IGNORECASE,
+)
 
 
 def strip_generated_audit_sections(text: str) -> str:
@@ -142,3 +165,44 @@ def normalize_bad_number_commas(text: str) -> str:
         return f"{int(raw):,}{decimal}"
 
     return re.sub(r"(?<!\d)(\d),(\d{4})(\.\d+)?(?=億)", repl, text or "")
+
+
+class SecureOutputSanitizer:
+    """Async LLM output sanitizer for PII redaction and jailbreak residue checks."""
+
+    def __init__(
+        self,
+        *,
+        pii_patterns: list[Pattern[str]] | None = None,
+        dangerous_pattern: Pattern[str] = PROMPT_INJECTION_OUTPUT_RE,
+        safe_message: str = DEFAULT_SAFE_OUTPUT_MESSAGE,
+    ):
+        self.pii_patterns = pii_patterns or [TAIWAN_ID_RE, BANK_ACCOUNT_RE]
+        self.dangerous_pattern = dangerous_pattern
+        self.safe_message = safe_message
+
+    async def sanitize(self, text: str) -> str:
+        """Return sanitized text or raise ``SecurityViolationError``."""
+        await asyncio.sleep(0)
+        cleaned = sanitize_model_output(text or "")
+        cleaned = self.redact_pii(cleaned)
+        self.assert_safe(cleaned)
+        return cleaned
+
+    async def sanitize_or_default(self, text: str) -> str:
+        """Return safe fallback text when a security violation is detected."""
+        try:
+            return await self.sanitize(text)
+        except SecurityViolationError:
+            return self.safe_message
+
+    def redact_pii(self, text: str) -> str:
+        redacted = str(text or "")
+        redacted = CONTEXTUAL_BANK_ACCOUNT_RE.sub(lambda match: f"{match.group('label')}[REDACTED]", redacted)
+        for pattern in self.pii_patterns:
+            redacted = pattern.sub("[REDACTED]", redacted)
+        return redacted
+
+    def assert_safe(self, text: str) -> None:
+        if self.dangerous_pattern.search(text or ""):
+            raise SecurityViolationError(self.safe_message)

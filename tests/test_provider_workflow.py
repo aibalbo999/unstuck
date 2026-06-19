@@ -416,3 +416,87 @@ def test_workflow_falls_back_to_stale_cache_when_core_provider_fails(monkeypatch
     assert result.data["data_trust"]["status"] == "partial"
     assert result.data["source_audit"][-1]["provider"] == "fake-core"
     assert result.data["source_audit"][-1]["status"] == "error"
+
+
+def test_workflow_falls_back_from_yfinance_to_fmp_after_blocking(monkeypatch):
+    monkeypatch.setattr(workflow, "cache_financial_payload", lambda data, ticker: None)
+    monkeypatch.setattr(workflow, "get_cache_json", lambda key: None)
+    monkeypatch.setattr(provider_sla, "get_provider_sla_alerts", lambda limit=100: [])
+
+    def yfinance_provider(request, context):
+        return ProviderResult(
+            source="market_data",
+            provider="yfinance",
+            status="error",
+            value={"ticker": request.ticker, "error": "timeout"},
+            audit=build_source_audit_entry(
+                "market_data",
+                "yfinance",
+                "error",
+                record_count=0,
+                error_kind="TimeoutError",
+                message="yfinance timeout and HTTP 403 blocked",
+            ),
+        )
+
+    def fmp_provider(request, context):
+        audit = build_source_audit_entry(
+            "market_data",
+            "FMP stable quote",
+            "success",
+            record_count=3,
+        )
+        return ProviderResult(
+            source="market_data",
+            provider="FMP stable quote",
+            status="success",
+            value={
+                "ticker": request.ticker,
+                "company_name": "Fallback Fixture",
+                "current_price": 123.0,
+                "market_cap_raw": 1000,
+                "pe_ratio_raw": 12.5,
+                "source_audit": [audit],
+            },
+            audit=audit,
+        )
+
+    fmp = CallableProvider("market_data", "FMP stable quote", fmp_provider)
+    fmp.primary_source_provider = False
+    registry = ProviderRegistry([
+        CallableProvider("market_data", "yfinance", yfinance_provider),
+        fmp,
+    ])
+
+    result = asyncio.run(
+        StockDataService(registry=registry).fetch_async(FetchRequest.from_ticker("AAPL", skip_optional_http=True))
+    )
+
+    assert result.data["company_name"] == "Fallback Fixture"
+    assert result.data["current_price"] == 123.0
+    statuses = {(entry["provider"], entry["status"]) for entry in result.data["source_audit"]}
+    assert ("yfinance", "error") in statuses
+    assert ("FMP stable quote", "success") in statuses
+
+
+def test_yfinance_timeout_403_audits_surface_provider_sla_alert(monkeypatch, tmp_path):
+    monkeypatch.setattr(provider_sla, "TASK_DB_PATH", str(tmp_path / "provider-sla.sqlite3"))
+
+    provider_sla.record_source_audit_entries([
+        {
+            "source": "market_data",
+            "provider": "yfinance",
+            "status": "error",
+            "duration_ms": 1000,
+            "record_count": 0,
+            "message": "TimeoutError: HTTP 403 blocked",
+        }
+        for _ in range(3)
+    ])
+
+    alerts = provider_sla.get_provider_sla_alerts()
+    yfinance = next(item for item in alerts if item["provider"] == "yfinance")
+
+    assert yfinance["alert_level"] == "critical"
+    assert yfinance["attempts"] == 3
+    assert yfinance["success_rate"] == 0.0

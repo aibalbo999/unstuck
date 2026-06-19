@@ -118,3 +118,6 @@ def collect_rag_documents(data: dict[str, Any]) -> list[dict[str, str]]:
 
     walk(data or {}, "data")
     return documents
+
+
+from .hybrid_search import CrossEncoderReranker, HybridSearchConfig, Reranker, hybrid_search, hybrid_search_async

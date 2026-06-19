@@ -6,7 +6,7 @@ import asyncio
 
 from cache_store import get_cache_json
 from data_freshness import source_is_stale
-from data_trust import append_source_audit, finalize_data_trust, source_record_count
+from data_trust import AUDIT_STATUS_SUCCESS, append_source_audit, finalize_data_trust, source_record_count
 from source_audit import audited_fetch_async
 
 from .audit_helpers import (
@@ -39,16 +39,16 @@ async def fetch_payload_async(request: FetchRequest, registry: ProviderRegistry 
                 return fresh_cached
             stale_cached = cached
 
-    core_provider = registry.first_provider(request, "market_data")
-    if core_provider is None:
+    core_result, core_audit_entries = await _fetch_core_provider_result(request, registry, ticker)
+    if core_result is None:
         return {
             "ticker": ticker,
             "company_name": ticker,
             "error": "No market_data provider available",
         }
 
-    core_result = await core_provider.fetch_async(request, {"original_ticker": ticker})
     data = await _assemble_core_payload_from_result(core_result, request)
+    _append_core_provider_audits(data, core_audit_entries)
     if not data or "error" in data:
         fallback = fallback_cached_payload(ticker, stale_cached, core_result)
         if fallback:
@@ -59,6 +59,71 @@ async def fetch_payload_async(request: FetchRequest, registry: ProviderRegistry 
         return data
 
     return await _run_optional_provider_plan(request, registry, data)
+
+
+async def _fetch_core_provider_result(
+    request: FetchRequest,
+    registry: ProviderRegistry,
+    ticker: str,
+) -> tuple[ProviderResult | None, list[dict]]:
+    providers = registry.for_request(request, source="market_data")
+    if not providers:
+        return None, []
+
+    primary = [provider for provider in providers if getattr(provider, "primary_source_provider", True)]
+    fallback = [provider for provider in providers if provider not in primary]
+    ordered_providers = primary + fallback
+    audit_entries: list[dict] = []
+    last_result: ProviderResult | None = None
+
+    for provider in ordered_providers:
+        result = await provider.fetch_async(request, {"original_ticker": ticker})
+        last_result = result
+        if result.audit:
+            audit_entries.append(result.audit)
+        if _core_provider_succeeded(result):
+            return result, audit_entries
+
+    return last_result, audit_entries
+
+
+def _core_provider_succeeded(result: ProviderResult) -> bool:
+    if result.status != AUDIT_STATUS_SUCCESS:
+        return False
+    if isinstance(result.value, dict) and result.value.get("error"):
+        return False
+    return bool(result.value)
+
+
+def _append_core_provider_audits(data: dict, audit_entries: list[dict]) -> None:
+    if not isinstance(data, dict) or not audit_entries:
+        return
+    existing = data.get("source_audit")
+    if not isinstance(existing, list):
+        data["source_audit"] = []
+        existing = data["source_audit"]
+
+    seen = {
+        (
+            str(entry.get("source") or ""),
+            str(entry.get("provider") or ""),
+            str(entry.get("status") or ""),
+            str(entry.get("message") or ""),
+        )
+        for entry in existing
+        if isinstance(entry, dict)
+    }
+    for entry in audit_entries:
+        key = (
+            str(entry.get("source") or ""),
+            str(entry.get("provider") or ""),
+            str(entry.get("status") or ""),
+            str(entry.get("message") or ""),
+        )
+        if key in seen:
+            continue
+        append_source_audit(data, entry)
+        seen.add(key)
 
 
 async def _assemble_core_payload_from_result(core_result: ProviderResult, request: FetchRequest) -> dict:

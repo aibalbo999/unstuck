@@ -103,6 +103,7 @@ def test_provider_resilience_retries_and_opens_circuit(monkeypatch):
     provider_resilience.clear_provider_circuits()
     monkeypatch.setenv("PROVIDER_RETRY_ATTEMPTS", "2")
     monkeypatch.setenv("PROVIDER_RETRY_BACKOFF_SECONDS", "0")
+    monkeypatch.setenv("PROVIDER_RETRY_JITTER_SECONDS", "0")
     monkeypatch.setenv("PROVIDER_CIRCUIT_BREAKER_THRESHOLD", "1")
     monkeypatch.setenv("PROVIDER_CIRCUIT_BREAKER_COOLDOWN_SECONDS", "60")
     calls = {"count": 0}
@@ -117,6 +118,32 @@ def test_provider_resilience_retries_and_opens_circuit(monkeypatch):
     assert provider_resilience.provider_circuit_state("retry-provider")["open"] is True
 
     skipped = source_audit.audited_fetch("market_data", "retry-provider", lambda: {"ok": True}, default={})
+    assert skipped["audit"]["status"] == AUDIT_STATUS_UNAVAILABLE
+    assert skipped["audit"]["error_kind"] == "ProviderCircuitOpenError"
+    provider_resilience.clear_provider_circuits()
+
+
+def test_yfinance_timeout_and_403_open_circuit_after_three_failures(monkeypatch):
+    provider_resilience.clear_provider_circuits()
+    monkeypatch.setenv("PROVIDER_RETRY_ATTEMPTS", "1")
+    monkeypatch.setenv("PROVIDER_RETRY_BACKOFF_SECONDS", "0")
+    monkeypatch.setenv("PROVIDER_RETRY_JITTER_SECONDS", "0")
+    monkeypatch.setenv("PROVIDER_CIRCUIT_BREAKER_THRESHOLD", "3")
+    monkeypatch.setenv("PROVIDER_CIRCUIT_BREAKER_COOLDOWN_SECONDS", "60")
+
+    def blocked():
+        raise TimeoutError("yfinance timeout and HTTP 403 blocked")
+
+    for _ in range(3):
+        result = source_audit.audited_fetch("market_data", "yfinance", blocked, default={})
+        assert result["audit"]["status"] == AUDIT_STATUS_ERROR
+
+    state = provider_resilience.provider_circuit_state("yfinance")
+    assert state["open"] is True
+    assert state["failures"] == 3
+    assert "timeout" in state["last_error"].lower()
+
+    skipped = source_audit.audited_fetch("market_data", "yfinance", lambda: {"ok": True}, default={})
     assert skipped["audit"]["status"] == AUDIT_STATUS_UNAVAILABLE
     assert skipped["audit"]["error_kind"] == "ProviderCircuitOpenError"
     provider_resilience.clear_provider_circuits()

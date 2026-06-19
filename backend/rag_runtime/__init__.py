@@ -1,14 +1,19 @@
 """Canonical RAG runtime package."""
 
-from .chunking import _chunk_document, build_chunks
+from .chunking import MarkdownAwareChunker, _chunk_document, build_chunks
 from .documents import (
+    CrossEncoderReranker,
+    HybridSearchConfig,
     INTERESTING_PATH_MARKERS,
     RECORD_TEXT_KEYS,
+    Reranker,
     _clip_text,
     _interesting_path,
     _normalize_whitespace,
     _record_to_text,
     collect_rag_documents,
+    hybrid_search,
+    hybrid_search_async,
 )
 from .embeddings import (
     _attach_vectors,
@@ -31,11 +36,15 @@ from .types import InMemoryRagIndex, RagChunk, RagSearchResult, _cosine_similari
 
 __all__ = [
     "AGENT_RAG_QUERIES",
+    "CrossEncoderReranker",
+    "HybridSearchConfig",
     "INTERESTING_PATH_MARKERS",
     "InMemoryRagIndex",
+    "MarkdownAwareChunker",
     "RECORD_TEXT_KEYS",
     "RagChunk",
     "RagSearchResult",
+    "Reranker",
     "_agent_query",
     "_attach_vectors",
     "_chunk_document",
@@ -65,4 +74,6 @@ __all__ = [
     "embed_query_async",
     "ensure_agent_rag_context",
     "ensure_agent_rag_context_async",
+    "hybrid_search",
+    "hybrid_search_async",
 ]

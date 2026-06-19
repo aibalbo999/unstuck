@@ -309,6 +309,59 @@ def test_gdelt_context_falls_back_to_google_news_rss(monkeypatch):
     assert context["topics"][0]["headline"] == "AI chip policy reshapes supply chain - Reuters"
 
 
+def test_gdelt_429_enters_cooldown_and_skips_remaining_gdelt_calls(monkeypatch):
+    rss_payload = """<?xml version="1.0" encoding="UTF-8"?>
+    <rss><channel><item>
+      <title>Fallback macro news - Reuters</title>
+      <link>https://news.google.com/rss/articles/fallback</link>
+      <pubDate>Fri, 12 Jun 2026 01:02:03 GMT</pubDate>
+      <source>Reuters</source>
+    </item></channel></rss>
+    """
+
+    class FakeResponse:
+        text = rss_payload
+
+        def raise_for_status(self):
+            return None
+
+    class FakeAsyncClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, _url, params):
+            assert params["q"]
+            return FakeResponse()
+
+    gdelt_calls = []
+
+    async def rate_limited_json_get(_client, _url, params):
+        gdelt_calls.append(params["query"])
+        raise RuntimeError("HTTP Error 429: Too Many Requests (GDELT)")
+
+    monkeypatch.setattr(external_data_gdelt, "_gdelt_cooldown_until", 0.0)
+    monkeypatch.setattr(external_data_gdelt, "_now", lambda: 1000.0)
+    monkeypatch.setattr(external_data_gdelt, "async_client", lambda: FakeAsyncClient())
+    monkeypatch.setattr(external_data_gdelt, "async_json_get", rate_limited_json_get)
+
+    context = asyncio.run(external_data_gdelt.fetch_gdelt_international_news_context(
+        "Technology",
+        "Semiconductors",
+        max_topics=2,
+        request_spacing_seconds=0,
+        rate_limit_cooldown_seconds=300,
+    ))
+
+    assert len(gdelt_calls) == 1
+    assert context["topics"]
+    assert {topic["source"] for topic in context["topics"]} == {"Google News RSS"}
+    assert any("GDELT 429" in note for note in context["coverage_notes"])
+    assert external_data_gdelt._gdelt_cooldown_until == 1300.0
+
+
 def _patch_common_fetch_dependencies(monkeypatch, resolved_ticker="2330.TW", country="Taiwan"):
     monkeypatch.setattr(financial_data, "get_cache_json", lambda key: None)
     monkeypatch.setattr(financial_data, "set_cache_json", lambda *args: None)
