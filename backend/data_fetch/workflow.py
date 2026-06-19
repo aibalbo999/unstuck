@@ -178,7 +178,7 @@ async def _run_optional_provider_plan(request: FetchRequest, registry: ProviderR
     context = {"data": data, "original_ticker": ticker}
     provider_results = await fetch_provider_results(request, providers, context)
     fmp_news_records = provider_value(provider_results, "recent_catalysts", "FMP news")
-    async_audit_entries = [result.audit for result in provider_results if result.audit]
+    async_audit_entries = _audit_entries_from_provider_results(provider_results)
 
     if refresh_catalysts and resolved_ticker != ticker and not fmp_news_records:
         retry_result = await audited_fetch_async(
@@ -195,8 +195,10 @@ async def _run_optional_provider_plan(request: FetchRequest, registry: ProviderR
             async_audit_entries.append(retry_result["audit"])
 
     http_bundle = {
+        "free_news": provider_value(provider_results, "recent_catalysts", "Free news waterfall"),
         "google_catalysts": provider_value(provider_results, "recent_catalysts", "Google Search"),
         "fmp_news": fmp_news_records,
+        "yahoo_news": provider_value(provider_results, "recent_catalysts", "Yahoo Finance"),
         "global_market_context": _provider_context_value(provider_results, "global_market_context"),
         "international_news_context": _provider_context_value(provider_results, "international_news_context"),
         "google_peer_discovery": provider_value(provider_results, "peer_discovery", "Google Search"),
@@ -229,6 +231,18 @@ def _provider_context_value(results: list[ProviderResult], source: str) -> dict:
         if result.source == source and isinstance(result.value, dict):
             return result.value
     return {}
+
+
+def _audit_entries_from_provider_results(results: list[ProviderResult]) -> list[dict]:
+    entries: list[dict] = []
+    for result in results:
+        if not result.audit:
+            continue
+        entries.append(result.audit)
+        related = result.audit.get("related_entries")
+        if isinstance(related, list):
+            entries.extend(entry for entry in related if isinstance(entry, dict))
+    return entries
 
 
 async def _run_missing_core_provider_plan(request: FetchRequest, registry: ProviderRegistry, data: dict) -> dict:

@@ -248,8 +248,25 @@ def test_stock_data_service_uses_provider_plan_for_optional_enrichment(monkeypat
             source="recent_catalysts",
             provider="Google Search",
             status="success",
-            value=[{"title": "Google catalyst"}],
+            value=[{"title": "Google duplicate", "link": "https://shared.example/a"}],
             audit={"source": "recent_catalysts", "provider": "Google Search", "status": "success", "record_count": 1},
+        )
+
+    def free_news_provider(request, context):
+        return ProviderResult(
+            source="recent_catalysts",
+            provider="Free news waterfall",
+            status="success",
+            value=[{"title": "Free catalyst", "link": "https://shared.example/a"}],
+            audit={
+                "source": "recent_catalysts",
+                "provider": "Free news waterfall",
+                "status": "success",
+                "record_count": 1,
+                "related_entries": [
+                    {"source": "recent_catalysts", "provider": "Google News RSS", "status": "success", "record_count": 1},
+                ],
+            },
         )
 
     def fmp_provider(request, context):
@@ -259,6 +276,15 @@ def test_stock_data_service_uses_provider_plan_for_optional_enrichment(monkeypat
             status="success",
             value=[{"title": "FMP catalyst"}],
             audit={"source": "recent_catalysts", "provider": "FMP news", "status": "success", "record_count": 1},
+        )
+
+    def yahoo_provider(request, context):
+        return ProviderResult(
+            source="recent_catalysts",
+            provider="Yahoo Finance news",
+            status="success",
+            value=[{"title": "Yahoo catalyst"}],
+            audit={"source": "recent_catalysts", "provider": "Yahoo Finance news", "status": "success", "record_count": 1},
         )
 
     def peer_provider(request, context):
@@ -272,16 +298,28 @@ def test_stock_data_service_uses_provider_plan_for_optional_enrichment(monkeypat
 
     registry = ProviderRegistry([
         CallableProvider("market_data", "fake-core", core_provider),
+        CallableProvider("recent_catalysts", "Free news waterfall", free_news_provider),
         CallableProvider("recent_catalysts", "Google Search", google_provider),
         CallableProvider("recent_catalysts", "FMP news", fmp_provider),
+        CallableProvider("recent_catalysts", "Yahoo Finance news", yahoo_provider),
         CallableProvider("peer_discovery", "Google Search", peer_provider),
     ])
 
     result = asyncio.run(StockDataService(registry=registry).fetch_async(FetchRequest.from_ticker("AAPL")))
 
-    assert [item["title"] for item in result.data["recent_catalysts"]] == ["Google catalyst", "FMP catalyst"]
+    assert [item["title"] for item in result.data["recent_catalysts"]] == [
+        "Free catalyst",
+        "FMP catalyst",
+        "Yahoo catalyst",
+    ]
     assert result.data["peer_discovery_results"][0]["title"] == "Peer discovery"
-    assert {entry["provider"] for entry in result.data["source_audit"]} >= {"Google Search", "FMP news"}
+    assert {entry["provider"] for entry in result.data["source_audit"]} >= {
+        "Free news waterfall",
+        "Google Search",
+        "Google News RSS",
+        "FMP news",
+        "Yahoo Finance news",
+    }
 
 
 def test_stock_data_service_merges_global_market_and_international_news_context(monkeypatch):

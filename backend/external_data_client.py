@@ -35,9 +35,11 @@ class ExternalDataClient:
         self.ptt_news = ptt_news
         self.financial_fetcher = financial_fetcher or (lambda _ticker: {})
         self.mops_fetcher = mops_fetcher
+        self.last_news_audit: list[dict[str, Any]] = []
 
     def get_news(self, query: str, *, ticker: str | None = None, limit: int = 10) -> list[dict[str, str]]:
         """Fetch news through Google RSS, DuckDuckGo, then PTT for Taiwan tickers."""
+        self.last_news_audit = []
         google = self._safe_news("Google News RSS", self.google_news, query, limit)
         if google:
             return _dedupe_news(google, limit)
@@ -97,9 +99,23 @@ class ExternalDataClient:
 
     def _safe_news(self, provider: str, fetcher: NewsFetcher, query: str, limit: int) -> list[dict[str, str]]:
         try:
-            return list(fetcher(query, limit=limit) or [])
+            records = list(fetcher(query, limit=limit) or [])
+            self.last_news_audit.append({
+                "source": "recent_catalysts",
+                "provider": provider,
+                "status": "success" if records else "unavailable",
+                "record_count": len(records),
+            })
+            return records
         except Exception as exc:
             LOGGER.warning("%s news fetch failed [%s]", provider, exc.__class__.__name__)
+            self.last_news_audit.append({
+                "source": "recent_catalysts",
+                "provider": provider,
+                "status": "error",
+                "record_count": 0,
+                "error_kind": exc.__class__.__name__,
+            })
             return []
 
     def _safe_mops(self, ticker: str, year: int, season: int) -> dict[str, Any] | None:

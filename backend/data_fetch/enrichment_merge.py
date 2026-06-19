@@ -33,10 +33,12 @@ def _merge_optional_http_bundle(
     ticker = str(data.get("ticker") or "").strip().upper()
 
     combined_catalysts = list(data.get("recent_catalysts", []) or [])
+    combined_catalysts.extend(http_bundle.get("free_news", []) or [])
     combined_catalysts.extend(http_bundle.get("google_catalysts", []) or [])
     combined_catalysts.extend(http_bundle.get("fmp_news", []) or [])
+    combined_catalysts.extend(http_bundle.get("yahoo_news", []) or [])
     if combined_catalysts:
-        data["recent_catalysts"] = _dedupe_records(combined_catalysts, limit=5)[:5]
+        data["recent_catalysts"] = _dedupe_recent_catalysts(combined_catalysts, limit=5)
 
     peer_discovery = http_bundle.get("google_peer_discovery", []) or []
     if peer_discovery:
@@ -150,9 +152,32 @@ def _merge_optional_http_bundle(
 
 def _optional_provider_label(source: str) -> str:
     if source == "recent_catalysts":
-        return "Google Search/FMP"
+        return "Recent catalysts providers"
     if source == "global_market_context":
         return "Global market context"
     if source == "international_news_context":
         return "International news context"
     return "Google Search"
+
+
+def _dedupe_recent_catalysts(records: list[dict], limit: int = 5) -> list[dict]:
+    kept: list[dict] = []
+    seen_links: set[str] = set()
+    seen_titles: set[str] = set()
+    for record in records:
+        link = str(record.get("link") or "").strip().lower()
+        title = str(record.get("title") or "").strip().lower()
+        if link and link in seen_links:
+            continue
+        if title and title in seen_titles:
+            continue
+        if not link and not title:
+            continue
+        kept.append(record)
+        if link:
+            seen_links.add(link)
+        if title:
+            seen_titles.add(title)
+        if len(kept) >= limit:
+            break
+    return kept

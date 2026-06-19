@@ -5,6 +5,7 @@ from __future__ import annotations
 from .enrichment_providers import (
     DynamicPeerMetricsProvider,
     FmpNewsProvider,
+    FreeNewsWaterfallProvider,
     GooglePeerDiscoveryProvider,
     GoogleSearchProvider,
     PeRiverChartProvider,

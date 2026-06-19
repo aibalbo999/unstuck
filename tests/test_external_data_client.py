@@ -23,6 +23,12 @@ def test_news_falls_back_google_to_ddg_to_ptt(caplog):
     assert "Google News RSS" in caplog.text
     assert "DuckDuckGo News" in caplog.text
     assert "PTT Stock" in caplog.text
+    assert [entry["provider"] for entry in client.last_news_audit] == [
+        "Google News RSS",
+        "DuckDuckGo News",
+        "PTT Stock",
+    ]
+    assert [entry["status"] for entry in client.last_news_audit] == ["unavailable", "unavailable", "success"]
 
 
 def test_news_dedupes_and_skips_ptt_for_us_ticker():
