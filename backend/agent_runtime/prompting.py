@@ -1,5 +1,7 @@
 # Split from legacy_agent_runner.py. Keep this module logic-only; root compatibility lives in backend/agent_runner.py.
 
+import json
+
 from analysis_types import AnalysisContext, StockData
 from agent_catalog import AGENT_NAMES
 from assistant_context import _format_previous
@@ -10,11 +12,13 @@ from prompt_rules import (
     build_identity_guard_rule_lines,
     build_output_cleanliness_rule,
 )
+from state_memory import state_view_for
 from structured_outputs import build_structured_output_instruction
 
 from .prompt_config import ANALYSIS_PROMPTS
 
 OUTPUT_CLEANLINESS_RULE = build_output_cleanliness_rule()
+
 
 def build_company_identity_guard(data: StockData) -> str:
     """Build a hard identity lock so agents do not assign peer facts to the target company."""
@@ -51,6 +55,22 @@ def build_data_enrichment_instruction(agent_num: int) -> str:
     return build_agent_rule_block("data_enrichment_instructions", agent_num)
 
 
+def build_state_view_section(agent_num: int, context: AnalysisContext) -> str:
+    """Expose the role-specific Blackboard slice as the primary evidence source."""
+    state = context.get("agent_state")
+    if state is None:
+        return ""
+
+    view = state_view_for(agent_num, state)
+    return "\n".join(
+        [
+            "【AgentState view】",
+            "你不再讀取前序摘要作為主要資料來源；請直接引用下列 State path。",
+            json.dumps(view, ensure_ascii=False, indent=2, allow_nan=False),
+        ]
+    )
+
+
 def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> str:
     """根據 Agent 編號建立分析提示詞。"""
     ticker = data["ticker"]
@@ -71,6 +91,7 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     retry_instruction = context.get("_identity_retry_instruction", "")
     audit_retry_instruction = context.get("_audit_retry_instruction", "")
     audit_reflection_instruction = context.get("_audit_reflection_instruction", "")
+    state_view_section = build_state_view_section(agent_num, context)
 
     template = ANALYSIS_PROMPTS[agent_num]
     analysis_prompt = render_prompt_template(
@@ -90,6 +111,7 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     structured_instruction = build_structured_output_instruction(agent_num)
     prompt_parts = [
         analysis_prompt,
+        state_view_section,
         rag_context,
         "⚠️ 若上方任務文字包含 [護城河評分]、[目標股價]、[投資建議] 等舊式區塊格式，請忽略舊式格式；本次只遵守下方 JSON 結構化輸出規則。" if structured_instruction else "",
         structured_instruction,

@@ -242,7 +242,8 @@
         "本益比估值與 DCF 必須分開呈現；正式輸出只保留必要算式摘要。",
         "若自行設定未來營收或 FCF 年成長率超過 30%，需同時列出 CapEx/產能/折舊/良率支撐依據；沒有依據時不得把該高成長情境作為基本情境。",
         "若 dcf_scenarios_default.growth_phase 為 high_growth，必須在報告中說明成長率假設已放寬，並以 Forward P/E 作為主要估值方法；不得只呈現 DCF 結果而不說明此限制。",
-        "若 market_catalysts 中偵測到產品單價（ASP）結構性變動相關詞彙，必須觸發 ASP 風險提示段落，並在 bear 情境備註中說明潛在下修幅度。"
+        "若 market_catalysts 中偵測到產品單價（ASP）結構性變動相關詞彙，必須觸發 ASP 風險提示段落，並在 bear 情境備註中說明潛在下修幅度。",
+        "正式報告中的關鍵數字必須能追溯到 AgentState view 的 state path，例如 normalized_financials、quant_metrics、peer_context 或 tool_results；不可只引用前序摘要。"
       ]
     },
     "13": {
@@ -263,7 +264,8 @@
         "本益比估值與 DCF 必須分開呈現；正式輸出只保留必要算式摘要。",
         "若自行設定未來營收或 FCF 年成長率超過 30%，需同時列出 CapEx/產能/折舊/良率支撐依據；沒有依據時不得把該高成長情境作為基本情境。",
         "若 dcf_scenarios_default.growth_phase 為 high_growth，必須在報告中說明成長率假設已放寬，並以 Forward P/E 作為主要估值方法；不得只呈現 DCF 結果而不說明此限制。",
-        "若 market_catalysts 中偵測到產品單價（ASP）結構性變動相關詞彙，必須觸發 ASP 風險提示段落，並在 bear 情境備註中說明潛在下修幅度。"
+        "若 market_catalysts 中偵測到產品單價（ASP）結構性變動相關詞彙，必須觸發 ASP 風險提示段落，並在 bear 情境備註中說明潛在下修幅度。",
+        "正式報告中的關鍵數字必須能追溯到 AgentState view 的 state path，例如 normalized_financials、quant_metrics、peer_context 或 tool_results；不可只引用前序摘要。"
       ]
     },
     "18": {
