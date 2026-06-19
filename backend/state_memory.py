@@ -43,7 +43,8 @@ def initialize_agent_state(data: dict[str, Any], *, run_id: str | None = None) -
 
 
 def merge_agent_report(state: AgentState, report: AgentReport) -> AgentState:
-    state.agent_reports[report.agent_id] = report
+    stored_report = report.model_copy(deep=True)
+    state.agent_reports[stored_report.agent_id] = stored_report
     state.risk_flags = [
         flag
         for current_report in state.agent_reports.values()
@@ -60,7 +61,7 @@ def sync_context_from_state(context: dict[str, Any], state: AgentState) -> dict[
         legacy_agent_id = _legacy_agent_key(agent_id)
         analyses[legacy_agent_id] = report.markdown
         if report.structured_output is not None:
-            structured_outputs[legacy_agent_id] = report.structured_output
+            structured_outputs[legacy_agent_id] = copy.deepcopy(report.structured_output)
     context["analyses"] = analyses
     context["structured_outputs"] = structured_outputs
     return context
@@ -122,9 +123,16 @@ def _jsonable(value: Any) -> Any:
     if isinstance(value, bytes):
         return value.decode("utf-8", errors="replace")
     if isinstance(value, dict):
-        return {key: _jsonable(item) for key, item in value.items()}
+        return {_jsonable_key(key): _jsonable(item) for key, item in value.items()}
     if isinstance(value, datetime):
         return value.isoformat().replace("+00:00", "Z")
     if isinstance(value, date):
         return value.isoformat()
     return copy.deepcopy(value)
+
+
+def _jsonable_key(value: Any) -> str:
+    jsonable = _jsonable(value)
+    if isinstance(jsonable, str):
+        return jsonable
+    return str(jsonable)

@@ -234,6 +234,44 @@ def test_merge_agent_report_rebuilds_risk_flags_without_dropping_other_agent_sam
     ]
 
 
+def test_merge_agent_report_deep_copies_report_boundary():
+    state = initialize_agent_state({"ticker": "2330.TW", "company_name": "台積電"}, run_id="run-report-copy")
+    report = AgentReport(
+        agent_id="4",
+        role="估值分析師",
+        markdown="## 估值",
+        extracted_facts={"quality": {"score": 0.8}},
+        structured_output={"price_targets": {"基本情境": 100}},
+    )
+
+    state = merge_agent_report(state, report)
+    report.extracted_facts["quality"]["score"] = 0.1
+    report.structured_output["price_targets"]["基本情境"] = 1
+
+    stored_report = state.agent_reports["4"]
+    assert stored_report.extracted_facts["quality"]["score"] == 0.8
+    assert stored_report.structured_output["price_targets"]["基本情境"] == 100
+
+
+def test_sync_context_from_state_deep_copies_structured_output_boundary():
+    state = initialize_agent_state({"ticker": "2330.TW", "company_name": "台積電"}, run_id="run-sync-copy")
+    state = merge_agent_report(
+        state,
+        AgentReport(
+            agent_id="4",
+            role="估值分析師",
+            markdown="## 估值",
+            structured_output={"price_targets": {"基本情境": 100}},
+        ),
+    )
+    context = {"analyses": {}, "structured_outputs": {}}
+
+    sync_context_from_state(context, state)
+    context["structured_outputs"][4]["price_targets"]["基本情境"] = 1
+
+    assert state.agent_reports["4"].structured_output["price_targets"]["基本情境"] == 100
+
+
 def test_state_view_for_valuation_uses_whitelisted_paths_only():
     state = initialize_agent_state({"ticker": "2317.TW", "company_name": "鴻海"}, run_id="run-3")
     state.normalized_financials = {"revenue_history": [100, 110], "secret_debug": "do-not-include"}
@@ -289,4 +327,20 @@ def test_state_view_for_valuation_jsonable_handles_exotic_values_and_nonfinite_f
     assert view["quant_metrics"]["calculations"]["inf"] == "Infinity"
     assert view["quant_metrics"]["calculations"]["negative_inf"] == "-Infinity"
     assert view["quant_metrics"]["calculations"]["nan"] is None
+    json.dumps(view, allow_nan=False)
+
+
+def test_state_view_for_valuation_jsonable_normalizes_dict_keys():
+    state = initialize_agent_state({"ticker": "2317.TW", "company_name": "鴻海"}, run_id="run-json-keys")
+    state.quant_metrics = {
+        "calculations": {
+            ("scenario", Decimal("1.5")): {"value": 100},
+            Decimal("2.5"): "decimal key",
+        }
+    }
+
+    view = state_view_for("valuation", state)
+
+    assert view["quant_metrics"]["calculations"]["['scenario', 1.5]"] == {"value": 100}
+    assert view["quant_metrics"]["calculations"]["2.5"] == "decimal key"
     json.dumps(view, allow_nan=False)
