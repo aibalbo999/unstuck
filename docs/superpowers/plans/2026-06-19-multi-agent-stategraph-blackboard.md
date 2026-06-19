@@ -1070,7 +1070,7 @@ git commit -m "feat: add openai structured output adapter"
 - Modify: `backend/prompts/runtime_rules.json`
 - Test: `tests/test_audit_rules.py`
 
-- [ ] **Step 1: Add failing financial tool tests**
+- [x] **Step 1: Add failing financial tool tests**
 
 Append inside `AuditRuleTests` in `tests/test_audit_rules.py`:
 
@@ -1093,7 +1093,7 @@ def test_valuation_agents_register_implied_growth_tool():
     assert "calculate_implied_revenue_growth" in [tool.__name__ for tool in ar.get_agent_function_tools(14)]
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run:
 
@@ -1103,7 +1103,7 @@ PYTHON_BIN=$(scripts/project_python.sh); "$PYTHON_BIN" -m pytest tests/test_audi
 
 Expected: FAIL because the tool does not exist and is not registered.
 
-- [ ] **Step 3: Implement tools**
+- [x] **Step 3: Implement tools**
 
 Add to `backend/financial_tools.py`:
 
@@ -1141,7 +1141,7 @@ def calculate_implied_revenue_growth(
     }
 ```
 
-- [ ] **Step 4: Register tool for valuation agents**
+- [x] **Step 4: Register tool for valuation agents**
 
 Modify `backend/agent_runtime/routing.py`:
 
@@ -1153,7 +1153,7 @@ if agent_num in {4, 14}:
     return [calculate_cagr, calculate_wacc, calculate_dcf, calculate_ddm, calculate_implied_revenue_growth]
 ```
 
-- [ ] **Step 5: Update tool-use prompt rule**
+- [x] **Step 5: Update tool-use prompt rule**
 
 In `backend/prompts/runtime_rules.json`, add:
 
@@ -1161,7 +1161,7 @@ In `backend/prompts/runtime_rules.json`, add:
 "若 Forward EPS 或市場共識 EPS 隱含極端成長，必須呼叫 calculate_implied_revenue_growth，並在正式輸出引用工具回傳的 implied_revenue_cagr_pct。"
 ```
 
-- [ ] **Step 6: Run focused tests**
+- [x] **Step 6: Run focused tests**
 
 Run:
 
@@ -1171,7 +1171,7 @@ PYTHON_BIN=$(scripts/project_python.sh); "$PYTHON_BIN" -m pytest tests/test_audi
 
 Expected: PASS after updating the existing expected tool list in `test_agent_function_tools_are_registered`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend/financial_tools.py backend/agent_runtime/routing.py backend/prompts/runtime_rules.json tests/test_audit_rules.py
