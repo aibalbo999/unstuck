@@ -215,6 +215,26 @@ start_mac.command
 http://127.0.0.1:8080
 ```
 
+若要用同一個 Wi-Fi 上的手機或平板開啟，請雙擊：
+
+```text
+start_mac_lan.command
+```
+
+或在終端機執行：
+
+```bash
+LAN_ACCESS=1 ./start_mac.command
+```
+
+啟動後終端機會顯示手機可開啟的區網網址，例如：
+
+```text
+http://192.168.1.115:8080
+```
+
+`LAN_ACCESS=1` 只建議在可信任的私人 Wi-Fi 使用；公共網路請維持預設的本機模式。
+
 ### 手動啟動
 
 ```bash
@@ -400,21 +420,29 @@ lsof -ti tcp:8080
 kill <PID>
 ```
 
-### 5. 雙擊 `start_mac.command` 無法啟動
+### 5. 手機無法開啟系統
+
+手機不能使用 `http://127.0.0.1:8080`，因為那只代表「手機自己」。請確認 Mac 和手機在同一個 Wi-Fi，然後使用 `start_mac_lan.command` 啟動，依終端機顯示的 `http://<Mac區網IP>:8080` 開啟。
+
+若仍無法連線，請檢查 macOS 防火牆是否阻擋 Python / uvicorn 接收區網連線。
+
+### 6. 雙擊 `start_mac.command` 無法啟動
 
 確認檔案有執行權限：
 
 ```bash
 chmod +x start_mac.command
+chmod +x start_mac_lan.command
 ```
 
 如果 macOS 隔離標記造成阻擋：
 
 ```bash
 xattr -d com.apple.quarantine start_mac.command
+xattr -d com.apple.quarantine start_mac_lan.command
 ```
 
-### 6. API key 每天什麼時候重置額度？
+### 7. API key 每天什麼時候重置額度？
 
 - Gemini / Google AI：每日額度通常依 Google project 在 Pacific Time 00:00 重置，台灣時間會隨夏令時間約為 15:00 或 16:00。
 - Google Custom Search：每日 quota 也以 Pacific Time 00:00 為常見基準。

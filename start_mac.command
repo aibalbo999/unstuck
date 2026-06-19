@@ -5,7 +5,19 @@
 
 set -e
 
-APP_URL="http://127.0.0.1:8080"
+LAN_ACCESS="${LAN_ACCESS:-0}"
+SERVER_HOST="127.0.0.1"
+APP_HOST="127.0.0.1"
+if [ "$LAN_ACCESS" = "1" ] || [ "$LAN_ACCESS" = "true" ] || [ "$LAN_ACCESS" = "yes" ]; then
+    SERVER_HOST="0.0.0.0"
+    LAN_IP="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || true)"
+    if [ -n "$LAN_IP" ]; then
+        APP_HOST="$LAN_IP"
+    else
+        APP_HOST="$(hostname)"
+    fi
+fi
+APP_URL="http://$APP_HOST:8080"
 
 echo "啟動 Wall Street AI 股票分析系統..."
 
@@ -100,7 +112,7 @@ if [ -n "$OLD_PIDS" ]; then
 fi
 
 echo "啟動伺服器..."
-PYTHONUNBUFFERED=1 "$PYTHON_BIN" -u -m uvicorn api:app --host 127.0.0.1 --port 8080 &
+PYTHONUNBUFFERED=1 "$PYTHON_BIN" -u -m uvicorn api:app --host "$SERVER_HOST" --port 8080 &
 SERVER_PID=$!
 
 cleanup() {
@@ -131,6 +143,10 @@ open "$APP_URL"
 echo ""
 echo "============================================================"
 echo "伺服器已啟動：$APP_URL"
+if [ "$SERVER_HOST" = "0.0.0.0" ]; then
+    echo "區網存取已啟用，手機請開啟：$APP_URL"
+    echo "提醒：僅在可信任 Wi-Fi 使用 LAN_ACCESS=1。"
+fi
 echo "請保持這個終端機視窗開啟；按下 Ctrl+C 可停止伺服器。"
 echo "============================================================"
 
