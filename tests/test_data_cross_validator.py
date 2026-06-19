@@ -10,7 +10,11 @@ from data_cross_validator import validate_financial_metrics  # noqa: E402
 import pytest  # noqa: E402
 
 from agent_state import ProviderValue  # noqa: E402
-from data_financial_metric_validator import CircuitBreakerOpen, validate_state_provider_values  # noqa: E402
+from data_financial_metric_validator import (  # noqa: E402
+    CircuitBreakerOpen,
+    load_provider_values_from_payload,
+    validate_state_provider_values,
+)
 from state_memory import initialize_agent_state  # noqa: E402
 
 
@@ -67,3 +71,66 @@ def test_validate_state_provider_values_can_raise_for_hard_stop():
 
     with pytest.raises(CircuitBreakerOpen):
         validate_state_provider_values(state, fields=("revenue",), threshold_pct=5.0, raise_on_open=True)
+
+
+def test_load_provider_values_from_payload_bridges_existing_comparisons_to_circuit_breaker():
+    payload = {
+        "ticker": "2308.TW",
+        "company_name": "台達電",
+        "financial_metric_validation": {
+            "comparisons": {
+                "total_debt": {
+                    "field": "total_debt",
+                    "source_a": "yfinance",
+                    "source_b": "finmind",
+                    "source_a_value": 100.0,
+                    "source_b_value": 125.0,
+                    "threshold_pct": 5.0,
+                },
+            },
+        },
+    }
+    state = initialize_agent_state(payload, run_id="validation-bridge")
+
+    state = load_provider_values_from_payload(state, payload)
+    state = validate_state_provider_values(state, fields=("total_debt",), threshold_pct=5.0)
+
+    assert [value.provider for value in state.provider_values["total_debt"]] == ["yfinance", "finmind"]
+    assert state.circuit_breaker.status == "open"
+    assert state.circuit_breaker.blocking_fields == ["total_debt"]
+
+
+def test_validate_state_provider_values_is_idempotent_for_same_conflict():
+    state = initialize_agent_state({"ticker": "2308.TW", "company_name": "台達電"}, run_id="validation-idempotent")
+    state.provider_values["revenue"] = [
+        ProviderValue(provider="yfinance", field="revenue", value=100.0),
+        ProviderValue(provider="finmind", field="revenue", value=80.0),
+    ]
+
+    validate_state_provider_values(state, fields=("revenue",), threshold_pct=5.0)
+    validate_state_provider_values(state, fields=("revenue",), threshold_pct=5.0)
+
+    assert len(state.validation_issues) == 1
+    assert len(state.risk_flags) == 1
+    assert state.circuit_breaker.blocking_fields == ["revenue"]
+
+
+def test_validate_state_provider_values_clears_stale_conflict_when_values_align():
+    state = initialize_agent_state({"ticker": "2308.TW", "company_name": "台達電"}, run_id="validation-clear")
+    state.provider_values["free_cash_flow"] = [
+        ProviderValue(provider="yfinance", field="free_cash_flow", value=100.0),
+        ProviderValue(provider="finmind", field="free_cash_flow", value=80.0),
+    ]
+    validate_state_provider_values(state, fields=("free_cash_flow",), threshold_pct=5.0)
+
+    state.provider_values["free_cash_flow"] = [
+        ProviderValue(provider="yfinance", field="free_cash_flow", value=100.0),
+        ProviderValue(provider="finmind", field="free_cash_flow", value=99.0),
+    ]
+    validate_state_provider_values(state, fields=("free_cash_flow",), threshold_pct=5.0)
+
+    assert state.validation_issues == []
+    assert state.risk_flags == []
+    assert state.circuit_breaker.status == "closed"
+    assert state.circuit_breaker.blocking_fields == []
+    assert state.circuit_breaker.reason is None

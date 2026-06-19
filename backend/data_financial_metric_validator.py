@@ -91,6 +91,34 @@ def relative_difference_pct(a: Any, b: Any) -> float | None:
     return _relative_divergence(value_a, value_b)
 
 
+def load_provider_values_from_payload(state: AgentState, data_payload: Mapping[str, Any]) -> AgentState:
+    """Populate AgentState provider values from existing payload comparison metadata."""
+    validation = data_payload.get("financial_metric_validation") if isinstance(data_payload, Mapping) else None
+    if not isinstance(validation, Mapping):
+        return state
+
+    comparisons = validation.get("comparisons")
+    if not isinstance(comparisons, Mapping):
+        return state
+
+    for field_key, comparison in comparisons.items():
+        if not isinstance(comparison, Mapping):
+            continue
+        field = str(comparison.get("field") or field_key)
+        source_a = str(comparison.get("source_a") or validation.get("source_a") or "source_a")
+        source_b = str(comparison.get("source_b") or validation.get("source_b") or "source_b")
+        value_a = _safe_float(comparison.get("source_a_value"))
+        value_b = _safe_float(comparison.get("source_b_value"))
+        if value_a is None or value_b is None:
+            continue
+        state.provider_values[field] = [
+            ProviderValue(provider=source_a, field=field, value=value_a),
+            ProviderValue(provider=source_b, field=field, value=value_b),
+        ]
+
+    return state
+
+
 def validate_state_provider_values(
     state: AgentState,
     *,
@@ -99,9 +127,24 @@ def validate_state_provider_values(
     raise_on_open: bool = False,
 ) -> AgentState:
     """Open the AgentState circuit breaker when critical provider values conflict."""
+    selected_fields = tuple(fields)
     blocking_fields: list[str] = []
+    previous_blocking_fields = list(state.circuit_breaker.blocking_fields)
 
-    for field in fields:
+    state.validation_issues = [
+        issue for issue in state.validation_issues
+        if issue.field not in selected_fields
+    ]
+    state.risk_flags = [
+        flag for flag in state.risk_flags
+        if not _is_provider_conflict_risk_flag(flag, selected_fields)
+    ]
+    state.circuit_breaker.blocking_fields = [
+        field for field in state.circuit_breaker.blocking_fields
+        if field not in selected_fields
+    ]
+
+    for field in selected_fields:
         values = state.provider_values.get(field) or []
         numeric_values = [value for value in values if _safe_float(value.value) is not None]
         if len(numeric_values) < 2:
@@ -145,14 +188,26 @@ def validate_state_provider_values(
         )
 
     if blocking_fields:
+        state.circuit_breaker.blocking_fields = list(dict.fromkeys([*state.circuit_breaker.blocking_fields, *blocking_fields]))
+        if state.circuit_breaker.status != "open" or state.circuit_breaker.blocking_fields != previous_blocking_fields:
+            state.circuit_breaker.attempts += 1
         state.circuit_breaker.status = "open"
-        state.circuit_breaker.blocking_fields = list(dict.fromkeys(blocking_fields))
         state.circuit_breaker.reason = "Critical financial provider values conflict above validation threshold."
-        state.circuit_breaker.attempts += 1
         if raise_on_open:
             raise CircuitBreakerOpen(state)
+    elif not state.circuit_breaker.blocking_fields:
+        state.circuit_breaker.status = "closed"
+        state.circuit_breaker.reason = None
 
     return state
+
+
+def _is_provider_conflict_risk_flag(flag: RiskFlag, fields: Iterable[str]) -> bool:
+    return (
+        flag.category == "data_quality"
+        and "data_validation" in flag.source_agents
+        and any(flag.id == f"data_quality:{field}:provider_conflict" for field in fields)
+    )
 
 
 def _largest_provider_conflict(values: list[ProviderValue]) -> tuple[ProviderValue, ProviderValue, float] | None:
