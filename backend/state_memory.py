@@ -60,6 +60,7 @@ def sync_context_from_state(context: dict[str, Any], state: AgentState) -> dict[
             analyses.pop(agent_id, None)
             structured_outputs.pop(agent_id, None)
         analyses[legacy_agent_id] = report.markdown
+        structured_outputs.pop(legacy_agent_id, None)
         if report.structured_output is not None:
             structured_outputs[legacy_agent_id] = report.structured_output
     return context

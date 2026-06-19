@@ -100,6 +100,26 @@ def test_sync_context_from_state_normalizes_numeric_agent_ids_for_legacy_context
     assert "4" not in context["structured_outputs"]
 
 
+def test_sync_context_from_state_clears_stale_structured_output_for_current_report():
+    state = initialize_agent_state({"ticker": "2330.TW", "company_name": "台積電"}, run_id="run-stale")
+    report = AgentReport(
+        agent_id="4",
+        role="估值分析師",
+        markdown="## 估值\nNo structured output this run.",
+        structured_output=None,
+    )
+
+    state = merge_agent_report(state, report)
+    context = {
+        "analyses": {4: "old analysis"},
+        "structured_outputs": {4: {"price_targets": {"基本情境": 100}}},
+    }
+    sync_context_from_state(context, state)
+
+    assert context["analyses"][4] == "## 估值\nNo structured output this run."
+    assert 4 not in context["structured_outputs"]
+
+
 def test_merge_agent_report_replaces_stale_risk_flags_on_retry():
     state = initialize_agent_state({"ticker": "2330.TW", "company_name": "台積電"}, run_id="run-retry")
     stale_flag = RiskFlag(
