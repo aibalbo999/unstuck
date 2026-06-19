@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import calendar
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import logging
 import re
-from typing import Any, Iterable
+from typing import Any, Iterable, TypedDict
 from urllib.parse import parse_qsl, quote_plus, urlencode, urljoin, urlsplit, urlunsplit
 
 from bs4 import BeautifulSoup
@@ -23,6 +23,7 @@ except ImportError:  # pragma: no cover - exercised only with older installation
 
 
 LOGGER = logging.getLogger(__name__)
+TAIPEI_TZ = timezone(timedelta(hours=8))
 GOOGLE_NEWS_RSS_URL = "https://news.google.com/rss/search"
 PTT_STOCK_URL = "https://www.ptt.cc/bbs/Stock/index.html"
 REQUEST_TIMEOUT_SECONDS = 8.0
@@ -39,6 +40,14 @@ TRACKING_PARAMS = {
     "mc_eid",
     "ref",
 }
+
+
+class NewsRecord(TypedDict):
+    title: str
+    link: str
+    published_date: str
+    source: str
+    summary: str
 
 
 def _clean_input(value: Any) -> str:
@@ -91,13 +100,41 @@ def _iso_date(value: Any) -> str:
             parsed = parsed.replace(tzinfo=timezone.utc)
         return parsed.isoformat()
     except ValueError:
-        return text
+        return ""
+
+
+def _current_taipei_year() -> int:
+    return _current_taipei_datetime().year
+
+
+def _current_taipei_datetime() -> datetime:
+    return datetime.now(TAIPEI_TZ)
+
+
+def _ptt_date_to_iso(value: Any) -> str:
+    text = _clean_text(value)
+    match = re.fullmatch(r"(\d{1,2})/(\d{1,2})", text)
+    if not match:
+        return ""
+    try:
+        now = _current_taipei_datetime()
+        parsed = datetime(
+            now.year,
+            int(match.group(1)),
+            int(match.group(2)),
+            tzinfo=TAIPEI_TZ,
+        )
+    except ValueError:
+        return ""
+    if parsed > now + timedelta(days=1):
+        parsed = parsed.replace(year=parsed.year - 1)
+    return parsed.isoformat()
 
 
 def _record(
     *, title: Any, link: Any, published_date: Any, source: Any, summary: Any,
     base_url: str | None = None,
-) -> dict[str, str] | None:
+) -> NewsRecord | None:
     clean_title = _clean_text(title)
     clean_link = _canonical_link(link, base_url)
     if not clean_title or not clean_link:
@@ -111,8 +148,8 @@ def _record(
     }
 
 
-def _dedupe(records: Iterable[dict[str, str]], limit: int) -> list[dict[str, str]]:
-    output: list[dict[str, str]] = []
+def _dedupe(records: Iterable[NewsRecord], limit: int) -> list[NewsRecord]:
+    output: list[NewsRecord] = []
     seen: set[str] = set()
     for record in records:
         identity = record["link"] or record["title"].casefold()
@@ -130,7 +167,7 @@ def _warn(provider: str, operation: str, exc: BaseException | None = None) -> No
     LOGGER.warning("%s %s failed [%s]", provider, operation, error_kind)
 
 
-def fetch_google_news_rss(query: str, limit: int = 10) -> list[dict[str, str]]:
+def fetch_google_news_rss(query: str, limit: int = 10) -> list[NewsRecord]:
     """Fetch Google News RSS search results without requiring an API key."""
     cleaned_query = _clean_input(query)
     if not cleaned_query:
@@ -168,7 +205,7 @@ def fetch_google_news_rss(query: str, limit: int = 10) -> list[dict[str, str]]:
         return []
 
 
-def fetch_duckduckgo_news(query: str, limit: int = 10) -> list[dict[str, str]]:
+def fetch_duckduckgo_news(query: str, limit: int = 10) -> list[NewsRecord]:
     """Fetch DuckDuckGo news through the current or legacy Python package."""
     cleaned_query = _clean_input(query)
     if not cleaned_query:
@@ -196,7 +233,7 @@ def fetch_duckduckgo_news(query: str, limit: int = 10) -> list[dict[str, str]]:
         return []
 
 
-def fetch_ptt_stock_sentiment(ticker: str, limit: int = 10) -> list[dict[str, str]]:
+def fetch_ptt_stock_sentiment(ticker: str, limit: int = 10) -> list[NewsRecord]:
     """Fetch first-page PTT Stock titles containing the requested ticker or term."""
     cleaned_ticker = _clean_input(ticker)
     if not cleaned_ticker or not re.fullmatch(r"[\w.-]+", cleaned_ticker, re.UNICODE):
@@ -219,13 +256,10 @@ def fetch_ptt_stock_sentiment(ticker: str, limit: int = 10) -> list[dict[str, st
             if cleaned_ticker.casefold() not in title.casefold():
                 continue
             date_node = item.select_one("div.date")
-            ptt_date = _clean_text(date_node.get_text() if date_node else "")
-            match = re.fullmatch(r"(\d{1,2})/(\d{1,2})", ptt_date)
-            normalized_date = f"{int(match.group(1)):02d}-{int(match.group(2)):02d}" if match else ""
             record = _record(
                 title=title,
                 link=anchor.get("href", ""),
-                published_date=normalized_date,
+                published_date=_ptt_date_to_iso(date_node.get_text() if date_node else ""),
                 source="PTT Stock",
                 summary=title,
                 base_url=PTT_STOCK_URL,

@@ -117,6 +117,23 @@ def test_duckduckgo_uses_provider_name_when_publisher_is_missing(monkeypatch):
     assert result[0]["source"] == "DuckDuckGo News"
 
 
+def test_unparseable_provider_dates_normalize_to_empty(monkeypatch):
+    class FakeDDGS:
+        def news(self, **_kwargs):
+            return [{
+                "title": "News",
+                "url": "https://example.com/news",
+                "date": "not a date",
+                "source": "Example Wire",
+            }]
+
+    monkeypatch.setattr(news_fetchers, "DDGS", FakeDDGS)
+
+    result = news_fetchers.fetch_duckduckgo_news("TSMC", limit=1)
+
+    assert result[0]["published_date"] == ""
+
+
 def test_limit_is_clamped_and_blank_input_short_circuits(monkeypatch):
     captured = {}
 
@@ -130,6 +147,10 @@ def test_limit_is_clamped_and_blank_input_short_circuits(monkeypatch):
     assert news_fetchers.fetch_duckduckgo_news("TSMC", limit=999) == []
     assert captured["max_results"] == news_fetchers.MAX_RESULTS
     assert news_fetchers.fetch_duckduckgo_news("   ", limit=10) == []
+    assert news_fetchers.fetch_duckduckgo_news("TSMC", limit="bad") == []
+    assert captured["max_results"] == 10
+    assert news_fetchers.fetch_duckduckgo_news("TSMC", limit=0) == []
+    assert captured["max_results"] == 1
 
 
 def test_ptt_expands_relative_links_skips_deleted_and_filters_ticker(monkeypatch):
@@ -153,34 +174,64 @@ def test_ptt_expands_relative_links_skips_deleted_and_filters_ticker(monkeypatch
         return Response()
 
     monkeypatch.setattr(news_fetchers.requests, "get", fake_get)
+    monkeypatch.setattr(news_fetchers, "_current_taipei_datetime", lambda: news_fetchers.datetime(
+        2026, 6, 19, 9, 0, tzinfo=news_fetchers.TAIPEI_TZ,
+    ))
 
     result = news_fetchers.fetch_ptt_stock_sentiment("2330", limit=10)
 
     assert result == [{
         "title": "[新聞] 2330 台積電擴產",
         "link": "https://www.ptt.cc/bbs/Stock/M.1.html",
-        "published_date": "06-19",
+        "published_date": "2026-06-19T00:00:00+08:00",
         "source": "PTT Stock",
         "summary": "[新聞] 2330 台積電擴產",
     }]
     assert captured["url"].endswith("/bbs/Stock/index.html")
     assert captured["timeout"] == news_fetchers.REQUEST_TIMEOUT_SECONDS
     assert "Mozilla" in captured["headers"]["User-Agent"]
+    assert news_fetchers.fetch_ptt_stock_sentiment("../../etc/passwd") == []
+
+
+def test_ptt_date_rolls_back_year_when_month_day_would_be_future(monkeypatch):
+    monkeypatch.setattr(news_fetchers, "_current_taipei_datetime", lambda: news_fetchers.datetime(
+        2026, 1, 1, 9, 0, tzinfo=news_fetchers.TAIPEI_TZ,
+    ))
+
+    assert news_fetchers._ptt_date_to_iso("12/31") == "2025-12-31T00:00:00+08:00"
+
+
+def test_google_parser_errors_return_empty_and_log_warning(monkeypatch, caplog):
+    class Response:
+        content = b"not-rss"
+
+        @staticmethod
+        def raise_for_status():
+            return None
+
+    monkeypatch.setattr(news_fetchers.requests, "get", lambda *_args, **_kwargs: Response())
+
+    def broken_feed(_payload):
+        raise ValueError("parser failed")
+
+    monkeypatch.setattr(news_fetchers.feedparser, "parse", broken_feed)
+
+    with caplog.at_level(logging.WARNING):
+        assert news_fetchers.fetch_google_news_rss("TSMC") == []
+
+    assert "Google News RSS" in caplog.text
+    assert "parser failed" not in caplog.text
 
 
 def test_provider_errors_return_empty_and_log_warning(monkeypatch, caplog):
     def timeout(*_args, **_kwargs):
         raise requests.Timeout("private response body must not leak")
 
-    def broken_feed(_url):
-        raise ValueError("parser failed")
-
     class BrokenDDGS:
         def news(self, **_kwargs):
             raise RuntimeError("DDG unavailable")
 
     monkeypatch.setattr(news_fetchers.requests, "get", timeout)
-    monkeypatch.setattr(news_fetchers.feedparser, "parse", broken_feed)
     monkeypatch.setattr(news_fetchers, "DDGS", BrokenDDGS)
 
     with caplog.at_level(logging.WARNING):
