@@ -153,6 +153,49 @@ def calculate_ddm(
         "value_per_share_twd": round(value, 4),
     }
 
+
+def calculate_implied_revenue_growth(
+    target_eps_twd: float,
+    current_net_margin_pct: float,
+    shares_outstanding: float,
+    current_revenue_billion_twd: float,
+    forecast_years: int = 1,
+) -> dict:
+    """Reverse-engineer the revenue CAGR required to support a target EPS."""
+    inputs = {
+        "target_eps_twd": safe_float(target_eps_twd),
+        "current_net_margin_pct": safe_float(current_net_margin_pct),
+        "shares_outstanding": safe_float(shares_outstanding),
+        "current_revenue_billion_twd": safe_float(current_revenue_billion_twd),
+        "forecast_years": safe_float(forecast_years),
+    }
+    for field, value in inputs.items():
+        if value is None or value <= 0:
+            return {"error": f"{field} must be positive"}
+    if not inputs["forecast_years"].is_integer():
+        return {"error": "forecast_years must be a positive integer"}
+
+    target_eps = inputs["target_eps_twd"]
+    net_margin_pct = inputs["current_net_margin_pct"]
+    shares = inputs["shares_outstanding"]
+    current_revenue = inputs["current_revenue_billion_twd"]
+    years = inputs["forecast_years"]
+
+    required_net_income_billion_twd = target_eps * shares / 1e9
+    required_revenue_billion_twd = required_net_income_billion_twd / (net_margin_pct / 100)
+    implied_cagr_pct = ((required_revenue_billion_twd / current_revenue) ** (1 / years) - 1) * 100
+    return {
+        "target_eps_twd": round(target_eps, 4),
+        "current_net_margin_pct": round(net_margin_pct, 4),
+        "shares_outstanding": round(shares, 4),
+        "current_revenue_billion_twd": round(current_revenue, 4),
+        "forecast_years": int(years),
+        "required_net_income_billion_twd": round(required_net_income_billion_twd, 4),
+        "required_revenue_billion_twd": round(required_revenue_billion_twd, 4),
+        "implied_revenue_cagr_pct": round(implied_cagr_pct, 4),
+    }
+
+
 def _latest_numeric(values: list[Any]) -> Optional[float]:
     for value in reversed(values or []):
         number = safe_float(value)

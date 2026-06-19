@@ -4,7 +4,13 @@ from typing import Optional
 
 from analysis_types import AnalysisContext
 from config import AGENT_FALLBACK_MODELS, AGENT_MODELS, AUDIT_FALLBACK_MODELS, AUDIT_MODEL, CONTEXT_DIGEST_MODEL
-from financial_tools import calculate_cagr, calculate_dcf, calculate_ddm, calculate_wacc
+from financial_tools import (
+    calculate_cagr,
+    calculate_dcf,
+    calculate_ddm,
+    calculate_implied_revenue_growth,
+    calculate_wacc,
+)
 from llm_client import KeyRotator
 
 def get_agent_function_tools(agent_num: int) -> list:
@@ -12,7 +18,13 @@ def get_agent_function_tools(agent_num: int) -> list:
     if agent_num in {2, 13, 18}:
         return [calculate_cagr]
     if agent_num in {4, 14}:
-        return [calculate_cagr, calculate_wacc, calculate_dcf, calculate_ddm]
+        return [
+            calculate_cagr,
+            calculate_wacc,
+            calculate_dcf,
+            calculate_ddm,
+            calculate_implied_revenue_growth,
+        ]
     return []
 
 

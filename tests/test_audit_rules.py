@@ -695,12 +695,74 @@ class AuditRuleTests(unittest.TestCase):
         self.assertEqual([tool.__name__ for tool in ar.get_agent_function_tools(18)], ["calculate_cagr"])
         self.assertEqual(
             [tool.__name__ for tool in ar.get_agent_function_tools(4)],
-            ["calculate_cagr", "calculate_wacc", "calculate_dcf", "calculate_ddm"],
+            [
+                "calculate_cagr",
+                "calculate_wacc",
+                "calculate_dcf",
+                "calculate_ddm",
+                "calculate_implied_revenue_growth",
+            ],
         )
         self.assertEqual(
             [tool.__name__ for tool in ar.get_agent_function_tools(14)],
-            ["calculate_cagr", "calculate_wacc", "calculate_dcf", "calculate_ddm"],
+            [
+                "calculate_cagr",
+                "calculate_wacc",
+                "calculate_dcf",
+                "calculate_ddm",
+                "calculate_implied_revenue_growth",
+            ],
         )
+
+    def test_implied_revenue_growth_tool_reverse_engineers_forward_eps(self):
+        result = financial_tools.calculate_implied_revenue_growth(
+            target_eps_twd=20,
+            current_net_margin_pct=10,
+            shares_outstanding=1_000_000_000,
+            current_revenue_billion_twd=100,
+            forecast_years=2,
+        )
+
+        self.assertEqual(result["required_revenue_billion_twd"], 200.0)
+        self.assertEqual(round(result["implied_revenue_cagr_pct"], 2), 41.42)
+
+    def test_implied_revenue_growth_tool_rejects_fractional_forecast_years(self):
+        result = financial_tools.calculate_implied_revenue_growth(
+            target_eps_twd=20,
+            current_net_margin_pct=10,
+            shares_outstanding=1_000_000_000,
+            current_revenue_billion_twd=100,
+            forecast_years=1.5,
+        )
+
+        self.assertEqual(result, {"error": "forecast_years must be a positive integer"})
+
+    def test_valuation_agents_register_implied_growth_tool(self):
+        self.assertIn(
+            "calculate_implied_revenue_growth",
+            [tool.__name__ for tool in ar.get_agent_function_tools(4)],
+        )
+        self.assertIn(
+            "calculate_implied_revenue_growth",
+            [tool.__name__ for tool in ar.get_agent_function_tools(14)],
+        )
+
+    def test_valuation_rules_require_implied_growth_tool_for_extreme_forward_eps(self):
+        rules = json.loads(
+            (ROOT / "backend" / "prompts" / "runtime_rules.json").read_text(encoding="utf-8")
+        )
+
+        for agent_num in ("4", "14"):
+            valuation_rules = rules["numeric_tool_instructions"][agent_num]["rules"]
+            self.assertTrue(
+                any(
+                    "calculate_implied_revenue_growth" in rule
+                    and "implied_revenue_cagr_pct" in rule
+                    for rule in valuation_rules
+                )
+            )
+        self.assertNotIn("絕對禁止自行計算", ar.ANALYSIS_PROMPTS[4])
+        self.assertIn("工具呼叫", ar.ANALYSIS_PROMPTS[4])
 
     def test_structured_agents_use_native_response_schema(self):
         config_obj = ar.build_generation_config(3, "system")
