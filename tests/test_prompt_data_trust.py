@@ -65,6 +65,30 @@ def test_valuation_prompt_includes_state_view_and_deemphasizes_previous_summary(
     assert "你不再讀取前序摘要" in prompt
 
 
+def test_open_circuit_breaker_blocks_valuation_prompt_target_prices():
+    data = {
+        "ticker": "2308.TW",
+        "company_name": "台達電",
+        "revenue_history": [100, 120],
+    }
+    state = initialize_agent_state(data, run_id="prompt-blocked")
+    state.circuit_breaker.status = "open"
+    state.circuit_breaker.blocking_fields = ["total_debt", "free_cash_flow"]
+    state.circuit_breaker.reason = "Critical financial provider values conflict above validation threshold."
+    context = {
+        "analyses": {},
+        "structured_outputs": {},
+        "agent_state": state,
+    }
+
+    prompt = build_prompt(4, data, context)
+
+    assert '"status": "open"' in prompt
+    assert '"total_debt"' in prompt
+    assert '"free_cash_flow"' in prompt
+    assert "不得輸出目標股價" in prompt
+
+
 def test_valuation_prompts_and_rules_require_state_paths_and_closed_breaker():
     agents = json.loads((ROOT / "backend" / "prompts" / "agents.json").read_text(encoding="utf-8"))
     rules = json.loads((ROOT / "backend" / "prompts" / "runtime_rules.json").read_text(encoding="utf-8"))

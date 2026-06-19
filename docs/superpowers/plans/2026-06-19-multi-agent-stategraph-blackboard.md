@@ -1188,11 +1188,11 @@ git commit -m "feat: add implied growth valuation tool"
 - Modify: `docs/architecture.md`
 - All touched implementation files.
 
-- [ ] **Step 1: Add regression tests for blocked valuation**
+- [x] **Step 1: Add regression tests for blocked valuation**
 
 Add a focused test that constructs a context with `agent_state.circuit_breaker.status == "open"` and asserts Agent 4 prompt includes the blocker and valuation output rules forbid target price generation.
 
-- [ ] **Step 2: Update architecture docs**
+- [x] **Step 2: Update architecture docs**
 
 Append this section to `docs/architecture.md`:
 
@@ -1204,7 +1204,7 @@ The analysis runtime keeps a typed `AgentState` at `context["agent_state"]`. It 
 Critical provider conflicts in Revenue, Net Income, Total Debt, or Free Cash Flow open a data circuit breaker. While open, valuation and final risk nodes must treat the run as blocked or reconciled before producing price targets.
 ```
 
-- [ ] **Step 3: Run focused test suite**
+- [x] **Step 3: Run focused test suite**
 
 Run:
 
@@ -1214,7 +1214,7 @@ PYTHON_BIN=$(scripts/project_python.sh); "$PYTHON_BIN" -m pytest tests/test_agen
 
 Expected: PASS.
 
-- [ ] **Step 4: Run project CI gate**
+- [x] **Step 4: Run project CI gate**
 
 Run:
 
@@ -1224,7 +1224,7 @@ scripts/ci_gate.sh
 
 Expected: PASS. If this is too slow for the current machine, run the focused suite above and record the skipped CI reason in the final response.
 
-- [ ] **Step 5: Inspect diff**
+- [x] **Step 5: Inspect diff**
 
 Run:
 

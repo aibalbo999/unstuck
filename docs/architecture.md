@@ -30,3 +30,61 @@ flowchart LR
 - Analysis and rerun jobs emit events to SQLite so SSE clients can resume progress.
 - Maintenance routes default to dry-run unless `write=true` is provided.
 - Provider SLA and API quota dashboards are local observations, not provider billing truth.
+
+## Agent Blackboard
+
+The existing DAG runner remains the orchestration layer, but every run now owns a typed `AgentState` at `context["agent_state"]`. This compatibility layer provides StateGraph-style shared memory without requiring an immediate LangGraph migration.
+
+```mermaid
+flowchart TD
+    Providers["yfinance / FinMind / official sources"] --> Normalize["Normalize financial payload"]
+    Normalize --> Validate["Data validation and source audit"]
+    Validate -->|"critical conflict"| Breaker["Circuit breaker: open"]
+    Breaker --> Reconcile["Retry providers + MOPS reconciliation plan"]
+    Reconcile -->|"verified within tolerance"| Validate
+    Breaker -->|"unresolved"| Block["Fail closed: skip valuation and final targets"]
+    Validate -->|"closed"| State["Typed AgentState blackboard"]
+
+    State --> Business["Business model agent view"]
+    State --> Forensic["Forensic accounting agent view"]
+    State --> Moat["Moat and peer agent view"]
+    State --> Valuation["Valuation agent view"]
+
+    Business -->|"full AgentReport"| State
+    Forensic -->|"full AgentReport"| State
+    Moat -->|"structured scores + peer evidence"| State
+    Valuation -->|"structured price targets + tool evidence"| State
+
+    State --> Final["Final risk / decision agent"]
+```
+
+`AgentState` stores:
+
+- raw and normalized financial data
+- provider-level values and source audit records
+- validation issues and circuit-breaker status
+- selected peer context and deterministic quant metrics
+- complete `AgentReport` records, structured outputs, and risk flags
+
+Prompt construction uses `state_view_for(role, state)` to expose only the paths needed by that role. Valuation agents receive normalized financials, quant metrics, peer context, validation issues, risk flags, and tool results. Final risk agents also receive the complete upstream report map. The old `{prev}` text remains only as a compatibility aid and is not the primary evidence source.
+
+## Data Circuit Breaker
+
+Revenue, Net Income, Total Debt, and Free Cash Flow are critical fields. A cross-provider difference above the configured threshold opens the circuit breaker before RAG or agent execution. The run then creates a deterministic reconciliation plan:
+
+1. bypass cache and retry yfinance and FinMind
+2. locate the matching MOPS quarterly or annual filing
+3. reconcile period, unit, currency, and consolidated-versus-parent-only scope
+4. resume only when an API source agrees with the official filing within tolerance
+
+Unresolved conflicts fail closed and block valuation and target-price generation.
+
+## Peer Selection
+
+Profile-aware peer selection applies GICS proximity, a 0.2x-5.0x market-cap band, a revenue-scale check, and business/product/segment overlap scoring. When qualified local peers are insufficient, the selector expands to global candidates. If profile metadata is unavailable, the previous heuristic path remains available as a degraded fallback.
+
+## Structured Outputs And Tools
+
+Pydantic models define moat scores, price targets, valuation summaries, and recommendations. Google GenAI continues to receive native `response_schema` models. OpenAI Chat Completions callers use a separate strict JSON Schema adapter, preventing provider-specific schema rules from leaking into the Google path.
+
+Valuation agents can call deterministic CAGR, WACC, DCF, DDM, and implied-revenue-growth tools. Extreme Forward EPS assumptions must be checked with `calculate_implied_revenue_growth`; final reports cite the returned parameters and `implied_revenue_cagr_pct` instead of relying on model arithmetic.

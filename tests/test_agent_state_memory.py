@@ -1,3 +1,4 @@
+import asyncio
 import json
 import sys
 from datetime import datetime, timezone
@@ -10,6 +11,7 @@ if str(BACKEND) not in sys.path:
     sys.path.insert(0, str(BACKEND))
 
 from agent_state import AgentReport, ProviderValue, RiskFlag, Severity
+import pipeline_async
 from state_memory import initialize_agent_state, merge_agent_report, sync_context_from_state, state_view_for
 
 
@@ -80,6 +82,48 @@ def test_merge_agent_report_updates_reports_risk_flags_and_legacy_context():
     assert state.risk_flags[0].id == "accounting:fcf_conversion"
     assert context["analyses"]["forensic_accounting"].startswith("## 財務排雷")
     assert context["agent_state"].ticker == "2330.TW"
+
+
+def test_pipeline_records_completed_agent_report_in_blackboard(monkeypatch):
+    state = initialize_agent_state(
+        {"ticker": "2330.TW", "company_name": "台積電"},
+        run_id="run-pipeline-report",
+    )
+    context = {
+        "agent_state": state,
+        "analyses": {},
+        "structured_outputs": {},
+        "agent_positions": {4: 1},
+        "agent_total": 1,
+    }
+
+    async def fake_run_agent(agent_num, data, active_context, rotator, progress_callback=None):
+        active_context["analyses"][agent_num] = "## 估值\n完整估值報告。"
+        active_context["structured_outputs"][agent_num] = {
+            "price_targets": {"基本情境": 100}
+        }
+        return agent_num, active_context["analyses"][agent_num]
+
+    async def ignore_progress(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(pipeline_async, "run_agent_with_quality_gates_async", fake_run_agent)
+    monkeypatch.setattr(pipeline_async, "_emit_agent_completed", ignore_progress)
+
+    asyncio.run(
+        pipeline_async._run_single_group_agent(
+            4,
+            {"ticker": "2330.TW", "company_name": "台積電"},
+            context,
+            object(),
+            None,
+            1,
+            {"id": "v1", "label": "test"},
+        )
+    )
+
+    assert state.agent_reports["4"].markdown == "## 估值\n完整估值報告。"
+    assert state.agent_reports["4"].structured_output["price_targets"]["基本情境"] == 100
 
 
 def test_sync_context_from_state_normalizes_numeric_agent_ids_for_legacy_context():
@@ -183,6 +227,36 @@ def test_merge_agent_report_replaces_stale_risk_flags_on_retry():
 
     assert state.agent_reports["4"].markdown == "new"
     assert [flag.id for flag in state.risk_flags] == ["valuation:replacement"]
+
+
+def test_merge_agent_report_preserves_external_data_validation_risk_flags():
+    state = initialize_agent_state(
+        {"ticker": "2330.TW", "company_name": "台積電"},
+        run_id="run-external-risk",
+    )
+    external_flag = RiskFlag(
+        id="data_quality:revenue:provider_conflict",
+        severity=Severity.critical,
+        category="data_quality",
+        title="Revenue provider conflict",
+        source_agents=["data_validation"],
+        impact="Revenue must be reconciled.",
+        confidence=0.95,
+    )
+    state.risk_flags = [external_flag]
+
+    merge_agent_report(
+        state,
+        AgentReport(
+            agent_id="4",
+            role="估值分析師",
+            markdown="## 估值\nNo additional report risk flags.",
+        ),
+    )
+
+    assert [flag.id for flag in state.risk_flags] == [
+        "data_quality:revenue:provider_conflict"
+    ]
 
 
 def test_merge_agent_report_rebuilds_risk_flags_without_dropping_other_agent_same_id():

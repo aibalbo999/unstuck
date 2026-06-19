@@ -9,6 +9,7 @@ from agent_catalog import AGENT_NAMES
 from agent_runtime import run_agent_with_quality_gates_async
 from agent_runtime.audit_repair import finalize_final_audit_async
 from agent_runtime.cancellation import attach_cancel_check, raise_if_cancelled
+from agent_state import AgentReport
 from analysis_types import AnalysisContext, StockData
 from company_display import company_display_name
 from config import API_KEYS, EMBEDDING_MODEL
@@ -18,7 +19,7 @@ from llm_client import KeyRotator
 from pipeline_modes import get_pipeline_definition, normalize_pipeline_id
 from rag_runtime import build_rag_index_async
 from runtime_events import RUNTIME_EVENT_CALLBACK_KEY, emit_log, emit_progress_async, emit_status_async
-from state_memory import initialize_agent_state, sync_context_from_state
+from state_memory import initialize_agent_state, merge_agent_report, sync_context_from_state
 from tear_sheet_tasks import ensure_tear_sheet_summary_async
 
 
@@ -134,7 +135,8 @@ async def _run_parallel_group(group, data, context, rotator, progress_callback, 
     try:
         for task in asyncio.as_completed(tasks):
             raise_if_cancelled(context)
-            completed_agent_num, _ = await task
+            completed_agent_num, result = await task
+            _record_completed_agent_report(context, completed_agent_num, result)
             await _emit_agent_completed(context, progress_callback, completed_agent_num, agent_total, pipeline_def)
             if context.get("blocking_issues"):
                 break
@@ -148,8 +150,41 @@ async def _run_parallel_group(group, data, context, rotator, progress_callback, 
 
 async def _run_single_group_agent(agent_num, data, context, rotator, progress_callback, agent_total, pipeline_def) -> None:
     raise_if_cancelled(context)
-    completed_agent_num, _ = await run_agent_with_quality_gates_async(agent_num, data, context, rotator, progress_callback)
+    completed_agent_num, result = await run_agent_with_quality_gates_async(
+        agent_num,
+        data,
+        context,
+        rotator,
+        progress_callback,
+    )
+    _record_completed_agent_report(context, completed_agent_num, result)
     await _emit_agent_completed(context, progress_callback, completed_agent_num, agent_total, pipeline_def)
+
+
+def _record_completed_agent_report(context: AnalysisContext, agent_num: int, markdown: str) -> None:
+    state = context.get("agent_state")
+    if state is None:
+        return
+    structured_outputs = context.get("structured_outputs", {}) or {}
+    structured_output = structured_outputs.get(agent_num, structured_outputs.get(str(agent_num)))
+    merge_agent_report(
+        state,
+        AgentReport(
+            agent_id=str(agent_num),
+            role=AGENT_NAMES.get(agent_num, f"Agent {agent_num}"),
+            markdown=markdown,
+            structured_output=structured_output,
+        ),
+    )
+
+
+def _refresh_agent_reports_from_context(context: AnalysisContext) -> None:
+    for raw_agent_num, markdown in (context.get("analyses", {}) or {}).items():
+        try:
+            agent_num = int(raw_agent_num)
+        except (TypeError, ValueError):
+            continue
+        _record_completed_agent_report(context, agent_num, str(markdown))
 
 
 async def _emit_agent_completed(context, progress_callback, agent_num, agent_total, pipeline_def) -> None:
@@ -176,6 +211,7 @@ async def _finalize_async_pipeline(context, rotator, progress_callback, agent_to
         pipeline_label=pipeline_def["label"],
     )
     await finalize_final_audit_async(context, rotator, progress_callback=progress_callback)
+    _refresh_agent_reports_from_context(context)
     await emit_status_async(
         progress_callback,
         "正在生成一頁式摘要並整理報告素材...",

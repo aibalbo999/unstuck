@@ -43,9 +43,20 @@ def initialize_agent_state(data: dict[str, Any], *, run_id: str | None = None) -
 
 
 def merge_agent_report(state: AgentState, report: AgentReport) -> AgentState:
+    external_risk_flags = list(state.risk_flags)
+    for managed_flag in (
+        flag
+        for current_report in state.agent_reports.values()
+        for flag in current_report.risk_flags
+    ):
+        for index, existing_flag in enumerate(external_risk_flags):
+            if existing_flag == managed_flag:
+                external_risk_flags.pop(index)
+                break
+
     stored_report = report.model_copy(deep=True)
     state.agent_reports[stored_report.agent_id] = stored_report
-    state.risk_flags = [
+    state.risk_flags = external_risk_flags + [
         flag
         for current_report in state.agent_reports.values()
         for flag in current_report.risk_flags
