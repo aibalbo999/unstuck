@@ -75,7 +75,7 @@ git commit -m "build: add free external data dependencies"
 - Create: `backend/news_fetchers.py`
 - Create: `tests/test_news_fetchers.py`
 
-- [ ] **Step 1: Write failing normalization and error tests**
+- [x] **Step 1: Write failing normalization and error tests**
 
 ```python
 def test_google_news_returns_standard_records(monkeypatch):
@@ -94,21 +94,21 @@ def test_ptt_timeout_returns_empty_list(monkeypatch, caplog):
 
 Also cover DDG key mapping, duplicate removal, limit clamping, PTT relative links, deleted posts, and ticker filtering.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run: `pytest tests/test_news_fetchers.py -v`
 Expected: collection FAIL because `news_fetchers` does not exist.
 
-- [ ] **Step 3: Implement source-isolated fetchers**
+- [x] **Step 3: Implement source-isolated fetchers**
 
 Define `NewsRecord = TypedDict(...)`, `_record(...)`, `_dedupe(...)`, and the three requested public functions. Catch `requests.Timeout`, `requests.RequestException`, feed/parser exceptions and optional DDG import errors; log provider and operation but never response bodies.
 
-- [ ] **Step 4: Verify GREEN**
+- [x] **Step 4: Verify GREEN**
 
 Run: `pytest tests/test_news_fetchers.py -v`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/news_fetchers.py tests/test_news_fetchers.py
