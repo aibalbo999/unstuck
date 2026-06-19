@@ -4,6 +4,26 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_free_external_data_dependencies_are_locked():
+    requirements = (ROOT / "backend" / "requirements.txt").read_text(encoding="utf-8")
+    locked = (ROOT / "backend" / "requirements.lock").read_text(encoding="utf-8")
+
+    direct_names = {
+        line.split("<", 1)[0].split(">", 1)[0].split("=", 1)[0].strip().lower().replace("_", "-")
+        for line in requirements.splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    }
+    locked_names = {
+        line.split("==", 1)[0].strip().lower().replace("_", "-")
+        for line in locked.splitlines()
+        if "==" in line
+    }
+    expected = {"feedparser", "ddgs", "beautifulsoup4", "requests", "trafilatura"}
+
+    assert expected <= direct_names
+    assert expected <= locked_names
+
+
 def test_supply_chain_lockfile_covers_direct_runtime_requirements():
     requirements = (ROOT / "backend" / "requirements.txt").read_text(encoding="utf-8")
     lockfile = ROOT / "backend" / "requirements.lock"
