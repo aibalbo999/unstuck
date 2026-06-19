@@ -783,7 +783,7 @@ git commit -m "feat: add state views to agent prompts"
 - Modify: `backend/data_fetch/market_sources/peers.py`
 - Test: `tests/test_provider_workflow.py`
 
-- [ ] **Step 1: Add failing peer-selection tests**
+- [x] **Step 1: Add failing peer-selection tests**
 
 Append to `tests/test_provider_workflow.py`:
 
@@ -824,7 +824,7 @@ def test_select_peer_profiles_expands_globally_when_local_peers_are_insufficient
     assert result["selected_peers"][0]["ticker"] == "ETN"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run:
 
@@ -834,7 +834,7 @@ PYTHON_BIN=$(scripts/project_python.sh); "$PYTHON_BIN" -m pytest tests/test_prov
 
 Expected: FAIL because `CompanyProfile`, `rank_peer_candidates`, and `select_peer_profiles` are missing.
 
-- [ ] **Step 3: Implement ranking primitives**
+- [x] **Step 3: Implement ranking primitives**
 
 Add to `backend/data_fetch/market_sources/peers.py`:
 
@@ -942,11 +942,11 @@ def select_peer_profiles(target: CompanyProfile, universe: list[CompanyProfile],
     }
 ```
 
-- [ ] **Step 4: Integrate ranking into existing `fetch_dynamic_peer_metrics`**
+- [x] **Step 4: Integrate ranking into existing `fetch_dynamic_peer_metrics`**
 
 Keep existing yfinance fetching, but add `selection_policy` metadata to returned records when profile data is available. Do not remove the old fallback path because many tickers lack GICS/revenue metadata.
 
-- [ ] **Step 5: Run focused tests**
+- [x] **Step 5: Run focused tests**
 
 Run:
 
@@ -956,7 +956,7 @@ PYTHON_BIN=$(scripts/project_python.sh); "$PYTHON_BIN" -m pytest tests/test_prov
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend/data_fetch/market_sources/peers.py tests/test_provider_workflow.py
