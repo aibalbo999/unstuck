@@ -8,11 +8,7 @@
         let historyReports = new Map(), previewReport = null, trackedTickers = new Set();
         let trackingCompact = false, previewCompactMode = false;
 
-        const historyFilters = window.StockAgentHistoryFilters.create({
-            searchEl: elements.historySearch, pipelineEl: elements.historyPipelineFilter,
-            recommendationEl: elements.historyRecommendationFilter, dataTrustEl: elements.historyDataTrustFilter,
-            includeVersionsEl: elements.historyIncludeVersions
-        });
+        const historyFilters = window.StockAgentHistoryFilters.create({ searchEl: elements.historySearch, pipelineEl: elements.historyPipelineFilter, recommendationEl: elements.historyRecommendationFilter, dataTrustEl: elements.historyDataTrustFilter, includeVersionsEl: elements.historyIncludeVersions });
 
         const historyPanel = window.StockAgentHistoryPanel.create({
             listEl: elements.historyList,
@@ -72,9 +68,13 @@
             if (label) label.textContent = trackingCompact ? '展開追蹤表' : '精簡追蹤表';
             if (density) density.setAttribute('aria-pressed', String(trackingCompact));
         }
+        function mergeTrackingReports(trackingPayload) {
+            (trackingPayload?.items || []).flatMap(item => [item.latest_report, ...(item.latest_reports || [])])
+                .forEach(report => { if (report?.filename) historyReports.set(report.filename, report); });
+        }
         async function loadHistory() {
             try {
-                await decisionTrackingPanel.load();
+                const trackingPayload = await decisionTrackingPanel.load();
                 const { query, pipelineFilter, recommendationFilter, dataTrustFilter, includeVersions } = historyFilters.values();
                 const data = await apiClient.fetchReports({
                     page: historyPage,
@@ -88,6 +88,7 @@
                 const pagination = data.pagination || { page: 1, total_pages: 1, total: 0, has_prev: false, has_next: false };
                 const reports = data.reports || [];
                 historyReports = new Map(reports.map(report => [report.filename, report]));
+                mergeTrackingReports(trackingPayload);
                 historyPanel.renderReports(reports, previewReport && previewReport.filename);
                 if (!reports.length || (previewReport && !historyReports.has(previewReport.filename))) {
                     hideReportPreview();
@@ -110,9 +111,7 @@
             if (!report) return;
             previewReport = report;
             setTrackingCompact(true, true);
-            if (reportPreviewPanel.show(report)) {
-                historyPanel.select(filename);
-            }
+            if (reportPreviewPanel.show(report)) historyPanel.select(filename);
         }
 
         async function refreshPreviewDataSnapshot() {

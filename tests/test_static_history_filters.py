@@ -393,6 +393,10 @@ def test_decision_tracking_controls_and_target_statuses_are_wired():
     assert "tracking-report-card" in history_panel_js
     assert "tracking-group-reports" in history_panel_js
     assert "高密度三模式比較" in history_panel_js
+    assert "/static/history_workspace.js?v=20260619-tracking-preview-map" in index_html
+    assert "mergeTrackingReports" in history_workspace_js
+    assert "trackingPayload" in history_workspace_js
+    assert "item.latest_reports" in history_workspace_js
     assert "模式 C" in history_panel_js
     assert "latest_reports" in (STATIC_DIR / "decision_tracking_panel.js").read_text(encoding="utf-8")
     assert "tracking-stock-cell" in history_panel_js
