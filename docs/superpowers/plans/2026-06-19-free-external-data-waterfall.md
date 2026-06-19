@@ -252,7 +252,7 @@ git commit -m "feat: add external data waterfall client"
 - Test: `tests/test_provider_workflow.py`
 - Test: `tests/test_architecture_services.py`
 
-- [ ] **Step 1: Write failing registry and merge tests**
+- [x] **Step 1: Write failing registry and merge tests**
 
 ```python
 def test_default_registry_prefers_free_news_waterfall():
@@ -267,16 +267,16 @@ def test_free_news_provider_records_fallback_audits(monkeypatch):
 
 Add a TWSE institutional fallback assertion when FinMind is unavailable.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run: `pytest tests/test_provider_workflow.py tests/test_architecture_services.py -q`
 Expected: FAIL because the provider is unregistered and audits are absent.
 
-- [ ] **Step 3: Add providers and deterministic merge**
+- [x] **Step 3: Add providers and deterministic merge**
 
 Add `FreeNewsProvider` and TWSE fallback behavior using existing `ProviderResult` helpers. Preserve all waterfall audit events, normalize to the existing catalyst payload, and avoid duplicate records when paid providers also return the same link/title.
 
-- [ ] **Step 4: Verify GREEN and commit**
+- [x] **Step 4: Verify GREEN and commit**
 
 Run: `pytest tests/test_provider_workflow.py tests/test_architecture_services.py -q`
 Expected: PASS.
