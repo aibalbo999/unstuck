@@ -16,7 +16,7 @@ from data_financial_metric_validator import (  # noqa: E402
     load_provider_values_from_payload,
     validate_state_provider_values,
 )
-from pipeline_async import _initialize_agent_state_context, _run_agent_groups  # noqa: E402
+from pipeline_async import _initialize_agent_state_context, _run_agent_groups, run_analysis_pipeline_async  # noqa: E402
 from state_memory import initialize_agent_state  # noqa: E402
 
 
@@ -223,3 +223,29 @@ def test_run_agent_groups_skips_agent_execution_when_blocking_issue_exists(monke
     asyncio.run(_run_agent_groups({}, context, None, None, 1, pipeline_def))
 
     assert called is False
+
+
+def test_run_analysis_pipeline_returns_before_finalize_when_agent_groups_block(monkeypatch):
+    finalize_called = False
+
+    async def fake_build_rag(*_args, **_kwargs):
+        return None
+
+    async def fake_run_agent_groups(_data, context, *_args, **_kwargs):
+        context.setdefault("blocking_issues", []).append("Critical financial provider conflict blocks analysis.")
+
+    async def fake_finalize(*_args, **_kwargs):
+        nonlocal finalize_called
+        finalize_called = True
+
+    monkeypatch.setattr("pipeline_async._build_rag_index_async", fake_build_rag)
+    monkeypatch.setattr("pipeline_async._run_agent_groups", fake_run_agent_groups)
+    monkeypatch.setattr("pipeline_async._finalize_async_pipeline", fake_finalize)
+
+    context = asyncio.run(
+        run_analysis_pipeline_async({"ticker": "2308.TW", "company_name": "台達電"})
+    )
+
+    assert finalize_called is False
+    assert context["blocking_issues"] == ["Critical financial provider conflict blocks analysis."]
+    assert "total_time" in context
