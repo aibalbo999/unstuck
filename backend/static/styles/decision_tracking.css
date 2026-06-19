@@ -4,8 +4,8 @@
 .decision-tracking-title span { color: var(--text-muted); font-size: 0.64rem; }
 .tracking-group-list { display: grid; gap: 5px; padding: 8px; }
 .tracking-stock-group { display: grid; grid-template-columns: minmax(96px, 0.24fr) minmax(0, 1fr); gap: 6px; align-items: stretch; border-top: 1px solid rgba(148, 163, 184, 0.14); padding-top: 5px; }
-.tracking-group-reports { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; min-width: 0; }
-.tracking-report-card { min-height: 58px; display: grid; grid-template-columns: minmax(82px, 0.75fr) minmax(88px, 0.7fr) minmax(150px, 1.55fr); gap: 6px; align-items: center; border: 1px solid rgba(148, 163, 184, 0.18); border-radius: 8px; padding: 6px; cursor: pointer; background: rgba(15, 23, 42, 0.44); }
+.tracking-group-reports { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; min-width: 0; }
+.tracking-report-card { min-height: 98px; display: grid; grid-template-columns: 1fr; gap: 6px; align-content: start; border: 1px solid rgba(148, 163, 184, 0.18); border-radius: 8px; padding: 6px; cursor: pointer; background: rgba(15, 23, 42, 0.44); }
 .tracking-report-card:hover, .tracking-report-card.is-selected { background: rgba(0, 255, 204, 0.07); border-color: rgba(0, 255, 204, 0.28); }
 .tracking-stock-cell, .tracking-report-cell { min-width: 0; line-height: 1.18; white-space: normal; }
 .tracking-stock-cell { display: grid; align-content: center; gap: 2px; padding: 2px 0; font-variant-numeric: tabular-nums; }
@@ -28,9 +28,12 @@
 .tracking-target-cell.is-near-target { color: #fde68a; background: rgba(180, 83, 9, 0.18); }
 .tracking-target-cell.is-above-target { color: #bbf7d0; background: rgba(22, 163, 74, 0.16); }
 .decision-tracking-table.is-compact .tracking-stock-group { grid-template-columns: minmax(88px, 0.24fr) minmax(0, 1fr); }
-.decision-tracking-table.is-compact .tracking-report-card { min-height: 46px; grid-template-columns: minmax(82px, 0.9fr) minmax(92px, 0.8fr); }
+.decision-tracking-table.is-compact .tracking-report-card { min-height: 52px; grid-template-columns: minmax(82px, 0.9fr) minmax(92px, 0.8fr); align-content: center; }
 .decision-track-toggle { min-width: 78px; min-height: 44px; border: 1px solid rgba(96, 165, 250, 0.34); border-radius: 8px; background: rgba(29, 78, 216, 0.18); color: #bfdbfe; cursor: pointer; font-size: 0.68rem; font-weight: 900; }
 .decision-track-toggle.is-tracked { border-color: rgba(34, 197, 94, 0.36); color: #bbf7d0; background: rgba(22, 163, 74, 0.14); }
+@media (max-width: 1120px) {
+    .tracking-group-reports { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 @media (max-width: 720px) {
     .decision-tracking-controls { align-items: stretch; flex-direction: column; }
     .decision-tracking-actions { justify-content: stretch; }

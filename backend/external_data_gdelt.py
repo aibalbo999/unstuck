@@ -8,6 +8,7 @@ import re
 import time
 from urllib.parse import quote
 
+from cache_store import get_cache_json, set_cache_json
 from external_data_parsers import parse_gdelt_article_payload, parse_google_news_rss_payload
 from external_http_client import async_client, async_json_get, log_http_warning
 
@@ -25,6 +26,7 @@ GDELT_TOPIC_QUERIES = {
 }
 GDELT_RATE_LIMIT_RE = re.compile(r"(?:\b429\b|too many requests|rate\s*limit)", re.IGNORECASE)
 DEFAULT_GDELT_RATE_LIMIT_COOLDOWN_SECONDS = 15 * 60
+DEFAULT_GDELT_TOPIC_CACHE_SECONDS = 6 * 60 * 60
 
 _gdelt_cooldown_until = 0.0
 
@@ -38,6 +40,7 @@ async def fetch_gdelt_international_news_context(
     max_topics: int = 2,
     request_spacing_seconds: float = 5.1,
     rate_limit_cooldown_seconds: float | None = None,
+    topic_cache_seconds: int = DEFAULT_GDELT_TOPIC_CACHE_SECONDS,
 ) -> dict:
     topics = []
     coverage_notes = []
@@ -48,6 +51,12 @@ async def fetch_gdelt_international_news_context(
         for tag, query in query_items:
             payload = {}
             fallback_reason = ""
+            cache_key = _gdelt_topic_cache_key(tag, query, lookback_days, max_records_per_topic)
+            parsed_topics = _cached_gdelt_topics(cache_key)
+            if parsed_topics:
+                topics.extend(parsed_topics)
+                coverage_notes.append(f"{tag} 使用 GDELT 快取。")
+                continue
             if _gdelt_rate_limited():
                 fallback_reason = "GDELT 429 cooldown"
             else:
@@ -71,9 +80,13 @@ async def fetch_gdelt_international_news_context(
                     if _is_gdelt_rate_limit_error(exc):
                         _mark_gdelt_rate_limited(cooldown_seconds)
                         fallback_reason = "GDELT 429 rate limited"
+                        parsed_topics = _cached_gdelt_topics(cache_key)
                     else:
                         log_http_warning("GDELT", f"international news {quote(tag)}", exc)
-            parsed_topics = parse_gdelt_article_payload(payload, tag=tag)
+            if not parsed_topics:
+                parsed_topics = parse_gdelt_article_payload(payload, tag=tag)
+                if parsed_topics:
+                    _cache_gdelt_topics(cache_key, parsed_topics, topic_cache_seconds)
             if not parsed_topics:
                 parsed_topics = await _fetch_google_news_rss_fallback(client, tag, query)
                 if parsed_topics:
@@ -83,6 +96,8 @@ async def fetch_gdelt_international_news_context(
                         coverage_notes.append(f"{tag} 使用 Google News RSS 備援。")
                 else:
                     coverage_notes.append(f"{tag} 未回傳可用新聞。")
+            elif fallback_reason:
+                coverage_notes.append(f"{tag} {fallback_reason}，使用 GDELT 快取。")
             topics.extend(parsed_topics)
     return {
         "lookback_days": int(lookback_days),
@@ -132,6 +147,23 @@ def _is_gdelt_rate_limit_error(exc: BaseException) -> bool:
     if getattr(response, "status_code", None) == 429:
         return True
     return bool(GDELT_RATE_LIMIT_RE.search(str(exc or "")))
+
+
+def _gdelt_topic_cache_key(tag: str, query: str, lookback_days: int, max_records: int) -> str:
+    return f"gdelt_topic:v1:{tag}:{max(1, int(lookback_days))}d:{max(1, int(max_records))}:{query}"
+
+
+def _cached_gdelt_topics(cache_key: str) -> list[dict]:
+    cached = get_cache_json(cache_key)
+    if not isinstance(cached, dict):
+        return []
+    topics = cached.get("topics")
+    return topics if isinstance(topics, list) else []
+
+
+def _cache_gdelt_topics(cache_key: str, topics: list[dict], ttl_seconds: int) -> None:
+    if topics and ttl_seconds > 0:
+        set_cache_json(cache_key, {"topics": topics}, int(ttl_seconds))
 
 
 def _topic_queries_for_context(sector: str = "", industry: str = "") -> dict[str, str]:

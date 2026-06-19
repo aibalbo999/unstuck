@@ -45,7 +45,7 @@ def _write_report(output_dir: Path, filename: str, ticker: str = "2449.TW", pric
     snapshot = {
         "ticker": ticker,
         "company_name": f"{name} 測試公司",
-        "pipeline": "v2" if "_v2_" in filename else "v1",
+        "pipeline": "v3" if "_v3_" in filename else ("v2" if "_v2_" in filename else "v1"),
         "generated_at": "2026-06-09T00:00:00+00:00",
         "data_trust": {"status": "fresh", "critical_failures": [], "stale_sources": [], "last_market_data_at": "2026-06-09T00:00:00+00:00", "notes": []},
         "source_audit": [],
@@ -147,6 +147,7 @@ def test_decision_tracking_api_tracks_selected_tickers_and_refreshes_latest_pric
     decision_tracking_store.reset_decision_tracking_store_for_tests()
     _write_report(tmp_path, "2449_report_20260609_090000.html", price=100.0)
     _write_report(tmp_path, "2449_v2_report_20260610_090000.html", price=108.0)
+    _write_report(tmp_path, "2449_v3_report_20260611_090000.html", price=112.0)
     _write_report(tmp_path, "2330_v2_report_20260610_090000.html", ticker="2330.TW", price=500.0)
     refresh_requests = []
 
@@ -177,11 +178,12 @@ def test_decision_tracking_api_tracks_selected_tickers_and_refreshes_latest_pric
     item = added.json()["items"][0]
     assert item["ticker"] == "2449.TW"
     assert item["company_name"] == "測試公司 / Test Co"
-    assert item["latest_report"]["filename"] == "2449_v2_report_20260610_090000.html"
-    assert [report["pipeline_id"] for report in item["latest_reports"]] == ["v1", "v2"]
+    assert item["latest_report"]["filename"] == "2449_v3_report_20260611_090000.html"
+    assert [report["pipeline_id"] for report in item["latest_reports"]] == ["v1", "v2", "v3"]
     assert [report["filename"] for report in item["latest_reports"]] == [
         "2449_report_20260609_090000.html",
         "2449_v2_report_20260610_090000.html",
+        "2449_v3_report_20260611_090000.html",
     ]
 
     refreshed = client.post("/api/decision-tracking/refresh", headers=mutation_headers)
@@ -189,13 +191,13 @@ def test_decision_tracking_api_tracks_selected_tickers_and_refreshes_latest_pric
     body = refreshed.json()
     assert body["success"] is True
     assert body["updated_count"] == 1
-    assert body["updated_reports_count"] == 2
-    assert refresh_requests == ["2449.TW", "2449.TW"]
+    assert body["updated_reports_count"] == 3
+    assert refresh_requests == ["2449.TW", "2449.TW", "2449.TW"]
     row = body["items"][0]
     assert row["ticker"] == "2449.TW"
     assert row["company_name"] == "測試公司 / Test Co"
     assert row["latest_report"]["decision_tracking"]["latest_price"] == 132.0
-    assert [report["decision_tracking"]["latest_price"] for report in row["latest_reports"]] == [132.0, 132.0]
+    assert [report["decision_tracking"]["latest_price"] for report in row["latest_reports"]] == [132.0, 132.0, 132.0]
     assert row["latest_report"]["decision_tracking"]["target_comparisons"]["target_12m"]["status"] == "near_target"
     assert {item["ticker"] for item in body["items"]} == {"2449.TW"}
 

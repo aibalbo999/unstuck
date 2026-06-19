@@ -416,6 +416,104 @@ def test_gdelt_429_uses_cooldown_without_warning_log(monkeypatch):
     assert external_data_gdelt._gdelt_cooldown_until == 1300.0
 
 
+def test_gdelt_uses_cached_topic_without_network_call(monkeypatch):
+    class FakeAsyncClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+    network_calls = []
+    cache_writes = []
+
+    async def unexpected_json_get(_client, _url, params):
+        network_calls.append(params["query"])
+        raise AssertionError("GDELT network should not be called on cache hit")
+
+    def fake_get_cache_json(key):
+        assert key == 'gdelt_topic:v1:semiconductors_ai:7d:3:(semiconductor OR "AI chip")'
+        return {
+            "topics": [{
+                "tag": "semiconductors_ai",
+                "headline": "Cached AI chip story",
+                "source": "GDELT",
+                "url": "https://example.com/cached",
+            }]
+        }
+
+    monkeypatch.setattr(external_data_gdelt, "_gdelt_cooldown_until", 0.0)
+    monkeypatch.setattr(external_data_gdelt, "async_client", lambda: FakeAsyncClient())
+    monkeypatch.setattr(external_data_gdelt, "async_json_get", unexpected_json_get)
+    monkeypatch.setattr(external_data_gdelt, "get_cache_json", fake_get_cache_json)
+    monkeypatch.setattr(external_data_gdelt, "set_cache_json", lambda *args: cache_writes.append(args))
+
+    context = asyncio.run(external_data_gdelt.fetch_gdelt_international_news_context(
+        "Technology",
+        "Semiconductors",
+        max_topics=1,
+        request_spacing_seconds=0,
+    ))
+
+    assert network_calls == []
+    assert cache_writes == []
+    assert context["topics"][0]["headline"] == "Cached AI chip story"
+    assert context["coverage_notes"] == ["semiconductors_ai 使用 GDELT 快取。"]
+
+
+def test_gdelt_429_uses_cached_topic_before_rss_fallback(monkeypatch):
+    class FakeResponse:
+        status_code = 429
+
+    class FakeAsyncClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, *_args, **_kwargs):
+            raise AssertionError("Google News RSS should not be called when cached GDELT topic exists")
+
+    class FakeHTTPStatusError(Exception):
+        response = FakeResponse()
+
+    async def rate_limited_json_get(_client, _url, _params):
+        raise FakeHTTPStatusError("429 Too Many Requests")
+
+    monkeypatch.setattr(external_data_gdelt, "_gdelt_cooldown_until", 0.0)
+    monkeypatch.setattr(external_data_gdelt, "_now", lambda: 1000.0)
+    monkeypatch.setattr(external_data_gdelt, "async_client", lambda: FakeAsyncClient())
+    monkeypatch.setattr(external_data_gdelt, "async_json_get", rate_limited_json_get)
+    cache_reads = []
+
+    def fake_get_cache_json(_key):
+        cache_reads.append(_key)
+        if len(cache_reads) == 1:
+            return None
+        return {"topics": [{
+            "tag": "semiconductors_ai",
+            "headline": "Cached semis story after 429",
+            "source": "GDELT",
+            "url": "https://example.com/cached-429",
+        }]}
+
+    monkeypatch.setattr(external_data_gdelt, "get_cache_json", fake_get_cache_json)
+
+    context = asyncio.run(external_data_gdelt.fetch_gdelt_international_news_context(
+        "Technology",
+        "Semiconductors",
+        max_topics=1,
+        request_spacing_seconds=0,
+        rate_limit_cooldown_seconds=300,
+    ))
+
+    assert context["topics"][0]["headline"] == "Cached semis story after 429"
+    assert context["coverage_notes"] == ["semiconductors_ai GDELT 429 rate limited，使用 GDELT 快取。"]
+    assert len(cache_reads) == 2
+    assert external_data_gdelt._gdelt_cooldown_until == 1300.0
+
+
 def _patch_common_fetch_dependencies(monkeypatch, resolved_ticker="2330.TW", country="Taiwan"):
     monkeypatch.setattr(financial_data, "get_cache_json", lambda key: None)
     monkeypatch.setattr(financial_data, "set_cache_json", lambda *args: None)

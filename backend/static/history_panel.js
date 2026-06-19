@@ -80,6 +80,15 @@
         return `<span class="history-action-badge is-${tone}" title="${escapeHtml(detail)}">${escapeHtml(label)}</span>`;
     }
 
+    function trackingPipelineLabel(report) {
+        const labels = {
+            v1: '模式 A · 學術深度派',
+            v2: '模式 B · 實戰交易派',
+            v3: '模式 C · 逆勢泡沫狙擊'
+        };
+        return labels[report?.pipeline_id] || report?.pipeline_label || report?.pipeline_id || '報告';
+    }
+
     function targetComparisonCell(tracking, key, escapeHtml) {
         const comparison = tracking?.target_comparisons?.[key] || {};
         const period = { target_3m: '3月', target_6m: '6月', target_12m: '12月' }[key] || '目標';
@@ -130,10 +139,11 @@
 
         function reportCard(report) {
             const tracking = report.decision_tracking || {};
+            const pipelineLabel = trackingPipelineLabel(report);
             return `
-                <div class="tracking-report-card" data-filename="${escapeHtml(report.filename)}" role="button" tabindex="0" aria-label="預覽 ${escapeHtml(report.ticker || 'N/A')} ${escapeHtml(report.pipeline_label || '')} 追蹤">
+                <div class="tracking-report-card" data-filename="${escapeHtml(report.filename)}" role="button" tabindex="0" aria-label="預覽 ${escapeHtml(report.ticker || 'N/A')} ${escapeHtml(pipelineLabel)} 追蹤">
                     <div class="tracking-report-cell tracking-report-head">
-                        <strong>${escapeHtml(report.pipeline_label || report.pipeline_id || '報告')}</strong>
+                        <strong>${escapeHtml(pipelineLabel)}</strong>
                         <span class="tracking-report-date">${escapeHtml(report.date || '')}</span>
                     </div>
                     <div class="tracking-report-line tracking-report-metrics">
@@ -161,7 +171,7 @@
             trackingTableEl.hidden = false;
             trackingTableEl.classList.toggle('is-compact', trackingCompact);
             trackingTableEl.innerHTML = `
-                <div class="decision-tracking-title">每日決策追蹤表<span>${trackingCompact ? '精簡比較' : '高密度雙報告比較'}</span></div>
+                <div class="decision-tracking-title">每日決策追蹤表<span>${trackingCompact ? '精簡比較' : '高密度三模式比較'}</span></div>
                 <div class="tracking-group-list">
                     ${visibleGroups.map(group => {
                         const latest = groupLatestReport(group) || {};
