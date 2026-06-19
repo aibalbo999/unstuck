@@ -38,9 +38,12 @@ The existing DAG runner remains the orchestration layer, but every run now owns 
 ```mermaid
 flowchart TD
     Providers["yfinance / FinMind / official sources"] --> Normalize["Normalize financial payload"]
+    FreeNews["Google News RSS / DuckDuckGo / PTT"] --> ProviderWorkflow["Provider Workflow"]
+    ProviderWorkflow --> Normalize
     Normalize --> Validate["Data validation and source audit"]
     Validate -->|"critical conflict"| Breaker["Circuit breaker: open"]
-    Breaker --> Reconcile["Retry providers + MOPS reconciliation plan"]
+    Breaker --> Reconcile["Retry providers + MOPS official reconciliation"]
+    MOPS["MOPS balance sheet"] --> Reconcile
     Reconcile -->|"verified within tolerance"| Validate
     Breaker -->|"unresolved"| Block["Fail closed: skip valuation and final targets"]
     Validate -->|"closed"| State["Typed AgentState blackboard"]
@@ -78,6 +81,10 @@ Revenue, Net Income, Total Debt, and Free Cash Flow are critical fields. A cross
 4. resume only when an API source agrees with the official filing within tolerance
 
 Unresolved conflicts fail closed and block valuation and target-price generation.
+
+Free recent-catalyst enrichment is registered as the first `recent_catalysts` provider. Its waterfall records Google News RSS, DuckDuckGo News, and PTT layer audits under `source_audit`, then merges unique news by link first and title second alongside Google Search, FMP, and Yahoo Finance records.
+
+For `total_debt` conflicts, the pipeline can execute MOPS reconciliation before agent execution. MOPS values are written into `AgentState.provider_values` and `raw_financial_data["official_filings"]` only when the official filing is consolidated, uses the expected unit, matches the requested period, and agrees with at least one API provider within tolerance. Unsupported or mixed blocking fields remain open.
 
 ## Peer Selection
 

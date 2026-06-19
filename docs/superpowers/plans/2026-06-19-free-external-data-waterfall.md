@@ -341,7 +341,7 @@ git commit -m "feat: reconcile financial conflicts with MOPS"
 - Modify: `docs/architecture.md`
 - Modify: `docs/superpowers/plans/2026-06-19-free-external-data-waterfall.md`
 
-- [ ] **Step 1: Add opt-in live tests**
+- [x] **Step 1: Add opt-in live tests**
 
 ```python
 pytestmark = pytest.mark.skipif(
@@ -356,11 +356,11 @@ def test_google_news_live_returns_standard_shape():
 
 Add TWSE and MOPS tests that accept either a correctly shaped result or a controlled `None`/empty result while asserting no uncaught exception.
 
-- [ ] **Step 2: Document installation and operations**
+- [x] **Step 2: Document installation and operations**
 
 Document `python -m pip install feedparser ddgs beautifulsoup4 requests trafilatura`, fallback ordering, warning/audit interpretation, live test command, robots/access-policy limitations, and breaker resume conditions. Extend the architecture Mermaid graph with free news and MOPS execution.
 
-- [ ] **Step 3: Run focused and full verification**
+- [x] **Step 3: Run focused and full verification**
 
 Run:
 
@@ -372,11 +372,11 @@ git diff --check
 
 Expected: all focused tests pass; full gate reports zero failures; diff check is silent.
 
-- [ ] **Step 4: Audit every objective requirement**
+- [x] **Step 4: Audit every objective requirement**
 
 Confirm each requested public function exists, standard news keys are exact, timeouts are covered, MOPS POST and parsing are tested, warning logs identify fallback layers, Pipeline receives free data, Blackboard receives official values, and unresolved official conflicts remain fail-closed. Mark every plan checkbox complete only after its evidence exists.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add tests/live/test_free_external_data_smoke.py docs/operator-guide.md docs/architecture.md docs/superpowers/plans/2026-06-19-free-external-data-waterfall.md
