@@ -972,7 +972,7 @@ git commit -m "feat: improve peer selection ranking"
 - Create: `backend/openai_structured_outputs.py`
 - Test: `tests/test_audit_rules.py`
 
-- [ ] **Step 1: Add failing tests for Google/OpenAI schema split**
+- [x] **Step 1: Add failing tests for Google/OpenAI schema split**
 
 Append inside `AuditRuleTests` in `tests/test_audit_rules.py`:
 
@@ -991,7 +991,7 @@ def test_openai_structured_output_schema_is_strict_without_changing_genai_schema
     assert '"additionalProperties": false' in json.dumps(openai_format, ensure_ascii=False)
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run:
 
@@ -1001,7 +1001,7 @@ PYTHON_BIN=$(scripts/project_python.sh); "$PYTHON_BIN" -m pytest tests/test_audi
 
 Expected: FAIL because `openai_structured_outputs` is missing.
 
-- [ ] **Step 3: Implement OpenAI schema adapter**
+- [x] **Step 3: Implement OpenAI schema adapter**
 
 Create `backend/openai_structured_outputs.py`:
 
@@ -1039,11 +1039,11 @@ def _force_no_extra_properties(node: Any) -> None:
             _force_no_extra_properties(value)
 ```
 
-- [ ] **Step 4: Export helper through compatibility facade**
+- [x] **Step 4: Export helper through compatibility facade**
 
 If callers prefer a single import path, add `openai_json_schema_response_format` to `backend/structured_outputs.py` imports and `__all__`.
 
-- [ ] **Step 5: Run focused structured output tests**
+- [x] **Step 5: Run focused structured output tests**
 
 Run:
 
@@ -1053,7 +1053,7 @@ PYTHON_BIN=$(scripts/project_python.sh); "$PYTHON_BIN" -m pytest tests/test_audi
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend/structured_output_models.py backend/openai_structured_outputs.py backend/structured_outputs.py tests/test_audit_rules.py
