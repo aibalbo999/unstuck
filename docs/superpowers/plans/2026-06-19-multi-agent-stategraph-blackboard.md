@@ -356,7 +356,7 @@ git commit -m "feat: add shared agent state blackboard"
 - Modify: `backend/pipeline_async.py`
 - Test: `tests/test_data_cross_validator.py`
 
-- [ ] **Step 1: Add failing circuit-breaker tests**
+- [x] **Step 1: Add failing circuit-breaker tests**
 
 Append to `tests/test_data_cross_validator.py`:
 
@@ -394,7 +394,7 @@ def test_validate_state_provider_values_can_raise_for_hard_stop():
         validate_state_provider_values(state, fields=("revenue",), threshold_pct=5.0, raise_on_open=True)
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run:
 
@@ -404,7 +404,7 @@ PYTHON_BIN=$(scripts/project_python.sh); "$PYTHON_BIN" -m pytest tests/test_data
 
 Expected: FAIL because `validate_state_provider_values` is not implemented.
 
-- [ ] **Step 3: Implement circuit-breaker helpers**
+- [x] **Step 3: Implement circuit-breaker helpers**
 
 Add to `backend/data_financial_metric_validator.py` without removing the existing `validate_financial_metrics` API:
 
@@ -499,7 +499,7 @@ def _infer_conflict_cause(left: ProviderValue, right: ProviderValue) -> str:
     return "provider_value_mismatch"
 ```
 
-- [ ] **Step 4: Wire validation into `pipeline_async.py`**
+- [x] **Step 4: Wire validation into `pipeline_async.py`**
 
 After `context` initialization in `run_analysis_pipeline_async`, initialize and validate state:
 
@@ -514,7 +514,7 @@ sync_context_from_state(context, context["agent_state"])
 
 If existing data payload does not yet populate `provider_values`, this call is a no-op. Later provider tasks will populate it.
 
-- [ ] **Step 5: Run focused tests**
+- [x] **Step 5: Run focused tests**
 
 Run:
 
@@ -524,7 +524,7 @@ PYTHON_BIN=$(scripts/project_python.sh); "$PYTHON_BIN" -m pytest tests/test_data
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend/data_financial_metric_validator.py backend/pipeline_async.py tests/test_data_cross_validator.py
