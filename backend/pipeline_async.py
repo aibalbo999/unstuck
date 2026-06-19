@@ -12,10 +12,12 @@ from agent_runtime.cancellation import attach_cancel_check, raise_if_cancelled
 from analysis_types import AnalysisContext, StockData
 from company_display import company_display_name
 from config import API_KEYS, EMBEDDING_MODEL
+from data_financial_metric_validator import validate_state_provider_values
 from llm_client import KeyRotator
 from pipeline_modes import get_pipeline_definition, normalize_pipeline_id
 from rag_runtime import build_rag_index_async
 from runtime_events import RUNTIME_EVENT_CALLBACK_KEY, emit_log, emit_progress_async, emit_status_async
+from state_memory import initialize_agent_state, sync_context_from_state
 from tear_sheet_tasks import ensure_tear_sheet_summary_async
 
 
@@ -43,6 +45,9 @@ async def run_analysis_pipeline_async(data: StockData, progress_callback=None, p
         "agent_positions": agent_positions,
         "agent_total": agent_total,
     }
+    context["agent_state"] = initialize_agent_state(data, run_id=context["pipeline_id"])
+    validate_state_provider_values(context["agent_state"])
+    sync_context_from_state(context, context["agent_state"])
     if progress_callback:
         context[RUNTIME_EVENT_CALLBACK_KEY] = progress_callback
     attach_cancel_check(context, cancel_check)
