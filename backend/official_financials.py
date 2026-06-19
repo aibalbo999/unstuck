@@ -33,7 +33,7 @@ def fetch_twse_institutional_trades(
     session: requests.Session | None = None,
 ) -> dict[str, Any] | None:
     """Fetch same-day institutional net trades from TWSE OpenAPI."""
-    symbol = _tw_symbol(ticker)
+    symbol = _twse_symbol(ticker)
     if symbol is None:
         return None
     client = session or requests.Session()
@@ -67,7 +67,7 @@ def fetch_mops_balance_sheet(
     session: requests.Session | None = None,
 ) -> dict[str, Any] | None:
     """Fetch and normalize a MOPS balance sheet table."""
-    symbol = _tw_symbol(ticker)
+    symbol, typek = _mops_symbol_and_type(ticker)
     try:
         year_int = int(year)
         season_int = int(season)
@@ -83,7 +83,7 @@ def fetch_mops_balance_sheet(
         "off": "1",
         "queryName": "co_id",
         "inpuType": "co_id",
-        "TYPEK": "sii",
+        "TYPEK": typek,
         "isnew": "false",
         "co_id": symbol,
         "year": str(year_int - 1911),
@@ -178,15 +178,26 @@ def _first_alias_value(rows: dict[str, int], aliases: tuple[str, ...]) -> int | 
     return None
 
 
-def _tw_symbol(ticker: Any) -> str | None:
+def _twse_symbol(ticker: Any) -> str | None:
+    symbol, typek = _mops_symbol_and_type(ticker)
+    return symbol if typek == "sii" else None
+
+
+def _mops_symbol_and_type(ticker: Any) -> tuple[str | None, str | None]:
     raw = str(ticker or "").strip()
     if "." in raw:
         symbol, suffix = raw.split(".", 1)
-        if suffix.upper() != "TW":
-            return None
+        suffix = suffix.upper()
+        if suffix == "TW":
+            typek = "sii"
+        elif suffix == "TWO":
+            typek = "otc"
+        else:
+            return None, None
     else:
         symbol = raw
-    return symbol if re.fullmatch(r"\d{4,6}", symbol) else None
+        typek = "sii"
+    return (symbol, typek) if re.fullmatch(r"\d{4,6}", symbol) else (None, None)
 
 
 def _parse_number(value: Any) -> int | None:

@@ -125,6 +125,20 @@ def test_mops_posts_period_and_extracts_balance_sheet(monkeypatch):
     assert result["raw_line_items"]["負債總計"] == 900
 
 
+def test_mops_uses_otc_type_for_two_suffix(monkeypatch):
+    frame = pd.DataFrame({
+        "會計項目": ["負債總計"],
+        "2025年第4季": ["900"],
+    })
+    monkeypatch.setattr(official_financials.pd, "read_html", lambda *_args, **_kwargs: [frame])
+    session = FakeSession(text="<table></table>")
+
+    result = official_financials.fetch_mops_balance_sheet("1234.TWO", 2025, 4, session=session)
+
+    assert session.last_data["TYPEK"] == "otc"
+    assert result["total_liabilities"] == 900
+
+
 def test_mops_handles_multiindex_negative_values_and_no_tables(monkeypatch):
     columns = pd.MultiIndex.from_tuples([("項目", "會計項目"), ("金額", "本期")])
     frame = pd.DataFrame([["負債總計", "(1,234)"]], columns=columns)
@@ -166,7 +180,6 @@ def test_mops_rejects_invalid_inputs_and_request_errors(monkeypatch):
     tracking = TrackingSession()
     assert official_financials.fetch_mops_balance_sheet("AAPL", 2025, 4, session=tracking) is None
     assert official_financials.fetch_mops_balance_sheet("2330.US", 2025, 4, session=tracking) is None
-    assert official_financials.fetch_mops_balance_sheet("1234.TWO", 2025, 4, session=tracking) is None
     assert official_financials.fetch_mops_balance_sheet("2330", "bad", 4, session=tracking) is None
     assert official_financials.fetch_mops_balance_sheet("2330", 2025, 5, session=tracking) is None
     assert tracking.calls == 0
