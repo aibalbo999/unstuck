@@ -206,7 +206,7 @@ git commit -m "feat: add TWSE and MOPS official adapters"
 - Create: `backend/external_data_client.py`
 - Create: `tests/test_external_data_client.py`
 
-- [ ] **Step 1: Write failing waterfall tests**
+- [x] **Step 1: Write failing waterfall tests**
 
 ```python
 def test_news_falls_back_google_to_ddg_to_ptt(caplog):
@@ -223,16 +223,16 @@ def test_invalid_yfinance_debt_uses_mops():
 
 Cover no PTT for US ticker, duplicate news, valid debt bypass, negative/NaN debt, open-breaker signal, MOPS failure and unresolved status.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run: `pytest tests/test_external_data_client.py -v`
 Expected: collection FAIL because `external_data_client` does not exist.
 
-- [ ] **Step 3: Implement orchestration with dependency injection**
+- [x] **Step 3: Implement orchestration with dependency injection**
 
 Create constructor-injected callables, `get_news`, `get_financial_data`, `_needs_official_debt`, `_latest_closed_quarter`, audit event collection and warning logs. Merge only canonical MOPS fields and retain both original payload and field-level provenance.
 
-- [ ] **Step 4: Verify GREEN and commit**
+- [x] **Step 4: Verify GREEN and commit**
 
 Run: `pytest tests/test_external_data_client.py -v`
 Expected: PASS.
