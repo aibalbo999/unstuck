@@ -37,7 +37,7 @@
 - Modify: `backend/requirements.lock`
 - Test: `tests/test_supply_chain_audit.py`
 
-- [ ] **Step 1: Write the failing dependency test**
+- [x] **Step 1: Write the failing dependency test**
 
 ```python
 def test_free_external_data_dependencies_are_locked():
@@ -48,21 +48,21 @@ def test_free_external_data_dependencies_are_locked():
     assert required <= locked
 ```
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run: `pytest tests/test_supply_chain_audit.py::test_free_external_data_dependencies_are_locked -v`
 Expected: FAIL because the five packages are absent.
 
-- [ ] **Step 3: Add bounded direct requirements and regenerate the lock**
+- [x] **Step 3: Add bounded direct requirements and regenerate the lock**
 
 Add compatible ranges to `requirements.txt`, install them in the project environment, then run the repository's lock generation command or `python -m pip freeze > backend/requirements.lock` using the same environment used by CI.
 
-- [ ] **Step 4: Verify GREEN**
+- [x] **Step 4: Verify GREEN**
 
 Run: `pytest tests/test_supply_chain_audit.py -v`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/requirements.txt backend/requirements.lock tests/test_supply_chain_audit.py
