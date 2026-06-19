@@ -35,7 +35,7 @@
 - Create: `backend/state_memory.py`
 - Test: `tests/test_agent_state_memory.py`
 
-- [ ] **Step 1: Write failing tests for state initialization and compatibility sync**
+- [x] **Step 1: Write failing tests for state initialization and compatibility sync**
 
 Add `tests/test_agent_state_memory.py`:
 
@@ -112,7 +112,7 @@ def test_state_view_for_valuation_uses_whitelisted_paths_only():
     assert view["peer_context"]["selected_peers"][0]["ticker"] == "4938.TW"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run:
 
@@ -122,7 +122,7 @@ PYTHON_BIN=$(scripts/project_python.sh); "$PYTHON_BIN" -m pytest tests/test_agen
 
 Expected: FAIL because `agent_state` and `state_memory` modules do not exist.
 
-- [ ] **Step 3: Implement Pydantic models**
+- [x] **Step 3: Implement Pydantic models**
 
 Create `backend/agent_state.py`:
 
@@ -227,7 +227,7 @@ class AgentState(BaseModel):
     execution_trace: list[dict[str, Any]] = Field(default_factory=list)
 ```
 
-- [ ] **Step 4: Implement state helpers and view policies**
+- [x] **Step 4: Implement state helpers and view policies**
 
 Create `backend/state_memory.py`:
 
@@ -330,7 +330,7 @@ def _jsonable(value: Any) -> Any:
     return copy.deepcopy(value)
 ```
 
-- [ ] **Step 5: Run focused tests**
+- [x] **Step 5: Run focused tests**
 
 Run:
 
@@ -340,7 +340,7 @@ PYTHON_BIN=$(scripts/project_python.sh); "$PYTHON_BIN" -m pytest tests/test_agen
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend/agent_state.py backend/state_memory.py tests/test_agent_state_memory.py
