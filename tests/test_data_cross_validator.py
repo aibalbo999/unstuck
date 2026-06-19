@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import sys
 from pathlib import Path
@@ -15,6 +16,7 @@ from data_financial_metric_validator import (  # noqa: E402
     load_provider_values_from_payload,
     validate_state_provider_values,
 )
+from pipeline_async import _initialize_agent_state_context, _run_agent_groups  # noqa: E402
 from state_memory import initialize_agent_state  # noqa: E402
 
 
@@ -175,3 +177,49 @@ def test_validate_state_provider_values_attempts_ignore_blocking_field_order():
 
     assert state.circuit_breaker.attempts == attempts
     assert set(state.circuit_breaker.blocking_fields) == {"revenue", "total_debt"}
+
+
+def test_pipeline_state_initialization_surfaces_open_circuit_as_blocking_issue():
+    payload = {
+        "ticker": "2308.TW",
+        "company_name": "台達電",
+        "financial_metric_validation": {
+            "comparisons": {
+                "revenue": {
+                    "field": "revenue",
+                    "source_a": "yfinance",
+                    "source_b": "finmind",
+                    "source_a_value": 100.0,
+                    "source_b_value": 80.0,
+                },
+            },
+        },
+    }
+    context = {"analyses": {}, "structured_outputs": {}}
+
+    _initialize_agent_state_context(payload, context)
+
+    assert context["agent_state"].circuit_breaker.status == "open"
+    assert context["blocking_issues"] == [
+        "Critical financial provider conflict blocks analysis for fields: revenue."
+    ]
+
+
+def test_run_agent_groups_skips_agent_execution_when_blocking_issue_exists(monkeypatch):
+    called = False
+
+    async def fake_run_agent(*_args, **_kwargs):
+        nonlocal called
+        called = True
+        return 1, "unexpected"
+
+    monkeypatch.setattr("pipeline_async.run_agent_with_quality_gates_async", fake_run_agent)
+    context = {
+        "blocking_issues": ["Critical financial provider conflict blocks analysis for fields: revenue."],
+        "agent_positions": {1: 1},
+    }
+    pipeline_def = {"groups": [[1]], "id": "v1", "label": "V1"}
+
+    asyncio.run(_run_agent_groups({}, context, None, None, 1, pipeline_def))
+
+    assert called is False

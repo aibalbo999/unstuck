@@ -45,10 +45,7 @@ async def run_analysis_pipeline_async(data: StockData, progress_callback=None, p
         "agent_positions": agent_positions,
         "agent_total": agent_total,
     }
-    context["agent_state"] = initialize_agent_state(data)
-    load_provider_values_from_payload(context["agent_state"], data)
-    validate_state_provider_values(context["agent_state"])
-    sync_context_from_state(context, context["agent_state"])
+    _initialize_agent_state_context(data, context)
     if progress_callback:
         context[RUNTIME_EVENT_CALLBACK_KEY] = progress_callback
     attach_cancel_check(context, cancel_check)
@@ -97,6 +94,8 @@ async def _run_agent_groups(data, context, rotator, progress_callback, agent_tot
     agent_groups = pipeline_def["groups"]
     for group_index, group in enumerate(agent_groups):
         raise_if_cancelled(context)
+        if context.get("blocking_issues"):
+            break
         if len(group) > 1:
             await _run_parallel_group(group, data, context, rotator, progress_callback, agent_total, pipeline_def)
         else:
@@ -182,3 +181,17 @@ async def _finalize_async_pipeline(context, rotator, progress_callback, agent_to
     await ensure_tear_sheet_summary_async(context, rotator, progress_callback=progress_callback)
     context["total_time"] = time.time() - context["start_time"]
     emit_log(f"\n{'='*60}\n  🎉 非同步分析完成！總耗時：{context['total_time']:.1f} 秒\n{'='*60}\n")
+
+
+def _initialize_agent_state_context(data: StockData, context: AnalysisContext) -> AnalysisContext:
+    context["agent_state"] = initialize_agent_state(data)
+    load_provider_values_from_payload(context["agent_state"], data)
+    validate_state_provider_values(context["agent_state"])
+    sync_context_from_state(context, context["agent_state"])
+    circuit_breaker = context["agent_state"].circuit_breaker
+    if circuit_breaker.status == "open":
+        fields = ", ".join(circuit_breaker.blocking_fields)
+        context.setdefault("blocking_issues", []).append(
+            f"Critical financial provider conflict blocks analysis for fields: {fields}."
+        )
+    return context
