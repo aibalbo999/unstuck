@@ -10,14 +10,15 @@
 - SSE 即時推播分析進度
 - 支援台股代號，例如 `2330`、`2330.TW`
 - 自動切換 `.TW` / `.TWO` 查詢
-- 多 Agent 串接分析流程
+- 多 Agent 串接分析流程，支援 Mode A（學術深度派）、Mode B（實戰交易派）與 Mode C（逆勢交易與泡沫狙擊）
 - 產生 HTML 與 Markdown 報告
 - 前端分成「分析」與「報告與維運」頁籤；歷史報告、預覽、比較留在分析頁，API 額度、watchlist、來源健康與本機維護集中在維運頁並於首次開啟時載入
 - 歷史報告支援資料可信度、決策追蹤、版本篩選、報告比較與相容性提示
 - 報告預覽可只刷新資料快照，也可排隊重跑最終投資建議、Mode B 或完整報告
 - 歷史 API 回傳 `decision_freshness`，明確區分「資料快照已更新」與「投資結論是否已依新資料重跑」
 - 內建報告刪除 API，會同步刪除 `.html`、`.md` 與資料快照
-- Agent 3 / 4 / 7 使用 JSON 結構化輸出優先解析，正則表達式僅保留為備援
+- 結構化 Agent 使用 JSON 輸出優先解析；Mode A/B 會解析護城河、估值與投資建議，Mode C 會解析泡沫狙擊建議
+- Mode C 的 Agent 19 報告會強制保留做空觸發條件、防軋空停損點，並將 `[投資建議]` 區塊固定放在最終段落尾端
 - 財務資料使用本地 SQLite 持久化快取，預設 24 小時
 - yfinance 欄位缺漏時會用 FMP（需 API key）或可追溯的衍生補值補上市場欄位、TTM 營收或 FCF，並在 prompt 中揭露限制
 - 歷史報告會自動清理孤立 Markdown，並刪除超過保留天數的舊報告
@@ -136,6 +137,8 @@ export GEMINI_API_KEYS="your_key_1,your_key_2"
 - `LLM_SERVER_ERROR_RETRY_MAX_WAIT_SECONDS`：模型服務 5xx 重試 backoff 單次等待上限，預設 `45`
 - 429 quota / rate-limit 會至少輪完所有 API key 才判定該模型不可用；任務事件只記錄 `key_slot/key_count`，不保存 key 明文
 - `FMP_BASE_URL`：FMP API base URL，預設 `https://financialmodelingprep.com/stable`
+- `GDELT_RATE_LIMIT_COOLDOWN_SECONDS`：GDELT 國際新聞遇到 HTTP 429 後的冷卻秒數，預設 `900`
+- GDELT 國際新聞會先使用 topic cache；遇到 429 時會進入 cooldown，優先讀快取，否則改用 Google News RSS 備援，避免單次分析連續打爆 GDELT
 
 不要提交這些內容：
 
@@ -223,7 +226,7 @@ http://127.0.0.1:8080
 
 1. 開啟首頁，預設停在「分析」頁籤。
 2. 輸入股票代號，例如 `2330`、`2059`、`6806.TW`。
-3. 按下分析。
+3. 選擇分析模式；預設是 Mode A，也可選 Mode B 或 Mode C。
 4. 等待 Agent 依序完成。
 5. 報告完成後會出現在同一頁的歷史清單，可直接預覽、下載、比較或重跑。
 
@@ -231,7 +234,7 @@ http://127.0.0.1:8080
 
 日常操作建議：
 
-- 「分析」頁籤：新分析、查找歷史報告、篩選 Mode A/B、查看決策追蹤、刷新資料快照、重跑報告與比較報告。
+- 「分析」頁籤：新分析、查找歷史報告、篩選 Mode A/B/C、查看決策追蹤、刷新資料快照、重跑報告與比較報告。
 - 「報告與維運」頁籤：查看 API 額度、本機 watchlist、來源健康、任務狀態與清理工具；首次打開頁籤才會載入這些維運資料。
 - 「資料快照已刷新，但 HTML/Markdown 分析本文未重新執行」代表只更新了 `.data.json` 的最新股價/來源/可信度，原本報告正文和投資結論還是舊模型在原生成時間做出的判斷；若要讓文字與結論一起更新，請使用重跑功能。
 
@@ -242,12 +245,14 @@ http://127.0.0.1:8080
 ```bash
 curl http://127.0.0.1:8080/api/reports
 curl "http://127.0.0.1:8080/api/reports?q=2308&pipeline=v2&include_versions=true"
+curl "http://127.0.0.1:8080/api/reports?q=2308&pipeline=v3&include_versions=true"
 ```
 
 分析股票：
 
 ```bash
 curl -N http://127.0.0.1:8080/api/analyze/2330
+curl -N "http://127.0.0.1:8080/api/analyze/2330?pipeline=v3"
 ```
 
 開啟報告：
@@ -288,7 +293,7 @@ curl -X POST -H "X-Mutation-Token: $TOKEN" \
   "http://127.0.0.1:8080/api/report/<filename>/rerun?scope=full"
 ```
 
-`full` 會先強制刷新資料，再用原報告 pipeline 完整重跑；`final_recommendation` 只重跑最終投資建議 Agent。
+`full` 會先強制刷新資料，再用原報告 pipeline 完整重跑；`final_recommendation` 只重跑該報告 pipeline 的最終建議 Agent；`mode_b` 會以 Mode B 重新分析。
 
 刪除報告：
 
@@ -374,6 +379,8 @@ GEMINI_API_KEYS=...
 
 通常是模型 API 回應慢、API quota 接近限制，或個股資料很異常導致 Agent 重試。後端會透過 SSE 持續送出 ping，前端沒有立即完成不一定代表失敗。
 
+若來源健康或終端機出現 `GDELT ... 429 Too Many Requests`，代表 GDELT 國際新聞來源暫時限流。系統會自動進入 cooldown、讀取 GDELT topic cache，或改用 Google News RSS 備援；通常不需要人工中止分析。若要拉長冷卻時間，可調整 `GDELT_RATE_LIMIT_COOLDOWN_SECONDS`。
+
 ### 3. FinMind 顯示 `Requests reach the upper limit`
 
 這代表 FinMind 公開資料額度已達上限。系統仍會使用 Yahoo Finance / yfinance 資料繼續分析，但近期月營收或官方中文名稱可能缺漏。部分常用台股名稱已加入 fallback。
@@ -417,7 +424,7 @@ xattr -d com.apple.quarantine start_mac.command
 
 - 不要把生成報告提交到 Git。
 - 不要把真實 API key 寫進程式碼。
-- Prompt 主要放在 `backend/prompts/agents.json`，修改後請確認 1 到 7 號 Agent 都保留 system 與 analysis prompt。
+- Prompt 主要放在 `backend/prompts/agents.json`，修改後請確認各 pipeline 的 Agent 都保留 system 與 analysis prompt；Mode C 使用 Agent 17 / 18 / 19。
 - HTML 報告版型主要放在 `backend/templates/report.html.j2`，Python 只負責整理資料與渲染模板。
 - 修改 prompt 或品質檢查後，建議至少跑一次 `python3 -m py_compile`。
 - 若調整公司身分檢查，請測試「同業比較」與「公司錯置」兩種情境，避免誤殺產業普通名詞。
