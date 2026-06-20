@@ -77,13 +77,13 @@ class ChipDataProvider(DataProvider):
 
 
 class AlternativeJobOpeningsProvider(DataProvider):
-    name = "104 job openings"
+    name = "104 & 1111 job openings"
     source = "alternative_data"
     markets = {"tw"}
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from data_trust import AUDIT_STATUS_NOT_CONFIGURED, AUDIT_STATUS_SUCCESS, AUDIT_STATUS_UNAVAILABLE
-        from alternative_data_fetcher import fetch_104_job_openings_count
+        from alternative_data_fetcher import fetch_104_job_openings_count, fetch_1111_job_openings_count
 
         data = (context or {}).get("data", {}) if isinstance((context or {}).get("data"), dict) else {}
         company_name = str(data.get("company_name") or request.ticker).strip()
@@ -105,26 +105,84 @@ class AlternativeJobOpeningsProvider(DataProvider):
                     "record_count": 0,
                     "cache_hit": False,
                     "stale": False,
-                    "message": "alternative_data_keywords 未設定，略過 104 職缺探測。",
+                    "message": "alternative_data_keywords 未設定，略過職缺探測。",
                 },
             )
 
-        results = [fetch_104_job_openings_count(company_name, keyword) for keyword in keywords[:3]]
-        successful = [item for item in results if isinstance(item, dict) and item.get("status") == "success"]
-        status = AUDIT_STATUS_SUCCESS if successful else AUDIT_STATUS_UNAVAILABLE
-        value = {"job_openings_104": successful[0] if len(successful) == 1 else results}
+        results_104 = [fetch_104_job_openings_count(company_name, keyword) for keyword in keywords[:3]]
+        results_1111 = [fetch_1111_job_openings_count(company_name, keyword) for keyword in keywords[:3]]
+        
+        successful_104 = [item for item in results_104 if isinstance(item, dict) and item.get("status") == "success"]
+        successful_1111 = [item for item in results_1111 if isinstance(item, dict) and item.get("status") == "success"]
+        
+        status = AUDIT_STATUS_SUCCESS if (successful_104 or successful_1111) else AUDIT_STATUS_UNAVAILABLE
+        value = {
+            "job_openings_104": successful_104[0] if len(successful_104) == 1 else results_104,
+            "job_openings_1111": successful_1111[0] if len(successful_1111) == 1 else results_1111,
+        }
         return ProviderResult(
             source=self.source,
             provider=self.name,
             status=status,
-            value=value if successful else None,
+            value=value if status == AUDIT_STATUS_SUCCESS else None,
             audit={
                 "source": self.source,
                 "provider": self.name,
                 "status": status,
-                "record_count": len(successful),
+                "record_count": len(successful_104) + len(successful_1111),
                 "cache_hit": False,
                 "stale": False,
-                "message": "104 職缺探測已回傳。" if successful else "104 職缺探測未回傳可用結果。",
+                "message": "職缺探測 (含新聞備援) 已回傳。" if status == AUDIT_STATUS_SUCCESS else "職缺探測未回傳可用結果。",
+            },
+        )
+
+
+class SocialSentimentProvider(DataProvider):
+    name = "Social Forum Sentiment (Dcard/Mobile01/PTT)"
+    source = "social_sentiment"
+    markets = {"tw"}
+
+    def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
+        from data_trust import AUDIT_STATUS_SUCCESS, AUDIT_STATUS_UNAVAILABLE
+        from news_fetchers import fetch_google_news_rss
+
+        data = (context or {}).get("data", {}) if isinstance((context or {}).get("data"), dict) else {}
+        company_name = str(data.get("company_name") or request.ticker).strip()
+        ticker = str(data.get("ticker") or request.ticker).replace(".TW", "").strip()
+
+        # Dcard
+        query_dcard = f"site:dcard.tw {company_name} OR {ticker}"
+        dcard_news = fetch_google_news_rss(query_dcard, limit=3)
+
+        # Mobile01
+        query_m01 = f"site:mobile01.com {company_name} OR {ticker}"
+        m01_news = fetch_google_news_rss(query_m01, limit=3)
+
+        # PTTWeb (alternative to pure PTT)
+        query_pttweb = f"site:pttweb.cc {company_name} OR {ticker}"
+        pttweb_news = fetch_google_news_rss(query_pttweb, limit=3)
+
+        value = {
+            "dcard": dcard_news,
+            "mobile01": m01_news,
+            "pttweb": pttweb_news,
+        }
+        
+        total_records = len(dcard_news) + len(m01_news) + len(pttweb_news)
+        status = AUDIT_STATUS_SUCCESS if total_records > 0 else AUDIT_STATUS_UNAVAILABLE
+        
+        return ProviderResult(
+            source=self.source,
+            provider=self.name,
+            status=status,
+            value=value if status == AUDIT_STATUS_SUCCESS else None,
+            audit={
+                "source": self.source,
+                "provider": self.name,
+                "status": status,
+                "record_count": total_records,
+                "cache_hit": False,
+                "stale": False,
+                "message": "社群論壇討論串已回傳。" if status == AUDIT_STATUS_SUCCESS else "近期無相關社群論壇討論。",
             },
         )
