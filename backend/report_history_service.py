@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 import time
+from contextlib import nullcontext
+from typing import Any
 
 from fastapi.responses import FileResponse, HTMLResponse
 
@@ -23,6 +25,7 @@ def cleanup_expired_reports(
     report_cache: dict,
     retention_days: int = REPORT_RETENTION_DAYS,
     repository: ReportRepository = DEFAULT_REPORT_REPOSITORY,
+    report_cache_lock: Any = None,
 ) -> list[str]:
     """Delete old HTML/Markdown/data snapshots so output does not grow forever."""
     if not os.path.exists(output_dir) or retention_days <= 0:
@@ -44,9 +47,10 @@ def cleanup_expired_reports(
             pass
 
     if deleted:
-        for ticker, cached_filename in list(report_cache.items()):
-            if cached_filename in deleted:
-                del report_cache[ticker]
+        with report_cache_lock or nullcontext():
+            for ticker, cached_filename in list(report_cache.items()):
+                if cached_filename in deleted:
+                    del report_cache[ticker]
     return deleted
 
 
@@ -97,8 +101,6 @@ def list_reports(
     report_cache: dict,
     repository: ReportRepository = DEFAULT_REPORT_REPOSITORY,
 ) -> dict:
-    cleanup_expired_reports(output_dir, report_cache)
-    cleanup_orphan_markdown_reports(output_dir)
     query = q.strip().lower()
     pipeline_filter = pipeline.strip().lower()
     if pipeline_filter in {"mode_a", "a", "academic"}:
@@ -159,6 +161,7 @@ def delete_report_files(
     output_dir: str,
     report_cache: dict,
     repository: ReportRepository = DEFAULT_REPORT_REPOSITORY,
+    report_cache_lock: Any = None,
 ) -> dict:
     if not is_safe_report_filename(filename, ".html"):
         return {"success": False, "error": "Invalid filename"}
@@ -185,9 +188,10 @@ def delete_report_files(
     if errors:
         return {"success": False, "error": "; ".join(errors), "deleted": deleted}
 
-    for ticker, cached_filename in list(report_cache.items()):
-        if cached_filename == filename:
-            del report_cache[ticker]
+    with report_cache_lock or nullcontext():
+        for ticker, cached_filename in list(report_cache.items()):
+            if cached_filename == filename:
+                del report_cache[ticker]
     repository.delete(filename, output_dir)
     return {"success": True, "deleted": deleted}
 

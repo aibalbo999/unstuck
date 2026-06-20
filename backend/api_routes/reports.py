@@ -37,6 +37,7 @@ class ReportRouteDeps:
     request_job_cancel: Callable[[str, str], bool]
     print_streamed_event: Callable[[str, dict], None]
     require_mutation_authorized: Callable[[Request], None]
+    get_report_cache_lock: Callable[[], Any] | None = None
 
 
 def create_reports_router(deps: ReportRouteDeps) -> APIRouter:
@@ -78,7 +79,13 @@ def create_reports_router(deps: ReportRouteDeps) -> APIRouter:
     @router.delete("/api/reports/{filename}")
     def delete_report(filename: str, request: Request):
         deps.require_mutation_authorized(request)
-        return report_history_service.delete_report_files(filename, deps.get_output_dir(), deps.get_report_cache())
+        report_cache_lock = deps.get_report_cache_lock() if deps.get_report_cache_lock else None
+        return report_history_service.delete_report_files(
+            filename,
+            deps.get_output_dir(),
+            deps.get_report_cache(),
+            report_cache_lock=report_cache_lock,
+        )
 
     @router.get("/api/report/{filename}")
     async def get_report(filename: str):
