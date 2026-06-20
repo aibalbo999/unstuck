@@ -17,7 +17,7 @@ from reporting import ReportBundle  # noqa: E402
 def test_v1_pipeline_keeps_prompt_dependencies_before_parallel_valuation_growth():
     v1 = pipeline_modes.get_pipeline_definition("v1")
 
-    assert v1["groups"][:4] == ((1,), (2,), (3,), (4, 5))
+    assert v1["groups"][:4] == ((1,), (2,), (3, 20), (4, 5))
 
 
 def test_dual_pipeline_job_runs_v1_then_v2(monkeypatch, tmp_path):
@@ -106,9 +106,9 @@ def test_dual_pipeline_job_runs_v1_then_v2(monkeypatch, tmp_path):
 
     progress_events = [event for event in events if event["type"] == "progress"]
     assert progress_events[0]["current"] == 1
-    assert progress_events[0]["total"] == 13
-    assert progress_events[1]["current"] == 8
-    assert progress_events[1]["total"] == 13
+    assert progress_events[0]["total"] == 17
+    assert progress_events[1]["current"] == 10
+    assert progress_events[1]["total"] == 17
     assert updates[-1][0] == "done"
 
 

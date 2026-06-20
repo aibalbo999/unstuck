@@ -126,6 +126,29 @@ class FmpNewsProvider(DataProvider):
         return provider_result_from_audited(result, self.source, self.name)
 
 
+class EarningsCallProvider(DataProvider):
+    name = "FMP earnings call transcript"
+    source = "earnings_call"
+
+    def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
+        from config import FMP_API_KEY
+        from .earnings_call_fetcher import fetch_latest_earnings_call
+
+        if not FMP_API_KEY:
+            return not_configured_provider_result(self.source, self.name, "FMP_API_KEY 未設定，略過法說逐字稿。")
+        data = (context or {}).get("data", {}) if isinstance((context or {}).get("data"), dict) else {}
+        ticker = str((context or {}).get("original_ticker") or data.get("ticker") or request.ticker).strip().upper()
+        result = audited_fetch(
+            self.source,
+            self.name,
+            fetch_latest_earnings_call,
+            (ticker,),
+            default={},
+            unavailable_message="FMP 未回傳法說逐字稿。",
+        )
+        return provider_result_from_audited(result, self.source, self.name)
+
+
 class GlobalMarketContextProvider(DataProvider):
     name = "yfinance global context"
     source = "global_market_context"

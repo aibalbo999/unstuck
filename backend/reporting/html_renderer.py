@@ -11,6 +11,12 @@ from config import format_model_routes
 from pipeline_modes import get_pipeline_definition
 
 from .audit_trust import build_audit_banner_html, build_data_trust_html, build_source_audit_html
+from .analysis_overlays import (
+    build_dcf_scenario_rows,
+    build_downside_view,
+    build_management_sentiment,
+    build_peer_comparison_rows,
+)
 from .common import build_agent_model_labels, render_report_template
 from .cover import prepare_report_cover_async
 from .html_sanitizer import sanitize_report_image_url, sanitize_report_plain_text
@@ -118,6 +124,10 @@ def generate_html_report(context: AnalysisContext) -> str:
     report_cover_model = report_cover.get("model", "")
     
     agent_sections = build_agent_sections(context, html=True)
+    dcf_scenario_rows = build_dcf_scenario_rows(data)
+    management_sentiment = build_management_sentiment(context)
+    downside_view = build_downside_view(context)
+    peer_comparison_rows = build_peer_comparison_rows(data)
     
     # 準備 JSON 數據給圖表
     chart_data = {

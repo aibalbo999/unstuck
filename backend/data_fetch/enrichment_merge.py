@@ -64,6 +64,10 @@ def _merge_optional_http_bundle(
     if isinstance(alternative_data, dict) and alternative_data:
         data["alternative_data"] = alternative_data
 
+    earnings_call = http_bundle.get("earnings_call", {}) or {}
+    if isinstance(earnings_call, dict) and earnings_call:
+        data["earnings_call"] = earnings_call
+
     fmp_quote = http_bundle.get("fmp_quote", {}) or {}
     if isinstance(fmp_quote, dict) and fmp_quote:
         updated_fields = []
@@ -175,6 +179,8 @@ def _optional_provider_label(source: str) -> str:
         return "TDCC/TWSE chip data"
     if source == "alternative_data":
         return "Alternative data providers"
+    if source == "earnings_call":
+        return "FMP earnings call transcript"
     return "Google Search"
 
 

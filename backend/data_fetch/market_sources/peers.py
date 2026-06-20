@@ -73,8 +73,17 @@ def fetch_dynamic_peer_metrics(ticker: str, company_name: str, sector: str, indu
             "gross_margin_pct": round(float(info.get("grossMargins")) * 100, 2) if isinstance(info.get("grossMargins"), (int, float)) else None,
             "operating_margin_pct": round(float(info.get("operatingMargins")) * 100, 2) if isinstance(info.get("operatingMargins"), (int, float)) else None,
             "profit_margin_pct": round(float(info.get("profitMargins")) * 100, 2) if isinstance(info.get("profitMargins"), (int, float)) else None,
+            "roe_pct": round(float(info.get("returnOnEquity")) * 100, 2) if isinstance(info.get("returnOnEquity"), (int, float)) else None,
+            "asset_turnover": (
+                round(float(info.get("totalRevenue")) / float(info.get("totalAssets")), 4)
+                if isinstance(info.get("totalRevenue"), (int, float))
+                and isinstance(info.get("totalAssets"), (int, float))
+                and float(info.get("totalAssets")) > 0
+                else None
+            ),
             "pe_ttm": round(float(info.get("trailingPE")), 2) if isinstance(info.get("trailingPE"), (int, float)) else None,
             "pb": round(float(info.get("priceToBook")), 2) if isinstance(info.get("priceToBook"), (int, float)) else None,
+            "ps_ttm": round(float(info.get("priceToSalesTrailing12Months")), 2) if isinstance(info.get("priceToSalesTrailing12Months"), (int, float)) else None,
         }
         if selection is not None and selection_policy is not None:
             record.update({

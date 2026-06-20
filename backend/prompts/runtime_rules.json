@@ -71,6 +71,9 @@
         "    \"uses_normalized_fcf\": true,",
         "    \"double_counting_check\": \"繁體中文一句話\"",
         "  },",
+        "  \"dcf_scenarios\": [",
+        "    {\"scenario\": \"bear|base|bull\", \"revenue_growth_bias_pct\": number, \"margin_bias_pct\": number, \"wacc_pct\": number, \"intrinsic_value\": number}",
+        "  ],",
         "  \"analysis_markdown\": \"繁體中文正式報告正文\"",
         "}"
       ],
@@ -79,7 +82,8 @@
         "目標價必須是完整股價數字，例如 5249，不可輸出 5 來代表 5,249。",
         "analysis_markdown 不可把 DCF 與 EPS×P/E 宣稱為完全吻合。",
         "若任何情境使用營收或 FCF 年成長率超過 30%，dcf_reasoning 或 analysis_markdown 必須包含「高成長可執行性檢查」，說明 CapEx、產能擴充、折舊、良率、人力、供應鏈瓶頸與客戶需求。",
-        "不可僅憑 AI、熱門題材或市場熱度提高成長率或估值倍數；資料不足時需採保守情境、降低倍數或標示低信心。"
+        "不可僅憑 AI、熱門題材或市場熱度提高成長率或估值倍數；資料不足時需採保守情境、降低倍數或標示低信心。",
+        "dcf_scenarios 應逐一引用 deterministic DCF 的 bear/base/bull 假設；Bull 的成長與利潤率偏差較 Base 樂觀且 WACC 較低，Bear 反之。"
       ]
     },
     "7": {
@@ -153,6 +157,9 @@
         "    \"uses_normalized_fcf\": true,",
         "    \"double_counting_check\": \"繁體中文一句話\"",
         "  },",
+        "  \"dcf_scenarios\": [",
+        "    {\"scenario\": \"bear|base|bull\", \"revenue_growth_bias_pct\": number, \"margin_bias_pct\": number, \"wacc_pct\": number, \"intrinsic_value\": number}",
+        "  ],",
         "  \"analysis_markdown\": \"繁體中文正式報告正文\"",
         "}"
       ],
@@ -161,7 +168,8 @@
         "目標價必須是完整股價數字，例如 5249，不可輸出 5 來代表 5,249。",
         "analysis_markdown 不可把 DCF 與 EPS×P/E 宣稱為完全吻合。",
         "若任何情境使用營收或 FCF 年成長率超過 30%，dcf_reasoning 或 analysis_markdown 必須包含「高成長可執行性檢查」，說明 CapEx、產能擴充、折舊、良率、人力、供應鏈瓶頸與客戶需求。",
-        "不可僅憑 AI、熱門題材或市場熱度提高成長率或估值倍數；資料不足時需採保守情境、降低倍數或標示低信心。"
+        "不可僅憑 AI、熱門題材或市場熱度提高成長率或估值倍數；資料不足時需採保守情境、降低倍數或標示低信心。",
+        "dcf_scenarios 應逐一引用 deterministic DCF 的 bear/base/bull 假設；Bull 的成長與利潤率偏差較 Base 樂觀且 WACC 較低，Bear 反之。"
       ]
     },
     "16": {
@@ -220,6 +228,37 @@
         "recommendation.建議 只能是「強烈放空」、「避免」、「持有」、「買進」四者之一；除非資料顯示估值與財務已恢復合理，否則應傾向「強烈放空」或「避免」。",
         "analysis_markdown 的最後必須自然導出 recommendation，且正文必須明確出現「做空觸發條件（Catalyst for crash）」與「防軋空停損點（Stop-loss level）」兩段。",
         "所有目標價都必須是完整股價數字或清楚區間，不可發生千元被縮成個位數。"
+      ]
+    },
+    "20": {
+      "title": "管理層語氣結構化輸出規則",
+      "intro": "請只輸出合法 JSON，不要 Markdown code fence。",
+      "schema_lines": [
+        "{",
+        "  \"guidance_tone\": \"樂觀|中立|保守|資料不足\",",
+        "  \"confidence\": 0.0,",
+        "  \"highlights\": [{\"keyword\": \"關鍵字\", \"quote\": \"逐字稿短句\"}],",
+        "  \"analysis_markdown\": \"繁體中文分析\"",
+        "}"
+      ],
+      "rules": [
+        "highlights 必須剛好 3 項。",
+        "quote 只能來自 earnings_call_context；缺資料時清楚標示資料不足。"
+      ]
+    },
+    "21": {
+      "title": "紅軍空頭結構化輸出規則",
+      "intro": "請只輸出合法 JSON，不要 Markdown code fence。",
+      "schema_lines": [
+        "{",
+        "  \"thesis_summary\": \"空頭核心論點\",",
+        "  \"downside_risks\": [{\"title\": \"風險\", \"evidence\": \"State 證據\", \"impact\": \"衝擊\", \"severity\": \"warning|high|critical\", \"confidence\": 0.0}],",
+        "  \"analysis_markdown\": \"繁體中文空頭報告\"",
+        "}"
+      ],
+      "rules": [
+        "downside_risks 必須 3 至 5 項。",
+        "每項風險必須具備可追溯證據，不得補造。"
       ]
     }
   },

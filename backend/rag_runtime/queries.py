@@ -26,6 +26,8 @@ AGENT_RAG_QUERIES = {
     17: "behavioral finance sentiment hype narrative FOMO bubble catalyst conference call forward EPS PE river chart overvaluation AI 6G space theme 情緒 泡沫 題材 狂熱 法說 河流圖 估值乖離 預期",
     18: "forensic accounting revenue CAGR DuPont ROE asset turnover gross margin peers institutional flow foreign investors distribution insider selling 財務紅旗 杜邦 資產周轉率 毛利率 法人 外資 派發 倒貨",
     19: "short seller bubble attack report crash catalyst stop loss squeeze risk downside target liquidation value pessimistic DCF 做空 放空 泡沫狙擊 崩盤催化 停損 軋空 避險 清算價值",
+    20: "earnings call transcript management guidance tone outlook demand margin capex supply constraint 法說會 逐字稿 管理層 展望 語氣 指引",
+    21: "devil advocate bear case downside hidden debt customer concentration disruption overvaluation cash flow guidance risk 空頭 紅軍 下行風險 估值過高 客戶集中",
 }
 
 

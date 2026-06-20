@@ -27,6 +27,7 @@ def _load_source_freshness_seconds() -> dict[str, int]:
         "financial_statements": FINANCIAL_DATA_CACHE_SECONDS,
         "monthly_revenue": 24 * 60 * 60,
         "recent_catalysts": 30 * 60,
+        "earnings_call": 24 * 60 * 60,
         "institutional_trading": 6 * 60 * 60,
         "dynamic_peer_metrics": 24 * 60 * 60,
         "peer_discovery": 24 * 60 * 60,

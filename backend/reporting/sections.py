@@ -102,12 +102,13 @@ def _structured_block_belongs_at_tail(agent_num: int, pipeline_def: dict, struct
 def build_agent_sections(context: AnalysisContext, *, html: bool = True) -> list[dict]:
     pipeline_def = get_pipeline_definition(context.get("pipeline_id", "v1"))
     analyses = context.get("analyses", {}) or {}
+    agent_sequence = tuple(context.get("agent_sequence") or pipeline_def["agents"])
     agent_model_labels = build_agent_model_labels()
     structured_agents = pipeline_def["structured_agents"]
     debate_agents = set(pipeline_def.get("debate_agents", ()))
     sections = []
 
-    for display_num, agent_num in enumerate(pipeline_def["agents"], 1):
+    for display_num, agent_num in enumerate(agent_sequence, 1):
         raw_source = analyses.get(agent_num, "分析進行中...")
         structured_intro = build_structured_intro_block(agent_num, context)
         if _structured_block_belongs_at_tail(agent_num, pipeline_def, structured_agents):

@@ -56,6 +56,8 @@ def base_data():
 def complete_context():
     data = base_data()
     context = {
+        "pipeline_id": "v1",
+        "agent_sequence": (1, 2, 3, 4, 5, 6, 7),
         "data": data,
         "analyses": {
             1: "## 商業模式\n大東電以電線電纜為核心業務。",
@@ -112,6 +114,7 @@ def complete_v2_context():
         "ticker": "2449.TW",
         "company_name": "京元電子 / King Yuan Electronics Co., Ltd.",
         "pipeline_id": "v2",
+        "agent_sequence": (11, 12, 13, 14, 15, 16),
         "data": data,
         "analyses": {
             11: (
@@ -691,8 +694,16 @@ class AuditRuleTests(unittest.TestCase):
 
     def test_agent_function_tools_are_registered(self):
         self.assertEqual([tool.__name__ for tool in ar.get_agent_function_tools(2)], ["calculate_cagr"])
-        self.assertEqual([tool.__name__ for tool in ar.get_agent_function_tools(13)], ["calculate_cagr"])
-        self.assertEqual([tool.__name__ for tool in ar.get_agent_function_tools(18)], ["calculate_cagr"])
+        self.assertEqual([tool.__name__ for tool in ar.get_agent_function_tools(3)], ["calculate_dupont"])
+        self.assertEqual([tool.__name__ for tool in ar.get_agent_function_tools(12)], ["calculate_dupont"])
+        self.assertEqual(
+            [tool.__name__ for tool in ar.get_agent_function_tools(13)],
+            ["calculate_cagr", "calculate_dupont"],
+        )
+        self.assertEqual(
+            [tool.__name__ for tool in ar.get_agent_function_tools(18)],
+            ["calculate_cagr", "calculate_dupont"],
+        )
         self.assertEqual(
             [tool.__name__ for tool in ar.get_agent_function_tools(4)],
             [
@@ -825,7 +836,7 @@ class AuditRuleTests(unittest.TestCase):
 
     def test_pipeline_v2_definition_and_prompt_registration(self):
         v2 = pipeline_modes.get_pipeline_definition("v2")
-        self.assertEqual(v2["agents"], (11, 12, 13, 14, 15, 16))
+        self.assertEqual(v2["agents"], (11, 12, 13, 20, 14, 15, 21, 16))
         self.assertEqual(v2["structured_agents"], {"moat": 12, "valuation": 14, "recommendation": 16})
         for agent_num in v2["agents"]:
             self.assertIn(agent_num, ar.AGENT_NAMES)
@@ -835,8 +846,8 @@ class AuditRuleTests(unittest.TestCase):
 
     def test_pipeline_v3_definition_and_prompt_registration(self):
         v3 = pipeline_modes.get_pipeline_definition("v3")
-        self.assertEqual(v3["agents"], (17, 18, 19))
-        self.assertEqual(v3["groups"], ((17,), (18,), (19,)))
+        self.assertEqual(v3["agents"], (17, 18, 20, 21, 19))
+        self.assertEqual(v3["groups"], ((17,), (18, 20), (21,), (19,)))
         self.assertEqual(v3["structured_agents"], {"recommendation": 19})
         self.assertEqual(pipeline_modes.normalize_pipeline_id("mode_c"), "v3")
         for agent_num in v3["agents"]:
@@ -851,7 +862,7 @@ class AuditRuleTests(unittest.TestCase):
         self.assertEqual(pipeline_modes.normalize_pipeline_run_id("both"), "both")
         self.assertEqual(pipeline_modes.normalize_pipeline_run_id("a+b"), "both")
         self.assertEqual(pipeline_modes.get_pipeline_run_sequence("both"), ("v1", "v2"))
-        self.assertEqual(pipeline_modes.get_pipeline_run_agent_total("both"), 13)
+        self.assertEqual(pipeline_modes.get_pipeline_run_agent_total("both"), 17)
         self.assertEqual(pipeline_modes.get_pipeline_run_sequence("v2"), ("v2",))
         self.assertEqual(pipeline_modes.get_pipeline_run_sequence("v3"), ("v3",))
 

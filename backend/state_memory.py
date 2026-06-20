@@ -38,6 +38,15 @@ STATE_VIEW_POLICY: dict[str, dict[str, list[str] | dict[str, list[str]]]] = {
         "peer_context": ["dynamic_peer_metrics"],
         "root": ["validation_issues", "risk_flags", "chip_context"],
     },
+    "20": {
+        "root": ["validation_issues", "risk_flags", "earnings_call_context"],
+    },
+    "21": {
+        "normalized_financials": ["revenue_history", "net_income_history", "fcf_history", "cash_flow"],
+        "quant_metrics": ["calculations", "unit_contract"],
+        "peer_context": ["selected_peers", "selection_policy", "dynamic_peer_metrics"],
+        "root": ["risk_flags", "validation_issues", "tool_results", "agent_reports", "earnings_call_context"],
+    },
     "valuation": {
         "normalized_financials": ["revenue_history", "net_income_history", "fcf_history", "cash_flow"],
         "quant_metrics": ["calculations", "unit_contract"],
@@ -54,6 +63,9 @@ STATE_VIEW_POLICY: dict[str, dict[str, list[str] | dict[str, list[str]]]] = {
 
 
 def initialize_agent_state(data: dict[str, Any], *, run_id: str | None = None) -> AgentState:
+    quant_metrics = copy.deepcopy(data.get("deterministic_financial_tool_results") or {})
+    if isinstance(data.get("quant_metrics"), dict):
+        quant_metrics.update(copy.deepcopy(data["quant_metrics"]))
     return AgentState(
         run_id=run_id or str(uuid.uuid4()),
         ticker=str(data.get("ticker") or ""),
@@ -63,7 +75,7 @@ def initialize_agent_state(data: dict[str, Any], *, run_id: str | None = None) -
         normalized_financials=copy.deepcopy(data),
         source_audit=copy.deepcopy(data.get("source_audit") or []),
         peer_context={"dynamic_peer_metrics": copy.deepcopy(data.get("dynamic_peer_metrics") or [])},
-        quant_metrics=copy.deepcopy(data.get("deterministic_financial_tool_results") or {}),
+        quant_metrics=quant_metrics,
     )
 
 
@@ -148,6 +160,7 @@ def _external_context_for_state(state: AgentState) -> dict[str, Any]:
         "chip_context": copy.deepcopy(data.get("chip_data") or {}),
         "alternative_data": copy.deepcopy(data.get("alternative_data") or {}),
         "sentiment_context": copy.deepcopy(data.get("sentiment_context") or {}),
+        "earnings_call_context": copy.deepcopy(data.get("earnings_call") or {}),
     }
 
 

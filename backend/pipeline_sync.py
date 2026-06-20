@@ -8,6 +8,7 @@ from agent_catalog import AGENT_NAMES
 from agent_runtime.audit_repair import finalize_final_audit
 from agent_runtime.routing import is_agent_execution_failure
 from agent_runtime.single_agent import run_single_agent
+from agent_runtime.state_report_adapter import record_agent_state_report
 from analysis_types import AnalysisContext, StockData
 from config import AGENT_MODELS, API_KEYS, EMBEDDING_MODEL
 from context_digest_tasks import CONTEXT_DIGEST_TARGET_AGENTS, ensure_context_digest
@@ -16,6 +17,7 @@ from pipeline_modes import get_pipeline_definition, normalize_pipeline_id
 from rag_runtime import build_rag_index, ensure_agent_rag_context
 from runtime_events import RUNTIME_EVENT_CALLBACK_KEY, emit_log, emit_progress, emit_status
 from tear_sheet_tasks import ensure_tear_sheet_summary
+from state_memory import initialize_agent_state
 from validators import (
     append_identity_warnings,
     append_quality_warnings,
@@ -57,6 +59,7 @@ def run_analysis_pipeline(
         "agent_sequence": agent_sequence,
         "agent_positions": agent_positions,
         "agent_total": agent_total,
+        "agent_state": initialize_agent_state(data),
     }
     if progress_callback:
         context[RUNTIME_EVENT_CALLBACK_KEY] = progress_callback
@@ -150,6 +153,10 @@ def _run_sync_agent(agent_num, data, context, rotator, progress_callback, agent_
 
     result = append_quality_warnings(agent_num, result, data)
     context["analyses"][agent_num] = result
+    state = context.get("agent_state")
+    if state is not None:
+        structured = (context.get("structured_outputs") or {}).get(agent_num)
+        record_agent_state_report(state, agent_num, result, structured)
     _log_agent_completion(result, time.time() - start)
     emit_progress(
         progress_callback,
@@ -256,8 +263,6 @@ def _record_agent_block(context, agent_num, agent_name, result, issues, header) 
         emit_log(f"     - {issue}")
     context.setdefault("blocking_issues", []).extend(f"Agent {agent_num} {agent_name}: {issue}" for issue in issues)
     context["analyses"][agent_num] = result
-
-
 def _log_agent_completion(result: str, elapsed: float) -> None:
     preview = result[:120].replace("\n", " ")
     emit_log(

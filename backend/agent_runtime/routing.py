@@ -8,6 +8,7 @@ from financial_tools import (
     calculate_cagr,
     calculate_dcf,
     calculate_ddm,
+    calculate_dupont,
     calculate_implied_revenue_growth,
     calculate_wacc,
 )
@@ -15,17 +16,20 @@ from llm_client import KeyRotator
 
 def get_agent_function_tools(agent_num: int) -> list:
     """Return Python function tools for agents that need deterministic math."""
+    tools = []
     if agent_num in {2, 13, 18}:
-        return [calculate_cagr]
+        tools.append(calculate_cagr)
+    if agent_num in {3, 12, 13, 18}:
+        tools.append(calculate_dupont)
     if agent_num in {4, 14}:
-        return [
+        tools.extend([
             calculate_cagr,
             calculate_wacc,
             calculate_dcf,
             calculate_ddm,
             calculate_implied_revenue_growth,
-        ]
-    return []
+        ])
+    return tools
 
 
 def get_agent_model_sequence(agent_num: int) -> list[str]:

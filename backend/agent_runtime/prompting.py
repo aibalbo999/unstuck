@@ -28,9 +28,10 @@ ROUTED_EXTERNAL_CONTEXT_KEYS = {
     "twse_margin_short_sales": {15, 18},
     "alternative_data": {13, 14},
     "sentiment_context": {17},
+    "earnings_call": {20},
     "dcard_sentiment": {17},
     "ptt_sentiment": {17},
-    "temporal_memory": {7, 16, 19},
+    "temporal_memory": {7, 16, 19, 21},
 }
 
 

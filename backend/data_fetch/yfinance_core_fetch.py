@@ -229,6 +229,7 @@ def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_
         )
         enrichment_audit = enrichment_bundle.get("audit", [])
         recent_catalysts = enrichment_bundle.get("recent_catalysts", [])
+        earnings_call = enrichment_bundle.get("earnings_call", {})
         institutional_trading = enrichment_bundle.get("institutional_trading", {})
         dynamic_peer_metrics = enrichment_bundle.get("dynamic_peer_metrics", [])
         peer_discovery_results = enrichment_bundle.get("peer_discovery_results", [])

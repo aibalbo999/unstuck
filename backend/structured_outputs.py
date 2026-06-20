@@ -6,6 +6,11 @@ from openai_structured_outputs import openai_json_schema_response_format
 from structured_output_models import (
     BubbleSniperRecommendationFields,
     BubbleSniperStructuredOutput,
+    BearAdvocateStructuredOutput,
+    DcfScenarioOutput,
+    DownsideRisk,
+    ManagementHighlight,
+    ManagementSentimentStructuredOutput,
     STRUCTURED_AGENT_INSTRUCTIONS,
     STRUCTURED_AGENT_RESPONSE_SCHEMAS,
     MoatScores,

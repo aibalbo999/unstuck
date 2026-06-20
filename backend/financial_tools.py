@@ -20,6 +20,20 @@ def calculate_cagr(start_value: float, end_value: float, periods: int) -> dict:
         "cagr_pct": round(cagr_pct, 4),
     }
 
+
+def calculate_dupont(net_margin_pct: float, asset_turnover: float, equity_multiplier: float) -> dict:
+    """Decompose ROE into net margin, asset turnover, and equity multiplier."""
+    if asset_turnover < 0 or equity_multiplier <= 0:
+        return {"error": "asset_turnover must be non-negative and equity_multiplier must be positive"}
+    roe_pct = float(net_margin_pct) * float(asset_turnover) * float(equity_multiplier)
+    return {
+        "net_margin_pct": round(float(net_margin_pct), 4),
+        "asset_turnover": round(float(asset_turnover), 4),
+        "equity_multiplier": round(float(equity_multiplier), 4),
+        "roe_pct": round(roe_pct, 4),
+        "formula": "ROE = net margin x asset turnover x equity multiplier",
+    }
+
 def calculate_wacc(
     market_cap_twd: float,
     total_debt_twd: float,
@@ -193,29 +207,37 @@ def build_financial_tool_context(data: dict) -> dict:
         if _rev_g > 30:
             # 高成長期：乘數提高、上限放寬；terminal growth 也略為上調
             _growth_phase = "high_growth"
+            base_growth = max(min(_rev_g * 0.40, 25), 5)
             scenarios = {
-                "bear": {"growth_rate_pct": max(min(_rev_g * 0.25, 15), 0),  "terminal_growth_pct": 1.5},
-                "base": {"growth_rate_pct": max(min(_rev_g * 0.40, 25), 5),  "terminal_growth_pct": 2.5},
-                "bull": {"growth_rate_pct": max(min(_rev_g * 0.55, 35), 8),  "terminal_growth_pct": 3.0},
+                "bear": {"growth_rate_pct": base_growth * 0.8, "growth_bias_pct": -20, "margin_bias_pct": -20, "wacc_delta_pct": 1.5, "terminal_growth_pct": 1.5},
+                "base": {"growth_rate_pct": base_growth, "growth_bias_pct": 0, "margin_bias_pct": 0, "wacc_delta_pct": 0, "terminal_growth_pct": 2.5},
+                "bull": {"growth_rate_pct": min(base_growth * 1.2, 35), "growth_bias_pct": 20, "margin_bias_pct": 20, "wacc_delta_pct": -1.0, "terminal_growth_pct": 3.0},
             }
         else:
             # 穩定期：維持原有保守邏輯
             _growth_phase = "stable"
+            base_growth = max(min(_rev_g * 0.25, 10), 0)
             scenarios = {
-                "bear": {"growth_rate_pct": max(min(_rev_g * 0.15, 6),  -5), "terminal_growth_pct": 1.0},
-                "base": {"growth_rate_pct": max(min(_rev_g * 0.25, 10),  0), "terminal_growth_pct": 2.0},
-                "bull": {"growth_rate_pct": max(min(_rev_g * 0.35, 15),  2), "terminal_growth_pct": 2.5},
+                "bear": {"growth_rate_pct": base_growth * 0.8, "growth_bias_pct": -20, "margin_bias_pct": -20, "wacc_delta_pct": 1.5, "terminal_growth_pct": 1.0},
+                "base": {"growth_rate_pct": base_growth, "growth_bias_pct": 0, "margin_bias_pct": 0, "wacc_delta_pct": 0, "terminal_growth_pct": 2.0},
+                "bull": {"growth_rate_pct": max(min(base_growth * 1.2, 15), 2), "growth_bias_pct": 20, "margin_bias_pct": 20, "wacc_delta_pct": -1.0, "terminal_growth_pct": 2.5},
             }
         dcf_results = {}
         for scenario, assumptions in scenarios.items():
-            dcf_results[scenario] = calculate_dcf(
-                base_fcf_billion_twd=base_fcf,
-                growth_rate_pct=assumptions["growth_rate_pct"],
-                wacc_pct=wacc_pct,
-                terminal_growth_pct=assumptions["terminal_growth_pct"],
-                shares_outstanding=shares,
-                net_debt_billion_twd=net_debt or 0,
-            )
+            scenario_wacc = max(wacc_pct + assumptions["wacc_delta_pct"], assumptions["terminal_growth_pct"] + 0.5)
+            scenario_base_fcf = base_fcf * (1 + assumptions["margin_bias_pct"] / 100)
+            dcf_results[scenario] = {
+                **calculate_dcf(
+                    base_fcf_billion_twd=scenario_base_fcf,
+                    growth_rate_pct=assumptions["growth_rate_pct"],
+                    wacc_pct=scenario_wacc,
+                    terminal_growth_pct=assumptions["terminal_growth_pct"],
+                    shares_outstanding=shares,
+                    net_debt_billion_twd=net_debt or 0,
+                ),
+                "growth_bias_pct": assumptions["growth_bias_pct"],
+                "margin_bias_pct": assumptions["margin_bias_pct"],
+            }
         tool_context["calculations"]["dcf_scenarios_default"] = {
             "base_fcf_billion_twd": round(base_fcf, 4),
             "base_fcf_note": base_note,
