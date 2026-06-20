@@ -13,6 +13,7 @@ from data_fetch.providers import (  # noqa: E402
     CallableProvider,
     FinMindProvider,
     FmpProvider,
+    FreeNewsWaterfallProvider,
     InstitutionalTradingProvider,
     MonthlyRevenueProvider,
     PeRiverChartProvider,
@@ -107,6 +108,12 @@ def test_default_core_provider_registry_exposes_expected_source_routes():
     assert registry.provider_names(us_request, source="twse_official") == []
     assert registry.provider_names(us_request, source="market_data") == ["FMP stable quote"]
     assert registry.first_provider(us_request, source="market_data") is None
+
+
+def test_default_registry_prefers_free_news_waterfall():
+    registry = ProviderRegistry()
+
+    assert registry.provider_names(FetchRequest.from_ticker("2330.TW"), source="recent_catalysts")[0] == "Free news waterfall"
 
 
 def test_agent_executor_uses_split_runtime(monkeypatch):

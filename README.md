@@ -114,6 +114,7 @@ export GEMINI_API_KEYS="your_key_1,your_key_2"
 - `GOOGLE_SEARCH_API_KEY`、`GOOGLE_CSE_ID`：可選，用於近期新聞與催化劑搜尋
 - `FMP_API_KEY`：可選，用於 yfinance 缺漏時補市場欄位與新聞
 - `FINMIND_API_TOKEN`：可選，用於提高 FinMind 台股官方財報、月營收與法人資料抓取穩定度；未設定時仍會嘗試公開額度
+- `FRED_API_KEY`：可選，用於抓取 DGS10、CPI 年增率與 VIX；模組使用 15 分鐘記憶體快取以降低請求頻率
 
 可選設定：
 

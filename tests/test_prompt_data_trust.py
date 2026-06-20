@@ -10,6 +10,8 @@ import final_audit  # noqa: E402
 import decision_tracking  # noqa: E402
 import prompt_builder  # noqa: E402
 import structured_outputs  # noqa: E402
+from agent_runtime.prompting import build_prompt  # noqa: E402
+from state_memory import initialize_agent_state  # noqa: E402
 
 
 def _recommendation_payload(confidence: str = "9/10") -> dict:
@@ -34,6 +36,70 @@ def _recommendation_payload(confidence: str = "9/10") -> dict:
         ],
         "analysis_markdown": "資料限制已揭露的正式段落。",
     }
+
+
+def test_valuation_prompt_includes_state_view_and_deemphasizes_previous_summary():
+    data = {
+        "ticker": "2308.TW",
+        "company_name": "台達電",
+        "revenue_history": [100, 120],
+    }
+    state = initialize_agent_state(data, run_id="prompt-1")
+    state.quant_metrics = {
+        "calculations": {
+            "dcf_scenarios_default": {
+                "base": {"price_per_share_twd": 100},
+            }
+        }
+    }
+    context = {
+        "analyses": {1: "早期商業模式完整分析 " * 200},
+        "structured_outputs": {},
+        "agent_state": state,
+    }
+
+    prompt = build_prompt(4, data, context)
+
+    assert "AgentState view" in prompt
+    assert '"quant_metrics"' in prompt
+    assert "你不再讀取前序摘要" in prompt
+
+
+def test_open_circuit_breaker_blocks_valuation_prompt_target_prices():
+    data = {
+        "ticker": "2308.TW",
+        "company_name": "台達電",
+        "revenue_history": [100, 120],
+    }
+    state = initialize_agent_state(data, run_id="prompt-blocked")
+    state.circuit_breaker.status = "open"
+    state.circuit_breaker.blocking_fields = ["total_debt", "free_cash_flow"]
+    state.circuit_breaker.reason = "Critical financial provider values conflict above validation threshold."
+    context = {
+        "analyses": {},
+        "structured_outputs": {},
+        "agent_state": state,
+    }
+
+    prompt = build_prompt(4, data, context)
+
+    assert '"status": "open"' in prompt
+    assert '"total_debt"' in prompt
+    assert '"free_cash_flow"' in prompt
+    assert "不得輸出目標股價" in prompt
+
+
+def test_valuation_prompts_and_rules_require_state_paths_and_closed_breaker():
+    agents = json.loads((ROOT / "backend" / "prompts" / "agents.json").read_text(encoding="utf-8"))
+    rules = json.loads((ROOT / "backend" / "prompts" / "runtime_rules.json").read_text(encoding="utf-8"))
+
+    for agent_num in ("4", "14"):
+        prompt = agents["analysis_prompts"][agent_num]
+        valuation_rules = rules["numeric_tool_instructions"][agent_num]["rules"]
+
+        assert "AgentState view" in prompt
+        assert "circuit_breaker.status" in prompt
+        assert any("state path" in rule and "AgentState view" in rule for rule in valuation_rules)
 
 
 def test_prompt_payload_includes_data_trust_and_audit_summary():

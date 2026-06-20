@@ -9,6 +9,39 @@ from .provider_base import DataProvider, not_configured_provider_result, provide
 from .types import FetchRequest, ProviderResult
 
 
+class FreeNewsWaterfallProvider(DataProvider):
+    name = "Free news waterfall"
+    source = "recent_catalysts"
+
+    def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
+        from data_trust import AUDIT_STATUS_SUCCESS, AUDIT_STATUS_UNAVAILABLE
+        from external_data_client import ExternalDataClient
+
+        data = (context or {}).get("data", {}) if isinstance((context or {}).get("data"), dict) else {}
+        ticker = str((context or {}).get("original_ticker") or data.get("ticker") or request.ticker).strip().upper()
+        company_name = str(data.get("company_name") or ticker).strip()
+        query = f"{ticker} {company_name}".strip()
+        client = ExternalDataClient()
+        records = client.get_news(query, ticker=ticker, limit=5)
+        status = AUDIT_STATUS_SUCCESS if records else AUDIT_STATUS_UNAVAILABLE
+        return ProviderResult(
+            source=self.source,
+            provider=self.name,
+            status=status,
+            value=records,
+            audit={
+                "source": self.source,
+                "provider": self.name,
+                "status": status,
+                "record_count": len(records),
+                "cache_hit": bool(data.get("_cache_hit")),
+                "stale": False,
+                "message": "免費新聞 waterfall 已回傳近期催化劑。" if records else "免費新聞 waterfall 未回傳近期催化劑。",
+                "related_entries": list(client.last_news_audit),
+            },
+        )
+
+
 class GoogleSearchProvider(DataProvider):
     name = "Google Search"
     source = "recent_catalysts"

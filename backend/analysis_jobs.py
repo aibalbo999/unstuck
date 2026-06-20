@@ -17,6 +17,7 @@ from pipeline_modes import (
 )
 from reporting import ReportRenderer
 from quant_engine import QuantEngine
+from temporal_memory_service import build_temporal_memory
 
 
 STOCK_DATA_SERVICE = StockDataService()
@@ -138,6 +139,14 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
             return ""
         if "error" in data:
             append_event(job_id, {"type": "status", "message": f"財務數據獲取有誤：{data['error']}，將繼續分析"})
+        temporal_memory = build_temporal_memory(
+            ticker_upper,
+            output_dir=OUTPUT_DIR,
+            current_price=data.get("current_price"),
+        )
+        if temporal_memory:
+            data["temporal_memory"] = temporal_memory
+            append_event(job_id, {"type": "status", "message": "已載入上一期報告記憶，最終 Agent 將強制反思先前假設。"})
             
         metrics_snapshot = QuantEngine.compute_all(data)
         data["quant_metrics"] = metrics_snapshot

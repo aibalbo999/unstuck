@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=20260619-modec-tracking">
+    <link rel="stylesheet" href="/static/style.css?v=20260620-compact-colors">
 </head>
 <body>
     <!-- 背景特效 -->
@@ -155,6 +155,9 @@
                                 <button id="decision-tracking-density" class="maintenance-button" type="button">
                                     <span>精簡追蹤表</span>
                                 </button>
+                                <button id="decision-tracking-run-actions" class="maintenance-button" type="button">
+                                    <span>一鍵處理警示</span>
+                                </button>
                                 <button id="decision-tracking-refresh" class="maintenance-button" type="button">
                                     <span>刷新追蹤股價</span>
                                 </button>
@@ -228,6 +231,7 @@
                             <p id="preview-tracking-summary" class="preview-tracking-summary"></p>
                         </div>
                         <p id="preview-summary" class="preview-summary"></p>
+                        <div id="preview-temporal-memory" class="preview-temporal-memory" hidden></div>
                         <p id="preview-stale-notice" class="preview-stale-notice" hidden></p>
                         <button id="preview-open-report-btn" class="preview-open-button" type="button">
                             <span>查看完整報告</span>
@@ -288,6 +292,18 @@
                         </div>
                         <div id="api-quota-list" class="provider-sla-list"></div>
                     </section>
+                    <section id="performance-panel" class="provider-sla-panel" aria-live="polite">
+                        <div class="provider-sla-header">
+                            <div>
+                                <span class="provider-sla-kicker">決策回測</span>
+                                <strong id="performance-summary">載入中</strong>
+                            </div>
+                            <button id="performance-refresh" class="icon-button" type="button" aria-label="刷新決策回測">
+                                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M16 8h5V3"/></svg>
+                            </button>
+                        </div>
+                        <div id="performance-list" class="provider-sla-list"></div>
+                    </section>
                     <section id="watchlist-panel" class="provider-sla-panel" aria-live="polite">
                         <div class="provider-sla-header">
                             <div>
@@ -328,6 +344,12 @@
                                 <span>啟用</span>
                                 <input id="watchlist-enabled" type="checkbox" checked aria-label="啟用 watchlist 項目" />
                             </label>
+                            <div class="watchlist-trigger-controls" aria-label="事件觸發條件">
+                                <label><input id="watchlist-trigger-sma" type="checkbox" /> 跌破均線 <input id="watchlist-trigger-sma-days" type="number" min="2" value="60" /></label>
+                                <label><input id="watchlist-trigger-foreign" type="checkbox" /> 外資連賣 <input id="watchlist-trigger-foreign-days" type="number" min="1" value="3" /> 天 <input id="watchlist-trigger-foreign-lots" type="number" min="1" value="1000" /></label>
+                                <label><input id="watchlist-trigger-vix" type="checkbox" /> VIX 高於 <input id="watchlist-trigger-vix-threshold" type="number" min="1" value="30" /></label>
+                                <label><input id="watchlist-trigger-revenue" type="checkbox" /> 營收創高</label>
+                            </div>
                             <button id="watchlist-save-btn" class="maintenance-button" type="button">
                                 <span>儲存</span>
                             </button>
@@ -461,15 +483,18 @@
     <script src="/static/api_client_extensions.js?v=20260610-dual-tracking"></script>
     <script src="/static/provider_sla_panel.js?v=20260611-operator-clarity"></script>
     <script src="/static/api_quota_panel.js?v=20260611-operator-clarity"></script>
+    <script src="/static/performance_panel.js?v=20260620-performance"></script>
     <script src="/static/active_jobs_panel.js?v=20260608-stage-summary"></script>
     <script src="/static/operator_summary_panel.js?v=20260611-operator-clarity"></script>
+    <script src="/static/watchlist_trigger_form.js?v=20260620-event-radar"></script>
     <script src="/static/watchlist_panel.js?v=20260610-operator-workbench"></script>
-    <script src="/static/ops_workspace.js?v=20260608-ops-workspace"></script>
+    <script src="/static/ops_workspace.js?v=20260620-performance"></script>
     <script src="/static/maintenance_panel.js?v=20260610-operator-workbench"></script>
     <script src="/static/home_tabs.js?v=20260608-home-tabs"></script>
     <script src="/static/report_rerun.js?v=20260608-full-report"></script>
     <script src="/static/analysis_stream.js?v=20260607-analysis-stream"></script>
-    <script src="/static/history_panel.js?v=20260619-modec-tracking"></script>
+    <script src="/static/history_panel.js?v=20260620-compact-colors"></script>
+    <script src="/static/temporal_memory_panel.js?v=20260620-event-radar"></script>
     <script src="/static/report_preview_panel.js?v=20260612-fix-modeb-button"></script>
     <script src="/static/view_controller.js?v=20260607-view-controller"></script>
     <script src="/static/history_filters.js?v=20260607-latest-report-versions"></script>

@@ -177,7 +177,6 @@ async def lifespan(_app: FastAPI):
     
     if hasattr(analysis_task_queue, "start_workers"):
         analysis_task_queue.start_workers()
-
     for warning in validate_runtime_settings():
         emit_log(f"設定檢查警告：{warning}")
     await _mark_abandoned_local_jobs()
@@ -187,6 +186,7 @@ async def lifespan(_app: FastAPI):
         find_active_job=lambda ticker, pipeline_id: find_active_job(ticker, pipeline_id),
         task_queue=analysis_task_queue,
         run_stock_analysis_job=run_stock_analysis_job,
+        data_service=data_refresh_service,
         emit_log=emit_log,
     )
     decision_tracking_task = create_decision_tracking_scheduler_task(

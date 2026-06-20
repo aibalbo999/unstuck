@@ -9,6 +9,7 @@ from fastapi import HTTPException
 
 import decision_tracking_store
 import report_history_service
+from decision_backtest_service import compute_performance_stats, run_due_backtests
 from report_refresh_service import refresh_report_data_snapshot
 
 
@@ -148,25 +149,5 @@ async def refresh_tracking_items(
 
 
 def compute_tracking_performance_stats(output_dir: str) -> dict:
-    """
-    Compute aggregate performance statistics for tracked reports.
-    (Stub for future automated return calculations)
-    """
-    items = list_decision_tracking(output_dir).get("items", [])
-    
-    total_tracked = len(items)
-    active_tracked = sum(1 for item in items if item.get("enabled"))
-    
-    # In the future, this will loop through tracking histories and compare current_price
-    # with the initial report price to calculate hit rates, avg return, etc.
-    
-    return {
-        "summary": {
-            "total_tracked_stocks": total_tracked,
-            "active_tracked_stocks": active_tracked,
-            "average_return_pct": 0.0,
-            "hit_rate_pct": 0.0,
-        },
-        "details": [],
-        "message": "績效統計服務架構已建置，等待歷史決策紀錄累積後自動計算。",
-    }
+    del output_dir
+    return compute_performance_stats()

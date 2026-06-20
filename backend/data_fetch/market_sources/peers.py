@@ -5,6 +5,12 @@ from __future__ import annotations
 import yfinance as yf
 
 from .common import _run_named_fetches
+from .peer_selection import (
+    CompanyProfile,
+    rank_peer_candidates,
+    ranked_profiles_from_identity,
+    select_peer_profiles,
+)
 
 
 GLOBAL_PEER_HINTS = [
@@ -25,12 +31,18 @@ def infer_global_peer_tickers(ticker: str, company_name: str, sector: str, indus
 
 
 def fetch_dynamic_peer_metrics(ticker: str, company_name: str, sector: str, industry: str, identity: dict) -> list[dict]:
-    peers = []
-    for peer in (identity.get("same_industry_peers", []) or [])[:3]:
-        stock_id = peer.get("stock_id")
-        if stock_id:
-            peers.append((peer.get("stock_name", stock_id), f"{stock_id}.TW"))
-    peers.extend(infer_global_peer_tickers(ticker, company_name, sector, industry))
+    ranked_profiles = ranked_profiles_from_identity(identity)
+    selection_rows: dict[str, dict] = {}
+    selection_policy: dict | None = None
+    if ranked_profiles is not None:
+        peers, selection_rows, selection_policy = ranked_profiles
+    else:
+        peers = []
+        for peer in (identity.get("same_industry_peers", []) or [])[:3]:
+            stock_id = peer.get("stock_id")
+            if stock_id:
+                peers.append((peer.get("stock_name", stock_id), f"{stock_id}.TW"))
+        peers.extend(infer_global_peer_tickers(ticker, company_name, sector, industry))
 
     seen = set()
     unique_peers = []
@@ -47,16 +59,34 @@ def fetch_dynamic_peer_metrics(ticker: str, company_name: str, sector: str, indu
             info = yf.Ticker(symbol).info
         except Exception:
             info = {}
-        return {
+        selection = selection_rows.get(symbol.upper())
+        record = {
             "name": name,
             "ticker": symbol,
-            "source": "FinMind industry peer + yfinance metrics" if symbol.endswith(".TW") else "global peer heuristic + yfinance metrics",
+            "source": (
+                "profile-ranked peer + yfinance metrics"
+                if selection is not None
+                else "FinMind industry peer + yfinance metrics"
+                if symbol.endswith(".TW")
+                else "global peer heuristic + yfinance metrics"
+            ),
             "gross_margin_pct": round(float(info.get("grossMargins")) * 100, 2) if isinstance(info.get("grossMargins"), (int, float)) else None,
             "operating_margin_pct": round(float(info.get("operatingMargins")) * 100, 2) if isinstance(info.get("operatingMargins"), (int, float)) else None,
             "profit_margin_pct": round(float(info.get("profitMargins")) * 100, 2) if isinstance(info.get("profitMargins"), (int, float)) else None,
             "pe_ttm": round(float(info.get("trailingPE")), 2) if isinstance(info.get("trailingPE"), (int, float)) else None,
             "pb": round(float(info.get("priceToBook")), 2) if isinstance(info.get("priceToBook"), (int, float)) else None,
         }
+        if selection is not None and selection_policy is not None:
+            record.update({
+                "selection_score": selection["score"],
+                "market_cap_ratio": selection["market_cap_ratio"],
+                "revenue_ratio": selection["revenue_ratio"],
+                "business_overlap": selection["business_overlap"],
+                "product_overlap": selection["product_overlap"],
+                "segment_overlap": selection["segment_overlap"],
+                "selection_policy": selection_policy,
+            })
+        return record
 
     fetches = {
         symbol: (fetch_peer, (name, symbol), None, f"{symbol} 同業指標獲取失敗")

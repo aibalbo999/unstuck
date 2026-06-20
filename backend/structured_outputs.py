@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from openai_structured_outputs import openai_json_schema_response_format
 from structured_output_models import (
     BubbleSniperRecommendationFields,
     BubbleSniperStructuredOutput,

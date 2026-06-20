@@ -10,6 +10,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 import api  # noqa: E402
+import decision_tracking_scheduler  # noqa: E402
+import decision_tracking_service  # noqa: E402
 import decision_tracking_store  # noqa: E402
 import report_index  # noqa: E402
 from data_fetch import FetchResult  # noqa: E402
@@ -245,3 +247,38 @@ def test_decision_tracking_refresh_skips_reports_that_already_need_full_rerun(tm
             "reason": "needs_full_rerun",
         }
     ]
+
+
+def test_scheduler_runs_due_backtests_after_daily_refresh(monkeypatch):
+    calls = []
+    logs = []
+
+    async def fake_refresh_tracking_items(**kwargs):
+        calls.append(("refresh", kwargs["output_dir"], kwargs["due_only"]))
+        return {"updated_count": 1, "errors": []}
+
+    def fake_run_due_backtests(**kwargs):
+        calls.append(("backtest", kwargs["output_dir"]))
+        return {"evaluated_count": 2, "skipped": [], "errors": []}
+
+    async def fake_sleep(seconds):
+        raise asyncio.CancelledError()
+
+    import asyncio
+
+    monkeypatch.setattr(decision_tracking_service, "refresh_tracking_items", fake_refresh_tracking_items)
+    monkeypatch.setattr(decision_tracking_service, "run_due_backtests", fake_run_due_backtests)
+    monkeypatch.setattr(decision_tracking_scheduler.asyncio, "sleep", fake_sleep)
+
+    try:
+        asyncio.run(decision_tracking_scheduler._decision_tracking_scheduler_forever(
+            get_output_dir=lambda: "/tmp/reports",
+            get_refresh_service=lambda: object(),
+            emit_log=logs.append,
+            interval_seconds=1,
+        ))
+    except asyncio.CancelledError:
+        pass
+
+    assert calls == [("refresh", "/tmp/reports", True), ("backtest", "/tmp/reports")]
+    assert any("backtests=2" in line for line in logs)

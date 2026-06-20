@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from .agent_context_providers import AlternativeJobOpeningsProvider, ChipDataProvider, MacroIndicatorsProvider
 from .enrichment_providers import (
     DynamicPeerMetricsProvider,
     FmpNewsProvider,
+    FreeNewsWaterfallProvider,
     GlobalMarketContextProvider,
     GooglePeerDiscoveryProvider,
     GoogleSearchProvider,
@@ -48,11 +50,15 @@ def default_providers() -> list[DataProvider]:
         YFinanceProvider(),
         FinMindProvider(),
         FmpProvider(),
+        FreeNewsWaterfallProvider(),
         GoogleSearchProvider(),
         FmpNewsProvider(),
         YahooProvider(),
         GlobalMarketContextProvider(),
         InternationalNewsContextProvider(),
+        MacroIndicatorsProvider(),
+        ChipDataProvider(),
+        AlternativeJobOpeningsProvider(),
         GooglePeerDiscoveryProvider(),
         TwseOfficialProvider(),
         MonthlyRevenueProvider(),

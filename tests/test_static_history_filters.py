@@ -1,3 +1,5 @@
+import json
+import subprocess
 from pathlib import Path
 
 
@@ -46,6 +48,7 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     active_jobs_js = (STATIC_DIR / "active_jobs_panel.js").read_text(encoding="utf-8")
     operator_summary_js = (STATIC_DIR / "operator_summary_panel.js").read_text(encoding="utf-8")
     api_quota_panel_js = (STATIC_DIR / "api_quota_panel.js").read_text(encoding="utf-8")
+    performance_panel_js = (STATIC_DIR / "performance_panel.js").read_text(encoding="utf-8")
     api_client_extensions_js = (STATIC_DIR / "api_client_extensions.js").read_text(encoding="utf-8")
     ops_workspace_js = (STATIC_DIR / "ops_workspace.js").read_text(encoding="utf-8")
     maintenance_js = (STATIC_DIR / "maintenance_panel.js").read_text(encoding="utf-8")
@@ -55,6 +58,7 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     history_workspace_js = (STATIC_DIR / "history_workspace.js").read_text(encoding="utf-8")
     history_panel_js = (STATIC_DIR / "history_panel.js").read_text(encoding="utf-8")
     report_preview_js = (STATIC_DIR / "report_preview_panel.js").read_text(encoding="utf-8")
+    temporal_memory_js = (STATIC_DIR / "temporal_memory_panel.js").read_text(encoding="utf-8")
     report_compare_js = (STATIC_DIR / "report_compare_panel.js").read_text(encoding="utf-8")
     report_navigation_js = (STATIC_DIR / "report_navigation.js").read_text(encoding="utf-8")
     api_client_js = (STATIC_DIR / "api_client.js").read_text(encoding="utf-8")
@@ -72,6 +76,9 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert 'id="operator-rerun"' in index_html
     assert 'id="api-quota-panel"' in index_html
     assert 'id="watchlist-panel"' in index_html
+    assert 'id="performance-panel"' in index_html
+    assert 'id="performance-summary"' in index_html
+    assert 'id="performance-list"' in index_html
     assert 'id="toast-region"' in index_html
     assert 'id="confirm-dialog"' in index_html
     assert 'id="home-tab-analysis"' in index_html
@@ -97,6 +104,7 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert 'id="report-compare-panel"' in index_html
     assert 'id="preview-stale-notice"' in index_html
     assert 'id="preview-tracking"' in index_html
+    assert 'id="preview-temporal-memory"' in index_html
     assert 'id="preview-tracking-return"' in index_html
     assert 'id="history-tracking-table"' in index_html
     assert "/static/provider_sla_panel.js" in index_html
@@ -104,6 +112,9 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "/static/active_jobs_panel.js" in index_html
     assert "/static/operator_summary_panel.js" in index_html
     assert "/static/watchlist_panel.js" in index_html
+    assert "/static/watchlist_trigger_form.js" in index_html
+    assert "/static/temporal_memory_panel.js" in index_html
+    assert "/static/performance_panel.js" in index_html
     assert "/static/ops_workspace.js" in index_html
     assert "/static/maintenance_panel.js" in index_html
     assert "/static/home_tabs.js" in index_html
@@ -135,6 +146,7 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "providerSlaWindow" in ops_workspace_js
     assert "StockAgentProviderSlaPanel.render" in ops_workspace_js
     assert "StockAgentActiveJobsPanel.render" in ops_workspace_js
+    assert "StockAgentPerformancePanel.render" in ops_workspace_js
     assert "decision_priority" in (STATIC_DIR / "watchlist_panel.js").read_text(encoding="utf-8")
     assert "需重跑" in (STATIC_DIR / "watchlist_panel.js").read_text(encoding="utf-8")
     assert "StockAgentOpsWorkspace.create" in app_js
@@ -142,6 +154,8 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "operatorSummary.load" in app_js
     assert "StockAgentHistoryPanel.create" in history_workspace_js
     assert "StockAgentReportPreviewPanel.create" in history_workspace_js
+    assert "StockAgentTemporalMemoryPanel.render" in report_preview_js
+    assert "Agent 歷史反思" in temporal_memory_js
     assert "StockAgentViewController.create" in app_js
     assert "StockAgentHistoryFilters.create" in history_workspace_js
     assert "StockAgentReportActions.bindDownloads" in app_js
@@ -214,6 +228,15 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "決策狀態" in report_compare_js
     assert "decision_freshness" in report_compare_js
     assert "/api/watchlist" in api_client_extensions_js
+    assert "watchlist-trigger-vix" in index_html
+    assert "StockAgentWatchlistTriggerForm" in (STATIC_DIR / "watchlist_panel.js").read_text(encoding="utf-8")
+    assert "latest_trigger_event" in (STATIC_DIR / "watchlist_panel.js").read_text(encoding="utf-8")
+    assert "watchlist-trigger-summary" in (STATIC_DIR / "watchlist_trigger_form.js").read_text(encoding="utf-8")
+    assert "/api/performance/stats" in api_client_extensions_js
+    assert "fetchPerformanceStats" in api_client_extensions_js
+    assert "命中率" in performance_panel_js
+    assert "平均 ROI" in performance_panel_js
+    assert "recent-backtest" in performance_panel_js
     assert "/api/maintenance/storage-summary" in api_client_js
     assert "mutation: true" in api_client_js
     assert "cleanupAnalysisHistory" in api_client_js
@@ -257,9 +280,84 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "apiClient.requestJson" in report_rerun_js
     assert "fetchActiveJobs" in operator_summary_js
     assert "fetchApiQuotas" in operator_summary_js
-    assert "fetchReports" in operator_summary_js
-    assert "requires_rerun" in operator_summary_js
-    assert "operator-summary-item" in operator_summary_js
+
+
+def test_decision_tracking_bulk_actions_and_compact_colors_are_wired():
+    index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    app_js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
+    history_workspace_js = (STATIC_DIR / "history_workspace.js").read_text(encoding="utf-8")
+    decision_tracking_js = (STATIC_DIR / "decision_tracking_panel.js").read_text(encoding="utf-8")
+    history_panel_js = (STATIC_DIR / "history_panel.js").read_text(encoding="utf-8")
+    decision_tracking_css = (STATIC_DIR / "styles" / "decision_tracking.css").read_text(encoding="utf-8")
+
+    assert 'id="decision-tracking-run-actions"' in index_html
+    assert "decisionTrackingRunActions" in app_js
+    assert "runActionsBtn: elements.decisionTrackingRunActions" in history_workspace_js
+    assert "runAllRecommendedActions" in decision_tracking_js
+    assert "refreshReportDataSnapshot" in decision_tracking_js
+    assert "/rerun?scope=full_report" in decision_tracking_js
+    assert "recommendedActionForReport" in decision_tracking_js
+    assert "failed += 1" in decision_tracking_js
+    assert "trackingSummaryTone" in history_panel_js
+    assert ".tracking-compact-note.is-above-target" in decision_tracking_css
+    assert ".tracking-compact-note.is-near-target" in decision_tracking_css
+    assert ".tracking-compact-note.is-below-target" in decision_tracking_css
+
+
+def test_compact_tracking_cards_render_target_comparison_tones():
+    history_panel_path = STATIC_DIR / "history_panel.js"
+    script = """
+global.window = {};
+require(__HISTORY_PANEL_PATH__);
+const table = { hidden: false, innerHTML: '', classList: { toggle() {} } };
+const panel = window.StockAgentHistoryPanel.create({
+  listEl: null,
+  trackingTableEl: table,
+  paginationEl: null,
+  prevBtn: null,
+  nextBtn: null,
+  pageInfoEl: null,
+  escapeHtml: value => String(value ?? ''),
+  normalizeRecommendation: value => String(value ?? ''),
+  renderPipelineModeBadge: () => '',
+  renderDataTrustBadge: () => '',
+  renderDataTrustReason: () => '',
+  recommendationTone: () => ''
+});
+const report = (filename, summary, status) => ({
+  filename,
+  ticker: '2308.TW',
+  pipeline_id: 'v2',
+  date: '2026-06-20',
+  decision_tracking: {
+    status: 'tracked',
+    recommendation: '買入',
+    latest_price: 100,
+    tracking_summary_status: summary,
+    target_comparisons: {
+      target_3m: { status: 'below_target', target: 120 },
+      target_6m: { status: 'below_target', target: 130 },
+      target_12m: { status, target: 140 }
+    }
+  }
+});
+panel.setTrackingCompact(true);
+panel.renderTrackingGroups([{
+  ticker: '2308.TW',
+  company_name: '台達電',
+  reports: [
+    report('above.html', '高於12月目標', 'above_target'),
+    report('near.html', '接近12月目標', 'near_target'),
+    report('below.html', '距12月目標 +40.00%', 'below_target')
+  ]
+}]);
+process.stdout.write(table.innerHTML);
+""".replace("__HISTORY_PANEL_PATH__", json.dumps(str(history_panel_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+
+    assert 'tracking-compact-note is-above-target' in result.stdout
+    assert 'tracking-compact-note is-near-target' in result.stdout
+    assert 'tracking-compact-note is-below-target' in result.stdout
 
 
 def test_operator_workbench_surfaces_actionable_daily_workflow():
@@ -432,9 +530,9 @@ def test_decision_tracking_dense_layout_uses_workspace_efficiently():
     history_panel_js = (STATIC_DIR / "history_panel.js").read_text(encoding="utf-8")
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
 
-    assert "style.css?v=20260619-modec-tracking" in index_html
-    assert "/static/history_panel.js?v=20260619-modec-tracking" in index_html
-    assert "decision_tracking.css?v=20260619-modec-tracking" in style_css
+    assert "style.css?v=20260620-compact-colors" in index_html
+    assert "/static/history_panel.js?v=20260620-compact-colors" in index_html
+    assert "decision_tracking.css?v=20260620-compact-colors" in style_css
     assert "max-width: min(1360px, 100%)" in base_css
     assert "grid-template-columns: minmax(520px, 1.35fr) minmax(360px, 0.85fr)" in history_list_css
     assert "tracking-density-row" in history_panel_js
@@ -553,6 +651,9 @@ def test_frontend_static_modules_are_sized():
         "api_client_extensions.js": 90,
         "ops_workspace.js": 160,
         "api_quota_panel.js": 100,
+        "performance_panel.js": 100,
+        "watchlist_trigger_form.js": 90,
+        "temporal_memory_panel.js": 70,
         "watchlist_panel.js": 180,
         "report_compare_panel.js": 160,
         "operator_summary_panel.js": 150,

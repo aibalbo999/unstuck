@@ -2,40 +2,11 @@
 
 from __future__ import annotations
 
-import math
 from typing import Any, Optional
 
 from config import WACC_COST_OF_DEBT_DEFAULT_PCT, WACC_COST_OF_EQUITY_DEFAULT_PCT, WACC_TAX_RATE_DEFAULT_PCT
-
-def safe_float(value: Any) -> Optional[float]:
-    """Return a float for numeric-looking values, otherwise None."""
-    if value is None or value == "N/A":
-        return None
-    try:
-        if isinstance(value, str):
-            cleaned = value.replace(",", "").replace("NT$", "").replace("$", "")
-            cleaned = cleaned.replace("x", "").replace("%", "").strip()
-            if not cleaned:
-                return None
-            value = cleaned
-        number = float(value)
-        if not math.isfinite(number):
-            return None
-        return number
-    except (TypeError, ValueError):
-        return None
-
-def raw_twd_to_billion_twd(value: Any) -> Optional[float]:
-    number = safe_float(value)
-    if number is None:
-        return None
-    return round(number / 1e9, 4)
-
-def pct_from_ratio(value: Any) -> Optional[float]:
-    number = safe_float(value)
-    if number is None:
-        return None
-    return round(number * 100, 4)
+from financial_tool_utils import pct_from_ratio, raw_twd_to_billion_twd, safe_float
+from financial_valuation_tools import calculate_ddm, calculate_implied_revenue_growth
 
 def calculate_cagr(start_value: float, end_value: float, periods: int) -> dict:
     """Calculate CAGR as percentage points from positive start/end values."""
@@ -129,28 +100,6 @@ def calculate_dcf(
         "net_debt_billion_twd": round(net_debt_billion_twd, 4),
         "equity_value_billion_twd": round(equity_value, 4),
         "price_per_share_twd": round(price_per_share_twd, 4),
-    }
-
-def calculate_ddm(
-    dividend_per_share_twd: float,
-    cost_of_equity_pct: float,
-    dividend_growth_pct: float = 2.0,
-) -> dict:
-    """Calculate Gordon-growth dividend discount model value per share."""
-    if dividend_per_share_twd <= 0:
-        return {"error": "dividend_per_share_twd must be positive"}
-    cost_of_equity = cost_of_equity_pct / 100
-    growth = dividend_growth_pct / 100
-    if cost_of_equity <= growth:
-        return {"error": "cost_of_equity_pct must exceed dividend_growth_pct"}
-    next_dividend = dividend_per_share_twd * (1 + growth)
-    value = next_dividend / (cost_of_equity - growth)
-    return {
-        "dividend_per_share_twd": round(dividend_per_share_twd, 4),
-        "next_dividend_twd": round(next_dividend, 4),
-        "cost_of_equity_pct": round(cost_of_equity_pct, 4),
-        "dividend_growth_pct": round(dividend_growth_pct, 4),
-        "value_per_share_twd": round(value, 4),
     }
 
 def _latest_numeric(values: list[Any]) -> Optional[float]:

@@ -15,9 +15,38 @@
             })
             .filter(group => group.reports.length);
     }
+    const trackedSet = payload => new Set((payload?.items || []).filter(item => item.enabled).map(item => item.ticker));
+    function dataTrustReasonCodes(report) {
+        const codes = report?.data_trust?.reason_codes;
+        return Array.isArray(codes) ? codes.map(code => String(code || '')) : [];
+    }
 
-    function trackedSet(payload) {
-        return new Set((payload?.items || []).filter(item => item.enabled).map(item => item.ticker));
+    function hasRefreshableDataTrustIssue(report) {
+        const status = report?.data_trust?.status || 'unknown';
+        const reasonCodes = dataTrustReasonCodes(report), staleSources = report?.data_trust?.stale_sources;
+        return status === 'stale'
+            || (Array.isArray(staleSources) && staleSources.filter(Boolean).length > 0)
+            || reasonCodes.some(code => code.startsWith('source_stale:'));
+    }
+    const needsFullReportRerun = report => Boolean(report?.analysis_text_stale || report?.decision_freshness?.requires_rerun || report?.requires_rerun);
+    function recommendedActionForReport(report) {
+        if (!report || !report.filename) return null;
+        if (needsFullReportRerun(report)) return { type: 'rerun_full_report', filename: report.filename };
+        if (hasRefreshableDataTrustIssue(report) || report?.data_trust?.status === 'partial') return { type: 'refresh_data_snapshot', filename: report.filename };
+        return null;
+    }
+
+    function uniqueRecommendedActions(payload) {
+        const seen = new Set(), actions = [];
+        trackedGroups(payload).flatMap(group => group.reports || []).forEach(report => {
+            const action = recommendedActionForReport(report);
+            if (!action) return;
+            const key = `${action.type}:${action.filename}`;
+            if (seen.has(key)) return;
+            seen.add(key);
+            actions.push(action);
+        });
+        return actions;
     }
 
     function create(options) {
@@ -27,16 +56,19 @@
         const elements = options.elements || {};
         const onChange = options.onChange || (() => {});
         let trackedTickers = new Set();
+        let latestPayload = { items: [] };
 
         function setSummary(payload) {
             if (!elements.summaryEl) return;
             const count = payload?.enabled_count || trackedTickers.size || 0;
+            const actionCount = uniqueRecommendedActions(payload).length;
             elements.summaryEl.textContent = count
-                ? `每日決策追蹤：${count} 檔`
+                ? `每日決策追蹤：${count} 檔${actionCount ? ` · ${actionCount} 個警示動作` : ''}`
                 : '每日決策追蹤：尚未加入股票';
         }
 
         function applyPayload(payload) {
+            latestPayload = payload || { items: [] };
             trackedTickers = trackedSet(payload);
             onChange(trackedTickers);
             setSummary(payload);
@@ -85,8 +117,41 @@
             }
         }
 
-        if (elements.refreshBtn) elements.refreshBtn.addEventListener('click', refresh);
-        return { load, refresh, toggleDecisionTracking, trackedTickers: () => trackedTickers };
+        async function runAllRecommendedActions() {
+            const actions = uniqueRecommendedActions(latestPayload);
+            if (!actions.length) {
+                notify.success('目前追蹤報告沒有待處理警示');
+                return;
+            }
+            if (elements.runActionsBtn) elements.runActionsBtn.disabled = true;
+            try {
+                let finished = 0, failed = 0;
+                for (const action of actions) {
+                    try {
+                        if (action.type === 'refresh_data_snapshot') {
+                            await apiClient.refreshReportDataSnapshot(action.filename);
+                        } else if (action.type === 'rerun_full_report') {
+                            await apiClient.requestJson(`/api/report/${encodeURIComponent(action.filename)}/rerun?scope=full_report`, { method: 'POST' });
+                        }
+                        finished += 1;
+                    } catch (err) {
+                        failed += 1;
+                        console.error(`Decision tracking action failed for ${action.filename}`, err);
+                    }
+                }
+                applyPayload(await apiClient.fetchDecisionTracking());
+                if (failed) notify.error(`警示動作完成 ${finished} 個，失敗 ${failed} 個`);
+                else notify.success(`已送出 ${finished} 個追蹤報告警示動作`);
+            } catch (err) {
+                console.error('Decision tracking bulk actions failed', err);
+                notify.error(`一鍵處理警示失敗：${err.message || err}`);
+            } finally {
+                if (elements.runActionsBtn) elements.runActionsBtn.disabled = false;
+            }
+        }
+
+        if (elements.refreshBtn) elements.refreshBtn.addEventListener('click', refresh); if (elements.runActionsBtn) elements.runActionsBtn.addEventListener('click', runAllRecommendedActions);
+        return { load, refresh, runAllRecommendedActions, toggleDecisionTracking, trackedTickers: () => trackedTickers };
     }
 
     window.StockAgentDecisionTrackingPanel = { create };

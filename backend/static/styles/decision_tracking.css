@@ -16,6 +16,11 @@
 .tracking-report-date { overflow: visible; text-overflow: clip; white-space: nowrap; }
 .tracking-report-line { display: grid; gap: 2px; color: var(--text-secondary); font-size: 0.62rem; font-weight: 800; font-variant-numeric: tabular-nums; }
 .tracking-latest-price { color: var(--text-primary); font-size: 0.78rem; }
+.tracking-compact-note { width: fit-content; border-radius: 4px; padding: 1px 4px; }
+.tracking-compact-note.is-below-target { color: #bfdbfe; background: rgba(37, 99, 235, 0.16); }
+.tracking-compact-note.is-near-target { color: #fde68a; background: rgba(180, 83, 9, 0.18); }
+.tracking-compact-note.is-above-target { color: #bbf7d0; background: rgba(22, 163, 74, 0.16); }
+.tracking-compact-note.is-unavailable { color: var(--text-secondary); }
 .decision-tracking-controls { min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
 .decision-tracking-controls strong { color: var(--text-primary); font-size: 0.82rem; }
 .decision-tracking-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }

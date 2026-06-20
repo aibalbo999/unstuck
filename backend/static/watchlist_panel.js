@@ -12,7 +12,8 @@
             schedule_slots: [
                 elements.preMarketInput?.checked ? 'pre_market' : '',
                 elements.postMarketInput?.checked ? 'post_market' : ''
-            ].filter(Boolean)
+            ].filter(Boolean),
+            triggers: window.StockAgentWatchlistTriggerForm?.payload() || []
         };
     }
 
@@ -22,6 +23,7 @@
         if (elements.enabledInput) elements.enabledInput.checked = true;
         if (elements.preMarketInput) elements.preMarketInput.checked = true;
         if (elements.postMarketInput) elements.postMarketInput.checked = false;
+        window.StockAgentWatchlistTriggerForm?.reset();
     }
 
     function priorityLabel(item) {
@@ -69,6 +71,7 @@
                             <em>${escapeHtml((item.pipeline || 'v1').toUpperCase())}${disabled}</em>
                             <span>${escapeHtml(slotLabel(item.schedule_slots, payload.schedules))}</span>
                             <span>${escapeHtml(priorityLabel(item))}</span>
+                            ${window.StockAgentWatchlistTriggerForm?.renderItem({ ...item, latest_trigger_event: item.latest_trigger_event }, escapeHtml) || ''}
                             <button class="watchlist-delete-button" type="button" data-watchlist-delete="${escapeHtml(item.ticker)}" data-watchlist-pipeline="${escapeHtml(item.pipeline || 'v1')}" aria-label="刪除 ${escapeHtml(item.ticker)}">
                                 刪除
                             </button>

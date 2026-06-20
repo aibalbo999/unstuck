@@ -3,14 +3,24 @@
 from __future__ import annotations
 
 import logging
-import math
 from collections.abc import Iterable, Mapping, MutableMapping
 from typing import Any
+
+from data_validation_circuit_breaker import (
+    CRITICAL_FINANCIAL_FIELDS,
+    DIVERGENCE_THRESHOLD_PCT,
+    PROVIDER_CONFLICT_CAUSE_PREFIX,
+    CircuitBreakerOpen,
+    load_provider_values_from_payload,
+    relative_difference_pct,
+    validate_state_provider_values,
+)
+from data_validation_values import relative_divergence as _relative_divergence
+from data_validation_values import safe_float as _safe_float
 
 
 logger = logging.getLogger(__name__)
 
-DIVERGENCE_THRESHOLD_PCT = 5.0
 HIGH_DISCREPANCY_FLAG = "High_Discrepancy"
 DEFAULT_FINANCIAL_METRIC_FIELDS = (
     "eps",
@@ -67,24 +77,6 @@ def validate_financial_metrics(
         "high_discrepancy_fields": high_discrepancy_fields,
     }
     return payload
-
-
-def _safe_float(value: Any) -> float | None:
-    if value is None or value == "N/A":
-        return None
-    try:
-        if isinstance(value, str):
-            value = value.replace(",", "").replace("NT$", "").replace("$", "").replace("%", "").strip()
-            if not value:
-                return None
-        result = float(value)
-        return result if math.isfinite(result) else None
-    except (TypeError, ValueError):
-        return None
-
-
-def _relative_divergence(a: float, b: float) -> float:
-    return abs(a - b) / max(abs(a), abs(b), 1.0) * 100
 
 
 def _metric_value(source: Mapping[str, Any], field: str) -> Any:

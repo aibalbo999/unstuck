@@ -30,6 +30,69 @@ scripts/demo_report.sh
 - `decision_freshness.status = needs_rerun` means the snapshot was refreshed after the HTML/Markdown conclusion was written. Treat the old conclusion as historical until rerun finishes.
 - Watchlist items use the same signal. Items marked `需重跑` are sorted first so the operator can rerun the stale conclusion before reviewing lower-priority names.
 
+## Decision Tracking And Backtests
+
+The decision tracking scheduler runs after the daily tracking refresh. It scans reports whose generated date has reached the 3, 6, or 12 month horizon, fetches historical market closes, and writes one idempotent result per `(report_filename, horizon_months)`.
+
+Backtest results are visible in `報告與維運` under `決策回測`. The panel shows hit rate, average strategy ROI, horizon breakdown, and the latest evaluated reports. A `買入/買進` call earns market ROI, `避免/強烈放空` earns inverse market ROI, and `持有` is treated as a range call. A duplicate run on the same day is skipped by the unique result key.
+
+New reports also load the most recent prior report for the same ticker. When a previous call has a miss, final decision agents receive an `Agent 歷史反思` context and must explicitly explain which assumption changed before writing the new conclusion. The preview panel displays that memory when it exists.
+
+## Event-Driven Watchlist Radar
+
+Watchlist items can include event triggers:
+
+- `price_below_sma`: price below the configured moving average; matched events dispatch mode C / pipeline `v3`.
+- `foreign_sell_streak`: foreign investors sell more than the configured threshold for N consecutive days; matched events dispatch `v3`.
+- `vix_above`: VIX above the configured threshold; matched events dispatch `v3`.
+- `revenue_record_high`: latest monthly revenue reaches a local high; matched events dispatch mode B / pipeline `v2`.
+
+The background scheduler checks normal due watchlist jobs and then runs the event radar after the post-market time. Each trigger evaluation is stored once per ticker, pipeline, trigger key, and date. If the same event is already recorded, the scheduler skips dispatch rather than queueing duplicate reports. Active jobs for the selected pipeline are also skipped.
+
+## Free External Data Waterfall
+
+Install the free-source dependencies with the backend requirements:
+
+```bash
+.venv/bin/python -m pip install -r backend/requirements.txt
+```
+
+The optional free waterfall uses this order:
+
+1. Google News RSS for recent catalysts.
+2. DuckDuckGo News when Google RSS returns no usable records.
+3. PTT Stock only when an explicit Taiwan ticker is present.
+4. MOPS balance-sheet lookup when `total_debt_raw` is missing, negative, or NaN for a Taiwan ticker.
+
+Warnings and `source_audit` are expected when a layer returns no records. Treat them as provenance: `unavailable` means the system tried that free source and moved to the next layer; `error` means a controlled provider failure occurred; `success` means records were merged. The final report should only resume from an opened financial circuit breaker when MOPS agrees with at least one API provider within tolerance and unit, period, and statement scope match.
+
+Live smoke tests are opt-in because they call public external sites:
+
+```bash
+RUN_LIVE_FREE_DATA_TESTS=1 .venv/bin/python -m pytest tests/live/test_free_external_data_smoke.py -q
+```
+
+Respect provider access policies. These fetchers use public pages/APIs, timeouts, conservative parsing, and controlled `None`/empty results rather than scraping aggressively or retrying indefinitely.
+
+## Agent-Scoped External Context
+
+Set the FRED key only in `backend/.env` or the process environment:
+
+```bash
+FRED_API_KEY=replace_with_your_key
+```
+
+FRED observations are cached in memory for 15 minutes. TDCC shareholder distribution and TWSE margin/short balances use public endpoints and require no key. The 104 job-opening detector runs only when the stock payload includes `alternative_data_keywords` or `job_opening_keywords`; at most the first three keywords are queried for one analysis.
+
+External context is routed by least privilege to control token use:
+
+- `macro_indicators` goes only to Agent 11.
+- `chip_data` goes only to Agents 15 and 18.
+- `sentiment_context` goes only to Agent 17.
+- `alternative_data` goes only to Agents 13 and 14.
+
+Provider failures remain controlled audit entries. A missing FRED key is `not_configured`; unavailable TDCC, TWSE, or 104 responses do not inject guessed values into prompts.
+
 ## Maintenance
 
 Maintenance actions live under the `報告與維運` tab. HTTP cleanup endpoints are dry-run by default; UI buttons send `write=true` only after the operator intentionally clicks the action.

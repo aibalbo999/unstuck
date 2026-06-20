@@ -5,9 +5,12 @@
 @import url("/static/styles/provider_sla.css?v=20260610-operator-workbench");
 @import url("/static/styles/operator_summary.css?v=20260610-operator-workbench");
 @import url("/static/styles/history_list.css?v=20260610-dense-tracking");
-@import url("/static/styles/decision_tracking.css?v=20260619-modec-tracking");
+@import url("/static/styles/decision_tracking.css?v=20260620-compact-colors");
+@import url("/static/styles/performance.css?v=20260620-performance");
 @import url("/static/styles/preview_panel.css?v=20260608-report-compare");
 @import url("/static/styles/report_compare.css?v=20260608-report-compare");
 @import url("/static/styles/watchlist.css?v=20260610-operator-workbench");
+@import url("/static/styles/watchlist_triggers.css?v=20260620-event-radar");
+@import url("/static/styles/temporal_memory.css?v=20260620-event-radar");
 @import url("/static/styles/notifications.css?v=20260609-front-end-ops");
 @import url("/static/styles/responsive.css?v=20260607-css-modules");

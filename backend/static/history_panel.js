@@ -101,6 +101,15 @@
         return `<span class="tracking-target-cell tracking-target-chip is-${className}" title="${escapeHtml(title)}"><span class="tracking-target-period">${escapeHtml(period)}</span><strong class="tracking-target-value">${escapeHtml(formatNumber(comparison.target || tracking?.[key]))}</strong><span class="tracking-target-label">${escapeHtml(shortLabel)}</span></span>`;
     }
 
+    function trackingSummaryTone(tracking) {
+        const comparisons = tracking?.target_comparisons || {};
+        for (const key of ['target_12m', 'target_6m', 'target_3m']) {
+            const status = comparisons[key]?.status;
+            if (status === 'above_target' || status === 'near_target') return `is-${status.replace(/_/g, '-')}`;
+        }
+        return comparisons.target_12m?.status === 'below_target' ? 'is-below-target' : 'is-unavailable';
+    }
+
     function isActivationKey(event) {
         return event.key === 'Enter' || event.key === ' ';
     }
@@ -140,6 +149,7 @@
         function reportCard(report) {
             const tracking = report.decision_tracking || {};
             const pipelineLabel = trackingPipelineLabel(report);
+            const trackingStatusClass = trackingCompact ? `tracking-compact-note ${trackingSummaryTone(tracking)}` : trackingTone(tracking);
             return `
                 <div class="tracking-report-card" data-filename="${escapeHtml(report.filename)}" role="button" tabindex="0" aria-label="預覽 ${escapeHtml(report.ticker || 'N/A')} ${escapeHtml(pipelineLabel)} 追蹤">
                     <div class="tracking-report-cell tracking-report-head">
@@ -149,7 +159,7 @@
                     <div class="tracking-report-line tracking-report-metrics">
                         <span class="tracking-recommendation">${escapeHtml(options.normalizeRecommendation(tracking.recommendation || report.recommendation?.recommendation))}</span>
                         <strong class="tracking-latest-price">${escapeHtml(formatNumber(tracking.latest_price))}</strong>
-                        <span class="${trackingTone(tracking)}">${escapeHtml(tracking.tracking_summary_status || formatPct(tracking.return_pct))}</span>
+                        <span class="${trackingStatusClass}">${escapeHtml(tracking.tracking_summary_status || formatPct(tracking.return_pct))}</span>
                     </div>
                     ${trackingCompact ? '' : `<div class="tracking-target-grid">${targetComparisonCell(tracking, 'target_3m', escapeHtml)}${targetComparisonCell(tracking, 'target_6m', escapeHtml)}${targetComparisonCell(tracking, 'target_12m', escapeHtml)}</div>`}
                 </div>

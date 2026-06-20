@@ -1,6 +1,8 @@
 (function () {
-    function byId(id) {
-        return document.getElementById(id);
+    function byId(id) { return document.getElementById(id); }
+    function fail(summaryEl, listEl, message) {
+        if (summaryEl) summaryEl.textContent = message;
+        if (listEl) listEl.innerHTML = '<span class="provider-sla-chip is-warning">請稍後重試</span>';
     }
 
     function create(options) {
@@ -16,7 +18,10 @@
             activeJobsRefresh: byId('active-jobs-refresh'),
             apiQuotaSummary: byId('api-quota-summary'),
             apiQuotaList: byId('api-quota-list'),
-            apiQuotaRefresh: byId('api-quota-refresh')
+            apiQuotaRefresh: byId('api-quota-refresh'),
+            performanceSummary: byId('performance-summary'),
+            performanceList: byId('performance-list'),
+            performanceRefresh: byId('performance-refresh')
         };
         let loaded = false;
         let providerSlaDirty = false;
@@ -25,16 +30,11 @@
             escapeHtml: ui.escapeHtml,
             onRunQueued: loadActiveJobs,
             elements: {
-                summaryEl: byId('watchlist-summary'),
-                listEl: byId('watchlist-list'),
-                tickerInput: byId('watchlist-ticker-input'),
-                pipelineSelect: byId('watchlist-pipeline-select'),
-                preMarketInput: byId('watchlist-pre-market'),
-                postMarketInput: byId('watchlist-post-market'),
-                enabledInput: byId('watchlist-enabled'),
-                saveBtn: byId('watchlist-save-btn'),
-                runBtn: byId('watchlist-run-btn'),
-                refreshBtn: byId('watchlist-refresh')
+                summaryEl: byId('watchlist-summary'), listEl: byId('watchlist-list'),
+                tickerInput: byId('watchlist-ticker-input'), pipelineSelect: byId('watchlist-pipeline-select'),
+                preMarketInput: byId('watchlist-pre-market'), postMarketInput: byId('watchlist-post-market'),
+                enabledInput: byId('watchlist-enabled'), saveBtn: byId('watchlist-save-btn'),
+                runBtn: byId('watchlist-run-btn'), refreshBtn: byId('watchlist-refresh')
             }
         });
 
@@ -58,8 +58,7 @@
                 renderProviderSla(payload);
             } catch (err) {
                 console.error('Failed to load provider SLA', err);
-                elements.providerSlaSummary.textContent = '全系統資料來源狀態讀取失敗';
-                elements.providerSlaList.innerHTML = '<span class="provider-sla-chip is-warning">請稍後重試</span>';
+                fail(elements.providerSlaSummary, elements.providerSlaList, '全系統資料來源狀態讀取失敗');
             } finally {
                 if (elements.providerSlaRefresh) elements.providerSlaRefresh.disabled = false;
             }
@@ -77,8 +76,7 @@
                 });
             } catch (err) {
                 console.error('Failed to load active jobs', err);
-                elements.activeJobsSummary.textContent = '任務狀態讀取失敗';
-                elements.activeJobsList.innerHTML = '<span class="provider-sla-chip is-warning">請稍後重試</span>';
+                fail(elements.activeJobsSummary, elements.activeJobsList, '任務狀態讀取失敗');
             } finally {
                 if (elements.activeJobsRefresh) elements.activeJobsRefresh.disabled = false;
             }
@@ -96,10 +94,27 @@
                 });
             } catch (err) {
                 console.error('Failed to load API quotas', err);
-                elements.apiQuotaSummary.textContent = 'LLM 健康讀取失敗';
-                elements.apiQuotaList.innerHTML = '<span class="provider-sla-chip is-warning">請稍後重試</span>';
+                fail(elements.apiQuotaSummary, elements.apiQuotaList, 'LLM 健康讀取失敗');
             } finally {
                 if (elements.apiQuotaRefresh) elements.apiQuotaRefresh.disabled = false;
+            }
+        }
+
+        async function loadPerformance() {
+            if (!elements.performanceSummary || !elements.performanceList) return;
+            try {
+                if (elements.performanceRefresh) elements.performanceRefresh.disabled = true;
+                const payload = await apiClient.fetchPerformanceStats();
+                window.StockAgentPerformancePanel.render(payload, {
+                    summaryEl: elements.performanceSummary,
+                    listEl: elements.performanceList,
+                    escapeHtml: ui.escapeHtml
+                });
+            } catch (err) {
+                console.error('Failed to load performance stats', err);
+                fail(elements.performanceSummary, elements.performanceList, '決策回測讀取失敗');
+            } finally {
+                if (elements.performanceRefresh) elements.performanceRefresh.disabled = false;
             }
         }
 
@@ -109,16 +124,10 @@
             if (elements.providerSlaWindow) elements.providerSlaWindow.addEventListener('change', loadProviderSla);
             if (elements.activeJobsRefresh) elements.activeJobsRefresh.addEventListener('click', loadActiveJobs);
             if (elements.apiQuotaRefresh) elements.apiQuotaRefresh.addEventListener('click', loadApiQuotas);
+            if (elements.performanceRefresh) elements.performanceRefresh.addEventListener('click', loadPerformance);
         }
 
-        function loadAll() {
-            return Promise.allSettled([
-                loadProviderSla(),
-                loadActiveJobs(),
-                loadApiQuotas(),
-                watchlistPanel.load()
-            ]);
-        }
+        function loadAll() { return Promise.allSettled([loadProviderSla(), loadActiveJobs(), loadApiQuotas(), loadPerformance(), watchlistPanel.load()]); }
 
         function loadAllOnce() {
             if (!loaded) {
@@ -142,15 +151,7 @@
             return loadProviderSla();
         }
 
-        return {
-            bindEvents,
-            loadActiveJobs,
-            loadAll,
-            loadAllOnce,
-            loadApiQuotas,
-            loadProviderSla,
-            refreshProviderSlaIfLoaded
-        };
+        return { bindEvents, loadActiveJobs, loadAll, loadAllOnce, loadApiQuotas, loadPerformance, loadProviderSla, refreshProviderSlaIfLoaded };
     }
 
     window.StockAgentOpsWorkspace = { create };

@@ -1,0 +1,41 @@
+.watchlist-trigger-controls {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+}
+.watchlist-trigger-controls label {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 8px;
+    color: var(--text-secondary);
+    background: rgba(15, 23, 42, 0.44);
+    font-size: 0.72rem;
+    font-weight: 800;
+}
+.watchlist-trigger-controls input[type="number"] {
+    width: 62px;
+    min-height: 32px;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 7px;
+    background: rgba(2, 6, 23, 0.36);
+    color: var(--text-primary);
+}
+.watchlist-trigger-summary,
+.watchlist-trigger-event {
+    color: var(--text-secondary);
+}
+@media (max-width: 920px) {
+    .watchlist-trigger-controls {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+@media (max-width: 560px) {
+    .watchlist-trigger-controls {
+        grid-template-columns: 1fr;
+    }
+}

@@ -24,6 +24,20 @@ def _decision_tracking(row, recommendation: dict) -> dict:
     return build_decision_tracking(recommendation, _snapshot_path(row))
 
 
+def _temporal_memory(row) -> dict:
+    path = _snapshot_path(row)
+    if not path or not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            snapshot = json.load(handle)
+    except (OSError, TypeError, json.JSONDecodeError):
+        return {}
+    data = snapshot.get("data") if isinstance(snapshot.get("data"), dict) else {}
+    memory = data.get("temporal_memory") if isinstance(data.get("temporal_memory"), dict) else {}
+    return memory
+
+
 def row_to_report(row) -> dict:
     try:
         recommendation = json.loads(row["recommendation_json"])
@@ -51,6 +65,7 @@ def row_to_report(row) -> dict:
         "recommendation": recommendation,
         "decision_tracking": decision_tracking,
         "decision_freshness": decision_freshness,
+        "temporal_memory": _temporal_memory(row),
         "data_snapshot_filename": row["data_snapshot_filename"] if "data_snapshot_filename" in row.keys() else "",
         "data_trust": data_trust,
         "data_trust_status": row["data_trust_status"] if "data_trust_status" in row.keys() else data_trust.get("status", "unknown"),
