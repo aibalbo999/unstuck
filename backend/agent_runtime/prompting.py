@@ -1,6 +1,7 @@
 # Split from legacy_agent_runner.py. Keep this module logic-only; root compatibility lives in backend/agent_runner.py.
 
 import json
+import copy
 
 from analysis_types import AnalysisContext, StockData
 from agent_catalog import AGENT_NAMES
@@ -18,6 +19,28 @@ from structured_outputs import build_structured_output_instruction
 from .prompt_config import ANALYSIS_PROMPTS
 
 OUTPUT_CLEANLINESS_RULE = build_output_cleanliness_rule()
+
+ROUTED_EXTERNAL_CONTEXT_KEYS = {
+    "macro_indicators": {11},
+    "macro_context": {11},
+    "chip_data": {15, 18},
+    "tdcc_shareholder_distribution": {15, 18},
+    "twse_margin_short_sales": {15, 18},
+    "alternative_data": {13, 14},
+    "sentiment_context": {17},
+    "dcard_sentiment": {17},
+    "ptt_sentiment": {17},
+}
+
+
+def data_for_agent_prompt(agent_num: int, data: StockData) -> StockData:
+    """Return prompt data with newly added external contexts routed by agent role."""
+    agent_id = int(agent_num)
+    prompt_data = copy.deepcopy(data)
+    for key, allowed_agents in ROUTED_EXTERNAL_CONTEXT_KEYS.items():
+        if agent_id not in allowed_agents:
+            prompt_data.pop(key, None)
+    return prompt_data
 
 
 def build_company_identity_guard(data: StockData) -> str:
@@ -76,7 +99,8 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     ticker = data["ticker"]
     name = data["company_name"]
     compact_primary = bool(context.get("_primary_probe_prompt"))
-    fin_data = format_data_for_prompt(data, compact=compact_primary)
+    prompt_data = data_for_agent_prompt(agent_num, data)
+    fin_data = format_data_for_prompt(prompt_data, compact=compact_primary)
     prev = (
         _format_previous(context, agent_num, max_total_chars=PRIMARY_PROMPT_CONTEXT_TOTAL_CHAR_BUDGET)
         if compact_primary
@@ -102,7 +126,7 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
             "fin_data": fin_data,
             "prev": prev,
             "rag_context": rag_context,
-            "data": data,
+            "data": prompt_data,
             "context": context,
             "agent_num": agent_num,
         },

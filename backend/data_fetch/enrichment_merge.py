@@ -52,6 +52,18 @@ def _merge_optional_http_bundle(
     if isinstance(news_context, dict) and news_context:
         data["international_news_context"] = news_context
 
+    macro_indicators = http_bundle.get("macro_indicators", {}) or {}
+    if isinstance(macro_indicators, dict) and macro_indicators:
+        data["macro_indicators"] = macro_indicators
+
+    chip_data = http_bundle.get("chip_data", {}) or {}
+    if isinstance(chip_data, dict) and chip_data:
+        data["chip_data"] = chip_data
+
+    alternative_data = http_bundle.get("alternative_data", {}) or {}
+    if isinstance(alternative_data, dict) and alternative_data:
+        data["alternative_data"] = alternative_data
+
     fmp_quote = http_bundle.get("fmp_quote", {}) or {}
     if isinstance(fmp_quote, dict) and fmp_quote:
         updated_fields = []
@@ -157,6 +169,12 @@ def _optional_provider_label(source: str) -> str:
         return "Global market context"
     if source == "international_news_context":
         return "International news context"
+    if source == "macro_indicators":
+        return "FRED macro indicators"
+    if source == "chip_data":
+        return "TDCC/TWSE chip data"
+    if source == "alternative_data":
+        return "Alternative data providers"
     return "Google Search"
 
 

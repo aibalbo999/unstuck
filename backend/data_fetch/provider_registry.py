@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from .agent_context_providers import AlternativeJobOpeningsProvider, ChipDataProvider, MacroIndicatorsProvider
 from .enrichment_providers import (
     DynamicPeerMetricsProvider,
     FmpNewsProvider,
@@ -55,6 +56,9 @@ def default_providers() -> list[DataProvider]:
         YahooProvider(),
         GlobalMarketContextProvider(),
         InternationalNewsContextProvider(),
+        MacroIndicatorsProvider(),
+        ChipDataProvider(),
+        AlternativeJobOpeningsProvider(),
         GooglePeerDiscoveryProvider(),
         TwseOfficialProvider(),
         MonthlyRevenueProvider(),

@@ -55,6 +55,25 @@ RUN_LIVE_FREE_DATA_TESTS=1 .venv/bin/python -m pytest tests/live/test_free_exter
 
 Respect provider access policies. These fetchers use public pages/APIs, timeouts, conservative parsing, and controlled `None`/empty results rather than scraping aggressively or retrying indefinitely.
 
+## Agent-Scoped External Context
+
+Set the FRED key only in `backend/.env` or the process environment:
+
+```bash
+FRED_API_KEY=replace_with_your_key
+```
+
+FRED observations are cached in memory for 15 minutes. TDCC shareholder distribution and TWSE margin/short balances use public endpoints and require no key. The 104 job-opening detector runs only when the stock payload includes `alternative_data_keywords` or `job_opening_keywords`; at most the first three keywords are queried for one analysis.
+
+External context is routed by least privilege to control token use:
+
+- `macro_indicators` goes only to Agent 11.
+- `chip_data` goes only to Agents 15 and 18.
+- `sentiment_context` goes only to Agent 17.
+- `alternative_data` goes only to Agents 13 and 14.
+
+Provider failures remain controlled audit entries. A missing FRED key is `not_configured`; unavailable TDCC, TWSE, or 104 responses do not inject guessed values into prompts.
+
 ## Maintenance
 
 Maintenance actions live under the `報告與維運` tab. HTTP cleanup endpoints are dry-run by default; UI buttons send `write=true` only after the operator intentionally clicks the action.

@@ -13,6 +13,31 @@ from agent_state import AgentReport, AgentState
 
 
 STATE_VIEW_POLICY: dict[str, dict[str, list[str] | dict[str, list[str]]]] = {
+    "11": {
+        "root": ["validation_issues", "risk_flags", "macro_context"],
+    },
+    "13": {
+        "normalized_financials": ["revenue_history", "net_income_history", "fcf_history", "cash_flow"],
+        "quant_metrics": ["calculations", "unit_contract"],
+        "root": ["validation_issues", "risk_flags", "alternative_data"],
+    },
+    "14": {
+        "normalized_financials": ["revenue_history", "net_income_history", "fcf_history", "cash_flow"],
+        "quant_metrics": ["calculations", "unit_contract"],
+        "peer_context": ["selected_peers", "selection_policy", "dynamic_peer_metrics"],
+        "root": ["risk_flags", "validation_issues", "tool_results", "alternative_data"],
+    },
+    "15": {
+        "root": ["validation_issues", "risk_flags", "chip_context"],
+    },
+    "17": {
+        "root": ["validation_issues", "risk_flags", "sentiment_context"],
+    },
+    "18": {
+        "normalized_financials": ["revenue_history", "net_income_history", "fcf_history", "cash_flow"],
+        "peer_context": ["dynamic_peer_metrics"],
+        "root": ["validation_issues", "risk_flags", "chip_context"],
+    },
     "valuation": {
         "normalized_financials": ["revenue_history", "net_income_history", "fcf_history", "cash_flow"],
         "quant_metrics": ["calculations", "unit_contract"],
@@ -88,7 +113,7 @@ def _legacy_agent_key(agent_id: str) -> str | int:
 
 def state_view_for(role: str | int, state: AgentState) -> dict[str, Any]:
     role_key = str(role)
-    if role_key in {"4", "14"}:
+    if role_key == "4":
         role_key = "valuation"
     if role_key in {"7", "16", "19"}:
         role_key = "final_risk_memo"
@@ -102,14 +127,28 @@ def state_view_for(role: str | int, state: AgentState) -> dict[str, Any]:
     }
     for section, keys in policy.items():
         if section == "root":
+            external_context = _external_context_for_state(state)
             for key in keys:
-                value = getattr(state, key)
+                if key in external_context:
+                    value = external_context[key]
+                else:
+                    value = getattr(state, key)
                 view[key] = _jsonable(value)
             continue
         value = getattr(state, section)
         if isinstance(value, dict):
             view[section] = _pick(value, list(keys))
     return view
+
+
+def _external_context_for_state(state: AgentState) -> dict[str, Any]:
+    data = state.normalized_financials if isinstance(state.normalized_financials, dict) else {}
+    return {
+        "macro_context": copy.deepcopy(data.get("macro_indicators") or data.get("macro_context") or {}),
+        "chip_context": copy.deepcopy(data.get("chip_data") or {}),
+        "alternative_data": copy.deepcopy(data.get("alternative_data") or {}),
+        "sentiment_context": copy.deepcopy(data.get("sentiment_context") or {}),
+    }
 
 
 def _jsonable(value: Any) -> Any:

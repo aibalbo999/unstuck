@@ -259,6 +259,34 @@ def test_merge_agent_report_preserves_external_data_validation_risk_flags():
     ]
 
 
+def test_state_view_routes_new_external_data_only_to_relevant_agents():
+    state = initialize_agent_state(
+        {
+            "ticker": "2308.TW",
+            "company_name": "台達電",
+            "macro_indicators": {"source": "FRED", "indicators": {"vix": {"value": 18.44}}},
+            "chip_data": {
+                "tdcc_shareholder_distribution": {"major_holders_gt_1000_lots_pct": 42.1},
+                "twse_margin_short_sales": {"margin_balance": 12345},
+            },
+            "alternative_data": {"job_openings_104": {"job_count": 128}},
+            "sentiment_context": {"ptt_titles": ["AI 題材升溫"], "dcard_mentions": []},
+        },
+        run_id="run-routing",
+    )
+
+    assert "macro_context" in state_view_for(11, state)
+    assert "macro_context" not in state_view_for(15, state)
+    assert "chip_context" in state_view_for(15, state)
+    assert "chip_context" in state_view_for(18, state)
+    assert "chip_context" not in state_view_for(11, state)
+    assert "sentiment_context" in state_view_for(17, state)
+    assert "alternative_data" in state_view_for(14, state)
+    assert "alternative_data" in state_view_for(13, state)
+    assert "alternative_data" not in state_view_for(12, state)
+    assert "alternative_data" not in state_view_for("valuation", state)
+
+
 def test_merge_agent_report_rebuilds_risk_flags_without_dropping_other_agent_same_id():
     state = initialize_agent_state({"ticker": "2330.TW", "company_name": "台積電"}, run_id="run-same-flag")
     shared_from_agent_4 = RiskFlag(

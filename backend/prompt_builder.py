@@ -144,6 +144,15 @@ def _compact_pe_river(pe_river: dict) -> dict:
     }
 
 
+def _agent_context(data: dict) -> dict:
+    context = {}
+    for key in ("macro_indicators", "chip_data", "alternative_data", "sentiment_context"):
+        value = data.get(key)
+        if value:
+            context[key] = value
+    return context
+
+
 def format_data_for_prompt(data: dict, *, compact: bool = False) -> str:
     """Format financial data as clean JSON to avoid unit drift and prompt overload."""
     shares = safe_float(data.get("shares_raw"))
@@ -192,6 +201,7 @@ def format_data_for_prompt(data: dict, *, compact: bool = False) -> str:
         "source_freshness": data.get("source_freshness", {}) or {},
         "data_trust": _prompt_data_trust(data),
         "source_audit_summary": _prompt_source_audit_summary(data),
+        "agent_context": _agent_context(data),
         "market_data": {
             "current_price_twd": _prompt_number(data.get("current_price")),
             "market_cap_billion_twd": raw_twd_to_billion_twd(data.get("market_cap_raw")),
