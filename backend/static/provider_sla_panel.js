@@ -1,13 +1,13 @@
 (function () {
     const SOURCE_LABELS = {
         market_data: '股價與基本資料', financial_statements: '財報資料', recent_catalysts: '新聞與事件',
-        global_market_context: '全球市場脈絡', international_news_context: '國際新聞脈絡', peer_discovery: '同業比較',
+        global_market_context: '全球市場脈絡', international_news_context: '國際新聞脈絡', macro_indicators: 'FRED 總經指標', chip_data: '深度籌碼', alternative_data: '另類數據', peer_discovery: '同業比較',
         monthly_revenue: '月營收', institutional_trading: '法人籌碼', dynamic_peer_metrics: '同業指標', pe_river_chart: '估值區間'
     };
     const SOURCE_IMPACT = {
         market_data: '影響目前股價、估值與報告起點', financial_statements: '影響營收、獲利與財務比率',
         recent_catalysts: '補充資料，影響近期題材與風險事件', global_market_context: '補充資料，影響總經、匯率、利率與美股風險偏好判讀',
-        international_news_context: '補充資料，影響國際重大新聞與供應鏈事件判讀', peer_discovery: '補充資料，影響同業比較與估值參照',
+        international_news_context: '補充資料，影響國際重大新聞與供應鏈事件判讀', macro_indicators: '補充資料，只供總經策略師使用', chip_data: '補充資料，供量化交易員與法證籌碼追蹤使用', alternative_data: '補充資料，供成長預測與財務排雷交叉驗證使用', peer_discovery: '補充資料，影響同業比較與估值參照',
         monthly_revenue: '影響台股月營收判讀', institutional_trading: '影響法人籌碼判讀',
         dynamic_peer_metrics: '影響同業財務與估值指標', pe_river_chart: '影響本益比區間參考'
     };

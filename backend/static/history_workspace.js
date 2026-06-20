@@ -57,7 +57,7 @@
         });
         const decisionTrackingPanel = window.StockAgentDecisionTrackingPanel.create({
             apiClient, historyPanel, notify,
-            elements: { summaryEl: elements.decisionTrackingSummary, refreshBtn: elements.decisionTrackingRefresh },
+            elements: { summaryEl: elements.decisionTrackingSummary, refreshBtn: elements.decisionTrackingRefresh, runActionsBtn: elements.decisionTrackingRunActions },
             onChange: tickers => { trackedTickers = tickers; historyPanel.setTrackedTickers(trackedTickers); }
         });
         function setTrackingCompact(value, fromPreview = false) {

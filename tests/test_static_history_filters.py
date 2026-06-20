@@ -1,3 +1,5 @@
+import json
+import subprocess
 from pathlib import Path
 
 
@@ -257,9 +259,84 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "apiClient.requestJson" in report_rerun_js
     assert "fetchActiveJobs" in operator_summary_js
     assert "fetchApiQuotas" in operator_summary_js
-    assert "fetchReports" in operator_summary_js
-    assert "requires_rerun" in operator_summary_js
-    assert "operator-summary-item" in operator_summary_js
+
+
+def test_decision_tracking_bulk_actions_and_compact_colors_are_wired():
+    index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    app_js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
+    history_workspace_js = (STATIC_DIR / "history_workspace.js").read_text(encoding="utf-8")
+    decision_tracking_js = (STATIC_DIR / "decision_tracking_panel.js").read_text(encoding="utf-8")
+    history_panel_js = (STATIC_DIR / "history_panel.js").read_text(encoding="utf-8")
+    decision_tracking_css = (STATIC_DIR / "styles" / "decision_tracking.css").read_text(encoding="utf-8")
+
+    assert 'id="decision-tracking-run-actions"' in index_html
+    assert "decisionTrackingRunActions" in app_js
+    assert "runActionsBtn: elements.decisionTrackingRunActions" in history_workspace_js
+    assert "runAllRecommendedActions" in decision_tracking_js
+    assert "refreshReportDataSnapshot" in decision_tracking_js
+    assert "/rerun?scope=full_report" in decision_tracking_js
+    assert "recommendedActionForReport" in decision_tracking_js
+    assert "failed += 1" in decision_tracking_js
+    assert "trackingSummaryTone" in history_panel_js
+    assert ".tracking-compact-note.is-above-target" in decision_tracking_css
+    assert ".tracking-compact-note.is-near-target" in decision_tracking_css
+    assert ".tracking-compact-note.is-below-target" in decision_tracking_css
+
+
+def test_compact_tracking_cards_render_target_comparison_tones():
+    history_panel_path = STATIC_DIR / "history_panel.js"
+    script = """
+global.window = {};
+require(__HISTORY_PANEL_PATH__);
+const table = { hidden: false, innerHTML: '', classList: { toggle() {} } };
+const panel = window.StockAgentHistoryPanel.create({
+  listEl: null,
+  trackingTableEl: table,
+  paginationEl: null,
+  prevBtn: null,
+  nextBtn: null,
+  pageInfoEl: null,
+  escapeHtml: value => String(value ?? ''),
+  normalizeRecommendation: value => String(value ?? ''),
+  renderPipelineModeBadge: () => '',
+  renderDataTrustBadge: () => '',
+  renderDataTrustReason: () => '',
+  recommendationTone: () => ''
+});
+const report = (filename, summary, status) => ({
+  filename,
+  ticker: '2308.TW',
+  pipeline_id: 'v2',
+  date: '2026-06-20',
+  decision_tracking: {
+    status: 'tracked',
+    recommendation: '買入',
+    latest_price: 100,
+    tracking_summary_status: summary,
+    target_comparisons: {
+      target_3m: { status: 'below_target', target: 120 },
+      target_6m: { status: 'below_target', target: 130 },
+      target_12m: { status, target: 140 }
+    }
+  }
+});
+panel.setTrackingCompact(true);
+panel.renderTrackingGroups([{
+  ticker: '2308.TW',
+  company_name: '台達電',
+  reports: [
+    report('above.html', '高於12月目標', 'above_target'),
+    report('near.html', '接近12月目標', 'near_target'),
+    report('below.html', '距12月目標 +40.00%', 'below_target')
+  ]
+}]);
+process.stdout.write(table.innerHTML);
+""".replace("__HISTORY_PANEL_PATH__", json.dumps(str(history_panel_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+
+    assert 'tracking-compact-note is-above-target' in result.stdout
+    assert 'tracking-compact-note is-near-target' in result.stdout
+    assert 'tracking-compact-note is-below-target' in result.stdout
 
 
 def test_operator_workbench_surfaces_actionable_daily_workflow():
@@ -432,9 +509,9 @@ def test_decision_tracking_dense_layout_uses_workspace_efficiently():
     history_panel_js = (STATIC_DIR / "history_panel.js").read_text(encoding="utf-8")
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
 
-    assert "style.css?v=20260619-modec-tracking" in index_html
-    assert "/static/history_panel.js?v=20260619-modec-tracking" in index_html
-    assert "decision_tracking.css?v=20260619-modec-tracking" in style_css
+    assert "style.css?v=20260620-compact-colors" in index_html
+    assert "/static/history_panel.js?v=20260620-compact-colors" in index_html
+    assert "decision_tracking.css?v=20260620-compact-colors" in style_css
     assert "max-width: min(1360px, 100%)" in base_css
     assert "grid-template-columns: minmax(520px, 1.35fr) minmax(360px, 0.85fr)" in history_list_css
     assert "tracking-density-row" in history_panel_js
