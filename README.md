@@ -10,7 +10,7 @@
 - SSE 即時推播分析進度
 - 支援台股代號，例如 `2330`、`2330.TW`
 - 自動切換 `.TW` / `.TWO` 查詢
-- 多 Agent 串接分析流程，支援 Mode A（學術深度派）、Mode B（實戰交易派）與 Mode C（逆勢交易與泡沫狙擊）
+- 多 Agent 串接分析流程，支援 Mode A（學術深度派）、Mode B（實戰交易派）、Mode C（逆勢交易與泡沫狙擊）與 Mode D（極短線波段與事件驅動）
 - 產生 HTML 與 Markdown 報告
 - 前端分成「分析」與「報告與維運」頁籤；歷史報告、預覽、比較留在分析頁，API 額度、watchlist、來源健康與本機維護集中在維運頁並於首次開啟時載入
 - 歷史報告支援資料可信度、決策追蹤、版本篩選、報告比較與相容性提示
@@ -19,8 +19,8 @@
 - 決策追蹤會自動掃描滿 3 / 6 / 12 個月的歷史報告，抓取發布日與到期日股價，計算 ROI、命中率與 Hit/Miss，並在「報告與維運」顯示回測績效
 - 新報告會載入同股票上一期報告與回測結果，將 `temporal_memory` 只注入最終決策 Agent，強制檢討先前目標價與投資建議是否失準
 - 內建報告刪除 API，會同步刪除 `.html`、`.md` 與資料快照
-- 結構化 Agent 使用 JSON 輸出優先解析；Mode A/B 會解析護城河、估值與投資建議，Mode C 會解析泡沫狙擊建議
-- Mode C 的 Agent 19 報告會強制保留做空觸發條件、防軋空停損點，並將 `[投資建議]` 區塊固定放在最終段落尾端
+- 結構化 Agent 使用 JSON 輸出優先解析；Mode A/B 會解析護城河、估值與投資建議，Mode C 會解析泡沫狙擊建議，Mode D 會解析極短線交易設定
+- Mode C 的 Agent 19 報告會強制保留做空觸發條件、防軋空停損點，並將 `[投資建議]` 區塊固定放在最終段落尾端；Mode D 則使用 Agent 24 輸出標準化 Trade Setup
 - 財務資料使用本地 SQLite 持久化快取，預設 24 小時
 - 台股會嘗試以 FinMind / TWSE 官方資料補抓最近四季財報，成功時納入跨來源比對；未取得時 HTML 報告會顯示官方財務資料警示
 - yfinance 欄位缺漏時會用 FMP（需 API key）或可追溯的衍生補值補上市場欄位、TTM 營收或 FCF，並在 prompt 中揭露限制
@@ -259,7 +259,7 @@ http://127.0.0.1:8080
 
 1. 開啟首頁，預設停在「分析」頁籤。
 2. 輸入股票代號，例如 `2330`、`2059`、`6806.TW`。
-3. 選擇分析模式；預設是 Mode A，也可選 Mode B 或 Mode C。
+3. 選擇分析模式；預設是 Mode A，也可選 Mode B、Mode C 或 Mode D。
 4. 等待 Agent 依序完成。
 5. 報告完成後會出現在同一頁的歷史清單，可直接預覽、下載、比較或重跑。
 6. 到「報告與維運」查看決策回測績效、API/來源健康、Watchlist 批次排程與事件雷達 trigger。
@@ -268,7 +268,7 @@ http://127.0.0.1:8080
 
 日常操作建議：
 
-- 「分析」頁籤：新分析、查找歷史報告、篩選 Mode A/B/C、查看決策追蹤、刷新資料快照、重跑報告與比較報告。
+- 「分析」頁籤：新分析、查找歷史報告、篩選 Mode A/B/C/D、查看決策追蹤、刷新資料快照、重跑報告與比較報告。
 - 「報告與維運」頁籤：查看 API 額度、本機 watchlist、來源健康、任務狀態與清理工具；首次打開頁籤才會載入這些維運資料。
 - 「資料快照已刷新，但 HTML/Markdown 分析本文未重新執行」代表只更新了 `.data.json` 的最新股價/來源/可信度，原本報告正文和投資結論還是舊模型在原生成時間做出的判斷；若要讓文字與結論一起更新，請使用重跑功能。
 
@@ -466,7 +466,7 @@ xattr -d com.apple.quarantine start_mac_lan.command
 
 - 不要把生成報告提交到 Git。
 - 不要把真實 API key 寫進程式碼。
-- Prompt 主要放在 `backend/prompts/agents.json`，修改後請確認各 pipeline 的 Agent 都保留 system 與 analysis prompt；Mode C 使用 Agent 17 / 18 / 19。
+- Prompt 主要放在 `backend/prompts/agents.json`，修改後請確認各 pipeline 的 Agent 都保留 system 與 analysis prompt；Mode C 使用 Agent 17 / 18 / 19，Mode D 使用 Agent 22 / 23 / 24。
 - HTML 報告版型主要放在 `backend/templates/report.html.j2`，Python 只負責整理資料與渲染模板。
 - 修改 prompt 或品質檢查後，建議至少跑一次 `python3 -m py_compile`。
 - 修改 DCF/WACC 或 `quant_metrics` 時，請確認 `fallback_fields`、`data_quality_warning`、Agent 7【資料警示】與 final audit 的 DCF 衝突檢查仍一致。
