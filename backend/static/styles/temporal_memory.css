@@ -1,0 +1,33 @@
+.preview-temporal-memory {
+    margin-top: 10px;
+    border: 1px solid rgba(96, 165, 250, 0.34);
+    border-radius: 8px;
+    background: rgba(30, 64, 175, 0.12);
+    padding: 10px 12px;
+}
+.preview-temporal-memory[hidden] {
+    display: none;
+}
+.preview-temporal-memory strong,
+.preview-temporal-memory span {
+    display: block;
+}
+.preview-temporal-memory strong {
+    color: var(--text-primary);
+    font-size: 0.82rem;
+    margin-bottom: 4px;
+}
+.preview-temporal-memory span,
+.preview-temporal-memory p {
+    color: var(--text-secondary);
+    font-size: 0.76rem;
+    line-height: 1.55;
+}
+.preview-temporal-memory p {
+    margin: 8px 0 0;
+}
+.temporal-memory-backtests {
+    display: grid;
+    gap: 4px;
+    margin-top: 8px;
+}

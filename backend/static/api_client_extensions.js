@@ -5,6 +5,10 @@
         return jsonRequest('/api/observability/api-quotas');
     }
 
+    async function fetchPerformanceStats() {
+        return jsonRequest('/api/performance/stats');
+    }
+
     async function compareReports(left, right) {
         const params = new URLSearchParams({ left, right });
         return jsonRequest(`/api/reports/compare?${params.toString()}`);
@@ -61,6 +65,7 @@
 
     Object.assign(window.StockAgentApiClient, {
         fetchApiQuotas,
+        fetchPerformanceStats,
         compareReports,
         fetchWatchlist,
         saveWatchlistItem,

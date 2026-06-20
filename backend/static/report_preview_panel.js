@@ -68,6 +68,7 @@
         elements.trackingReturn = elements.trackingReturn || document.getElementById('preview-tracking-return');
         elements.trackingGap = elements.trackingGap || document.getElementById('preview-tracking-gap');
         elements.trackingSummary = elements.trackingSummary || document.getElementById('preview-tracking-summary');
+        elements.temporalMemoryRoot = elements.temporalMemoryRoot || document.getElementById('preview-temporal-memory');
 
         function setPreviewOpen(open) {
             if (elements.workspace) elements.workspace.classList.toggle('has-preview', open);
@@ -90,6 +91,9 @@
             elements.target12m.textContent = rec.target_12m || 'N/A';
             elements.summary.textContent = rec.summary || '這份報告沒有可讀的一頁式摘要，可直接查看完整報告。';
             renderTracking(report.decision_tracking, elements);
+            if (window.StockAgentTemporalMemoryPanel) {
+                window.StockAgentTemporalMemoryPanel.render(report.temporal_memory, elements.temporalMemoryRoot, options.escapeHtml);
+            }
 
             if (elements.staleNotice) {
                 const freshness = report.decision_freshness || {};
@@ -109,6 +113,7 @@
         function hide() {
             if (elements.root) elements.root.hidden = true;
             if (elements.trackingRoot) elements.trackingRoot.hidden = true;
+            if (elements.temporalMemoryRoot) elements.temporalMemoryRoot.hidden = true;
             setPreviewOpen(false);
         }
 

@@ -30,6 +30,25 @@ scripts/demo_report.sh
 - `decision_freshness.status = needs_rerun` means the snapshot was refreshed after the HTML/Markdown conclusion was written. Treat the old conclusion as historical until rerun finishes.
 - Watchlist items use the same signal. Items marked `需重跑` are sorted first so the operator can rerun the stale conclusion before reviewing lower-priority names.
 
+## Decision Tracking And Backtests
+
+The decision tracking scheduler runs after the daily tracking refresh. It scans reports whose generated date has reached the 3, 6, or 12 month horizon, fetches historical market closes, and writes one idempotent result per `(report_filename, horizon_months)`.
+
+Backtest results are visible in `報告與維運` under `決策回測`. The panel shows hit rate, average strategy ROI, horizon breakdown, and the latest evaluated reports. A `買入/買進` call earns market ROI, `避免/強烈放空` earns inverse market ROI, and `持有` is treated as a range call. A duplicate run on the same day is skipped by the unique result key.
+
+New reports also load the most recent prior report for the same ticker. When a previous call has a miss, final decision agents receive an `Agent 歷史反思` context and must explicitly explain which assumption changed before writing the new conclusion. The preview panel displays that memory when it exists.
+
+## Event-Driven Watchlist Radar
+
+Watchlist items can include event triggers:
+
+- `price_below_sma`: price below the configured moving average; matched events dispatch mode C / pipeline `v3`.
+- `foreign_sell_streak`: foreign investors sell more than the configured threshold for N consecutive days; matched events dispatch `v3`.
+- `vix_above`: VIX above the configured threshold; matched events dispatch `v3`.
+- `revenue_record_high`: latest monthly revenue reaches a local high; matched events dispatch mode B / pipeline `v2`.
+
+The background scheduler checks normal due watchlist jobs and then runs the event radar after the post-market time. Each trigger evaluation is stored once per ticker, pipeline, trigger key, and date. If the same event is already recorded, the scheduler skips dispatch rather than queueing duplicate reports. Active jobs for the selected pipeline are also skipped.
+
 ## Free External Data Waterfall
 
 Install the free-source dependencies with the backend requirements:

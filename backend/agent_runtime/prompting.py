@@ -30,6 +30,7 @@ ROUTED_EXTERNAL_CONTEXT_KEYS = {
     "sentiment_context": {17},
     "dcard_sentiment": {17},
     "ptt_sentiment": {17},
+    "temporal_memory": {7, 16, 19},
 }
 
 
@@ -94,6 +95,21 @@ def build_state_view_section(agent_num: int, context: AnalysisContext) -> str:
     )
 
 
+def build_temporal_memory_section(agent_num: int, data: StockData) -> str:
+    if int(agent_num) not in {7, 16, 19}:
+        return ""
+    memory = data.get("temporal_memory") if isinstance(data.get("temporal_memory"), dict) else {}
+    prompt = str(memory.get("reflection_prompt") or "").strip()
+    if not prompt:
+        return ""
+    backtests = memory.get("backtests", [])
+    return "\n".join([
+        prompt,
+        "到期回測紀錄：",
+        json.dumps(backtests[:6], ensure_ascii=False, indent=2, allow_nan=False),
+    ])
+
+
 def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> str:
     """根據 Agent 編號建立分析提示詞。"""
     ticker = data["ticker"]
@@ -116,6 +132,7 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     audit_retry_instruction = context.get("_audit_retry_instruction", "")
     audit_reflection_instruction = context.get("_audit_reflection_instruction", "")
     state_view_section = build_state_view_section(agent_num, context)
+    temporal_memory_section = build_temporal_memory_section(agent_num, prompt_data)
 
     template = ANALYSIS_PROMPTS[agent_num]
     analysis_prompt = render_prompt_template(
@@ -141,6 +158,7 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
         structured_instruction,
         numeric_tool_instruction,
         enrichment_instruction,
+        temporal_memory_section,
         identity_guard,
         retry_instruction,
         audit_reflection_instruction,

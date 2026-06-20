@@ -30,6 +30,8 @@ flowchart LR
 - Analysis and rerun jobs emit events to SQLite so SSE clients can resume progress.
 - Maintenance routes default to dry-run unless `write=true` is provided.
 - Provider SLA and API quota dashboards are local observations, not provider billing truth.
+- Decision backtests live in `decision_backtest_results` and are keyed by report filename plus horizon to make reruns idempotent.
+- Watchlist trigger configuration and trigger events live beside the watchlist SQLite store, keeping event-radar state separate from report metadata.
 
 ## Agent Blackboard
 
@@ -70,6 +72,37 @@ flowchart TD
 - complete `AgentReport` records, structured outputs, and risk flags
 
 Prompt construction uses `state_view_for(role, state)` to expose only the paths needed by that role. Valuation agents receive normalized financials, quant metrics, peer context, validation issues, risk flags, and tool results. Final risk agents also receive the complete upstream report map. The old `{prev}` text remains only as a compatibility aid and is not the primary evidence source.
+
+## Decision Learning Loop
+
+```mermaid
+flowchart LR
+    Reports["Generated reports"] --> DueScan["3/6/12 month due scan"]
+    DueScan --> Prices["Historical close fetch"]
+    Prices --> Backtest["ROI + Hit/Miss evaluator"]
+    Backtest --> Store["decision_backtest_results"]
+    Store --> PerfUI["決策回測 panel"]
+    Store --> Memory["Temporal memory service"]
+    Reports --> Memory
+    Memory --> FinalAgents["Final Agents 7 / 16 / 19"]
+```
+
+`temporal_memory` is injected into the stock data payload before `AnalysisPipelineRunner` starts. Prompt routing treats it as least-privilege external context: only final decision agents 7, 16, and 19 can see it. The data snapshot persists the same block, allowing report preview to show the prior recommendation, target price, and backtest outcome later.
+
+## Event-Driven Radar
+
+```mermaid
+flowchart TD
+    Watchlist["Watchlist item + triggers"] --> Scheduler["watchlist scheduler"]
+    Scheduler --> Data["StockDataService"]
+    Data --> Eval["watchlist_triggers evaluator"]
+    Eval --> Events["watchlist_trigger_events"]
+    Eval -->|"bearish / VIX"| ModeC["Dispatch pipeline v3"]
+    Eval -->|"revenue record high"| ModeB["Dispatch pipeline v2"]
+    Events --> UI["Watchlist trigger chips"]
+```
+
+The scheduler still runs regular pre/post-market watchlist batches. After post-market time it also evaluates event triggers. Every trigger has a deterministic `trigger_key`; the event table prevents duplicate jobs for the same date, while `find_active_job` prevents concurrent duplicate analysis for the selected pipeline.
 
 ## Data Circuit Breaker
 

@@ -39,6 +39,7 @@ async def _watchlist_scheduler_forever(
     find_active_job: Callable[[str, str], dict],
     task_queue: Any,
     run_stock_analysis_job: Callable[[str, str, str], str],
+    data_service: Any,
     emit_log: Callable[[str], None],
     interval_seconds: int = 60,
 ) -> None:
@@ -52,6 +53,19 @@ async def _watchlist_scheduler_forever(
                 run_stock_analysis_job=run_stock_analysis_job,
                 emit_log=emit_log,
             )
+            trigger_result = await watchlist_service.monitor_watchlist_triggers(
+                data_service=data_service,
+                create_job=create_job,
+                find_active_job=find_active_job,
+                task_queue=task_queue,
+                run_stock_analysis_job=run_stock_analysis_job,
+            )
+            if trigger_result.get("queued") or trigger_result.get("errors"):
+                emit_log(
+                    "watchlist 事件雷達："
+                    f"triggered={len(trigger_result.get('queued') or [])}, "
+                    f"errors={len(trigger_result.get('errors') or [])}"
+                )
         except Exception as exc:
             emit_log(f"watchlist 批次分析檢查失敗：{exc}")
         await asyncio.sleep(interval_seconds)
@@ -63,6 +77,7 @@ def create_watchlist_scheduler_task(
     find_active_job: Callable[[str, str], dict],
     task_queue: Any,
     run_stock_analysis_job: Callable[[str, str, str], str],
+    data_service: Any,
     emit_log: Callable[[str], None],
 ) -> asyncio.Task:
     return asyncio.create_task(
@@ -71,6 +86,7 @@ def create_watchlist_scheduler_task(
             find_active_job=find_active_job,
             task_queue=task_queue,
             run_stock_analysis_job=run_stock_analysis_job,
+            data_service=data_service,
             emit_log=emit_log,
         )
     )

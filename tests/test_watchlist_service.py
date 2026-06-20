@@ -1,5 +1,6 @@
 import json
 import sys
+import asyncio
 from datetime import datetime
 from pathlib import Path
 
@@ -12,6 +13,8 @@ sys.path.insert(0, str(ROOT / "backend"))
 import api  # noqa: E402
 import report_index  # noqa: E402
 import watchlist_service  # noqa: E402
+import watchlist_scheduler  # noqa: E402
+from data_fetch import FetchRequest, FetchResult  # noqa: E402
 
 
 def _write_report_pair(output_dir: Path, filename: str):
@@ -210,3 +213,82 @@ def test_watchlist_listing_prioritizes_items_with_stale_decisions(monkeypatch, t
     assert result["items"][0]["decision_priority"] == "high"
     assert result["items"][0]["decision_alert"]["reason"] == "needs_rerun"
     assert result["items"][0]["latest_report"]["filename"] == report
+
+
+def test_watchlist_trigger_monitor_queues_matched_event_once(monkeypatch, tmp_path):
+    monkeypatch.setattr(watchlist_service, "WATCHLIST_PATH", tmp_path / "watchlist.json")
+    watchlist_service.reset_watchlist_store_for_tests()
+    watchlist_service.upsert_watchlist_item({
+        "ticker": "2308.TW",
+        "pipeline": "v1",
+        "schedule_slots": ["post_market"],
+        "enabled": True,
+        "triggers": [{"type": "vix_above", "threshold": 30}],
+    })
+    queued_jobs = []
+
+    class FakeQueue:
+        def enqueue(self, key, func, job_id, ticker, pipeline):
+            queued_jobs.append((key, job_id, ticker, pipeline))
+
+    class FakeDataService:
+        async def fetch_async(self, request):
+            assert request.ticker == "2308.TW"
+            return FetchResult(
+                request=FetchRequest.from_ticker(request.ticker),
+                data={"ticker": request.ticker, "macro_indicators": {"indicators": {"vix": {"value": 35}}}},
+            )
+
+    kwargs = {
+        "data_service": FakeDataService(),
+        "create_job": lambda ticker, pipeline: f"job-{ticker}-{pipeline}",
+        "find_active_job": lambda ticker, pipeline: {},
+        "task_queue": FakeQueue(),
+        "run_stock_analysis_job": lambda job_id, ticker, pipeline: "ok",
+        "now": datetime(2026, 6, 20, 16, 1, tzinfo=watchlist_service.TAIPEI),
+    }
+
+    first = asyncio.run(watchlist_service.monitor_watchlist_triggers(**kwargs))
+    second = asyncio.run(watchlist_service.monitor_watchlist_triggers(**kwargs))
+
+    assert first["queued"][0]["pipeline"] == "v3"
+    assert second["queued"] == []
+    assert queued_jobs == [("analysis:job-2308.TW-v3", "job-2308.TW-v3", "2308.TW", "v3")]
+    latest = watchlist_service.list_watchlist()["items"][0]["latest_trigger_event"]
+    assert latest["trigger_type"] == "vix_above"
+
+
+def test_watchlist_scheduler_runs_trigger_monitor(monkeypatch):
+    calls = []
+    logs = []
+
+    def fake_due_batch(**kwargs):
+        calls.append(("due",))
+        return {"success": True, "queued": [], "skipped": []}
+
+    async def fake_monitor(**kwargs):
+        calls.append(("monitor", kwargs["data_service"]))
+        return {"success": True, "queued": [{"ticker": "2308.TW"}], "skipped": [], "errors": []}
+
+    async def fake_sleep(seconds):
+        raise asyncio.CancelledError()
+
+    monkeypatch.setattr(watchlist_scheduler, "_run_due_watchlist_batch", fake_due_batch)
+    monkeypatch.setattr(watchlist_service, "monitor_watchlist_triggers", fake_monitor)
+    monkeypatch.setattr(watchlist_scheduler.asyncio, "sleep", fake_sleep)
+
+    try:
+        asyncio.run(watchlist_scheduler._watchlist_scheduler_forever(
+            create_job=lambda ticker, pipeline: "job",
+            find_active_job=lambda ticker, pipeline: {},
+            task_queue=object(),
+            run_stock_analysis_job=lambda job_id, ticker, pipeline: "ok",
+            data_service="data-service",
+            emit_log=logs.append,
+            interval_seconds=1,
+        ))
+    except asyncio.CancelledError:
+        pass
+
+    assert calls == [("due",), ("monitor", "data-service")]
+    assert any("triggered=1" in line for line in logs)

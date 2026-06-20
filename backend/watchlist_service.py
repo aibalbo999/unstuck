@@ -5,10 +5,13 @@ from __future__ import annotations
 import time
 from datetime import datetime
 
+from data_fetch import FetchRequest
 from pipeline_modes import normalize_pipeline_run_id
 import report_history_service
 import watchlist_claim_store
 import watchlist_store
+import watchlist_trigger_store
+from watchlist_triggers import evaluate_watchlist_triggers
 
 
 TAIPEI = watchlist_store.TAIPEI
@@ -29,7 +32,18 @@ def reset_watchlist_store_for_tests() -> None:
 
 def list_watchlist() -> dict:
     _sync_store_config()
-    return watchlist_store.list_watchlist()
+    payload = watchlist_store.list_watchlist()
+    trigger_map = watchlist_trigger_store.triggers_for_items(payload.get("items", []))
+    event_map = watchlist_trigger_store.latest_events_for_items(payload.get("items", []))
+    payload["items"] = [
+        {
+            **item,
+            "triggers": trigger_map.get((item.get("ticker"), item.get("pipeline")), []),
+            "latest_trigger_event": event_map.get((item.get("ticker"), item.get("pipeline")), {}),
+        }
+        for item in payload.get("items", [])
+    ]
+    return payload
 
 
 def _ticker_matches(report: dict, ticker: str) -> bool:
@@ -100,12 +114,19 @@ def list_watchlist_with_report_alerts(output_dir: str) -> dict:
 
 def upsert_watchlist_item(payload: dict) -> dict:
     _sync_store_config()
-    return watchlist_store.upsert_watchlist_item(payload)
+    result = watchlist_store.upsert_watchlist_item(payload)
+    if "triggers" in (payload or {}):
+        ticker = str(payload.get("ticker") or "").strip().upper()
+        pipeline = normalize_pipeline_run_id(payload.get("pipeline") or payload.get("pipeline_id") or "v1")
+        watchlist_trigger_store.set_item_triggers(ticker, pipeline, payload.get("triggers"))
+    return list_watchlist()
 
 
 def delete_watchlist_item(ticker: str, pipeline: str = "all") -> dict:
     _sync_store_config()
-    return watchlist_store.delete_watchlist_item(ticker, pipeline)
+    result = watchlist_store.delete_watchlist_item(ticker, pipeline)
+    watchlist_trigger_store.delete_item_triggers(ticker, pipeline)
+    return {**result, **list_watchlist(), "deleted": result.get("deleted", 0)}
 
 
 def mark_watchlist_run(
@@ -142,6 +163,60 @@ def due_watchlist_items(now: datetime | None = None) -> list[dict]:
                 continue
             due.append({**item, "due_slot": slot, "due_label": DEFAULT_SCHEDULES[slot]["label"], "due_date": today})
     return due
+
+
+def _post_market_due(now: datetime) -> bool:
+    hour, minute = [int(part) for part in DEFAULT_SCHEDULES["post_market"]["time"].split(":", 1)]
+    return now >= now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+
+
+async def monitor_watchlist_triggers(
+    *,
+    data_service,
+    create_job,
+    find_active_job,
+    task_queue,
+    run_stock_analysis_job,
+    now: datetime | None = None,
+) -> dict:
+    _sync_store_config()
+    now = now or datetime.now(TAIPEI)
+    if not _post_market_due(now):
+        return {"success": True, "queued": [], "skipped": [{"reason": "before_post_market"}], "errors": []}
+    queued = []
+    skipped = []
+    errors = []
+    evaluation_date = now.date().isoformat()
+    for item in list_watchlist().get("items", []):
+        triggers = item.get("triggers") or []
+        if not item.get("enabled") or not triggers:
+            continue
+        ticker = str(item.get("ticker") or "").strip().upper()
+        try:
+            result = await data_service.fetch_async(FetchRequest.from_ticker(ticker))
+            data = result.data if isinstance(getattr(result, "data", None), dict) else {}
+            events = evaluate_watchlist_triggers(item, data, evaluation_date=evaluation_date)
+        except Exception as exc:
+            errors.append({"ticker": ticker, "error": str(exc)[:240]})
+            continue
+        for event in events:
+            recorded = watchlist_trigger_store.record_trigger_event(event)
+            if not recorded.get("inserted"):
+                skipped.append({"ticker": ticker, "trigger": event.get("trigger_type"), "reason": "already_evaluated"})
+                continue
+            if not event.get("matched"):
+                skipped.append({"ticker": ticker, "trigger": event.get("trigger_type"), "reason": "not_matched"})
+                continue
+            selected_pipeline = normalize_pipeline_run_id(event.get("pipeline_selected") or item.get("pipeline") or "v1")
+            active = find_active_job(ticker, selected_pipeline)
+            if active:
+                skipped.append({"ticker": ticker, "pipeline": selected_pipeline, "reason": "active_job", "job_id": active.get("job_id")})
+                continue
+            job_id = create_job(ticker, selected_pipeline)
+            task_queue.enqueue(f"analysis:{job_id}", run_stock_analysis_job, job_id, ticker, selected_pipeline)
+            queued.append({"ticker": ticker, "pipeline": selected_pipeline, "job_id": job_id, "trigger": event.get("trigger_type")})
+            time.sleep(0.01)
+    return {"success": not errors, "queued": queued, "skipped": skipped, "errors": errors}
 
 
 def claim_due_watchlist_items(now: datetime | None = None) -> list[dict]:
