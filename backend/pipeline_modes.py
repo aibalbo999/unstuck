@@ -68,9 +68,9 @@ DUAL_PIPELINE_RUN_ID: PipelineRunId = "both"
 
 PIPELINE_RUN_LABELS: dict[str, dict[str, str]] = {
     "both": {
-        "label": "連續模式：模式 A → 模式 B",
-        "short_label": "A+B 連續",
-        "hint_text": "將先執行學術深度派，再接續實戰交易派；完成後會產出兩份獨立報告。",
+        "label": "連續模式：模式 A → 模式 B → 模式 C",
+        "short_label": "A+B+C 連續",
+        "hint_text": "將依序執行學術深度派、實戰交易派與逆勢泡沫狙擊；完成後會產出三份獨立報告。",
     }
 }
 
@@ -104,18 +104,28 @@ def normalize_pipeline_run_id(value: Any) -> PipelineRunId:
         "all",
         "dual",
         "a+b",
+        "a+b+c",
         "ab",
+        "abc",
         "v1v2",
+        "v1v2v3",
         "v1+v2",
+        "v1+v2+v3",
         "v1/v2",
+        "v1/v2/v3",
         "v1_v2",
+        "v1_v2_v3",
         "v1-v2",
+        "v1-v2-v3",
         "mode_a_b",
+        "mode_a_b_c",
         "mode-a-b",
+        "mode-a-b-c",
         "pipeline_both",
         "both_modes",
         "all_modes",
         "mode_ab",
+        "mode_abc",
     }:
         return DUAL_PIPELINE_RUN_ID
     return normalize_pipeline_id(normalized)
@@ -124,7 +134,7 @@ def normalize_pipeline_run_id(value: Any) -> PipelineRunId:
 def get_pipeline_run_sequence(run_id: Any = DEFAULT_PIPELINE_ID) -> tuple[PipelineId, ...]:
     normalized_run_id = normalize_pipeline_run_id(run_id)
     if normalized_run_id == DUAL_PIPELINE_RUN_ID:
-        return ("v1", "v2")
+        return ("v1", "v2", "v3")
     return (normalized_run_id,)
 
 

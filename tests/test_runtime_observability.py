@@ -544,8 +544,8 @@ def test_runtime_policy_script_is_non_strict_for_local_runtime():
 def test_analyze_sse_contract_streams_job_progress_and_done(monkeypatch):
     streamed_events = [
         {"id": 1, "payload": {"type": "status", "message": "start", "pipeline_id": "both"}, "created_at": 1.0},
-        {"id": 2, "payload": {"type": "progress", "current": 1, "total": 13, "name": "Agent 1"}, "created_at": 2.0},
-        {"id": 3, "payload": {"type": "done", "filename": "2449_TW_v2_report.html", "pipeline_id": "both", "last_pipeline_id": "v2"}, "created_at": 3.0},
+        {"id": 2, "payload": {"type": "progress", "current": 1, "total": 22, "name": "Agent 1"}, "created_at": 2.0},
+        {"id": 3, "payload": {"type": "done", "filename": "2449_TW_v3_report.html", "pipeline_id": "both", "last_pipeline_id": "v3"}, "created_at": 3.0},
     ]
 
     class FakeQueue:
