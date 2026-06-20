@@ -150,6 +150,16 @@ def normalize_structured_output(agent_num: int, payload: Optional[dict]) -> Opti
             "analysis_markdown": str(payload.get("analysis_markdown", "")).strip(),
         }
 
+    if agent_num == 24:
+        return {
+            "trade_direction": _coerce_text(payload.get("trade_direction")),
+            "entry_zone": _coerce_text(payload.get("entry_zone")),
+            "target_price": _coerce_text(payload.get("target_price")),
+            "stop_loss": _coerce_text(payload.get("stop_loss")),
+            "core_catalyst": _coerce_text(payload.get("core_catalyst")),
+            "risk_level": _coerce_text(payload.get("risk_level")),
+        }
+
     if agent_num in {7, 16, 19}:
         raw_rec = payload.get("recommendation", {})
         reasoning_steps = _coerce_reasoning_steps(payload.get("reasoning_steps"))
@@ -215,6 +225,17 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
         risks = structured.get("downside_risks", []) or []
         lines = [f"- **{item.get('title', '下行風險')}**：{item.get('evidence', '')}" for item in risks if isinstance(item, dict)]
         return f"## 最大下行風險 (Key Downside Risks) / 空頭觀點\n" + "\n".join(lines) + f"\n\n{body}"
+
+    if agent_num == 24:
+        return (
+            "## 極短線交易計畫\n"
+            f"- **交易方向：{structured.get('trade_direction', 'Neutral')}**\n"
+            f"- **進場區間：{structured.get('entry_zone', 'N/A')}**\n"
+            f"- **1-2週目標價：{structured.get('target_price', 'N/A')}**\n"
+            f"- **🛑 停損點：{structured.get('stop_loss', 'N/A')}**\n"
+            f"- **核心催化劑：{structured.get('core_catalyst', 'N/A')}**\n"
+            f"- **短期波動風險：{structured.get('risk_level', 'High')}**"
+        )
 
     if agent_num in {7, 16, 19}:
         rec = structured.get("recommendation", {})

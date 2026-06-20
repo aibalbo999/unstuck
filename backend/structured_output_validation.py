@@ -13,6 +13,7 @@ from structured_output_models import (
     MoatStructuredOutput,
     PriceTargetStructuredOutput,
     RecommendationStructuredOutput,
+    SwingTradeSetup,
 )
 
 
@@ -26,6 +27,7 @@ STRICT_STRUCTURED_SCHEMAS = {
     19: BubbleSniperStructuredOutput,
     20: ManagementSentimentStructuredOutput,
     21: BearAdvocateStructuredOutput,
+    24: SwingTradeSetup,
 }
 
 

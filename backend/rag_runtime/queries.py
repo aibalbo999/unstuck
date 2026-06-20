@@ -28,6 +28,9 @@ AGENT_RAG_QUERIES = {
     19: "short seller bubble attack report crash catalyst stop loss squeeze risk downside target liquidation value pessimistic DCF 做空 放空 泡沫狙擊 崩盤催化 停損 軋空 避險 清算價值",
     20: "earnings call transcript management guidance tone outlook demand margin capex supply constraint 法說會 逐字稿 管理層 展望 語氣 指引",
     21: "devil advocate bear case downside hidden debt customer concentration disruption overvaluation cash flow guidance risk 空頭 紅軍 下行風險 估值過高 客戶集中",
+    22: "technical momentum moving average breakout support resistance volume RSI MACD ATR divergence price action 技術動能 均線 突破 支撐 壓力 成交量 背離",
+    23: "institutional flow foreign investors investment trust TDCC large holders margin short balance securities lending chip concentration 外資 投信 大戶持股 融資 融券 借券 籌碼集中",
+    24: "swing trade setup entry zone target stop loss catalyst event risk reward one two weeks 波段交易 進場區間 目標價 停損 催化劑 風險報酬 一至二週",
 }
 
 

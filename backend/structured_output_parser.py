@@ -114,6 +114,7 @@ def parse_structured_data(context: AnalysisContext) -> dict:
         "moat_scores": {},
         "price_targets": {},
         "recommendation": {},
+        "trade_setup": {},
     }
 
     structured_outputs = context.get("structured_outputs", {})
@@ -121,12 +122,25 @@ def parse_structured_data(context: AnalysisContext) -> dict:
     moat_agent = get_structured_agent_num("moat", context)
     valuation_agent = get_structured_agent_num("valuation", context)
     recommendation_agent = get_structured_agent_num("recommendation", context)
+    trade_setup_agent = get_structured_agent_num("trade_setup", context)
     if moat_agent is not None and moat_agent in structured_outputs:
         parsed["moat_scores"] = dict(structured_outputs[moat_agent].get("moat_scores", {}))
     if valuation_agent is not None and valuation_agent in structured_outputs:
         parsed["price_targets"] = dict(structured_outputs[valuation_agent].get("price_targets", {}))
     if recommendation_agent is not None and recommendation_agent in structured_outputs:
         parsed["recommendation"] = dict(structured_outputs[recommendation_agent].get("recommendation", {}))
+    if trade_setup_agent is not None and trade_setup_agent in structured_outputs:
+        parsed["trade_setup"] = {
+            key: structured_outputs[trade_setup_agent].get(key, "")
+            for key in (
+                "trade_direction",
+                "entry_zone",
+                "target_price",
+                "stop_loss",
+                "core_catalyst",
+                "risk_level",
+            )
+        }
 
     if moat_agent is not None and not parsed["moat_scores"] and moat_agent in analyses:
         parsed["moat_scores"] = parse_moat_scores_from_text(analyses[moat_agent])

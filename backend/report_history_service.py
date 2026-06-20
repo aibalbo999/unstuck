@@ -109,7 +109,9 @@ def list_reports(
         pipeline_filter = "v2"
     elif pipeline_filter in {"mode_c", "c", "contrarian", "bubble", "short"}:
         pipeline_filter = "v3"
-    if pipeline_filter not in {"all", "v1", "v2", "v3"}:
+    elif pipeline_filter in {"mode_d", "d", "swing", "short_term", "short-term", "momentum"}:
+        pipeline_filter = "v4"
+    if pipeline_filter not in {"all", "v1", "v2", "v3", "v4"}:
         pipeline_filter = "all"
 
     recommendation_filter = normalize_recommendation_label(recommendation)

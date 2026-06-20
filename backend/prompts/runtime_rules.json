@@ -260,6 +260,27 @@
         "downside_risks 必須 3 至 5 項。",
         "每項風險必須具備可追溯證據，不得補造。"
       ]
+    },
+    "24": {
+      "title": "極短線交易計畫結構化輸出規則",
+      "intro": "請只輸出合法 JSON，不要 Markdown code fence、前言或附註。",
+      "schema_lines": [
+        "{",
+        "  \"trade_direction\": \"Long|Short|Neutral\",",
+        "  \"entry_zone\": \"具體進場價格區間或可驗證觸發條件\",",
+        "  \"target_price\": \"1-2 週目標價與對應壓力位/支撐位\",",
+        "  \"stop_loss\": \"基於 ATR、關鍵均線或型態失效點的嚴格停損\",",
+        "  \"core_catalyst\": \"一句話總結未來 1-2 週的可驗證催化劑\",",
+        "  \"risk_level\": \"High|Medium|Low\"",
+        "}"
+      ],
+      "rules": [
+        "所有六個欄位皆為必填，禁止加入其他欄位。",
+        "trade_direction 只能是 Long、Short 或 Neutral；risk_level 只能是 High、Medium 或 Low。",
+        "entry_zone、target_price 與 stop_loss 不得留白；stop_loss 必須對應 ATR、關鍵均線、支撐壓力或型態失效條件。",
+        "core_catalyst 只能用一句話描述未來 1-2 週內可驗證的事件，不得使用長期題材替代。",
+        "技術、籌碼與事件證據衝突或資料不足時，trade_direction 必須為 Neutral，risk_level 應提高。"
+      ]
     }
   },
   "numeric_tool_instructions": {
@@ -438,6 +459,30 @@
         "最終泡沫狙擊報告必須同時引用 Agent 17 的泡沫/情緒結論、Agent 18 的財務/籌碼反證、market_catalysts 與 institutional_trading。",
         "必須明確列出做空觸發條件（Catalyst for crash）與防軋空停損點（Stop-loss level）；若資料不足，仍需給出可監控條件與保守停損邏輯。",
         "若 data_trust.status 不是 fresh，信心指數需折讓並在報告中揭露資料限制。"
+      ]
+    },
+    "22": {
+      "title": "極短線技術動能資料規則",
+      "rules": [
+        "只引用 price_history、technical_indicators 或其他可追溯的近期價量資料。",
+        "均線、成交量、RSI、MACD 或 ATR 缺漏時必須標示資料不足，不得推測數值。",
+        "技術劇本只涵蓋未來 1-2 週，並列出明確失效條件。"
+      ]
+    },
+    "23": {
+      "title": "極短線籌碼資料規則",
+      "rules": [
+        "優先引用 institutional_trading、chip_data.tdcc_shareholder_distribution 與 chip_data.twse_margin_short_sales。",
+        "所有連續買賣超、大戶比例與融資券變化必須附可用期間；資料不足時降低信心。",
+        "區分單日雜訊與至少數個交易日的持續性籌碼趨勢。"
+      ]
+    },
+    "24": {
+      "title": "極短線決策即時資料規則",
+      "rules": [
+        "最終 Trade Setup 必須同時檢查 Agent 22 技術結論、Agent 23 籌碼結論與 recent_catalysts。",
+        "催化劑必須能在未來 1-2 週驗證；日期或來源不明時提高 risk_level。",
+        "stop_loss 必須對應可追溯的 ATR、關鍵均線、支撐壓力或型態失效條件，不得只寫主觀百分比。"
       ]
     }
   },

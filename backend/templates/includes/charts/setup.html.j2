@@ -1,17 +1,39 @@
-    // ─── 圖表數據 ─────────────────────────────────────────
-    const CHART_DATA = {{ chart_data|tojson }};
+{% if trade_setup %}
+{% set direction = trade_setup.get('trade_direction', 'Neutral') %}
+{% set risk = trade_setup.get('risk_level', 'High') %}
+<section class="trade-setup-dashboard" aria-labelledby="trade-setup-title">
+    <div class="trade-setup-header">
+        <div>
+            <div class="trade-setup-eyebrow">MODE D · 1-2 WEEK HORIZON</div>
+            <h3 id="trade-setup-title">短線交易計畫看板</h3>
+        </div>
+        <span class="trade-risk-badge trade-risk-{{ risk|lower }}">
+            短期波動風險：{% if risk == 'Low' %}低{% elif risk == 'Medium' %}中{% else %}高{% endif %}
+        </span>
+    </div>
 
-    Chart.defaults.color = '#94a3b8';
-    Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
-    Chart.defaults.font.family = "'Inter', 'Noto Sans TC', sans-serif";
+    <dl class="trade-setup-grid">
+        <div class="trade-setup-card trade-direction-{% if direction == 'Long' %}long{% elif direction == 'Short' %}short{% else %}neutral{% endif %}">
+            <dt>交易方向</dt>
+            <dd>{{ direction }}</dd>
+        </div>
+        <div class="trade-setup-card">
+            <dt>進場區間</dt>
+            <dd>{{ trade_setup.get('entry_zone', 'N/A') }}</dd>
+        </div>
+        <div class="trade-setup-card">
+            <dt>1-2週目標</dt>
+            <dd>{{ trade_setup.get('target_price', 'N/A') }}</dd>
+        </div>
+        <div class="trade-setup-card trade-stop-card">
+            <dt>🛑 停損點</dt>
+            <dd>{{ trade_setup.get('stop_loss', 'N/A') }}</dd>
+        </div>
+    </dl>
 
-    function filterNulls(labels, data) {
-        const filtered = { labels: [], data: [] };
-        labels.forEach((l, i) => {
-            if (data[i] !== null && data[i] !== undefined) {
-                filtered.labels.push(l);
-                filtered.data.push(data[i]);
-            }
-        });
-        return filtered;
-    }
+    <div class="trade-catalyst">
+        <span class="trade-catalyst-label">核心催化劑</span>
+        <p>{{ trade_setup.get('core_catalyst', '近期催化劑資料不足') }}</p>
+    </div>
+</section>
+{% endif %}

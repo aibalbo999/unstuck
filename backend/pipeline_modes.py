@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import Any, Literal, TypedDict
 
 
-PipelineId = Literal["v1", "v2", "v3"]
-PipelineRunId = Literal["v1", "v2", "v3", "both"]
+PipelineId = Literal["v1", "v2", "v3", "v4"]
+PipelineRunId = Literal["v1", "v2", "v3", "v4", "both"]
 
 
 class PipelineDefinition(TypedDict):
@@ -59,6 +59,18 @@ PIPELINE_DEFINITIONS: dict[str, PipelineDefinition] = {
         "structured_agents": {"recommendation": 19},
         "debate_agents": (),
     },
+    "v4": {
+        "id": "v4",
+        "label": "模式 D：極短線波段與事件驅動",
+        "short_label": "短線波段派",
+        "report_title": "極短線 (1-2週) 交易策略報告",
+        "report_subtitle": "基於技術動能、主力籌碼與近期催化劑的狙擊計畫",
+        "hint_text": "請稍候，AI 動能分析師正在比對技術突破點、籌碼集中度與近期事件催化劑...",
+        "agents": (22, 23, 24),
+        "groups": ((22, 23), (24,)),
+        "structured_agents": {"trade_setup": 24},
+        "debate_agents": (),
+    },
 }
 
 
@@ -94,6 +106,19 @@ def normalize_pipeline_id(value: Any) -> PipelineId:
         "pipeline-v3",
     }:
         return "v3"
+    if normalized in {
+        "d",
+        "mode_d",
+        "mode-d",
+        "swing",
+        "short_term",
+        "short-term",
+        "momentum",
+        "pipeline_v4",
+        "pipeline-v4",
+        "v4",
+    }:
+        return "v4"
     return normalized if normalized in PIPELINE_DEFINITIONS else DEFAULT_PIPELINE_ID
 
 

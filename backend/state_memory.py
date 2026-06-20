@@ -47,6 +47,24 @@ STATE_VIEW_POLICY: dict[str, dict[str, list[str] | dict[str, list[str]]]] = {
         "peer_context": ["selected_peers", "selection_policy", "dynamic_peer_metrics"],
         "root": ["risk_flags", "validation_issues", "tool_results", "agent_reports", "earnings_call_context"],
     },
+    "22": {
+        "normalized_financials": ["current_price", "price_history", "technical_indicators"],
+        "root": ["validation_issues", "risk_flags"],
+    },
+    "23": {
+        "normalized_financials": ["institutional_trading"],
+        "root": ["validation_issues", "risk_flags", "chip_context"],
+    },
+    "24": {
+        "normalized_financials": [
+            "current_price",
+            "price_history",
+            "technical_indicators",
+            "institutional_trading",
+            "recent_catalysts",
+        ],
+        "root": ["validation_issues", "risk_flags", "agent_reports", "chip_context"],
+    },
     "valuation": {
         "normalized_financials": ["revenue_history", "net_income_history", "fcf_history", "cash_flow"],
         "quant_metrics": ["calculations", "unit_contract"],

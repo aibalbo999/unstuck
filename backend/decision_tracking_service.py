@@ -15,7 +15,7 @@ from report_refresh_service import refresh_report_data_snapshot
 
 DAILY_REFRESH_SLOT = "post_market"
 DAILY_REFRESH_AFTER = (15, 40)
-PIPELINE_ORDER = {"v1": 0, "v2": 1, "v3": 2}
+PIPELINE_ORDER = {"v1": 0, "v2": 1, "v3": 2, "v4": 3}
 
 
 def _ticker_matches(report: dict, ticker: str) -> bool:

@@ -1,0 +1,17 @@
+    // ─── 圖表數據 ─────────────────────────────────────────
+    const CHART_DATA = {{ chart_data|tojson }};
+
+    Chart.defaults.color = '#94a3b8';
+    Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
+    Chart.defaults.font.family = "'Inter', 'Noto Sans TC', sans-serif";
+
+    function filterNulls(labels, data) {
+        const filtered = { labels: [], data: [] };
+        labels.forEach((l, i) => {
+            if (data[i] !== null && data[i] !== undefined) {
+                filtered.labels.push(l);
+                filtered.data.push(data[i]);
+            }
+        });
+        return filtered;
+    }

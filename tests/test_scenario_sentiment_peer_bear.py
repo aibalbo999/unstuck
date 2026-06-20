@@ -177,6 +177,8 @@ def test_pipeline_places_sentiment_and_bear_agents_before_final_decision():
     from pipeline_modes import PIPELINE_DEFINITIONS
 
     for definition in PIPELINE_DEFINITIONS.values():
+        if "recommendation" not in definition["structured_agents"]:
+            continue
         agents = definition["agents"]
         final_agent = definition["structured_agents"]["recommendation"]
         assert 20 in agents

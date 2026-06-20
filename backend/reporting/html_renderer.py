@@ -107,6 +107,40 @@ def generate_html_report(context: AnalysisContext) -> str:
     target_6m = sanitize_report_plain_text(get_rec_val(recommendation, "6個月", "N/A")) or "N/A"
     target_12m = sanitize_report_plain_text(get_rec_val(recommendation, "12個月", "N/A")) or "N/A"
     confidence = sanitize_report_plain_text(get_rec_val(recommendation, "信心", "N/A")) or "N/A"
+    raw_trade_setup = parsed.get("trade_setup", {}) or {}
+    trade_setup = {
+        key: sanitize_report_plain_text(raw_trade_setup.get(key, ""))
+        for key in (
+            "trade_direction",
+            "entry_zone",
+            "target_price",
+            "stop_loss",
+            "core_catalyst",
+            "risk_level",
+        )
+    } if isinstance(raw_trade_setup, dict) else {}
+    trade_setup = {key: value for key, value in trade_setup.items() if value}
+
+    trade_direction = trade_setup.get("trade_direction", "Neutral")
+    trade_direction_label = {
+        "Long": "偏多 Long",
+        "Short": "偏空 Short",
+        "Neutral": "中性 Neutral",
+    }.get(trade_direction, "中性 Neutral")
+    trade_direction_icon = {"Long": "↑", "Short": "↓", "Neutral": "→"}.get(trade_direction, "→")
+    swing_entry_zone = trade_setup.get("entry_zone", "N/A")
+    swing_target_price = trade_setup.get("target_price", "N/A")
+    swing_stop_loss = trade_setup.get("stop_loss", "N/A")
+    swing_risk_level = {
+        "High": "高",
+        "Medium": "中",
+        "Low": "低",
+    }.get(trade_setup.get("risk_level", "High"), "高")
+    if pipeline_def["id"] == "v4" and trade_setup:
+        rec_color = {"Long": "#16a34a", "Short": "#dc2626", "Neutral": "#d97706"}.get(
+            trade_direction,
+            "#d97706",
+        )
     audit_banner_html = build_audit_banner_html(context)
     data_trust_html = build_data_trust_html(data)
     source_audit_html = build_source_audit_html(data, context)

@@ -134,6 +134,8 @@ def build_agent_sections(context: AnalysisContext, *, html: bool = True) -> list
             kind = "valuation"
         elif agent_num == structured_agents.get("recommendation"):
             kind = "final"
+        elif agent_num == structured_agents.get("trade_setup"):
+            kind = "trade_setup"
 
         sections.append({
             "display_num": display_num,
@@ -160,6 +162,16 @@ def build_tear_sheet_summary(context: AnalysisContext) -> str:
     parsed = context.get("parsed", {}) or {}
     recommendation = parsed.get("recommendation", {}) or {}
     price_targets = parsed.get("price_targets", {}) or {}
+    trade_setup = parsed.get("trade_setup", {}) or {}
+
+    if trade_setup:
+        return (
+            f"一頁式摘要：{data.get('ticker', 'N/A')} {company_display_name(data)} 的 1-2 週交易方向為"
+            f"「{trade_setup.get('trade_direction', 'Neutral')}」，進場區間 {trade_setup.get('entry_zone', 'N/A')}，"
+            f"目標價 {trade_setup.get('target_price', 'N/A')}，嚴格停損 {trade_setup.get('stop_loss', 'N/A')}。"
+            f"核心催化劑為「{trade_setup.get('core_catalyst', '近期催化劑資料不足')}」，"
+            f"短期波動風險為 {trade_setup.get('risk_level', 'High')}。"
+        )
 
     rec = next((str(v) for k, v in recommendation.items() if "建議" in str(k)), "持有")
     confidence = next((str(v) for k, v in recommendation.items() if "信心" in str(k)), "N/A")

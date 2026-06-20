@@ -195,6 +195,19 @@ class BearAdvocateStructuredOutput(StructuredModel):
     analysis_markdown: str = Field(..., min_length=1)
 
 
+class SwingTradeSetup(StructuredModel):
+    """Strict 1-2 week trade plan emitted by the v4 decision agent."""
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    trade_direction: Literal["Long", "Short", "Neutral"]
+    entry_zone: str = Field(..., min_length=1)
+    target_price: str = Field(..., min_length=1)
+    stop_loss: str = Field(..., min_length=1)
+    core_catalyst: str = Field(..., min_length=1)
+    risk_level: Literal["High", "Medium", "Low"]
+
+
 STRUCTURED_AGENT_RESPONSE_SCHEMAS: dict[int, type[StructuredModel]] = {
     3: MoatStructuredOutput,
     4: PriceTargetStructuredOutput,
@@ -205,6 +218,7 @@ STRUCTURED_AGENT_RESPONSE_SCHEMAS: dict[int, type[StructuredModel]] = {
     19: BubbleSniperStructuredOutput,
     20: ManagementSentimentStructuredOutput,
     21: BearAdvocateStructuredOutput,
+    24: SwingTradeSetup,
 }
 
 

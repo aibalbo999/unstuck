@@ -20,6 +20,7 @@ from structured_output_models import (
     RecommendationFields,
     RecommendationStructuredOutput,
     StructuredModel,
+    SwingTradeSetup,
     ValuationSummary,
     _extract_json_payload,
     build_structured_output_instruction,
