@@ -1,0 +1,71 @@
+{% if dcf_scenario_rows %}
+<section class="section" id="dcf-scenarios">
+    <div class="section-header">
+        <div class="section-num">DCF</div>
+        <div class="section-title">DCF 動態情境矩陣</div>
+    </div>
+    <div class="table-wrapper">
+        <table class="data-table scenario-matrix">
+            <thead><tr><th>情境</th><th>成長偏差</th><th>利潤率偏差</th><th>WACC</th><th>每股內在價值</th></tr></thead>
+            <tbody>
+            {% for row in dcf_scenario_rows %}
+                <tr class="scenario-{{ row.key }}"><td><strong>{{ row.label }}</strong></td><td>{{ row.growth_bias_pct if row.growth_bias_pct is not none else 'N/A' }}%</td><td>{{ row.margin_bias_pct if row.margin_bias_pct is not none else 'N/A' }}%</td><td>{{ '%.2f'|format(row.wacc_pct) if row.wacc_pct is not none else 'N/A' }}%</td><td>{{ 'NT$%.2f'|format(row.intrinsic_value) if row.intrinsic_value is not none else 'N/A' }}</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endif %}
+
+<section class="section downside-section" id="key-downside-risks">
+    <div class="section-header">
+        <div class="section-num">!</div>
+        <div class="section-title">最大下行風險 (Key Downside Risks) / 空頭觀點</div>
+    </div>
+    <p class="section-lead">{{ downside_view.summary }}</p>
+    {% if downside_view.risks %}
+    <div class="downside-list">
+        {% for risk in downside_view.risks %}
+        <article class="downside-item severity-{{ risk.get('severity', 'high') }}">
+            <strong>{{ risk.get('title', '下行風險') }}</strong>
+            <p>{{ risk.get('evidence', '資料不足') }}</p>
+            {% if risk.get('impact') %}<small>{{ risk.get('impact') }}</small>{% endif %}
+        </article>
+        {% endfor %}
+    </div>
+    {% endif %}
+</section>
+
+{% if management_sentiment.available %}
+<section class="section" id="management-sentiment">
+    <div class="section-header">
+        <div class="section-num">Q</div>
+        <div class="section-title">管理層語氣與法說會亮點</div>
+    </div>
+    <p class="section-lead">Guidance 語氣：<strong>{{ management_sentiment.tone }}</strong>{% if management_sentiment.confidence is not none %}，信心 {{ '%.0f'|format(management_sentiment.confidence * 100) }}%{% endif %}</p>
+    <div class="highlight-list">
+        {% for item in management_sentiment.highlights %}
+        <div class="highlight-item"><strong>{{ item.get('keyword', '亮點') }}</strong><span>{{ item.get('quote', '') }}</span></div>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+{% if peer_comparison_rows|length > 1 %}
+<section class="section" id="peer-comparison">
+    <div class="section-header">
+        <div class="section-num">P</div>
+        <div class="section-title">同業競爭力對比</div>
+    </div>
+    <div class="table-wrapper">
+        <table class="data-table peer-table">
+            <thead><tr><th>公司</th><th>毛利率</th><th>ROE</th><th>資產周轉率</th><th>P/E</th><th>P/S</th></tr></thead>
+            <tbody>
+            {% for row in peer_comparison_rows %}
+                <tr{% if row.is_target %} class="target-peer"{% endif %}><td><strong>{{ row.name }}</strong><br><small>{{ row.ticker }}</small></td><td>{{ row.gross_margin_pct if row.gross_margin_pct is not none else 'N/A' }}{% if row.gross_margin_pct is not none %}%{% endif %}</td><td>{{ row.roe_pct if row.roe_pct is not none else 'N/A' }}{% if row.roe_pct is not none %}%{% endif %}</td><td>{{ row.asset_turnover if row.asset_turnover is not none else 'N/A' }}</td><td>{{ row.pe_ttm if row.pe_ttm is not none else 'N/A' }}</td><td>{{ row.ps_ttm if row.ps_ttm is not none else 'N/A' }}</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endif %}

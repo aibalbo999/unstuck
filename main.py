@@ -12,40 +12,31 @@ from datetime import datetime
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
-from rich.text import Text
 from rich.rule import Rule
 from rich.table import Table
-from rich import print as rprint
-from rich.style import Style
+from tenacity import Retrying, retry_if_exception, stop_after_attempt, wait_exponential
 
 # 確保 backend 模組可由專案根目錄執行
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.join(ROOT_DIR, "backend")
 sys.path.insert(0, BACKEND_DIR)
 
-from financial_data import fetch_stock_data, format_data_for_prompt
+from financial_data import fetch_stock_data
 from agent_runner import run_analysis_pipeline, AGENT_NAMES, AGENT_MODELS
 from report_gen import generate_html_report
 from config import OUTPUT_DIR, API_KEYS, format_model_routes
+from llm_client import is_quota_or_rate_error
 
 console = Console()
 
 
 def print_banner():
     """顯示系統啟動橫幅"""
-    banner_text = Text()
-    banner_text.append("  ██████╗ ████████╗ ██████╗  ██████╗██╗  ██╗    ███████╗██╗   ██╗███████╗████████╗███████╗███╗   ███╗\n", style="bold blue")
-    banner_text.append("  ██╔════╝╚══██╔══╝██╔═══██╗██╔════╝██║ ██╔╝    ██╔════╝╚██╗ ██╔╝██╔════╝╚══██╔══╝██╔════╝████╗ ████║\n", style="bold blue")
-    banner_text.append("  ███████╗   ██║   ██║   ██║██║     █████╔╝     ███████╗ ╚████╔╝ ███████╗   ██║   █████╗  ██╔████╔██║\n", style="bold blue")
-    banner_text.append("  ╚════██║   ██║   ██║   ██║██║     ██╔═██╗     ╚════██║  ╚██╔╝  ╚════██║   ██║   ██╔══╝  ██║╚██╔╝██║\n", style="bold blue")
-    banner_text.append("  ███████║   ██║   ╚██████╔╝╚██████╗██║  ██╗    ███████║   ██║   ███████║   ██║   ███████╗██║ ╚═╝ ██║\n", style="bold blue")
-    banner_text.append("  ╚══════╝   ╚═╝    ╚═════╝  ╚═════╝╚═╝  ╚═╝    ╚══════╝   ╚═╝   ╚══════╝   ╚═╝   ╚══════╝╚═╝     ╚═╝\n", style="bold blue")
-    
     console.print(Panel(
         "[bold blue]🏦 股票連續式分析 Agent 系統[/bold blue]\n"
-        f"[dim]7 位頂級華爾街分析師 · {len(API_KEYS)}組 API Key 輪調 · 雙模型架構[/dim]\n"
+        f"[dim]7 個證據導向分析引擎 · {len(API_KEYS)}組 API Key 輪調 · 雙模型架構[/dim]\n"
         f"[dim]{format_model_routes()}[/dim]",
-        title="[bold white]Wall Street AI Research System[/bold white]",
+        title="[bold white]Evidence-Grounded Equity Research[/bold white]",
         border_style="blue",
         padding=(1, 4),
     ))
@@ -57,22 +48,21 @@ def print_config_table():
     table.add_column("Agent", style="cyan", width=4)
     table.add_column("分析主題", style="white")
     table.add_column("使用模型", style="green")
-    table.add_column("機構角色", style="yellow")
+    table.add_column("功能性角色", style="yellow")
     
     roles = {
-        1: ("Goldman Sachs", "資深股票分析師"),
-        2: ("Morgan Stanley", "財務模型專家"),
-        3: ("BlackRock", "護城河分析師"),
-        4: ("JPMorgan", "估值專家"),
-        5: ("Fidelity", "成長股研究員"),
-        6: ("Financial Media", "辯論主持人"),
-        7: ("Bridgewater", "首席研究員"),
+        1: "商業模式與產業證據分析",
+        2: "GAAP 財務品質驗證",
+        3: "護城河證據評分",
+        4: "DCF 與相對估值計算",
+        5: "成長可執行性驗證",
+        6: "多空證據對撞",
+        7: "情境風險整合",
     }
     
     for num, name in AGENT_NAMES.items():
         model = AGENT_MODELS[num]
-        institution, role = roles.get(num, ("N/A", "N/A"))
-        table.add_row(str(num), name, model, f"{institution} · {role}")
+        table.add_row(str(num), name, model, roles.get(num, "N/A"))
     
     console.print(table)
     console.print()
@@ -106,6 +96,19 @@ def save_report(html_content: str, ticker: str) -> str:
         f.write(html_content)
     
     return filepath
+
+
+def run_analysis_pipeline_with_backoff(data, progress_callback=None, wait_strategy=None):
+    """Retry only quota/rate-limit failures with bounded exponential backoff."""
+    retryer = Retrying(
+        stop=stop_after_attempt(3),
+        wait=wait_strategy or wait_exponential(multiplier=1, min=1, max=30),
+        retry=retry_if_exception(lambda exc: is_quota_or_rate_error(str(exc)) or "429" in str(exc)),
+        reraise=True,
+    )
+    for attempt in retryer:
+        with attempt:
+            return run_analysis_pipeline(data, progress_callback=progress_callback)
 
 
 def main():
@@ -174,7 +177,7 @@ def main():
     
     # ─── 執行 Agent 管道 ─────────────────────────────────────
     console.print("[bold cyan]🤖 步驟 2/3：執行 7 個分析 Agent...[/bold cyan]")
-    console.print("[dim]注意：每個 Agent 之間有 13 秒延遲以避免 API 速率限制[/dim]")
+    console.print("[dim]動態共享速率限制與 429 指數退避已啟用[/dim]")
     console.print()
     
     start_time = time.time()
@@ -193,7 +196,7 @@ def main():
         def update_progress(current, total, name):
             progress.update(task, completed=current, description=f"[cyan]Agent {current}/7：{name}")
         
-        context = run_analysis_pipeline(data, progress_callback=update_progress)
+        context = run_analysis_pipeline_with_backoff(data, progress_callback=update_progress)
     
     elapsed = time.time() - start_time
     console.print(f"\n[bold green]✅ 所有分析完成！總耗時：{elapsed:.0f} 秒 ({elapsed/60:.1f} 分鐘)[/bold green]")

@@ -1,20 +1,23 @@
 (function () {
     const PIPELINE_META = {
-        v1: { label: '模式 A：學術深度派', shortLabel: '學術深度派', reportSuffix: '深度分析報告', hint: '請稍候，7 位 AI 分析師正在為您撰寫深度研報...' },
-        v2: { label: '模式 B：實戰交易派', shortLabel: '實戰交易派', reportSuffix: '實戰交易決策報告', hint: '請稍候，6 位 AI 分析師正在整合總經、籌碼與進出場策略...' },
-        v3: { label: '模式 C：逆勢交易與泡沫狙擊', shortLabel: '逆勢泡沫狙擊', reportSuffix: '泡沫狙擊研究報告', hint: '請稍候，3 位 AI 逆勢分析師正在檢驗題材泡沫、財務漏洞與做空觸發條件...' },
-        both: { label: '連續模式：模式 A → 模式 B', shortLabel: 'A+B 連續', reportSuffix: '雙模式分析完成', hint: '將先執行學術深度派，再接續實戰交易派；完成後會產出兩份獨立報告。' }
+        v1: { label: '模式 A：學術深度派', shortLabel: '學術深度派', reportSuffix: '深度分析報告', hint: '請稍候，9 個 AI 分析模組正在為您撰寫深度研報...' },
+        v2: { label: '模式 B：實戰交易派', shortLabel: '實戰交易派', reportSuffix: '實戰交易決策報告', hint: '請稍候，8 個 AI 分析模組正在整合總經、籌碼與進出場策略...' },
+        v3: { label: '模式 C：逆勢交易與泡沫狙擊', shortLabel: '逆勢泡沫狙擊', reportSuffix: '泡沫狙擊研究報告', hint: '請稍候，5 個 AI 逆勢分析模組正在檢驗題材泡沫、財務漏洞與做空觸發條件...' },
+        v4: { label: '模式 D：極短線波段與事件驅動', shortLabel: '短線波段派', reportSuffix: '極短線交易策略報告', hint: '請稍候，AI 動能分析師正在比對技術突破點、籌碼集中度與近期事件催化劑...' },
+        both: { label: '連續模式：模式 A → 模式 B → 模式 C', shortLabel: 'A+B+C 連續', reportSuffix: '三模式分析完成', hint: '將依序執行學術深度派、實戰交易派與逆勢泡沫狙擊；完成後會產出三份獨立報告。' }
     };
     function pipelineMeta(pipelineId) {
         return PIPELINE_META[pipelineId] || PIPELINE_META.v1;
     }
     function pipelineModeClass(pipelineId) {
         if (pipelineId === 'both') return 'is-both';
+        if (pipelineId === 'v4') return 'is-v4';
         if (pipelineId === 'v3') return 'is-v3';
         return pipelineId === 'v2' ? 'is-v2' : 'is-v1';
     }
     function pipelineModeLabel(pipelineId) {
-        if (pipelineId === 'both') return '連續 A+B · 兩份報告';
+        if (pipelineId === 'both') return '連續 A+B+C · 三份報告';
+        if (pipelineId === 'v4') return '模式 D · 短線波段派';
         if (pipelineId === 'v3') return '模式 C · 逆勢泡沫狙擊';
         return pipelineId === 'v2' ? '模式 B · 實戰交易派' : '模式 A · 學術深度派';
     }

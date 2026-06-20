@@ -117,7 +117,29 @@ class QuantEngine:
                 WACC_COST_OF_DEBT_DEFAULT_PCT / 100,
                 tax_rate,
             )
-            dcf_value = QuantEngine.calculate_dcf(fcf_list, wacc or 0.08, 0.02, int(shares) or 100)
+            base_wacc = wacc or 0.08
+            dcf_assumptions = {
+                "bear": {"fcf_multiplier": 0.80, "growth_bias_pct": -20.0, "margin_bias_pct": -20.0, "wacc": base_wacc + 0.015, "terminal_growth": 0.015},
+                "base": {"fcf_multiplier": 1.00, "growth_bias_pct": 0.0, "margin_bias_pct": 0.0, "wacc": base_wacc, "terminal_growth": 0.020},
+                "bull": {"fcf_multiplier": 1.20, "growth_bias_pct": 20.0, "margin_bias_pct": 20.0, "wacc": max(base_wacc - 0.010, 0.030), "terminal_growth": 0.025},
+            }
+            dcf_scenarios = {}
+            for scenario, assumptions in dcf_assumptions.items():
+                scenario_fcf = [value * assumptions["fcf_multiplier"] for value in fcf_list]
+                scenario_wacc = max(assumptions["wacc"], assumptions["terminal_growth"] + 0.005)
+                dcf_scenarios[scenario] = {
+                    "intrinsic_value": QuantEngine.calculate_dcf(
+                        scenario_fcf,
+                        scenario_wacc,
+                        assumptions["terminal_growth"],
+                        int(shares) or 100,
+                    ),
+                    "growth_bias_pct": assumptions["growth_bias_pct"],
+                    "margin_bias_pct": assumptions["margin_bias_pct"],
+                    "wacc": round(scenario_wacc, 4),
+                    "terminal_growth_rate": assumptions["terminal_growth"],
+                }
+            dcf_value = dcf_scenarios["base"]["intrinsic_value"]
             
             eps = read_float("eps", 1.0)
             pe_ratio = round(current_price / eps, 2) if eps > 0 else 0.0
@@ -125,6 +147,7 @@ class QuantEngine:
             result = {
                 "wacc_computed": wacc,
                 "dcf_intrinsic_value": dcf_value,
+                "dcf_scenarios": dcf_scenarios,
                 "implied_pe_ratio": pe_ratio,
                 "margin_of_safety": round((dcf_value - current_price) / dcf_value, 4) if dcf_value > 0 else 0.0,
                 "note": "以上數據由系統精算模組自動產生，分析師無須重新計算。",

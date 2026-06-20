@@ -33,13 +33,23 @@
         
         <!-- 投資建議橫幅 -->
         <div class="verdict-banner">
-            <div class="verdict-icon">{{ rec_icon }}</div>
+            <div class="verdict-icon">{% if pipeline_def.id == 'v4' and trade_setup %}{{ trade_direction_icon }}{% else %}{{ rec_icon }}{% endif %}</div>
             <div class="verdict-text">
-                <div class="verdict-label">最終投資建議</div>
-                <div class="verdict-main">{{ rec_text }}</div>
+                <div class="verdict-label">{% if pipeline_def.id == 'v4' and trade_setup %}1-2 週交易方向{% else %}最終投資建議{% endif %}</div>
+                <div class="verdict-main">{% if pipeline_def.id == 'v4' and trade_setup %}{{ trade_direction_label }}{% else %}{{ rec_text }}{% endif %}</div>
                 <div class="verdict-sub">{{ report_subtitle }}</div>
             </div>
             <div class="verdict-meta">
+                {% if pipeline_def.id == 'v4' and trade_setup %}
+                <div class="vm-label">進場區間</div>
+                <div class="vm-value">{{ swing_entry_zone }}</div>
+                <div class="vm-label" style="margin-top:8px">1-2週目標</div>
+                <div class="vm-value">{{ swing_target_price }}</div>
+                <div class="vm-label" style="margin-top:8px">嚴格停損</div>
+                <div class="vm-value">{{ swing_stop_loss }}</div>
+                <div class="vm-label" style="margin-top:8px">波動風險</div>
+                <div class="vm-value">{{ swing_risk_level }}</div>
+                {% else %}
                 <div class="vm-label">3個月目標</div>
                 <div class="vm-value">{{ target_3m }}</div>
                 <div class="vm-label" style="margin-top:8px">6個月目標</div>
@@ -48,6 +58,7 @@
                 <div class="vm-value">{{ target_12m }}</div>
                 <div class="vm-label" style="margin-top:8px">信心指數</div>
                 <div class="vm-value">{{ confidence }}</div>
+                {% endif %}
             </div>
         </div>
 
@@ -65,6 +76,8 @@
     
     <!-- ─── 內容區 ─── -->
     <div class="content">
+
+        {% include "includes/analysis_overlays.html.j2" %}
         
         <!-- ─── 歷史數據圖表 ─── -->
         <div class="section">
@@ -156,6 +169,8 @@
                     </div>
                 </div>
             </div>
+            {% elif section.kind == "trade_setup" %}
+            {% include "includes/charts/setup.html.j2" %}
             {% endif %}
 
             <div class="analysis-card">

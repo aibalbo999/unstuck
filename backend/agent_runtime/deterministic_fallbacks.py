@@ -115,6 +115,20 @@ def _deterministic_structured_fallback(
         _clear_agent_blocking_issues(context, agent_num)
         return True, "已套用 deterministic 護城河 fallback"
 
+    if agent_num == 24:
+        structured = {
+            "trade_direction": "Neutral",
+            "entry_zone": "待價格放量突破近期壓力位後回測不破再評估進場",
+            "target_price": "突破後下一個可驗證的前高壓力位",
+            "stop_loss": "進場後若收盤跌破突破位、20 日均線或型態支撐即嚴格停損",
+            "core_catalyst": "未取得可驗證的未來 1-2 週事件，維持觀望直到技術與籌碼同步確認。",
+            "risk_level": "High",
+        }
+        structured_outputs[agent_num] = structured
+        context["analyses"][agent_num] = structured_output_to_report_text(agent_num, structured, "")
+        _clear_agent_blocking_issues(context, agent_num)
+        return True, "已套用 deterministic 極短線風控 fallback"
+
     if agent_num == 19:
         current_price = data.get("current_price") if isinstance(data, dict) else None
         base_price = float(current_price or 100)

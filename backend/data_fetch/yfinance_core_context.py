@@ -92,6 +92,7 @@ _PAYLOAD_KEYS = (
     "price_history",
     "recent_monthly_revenue",
     "recent_catalysts",
+    "earnings_call",
     "institutional_trading",
     "dynamic_peer_metrics",
     "peer_discovery_results",

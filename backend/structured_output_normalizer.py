@@ -5,41 +5,13 @@ from __future__ import annotations
 import re
 from typing import Any, Optional
 
-from pydantic import ValidationError
-
 from confidence_calibration import build_confidence_calibration, confidence_score
-from structured_output_models import (
-    BubbleSniperStructuredOutput,
-    MoatStructuredOutput,
-    PriceTargetStructuredOutput,
-    RecommendationStructuredOutput,
-)
 from structured_output_rendering import (
     ensure_agent19_required_sections,
     format_recommendation_block,
     normalize_escaped_newlines,
 )
-
-
-STRICT_STRUCTURED_SCHEMAS = {
-    3: MoatStructuredOutput,
-    4: PriceTargetStructuredOutput,
-    7: RecommendationStructuredOutput,
-    12: MoatStructuredOutput,
-    14: PriceTargetStructuredOutput,
-    16: RecommendationStructuredOutput,
-    19: BubbleSniperStructuredOutput,
-}
-
-
-def _validated_payload(agent_num: int, payload: dict) -> Optional[dict]:
-    schema = STRICT_STRUCTURED_SCHEMAS.get(agent_num)
-    if schema is None:
-        return payload
-    try:
-        return schema.model_validate(payload).model_dump(by_alias=True)
-    except ValidationError:
-        return None
+from structured_output_validation import validated_structured_payload
 
 
 def _coerce_number(value, minimum=None, maximum=None):
@@ -89,7 +61,7 @@ def normalize_structured_output(agent_num: int, payload: Optional[dict]) -> Opti
     """Validate and normalize JSON payloads from structured agents."""
     if not isinstance(payload, dict):
         return None
-    payload = _validated_payload(agent_num, payload)
+    payload = validated_structured_payload(agent_num, payload)
     if payload is None:
         return None
 
@@ -159,7 +131,33 @@ def normalize_structured_output(agent_num: int, payload: Optional[dict]) -> Opti
             "price_targets": targets,
             "valuation_reasoning": valuation_reasoning,
             "valuation_summary": payload.get("valuation_summary", {}) if isinstance(payload.get("valuation_summary"), dict) else {},
+            "dcf_scenarios": payload.get("dcf_scenarios", []) if isinstance(payload.get("dcf_scenarios"), list) else [],
             "analysis_markdown": str(payload.get("analysis_markdown", "")).strip(),
+        }
+
+    if agent_num == 20:
+        return {
+            "guidance_tone": str(payload.get("guidance_tone") or "資料不足"),
+            "confidence": _coerce_number(payload.get("confidence"), 0, 1) or 0.0,
+            "highlights": list(payload.get("highlights") or [])[:3],
+            "analysis_markdown": str(payload.get("analysis_markdown", "")).strip(),
+        }
+
+    if agent_num == 21:
+        return {
+            "thesis_summary": str(payload.get("thesis_summary") or "").strip(),
+            "downside_risks": list(payload.get("downside_risks") or [])[:5],
+            "analysis_markdown": str(payload.get("analysis_markdown", "")).strip(),
+        }
+
+    if agent_num == 24:
+        return {
+            "trade_direction": _coerce_text(payload.get("trade_direction")),
+            "entry_zone": _coerce_text(payload.get("entry_zone")),
+            "target_price": _coerce_text(payload.get("target_price")),
+            "stop_loss": _coerce_text(payload.get("stop_loss")),
+            "core_catalyst": _coerce_text(payload.get("core_catalyst")),
+            "risk_level": _coerce_text(payload.get("risk_level")),
         }
 
     if agent_num in {7, 16, 19}:
@@ -216,6 +214,28 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
                 f"- {key}: {value}" for key, value in summary.items()
             )
         return f"[目標股價]\n{price_lines}\n[/目標股價]\n\n{body}{summary_text}".strip()
+
+    if agent_num == 20:
+        tone = structured.get("guidance_tone", "資料不足")
+        highlights = structured.get("highlights", []) or []
+        lines = [f"- **{item.get('keyword', '亮點')}**：{item.get('quote', '')}" for item in highlights if isinstance(item, dict)]
+        return f"## 管理層語氣：{tone}\n" + "\n".join(lines) + f"\n\n{body}"
+
+    if agent_num == 21:
+        risks = structured.get("downside_risks", []) or []
+        lines = [f"- **{item.get('title', '下行風險')}**：{item.get('evidence', '')}" for item in risks if isinstance(item, dict)]
+        return f"## 最大下行風險 (Key Downside Risks) / 空頭觀點\n" + "\n".join(lines) + f"\n\n{body}"
+
+    if agent_num == 24:
+        return (
+            "## 極短線交易計畫\n"
+            f"- **交易方向：{structured.get('trade_direction', 'Neutral')}**\n"
+            f"- **進場區間：{structured.get('entry_zone', 'N/A')}**\n"
+            f"- **1-2週目標價：{structured.get('target_price', 'N/A')}**\n"
+            f"- **🛑 停損點：{structured.get('stop_loss', 'N/A')}**\n"
+            f"- **核心催化劑：{structured.get('core_catalyst', 'N/A')}**\n"
+            f"- **短期波動風險：{structured.get('risk_level', 'High')}**"
+        )
 
     if agent_num in {7, 16, 19}:
         rec = structured.get("recommendation", {})

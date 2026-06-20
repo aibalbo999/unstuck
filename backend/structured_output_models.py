@@ -54,9 +54,18 @@ class ValuationSummary(StructuredModel):
     double_counting_check: str = Field(..., min_length=1)
 
 
+class DcfScenarioOutput(StructuredModel):
+    scenario: Literal["bear", "base", "bull"]
+    revenue_growth_bias_pct: float
+    margin_bias_pct: float
+    wacc_pct: float = Field(..., gt=0)
+    intrinsic_value: float = Field(..., ge=0)
+
+
 class PriceTargetStructuredOutput(StructuredModel):
     price_targets: PriceTargets
     valuation_summary: ValuationSummary
+    dcf_scenarios: list[DcfScenarioOutput] = Field(default_factory=list, max_length=3)
     analysis_markdown: str = Field(..., min_length=1)
 
 
@@ -160,6 +169,45 @@ class BubbleSniperStructuredOutput(StructuredModel):
     analysis_markdown: str = Field(..., min_length=1)
 
 
+class ManagementHighlight(StructuredModel):
+    keyword: str = Field(..., min_length=1)
+    quote: str = Field(..., min_length=1)
+
+
+class ManagementSentimentStructuredOutput(StructuredModel):
+    guidance_tone: Literal["樂觀", "中立", "保守", "資料不足"]
+    confidence: float = Field(..., ge=0, le=1)
+    highlights: list[ManagementHighlight] = Field(..., min_length=3, max_length=3)
+    analysis_markdown: str = Field(..., min_length=1)
+
+
+class DownsideRisk(StructuredModel):
+    title: str = Field(..., min_length=1)
+    evidence: str = Field(..., min_length=1)
+    impact: str = ""
+    severity: Literal["warning", "high", "critical"]
+    confidence: float = Field(default=0.7, ge=0, le=1)
+
+
+class BearAdvocateStructuredOutput(StructuredModel):
+    thesis_summary: str = Field(..., min_length=1)
+    downside_risks: list[DownsideRisk] = Field(..., min_length=3, max_length=5)
+    analysis_markdown: str = Field(..., min_length=1)
+
+
+class SwingTradeSetup(StructuredModel):
+    """Strict 1-2 week trade plan emitted by the v4 decision agent."""
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    trade_direction: Literal["Long", "Short", "Neutral"]
+    entry_zone: str = Field(..., min_length=1)
+    target_price: str = Field(..., min_length=1)
+    stop_loss: str = Field(..., min_length=1)
+    core_catalyst: str = Field(..., min_length=1)
+    risk_level: Literal["High", "Medium", "Low"]
+
+
 STRUCTURED_AGENT_RESPONSE_SCHEMAS: dict[int, type[StructuredModel]] = {
     3: MoatStructuredOutput,
     4: PriceTargetStructuredOutput,
@@ -168,6 +216,9 @@ STRUCTURED_AGENT_RESPONSE_SCHEMAS: dict[int, type[StructuredModel]] = {
     14: PriceTargetStructuredOutput,
     16: RecommendationStructuredOutput,
     19: BubbleSniperStructuredOutput,
+    20: ManagementSentimentStructuredOutput,
+    21: BearAdvocateStructuredOutput,
+    24: SwingTradeSetup,
 }
 
 

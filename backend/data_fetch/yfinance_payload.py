@@ -108,6 +108,7 @@ def build_legacy_payload(ctx: dict) -> dict:
         "price_history": ctx["price_history"],
         "recent_monthly_revenue": ctx["recent_monthly_revenue"],
         "recent_catalysts": ctx["recent_catalysts"],
+        "earnings_call": ctx.get("earnings_call", {}),
         "institutional_trading": ctx["institutional_trading"],
         "dynamic_peer_metrics": ctx["dynamic_peer_metrics"],
         "peer_discovery_results": ctx["peer_discovery_results"],

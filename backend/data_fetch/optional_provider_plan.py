@@ -10,6 +10,7 @@ from .types import FetchRequest
 
 OPTIONAL_WORKFLOW_SOURCES = (
     "recent_catalysts",
+    "earnings_call",
     "global_market_context",
     "international_news_context",
     "macro_indicators",

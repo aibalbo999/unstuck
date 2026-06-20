@@ -130,10 +130,12 @@ class KeyRotator:
 
         return wait
 
-    def _next_key(self) -> str:
-        key = self.keys[self.index]
-        self.index = (self.index + 1) % len(self.keys)
-        return key
+    def _candidate_key_positions(self) -> list[tuple[int, str]]:
+        candidates = []
+        for offset in range(len(self.keys)):
+            position = (self.index + offset) % len(self.keys)
+            candidates.append((position, self.keys[position]))
+        return candidates
 
     def _preview_key(self, key: str) -> str:
         return f"{key[:8]}...{key[-4:]}" if len(key) > 12 else "***"
@@ -142,14 +144,19 @@ class KeyRotator:
         """Return a key after reserving RPM/TPM budget; sleeps only when budget is depleted."""
         while True:
             with self._sync_lock:
-                candidates = [self._next_key() for _ in self.keys]
-                reservations = [(self._wait_for_key(key, model, estimated_tokens), key) for key in candidates]
-                wait, key = min(reservations, key=lambda item: item[0])
+                candidates = self._candidate_key_positions()
+                reservations = [
+                    (self._wait_for_key(key, model, estimated_tokens), position, key)
+                    for position, key in candidates
+                ]
+                wait, key_position, key = min(reservations, key=lambda item: item[0])
                 if wait <= 0:
                     wait = max(
                         self._reserve_for_key(key, model, estimated_tokens),
                         self._reserve_shared_for_key(key, model, estimated_tokens),
                     )
+                    if wait <= 0:
+                        self.index = (key_position + 1) % len(self.keys)
 
             if wait > 0:
                 emit_log(f"    ⏳ {model} 動態限速等待 {wait:.1f} 秒...")
@@ -163,14 +170,19 @@ class KeyRotator:
         """Async version of get_key for parallel agent execution."""
         while True:
             async with self._async_lock:
-                candidates = [self._next_key() for _ in self.keys]
-                reservations = [(self._wait_for_key(key, model, estimated_tokens), key) for key in candidates]
-                wait, key = min(reservations, key=lambda item: item[0])
+                candidates = self._candidate_key_positions()
+                reservations = [
+                    (self._wait_for_key(key, model, estimated_tokens), position, key)
+                    for position, key in candidates
+                ]
+                wait, key_position, key = min(reservations, key=lambda item: item[0])
                 if wait <= 0:
                     wait = max(
                         self._reserve_for_key(key, model, estimated_tokens),
                         self._reserve_shared_for_key(key, model, estimated_tokens),
                     )
+                    if wait <= 0:
+                        self.index = (key_position + 1) % len(self.keys)
 
             if wait > 0:
                 emit_log(f"    ⏳ {model} 動態限速等待 {wait:.1f} 秒...")

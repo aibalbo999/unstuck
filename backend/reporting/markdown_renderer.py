@@ -44,6 +44,22 @@ def generate_markdown_report(context: AnalysisContext) -> str:
     target_6m = get_rec_val(recommendation, "6個月", "N/A")
     target_12m = get_rec_val(recommendation, "12個月", "N/A")
     confidence = get_rec_val(recommendation, "信心", "N/A")
+    trade_setup = parsed.get("trade_setup", {}) or {}
+    if pipeline_def["id"] == "v4" and trade_setup:
+        decision_markdown = f"""## 極短線交易計畫
+- **交易方向:** {trade_setup.get("trade_direction", "Neutral")}
+- **進場區間:** {trade_setup.get("entry_zone", "N/A")}
+- **1-2週目標:** {trade_setup.get("target_price", "N/A")}
+- **嚴格停損:** {trade_setup.get("stop_loss", "N/A")}
+- **核心催化劑:** {trade_setup.get("core_catalyst", "N/A")}
+- **短期波動風險:** {trade_setup.get("risk_level", "High")}"""
+    else:
+        decision_markdown = f"""## 🎯 最終投資建議
+- **綜合建議:** {rec_text}
+- **3個月目標:** {target_3m}
+- **6個月目標:** {target_6m}
+- **12個月目標:** {target_12m}
+- **信心指數:** {confidence}"""
     audit_markdown = build_audit_markdown(context)
     data_trust_markdown = build_data_trust_markdown(data)
     source_audit_markdown = build_source_audit_markdown(data, context)
@@ -76,12 +92,7 @@ def generate_markdown_report(context: AnalysisContext) -> str:
 
 ---
 
-## 🎯 最終投資建議
-- **綜合建議:** {rec_text}
-- **3個月目標:** {target_3m}
-- **6個月目標:** {target_6m}
-- **12個月目標:** {target_12m}
-- **信心指數:** {confidence}
+{decision_markdown}
 
 ---
 

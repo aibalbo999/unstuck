@@ -144,7 +144,7 @@ def parse_report_filename(filename: str) -> dict:
     if len(parts) == 2:
         raw_ticker = parts[0]
         pipeline_id = "v1"
-        if raw_ticker.endswith("_v1") or raw_ticker.endswith("_v2") or raw_ticker.endswith("_v3"):
+        if raw_ticker.endswith(("_v1", "_v2", "_v3", "_v4")):
             pipeline_id = raw_ticker[-2:]
             raw_ticker = raw_ticker[:-3]
         ticker = raw_ticker.replace("_", ".")

@@ -150,7 +150,7 @@ def create_analysis_router(deps: AnalysisRouteDeps) -> APIRouter:
                             "type": "done",
                             "filename": job.get("filename"),
                             "pipeline_id": job_pipeline_id,
-                            "last_pipeline_id": job_pipeline_sequence[-1],
+                            "last_pipeline_id": job_pipeline_sequence[-1] if job_pipeline_sequence else job_pipeline_id,
                         }
                     elif job.get("status") == "cancelled":
                         payload = {"type": "error", "phase": "cancelled", "message": job.get("error", "分析任務已取消")}

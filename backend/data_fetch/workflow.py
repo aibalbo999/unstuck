@@ -166,6 +166,7 @@ async def _run_optional_provider_plan(request: FetchRequest, registry: ProviderR
         "macro_indicators": _provider_context_value(provider_results, "macro_indicators"),
         "chip_data": _provider_context_value(provider_results, "chip_data"),
         "alternative_data": _provider_context_value(provider_results, "alternative_data"),
+        "earnings_call": _provider_context_value(provider_results, "earnings_call"),
         "google_peer_discovery": provider_value(provider_results, "peer_discovery", "Google Search"),
     }
     refreshed_sources = [source for source, should_refresh in refresh_by_source.items() if should_refresh]

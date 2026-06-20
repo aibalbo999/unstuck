@@ -39,6 +39,7 @@ def _structured_output_missing(context: AnalysisContext, agent_num: int) -> bool
         get_structured_agent_num("moat", context),
         get_structured_agent_num("valuation", context),
         get_structured_agent_num("recommendation", context),
+        get_structured_agent_num("trade_setup", context),
     }
     return agent_num in structured_agents and agent_num not in (context.get("structured_outputs", {}) or {})
 

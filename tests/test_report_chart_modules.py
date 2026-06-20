@@ -8,7 +8,7 @@ TEMPLATE_DIR = ROOT / "backend" / "templates"
 def test_report_chart_template_is_modularized():
     entry = (TEMPLATE_DIR / "includes" / "report_charts.html.j2").read_text(encoding="utf-8")
     for include_name in [
-        "includes/charts/setup.html.j2",
+        "includes/charts/runtime.html.j2",
         "includes/charts/financial.html.j2",
         "includes/charts/moat.html.j2",
         "includes/charts/valuation.html.j2",

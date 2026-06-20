@@ -79,6 +79,7 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 os.makedirs(os.path.dirname(LOCAL_RUNTIME_LOCK_PATH), exist_ok=True)
 
 report_cache = {}
+report_cache_lock = threading.Lock()
 analysis_task_queue = create_task_queue()
 data_refresh_service = StockDataService()
 analysis_pipeline_runner = AnalysisPipelineRunner()
@@ -90,7 +91,6 @@ _LOCAL_RUNTIME_LOCK_HANDLE = None
 
 def acquire_local_runtime_instance_lock(path: str = LOCAL_RUNTIME_LOCK_PATH):
     return _acquire_local_runtime_instance_lock(path, LOCAL_RUNTIME_INSTANCE_ID)
-
 
 def print_streamed_event(job_id: str, payload: dict) -> None:
     if TASK_QUEUE_BACKEND != "rq":
@@ -105,13 +105,10 @@ def require_mutation_authorized(request: Request) -> None:
     ).strip()
     if supplied not in get_allowed_mutation_tokens():
         raise HTTPException(status_code=403, detail="Mutation endpoint requires a valid mutation token")
-
 def get_runtime_mutation_token() -> str:
     return str(RUNTIME_MUTATION_API_TOKEN or "").strip()
-
 def is_local_deployment_mode() -> bool:
     return str(DEPLOYMENT_MODE or "local").strip().lower() == "local"
-
 def get_allowed_mutation_tokens() -> set[str]:
     runtime_token = get_runtime_mutation_token() if is_local_deployment_mode() else ""
     return {
@@ -121,14 +118,12 @@ def get_allowed_mutation_tokens() -> set[str]:
         }
         if token
     }
-
 def get_client_config() -> dict:
     return {
         "mutation_header": MUTATION_HEADER_NAME,
         "mutation_token": get_runtime_mutation_token() if is_local_deployment_mode() else "",
         "deployment_mode": str(DEPLOYMENT_MODE or "local").strip().lower(),
     }
-
 def create_runtime_job(ticker: str, pipeline_id: str = "v1") -> str:
     try:
         return create_job(ticker, pipeline_id, worker_instance_id=LOCAL_RUNTIME_INSTANCE_ID)
@@ -136,13 +131,10 @@ def create_runtime_job(ticker: str, pipeline_id: str = "v1") -> str:
         if "worker_instance_id" not in str(exc):
             raise
         return create_job(ticker, pipeline_id)
-
 def cleanup_expired_reports(retention_days: int = REPORT_RETENTION_DAYS):
-    return report_history_service.cleanup_expired_reports(OUTPUT_DIR, report_cache, retention_days)
-
+    return report_history_service.cleanup_expired_reports(OUTPUT_DIR, report_cache, retention_days, report_cache_lock=report_cache_lock)
 def cleanup_orphan_markdown_reports():
     return report_history_service.cleanup_orphan_markdown_reports(OUTPUT_DIR)
-
 async def _mark_abandoned_local_jobs() -> None:
     global _LOCAL_RUNTIME_LOCK_HANDLE
     if TASK_QUEUE_BACKEND != "local":
@@ -161,7 +153,6 @@ async def _mark_abandoned_local_jobs() -> None:
     if abandoned:
         emit_log(f"已清理 {abandoned} 筆重啟後遺留的本地分析任務。")
     return abandoned
-
 async def _cleanup_reports_forever() -> None:
     from cache_store import cleanup_expired_cache_entries
 
@@ -170,7 +161,6 @@ async def _cleanup_reports_forever() -> None:
         await asyncio.to_thread(cleanup_orphan_markdown_reports)
         await asyncio.to_thread(cleanup_expired_cache_entries)
         await asyncio.sleep(REPORT_CLEANUP_INTERVAL_SECONDS)
-
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     global _LOCAL_RUNTIME_LOCK_HANDLE
@@ -214,13 +204,15 @@ async def lifespan(_app: FastAPI):
         if _LOCAL_RUNTIME_LOCK_HANDLE is not None:
             _LOCAL_RUNTIME_LOCK_HANDLE.close()
             _LOCAL_RUNTIME_LOCK_HANDLE = None
-
 def create_app() -> FastAPI:
     app = FastAPI(lifespan=lifespan)
+    _allow_credentials = "*" not in ALLOWED_ORIGINS
+    if not _allow_credentials:
+        emit_log("警告：ALLOWED_ORIGINS 含萬用字元 *，已停用 credentials 支援。")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=ALLOWED_ORIGINS,
-        allow_credentials="*" not in ALLOWED_ORIGINS,
+        allow_credentials=_allow_credentials,
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -229,6 +221,7 @@ def create_app() -> FastAPI:
     app.include_router(create_reports_router(ReportRouteDeps(
         get_output_dir=lambda: OUTPUT_DIR,
         get_report_cache=lambda: report_cache,
+        get_report_cache_lock=lambda: report_cache_lock,
         get_refresh_service=lambda: data_refresh_service,
         get_pipeline_runner=lambda: analysis_pipeline_runner,
         get_report_renderer=lambda: report_renderer,

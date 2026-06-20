@@ -23,14 +23,15 @@ OUTPUT_CLEANLINESS_RULE = build_output_cleanliness_rule()
 ROUTED_EXTERNAL_CONTEXT_KEYS = {
     "macro_indicators": {11},
     "macro_context": {11},
-    "chip_data": {15, 18},
-    "tdcc_shareholder_distribution": {15, 18},
-    "twse_margin_short_sales": {15, 18},
+    "chip_data": {15, 18, 23, 24},
+    "tdcc_shareholder_distribution": {15, 18, 23, 24},
+    "twse_margin_short_sales": {15, 18, 23, 24},
     "alternative_data": {13, 14},
     "sentiment_context": {17},
+    "earnings_call": {20},
     "dcard_sentiment": {17},
     "ptt_sentiment": {17},
-    "temporal_memory": {7, 16, 19},
+    "temporal_memory": {7, 16, 19, 21},
 }
 
 

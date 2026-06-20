@@ -16,6 +16,8 @@
 - 歷史報告支援資料可信度、決策追蹤、版本篩選、報告比較與相容性提示
 - 報告預覽可只刷新資料快照，也可排隊重跑最終投資建議、Mode B 或完整報告
 - 歷史 API 回傳 `decision_freshness`，明確區分「資料快照已更新」與「投資結論是否已依新資料重跑」
+- 決策追蹤會自動掃描滿 3 / 6 / 12 個月的歷史報告，抓取發布日與到期日股價，計算 ROI、命中率與 Hit/Miss，並在「報告與維運」顯示回測績效
+- 新報告會載入同股票上一期報告與回測結果，將 `temporal_memory` 只注入最終決策 Agent，強制檢討先前目標價與投資建議是否失準
 - 內建報告刪除 API，會同步刪除 `.html`、`.md` 與資料快照
 - 結構化 Agent 使用 JSON 輸出優先解析；Mode A/B 會解析護城河、估值與投資建議，Mode C 會解析泡沫狙擊建議
 - Mode C 的 Agent 19 報告會強制保留做空觸發條件、防軋空停損點，並將 `[投資建議]` 區塊固定放在最終段落尾端
@@ -27,6 +29,7 @@
 - 長任務透過 SQLite job/event store 與任務佇列抽象執行，可用本地 worker 或切換 RQ/Redis
 - API 額度儀表板使用 `api_usage_events` ledger 統計 Gemini provider request、Google Custom Search 與 FMP 本機觀測用量
 - Watchlist 可設定盤前/盤後批次分析，儲存在 SQLite，排程執行會先原子認領 due slot 並保留舊 JSON 一次性匯入相容
+- Watchlist 支援事件驅動雷達 triggers：跌破均線、外資連賣、VIX 飆升會自動派送 Mode C；營收創高會自動派送 Mode B，且每日事件以 SQLite 去重
 - 財務抓取與 Gemini 分析管線提供 async 版本，API 生成報告時走新版 `google-genai` 非同步 client
 - 針對常見財務錯誤加入品質檢查，例如 DuPont、DCF / P/E、WACC、FCF 與公司身分一致性
 
@@ -42,6 +45,9 @@ stock-agent/
 │   ├── job_store.py        # SQLite job / SSE event store
 │   ├── api_usage_store.py  # API 用量 ledger
 │   ├── watchlist_service.py # Watchlist SQLite 儲存與批次排程 helper
+│   ├── watchlist_triggers.py # Watchlist 事件雷達 trigger 判斷
+│   ├── decision_backtest_service.py # 決策追蹤到期回測與績效統計
+│   ├── temporal_memory_service.py # 上一期報告記憶與最終 Agent 反思 context
 │   ├── watchlist_claim_store.py # Watchlist 排程 due slot 原子認領
 │   ├── analysis_jobs.py    # 可匯入的分析任務入口，本地/RQ worker 共用
 │   ├── report_rerun_service.py # 報告局部/完整重跑 orchestration
@@ -256,6 +262,7 @@ http://127.0.0.1:8080
 3. 選擇分析模式；預設是 Mode A，也可選 Mode B 或 Mode C。
 4. 等待 Agent 依序完成。
 5. 報告完成後會出現在同一頁的歷史清單，可直接預覽、下載、比較或重跑。
+6. 到「報告與維運」查看決策回測績效、API/來源健康、Watchlist 批次排程與事件雷達 trigger。
 
 分析時間會受模型回應速度與 API 額度影響。部分個股可能需要 10 分鐘以上。
 

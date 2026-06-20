@@ -97,11 +97,11 @@
                 close();
 
                 const currentPipeline = state().currentPipeline;
-                const reportPipeline = data.last_pipeline_id || (data.pipeline_id === 'both' ? 'v2' : data.pipeline_id) || currentPipeline;
+                const reportPipeline = data.last_pipeline_id || (data.pipeline_id === 'both' ? 'v3' : data.pipeline_id) || currentPipeline;
                 patchState({ currentReportFilename: data.filename, currentPipeline: reportPipeline });
                 const reportCount = Array.isArray(data.filenames) ? data.filenames.length : 1;
                 options.reportTickerTitle.textContent = reportCount > 1
-                    ? `${ticker} 雙模式分析完成`
+                    ? `${ticker} ${reportCount} 模式分析完成`
                     : `${ticker} ${options.pipelineMeta(reportPipeline).reportSuffix}`;
                 options.setAuditNotice(data.audit || state().pendingAuditNotice);
                 options.reportIframe.src = `/api/report/${encodeURIComponent(data.filename)}`;

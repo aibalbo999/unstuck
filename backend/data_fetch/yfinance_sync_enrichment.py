@@ -10,6 +10,7 @@ from .market_sources.http_enrichment import (
     fetch_yfinance_news_catalysts,
 )
 from .market_sources.peers import fetch_dynamic_peer_metrics
+from .earnings_call_fetcher import fetch_latest_earnings_call
 from .market_sources.taiwan import (
     fetch_finmind_news_catalysts,
     fetch_institutional_trading_trend,
@@ -82,6 +83,14 @@ def fetch_sync_enrichment_bundle(
     }
     if not skip_optional_http:
         enrichment_fetches.update({
+            "earnings_call": (
+                fetch_latest_earnings_call,
+                (ticker,),
+                {},
+                "法說逐字稿資料獲取失敗",
+                "earnings_call",
+                "FMP earnings call transcript",
+            ),
             "recent_catalysts_google": (
                 fetch_google_search_catalysts,
                 (ticker, company_name, company_identity),
@@ -124,5 +133,6 @@ def fetch_sync_enrichment_bundle(
             "pe_river_chart",
             {"years": years, "eps_twd": [], "multiples": [10, 12, 15, 18], "bands": {}, "source": "unavailable"},
         ),
+        "earnings_call": enrichment.get("earnings_call", {}),
         "audit": enrichment_result.get("audit", []),
     }

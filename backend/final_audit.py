@@ -10,7 +10,9 @@ from agent_catalog import AGENT_NAMES
 from confidence_calibration import build_confidence_calibration
 from final_audit_context_coverage import missing_final_context_labels
 from final_audit_dcf import dcf_conflict_warnings
+from final_audit_sections import append_final_audit_section
 from final_audit_v3 import v3_recommendation_contract_issues
+from final_audit_v4 import v4_trade_setup_contract_issues
 from forward_consistency_checker import run_forward_consistency_checks
 from pipeline_modes import get_pipeline_definition, get_structured_agent_num
 from runtime_events import emit_log
@@ -47,38 +49,6 @@ def _add_unique_issue(items: list[str], issue: str):
         items.append(issue)
 
 
-def _append_final_audit_section(context: AnalysisContext, audit: AuditResult):
-    """Expose non-blocking final audit notes in the final decision section."""
-    if context.get("_final_audit_appended"):
-        return
-    final_agent = get_structured_agent_num("recommendation", context) or 7
-    if final_agent not in context.get("analyses", {}):
-        return
-
-    critical = audit.get("critical", [])
-    warnings = audit.get("warnings", [])
-    corrections = audit.get("corrections", [])
-    repair_log = context.get("audit_repair_log", [])
-    if not critical and not warnings and not corrections and not repair_log:
-        return
-
-    lines = ["## 系統最終稽核"]
-    if critical:
-        lines.append("### 仍需注意的異常")
-        lines.extend(f"- {item}" for item in critical[:8])
-    if repair_log:
-        lines.append("### 自動修復紀錄")
-        lines.extend(f"- {item}" for item in repair_log[:8])
-    if corrections:
-        lines.append("### 已套用校正")
-        lines.extend(f"- {item}" for item in corrections[:8])
-    if warnings:
-        lines.append("### 非阻斷提醒")
-        lines.extend(f"- {item}" for item in warnings[:8])
-    context["analyses"][final_agent] = f"{context['analyses'][final_agent].rstrip()}\n\n" + "\n".join(lines)
-    context["_final_audit_appended"] = True
-
-
 def run_final_report_audit(context: AnalysisContext, append_section: bool = True) -> AuditResult:
     """
     Cross-agent final audit before report rendering.
@@ -96,6 +66,7 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
     moat_agent = get_structured_agent_num("moat", context)
     valuation_agent = get_structured_agent_num("valuation", context)
     recommendation_agent = get_structured_agent_num("recommendation", context)
+    trade_setup_agent = get_structured_agent_num("trade_setup", context)
 
     critical: list[str] = []
     warnings: list[str] = []
@@ -141,7 +112,12 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
             _add_unique_issue(critical, f"Agent {recommendation_agent} {issue}")
             add_agent_repair_issue(recommendation_agent, issue)
 
-    for agent_num, label in [(moat_agent, "護城河評分"), (valuation_agent, "三情境目標價"), (recommendation_agent, "最終投資建議")]:
+    for agent_num, label in [
+        (moat_agent, "護城河評分"),
+        (valuation_agent, "三情境目標價"),
+        (recommendation_agent, "最終投資建議"),
+        (trade_setup_agent, "極短線交易計畫"),
+    ]:
         if agent_num is None:
             continue
         if agent_num in completed_agents and agent_num not in structured_outputs:
@@ -179,7 +155,12 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
         add_agent_repair_issue(moat_agent, f"護城河評分缺少欄位：{', '.join(missing)}")
 
     recommendation = parsed.get("recommendation", {}) or {}
-    if recommendation_agent is None:
+    trade_setup = parsed.get("trade_setup", {}) or {}
+    if trade_setup_agent is not None:
+        for issue in v4_trade_setup_contract_issues(trade_setup):
+            _add_unique_issue(critical, f"Agent {trade_setup_agent} {issue}")
+            add_agent_repair_issue(trade_setup_agent, issue)
+    elif recommendation_agent is None:
         _add_unique_issue(critical, "此 pipeline 未宣告最終投資建議 Agent。")
     elif not recommendation:
         _add_unique_issue(critical, f"Agent {recommendation_agent} 缺少最終投資建議結構化資料。")
@@ -279,7 +260,7 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
     }
 
     if append_section and critical:
-        _append_final_audit_section(context, audit)
+        append_final_audit_section(context, audit)
 
     if critical:
         if append_section:

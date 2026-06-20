@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import threading
 import time
 from typing import Any
 
@@ -72,11 +73,13 @@ def guard_hash(value: str) -> str:
     return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:16]
 
 
-class RedisFixedWindowRateLimiter:
-    def __init__(self, client: Any, *, namespace: str = "stock-agent"):
-        self._client = client
-        self._namespace = namespace
-        self.enabled = client is not None
+class LocalFixedWindowRateLimiter:
+    """Thread-safe fallback that preserves API quotas when Redis is unavailable."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._windows: dict[tuple[str, str, int], dict[str, float]] = {}
+        self._cooldowns: dict[tuple[str, str], float] = {}
 
     def reserve(
         self,
@@ -87,8 +90,95 @@ class RedisFixedWindowRateLimiter:
         tpm_limit: int | float | None = None,
         estimated_tokens: int = 0,
     ) -> float:
-        if not self.enabled:
+        now = time.time()
+        identity = (guard_hash(api_key), guard_hash(model))
+        window = int(now // 60)
+        window_key = (*identity, window)
+        with self._lock:
+            cooldown_until = self._cooldowns.get(identity, 0.0)
+            if cooldown_until > now:
+                return cooldown_until - now
+            self._cooldowns.pop(identity, None)
+            counters = self._windows.setdefault(window_key, {"rpm": 0.0, "tpm": 0.0})
+            rpm = max(int(rpm_limit), 1)
+            tpm = max(int(tpm_limit or 0), 0)
+            tokens = max(int(estimated_tokens or 0), 1)
+            if counters["rpm"] >= rpm or (tpm > 0 and counters["tpm"] + tokens > tpm):
+                return max(60.0 - (now % 60.0), 0.001)
+            counters["rpm"] += 1
+            if tpm > 0:
+                counters["tpm"] += tokens
+            if len(self._windows) > 2_048:
+                self._windows = {key: value for key, value in self._windows.items() if key[2] >= window - 1}
             return 0.0
+
+    def penalize(self, api_key: str, model: str, wait_seconds: float) -> None:
+        identity = (guard_hash(api_key), guard_hash(model))
+        with self._lock:
+            self._cooldowns[identity] = max(
+                self._cooldowns.get(identity, 0.0),
+                time.time() + max(float(wait_seconds), 0.001),
+            )
+
+
+class LocalProviderCircuitStore:
+    """Thread-safe local provider circuit used when Redis cannot be reached."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._states: dict[str, dict[str, Any]] = {}
+
+    def state(self, provider: str) -> dict[str, Any]:
+        now = time.time()
+        with self._lock:
+            state = dict(self._states.get(provider, {}))
+        opened_until = float(state.get("opened_until") or 0.0)
+        return {
+            "open": opened_until > now, "failures": int(state.get("failures") or 0),
+            "opened_until": opened_until, "last_error": str(state.get("last_error") or ""),
+        }
+
+    def record_success(self, provider: str) -> None:
+        with self._lock:
+            self._states.pop(provider, None)
+
+    def record_failure(self, provider: str, error: str, threshold: int, cooldown_seconds: float) -> None:
+        with self._lock:
+            state = self._states.setdefault(provider, {"failures": 0, "opened_until": 0.0})
+            state["failures"] = int(state["failures"]) + 1
+            state["last_error"] = str(error or "")[:240]
+            if state["failures"] >= max(int(threshold), 1):
+                state["opened_until"] = time.time() + max(float(cooldown_seconds), 1.0)
+
+    def clear(self, provider: str | None = None) -> None:
+        with self._lock:
+            if provider is None:
+                self._states.clear()
+            else:
+                self._states.pop(provider, None)
+
+
+class RedisFixedWindowRateLimiter:
+    def __init__(self, client: Any, *, namespace: str = "stock-agent"):
+        self._client = client
+        self._namespace = namespace
+        self._fallback = LocalFixedWindowRateLimiter()
+        self.enabled = True
+
+    def reserve(
+        self,
+        api_key: str,
+        model: str,
+        *,
+        rpm_limit: int | float,
+        tpm_limit: int | float | None = None,
+        estimated_tokens: int = 0,
+    ) -> float:
+        fallback_limits = {
+            "rpm_limit": rpm_limit, "tpm_limit": tpm_limit, "estimated_tokens": estimated_tokens,
+        }
+        if self._client is None:
+            return self._fallback.reserve(api_key, model, **fallback_limits)
         window = int(time.time() // 60)
         key_hash = guard_hash(api_key)
         model_hash = guard_hash(model)
@@ -109,28 +199,31 @@ class RedisFixedWindowRateLimiter:
             )
             return max(float(wait_ms or 0) / 1000.0, 0.0)
         except Exception:
-            self.enabled = False
-            return 0.0
+            self._client = None
+            return self._fallback.reserve(api_key, model, **fallback_limits)
 
     def penalize(self, api_key: str, model: str, wait_seconds: float) -> None:
-        if not self.enabled:
+        if self._client is None:
+            self._fallback.penalize(api_key, model, wait_seconds)
             return
         try:
             cooldown_key = f"{self._namespace}:llm:{guard_hash(model)}:{guard_hash(api_key)}:cooldown"
             self._client.set(cooldown_key, "1", px=max(int(wait_seconds * 1000), 1))
         except Exception:
-            self.enabled = False
+            self._client = None
+            self._fallback.penalize(api_key, model, wait_seconds)
 
 
 class RedisProviderCircuitStore:
     def __init__(self, client: Any, *, namespace: str = "stock-agent"):
         self._client = client
         self._namespace = namespace
-        self.enabled = client is not None
+        self._fallback = LocalProviderCircuitStore()
+        self.enabled = True
 
-    def state(self, provider: str) -> dict | None:
-        if not self.enabled:
-            return None
+    def state(self, provider: str) -> dict[str, Any]:
+        if self._client is None:
+            return self._fallback.state(provider)
         try:
             fail_key = self._fail_key(provider)
             open_key = self._open_key(provider)
@@ -144,19 +237,22 @@ class RedisProviderCircuitStore:
                 "last_error": last_error,
             }
         except Exception:
-            self.enabled = False
-            return None
+            self._client = None
+            return self._fallback.state(provider)
 
     def record_success(self, provider: str) -> None:
-        if not self.enabled:
+        if self._client is None:
+            self._fallback.record_success(provider)
             return
         try:
             self._client.delete(self._fail_key(provider), self._open_key(provider))
         except Exception:
-            self.enabled = False
+            self._client = None
+            self._fallback.record_success(provider)
 
     def record_failure(self, provider: str, error: str, threshold: int, cooldown_seconds: float) -> None:
-        if not self.enabled:
+        if self._client is None:
+            self._fallback.record_failure(provider, error, threshold, cooldown_seconds)
             return
         try:
             fail_key = self._fail_key(provider)
@@ -166,19 +262,20 @@ class RedisProviderCircuitStore:
             if failures >= threshold:
                 self._client.set(self._open_key(provider), error[:240], ex=max(int(cooldown_seconds), 1))
         except Exception:
-            self.enabled = False
+            self._client = None
+            self._fallback.record_failure(provider, error, threshold, cooldown_seconds)
 
     def clear(self, provider: str | None = None) -> None:
-        if not self.enabled:
-            return
-        try:
-            if provider is None:
-                for key in self._client.scan_iter(f"{self._namespace}:provider-circuit:*"):
-                    self._client.delete(key)
-            else:
-                self._client.delete(self._fail_key(provider), self._open_key(provider))
-        except Exception:
-            self.enabled = False
+        if self._client is not None:
+            try:
+                if provider is None:
+                    for key in self._client.scan_iter(f"{self._namespace}:provider-circuit:*"):
+                        self._client.delete(key)
+                else:
+                    self._client.delete(self._fail_key(provider), self._open_key(provider))
+            except Exception:
+                self._client = None
+        self._fallback.clear(provider)
 
     def _fail_key(self, provider: str) -> str:
         return f"{self._namespace}:provider-circuit:{guard_hash(provider)}:fail"
@@ -188,10 +285,14 @@ class RedisProviderCircuitStore:
 
 
 def create_shared_llm_limiter() -> RedisFixedWindowRateLimiter | None:
+    if not shared_guard_enabled("LLM_RATE_LIMIT_BACKEND"):
+        return None
     client = create_redis_client("LLM_RATE_LIMIT_BACKEND")
-    return RedisFixedWindowRateLimiter(client) if client is not None else None
+    return RedisFixedWindowRateLimiter(client)
 
 
 def create_shared_provider_circuit_store() -> RedisProviderCircuitStore | None:
+    if not shared_guard_enabled("PROVIDER_CIRCUIT_BACKEND"):
+        return None
     client = create_redis_client("PROVIDER_CIRCUIT_BACKEND")
-    return RedisProviderCircuitStore(client) if client is not None else None
+    return RedisProviderCircuitStore(client)

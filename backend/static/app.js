@@ -85,7 +85,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!analyzeBtnText) return;
         const selectedPipeline = getSelectedPipeline();
         if (selectedPipeline === 'both') {
-            analyzeBtnText.textContent = '連續執行 A+B';
+            analyzeBtnText.textContent = '連續執行 A+B+C';
+        } else if (selectedPipeline === 'v4') {
+            analyzeBtnText.textContent = '開始模式 D 分析';
         } else if (selectedPipeline === 'v3') {
             analyzeBtnText.textContent = '開始模式 C 分析';
         } else if (selectedPipeline === 'v2') {

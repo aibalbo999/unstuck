@@ -10,6 +10,7 @@ SUPPORTED_DATA_SNAPSHOT_SCHEMA_VERSIONS = {1, 2, DATA_SNAPSHOT_SCHEMA_VERSION}
 SNAPSHOT_RERUN_ANALYSIS_MAX_CHARS = 12000
 SNAPSHOT_TRIMMABLE_LIST_FIELDS = (
     "recent_catalysts",
+    "earnings_call",
     "global_market_context.items",
     "international_news_context.topics",
     "peer_discovery_results",
@@ -57,6 +58,7 @@ SNAPSHOT_CORE_DATA_KEYS = {
     "total_equity_history",
     "total_assets_history",
     "recent_monthly_revenue",
+    "earnings_call",
     "global_market_context",
     "international_news_context",
     "institutional_trading",
@@ -133,6 +135,7 @@ SOURCE_LABELS = {
     "dynamic_peer_metrics": "同業指標",
     "pe_river_chart": "P/E 河流圖",
     "recent_catalysts": "近期催化劑",
+    "earnings_call": "法說會逐字稿",
     "global_market_context": "全球市場脈絡",
     "international_news_context": "國際新聞脈絡",
     "macro_indicators": "FRED 總經指標",

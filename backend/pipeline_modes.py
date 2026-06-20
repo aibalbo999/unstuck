@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import Any, Literal, TypedDict
 
 
-PipelineId = Literal["v1", "v2", "v3"]
-PipelineRunId = Literal["v1", "v2", "v3", "both"]
+PipelineId = Literal["v1", "v2", "v3", "v4"]
+PipelineRunId = Literal["v1", "v2", "v3", "v4", "both"]
 
 
 class PipelineDefinition(TypedDict):
@@ -28,10 +28,10 @@ PIPELINE_DEFINITIONS: dict[str, PipelineDefinition] = {
         "label": "模式 A：學術深度派",
         "short_label": "學術深度派",
         "report_title": "華爾街深度研究報告",
-        "report_subtitle": "基於 7 位頂級分析師完整研究",
-        "hint_text": "請稍候，7 位 AI 分析師正在為您撰寫深度研報...",
-        "agents": (1, 2, 3, 4, 5, 6, 7),
-        "groups": ((1,), (2,), (3,), (4, 5), (6,), (7,)),
+        "report_subtitle": "基於 9 個功能性分析模組完整研究",
+        "hint_text": "請稍候，9 個 AI 分析模組正在為您撰寫深度研報...",
+        "agents": (1, 2, 3, 20, 4, 5, 6, 21, 7),
+        "groups": ((1,), (2,), (3, 20), (4, 5), (6,), (21,), (7,)),
         "structured_agents": {"moat": 3, "valuation": 4, "recommendation": 7},
         "debate_agents": (6,),
     },
@@ -40,10 +40,10 @@ PIPELINE_DEFINITIONS: dict[str, PipelineDefinition] = {
         "label": "模式 B：實戰交易派",
         "short_label": "實戰交易派",
         "report_title": "實戰交易決策報告",
-        "report_subtitle": "基於 6 位交易型分析師完整研究",
-        "hint_text": "請稍候，6 位 AI 分析師正在整合總經、籌碼與進出場策略...",
-        "agents": (11, 12, 13, 14, 15, 16),
-        "groups": ((11,), (12, 13, 14, 15), (16,)),
+        "report_subtitle": "基於 8 個交易型分析模組完整研究",
+        "hint_text": "請稍候，8 個 AI 分析模組正在整合總經、籌碼與進出場策略...",
+        "agents": (11, 12, 13, 20, 14, 15, 21, 16),
+        "groups": ((11,), (12, 13, 20), (14, 15), (21,), (16,)),
         "structured_agents": {"moat": 12, "valuation": 14, "recommendation": 16},
         "debate_agents": (),
     },
@@ -52,11 +52,23 @@ PIPELINE_DEFINITIONS: dict[str, PipelineDefinition] = {
         "label": "模式 C：逆勢交易與泡沫狙擊",
         "short_label": "逆勢泡沫狙擊",
         "report_title": "泡沫狙擊研究報告",
-        "report_subtitle": "基於 3 位逆勢分析師檢驗市場預期、財務現實與籌碼派發",
-        "hint_text": "請稍候，3 位 AI 逆勢分析師正在檢驗題材泡沫、財務漏洞與做空觸發條件...",
-        "agents": (17, 18, 19),
-        "groups": ((17,), (18,), (19,)),
+        "report_subtitle": "基於 5 個逆勢分析模組檢驗市場預期、財務現實與籌碼派發",
+        "hint_text": "請稍候，5 個 AI 逆勢分析模組正在檢驗題材泡沫、財務漏洞與做空觸發條件...",
+        "agents": (17, 18, 20, 21, 19),
+        "groups": ((17,), (18, 20), (21,), (19,)),
         "structured_agents": {"recommendation": 19},
+        "debate_agents": (),
+    },
+    "v4": {
+        "id": "v4",
+        "label": "模式 D：極短線波段與事件驅動",
+        "short_label": "短線波段派",
+        "report_title": "極短線 (1-2週) 交易策略報告",
+        "report_subtitle": "基於技術動能、主力籌碼與近期催化劑的狙擊計畫",
+        "hint_text": "請稍候，AI 動能分析師正在比對技術突破點、籌碼集中度與近期事件催化劑...",
+        "agents": (22, 23, 24),
+        "groups": ((22, 23), (24,)),
+        "structured_agents": {"trade_setup": 24},
         "debate_agents": (),
     },
 }
@@ -68,9 +80,9 @@ DUAL_PIPELINE_RUN_ID: PipelineRunId = "both"
 
 PIPELINE_RUN_LABELS: dict[str, dict[str, str]] = {
     "both": {
-        "label": "連續模式：模式 A → 模式 B",
-        "short_label": "A+B 連續",
-        "hint_text": "將先執行學術深度派，再接續實戰交易派；完成後會產出兩份獨立報告。",
+        "label": "連續模式：模式 A → 模式 B → 模式 C",
+        "short_label": "A+B+C 連續",
+        "hint_text": "將依序執行學術深度派、實戰交易派與逆勢泡沫狙擊；完成後會產出三份獨立報告。",
     }
 }
 
@@ -94,6 +106,19 @@ def normalize_pipeline_id(value: Any) -> PipelineId:
         "pipeline-v3",
     }:
         return "v3"
+    if normalized in {
+        "d",
+        "mode_d",
+        "mode-d",
+        "swing",
+        "short_term",
+        "short-term",
+        "momentum",
+        "pipeline_v4",
+        "pipeline-v4",
+        "v4",
+    }:
+        return "v4"
     return normalized if normalized in PIPELINE_DEFINITIONS else DEFAULT_PIPELINE_ID
 
 
@@ -104,18 +129,28 @@ def normalize_pipeline_run_id(value: Any) -> PipelineRunId:
         "all",
         "dual",
         "a+b",
+        "a+b+c",
         "ab",
+        "abc",
         "v1v2",
+        "v1v2v3",
         "v1+v2",
+        "v1+v2+v3",
         "v1/v2",
+        "v1/v2/v3",
         "v1_v2",
+        "v1_v2_v3",
         "v1-v2",
+        "v1-v2-v3",
         "mode_a_b",
+        "mode_a_b_c",
         "mode-a-b",
+        "mode-a-b-c",
         "pipeline_both",
         "both_modes",
         "all_modes",
         "mode_ab",
+        "mode_abc",
     }:
         return DUAL_PIPELINE_RUN_ID
     return normalize_pipeline_id(normalized)
@@ -124,7 +159,7 @@ def normalize_pipeline_run_id(value: Any) -> PipelineRunId:
 def get_pipeline_run_sequence(run_id: Any = DEFAULT_PIPELINE_ID) -> tuple[PipelineId, ...]:
     normalized_run_id = normalize_pipeline_run_id(run_id)
     if normalized_run_id == DUAL_PIPELINE_RUN_ID:
-        return ("v1", "v2")
+        return ("v1", "v2", "v3")
     return (normalized_run_id,)
 
 
