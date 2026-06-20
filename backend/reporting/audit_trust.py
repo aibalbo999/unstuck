@@ -134,6 +134,16 @@ def build_data_trust_html(data: dict) -> str:
     reasons = _reason_labels(trust)
     if reasons:
         detail_parts.append("原因：" + "、".join(escape(reason) for reason in reasons))
+    # quant_metrics fallback warning
+    quant = data.get("quant_metrics") if isinstance(data, dict) else None
+    quant_warning_html = ""
+    if isinstance(quant, dict):
+        fallback_fields = quant.get("fallback_fields") or []
+        warning_msg = quant.get("data_quality_warning") or ""
+        if fallback_fields:
+            fields_str = "、".join(escape(str(f)) for f in fallback_fields[:6])
+            msg = escape(warning_msg) if warning_msg else f"以下欄位使用預設假設，DCF/WACC 結論僅供參考：{fields_str}"
+            quant_warning_html = f'<div class="data-trust-quant-warning">⚠️ <strong>量化模型警示：</strong>{msg}</div>'
     detail_html = "".join(f"<span>{part}</span>" for part in detail_parts)
     notes_html = " ".join(escape(note) for note in notes[:2])
     return f"""
@@ -144,8 +154,10 @@ def build_data_trust_html(data: dict) -> str:
             </div>
             <div class="data-trust-notes">{notes_html}</div>
             <div class="data-trust-meta">{detail_html}</div>
+            {quant_warning_html}
         </div>
     """
+
 
 
 def build_source_audit_html(data: dict, context: AnalysisContext | None = None) -> str:
@@ -210,7 +222,17 @@ def build_data_trust_markdown(data: dict) -> str:
         f"- **原因:** {', '.join(reasons) or '無'}",
         f"- **摘要:** {'；'.join(notes)}",
     ]
+    # quant_metrics fallback warning — injected when key DCF fields use default assumptions
+    quant = data.get("quant_metrics") if isinstance(data, dict) else None
+    if isinstance(quant, dict):
+        fallback_fields = quant.get("fallback_fields") or []
+        warning_msg = quant.get("data_quality_warning") or ""
+        if fallback_fields:
+            fields_str = "、".join(str(f) for f in fallback_fields[:6])
+            msg = warning_msg if warning_msg else f"以下欄位使用預設假設，DCF/WACC 結論僅供參考：{fields_str}"
+            lines.append(f"- **⚠️ 量化模型警示:** {msg}")
     return "\n".join(lines)
+
 
 
 def build_source_audit_markdown(data: dict, context: AnalysisContext | None = None) -> str:
