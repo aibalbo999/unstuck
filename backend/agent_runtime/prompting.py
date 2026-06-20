@@ -31,7 +31,7 @@ ROUTED_EXTERNAL_CONTEXT_KEYS = {
     "earnings_call": {20},
     "dcard_sentiment": {17},
     "ptt_sentiment": {17},
-    "temporal_memory": {7, 16, 19, 21},
+    "temporal_memory": {7, 16, 19, 21, 24},
 }
 
 
@@ -97,7 +97,7 @@ def build_state_view_section(agent_num: int, context: AnalysisContext) -> str:
 
 
 def build_temporal_memory_section(agent_num: int, data: StockData) -> str:
-    if int(agent_num) not in {7, 16, 19}:
+    if int(agent_num) not in {7, 16, 19, 24}:
         return ""
     memory = data.get("temporal_memory") if isinstance(data.get("temporal_memory"), dict) else {}
     prompt = str(memory.get("reflection_prompt") or "").strip()
@@ -135,6 +135,11 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     state_view_section = build_state_view_section(agent_num, context)
     temporal_memory_section = build_temporal_memory_section(agent_num, prompt_data)
 
+    # v2 Agent 14：注入財務排雷品質警示
+    forensic_warning = ""
+    if agent_num == 14 and context.get("_v2_forensic_warning"):
+        forensic_warning = f"【財務排雷品質警示】{context['_v2_forensic_warning']}"
+
     template = ANALYSIS_PROMPTS[agent_num]
     analysis_prompt = render_prompt_template(
         template,
@@ -153,6 +158,7 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     structured_instruction = build_structured_output_instruction(agent_num)
     prompt_parts = [
         analysis_prompt,
+        forensic_warning,   # v2 Agent 14 財務排雷品質警示
         state_view_section,
         rag_context,
         "⚠️ 若上方任務文字包含 [護城河評分]、[目標股價]、[投資建議] 等舊式區塊格式，請忽略舊式格式；本次只遵守下方 JSON 結構化輸出規則。" if structured_instruction else "",

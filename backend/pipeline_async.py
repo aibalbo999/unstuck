@@ -111,9 +111,29 @@ async def _run_agent_groups(data, context, rotator, progress_callback, agent_tot
         else:
             await _run_single_group_agent(group[0], data, context, rotator, progress_callback, agent_total, pipeline_def)
 
+        # v2 Agent 13 財務排雷品質閘門
+        if pipeline_def["id"] == "v2" and 13 in group:
+            _check_v2_forensic_gate(context, progress_callback, pipeline_def)
+
         if context.get("blocking_issues"):
             break
 
+
+def _check_v2_forensic_gate(context: AnalysisContext, progress_callback, pipeline_def) -> None:
+    """v2 管線：若 Agent 13 財務排雷輸出包含執行失敗標記，設定警示以提醒後續估值 Agent。"""
+    from agent_runtime.routing import is_agent_execution_failure
+    agent_13_result = (context.get("analyses") or {}).get(13, "")
+    if not agent_13_result:
+        return
+    if is_agent_execution_failure(agent_13_result):
+        warning_msg = "Agent 13 財務排雷執行失敗，後續估值結果可信度降低。請在估值時標示此資料缺口。"
+        context["_v2_forensic_warning"] = warning_msg
+        emit_log(f"  ⚠️ [v2 閘門] {warning_msg}")
+        return
+    # 非執行失敗但品質疑慮：若輸出過短（少於 200 字）也標記
+    if len(agent_13_result.strip()) < 200:
+        context["_v2_forensic_warning"] = "Agent 13 財務排雷輸出過短（少於 200 字），請在估值時謹慎引用財務體質結論。"
+        emit_log(f"  ⚠️ [v2 閘門] Agent 13 輸出過短，標記財務排雷品質警示。")
 
 
 async def _run_parallel_group(group, data, context, rotator, progress_callback, agent_total, pipeline_def) -> None:
