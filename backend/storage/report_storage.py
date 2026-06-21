@@ -2,23 +2,26 @@
 
 from __future__ import annotations
 
-import mimetypes
+import hashlib
+import hmac
+import json
 import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path, PurePosixPath, PureWindowsPath
-from tempfile import NamedTemporaryFile
+from pathlib import Path, PurePosixPath
 from threading import RLock
 from typing import Protocol, runtime_checkable
 
-
-_STANDARD_CONTENT_TYPES = {
-    ".htm": "text/html",
-    ".html": "text/html",
-    ".json": "application/json",
-    ".markdown": "text/markdown",
-    ".md": "text/markdown",
-}
+from ._local_file_operations import (
+    atomic_write,
+    exclusive_storage_lock,
+    fsync_directory,
+    is_internal_storage_file,
+    metadata_path,
+)
+from ._report_keys import (
+    content_type_for_key, is_sha256_hexdigest, normalize_report_key, validate_report_prefix,
+)
 
 
 @dataclass(frozen=True)
@@ -28,75 +31,22 @@ class StoredReport:
     content_type: str
     updated_at: datetime
 
-
 @dataclass(frozen=True)
 class StoredReportContent:
     metadata: StoredReport
     content: bytes
 
-
 @runtime_checkable
 class ReportStorage(Protocol):
-    def save_report(self, key: str, content: bytes, *, content_type: str) -> StoredReport:
-        ...
+    def save_report(self, key: str, content: bytes, *, content_type: str) -> StoredReport: ...
 
-    def get_report(self, key: str) -> StoredReportContent | None:
-        ...
+    def get_report(self, key: str) -> StoredReportContent | None: ...
 
-    def delete_report(self, key: str) -> bool:
-        ...
+    def delete_report(self, key: str) -> bool: ...
 
-    def exists(self, key: str) -> bool:
-        ...
+    def exists(self, key: str) -> bool: ...
 
-    def list_reports(self, *, prefix: str = "") -> list[StoredReport]:
-        ...
-
-
-def normalize_report_key(key: str) -> str:
-    """Return a portable relative report key or reject an unsafe path."""
-    if not isinstance(key, str):
-        raise TypeError("report key must be a string")
-    if not key:
-        raise ValueError("report key must not be empty")
-    if "\\" in key:
-        raise ValueError("report key must use forward slashes")
-    if "\x00" in key:
-        raise ValueError("report key must not contain null bytes")
-
-    posix_path = PurePosixPath(key)
-    windows_path = PureWindowsPath(key)
-    if posix_path.is_absolute() or windows_path.is_absolute():
-        raise ValueError("report key must be relative")
-    if any(component in {".", ".."} for component in key.split("/")):
-        raise ValueError("report key must not contain dot path components")
-
-    normalized = posix_path.as_posix()
-    if normalized in {"", "."}:
-        raise ValueError("report key must identify a report")
-    return normalized
-
-
-def _validate_prefix(prefix: str) -> str:
-    if not isinstance(prefix, str):
-        raise TypeError("report prefix must be a string")
-    if not prefix:
-        return prefix
-    if "\\" in prefix or "\x00" in prefix:
-        raise ValueError("report prefix contains an unsafe path character")
-    if PurePosixPath(prefix).is_absolute() or PureWindowsPath(prefix).is_absolute():
-        raise ValueError("report prefix must be relative")
-    if any(component in {".", ".."} for component in prefix.split("/")):
-        raise ValueError("report prefix must not contain dot path components")
-    return prefix
-
-
-def _content_type_for_key(key: str) -> str:
-    suffix = PurePosixPath(key).suffix.lower()
-    if suffix in _STANDARD_CONTENT_TYPES:
-        return _STANDARD_CONTENT_TYPES[suffix]
-    guessed, _ = mimetypes.guess_type(key, strict=False)
-    return guessed or "application/octet-stream"
+    def list_reports(self, *, prefix: str = "") -> list[StoredReport]: ...
 
 
 def _utc_datetime(timestamp: float) -> datetime:
@@ -114,93 +64,178 @@ def _copy_metadata(metadata: StoredReport) -> StoredReport:
 
 class LocalFileStorage:
     def __init__(self, root: str | Path):
-        self._root = Path(root).expanduser().resolve(strict=False)
-        self._root.mkdir(parents=True, exist_ok=True)
+        root_path = Path(root).expanduser()
+        if root_path.is_symlink():
+            raise ValueError("report storage root must not be a symlink")
+        root_path.mkdir(parents=True, exist_ok=True)
+        if root_path.is_symlink():
+            raise ValueError("report storage root must not be a symlink")
+        self._root = root_path.resolve(strict=True)
 
     def save_report(self, key: str, content: bytes, *, content_type: str) -> StoredReport:
-        normalized, target = self._target(key)
         payload = bytes(content)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        temp_path: Path | None = None
-        try:
-            with NamedTemporaryFile(
-                mode="wb",
-                dir=target.parent,
-                prefix=f".{target.name}.",
-                suffix=".tmp",
-                delete=False,
-            ) as temp_file:
-                temp_path = Path(temp_file.name)
-                temp_file.write(payload)
-                temp_file.flush()
-                os.fsync(temp_file.fileno())
-            os.replace(temp_path, target)
-        except Exception:
-            if temp_path is not None:
-                temp_path.unlink(missing_ok=True)
-            raise
+        content_digest = hashlib.sha256(payload).hexdigest()
+        with exclusive_storage_lock(self._root):
+            normalized, target = self._target(key)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            self._assert_no_symlink_components(normalized)
+            sidecar_path = metadata_path(target)
+            if sidecar_path.is_symlink():
+                raise ValueError("report metadata path must not be a symlink")
 
-        return self._metadata(normalized, target)
+            previous_sidecar = self._read_existing_sidecar(sidecar_path)
+            metadata_payload = json.dumps(
+                {"content_type": content_type, "sha256": content_digest},
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ).encode("utf-8")
+            atomic_write(sidecar_path, metadata_payload)
+            try:
+                atomic_write(target, payload)
+            except Exception:
+                self._restore_sidecar(sidecar_path, previous_sidecar)
+                raise
+
+            return self._metadata(normalized, target, content_type=content_type)
 
     def get_report(self, key: str) -> StoredReportContent | None:
-        normalized, target = self._target(key)
-        try:
-            with target.open("rb") as report_file:
-                content = report_file.read()
-                stat_result = os.fstat(report_file.fileno())
-        except (FileNotFoundError, IsADirectoryError):
-            return None
-        return StoredReportContent(
-            metadata=self._metadata(normalized, target, stat_result=stat_result),
-            content=content,
-        )
+        with exclusive_storage_lock(self._root):
+            normalized, target = self._target(key)
+            try:
+                with target.open("rb") as report_file:
+                    content = report_file.read()
+                    stat_result = os.fstat(report_file.fileno())
+            except (FileNotFoundError, IsADirectoryError):
+                return None
+            return StoredReportContent(
+                metadata=self._metadata(
+                    normalized,
+                    target,
+                    stat_result=stat_result,
+                    content_digest=hashlib.sha256(content).hexdigest(),
+                ),
+                content=content,
+            )
 
     def delete_report(self, key: str) -> bool:
-        _, target = self._target(key)
-        try:
-            target.unlink()
-        except FileNotFoundError:
-            return False
-        return True
+        with exclusive_storage_lock(self._root):
+            _, target = self._target(key)
+            sidecar_path = metadata_path(target)
+            if sidecar_path.is_symlink():
+                raise ValueError("report metadata path must not be a symlink")
+            try:
+                target.unlink()
+            except FileNotFoundError:
+                return False
+            sidecar_path.unlink(missing_ok=True)
+            fsync_directory(target.parent)
+            return True
 
     def exists(self, key: str) -> bool:
-        _, target = self._target(key)
-        return target.is_file()
+        with exclusive_storage_lock(self._root):
+            _, target = self._target(key)
+            return target.is_file()
 
     def list_reports(self, *, prefix: str = "") -> list[StoredReport]:
-        validated_prefix = _validate_prefix(prefix)
-        reports: list[StoredReport] = []
-        for path in self._root.rglob("*"):
-            if not path.is_file() or (path.name.startswith(".") and path.name.endswith(".tmp")):
-                continue
-            key = path.relative_to(self._root).as_posix()
-            if not key.startswith(validated_prefix):
-                continue
-            try:
-                normalized, target = self._target(key)
-                reports.append(self._metadata(normalized, target))
-            except (FileNotFoundError, ValueError):
-                continue
-        return sorted(reports, key=lambda report: report.key)
+        validated_prefix = validate_report_prefix(prefix)
+        with exclusive_storage_lock(self._root):
+            reports: list[StoredReport] = []
+            for path in self._root.rglob("*"):
+                if not path.is_file() or is_internal_storage_file(path):
+                    continue
+                key = path.relative_to(self._root).as_posix()
+                if not key.startswith(validated_prefix):
+                    continue
+                try:
+                    normalized, target = self._target(key)
+                    reports.append(self._metadata(normalized, target))
+                except (FileNotFoundError, ValueError):
+                    continue
+            return sorted(reports, key=lambda report: report.key)
 
     def _target(self, key: str) -> tuple[str, Path]:
         normalized = normalize_report_key(key)
-        target = (self._root / normalized).resolve(strict=False)
-        try:
-            target.relative_to(self._root)
-        except ValueError as exc:
-            raise ValueError("report key resolves outside storage root") from exc
-        return normalized, target
+        if any(
+            is_internal_storage_file(Path(component))
+            for component in PurePosixPath(normalized).parts
+        ):
+            raise ValueError("report key contains a reserved storage name")
+        self._assert_no_symlink_components(normalized)
+        return normalized, self._root / normalized
 
-    @staticmethod
-    def _metadata(key: str, target: Path, *, stat_result=None) -> StoredReport:
+    def _assert_no_symlink_components(self, normalized: str) -> None:
+        current = self._root
+        for component in PurePosixPath(normalized).parts:
+            current /= component
+            if current.is_symlink():
+                raise ValueError("report path must not contain symlinks")
+
+    def _metadata(
+        self,
+        key: str,
+        target: Path,
+        *,
+        stat_result=None,
+        content_type: str | None = None,
+        content_digest: str | None = None,
+    ) -> StoredReport:
         stat_result = stat_result or target.stat()
         return StoredReport(
             key=key,
             size=stat_result.st_size,
-            content_type=_content_type_for_key(key),
+            content_type=(
+                content_type
+                if content_type is not None
+                else self._read_content_type(key, target, content_digest=content_digest)
+            ),
             updated_at=_utc_datetime(stat_result.st_mtime),
         )
+
+    @staticmethod
+    def _read_content_type(
+        key: str, target: Path, *, content_digest: str | None = None
+    ) -> str:
+        sidecar_path = metadata_path(target)
+        if sidecar_path.is_symlink():
+            return content_type_for_key(key)
+        try:
+            metadata = json.loads(sidecar_path.read_text(encoding="utf-8"))
+            content_type = metadata.get("content_type")
+            expected_digest = metadata.get("sha256")
+        except (
+            AttributeError,
+            OSError,
+            UnicodeError,
+            json.JSONDecodeError,
+        ):
+            return content_type_for_key(key)
+        if content_digest is None:
+            try:
+                content_digest = hashlib.sha256(target.read_bytes()).hexdigest()
+            except OSError:
+                return content_type_for_key(key)
+        digest_matches = is_sha256_hexdigest(expected_digest) and hmac.compare_digest(
+            expected_digest,
+            content_digest,
+        )
+        if digest_matches and isinstance(content_type, str) and content_type:
+            return content_type
+        return content_type_for_key(key)
+
+    @staticmethod
+    def _read_existing_sidecar(sidecar_path: Path) -> bytes | None:
+        try:
+            return sidecar_path.read_bytes()
+        except FileNotFoundError:
+            return None
+
+    @staticmethod
+    def _restore_sidecar(sidecar_path: Path, previous: bytes | None) -> None:
+        if previous is None:
+            sidecar_path.unlink(missing_ok=True)
+            fsync_directory(sidecar_path.parent)
+        else:
+            atomic_write(sidecar_path, previous)
 
 
 class InMemoryStorage:
@@ -243,7 +278,7 @@ class InMemoryStorage:
             return normalized in self._reports
 
     def list_reports(self, *, prefix: str = "") -> list[StoredReport]:
-        validated_prefix = _validate_prefix(prefix)
+        validated_prefix = validate_report_prefix(prefix)
         with self._lock:
             return [
                 _copy_metadata(self._reports[key].metadata)
