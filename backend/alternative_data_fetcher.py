@@ -42,9 +42,14 @@ def fetch_104_job_openings_count(
         response.raise_for_status()
         job_count = _extract_104_job_count(response.text)
         if job_count is None:
-            # Fallback
-            return _google_news_fallback(company, term, "104 Job Search", source_url)
-            
+            return _unavailable(
+                company,
+                term,
+                "104 Job Search",
+                source_url,
+                "104 搜尋頁未揭露可解析的職缺總數。",
+            )
+
         return {
             "status": "success",
             "company_name": company,
