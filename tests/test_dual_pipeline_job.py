@@ -14,10 +14,20 @@ from data_trust import DATA_SNAPSHOT_SCHEMA_VERSION, unknown_data_trust  # noqa:
 from reporting import ReportBundle  # noqa: E402
 
 
+def test_frontend_pipeline_metadata_matches_agent_totals():
+    index_html = (ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
+
+    assert "學術深度派 · 10 Agent" in index_html
+    assert "學術、實戰、逆勢全跑 · 23 模組" in index_html
+
+
 def test_v1_pipeline_keeps_prompt_dependencies_before_parallel_valuation_growth():
     v1 = pipeline_modes.get_pipeline_definition("v1")
 
-    assert v1["groups"][:4] == ((1,), (2,), (3, 20), (4, 5))
+    assert v1["groups"][:5] == ((11,), (1,), (2,), (3, 20), (4, 5))
+    grouped_agents = tuple(agent for group in v1["groups"] for agent in group)
+    assert grouped_agents == v1["agents"]
+    assert len(grouped_agents) == len(set(grouped_agents))
 
 
 def test_dual_pipeline_job_runs_v1_then_v2_then_v3(monkeypatch, tmp_path):
@@ -106,11 +116,11 @@ def test_dual_pipeline_job_runs_v1_then_v2_then_v3(monkeypatch, tmp_path):
 
     progress_events = [event for event in events if event["type"] == "progress"]
     assert progress_events[0]["current"] == 1
-    assert progress_events[0]["total"] == 22
-    assert progress_events[1]["current"] == 10
-    assert progress_events[1]["total"] == 22
-    assert progress_events[2]["current"] == 18
-    assert progress_events[2]["total"] == 22
+    assert progress_events[0]["total"] == 23
+    assert progress_events[1]["current"] == 11
+    assert progress_events[1]["total"] == 23
+    assert progress_events[2]["current"] == 19
+    assert progress_events[2]["total"] == 23
     assert updates[-1][0] == "done"
 
 

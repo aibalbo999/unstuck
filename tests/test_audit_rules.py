@@ -863,7 +863,7 @@ class AuditRuleTests(unittest.TestCase):
         self.assertEqual(pipeline_modes.normalize_pipeline_run_id("a+b"), "both")
         self.assertEqual(pipeline_modes.normalize_pipeline_run_id("a+b+c"), "both")
         self.assertEqual(pipeline_modes.get_pipeline_run_sequence("both"), ("v1", "v2", "v3"))
-        self.assertEqual(pipeline_modes.get_pipeline_run_agent_total("both"), 22)
+        self.assertEqual(pipeline_modes.get_pipeline_run_agent_total("both"), 23)
         self.assertEqual(pipeline_modes.get_pipeline_run_sequence("v2"), ("v2",))
         self.assertEqual(pipeline_modes.get_pipeline_run_sequence("v3"), ("v3",))
 
