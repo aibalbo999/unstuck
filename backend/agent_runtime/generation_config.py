@@ -37,6 +37,12 @@ def build_generation_config(agent_num: int, system_instruction: Optional[str] = 
             config_kwargs["response_schema"] = response_schema
     function_tools = get_agent_function_tools(agent_num)
     if function_tools:
+        # Google GenAI does not allow combining function calling with
+        # response_mime_type="application/json" — drop structured output
+        # mode when tools are present; the JSON extractor will parse the
+        # free-form response as a fallback.
+        config_kwargs.pop("response_mime_type", None)
+        config_kwargs.pop("response_schema", None)
         config_kwargs["tools"] = function_tools
         config_kwargs["automatic_function_calling"] = types.AutomaticFunctionCallingConfig(maximum_remote_calls=6)
 

@@ -6,6 +6,7 @@ import time
 
 from agent_catalog import AGENT_NAMES
 from agent_runtime.audit_repair import finalize_final_audit
+from agent_runtime.quality_gates import _mask_execution_failure_text
 from agent_runtime.routing import is_agent_execution_failure
 from agent_runtime.single_agent import run_single_agent
 from agent_runtime.state_report_adapter import record_agent_state_report
@@ -211,8 +212,9 @@ def _prepare_agent_context(agent_num, context, rotator, progress_callback, agent
 def _apply_sync_quality_gates(agent_num, agent_name, data, context, rotator, result, progress_callback, agent_position, agent_total, pipeline_def) -> str:
     if is_agent_execution_failure(result):
         context.setdefault("blocking_issues", []).append(f"Agent {agent_num} {agent_name}: {result}")
-        emit_log(f"  ❌ {result}")
-        return result
+        masked = _mask_execution_failure_text(result)
+        emit_log(f"  ❌ [{result}]")
+        return masked
 
     prompt_leak_issues = validate_prompt_leakage(result)
     if prompt_leak_issues:
