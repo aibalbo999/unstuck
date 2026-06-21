@@ -2,6 +2,8 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 BACKEND = ROOT / "backend"
@@ -91,3 +93,16 @@ def test_fetch_104_job_openings_count_uses_news_fallback_on_transport_failure():
     assert result["status"] == "success"
     assert result["job_count"] is None
     assert result["recent_recruitment_news"] == fake_news
+
+
+def test_fetch_104_job_openings_count_does_not_mask_parser_errors_with_news_fallback():
+    from alternative_data_fetcher import fetch_104_job_openings_count
+
+    with (
+        patch("alternative_data_fetcher._extract_104_job_count", side_effect=ValueError("parser bug")),
+        patch("alternative_data_fetcher._google_news_fallback") as news_fallback,
+    ):
+        with pytest.raises(ValueError, match="parser bug"):
+            fetch_104_job_openings_count("台達電", "AI", session=FakeSession("<html></html>"))
+
+    news_fallback.assert_not_called()

@@ -58,8 +58,8 @@ def fetch_104_job_openings_count(
             "source": "104 Job Search",
             "source_url": source_url,
         }
-    except Exception as exc:
-        # Fallback on any connection error or 403
+    except requests.RequestException:
+        # Fallback on HTTP and connection errors.
         return _google_news_fallback(company, term, "104 Job Search", source_url)
 
 
