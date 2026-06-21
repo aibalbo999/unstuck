@@ -23,6 +23,7 @@ backend/cache/
 .venv/
 venv/
 env/
+.worktrees/
 
 # Editor and OS noise
 .idea/
