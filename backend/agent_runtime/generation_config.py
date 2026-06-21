@@ -66,12 +66,18 @@ def _response_text(response) -> str:
 
 
 def _generate_content(api_key: str, model_id: str, agent_num: int, prompt: str):
-    config = build_generation_config(agent_num, SYSTEM_PROMPTS[agent_num])
+    system_instruction = SYSTEM_PROMPTS.get(agent_num, "")
+    if "gemini-2.5-flash" in model_id:
+        system_instruction += "\n\nIMPORTANT: You are operating as a fallback model. You MUST provide a comprehensive, highly detailed, and complete analysis. Ensure your response is sufficiently long and detailed to form a formal report section. Do not provide a short or truncated response."
+    config = build_generation_config(agent_num, system_instruction)
     return generate_content(api_key, model_id, prompt, config)
 
 
 async def _generate_content_async(api_key: str, model_id: str, agent_num: int, prompt: str):
-    config = build_generation_config(agent_num, SYSTEM_PROMPTS[agent_num])
+    system_instruction = SYSTEM_PROMPTS.get(agent_num, "")
+    if "gemini-2.5-flash" in model_id:
+        system_instruction += "\n\nIMPORTANT: You are operating as a fallback model. You MUST provide a comprehensive, highly detailed, and complete analysis. Ensure your response is sufficiently long and detailed to form a formal report section. Do not provide a short or truncated response."
+    config = build_generation_config(agent_num, system_instruction)
     return await generate_content_async(api_key, model_id, prompt, config)
 
 

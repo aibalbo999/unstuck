@@ -158,7 +158,7 @@
                         <span class="tracking-report-date">${escapeHtml(report.date || '')}</span>
                     </div>
                     <div class="tracking-report-line tracking-report-metrics">
-                        <span class="tracking-recommendation">${escapeHtml(options.normalizeRecommendation(tracking.recommendation || report.recommendation?.recommendation))}</span>
+                        <span class="tracking-recommendation ${options.recommendationTone(tracking.recommendation || report.recommendation?.recommendation)}">${escapeHtml(options.normalizeRecommendation(tracking.recommendation || report.recommendation?.recommendation))}</span>
                         <strong class="tracking-latest-price">${escapeHtml(formatNumber(tracking.latest_price))}</strong>
                         <span class="${trackingStatusClass}">${escapeHtml(tracking.tracking_summary_status || formatPct(tracking.return_pct))}</span>
                     </div>
