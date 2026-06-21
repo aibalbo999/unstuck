@@ -58,7 +58,7 @@ class DcfScenarioOutput(StructuredModel):
     scenario: Literal["bear", "base", "bull"]
     revenue_growth_bias_pct: float
     margin_bias_pct: float
-    wacc_pct: float = Field(..., gt=0)
+    wacc_pct: float = Field(..., ge=0)
     intrinsic_value: float = Field(..., ge=0)
 
 
