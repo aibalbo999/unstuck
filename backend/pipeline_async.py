@@ -33,7 +33,6 @@ async def run_analysis_pipeline_async(data: StockData, progress_callback=None, p
     agent_positions = {agent_num: idx + 1 for idx, agent_num in enumerate(agent_sequence)}
     agent_total = len(agent_sequence)
 
-    rotator = KeyRotator(API_KEYS)
     context: AnalysisContext = {
         "ticker": ticker,
         "company_name": name,
@@ -66,6 +65,7 @@ async def run_analysis_pipeline_async(data: StockData, progress_callback=None, p
         context["total_time"] = time.time() - context["start_time"]
         return context
 
+    rotator = KeyRotator(API_KEYS)
     await _build_rag_index_async(data, rotator, context, progress_callback, agent_total, pipeline_def)
     await _run_agent_groups(data, context, rotator, progress_callback, agent_total, pipeline_def)
     raise_if_cancelled(context)

@@ -11,6 +11,7 @@ from data_cross_validator import validate_financial_metrics  # noqa: E402
 import pytest  # noqa: E402
 
 from agent_state import ProviderValue, Severity, ValidationIssue  # noqa: E402
+from config import API_KEY_SETUP_MESSAGE  # noqa: E402
 from data_financial_metric_validator import (  # noqa: E402
     CircuitBreakerOpen,
     load_provider_values_from_payload,
@@ -433,6 +434,7 @@ def test_run_analysis_pipeline_returns_before_finalize_when_agent_groups_block(m
     monkeypatch.setattr("pipeline_async._build_rag_index_async", fake_build_rag)
     monkeypatch.setattr("pipeline_async._run_agent_groups", fake_run_agent_groups)
     monkeypatch.setattr("pipeline_async._finalize_async_pipeline", fake_finalize)
+    monkeypatch.setattr("pipeline_async.API_KEYS", ["test-key"])
 
     context = asyncio.run(
         run_analysis_pipeline_async({"ticker": "2308.TW", "company_name": "台達電"})
@@ -444,8 +446,14 @@ def test_run_analysis_pipeline_returns_before_finalize_when_agent_groups_block(m
 
 
 def test_run_analysis_pipeline_skips_rag_when_initial_data_circuit_breaker_is_open(monkeypatch):
+    rotator_called = False
     rag_called = False
     agent_groups_called = False
+
+    def raising_rotator_factory(*_args, **_kwargs):
+        nonlocal rotator_called
+        rotator_called = True
+        raise RuntimeError("KeyRotator must not be initialized for blocked data")
 
     async def fake_build_rag(*_args, **_kwargs):
         nonlocal rag_called
@@ -455,6 +463,7 @@ def test_run_analysis_pipeline_skips_rag_when_initial_data_circuit_breaker_is_op
         nonlocal agent_groups_called
         agent_groups_called = True
 
+    monkeypatch.setattr("pipeline_async.KeyRotator", raising_rotator_factory)
     monkeypatch.setattr("pipeline_async._build_rag_index_async", fake_build_rag)
     monkeypatch.setattr("pipeline_async._run_agent_groups", fake_run_agent_groups)
     monkeypatch.setattr("data_reconciliation.fetch_mops_balance_sheet", lambda *_args, **_kwargs: None)
@@ -479,9 +488,19 @@ def test_run_analysis_pipeline_skips_rag_when_initial_data_circuit_breaker_is_op
         )
     )
 
+    assert rotator_called is False
     assert rag_called is False
     assert agent_groups_called is False
     assert context["agent_state"].circuit_breaker.status == "open"
     assert context["blocking_issues"] == [
         "關鍵財務欄位跨來源衝突（total_debt），已建立 MOPS reconciliation plan，暫停估值與後續分析。"
     ]
+
+
+def test_run_analysis_pipeline_requires_api_key_when_initial_data_is_not_blocked(monkeypatch):
+    monkeypatch.setattr("pipeline_async.API_KEYS", [])
+
+    with pytest.raises(RuntimeError) as exc_info:
+        asyncio.run(run_analysis_pipeline_async({"ticker": "2308.TW", "company_name": "台達電"}))
+
+    assert str(exc_info.value) == API_KEY_SETUP_MESSAGE
