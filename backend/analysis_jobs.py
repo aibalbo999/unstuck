@@ -16,6 +16,7 @@ from pipeline_modes import (
     normalize_pipeline_run_id,
 )
 from reporting import ReportRenderer
+from reporting.lint import ReportLintError
 from quant_engine import QuantEngine
 from temporal_memory_service import build_temporal_memory
 
@@ -265,6 +266,11 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
         message = str(e)
         update_job(job_id, "cancelled", error=message)
         append_event(job_id, {"type": "error", "phase": "cancelled", "level": "warning", "message": message})
+        return ""
+    except ReportLintError as e:
+        message = f"錯誤：{str(e)}"
+        update_job(job_id, "error", error=message)
+        append_event(job_id, {"type": "error", "message": message})
         return ""
     except Exception as e:
         message = str(e)
