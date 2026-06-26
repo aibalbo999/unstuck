@@ -36,6 +36,8 @@ class AnalysisRequest:
     cancel_check: Optional[Callable[[], None]] = None
     thread_id: Optional[str] = None
     checkpointer: Any | None = None
+    checkpoint_path: Optional[str] = None
+    report_filename: Optional[str] = None
 
 
 @dataclass

@@ -20,6 +20,12 @@ async def run_analysis_workflow(**kwargs):
     return await _run_workflow(**kwargs)
 
 
+async def execute_persistent_workflow(**kwargs):
+    from workflow_graph import execute_persistent_workflow as _execute_persistent_workflow
+
+    return await _execute_persistent_workflow(**kwargs)
+
+
 def legacy_context_from_graph(*args: Any, **kwargs: Any):
     from workflow_graph import legacy_context_from_graph as _legacy_context_from_graph
 
@@ -34,13 +40,25 @@ class AnalysisPipelineRunner:
             cancel_check=request.cancel_check,
         )
         initial_state = services.initialize(dict(request.data), request.pipeline_id)
-        final_state = await run_analysis_workflow(
-            initial_state=initial_state,
-            pipeline_id=request.pipeline_id,
-            services=services,
-            checkpointer=request.checkpointer,
-            thread_id=request.thread_id,
-        )
+        if request.report_filename:
+            initial_state["report_filename"] = request.report_filename
+        if request.checkpoint_path:
+            final_state = await execute_persistent_workflow(
+                initial_state=initial_state,
+                pipeline_id=request.pipeline_id,
+                services=services,
+                checkpoint_path=request.checkpoint_path,
+                thread_id=request.thread_id
+                or f"{initial_state.get('run_id', 'analysis')}:{request.pipeline_id}",
+            )
+        else:
+            final_state = await run_analysis_workflow(
+                initial_state=initial_state,
+                pipeline_id=request.pipeline_id,
+                services=services,
+                checkpointer=request.checkpointer,
+                thread_id=request.thread_id,
+            )
         context = legacy_context_from_graph(final_state, services)
         duration_ms = max(0, int(round((time.time() - started) * 1000)))
         return AnalysisResult(

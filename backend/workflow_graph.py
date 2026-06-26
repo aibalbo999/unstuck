@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import time
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Awaitable, Callable, Literal
 
 from agent_catalog import AGENT_NAMES
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import RetryPolicy
 
@@ -211,6 +214,7 @@ def legacy_context_from_graph(
         "final_audit": copy_json(state.get("final_audit") or {}),
         "tear_sheet_summary": str(state.get("tear_sheet_summary") or ""),
         "report_cover": copy_json(state.get("report_cover") or {}),
+        "report_filename": str(state.get("report_filename") or ""),
         "start_time": float(state.get("started_at") or time.time()),
         "execution_mode": "langgraph",
         "pipeline_id": pipeline_def["id"],
@@ -294,6 +298,8 @@ def graph_delta_from_legacy_context(context: AnalysisContext) -> dict[str, Any]:
         "tear_sheet_summary": str(context.get("tear_sheet_summary") or ""),
         "report_cover": copy_json(context.get("report_cover") or {}),
     }
+    if context.get("report_filename"):
+        delta["report_filename"] = str(context.get("report_filename"))
     domain_state = context.get("agent_state")
     if domain_state is not None:
         delta["agent_reports"] = {
@@ -409,6 +415,52 @@ async def run_analysis_workflow(
         }
     result = await graph.ainvoke(initial_state, config=config)
     return dict(result)
+
+
+@asynccontextmanager
+async def open_sqlite_checkpointer(path: str | Path):
+    target = Path(path).expanduser().resolve(strict=False)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    async with AsyncSqliteSaver.from_conn_string(str(target)) as saver:
+        await saver.conn.execute("PRAGMA journal_mode=WAL")
+        await saver.conn.execute("PRAGMA busy_timeout=30000")
+        await saver.conn.execute("PRAGMA synchronous=NORMAL")
+        await saver.setup()
+        yield saver
+
+
+async def execute_persistent_graph(
+    *,
+    graph_builder: StateGraph,
+    initial_state: AgentGraphState,
+    thread_id: str,
+    checkpoint_path: str | Path,
+) -> AgentGraphState:
+    config = {"configurable": {"thread_id": thread_id}}
+    async with open_sqlite_checkpointer(checkpoint_path) as saver:
+        graph = graph_builder.compile(checkpointer=saver)
+        snapshot = await graph.aget_state(config)
+        if snapshot.values and not snapshot.next:
+            return dict(snapshot.values)
+        graph_input = None if snapshot.values else initial_state
+        result = await graph.ainvoke(graph_input, config=config)
+        return dict(result)
+
+
+async def execute_persistent_workflow(
+    *,
+    initial_state: AgentGraphState,
+    pipeline_id: str,
+    thread_id: str,
+    checkpoint_path: str | Path,
+    services: WorkflowServices,
+) -> AgentGraphState:
+    return await execute_persistent_graph(
+        graph_builder=build_analysis_graph_builder(pipeline_id, services),
+        initial_state=initial_state,
+        thread_id=thread_id,
+        checkpoint_path=checkpoint_path,
+    )
 
 
 def _initialize_node_factory(pipeline_id: str) -> Callable[[AgentGraphState], AgentGraphState]:

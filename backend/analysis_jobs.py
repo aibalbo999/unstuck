@@ -1,9 +1,11 @@
 """Importable analysis job entrypoints for local workers or RQ workers."""
 
 import asyncio
+import hashlib
 
 from config import API_KEY_SETUP_MESSAGE, OUTPUT_DIR, has_api_keys
 from agent_runtime import AnalysisPipelineRunner, AnalysisRequest
+from agent_runtime.retry_policy import AgentRateLimitError
 from analysis_job_progress import make_pipeline_progress_callback
 from analysis_job_reports import render_and_persist_report
 from data_fetch import FetchRequest, StockDataService
@@ -18,7 +20,7 @@ from pipeline_modes import (
 from reporting import ReportRenderer
 from reporting.lint import ReportLintError
 from quant_engine import QuantEngine
-from runtime_dependencies import create_report_storage_for_output_dir
+from runtime_dependencies import create_report_storage_for_output_dir, runtime_settings_for_output_dir
 from temporal_memory_service import build_temporal_memory
 
 
@@ -29,6 +31,14 @@ REPORT_RENDERER = ReportRenderer()
 
 class AnalysisJobCancelled(Exception):
     pass
+
+
+def stable_report_filename(job_id: str, ticker_upper: str, pipeline_id: str) -> str:
+    """Return a retry-stable report filename for one job pipeline segment."""
+
+    safe_ticker = str(ticker_upper or "").strip().upper().replace(".", "_") or "UNKNOWN"
+    digest = hashlib.sha1(f"{job_id}:{pipeline_id}".encode("utf-8")).hexdigest()[:12]
+    return f"{safe_ticker}_{pipeline_id}_report_job_{digest}.html"
 
 
 def _raise_if_cancelled(job_id: str) -> None:
@@ -107,6 +117,8 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
     pipeline_sequence = get_pipeline_run_sequence(run_id)
     run_label = get_pipeline_run_label(run_id)
     total_agents = get_pipeline_run_agent_total(run_id)
+    current_thread_id = ""
+    current_pipeline_label = run_label
     update_job(job_id, "running")
 
     try:
@@ -161,11 +173,15 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
         reports = []
         completed_agent_offset = 0
         sequence_total = len(pipeline_sequence)
+        runtime_settings = runtime_settings_for_output_dir(OUTPUT_DIR)
         report_storage = create_report_storage_for_output_dir(OUTPUT_DIR)
 
         for sequence_index, current_pipeline_id in enumerate(pipeline_sequence, start=1):
             _raise_if_cancelled(job_id)
             pipeline_def = get_pipeline_definition(current_pipeline_id)
+            current_thread_id = f"{job_id}:{current_pipeline_id}"
+            current_pipeline_label = pipeline_def["label"]
+            report_filename = stable_report_filename(job_id, ticker_upper, current_pipeline_id)
             agent_count = len(pipeline_def["agents"])
             append_event(job_id, {
                 "type": "status",
@@ -205,6 +221,9 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
                     progress_callback=progress_callback,
                     pipeline_id=current_pipeline_id,
                     cancel_check=lambda: _raise_if_cancelled(job_id),
+                    thread_id=current_thread_id,
+                    checkpoint_path=runtime_settings.checkpoint_path,
+                    report_filename=report_filename,
                 )
             )
             _raise_if_cancelled(job_id)
@@ -240,6 +259,7 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
                 append_event_func=append_event,
                 output_dir=OUTPUT_DIR,
                 storage=report_storage,
+                filename=context.get("report_filename") or report_filename,
             )
             reports.append(report_event)
             append_event(job_id, report_event)
@@ -275,6 +295,20 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
         update_job(job_id, "error", error=message)
         append_event(job_id, {"type": "error", "message": message})
         return ""
+    except AgentRateLimitError as e:
+        message = str(e)
+        update_job(job_id, "waiting_retry", error=message)
+        append_event(job_id, {
+            "type": "status",
+            "phase": "workflow_retry",
+            "level": "warning",
+            "message": "LLM API 暫時達到速率限制，任務已保留 LangGraph checkpoint，等待 RQ 延遲重試。",
+            "error": message,
+            "thread_id": current_thread_id,
+            "pipeline_id": current_thread_id.rsplit(":", 1)[-1] if current_thread_id else run_id,
+            "pipeline_label": current_pipeline_label,
+        })
+        raise
     except Exception as e:
         message = str(e)
         update_job(job_id, "error", error=message)

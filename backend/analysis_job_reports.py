@@ -25,6 +25,7 @@ async def render_and_persist_report(
     append_event_func,
     output_dir: str = DEFAULT_OUTPUT_DIR,
     storage: ReportStorage | None = None,
+    filename: str | None = None,
 ) -> dict:
     append_event_func(job_id, {
         "type": "status",
@@ -33,9 +34,10 @@ async def render_and_persist_report(
         "pipeline_label": pipeline_def["label"],
     })
     cancel_check()
-    timestamp = time.strftime("%Y%m%d_%H%M%S")
-    safe_ticker = ticker_upper.replace(".", "_")
-    filename = f"{safe_ticker}_{current_pipeline_id}_report_{timestamp}.html"
+    if not filename:
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        safe_ticker = ticker_upper.replace(".", "_")
+        filename = f"{safe_ticker}_{current_pipeline_id}_report_{timestamp}.html"
     report_bundle = await renderer.render_async(
         ReportRequest(
             context=context,
