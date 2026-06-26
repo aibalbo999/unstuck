@@ -16,10 +16,15 @@ from storage.sqlite_resource import ThreadLocalSqliteResource
 
 
 _JOB_LOCK = threading.Lock()
+ACTIVE_JOB_STATUSES = ("queued", "running", "waiting_retry")
 TERMINAL_JOB_STATUSES = {"done", "error", "cancelled"}
 
 
 _resource = ThreadLocalSqliteResource(lambda: TASK_DB_PATH, init_schema=init_job_store_schema, row_factory=Row)
+
+
+def _active_status_placeholders() -> str:
+    return ", ".join("?" for _ in ACTIVE_JOB_STATUSES)
 
 
 def _connect():
@@ -102,20 +107,20 @@ def find_active_job(ticker: str, pipeline_id: str = "v1") -> dict:
     cutoff = time.time() - ANALYSIS_JOB_STALE_SECONDS
     with _connect() as conn:
         row = conn.execute(
-            """
+            f"""
             SELECT * FROM analysis_jobs
-            WHERE ticker = ? AND pipeline_id = ? AND status IN ('queued', 'running') AND updated_at >= ?
+            WHERE ticker = ? AND pipeline_id = ? AND status IN ({_active_status_placeholders()}) AND updated_at >= ?
               AND COALESCE(cancel_requested, 0) = 0
             ORDER BY created_at DESC
             LIMIT 1
             """,
-            (ticker, pipeline_id, cutoff),
+            (ticker, pipeline_id, *ACTIVE_JOB_STATUSES, cutoff),
         ).fetchone()
     return dict(row) if row else {}
 
 
 def mark_incomplete_jobs_abandoned(reason: str, worker_instance_id: str | None = None) -> int:
-    """Mark queued/running local jobs as abandoned after a server restart."""
+    """Mark active local jobs as abandoned after a worker restart."""
     now = time.time()
     owner = str(worker_instance_id or "").strip()
     owner_clause = "AND worker_instance_id = ?" if owner else ""
@@ -125,10 +130,10 @@ def mark_incomplete_jobs_abandoned(reason: str, worker_instance_id: str | None =
             f"""
             SELECT job_id
             FROM analysis_jobs
-            WHERE status IN ('queued', 'running')
+            WHERE status IN ({_active_status_placeholders()})
             {owner_clause}
             """,
-            params,
+            (*ACTIVE_JOB_STATUSES, *params),
         ).fetchall()
         job_ids = [row["job_id"] for row in rows]
         if job_ids:
@@ -169,7 +174,7 @@ def request_job_cancel(job_id: str, reason: str = "使用者要求取消分析�
             """,
             (now, reason, now, job_id),
         )
-    if status in {"queued", "running"}:
+    if status in ACTIVE_JOB_STATUSES:
         append_event(job_id, {"type": "status", "phase": "cancelling", "level": "warning", "message": reason})
     return True
 
@@ -193,8 +198,8 @@ def append_event(job_id: str, payload: dict) -> None:
             (job_id, json.dumps(payload, ensure_ascii=False), now, event_type, phase, level),
         )
         conn.execute(
-            "UPDATE analysis_jobs SET updated_at = ? WHERE job_id = ? AND status IN ('queued', 'running')",
-            (now, job_id),
+            f"UPDATE analysis_jobs SET updated_at = ? WHERE job_id = ? AND status IN ({_active_status_placeholders()})",
+            (now, job_id, *ACTIVE_JOB_STATUSES),
         )
     try:
         record_runtime_event_usage(job_id, payload, created_at=now, db_path=TASK_DB_PATH)

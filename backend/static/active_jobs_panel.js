@@ -29,6 +29,7 @@
         if (showingHistory && job.status === 'done') return '最近完成';
         if (job.status === 'running') return '執行中';
         if (job.status === 'queued') return '排隊中';
+        if (job.status === 'waiting_retry') return '等待重試';
         if (job.status === 'error') return '失敗';
         return job.status || 'unknown';
     }
@@ -40,7 +41,7 @@
         if (!summaryEl || !listEl) return;
 
         const jobs = payload?.jobs || [];
-        const active = jobs.filter(job => ['queued', 'running'].includes(job.status));
+        const active = jobs.filter(job => ['queued', 'running', 'waiting_retry'].includes(job.status));
         const showingHistory = !active.length && jobs.length;
         summaryEl.textContent = active.length
             ? `${active.length} 個分析任務執行中`
@@ -49,7 +50,7 @@
             ? jobs.slice(0, 5).map(job => {
                 const stage = job.stage_summary || {};
                 const modelHealth = llmSummary(job);
-                const tone = job.status === 'running' ? 'warning' : job.status === 'done' ? 'ok' : 'critical';
+                const tone = ['running', 'waiting_retry'].includes(job.status) ? 'warning' : job.status === 'done' ? 'ok' : 'critical';
                 const phase = stage.phase || (job.status === 'done' ? '完成' : 'idle');
                 const progress = progressLabel(stage);
                 const details = [phase, progress, modelHealth].filter(Boolean).join(' · ');
