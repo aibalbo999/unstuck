@@ -30,11 +30,15 @@ def test_queue_role_only_runs_rq_worker_and_closes_runtime(monkeypatch):
     calls = []
     runtime = FakeWorkerRuntime(calls)
 
-    monkeypatch.setattr(worker_main, "run_rq_worker", lambda value: calls.append(("queue", value)))
+    monkeypatch.setattr(
+        worker_main,
+        "run_rq_worker",
+        lambda value, *, burst=False, max_jobs=None: calls.append(("queue", value, burst, max_jobs)),
+    )
 
-    worker_main.run_role("queue", runtime_factory=lambda _settings: runtime)
+    worker_main.run_role("queue", runtime_factory=lambda _settings: runtime, burst=True, max_jobs=1)
 
-    assert calls == [("queue", runtime), "close"]
+    assert calls == [("queue", runtime, True, 1), "close"]
 
 
 def test_scheduler_role_runs_scheduler_process_and_closes_runtime(monkeypatch):

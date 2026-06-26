@@ -35,7 +35,12 @@ def _load_stock_analysis_job_runner():
     return run_stock_analysis_job
 
 
-def run_rq_worker(runtime: WorkerRuntime) -> None:
+def run_rq_worker(
+    runtime: WorkerRuntime,
+    *,
+    burst: bool = False,
+    max_jobs: int | None = None,
+) -> None:
     task_queue = runtime.task_queue
     rq_queue = getattr(task_queue, "queue", None)
     redis = getattr(task_queue, "redis", None)
@@ -44,7 +49,11 @@ def run_rq_worker(runtime: WorkerRuntime) -> None:
 
     from rq import Worker
 
-    Worker([rq_queue], connection=redis).work(with_scheduler=True)
+    Worker([rq_queue], connection=redis).work(
+        burst=burst,
+        max_jobs=max_jobs,
+        with_scheduler=True,
+    )
 
 
 async def run_scheduler_process(runtime: WorkerRuntime) -> None:
@@ -114,6 +123,9 @@ async def _run_maintenance_iteration(runtime: WorkerRuntime, report_cache: dict[
 def run_role(
     role: str,
     runtime_factory: Callable[[RuntimeSettings], WorkerRuntime] = create_worker_runtime,
+    *,
+    burst: bool = False,
+    max_jobs: int | None = None,
 ) -> None:
     if role not in CHILD_ROLES:
         raise ValueError(f"Unknown worker role: {role}")
@@ -121,7 +133,7 @@ def run_role(
     runtime = runtime_factory(RuntimeSettings.from_environment())
     try:
         if role == "queue":
-            run_rq_worker(runtime)
+            run_rq_worker(runtime, burst=burst, max_jobs=max_jobs)
         elif role == "schedulers":
             asyncio.run(run_scheduler_process(runtime))
         elif role == "maintenance":
@@ -213,10 +225,12 @@ def run_all_roles() -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run stock-agent worker roles.")
     parser.add_argument("--role", choices=ROLES, default="all")
+    parser.add_argument("--burst", action="store_true", help="Queue role exits when the RQ queue is empty.")
+    parser.add_argument("--max-jobs", type=int, default=None, help="Queue role exits after processing this many jobs.")
     args = parser.parse_args(argv)
     if args.role == "all":
         return run_all_roles()
-    run_role(args.role)
+    run_role(args.role, burst=args.burst, max_jobs=args.max_jobs)
     return 0
 
 

@@ -129,11 +129,13 @@ export GEMINI_API_KEYS="your_key_1,your_key_2"
 - `CACHE_DB_PATH`：SQLite 快取檔位置，預設 `backend/cache/stock_agent_cache.sqlite3`
 - `FINANCIAL_DATA_CACHE_SECONDS`：財務資料快取秒數，預設 `86400`
 - `REPORT_RETENTION_DAYS`：舊報告保留天數，預設 `30`
-- `REPORT_CLEANUP_INTERVAL_SECONDS`：背景清理週期秒數，預設 `86400`
-- `ANALYSIS_WORKER_COUNT`：本地分析 worker 數，預設 `2`
-- `TASK_QUEUE_BACKEND`：任務佇列後端，`local` 或 `rq`，預設 `local`
+- `REPORT_CLEANUP_INTERVAL_SECONDS`：Worker maintenance 清理週期秒數，預設 `86400`
+- `ANALYSIS_WORKER_COUNT`：舊版本地佇列 worker 數；Web/API 模式不再啟動本地 worker
+- `TASK_QUEUE_BACKEND`：任務佇列後端，Web/API 模式必須使用 `rq`，預設 `rq`；`TASK_QUEUE_BACKEND=local` 僅保留給嵌入式測試/本地 helper，API 會以 `API task queue requires Redis and RQ` 拒絕啟動
 - `REDIS_URL`：RQ 模式使用的 Redis 連線，預設 `redis://localhost:6379/0`
 - `TASK_QUEUE_NAME`：RQ queue 名稱，預設 `stock-analysis`
+- `RQ_JOB_MAX_RETRIES`：RQ job 最大重試次數，預設 `4`
+- `RQ_JOB_RETRY_INTERVALS`：RQ 延遲重試秒數清單，預設 `60,300,900,1800`
 - `TASK_DB_PATH`：任務與 SSE event SQLite 檔位置，預設 `backend/cache/analysis_jobs.sqlite3`
 - `API_USAGE_DB_PATH`：API 用量 ledger SQLite 檔位置，預設跟隨 `TASK_DB_PATH`
 - `WATCHLIST_PATH`：舊版 watchlist JSON 位置；若存在會一次性匯入 SQLite，預設 `backend/cache/watchlist.json`
@@ -367,16 +369,17 @@ backend/output/
 
 `backend/cache/` 也已被 Git 忽略。財務資料快取預設保存 24 小時，可透過 `FINANCIAL_DATA_CACHE_SECONDS` 調整。歷史報告預設保留 30 天，可透過 `REPORT_RETENTION_DAYS` 調整；前端刪除 HTML 報告時，後端會同步刪除同名 Markdown 與資料快照。
 
-## 任務佇列
+## API / Worker 分離與任務佇列
 
-預設使用本地 worker：
+FastAPI 現在只負責 HTTP 與送任務進 Redis/RQ；耗時分析、watchlist scheduler、decision tracking scheduler 與 maintenance cleanup 都由獨立 Worker process 執行。最小本機啟動順序：
 
 ```bash
-TASK_QUEUE_BACKEND=local
-ANALYSIS_WORKER_COUNT=2
+redis-server
+python backend/worker_main.py --role all
+uvicorn api:app --app-dir backend
 ```
 
-若要切換為 RQ / Redis，先啟動 Redis，並在 `backend/.env` 設定：
+`backend/.env` 至少確認：
 
 ```bash
 TASK_QUEUE_BACKEND=rq
@@ -384,12 +387,17 @@ REDIS_URL=redis://localhost:6379/0
 TASK_QUEUE_NAME=stock-analysis
 ```
 
-API 會把任務送進 RQ。另開 worker：
+可拆成正式 process roles：
 
 ```bash
-cd backend
-rq worker stock-analysis --url redis://localhost:6379/0
+python backend/worker_main.py --role queue        # RQ analysis worker
+python backend/worker_main.py --role schedulers   # watchlist + decision tracking
+python backend/worker_main.py --role maintenance  # report/cache/index cleanup
 ```
+
+也就是 `queue / schedulers / maintenance` 三個角色可獨立交給 process manager 管理。`--role all` 使用 multiprocessing `spawn` 在本機一次啟動三個 child processes；收到 `SIGTERM` / `SIGINT` 時會轉送終止訊號並等待子程序收尾。Queue smoke test 可用 `python backend/worker_main.py --role queue --burst --max-jobs 1` 處理一筆 job 後退出。
+
+Redis health check 可用 `redis-cli -u "$REDIS_URL" ping`（預期 `PONG`），RQ queue 可用 `rq info --url "$REDIS_URL"` 檢查。LLM 429 / transient failure 會依 `RQ_JOB_MAX_RETRIES` 與 `RQ_JOB_RETRY_INTERVALS` 延遲重試，`waiting_retry` 仍會被視為 active job，避免 API/scheduler 重複送同一檔分析。
 
 任務狀態、SSE 事件與預設 API 用量 ledger 會寫入 `TASK_DB_PATH` 指定的 SQLite 檔，所以 API 與 worker 需要共用同一個檔案路徑。若另外設定 `API_USAGE_DB_PATH` 或 `WATCHLIST_DB_PATH`，也要讓 API 與背景 worker 指向同一份檔案。
 

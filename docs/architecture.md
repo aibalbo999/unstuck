@@ -7,18 +7,23 @@ This system is a local-first stock research workstation. FastAPI owns the HTTP b
 ```mermaid
 flowchart LR
     UI["Browser UI"] --> API["FastAPI routers"]
-    API --> Jobs["job_store + task_queue"]
-    Jobs --> Data["StockDataService"]
-    Jobs --> Pipeline["AnalysisPipelineRunner"]
+    API --> Jobs["job_store + SSE events"]
+    API --> Queue["Redis / RQ queue"]
+    Queue --> Worker["worker_main queue role"]
+    Worker --> Data["StockDataService"]
+    Worker --> Pipeline["AnalysisPipelineRunner"]
     Pipeline --> Reports["ReportRenderer"]
     Reports --> Output["backend/output"]
     Output --> Index["report_index metadata"]
     Index --> UI
+    Scheduler["worker_main schedulers role"] --> Queue
+    Maintenance["worker_main maintenance role"] --> Output
 ```
 
 ## Main Boundaries
 
-- `backend/api.py` wires dependencies and app lifespan only. Route behavior lives in `backend/api_routes/`.
+- `backend/api.py` wires HTTP dependencies and app lifespan only. Route behavior lives in `backend/api_routes/`.
+- `backend/worker_main.py` owns background process roles: `queue / schedulers / maintenance`. The API process never starts queue consumers, watchlist schedulers, decision tracking schedulers, or cleanup loops.
 - `StockDataService` is the canonical market/fundamental data fetch boundary.
 - `AnalysisPipelineRunner` is the canonical multi-agent analysis boundary.
 - `report_index` and `report_history_service` expose report listing metadata instead of making callers parse files directly.
@@ -28,7 +33,10 @@ flowchart LR
 ## Operational State
 
 - Analysis and rerun jobs emit events to SQLite so SSE clients can resume progress.
+- Web/API mode requires Redis/RQ. `TASK_QUEUE_BACKEND=local` is reserved for embedded tests and is rejected at the API boundary with `API task queue requires Redis and RQ`.
+- RQ retries are configured by `RQ_JOB_MAX_RETRIES` and `RQ_JOB_RETRY_INTERVALS`; retry-delayed jobs use `waiting_retry`, which remains active for duplicate-job checks and observability.
 - Maintenance routes default to dry-run unless `write=true` is provided.
+- Long-running maintenance also runs in the worker `maintenance` role. `worker_main.py --role all` starts queue, scheduler, and maintenance children with multiprocessing `spawn` and forwards `SIGTERM` / `SIGINT` for shutdown.
 - Provider SLA and API quota dashboards are local observations, not provider billing truth.
 - Decision backtests live in `decision_backtest_results` and are keyed by report filename plus horizon to make reruns idempotent.
 - Watchlist trigger configuration and trigger events live beside the watchlist SQLite store, keeping event-radar state separate from report metadata.
