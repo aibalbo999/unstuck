@@ -8,7 +8,13 @@ import asyncio
 import inspect
 import logging
 
-from config import REDIS_URL, TASK_QUEUE_BACKEND, TASK_QUEUE_NAME
+from config import (
+    REDIS_URL,
+    RQ_JOB_MAX_RETRIES,
+    RQ_JOB_RETRY_INTERVALS,
+    TASK_QUEUE_BACKEND,
+    TASK_QUEUE_NAME,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -72,25 +78,50 @@ class LocalAsyncQueue:
 class RQTaskQueue:
     """Thin RQ adapter for deployments that provide Redis workers."""
 
-    def __init__(self, redis_url: str = REDIS_URL, queue_name: str = TASK_QUEUE_NAME):
-        from redis import Redis
-        from rq import Queue
+    def __init__(
+        self,
+        redis_client=None,
+        queue=None,
+        redis_url: str = REDIS_URL,
+        queue_name: str = TASK_QUEUE_NAME,
+    ):
+        self.redis = redis_client
+        if queue is None:
+            from redis import Redis
+            from rq import Queue
 
-        self.redis = Redis.from_url(redis_url)
-        self.queue = Queue(queue_name, connection=self.redis)
+            if self.redis is None:
+                self.redis = Redis.from_url(redis_url)
+            self.queue = Queue(queue_name, connection=self.redis)
+        else:
+            self.queue = queue
 
     def submit(self, task_id: str, fn):
         return self.enqueue(task_id, fn)
 
+    def close(self):
+        close = getattr(self.redis, "close", None)
+        if callable(close):
+            close()
+
     def enqueue(self, task_id: str, fn, *args, **kwargs):
+        from rq import Retry
+
         return self.queue.enqueue_call(
             func=fn,
             args=args,
             kwargs=kwargs,
             job_id=task_id,
+            retry=Retry(max=RQ_JOB_MAX_RETRIES, interval=list(RQ_JOB_RETRY_INTERVALS)),
             result_ttl=7 * 24 * 60 * 60,
             failure_ttl=7 * 24 * 60 * 60,
         )
+
+
+def create_api_task_queue():
+    if TASK_QUEUE_BACKEND != "rq":
+        raise RuntimeError("API task queue requires Redis and RQ; set TASK_QUEUE_BACKEND=rq.")
+    return RQTaskQueue()
 
 
 def create_task_queue():

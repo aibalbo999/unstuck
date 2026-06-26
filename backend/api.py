@@ -62,7 +62,7 @@ from runtime_instance_lock import acquire_local_runtime_instance_lock as _acquir
 from runtime_events import emit_log, format_event_log_line
 from settings import validate_runtime_settings
 from storage_inventory import build_storage_summary
-from task_queue import create_task_queue
+from task_queue import create_api_task_queue
 from decision_tracking_scheduler import create_decision_tracking_scheduler_task
 from watchlist_scheduler import create_watchlist_scheduler_task
 
@@ -81,7 +81,7 @@ os.makedirs(os.path.dirname(LOCAL_RUNTIME_LOCK_PATH), exist_ok=True)
 
 report_cache = {}
 report_cache_lock = threading.Lock()
-analysis_task_queue = create_task_queue()
+analysis_task_queue = create_api_task_queue()
 data_refresh_service = StockDataService()
 analysis_pipeline_runner = AnalysisPipelineRunner()
 report_renderer = ReportRenderer()
