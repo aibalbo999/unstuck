@@ -71,6 +71,7 @@ class WorkerRuntime:
     settings: RuntimeSettings
     report_storage: ReportStorage
     cache_backend: CacheBackend
+    task_queue: Any | None = None
     data_refresh_service: Any | None = None
     _closed: bool = field(default=False, init=False, repr=False)
 
@@ -128,13 +129,17 @@ def create_api_runtime(
 def create_worker_runtime(
     settings: RuntimeSettings | None = None,
     *,
+    task_queue: Any | None = None,
     data_refresh_service: Any | None = None,
 ) -> WorkerRuntime:
+    from task_queue import create_task_queue
+
     runtime_settings = settings or RuntimeSettings.from_environment()
     return WorkerRuntime(
         settings=runtime_settings,
         report_storage=create_report_storage(runtime_settings),
         cache_backend=create_cache_backend(runtime_settings),
+        task_queue=task_queue if task_queue is not None else create_task_queue(),
         data_refresh_service=data_refresh_service or create_data_refresh_service(),
     )
 

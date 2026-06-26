@@ -42,6 +42,21 @@ async def _decision_tracking_scheduler_forever(
         await asyncio.sleep(interval_seconds)
 
 
+async def run_decision_tracking_scheduler(
+    *,
+    get_output_dir: Callable[[], str],
+    get_refresh_service: Callable[[], object],
+    emit_log: Callable[[str], None],
+    interval_seconds: int = 900,
+) -> None:
+    await _decision_tracking_scheduler_forever(
+        get_output_dir=get_output_dir,
+        get_refresh_service=get_refresh_service,
+        emit_log=emit_log,
+        interval_seconds=interval_seconds,
+    )
+
+
 def create_decision_tracking_scheduler_task(
     *,
     get_output_dir: Callable[[], str],
@@ -49,7 +64,7 @@ def create_decision_tracking_scheduler_task(
     emit_log: Callable[[str], None],
 ):
     return asyncio.create_task(
-        _decision_tracking_scheduler_forever(
+        run_decision_tracking_scheduler(
             get_output_dir=get_output_dir,
             get_refresh_service=get_refresh_service,
             emit_log=emit_log,

@@ -191,6 +191,11 @@ class RecordingTaskQueue:
         self.close_count += 1
 
 
+class FalsyTaskQueue(RecordingTaskQueue):
+    def __bool__(self):
+        return False
+
+
 def test_api_runtime_close_is_idempotent_and_closes_owned_cache(monkeypatch, tmp_path):
     import cache_store
     import job_store
@@ -287,6 +292,40 @@ def test_worker_runtime_close_is_idempotent_and_exposes_checkpoint(monkeypatch, 
     assert runtime.checkpoint_path == settings.checkpoint_path
     assert owned_cache.close_count == 1
     assert process_closes == ["cache", "job"]
+
+
+def test_worker_runtime_close_closes_owned_task_queue(monkeypatch, tmp_path):
+    import cache_store
+    import job_store
+    from runtime_dependencies import RuntimeSettings, WorkerRuntime
+
+    monkeypatch.setattr(cache_store, "close_cache_store", lambda: None)
+    monkeypatch.setattr(job_store, "close_job_store", lambda: None)
+    task_queue = RecordingTaskQueue()
+    runtime = WorkerRuntime(
+        settings=RuntimeSettings.for_tests(tmp_path),
+        report_storage=InMemoryStorage(),
+        cache_backend=RecordingCache(),
+        task_queue=task_queue,
+    )
+
+    runtime.close()
+    runtime.close()
+
+    assert task_queue.close_count == 1
+
+
+def test_create_worker_runtime_preserves_injected_falsy_task_queue(tmp_path):
+    from runtime_dependencies import RuntimeSettings, create_worker_runtime
+
+    task_queue = FalsyTaskQueue()
+    runtime = create_worker_runtime(
+        RuntimeSettings.for_tests(tmp_path, cache_backend="memory", report_storage_backend="memory"),
+        task_queue=task_queue,
+        data_refresh_service=object(),
+    )
+
+    assert runtime.task_queue is task_queue
 
 
 def test_runtime_factory_helpers_wire_selected_dependencies(tmp_path):
