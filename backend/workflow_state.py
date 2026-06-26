@@ -49,7 +49,7 @@ class AgentGraphState(TypedDict, total=False):
     company_name: str
     company_identity: dict[str, Any]
     pipeline_id: str
-    raw_financial_data: dict[str, dict[str, Any]]
+    raw_financial_data: dict[str, Any]
     provider_values: dict[str, list[dict[str, Any]]]
     normalized_financials: dict[str, Any]
     source_audit: Annotated[list[dict[str, Any]], append_unique]

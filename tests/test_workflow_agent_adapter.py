@@ -59,7 +59,7 @@ def test_agent_node_rebuilds_legacy_context_and_returns_isolated_delta(monkeypat
         context.setdefault("blocking_issues", []).append(f"agent-{agent_num} warning")
         return agent_num, f"agent-{agent_num}"
 
-    monkeypatch.setattr("workflow_graph.run_agent_with_quality_gates_async", fake_run)
+    monkeypatch.setattr("workflow_services.run_agent_with_quality_gates_async", fake_run)
     services = create_default_workflow_services(rotator=FakeRotator(), progress_callback="progress")
 
     result = asyncio.run(services.run_agent(2, state_with_analysis("1", "previous")))

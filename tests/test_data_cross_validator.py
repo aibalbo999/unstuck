@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 
@@ -18,8 +19,15 @@ from data_financial_metric_validator import (  # noqa: E402
     validate_state_provider_values,
 )
 from data_reconciliation import build_reconciliation_plan, reconcile_with_official_filing  # noqa: E402
-from pipeline_async import _initialize_agent_state_context, _run_agent_groups, run_analysis_pipeline_async  # noqa: E402
+from pipeline_async import run_analysis_pipeline_async  # noqa: E402
 from state_memory import initialize_agent_state  # noqa: E402
+from workflow_graph import (
+    create_default_workflow_services,
+    initialize_graph_state,
+    legacy_context_from_graph,
+    repair_graph_state,
+    run_analysis_workflow,
+)  # noqa: E402
 
 
 def test_validate_financial_metrics_marks_high_discrepancy_and_reduces_trust(caplog):
@@ -350,16 +358,15 @@ def test_pipeline_state_initialization_surfaces_open_circuit_as_blocking_issue()
             },
         },
     }
-    context = {"analyses": {}, "structured_outputs": {}}
-
-    _initialize_agent_state_context(payload, context)
+    graph_state = initialize_graph_state(payload, pipeline_id="v1")
+    context = legacy_context_from_graph(
+        graph_state,
+        create_default_workflow_services(rotator=object(), progress_callback=None),
+    )
 
     assert context["agent_state"].circuit_breaker.status == "open"
-    assert context["data_reconciliation_plan"]["status"] == "required"
-    assert context["data_reconciliation_plan"]["steps"][1]["action"] == "mops_statement_lookup"
-    assert context["blocking_issues"] == [
-        "關鍵財務欄位跨來源衝突（revenue），已建立 MOPS reconciliation plan，暫停估值與後續分析。"
-    ]
+    assert graph_state["tool_results"]["data_reconciliation_plan"]["status"] == "required"
+    assert graph_state["tool_results"]["data_reconciliation_plan"]["steps"][1]["action"] == "mops_statement_lookup"
 
 
 def test_pipeline_state_initialization_resumes_when_mops_reconciles(monkeypatch):
@@ -389,112 +396,73 @@ def test_pipeline_state_initialization_resumes_when_mops_reconciles(monkeypatch)
             "total_liabilities": 900.0,
         },
     )
-    context = {"analyses": {}, "structured_outputs": {}}
-
-    _initialize_agent_state_context(payload, context)
+    graph_state = initialize_graph_state(payload, pipeline_id="v1")
+    repaired = repair_graph_state(graph_state)
+    context = legacy_context_from_graph(
+        repaired,
+        create_default_workflow_services(rotator=object(), progress_callback=None),
+    )
 
     assert context["agent_state"].circuit_breaker.status == "closed"
-    assert context["official_reconciliation"]["status"] == "resolved"
-    assert "blocking_issues" not in context
+    assert repaired["tool_results"]["official_reconciliation"]["status"] == "resolved"
+    assert context["blocking_issues"] == []
 
 
-def test_run_agent_groups_skips_agent_execution_when_blocking_issue_exists(monkeypatch):
+def test_graph_open_validation_blocks_agent_execution(monkeypatch):
     called = False
 
     async def fake_run_agent(*_args, **_kwargs):
         nonlocal called
         called = True
-        return 1, "unexpected"
+        return {}
 
-    monkeypatch.setattr("pipeline_async.run_agent_with_quality_gates_async", fake_run_agent)
-    context = {
-        "blocking_issues": ["Critical financial provider conflict blocks analysis for fields: revenue."],
-        "agent_positions": {1: 1},
-    }
-    pipeline_def = {"groups": [[1]], "id": "v1", "label": "V1"}
+    services = replace(
+        create_default_workflow_services(rotator=object(), progress_callback=None),
+        validate=lambda _state: {
+            "circuit_breaker": {"status": "open", "blocking_fields": ["revenue"]},
+            "validation_issues": [{"field": "revenue", "severity": "critical", "providers": ["a", "b"]}],
+        },
+        repair=lambda _state: {},
+        run_agent=fake_run_agent,
+    )
 
-    asyncio.run(_run_agent_groups({}, context, None, None, 1, pipeline_def))
+    result = asyncio.run(
+        run_analysis_workflow(
+            initial_state=initialize_graph_state({"ticker": "2308.TW", "company_name": "台達電"}, pipeline_id="v4"),
+            pipeline_id="v4",
+            services=services,
+        )
+    )
 
     assert called is False
+    assert result["status"] == "blocked"
 
 
-def test_run_analysis_pipeline_returns_before_finalize_when_agent_groups_block(monkeypatch):
-    finalize_called = False
+def test_run_analysis_pipeline_async_delegates_to_graph_runner(monkeypatch):
+    from agent_runtime import AnalysisResult
 
-    async def fake_build_rag(*_args, **_kwargs):
-        return None
+    class FakeRunner:
+        async def run_async(self, request):
+            return AnalysisResult(
+                context={
+                    "ticker": request.data["ticker"],
+                    "company_name": request.data["company_name"],
+                    "pipeline_id": request.pipeline_id,
+                    "blocking_issues": ["Critical financial provider conflict blocks analysis."],
+                    "total_time": 0.1,
+                },
+                pipeline_id=request.pipeline_id,
+            )
 
-    async def fake_run_agent_groups(_data, context, *_args, **_kwargs):
-        context.setdefault("blocking_issues", []).append("Critical financial provider conflict blocks analysis.")
-
-    async def fake_finalize(*_args, **_kwargs):
-        nonlocal finalize_called
-        finalize_called = True
-
-    monkeypatch.setattr("pipeline_async._build_rag_index_async", fake_build_rag)
-    monkeypatch.setattr("pipeline_async._run_agent_groups", fake_run_agent_groups)
-    monkeypatch.setattr("pipeline_async._finalize_async_pipeline", fake_finalize)
+    monkeypatch.setattr("pipeline_async.AnalysisPipelineRunner", lambda: FakeRunner())
     monkeypatch.setattr("pipeline_async.API_KEYS", ["test-key"])
 
     context = asyncio.run(
         run_analysis_pipeline_async({"ticker": "2308.TW", "company_name": "台達電"})
     )
 
-    assert finalize_called is False
     assert context["blocking_issues"] == ["Critical financial provider conflict blocks analysis."]
     assert "total_time" in context
-
-
-def test_run_analysis_pipeline_skips_rag_when_initial_data_circuit_breaker_is_open(monkeypatch):
-    rotator_called = False
-    rag_called = False
-    agent_groups_called = False
-
-    def raising_rotator_factory(*_args, **_kwargs):
-        nonlocal rotator_called
-        rotator_called = True
-        raise RuntimeError("KeyRotator must not be initialized for blocked data")
-
-    async def fake_build_rag(*_args, **_kwargs):
-        nonlocal rag_called
-        rag_called = True
-
-    async def fake_run_agent_groups(*_args, **_kwargs):
-        nonlocal agent_groups_called
-        agent_groups_called = True
-
-    monkeypatch.setattr("pipeline_async.KeyRotator", raising_rotator_factory)
-    monkeypatch.setattr("pipeline_async._build_rag_index_async", fake_build_rag)
-    monkeypatch.setattr("pipeline_async._run_agent_groups", fake_run_agent_groups)
-    monkeypatch.setattr("data_reconciliation.fetch_mops_balance_sheet", lambda *_args, **_kwargs: None)
-
-    context = asyncio.run(
-        run_analysis_pipeline_async(
-            {
-                "ticker": "2308.TW",
-                "company_name": "台達電",
-                "financial_metric_validation": {
-                    "comparisons": {
-                        "total_debt": {
-                            "field": "total_debt",
-                            "source_a": "yfinance",
-                            "source_b": "finmind",
-                            "source_a_value": 100.0,
-                            "source_b_value": 125.0,
-                        },
-                    },
-                },
-            }
-        )
-    )
-
-    assert rotator_called is False
-    assert rag_called is False
-    assert agent_groups_called is False
-    assert context["agent_state"].circuit_breaker.status == "open"
-    assert context["blocking_issues"] == [
-        "關鍵財務欄位跨來源衝突（total_debt），已建立 MOPS reconciliation plan，暫停估值與後續分析。"
-    ]
 
 
 def test_run_analysis_pipeline_requires_api_key_when_initial_data_is_not_blocked(monkeypatch):

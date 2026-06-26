@@ -11,8 +11,9 @@ if str(BACKEND) not in sys.path:
     sys.path.insert(0, str(BACKEND))
 
 from agent_state import AgentReport, ProviderValue, RiskFlag, Severity
-import pipeline_async
 from state_memory import initialize_agent_state, merge_agent_report, sync_context_from_state, state_view_for
+from workflow_graph import create_default_workflow_services, run_agent_node_adapter
+from workflow_state import agent_state_to_graph
 
 
 def test_initialize_agent_state_preserves_raw_data_and_identity():
@@ -89,13 +90,9 @@ def test_pipeline_records_completed_agent_report_in_blackboard(monkeypatch):
         {"ticker": "2330.TW", "company_name": "台積電"},
         run_id="run-pipeline-report",
     )
-    context = {
-        "agent_state": state,
-        "analyses": {},
-        "structured_outputs": {},
-        "agent_positions": {4: 1},
-        "agent_total": 1,
-    }
+    graph_state = agent_state_to_graph(state, pipeline_id="v1")
+    graph_state["analyses"] = {}
+    graph_state["structured_outputs"] = {}
 
     async def fake_run_agent(agent_num, data, active_context, rotator, progress_callback=None):
         active_context["analyses"][agent_num] = "## 估值\n完整估值報告。"
@@ -104,26 +101,12 @@ def test_pipeline_records_completed_agent_report_in_blackboard(monkeypatch):
         }
         return agent_num, active_context["analyses"][agent_num]
 
-    async def ignore_progress(*_args, **_kwargs):
-        return None
+    monkeypatch.setattr("workflow_services.run_agent_with_quality_gates_async", fake_run_agent)
+    services = create_default_workflow_services(rotator=object(), progress_callback=None)
+    delta = asyncio.run(run_agent_node_adapter(4, graph_state, services, object()))
 
-    monkeypatch.setattr(pipeline_async, "run_agent_with_quality_gates_async", fake_run_agent)
-    monkeypatch.setattr(pipeline_async, "_emit_agent_completed", ignore_progress)
-
-    asyncio.run(
-        pipeline_async._run_single_group_agent(
-            4,
-            {"ticker": "2330.TW", "company_name": "台積電"},
-            context,
-            object(),
-            None,
-            1,
-            {"id": "v1", "label": "test"},
-        )
-    )
-
-    assert state.agent_reports["4"].markdown == "## 估值\n完整估值報告。"
-    assert state.agent_reports["4"].structured_output["price_targets"]["基本情境"] == 100
+    assert delta["agent_reports"]["4"]["markdown"] == "## 估值\n完整估值報告。"
+    assert delta["agent_reports"]["4"]["structured_output"]["price_targets"]["基本情境"] == 100
 
 
 def test_sync_context_from_state_normalizes_numeric_agent_ids_for_legacy_context():
