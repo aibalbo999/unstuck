@@ -11,6 +11,13 @@ from .env import BASE_DIR, env_int, env_list, json_env_dict
 OUTPUT_DIR = os.getenv("OUTPUT_DIR", str(BASE_DIR / "output"))
 CACHE_DIR = Path(os.getenv("CACHE_DIR", str(BASE_DIR / "cache")))
 CACHE_DB_PATH = os.getenv("CACHE_DB_PATH", str(CACHE_DIR / "stock_agent_cache.sqlite3"))
+REPORT_STORAGE_BACKEND = os.getenv("REPORT_STORAGE_BACKEND", "local").strip().lower()
+CACHE_BACKEND = os.getenv("CACHE_BACKEND", "redis").strip().lower()
+CACHE_NAMESPACE = os.getenv("CACHE_NAMESPACE", "stock-agent").strip().strip(":")
+LANGGRAPH_CHECKPOINT_PATH = os.getenv(
+    "LANGGRAPH_CHECKPOINT_PATH",
+    str(CACHE_DIR / "langgraph_checkpoints.sqlite3"),
+)
 MARKET_CALENDAR_DIR = os.getenv("MARKET_CALENDAR_DIR", str(CACHE_DIR / "market_calendars"))
 DATA_SNAPSHOT_MAX_BYTES = env_int("DATA_SNAPSHOT_MAX_BYTES", 2 * 1024 * 1024)
 FINANCIAL_DATA_CACHE_SECONDS = int(os.getenv("FINANCIAL_DATA_CACHE_SECONDS", str(24 * 60 * 60)))
