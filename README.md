@@ -27,6 +27,7 @@
 - QuantEngine 若因缺少 `total_equity`、`total_debt`、`free_cash_flows` 等欄位而使用預設假設，會在 `quant_metrics` 標記 `fallback_fields` 與 `data_quality_warning`
 - 歷史報告會自動清理孤立 Markdown，並刪除超過保留天數的舊報告
 - 長任務透過 SQLite job/event store 與任務佇列抽象執行，可用本地 worker 或切換 RQ/Redis
+- 多 Agent 分析流程已改由 LangGraph `StateGraph` 執行；Worker 使用 SQLite checkpoint 以 `job_id:pipeline_id` 恢復 429 / 暫時性中斷，不重跑已完成節點
 - API 額度儀表板使用 `api_usage_events` ledger 統計 Gemini provider request、Google Custom Search 與 FMP 本機觀測用量
 - Watchlist 可設定盤前/盤後批次分析，儲存在 SQLite，排程執行會先原子認領 due slot 並保留舊 JSON 一次性匯入相容
 - Watchlist 支援事件驅動雷達 triggers：跌破均線、外資連賣、VIX 飆升會自動派送 Mode C；營收創高會自動派送 Mode B，且每日事件以 SQLite 去重
@@ -136,6 +137,7 @@ export GEMINI_API_KEYS="your_key_1,your_key_2"
 - `TASK_QUEUE_NAME`：RQ queue 名稱，預設 `stock-analysis`
 - `RQ_JOB_MAX_RETRIES`：RQ job 最大重試次數，預設 `4`
 - `RQ_JOB_RETRY_INTERVALS`：RQ 延遲重試秒數清單，預設 `60,300,900,1800`
+- `LANGGRAPH_CHECKPOINT_PATH`：LangGraph SQLite checkpoint DB，預設 `backend/cache/langgraph_checkpoints.sqlite3`
 - `TASK_DB_PATH`：任務與 SSE event SQLite 檔位置，預設 `backend/cache/analysis_jobs.sqlite3`
 - `API_USAGE_DB_PATH`：API 用量 ledger SQLite 檔位置，預設跟隨 `TASK_DB_PATH`
 - `WATCHLIST_PATH`：舊版 watchlist JSON 位置；若存在會一次性匯入 SQLite，預設 `backend/cache/watchlist.json`
@@ -246,9 +248,12 @@ http://192.168.1.115:8080
 
 ### 手動啟動
 
+Web/API 模式需要 Redis/RQ worker。先啟動 Redis 與 Worker，再啟動 API：
+
 ```bash
-cd backend
-python3 -m uvicorn api:app --host 127.0.0.1 --port 8080
+redis-server
+python backend/worker_main.py --role all
+uvicorn api:app --app-dir backend --host 127.0.0.1 --port 8080
 ```
 
 然後打開：
