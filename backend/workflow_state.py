@@ -63,8 +63,15 @@ class AgentGraphState(TypedDict, total=False):
     execution_trace: Annotated[list[dict[str, Any]], append_unique]
     analyses: Annotated[dict[str, str], merge_dicts]
     structured_outputs: Annotated[dict[str, dict[str, Any]], merge_dicts]
+    parsed: Annotated[dict[str, Any], merge_dicts]
+    context_digests: Annotated[dict[str, str], merge_dicts]
+    rag_context: Annotated[dict[str, str], merge_dicts]
+    rag_status: dict[str, Any]
     blocking_issues: Annotated[list[str], append_unique]
+    audit_repair_log: Annotated[list[str], append_unique]
     final_audit: dict[str, Any]
+    tear_sheet_summary: str
+    report_cover: dict[str, Any]
     report_filename: str
     report_event: dict[str, Any]
     started_at: float
@@ -129,4 +136,3 @@ def rag_index_from_payload(payload: dict[str, Any] | None) -> InMemoryRagIndex:
         if isinstance(item, dict)
     ]
     return InMemoryRagIndex(chunks, metadata=copy.deepcopy(payload.get("metadata") or {}))
-
