@@ -207,9 +207,10 @@ def query_report_metadata(
     data_trust: str = "all",
     include_versions: bool = False,
     output_dir: Optional[str] = None,
+    sync_metadata: bool = True,
 ) -> tuple[list[dict], int]:
     out_dir = output_dir_key(output_dir)
-    sync_report_metadata(out_dir)
+    if sync_metadata: sync_report_metadata(out_dir)
 
     clauses = ["output_dir = ?"]
     params: list[object] = [out_dir]
@@ -255,5 +256,4 @@ def query_report_metadata(
             total = conn.execute(f"SELECT COUNT(*) {latest_sql}", params).fetchone()[0]
             rows_sql = f"SELECT * {latest_sql} ORDER BY {order_sql} LIMIT ? OFFSET ?"
         rows = conn.execute(rows_sql, [*params, limit, offset]).fetchall()
-
     return [row_to_report(row) for row in rows], int(total)

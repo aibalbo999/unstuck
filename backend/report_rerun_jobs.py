@@ -13,6 +13,8 @@ from data_fetch import StockDataService
 from job_store import append_event, is_job_cancel_requested, update_job
 import report_rerun_service
 from reporting import ReportRenderer
+from runtime_dependencies import create_report_storage_for_output_dir
+from storage.report_storage import ReportStorage
 
 
 PIPELINE_RUNNER = AnalysisPipelineRunner()
@@ -63,6 +65,7 @@ async def run_report_rerun_job_async(
     pipeline_runner: Any = None,
     report_renderer: Any = None,
     refresh_service: Any = None,
+    storage: ReportStorage | None = None,
 ) -> str:
     """Run a partial report rerun and persist job events for SSE clients."""
     normalized_scope = report_rerun_service.normalize_rerun_scope(scope)
@@ -87,6 +90,7 @@ async def run_report_rerun_job_async(
         def progress_callback(event):
             _append_progress_event(job_id, filename, normalized_scope, event)
 
+        report_storage = storage or create_report_storage_for_output_dir(output_dir)
         result = await report_rerun_service.rerun_report_analysis(
             filename,
             scope=normalized_scope,
@@ -96,6 +100,7 @@ async def run_report_rerun_job_async(
             refresh_service=refresh_service or REFRESH_SERVICE,
             progress_callback=progress_callback,
             cancel_check=lambda: _raise_if_cancelled(job_id),
+            storage=report_storage,
         )
         _raise_if_cancelled(job_id)
         generated_filename = result.get("filename", "")

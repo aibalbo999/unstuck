@@ -10,7 +10,6 @@ import time
 import argparse
 import asyncio
 from datetime import datetime
-import json
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
@@ -31,8 +30,8 @@ from agent_runtime import AnalysisPipelineRunner, AnalysisRequest
 from reporting import ReportRenderer, ReportRequest
 from temporal_memory_service import build_temporal_memory
 from quant_engine import QuantEngine
-from report_index import upsert_report_metadata
-from data_trust import data_snapshot_filename_for_report
+from report_persistence import persist_report_bundle
+from storage.report_storage import LocalFileStorage
 
 console = Console()
 
@@ -307,8 +306,6 @@ async def main_async():
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             safe_ticker = ticker.replace(".", "_")
             filename = f"{safe_ticker}_{pipeline_id}_report_{timestamp}.html"
-            md_filename = f"{safe_ticker}_{pipeline_id}_report_{timestamp}.md"
-            data_filename = data_snapshot_filename_for_report(filename)
             
             report_req = ReportRequest(
                 context=context,
@@ -316,25 +313,16 @@ async def main_async():
                 filename=filename,
             )
             report_bundle = await REPORT_RENDERER.render_async(report_req)
-            
-            html_path = os.path.join(OUTPUT_DIR, filename)
-            md_path = os.path.join(OUTPUT_DIR, md_filename)
-            data_path = os.path.join(OUTPUT_DIR, data_filename)
-            
-            with open(html_path, "w", encoding="utf-8") as f:
-                f.write(report_bundle.html)
-            with open(md_path, "w", encoding="utf-8") as f:
-                f.write(report_bundle.markdown)
-            with open(data_path, "w", encoding="utf-8") as f:
-                json.dump(report_bundle.data_snapshot, f, ensure_ascii=False, indent=2)
-                
-            upsert_report_metadata(
-                filename,
-                output_dir=OUTPUT_DIR,
+            persisted = persist_report_bundle(
+                filename=filename,
                 html_content=report_bundle.html,
                 markdown_content=report_bundle.markdown,
-                data_trust=report_bundle.data_trust,
+                data_snapshot=report_bundle.data_snapshot,
+                storage=LocalFileStorage(OUTPUT_DIR),
+                output_dir=OUTPUT_DIR,
             )
+            html_path = os.path.join(OUTPUT_DIR, persisted["filename"])
+            md_path = os.path.join(OUTPUT_DIR, persisted["md_filename"])
         
         abs_path = os.path.abspath(html_path)
         

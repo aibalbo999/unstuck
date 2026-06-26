@@ -18,6 +18,7 @@ from pipeline_modes import (
 from reporting import ReportRenderer
 from reporting.lint import ReportLintError
 from quant_engine import QuantEngine
+from runtime_dependencies import create_report_storage_for_output_dir
 from temporal_memory_service import build_temporal_memory
 
 
@@ -160,6 +161,7 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
         reports = []
         completed_agent_offset = 0
         sequence_total = len(pipeline_sequence)
+        report_storage = create_report_storage_for_output_dir(OUTPUT_DIR)
 
         for sequence_index, current_pipeline_id in enumerate(pipeline_sequence, start=1):
             _raise_if_cancelled(job_id)
@@ -237,6 +239,7 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
                 cancel_check=lambda: _raise_if_cancelled(job_id),
                 append_event_func=append_event,
                 output_dir=OUTPUT_DIR,
+                storage=report_storage,
             )
             reports.append(report_event)
             append_event(job_id, report_event)

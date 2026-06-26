@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 from pathlib import Path
+from typing import Any
 
 from fastapi import Request
 
@@ -115,6 +116,41 @@ def create_worker_runtime(settings: RuntimeSettings | None = None) -> WorkerRunt
         report_storage=create_report_storage(runtime_settings),
         cache_backend=create_cache_backend(runtime_settings),
     )
+
+
+def runtime_settings_for_output_dir(output_dir: str) -> RuntimeSettings:
+    settings = RuntimeSettings.from_environment()
+    if settings.output_dir != output_dir:
+        settings = replace(settings, output_dir=output_dir)
+    return settings
+
+
+def create_report_storage_for_output_dir(output_dir: str) -> ReportStorage:
+    return create_report_storage(runtime_settings_for_output_dir(output_dir))
+
+
+def create_worker_runtime_for_output_dir(output_dir: str) -> WorkerRuntime:
+    return create_worker_runtime(runtime_settings_for_output_dir(output_dir))
+
+
+def attach_api_runtime(app: Any, output_dir: str) -> None:
+    app.state.runtime = create_api_runtime(runtime_settings_for_output_dir(output_dir))
+
+
+def get_report_storage_for_output_dir(app: Any, output_dir: str) -> ReportStorage:
+    runtime = getattr(app.state, "runtime", None)
+    if runtime is None:
+        attach_api_runtime(app, output_dir)
+        runtime = app.state.runtime
+    settings = getattr(runtime, "settings", None)
+    if (
+        settings is not None
+        and settings.report_storage_backend == "local"
+        and settings.output_dir != output_dir
+    ):
+        runtime.report_storage = LocalFileStorage(output_dir)
+        runtime.settings = replace(settings, output_dir=output_dir)
+    return runtime.report_storage
 
 
 def _close_runtime(runtime: ApiRuntime | WorkerRuntime) -> None:

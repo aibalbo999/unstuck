@@ -57,6 +57,7 @@ from provider_sla_maintenance import cleanup_provider_sla_events
 from report_rerun_jobs import run_report_rerun_job
 from report_index_maintenance import cleanup_report_index_orphans
 from reporting import ReportRenderer
+from runtime_dependencies import attach_api_runtime, get_report_storage_for_output_dir
 from runtime_instance_lock import acquire_local_runtime_instance_lock as _acquire_local_runtime_instance_lock
 from runtime_events import emit_log, format_event_log_line
 from settings import validate_runtime_settings
@@ -88,10 +89,8 @@ active_analyses_lock = threading.Lock()
 MUTATION_HEADER_NAME = "X-Mutation-Token"
 RUNTIME_MUTATION_API_TOKEN = secrets.token_urlsafe(32)
 _LOCAL_RUNTIME_LOCK_HANDLE = None
-
 def acquire_local_runtime_instance_lock(path: str = LOCAL_RUNTIME_LOCK_PATH):
     return _acquire_local_runtime_instance_lock(path, LOCAL_RUNTIME_INSTANCE_ID)
-
 def print_streamed_event(job_id: str, payload: dict) -> None:
     if TASK_QUEUE_BACKEND != "rq":
         return
@@ -193,11 +192,17 @@ async def lifespan(_app: FastAPI):
         for task in background_tasks:
             with suppress(asyncio.CancelledError):
                 await task
-        from cache_store import close_cache_store
         from llm_transport import close_cached_clients_async
 
-        close_job_store()
-        close_cache_store()
+        runtime = getattr(_app.state, "runtime", None)
+        if runtime is not None:
+            with suppress(Exception):
+                runtime.close()
+        else:
+            from cache_store import close_cache_store
+
+            close_job_store()
+            close_cache_store()
         await close_cached_clients_async()
         if hasattr(analysis_task_queue, "stop_workers"):
             await analysis_task_queue.stop_workers()
@@ -206,6 +211,7 @@ async def lifespan(_app: FastAPI):
             _LOCAL_RUNTIME_LOCK_HANDLE = None
 def create_app() -> FastAPI:
     app = FastAPI(lifespan=lifespan)
+    attach_api_runtime(app, OUTPUT_DIR)
     _allow_credentials = "*" not in ALLOWED_ORIGINS
     if not _allow_credentials:
         emit_log("警告：ALLOWED_ORIGINS 含萬用字元 *，已停用 credentials 支援。")
@@ -220,6 +226,7 @@ def create_app() -> FastAPI:
     app.include_router(create_static_router(lambda: STATIC_DIR, get_client_config=get_client_config))
     app.include_router(create_reports_router(ReportRouteDeps(
         get_output_dir=lambda: OUTPUT_DIR,
+        get_report_storage=lambda: get_report_storage_for_output_dir(app, OUTPUT_DIR),
         get_report_cache=lambda: report_cache,
         get_report_cache_lock=lambda: report_cache_lock,
         get_refresh_service=lambda: data_refresh_service,
