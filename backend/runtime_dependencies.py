@@ -58,10 +58,12 @@ class ApiRuntime:
     settings: RuntimeSettings
     report_storage: ReportStorage
     cache_backend: CacheBackend
+    task_queue: Any | None = None
+    data_refresh_service: Any | None = None
     _closed: bool = field(default=False, init=False, repr=False)
 
     def close(self) -> None:
-        _close_runtime(self)
+        _close_runtime(self, close_job_store=False)
 
 
 @dataclass
@@ -69,6 +71,7 @@ class WorkerRuntime:
     settings: RuntimeSettings
     report_storage: ReportStorage
     cache_backend: CacheBackend
+    data_refresh_service: Any | None = None
     _closed: bool = field(default=False, init=False, repr=False)
 
     @property
@@ -76,7 +79,7 @@ class WorkerRuntime:
         return self.settings.checkpoint_path
 
     def close(self) -> None:
-        _close_runtime(self)
+        _close_runtime(self, close_job_store=True)
 
 
 def create_report_storage(settings: RuntimeSettings) -> ReportStorage:
@@ -100,21 +103,39 @@ def create_cache_backend(settings: RuntimeSettings) -> CacheBackend:
     raise ValueError(f"Unsupported CACHE_BACKEND: {settings.cache_backend}")
 
 
-def create_api_runtime(settings: RuntimeSettings | None = None) -> ApiRuntime:
+def create_data_refresh_service() -> Any:
+    from data_fetch import StockDataService
+
+    return StockDataService()
+
+
+def create_api_runtime(
+    settings: RuntimeSettings | None = None,
+    *,
+    task_queue: Any | None = None,
+    data_refresh_service: Any | None = None,
+) -> ApiRuntime:
     runtime_settings = settings or RuntimeSettings.from_environment()
     return ApiRuntime(
         settings=runtime_settings,
         report_storage=create_report_storage(runtime_settings),
         cache_backend=create_cache_backend(runtime_settings),
+        task_queue=task_queue,
+        data_refresh_service=data_refresh_service or create_data_refresh_service(),
     )
 
 
-def create_worker_runtime(settings: RuntimeSettings | None = None) -> WorkerRuntime:
+def create_worker_runtime(
+    settings: RuntimeSettings | None = None,
+    *,
+    data_refresh_service: Any | None = None,
+) -> WorkerRuntime:
     runtime_settings = settings or RuntimeSettings.from_environment()
     return WorkerRuntime(
         settings=runtime_settings,
         report_storage=create_report_storage(runtime_settings),
         cache_backend=create_cache_backend(runtime_settings),
+        data_refresh_service=data_refresh_service or create_data_refresh_service(),
     )
 
 
@@ -133,8 +154,8 @@ def create_worker_runtime_for_output_dir(output_dir: str) -> WorkerRuntime:
     return create_worker_runtime(runtime_settings_for_output_dir(output_dir))
 
 
-def attach_api_runtime(app: Any, output_dir: str) -> None:
-    app.state.runtime = create_api_runtime(runtime_settings_for_output_dir(output_dir))
+def attach_api_runtime(app: Any, output_dir: str, *, task_queue: Any | None = None) -> None:
+    app.state.runtime = create_api_runtime(runtime_settings_for_output_dir(output_dir), task_queue=task_queue)
 
 
 def get_report_storage_for_output_dir(app: Any, output_dir: str) -> ReportStorage:
@@ -153,19 +174,24 @@ def get_report_storage_for_output_dir(app: Any, output_dir: str) -> ReportStorag
     return runtime.report_storage
 
 
-def _close_runtime(runtime: ApiRuntime | WorkerRuntime) -> None:
+def _close_runtime(runtime: ApiRuntime | WorkerRuntime, *, close_job_store: bool) -> None:
     if runtime._closed:
         return
 
     import cache_store
-    import job_store
 
     errors: list[Exception] = []
+    task_queue_close = getattr(getattr(runtime, "task_queue", None), "close", None)
+    if callable(task_queue_close):
+        _close_collecting_errors(task_queue_close, errors)
     _close_collecting_errors(runtime.cache_backend.close, errors)
     process_cache = getattr(cache_store, "_backend", None)
     if process_cache is not runtime.cache_backend:
         _close_collecting_errors(cache_store.close_cache_store, errors)
-    _close_collecting_errors(job_store.close_job_store, errors)
+    if close_job_store:
+        import job_store
+
+        _close_collecting_errors(job_store.close_job_store, errors)
     if errors:
         raise errors[0]
     runtime._closed = True

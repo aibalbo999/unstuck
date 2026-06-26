@@ -183,6 +183,14 @@ class FailingCloseCache(RecordingCache):
         raise RuntimeError("cache close failed")
 
 
+class RecordingTaskQueue:
+    def __init__(self):
+        self.close_count = 0
+
+    def close(self):
+        self.close_count += 1
+
+
 def test_api_runtime_close_is_idempotent_and_closes_owned_cache(monkeypatch, tmp_path):
     import cache_store
     import job_store
@@ -202,10 +210,31 @@ def test_api_runtime_close_is_idempotent_and_closes_owned_cache(monkeypatch, tmp
     runtime.close()
 
     assert owned_cache.close_count == 1
-    assert process_closes == ["cache", "job"]
+    assert process_closes == ["cache"]
 
 
-def test_runtime_close_still_closes_process_stores_when_owned_cache_close_fails(
+def test_api_runtime_close_closes_owned_task_queue(monkeypatch, tmp_path):
+    import cache_store
+    import job_store
+    from runtime_dependencies import ApiRuntime, RuntimeSettings
+
+    monkeypatch.setattr(cache_store, "close_cache_store", lambda: None)
+    monkeypatch.setattr(job_store, "close_job_store", lambda: None)
+    task_queue = RecordingTaskQueue()
+    runtime = ApiRuntime(
+        settings=RuntimeSettings.for_tests(tmp_path),
+        report_storage=InMemoryStorage(),
+        cache_backend=RecordingCache(),
+        task_queue=task_queue,
+    )
+
+    runtime.close()
+    runtime.close()
+
+    assert task_queue.close_count == 1
+
+
+def test_api_runtime_close_does_not_close_job_store_when_owned_cache_close_fails(
     monkeypatch,
     tmp_path,
 ):
@@ -227,13 +256,13 @@ def test_runtime_close_still_closes_process_stores_when_owned_cache_close_fails(
         runtime.close()
 
     assert owned_cache.close_count == 1
-    assert process_closes == ["cache", "job"]
+    assert process_closes == ["cache"]
 
     with pytest.raises(RuntimeError, match="cache close failed"):
         runtime.close()
 
     assert owned_cache.close_count == 2
-    assert process_closes == ["cache", "job", "cache", "job"]
+    assert process_closes == ["cache", "cache"]
 
 
 def test_worker_runtime_close_is_idempotent_and_exposes_checkpoint(monkeypatch, tmp_path):

@@ -448,7 +448,7 @@ def test_refresh_data_snapshot_endpoint_updates_trust(tmp_path, monkeypatch, mut
                 },
             )
 
-    monkeypatch.setattr(api, "data_refresh_service", FakeRefreshService())
+    monkeypatch.setattr(api, "get_data_refresh_service", lambda _app: FakeRefreshService())
     client = TestClient(api.app)
     response = client.post(f"/api/report/{filename}/refresh/data", headers=mutation_headers)
 
@@ -521,7 +521,7 @@ def test_refresh_data_snapshot_keeps_decision_current_when_only_provider_sla_cha
                 },
             )
 
-    monkeypatch.setattr(api, "data_refresh_service", FakeRefreshService())
+    monkeypatch.setattr(api, "get_data_refresh_service", lambda _app: FakeRefreshService())
     client = TestClient(api.app)
     response = client.post(f"/api/report/{filename}/refresh/data", headers=mutation_headers)
 
