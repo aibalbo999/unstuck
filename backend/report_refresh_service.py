@@ -12,7 +12,10 @@ from company_display import company_display_name
 from data_fetch import FetchRequest
 from data_trust import build_data_snapshot, data_snapshot_filename_for_report, normalize_data_trust, utc_now_iso
 from decision_tracking import build_decision_freshness
+from report_history_storage import existing_storage_key, storage_for_existing_output_dir
 from report_index import is_safe_report_filename, upsert_report_metadata
+from report_persistence import DATA_SNAPSHOT_CONTENT_TYPE
+from storage.report_storage import ReportStorage
 
 
 ANALYSIS_TEXT_STALE_MESSAGE = "資料快照已刷新，但 HTML/Markdown 分析本文未重新執行；投資結論仍以原報告生成時間為準。"
@@ -169,21 +172,26 @@ async def refresh_report_data_snapshot(
     *,
     output_dir: str,
     refresh_service: Any,
+    storage: ReportStorage | None = None,
 ) -> dict:
     if not is_safe_report_filename(filename, ".html"):
         raise HTTPException(status_code=400, detail="Invalid filename")
-    html_path = os.path.join(output_dir, filename)
-    if not os.path.exists(html_path):
+
+    content_storage = storage_for_existing_output_dir(output_dir, storage)
+    html_key = existing_storage_key(content_storage, filename, kind="html") if content_storage is not None else None
+    if html_key is None:
         raise HTTPException(status_code=404, detail="找不到報告")
 
     data_filename = data_snapshot_filename_for_report(filename)
-    data_path = os.path.join(output_dir, data_filename)
-    if not os.path.exists(data_path):
+    data_key = existing_storage_key(content_storage, filename, kind="data") if content_storage is not None else None
+    if data_key is None:
         raise HTTPException(status_code=404, detail="舊報告沒有資料快照，無法只刷新資料")
 
     try:
-        with open(data_path, "r", encoding="utf-8") as f:
-            previous_snapshot = json.load(f)
+        item = content_storage.get_report(data_key) if content_storage is not None else None
+        if item is None:
+            raise FileNotFoundError(data_key)
+        previous_snapshot = json.loads(item.content.decode("utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=400, detail=f"資料快照無法讀取：{exc}") from exc
 
@@ -230,9 +238,12 @@ async def refresh_report_data_snapshot(
         generated_at=refresh_generated_at,
     )
 
-    with open(data_path, "w", encoding="utf-8") as f:
-        json.dump(refreshed_snapshot, f, ensure_ascii=False, indent=2)
-    decision_freshness = build_decision_freshness(data_path)
+    content_storage.save_report(
+        data_key,
+        json.dumps(refreshed_snapshot, ensure_ascii=False, indent=2).encode("utf-8"),
+        content_type=DATA_SNAPSHOT_CONTENT_TYPE,
+    )
+    decision_freshness = build_decision_freshness(os.path.join(output_dir, data_key))
     metadata = upsert_report_metadata(
         filename,
         output_dir=output_dir,

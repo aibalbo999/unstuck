@@ -1,3 +1,4 @@
+import asyncio
 import json
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -291,6 +292,75 @@ def test_download_report_file_reads_storage_for_html_markdown_and_data():
     assert data_response.body == b'{"ticker":"2308.TW"}'
     assert data_response.headers["content-disposition"] == f"attachment; filename={data_filename}"
     assert data_response.headers["content-type"].startswith("application/json")
+
+
+def test_refresh_data_snapshot_reads_and_updates_partitioned_storage(tmp_path, monkeypatch):
+    import report_refresh_service
+    from report_persistence import report_bundle_keys_for_filename
+
+    monkeypatch.setattr(report_refresh_service, "upsert_report_metadata", lambda *args, **kwargs: {"filename": args[0]})
+    storage = InMemoryStorage()
+    filename = "2308_TW_v2_report_20260626_120000.html"
+    keys = report_bundle_keys_for_filename(filename)
+    storage.save_report(keys.html_key, b"<html></html>", content_type="text/html")
+    storage.save_report(
+        keys.data_key,
+        json.dumps(
+            {
+                "snapshot_schema_version": 3,
+                "ticker": "2308.TW",
+                "company_name": "台達電",
+                "pipeline": "v2",
+                "generated_at": "2026-06-26T12:00:00+00:00",
+                "conclusion_generated_at": "2026-06-26T12:00:00+00:00",
+                "data_schema_version": 4,
+                "source_freshness": {
+                    "market_data": {"stale": True, "fetched_at": "2026-06-20T00:00:00+00:00"},
+                    "financial_statements": {"stale": False, "fetched_at": "2026-06-20T00:00:00+00:00"},
+                },
+                "source_audit": [],
+                "data_trust": {"status": "stale", "critical_failures": [], "stale_sources": ["market_data"], "notes": []},
+                "data": {"ticker": "2308.TW", "company_name": "台達電", "current_price": 100.0},
+            },
+            ensure_ascii=False,
+        ).encode("utf-8"),
+        content_type="application/json",
+    )
+
+    class FakeRefreshService:
+        async def fetch_async(self, request):
+            return SimpleNamespace(
+                data={
+                    "data_schema_version": 4,
+                    "ticker": request.ticker,
+                    "company_name": "台達電",
+                    "current_price": 110.0,
+                    "source_freshness": {
+                        "market_data": {"stale": False, "fetched_at": "2026-06-27T00:00:00+00:00"},
+                        "financial_statements": {"stale": False, "fetched_at": "2026-06-27T00:00:00+00:00"},
+                    },
+                    "source_audit": [
+                        {"source": "market_data", "provider": "fake", "status": "success", "record_count": 1},
+                        {"source": "financial_statements", "provider": "fake", "status": "success", "record_count": 1},
+                    ],
+                    "data_trust": {"status": "fresh", "critical_failures": [], "stale_sources": [], "notes": []},
+                }
+            )
+
+    body = asyncio.run(
+        report_refresh_service.refresh_report_data_snapshot(
+            filename,
+            output_dir=str(tmp_path),
+            refresh_service=FakeRefreshService(),
+            storage=storage,
+        )
+    )
+
+    saved = json.loads(storage.get_report(keys.data_key).content.decode("utf-8"))
+    assert body["success"] is True
+    assert saved["data_trust"]["status"] == "fresh"
+    assert saved["data"]["current_price"] == 110.0
+    assert storage.exists(keys.data_key) is True
 
 
 def test_delete_report_files_deletes_storage_cache_and_repository(tmp_path):

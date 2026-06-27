@@ -114,6 +114,7 @@ def create_reports_router(deps: ReportRouteDeps) -> APIRouter:
             filename,
             output_dir=deps.get_output_dir(),
             refresh_service=deps.get_refresh_service(),
+            storage=deps.get_report_storage(),
         )
 
     @router.post("/api/report/{filename}/rerun")
