@@ -10,6 +10,7 @@ from decimal import Decimal
 from typing import Any
 
 from agent_state import AgentReport, AgentState
+from prompt_loader import load_agent_prompt_config
 
 
 STATE_VIEW_POLICY: dict[str, dict[str, list[str] | dict[str, list[str]]]] = {
@@ -80,6 +81,16 @@ STATE_VIEW_POLICY: dict[str, dict[str, list[str] | dict[str, list[str]]]] = {
 }
 
 
+def _state_view_policy() -> dict[str, dict[str, list[str] | dict[str, list[str]]]]:
+    try:
+        configured = load_agent_prompt_config().get("state_view_policy")
+    except Exception:
+        configured = None
+    if isinstance(configured, dict):
+        return configured
+    return STATE_VIEW_POLICY
+
+
 def initialize_agent_state(data: dict[str, Any], *, run_id: str | None = None) -> AgentState:
     quant_metrics = copy.deepcopy(data.get("deterministic_financial_tool_results") or {})
     if isinstance(data.get("quant_metrics"), dict):
@@ -148,7 +159,7 @@ def state_view_for(role: str | int, state: AgentState) -> dict[str, Any]:
     if role_key in {"7", "16", "19"}:
         role_key = "final_risk_memo"
 
-    policy = STATE_VIEW_POLICY.get(role_key, {"root": ["validation_issues", "risk_flags"]})
+    policy = _state_view_policy().get(role_key, {"root": ["validation_issues", "risk_flags"]})
     view: dict[str, Any] = {
         "run_id": state.run_id,
         "ticker": state.ticker,

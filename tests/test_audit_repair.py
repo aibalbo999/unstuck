@@ -246,3 +246,33 @@ def test_financial_quality_repair_uses_safe_fallback_when_model_429_unavailable(
     assert "京元電子" not in context["analyses"][2]
     assert context["deterministic_fallbacks"][0]["trigger"] == "repair_429_failure"
     assert ar.validate_analysis_output(2, context["analyses"][2], context["data"]) == []
+
+
+def test_finalize_audit_marks_context_blocked_after_repair_iteration_limit():
+    context = complete_context()
+    attempts = []
+
+    def always_failing_audit(_context, append_section=False):
+        return {
+            "status": "needs_attention",
+            "critical": ["Agent 7 仍缺少可驗證風險區塊"],
+            "warnings": [],
+            "corrections": [],
+            "repair_agent_issues": {7: ["缺少風險區塊"]},
+            "report_preserved": bool(append_section),
+        }
+
+    def fake_repair(_context, _audit, _rotator, progress_callback=None):
+        attempts.append("repair")
+        _context.setdefault("audit_repair_log", []).append("Agent 7 修復後仍未通過。")
+
+    with patch.object(audit_repair, "run_final_report_audit", side_effect=always_failing_audit):
+        with patch.object(audit_repair, "attempt_final_audit_repair", side_effect=fake_repair):
+            audit = audit_repair.finalize_final_audit(context, object(), max_repair_passes=2)
+
+    assert audit["status"] == "needs_attention"
+    assert attempts == ["repair", "repair"]
+    assert context["repair_iteration_count"] == 2
+    assert context["status"] == "blocked"
+    assert "final_audit:repair_iteration_limit" in context["blocking_issues"]
+    assert any("部分審計修復未完成" in item for item in context["audit_repair_log"])

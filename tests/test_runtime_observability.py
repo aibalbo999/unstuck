@@ -370,6 +370,19 @@ def test_api_usage_ledger_records_llm_job_events(monkeypatch, tmp_path):
     assert usage["recent_quota_events"][0]["model_id"] == "gemini-2.5-pro"
 
 
+def test_api_usage_store_uses_short_busy_timeout_for_worker_contention(monkeypatch, tmp_path):
+    db_path = tmp_path / "api_usage.sqlite3"
+    monkeypatch.setattr(api_usage_store, "API_USAGE_DB_PATH", str(db_path))
+    api_usage_store.reset_api_usage_store_for_tests()
+
+    with api_usage_store._connect_for_path(db_path) as conn:
+        busy_timeout = conn.execute("PRAGMA busy_timeout").fetchone()[0]
+        journal_mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
+
+    assert journal_mode == "wal"
+    assert busy_timeout == 3000
+
+
 def test_api_quota_payload_uses_persistent_usage_ledger(monkeypatch, tmp_path):
     db_path = tmp_path / "api_usage.sqlite3"
     monkeypatch.setattr(api_usage_store, "API_USAGE_DB_PATH", str(db_path))

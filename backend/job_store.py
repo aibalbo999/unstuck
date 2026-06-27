@@ -22,7 +22,12 @@ ACTIVE_JOB_STATUSES = ("queued", "running", "waiting_retry")
 TERMINAL_JOB_STATUSES = {"done", "error", "cancelled"}
 
 
-_resource = ThreadLocalSqliteResource(lambda: TASK_DB_PATH, init_schema=init_job_store_schema, row_factory=Row)
+_resource = ThreadLocalSqliteResource(
+    lambda: TASK_DB_PATH,
+    init_schema=init_job_store_schema,
+    row_factory=Row,
+    busy_timeout_ms=3000,
+)
 
 
 def _active_status_placeholders() -> str:

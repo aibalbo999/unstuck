@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from data_trust import data_snapshot_filename_for_report
+from report_paths import report_markdown_filename_for_report, report_storage_key_for_filename
 from report_repository import DEFAULT_REPORT_REPOSITORY, ReportRepository
 from storage.report_storage import ReportStorage
 
@@ -19,31 +20,28 @@ DATA_SNAPSHOT_CONTENT_TYPE = "application/json"
 
 @dataclass(frozen=True)
 class ReportBundleKeys:
+    filename: str
+    md_filename: str
+    data_filename: str
     html_key: str
     md_key: str
     data_key: str
 
-    @property
-    def filename(self) -> str:
-        return self.html_key
-
-    @property
-    def md_filename(self) -> str:
-        return self.md_key
-
-    @property
-    def data_filename(self) -> str:
-        return self.data_key
-
 
 def report_bundle_keys_for_filename(filename: str) -> ReportBundleKeys:
     stem, extension = os.path.splitext(filename)
-    html_key = filename if extension == ".html" else f"{stem}.html"
-    html_stem = html_key[:-5] if html_key.endswith(".html") else os.path.splitext(html_key)[0]
+    html_filename = filename if extension == ".html" else f"{stem}.html"
+    md_filename = report_markdown_filename_for_report(html_filename)
+    data_filename = data_snapshot_filename_for_report(html_filename)
+    html_key = report_storage_key_for_filename(html_filename)
+    storage_prefix = os.path.dirname(html_key)
     return ReportBundleKeys(
+        filename=html_filename,
+        md_filename=md_filename,
+        data_filename=data_filename,
         html_key=html_key,
-        md_key=f"{html_stem}.md",
-        data_key=data_snapshot_filename_for_report(html_key),
+        md_key=f"{storage_prefix}/{md_filename}" if storage_prefix else md_filename,
+        data_key=f"{storage_prefix}/{data_filename}" if storage_prefix else data_filename,
     )
 
 

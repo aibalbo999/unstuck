@@ -1,0 +1,46 @@
+[
+  {
+    "公司代號": "2330",
+    "date": "2025-03-31",
+    "Revenue": "1000",
+    "GrossProfit": "400",
+    "OperatingIncome": "200",
+    "IncomeAfterTaxes": "100",
+    "NetCashInflowFromOperatingActivities": "150",
+    "PurchaseOfPropertyPlantAndEquipment": "-50",
+    "TotalLiabilities": "700"
+  },
+  {
+    "公司代號": "2330",
+    "date": "2025-06-30",
+    "Revenue": "1100",
+    "GrossProfit": "440",
+    "OperatingIncome": "220",
+    "IncomeAfterTaxes": "110",
+    "NetCashInflowFromOperatingActivities": "160",
+    "PurchaseOfPropertyPlantAndEquipment": "-60",
+    "TotalLiabilities": "710"
+  },
+  {
+    "公司代號": "2330",
+    "date": "2025-09-30",
+    "Revenue": "1200",
+    "GrossProfit": "480",
+    "OperatingIncome": "240",
+    "IncomeAfterTaxes": "120",
+    "NetCashInflowFromOperatingActivities": "170",
+    "PurchaseOfPropertyPlantAndEquipment": "-70",
+    "TotalLiabilities": "720"
+  },
+  {
+    "公司代號": "2330",
+    "date": "2025-12-31",
+    "Revenue": "1300",
+    "GrossProfit": "520",
+    "OperatingIncome": "260",
+    "IncomeAfterTaxes": "130",
+    "NetCashInflowFromOperatingActivities": "180",
+    "PurchaseOfPropertyPlantAndEquipment": "-80",
+    "TotalLiabilities": "730"
+  }
+]

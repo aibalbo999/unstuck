@@ -68,3 +68,41 @@ def test_fetch_twse_official_data_formats_finmind_statement_payload(monkeypatch)
         "source": "FinMind_TWSE",
         "fetch_date": "2026-06-19",
     }
+
+
+def test_fetch_twse_official_data_uses_offline_twse_openapi_fixture(monkeypatch):
+    fixture = ROOT / "tests" / "fixtures" / "twse_openapi_official_2330.json"
+    calls = []
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return fixture.read_bytes()
+
+    def fake_urlopen(url, timeout):
+        calls.append((url, timeout))
+        return FakeResponse()
+
+    monkeypatch.setattr(external_data_twse, "DataLoader", None, raising=False)
+    monkeypatch.setattr(external_data_twse.urllib.request, "urlopen", fake_urlopen, raising=False)
+    monkeypatch.setattr(external_data_twse, "_today_iso", lambda: "2026-06-19", raising=False)
+
+    result = external_data_twse.fetch_twse_official_data("2330.TW")
+
+    assert calls
+    assert result == {
+        "revenue_ttm_raw": 4600.0,
+        "net_income_ttm_raw": 460.0,
+        "free_cash_flow_raw": 400.0,
+        "gross_margin_raw": 0.4,
+        "operating_margin_raw": 0.2,
+        "profit_margin_raw": 0.1,
+        "total_debt_raw": 730.0,
+        "source": "TWSE_OpenAPI",
+        "fetch_date": "2026-06-19",
+    }

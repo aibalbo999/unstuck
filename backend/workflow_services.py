@@ -174,6 +174,7 @@ def legacy_context_from_graph(state: AgentGraphState, services: WorkflowServices
         "blocking_issues": list(state.get("blocking_issues") or []),
         "audit_repair_log": list(state.get("audit_repair_log") or []),
         "repair_attempt_counts": copy_json(state.get("repair_attempt_counts") or {}),
+        "repair_iteration_count": int(state.get("repair_iteration_count") or 0),
         "final_audit": copy_json(state.get("final_audit") or {}),
         "tear_sheet_summary": str(state.get("tear_sheet_summary") or ""),
         "report_cover": copy_json(state.get("report_cover") or {}),
@@ -240,12 +241,15 @@ def graph_delta_from_legacy_context(context: AnalysisContext) -> dict[str, Any]:
         "blocking_issues": list(context.get("blocking_issues") or []),
         "audit_repair_log": list(context.get("audit_repair_log") or []),
         "repair_attempt_counts": copy_json(context.get("repair_attempt_counts") or {}),
+        "repair_iteration_count": int(context.get("repair_iteration_count") or 0),
         "final_audit": copy_json(context.get("final_audit") or {}),
         "tear_sheet_summary": str(context.get("tear_sheet_summary") or ""),
         "report_cover": copy_json(context.get("report_cover") or {}),
     }
     if context.get("report_filename"):
         delta["report_filename"] = str(context.get("report_filename"))
+    if context.get("status"):
+        delta["status"] = str(context.get("status"))
     domain_state = context.get("agent_state")
     if domain_state is not None:
         delta["agent_reports"] = {agent_id: report.model_dump(mode="json") for agent_id, report in domain_state.agent_reports.items()}

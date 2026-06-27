@@ -10,6 +10,7 @@ from typing import Optional
 
 from data_trust import data_snapshot_filename_for_report, normalize_data_trust, read_data_trust_from_snapshot
 from decision_tracking import build_decision_freshness, build_decision_tracking
+from report_paths import report_storage_candidates_for_filename
 from report_index_parsing import (
     extract_company_name as _extract_company_name,
     is_safe_report_filename,
@@ -40,10 +41,18 @@ def file_sha256(path: str, content: Optional[str] = None) -> str:
 
 
 def report_index_mtime(output_dir: str, filename: str) -> float:
-    html_path = os.path.join(output_dir, filename)
-    md_path = os.path.join(output_dir, filename[:-5] + ".md")
-    data_path = os.path.join(output_dir, data_snapshot_filename_for_report(filename))
+    html_path = _report_path(output_dir, filename, kind="html")
+    md_path = _report_path(output_dir, filename, kind="md")
+    data_path = _report_path(output_dir, filename, kind="data")
     return max(safe_mtime(html_path), safe_mtime(md_path), safe_mtime(data_path))
+
+
+def _report_path(output_dir: str, filename: str, *, kind: str) -> str:
+    for key in report_storage_candidates_for_filename(filename, kind=kind):
+        candidate = os.path.join(output_dir, key)
+        if os.path.exists(candidate):
+            return candidate
+    return os.path.join(output_dir, report_storage_candidates_for_filename(filename, kind=kind)[0])
 
 
 def read_snapshot_report_flags(data_snapshot_path: str) -> dict:
@@ -72,8 +81,8 @@ def build_report_metadata(
         return None
 
     out_dir = output_dir_key(output_dir)
-    html_path = os.path.join(out_dir, filename)
-    md_path = os.path.join(out_dir, filename[:-5] + ".md")
+    html_path = _report_path(out_dir, filename, kind="html")
+    md_path = _report_path(out_dir, filename, kind="md")
     if html_content is None and not os.path.exists(html_path):
         return None
 
@@ -88,7 +97,7 @@ def build_report_metadata(
         markdown_text=markdown_content,
     )
     data_snapshot_filename = data_snapshot_filename_for_report(filename)
-    data_snapshot_path = os.path.join(out_dir, data_snapshot_filename)
+    data_snapshot_path = _report_path(out_dir, filename, kind="data")
     data_trust_summary = (
         normalize_data_trust(data_trust)
         if data_trust is not None

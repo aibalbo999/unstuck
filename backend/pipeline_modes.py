@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal, NotRequired, TypedDict
 
 
 PipelineId = Literal["v1", "v2", "v3", "v4"]
@@ -18,6 +18,7 @@ class PipelineDefinition(TypedDict):
     hint_text: str
     agents: tuple[int, ...]
     groups: tuple[tuple[int, ...], ...]
+    preload_after_groups: NotRequired[dict[int, tuple[int, ...]]]
     structured_agents: dict[str, int]
     debate_agents: tuple[int, ...]
 
@@ -32,6 +33,7 @@ PIPELINE_DEFINITIONS: dict[str, PipelineDefinition] = {
         "hint_text": "請稍候，10 個 AI 分析模組正在為您撰寫深度研報...",
         "agents": (11, 1, 2, 3, 20, 4, 5, 6, 21, 7),
         "groups": ((11,), (1, 2), (3, 20), (4, 5), (6, 21), (7,)),
+        "preload_after_groups": {2: (4, 5)},
         "structured_agents": {"moat": 3, "valuation": 4, "recommendation": 7},
         "debate_agents": (6,),
     },

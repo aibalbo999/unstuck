@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from langgraph.errors import NodeCancelledError
 from langgraph.graph import END, START, StateGraph
 
 
@@ -50,11 +51,46 @@ def _resume_fixture_builder(calls, *, allow_b):
     return builder
 
 
+def _cancel_resume_fixture_builder(calls, *, allow_b):
+    builder = StateGraph(AgentGraphState)
+
+    async def node_a(state):
+        calls["a"] += 1
+        return {"execution_trace": [{"id": "a-after-cancel"}]}
+
+    async def node_b(state):
+        calls["b"] += 1
+        if not allow_b:
+            raise asyncio.CancelledError()
+        return {"status": "done"}
+
+    builder.add_node("node_a", node_a)
+    builder.add_node("node_b", node_b)
+    builder.add_edge(START, "node_a")
+    builder.add_edge("node_a", "node_b")
+    builder.add_edge("node_b", END)
+    return builder
+
+
 async def run_resume_fixture(checkpoint, thread_id, calls, *, allow_b):
     return await execute_persistent_graph(
         graph_builder=_resume_fixture_builder(calls, allow_b=allow_b),
         initial_state={
             "run_id": "run-429",
+            "ticker": "2330.TW",
+            "company_name": "台積電",
+            "pipeline_id": "v4",
+        },
+        thread_id=thread_id,
+        checkpoint_path=checkpoint,
+    )
+
+
+async def run_cancel_resume_fixture(checkpoint, thread_id, calls, *, allow_b):
+    return await execute_persistent_graph(
+        graph_builder=_cancel_resume_fixture_builder(calls, allow_b=allow_b),
+        initial_state={
+            "run_id": "run-cancel",
             "ticker": "2330.TW",
             "company_name": "台積電",
             "pipeline_id": "v4",
@@ -82,6 +118,20 @@ def test_sqlite_resume_does_not_repeat_successful_nodes(tmp_path):
         asyncio.run(run_resume_fixture(checkpoint, thread_id, calls, allow_b=False))
 
     result = asyncio.run(run_resume_fixture(checkpoint, thread_id, calls, allow_b=True))
+
+    assert result["status"] == "done"
+    assert calls == {"a": 1, "b": 2}
+
+
+def test_sqlite_resume_after_cancelled_worker_does_not_repeat_successful_nodes(tmp_path):
+    calls = {"a": 0, "b": 0}
+    checkpoint = tmp_path / "checkpoints.sqlite3"
+    thread_id = "job-cancelled"
+
+    with pytest.raises(NodeCancelledError):
+        asyncio.run(run_cancel_resume_fixture(checkpoint, thread_id, calls, allow_b=False))
+
+    result = asyncio.run(run_cancel_resume_fixture(checkpoint, thread_id, calls, allow_b=True))
 
     assert result["status"] == "done"
     assert calls == {"a": 1, "b": 2}

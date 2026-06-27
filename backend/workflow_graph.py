@@ -24,6 +24,7 @@ from workflow_services import (
     run_agent_with_quality_gates_async,
     validate_graph_state,
 )
+from workflow_preload import preload_agent_context_factory, preload_node_name
 from workflow_state import AgentGraphState
 
 
@@ -62,6 +63,13 @@ def route_after_repair_validation(state: AgentGraphState) -> Literal["blocked_fi
     return "prepare_analysis"
 
 
+def route_after_final_audit(state: AgentGraphState) -> Literal["blocked_finalize", "tear_sheet"]:
+    blocking_issues = set(str(issue) for issue in (state.get("blocking_issues") or []))
+    if state.get("status") == "blocked" or "final_audit:repair_iteration_limit" in blocking_issues:
+        return "blocked_finalize"
+    return "tear_sheet"
+
+
 def build_analysis_graph_builder(pipeline_id: str, services: WorkflowServices) -> StateGraph:
     pipeline_def = get_pipeline_definition(normalize_pipeline_id(pipeline_id))
     graph = StateGraph(AgentGraphState)
@@ -90,8 +98,12 @@ def build_analysis_graph_builder(pipeline_id: str, services: WorkflowServices) -
         {"blocked_finalize": "blocked_finalize", "prepare_analysis": "prepare_analysis"},
     )
     graph.add_edge("blocked_finalize", END)
-    _add_agent_group_edges(graph, pipeline_def["groups"])
-    graph.add_edge("final_audit", "tear_sheet")
+    _add_agent_group_edges(graph, pipeline_def["groups"], pipeline_def.get("preload_after_groups", {}))
+    graph.add_conditional_edges(
+        "final_audit",
+        route_after_final_audit,
+        {"blocked_finalize": "blocked_finalize", "tear_sheet": "tear_sheet"},
+    )
     graph.add_edge("tear_sheet", "persist_report")
     graph.add_edge("persist_report", "finalize")
     graph.add_edge("finalize", END)
@@ -178,10 +190,21 @@ def _agent_node_factory(services: WorkflowServices, agent_num: int) -> Callable[
     return run_agent_node
 
 
-def _add_agent_group_edges(graph: StateGraph, groups: tuple[tuple[int, ...], ...]) -> None:
+def _add_agent_group_edges(
+    graph: StateGraph,
+    groups: tuple[tuple[int, ...], ...],
+    preload_after_groups: dict[int, tuple[int, ...]] | None = None,
+) -> None:
     if not groups:
         graph.add_edge("prepare_analysis", "final_audit")
         return
+    preload_after_groups = preload_after_groups or {}
+    preload_nodes_by_join_group: dict[int, list[str]] = {}
+    for after_group_index, agent_nums in preload_after_groups.items():
+        for agent_num in agent_nums:
+            node_name = preload_node_name(agent_num)
+            graph.add_node(node_name, preload_agent_context_factory(agent_num))
+            preload_nodes_by_join_group.setdefault(after_group_index + 1, []).append(node_name)
     for group_index, group in enumerate(groups, start=1):
         group_nodes = [f"agent_{agent_num}" for agent_num in group]
         join_name = f"group_{group_index}_join"
@@ -189,10 +212,12 @@ def _add_agent_group_edges(graph: StateGraph, groups: tuple[tuple[int, ...], ...
         if group_index == 1:
             for node_name in group_nodes:
                 graph.add_edge("prepare_analysis", node_name)
-        graph.add_edge(group_nodes, join_name)
+        graph.add_edge([*group_nodes, *preload_nodes_by_join_group.get(group_index, [])], join_name)
         if group_index < len(groups):
             for next_agent_num in groups[group_index]:
                 graph.add_edge(join_name, f"agent_{next_agent_num}")
+            for preload_agent_num in preload_after_groups.get(group_index, ()):
+                graph.add_edge(join_name, preload_node_name(preload_agent_num))
         else:
             graph.add_edge(join_name, "final_audit")
 
@@ -205,13 +230,18 @@ def _join_node_factory(join_name: str) -> Callable[[AgentGraphState], AgentGraph
 
 
 def _blocked_finalize(state: AgentGraphState) -> AgentGraphState:
+    existing_blocking = list(state.get("blocking_issues") or [])
     fields = list((state.get("circuit_breaker") or {}).get("blocking_fields") or [])
-    if not fields:
-        fields = [str(issue.get("field")) for issue in state.get("validation_issues", []) or [] if isinstance(issue, dict) and issue.get("field")]
+    if existing_blocking:
+        blocking_issues = existing_blocking
+    else:
+        if not fields:
+            fields = [str(issue.get("field")) for issue in state.get("validation_issues", []) or [] if isinstance(issue, dict) and issue.get("field")]
+        blocking_issues = [f"validation:{field}" for field in (fields or ["data_validation"])]
     now = time.time()
     return {
         "status": "blocked",
-        "blocking_issues": [f"validation:{field}" for field in (fields or ["data_validation"])],
+        "blocking_issues": blocking_issues,
         "total_time": max(0.0, now - float(state.get("started_at") or now)),
         "execution_trace": [{"id": "blocked_finalize", "node": "blocked_finalize", "at": now}],
     }
@@ -239,6 +269,7 @@ __all__ = [
     "legacy_context_from_graph",
     "open_sqlite_checkpointer",
     "repair_graph_state",
+    "route_after_final_audit",
     "route_after_repair_validation",
     "route_after_validation",
     "run_agent_node_adapter",

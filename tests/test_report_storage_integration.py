@@ -125,9 +125,9 @@ def test_persist_report_bundle_saves_content_before_indexing():
     assert result["filename"] == filename
     assert result["md_filename"] == "2308_TW_v2_report_20260626_120000.md"
     assert result["data_filename"] == data_snapshot_filename_for_report(filename)
-    assert result["html_key"] == filename
-    assert result["md_key"] == result["md_filename"]
-    assert result["data_key"] == result["data_filename"]
+    assert result["html_key"] == f"2026-06/2308.TW/{filename}"
+    assert result["md_key"] == f"2026-06/2308.TW/{result['md_filename']}"
+    assert result["data_key"] == f"2026-06/2308.TW/{result['data_filename']}"
     assert repository.upserts == [
         {
             "filename": filename,
@@ -149,7 +149,7 @@ def test_persist_report_bundle_rolls_back_saved_content_when_data_save_fails():
 
     filename = "2308_TW_v2_report_20260626_120000.html"
     md_filename = "2308_TW_v2_report_20260626_120000.md"
-    data_filename = data_snapshot_filename_for_report(filename)
+    data_filename = f"2026-06/2308.TW/{data_snapshot_filename_for_report(filename)}"
     storage = RecordingStorage(fail_on_key=data_filename)
     repository = RecordingRepository(storage.order)
 
@@ -168,7 +168,7 @@ def test_persist_report_bundle_rolls_back_saved_content_when_data_save_fails():
     else:
         raise AssertionError("expected data save failure")
 
-    assert storage.deleted == [md_filename, filename]
+    assert storage.deleted == [f"2026-06/2308.TW/{md_filename}", f"2026-06/2308.TW/{filename}"]
     assert filename not in storage.saved
     assert md_filename not in storage.saved
     assert repository.upserts == []
@@ -198,11 +198,24 @@ def test_persist_report_bundle_rolls_back_saved_content_when_metadata_upsert_fai
         raise AssertionError("expected metadata upsert failure")
 
     assert storage.deleted == [
-        data_snapshot_filename_for_report(filename),
-        "2308_TW_v2_report_20260626_120000.md",
-        filename,
+        f"2026-06/2308.TW/{data_snapshot_filename_for_report(filename)}",
+        "2026-06/2308.TW/2308_TW_v2_report_20260626_120000.md",
+        f"2026-06/2308.TW/{filename}",
     ]
     assert storage.saved == {}
+
+
+def test_report_bundle_keys_partition_by_report_month_and_ticker():
+    from report_persistence import report_bundle_keys_for_filename
+
+    filename = "2308_TW_v2_report_20260626_120000.html"
+
+    keys = report_bundle_keys_for_filename(filename)
+
+    assert keys.filename == filename
+    assert keys.html_key == f"2026-06/2308.TW/{filename}"
+    assert keys.md_key == "2026-06/2308.TW/2308_TW_v2_report_20260626_120000.md"
+    assert keys.data_key == f"2026-06/2308.TW/{data_snapshot_filename_for_report(filename)}"
 
 
 def test_list_reports_uses_metadata_without_syncing_nonlocal_storage(tmp_path):
@@ -448,9 +461,12 @@ def test_rerun_report_analysis_passes_storage_to_rerun_rendering(tmp_path, monke
         )
     )
 
-    assert storage.get_report(result["filename"]) is not None
-    assert storage.get_report(result["md_filename"]) is not None
-    assert storage.get_report(result["data_filename"]) is not None
+    from report_persistence import report_bundle_keys_for_filename
+
+    keys = report_bundle_keys_for_filename(result["filename"])
+    assert storage.get_report(keys.html_key) is not None
+    assert storage.get_report(keys.md_key) is not None
+    assert storage.get_report(keys.data_key) is not None
 
 
 def asyncio_run(coro):

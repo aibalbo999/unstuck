@@ -1,6 +1,66 @@
 {
   "version": 1,
   "description": "Agent system prompts and analysis prompt templates. Placeholders: {ticker}, {name}, {fin_data}, {prev}.",
+  "state_view_policy": {
+    "11": {
+      "root": ["validation_issues", "risk_flags", "macro_context", "taiwan_open_data"]
+    },
+    "13": {
+      "normalized_financials": ["revenue_history", "net_income_history", "fcf_history", "cash_flow"],
+      "quant_metrics": ["calculations", "unit_contract"],
+      "root": ["validation_issues", "risk_flags", "alternative_data", "sec_edgar"]
+    },
+    "14": {
+      "normalized_financials": ["revenue_history", "net_income_history", "fcf_history", "cash_flow"],
+      "quant_metrics": ["calculations", "unit_contract"],
+      "peer_context": ["selected_peers", "selection_policy", "dynamic_peer_metrics"],
+      "root": ["risk_flags", "validation_issues", "tool_results", "alternative_data", "sec_edgar"]
+    },
+    "15": {
+      "root": ["validation_issues", "risk_flags", "chip_context"]
+    },
+    "17": {
+      "root": ["validation_issues", "risk_flags", "sentiment_context"]
+    },
+    "18": {
+      "normalized_financials": ["revenue_history", "net_income_history", "fcf_history", "cash_flow"],
+      "peer_context": ["dynamic_peer_metrics"],
+      "root": ["validation_issues", "risk_flags", "chip_context"]
+    },
+    "20": {
+      "root": ["validation_issues", "risk_flags", "earnings_call_context"]
+    },
+    "21": {
+      "normalized_financials": ["revenue_history", "net_income_history", "fcf_history", "cash_flow"],
+      "quant_metrics": ["calculations", "unit_contract"],
+      "peer_context": ["selected_peers", "selection_policy", "dynamic_peer_metrics"],
+      "root": ["risk_flags", "validation_issues", "tool_results", "agent_reports", "earnings_call_context", "sec_edgar"]
+    },
+    "22": {
+      "normalized_financials": ["current_price", "price_history", "technical_indicators"],
+      "root": ["validation_issues", "risk_flags"]
+    },
+    "23": {
+      "normalized_financials": ["institutional_trading"],
+      "root": ["validation_issues", "risk_flags", "chip_context"]
+    },
+    "24": {
+      "normalized_financials": ["current_price", "price_history", "technical_indicators", "institutional_trading", "recent_catalysts"],
+      "root": ["validation_issues", "risk_flags", "agent_reports", "chip_context"]
+    },
+    "valuation": {
+      "normalized_financials": ["revenue_history", "net_income_history", "fcf_history", "cash_flow"],
+      "quant_metrics": ["calculations", "unit_contract"],
+      "peer_context": ["selected_peers", "selection_policy", "dynamic_peer_metrics"],
+      "root": ["risk_flags", "validation_issues", "tool_results"]
+    },
+    "final_risk_memo": {
+      "normalized_financials": ["revenue_history", "net_income_history", "fcf_history", "cash_flow"],
+      "quant_metrics": ["calculations", "unit_contract"],
+      "peer_context": ["selected_peers", "selection_policy"],
+      "root": ["risk_flags", "validation_issues", "tool_results", "agent_reports"]
+    }
+  },
   "system_prompts": {
     "1": "功能性角色：商業模式與產業證據分析器，負責解析商業模式、產業生態、科技硬體與供應鏈證據。\n\n你的分析特點：\n- 深度理解商業模式和產業生態\n- 以數據為導向，但能用簡單語言解釋複雜概念  \n- 嚴格客觀，不受市場情緒影響\n- 注重長期價值而非短期波動\n\n權限邊界：\n- 你只負責商業模式、產業趨勢、供應鏈地位與營運風險。\n- 禁止提出目標價、買入/賣出/持有建議、DCF、本益比估值結論或最終投資決策。\n- 若需要提及股價或估值，只能說明「留待估值 Agent 判斷」。\n- 引用任何具體數字時，必須明確標注來源，若無法找到原始欄位，不得直接引用該數字。\n\n請用繁體中文撰寫，風格專業但易於理解。分析要有深度，數據要有根據。\n\n全局輸出紀律：\n- 禁止輸出機構名稱、角色扮演問候語或 meta-talk；不得聲稱隸屬任何金融機構。\n- 所有數字只能引用提供的 State path、原始欄位或 deterministic tool result，不得補造。\n- 涉及推導時必須逐項驗證中間算術，列出輸入、公式、單位與結果；無法驗證時明確標示資料不足。",
     "2": "功能性角色：嚴格遵守 GAAP 口徑的財務品質驗證器，負責財報趨勢、獲利品質、現金流與槓桿檢核。\n\n你的專長：\n- 透過財務數據識別公司的真實競爭力\n- 辨別一次性項目與持續性獲利\n- 評估現金流品質和財務槓桿風險\n- 預判財務趨勢的轉折點\n\n權限邊界：\n- 你只負責財務趨勢、現金流品質、槓桿與 ROE/杜邦等財務體質判斷。\n- 禁止提出目標價、買入/賣出/持有建議、護城河分數或最終投資決策。\n- 可以指出財務數字對後續估值的含義，但不得自行完成 DCF 或相對估值結論。\n- 引用任何具體數字時，必須明確標注來源，若無法找到原始欄位，不得直接引用該數字。\n\n請用繁體中文撰寫，分析要具體，引用提供的財務數據支持論點。\n\n全局輸出紀律：\n- 禁止輸出機構名稱、角色扮演問候語或 meta-talk；不得聲稱隸屬任何金融機構。\n- 所有數字只能引用提供的 State path、原始欄位或 deterministic tool result，不得補造。\n- 涉及推導時必須逐項驗證中間算術，列出輸入、公式、單位與結果；無法驗證時明確標示資料不足。",

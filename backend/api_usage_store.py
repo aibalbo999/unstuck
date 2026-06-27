@@ -50,7 +50,7 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     conn.execute("CREATE INDEX IF NOT EXISTS idx_api_usage_operation_created ON api_usage_events(operation, created_at)")
 
 
-_resource = ThreadLocalSqliteResource(_db_path, init_schema=_init_schema, row_factory=sqlite3.Row)
+_resource = ThreadLocalSqliteResource(_db_path, init_schema=_init_schema, row_factory=sqlite3.Row, busy_timeout_ms=3000)
 
 
 def _connect() -> sqlite3.Connection:
@@ -65,7 +65,7 @@ def _connect_for_path(db_path: str | Path | None = None) -> sqlite3.Connection:
     conn = sqlite3.connect(path, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA busy_timeout=5000")
+    conn.execute("PRAGMA busy_timeout=3000")
     _init_schema(conn)
     return conn
 

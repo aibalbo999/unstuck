@@ -18,6 +18,7 @@ import reporting.html_renderer as html_renderer  # noqa: E402
 from agent_runtime import AnalysisResult  # noqa: E402
 from data_fetch import FetchResult  # noqa: E402
 from fixtures.data_payloads import fresh_audited_payload  # noqa: E402
+from report_persistence import report_bundle_keys_for_filename  # noqa: E402
 
 
 STATIC_DIR = ROOT / "backend" / "static"
@@ -226,8 +227,9 @@ def test_fake_provider_job_generates_report_snapshot_visible_in_history(tmp_path
     filename = asyncio.run(analysis_jobs.run_stock_analysis_job_async(job_id, "FAKE", "v1"))
 
     assert filename.startswith("FAKE_v1_report_")
-    assert (tmp_path / filename).exists()
-    assert (tmp_path / filename.replace(".html", ".data.json")).exists()
+    keys = report_bundle_keys_for_filename(filename)
+    assert (tmp_path / keys.html_key).exists()
+    assert (tmp_path / keys.data_key).exists()
 
     client = TestClient(api.app)
     reports = client.get("/api/reports", params={"q": "Fake Semiconductor", "data_trust": "fresh", "limit": 20})

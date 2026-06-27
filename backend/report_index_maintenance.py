@@ -38,6 +38,20 @@ def cleanup_report_index_orphans(*, cache_db_path: Optional[str] = None, write: 
     return {**report_index_orphan_summary(str(path)), "deleted_rows": deleted, "dry_run": False}
 
 
+def cleanup_empty_report_directories(output_dir: str) -> list[str]:
+    root = Path(output_dir)
+    if not root.exists() or not root.is_dir():
+        return []
+    removed: list[str] = []
+    for path in sorted((item for item in root.rglob("*") if item.is_dir()), key=lambda item: len(item.parts), reverse=True):
+        try:
+            path.rmdir()
+        except OSError:
+            continue
+        removed.append(str(path))
+    return removed
+
+
 def _output_dir_counts(path: Path) -> list[dict]:
     try:
         with sqlite3.connect(path) as conn:

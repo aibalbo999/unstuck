@@ -12,36 +12,21 @@ from fastapi.responses import HTMLResponse, Response
 from config import REPORT_RETENTION_DAYS
 from data_trust import data_snapshot_filename_for_report
 from report_index import is_safe_report_filename, normalize_recommendation_label, parse_recommendation_summary as parse_report_recommendation_summary
+from report_index_maintenance import cleanup_empty_report_directories
+from report_history_storage import (
+    existing_storage_key,
+    load_storage_item,
+    repository_has_metadata,
+    should_sync_metadata,
+    storage_for_existing_output_dir,
+)
 from report_repository import DEFAULT_REPORT_REPOSITORY, ReportListQuery, ReportRepository
 from report_view_repair import repair_report_html_for_view
-from storage.report_storage import LocalFileStorage, ReportStorage
+from storage.report_storage import ReportStorage
 
 
 def parse_recommendation_summary(filename: str, output_dir: str) -> dict:
     return parse_report_recommendation_summary(filename, output_dir=output_dir)
-
-
-def _storage_for_existing_output_dir(output_dir: str, storage: ReportStorage | None) -> ReportStorage | None:
-    if storage is not None:
-        return storage
-    if not os.path.exists(output_dir):
-        return None
-    return LocalFileStorage(output_dir)
-
-
-def _should_sync_metadata(output_dir: str, storage: ReportStorage | None) -> bool:
-    if storage is None:
-        return os.path.exists(output_dir)
-    return isinstance(storage, LocalFileStorage)
-
-
-def _repository_has_metadata(
-    repository: ReportRepository,
-    filename: str,
-    output_dir: str,
-) -> bool:
-    exists = getattr(repository, "exists", None)
-    return bool(callable(exists) and exists(filename, output_dir))
 
 
 def cleanup_expired_reports(
@@ -161,7 +146,7 @@ def list_reports(
                 data_trust=data_trust_filter,
                 include_versions=include_versions_filter,
                 output_dir=output_dir,
-                sync_metadata=_should_sync_metadata(output_dir, storage),
+                sync_metadata=should_sync_metadata(output_dir, storage),
             )
         )
 
@@ -195,13 +180,15 @@ def delete_report_files(
     if not is_safe_report_filename(filename, ".html"):
         return {"success": False, "error": "Invalid filename"}
 
-    md_filename = filename[:-5] + ".md"
-    data_filename = data_snapshot_filename_for_report(filename)
-    keys = [filename, md_filename, data_filename]
-    content_storage = _storage_for_existing_output_dir(output_dir, storage)
+    content_storage = storage_for_existing_output_dir(output_dir, storage)
 
-    existing_keys = [key for key in keys if content_storage is not None and content_storage.exists(key)]
-    metadata_exists = _repository_has_metadata(repository, filename, output_dir)
+    existing_keys = []
+    if content_storage is not None:
+        for kind in ("html", "md", "data"):
+            key = existing_storage_key(content_storage, filename, kind=kind)
+            if key is not None:
+                existing_keys.append(key)
+    metadata_exists = repository_has_metadata(repository, filename, output_dir)
     if not existing_keys and not metadata_exists:
         return {"success": False, "error": "File not found"}
 
@@ -221,6 +208,8 @@ def delete_report_files(
 
     if errors:
         return {"success": False, "error": "; ".join(errors), "deleted": deleted}
+    if deleted:
+        cleanup_empty_report_directories(output_dir)
 
     with report_cache_lock or nullcontext():
         for ticker, cached_filename in list(report_cache.items()):
@@ -232,10 +221,10 @@ def delete_report_files(
 def get_report_file(filename: str, output_dir: str, storage: ReportStorage | None = None):
     if not is_safe_report_filename(filename, ".html"):
         return HTMLResponse("<h1>Invalid filename</h1>", status_code=400)
-    content_storage = _storage_for_existing_output_dir(output_dir, storage)
+    content_storage = storage_for_existing_output_dir(output_dir, storage)
     if content_storage is None:
         return HTMLResponse("<h1>找不到報告</h1>", status_code=404)
-    item = content_storage.get_report(filename)
+    item = load_storage_item(content_storage, filename, kind="html")
     if item is None:
         return HTMLResponse("<h1>找不到報告</h1>", status_code=404)
     html = repair_report_html_for_view(item.content.decode("utf-8"))
@@ -245,7 +234,7 @@ def get_report_file(filename: str, output_dir: str, storage: ReportStorage | Non
 def download_report_file(filename: str, output_dir: str, kind: str, storage: ReportStorage | None = None):
     if not is_safe_report_filename(filename, ".html"):
         return HTMLResponse("<h1>Invalid filename</h1>", status_code=400)
-    content_storage = _storage_for_existing_output_dir(output_dir, storage)
+    content_storage = storage_for_existing_output_dir(output_dir, storage)
     if content_storage is None:
         if kind == "md":
             return HTMLResponse("<h1>找不到報告 Markdown 版本</h1>", status_code=404)
@@ -255,7 +244,7 @@ def download_report_file(filename: str, output_dir: str, kind: str, storage: Rep
             return HTMLResponse("<h1>找不到報告</h1>", status_code=404)
         raise ValueError(f"Unknown report download kind: {kind}")
     if kind == "html":
-        item = content_storage.get_report(filename)
+        item = load_storage_item(content_storage, filename, kind="html")
         if item is None:
             return HTMLResponse("<h1>找不到報告</h1>", status_code=404)
         html = repair_report_html_for_view(item.content.decode("utf-8"))
@@ -266,7 +255,7 @@ def download_report_file(filename: str, output_dir: str, kind: str, storage: Rep
         )
     if kind == "md":
         md_filename = filename[:-5] + ".md"
-        item = content_storage.get_report(md_filename)
+        item = load_storage_item(content_storage, filename, kind="md")
         if item is not None:
             return Response(
                 content=item.content,
@@ -276,7 +265,7 @@ def download_report_file(filename: str, output_dir: str, kind: str, storage: Rep
         return HTMLResponse("<h1>找不到報告 Markdown 版本</h1>", status_code=404)
     if kind == "data":
         data_filename = data_snapshot_filename_for_report(filename)
-        item = content_storage.get_report(data_filename)
+        item = load_storage_item(content_storage, filename, kind="data")
         if item is not None:
             return Response(
                 content=item.content,

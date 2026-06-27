@@ -11,6 +11,7 @@ import pipeline_modes  # noqa: E402
 from agent_runtime import AnalysisResult  # noqa: E402
 from data_fetch import FetchResult  # noqa: E402
 from data_trust import DATA_SNAPSHOT_SCHEMA_VERSION, unknown_data_trust  # noqa: E402
+from report_persistence import report_bundle_keys_for_filename  # noqa: E402
 from reporting import ReportBundle  # noqa: E402
 
 
@@ -100,9 +101,9 @@ def test_dual_pipeline_job_runs_v1_then_v2_then_v3(monkeypatch, tmp_path):
 
     assert pipeline_calls == ["v1", "v2", "v3"]
     assert filename.startswith("2449_TW_v3_report_")
-    assert (tmp_path / filename).exists()
-    assert len(list(tmp_path.glob("2449_TW_*_report_*.html"))) == 3
-    assert len(list(tmp_path.glob("2449_TW_*_report_*.data.json"))) == 3
+    assert (tmp_path / report_bundle_keys_for_filename(filename).html_key).exists()
+    assert len(list(tmp_path.rglob("2449_TW_*_report_*.html"))) == 3
+    assert len(list(tmp_path.rglob("2449_TW_*_report_*.data.json"))) == 3
 
     report_done_events = [event for event in events if event["type"] == "report_done"]
     assert [event["pipeline_id"] for event in report_done_events] == ["v1", "v2", "v3"]

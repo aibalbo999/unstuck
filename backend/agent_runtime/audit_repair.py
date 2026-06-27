@@ -19,6 +19,9 @@ from .repair_circuit_breaker import clear_repair_429_circuit
 from .single_agent import run_single_agent, run_single_agent_async
 
 
+MAX_REPAIR_ITERATIONS = FINAL_AUDIT_REPAIR_PASSES
+
+
 def _structured_output_missing(context: AnalysisContext, agent_num: int) -> bool:
     return _repair_loop._structured_output_missing(context, agent_num)
 
@@ -153,7 +156,7 @@ def _summarize_audit_issues(audit: AuditResult, limit: int = 3) -> str:
 def finalize_final_audit(
     context: AnalysisContext,
     rotator: KeyRotator,
-    max_repair_passes: int = FINAL_AUDIT_REPAIR_PASSES,
+    max_repair_passes: int = MAX_REPAIR_ITERATIONS,
     progress_callback=None,
 ) -> AuditResult:
     """Run final audit, repair repairable failures, re-audit, then preserve report state."""
@@ -169,6 +172,7 @@ def finalize_final_audit(
             _record_repair_limit(context, last_audit, max_repair_passes)
             break
 
+        context["repair_iteration_count"] = repair_pass + 1
         _emit_repair_pass(context, progress_callback, repair_pass, max_repair_passes, is_async=False)
         attempt_final_audit_repair(context, last_audit, rotator, progress_callback=progress_callback)
         if not last_audit.get("repair_agent_issues"):
@@ -182,7 +186,7 @@ def finalize_final_audit(
 async def finalize_final_audit_async(
     context: AnalysisContext,
     rotator: KeyRotator,
-    max_repair_passes: int = FINAL_AUDIT_REPAIR_PASSES,
+    max_repair_passes: int = MAX_REPAIR_ITERATIONS,
     progress_callback=None,
 ) -> AuditResult:
     """Async final audit flow with repair and mandatory re-audit before rendering."""
@@ -198,6 +202,7 @@ async def finalize_final_audit_async(
             _record_repair_limit(context, last_audit, max_repair_passes)
             break
 
+        context["repair_iteration_count"] = repair_pass + 1
         await _emit_repair_pass_async(context, progress_callback, repair_pass, max_repair_passes)
         await attempt_final_audit_repair_async(context, last_audit, rotator, progress_callback=progress_callback)
         if not last_audit.get("repair_agent_issues"):
@@ -210,8 +215,14 @@ async def finalize_final_audit_async(
 
 def _record_repair_limit(context: AnalysisContext, audit: AuditResult, max_repair_passes: int) -> None:
     remaining = _summarize_audit_issues(audit)
+    context["repair_iteration_count"] = max(int(context.get("repair_iteration_count") or 0), int(max_repair_passes))
+    context["status"] = "blocked"
+    blocking_issues = list(context.get("blocking_issues") or [])
+    if "final_audit:repair_iteration_limit" not in blocking_issues:
+        blocking_issues.append("final_audit:repair_iteration_limit")
+    context["blocking_issues"] = blocking_issues
     context.setdefault("audit_repair_log", []).append(
-        f"最終稽核自動修復已達 {max_repair_passes} 輪上限；報告會保留並標示剩餘異常：{remaining}"
+        f"部分審計修復未完成：最終稽核自動修復已達 {max_repair_passes} 輪上限；報告會保留並標示剩餘異常：{remaining}"
     )
 
 

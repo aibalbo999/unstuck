@@ -21,6 +21,7 @@ import report_rerun_service  # noqa: E402
 from data_fetch import FetchResult  # noqa: E402
 from data_trust_snapshot import build_data_snapshot, verify_data_snapshot_integrity  # noqa: E402
 from reporting import ReportBundle  # noqa: E402
+from report_persistence import report_bundle_keys_for_filename  # noqa: E402
 from report_repository import ReportListQuery  # noqa: E402
 
 
@@ -922,7 +923,8 @@ def test_rerun_report_persists_valid_snapshot_hash_after_metadata_added(tmp_path
             source_filename="2449_v2_report_20260606_010000.html",
         )
     )
-    stored = json.loads((tmp_path / body["data_filename"]).read_text(encoding="utf-8"))
+    stored_keys = report_bundle_keys_for_filename(body["filename"])
+    stored = json.loads((tmp_path / stored_keys.data_key).read_text(encoding="utf-8"))
 
     assert stored["partial_rerun"]["source_report"] == "2449_v2_report_20260606_010000.html"
     assert stored["rerun_scope"] == "full_report"
@@ -1035,7 +1037,7 @@ def test_final_rerun_uses_snapshot_rerun_context_without_markdown(tmp_path, monk
 
     assert body["success"] is True
     assert body["scope"] == "final_recommendation"
-    assert (tmp_path / body["filename"]).exists()
+    assert (tmp_path / report_bundle_keys_for_filename(body["filename"]).html_key).exists()
 
 
 def test_final_rerun_rejects_refreshed_snapshot_that_needs_full_analysis(tmp_path):

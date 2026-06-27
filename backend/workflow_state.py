@@ -70,6 +70,7 @@ class AgentGraphState(TypedDict, total=False):
     blocking_issues: Annotated[list[str], append_unique]
     audit_repair_log: Annotated[list[str], append_unique]
     repair_attempt_counts: dict[str, int]
+    repair_iteration_count: int
     final_audit: dict[str, Any]
     tear_sheet_summary: str
     report_cover: dict[str, Any]

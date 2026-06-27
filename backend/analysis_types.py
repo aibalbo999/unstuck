@@ -53,6 +53,8 @@ class AnalysisContext(TypedDict, total=False):
     rag_index: Any
     blocking_issues: list[str]
     audit_repair_log: list[str]
+    repair_attempt_counts: dict[int, int]
+    repair_iteration_count: int
     final_audit: AuditResult
     tear_sheet_summary: str
     report_cover: dict[str, Any]

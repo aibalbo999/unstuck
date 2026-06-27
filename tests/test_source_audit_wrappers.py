@@ -2,12 +2,15 @@ import asyncio
 import sys
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 import source_audit  # noqa: E402
 import provider_resilience  # noqa: E402
+import cache_store  # noqa: E402
 from data_trust import (  # noqa: E402
     AUDIT_STATUS_ERROR,
     AUDIT_STATUS_SUCCESS,
@@ -116,11 +119,30 @@ def test_provider_resilience_retries_and_opens_circuit(monkeypatch):
     assert calls["count"] == 2
     assert failed["audit"]["status"] == AUDIT_STATUS_ERROR
     assert provider_resilience.provider_circuit_state("retry-provider")["open"] is True
-
     skipped = source_audit.audited_fetch("market_data", "retry-provider", lambda: {"ok": True}, default={})
     assert skipped["audit"]["status"] == AUDIT_STATUS_UNAVAILABLE
     assert skipped["audit"]["error_kind"] == "ProviderCircuitOpenError"
     provider_resilience.clear_provider_circuits()
+
+
+def test_provider_resilience_persists_open_circuit_to_sqlite_cache(monkeypatch, tmp_path):
+    monkeypatch.setattr(cache_store, "CACHE_DB_PATH", str(tmp_path / "cache.sqlite3"))
+    cache_store.reset_cache_store_for_tests()
+    monkeypatch.setattr(provider_resilience, "_SHARED_CIRCUIT_STORE", None)
+    monkeypatch.setenv("PROVIDER_CIRCUIT_BREAKER_THRESHOLD", "1")
+    monkeypatch.setenv("PROVIDER_CIRCUIT_BREAKER_COOLDOWN_SECONDS", "60")
+    provider_resilience.clear_provider_circuits("sqlite-provider")
+
+    with pytest.raises(ValueError):
+        provider_resilience.call_provider_with_resilience(
+            "sqlite-provider",
+            lambda: (_ for _ in ()).throw(ValueError("boom")),
+        )
+
+    provider_resilience._CIRCUITS.clear()
+
+    with pytest.raises(provider_resilience.ProviderCircuitOpenError):
+        provider_resilience.call_provider_with_resilience("sqlite-provider", lambda: "ok")
 
 
 def test_yfinance_timeout_and_403_open_circuit_after_three_failures(monkeypatch):

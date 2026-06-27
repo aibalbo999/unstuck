@@ -94,3 +94,14 @@ def test_active_jobs_panel_treats_waiting_retry_as_active():
     assert "if (job.status === 'waiting_retry') return '等待重試';" in source
     assert "['queued', 'running', 'waiting_retry'].includes(job.status)" in source
     assert "['running', 'waiting_retry'].includes(job.status) ? 'warning'" in source
+
+
+def test_job_store_uses_short_busy_timeout_for_worker_contention():
+    job_store.reset_job_store_for_tests()
+
+    with job_store._connect() as conn:
+        busy_timeout = conn.execute("PRAGMA busy_timeout").fetchone()[0]
+        journal_mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
+
+    assert journal_mode == "wal"
+    assert busy_timeout == 3000

@@ -11,6 +11,7 @@ if str(BACKEND) not in sys.path:
     sys.path.insert(0, str(BACKEND))
 
 from agent_state import AgentReport, ProviderValue, RiskFlag, Severity
+import state_memory
 from state_memory import initialize_agent_state, merge_agent_report, sync_context_from_state, state_view_for
 from workflow_graph import create_default_workflow_services, run_agent_node_adapter
 from workflow_state import agent_state_to_graph
@@ -429,3 +430,25 @@ def test_state_view_for_valuation_jsonable_normalizes_dict_keys():
     assert view["quant_metrics"]["calculations"]["['scenario', 1.5]"] == {"value": 100}
     assert view["quant_metrics"]["calculations"]["2.5"] == "decimal key"
     json.dumps(view, allow_nan=False)
+
+
+def test_state_view_policy_can_be_loaded_from_agent_prompt_config(monkeypatch):
+    state = initialize_agent_state(
+        {
+            "ticker": "2308.TW",
+            "company_name": "台達電",
+            "macro_indicators": {"source": "fixture", "indicators": {"vix": {"value": 18.0}}},
+        },
+        run_id="run-dynamic-policy",
+    )
+
+    monkeypatch.setattr(
+        state_memory,
+        "load_agent_prompt_config",
+        lambda: {"state_view_policy": {"custom_macro": {"root": ["macro_context"]}}},
+    )
+
+    view = state_view_for("custom_macro", state)
+
+    assert view["macro_context"]["source"] == "fixture"
+    assert "risk_flags" not in view

@@ -17,6 +17,8 @@ from tenacity import (
     wait_random,
 )
 
+from provider_circuit_cache import load_persisted_circuit, persist_circuit_state
+
 
 class ProviderCircuitOpenError(RuntimeError):
     """Raised when a provider is temporarily circuit-open."""
@@ -129,6 +131,7 @@ def get_circuit_breaker(provider: str) -> CircuitBreaker:
     breaker = _CIRCUITS[key]
     breaker.failure_threshold = _circuit_threshold()
     breaker.recovery_timeout = _circuit_cooldown_seconds()
+    load_persisted_circuit(key, breaker)
     return breaker
 
 
@@ -149,7 +152,9 @@ def _record_provider_success(provider: str) -> None:
     if store is not None:
         store.record_success(_provider_key(provider))
         return
-    get_circuit_breaker(provider).record_success()
+    breaker = get_circuit_breaker(provider)
+    breaker.record_success()
+    persist_circuit_state(_provider_key(provider), breaker)
 
 
 def _record_provider_failure(provider: str, exc: BaseException) -> None:
@@ -163,7 +168,9 @@ def _record_provider_failure(provider: str, exc: BaseException) -> None:
             _circuit_cooldown_seconds(),
         )
         return
-    get_circuit_breaker(provider).record_failure(error)
+    breaker = get_circuit_breaker(provider)
+    breaker.record_failure(error)
+    persist_circuit_state(_provider_key(provider), breaker)
 
 
 def _retry_wait_strategy():
@@ -210,7 +217,10 @@ def clear_provider_circuits(provider: str | None = None) -> None:
     if provider is None:
         _CIRCUITS.clear()
     else:
-        _CIRCUITS.pop(_provider_key(provider), None)
+        key = _provider_key(provider)
+        breaker = _CIRCUITS.pop(key, None) or CircuitBreaker(_circuit_threshold(), _circuit_cooldown_seconds())
+        breaker.record_success()
+        persist_circuit_state(key, breaker)
 
 
 def call_provider_with_resilience(provider: str, func: Callable, args: tuple = (), kwargs: dict | None = None) -> Any:

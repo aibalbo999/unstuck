@@ -168,9 +168,9 @@ def sync_report_metadata(output_dir: Optional[str] = None) -> None:
         return
 
     filenames = sorted(
-        filename
-        for filename in os.listdir(out_dir)
-        if filename.endswith(".html") and is_safe_report_filename(filename, ".html")
+        path.name
+        for path in Path(out_dir).rglob("*.html")
+        if path.is_file() and is_safe_report_filename(path.name, ".html")
     )
     filename_set = set(filenames)
 
@@ -182,10 +182,9 @@ def sync_report_metadata(output_dir: Optional[str] = None) -> None:
     existing_mtimes = {row["filename"]: float(row["file_mtime"]) for row in existing_rows}
 
     for filename in filenames:
-        path = os.path.join(out_dir, filename)
-        if not os.path.exists(path):
-            continue
         file_mtime = report_index_mtime(out_dir, filename)
+        if file_mtime <= 0:
+            continue
         if filename not in existing_mtimes or abs(existing_mtimes[filename] - file_mtime) > 0.001:
             upsert_report_metadata(filename, output_dir=out_dir)
 
