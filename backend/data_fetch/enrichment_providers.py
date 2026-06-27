@@ -84,7 +84,10 @@ class YahooProvider(DataProvider):
         context = context or {}
         stock = context.get("stock") or (context.get("market_snapshot") or {}).get("stock")
         if stock is None:
-            return unavailable_provider_result(self.source, self.name, "Yahoo news provider 需要 yfinance stock 物件。")
+            import yfinance as yf
+            data = context.get("data", {}) if isinstance(context.get("data"), dict) else {}
+            ticker = str(data.get("ticker") or request.ticker).strip().upper()
+            stock = yf.Ticker(ticker)
         result = audited_fetch(
             self.source,
             "Yahoo Finance news",
@@ -93,7 +96,7 @@ class YahooProvider(DataProvider):
             default=[],
             unavailable_message="Yahoo Finance 未回傳近期新聞。",
         )
-        return provider_result_from_audited(result, self.source, "Yahoo Finance news")
+        return provider_result_from_audited(result, self.source, self.name)
 
 
 class FmpNewsProvider(DataProvider):

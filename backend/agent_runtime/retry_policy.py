@@ -82,6 +82,16 @@ def _is_server_5xx_error(error_msg: str) -> bool:
     )
 
 
+def _is_invalid_argument_error(error_msg: str) -> bool:
+    """Return True for permanent 400 INVALID_ARGUMENT errors (e.g. bad response_schema).
+
+    These are NOT transient — retrying with the same config will always fail.
+    Detecting them early causes immediate fallback rather than burning all retries.
+    """
+    normalized = (error_msg or "").lower()
+    return "400" in normalized and "invalid_argument" in normalized
+
+
 def _is_transient_provider_error(error_msg: str) -> bool:
     normalized = (error_msg or "").lower()
     return any(
@@ -192,6 +202,12 @@ def _raise_agent_call_error(exc: Exception, api_key: Optional[str], model_id: st
     if is_missing_model_error(error_msg):
         raise AgentMissingModelError(error_msg) from exc
 
+    # 400 INVALID_ARGUMENT is a permanent schema/API contract error — retrying with
+    # the same config will always produce the same failure. Raise AgentMissingModelError
+    # so the model loop fast-fails to the next model without burning all retries.
+    if _is_invalid_argument_error(error_msg):
+        raise AgentMissingModelError(f"[schema_error] {error_msg}") from exc
+
     if _is_server_5xx_error(error_msg):
         raise AgentServerError(error_msg) from exc
 
@@ -217,6 +233,8 @@ def _agent_error_category(exc: Exception) -> str:
         return "quota"
     if is_missing_model_error(error_msg):
         return "missing_model"
+    if _is_invalid_argument_error(error_msg):
+        return "schema_error"
     if _is_server_5xx_error(error_msg):
         return "server_5xx"
     if _is_transient_provider_error(error_msg):

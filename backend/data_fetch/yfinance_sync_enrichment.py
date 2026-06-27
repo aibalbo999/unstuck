@@ -82,6 +82,8 @@ def fetch_sync_enrichment_bundle(
         ),
     }
     if not skip_optional_http:
+        from config import FMP_API_KEY, GOOGLE_CSE_ID, GOOGLE_SEARCH_API_KEY
+
         enrichment_fetches.update({
             "earnings_call": (
                 fetch_latest_earnings_call,
@@ -91,23 +93,27 @@ def fetch_sync_enrichment_bundle(
                 "earnings_call",
                 "FMP earnings call transcript",
             ),
-            "recent_catalysts_google": (
+        })
+
+        if GOOGLE_SEARCH_API_KEY and GOOGLE_CSE_ID:
+            enrichment_fetches["recent_catalysts_google"] = (
                 fetch_google_search_catalysts,
                 (ticker, company_name, company_identity),
                 [],
                 "Google Search 催化劑資料獲取失敗",
                 "recent_catalysts",
                 "Google Search",
-            ),
-            "recent_catalysts_fmp": (
+            )
+
+        if FMP_API_KEY:
+            enrichment_fetches["recent_catalysts_fmp"] = (
                 fetch_fmp_news_catalysts,
                 (ticker,),
                 [],
                 "FMP 新聞資料獲取失敗",
                 "recent_catalysts",
                 "FMP news",
-            ),
-        })
+            )
 
     enrichment_result = _run_named_fetches(
         enrichment_fetches,

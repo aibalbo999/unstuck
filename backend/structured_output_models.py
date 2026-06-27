@@ -198,6 +198,9 @@ class BearAdvocateStructuredOutput(StructuredModel):
 class SwingTradeSetup(StructuredModel):
     """Strict 1-2 week trade plan emitted by the v4 decision agent."""
 
+    # NOTE: Do NOT use extra="forbid" here. Pydantic emits additionalProperties:false
+    # in the JSON schema, which Google GenAI's response_schema API rejects with
+    # 400 INVALID_ARGUMENT: Unknown name "additional_properties".
     model_config = ConfigDict(populate_by_name=True)
 
     trade_direction: Literal["Long", "Short", "Neutral"]

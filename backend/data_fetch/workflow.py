@@ -143,18 +143,20 @@ async def _run_optional_provider_plan(request: FetchRequest, registry: ProviderR
     async_audit_entries = _audit_entries_from_provider_results(provider_results)
 
     if refresh_catalysts and resolved_ticker != ticker and not fmp_news_records:
-        retry_result = await audited_fetch_async(
-            "recent_catalysts",
-            "FMP news retry",
-            fetch_fmp_news_catalysts_async,
-            (resolved_ticker,),
-            default=[],
-            cache_hit=cache_hit,
-            unavailable_message="FMP news retry 未回傳近期新聞。",
-        )
-        fmp_news_records = retry_result.get("value") if isinstance(retry_result.get("value"), list) else []
-        if retry_result.get("audit"):
-            async_audit_entries.append(retry_result["audit"])
+        from config import FMP_API_KEY
+        if FMP_API_KEY:
+            retry_result = await audited_fetch_async(
+                "recent_catalysts",
+                "FMP news retry",
+                fetch_fmp_news_catalysts_async,
+                (resolved_ticker,),
+                default=[],
+                cache_hit=cache_hit,
+                unavailable_message="FMP news retry 未回傳近期新聞。",
+            )
+            fmp_news_records = retry_result.get("value") if isinstance(retry_result.get("value"), list) else []
+            if retry_result.get("audit"):
+                async_audit_entries.append(retry_result["audit"])
 
     http_bundle = {
         "free_news": provider_value(provider_results, "recent_catalysts", "Free news waterfall"),

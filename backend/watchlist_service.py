@@ -215,7 +215,9 @@ async def monitor_watchlist_triggers(
             job_id = create_job(ticker, selected_pipeline)
             task_queue.enqueue(f"analysis:{job_id}", run_stock_analysis_job, job_id, ticker, selected_pipeline)
             queued.append({"ticker": ticker, "pipeline": selected_pipeline, "job_id": job_id, "trigger": event.get("trigger_type")})
-            time.sleep(0.01)
+
+            # 避免瞬間塞滿 LiteLLM rate limit，每個觸發任務派發後休眠 45 秒
+            time.sleep(45)
     return {"success": not errors, "queued": queued, "skipped": skipped, "errors": errors}
 
 
@@ -241,5 +243,7 @@ def enqueue_watchlist_items(items: list[dict], *, create_job, find_active_job, t
         queued.append({"ticker": ticker, "pipeline": pipeline, "job_id": job_id, "slot": item.get("due_slot")})
         if item.get("due_slot"):
             mark_watchlist_run(ticker, pipeline, item["due_slot"], run_date=item.get("due_date"))
-        time.sleep(0.01)
+
+        # 避免瞬間塞滿 LiteLLM rate limit，每個任務派發後休眠 45 秒
+        time.sleep(45)
     return {"success": True, "queued": queued, "skipped": skipped}

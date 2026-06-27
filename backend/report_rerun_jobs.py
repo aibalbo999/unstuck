@@ -161,5 +161,18 @@ async def run_report_rerun_job_async(
 
 
 def run_report_rerun_job(job_id: str, filename: str, scope: str = "final_recommendation") -> str:
-    """Synchronous importable wrapper for local ThreadPool or RQ workers."""
+    """Importable wrapper for local async queue or RQ workers.
+
+    In local mode the caller is LocalAsyncQueue._worker which already runs
+    inside an asyncio event loop.  Calling asyncio.run() inside a running loop
+    raises RuntimeError and the job silently stays stuck in 'queued' forever.
+    Instead, return the bare coroutine so _worker can detect it via
+    inspect.isawaitable() and await it directly — the same pattern used by
+    run_stock_analysis_job().
+
+    In RQ / non-local mode there is no running loop, so asyncio.run() is safe.
+    """
+    from config import TASK_QUEUE_BACKEND
+    if TASK_QUEUE_BACKEND == "local":
+        return run_report_rerun_job_async(job_id, filename, scope)
     return asyncio.run(run_report_rerun_job_async(job_id, filename, scope))

@@ -9,6 +9,7 @@ from config import AGENT_MODELS
 from pipeline_modes import get_pipeline_definition
 from structured_output_normalizer import structured_output_to_report_text
 
+from .audit_trust import _mask_blocking_issue
 from .common import build_agent_model_labels
 from .utils import (
     clean_markdown,
@@ -110,6 +111,7 @@ def build_agent_sections(context: AnalysisContext, *, html: bool = True) -> list
 
     for display_num, agent_num in enumerate(agent_sequence, 1):
         raw_source = analyses.get(agent_num, "分析進行中...")
+        raw_source = _mask_blocking_issue(raw_source)
         structured_intro = build_structured_intro_block(agent_num, context)
         if _structured_block_belongs_at_tail(agent_num, pipeline_def, structured_agents):
             structured = (context.get("structured_outputs", {}) or {}).get(agent_num)

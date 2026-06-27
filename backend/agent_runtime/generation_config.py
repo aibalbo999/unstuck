@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Optional
+from copy import deepcopy
+from typing import Any, Optional
 
 from google.genai import types
 
@@ -14,6 +15,25 @@ from structured_outputs import STRUCTURED_AGENT_INSTRUCTIONS, get_structured_res
 from .prompt_config import SYSTEM_PROMPTS
 from .retry_policy import AgentTransientError
 from .routing import get_agent_function_tools
+
+
+def _strip_additional_properties(node: Any) -> Any:
+    """Recursively remove 'additionalProperties' from a JSON-schema dict.
+
+    Google GenAI's response_schema API rejects schemas that contain
+    additionalProperties (produced by Pydantic when extra="forbid" is set),
+    raising 400 INVALID_ARGUMENT: Unknown name "additional_properties".
+    Stripping the key makes the schema compatible without changing the
+    semantics for the model's output constraints.
+    """
+    if isinstance(node, dict):
+        node.pop("additionalProperties", None)
+        for value in node.values():
+            _strip_additional_properties(value)
+    elif isinstance(node, list):
+        for item in node:
+            _strip_additional_properties(item)
+    return node
 
 
 def _generate_config_supports(field_name: str) -> bool:
@@ -32,17 +52,19 @@ def build_generation_config(agent_num: int, system_instruction: Optional[str] = 
         config_kwargs["system_instruction"] = system_instruction
     if agent_num in STRUCTURED_AGENT_INSTRUCTIONS:
         config_kwargs["response_mime_type"] = "application/json"
-        response_schema = get_structured_response_schema(agent_num)
-        if response_schema and _generate_config_supports("response_schema"):
-            config_kwargs["response_schema"] = response_schema
+        response_schema_cls = get_structured_response_schema(agent_num)
+        if response_schema_cls and _generate_config_supports("response_schema"):
+            # Build a sanitized plain-dict schema: strip additionalProperties so
+            # Google GenAI does not reject it with 400 INVALID_ARGUMENT.
+            try:
+                schema_dict = deepcopy(response_schema_cls.model_json_schema(by_alias=True))
+                _strip_additional_properties(schema_dict)
+                config_kwargs["response_schema"] = schema_dict
+            except Exception:
+                # Fall back to passing the class directly if schema extraction fails.
+                config_kwargs["response_schema"] = response_schema_cls
     function_tools = get_agent_function_tools(agent_num)
     if function_tools:
-        # Google GenAI does not allow combining function calling with
-        # response_mime_type="application/json" — drop structured output
-        # mode when tools are present; the JSON extractor will parse the
-        # free-form response as a fallback.
-        config_kwargs.pop("response_mime_type", None)
-        config_kwargs.pop("response_schema", None)
         config_kwargs["tools"] = function_tools
         config_kwargs["automatic_function_calling"] = types.AutomaticFunctionCallingConfig(maximum_remote_calls=6)
 
