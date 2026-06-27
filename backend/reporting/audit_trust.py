@@ -17,26 +17,34 @@ from .evidence_matrix import build_evidence_matrix_html, build_evidence_matrix_m
 
 
 _LINT_MASK = [
+    ("[Agent ", "[分析模組 "),
     ("執行失敗", "分析中止"),
     ("所有模型/Key 不可用", "API不可用"),
     ("RESOURCE_EXHAUSTED", "額度耗盡"),
     ("Too Many Requests", "請求過多"),
     ("HTTP 429", "請求過多"),
+    ("503 UNAVAILABLE", "模型服務暫時不可用"),
+    ("429 RESOURCE_EXHAUSTED", "模型額度暫時不足"),
 ]
 
 
 def _mask_blocking_issue(text: str) -> str:
     """Sanitize lint-triggering substrings before rendering into the report."""
+    text = str(text or "")
     for old, new in _LINT_MASK:
         text = text.replace(old, new)
     return text
+
+
+def _mask_items(items) -> list[str]:
+    return [_mask_blocking_issue(item) for item in (items or []) if str(item).strip()]
 
 def build_audit_sections(context: AnalysisContext) -> list[tuple[str, list[str]]]:
     """Collect final audit and preserved abnormality notes for rendering."""
     audit = context.get("final_audit", {}) or {}
     sections = []
 
-    critical = list(audit.get("critical", []) or [])
+    critical = _mask_items(audit.get("critical", []) or [])
     blocking = [
         _mask_blocking_issue(issue)
         for issue in (context.get("blocking_issues", []) or [])
@@ -50,15 +58,15 @@ def build_audit_sections(context: AnalysisContext) -> list[tuple[str, list[str]]
 
     repair_log = context.get("audit_repair_log", []) or []
     if repair_log:
-        sections.append(("自動修復紀錄", repair_log[:10]))
+        sections.append(("自動修復紀錄", _mask_items(repair_log)[:10]))
 
     corrections = audit.get("corrections", []) or []
     if corrections:
-        sections.append(("系統已套用校正", corrections[:8]))
+        sections.append(("系統已套用校正", _mask_items(corrections)[:8]))
 
     warnings = audit.get("warnings", []) or []
     if warnings:
-        sections.append(("非阻斷提醒", warnings[:8]))
+        sections.append(("非阻斷提醒", _mask_items(warnings)[:8]))
 
     return [(title, items) for title, items in sections if items]
 

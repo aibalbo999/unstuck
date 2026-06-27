@@ -17,22 +17,29 @@ from .retry_policy import AgentTransientError
 from .routing import get_agent_function_tools
 
 
-def _strip_additional_properties(node: Any) -> Any:
-    """Recursively remove 'additionalProperties' from a JSON-schema dict.
+def _sanitize_genai_schema(node: Any) -> Any:
+    """Recursively remove or rewrite JSON-schema fields rejected by Google GenAI.
 
     Google GenAI's response_schema API rejects schemas that contain
     additionalProperties (produced by Pydantic when extra="forbid" is set),
     raising 400 INVALID_ARGUMENT: Unknown name "additional_properties".
-    Stripping the key makes the schema compatible without changing the
-    semantics for the model's output constraints.
+    It also rejects exclusiveMinimum / exclusiveMaximum numeric bounds.
     """
     if isinstance(node, dict):
         node.pop("additionalProperties", None)
+        if "exclusiveMinimum" in node and "minimum" not in node:
+            node["minimum"] = node.pop("exclusiveMinimum")
+        else:
+            node.pop("exclusiveMinimum", None)
+        if "exclusiveMaximum" in node and "maximum" not in node:
+            node["maximum"] = node.pop("exclusiveMaximum")
+        else:
+            node.pop("exclusiveMaximum", None)
         for value in node.values():
-            _strip_additional_properties(value)
+            _sanitize_genai_schema(value)
     elif isinstance(node, list):
         for item in node:
-            _strip_additional_properties(item)
+            _sanitize_genai_schema(item)
     return node
 
 
@@ -58,7 +65,7 @@ def build_generation_config(agent_num: int, system_instruction: Optional[str] = 
             # Google GenAI does not reject it with 400 INVALID_ARGUMENT.
             try:
                 schema_dict = deepcopy(response_schema_cls.model_json_schema(by_alias=True))
-                _strip_additional_properties(schema_dict)
+                _sanitize_genai_schema(schema_dict)
                 config_kwargs["response_schema"] = schema_dict
             except Exception:
                 # Fall back to passing the class directly if schema extraction fails.

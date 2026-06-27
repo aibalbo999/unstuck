@@ -818,6 +818,13 @@ class AuditRuleTests(unittest.TestCase):
         schema = structured_outputs.MoatStructuredOutput.model_json_schema(by_alias=True)
         self.assertNotIn("additionalProperties", json.dumps(schema, ensure_ascii=False))
 
+    def test_generation_config_schema_omits_genai_rejected_numeric_bounds(self):
+        config_obj = ar.build_generation_config(14, "system")
+        schema_text = json.dumps(getattr(config_obj, "response_schema", {}), ensure_ascii=False)
+
+        self.assertNotIn("exclusiveMinimum", schema_text)
+        self.assertNotIn("exclusiveMaximum", schema_text)
+
     def test_openai_structured_output_schema_is_strict_without_changing_genai_schema(self):
         genai_schema = PriceTargetStructuredOutput.model_json_schema(by_alias=True)
         openai_format = openai_json_schema_response_format("price_target", PriceTargetStructuredOutput)

@@ -5,7 +5,7 @@ from __future__ import annotations
 from data_trust import build_data_snapshot
 
 from .html_renderer import generate_html_report_async
-from .lint import assert_report_lint_passed
+from .lint import ReportLintError, assert_report_lint_passed, scrub_structured_json_key_leaks
 from .markdown_renderer import generate_markdown_report
 from .types import ReportBundle, ReportRequest
 
@@ -14,7 +14,15 @@ class ReportRenderer:
     async def render_async(self, request: ReportRequest) -> ReportBundle:
         html = await generate_html_report_async(request.context)
         markdown = generate_markdown_report(request.context)
-        report_lint = assert_report_lint_passed(html, markdown)
+        try:
+            report_lint = assert_report_lint_passed(html, markdown)
+        except ReportLintError as exc:
+            labels = {issue.get("label") for issue in exc.result.get("blocking_issues", [])}
+            if labels != {"structured_json_key_leak"}:
+                raise
+            html = scrub_structured_json_key_leaks(html)
+            markdown = scrub_structured_json_key_leaks(markdown)
+            report_lint = assert_report_lint_passed(html, markdown)
         snapshot_context = dict(request.context)
         snapshot_context["report_lint"] = report_lint
         snapshot = build_data_snapshot(

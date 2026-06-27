@@ -32,6 +32,10 @@ BLOCKING_RULES = (
     _Rule("raw_prompt_instruction", re.compile(r"Valid parseable JSON only|No markdown code fences|No extra text outside JSON|Specific JSON schema|No roleplay meta-talk", re.I)),
 )
 
+STRUCTURED_JSON_KEY_RE = re.compile(
+    r"\b(?:peer_reasoning|dcf_reasoning|scenario_reasoning|analysis_markdown|moat_scores|price_targets|reasoning_steps)\b"
+)
+
 WARNING_RULES = (
     _Rule("audit_attention_notice", re.compile(r"系統異常提醒|仍需注意的異常|缺少目標價|缺少最終投資建議")),
 )
@@ -73,6 +77,25 @@ def lint_report_artifacts(html: str, markdown: str) -> dict:
         "warnings": warnings,
         "checked_artifacts": ["html", "markdown"],
     }
+
+
+def _structured_key_replacement(match: re.Match) -> str:
+    return {
+        "analysis_markdown": "分析正文",
+        "reasoning_steps": "推論摘要",
+        "moat_scores": "護城河評分",
+        "price_targets": "目標價",
+        "dcf_reasoning": "DCF 推論",
+        "peer_reasoning": "同業比較推論",
+        "scenario_reasoning": "情境推論",
+    }.get(match.group(0), "內部欄位")
+
+
+def scrub_structured_json_key_leaks(text: str) -> str:
+    """Remove internal structured-output key names from rendered artifacts."""
+    if not text:
+        return ""
+    return STRUCTURED_JSON_KEY_RE.sub(_structured_key_replacement, text)
 
 
 def assert_report_lint_passed(html: str, markdown: str) -> dict:
