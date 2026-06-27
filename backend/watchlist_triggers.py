@@ -17,6 +17,7 @@ TRIGGER_LABELS = {
     "vix_above": "VIX 飆升",
     "revenue_record_high": "營收創高",
     "report_catalyst": "報告催化條件",
+    "daily_screener": "每日市場掃描",
 }
 
 
@@ -34,6 +35,7 @@ def evaluate_watchlist_triggers(item: dict, data: dict, *, evaluation_date: str 
             "vix_above": _vix_above,
             "revenue_record_high": _revenue_record_high,
             "report_catalyst": _report_catalyst,
+            "daily_screener": _daily_screener,
         }.get(trigger_type)
         if evaluator is None:
             continue
@@ -65,6 +67,8 @@ def _selected_pipeline(trigger_type: str, trigger: dict, source_pipeline: str) -
             return "v3"
         if direction == "bullish":
             return "v2"
+    if trigger_type == "daily_screener":
+        return "v4"
     return source_pipeline
 
 
@@ -143,6 +147,20 @@ def _report_catalyst(trigger: dict, data: dict) -> tuple[bool, str, dict]:
     matched = bool(haystack and condition in haystack)
     status = "已在新資料中出現" if matched else "尚未在新資料中出現"
     return matched, f"報告催化條件「{condition[:80]}」{status}", {"condition": condition}
+
+
+def _daily_screener(trigger: dict, data: dict) -> tuple[bool, str, dict]:
+    del data
+    reason = str(trigger.get("reason") or "Daily Market Screener 命中").strip()
+    metrics = trigger.get("metrics") if isinstance(trigger.get("metrics"), dict) else {}
+    payload = {
+        **metrics,
+        "category": str(trigger.get("category") or ""),
+        "categories": trigger.get("categories") if isinstance(trigger.get("categories"), list) else [],
+        "screen_date": str(trigger.get("screen_date") or ""),
+        "score": trigger.get("score"),
+    }
+    return True, reason[:240], payload
 
 
 def _flatten_text(value: Any) -> str:

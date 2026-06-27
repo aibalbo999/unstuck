@@ -74,6 +74,32 @@ def test_report_catalyst_trigger_records_manual_radar_condition():
     assert "管理層調升毛利率指引" in events[0]["message"]
 
 
+def test_daily_screener_trigger_always_routes_to_mode_d():
+    from watchlist_triggers import evaluate_watchlist_triggers
+
+    item = {
+        "ticker": "2449.TW",
+        "pipeline": "v4",
+        "triggers": [
+            {
+                "key": "daily_screener",
+                "type": "daily_screener",
+                "reason": "乖離率 28.4%，成交量放大 8.0x",
+                "category": "technical_heat",
+                "screen_date": "2026-06-26",
+            }
+        ],
+    }
+
+    events = evaluate_watchlist_triggers(item, {"ticker": "2449.TW"}, evaluation_date="2026-06-26")
+
+    assert events[0]["matched"] is True
+    assert events[0]["trigger_type"] == "daily_screener"
+    assert events[0]["pipeline_selected"] == "v4"
+    assert events[0]["label"] == "每日市場掃描"
+    assert events[0]["metrics"]["screen_date"] == "2026-06-26"
+
+
 def test_watchlist_trigger_store_is_idempotent(monkeypatch, tmp_path):
     import watchlist_service
     import watchlist_trigger_store

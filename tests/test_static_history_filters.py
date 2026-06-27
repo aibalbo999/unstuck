@@ -596,6 +596,30 @@ def test_operator_workbench_surfaces_actionable_daily_workflow():
     assert ".operator-action-button" in operator_css
 
 
+def test_market_screener_frontend_tab_is_wired():
+    index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    api_client_extensions_js = (STATIC_DIR / "api_client_extensions.js").read_text(encoding="utf-8")
+    app_js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
+    market_screener_js = (STATIC_DIR / "market_screener_panel.js").read_text(encoding="utf-8")
+    market_screener_css = (STATIC_DIR / "styles" / "market_screener.css").read_text(encoding="utf-8")
+    style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
+
+    assert 'id="home-tab-screener"' in index_html
+    assert 'id="home-panel-screener"' in index_html
+    assert 'id="market-screener-panel"' in index_html
+    assert "/static/market_screener_panel.js" in index_html
+    assert "/static/styles/market_screener.css" in style_css
+    assert "fetchMarketScreener" in api_client_extensions_js
+    assert "runMarketScreener" in api_client_extensions_js
+    assert "StockAgentMarketScreenerPanel" in app_js
+    assert "marketScreenerPanel.loadOnce" in app_js
+    assert "Auto-Screener" in market_screener_js
+    assert "market-screener-chip" in market_screener_js
+    assert "scan_success" in market_screener_js
+    assert "result.message" in market_screener_js
+    assert ".market-screener-grid" in market_screener_css
+
+
 def test_report_actions_do_not_prompt_refresh_for_provider_sla_only_partial_reports():
     history_panel_js = (STATIC_DIR / "history_panel.js").read_text(encoding="utf-8")
     operator_summary_js = (STATIC_DIR / "operator_summary_panel.js").read_text(encoding="utf-8")
@@ -857,8 +881,10 @@ def test_frontend_static_modules_are_sized():
         "styles/report_compare.css": 90,
         "styles/provider_sla.css": 220,
         "styles/watchlist.css": 80,
+        "styles/market_screener.css": 90,
         "api_client_extensions.js": 90,
         "ops_workspace.js": 160,
+        "market_screener_panel.js": 140,
         "api_quota_panel.js": 100,
         "performance_panel.js": 100,
         "watchlist_trigger_form.js": 90,
