@@ -181,6 +181,59 @@ def test_mode_d_report_preview_uses_trade_setup_snapshot(tmp_path, monkeypatch):
     assert preview["summary"] == "外資回補與突破月線"
 
 
+def test_mode_d_report_preview_falls_back_to_markdown_trade_plan(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
+    filename = "2449_v4_report_20260606_010000.html"
+    (tmp_path / filename).write_text(
+        '<div class="sidebar-name">京元電子 / King Yuan Electronics Co., Ltd.</div>',
+        encoding="utf-8",
+    )
+    (tmp_path / filename.replace(".html", ".md")).write_text(
+        """# 2449.TW 京元電子 - 極短線交易策略報告
+
+## 一頁式摘要
+短線動能轉強，但需嚴守停損。
+
+## 極短線交易計畫
+- **交易方向:** Long
+- **進場區間:** NT$300-305
+- **1-2週目標:** NT$330
+- **嚴格停損:** 跌破 NT$292
+- **核心催化劑:** 外資回補與突破月線
+- **短期波動風險:** Medium
+""",
+        encoding="utf-8",
+    )
+    snapshot = {
+        "ticker": "2449.TW",
+        "pipeline": "v4",
+        "data_trust": {"status": "fresh", "critical_failures": [], "stale_sources": []},
+        "rerun_context": {"parsed": {}},
+        "data": {
+            "ticker": "2449.TW",
+            "company_name": "京元電子",
+            "current_price": 309.5,
+            "data_trust": {"status": "fresh", "critical_failures": [], "stale_sources": []},
+            "source_audit": [],
+        },
+    }
+    (tmp_path / filename.replace(".html", ".data.json")).write_text(
+        json.dumps(snapshot, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    result = list_reports_for_test(tmp_path, pipeline="v4", include_versions=True)
+
+    preview = result["reports"][0]["preview"]
+    assert preview["primary"] == {"label": "交易方向", "value": "偏多 Long", "tone": "is-long"}
+    assert preview["targets"][0]["value"] == "NT$300-305"
+    assert preview["targets"][1]["value"] == "NT$330"
+    assert preview["targets"][2]["value"] == "跌破 NT$292"
+    assert preview["summary"] == "外資回補與突破月線"
+    assert preview["metrics"][1]["value"] == "Medium"
+
+
 def write_report_pair(output_dir: Path, filename: str, recommendation: str):
     (output_dir / filename).write_text(
         '<div class="sidebar-name">京元電子 / King Yuan Electronics Co., Ltd.</div>',

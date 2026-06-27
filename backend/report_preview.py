@@ -72,6 +72,39 @@ def _snapshot_trade_setup(snapshot: dict) -> dict:
     return {}
 
 
+def _markdown_trade_setup(markdown_text: str) -> dict:
+    match = re.search(
+        r"^##[^\n]*極短線交易計畫[^\n]*\n(?P<body>.*?)(?=^##\s+|\Z)",
+        markdown_text or "",
+        re.MULTILINE | re.DOTALL,
+    )
+    if not match:
+        return {}
+    body = match.group("body")
+    fields = {
+        "交易方向": "trade_direction",
+        "進場區間": "entry_zone",
+        "1-2週目標": "target_price",
+        "1-2週目標價": "target_price",
+        "嚴格停損": "stop_loss",
+        "停損點": "stop_loss",
+        "核心催化劑": "core_catalyst",
+        "短期波動風險": "risk_level",
+    }
+    setup: dict[str, str] = {}
+    for line in body.splitlines():
+        match = re.match(r"^\s*[-*]\s*\*\*(?P<label>[^:*：]+)\s*[:：]\*\*\s*(?P<value>.+?)\s*$", line)
+        if not match:
+            match = re.match(r"^\s*[-*]\s*\*\*(?P<label>[^*：:]+)\*\*\s*[:：]\s*(?P<value>.+?)\s*$", line)
+        if not match:
+            continue
+        label = re.sub(r"^[^\w\u4e00-\u9fff]+", "", match.group("label").strip())
+        key = fields.get(label)
+        if key:
+            setup[key] = clean_report_text(match.group("value"), limit=160)
+    return setup
+
+
 def _snapshot_current_price(snapshot: dict, fallback: str = "N/A") -> str:
     data = snapshot.get("data") if isinstance(snapshot.get("data"), dict) else {}
     for source in (data, snapshot):
@@ -150,7 +183,7 @@ def _bubble_sniper_preview(ticker: str, recommendation: dict, markdown_text: str
 
 
 def _swing_trade_preview(ticker: str, recommendation: dict, markdown_text: str, snapshot: dict) -> dict:
-    setup = _snapshot_trade_setup(snapshot)
+    setup = _snapshot_trade_setup(snapshot) or _markdown_trade_setup(markdown_text)
     direction_label, direction_tone = _trade_direction_label(setup.get("trade_direction"))
     return {
         "kind": "swing_trade",
