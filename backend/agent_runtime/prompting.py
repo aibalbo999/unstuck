@@ -10,6 +10,7 @@ from config import PRIMARY_PROMPT_CONTEXT_TOTAL_CHAR_BUDGET, PRIMARY_PROMPT_RAG_
 from prompt_builder import format_data_for_prompt, render_prompt_template
 from prompt_rules import (
     build_agent_rule_block,
+    build_final_audit_preflight_rule,
     build_identity_guard_rule_lines,
     build_output_cleanliness_rule,
 )
@@ -134,6 +135,7 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     audit_reflection_instruction = context.get("_audit_reflection_instruction", "")
     state_view_section = build_state_view_section(agent_num, context)
     temporal_memory_section = build_temporal_memory_section(agent_num, prompt_data)
+    final_audit_preflight_rule = build_final_audit_preflight_rule(agent_num, context.get("pipeline_id", ""))
 
     # v2 Agent 14：注入財務排雷品質警示
     forensic_warning = ""
@@ -170,6 +172,7 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
         retry_instruction,
         audit_reflection_instruction,
         audit_retry_instruction,
+        final_audit_preflight_rule,
         OUTPUT_CLEANLINESS_RULE,
     ]
     return "\n\n".join(part for part in prompt_parts if part)

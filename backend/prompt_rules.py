@@ -62,6 +62,37 @@ def build_structured_agent_instructions() -> dict[int, str]:
     return instructions
 
 
+def _coerce_rule_list(value) -> list[str]:
+    if isinstance(value, dict):
+        value = value.get("rules", [])
+    if not isinstance(value, list):
+        return []
+    return [str(rule) for rule in value if str(rule).strip()]
+
+
+def build_final_audit_preflight_rule(agent_num: int, pipeline_id: str = "") -> str:
+    """Build the pre-output checklist that mirrors final audit failure modes."""
+    config = load_runtime_prompt_rules().get("final_audit_preflight_rule", {})
+    if not isinstance(config, dict):
+        return ""
+
+    rules = _coerce_rule_list(config.get("rules", []))
+    per_agent = config.get("per_agent", {}) or {}
+    rules.extend(_coerce_rule_list(per_agent.get(str(agent_num), [])))
+
+    normalized_pipeline = str(pipeline_id or "").strip()
+    per_pipeline = config.get("per_pipeline", {}) or {}
+    if normalized_pipeline:
+        rules.extend(_coerce_rule_list(per_pipeline.get(normalized_pipeline, [])))
+
+    block_config = {
+        "title": config.get("title", "最終審核前自檢"),
+        "intro": config.get("intro", ""),
+        "rules": rules,
+    }
+    return _build_titled_rule_block(block_config, alert=True)
+
+
 def build_agent_rule_block(section: str, agent_num: int) -> str:
     configs = load_runtime_prompt_rules().get(section, {}) or {}
     config = configs.get(str(agent_num), {})
