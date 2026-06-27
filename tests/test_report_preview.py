@@ -182,6 +182,55 @@ def test_mode_d_report_preview_uses_trade_setup_snapshot(tmp_path, monkeypatch):
     assert preview["summary"] == "外資回補與突破月線"
 
 
+def test_mode_d_report_preview_reads_partitioned_trade_setup_snapshot(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
+    filename = "6282_TW_v4_report_20260627_195101.html"
+    report_dir = tmp_path / "2026-06" / "6282.TW"
+    report_dir.mkdir(parents=True)
+    (report_dir / filename).write_text(
+        '<div class="sidebar-name">康舒 / AcBel Polytech Inc.</div>',
+        encoding="utf-8",
+    )
+    (report_dir / filename.replace(".html", ".md")).write_text(
+        """# 6282.TW 康舒 - 極短線交易策略報告
+
+## 一頁式摘要
+短線中性觀望，等待支撐止跌。
+""",
+        encoding="utf-8",
+    )
+    snapshot = {
+        "ticker": "6282.TW",
+        "pipeline": "v4",
+        "rerun_context": {
+            "parsed": {
+                "trade_setup": {
+                    "trade_direction": "Neutral",
+                    "entry_zone": "47.35 - 50.0 TWD",
+                    "target_price": "59.9 TWD",
+                    "stop_loss": "有效跌破 47.35 TWD",
+                    "core_catalyst": "HVDC 放量驗證",
+                    "risk_level": "High",
+                }
+            }
+        },
+        "data": {"ticker": "6282.TW", "company_name": "康舒", "current_price": 54.1},
+    }
+    (report_dir / filename.replace(".html", ".data.json")).write_text(
+        json.dumps(snapshot, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    result = list_reports_for_test(tmp_path, q="6282", pipeline="v4", include_versions=True)
+
+    preview = result["reports"][0]["preview"]
+    assert preview["targets"][0]["value"] == "47.35 - 50.0 TWD"
+    assert preview["targets"][1]["value"] == "59.9 TWD"
+    assert preview["targets"][2]["value"] == "有效跌破 47.35 TWD"
+    assert preview["summary"] == "HVDC 放量驗證"
+
+
 def test_mode_d_report_preview_falls_back_to_markdown_trade_plan(tmp_path, monkeypatch):
     monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
     monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))

@@ -9,16 +9,36 @@ from data_trust import normalize_data_trust, unknown_data_trust
 from decision_tracking import build_decision_freshness, build_decision_tracking
 from pipeline_modes import get_pipeline_definition
 from report_index_parsing import parse_recommendation_summary
+from report_paths import report_storage_candidates_for_filename
 from report_preview import build_report_preview
 
 
+def _row_file_path(row, *, kind: str) -> str:
+    try:
+        filename = row["filename"]
+        output_dir = row["output_dir"]
+    except (KeyError, IndexError):
+        return ""
+    for key in report_storage_candidates_for_filename(filename, kind=kind):
+        candidate = os.path.join(output_dir, key)
+        if os.path.exists(candidate):
+            return candidate
+    return ""
+
+
 def _snapshot_path(row) -> str:
+    path = _row_file_path(row, kind="data")
+    if path:
+        return path
     try:
         filename = row["data_snapshot_filename"] if "data_snapshot_filename" in row.keys() else ""
         output_dir = row["output_dir"]
     except (KeyError, IndexError):
         return ""
-    return os.path.join(output_dir, filename) if filename else ""
+    if not filename:
+        return ""
+    candidate = os.path.join(output_dir, filename)
+    return candidate if os.path.exists(candidate) else ""
 
 
 def _decision_tracking(row, recommendation: dict) -> dict:
@@ -40,14 +60,7 @@ def _temporal_memory(row) -> dict:
 
 
 def _markdown_text(row) -> str:
-    try:
-        md_filename = row["md_filename"] if "md_filename" in row.keys() else ""
-        output_dir = row["output_dir"]
-    except (KeyError, IndexError):
-        return ""
-    if not md_filename:
-        return ""
-    path = os.path.join(output_dir, md_filename)
+    path = _row_file_path(row, kind="md")
     if not os.path.exists(path):
         return ""
     try:

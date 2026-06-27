@@ -16,13 +16,15 @@ def response_text(response) -> str:
     """Extract text from a Google GenAI response without leaking object internals."""
     candidates = getattr(response, "candidates", None) or []
     parts = []
+    saw_candidate_parts = False
     for candidate in candidates:
         content = getattr(candidate, "content", None)
         for part in getattr(content, "parts", []) or []:
+            saw_candidate_parts = True
             part_text = getattr(part, "text", None)
             if part_text:
                 parts.append(part_text)
-    if parts:
+    if saw_candidate_parts:
         return "\n".join(parts)
 
     try:
