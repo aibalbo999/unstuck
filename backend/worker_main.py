@@ -20,6 +20,12 @@ from report_index_maintenance import cleanup_report_index_orphans
 from runtime_dependencies import RuntimeSettings, WorkerRuntime, create_worker_runtime
 from runtime_events import emit_log
 from watchlist_scheduler import run_watchlist_scheduler
+from worker_shutdown import (
+    handle_rq_pubsub_thread_exception as _handle_rq_pubsub_thread_exception,
+    install_shutdown_quiet_pubsub as _install_shutdown_quiet_pubsub,
+    rq_worker_shutdown_requested as _rq_worker_shutdown_requested,
+    run_async_process as _run_async_process,
+)
 
 
 Role = Literal["queue", "schedulers", "maintenance", "all"]
@@ -49,12 +55,24 @@ def run_rq_worker(
         raise RuntimeError("RQ worker requires an RQ task queue with queue and redis attributes.")
 
     from rq import SimpleWorker
+    from redis.exceptions import ConnectionError as RedisConnectionError
 
-    SimpleWorker([rq_queue], connection=redis).work(
-        burst=burst,
-        max_jobs=max_jobs,
-        with_scheduler=True,
-    )
+    worker = SimpleWorker([rq_queue], connection=redis)
+    _install_shutdown_quiet_pubsub(worker)
+    try:
+        worker.work(
+            burst=burst,
+            max_jobs=max_jobs,
+            # The app owns recurring work through the dedicated "schedulers"
+            # role; an embedded RQ scheduler adds a subprocess that can race
+            # Redis teardown during Ctrl-C shutdown.
+            with_scheduler=False,
+        )
+    except RedisConnectionError as exc:
+        if _rq_worker_shutdown_requested(worker):
+            emit_log("queue worker stopped after Redis shutdown.")
+            return
+        raise
 
 
 def reconcile_abandoned_rq_jobs(runtime: WorkerRuntime) -> int:
@@ -185,9 +203,9 @@ def run_role(
             reconcile_abandoned_rq_jobs(runtime)
             run_rq_worker(runtime, burst=burst, max_jobs=max_jobs)
         elif role == "schedulers":
-            asyncio.run(run_scheduler_process(runtime))
+            _run_async_process(lambda: run_scheduler_process(runtime))
         elif role == "maintenance":
-            asyncio.run(run_maintenance_process(runtime))
+            _run_async_process(lambda: run_maintenance_process(runtime))
     finally:
         runtime.close()
 
