@@ -32,6 +32,10 @@ def validate_runtime_settings() -> list[str]:
         warnings.append("RQ_JOB_RETRY_INTERVALS 至少需涵蓋 RQ_JOB_MAX_RETRIES 次重試。")
     if any(interval <= 0 for interval in RQ_JOB_RETRY_INTERVALS):
         warnings.append("RQ_JOB_RETRY_INTERVALS 每個值都必須大於 0。")
+    if RQ_JOB_TIMEOUT_SECONDS_INVALID:
+        warnings.append("RQ_JOB_TIMEOUT_SECONDS 必須為整數。")
+    if RQ_JOB_TIMEOUT_SECONDS <= 0:
+        warnings.append("RQ_JOB_TIMEOUT_SECONDS 必須大於 0。")
     if LLM_AGENT_CALL_TIMEOUT_SECONDS < 0:
         warnings.append("LLM_AGENT_CALL_TIMEOUT_SECONDS 不可為負數。")
     if PRIMARY_LLM_AGENT_CALL_TIMEOUT_SECONDS <= 0:

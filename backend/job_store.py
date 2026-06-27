@@ -6,6 +6,7 @@ import json
 import threading
 import time
 import uuid
+from collections.abc import Iterable
 from sqlite3 import Row
 
 from config import ANALYSIS_JOB_STALE_SECONDS, TASK_DB_PATH
@@ -117,6 +118,59 @@ def find_active_job(ticker: str, pipeline_id: str = "v1") -> dict:
             (ticker, pipeline_id, *ACTIVE_JOB_STATUSES, cutoff),
         ).fetchone()
     return dict(row) if row else {}
+
+
+def list_active_jobs() -> list[dict]:
+    """Return all jobs that the UI/API still considers active."""
+    with _connect() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT *
+            FROM analysis_jobs
+            WHERE status IN ({_active_status_placeholders()})
+            ORDER BY updated_at DESC
+            """,
+            ACTIVE_JOB_STATUSES,
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def mark_jobs_abandoned(job_ids: Iterable[str], reason: str) -> int:
+    """Mark selected active jobs as abandoned by the queue runtime."""
+    normalized_ids = [str(job_id).strip() for job_id in job_ids if str(job_id).strip()]
+    if not normalized_ids:
+        return 0
+
+    now = time.time()
+    with _JOB_LOCK, _connect() as conn:
+        active_rows = conn.execute(
+            f"""
+            SELECT job_id
+            FROM analysis_jobs
+            WHERE status IN ({_active_status_placeholders()})
+              AND job_id IN ({', '.join('?' for _ in normalized_ids)})
+            """,
+            (*ACTIVE_JOB_STATUSES, *normalized_ids),
+        ).fetchall()
+        active_ids = [row["job_id"] for row in active_rows]
+        if active_ids:
+            conn.executemany(
+                """
+                UPDATE analysis_jobs
+                SET status = 'error',
+                    error = ?,
+                    cancel_requested = 1,
+                    cancelled_at = COALESCE(cancelled_at, ?),
+                    updated_at = ?
+                WHERE job_id = ?
+                """,
+                [(reason, now, now, job_id) for job_id in active_ids],
+            )
+
+    for job_id in active_ids:
+        append_event(job_id, {"type": "error", "phase": "queue_abandoned", "message": reason})
+
+    return len(active_ids)
 
 
 def mark_incomplete_jobs_abandoned(reason: str, worker_instance_id: str | None = None) -> int:

@@ -137,6 +137,7 @@ export GEMINI_API_KEYS="your_key_1,your_key_2"
 - `TASK_QUEUE_NAME`：RQ queue 名稱，預設 `stock-analysis`
 - `RQ_JOB_MAX_RETRIES`：RQ job 最大重試次數，預設 `4`
 - `RQ_JOB_RETRY_INTERVALS`：RQ 延遲重試秒數清單，預設 `60,300,900,1800`
+- `RQ_JOB_TIMEOUT_SECONDS`：單一 RQ job 最長執行秒數，預設 `14400`（4 小時），避免完整報告/LLM 重跑被 RQ 預設短 timeout 提早中止
 - `LANGGRAPH_CHECKPOINT_PATH`：LangGraph SQLite checkpoint DB，預設 `backend/cache/langgraph_checkpoints.sqlite3`
 - `TASK_DB_PATH`：任務與 SSE event SQLite 檔位置，預設 `backend/cache/analysis_jobs.sqlite3`
 - `API_USAGE_DB_PATH`：API 用量 ledger SQLite 檔位置，預設跟隨 `TASK_DB_PATH`
@@ -399,6 +400,7 @@ uvicorn api:app --app-dir backend
 TASK_QUEUE_BACKEND=rq
 REDIS_URL=redis://localhost:6379/0
 TASK_QUEUE_NAME=stock-analysis
+RQ_JOB_TIMEOUT_SECONDS=14400
 ```
 
 可拆成正式 process roles：

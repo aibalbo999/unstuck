@@ -30,6 +30,7 @@ def test_queue_role_only_runs_rq_worker_and_closes_runtime(monkeypatch):
     calls = []
     runtime = FakeWorkerRuntime(calls)
 
+    monkeypatch.setattr(worker_main, "reconcile_abandoned_rq_jobs", lambda value: calls.append(("reconcile", value)) or 0)
     monkeypatch.setattr(
         worker_main,
         "run_rq_worker",
@@ -38,7 +39,39 @@ def test_queue_role_only_runs_rq_worker_and_closes_runtime(monkeypatch):
 
     worker_main.run_role("queue", runtime_factory=lambda _settings: runtime, burst=True, max_jobs=1)
 
-    assert calls == [("queue", runtime, True, 1), "close"]
+    assert calls == [("reconcile", runtime), ("queue", runtime, True, 1), "close"]
+
+
+def test_reconcile_abandoned_rq_jobs_marks_only_sqlite_jobs_missing_from_rq(monkeypatch):
+    calls = []
+    runtime = FakeWorkerRuntime(calls)
+    runtime.task_queue.queue = object()
+    active_jobs = [
+        {"job_id": "analysis-present", "pipeline_id": "v1"},
+        {"job_id": "rerun-present", "pipeline_id": "rerun:full_report"},
+        {"job_id": "missing", "pipeline_id": "v4"},
+    ]
+
+    monkeypatch.setattr(worker_main, "list_active_jobs", lambda: active_jobs)
+    monkeypatch.setattr(
+        worker_main,
+        "_rq_active_job_ids",
+        lambda _queue: {"analysis:analysis-present", "report-rerun:rerun-present"},
+    )
+
+    def fake_mark_jobs_abandoned(job_ids, reason):
+        calls.append((list(job_ids), reason))
+        return len(job_ids)
+
+    monkeypatch.setattr(worker_main, "mark_jobs_abandoned", fake_mark_jobs_abandoned)
+    monkeypatch.setattr(worker_main, "emit_log", calls.append)
+
+    abandoned = worker_main.reconcile_abandoned_rq_jobs(runtime)
+
+    assert abandoned == 1
+    assert calls[0][0] == ["missing"]
+    assert "Redis/RQ" in calls[0][1]
+    assert any("abandoned" in str(call) and "1" in str(call) for call in calls)
 
 
 def test_scheduler_role_runs_scheduler_process_and_closes_runtime(monkeypatch):
@@ -335,6 +368,34 @@ def test_run_rq_worker_rejects_non_rq_queue():
 
     with pytest.raises(RuntimeError, match="RQ"):
         worker_main.run_rq_worker(runtime)
+
+
+def test_run_rq_worker_uses_simple_worker_to_avoid_macos_fork_abort(monkeypatch):
+    import rq
+
+    calls = []
+    runtime = FakeWorkerRuntime(calls)
+
+    class ForkingWorker:
+        def __init__(self, *_args, **_kwargs):
+            raise AssertionError("forking Worker should not be used by the local launcher")
+
+    class FakeSimpleWorker:
+        def __init__(self, queues, *, connection):
+            calls.append(("simple-worker", queues, connection))
+
+        def work(self, *, burst=False, max_jobs=None, with_scheduler=False):
+            calls.append(("work", burst, max_jobs, with_scheduler))
+
+    monkeypatch.setattr(rq, "Worker", ForkingWorker)
+    monkeypatch.setattr(rq, "SimpleWorker", FakeSimpleWorker)
+
+    worker_main.run_rq_worker(runtime, burst=True, max_jobs=2)
+
+    assert calls == [
+        ("simple-worker", ["queue"], "redis"),
+        ("work", True, 2, True),
+    ]
 
 
 def test_maintenance_process_logs_cleanup_errors_and_keeps_running(monkeypatch):

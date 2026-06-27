@@ -60,6 +60,23 @@ def test_waiting_retry_job_is_abandoned_by_worker_cleanup():
     assert job_store.get_job(job_id)["status"] == "error"
 
 
+def test_mark_jobs_abandoned_only_updates_active_jobs():
+    active_job_id = job_store.create_job("2330.TW", "v1")
+    completed_job_id = job_store.create_job("2454.TW", "v1")
+    job_store.update_job(completed_job_id, "done", filename="2454.html")
+
+    abandoned = job_store.mark_jobs_abandoned([active_job_id, completed_job_id], "missing rq job")
+
+    assert abandoned == 1
+    active_job = job_store.get_job(active_job_id)
+    completed_job = job_store.get_job(completed_job_id)
+    assert active_job["status"] == "error"
+    assert active_job["error"] == "missing rq job"
+    assert completed_job["status"] == "done"
+    events = [event["payload"] for event in job_store.get_events_since(active_job_id)]
+    assert any(event.get("phase") == "queue_abandoned" and event.get("message") == "missing rq job" for event in events)
+
+
 def test_waiting_retry_visible_in_active_job_observability():
     job_id = job_store.create_job("2330.TW", "v1")
     job_store.update_job(job_id, "waiting_retry", error="429")

@@ -12,6 +12,7 @@ from config import (
     REDIS_URL,
     RQ_JOB_MAX_RETRIES,
     RQ_JOB_RETRY_INTERVALS,
+    RQ_JOB_TIMEOUT_SECONDS,
     TASK_QUEUE_BACKEND,
     TASK_QUEUE_NAME,
 )
@@ -112,6 +113,7 @@ class RQTaskQueue:
             args=args,
             kwargs=kwargs,
             job_id=task_id,
+            timeout=RQ_JOB_TIMEOUT_SECONDS,
             retry=Retry(max=RQ_JOB_MAX_RETRIES, interval=list(RQ_JOB_RETRY_INTERVALS)),
             result_ttl=7 * 24 * 60 * 60,
             failure_ttl=7 * 24 * 60 * 60,

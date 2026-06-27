@@ -72,6 +72,7 @@ def test_rq_enqueue_passes_retry_settings_to_queue(monkeypatch):
 
     monkeypatch.setattr(task_queue, "RQ_JOB_MAX_RETRIES", 3)
     monkeypatch.setattr(task_queue, "RQ_JOB_RETRY_INTERVALS", (5, 10, 30))
+    monkeypatch.setattr(task_queue, "RQ_JOB_TIMEOUT_SECONDS", 7200)
     monkeypatch.setitem(sys.modules, "rq", types.SimpleNamespace(Retry=FakeRetry))
 
     queue = task_queue.RQTaskQueue(redis_client=object(), queue=FakeQueue())
@@ -81,6 +82,7 @@ def test_rq_enqueue_passes_retry_settings_to_queue(monkeypatch):
     assert captured["args"] == ("payload",)
     assert captured["kwargs"] == {"flag": True}
     assert captured["job_id"] == "task-1"
+    assert captured["timeout"] == 7200
     assert captured["retry"].max == 3
     assert captured["retry"].interval == [5, 10, 30]
 
@@ -135,12 +137,14 @@ def test_validate_runtime_settings_warns_for_invalid_queue_config(monkeypatch):
     monkeypatch.setattr(app_config, "TASK_QUEUE_BACKEND", "celery")
     monkeypatch.setattr(app_config, "RQ_JOB_MAX_RETRIES", 3)
     monkeypatch.setattr(app_config, "RQ_JOB_RETRY_INTERVALS", (60, 0))
+    monkeypatch.setattr(app_config, "RQ_JOB_TIMEOUT_SECONDS", 0)
 
     warnings = app_config.validate_runtime_settings()
 
     assert any("TASK_QUEUE_BACKEND" in warning and "celery" in warning for warning in warnings)
     assert any("RQ_JOB_RETRY_INTERVALS" in warning and "至少" in warning for warning in warnings)
     assert any("RQ_JOB_RETRY_INTERVALS" in warning and "大於 0" in warning for warning in warnings)
+    assert any("RQ_JOB_TIMEOUT_SECONDS" in warning and "大於 0" in warning for warning in warnings)
 
     monkeypatch.setattr(app_config, "TASK_QUEUE_BACKEND", "rq")
     monkeypatch.setattr(app_config, "RQ_JOB_MAX_RETRIES", 0)

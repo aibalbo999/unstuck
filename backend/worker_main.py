@@ -15,7 +15,7 @@ import report_history_service
 from cache_store import cleanup_expired_cache_entries
 from config import REPORT_CLEANUP_INTERVAL_SECONDS, REPORT_RETENTION_DAYS
 from decision_tracking_scheduler import run_decision_tracking_scheduler
-from job_store import create_job, find_active_job
+from job_store import create_job, find_active_job, list_active_jobs, mark_jobs_abandoned
 from report_index_maintenance import cleanup_report_index_orphans
 from runtime_dependencies import RuntimeSettings, WorkerRuntime, create_worker_runtime
 from runtime_events import emit_log
@@ -27,6 +27,7 @@ CHILD_ROLES: tuple[Role, ...] = ("queue", "schedulers", "maintenance")
 ROLES: tuple[Role, ...] = (*CHILD_ROLES, "all")
 SUPERVISOR_POLL_SECONDS = 1.0
 SHUTDOWN_JOIN_TIMEOUT_SECONDS = 10.0
+RQ_ABANDONED_JOB_REASON = "Redis/RQ 已無執行中或等待中的對應任務，判定前一次 Worker 已中斷；請重新送出分析或重跑。"
 
 
 def _load_stock_analysis_job_runner():
@@ -47,13 +48,61 @@ def run_rq_worker(
     if rq_queue is None or redis is None:
         raise RuntimeError("RQ worker requires an RQ task queue with queue and redis attributes.")
 
-    from rq import Worker
+    from rq import SimpleWorker
 
-    Worker([rq_queue], connection=redis).work(
+    SimpleWorker([rq_queue], connection=redis).work(
         burst=burst,
         max_jobs=max_jobs,
         with_scheduler=True,
     )
+
+
+def reconcile_abandoned_rq_jobs(runtime: WorkerRuntime) -> int:
+    """Mark SQLite-active jobs abandoned when Redis/RQ no longer tracks them."""
+    task_queue = runtime.task_queue
+    rq_queue = getattr(task_queue, "queue", None)
+    if rq_queue is None:
+        return 0
+
+    try:
+        rq_job_ids = _rq_active_job_ids(rq_queue)
+    except Exception as exc:
+        emit_log(f"queue reconciliation skipped: could not inspect RQ registries: {exc}")
+        return 0
+
+    abandoned_job_ids = [
+        str(job.get("job_id") or "")
+        for job in list_active_jobs()
+        if not _sqlite_job_has_active_rq_job(job, rq_job_ids)
+    ]
+    abandoned_job_ids = [job_id for job_id in abandoned_job_ids if job_id]
+    if not abandoned_job_ids:
+        return 0
+
+    count = mark_jobs_abandoned(abandoned_job_ids, RQ_ABANDONED_JOB_REASON)
+    if count:
+        emit_log(f"queue reconciliation marked {count} abandoned SQLite job(s).")
+    return count
+
+
+def _rq_active_job_ids(rq_queue) -> set[str]:
+    from rq.registry import DeferredJobRegistry, ScheduledJobRegistry, StartedJobRegistry
+
+    job_ids = {str(job_id) for job_id in getattr(rq_queue, "job_ids", [])}
+    for registry_class in (StartedJobRegistry, DeferredJobRegistry, ScheduledJobRegistry):
+        registry = registry_class(queue=rq_queue)
+        job_ids.update(str(job_id) for job_id in registry.get_job_ids())
+    return job_ids
+
+
+def _sqlite_job_has_active_rq_job(job: dict, rq_job_ids: set[str]) -> bool:
+    job_id = str(job.get("job_id") or "")
+    if not job_id:
+        return False
+    pipeline_id = str(job.get("pipeline_id") or "")
+    if pipeline_id.startswith("rerun:"):
+        return f"report-rerun:{job_id}" in rq_job_ids
+    return f"analysis:{job_id}" in rq_job_ids
 
 
 async def run_scheduler_process(runtime: WorkerRuntime) -> None:
@@ -133,6 +182,7 @@ def run_role(
     runtime = runtime_factory(RuntimeSettings.from_environment())
     try:
         if role == "queue":
+            reconcile_abandoned_rq_jobs(runtime)
             run_rq_worker(runtime, burst=burst, max_jobs=max_jobs)
         elif role == "schedulers":
             asyncio.run(run_scheduler_process(runtime))

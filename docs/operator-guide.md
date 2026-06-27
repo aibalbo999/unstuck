@@ -37,7 +37,7 @@ python backend/worker_main.py --role maintenance
 
 `TASK_QUEUE_BACKEND=local` is intentionally rejected by Web/API mode with `API task queue requires Redis and RQ`; use `TASK_QUEUE_BACKEND=rq` with a shared `REDIS_URL`. Check Redis with `redis-cli -u "$REDIS_URL" ping`, then inspect RQ with `rq info --url "$REDIS_URL"`.
 
-RQ retry behavior is configured with `RQ_JOB_MAX_RETRIES` and `RQ_JOB_RETRY_INTERVALS`. A job waiting for a delayed retry uses status `waiting_retry` and remains active in duplicate-job checks and dashboards.
+RQ retry behavior is configured with `RQ_JOB_MAX_RETRIES` and `RQ_JOB_RETRY_INTERVALS`; long-running job timeout is configured with `RQ_JOB_TIMEOUT_SECONDS` (default 4 hours). A job waiting for a delayed retry uses status `waiting_retry` and remains active in duplicate-job checks and dashboards.
 
 Analysis workflow execution is durable. Each Worker run uses LangGraph with a SQLite checkpointer at `LANGGRAPH_CHECKPOINT_PATH` (default `backend/cache/langgraph_checkpoints.sqlite3`). A pipeline segment uses `thread_id = job_id:pipeline_id`; if an LLM call exhausts short in-node retries and the outer RQ job retries later, the Worker resumes the same graph thread instead of repeating completed Agent nodes. Do not delete the checkpoint DB while jobs are `queued`, `running`, or `waiting_retry`.
 
