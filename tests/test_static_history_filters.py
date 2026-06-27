@@ -360,6 +360,111 @@ process.stdout.write(table.innerHTML);
     assert 'tracking-compact-note is-below-target' in result.stdout
 
 
+def test_report_preview_panel_renders_mode_specific_preview_metrics():
+    report_preview_path = STATIC_DIR / "report_preview_panel.js"
+    script = """
+global.window = {};
+require(__REPORT_PREVIEW_PATH__);
+const el = () => ({ hidden: false, textContent: '', innerHTML: '', className: '', classList: { toggle() {} }, querySelector: () => null });
+const elements = {
+  workspace: el(),
+  root: el(),
+  mode: el(),
+  title: el(),
+  decisionRow: el(),
+  targets: el(),
+  price: el(),
+  recommendation: el(),
+  confidence: el(),
+  target3m: el(),
+  target6m: el(),
+  target12m: el(),
+  summary: el(),
+  staleNotice: el()
+};
+const panel = window.StockAgentReportPreviewPanel.create({
+  elements,
+  escapeHtml: value => String(value ?? '').replace(/[&<>]/g, ''),
+  renderPipelineModeBadge: () => '',
+  renderDataTrustBadge: () => '',
+  pipelineMeta: () => ({ shortLabel: '短線波段派' }),
+  normalizeRecommendation: value => String(value ?? ''),
+  recommendationTone: () => 'is-hold'
+});
+panel.show({
+  ticker: '2449',
+  pipeline_id: 'v4',
+  date: '2026-06-20',
+  recommendation: {},
+  preview: {
+    kind: 'swing_trade',
+    title: '2449 極短線交易預覽',
+    primary: { label: '交易方向', value: '偏多 Long', tone: 'is-long' },
+    metrics: [{ label: '當日股價', value: 'NT$309.50' }, { label: '風險', value: 'Medium' }],
+    targets: [{ label: '進場區間', value: 'NT$300-305' }, { label: '1-2週目標', value: 'NT$330' }, { label: '停損', value: '跌破 NT$292' }],
+    summary: '外資回補與突破月線'
+  }
+});
+process.stdout.write(JSON.stringify({
+  title: elements.title.textContent,
+  decision: elements.decisionRow.innerHTML,
+  targets: elements.targets.innerHTML,
+  summary: elements.summary.textContent
+}));
+""".replace("__REPORT_PREVIEW_PATH__", json.dumps(str(report_preview_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert payload["title"] == "2449 極短線交易預覽"
+    assert "交易方向" in payload["decision"]
+    assert "偏多 Long" in payload["decision"]
+    assert "1-2週目標" in payload["targets"]
+    assert "跌破 NT$292" in payload["targets"]
+    assert payload["summary"] == "外資回補與突破月線"
+
+
+def test_history_list_uses_preview_list_metrics_for_non_investment_modes():
+    history_panel_path = STATIC_DIR / "history_panel.js"
+    script = """
+global.window = {};
+require(__HISTORY_PANEL_PATH__);
+const list = { innerHTML: '', querySelectorAll: () => [] };
+const panel = window.StockAgentHistoryPanel.create({
+  listEl: list,
+  trackingTableEl: null,
+  paginationEl: null,
+  prevBtn: null,
+  nextBtn: null,
+  pageInfoEl: null,
+  escapeHtml: value => String(value ?? ''),
+  normalizeRecommendation: value => String(value ?? ''),
+  renderPipelineModeBadge: () => '',
+  renderDataTrustBadge: () => '',
+  renderDataTrustReason: () => '',
+  recommendationTone: () => ''
+});
+panel.renderReports([{
+  filename: '2449_v4_report_20260620_010000.html',
+  ticker: '2449',
+  pipeline_id: 'v4',
+  date: '2026-06-20',
+  data_trust: { status: 'fresh' },
+  recommendation: { recommendation: 'N/A', target_12m: 'N/A', confidence: 'N/A' },
+  preview: {
+    primary: { value: '偏多 Long' },
+    list_metrics: [{ value: 'NT$330' }, { value: '跌破 NT$292' }]
+  }
+}], null);
+process.stdout.write(list.innerHTML);
+""".replace("__HISTORY_PANEL_PATH__", json.dumps(str(history_panel_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+
+    assert "偏多 Long" in result.stdout
+    assert "NT$330" in result.stdout
+    assert "跌破 NT$292" in result.stdout
+    assert "<span>N/A</span>\\n                            <span>N/A</span>" not in result.stdout
+
+
 def test_operator_workbench_surfaces_actionable_daily_workflow():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     operator_summary_js = (STATIC_DIR / "operator_summary_panel.js").read_text(encoding="utf-8")
@@ -530,8 +635,10 @@ def test_decision_tracking_dense_layout_uses_workspace_efficiently():
     history_panel_js = (STATIC_DIR / "history_panel.js").read_text(encoding="utf-8")
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
 
-    assert "style.css?v=20260620-compact-colors" in index_html
-    assert "/static/history_panel.js?v=20260620-compact-colors" in index_html
+    assert "style.css?v=20260627-mode-aware-preview" in index_html
+    assert "/static/history_panel.js?v=20260627-mode-aware-preview" in index_html
+    assert "/static/report_preview_panel.js?v=20260627-mode-aware-preview" in index_html
+    assert "preview_panel.css?v=20260627-mode-aware-preview" in style_css
     assert "decision_tracking.css?v=20260620-compact-colors" in style_css
     assert "max-width: min(1360px, 100%)" in base_css
     assert "grid-template-columns: minmax(520px, 1.35fr) minmax(360px, 0.85fr)" in history_list_css

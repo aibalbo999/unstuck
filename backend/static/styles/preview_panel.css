@@ -62,6 +62,15 @@
     line-height: 1.25;
     font-variant-numeric: tabular-nums;
 }
+.preview-decision strong.is-long, .preview-targets strong.is-long {
+    color: #86efac;
+}
+.preview-decision strong.is-short, .preview-targets strong.is-short {
+    color: #fca5a5;
+}
+.preview-decision strong.is-neutral, .preview-targets strong.is-neutral {
+    color: #fde68a;
+}
 .preview-targets {
     grid-template-columns: repeat(3, minmax(0, 1fr));
 }

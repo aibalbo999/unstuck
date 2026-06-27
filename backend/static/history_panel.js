@@ -4,13 +4,11 @@
         if (!Number.isFinite(number)) return 'N/A';
         return `${number > 0 ? '+' : ''}${number.toFixed(2)}%`;
     }
-
     function formatNumber(value) {
         const number = Number(value);
         if (!Number.isFinite(number)) return 'N/A';
         return number.toLocaleString('zh-TW', { maximumFractionDigits: 2 });
     }
-
     function trackingTone(tracking) {
         const value = Number(tracking && tracking.return_pct);
         if (!Number.isFinite(value) || value === 0) return 'is-neutral';
@@ -18,28 +16,23 @@
         if (tracking.recommendation === '避免' || tracking.recommendation === '強烈放空') return value < 0 ? 'is-positive' : 'is-negative';
         return value > 0 ? 'is-positive' : 'is-negative';
     }
-
     function awaitingTrackingPrice(tracking) {
         return tracking?.status === 'tracked' && Number(tracking.return_pct) === 0 && Number(tracking.initial_price) === Number(tracking.latest_price);
     }
-
     function renderTrackingBadge(tracking, escapeHtml) {
         if (!tracking || !tracking.status || tracking.status === 'unavailable' || !Number.isFinite(Number(tracking.return_pct))) return '';
         if (awaitingTrackingPrice(tracking)) return '<span class="history-tracking is-neutral" title="尚待下一筆價格更新">追蹤 待新價格</span>';
         const title = tracking.summary || '決策追蹤';
         return `<span class="history-tracking ${trackingTone(tracking)}" title="${escapeHtml(title)}">追蹤 ${escapeHtml(formatPct(tracking.return_pct))}</span>`;
     }
-
     function dataTrustReasonCodes(report) {
         const codes = report?.data_trust?.reason_codes;
         return Array.isArray(codes) ? codes.map(code => String(code || '')) : [];
     }
-
     function dataTrustStaleSources(report) {
         const sources = report?.data_trust?.stale_sources;
         return Array.isArray(sources) ? sources.filter(Boolean) : [];
     }
-
     function hasRefreshableDataTrustIssue(report) {
         const status = report?.data_trust?.status || 'unknown';
         const reasonCodes = dataTrustReasonCodes(report);
@@ -47,14 +40,12 @@
             || dataTrustStaleSources(report).length > 0
             || reasonCodes.some(code => code.startsWith('source_stale:'));
     }
-
     function hasProviderSlaOnlyPartial(report) {
         const reasonCodes = dataTrustReasonCodes(report);
         return report?.data_trust?.status === 'partial'
             && !hasRefreshableDataTrustIssue(report)
             && reasonCodes.includes('provider_sla_critical');
     }
-
     function reportActionBadge(report, escapeHtml) {
         const status = report?.data_trust?.status || 'unknown';
         let label = '可直接使用';
@@ -79,7 +70,6 @@
         }
         return `<span class="history-action-badge is-${tone}" title="${escapeHtml(detail)}">${escapeHtml(label)}</span>`;
     }
-
     function trackingPipelineLabel(report) {
         const labels = {
             v1: '模式 A · 學術深度派',
@@ -89,7 +79,6 @@
         };
         return labels[report?.pipeline_id] || report?.pipeline_label || report?.pipeline_id || '報告';
     }
-
     function targetComparisonCell(tracking, key, escapeHtml) {
         const comparison = tracking?.target_comparisons?.[key] || {};
         const period = { target_3m: '3月', target_6m: '6月', target_12m: '12月' }[key] || '目標';
@@ -101,7 +90,6 @@
         const title = comparison.gap_pct === null || comparison.gap_pct === undefined ? `${fullPeriod} ${label}` : `${fullPeriod} ${label} ${formatPct(comparison.gap_pct)}`;
         return `<span class="tracking-target-cell tracking-target-chip is-${className}" title="${escapeHtml(title)}"><span class="tracking-target-period">${escapeHtml(period)}</span><strong class="tracking-target-value">${escapeHtml(formatNumber(comparison.target || tracking?.[key]))}</strong><span class="tracking-target-label">${escapeHtml(shortLabel)}</span></span>`;
     }
-
     function trackingSummaryTone(tracking) {
         const comparisons = tracking?.target_comparisons || {};
         for (const key of ['target_12m', 'target_6m', 'target_3m']) {
@@ -110,11 +98,9 @@
         }
         return comparisons.target_12m?.status === 'below_target' ? 'is-below-target' : 'is-unavailable';
     }
-
     function isActivationKey(event) {
         return event.key === 'Enter' || event.key === ' ';
     }
-
     function create(options) {
         const listEl = options.listEl;
         const trackingTableEl = options.trackingTableEl;
@@ -126,27 +112,30 @@
         let trackedTickers = new Set();
         let trackingGroups = [];
         let trackingCompact = false;
-
         function reportTracked(report) {
             return trackedTickers.has(String(report?.ticker || '').toUpperCase());
         }
-
         function trackButton(report) {
             const tracked = reportTracked(report);
             const label = tracked ? '取消追蹤' : '加入追蹤';
             return `<button class="decision-track-toggle ${tracked ? 'is-tracked' : ''}" type="button" data-track-filename="${escapeHtml(report.filename)}" aria-label="${escapeHtml(label)} ${escapeHtml(report.ticker || '')}">${escapeHtml(label)}</button>`;
         }
-
         function reportHasTracking(report) {
             return report.decision_tracking && report.decision_tracking.status && report.decision_tracking.status !== 'unavailable';
         }
-
+        function previewPrimaryValue(report) {
+            return report.preview?.primary?.value || report.recommendation?.recommendation;
+        }
+        function previewListValues(report) {
+            const metrics = Array.isArray(report.preview?.list_metrics) ? report.preview.list_metrics : [];
+            if (metrics.length) return metrics.slice(0, 2).map(item => item?.value || 'N/A');
+            return [report.recommendation?.target_12m || 'N/A', report.recommendation?.confidence || 'N/A'];
+        }
         function groupLatestReport(group) {
             return (group.reports || []).reduce((best, report) => (
                 !best || Number(report.timestamp || 0) > Number(best.timestamp || 0) ? report : best
             ), null);
         }
-
         function reportCard(report) {
             const tracking = report.decision_tracking || {};
             const pipelineLabel = trackingPipelineLabel(report);
@@ -166,7 +155,6 @@
                 </div>
             `;
         }
-
         function renderTrackingGroups(groups) {
             if (!trackingTableEl) return;
             trackingGroups = groups || [];
@@ -201,7 +189,6 @@
                 </div>
             `;
         }
-
         function renderTrackingTable(reports) {
             const groups = (reports || []).map(report => ({
                 ticker: report.ticker,
@@ -210,19 +197,16 @@
             }));
             renderTrackingGroups(groups);
         }
-
         function setTrackingCompact(value) {
             trackingCompact = Boolean(value);
             renderTrackingGroups(trackingGroups);
         }
-
         function renderReports(reports, selectedFilename) {
             if (!listEl) return;
             if (!reports || reports.length === 0) {
                 listEl.innerHTML = '<div style="color: var(--text-secondary); font-size: 0.9rem; text-align: center; padding: 20px 0;">尚無報告紀錄</div>';
                 return;
             }
-
             listEl.innerHTML = reports.map(r => `
                 <div class="history-item" data-filename="${escapeHtml(r.filename)}" data-ticker="${escapeHtml(r.ticker)}" data-pipeline="${escapeHtml(r.pipeline_id || 'v1')}">
                     <div class="history-info" role="button" tabindex="0" aria-label="預覽 ${escapeHtml(r.ticker || 'N/A')} 報告">
@@ -237,9 +221,8 @@
                             ${reportActionBadge(r, escapeHtml)}
                         </div>
                         <div class="history-decision">
-                            <span class="history-rec ${options.recommendationTone(r.recommendation?.recommendation)}">${escapeHtml(options.normalizeRecommendation(r.recommendation?.recommendation))}</span>
-                            <span>${escapeHtml(r.recommendation?.target_12m || 'N/A')}</span>
-                            <span>${escapeHtml(r.recommendation?.confidence || 'N/A')}</span>
+                            <span class="history-rec ${options.recommendationTone(previewPrimaryValue(r))}">${escapeHtml(options.normalizeRecommendation(previewPrimaryValue(r)))}</span>
+                            ${previewListValues(r).map(value => `<span>${escapeHtml(value)}</span>`).join('')}
                             ${renderTrackingBadge(r.decision_tracking, escapeHtml)}
                         </div>
                     </div>
@@ -251,7 +234,6 @@
             `).join('');
             select(selectedFilename);
         }
-
         function renderPagination(pagination) {
             if (!paginationEl || !prevBtn || !nextBtn || !pageInfoEl) return pagination?.page || 1;
             const totalPages = pagination.total_pages || 1;
@@ -262,7 +244,6 @@
             pageInfoEl.textContent = `${page} / ${totalPages}`;
             return page;
         }
-
         function select(filename) {
             if (!listEl) return;
             listEl.querySelectorAll('.history-item').forEach(item => {
@@ -274,11 +255,9 @@
                 });
             }
         }
-
         function clearSelection() {
             select(null);
         }
-
         function bindEvents(callbacks) {
             if (!listEl) return;
             listEl.addEventListener('click', (event) => {
@@ -295,7 +274,6 @@
                 const item = event.target.closest('.history-item');
                 if (item) callbacks.onSelect(item.dataset.filename);
             });
-
             if (trackingTableEl) {
                 trackingTableEl.addEventListener('click', (event) => {
                     const row = event.target.closest('[data-filename]');
@@ -309,7 +287,6 @@
                     callbacks.onSelect(row.dataset.filename);
                 });
             }
-
             listEl.addEventListener('keydown', (event) => {
                 if (!isActivationKey(event)) return;
                 const item = event.target.closest('.history-item');
@@ -318,7 +295,6 @@
                 callbacks.onSelect(item.dataset.filename);
             });
         }
-
         return {
             bindEvents,
             clearSelection,
@@ -331,6 +307,5 @@
             setTrackedTickers: (value) => { trackedTickers = value || new Set(); }
         };
     }
-
     window.StockAgentHistoryPanel = { create };
 })();

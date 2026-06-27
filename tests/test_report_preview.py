@@ -77,6 +77,110 @@ def test_parse_recommendation_summary_from_markdown(tmp_path, monkeypatch):
     assert "等待回檔" in summary["summary"]
 
 
+def test_mode_c_report_preview_uses_bubble_sniper_fields(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
+    filename = "2449_v3_report_20260606_010000.html"
+    (tmp_path / filename).write_text(
+        '<div class="sidebar-name">京元電子 / King Yuan Electronics Co., Ltd.</div>',
+        encoding="utf-8",
+    )
+    (tmp_path / filename.replace(".html", ".md")).write_text(
+        """# 2449.TW 京元電子 - 泡沫狙擊研究報告
+
+## 一頁式摘要
+泡沫題材已明顯脫離財務現實，應等待催化劑確認後採取空方或避開策略。
+
+## 做空觸發條件（Catalyst for crash）
+- 財測下修或法人連續賣超擴大，將觸發估值均值回歸。
+
+## 防軋空停損點（Stop-loss level）
+- 若股價放量突破前高且毛利率同步改善，應停止空方假設。
+
+[投資建議]
+建議：強烈放空
+短期目標（3個月）：NT$220
+中期目標（6個月）：NT$190
+長期目標（12個月）：NT$160
+長期潛力（5年）：需重新驗證
+信心指數：8/10
+[/投資建議]
+""",
+        encoding="utf-8",
+    )
+
+    result = list_reports_for_test(tmp_path, pipeline="v3", include_versions=True)
+
+    preview = result["reports"][0]["preview"]
+    assert preview["kind"] == "bubble_sniper"
+    assert preview["title"] == "2449 泡沫狙擊預覽"
+    assert preview["primary"] == {"label": "空方判斷", "value": "強烈放空", "tone": "is-short"}
+    assert [item["label"] for item in preview["metrics"]] == ["當日股價", "信心"]
+    assert [item["label"] for item in preview["targets"]] == ["做空觸發", "防軋空停損", "3個月壓力"]
+    assert "財測下修" in preview["targets"][0]["value"]
+    assert "放量突破前高" in preview["targets"][1]["value"]
+    assert "脫離財務現實" in preview["summary"]
+
+
+def test_mode_d_report_preview_uses_trade_setup_snapshot(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
+    filename = "2449_v4_report_20260606_010000.html"
+    (tmp_path / filename).write_text(
+        '<div class="sidebar-name">京元電子 / King Yuan Electronics Co., Ltd.</div>',
+        encoding="utf-8",
+    )
+    (tmp_path / filename.replace(".html", ".md")).write_text(
+        """# 2449.TW 京元電子 - 極短線交易策略報告
+
+## 一頁式摘要
+短線動能轉強，但需嚴守停損。
+""",
+        encoding="utf-8",
+    )
+    snapshot = {
+        "ticker": "2449.TW",
+        "pipeline": "v4",
+        "data_trust": {"status": "fresh", "critical_failures": [], "stale_sources": []},
+        "rerun_context": {
+            "parsed": {
+                "trade_setup": {
+                    "trade_direction": "Long",
+                    "entry_zone": "NT$300-305",
+                    "target_price": "NT$330",
+                    "stop_loss": "跌破 NT$292",
+                    "core_catalyst": "外資回補與突破月線",
+                    "risk_level": "Medium",
+                }
+            }
+        },
+        "data": {
+            "ticker": "2449.TW",
+            "company_name": "京元電子",
+            "current_price": 309.5,
+            "data_trust": {"status": "fresh", "critical_failures": [], "stale_sources": []},
+            "source_audit": [],
+        },
+    }
+    (tmp_path / filename.replace(".html", ".data.json")).write_text(
+        json.dumps(snapshot, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    result = list_reports_for_test(tmp_path, pipeline="v4", include_versions=True)
+
+    preview = result["reports"][0]["preview"]
+    assert preview["kind"] == "swing_trade"
+    assert preview["title"] == "2449 極短線交易預覽"
+    assert preview["primary"] == {"label": "交易方向", "value": "偏多 Long", "tone": "is-long"}
+    assert [item["label"] for item in preview["metrics"]] == ["當日股價", "風險"]
+    assert [item["label"] for item in preview["targets"]] == ["進場區間", "1-2週目標", "停損"]
+    assert preview["targets"][0]["value"] == "NT$300-305"
+    assert preview["targets"][1]["value"] == "NT$330"
+    assert preview["targets"][2]["value"] == "跌破 NT$292"
+    assert preview["summary"] == "外資回補與突破月線"
+
+
 def write_report_pair(output_dir: Path, filename: str, recommendation: str):
     (output_dir / filename).write_text(
         '<div class="sidebar-name">京元電子 / King Yuan Electronics Co., Ltd.</div>',

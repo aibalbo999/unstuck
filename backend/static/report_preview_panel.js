@@ -34,6 +34,29 @@
         if (label) label.textContent = text;
     }
 
+    function legacyPreview(report, rec, options) {
+        return {
+            title: `${report.ticker} 投資建議`,
+            primary: { label: '建議', value: options.normalizeRecommendation(rec.recommendation), tone: options.recommendationTone(rec.recommendation) },
+            metrics: [{ label: '當日股價', value: rec.current_price || 'N/A' }, { label: '信心', value: rec.confidence || 'N/A' }],
+            targets: [{ label: '3個月', value: rec.target_3m || 'N/A' }, { label: '6個月', value: rec.target_6m || 'N/A' }, { label: '12個月', value: rec.target_12m || 'N/A' }],
+            summary: rec.summary || '這份報告沒有可讀的一頁式摘要，可直接查看完整報告。'
+        };
+    }
+
+    function metricCard(item, className, escapeHtml) {
+        const tone = item?.tone ? ` class="${escapeHtml(item.tone)}"` : '';
+        const cardClass = className ? ` class="${className}"` : '';
+        return `<div${cardClass}><span class="preview-label">${escapeHtml(item?.label || '')}</span><strong${tone}>${escapeHtml(item?.value || 'N/A')}</strong></div>`;
+    }
+
+    function renderMetrics(container, metrics, className, escapeHtml) {
+        if (!container) return;
+        const items = (metrics || []).filter(Boolean);
+        container.hidden = !items.length;
+        container.innerHTML = items.map(item => metricCard(item, className, escapeHtml)).join('');
+    }
+
     function configureRerunButtons(elements, pipelineId, pipelineMeta) {
         const meta = typeof pipelineMeta === 'function' ? pipelineMeta(pipelineId) : null;
         const shortLabel = meta?.shortLabel || pipelineId.toUpperCase();
@@ -63,12 +86,15 @@
 
     function create(options) {
         const elements = options.elements || {};
-        elements.trackingRoot = elements.trackingRoot || document.getElementById('preview-tracking');
-        elements.trackingLatest = elements.trackingLatest || document.getElementById('preview-tracking-latest');
-        elements.trackingReturn = elements.trackingReturn || document.getElementById('preview-tracking-return');
-        elements.trackingGap = elements.trackingGap || document.getElementById('preview-tracking-gap');
-        elements.trackingSummary = elements.trackingSummary || document.getElementById('preview-tracking-summary');
-        elements.temporalMemoryRoot = elements.temporalMemoryRoot || document.getElementById('preview-temporal-memory');
+        const doc = typeof document === 'undefined' ? null : document;
+        elements.decisionRow = elements.decisionRow || elements.root?.querySelector?.('.preview-decision-row');
+        elements.targets = elements.targets || elements.root?.querySelector?.('.preview-targets');
+        elements.trackingRoot = elements.trackingRoot || doc?.getElementById('preview-tracking');
+        elements.trackingLatest = elements.trackingLatest || doc?.getElementById('preview-tracking-latest');
+        elements.trackingReturn = elements.trackingReturn || doc?.getElementById('preview-tracking-return');
+        elements.trackingGap = elements.trackingGap || doc?.getElementById('preview-tracking-gap');
+        elements.trackingSummary = elements.trackingSummary || doc?.getElementById('preview-tracking-summary');
+        elements.temporalMemoryRoot = elements.temporalMemoryRoot || doc?.getElementById('preview-temporal-memory');
 
         function setPreviewOpen(open) {
             if (elements.workspace) elements.workspace.classList.toggle('has-preview', open);
@@ -78,18 +104,15 @@
             if (!report || !elements.root) return false;
             const rec = report.recommendation || {};
             const pipelineId = report.pipeline_id || 'v1';
+            const preview = report.preview || legacyPreview(report, rec, options);
+            const decisionMetrics = [preview.primary, ...(preview.metrics || [])].filter(Boolean);
 
             elements.mode.innerHTML = `${options.renderPipelineModeBadge(pipelineId)}${options.renderDataTrustBadge(report.data_trust)}<span class="preview-date">${options.escapeHtml(report.date || '')}</span>`;
             configureRerunButtons(elements, pipelineId, options.pipelineMeta);
-            elements.title.textContent = `${report.ticker} 投資建議`;
-            elements.price.textContent = rec.current_price || 'N/A';
-            elements.recommendation.textContent = options.normalizeRecommendation(rec.recommendation);
-            elements.recommendation.className = options.recommendationTone(rec.recommendation);
-            elements.confidence.textContent = rec.confidence || 'N/A';
-            elements.target3m.textContent = rec.target_3m || 'N/A';
-            elements.target6m.textContent = rec.target_6m || 'N/A';
-            elements.target12m.textContent = rec.target_12m || 'N/A';
-            elements.summary.textContent = rec.summary || '這份報告沒有可讀的一頁式摘要，可直接查看完整報告。';
+            elements.title.textContent = preview.title || `${report.ticker} 投資建議`;
+            renderMetrics(elements.decisionRow, decisionMetrics, 'preview-decision', options.escapeHtml);
+            renderMetrics(elements.targets, preview.targets, '', options.escapeHtml);
+            elements.summary.textContent = preview.summary || rec.summary || '這份報告沒有可讀的一頁式摘要，可直接查看完整報告。';
             renderTracking(report.decision_tracking, elements);
             if (window.StockAgentTemporalMemoryPanel) {
                 window.StockAgentTemporalMemoryPanel.render(report.temporal_memory, elements.temporalMemoryRoot, options.escapeHtml);

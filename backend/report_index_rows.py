@@ -9,6 +9,7 @@ from data_trust import normalize_data_trust, unknown_data_trust
 from decision_tracking import build_decision_freshness, build_decision_tracking
 from pipeline_modes import get_pipeline_definition
 from report_index_parsing import parse_recommendation_summary
+from report_preview import build_report_preview
 
 
 def _snapshot_path(row) -> str:
@@ -38,6 +39,24 @@ def _temporal_memory(row) -> dict:
     return memory
 
 
+def _markdown_text(row) -> str:
+    try:
+        md_filename = row["md_filename"] if "md_filename" in row.keys() else ""
+        output_dir = row["output_dir"]
+    except (KeyError, IndexError):
+        return ""
+    if not md_filename:
+        return ""
+    path = os.path.join(output_dir, md_filename)
+    if not os.path.exists(path):
+        return ""
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            return handle.read()
+    except OSError:
+        return ""
+
+
 def row_to_report(row) -> dict:
     try:
         recommendation = json.loads(row["recommendation_json"])
@@ -54,6 +73,15 @@ def row_to_report(row) -> dict:
     )
 
     pipeline_id = row["pipeline_id"] or "v1"
+    markdown_text = _markdown_text(row)
+    preview = build_report_preview(
+        pipeline_id,
+        row["ticker"],
+        recommendation,
+        markdown_text=markdown_text,
+        snapshot_path=_snapshot_path(row),
+    )
+
     return {
         "filename": row["filename"],
         "ticker": row["ticker"],
@@ -63,6 +91,7 @@ def row_to_report(row) -> dict:
         "pipeline_id": pipeline_id,
         "pipeline_label": get_pipeline_definition(pipeline_id)["short_label"],
         "recommendation": recommendation,
+        "preview": preview,
         "decision_tracking": decision_tracking,
         "decision_freshness": decision_freshness,
         "temporal_memory": _temporal_memory(row),
