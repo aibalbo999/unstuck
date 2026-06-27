@@ -159,6 +159,7 @@ def build_decision_tracking(recommendation: dict, data_snapshot_path: str = "") 
     tracking["confidence_calibration"] = build_confidence_calibration(
         recommendation,
         snapshot.get("data_trust") if isinstance(snapshot.get("data_trust"), dict) else {},
+        bool((snapshot.get("circuit_breaker") or {}).get("_ever_opened", False)),
     )
     tracking["status"] = _tracking_status(tracking)
     tracking["summary"] = _summary(tracking)

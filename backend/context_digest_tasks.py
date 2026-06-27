@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 
 from google.genai import types
@@ -53,6 +54,26 @@ async def _generate_context_digest_content_async(api_key: str, model_id: str, pr
     return await generate_content_async(api_key, model_id, prompt, _build_digest_generation_config())
 
 
+def _digest_input_hash(agent_num: int, context: dict) -> str:
+    """計算 context digest 的輸入 hash，相同輸入只算一次。"""
+
+    analyses = context.get("analyses", {}) or {}
+    relevant_items = []
+    for key, value in analyses.items():
+        try:
+            key_int = int(key)
+        except (TypeError, ValueError):
+            continue
+        if key_int < int(agent_num):
+            relevant_items.append((str(key), value))
+    payload = json.dumps(
+        {key: str(value)[:500] for key, value in sorted(relevant_items)},
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    return hashlib.md5(payload.encode("utf-8")).hexdigest()
+
+
 def _agent_event_kwargs(context: dict, agent_num: int, model_id: str, phase: str, message: str, level: str = "info") -> dict:
     return dict(
         phase=phase,
@@ -73,6 +94,12 @@ def ensure_context_digest(agent_num: int, context: dict, rotator: KeyRotator, pr
     if agent_num not in CONTEXT_DIGEST_TARGET_AGENTS:
         return
     digests = context.setdefault("context_digests", {})
+    input_hash = _digest_input_hash(agent_num, context)
+    digest_hash_map = context.setdefault("_digest_hash_map", {})
+    cache_key = (int(agent_num), input_hash)
+    if cache_key in digest_hash_map:
+        digests[agent_num] = digest_hash_map[cache_key]
+        return
     if agent_num in digests:
         return
 
@@ -95,7 +122,9 @@ def ensure_context_digest(agent_num: int, context: dict, rotator: KeyRotator, pr
             )
             api_key = rotator.get_key(model_id, estimate_text_tokens(prompt, response_budget=4096))
             response = _generate_context_digest_content(api_key, model_id, prompt)
-            digests[agent_num] = _normalize_digest_text(response_text(response), agent_num, context)
+            digest = _normalize_digest_text(response_text(response), agent_num, context)
+            digests[agent_num] = digest
+            digest_hash_map[cache_key] = digest
             emit_log(f"  🧾 Agent {agent_num} 前序提煉摘要完成。")
             emit_context_event(
                 context,
@@ -157,6 +186,12 @@ async def ensure_context_digest_async(agent_num: int, context: dict, rotator: Ke
     if agent_num not in CONTEXT_DIGEST_TARGET_AGENTS:
         return
     digests = context.setdefault("context_digests", {})
+    input_hash = _digest_input_hash(agent_num, context)
+    digest_hash_map = context.setdefault("_digest_hash_map", {})
+    cache_key = (int(agent_num), input_hash)
+    if cache_key in digest_hash_map:
+        digests[agent_num] = digest_hash_map[cache_key]
+        return
     if agent_num in digests:
         return
 
@@ -179,7 +214,9 @@ async def ensure_context_digest_async(agent_num: int, context: dict, rotator: Ke
             )
             api_key = await rotator.async_get_key(model_id, estimate_text_tokens(prompt, response_budget=4096))
             response = await _generate_context_digest_content_async(api_key, model_id, prompt)
-            digests[agent_num] = _normalize_digest_text(response_text(response), agent_num, context)
+            digest = _normalize_digest_text(response_text(response), agent_num, context)
+            digests[agent_num] = digest
+            digest_hash_map[cache_key] = digest
             emit_log(f"  🧾 Agent {agent_num} 前序提煉摘要完成。")
             await emit_context_event_async(
                 context,

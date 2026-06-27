@@ -20,6 +20,7 @@ from rag_runtime import build_rag_index_async
 from runtime_events import RUNTIME_EVENT_CALLBACK_KEY, emit_log
 from state_memory import initialize_agent_state
 from tear_sheet_tasks import ensure_tear_sheet_summary_async
+from workflow_quarters import latest_closed_quarter_for_reconciliation
 from workflow_state import (
     AgentGraphState,
     agent_state_from_graph,
@@ -115,19 +116,26 @@ def initialize_graph_state(data: dict[str, Any], *, pipeline_id: str) -> AgentGr
     graph_state["analyses"] = {}
     graph_state["structured_outputs"] = {}
     graph_state["blocking_issues"] = []
+    graph_state["repair_attempt_counts"] = {}
     graph_state["tool_results"] = {"data_reconciliation_plan": build_reconciliation_plan(domain_state)}
     return graph_state
 
 
 def validate_graph_state(state: AgentGraphState) -> AgentGraphState:
+    previous_circuit = state.get("circuit_breaker") or {}
     domain_state = agent_state_from_graph(state)
+    previous_opened = bool(previous_circuit.get("_ever_opened")) or previous_circuit.get("status") == "open"
+    validate_state_provider_values(domain_state)
+    circuit = domain_state.circuit_breaker.model_dump(mode="json")
+    if previous_opened:
+        circuit["_ever_opened"] = True
     return {
         "provider_values": {
             field: [value.model_dump(mode="json") for value in values]
             for field, values in domain_state.provider_values.items()
         },
         "validation_issues": [issue.model_dump(mode="json") for issue in domain_state.validation_issues],
-        "circuit_breaker": domain_state.circuit_breaker.model_dump(mode="json"),
+        "circuit_breaker": circuit,
         "risk_flags": [flag.model_dump(mode="json") for flag in domain_state.risk_flags],
     }
 
@@ -135,7 +143,7 @@ def validate_graph_state(state: AgentGraphState) -> AgentGraphState:
 def repair_graph_state(state: AgentGraphState) -> AgentGraphState:
     domain_state = agent_state_from_graph(state)
     data = _input_data_from_state(state)
-    year, season = _latest_closed_quarter_for_reconciliation(data)
+    year, season = latest_closed_quarter_for_reconciliation(data)
     reconciliation = reconcile_with_official_filing(domain_state, year=year, season=season)
     validate_state_provider_values(domain_state)
     graph_state = agent_state_to_graph(domain_state, pipeline_id=state.get("pipeline_id", "v1"))
@@ -159,11 +167,13 @@ def legacy_context_from_graph(state: AgentGraphState, services: WorkflowServices
         "analyses": _legacy_agent_mapping(state.get("analyses") or {}),
         "structured_outputs": _legacy_agent_mapping(state.get("structured_outputs") or {}),
         "parsed": copy_json(state.get("parsed") or {}),
+        "circuit_breaker": copy_json(state.get("circuit_breaker") or {}),
         "context_digests": _legacy_agent_mapping(state.get("context_digests") or {}),
         "rag_context": _legacy_agent_mapping(state.get("rag_context") or {}),
         "rag_status": copy_json(state.get("rag_status") or {}),
         "blocking_issues": list(state.get("blocking_issues") or []),
         "audit_repair_log": list(state.get("audit_repair_log") or []),
+        "repair_attempt_counts": copy_json(state.get("repair_attempt_counts") or {}),
         "final_audit": copy_json(state.get("final_audit") or {}),
         "tear_sheet_summary": str(state.get("tear_sheet_summary") or ""),
         "report_cover": copy_json(state.get("report_cover") or {}),
@@ -229,6 +239,7 @@ def graph_delta_from_legacy_context(context: AnalysisContext) -> dict[str, Any]:
         "rag_status": copy_json(context.get("rag_status") or {}),
         "blocking_issues": list(context.get("blocking_issues") or []),
         "audit_repair_log": list(context.get("audit_repair_log") or []),
+        "repair_attempt_counts": copy_json(context.get("repair_attempt_counts") or {}),
         "final_audit": copy_json(context.get("final_audit") or {}),
         "tear_sheet_summary": str(context.get("tear_sheet_summary") or ""),
         "report_cover": copy_json(context.get("report_cover") or {}),
@@ -273,25 +284,3 @@ def copy_json(value: Any) -> Any:
     if isinstance(value, tuple):
         return [copy_json(item) for item in value]
     return value
-
-
-def _latest_closed_quarter_for_reconciliation(data: dict[str, Any]) -> tuple[int, int]:
-    from datetime import date
-
-    year = data.get("year") or data.get("fiscal_year")
-    season = data.get("season") or data.get("quarter")
-    try:
-        year_int = int(year)
-        season_int = int(season)
-    except (TypeError, ValueError):
-        today = date.today()
-        current_quarter = (today.month - 1) // 3 + 1
-        closed_quarter = current_quarter - 1
-        closed_year = today.year
-        if closed_quarter == 0:
-            closed_quarter = 4
-            closed_year -= 1
-        return closed_year, closed_quarter
-    if season_int not in {1, 2, 3, 4}:
-        return _latest_closed_quarter_for_reconciliation({})
-    return year_int, season_int

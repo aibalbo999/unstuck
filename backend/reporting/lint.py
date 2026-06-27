@@ -37,6 +37,13 @@ WARNING_RULES = (
 )
 
 
+def get_critical_lint_rules() -> list[dict]:
+    return [
+        {"id": "missing_recommendation", "pattern": r"投資建議|買進|賣出|持有|中立", "label": "投資建議段落"},
+        {"id": "missing_target_price", "pattern": r"目標價|target.{0,10}price", "label": "目標價"},
+    ]
+
+
 def _scan(text: str, rules: Iterable[_Rule], artifact: str) -> list[dict]:
     issues = []
     for rule in rules:

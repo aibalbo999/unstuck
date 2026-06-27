@@ -10,6 +10,7 @@ from agent_catalog import AGENT_NAMES
 from confidence_calibration import build_confidence_calibration
 from final_audit_context_coverage import missing_final_context_labels
 from final_audit_dcf import dcf_conflict_warnings
+from final_audit_lint import critical_lint_issues_for_pipeline
 from final_audit_sections import append_final_audit_section
 from final_audit_v3 import v3_recommendation_contract_issues
 from final_audit_v4 import v4_trade_setup_contract_issues
@@ -181,7 +182,8 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
             _add_unique_issue(warnings, f"Agent {recommendation_agent} 最終建議未說明可用的{'、'.join(missing_context_labels)}是否影響結論。")
 
         data_trust = data.get("data_trust", {}) if isinstance(data.get("data_trust"), dict) else {}
-        confidence_calibration = build_confidence_calibration(recommendation, data_trust)
+        circuit_ever_opened = bool((context.get("circuit_breaker") or {}).get("_ever_opened", False))
+        confidence_calibration = build_confidence_calibration(recommendation, data_trust, circuit_ever_opened)
         if confidence_calibration.get("status") == "needs_downgrade":
             data_trust_status = confidence_calibration.get("data_trust_status", "unknown")
             raw_confidence = confidence_calibration.get("raw_confidence", "N/A")
@@ -218,7 +220,8 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
         for issue in forward_checks.get("warnings", []):
             _add_unique_issue(warnings, issue)
 
-    confidence_calibration = build_confidence_calibration(recommendation, data.get("data_trust", {}))
+    circuit_ever_opened = bool((context.get("circuit_breaker") or {}).get("_ever_opened", False))
+    confidence_calibration = build_confidence_calibration(recommendation, data.get("data_trust", {}), circuit_ever_opened)
     data_notes = data.get("data_source_notes", []) or []
     if any("口徑互斥" in note for note in data_notes):
         _add_unique_issue(corrections, "資料源出現淨利/淨利率口徑互斥時，報告已採用 EPS/P/E 自洽的校準口徑。")
@@ -247,6 +250,15 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
                 corrections,
                 f"歷史股價含未來日期，報告圖表會忽略：{', '.join(sorted(future_dates)[:5])}。"
             )
+
+    critical_lint_agent = recommendation_agent if recommendation_agent is not None else trade_setup_agent
+    if critical_lint_agent is not None:
+        final_agent_output = str(
+            analyses.get(critical_lint_agent, analyses.get(str(critical_lint_agent), "")) or ""
+        )
+        for issue_msg in critical_lint_issues_for_pipeline(pipeline_def["id"], final_agent_output):
+            _add_unique_issue(critical, issue_msg)
+            add_agent_repair_issue(critical_lint_agent, issue_msg)
 
     status = "needs_attention" if critical else "passed"
     audit = {

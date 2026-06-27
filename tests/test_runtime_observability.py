@@ -17,6 +17,7 @@ import api  # noqa: E402
 import api_observability_service  # noqa: E402
 import api_quota_service  # noqa: E402
 import api_usage_store  # noqa: E402
+import context_digest_tasks  # noqa: E402
 import job_observability  # noqa: E402
 import job_store  # noqa: E402
 import job_store_maintenance  # noqa: E402
@@ -739,3 +740,34 @@ def test_job_progress_completion_is_monotonic_for_parallel_agents(monkeypatch, t
     currents = [event["current"] for event in events if event["type"] == "progress"]
     assert currents == sorted(currents)
     assert currents[:2] == [1, 2]
+
+
+def test_context_digest_hash_cache_reuses_successful_digest(monkeypatch):
+    calls = {"llm": 0}
+
+    class FakeDigestRotator:
+        def get_key(self, *_args, **_kwargs):
+            return "fake-key"
+
+    def fake_generate(*_args, **_kwargs):
+        calls["llm"] += 1
+        return type("Response", (), {"text": "{\"decision_relevant_facts\":[\"摘要\"]}"})()
+
+    monkeypatch.setattr(context_digest_tasks, "_generate_context_digest_content", fake_generate)
+    monkeypatch.setattr(context_digest_tasks, "response_text", lambda response: response.text)
+
+    context = {
+        "pipeline_id": "v1",
+        "analyses": {1: "商業模式", 2: "財務分析"},
+        "structured_outputs": {},
+        "agent_positions": {4: 4},
+        "agent_total": 10,
+    }
+
+    context_digest_tasks.ensure_context_digest(4, context, FakeDigestRotator())
+    first_digest = context["context_digests"].pop(4)
+    context_digest_tasks.ensure_context_digest(4, context, FakeDigestRotator())
+
+    assert calls["llm"] == 1
+    assert context["context_digests"][4] == first_digest
+    assert context["_digest_hash_map"]

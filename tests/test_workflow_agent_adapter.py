@@ -1,5 +1,6 @@
 import asyncio
 import copy
+import json
 import sys
 from pathlib import Path
 
@@ -11,6 +12,7 @@ if str(BACKEND) not in sys.path:
 
 from state_memory import initialize_agent_state
 from agent_runtime import AnalysisPipelineRunner, AnalysisRequest
+import agent_runtime.quality_gates as quality_gates
 from workflow_graph import create_default_workflow_services, legacy_context_from_graph
 from workflow_state import agent_state_to_graph
 
@@ -147,3 +149,70 @@ def test_analysis_pipeline_runner_invokes_langgraph_and_preserves_result_contrac
     assert result.context["analyses"][22] == "agent-22"
     assert result.context["structured_outputs"][22] == {"score": 9}
     assert result.warnings == ["non-terminal warning"]
+
+
+def test_quality_gates_retries_once_when_structured_output_parse_fails(monkeypatch):
+    calls = []
+    statuses = []
+    valid_valuation = json.dumps(
+        {
+            "price_targets": {
+                "dcf_reasoning": "normalized FCF 搭配市場價值 WACC。",
+                "peer_reasoning": "同業倍數只作交叉檢查。",
+                "scenario_reasoning": "熊市折讓需求下修，牛市反映產能開出。",
+                "熊市情境": 80,
+                "基本情境": 100,
+                "牛市情境": 120,
+            },
+            "valuation_summary": {
+                "primary_method": "blended",
+                "uses_market_value_wacc": True,
+                "uses_normalized_fcf": True,
+                "double_counting_check": "未重複計價。",
+            },
+            "analysis_markdown": "估值正文",
+        },
+        ensure_ascii=False,
+    )
+
+    async def fake_run_single_agent_async(agent_num, data, context, rotator):
+        calls.append(agent_num)
+        return "不是 JSON" if len(calls) == 1 else valid_valuation
+
+    async def fake_emit_status_async(progress_callback, message, **kwargs):
+        statuses.append((message, kwargs))
+
+    async def noop_async(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(quality_gates, "run_single_agent_async", fake_run_single_agent_async)
+    monkeypatch.setattr(quality_gates, "emit_status_async", fake_emit_status_async)
+    monkeypatch.setattr(quality_gates, "ensure_context_digest_async", noop_async)
+    monkeypatch.setattr(quality_gates, "ensure_agent_rag_context_async", noop_async)
+
+    context = {
+        "pipeline_id": "v1",
+        "pipeline_label": "Mode A",
+        "agent_positions": {4: 4},
+        "agent_total": 10,
+        "agent_sequence": (11, 1, 2, 3, 20, 4, 5, 6, 21, 7),
+        "structured_outputs": {},
+        "analyses": {},
+        "data": {"ticker": "2330.TW", "company_name": "台積電", "current_price": 100},
+    }
+
+    completed_agent, markdown = asyncio.run(
+        quality_gates.run_agent_with_quality_gates_async(
+            4,
+            context["data"],
+            context,
+            FakeRotator(),
+        )
+    )
+
+    assert completed_agent == 4
+    assert len(calls) == 2
+    assert context["structured_outputs"][4]["price_targets"]["基本情境"] == 100
+    assert context["analyses"][4] == markdown
+    retry_events = [item for item in statuses if item[1].get("phase") == "structured_retry"]
+    assert len(retry_events) == 1

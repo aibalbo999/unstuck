@@ -8,8 +8,10 @@ from agent_catalog import AGENT_NAMES
 from analysis_types import AnalysisContext, StockData
 from context_digest_tasks import CONTEXT_DIGEST_TARGET_AGENTS, ensure_context_digest_async
 from llm_client import KeyRotator
+from pipeline_modes import get_pipeline_definition
 from rag_runtime import ensure_agent_rag_context_async
 from runtime_events import emit_log, emit_status_async
+from structured_outputs import process_agent_response
 from validators import (
     append_identity_warnings,
     append_quality_warnings,
@@ -21,6 +23,28 @@ from validators import (
 from .cancellation import raise_if_cancelled
 from .routing import get_runtime_model_sequence, is_agent_execution_failure
 from .single_agent import run_single_agent_async
+
+
+def _is_structured_agent(agent_num: int, context: AnalysisContext) -> bool:
+    pipeline_def = get_pipeline_definition(context.get("pipeline_id", "v1"))
+    return int(agent_num) in set(pipeline_def["structured_agents"].values())
+
+
+def _try_parse_structured_output(agent_num: int, result: str, context: AnalysisContext) -> tuple[bool, str]:
+    """Parse structured output immediately when a structured agent did not persist one."""
+
+    if not _is_structured_agent(agent_num, context):
+        return True, result
+    structured_outputs = context.setdefault("structured_outputs", {})
+    existing = structured_outputs.get(agent_num, structured_outputs.get(str(agent_num)))
+    if existing:
+        return True, result
+
+    parsed_result = process_agent_response(agent_num, result, context)
+    parsed = structured_outputs.get(agent_num, structured_outputs.get(str(agent_num)))
+    if parsed:
+        return True, parsed_result
+    return False, parsed_result
 
 
 async def run_agent_with_quality_gates_async(
@@ -101,6 +125,31 @@ async def run_agent_with_quality_gates_async(
     result = await run_single_agent_async(agent_num, data, context, rotator)
     raise_if_cancelled(context)
     result = sanitize_model_output(result)
+    try:
+        parsed_ok, parsed_result = _try_parse_structured_output(agent_num, result, context)
+        if parsed_ok:
+            result = parsed_result
+        else:
+            await emit_status_async(
+                progress_callback,
+                f"Agent {agent_num} 結構化輸出解析失敗，立即重試（1/1）...",
+                phase="structured_retry",
+                current=agent_position,
+                total=agent_total,
+                name=agent_name,
+                agent_num=agent_num,
+                pipeline_id=pipeline_id,
+                pipeline_label=pipeline_label,
+            )
+            context.setdefault("structured_outputs", {}).pop(agent_num, None)
+            context.setdefault("structured_outputs", {}).pop(str(agent_num), None)
+            raise_if_cancelled(context)
+            result = await run_single_agent_async(agent_num, data, context, rotator)
+            raise_if_cancelled(context)
+            result = sanitize_model_output(result)
+            _retry_ok, result = _try_parse_structured_output(agent_num, result, context)
+    except Exception as exc:
+        emit_log(f"  ⚠️  Agent {agent_num} 結構化輸出即時驗證失敗，略過同節點重試：{str(exc)[:120]}")
     await emit_status_async(
         progress_callback,
         f"Agent {agent_num}（{agent_position}/{agent_total}）正在執行輸出清洗與品質檢查...",

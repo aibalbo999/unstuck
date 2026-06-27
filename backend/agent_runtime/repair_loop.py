@@ -17,13 +17,13 @@ from validators import (
 )
 
 from .deterministic_fallbacks import (
-    _apply_deterministic_fallback,
     _clear_agent_blocking_issues,
     _deterministic_quality_fallback,
     _deterministic_structured_fallback,
     _record_deterministic_fallback,
 )
 from .repair_circuit_breaker import is_repair_429_error, record_repair_429_failure, repair_429_circuit_state
+from .repair_attempt_limits import apply_429_fallback, increment_repair_attempt_count, per_job_repair_limit_fallback
 from .repair_reflection import (
     build_audit_reflection_instruction,
     build_audit_retry_instruction,
@@ -76,28 +76,6 @@ def _record_quality_fallback(
     return fallback_ok, fallback_message
 
 
-def _apply_429_fallback(
-    agent_num: int,
-    data: StockData,
-    context: AnalysisContext,
-    original_analysis: str,
-    issues: list[str],
-    trigger: str,
-    raw_failure: str,
-    metadata: dict,
-) -> tuple[bool, str]:
-    return _apply_deterministic_fallback(
-        agent_num,
-        data,
-        context,
-        original_analysis,
-        issues,
-        trigger,
-        raw_failure=raw_failure,
-        metadata=metadata,
-    )
-
-
 def _repair_agent_output(agent_num: int, data: StockData, context: AnalysisContext, rotator: KeyRotator, issues: list[str]) -> tuple[bool, str]:
     """Synchronously ask the relevant agent to rewrite after final audit failure."""
     previous = {
@@ -107,9 +85,12 @@ def _repair_agent_output(agent_num: int, data: StockData, context: AnalysisConte
     }
     original_analysis = str(context.get("analyses", {}).get(agent_num, ""))
     try:
+        limit_result = per_job_repair_limit_fallback(agent_num, data, context, original_analysis, list(issues))
+        if limit_result is not None:
+            return limit_result
         open_state = repair_429_circuit_state(agent_num)
         if open_state.get("open"):
-            fallback_ok, fallback_message = _apply_429_fallback(
+            fallback_ok, fallback_message = apply_429_fallback(
                 agent_num,
                 data,
                 context,
@@ -138,11 +119,14 @@ def _repair_agent_output(agent_num: int, data: StockData, context: AnalysisConte
             model_override[agent_num] = get_audit_model_sequence()
             context["_model_sequence_override"] = model_override
             context.setdefault("structured_outputs", {}).pop(agent_num, None)
-            result = sanitize_model_output(run_single_agent(agent_num, data, context, rotator, max_retries=1))
+            try:
+                result = sanitize_model_output(run_single_agent(agent_num, data, context, rotator, max_retries=1))
+            finally:
+                increment_repair_attempt_count(context, agent_num)
             if is_agent_execution_failure(result):
                 if is_repair_429_error(result):
                     circuit = record_repair_429_failure(agent_num, result)
-                    fallback_ok, fallback_message = _apply_429_fallback(
+                    fallback_ok, fallback_message = apply_429_fallback(
                         agent_num,
                         data,
                         context,
@@ -206,9 +190,12 @@ async def _repair_agent_output_async(agent_num: int, data: StockData, context: A
     }
     original_analysis = str(context.get("analyses", {}).get(agent_num, ""))
     try:
+        limit_result = per_job_repair_limit_fallback(agent_num, data, context, original_analysis, list(issues))
+        if limit_result is not None:
+            return limit_result
         open_state = repair_429_circuit_state(agent_num)
         if open_state.get("open"):
-            fallback_ok, fallback_message = _apply_429_fallback(
+            fallback_ok, fallback_message = apply_429_fallback(
                 agent_num,
                 data,
                 context,
@@ -237,11 +224,14 @@ async def _repair_agent_output_async(agent_num: int, data: StockData, context: A
             model_override[agent_num] = get_audit_model_sequence()
             context["_model_sequence_override"] = model_override
             context.setdefault("structured_outputs", {}).pop(agent_num, None)
-            result = sanitize_model_output(await run_single_agent_async(agent_num, data, context, rotator, max_retries=1))
+            try:
+                result = sanitize_model_output(await run_single_agent_async(agent_num, data, context, rotator, max_retries=1))
+            finally:
+                increment_repair_attempt_count(context, agent_num)
             if is_agent_execution_failure(result):
                 if is_repair_429_error(result):
                     circuit = record_repair_429_failure(agent_num, result)
-                    fallback_ok, fallback_message = _apply_429_fallback(
+                    fallback_ok, fallback_message = apply_429_fallback(
                         agent_num,
                         data,
                         context,

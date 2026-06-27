@@ -95,13 +95,26 @@ def test_embedding_cache_key_and_query_cache_write(monkeypatch):
     monkeypatch.setattr(embeddings, "embed_content", lambda *args: _embedding_response([0.1, 0.2]))
 
     config = embeddings._embedding_config("RETRIEVAL_QUERY")
-    key = embeddings._embedding_cache_key("m", "hello", config)
+    key = embeddings._embedding_cache_key("hello", "m", "2330")
+    legacy_key = embeddings._embedding_cache_key("m", "hello", config)
     vector, warnings = embeddings.embed_query("hello", FakeRotator())
 
-    assert key.startswith("rag_embedding:")
+    assert key.startswith("rag_emb:2330:m:")
+    assert legacy_key.startswith("rag_emb::m:")
     assert vector == [0.1, 0.2]
     assert warnings == []
     assert any(value == {"vector": [0.1, 0.2]} for value in stored.values())
+
+
+def test_embedding_cache_key_ignores_run_metadata_and_changes_with_content():
+    first = rag_runtime._embedding_cache_key("test content", "gemini-embedding-2", "2330")
+    second = rag_runtime._embedding_cache_key("test content", "gemini-embedding-2", "2330")
+    different = rag_runtime._embedding_cache_key("different content", "gemini-embedding-2", "2330")
+
+    assert first == second
+    assert first != different
+    assert "run" not in first
+    assert "job" not in first
 
 
 def test_build_index_embedding_failure_falls_back_without_print(monkeypatch, capsys):

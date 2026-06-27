@@ -31,7 +31,7 @@ PIPELINE_DEFINITIONS: dict[str, PipelineDefinition] = {
         "report_subtitle": "基於 10 個功能性分析模組完整研究",
         "hint_text": "請稍候，10 個 AI 分析模組正在為您撰寫深度研報...",
         "agents": (11, 1, 2, 3, 20, 4, 5, 6, 21, 7),
-        "groups": ((11,), (1,), (2,), (3, 20), (4, 5), (6,), (21,), (7,)),
+        "groups": ((11,), (1, 2), (3, 20), (4, 5), (6, 21), (7,)),
         "structured_agents": {"moat": 3, "valuation": 4, "recommendation": 7},
         "debate_agents": (6,),
     },

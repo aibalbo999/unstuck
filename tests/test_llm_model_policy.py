@@ -22,6 +22,7 @@ from agent_runtime.retry_policy import (  # noqa: E402
     _agent_error_category,
     _raise_agent_call_error,
 )
+from settings.models import is_large_context_model  # noqa: E402
 
 
 def _retry_state(attempt, exc):
@@ -119,3 +120,8 @@ def test_model_circuit_opens_after_repeated_failures():
     assert second["failures"] == 2
     assert second["opened_until"] > time.time()
     assert is_model_circuit_open(context, "gemma-4-31b-it") is True
+
+
+def test_gemma_receives_large_context_budget_by_default():
+    assert is_large_context_model("gemma-4-31b-it") is True
+    assert is_large_context_model("gemini-3.5-flash") is True

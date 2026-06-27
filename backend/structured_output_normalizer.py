@@ -279,7 +279,8 @@ def warn_high_confidence_with_low_trust(agent_num: int, structured: dict, contex
     if agent_num not in {7, 16, 19}:
         return
     trust = context.get("data", {}).get("data_trust", {}) if isinstance(context.get("data"), dict) else {}
-    calibration = build_confidence_calibration(structured.get("recommendation", {}) or {}, trust)
+    circuit_ever_opened = bool((context.get("circuit_breaker") or {}).get("_ever_opened", False))
+    calibration = build_confidence_calibration(structured.get("recommendation", {}) or {}, trust, circuit_ever_opened)
     context["confidence_calibration"] = calibration
     if calibration.get("status") != "needs_downgrade":
         return
