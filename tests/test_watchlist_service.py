@@ -222,6 +222,8 @@ def test_watchlist_screener_api_runs_manual_scan(monkeypatch, tmp_path, mutation
             "screen_date": "2026-06-26",
             "candidate_count": 1,
             "imported_count": 1,
+            "providers": ["TWSE Free API"],
+            "data_sources": ["TWSE Free API"],
             "candidates": [{"ticker": "2449.TW", "category": "technical_heat"}],
         },
     )
@@ -232,6 +234,7 @@ def test_watchlist_screener_api_runs_manual_scan(monkeypatch, tmp_path, mutation
     assert response.status_code == 200
     assert response.json()["imported_count"] == 1
     assert response.json()["screen_date"] == "2026-06-26"
+    assert response.json()["providers"] == ["TWSE Free API"]
 
 
 def test_watchlist_screener_api_keeps_external_scan_failure_renderable(monkeypatch, tmp_path, mutation_headers):
@@ -248,6 +251,8 @@ def test_watchlist_screener_api_keeps_external_scan_failure_renderable(monkeypat
             "candidate_count": 0,
             "imported_count": 0,
             "candidates": [],
+            "providers": ["TWSE Free API", "FinMind"],
+            "data_sources": ["TWSE Free API", "FinMind"],
             "warnings": [{"provider": "FinMind", "message": "FinMind 暫無可用資料"}],
             "errors": [],
         },
@@ -260,7 +265,8 @@ def test_watchlist_screener_api_keeps_external_scan_failure_renderable(monkeypat
     payload = response.json()
     assert payload["success"] is True
     assert payload["scan_success"] is False
-    assert payload["message"] == "FinMind 暫無可用資料"
+    assert payload["message"] == "市場掃描資料源暫無可用資料：FinMind 暫無可用資料"
+    assert payload["providers"] == ["TWSE Free API", "FinMind"]
 
 
 def test_watchlist_listing_prioritizes_items_with_stale_decisions(monkeypatch, tmp_path):

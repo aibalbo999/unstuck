@@ -3,7 +3,7 @@
 }
 .market-screener-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 8px;
     margin-top: 12px;
 }
@@ -32,9 +32,20 @@
     margin-top: 10px;
     align-items: stretch;
 }
+.market-screener-item {
+    flex: 1 1 300px;
+    min-width: 0;
+}
 .market-screener-chip {
-    flex: 1 1 240px;
+    width: 100%;
+    border: 1px solid rgba(45, 212, 191, 0.28);
+    cursor: pointer;
     justify-content: space-between;
+    text-align: left;
+}
+.market-screener-chip.is-selected {
+    border-color: rgba(94, 234, 212, 0.74);
+    background: rgba(20, 184, 166, 0.18);
 }
 .market-screener-chip strong,
 .market-screener-chip em,
@@ -44,11 +55,70 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+.market-screener-chip strong small {
+    display: block;
+    margin-top: 2px;
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+.market-screener-mode-picker {
+    display: grid;
+    gap: 10px;
+    margin-top: 8px;
+    padding: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.56);
+}
+.market-screener-mode-options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+.market-screener-mode-option {
+    min-height: 48px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 8px;
+    align-items: center;
+    padding: 8px;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 8px;
+    color: var(--text-primary);
+}
+.market-screener-mode-option input {
+    grid-row: span 2;
+}
+.market-screener-mode-option span,
+.market-screener-mode-option em {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.market-screener-mode-option span {
+    font-size: 0.82rem;
+    font-weight: 850;
+}
+.market-screener-mode-option em {
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+    font-style: normal;
+}
+.market-screener-analyze-button {
+    justify-content: center;
+    width: 100%;
+}
 @media (max-width: 720px) {
     .market-screener-grid {
         grid-template-columns: 1fr;
     }
+    .market-screener-item,
     .market-screener-chip {
         flex-basis: 100%;
+    }
+    .market-screener-mode-options {
+        grid-template-columns: 1fr;
     }
 }

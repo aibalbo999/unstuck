@@ -16,10 +16,10 @@ import watchlist_service
 def _screener_status_message(result: dict) -> str:
     for warning in result.get("warnings") or []:
         if isinstance(warning, dict) and warning.get("message"):
-            return str(warning.get("message"))
+            return f"市場掃描資料源暫無可用資料：{warning.get('message')}"
     for error in result.get("errors") or []:
         if isinstance(error, dict) and error.get("error"):
-            return str(error.get("error"))
+            return f"市場掃描資料源暫無可用資料：{error.get('error')}"
     if result.get("skipped"):
         return "市場掃描已略過。"
     return "市場掃描暫無可用候選股。"
