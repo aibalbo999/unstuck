@@ -26,6 +26,9 @@ def test_data_for_agent_prompt_routes_new_context_by_role():
         "chip_data": {"tdcc_shareholder_distribution": {"major_holders_gt_1000_lots_pct": 42.1}},
         "alternative_data": {"job_openings_104": {"job_count": 128}},
         "sentiment_context": {"ptt_titles": ["AI 題材升溫"]},
+        "social_sentiment": {"dcard": [{"title": "Dcard 討論"}]},
+        "sec_edgar": {"recent_filings": [{"form": "10-Q"}]},
+        "taiwan_open_data": {"rates": {"USD": {"sell": "31.50"}}},
     }
 
     assert hasattr(prompting, "data_for_agent_prompt")
@@ -34,12 +37,20 @@ def test_data_for_agent_prompt_routes_new_context_by_role():
     assert "chip_data" in prompting.data_for_agent_prompt(15, data)
     assert "chip_data" in prompting.data_for_agent_prompt(18, data)
     assert "sentiment_context" in prompting.data_for_agent_prompt(17, data)
+    assert "social_sentiment" in prompting.data_for_agent_prompt(17, data)
     assert "alternative_data" in prompting.data_for_agent_prompt(14, data)
     assert "alternative_data" in prompting.data_for_agent_prompt(13, data)
+    assert "sec_edgar" in prompting.data_for_agent_prompt(13, data)
+    assert "sec_edgar" in prompting.data_for_agent_prompt(14, data)
+    assert "sec_edgar" in prompting.data_for_agent_prompt(21, data)
+    assert "taiwan_open_data" in prompting.data_for_agent_prompt(11, data)
     assert "macro_indicators" not in prompting.data_for_agent_prompt(12, data)
     assert "chip_data" not in prompting.data_for_agent_prompt(12, data)
     assert "alternative_data" not in prompting.data_for_agent_prompt(12, data)
     assert "sentiment_context" not in prompting.data_for_agent_prompt(12, data)
+    assert "social_sentiment" not in prompting.data_for_agent_prompt(12, data)
+    assert "sec_edgar" not in prompting.data_for_agent_prompt(12, data)
+    assert "taiwan_open_data" not in prompting.data_for_agent_prompt(12, data)
 
 
 def test_format_data_for_prompt_exposes_only_agent_routed_external_context():
@@ -50,6 +61,9 @@ def test_format_data_for_prompt_exposes_only_agent_routed_external_context():
         "chip_data": {"tdcc_shareholder_distribution": {"major_holders_gt_1000_lots_pct": 42.1}},
         "alternative_data": {"job_openings_104": {"job_count": 128}},
         "sentiment_context": {"ptt_titles": ["AI 題材升溫"]},
+        "social_sentiment": {"dcard": [{"title": "Dcard 討論"}]},
+        "sec_edgar": {"recent_filings": [{"form": "10-Q"}]},
+        "taiwan_open_data": {"rates": {"USD": {"sell": "31.50"}}},
     }
 
     assert hasattr(prompting, "data_for_agent_prompt")
@@ -57,11 +71,15 @@ def test_format_data_for_prompt_exposes_only_agent_routed_external_context():
     agent_12_payload = _payload_from_prompt(format_data_for_prompt(prompting.data_for_agent_prompt(12, data)))
     agent_15_payload = _payload_from_prompt(format_data_for_prompt(prompting.data_for_agent_prompt(15, data)))
     agent_17_payload = _payload_from_prompt(format_data_for_prompt(prompting.data_for_agent_prompt(17, data)))
+    agent_13_payload = _payload_from_prompt(format_data_for_prompt(prompting.data_for_agent_prompt(13, data)))
 
     assert agent_11_payload["agent_context"]["macro_indicators"]["source"] == "FRED"
+    assert agent_11_payload["agent_context"]["taiwan_open_data"]["rates"]["USD"]["sell"] == "31.50"
     assert "chip_data" not in agent_11_payload["agent_context"]
     assert agent_15_payload["agent_context"]["chip_data"]["tdcc_shareholder_distribution"]["major_holders_gt_1000_lots_pct"] == 42.1
     assert agent_17_payload["agent_context"]["sentiment_context"]["ptt_titles"] == ["AI 題材升溫"]
+    assert agent_17_payload["agent_context"]["social_sentiment"]["dcard"][0]["title"] == "Dcard 討論"
+    assert agent_13_payload["agent_context"]["sec_edgar"]["recent_filings"][0]["form"] == "10-Q"
     assert agent_12_payload["agent_context"] == {}
 
 

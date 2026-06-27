@@ -10,7 +10,7 @@ from .market_sources.http_enrichment import (
     fetch_yfinance_news_catalysts,
 )
 from .market_sources.peers import fetch_dynamic_peer_metrics
-from .earnings_call_fetcher import fetch_latest_earnings_call
+from .earnings_call_fetcher import FREE_EARNINGS_CALL_PROVIDER_NAME, fetch_free_earnings_call_context
 from .market_sources.taiwan import (
     fetch_finmind_news_catalysts,
     fetch_institutional_trading_trend,
@@ -86,12 +86,12 @@ def fetch_sync_enrichment_bundle(
 
         enrichment_fetches.update({
             "earnings_call": (
-                fetch_latest_earnings_call,
+                fetch_free_earnings_call_context,
                 (ticker,),
                 {},
-                "法說逐字稿資料獲取失敗",
+                "法說會資料獲取失敗",
                 "earnings_call",
-                "FMP earnings call transcript",
+                FREE_EARNINGS_CALL_PROVIDER_NAME,
             ),
         })
 

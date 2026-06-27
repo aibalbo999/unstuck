@@ -168,6 +168,9 @@ async def _run_optional_provider_plan(request: FetchRequest, registry: ProviderR
         "macro_indicators": _provider_context_value(provider_results, "macro_indicators"),
         "chip_data": _provider_context_value(provider_results, "chip_data"),
         "alternative_data": _provider_context_value(provider_results, "alternative_data"),
+        "social_sentiment": _provider_context_value(provider_results, "social_sentiment"),
+        "sec_edgar": _provider_context_value(provider_results, "sec_edgar"),
+        "taiwan_open_data": _provider_context_value(provider_results, "taiwan_open_data"),
         "earnings_call": _provider_context_value(provider_results, "earnings_call"),
         "google_peer_discovery": provider_value(provider_results, "peer_discovery", "Google Search"),
     }

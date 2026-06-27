@@ -74,6 +74,7 @@ def test_earnings_call_fetcher_parses_latest_fmp_transcript(monkeypatch):
     import data_fetch.earnings_call_fetcher as fetcher
 
     monkeypatch.setattr(fetcher, "FMP_API_KEY", "test-key")
+    fetcher.clear_fmp_transcript_cooldown()
     monkeypatch.setattr(
         fetcher,
         "_sync_json_get",
@@ -92,6 +93,41 @@ def test_earnings_call_fetcher_parses_latest_fmp_transcript(monkeypatch):
     assert result["period"] == "2026Q1"
     assert "AI investment" in result["transcript_excerpt"]
     assert result["source"] == "FMP earnings call transcript"
+    fetcher.clear_fmp_transcript_cooldown()
+
+
+def test_earnings_call_fetcher_cools_down_after_restricted_fmp_response(monkeypatch):
+    import data_fetch.earnings_call_fetcher as fetcher
+
+    class FakeResponse:
+        status_code = 402
+
+    class FakeHTTPStatusError(RuntimeError):
+        response = FakeResponse()
+
+    calls = []
+    now = {"value": 1000.0}
+
+    def restricted(*_args, **_kwargs):
+        calls.append(_args[0])
+        raise FakeHTTPStatusError("402 Payment Required")
+
+    monkeypatch.setattr(fetcher, "FMP_API_KEY", "test-key")
+    monkeypatch.setattr(fetcher, "_sync_json_get", restricted)
+    monkeypatch.setattr(fetcher, "_now", lambda: now["value"])
+    monkeypatch.setattr(fetcher, "_restricted_cooldown_seconds", lambda: 60.0)
+    fetcher.clear_fmp_transcript_cooldown()
+
+    assert fetcher.fetch_latest_earnings_call("NVDA") == {}
+    assert len(calls) == 1
+
+    assert fetcher.fetch_latest_earnings_call("NVDA") == {}
+    assert len(calls) == 1
+
+    now["value"] += 61.0
+    assert fetcher.fetch_latest_earnings_call("NVDA") == {}
+    assert len(calls) == 2
+    fetcher.clear_fmp_transcript_cooldown()
 
 
 def test_sentiment_and_bear_agents_write_structured_state_metadata():
@@ -163,6 +199,21 @@ def test_peer_metrics_include_dupont_inputs_and_ps(monkeypatch):
     assert records[0]["asset_turnover"] == 0.6
     assert records[0]["ps_ttm"] == 4.2
     assert dupont["roe_pct"] == 24.0
+
+
+def test_peer_metrics_skip_peers_without_yfinance_metrics(monkeypatch):
+    import data_fetch.market_sources.peers as peer_sources
+
+    class EmptyTicker:
+        def __init__(self, _ticker):
+            self.info = {}
+
+    monkeypatch.setattr(peer_sources.yf, "Ticker", EmptyTicker)
+    identity = {"same_industry_peers": [{"stock_id": "4609", "stock_name": "無報價同業"}]}
+
+    records = peer_sources.fetch_dynamic_peer_metrics("1623.TW", "大東電", "Industrials", "Electrical", identity)
+
+    assert records == []
 
 
 def test_peer_agents_can_call_dupont_tool():

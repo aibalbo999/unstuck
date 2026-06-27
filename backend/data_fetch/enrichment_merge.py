@@ -64,6 +64,21 @@ def _merge_optional_http_bundle(
     if isinstance(alternative_data, dict) and alternative_data:
         data["alternative_data"] = alternative_data
 
+    social_sentiment = http_bundle.get("social_sentiment", {}) or {}
+    if isinstance(social_sentiment, dict) and social_sentiment:
+        data["social_sentiment"] = social_sentiment
+        sentiment_context = dict(data.get("sentiment_context") or {})
+        sentiment_context["social_sentiment"] = social_sentiment
+        data["sentiment_context"] = sentiment_context
+
+    sec_edgar = http_bundle.get("sec_edgar", {}) or {}
+    if isinstance(sec_edgar, dict) and sec_edgar:
+        data["sec_edgar"] = sec_edgar
+
+    taiwan_open_data = http_bundle.get("taiwan_open_data", {}) or {}
+    if isinstance(taiwan_open_data, dict) and taiwan_open_data:
+        data["taiwan_open_data"] = taiwan_open_data
+
     earnings_call = http_bundle.get("earnings_call", {}) or {}
     if isinstance(earnings_call, dict) and earnings_call:
         data["earnings_call"] = earnings_call
@@ -179,8 +194,14 @@ def _optional_provider_label(source: str) -> str:
         return "TDCC/TWSE chip data"
     if source == "alternative_data":
         return "Alternative data providers"
+    if source == "social_sentiment":
+        return "Social Forum Sentiment"
+    if source == "sec_edgar":
+        return "SEC EDGAR Filings"
+    if source == "taiwan_open_data":
+        return "Taiwan Open Data"
     if source == "earnings_call":
-        return "FMP earnings call transcript"
+        return "MOPS investor conference"
     return "Google Search"
 
 

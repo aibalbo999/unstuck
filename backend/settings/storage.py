@@ -39,6 +39,12 @@ def _load_source_freshness_seconds() -> dict[str, int]:
         "dynamic_peer_metrics": 24 * 60 * 60,
         "peer_discovery": 24 * 60 * 60,
         "pe_river_chart": 24 * 60 * 60,
+        "macro_indicators": 24 * 60 * 60,
+        "chip_data": 6 * 60 * 60,
+        "alternative_data": 24 * 60 * 60,
+        "social_sentiment": 30 * 60,
+        "sec_edgar": 24 * 60 * 60,
+        "taiwan_open_data": 24 * 60 * 60,
     }
     for key in list(defaults):
         defaults[key] = env_int(f"SOURCE_FRESHNESS_{key.upper()}_SECONDS", defaults[key])

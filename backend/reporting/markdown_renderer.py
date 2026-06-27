@@ -110,7 +110,7 @@ def generate_markdown_report(context: AnalysisContext) -> str:
 |---|---|---|
 | **Yahoo Finance (yfinance)** | 市場即時資料、年度財務報表、估值指標、負債結構、分析師評等 | pypi.org/project/yfinance |
 | **FinMind Open Data** | 台股每月營收、新聞、三大法人買賣超、PER/PBR 河流圖資料 | finmindtrade.com |
-| **Google Custom Search / FMP / Yahoo News** | 近期新聞、法說會、供應鏈與市場催化劑 | 依環境變數與可用 API 自動 fallback |
+| **MOPS/TWSE / Google Custom Search / FMP / Yahoo News** | 法說會資料、近期新聞、供應鏈與市場催化劑 | 依環境變數與可用 API 自動 fallback |
 | **Google Gemini AI** | AI 分析師論述（{model_route_summary}） | Pipeline {pipeline_def["id"].upper()}：{pipeline_def["label"]} |
 | **公開資訊觀測站 (MOPS/TWSE)** | 台灣證券交易所官方財務公邖 | 可作為數據核對基準 |
 
