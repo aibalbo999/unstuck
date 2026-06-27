@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from json_utils import extract_json_payload
 from prompt_rules import build_structured_agent_instructions
@@ -111,6 +111,68 @@ class ScenarioTrigger(StructuredModel):
     )
 
 
+class Catalyst(StructuredModel):
+    event_name: str = Field(..., min_length=1)
+    expected_timeframe: str = Field(..., min_length=1, description="例如 Q3 2026、下個月法說會或下一次月營收。")
+    impact_direction: Literal["bullish", "bearish", "volatile"]
+    trigger_condition: str = Field(..., min_length=5)
+
+
+class ExecutiveThesisOutput(StructuredModel):
+    core_thesis: str = Field(..., min_length=1)
+    bull_case_summary: str = Field(..., min_length=1)
+    bear_case_summary: str = Field(..., min_length=1)
+    resolved_contradictions: list[str] = Field(default_factory=list)
+    smoothed_markdown: str = Field(default="", description="總編輯潤飾後的統一敘事 Markdown。")
+
+    @field_validator("core_thesis")
+    @classmethod
+    def core_thesis_max_300_words(cls, value: str) -> str:
+        if len(str(value).split()) > 300:
+            raise ValueError("core_thesis must be 300 words or fewer")
+        return value
+
+
+def _catalysts_from_scenario_triggers(payload: dict) -> list[dict]:
+    triggers = payload.get("scenario_triggers") if isinstance(payload, dict) else None
+    if not isinstance(triggers, list):
+        return []
+    catalysts = []
+    for idx, trigger in enumerate(triggers[:3], start=1):
+        if not isinstance(trigger, dict):
+            continue
+        condition = str(trigger.get("trigger_condition") or "").strip()
+        if not condition:
+            continue
+        direction = str(trigger.get("direction") or "")
+        if "bullish" in direction:
+            impact = "bullish"
+        elif "bearish" in direction:
+            impact = "bearish"
+        else:
+            impact = "volatile"
+        catalysts.append({
+            "event_name": f"Scenario trigger {idx}",
+            "expected_timeframe": "待後續資料確認",
+            "impact_direction": impact,
+            "trigger_condition": condition,
+        })
+    return catalysts
+
+
+class NextCatalystsMixin(StructuredModel):
+    next_catalysts: list[Catalyst] = Field(default_factory=list, min_length=1)
+
+    @model_validator(mode="before")
+    @classmethod
+    def populate_next_catalysts_from_scenario_triggers(cls, payload):
+        if isinstance(payload, dict) and "next_catalysts" not in payload:
+            catalysts = _catalysts_from_scenario_triggers(payload)
+            if catalysts:
+                payload = {**payload, "next_catalysts": catalysts}
+        return payload
+
+
 class RecommendationFields(StructuredModel):
     recommendation: Literal["買入", "持有", "避免"] = Field(..., alias="建議")
     target_3m: str = Field(..., min_length=1, alias="短期目標（3個月）")
@@ -120,7 +182,7 @@ class RecommendationFields(StructuredModel):
     confidence: str = Field(..., min_length=1, alias="信心指數")
 
 
-class RecommendationStructuredOutput(StructuredModel):
+class RecommendationStructuredOutput(NextCatalystsMixin):
     reasoning_steps: list[str] = Field(
         ...,
         min_length=3,
@@ -166,7 +228,17 @@ class BubbleSniperStructuredOutput(StructuredModel):
         max_length=5,
         description="情境觸發器：列出 2-5 個崩盤催化、軋空停損或重新評估條件。",
     )
+    next_catalysts: list[Catalyst] = Field(default_factory=list, min_length=1)
     analysis_markdown: str = Field(..., min_length=1)
+
+    @model_validator(mode="before")
+    @classmethod
+    def populate_next_catalysts_from_scenario_triggers(cls, payload):
+        if isinstance(payload, dict) and "next_catalysts" not in payload:
+            catalysts = _catalysts_from_scenario_triggers(payload)
+            if catalysts:
+                payload = {**payload, "next_catalysts": catalysts}
+        return payload
 
 
 class ManagementHighlight(StructuredModel):

@@ -149,13 +149,25 @@
         "    \"長期潛力（5年）\": \"NT$完整數字\",",
         "    \"信心指數\": \"1-10/10\"",
         "  },",
+        "  \"confidence_basis\": {",
+        "    \"evidence_items\": [\"至少 3 項具體證據\"],",
+        "    \"key_risks_acknowledged\": [\"至少 2 項已納入考量的風險\"],",
+        "    \"data_gaps\": []",
+        "  },",
+        "  \"scenario_triggers\": [",
+        "    {\"trigger_condition\": \"具體重新評估條件\", \"action\": \"重新評估或調整風控\", \"direction\": \"bearish_downgrade|neutral_review|bullish_upgrade\"}",
+        "  ],",
+        "  \"next_catalysts\": [",
+        "    {\"event_name\": \"可觀察催化事件\", \"expected_timeframe\": \"時間範圍\", \"impact_direction\": \"bullish|bearish|volatile\", \"trigger_condition\": \"加入雷達的具體觸發條件\"}",
+        "  ],",
         "  \"analysis_markdown\": \"繁體中文正式決策備忘錄正文\"",
         "}"
       ],
       "rules": [
         "reasoning_steps 必須先於 recommendation 產生，且至少涵蓋估值、風險與一項前序 Agent 的反方觀點。",
         "所有目標價都必須與 Agent 4 的三情境估值同量級，不可發生千元被縮成個位數。",
-        "recommendation 必須同時包含 建議、短期目標（3個月）、中期目標（6個月）、長期目標（12個月）、長期潛力（5年）、信心指數；建議只能使用 schema 允許值。"
+        "recommendation 必須同時包含 建議、短期目標（3個月）、中期目標（6個月）、長期目標（12個月）、長期潛力（5年）、信心指數；建議只能使用 schema 允許值。",
+        "next_catalysts 必須列出 1-3 個未來可觀察事件，trigger_condition 要能直接轉成 watchlist radar 條件，不可寫成泛泛口號。"
       ]
     },
     "12": {
@@ -237,13 +249,25 @@
         "    \"長期潛力（5年）\": \"NT$完整數字\",",
         "    \"信心指數\": \"1-10/10\"",
         "  },",
+        "  \"confidence_basis\": {",
+        "    \"evidence_items\": [\"至少 3 項具體證據\"],",
+        "    \"key_risks_acknowledged\": [\"至少 2 項已納入考量的風險\"],",
+        "    \"data_gaps\": []",
+        "  },",
+        "  \"scenario_triggers\": [",
+        "    {\"trigger_condition\": \"具體重新評估條件\", \"action\": \"重新評估或調整風控\", \"direction\": \"bearish_downgrade|neutral_review|bullish_upgrade\"}",
+        "  ],",
+        "  \"next_catalysts\": [",
+        "    {\"event_name\": \"可觀察催化事件\", \"expected_timeframe\": \"時間範圍\", \"impact_direction\": \"bullish|bearish|volatile\", \"trigger_condition\": \"加入雷達的具體觸發條件\"}",
+        "  ],",
         "  \"analysis_markdown\": \"繁體中文正式交易決策備忘錄正文\"",
         "}"
       ],
       "rules": [
         "reasoning_steps 必須先於 recommendation 產生，且至少涵蓋估值、籌碼與一項排雷/總經反方觀點。",
         "所有目標價都必須與 Agent 14 的三情境估值同量級，不可發生千元被縮成個位數。",
-        "recommendation 必須同時包含 建議、短期目標（3個月）、中期目標（6個月）、長期目標（12個月）、長期潛力（5年）、信心指數；建議只能使用 schema 允許值。"
+        "recommendation 必須同時包含 建議、短期目標（3個月）、中期目標（6個月）、長期目標（12個月）、長期潛力（5年）、信心指數；建議只能使用 schema 允許值。",
+        "next_catalysts 必須列出 1-3 個未來可觀察事件，trigger_condition 要能直接轉成 watchlist radar 條件，不可寫成泛泛口號。"
       ]
     },
     "19": {
@@ -270,6 +294,9 @@
         "  \"scenario_triggers\": [",
         "    {\"trigger_condition\": \"具體觸發條件\", \"action\": \"重新評估或執行風控\", \"direction\": \"bearish_downgrade|neutral_review|bullish_upgrade\"}",
         "  ],",
+        "  \"next_catalysts\": [",
+        "    {\"event_name\": \"可觀察催化事件\", \"expected_timeframe\": \"時間範圍\", \"impact_direction\": \"bullish|bearish|volatile\", \"trigger_condition\": \"加入雷達的具體觸發條件\"}",
+        "  ],",
         "  \"analysis_markdown\": \"繁體中文正式泡沫狙擊報告正文，且正文必須包含做空觸發條件（Catalyst for crash）與防軋空停損點（Stop-loss level）\"",
         "}"
       ],
@@ -278,7 +305,8 @@
         "recommendation.建議 只能是「強烈放空」、「避免」、「持有」、「買進」四者之一；除非資料顯示估值與財務已恢復合理，否則應傾向「強烈放空」或「避免」。",
         "analysis_markdown 的最後必須自然導出 recommendation，且正文必須明確出現「做空觸發條件（Catalyst for crash）」與「防軋空停損點（Stop-loss level）」兩段。",
         "所有目標價都必須是完整股價數字或清楚區間，不可發生千元被縮成個位數。",
-        "analysis_markdown 必須使用完全相同的章節名稱「做空觸發條件（Catalyst for crash）」與「防軋空停損點（Stop-loss level）」；最終 [投資建議] 區塊必須是全文最後內容，不得在 [/投資建議] 後添加任何文字。"
+        "analysis_markdown 必須使用完全相同的章節名稱「做空觸發條件（Catalyst for crash）」與「防軋空停損點（Stop-loss level）」；最終 [投資建議] 區塊必須是全文最後內容，不得在 [/投資建議] 後添加任何文字。",
+        "next_catalysts 必須列出 1-3 個未來可觀察事件，trigger_condition 要能直接轉成 watchlist radar 條件，不可寫成泛泛口號。"
       ]
     },
     "20": {

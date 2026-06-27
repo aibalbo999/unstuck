@@ -66,6 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let pendingAuditNotice = null;
     let currentPipeline = 'v1';
     const notify = window.StockAgentNotificationCenter.create();
+    window.StockAgentNotify = notify;
 
     const viewController = window.StockAgentViewController.create({
         views: {

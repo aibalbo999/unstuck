@@ -152,3 +152,145 @@
             font-size: 10px;
             color: var(--text-muted);
         }
+
+        .sidebar-catalysts {
+            padding: 8px 0 12px;
+            border-top: 1px solid var(--border);
+        }
+
+        .sidebar-catalyst {
+            margin: 8px 12px;
+            padding: 10px;
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            border-radius: 8px;
+            background: rgba(15, 23, 42, 0.54);
+        }
+
+        .sidebar-catalyst strong,
+        .sidebar-catalyst span {
+            display: block;
+        }
+
+        .sidebar-catalyst strong {
+            color: var(--text-primary);
+            font-size: 12px;
+            line-height: 1.35;
+            margin-bottom: 3px;
+        }
+
+        .sidebar-catalyst span {
+            color: var(--text-muted);
+            font-size: 10.5px;
+            line-height: 1.35;
+            margin-bottom: 6px;
+        }
+
+        .sidebar-catalyst p {
+            color: var(--text-secondary);
+            font-size: 11px;
+            line-height: 1.45;
+            margin: 0 0 8px;
+        }
+
+        .add-to-watchlist-btn {
+            width: 100%;
+            min-height: 34px;
+            border: 1px solid rgba(16, 185, 129, 0.34);
+            border-radius: 8px;
+            background: rgba(16, 185, 129, 0.12);
+            color: #86efac;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 800;
+        }
+
+        .add-to-watchlist-btn:hover:not(:disabled) {
+            border-color: rgba(16, 185, 129, 0.7);
+            color: #bbf7d0;
+        }
+
+        .add-to-watchlist-btn:disabled {
+            cursor: wait;
+            opacity: 0.62;
+        }
+
+        .source-citation {
+            color: var(--accent-cyan);
+            border-bottom: 1px dotted rgba(6, 182, 212, 0.7);
+            cursor: help;
+            font-size: 0.86em;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .source-citation:focus-visible {
+            outline: 2px solid var(--accent-cyan);
+            outline-offset: 2px;
+            border-radius: 3px;
+        }
+
+        .source-tooltip {
+            position: fixed;
+            z-index: 500;
+            width: min(340px, calc(100vw - 32px));
+            padding: 12px 14px;
+            border: 1px solid rgba(96, 165, 250, 0.35);
+            border-radius: 8px;
+            background: rgba(8, 15, 30, 0.97);
+            box-shadow: 0 18px 44px rgba(0, 0, 0, 0.38);
+            color: var(--text-primary);
+            pointer-events: none;
+        }
+
+        .source-tooltip[hidden] {
+            display: none;
+        }
+
+        .source-tooltip strong,
+        .source-tooltip span,
+        .source-tooltip p {
+            display: block;
+        }
+
+        .source-tooltip strong {
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+
+        .source-tooltip span {
+            color: var(--text-muted);
+            font-size: 11px;
+            margin-bottom: 8px;
+        }
+
+        .source-tooltip p {
+            color: var(--text-secondary);
+            font-size: 12px;
+            line-height: 1.55;
+            margin: 0;
+        }
+
+        .executive-thesis,
+        .editor-synthesis {
+            margin-top: 18px;
+            border: 1px solid rgba(6, 182, 212, 0.22);
+            border-radius: 8px;
+            background: rgba(6, 182, 212, 0.08);
+            padding: 16px 18px;
+        }
+
+        .executive-thesis-title,
+        .editor-synthesis-title {
+            color: #67e8f9;
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: 0;
+            margin-bottom: 8px;
+        }
+
+        .executive-thesis p,
+        .editor-synthesis-body {
+            color: var(--text-secondary);
+            font-size: 14px;
+            line-height: 1.75;
+        }

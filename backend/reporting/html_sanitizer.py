@@ -52,6 +52,7 @@ ALLOWED_TAGS = {
 ALLOWED_ATTRIBUTES = {
     "*": ["class"],
     "a": ["href", "rel", "target", "title"],
+    "span": ["aria-label", "data-source-id", "role", "tabindex"],
     "td": ["align", "colspan", "rowspan"],
     "th": ["align", "colspan", "rowspan"],
 }

@@ -94,5 +94,8 @@ class AgentState(BaseModel):
     quant_metrics: dict[str, Any] = Field(default_factory=dict)
     tool_results: dict[str, Any] = Field(default_factory=dict)
     agent_reports: dict[str, AgentReport] = Field(default_factory=dict)
+    executive_thesis: str | None = None
+    smoothed_markdown: str | None = None
+    next_catalysts: list[dict[str, Any]] = Field(default_factory=list)
     risk_flags: list[RiskFlag] = Field(default_factory=list)
     execution_trace: list[dict[str, Any]] = Field(default_factory=list)

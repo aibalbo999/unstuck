@@ -69,6 +69,61 @@ def test_rendered_report_escapes_external_and_model_strings():
     assert "台積電" in html
 
 
+def test_rendered_report_embeds_safe_traceability_and_chart_payloads():
+    context = {
+        "ticker": "2330.TW",
+        "company_name": "台積電",
+        "pipeline_id": "v1",
+        "data": {
+            "ticker": "2330.TW",
+            "company_name": "台積電",
+            "current_price": 100,
+            "current_price_fmt": "NT$100",
+            "years": ["2025", "2026"],
+            "revenue_history": [10, 12],
+            "net_income_history": [3, 4],
+            "fcf_history": [2, 3],
+            "gross_margin_history": [45, 47],
+            "op_margin_history": [30, 32],
+            "net_margin_history": [20, 21],
+            "roe_history": [18, 19],
+            "source_audit": [
+                {
+                    "source": "financial_statements",
+                    "provider": "MOPS",
+                    "status": "success",
+                    "fetched_at": "2026-06-27T01:00:00+00:00",
+                    "record_count": 4,
+                    "message": "</script><script>alert(1)</script>",
+                }
+            ],
+        },
+        "analyses": {
+            1: "## 分析\n自由現金流轉換率惡化 [source:financial_statements]",
+        },
+        "parsed": {
+            "recommendation": {
+                "建議": "持有",
+                "3個月": "NT$100",
+                "6個月": "NT$110",
+                "12個月": "NT$120",
+                "信心": "7/10",
+            },
+        },
+    }
+
+    html = generate_html_report(context)
+
+    assert 'class="source-citation"' in html
+    assert 'data-source-id="financial_statements"' in html
+    assert 'id="report-evidence-data" type="application/json"' in html
+    assert 'id="report-chart-data" type="application/json"' in html
+    assert "window.StockAgentReportTraceability" in html
+    assert "JSON.parse(chartPayload.textContent" in html
+    assert "alert(1)" not in html
+    assert "</script><script>" not in html
+
+
 def test_report_cover_image_url_allowlist():
     data_url = "data:image/png;base64,QUJDRA=="
 

@@ -10,6 +10,7 @@ from google import genai
 from google.genai import types
 
 from config import LLM_AGENT_CALL_TIMEOUT_SECONDS
+from google_prompt_safety import sanitize_google_generation_config, sanitize_google_prompt
 
 
 def response_text(response) -> str:
@@ -86,13 +87,21 @@ async def close_cached_clients_async() -> None:
 def generate_content(api_key: str, model_id: str, prompt: str, config):
     """Call Google GenAI synchronously with an isolated per-key client."""
     client = _get_client(api_key)
-    return client.models.generate_content(model=model_id, contents=prompt, config=config)
+    return client.models.generate_content(
+        model=model_id,
+        contents=sanitize_google_prompt(prompt),
+        config=sanitize_google_generation_config(config),
+    )
 
 
 async def generate_content_async(api_key: str, model_id: str, prompt: str, config):
     """Call Google GenAI through the async client implementation."""
     client = _get_client(api_key)
-    return await client.aio.models.generate_content(model=model_id, contents=prompt, config=config)
+    return await client.aio.models.generate_content(
+        model=model_id,
+        contents=sanitize_google_prompt(prompt),
+        config=sanitize_google_generation_config(config),
+    )
 
 
 def embed_content(api_key: str, model_id: str, contents, config):
@@ -110,10 +119,10 @@ async def embed_content_async(api_key: str, model_id: str, contents, config):
 def generate_images(api_key: str, model_id: str, prompt: str, config):
     """Call Imagen synchronously with an isolated per-key client."""
     client = _get_client(api_key)
-    return client.models.generate_images(model=model_id, prompt=prompt, config=config)
+    return client.models.generate_images(model=model_id, prompt=sanitize_google_prompt(prompt), config=config)
 
 
 async def generate_images_async(api_key: str, model_id: str, prompt: str, config):
     """Call Imagen through the async client implementation."""
     client = _get_client(api_key)
-    return await client.aio.models.generate_images(model=model_id, prompt=prompt, config=config)
+    return await client.aio.models.generate_images(model=model_id, prompt=sanitize_google_prompt(prompt), config=config)
