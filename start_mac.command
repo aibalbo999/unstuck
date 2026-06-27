@@ -27,6 +27,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 export TASK_QUEUE_BACKEND="${TASK_QUEUE_BACKEND:-rq}"
 export REDIS_URL="${REDIS_URL:-redis://localhost:6379/0}"
 export TASK_QUEUE_NAME="${TASK_QUEUE_NAME:-stock-analysis}"
+export PYTHONUNBUFFERED="${PYTHONUNBUFFERED:-1}"
 
 SERVER_PID=""
 WORKER_PID=""
@@ -212,7 +213,7 @@ elif [ "$REDIS_HOST" = "localhost" ] || [ "$REDIS_HOST" = "127.0.0.1" ] || [ "$R
     fi
     mkdir -p "$DIR/backend/cache"
     echo "啟動 Redis：$REDIS_URL"
-    redis-server --bind 127.0.0.1 --port "$REDIS_PORT" --save "" --appendonly no > "$DIR/backend/cache/redis-start_mac.log" 2>&1 &
+    (trap '' INT; exec redis-server --bind 127.0.0.1 --port "$REDIS_PORT" --save "" --appendonly no > "$DIR/backend/cache/redis-start_mac.log" 2>&1) &
     REDIS_PID=$!
     if ! wait_for_redis; then
         echo "Redis 啟動逾時，請檢查：$DIR/backend/cache/redis-start_mac.log"
@@ -245,7 +246,7 @@ if [ -f "$WORKER_PID_FILE" ]; then
 fi
 
 echo "啟動 Worker..."
-PYTHONUNBUFFERED=1 "$PYTHON_BIN" -u worker_main.py --role all &
+(trap '' INT; exec "$PYTHON_BIN" -u worker_main.py --role all) &
 WORKER_PID=$!
 echo "$WORKER_PID" > "$WORKER_PID_FILE"
 sleep 1
@@ -257,7 +258,7 @@ fi
 echo "Worker 已啟動。"
 
 echo "啟動伺服器..."
-PYTHONUNBUFFERED=1 "$PYTHON_BIN" -u -m uvicorn api:app --host "$SERVER_HOST" --port 8080 &
+(trap '' INT; exec "$PYTHON_BIN" -u -m uvicorn api:app --host "$SERVER_HOST" --port 8080) &
 SERVER_PID=$!
 
 echo "等待伺服器啟動..."

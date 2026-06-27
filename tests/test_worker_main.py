@@ -266,6 +266,16 @@ def test_all_role_signal_during_start_does_not_join_unstarted_children(monkeypat
     assert maintenance_process.joined is False
 
 
+def test_child_main_suppresses_keyboard_interrupt_shutdown(monkeypatch):
+    def fake_run_role(role):
+        assert role == "maintenance"
+        raise KeyboardInterrupt()
+
+    monkeypatch.setattr(worker_main, "run_role", fake_run_role)
+
+    worker_main.child_main("maintenance")
+
+
 def test_worker_main_rejects_unknown_role():
     with pytest.raises(ValueError, match="Unknown worker role"):
         worker_main.run_role("bogus", runtime_factory=lambda _settings: FakeWorkerRuntime([]))

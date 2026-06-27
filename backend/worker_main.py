@@ -146,12 +146,19 @@ def child_main(role: str) -> None:
     def _raise_keyboard_interrupt(_signum: int, _frame: FrameType | None) -> None:
         raise KeyboardInterrupt()
 
-    previous_handler = signal.getsignal(signal.SIGTERM)
+    previous_handlers = {
+        signal.SIGTERM: signal.getsignal(signal.SIGTERM),
+        signal.SIGINT: signal.getsignal(signal.SIGINT),
+    }
     signal.signal(signal.SIGTERM, _raise_keyboard_interrupt)
+    signal.signal(signal.SIGINT, _raise_keyboard_interrupt)
     try:
         run_role(role)
+    except KeyboardInterrupt:
+        return
     finally:
-        signal.signal(signal.SIGTERM, previous_handler)
+        for sig, previous_handler in previous_handlers.items():
+            signal.signal(sig, previous_handler)
 
 
 def _terminate_live_children(processes) -> None:
