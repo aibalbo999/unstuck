@@ -56,7 +56,6 @@ class CircuitBreaker:
                 raise ProviderCircuitOpenError(f"Circuit is OPEN. Fast failing. Retry in {remaining:.1f}s")
 
     def snapshot(self) -> dict[str, Any]:
-        self.check_state()
         opened_until = (
             self.last_failure_time + self.recovery_timeout
             if self.state == "OPEN" and self.last_failure_time

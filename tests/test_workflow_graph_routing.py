@@ -12,7 +12,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 
 from pipeline_modes import get_pipeline_definition
 from state_memory import initialize_agent_state
-from workflow_graph import build_analysis_graph_builder, run_analysis_workflow
+from workflow_graph import build_analysis_graph_builder, route_after_final_audit, route_after_validation, run_analysis_workflow
 from workflow_state import agent_state_to_graph
 
 
@@ -135,6 +135,14 @@ def test_open_after_repair_blocks_all_agents():
     assert not any(call.startswith("agent:") for call in services.calls)
     assert result["status"] == "blocked"
     assert result["blocking_issues"]
+
+
+def test_route_after_validation_repairs_when_circuit_breaker_is_open():
+    assert route_after_validation({"circuit_breaker": {"status": "open"}}) == "repair_data"
+
+
+def test_route_after_final_audit_blocks_when_blocking_issues_are_present():
+    assert route_after_final_audit({"blocking_issues": ["final_audit:critical_gap"]}) == "blocked_finalize"
 
 
 def test_final_audit_repair_limit_blocks_before_tear_sheet_and_persist():

@@ -27,6 +27,7 @@ GDELT_TOPIC_QUERIES = {
 GDELT_RATE_LIMIT_RE = re.compile(r"(?:\b429\b|too many requests|rate\s*limit)", re.IGNORECASE)
 DEFAULT_GDELT_RATE_LIMIT_COOLDOWN_SECONDS = 15 * 60
 DEFAULT_GDELT_TOPIC_CACHE_SECONDS = 6 * 60 * 60
+GDELT_RATE_LIMIT_CACHE_KEY = "gdelt_rate_limit_cooldown:v1"
 
 _gdelt_cooldown_until = 0.0
 
@@ -134,12 +135,41 @@ def _rate_limit_cooldown_seconds(explicit: float | None = None) -> float:
 
 
 def _gdelt_rate_limited() -> bool:
-    return _now() < _gdelt_cooldown_until
+    return _now() < _active_gdelt_cooldown_until()
 
 
 def _mark_gdelt_rate_limited(cooldown_seconds: float) -> None:
     global _gdelt_cooldown_until
-    _gdelt_cooldown_until = max(_gdelt_cooldown_until, _now() + max(float(cooldown_seconds), 0.0))
+    now = _now()
+    cooldown = max(float(cooldown_seconds), 0.0)
+    _gdelt_cooldown_until = max(_gdelt_cooldown_until, now + cooldown)
+    if _gdelt_cooldown_until <= now:
+        return
+    try:
+        set_cache_json(
+            GDELT_RATE_LIMIT_CACHE_KEY,
+            {"cooldown_until": _gdelt_cooldown_until},
+            ttl_seconds=max(int(_gdelt_cooldown_until - now), 1),
+        )
+    except Exception:
+        return
+
+
+def _active_gdelt_cooldown_until() -> float:
+    return max(_gdelt_cooldown_until, _persisted_gdelt_cooldown_until())
+
+
+def _persisted_gdelt_cooldown_until() -> float:
+    try:
+        payload = get_cache_json(GDELT_RATE_LIMIT_CACHE_KEY)
+    except Exception:
+        return 0.0
+    if not isinstance(payload, dict):
+        return 0.0
+    try:
+        return max(float(payload.get("cooldown_until") or 0.0), 0.0)
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def _is_gdelt_rate_limit_error(exc: BaseException) -> bool:

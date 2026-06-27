@@ -125,6 +125,20 @@ def test_provider_resilience_retries_and_opens_circuit(monkeypatch):
     provider_resilience.clear_provider_circuits()
 
 
+def test_circuit_snapshot_is_pure_and_does_not_transition_expired_open_state(monkeypatch):
+    breaker = provider_resilience.CircuitBreaker(failure_threshold=1, recovery_timeout=60)
+    monkeypatch.setattr(provider_resilience.time, "time", lambda: 1_000.0)
+
+    breaker.record_failure("rate limited")
+    monkeypatch.setattr(provider_resilience.time, "time", lambda: 1_061.0)
+
+    snapshot = breaker.snapshot()
+
+    assert snapshot["open"] is True
+    assert snapshot["state"] == "OPEN"
+    assert breaker.state == "OPEN"
+
+
 def test_provider_resilience_persists_open_circuit_to_sqlite_cache(monkeypatch, tmp_path):
     monkeypatch.setattr(cache_store, "CACHE_DB_PATH", str(tmp_path / "cache.sqlite3"))
     cache_store.reset_cache_store_for_tests()

@@ -65,7 +65,7 @@ def route_after_repair_validation(state: AgentGraphState) -> Literal["blocked_fi
 
 def route_after_final_audit(state: AgentGraphState) -> Literal["blocked_finalize", "tear_sheet"]:
     blocking_issues = set(str(issue) for issue in (state.get("blocking_issues") or []))
-    if state.get("status") == "blocked" or "final_audit:repair_iteration_limit" in blocking_issues:
+    if state.get("status") == "blocked" or blocking_issues:
         return "blocked_finalize"
     return "tear_sheet"
 

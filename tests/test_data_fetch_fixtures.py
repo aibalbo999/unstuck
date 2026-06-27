@@ -416,6 +416,56 @@ def test_gdelt_429_uses_cooldown_without_warning_log(monkeypatch):
     assert external_data_gdelt._gdelt_cooldown_until == 1300.0
 
 
+def test_gdelt_uses_persisted_rate_limit_cooldown_after_worker_restart(monkeypatch):
+    class FakeResponse:
+        text = """<?xml version="1.0" encoding="UTF-8"?>
+        <rss><channel><item>
+          <title>Persisted cooldown fallback - Reuters</title>
+          <link>https://news.google.com/rss/articles/persisted-cooldown</link>
+          <pubDate>Fri, 12 Jun 2026 01:02:03 GMT</pubDate>
+          <source>Reuters</source>
+        </item></channel></rss>
+        """
+
+        def raise_for_status(self):
+            return None
+
+    class FakeAsyncClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, _url, params):
+            assert params["q"]
+            return FakeResponse()
+
+    async def unexpected_json_get(_client, _url, _params):
+        raise AssertionError("GDELT network should not be called during persisted cooldown")
+
+    def fake_get_cache_json(key):
+        if key == external_data_gdelt.GDELT_RATE_LIMIT_CACHE_KEY:
+            return {"cooldown_until": 1_300.0}
+        return None
+
+    monkeypatch.setattr(external_data_gdelt, "_gdelt_cooldown_until", 0.0)
+    monkeypatch.setattr(external_data_gdelt, "_now", lambda: 1_000.0)
+    monkeypatch.setattr(external_data_gdelt, "async_client", lambda: FakeAsyncClient())
+    monkeypatch.setattr(external_data_gdelt, "async_json_get", unexpected_json_get)
+    monkeypatch.setattr(external_data_gdelt, "get_cache_json", fake_get_cache_json)
+
+    context = asyncio.run(external_data_gdelt.fetch_gdelt_international_news_context(
+        "Technology",
+        "Semiconductors",
+        max_topics=1,
+        request_spacing_seconds=0,
+    ))
+
+    assert context["topics"][0]["source"] == "Google News RSS"
+    assert context["coverage_notes"] == ["semiconductors_ai GDELT 429 cooldown，使用 Google News RSS 備援。"]
+
+
 def test_gdelt_uses_cached_topic_without_network_call(monkeypatch):
     class FakeAsyncClient:
         async def __aenter__(self):
@@ -485,11 +535,13 @@ def test_gdelt_429_uses_cached_topic_before_rss_fallback(monkeypatch):
     monkeypatch.setattr(external_data_gdelt, "_now", lambda: 1000.0)
     monkeypatch.setattr(external_data_gdelt, "async_client", lambda: FakeAsyncClient())
     monkeypatch.setattr(external_data_gdelt, "async_json_get", rate_limited_json_get)
-    cache_reads = []
+    topic_cache_reads = []
 
-    def fake_get_cache_json(_key):
-        cache_reads.append(_key)
-        if len(cache_reads) == 1:
+    def fake_get_cache_json(key):
+        if key == external_data_gdelt.GDELT_RATE_LIMIT_CACHE_KEY:
+            return None
+        topic_cache_reads.append(key)
+        if len(topic_cache_reads) == 1:
             return None
         return {"topics": [{
             "tag": "semiconductors_ai",
@@ -510,7 +562,7 @@ def test_gdelt_429_uses_cached_topic_before_rss_fallback(monkeypatch):
 
     assert context["topics"][0]["headline"] == "Cached semis story after 429"
     assert context["coverage_notes"] == ["semiconductors_ai GDELT 429 rate limited，使用 GDELT 快取。"]
-    assert len(cache_reads) == 2
+    assert len(topic_cache_reads) == 2
     assert external_data_gdelt._gdelt_cooldown_until == 1300.0
 
 

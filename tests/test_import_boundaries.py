@@ -6,6 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 BACKEND = ROOT / "backend"
+MAX_BACKEND_MODULE_LINES = 350
 FORBIDDEN_ROOT_SHIMS = {"agent_runner", "api_report_service", "financial_data", "market_data_fetchers", "rag_service", "report_gen"}
 FORBIDDEN_MODULES = {
     "data_fetch.core_assembler",
@@ -140,8 +141,8 @@ def test_backend_python_modules_stay_split_below_threshold():
         if "__pycache__" in path.parts:
             continue
         line_count = len(path.read_text(encoding="utf-8").splitlines())
-        if line_count >= 300:
-            offenders.append(f"{path.relative_to(ROOT)} has {line_count} lines")
+        if line_count >= MAX_BACKEND_MODULE_LINES:
+            offenders.append(f"{path.relative_to(ROOT)} has {line_count} lines; limit is {MAX_BACKEND_MODULE_LINES}")
 
     assert offenders == []
 

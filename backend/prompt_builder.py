@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import warnings
 
 import pandas as pd
 from jinja2 import ChainableUndefined, Environment
@@ -30,6 +31,8 @@ def render_prompt_template(template: str, variables: dict) -> str:
     if not template:
         return ""
 
+    if LEGACY_PLACEHOLDER_RE.search(template):
+        warnings.warn("legacy prompt placeholder syntax is deprecated; use Jinja2 placeholders like {{ ticker }} instead", DeprecationWarning, stacklevel=2)
     jinja_template = LEGACY_PLACEHOLDER_RE.sub(r"{{ \1 }}", template)
     return PROMPT_ENV.from_string(jinja_template).render(**variables)
 

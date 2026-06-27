@@ -2,6 +2,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 BACKEND = ROOT / "backend"
@@ -10,13 +12,20 @@ if str(BACKEND) not in sys.path:
 
 
 import agent_runtime.prompting as prompting  # noqa: E402
-from prompt_builder import format_data_for_prompt  # noqa: E402
+from prompt_builder import format_data_for_prompt, render_prompt_template  # noqa: E402
 from temporal_memory_service import build_valuation_memory_slice  # noqa: E402
 
 
 def _payload_from_prompt(prompt_text: str) -> dict:
     payload_text = prompt_text.split("【財務資料 JSON】\n", 1)[1].split("\n\n【使用規則】", 1)[0]
     return json.loads(payload_text)
+
+
+def test_render_prompt_template_warns_for_legacy_placeholders():
+    with pytest.warns(DeprecationWarning, match="legacy prompt placeholder"):
+        rendered = render_prompt_template("標的 {ticker}", {"ticker": "2330.TW"})
+
+    assert rendered == "標的 2330.TW"
 
 
 def test_data_for_agent_prompt_routes_new_context_by_role():
