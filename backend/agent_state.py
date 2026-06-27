@@ -84,7 +84,7 @@ class AgentState(BaseModel):
     ticker: str
     company_name: str
     company_identity: dict[str, Any] = Field(default_factory=dict)
-    raw_financial_data: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    raw_financial_data: dict[str, Any] = Field(default_factory=dict)
     provider_values: dict[str, list[ProviderValue]] = Field(default_factory=dict)
     normalized_financials: dict[str, Any] = Field(default_factory=dict)
     source_audit: list[dict[str, Any]] = Field(default_factory=list)

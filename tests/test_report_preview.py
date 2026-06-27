@@ -448,7 +448,7 @@ def test_refresh_data_snapshot_endpoint_updates_trust(tmp_path, monkeypatch, mut
                 },
             )
 
-    monkeypatch.setattr(api, "data_refresh_service", FakeRefreshService())
+    monkeypatch.setattr(api, "get_data_refresh_service", lambda _app: FakeRefreshService())
     client = TestClient(api.app)
     response = client.post(f"/api/report/{filename}/refresh/data", headers=mutation_headers)
 
@@ -521,7 +521,7 @@ def test_refresh_data_snapshot_keeps_decision_current_when_only_provider_sla_cha
                 },
             )
 
-    monkeypatch.setattr(api, "data_refresh_service", FakeRefreshService())
+    monkeypatch.setattr(api, "get_data_refresh_service", lambda _app: FakeRefreshService())
     client = TestClient(api.app)
     response = client.post(f"/api/report/{filename}/refresh/data", headers=mutation_headers)
 
@@ -832,7 +832,10 @@ def test_final_rerun_uses_snapshot_rerun_context_without_markdown(tmp_path, monk
     }
     (tmp_path / filename.replace(".html", ".data.json")).write_text(json.dumps(snapshot), encoding="utf-8")
 
+    fake_rotator = object()
+
     async def fake_run_agent(agent_num, data, context, rotator):
+        assert rotator is fake_rotator
         context["analyses"][agent_num] = "final recommendation rerun"
         context["structured_outputs"][agent_num] = {"recommendation": {"建議": "持有"}}
         return "final recommendation rerun"
@@ -857,6 +860,7 @@ def test_final_rerun_uses_snapshot_rerun_context_without_markdown(tmp_path, monk
                 },
             )
 
+    monkeypatch.setattr(report_rerun_service, "KeyRotator", lambda _keys: fake_rotator)
     monkeypatch.setattr(report_rerun_service, "run_agent_with_quality_gates_async", fake_run_agent)
     monkeypatch.setattr(report_rerun_service, "run_final_report_audit", lambda context, append_section=True: {"warnings": []})
     monkeypatch.setattr(report_rerun_service, "parse_structured_data", lambda context: {"recommendation": {"建議": "持有"}})

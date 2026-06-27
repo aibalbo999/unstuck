@@ -4,6 +4,12 @@ import asyncio
 
 from config import API_KEY_SETUP_MESSAGE, OUTPUT_DIR, has_api_keys
 from agent_runtime import AnalysisPipelineRunner, AnalysisRequest
+from agent_runtime.retry_policy import AgentRateLimitError
+from analysis_job_helpers import (
+    build_data_fetch_blocking_notice,
+    build_operator_audit_notice,
+    stable_report_filename,
+)
 from analysis_job_progress import make_pipeline_progress_callback
 from analysis_job_reports import render_and_persist_report
 from data_fetch import FetchRequest, StockDataService
@@ -16,7 +22,9 @@ from pipeline_modes import (
     normalize_pipeline_run_id,
 )
 from reporting import ReportRenderer
+from reporting.lint import ReportLintError
 from quant_engine import QuantEngine
+from runtime_dependencies import create_report_storage_for_output_dir, runtime_settings_for_output_dir
 from temporal_memory_service import build_temporal_memory
 
 
@@ -34,70 +42,6 @@ def _raise_if_cancelled(job_id: str) -> None:
         raise AnalysisJobCancelled("分析任務已取消。")
 
 
-def build_data_fetch_blocking_notice(data_result) -> dict | None:
-    """Return a terminal notice when core data is too weak for model analysis."""
-    data = data_result.data if isinstance(getattr(data_result, "data", None), dict) else {}
-    trust = (
-        data_result.data_trust
-        if isinstance(getattr(data_result, "data_trust", None), dict)
-        else data.get("data_trust", {}) if isinstance(data.get("data_trust"), dict) else {}
-    )
-    trust_status = str(trust.get("status") or "unknown")
-    has_market_or_financials = bool(
-        data.get("current_price")
-        or data.get("market_cap_raw")
-        or data.get("years")
-        or data.get("revenue_history")
-    )
-    has_unusable_error_payload = bool(data.get("error")) and not has_market_or_financials
-
-    if trust_status == "error":
-        return {
-            "message": "核心市場或財報來源異常，且沒有足夠可用資料；已停止本次分析，請稍後重試或檢查資料來源設定。",
-            "data_trust": trust,
-        }
-    if has_unusable_error_payload:
-        return {
-            "message": f"財務資料獲取失敗且沒有可用核心資料：{data.get('error')}",
-            "data_trust": trust,
-        }
-    return None
-
-
-def build_operator_audit_notice(context: dict) -> dict:
-    """Summarize final audit state for progress events and UI notices."""
-    audit = context.get("final_audit", {}) or {}
-    critical = list(audit.get("critical", []) or [])
-    blocking = [
-        issue for issue in (context.get("blocking_issues", []) or [])
-        if issue not in critical
-    ]
-    warnings = list(audit.get("warnings", []) or [])
-    corrections = list(audit.get("corrections", []) or [])
-    repair_log = list(context.get("audit_repair_log", []) or [])
-
-    if critical or blocking:
-        issues = [*critical[:5], *blocking[:3]]
-        first_issue = issues[0] if issues else "最終稽核仍有異常"
-        return {
-            "status": "needs_attention",
-            "message": f"最終稽核仍有異常，報告已保留並標示提醒：{first_issue}",
-            "issues": issues,
-            "repair_log": repair_log[:5],
-        }
-
-    if warnings or corrections or repair_log:
-        details = [*warnings[:3], *corrections[:3], *repair_log[:3]]
-        return {
-            "status": "passed_with_notes",
-            "message": "最終稽核已通過；系統曾自動修復或套用非阻斷校正。",
-            "issues": details,
-            "repair_log": repair_log[:5],
-        }
-
-    return {"status": "passed", "message": "最終稽核已通過。", "issues": [], "repair_log": []}
-
-
 async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: str = "v1") -> str:
     """Run the full stock analysis and persist progress events for SSE clients."""
     ticker_upper = ticker.strip().upper()
@@ -105,6 +49,8 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
     pipeline_sequence = get_pipeline_run_sequence(run_id)
     run_label = get_pipeline_run_label(run_id)
     total_agents = get_pipeline_run_agent_total(run_id)
+    current_thread_id = ""
+    current_pipeline_label = run_label
     update_job(job_id, "running")
 
     try:
@@ -159,10 +105,15 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
         reports = []
         completed_agent_offset = 0
         sequence_total = len(pipeline_sequence)
+        runtime_settings = runtime_settings_for_output_dir(OUTPUT_DIR)
+        report_storage = create_report_storage_for_output_dir(OUTPUT_DIR)
 
         for sequence_index, current_pipeline_id in enumerate(pipeline_sequence, start=1):
             _raise_if_cancelled(job_id)
             pipeline_def = get_pipeline_definition(current_pipeline_id)
+            current_thread_id = f"{job_id}:{current_pipeline_id}"
+            current_pipeline_label = pipeline_def["label"]
+            report_filename = stable_report_filename(job_id, ticker_upper, current_pipeline_id)
             agent_count = len(pipeline_def["agents"])
             append_event(job_id, {
                 "type": "status",
@@ -202,6 +153,9 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
                     progress_callback=progress_callback,
                     pipeline_id=current_pipeline_id,
                     cancel_check=lambda: _raise_if_cancelled(job_id),
+                    thread_id=current_thread_id,
+                    checkpoint_path=runtime_settings.checkpoint_path,
+                    report_filename=report_filename,
                 )
             )
             _raise_if_cancelled(job_id)
@@ -236,6 +190,8 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
                 cancel_check=lambda: _raise_if_cancelled(job_id),
                 append_event_func=append_event,
                 output_dir=OUTPUT_DIR,
+                storage=report_storage,
+                filename=context.get("report_filename") or report_filename,
             )
             reports.append(report_event)
             append_event(job_id, report_event)
@@ -266,6 +222,25 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
         update_job(job_id, "cancelled", error=message)
         append_event(job_id, {"type": "error", "phase": "cancelled", "level": "warning", "message": message})
         return ""
+    except ReportLintError as e:
+        message = f"錯誤：{str(e)}"
+        update_job(job_id, "error", error=message)
+        append_event(job_id, {"type": "error", "message": message})
+        return ""
+    except AgentRateLimitError as e:
+        message = str(e)
+        update_job(job_id, "waiting_retry", error=message)
+        append_event(job_id, {
+            "type": "status",
+            "phase": "workflow_retry",
+            "level": "warning",
+            "message": "LLM API 暫時達到速率限制，任務已保留 LangGraph checkpoint，等待 RQ 延遲重試。",
+            "error": message,
+            "thread_id": current_thread_id,
+            "pipeline_id": current_thread_id.rsplit(":", 1)[-1] if current_thread_id else run_id,
+            "pipeline_label": current_pipeline_label,
+        })
+        raise
     except Exception as e:
         message = str(e)
         update_job(job_id, "error", error=message)

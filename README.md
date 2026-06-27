@@ -10,7 +10,7 @@
 - SSE 即時推播分析進度
 - 支援台股代號，例如 `2330`、`2330.TW`
 - 自動切換 `.TW` / `.TWO` 查詢
-- 多 Agent 串接分析流程，支援 Mode A（學術深度派）、Mode B（實戰交易派）與 Mode C（逆勢交易與泡沫狙擊）
+- 多 Agent 串接分析流程，支援 Mode A（學術深度派）、Mode B（實戰交易派）、Mode C（逆勢交易與泡沫狙擊）與 Mode D（極短線波段與事件驅動）
 - 產生 HTML 與 Markdown 報告
 - 前端分成「分析」與「報告與維運」頁籤；歷史報告、預覽、比較留在分析頁，API 額度、watchlist、來源健康與本機維護集中在維運頁並於首次開啟時載入
 - 歷史報告支援資料可信度、決策追蹤、版本篩選、報告比較與相容性提示
@@ -19,14 +19,15 @@
 - 決策追蹤會自動掃描滿 3 / 6 / 12 個月的歷史報告，抓取發布日與到期日股價，計算 ROI、命中率與 Hit/Miss，並在「報告與維運」顯示回測績效
 - 新報告會載入同股票上一期報告與回測結果，將 `temporal_memory` 只注入最終決策 Agent，強制檢討先前目標價與投資建議是否失準
 - 內建報告刪除 API，會同步刪除 `.html`、`.md` 與資料快照
-- 結構化 Agent 使用 JSON 輸出優先解析；Mode A/B 會解析護城河、估值與投資建議，Mode C 會解析泡沫狙擊建議
-- Mode C 的 Agent 19 報告會強制保留做空觸發條件、防軋空停損點，並將 `[投資建議]` 區塊固定放在最終段落尾端
+- 結構化 Agent 使用 JSON 輸出優先解析；Mode A/B 會解析護城河、估值與投資建議，Mode C 會解析泡沫狙擊建議，Mode D 會解析極短線交易設定
+- Mode C 的 Agent 19 報告會強制保留做空觸發條件、防軋空停損點，並將 `[投資建議]` 區塊固定放在最終段落尾端；Mode D 則使用 Agent 24 輸出標準化 Trade Setup
 - 財務資料使用本地 SQLite 持久化快取，預設 24 小時
 - 台股會嘗試以 FinMind / TWSE 官方資料補抓最近四季財報，成功時納入跨來源比對；未取得時 HTML 報告會顯示官方財務資料警示
 - yfinance 欄位缺漏時會用 FMP（需 API key）或可追溯的衍生補值補上市場欄位、TTM 營收或 FCF，並在 prompt 中揭露限制
 - QuantEngine 若因缺少 `total_equity`、`total_debt`、`free_cash_flows` 等欄位而使用預設假設，會在 `quant_metrics` 標記 `fallback_fields` 與 `data_quality_warning`
 - 歷史報告會自動清理孤立 Markdown，並刪除超過保留天數的舊報告
 - 長任務透過 SQLite job/event store 與任務佇列抽象執行，可用本地 worker 或切換 RQ/Redis
+- 多 Agent 分析流程已改由 LangGraph `StateGraph` 執行；Worker 使用 SQLite checkpoint 以 `job_id:pipeline_id` 恢復 429 / 暫時性中斷，不重跑已完成節點
 - API 額度儀表板使用 `api_usage_events` ledger 統計 Gemini provider request、Google Custom Search 與 FMP 本機觀測用量
 - Watchlist 可設定盤前/盤後批次分析，儲存在 SQLite，排程執行會先原子認領 due slot 並保留舊 JSON 一次性匯入相容
 - Watchlist 支援事件驅動雷達 triggers：跌破均線、外資連賣、VIX 飆升會自動派送 Mode C；營收創高會自動派送 Mode B，且每日事件以 SQLite 去重
@@ -129,11 +130,14 @@ export GEMINI_API_KEYS="your_key_1,your_key_2"
 - `CACHE_DB_PATH`：SQLite 快取檔位置，預設 `backend/cache/stock_agent_cache.sqlite3`
 - `FINANCIAL_DATA_CACHE_SECONDS`：財務資料快取秒數，預設 `86400`
 - `REPORT_RETENTION_DAYS`：舊報告保留天數，預設 `30`
-- `REPORT_CLEANUP_INTERVAL_SECONDS`：背景清理週期秒數，預設 `86400`
-- `ANALYSIS_WORKER_COUNT`：本地分析 worker 數，預設 `2`
-- `TASK_QUEUE_BACKEND`：任務佇列後端，`local` 或 `rq`，預設 `local`
+- `REPORT_CLEANUP_INTERVAL_SECONDS`：Worker maintenance 清理週期秒數，預設 `86400`
+- `ANALYSIS_WORKER_COUNT`：舊版本地佇列 worker 數；Web/API 模式不再啟動本地 worker
+- `TASK_QUEUE_BACKEND`：任務佇列後端，Web/API 模式必須使用 `rq`，預設 `rq`；`TASK_QUEUE_BACKEND=local` 僅保留給嵌入式測試/本地 helper，API 會以 `API task queue requires Redis and RQ` 拒絕啟動
 - `REDIS_URL`：RQ 模式使用的 Redis 連線，預設 `redis://localhost:6379/0`
 - `TASK_QUEUE_NAME`：RQ queue 名稱，預設 `stock-analysis`
+- `RQ_JOB_MAX_RETRIES`：RQ job 最大重試次數，預設 `4`
+- `RQ_JOB_RETRY_INTERVALS`：RQ 延遲重試秒數清單，預設 `60,300,900,1800`
+- `LANGGRAPH_CHECKPOINT_PATH`：LangGraph SQLite checkpoint DB，預設 `backend/cache/langgraph_checkpoints.sqlite3`
 - `TASK_DB_PATH`：任務與 SSE event SQLite 檔位置，預設 `backend/cache/analysis_jobs.sqlite3`
 - `API_USAGE_DB_PATH`：API 用量 ledger SQLite 檔位置，預設跟隨 `TASK_DB_PATH`
 - `WATCHLIST_PATH`：舊版 watchlist JSON 位置；若存在會一次性匯入 SQLite，預設 `backend/cache/watchlist.json`
@@ -244,9 +248,12 @@ http://192.168.1.115:8080
 
 ### 手動啟動
 
+Web/API 模式需要 Redis/RQ worker。先啟動 Redis 與 Worker，再啟動 API：
+
 ```bash
-cd backend
-python3 -m uvicorn api:app --host 127.0.0.1 --port 8080
+redis-server
+python backend/worker_main.py --role all
+uvicorn api:app --app-dir backend --host 127.0.0.1 --port 8080
 ```
 
 然後打開：
@@ -259,7 +266,7 @@ http://127.0.0.1:8080
 
 1. 開啟首頁，預設停在「分析」頁籤。
 2. 輸入股票代號，例如 `2330`、`2059`、`6806.TW`。
-3. 選擇分析模式；預設是 Mode A，也可選 Mode B 或 Mode C。
+3. 選擇分析模式；預設是 Mode A，也可選 Mode B、Mode C 或 Mode D。
 4. 等待 Agent 依序完成。
 5. 報告完成後會出現在同一頁的歷史清單，可直接預覽、下載、比較或重跑。
 6. 到「報告與維運」查看決策回測績效、API/來源健康、Watchlist 批次排程與事件雷達 trigger。
@@ -268,7 +275,7 @@ http://127.0.0.1:8080
 
 日常操作建議：
 
-- 「分析」頁籤：新分析、查找歷史報告、篩選 Mode A/B/C、查看決策追蹤、刷新資料快照、重跑報告與比較報告。
+- 「分析」頁籤：新分析、查找歷史報告、篩選 Mode A/B/C/D、查看決策追蹤、刷新資料快照、重跑報告與比較報告。
 - 「報告與維運」頁籤：查看 API 額度、本機 watchlist、來源健康、任務狀態與清理工具；首次打開頁籤才會載入這些維運資料。
 - 「資料快照已刷新，但 HTML/Markdown 分析本文未重新執行」代表只更新了 `.data.json` 的最新股價/來源/可信度，原本報告正文和投資結論還是舊模型在原生成時間做出的判斷；若要讓文字與結論一起更新，請使用重跑功能。
 
@@ -367,16 +374,17 @@ backend/output/
 
 `backend/cache/` 也已被 Git 忽略。財務資料快取預設保存 24 小時，可透過 `FINANCIAL_DATA_CACHE_SECONDS` 調整。歷史報告預設保留 30 天，可透過 `REPORT_RETENTION_DAYS` 調整；前端刪除 HTML 報告時，後端會同步刪除同名 Markdown 與資料快照。
 
-## 任務佇列
+## API / Worker 分離與任務佇列
 
-預設使用本地 worker：
+FastAPI 現在只負責 HTTP 與送任務進 Redis/RQ；耗時分析、watchlist scheduler、decision tracking scheduler 與 maintenance cleanup 都由獨立 Worker process 執行。最小本機啟動順序：
 
 ```bash
-TASK_QUEUE_BACKEND=local
-ANALYSIS_WORKER_COUNT=2
+redis-server
+python backend/worker_main.py --role all
+uvicorn api:app --app-dir backend
 ```
 
-若要切換為 RQ / Redis，先啟動 Redis，並在 `backend/.env` 設定：
+`backend/.env` 至少確認：
 
 ```bash
 TASK_QUEUE_BACKEND=rq
@@ -384,12 +392,17 @@ REDIS_URL=redis://localhost:6379/0
 TASK_QUEUE_NAME=stock-analysis
 ```
 
-API 會把任務送進 RQ。另開 worker：
+可拆成正式 process roles：
 
 ```bash
-cd backend
-rq worker stock-analysis --url redis://localhost:6379/0
+python backend/worker_main.py --role queue        # RQ analysis worker
+python backend/worker_main.py --role schedulers   # watchlist + decision tracking
+python backend/worker_main.py --role maintenance  # report/cache/index cleanup
 ```
+
+也就是 `queue / schedulers / maintenance` 三個角色可獨立交給 process manager 管理。`--role all` 使用 multiprocessing `spawn` 在本機一次啟動三個 child processes；收到 `SIGTERM` / `SIGINT` 時會轉送終止訊號並等待子程序收尾。Queue smoke test 可用 `python backend/worker_main.py --role queue --burst --max-jobs 1` 處理一筆 job 後退出。
+
+Redis health check 可用 `redis-cli -u "$REDIS_URL" ping`（預期 `PONG`），RQ queue 可用 `rq info --url "$REDIS_URL"` 檢查。LLM 429 / transient failure 會依 `RQ_JOB_MAX_RETRIES` 與 `RQ_JOB_RETRY_INTERVALS` 延遲重試，`waiting_retry` 仍會被視為 active job，避免 API/scheduler 重複送同一檔分析。
 
 任務狀態、SSE 事件與預設 API 用量 ledger 會寫入 `TASK_DB_PATH` 指定的 SQLite 檔，所以 API 與 worker 需要共用同一個檔案路徑。若另外設定 `API_USAGE_DB_PATH` 或 `WATCHLIST_DB_PATH`，也要讓 API 與背景 worker 指向同一份檔案。
 
@@ -466,7 +479,7 @@ xattr -d com.apple.quarantine start_mac_lan.command
 
 - 不要把生成報告提交到 Git。
 - 不要把真實 API key 寫進程式碼。
-- Prompt 主要放在 `backend/prompts/agents.json`，修改後請確認各 pipeline 的 Agent 都保留 system 與 analysis prompt；Mode C 使用 Agent 17 / 18 / 19。
+- Prompt 主要放在 `backend/prompts/agents.json`，修改後請確認各 pipeline 的 Agent 都保留 system 與 analysis prompt；Mode C 使用 Agent 17 / 18 / 19，Mode D 使用 Agent 22 / 23 / 24。
 - HTML 報告版型主要放在 `backend/templates/report.html.j2`，Python 只負責整理資料與渲染模板。
 - 修改 prompt 或品質檢查後，建議至少跑一次 `python3 -m py_compile`。
 - 修改 DCF/WACC 或 `quant_metrics` 時，請確認 `fallback_fields`、`data_quality_warning`、Agent 7【資料警示】與 final audit 的 DCF 衝突檢查仍一致。

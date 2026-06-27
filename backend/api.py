@@ -1,16 +1,13 @@
-import asyncio
 import os
 import secrets
 import sys
 import threading
-import uuid
-from contextlib import asynccontextmanager, suppress
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-import report_history_service
 from agent_runtime import AnalysisPipelineRunner
 from analysis_jobs import run_stock_analysis_job
 from api_routes.analysis import AnalysisRouteDeps, create_analysis_router
@@ -28,20 +25,15 @@ from config import (
     DEPLOYMENT_MODE,
     MUTATION_API_TOKEN,
     OUTPUT_DIR,
-    REPORT_CLEANUP_INTERVAL_SECONDS,
-    REPORT_RETENTION_DAYS,
     TASK_QUEUE_BACKEND,
     has_api_keys,
 )
-from data_fetch import StockDataService
 from job_store import (
     append_event,
-    close_job_store,
     create_job,
     find_active_job,
     get_events_since,
     get_job,
-    mark_incomplete_jobs_abandoned,
     request_job_cancel,
     update_job,
 )
@@ -57,13 +49,11 @@ from provider_sla_maintenance import cleanup_provider_sla_events
 from report_rerun_jobs import run_report_rerun_job
 from report_index_maintenance import cleanup_report_index_orphans
 from reporting import ReportRenderer
-from runtime_instance_lock import acquire_local_runtime_instance_lock as _acquire_local_runtime_instance_lock
+from runtime_dependencies import create_api_runtime, get_report_storage_for_output_dir, runtime_settings_for_output_dir
 from runtime_events import emit_log, format_event_log_line
 from settings import validate_runtime_settings
 from storage_inventory import build_storage_summary
-from task_queue import create_task_queue
-from decision_tracking_scheduler import create_decision_tracking_scheduler_task
-from watchlist_scheduler import create_watchlist_scheduler_task
+from task_queue import create_api_task_queue
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(line_buffering=True)
@@ -72,26 +62,17 @@ if hasattr(sys.stderr, "reconfigure"):
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
-LOCAL_RUNTIME_LOCK_PATH = os.getenv("LOCAL_RUNTIME_LOCK_PATH", os.path.join(BASE_DIR, "cache", "local-runtime.lock"))
-LOCAL_RUNTIME_INSTANCE_ID = os.getenv("LOCAL_RUNTIME_INSTANCE_ID", f"{os.getpid()}-{uuid.uuid4().hex[:8]}")
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
-os.makedirs(os.path.dirname(LOCAL_RUNTIME_LOCK_PATH), exist_ok=True)
 
 report_cache = {}
 report_cache_lock = threading.Lock()
-analysis_task_queue = create_task_queue()
-data_refresh_service = StockDataService()
+analysis_task_queue = create_api_task_queue()
 analysis_pipeline_runner = AnalysisPipelineRunner()
 report_renderer = ReportRenderer()
 active_analyses_lock = threading.Lock()
 MUTATION_HEADER_NAME = "X-Mutation-Token"
 RUNTIME_MUTATION_API_TOKEN = secrets.token_urlsafe(32)
-_LOCAL_RUNTIME_LOCK_HANDLE = None
-
-def acquire_local_runtime_instance_lock(path: str = LOCAL_RUNTIME_LOCK_PATH):
-    return _acquire_local_runtime_instance_lock(path, LOCAL_RUNTIME_INSTANCE_ID)
-
 def print_streamed_event(job_id: str, payload: dict) -> None:
     if TASK_QUEUE_BACKEND != "rq":
         return
@@ -125,85 +106,31 @@ def get_client_config() -> dict:
         "deployment_mode": str(DEPLOYMENT_MODE or "local").strip().lower(),
     }
 def create_runtime_job(ticker: str, pipeline_id: str = "v1") -> str:
-    try:
-        return create_job(ticker, pipeline_id, worker_instance_id=LOCAL_RUNTIME_INSTANCE_ID)
-    except TypeError as exc:
-        if "worker_instance_id" not in str(exc):
-            raise
-        return create_job(ticker, pipeline_id)
-def cleanup_expired_reports(retention_days: int = REPORT_RETENTION_DAYS):
-    return report_history_service.cleanup_expired_reports(OUTPUT_DIR, report_cache, retention_days, report_cache_lock=report_cache_lock)
-def cleanup_orphan_markdown_reports():
-    return report_history_service.cleanup_orphan_markdown_reports(OUTPUT_DIR)
-async def _mark_abandoned_local_jobs() -> None:
-    global _LOCAL_RUNTIME_LOCK_HANDLE
-    if TASK_QUEUE_BACKEND != "local":
-        return 0
-    if _LOCAL_RUNTIME_LOCK_HANDLE is None:
-        lock = acquire_local_runtime_instance_lock(LOCAL_RUNTIME_LOCK_PATH)
-        if not lock.acquired:
-            emit_log("本機 runtime lock 已由其他程序持有，略過重啟任務清理。")
-            return 0
-        _LOCAL_RUNTIME_LOCK_HANDLE = lock
-    abandoned = await asyncio.to_thread(
-        mark_incomplete_jobs_abandoned,
-        "伺服器已重啟，舊的本地分析任務已中止；請重新送出分析。",
-        worker_instance_id=LOCAL_RUNTIME_INSTANCE_ID,
-    )
-    if abandoned:
-        emit_log(f"已清理 {abandoned} 筆重啟後遺留的本地分析任務。")
-    return abandoned
-async def _cleanup_reports_forever() -> None:
-    from cache_store import cleanup_expired_cache_entries
-
-    while True:
-        await asyncio.to_thread(cleanup_expired_reports)
-        await asyncio.to_thread(cleanup_orphan_markdown_reports)
-        await asyncio.to_thread(cleanup_expired_cache_entries)
-        await asyncio.sleep(REPORT_CLEANUP_INTERVAL_SECONDS)
+    return create_job(ticker, pipeline_id)
+def get_api_runtime_for_app(app: FastAPI):
+    runtime = getattr(app.state, "runtime", None)
+    if runtime is None:
+        runtime = create_api_runtime(runtime_settings_for_output_dir(OUTPUT_DIR), task_queue=analysis_task_queue)
+        app.state.runtime = runtime
+    return runtime
+def get_data_refresh_service(app: FastAPI):
+    return get_api_runtime_for_app(app).data_refresh_service
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    global _LOCAL_RUNTIME_LOCK_HANDLE
-    
-    if hasattr(analysis_task_queue, "start_workers"):
-        analysis_task_queue.start_workers()
     for warning in validate_runtime_settings():
         emit_log(f"設定檢查警告：{warning}")
-    await _mark_abandoned_local_jobs()
-    cleanup_task = asyncio.create_task(_cleanup_reports_forever())
-    watchlist_task = create_watchlist_scheduler_task(
-        create_job=lambda ticker, pipeline_id: create_runtime_job(ticker, pipeline_id),
-        find_active_job=lambda ticker, pipeline_id: find_active_job(ticker, pipeline_id),
-        task_queue=analysis_task_queue,
-        run_stock_analysis_job=run_stock_analysis_job,
-        data_service=data_refresh_service,
-        emit_log=emit_log,
-    )
-    decision_tracking_task = create_decision_tracking_scheduler_task(
-        get_output_dir=lambda: OUTPUT_DIR,
-        get_refresh_service=lambda: data_refresh_service,
-        emit_log=emit_log,
-    )
-    background_tasks = [cleanup_task, watchlist_task, decision_tracking_task]
+    existing_runtime = getattr(_app.state, "runtime", None)
+    if existing_runtime is not None:
+        existing_runtime.close()
+    runtime = create_api_runtime(runtime_settings_for_output_dir(OUTPUT_DIR), task_queue=analysis_task_queue)
+    _app.state.runtime = runtime
     try:
         yield
     finally:
-        for task in background_tasks:
-            task.cancel()
-        for task in background_tasks:
-            with suppress(asyncio.CancelledError):
-                await task
-        from cache_store import close_cache_store
         from llm_transport import close_cached_clients_async
 
-        close_job_store()
-        close_cache_store()
         await close_cached_clients_async()
-        if hasattr(analysis_task_queue, "stop_workers"):
-            await analysis_task_queue.stop_workers()
-        if _LOCAL_RUNTIME_LOCK_HANDLE is not None:
-            _LOCAL_RUNTIME_LOCK_HANDLE.close()
-            _LOCAL_RUNTIME_LOCK_HANDLE = None
+        runtime.close()
 def create_app() -> FastAPI:
     app = FastAPI(lifespan=lifespan)
     _allow_credentials = "*" not in ALLOWED_ORIGINS
@@ -220,9 +147,10 @@ def create_app() -> FastAPI:
     app.include_router(create_static_router(lambda: STATIC_DIR, get_client_config=get_client_config))
     app.include_router(create_reports_router(ReportRouteDeps(
         get_output_dir=lambda: OUTPUT_DIR,
+        get_report_storage=lambda: get_report_storage_for_output_dir(app, OUTPUT_DIR),
         get_report_cache=lambda: report_cache,
         get_report_cache_lock=lambda: report_cache_lock,
-        get_refresh_service=lambda: data_refresh_service,
+        get_refresh_service=lambda: get_data_refresh_service(app),
         get_pipeline_runner=lambda: analysis_pipeline_runner,
         get_report_renderer=lambda: report_renderer,
         get_task_queue=lambda: analysis_task_queue,
@@ -245,7 +173,7 @@ def create_app() -> FastAPI:
     )))
     app.include_router(create_decision_tracking_router(DecisionTrackingRouteDeps(
         get_output_dir=lambda: OUTPUT_DIR,
-        get_refresh_service=lambda: data_refresh_service,
+        get_refresh_service=lambda: get_data_refresh_service(app),
         require_mutation_authorized=require_mutation_authorized,
     )))
     app.include_router(create_observability_router(ObservabilityRouteDeps(

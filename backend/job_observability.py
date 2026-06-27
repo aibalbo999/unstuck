@@ -9,6 +9,11 @@ from collections import Counter
 from pathlib import Path
 
 from config import TASK_DB_PATH
+from job_store import ACTIVE_JOB_STATUSES
+
+
+def _active_status_placeholders() -> str:
+    return ", ".join("?" for _ in ACTIVE_JOB_STATUSES)
 
 
 def build_active_jobs_snapshot(limit: int = 10, event_limit: int = 80, db_path: str | None = None) -> dict:
@@ -22,14 +27,14 @@ def build_active_jobs_snapshot(limit: int = 10, event_limit: int = 80, db_path: 
         with sqlite3.connect(path) as conn:
             conn.row_factory = sqlite3.Row
             jobs = conn.execute(
-                """
+                f"""
                 SELECT *
                 FROM analysis_jobs
-                WHERE status IN ('queued', 'running')
+                WHERE status IN ({_active_status_placeholders()})
                 ORDER BY updated_at DESC
                 LIMIT ?
                 """,
-                (safe_limit,),
+                (*ACTIVE_JOB_STATUSES, safe_limit),
             ).fetchall()
             if not jobs:
                 jobs = conn.execute(
@@ -46,7 +51,7 @@ def build_active_jobs_snapshot(limit: int = 10, event_limit: int = 80, db_path: 
         return {"jobs": [], "active_count": 0, "db_exists": True, "error": str(exc)[:160]}
     return {
         "jobs": snapshots,
-        "active_count": sum(1 for job in snapshots if job.get("status") in {"queued", "running"}),
+        "active_count": sum(1 for job in snapshots if job.get("status") in ACTIVE_JOB_STATUSES),
         "db_exists": True,
     }
 

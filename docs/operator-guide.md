@@ -15,6 +15,38 @@ scripts/check_runtime.py --strict
 scripts/demo_report.sh
 ```
 
+## Split API / Worker Startup
+
+FastAPI is now a lightweight HTTP/RQ producer. Run Redis and the Worker separately before starting the API:
+
+```bash
+redis-server
+python backend/worker_main.py --role all
+uvicorn api:app --app-dir backend
+```
+
+For production-style process managers, split `--role all` into dedicated `queue / schedulers / maintenance` roles:
+
+```bash
+python backend/worker_main.py --role queue
+python backend/worker_main.py --role schedulers
+python backend/worker_main.py --role maintenance
+```
+
+`TASK_QUEUE_BACKEND=local` is intentionally rejected by Web/API mode with `API task queue requires Redis and RQ`; use `TASK_QUEUE_BACKEND=rq` with a shared `REDIS_URL`. Check Redis with `redis-cli -u "$REDIS_URL" ping`, then inspect RQ with `rq info --url "$REDIS_URL"`.
+
+RQ retry behavior is configured with `RQ_JOB_MAX_RETRIES` and `RQ_JOB_RETRY_INTERVALS`. A job waiting for a delayed retry uses status `waiting_retry` and remains active in duplicate-job checks and dashboards.
+
+Analysis workflow execution is durable. Each Worker run uses LangGraph with a SQLite checkpointer at `LANGGRAPH_CHECKPOINT_PATH` (default `backend/cache/langgraph_checkpoints.sqlite3`). A pipeline segment uses `thread_id = job_id:pipeline_id`; if an LLM call exhausts short in-node retries and the outer RQ job retries later, the Worker resumes the same graph thread instead of repeating completed Agent nodes. Do not delete the checkpoint DB while jobs are `queued`, `running`, or `waiting_retry`.
+
+Checkpoint cleanup policy is intentionally conservative for local-first operation: back up or delete old checkpoint files only after related jobs have reached `done`, `error`, or `cancelled`, and after preserving any reports you need. The checkpoint stores JSON-compatible graph state only; callbacks, API clients, Redis handles, and SQLite connections are process-local and are rebuilt on resume.
+
+`SIGTERM` / `SIGINT` sent to `worker_main.py --role all` is forwarded to child roles. Queue workers can be smoke-tested without staying resident:
+
+```bash
+python backend/worker_main.py --role queue --burst --max-jobs 1
+```
+
 ## Daily Workflow
 
 1. Open the analysis tab.

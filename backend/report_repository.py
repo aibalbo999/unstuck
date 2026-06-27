@@ -5,7 +5,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-from report_index import delete_report_metadata, query_report_metadata, sync_report_metadata, upsert_report_metadata
+from report_index import (
+    _connect,
+    delete_report_metadata,
+    query_report_metadata,
+    sync_report_metadata,
+    upsert_report_metadata,
+)
+from report_index_parsing import is_safe_report_filename, output_dir_key
 
 
 @dataclass(frozen=True)
@@ -18,6 +25,7 @@ class ReportListQuery:
     data_trust: str = "all"
     include_versions: bool = False
     output_dir: Optional[str] = None
+    sync_metadata: bool = True
 
 
 class ReportRepository:
@@ -46,6 +54,16 @@ class ReportRepository:
     def delete(self, filename: str, output_dir: Optional[str] = None) -> None:
         delete_report_metadata(filename, output_dir)
 
+    def exists(self, filename: str, output_dir: Optional[str] = None) -> bool:
+        if not is_safe_report_filename(filename, ".html"):
+            return False
+        with _connect() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM reports WHERE output_dir = ? AND filename = ? LIMIT 1",
+                (output_dir_key(output_dir), filename),
+            ).fetchone()
+        return row is not None
+
     def query(self, query: ReportListQuery) -> tuple[list[dict], int]:
         return query_report_metadata(
             page=query.page,
@@ -56,6 +74,7 @@ class ReportRepository:
             data_trust=query.data_trust,
             include_versions=query.include_versions,
             output_dir=query.output_dir,
+            sync_metadata=query.sync_metadata,
         )
 
 

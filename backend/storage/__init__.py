@@ -1,6 +1,14 @@
 """Storage maintenance helpers."""
 
 from .migrations import MigrationRunner, column_names
+from .report_storage import (
+    InMemoryStorage,
+    LocalFileStorage,
+    ReportStorage,
+    StoredReport,
+    StoredReportContent,
+    normalize_report_key,
+)
 
 
 def migrate_legacy_reports(*args, **kwargs):
@@ -9,4 +17,14 @@ def migrate_legacy_reports(*args, **kwargs):
     return _migrate_legacy_reports(*args, **kwargs)
 
 
-__all__ = ["MigrationRunner", "column_names", "migrate_legacy_reports"]
+__all__ = [
+    "InMemoryStorage",
+    "LocalFileStorage",
+    "MigrationRunner",
+    "ReportStorage",
+    "StoredReport",
+    "StoredReportContent",
+    "column_names",
+    "migrate_legacy_reports",
+    "normalize_report_key",
+]

@@ -5,7 +5,6 @@ import sys
 from pathlib import Path
 
 import pytest
-from tenacity import wait_fixed
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -106,28 +105,15 @@ def test_redis_provider_circuit_store_falls_back_to_local_circuit_when_redis_fai
     assert state["failures"] == 1
 
 
-def test_main_pipeline_backoff_retries_429_without_fixed_sleep(monkeypatch):
+def test_main_uses_analysis_pipeline_runner_without_whole_pipeline_backoff():
     import main
 
-    calls = []
+    source = Path(main.__file__).read_text(encoding="utf-8")
 
-    def flaky_pipeline(data, progress_callback=None):
-        calls.append((data, progress_callback))
-        if len(calls) == 1:
-            raise RuntimeError("429 Too Many Requests")
-        return {"ok": True}
-
-    monkeypatch.setattr(main, "run_analysis_pipeline", flaky_pipeline)
-
-    result = main.run_analysis_pipeline_with_backoff(
-        {"ticker": "2308.TW"},
-        progress_callback=None,
-        wait_strategy=wait_fixed(0),
-    )
-
-    assert result == {"ok": True}
-    assert len(calls) == 2
-    assert "13 秒延遲" not in Path(main.__file__).read_text(encoding="utf-8")
+    assert isinstance(main.PIPELINE_RUNNER, main.AnalysisPipelineRunner)
+    assert "await PIPELINE_RUNNER.run_async(analysis_req)" in source
+    assert not hasattr(main, "run_analysis_pipeline_with_backoff")
+    assert "13 秒延遲" not in source
 
 
 def test_agent_system_prompts_use_functional_personas_without_institution_names():

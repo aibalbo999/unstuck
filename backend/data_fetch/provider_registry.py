@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from .agent_context_providers import AlternativeJobOpeningsProvider, ChipDataProvider, MacroIndicatorsProvider
+from .agent_context_providers import AlternativeJobOpeningsProvider, ChipDataProvider, MacroIndicatorsProvider, SocialSentimentProvider
 from .enrichment_providers import (
     DynamicPeerMetricsProvider,
     EarningsCallProvider,
@@ -20,6 +20,8 @@ from .enrichment_providers import (
 from .provider_base import DataProvider
 from .quote_providers import FmpProvider, YFinanceProvider
 from .taiwan_providers import FinMindProvider, InstitutionalTradingProvider, MonthlyRevenueProvider, TwseOfficialProvider
+from .sec_edgar_provider import SecEdgarProvider
+from .taiwan_open_data_provider import TaiwanOpenDataProvider
 from .types import FetchRequest
 
 
@@ -59,8 +61,11 @@ def default_providers() -> list[DataProvider]:
         GlobalMarketContextProvider(),
         InternationalNewsContextProvider(),
         MacroIndicatorsProvider(),
+        TaiwanOpenDataProvider(),
         ChipDataProvider(),
         AlternativeJobOpeningsProvider(),
+        SocialSentimentProvider(),
+        SecEdgarProvider(),
         GooglePeerDiscoveryProvider(),
         TwseOfficialProvider(),
         MonthlyRevenueProvider(),

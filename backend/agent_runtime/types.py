@@ -34,6 +34,10 @@ class AnalysisRequest:
     pipeline_id: str = "v1"
     progress_callback: Optional[Callable] = None
     cancel_check: Optional[Callable[[], None]] = None
+    thread_id: Optional[str] = None
+    checkpointer: Any | None = None
+    checkpoint_path: Optional[str] = None
+    report_filename: Optional[str] = None
 
 
 @dataclass

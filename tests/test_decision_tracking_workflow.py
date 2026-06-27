@@ -168,7 +168,7 @@ def test_decision_tracking_api_tracks_selected_tickers_and_refreshes_latest_pric
                 },
             )
 
-    monkeypatch.setattr(api, "data_refresh_service", FakeRefreshService())
+    monkeypatch.setattr(api, "get_data_refresh_service", lambda _app: FakeRefreshService())
     client = TestClient(api.app)
 
     empty = client.get("/api/decision-tracking")
@@ -229,7 +229,7 @@ def test_decision_tracking_refresh_skips_reports_that_already_need_full_rerun(tm
                 },
             )
 
-    monkeypatch.setattr(api, "data_refresh_service", FakeRefreshService())
+    monkeypatch.setattr(api, "get_data_refresh_service", lambda _app: FakeRefreshService())
     client = TestClient(api.app)
     client.post("/api/decision-tracking", json={"ticker": "2449.TW"}, headers=mutation_headers)
 

@@ -18,11 +18,13 @@ import report_history_service
 import report_refresh_service
 import report_rerun_service
 import report_compare_service
+from storage.report_storage import ReportStorage
 
 
 @dataclass(frozen=True)
 class ReportRouteDeps:
     get_output_dir: Callable[[], str]
+    get_report_storage: Callable[[], ReportStorage]
     get_report_cache: Callable[[], dict]
     get_refresh_service: Callable[[], Any]
     get_pipeline_runner: Callable[[], Any]
@@ -63,6 +65,7 @@ def create_reports_router(deps: ReportRouteDeps) -> APIRouter:
             include_versions=include_versions,
             output_dir=deps.get_output_dir(),
             report_cache=deps.get_report_cache(),
+            storage=deps.get_report_storage(),
         )
 
     @router.get("/api/reports/compare")
@@ -85,23 +88,24 @@ def create_reports_router(deps: ReportRouteDeps) -> APIRouter:
             deps.get_output_dir(),
             deps.get_report_cache(),
             report_cache_lock=report_cache_lock,
+            storage=deps.get_report_storage(),
         )
 
     @router.get("/api/report/{filename}")
     async def get_report(filename: str):
-        return report_history_service.get_report_file(filename, deps.get_output_dir())
+        return report_history_service.get_report_file(filename, deps.get_output_dir(), storage=deps.get_report_storage())
 
     @router.get("/api/report/{filename}/download/html")
     async def download_html_report(filename: str):
-        return report_history_service.download_report_file(filename, deps.get_output_dir(), "html")
+        return report_history_service.download_report_file(filename, deps.get_output_dir(), "html", storage=deps.get_report_storage())
 
     @router.get("/api/report/{filename}/download/md")
     async def download_md_report(filename: str):
-        return report_history_service.download_report_file(filename, deps.get_output_dir(), "md")
+        return report_history_service.download_report_file(filename, deps.get_output_dir(), "md", storage=deps.get_report_storage())
 
     @router.get("/api/report/{filename}/download/data")
     async def download_data_snapshot(filename: str):
-        return report_history_service.download_report_file(filename, deps.get_output_dir(), "data")
+        return report_history_service.download_report_file(filename, deps.get_output_dir(), "data", storage=deps.get_report_storage())
 
     @router.post("/api/report/{filename}/refresh/data")
     async def refresh_report_data_snapshot(filename: str, request: Request):

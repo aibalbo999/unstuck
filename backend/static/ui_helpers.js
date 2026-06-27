@@ -1,6 +1,6 @@
 (function () {
     const PIPELINE_META = {
-        v1: { label: '模式 A：學術深度派', shortLabel: '學術深度派', reportSuffix: '深度分析報告', hint: '請稍候，9 個 AI 分析模組正在為您撰寫深度研報...' },
+        v1: { label: '模式 A：學術深度派', shortLabel: '學術深度派', reportSuffix: '深度分析報告', hint: '請稍候，10 個 AI 分析模組正在為您撰寫深度研報...' },
         v2: { label: '模式 B：實戰交易派', shortLabel: '實戰交易派', reportSuffix: '實戰交易決策報告', hint: '請稍候，8 個 AI 分析模組正在整合總經、籌碼與進出場策略...' },
         v3: { label: '模式 C：逆勢交易與泡沫狙擊', shortLabel: '逆勢泡沫狙擊', reportSuffix: '泡沫狙擊研究報告', hint: '請稍候，5 個 AI 逆勢分析模組正在檢驗題材泡沫、財務漏洞與做空觸發條件...' },
         v4: { label: '模式 D：極短線波段與事件驅動', shortLabel: '短線波段派', reportSuffix: '極短線交易策略報告', hint: '請稍候，AI 動能分析師正在比對技術突破點、籌碼集中度與近期事件催化劑...' },

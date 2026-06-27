@@ -94,22 +94,12 @@ def test_abandoned_local_jobs_are_scoped_to_worker_owner(monkeypatch, tmp_path):
     assert job_store.get_job(legacy)["status"] == "running"
 
 
-def test_runtime_instance_lock_prevents_second_startup_abandonment(monkeypatch, tmp_path):
-    lock_path = tmp_path / "runtime.lock"
-    first = api.acquire_local_runtime_instance_lock(str(lock_path))
-    cleaned = []
-    monkeypatch.setattr(api, "LOCAL_RUNTIME_INSTANCE_ID", "server-a", raising=False)
-    monkeypatch.setattr(api, "TASK_QUEUE_BACKEND", "local")
-    monkeypatch.setattr(api, "LOCAL_RUNTIME_LOCK_PATH", str(lock_path), raising=False)
-    monkeypatch.setattr(api, "mark_incomplete_jobs_abandoned", lambda reason, worker_instance_id=None: cleaned.append(worker_instance_id) or 3)
+def test_api_no_longer_owns_local_runtime_abandonment_cleanup():
+    source = (ROOT / "backend" / "api.py").read_text(encoding="utf-8")
 
-    try:
-        skipped = asyncio.run(api._mark_abandoned_local_jobs())
-    finally:
-        first.close()
-
-    assert skipped == 0
-    assert cleaned == []
+    assert "acquire_local_runtime_instance_lock" not in source
+    assert "_mark_abandoned_local_jobs" not in source
+    assert "mark_incomplete_jobs_abandoned" not in source
 
 
 def test_provider_sla_aggregates_source_audit(monkeypatch, tmp_path):
@@ -516,6 +506,9 @@ def test_api_uses_lifespan_and_router_modules():
     assert "@app.on_event" not in source
     assert "FastAPI(lifespan=lifespan)" in source
     assert "validate_runtime_settings()" in source
+    assert "create_watchlist_scheduler_task" not in source
+    assert "create_decision_tracking_scheduler_task" not in source
+    assert "_cleanup_reports_forever" not in source
     assert "include_router" in source
     assert "api_routes.analysis" in source
     for legacy_function in [

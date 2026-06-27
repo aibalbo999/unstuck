@@ -27,6 +27,7 @@ from report_rerun_context import (
     rerun_context_from_snapshot,
 )
 from report_rerun_rendering import render_and_save_rerun_report
+from storage.report_storage import ReportStorage
 from structured_outputs import parse_structured_data
 
 
@@ -42,6 +43,7 @@ async def _run_full_pipeline_rerun(
     refresh_service: Any = None,
     progress_callback: Any = None,
     cancel_check: Any = None,
+    storage: ReportStorage | None = None,
 ) -> dict:
     data = dict(snapshot.get("data") or {})
     if not data:
@@ -79,6 +81,7 @@ async def _run_full_pipeline_rerun(
         report_renderer=report_renderer,
         scope=scope,
         source_filename=source_filename,
+        storage=storage,
     )
 
 
@@ -135,6 +138,7 @@ async def _run_final_recommendation_rerun(
     refresh_service: Any = None,
     progress_callback: Any = None,
     cancel_check: Any = None,
+    storage: ReportStorage | None = None,
 ) -> dict:
     if callable(cancel_check):
         cancel_check()
@@ -182,6 +186,7 @@ async def _run_final_recommendation_rerun(
         report_renderer=report_renderer,
         scope="final_recommendation",
         source_filename=filename,
+        storage=storage,
     )
 
 
@@ -195,6 +200,7 @@ async def rerun_report_analysis(
     refresh_service: Any = None,
     progress_callback: Any = None,
     cancel_check: Any = None,
+    storage: ReportStorage | None = None,
 ) -> dict:
     normalized_scope = normalize_rerun_scope(scope)
     if not is_safe_report_filename(filename, ".html"):
@@ -216,6 +222,7 @@ async def rerun_report_analysis(
             refresh_service=refresh_service,
             progress_callback=progress_callback,
             cancel_check=cancel_check,
+            storage=storage,
         )
     if normalized_scope == "mode_b":
         return await _run_full_pipeline_rerun(
@@ -228,6 +235,7 @@ async def rerun_report_analysis(
             scope="mode_b",
             progress_callback=progress_callback,
             cancel_check=cancel_check,
+            storage=storage,
         )
     return await _run_final_recommendation_rerun(
         filename=filename,
@@ -236,6 +244,7 @@ async def rerun_report_analysis(
         report_renderer=report_renderer,
         progress_callback=progress_callback,
         cancel_check=cancel_check,
+        storage=storage,
     )
 
 

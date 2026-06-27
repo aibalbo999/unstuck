@@ -26,7 +26,14 @@ PROMPT_LEAK_RESIDUE_RE = re.compile(
     r"Growth Scenarios \(5 years\)|Professional, data-driven|"
     r"Chief Economist and Industry Strategist|Macro Hedge Fund|Forensic Accountant|Financial Risk Specialist|"
     r"Analyze \d{4}\.TW|Financial JSON and previous agent summaries|Strict company identity|"
-    r"No target prices?|No buy/sell/hold recommendations|Ensure no|Correction:)",
+    r"No target prices?|No buy/sell/hold recommendations|Ensure no|Correction:|"
+    # Agent 22/23/24 (v4) CoT scratchpad leakage signatures
+    r"Check constraints:|Ensure all numbers are traced|reserved for Agent \d+|"
+    r"Only use provided data|Strictly 1-2 week horizon|No final trade directions|No meta-talk, no roleplay|"
+    r"Explicitly state.*Data Insufficient|1-2 weeks technical momentum analysis|1-2 Week Technical Scenarios|"
+    r"Moving Averages.*Trend Structure|Breakouts.*Volume.*Price Confirmation|RSI.*MACD.*ATR Momentum|"
+    r"Price History.*AgentState|AgentState view.*Current price|"
+    r"Check constraints.*No trade direction|Check constraints.*No stop loss)",
     re.IGNORECASE,
 )
 
@@ -83,6 +90,23 @@ def sanitize_report_text(text: str) -> str:
         r"^\s*\*?\s*(Data|Trend|Calculation|Driver|Net Profit|Margins|Quality|Critical Check|Conversion Rate|Warning Flag|Total Debt|Net Cash Position|Valuation|Growth|Key Product|Intellectual Property|Financials|Cash Flow|Identity|Check)\s*:",
         r"^\s*(Professional, data-driven|Company Overview & Business Model|Macroeconomics & Industry Trends|Supply Chain Position & Competitive Landscape|Key Risk Factors|Analyze the \"Economic Moat\"|Analyze the growth potential)\b",
         r"\b(I must|I need to|Let's|Wait:|As a Fidelity researcher)\b",
+        # --- Agent 22/23/24 (v4 pipeline) CoT scratchpad leakage ---
+        # Self-check lines that appear after the main analysis body
+        r"^\s*\*?\s*Check constraints:\s*(No trade direction|No stop loss|Traditional Chinese|Refined tone)",
+        r"^\s*\*?\s*Ensure all numbers are traced\.?\s*$",
+        r"^\s*\*?\s*(?:52-Week (?:High|Low)|May \d+ Price|June \d+ Price):\s*[\d,.]+ \(.*\)\s*$",
+        r"^\s*\*?\s*(Check constraints|Ensure all numbers|reserved for Agent \d+|Only use provided data|Strictly 1-2 week horizon)",
+        r"^\s*\*?\s*No final trade directions.*reserved for Agent \d+",
+        r"^\s*\*?\s*Explicitly state.*Data Insufficient.*if fields are missing",
+        r"^\s*\*?\s*No meta-talk,\s*no roleplay greetings",
+        # Preamble bullet outlines (e.g. "*   I. Moving Averages & Trend Structure.")
+        r"^\s{4,}\*\s{1,3}[IVX]+\.\s+(Moving Averages|Breakouts|RSI|MACD|ATR|1-2 Week)",
+        # Data-source bullet lines in scratchpad ("*   Financial JSON (...)", "*   AgentState view (...)")
+        r"^\s{4,}\*\s{1,3}(Financial JSON|AgentState view|RAG snippets)\s*\(",
+        # Constraint reminders
+        r"^\s{4,}\*\s{1,3}(Only use provided data|Strictly 1-2 week horizon|No final trade directions|Explicitly state|No meta-talk)",
+        # Trailing CoT verification lines after the body
+        r"^\s*\*?\s*Check constraints:\s*No trade direction\? Yes",
     ]
     leak_re = re.compile("|".join(leak_patterns), re.IGNORECASE)
 

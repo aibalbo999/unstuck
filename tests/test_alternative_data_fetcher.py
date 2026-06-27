@@ -1,5 +1,8 @@
 import sys
 from pathlib import Path
+from unittest.mock import patch
+
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -65,7 +68,41 @@ def test_fetch_104_job_openings_count_falls_back_to_text_pattern():
 def test_fetch_104_job_openings_count_returns_unavailable_on_parse_failure():
     from alternative_data_fetcher import fetch_104_job_openings_count
 
-    result = fetch_104_job_openings_count("台達電", "AI", session=FakeSession("<html></html>"))
+    with patch("alternative_data_fetcher._google_news_fallback") as news_fallback:
+        result = fetch_104_job_openings_count("台達電", "AI", session=FakeSession("<html></html>"))
 
+    news_fallback.assert_not_called()
     assert result["status"] == "unavailable"
     assert result["job_count"] is None
+    assert "未揭露可解析的職缺總數" in result["message"]
+
+
+def test_fetch_104_job_openings_count_uses_news_fallback_on_transport_failure():
+    from alternative_data_fetcher import fetch_104_job_openings_count
+    from requests.exceptions import ConnectionError as RequestsConnectionError
+
+    class FailingSession:
+        def get(self, url, **kwargs):
+            raise RequestsConnectionError("offline")
+
+    fake_news = [{"title": "台達電擴編消息"}]
+    with patch("news_fetchers.fetch_google_news_rss", return_value=fake_news) as fetch_news:
+        result = fetch_104_job_openings_count("台達電", "AI", session=FailingSession())
+
+    fetch_news.assert_called_once_with("台達電 AI 徵才 OR 擴編 OR 招募", limit=5)
+    assert result["status"] == "success"
+    assert result["job_count"] is None
+    assert result["recent_recruitment_news"] == fake_news
+
+
+def test_fetch_104_job_openings_count_does_not_mask_parser_errors_with_news_fallback():
+    from alternative_data_fetcher import fetch_104_job_openings_count
+
+    with (
+        patch("alternative_data_fetcher._extract_104_job_count", side_effect=ValueError("parser bug")),
+        patch("alternative_data_fetcher._google_news_fallback") as news_fallback,
+    ):
+        with pytest.raises(ValueError, match="parser bug"):
+            fetch_104_job_openings_count("台達電", "AI", session=FakeSession("<html></html>"))
+
+    news_fallback.assert_not_called()

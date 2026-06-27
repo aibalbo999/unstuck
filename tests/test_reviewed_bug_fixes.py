@@ -38,7 +38,9 @@ def test_local_task_queue_awaits_coroutine_jobs():
 
 def test_run_stock_analysis_job_local_returns_awaitable(monkeypatch):
     import analysis_jobs
+    import config
 
+    monkeypatch.setattr(config, "TASK_QUEUE_BACKEND", "local")
     monkeypatch.setattr(analysis_jobs, "run_stock_analysis_job_async", lambda *args: asyncio.sleep(0, result="ok"))
 
     result = analysis_jobs.run_stock_analysis_job("job-1", "2308.TW", "v1")

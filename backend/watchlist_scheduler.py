@@ -71,6 +71,27 @@ async def _watchlist_scheduler_forever(
         await asyncio.sleep(interval_seconds)
 
 
+async def run_watchlist_scheduler(
+    *,
+    create_job: Callable[[str, str], str],
+    find_active_job: Callable[[str, str], dict],
+    task_queue: Any,
+    run_stock_analysis_job: Callable[[str, str, str], str],
+    data_service: Any,
+    emit_log: Callable[[str], None],
+    interval_seconds: int = 60,
+) -> None:
+    await _watchlist_scheduler_forever(
+        create_job=create_job,
+        find_active_job=find_active_job,
+        task_queue=task_queue,
+        run_stock_analysis_job=run_stock_analysis_job,
+        data_service=data_service,
+        emit_log=emit_log,
+        interval_seconds=interval_seconds,
+    )
+
+
 def create_watchlist_scheduler_task(
     *,
     create_job: Callable[[str, str], str],
@@ -81,7 +102,7 @@ def create_watchlist_scheduler_task(
     emit_log: Callable[[str], None],
 ) -> asyncio.Task:
     return asyncio.create_task(
-        _watchlist_scheduler_forever(
+        run_watchlist_scheduler(
             create_job=create_job,
             find_active_job=find_active_job,
             task_queue=task_queue,

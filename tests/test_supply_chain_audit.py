@@ -62,6 +62,14 @@ def test_supply_chain_lockfile_covers_direct_runtime_requirements():
     assert set(direct_names) <= locked_names
 
 
+def test_langgraph_dependencies_are_direct_and_locked():
+    direct = set(_parsed_requirements(ROOT / "backend" / "requirements.txt"))
+    locked = set(_locked_versions(ROOT / "backend" / "requirements.lock"))
+
+    assert {"langgraph", "langgraph-checkpoint-sqlite"} <= direct
+    assert {"langgraph", "langgraph-checkpoint-sqlite", "aiosqlite"} <= locked
+
+
 def test_ci_gate_runs_supply_chain_audit_before_tests():
     ci_gate = (ROOT / "scripts" / "ci_gate.sh").read_text(encoding="utf-8")
     audit_script = ROOT / "scripts" / "supply_chain_audit.py"

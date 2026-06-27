@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-import json
-import os
 import time
 from typing import Any
 
 from data_trust import data_snapshot_filename_for_report
 from data_trust_snapshot import set_snapshot_integrity
-from report_index import upsert_report_metadata
+from report_persistence import persist_report_bundle
 from reporting import ReportRequest
 from report_rerun_context import RERUN_SCOPE_LABELS
+from storage.report_storage import LocalFileStorage, ReportStorage
 
 
 def rerun_report_filename(ticker: str, pipeline_id: str) -> tuple[str, str, str]:
@@ -31,9 +30,9 @@ async def render_and_save_rerun_report(
     report_renderer: Any,
     scope: str,
     source_filename: str,
+    storage: ReportStorage | None = None,
 ) -> dict:
-    os.makedirs(output_dir, exist_ok=True)
-    filename, md_filename, data_filename = rerun_report_filename(context.get("ticker"), pipeline_id)
+    filename, _, _ = rerun_report_filename(context.get("ticker"), pipeline_id)
     context["partial_rerun"] = {
         "scope": scope,
         "label": RERUN_SCOPE_LABELS[scope],
@@ -53,29 +52,23 @@ async def render_and_save_rerun_report(
     data_snapshot["rerun_scope"] = scope
     set_snapshot_integrity(data_snapshot)
 
-    with open(os.path.join(output_dir, filename), "w", encoding="utf-8") as f:
-        f.write(report_bundle.html)
-    with open(os.path.join(output_dir, md_filename), "w", encoding="utf-8") as f:
-        f.write(report_bundle.markdown)
-    with open(os.path.join(output_dir, data_filename), "w", encoding="utf-8") as f:
-        json.dump(data_snapshot, f, ensure_ascii=False, indent=2)
-
-    metadata = upsert_report_metadata(
-        filename,
-        output_dir=output_dir,
+    persisted = persist_report_bundle(
+        filename=filename,
         html_content=report_bundle.html,
         markdown_content=report_bundle.markdown,
-        data_trust=data_snapshot.get("data_trust"),
+        data_snapshot=data_snapshot,
+        storage=storage or LocalFileStorage(output_dir),
+        output_dir=output_dir,
     )
     return {
         "success": True,
         "scope": scope,
         "scope_label": RERUN_SCOPE_LABELS[scope],
         "source_filename": source_filename,
-        "filename": filename,
-        "md_filename": md_filename,
-        "data_filename": data_filename,
-        "data_trust": data_snapshot.get("data_trust"),
+        "filename": persisted["filename"],
+        "md_filename": persisted["md_filename"],
+        "data_filename": persisted["data_filename"],
+        "data_trust": persisted["data_trust"],
         "partial_rerun": context["partial_rerun"],
-        "metadata": metadata or {},
+        "metadata": persisted["metadata"],
     }

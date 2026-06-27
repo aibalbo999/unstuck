@@ -198,7 +198,7 @@ class BearAdvocateStructuredOutput(StructuredModel):
 class SwingTradeSetup(StructuredModel):
     """Strict 1-2 week trade plan emitted by the v4 decision agent."""
 
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True)
 
     trade_direction: Literal["Long", "Short", "Neutral"]
     entry_zone: str = Field(..., min_length=1)

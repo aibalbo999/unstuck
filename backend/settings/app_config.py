@@ -18,6 +18,20 @@ def validate_runtime_settings() -> list[str]:
         warnings.append("DATA_SNAPSHOT_MAX_BYTES 必須大於 0。")
     if ANALYSIS_WORKER_COUNT <= 0:
         warnings.append("ANALYSIS_WORKER_COUNT 必須大於 0。")
+    if TASK_QUEUE_BACKEND not in {"local", "rq"}:
+        warnings.append(f"TASK_QUEUE_BACKEND 應為 local 或 rq，目前為 {TASK_QUEUE_BACKEND}。")
+    if RQ_JOB_MAX_RETRIES_INVALID:
+        warnings.append("RQ_JOB_MAX_RETRIES 必須為整數。")
+    if RQ_JOB_MAX_RETRIES <= 0:
+        warnings.append("RQ_JOB_MAX_RETRIES 必須大於 0。")
+    if RQ_JOB_RETRY_INTERVALS_INVALID:
+        warnings.append("RQ_JOB_RETRY_INTERVALS 每個值都必須為整數。")
+    if not RQ_JOB_RETRY_INTERVALS:
+        warnings.append("RQ_JOB_RETRY_INTERVALS 不可為空。")
+    if len(RQ_JOB_RETRY_INTERVALS) < RQ_JOB_MAX_RETRIES:
+        warnings.append("RQ_JOB_RETRY_INTERVALS 至少需涵蓋 RQ_JOB_MAX_RETRIES 次重試。")
+    if any(interval <= 0 for interval in RQ_JOB_RETRY_INTERVALS):
+        warnings.append("RQ_JOB_RETRY_INTERVALS 每個值都必須大於 0。")
     if LLM_AGENT_CALL_TIMEOUT_SECONDS < 0:
         warnings.append("LLM_AGENT_CALL_TIMEOUT_SECONDS 不可為負數。")
     if PRIMARY_LLM_AGENT_CALL_TIMEOUT_SECONDS <= 0:
@@ -34,6 +48,14 @@ def validate_runtime_settings() -> list[str]:
         warnings.append("ALLOWED_ORIGINS 為空，瀏覽器前端可能無法呼叫 API。")
     if DEPLOYMENT_MODE not in {"local", "lan", "server"}:
         warnings.append("DEPLOYMENT_MODE 應為 local、lan 或 server。")
+    if REPORT_STORAGE_BACKEND not in {"local", "memory"}:
+        warnings.append(
+            f"REPORT_STORAGE_BACKEND 應為 local 或 memory，目前為 {REPORT_STORAGE_BACKEND}。"
+        )
+    if CACHE_BACKEND not in {"sqlite", "redis", "memory"}:
+        warnings.append(f"CACHE_BACKEND 應為 sqlite、redis 或 memory，目前為 {CACHE_BACKEND}。")
+    if not CACHE_NAMESPACE:
+        warnings.append("CACHE_NAMESPACE 不可為空。")
     if DEPLOYMENT_MODE in {"lan", "server"} and not MUTATION_API_TOKEN:
         raise RuntimeError("DEPLOYMENT_MODE 為 lan/server 時必須設定 MUTATION_API_TOKEN，避免 mutation endpoints 在未受保護狀態下啟動。")
     invalid_freshness = [
