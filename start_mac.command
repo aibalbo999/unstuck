@@ -4,6 +4,7 @@
 # ============================================================
 
 set -e
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 LAN_ACCESS="${LAN_ACCESS:-0}"
 SERVER_HOST="127.0.0.1"
@@ -158,6 +159,34 @@ wait_for_redis() {
     return 1
 }
 
+install_redis_server() {
+    if command -v redis-server >/dev/null 2>&1; then
+        return 0
+    fi
+    if ! command -v brew >/dev/null 2>&1; then
+        echo "找不到 redis-server，也找不到 Homebrew。"
+        echo "請先安裝 Redis，例如：brew install redis"
+        exit 1
+    fi
+    echo "找不到 redis-server，無法啟動任務佇列。"
+    read -r -p "是否要現在用 Homebrew 安裝 Redis？[Y/n] " INSTALL_REDIS_REPLY
+    case "${INSTALL_REDIS_REPLY:-Y}" in
+        y|Y|yes|YES|Yes|"")
+            brew install redis
+            hash -r 2>/dev/null || true
+            ;;
+        *)
+            echo "已取消 Redis 安裝。請稍後手動執行：brew install redis"
+            exit 1
+            ;;
+    esac
+    if ! command -v redis-server >/dev/null 2>&1; then
+        echo "Redis 安裝後仍找不到 redis-server；請確認 Homebrew PATH 後再重試。"
+        exit 1
+    fi
+    echo "Redis 安裝完成。"
+}
+
 REDIS_HOST="$("$PYTHON_BIN" - <<'PY'
 import os
 from urllib.parse import urlparse
@@ -179,9 +208,7 @@ if redis_ping; then
     echo "Redis 已在運行：$REDIS_URL"
 elif [ "$REDIS_HOST" = "localhost" ] || [ "$REDIS_HOST" = "127.0.0.1" ] || [ "$REDIS_HOST" = "::1" ]; then
     if ! command -v redis-server >/dev/null 2>&1; then
-        echo "找不到 redis-server，無法啟動任務佇列。"
-        echo "請先安裝 Redis，例如：brew install redis"
-        exit 1
+        install_redis_server
     fi
     mkdir -p "$DIR/backend/cache"
     echo "啟動 Redis：$REDIS_URL"

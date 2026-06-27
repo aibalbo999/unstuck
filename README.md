@@ -233,6 +233,8 @@ http://127.0.0.1:8080
 
 關閉終端機或按下 `Ctrl+C` 時，腳本會停止本次啟動的 API、Worker，以及本次由腳本啟動的 Redis；如果 Redis 原本就已經在跑，腳本只會共用它，不會關掉你的既有 Redis。
 
+如果第一次啟動時尚未安裝 Redis，但系統有 Homebrew，腳本會詢問是否執行 `brew install redis`；按 Enter 或輸入 `Y` 即可安裝後繼續啟動。
+
 若要用同一個 Wi-Fi 上的手機或平板開啟，請雙擊：
 
 ```text

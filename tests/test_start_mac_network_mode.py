@@ -31,3 +31,13 @@ def test_start_mac_lan_launches_full_local_runtime_stack():
     assert 'kill "$WORKER_PID"' in script
     assert 'kill "$REDIS_PID"' in script
     assert 'Worker 已啟動' in script
+
+
+def test_start_mac_offers_homebrew_redis_install_when_missing():
+    script = (ROOT / "start_mac.command").read_text(encoding="utf-8")
+
+    assert 'install_redis_server()' in script
+    assert 'command -v brew' in script
+    assert 'brew install redis' in script
+    assert '是否要現在用 Homebrew 安裝 Redis' in script
+    assert 'Redis 安裝完成。' in script
