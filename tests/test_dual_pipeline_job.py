@@ -21,10 +21,10 @@ def test_frontend_pipeline_metadata_matches_agent_totals():
     assert "學術、實戰、逆勢全跑 · 23 模組" in index_html
 
 
-def test_v1_pipeline_keeps_prompt_dependencies_before_parallel_valuation_growth():
+def test_v1_pipeline_parallelizes_independent_groups_before_valuation_growth():
     v1 = pipeline_modes.get_pipeline_definition("v1")
 
-    assert v1["groups"][:5] == ((11,), (1,), (2,), (3, 20), (4, 5))
+    assert v1["groups"][:4] == ((11,), (1, 2), (3, 20), (4, 5))
     grouped_agents = tuple(agent for group in v1["groups"] for agent in group)
     assert grouped_agents == v1["agents"]
     assert len(grouped_agents) == len(set(grouped_agents))

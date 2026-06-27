@@ -11,6 +11,7 @@ if str(BACKEND) not in sys.path:
 
 import agent_runtime.prompting as prompting  # noqa: E402
 from prompt_builder import format_data_for_prompt  # noqa: E402
+from temporal_memory_service import build_valuation_memory_slice  # noqa: E402
 
 
 def _payload_from_prompt(prompt_text: str) -> dict:
@@ -51,6 +52,49 @@ def test_data_for_agent_prompt_routes_new_context_by_role():
     assert "social_sentiment" not in prompting.data_for_agent_prompt(12, data)
     assert "sec_edgar" not in prompting.data_for_agent_prompt(12, data)
     assert "taiwan_open_data" not in prompting.data_for_agent_prompt(12, data)
+
+
+def test_valuation_agents_receive_temporal_memory_slice_only():
+    temporal_memory = {
+        "previous_report": {
+            "target_3m": "650",
+            "target_6m": "700",
+            "target_12m": "800",
+            "recommendation": "買進",
+            "date": "2024-01-01",
+            "summary": "很長的前期完整報告文字不應進入估值 Agent。",
+        },
+        "backtests": [{"roi_pct": 12.5, "hit": True, "summary": "完整回測說明"}],
+        "reflection_prompt": "完整最終 Agent 反思 prompt",
+    }
+    data = {
+        "ticker": "2330.TW",
+        "company_name": "台積電",
+        "temporal_memory": temporal_memory,
+    }
+
+    valuation_payload = prompting.data_for_agent_prompt(4, data)
+    final_payload = prompting.data_for_agent_prompt(7, data)
+
+    assert "valuation_memory" in valuation_payload
+    assert "temporal_memory" not in valuation_payload
+    assert valuation_payload["valuation_memory"]["prior_target_3m"] == "650"
+    assert valuation_payload["valuation_memory"]["latest_backtest_roi"] == 12.5
+    assert "summary" not in valuation_payload["valuation_memory"]
+    assert "temporal_memory" in final_payload
+    assert "valuation_memory" not in final_payload
+
+
+def test_build_valuation_memory_slice_keeps_only_valuation_fields():
+    result = build_valuation_memory_slice({
+        "previous_report": {"target_3m": "650", "recommendation": "買進", "date": "2024-01-01", "summary": "完整報告"},
+        "backtests": [{"roi_pct": 12.5, "hit": True, "details": "long"}],
+    })
+
+    assert result["prior_target_3m"] == "650"
+    assert result["latest_backtest_hit"] is True
+    assert "note" in result
+    assert "summary" not in result
 
 
 def test_format_data_for_prompt_exposes_only_agent_routed_external_context():

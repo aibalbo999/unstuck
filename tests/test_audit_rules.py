@@ -23,6 +23,7 @@ import data_fetch.cache_helpers as cache_helpers  # noqa: E402
 import data_fetch.optional_enrichment as optional_enrichment  # noqa: E402
 import data_fetch.yfinance_core_fetch as financial_data  # noqa: E402
 import financial_tools  # noqa: E402
+from confidence_calibration import build_confidence_calibration  # noqa: E402
 import prompt_builder  # noqa: E402
 import pipeline_modes  # noqa: E402
 import rag_runtime  # noqa: E402
@@ -264,6 +265,31 @@ class AuditRuleTests(unittest.TestCase):
         issues = ar.validate_analysis_output(2, text, {})
         self.assertNotIn("杜邦分析紅線", "\n".join(issues))
 
+    def test_confidence_calibration_caps_fresh_data_after_circuit_breaker(self):
+        recommendation = {
+            "confidence": "9/10",
+            "confidence_basis": {
+                "evidence_items": ["a", "b", "c"],
+                "key_risks_acknowledged": ["x", "y"],
+            },
+        }
+
+        without_circuit = build_confidence_calibration(recommendation, {"status": "fresh"}, circuit_ever_opened=False)
+        with_circuit = build_confidence_calibration(recommendation, {"status": "fresh"}, circuit_ever_opened=True)
+
+        self.assertEqual(without_circuit["max_recommended_confidence"], 10)
+        self.assertEqual(with_circuit["max_recommended_confidence"], 8)
+        self.assertTrue(with_circuit["circuit_ever_opened"])
+        self.assertIn("修復機制", with_circuit["reasons"][0])
+
+    def test_final_audit_critical_lint_flags_missing_target_price_in_final_output(self):
+        context = complete_context()
+        context["analyses"][7] = "## 最終投資決策\n投資建議：持有，等待基本面確認。"
+
+        audit = ar.run_final_report_audit(context, append_section=False)
+
+        self.assertIn("目標價", "\n".join(audit["critical"]))
+
     def test_generated_quality_warning_does_not_self_trigger_audit(self):
         text = (
             "根據 2025 同期間年度數據，年度杜邦恒等式為："
@@ -435,7 +461,8 @@ class AuditRuleTests(unittest.TestCase):
             }
             return (
                 "## 最終投資決策\n"
-                "建議避免。杜邦分析僅引用同期間年度杜邦恒等式，"
+                "投資建議：避免。目標價：3 個月 NT$950、6 個月 NT$900、12 個月 NT$850。"
+                "杜邦分析僅引用同期間年度杜邦恒等式，"
                 "Yahoo TTM ROE/ROA 僅作資料品質警示，不進行跨期拼接。"
             )
 
@@ -480,7 +507,8 @@ class AuditRuleTests(unittest.TestCase):
             }
             ctx["analyses"][7] = (
                 "## 最終投資決策\n"
-                "建議持有。杜邦分析僅引用同期間年度杜邦恒等式；"
+                "投資建議：持有。目標價：3 個月 NT$900、6 個月 NT$1000、12 個月 NT$1100。"
+                "杜邦分析僅引用同期間年度杜邦恒等式；"
                 "Yahoo TTM ROE/ROA 僅列為資料品質警示，不跨期拼接。"
             )
             return True, "第二次重寫後通過品質檢查"
@@ -532,8 +560,8 @@ class AuditRuleTests(unittest.TestCase):
         self.assertEqual(report_gen.build_audit_banner_html(context), "")
 
     def test_previous_context_uses_relevant_slices_instead_of_full_context(self):
-        long_agent_1 = "## 商業模式\n" + ("完整內容A" * 900)
-        long_agent_2 = "## 財務分析\n" + ("完整內容B" * 900)
+        long_agent_1 = "## 商業模式\n" + ("完整內容A" * 1600)
+        long_agent_2 = "## 財務分析\n" + ("完整內容B" * 1600)
         context = {
             "analyses": {1: long_agent_1, 2: long_agent_2},
             "context_digests": {4: '{"decision_relevant_facts":["摘要"]}'},

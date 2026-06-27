@@ -53,6 +53,28 @@ def build_temporal_memory(ticker: str, *, output_dir: str, current_price: float 
     return memory
 
 
+def build_valuation_memory_slice(temporal_memory: dict) -> dict:
+    """
+    回傳僅含估值相關欄位的精簡 temporal memory，
+    供估值 Agent 使用，避免注入過多前期報告文字。
+    """
+    if not temporal_memory:
+        return {}
+    prev = temporal_memory.get("previous_report", {})
+    backtests = temporal_memory.get("backtests", [])
+    latest_backtest = backtests[0] if backtests else {}
+    return {
+        "prior_target_3m": prev.get("target_3m"),
+        "prior_target_6m": prev.get("target_6m"),
+        "prior_target_12m": prev.get("target_12m"),
+        "prior_recommendation": prev.get("recommendation"),
+        "prior_report_date": prev.get("date"),
+        "latest_backtest_roi": latest_backtest.get("roi_pct"),
+        "latest_backtest_hit": latest_backtest.get("hit"),
+        "note": "請參考上期目標價與實際回測結果，審慎設定本期估值假設。",
+    }
+
+
 def _ticker_matches(report: dict, ticker: str) -> bool:
     report_ticker = str(report.get("ticker") or "").upper()
     return report_ticker == ticker or report_ticker.split(".", 1)[0] == ticker.split(".", 1)[0]

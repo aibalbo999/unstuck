@@ -16,6 +16,7 @@ from prompt_rules import (
 )
 from state_memory import state_view_for
 from structured_outputs import build_structured_output_instruction
+from temporal_memory_service import build_valuation_memory_slice
 
 from .prompt_config import ANALYSIS_PROMPTS
 
@@ -36,6 +37,7 @@ ROUTED_EXTERNAL_CONTEXT_KEYS = {
     "dcard_sentiment": {17},
     "ptt_sentiment": {17},
     "temporal_memory": {7, 16, 19, 21, 24},
+    "valuation_memory": {4, 14},
 }
 
 
@@ -43,9 +45,13 @@ def data_for_agent_prompt(agent_num: int, data: StockData) -> StockData:
     """Return prompt data with newly added external contexts routed by agent role."""
     agent_id = int(agent_num)
     prompt_data = copy.deepcopy(data)
+    temporal_memory = prompt_data.get("temporal_memory") if agent_id in {4, 14} else None
     for key, allowed_agents in ROUTED_EXTERNAL_CONTEXT_KEYS.items():
         if agent_id not in allowed_agents:
             prompt_data.pop(key, None)
+    if agent_id in {4, 14} and isinstance(temporal_memory, dict):
+        prompt_data["valuation_memory"] = build_valuation_memory_slice(temporal_memory)
+        prompt_data.pop("temporal_memory", None)
     return prompt_data
 
 

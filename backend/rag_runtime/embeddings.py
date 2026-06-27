@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import json
+import re
 from hashlib import sha256
 from typing import Optional
 
@@ -48,28 +48,25 @@ def _embedding_config_parts(config) -> tuple[str, str]:
     )
 
 
-def _embedding_cache_key(model_id: str, text: str, config) -> str:
-    task_type, title = _embedding_config_parts(config)
-    digest = sha256(
-        json.dumps(
-            {
-                "model": model_id,
-                "task_type": task_type,
-                "title": title,
-                "text": text,
-            },
-            ensure_ascii=False,
-            sort_keys=True,
-        ).encode("utf-8", "ignore")
-    ).hexdigest()
-    return f"rag_embedding:{digest}"
+def _embedding_cache_key(text: str, model_id: str, ticker: str = "", config=None) -> str:
+    if config is None and ticker is not None and not isinstance(ticker, str):
+        legacy_model_id = text
+        legacy_text = model_id
+        config = ticker
+        text = legacy_text
+        model_id = legacy_model_id
+        ticker = ""
+    content_hash = sha256(str(text or "").encode("utf-8", "ignore")).hexdigest()[:16]
+    safe_ticker = re.sub(r"[^A-Za-z0-9]", "_", str(ticker or "")).strip("_")
+    safe_model = re.sub(r"[^A-Za-z0-9._-]", "_", str(model_id or "")).strip("_")
+    return f"rag_emb:{safe_ticker}:{safe_model}:{content_hash}"
 
 
-def _get_cached_embedding(model_id: str, text: str, config) -> Optional[list[float]]:
+def _get_cached_embedding(model_id: str, text: str, config, ticker: str = "") -> Optional[list[float]]:
     if RAG_EMBEDDING_CACHE_SECONDS <= 0:
         return None
     try:
-        cached = get_cache_json(_embedding_cache_key(model_id, text, config))
+        cached = get_cache_json(_embedding_cache_key(text, model_id, ticker))
     except Exception:
         return None
     vector = cached.get("vector") if isinstance(cached, dict) else None
@@ -81,12 +78,12 @@ def _get_cached_embedding(model_id: str, text: str, config) -> Optional[list[flo
         return None
 
 
-def _set_cached_embedding(model_id: str, text: str, config, vector: list[float]) -> None:
+def _set_cached_embedding(model_id: str, text: str, config, vector: list[float], ticker: str = "") -> None:
     if RAG_EMBEDDING_CACHE_SECONDS <= 0 or not vector:
         return
     try:
         set_cache_json(
-            _embedding_cache_key(model_id, text, config),
+            _embedding_cache_key(text, model_id, ticker),
             {"vector": [float(value) for value in vector]},
             RAG_EMBEDDING_CACHE_SECONDS,
         )
@@ -94,12 +91,12 @@ def _set_cached_embedding(model_id: str, text: str, config, vector: list[float])
         return
 
 
-def _split_cached_embeddings(model_id: str, texts: list[str], config):
+def _split_cached_embeddings(model_id: str, texts: list[str], config, ticker: str = ""):
     vectors: list[Optional[list[float]]] = [None] * len(texts)
     missing_indices = []
     missing_texts = []
     for index, text in enumerate(texts):
-        cached = _get_cached_embedding(model_id, text, config)
+        cached = _get_cached_embedding(model_id, text, config, ticker) if ticker else _get_cached_embedding(model_id, text, config)
         if cached:
             vectors[index] = cached
         else:
@@ -115,11 +112,12 @@ def _merge_embedding_vectors(
     fetched_vectors: list[list[float]],
     model_id: str,
     config,
+    ticker: str = "",
 ) -> list[Optional[list[float]]]:
     for index, text, vector in zip(missing_indices, missing_texts, fetched_vectors):
         if vector:
             vectors[index] = vector
-            _set_cached_embedding(model_id, text, config, vector)
+            _set_cached_embedding(model_id, text, config, vector, ticker)
     return vectors
 
 
@@ -148,8 +146,9 @@ def embed_index_chunks(chunks: list[RagChunk], data: dict, rotator: Optional[Key
     api_key = None
     try:
         texts = [chunk.text for chunk in chunks]
+        ticker = str(data.get("ticker") or data.get("stock_id") or "")
         config = _embedding_config("RETRIEVAL_DOCUMENT", title=str(data.get("company_name") or data.get("ticker") or "stock"))
-        vectors, missing_indices, missing_texts = _split_cached_embeddings(EMBEDDING_MODEL, texts, config)
+        vectors, missing_indices, missing_texts = _split_cached_embeddings(EMBEDDING_MODEL, texts, config, ticker)
         if missing_texts:
             estimated_tokens = estimate_text_tokens("\n\n".join(missing_texts))
             api_key = rotator.get_key(EMBEDDING_MODEL, estimated_tokens)
@@ -161,6 +160,7 @@ def embed_index_chunks(chunks: list[RagChunk], data: dict, rotator: Optional[Key
                 _extract_embeddings(response),
                 EMBEDDING_MODEL,
                 config,
+                ticker,
             )
         _attach_vectors(chunks, vectors)
         return []
@@ -177,8 +177,9 @@ async def embed_index_chunks_async(chunks: list[RagChunk], data: dict, rotator: 
     api_key = None
     try:
         texts = [chunk.text for chunk in chunks]
+        ticker = str(data.get("ticker") or data.get("stock_id") or "")
         config = _embedding_config("RETRIEVAL_DOCUMENT", title=str(data.get("company_name") or data.get("ticker") or "stock"))
-        vectors, missing_indices, missing_texts = _split_cached_embeddings(EMBEDDING_MODEL, texts, config)
+        vectors, missing_indices, missing_texts = _split_cached_embeddings(EMBEDDING_MODEL, texts, config, ticker)
         if missing_texts:
             estimated_tokens = estimate_text_tokens("\n\n".join(missing_texts))
             api_key = await rotator.async_get_key(EMBEDDING_MODEL, estimated_tokens)
@@ -190,6 +191,7 @@ async def embed_index_chunks_async(chunks: list[RagChunk], data: dict, rotator: 
                 _extract_embeddings(response),
                 EMBEDDING_MODEL,
                 config,
+                ticker,
             )
         _attach_vectors(chunks, vectors)
         return []

@@ -10,6 +10,7 @@ if str(BACKEND) not in sys.path:
 
 from langgraph.checkpoint.memory import InMemorySaver
 
+from pipeline_modes import get_pipeline_definition
 from state_memory import initialize_agent_state
 from workflow_graph import build_analysis_graph_builder, run_analysis_workflow
 from workflow_state import agent_state_to_graph
@@ -136,3 +137,10 @@ def test_v1_builds_one_node_per_configured_agent_and_parallel_joins():
     assert {f"agent_{number}" for number in (11, 1, 2, 3, 20, 4, 5, 6, 21, 7)} <= node_names
     assert {"group_3_join", "group_4_join"} <= node_names
 
+
+def test_v1_groups_parallelize_independent_agents_without_changing_sequence():
+    definition = get_pipeline_definition("v1")
+
+    assert definition["agents"] == (11, 1, 2, 3, 20, 4, 5, 6, 21, 7)
+    assert (1, 2) in definition["groups"]
+    assert (6, 21) in definition["groups"]

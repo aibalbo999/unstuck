@@ -126,6 +126,27 @@ def test_structured_repair_uses_fallback_when_model_repair_is_429_unavailable():
     assert set(context["structured_outputs"][14]["price_targets"]) == {"熊市情境", "基本情境", "牛市情境"}
 
 
+def test_per_job_repair_limit_skips_model_and_uses_fallback():
+    context = complete_v2_context()
+    context["structured_outputs"].pop(14)
+    context["repair_attempt_counts"] = {14: 2}
+    context["analyses"][14] = "## 成長與估值\n文字存在，但沒有可解析三情境 JSON。"
+
+    with patch.object(audit_repair, "run_single_agent", side_effect=AssertionError("model repair should be skipped")):
+        ok, message = audit_repair._repair_agent_output(
+            14,
+            context["data"],
+            context,
+            object(),
+            ["三情境目標價 未提供可解析 JSON 結構化輸出。"],
+        )
+
+    assert ok is True
+    assert "per-job" in message
+    assert context["repair_attempt_counts"][14] == 2
+    assert set(context["structured_outputs"][14]["price_targets"]) == {"熊市情境", "基本情境", "牛市情境"}
+
+
 def test_repair_429_circuit_persists_to_sqlite(tmp_path, monkeypatch):
     monkeypatch.setattr(repair_breaker.config, "TASK_DB_PATH", str(tmp_path / "jobs.sqlite3"))
     repair_breaker.clear_repair_429_circuit()

@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 from reporting import ReportRenderer, ReportRequest  # noqa: E402
-from reporting.lint import ReportLintError, assert_report_lint_passed, lint_report_artifacts  # noqa: E402
+from reporting.lint import ReportLintError, assert_report_lint_passed, get_critical_lint_rules, lint_report_artifacts  # noqa: E402
 
 
 def test_report_lint_passes_clean_artifacts():
@@ -17,6 +17,14 @@ def test_report_lint_passes_clean_artifacts():
 
     assert result["status"] == "passed"
     assert result["blocking_issues"] == []
+
+
+def test_critical_lint_rules_expose_recommendation_and_target_price_contracts():
+    rules = get_critical_lint_rules()
+    rule_ids = {rule["id"] for rule in rules}
+
+    assert {"missing_recommendation", "missing_target_price"}.issubset(rule_ids)
+    assert all("pattern" in rule and "label" in rule for rule in rules)
 
 
 def test_report_lint_blocks_prompt_and_execution_failure_leaks():
