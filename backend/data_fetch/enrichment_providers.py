@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from source_audit import audited_fetch, audited_fetch_async
 
+from .earnings_call_fetcher import FREE_EARNINGS_CALL_PROVIDER_NAME, fetch_free_earnings_call_context
 from .market_sources.common import first_number
 from .provider_base import DataProvider, not_configured_provider_result, provider_result_from_audited, unavailable_provider_result
 from .types import FetchRequest, ProviderResult
@@ -130,24 +131,19 @@ class FmpNewsProvider(DataProvider):
 
 
 class EarningsCallProvider(DataProvider):
-    name = "FMP earnings call transcript"
+    name = FREE_EARNINGS_CALL_PROVIDER_NAME
     source = "earnings_call"
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
-        from config import FMP_API_KEY
-        from .earnings_call_fetcher import fetch_latest_earnings_call
-
-        if not FMP_API_KEY:
-            return not_configured_provider_result(self.source, self.name, "FMP_API_KEY 未設定，略過法說逐字稿。")
         data = (context or {}).get("data", {}) if isinstance((context or {}).get("data"), dict) else {}
         ticker = str((context or {}).get("original_ticker") or data.get("ticker") or request.ticker).strip().upper()
         result = audited_fetch(
             self.source,
             self.name,
-            fetch_latest_earnings_call,
+            fetch_free_earnings_call_context,
             (ticker,),
             default={},
-            unavailable_message="FMP 未回傳法說逐字稿。",
+            unavailable_message="免費法說會資料未回傳。",
         )
         return provider_result_from_audited(result, self.source, self.name)
 

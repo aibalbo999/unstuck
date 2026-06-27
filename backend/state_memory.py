@@ -14,18 +14,18 @@ from agent_state import AgentReport, AgentState
 
 STATE_VIEW_POLICY: dict[str, dict[str, list[str] | dict[str, list[str]]]] = {
     "11": {
-        "root": ["validation_issues", "risk_flags", "macro_context"],
+        "root": ["validation_issues", "risk_flags", "macro_context", "taiwan_open_data"],
     },
     "13": {
         "normalized_financials": ["revenue_history", "net_income_history", "fcf_history", "cash_flow"],
         "quant_metrics": ["calculations", "unit_contract"],
-        "root": ["validation_issues", "risk_flags", "alternative_data"],
+        "root": ["validation_issues", "risk_flags", "alternative_data", "sec_edgar"],
     },
     "14": {
         "normalized_financials": ["revenue_history", "net_income_history", "fcf_history", "cash_flow"],
         "quant_metrics": ["calculations", "unit_contract"],
         "peer_context": ["selected_peers", "selection_policy", "dynamic_peer_metrics"],
-        "root": ["risk_flags", "validation_issues", "tool_results", "alternative_data"],
+        "root": ["risk_flags", "validation_issues", "tool_results", "alternative_data", "sec_edgar"],
     },
     "15": {
         "root": ["validation_issues", "risk_flags", "chip_context"],
@@ -45,7 +45,7 @@ STATE_VIEW_POLICY: dict[str, dict[str, list[str] | dict[str, list[str]]]] = {
         "normalized_financials": ["revenue_history", "net_income_history", "fcf_history", "cash_flow"],
         "quant_metrics": ["calculations", "unit_contract"],
         "peer_context": ["selected_peers", "selection_policy", "dynamic_peer_metrics"],
-        "root": ["risk_flags", "validation_issues", "tool_results", "agent_reports", "earnings_call_context"],
+        "root": ["risk_flags", "validation_issues", "tool_results", "agent_reports", "earnings_call_context", "sec_edgar"],
     },
     "22": {
         "normalized_financials": ["current_price", "price_history", "technical_indicators"],
@@ -178,6 +178,8 @@ def _external_context_for_state(state: AgentState) -> dict[str, Any]:
         "chip_context": copy.deepcopy(data.get("chip_data") or {}),
         "alternative_data": copy.deepcopy(data.get("alternative_data") or {}),
         "sentiment_context": copy.deepcopy(data.get("sentiment_context") or {}),
+        "sec_edgar": copy.deepcopy(data.get("sec_edgar") or {}),
+        "taiwan_open_data": copy.deepcopy(data.get("taiwan_open_data") or {}),
         "earnings_call_context": copy.deepcopy(data.get("earnings_call") or {}),
     }
 

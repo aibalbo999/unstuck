@@ -18,6 +18,9 @@ def test_default_provider_registry_includes_chip_macro_and_alternative_sources()
     assert "macro_indicators" in sources
     assert "chip_data" in sources
     assert "alternative_data" in sources
+    assert "social_sentiment" in sources
+    assert "sec_edgar" in sources
+    assert "taiwan_open_data" in sources
 
 
 def test_optional_http_bundle_merges_external_agent_contexts():
@@ -35,3 +38,25 @@ def test_optional_http_bundle_merges_external_agent_contexts():
     assert merged["macro_indicators"]["source"] == "FRED"
     assert merged["chip_data"]["tdcc_shareholder_distribution"]["major_holders_gt_1000_lots_pct"] == 42.1
     assert merged["alternative_data"]["job_openings_104"]["job_count"] == 128
+
+
+def test_optional_http_bundle_merges_additional_free_context_sources():
+    data = {"ticker": "AAPL", "source_audit": []}
+    merged = _merge_optional_http_bundle(
+        data,
+        {
+            "social_sentiment": {"dcard": [{"title": "Dcard"}], "mobile01": [], "pttweb": []},
+            "sec_edgar": {"recent_filings": [{"form": "10-K", "filingDate": "2026-02-01"}]},
+            "taiwan_open_data": {"rates": {"USD": {"buy": "31.00", "sell": "31.50"}}},
+        },
+        refreshed_sources=("social_sentiment", "sec_edgar", "taiwan_open_data"),
+    )
+
+    assert merged["social_sentiment"]["dcard"][0]["title"] == "Dcard"
+    assert merged["sentiment_context"]["social_sentiment"]["dcard"][0]["title"] == "Dcard"
+    assert merged["sec_edgar"]["recent_filings"][0]["form"] == "10-K"
+    assert merged["taiwan_open_data"]["rates"]["USD"]["sell"] == "31.50"
+    latest_sources = {entry["source"]: entry for entry in merged["source_audit"]}
+    assert latest_sources["social_sentiment"]["status"] == "success"
+    assert latest_sources["sec_edgar"]["status"] == "success"
+    assert latest_sources["taiwan_open_data"]["status"] == "success"

@@ -9,6 +9,8 @@ from typing import Any
 import pandas as pd
 import requests
 
+from official_financials_mops_conference import MOPS_INVESTOR_CONFERENCE_URL, fetch_mops_investor_conference_events
+
 
 LOGGER = logging.getLogger(__name__)
 TWSE_INSTITUTIONAL_TRADES_URL = "https://openapi.twse.com.tw/v1/fund/TWT38U13"

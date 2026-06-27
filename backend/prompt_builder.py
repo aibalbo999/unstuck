@@ -145,12 +145,8 @@ def _compact_pe_river(pe_river: dict) -> dict:
 
 
 def _agent_context(data: dict) -> dict:
-    context = {}
-    for key in ("macro_indicators", "chip_data", "alternative_data", "sentiment_context"):
-        value = data.get(key)
-        if value:
-            context[key] = value
-    return context
+    keys = ("macro_indicators", "chip_data", "alternative_data", "sentiment_context", "social_sentiment", "sec_edgar", "taiwan_open_data")
+    return {key: data.get(key) for key in keys if data.get(key)}
 
 
 def format_data_for_prompt(data: dict, *, compact: bool = False) -> str:

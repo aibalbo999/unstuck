@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import logging
+from contextlib import contextmanager
+
 import yfinance as yf
 
 from .common import _run_named_fetches
@@ -19,6 +22,27 @@ GLOBAL_PEER_HINTS = [
     (["面板", "Display", "LCD", "OLED"], [("AUO", "2409.TW"), ("Innolux", "3481.TW"), ("LG Display", "LPL"), ("BOE", "000725.SZ")]),
     (["航運", "Shipping", "Marine"], [("Evergreen Marine", "2603.TW"), ("Yang Ming", "2609.TW"), ("Wan Hai", "2615.TW"), ("Maersk", "MAERSK-B.CO")]),
 ]
+PEER_METRIC_FIELDS = (
+    "gross_margin_pct",
+    "operating_margin_pct",
+    "profit_margin_pct",
+    "roe_pct",
+    "asset_turnover",
+    "pe_ttm",
+    "pb",
+    "ps_ttm",
+)
+
+
+@contextmanager
+def _suppress_yfinance_quote_noise():
+    logger = logging.getLogger("yfinance")
+    previous_level = logger.level
+    logger.setLevel(logging.CRITICAL)
+    try:
+        yield
+    finally:
+        logger.setLevel(previous_level)
 
 
 def infer_global_peer_tickers(ticker: str, company_name: str, sector: str, industry: str) -> list[tuple[str, str]]:
@@ -85,6 +109,8 @@ def fetch_dynamic_peer_metrics(ticker: str, company_name: str, sector: str, indu
             "pb": round(float(info.get("priceToBook")), 2) if isinstance(info.get("priceToBook"), (int, float)) else None,
             "ps_ttm": round(float(info.get("priceToSalesTrailing12Months")), 2) if isinstance(info.get("priceToSalesTrailing12Months"), (int, float)) else None,
         }
+        if all(record.get(field) is None for field in PEER_METRIC_FIELDS):
+            return {}
         if selection is not None and selection_policy is not None:
             record.update({
                 "selection_score": selection["score"],
@@ -101,5 +127,6 @@ def fetch_dynamic_peer_metrics(ticker: str, company_name: str, sector: str, indu
         symbol: (fetch_peer, (name, symbol), None, f"{symbol} 同業指標獲取失敗")
         for name, symbol in unique_peers
     }
-    results = _run_named_fetches(fetches, max_workers=5)
+    with _suppress_yfinance_quote_noise():
+        results = _run_named_fetches(fetches, max_workers=5)
     return [record for record in results.values() if record]

@@ -10,6 +10,7 @@ from data_fetch import CallableProvider, FetchRequest, ProviderRegistry, Provide
 from data_fetch.constants import DATA_SCHEMA_VERSION  # noqa: E402
 from data_fetch.market_sources.peers import CompanyProfile, rank_peer_candidates, select_peer_profiles  # noqa: E402
 import data_fetch.market_sources.peers as peer_sources  # noqa: E402
+from data_fetch.optional_provider_plan import OPTIONAL_WORKFLOW_SOURCES  # noqa: E402
 import data_fetch.workflow as workflow  # noqa: E402
 import data_freshness  # noqa: E402
 import provider_sla  # noqa: E402
@@ -421,11 +422,121 @@ def test_stock_data_service_merges_global_market_and_international_news_context(
     )
 
 
+def test_stock_data_service_auto_merges_free_context_sources(monkeypatch):
+    monkeypatch.setattr(workflow, "cache_financial_payload", lambda data, ticker: None)
+    monkeypatch.setattr(workflow, "get_cache_json", lambda key: None)
+
+    def core_provider(request, context):
+        payload = fresh_audited_payload(ticker=request.ticker, provider="fake-core")
+        payload["sector"] = "Technology"
+        payload["industry"] = "Semiconductors"
+        return ProviderResult(
+            source="market_data",
+            provider="fake-core",
+            status="success",
+            value=payload,
+            audit=payload["source_audit"][0],
+        )
+
+    def social_provider(request, context):
+        return ProviderResult(
+            source="social_sentiment",
+            provider="Social Forum Sentiment (Dcard/Mobile01/PTT)",
+            status="success",
+            value={
+                "dcard": [{"title": "Dcard 討論熱度升溫", "link": "https://example.test/dcard"}],
+                "mobile01": [],
+                "pttweb": [{"title": "PTT 討論供應鏈", "link": "https://example.test/ptt"}],
+            },
+            audit=build_source_audit_entry(
+                "social_sentiment",
+                "Social Forum Sentiment (Dcard/Mobile01/PTT)",
+                "success",
+                fetched_at=FRESH_AT,
+                record_count=2,
+            ),
+        )
+
+    def sec_provider(request, context):
+        return ProviderResult(
+            source="sec_edgar",
+            provider="SEC EDGAR Filings",
+            status="success",
+            value={
+                "cik": "0000320193",
+                "company_name": "Apple Inc.",
+                "recent_filings": [{"form": "10-Q", "filingDate": "2026-05-01"}],
+            },
+            audit=build_source_audit_entry(
+                "sec_edgar",
+                "SEC EDGAR Filings",
+                "success",
+                fetched_at=FRESH_AT,
+                record_count=1,
+            ),
+        )
+
+    def taiwan_open_data_provider(request, context):
+        return ProviderResult(
+            source="taiwan_open_data",
+            provider="Taiwan Open Data (Exchange Rates)",
+            status="success",
+            value={
+                "dataset": "Bank of Taiwan Exchange Rates (牌告匯率)",
+                "rates": {"USD": {"buy": "31.00", "sell": "31.50"}},
+            },
+            audit=build_source_audit_entry(
+                "taiwan_open_data",
+                "Taiwan Open Data (Exchange Rates)",
+                "success",
+                fetched_at=FRESH_AT,
+                record_count=1,
+            ),
+        )
+
+    registry = ProviderRegistry([
+        CallableProvider("market_data", "fake-core", core_provider),
+        CallableProvider("social_sentiment", "Social Forum Sentiment (Dcard/Mobile01/PTT)", social_provider),
+        CallableProvider("sec_edgar", "SEC EDGAR Filings", sec_provider, markets={"us"}),
+        CallableProvider("taiwan_open_data", "Taiwan Open Data (Exchange Rates)", taiwan_open_data_provider),
+    ])
+
+    result = asyncio.run(StockDataService(registry=registry).fetch_async(FetchRequest.from_ticker("AAPL")))
+
+    assert result.data["social_sentiment"]["dcard"][0]["title"] == "Dcard 討論熱度升溫"
+    assert result.data["sentiment_context"]["social_sentiment"]["pttweb"][0]["title"] == "PTT 討論供應鏈"
+    assert result.data["sec_edgar"]["recent_filings"][0]["form"] == "10-Q"
+    assert result.data["taiwan_open_data"]["rates"]["USD"]["sell"] == "31.50"
+    latest_sources = {entry["source"]: entry for entry in result.data["source_audit"]}
+    assert latest_sources["social_sentiment"]["status"] == "success"
+    assert latest_sources["sec_edgar"]["status"] == "success"
+    assert latest_sources["taiwan_open_data"]["status"] == "success"
+    assert "social_sentiment" in result.data["source_freshness"]
+    assert "sec_edgar" in result.data["source_freshness"]
+    assert "taiwan_open_data" in result.data["source_freshness"]
+
+
 def test_default_provider_registry_includes_global_context_sources():
     sources = {provider.source for provider in ProviderRegistry().providers}
 
     assert "global_market_context" in sources
     assert "international_news_context" in sources
+
+
+def test_default_provider_registry_sources_are_covered_by_automatic_workflow():
+    registry_sources = {provider.source for provider in ProviderRegistry().providers}
+    core_workflow_sources = {
+        "market_data",
+        "financial_statements",
+        "twse_official",
+        "monthly_revenue",
+        "institutional_trading",
+        "dynamic_peer_metrics",
+        "pe_river_chart",
+    }
+    automated_sources = core_workflow_sources | set(OPTIONAL_WORKFLOW_SOURCES)
+
+    assert registry_sources - automated_sources == set()
 
 
 def test_stock_data_service_fake_registry_e2e_cache_audit_and_trust(monkeypatch, tmp_path):

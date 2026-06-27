@@ -11,6 +11,7 @@ from sqlite3 import Row
 
 from config import ANALYSIS_JOB_STALE_SECONDS, TASK_DB_PATH
 from api_usage_recorders import record_runtime_event_usage
+import job_store_events
 from job_store_schema import init_job_store_schema
 from runtime_events import emit_log, format_event_log_line
 from storage.sqlite_resource import ThreadLocalSqliteResource
@@ -266,25 +267,7 @@ def _print_job_event(job_id: str, payload: dict) -> None:
     emit_log(format_event_log_line(job_id, payload, prefix="job"))
 
 def get_events_since(job_id: str, after_id: int = 0) -> list[dict]:
-    with _connect() as conn:
-        rows = conn.execute(
-            """
-            SELECT id, payload, created_at
-            FROM analysis_events
-            WHERE job_id = ? AND id > ?
-            ORDER BY id ASC
-            """,
-            (job_id, after_id),
-        ).fetchall()
-
-    events = []
-    for row in rows:
-        try:
-            payload = json.loads(row["payload"])
-        except json.JSONDecodeError:
-            payload = {"type": "error", "message": "任務事件解析失敗"}
-        events.append({"id": row["id"], "payload": payload, "created_at": row["created_at"]})
-    return events
+    return job_store_events.get_events_since(_connect, job_id, after_id)
 
 
 def query_events(
@@ -295,46 +278,11 @@ def query_events(
     level: str | None = None,
     limit: int = 100,
 ) -> list[dict]:
-    clauses = []
-    params = []
-    if job_id:
-        clauses.append("job_id = ?")
-        params.append(job_id)
-    if event_type:
-        clauses.append("event_type = ?")
-        params.append(event_type)
-    if phase:
-        clauses.append("phase = ?")
-        params.append(phase)
-    if level:
-        clauses.append("level = ?")
-        params.append(level)
-    where = "WHERE " + " AND ".join(clauses) if clauses else ""
-    safe_limit = max(1, min(int(limit or 100), 1000))
-    with _connect() as conn:
-        rows = conn.execute(
-            f"""
-            SELECT id, job_id, payload, created_at, event_type, phase, level
-            FROM analysis_events
-            {where}
-            ORDER BY id DESC
-            LIMIT ?
-            """,
-            (*params, safe_limit),
-        ).fetchall()
-    results = []
-    for row in rows:
-        try:
-            payload = json.loads(row["payload"])
-        except json.JSONDecodeError:
-            payload = {"type": "error", "message": "任務事件解析失敗"}
-        results.append({
-            "id": row["id"],
-            "job_id": row["job_id"],
-            "payload": payload,
-            "created_at": row["created_at"],
-            "event_type": row["event_type"],
-            "phase": row["phase"],
-            "level": row["level"],
-        })
-    return results
+    return job_store_events.query_events(
+        _connect,
+        job_id,
+        event_type=event_type,
+        phase=phase,
+        level=level,
+        limit=limit,
+    )

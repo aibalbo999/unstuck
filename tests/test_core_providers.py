@@ -14,7 +14,7 @@ import data_fetch.yfinance_core_fetch as core_fetch  # noqa: E402
 import data_fetch.market_sources.http_enrichment as http_sources  # noqa: E402
 import data_fetch.market_sources.taiwan as taiwan_sources  # noqa: E402
 from data_fetch import FetchRequest  # noqa: E402
-from data_fetch.enrichment_providers import YahooProvider  # noqa: E402
+from data_fetch.enrichment_providers import EarningsCallProvider, YahooProvider  # noqa: E402
 from data_fetch.provider_registry import ProviderRegistry  # noqa: E402
 from data_fetch.quote_providers import FmpProvider, YFinanceProvider  # noqa: E402
 from data_fetch.taiwan_providers import FinMindProvider, MonthlyRevenueProvider, TwseOfficialProvider  # noqa: E402
@@ -143,3 +143,30 @@ def test_yahoo_provider_records_fetch_error(monkeypatch):
 
     assert result.status == "error"
     assert result.audit["error_kind"] == "RuntimeError"
+
+
+def test_earnings_call_provider_uses_free_mops_source_without_fmp_key(monkeypatch):
+    import data_fetch.enrichment_providers as providers
+
+    def fake_mops(ticker):
+        assert ticker == "2330.TW"
+        return {
+            "ticker": "2330",
+            "date": "2026-06-20",
+            "period": "2026-06-20",
+            "title": "台積電 法人說明會",
+            "summary": "第一季營運成果",
+            "transcript_excerpt": "",
+            "transcript_available": False,
+            "materials": [{"label": "簡報檔案", "url": "https://example.test/2330.pdf"}],
+            "source": "MOPS investor conference",
+        }
+
+    monkeypatch.setattr(providers, "fetch_free_earnings_call_context", fake_mops, raising=False)
+
+    result = EarningsCallProvider().fetch(FetchRequest.from_ticker("2330.TW"))
+
+    assert result.status == "success"
+    assert result.provider == "MOPS investor conference"
+    assert result.value["transcript_available"] is False
+    assert result.value["materials"][0]["label"] == "簡報檔案"

@@ -16,6 +16,9 @@ OPTIONAL_WORKFLOW_SOURCES = (
     "macro_indicators",
     "chip_data",
     "alternative_data",
+    "social_sentiment",
+    "sec_edgar",
+    "taiwan_open_data",
     "peer_discovery",
 )
 

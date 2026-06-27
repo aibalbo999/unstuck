@@ -4,6 +4,7 @@ import pandas as pd
 import requests
 
 import official_financials
+import official_financials_mops_conference as conference_financials
 
 
 class FakeResponse:
@@ -123,6 +124,73 @@ def test_mops_posts_period_and_extracts_balance_sheet(monkeypatch):
     assert result["unit"] == "thousand_twd"
     assert result["source"] == "MOPS"
     assert result["raw_line_items"]["負債總計"] == 900
+
+
+def test_mops_investor_conference_extracts_latest_materials(monkeypatch):
+    frame = pd.DataFrame({
+        "公司代號": ["2317", "2330"],
+        "公司名稱": ["鴻海", "台積電"],
+        "召開法人說明會日期": ["2026/05/01", "2026/06/20"],
+        "召開法人說明會時間": ["14:00", "15:00"],
+        "召開法人說明會地點": ["線上", "台北"],
+        "相關資訊": ["", "第一季營運成果"],
+        "簡報檔案": ["", "https://example.test/2330.pdf"],
+        "影音連結": ["", "https://example.test/2330-video"],
+    })
+    monkeypatch.setattr(conference_financials.pd, "read_html", lambda *_args, **_kwargs: [frame])
+    session = FakeSession(text="<table></table>")
+
+    result = official_financials.fetch_mops_investor_conference_events("2330.TW", year=2026, session=session)
+
+    assert session.last_url.endswith("/ajax_t100sb07_1")
+    assert session.last_data["co_id"] == "2330"
+    assert session.last_data["year"] == "115"
+    assert result == [{
+        "ticker": "2330",
+        "company_name": "台積電",
+        "date": "2026-06-20",
+        "time": "15:00",
+        "location": "台北",
+        "title": "台積電 法人說明會",
+        "summary": "第一季營運成果",
+        "materials": [
+            {"label": "簡報檔案", "url": "https://example.test/2330.pdf"},
+            {"label": "影音連結", "url": "https://example.test/2330-video"},
+        ],
+        "source": "MOPS investor conference",
+        "source_url": official_financials.MOPS_INVESTOR_CONFERENCE_URL,
+    }]
+
+
+def test_mops_investor_conference_preserves_anchor_material_urls(monkeypatch):
+    html = """
+    <table>
+      <tr>
+        <th>公司代號</th><th>公司名稱</th><th>召開法人說明會日期</th>
+        <th>簡報檔案</th><th>影音連結</th>
+      </tr>
+      <tr>
+        <td>2330</td><td>台積電</td><td>2026/06/20</td>
+        <td><a href="/mops/web/presentation.pdf">下載</a></td>
+        <td><a href="https://webpro.twse.com.tw/WebPortal/vod/101/2330">觀看</a></td>
+      </tr>
+    </table>
+    """
+    def fail_read_html(*_args, **_kwargs):
+        raise ValueError("no table parser")
+
+    monkeypatch.setattr(conference_financials.pd, "read_html", fail_read_html)
+    session = FakeSession(text=html)
+    warnings = []
+    monkeypatch.setattr(conference_financials, "_warn", lambda _provider, operation, _exc=None: warnings.append(operation))
+
+    result = official_financials.fetch_mops_investor_conference_events("2330.TW", year=2026, session=session)
+
+    assert result[0]["materials"] == [
+        {"label": "簡報檔案", "url": "https://mops.twse.com.tw/mops/web/presentation.pdf"},
+        {"label": "影音連結", "url": "https://webpro.twse.com.tw/WebPortal/vod/101/2330"},
+    ]
+    assert warnings == []
 
 
 def test_mops_uses_otc_type_for_two_suffix(monkeypatch):
