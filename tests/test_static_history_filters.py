@@ -615,6 +615,8 @@ def test_market_screener_frontend_tab_is_wired():
     assert "marketScreenerPanel.loadOnce" in app_js
     assert "Auto-Screener" in market_screener_js
     assert "market-screener-chip" in market_screener_js
+    assert "股價大漲跌/成交量暴增" in market_screener_js
+    assert "技術/量能異常" not in market_screener_js
     assert "scan_success" in market_screener_js
     assert "result.message" in market_screener_js
     assert "providers" in market_screener_js
@@ -625,6 +627,9 @@ def test_market_screener_frontend_tab_is_wired():
     assert "模式 A" in market_screener_js and "模式 D" in market_screener_js
     assert ".market-screener-grid" in market_screener_css
     assert ".market-screener-mode-picker" in market_screener_css
+    assert ".market-screener-mode-option:has(input:checked)" in market_screener_css
+    assert ".market-screener-mode-option input" in market_screener_css
+    assert "accent-color" in market_screener_css
 
 
 def test_report_actions_do_not_prompt_refresh_for_provider_sla_only_partial_reports():

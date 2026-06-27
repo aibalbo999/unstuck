@@ -198,6 +198,47 @@ def test_import_screener_candidates_marks_watchlist_items_for_mode_d(monkeypatch
     assert item["triggers"][0]["screen_date"] == "2026-06-26"
 
 
+def test_run_daily_market_screener_prunes_stale_auto_screener_items(monkeypatch, tmp_path):
+    import market_screener
+    import watchlist_service
+
+    monkeypatch.setattr(watchlist_service, "WATCHLIST_PATH", tmp_path / "watchlist.json")
+    watchlist_service.reset_watchlist_store_for_tests()
+    watchlist_service.upsert_watchlist_item({
+        "ticker": "1522.TW",
+        "pipeline": "v4",
+        "enabled": True,
+        "tags": ["Auto-Screener", "technical_heat"],
+        "trigger_source": "daily_screener",
+        "triggers": [{
+            "key": "daily_screener",
+            "type": "daily_screener",
+            "category": "technical_heat",
+            "reason": "乖離率 -100.0%",
+            "metrics": {"close": 0, "bias_pct": -100},
+        }],
+    })
+    watchlist_service.upsert_watchlist_item({
+        "ticker": "2308.TW",
+        "pipeline": "v2",
+        "enabled": True,
+        "tags": [],
+    })
+    monkeypatch.setattr(market_screener, "FINMIND_API_TOKEN", "")
+
+    result = market_screener.run_daily_market_screener(
+        now=datetime(2026, 6, 26, 18, 5, tzinfo=watchlist_service.TAIPEI),
+        data_loader_cls=FakeFinMindLoader,
+        top_n=1,
+    )
+
+    tickers = {(item["ticker"], item["pipeline"]) for item in watchlist_service.list_watchlist()["items"]}
+    assert result["pruned_count"] == 1
+    assert ("1522.TW", "v4") not in tickers
+    assert ("2308.TW", "v2") in tickers
+    assert {("2330.TW", "v4"), ("2449.TW", "v4")} <= tickers
+
+
 def test_run_daily_market_screener_scans_and_imports(monkeypatch, tmp_path):
     import market_screener
     import watchlist_service

@@ -79,16 +79,28 @@
 .market-screener-mode-option {
     min-height: 48px;
     display: grid;
-    grid-template-columns: auto 1fr;
+    grid-template-columns: 20px minmax(0, 1fr);
     column-gap: 8px;
     align-items: center;
     padding: 8px;
     border: 1px solid rgba(148, 163, 184, 0.18);
     border-radius: 8px;
     color: var(--text-primary);
+    cursor: pointer;
 }
 .market-screener-mode-option input {
+    width: 18px;
+    height: 18px;
+    min-width: 18px;
+    padding: 0;
+    margin: 0;
+    border-radius: 4px;
+    accent-color: var(--accent);
     grid-row: span 2;
+}
+.market-screener-mode-option:has(input:checked) {
+    border-color: rgba(94, 234, 212, 0.68);
+    background: rgba(20, 184, 166, 0.14);
 }
 .market-screener-mode-option span,
 .market-screener-mode-option em {

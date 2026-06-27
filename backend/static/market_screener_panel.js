@@ -1,7 +1,7 @@
 (function () {
     const CATEGORY_LABELS = {
         institutional_accumulation: '外資投信同步',
-        technical_heat: '技術/量能異常'
+        technical_heat: '股價大漲跌/成交量暴增'
     };
     const PIPELINE_OPTIONS = [
         { value: 'v1', label: '模式 A', shortLabel: '學術深度派' },

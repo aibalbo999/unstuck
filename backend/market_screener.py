@@ -174,9 +174,11 @@ def run_daily_market_screener(
         top_n=top_n,
     )
     imported = import_candidates_to_watchlist(scan.get("candidates") or [])
+    pruned = prune_stale_auto_screener_items(scan.get("candidates") or []) if scan.get("success") else {"pruned": [], "pruned_count": 0}
     return {
         **scan,
         **imported,
+        **pruned,
         "success": bool(scan.get("success")) and not imported.get("errors"),
         "candidate_count": len(scan.get("candidates") or []),
     }
@@ -259,6 +261,23 @@ def import_candidates_to_watchlist(candidates: list[dict]) -> dict:
         except Exception as exc:
             errors.append({"ticker": ticker, "error": str(exc)[:240]})
     return {"imported": imported, "imported_count": len(imported), "errors": errors}
+
+
+def prune_stale_auto_screener_items(candidates: list[dict]) -> dict:
+    keep = {str(candidate.get("ticker") or "").strip().upper() for candidate in candidates if candidate.get("ticker")}
+    if not keep:
+        return {"pruned": [], "pruned_count": 0}
+    pruned = []
+    for item in watchlist_service.list_watchlist().get("items", []):
+        ticker = str(item.get("ticker") or "").strip().upper()
+        pipeline = str(item.get("pipeline") or "").strip().lower()
+        is_auto = item.get("trigger_source") == DAILY_SCREENER_SOURCE or AUTO_SCREENER_TAG in (item.get("tags") or [])
+        if not is_auto or pipeline != DAILY_SCREENER_PIPELINE or ticker in keep:
+            continue
+        result = watchlist_service.delete_watchlist_item(ticker, pipeline)
+        if result.get("deleted"):
+            pruned.append({"ticker": ticker, "pipeline": pipeline})
+    return {"pruned": pruned, "pruned_count": len(pruned)}
 
 
 def list_auto_screener_watchlist(output_dir: str | None = None) -> dict:
