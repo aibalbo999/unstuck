@@ -619,6 +619,20 @@ def test_report_actions_do_not_prompt_refresh_for_provider_sla_only_partial_repo
     assert "份需留意" not in operator_summary_js
 
 
+def test_report_actions_can_add_report_catalysts_to_watchlist_radar():
+    report_actions_js = (STATIC_DIR / "report_actions.js").read_text(encoding="utf-8")
+    report_navigation_js = (STATIC_DIR / "report_navigation.js").read_text(encoding="utf-8")
+
+    assert "bindWatchlistRadarButtons" in report_actions_js
+    assert ".add-to-watchlist-btn" in report_actions_js
+    assert "saveWatchlistItem" in report_actions_js
+    assert "trigger_condition" in report_actions_js
+    assert "impact_direction" in report_actions_js
+    assert "notify.success" in report_actions_js
+    assert "notify.error" in report_actions_js
+    assert "StockAgentReportActions.bindWatchlistRadarButtons" in report_navigation_js
+
+
 def test_operator_signals_avoid_misleading_health_and_tracking_copy():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     provider_sla_js = (STATIC_DIR / "provider_sla_panel.js").read_text(encoding="utf-8")

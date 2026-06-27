@@ -59,6 +59,9 @@ class AgentGraphState(TypedDict, total=False):
     quant_metrics: dict[str, Any]
     tool_results: Annotated[dict[str, Any], merge_dicts]
     agent_reports: Annotated[dict[str, dict[str, Any]], merge_dicts]
+    executive_thesis: str
+    smoothed_markdown: str
+    next_catalysts: Annotated[list[dict[str, Any]], append_unique]
     risk_flags: Annotated[list[dict[str, Any]], append_unique]
     execution_trace: Annotated[list[dict[str, Any]], append_unique]
     analyses: Annotated[dict[str, str], merge_dicts]

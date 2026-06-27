@@ -66,12 +66,28 @@
 
         {% include "includes/data_trust.html.j2" %}
 
+        {% if executive_thesis %}
+        <div class="executive-thesis">
+            <div class="executive-thesis-title">投資核心論點</div>
+            <p>{{ executive_thesis }}</p>
+        </div>
+        {% endif %}
+
         <div class="tear-sheet">
             <div class="tear-sheet-title">One-Page Tear Sheet</div>
             <div class="tear-sheet-body">
                 {{ tear_sheet_summary|safe }}
             </div>
         </div>
+
+        {% if smoothed_markdown_html %}
+        <div class="editor-synthesis">
+            <div class="editor-synthesis-title">總編輯整合觀點</div>
+            <div class="editor-synthesis-body">
+                {{ smoothed_markdown_html|safe }}
+            </div>
+        </div>
+        {% endif %}
     </div>
     
     <!-- ─── 內容區 ─── -->

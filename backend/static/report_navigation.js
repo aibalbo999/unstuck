@@ -36,6 +36,12 @@
         const win = doc.defaultView || window;
         const sections = Array.from(doc.querySelectorAll('#overview, .section[id]'));
         const navItems = Array.from(doc.querySelectorAll('.nav-item'));
+        if (window.StockAgentReportActions?.bindWatchlistRadarButtons) {
+            window.StockAgentReportActions.bindWatchlistRadarButtons(doc, {
+                apiClient: window.StockAgentApiClient,
+                notify: window.StockAgentNotify
+            });
+        }
         if (!sections.length || !navItems.length) return false;
 
         navItems.forEach((item, index) => {

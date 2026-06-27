@@ -213,6 +213,55 @@ def build_evidence_matrix_rows(context: dict) -> list[dict]:
     return rows
 
 
+def _source_id(value: Any) -> str:
+    text = sanitize_report_plain_text(value).strip()
+    return "".join(ch for ch in text if ch.isalnum() or ch in {"_", "-", ".", ":"})[:96]
+
+
+def build_evidence_matrix_payload(context: dict) -> dict:
+    """Build JSON data used by click-to-source report tooltips."""
+    context = _as_dict(context)
+    data = _as_dict(context.get("data"))
+    sources: dict[str, dict] = {}
+
+    entries = data.get("source_audit") if isinstance(data.get("source_audit"), list) else []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        source_id = _source_id(entry.get("source") or entry.get("provider"))
+        if not source_id:
+            continue
+        provider = _text(entry.get("provider"))
+        status = _text(entry.get("status"), "unknown")
+        fetched_at = _text(entry.get("fetched_at"))
+        message = _text(entry.get("message") or entry.get("error_kind") or entry.get("source"))
+        sources[source_id] = {
+            "source_id": source_id,
+            "source": source_label(entry.get("source") or source_id),
+            "source_document": provider,
+            "status": status,
+            "status_label": audit_status_label(status),
+            "fetched_at": fetched_at,
+            "text": message,
+        }
+
+    rows = build_evidence_matrix_rows(context)
+    for index, row in enumerate(rows, start=1):
+        source_id = f"evidence:{index}"
+        sources[source_id] = {
+            "source_id": source_id,
+            "source": _text(row.get("source")),
+            "source_document": _text(row.get("provider")),
+            "status": _text(row.get("status"), "unknown"),
+            "status_label": _text(row.get("status_label")),
+            "fetched_at": _text(row.get("fetched_at")),
+            "text": _text(row.get("basis")),
+            "limitation": _text(row.get("limitation")),
+        }
+
+    return {"sources": sources, "rows": rows}
+
+
 def build_evidence_matrix_html(context: dict) -> str:
     rows = build_evidence_matrix_rows(context)
     if not rows:

@@ -16,6 +16,7 @@ TRIGGER_LABELS = {
     "foreign_sell_streak": "外資連續賣超",
     "vix_above": "VIX 飆升",
     "revenue_record_high": "營收創高",
+    "report_catalyst": "報告催化條件",
 }
 
 
@@ -32,11 +33,12 @@ def evaluate_watchlist_triggers(item: dict, data: dict, *, evaluation_date: str 
             "foreign_sell_streak": _foreign_sell_streak,
             "vix_above": _vix_above,
             "revenue_record_high": _revenue_record_high,
+            "report_catalyst": _report_catalyst,
         }.get(trigger_type)
         if evaluator is None:
             continue
         matched, message, metrics = evaluator(trigger, data)
-        selected = "v3" if trigger_type in BEARISH_TRIGGERS else ("v2" if trigger_type == "revenue_record_high" else source_pipeline)
+        selected = _selected_pipeline(trigger_type, trigger, source_pipeline)
         events.append({
             "ticker": ticker,
             "pipeline": source_pipeline,
@@ -50,6 +52,20 @@ def evaluate_watchlist_triggers(item: dict, data: dict, *, evaluation_date: str 
             "label": TRIGGER_LABELS.get(trigger_type, trigger_type),
         })
     return events
+
+
+def _selected_pipeline(trigger_type: str, trigger: dict, source_pipeline: str) -> str:
+    if trigger_type in BEARISH_TRIGGERS:
+        return "v3"
+    if trigger_type == "revenue_record_high":
+        return "v2"
+    if trigger_type == "report_catalyst":
+        direction = str(trigger.get("impact_direction") or "").strip().lower()
+        if direction == "bearish":
+            return "v3"
+        if direction == "bullish":
+            return "v2"
+    return source_pipeline
 
 
 def _prices(data: dict) -> list[float]:
@@ -117,6 +133,24 @@ def _revenue_record_high(trigger: dict, data: dict) -> tuple[bool, str, dict]:
     latest, previous_max = values[-1], max(values[:-1])
     matched = latest >= previous_max
     return matched, f"最新月營收 {latest:.2f} {'創近期高' if matched else '未創高'}", {"latest": latest, "previous_max": previous_max}
+
+
+def _report_catalyst(trigger: dict, data: dict) -> tuple[bool, str, dict]:
+    condition = str(trigger.get("trigger_condition") or "").strip()
+    if not condition:
+        return False, "報告催化條件未設定", {"condition": ""}
+    haystack = _flatten_text(data)
+    matched = bool(haystack and condition in haystack)
+    status = "已在新資料中出現" if matched else "尚未在新資料中出現"
+    return matched, f"報告催化條件「{condition[:80]}」{status}", {"condition": condition}
+
+
+def _flatten_text(value: Any) -> str:
+    if isinstance(value, dict):
+        return " ".join(_flatten_text(item) for item in value.values())
+    if isinstance(value, list):
+        return " ".join(_flatten_text(item) for item in value)
+    return str(value or "")
 
 
 def _parse_revenue_value(value: object) -> float | None:

@@ -56,6 +56,9 @@ class AnalysisContext(TypedDict, total=False):
     repair_attempt_counts: dict[int, int]
     repair_iteration_count: int
     final_audit: AuditResult
+    executive_thesis: str
+    smoothed_markdown: str
+    next_catalysts: list[dict[str, Any]]
     tear_sheet_summary: str
     report_cover: dict[str, Any]
     total_time: float

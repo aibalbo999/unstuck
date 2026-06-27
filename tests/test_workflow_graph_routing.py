@@ -83,6 +83,14 @@ class FakeWorkflowServices:
             return self.final_audit_delta
         return {"final_audit": {"ok": True}}
 
+    async def chief_editor(self, state):
+        self.calls.append("chief_editor")
+        return {
+            "executive_thesis": "核心論點：多空因素已完成收斂。",
+            "smoothed_markdown": "## 總編輯潤飾\n整合後報告。",
+            "structured_outputs": {"chief_editor": {"core_thesis": "核心論點：多空因素已完成收斂。"}},
+        }
+
     async def tear_sheet(self, state):
         self.calls.append("tear_sheet")
         return {"structured_outputs": {"tear_sheet": {"ok": True}}}
@@ -163,7 +171,19 @@ def test_final_audit_repair_limit_blocks_before_tear_sheet_and_persist():
     assert result["repair_iteration_count"] == 2
     assert "final_audit:repair_iteration_limit" in result["blocking_issues"]
     assert "tear_sheet" not in services.calls
+    assert "chief_editor" not in services.calls
     assert "persist_report" not in services.calls
+
+
+def test_chief_editor_runs_after_final_audit_before_tear_sheet():
+    services = FakeWorkflowServices(validation_statuses=["closed"])
+
+    result = asyncio.run(run_fake_graph(services, pipeline_id="v4"))
+
+    assert services.calls.index("final_audit") < services.calls.index("chief_editor")
+    assert services.calls.index("chief_editor") < services.calls.index("tear_sheet")
+    assert result["executive_thesis"] == "核心論點：多空因素已完成收斂。"
+    assert "總編輯潤飾" in result["smoothed_markdown"]
 
 
 def test_v1_builds_one_node_per_configured_agent_and_parallel_joins():

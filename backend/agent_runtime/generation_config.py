@@ -9,6 +9,7 @@ from typing import Any, Optional
 from google.genai import types
 
 from config import LLM_AGENT_CALL_TIMEOUT_SECONDS
+from google_prompt_safety import sanitize_google_system_instruction
 from llm_client import generate_content, generate_content_async, response_text
 from structured_outputs import STRUCTURED_AGENT_INSTRUCTIONS, get_structured_response_schema
 
@@ -94,19 +95,20 @@ def _response_text(response) -> str:
     return response_text(response)
 
 
-def _generate_content(api_key: str, model_id: str, agent_num: int, prompt: str):
+def google_safe_agent_system_instruction(agent_num: int, model_id: str) -> str:
     system_instruction = SYSTEM_PROMPTS.get(agent_num, "")
     if "gemini-2.5-flash" in model_id:
         system_instruction += "\n\nIMPORTANT: You are operating as a fallback model. You MUST provide a comprehensive, highly detailed, and complete analysis. Ensure your response is sufficiently long and detailed to form a formal report section. Do not provide a short or truncated response."
-    config = build_generation_config(agent_num, system_instruction)
+    return sanitize_google_system_instruction(system_instruction)
+
+
+def _generate_content(api_key: str, model_id: str, agent_num: int, prompt: str):
+    config = build_generation_config(agent_num, google_safe_agent_system_instruction(agent_num, model_id))
     return generate_content(api_key, model_id, prompt, config)
 
 
 async def _generate_content_async(api_key: str, model_id: str, agent_num: int, prompt: str):
-    system_instruction = SYSTEM_PROMPTS.get(agent_num, "")
-    if "gemini-2.5-flash" in model_id:
-        system_instruction += "\n\nIMPORTANT: You are operating as a fallback model. You MUST provide a comprehensive, highly detailed, and complete analysis. Ensure your response is sufficiently long and detailed to form a formal report section. Do not provide a short or truncated response."
-    config = build_generation_config(agent_num, system_instruction)
+    config = build_generation_config(agent_num, google_safe_agent_system_instruction(agent_num, model_id))
     return await generate_content_async(api_key, model_id, prompt, config)
 
 

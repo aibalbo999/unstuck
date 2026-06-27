@@ -23,3 +23,7 @@ AGENT_NAMES = {
     23: "主力籌碼分析師",
     24: "波段交易決策者",
 }
+
+NAMED_AGENT_ROLES = {
+    "chief_editor": "總編輯與投資論點整合",
+}

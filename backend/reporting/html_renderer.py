@@ -19,6 +19,7 @@ from .analysis_overlays import (
 )
 from .common import build_agent_model_labels, render_report_template
 from .cover import prepare_report_cover_async
+from .evidence_matrix import build_evidence_matrix_payload
 from .html_sanitizer import sanitize_report_image_url, sanitize_report_plain_text
 from .sections import build_agent_sections, build_tear_sheet_summary
 from .utils import (
@@ -29,6 +30,38 @@ from .utils import (
     get_recommendation_icon,
     normalize_moat_scores,
 )
+
+
+def _structured_output_values(context: AnalysisContext) -> list[dict]:
+    outputs = context.get("structured_outputs", {}) or {}
+    return [value for value in outputs.values() if isinstance(value, dict)]
+
+
+def _collect_next_catalysts(context: AnalysisContext) -> list[dict[str, str]]:
+    catalysts: list[dict[str, str]] = []
+    for source in [context, *_structured_output_values(context)]:
+        for item in source.get("next_catalysts", []) if isinstance(source.get("next_catalysts"), list) else []:
+            if not isinstance(item, dict):
+                continue
+            trigger = sanitize_report_plain_text(item.get("trigger_condition"))
+            event_name = sanitize_report_plain_text(item.get("event_name")) or "未命名催化事件"
+            if not trigger:
+                continue
+            catalysts.append({
+                "event_name": event_name,
+                "expected_timeframe": sanitize_report_plain_text(item.get("expected_timeframe")) or "待確認",
+                "impact_direction": sanitize_report_plain_text(item.get("impact_direction")) or "volatile",
+                "trigger_condition": trigger,
+            })
+    unique = []
+    seen = set()
+    for item in catalysts:
+        marker = (item["event_name"], item["trigger_condition"])
+        if marker in seen:
+            continue
+        seen.add(marker)
+        unique.append(item)
+    return unique[:5]
 
 
 async def generate_html_report_async(context: AnalysisContext) -> str:
@@ -153,6 +186,8 @@ def generate_html_report(context: AnalysisContext) -> str:
         if isinstance(entry, dict)
     )
     tear_sheet_summary = clean_markdown(build_tear_sheet_summary(context))
+    executive_thesis = sanitize_report_plain_text(context.get("executive_thesis", ""))
+    smoothed_markdown_html = clean_markdown(str(context.get("smoothed_markdown") or ""))
     report_cover = context.get("report_cover", {}) or {}
     report_cover_image = sanitize_report_image_url(report_cover.get("image", ""))
     report_cover_model = report_cover.get("model", "")
@@ -181,6 +216,8 @@ def generate_html_report(context: AnalysisContext) -> str:
         "priceTargets": price_targets,
         "peRiver": pe_river,
     }
+    evidence_payload = build_evidence_matrix_payload(context)
+    next_catalysts = _collect_next_catalysts(context)
     
     # 關鍵指標卡片
     key_metrics = [
