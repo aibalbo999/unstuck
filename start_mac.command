@@ -23,6 +23,31 @@ echo "啟動 Wall Street AI 股票分析系統..."
 
 # 切換到腳本所在目錄的 backend 資料夾
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+export TASK_QUEUE_BACKEND="${TASK_QUEUE_BACKEND:-rq}"
+export REDIS_URL="${REDIS_URL:-redis://localhost:6379/0}"
+export TASK_QUEUE_NAME="${TASK_QUEUE_NAME:-stock-analysis}"
+
+SERVER_PID=""
+WORKER_PID=""
+REDIS_PID=""
+WORKER_PID_FILE="$DIR/backend/cache/start_mac_worker.pid"
+
+cleanup() {
+    if [ -n "${SERVER_PID:-}" ]; then
+        kill "$SERVER_PID" 2>/dev/null || true
+        wait "$SERVER_PID" 2>/dev/null || true
+    fi
+    if [ -n "${WORKER_PID:-}" ]; then
+        kill "$WORKER_PID" 2>/dev/null || true
+        wait "$WORKER_PID" 2>/dev/null || true
+        rm -f "$WORKER_PID_FILE" 2>/dev/null || true
+    fi
+    if [ -n "${REDIS_PID:-}" ]; then
+        kill "$REDIS_PID" 2>/dev/null || true
+        wait "$REDIS_PID" 2>/dev/null || true
+    fi
+}
+trap cleanup INT TERM EXIT
 
 if [ -n "${PYTHON_BIN:-}" ]; then
     BASE_PYTHON="$PYTHON_BIN"
@@ -103,6 +128,77 @@ fi
 echo "正在確認 Python 套件版本..."
 "$PYTHON_BIN" -m pip install -r requirements.txt
 
+redis_ping() {
+    "$PYTHON_BIN" - <<'PY' >/dev/null 2>&1
+import os
+import sys
+
+from redis import Redis
+
+try:
+    client = Redis.from_url(
+        os.environ.get("REDIS_URL", "redis://localhost:6379/0"),
+        socket_connect_timeout=0.5,
+        socket_timeout=0.5,
+    )
+    sys.exit(0 if client.ping() else 1)
+except Exception:
+    sys.exit(1)
+PY
+}
+
+wait_for_redis() {
+    for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20
+    do
+        if redis_ping; then
+            return 0
+        fi
+        sleep 0.5
+    done
+    return 1
+}
+
+REDIS_HOST="$("$PYTHON_BIN" - <<'PY'
+import os
+from urllib.parse import urlparse
+
+parsed = urlparse(os.environ.get("REDIS_URL", "redis://localhost:6379/0"))
+print(parsed.hostname or "localhost")
+PY
+)"
+REDIS_PORT="$("$PYTHON_BIN" - <<'PY'
+import os
+from urllib.parse import urlparse
+
+parsed = urlparse(os.environ.get("REDIS_URL", "redis://localhost:6379/0"))
+print(parsed.port or 6379)
+PY
+)"
+
+if redis_ping; then
+    echo "Redis 已在運行：$REDIS_URL"
+elif [ "$REDIS_HOST" = "localhost" ] || [ "$REDIS_HOST" = "127.0.0.1" ] || [ "$REDIS_HOST" = "::1" ]; then
+    if ! command -v redis-server >/dev/null 2>&1; then
+        echo "找不到 redis-server，無法啟動任務佇列。"
+        echo "請先安裝 Redis，例如：brew install redis"
+        exit 1
+    fi
+    mkdir -p "$DIR/backend/cache"
+    echo "啟動 Redis：$REDIS_URL"
+    redis-server --bind 127.0.0.1 --port "$REDIS_PORT" --save "" --appendonly no > "$DIR/backend/cache/redis-start_mac.log" 2>&1 &
+    REDIS_PID=$!
+    if ! wait_for_redis; then
+        echo "Redis 啟動逾時，請檢查：$DIR/backend/cache/redis-start_mac.log"
+        tail -40 "$DIR/backend/cache/redis-start_mac.log" 2>/dev/null || true
+        exit 1
+    fi
+    echo "Redis 已啟動。"
+else
+    echo "無法連線到 Redis：$REDIS_URL"
+    echo "REDIS_URL 指向非本機主機（$REDIS_HOST），請先手動啟動該 Redis。"
+    exit 1
+fi
+
 # 如果 8080 已有舊服務，先停止，避免啟動後立刻因 port 被占用而失敗。
 OLD_PIDS="$(lsof -ti tcp:8080 2>/dev/null || true)"
 if [ -n "$OLD_PIDS" ]; then
@@ -111,14 +207,31 @@ if [ -n "$OLD_PIDS" ]; then
     sleep 1
 fi
 
+if [ -f "$WORKER_PID_FILE" ]; then
+    OLD_WORKER_PID="$(cat "$WORKER_PID_FILE" 2>/dev/null || true)"
+    if [ -n "$OLD_WORKER_PID" ] && kill -0 "$OLD_WORKER_PID" 2>/dev/null; then
+        echo "偵測到舊 Worker，正在停止..."
+        kill "$OLD_WORKER_PID" 2>/dev/null || true
+        sleep 1
+    fi
+    rm -f "$WORKER_PID_FILE" 2>/dev/null || true
+fi
+
+echo "啟動 Worker..."
+PYTHONUNBUFFERED=1 "$PYTHON_BIN" -u worker_main.py --role all &
+WORKER_PID=$!
+echo "$WORKER_PID" > "$WORKER_PID_FILE"
+sleep 1
+if ! kill -0 "$WORKER_PID" 2>/dev/null; then
+    echo "Worker 啟動失敗，請檢查上方錯誤訊息。"
+    wait "$WORKER_PID" 2>/dev/null || true
+    exit 1
+fi
+echo "Worker 已啟動。"
+
 echo "啟動伺服器..."
 PYTHONUNBUFFERED=1 "$PYTHON_BIN" -u -m uvicorn api:app --host "$SERVER_HOST" --port 8080 &
 SERVER_PID=$!
-
-cleanup() {
-    kill "$SERVER_PID" 2>/dev/null || true
-}
-trap cleanup INT TERM EXIT
 
 echo "等待伺服器啟動..."
 READY=0

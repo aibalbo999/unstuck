@@ -8,6 +8,8 @@ Use the macOS launcher for normal local operation:
 ./start_mac.command
 ```
 
+The launcher now starts the full local runtime stack: it installs backend requirements, ensures `TASK_QUEUE_BACKEND=rq`, starts or reuses local Redis, starts `worker_main.py --role all`, then starts FastAPI. Use `LAN_ACCESS=1 ./start_mac.command` or `./start_mac_lan.command` for trusted Wi-Fi access from a phone/tablet.
+
 For terminal-only checks:
 
 ```bash
@@ -17,7 +19,7 @@ scripts/demo_report.sh
 
 ## Split API / Worker Startup
 
-FastAPI is now a lightweight HTTP/RQ producer. Run Redis and the Worker separately before starting the API:
+FastAPI is now a lightweight HTTP/RQ producer. The macOS launcher handles Redis and Worker startup automatically for local use. For manual or process-manager operation, run Redis and the Worker separately before starting the API:
 
 ```bash
 redis-server

@@ -16,3 +16,18 @@ def test_start_mac_supports_explicit_lan_access_mode():
     assert '手機請開啟' in script
     assert 'LAN_ACCESS=1' in lan_script
     assert 'exec "$DIR/start_mac.command"' in lan_script
+
+
+def test_start_mac_lan_launches_full_local_runtime_stack():
+    script = (ROOT / "start_mac.command").read_text(encoding="utf-8")
+
+    assert 'export TASK_QUEUE_BACKEND="${TASK_QUEUE_BACKEND:-rq}"' in script
+    assert 'export REDIS_URL="${REDIS_URL:-redis://localhost:6379/0}"' in script
+    assert 'redis-server' in script
+    assert 'redis_ping()' in script
+    assert 'REDIS_PID=$!' in script
+    assert '"$PYTHON_BIN" -u worker_main.py --role all &' in script
+    assert 'WORKER_PID=$!' in script
+    assert 'kill "$WORKER_PID"' in script
+    assert 'kill "$REDIS_PID"' in script
+    assert 'Worker 已啟動' in script

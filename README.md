@@ -220,11 +220,18 @@ scripts/maintenance.sh verify-snapshots --write
 start_mac.command
 ```
 
-腳本會優先使用專案 `.venv`；若尚未建立，會優先用 `/opt/homebrew/bin/python3.13` 建立虛擬環境並安裝 `backend/requirements.txt`，再啟動後端並開啟：
+腳本會優先使用專案 `.venv`；若尚未建立，會優先用 `/opt/homebrew/bin/python3.13` 建立虛擬環境並安裝 `backend/requirements.txt`。合併 API / Worker 拆分後，這個一鍵腳本也會自動：
+
+1. 使用 `TASK_QUEUE_BACKEND=rq` 與預設 `REDIS_URL=redis://localhost:6379/0`。
+2. 檢查 Redis；若本機 Redis 尚未啟動，會用 `redis-server` 啟動一個本腳本管理的 Redis。
+3. 啟動 `python backend/worker_main.py --role all`，讓分析 queue、watchlist scheduler、decision tracking scheduler 與 maintenance 背景任務都能運作。
+4. 啟動 FastAPI / uvicorn 並開啟：
 
 ```text
 http://127.0.0.1:8080
 ```
+
+關閉終端機或按下 `Ctrl+C` 時，腳本會停止本次啟動的 API、Worker，以及本次由腳本啟動的 Redis；如果 Redis 原本就已經在跑，腳本只會共用它，不會關掉你的既有 Redis。
 
 若要用同一個 Wi-Fi 上的手機或平板開啟，請雙擊：
 
@@ -248,7 +255,7 @@ http://192.168.1.115:8080
 
 ### 手動啟動
 
-Web/API 模式需要 Redis/RQ worker。先啟動 Redis 與 Worker，再啟動 API：
+Web/API 模式需要 Redis/RQ worker。macOS 一鍵腳本會自動完成這些步驟；若要手動啟動，順序如下：
 
 ```bash
 redis-server
