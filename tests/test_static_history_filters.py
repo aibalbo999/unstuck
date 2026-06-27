@@ -571,7 +571,11 @@ def test_operator_workbench_surfaces_actionable_daily_workflow():
     assert "runWatchlist" in operator_summary_js
     assert "data-operator-action" in operator_summary_js
     assert "查看報告" in operator_summary_js
-    assert "批次分析" in operator_summary_js
+    assert "建立/更新報告" in operator_summary_js
+    assert "watchlistActionDetail" in operator_summary_js
+    assert "尚未建立報告" in operator_summary_js
+    assert "資料更新需重跑" in operator_summary_js
+    assert "待建立/更新報告" in operator_summary_js
     assert "系統維護" in operator_summary_js
 
     assert "reportActionBadge" in history_panel_js

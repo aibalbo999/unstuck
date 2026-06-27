@@ -32,15 +32,15 @@
         }
         
         .bull-avatar {
-            background: rgba(16,185,129,0.15);
-            border: 1px solid rgba(16,185,129,0.3);
-            color: #10b981;
+            background: #dcfce7;
+            border: 1px solid #86efac;
+            color: #166534;
         }
         
         .bear-avatar {
-            background: rgba(239,68,68,0.15);
-            border: 1px solid rgba(239,68,68,0.3);
-            color: #ef4444;
+            background: #fee2e2;
+            border: 1px solid #fca5a5;
+            color: #991b1b;
         }
         
         .debate-content {
@@ -62,8 +62,8 @@
         }
         
         .debate-conclusion {
-            background: rgba(139,92,246,0.08);
-            border: 1px solid rgba(139,92,246,0.25);
+            background: #f3e8ff;
+            border: 1px solid #d8b4fe;
             border-radius: 12px;
             padding: 20px;
             display: flex;
@@ -125,11 +125,11 @@
         
         /* ─── 免責聲明 ─── */
         .disclaimer {
-            background: rgba(255,255,255,0.02);
+            background: #f8fafc;
             border: 1px solid var(--border);
             border-radius: 12px;
             padding: 16px 20px;
-            font-size: 11px;
+            font-size: 12px;
             color: var(--text-muted);
             line-height: 1.6;
             margin-top: 32px;
@@ -137,10 +137,10 @@
         
         /* ─── 參考資料來源 ─── */
         .references {
-            background: rgba(255,255,255,0.02);
+            background: #f8fafc;
             border: 1px solid var(--border);
             border-radius: 12px;
-            padding: 20px 24px;
+            padding: 24px 28px;
             margin-top: 24px;
         }
         .references h4 {
@@ -160,9 +160,9 @@
             display: flex;
             align-items: flex-start;
             gap: 10px;
-            padding: 10px 14px;
-            background: rgba(255,255,255,0.03);
-            border: 1px solid rgba(255,255,255,0.06);
+            padding: 12px 16px;
+            background: #ffffff;
+            border: 1px solid var(--border);
             border-radius: 8px;
             font-size: 12px;
             color: var(--text-secondary);
@@ -211,15 +211,15 @@
         }
 
         .source-audit-table th {
-            background: rgba(59,130,246,0.1);
-            color: #bfdbfe;
+            background: #f1f5f9;
+            color: var(--text-primary);
             padding: 9px 10px;
             text-align: left;
             white-space: nowrap;
         }
 
         .source-audit-table td {
-            border-top: 1px solid rgba(255,255,255,0.06);
+            border-top: 1px solid var(--border);
             padding: 8px 10px;
             color: var(--text-secondary);
             vertical-align: top;
@@ -231,23 +231,27 @@
             min-height: 22px;
             padding: 2px 8px;
             border-radius: 8px;
-            background: rgba(148, 163, 184, 0.15);
-            color: #cbd5e1;
+            background: #f1f5f9;
+            color: #475569;
+            border: 1px solid #cbd5e1;
             white-space: nowrap;
         }
 
         .audit-status-success,
         .audit-status-skipped_fresh_cache {
-            color: #bbf7d0;
-            background: rgba(22, 163, 74, 0.16);
+            color: #166534;
+            background: #dcfce7;
+            border-color: #86efac;
         }
 
         .audit-status-unavailable {
-            color: #fde68a;
-            background: rgba(180, 83, 9, 0.18);
+            color: #92400e;
+            background: #fef3c7;
+            border-color: #fde68a;
         }
 
         .audit-status-error {
-            color: #fecaca;
-            background: rgba(185, 28, 28, 0.18);
+            color: #991b1b;
+            background: #fee2e2;
+            border-color: #fca5a5;
         }

@@ -65,6 +65,17 @@
         if (status === 'partial' && !isSourceNotice(report)) return { title: '資料需留意', detail: '資料已是最新快照，請查看來源審計' };
         return null;
     }
+    function watchlistActionDetail(items) {
+        const missing = items.filter(item => item?.decision_alert?.reason === 'missing_report').length;
+        const rerun = items.filter(item => item?.decision_alert?.reason === 'needs_rerun').length;
+        const other = Math.max(0, items.length - missing - rerun);
+        const parts = [];
+        if (missing) parts.push(`${missing} 檔尚未建立報告`);
+        if (rerun) parts.push(`${rerun} 檔資料更新需重跑`);
+        if (other) parts.push(`${other} 檔需確認`);
+        const samples = items.slice(0, 3).map(item => item.ticker).filter(Boolean).join('、');
+        return `${parts.join('，')}${samples ? ` · 例如 ${samples}` : ''}`;
+    }
     function operatorActionItems(jobsPayload, quotaPayload, reportPayload, watchlistPayload) {
         const items = [];
         (reportPayload?.reports || []).some(report => {
@@ -74,7 +85,7 @@
             return items.length >= 2;
         });
         const watchNeeds = (watchlistPayload?.items || []).filter(item => item.enabled !== false && ['high', 'medium'].includes(item.decision_priority));
-        if (watchNeeds.length) items.push({ action: 'run-watchlist', label: '批次分析', title: `${watchNeeds.length} 檔 watchlist 需處理`, detail: watchNeeds.slice(0, 3).map(item => item.ticker).join('、') });
+        if (watchNeeds.length) items.push({ action: 'run-watchlist', label: '建立/更新報告', title: `${watchNeeds.length} 檔 watchlist 待建立/更新報告`, detail: watchlistActionDetail(watchNeeds) });
         const quotaErrors = quotaHealth(quotaPayload?.services).errors;
         if (quotaErrors) items.push({ action: 'open-ops', label: '系統維護', title: 'LLM 健康需留意', detail: `${quotaErrors} 次額度/來源錯誤` });
         const active = Number(jobsPayload?.active_count || 0);
