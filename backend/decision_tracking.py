@@ -57,6 +57,10 @@ def _price_updated_at(snapshot: dict) -> str:
     return str(market.get("fetched_at") or snapshot.get("generated_at") or "")
 
 
+def _snapshot_refreshed_at(snapshot: dict) -> str:
+    return str(snapshot.get("snapshot_refreshed_at") or "")
+
+
 def _tracking_status(tracking: dict) -> str:
     if tracking.get("latest_price") is None or tracking.get("initial_price") is None:
         return "unavailable"
@@ -145,6 +149,7 @@ def build_decision_tracking(recommendation: dict, data_snapshot_path: str = "") 
         "target_12m": parse_optional_price(recommendation.get("target_12m")),
         "confidence": str(recommendation.get("confidence") or "N/A"),
         "price_updated_at": _price_updated_at(snapshot),
+        "snapshot_refreshed_at": _snapshot_refreshed_at(snapshot),
         "refreshed_without_analysis_rerun": bool(snapshot.get("refreshed_without_analysis_rerun")),
     }
     tracking["return_pct"] = _pct_change(tracking["latest_price"], tracking["initial_price"])

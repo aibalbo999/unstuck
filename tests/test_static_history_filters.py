@@ -423,6 +423,94 @@ process.stdout.write(JSON.stringify({
     assert payload["summary"] == "外資回補與突破月線"
 
 
+def test_tracking_equal_prices_show_zero_after_snapshot_refresh():
+    history_panel_path = STATIC_DIR / "history_panel.js"
+    report_preview_path = STATIC_DIR / "report_preview_panel.js"
+    script = """
+global.window = {};
+require(__HISTORY_PANEL_PATH__);
+require(__REPORT_PREVIEW_PATH__);
+const list = { innerHTML: '', querySelectorAll: () => [] };
+const historyPanel = window.StockAgentHistoryPanel.create({
+  listEl: list,
+  trackingTableEl: null,
+  paginationEl: null,
+  prevBtn: null,
+  nextBtn: null,
+  pageInfoEl: null,
+  escapeHtml: value => String(value ?? ''),
+  normalizeRecommendation: value => String(value ?? ''),
+  renderPipelineModeBadge: () => '',
+  renderDataTrustBadge: () => '',
+  renderDataTrustReason: () => '',
+  recommendationTone: () => ''
+});
+const el = () => ({ hidden: false, textContent: '', innerHTML: '', className: '', classList: { toggle() {} }, querySelector: () => null });
+const elements = {
+  workspace: el(),
+  root: el(),
+  mode: el(),
+  title: el(),
+  decisionRow: el(),
+  targets: el(),
+  summary: el(),
+  trackingRoot: el(),
+  trackingLatest: el(),
+  trackingReturn: el(),
+  trackingGap: el(),
+  trackingSummary: el()
+};
+const previewPanel = window.StockAgentReportPreviewPanel.create({
+  elements,
+  escapeHtml: value => String(value ?? ''),
+  renderPipelineModeBadge: () => '',
+  renderDataTrustBadge: () => '',
+  pipelineMeta: () => ({ shortLabel: '價值投資派' }),
+  normalizeRecommendation: value => String(value ?? ''),
+  recommendationTone: () => ''
+});
+const tracking = {
+  status: 'tracked',
+  recommendation: '買入',
+  initial_price: 100,
+  latest_price: 100,
+  return_pct: 0,
+  target_12m_gap_pct: 10,
+  snapshot_refreshed_at: '2026-06-27T11:31:50+00:00',
+  summary: '建議後報酬 0.00%'
+};
+historyPanel.renderReports([{
+  filename: '2449_v1_report_20260627_010000.html',
+  ticker: '2449',
+  pipeline_id: 'v1',
+  date: '2026-06-27',
+  data_trust: { status: 'fresh' },
+  recommendation: { recommendation: '買入', target_12m: 'NT$110', confidence: '8/10' },
+  decision_tracking: tracking
+}], null);
+previewPanel.show({
+  ticker: '2449',
+  pipeline_id: 'v1',
+  date: '2026-06-27',
+  recommendation: { recommendation: '買入' },
+  preview: { title: '2449 投資建議', primary: { label: '建議', value: '買入' }, metrics: [], targets: [], summary: '摘要' },
+  decision_tracking: tracking
+});
+process.stdout.write(JSON.stringify({
+  history: list.innerHTML,
+  previewReturn: elements.trackingReturn.textContent,
+  previewSummary: elements.trackingSummary.textContent
+}));
+""".replace("__HISTORY_PANEL_PATH__", json.dumps(str(history_panel_path))).replace("__REPORT_PREVIEW_PATH__", json.dumps(str(report_preview_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "待新價格" not in payload["history"]
+    assert "追蹤 0.00%" in payload["history"]
+    assert payload["previewReturn"] == "0.00%"
+    assert payload["previewSummary"] == "建議後報酬 0.00%"
+
+
 def test_history_list_uses_preview_list_metrics_for_non_investment_modes():
     history_panel_path = STATIC_DIR / "history_panel.js"
     script = """

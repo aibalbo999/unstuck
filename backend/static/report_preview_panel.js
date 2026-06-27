@@ -26,7 +26,10 @@
     }
 
     function awaitingTrackingPrice(tracking) {
-        return tracking?.status === 'tracked' && Number(tracking.return_pct) === 0 && Number(tracking.initial_price) === Number(tracking.latest_price);
+        return tracking?.status === 'tracked'
+            && !tracking.snapshot_refreshed_at
+            && Number(tracking.return_pct) === 0
+            && Number(tracking.initial_price) === Number(tracking.latest_price);
     }
 
     function setButtonText(button, text) {

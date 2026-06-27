@@ -351,3 +351,37 @@ def test_decision_tracking_includes_confidence_calibration_from_snapshot(tmp_pat
 
     assert tracking["confidence_calibration"]["status"] == "needs_downgrade"
     assert tracking["confidence_calibration"]["max_recommended_confidence"] == 7
+
+
+def test_decision_tracking_exposes_snapshot_refresh_time(tmp_path):
+    snapshot_path = tmp_path / "report.data.json"
+    snapshot_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-06-27T11:31:50+00:00",
+                "snapshot_refreshed_at": "2026-06-27T11:31:50+00:00",
+                "conclusion_generated_at": "2026-06-27T08:42:02+00:00",
+                "data_trust": {
+                    "status": "fresh",
+                    "critical_failures": [],
+                    "stale_sources": [],
+                    "last_market_data_at": "2026-06-27T07:33:05+00:00",
+                    "notes": [],
+                },
+                "data": {"current_price": 100},
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    tracking = decision_tracking.build_decision_tracking(
+        {
+            "recommendation": "持有",
+            "current_price": "NT$100",
+            "target_12m": "NT$110",
+        },
+        str(snapshot_path),
+    )
+
+    assert tracking["snapshot_refreshed_at"] == "2026-06-27T11:31:50+00:00"
