@@ -6,6 +6,7 @@ import copy
 from typing import Any
 
 from analysis_types import AnalysisContext
+from investment_thesis import build_investment_thesis
 
 
 def run_chief_editor_synthesis(context: AnalysisContext) -> dict[str, Any]:
@@ -22,6 +23,7 @@ def run_chief_editor_synthesis(context: AnalysisContext) -> dict[str, Any]:
     confidence = _first_mapping_value(recommendation, "信心") or "N/A"
     target_12m = _first_mapping_value(recommendation, "12個月") or price_targets.get("基本情境") or "N/A"
     risk_summary = _summarize_final_audit(context.get("final_audit") or {})
+    investment_thesis = build_investment_thesis(context)
     thesis = (
         f"{data.get('ticker') or context.get('ticker') or '本標的'} 的核心投資論點為「{rec_text}」，"
         f"12 個月參考目標為 {target_12m}，信心 {confidence}。"
@@ -64,6 +66,7 @@ def run_chief_editor_synthesis(context: AnalysisContext) -> dict[str, Any]:
 
     return {
         "executive_thesis": thesis,
+        "investment_thesis": investment_thesis,
         "smoothed_markdown": smoothed_markdown,
         "next_catalysts": catalysts,
         "structured_outputs": {

@@ -16,6 +16,8 @@
 - 歷史報告支援資料可信度、決策追蹤、版本篩選、報告比較與相容性提示
 - 報告預覽可只刷新資料快照，也可排隊重跑最終投資建議、Mode B 或完整報告
 - 歷史 API 回傳 `decision_freshness`，明確區分「資料快照已更新」與「投資結論是否已依新資料重跑」
+- 報告會輸出投資論文、核心假設、紅線、估值錨點與鏡子測試，方便後續追蹤結論是否仍成立
+- 報告產生時會執行數字證據抽查 exit gate，將 Markdown 數字主張與 data snapshot 比對後寫入 metadata
 - 決策追蹤會自動掃描滿 3 / 6 / 12 個月的歷史報告，抓取發布日與到期日股價，計算 ROI、命中率與 Hit/Miss，並在「報告與維運」顯示回測績效
 - 新報告會載入同股票上一期報告與回測結果，將 `temporal_memory` 只注入最終決策 Agent，強制檢討先前目標價與投資建議是否失準
 - 內建報告刪除 API，會同步刪除 `.html`、`.md` 與資料快照
@@ -31,6 +33,8 @@
 - API 額度儀表板使用 `api_usage_events` ledger 統計 Gemini provider request、Google Custom Search 與 FMP 本機觀測用量
 - Watchlist 可設定盤前/盤後批次分析，儲存在 SQLite，排程執行會先原子認領 due slot 並保留舊 JSON 一次性匯入相容
 - Watchlist 支援事件驅動雷達 triggers：跌破均線、外資連賣、VIX 飆升會自動派送 Mode C；營收創高會自動派送 Mode B，且每日事件以 SQLite 去重
+- Daily screener 會為候選股附加 Quality Funnel：基本面不足標示 `gray`，硬性品質缺陷標示 `reject`，完整通過標示 `pass`
+- 研究 playbook registry 統一描述 Mode A/B/C/D 與買入前 checklist、投資論文追蹤、組合檢查、品質篩選等非 pipeline 工作流
 - 財務抓取與 Gemini 分析管線提供 async 版本，API 生成報告時走新版 `google-genai` 非同步 client
 - 針對常見財務錯誤加入品質檢查，例如 DuPont、DCF / P/E、WACC、FCF 與公司身分一致性
 
@@ -52,6 +56,10 @@ stock-agent/
 │   ├── watchlist_claim_store.py # Watchlist 排程 due slot 原子認領
 │   ├── analysis_jobs.py    # 可匯入的分析任務入口，本地/RQ worker 共用
 │   ├── report_rerun_service.py # 報告局部/完整重跑 orchestration
+│   ├── investment_thesis.py # 投資論文、紅線與鏡子測試輸出
+│   ├── evidence_exit_gate.py # 報告數字證據抽查 gate
+│   ├── research_playbooks.py # Pipeline 與決策紀律 playbook registry
+│   ├── quality_funnel.py # 候選股品質漏斗 pass/gray/reject
 │   ├── task_queue.py       # 本地長任務佇列抽象，可切換 RQ
 │   ├── config.py           # 模型與環境變數設定
 │   ├── financial_data.py   # 財務資料抓取與 prompt 資料摘要

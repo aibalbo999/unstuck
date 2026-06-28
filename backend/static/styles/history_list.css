@@ -5,10 +5,7 @@
     gap: 10px;
     margin-top: 10px;
 }
-.history-filter-field {
-    display: grid;
-    gap: 6px;
-}
+.history-filter-field { display: grid; gap: 6px; }
 .history-filter-field span {
     color: var(--text-secondary);
     font-size: 0.76rem;
@@ -52,12 +49,7 @@
     height: 16px;
     accent-color: var(--accent);
 }
-.history-workspace {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 12px;
-    align-items: stretch;
-}
+.history-workspace { display: grid; grid-template-columns: 1fr; gap: 12px; align-items: stretch; }
 .history-workspace.has-preview {
     grid-template-columns: minmax(520px, 1.35fr) minmax(360px, 0.85fr);
 }

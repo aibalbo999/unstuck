@@ -2,11 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any
-from urllib.parse import urlparse
-from xml.etree import ElementTree
-
 import httpx
 
 from config import (
@@ -19,6 +14,16 @@ from config import (
     WEB_SEARCH_PROVIDER_ORDER,
 )
 from external_http_client import async_client, async_json_get, log_http_warning
+from external_search_payloads import (
+    dedupe_results,
+    parse_bing_payload,
+    parse_brave_payload,
+    parse_gdelt_payload,
+    parse_news_rss_payload,
+    parse_serpapi_payload,
+    parse_tavily_payload,
+)
+from external_search_types import SearchResult
 
 
 BRAVE_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search"
@@ -38,16 +43,6 @@ _YAHOO_RSS_MAX_QUERY_CHARS = 120
 # only for explicit legacy opt-in, but do not include it in default routing.
 DEFAULT_WEB_SEARCH_PROVIDER_ORDER = "tavily,serpapi,google_news_rss,gdelt,yahoo_rss,brave"
 _async_json_get = async_json_get
-
-
-@dataclass(frozen=True)
-class SearchResult:
-    title: str
-    snippet: str
-    link: str
-    source: str
-    published_at: str = ""
-    provider: str = ""
 
 
 async def fetch_alternative_search_catalysts_async(
@@ -145,7 +140,7 @@ async def fetch_web_search_results_async(
                 continue
             results.extend(fetched)
 
-    return _dedupe_results(results, limit=max_results)
+    return dedupe_results(results, limit=max_results)
 
 
 async def _fetch_provider_results(
@@ -180,7 +175,7 @@ async def _fetch_brave_results(client, query: str, *, max_results: int) -> list[
         {"q": query, "count": str(max(1, min(int(max_results), 20)))},
         headers={"Accept": "application/json", "X-Subscription-Token": BRAVE_SEARCH_API_KEY},
     )
-    return _parse_brave_payload(payload)
+    return parse_brave_payload(payload)
 
 
 async def _fetch_bing_results(client, query: str, *, max_results: int) -> list[SearchResult]:
@@ -190,7 +185,7 @@ async def _fetch_bing_results(client, query: str, *, max_results: int) -> list[S
         {"q": query, "count": str(max(1, min(int(max_results), 50))), "responseFilter": "Webpages"},
         headers={"Ocp-Apim-Subscription-Key": BING_SEARCH_API_KEY},
     )
-    return _parse_bing_payload(payload)
+    return parse_bing_payload(payload)
 
 
 async def _fetch_tavily_results(client, query: str, *, max_results: int) -> list[SearchResult]:
@@ -205,7 +200,7 @@ async def _fetch_tavily_results(client, query: str, *, max_results: int) -> list
         headers={"Authorization": f"Bearer {TAVILY_API_KEY}"},
     )
     response.raise_for_status()
-    return _parse_tavily_payload(response.json())
+    return parse_tavily_payload(response.json())
 
 
 async def _fetch_serpapi_results(client, query: str, *, max_results: int) -> list[SearchResult]:
@@ -219,7 +214,7 @@ async def _fetch_serpapi_results(client, query: str, *, max_results: int) -> lis
             "api_key": SERPAPI_API_KEY,
         },
     )
-    return _parse_serpapi_payload(payload)
+    return parse_serpapi_payload(payload)
 
 
 async def _fetch_gdelt_results(
@@ -242,7 +237,7 @@ async def _fetch_gdelt_results(
                 "sort": "datedesc",
             },
         )
-    return _parse_gdelt_payload(payload)
+    return parse_gdelt_payload(payload)
 
 
 async def _fetch_yahoo_rss_results(client, query: str, *, max_results: int) -> list[SearchResult]:
@@ -258,7 +253,7 @@ async def _fetch_yahoo_rss_results(client, query: str, *, max_results: int) -> l
             log_http_warning("Yahoo RSS", "news search (5xx — skipped)", exc)
             return []
         raise
-    return _parse_news_rss_payload(response.text, provider="yahoo_rss", fallback_source="Yahoo RSS")[:max(1, int(max_results))]
+    return parse_news_rss_payload(response.text, provider="yahoo_rss", fallback_source="Yahoo RSS")[:max(1, int(max_results))]
 
 
 async def _fetch_google_news_rss_results(client, query: str, *, max_results: int) -> list[SearchResult]:
@@ -267,142 +262,9 @@ async def _fetch_google_news_rss_results(client, query: str, *, max_results: int
         params={"q": query, "hl": "zh-TW", "gl": "TW", "ceid": "TW:zh-Hant"},
     )
     response.raise_for_status()
-    return _parse_news_rss_payload(response.text, provider="google_news_rss", fallback_source="Google News RSS")[
+    return parse_news_rss_payload(response.text, provider="google_news_rss", fallback_source="Google News RSS")[
         :max(1, int(max_results))
     ]
-
-
-def _parse_brave_payload(payload: Any) -> list[SearchResult]:
-    records = []
-    if not isinstance(payload, dict):
-        return records
-    for item in ((payload.get("web") or {}).get("results") or []):
-        if not isinstance(item, dict):
-            continue
-        records.append(_result_from_fields(
-            item.get("title"),
-            item.get("description"),
-            item.get("url"),
-            item.get("profile", {}).get("name") if isinstance(item.get("profile"), dict) else "",
-            provider="brave",
-        ))
-    return [record for record in records if record.title]
-
-
-def _parse_bing_payload(payload: Any) -> list[SearchResult]:
-    records = []
-    if not isinstance(payload, dict):
-        return records
-    for item in ((payload.get("webPages") or {}).get("value") or []):
-        if not isinstance(item, dict):
-            continue
-        records.append(_result_from_fields(
-            item.get("name"),
-            item.get("snippet"),
-            item.get("url"),
-            item.get("displayUrl"),
-            provider="bing",
-        ))
-    return [record for record in records if record.title]
-
-
-def _parse_tavily_payload(payload: Any) -> list[SearchResult]:
-    records = []
-    if not isinstance(payload, dict):
-        return records
-    for item in payload.get("results", []) or []:
-        if not isinstance(item, dict):
-            continue
-        records.append(_result_from_fields(
-            item.get("title"),
-            item.get("content") or item.get("snippet"),
-            item.get("url"),
-            _domain(item.get("url")),
-            published_at=item.get("published_date") or "",
-            provider="tavily",
-        ))
-    return [record for record in records if record.title]
-
-
-def _parse_serpapi_payload(payload: Any) -> list[SearchResult]:
-    records = []
-    if not isinstance(payload, dict):
-        return records
-    for item in payload.get("organic_results", []) or []:
-        if not isinstance(item, dict):
-            continue
-        records.append(_result_from_fields(
-            item.get("title"),
-            item.get("snippet"),
-            item.get("link"),
-            item.get("source") or item.get("displayed_link"),
-            published_at=item.get("date") or "",
-            provider="serpapi",
-        ))
-    return [record for record in records if record.title]
-
-
-def _parse_gdelt_payload(payload: Any) -> list[SearchResult]:
-    records = []
-    if not isinstance(payload, dict):
-        return records
-    for item in payload.get("articles", []) or []:
-        if not isinstance(item, dict):
-            continue
-        records.append(_result_from_fields(
-            item.get("title"),
-            " · ".join(part for part in (item.get("domain"), item.get("sourcecountry")) if part),
-            item.get("url"),
-            item.get("domain") or "GDELT",
-            published_at=item.get("seendate") or item.get("date") or "",
-            provider="gdelt",
-        ))
-    return [record for record in records if record.title]
-
-
-def _parse_news_rss_payload(payload: Any, *, provider: str, fallback_source: str) -> list[SearchResult]:
-    text = str(payload or "").strip()
-    if not text:
-        return []
-    try:
-        root = ElementTree.fromstring(text)
-    except ElementTree.ParseError:
-        return []
-
-    records = []
-    for item in root.findall(".//item"):
-        title = str(item.findtext("title") or "").strip()
-        link = str(item.findtext("link") or "").strip()
-        source = str(item.findtext("source") or "").strip() or _domain(link) or fallback_source
-        records.append(_result_from_fields(
-            title,
-            item.findtext("description") or "",
-            link,
-            source,
-            published_at=item.findtext("pubDate") or "",
-            provider=provider,
-        ))
-    return [record for record in records if record.title]
-
-
-def _result_from_fields(
-    title: Any,
-    snippet: Any,
-    link: Any,
-    source: Any,
-    *,
-    published_at: Any = "",
-    provider: str,
-) -> SearchResult:
-    clean_link = str(link or "").strip()
-    return SearchResult(
-        title=str(title or "").strip(),
-        snippet=str(snippet or "").strip(),
-        link=clean_link,
-        source=str(source or "").strip() or _domain(clean_link) or provider,
-        published_at=str(published_at or "").strip(),
-        provider=provider,
-    )
 
 
 def _provider_order() -> list[str]:
@@ -429,32 +291,3 @@ def _provider_configured(provider: str) -> bool:
         return bool(SERPAPI_API_KEY)
     return False
 
-
-def _dedupe_results(records: list[SearchResult], *, limit: int) -> list[SearchResult]:
-    kept: list[SearchResult] = []
-    seen_links: set[str] = set()
-    seen_titles: set[str] = set()
-    for record in records:
-        link = record.link.strip().lower()
-        title = record.title.strip().lower()
-        if link and link in seen_links:
-            continue
-        if title and title in seen_titles:
-            continue
-        if not link and not title:
-            continue
-        kept.append(record)
-        if link:
-            seen_links.add(link)
-        if title:
-            seen_titles.add(title)
-        if len(kept) >= limit:
-            break
-    return kept
-
-
-def _domain(url: Any) -> str:
-    try:
-        return urlparse(str(url or "")).netloc.replace("www.", "")
-    except Exception:
-        return ""

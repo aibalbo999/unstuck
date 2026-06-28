@@ -5,9 +5,9 @@
 @import url("/static/styles/provider_sla.css?v=20260628-glass-dark");
 @import url("/static/styles/operator_summary.css?v=20260628-glass-dark");
 @import url("/static/styles/history_list.css?v=20260628-glass-dark");
-@import url("/static/styles/decision_tracking.css?v=20260628-glass-dark");
+@import url("/static/styles/decision_tracking.css?v=20260620-compact-colors");
 @import url("/static/styles/performance.css?v=20260628-glass-dark");
-@import url("/static/styles/preview_panel.css?v=20260628-glass-dark");
+@import url("/static/styles/preview_panel.css?v=20260627-mode-aware-preview");
 @import url("/static/styles/report_compare.css?v=20260628-glass-dark");
 @import url("/static/styles/watchlist.css?v=20260628-glass-dark");
 @import url("/static/styles/watchlist_triggers.css?v=20260628-glass-dark");
