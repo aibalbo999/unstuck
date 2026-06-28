@@ -6,6 +6,7 @@ import time
 
 from agent_catalog import AGENT_NAMES
 from agent_runtime.audit_repair import finalize_final_audit
+from agent_runtime.quality_retry import install_quality_retry_context, restore_quality_retry_context
 from agent_runtime.routing import is_agent_execution_failure
 from agent_runtime.single_agent import run_single_agent
 from agent_runtime.state_report_adapter import record_agent_state_report
@@ -23,6 +24,7 @@ from validators import (
     append_quality_warnings,
     build_identity_retry_instruction,
     sanitize_model_output,
+    validate_analysis_output,
     validate_company_identity,
     validate_prompt_leakage,
 )
@@ -221,7 +223,7 @@ def _apply_sync_quality_gates(agent_num, agent_name, data, context, rotator, res
 
     identity_issues = validate_company_identity(result, data)
     if not identity_issues:
-        return result
+        return _apply_sync_agent_quality_retry(agent_num, agent_name, data, context, rotator, result, progress_callback, agent_position, agent_total, pipeline_def)
 
     emit_status(
         progress_callback,
@@ -254,6 +256,53 @@ def _apply_sync_quality_gates(agent_num, agent_name, data, context, rotator, res
         context.setdefault("blocking_issues", []).extend(f"Agent {agent_num} {agent_name}: {issue}" for issue in retry_issues)
         return append_identity_warnings(retry_result, retry_issues)
     emit_log("  ✅ 重寫後通過公司身分一致性檢查。")
+    return _apply_sync_agent_quality_retry(agent_num, agent_name, data, context, rotator, retry_result, progress_callback, agent_position, agent_total, pipeline_def)
+
+
+def _apply_sync_agent_quality_retry(agent_num, agent_name, data, context, rotator, result, progress_callback, agent_position, agent_total, pipeline_def) -> str:
+    quality_issues = validate_analysis_output(agent_num, result, data)
+    if not quality_issues:
+        return result
+
+    emit_status(
+        progress_callback,
+        f"Agent {agent_num}（{agent_position}/{agent_total}）觸發品質紅線，正在帶著具體問題重寫一次...",
+        phase="agent_quality_retry",
+        current=agent_position,
+        total=agent_total,
+        name=agent_name,
+        agent_num=agent_num,
+        pipeline_id=pipeline_def["id"],
+        pipeline_label=pipeline_def["label"],
+    )
+    emit_log("  🚨 Agent 輸出觸發品質紅線，退回同一 Agent 立即重寫一次...")
+    for issue in quality_issues[:5]:
+        emit_log(f"     - {issue}")
+
+    previous = install_quality_retry_context(context, agent_num, quality_issues)
+    try:
+        retry_result = sanitize_model_output(run_single_agent(agent_num, data, context, rotator))
+    finally:
+        restore_quality_retry_context(context, previous)
+
+    if is_agent_execution_failure(retry_result):
+        context.setdefault("blocking_issues", []).append(f"Agent {agent_num} {agent_name}: {retry_result}")
+        emit_log(f"  ❌ {retry_result}")
+        return retry_result
+
+    prompt_issues = validate_prompt_leakage(retry_result)
+    if prompt_issues:
+        _record_agent_block(context, agent_num, agent_name, retry_result, prompt_issues, "  🚨 品質重寫輸出仍偵測到 prompt 洩漏，停止產生正式報告。")
+        return retry_result
+
+    identity_issues = validate_company_identity(retry_result, data)
+    if identity_issues:
+        emit_log("  ❌ 品質重寫後出現公司身分一致性問題，停止產生正式報告。")
+        for issue in identity_issues:
+            emit_log(f"     - {issue}")
+        context.setdefault("blocking_issues", []).extend(f"Agent {agent_num} {agent_name}: {issue}" for issue in identity_issues)
+        return append_identity_warnings(retry_result, identity_issues)
+
     return retry_result
 
 

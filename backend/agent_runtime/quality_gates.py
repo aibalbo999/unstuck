@@ -17,10 +17,12 @@ from validators import (
     append_quality_warnings,
     build_identity_retry_instruction,
     sanitize_model_output,
+    validate_analysis_output,
     validate_company_identity,
     validate_prompt_leakage,
 )
 from .cancellation import raise_if_cancelled
+from .quality_retry import retry_after_agent_quality_issues
 from .routing import get_runtime_model_sequence, is_agent_execution_failure
 from .single_agent import run_single_agent_async
 
@@ -224,6 +226,49 @@ async def run_agent_with_quality_gates_async(
             result = append_identity_warnings(result, identity_issues)
         else:
             emit_log("  ✅ 重寫後通過公司身分一致性檢查。")
+
+    quality_issues = validate_analysis_output(agent_num, result, data)
+    if quality_issues:
+        result = await retry_after_agent_quality_issues(
+            agent_num,
+            data,
+            context,
+            rotator,
+            progress_callback,
+            quality_issues,
+            agent_position=agent_position,
+            agent_total=agent_total,
+            agent_name=agent_name,
+            pipeline_id=pipeline_id,
+            pipeline_label=pipeline_label,
+            run_agent_async=run_single_agent_async,
+            emit_status=emit_status_async,
+            parse_structured_output=_try_parse_structured_output,
+        )
+        if is_agent_execution_failure(result):
+            context.setdefault("blocking_issues", []).append(f"Agent {agent_num} {agent_name}: {result}")
+            context["analyses"][agent_num] = result
+            emit_log(f"  ❌ {result}")
+            return agent_num, result
+
+        retry_prompt_leak_issues = validate_prompt_leakage(result)
+        if retry_prompt_leak_issues:
+            emit_log("  🚨 品質重寫輸出仍偵測到 prompt 洩漏，停止產生正式報告。")
+            context.setdefault("blocking_issues", []).extend(
+                f"Agent {agent_num} {agent_name}: {issue}" for issue in retry_prompt_leak_issues
+            )
+            context["analyses"][agent_num] = result
+            return agent_num, result
+
+        retry_identity_issues = validate_company_identity(result, data)
+        if retry_identity_issues:
+            emit_log("  ❌ 品質重寫後出現公司身分一致性問題，停止產生正式報告。")
+            for issue in retry_identity_issues:
+                emit_log(f"     - {issue}")
+            context.setdefault("blocking_issues", []).extend(
+                f"Agent {agent_num} {agent_name}: {issue}" for issue in retry_identity_issues
+            )
+            result = append_identity_warnings(result, retry_identity_issues)
 
     result = append_quality_warnings(agent_num, result, data)
     elapsed = time.time() - start

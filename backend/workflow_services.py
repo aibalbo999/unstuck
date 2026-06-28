@@ -124,6 +124,7 @@ def initialize_graph_state(data: dict[str, Any], *, pipeline_id: str) -> AgentGr
     graph_state["structured_outputs"] = {}
     graph_state["blocking_issues"] = []
     graph_state["repair_attempt_counts"] = {}
+    graph_state["agent_quality_retry_counts"] = {}
     graph_state["tool_results"] = {"data_reconciliation_plan": build_reconciliation_plan(domain_state)}
     return graph_state
 
@@ -181,6 +182,7 @@ def legacy_context_from_graph(state: AgentGraphState, services: WorkflowServices
         "blocking_issues": list(state.get("blocking_issues") or []),
         "audit_repair_log": list(state.get("audit_repair_log") or []),
         "repair_attempt_counts": copy_json(state.get("repair_attempt_counts") or {}),
+        "agent_quality_retry_counts": _legacy_agent_mapping(state.get("agent_quality_retry_counts") or {}),
         "repair_iteration_count": int(state.get("repair_iteration_count") or 0),
         "final_audit": copy_json(state.get("final_audit") or {}),
         "executive_thesis": str(state.get("executive_thesis") or ""),
@@ -238,6 +240,9 @@ async def run_agent_node_adapter(agent_num: int, state: AgentGraphState, service
     new_blocking = [issue for issue in list(context.get("blocking_issues", []) or []) if issue not in before_blocking]
     if new_blocking:
         delta["blocking_issues"] = new_blocking
+    agent_quality_retry_counts = context.get("agent_quality_retry_counts") or {}
+    if agent_quality_retry_counts:
+        delta["agent_quality_retry_counts"] = _graph_agent_mapping(agent_quality_retry_counts)
     return delta
 
 
@@ -252,6 +257,7 @@ def graph_delta_from_legacy_context(context: AnalysisContext) -> dict[str, Any]:
         "blocking_issues": list(context.get("blocking_issues") or []),
         "audit_repair_log": list(context.get("audit_repair_log") or []),
         "repair_attempt_counts": copy_json(context.get("repair_attempt_counts") or {}),
+        "agent_quality_retry_counts": _graph_agent_mapping(context.get("agent_quality_retry_counts") or {}),
         "repair_iteration_count": int(context.get("repair_iteration_count") or 0),
         "final_audit": copy_json(context.get("final_audit") or {}),
         "executive_thesis": str(context.get("executive_thesis") or ""),
