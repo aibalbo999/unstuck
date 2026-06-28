@@ -2,14 +2,64 @@
 
 from __future__ import annotations
 
-import sqlite3
+import os
 import shutil
+import sqlite3
 from pathlib import Path
 from typing import Optional
 
-from config import CACHE_DB_PATH, CACHE_DIR, MARKET_CALENDAR_DIR, OUTPUT_DIR, TASK_DB_PATH
+from config import (
+    CACHE_DB_PATH,
+    CACHE_DIR,
+    LANGGRAPH_CHECKPOINT_PATH,
+    MARKET_CALENDAR_DIR,
+    OUTPUT_DIR,
+    TASK_DB_PATH,
+)
 from job_store_maintenance import analysis_history_summary
 from report_index_maintenance import report_index_orphan_summary
+
+
+def ensure_runtime_storage(
+    *,
+    output_dir: Optional[str] = None,
+    cache_dir: Optional[str] = None,
+    cache_db_path: Optional[str] = None,
+    task_db_path: Optional[str] = None,
+    checkpoint_path: Optional[str] = None,
+    decision_tracking_db_path: Optional[str] = None,
+    market_calendar_dir: Optional[str] = None,
+) -> dict:
+    """Create and verify runtime storage paths before workers start."""
+    created_dirs: list[str] = []
+    output_path = _ensure_directory(Path(output_dir or OUTPUT_DIR), "output_dir", created_dirs)
+    cache_path = _ensure_directory(Path(cache_dir or CACHE_DIR), "cache_dir", created_dirs)
+    calendar_path = _ensure_directory(Path(market_calendar_dir or MARKET_CALENDAR_DIR), "market_calendar_dir", created_dirs)
+
+    cache_db = Path(cache_db_path or CACHE_DB_PATH)
+    task_db = Path(task_db_path or TASK_DB_PATH)
+    checkpoint_db = Path(checkpoint_path or LANGGRAPH_CHECKPOINT_PATH)
+    tracking_db = Path(
+        decision_tracking_db_path
+        or os.getenv("DECISION_TRACKING_DB_PATH", str(cache_db.expanduser().parent / "decision_tracking.sqlite3"))
+    )
+    sqlite_paths = {
+        "cache_db": _ensure_sqlite_openable(cache_db, "cache_db", created_dirs),
+        "task_db": _ensure_sqlite_openable(task_db, "task_db", created_dirs),
+        "checkpoint_db": _ensure_sqlite_openable(checkpoint_db, "checkpoint_db", created_dirs),
+        "decision_tracking_db": _ensure_sqlite_openable(tracking_db, "decision_tracking_db", created_dirs),
+    }
+
+    return {
+        "success": True,
+        "directories": {
+            "output_dir": str(output_path),
+            "cache_dir": str(cache_path),
+            "market_calendar_dir": str(calendar_path),
+        },
+        "sqlite_paths": {name: str(path) for name, path in sqlite_paths.items()},
+        "created_dirs": sorted(set(created_dirs)),
+    }
 
 
 def build_storage_summary(
@@ -108,6 +158,30 @@ def clear_runtime_storage(
         "removed_paths": removed,
         "summary": summary,
     }
+
+
+def _ensure_directory(path: Path, label: str, created_dirs: list[str]) -> Path:
+    resolved = path.expanduser().resolve(strict=False)
+    if resolved.exists() and not resolved.is_dir():
+        raise RuntimeError(f"{label} should be a directory: {resolved}")
+    existed = resolved.exists()
+    resolved.mkdir(parents=True, exist_ok=True)
+    if not existed:
+        created_dirs.append(label)
+    return resolved
+
+
+def _ensure_sqlite_openable(path: Path, label: str, created_dirs: list[str]) -> Path:
+    resolved = path.expanduser().resolve(strict=False)
+    if resolved.exists() and resolved.is_dir():
+        raise RuntimeError(f"{label} SQLite database path is a directory: {resolved}")
+    _ensure_directory(resolved.parent, f"{label}_parent", created_dirs)
+    try:
+        with sqlite3.connect(resolved, timeout=30) as conn:
+            conn.execute("PRAGMA user_version").fetchone()
+    except sqlite3.Error as exc:
+        raise RuntimeError(f"{label} SQLite database cannot be opened at {resolved}: {exc}") from exc
+    return resolved
 
 
 def _report_file_counts(output_path: Path) -> dict:

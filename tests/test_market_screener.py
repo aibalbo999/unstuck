@@ -63,6 +63,69 @@ class FakeTwseOpenDataSource:
         )
 
 
+class FakeRichScreenerDataSource:
+    provider_name = "Rich Test Source"
+
+    def __init__(self):
+        self.calls = 0
+
+    def fetch_institutional_frame(self, scan_date):
+        self.calls += 1
+        return pd.DataFrame([
+            {"date": "2026-06-26", "stock_id": "2330", "company_name": "台積電", "name": "Foreign_Investor", "buy": 3_000_000, "sell": 500_000},
+            {"date": "2026-06-26", "stock_id": "2330", "company_name": "台積電", "name": "Investment_Trust", "buy": 1_200_000, "sell": 200_000},
+            {"date": "2026-06-26", "stock_id": "2330", "company_name": "台積電", "name": "Dealer", "buy": 800_000, "sell": 200_000},
+            {"date": "2026-06-26", "stock_id": "2449", "company_name": "京元電子", "name": "Foreign_Investor", "buy": 900_000, "sell": 100_000},
+            {"date": "2026-06-26", "stock_id": "2449", "company_name": "京元電子", "name": "Investment_Trust", "buy": 300_000, "sell": 100_000},
+            {"date": "2026-06-26", "stock_id": "2449", "company_name": "京元電子", "name": "Dealer", "buy": 200_000, "sell": 250_000},
+        ])
+
+    def fetch_daily_frame(self, scan_date):
+        rows = []
+        start = date(2026, 6, 1)
+        for offset in range(20):
+            day = start + timedelta(days=offset)
+            rows.append({
+                "date": day.isoformat(),
+                "stock_id": "2330",
+                "company_name": "台積電",
+                "close": 100 + offset,
+                "Trading_Volume": 1_000_000,
+            })
+            rows.append({
+                "date": day.isoformat(),
+                "stock_id": "2449",
+                "company_name": "京元電子",
+                "close": 80,
+                "Trading_Volume": 1_000_000,
+            })
+        rows.append({
+            "date": "2026-06-26",
+            "stock_id": "2330",
+            "company_name": "台積電",
+            "close": 180,
+            "Trading_Volume": 6_000_000,
+            "rsi_14": 62.5,
+            "macd": 1.4,
+            "macd_signal": 0.7,
+            "macd_histogram": 0.7,
+            "revenue_growth_yoy_pct": 18.2,
+        })
+        rows.append({
+            "date": "2026-06-26",
+            "stock_id": "2449",
+            "company_name": "京元電子",
+            "close": 82,
+            "Trading_Volume": 1_100_000,
+            "rsi_14": 76.0,
+            "macd": -0.2,
+            "macd_signal": 0.1,
+            "macd_histogram": -0.3,
+            "revenue_growth_yoy_pct": -4.0,
+        })
+        return pd.DataFrame(rows)
+
+
 class FakeTwseResponse:
     def __init__(self, payload):
         self.payload = payload
@@ -124,6 +187,63 @@ def test_scan_taiwan_market_ranks_institutional_and_technical_candidates(monkeyp
     assert by_ticker["2449.TW"]["category"] == "technical_heat"
     assert by_ticker["2449.TW"]["metrics"]["volume_ratio"] > 5
     assert by_ticker["2449.TW"]["metrics"]["bias_pct"] > 20
+
+
+def test_scan_taiwan_market_filters_pages_and_reports_freshness():
+    import market_screener
+
+    result = market_screener.scan_taiwan_market(
+        scan_date=date(2026, 6, 26),
+        data_source=FakeRichScreenerDataSource(),
+        top_n=5,
+        filters={
+            "fundamental": {"revenue_growth_yoy_pct_min": 10},
+            "technical": {"rsi_min": 50, "rsi_max": 70, "macd_histogram_min": 0},
+            "institutional": {"foreign_net_buy_shares_min": 2_000_000, "investment_trust_net_buy_shares_min": 500_000, "dealer_net_buy_shares_min": 100_000},
+        },
+        limit=1,
+        offset=0,
+        sort_by="rsi_14",
+        sort_direction="desc",
+    )
+
+    assert result["pagination"] == {"limit": 1, "offset": 0, "total": 1, "has_more": False}
+    assert result["last_updated_time"].startswith("2026-06-26")
+    assert result["candidates"][0]["ticker"] == "2330.TW"
+    assert result["candidates"][0]["metrics"]["rsi_14"] == 62.5
+    assert result["candidates"][0]["metrics"]["macd_histogram"] == 0.7
+    assert result["candidates"][0]["metrics"]["revenue_growth_yoy_pct"] == 18.2
+    assert result["candidates"][0]["metrics"]["dealer_net_buy_shares"] == 600_000
+    assert result["candidates"][0]["watchlist_status"]["in_watchlist"] is False
+
+
+def test_scan_taiwan_market_can_use_cached_candidate_page(monkeypatch):
+    import market_screener
+
+    cache = {}
+    source = FakeRichScreenerDataSource()
+    monkeypatch.setattr(market_screener, "get_cache_json", cache.get)
+    monkeypatch.setattr(market_screener, "set_cache_json", lambda key, value, ttl_seconds: cache.__setitem__(key, value))
+
+    first = market_screener.scan_taiwan_market(
+        scan_date=date(2026, 6, 26),
+        data_source=source,
+        top_n=5,
+        use_cache=True,
+        cache_ttl_seconds=120,
+    )
+    second = market_screener.scan_taiwan_market(
+        scan_date=date(2026, 6, 26),
+        data_source=source,
+        top_n=5,
+        use_cache=True,
+        cache_ttl_seconds=120,
+    )
+
+    assert source.calls == 1
+    assert first["cache"]["hit"] is False
+    assert second["cache"]["hit"] is True
+    assert second["candidates"] == first["candidates"]
 
 
 def test_scan_taiwan_market_accepts_non_fmp_data_source():

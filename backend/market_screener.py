@@ -4,12 +4,28 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
+from cache_store import get_cache_json, set_cache_json
 from config import FINMIND_API_TOKEN
 from data_fetch.market_sources.taiwan import DataLoader
 import market_screener_sources as _sources
-from market_screener_candidates import attach_quality_funnel, build_screener_candidates, merge_candidates
+from market_screener_candidates import (
+    attach_quality_funnel,
+    build_screener_candidates,
+    filter_candidates,
+    merge_candidates,
+    paginate_candidates,
+    sort_candidates,
+)
 from market_screener_sources import FinMindScreenerDataSource, TwseFreeScreenerDataSource, TwseOpenApiScreenerDataSource
 from market_screener_utils import TAIPEI, date_text, provider_name, taipei_now, unique
+from market_screener_query import (
+    annotate_watchlist_status,
+    last_updated_time,
+    normalize_screener_filters,
+    payload_last_updated,
+    scan_cache_key,
+    with_screener_item_metadata,
+)
 import watchlist_service
 import watchlist_store
 
@@ -18,6 +34,8 @@ AUTO_SCREENER_TAG = "Auto-Screener"
 DAILY_SCREENER_SOURCE = "daily_screener"
 DAILY_SCREENER_PIPELINE = "v4"
 SCREENER_META_KEY = "daily_market_screener:last_run_date"
+DEFAULT_SCREENER_LIMIT = 20
+DEFAULT_SCREENER_CACHE_TTL_SECONDS = 15 * 60
 
 
 def run_daily_market_screener(
@@ -42,6 +60,8 @@ def run_daily_market_screener(
             "imported_count": 0,
             "errors": [],
             "candidate_count": 0,
+            "pagination": {"limit": 0, "offset": 0, "total": 0, "has_more": False},
+            "last_updated_time": now.isoformat(timespec="seconds"),
             "skipped": [{"reason": "already_ran", "run_date": run_date}],
         }
     scan = scan_taiwan_market(
@@ -69,10 +89,23 @@ def scan_taiwan_market(
     data_source=None,
     data_sources: list | None = None,
     top_n: int = 10,
+    filters: dict | None = None,
+    limit: int | None = None,
+    offset: int = 0,
+    sort_by: str = "score",
+    sort_direction: str = "desc",
+    use_cache: bool = False,
+    cache_ttl_seconds: int = DEFAULT_SCREENER_CACHE_TTL_SECONDS,
 ) -> dict:
     scan_date = scan_date or datetime.now(TAIPEI).date()
     warnings = []
     sources = _resolve_data_sources(data_loader_cls=data_loader_cls, data_source=data_source, data_sources=data_sources)
+    normalized_filters = normalize_screener_filters(filters)
+    cache_key = scan_cache_key(scan_date, sources, top_n, normalized_filters, limit, offset, sort_by, sort_direction)
+    if use_cache:
+        cached = get_cache_json(cache_key)
+        if isinstance(cached, dict):
+            return {**cached, "cache": {"hit": True, "key": cache_key}}
     institutional, institutional_provider = _first_available_frame(
         sources,
         "institutional trades",
@@ -86,16 +119,28 @@ def scan_taiwan_market(
         warnings,
     )
     merged = build_screener_candidates(institutional, daily, scan_date=scan_date, top_n=top_n)
-    return {
+    merged = annotate_watchlist_status(merged)
+    filtered = filter_candidates(merged, normalized_filters)
+    ordered = sort_candidates(filtered, sort_by=sort_by, sort_direction=sort_direction)
+    page, pagination = paginate_candidates(ordered, limit=limit, offset=offset)
+    result = {
         "success": bool(merged) or not warnings,
         "market": "TW",
         "screen_date": scan_date.isoformat(),
-        "candidates": merged,
-        "candidate_count": len(merged),
+        "candidates": page,
+        "candidate_count": len(page),
+        "total_candidate_count": len(filtered),
+        "pagination": pagination,
+        "filters": normalized_filters,
         "providers": unique([institutional_provider, daily_provider]),
         "data_sources": unique([provider_name(source) for source in sources]),
         "warnings": warnings,
+        "last_updated_time": last_updated_time(ordered, scan_date),
+        "cache": {"hit": False, "key": cache_key} if use_cache else {"hit": False},
     }
+    if use_cache:
+        set_cache_json(cache_key, result, ttl_seconds=max(1, int(cache_ttl_seconds or DEFAULT_SCREENER_CACHE_TTL_SECONDS)))
+    return result
 
 
 def import_candidates_to_watchlist(candidates: list[dict]) -> dict:
@@ -155,18 +200,39 @@ def prune_stale_auto_screener_items(candidates: list[dict]) -> dict:
     return {"pruned": pruned, "pruned_count": len(pruned)}
 
 
-def list_auto_screener_watchlist(output_dir: str | None = None) -> dict:
+def list_auto_screener_watchlist(
+    output_dir: str | None = None,
+    *,
+    filters: dict | None = None,
+    limit: int = DEFAULT_SCREENER_LIMIT,
+    offset: int = 0,
+    sort_by: str = "score",
+    sort_direction: str = "desc",
+) -> dict:
     payload = watchlist_service.list_watchlist_with_report_alerts(output_dir or "")
-    items = [
-        item for item in payload.get("items", [])
+    all_items = [
+        with_screener_item_metadata(item) for item in payload.get("items", [])
         if item.get("trigger_source") == DAILY_SCREENER_SOURCE or AUTO_SCREENER_TAG in (item.get("tags") or [])
     ]
+    normalized_filters = normalize_screener_filters(filters)
+    filtered_items = filter_candidates(all_items, normalized_filters)
+    ordered_items = sort_candidates(filtered_items, sort_by=sort_by, sort_direction=sort_direction)
+    items, pagination = paginate_candidates(ordered_items, limit=limit, offset=offset)
     category_counts: dict[str, int] = {}
-    for item in items:
+    for item in filtered_items:
         for tag in item.get("tags") or []:
             if tag != AUTO_SCREENER_TAG:
                 category_counts[tag] = category_counts.get(tag, 0) + 1
-    return {**payload, "items": items, "category_counts": category_counts, "auto_screener_count": len(items)}
+    return {
+        **payload,
+        "items": items,
+        "category_counts": category_counts,
+        "auto_screener_count": len(filtered_items),
+        "pagination": pagination,
+        "filters": normalized_filters,
+        "sort": {"by": sort_by, "direction": sort_direction},
+        "last_updated_time": payload_last_updated(payload, filtered_items),
+    }
 
 
 def screener_already_ran(run_date: str | date) -> bool:

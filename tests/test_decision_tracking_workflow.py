@@ -282,3 +282,36 @@ def test_scheduler_runs_due_backtests_after_daily_refresh(monkeypatch):
 
     assert calls == [("refresh", "/tmp/reports", True), ("backtest", "/tmp/reports")]
     assert any("backtests=2" in line for line in logs)
+
+
+def test_scheduler_logs_backtest_failures_with_stage(monkeypatch):
+    logs = []
+
+    async def fake_refresh_tracking_items(**_kwargs):
+        return {"updated_count": 0, "errors": []}
+
+    def fake_run_due_backtests(**_kwargs):
+        import sqlite3
+
+        raise sqlite3.OperationalError("unable to open database file")
+
+    async def fake_sleep(_seconds):
+        raise asyncio.CancelledError()
+
+    import asyncio
+
+    monkeypatch.setattr(decision_tracking_service, "refresh_tracking_items", fake_refresh_tracking_items)
+    monkeypatch.setattr(decision_tracking_service, "run_due_backtests", fake_run_due_backtests)
+    monkeypatch.setattr(decision_tracking_scheduler.asyncio, "sleep", fake_sleep)
+
+    try:
+        asyncio.run(decision_tracking_scheduler._decision_tracking_scheduler_forever(
+            get_output_dir=lambda: "/tmp/reports",
+            get_refresh_service=lambda: object(),
+            emit_log=logs.append,
+            interval_seconds=1,
+        ))
+    except asyncio.CancelledError:
+        pass
+
+    assert any("每日決策追蹤回測失敗" in line and "OperationalError" in line for line in logs)

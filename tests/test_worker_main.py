@@ -42,6 +42,33 @@ def test_queue_role_only_runs_rq_worker_and_closes_runtime(monkeypatch):
     assert calls == [("reconcile", runtime), ("queue", runtime, True, 1), "close"]
 
 
+def test_run_role_initializes_runtime_storage_before_creating_runtime(monkeypatch):
+    calls = []
+    runtime = FakeWorkerRuntime(calls)
+
+    def fake_ensure_runtime_storage(**kwargs):
+        calls.append(("ensure-storage", kwargs))
+
+    def fake_runtime_factory(settings):
+        calls.append(("factory", settings))
+        return runtime
+
+    monkeypatch.setattr(worker_main, "ensure_runtime_storage", fake_ensure_runtime_storage)
+    monkeypatch.setattr(worker_main, "reconcile_abandoned_rq_jobs", lambda value: calls.append(("reconcile", value)) or 0)
+    monkeypatch.setattr(
+        worker_main,
+        "run_rq_worker",
+        lambda value, *, burst=False, max_jobs=None: calls.append(("queue", value, burst, max_jobs)),
+    )
+
+    worker_main.run_role("queue", runtime_factory=fake_runtime_factory, burst=True, max_jobs=1)
+
+    assert calls[0][0] == "ensure-storage"
+    assert calls[1][0] == "factory"
+    assert calls[0][1]["output_dir"] == calls[1][1].output_dir
+    assert calls[-1] == "close"
+
+
 def test_reconcile_abandoned_rq_jobs_marks_only_sqlite_jobs_missing_from_rq(monkeypatch):
     calls = []
     runtime = FakeWorkerRuntime(calls)
