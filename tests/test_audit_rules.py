@@ -282,6 +282,26 @@ class AuditRuleTests(unittest.TestCase):
         self.assertTrue(with_circuit["circuit_ever_opened"])
         self.assertIn("修復機制", with_circuit["reasons"][0])
 
+    def test_confidence_calibration_caps_unresolved_cross_source_conflict(self):
+        recommendation = {
+            "confidence": "9/10",
+            "confidence_basis": {
+                "evidence_items": ["a", "b", "c"],
+                "key_risks_acknowledged": ["x", "y"],
+            },
+        }
+
+        calibration = build_confidence_calibration(
+            recommendation,
+            {"status": "fresh"},
+            has_unresolved_conflict=True,
+        )
+
+        self.assertEqual(calibration["max_recommended_confidence"], 6)
+        self.assertTrue(calibration["has_unresolved_conflict"])
+        self.assertEqual(calibration["status"], "needs_downgrade")
+        self.assertIn("跨來源", calibration["reasons"][0])
+
     def test_final_audit_critical_lint_flags_missing_target_price_in_final_output(self):
         context = complete_context()
         context["analyses"][7] = "## 最終投資決策\n投資建議：持有，等待基本面確認。"

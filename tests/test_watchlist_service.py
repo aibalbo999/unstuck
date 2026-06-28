@@ -237,6 +237,56 @@ def test_watchlist_screener_api_runs_manual_scan(monkeypatch, tmp_path, mutation
     assert response.json()["providers"] == ["TWSE Free API"]
 
 
+def test_watchlist_screener_api_accepts_pagination_and_filter_params(monkeypatch, tmp_path, mutation_headers):
+    import market_screener
+
+    calls = []
+    monkeypatch.setattr(watchlist_service, "WATCHLIST_PATH", tmp_path / "watchlist.json")
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path / "output"))
+
+    def fake_list(output_dir, **kwargs):
+        calls.append({"output_dir": output_dir, **kwargs})
+        return {
+            "items": [],
+            "pagination": {"limit": kwargs["limit"], "offset": kwargs["offset"], "total": 0, "has_more": False},
+            "filters": kwargs["filters"],
+            "last_updated_time": "2026-06-26T15:30:00+08:00",
+        }
+
+    monkeypatch.setattr(market_screener, "list_auto_screener_watchlist", fake_list)
+    client = TestClient(api.app)
+
+    response = client.get(
+        "/api/watchlist/screener",
+        params={
+            "limit": 5,
+            "offset": 10,
+            "category": "technical_heat",
+            "technical_rsi_min": 45,
+            "technical_rsi_max": 70,
+            "institutional_foreign_net_buy_min": 1000000,
+            "institutional_dealer_net_buy_min": 100000,
+            "fundamental_revenue_growth_yoy_min": 12,
+            "sort_by": "score",
+            "sort_direction": "desc",
+        },
+        headers=mutation_headers,
+    )
+
+    assert response.status_code == 200
+    assert calls[0]["limit"] == 5
+    assert calls[0]["offset"] == 10
+    assert calls[0]["sort_by"] == "score"
+    assert calls[0]["sort_direction"] == "desc"
+    assert calls[0]["filters"]["categories"] == ["technical_heat"]
+    assert calls[0]["filters"]["technical"]["rsi_min"] == 45
+    assert calls[0]["filters"]["technical"]["rsi_max"] == 70
+    assert calls[0]["filters"]["institutional"]["foreign_net_buy_shares_min"] == 1000000
+    assert calls[0]["filters"]["institutional"]["dealer_net_buy_shares_min"] == 100000
+    assert calls[0]["filters"]["fundamental"]["revenue_growth_yoy_pct_min"] == 12
+    assert response.json()["pagination"]["offset"] == 10
+
+
 def test_watchlist_screener_api_keeps_external_scan_failure_renderable(monkeypatch, tmp_path, mutation_headers):
     import market_screener
 

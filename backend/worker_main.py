@@ -19,6 +19,7 @@ from job_store import create_job, find_active_job, list_active_jobs, mark_jobs_a
 from report_index_maintenance import cleanup_report_index_orphans
 from runtime_dependencies import RuntimeSettings, WorkerRuntime, create_worker_runtime
 from runtime_events import emit_log
+from storage_inventory import ensure_runtime_storage
 from watchlist_scheduler import run_watchlist_scheduler
 from worker_shutdown import (
     handle_rq_pubsub_thread_exception as _handle_rq_pubsub_thread_exception,
@@ -197,7 +198,13 @@ def run_role(
     if role not in CHILD_ROLES:
         raise ValueError(f"Unknown worker role: {role}")
 
-    runtime = runtime_factory(RuntimeSettings.from_environment())
+    runtime_settings = RuntimeSettings.from_environment()
+    ensure_runtime_storage(
+        output_dir=runtime_settings.output_dir,
+        cache_db_path=runtime_settings.cache_db_path,
+        checkpoint_path=runtime_settings.checkpoint_path,
+    )
+    runtime = runtime_factory(runtime_settings)
     try:
         if role == "queue":
             reconcile_abandoned_rq_jobs(runtime)

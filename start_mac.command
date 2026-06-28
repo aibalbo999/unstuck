@@ -160,32 +160,24 @@ wait_for_redis() {
     return 1
 }
 
-install_redis_server() {
-    if command -v redis-server >/dev/null 2>&1; then
+redis_server_bin() {
+    if [ -x "/opt/homebrew/bin/redis-server" ]; then
+        printf '%s\n' "/opt/homebrew/bin/redis-server"
         return 0
     fi
-    if ! command -v brew >/dev/null 2>&1; then
-        echo "找不到 redis-server，也找不到 Homebrew。"
-        echo "請先安裝 Redis，例如：brew install redis"
-        exit 1
+    if [ -x "/usr/local/bin/redis-server" ]; then
+        printf '%s\n' "/usr/local/bin/redis-server"
+        return 0
     fi
+    command -v redis-server 2>/dev/null || return 1
+}
+
+print_redis_install_guide() {
     echo "找不到 redis-server，無法啟動任務佇列。"
-    read -r -p "是否要現在用 Homebrew 安裝 Redis？[Y/n] " INSTALL_REDIS_REPLY
-    case "${INSTALL_REDIS_REPLY:-Y}" in
-        y|Y|yes|YES|Yes|"")
-            brew install redis
-            hash -r 2>/dev/null || true
-            ;;
-        *)
-            echo "已取消 Redis 安裝。請稍後手動執行：brew install redis"
-            exit 1
-            ;;
-    esac
-    if ! command -v redis-server >/dev/null 2>&1; then
-        echo "Redis 安裝後仍找不到 redis-server；請確認 Homebrew PATH 後再重試。"
-        exit 1
-    fi
-    echo "Redis 安裝完成。"
+    echo "請先安裝 Redis 後再重跑："
+    echo "  brew install redis"
+    echo "或改用既有 Redis："
+    echo "  REDIS_URL=redis://<host>:6379/0 ./start_mac.command"
 }
 
 REDIS_HOST="$("$PYTHON_BIN" - <<'PY'
@@ -205,15 +197,26 @@ print(parsed.port or 6379)
 PY
 )"
 
-if redis_ping; then
-    echo "Redis 已在運行：$REDIS_URL"
-elif [ "$REDIS_HOST" = "localhost" ] || [ "$REDIS_HOST" = "127.0.0.1" ] || [ "$REDIS_HOST" = "::1" ]; then
-    if ! command -v redis-server >/dev/null 2>&1; then
-        install_redis_server
+start_redis_if_needed() {
+    if redis_ping; then
+        echo "Redis 已在運行：$REDIS_URL"
+        return 0
     fi
+    if [ "$REDIS_HOST" != "localhost" ] && [ "$REDIS_HOST" != "127.0.0.1" ] && [ "$REDIS_HOST" != "::1" ]; then
+        echo "無法連線到 Redis：$REDIS_URL"
+        echo "REDIS_URL 指向非本機主機（$REDIS_HOST），請先手動啟動該 Redis。"
+        exit 1
+    fi
+
+    REDIS_SERVER_BIN="$(redis_server_bin || true)"
+    if [ -z "$REDIS_SERVER_BIN" ]; then
+        print_redis_install_guide
+        exit 1
+    fi
+
     mkdir -p "$DIR/backend/cache"
     echo "啟動 Redis：$REDIS_URL"
-    (trap '' INT; exec redis-server --bind 127.0.0.1 --port "$REDIS_PORT" --save "" --appendonly no > "$DIR/backend/cache/redis-start_mac.log" 2>&1) &
+    (trap '' INT; exec "$REDIS_SERVER_BIN" --bind 127.0.0.1 --port "$REDIS_PORT" --save "" --appendonly no > "$DIR/backend/cache/redis-start_mac.log" 2>&1) &
     REDIS_PID=$!
     if ! wait_for_redis; then
         echo "Redis 啟動逾時，請檢查：$DIR/backend/cache/redis-start_mac.log"
@@ -221,11 +224,9 @@ elif [ "$REDIS_HOST" = "localhost" ] || [ "$REDIS_HOST" = "127.0.0.1" ] || [ "$R
         exit 1
     fi
     echo "Redis 已啟動。"
-else
-    echo "無法連線到 Redis：$REDIS_URL"
-    echo "REDIS_URL 指向非本機主機（$REDIS_HOST），請先手動啟動該 Redis。"
-    exit 1
-fi
+}
+
+start_redis_if_needed
 
 # 如果 8080 已有舊服務，先停止，避免啟動後立刻因 port 被占用而失敗。
 OLD_PIDS="$(lsof -ti tcp:8080 2>/dev/null || true)"
@@ -234,6 +235,49 @@ if [ -n "$OLD_PIDS" ]; then
     kill $OLD_PIDS 2>/dev/null || true
     sleep 1
 fi
+
+project_worker_pids() {
+    ps -axo pid=,command= | while read -r pid command
+    do
+        case "$command" in
+            *"worker_main.py --role all"*|*"multiprocessing.spawn"*|*"multiprocessing.resource_tracker"*)
+                if [ "$pid" = "$$" ] || [ "$pid" = "${WORKER_PID:-}" ]; then
+                    continue
+                fi
+                worker_cwd="$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)"
+                if [ "$worker_cwd" = "$DIR/backend" ]; then
+                    printf '%s\n' "$pid"
+                fi
+                ;;
+        esac
+    done
+}
+
+stop_existing_project_workers() {
+    EXISTING_WORKER_PIDS="$(project_worker_pids || true)"
+    if [ -z "$EXISTING_WORKER_PIDS" ]; then
+        return 0
+    fi
+    echo "偵測到同專案殘留 Worker，正在停止..."
+    for pid in $EXISTING_WORKER_PIDS
+    do
+        kill -TERM "$pid" 2>/dev/null || true
+    done
+    sleep 1
+    for pid in $EXISTING_WORKER_PIDS
+    do
+        if kill -0 "$pid" 2>/dev/null; then
+            kill -INT "$pid" 2>/dev/null || true
+        fi
+    done
+    sleep 1
+    for pid in $EXISTING_WORKER_PIDS
+    do
+        if kill -0 "$pid" 2>/dev/null; then
+            echo "提醒：Worker PID $pid 尚未停止，若持續出現舊模型或排程錯誤，請手動檢查。"
+        fi
+    done
+}
 
 if [ -f "$WORKER_PID_FILE" ]; then
     OLD_WORKER_PID="$(cat "$WORKER_PID_FILE" 2>/dev/null || true)"
@@ -244,6 +288,7 @@ if [ -f "$WORKER_PID_FILE" ]; then
     fi
     rm -f "$WORKER_PID_FILE" 2>/dev/null || true
 fi
+stop_existing_project_workers
 
 echo "啟動 Worker..."
 (trap '' INT; exec "$PYTHON_BIN" -u worker_main.py --role all) &

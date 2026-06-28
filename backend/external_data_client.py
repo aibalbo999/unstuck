@@ -38,8 +38,11 @@ class ExternalDataClient:
         self.last_news_audit: list[dict[str, Any]] = []
 
     def get_news(self, query: str, *, ticker: str | None = None, limit: int = 10) -> list[dict[str, str]]:
-        """Fetch news through Google RSS, DuckDuckGo, then PTT for Taiwan tickers."""
+        """Fetch news through free providers with Taiwan-specific PTT enrichment."""
         self.last_news_audit = []
+        if ticker and _is_taiwan_ticker(ticker):
+            return self._get_taiwan_news(query, ticker, limit)
+
         google = self._safe_news("Google News RSS", self.google_news, query, limit)
         if google:
             return _dedupe_news(google, limit)
@@ -53,6 +56,15 @@ class ExternalDataClient:
             return []
         self._log_fallback("DuckDuckGo News", "PTT Stock")
         return _dedupe_news(self._safe_news("PTT Stock", self.ptt_news, ticker, limit), limit)
+
+    def _get_taiwan_news(self, query: str, ticker: str, limit: int) -> list[dict[str, str]]:
+        google = self._safe_news("Google News RSS", self.google_news, query, limit)
+        ptt = self._safe_news("PTT Stock", self.ptt_news, ticker, limit)
+        merged = _dedupe_news([*google, *ptt], limit)
+        if merged:
+            return merged
+        self._log_fallback("Google News RSS + PTT Stock", "DuckDuckGo News")
+        return _dedupe_news(self._safe_news("DuckDuckGo News", self.ddg_news, query, limit), limit)
 
     def get_financial_data(
         self,

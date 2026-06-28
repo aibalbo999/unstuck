@@ -6,7 +6,7 @@ import json
 import os
 from typing import Optional
 
-from confidence_calibration import build_confidence_calibration
+from confidence_calibration import build_confidence_calibration, has_unresolved_cross_source_conflict
 from price_parser import extract_price_numbers
 from report_index_parsing import normalize_recommendation_label
 
@@ -165,6 +165,7 @@ def build_decision_tracking(recommendation: dict, data_snapshot_path: str = "") 
         recommendation,
         snapshot.get("data_trust") if isinstance(snapshot.get("data_trust"), dict) else {},
         bool((snapshot.get("circuit_breaker") or {}).get("_ever_opened", False)),
+        has_unresolved_cross_source_conflict(snapshot.get("data") if isinstance(snapshot.get("data"), dict) else snapshot),
     )
     tracking["status"] = _tracking_status(tracking)
     tracking["summary"] = _summary(tracking)

@@ -27,18 +27,22 @@ async def _decision_tracking_scheduler_forever(
                     "每日決策追蹤刷新："
                     f"updated={result.get('updated_count', 0)}, errors={len(result.get('errors', []))}"
                 )
-            backtest_result = await asyncio.to_thread(
-                decision_tracking_service.run_due_backtests,
-                output_dir=get_output_dir(),
-            )
-            if backtest_result.get("evaluated_count") or backtest_result.get("errors"):
-                emit_log(
-                    "每日決策追蹤回測："
-                    f"backtests={backtest_result.get('evaluated_count', 0)}, "
-                    f"errors={len(backtest_result.get('errors', []))}"
-                )
         except Exception as exc:
-            emit_log(f"每日決策追蹤刷新失敗：{exc}")
+            emit_log(f"每日決策追蹤刷新失敗：{type(exc).__name__}: {exc}")
+        else:
+            try:
+                backtest_result = await asyncio.to_thread(
+                    decision_tracking_service.run_due_backtests,
+                    output_dir=get_output_dir(),
+                )
+                if backtest_result.get("evaluated_count") or backtest_result.get("errors"):
+                    emit_log(
+                        "每日決策追蹤回測："
+                        f"backtests={backtest_result.get('evaluated_count', 0)}, "
+                        f"errors={len(backtest_result.get('errors', []))}"
+                    )
+            except Exception as exc:
+                emit_log(f"每日決策追蹤回測失敗：{type(exc).__name__}: {exc}")
         await asyncio.sleep(interval_seconds)
 
 

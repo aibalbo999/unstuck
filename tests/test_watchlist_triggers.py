@@ -45,6 +45,36 @@ def test_evaluate_watchlist_triggers_routes_bearish_and_revenue_events():
     assert matched["price_below_sma"]["metrics"]["sma"] > 90
 
 
+def test_revenue_record_high_requires_volume_confirmation_when_available():
+    from watchlist_triggers import evaluate_watchlist_triggers
+
+    data = {
+        "ticker": "2308.TW",
+        "recent_monthly_revenue": ["2026年3月: NT$2.00億", "2026年4月: NT$2.50億", "2026年5月: NT$3.10億"],
+        "daily_prices": [
+            {"close": 100, "volume": 1000},
+            {"close": 101, "volume": 1100},
+            {"close": 102, "volume": 1200},
+            {"close": 103, "volume": 1300},
+            {"close": 104, "volume": 900},
+        ],
+    }
+    item = {
+        "ticker": "2308.TW",
+        "pipeline": "v1",
+        "triggers": [{"type": "revenue_record_high", "volume_ratio_threshold": 1.3}],
+    }
+
+    event = evaluate_watchlist_triggers(item, data, evaluation_date="2026-06-20")[0]
+
+    assert event["evaluation_date"] == "2026-06-01"
+    assert event["matched"] is False
+    assert event["metrics"]["revenue_record"] is True
+    assert event["metrics"]["volume_confirmed"] is False
+    assert event["metrics"]["volume_threshold"] == 1.3
+    assert event["metrics"]["volume_ratio"] < 1.3
+
+
 def test_report_catalyst_trigger_records_manual_radar_condition():
     from watchlist_triggers import evaluate_watchlist_triggers
 

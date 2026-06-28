@@ -124,6 +124,62 @@ def test_analysis_done_fallback_handles_empty_pipeline_sequence():
     assert '"last_pipeline_id": "empty"' in second["data"]
 
 
+def test_analysis_stream_replays_from_last_event_id_header():
+    from api_routes.analysis import AnalysisRouteDeps, create_analysis_router
+
+    seen_after_ids = []
+
+    router = create_analysis_router(AnalysisRouteDeps(
+        active_analyses_lock=threading.Lock(),
+        get_analysis_task_queue=lambda: None,
+        run_stock_analysis_job=lambda job_id, ticker, pipeline: None,
+        has_api_keys=lambda: True,
+        api_key_setup_message=lambda: "",
+        normalize_pipeline_run_id=lambda pipeline: pipeline,
+        get_pipeline_run_sequence=lambda pipeline: (pipeline,),
+        get_pipeline_run_label=lambda pipeline: pipeline,
+        get_pipeline_run_agent_total=lambda pipeline: 1,
+        get_job=lambda job_id: {"job_id": job_id, "ticker": "2308.TW", "pipeline_id": "v1", "status": "running"},
+        find_active_job=lambda ticker, pipeline: {"job_id": "job-1"},
+        create_job=lambda ticker, pipeline: "job-1",
+        get_events_since=lambda job_id, after_id: (
+            seen_after_ids.append(after_id)
+            or [{"id": 6, "payload": {"type": "done", "filename": "done.html"}, "created_at": "now"}]
+        ),
+        update_job=lambda *args, **kwargs: None,
+        append_event=lambda *args, **kwargs: None,
+        request_job_cancel=lambda *args, **kwargs: False,
+        print_streamed_event=lambda *args, **kwargs: None,
+        require_mutation_authorized=lambda request: None,
+    ))
+    route = next(route for route in router.routes if getattr(route.endpoint, "__name__", "") == "analyze_stock")
+
+    class Request:
+        headers = {"last-event-id": "5"}
+
+        async def is_disconnected(self):
+            return False
+
+    response = asyncio.run(
+        route.endpoint(
+            "2308.TW",
+            Request(),
+            job_id=None,
+            last_event_id=None,
+            pipeline="v1",
+            cancel_on_disconnect=False,
+        )
+    )
+    generator = response.body_iterator
+    first = asyncio.run(generator.__anext__())
+    second = asyncio.run(generator.__anext__())
+
+    assert '"resume_after_id": 5' in first["data"]
+    assert seen_after_ids == [5]
+    assert second["id"] == "6"
+    assert '"type": "done"' in second["data"]
+
+
 def test_validate_runtime_settings_blocks_lan_without_mutation_token(monkeypatch):
     import settings.app_config as app_config
 

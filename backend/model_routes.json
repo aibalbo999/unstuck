@@ -6,7 +6,7 @@
   ],
   "context_digest_model": "gemini-3.1-flash-lite",
   "tear_sheet_model": "gemini-3.1-flash-lite",
-  "audit_model": "gemini-3.5-flash",
+  "audit_model": "gemma-4-31b-it",
   "audit_fallback_models": [
     "gemini-2.5-flash"
   ],
@@ -96,11 +96,11 @@
     ]
   },
   "rpm_limits": {
-    "gemma-4-31b-it": 30,
-    "gemini-2.5-flash": 10,
-    "gemini-3.1-flash-lite": 30,
+    "gemma-4-31b-it": 15,
+    "gemini-2.5-flash": 5,
     "gemini-3.5-flash": 5,
-    "gemini-embedding-2": 30,
+    "gemini-3.1-flash-lite": 15,
+    "gemini-embedding-2": 100,
     "imagen-4.0-generate-001": 2,
     "imagen-4.0-ultra-generate-001": 1
   },

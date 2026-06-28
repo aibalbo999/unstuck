@@ -8,7 +8,7 @@ sys.path.insert(0, str(ROOT / "backend"))
 
 import pytest
 
-from storage_inventory import build_storage_summary, clear_runtime_storage  # noqa: E402
+from storage_inventory import build_storage_summary, clear_runtime_storage, ensure_runtime_storage  # noqa: E402
 
 
 def test_storage_summary_counts_reports_databases_and_calendars(tmp_path):
@@ -97,3 +97,47 @@ def test_clear_runtime_storage_requires_confirmation_and_removes_contents(tmp_pa
     assert result["removed_count"] >= 5
     assert result["summary"]["reports"]["html"] == 0
     assert result["summary"]["cache_db"]["exists"] is False
+
+
+def test_ensure_runtime_storage_creates_openable_sqlite_paths(tmp_path):
+    output_dir = tmp_path / "output"
+    cache_dir = tmp_path / "cache"
+    cache_db = cache_dir / "stock_agent_cache.sqlite3"
+    task_db = cache_dir / "analysis_jobs.sqlite3"
+    checkpoint_db = cache_dir / "langgraph_checkpoints.sqlite3"
+    tracking_db = cache_dir / "decision_tracking.sqlite3"
+    calendars = cache_dir / "market_calendars"
+
+    result = ensure_runtime_storage(
+        output_dir=str(output_dir),
+        cache_dir=str(cache_dir),
+        cache_db_path=str(cache_db),
+        task_db_path=str(task_db),
+        checkpoint_path=str(checkpoint_db),
+        decision_tracking_db_path=str(tracking_db),
+        market_calendar_dir=str(calendars),
+    )
+
+    assert result["success"] is True
+    assert output_dir.is_dir()
+    assert cache_dir.is_dir()
+    assert calendars.is_dir()
+    for db_path in (cache_db, task_db, checkpoint_db, tracking_db):
+        with sqlite3.connect(db_path) as conn:
+            assert conn.execute("PRAGMA user_version").fetchone() is not None
+
+
+def test_ensure_runtime_storage_rejects_directory_used_as_database(tmp_path):
+    bad_cache_db = tmp_path / "cache-as-db"
+    bad_cache_db.mkdir()
+
+    with pytest.raises(RuntimeError, match="cache_db.*directory"):
+        ensure_runtime_storage(
+            output_dir=str(tmp_path / "output"),
+            cache_dir=str(tmp_path / "cache"),
+            cache_db_path=str(bad_cache_db),
+            task_db_path=str(tmp_path / "cache" / "tasks.sqlite3"),
+            checkpoint_path=str(tmp_path / "cache" / "checkpoints.sqlite3"),
+            decision_tracking_db_path=str(tmp_path / "cache" / "tracking.sqlite3"),
+            market_calendar_dir=str(tmp_path / "cache" / "market_calendars"),
+        )
