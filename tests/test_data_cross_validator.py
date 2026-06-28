@@ -30,6 +30,20 @@ from workflow_graph import (
 )  # noqa: E402
 
 
+def test_taiwan_small_cap_cross_validation_uses_wider_dynamic_thresholds():
+    from data_cross_validator import cross_validate_sources
+
+    result = cross_validate_sources(
+        {"ticker": "1234.TW", "market_cap_raw": 5_000_000_000, "current_price": 100},
+        {"twse": {"market_cap_raw": 4_000_000_000, "current_price": 70}},
+    )
+
+    assert result["thresholds"] == {"divergence_pct": 12.0, "conflict_pct": 40.0}
+    assert result["overall_verdict"] == "divergent"
+    assert result["fields"]["current_price"]["verdict"] == "divergent"
+    assert result["conflict_fields"] == []
+
+
 def test_validate_financial_metrics_marks_high_discrepancy_and_reduces_trust(caplog):
     payload = {
         "ticker": "2330.TW",

@@ -7,7 +7,7 @@ from typing import Optional
 
 from analysis_types import AnalysisContext, AuditResult
 from agent_catalog import AGENT_NAMES
-from confidence_calibration import build_confidence_calibration
+from confidence_calibration import build_confidence_calibration, has_unresolved_cross_source_conflict
 from final_audit_context_coverage import missing_final_context_labels
 from final_audit_dcf import dcf_conflict_warnings
 from final_audit_lint import critical_lint_issues_for_pipeline
@@ -183,7 +183,12 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
 
         data_trust = data.get("data_trust", {}) if isinstance(data.get("data_trust"), dict) else {}
         circuit_ever_opened = bool((context.get("circuit_breaker") or {}).get("_ever_opened", False))
-        confidence_calibration = build_confidence_calibration(recommendation, data_trust, circuit_ever_opened)
+        confidence_calibration = build_confidence_calibration(
+            recommendation,
+            data_trust,
+            circuit_ever_opened,
+            has_unresolved_cross_source_conflict(data),
+        )
         if confidence_calibration.get("status") == "needs_downgrade":
             data_trust_status = confidence_calibration.get("data_trust_status", "unknown")
             raw_confidence = confidence_calibration.get("raw_confidence", "N/A")
@@ -221,7 +226,12 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
             _add_unique_issue(warnings, issue)
 
     circuit_ever_opened = bool((context.get("circuit_breaker") or {}).get("_ever_opened", False))
-    confidence_calibration = build_confidence_calibration(recommendation, data.get("data_trust", {}), circuit_ever_opened)
+    confidence_calibration = build_confidence_calibration(
+        recommendation,
+        data.get("data_trust", {}),
+        circuit_ever_opened,
+        has_unresolved_cross_source_conflict(data),
+    )
     data_notes = data.get("data_source_notes", []) or []
     if any("口徑互斥" in note for note in data_notes):
         _add_unique_issue(corrections, "資料源出現淨利/淨利率口徑互斥時，報告已採用 EPS/P/E 自洽的校準口徑。")

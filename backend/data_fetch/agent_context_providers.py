@@ -144,11 +144,11 @@ class SocialSentimentProvider(DataProvider):
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from data_trust import AUDIT_STATUS_SUCCESS, AUDIT_STATUS_UNAVAILABLE
-        from news_fetchers import fetch_google_news_rss
+        from news_fetchers import fetch_google_news_rss, fetch_ptt_stock_sentiment
 
         data = (context or {}).get("data", {}) if isinstance((context or {}).get("data"), dict) else {}
         company_name = str(data.get("company_name") or request.ticker).strip()
-        ticker = str(data.get("ticker") or request.ticker).replace(".TW", "").strip()
+        ticker = _taiwan_stock_id(data.get("ticker") or request.ticker)
 
         # Dcard
         query_dcard = f"site:dcard.tw {company_name} OR {ticker}"
@@ -161,14 +161,25 @@ class SocialSentimentProvider(DataProvider):
         # PTTWeb (alternative to pure PTT)
         query_pttweb = f"site:pttweb.cc {company_name} OR {ticker}"
         pttweb_news = fetch_google_news_rss(query_pttweb, limit=3)
+        ptt_direct = []
+        if ticker.isdigit():
+            for item in fetch_ptt_stock_sentiment(ticker, limit=5):
+                if not isinstance(item, dict):
+                    continue
+                ptt_direct.append({
+                    "title": str(item.get("title") or "").strip(),
+                    "date": str(item.get("date") or item.get("published_date") or "").strip(),
+                    "source": str(item.get("source") or "PTT Stock").strip(),
+                })
 
         value = {
             "dcard": dcard_news,
             "mobile01": m01_news,
             "pttweb": pttweb_news,
+            "ptt_stock_direct": ptt_direct,
         }
         
-        total_records = len(dcard_news) + len(m01_news) + len(pttweb_news)
+        total_records = len(dcard_news) + len(m01_news) + len(pttweb_news) + len(ptt_direct)
         status = AUDIT_STATUS_SUCCESS if total_records > 0 else AUDIT_STATUS_UNAVAILABLE
         
         return ProviderResult(
@@ -186,3 +197,12 @@ class SocialSentimentProvider(DataProvider):
                 "message": "社群論壇討論串已回傳。" if status == AUDIT_STATUS_SUCCESS else "近期無相關社群論壇討論。",
             },
         )
+
+
+def _taiwan_stock_id(value: object) -> str:
+    text = str(value or "").strip().upper()
+    if text.endswith(".TWO"):
+        return text[:-4]
+    if text.endswith(".TW"):
+        return text[:-3]
+    return text

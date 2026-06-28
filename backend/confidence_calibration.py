@@ -48,6 +48,7 @@ def build_confidence_calibration(
     recommendation: dict,
     data_trust: Any,
     circuit_ever_opened: bool = False,
+    has_unresolved_conflict: bool = False,
 ) -> dict:
     trust = normalize_data_trust(data_trust)
     trust_status = str(trust.get("status") or "unknown")
@@ -57,6 +58,11 @@ def build_confidence_calibration(
         circuit_note = "資料驗證過程曾觸發修復機制，信心上限降至 8/10。"
     else:
         circuit_note = None
+    if has_unresolved_conflict and cap > 6:
+        cap = 6
+        conflict_note = "跨來源資料仍存在未解衝突，信心上限降至 6/10。"
+    else:
+        conflict_note = None
     raw_confidence = confidence_value(recommendation)
     score = confidence_score(raw_confidence)
     
@@ -85,6 +91,7 @@ def build_confidence_calibration(
             "max_recommended_confidence": cap,
             "reasons": ["未解析到信心分數，無法校準。"],
             "circuit_ever_opened": circuit_ever_opened,
+            "has_unresolved_conflict": has_unresolved_conflict,
         }
 
     effective_score = max(1, score - penalty)
@@ -104,6 +111,8 @@ def build_confidence_calibration(
         ] + penalty_reasons
     if circuit_note is not None:
         reasons.insert(0, circuit_note)
+    if conflict_note is not None:
+        reasons.insert(0, conflict_note)
 
     return {
         "status": status,
@@ -115,4 +124,16 @@ def build_confidence_calibration(
         "max_recommended_confidence": cap,
         "reasons": reasons,
         "circuit_ever_opened": circuit_ever_opened,
+        "has_unresolved_conflict": has_unresolved_conflict,
     }
+
+
+def has_unresolved_cross_source_conflict(data: Any) -> bool:
+    if not isinstance(data, dict):
+        return False
+    cross_validation = data.get("cross_validation")
+    if not isinstance(cross_validation, dict):
+        return False
+    if str(cross_validation.get("overall_verdict") or "").lower() == "conflict":
+        return True
+    return bool(cross_validation.get("conflict_fields"))
