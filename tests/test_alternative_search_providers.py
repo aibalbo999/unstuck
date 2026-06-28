@@ -185,6 +185,30 @@ def test_alternative_search_providers_are_registered_before_google():
     assert peer_names.index("Alternative Search") < peer_names.index("Google Search")
 
 
+def test_default_search_provider_order_excludes_retired_bing(monkeypatch):
+    import external_search_providers as search
+
+    monkeypatch.setattr(search, "WEB_SEARCH_PROVIDER_ORDER", "")
+
+    assert search._provider_order() == [
+        "tavily",
+        "serpapi",
+        "google_news_rss",
+        "gdelt",
+        "yahoo_rss",
+        "brave",
+    ]
+    assert "bing" not in search._provider_order()
+
+
+def test_bing_requires_explicit_provider_order_opt_in(monkeypatch):
+    import external_search_providers as search
+
+    monkeypatch.setattr(search, "WEB_SEARCH_PROVIDER_ORDER", "bing,google_news_rss")
+
+    assert search._provider_order() == ["bing", "google_news_rss"]
+
+
 def test_alternative_search_provider_fetches_catalysts(monkeypatch):
     from data_fetch.enrichment_providers import AlternativeSearchProvider
 

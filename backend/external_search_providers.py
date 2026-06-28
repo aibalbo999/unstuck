@@ -34,7 +34,9 @@ _FREE_PROVIDER_TIMEOUT_SECONDS = 5.0
 # Yahoo RSS returns HTTP 500 when the query string is too long.
 _YAHOO_RSS_MAX_QUERY_CHARS = 120
 
-DEFAULT_WEB_SEARCH_PROVIDER_ORDER = "google_news_rss,gdelt,yahoo_rss,brave,bing,tavily,serpapi"
+# Bing Search APIs retired on 2025-08-11. Keep the implementation available
+# only for explicit legacy opt-in, but do not include it in default routing.
+DEFAULT_WEB_SEARCH_PROVIDER_ORDER = "tavily,serpapi,google_news_rss,gdelt,yahoo_rss,brave"
 _async_json_get = async_json_get
 
 
