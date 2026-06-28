@@ -41,12 +41,13 @@ def evaluate_watchlist_triggers(item: dict, data: dict, *, evaluation_date: str 
             continue
         matched, message, metrics = evaluator(trigger, data)
         selected = _selected_pipeline(trigger_type, trigger, source_pipeline)
+        actual_evaluation_date = _monthly_evaluation_date(trigger_type, evaluation_date)
         events.append({
             "ticker": ticker,
             "pipeline": source_pipeline,
             "trigger_key": str(trigger.get("key") or trigger_type),
             "trigger_type": trigger_type,
-            "evaluation_date": evaluation_date or date.today().isoformat(),
+            "evaluation_date": actual_evaluation_date,
             "matched": bool(matched),
             "pipeline_selected": selected if matched else source_pipeline,
             "message": message,
@@ -54,6 +55,16 @@ def evaluate_watchlist_triggers(item: dict, data: dict, *, evaluation_date: str 
             "label": TRIGGER_LABELS.get(trigger_type, trigger_type),
         })
     return events
+
+
+def _monthly_evaluation_date(trigger_type: str, evaluation_date: str | None) -> str:
+    base = evaluation_date or date.today().isoformat()
+    if trigger_type != "revenue_record_high":
+        return base
+    match = re.match(r"^(\d{4})-(\d{2})", str(base or ""))
+    if not match:
+        return base
+    return f"{match.group(1)}-{match.group(2)}-01"
 
 
 def _selected_pipeline(trigger_type: str, trigger: dict, source_pipeline: str) -> str:
@@ -129,14 +140,56 @@ def _vix_above(trigger: dict, data: dict) -> tuple[bool, str, dict]:
 
 
 def _revenue_record_high(trigger: dict, data: dict) -> tuple[bool, str, dict]:
-    del trigger
     revenues = [_parse_revenue_value(item) for item in data.get("recent_monthly_revenue") or []]
     values = [value for value in revenues if value is not None]
     if len(values) < 2:
         return False, "月營收資料不足，無法判定創高", {"samples": len(values)}
     latest, previous_max = values[-1], max(values[:-1])
-    matched = latest >= previous_max
-    return matched, f"最新月營收 {latest:.2f} {'創近期高' if matched else '未創高'}", {"latest": latest, "previous_max": previous_max}
+    revenue_record = latest >= previous_max
+    volume_ratio, volume_threshold, volume_confirmed = _volume_confirmation(trigger, data)
+    matched = revenue_record and volume_confirmed
+    volume_note = ""
+    if volume_ratio is not None:
+        volume_note = f"，量能 {volume_ratio:.2f}x {'確認' if volume_confirmed else '未確認'}"
+    return (
+        matched,
+        f"最新月營收 {latest:.2f} {'創近期高' if revenue_record else '未創高'}{volume_note}",
+        {
+            "latest": latest,
+            "previous_max": previous_max,
+            "revenue_record": revenue_record,
+            "volume_ratio": volume_ratio,
+            "volume_threshold": volume_threshold,
+            "volume_confirmed": volume_confirmed,
+        },
+    )
+
+
+def _volume_confirmation(trigger: dict, data: dict) -> tuple[float | None, float, bool]:
+    threshold = float(trigger.get("volume_ratio_threshold") or 1.3)
+    volumes = _volumes(data)
+    if len(volumes) < 5:
+        return None, threshold, True
+    sample = volumes[-20:]
+    avg_volume = mean(sample)
+    if avg_volume <= 0:
+        return None, threshold, True
+    ratio = sample[-1] / avg_volume
+    return round(ratio, 4), threshold, ratio >= threshold
+
+
+def _volumes(data: dict) -> list[float]:
+    daily = data.get("daily_prices") or data.get("price_history_daily")
+    if not isinstance(daily, list):
+        return []
+    result = []
+    for row in daily:
+        value = row.get("volume") if isinstance(row, dict) else None
+        try:
+            result.append(float(value))
+        except (TypeError, ValueError):
+            continue
+    return result
 
 
 def _report_catalyst(trigger: dict, data: dict) -> tuple[bool, str, dict]:

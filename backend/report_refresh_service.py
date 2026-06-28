@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import HTTPException
 
 from company_display import company_display_name
+from config import SOURCE_FRESHNESS_MAX_AGE_SECONDS
 from data_fetch import FetchRequest
 from data_trust import build_data_snapshot, data_snapshot_filename_for_report, normalize_data_trust, utc_now_iso
 from decision_tracking import build_decision_freshness
@@ -45,6 +47,74 @@ DECISION_RELEVANT_DATA_KEYS = (
     "institutional_trading",
     "pe_river_chart",
 )
+HIGH_FREQUENCY_REFRESH_SOURCES = ("market_data", "recent_catalysts")
+
+
+def _stale_sources(previous_snapshot: dict, *, now: datetime | None = None) -> list[str]:
+    now = now or datetime.now(timezone.utc)
+    entries = previous_snapshot.get("source_audit", []) if isinstance(previous_snapshot, dict) else []
+    if not isinstance(entries, list):
+        return list(HIGH_FREQUENCY_REFRESH_SOURCES)
+
+    stale: set[str] = set()
+    latest_success: dict[str, datetime] = {}
+    seen_sources: set[str] = set()
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        source = str(entry.get("source") or "").strip()
+        if not source:
+            continue
+        seen_sources.add(source)
+        if str(entry.get("status") or "").strip().lower() != "success":
+            stale.add(source)
+            continue
+        timestamp = _source_audit_timestamp(entry)
+        if timestamp is None:
+            stale.add(source)
+            continue
+        if source not in latest_success or timestamp > latest_success[source]:
+            latest_success[source] = timestamp
+
+    seen_sources.update(HIGH_FREQUENCY_REFRESH_SOURCES)
+    for source in seen_sources:
+        timestamp = latest_success.get(source)
+        if timestamp is None:
+            stale.add(source)
+            continue
+        max_age = int(SOURCE_FRESHNESS_MAX_AGE_SECONDS.get(source, 24 * 60 * 60))
+        if (now - timestamp).total_seconds() > max_age:
+            stale.add(source)
+    return sorted(stale)
+
+
+def _source_audit_timestamp(entry: dict) -> datetime | None:
+    for key in ("created_at", "fetched_at", "timestamp"):
+        value = entry.get(key)
+        if not value:
+            continue
+        parsed = _parse_datetime(value)
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def _parse_datetime(value: object) -> datetime | None:
+    if isinstance(value, (int, float)):
+        try:
+            return datetime.fromtimestamp(float(value), timezone.utc)
+        except (OSError, OverflowError, ValueError):
+            return None
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def _source_status_map(snapshot: dict) -> dict:
@@ -199,8 +269,9 @@ async def refresh_report_data_snapshot(
     if not ticker:
         raise HTTPException(status_code=400, detail="資料快照缺少 ticker")
 
+    stale_sources = _stale_sources(previous_snapshot)
     result = await refresh_service.fetch_async(
-        FetchRequest.from_ticker(ticker, force_refresh=True, record_provider_sla=False)
+        FetchRequest.from_ticker(ticker, force_refresh=False, record_provider_sla=False)
     )
     refreshed_data = result.data or {}
     if not isinstance(refreshed_data, dict) or "error" in refreshed_data:
@@ -218,6 +289,7 @@ async def refresh_report_data_snapshot(
         "deterministic_fallbacks": previous_snapshot.get("deterministic_fallbacks", []),
         "report_lint": previous_snapshot.get("report_lint", {}),
         "refreshed_from_report": filename,
+        "refresh_stale_sources": stale_sources,
     }
     provisional_snapshot = build_data_snapshot(
         context,
@@ -255,6 +327,7 @@ async def refresh_report_data_snapshot(
         "data_filename": data_filename,
         "data_trust": refreshed_snapshot.get("data_trust"),
         "source_audit": refreshed_snapshot.get("source_audit", [])[:12],
+        "refresh_stale_sources": stale_sources,
         "refresh_diff": refresh_diff,
         "analysis_text_stale": analysis_text_stale,
         "analysis_text_stale_message": ANALYSIS_TEXT_STALE_MESSAGE if analysis_text_stale else "",

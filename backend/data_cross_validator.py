@@ -79,6 +79,32 @@ def _median_of(*values: Optional[float]) -> Optional[float]:
     return (valid[n // 2 - 1] + valid[n // 2]) / 2
 
 
+def _dynamic_thresholds(primary_data: dict) -> tuple[float, float]:
+    ticker = str(primary_data.get("ticker") or "").strip().upper() if isinstance(primary_data, dict) else ""
+    if not _is_taiwan_ticker_for_threshold(ticker):
+        return DIVERGENCE_THRESHOLD_PCT, CONFLICT_THRESHOLD_PCT
+    market_cap = _safe_float(primary_data.get("market_cap_raw")) if isinstance(primary_data, dict) else None
+    if market_cap is None:
+        return DIVERGENCE_THRESHOLD_PCT, CONFLICT_THRESHOLD_PCT
+    market_cap_twd_billion = market_cap / 100_000_000
+    if market_cap_twd_billion > 500:
+        return DIVERGENCE_THRESHOLD_PCT, CONFLICT_THRESHOLD_PCT
+    if market_cap_twd_billion > 100:
+        return 8.0, 28.0
+    return 12.0, 40.0
+
+
+def _is_taiwan_ticker_for_threshold(ticker: str) -> bool:
+    text = str(ticker or "").strip().upper()
+    if text.endswith(".TWO"):
+        stock_id = text[:-4]
+        return stock_id.isdigit() and len(stock_id) == 4
+    if text.endswith(".TW"):
+        stock_id = text[:-3]
+        return stock_id.isdigit() and len(stock_id) == 4
+    return text.isdigit() and len(text) == 4
+
+
 # ------------------------------------------------------------------
 # Core validation
 # ------------------------------------------------------------------
@@ -86,6 +112,9 @@ def _median_of(*values: Optional[float]) -> Optional[float]:
 def cross_validate_field(
     field_key: str,
     sources: dict[str, Any],
+    *,
+    divergence_threshold_pct: float = DIVERGENCE_THRESHOLD_PCT,
+    conflict_threshold_pct: float = CONFLICT_THRESHOLD_PCT,
 ) -> dict:
     """Cross-validate a single financial field across multiple sources.
 
@@ -127,16 +156,16 @@ def cross_validate_field(
     }
     max_div = max(divergences.values()) if divergences else 0.0
 
-    if max_div >= CONFLICT_THRESHOLD_PCT:
+    if max_div >= conflict_threshold_pct:
         verdict = "conflict"
-    elif max_div >= DIVERGENCE_THRESHOLD_PCT:
+    elif max_div >= divergence_threshold_pct:
         verdict = "divergent"
     else:
         verdict = "aligned"
 
     divergent_sources = [
         src for src, pct in divergences.items()
-        if pct >= DIVERGENCE_THRESHOLD_PCT
+        if pct >= divergence_threshold_pct
     ]
 
     return {
@@ -147,6 +176,10 @@ def cross_validate_field(
         "max_divergence_pct": round(max_div, 2),
         "verdict": verdict,
         "divergent_sources": divergent_sources,
+        "thresholds": {
+            "divergence_pct": float(divergence_threshold_pct),
+            "conflict_pct": float(conflict_threshold_pct),
+        },
     }
 
 
@@ -174,13 +207,19 @@ def cross_validate_sources(
     field_results: dict[str, dict] = {}
     conflict_fields: list[str] = []
     divergent_fields: list[str] = []
+    divergence_threshold_pct, conflict_threshold_pct = _dynamic_thresholds(primary_data)
 
     for field_key in CROSS_VALIDATE_FIELDS:
         sources: dict[str, Any] = {"yfinance": primary_data.get(field_key)}
         for source_name, source_data in (supplementary_sources or {}).items():
             sources[source_name] = source_data.get(field_key) if isinstance(source_data, dict) else None
 
-        result = cross_validate_field(field_key, sources)
+        result = cross_validate_field(
+            field_key,
+            sources,
+            divergence_threshold_pct=divergence_threshold_pct,
+            conflict_threshold_pct=conflict_threshold_pct,
+        )
         field_results[field_key] = result
 
         if result["verdict"] == "conflict":
@@ -202,10 +241,10 @@ def cross_validate_sources(
     notes: list[str] = []
     if conflict_fields:
         labels = [CROSS_VALIDATE_FIELDS.get(f, f) for f in conflict_fields]
-        notes.append(f"跨來源嚴重衝突欄位（差距 >{CONFLICT_THRESHOLD_PCT}%）：{'、'.join(labels)}；建議人工查核原始資料。")
+        notes.append(f"跨來源嚴重衝突欄位（差距 >{conflict_threshold_pct:g}%）：{'、'.join(labels)}；建議人工查核原始資料。")
     if divergent_fields:
         labels = [CROSS_VALIDATE_FIELDS.get(f, f) for f in divergent_fields]
-        notes.append(f"跨來源差異欄位（差距 {DIVERGENCE_THRESHOLD_PCT}-{CONFLICT_THRESHOLD_PCT}%）：{'、'.join(labels)}；分析已採用中位數共識口徑。")
+        notes.append(f"跨來源差異欄位（差距 {divergence_threshold_pct:g}-{conflict_threshold_pct:g}%）：{'、'.join(labels)}；分析已採用中位數共識口徑。")
 
     # Suggest data_trust penalty
     penalty = 0
@@ -220,6 +259,10 @@ def cross_validate_sources(
         "notes": notes,
         "data_trust_penalty": penalty,
         "sources_compared": ["yfinance"] + list((supplementary_sources or {}).keys()),
+        "thresholds": {
+            "divergence_pct": float(divergence_threshold_pct),
+            "conflict_pct": float(conflict_threshold_pct),
+        },
     }
 
 

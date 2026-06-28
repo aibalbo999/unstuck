@@ -33,20 +33,20 @@ def test_start_mac_lan_launches_full_local_runtime_stack():
     assert 'Worker 已啟動' in script
 
 
-def test_start_mac_offers_homebrew_redis_install_when_missing():
+def test_start_mac_prints_redis_install_guide_when_missing():
     script = (ROOT / "start_mac.command").read_text(encoding="utf-8")
 
-    assert 'install_redis_server()' in script
-    assert 'command -v brew' in script
+    assert 'redis_server_bin()' in script
+    assert 'print_redis_install_guide()' in script
     assert 'brew install redis' in script
-    assert '是否要現在用 Homebrew 安裝 Redis' in script
-    assert 'Redis 安裝完成。' in script
+    assert '是否要現在用 Homebrew 安裝 Redis' not in script
+    assert 'REDIS_URL=redis://<host>:6379/0 ./start_mac.command' in script
 
 
 def test_start_mac_children_ignore_terminal_ctrl_c_and_are_cleaned_up_by_parent():
     script = (ROOT / "start_mac.command").read_text(encoding="utf-8")
 
-    assert "(trap '' INT; exec redis-server" in script
+    assert '(trap \'\' INT; exec "$REDIS_SERVER_BIN"' in script
     assert '(trap \'\' INT; exec "$PYTHON_BIN" -u worker_main.py --role all)' in script
     assert '(trap \'\' INT; exec "$PYTHON_BIN" -u -m uvicorn api:app --host "$SERVER_HOST" --port 8080)' in script
     assert script.index('kill "$WORKER_PID"') < script.index('kill "$REDIS_PID"')

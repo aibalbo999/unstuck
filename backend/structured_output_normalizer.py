@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any, Optional
 
-from confidence_calibration import build_confidence_calibration, confidence_score
+from confidence_calibration import build_confidence_calibration, confidence_score, has_unresolved_cross_source_conflict
 from structured_output_rendering import (
     ensure_agent19_required_sections,
     format_recommendation_block,
@@ -281,7 +281,12 @@ def warn_high_confidence_with_low_trust(agent_num: int, structured: dict, contex
         return
     trust = context.get("data", {}).get("data_trust", {}) if isinstance(context.get("data"), dict) else {}
     circuit_ever_opened = bool((context.get("circuit_breaker") or {}).get("_ever_opened", False))
-    calibration = build_confidence_calibration(structured.get("recommendation", {}) or {}, trust, circuit_ever_opened)
+    calibration = build_confidence_calibration(
+        structured.get("recommendation", {}) or {},
+        trust,
+        circuit_ever_opened,
+        has_unresolved_cross_source_conflict(context.get("data", {}) if isinstance(context.get("data"), dict) else {}),
+    )
     context["confidence_calibration"] = calibration
     if calibration.get("status") != "needs_downgrade":
         return

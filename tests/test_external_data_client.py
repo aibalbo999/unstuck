@@ -10,7 +10,7 @@ GOOGLE = [{"title": "Google", "link": "https://news.example/a", "published_date"
 DDG = [{"title": "DDG", "link": "https://news.example/b", "published_date": "", "source": "DuckDuckGo News", "summary": ""}]
 
 
-def test_news_falls_back_google_to_ddg_to_ptt(caplog):
+def test_taiwan_news_fetches_google_and_ptt_before_ddg(caplog):
     client = ExternalDataClient(
         google_news=lambda *_args, **_kwargs: [],
         ddg_news=lambda *_args, **_kwargs: [],
@@ -20,15 +20,12 @@ def test_news_falls_back_google_to_ddg_to_ptt(caplog):
     with caplog.at_level(logging.WARNING):
         assert client.get_news("2330 台積電", ticker="2330") == PTT
 
-    assert "Google News RSS" in caplog.text
-    assert "DuckDuckGo News" in caplog.text
-    assert "PTT Stock" in caplog.text
     assert [entry["provider"] for entry in client.last_news_audit] == [
         "Google News RSS",
-        "DuckDuckGo News",
         "PTT Stock",
     ]
-    assert [entry["status"] for entry in client.last_news_audit] == ["unavailable", "unavailable", "success"]
+    assert [entry["status"] for entry in client.last_news_audit] == ["unavailable", "success"]
+    assert "DuckDuckGo News" not in caplog.text
 
 
 def test_news_dedupes_and_skips_ptt_for_us_ticker():
@@ -46,6 +43,33 @@ def test_news_dedupes_and_skips_ptt_for_us_ticker():
 
     assert client.get_news("AAPL", ticker="AAPL") == [GOOGLE[0]]
     assert calls["ptt"] == 0
+
+
+def test_taiwan_news_merges_google_and_ptt_before_ddg():
+    calls = {"ddg": 0, "ptt": 0}
+
+    def ddg(*_args, **_kwargs):
+        calls["ddg"] += 1
+        return DDG
+
+    def ptt(*_args, **_kwargs):
+        calls["ptt"] += 1
+        return [
+            {"title": "Google", "link": "https://news.example/a", "published_date": "", "source": "PTT Stock", "summary": ""},
+            PTT[0],
+        ]
+
+    client = ExternalDataClient(
+        google_news=lambda *_args, **_kwargs: GOOGLE,
+        ddg_news=ddg,
+        ptt_news=ptt,
+    )
+
+    result = client.get_news("2330 台積電", ticker="2330.TW", limit=10)
+
+    assert result == [GOOGLE[0], PTT[0]]
+    assert calls == {"ddg": 0, "ptt": 1}
+    assert [entry["provider"] for entry in client.last_news_audit] == ["Google News RSS", "PTT Stock"]
 
 
 def test_news_does_not_infer_ptt_ticker_from_numeric_query(caplog):

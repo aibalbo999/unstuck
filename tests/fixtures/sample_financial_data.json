@@ -1,0 +1,24 @@
+{
+  "ticker": "2308.TW",
+  "company_name": "台達電",
+  "current_price": 320,
+  "market_cap_raw": 831200000000,
+  "revenue_ttm_raw": 421000000000,
+  "net_income_ttm_raw": 47000000000,
+  "free_cash_flow_raw": 35000000000,
+  "total_debt_raw": 98000000000,
+  "quant_metrics": {
+    "calculations": {
+      "dcf_scenarios_default": {
+        "bear": {"price_per_share_twd": 250},
+        "base": {"price_per_share_twd": 320},
+        "bull": {"price_per_share_twd": 390}
+      }
+    }
+  },
+  "data_trust": {
+    "status": "fresh",
+    "critical_failures": [],
+    "stale_sources": []
+  }
+}
