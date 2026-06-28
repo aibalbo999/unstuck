@@ -21,6 +21,8 @@ from .generation_config import (
     build_generation_config,
 )
 from .retry_policy import (
+    AgentAuthError,
+    AgentConfigurationError,
     AgentMissingModelError,
     AgentRateLimitError,
     AgentRetryableError,

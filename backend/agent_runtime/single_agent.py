@@ -8,6 +8,7 @@ from analysis_types import AnalysisContext, StockData
 from llm_client import KeyRotator
 
 from .llm_calls import (
+    AgentConfigurationError,
     AgentMissingModelError,
     AgentRetryableError,
     _agent_retry_wait,
@@ -123,6 +124,12 @@ def run_single_agent(
             emit_log(f"    ❌ {message}")
             _emit_sync_model_event(context, agent_num, "model_fallback", "warning", message, model_id, error_kind=exc.__class__.__name__)
             continue
+        except AgentConfigurationError as exc:
+            last_error = str(exc)
+            message = f"模型 {model_id} 請求設定不相容，改試下一個備援模型..."
+            emit_log(f"    ❌ {message}")
+            _emit_sync_model_event(context, agent_num, "model_config_error", "warning", message, model_id, error_kind=exc.__class__.__name__)
+            continue
         except AgentRetryableError as exc:
             last_error = str(exc)
             circuit_state = record_model_failure(context, model_id, exc)
@@ -140,7 +147,7 @@ def run_single_agent(
             )
             continue
 
-    return f"[Agent {agent_num} 執行失敗：所有模型/Key 不可用，最後錯誤：{last_error[:120]}]"
+    return f"[Agent {agent_num} 執行失敗：所有模型/Key 或請求設定均失敗，最後錯誤：{last_error[:120]}]"
 
 
 async def run_single_agent_async(
@@ -206,6 +213,12 @@ async def run_single_agent_async(
             emit_log(f"    ❌ {message}")
             await _emit_async_model_event(context, agent_num, "model_fallback", "warning", message, model_id, error_kind=exc.__class__.__name__)
             continue
+        except AgentConfigurationError as exc:
+            last_error = str(exc)
+            message = f"模型 {model_id} 請求設定不相容，改試下一個備援模型..."
+            emit_log(f"    ❌ {message}")
+            await _emit_async_model_event(context, agent_num, "model_config_error", "warning", message, model_id, error_kind=exc.__class__.__name__)
+            continue
         except AgentRetryableError as exc:
             last_error = str(exc)
             circuit_state = record_model_failure(context, model_id, exc)
@@ -223,4 +236,4 @@ async def run_single_agent_async(
             )
             continue
 
-    return f"[Agent {agent_num} 執行失敗：所有模型/Key 不可用，最後錯誤：{last_error[:120]}]"
+    return f"[Agent {agent_num} 執行失敗：所有模型/Key 或請求設定均失敗，最後錯誤：{last_error[:120]}]"

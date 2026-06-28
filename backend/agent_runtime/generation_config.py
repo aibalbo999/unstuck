@@ -51,6 +51,7 @@ def _generate_config_supports(field_name: str) -> bool:
 
 def build_generation_config(agent_num: int, system_instruction: Optional[str] = None):
     """Build Google GenAI generation config, using JSON MIME type where supported."""
+    uses_structured_response = agent_num in STRUCTURED_AGENT_INSTRUCTIONS
     config_kwargs = {
         "temperature": 0.7,
         "top_p": 0.95,
@@ -58,7 +59,7 @@ def build_generation_config(agent_num: int, system_instruction: Optional[str] = 
     }
     if system_instruction:
         config_kwargs["system_instruction"] = system_instruction
-    if agent_num in STRUCTURED_AGENT_INSTRUCTIONS:
+    if uses_structured_response:
         config_kwargs["response_mime_type"] = "application/json"
         response_schema_cls = get_structured_response_schema(agent_num)
         if response_schema_cls and _generate_config_supports("response_schema"):
@@ -72,6 +73,11 @@ def build_generation_config(agent_num: int, system_instruction: Optional[str] = 
                 # Fall back to passing the class directly if schema extraction fails.
                 config_kwargs["response_schema"] = response_schema_cls
     function_tools = get_agent_function_tools(agent_num)
+    # Google GenAI rejects function calling when the same request also asks for
+    # JSON response_mime_type/response_schema. Structured agents prioritize the
+    # native schema path; non-structured agents keep tool calling enabled.
+    if uses_structured_response:
+        function_tools = []
     if function_tools:
         config_kwargs["tools"] = function_tools
         config_kwargs["automatic_function_calling"] = types.AutomaticFunctionCallingConfig(maximum_remote_calls=6)

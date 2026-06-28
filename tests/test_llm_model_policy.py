@@ -16,6 +16,8 @@ from agent_runtime.model_policy import (  # noqa: E402
     timeout_for_model_call,
 )
 from agent_runtime.retry_policy import (  # noqa: E402
+    AgentAuthError,
+    AgentConfigurationError,
     AgentRateLimitError,
     AgentServerError,
     AgentTransientError,
@@ -108,6 +110,59 @@ def test_rate_limit_error_records_key_slot_metadata():
         assert exc.key_count == 3
     else:
         raise AssertionError("429 should become AgentRateLimitError")
+
+
+def test_auth_error_is_classified_separately_from_quota_and_records_key_slot():
+    class FakeRotator:
+        keys = ["key-a", "key-b", "key-c"]
+
+        def penalize(self, *_args, **_kwargs):
+            pass
+
+    error = RuntimeError(
+        "google.genai.models.generate_content failed: 401 UNAUTHENTICATED. "
+        "The bound service account is deleted or disabled. "
+        "The service account bound to the API key must be active."
+    )
+    try:
+        _raise_agent_call_error(error, "key-b", "gemini-2.5-flash", FakeRotator(), 1)
+    except AgentAuthError as exc:
+        assert exc.key_slot == 2
+        assert exc.key_count == 3
+    else:
+        raise AssertionError("401 service-account errors should become AgentAuthError")
+
+    assert _agent_error_category(error) == "auth"
+
+
+def test_auth_retry_stop_exhausts_all_keys_before_model_fails():
+    policy = model_attempt_policy(model_index=1, has_fallback=False, max_retries=3, key_count=3)
+    stop = make_model_retry_stop(policy)
+
+    for attempt, key_slot in enumerate([1, 2], start=1):
+        assert stop(_retry_state(attempt, AgentAuthError("401", 1, key_slot=key_slot, key_count=3))) is False
+    assert stop(_retry_state(3, AgentAuthError("401", 1, key_slot=3, key_count=3))) is True
+
+
+def test_invalid_argument_config_error_is_not_reported_as_missing_model():
+    class FakeRotator:
+        keys = ["key-a"]
+
+        def penalize(self, *_args, **_kwargs):
+            raise AssertionError("schema/config errors should not penalize API keys")
+
+    error = RuntimeError(
+        "400 INVALID_ARGUMENT. Function calling with a response mime type: "
+        "'application/json' is unsupported."
+    )
+    try:
+        _raise_agent_call_error(error, "key-a", "gemini-2.5-flash", FakeRotator(), 1)
+    except AgentConfigurationError as exc:
+        assert "[schema_error]" in str(exc)
+    else:
+        raise AssertionError("400 INVALID_ARGUMENT should become AgentConfigurationError")
+
+    assert _agent_error_category(error) == "schema_error"
 
 
 def test_model_circuit_opens_after_repeated_failures():

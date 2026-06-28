@@ -48,12 +48,20 @@ def record_runtime_event_usage(
         return
     if phase == "llm_model_error":
         error_category = str(metadata.get("error_category") or "")
-        status = "quota_error" if (
+        if error_category == "auth" or "401" in message or "unauthenticated" in message.lower():
+            status = "auth_error"
+        elif error_category == "schema_error":
+            status = "config_error"
+        elif (
             error_category == "quota"
             or "429" in message
             or "quota" in message.lower()
-            or "rate" in message.lower()
-        ) else "error"
+            or "rate limit" in message.lower()
+            or "resource_exhausted" in message.lower()
+        ):
+            status = "quota_error"
+        else:
+            status = "error"
         record_api_usage(
             service="Gemini / Google AI",
             provider="google_ai",
