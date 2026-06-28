@@ -52,7 +52,7 @@ from reporting import ReportRenderer
 from runtime_dependencies import create_api_runtime, get_report_storage_for_output_dir, runtime_settings_for_output_dir
 from runtime_events import emit_log, format_event_log_line
 from settings import validate_runtime_settings
-from storage_inventory import build_storage_summary
+from storage_inventory import build_storage_summary, ensure_runtime_storage
 from task_queue import create_api_task_queue
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -122,7 +122,13 @@ async def lifespan(_app: FastAPI):
     existing_runtime = getattr(_app.state, "runtime", None)
     if existing_runtime is not None:
         existing_runtime.close()
-    runtime = create_api_runtime(runtime_settings_for_output_dir(OUTPUT_DIR), task_queue=analysis_task_queue)
+    runtime_settings = runtime_settings_for_output_dir(OUTPUT_DIR)
+    ensure_runtime_storage(
+        output_dir=runtime_settings.output_dir,
+        cache_db_path=runtime_settings.cache_db_path,
+        checkpoint_path=runtime_settings.checkpoint_path,
+    )
+    runtime = create_api_runtime(runtime_settings, task_queue=analysis_task_queue)
     _app.state.runtime = runtime
     try:
         yield

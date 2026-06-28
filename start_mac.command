@@ -236,6 +236,49 @@ if [ -n "$OLD_PIDS" ]; then
     sleep 1
 fi
 
+project_worker_pids() {
+    ps -axo pid=,command= | while read -r pid command
+    do
+        case "$command" in
+            *"worker_main.py --role all"*|*"multiprocessing.spawn"*|*"multiprocessing.resource_tracker"*)
+                if [ "$pid" = "$$" ] || [ "$pid" = "${WORKER_PID:-}" ]; then
+                    continue
+                fi
+                worker_cwd="$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)"
+                if [ "$worker_cwd" = "$DIR/backend" ]; then
+                    printf '%s\n' "$pid"
+                fi
+                ;;
+        esac
+    done
+}
+
+stop_existing_project_workers() {
+    EXISTING_WORKER_PIDS="$(project_worker_pids || true)"
+    if [ -z "$EXISTING_WORKER_PIDS" ]; then
+        return 0
+    fi
+    echo "偵測到同專案殘留 Worker，正在停止..."
+    for pid in $EXISTING_WORKER_PIDS
+    do
+        kill -TERM "$pid" 2>/dev/null || true
+    done
+    sleep 1
+    for pid in $EXISTING_WORKER_PIDS
+    do
+        if kill -0 "$pid" 2>/dev/null; then
+            kill -INT "$pid" 2>/dev/null || true
+        fi
+    done
+    sleep 1
+    for pid in $EXISTING_WORKER_PIDS
+    do
+        if kill -0 "$pid" 2>/dev/null; then
+            echo "提醒：Worker PID $pid 尚未停止，若持續出現舊模型或排程錯誤，請手動檢查。"
+        fi
+    done
+}
+
 if [ -f "$WORKER_PID_FILE" ]; then
     OLD_WORKER_PID="$(cat "$WORKER_PID_FILE" 2>/dev/null || true)"
     if [ -n "$OLD_WORKER_PID" ] && kill -0 "$OLD_WORKER_PID" 2>/dev/null; then
@@ -245,6 +288,7 @@ if [ -f "$WORKER_PID_FILE" ]; then
     fi
     rm -f "$WORKER_PID_FILE" 2>/dev/null || true
 fi
+stop_existing_project_workers
 
 echo "啟動 Worker..."
 (trap '' INT; exec "$PYTHON_BIN" -u worker_main.py --role all) &

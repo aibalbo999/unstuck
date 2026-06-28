@@ -33,6 +33,19 @@ def test_start_mac_lan_launches_full_local_runtime_stack():
     assert 'Worker 已啟動' in script
 
 
+def test_start_mac_stops_project_worker_orphans_before_starting_worker():
+    script = (ROOT / "start_mac.command").read_text(encoding="utf-8")
+
+    assert "project_worker_pids()" in script
+    assert "stop_existing_project_workers()" in script
+    assert 'worker_main.py --role all' in script
+    assert "multiprocessing.spawn" in script
+    assert 'lsof -a -p "$pid" -d cwd' in script
+    assert 'kill -TERM "$pid"' in script
+    assert 'kill -INT "$pid"' in script
+    assert script.index("stop_existing_project_workers") < script.index("echo \"啟動 Worker...\"")
+
+
 def test_start_mac_prints_redis_install_guide_when_missing():
     script = (ROOT / "start_mac.command").read_text(encoding="utf-8")
 
