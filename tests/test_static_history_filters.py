@@ -629,7 +629,20 @@ def test_market_screener_frontend_tab_is_wired():
     assert "data-screener-select" in market_screener_js
     assert "runWatchlist" in market_screener_js
     assert "模式 A" in market_screener_js and "模式 D" in market_screener_js
+    assert "class MarketScreenerPanel" in market_screener_js
+    assert "data-screener-sort" in market_screener_js
+    assert "formatSignedMetric" in market_screener_js
+    assert "setLoading" in market_screener_js
+    assert "查無資料，請放寬條件" in market_screener_js
+    assert "market-screener-range" in market_screener_js
+    assert "market-screener-filter-select" in market_screener_js
     assert ".market-screener-grid" in market_screener_css
+    assert ".market-screener-table-shell" in market_screener_css
+    assert ".market-screener-sort-button" in market_screener_css
+    assert ".metric-positive" in market_screener_css
+    assert ".metric-negative" in market_screener_css
+    assert ".market-screener-empty" in market_screener_css
+    assert "overflow-x: auto" in market_screener_css
     assert ".market-screener-mode-picker" in market_screener_css
     assert ".market-screener-mode-option:has(input:checked)" in market_screener_css
     assert ".market-screener-mode-option input" in market_screener_css

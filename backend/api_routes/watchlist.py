@@ -58,10 +58,52 @@ def create_watchlist_router(deps: WatchlistRouteDeps) -> APIRouter:
         )
 
     @router.get("/screener")
-    async def get_market_screener_watchlist():
+    async def get_market_screener_watchlist(
+        limit: int = Query(20, ge=1, le=100),
+        offset: int = Query(0, ge=0),
+        category: list[str] | None = Query(None),
+        min_score: float | None = Query(None),
+        fundamental_revenue_growth_yoy_min: float | None = Query(None),
+        fundamental_revenue_growth_yoy_max: float | None = Query(None),
+        technical_rsi_min: float | None = Query(None),
+        technical_rsi_max: float | None = Query(None),
+        technical_macd_min: float | None = Query(None),
+        technical_macd_histogram_min: float | None = Query(None),
+        institutional_foreign_net_buy_min: float | None = Query(None),
+        institutional_investment_trust_net_buy_min: float | None = Query(None),
+        institutional_dealer_net_buy_min: float | None = Query(None),
+        institutional_total_net_buy_min: float | None = Query(None),
+        sort_by: str = Query("score", max_length=48),
+        sort_direction: str = Query("desc", pattern="^(asc|desc)$"),
+    ):
+        filters = {
+            "categories": category or [],
+            "min_score": min_score,
+            "fundamental": {
+                "revenue_growth_yoy_pct_min": fundamental_revenue_growth_yoy_min,
+                "revenue_growth_yoy_pct_max": fundamental_revenue_growth_yoy_max,
+            },
+            "technical": {
+                "rsi_min": technical_rsi_min,
+                "rsi_max": technical_rsi_max,
+                "macd_min": technical_macd_min,
+                "macd_histogram_min": technical_macd_histogram_min,
+            },
+            "institutional": {
+                "foreign_net_buy_shares_min": institutional_foreign_net_buy_min,
+                "investment_trust_net_buy_shares_min": institutional_investment_trust_net_buy_min,
+                "dealer_net_buy_shares_min": institutional_dealer_net_buy_min,
+                "total_net_buy_shares_min": institutional_total_net_buy_min,
+            },
+        }
         return await asyncio.to_thread(
             market_screener.list_auto_screener_watchlist,
             deps.get_output_dir(),
+            filters=filters,
+            limit=limit,
+            offset=offset,
+            sort_by=sort_by,
+            sort_direction=sort_direction,
         )
 
     @router.post("/screener/run")

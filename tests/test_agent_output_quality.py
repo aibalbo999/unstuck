@@ -42,7 +42,7 @@ def test_final_agent_prompts_preserve_risk_and_quality_contracts():
     assert "no text may appear after [/投資建議]" in agent19 or "不得在 [/投資建議] 後添加任何文字" in agent19
 
 
-def test_model_routes_do_not_use_low_quota_gemini_35_flash():
+def test_model_routes_allow_gemini_35_flash_with_flash_25_fallback_rotation():
     routes = json.loads((ROOT / "backend" / "model_routes.json").read_text(encoding="utf-8"))
     routed_models = [
         routes.get("default_analysis_model"),
@@ -57,6 +57,10 @@ def test_model_routes_do_not_use_low_quota_gemini_35_flash():
     for fallback_models in (routes.get("agent_fallbacks") or {}).values():
         routed_models.extend(fallback_models or [])
 
-    assert "gemini-3.5-flash" not in routed_models
-    assert routes["default_decision_model"] == "gemini-2.5-flash"
+    assert "gemini-3.5-flash" in routed_models
+    assert "gemini-2.5-flash" in routed_models
+    assert routes["default_decision_model"] == "gemini-3.5-flash"
     assert set(routes["audit_fallback_models"]) == {"gemini-2.5-flash"}
+    for agent_num in ("7", "16", "19", "24"):
+        assert routes["agents"][agent_num] == "gemini-3.5-flash"
+        assert "gemini-2.5-flash" in routes["agent_fallbacks"][agent_num]

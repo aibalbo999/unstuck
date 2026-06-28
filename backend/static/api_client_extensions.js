@@ -1,22 +1,15 @@
 (function () {
     const jsonRequest = window.StockAgentApiClient.requestJson;
 
-    async function fetchApiQuotas() {
-        return jsonRequest('/api/observability/api-quotas');
-    }
-
-    async function fetchPerformanceStats() {
-        return jsonRequest('/api/performance/stats');
-    }
+    async function fetchApiQuotas() { return jsonRequest('/api/observability/api-quotas'); }
+    async function fetchPerformanceStats() { return jsonRequest('/api/performance/stats'); }
 
     async function compareReports(left, right) {
         const params = new URLSearchParams({ left, right });
         return jsonRequest(`/api/reports/compare?${params.toString()}`);
     }
 
-    async function fetchWatchlist() {
-        return jsonRequest('/api/watchlist');
-    }
+    async function fetchWatchlist() { return jsonRequest('/api/watchlist'); }
 
     async function saveWatchlistItem(item) {
         return jsonRequest('/api/watchlist', {
@@ -39,7 +32,11 @@
         });
     }
 
-    async function fetchMarketScreener() { return jsonRequest('/api/watchlist/screener'); }
+    async function fetchMarketScreener(params = {}) {
+        const query = new URLSearchParams(Object.entries(params || {}).filter(([, value]) => value !== undefined && value !== null && value !== ''));
+        const suffix = query.toString() ? `?${query.toString()}` : '';
+        return jsonRequest(`/api/watchlist/screener${suffix}`);
+    }
     async function runMarketScreener() {
         return jsonRequest('/api/watchlist/screener/run', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -47,9 +44,7 @@
         });
     }
 
-    async function fetchDecisionTracking() {
-        return jsonRequest('/api/decision-tracking');
-    }
+    async function fetchDecisionTracking() { return jsonRequest('/api/decision-tracking'); }
 
     async function saveDecisionTrackingItem(item) {
         return jsonRequest('/api/decision-tracking', {
