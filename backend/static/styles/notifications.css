@@ -13,12 +13,14 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 12px;
-    border: 1px solid rgba(148, 163, 184, 0.26);
-    border-radius: 8px;
-    background: rgba(15, 23, 42, 0.96);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    background: rgba(4, 13, 26, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     color: var(--text-primary);
-    padding: 12px 14px;
-    box-shadow: 0 18px 36px rgba(0, 0, 0, 0.26);
+    padding: 14px 16px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255,255,255,0.08);
     pointer-events: auto;
     animation: toast-enter 0.18s ease-out;
 }
@@ -40,9 +42,9 @@
     flex: 0 0 auto;
     width: 44px;
     height: 44px;
-    border: 1px solid rgba(148, 163, 184, 0.28);
+    border: 1px solid var(--glass-border);
     border-radius: 50%;
-    background: rgba(15, 23, 42, 0.72);
+    background: rgba(255, 255, 255, 0.08);
     color: var(--text-secondary);
     cursor: pointer;
 }
@@ -60,17 +62,21 @@
 .confirm-dialog-backdrop {
     position: absolute;
     inset: 0;
-    background: rgba(2, 6, 23, 0.64);
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
 }
 .confirm-dialog-panel {
     position: relative;
     width: min(420px, 100%);
     border: 1px solid var(--glass-border);
-    border-radius: 8px;
-    background: rgba(15, 23, 42, 0.98);
+    border-radius: 12px;
+    background: rgba(4, 13, 26, 0.95);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
     color: var(--text-primary);
-    padding: 18px;
-    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.34);
+    padding: 24px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255,255,255,0.08);
 }
 .confirm-dialog-panel h2 {
     margin: 0 0 8px;
@@ -90,18 +96,18 @@
 }
 .confirm-dialog-button {
     min-height: 44px;
-    border: 1px solid rgba(148, 163, 184, 0.28);
+    border: 1px solid var(--glass-border);
     border-radius: 8px;
-    background: rgba(30, 41, 59, 0.78);
+    background: rgba(255, 255, 255, 0.07);
     color: var(--text-primary);
     padding: 8px 14px;
     font-weight: 800;
     cursor: pointer;
 }
 .confirm-dialog.is-danger .confirm-dialog-button.is-primary {
-    border-color: rgba(248, 113, 113, 0.48);
-    background: rgba(185, 28, 28, 0.78);
-    color: #fee2e2;
+    border-color: rgba(239, 68, 68, 0.5);
+    background: rgba(185, 28, 28, 0.3);
+    color: #fecaca;
 }
 @keyframes toast-enter {
     from { opacity: 0; transform: translateY(-6px); }

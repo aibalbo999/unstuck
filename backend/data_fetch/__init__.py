@@ -1,6 +1,8 @@
 """Canonical data-fetching API."""
 
 from .enrichment_providers import (
+    AlternativePeerDiscoveryProvider,
+    AlternativeSearchProvider,
     DynamicPeerMetricsProvider,
     FmpNewsProvider,
     GlobalMarketContextProvider,
@@ -21,6 +23,8 @@ __all__ = [
     "CallableProvider",
     "DataProvider",
     "DEFAULT_STOCK_DATA_SERVICE",
+    "AlternativePeerDiscoveryProvider",
+    "AlternativeSearchProvider",
     "DynamicPeerMetricsProvider",
     "FetchOptions",
     "FetchRequest",

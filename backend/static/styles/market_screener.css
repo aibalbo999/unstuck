@@ -9,9 +9,9 @@
 }
 .market-screener-grid span {
     min-height: 58px;
-    border: 1px solid rgba(45, 212, 191, 0.24);
+    border: 1px solid rgba(0, 212, 255, 0.2);
     border-radius: 8px;
-    background: rgba(20, 184, 166, 0.1);
+    background: rgba(0, 212, 255, 0.07);
     display: grid;
     align-content: center;
     gap: 2px;
@@ -38,14 +38,16 @@
 }
 .market-screener-chip {
     width: 100%;
-    border: 1px solid rgba(45, 212, 191, 0.28);
+    border: 1px solid var(--glass-border);
+    background: var(--card-bg);
     cursor: pointer;
     justify-content: space-between;
     text-align: left;
 }
 .market-screener-chip.is-selected {
-    border-color: rgba(94, 234, 212, 0.74);
-    background: rgba(20, 184, 166, 0.18);
+    border-color: rgba(0, 212, 255, 0.7);
+    background: rgba(0, 212, 255, 0.12);
+    box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.2);
 }
 .market-screener-chip strong,
 .market-screener-chip em,
@@ -65,11 +67,12 @@
 .market-screener-mode-picker {
     display: grid;
     gap: 10px;
-    margin-top: 8px;
-    padding: 10px;
-    border: 1px solid rgba(148, 163, 184, 0.22);
-    border-radius: 8px;
-    background: rgba(15, 23, 42, 0.56);
+    margin-top: 12px;
+    padding: 16px;
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255,255,255,0.06);
 }
 .market-screener-mode-options {
     display: grid;
@@ -83,8 +86,9 @@
     column-gap: 8px;
     align-items: center;
     padding: 8px;
-    border: 1px solid rgba(148, 163, 184, 0.18);
+    border: 1px solid var(--glass-border);
     border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
     color: var(--text-primary);
     cursor: pointer;
 }
@@ -99,8 +103,8 @@
     grid-row: span 2;
 }
 .market-screener-mode-option:has(input:checked) {
-    border-color: rgba(94, 234, 212, 0.68);
-    background: rgba(20, 184, 166, 0.14);
+    border-color: rgba(0, 212, 255, 0.6);
+    background: rgba(0, 212, 255, 0.1);
 }
 .market-screener-mode-option span,
 .market-screener-mode-option em {

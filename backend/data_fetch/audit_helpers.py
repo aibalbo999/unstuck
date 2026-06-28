@@ -250,14 +250,14 @@ def _append_full_fetch_audit(
         ("market_data", provider_label, source_record_count("market_data", data) > 0, AUDIT_STATUS_ERROR, "市場價格或估值資料缺漏"),
         ("financial_statements", provider_label, source_record_count("financial_statements", data) > 0, AUDIT_STATUS_ERROR, "年度財報資料缺漏"),
         ("monthly_revenue", "FinMind", source_record_count("monthly_revenue", data) > 0, AUDIT_STATUS_UNAVAILABLE, "非台股或 FinMind 月營收暫無可用資料"),
-        ("recent_catalysts", "FinMind/Yahoo", source_record_count("recent_catalysts", data) > 0, AUDIT_STATUS_UNAVAILABLE, "近期催化劑暫無可用資料"),
+        ("recent_catalysts", "News/Search providers", source_record_count("recent_catalysts", data) > 0, AUDIT_STATUS_UNAVAILABLE, "近期催化劑暫無可用資料"),
         ("institutional_trading", "FinMind", source_record_count("institutional_trading", data) > 0, AUDIT_STATUS_UNAVAILABLE, "非台股或法人籌碼暫無可用資料"),
         ("dynamic_peer_metrics", "FinMind/yfinance", source_record_count("dynamic_peer_metrics", data) > 0, AUDIT_STATUS_UNAVAILABLE, "同業指標暫無可用資料"),
         ("pe_river_chart", "FinMind/default multiples", source_record_count("pe_river_chart", data) > 0, AUDIT_STATUS_UNAVAILABLE, "P/E 河流圖資料暫無可用資料"),
     ]
     if not skip_optional_http:
         source_specs.append(
-            ("peer_discovery", "Google Search", source_record_count("peer_discovery", data) > 0, AUDIT_STATUS_UNAVAILABLE, "同業搜尋暫無可用資料")
+            ("peer_discovery", "Search providers", source_record_count("peer_discovery", data) > 0, AUDIT_STATUS_UNAVAILABLE, "同業搜尋暫無可用資料")
         )
 
     for source, provider, ok, fallback_status, fallback_message in source_specs:

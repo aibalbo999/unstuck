@@ -270,6 +270,15 @@ def test_stock_data_service_uses_provider_plan_for_optional_enrichment(monkeypat
             },
         )
 
+    def alternative_search_provider(request, context):
+        return ProviderResult(
+            source="recent_catalysts",
+            provider="Alternative Search",
+            status="success",
+            value=[{"title": "Alternative catalyst"}],
+            audit={"source": "recent_catalysts", "provider": "Alternative Search", "status": "success", "record_count": 1},
+        )
+
     def fmp_provider(request, context):
         return ProviderResult(
             source="recent_catalysts",
@@ -297,12 +306,23 @@ def test_stock_data_service_uses_provider_plan_for_optional_enrichment(monkeypat
             audit={"source": "peer_discovery", "provider": "Google Search", "status": "success", "record_count": 1},
         )
 
+    def alternative_peer_provider(request, context):
+        return ProviderResult(
+            source="peer_discovery",
+            provider="Alternative Search",
+            status="success",
+            value=[{"title": "Alternative peer"}],
+            audit={"source": "peer_discovery", "provider": "Alternative Search", "status": "success", "record_count": 1},
+        )
+
     registry = ProviderRegistry([
         CallableProvider("market_data", "fake-core", core_provider),
         CallableProvider("recent_catalysts", "Free news waterfall", free_news_provider),
+        CallableProvider("recent_catalysts", "Alternative Search", alternative_search_provider),
         CallableProvider("recent_catalysts", "Google Search", google_provider),
         CallableProvider("recent_catalysts", "FMP news", fmp_provider),
         CallableProvider("recent_catalysts", "Yahoo Finance news", yahoo_provider),
+        CallableProvider("peer_discovery", "Alternative Search", alternative_peer_provider),
         CallableProvider("peer_discovery", "Google Search", peer_provider),
     ])
 
@@ -310,12 +330,17 @@ def test_stock_data_service_uses_provider_plan_for_optional_enrichment(monkeypat
 
     assert [item["title"] for item in result.data["recent_catalysts"]] == [
         "Free catalyst",
+        "Alternative catalyst",
         "FMP catalyst",
         "Yahoo catalyst",
     ]
-    assert result.data["peer_discovery_results"][0]["title"] == "Peer discovery"
+    assert [item["title"] for item in result.data["peer_discovery_results"]] == [
+        "Alternative peer",
+        "Peer discovery",
+    ]
     assert {entry["provider"] for entry in result.data["source_audit"]} >= {
         "Free news waterfall",
+        "Alternative Search",
         "Google Search",
         "Google News RSS",
         "FMP news",
