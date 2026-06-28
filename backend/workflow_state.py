@@ -60,6 +60,7 @@ class AgentGraphState(TypedDict, total=False):
     tool_results: Annotated[dict[str, Any], merge_dicts]
     agent_reports: Annotated[dict[str, dict[str, Any]], merge_dicts]
     executive_thesis: str
+    investment_thesis: dict[str, Any]
     smoothed_markdown: str
     next_catalysts: Annotated[list[dict[str, Any]], append_unique]
     risk_flags: Annotated[list[dict[str, Any]], append_unique]

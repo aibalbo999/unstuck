@@ -22,8 +22,8 @@
             position: absolute;
             inset: 0;
             background:
-                linear-gradient(90deg, rgba(5,11,26,0.92) 0%, rgba(5,11,26,0.55) 48%, rgba(5,11,26,0.18) 100%),
-                linear-gradient(0deg, rgba(5,11,26,0.78) 0%, rgba(5,11,26,0.08) 56%);
+                linear-gradient(90deg, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0.7) 48%, rgba(255,255,255,0.3) 100%),
+                linear-gradient(0deg, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0.2) 56%);
         }
 
         .report-cover-content {
@@ -55,7 +55,8 @@
         
         /* ─── Hero 頭部 ─── */
         .hero {
-            background: linear-gradient(135deg, #0a1628 0%, #0f1f3d 50%, #0a1628 100%);
+            background: #ffffff;
+
             border-bottom: 1px solid var(--border);
             padding: 48px 48px 40px;
             position: relative;
@@ -214,18 +215,18 @@
         }
 
         .audit-banner {
-            background: rgba(245, 158, 11, 0.12);
-            border: 1px solid rgba(245, 158, 11, 0.45);
+            background: #fffbeb;
+            border: 1px solid #fde68a;
             border-radius: 12px;
             padding: 18px 22px;
             margin-top: 18px;
-            color: var(--text-secondary);
+            color: #92400e;
         }
 
         .audit-title {
             font-size: 18px;
             font-weight: 800;
-            color: #f59e0b;
+            color: #d97706;
             margin-bottom: 6px;
         }
 
@@ -251,11 +252,12 @@
         }
 
         .tear-sheet {
-            background: rgba(255,255,255,0.045);
-            border: 1px solid var(--border);
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
             border-radius: 14px;
-            padding: 18px 22px;
+            padding: 24px 28px;
             margin-top: 18px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
         }
 
         .tear-sheet-title {
@@ -278,8 +280,8 @@
             margin-top: 18px;
             padding: 16px 20px;
             border-radius: 12px;
-            border: 1px solid rgba(148, 163, 184, 0.22);
-            background: rgba(15, 23, 42, 0.45);
+            border: 1px solid #e2e8f0;
+            background: #f8fafc;
         }
 
         .data-trust-head {
@@ -302,28 +304,28 @@
             border-radius: 8px;
             font-size: 12px;
             font-weight: 800;
-            color: #e2e8f0;
-            background: rgba(148, 163, 184, 0.18);
-            border: 1px solid rgba(148, 163, 184, 0.28);
+            color: #475569;
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
         }
 
         .data-trust-fresh .data-trust-badge {
-            color: #bbf7d0;
-            background: rgba(22, 163, 74, 0.18);
-            border-color: rgba(34, 197, 94, 0.42);
+            color: #166534;
+            background: #dcfce7;
+            border-color: #86efac;
         }
 
         .data-trust-partial .data-trust-badge,
         .data-trust-stale .data-trust-badge {
-            color: #fde68a;
-            background: rgba(180, 83, 9, 0.22);
-            border-color: rgba(245, 158, 11, 0.45);
+            color: #92400e;
+            background: #fef3c7;
+            border-color: #fde68a;
         }
 
         .data-trust-error .data-trust-badge {
-            color: #fecaca;
-            background: rgba(185, 28, 28, 0.22);
-            border-color: rgba(239, 68, 68, 0.45);
+            color: #991b1b;
+            background: #fee2e2;
+            border-color: #fca5a5;
         }
 
         .data-trust-notes {
@@ -342,25 +344,25 @@
         .data-trust-meta span {
             font-size: 11px;
             color: var(--text-muted);
-            border: 1px solid rgba(148, 163, 184, 0.18);
+            border: 1px solid #e2e8f0;
             border-radius: 8px;
             padding: 3px 8px;
-            background: rgba(15, 23, 42, 0.35);
+            background: #ffffff;
         }
 
         .data-trust-quant-warning {
             margin-top: 10px;
             padding: 8px 12px;
             border-radius: 8px;
-            border: 1px solid rgba(245, 158, 11, 0.40);
-            background: rgba(180, 83, 9, 0.12);
+            border: 1px solid #fde68a;
+            background: #fffbeb;
             font-size: 12px;
-            color: #fde68a;
+            color: #b45309;
             line-height: 1.55;
         }
 
         .data-trust-quant-warning strong {
-            color: #fbbf24;
+            color: #d97706;
         }
         
         .verdict-meta .vm-label {

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from .enrichment_providers import (
+    AlternativePeerDiscoveryProvider,
+    AlternativeSearchProvider,
     DynamicPeerMetricsProvider,
     FmpNewsProvider,
     FreeNewsWaterfallProvider,

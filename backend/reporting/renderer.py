@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from data_trust import build_data_snapshot
+from data_trust_snapshot import set_snapshot_integrity
+from evidence_exit_gate import evaluate_report_evidence
 
 from .html_renderer import generate_html_report_async
 from .lint import ReportLintError, assert_report_lint_passed, scrub_structured_json_key_leaks
@@ -30,6 +32,9 @@ class ReportRenderer:
             pipeline_id=request.pipeline_id or snapshot_context.get("pipeline_id"),
             generated_at=request.generated_at,
         )
+        evidence_exit_gate = evaluate_report_evidence(markdown, snapshot)
+        snapshot["evidence_exit_gate"] = evidence_exit_gate
+        snapshot = set_snapshot_integrity(snapshot)
         metadata = {
             "filename": request.filename,
             "ticker": request.context.get("ticker"),
@@ -37,6 +42,7 @@ class ReportRenderer:
             "pipeline_id": request.pipeline_id or request.context.get("pipeline_id"),
             "data_trust": snapshot.get("data_trust", {}),
             "report_lint": report_lint,
+            "evidence_exit_gate": evidence_exit_gate,
         }
         return ReportBundle(html=html, markdown=markdown, data_snapshot=snapshot, metadata=metadata)
 

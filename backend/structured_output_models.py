@@ -174,7 +174,7 @@ class NextCatalystsMixin(StructuredModel):
 
 
 class RecommendationFields(StructuredModel):
-    recommendation: Literal["買入", "持有", "避免"] = Field(..., alias="建議")
+    recommendation: Literal["買入", "持有", "避免", "偏多觀察", "中性觀察", "避險觀察"] = Field(..., alias="建議")
     target_3m: str = Field(..., min_length=1, alias="短期目標（3個月）")
     target_6m: str = Field(..., min_length=1, alias="中期目標（6個月）")
     target_12m: str = Field(..., min_length=1, alias="長期目標（12個月）")
@@ -203,7 +203,16 @@ class RecommendationStructuredOutput(NextCatalystsMixin):
 
 
 class BubbleSniperRecommendationFields(StructuredModel):
-    recommendation: Literal["強烈放空", "避免", "持有", "買進"] = Field(..., alias="建議")
+    recommendation: Literal[
+        "強烈放空",
+        "避免",
+        "持有",
+        "買進",
+        "高度空方風險",
+        "避險觀察",
+        "中性觀察",
+        "偏多觀察",
+    ] = Field(..., alias="建議")
     target_3m: str = Field(..., min_length=1, alias="短期目標（3個月）")
     target_6m: str = Field(..., min_length=1, alias="中期目標（6個月）")
     target_12m: str = Field(..., min_length=1, alias="長期目標（12個月）")

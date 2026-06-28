@@ -394,8 +394,102 @@ def test_run_rq_worker_uses_simple_worker_to_avoid_macos_fork_abort(monkeypatch)
 
     assert calls == [
         ("simple-worker", ["queue"], "redis"),
-        ("work", True, 2, True),
+        ("work", True, 2, False),
     ]
+
+
+def test_run_rq_worker_suppresses_redis_disconnect_after_warm_shutdown(monkeypatch):
+    import rq
+    from redis.exceptions import ConnectionError as RedisConnectionError
+
+    calls = []
+    runtime = FakeWorkerRuntime(calls)
+
+    class FakeSimpleWorker:
+        def __init__(self, queues, *, connection):
+            self._shutdown_requested_date = object()
+            calls.append(("simple-worker", queues, connection))
+
+        def work(self, *, burst=False, max_jobs=None, with_scheduler=False):
+            calls.append(("work", burst, max_jobs, with_scheduler))
+            raise RedisConnectionError("Connection closed by server.")
+
+    monkeypatch.setattr(rq, "SimpleWorker", FakeSimpleWorker)
+    monkeypatch.setattr(worker_main, "emit_log", calls.append)
+
+    worker_main.run_rq_worker(runtime)
+
+    assert ("work", False, None, False) in calls
+    assert "queue worker stopped after Redis shutdown." in calls
+
+
+def test_run_rq_worker_reraises_redis_disconnect_before_shutdown(monkeypatch):
+    import rq
+    from redis.exceptions import ConnectionError as RedisConnectionError
+
+    runtime = FakeWorkerRuntime([])
+
+    class FakeSimpleWorker:
+        def __init__(self, queues, *, connection):
+            pass
+
+        def work(self, *, burst=False, max_jobs=None, with_scheduler=False):
+            raise RedisConnectionError("Error 61 connecting to localhost:6379. Connection refused.")
+
+    monkeypatch.setattr(rq, "SimpleWorker", FakeSimpleWorker)
+
+    with pytest.raises(RedisConnectionError):
+        worker_main.run_rq_worker(runtime)
+
+
+def test_rq_pubsub_exception_handler_stops_thread_after_shutdown():
+    from redis.exceptions import ConnectionError as RedisConnectionError
+
+    class FakeThread:
+        def __init__(self):
+            self.stopped = False
+
+        def stop(self):
+            self.stopped = True
+
+    worker = SimpleNamespace(_shutdown_requested_date=object(), _stop_requested=False)
+    thread = FakeThread()
+
+    worker_main._handle_rq_pubsub_thread_exception(
+        worker,
+        RedisConnectionError("Connection closed by server."),
+        None,
+        thread,
+    )
+
+    assert thread.stopped is True
+
+
+def test_rq_pubsub_exception_handler_reraises_before_shutdown():
+    from redis.exceptions import ConnectionError as RedisConnectionError
+
+    worker = SimpleNamespace(_shutdown_requested_date=None, _stop_requested=False)
+
+    with pytest.raises(RedisConnectionError):
+        worker_main._handle_rq_pubsub_thread_exception(
+            worker,
+            RedisConnectionError("Connection closed by server."),
+            None,
+            SimpleNamespace(stop=lambda: None),
+        )
+
+
+def test_run_async_process_cancels_pending_tasks_after_keyboard_interrupt():
+    cancelled = []
+
+    async def interrupted_process():
+        background = asyncio.create_task(asyncio.sleep(3600))
+        background.add_done_callback(lambda task: cancelled.append(task.cancelled()))
+        raise KeyboardInterrupt()
+
+    worker_main._run_async_process(interrupted_process)
+
+    assert cancelled == [True]
 
 
 def test_maintenance_process_logs_cleanup_errors_and_keeps_running(monkeypatch):

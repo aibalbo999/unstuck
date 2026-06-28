@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 
 from data_trust import append_source_audit, finalize_data_trust
+from external_search_providers import fetch_alternative_peer_discovery_async, fetch_alternative_search_catalysts_async
 from .market_sources.http_enrichment import (
     fetch_fmp_news_catalysts_async,
     fetch_google_peer_discovery_results_async,
@@ -34,6 +35,15 @@ async def enrich_optional_http_async(ticker: str, data: dict) -> dict:
 
     tasks = {}
     if refresh_catalysts:
+        tasks["search_catalysts"] = audited_fetch_async(
+            "recent_catalysts",
+            "Alternative Search",
+            fetch_alternative_search_catalysts_async,
+            (resolved_ticker, company_name, identity),
+            default=[],
+            cache_hit=cache_hit,
+            unavailable_message="Alternative Search 未回傳近期催化劑。",
+        )
         tasks["google_catalysts"] = audited_fetch_async(
             "recent_catalysts",
             "Google Search",
@@ -53,6 +63,15 @@ async def enrich_optional_http_async(ticker: str, data: dict) -> dict:
             unavailable_message="FMP news 未回傳近期新聞。",
         )
     if refresh_peer_discovery:
+        tasks["search_peer_discovery"] = audited_fetch_async(
+            "peer_discovery",
+            "Alternative Search",
+            fetch_alternative_peer_discovery_async,
+            (resolved_ticker, company_name, sector, industry),
+            default=[],
+            cache_hit=cache_hit,
+            unavailable_message="Alternative Search 未回傳同業搜尋結果。",
+        )
         tasks["google_peer_discovery"] = audited_fetch_async(
             "peer_discovery",
             "Google Search",
@@ -76,6 +95,10 @@ async def enrich_optional_http_async(ticker: str, data: dict) -> dict:
         results.get("google_catalysts", {}).get("value", [])
         if isinstance(results.get("google_catalysts"), dict) else []
     )
+    search_catalysts_records = (
+        results.get("search_catalysts", {}).get("value", [])
+        if isinstance(results.get("search_catalysts"), dict) else []
+    )
     fmp_news_records = (
         results.get("fmp_news", {}).get("value", [])
         if isinstance(results.get("fmp_news"), dict) else []
@@ -83,6 +106,10 @@ async def enrich_optional_http_async(ticker: str, data: dict) -> dict:
     google_peer_discovery_records = (
         results.get("google_peer_discovery", {}).get("value", [])
         if isinstance(results.get("google_peer_discovery"), dict) else []
+    )
+    search_peer_discovery_records = (
+        results.get("search_peer_discovery", {}).get("value", [])
+        if isinstance(results.get("search_peer_discovery"), dict) else []
     )
     if refresh_catalysts and resolved_ticker != ticker and not fmp_news_records:
         retry_result = await audited_fetch_async(
@@ -99,7 +126,9 @@ async def enrich_optional_http_async(ticker: str, data: dict) -> dict:
             async_audit_entries.append(retry_result["audit"])
 
     http_bundle = {
+        "search_catalysts": search_catalysts_records,
         "google_catalysts": google_catalysts_records,
+        "search_peer_discovery": search_peer_discovery_records,
         "google_peer_discovery": google_peer_discovery_records,
         "fmp_news": fmp_news_records,
     }

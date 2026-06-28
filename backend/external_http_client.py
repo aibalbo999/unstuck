@@ -27,14 +27,19 @@ QUERY_SECRET_PATTERN = re.compile(
 )
 
 
-def sync_json_get(url: str, params: dict[str, Any]) -> Any:
-    response = httpx.get(url, params=params, timeout=HTTP_TIMEOUT_SECONDS)
+def sync_json_get(url: str, params: dict[str, Any], headers: dict[str, str] | None = None) -> Any:
+    response = httpx.get(url, params=params, headers=headers, timeout=HTTP_TIMEOUT_SECONDS)
     response.raise_for_status()
     return response.json()
 
 
-async def async_json_get(client: httpx.AsyncClient, url: str, params: dict[str, Any]) -> Any:
-    response = await client.get(url, params=params)
+async def async_json_get(
+    client: httpx.AsyncClient,
+    url: str,
+    params: dict[str, Any],
+    headers: dict[str, str] | None = None,
+) -> Any:
+    response = await client.get(url, params=params, headers=headers)
     response.raise_for_status()
     return response.json()
 

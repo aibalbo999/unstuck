@@ -6,12 +6,14 @@ import asyncio
 
 import external_data_fmp as _fmp
 import external_data_google as _google
+import external_search_providers as _search
 from config import (
     CATALYST_LOOKBACK_DAYS,
     FMP_API_KEY,
     FMP_BASE_URL,
     GOOGLE_CSE_ID,
     GOOGLE_SEARCH_API_KEY,
+    GOOGLE_SEARCH_REFERER,
 )
 from external_http_client import async_json_get, build_http_warning, log_http_warning, sync_json_get
 
@@ -32,9 +34,11 @@ def _sync_source_seams() -> None:
     _google.CATALYST_LOOKBACK_DAYS = CATALYST_LOOKBACK_DAYS
     _google.GOOGLE_SEARCH_API_KEY = GOOGLE_SEARCH_API_KEY
     _google.GOOGLE_CSE_ID = GOOGLE_CSE_ID
+    _google.GOOGLE_SEARCH_REFERER = GOOGLE_SEARCH_REFERER
     _google._sync_json_get = _sync_json_get
     _google._async_json_get = _async_json_get
     _google.log_http_warning = log_http_warning
+    _search._async_json_get = _async_json_get
 
 
 def fetch_fmp_quote_fallback(ticker: str) -> dict:
@@ -67,6 +71,16 @@ async def fetch_google_peer_discovery_results_async(ticker: str, company_name: s
     return await _google.fetch_google_peer_discovery_results_async(ticker, company_name, sector, industry)
 
 
+async def fetch_alternative_search_catalysts_async(ticker: str, company_name: str, identity: dict) -> list[dict]:
+    _sync_source_seams()
+    return await _search.fetch_alternative_search_catalysts_async(ticker, company_name, identity)
+
+
+async def fetch_alternative_peer_discovery_async(ticker: str, company_name: str, sector: str, industry: str) -> list[dict]:
+    _sync_source_seams()
+    return await _search.fetch_alternative_peer_discovery_async(ticker, company_name, sector, industry)
+
+
 def fetch_fmp_news_catalysts(ticker: str) -> list[dict]:
     _sync_source_seams()
     return _fmp.fetch_fmp_news_catalysts(ticker)
@@ -91,8 +105,10 @@ async def fetch_optional_http_data_bundle(
     SDK-backed sources such as yfinance and FinMind stay outside this bundle.
     """
     tasks = {
+        "search_catalysts": fetch_alternative_search_catalysts_async(ticker, company_name, identity),
         "google_catalysts": fetch_google_search_catalysts_async(ticker, company_name, identity),
         "fmp_news": fetch_fmp_news_catalysts_async(ticker),
+        "search_peer_discovery": fetch_alternative_peer_discovery_async(ticker, company_name, sector, industry),
         "google_peer_discovery": fetch_google_peer_discovery_results_async(ticker, company_name, sector, industry),
     }
     if include_quote:

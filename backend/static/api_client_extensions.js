@@ -39,6 +39,14 @@
         });
     }
 
+    async function fetchMarketScreener() { return jsonRequest('/api/watchlist/screener'); }
+    async function runMarketScreener() {
+        return jsonRequest('/api/watchlist/screener/run', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ force: true })
+        });
+    }
+
     async function fetchDecisionTracking() {
         return jsonRequest('/api/decision-tracking');
     }
@@ -71,6 +79,8 @@
         saveWatchlistItem,
         deleteWatchlistItem,
         runWatchlist,
+        fetchMarketScreener,
+        runMarketScreener,
         fetchDecisionTracking,
         saveDecisionTrackingItem,
         deleteDecisionTrackingItem,

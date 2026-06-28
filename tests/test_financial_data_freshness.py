@@ -136,6 +136,8 @@ def test_async_fetch_skips_fresh_optional_sources(monkeypatch):
     cached_writes = []
     monkeypatch.setattr(financial_data.time_module, "time", lambda: 200.0)
     monkeypatch.setattr(financial_data, "fetch_stock_data", fake_fetch_stock_data)
+    monkeypatch.setattr(optional_enrichment, "fetch_alternative_search_catalysts_async", fail_if_called)
+    monkeypatch.setattr(optional_enrichment, "fetch_alternative_peer_discovery_async", fail_if_called)
     monkeypatch.setattr(optional_enrichment, "fetch_google_search_catalysts_async", fail_if_called)
     monkeypatch.setattr(optional_enrichment, "fetch_fmp_news_catalysts_async", fail_if_called)
     monkeypatch.setattr(optional_enrichment, "fetch_google_peer_discovery_results_async", fail_if_called)
