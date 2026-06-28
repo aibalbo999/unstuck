@@ -114,6 +114,8 @@ export GEMINI_API_KEYS="your_key_1,your_key_2"
 
 修改端點會要求 `X-Mutation-Token`。若沒有設定 `MUTATION_API_TOKEN`，後端會在啟動時產生同源 runtime token，前端會自動透過 `/api/client-config` 取得；自動化腳本可參考 [docs/api.md](docs/api.md)。
 
+Production profile 請設定 `UNSTUCK_ENV=production` 或 `DEPLOYMENT_MODE=server`，並明確提供 `MUTATION_API_TOKEN` 與非 wildcard 的 `ALLOWED_ORIGINS`。Production 缺 token 或使用 `ALLOWED_ORIGINS=*` 會 fail fast；local profile 則維持 runtime token，僅適合綁定 `127.0.0.1` 的本機使用。
+
 提交前可執行離線 secret 掃描：
 
 ```bash
@@ -147,6 +149,9 @@ export GEMINI_API_KEYS="your_key_1,your_key_2"
 - `TASK_QUEUE_BACKEND`：任務佇列後端，Web/API 模式必須使用 `rq`，預設 `rq`；`TASK_QUEUE_BACKEND=local` 僅保留給嵌入式測試/本地 helper，API 會以 `API task queue requires Redis and RQ` 拒絕啟動
 - `REDIS_URL`：RQ 模式使用的 Redis 連線，預設 `redis://localhost:6379/0`
 - `TASK_QUEUE_NAME`：RQ queue 名稱，預設 `stock-analysis`
+- `UNSTUCK_ENV`：`local` 或 `production`；production 會禁止缺少 mutation token 的不安全啟動
+- `MUTATION_API_TOKEN`：production / server / lan profile 必填；mutation endpoints 使用 `X-Mutation-Token`
+- `ALLOWED_ORIGINS`：production 必須是明確 allowlist，不可使用 `*`
 - `RQ_JOB_MAX_RETRIES`：RQ job 最大重試次數，預設 `4`
 - `RQ_JOB_RETRY_INTERVALS`：RQ 延遲重試秒數清單，預設 `60,300,900,1800`
 - `RQ_JOB_TIMEOUT_SECONDS`：單一 RQ job 最長執行秒數，預設 `14400`（4 小時），避免完整報告/LLM 重跑被 RQ 預設短 timeout 提早中止
@@ -303,6 +308,8 @@ http://127.0.0.1:8080
 
 ## API
 
+Migration note：新整合請使用 `POST /api/analysis-jobs` 建立任務，再用 `GET /api/analysis-jobs/{job_id}/events` 讀 SSE。舊 `GET /api/analyze/{ticker}` 仍保留給既有 UI / script，但已標示 deprecated，未來不應再新增依賴。
+
 取得歷史報告：
 
 ```bash
@@ -312,6 +319,18 @@ curl "http://127.0.0.1:8080/api/reports?q=2308&pipeline=v3&include_versions=true
 ```
 
 分析股票：
+
+```bash
+TOKEN="$(curl -fsS http://127.0.0.1:8080/api/client-config | python -c 'import json,sys; print(json.load(sys.stdin)["mutation_token"])')"
+JOB_ID="$(curl -fsS -X POST http://127.0.0.1:8080/api/analysis-jobs \
+  -H "Content-Type: application/json" \
+  -H "X-Mutation-Token: $TOKEN" \
+  -d '{"ticker":"2330.TW","pipeline_id":"mode_a","force":false,"resume":true}' \
+  | python -c 'import json,sys; print(json.load(sys.stdin)["job_id"])')"
+curl -N "http://127.0.0.1:8080/api/analysis-jobs/${JOB_ID}/events"
+```
+
+舊相容 endpoint 仍可讀：
 
 ```bash
 curl -N http://127.0.0.1:8080/api/analyze/2330

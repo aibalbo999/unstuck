@@ -50,8 +50,8 @@ def validate_runtime_settings() -> list[str]:
         warnings.append("LLM_MODEL_CIRCUIT_* 必須大於 0。")
     if not ALLOWED_ORIGINS:
         warnings.append("ALLOWED_ORIGINS 為空，瀏覽器前端可能無法呼叫 API。")
-    if DEPLOYMENT_MODE not in {"local", "lan", "server"}:
-        warnings.append("DEPLOYMENT_MODE 應為 local、lan 或 server。")
+    if DEPLOYMENT_MODE not in {"local", "dev", "development", "test", "lan", "server", "production", "prod"}:
+        warnings.append("DEPLOYMENT_MODE 應為 local、lan、server 或 production。")
     if REPORT_STORAGE_BACKEND not in {"local", "memory"}:
         warnings.append(
             f"REPORT_STORAGE_BACKEND 應為 local 或 memory，目前為 {REPORT_STORAGE_BACKEND}。"
@@ -60,8 +60,10 @@ def validate_runtime_settings() -> list[str]:
         warnings.append(f"CACHE_BACKEND 應為 sqlite、redis 或 memory，目前為 {CACHE_BACKEND}。")
     if not CACHE_NAMESPACE:
         warnings.append("CACHE_NAMESPACE 不可為空。")
-    if DEPLOYMENT_MODE in {"lan", "server"} and not MUTATION_API_TOKEN:
-        raise RuntimeError("DEPLOYMENT_MODE 為 lan/server 時必須設定 MUTATION_API_TOKEN，避免 mutation endpoints 在未受保護狀態下啟動。")
+    if is_production_profile(DEPLOYMENT_MODE) and not MUTATION_API_TOKEN:
+        raise RuntimeError("production/lan/server profile 必須設定 MUTATION_API_TOKEN，避免 mutation endpoints 在未受保護狀態下啟動。")
+    if is_production_profile(DEPLOYMENT_MODE) and "*" in ALLOWED_ORIGINS:
+        raise RuntimeError("production/lan/server profile 不允許 ALLOWED_ORIGINS 使用萬用字元 *。")
     invalid_freshness = [
         source for source, seconds in SOURCE_FRESHNESS_MAX_AGE_SECONDS.items()
         if int(seconds) <= 0

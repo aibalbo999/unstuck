@@ -9,12 +9,16 @@ from .env import env_list, env_str, load_local_env
 
 load_local_env()
 
-DEPLOYMENT_MODE = env_str("DEPLOYMENT_MODE", "local").strip().lower()
+UNSTUCK_ENV = env_str("UNSTUCK_ENV", "").strip().lower()
+_deployment_mode = env_str("DEPLOYMENT_MODE", "").strip().lower()
+if UNSTUCK_ENV in {"production", "prod"}:
+    DEPLOYMENT_MODE = "production"
+elif UNSTUCK_ENV in {"local", "dev", "development", "test"} and not _deployment_mode:
+    DEPLOYMENT_MODE = "local"
+else:
+    DEPLOYMENT_MODE = _deployment_mode or "local"
 _configured_token = os.getenv("MUTATION_API_TOKEN")
 MUTATION_API_TOKEN: str | None = str(_configured_token).strip() if _configured_token else None
-if DEPLOYMENT_MODE not in {"local", "dev", "development", "test"} and not MUTATION_API_TOKEN:
-    raise ValueError("MUTATION_API_TOKEN must be set in production.")
-
 
 ALLOWED_ORIGINS = env_list(
     "ALLOWED_ORIGINS",
@@ -29,4 +33,16 @@ ALLOWED_ORIGINS = env_list(
         "http://127.0.0.1:8080",
     ],
 )
-__all__ = ["ALLOWED_ORIGINS", "MUTATION_API_TOKEN", "DEPLOYMENT_MODE"]
+
+
+def is_production_profile(mode: str | None = None) -> bool:
+    return str(mode or DEPLOYMENT_MODE or "local").strip().lower() in {"production", "prod", "server", "lan"}
+
+
+if is_production_profile() and not MUTATION_API_TOKEN:
+    raise ValueError("MUTATION_API_TOKEN must be set in production.")
+if is_production_profile() and "*" in ALLOWED_ORIGINS:
+    raise ValueError("ALLOWED_ORIGINS cannot include wildcard in production.")
+
+
+__all__ = ["ALLOWED_ORIGINS", "MUTATION_API_TOKEN", "DEPLOYMENT_MODE", "UNSTUCK_ENV", "is_production_profile"]

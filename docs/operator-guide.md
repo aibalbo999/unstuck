@@ -17,6 +17,26 @@ scripts/check_runtime.py --strict
 scripts/demo_report.sh
 ```
 
+## Local And Production Profiles
+
+Local mode is the default:
+
+```bash
+UNSTUCK_ENV=local
+```
+
+Local mode keeps the workstation-friendly runtime token behavior: if `MUTATION_API_TOKEN` is absent, FastAPI generates a same-origin runtime token and exposes it through `/api/client-config` for the bundled UI. Keep the server bound to `127.0.0.1` unless you intentionally use trusted LAN mode, and do not expose local mode directly to a public network.
+
+Production mode can be selected with either `UNSTUCK_ENV=production` or the existing `DEPLOYMENT_MODE=server` / `DEPLOYMENT_MODE=lan` profiles:
+
+```bash
+UNSTUCK_ENV=production
+MUTATION_API_TOKEN=replace_with_long_random_secret
+ALLOWED_ORIGINS=https://your-ui.example.com
+```
+
+Production startup fails fast if `MUTATION_API_TOKEN` is missing. `ALLOWED_ORIGINS=*` is rejected in production; use an explicit allowlist. Mutation endpoints check `X-Mutation-Token`, report HTML responses include CSP / nosniff / referrer headers, and API error payloads should not include secrets, stack traces, or local filesystem paths.
+
 ## Split API / Worker Startup
 
 FastAPI is now a lightweight HTTP/RQ producer. The macOS launcher handles Redis and Worker startup automatically for local use. For manual or process-manager operation, run Redis and the Worker separately before starting the API:
@@ -42,6 +62,8 @@ RQ retry behavior is configured with `RQ_JOB_MAX_RETRIES` and `RQ_JOB_RETRY_INTE
 Analysis workflow execution is durable. Each Worker run uses LangGraph with a SQLite checkpointer at `LANGGRAPH_CHECKPOINT_PATH` (default `backend/cache/langgraph_checkpoints.sqlite3`). A pipeline segment uses `thread_id = job_id:pipeline_id`; if an LLM call exhausts short in-node retries and the outer RQ job retries later, the Worker resumes the same graph thread instead of repeating completed Agent nodes. Do not delete the checkpoint DB while jobs are `queued`, `running`, or `waiting_retry`.
 
 Checkpoint cleanup policy is intentionally conservative for local-first operation: back up or delete old checkpoint files only after related jobs have reached `done`, `error`, or `cancelled`, and after preserving any reports you need. The checkpoint stores JSON-compatible graph state only; callbacks, API clients, Redis handles, and SQLite connections are process-local and are rebuilt on resume.
+
+Analysis job state lives in `TASK_DB_PATH`. The same SQLite DB now contains jobs, SSE events, and per-node telemetry. API and worker processes must point at the same `TASK_DB_PATH`; otherwise the API can enqueue work but the UI will not see progress. Suggested retention is the default `ANALYSIS_JOB_HISTORY_RETENTION_DAYS=30`; use cleanup dry-runs before deleting old event/telemetry history.
 
 `SIGTERM` / `SIGINT` sent to `worker_main.py --role all` is forwarded to child roles. Queue workers can be smoke-tested without staying resident:
 
@@ -138,6 +160,8 @@ scripts/maintenance.sh storage-summary
 scripts/maintenance.sh cleanup-report-index --write
 scripts/maintenance.sh cleanup-analysis-history --write
 ```
+
+Job cleanup keeps active `queued`, `running`, and `waiting_retry` rows. It removes only terminal history older than the configured retention window plus orphan events. For production, schedule cleanup during quiet hours and keep report output backups separate from `TASK_DB_PATH` cleanup.
 
 ## Safety
 

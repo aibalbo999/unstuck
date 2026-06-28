@@ -54,6 +54,7 @@ class WorkflowServices:
     persist_report: Callable[[AgentGraphState], Awaitable[dict[str, Any]]]
     progress_callback: Callable[..., Any] | None = None
     cancel_check: Callable[[], None] | None = None
+    telemetry_callback: Callable[[dict[str, Any]], Any] | None = None
 
 
 def create_default_workflow_services(
@@ -61,6 +62,7 @@ def create_default_workflow_services(
     rotator: Any | None = None,
     progress_callback: Callable[..., Any] | None = None,
     cancel_check: Callable[[], None] | None = None,
+    telemetry_callback: Callable[[dict[str, Any]], Any] | None = None,
 ) -> WorkflowServices:
     active_rotator = rotator if rotator is not None else KeyRotator(API_KEYS)
     holder: dict[str, WorkflowServices] = {}
@@ -110,6 +112,7 @@ def create_default_workflow_services(
         persist_report=persist_report,
         progress_callback=progress_callback,
         cancel_check=cancel_check,
+        telemetry_callback=telemetry_callback,
     )
     holder["services"] = services
     return services

@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Optional
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
+from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
+
+from api_routes.analysis_sse import analysis_event_generator, next_sse_poll_interval, resolve_resume_after_id
 
 
 @dataclass(frozen=True)
@@ -32,12 +34,84 @@ class AnalysisRouteDeps:
     request_job_cancel: Callable[[str, str], bool]
     print_streamed_event: Callable[[str, dict], None]
     require_mutation_authorized: Callable[[Request], None]
+    create_or_attach_analysis_job: Callable[..., dict] | None = None
+    cancel_analysis_job: Callable[..., dict | None] | None = None
+    serialize_analysis_job: Callable[[dict], dict] | None = None
+    serialize_node_telemetry: Callable[[str], dict] | None = None
+
+
+class AnalysisJobCreateRequest(BaseModel):
+    ticker: str = Field(..., min_length=1, max_length=32)
+    pipeline_id: str = Field("v1", max_length=24)
+    force: bool = False
+    resume: bool = True
 
 
 def create_analysis_router(deps: AnalysisRouteDeps) -> APIRouter:
-    router = APIRouter(prefix="/api/analyze")
+    router = APIRouter()
 
-    @router.get("/{ticker}")
+    @router.post("/api/analysis-jobs")
+    async def create_analysis_job(request: Request, body: AnalysisJobCreateRequest):
+        deps.require_mutation_authorized(request)
+        ticker_upper = body.ticker.strip().upper()
+        pipeline_id = deps.normalize_pipeline_run_id(body.pipeline_id)
+        if deps.create_or_attach_analysis_job is not None:
+            return deps.create_or_attach_analysis_job(
+                ticker=ticker_upper,
+                pipeline_id=pipeline_id,
+                force=body.force,
+                resume=body.resume,
+                task_queue=deps.get_analysis_task_queue(),
+                run_stock_analysis_job=deps.run_stock_analysis_job,
+            )
+        return _legacy_create_and_enqueue_via_deps(deps, ticker_upper, pipeline_id)
+
+    @router.get("/api/analysis-jobs/{job_id}")
+    async def get_analysis_job(job_id: str):
+        job = deps.get_job(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Analysis job not found")
+        return _serialize_job(deps, job)
+
+    @router.get("/api/analysis-jobs/{job_id}/telemetry")
+    async def get_analysis_job_telemetry(job_id: str):
+        job = deps.get_job(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Analysis job not found")
+        if deps.serialize_node_telemetry is None:
+            return {"job_id": job_id, "telemetry": []}
+        return deps.serialize_node_telemetry(job_id)
+
+    @router.get("/api/analysis-jobs/{job_id}/events")
+    async def stream_analysis_job_events(
+        job_id: str,
+        request: Request,
+        last_event_id: Optional[int] = Query(None, ge=0),
+        since_id: Optional[int] = Query(None, ge=0),
+        cancel_on_disconnect: bool = Query(False),
+    ):
+        job = deps.get_job(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Analysis job not found")
+        resume_after_id = resolve_resume_after_id(request, last_event_id, since_id)
+        return EventSourceResponse(
+            analysis_event_generator(
+                deps,
+                request,
+                job_id=job_id,
+                resume_after_id=resume_after_id,
+                cancel_on_disconnect=cancel_on_disconnect,
+                intro_payload={
+                    "type": "job",
+                    "job_id": job_id,
+                    "ticker": job.get("ticker"),
+                    "resume_after_id": resume_after_id,
+                    "pipeline_id": job.get("pipeline_id", "v1"),
+                },
+            )
+        )
+
+    @router.get("/api/analyze/{ticker}")
     async def analyze_stock(
         ticker: str,
         request: Request,
@@ -76,8 +150,20 @@ def create_analysis_router(deps: AnalysisRouteDeps) -> APIRouter:
                 if active_job:
                     job_id = active_job["job_id"]
                 else:
-                    job_id = deps.create_job(ticker_upper, pipeline_id)
-                    should_enqueue = True
+                    if deps.create_or_attach_analysis_job is not None:
+                        created = deps.create_or_attach_analysis_job(
+                            ticker=ticker_upper,
+                            pipeline_id=pipeline_id,
+                            force=False,
+                            resume=True,
+                            task_queue=deps.get_analysis_task_queue(),
+                            run_stock_analysis_job=deps.run_stock_analysis_job,
+                        )
+                        job_id = created["job_id"]
+                        should_enqueue = False
+                    else:
+                        job_id = deps.create_job(ticker_upper, pipeline_id)
+                        should_enqueue = True
 
         if should_enqueue:
             try:
@@ -93,81 +179,32 @@ def create_analysis_router(deps: AnalysisRouteDeps) -> APIRouter:
                 deps.update_job(job_id, "error", error=message)
                 deps.append_event(job_id, {"type": "error", "message": message})
 
-        async def event_generator():
-            last_sent_event_id = resume_after_id
-            terminal_sent = False
-            yield {
-                "data": json.dumps(
-                    {
-                        "type": "job",
-                        "job_id": job_id,
-                        "ticker": ticker_upper,
-                        "resume_after_id": resume_after_id,
-                        "pipeline_id": pipeline_id,
-                        "pipeline_label": pipeline_label,
-                        "pipeline_sequence": list(pipeline_sequence),
-                        "agent_total": agent_total,
-                    },
-                    ensure_ascii=False,
-                )
-            }
-            while True:
-                if await request.is_disconnected():
-                    deps.append_event(job_id, {
-                        "type": "status",
-                        "phase": "client_disconnected",
-                        "level": "info",
-                        "message": "SSE 客戶端已斷線。",
-                        "pipeline_id": pipeline_id,
-                        "pipeline_label": pipeline_label,
-                    })
-                    if cancel_on_disconnect:
-                        await asyncio.to_thread(deps.request_job_cancel, job_id, "SSE 客戶端斷線，已要求取消分析任務。")
-                    break
+        response = EventSourceResponse(
+            analysis_event_generator(
+                deps,
+                request,
+                job_id=job_id,
+                resume_after_id=resume_after_id,
+                cancel_on_disconnect=cancel_on_disconnect,
+                intro_payload={
+                    "type": "job",
+                    "job_id": job_id,
+                    "ticker": ticker_upper,
+                    "resume_after_id": resume_after_id,
+                    "pipeline_id": pipeline_id,
+                    "pipeline_label": pipeline_label,
+                    "pipeline_sequence": list(pipeline_sequence),
+                    "agent_total": agent_total,
+                    "deprecated": True,
+                    "replacement_endpoint": "/api/analysis-jobs",
+                },
+            )
+        )
+        response.headers["Deprecation"] = "true"
+        response.headers["Link"] = '</api/analysis-jobs>; rel="successor-version"'
+        return response
 
-                events = await asyncio.to_thread(deps.get_events_since, job_id, last_sent_event_id)
-                for event in events:
-                    if await request.is_disconnected():
-                        terminal_sent = True
-                        break
-                    last_sent_event_id = event["id"]
-                    payload = event["payload"]
-                    deps.print_streamed_event(job_id, payload)
-                    yield {"id": str(event["id"]), "data": json.dumps(payload, ensure_ascii=False)}
-                    if payload.get("type") in ["done", "error"]:
-                        terminal_sent = True
-                        break
-
-                if terminal_sent:
-                    break
-
-                job = await asyncio.to_thread(deps.get_job, job_id)
-                if job.get("status") in ["done", "error", "cancelled"]:
-                    if job.get("status") == "done":
-                        job_pipeline_id = job.get("pipeline_id", pipeline_id)
-                        job_pipeline_sequence = deps.get_pipeline_run_sequence(job_pipeline_id)
-                        payload = {
-                            "type": "done",
-                            "filename": job.get("filename"),
-                            "pipeline_id": job_pipeline_id,
-                            "last_pipeline_id": job_pipeline_sequence[-1] if job_pipeline_sequence else job_pipeline_id,
-                        }
-                    elif job.get("status") == "cancelled":
-                        payload = {"type": "error", "phase": "cancelled", "message": job.get("error", "分析任務已取消")}
-                    else:
-                        payload = {"type": "error", "message": job.get("error", "分析任務失敗")}
-                    yield {"data": json.dumps(payload, ensure_ascii=False)}
-                    break
-
-                if not events:
-                    if await request.is_disconnected():
-                        break
-                    yield {"event": "ping", "data": "ping"}
-                await asyncio.sleep(0.5)
-
-        return EventSourceResponse(event_generator())
-
-    @router.post("/{ticker}/cancel")
+    @router.post("/api/analyze/{ticker}/cancel")
     async def cancel_analysis_job(
         request: Request,
         ticker: str,
@@ -183,4 +220,41 @@ def create_analysis_router(deps: AnalysisRouteDeps) -> APIRouter:
         ok = deps.request_job_cancel(job_id, "使用者要求取消分析任務。")
         return {"ok": ok, "job_id": job_id, "status": "cancelling" if ok else "not_found"}
 
+    @router.post("/api/analysis-jobs/{job_id}/cancel")
+    async def cancel_analysis_job_by_id(request: Request, job_id: str):
+        deps.require_mutation_authorized(request)
+        job = deps.get_job(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Analysis job not found")
+        if deps.cancel_analysis_job is not None:
+            result = deps.cancel_analysis_job(job_id, task_queue=deps.get_analysis_task_queue())
+            if result is None:
+                raise HTTPException(status_code=404, detail="Analysis job not found")
+            return result
+        ok = deps.request_job_cancel(job_id, "使用者要求取消分析任務。")
+        return {"job_id": job_id, "status": "cancelled" if ok else "not_found"}
+
     return router
+
+
+def _serialize_job(deps: AnalysisRouteDeps, job: dict) -> dict:
+    if deps.serialize_analysis_job is not None:
+        return deps.serialize_analysis_job(job)
+    return dict(job)
+
+
+def _legacy_create_and_enqueue_via_deps(deps: AnalysisRouteDeps, ticker: str, pipeline_id: str) -> dict:
+    job_id = deps.create_job(ticker, pipeline_id)
+    try:
+        deps.get_analysis_task_queue().enqueue(
+            f"analysis:{job_id}",
+            deps.run_stock_analysis_job,
+            job_id,
+            ticker,
+            pipeline_id,
+        )
+    except Exception as exc:
+        message = f"分析任務送入佇列失敗：{exc}"
+        deps.update_job(job_id, "error", error=message)
+        deps.append_event(job_id, {"type": "error", "message": message})
+    return _serialize_job(deps, deps.get_job(job_id))

@@ -35,11 +35,16 @@ def legacy_context_from_graph(*args: Any, **kwargs: Any):
 class AnalysisPipelineRunner:
     async def run_async(self, request: AnalysisRequest) -> AnalysisResult:
         started = time.time()
-        services = create_default_workflow_services(
-            progress_callback=request.progress_callback,
-            cancel_check=request.cancel_check,
-        )
+        service_kwargs = {
+            "progress_callback": request.progress_callback,
+            "cancel_check": request.cancel_check,
+        }
+        if request.telemetry_callback is not None:
+            service_kwargs["telemetry_callback"] = request.telemetry_callback
+        services = create_default_workflow_services(**service_kwargs)
         initial_state = services.initialize(dict(request.data), request.pipeline_id)
+        if request.thread_id:
+            initial_state["job_id"] = str(request.thread_id).split(":", 1)[0]
         if request.report_filename:
             initial_state["report_filename"] = request.report_filename
         if request.checkpoint_path:

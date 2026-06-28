@@ -7,12 +7,15 @@ This system is a local-first stock research workstation. FastAPI owns the HTTP b
 ```mermaid
 flowchart LR
     UI["Browser UI"] --> API["FastAPI routers"]
-    API --> Jobs["job_store + SSE events"]
+    API --> JobSvc["analysis_job_service"]
+    JobSvc --> Jobs["job_store\njobs + SSE events + telemetry"]
     API --> Queue["Redis / RQ queue"]
     Queue --> Worker["worker_main queue role"]
     Worker --> Data["StockDataService"]
     Worker --> Runner["AnalysisPipelineRunner"]
     Runner --> Graph["Persistent LangGraph StateGraph"]
+    Graph --> Telemetry["per-node telemetry"]
+    Telemetry --> Jobs
     Graph --> Checkpoints["SQLite checkpoints\nLANGGRAPH_CHECKPOINT_PATH"]
     Graph --> Validate["validate_data"]
     Validate -->|"open"| Repair["repair_data / MOPS"]
@@ -31,16 +34,20 @@ flowchart LR
 ## Main Boundaries
 
 - `backend/api.py` wires HTTP dependencies and app lifespan only. Route behavior lives in `backend/api_routes/`.
+- `backend/analysis_job_service.py` owns the formal analysis job lifecycle: create-or-attach, force supersede, enqueue, cancel, and API serialization. Routes do not duplicate queue/store orchestration.
 - `backend/worker_main.py` owns background process roles: `queue / schedulers / maintenance`. The API process never starts queue consumers, watchlist schedulers, decision tracking schedulers, or cleanup loops.
 - `StockDataService` is the canonical market/fundamental data fetch boundary.
 - `AnalysisPipelineRunner` is the canonical multi-agent analysis boundary and invokes `backend/workflow_graph.py`, not the retired manual DAG group loop.
 - `report_index` and `report_history_service` expose report listing metadata instead of making callers parse files directly.
 - `decision_freshness` separates conclusion freshness from data freshness. A refreshed snapshot can be newer than the HTML/Markdown conclusion, so the API marks that report as `needs_rerun`.
-- Mutation endpoints require a mutation token header. If `MUTATION_API_TOKEN` is not set, the server generates a runtime mutation token and exposes it to the same-origin UI through `/api/client-config`.
+- Mutation endpoints require a mutation token header. Local mode can generate a runtime mutation token and expose it to the same-origin UI through `/api/client-config`; production/server profiles require `MUTATION_API_TOKEN` and explicit CORS origins.
 
 ## Operational State
 
 - Analysis and rerun jobs emit events to SQLite so SSE clients can resume progress.
+- Analysis job creation is a POST mutation at `/api/analysis-jobs`; the older `GET /api/analyze/{ticker}` remains a deprecated compatibility wrapper for existing UI flows.
+- `analysis_jobs(ticker, pipeline_id)` has an active-job uniqueness guard for `queued`, `running`, and `waiting_retry` rows. The create flow uses a SQLite `BEGIN IMMEDIATE` transaction plus a partial unique index so concurrent producers attach to one active job instead of creating duplicate reports.
+- SSE event readers use `/api/analysis-jobs/{job_id}/events`; they never create jobs. Reconnect uses `Last-Event-ID`, `last_event_id`, or `since_id`, idle polling backs off from 0.5s to 5s, and heartbeat events keep proxies/browsers from treating the stream as idle.
 - Web/API mode requires Redis/RQ. `TASK_QUEUE_BACKEND=local` is reserved for embedded tests and is rejected at the API boundary with `API task queue requires Redis and RQ`.
 - RQ retries are configured by `RQ_JOB_MAX_RETRIES` and `RQ_JOB_RETRY_INTERVALS`; retry-delayed jobs use `waiting_retry`, which remains active for duplicate-job checks and observability.
 - LangGraph threads use `job_id:pipeline_id` so continuous runs keep separate durable checkpoints per pipeline segment. Worker execution uses `LANGGRAPH_CHECKPOINT_PATH` with SQLite WAL, `busy_timeout=30000`, and `synchronous=NORMAL`.
@@ -50,6 +57,39 @@ flowchart LR
 - Provider SLA and API quota dashboards are local observations, not provider billing truth.
 - Decision backtests live in `decision_backtest_results` and are keyed by report filename plus horizon to make reruns idempotent.
 - Watchlist trigger configuration and trigger events live beside the watchlist SQLite store, keeping event-radar state separate from report metadata.
+
+## Analysis Job Lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> queued: POST /api/analysis-jobs
+    queued --> running: RQ worker starts
+    running --> waiting_retry: retryable LLM/provider failure
+    waiting_retry --> running: RQ delayed retry resumes checkpoint
+    queued --> cancelled: POST /cancel or force supersede
+    running --> cancelled: cancel_requested observed at checkpoint
+    running --> done: report persisted
+    running --> error: terminal failure
+    waiting_retry --> cancelled: cancel requested before retry
+```
+
+The public job API maps internal `done/error` to `completed/failed` while preserving existing worker/UI status names internally. `force=true` does not let two active jobs race to overwrite the same report: old active jobs are marked `cancelled` with a superseded event before the new queued row is inserted.
+
+## Telemetry Flow
+
+Every LangGraph node is wrapped by a thin telemetry adapter. On success or failure it records:
+
+- `job_id`, `ticker`, `pipeline_id`, and `node_name`
+- model id when known
+- start/end timestamps and latency
+- `success/failed` status, retry count, token placeholders, cache hit, quality gate result
+- sanitized exception class/message on failure
+
+The worker writes telemetry to `analysis_node_telemetry` and also emits non-breaking SSE events with `type=telemetry`. Existing frontends can ignore the new event type. Operators can read the stable schema from `GET /api/analysis-jobs/{job_id}/telemetry`.
+
+## Security Boundary
+
+Local-first mode is intended for `127.0.0.1` workstation use. `UNSTUCK_ENV=local` may use a runtime mutation token for the bundled browser UI. `UNSTUCK_ENV=production`, `DEPLOYMENT_MODE=server`, and `DEPLOYMENT_MODE=lan` require an explicit `MUTATION_API_TOKEN`; wildcard CORS is rejected. Report HTML is served with CSP (`script-src 'none'`), `X-Content-Type-Options: nosniff`, and `Referrer-Policy: no-referrer`. Error and telemetry serialization sanitize token-like strings before they reach API/SSE clients.
 
 ## Durable LangGraph Agent Workflow
 

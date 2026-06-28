@@ -19,6 +19,7 @@ def test_security_settings_fail_fast_without_mutation_token_in_server_mode(monke
     import settings.security as security
 
     monkeypatch.setenv("DEPLOYMENT_MODE", "server")
+    monkeypatch.delenv("UNSTUCK_ENV", raising=False)
     monkeypatch.setenv("MUTATION_API_TOKEN", "")
     monkeypatch.setenv("ADMIN_API_TOKEN", "legacy-token-must-not-bypass-production-check")
 
@@ -26,6 +27,35 @@ def test_security_settings_fail_fast_without_mutation_token_in_server_mode(monke
         importlib.reload(security)
 
     monkeypatch.setenv("DEPLOYMENT_MODE", "local")
+    importlib.reload(security)
+
+
+def test_security_settings_fail_fast_without_mutation_token_in_unstuck_production(monkeypatch):
+    import settings.security as security
+
+    monkeypatch.delenv("DEPLOYMENT_MODE", raising=False)
+    monkeypatch.setenv("UNSTUCK_ENV", "production")
+    monkeypatch.setenv("MUTATION_API_TOKEN", "")
+
+    with pytest.raises(ValueError, match="MUTATION_API_TOKEN must be set in production."):
+        importlib.reload(security)
+
+    monkeypatch.setenv("UNSTUCK_ENV", "local")
+    importlib.reload(security)
+
+
+def test_security_settings_reject_wildcard_cors_in_production(monkeypatch):
+    import settings.security as security
+
+    monkeypatch.setenv("UNSTUCK_ENV", "production")
+    monkeypatch.setenv("MUTATION_API_TOKEN", "prod-token")
+    monkeypatch.setenv("ALLOWED_ORIGINS", "*")
+
+    with pytest.raises(ValueError, match="ALLOWED_ORIGINS cannot include wildcard"):
+        importlib.reload(security)
+
+    monkeypatch.setenv("UNSTUCK_ENV", "local")
+    monkeypatch.delenv("ALLOWED_ORIGINS", raising=False)
     importlib.reload(security)
 
 

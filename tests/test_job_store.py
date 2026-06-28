@@ -1,4 +1,5 @@
 from pathlib import Path
+import threading
 
 import job_observability
 import job_store
@@ -105,3 +106,33 @@ def test_job_store_uses_short_busy_timeout_for_worker_contention():
 
     assert journal_mode == "wal"
     assert busy_timeout == 3000
+
+
+def test_create_or_attach_active_job_is_atomic_for_concurrent_requests():
+    barrier = threading.Barrier(6)
+    results = []
+    errors = []
+    lock = threading.Lock()
+
+    def worker(index):
+        try:
+            barrier.wait(timeout=5)
+            result = job_store.create_or_attach_active_job("2330.TW", "v1", job_id=f"job-{index}")
+            with lock:
+                results.append(result["job"]["job_id"])
+        except Exception as exc:
+            with lock:
+                errors.append(exc)
+
+    threads = [threading.Thread(target=worker, args=(index,)) for index in range(6)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=5)
+
+    assert errors == []
+    assert len(results) == 6
+    assert len(set(results)) == 1
+    active = job_store.list_active_jobs()
+    assert len(active) == 1
+    assert active[0]["ticker"] == "2330.TW"

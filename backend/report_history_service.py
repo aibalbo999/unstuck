@@ -25,6 +25,13 @@ from report_view_repair import repair_report_html_for_view
 from storage.report_storage import ReportStorage
 
 
+REPORT_HTML_SECURITY_HEADERS = {
+    "Content-Security-Policy": "default-src 'self'; script-src 'none'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+}
+
+
 def parse_recommendation_summary(filename: str, output_dir: str) -> dict:
     return parse_report_recommendation_summary(filename, output_dir=output_dir)
 
@@ -220,37 +227,36 @@ def delete_report_files(
 
 def get_report_file(filename: str, output_dir: str, storage: ReportStorage | None = None):
     if not is_safe_report_filename(filename, ".html"):
-        return HTMLResponse("<h1>Invalid filename</h1>", status_code=400)
+        return _secure_html_response("<h1>Invalid filename</h1>", status_code=400)
     content_storage = storage_for_existing_output_dir(output_dir, storage)
     if content_storage is None:
-        return HTMLResponse("<h1>找不到報告</h1>", status_code=404)
+        return _secure_html_response("<h1>找不到報告</h1>", status_code=404)
     item = load_storage_item(content_storage, filename, kind="html")
     if item is None:
-        return HTMLResponse("<h1>找不到報告</h1>", status_code=404)
+        return _secure_html_response("<h1>找不到報告</h1>", status_code=404)
     html = repair_report_html_for_view(item.content.decode("utf-8"))
-    return HTMLResponse(html, media_type="text/html")
+    return _secure_html_response(html)
 
 
 def download_report_file(filename: str, output_dir: str, kind: str, storage: ReportStorage | None = None):
     if not is_safe_report_filename(filename, ".html"):
-        return HTMLResponse("<h1>Invalid filename</h1>", status_code=400)
+        return _secure_html_response("<h1>Invalid filename</h1>", status_code=400)
     content_storage = storage_for_existing_output_dir(output_dir, storage)
     if content_storage is None:
         if kind == "md":
-            return HTMLResponse("<h1>找不到報告 Markdown 版本</h1>", status_code=404)
+            return _secure_html_response("<h1>找不到報告 Markdown 版本</h1>", status_code=404)
         if kind == "data":
-            return HTMLResponse("<h1>找不到報告資料快照</h1>", status_code=404)
+            return _secure_html_response("<h1>找不到報告資料快照</h1>", status_code=404)
         if kind == "html":
-            return HTMLResponse("<h1>找不到報告</h1>", status_code=404)
+            return _secure_html_response("<h1>找不到報告</h1>", status_code=404)
         raise ValueError(f"Unknown report download kind: {kind}")
     if kind == "html":
         item = load_storage_item(content_storage, filename, kind="html")
         if item is None:
             return HTMLResponse("<h1>找不到報告</h1>", status_code=404)
         html = repair_report_html_for_view(item.content.decode("utf-8"))
-        return HTMLResponse(
+        return _secure_html_response(
             html,
-            media_type="text/html",
             headers={"Content-Disposition": f"attachment; filename={filename}"},
         )
     if kind == "md":
@@ -262,7 +268,7 @@ def download_report_file(filename: str, output_dir: str, kind: str, storage: Rep
                 media_type=item.metadata.content_type,
                 headers={"Content-Disposition": f"attachment; filename={md_filename}"},
             )
-        return HTMLResponse("<h1>找不到報告 Markdown 版本</h1>", status_code=404)
+        return _secure_html_response("<h1>找不到報告 Markdown 版本</h1>", status_code=404)
     if kind == "data":
         data_filename = data_snapshot_filename_for_report(filename)
         item = load_storage_item(content_storage, filename, kind="data")
@@ -272,5 +278,11 @@ def download_report_file(filename: str, output_dir: str, kind: str, storage: Rep
                 media_type=item.metadata.content_type,
                 headers={"Content-Disposition": f"attachment; filename={data_filename}"},
             )
-        return HTMLResponse("<h1>找不到報告資料快照</h1>", status_code=404)
+        return _secure_html_response("<h1>找不到報告資料快照</h1>", status_code=404)
     raise ValueError(f"Unknown report download kind: {kind}")
+
+
+def _secure_html_response(content: str, *, status_code: int = 200, headers: dict | None = None) -> HTMLResponse:
+    response_headers = dict(REPORT_HTML_SECURITY_HEADERS)
+    response_headers.update(headers or {})
+    return HTMLResponse(content, status_code=status_code, media_type="text/html", headers=response_headers)

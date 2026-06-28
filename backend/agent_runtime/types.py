@@ -38,6 +38,7 @@ class AnalysisRequest:
     checkpointer: Any | None = None
     checkpoint_path: Optional[str] = None
     report_filename: Optional[str] = None
+    telemetry_callback: Optional[Callable[[dict], Any]] = None
 
 
 @dataclass

@@ -9,6 +9,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from agent_runtime import AnalysisPipelineRunner
+from analysis_job_service import (
+    cancel_analysis_job as cancel_analysis_job_service,
+    create_or_attach_analysis_job,
+    serialize_analysis_job,
+    serialize_node_telemetry,
+)
 from analysis_jobs import run_stock_analysis_job
 from api_routes.analysis import AnalysisRouteDeps, create_analysis_router
 from api_routes.decision_tracking import DecisionTrackingRouteDeps, create_decision_tracking_router
@@ -214,6 +220,10 @@ def create_app() -> FastAPI:
         request_job_cancel=lambda job_id, reason: request_job_cancel(job_id, reason),
         print_streamed_event=print_streamed_event,
         require_mutation_authorized=require_mutation_authorized,
+        create_or_attach_analysis_job=create_or_attach_analysis_job,
+        cancel_analysis_job=cancel_analysis_job_service,
+        serialize_analysis_job=serialize_analysis_job,
+        serialize_node_telemetry=serialize_node_telemetry,
     )))
     return app
 

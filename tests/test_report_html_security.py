@@ -138,3 +138,17 @@ def test_taiwan_ticker_autolinks_use_real_quote_pages():
     assert 'href="https://tw.stock.yahoo.com/quote/2308.TW"' in html
     assert 'href="http://2308.TW"' not in html
     assert 'href="https://example.com"' in html
+
+
+def test_report_html_response_includes_security_headers(tmp_path):
+    import report_history_service
+
+    filename = "2330_TW_v1_report_20260628_010000.html"
+    (tmp_path / filename).write_text("<html><body>report</body></html>", encoding="utf-8")
+
+    response = report_history_service.get_report_file(filename, str(tmp_path))
+
+    assert response.headers["content-security-policy"].startswith("default-src 'self'")
+    assert "script-src 'none'" in response.headers["content-security-policy"]
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["referrer-policy"] == "no-referrer"

@@ -75,6 +75,24 @@ class LocalAsyncQueue:
             logger.error("Local async queue is full.")
             raise
 
+    def cancel(self, task_id: str) -> bool:
+        retained = []
+        removed = False
+        while True:
+            try:
+                item = self.queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+            queued_task_id = item[0]
+            if queued_task_id == task_id:
+                removed = True
+                self.queue.task_done()
+            else:
+                retained.append(item)
+        for item in retained:
+            self.queue.put_nowait(item)
+        return removed
+
 
 class RQTaskQueue:
     """Thin RQ adapter for deployments that provide Redis workers."""
@@ -118,6 +136,19 @@ class RQTaskQueue:
             result_ttl=7 * 24 * 60 * 60,
             failure_ttl=7 * 24 * 60 * 60,
         )
+
+    def cancel(self, task_id: str) -> bool:
+        fetch_job = getattr(self.queue, "fetch_job", None)
+        job = fetch_job(task_id) if callable(fetch_job) else None
+        if job is None:
+            return False
+        cancel = getattr(job, "cancel", None)
+        delete = getattr(job, "delete", None)
+        if callable(cancel):
+            cancel()
+        if callable(delete):
+            delete()
+        return True
 
 
 def create_api_task_queue():

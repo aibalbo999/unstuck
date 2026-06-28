@@ -12,14 +12,18 @@ from sqlite3 import Row
 from config import ANALYSIS_JOB_STALE_SECONDS, TASK_DB_PATH
 from api_usage_recorders import record_runtime_event_usage
 import job_store_events
+import job_store_lifecycle
+import job_store_telemetry
 from job_store_schema import init_job_store_schema
 from runtime_events import emit_log, format_event_log_line
+from security_sanitizer import sanitize_error_message
 from storage.sqlite_resource import ThreadLocalSqliteResource
 
 
 _JOB_LOCK = threading.Lock()
 ACTIVE_JOB_STATUSES = ("queued", "running", "waiting_retry")
 TERMINAL_JOB_STATUSES = {"done", "error", "cancelled"}
+PUBLIC_TERMINAL_STATUSES = {"completed", "failed", "cancelled"}
 
 
 _resource = ThreadLocalSqliteResource(
@@ -65,6 +69,30 @@ def create_job(ticker: str, pipeline_id: str = "v1", worker_instance_id: str | N
     return job_id
 
 
+def create_or_attach_active_job(
+    ticker: str,
+    pipeline_id: str = "v1",
+    *,
+    force: bool = False,
+    resume: bool = True,
+    job_id: str | None = None,
+    worker_instance_id: str | None = None,
+) -> dict:
+    return job_store_lifecycle.create_or_attach_active_job(
+        _connect,
+        _JOB_LOCK,
+        ACTIVE_JOB_STATUSES,
+        ANALYSIS_JOB_STALE_SECONDS,
+        append_event,
+        ticker,
+        pipeline_id,
+        force=force,
+        resume=resume,
+        job_id=job_id,
+        worker_instance_id=worker_instance_id,
+    )
+
+
 def update_job(job_id: str, status: str, filename: str = None, error: str = None, data_snapshot: dict = None, metrics_snapshot: dict = None) -> None:
     with _JOB_LOCK, _connect() as conn:
         current = conn.execute(
@@ -83,7 +111,14 @@ def update_job(job_id: str, status: str, filename: str = None, error: str = None
             next_filename = None
             next_error = current["error"] or "任務已取消，忽略完成狀態。"
         set_clauses = ["status = ?", "filename = COALESCE(?, filename)", "error = ?", "updated_at = ?"]
-        params = [next_status, next_filename, next_error, time.time()]
+        now = time.time()
+        params = [next_status, next_filename, sanitize_error_message(next_error), now]
+        if next_status == "running":
+            set_clauses.append("started_at = COALESCE(started_at, ?)")
+            params.append(now)
+        if next_status in TERMINAL_JOB_STATUSES:
+            set_clauses.append("finished_at = COALESCE(finished_at, ?)")
+            params.append(now)
         
         if data_snapshot is not None:
             set_clauses.append("data_snapshot = ?")
@@ -111,18 +146,14 @@ def get_job(job_id: str) -> dict:
 
 
 def find_active_job(ticker: str, pipeline_id: str = "v1") -> dict:
-    cutoff = time.time() - ANALYSIS_JOB_STALE_SECONDS
     with _connect() as conn:
-        row = conn.execute(
-            f"""
-            SELECT * FROM analysis_jobs
-            WHERE ticker = ? AND pipeline_id = ? AND status IN ({_active_status_placeholders()}) AND updated_at >= ?
-              AND COALESCE(cancel_requested, 0) = 0
-            ORDER BY created_at DESC
-            LIMIT 1
-            """,
-            (ticker, pipeline_id, *ACTIVE_JOB_STATUSES, cutoff),
-        ).fetchone()
+        row = job_store_lifecycle.find_active_job_in_conn(
+            conn,
+            ACTIVE_JOB_STATUSES,
+            ANALYSIS_JOB_STALE_SECONDS,
+            ticker,
+            pipeline_id,
+        )
     return dict(row) if row else {}
 
 
@@ -167,10 +198,11 @@ def mark_jobs_abandoned(job_ids: Iterable[str], reason: str) -> int:
                     error = ?,
                     cancel_requested = 1,
                     cancelled_at = COALESCE(cancelled_at, ?),
+                    finished_at = COALESCE(finished_at, ?),
                     updated_at = ?
                 WHERE job_id = ?
                 """,
-                [(reason, now, now, job_id) for job_id in active_ids],
+                [(sanitize_error_message(reason), now, now, now, job_id) for job_id in active_ids],
             )
 
     for job_id in active_ids:
@@ -204,10 +236,11 @@ def mark_incomplete_jobs_abandoned(reason: str, worker_instance_id: str | None =
                     error = ?,
                     cancel_requested = 1,
                     cancelled_at = COALESCE(cancelled_at, ?),
+                    finished_at = COALESCE(finished_at, ?),
                     updated_at = ?
                 WHERE job_id = ?
                 """,
-                [(reason, now, now, job_id) for job_id in job_ids],
+                [(sanitize_error_message(reason), now, now, now, job_id) for job_id in job_ids],
             )
 
     for job_id in job_ids:
@@ -223,17 +256,32 @@ def request_job_cancel(job_id: str, reason: str = "使用者要求取消分析�
         if row is None:
             return False
         status = row["status"]
-        conn.execute(
-            """
-            UPDATE analysis_jobs
-            SET cancel_requested = 1,
-                cancelled_at = COALESCE(cancelled_at, ?),
-                error = COALESCE(error, ?),
-                updated_at = ?
-            WHERE job_id = ?
-            """,
-            (now, reason, now, job_id),
-        )
+        if status == "queued":
+            conn.execute(
+                """
+                UPDATE analysis_jobs
+                SET status = 'cancelled',
+                    cancel_requested = 1,
+                    cancelled_at = COALESCE(cancelled_at, ?),
+                    finished_at = COALESCE(finished_at, ?),
+                    error = COALESCE(error, ?),
+                    updated_at = ?
+                WHERE job_id = ?
+                """,
+                (now, now, sanitize_error_message(reason), now, job_id),
+            )
+        else:
+            conn.execute(
+                """
+                UPDATE analysis_jobs
+                SET cancel_requested = 1,
+                    cancelled_at = COALESCE(cancelled_at, ?),
+                    error = COALESCE(error, ?),
+                    updated_at = ?
+                WHERE job_id = ?
+                """,
+                (now, sanitize_error_message(reason), now, job_id),
+            )
     if status in ACTIVE_JOB_STATUSES:
         append_event(job_id, {"type": "status", "phase": "cancelling", "level": "warning", "message": reason})
     return True
@@ -291,3 +339,11 @@ def query_events(
         level=level,
         limit=limit,
     )
+
+
+def record_node_telemetry(payload: dict) -> int:
+    return job_store_telemetry.record_node_telemetry(_connect, _JOB_LOCK, payload)
+
+
+def list_node_telemetry(job_id: str) -> list[dict]:
+    return job_store_telemetry.list_node_telemetry(_connect, job_id)
