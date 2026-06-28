@@ -45,6 +45,61 @@ def test_evaluate_watchlist_triggers_routes_bearish_and_revenue_events():
     assert matched["price_below_sma"]["metrics"]["sma"] > 90
 
 
+def test_report_catalyst_trigger_records_manual_radar_condition():
+    from watchlist_triggers import evaluate_watchlist_triggers
+
+    item = {
+        "ticker": "2449.TW",
+        "pipeline": "v1",
+        "triggers": [
+            {
+                "type": "report_catalyst",
+                "trigger_condition": "管理層調升毛利率指引",
+                "impact_direction": "bullish",
+            }
+        ],
+    }
+    data = {
+        "market_catalysts": {
+            "items": ["法說會中管理層調升毛利率指引，並指出測試需求優於預期。"]
+        }
+    }
+
+    events = evaluate_watchlist_triggers(item, data, evaluation_date="2026-06-20")
+
+    assert events[0]["matched"] is True
+    assert events[0]["trigger_type"] == "report_catalyst"
+    assert events[0]["pipeline_selected"] == "v2"
+    assert events[0]["label"] == "報告催化條件"
+    assert "管理層調升毛利率指引" in events[0]["message"]
+
+
+def test_daily_screener_trigger_always_routes_to_mode_d():
+    from watchlist_triggers import evaluate_watchlist_triggers
+
+    item = {
+        "ticker": "2449.TW",
+        "pipeline": "v4",
+        "triggers": [
+            {
+                "key": "daily_screener",
+                "type": "daily_screener",
+                "reason": "乖離率 28.4%，成交量放大 8.0x",
+                "category": "technical_heat",
+                "screen_date": "2026-06-26",
+            }
+        ],
+    }
+
+    events = evaluate_watchlist_triggers(item, {"ticker": "2449.TW"}, evaluation_date="2026-06-26")
+
+    assert events[0]["matched"] is True
+    assert events[0]["trigger_type"] == "daily_screener"
+    assert events[0]["pipeline_selected"] == "v4"
+    assert events[0]["label"] == "每日市場掃描"
+    assert events[0]["metrics"]["screen_date"] == "2026-06-26"
+
+
 def test_watchlist_trigger_store_is_idempotent(monkeypatch, tmp_path):
     import watchlist_service
     import watchlist_trigger_store

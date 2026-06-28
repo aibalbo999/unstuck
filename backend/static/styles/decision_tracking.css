@@ -1,29 +1,29 @@
-.decision-tracking-table { margin-bottom: 8px; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 8px; background: rgba(2, 6, 23, 0.18); overflow: hidden; }
+.decision-tracking-table { margin-bottom: 8px; border: 1px solid var(--glass-border); border-radius: 8px; background: rgba(255, 255, 255, 0.04); overflow: hidden; }
 .decision-tracking-table[hidden] { display: none; }
 .decision-tracking-title { display: flex; justify-content: space-between; gap: 10px; padding: 7px 9px 0; color: var(--text-primary); font-size: 0.76rem; font-weight: 900; }
 .decision-tracking-title span { color: var(--text-muted); font-size: 0.64rem; }
 .tracking-group-list { display: grid; gap: 5px; padding: 8px; }
-.tracking-stock-group { display: grid; grid-template-columns: minmax(96px, 0.24fr) minmax(0, 1fr); gap: 6px; align-items: stretch; border-top: 1px solid rgba(148, 163, 184, 0.14); padding-top: 5px; }
+.tracking-stock-group { display: grid; grid-template-columns: minmax(96px, 0.24fr) minmax(0, 1fr); gap: 6px; align-items: stretch; border-top: 1px solid var(--glass-border); padding-top: 5px; }
 .tracking-group-reports { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; min-width: 0; }
-.tracking-report-card { min-height: 98px; display: grid; grid-template-columns: 1fr; gap: 6px; align-content: start; border: 1px solid rgba(148, 163, 184, 0.18); border-radius: 8px; padding: 6px; cursor: pointer; background: rgba(15, 23, 42, 0.44); }
-.tracking-report-card:hover, .tracking-report-card.is-selected { background: rgba(0, 255, 204, 0.07); border-color: rgba(0, 255, 204, 0.28); }
+.tracking-report-card { min-height: 98px; display: grid; grid-template-columns: 1fr; gap: 6px; align-content: start; border: 1px solid var(--glass-border); border-radius: 8px; padding: 6px; cursor: pointer; background: rgba(255, 255, 255, 0.05); }
+.tracking-report-card:hover, .tracking-report-card.is-selected { background: rgba(0, 212, 255, 0.08); border-color: rgba(0, 212, 255, 0.4); }
 .tracking-stock-cell, .tracking-report-cell { min-width: 0; line-height: 1.18; white-space: normal; }
 .tracking-stock-cell { display: grid; align-content: center; gap: 2px; padding: 2px 0; font-variant-numeric: tabular-nums; }
 .tracking-stock-cell strong, .tracking-stock-cell span, .tracking-report-cell strong, .tracking-report-cell span { display: block; overflow: hidden; text-overflow: ellipsis; }
 .tracking-company-name, .tracking-report-date, .tracking-stock-price { color: var(--text-muted); font-size: 0.58rem; font-weight: 800; }
-.tracking-stock-price { color: #cbd5e1; }
+.tracking-stock-price { color: var(--text-muted); }
 .tracking-report-head { display: grid; gap: 2px; font-size: 0.64rem; font-weight: 900; }
 .tracking-report-date { overflow: visible; text-overflow: clip; white-space: nowrap; }
 .tracking-report-line { display: grid; gap: 2px; color: var(--text-secondary); font-size: 0.62rem; font-weight: 800; font-variant-numeric: tabular-nums; }
 .tracking-latest-price { color: var(--text-primary); font-size: 0.78rem; }
-.tracking-recommendation { display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; padding: 2px 4px; font-size: 0.62rem; font-weight: 800; line-height: 1; color: var(--text-secondary); background: rgba(148, 163, 184, 0.12); }
-.tracking-recommendation.is-buy { color: #22c55e; background: rgba(34, 197, 94, 0.12); }
-.tracking-recommendation.is-hold { color: #f59e0b; background: rgba(245, 158, 11, 0.12); }
-.tracking-recommendation.is-avoid { color: #ef4444; background: rgba(239, 68, 68, 0.12); }
+.tracking-recommendation { display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; padding: 2px 4px; font-size: 0.62rem; font-weight: 800; line-height: 1; color: var(--text-secondary); background: rgba(255, 255, 255, 0.08); }
+.tracking-recommendation.is-buy { color: #86efac; background: rgba(34, 197, 94, 0.15); }
+.tracking-recommendation.is-hold { color: #fde68a; background: rgba(245, 158, 11, 0.15); }
+.tracking-recommendation.is-avoid { color: #fca5a5; background: rgba(239, 68, 68, 0.15); }
 .tracking-compact-note { width: fit-content; border-radius: 4px; padding: 1px 4px; }
-.tracking-compact-note.is-below-target { color: #bfdbfe; background: rgba(37, 99, 235, 0.16); }
+.tracking-compact-note.is-below-target { color: #93c5fd; background: rgba(37, 99, 235, 0.15); }
 .tracking-compact-note.is-near-target { color: #fde68a; background: rgba(180, 83, 9, 0.18); }
-.tracking-compact-note.is-above-target { color: #bbf7d0; background: rgba(22, 163, 74, 0.16); }
+.tracking-compact-note.is-above-target { color: #86efac; background: rgba(22, 163, 74, 0.15); }
 .tracking-compact-note.is-unavailable { color: var(--text-secondary); }
 .decision-tracking-controls { min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
 .decision-tracking-controls strong { color: var(--text-primary); font-size: 0.82rem; }
@@ -33,13 +33,13 @@
 .tracking-target-period { grid-area: period; font-size: 0.58rem; font-weight: 900; }
 .tracking-target-value { grid-area: value; color: inherit; font-size: 0.66rem; line-height: 1; overflow: hidden; text-overflow: ellipsis; }
 .tracking-target-label { grid-area: label; font-size: 0.58rem; font-weight: 900; line-height: 1; overflow: hidden; text-overflow: ellipsis; }
-.tracking-target-cell.is-below-target { color: #bfdbfe; background: rgba(37, 99, 235, 0.16); }
+.tracking-target-cell.is-below-target { color: #93c5fd; background: rgba(37, 99, 235, 0.15); }
 .tracking-target-cell.is-near-target { color: #fde68a; background: rgba(180, 83, 9, 0.18); }
-.tracking-target-cell.is-above-target { color: #bbf7d0; background: rgba(22, 163, 74, 0.16); }
+.tracking-target-cell.is-above-target { color: #86efac; background: rgba(22, 163, 74, 0.15); }
 .decision-tracking-table.is-compact .tracking-stock-group { grid-template-columns: minmax(88px, 0.24fr) minmax(0, 1fr); }
 .decision-tracking-table.is-compact .tracking-report-card { min-height: 52px; grid-template-columns: minmax(82px, 0.9fr) minmax(92px, 0.8fr); align-content: center; }
-.decision-track-toggle { min-width: 78px; min-height: 44px; border: 1px solid rgba(96, 165, 250, 0.34); border-radius: 8px; background: rgba(29, 78, 216, 0.18); color: #bfdbfe; cursor: pointer; font-size: 0.68rem; font-weight: 900; }
-.decision-track-toggle.is-tracked { border-color: rgba(34, 197, 94, 0.36); color: #bbf7d0; background: rgba(22, 163, 74, 0.14); }
+.decision-track-toggle { min-width: 78px; min-height: 44px; border: 1px solid rgba(0, 212, 255, 0.35); border-radius: 8px; background: rgba(0, 212, 255, 0.08); color: #67e8f9; cursor: pointer; font-size: 0.68rem; font-weight: 900; }
+.decision-track-toggle.is-tracked { border-color: rgba(34, 197, 94, 0.4); color: #86efac; background: rgba(22, 163, 74, 0.12); }
 @media (max-width: 1120px) {
     .tracking-group-reports { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

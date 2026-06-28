@@ -137,6 +137,31 @@ def test_watchlist_store_uses_sqlite_and_preserves_run_dates(monkeypatch, tmp_pa
     assert stored["last_run_dates"]["pre_market"] == "2026-06-08"
 
 
+def test_watchlist_store_preserves_auto_screener_metadata(monkeypatch, tmp_path):
+    monkeypatch.setattr(watchlist_service, "WATCHLIST_PATH", tmp_path / "watchlist.json")
+    watchlist_service.reset_watchlist_store_for_tests()
+
+    watchlist_service.upsert_watchlist_item({
+        "ticker": "2449.TW",
+        "pipeline": "v4",
+        "schedule_slots": ["post_market"],
+        "enabled": True,
+        "tags": ["Auto-Screener", "technical_heat"],
+        "trigger_source": "daily_screener",
+    })
+    watchlist_service.upsert_watchlist_item({
+        "ticker": "2449.TW",
+        "pipeline": "v4",
+        "schedule_slots": ["pre_market"],
+        "enabled": True,
+    })
+
+    stored = watchlist_service.list_watchlist()["items"][0]
+    assert stored["tags"] == ["Auto-Screener", "technical_heat"]
+    assert stored["trigger_source"] == "daily_screener"
+    assert stored["schedule_slots"] == ["pre_market"]
+
+
 def test_watchlist_imports_legacy_json_once(monkeypatch, tmp_path):
     legacy_path = tmp_path / "watchlist.json"
     legacy_path.write_text(
@@ -182,6 +207,66 @@ def test_watchlist_api_upserts_and_lists_items(monkeypatch, tmp_path, mutation_h
     assert listed.status_code == 200
     assert listed.json()["items"][0]["ticker"] == "2308.TW"
     assert "priority_counts" in listed.json()
+
+
+def test_watchlist_screener_api_runs_manual_scan(monkeypatch, tmp_path, mutation_headers):
+    import market_screener
+
+    monkeypatch.setattr(watchlist_service, "WATCHLIST_PATH", tmp_path / "watchlist.json")
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path / "output"))
+    monkeypatch.setattr(
+        market_screener,
+        "run_daily_market_screener",
+        lambda now=None, force=False: {
+            "success": True,
+            "screen_date": "2026-06-26",
+            "candidate_count": 1,
+            "imported_count": 1,
+            "providers": ["TWSE Free API"],
+            "data_sources": ["TWSE Free API"],
+            "candidates": [{"ticker": "2449.TW", "category": "technical_heat"}],
+        },
+    )
+    client = TestClient(api.app)
+
+    response = client.post("/api/watchlist/screener/run", json={"force": True}, headers=mutation_headers)
+
+    assert response.status_code == 200
+    assert response.json()["imported_count"] == 1
+    assert response.json()["screen_date"] == "2026-06-26"
+    assert response.json()["providers"] == ["TWSE Free API"]
+
+
+def test_watchlist_screener_api_keeps_external_scan_failure_renderable(monkeypatch, tmp_path, mutation_headers):
+    import market_screener
+
+    monkeypatch.setattr(watchlist_service, "WATCHLIST_PATH", tmp_path / "watchlist.json")
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path / "output"))
+    monkeypatch.setattr(
+        market_screener,
+        "run_daily_market_screener",
+        lambda now=None, force=False: {
+            "success": False,
+            "screen_date": "2026-06-26",
+            "candidate_count": 0,
+            "imported_count": 0,
+            "candidates": [],
+            "providers": ["TWSE Free API", "FinMind"],
+            "data_sources": ["TWSE Free API", "FinMind"],
+            "warnings": [{"provider": "FinMind", "message": "FinMind 暫無可用資料"}],
+            "errors": [],
+        },
+    )
+    client = TestClient(api.app)
+
+    response = client.post("/api/watchlist/screener/run", json={"force": True}, headers=mutation_headers)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["scan_success"] is False
+    assert payload["message"] == "市場掃描資料源暫無可用資料：FinMind 暫無可用資料"
+    assert payload["providers"] == ["TWSE Free API", "FinMind"]
 
 
 def test_watchlist_listing_prioritizes_items_with_stale_decisions(monkeypatch, tmp_path):
@@ -292,3 +377,30 @@ def test_watchlist_scheduler_runs_trigger_monitor(monkeypatch):
 
     assert calls == [("due",), ("monitor", "data-service")]
     assert any("triggered=1" in line for line in logs)
+
+
+def test_watchlist_scheduler_runs_daily_screener_once_after_close(monkeypatch):
+    calls = []
+    logs = []
+
+    monkeypatch.setattr(watchlist_scheduler.market_screener, "screener_already_ran", lambda run_date: False)
+    monkeypatch.setattr(watchlist_scheduler.market_screener, "mark_screener_ran", lambda run_date: calls.append(("mark", run_date)))
+    monkeypatch.setattr(
+        watchlist_scheduler.market_screener,
+        "run_daily_market_screener",
+        lambda now=None: calls.append(("run", now.date().isoformat())) or {
+            "success": True,
+            "imported_count": 3,
+            "candidate_count": 5,
+            "screen_date": now.date().isoformat(),
+        },
+    )
+
+    result = watchlist_scheduler._run_daily_market_screener(
+        now=datetime(2026, 6, 20, 18, 0, tzinfo=watchlist_service.TAIPEI),
+        emit_log=logs.append,
+    )
+
+    assert result["imported_count"] == 3
+    assert calls == [("run", "2026-06-20"), ("mark", "2026-06-20")]
+    assert any("daily screener" in line and "imported=3" in line for line in logs)

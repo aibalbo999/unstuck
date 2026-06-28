@@ -65,22 +65,32 @@
         if (status === 'partial' && !isSourceNotice(report)) return { title: '資料需留意', detail: '資料已是最新快照，請查看來源審計' };
         return null;
     }
+    function watchlistActionDetail(items) {
+        const missing = items.filter(item => item?.decision_alert?.reason === 'missing_report').length;
+        const rerun = items.filter(item => item?.decision_alert?.reason === 'needs_rerun').length;
+        const other = Math.max(0, items.length - missing - rerun);
+        const parts = [];
+        if (missing) parts.push(`${missing} 檔尚未建立報告`);
+        if (rerun) parts.push(`${rerun} 檔資料更新需重跑`);
+        if (other) parts.push(`${other} 檔需確認`);
+        const samples = items.slice(0, 3).map(item => item.ticker).filter(Boolean).join('、');
+        return `${parts.join('，')}${samples ? ` · 例如 ${samples}` : ''}`;
+    }
     function operatorActionItems(jobsPayload, quotaPayload, reportPayload, watchlistPayload) {
-        const items = [];
-        (reportPayload?.reports || []).some(report => {
-            const action = reportAction(report);
-            if (!action) return false;
-            items.push({ action: action.action || 'view-report', label: action.label || '查看報告', title: `${report.ticker || '報告'} ${action.title}`, detail: action.detail, filename: report.filename, ticker: report.ticker, pipeline: report.pipeline_id || 'v1' });
-            return items.length >= 2;
+            const items = [];
+            (reportPayload?.reports || []).some(report => {
+                const action = reportAction(report);
+                if (!action) return false;
+                items.push({ action: action.action || 'view-report', label: action.label || '查看報告', title: `${report.ticker || '報告'} ${action.title}`, detail: action.detail, filename: report.filename, ticker: report.ticker, pipeline: report.pipeline_id || 'v1' });
+                return items.length >= 2;
         });
         const watchNeeds = (watchlistPayload?.items || []).filter(item => item.enabled !== false && ['high', 'medium'].includes(item.decision_priority));
-        if (watchNeeds.length) items.push({ action: 'run-watchlist', label: '批次分析', title: `${watchNeeds.length} 檔 watchlist 需處理`, detail: watchNeeds.slice(0, 3).map(item => item.ticker).join('、') });
+        if (watchNeeds.length) items.push({ action: 'run-watchlist', label: '建立/更新報告', title: `${watchNeeds.length} 檔 watchlist 待建立/更新報告`, detail: watchlistActionDetail(watchNeeds) });
         const quotaErrors = quotaHealth(quotaPayload?.services).errors;
         if (quotaErrors) items.push({ action: 'open-ops', label: '系統維護', title: 'LLM 健康需留意', detail: `${quotaErrors} 次額度/來源錯誤` });
         const active = Number(jobsPayload?.active_count || 0);
         if (!items.length && active) items.push({ action: 'open-ops', label: '查看任務', title: `${active} 個任務進行中`, detail: '查看進度與近期事件' });
-        if (!items.length) items.push({ action: 'open-ops', label: '系統維護', title: '目前沒有急件', detail: '可展開健康摘要查看細節' });
-        return items.slice(0, 3);
+        if (!items.length) items.push({ action: 'open-ops', label: '系統維護', title: '目前沒有急件', detail: '可展開健康摘要查看細節' }); return items.slice(0, 3);
     }
     function create(options) {
         const apiClient = options.apiClient;
@@ -99,10 +109,7 @@
             `;
         }
         async function load() {
-            const [jobs, quotas, reports, watchlist] = await Promise.allSettled([
-                apiClient.fetchActiveJobs({ limit: 3, eventLimit: 20 }), apiClient.fetchApiQuotas(),
-                apiClient.fetchReports({ page: 1, limit: 8, includeVersions: false }), apiClient.fetchWatchlist()
-            ]);
+            const [jobs, quotas, reports, watchlist] = await Promise.allSettled([apiClient.fetchActiveJobs({ limit: 3, eventLimit: 20 }), apiClient.fetchApiQuotas(), apiClient.fetchReports({ page: 1, limit: 8, includeVersions: false }), apiClient.fetchWatchlist()]);
             const jobsText = jobs.status === 'fulfilled' ? activeJobText(jobs.value) : { tone: 'warning', value: '讀取失敗', detail: '' };
             const quotasText = quotas.status === 'fulfilled' ? quotaText(quotas.value) : { tone: 'warning', value: '讀取失敗', detail: '' };
             const trust = reports.status === 'fulfilled' ? trustText(reports.value) : { tone: 'warning', value: '讀取失敗', detail: '' };

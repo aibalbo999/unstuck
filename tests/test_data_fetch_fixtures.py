@@ -652,7 +652,12 @@ def test_async_fixture_records_google_and_fmp_failures(monkeypatch):
     async def fail_fmp(*args, **kwargs):
         raise RuntimeError("fmp down")
 
+    async def empty_search(*args, **kwargs):
+        return []
+
     monkeypatch.setattr(financial_data, "fetch_stock_data", fake_fetch_stock_data)
+    monkeypatch.setattr(optional_enrichment, "fetch_alternative_search_catalysts_async", empty_search)
+    monkeypatch.setattr(optional_enrichment, "fetch_alternative_peer_discovery_async", empty_search)
     monkeypatch.setattr(optional_enrichment, "fetch_google_search_catalysts_async", fail_google)
     monkeypatch.setattr(optional_enrichment, "fetch_fmp_news_catalysts_async", fail_fmp)
     monkeypatch.setattr(optional_enrichment, "fetch_google_peer_discovery_results_async", fail_google)

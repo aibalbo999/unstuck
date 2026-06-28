@@ -9,6 +9,7 @@ from typing import Any, Optional
 from google.genai import types
 
 from config import LLM_AGENT_CALL_TIMEOUT_SECONDS
+from google_prompt_safety import sanitize_google_system_instruction
 from llm_client import generate_content, generate_content_async, response_text
 from structured_outputs import STRUCTURED_AGENT_INSTRUCTIONS, get_structured_response_schema
 
@@ -50,6 +51,7 @@ def _generate_config_supports(field_name: str) -> bool:
 
 def build_generation_config(agent_num: int, system_instruction: Optional[str] = None):
     """Build Google GenAI generation config, using JSON MIME type where supported."""
+    uses_structured_response = agent_num in STRUCTURED_AGENT_INSTRUCTIONS
     config_kwargs = {
         "temperature": 0.7,
         "top_p": 0.95,
@@ -57,7 +59,7 @@ def build_generation_config(agent_num: int, system_instruction: Optional[str] = 
     }
     if system_instruction:
         config_kwargs["system_instruction"] = system_instruction
-    if agent_num in STRUCTURED_AGENT_INSTRUCTIONS:
+    if uses_structured_response:
         config_kwargs["response_mime_type"] = "application/json"
         response_schema_cls = get_structured_response_schema(agent_num)
         if response_schema_cls and _generate_config_supports("response_schema"):
@@ -71,6 +73,11 @@ def build_generation_config(agent_num: int, system_instruction: Optional[str] = 
                 # Fall back to passing the class directly if schema extraction fails.
                 config_kwargs["response_schema"] = response_schema_cls
     function_tools = get_agent_function_tools(agent_num)
+    # Google GenAI rejects function calling when the same request also asks for
+    # JSON response_mime_type/response_schema. Structured agents prioritize the
+    # native schema path; non-structured agents keep tool calling enabled.
+    if uses_structured_response:
+        function_tools = []
     if function_tools:
         config_kwargs["tools"] = function_tools
         config_kwargs["automatic_function_calling"] = types.AutomaticFunctionCallingConfig(maximum_remote_calls=6)
@@ -94,19 +101,20 @@ def _response_text(response) -> str:
     return response_text(response)
 
 
-def _generate_content(api_key: str, model_id: str, agent_num: int, prompt: str):
+def google_safe_agent_system_instruction(agent_num: int, model_id: str) -> str:
     system_instruction = SYSTEM_PROMPTS.get(agent_num, "")
     if "gemini-2.5-flash" in model_id:
         system_instruction += "\n\nIMPORTANT: You are operating as a fallback model. You MUST provide a comprehensive, highly detailed, and complete analysis. Ensure your response is sufficiently long and detailed to form a formal report section. Do not provide a short or truncated response."
-    config = build_generation_config(agent_num, system_instruction)
+    return sanitize_google_system_instruction(system_instruction)
+
+
+def _generate_content(api_key: str, model_id: str, agent_num: int, prompt: str):
+    config = build_generation_config(agent_num, google_safe_agent_system_instruction(agent_num, model_id))
     return generate_content(api_key, model_id, prompt, config)
 
 
 async def _generate_content_async(api_key: str, model_id: str, agent_num: int, prompt: str):
-    system_instruction = SYSTEM_PROMPTS.get(agent_num, "")
-    if "gemini-2.5-flash" in model_id:
-        system_instruction += "\n\nIMPORTANT: You are operating as a fallback model. You MUST provide a comprehensive, highly detailed, and complete analysis. Ensure your response is sufficiently long and detailed to form a formal report section. Do not provide a short or truncated response."
-    config = build_generation_config(agent_num, system_instruction)
+    config = build_generation_config(agent_num, google_safe_agent_system_instruction(agent_num, model_id))
     return await generate_content_async(api_key, model_id, prompt, config)
 
 

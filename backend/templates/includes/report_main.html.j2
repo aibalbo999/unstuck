@@ -66,12 +66,28 @@
 
         {% include "includes/data_trust.html.j2" %}
 
+        {% if executive_thesis %}
+        <div class="executive-thesis">
+            <div class="executive-thesis-title">投資核心論點</div>
+            <p>{{ executive_thesis }}</p>
+        </div>
+        {% endif %}
+
         <div class="tear-sheet">
             <div class="tear-sheet-title">One-Page Tear Sheet</div>
             <div class="tear-sheet-body">
                 {{ tear_sheet_summary|safe }}
             </div>
         </div>
+
+        {% if smoothed_markdown_html %}
+        <div class="editor-synthesis">
+            <div class="editor-synthesis-title">總編輯整合觀點</div>
+            <div class="editor-synthesis-body">
+                {{ smoothed_markdown_html|safe }}
+            </div>
+        </div>
+        {% endif %}
     </div>
     
     <!-- ─── 內容區 ─── -->
@@ -190,7 +206,7 @@
             <h4>📚 參考資料來源與數據誤差訴明</h4>
             {% include "includes/source_audit.html.j2" %}
             {% if twse_official_unavailable %}
-            <p style="font-size:12px; color:#f59e0b; margin:10px 0 14px; line-height:1.5;">
+            <p style="font-size:13px; color:var(--accent-amber); margin:10px 0 14px; line-height:1.5; font-weight: 600;">
                 ⚠ 台股官方財務資料（TWSE/MOPS）本次未取得，請以公開財報為準
             </p>
             {% endif %}
@@ -199,14 +215,14 @@
                     <span class="ref-icon">📊</span>
                     <div>
                         <div class="ref-name">Yahoo Finance (yfinance)</div>
-                        <div class="ref-desc">市場即時資料、年度財務報表、估值指標、負債結構、分析師評等<br>API：<code style="font-size:10px; color:#60a5fa;">pypi.org/project/yfinance</code></div>
+                        <div class="ref-desc">市場即時資料、年度財務報表、估值指標、負債結構、分析師評等<br>API：<code style="font-size:11px; color:var(--accent-blue); background: #f1f5f9; padding: 2px 4px; border-radius: 4px;">pypi.org/project/yfinance</code></div>
                     </div>
                 </div>
                 <div class="ref-item">
                     <span class="ref-icon">🇹🇼</span>
                     <div>
                         <div class="ref-name">FinMind Open Data</div>
-                        <div class="ref-desc">台股每月營收、新聞、三大法人買賣超、PER/PBR 河流圖資料<br>API：<code style="font-size:10px; color:#60a5fa;">finmindtrade.com</code></div>
+                        <div class="ref-desc">台股每月營收、新聞、三大法人買賣超、PER/PBR 河流圖資料<br>API：<code style="font-size:11px; color:var(--accent-blue); background: #f1f5f9; padding: 2px 4px; border-radius: 4px;">finmindtrade.com</code></div>
                     </div>
                 </div>
                 <div class="ref-item">

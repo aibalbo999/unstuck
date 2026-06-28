@@ -1,5 +1,100 @@
     // ─── 圖表數據 ─────────────────────────────────────────
+    const chartPayload = document.getElementById('report-chart-data');
     const CHART_DATA = {{ chart_data|tojson }};
+    if (chartPayload) {
+        Object.assign(CHART_DATA, JSON.parse(chartPayload.textContent || '{}'));
+    }
+
+    window.StockAgentReportTraceability = (function () {
+        let payload = null;
+        let tooltip = null;
+
+        function evidencePayload() {
+            if (payload) return payload;
+            const el = document.getElementById('report-evidence-data');
+            if (!el) return { sources: {} };
+            try {
+                payload = JSON.parse(el.textContent || '{}');
+            } catch (_) {
+                payload = { sources: {} };
+            }
+            return payload;
+        }
+
+        function tooltipEl() {
+            if (tooltip) return tooltip;
+            tooltip = document.createElement('div');
+            tooltip.className = 'source-tooltip';
+            tooltip.hidden = true;
+            document.body.appendChild(tooltip);
+            return tooltip;
+        }
+
+        function renderTooltip(source, event) {
+            const el = tooltipEl();
+            el.textContent = '';
+            const title = document.createElement('strong');
+            title.textContent = source.source || source.source_id || '資料來源';
+            const meta = document.createElement('span');
+            meta.textContent = `${source.source_document || '未記錄'} · ${source.status_label || source.status || 'unknown'} · ${source.fetched_at || 'N/A'}`;
+            const body = document.createElement('p');
+            body.textContent = source.text || source.limitation || '此來源未保存擷取文字。';
+            el.append(title, meta, body);
+            el.hidden = false;
+            moveTooltip(event);
+        }
+
+        function moveTooltip(event) {
+            if (!tooltip || tooltip.hidden || !event) return;
+            if (!Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)) {
+                tooltip.style.left = '240px';
+                tooltip.style.top = '24px';
+                return;
+            }
+            const offset = 14;
+            const x = Math.min(event.clientX + offset, window.innerWidth - tooltip.offsetWidth - offset);
+            const y = Math.min(event.clientY + offset, window.innerHeight - tooltip.offsetHeight - offset);
+            tooltip.style.left = `${Math.max(offset, x)}px`;
+            tooltip.style.top = `${Math.max(offset, y)}px`;
+        }
+
+        function hideTooltip() {
+            if (tooltip) tooltip.hidden = true;
+        }
+
+        function showFor(target, event) {
+            const sourceId = target?.dataset?.sourceId;
+            const source = sourceId ? evidencePayload().sources?.[sourceId] : null;
+            if (!source) return hideTooltip();
+            renderTooltip(source, event);
+        }
+
+        function init(root = document) {
+            root.addEventListener('mouseover', event => {
+                const target = event.target.closest?.('.source-citation');
+                if (target) showFor(target, event);
+            });
+            root.addEventListener('mousemove', moveTooltip);
+            root.addEventListener('mouseout', event => {
+                if (event.target.closest?.('.source-citation')) hideTooltip();
+            });
+            root.addEventListener('focusin', event => {
+                const target = event.target.closest?.('.source-citation');
+                if (target) showFor(target, event);
+            });
+            root.addEventListener('focusout', event => {
+                if (event.target.closest?.('.source-citation')) hideTooltip();
+            });
+        }
+
+        return { init };
+    })();
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => window.StockAgentReportTraceability.init());
+    } else {
+        window.StockAgentReportTraceability.init();
+    }
 
     Chart.defaults.color = '#94a3b8';
     Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';

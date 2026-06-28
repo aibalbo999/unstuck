@@ -37,6 +37,27 @@ PROMPT_LEAK_RESIDUE_RE = re.compile(
     re.IGNORECASE,
 )
 
+SOURCE_CITATION_RE = re.compile(r"\[(?:source|cite):([A-Za-z0-9_.:-]{1,96})(?:\|([^\]\n]{1,80}))?\]")
+
+
+def render_source_citation_tags(text: str) -> str:
+    """Convert lightweight citation tags into sanitized HTML hooks."""
+    if not text:
+        return ""
+
+    def repl(match: re.Match) -> str:
+        source_id = sanitize_report_plain_text(match.group(1))
+        label = sanitize_report_plain_text(match.group(2) or "來源")
+        if not source_id:
+            return ""
+        return (
+            f'<span class="source-citation" data-source-id="{escape(source_id)}" '
+            f'role="button" tabindex="0" aria-label="查看來源 {escape(source_id)}">'
+            f"[{escape(label)}]</span>"
+        )
+
+    return SOURCE_CITATION_RE.sub(repl, text)
+
 
 def strip_prompt_preamble(text: str) -> str:
     """Drop leaked role/task setup before the first formal report section."""
@@ -204,6 +225,8 @@ def clean_markdown(text: str) -> str:
     """Render Markdown to HTML with a standard parser."""
     if not text:
         return ""
+
+    text = render_source_citation_tags(text)
 
     if markdown_lib is None:
         escaped = escape(text)

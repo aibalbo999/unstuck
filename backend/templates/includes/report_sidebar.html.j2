@@ -22,6 +22,27 @@
         </a>
         {% endfor %}
     </div>
+
+    {% if next_catalysts %}
+    <div class="sidebar-catalysts">
+        <div class="nav-section-title">Key Catalysts to Watch</div>
+        {% for catalyst in next_catalysts %}
+        <div class="sidebar-catalyst">
+            <strong>{{ catalyst.event_name }}</strong>
+            <span>{{ catalyst.expected_timeframe }} · {{ catalyst.impact_direction }}</span>
+            <p>{{ catalyst.trigger_condition }}</p>
+            <button
+                class="add-to-watchlist-btn"
+                type="button"
+                data-ticker="{{ ticker }}"
+                data-pipeline="{{ pipeline_def.id }}"
+                data-impact-direction="{{ catalyst.impact_direction }}"
+                data-trigger-desc="{{ catalyst.trigger_condition }}"
+            >Add to Radar</button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
     
     <div class="sidebar-footer">
         生成日期：{{ fetch_date }}<br>

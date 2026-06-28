@@ -15,7 +15,7 @@ from config import (
     PRIMARY_MODEL_TRANSIENT_MAX_ATTEMPTS,
 )
 
-from .retry_policy import AgentRateLimitError, AgentServerError, AgentShortResponseError, AgentTransientError
+from .retry_policy import AgentAuthError, AgentRateLimitError, AgentServerError, AgentShortResponseError, AgentTransientError
 
 
 MODEL_CIRCUITS_KEY = "_llm_model_circuits"
@@ -61,7 +61,7 @@ def should_stop_retry(retry_state, policy: ModelAttemptPolicy) -> bool:
     exc = retry_state.outcome.exception() if retry_state.outcome else None
     if isinstance(exc, AgentServerError):
         return attempt >= policy.server_error_attempts
-    if isinstance(exc, AgentRateLimitError):
+    if isinstance(exc, (AgentRateLimitError, AgentAuthError)):
         return attempt >= policy.quota_attempts
     if isinstance(exc, AgentShortResponseError):
         return attempt >= policy.short_response_attempts
@@ -73,24 +73,24 @@ def should_stop_retry(retry_state, policy: ModelAttemptPolicy) -> bool:
 def make_model_retry_stop(policy: ModelAttemptPolicy):
     """Return a stop predicate that counts retry classes independently."""
     counted_attempts: set[int] = set()
-    quota_failures = 0
-    quota_slots: set[int] = set()
+    key_failures = 0
+    key_slots: set[int] = set()
     server_failures = 0
     short_failures = 0
     transient_failures = 0
 
     def _stop(retry_state) -> bool:
-        nonlocal quota_failures, server_failures, short_failures, transient_failures
+        nonlocal key_failures, server_failures, short_failures, transient_failures
         attempt = int(getattr(retry_state, "attempt_number", 1) or 1)
         exc = retry_state.outcome.exception() if retry_state.outcome else None
         if attempt not in counted_attempts:
             counted_attempts.add(attempt)
-            if isinstance(exc, AgentRateLimitError):
-                quota_failures += 1
+            if isinstance(exc, (AgentRateLimitError, AgentAuthError)):
+                key_failures += 1
                 key_slot = getattr(exc, "key_slot", None)
                 if key_slot is not None:
                     try:
-                        quota_slots.add(int(key_slot))
+                        key_slots.add(int(key_slot))
                     except (TypeError, ValueError):
                         pass
             elif isinstance(exc, AgentServerError):
@@ -102,12 +102,12 @@ def make_model_retry_stop(policy: ModelAttemptPolicy):
             else:
                 transient_failures += 1
 
-        if isinstance(exc, AgentRateLimitError):
-            if policy.key_count > 1 and len(quota_slots) >= policy.key_count:
+        if isinstance(exc, (AgentRateLimitError, AgentAuthError)):
+            if policy.key_count > 1 and len(key_slots) >= policy.key_count:
                 return True
-            if not quota_slots and quota_failures >= policy.quota_attempts:
+            if not key_slots and key_failures >= policy.quota_attempts:
                 return True
-            return quota_failures >= policy.quota_attempt_ceiling
+            return key_failures >= policy.quota_attempt_ceiling
         if isinstance(exc, AgentServerError):
             return server_failures >= policy.server_error_attempts
         if isinstance(exc, AgentShortResponseError):

@@ -6,6 +6,8 @@ from collections.abc import Iterable
 
 from .agent_context_providers import AlternativeJobOpeningsProvider, ChipDataProvider, MacroIndicatorsProvider, SocialSentimentProvider
 from .enrichment_providers import (
+    AlternativePeerDiscoveryProvider,
+    AlternativeSearchProvider,
     DynamicPeerMetricsProvider,
     EarningsCallProvider,
     FmpNewsProvider,
@@ -54,6 +56,7 @@ def default_providers() -> list[DataProvider]:
         FinMindProvider(),
         FmpProvider(),
         FreeNewsWaterfallProvider(),
+        AlternativeSearchProvider(),
         GoogleSearchProvider(),
         FmpNewsProvider(),
         EarningsCallProvider(),
@@ -66,6 +69,7 @@ def default_providers() -> list[DataProvider]:
         AlternativeJobOpeningsProvider(),
         SocialSentimentProvider(),
         SecEdgarProvider(),
+        AlternativePeerDiscoveryProvider(),
         GooglePeerDiscoveryProvider(),
         TwseOfficialProvider(),
         MonthlyRevenueProvider(),

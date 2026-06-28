@@ -187,6 +187,12 @@ def get_pipeline_definition(pipeline_id: Any = DEFAULT_PIPELINE_ID) -> PipelineD
     return PIPELINE_DEFINITIONS[normalize_pipeline_id(pipeline_id)]
 
 
+def get_pipeline_playbook_summary(pipeline_id: Any = DEFAULT_PIPELINE_ID) -> dict[str, Any]:
+    from research_playbooks import playbook_summary
+
+    return playbook_summary(normalize_pipeline_id(pipeline_id))
+
+
 def get_pipeline_agents(pipeline_id: Any = DEFAULT_PIPELINE_ID) -> tuple[int, ...]:
     return get_pipeline_definition(pipeline_id)["agents"]
 

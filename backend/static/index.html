@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wall Street AI</title>
-    <meta name="theme-color" content="#0f172a">
+    <meta name="theme-color" content="#040d1a">
     <link rel="icon" href="/favicon.ico" sizes="any">
     <link rel="icon" href="/static/site-icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
@@ -27,6 +27,7 @@
 
             <div class="home-tabs" role="tablist" aria-label="首頁頁籤">
                 <button id="home-tab-analysis" class="home-tab-button is-active" type="button" role="tab" aria-selected="true" aria-controls="home-panel-analysis" data-home-tab="analysis">分析</button>
+                <button id="home-tab-screener" class="home-tab-button" type="button" role="tab" aria-selected="false" aria-controls="home-panel-screener" data-home-tab="screener">市場掃描</button>
                 <button id="home-tab-ops" class="home-tab-button" type="button" role="tab" aria-selected="false" aria-controls="home-panel-ops" data-home-tab="ops">報告與維運</button>
             </div>
 
@@ -282,6 +283,33 @@
             </div>
             </section>
 
+            <section id="home-panel-screener" class="home-tab-panel" role="tabpanel" aria-labelledby="home-tab-screener" hidden>
+                <div class="history-section">
+                    <div class="history-title">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-4 4"/></svg>
+                        Daily Market Screener
+                    </div>
+                    <section id="market-screener-panel" class="provider-sla-panel market-screener-panel" aria-live="polite">
+                        <div class="provider-sla-header">
+                            <div>
+                                <span class="provider-sla-kicker">Auto-Screener</span>
+                                <strong id="market-screener-summary">載入中</strong>
+                            </div>
+                            <div class="provider-sla-actions">
+                                <button id="market-screener-run-btn" class="maintenance-button" type="button">
+                                    <span>立即掃描</span>
+                                </button>
+                                <button id="market-screener-refresh" class="icon-button" type="button" aria-label="刷新市場掃描">
+                                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M16 8h5V3"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="market-screener-board"></div>
+                        <div id="market-screener-list" class="provider-sla-list market-screener-list"></div>
+                    </section>
+                </div>
+            </section>
+
             <section id="home-panel-ops" class="home-tab-panel" role="tabpanel" aria-labelledby="home-tab-ops" hidden>
                 <div class="history-section">
                     <div class="history-title">
@@ -494,9 +522,10 @@
     <script src="/static/api_quota_panel.js?v=20260611-operator-clarity"></script>
     <script src="/static/performance_panel.js?v=20260620-performance"></script>
     <script src="/static/active_jobs_panel.js?v=20260608-stage-summary"></script>
-    <script src="/static/operator_summary_panel.js?v=20260611-operator-clarity"></script>
+    <script src="/static/operator_summary_panel.js?v=20260628-watchlist-action-detail"></script>
     <script src="/static/watchlist_trigger_form.js?v=20260620-event-radar"></script>
     <script src="/static/watchlist_panel.js?v=20260610-operator-workbench"></script>
+    <script src="/static/market_screener_panel.js?v=20260628-daily-screener-plain-labels"></script>
     <script src="/static/ops_workspace.js?v=20260620-performance"></script>
     <script src="/static/maintenance_panel.js?v=20260610-operator-workbench"></script>
     <script src="/static/home_tabs.js?v=20260608-home-tabs"></script>

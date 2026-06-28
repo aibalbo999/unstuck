@@ -170,6 +170,15 @@ def _post_market_due(now: datetime) -> bool:
     return now >= now.replace(hour=hour, minute=minute, second=0, microsecond=0)
 
 
+def _triggers_need_market_data(triggers: list) -> bool:
+    for trigger in triggers:
+        if not isinstance(trigger, dict) or trigger.get("enabled") is False:
+            continue
+        if str(trigger.get("type") or "").strip() != "daily_screener":
+            return True
+    return False
+
+
 async def monitor_watchlist_triggers(
     *,
     data_service,
@@ -193,8 +202,11 @@ async def monitor_watchlist_triggers(
             continue
         ticker = str(item.get("ticker") or "").strip().upper()
         try:
-            result = await data_service.fetch_async(FetchRequest.from_ticker(ticker))
-            data = result.data if isinstance(getattr(result, "data", None), dict) else {}
+            if _triggers_need_market_data(triggers):
+                result = await data_service.fetch_async(FetchRequest.from_ticker(ticker))
+                data = result.data if isinstance(getattr(result, "data", None), dict) else {}
+            else:
+                data = {"ticker": ticker}
             events = evaluate_watchlist_triggers(item, data, evaluation_date=evaluation_date)
         except Exception as exc:
             errors.append({"ticker": ticker, "error": str(exc)[:240]})

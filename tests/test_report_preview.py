@@ -21,6 +21,7 @@ import report_rerun_service  # noqa: E402
 from data_fetch import FetchResult  # noqa: E402
 from data_trust_snapshot import build_data_snapshot, verify_data_snapshot_integrity  # noqa: E402
 from reporting import ReportBundle  # noqa: E402
+from reporting.html_renderer import generate_html_report  # noqa: E402
 from report_persistence import report_bundle_keys_for_filename  # noqa: E402
 from report_repository import ReportListQuery  # noqa: E402
 
@@ -282,6 +283,49 @@ def test_mode_d_report_preview_falls_back_to_markdown_trade_plan(tmp_path, monke
     assert preview["targets"][2]["value"] == "跌破 NT$292"
     assert preview["summary"] == "外資回補與突破月線"
     assert preview["metrics"][1]["value"] == "Medium"
+
+
+def test_rendered_report_surfaces_catalysts_with_watchlist_buttons():
+    html = generate_html_report({
+        "ticker": "2449.TW",
+        "company_name": "京元電子",
+        "pipeline_id": "v2",
+        "data": {
+            "ticker": "2449.TW",
+            "company_name": "京元電子",
+            "current_price": 309.5,
+            "current_price_fmt": "NT$309.50",
+            "source_audit": [],
+        },
+        "analyses": {16: "## 最終風險總結\n等待下一季法說。"},
+        "structured_outputs": {
+            16: {
+                "next_catalysts": [
+                    {
+                        "event_name": "Q3 法說會",
+                        "expected_timeframe": "Q3 2026",
+                        "impact_direction": "bullish",
+                        "trigger_condition": "若管理層調升毛利率指引，重新評估上行情境。",
+                    }
+                ]
+            }
+        },
+        "parsed": {
+            "recommendation": {
+                "建議": "持有",
+                "3個月": "NT$300",
+                "6個月": "NT$330",
+                "12個月": "NT$350",
+                "信心": "7/10",
+            },
+        },
+    })
+
+    assert "Key Catalysts to Watch" in html
+    assert 'class="add-to-watchlist-btn"' in html
+    assert 'data-ticker="2449.TW"' in html
+    assert 'data-impact-direction="bullish"' in html
+    assert 'data-trigger-desc="若管理層調升毛利率指引，重新評估上行情境。"' in html
 
 
 def write_report_pair(output_dir: Path, filename: str, recommendation: str):

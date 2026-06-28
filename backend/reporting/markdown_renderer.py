@@ -7,6 +7,7 @@ from datetime import datetime
 from analysis_types import AnalysisContext
 from company_display import company_display_name
 from config import format_model_routes
+from investment_thesis import investment_thesis_markdown
 from pipeline_modes import get_pipeline_definition
 
 from .audit_trust import build_audit_markdown, build_data_trust_markdown, build_source_audit_markdown
@@ -63,6 +64,7 @@ def generate_markdown_report(context: AnalysisContext) -> str:
     audit_markdown = build_audit_markdown(context)
     data_trust_markdown = build_data_trust_markdown(data)
     source_audit_markdown = build_source_audit_markdown(data, context)
+    thesis_markdown = investment_thesis_markdown(context.get("investment_thesis") or {})
     tear_sheet_summary = build_tear_sheet_summary(context)
     model_route_summary = format_model_routes(pipeline_id=pipeline_def["id"])
     agent_sections = build_agent_sections(context, html=False)
@@ -95,6 +97,8 @@ def generate_markdown_report(context: AnalysisContext) -> str:
 {decision_markdown}
 
 ---
+
+{thesis_markdown + chr(10) + chr(10) + "---" + chr(10) + chr(10) if thesis_markdown else ""}
 
 {agent_markdown}
 

@@ -14,6 +14,7 @@ from data_trust import (
 )
 from .evidence import build_key_evidence_html, build_key_evidence_markdown
 from .evidence_matrix import build_evidence_matrix_html, build_evidence_matrix_markdown
+from .html_sanitizer import sanitize_report_plain_text
 
 
 _LINT_MASK = [
@@ -202,17 +203,18 @@ def build_source_audit_html(data: dict, context: AnalysisContext | None = None) 
         if not isinstance(entry, dict):
             continue
         status = str(entry.get("status") or "unknown")
+        message = sanitize_report_plain_text(entry.get("message") or entry.get("error_kind") or "")
         rows.append(
             "<tr>"
             f"<td>{escape(source_label(entry.get('source', '')))}</td>"
-            f"<td>{escape(str(entry.get('provider') or 'N/A'))}</td>"
+            f"<td>{escape(sanitize_report_plain_text(entry.get('provider') or 'N/A'))}</td>"
             f"<td><span class=\"audit-status audit-status-{escape(status)}\">{escape(audit_status_label(status))}</span></td>"
             f"<td>{escape(str(entry.get('fetched_at') or 'N/A'))}</td>"
             f"<td>{escape(str(entry.get('duration_ms') if entry.get('duration_ms') is not None else 'N/A'))}</td>"
             f"<td>{escape(str(entry.get('record_count', 0)))}</td>"
             f"<td>{'是' if entry.get('cache_hit') else '否'}</td>"
             f"<td>{'是' if entry.get('stale') else '否'}</td>"
-            f"<td>{escape(str(entry.get('message') or entry.get('error_kind') or ''))}</td>"
+            f"<td>{escape(message)}</td>"
             "</tr>"
         )
 

@@ -10,7 +10,9 @@ from urllib.parse import quote
 
 from cache_store import get_cache_json, set_cache_json
 from external_data_parsers import parse_gdelt_article_payload, parse_google_news_rss_payload
-from external_http_client import async_client, async_json_get, log_http_warning
+from external_http_client import async_json_get, log_http_warning
+
+import httpx
 
 
 GDELT_DOC_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
@@ -27,9 +29,16 @@ GDELT_TOPIC_QUERIES = {
 GDELT_RATE_LIMIT_RE = re.compile(r"(?:\b429\b|too many requests|rate\s*limit)", re.IGNORECASE)
 DEFAULT_GDELT_RATE_LIMIT_COOLDOWN_SECONDS = 15 * 60
 DEFAULT_GDELT_TOPIC_CACHE_SECONDS = 6 * 60 * 60
+# Use a shorter timeout for GDELT (free/public API) so ConnectTimeout fails
+# fast and the Google News RSS fallback kicks in without long delays.
+_GDELT_CONNECT_TIMEOUT_SECONDS = 5.0
 GDELT_RATE_LIMIT_CACHE_KEY = "gdelt_rate_limit_cooldown:v1"
 
 _gdelt_cooldown_until = 0.0
+
+
+def async_client():
+    return httpx.AsyncClient(timeout=_GDELT_CONNECT_TIMEOUT_SECONDS)
 
 
 async def fetch_gdelt_international_news_context(

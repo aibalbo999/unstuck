@@ -5,9 +5,10 @@ from __future__ import annotations
 import os
 import time
 
-from config import CATALYST_LOOKBACK_DAYS, GOOGLE_CSE_ID, GOOGLE_SEARCH_API_KEY
+from config import CATALYST_LOOKBACK_DAYS, GOOGLE_CSE_ID, GOOGLE_SEARCH_API_KEY, GOOGLE_SEARCH_REFERER
 from external_data_parsers import parse_google_catalyst_payload, parse_google_peer_payload
 from external_http_client import async_client, async_json_get, log_http_warning, sync_json_get
+from runtime_events import emit_log
 
 
 GOOGLE_SEARCH_URL = "https://www.googleapis.com/customsearch/v1"
@@ -28,21 +29,19 @@ def fetch_google_search_catalysts(ticker: str, company_name: str, identity: dict
     official_name = identity.get("official_name") or company_name or ticker
     query = f"{official_name} {ticker} 法說會 展望 供應鏈 營收 投資"
     try:
-        payload = _sync_json_get(
-            GOOGLE_SEARCH_URL,
-            {
-                "key": GOOGLE_SEARCH_API_KEY,
-                "cx": GOOGLE_CSE_ID,
-                "q": query,
-                "num": 5,
-                "dateRestrict": f"d{CATALYST_LOOKBACK_DAYS}",
-                "lr": "lang_zh-TW",
-            },
-        )
+        payload = _sync_google_search_json_get({
+            "key": GOOGLE_SEARCH_API_KEY,
+            "cx": GOOGLE_CSE_ID,
+            "q": query,
+            "num": 5,
+            "dateRestrict": f"d{CATALYST_LOOKBACK_DAYS}",
+            "lr": "lang_zh-TW",
+        })
         return parse_google_catalyst_payload(payload)
     except Exception as exc:
         log_http_warning("Google Search", "recent catalysts", exc)
         if _is_restricted_google_search_response(exc):
+            _log_google_search_setup_hint(exc)
             _mark_google_search_cooldown()
         return []
 
@@ -57,9 +56,8 @@ async def fetch_google_search_catalysts_async(ticker: str, company_name: str, id
     query = f"{official_name} {ticker} 法說會 展望 供應鏈 營收 投資"
     try:
         async with async_client() as client:
-            payload = await _async_json_get(
+            payload = await _async_google_search_json_get(
                 client,
-                GOOGLE_SEARCH_URL,
                 {
                     "key": GOOGLE_SEARCH_API_KEY,
                     "cx": GOOGLE_CSE_ID,
@@ -73,6 +71,7 @@ async def fetch_google_search_catalysts_async(ticker: str, company_name: str, id
     except Exception as exc:
         log_http_warning("Google Search", "recent catalysts async", exc)
         if _is_restricted_google_search_response(exc):
+            _log_google_search_setup_hint(exc)
             _mark_google_search_cooldown()
         return []
 
@@ -86,19 +85,17 @@ def fetch_google_peer_discovery_results(ticker: str, company_name: str, sector: 
 
     query = f"{company_name} {ticker} global competitors peers gross margin {industry} {sector}"
     try:
-        payload = _sync_json_get(
-            GOOGLE_SEARCH_URL,
-            {
-                "key": GOOGLE_SEARCH_API_KEY,
-                "cx": GOOGLE_CSE_ID,
-                "q": query,
-                "num": 5,
-            },
-        )
+        payload = _sync_google_search_json_get({
+            "key": GOOGLE_SEARCH_API_KEY,
+            "cx": GOOGLE_CSE_ID,
+            "q": query,
+            "num": 5,
+        })
         return parse_google_peer_payload(payload)
     except Exception as exc:
         log_http_warning("Google Search", "peer discovery", exc)
         if _is_restricted_google_search_response(exc):
+            _log_google_search_setup_hint(exc)
             _mark_google_search_cooldown()
         return []
 
@@ -112,9 +109,8 @@ async def fetch_google_peer_discovery_results_async(ticker: str, company_name: s
     query = f"{company_name} {ticker} global competitors peers gross margin {industry} {sector}"
     try:
         async with async_client() as client:
-            payload = await _async_json_get(
+            payload = await _async_google_search_json_get(
                 client,
-                GOOGLE_SEARCH_URL,
                 {
                     "key": GOOGLE_SEARCH_API_KEY,
                     "cx": GOOGLE_CSE_ID,
@@ -126,8 +122,28 @@ async def fetch_google_peer_discovery_results_async(ticker: str, company_name: s
     except Exception as exc:
         log_http_warning("Google Search", "peer discovery async", exc)
         if _is_restricted_google_search_response(exc):
+            _log_google_search_setup_hint(exc)
             _mark_google_search_cooldown()
         return []
+
+
+def _google_search_headers() -> dict[str, str]:
+    referer = (GOOGLE_SEARCH_REFERER or "").strip()
+    return {"Referer": referer} if referer else {}
+
+
+def _sync_google_search_json_get(params: dict) -> dict:
+    headers = _google_search_headers()
+    if headers:
+        return _sync_json_get(GOOGLE_SEARCH_URL, params, headers=headers)
+    return _sync_json_get(GOOGLE_SEARCH_URL, params)
+
+
+async def _async_google_search_json_get(client, params: dict) -> dict:
+    headers = _google_search_headers()
+    if headers:
+        return await _async_json_get(client, GOOGLE_SEARCH_URL, params, headers=headers)
+    return await _async_json_get(client, GOOGLE_SEARCH_URL, params)
 
 
 def _now() -> float:
@@ -169,3 +185,60 @@ def _is_restricted_google_search_response(exc: BaseException) -> bool:
         return int(status_code) in GOOGLE_SEARCH_RESTRICTED_STATUS_CODES
     except (TypeError, ValueError):
         return False
+
+
+def describe_google_search_setup_hint(exc: BaseException) -> str:
+    reason, message = _google_search_error_reason_and_message(exc)
+    if reason == "API_KEY_HTTP_REFERRER_BLOCKED":
+        return (
+            "Google Search API key is blocked by HTTP Referrer restrictions. "
+            "For backend/server calls, prefer an IP-restricted key for Custom Search JSON API, "
+            "or set GOOGLE_SEARCH_REFERER to a referrer that is explicitly allowed in Google Cloud."
+        )
+    if "does not have the access to Custom Search JSON API" in message:
+        return (
+            "This Google Cloud project does not have Custom Search JSON API access. "
+            "Confirm the API is enabled on the same project as GOOGLE_SEARCH_API_KEY; "
+            "if Google still rejects it, use an older Google Cloud project that already has Custom Search JSON API access "
+            "or switch this optional source to another search/news provider."
+        )
+    if reason in {"SERVICE_DISABLED", "ACCESS_TOKEN_SCOPE_INSUFFICIENT"}:
+        return "Enable Custom Search JSON API on the Google Cloud project used by GOOGLE_SEARCH_API_KEY."
+    if reason in {"API_KEY_SERVICE_BLOCKED", "API_KEY_SERVICE_BLOCKED_BY_ORG_POLICY"}:
+        return "Allow Custom Search JSON API in this API key's API restrictions."
+    if reason in {"API_KEY_INVALID", "KEY_INVALID"}:
+        return "GOOGLE_SEARCH_API_KEY is invalid; replace it with a valid API key."
+    if reason in {"RATE_LIMIT_EXCEEDED", "QUOTA_EXCEEDED", "DAILY_LIMIT_EXCEEDED"}:
+        return "Google Custom Search quota is exhausted or rate-limited; wait for quota reset or adjust billing/quota."
+    if message:
+        return f"Google Search rejected the request: {message}"
+    return ""
+
+
+def _google_search_error_reason_and_message(exc: BaseException) -> tuple[str, str]:
+    response = getattr(exc, "response", None)
+    try:
+        payload = response.json() if response is not None else {}
+    except Exception:
+        payload = {}
+    error = payload.get("error") if isinstance(payload, dict) else {}
+    if not isinstance(error, dict):
+        return "", ""
+
+    reason = ""
+    for detail in error.get("details", []) or []:
+        if isinstance(detail, dict) and detail.get("reason"):
+            reason = str(detail.get("reason") or "")
+            break
+    if not reason:
+        for item in error.get("errors", []) or []:
+            if isinstance(item, dict) and item.get("reason"):
+                reason = str(item.get("reason") or "")
+                break
+    return reason, str(error.get("message") or "")
+
+
+def _log_google_search_setup_hint(exc: BaseException) -> None:
+    hint = describe_google_search_setup_hint(exc)
+    if hint:
+        emit_log(f"    Google Search setup hint: {hint}")

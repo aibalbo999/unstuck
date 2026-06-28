@@ -9,7 +9,32 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
+import market_screener
 import watchlist_service
+
+
+def _screener_status_message(result: dict) -> str:
+    for warning in result.get("warnings") or []:
+        if isinstance(warning, dict) and warning.get("message"):
+            return f"市場掃描資料源暫無可用資料：{warning.get('message')}"
+    for error in result.get("errors") or []:
+        if isinstance(error, dict) and error.get("error"):
+            return f"市場掃描資料源暫無可用資料：{error.get('error')}"
+    if result.get("skipped"):
+        return "市場掃描已略過。"
+    return "市場掃描暫無可用候選股。"
+
+
+def _renderable_screener_result(result: dict) -> dict:
+    scan_success = bool(result.get("success", True))
+    if scan_success:
+        return {**result, "scan_success": True}
+    return {
+        **result,
+        "success": True,
+        "scan_success": False,
+        "message": str(result.get("message") or _screener_status_message(result)),
+    }
 
 
 @dataclass(frozen=True)
@@ -31,6 +56,21 @@ def create_watchlist_router(deps: WatchlistRouteDeps) -> APIRouter:
             watchlist_service.list_watchlist_with_report_alerts,
             deps.get_output_dir(),
         )
+
+    @router.get("/screener")
+    async def get_market_screener_watchlist():
+        return await asyncio.to_thread(
+            market_screener.list_auto_screener_watchlist,
+            deps.get_output_dir(),
+        )
+
+    @router.post("/screener/run")
+    async def run_market_screener(request: Request):
+        deps.require_mutation_authorized(request)
+        payload = await request.json()
+        force = bool(payload.get("force")) if isinstance(payload, dict) else False
+        result = await asyncio.to_thread(market_screener.run_daily_market_screener, force=force)
+        return _renderable_screener_result(result)
 
     @router.post("")
     async def upsert_watchlist_item(request: Request):

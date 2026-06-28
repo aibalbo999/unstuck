@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import os
 import sys
+from pathlib import Path
 
 
 def _reload_grouped_settings():
@@ -69,3 +70,114 @@ def test_settings_package_loads_local_env_before_grouped_modules(tmp_path):
             else:
                 os.environ[key] = value
         _reload_grouped_settings()
+
+
+def test_load_local_env_does_not_reopen_unchanged_file(tmp_path, monkeypatch):
+    import settings.env as settings_env
+
+    original_base_dir = settings_env.BASE_DIR
+    original_signature = getattr(settings_env, "_LOADED_ENV_SIGNATURE", None)
+    original_success = getattr(settings_env, "_LOADED_ENV_SUCCESS", False)
+    original_read_text = Path.read_text
+    old_value = os.environ.get("TEST_ENV_CACHE_KEY")
+    read_count = {"value": 0}
+
+    (tmp_path / ".env").write_text("TEST_ENV_CACHE_KEY=loaded-once\n", encoding="utf-8")
+
+    def counting_read_text(self, *args, **kwargs):
+        if self == tmp_path / ".env":
+            read_count["value"] += 1
+        return original_read_text(self, *args, **kwargs)
+
+    try:
+        os.environ.pop("TEST_ENV_CACHE_KEY", None)
+        settings_env.BASE_DIR = tmp_path
+        settings_env._LOADED_ENV_SIGNATURE = None
+        settings_env._LOADED_ENV_SUCCESS = False
+        monkeypatch.setattr(Path, "read_text", counting_read_text)
+
+        settings_env.load_local_env()
+        settings_env.load_local_env()
+        settings_env.load_local_env()
+
+        assert os.environ["TEST_ENV_CACHE_KEY"] == "loaded-once"
+        assert read_count["value"] == 1
+    finally:
+        settings_env.BASE_DIR = original_base_dir
+        settings_env._LOADED_ENV_SIGNATURE = original_signature
+        settings_env._LOADED_ENV_SUCCESS = original_success
+        if old_value is None:
+            os.environ.pop("TEST_ENV_CACHE_KEY", None)
+        else:
+            os.environ["TEST_ENV_CACHE_KEY"] = old_value
+
+
+def test_load_local_env_uses_cached_values_when_reopen_hits_oserror(tmp_path, monkeypatch):
+    import settings.env as settings_env
+
+    original_base_dir = settings_env.BASE_DIR
+    original_signature = getattr(settings_env, "_LOADED_ENV_SIGNATURE", None)
+    original_success = getattr(settings_env, "_LOADED_ENV_SUCCESS", False)
+    original_read_text = Path.read_text
+    old_value = os.environ.get("TEST_ENV_OSERROR_KEY")
+    calls = {"value": 0}
+
+    (tmp_path / ".env").write_text("TEST_ENV_OSERROR_KEY=survives\n", encoding="utf-8")
+
+    def flaky_read_text(self, *args, **kwargs):
+        if self == tmp_path / ".env":
+            calls["value"] += 1
+            if calls["value"] > 1:
+                raise OSError(24, "Too many open files")
+        return original_read_text(self, *args, **kwargs)
+
+    try:
+        os.environ.pop("TEST_ENV_OSERROR_KEY", None)
+        settings_env.BASE_DIR = tmp_path
+        settings_env._LOADED_ENV_SIGNATURE = None
+        settings_env._LOADED_ENV_SUCCESS = False
+        monkeypatch.setattr(Path, "read_text", flaky_read_text)
+
+        settings_env.load_local_env()
+        settings_env._LOADED_ENV_SIGNATURE = None
+        settings_env.load_local_env()
+
+        assert os.environ["TEST_ENV_OSERROR_KEY"] == "survives"
+        assert calls["value"] == 2
+    finally:
+        settings_env.BASE_DIR = original_base_dir
+        settings_env._LOADED_ENV_SIGNATURE = original_signature
+        settings_env._LOADED_ENV_SUCCESS = original_success
+        if old_value is None:
+            os.environ.pop("TEST_ENV_OSERROR_KEY", None)
+        else:
+            os.environ["TEST_ENV_OSERROR_KEY"] = old_value
+
+
+def test_load_local_env_replaces_empty_environment_value(tmp_path):
+    import settings.env as settings_env
+
+    original_base_dir = settings_env.BASE_DIR
+    original_signature = getattr(settings_env, "_LOADED_ENV_SIGNATURE", None)
+    original_success = getattr(settings_env, "_LOADED_ENV_SUCCESS", False)
+    old_value = os.environ.get("TEST_ENV_EMPTY_KEY")
+
+    (tmp_path / ".env").write_text("TEST_ENV_EMPTY_KEY=filled\n", encoding="utf-8")
+
+    try:
+        os.environ["TEST_ENV_EMPTY_KEY"] = ""
+        settings_env.BASE_DIR = tmp_path
+        settings_env._LOADED_ENV_SIGNATURE = None
+        settings_env._LOADED_ENV_SUCCESS = False
+
+        settings_env.load_local_env()
+
+        assert os.environ["TEST_ENV_EMPTY_KEY"] == "filled"
+    finally:
+        settings_env.BASE_DIR = original_base_dir
+        settings_env._LOADED_ENV_SIGNATURE = original_signature
+        settings_env._LOADED_ENV_SUCCESS = original_success
+        if old_value is None:
+            os.environ.pop("TEST_ENV_EMPTY_KEY", None)
+        else:
+            os.environ["TEST_ENV_EMPTY_KEY"] = old_value

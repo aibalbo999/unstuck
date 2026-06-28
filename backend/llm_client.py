@@ -9,6 +9,7 @@ import llm_transport as _transport
 from config import LLM_AGENT_CALL_TIMEOUT_SECONDS
 from llm_errors import (
     describe_quota_or_rate_error,
+    is_auth_error,
     is_missing_model_error,
     is_quota_or_rate_error,
     retry_delay_seconds,
@@ -69,6 +70,7 @@ __all__ = [
     "generate_images",
     "generate_images_async",
     "genai",
+    "is_auth_error",
     "is_missing_model_error",
     "is_quota_or_rate_error",
     "response_text",

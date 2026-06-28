@@ -34,13 +34,17 @@ def _merge_optional_http_bundle(
 
     combined_catalysts = list(data.get("recent_catalysts", []) or [])
     combined_catalysts.extend(http_bundle.get("free_news", []) or [])
+    combined_catalysts.extend(http_bundle.get("search_catalysts", []) or [])
     combined_catalysts.extend(http_bundle.get("google_catalysts", []) or [])
     combined_catalysts.extend(http_bundle.get("fmp_news", []) or [])
     combined_catalysts.extend(http_bundle.get("yahoo_news", []) or [])
     if combined_catalysts:
         data["recent_catalysts"] = _dedupe_recent_catalysts(combined_catalysts, limit=5)
 
-    peer_discovery = http_bundle.get("google_peer_discovery", []) or []
+    peer_discovery = []
+    peer_discovery.extend(data.get("peer_discovery_results", []) or [])
+    peer_discovery.extend(http_bundle.get("search_peer_discovery", []) or [])
+    peer_discovery.extend(http_bundle.get("google_peer_discovery", []) or [])
     if peer_discovery:
         data["peer_discovery_results"] = _dedupe_records(peer_discovery, limit=5)
 
@@ -202,7 +206,9 @@ def _optional_provider_label(source: str) -> str:
         return "Taiwan Open Data"
     if source == "earnings_call":
         return "MOPS investor conference"
-    return "Google Search"
+    if source == "peer_discovery":
+        return "Peer discovery providers"
+    return "Optional providers"
 
 
 def _dedupe_recent_catalysts(records: list[dict], limit: int = 5) -> list[dict]:

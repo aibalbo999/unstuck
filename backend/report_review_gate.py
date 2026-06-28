@@ -72,6 +72,7 @@ def get_review_status(report_filename: str, output_dir: str) -> dict:
         "warnings": record.get("warnings", []),
         "review_agents_used": record.get("review_agents_used", []),
         "confidence_adjustment": record.get("confidence_adjustment", 0),
+        "evidence_exit_gate": record.get("evidence_exit_gate", {}),
     }
 
 
@@ -86,6 +87,7 @@ def write_ai_review_result(
     review_agents_used: list[str],
     confidence_adjustment: int = 0,
     raw_agent_outputs: Optional[dict] = None,
+    evidence_exit_gate: Optional[dict] = None,
 ) -> dict:
     """Write AI review result to sidecar file."""
     now_iso = datetime.now(timezone.utc).isoformat()
@@ -99,6 +101,7 @@ def write_ai_review_result(
         "warnings": warnings[:10],
         "review_agents_used": review_agents_used,
         "confidence_adjustment": confidence_adjustment,
+        "evidence_exit_gate": evidence_exit_gate or {},
         "schema_version": 1,
     }
     if raw_agent_outputs:

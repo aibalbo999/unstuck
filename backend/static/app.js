@@ -66,6 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let pendingAuditNotice = null;
     let currentPipeline = 'v1';
     const notify = window.StockAgentNotificationCenter.create();
+    window.StockAgentNotify = notify;
 
     const viewController = window.StockAgentViewController.create({
         views: {
@@ -133,6 +134,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const opsWorkspace = window.StockAgentOpsWorkspace.create({ apiClient, ui });
     const operatorSummary = window.StockAgentOperatorSummaryPanel.create({ apiClient, ui });
+    const marketScreenerPanel = window.StockAgentMarketScreenerPanel.create({
+        apiClient,
+        ui,
+        elements: {
+            summaryEl: document.getElementById('market-screener-summary'),
+            boardEl: document.getElementById('market-screener-board'),
+            listEl: document.getElementById('market-screener-list'),
+            runBtn: document.getElementById('market-screener-run-btn'),
+            refreshBtn: document.getElementById('market-screener-refresh')
+        }
+    });
 
     const historyWorkspace = window.StockAgentHistoryWorkspace.create({
         apiClient,
@@ -195,8 +207,10 @@ document.addEventListener('DOMContentLoaded', () => {
     loadHistory();
     operatorSummary.load();
     opsWorkspace.bindEvents();
+    marketScreenerPanel.bindEvents();
     window.StockAgentHomeTabs.bind({
         onActivate: tabName => {
+            if (tabName === 'screener') marketScreenerPanel.loadOnce();
             if (tabName === 'ops') opsWorkspace.loadAllOnce();
         }
     });

@@ -42,6 +42,7 @@ def _init_schema(conn: sqlite3.Connection) -> None:
         )
         """
     )
+    _ensure_watchlist_item_columns(conn)
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS watchlist_meta (
@@ -50,6 +51,18 @@ def _init_schema(conn: sqlite3.Connection) -> None:
         )
         """
     )
+
+
+def _table_columns(conn: sqlite3.Connection, table: str) -> set[str]:
+    return {str(row["name"]) for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+
+
+def _ensure_watchlist_item_columns(conn: sqlite3.Connection) -> None:
+    columns = _table_columns(conn, "watchlist_items")
+    if "tags_json" not in columns:
+        conn.execute("ALTER TABLE watchlist_items ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'")
+    if "trigger_source" not in columns:
+        conn.execute("ALTER TABLE watchlist_items ADD COLUMN trigger_source TEXT NOT NULL DEFAULT ''")
 
 
 _resource = ThreadLocalSqliteResource(_db_path, init_schema=_init_schema, row_factory=sqlite3.Row)
@@ -100,6 +113,19 @@ def _normalize_slots(value) -> list[str]:
     return slots or ["post_market"]
 
 
+def _normalize_tags(value) -> list[str]:
+    if isinstance(value, str):
+        value = [value]
+    if not isinstance(value, list):
+        return []
+    tags = []
+    for item in value:
+        tag = str(item or "").strip()
+        if tag and tag not in tags:
+            tags.append(tag)
+    return tags
+
+
 def _normalize_item(item: dict) -> dict:
     ticker = str(item.get("ticker") or "").strip().upper()
     pipeline = normalize_pipeline_run_id(item.get("pipeline") or item.get("pipeline_id") or "v1")
@@ -109,6 +135,8 @@ def _normalize_item(item: dict) -> dict:
         "enabled": bool(item.get("enabled", True)),
         "schedule_slots": _normalize_slots(item.get("schedule_slots")),
         "last_run_dates": item.get("last_run_dates") if isinstance(item.get("last_run_dates"), dict) else {},
+        "tags": _normalize_tags(item.get("tags")),
+        "trigger_source": str(item.get("trigger_source") or "").strip().lower(),
         "created_at": item.get("created_at") or _now_iso(),
         "updated_at": item.get("updated_at") or _now_iso(),
     }
@@ -156,6 +184,8 @@ def _item_from_row(row: sqlite3.Row) -> dict:
         "enabled": bool(row["enabled"]),
         "schedule_slots": _normalize_slots(_json_list(row["schedule_slots_json"])),
         "last_run_dates": _json_dict(row["last_run_dates_json"]),
+        "tags": _normalize_tags(_json_list(row["tags_json"])),
+        "trigger_source": str(row["trigger_source"] or ""),
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
@@ -166,13 +196,15 @@ def _replace_item_row(conn: sqlite3.Connection, item: dict) -> None:
         """
         INSERT INTO watchlist_items (
             ticker, pipeline, enabled, schedule_slots_json,
-            last_run_dates_json, created_at, updated_at
+            last_run_dates_json, tags_json, trigger_source, created_at, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(ticker, pipeline) DO UPDATE SET
             enabled = excluded.enabled,
             schedule_slots_json = excluded.schedule_slots_json,
             last_run_dates_json = excluded.last_run_dates_json,
+            tags_json = excluded.tags_json,
+            trigger_source = excluded.trigger_source,
             created_at = excluded.created_at,
             updated_at = excluded.updated_at
         """,
@@ -182,6 +214,8 @@ def _replace_item_row(conn: sqlite3.Connection, item: dict) -> None:
             1 if item.get("enabled") else 0,
             _json_dumps(_normalize_slots(item.get("schedule_slots"))),
             _json_dumps(item.get("last_run_dates") if isinstance(item.get("last_run_dates"), dict) else {}),
+            _json_dumps(_normalize_tags(item.get("tags"))),
+            str(item.get("trigger_source") or ""),
             item["created_at"],
             item["updated_at"],
         ),
@@ -191,7 +225,8 @@ def _replace_item_row(conn: sqlite3.Connection, item: dict) -> None:
 def _read_store_from_conn(conn: sqlite3.Connection) -> dict:
     rows = conn.execute(
         """
-        SELECT ticker, pipeline, enabled, schedule_slots_json, last_run_dates_json, created_at, updated_at
+        SELECT ticker, pipeline, enabled, schedule_slots_json, last_run_dates_json,
+               tags_json, trigger_source, created_at, updated_at
         FROM watchlist_items
         ORDER BY ticker ASC, pipeline ASC
         """
@@ -221,7 +256,8 @@ def _ensure_legacy_json_migrated(conn: sqlite3.Connection) -> None:
 def _select_item(conn: sqlite3.Connection, ticker: str, pipeline: str) -> dict | None:
     row = conn.execute(
         """
-        SELECT ticker, pipeline, enabled, schedule_slots_json, last_run_dates_json, created_at, updated_at
+        SELECT ticker, pipeline, enabled, schedule_slots_json, last_run_dates_json,
+               tags_json, trigger_source, created_at, updated_at
         FROM watchlist_items
         WHERE ticker = ? AND pipeline = ?
         """,
@@ -248,6 +284,10 @@ def upsert_watchlist_item(payload: dict) -> dict:
         existing = _select_item(conn, item["ticker"], item["pipeline"])
         item["created_at"] = (existing or {}).get("created_at") or now
         item["last_run_dates"] = (existing or {}).get("last_run_dates") or item.get("last_run_dates", {})
+        if existing and "tags" not in (payload or {}):
+            item["tags"] = existing.get("tags", [])
+        if existing and "trigger_source" not in (payload or {}):
+            item["trigger_source"] = existing.get("trigger_source", "")
         item["updated_at"] = now
         _replace_item_row(conn, item)
         _touch_store(conn, now)

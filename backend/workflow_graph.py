@@ -63,11 +63,11 @@ def route_after_repair_validation(state: AgentGraphState) -> Literal["blocked_fi
     return "prepare_analysis"
 
 
-def route_after_final_audit(state: AgentGraphState) -> Literal["blocked_finalize", "tear_sheet"]:
+def route_after_final_audit(state: AgentGraphState) -> Literal["blocked_finalize", "chief_editor"]:
     blocking_issues = set(str(issue) for issue in (state.get("blocking_issues") or []))
     if state.get("status") == "blocked" or blocking_issues:
         return "blocked_finalize"
-    return "tear_sheet"
+    return "chief_editor"
 
 
 def build_analysis_graph_builder(pipeline_id: str, services: WorkflowServices) -> StateGraph:
@@ -81,6 +81,7 @@ def build_analysis_graph_builder(pipeline_id: str, services: WorkflowServices) -
     graph.add_node("prepare_analysis", services.prepare, retry_policy=AGENT_RETRY_POLICY)
     graph.add_node("blocked_finalize", _blocked_finalize)
     graph.add_node("final_audit", services.final_audit, retry_policy=AGENT_RETRY_POLICY)
+    graph.add_node("chief_editor", services.chief_editor, retry_policy=AGENT_RETRY_POLICY)
     graph.add_node("tear_sheet", services.tear_sheet, retry_policy=AGENT_RETRY_POLICY)
     graph.add_node("persist_report", services.persist_report, retry_policy=AGENT_RETRY_POLICY)
     graph.add_node("finalize", _finalize)
@@ -102,8 +103,9 @@ def build_analysis_graph_builder(pipeline_id: str, services: WorkflowServices) -
     graph.add_conditional_edges(
         "final_audit",
         route_after_final_audit,
-        {"blocked_finalize": "blocked_finalize", "tear_sheet": "tear_sheet"},
+        {"blocked_finalize": "blocked_finalize", "chief_editor": "chief_editor"},
     )
+    graph.add_edge("chief_editor", "tear_sheet")
     graph.add_edge("tear_sheet", "persist_report")
     graph.add_edge("persist_report", "finalize")
     graph.add_edge("finalize", END)

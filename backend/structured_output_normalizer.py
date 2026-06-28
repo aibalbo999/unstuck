@@ -186,6 +186,7 @@ def normalize_structured_output(agent_num: int, payload: Optional[dict]) -> Opti
             "reasoning_steps": reasoning_steps,
             "recommendation": normalized_rec,
             "scenario_triggers": payload.get("scenario_triggers", []),
+            "next_catalysts": payload.get("next_catalysts", []),
             "analysis_markdown": str(payload.get("analysis_markdown", "")).strip(),
         }
 

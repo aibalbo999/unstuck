@@ -20,6 +20,7 @@ from rag_runtime import build_rag_index_async
 from runtime_events import RUNTIME_EVENT_CALLBACK_KEY, emit_log
 from state_memory import initialize_agent_state
 from tear_sheet_tasks import ensure_tear_sheet_summary_async
+from workflow_chief_editor import run_chief_editor_synthesis
 from workflow_quarters import latest_closed_quarter_for_reconciliation
 from workflow_state import (
     AgentGraphState,
@@ -48,6 +49,7 @@ class WorkflowServices:
     prepare: Callable[[AgentGraphState], Awaitable[dict[str, Any]]]
     run_agent: Callable[[int, AgentGraphState], Awaitable[dict[str, Any]]]
     final_audit: Callable[[AgentGraphState], Awaitable[dict[str, Any]]]
+    chief_editor: Callable[[AgentGraphState], Awaitable[dict[str, Any]]]
     tear_sheet: Callable[[AgentGraphState], Awaitable[dict[str, Any]]]
     persist_report: Callable[[AgentGraphState], Awaitable[dict[str, Any]]]
     progress_callback: Callable[..., Any] | None = None
@@ -84,6 +86,10 @@ def create_default_workflow_services(
         await finalize_final_audit_async(context, active_rotator, progress_callback=progress_callback)
         return graph_delta_from_legacy_context(context)
 
+    async def chief_editor(state: AgentGraphState) -> dict[str, Any]:
+        context = legacy_context_from_graph(state, holder["services"])
+        return run_chief_editor_synthesis(context)
+
     async def tear_sheet(state: AgentGraphState) -> dict[str, Any]:
         context = legacy_context_from_graph(state, holder["services"])
         await ensure_tear_sheet_summary_async(context, active_rotator, progress_callback=progress_callback)
@@ -99,6 +105,7 @@ def create_default_workflow_services(
         prepare=prepare,
         run_agent=run_agent,
         final_audit=final_audit,
+        chief_editor=chief_editor,
         tear_sheet=tear_sheet,
         persist_report=persist_report,
         progress_callback=progress_callback,
@@ -176,6 +183,10 @@ def legacy_context_from_graph(state: AgentGraphState, services: WorkflowServices
         "repair_attempt_counts": copy_json(state.get("repair_attempt_counts") or {}),
         "repair_iteration_count": int(state.get("repair_iteration_count") or 0),
         "final_audit": copy_json(state.get("final_audit") or {}),
+        "executive_thesis": str(state.get("executive_thesis") or ""),
+        "investment_thesis": copy_json(state.get("investment_thesis") or {}),
+        "smoothed_markdown": str(state.get("smoothed_markdown") or ""),
+        "next_catalysts": copy_json(state.get("next_catalysts") or []),
         "tear_sheet_summary": str(state.get("tear_sheet_summary") or ""),
         "report_cover": copy_json(state.get("report_cover") or {}),
         "report_filename": str(state.get("report_filename") or ""),
@@ -243,6 +254,10 @@ def graph_delta_from_legacy_context(context: AnalysisContext) -> dict[str, Any]:
         "repair_attempt_counts": copy_json(context.get("repair_attempt_counts") or {}),
         "repair_iteration_count": int(context.get("repair_iteration_count") or 0),
         "final_audit": copy_json(context.get("final_audit") or {}),
+        "executive_thesis": str(context.get("executive_thesis") or ""),
+        "investment_thesis": copy_json(context.get("investment_thesis") or {}),
+        "smoothed_markdown": str(context.get("smoothed_markdown") or ""),
+        "next_catalysts": copy_json(context.get("next_catalysts") or []),
         "tear_sheet_summary": str(context.get("tear_sheet_summary") or ""),
         "report_cover": copy_json(context.get("report_cover") or {}),
     }
@@ -253,6 +268,10 @@ def graph_delta_from_legacy_context(context: AnalysisContext) -> dict[str, Any]:
     domain_state = context.get("agent_state")
     if domain_state is not None:
         delta["agent_reports"] = {agent_id: report.model_dump(mode="json") for agent_id, report in domain_state.agent_reports.items()}
+        delta["executive_thesis"] = domain_state.executive_thesis or delta.get("executive_thesis", "")
+        delta["smoothed_markdown"] = domain_state.smoothed_markdown or delta.get("smoothed_markdown", "")
+        if domain_state.next_catalysts:
+            delta["next_catalysts"] = copy_json(domain_state.next_catalysts)
         delta["risk_flags"] = [flag.model_dump(mode="json") for flag in domain_state.risk_flags]
     return delta
 
