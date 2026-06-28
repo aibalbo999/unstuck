@@ -825,6 +825,14 @@ class AuditRuleTests(unittest.TestCase):
         self.assertNotIn("exclusiveMinimum", schema_text)
         self.assertNotIn("exclusiveMaximum", schema_text)
 
+    def test_structured_generation_config_does_not_mix_tools_with_json_schema(self):
+        config_obj = ar.build_generation_config(14, "system")
+
+        self.assertEqual(getattr(config_obj, "response_mime_type", None), "application/json")
+        self.assertIsNotNone(getattr(config_obj, "response_schema", None))
+        self.assertFalse(getattr(config_obj, "tools", None))
+        self.assertFalse(getattr(config_obj, "automatic_function_calling", None))
+
     def test_openai_structured_output_schema_is_strict_without_changing_genai_schema(self):
         genai_schema = PriceTargetStructuredOutput.model_json_schema(by_alias=True)
         openai_format = openai_json_schema_response_format("price_target", PriceTargetStructuredOutput)

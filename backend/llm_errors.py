@@ -9,12 +9,34 @@ from typing import Any
 
 def is_quota_or_rate_error(error_msg: str) -> bool:
     normalized = (error_msg or "").lower()
+    compact = re.sub(r"[^a-z0-9]+", "", normalized)
     return (
-        "429" in normalized
-        or "quota" in normalized
-        or "rate" in normalized
-        or "resource_exhausted" in normalized
-        or "resource exhausted" in normalized
+        bool(re.search(r"\b429\b", normalized))
+        or "quota" in compact
+        or "resourceexhausted" in compact
+        or "ratelimit" in compact
+        or "retryafter" in compact
+        or "requestsperminute" in compact
+        or "tokensperminute" in compact
+        or "requestsperday" in compact
+        or bool(re.search(r"\brate\s+limit(?:ed|ing|s)?\b", normalized))
+        or bool(re.search(r"\btoo\s+many\s+requests\b", normalized))
+    )
+
+
+def is_auth_error(error_msg: str) -> bool:
+    normalized = (error_msg or "").lower()
+    compact = re.sub(r"[^a-z0-9]+", "", normalized)
+    return (
+        bool(re.search(r"\b401\b", normalized))
+        or "unauthenticated" in normalized
+        or "apikeynotvalid" in compact
+        or "invalidapikey" in compact
+        or "api_key_invalid" in normalized
+        or (
+            "boundserviceaccount" in compact
+            and ("deletedordisabled" in compact or "mustbeactive" in compact)
+        )
     )
 
 

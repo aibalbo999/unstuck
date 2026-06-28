@@ -12,6 +12,7 @@ from config import LLM_SERVER_ERROR_RETRY_MAX_WAIT_SECONDS
 from llm_client import (
     KeyRotator,
     describe_quota_or_rate_error,
+    is_auth_error,
     is_missing_model_error,
     is_quota_or_rate_error,
     retry_delay_seconds,
@@ -55,8 +56,30 @@ class AgentRateLimitError(AgentRetryableError):
         self.key_count = key_count
 
 
+class AgentAuthError(AgentRetryableError):
+    """Raised when a specific provider API key fails authentication."""
+
+    def __init__(
+        self,
+        detail: str,
+        retry_wait_seconds: float,
+        *,
+        key_slot: int | None = None,
+        key_count: int | None = None,
+    ):
+        super().__init__(detail)
+        self.detail = detail
+        self.retry_wait_seconds = retry_wait_seconds
+        self.key_slot = key_slot
+        self.key_count = key_count
+
+
 class AgentMissingModelError(Exception):
     """Raised when the selected model is unavailable and should not be retried."""
+
+
+class AgentConfigurationError(Exception):
+    """Raised for permanent provider request/configuration contract errors."""
 
 
 BASE_AGENT_RETRY_WAIT = wait_exponential(multiplier=2, min=1, max=30)
@@ -112,6 +135,8 @@ def _agent_retry_wait(retry_state) -> float:
     exc = retry_state.outcome.exception() if retry_state.outcome else None
     if isinstance(exc, AgentRateLimitError):
         return max(float(exc.retry_wait_seconds), 1.0)
+    if isinstance(exc, AgentAuthError):
+        return max(float(exc.retry_wait_seconds), 1.0)
     if isinstance(exc, AgentServerError):
         return SERVER_ERROR_RETRY_WAIT(retry_state)
     return BASE_AGENT_RETRY_WAIT(retry_state)
@@ -128,6 +153,14 @@ def _retry_log_message(retry_state) -> tuple[str, str, str]:
             "warning",
             f"配額/速率限制：{exc.detail[:150]}... "
             f"{key_label} 冷卻 {exc.key_cooldown_seconds:.1f} 秒，{sleep:.1f} 秒後改試其他 Key（第 {attempt} 次）",
+        )
+    if isinstance(exc, AgentAuthError):
+        key_label = f"Key {exc.key_slot}/{exc.key_count}" if exc.key_slot and exc.key_count else "該 Key"
+        return (
+            "llm_auth_retry",
+            "warning",
+            f"API key 驗證失敗：{exc.detail[:150]}... "
+            f"{key_label} 無法使用，{sleep:.1f} 秒後改試其他 Key（第 {attempt} 次）",
         )
     if isinstance(exc, AgentShortResponseError):
         return ("llm_short_response_retry", "warning", f"回應過短，等待 {sleep:.1f} 秒後重試（第 {attempt} 次）")
@@ -163,15 +196,15 @@ def make_agent_retry_logger(context: AnalysisContext, agent_num: int, model_id: 
                     "attempt": getattr(retry_state, "attempt_number", None),
                     "sleep_seconds": getattr(getattr(retry_state, "next_action", None), "sleep", None),
                     "error_kind": (retry_state.outcome.exception().__class__.__name__ if retry_state.outcome and retry_state.outcome.exception() else None),
-                    **_rate_limit_key_metadata(retry_state.outcome.exception() if retry_state.outcome else None),
+                    **_key_error_metadata(retry_state.outcome.exception() if retry_state.outcome else None),
                 },
             ),
         )
     return _logger
 
 
-def _rate_limit_key_metadata(exc: Exception | None) -> dict:
-    if not isinstance(exc, AgentRateLimitError):
+def _key_error_metadata(exc: Exception | None) -> dict:
+    if not isinstance(exc, (AgentRateLimitError, AgentAuthError)):
         return {}
     return {
         key: value
@@ -185,6 +218,15 @@ def _rate_limit_key_metadata(exc: Exception | None) -> dict:
 
 def _raise_agent_call_error(exc: Exception, api_key: Optional[str], model_id: str, rotator: KeyRotator, quota_default: float):
     error_msg = str(exc)
+    if is_auth_error(error_msg):
+        key_slot, key_count = _key_slot(api_key, rotator)
+        raise AgentAuthError(
+            error_msg,
+            1.0,
+            key_slot=key_slot,
+            key_count=key_count,
+        ) from exc
+
     if is_quota_or_rate_error(error_msg):
         key_cooldown = retry_delay_seconds(exc, default=quota_default)
         if api_key:
@@ -203,10 +245,10 @@ def _raise_agent_call_error(exc: Exception, api_key: Optional[str], model_id: st
         raise AgentMissingModelError(error_msg) from exc
 
     # 400 INVALID_ARGUMENT is a permanent schema/API contract error — retrying with
-    # the same config will always produce the same failure. Raise AgentMissingModelError
-    # so the model loop fast-fails to the next model without burning all retries.
+    # the same config will always produce the same failure. Keep it distinct from
+    # model availability so the UI does not report a usable model as missing.
     if _is_invalid_argument_error(error_msg):
-        raise AgentMissingModelError(f"[schema_error] {error_msg}") from exc
+        raise AgentConfigurationError(f"[schema_error] {error_msg}") from exc
 
     if _is_server_5xx_error(error_msg):
         raise AgentServerError(error_msg) from exc
@@ -229,6 +271,8 @@ def _key_slot(api_key: Optional[str], rotator: KeyRotator) -> tuple[int | None, 
 
 def _agent_error_category(exc: Exception) -> str:
     error_msg = str(exc)
+    if is_auth_error(error_msg):
+        return "auth"
     if is_quota_or_rate_error(error_msg):
         return "quota"
     if is_missing_model_error(error_msg):
