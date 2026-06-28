@@ -120,7 +120,7 @@ export GEMINI_API_KEYS="your_key_1,your_key_2"
 - `GEMINI_API_KEY_1` 到 `GEMINI_API_KEY_10`
 - `GOOGLE_SEARCH_API_KEY`、`GOOGLE_CSE_ID`：可選，用於近期新聞與催化劑搜尋
 - `GOOGLE_SEARCH_REFERER`：可選；若 Google Search API key 使用 HTTP Referrer 限制，後端呼叫會把此值送為 `Referer` header。更建議建立一把後端專用 key，Application restriction 使用 IP 或暫時 None，API restriction 限制在 Custom Search JSON API。
-- `WEB_SEARCH_PROVIDER_ORDER`：可選，替代搜尋來源順序，預設 `gdelt,google_news_rss,yahoo_rss,brave,bing,tavily,serpapi`；`gdelt`、`google_news_rss`、`yahoo_rss` 不需 key。
+- `WEB_SEARCH_PROVIDER_ORDER`：可選，替代搜尋來源順序，預設 `google_news_rss,gdelt,yahoo_rss,brave,bing,tavily,serpapi`；`google_news_rss`、`gdelt`、`yahoo_rss` 不需 key。
 - `BRAVE_SEARCH_API_KEY`、`BING_SEARCH_API_KEY`、`TAVILY_API_KEY`、`SERPAPI_API_KEY`：可選，用於替代 Google Search 的近期催化劑與同業搜尋。
 - `FMP_API_KEY`：可選，用於 yfinance 缺漏時補市場欄位與新聞
 - `FINMIND_API_TOKEN`：可選，用於提高 FinMind 台股官方財報、月營收與法人資料抓取穩定度；未設定時仍會嘗試公開額度

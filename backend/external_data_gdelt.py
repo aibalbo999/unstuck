@@ -37,6 +37,10 @@ GDELT_RATE_LIMIT_CACHE_KEY = "gdelt_rate_limit_cooldown:v1"
 _gdelt_cooldown_until = 0.0
 
 
+def async_client():
+    return httpx.AsyncClient(timeout=_GDELT_CONNECT_TIMEOUT_SECONDS)
+
+
 async def fetch_gdelt_international_news_context(
     sector: str = "",
     industry: str = "",
@@ -53,7 +57,7 @@ async def fetch_gdelt_international_news_context(
     query_items = list(_topic_queries_for_context(sector, industry).items())[: max(1, int(max_topics))]
     gdelt_attempts = 0
     cooldown_seconds = _rate_limit_cooldown_seconds(rate_limit_cooldown_seconds)
-    async with httpx.AsyncClient(timeout=_GDELT_CONNECT_TIMEOUT_SECONDS) as client:
+    async with async_client() as client:
         for tag, query in query_items:
             payload = {}
             fallback_reason = ""

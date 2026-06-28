@@ -58,9 +58,10 @@ def test_alternative_search_uses_free_sources_for_catalysts(monkeypatch):
 
     monkeypatch.setattr(search, "WEB_SEARCH_PROVIDER_ORDER", "gdelt,yahoo_rss")
     monkeypatch.setattr(search, "async_client", lambda: FakeClient())
+    monkeypatch.setattr(search.httpx, "AsyncClient", lambda **_kwargs: FakeClient())
     monkeypatch.setattr(search, "_async_json_get", fake_json_get)
 
-    records = asyncio.run(search.fetch_alternative_search_catalysts_async("2330.TW", "台積電", {}))
+    records = asyncio.run(search.fetch_alternative_search_catalysts_async("2330.TW", "台積電", {}, max_results=2))
 
     assert [record["source_type"] for record in records] == ["gdelt_search", "yahoo_rss_search"]
     assert records[0]["title"] == "TSMC earnings call points to AI demand"

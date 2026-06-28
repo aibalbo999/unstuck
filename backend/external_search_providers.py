@@ -34,7 +34,7 @@ _FREE_PROVIDER_TIMEOUT_SECONDS = 5.0
 # Yahoo RSS returns HTTP 500 when the query string is too long.
 _YAHOO_RSS_MAX_QUERY_CHARS = 120
 
-DEFAULT_WEB_SEARCH_PROVIDER_ORDER = "gdelt,google_news_rss,yahoo_rss,brave,bing,tavily,serpapi"
+DEFAULT_WEB_SEARCH_PROVIDER_ORDER = "google_news_rss,gdelt,yahoo_rss,brave,bing,tavily,serpapi"
 _async_json_get = async_json_get
 
 
@@ -66,6 +66,14 @@ async def fetch_alternative_search_catalysts_async(
         max_results=max_results,
         lookback_days=CATALYST_LOOKBACK_DAYS,
     )
+    if not results:
+        broad_query = f"{official_name} {ticker}".strip()
+        if broad_query and broad_query != query:
+            results = await fetch_web_search_results_async(
+                broad_query,
+                max_results=max_results,
+                lookback_days=CATALYST_LOOKBACK_DAYS,
+            )
     return [
         {
             "date": result.published_at,
