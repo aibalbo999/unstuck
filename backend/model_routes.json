@@ -1,14 +1,20 @@
 {
   "default_analysis_model": "gemma-4-31b-it",
   "default_decision_model": "gemini-3.5-flash",
-  "analysis_fallback_models": ["gemini-2.5-flash"],
+  "analysis_fallback_models": [
+    "gemini-2.5-flash"
+  ],
   "context_digest_model": "gemini-3.1-flash-lite",
   "tear_sheet_model": "gemini-3.1-flash-lite",
   "audit_model": "gemini-3.5-flash",
-  "audit_fallback_models": ["gemini-2.5-flash"],
+  "audit_fallback_models": [
+    "gemini-2.5-flash"
+  ],
   "embedding_model": "gemini-embedding-2",
   "report_cover_model": "imagen-4.0-generate-001",
-  "report_cover_fallback_models": ["imagen-4.0-ultra-generate-001"],
+  "report_cover_fallback_models": [
+    "imagen-4.0-ultra-generate-001"
+  ],
   "agents": {
     "1": "gemma-4-31b-it",
     "2": "gemma-4-31b-it",
@@ -21,7 +27,7 @@
     "12": "gemma-4-31b-it",
     "13": "gemma-4-31b-it",
     "14": "gemma-4-31b-it",
-    "15": "gemini-3.5-flash",
+    "15": "gemma-4-31b-it",
     "16": "gemini-3.5-flash",
     "17": "gemma-4-31b-it",
     "18": "gemma-4-31b-it",
@@ -31,25 +37,63 @@
     "24": "gemini-3.5-flash"
   },
   "agent_fallbacks": {
-    "1": ["gemini-2.5-flash"],
-    "2": ["gemini-2.5-flash"],
-    "3": ["gemini-2.5-flash"],
-    "4": ["gemini-2.5-flash"],
-    "5": ["gemini-2.5-flash"],
-    "6": ["gemini-2.5-flash"],
-    "7": ["gemini-2.5-flash"],
-    "11": ["gemini-2.5-flash"],
-    "12": ["gemini-2.5-flash"],
-    "13": ["gemini-2.5-flash"],
-    "14": ["gemini-2.5-flash"],
-    "15": ["gemini-2.5-flash"],
-    "16": ["gemini-2.5-flash"],
-    "17": ["gemini-2.5-flash"],
-    "18": ["gemini-2.5-flash"],
-    "19": ["gemini-2.5-flash"],
-    "22": ["gemini-2.5-flash"],
-    "23": ["gemini-2.5-flash"],
-    "24": ["gemini-2.5-flash"]
+    "1": [
+      "gemini-2.5-flash"
+    ],
+    "2": [
+      "gemini-2.5-flash"
+    ],
+    "3": [
+      "gemini-2.5-flash"
+    ],
+    "4": [
+      "gemini-2.5-flash"
+    ],
+    "5": [
+      "gemini-2.5-flash"
+    ],
+    "6": [
+      "gemini-2.5-flash"
+    ],
+    "7": [
+      "gemini-2.5-flash"
+    ],
+    "11": [
+      "gemini-2.5-flash"
+    ],
+    "12": [
+      "gemini-2.5-flash"
+    ],
+    "13": [
+      "gemini-2.5-flash"
+    ],
+    "14": [
+      "gemini-2.5-flash"
+    ],
+    "15": [
+      "gemini-2.5-flash"
+    ],
+    "16": [
+      "gemini-2.5-flash"
+    ],
+    "17": [
+      "gemini-2.5-flash"
+    ],
+    "18": [
+      "gemini-2.5-flash"
+    ],
+    "19": [
+      "gemini-2.5-flash"
+    ],
+    "22": [
+      "gemini-2.5-flash"
+    ],
+    "23": [
+      "gemini-2.5-flash"
+    ],
+    "24": [
+      "gemini-2.5-flash"
+    ]
   },
   "rpm_limits": {
     "gemma-4-31b-it": 30,
