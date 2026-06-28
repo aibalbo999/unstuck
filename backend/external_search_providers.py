@@ -7,6 +7,8 @@ from typing import Any
 from urllib.parse import urlparse
 from xml.etree import ElementTree
 
+import httpx
+
 from config import (
     BING_SEARCH_API_KEY,
     BING_SEARCH_ENDPOINT,
@@ -25,6 +27,12 @@ GOOGLE_NEWS_RSS_URL = "https://news.google.com/rss/search"
 SERPAPI_SEARCH_URL = "https://serpapi.com/search.json"
 TAVILY_SEARCH_URL = "https://api.tavily.com/search"
 YAHOO_NEWS_RSS_URL = "https://news.search.yahoo.com/rss"
+
+# Free / public providers (GDELT, Yahoo RSS) are unreliable — use a shorter
+# timeout so a ConnectTimeout fails fast and the next provider is tried sooner.
+_FREE_PROVIDER_TIMEOUT_SECONDS = 5.0
+# Yahoo RSS returns HTTP 500 when the query string is too long.
+_YAHOO_RSS_MAX_QUERY_CHARS = 120
 
 DEFAULT_WEB_SEARCH_PROVIDER_ORDER = "gdelt,google_news_rss,yahoo_rss,brave,bing,tavily,serpapi"
 _async_json_get = async_json_get
@@ -211,24 +219,35 @@ async def _fetch_gdelt_results(
     max_results: int,
     lookback_days: int,
 ) -> list[SearchResult]:
-    payload = await _async_json_get(
-        client,
-        GDELT_DOC_URL,
-        {
-            "query": query,
-            "mode": "artlist",
-            "format": "json",
-            "maxrecords": str(max(1, min(int(max_results), 50))),
-            "timespan": f"{max(1, int(lookback_days))}d",
-            "sort": "datedesc",
-        },
-    )
+    async with httpx.AsyncClient(timeout=_FREE_PROVIDER_TIMEOUT_SECONDS) as gdelt_client:
+        payload = await _async_json_get(
+            gdelt_client,
+            GDELT_DOC_URL,
+            {
+                "query": query,
+                "mode": "artlist",
+                "format": "json",
+                "maxrecords": str(max(1, min(int(max_results), 50))),
+                "timespan": f"{max(1, int(lookback_days))}d",
+                "sort": "datedesc",
+            },
+        )
     return _parse_gdelt_payload(payload)
 
 
 async def _fetch_yahoo_rss_results(client, query: str, *, max_results: int) -> list[SearchResult]:
-    response = await client.get(YAHOO_NEWS_RSS_URL, params={"p": query})
-    response.raise_for_status()
+    # Truncate query to avoid HTTP 500 from Yahoo RSS on very long strings.
+    truncated_query = query[:_YAHOO_RSS_MAX_QUERY_CHARS].strip()
+    try:
+        async with httpx.AsyncClient(timeout=_FREE_PROVIDER_TIMEOUT_SECONDS) as yahoo_client:
+            response = await yahoo_client.get(YAHOO_NEWS_RSS_URL, params={"p": truncated_query})
+            response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code >= 500:
+            # Yahoo RSS returns 500 on bad/long queries — treat as empty, not a crash.
+            log_http_warning("Yahoo RSS", "news search (5xx — skipped)", exc)
+            return []
+        raise
     return _parse_news_rss_payload(response.text, provider="yahoo_rss", fallback_source="Yahoo RSS")[:max(1, int(max_results))]
 
 
