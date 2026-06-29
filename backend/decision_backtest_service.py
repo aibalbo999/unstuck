@@ -36,13 +36,13 @@ def run_due_backtests(
     errors = []
     for report in reports:
         generated = _report_date(report)
+        filename = str(report.get("filename") or "")
         if generated is None:
-            errors.append({"filename": report.get("filename"), "error": "invalid_report_date"})
+            skipped.append({"filename": filename, "reason": "invalid_report_date"})
             continue
         recommendation = report.get("recommendation") if isinstance(report.get("recommendation"), dict) else {}
         for horizon in BACKTEST_HORIZONS:
             due_date = add_calendar_months(generated, horizon)
-            filename = str(report.get("filename") or "")
             if due_date > evaluation_day:
                 continue
             if decision_tracking_store.backtest_result_exists(filename, horizon):
@@ -110,4 +110,14 @@ def _report_date(report: dict) -> date | None:
     try:
         return datetime.fromisoformat(str(report.get("date") or "")[:16]).date()
     except ValueError:
+        pass
+    try:
+        timestamp = float(report.get("timestamp") or 0)
+    except (TypeError, ValueError):
+        return None
+    if timestamp <= 0:
+        return None
+    try:
+        return datetime.fromtimestamp(timestamp).date()
+    except (OSError, OverflowError, ValueError):
         return None

@@ -1533,6 +1533,12 @@ class AuditRuleTests(unittest.TestCase):
         self.assertNotIn("secret-fmp-key", warning["message"])
         self.assertIn("apikey=<redacted>", warning["message"])
 
+    def test_external_http_warning_includes_message_for_blank_timeout_errors(self):
+        warning = external_http_client.build_http_warning("GDELT", "international news macro", httpx.ConnectTimeout(""))
+
+        self.assertEqual(warning["error_kind"], "ConnectTimeout")
+        self.assertIn("ConnectTimeout", warning["message"])
+
     def test_optional_http_bundle_records_task_warnings(self):
         async def boom(*args, **kwargs):
             raise RuntimeError("google down")

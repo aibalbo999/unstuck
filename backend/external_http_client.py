@@ -72,12 +72,13 @@ def _redact_secrets(text: str) -> str:
 
 
 def build_http_warning(provider: str, operation: str, exc: BaseException) -> dict:
+    message = str(exc).strip() or exc.__class__.__name__
     return {
         "type": "external_http_warning",
         "provider": str(provider or "unknown"),
         "operation": _redact_secrets(str(operation or "request")),
         "error_kind": exc.__class__.__name__,
-        "message": _redact_secrets(str(exc))[:240],
+        "message": _redact_secrets(message)[:240],
     }
 
 

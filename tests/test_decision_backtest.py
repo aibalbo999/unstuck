@@ -127,3 +127,64 @@ def test_run_due_backtests_is_idempotent_and_builds_stats(monkeypatch, tmp_path)
     assert stats["summary"]["hit_rate_pct"] == pytest.approx(100)
     assert stats["summary"]["average_strategy_roi_pct"] == pytest.approx(25)
     assert stats["by_horizon"][0]["horizon_months"] == 3
+
+
+def test_run_due_backtests_uses_timestamp_when_report_date_is_job_id(monkeypatch, tmp_path):
+    import decision_tracking_service
+    import decision_tracking_store
+
+    monkeypatch.setattr(decision_tracking_store, "DECISION_TRACKING_DB_PATH", str(tmp_path / "tracking.sqlite3"))
+    decision_tracking_store.reset_decision_tracking_store_for_tests()
+    reports = [{
+        "filename": "2493_TW_v4_report_job_feacc8d8b11b.html",
+        "ticker": "2493.TW",
+        "pipeline_id": "v4",
+        "date": "job_feacc8d8b11b",
+        "timestamp": 1782652409.7299187,
+        "recommendation": {"recommendation": "買入", "target_3m": "NT$120"},
+    }]
+    monkeypatch.setattr(
+        decision_tracking_service.report_history_service,
+        "list_reports",
+        lambda **kwargs: {"reports": reports, "pagination": {}},
+    )
+    calls = []
+
+    result = decision_tracking_service.run_due_backtests(
+        output_dir=str(tmp_path),
+        as_of=date(2026, 6, 29),
+        price_fetcher=lambda *args: calls.append(args),
+    )
+
+    assert result["errors"] == []
+    assert result["evaluated_count"] == 0
+    assert calls == []
+
+
+def test_run_due_backtests_skips_reports_without_generation_date(monkeypatch, tmp_path):
+    import decision_tracking_service
+    import decision_tracking_store
+
+    monkeypatch.setattr(decision_tracking_store, "DECISION_TRACKING_DB_PATH", str(tmp_path / "tracking.sqlite3"))
+    decision_tracking_store.reset_decision_tracking_store_for_tests()
+    reports = [{
+        "filename": "legacy_report.html",
+        "ticker": "2493.TW",
+        "pipeline_id": "v4",
+        "date": "job_without_timestamp",
+        "recommendation": {"recommendation": "買入", "target_3m": "NT$120"},
+    }]
+    monkeypatch.setattr(
+        decision_tracking_service.report_history_service,
+        "list_reports",
+        lambda **kwargs: {"reports": reports, "pagination": {}},
+    )
+
+    result = decision_tracking_service.run_due_backtests(
+        output_dir=str(tmp_path),
+        as_of=date(2026, 6, 29),
+        price_fetcher=lambda *args: pytest.fail("missing-date reports should not fetch prices"),
+    )
+
+    assert result["errors"] == []
+    assert result["skipped"] == [{"filename": "legacy_report.html", "reason": "invalid_report_date"}]
