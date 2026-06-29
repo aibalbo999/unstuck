@@ -62,7 +62,7 @@ def generate_markdown_report(context: AnalysisContext) -> str:
 - **12個月目標:** {target_12m}
 - **信心指數:** {confidence}"""
     audit_markdown = build_audit_markdown(context)
-    data_trust_markdown = build_data_trust_markdown(data)
+    data_trust_markdown = build_data_trust_markdown(data, context)
     source_audit_markdown = build_source_audit_markdown(data, context)
     thesis_markdown = investment_thesis_markdown(context.get("investment_thesis") or {})
     tear_sheet_summary = build_tear_sheet_summary(context)

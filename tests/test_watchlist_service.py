@@ -90,6 +90,27 @@ def test_watchlist_due_items_enqueue_and_mark_run(monkeypatch, tmp_path):
     assert stored["last_run_dates"]["pre_market"] == "2026-06-08"
 
 
+def test_watchlist_batches_route_to_watchlist_queue_when_supported(monkeypatch, tmp_path):
+    monkeypatch.setattr(watchlist_service, "WATCHLIST_PATH", tmp_path / "watchlist.json")
+    monkeypatch.setattr(watchlist_service.time, "sleep", lambda _seconds: None)
+    calls = []
+
+    class TieredQueue:
+        def enqueue(self, key, func, job_id, ticker, pipeline, *, queue_name=None):
+            calls.append((key, job_id, ticker, pipeline, queue_name))
+
+    result = watchlist_service.enqueue_watchlist_items(
+        [{"ticker": "2308.TW", "pipeline": "v2", "due_slot": "post_market", "due_date": "2026-06-08"}],
+        create_job=lambda ticker, pipeline: f"job-{ticker}-{pipeline}",
+        find_active_job=lambda ticker, pipeline: {},
+        task_queue=TieredQueue(),
+        run_stock_analysis_job=lambda job_id, ticker, pipeline: "ok",
+    )
+
+    assert result["queued"][0]["ticker"] == "2308.TW"
+    assert calls == [("analysis:job-2308.TW-v2", "job-2308.TW-v2", "2308.TW", "v2", "watchlist")]
+
+
 def test_watchlist_claim_due_items_marks_slot_before_enqueue(monkeypatch, tmp_path):
     monkeypatch.setattr(watchlist_service, "WATCHLIST_PATH", tmp_path / "watchlist.json")
     watchlist_service.reset_watchlist_store_for_tests()

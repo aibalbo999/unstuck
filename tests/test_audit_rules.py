@@ -302,6 +302,23 @@ class AuditRuleTests(unittest.TestCase):
         self.assertEqual(calibration["status"], "needs_downgrade")
         self.assertIn("跨來源", calibration["reasons"][0])
 
+    def test_final_audit_blocks_explicit_target_prices_when_data_confidence_low(self):
+        context = complete_context()
+        context["data"]["data_trust"] = {
+            "status": "error",
+            "critical_failures": ["financial_statements"],
+            "stale_sources": [],
+            "last_market_data_at": "2026-06-07T00:00:00+00:00",
+            "notes": ["核心財報來源異常。"],
+            "score": 20,
+        }
+
+        audit = ar.run_final_report_audit(context, append_section=False)
+
+        joined = "\n".join(audit["critical"])
+        self.assertIn("資料信心分數", joined)
+        self.assertIn("不得產生明確目標價", joined)
+
     def test_final_audit_critical_lint_flags_missing_target_price_in_final_output(self):
         context = complete_context()
         context["analyses"][7] = "## 最終投資決策\n投資建議：持有，等待基本面確認。"

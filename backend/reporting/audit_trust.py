@@ -15,6 +15,7 @@ from data_trust import (
 from .evidence import build_key_evidence_html, build_key_evidence_markdown
 from .evidence_matrix import build_evidence_matrix_html, build_evidence_matrix_markdown
 from .html_sanitizer import sanitize_report_plain_text
+from .trust_controls import build_trust_controls_html, build_trust_controls_markdown
 
 
 _LINT_MASK = [
@@ -144,7 +145,7 @@ def _reason_labels(trust: dict, limit: int = 4) -> list[str]:
     return [_reason_label(code) for code in (trust.get("reason_codes", []) or [])[:limit]]
 
 
-def build_data_trust_html(data: dict) -> str:
+def build_data_trust_html(data: dict, context: AnalysisContext | None = None) -> str:
     trust = normalize_data_trust(data.get("data_trust") if isinstance(data, dict) else None)
     status = trust.get("status", "unknown")
     notes = _as_notes(trust.get("notes")) or unknown_data_trust()["notes"]
@@ -172,6 +173,7 @@ def build_data_trust_html(data: dict) -> str:
             quant_warning_html = f'<div class="data-trust-quant-warning">⚠️ <strong>量化模型警示：</strong>{msg}</div>'
     detail_html = "".join(f"<span>{part}</span>" for part in detail_parts)
     notes_html = " ".join(escape(note) for note in notes[:2])
+    trust_controls_html = build_trust_controls_html(data, context)
     return f"""
         <div class="data-trust-card data-trust-{escape(status)}">
             <div class="data-trust-head">
@@ -180,6 +182,7 @@ def build_data_trust_html(data: dict) -> str:
             </div>
             <div class="data-trust-notes">{notes_html}</div>
             <div class="data-trust-meta">{detail_html}</div>
+            {trust_controls_html}
             {quant_warning_html}
         </div>
     """
@@ -236,7 +239,7 @@ def build_source_audit_html(data: dict, context: AnalysisContext | None = None) 
     """
 
 
-def build_data_trust_markdown(data: dict) -> str:
+def build_data_trust_markdown(data: dict, context: AnalysisContext | None = None) -> str:
     trust = normalize_data_trust(data.get("data_trust") if isinstance(data, dict) else None)
     notes = _as_notes(trust.get("notes")) or unknown_data_trust()["notes"]
     reasons = _reason_labels(trust, limit=8)
@@ -249,6 +252,7 @@ def build_data_trust_markdown(data: dict) -> str:
         f"- **原因:** {', '.join(reasons) or '無'}",
         f"- **摘要:** {'；'.join(notes)}",
     ]
+    lines.extend(build_trust_controls_markdown(data, context))
     # quant_metrics fallback warning — injected when key DCF fields use default assumptions
     quant = data.get("quant_metrics") if isinstance(data, dict) else None
     if isinstance(quant, dict):

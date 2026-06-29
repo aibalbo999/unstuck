@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
 from fastapi.staticfiles import StaticFiles
 
 from agent_runtime import AnalysisPipelineRunner
@@ -18,22 +19,29 @@ from analysis_job_service import (
 from analysis_jobs import run_stock_analysis_job
 from api_routes.analysis import AnalysisRouteDeps, create_analysis_router
 from api_routes.decision_tracking import DecisionTrackingRouteDeps, create_decision_tracking_router
+from api_routes.health import HealthRouteDeps, create_health_router
 from api_routes.maintenance import MaintenanceRouteDeps, create_maintenance_router
 from api_routes.observability import ObservabilityRouteDeps, create_observability_router
+from api_routes.ops import OpsRouteDeps, create_ops_router
 from api_routes.performance import PerformanceRouteDeps, create_performance_router
 from api_routes.reports import ReportRouteDeps, create_reports_router
 from api_routes.review import ReviewRouteDeps, create_review_router
 from api_routes.static_files import create_static_router
 from api_routes.watchlist import WatchlistRouteDeps, create_watchlist_router
 from config import (
+    ALLOW_LEGACY_ADMIN_TOKEN,
     ALLOWED_ORIGINS,
     API_KEY_SETUP_MESSAGE,
     DEPLOYMENT_MODE,
     MUTATION_API_TOKEN,
+    MUTATION_RATE_LIMIT_MAX_REQUESTS,
+    MUTATION_RATE_LIMIT_WINDOW_SECONDS,
     OUTPUT_DIR,
     TASK_QUEUE_BACKEND,
     has_api_keys,
 )
+from basic_auth import basic_auth_challenge_response, basic_auth_enabled, basic_auth_exempt_path, is_basic_auth_authorized
+from database_maintenance import run_sqlite_maintenance
 from job_store import (
     append_event,
     create_job,
@@ -44,6 +52,7 @@ from job_store import (
     update_job,
 )
 from job_store_maintenance import cleanup_analysis_history
+from mutation_rate_limit import check_mutation_rate_limit
 from pipeline_modes import (
     get_pipeline_run_agent_total,
     get_pipeline_run_label,
@@ -57,6 +66,7 @@ from report_index_maintenance import cleanup_report_index_orphans
 from reporting import ReportRenderer
 from runtime_dependencies import create_api_runtime, get_report_storage_for_output_dir, runtime_settings_for_output_dir
 from runtime_events import emit_log, format_event_log_line
+from runtime_health import build_health_payload, build_readiness_payload
 from settings import validate_runtime_settings
 from storage_inventory import build_storage_summary, ensure_runtime_storage
 from task_queue import create_api_task_queue
@@ -78,6 +88,8 @@ analysis_pipeline_runner = AnalysisPipelineRunner()
 report_renderer = ReportRenderer()
 active_analyses_lock = threading.Lock()
 MUTATION_HEADER_NAME = "X-Mutation-Token"
+MUTATION_SECURITY_SCHEME_NAME = "MutationToken"
+MUTATION_METHODS = {"post", "delete", "put", "patch"}
 RUNTIME_MUTATION_API_TOKEN = secrets.token_urlsafe(32)
 def print_streamed_event(job_id: str, payload: dict) -> None:
     if TASK_QUEUE_BACKEND != "rq":
@@ -85,17 +97,63 @@ def print_streamed_event(job_id: str, payload: dict) -> None:
     emit_log(format_event_log_line(job_id, payload, prefix="stream"))
 
 def require_mutation_authorized(request: Request) -> None:
-    supplied = (
-        request.headers.get("x-admin-token")
-        or request.headers.get("x-mutation-token")
-        or ""
-    ).strip()
-    if supplied not in get_allowed_mutation_tokens():
+    mutation_token = str(request.headers.get("x-mutation-token") or "").strip()
+    legacy_token = str(request.headers.get("x-admin-token") or "").strip()
+    check_mutation_rate_limit(
+        request,
+        [mutation_token, legacy_token],
+        max_requests=MUTATION_RATE_LIMIT_MAX_REQUESTS,
+        window_seconds=MUTATION_RATE_LIMIT_WINDOW_SECONDS,
+    )
+    supplied_tokens = [mutation_token]
+    if ALLOW_LEGACY_ADMIN_TOKEN:
+        supplied_tokens.append(legacy_token)
+    allowed = get_allowed_mutation_tokens()
+    if not any(token and token in allowed for token in supplied_tokens):
         raise HTTPException(status_code=403, detail="Mutation endpoint requires a valid mutation token")
 def get_runtime_mutation_token() -> str:
     return str(RUNTIME_MUTATION_API_TOKEN or "").strip()
 def is_local_deployment_mode() -> bool:
     return str(DEPLOYMENT_MODE or "local").strip().lower() == "local"
+def is_restricted_cors_profile() -> bool:
+    return str(DEPLOYMENT_MODE or "local").strip().lower() in {"production", "prod", "server", "lan"}
+def cors_allow_methods() -> list[str]:
+    return ["GET", "POST", "DELETE", "OPTIONS"] if is_restricted_cors_profile() else ["*"]
+def cors_allow_headers() -> list[str]:
+    if not is_restricted_cors_profile():
+        return ["*"]
+    return ["Content-Type", MUTATION_HEADER_NAME, "X-Admin-Token", "Last-Event-ID"]
+def operation_requires_mutation_security(path: str, method: str) -> bool:
+    return method.lower() in MUTATION_METHODS or path == "/api/maintenance/storage-summary"
+def install_openapi_contract(app: FastAPI) -> None:
+    def custom_openapi() -> dict:
+        if app.openapi_schema:
+            return app.openapi_schema
+        schema = get_openapi(
+            title=app.title,
+            version=app.version,
+            description=app.description,
+            routes=app.routes,
+        )
+        security_schemes = schema.setdefault("components", {}).setdefault("securitySchemes", {})
+        security_schemes[MUTATION_SECURITY_SCHEME_NAME] = {
+            "type": "apiKey",
+            "in": "header",
+            "name": MUTATION_HEADER_NAME,
+        }
+        mutation_security = {MUTATION_SECURITY_SCHEME_NAME: []}
+        for path, operations in schema.get("paths", {}).items():
+            for method, operation in operations.items():
+                if not isinstance(operation, dict):
+                    continue
+                if operation_requires_mutation_security(path, method):
+                    security = operation.setdefault("security", [])
+                    if mutation_security not in security:
+                        security.append(mutation_security)
+        app.openapi_schema = schema
+        return app.openapi_schema
+
+    app.openapi = custom_openapi
 def get_allowed_mutation_tokens() -> set[str]:
     runtime_token = get_runtime_mutation_token() if is_local_deployment_mode() else ""
     return {
@@ -111,6 +169,11 @@ def get_client_config() -> dict:
         "mutation_token": get_runtime_mutation_token() if is_local_deployment_mode() else "",
         "deployment_mode": str(DEPLOYMENT_MODE or "local").strip().lower(),
     }
+def runtime_settings_warnings_for_readiness() -> list[str]:
+    try:
+        return validate_runtime_settings()
+    except Exception as exc:
+        return [str(exc)]
 def create_runtime_job(ticker: str, pipeline_id: str = "v1") -> str:
     return create_job(ticker, pipeline_id)
 def get_api_runtime_for_app(app: FastAPI):
@@ -145,6 +208,14 @@ async def lifespan(_app: FastAPI):
         runtime.close()
 def create_app() -> FastAPI:
     app = FastAPI(lifespan=lifespan)
+
+    @app.middleware("http")
+    async def basic_auth_middleware(request: Request, call_next):
+        if basic_auth_enabled() and not basic_auth_exempt_path(request.url.path):
+            if not is_basic_auth_authorized(request.headers.get("authorization")):
+                return basic_auth_challenge_response()
+        return await call_next(request)
+
     _allow_credentials = "*" not in ALLOWED_ORIGINS
     if not _allow_credentials:
         emit_log("警告：ALLOWED_ORIGINS 含萬用字元 *，已停用 credentials 支援。")
@@ -152,10 +223,18 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=ALLOWED_ORIGINS,
         allow_credentials=_allow_credentials,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=cors_allow_methods(),
+        allow_headers=cors_allow_headers(),
     )
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+    app.include_router(create_health_router(HealthRouteDeps(
+        build_health_payload=build_health_payload,
+        build_readiness_payload=lambda: build_readiness_payload(
+            runtime_settings=runtime_settings_for_output_dir(OUTPUT_DIR),
+            task_queue=analysis_task_queue,
+            warnings=runtime_settings_warnings_for_readiness(),
+        ),
+    )))
     app.include_router(create_static_router(lambda: STATIC_DIR, get_client_config=get_client_config))
     app.include_router(create_reports_router(ReportRouteDeps(
         get_output_dir=lambda: OUTPUT_DIR,
@@ -191,6 +270,12 @@ def create_app() -> FastAPI:
     app.include_router(create_observability_router(ObservabilityRouteDeps(
         get_provider_sla_summary=lambda limit: get_provider_sla_summary(limit),
         get_provider_sla_alerts=lambda limit: get_provider_sla_alerts(limit),
+        get_task_queue=lambda: analysis_task_queue,
+    )))
+    app.include_router(create_ops_router(OpsRouteDeps(
+        get_provider_sla_summary=lambda limit: get_provider_sla_summary(limit),
+        get_provider_sla_alerts=lambda limit: get_provider_sla_alerts(limit),
+        get_task_queue=lambda: analysis_task_queue,
     )))
     app.include_router(create_watchlist_router(WatchlistRouteDeps(
         get_output_dir=lambda: OUTPUT_DIR,
@@ -206,6 +291,7 @@ def create_app() -> FastAPI:
         cleanup_report_index_orphans=cleanup_report_index_orphans,
         cleanup_provider_sla_events=cleanup_provider_sla_events,
         cleanup_analysis_history=cleanup_analysis_history,
+        run_sqlite_maintenance=run_sqlite_maintenance,
     )))
     app.include_router(create_analysis_router(AnalysisRouteDeps(
         active_analyses_lock=active_analyses_lock,
@@ -231,6 +317,7 @@ def create_app() -> FastAPI:
         serialize_analysis_job=serialize_analysis_job,
         serialize_node_telemetry=serialize_node_telemetry,
     )))
+    install_openapi_contract(app)
     return app
 
 app = create_app()

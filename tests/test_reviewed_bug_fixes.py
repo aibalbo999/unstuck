@@ -190,6 +190,26 @@ def test_validate_runtime_settings_blocks_lan_without_mutation_token(monkeypatch
         app_config.validate_runtime_settings()
 
 
+def test_validate_runtime_settings_blocks_network_profile_without_access_guard(monkeypatch):
+    import settings.app_config as app_config
+    import settings.security as security
+
+    monkeypatch.setattr(app_config, "DEPLOYMENT_MODE", "lan")
+    monkeypatch.setattr(app_config, "MUTATION_API_TOKEN", "mutation-token")
+    monkeypatch.setattr(app_config, "ALLOWED_ORIGINS", ["http://localhost:8080"])
+    monkeypatch.setattr(security, "BASIC_AUTH_USERNAME", "")
+    monkeypatch.setattr(security, "BASIC_AUTH_PASSWORD", "")
+    monkeypatch.setattr(security, "EXTERNAL_ACCESS_CONTROLLED", False)
+
+    with pytest.raises(RuntimeError, match="BASIC_AUTH_USERNAME"):
+        app_config.validate_runtime_settings()
+
+    monkeypatch.setattr(security, "BASIC_AUTH_USERNAME", "operator")
+    monkeypatch.setattr(security, "BASIC_AUTH_PASSWORD", "secret")
+
+    assert isinstance(app_config.validate_runtime_settings(), list)
+
+
 def test_list_reports_does_not_run_cleanup_on_read(monkeypatch, tmp_path):
     import report_history_service
 
@@ -228,6 +248,19 @@ def test_create_app_warns_and_disables_credentials_for_wildcard_origin(monkeypat
 
     assert cors.kwargs["allow_credentials"] is False
     assert any("已停用 credentials 支援" in message for message in messages)
+
+
+def test_create_app_uses_restricted_cors_methods_and_headers_in_production(monkeypatch):
+    import api
+
+    monkeypatch.setattr(api, "DEPLOYMENT_MODE", "production", raising=False)
+    monkeypatch.setattr(api, "ALLOWED_ORIGINS", ["https://ui.example.com"])
+
+    app = api.create_app()
+    cors = next(middleware for middleware in app.user_middleware if middleware.cls.__name__ == "CORSMiddleware")
+
+    assert cors.kwargs["allow_methods"] == ["GET", "POST", "DELETE", "OPTIONS"]
+    assert cors.kwargs["allow_headers"] == ["Content-Type", "X-Mutation-Token", "X-Admin-Token", "Last-Event-ID"]
 
 
 class RecordingLock:

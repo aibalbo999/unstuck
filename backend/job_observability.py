@@ -9,6 +9,7 @@ from collections import Counter
 from pathlib import Path
 
 from config import TASK_DB_PATH
+from job_ops_dashboard import build_ops_dashboard_snapshot
 from job_store import ACTIVE_JOB_STATUSES
 
 

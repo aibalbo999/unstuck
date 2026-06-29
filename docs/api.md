@@ -1,6 +1,7 @@
 # API Reference
 
 The API is local-first and intended for the bundled UI or trusted local automation.
+FastAPI exposes the machine-readable contract at `/openapi.json`; mutating operations are annotated with the `MutationToken` API-key security scheme using the `X-Mutation-Token` header.
 
 ## Read Endpoints
 
@@ -17,6 +18,8 @@ Report rows include:
 - `data_trust`: data-source quality and freshness.
 - `decision_tracking`: performance since the report recommendation.
 - `decision_freshness`: whether the conclusion still matches the current data snapshot.
+
+Each report `.data.json` snapshot also includes `data_confidence_score`, `conclusion_guardrails.explicit_target_price`, and `reproducibility_packet`. When `data_confidence_score < 60`, explicit target prices are marked disallowed and consumers should treat only ranges or "data insufficient" language as valid. `reproducibility_packet.data_snapshot_hash` matches the final snapshot hash and also records ticker, pipeline, prompt version, model id, code commit, provider list, generated time, and source data time.
 
 Watchlist rows also include `decision_priority`, `decision_alert`, and `latest_report` when a matching report exists. `decision_priority = high` means the latest data snapshot changed after the conclusion was generated and the report should be rerun.
 
@@ -99,6 +102,29 @@ curl http://127.0.0.1:8080/api/analysis-jobs/<job_id>/telemetry
 
 回傳每個 LangGraph node / agent 的 `node_name`、`model`、時間、latency、status、retry count、token 欄位（目前可能為 `null`）、quality gate 結果與已清理過的錯誤摘要。
 
+## Runtime Health And Ops Dashboard
+
+Liveness 只確認 API process 還能回應：
+
+```bash
+curl http://127.0.0.1:8080/healthz
+```
+
+Readiness 會檢查 runtime storage 與 task queue；若 Redis/RQ 或 SQLite path 不可用，會回 HTTP 503：
+
+```bash
+curl http://127.0.0.1:8080/readyz
+```
+
+Operator dashboard 是 read-only 聚合端點，不需要 mutation token：
+
+```bash
+curl http://127.0.0.1:8080/api/observability/dashboard
+curl http://127.0.0.1:8080/api/ops/dashboard
+```
+
+回傳內容包含報告完成耗時 `p50/p95/p99`、active job count、stuck job warning、node/model telemetry summary、`prompt_budget` token 摘要、RQ queue depth/registry counts、provider 24 小時 degradation alerts 與 API quota ledger 摘要。`status` 可能是 `ok`、`warning` 或 `critical`。
+
 ### Deprecated Compatibility Endpoint
 
 `GET /api/analyze/{ticker}` 保留給舊 UI / 舊腳本相容，回應會帶 `Deprecation: true` header，SSE 的 job metadata 也會包含 `deprecated: true`。新整合請改用：
@@ -118,3 +144,15 @@ curl -X POST -H "X-Mutation-Token: $TOKEN" \
 curl -X POST -H "X-Mutation-Token: $TOKEN" \
   "http://127.0.0.1:8080/api/maintenance/cleanup-analysis-history?retention_days=30&write=true"
 ```
+
+SQLite backup/checkpoint/vacuum maintenance is also dry-run by default:
+
+```bash
+curl -X POST -H "X-Mutation-Token: $TOKEN" \
+  "http://127.0.0.1:8080/api/maintenance/sqlite-maintenance"
+
+curl -X POST -H "X-Mutation-Token: $TOKEN" \
+  "http://127.0.0.1:8080/api/maintenance/sqlite-maintenance?write=true"
+```
+
+`write=true` creates one daily backup for each runtime SQLite DB under `SQLITE_BACKUP_DIR`, then runs `PRAGMA wal_checkpoint(TRUNCATE)` and `VACUUM`.

@@ -1,6 +1,7 @@
 import json
 import sqlite3
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -10,6 +11,7 @@ sys.path.insert(0, str(ROOT / "backend"))
 import provider_sla  # noqa: E402
 import provider_sla_maintenance  # noqa: E402
 import report_index_maintenance  # noqa: E402
+import database_maintenance  # noqa: E402
 import job_store_maintenance  # noqa: E402
 from data_trust_snapshot import build_data_snapshot, verify_data_snapshot_integrity  # noqa: E402
 from market_calendar_store import update_market_calendars  # noqa: E402
@@ -178,6 +180,65 @@ def test_cleanup_analysis_history_keeps_recent_and_active_jobs(monkeypatch, tmp_
     assert cleaned["deleted_events"] == 2
     assert remaining_jobs == ["recent-done", "running-old"]
     assert remaining_events == ["recent-done", "running-old"]
+
+
+def test_sqlite_database_maintenance_dry_run_plans_backup_checkpoint_and_vacuum(tmp_path):
+    db_path = tmp_path / "jobs.sqlite3"
+    backup_dir = tmp_path / "backups"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("CREATE TABLE sample (value TEXT)")
+        conn.execute("INSERT INTO sample (value) VALUES ('ok')")
+
+    result = database_maintenance.maintain_sqlite_databases(
+        {"task_db": str(db_path)},
+        backup_dir=str(backup_dir),
+        write=False,
+        now=datetime(2026, 6, 29, tzinfo=timezone.utc),
+    )
+
+    db_result = result["databases"][0]
+    assert result["dry_run"] is True
+    assert db_result["label"] == "task_db"
+    assert db_result["exists"] is True
+    assert db_result["backup"]["path"].endswith("task_db-20260629.sqlite3")
+    assert db_result["backup"]["status"] == "planned"
+    assert db_result["wal_checkpoint"]["status"] == "planned"
+    assert db_result["vacuum"]["status"] == "planned"
+    assert not backup_dir.exists()
+
+
+def test_sqlite_database_maintenance_write_creates_daily_backup_and_is_idempotent(tmp_path):
+    db_path = tmp_path / "jobs.sqlite3"
+    backup_dir = tmp_path / "backups"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("CREATE TABLE sample (value TEXT)")
+        conn.execute("INSERT INTO sample (value) VALUES ('ok')")
+
+    result = database_maintenance.maintain_sqlite_databases(
+        {"task_db": str(db_path)},
+        backup_dir=str(backup_dir),
+        write=True,
+        now=datetime(2026, 6, 29, tzinfo=timezone.utc),
+    )
+    second = database_maintenance.maintain_sqlite_databases(
+        {"task_db": str(db_path)},
+        backup_dir=str(backup_dir),
+        write=True,
+        now=datetime(2026, 6, 29, tzinfo=timezone.utc),
+    )
+
+    backup_path = backup_dir / "task_db-20260629.sqlite3"
+    with sqlite3.connect(backup_path) as conn:
+        rows = conn.execute("SELECT value FROM sample").fetchall()
+
+    db_result = result["databases"][0]
+    assert result["dry_run"] is False
+    assert db_result["backup"]["status"] == "created"
+    assert db_result["wal_checkpoint"]["status"] == "ran"
+    assert db_result["vacuum"]["status"] == "ran"
+    assert rows == [("ok",)]
+    assert second["databases"][0]["backup"]["status"] == "exists"
 
 
 def test_maintenance_wrapper_sets_backend_pythonpath():

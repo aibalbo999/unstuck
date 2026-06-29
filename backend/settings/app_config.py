@@ -20,6 +20,11 @@ def validate_runtime_settings() -> list[str]:
         warnings.append("ANALYSIS_WORKER_COUNT 必須大於 0。")
     if TASK_QUEUE_BACKEND not in {"local", "rq"}:
         warnings.append(f"TASK_QUEUE_BACKEND 應為 local 或 rq，目前為 {TASK_QUEUE_BACKEND}。")
+    if not TASK_QUEUE_NAMES:
+        warnings.append("TASK_QUEUE_NAMES 不可為空。")
+    missing_queue_routes = sorted({name for name in TASK_QUEUE_ROUTES.values() if name and name not in TASK_QUEUE_NAMES})
+    if missing_queue_routes:
+        warnings.append("TASK_QUEUE_ROUTES 指向未列於 TASK_QUEUE_NAMES 的 queue：" + ", ".join(missing_queue_routes))
     if RQ_JOB_MAX_RETRIES_INVALID:
         warnings.append("RQ_JOB_MAX_RETRIES 必須為整數。")
     if RQ_JOB_MAX_RETRIES <= 0:
@@ -53,9 +58,7 @@ def validate_runtime_settings() -> list[str]:
     if DEPLOYMENT_MODE not in {"local", "dev", "development", "test", "lan", "server", "production", "prod"}:
         warnings.append("DEPLOYMENT_MODE 應為 local、lan、server 或 production。")
     if REPORT_STORAGE_BACKEND not in {"local", "memory"}:
-        warnings.append(
-            f"REPORT_STORAGE_BACKEND 應為 local 或 memory，目前為 {REPORT_STORAGE_BACKEND}。"
-        )
+        warnings.append(f"REPORT_STORAGE_BACKEND 應為 local 或 memory，目前為 {REPORT_STORAGE_BACKEND}。")
     if CACHE_BACKEND not in {"sqlite", "redis", "memory"}:
         warnings.append(f"CACHE_BACKEND 應為 sqlite、redis 或 memory，目前為 {CACHE_BACKEND}。")
     if not CACHE_NAMESPACE:
@@ -64,10 +67,9 @@ def validate_runtime_settings() -> list[str]:
         raise RuntimeError("production/lan/server profile 必須設定 MUTATION_API_TOKEN，避免 mutation endpoints 在未受保護狀態下啟動。")
     if is_production_profile(DEPLOYMENT_MODE) and "*" in ALLOWED_ORIGINS:
         raise RuntimeError("production/lan/server profile 不允許 ALLOWED_ORIGINS 使用萬用字元 *。")
-    invalid_freshness = [
-        source for source, seconds in SOURCE_FRESHNESS_MAX_AGE_SECONDS.items()
-        if int(seconds) <= 0
-    ]
+    if is_production_profile(DEPLOYMENT_MODE) and not has_network_access_guard():
+        raise RuntimeError("production/lan/server profile 必須設定 BASIC_AUTH_USERNAME/BASIC_AUTH_PASSWORD，或設 EXTERNAL_ACCESS_CONTROLLED=true 表示已有外層控管。")
+    invalid_freshness = [source for source, seconds in SOURCE_FRESHNESS_MAX_AGE_SECONDS.items() if int(seconds) <= 0]
     if invalid_freshness:
         warnings.append("SOURCE_FRESHNESS_*_SECONDS 必須大於 0：" + ", ".join(sorted(invalid_freshness)))
     return warnings

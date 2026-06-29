@@ -1,7 +1,9 @@
 import asyncio
+import base64
 import sys
 import subprocess
 import sqlite3
+from types import SimpleNamespace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -21,12 +23,14 @@ import context_digest_tasks  # noqa: E402
 import job_observability  # noqa: E402
 import job_store  # noqa: E402
 import job_store_maintenance  # noqa: E402
+import queue_observability  # noqa: E402
 import provider_sla  # noqa: E402
 from data_fetch import FetchResult  # noqa: E402
 from data_trust import DATA_SNAPSHOT_SCHEMA_VERSION, unknown_data_trust  # noqa: E402
 from reporting import ReportBundle  # noqa: E402
 from reporting.cover import _build_cover_generation_config  # noqa: E402
 import analysis_jobs  # noqa: E402
+import basic_auth  # noqa: E402
 
 
 def test_job_store_indexes_events_and_cancel_flag(monkeypatch, tmp_path):
@@ -316,6 +320,248 @@ def test_active_jobs_api(monkeypatch):
     assert response.json()["active_count"] == 0
 
 
+def test_ops_dashboard_summarizes_latency_stuck_jobs_and_node_telemetry(monkeypatch, tmp_path):
+    db_path = tmp_path / "jobs.sqlite3"
+    monkeypatch.setattr(job_store, "TASK_DB_PATH", str(db_path))
+    monkeypatch.setattr(job_observability, "TASK_DB_PATH", str(db_path))
+    job_store.reset_job_store_for_tests()
+    now = 20_000.0
+
+    durations = [60.0, 180.0, 600.0]
+    for index, duration in enumerate(durations):
+        job_id = job_store.create_job(f"24{index}.TW", "v1")
+        started_at = 1_000.0 + index * 1_000.0
+        with sqlite3.connect(db_path) as conn:
+            conn.execute(
+                """
+                UPDATE analysis_jobs
+                SET status = 'done', started_at = ?, finished_at = ?, updated_at = ?
+                WHERE job_id = ?
+                """,
+                (started_at, started_at + duration, started_at + duration, job_id),
+            )
+        job_store.record_node_telemetry(
+            {
+                "job_id": job_id,
+                "ticker": f"24{index}.TW",
+                "pipeline_id": "v1",
+                "node_name": "valuation_agent",
+                "model": "gemini-2.5-pro",
+                "started_at": started_at,
+                "finished_at": started_at + 1,
+                "latency_ms": 1000 + index * 100,
+                "status": "success",
+                "retry_count": index,
+                "input_tokens": 100,
+                "output_tokens": 50,
+                "cache_hit": index == 0,
+                "quality_gate_pass": True,
+            }
+        )
+
+    stuck_job_id = job_store.create_job("9999.TW", "v2")
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            UPDATE analysis_jobs
+            SET status = 'running', started_at = ?, updated_at = ?
+            WHERE job_id = ?
+            """,
+            (now - 2_400, now - 1_200, stuck_job_id),
+        )
+    job_store.record_node_telemetry(
+        {
+            "job_id": stuck_job_id,
+            "ticker": "9999.TW",
+            "pipeline_id": "v2",
+            "node_name": "valuation_agent",
+            "model": "gemini-2.5-pro",
+            "started_at": now - 1_300,
+            "finished_at": now - 1_290,
+            "latency_ms": 2_500,
+            "status": "failed",
+            "retry_count": 2,
+            "cache_hit": False,
+            "quality_gate_pass": False,
+            "error": "HTTP 429 quota exhausted token=secret-should-hide",
+        }
+    )
+
+    payload = job_observability.build_ops_dashboard_snapshot(
+        db_path=str(db_path),
+        now=now,
+        stuck_after_seconds=900,
+    )
+
+    assert payload["job_latency"]["completed_count"] == 3
+    assert payload["job_latency"]["p50_seconds"] == 180.0
+    assert payload["job_latency"]["p95_seconds"] == 600.0
+    assert payload["job_latency"]["p99_seconds"] == 600.0
+    assert payload["stuck_jobs"]["count"] == 1
+    assert payload["stuck_jobs"]["jobs"][0]["job_id"] == stuck_job_id
+    assert payload["stuck_jobs"]["jobs"][0]["seconds_since_update"] == 1200.0
+    node = payload["node_telemetry"]["nodes"]["valuation_agent"]
+    assert node["calls"] == 4
+    assert node["failures"] == 1
+    assert node["failure_rate"] == 0.25
+    assert node["retry_count"] == 5
+    assert node["cache_hit_rate"] == 0.25
+    assert node["quality_gate_failures"] == 1
+    model = payload["node_telemetry"]["models"]["gemini-2.5-pro"]
+    assert model["calls"] == 4
+    assert model["failures"] == 1
+    assert model["rate_limit_errors"] == 1
+    budget = payload["prompt_budget"]
+    assert budget["sample_size"] == 4
+    assert budget["tokenized_calls"] == 3
+    assert budget["input_tokens"] == 300
+    assert budget["output_tokens"] == 150
+    assert budget["total_tokens"] == 450
+    assert budget["cache_hit_count"] == 1
+    assert budget["estimated_cached_input_tokens"] == 100
+    assert budget["nodes"]["valuation_agent"]["avg_input_tokens"] == 100
+    assert budget["models"]["gemini-2.5-pro"]["avg_total_tokens"] == 150
+    assert "secret-should-hide" not in str(payload)
+
+
+def test_queue_observability_reports_rq_depth_and_registries():
+    class FakeRedis:
+        def ping(self):
+            return True
+
+    class FakeRegistry:
+        def __init__(self, count):
+            self.count = count
+
+    class FakeRqQueue:
+        name = "stock-analysis"
+        count = 7
+        started_job_registry = FakeRegistry(2)
+        deferred_job_registry = FakeRegistry(3)
+        failed_job_registry = FakeRegistry(1)
+        scheduled_job_registry = FakeRegistry(4)
+
+    payload = queue_observability.snapshot_task_queue(
+        SimpleNamespace(queue=FakeRqQueue(), redis=FakeRedis())
+    )
+
+    assert payload["backend"] == "rq"
+    assert payload["available"] is True
+    assert payload["queue_name"] == "stock-analysis"
+    assert payload["depth"] == 7
+    assert payload["registries"] == {
+        "started": 2,
+        "deferred": 3,
+        "failed": 1,
+        "scheduled": 4,
+    }
+
+
+def test_queue_observability_reports_per_queue_depths_for_tiered_rq():
+    class FakeRedis:
+        def ping(self):
+            return True
+
+    class FakeRqQueue:
+        def __init__(self, name, count):
+            self.name = name
+            self.count = count
+
+    task_queue = SimpleNamespace(
+        queue=FakeRqQueue("analysis.high", 2),
+        queues={
+            "analysis.high": FakeRqQueue("analysis.high", 2),
+            "analysis.normal": FakeRqQueue("analysis.normal", 5),
+            "watchlist": FakeRqQueue("watchlist", 3),
+        },
+        redis=FakeRedis(),
+    )
+
+    payload = queue_observability.snapshot_task_queue(task_queue)
+
+    assert payload["backend"] == "rq"
+    assert payload["available"] is True
+    assert payload["depth"] == 10
+    assert payload["queues"] == {
+        "analysis.high": {"depth": 2, "registries": {"started": 0, "deferred": 0, "failed": 0, "scheduled": 0}},
+        "analysis.normal": {"depth": 5, "registries": {"started": 0, "deferred": 0, "failed": 0, "scheduled": 0}},
+        "watchlist": {"depth": 3, "registries": {"started": 0, "deferred": 0, "failed": 0, "scheduled": 0}},
+    }
+
+
+def test_ops_dashboard_api(monkeypatch):
+    async def fake_dashboard_payload(*_args, **_kwargs):
+        return {"status": "ok", "jobs": {"active_count": 0}, "queue": {"available": True}}
+
+    monkeypatch.setattr(api_observability_service, "build_ops_dashboard_payload", fake_dashboard_payload)
+
+    client = TestClient(api.app)
+    response = client.get("/api/observability/dashboard")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+
+
+def test_ops_dashboard_legacy_alias(monkeypatch):
+    async def fake_dashboard_payload(*_args, **_kwargs):
+        return {"status": "ok", "jobs": {"active_count": 0}, "queue": {"available": True}}
+
+    monkeypatch.setattr(api_observability_service, "build_ops_dashboard_payload", fake_dashboard_payload)
+
+    client = TestClient(api.app)
+    response = client.get("/api/ops/dashboard")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+
+
+def test_healthz_and_readyz_routes(monkeypatch):
+    monkeypatch.setattr(api, "build_readiness_payload", lambda **_kwargs: {"status": "ready", "checks": []})
+
+    client = TestClient(api.app)
+    health = client.get("/healthz")
+    ready = client.get("/readyz")
+
+    assert health.status_code == 200
+    assert health.json()["status"] == "ok"
+    assert ready.status_code == 200
+    assert ready.json()["status"] == "ready"
+
+
+def test_basic_auth_protects_read_endpoints_when_configured(monkeypatch):
+    monkeypatch.setattr(basic_auth, "BASIC_AUTH_USERNAME", "operator", raising=False)
+    monkeypatch.setattr(basic_auth, "BASIC_AUTH_PASSWORD", "correct-horse", raising=False)
+
+    client = TestClient(api.app)
+    credentials = base64.b64encode(b"operator:correct-horse").decode("ascii")
+
+    health = client.get("/healthz")
+    denied = client.get("/api/client-config")
+    allowed = client.get("/api/client-config", headers={"Authorization": f"Basic {credentials}"})
+
+    assert health.status_code == 200
+    assert denied.status_code == 401
+    assert denied.headers["www-authenticate"] == 'Basic realm="stock-agent", charset="UTF-8"'
+    assert allowed.status_code == 200
+
+
+def test_readyz_returns_503_when_runtime_dependency_fails(monkeypatch):
+    monkeypatch.setattr(
+        api,
+        "build_readiness_payload",
+        lambda **_kwargs: {
+            "status": "not_ready",
+            "checks": [{"name": "redis", "status": "fail", "message": "connection refused"}],
+        },
+    )
+
+    client = TestClient(api.app)
+    response = client.get("/readyz")
+
+    assert response.status_code == 503
+    assert response.json()["status"] == "not_ready"
+
+
 def test_api_quota_observability_api(monkeypatch):
     async def fake_api_quota_payload(summary_fetcher):
         return {"services": [{"service": "Gemini / Google AI", "configured": True}], "timezone": "Asia/Taipei"}
@@ -590,22 +836,66 @@ def test_cancel_analysis_endpoint_requests_cancel(monkeypatch, mutation_headers)
     assert cancelled and cancelled[0][0] == "job-1"
 
 
-def test_mutation_endpoints_require_admin_token_when_configured(monkeypatch):
+def test_mutation_endpoints_reject_legacy_admin_token_by_default(monkeypatch):
     monkeypatch.setattr(api, "MUTATION_API_TOKEN", "secret-token")
+    monkeypatch.setattr(api, "ALLOW_LEGACY_ADMIN_TOKEN", False, raising=False)
     monkeypatch.setattr(api, "get_job", lambda job_id: {"job_id": job_id, "ticker": "2449", "pipeline_id": "both", "status": "running"})
     monkeypatch.setattr(api, "request_job_cancel", lambda job_id, reason: True)
 
     client = TestClient(api.app)
     denied = client.post("/api/analyze/2449/cancel?job_id=job-1&pipeline=both")
-    allowed = client.post(
+    legacy_denied = client.post(
         "/api/analyze/2449/cancel?job_id=job-1&pipeline=both",
         headers={"X-Admin-Token": "secret-token"},
     )
+    allowed = client.post(
+        "/api/analyze/2449/cancel?job_id=job-1&pipeline=both",
+        headers={"X-Mutation-Token": "secret-token"},
+    )
 
     assert denied.status_code == 403
+    assert legacy_denied.status_code == 403
     assert allowed.status_code == 200
     assert allowed.json()["ok"] is True
     monkeypatch.setattr(api, "MUTATION_API_TOKEN", "")
+
+
+def test_legacy_admin_token_alias_can_be_temporarily_enabled(monkeypatch):
+    monkeypatch.setattr(api, "MUTATION_API_TOKEN", "secret-token")
+    monkeypatch.setattr(api, "ALLOW_LEGACY_ADMIN_TOKEN", True, raising=False)
+
+    api.require_mutation_authorized(type("Req", (), {
+        "headers": {"x-admin-token": "secret-token"},
+        "client": None,
+    })())
+
+
+def test_mutation_authorization_rate_limits_repeated_attempts(monkeypatch):
+    import mutation_rate_limit
+
+    class FakeClient:
+        host = "203.0.113.10"
+
+    class FakeRequest:
+        client = FakeClient()
+        headers = {"x-mutation-token": "secret-token"}
+
+    now = [1000.0]
+    monkeypatch.setattr(api, "MUTATION_API_TOKEN", "secret-token")
+    monkeypatch.setattr(api, "MUTATION_RATE_LIMIT_MAX_REQUESTS", 2, raising=False)
+    monkeypatch.setattr(api, "MUTATION_RATE_LIMIT_WINDOW_SECONDS", 60, raising=False)
+    monkeypatch.setattr(mutation_rate_limit.time, "time", lambda: now[0])
+    mutation_rate_limit.reset_mutation_rate_limiter_for_tests()
+
+    api.require_mutation_authorized(FakeRequest())
+    api.require_mutation_authorized(FakeRequest())
+    with pytest.raises(HTTPException) as exc_info:
+        api.require_mutation_authorized(FakeRequest())
+
+    assert exc_info.value.status_code == 429
+    assert exc_info.value.headers["Retry-After"] == "60"
+    now[0] += 61
+    api.require_mutation_authorized(FakeRequest())
 
 
 def test_unconfigured_mutation_token_requires_runtime_header_even_on_localhost(monkeypatch):
@@ -671,10 +961,11 @@ def test_client_config_does_not_expose_configured_admin_token(monkeypatch):
         "headers": {"x-mutation-token": "runtime-test-token"},
         "client": None,
     })())
-    api.require_mutation_authorized(type("Req", (), {
+    with pytest.raises(HTTPException):
+        api.require_mutation_authorized(type("Req", (), {
         "headers": {"x-admin-token": "long-lived-admin-token"},
         "client": None,
-    })())
+        })())
 
 
 def test_report_cover_config_does_not_send_unsupported_enhance_prompt():

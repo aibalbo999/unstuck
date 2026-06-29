@@ -129,6 +129,39 @@ def test_maintenance_role_runs_maintenance_process_and_closes_runtime(monkeypatc
     assert calls == [("maintenance", runtime), "close"]
 
 
+def test_maintenance_iteration_runs_retention_and_sqlite_maintenance(monkeypatch):
+    calls = []
+    runtime = FakeWorkerRuntime(calls)
+
+    monkeypatch.setattr(
+        worker_main.report_history_service,
+        "cleanup_expired_reports",
+        lambda *_args: calls.append("expired-reports"),
+    )
+    monkeypatch.setattr(
+        worker_main.report_history_service,
+        "cleanup_orphan_markdown_reports",
+        lambda *_args: calls.append("orphan-markdown"),
+    )
+    monkeypatch.setattr(worker_main, "cleanup_expired_cache_entries", lambda: calls.append("cache"))
+    monkeypatch.setattr(worker_main, "cleanup_report_index_orphans", lambda write=True: calls.append(("report-index", write)))
+    monkeypatch.setattr(worker_main, "cleanup_analysis_history", lambda write=True: calls.append(("analysis-history", write)))
+    monkeypatch.setattr(worker_main, "cleanup_provider_sla_events", lambda write=True: calls.append(("provider-sla", write)))
+    monkeypatch.setattr(worker_main, "run_sqlite_maintenance", lambda write=True: calls.append(("sqlite", write)))
+
+    asyncio.run(worker_main._run_maintenance_iteration(runtime, {}))
+
+    assert calls == [
+        "expired-reports",
+        "orphan-markdown",
+        "cache",
+        ("report-index", True),
+        ("analysis-history", True),
+        ("provider-sla", True),
+        ("sqlite", True),
+    ]
+
+
 def test_all_role_uses_spawn_and_three_children(monkeypatch):
     class FakeProcess:
         def __init__(self, target, args):
@@ -422,6 +455,35 @@ def test_run_rq_worker_uses_simple_worker_to_avoid_macos_fork_abort(monkeypatch)
     assert calls == [
         ("simple-worker", ["queue"], "redis"),
         ("work", True, 2, False),
+    ]
+
+
+def test_run_rq_worker_consumes_all_configured_rq_queues(monkeypatch):
+    import rq
+
+    calls = []
+    runtime = FakeWorkerRuntime(calls)
+    runtime.task_queue.queue = "analysis.high"
+    runtime.task_queue.queues = {
+        "analysis.high": "analysis.high",
+        "analysis.normal": "analysis.normal",
+        "watchlist": "watchlist",
+    }
+
+    class FakeSimpleWorker:
+        def __init__(self, queues, *, connection):
+            calls.append(("simple-worker", queues, connection))
+
+        def work(self, *, burst=False, max_jobs=None, with_scheduler=False):
+            calls.append(("work", burst, max_jobs, with_scheduler))
+
+    monkeypatch.setattr(rq, "SimpleWorker", FakeSimpleWorker)
+
+    worker_main.run_rq_worker(runtime, burst=True, max_jobs=3)
+
+    assert calls == [
+        ("simple-worker", ["analysis.high", "analysis.normal", "watchlist"], "redis"),
+        ("work", True, 3, False),
     ]
 
 

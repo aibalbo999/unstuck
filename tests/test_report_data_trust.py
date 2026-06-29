@@ -85,17 +85,25 @@ def minimal_context():
 
 def test_html_and_markdown_include_data_trust_and_source_audit():
     context = minimal_context()
+    context["prompt_version"] = "runtime-rules:test"
+    context["model_id"] = "gemini-test-model"
 
     html = report_gen.generate_html_report(context)
     markdown = report_gen.generate_markdown_report(context)
 
     assert "本報告資料可信度" in html
+    assert "資料信心分數" in html
+    assert "可重現資訊" in html
+    assert "gemini-test-model" in html
     assert "資料新鮮" in html
     assert "關鍵數據來源對照" in html
     assert "股價與市值" in html
     assert "來源審計" in html
     assert "yfinance" in html
     assert "## 本報告資料可信度" in markdown
+    assert "**資料信心分數:**" in markdown
+    assert "**可重現資訊:**" in markdown
+    assert "runtime-rules:test" in markdown
     assert "## 關鍵數據來源對照" in markdown
     assert "## 來源審計" in markdown
     assert "| 股價與市值 | 市場資料 | yfinance | 成功 |" in markdown

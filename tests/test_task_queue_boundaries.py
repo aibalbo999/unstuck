@@ -25,7 +25,7 @@ def test_api_task_queue_rejects_local_backend(monkeypatch):
 def test_api_task_queue_builds_rq_producer(monkeypatch):
     import task_queue
 
-    built = {}
+    built = {"queue_names": []}
 
     class FakeRedisClient:
         pass
@@ -38,7 +38,8 @@ def test_api_task_queue_builds_rq_producer(monkeypatch):
 
     class FakeQueue:
         def __init__(self, name, connection):
-            built["queue_name"] = name
+            self.name = name
+            built["queue_names"].append(name)
             built["connection"] = connection
 
     monkeypatch.setattr(task_queue, "TASK_QUEUE_BACKEND", "rq")
@@ -48,7 +49,8 @@ def test_api_task_queue_builds_rq_producer(monkeypatch):
     queue = task_queue.create_api_task_queue()
 
     assert isinstance(queue, task_queue.RQTaskQueue)
-    assert built["queue_name"] == task_queue.TASK_QUEUE_NAME
+    assert task_queue.TASK_QUEUE_NAME in built["queue_names"]
+    assert queue.queue.name == task_queue.TASK_QUEUE_NAME
     assert isinstance(built["connection"], FakeRedisClient)
 
 
@@ -85,6 +87,50 @@ def test_rq_enqueue_passes_retry_settings_to_queue(monkeypatch):
     assert captured["timeout"] == 7200
     assert captured["retry"].max == 3
     assert captured["retry"].interval == [5, 10, 30]
+
+
+def test_rq_enqueue_routes_analysis_and_rerun_to_separate_queues(monkeypatch):
+    import task_queue
+
+    calls = []
+
+    class FakeRetry:
+        def __init__(self, max, interval):
+            self.max = max
+            self.interval = interval
+
+    class FakeQueue:
+        def __init__(self, name):
+            self.name = name
+
+        def enqueue_call(self, **kwargs):
+            calls.append((self.name, kwargs["job_id"]))
+            return f"{self.name}:{kwargs['job_id']}"
+
+    monkeypatch.setitem(sys.modules, "rq", types.SimpleNamespace(Retry=FakeRetry))
+
+    queue = task_queue.RQTaskQueue(
+        redis_client=object(),
+        queues={
+            "analysis.high": FakeQueue("analysis.high"),
+            "analysis.normal": FakeQueue("analysis.normal"),
+            "watchlist": FakeQueue("watchlist"),
+        },
+        queue_routes={
+            "analysis": "analysis.high",
+            "report-rerun": "analysis.normal",
+            "watchlist": "watchlist",
+        },
+    )
+
+    assert queue.enqueue("analysis:job-a", lambda: None) == "analysis.high:analysis:job-a"
+    assert queue.enqueue("report-rerun:job-b", lambda: None) == "analysis.normal:report-rerun:job-b"
+    assert queue.enqueue("watchlist:job-c", lambda: None) == "watchlist:watchlist:job-c"
+    assert calls == [
+        ("analysis.high", "analysis:job-a"),
+        ("analysis.normal", "report-rerun:job-b"),
+        ("watchlist", "watchlist:job-c"),
+    ]
 
 
 def test_rq_constructor_accepts_injected_queue_and_close_closes_redis():
@@ -153,6 +199,18 @@ def test_validate_runtime_settings_warns_for_invalid_queue_config(monkeypatch):
     warnings = app_config.validate_runtime_settings()
 
     assert any("RQ_JOB_MAX_RETRIES" in warning and "大於 0" in warning for warning in warnings)
+
+
+def test_validate_runtime_settings_warns_for_unknown_queue_routes(monkeypatch):
+    from settings import app_config
+
+    monkeypatch.setattr(app_config, "TASK_QUEUE_BACKEND", "rq")
+    monkeypatch.setattr(app_config, "TASK_QUEUE_NAMES", ("analysis.high",))
+    monkeypatch.setattr(app_config, "TASK_QUEUE_ROUTES", {"analysis": "missing.queue"})
+
+    warnings = app_config.validate_runtime_settings()
+
+    assert any("TASK_QUEUE_ROUTES" in warning and "missing.queue" in warning for warning in warnings)
 
 
 def test_malformed_rq_retry_env_is_reported_by_validation(monkeypatch):

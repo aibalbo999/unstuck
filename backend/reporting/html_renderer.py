@@ -175,7 +175,7 @@ def generate_html_report(context: AnalysisContext) -> str:
             "#d97706",
         )
     audit_banner_html = build_audit_banner_html(context)
-    data_trust_html = build_data_trust_html(data)
+    data_trust_html = build_data_trust_html(data, context)
     source_audit_html = build_source_audit_html(data, context)
     audit_entries = data.get("source_audit", []) if isinstance(data.get("source_audit"), list) else []
     report_ticker = str(data.get("ticker") or ticker)

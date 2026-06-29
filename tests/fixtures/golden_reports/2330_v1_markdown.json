@@ -1,0 +1,124 @@
+{
+  "name": "2330.TW v1 Markdown report",
+  "sha256": "96e7ccb39c6b395472cb40b3e2729c35a598d845f0a63c488d7500163cb84ae6",
+  "required_markers": [
+    "# 2330.TW 台積電 -",
+    "## 本報告資料可信度",
+    "**資料信心分數:**",
+    "**可重現資訊:**",
+    "## 一頁式摘要",
+    "## 🎯 最終投資建議",
+    "## 關鍵數據來源對照",
+    "## 來源審計"
+  ],
+  "context": {
+    "ticker": "2330.TW",
+    "company_name": "台積電",
+    "pipeline_id": "v1",
+    "prompt_version": "runtime-rules:golden",
+    "model_id": "golden-model",
+    "data": {
+      "data_schema_version": 4,
+      "ticker": "2330.TW",
+      "company_name": "台積電",
+      "sector": "Technology",
+      "industry": "Semiconductors",
+      "fetch_date": "2026年06月07日",
+      "current_price": 100.0,
+      "current_price_fmt": "NT$100.00",
+      "market_cap_fmt": "NT$100億",
+      "pe_ratio": "20.0x",
+      "pb_ratio": "5.00x",
+      "gross_margin": "50.0%",
+      "roe": "20.0%",
+      "dividend_yield": "2.00%",
+      "beta": "1.00",
+      "years": [
+        "2024",
+        "2025"
+      ],
+      "revenue_history": [
+        10,
+        12
+      ],
+      "net_income_history": [
+        2,
+        3
+      ],
+      "fcf_history": [
+        1,
+        2
+      ],
+      "gross_margin_history": [
+        50,
+        52
+      ],
+      "op_margin_history": [
+        30,
+        31
+      ],
+      "net_margin_history": [
+        20,
+        25
+      ],
+      "roe_history": [
+        18,
+        20
+      ],
+      "price_history": {
+        "dates": [],
+        "prices": []
+      },
+      "source_freshness": {
+        "market_data": {
+          "stale": false,
+          "fetched_at": "2026-06-07T00:00:00+00:00"
+        },
+        "financial_statements": {
+          "stale": false,
+          "fetched_at": "2026-06-07T00:00:00+00:00"
+        }
+      },
+      "source_audit": [
+        {
+          "source": "market_data",
+          "provider": "yfinance",
+          "status": "success",
+          "fetched_at": "2026-06-07T00:00:00+00:00",
+          "duration_ms": 12,
+          "record_count": 4,
+          "cache_hit": false,
+          "stale": false,
+          "error_kind": "",
+          "message": "ok"
+        }
+      ],
+      "data_trust": {
+        "status": "fresh",
+        "critical_failures": [],
+        "stale_sources": [],
+        "last_market_data_at": "2026-06-07T00:00:00+00:00",
+        "notes": [
+          "測試資料新鮮。"
+        ]
+      }
+    },
+    "parsed": {
+      "recommendation": {
+        "建議": "持有",
+        "3個月": "NT$100",
+        "6個月": "NT$110",
+        "12個月": "NT$120",
+        "信心": "7/10"
+      },
+      "price_targets": {},
+      "moat_scores": {}
+    },
+    "analyses": {},
+    "final_audit": {
+      "critical": [],
+      "warnings": [],
+      "corrections": []
+    }
+  }
+}

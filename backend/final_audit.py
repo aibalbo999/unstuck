@@ -16,6 +16,7 @@ from final_audit_v3 import v3_recommendation_contract_issues
 from final_audit_v4 import v4_trade_setup_contract_issues
 from forward_consistency_checker import run_forward_consistency_checks
 from pipeline_modes import get_pipeline_definition, get_structured_agent_num
+from report_reproducibility import build_data_confidence_controls
 from runtime_events import emit_log
 from validators import (
     _extract_price_numbers,
@@ -232,6 +233,18 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
         circuit_ever_opened,
         has_unresolved_cross_source_conflict(data),
     )
+    if isinstance(data.get("data_trust"), dict):
+        confidence_controls = build_data_confidence_controls(context, data.get("data_trust"))
+        target_guardrail = confidence_controls["conclusion_guardrails"]["explicit_target_price"]
+        if not target_guardrail.get("allowed") and target_guardrail.get("detected_fields"):
+            detected = "、".join(target_guardrail["detected_fields"][:4])
+            min_score = target_guardrail.get("min_data_confidence_score")
+            score = confidence_controls.get("data_confidence_score")
+            issue = f"資料信心分數 {score}/100 低於 {min_score}/100，不得產生明確目標價：{detected}。"
+            _add_unique_issue(critical, issue)
+            for agent_num in (valuation_agent, recommendation_agent, trade_setup_agent):
+                if agent_num is not None:
+                    add_agent_repair_issue(agent_num, "資料信心不足，請改用區間或資料不足說明，不得產生明確目標價。")
     data_notes = data.get("data_source_notes", []) or []
     if any("口徑互斥" in note for note in data_notes):
         _add_unique_issue(corrections, "資料源出現淨利/淨利率口徑互斥時，報告已採用 EPS/P/E 自洽的校準口徑。")

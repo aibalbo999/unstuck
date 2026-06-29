@@ -1,3 +1,6 @@
+import json
+import subprocess
+import sys
 from pathlib import Path
 
 from packaging.requirements import Requirement
@@ -77,3 +80,39 @@ def test_ci_gate_runs_supply_chain_audit_before_tests():
     assert audit_script.exists()
     assert "scripts/supply_chain_audit.py" in ci_gate
     assert ci_gate.index("scripts/supply_chain_audit.py") < ci_gate.index("-m pytest")
+
+
+def test_sbom_generator_outputs_cyclonedx_from_lockfile(tmp_path):
+    requirements = tmp_path / "requirements.lock"
+    output = tmp_path / "sbom.cdx.json"
+    requirements.write_text("requests==2.34.2\ncoverage==7.14.3\n", encoding="utf-8")
+
+    subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "generate_sbom.py"),
+            "--requirements",
+            str(requirements),
+            "--output",
+            str(output),
+        ],
+        check=True,
+        cwd=ROOT,
+    )
+    sbom = json.loads(output.read_text(encoding="utf-8"))
+
+    assert sbom["bomFormat"] == "CycloneDX"
+    assert sbom["specVersion"] == "1.5"
+    assert {component["purl"] for component in sbom["components"]} == {
+        "pkg:pypi/requests@2.34.2",
+        "pkg:pypi/coverage@7.14.3",
+    }
+
+
+def test_ci_gate_generates_sbom_before_coverage_tests():
+    ci_gate = (ROOT / "scripts" / "ci_gate.sh").read_text(encoding="utf-8")
+    sbom_script = ROOT / "scripts" / "generate_sbom.py"
+
+    assert sbom_script.exists()
+    assert "scripts/generate_sbom.py" in ci_gate
+    assert ci_gate.index("scripts/generate_sbom.py") < ci_gate.index("-m coverage run")

@@ -17,6 +17,7 @@ from data_trust_constants import (
     SUPPORTED_DATA_SNAPSHOT_SCHEMA_VERSIONS,
 )
 from data_trust_scoring import build_data_trust, normalize_data_trust, unknown_data_trust
+from report_reproducibility import build_data_confidence_controls, build_reproducibility_packet
 
 
 def sanitize_for_snapshot(value: Any) -> Any:
@@ -24,7 +25,7 @@ def sanitize_for_snapshot(value: Any) -> Any:
         clean = {}
         for key, item in value.items():
             key_str = str(key)
-            if key_str.startswith("_") or SENSITIVE_KEY_RE.search(key_str):
+            if key_str.startswith("_") or (key_str != "prompt_version" and SENSITIVE_KEY_RE.search(key_str)):
                 continue
             clean[key_str] = sanitize_for_snapshot(item)
         return clean
@@ -83,6 +84,7 @@ def build_data_snapshot(
     except Exception:
         evidence_matrix = []
     snapshot_generated_at = generated_at or utc_now_iso()
+    confidence_controls = build_data_confidence_controls(context, data_trust)
     snapshot = {
         "snapshot_schema_version": DATA_SNAPSHOT_SCHEMA_VERSION,
         "snapshot_truncated": False,
@@ -104,6 +106,12 @@ def build_data_snapshot(
         "source_freshness": sanitize_for_snapshot(data.get("source_freshness", {})),
         "source_audit": sanitize_for_snapshot(data.get("source_audit", [])),
         "data_trust": data_trust,
+        "data_confidence_score": confidence_controls["data_confidence_score"],
+        "data_confidence_status": confidence_controls["data_confidence_status"],
+        "conclusion_guardrails": sanitize_for_snapshot(confidence_controls["conclusion_guardrails"]),
+        "reproducibility_packet": sanitize_for_snapshot(
+            build_reproducibility_packet(context, data_trust, snapshot_generated_at)
+        ),
         "evidence_matrix": sanitize_for_snapshot(evidence_matrix),
         "data_source_notes": sanitize_for_snapshot(data.get("data_source_notes", [])),
         "deterministic_fallbacks": sanitize_for_snapshot(context.get("deterministic_fallbacks", [])),
@@ -122,17 +130,28 @@ def snapshot_content_hash(snapshot: dict) -> str:
     if not isinstance(snapshot, dict):
         return ""
     stable = {
-        key: value for key, value in snapshot.items()
+        key: _hashable_snapshot_value(key, value) for key, value in snapshot.items()
         if key not in {"snapshot_hash", "content_hash", "snapshot_size_bytes"}
     }
     encoded = json.dumps(stable, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
+def _hashable_snapshot_value(key: str, value: Any) -> Any:
+    if key == "reproducibility_packet" and isinstance(value, dict):
+        packet = dict(value)
+        packet.pop("data_snapshot_hash", None)
+        return packet
+    return value
+
+
 def set_snapshot_integrity(snapshot: dict) -> dict:
     digest = snapshot_content_hash(snapshot)
     snapshot["snapshot_hash"] = digest
     snapshot["content_hash"] = digest
+    packet = snapshot.get("reproducibility_packet")
+    if isinstance(packet, dict):
+        packet["data_snapshot_hash"] = digest
     return set_stable_snapshot_size(snapshot)
 
 
@@ -167,7 +186,7 @@ def validate_data_snapshot(snapshot: Any) -> dict:
         return {"valid": False, "errors": ["snapshot must be an object"]}
     if snapshot.get("snapshot_schema_version") not in SUPPORTED_DATA_SNAPSHOT_SCHEMA_VERSIONS:
         errors.append("unsupported snapshot_schema_version")
-    for key in (
+    required_keys = [
         "ticker",
         "pipeline",
         "generated_at",
@@ -176,7 +195,14 @@ def validate_data_snapshot(snapshot: Any) -> dict:
         "source_audit",
         "data_trust",
         "data",
-    ):
+    ]
+    if snapshot.get("snapshot_schema_version") == DATA_SNAPSHOT_SCHEMA_VERSION:
+        required_keys.extend([
+            "data_confidence_score",
+            "conclusion_guardrails",
+            "reproducibility_packet",
+        ])
+    for key in required_keys:
         if key not in snapshot:
             errors.append(f"missing {key}")
     if not isinstance(snapshot.get("source_audit", []), list):

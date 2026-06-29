@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 
-from .env import env_list, env_str, load_local_env
+from .env import env_bool, env_int, env_list, env_str, load_local_env
 
 
 load_local_env()
@@ -19,6 +19,12 @@ else:
     DEPLOYMENT_MODE = _deployment_mode or "local"
 _configured_token = os.getenv("MUTATION_API_TOKEN")
 MUTATION_API_TOKEN: str | None = str(_configured_token).strip() if _configured_token else None
+ALLOW_LEGACY_ADMIN_TOKEN = env_bool("ALLOW_LEGACY_ADMIN_TOKEN", False)
+MUTATION_RATE_LIMIT_MAX_REQUESTS = env_int("MUTATION_RATE_LIMIT_MAX_REQUESTS", 120)
+MUTATION_RATE_LIMIT_WINDOW_SECONDS = env_int("MUTATION_RATE_LIMIT_WINDOW_SECONDS", 60)
+BASIC_AUTH_USERNAME = env_str("BASIC_AUTH_USERNAME", "").strip()
+BASIC_AUTH_PASSWORD = env_str("BASIC_AUTH_PASSWORD", "")
+EXTERNAL_ACCESS_CONTROLLED = env_bool("EXTERNAL_ACCESS_CONTROLLED", False)
 
 ALLOWED_ORIGINS = env_list(
     "ALLOWED_ORIGINS",
@@ -39,10 +45,32 @@ def is_production_profile(mode: str | None = None) -> bool:
     return str(mode or DEPLOYMENT_MODE or "local").strip().lower() in {"production", "prod", "server", "lan"}
 
 
+def has_basic_auth_configured() -> bool:
+    return bool(BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD)
+
+
+def has_network_access_guard() -> bool:
+    return has_basic_auth_configured() or EXTERNAL_ACCESS_CONTROLLED
+
+
 if is_production_profile() and not MUTATION_API_TOKEN:
     raise ValueError("MUTATION_API_TOKEN must be set in production.")
 if is_production_profile() and "*" in ALLOWED_ORIGINS:
     raise ValueError("ALLOWED_ORIGINS cannot include wildcard in production.")
 
 
-__all__ = ["ALLOWED_ORIGINS", "MUTATION_API_TOKEN", "DEPLOYMENT_MODE", "UNSTUCK_ENV", "is_production_profile"]
+__all__ = [
+    "ALLOW_LEGACY_ADMIN_TOKEN",
+    "ALLOWED_ORIGINS",
+    "BASIC_AUTH_PASSWORD",
+    "BASIC_AUTH_USERNAME",
+    "EXTERNAL_ACCESS_CONTROLLED",
+    "MUTATION_API_TOKEN",
+    "MUTATION_RATE_LIMIT_MAX_REQUESTS",
+    "MUTATION_RATE_LIMIT_WINDOW_SECONDS",
+    "DEPLOYMENT_MODE",
+    "UNSTUCK_ENV",
+    "has_basic_auth_configured",
+    "has_network_access_guard",
+    "is_production_profile",
+]

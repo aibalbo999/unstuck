@@ -33,9 +33,11 @@ Production mode can be selected with either `UNSTUCK_ENV=production` or the exis
 UNSTUCK_ENV=production
 MUTATION_API_TOKEN=replace_with_long_random_secret
 ALLOWED_ORIGINS=https://your-ui.example.com
+BASIC_AUTH_USERNAME=operator
+BASIC_AUTH_PASSWORD=replace_with_long_random_password
 ```
 
-Production startup fails fast if `MUTATION_API_TOKEN` is missing. `ALLOWED_ORIGINS=*` is rejected in production; use an explicit allowlist. Mutation endpoints check `X-Mutation-Token`, report HTML responses include CSP / nosniff / referrer headers, and API error payloads should not include secrets, stack traces, or local filesystem paths.
+Production startup fails fast if `MUTATION_API_TOKEN` is missing. `ALLOWED_ORIGINS=*` is rejected in production; use an explicit allowlist. Production/server/lan CORS allows only `GET`, `POST`, `DELETE`, `OPTIONS` and the required request headers instead of wildcards. Network-exposed profiles also require either built-in Basic Auth (`BASIC_AUTH_USERNAME` / `BASIC_AUTH_PASSWORD`) or `EXTERNAL_ACCESS_CONTROLLED=true` when an OAuth proxy, Tailscale ACL, or equivalent external boundary is already enforced. Mutation endpoints check `X-Mutation-Token`; the legacy `X-Admin-Token` alias is disabled unless `ALLOW_LEGACY_ADMIN_TOKEN=true` is set for a short migration window. Mutation calls are rate-limited in memory by `MUTATION_RATE_LIMIT_MAX_REQUESTS` per `MUTATION_RATE_LIMIT_WINDOW_SECONDS`; clients that exceed it receive HTTP 429 with `Retry-After`. Report HTML responses include CSP / nosniff / referrer headers, and API error payloads should not include secrets, stack traces, or local filesystem paths.
 
 ## Split API / Worker Startup
 
@@ -57,9 +59,15 @@ python backend/worker_main.py --role maintenance
 
 `TASK_QUEUE_BACKEND=local` is intentionally rejected by Web/API mode with `API task queue requires Redis and RQ`; use `TASK_QUEUE_BACKEND=rq` with a shared `REDIS_URL`. Check Redis with `redis-cli -u "$REDIS_URL" ping`, then inspect RQ with `rq info --url "$REDIS_URL"`.
 
+Queue workers consume every name in `TASK_QUEUE_NAMES`. Keep `TASK_QUEUE_NAME` first for compatibility, then add tiered queues such as `analysis.high`, `analysis.normal`, `watchlist`, `maintenance`, and `llm.retry`. API-created manual analysis jobs route to `analysis.high`, report reruns route to `analysis.normal`, and watchlist scheduler jobs route to `watchlist`, so batch work does not block high-value manual analysis.
+
 RQ retry behavior is configured with `RQ_JOB_MAX_RETRIES` and `RQ_JOB_RETRY_INTERVALS`; long-running job timeout is configured with `RQ_JOB_TIMEOUT_SECONDS` (default 4 hours). A job waiting for a delayed retry uses status `waiting_retry` and remains active in duplicate-job checks and dashboards.
 
+Health checks are split by purpose. `/healthz` is a liveness probe for process managers. `/readyz` verifies runtime storage and queue availability and returns HTTP 503 when the API should not accept work. For operator triage, use `/api/observability/dashboard`; it combines job latency percentiles, stuck jobs, node/model telemetry, prompt token budget, RQ depth and registries, provider alerts, and API quota ledger observations.
+
 Analysis workflow execution is durable. Each Worker run uses LangGraph with a SQLite checkpointer at `LANGGRAPH_CHECKPOINT_PATH` (default `backend/cache/langgraph_checkpoints.sqlite3`). A pipeline segment uses `thread_id = job_id:pipeline_id`; if an LLM call exhausts short in-node retries and the outer RQ job retries later, the Worker resumes the same graph thread instead of repeating completed Agent nodes. Do not delete the checkpoint DB while jobs are `queued`, `running`, or `waiting_retry`.
+
+Agent step cache is enabled by default with `AGENT_STEP_CACHE_ENABLED=true` and `AGENT_STEP_CACHE_SECONDS=604800`. Cache hits emit `agent_step_cache_hit` events and restore the agent structured output without calling the LLM provider. If prompt rules, model routing, or source data changes unexpectedly, clear the configured cache backend or lower the TTL before rerunning critical reports.
 
 Checkpoint cleanup policy is intentionally conservative for local-first operation: back up or delete old checkpoint files only after related jobs have reached `done`, `error`, or `cancelled`, and after preserving any reports you need. The checkpoint stores JSON-compatible graph state only; callbacks, API clients, Redis handles, and SQLite connections are process-local and are rebuilt on resume.
 
@@ -82,6 +90,9 @@ python backend/worker_main.py --role queue --burst --max-jobs 1
 ## Freshness Rules
 
 - `data_trust` tells you whether the data snapshot itself is fresh, partial, stale, or errored.
+- `data_confidence_score` is the 0-100 report confidence score derived from `data_trust`; below 60, the report should not be treated as having a valid explicit target price.
+- `conclusion_guardrails.explicit_target_price` records whether target prices are allowed and which structured fields tried to provide explicit prices under low confidence.
+- `reproducibility_packet` records the final snapshot hash, provider list, prompt/model identifiers, pipeline, code commit, generated time, and source data time for audit and rerun comparison.
 - `decision_freshness.status = current` means the investment conclusion was generated from the current snapshot.
 - `decision_freshness.status = needs_rerun` means the snapshot was refreshed after the HTML/Markdown conclusion was written. Treat the old conclusion as historical until rerun finishes.
 - Watchlist items use the same signal. Items marked `需重跑` are sorted first so the operator can rerun the stale conclusion before reviewing lower-priority names.
@@ -157,12 +168,13 @@ Use CLI maintenance for inspectable local cleanup:
 
 ```bash
 scripts/maintenance.sh storage-summary
+scripts/maintenance.sh sqlite-maintenance --write
 scripts/maintenance.sh cleanup-report-index --write
 scripts/maintenance.sh cleanup-analysis-history --write
 ```
 
-Job cleanup keeps active `queued`, `running`, and `waiting_retry` rows. It removes only terminal history older than the configured retention window plus orphan events. For production, schedule cleanup during quiet hours and keep report output backups separate from `TASK_DB_PATH` cleanup.
+Job cleanup keeps active `queued`, `running`, and `waiting_retry` rows. It removes only terminal history older than the configured retention window plus orphan events. SQLite maintenance creates one backup per database per UTC day under `SQLITE_BACKUP_DIR`, then runs WAL checkpoint and `VACUUM`; schedule it during quiet hours and keep report output backups separate from `TASK_DB_PATH` cleanup.
 
 ## Safety
 
-Mutation endpoints require `X-Mutation-Token`. The browser UI receives a same-origin runtime token automatically. Direct API clients should call `/api/client-config` first or set `MUTATION_API_TOKEN` and send that value in `X-Mutation-Token`.
+Mutation endpoints require `X-Mutation-Token`. The browser UI receives a same-origin runtime token automatically. Direct API clients should call `/api/client-config` first or set `MUTATION_API_TOKEN` and send that value in `X-Mutation-Token`. Avoid `X-Admin-Token`; it is a temporary legacy alias only when explicitly enabled.

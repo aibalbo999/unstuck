@@ -14,8 +14,11 @@ from typing import Literal
 import report_history_service
 from cache_store import cleanup_expired_cache_entries
 from config import REPORT_CLEANUP_INTERVAL_SECONDS, REPORT_RETENTION_DAYS
+from database_maintenance import run_sqlite_maintenance
 from decision_tracking_scheduler import run_decision_tracking_scheduler
 from job_store import create_job, find_active_job, list_active_jobs, mark_jobs_abandoned
+from job_store_maintenance import cleanup_analysis_history
+from provider_sla_maintenance import cleanup_provider_sla_events
 from report_index_maintenance import cleanup_report_index_orphans
 from runtime_dependencies import RuntimeSettings, WorkerRuntime, create_worker_runtime
 from runtime_events import emit_log
@@ -58,7 +61,8 @@ def run_rq_worker(
     from rq import SimpleWorker
     from redis.exceptions import ConnectionError as RedisConnectionError
 
-    worker = SimpleWorker([rq_queue], connection=redis)
+    rq_queues = list(getattr(task_queue, "queues", {}) .values()) or [rq_queue]
+    worker = SimpleWorker(rq_queues, connection=redis)
     _install_shutdown_quiet_pubsub(worker)
     try:
         worker.work(
@@ -79,12 +83,13 @@ def run_rq_worker(
 def reconcile_abandoned_rq_jobs(runtime: WorkerRuntime) -> int:
     """Mark SQLite-active jobs abandoned when Redis/RQ no longer tracks them."""
     task_queue = runtime.task_queue
-    rq_queue = getattr(task_queue, "queue", None)
-    if rq_queue is None:
+    rq_queues = list(getattr(task_queue, "queues", {}) .values()) or [getattr(task_queue, "queue", None)]
+    rq_queues = [queue for queue in rq_queues if queue is not None]
+    if not rq_queues:
         return 0
 
     try:
-        rq_job_ids = _rq_active_job_ids(rq_queue)
+        rq_job_ids = _rq_active_job_ids(rq_queues)
     except Exception as exc:
         emit_log(f"queue reconciliation skipped: could not inspect RQ registries: {exc}")
         return 0
@@ -104,13 +109,17 @@ def reconcile_abandoned_rq_jobs(runtime: WorkerRuntime) -> int:
     return count
 
 
-def _rq_active_job_ids(rq_queue) -> set[str]:
+def _rq_active_job_ids(rq_queues) -> set[str]:
     from rq.registry import DeferredJobRegistry, ScheduledJobRegistry, StartedJobRegistry
 
-    job_ids = {str(job_id) for job_id in getattr(rq_queue, "job_ids", [])}
-    for registry_class in (StartedJobRegistry, DeferredJobRegistry, ScheduledJobRegistry):
-        registry = registry_class(queue=rq_queue)
-        job_ids.update(str(job_id) for job_id in registry.get_job_ids())
+    if not isinstance(rq_queues, (list, tuple, set)):
+        rq_queues = [rq_queues]
+    job_ids: set[str] = set()
+    for rq_queue in rq_queues:
+        job_ids.update(str(job_id) for job_id in getattr(rq_queue, "job_ids", []))
+        for registry_class in (StartedJobRegistry, DeferredJobRegistry, ScheduledJobRegistry):
+            registry = registry_class(queue=rq_queue)
+            job_ids.update(str(job_id) for job_id in registry.get_job_ids())
     return job_ids
 
 
@@ -178,6 +187,9 @@ async def _run_maintenance_iteration(runtime: WorkerRuntime, report_cache: dict[
         ),
         ("expired cache entries", cleanup_expired_cache_entries),
         ("report index orphans", lambda: cleanup_report_index_orphans(write=True)),
+        ("analysis job history", lambda: cleanup_analysis_history(write=True)),
+        ("provider SLA events", lambda: cleanup_provider_sla_events(write=True)),
+        ("sqlite backup/checkpoint/vacuum", lambda: run_sqlite_maintenance(write=True)),
     ]
     for label, action in steps:
         try:

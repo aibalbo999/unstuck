@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+import inspect
 from datetime import datetime
 
 from data_fetch import FetchRequest
@@ -225,7 +226,7 @@ async def monitor_watchlist_triggers(
                 skipped.append({"ticker": ticker, "pipeline": selected_pipeline, "reason": "active_job", "job_id": active.get("job_id")})
                 continue
             job_id = create_job(ticker, selected_pipeline)
-            task_queue.enqueue(f"analysis:{job_id}", run_stock_analysis_job, job_id, ticker, selected_pipeline)
+            _enqueue_watchlist_analysis(task_queue, run_stock_analysis_job, job_id, ticker, selected_pipeline)
             queued.append({"ticker": ticker, "pipeline": selected_pipeline, "job_id": job_id, "trigger": event.get("trigger_type")})
 
             # 避免瞬間塞滿 LiteLLM rate limit，每個觸發任務派發後休眠 45 秒
@@ -251,7 +252,7 @@ def enqueue_watchlist_items(items: list[dict], *, create_job, find_active_job, t
             skipped.append({"ticker": ticker, "pipeline": pipeline, "reason": "active_job", "job_id": active.get("job_id")})
             continue
         job_id = create_job(ticker, pipeline)
-        task_queue.enqueue(f"analysis:{job_id}", run_stock_analysis_job, job_id, ticker, pipeline)
+        _enqueue_watchlist_analysis(task_queue, run_stock_analysis_job, job_id, ticker, pipeline)
         queued.append({"ticker": ticker, "pipeline": pipeline, "job_id": job_id, "slot": item.get("due_slot")})
         if item.get("due_slot"):
             mark_watchlist_run(ticker, pipeline, item["due_slot"], run_date=item.get("due_date"))
@@ -259,3 +260,22 @@ def enqueue_watchlist_items(items: list[dict], *, create_job, find_active_job, t
         # 避免瞬間塞滿 LiteLLM rate limit，每個任務派發後休眠 45 秒
         time.sleep(45)
     return {"success": True, "queued": queued, "skipped": skipped}
+
+
+def _enqueue_watchlist_analysis(task_queue, run_stock_analysis_job, job_id: str, ticker: str, pipeline: str) -> None:
+    task_id = f"analysis:{job_id}"
+    enqueue = task_queue.enqueue
+    try:
+        signature = inspect.signature(enqueue)
+    except (TypeError, ValueError):
+        signature = None
+    supports_queue_name = False
+    if signature is not None:
+        supports_queue_name = "queue_name" in signature.parameters or any(
+            parameter.kind == inspect.Parameter.VAR_KEYWORD
+            for parameter in signature.parameters.values()
+        )
+    if supports_queue_name:
+        enqueue(task_id, run_stock_analysis_job, job_id, ticker, pipeline, queue_name="watchlist")
+        return
+    enqueue(task_id, run_stock_analysis_job, job_id, ticker, pipeline)

@@ -17,6 +17,7 @@ class MaintenanceRouteDeps:
     cleanup_report_index_orphans: Callable[..., dict]
     cleanup_provider_sla_events: Callable[..., dict]
     cleanup_analysis_history: Callable[..., dict]
+    run_sqlite_maintenance: Callable[..., dict]
 
 
 def create_maintenance_router(deps: MaintenanceRouteDeps) -> APIRouter:
@@ -58,6 +59,12 @@ def create_maintenance_router(deps: MaintenanceRouteDeps) -> APIRouter:
             keep_recent_jobs=keep_recent_jobs,
             write=write,
         )
+        return _maintenance_result(result)
+
+    @router.post("/sqlite-maintenance")
+    async def sqlite_maintenance(request: Request, write: bool = Query(False)):
+        deps.require_mutation_authorized(request)
+        result = await asyncio.to_thread(deps.run_sqlite_maintenance, write=write)
         return _maintenance_result(result)
 
     return router

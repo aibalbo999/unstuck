@@ -214,6 +214,51 @@ def test_single_agent_async_uses_configured_primary_timeout_before_fallback(monk
     assert calls == [("primary-model", 360.0), ("fallback-model", 120.0)]
 
 
+def test_single_agent_async_reuses_agent_step_cache(monkeypatch):
+    import agent_runtime.single_agent as single_agent_module
+    import cache_store
+    from cache_backends import InMemoryCache
+
+    calls = []
+
+    async def fake_run_once(agent_num, context, rotator, model_id, prompt, quota_default=1, timeout_seconds=None):
+        calls.append((agent_num, model_id, prompt))
+        context.setdefault("structured_outputs", {})[agent_num] = {"recommendation": {"建議": "持有"}}
+        return "cached agent result " * 20
+
+    try:
+        cache_store.set_cache_backend(InMemoryCache())
+        monkeypatch.setattr(single_agent_module, "build_prompt", lambda *_args, **_kwargs: "stable prompt")
+        monkeypatch.setattr(single_agent_module, "get_runtime_model_sequence", lambda *_args, **_kwargs: ["cache-model"])
+        monkeypatch.setattr(single_agent_module, "_run_agent_once_async", fake_run_once)
+
+        data = {"ticker": "AAPL", "company_name": "Apple", "data_snapshot_hash": "snapshot-1"}
+        first_context = {"structured_outputs": {}, "prompt_version": "runtime-rules:test"}
+        second_context = {"structured_outputs": {}, "prompt_version": "runtime-rules:test"}
+
+        first = asyncio.run(single_agent_module.run_single_agent_async(7, data, first_context, object()))
+        second = asyncio.run(single_agent_module.run_single_agent_async(7, data, second_context, object()))
+
+        assert first == second
+        assert calls == [(7, "cache-model", "stable prompt")]
+        assert second_context["structured_outputs"][7] == {"recommendation": {"建議": "持有"}}
+        assert any(event.get("phase") == "agent_step_cache_hit" for event in second_context["_runtime_events"])
+    finally:
+        cache_store.reset_cache_store_for_tests()
+
+
+def test_agent_step_cache_key_changes_when_prompt_changes():
+    from agent_runtime.step_cache import build_agent_step_cache_key
+
+    data = {"ticker": "AAPL", "data_snapshot_hash": "snapshot-1"}
+    context = {"prompt_version": "runtime-rules:test"}
+
+    first_key = build_agent_step_cache_key(7, data, context, "cache-model", "prompt v1")
+    second_key = build_agent_step_cache_key(7, data, context, "cache-model", "prompt v2")
+
+    assert first_key != second_key
+
+
 def test_single_agent_async_retries_primary_5xx_before_fallback(monkeypatch):
     import agent_runtime.single_agent as single_agent_module
     from agent_runtime.retry_policy import AgentServerError

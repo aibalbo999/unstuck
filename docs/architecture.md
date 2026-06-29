@@ -40,7 +40,7 @@ flowchart LR
 - `AnalysisPipelineRunner` is the canonical multi-agent analysis boundary and invokes `backend/workflow_graph.py`, not the retired manual DAG group loop.
 - `report_index` and `report_history_service` expose report listing metadata instead of making callers parse files directly.
 - `decision_freshness` separates conclusion freshness from data freshness. A refreshed snapshot can be newer than the HTML/Markdown conclusion, so the API marks that report as `needs_rerun`.
-- Mutation endpoints require a mutation token header. Local mode can generate a runtime mutation token and expose it to the same-origin UI through `/api/client-config`; production/server profiles require `MUTATION_API_TOKEN` and explicit CORS origins.
+- Mutation endpoints require `X-Mutation-Token`. Local mode can generate a runtime mutation token and expose it to the same-origin UI through `/api/client-config`; production/server profiles require `MUTATION_API_TOKEN` and explicit CORS origins. The legacy `X-Admin-Token` alias is disabled by default and only accepted when `ALLOW_LEGACY_ADMIN_TOKEN=true`. The same auth boundary applies an in-memory rate limit controlled by `MUTATION_RATE_LIMIT_MAX_REQUESTS` and `MUTATION_RATE_LIMIT_WINDOW_SECONDS`.
 
 ## Operational State
 
@@ -49,9 +49,11 @@ flowchart LR
 - `analysis_jobs(ticker, pipeline_id)` has an active-job uniqueness guard for `queued`, `running`, and `waiting_retry` rows. The create flow uses a SQLite `BEGIN IMMEDIATE` transaction plus a partial unique index so concurrent producers attach to one active job instead of creating duplicate reports.
 - SSE event readers use `/api/analysis-jobs/{job_id}/events`; they never create jobs. Reconnect uses `Last-Event-ID`, `last_event_id`, or `since_id`, idle polling backs off from 0.5s to 5s, and heartbeat events keep proxies/browsers from treating the stream as idle.
 - Web/API mode requires Redis/RQ. `TASK_QUEUE_BACKEND=local` is reserved for embedded tests and is rejected at the API boundary with `API task queue requires Redis and RQ`.
+- RQ can be tiered with `TASK_QUEUE_NAMES`. Manual `analysis:*` jobs route to `analysis.high`, `report-rerun:*` jobs route to `analysis.normal`, and watchlist scheduler jobs explicitly route to `watchlist`; the queue worker consumes all configured queues so legacy `TASK_QUEUE_NAME` jobs still drain.
 - RQ retries are configured by `RQ_JOB_MAX_RETRIES` and `RQ_JOB_RETRY_INTERVALS`; retry-delayed jobs use `waiting_retry`, which remains active for duplicate-job checks and observability.
 - LangGraph threads use `job_id:pipeline_id` so continuous runs keep separate durable checkpoints per pipeline segment. Worker execution uses `LANGGRAPH_CHECKPOINT_PATH` with SQLite WAL, `busy_timeout=30000`, and `synchronous=NORMAL`.
 - LangGraph node retry is short and in-process for transient LLM/network errors. When retries are exhausted, RQ records `waiting_retry` and later invokes the same thread id with `None` input so successful checkpointed nodes are not repeated.
+- Agent step cache lives behind the existing JSON cache facade. A successful agent output is keyed by ticker, data snapshot hash/fingerprint, agent id, prompt version, model id, and prompt hash; cache hits skip provider calls, restore structured output, and emit `agent_step_cache_hit` runtime events.
 - Maintenance routes default to dry-run unless `write=true` is provided.
 - Long-running maintenance also runs in the worker `maintenance` role. `worker_main.py --role all` starts queue, scheduler, and maintenance children with multiprocessing `spawn` and forwards `SIGTERM` / `SIGINT` for shutdown.
 - Provider SLA and API quota dashboards are local observations, not provider billing truth.
@@ -89,7 +91,7 @@ The worker writes telemetry to `analysis_node_telemetry` and also emits non-brea
 
 ## Security Boundary
 
-Local-first mode is intended for `127.0.0.1` workstation use. `UNSTUCK_ENV=local` may use a runtime mutation token for the bundled browser UI. `UNSTUCK_ENV=production`, `DEPLOYMENT_MODE=server`, and `DEPLOYMENT_MODE=lan` require an explicit `MUTATION_API_TOKEN`; wildcard CORS is rejected. Report HTML is served with CSP (`script-src 'none'`), `X-Content-Type-Options: nosniff`, and `Referrer-Policy: no-referrer`. Error and telemetry serialization sanitize token-like strings before they reach API/SSE clients.
+Local-first mode is intended for `127.0.0.1` workstation use. `UNSTUCK_ENV=local` may use a runtime mutation token for the bundled browser UI. `UNSTUCK_ENV=production`, `DEPLOYMENT_MODE=server`, and `DEPLOYMENT_MODE=lan` require an explicit `MUTATION_API_TOKEN`; wildcard CORS is rejected and CORS methods/headers are restricted to the API surface. Network-exposed profiles must also use built-in Basic Auth or explicitly set `EXTERNAL_ACCESS_CONTROLLED=true` when protected by an OAuth proxy, Tailscale ACL, or equivalent outer boundary. Report HTML is served with CSP (`script-src 'none'`), `X-Content-Type-Options: nosniff`, and `Referrer-Policy: no-referrer`. Error and telemetry serialization sanitize token-like strings before they reach API/SSE clients.
 
 ## Durable LangGraph Agent Workflow
 
@@ -204,4 +206,5 @@ The AI Berkshire comparison is implemented as local, deterministic decision disc
 - `backend/research_playbooks.py` is the canonical registry for pipeline playbooks and non-pipeline discipline workflows such as investment checklist, thesis tracker, portfolio review, and quality screen.
 - `backend/investment_thesis.py` turns final synthesis context into a durable investment thesis: core assumptions, red lines, valuation anchor, data gaps, mirror-test lines, and next review trigger. The chief editor writes it into workflow state and Markdown reports.
 - `backend/evidence_exit_gate.py` samples numeric claims from generated Markdown against the report data snapshot before final metadata is persisted. The result is stored under `metadata.evidence_exit_gate` and folded into snapshot integrity.
+- `backend/report_reproducibility.py` derives `data_confidence_score`, target-price guardrails, and the reproducibility packet from deterministic context. `reproducibility_packet.data_snapshot_hash` is excluded from hash input and then populated with the final snapshot hash, avoiding recursive hash drift while preserving traceability.
 - `backend/quality_funnel.py` is a fast pass/gray/reject screen for business quality. The daily market screener attaches this result to each candidate and watchlist trigger, using `gray` when fundamentals are missing rather than rejecting technical or event-driven candidates prematurely.

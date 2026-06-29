@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from collections.abc import Callable
+from typing import Any
 
 from provider_sla import SLA_CRITICAL_SUCCESS_RATE, SLA_WARNING_SUCCESS_RATE
 from api_quota_service import build_api_quota_payload as _build_api_quota_payload
-from job_observability import build_active_jobs_snapshot
+from job_observability import build_active_jobs_snapshot, build_ops_dashboard_snapshot
+from queue_observability import snapshot_task_queue
 
 
 VALID_SLA_WINDOWS = {"all", "last_1h", "last_24h", "last_7d"}
@@ -118,3 +121,55 @@ async def build_active_jobs_payload(limit: int = 10, event_limit: int = 80) -> d
 
 async def build_api_quota_payload(summary_fetcher: Callable[[int], list[dict]]) -> dict:
     return await asyncio.to_thread(_build_api_quota_payload, summary_fetcher)
+
+
+async def build_ops_dashboard_payload(
+    summary_fetcher: Callable[[int], list[dict]],
+    alerts_fetcher: Callable[[int], list[dict]],
+    *,
+    task_queue: Any,
+    provider_limit: int = 100,
+    completed_limit: int = 500,
+    telemetry_limit: int = 5000,
+    stuck_after_seconds: int = 15 * 60,
+) -> dict:
+    jobs, providers, api_quotas, queue = await asyncio.gather(
+        asyncio.to_thread(
+            build_ops_dashboard_snapshot,
+            completed_limit=completed_limit,
+            telemetry_limit=telemetry_limit,
+            stuck_after_seconds=stuck_after_seconds,
+        ),
+        build_provider_sla_payload(summary_fetcher, alerts_fetcher, provider_limit, window="last_24h"),
+        build_api_quota_payload(summary_fetcher),
+        asyncio.to_thread(snapshot_task_queue, task_queue),
+    )
+    alerts = providers.get("alerts", [])
+    status = _dashboard_status(jobs=jobs, queue=queue, provider_alerts=alerts)
+    return {
+        "status": status,
+        "generated_at": time.time(),
+        "jobs": jobs.get("jobs", {}),
+        "job_latency": jobs.get("job_latency", {}),
+        "stuck_jobs": jobs.get("stuck_jobs", {}),
+        "node_telemetry": jobs.get("node_telemetry", {}),
+        "queue": queue,
+        "providers": {
+            "selected_window": providers.get("selected_window"),
+            "alert_count": len(alerts),
+            "alerts": alerts,
+        },
+        "api_quotas": api_quotas,
+    }
+
+
+def _dashboard_status(*, jobs: dict, queue: dict, provider_alerts: list[dict]) -> str:
+    if not queue.get("available"):
+        return "critical"
+    if any(alert.get("alert_level") == "critical" for alert in provider_alerts):
+        return "critical"
+    if int((jobs.get("stuck_jobs") or {}).get("count") or 0) > 0:
+        return "warning"
+    if provider_alerts:
+        return "warning"
+    return "ok"

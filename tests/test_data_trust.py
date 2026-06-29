@@ -243,6 +243,121 @@ def test_data_snapshot_saves_sanitized_rerun_context():
     assert "SHOULD_NOT_APPEAR" not in encoded
 
 
+def test_data_snapshot_adds_confidence_guardrail_and_repro_packet(monkeypatch):
+    monkeypatch.setenv("GIT_COMMIT", "abc123")
+    context = {
+        "ticker": "2330.TW",
+        "company_name": "台積電",
+        "pipeline_id": "v2",
+        "prompt_version": "runtime-rules:test",
+        "model_id": "gemini-test-model",
+        "parsed": {
+            "recommendation": {
+                "建議": "買入",
+                "12個月": "NT$1,200",
+                "信心": "8/10",
+            },
+            "price_targets": {
+                "熊市情境": 900,
+                "基本情境": 1100,
+                "牛市情境": 1300,
+            },
+        },
+        "structured_outputs": {
+            16: {
+                "recommendation": {
+                    "target_price": "NT$1,200",
+                }
+            }
+        },
+        "data": {
+            "data_schema_version": DATA_SCHEMA_VERSION,
+            "ticker": "2330.TW",
+            "company_name": "台積電",
+            "source_freshness": {},
+            "source_audit": [
+                {
+                    "source": "market_data",
+                    "provider": "yfinance",
+                    "status": "success",
+                    "fetched_at": "2026-06-07T00:00:00+00:00",
+                    "record_count": 1,
+                },
+                {
+                    "source": "financial_statements",
+                    "provider": "TWSE",
+                    "status": "error",
+                    "fetched_at": "2026-06-06T00:00:00+00:00",
+                    "record_count": 0,
+                },
+            ],
+            "data_trust": {
+                "status": "error",
+                "critical_failures": ["financial_statements"],
+                "stale_sources": [],
+                "last_market_data_at": "2026-06-07T00:00:00+00:00",
+                "notes": ["核心財報來源異常。"],
+                "score": 20,
+            },
+        },
+    }
+
+    snapshot = data_trust.build_data_snapshot(
+        context,
+        pipeline_id="v2",
+        generated_at="2026-06-07T00:10:00+00:00",
+    )
+
+    assert snapshot["data_confidence_score"] == 20
+    guardrail = snapshot["conclusion_guardrails"]["explicit_target_price"]
+    assert guardrail["allowed"] is False
+    assert guardrail["min_data_confidence_score"] == 60
+    assert "parsed.recommendation.12個月" in guardrail["detected_fields"]
+    assert "parsed.price_targets.基本情境" in guardrail["detected_fields"]
+    assert "structured_outputs.16.recommendation.target_price" in guardrail["detected_fields"]
+    packet = snapshot["reproducibility_packet"]
+    assert packet["ticker"] == "2330.TW"
+    assert packet["data_snapshot_hash"] == snapshot["snapshot_hash"]
+    assert packet["prompt_version"] == "runtime-rules:test"
+    assert packet["model_id"] == "gemini-test-model"
+    assert packet["pipeline_id"] == "v2"
+    assert packet["code_commit"] == "abc123"
+    assert packet["generated_at"] == "2026-06-07T00:10:00+00:00"
+    assert packet["provider_list"] == ["yfinance", "TWSE"]
+    assert packet["source_data_time"] == "2026-06-07T00:00:00+00:00"
+    assert data_trust.verify_data_snapshot_integrity(snapshot)["valid"] is True
+
+
+def test_low_confidence_snapshot_allows_ranges_or_insufficient_data():
+    snapshot = data_trust.build_data_snapshot(
+        {
+            "ticker": "RANGE",
+            "pipeline_id": "v2",
+            "parsed": {
+                "recommendation": {
+                    "12個月": "NT$90 至 NT$110",
+                    "信心": "3/10",
+                },
+                "price_targets": {"基本情境": "資料不足，僅提供 NT$90-110 區間"},
+            },
+            "data": {
+                "data_schema_version": DATA_SCHEMA_VERSION,
+                "ticker": "RANGE",
+                "source_audit": [],
+                "data_trust": data_trust.unknown_data_trust(),
+            },
+        },
+        generated_at="2026-06-07T00:10:00+00:00",
+    )
+
+    guardrail = snapshot["conclusion_guardrails"]["explicit_target_price"]
+    assert snapshot["data_confidence_score"] == 35
+    assert guardrail["allowed"] is False
+    assert guardrail["detected_fields"] == []
+    assert "資料不足" in guardrail["message"]
+    assert data_trust.verify_data_snapshot_integrity(snapshot)["valid"] is True
+
+
 def test_data_snapshot_accepts_legacy_v2_schema():
     snapshot = {
         "snapshot_schema_version": 2,

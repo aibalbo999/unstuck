@@ -27,6 +27,13 @@ from .model_policy import (
 )
 from .prompting import build_prompt
 from .routing import get_runtime_model_sequence
+from .step_cache import (
+    build_agent_step_cache_key,
+    get_cached_agent_step,
+    record_agent_step_cache_miss,
+    restore_cached_agent_step,
+    store_cached_agent_step,
+)
 from runtime_events import emit_context_event, emit_context_event_async, emit_log, make_runtime_event
 
 
@@ -97,6 +104,21 @@ def run_single_agent(
             prompt = build_prompt(agent_num, data, context)
         finally:
             context.pop("_primary_probe_prompt", None)
+        cache_key = build_agent_step_cache_key(agent_num, data, context, model_id, prompt)
+        cached_step = get_cached_agent_step(cache_key)
+        if cached_step is not None:
+            _emit_sync_model_event(
+                context,
+                agent_num,
+                "agent_step_cache_hit",
+                "info",
+                f"Agent {agent_num} 使用快取輸出。",
+                model_id,
+                cache_key=cache_key,
+                cache_hit=True,
+            )
+            return restore_cached_agent_step(context, agent_num, cached_step)
+        record_agent_step_cache_miss(context)
         retryer = Retrying(
             stop=make_model_retry_stop(policy),
             wait=_agent_retry_wait,
@@ -117,6 +139,13 @@ def run_single_agent(
                         timeout_seconds=timeout_seconds,
                     )
                     record_model_success(context, model_id)
+                    store_cached_agent_step(
+                        cache_key,
+                        agent_num=agent_num,
+                        context=context,
+                        model_id=model_id,
+                        text=result,
+                    )
                     return result
         except AgentMissingModelError as exc:
             last_error = str(exc)
@@ -186,6 +215,21 @@ async def run_single_agent_async(
             prompt = build_prompt(agent_num, data, context)
         finally:
             context.pop("_primary_probe_prompt", None)
+        cache_key = build_agent_step_cache_key(agent_num, data, context, model_id, prompt)
+        cached_step = get_cached_agent_step(cache_key)
+        if cached_step is not None:
+            await _emit_async_model_event(
+                context,
+                agent_num,
+                "agent_step_cache_hit",
+                "info",
+                f"Agent {agent_num} 使用快取輸出。",
+                model_id,
+                cache_key=cache_key,
+                cache_hit=True,
+            )
+            return restore_cached_agent_step(context, agent_num, cached_step)
+        record_agent_step_cache_miss(context)
         retryer = AsyncRetrying(
             stop=make_model_retry_stop(policy),
             wait=_agent_retry_wait,
@@ -206,6 +250,13 @@ async def run_single_agent_async(
                         timeout_seconds=timeout_seconds,
                     )
                     record_model_success(context, model_id)
+                    store_cached_agent_step(
+                        cache_key,
+                        agent_num=agent_num,
+                        context=context,
+                        model_id=model_id,
+                        text=result,
+                    )
                     return result
         except AgentMissingModelError as exc:
             last_error = str(exc)

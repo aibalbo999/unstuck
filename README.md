@@ -17,6 +17,7 @@
 - 報告預覽可只刷新資料快照，也可排隊重跑最終投資建議、Mode B 或完整報告
 - 歷史 API 回傳 `decision_freshness`，明確區分「資料快照已更新」與「投資結論是否已依新資料重跑」
 - 報告會輸出投資論文、核心假設、紅線、估值錨點與鏡子測試，方便後續追蹤結論是否仍成立
+- 報告與 `.data.json` 會揭露 `data_confidence_score`、低信心目標價限制與 reproducibility packet，方便追溯 snapshot hash、provider、prompt/model 與資料時間
 - 報告產生時會執行數字證據抽查 exit gate，將 Markdown 數字主張與 data snapshot 比對後寫入 metadata
 - 決策追蹤會自動掃描滿 3 / 6 / 12 個月的歷史報告，抓取發布日與到期日股價，計算 ROI、命中率與 Hit/Miss，並在「報告與維運」顯示回測績效
 - 新報告會載入同股票上一期報告與回測結果，將 `temporal_memory` 只注入最終決策 Agent，強制檢討先前目標價與投資建議是否失準
@@ -30,6 +31,7 @@
 - 歷史報告會自動清理孤立 Markdown，並刪除超過保留天數的舊報告
 - 長任務透過 SQLite job/event store 與任務佇列抽象執行，可用本地 worker 或切換 RQ/Redis
 - 多 Agent 分析流程已改由 LangGraph `StateGraph` 執行；Worker 使用 SQLite checkpoint 以 `job_id:pipeline_id` 恢復 429 / 暫時性中斷，不重跑已完成節點
+- Agent step cache 會以 ticker、資料快照 fingerprint、agent、prompt version、model 與 prompt hash 快取成功輸出，讓相同資料與 prompt 的 rerun 可跳過 LLM 呼叫並還原 structured output
 - API 額度儀表板使用 `api_usage_events` ledger 統計 Gemini provider request、Google Custom Search 與 FMP 本機觀測用量
 - Watchlist 可設定盤前/盤後批次分析，儲存在 SQLite，排程執行會先原子認領 due slot 並保留舊 JSON 一次性匯入相容
 - Watchlist 支援事件驅動雷達 triggers：跌破均線、外資連賣、VIX 飆升會自動派送 Mode C；營收創高會自動派送 Mode B，且每日事件以 SQLite 去重
@@ -112,9 +114,9 @@ GEMINI_API_KEYS=your_key_1,your_key_2
 export GEMINI_API_KEYS="your_key_1,your_key_2"
 ```
 
-修改端點會要求 `X-Mutation-Token`。若沒有設定 `MUTATION_API_TOKEN`，後端會在啟動時產生同源 runtime token，前端會自動透過 `/api/client-config` 取得；自動化腳本可參考 [docs/api.md](docs/api.md)。
+修改端點會要求 `X-Mutation-Token`。舊版 `X-Admin-Token` alias 預設不再接受；若短期需要相容舊腳本，可暫時設定 `ALLOW_LEGACY_ADMIN_TOKEN=true`。若沒有設定 `MUTATION_API_TOKEN`，後端會在啟動時產生同源 runtime token，前端會自動透過 `/api/client-config` 取得；自動化腳本可參考 [docs/api.md](docs/api.md)。
 
-Production profile 請設定 `UNSTUCK_ENV=production` 或 `DEPLOYMENT_MODE=server`，並明確提供 `MUTATION_API_TOKEN` 與非 wildcard 的 `ALLOWED_ORIGINS`。Production 缺 token 或使用 `ALLOWED_ORIGINS=*` 會 fail fast；local profile 則維持 runtime token，僅適合綁定 `127.0.0.1` 的本機使用。
+Production profile 請設定 `UNSTUCK_ENV=production` 或 `DEPLOYMENT_MODE=server`，並明確提供 `MUTATION_API_TOKEN` 與非 wildcard 的 `ALLOWED_ORIGINS`。Production 缺 token 或使用 `ALLOWED_ORIGINS=*` 會 fail fast；production/server/lan CORS 只允許必要 methods / headers，並且需要 `BASIC_AUTH_USERNAME` / `BASIC_AUTH_PASSWORD` 或 `EXTERNAL_ACCESS_CONTROLLED=true` 表示已由 OAuth proxy / Tailscale ACL 等外層控管。local profile 則維持 runtime token 與開發便利性，僅適合綁定 `127.0.0.1` 的本機使用。
 
 提交前可執行離線 secret 掃描：
 
@@ -149,14 +151,21 @@ Production profile 請設定 `UNSTUCK_ENV=production` 或 `DEPLOYMENT_MODE=serve
 - `TASK_QUEUE_BACKEND`：任務佇列後端，Web/API 模式必須使用 `rq`，預設 `rq`；`TASK_QUEUE_BACKEND=local` 僅保留給嵌入式測試/本地 helper，API 會以 `API task queue requires Redis and RQ` 拒絕啟動
 - `REDIS_URL`：RQ 模式使用的 Redis 連線，預設 `redis://localhost:6379/0`
 - `TASK_QUEUE_NAME`：RQ queue 名稱，預設 `stock-analysis`
+- `TASK_QUEUE_NAMES`：RQ worker 會同時監聽的 queue 清單，預設包含 `stock-analysis,analysis.high,analysis.normal,watchlist,maintenance,llm.retry`
+- `TASK_QUEUE_ROUTE_ANALYSIS` / `TASK_QUEUE_ROUTE_REPORT_RERUN` / `TASK_QUEUE_ROUTE_WATCHLIST`：依任務類型路由到指定 queue，預設分別為 `analysis.high`、`analysis.normal`、`watchlist`
 - `UNSTUCK_ENV`：`local` 或 `production`；production 會禁止缺少 mutation token 的不安全啟動
 - `MUTATION_API_TOKEN`：production / server / lan profile 必填；mutation endpoints 使用 `X-Mutation-Token`
+- `ALLOW_LEGACY_ADMIN_TOKEN`：是否暫時接受舊版 `X-Admin-Token` alias，預設 `false`
+- `MUTATION_RATE_LIMIT_MAX_REQUESTS` / `MUTATION_RATE_LIMIT_WINDOW_SECONDS`：mutation endpoint in-memory rate limit，預設 `120` 次 / `60` 秒；設為 `0` 可停用
+- `BASIC_AUTH_USERNAME` / `BASIC_AUTH_PASSWORD`：啟用 API/UI 全站 Basic Auth；production/server/lan profile 若沒有外層 access control，必須設定
+- `EXTERNAL_ACCESS_CONTROLLED`：設為 `true` 表示已由 OAuth proxy、Tailscale ACL 或等效網路邊界控管；可取代內建 Basic Auth
 - `ALLOWED_ORIGINS`：production 必須是明確 allowlist，不可使用 `*`
 - `RQ_JOB_MAX_RETRIES`：RQ job 最大重試次數，預設 `4`
 - `RQ_JOB_RETRY_INTERVALS`：RQ 延遲重試秒數清單，預設 `60,300,900,1800`
 - `RQ_JOB_TIMEOUT_SECONDS`：單一 RQ job 最長執行秒數，預設 `14400`（4 小時），避免完整報告/LLM 重跑被 RQ 預設短 timeout 提早中止
 - `LANGGRAPH_CHECKPOINT_PATH`：LangGraph SQLite checkpoint DB，預設 `backend/cache/langgraph_checkpoints.sqlite3`
 - `TASK_DB_PATH`：任務與 SSE event SQLite 檔位置，預設 `backend/cache/analysis_jobs.sqlite3`
+- `SQLITE_BACKUP_DIR`：SQLite 每日維護備份目錄，預設 `backend/cache/sqlite_backups`
 - `API_USAGE_DB_PATH`：API 用量 ledger SQLite 檔位置，預設跟隨 `TASK_DB_PATH`
 - `WATCHLIST_PATH`：舊版 watchlist JSON 位置；若存在會一次性匯入 SQLite，預設 `backend/cache/watchlist.json`
 - `WATCHLIST_DB_PATH`：watchlist SQLite 檔位置，預設為 `WATCHLIST_PATH` 同名 `.sqlite3`
@@ -165,6 +174,8 @@ Production profile 請設定 `UNSTUCK_ENV=production` 或 `DEPLOYMENT_MODE=serve
 - `LLM_AGENT_CALL_TIMEOUT_SECONDS`：單次 Agent LLM 呼叫 timeout 秒數，預設 `120`；會傳入 Google GenAI `HttpOptions.timeout`，非同步路徑另有外層 `asyncio.wait_for` 保護，設為 `0` 可關閉
 - `PRIMARY_LLM_AGENT_CALL_TIMEOUT_SECONDS`：有備援模型時 primary model 單次呼叫 timeout 秒數，預設 `360`，讓 Gemma 等大型 primary 模型有較完整的產出時間
 - `FALLBACK_LLM_AGENT_CALL_TIMEOUT_SECONDS`：備援模型單次呼叫 timeout 秒數，預設沿用 `LLM_AGENT_CALL_TIMEOUT_SECONDS`
+- `AGENT_STEP_CACHE_ENABLED`：是否啟用 Agent step cache，預設 `true`
+- `AGENT_STEP_CACHE_SECONDS`：Agent step cache TTL 秒數，預設 `604800`（7 天）
 - `LLM_SERVER_ERROR_MAX_ATTEMPTS`：模型服務 500/503/忙碌時的持續嘗試次數，預設 `6`
 - `LLM_SERVER_ERROR_RETRY_MAX_WAIT_SECONDS`：模型服務 5xx 重試 backoff 單次等待上限，預設 `45`
 - 429 quota / rate-limit 會至少輪完所有 API key 才判定該模型不可用；任務事件只記錄 `key_slot/key_count`，不保存 key 明文
@@ -212,6 +223,8 @@ scripts/visual_regression.sh
 ```
 
 CI 可用 `RUN_VISUAL_REGRESSION=1 scripts/ci_gate.sh` 一併執行；一般 `pytest` 仍會在 Playwright 不可用時 skip。
+`scripts/ci_gate.sh` 會產生 `backend/cache/sbom.cdx.json` CycloneDX SBOM，並以 `coverage run --source=backend` 執行非 live 測試，要求 backend line coverage 不低於 75%。
+報告防回歸測試包含 `tests/test_golden_reports.py`；若報告文字或章節結構是預期變更，請先人工檢查 fixed fake data 的 Markdown 輸出，再更新 `tests/fixtures/golden_reports/2330_v1_markdown.json` 的 SHA-256。
 
 ## 維護工具
 
@@ -219,6 +232,7 @@ CI 可用 `RUN_VISUAL_REGRESSION=1 scripts/ci_gate.sh` 一併執行；一般 `py
 
 ```bash
 scripts/maintenance.sh storage-summary
+scripts/maintenance.sh sqlite-maintenance --write
 scripts/maintenance.sh cleanup-provider-sla
 scripts/maintenance.sh cleanup-report-index --write
 scripts/maintenance.sh cleanup-analysis-history --write
@@ -227,6 +241,7 @@ scripts/maintenance.sh verify-snapshots --write
 
 `cleanup-report-index` 預設只會 dry-run；加上 `--write` 才會刪除已不存在輸出目錄的報告索引列。
 `cleanup-analysis-history` 預設也只會 dry-run；加上 `--write` 才會刪除過舊且已結束的任務與孤兒事件，queued/running 任務會保留。
+`sqlite-maintenance` 預設只會 dry-run；加上 `--write` 會對 runtime SQLite DB 建立每日備份、執行 WAL checkpoint 與 `VACUUM`。每日備份以 `SQLITE_BACKUP_DIR` 為目錄，同一天重跑會沿用既有備份。
 
 ## 啟動方式
 
@@ -271,7 +286,7 @@ LAN_ACCESS=1 ./start_mac.command
 http://192.168.1.115:8080
 ```
 
-`LAN_ACCESS=1` 只建議在可信任的私人 Wi-Fi 使用；公共網路請維持預設的本機模式。
+`LAN_ACCESS=1` 只建議在可信任的私人 Wi-Fi 使用；公共網路請維持預設的本機模式。LAN/server profile 不應只靠 mutation token；請設定 Basic Auth，或確認前方有 OAuth proxy / Tailscale ACL 並設 `EXTERNAL_ACCESS_CONTROLLED=true`。
 
 ### 手動啟動
 
@@ -391,6 +406,8 @@ curl -X DELETE -H "X-Mutation-Token: $TOKEN" \
 ```bash
 curl http://127.0.0.1:8080/api/observability/api-quotas
 curl http://127.0.0.1:8080/api/observability/provider-sla
+curl http://127.0.0.1:8080/api/observability/dashboard
+curl http://127.0.0.1:8080/readyz
 curl -H "X-Mutation-Token: $TOKEN" http://127.0.0.1:8080/api/maintenance/storage-summary
 curl http://127.0.0.1:8080/api/watchlist
 ```
@@ -411,7 +428,7 @@ backend/output/
 
 `backend/output/` 已在 `.gitignore` 中，不會被提交。
 
-`.data.json` 是資料快照，包含來源審計、資料可信度、決策追蹤基準與重跑 context。只刷新資料快照時，HTML / Markdown 正文不會自動改寫。
+`.data.json` 是資料快照，包含來源審計、資料可信度、`data_confidence_score`、結論 guardrails、`reproducibility_packet`、決策追蹤基準與重跑 context。當資料信心低於 60/100 時，snapshot 會標記明確目標價不可用，最終結論只能保留區間或資料不足說明。只刷新資料快照時，HTML / Markdown 正文不會自動改寫。
 
 `backend/cache/` 也已被 Git 忽略。財務資料快取預設保存 24 小時，可透過 `FINANCIAL_DATA_CACHE_SECONDS` 調整。歷史報告預設保留 30 天，可透過 `REPORT_RETENTION_DAYS` 調整；前端刪除 HTML 報告時，後端會同步刪除同名 Markdown 與資料快照。
 
@@ -431,6 +448,7 @@ uvicorn api:app --app-dir backend
 TASK_QUEUE_BACKEND=rq
 REDIS_URL=redis://localhost:6379/0
 TASK_QUEUE_NAME=stock-analysis
+TASK_QUEUE_NAMES=stock-analysis,analysis.high,analysis.normal,watchlist,maintenance,llm.retry
 RQ_JOB_TIMEOUT_SECONDS=14400
 ```
 
@@ -444,7 +462,9 @@ python backend/worker_main.py --role maintenance  # report/cache/index cleanup
 
 也就是 `queue / schedulers / maintenance` 三個角色可獨立交給 process manager 管理。`--role all` 使用 multiprocessing `spawn` 在本機一次啟動三個 child processes；收到 `SIGTERM` / `SIGINT` 時會轉送終止訊號並等待子程序收尾。Queue smoke test 可用 `python backend/worker_main.py --role queue --burst --max-jobs 1` 處理一筆 job 後退出。
 
-Redis health check 可用 `redis-cli -u "$REDIS_URL" ping`（預期 `PONG`），RQ queue 可用 `rq info --url "$REDIS_URL"` 檢查。LLM 429 / transient failure 會依 `RQ_JOB_MAX_RETRIES` 與 `RQ_JOB_RETRY_INTERVALS` 延遲重試，`waiting_retry` 仍會被視為 active job，避免 API/scheduler 重複送同一檔分析。
+Redis health check 可用 `redis-cli -u "$REDIS_URL" ping`（預期 `PONG`），RQ queue 可用 `rq info --url "$REDIS_URL"` 檢查。Worker queue role 會監聽 `TASK_QUEUE_NAMES` 內所有 queue；人工分析預設進 `analysis.high`，報告重跑進 `analysis.normal`，watchlist 批次進 `watchlist`。LLM 429 / transient failure 會依 `RQ_JOB_MAX_RETRIES` 與 `RQ_JOB_RETRY_INTERVALS` 延遲重試，`waiting_retry` 仍會被視為 active job，避免 API/scheduler 重複送同一檔分析。
+
+API process manager 可用 `/healthz` 做 liveness probe，用 `/readyz` 做 readiness probe；`/readyz` 會檢查 runtime storage 與 Redis/RQ queue，不可用時回 HTTP 503。Operator 可用 `/api/observability/dashboard` 查看報告耗時 p50/p95/p99、stuck jobs、node/model telemetry、prompt token budget、RQ queue depth、provider degradation 與 API quota ledger 摘要。
 
 任務狀態、SSE 事件與預設 API 用量 ledger 會寫入 `TASK_DB_PATH` 指定的 SQLite 檔，所以 API 與 worker 需要共用同一個檔案路徑。若另外設定 `API_USAGE_DB_PATH` 或 `WATCHLIST_DB_PATH`，也要讓 API 與背景 worker 指向同一份檔案。
 

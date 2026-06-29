@@ -6,6 +6,7 @@ import argparse
 import json
 
 from storage.legacy_reports import migrate_legacy_reports
+from database_maintenance import run_sqlite_maintenance
 from job_store_maintenance import cleanup_analysis_history
 from market_calendar_store import update_market_calendars
 from provider_sla_maintenance import cleanup_provider_sla_events
@@ -45,6 +46,12 @@ def main() -> int:
     storage_parser.add_argument("--cache-db-path", default=None)
     storage_parser.add_argument("--task-db-path", default=None)
     storage_parser.add_argument("--market-calendar-dir", default=None)
+    sqlite_parser = subparsers.add_parser("sqlite-maintenance")
+    sqlite_parser.add_argument("--cache-db-path", default=None)
+    sqlite_parser.add_argument("--task-db-path", default=None)
+    sqlite_parser.add_argument("--checkpoint-path", default=None)
+    sqlite_parser.add_argument("--backup-dir", default=None)
+    sqlite_parser.add_argument("--write", action="store_true")
     clear_parser = subparsers.add_parser("clear-runtime-storage")
     clear_parser.add_argument("--output-dir", default=None)
     clear_parser.add_argument("--cache-dir", default=None)
@@ -95,6 +102,16 @@ def main() -> int:
             cache_db_path=args.cache_db_path,
             task_db_path=args.task_db_path,
             market_calendar_dir=args.market_calendar_dir,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
+    if args.command == "sqlite-maintenance":
+        result = run_sqlite_maintenance(
+            cache_db_path=args.cache_db_path,
+            task_db_path=args.task_db_path,
+            checkpoint_path=args.checkpoint_path,
+            backup_dir=args.backup_dir,
+            write=args.write,
         )
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
