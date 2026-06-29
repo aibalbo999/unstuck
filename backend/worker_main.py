@@ -12,6 +12,7 @@ from types import FrameType
 from typing import Literal
 
 import report_history_service
+from analysis_job_service import RQ_ABANDONED_JOB_REASON, analysis_task_id, task_queue_has_task
 from cache_store import cleanup_expired_cache_entries
 from config import REPORT_CLEANUP_INTERVAL_SECONDS, REPORT_RETENTION_DAYS
 from database_maintenance import run_sqlite_maintenance
@@ -37,7 +38,6 @@ CHILD_ROLES: tuple[Role, ...] = ("queue", "schedulers", "maintenance")
 ROLES: tuple[Role, ...] = (*CHILD_ROLES, "all")
 SUPERVISOR_POLL_SECONDS = 1.0
 SHUTDOWN_JOIN_TIMEOUT_SECONDS = 10.0
-RQ_ABANDONED_JOB_REASON = "Redis/RQ 已無執行中或等待中的對應任務，判定前一次 Worker 已中斷；請重新送出分析或重跑。"
 
 
 def _load_stock_analysis_job_runner():
@@ -108,6 +108,17 @@ def reconcile_abandoned_rq_jobs(runtime: WorkerRuntime) -> int:
     return count
 
 
+def find_queue_backed_active_job(task_queue, ticker: str, pipeline_id: str = "v1") -> dict:
+    job = find_active_job(ticker, pipeline_id)
+    if not job:
+        return {}
+    task_id = analysis_task_id(str(job.get("job_id") or ""))
+    if task_queue_has_task(task_queue, task_id) is not False:
+        return job
+    mark_jobs_abandoned([job["job_id"]], RQ_ABANDONED_JOB_REASON)
+    return {}
+
+
 def _rq_active_job_ids(rq_queues) -> set[str]:
     from rq.registry import DeferredJobRegistry, ScheduledJobRegistry, StartedJobRegistry
 
@@ -140,7 +151,7 @@ async def run_scheduler_process(runtime: WorkerRuntime) -> None:
         asyncio.create_task(
             run_watchlist_scheduler(
                 create_job=lambda ticker, pipeline_id: create_job(ticker, pipeline_id),
-                find_active_job=lambda ticker, pipeline_id: find_active_job(ticker, pipeline_id),
+                find_active_job=lambda ticker, pipeline_id: find_queue_backed_active_job(runtime.task_queue, ticker, pipeline_id),
                 task_queue=runtime.task_queue,
                 run_stock_analysis_job=_load_stock_analysis_job_runner(),
                 data_service=runtime.data_refresh_service,

@@ -61,7 +61,7 @@ python backend/worker_main.py --role maintenance
 
 Queue workers consume every name in `TASK_QUEUE_NAMES`. Keep `TASK_QUEUE_NAME` first for compatibility, then add tiered queues such as `analysis.high`, `analysis.normal`, `watchlist`, `maintenance`, and `llm.retry`. API-created manual analysis jobs route to `analysis.high`, report reruns route to `analysis.normal`, and watchlist scheduler jobs route to `watchlist`, so batch work does not block high-value manual analysis.
 
-RQ retry behavior is configured with `RQ_JOB_MAX_RETRIES` and `RQ_JOB_RETRY_INTERVALS`; long-running job timeout is configured with `RQ_JOB_TIMEOUT_SECONDS` (default 4 hours). A job waiting for a delayed retry uses status `waiting_retry` and remains active in duplicate-job checks and dashboards.
+RQ retry behavior is configured with `RQ_JOB_MAX_RETRIES` and `RQ_JOB_RETRY_INTERVALS`; long-running job timeout is configured with `RQ_JOB_TIMEOUT_SECONDS` (default 4 hours). The queue role runs the RQ scheduler so delayed retries stored in `ScheduledJobRegistry` are promoted back to runnable queues. A job waiting for a delayed retry uses status `waiting_retry` and remains active in duplicate-job checks and dashboards.
 
 Health checks are split by purpose. `/healthz` is a liveness probe for process managers. `/readyz` verifies runtime storage and queue availability and returns HTTP 503 when the API should not accept work. For operator triage, use `/api/observability/dashboard`; it combines job latency percentiles, stuck jobs, node/model telemetry, prompt token budget, RQ depth and registries, provider alerts, and API quota ledger observations.
 

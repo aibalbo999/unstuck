@@ -39,6 +39,9 @@ def test_start_mac_stops_project_worker_orphans_before_starting_worker():
     assert "project_worker_pids()" in script
     assert "stop_existing_project_workers()" in script
     assert 'worker_main.py --role all' in script
+    assert '*"worker_main.py --role queue"*' in script
+    assert '*"worker_main.py --role schedulers"*' in script
+    assert '*"worker_main.py --role maintenance"*' in script
     assert "multiprocessing.spawn" in script
     assert 'lsof -a -p "$pid" -d cwd' in script
     assert 'kill -TERM "$pid"' in script

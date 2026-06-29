@@ -423,6 +423,45 @@ def test_scheduler_process_starts_both_schedulers_and_cancels_them(monkeypatch):
     assert "decision-cancelled" in calls
 
 
+def test_scheduler_process_uses_queue_backed_active_job_lookup(monkeypatch):
+    calls = []
+    runtime = FakeWorkerRuntime(calls)
+    started = asyncio.Event()
+
+    def fake_find_queue_backed_active_job(task_queue, ticker, pipeline_id):
+        calls.append(("queue-aware-lookup", task_queue, ticker, pipeline_id))
+        return {}
+
+    async def fake_watchlist_scheduler(**kwargs):
+        kwargs["find_active_job"]("2330.TW", "v1")
+        started.set()
+        try:
+            await asyncio.sleep(3600)
+        except asyncio.CancelledError:
+            raise
+
+    async def fake_decision_tracking_scheduler(**_kwargs):
+        try:
+            await asyncio.sleep(3600)
+        except asyncio.CancelledError:
+            raise
+
+    monkeypatch.setattr(worker_main, "find_queue_backed_active_job", fake_find_queue_backed_active_job)
+    monkeypatch.setattr(worker_main, "run_watchlist_scheduler", fake_watchlist_scheduler)
+    monkeypatch.setattr(worker_main, "run_decision_tracking_scheduler", fake_decision_tracking_scheduler)
+
+    async def exercise():
+        task = asyncio.create_task(worker_main.run_scheduler_process(runtime))
+        await asyncio.wait_for(started.wait(), timeout=1)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    asyncio.run(exercise())
+
+    assert calls == [("queue-aware-lookup", runtime.task_queue, "2330.TW", "v1")]
+
+
 def test_run_rq_worker_rejects_non_rq_queue():
     runtime = FakeWorkerRuntime([])
     runtime.task_queue = object()

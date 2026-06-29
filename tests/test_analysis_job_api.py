@@ -35,6 +35,14 @@ class RecordingQueue:
         return True
 
 
+class FakeRqJob:
+    def __init__(self, status):
+        self.status = status
+
+    def get_status(self, refresh=True):
+        return self.status
+
+
 def test_create_analysis_job_requires_mutation_token(monkeypatch):
     monkeypatch.setattr(api, "MUTATION_API_TOKEN", "required-token")
 
@@ -121,6 +129,31 @@ def test_queue_aware_active_job_marks_sqlite_job_missing_from_rq_abandoned(monke
     assert orphan["status"] == "error"
     events = [event["payload"] for event in job_store.get_events_since(orphan_job_id)]
     assert any(event.get("phase") == "queue_abandoned" for event in events)
+
+
+def test_task_queue_has_task_rejects_terminal_rq_jobs():
+    from analysis_job_service import task_queue_has_task
+
+    queue = RecordingQueue()
+    queue.jobs["analysis:failed"] = FakeRqJob("failed")
+    queue.jobs["analysis:finished"] = FakeRqJob("finished")
+    queue.jobs["analysis:scheduled"] = FakeRqJob("scheduled")
+
+    assert task_queue_has_task(queue, "analysis:failed") is False
+    assert task_queue_has_task(queue, "analysis:finished") is False
+    assert task_queue_has_task(queue, "analysis:scheduled") is True
+
+
+def test_task_queue_has_task_returns_unknown_when_inspection_fails():
+    from analysis_job_service import task_queue_has_task
+
+    class BrokenQueue:
+        queue = None
+
+        def fetch_job(self, _task_id):
+            raise RuntimeError("redis unavailable")
+
+    assert task_queue_has_task(BrokenQueue(), "analysis:any") is None
 
 
 def test_force_create_analysis_job_cancels_old_active_job(monkeypatch, mutation_headers):

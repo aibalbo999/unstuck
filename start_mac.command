@@ -240,7 +240,7 @@ project_worker_pids() {
     ps -axo pid=,command= | while read -r pid command
     do
         case "$command" in
-            *"worker_main.py --role all"*|*"multiprocessing.spawn"*|*"multiprocessing.resource_tracker"*)
+            *"worker_main.py --role all"*|*"worker_main.py --role queue"*|*"worker_main.py --role schedulers"*|*"worker_main.py --role maintenance"*|*"multiprocessing.spawn"*|*"multiprocessing.resource_tracker"*)
                 if [ "$pid" = "$$" ] || [ "$pid" = "${WORKER_PID:-}" ]; then
                     continue
                 fi

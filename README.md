@@ -266,6 +266,8 @@ http://127.0.0.1:8080
 
 關閉終端機或按下 `Ctrl+C` 時，腳本會停止本次啟動的 API、Worker，以及本次由腳本啟動的 Redis；如果 Redis 原本就已經在跑，腳本只會共用它，不會關掉你的既有 Redis。
 
+啟動前腳本會先清理同專案殘留的 `worker_main.py --role all`、`queue`、`schedulers`、`maintenance` worker，避免舊 worker 仍吃著 Redis/RQ 任務，造成前端按下分析或 watchlist 操作後看似沒有新終端訊息。
+
 如果第一次啟動時尚未安裝 Redis，但系統有 Homebrew，腳本會詢問是否執行 `brew install redis`；按 Enter 或輸入 `Y` 即可安裝後繼續啟動。
 
 若要用同一個 Wi-Fi 上的手機或平板開啟，請雙擊：
@@ -279,6 +281,8 @@ start_mac_lan.command
 ```bash
 LAN_ACCESS=1 ./start_mac.command
 ```
+
+`start_mac_lan.command` 只是設定 `LAN_ACCESS=1` 後執行同一份 `start_mac.command`，因此會套用相同的 Redis、Worker、排程器與殘留 worker 清理流程。
 
 啟動後終端機會顯示手機可開啟的區網網址，例如：
 
@@ -462,7 +466,9 @@ python backend/worker_main.py --role maintenance  # report/cache/index cleanup
 
 也就是 `queue / schedulers / maintenance` 三個角色可獨立交給 process manager 管理。`--role all` 使用 multiprocessing `spawn` 在本機一次啟動三個 child processes；收到 `SIGTERM` / `SIGINT` 時會轉送終止訊號並等待子程序收尾。Queue smoke test 可用 `python backend/worker_main.py --role queue --burst --max-jobs 1` 處理一筆 job 後退出。
 
-Redis health check 可用 `redis-cli -u "$REDIS_URL" ping`（預期 `PONG`），RQ queue 可用 `rq info --url "$REDIS_URL"` 檢查。Worker queue role 會監聽 `TASK_QUEUE_NAMES` 內所有 queue；人工分析預設進 `analysis.high`，報告重跑進 `analysis.normal`，watchlist 批次進 `watchlist`。LLM 429 / transient failure 會依 `RQ_JOB_MAX_RETRIES` 與 `RQ_JOB_RETRY_INTERVALS` 延遲重試，`waiting_retry` 仍會被視為 active job，避免 API/scheduler 重複送同一檔分析。
+Redis health check 可用 `redis-cli -u "$REDIS_URL" ping`（預期 `PONG`），RQ queue 可用 `rq info --url "$REDIS_URL"` 檢查。Worker queue role 會監聽 `TASK_QUEUE_NAMES` 內所有 queue，並以 RQ scheduler 推進 `ScheduledJobRegistry` 內的 delayed retry；人工分析預設進 `analysis.high`，報告重跑進 `analysis.normal`，watchlist 批次進 `watchlist`。LLM 429 / transient failure 會依 `RQ_JOB_MAX_RETRIES` 與 `RQ_JOB_RETRY_INTERVALS` 延遲重試，`waiting_retry` 仍會被視為 active job，避免 API/scheduler 重複送同一檔分析。
+
+若 SQLite job store 仍有 `queued` / `running` / `waiting_retry` 紀錄，但 Redis/RQ 已找不到對應 active 任務，API 與 scheduler 會把該紀錄標為 abandoned，讓前端按鈕、watchlist 批次與後續分析可以重新排隊；若只是既有 `queued` job 遺失 RQ task，建立任務 API 會重新 enqueue 並留下 `queue_recovered` 事件。
 
 API process manager 可用 `/healthz` 做 liveness probe，用 `/readyz` 做 readiness probe；`/readyz` 會檢查 runtime storage 與 Redis/RQ queue，不可用時回 HTTP 503。Operator 可用 `/api/observability/dashboard` 查看報告耗時 p50/p95/p99、stuck jobs、node/model telemetry、prompt token budget、RQ queue depth、provider degradation 與 API quota ledger 摘要。
 

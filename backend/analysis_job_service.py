@@ -28,6 +28,7 @@ _STATUS_MAP = {
     "cancelled": "cancelled",
 }
 RQ_ABANDONED_JOB_REASON = "Redis/RQ 已無執行中或等待中的對應任務，判定前一次 Worker 已中斷；請重新送出分析或重跑。"
+ACTIVE_RQ_JOB_STATUSES = {"queued", "started", "deferred", "scheduled"}
 
 
 def create_or_attach_analysis_job(
@@ -205,9 +206,27 @@ def task_queue_has_task(task_queue: Any, task_id: str) -> bool | None:
         if not callable(fetch_job):
             continue
         inspected = True
-        if fetch_job(task_id) is not None:
+        try:
+            job = fetch_job(task_id)
+        except Exception:
+            return None
+        if job is not None and _rq_job_is_active(job):
             return True
     return False if inspected else None
+
+
+def _rq_job_is_active(job: Any) -> bool:
+    get_status = getattr(job, "get_status", None)
+    if callable(get_status):
+        try:
+            status = get_status(refresh=True)
+        except TypeError:
+            status = get_status()
+    else:
+        status = getattr(job, "status", None)
+    if status is None:
+        return True
+    return str(status).lower() in ACTIVE_RQ_JOB_STATUSES
 
 
 def _looks_like_duplicate_queue_job(exc: Exception) -> bool:
