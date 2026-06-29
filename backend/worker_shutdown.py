@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
+import sys
 from collections.abc import Awaitable, Callable
 from types import MethodType
 
@@ -53,6 +55,7 @@ def run_async_process(coro_factory: Callable[[], Awaitable[None]]) -> None:
     loop = asyncio.new_event_loop()
     try:
         asyncio.set_event_loop(loop)
+        loop.set_exception_handler(_safe_asyncio_exception_handler)
         task = loop.create_task(coro_factory())
         try:
             loop.run_until_complete(task)
@@ -61,8 +64,8 @@ def run_async_process(coro_factory: Callable[[], Awaitable[None]]) -> None:
             loop.run_until_complete(asyncio.gather(task, return_exceptions=True))
         finally:
             _cancel_pending_async_tasks(loop)
-            loop.run_until_complete(loop.shutdown_asyncgens())
-            loop.run_until_complete(loop.shutdown_default_executor())
+            _run_cleanup_awaitable(loop, loop.shutdown_asyncgens)
+            _run_cleanup_awaitable(loop, loop.shutdown_default_executor)
     finally:
         asyncio.set_event_loop(None)
         loop.close()
@@ -75,3 +78,37 @@ def _cancel_pending_async_tasks(loop: asyncio.AbstractEventLoop) -> None:
     for task in pending:
         task.cancel()
     loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+
+
+def _run_cleanup_awaitable(
+    loop: asyncio.AbstractEventLoop,
+    awaitable_factory: Callable[[], Awaitable[object]],
+) -> None:
+    awaitable = awaitable_factory()
+    try:
+        loop.run_until_complete(awaitable)
+    except KeyboardInterrupt:
+        _close_awaitable(awaitable)
+        raise
+
+
+def _close_awaitable(awaitable: Awaitable[object]) -> None:
+    close = getattr(awaitable, "close", None)
+    if callable(close) and inspect.iscoroutine(awaitable):
+        close()
+
+
+def _safe_asyncio_exception_handler(loop: asyncio.AbstractEventLoop, context: dict) -> None:
+    sanitized = {key: _safe_exception_context_value(value) for key, value in dict(context or {}).items()}
+    try:
+        loop.default_exception_handler(sanitized)
+    except Exception as exc:
+        print(f"asyncio exception handler suppressed during shutdown: {type(exc).__name__}: {exc}", file=sys.stderr)
+
+
+def _safe_exception_context_value(value):
+    try:
+        repr(value)
+    except Exception as exc:
+        return f"<unrepresentable {type(value).__name__}: {type(exc).__name__}: {exc}>"
+    return value

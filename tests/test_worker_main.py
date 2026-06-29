@@ -9,6 +9,7 @@ import pytest
 
 import decision_tracking_scheduler
 import watchlist_scheduler
+import worker_shutdown
 import worker_main
 
 
@@ -579,6 +580,52 @@ def test_run_async_process_cancels_pending_tasks_after_keyboard_interrupt():
     worker_main._run_async_process(interrupted_process)
 
     assert cancelled == [True]
+
+
+def test_asyncio_exception_handler_sanitizes_context_values_with_broken_repr():
+    class BrokenRepr:
+        def __repr__(self):
+            raise AttributeError("_num_cancels_requested")
+
+    class FakeLoop:
+        def __init__(self):
+            self.context = None
+
+        def default_exception_handler(self, context):
+            for value in context.values():
+                repr(value)
+            self.context = context
+
+    loop = FakeLoop()
+
+    worker_shutdown._safe_asyncio_exception_handler(
+        loop,
+        {"message": "shutdown noise", "task": BrokenRepr()},
+    )
+
+    assert loop.context["message"] == "shutdown noise"
+    assert "unrepresentable BrokenRepr" in loop.context["task"]
+
+
+def test_cleanup_awaitable_is_closed_if_shutdown_interrupts_before_await():
+    class InterruptingLoop:
+        def run_until_complete(self, awaitable):
+            raise KeyboardInterrupt()
+
+    coroutine = None
+
+    async def shutdown_step():
+        return None
+
+    def make_coroutine():
+        nonlocal coroutine
+        coroutine = shutdown_step()
+        return coroutine
+
+    with pytest.raises(KeyboardInterrupt):
+        worker_shutdown._run_cleanup_awaitable(InterruptingLoop(), make_coroutine)
+
+    assert coroutine.cr_frame is None
 
 
 def test_maintenance_process_logs_cleanup_errors_and_keeps_running(monkeypatch):
