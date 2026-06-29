@@ -27,6 +27,7 @@ _STATUS_MAP = {
     "error": "failed",
     "cancelled": "cancelled",
 }
+RQ_ABANDONED_JOB_REASON = "Redis/RQ 已無執行中或等待中的對應任務，判定前一次 Worker 已中斷；請重新送出分析或重跑。"
 
 
 def create_or_attach_analysis_job(
@@ -49,12 +50,38 @@ def create_or_attach_analysis_job(
         job_id=job_id,
     )
     job = dict(result["job"])
+    task_id = analysis_task_id(job["job_id"])
     if not result.get("created"):
+        if str(job.get("status") or "") == "queued" and task_queue_has_task(task_queue, task_id) is False:
+            try:
+                task_queue.enqueue(
+                    task_id,
+                    run_stock_analysis_job,
+                    job["job_id"],
+                    normalized_ticker,
+                    normalized_pipeline,
+                )
+            except Exception as exc:
+                message = sanitize_error_message(f"分析任務重新排入佇列失敗：{exc}")
+                update_job(job["job_id"], "error", error=message)
+                append_event(job["job_id"], {"type": "error", "message": message, "pipeline_id": normalized_pipeline})
+                job = get_job(job["job_id"]) or job
+            else:
+                append_event(
+                    job["job_id"],
+                    {
+                        "type": "status",
+                        "phase": "queue_recovered",
+                        "level": "warning",
+                        "message": "佇列中已找不到此分析任務，已重新排入分析佇列。",
+                        "pipeline_id": normalized_pipeline,
+                    },
+                )
+                job = get_job(job["job_id"]) or job
         return serialize_analysis_job(job)
 
-    task_id = f"analysis:{job['job_id']}"
     try:
-        if not _queue_has_task(task_queue, task_id):
+        if task_queue_has_task(task_queue, task_id) is not True:
             task_queue.enqueue(
                 task_id,
                 run_stock_analysis_job,
@@ -133,6 +160,10 @@ def build_analysis_job_id(ticker: str, pipeline_id: str, *, force: bool = False)
     return f"analysis-{ticker_slug}-{pipeline_slug}-{timestamp_ms}-{suffix}"
 
 
+def analysis_task_id(job_id: str) -> str:
+    return f"analysis:{job_id}"
+
+
 def _serialize_telemetry_row(row: dict) -> dict:
     serialized = dict(row)
     serialized["started_at"] = _iso_timestamp(row.get("started_at"))
@@ -156,12 +187,27 @@ def _slug(value: str) -> str:
     return slug or "job"
 
 
-def _queue_has_task(task_queue: Any, task_id: str) -> bool:
+def task_queue_has_task(task_queue: Any, task_id: str) -> bool | None:
+    """Return None when the queue implementation cannot inspect existing jobs."""
+    queues = []
+    queue_map = getattr(task_queue, "queues", None)
+    if isinstance(queue_map, dict):
+        queues.extend(queue for queue in queue_map.values() if queue is not None)
     queue = getattr(task_queue, "queue", None)
-    fetch_job = getattr(queue, "fetch_job", None)
-    if callable(fetch_job):
-        return fetch_job(task_id) is not None
-    return False
+    if queue is not None and queue not in queues:
+        queues.append(queue)
+    if not queues and hasattr(task_queue, "fetch_job"):
+        queues.append(task_queue)
+
+    inspected = False
+    for queue in queues:
+        fetch_job = getattr(queue, "fetch_job", None)
+        if not callable(fetch_job):
+            continue
+        inspected = True
+        if fetch_job(task_id) is not None:
+            return True
+    return False if inspected else None
 
 
 def _looks_like_duplicate_queue_job(exc: Exception) -> bool:

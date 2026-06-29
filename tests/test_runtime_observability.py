@@ -808,7 +808,7 @@ def test_analyze_sse_contract_streams_job_progress_and_done(monkeypatch):
     monkeypatch.setattr(api, "has_api_keys", lambda: True)
     monkeypatch.setattr(api, "analysis_task_queue", FakeQueue())
     monkeypatch.setattr(api, "create_job", lambda ticker, pipeline_id="v1": "job-stream")
-    monkeypatch.setattr(api, "find_active_job", lambda ticker, pipeline_id="v1": {})
+    monkeypatch.setattr(api, "find_queue_backed_active_job", lambda ticker, pipeline_id="v1": {})
     monkeypatch.setattr(api, "get_job", lambda job_id: {"job_id": job_id, "ticker": "2449", "pipeline_id": "both", "status": "running"})
     monkeypatch.setattr(api, "get_events_since", lambda job_id, after_id=0: [event for event in streamed_events if event["id"] > after_id])
 

@@ -11,10 +11,13 @@ from fastapi.staticfiles import StaticFiles
 
 from agent_runtime import AnalysisPipelineRunner
 from analysis_job_service import (
+    RQ_ABANDONED_JOB_REASON,
+    analysis_task_id,
     cancel_analysis_job as cancel_analysis_job_service,
     create_or_attach_analysis_job,
     serialize_analysis_job,
     serialize_node_telemetry,
+    task_queue_has_task,
 )
 from analysis_jobs import run_stock_analysis_job
 from api_routes.analysis import AnalysisRouteDeps, create_analysis_router
@@ -48,6 +51,7 @@ from job_store import (
     find_active_job,
     get_events_since,
     get_job,
+    mark_jobs_abandoned,
     request_job_cancel,
     update_job,
 )
@@ -176,6 +180,15 @@ def runtime_settings_warnings_for_readiness() -> list[str]:
         return [str(exc)]
 def create_runtime_job(ticker: str, pipeline_id: str = "v1") -> str:
     return create_job(ticker, pipeline_id)
+def find_queue_backed_active_job(ticker: str, pipeline_id: str = "v1") -> dict:
+    job = find_active_job(ticker, pipeline_id)
+    if not job or TASK_QUEUE_BACKEND != "rq":
+        return job
+    task_id = analysis_task_id(str(job.get("job_id") or ""))
+    if task_queue_has_task(analysis_task_queue, task_id) is not False:
+        return job
+    mark_jobs_abandoned([job["job_id"]], RQ_ABANDONED_JOB_REASON)
+    return {}
 def get_api_runtime_for_app(app: FastAPI):
     runtime = getattr(app.state, "runtime", None)
     if runtime is None:
@@ -282,7 +295,7 @@ def create_app() -> FastAPI:
         get_task_queue=lambda: analysis_task_queue,
         run_stock_analysis_job=run_stock_analysis_job,
         create_job=lambda ticker, pipeline_id: create_runtime_job(ticker, pipeline_id),
-        find_active_job=lambda ticker, pipeline_id: find_active_job(ticker, pipeline_id),
+        find_active_job=lambda ticker, pipeline_id: find_queue_backed_active_job(ticker, pipeline_id),
         require_mutation_authorized=require_mutation_authorized,
     )))
     app.include_router(create_maintenance_router(MaintenanceRouteDeps(
@@ -304,7 +317,7 @@ def create_app() -> FastAPI:
         get_pipeline_run_label=get_pipeline_run_label,
         get_pipeline_run_agent_total=get_pipeline_run_agent_total,
         get_job=lambda job_id: get_job(job_id),
-        find_active_job=lambda ticker, pipeline_id: find_active_job(ticker, pipeline_id),
+        find_active_job=lambda ticker, pipeline_id: find_queue_backed_active_job(ticker, pipeline_id),
         create_job=lambda ticker, pipeline_id: create_runtime_job(ticker, pipeline_id),
         get_events_since=lambda job_id, after_id=0: get_events_since(job_id, after_id),
         update_job=update_job,

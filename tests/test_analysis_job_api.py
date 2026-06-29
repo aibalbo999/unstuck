@@ -16,12 +16,19 @@ import job_store  # noqa: E402
 
 class RecordingQueue:
     def __init__(self):
+        self.queue = self
         self.calls = []
         self.cancelled = []
+        self.jobs = {}
 
     def enqueue(self, *args, **kwargs):
         self.calls.append((args, kwargs))
-        return {"id": args[0]}
+        task = {"id": args[0]}
+        self.jobs[args[0]] = task
+        return task
+
+    def fetch_job(self, task_id):
+        return self.jobs.get(task_id)
 
     def cancel(self, task_id):
         self.cancelled.append(task_id)
@@ -79,6 +86,41 @@ def test_create_analysis_job_attaches_existing_active_job_without_duplicate_enqu
 
     assert second["job_id"] == first["job_id"]
     assert len(queue.calls) == 1
+
+
+def test_create_analysis_job_requeues_orphaned_queued_job(monkeypatch, mutation_headers):
+    queue = RecordingQueue()
+    monkeypatch.setattr(api, "analysis_task_queue", queue)
+    monkeypatch.setattr(api, "has_api_keys", lambda: True)
+    orphan_job_id = job_store.create_job("2317.TW", "v1")
+
+    client = TestClient(api.app)
+    response = client.post(
+        "/api/analysis-jobs",
+        json={"ticker": "2317.TW", "pipeline_id": "mode_a"},
+        headers=mutation_headers,
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["job_id"] == orphan_job_id
+    assert queue.calls[0][0][0] == f"analysis:{orphan_job_id}"
+    events = [event["payload"] for event in job_store.get_events_since(orphan_job_id)]
+    assert any(event.get("phase") == "queue_recovered" for event in events)
+
+
+def test_queue_aware_active_job_marks_sqlite_job_missing_from_rq_abandoned(monkeypatch):
+    queue = RecordingQueue()
+    monkeypatch.setattr(api, "analysis_task_queue", queue)
+    orphan_job_id = job_store.create_job("2408.TW", "v1")
+
+    active = api.find_queue_backed_active_job("2408.TW", "v1")
+
+    assert active == {}
+    orphan = job_store.get_job(orphan_job_id)
+    assert orphan["status"] == "error"
+    events = [event["payload"] for event in job_store.get_events_since(orphan_job_id)]
+    assert any(event.get("phase") == "queue_abandoned" for event in events)
 
 
 def test_force_create_analysis_job_cancels_old_active_job(monkeypatch, mutation_headers):
@@ -161,7 +203,7 @@ def test_legacy_analyze_endpoint_is_deprecated_but_streams_existing_job(monkeypa
     job_store.append_event(job_id, {"type": "done", "filename": "legacy.html"})
     job_store.update_job(job_id, "done", filename="legacy.html")
     monkeypatch.setattr(api, "has_api_keys", lambda: True)
-    monkeypatch.setattr(api, "find_active_job", lambda ticker, pipeline_id="v1": {"job_id": job_id})
+    monkeypatch.setattr(api, "find_queue_backed_active_job", lambda ticker, pipeline_id="v1": {"job_id": job_id})
     monkeypatch.setattr(api, "get_job", lambda requested_job_id: job_store.get_job(requested_job_id or job_id))
 
     client = TestClient(api.app)

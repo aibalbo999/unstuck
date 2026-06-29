@@ -68,10 +68,9 @@ def run_rq_worker(
         worker.work(
             burst=burst,
             max_jobs=max_jobs,
-            # The app owns recurring work through the dedicated "schedulers"
-            # role; an embedded RQ scheduler adds a subprocess that can race
-            # Redis teardown during Ctrl-C shutdown.
-            with_scheduler=False,
+            # RQ retries are stored in ScheduledJobRegistry; without the RQ
+            # scheduler they stay there forever and the UI appears silent.
+            with_scheduler=True,
         )
     except RedisConnectionError as exc:
         if _rq_worker_shutdown_requested(worker):

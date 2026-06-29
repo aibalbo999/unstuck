@@ -455,7 +455,7 @@ def test_run_rq_worker_uses_simple_worker_to_avoid_macos_fork_abort(monkeypatch)
 
     assert calls == [
         ("simple-worker", ["queue"], "redis"),
-        ("work", True, 2, False),
+        ("work", True, 2, True),
     ]
 
 
@@ -484,7 +484,7 @@ def test_run_rq_worker_consumes_all_configured_rq_queues(monkeypatch):
 
     assert calls == [
         ("simple-worker", ["analysis.high", "analysis.normal", "watchlist"], "redis"),
-        ("work", True, 3, False),
+        ("work", True, 3, True),
     ]
 
 
@@ -509,7 +509,7 @@ def test_run_rq_worker_suppresses_redis_disconnect_after_warm_shutdown(monkeypat
 
     worker_main.run_rq_worker(runtime)
 
-    assert ("work", False, None, False) in calls
+    assert ("work", False, None, True) in calls
     assert "queue worker stopped after Redis shutdown." in calls
 
 
