@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -12,8 +11,8 @@ from typing import Any, Optional
 from fastapi import APIRouter, HTTPException, Query, Request
 from sse_starlette.sse import EventSourceResponse
 
-from data_trust import data_snapshot_filename_for_report
 from report_index import is_safe_report_filename
+from report_history_storage import existing_storage_key
 import report_history_service
 import report_refresh_service
 import report_rerun_service
@@ -40,6 +39,7 @@ class ReportRouteDeps:
     print_streamed_event: Callable[[str, dict], None]
     require_mutation_authorized: Callable[[Request], None]
     get_report_cache_lock: Callable[[], Any] | None = None
+    create_or_attach_job: Callable[..., dict] | None = None
 
 
 def create_reports_router(deps: ReportRouteDeps) -> APIRouter:
@@ -127,26 +127,34 @@ def create_reports_router(deps: ReportRouteDeps) -> APIRouter:
         normalized_scope = report_rerun_service.normalize_rerun_scope(scope)
         if not is_safe_report_filename(filename, ".html"):
             raise HTTPException(status_code=400, detail="Invalid filename")
-        html_path = os.path.join(deps.get_output_dir(), filename)
-        if not os.path.exists(html_path):
+        report_storage = deps.get_report_storage()
+        if existing_storage_key(report_storage, filename, kind="html") is None:
             raise HTTPException(status_code=404, detail="找不到報告")
-        data_path = os.path.join(deps.get_output_dir(), data_snapshot_filename_for_report(filename))
-        if not os.path.exists(data_path):
+        if existing_storage_key(report_storage, filename, kind="data") is None:
             raise HTTPException(status_code=404, detail="舊報告沒有資料快照，無法局部重跑")
 
-        job_id = deps.create_job(filename, f"rerun:{normalized_scope}")
-        try:
-            deps.get_task_queue().enqueue(
-                f"report-rerun:{job_id}",
-                deps.run_report_rerun_job,
-                job_id,
-                filename,
-                normalized_scope,
-            )
-        except Exception as exc:
-            message = f"報告重跑任務送入佇列失敗：{exc}"
-            deps.update_job(job_id, "error", error=message)
-            deps.append_event(job_id, {"type": "error", "message": message, "rerun_scope": normalized_scope})
+        pipeline_id = f"rerun:{normalized_scope}"
+        should_enqueue = True
+        if deps.create_or_attach_job is not None:
+            result = deps.create_or_attach_job(filename, pipeline_id)
+            job_id = result["job"]["job_id"]
+            should_enqueue = bool(result.get("created"))
+        else:
+            job_id = deps.create_job(filename, pipeline_id)
+
+        if should_enqueue:
+            try:
+                deps.get_task_queue().enqueue(
+                    f"report-rerun:{job_id}",
+                    deps.run_report_rerun_job,
+                    job_id,
+                    filename,
+                    normalized_scope,
+                )
+            except Exception as exc:
+                message = f"報告重跑任務送入佇列失敗：{exc}"
+                deps.update_job(job_id, "error", error=message)
+                deps.append_event(job_id, {"type": "error", "message": message, "rerun_scope": normalized_scope})
 
         return {
             "success": True,

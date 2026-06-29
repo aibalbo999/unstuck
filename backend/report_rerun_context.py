@@ -10,7 +10,9 @@ from typing import Any
 from fastapi import HTTPException
 
 from data_trust import data_snapshot_filename_for_report
+from report_history_storage import existing_storage_key
 from report_index import is_safe_report_filename
+from storage.report_storage import ReportStorage
 
 
 RERUN_SCOPE_LABELS = {
@@ -40,31 +42,52 @@ def normalize_rerun_scope(scope: str) -> str:
     return value
 
 
-def read_report_snapshot(filename: str, output_dir: str) -> dict:
+def read_report_snapshot(filename: str, output_dir: str, storage: ReportStorage | None = None) -> dict:
     if not is_safe_report_filename(filename, ".html"):
         raise HTTPException(status_code=400, detail="Invalid filename")
-    data_path = os.path.join(output_dir, data_snapshot_filename_for_report(filename))
-    if not os.path.exists(data_path):
-        raise HTTPException(status_code=404, detail="舊報告沒有資料快照，無法局部重跑")
     try:
-        with open(data_path, "r", encoding="utf-8") as f:
-            snapshot = json.load(f)
+        snapshot = None
+        if storage is not None:
+            data_key = existing_storage_key(storage, filename, kind="data")
+            if data_key is not None:
+                item = storage.get_report(data_key)
+                if item is not None:
+                    snapshot = json.loads(item.content.decode("utf-8"))
+        if snapshot is None:
+            data_path = _legacy_data_snapshot_path(filename, output_dir)
+            with open(data_path, "r", encoding="utf-8") as f:
+                snapshot = json.load(f)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="舊報告沒有資料快照，無法局部重跑") from exc
     except (OSError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=400, detail=f"資料快照無法讀取：{exc}") from exc
     if not isinstance(snapshot.get("data"), dict):
         raise HTTPException(status_code=400, detail="資料快照缺少可重跑的 data payload")
     return snapshot
 
-
-def read_report_markdown(filename: str, output_dir: str) -> str:
-    md_path = os.path.join(output_dir, filename[:-5] + ".md")
-    if not os.path.exists(md_path):
-        raise HTTPException(status_code=404, detail="找不到原始 Markdown，無法還原前序 Agent 段落")
+def read_report_markdown(filename: str, output_dir: str, storage: ReportStorage | None = None) -> str:
     try:
+        if storage is not None:
+            md_key = existing_storage_key(storage, filename, kind="md")
+            if md_key is not None:
+                item = storage.get_report(md_key)
+                if item is not None:
+                    return item.content.decode("utf-8")
+        md_path = _legacy_markdown_path(filename, output_dir)
         with open(md_path, "r", encoding="utf-8") as f:
             return f.read()
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="找不到原始 Markdown，無法還原前序 Agent 段落") from exc
     except OSError as exc:
         raise HTTPException(status_code=400, detail=f"Markdown 無法讀取：{exc}") from exc
+
+
+def _legacy_data_snapshot_path(filename: str, output_dir: str) -> str:
+    return os.path.join(output_dir, data_snapshot_filename_for_report(filename))
+
+
+def _legacy_markdown_path(filename: str, output_dir: str) -> str:
+    return os.path.join(output_dir, filename[:-5] + ".md")
 
 
 def parse_agent_sections_from_markdown(markdown_text: str) -> dict[int, str]:

@@ -9,10 +9,11 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from data_trust import data_snapshot_filename_for_report, normalize_data_trust
+from data_trust import normalize_data_trust
 from decision_tracking import parse_optional_price
 from report_index import is_safe_report_filename
 from report_index_metadata import build_report_metadata
+from report_paths import report_storage_candidates_for_filename
 
 
 def _read_json(path: str) -> dict:
@@ -26,16 +27,23 @@ def _read_json(path: str) -> dict:
     return value if isinstance(value, dict) else {}
 
 
+def _existing_report_path(filename: str, output_dir: str, *, kind: str) -> str:
+    for key in report_storage_candidates_for_filename(filename, kind=kind):
+        path = os.path.join(output_dir, key)
+        if os.path.exists(path):
+            return path
+    return ""
+
+
 def _metadata(filename: str, output_dir: str) -> dict:
     if not is_safe_report_filename(filename, ".html"):
         raise HTTPException(status_code=400, detail="Invalid filename")
-    path = os.path.join(output_dir, filename)
-    if not os.path.exists(path):
+    if not _existing_report_path(filename, output_dir, kind="html"):
         raise HTTPException(status_code=404, detail=f"找不到報告：{filename}")
     metadata = build_report_metadata(filename, output_dir)
     if not metadata:
         raise HTTPException(status_code=400, detail=f"無法讀取報告 metadata：{filename}")
-    snapshot = _read_json(os.path.join(output_dir, data_snapshot_filename_for_report(filename)))
+    snapshot = _read_json(_existing_report_path(filename, output_dir, kind="data"))
     return {**metadata, "snapshot": snapshot}
 
 

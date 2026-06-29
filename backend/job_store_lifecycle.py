@@ -23,8 +23,11 @@ def create_or_attach_active_job(
     resume: bool = True,
     job_id: str | None = None,
     worker_instance_id: str | None = None,
+    preserve_ticker_case: bool = False,
 ) -> dict:
-    normalized_ticker = str(ticker or "").strip().upper()
+    normalized_ticker = str(ticker or "").strip()
+    if not preserve_ticker_case:
+        normalized_ticker = normalized_ticker.upper()
     normalized_pipeline = str(pipeline_id or "v1").strip() or "v1"
     new_job_id = str(job_id or uuid.uuid4().hex).strip()
     now = time.time()

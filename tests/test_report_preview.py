@@ -861,6 +861,34 @@ def test_rerun_report_endpoint_full_report_queues_job(tmp_path, monkeypatch, mut
     assert job_store.get_job(body["job_id"])["pipeline_id"] == "rerun:full_report"
 
 
+def test_rerun_report_endpoint_attaches_existing_active_job(tmp_path, monkeypatch, mutation_headers):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
+    monkeypatch.setattr(job_store, "TASK_DB_PATH", str(tmp_path / "jobs.sqlite3"))
+    filename = "2449_v2_report_20260606_010000.html"
+    write_report_pair(tmp_path, filename, "持有")
+    write_data_snapshot(tmp_path, filename, "fresh")
+
+    class FakeTaskQueue:
+        def __init__(self):
+            self.calls = []
+
+        def enqueue(self, *args):
+            self.calls.append(args)
+
+    fake_queue = FakeTaskQueue()
+    monkeypatch.setattr(api, "analysis_task_queue", fake_queue)
+
+    client = TestClient(api.app, raise_server_exceptions=False)
+    first = client.post(f"/api/report/{filename}/rerun", params={"scope": "mode_b"}, headers=mutation_headers)
+    second = client.post(f"/api/report/{filename}/rerun", params={"scope": "mode_b"}, headers=mutation_headers)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json()["job_id"] == first.json()["job_id"]
+    assert len(fake_queue.calls) == 1
+
+
 def test_rerun_report_analysis_full_report_refreshes_data_before_pipeline(tmp_path, monkeypatch):
     import asyncio
     from types import SimpleNamespace

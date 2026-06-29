@@ -48,6 +48,7 @@ from database_maintenance import run_sqlite_maintenance
 from job_store import (
     append_event,
     create_job,
+    create_or_attach_active_job,
     find_active_job,
     get_events_since,
     get_job,
@@ -267,6 +268,11 @@ def create_app() -> FastAPI:
         request_job_cancel=lambda job_id, reason: request_job_cancel(job_id, reason),
         print_streamed_event=print_streamed_event,
         require_mutation_authorized=require_mutation_authorized,
+        create_or_attach_job=lambda ticker, pipeline_id: create_or_attach_active_job(
+            ticker,
+            pipeline_id,
+            preserve_ticker_case=True,
+        ),
     )))
     app.include_router(create_performance_router(PerformanceRouteDeps(
         get_output_dir=lambda: OUTPUT_DIR,

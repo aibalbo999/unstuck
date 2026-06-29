@@ -70,13 +70,13 @@ def create_job(ticker: str, pipeline_id: str = "v1", worker_instance_id: str | N
 
 
 def create_or_attach_active_job(
-    ticker: str,
-    pipeline_id: str = "v1",
+    ticker: str, pipeline_id: str = "v1",
     *,
     force: bool = False,
     resume: bool = True,
     job_id: str | None = None,
     worker_instance_id: str | None = None,
+    preserve_ticker_case: bool = False,
 ) -> dict:
     return job_store_lifecycle.create_or_attach_active_job(
         _connect,
@@ -90,6 +90,7 @@ def create_or_attach_active_job(
         resume=resume,
         job_id=job_id,
         worker_instance_id=worker_instance_id,
+        preserve_ticker_case=preserve_ticker_case,
     )
 
 
@@ -318,7 +319,6 @@ def append_event(job_id: str, payload: dict) -> None:
 
 def _print_job_event(job_id: str, payload: dict) -> None:
     emit_log(format_event_log_line(job_id, payload, prefix="job"))
-
 def get_events_since(job_id: str, after_id: int = 0) -> list[dict]:
     return job_store_events.get_events_since(_connect, job_id, after_id)
 

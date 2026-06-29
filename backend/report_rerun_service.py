@@ -17,6 +17,7 @@ from data_fetch import FetchRequest
 from final_audit import run_final_report_audit
 from llm_client import KeyRotator
 from pipeline_modes import get_pipeline_definition, get_structured_agent_num, normalize_pipeline_id
+from report_history_storage import existing_storage_key
 from report_index import is_safe_report_filename, parse_report_filename
 from report_rerun_context import (
     RERUN_SCOPE_LABELS,
@@ -85,7 +86,12 @@ async def _run_full_pipeline_rerun(
     )
 
 
-def _build_final_rerun_context(filename: str, snapshot: dict, output_dir: str) -> tuple[dict, dict, int]:
+def _build_final_rerun_context(
+    filename: str,
+    snapshot: dict,
+    output_dir: str,
+    storage: ReportStorage | None = None,
+) -> tuple[dict, dict, int]:
     data = dict(snapshot.get("data") or {})
     pipeline_id = normalize_pipeline_id(snapshot.get("pipeline") or parse_report_filename(filename)["pipeline_id"])
     pipeline_def = get_pipeline_definition(pipeline_id)
@@ -103,7 +109,7 @@ def _build_final_rerun_context(filename: str, snapshot: dict, output_dir: str) -
     required_previous = [agent for agent in pipeline_def["agents"] if agent < final_agent]
     missing = [agent for agent in required_previous if agent not in analyses]
     if missing:
-        markdown_text = read_report_markdown(filename, output_dir)
+        markdown_text = read_report_markdown(filename, output_dir, storage=storage)
         markdown_analyses = parse_agent_sections_from_markdown(markdown_text)
         analyses.update({agent: text for agent, text in markdown_analyses.items() if agent not in analyses})
     missing = [agent for agent in required_previous if agent not in analyses]
@@ -142,7 +148,7 @@ async def _run_final_recommendation_rerun(
 ) -> dict:
     if callable(cancel_check):
         cancel_check()
-    context, pipeline_def, final_agent = _build_final_rerun_context(filename, snapshot, output_dir)
+    context, pipeline_def, final_agent = _build_final_rerun_context(filename, snapshot, output_dir, storage=storage)
     attach_cancel_check(context, cancel_check)
     required_previous = [agent for agent in pipeline_def["agents"] if agent < final_agent]
     if callable(progress_callback):
@@ -205,10 +211,13 @@ async def rerun_report_analysis(
     normalized_scope = normalize_rerun_scope(scope)
     if not is_safe_report_filename(filename, ".html"):
         raise HTTPException(status_code=400, detail="Invalid filename")
-    if not os.path.exists(os.path.join(output_dir, filename)):
+    report_exists = os.path.exists(os.path.join(output_dir, filename))
+    if storage is not None:
+        report_exists = report_exists or existing_storage_key(storage, filename, kind="html") is not None
+    if not report_exists:
         raise HTTPException(status_code=404, detail="找不到報告")
 
-    snapshot = read_report_snapshot(filename, output_dir)
+    snapshot = read_report_snapshot(filename, output_dir, storage=storage)
     source_pipeline_id = normalize_pipeline_id(snapshot.get("pipeline") or parse_report_filename(filename)["pipeline_id"])
     if normalized_scope == "full_report":
         return await _run_full_pipeline_rerun(

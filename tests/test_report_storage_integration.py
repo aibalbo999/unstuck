@@ -477,6 +477,105 @@ def test_report_routes_use_injected_report_storage_for_read_and_delete(tmp_path)
     assert report_cache == {}
 
 
+def test_report_rerun_route_queues_partitioned_storage_report(tmp_path):
+    from report_persistence import report_bundle_keys_for_filename
+
+    storage = InMemoryStorage()
+    filename = "2308_TW_v2_report_20260626_120000.html"
+    keys = report_bundle_keys_for_filename(filename)
+    storage.save_report(keys.html_key, b"<html>from partitioned storage</html>", content_type="text/html")
+    storage.save_report(keys.md_key, b"# report\n", content_type="text/markdown")
+    storage.save_report(
+        keys.data_key,
+        json.dumps({"ticker": "2308.TW", "pipeline": "v2", "data": {"ticker": "2308.TW"}}).encode("utf-8"),
+        content_type="application/json",
+    )
+
+    class FakeTaskQueue:
+        def __init__(self):
+            self.calls = []
+
+        def enqueue(self, *args):
+            self.calls.append(args)
+
+    queue = FakeTaskQueue()
+    app = FastAPI()
+    app.include_router(
+        create_reports_router(
+            ReportRouteDeps(
+                get_output_dir=lambda: str(tmp_path),
+                get_report_storage=lambda: storage,
+                get_report_cache=lambda: {},
+                get_report_cache_lock=lambda: None,
+                get_refresh_service=lambda: None,
+                get_pipeline_runner=lambda: None,
+                get_report_renderer=lambda: None,
+                get_task_queue=lambda: queue,
+                run_report_rerun_job=lambda *_: "",
+                create_job=lambda *_: "rerun-job",
+                get_job=lambda *_: {},
+                get_events_since=lambda *_: [],
+                update_job=lambda *_args, **_kwargs: None,
+                append_event=lambda *_args, **_kwargs: None,
+                request_job_cancel=lambda *_: False,
+                print_streamed_event=lambda *_: None,
+                require_mutation_authorized=lambda _request: None,
+            )
+        )
+    )
+    client = TestClient(app)
+
+    response = client.post(f"/api/report/{filename}/rerun", params={"scope": "mode_b"})
+
+    assert response.status_code == 200
+    assert response.json()["job_id"] == "rerun-job"
+    assert queue.calls[0][2:] == ("rerun-job", filename, "mode_b")
+
+
+def test_compare_reports_reads_partitioned_local_storage(tmp_path):
+    from report_compare_service import compare_reports
+    from report_persistence import persist_report_bundle
+    from storage.report_storage import LocalFileStorage
+
+    storage = LocalFileStorage(tmp_path)
+    left = "2308_TW_v2_report_20260626_120000.html"
+    right = "2308_TW_v2_report_20260627_120000.html"
+
+    for filename, price, generated_at in (
+        (left, 100, "2026-06-26T12:00:00+00:00"),
+        (right, 110, "2026-06-27T12:00:00+00:00"),
+    ):
+        persist_report_bundle(
+            filename=filename,
+            html_content="<html><body>台達電</body></html>",
+            markdown_content=f"""# 2308.TW 台達電
+
+## 一頁式摘要
+追蹤比較用報告。
+
+## 🎯 最終投資建議
+- **綜合建議:** 持有
+- **股價:** NT${price}
+""",
+            data_snapshot={
+                "ticker": "2308.TW",
+                "pipeline": "v2",
+                "generated_at": generated_at,
+                "data_trust": {"status": "fresh"},
+                "data": {"ticker": "2308.TW", "current_price": price},
+            },
+            storage=storage,
+            output_dir=str(tmp_path),
+        )
+
+    result = compare_reports(left, right, output_dir=str(tmp_path))
+
+    assert result["success"] is True
+    assert result["compatibility"]["same_ticker"] is True
+    assert result["left"]["filename"] == left
+    assert result["right"]["generated_at"] == "2026-06-27T12:00:00+00:00"
+
+
 def test_rerun_report_analysis_passes_storage_to_rerun_rendering(tmp_path, monkeypatch):
     import report_rerun_service
 
@@ -537,6 +636,63 @@ def test_rerun_report_analysis_passes_storage_to_rerun_rendering(tmp_path, monke
     assert storage.get_report(keys.html_key) is not None
     assert storage.get_report(keys.md_key) is not None
     assert storage.get_report(keys.data_key) is not None
+
+
+def test_rerun_report_analysis_reads_partitioned_source_storage(tmp_path, monkeypatch):
+    import report_rerun_service
+    from report_persistence import report_bundle_keys_for_filename
+
+    filename = "2308_TW_v2_report_20260626_120000.html"
+    source_snapshot = {
+        "snapshot_schema_version": 3,
+        "ticker": "2308.TW",
+        "company_name": "台達電",
+        "pipeline": "v2",
+        "generated_at": "2026-06-26T12:00:00+00:00",
+        "data_schema_version": 4,
+        "source_freshness": {},
+        "source_audit": [],
+        "data_trust": {"status": "fresh", "critical_failures": [], "stale_sources": [], "notes": []},
+        "data": {"ticker": "2308.TW", "company_name": "台達電"},
+    }
+    storage = InMemoryStorage()
+    keys = report_bundle_keys_for_filename(filename)
+    storage.save_report(keys.html_key, b"<html></html>", content_type="text/html")
+    storage.save_report(keys.data_key, json.dumps(source_snapshot).encode("utf-8"), content_type="application/json")
+
+    class FakePipelineRunner:
+        async def run_async(self, request):
+            return SimpleNamespace(context={"ticker": "2308.TW", "data": request.data})
+
+    class FakeReportRenderer:
+        async def render_async(self, request):
+            return ReportBundle(
+                html="<html>rerun</html>",
+                markdown="# rerun",
+                data_snapshot={
+                    "ticker": "2308.TW",
+                    "pipeline": request.pipeline_id,
+                    "data_trust": {"status": "fresh"},
+                    "data": request.context["data"],
+                },
+            )
+
+    monkeypatch.setattr(report_rerun_service, "time", SimpleNamespace(time=lambda: 1.0))
+
+    result = asyncio_run(
+        report_rerun_service.rerun_report_analysis(
+            filename,
+            scope="full_report",
+            output_dir=str(tmp_path),
+            pipeline_runner=FakePipelineRunner(),
+            report_renderer=FakeReportRenderer(),
+            storage=storage,
+        )
+    )
+
+    generated_keys = report_bundle_keys_for_filename(result["filename"])
+    assert storage.get_report(generated_keys.html_key) is not None
+    assert result["source_filename"] == filename
 
 
 def asyncio_run(coro):

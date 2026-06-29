@@ -22,7 +22,7 @@ BACKEND_DIR = os.path.join(ROOT_DIR, "backend")
 sys.path.insert(0, BACKEND_DIR)
 
 from agent_catalog import AGENT_NAMES
-from config import OUTPUT_DIR, API_KEYS, format_model_routes, AGENT_MODELS
+from config import OUTPUT_DIR, API_KEYS, format_model_routes, AGENT_MODELS, API_KEY_SETUP_MESSAGE, has_api_keys
 from data_fetch import FetchRequest, StockDataService
 from pipeline_modes import get_pipeline_definition, normalize_pipeline_id
 from analysis_jobs import build_data_fetch_blocking_notice
@@ -38,6 +38,11 @@ console = Console()
 STOCK_DATA_SERVICE = StockDataService()
 PIPELINE_RUNNER = AnalysisPipelineRunner()
 REPORT_RENDERER = ReportRenderer()
+
+
+class MissingApiKeyConfiguration(RuntimeError):
+    pass
+
 
 def print_banner():
     """顯示系統啟動橫幅"""
@@ -127,6 +132,10 @@ async def main_async():
     ticker = args.ticker.upper().strip()
     pipeline_id = normalize_pipeline_id(args.pipeline)
     pipeline_def = get_pipeline_definition(pipeline_id)
+
+    if not has_api_keys():
+        console.print(f"[bold red]❌ {API_KEY_SETUP_MESSAGE}[/bold red]")
+        raise MissingApiKeyConfiguration(API_KEY_SETUP_MESSAGE)
     
     # ─── 顯示啟動畫面 ────────────────────────────────────────
     print_banner()
@@ -361,7 +370,10 @@ async def main_async():
 
 def main():
     """CLI 入口"""
-    asyncio.run(main_async())
+    try:
+        asyncio.run(main_async())
+    except MissingApiKeyConfiguration:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
