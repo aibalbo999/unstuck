@@ -61,7 +61,8 @@ def _run_daily_market_screener(
         "daily screener："
         f"candidates={result.get('candidate_count', 0)}, "
         f"imported={result.get('imported_count', 0)}, "
-        f"errors={len(result.get('errors') or [])}"
+        f"errors={len(result.get('errors') or [])}, "
+        f"warnings={len(result.get('warnings') or [])}"
     )
     return result
 
@@ -101,7 +102,7 @@ async def _watchlist_scheduler_forever(
                     f"errors={len(trigger_result.get('errors') or [])}"
                 )
         except Exception as exc:
-            emit_log(f"watchlist 批次分析檢查失敗：{exc}")
+            emit_log(f"watchlist 批次分析檢查失敗：{type(exc).__name__}: {exc}")
         await asyncio.sleep(interval_seconds)
 
 

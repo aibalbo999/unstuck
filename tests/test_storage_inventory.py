@@ -106,6 +106,8 @@ def test_ensure_runtime_storage_creates_openable_sqlite_paths(tmp_path):
     task_db = cache_dir / "analysis_jobs.sqlite3"
     checkpoint_db = cache_dir / "langgraph_checkpoints.sqlite3"
     tracking_db = cache_dir / "decision_tracking.sqlite3"
+    watchlist_db = cache_dir / "watchlist.sqlite3"
+    yfinance_cache = cache_dir / "yfinance"
     calendars = cache_dir / "market_calendars"
 
     result = ensure_runtime_storage(
@@ -115,6 +117,8 @@ def test_ensure_runtime_storage_creates_openable_sqlite_paths(tmp_path):
         task_db_path=str(task_db),
         checkpoint_path=str(checkpoint_db),
         decision_tracking_db_path=str(tracking_db),
+        watchlist_db_path=str(watchlist_db),
+        yfinance_cache_dir=str(yfinance_cache),
         market_calendar_dir=str(calendars),
     )
 
@@ -122,7 +126,12 @@ def test_ensure_runtime_storage_creates_openable_sqlite_paths(tmp_path):
     assert output_dir.is_dir()
     assert cache_dir.is_dir()
     assert calendars.is_dir()
-    for db_path in (cache_db, task_db, checkpoint_db, tracking_db):
+    assert yfinance_cache.is_dir()
+    assert result["directories"]["yfinance_cache_dir"] == str(yfinance_cache)
+    import yfinance.cache as yf_cache
+
+    assert yf_cache._TzDBManager.get_location() == str(yfinance_cache)
+    for db_path in (cache_db, task_db, checkpoint_db, tracking_db, watchlist_db):
         with sqlite3.connect(db_path) as conn:
             assert conn.execute("PRAGMA user_version").fetchone() is not None
 
@@ -139,5 +148,6 @@ def test_ensure_runtime_storage_rejects_directory_used_as_database(tmp_path):
             task_db_path=str(tmp_path / "cache" / "tasks.sqlite3"),
             checkpoint_path=str(tmp_path / "cache" / "checkpoints.sqlite3"),
             decision_tracking_db_path=str(tmp_path / "cache" / "tracking.sqlite3"),
+            watchlist_db_path=str(tmp_path / "cache" / "watchlist.sqlite3"),
             market_calendar_dir=str(tmp_path / "cache" / "market_calendars"),
         )

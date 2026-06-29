@@ -28,6 +28,8 @@ def ensure_runtime_storage(
     task_db_path: Optional[str] = None,
     checkpoint_path: Optional[str] = None,
     decision_tracking_db_path: Optional[str] = None,
+    watchlist_db_path: Optional[str] = None,
+    yfinance_cache_dir: Optional[str] = None,
     market_calendar_dir: Optional[str] = None,
 ) -> dict:
     """Create and verify runtime storage paths before workers start."""
@@ -43,11 +45,19 @@ def ensure_runtime_storage(
         decision_tracking_db_path
         or os.getenv("DECISION_TRACKING_DB_PATH", str(cache_db.expanduser().parent / "decision_tracking.sqlite3"))
     )
+    watchlist_db = _default_watchlist_db_path(cache_db, watchlist_db_path)
+    yfinance_cache_path = _ensure_directory(
+        Path(yfinance_cache_dir or os.getenv("YFINANCE_CACHE_DIR", str(cache_db.expanduser().parent / "yfinance"))),
+        "yfinance_cache_dir",
+        created_dirs,
+    )
+    _configure_yfinance_cache(yfinance_cache_path)
     sqlite_paths = {
         "cache_db": _ensure_sqlite_openable(cache_db, "cache_db", created_dirs),
         "task_db": _ensure_sqlite_openable(task_db, "task_db", created_dirs),
         "checkpoint_db": _ensure_sqlite_openable(checkpoint_db, "checkpoint_db", created_dirs),
         "decision_tracking_db": _ensure_sqlite_openable(tracking_db, "decision_tracking_db", created_dirs),
+        "watchlist_db": _ensure_sqlite_openable(watchlist_db, "watchlist_db", created_dirs),
     }
 
     return {
@@ -56,6 +66,7 @@ def ensure_runtime_storage(
             "output_dir": str(output_path),
             "cache_dir": str(cache_path),
             "market_calendar_dir": str(calendar_path),
+            "yfinance_cache_dir": str(yfinance_cache_path),
         },
         "sqlite_paths": {name: str(path) for name, path in sqlite_paths.items()},
         "created_dirs": sorted(set(created_dirs)),
@@ -182,6 +193,32 @@ def _ensure_sqlite_openable(path: Path, label: str, created_dirs: list[str]) -> 
     except sqlite3.Error as exc:
         raise RuntimeError(f"{label} SQLite database cannot be opened at {resolved}: {exc}") from exc
     return resolved
+
+
+def _default_watchlist_db_path(cache_db: Path, explicit_path: Optional[str]) -> Path:
+    if explicit_path:
+        return Path(explicit_path)
+    env_db_path = os.getenv("WATCHLIST_DB_PATH", "").strip()
+    if env_db_path:
+        return Path(env_db_path)
+    watchlist_path = Path(os.getenv("WATCHLIST_PATH", str(cache_db.expanduser().parent / "watchlist.json")))
+    return watchlist_path.with_suffix(".sqlite3")
+
+
+def _configure_yfinance_cache(cache_dir: Path) -> None:
+    try:
+        import yfinance.cache as yf_cache
+    except Exception:
+        return
+    desired = str(cache_dir)
+    managers = (
+        getattr(yf_cache, "_TzDBManager", None),
+        getattr(yf_cache, "_CookieDBManager", None),
+        getattr(yf_cache, "_ISINDBManager", None),
+    )
+    if all(manager is not None and manager.get_location() == desired for manager in managers):
+        return
+    yf_cache.set_cache_location(desired)
 
 
 def _report_file_counts(output_path: Path) -> dict:

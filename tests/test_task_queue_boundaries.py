@@ -1,5 +1,7 @@
 import asyncio
 import importlib
+import os
+import subprocess
 import sys
 import types
 from pathlib import Path
@@ -87,6 +89,34 @@ def test_rq_enqueue_passes_retry_settings_to_queue(monkeypatch):
     assert captured["timeout"] == 7200
     assert captured["retry"].max == 3
     assert captured["retry"].interval == [5, 10, 30]
+
+
+def test_rq_worker_can_import_existing_analysis_job_path_from_repo_root():
+    env = {**os.environ, "PYTHONPATH": ""}
+    expectations = {
+        "analysis_jobs.run_stock_analysis_job": "analysis_jobs.run_stock_analysis_job",
+        "report_rerun_jobs.run_report_rerun_job": "report_rerun_jobs.run_report_rerun_job",
+    }
+    for import_path, expected in expectations.items():
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "from rq.utils import import_attribute\n"
+                    f"fn = import_attribute({import_path!r})\n"
+                    "print(f'{fn.__module__}.{fn.__name__}')\n"
+                ),
+            ],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            capture_output=True,
+            timeout=20,
+        )
+
+        assert result.returncode == 0, result.stderr or result.stdout
+        assert result.stdout.strip() == expected
 
 
 def test_rq_enqueue_routes_analysis_and_rerun_to_separate_queues(monkeypatch):

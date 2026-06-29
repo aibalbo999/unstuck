@@ -464,6 +464,7 @@ def test_watchlist_scheduler_runs_daily_screener_once_after_close(monkeypatch):
             "imported_count": 3,
             "candidate_count": 5,
             "screen_date": now.date().isoformat(),
+            "warnings": [{"provider": "TWSE Free API"}, {"provider": "FinMind"}],
         },
     )
 
@@ -475,3 +476,4 @@ def test_watchlist_scheduler_runs_daily_screener_once_after_close(monkeypatch):
     assert result["imported_count"] == 3
     assert calls == [("run", "2026-06-20"), ("mark", "2026-06-20")]
     assert any("daily screener" in line and "imported=3" in line for line in logs)
+    assert any("warnings=2" in line for line in logs)
