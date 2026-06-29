@@ -1,5 +1,7 @@
 import asyncio
 import json
+import os
+import time
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
@@ -8,7 +10,14 @@ from fastapi.testclient import TestClient
 
 from api_routes.reports import ReportRouteDeps, create_reports_router
 from data_trust import data_snapshot_filename_for_report
-from report_history_service import delete_report_files, download_report_file, get_report_file, list_reports
+from report_history_service import (
+    cleanup_expired_reports,
+    cleanup_orphan_markdown_reports,
+    delete_report_files,
+    download_report_file,
+    get_report_file,
+    list_reports,
+)
 from reporting import ReportBundle
 from storage.report_storage import InMemoryStorage, StoredReport, StoredReportContent
 
@@ -475,6 +484,55 @@ def test_report_routes_use_injected_report_storage_for_read_and_delete(tmp_path)
     assert delete_response.json()["success"] is True
     assert storage.exists(filename) is False
     assert report_cache == {}
+
+
+def test_cleanup_expired_reports_removes_partitioned_report_bundle(tmp_path):
+    from report_persistence import persist_report_bundle, report_bundle_keys_for_filename
+    from storage.report_storage import LocalFileStorage
+
+    filename = "2308_TW_v2_report_20260626_120000.html"
+    storage = LocalFileStorage(tmp_path)
+    persist_report_bundle(
+        filename=filename,
+        html_content="<html>old</html>",
+        markdown_content="# old",
+        data_snapshot={"ticker": "2308.TW", "data_trust": {"status": "fresh"}},
+        storage=storage,
+        output_dir=str(tmp_path),
+    )
+    keys = report_bundle_keys_for_filename(filename)
+    old_mtime = time.time() - 3 * 24 * 60 * 60
+    for key in (keys.html_key, keys.md_key, keys.data_key):
+        os.utime(tmp_path / key, (old_mtime, old_mtime))
+
+    deleted = cleanup_expired_reports(
+        str(tmp_path),
+        {"2308.TW": filename},
+        retention_days=1,
+    )
+
+    assert keys.html_key in deleted
+    assert storage.get_report(keys.html_key) is None
+    assert storage.get_report(keys.md_key) is None
+    assert storage.get_report(keys.data_key) is None
+
+
+def test_cleanup_orphan_markdown_reports_removes_partitioned_snapshots(tmp_path):
+    from report_persistence import report_bundle_keys_for_filename
+    from storage.report_storage import LocalFileStorage
+
+    filename = "2308_TW_v2_report_20260626_120000.html"
+    storage = LocalFileStorage(tmp_path)
+    keys = report_bundle_keys_for_filename(filename)
+    storage.save_report(keys.md_key, b"# orphan", content_type="text/markdown")
+    storage.save_report(keys.data_key, b'{"ticker":"2308.TW"}', content_type="application/json")
+
+    deleted = cleanup_orphan_markdown_reports(str(tmp_path))
+
+    assert keys.md_key in deleted
+    assert keys.data_key in deleted
+    assert storage.get_report(keys.md_key) is None
+    assert storage.get_report(keys.data_key) is None
 
 
 def test_report_rerun_route_queues_partitioned_storage_report(tmp_path):

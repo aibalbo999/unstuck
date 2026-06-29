@@ -180,6 +180,102 @@ def test_analysis_stream_replays_from_last_event_id_header():
     assert '"type": "done"' in second["data"]
 
 
+def test_analysis_stream_does_not_persist_client_disconnect_noise():
+    from api_routes.analysis_sse import analysis_event_generator
+
+    appended = []
+
+    class Deps:
+        def append_event(self, job_id, payload):
+            appended.append((job_id, payload))
+
+        def request_job_cancel(self, job_id, reason):
+            appended.append((job_id, {"type": "cancel", "message": reason}))
+
+        def get_events_since(self, job_id, after_id):
+            return []
+
+        def get_job(self, job_id):
+            return {"job_id": job_id, "status": "running", "pipeline_id": "v1"}
+
+        def print_streamed_event(self, job_id, payload):
+            pass
+
+        def get_pipeline_run_sequence(self, pipeline_id):
+            return (pipeline_id,)
+
+    class Request:
+        async def is_disconnected(self):
+            return True
+
+    generator = analysis_event_generator(
+        Deps(),
+        Request(),
+        job_id="job-disconnect",
+        resume_after_id=0,
+        cancel_on_disconnect=False,
+        intro_payload={"type": "job", "pipeline_id": "v1"},
+    )
+
+    first = asyncio.run(generator.__anext__())
+    with pytest.raises(StopAsyncIteration):
+        asyncio.run(generator.__anext__())
+
+    assert '"type": "job"' in first["data"]
+    assert appended == []
+
+
+def test_analysis_stream_persists_terminal_fallback_with_event_id():
+    from api_routes.analysis_sse import analysis_event_generator
+
+    events = []
+
+    class Deps:
+        def append_event(self, job_id, payload):
+            events.append({"id": len(events) + 1, "payload": payload, "created_at": "now"})
+
+        def request_job_cancel(self, job_id, reason):
+            raise AssertionError("cancel should not be requested")
+
+        def get_events_since(self, job_id, after_id):
+            return [event for event in events if event["id"] > after_id]
+
+        def get_job(self, job_id):
+            return {
+                "job_id": job_id,
+                "status": "done",
+                "pipeline_id": "v1",
+                "filename": "done.html",
+            }
+
+        def print_streamed_event(self, job_id, payload):
+            pass
+
+        def get_pipeline_run_sequence(self, pipeline_id):
+            return (pipeline_id,)
+
+    class Request:
+        async def is_disconnected(self):
+            return False
+
+    generator = analysis_event_generator(
+        Deps(),
+        Request(),
+        job_id="job-done",
+        resume_after_id=0,
+        cancel_on_disconnect=False,
+        intro_payload={"type": "job", "pipeline_id": "v1"},
+    )
+
+    first = asyncio.run(generator.__anext__())
+    second = asyncio.run(generator.__anext__())
+
+    assert '"type": "job"' in first["data"]
+    assert second["id"] == "1"
+    assert '"type": "done"' in second["data"]
+    assert events[0]["payload"]["filename"] == "done.html"
+
+
 def test_validate_runtime_settings_blocks_lan_without_mutation_token(monkeypatch):
     import settings.app_config as app_config
 

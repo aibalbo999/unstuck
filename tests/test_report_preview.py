@@ -889,6 +889,42 @@ def test_rerun_report_endpoint_attaches_existing_active_job(tmp_path, monkeypatc
     assert len(fake_queue.calls) == 1
 
 
+def test_rerun_report_endpoint_requeues_orphaned_active_job(tmp_path, monkeypatch, mutation_headers):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
+    monkeypatch.setattr(job_store, "TASK_DB_PATH", str(tmp_path / "jobs.sqlite3"))
+    filename = "2449_v2_report_20260606_010000.html"
+    write_report_pair(tmp_path, filename, "持有")
+    write_data_snapshot(tmp_path, filename, "fresh")
+    orphan_job_id = job_store.create_job(filename, "rerun:mode_b")
+
+    class InspectableQueue:
+        def __init__(self):
+            self.queue = self
+            self.calls = []
+            self.jobs = {}
+
+        def enqueue(self, *args):
+            self.calls.append(args)
+            self.jobs[args[0]] = {"id": args[0], "status": "queued"}
+            return self.jobs[args[0]]
+
+        def fetch_job(self, task_id):
+            return self.jobs.get(task_id)
+
+    queue = InspectableQueue()
+    monkeypatch.setattr(api, "analysis_task_queue", queue)
+
+    client = TestClient(api.app, raise_server_exceptions=False)
+    response = client.post(f"/api/report/{filename}/rerun", params={"scope": "mode_b"}, headers=mutation_headers)
+
+    assert response.status_code == 200
+    assert response.json()["job_id"] == orphan_job_id
+    assert queue.calls[0][0] == f"report-rerun:{orphan_job_id}"
+    events = [event["payload"] for event in job_store.get_events_since(orphan_job_id)]
+    assert any(event.get("phase") == "queue_recovered" for event in events)
+
+
 def test_rerun_report_analysis_full_report_refreshes_data_before_pipeline(tmp_path, monkeypatch):
     import asyncio
     from types import SimpleNamespace
@@ -1072,6 +1108,26 @@ def test_rerun_report_stream_replays_terminal_event(tmp_path, monkeypatch):
     assert '"type": "job"' in response.text
     assert '"type": "done"' in response.text
     assert "2449_v2_report_20260607_010000.html" in response.text
+
+
+def test_rerun_report_stream_persists_terminal_fallback_with_event_id(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(job_store, "TASK_DB_PATH", str(tmp_path / "jobs.sqlite3"))
+    filename = "2449_v2_report_20260606_010000.html"
+    job_id = job_store.create_job(filename, "rerun:final_recommendation")
+    job_store.update_job(job_id, "done", filename="2449_v2_report_20260607_010000.html")
+
+    client = TestClient(api.app)
+    response = client.get(
+        f"/api/report/{filename}/rerun/stream",
+        params={"job_id": job_id, "last_event_id": 1},
+    )
+
+    assert response.status_code == 200
+    assert "id: 2" in response.text
+    events = [event["payload"] for event in job_store.get_events_since(job_id, 1)]
+    assert events[0]["type"] == "done"
+    assert events[0]["filename"] == "2449_v2_report_20260607_010000.html"
 
 
 def test_rerun_report_cancel_endpoint_requests_cancel(tmp_path, monkeypatch, mutation_headers):

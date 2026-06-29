@@ -39,13 +39,6 @@ async def analysis_event_generator(
     yield {"data": json.dumps(intro_payload, ensure_ascii=False)}
     while True:
         if await request.is_disconnected():
-            deps.append_event(job_id, {
-                "type": "status",
-                "phase": "client_disconnected",
-                "level": "info",
-                "message": "SSE 客戶端已斷線。",
-                "pipeline_id": intro_payload.get("pipeline_id", "v1"),
-            })
             if cancel_on_disconnect:
                 await asyncio.to_thread(deps.request_job_cancel, job_id, "SSE 客戶端斷線，已要求取消分析任務。")
             break
@@ -71,7 +64,10 @@ async def analysis_event_generator(
 
         job = await asyncio.to_thread(deps.get_job, job_id)
         if job.get("status") in ["done", "error", "cancelled"]:
-            yield {"data": json.dumps(terminal_payload_for_job(deps, job), ensure_ascii=False)}
+            payload = terminal_payload_for_job(deps, job)
+            if await asyncio.to_thread(persist_terminal_event_if_missing, deps, job_id, payload):
+                continue
+            yield {"data": json.dumps(payload, ensure_ascii=False)}
             break
 
         if await request.is_disconnected():
@@ -95,6 +91,22 @@ def terminal_payload_for_job(deps: Any, job: dict) -> dict:
     if status == "cancelled":
         return {"type": "error", "phase": "cancelled", "message": job.get("error", "分析任務已取消")}
     return {"type": "error", "message": job.get("error", "分析任務失敗")}
+
+
+def persist_terminal_event_if_missing(deps: Any, job_id: str, payload: dict) -> bool:
+    try:
+        existing_events = deps.get_events_since(job_id, 0)
+    except Exception:
+        return False
+    for event in existing_events:
+        event_payload = event.get("payload") if isinstance(event, dict) else {}
+        if isinstance(event_payload, dict) and event_payload.get("type") in {"done", "error"}:
+            return False
+    try:
+        deps.append_event(job_id, payload)
+    except Exception:
+        return False
+    return True
 
 
 def resolve_resume_after_id(request: Request, last_event_id: int | None, since_id: int | None) -> int:

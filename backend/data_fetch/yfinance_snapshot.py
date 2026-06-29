@@ -2,7 +2,15 @@
 
 from __future__ import annotations
 
+import time
+
+from .audit_helpers import _append_source_fetch_audit
 from .market_sources.ticker_resolver import get_market_data_provider
+from .yfinance_error_payload import build_fetch_error_payload
+
+
+class InvalidTickerError(RuntimeError):
+    pass
 
 
 def fetch_yfinance_snapshot(ticker: str) -> dict:
@@ -47,6 +55,15 @@ def fetch_stock_data_from_snapshot(snapshot: dict, skip_optional_http: bool = Fa
 
     snapshot = snapshot or {}
     original_ticker = str(snapshot.get("original_ticker") or snapshot.get("ticker") or "").strip().upper()
+    if not bool(snapshot.get("is_valid", True)):
+        now = time.time()
+        return build_fetch_error_payload(
+            original_ticker,
+            InvalidTickerError(f"yfinance 無法驗證股票代號：{original_ticker}"),
+            fetch_started_epoch=now,
+            finished_at_epoch=now,
+            append_source_fetch_audit=_append_source_fetch_audit,
+        )
     return fetch_stock_data(
         original_ticker,
         skip_optional_http=skip_optional_http,

@@ -857,6 +857,104 @@ def test_workflow_falls_back_from_yfinance_to_fmp_after_blocking(monkeypatch):
     assert ("FMP stable quote", "success") in statuses
 
 
+def test_workflow_falls_back_from_invalid_yfinance_snapshot_to_fmp(monkeypatch):
+    monkeypatch.setattr(workflow, "cache_financial_payload", lambda data, ticker: None)
+    monkeypatch.setattr(workflow, "get_cache_json", lambda key: None)
+    monkeypatch.setattr(provider_sla, "get_provider_sla_alerts", lambda limit=100: [])
+    fmp_calls = []
+
+    def yfinance_provider(request, context):
+        return ProviderResult(
+            source="market_data",
+            provider="yfinance",
+            status="success",
+            value={
+                "kind": "yfinance_snapshot",
+                "original_ticker": request.ticker,
+                "ticker": request.ticker,
+                "resolved_ticker": request.ticker,
+                "is_valid": False,
+                "info": {},
+                "stock": None,
+                "attempts": [{"ticker": request.ticker, "valid": False}],
+                "provider_name": "yfinance",
+            },
+            audit=build_source_audit_entry(
+                "market_data",
+                "yfinance",
+                "success",
+                record_count=0,
+                message="yfinance snapshot returned no valid ticker.",
+            ),
+        )
+
+    def fmp_provider(request, context):
+        fmp_calls.append(request.ticker)
+        audit = build_source_audit_entry(
+            "market_data",
+            "FMP stable quote",
+            "success",
+            record_count=3,
+        )
+        return ProviderResult(
+            source="market_data",
+            provider="FMP stable quote",
+            status="success",
+            value={
+                "ticker": request.ticker,
+                "company_name": "Fallback Fixture",
+                "current_price": 123.0,
+                "market_cap_raw": 1000,
+                "pe_ratio_raw": 12.5,
+                "source_audit": [audit],
+            },
+            audit=audit,
+        )
+
+    fmp = CallableProvider("market_data", "FMP stable quote", fmp_provider)
+    fmp.primary_source_provider = False
+    registry = ProviderRegistry([
+        CallableProvider("market_data", "yfinance", yfinance_provider),
+        fmp,
+    ])
+
+    result = asyncio.run(
+        StockDataService(registry=registry).fetch_async(FetchRequest.from_ticker("9999.TW", skip_optional_http=True))
+    )
+
+    assert fmp_calls == ["9999.TW"]
+    assert result.data["company_name"] == "Fallback Fixture"
+    statuses = {(entry["provider"], entry["status"]) for entry in result.data["source_audit"]}
+    assert ("yfinance", "success") in statuses
+    assert ("FMP stable quote", "success") in statuses
+
+
+def test_fetch_stock_data_from_invalid_yfinance_snapshot_returns_clean_error():
+    from data_fetch.yfinance_snapshot import fetch_stock_data_from_snapshot
+
+    payload = fetch_stock_data_from_snapshot(
+        {
+            "kind": "yfinance_snapshot",
+            "original_ticker": "9999.TW",
+            "ticker": "9999.TW",
+            "resolved_ticker": "9999.TW",
+            "is_valid": False,
+            "info": {},
+            "stock": None,
+            "attempts": [{"ticker": "9999.TW", "valid": False}, {"ticker": "9999.TWO", "valid": False}],
+            "provider_name": "taiwan_yfinance_finmind",
+        },
+        skip_optional_http=True,
+    )
+
+    assert payload["error"] == "yfinance 無法驗證股票代號：9999.TW"
+    assert payload["data_trust"]["status"] == "error"
+    audit = payload["source_audit"][0]
+    assert audit["source"] == "market_data"
+    assert audit["status"] == "error"
+    assert audit["error_kind"] == "InvalidTickerError"
+
+
 def test_yfinance_timeout_403_audits_surface_provider_sla_alert(monkeypatch, tmp_path):
     monkeypatch.setattr(provider_sla, "TASK_DB_PATH", str(tmp_path / "provider-sla.sqlite3"))
 

@@ -42,58 +42,98 @@ def cleanup_expired_reports(
     retention_days: int = REPORT_RETENTION_DAYS,
     repository: ReportRepository = DEFAULT_REPORT_REPOSITORY,
     report_cache_lock: Any = None,
+    storage: ReportStorage | None = None,
 ) -> list[str]:
     """Delete old HTML/Markdown/data snapshots so output does not grow forever."""
-    if not os.path.exists(output_dir) or retention_days <= 0:
+    content_storage = storage_for_existing_output_dir(output_dir, storage)
+    if content_storage is None or retention_days <= 0:
         return []
 
     cutoff = time.time() - retention_days * 24 * 60 * 60
     deleted = []
-    for filename in os.listdir(output_dir):
-        if not filename.endswith((".html", ".md", ".data.json")):
+    for item in content_storage.list_reports():
+        key = item.key
+        if not key.endswith((".html", ".md", ".data.json")):
             continue
-        path = os.path.join(output_dir, filename)
-        try:
-            if os.path.getmtime(path) < cutoff:
-                os.remove(path)
-                deleted.append(filename)
-                if filename.endswith(".html"):
-                    repository.delete(filename, output_dir)
-        except OSError:
-            pass
+        if item.updated_at.timestamp() >= cutoff:
+            continue
+        if key.endswith(".html"):
+            for bundle_key in _bundle_keys_for_html_key(key):
+                _delete_storage_key(content_storage, bundle_key, deleted)
+            repository.delete(_basename_for_storage_key(key), output_dir)
+        else:
+            _delete_storage_key(content_storage, key, deleted)
 
     if deleted:
         with report_cache_lock or nullcontext():
             for ticker, cached_filename in list(report_cache.items()):
-                if cached_filename in deleted:
+                if cached_filename in {_basename_for_storage_key(key) for key in deleted}:
                     del report_cache[ticker]
+        cleanup_empty_report_directories(output_dir)
     return deleted
 
 
-def cleanup_orphan_markdown_reports(output_dir: str) -> list[str]:
+def cleanup_orphan_markdown_reports(output_dir: str, storage: ReportStorage | None = None) -> list[str]:
     """Remove Markdown/data snapshots that no longer have a matching HTML report."""
-    if not os.path.exists(output_dir):
+    content_storage = storage_for_existing_output_dir(output_dir, storage)
+    if content_storage is None:
         return []
 
-    html_stems = {
-        os.path.splitext(filename)[0]
-        for filename in os.listdir(output_dir)
-        if filename.endswith(".html")
-    }
+    reports = content_storage.list_reports()
+    report_keys = {item.key for item in reports}
     deleted = []
-    for filename in os.listdir(output_dir):
-        if not filename.endswith((".md", ".data.json")):
+    for item in reports:
+        key = item.key
+        if not key.endswith((".md", ".data.json")):
             continue
-        stem = filename[:-10] if filename.endswith(".data.json") else os.path.splitext(filename)[0]
-        if stem in html_stems:
+        if _html_key_for_related_storage_key(key) in report_keys:
             continue
-        path = os.path.join(output_dir, filename)
-        try:
-            os.remove(path)
-            deleted.append(filename)
-        except OSError:
-            pass
+        _delete_storage_key(content_storage, key, deleted)
+    if deleted:
+        cleanup_empty_report_directories(output_dir)
     return deleted
+
+
+def _basename_for_storage_key(key: str) -> str:
+    return str(key or "").rsplit("/", 1)[-1]
+
+
+def _dirname_for_storage_key(key: str) -> str:
+    parts = str(key or "").rsplit("/", 1)
+    return parts[0] if len(parts) == 2 else ""
+
+
+def _join_storage_key(prefix: str, basename: str) -> str:
+    return f"{prefix}/{basename}" if prefix else basename
+
+
+def _bundle_keys_for_html_key(key: str) -> list[str]:
+    prefix = _dirname_for_storage_key(key)
+    filename = _basename_for_storage_key(key)
+    markdown = filename[:-5] + ".md" if filename.endswith(".html") else f"{filename}.md"
+    return [
+        key,
+        _join_storage_key(prefix, markdown),
+        _join_storage_key(prefix, data_snapshot_filename_for_report(filename)),
+    ]
+
+
+def _html_key_for_related_storage_key(key: str) -> str:
+    prefix = _dirname_for_storage_key(key)
+    filename = _basename_for_storage_key(key)
+    if filename.endswith(".data.json"):
+        html = filename[:-10] + ".html"
+    else:
+        html = os.path.splitext(filename)[0] + ".html"
+    return _join_storage_key(prefix, html)
+
+
+def _delete_storage_key(storage: ReportStorage, key: str, deleted: list[str]) -> None:
+    try:
+        if storage.delete_report(key):
+            deleted.append(key)
+    except OSError:
+        pass
 
 
 def _normalize_include_versions(value) -> bool:

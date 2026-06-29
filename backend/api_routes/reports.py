@@ -11,6 +11,8 @@ from typing import Any, Optional
 from fastapi import APIRouter, HTTPException, Query, Request
 from sse_starlette.sse import EventSourceResponse
 
+from analysis_job_service import task_queue_has_task
+from api_routes.analysis_sse import persist_terminal_event_if_missing
 from report_index import is_safe_report_filename
 from report_history_storage import existing_storage_key
 import report_history_service
@@ -135,16 +137,28 @@ def create_reports_router(deps: ReportRouteDeps) -> APIRouter:
 
         pipeline_id = f"rerun:{normalized_scope}"
         should_enqueue = True
+        recovered_orphaned_queue_task = False
         if deps.create_or_attach_job is not None:
             result = deps.create_or_attach_job(filename, pipeline_id)
-            job_id = result["job"]["job_id"]
+            job = result["job"]
+            job_id = job["job_id"]
             should_enqueue = bool(result.get("created"))
+            task_id = f"report-rerun:{job_id}"
+            task_queue = deps.get_task_queue()
+            if (
+                not should_enqueue
+                and str(job.get("status") or "") == "queued"
+                and task_queue_has_task(task_queue, task_id) is False
+            ):
+                should_enqueue = True
+                recovered_orphaned_queue_task = True
         else:
             job_id = deps.create_job(filename, pipeline_id)
+            task_queue = deps.get_task_queue()
 
         if should_enqueue:
             try:
-                deps.get_task_queue().enqueue(
+                task_queue.enqueue(
                     f"report-rerun:{job_id}",
                     deps.run_report_rerun_job,
                     job_id,
@@ -155,6 +169,16 @@ def create_reports_router(deps: ReportRouteDeps) -> APIRouter:
                 message = f"報告重跑任務送入佇列失敗：{exc}"
                 deps.update_job(job_id, "error", error=message)
                 deps.append_event(job_id, {"type": "error", "message": message, "rerun_scope": normalized_scope})
+            else:
+                if recovered_orphaned_queue_task:
+                    deps.append_event(job_id, {
+                        "type": "status",
+                        "phase": "queue_recovered",
+                        "level": "warning",
+                        "message": "佇列中已找不到此報告重跑任務，已重新排入重跑佇列。",
+                        "rerun_scope": normalized_scope,
+                        "source_filename": filename,
+                    })
 
         return {
             "success": True,
@@ -206,14 +230,6 @@ def create_reports_router(deps: ReportRouteDeps) -> APIRouter:
             }
             while True:
                 if await request.is_disconnected():
-                    deps.append_event(job_id, {
-                        "type": "status",
-                        "phase": "client_disconnected",
-                        "level": "info",
-                        "message": "SSE 客戶端已斷線。",
-                        "rerun_scope": rerun_scope,
-                        "source_filename": filename,
-                    })
                     if cancel_on_disconnect:
                         await asyncio.to_thread(deps.request_job_cancel, job_id, "SSE 客戶端斷線，已要求取消報告重跑任務。")
                     break
@@ -247,6 +263,8 @@ def create_reports_router(deps: ReportRouteDeps) -> APIRouter:
                         payload = {"type": "error", "phase": "cancelled", "message": job.get("error", "報告重跑任務已取消")}
                     else:
                         payload = {"type": "error", "message": job.get("error", "報告重跑任務失敗")}
+                    if await asyncio.to_thread(persist_terminal_event_if_missing, deps, job_id, payload):
+                        continue
                     yield {"data": json.dumps(payload, ensure_ascii=False)}
                     break
 
