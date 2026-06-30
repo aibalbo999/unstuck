@@ -1,4 +1,5 @@
 import asyncio
+from types import SimpleNamespace
 import sys
 from pathlib import Path
 
@@ -370,6 +371,62 @@ def test_llm_async_call_timeout_becomes_retryable(monkeypatch):
         assert error_event["metadata"]["timeout_seconds"] == 0.001
     else:
         raise AssertionError("LLM timeout should become AgentTransientError")
+
+
+def test_llm_async_call_streams_deltas_and_processes_full_response(monkeypatch):
+    import agent_runtime.llm_calls as llm_calls
+    from runtime_events import RUNTIME_EVENT_CALLBACK_KEY
+
+    class FakeRotator:
+        keys = ["fake-key"]
+
+        async def async_get_key(self, model_id, estimated_tokens=0):
+            return "fake-key"
+
+        def penalize(self, *_args, **_kwargs):
+            pass
+
+    async def fake_stream(*_args, on_delta=None, **_kwargs):
+        await on_delta("stream chunk one ")
+        await on_delta("stream chunk two ")
+        return SimpleNamespace(text=("stream chunk one stream chunk two " * 8))
+
+    async def fail_full_call(*_args, **_kwargs):
+        raise AssertionError("streaming path should be used when a runtime callback is present")
+
+    emitted = []
+
+    async def callback(event):
+        emitted.append(event)
+
+    monkeypatch.setattr(llm_calls, "_generate_content_stream_async", fake_stream, raising=False)
+    monkeypatch.setattr(llm_calls, "_generate_content_async", fail_full_call)
+    monkeypatch.setattr(llm_calls, "_response_text", lambda response: response.text)
+
+    context = {
+        "agent_positions": {1: 1},
+        "agent_total": 1,
+        "pipeline_id": "v1",
+        "pipeline_label": "test",
+        "structured_outputs": {},
+        RUNTIME_EVENT_CALLBACK_KEY: callback,
+    }
+
+    result = asyncio.run(
+        llm_calls._run_agent_once_async(
+            1,
+            context,
+            FakeRotator(),
+            "gemini-test",
+            "prompt",
+            timeout_seconds=1.0,
+        )
+    )
+
+    stream_events = [event for event in emitted if event.get("type") == "llm_stream_delta"]
+    assert [event["delta"] for event in stream_events] == ["stream chunk one ", "stream chunk two "]
+    assert "stream chunk one stream chunk two" in result
+    assert context["_runtime_events"][-1]["phase"] == "llm_model_response"
 
 
 def test_llm_sync_call_records_timeout_metadata_without_name_error(monkeypatch):

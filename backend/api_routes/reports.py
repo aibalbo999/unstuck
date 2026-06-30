@@ -26,7 +26,6 @@ from storage.report_storage import ReportStorage
 class ReportRouteDeps:
     get_output_dir: Callable[[], str]
     get_report_storage: Callable[[], ReportStorage]
-    get_report_cache: Callable[[], dict]
     get_refresh_service: Callable[[], Any]
     get_pipeline_runner: Callable[[], Any]
     get_report_renderer: Callable[[], Any]
@@ -40,7 +39,6 @@ class ReportRouteDeps:
     request_job_cancel: Callable[[str, str], bool]
     print_streamed_event: Callable[[str, dict], None]
     require_mutation_authorized: Callable[[Request], None]
-    get_report_cache_lock: Callable[[], Any] | None = None
     create_or_attach_job: Callable[..., dict] | None = None
 
 
@@ -66,7 +64,6 @@ def create_reports_router(deps: ReportRouteDeps) -> APIRouter:
             data_trust=data_trust,
             include_versions=include_versions,
             output_dir=deps.get_output_dir(),
-            report_cache=deps.get_report_cache(),
             storage=deps.get_report_storage(),
         )
 
@@ -84,12 +81,9 @@ def create_reports_router(deps: ReportRouteDeps) -> APIRouter:
     @router.delete("/api/reports/{filename}")
     def delete_report(filename: str, request: Request):
         deps.require_mutation_authorized(request)
-        report_cache_lock = deps.get_report_cache_lock() if deps.get_report_cache_lock else None
         return report_history_service.delete_report_files(
             filename,
             deps.get_output_dir(),
-            deps.get_report_cache(),
-            report_cache_lock=report_cache_lock,
             storage=deps.get_report_storage(),
         )
 

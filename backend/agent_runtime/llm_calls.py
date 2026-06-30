@@ -11,12 +11,20 @@ import asyncio
 from analysis_types import AnalysisContext
 from config import LLM_AGENT_CALL_TIMEOUT_SECONDS
 from llm_client import KeyRotator, estimate_text_tokens
-from runtime_events import emit_context_error, emit_context_error_async, emit_context_event, emit_context_event_async, make_runtime_event
+from runtime_events import (
+    RUNTIME_EVENT_CALLBACK_KEY,
+    emit_context_error,
+    emit_context_error_async,
+    emit_context_event,
+    emit_context_event_async,
+    make_runtime_event,
+)
 from structured_outputs import process_agent_response
 
 from .generation_config import (
     _generate_content,
     _generate_content_async,
+    _generate_content_stream_async,
     _response_text,
     build_generation_config,
 )
@@ -76,6 +84,10 @@ def _key_slot_fields(rotator: KeyRotator, api_key: str | None) -> dict:
         except ValueError:
             pass
     return fields
+
+
+def _should_stream_llm_response(context: AnalysisContext) -> bool:
+    return bool((context or {}).get(RUNTIME_EVENT_CALLBACK_KEY))
 
 
 def _run_agent_once(
@@ -200,11 +212,47 @@ async def _run_agent_once_async(
                 ),
             ),
         )
-        response = await _await_with_agent_timeout(
-            _generate_content_async(api_key, model_id, agent_num, prompt),
-            model_id=model_id,
-            timeout_seconds=timeout_seconds,
-        )
+        if _should_stream_llm_response(context):
+            stream_sequence = 0
+
+            async def on_delta(delta: str) -> None:
+                nonlocal stream_sequence
+                if not delta:
+                    return
+                stream_sequence += 1
+                await emit_context_event_async(
+                    context,
+                    make_runtime_event(
+                        "llm_stream_delta",
+                        phase="llm_stream_delta",
+                        level="info",
+                        message=f"Agent {agent_num} 正在串流模型輸出...",
+                        delta=delta,
+                        **_model_event_fields(
+                            context,
+                            agent_num,
+                            model_id,
+                            prompt,
+                            timeout_seconds=timeout_seconds,
+                            stream_sequence=stream_sequence,
+                            delta_chars=len(delta),
+                            **_key_slot_fields(rotator, api_key),
+                        ),
+                    ),
+                    store=False,
+                )
+
+            response = await _await_with_agent_timeout(
+                _generate_content_stream_async(api_key, model_id, agent_num, prompt, on_delta=on_delta),
+                model_id=model_id,
+                timeout_seconds=timeout_seconds,
+            )
+        else:
+            response = await _await_with_agent_timeout(
+                _generate_content_async(api_key, model_id, agent_num, prompt),
+                model_id=model_id,
+                timeout_seconds=timeout_seconds,
+            )
         result = process_agent_response(agent_num, _response_text(response), context)
     except Exception as exc:
         await emit_context_error_async(

@@ -106,7 +106,16 @@ def persist_terminal_event_if_missing(deps: Any, job_id: str, payload: dict) -> 
         deps.append_event(job_id, payload)
     except Exception:
         return False
-    return True
+    try:
+        updated_events = deps.get_events_since(job_id, 0)
+    except Exception:
+        return False
+    return any(
+        isinstance(event, dict)
+        and isinstance(event.get("payload"), dict)
+        and event["payload"].get("type") in {"done", "error"}
+        for event in updated_events
+    )
 
 
 def resolve_resume_after_id(request: Request, last_event_id: int | None, since_id: int | None) -> int:

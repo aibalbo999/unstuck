@@ -59,6 +59,19 @@ def test_key_rotator_reserves_shared_budget(monkeypatch):
     assert limiter.penalties == [("key-one", "gemini-test", 9)]
 
 
+def test_key_rotator_uses_provider_specific_keys(monkeypatch):
+    monkeypatch.setattr(llm_rate_limits, "create_shared_llm_limiter", lambda: None)
+    rotator = llm_rate_limits.KeyRotator({
+        "google": ["google-key"],
+        "openai": ["openai-key"],
+        "anthropic": ["anthropic-key"],
+    })
+
+    assert rotator.get_key("openai:gpt-4.1-mini") == "openai-key"
+    assert rotator.get_key("anthropic:claude-4-sonnet") == "anthropic-key"
+    assert rotator.get_key("gemini-3.5-flash") == "google-key"
+
+
 def test_provider_resilience_uses_shared_circuit_store(monkeypatch):
     class FakeStore:
         enabled = True

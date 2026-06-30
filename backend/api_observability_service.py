@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+import re
 from collections.abc import Callable
 from typing import Any
 
@@ -123,6 +124,61 @@ async def build_api_quota_payload(summary_fetcher: Callable[[int], list[dict]]) 
     return await asyncio.to_thread(_build_api_quota_payload, summary_fetcher)
 
 
+async def build_prometheus_metrics(
+    summary_fetcher: Callable[[int], list[dict]],
+    *,
+    task_queue: Any,
+    provider_limit: int = 1000,
+) -> str:
+    providers, queue = await asyncio.gather(
+        asyncio.to_thread(summary_fetcher, provider_limit),
+        asyncio.to_thread(snapshot_task_queue, task_queue),
+    )
+    lines = [
+        "# HELP stock_agent_provider_sla_success_rate Provider success rate by source.",
+        "# TYPE stock_agent_provider_sla_success_rate gauge",
+    ]
+    for item in providers:
+        labels = _labels(source=item.get("source"), provider=item.get("provider"))
+        lines.append(f"stock_agent_provider_sla_success_rate{labels} {_metric_number(item.get('success_rate'))}")
+    lines.extend([
+        "# HELP stock_agent_provider_sla_attempts_total Provider attempts by source.",
+        "# TYPE stock_agent_provider_sla_attempts_total counter",
+    ])
+    for item in providers:
+        labels = _labels(source=item.get("source"), provider=item.get("provider"))
+        lines.append(f"stock_agent_provider_sla_attempts_total{labels} {_metric_int(item.get('attempts'))}")
+    lines.extend([
+        "# HELP stock_agent_provider_sla_errors_total Provider error count by source.",
+        "# TYPE stock_agent_provider_sla_errors_total counter",
+    ])
+    for item in providers:
+        labels = _labels(source=item.get("source"), provider=item.get("provider"))
+        lines.append(f"stock_agent_provider_sla_errors_total{labels} {_metric_int(item.get('error_count'))}")
+    lines.extend([
+        "# HELP stock_agent_provider_sla_alert Provider alert state; 1 means active warning or critical.",
+        "# TYPE stock_agent_provider_sla_alert gauge",
+    ])
+    for item in providers:
+        level = str(item.get("alert_level") or "ok")
+        labels = _labels(source=item.get("source"), provider=item.get("provider"), level=level)
+        lines.append(f"stock_agent_provider_sla_alert{labels} {1 if level in {'warning', 'critical'} else 0}")
+
+    backend = str(queue.get("backend") or "unknown")
+    lines.extend([
+        "# HELP stock_agent_queue_available Queue backend availability.",
+        "# TYPE stock_agent_queue_available gauge",
+        f"stock_agent_queue_available{_labels(backend=backend)} {1 if queue.get('available') else 0}",
+        "# HELP stock_agent_queue_depth Number of queued jobs.",
+        "# TYPE stock_agent_queue_depth gauge",
+        f"stock_agent_queue_depth{_labels(queue=str(queue.get('queue_name') or backend))} {_metric_int(queue.get('depth'))}",
+    ])
+    for name, details in (queue.get("queues") or {}).items():
+        lines.append(f"stock_agent_queue_depth{_labels(queue=name)} {_metric_int((details or {}).get('depth'))}")
+    lines.append("")
+    return "\n".join(lines)
+
+
 async def build_ops_dashboard_payload(
     summary_fetcher: Callable[[int], list[dict]],
     alerts_fetcher: Callable[[int], list[dict]],
@@ -173,3 +229,29 @@ def _dashboard_status(*, jobs: dict, queue: dict, provider_alerts: list[dict]) -
     if provider_alerts:
         return "warning"
     return "ok"
+
+
+def _labels(**labels: Any) -> str:
+    rendered = []
+    for key, value in labels.items():
+        safe_key = re.sub(r"[^a-zA-Z0-9_]", "_", str(key or "label"))
+        safe_value = str(value or "").replace("\\", "\\\\").replace("\n", "\\n").replace('"', '\\"')
+        rendered.append(f'{safe_key}="{safe_value}"')
+    return "{" + ",".join(rendered) + "}"
+
+
+def _metric_number(value: Any) -> str:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        number = 0.0
+    if number != number or number in {float("inf"), float("-inf")}:
+        number = 0.0
+    return f"{number:g}"
+
+
+def _metric_int(value: Any) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0

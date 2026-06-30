@@ -191,7 +191,11 @@ def test_config_settings_are_split_into_grouped_modules():
         assert (BACKEND / "settings" / filename).exists()
 
     config_text = (BACKEND / "config.py").read_text(encoding="utf-8")
-    assert "from settings.app_config import *" in config_text
+    app_config_text = (BACKEND / "settings" / "app_config.py").read_text(encoding="utf-8")
+    assert "import *" not in config_text
+    assert "import *" not in app_config_text
+    assert "__all__" in config_text
+    assert "__all__" in app_config_text
     assert len((BACKEND / "settings" / "models.py").read_text(encoding="utf-8").splitlines()) < 300
 
 

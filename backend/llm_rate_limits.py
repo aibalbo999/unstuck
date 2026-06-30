@@ -8,6 +8,7 @@ import time
 from dataclasses import dataclass
 
 from config import API_KEY_SETUP_MESSAGE, RPM_LIMITS, TPM_LIMITS
+from llm_provider_routes import provider_for_model
 from runtime_events import emit_log
 from shared_runtime_guards import create_shared_llm_limiter
 
@@ -78,11 +79,13 @@ class KeyRotator:
     without racing each other into a 429.
     """
 
-    def __init__(self, keys: list[str]):
-        if not keys:
+    def __init__(self, keys: list[str] | dict[str, list[str]]):
+        self.provider_keys = _normalize_provider_keys(keys)
+        if not any(self.provider_keys.values()):
             raise RuntimeError(API_KEY_SETUP_MESSAGE)
-        self.keys = list(keys)
+        self.keys = [key for provider_keys in self.provider_keys.values() for key in provider_keys]
         self.index = 0
+        self._provider_indexes = {provider: 0 for provider in self.provider_keys}
         self._rpm_buckets: dict[tuple[str, str], TokenBucket] = {}
         self._tpm_buckets: dict[tuple[str, str], TokenBucket] = {}
         self._sync_lock = threading.Lock()
@@ -130,12 +133,21 @@ class KeyRotator:
 
         return wait
 
-    def _candidate_key_positions(self) -> list[tuple[int, str]]:
+    def _keys_for_model(self, model: str) -> tuple[str, list[str]]:
+        provider = provider_for_model(model)
+        keys = self.provider_keys.get(provider, [])
+        if not keys:
+            raise RuntimeError(f"未設定 {provider} API key，無法呼叫模型 {model}。")
+        return provider, keys
+
+    def _candidate_key_positions(self, model: str) -> tuple[str, list[str], list[tuple[int, str]]]:
+        provider, keys = self._keys_for_model(model)
+        start_index = self._provider_indexes.get(provider, 0)
         candidates = []
-        for offset in range(len(self.keys)):
-            position = (self.index + offset) % len(self.keys)
-            candidates.append((position, self.keys[position]))
-        return candidates
+        for offset in range(len(keys)):
+            position = (start_index + offset) % len(keys)
+            candidates.append((position, keys[position]))
+        return provider, keys, candidates
 
     def _preview_key(self, key: str) -> str:
         return f"{key[:8]}...{key[-4:]}" if len(key) > 12 else "***"
@@ -144,7 +156,7 @@ class KeyRotator:
         """Return a key after reserving RPM/TPM budget; sleeps only when budget is depleted."""
         while True:
             with self._sync_lock:
-                candidates = self._candidate_key_positions()
+                provider, keys, candidates = self._candidate_key_positions(model)
                 reservations = [
                     (self._wait_for_key(key, model, estimated_tokens), position, key)
                     for position, key in candidates
@@ -156,21 +168,22 @@ class KeyRotator:
                         self._reserve_shared_for_key(key, model, estimated_tokens),
                     )
                     if wait <= 0:
-                        self.index = (key_position + 1) % len(self.keys)
+                        self._provider_indexes[provider] = (key_position + 1) % len(keys)
+                        self.index = (self.index + 1) % max(len(self.keys), 1)
 
             if wait > 0:
                 emit_log(f"    ⏳ {model} 動態限速等待 {wait:.1f} 秒...")
                 time.sleep(wait)
                 continue
 
-            emit_log(f"    🔑 使用 Key {self.keys.index(key)+1}/{len(self.keys)} ({self._preview_key(key)})")
+            emit_log(f"    🔑 使用 {provider} Key {keys.index(key)+1}/{len(keys)} ({self._preview_key(key)})")
             return key
 
     async def async_get_key(self, model: str, estimated_tokens: int = 0) -> str:
         """Async version of get_key for parallel agent execution."""
         while True:
             async with self._async_lock:
-                candidates = self._candidate_key_positions()
+                provider, keys, candidates = self._candidate_key_positions(model)
                 reservations = [
                     (self._wait_for_key(key, model, estimated_tokens), position, key)
                     for position, key in candidates
@@ -182,14 +195,15 @@ class KeyRotator:
                         self._reserve_shared_for_key(key, model, estimated_tokens),
                     )
                     if wait <= 0:
-                        self.index = (key_position + 1) % len(self.keys)
+                        self._provider_indexes[provider] = (key_position + 1) % len(keys)
+                        self.index = (self.index + 1) % max(len(self.keys), 1)
 
             if wait > 0:
                 emit_log(f"    ⏳ {model} 動態限速等待 {wait:.1f} 秒...")
                 await asyncio.sleep(wait)
                 continue
 
-            emit_log(f"    🔑 使用 Key {self.keys.index(key)+1}/{len(self.keys)} ({self._preview_key(key)})")
+            emit_log(f"    🔑 使用 {provider} Key {keys.index(key)+1}/{len(keys)} ({self._preview_key(key)})")
             return key
 
     def penalize(self, key: str, model: str, wait_seconds: float = 60) -> None:
@@ -225,3 +239,12 @@ def estimate_text_tokens(text: str, response_budget: int = 0) -> int:
     if not text:
         return max(response_budget, 1)
     return max(int(len(text) / 3.5) + response_budget, 1)
+
+
+def _normalize_provider_keys(keys: list[str] | dict[str, list[str]]) -> dict[str, list[str]]:
+    if isinstance(keys, dict):
+        return {
+            str(provider or "").strip().lower(): list(dict.fromkeys(str(key).strip() for key in provider_keys if str(key).strip()))
+            for provider, provider_keys in keys.items()
+        }
+    return {"google": list(dict.fromkeys(str(key).strip() for key in keys if str(key).strip()))}

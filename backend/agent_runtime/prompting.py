@@ -6,7 +6,15 @@ import copy
 from analysis_types import AnalysisContext, StockData
 from agent_catalog import AGENT_NAMES
 from assistant_context import _format_previous
-from config import PRIMARY_PROMPT_CONTEXT_TOTAL_CHAR_BUDGET, PRIMARY_PROMPT_RAG_CONTEXT_CHARS
+from config import (
+    AGENT_MODELS,
+    PRIMARY_PROMPT_CONTEXT_TOTAL_CHAR_BUDGET,
+    PRIMARY_PROMPT_RAG_CONTEXT_CHARS,
+    PROMPT_CONTEXT_RESPONSE_TOKEN_BUDGET,
+    PROMPT_CONTEXT_SAFETY_MARGIN_TOKENS,
+    get_model_context_token_limit,
+)
+from llm_rate_limits import estimate_text_tokens
 from prompt_builder import format_data_for_prompt, render_prompt_template
 from prompt_rules import (
     build_agent_rule_block,
@@ -39,6 +47,45 @@ ROUTED_EXTERNAL_CONTEXT_KEYS = {
     "temporal_memory": {7, 16, 19, 21, 24},
     "valuation_memory": {4, 14},
 }
+
+
+def get_agent_prompt_token_budget(agent_num: int) -> int:
+    """Return the estimated input-token budget left after reserving model output space."""
+    model_id = AGENT_MODELS.get(int(agent_num), "")
+    context_limit = get_model_context_token_limit(model_id)
+    if context_limit <= 0:
+        return 0
+    reserved = max(0, int(PROMPT_CONTEXT_RESPONSE_TOKEN_BUDGET)) + max(0, int(PROMPT_CONTEXT_SAFETY_MARGIN_TOKENS))
+    return max(256, int(context_limit) - reserved)
+
+
+def _enforce_prompt_token_budget(prompt: str, agent_num: int) -> str:
+    token_budget = get_agent_prompt_token_budget(agent_num)
+    if token_budget <= 0 or estimate_text_tokens(prompt) <= token_budget:
+        return prompt
+
+    note = (
+        "\n\n【Prompt budget guard】模型 context window 預估將超限；"
+        "系統已截斷中段非關鍵 context（歷史 news、RAG、前序摘要），請優先依保留的原始資料、AgentState 與尾端規則作答。\n\n"
+    )
+    max_chars = max(int(token_budget * 3.5), len(note))
+    available = max(max_chars - len(note), 0)
+    if available <= 0:
+        return note[:max_chars]
+
+    tail_chars = min(max(512, available // 3), available)
+    head_chars = max(0, available - tail_chars)
+    tail = prompt[-tail_chars:].lstrip() if tail_chars else ""
+    trimmed = f"{prompt[:head_chars].rstrip()}{note}{tail}"
+    while estimate_text_tokens(trimmed) > token_budget and len(trimmed) > len(note):
+        trim_chars = max(128, int((estimate_text_tokens(trimmed) - token_budget) * 3.5))
+        if head_chars > 0:
+            head_chars = max(0, head_chars - trim_chars)
+        else:
+            tail_chars = max(0, tail_chars - trim_chars)
+        tail = prompt[-tail_chars:].lstrip() if tail_chars else ""
+        trimmed = f"{prompt[:head_chars].rstrip()}{note}{tail}"
+    return trimmed
 
 
 def data_for_agent_prompt(agent_num: int, data: StockData) -> StockData:
@@ -184,7 +231,7 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
         final_audit_preflight_rule,
         OUTPUT_CLEANLINESS_RULE,
     ]
-    return "\n\n".join(part for part in prompt_parts if part)
+    return _enforce_prompt_token_budget("\n\n".join(part for part in prompt_parts if part), agent_num)
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 核心 Agent 執行函數

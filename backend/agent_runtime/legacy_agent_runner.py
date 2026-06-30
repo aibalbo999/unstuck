@@ -25,7 +25,6 @@ from validators import (  # noqa: F401
 from . import audit_repair as _audit_repair
 from .audit_repair import *  # noqa: F401,F403
 from .llm_calls import *  # noqa: F401,F403
-from .pipeline_compat import *  # noqa: F401,F403
 from .prompt_config import *  # noqa: F401,F403
 from .prompting import *  # noqa: F401,F403
 from .routing import *  # noqa: F401,F403

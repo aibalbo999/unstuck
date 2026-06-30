@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from agent_runtime import AnalysisPipelineRunner, AnalysisRequest
 from analysis_types import AnalysisContext, StockData
-from config import API_KEY_SETUP_MESSAGE, API_KEYS
+from config import API_KEY_SETUP_MESSAGE, has_api_keys
 from workflow_graph import run_analysis_workflow
 
 
@@ -19,7 +19,7 @@ async def run_analysis_pipeline_async(
 ) -> AnalysisContext:
     """Run the selected analysis pipeline through the durable graph runtime."""
 
-    if not API_KEYS:
+    if not has_api_keys():
         raise RuntimeError(API_KEY_SETUP_MESSAGE)
     result = await AnalysisPipelineRunner().run_async(
         AnalysisRequest(
@@ -33,4 +33,3 @@ async def run_analysis_pipeline_async(
         )
     )
     return result.context
-

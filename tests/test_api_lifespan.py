@@ -101,6 +101,8 @@ def test_api_source_excludes_background_runtime_startup():
     source = (ROOT / "backend" / "api.py").read_text(encoding="utf-8")
 
     for forbidden in [
+        "report_cache",
+        "report_cache_lock",
         "_cleanup_reports_forever",
         "_mark_abandoned_local_jobs",
         "start_workers",

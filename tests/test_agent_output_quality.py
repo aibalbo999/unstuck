@@ -42,6 +42,35 @@ def test_final_agent_prompts_preserve_risk_and_quality_contracts():
     assert "no text may appear after [/投資建議]" in agent19 or "不得在 [/投資建議] 後添加任何文字" in agent19
 
 
+def test_agent_prompt_config_validates_schema_and_exposes_prompt_version(tmp_path):
+    config = load_agent_prompt_config()
+
+    assert config["version"] == 1
+    assert config["prompt_version"] == "agents:v1"
+
+    invalid = tmp_path / "bad_agents.json"
+    invalid.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "description": "bad fixture",
+                "state_view_policy": {},
+                "system_prompts": {"1": ""},
+                "analysis_prompts": {"1": "ok"},
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    try:
+        load_agent_prompt_config(str(invalid))
+    except ValueError as exc:
+        assert "Prompt config schema invalid" in str(exc)
+    else:
+        raise AssertionError("invalid prompt config should fail schema validation")
+
+
 def test_model_routes_allow_gemini_35_flash_with_flash_25_fallback_rotation():
     routes = json.loads((ROOT / "backend" / "model_routes.json").read_text(encoding="utf-8"))
     routed_models = [

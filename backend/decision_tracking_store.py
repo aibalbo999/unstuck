@@ -8,12 +8,12 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from config import CACHE_DB_PATH
+from config import TASK_DB_PATH
 from storage.sqlite_resource import ThreadLocalSqliteResource
 
 
 TAIPEI = ZoneInfo("Asia/Taipei")
-DECISION_TRACKING_DB_PATH = os.getenv("DECISION_TRACKING_DB_PATH", str(Path(CACHE_DB_PATH).parent / "decision_tracking.sqlite3"))
+DECISION_TRACKING_DB_PATH = os.getenv("DECISION_TRACKING_DB_PATH", TASK_DB_PATH)
 
 
 def _db_path() -> Path:

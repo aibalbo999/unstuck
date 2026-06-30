@@ -38,6 +38,11 @@ async def generate_content_async(api_key: str, model_id: str, prompt: str, confi
     return await _transport.generate_content_async(api_key, model_id, prompt, config)
 
 
+async def generate_content_stream_async(api_key: str, model_id: str, prompt: str, config, *, on_delta=None):
+    _sync_transport_seams()
+    return await _transport.generate_content_stream_async(api_key, model_id, prompt, config, on_delta=on_delta)
+
+
 def embed_content(api_key: str, model_id: str, contents, config):
     _sync_transport_seams()
     return _transport.embed_content(api_key, model_id, contents, config)
@@ -67,6 +72,7 @@ __all__ = [
     "estimate_text_tokens",
     "generate_content",
     "generate_content_async",
+    "generate_content_stream_async",
     "generate_images",
     "generate_images_async",
     "genai",

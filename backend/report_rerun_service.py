@@ -12,7 +12,7 @@ from agent_runtime import AnalysisRequest
 from agent_runtime.cancellation import attach_cancel_check
 from agent_runtime.quality_gates import run_agent_with_quality_gates_async
 from company_display import company_display_name
-from config import API_KEYS
+from config import LLM_API_KEYS_BY_PROVIDER
 from data_fetch import FetchRequest
 from final_audit import run_final_report_audit
 from llm_client import KeyRotator
@@ -165,7 +165,7 @@ async def _run_final_recommendation_rerun(
         })
     if callable(cancel_check):
         cancel_check()
-    rotator = KeyRotator(API_KEYS)
+    rotator = KeyRotator(LLM_API_KEYS_BY_PROVIDER)
     await run_agent_with_quality_gates_async(final_agent, context["data"], context, rotator)
     if callable(cancel_check):
         cancel_check()

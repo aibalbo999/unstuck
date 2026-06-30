@@ -7,7 +7,7 @@
 ## 功能
 
 - FastAPI 後端與簡易前端介面
-- SSE 即時推播分析進度
+- SSE 即時推播分析進度；支援 Agent LLM token delta 事件，長回應期間前端也能收到細粒度輸出進度
 - 支援台股代號，例如 `2330`、`2330.TW`
 - 自動切換 `.TW` / `.TWO` 查詢
 - 多 Agent 串接分析流程，支援 Mode A（學術深度派）、Mode B（實戰交易派）、Mode C（逆勢交易與泡沫狙擊）與 Mode D（極短線波段與事件驅動）
@@ -24,20 +24,24 @@
 - 內建報告刪除 API，會同步刪除 `.html`、`.md` 與資料快照
 - 結構化 Agent 使用 JSON 輸出優先解析；Mode A/B 會解析護城河、估值與投資建議，Mode C 會解析泡沫狙擊建議，Mode D 會解析極短線交易設定
 - Mode C 的 Agent 19 報告會強制保留做空觸發條件、防軋空停損點，並將 `[投資建議]` 區塊固定放在最終段落尾端；Mode D 則使用 Agent 24 輸出標準化 Trade Setup
-- 財務資料使用本地 SQLite 持久化快取，預設 24 小時
+- 財務資料使用快取後端持久化，預設走 Redis；SQLite cache 仍可作為本機 fallback，財務資料 TTL 預設 24 小時
 - 台股會嘗試以 FinMind / TWSE 官方資料補抓最近四季財報，成功時納入跨來源比對；未取得時 HTML 報告會顯示官方財務資料警示
 - yfinance 欄位缺漏時會用 FMP（需 API key）或可追溯的衍生補值補上市場欄位、TTM 營收或 FCF，並在 prompt 中揭露限制
-- QuantEngine 若因缺少 `total_equity`、`total_debt`、`free_cash_flows` 等欄位而使用預設假設，會在 `quant_metrics` 標記 `fallback_fields` 與 `data_quality_warning`
+- QuantEngine 會用 FRED DGS10 等 macro data 動態推導 WACC / DCF 折現率；若缺少 `total_equity`、`total_debt`、`free_cash_flows`、risk-free rate、beta 等欄位而使用預設假設，會在 `quant_metrics` 標記 `fallback_fields` 與 `data_quality_warning`
 - 歷史報告會自動清理孤立 Markdown，並刪除超過保留天數的舊報告
 - 長任務透過 SQLite job/event store 與任務佇列抽象執行，可用本地 worker 或切換 RQ/Redis
-- 多 Agent 分析流程已改由 LangGraph `StateGraph` 執行；Worker 使用 SQLite checkpoint 以 `job_id:pipeline_id` 恢復 429 / 暫時性中斷，不重跑已完成節點
+- 多 Agent 分析流程已統一走 async LangGraph `StateGraph` 執行；Worker 使用 SQLite checkpoint 以 `job_id:pipeline_id` 恢復 429 / 暫時性中斷，不重跑已完成節點
 - Agent step cache 會以 ticker、資料快照 fingerprint、agent、prompt version、model 與 prompt hash 快取成功輸出，讓相同資料與 prompt 的 rerun 可跳過 LLM 呼叫並還原 structured output
-- API 額度儀表板使用 `api_usage_events` ledger 統計 Gemini provider request、Google Custom Search 與 FMP 本機觀測用量
+- RAG index 會以 ticker、資料 snapshot fingerprint、embedding model 與 chunk 設定作為 cache key，在 Agent step cache TTL 內複用 embedding index；Context Digest 也會以 context hash、agent、model 與 prompt version 去重
+- API 額度儀表板使用 `api_usage_events` ledger 統計 LLM provider request、Google Custom Search 與 FMP 本機觀測用量
+- `/metrics` 會輸出 Prometheus text format，包含 provider SLA 與 RQ queue availability/depth
 - Watchlist 可設定盤前/盤後批次分析，儲存在 SQLite，排程執行會先原子認領 due slot 並保留舊 JSON 一次性匯入相容
 - Watchlist 支援事件驅動雷達 triggers：跌破均線、外資連賣、VIX 飆升會自動派送 Mode C；營收創高會自動派送 Mode B，且每日事件以 SQLite 去重
 - Daily screener 會為候選股附加 Quality Funnel：基本面不足標示 `gray`，硬性品質缺陷標示 `reject`，完整通過標示 `pass`
 - 研究 playbook registry 統一描述 Mode A/B/C/D 與買入前 checklist、投資論文追蹤、組合檢查、品質篩選等非 pipeline 工作流
-- 財務抓取與 Gemini 分析管線提供 async 版本，API 生成報告時走新版 `google-genai` 非同步 client
+- LLM route 支援 provider-prefixed model ID，例如 `openai:gpt-4.1-mini`、`anthropic:claude-...`；未加 prefix 時預設視為 Google / Gemini，相同 agent 可設定跨供應商 fallback
+- Prompt 設定在 runtime 以 Pydantic schema 驗證，`prompt_version` 會進入 Agent step cache key，避免 prompt 變更後誤用舊 cache
+- 財務抓取與分析管線走單一 async 路徑；Google / Gemini 呼叫使用新版 `google-genai` 非同步 client，OpenAI / Anthropic 走 HTTP adapter；舊同步 pipeline 與 compat 層已移除
 - 針對常見財務錯誤加入品質檢查，例如 DuPont、DCF / P/E、WACC、FCF 與公司身分一致性
 
 ## 專案結構
@@ -46,11 +50,14 @@
 stock-agent/
 ├── backend/
 │   ├── api.py              # FastAPI 服務與報告 API
-│   ├── agent_runner.py     # 多 Agent prompt、模型呼叫、品質檢查
-│   ├── prompt_loader.py    # 從 prompts/ 載入 prompt 設定
-│   ├── cache_store.py      # SQLite JSON 快取
+│   ├── agent_runtime/      # async Agent 執行、prompt 組裝、LLM 呼叫、品質檢查
+│   ├── pipeline_async.py   # 單一 async pipeline 入口
+│   ├── prompt_loader.py    # 從 prompts/ 載入並驗證 prompt 設定
+│   ├── llm_provider_routes.py # provider-prefixed model route 解析
+│   ├── cache_store.py      # JSON cache facade，可接 Redis / SQLite / memory
 │   ├── job_store.py        # SQLite job / SSE event store
 │   ├── api_usage_store.py  # API 用量 ledger
+│   ├── api_observability_service.py # Quota / SLA / Prometheus metrics payload
 │   ├── watchlist_service.py # Watchlist SQLite 儲存與批次排程 helper
 │   ├── watchlist_triggers.py # Watchlist 事件雷達 trigger 判斷
 │   ├── decision_backtest_service.py # 決策追蹤到期回測與績效統計
@@ -62,8 +69,9 @@ stock-agent/
 │   ├── evidence_exit_gate.py # 報告數字證據抽查 gate
 │   ├── research_playbooks.py # Pipeline 與決策紀律 playbook registry
 │   ├── quality_funnel.py # 候選股品質漏斗 pass/gray/reject
+│   ├── rag_runtime/       # RAG chunk / embedding / hybrid search 與 index cache
 │   ├── task_queue.py       # 本地長任務佇列抽象，可切換 RQ
-│   ├── config.py           # 模型與環境變數設定
+│   ├── config.py           # 相容層；實際設定分在 settings/*.py
 │   ├── financial_data.py   # 財務資料抓取與 prompt 資料摘要
 │   ├── report_gen.py       # HTML / Markdown 報告產生器
 │   ├── prompts/            # Agent system / analysis prompt JSON
@@ -104,6 +112,9 @@ cp backend/.env.example backend/.env
 
 ```bash
 GEMINI_API_KEYS=your_key_1,your_key_2
+# 可選：跨供應商 fallback
+OPENAI_API_KEYS=your_openai_key
+ANTHROPIC_API_KEYS=your_anthropic_key
 ```
 
 `replace_with_key_1`、`your_key_1` 這類範例字串會被系統忽略。設定或修改 `backend/.env` 後，請重新啟動 `start_mac.command` 或 uvicorn。
@@ -112,6 +123,8 @@ GEMINI_API_KEYS=your_key_1,your_key_2
 
 ```bash
 export GEMINI_API_KEYS="your_key_1,your_key_2"
+export OPENAI_API_KEYS="your_openai_key"
+export ANTHROPIC_API_KEYS="your_anthropic_key"
 ```
 
 修改端點會要求 `X-Mutation-Token`。舊版 `X-Admin-Token` alias 預設不再接受；若短期需要相容舊腳本，可暫時設定 `ALLOW_LEGACY_ADMIN_TOKEN=true`。若沒有設定 `MUTATION_API_TOKEN`，後端會在啟動時產生同源 runtime token，前端會自動透過 `/api/client-config` 取得；自動化腳本可參考 [docs/api.md](docs/api.md)。
@@ -130,6 +143,8 @@ Production profile 請設定 `UNSTUCK_ENV=production` 或 `DEPLOYMENT_MODE=serve
 - `GOOGLE_API_KEYS`
 - `GOOGLE_API_KEY_1` 到 `GOOGLE_API_KEY_10`
 - `GEMINI_API_KEY_1` 到 `GEMINI_API_KEY_10`
+- `OPENAI_API_KEYS` / `OPENAI_API_KEY` / `OPENAI_API_KEY_1` 到 `OPENAI_API_KEY_10`：可選，用於 `openai:<model>` 路由
+- `ANTHROPIC_API_KEYS` / `ANTHROPIC_API_KEY` / `ANTHROPIC_API_KEY_1` 到 `ANTHROPIC_API_KEY_10`：可選，用於 `anthropic:<model>` 或 `claude:<model>` 路由
 - `GOOGLE_SEARCH_API_KEY`、`GOOGLE_CSE_ID`：可選，用於近期新聞與催化劑搜尋
 - `GOOGLE_SEARCH_REFERER`：可選；若 Google Search API key 使用 HTTP Referrer 限制，後端呼叫會把此值送為 `Referer` header。更建議建立一把後端專用 key，Application restriction 使用 IP 或暫時 None，API restriction 限制在 Custom Search JSON API。
 - `WEB_SEARCH_PROVIDER_ORDER`：可選，替代搜尋來源順序，預設 `tavily,serpapi,google_news_rss,gdelt,yahoo_rss,brave`；`google_news_rss`、`gdelt`、`yahoo_rss` 不需 key。
@@ -140,9 +155,11 @@ Production profile 請設定 `UNSTUCK_ENV=production` 或 `DEPLOYMENT_MODE=serve
 
 可選設定：
 
-- 模型路由預設由 `backend/model_routes.json` 管理，也可用 `MODEL_ROUTES_FILE`、`DEFAULT_ANALYSIS_MODEL`、`DEFAULT_DECISION_MODEL`、`AGENT_MODELS_JSON` 或 `AGENT_MODEL_1` 到 `AGENT_MODEL_7` 覆寫
+- 模型路由預設由 `backend/model_routes.json` 管理，也可用 `MODEL_ROUTES_FILE`、`DEFAULT_ANALYSIS_MODEL`、`DEFAULT_DECISION_MODEL`、`AGENT_MODELS_JSON` 或 `AGENT_MODEL_<agent_num>` 覆寫；model ID 可加 `google:`、`openai:`、`anthropic:` / `claude:` prefix，未加 prefix 時預設視為 Google
 - `LARGE_CONTEXT_MODEL_PATTERN`：預設已包含 `gemma`，確保 gemma-4-31b-it 使用 28,000 字元大 context 預算。
 - `OUTPUT_DIR`：報告輸出目錄，預設 `backend/output/`
+- `CACHE_BACKEND`：cache 後端，預設 `redis`；測試或離線情境可設 `sqlite` / `memory`
+- `CACHE_NAMESPACE`：Redis cache namespace，預設 `stock-agent`
 - `CACHE_DB_PATH`：SQLite 快取檔位置，預設 `backend/cache/stock_agent_cache.sqlite3`
 - `FINANCIAL_DATA_CACHE_SECONDS`：財務資料快取秒數，預設 `86400`
 - `REPORT_RETENTION_DAYS`：舊報告保留天數，預設 `30`
@@ -163,26 +180,31 @@ Production profile 請設定 `UNSTUCK_ENV=production` 或 `DEPLOYMENT_MODE=serve
 - `RQ_JOB_MAX_RETRIES`：RQ job 最大重試次數，預設 `4`
 - `RQ_JOB_RETRY_INTERVALS`：RQ 延遲重試秒數清單，預設 `60,300,900,1800`
 - `RQ_JOB_TIMEOUT_SECONDS`：單一 RQ job 最長執行秒數，預設 `14400`（4 小時），避免完整報告/LLM 重跑被 RQ 預設短 timeout 提早中止
-- `LANGGRAPH_CHECKPOINT_PATH`：LangGraph SQLite checkpoint DB，預設 `backend/cache/langgraph_checkpoints.sqlite3`
-- `TASK_DB_PATH`：任務與 SSE event SQLite 檔位置，預設 `backend/cache/analysis_jobs.sqlite3`
+- `OPERATIONAL_DB_PATH`：任務、SSE event、API usage、provider SLA 與 watchlist 預設共用的 operational SQLite DB，預設 `backend/cache/operational.sqlite3`
+- `LANGGRAPH_CHECKPOINT_PATH`：LangGraph SQLite checkpoint DB，預設跟隨 `CACHE_DB_PATH`
+- `TASK_DB_PATH`：任務與 SSE event SQLite 檔位置，預設跟隨 `OPERATIONAL_DB_PATH`
 - `SQLITE_BACKUP_DIR`：SQLite 每日維護備份目錄，預設 `backend/cache/sqlite_backups`
 - `API_USAGE_DB_PATH`：API 用量 ledger SQLite 檔位置，預設跟隨 `TASK_DB_PATH`
 - `WATCHLIST_PATH`：舊版 watchlist JSON 位置；若存在會一次性匯入 SQLite，預設 `backend/cache/watchlist.json`
-- `WATCHLIST_DB_PATH`：watchlist SQLite 檔位置，預設為 `WATCHLIST_PATH` 同名 `.sqlite3`
+- `WATCHLIST_DB_PATH`：watchlist SQLite 檔位置，預設跟隨 `TASK_DB_PATH`；若顯式設定則使用指定檔案
 - `ANALYSIS_JOB_STALE_SECONDS`：queued/running 任務超過此秒數未更新時不再被視為活躍，預設 `21600`
 - `ANALYSIS_JOB_HISTORY_RETENTION_DAYS`：已完成/失敗/取消任務紀錄保留天數，預設 `30`
 - `LLM_AGENT_CALL_TIMEOUT_SECONDS`：單次 Agent LLM 呼叫 timeout 秒數，預設 `120`；會傳入 Google GenAI `HttpOptions.timeout`，非同步路徑另有外層 `asyncio.wait_for` 保護，設為 `0` 可關閉
 - `PRIMARY_LLM_AGENT_CALL_TIMEOUT_SECONDS`：有備援模型時 primary model 單次呼叫 timeout 秒數，預設 `360`，讓 Gemma 等大型 primary 模型有較完整的產出時間
 - `FALLBACK_LLM_AGENT_CALL_TIMEOUT_SECONDS`：備援模型單次呼叫 timeout 秒數，預設沿用 `LLM_AGENT_CALL_TIMEOUT_SECONDS`
+- `MODEL_CONTEXT_TOKEN_LIMITS_JSON` / `DEFAULT_MODEL_CONTEXT_TOKEN_LIMIT`：prompt budget guard 的模型 context window 設定，預設 wildcard `1000000`
+- `PROMPT_CONTEXT_RESPONSE_TOKEN_BUDGET` / `PROMPT_CONTEXT_SAFETY_MARGIN_TOKENS`：組 prompt 時預留 response 與安全邊界 token，超出時會截斷非關鍵 context
 - `AGENT_STEP_CACHE_ENABLED`：是否啟用 Agent step cache，預設 `true`
-- `AGENT_STEP_CACHE_SECONDS`：Agent step cache TTL 秒數，預設 `604800`（7 天）
+- `AGENT_STEP_CACHE_SECONDS`：Agent step cache、RAG index cache 與 Context Digest cache TTL 秒數，預設 `604800`（7 天）
 - `LLM_SERVER_ERROR_MAX_ATTEMPTS`：模型服務 500/503/忙碌時的持續嘗試次數，預設 `6`
 - `LLM_SERVER_ERROR_RETRY_MAX_WAIT_SECONDS`：模型服務 5xx 重試 backoff 單次等待上限，預設 `45`
 - 429 quota / rate-limit 會至少輪完所有 API key 才判定該模型不可用；任務事件只記錄 `key_slot/key_count`，不保存 key 明文
 - `FMP_BASE_URL`：FMP API base URL，預設 `https://financialmodelingprep.com/stable`
-- `WACC_COST_OF_EQUITY_PCT`：系統 DCF/WACC 的預設股權成本，預設 `10.0`
-- `WACC_COST_OF_DEBT_PCT`：系統 DCF/WACC 的預設債務成本，預設 `3.0`
+- `WACC_COST_OF_EQUITY_PCT`：系統 DCF/WACC 無法取得 risk-free rate 時的預設股權成本，預設 `10.0`
+- `WACC_COST_OF_DEBT_PCT`：系統 DCF/WACC 無法取得 risk-free rate 時的預設債務成本，預設 `3.0`
 - `WACC_TAX_RATE_PCT`：系統 DCF/WACC 的預設稅率，預設 `20.0`
+- `WACC_EQUITY_RISK_PREMIUM_PCT`：CAPM equity risk premium fallback，預設 `5.5`
+- `WACC_CREDIT_SPREAD_PCT`：cost of debt credit spread fallback，預設 `1.5`
 - `GDELT_RATE_LIMIT_COOLDOWN_SECONDS`：GDELT 國際新聞遇到 HTTP 429 後的冷卻秒數，預設 `900`
 - GDELT 國際新聞會先使用 topic cache；遇到 429 時會進入 cooldown，優先讀快取，否則改用 Google News RSS 備援，避免單次分析連續打爆 GDELT
 
@@ -411,10 +433,13 @@ curl -X DELETE -H "X-Mutation-Token: $TOKEN" \
 curl http://127.0.0.1:8080/api/observability/api-quotas
 curl http://127.0.0.1:8080/api/observability/provider-sla
 curl http://127.0.0.1:8080/api/observability/dashboard
+curl http://127.0.0.1:8080/metrics
 curl http://127.0.0.1:8080/readyz
 curl -H "X-Mutation-Token: $TOKEN" http://127.0.0.1:8080/api/maintenance/storage-summary
 curl http://127.0.0.1:8080/api/watchlist
 ```
+
+`/metrics` 使用 Prometheus text format，適合接到 Prometheus / Grafana 或外部告警系統；本機維運頁仍可用 JSON dashboard 看同一批 provider SLA 與 queue health。
 
 ## 輸出檔案
 
@@ -434,7 +459,7 @@ backend/output/
 
 `.data.json` 是資料快照，包含來源審計、資料可信度、`data_confidence_score`、結論 guardrails、`reproducibility_packet`、決策追蹤基準與重跑 context。當資料信心低於 60/100 時，snapshot 會標記明確目標價不可用，最終結論只能保留區間或資料不足說明。只刷新資料快照時，HTML / Markdown 正文不會自動改寫。
 
-`backend/cache/` 也已被 Git 忽略。財務資料快取預設保存 24 小時，可透過 `FINANCIAL_DATA_CACHE_SECONDS` 調整。歷史報告預設保留 30 天，可透過 `REPORT_RETENTION_DAYS` 調整；前端刪除 HTML 報告時，後端會同步刪除同名 Markdown 與資料快照。
+`backend/cache/` 也已被 Git 忽略。財務資料快取預設保存 24 小時，可透過 `FINANCIAL_DATA_CACHE_SECONDS` 調整；`CACHE_BACKEND=redis` 時會使用 Redis 與 `CACHE_NAMESPACE`，`CACHE_BACKEND=sqlite` 時才使用 `CACHE_DB_PATH`。歷史報告列表由 report index / storage 查詢產生，不依賴 API process 內的 in-memory dict，因此多 uvicorn worker 與獨立 RQ worker 會看到一致的報告狀態。歷史報告預設保留 30 天，可透過 `REPORT_RETENTION_DAYS` 調整；前端刪除 HTML 報告時，後端會同步刪除同名 Markdown 與資料快照。
 
 ## API / Worker 分離與任務佇列
 
@@ -451,6 +476,7 @@ uvicorn api:app --app-dir backend
 ```bash
 TASK_QUEUE_BACKEND=rq
 REDIS_URL=redis://localhost:6379/0
+CACHE_BACKEND=redis
 TASK_QUEUE_NAME=stock-analysis
 TASK_QUEUE_NAMES=stock-analysis,analysis.high,analysis.normal,watchlist,maintenance,llm.retry
 RQ_JOB_TIMEOUT_SECONDS=14400
@@ -472,7 +498,7 @@ Redis health check 可用 `redis-cli -u "$REDIS_URL" ping`（預期 `PONG`），
 
 API process manager 可用 `/healthz` 做 liveness probe，用 `/readyz` 做 readiness probe；`/readyz` 會檢查 runtime storage 與 Redis/RQ queue，不可用時回 HTTP 503。Operator 可用 `/api/observability/dashboard` 查看報告耗時 p50/p95/p99、stuck jobs、node/model telemetry、prompt token budget、RQ queue depth、provider degradation 與 API quota ledger 摘要。
 
-任務狀態、SSE 事件與預設 API 用量 ledger 會寫入 `TASK_DB_PATH` 指定的 SQLite 檔，所以 API 與 worker 需要共用同一個檔案路徑。若另外設定 `API_USAGE_DB_PATH` 或 `WATCHLIST_DB_PATH`，也要讓 API 與背景 worker 指向同一份檔案。
+任務狀態、SSE 事件、API 用量 ledger、provider SLA 與 watchlist 預設會寫入 `OPERATIONAL_DB_PATH` / `TASK_DB_PATH` 指定的 SQLite 檔，所以 API 與 worker 需要共用同一個檔案路徑。LangGraph checkpoint 預設跟隨 `CACHE_DB_PATH`；若另外設定 `API_USAGE_DB_PATH`、`WATCHLIST_DB_PATH` 或 `LANGGRAPH_CHECKPOINT_PATH`，也要讓 API 與背景 worker 指向同一份檔案。這個預設把 operational data 與 cache/checkpoint data 分成兩個主要 DB，降低備份與維運分散度。
 
 ## 常見問題
 
@@ -492,7 +518,7 @@ GEMINI_API_KEYS=...
 
 ### 2. 分析很久沒有完成
 
-通常是模型 API 回應慢、API quota 接近限制，或個股資料很異常導致 Agent 重試。後端會透過 SSE 持續送出 ping，前端沒有立即完成不一定代表失敗。
+通常是模型 API 回應慢、API quota 接近限制，或個股資料很異常導致 Agent 重試。後端會透過 SSE 持續送出 ping；async Agent LLM path 也會送出 `llm_stream_delta` 事件，讓長回應期間仍有細粒度進度。前端沒有立即完成不一定代表失敗。
 
 若來源健康或終端機出現 `GDELT ... 429 Too Many Requests`，代表 GDELT 國際新聞來源暫時限流。系統會自動進入 cooldown、讀取 GDELT topic cache，或改用 Google News RSS 備援；通常不需要人工中止分析。若要拉長冷卻時間，可調整 `GDELT_RATE_LIMIT_COOLDOWN_SECONDS`。
 
@@ -547,18 +573,20 @@ xattr -d com.apple.quarantine start_mac_lan.command
 
 - 不要把生成報告提交到 Git。
 - 不要把真實 API key 寫進程式碼。
-- Prompt 主要放在 `backend/prompts/agents.json`，修改後請確認各 pipeline 的 Agent 都保留 system 與 analysis prompt；Mode C 使用 Agent 17 / 18 / 19，Mode D 使用 Agent 22 / 23 / 24。
+- Prompt 主要放在 `backend/prompts/agents.json`，runtime 會用 Pydantic schema 驗證；修改後請確認各 pipeline 的 Agent 都保留 system 與 analysis prompt，並更新或確認 `prompt_version`。Mode C 使用 Agent 17 / 18 / 19，Mode D 使用 Agent 22 / 23 / 24。
 - HTML 報告版型主要放在 `backend/templates/report.html.j2`，Python 只負責整理資料與渲染模板。
-- 修改 prompt 或品質檢查後，建議至少跑一次 `python3 -m py_compile`。
+- 修改 prompt、品質檢查、pipeline 或核心型別後，建議跑 `scripts/ci_gate.sh`；CI gate 會執行 runtime check、secret scan、SBOM、`compileall`、核心 mypy strict 與 coverage 測試。
 - 修改 DCF/WACC 或 `quant_metrics` 時，請確認 `fallback_fields`、`data_quality_warning`、Agent 7【資料警示】與 final audit 的 DCF 衝突檢查仍一致。
+- 修改 pipeline 時請維持單一 async path；`pipeline_sync.py` 與 `agent_runtime/pipeline_compat.py` 已移除，CLI / API 都應透過 async pipeline 入口。
 - 修改台股資料 provider 時，請確認 `twse_official` source audit、跨來源比對與報告警示仍能同時運作。
 - 若調整公司身分檢查，請測試「同業比較」與「公司錯置」兩種情境，避免誤殺產業普通名詞。
 
 ## 快速檢查
 
 ```bash
-python3 -m py_compile backend/config.py backend/cache_store.py backend/job_store.py backend/analysis_jobs.py backend/task_queue.py backend/prompt_loader.py backend/agent_runner.py backend/api.py backend/financial_data.py backend/report_gen.py main.py
+"$(scripts/project_python.sh)" -m compileall backend
+"$(scripts/project_python.sh)" -m mypy --strict --follow-imports=skip backend/analysis_types.py backend/workflow_state.py
 rg -n "API_KEY|PRIVATE KEY|github[_-]pat" .
 ```
 
-第二個指令不應在可提交檔案中找到任何秘密資訊。
+第三個指令不應在可提交檔案中找到任何秘密資訊。完整提交前建議直接跑 `scripts/ci_gate.sh`。

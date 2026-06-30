@@ -66,6 +66,7 @@ class AnalysisContext(TypedDict, total=False):
     execution_mode: str
     pipeline_id: str
     pipeline_label: str
+    prompt_version: str
     agent_sequence: tuple[int, ...]
     agent_positions: dict[int, int]
     agent_total: int

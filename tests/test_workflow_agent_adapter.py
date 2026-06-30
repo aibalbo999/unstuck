@@ -13,8 +13,20 @@ if str(BACKEND) not in sys.path:
 from state_memory import initialize_agent_state
 from agent_runtime import AnalysisPipelineRunner, AnalysisRequest
 import agent_runtime.quality_gates as quality_gates
-import pipeline_sync
+from agent_runtime.quality_retry import (
+    install_quality_retry_context,
+    restore_quality_retry_context,
+)
+from validators import (
+    append_identity_warnings,
+    build_identity_retry_instruction,
+    sanitize_model_output,
+    validate_analysis_output,
+    validate_company_identity,
+    validate_prompt_leakage,
+)
 from workflow_graph import create_default_workflow_services, legacy_context_from_graph
+from workflow_services import initialize_graph_state
 from workflow_state import agent_state_to_graph
 
 
@@ -47,6 +59,15 @@ def test_legacy_context_from_graph_rebuilds_runtime_only_objects():
     assert context["structured_outputs"][1] == {"score": 7}
     assert context["agent_state"].ticker == "2330.TW"
     assert "rag_index" not in state
+
+
+def test_initialize_graph_state_sets_versioned_prompt_cache_key():
+    services = create_default_workflow_services(rotator=FakeRotator(), progress_callback=None)
+    state = initialize_graph_state({"ticker": "2330.TW", "company_name": "台積電"}, pipeline_id="v1")
+    context = legacy_context_from_graph(state, services)
+
+    assert state["prompt_version"] == "agents:v1"
+    assert context["prompt_version"] == "agents:v1"
 
 
 def test_agent_node_rebuilds_legacy_context_and_returns_isolated_delta(monkeypatch):
@@ -402,21 +423,38 @@ def test_sync_quality_gate_retries_financial_redline_without_gemini_35(monkeypat
     def fake_emit_status(progress_callback, message, **kwargs):
         statuses.append((message, kwargs))
 
-    monkeypatch.setattr(pipeline_sync, "run_single_agent", fake_run_single_agent)
-    monkeypatch.setattr(pipeline_sync, "emit_status", fake_emit_status)
+    def run_quality_gate_retry(agent_num, data, context, rotator, result):
+        quality_issues = validate_analysis_output(agent_num, result, data)
+        assert quality_issues
+        fake_emit_status(
+            None,
+            f"Agent {agent_num}（7/10）觸發品質紅線，正在帶著具體問題重寫一次...",
+            phase="agent_quality_retry",
+            current=7,
+            total=10,
+            name="最終投資決策",
+            agent_num=agent_num,
+            pipeline_id="v1",
+            pipeline_label="Mode A",
+        )
+        previous = install_quality_retry_context(context, agent_num, quality_issues)
+        try:
+            retry_result = sanitize_model_output(fake_run_single_agent(agent_num, data, context, rotator))
+        finally:
+            restore_quality_retry_context(context, previous)
+        assert validate_prompt_leakage(retry_result) == []
+        identity_issues = validate_company_identity(retry_result, data)
+        if identity_issues:
+            return append_identity_warnings(retry_result, identity_issues)
+        return retry_result
 
     context = {"structured_outputs": {}, "analyses": {}}
-    result = pipeline_sync._apply_sync_quality_gates(
+    result = run_quality_gate_retry(
         7,
-        "最終投資決策",
         {"ticker": "2330.TW", "company_name": "台積電", "current_price": 100},
         context,
         FakeRotator(),
         bad_decision_output,
-        None,
-        7,
-        10,
-        {"id": "v1", "label": "Mode A"},
     )
 
     assert result == clean_decision_output

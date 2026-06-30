@@ -12,6 +12,7 @@ if str(BACKEND) not in sys.path:
 
 
 import agent_runtime.prompting as prompting  # noqa: E402
+from llm_rate_limits import estimate_text_tokens  # noqa: E402
 from prompt_builder import format_data_for_prompt, render_prompt_template  # noqa: E402
 from temporal_memory_service import build_valuation_memory_slice  # noqa: E402
 
@@ -177,6 +178,28 @@ def test_build_prompt_includes_mode_specific_final_audit_preflight_contracts():
     assert "Long|Short|Neutral" in mode_d_prompt
     assert "risk_level" in mode_d_prompt
     assert "High|Medium|Low" in mode_d_prompt
+
+
+def test_build_prompt_applies_token_budget_guard_before_llm_call(monkeypatch):
+    monkeypatch.setattr(prompting, "get_agent_prompt_token_budget", lambda _agent_num: 700, raising=False)
+    data = {
+        "ticker": "2308.TW",
+        "company_name": "台達電",
+        "recent_catalysts": ["大型新聞段落 " * 80 for _ in range(20)],
+        "dynamic_peer_metrics": [{"note": "同業補充 " * 120} for _ in range(10)],
+    }
+    context = {
+        "analyses": {1: "前序分析重要片段 " * 1200},
+        "structured_outputs": {},
+        "rag_context": {4: "RAG 補充片段 " * 1200},
+        "pipeline_id": "v1",
+    }
+
+    prompt = prompting.build_prompt(4, data, context)
+
+    assert estimate_text_tokens(prompt) <= 700
+    assert "Prompt budget guard" in prompt
+    assert prompt.count("RAG 補充片段") < 100
 
 
 def test_runtime_rules_cover_common_final_audit_failure_modes():

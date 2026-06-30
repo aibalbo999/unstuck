@@ -63,6 +63,7 @@ langgraph-checkpoint-sqlite==3.1.0
 langgraph-prebuilt==1.1.0
 langgraph-sdk==0.4.2
 langsmith==0.9.3
+librt==0.11.0
 loguru==0.7.3
 lxml==6.1.1
 lxml_html_clean==0.4.5
@@ -73,6 +74,8 @@ matplotlib-inline==0.2.2
 mdurl==0.1.2
 multidict==6.7.1
 multitasking==0.0.13
+mypy==1.20.2
+mypy_extensions==1.1.0
 nest-asyncio==1.6.0
 numpy==2.4.6
 opentelemetry-api==1.42.1
@@ -81,6 +84,7 @@ ormsgpack==1.12.2
 packaging==26.2
 pandas==2.3.3
 parso==0.8.7
+pathspec==1.1.1
 peewee==4.0.6
 pexpect==4.9.0
 platformdirs==4.10.0

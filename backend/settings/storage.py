@@ -16,7 +16,7 @@ CACHE_BACKEND = os.getenv("CACHE_BACKEND", "redis").strip().lower()
 CACHE_NAMESPACE = os.getenv("CACHE_NAMESPACE", "stock-agent").strip().strip(":")
 LANGGRAPH_CHECKPOINT_PATH = os.getenv(
     "LANGGRAPH_CHECKPOINT_PATH",
-    str(CACHE_DIR / "langgraph_checkpoints.sqlite3"),
+    CACHE_DB_PATH,
 )
 MARKET_CALENDAR_DIR = os.getenv("MARKET_CALENDAR_DIR", str(CACHE_DIR / "market_calendars"))
 DATA_SNAPSHOT_MAX_BYTES = env_int("DATA_SNAPSHOT_MAX_BYTES", 2 * 1024 * 1024)
@@ -60,7 +60,8 @@ SOURCE_FRESHNESS_MAX_AGE_SECONDS = _load_source_freshness_seconds()
 
 REPORT_RETENTION_DAYS = int(os.getenv("REPORT_RETENTION_DAYS", "30"))
 REPORT_CLEANUP_INTERVAL_SECONDS = int(os.getenv("REPORT_CLEANUP_INTERVAL_SECONDS", str(24 * 60 * 60)))
-TASK_DB_PATH = os.getenv("TASK_DB_PATH", str(CACHE_DIR / "analysis_jobs.sqlite3"))
+OPERATIONAL_DB_PATH = os.getenv("OPERATIONAL_DB_PATH", str(CACHE_DIR / "operational.sqlite3"))
+TASK_DB_PATH = os.getenv("TASK_DB_PATH", OPERATIONAL_DB_PATH)
 ANALYSIS_JOB_STALE_SECONDS = int(os.getenv("ANALYSIS_JOB_STALE_SECONDS", str(6 * 60 * 60)))
 ANALYSIS_JOB_HISTORY_RETENTION_DAYS = env_int("ANALYSIS_JOB_HISTORY_RETENTION_DAYS", 30)
 PROVIDER_SLA_RETENTION_DAYS = env_int("PROVIDER_SLA_RETENTION_DAYS", 90)

@@ -72,6 +72,107 @@ def test_settings_package_loads_local_env_before_grouped_modules(tmp_path):
         _reload_grouped_settings()
 
 
+def test_provider_settings_load_cross_provider_llm_keys():
+    keys = (
+        "GEMINI_API_KEYS",
+        "GOOGLE_API_KEYS",
+        "OPENAI_API_KEYS",
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEYS",
+        "ANTHROPIC_API_KEY",
+    )
+    old_values = {key: os.environ.get(key) for key in keys}
+    try:
+        for key in keys:
+            os.environ.pop(key, None)
+        os.environ["GEMINI_API_KEYS"] = "google-one,google-two"
+        os.environ["OPENAI_API_KEYS"] = "openai-one"
+        os.environ["ANTHROPIC_API_KEY"] = "anthropic-one"
+
+        _reload_grouped_settings()
+        import settings.app_config as app_config
+
+        assert app_config.API_KEYS == ["google-one", "google-two"]
+        assert app_config.LLM_API_KEYS_BY_PROVIDER["google"] == ["google-one", "google-two"]
+        assert app_config.LLM_API_KEYS_BY_PROVIDER["openai"] == ["openai-one"]
+        assert app_config.LLM_API_KEYS_BY_PROVIDER["anthropic"] == ["anthropic-one"]
+        assert app_config.has_api_keys() is True
+    finally:
+        for key, value in old_values.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        _reload_grouped_settings()
+
+
+def test_storage_defaults_consolidate_operational_sqlite_paths(tmp_path):
+    keys = (
+        "CACHE_DIR",
+        "TASK_DB_PATH",
+        "OPERATIONAL_DB_PATH",
+        "LANGGRAPH_CHECKPOINT_PATH",
+        "WATCHLIST_DB_PATH",
+        "DECISION_TRACKING_DB_PATH",
+    )
+    old_values = {key: os.environ.get(key) for key in keys}
+    try:
+        for key in keys:
+            os.environ.pop(key, None)
+        os.environ["CACHE_DIR"] = str(tmp_path / "cache")
+
+        _reload_grouped_settings()
+        import settings.app_config as app_config
+
+        operational_db = tmp_path / "cache" / "operational.sqlite3"
+        assert app_config.OPERATIONAL_DB_PATH == str(operational_db)
+        assert app_config.TASK_DB_PATH == str(operational_db)
+        assert app_config.LANGGRAPH_CHECKPOINT_PATH == app_config.CACHE_DB_PATH
+    finally:
+        for key, value in old_values.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        _reload_grouped_settings()
+
+
+def test_operational_db_consumers_default_to_task_db(tmp_path):
+    keys = (
+        "CACHE_DIR",
+        "TASK_DB_PATH",
+        "OPERATIONAL_DB_PATH",
+        "WATCHLIST_PATH",
+        "WATCHLIST_DB_PATH",
+        "DECISION_TRACKING_DB_PATH",
+    )
+    old_values = {key: os.environ.get(key) for key in keys}
+    for module_name in ("config", "decision_tracking_store", "temporal_memory_service", "watchlist_store"):
+        sys.modules.pop(module_name, None)
+    try:
+        for key in keys:
+            os.environ.pop(key, None)
+        os.environ["CACHE_DIR"] = str(tmp_path / "cache")
+
+        _reload_grouped_settings()
+        import settings.app_config as app_config
+        import decision_tracking_store
+        import watchlist_store
+
+        operational_db = Path(app_config.TASK_DB_PATH)
+        assert decision_tracking_store._db_path() == operational_db
+        assert watchlist_store._db_path() == operational_db
+    finally:
+        for key, value in old_values.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        for module_name in ("config", "decision_tracking_store", "temporal_memory_service", "watchlist_store"):
+            sys.modules.pop(module_name, None)
+        _reload_grouped_settings()
+
+
 def test_load_local_env_does_not_reopen_unchanged_file(tmp_path, monkeypatch):
     import settings.env as settings_env
 

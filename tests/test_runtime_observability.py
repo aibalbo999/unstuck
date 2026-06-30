@@ -171,6 +171,34 @@ def test_provider_sla_api_returns_alerts(monkeypatch):
     assert response.json()["alerts"][0]["provider"] == "fake"
 
 
+def test_prometheus_metrics_endpoint_exports_provider_sla_and_queue(monkeypatch):
+    class FakeLocalQueue:
+        def qsize(self):
+            return 5
+
+    monkeypatch.setattr(api, "get_provider_sla_summary", lambda limit=100: [{
+        "source": "market_data",
+        "provider": "fake-provider",
+        "attempts": 4,
+        "success_rate": 0.75,
+        "error_count": 1,
+        "alert_level": "warning",
+    }])
+    monkeypatch.setattr(api, "analysis_task_queue", SimpleNamespace(queue=FakeLocalQueue(), active_tasks=[object(), object()]))
+
+    client = TestClient(api.app)
+    response = client.get("/metrics")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/plain")
+    body = response.text
+    assert 'stock_agent_provider_sla_success_rate{source="market_data",provider="fake-provider"} 0.75' in body
+    assert 'stock_agent_provider_sla_attempts_total{source="market_data",provider="fake-provider"} 4' in body
+    assert 'stock_agent_provider_sla_alert{source="market_data",provider="fake-provider",level="warning"} 1' in body
+    assert 'stock_agent_queue_available{backend="local"} 1' in body
+    assert 'stock_agent_queue_depth{queue="local"} 5' in body
+
+
 def test_provider_sla_api_applies_window_server_side(monkeypatch):
     monkeypatch.setattr(api, "get_provider_sla_summary", lambda limit=100: [{
         "source": "market_data",
@@ -614,6 +642,57 @@ def test_api_usage_ledger_records_llm_job_events(monkeypatch, tmp_path):
     assert usage["observed_model_calls"]["gemini-2.5-pro"] == 1
     assert usage["observed_quota_errors_since_reset"] == 1
     assert usage["recent_quota_events"][0]["model_id"] == "gemini-2.5-pro"
+
+
+def test_pipeline_progress_callback_preserves_llm_stream_delta_payload():
+    from analysis_job_progress import make_pipeline_progress_callback
+
+    appended = []
+    callback = make_pipeline_progress_callback(
+        job_id="job-stream",
+        pipeline_def={"short_label": "A", "label": "Mode A"},
+        current_pipeline_id="v1",
+        sequence_total=1,
+        total_agents=3,
+        completed_agent_offset=0,
+        agent_count=3,
+        cancel_check=lambda: None,
+        append_event_func=lambda job_id, payload: appended.append((job_id, payload)),
+    )
+
+    callback({
+        "type": "llm_stream_delta",
+        "phase": "llm_stream_delta",
+        "current": 1,
+        "total": 3,
+        "name": "Agent 1",
+        "agent_num": 1,
+        "message": "Agent 1 正在串流模型輸出...",
+        "delta": "partial token text",
+        "metadata": {"model_id": "gemini-test", "stream_sequence": 1},
+    })
+
+    assert appended == [
+        (
+            "job-stream",
+            {
+                "type": "llm_stream_delta",
+                "message": "Agent 1 正在串流模型輸出...",
+                "detail": "A Agent 1/3 · Agent 1",
+                "current": 1,
+                "total": 3,
+                "phase": "llm_stream_delta",
+                "level": None,
+                "agent_num": 1,
+                "metadata": {"model_id": "gemini-test", "stream_sequence": 1},
+                "pipeline_id": "v1",
+                "pipeline_label": "Mode A",
+                "pipeline_current": 1,
+                "pipeline_total": 3,
+                "delta": "partial token text",
+            },
+        )
+    ]
 
 
 def test_api_usage_store_uses_short_busy_timeout_for_worker_contention(monkeypatch, tmp_path):
@@ -1075,3 +1154,42 @@ def test_context_digest_hash_cache_reuses_successful_digest(monkeypatch):
     assert calls["llm"] == 1
     assert context["context_digests"][4] == first_digest
     assert context["_digest_hash_map"]
+
+
+def test_context_digest_cache_reuses_digest_across_contexts(monkeypatch):
+    import cache_store
+    from cache_backends import InMemoryCache
+
+    calls = {"llm": 0}
+
+    class FakeDigestRotator:
+        def get_key(self, *_args, **_kwargs):
+            return "fake-key"
+
+    def fake_generate(*_args, **_kwargs):
+        calls["llm"] += 1
+        return type("Response", (), {"text": "{\"decision_relevant_facts\":[\"跨 run 摘要\"]}"})()
+
+    def build_context():
+        return {
+            "pipeline_id": "v1",
+            "analyses": {1: "商業模式", 2: "財務分析"},
+            "structured_outputs": {},
+            "agent_positions": {4: 4},
+            "agent_total": 10,
+        }
+
+    try:
+        cache_store.set_cache_backend(InMemoryCache())
+        monkeypatch.setattr(context_digest_tasks, "_generate_context_digest_content", fake_generate)
+        monkeypatch.setattr(context_digest_tasks, "response_text", lambda response: response.text)
+
+        first_context = build_context()
+        second_context = build_context()
+        context_digest_tasks.ensure_context_digest(4, first_context, FakeDigestRotator())
+        context_digest_tasks.ensure_context_digest(4, second_context, FakeDigestRotator())
+
+        assert calls["llm"] == 1
+        assert second_context["context_digests"][4] == first_context["context_digests"][4]
+    finally:
+        cache_store.reset_cache_store_for_tests()

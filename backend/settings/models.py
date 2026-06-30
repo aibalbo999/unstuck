@@ -233,6 +233,22 @@ DEFAULT_MODEL_RPM_LIMITS[DEFAULT_DECISION_MODEL] = env_int(
 RPM_LIMITS = _load_model_limits("RPM_LIMITS_JSON", "DEFAULT_RPM_LIMIT", DEFAULT_MODEL_RPM_LIMITS, 5)
 TPM_LIMITS = _load_model_limits("TPM_LIMITS_JSON", "DEFAULT_TPM_LIMIT", ROUTE_TPM_LIMITS, 0)
 RPD_LIMITS = _load_model_limits("RPD_LIMITS_JSON", "DEFAULT_RPD_LIMIT", ROUTE_RPD_LIMITS, 0)
+MODEL_CONTEXT_TOKEN_LIMITS = _load_model_limits(
+    "MODEL_CONTEXT_TOKEN_LIMITS_JSON",
+    "DEFAULT_MODEL_CONTEXT_TOKEN_LIMIT",
+    _route_limit_defaults("context_token_limits"),
+    1_000_000,
+)
+PROMPT_CONTEXT_RESPONSE_TOKEN_BUDGET = env_int("PROMPT_CONTEXT_RESPONSE_TOKEN_BUDGET", 8192)
+PROMPT_CONTEXT_SAFETY_MARGIN_TOKENS = env_int("PROMPT_CONTEXT_SAFETY_MARGIN_TOKENS", 1024)
+
+
+def get_model_context_token_limit(model_id: str) -> int:
+    """Return the configured context window for a model, falling back to wildcard."""
+    model = str(model_id or "").strip()
+    if model in MODEL_CONTEXT_TOKEN_LIMITS:
+        return int(MODEL_CONTEXT_TOKEN_LIMITS[model])
+    return int(MODEL_CONTEXT_TOKEN_LIMITS.get("*", 0))
 
 
 def format_model_routes(agent_models: Optional[dict[int, str]] = None, pipeline_id: str = "v1") -> str:

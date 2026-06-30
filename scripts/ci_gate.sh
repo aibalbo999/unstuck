@@ -10,6 +10,7 @@ PYTHON_BIN="${PYTHON_BIN:-$(scripts/project_python.sh)}"
 "$PYTHON_BIN" scripts/supply_chain_audit.py
 "$PYTHON_BIN" scripts/generate_sbom.py
 "$PYTHON_BIN" -m compileall backend
+"$PYTHON_BIN" -m mypy --strict --follow-imports=skip backend/analysis_types.py backend/workflow_state.py
 "$PYTHON_BIN" -m coverage erase
 "$PYTHON_BIN" -m coverage run --source=backend -m pytest -q -m "not live"
 "$PYTHON_BIN" -m coverage report --fail-under=75

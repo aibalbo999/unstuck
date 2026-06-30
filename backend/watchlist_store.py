@@ -9,13 +9,14 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from config import CACHE_DB_PATH
+from config import CACHE_DB_PATH, TASK_DB_PATH
 from pipeline_modes import normalize_pipeline_run_id
 from storage.sqlite_resource import ThreadLocalSqliteResource
 
 
 TAIPEI = ZoneInfo("Asia/Taipei")
-WATCHLIST_PATH = Path(os.getenv("WATCHLIST_PATH", str(Path(CACHE_DB_PATH).parent / "watchlist.json")))
+DEFAULT_WATCHLIST_PATH = Path(CACHE_DB_PATH).parent / "watchlist.json"
+WATCHLIST_PATH = Path(os.getenv("WATCHLIST_PATH", str(DEFAULT_WATCHLIST_PATH)))
 WATCHLIST_DB_PATH = os.getenv("WATCHLIST_DB_PATH")
 DEFAULT_SCHEDULES = {
     "pre_market": {"label": "盤前", "time": "08:30"},
@@ -24,7 +25,11 @@ DEFAULT_SCHEDULES = {
 
 
 def _db_path() -> Path:
-    return Path(WATCHLIST_DB_PATH) if WATCHLIST_DB_PATH else Path(WATCHLIST_PATH).with_suffix(".sqlite3")
+    if WATCHLIST_DB_PATH:
+        return Path(WATCHLIST_DB_PATH)
+    if Path(WATCHLIST_PATH) == DEFAULT_WATCHLIST_PATH:
+        return Path(TASK_DB_PATH)
+    return Path(WATCHLIST_PATH).with_suffix(".sqlite3")
 
 
 def _init_schema(conn: sqlite3.Connection) -> None:

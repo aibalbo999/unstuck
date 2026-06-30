@@ -38,7 +38,7 @@ def parse_recommendation_summary(filename: str, output_dir: str) -> dict:
 
 def cleanup_expired_reports(
     output_dir: str,
-    report_cache: dict,
+    report_cache: dict | None = None,
     retention_days: int = REPORT_RETENTION_DAYS,
     repository: ReportRepository = DEFAULT_REPORT_REPOSITORY,
     report_cache_lock: Any = None,
@@ -65,10 +65,11 @@ def cleanup_expired_reports(
             _delete_storage_key(content_storage, key, deleted)
 
     if deleted:
-        with report_cache_lock or nullcontext():
-            for ticker, cached_filename in list(report_cache.items()):
-                if cached_filename in {_basename_for_storage_key(key) for key in deleted}:
-                    del report_cache[ticker]
+        if report_cache is not None:
+            with report_cache_lock or nullcontext():
+                for ticker, cached_filename in list(report_cache.items()):
+                    if cached_filename in {_basename_for_storage_key(key) for key in deleted}:
+                        del report_cache[ticker]
         cleanup_empty_report_directories(output_dir)
     return deleted
 
@@ -154,7 +155,7 @@ def list_reports(
     data_trust: str,
     include_versions: bool = False,
     output_dir: str,
-    report_cache: dict,
+    report_cache: dict | None = None,
     repository: ReportRepository = DEFAULT_REPORT_REPOSITORY,
     storage: ReportStorage | None = None,
 ) -> dict:
@@ -219,7 +220,7 @@ def list_reports(
 def delete_report_files(
     filename: str,
     output_dir: str,
-    report_cache: dict,
+    report_cache: dict | None = None,
     repository: ReportRepository = DEFAULT_REPORT_REPOSITORY,
     report_cache_lock: Any = None,
     storage: ReportStorage | None = None,
@@ -258,10 +259,11 @@ def delete_report_files(
     if deleted:
         cleanup_empty_report_directories(output_dir)
 
-    with report_cache_lock or nullcontext():
-        for ticker, cached_filename in list(report_cache.items()):
-            if cached_filename == filename:
-                del report_cache[ticker]
+    if report_cache is not None:
+        with report_cache_lock or nullcontext():
+            for ticker, cached_filename in list(report_cache.items()):
+                if cached_filename == filename:
+                    del report_cache[ticker]
     return {"success": True, "deleted": deleted}
 
 

@@ -10,7 +10,7 @@ from google.genai import types
 
 from config import LLM_AGENT_CALL_TIMEOUT_SECONDS
 from google_prompt_safety import sanitize_google_system_instruction
-from llm_client import generate_content, generate_content_async, response_text
+from llm_client import generate_content, generate_content_async, generate_content_stream_async, response_text
 from structured_outputs import STRUCTURED_AGENT_INSTRUCTIONS, get_structured_response_schema
 
 from .prompt_config import SYSTEM_PROMPTS
@@ -116,6 +116,11 @@ def _generate_content(api_key: str, model_id: str, agent_num: int, prompt: str):
 async def _generate_content_async(api_key: str, model_id: str, agent_num: int, prompt: str):
     config = build_generation_config(agent_num, google_safe_agent_system_instruction(agent_num, model_id))
     return await generate_content_async(api_key, model_id, prompt, config)
+
+
+async def _generate_content_stream_async(api_key: str, model_id: str, agent_num: int, prompt: str, *, on_delta=None):
+    config = build_generation_config(agent_num, google_safe_agent_system_instruction(agent_num, model_id))
+    return await generate_content_stream_async(api_key, model_id, prompt, config, on_delta=on_delta)
 
 
 async def _await_with_agent_timeout(coro, *, model_id: str, timeout_seconds: float | None = None):

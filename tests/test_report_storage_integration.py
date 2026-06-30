@@ -455,8 +455,6 @@ def test_report_routes_use_injected_report_storage_for_read_and_delete(tmp_path)
             ReportRouteDeps(
                 get_output_dir=lambda: str(tmp_path),
                 get_report_storage=lambda: storage,
-                get_report_cache=lambda: report_cache,
-                get_report_cache_lock=lambda: None,
                 get_refresh_service=lambda: None,
                 get_pipeline_runner=lambda: None,
                 get_report_renderer=lambda: None,
@@ -483,7 +481,7 @@ def test_report_routes_use_injected_report_storage_for_read_and_delete(tmp_path)
     assert delete_response.status_code == 200
     assert delete_response.json()["success"] is True
     assert storage.exists(filename) is False
-    assert report_cache == {}
+    assert report_cache == {"2308.TW": filename}
 
 
 def test_cleanup_expired_reports_removes_partitioned_report_bundle(tmp_path):
@@ -563,8 +561,6 @@ def test_report_rerun_route_queues_partitioned_storage_report(tmp_path):
             ReportRouteDeps(
                 get_output_dir=lambda: str(tmp_path),
                 get_report_storage=lambda: storage,
-                get_report_cache=lambda: {},
-                get_report_cache_lock=lambda: None,
                 get_refresh_service=lambda: None,
                 get_pipeline_runner=lambda: None,
                 get_report_renderer=lambda: None,

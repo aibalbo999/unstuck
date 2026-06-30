@@ -44,8 +44,6 @@ for _name in (
     "build_prompt",
     "run_single_agent",
     "run_single_agent_async",
-    "run_analysis_pipeline",
-    "run_analysis_pipeline_async",
     "attempt_final_audit_repair",
     "attempt_final_audit_repair_async",
     "finalize_final_audit",

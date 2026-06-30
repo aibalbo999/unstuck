@@ -57,8 +57,9 @@ def make_pipeline_progress_callback(
             if current and current <= local_total
             else f"{pipeline_def['short_label']} · {name}"
         )
-        append_event_func(job_id, {
-            "type": "status",
+        event_type = raw_event.get("type") if raw_event else "status"
+        payload = {
+            "type": event_type if event_type == "llm_stream_delta" else "status",
             "message": message or f"{event_name} 進行中...",
             "detail": detail,
             "current": global_current,
@@ -71,6 +72,9 @@ def make_pipeline_progress_callback(
             "pipeline_label": pipeline_def["label"],
             "pipeline_current": current,
             "pipeline_total": local_total,
-        })
+        }
+        if event_type == "llm_stream_delta":
+            payload["delta"] = raw_event.get("delta", "")
+        append_event_func(job_id, payload)
 
     return progress_callback

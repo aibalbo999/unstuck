@@ -11,6 +11,9 @@ import rag_runtime  # noqa: E402
 import rag_runtime.chunking as chunking  # noqa: E402
 import rag_runtime.documents as rag_documents  # noqa: E402
 import rag_runtime.embeddings as embeddings  # noqa: E402
+import rag_runtime.service as rag_service  # noqa: E402
+import cache_store  # noqa: E402
+from cache_backends import InMemoryCache  # noqa: E402
 from llm_client import KeyRotator  # noqa: E402
 
 
@@ -144,6 +147,36 @@ def test_async_build_index_uses_cached_embeddings(monkeypatch):
 
     assert calls["api"] == 0
     assert index.has_embeddings is True
+
+
+def test_build_index_reuses_cached_index_for_same_data_snapshot(monkeypatch):
+    calls = {"embedding": 0}
+
+    def fake_embed_index_chunks(chunks, data, rotator):
+        calls["embedding"] += 1
+        for chunk in chunks:
+            chunk.embedding = [0.2, 0.8]
+        return []
+
+    try:
+        cache_store.set_cache_backend(InMemoryCache())
+        monkeypatch.setattr(rag_service, "embed_index_chunks", fake_embed_index_chunks)
+        data = {
+            "ticker": "2330.TW",
+            "data_snapshot_hash": "snapshot-2026-06-30",
+            "transcript": "AI server demand margin expansion " * 80,
+        }
+
+        first = rag_runtime.build_rag_index(data, FakeRotator())
+        second = rag_runtime.build_rag_index(dict(data), FakeRotator())
+
+        assert first is not None
+        assert second is not None
+        assert calls["embedding"] == 1
+        assert first.chunks[0].chunk_id == second.chunks[0].chunk_id
+        assert second.has_embeddings is True
+    finally:
+        cache_store.reset_cache_store_for_tests()
 
 
 def test_vector_and_lexical_search_preserve_order_and_truncation():

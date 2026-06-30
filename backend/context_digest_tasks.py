@@ -8,7 +8,8 @@ import json
 from google.genai import types
 
 from agent_catalog import AGENT_NAMES
-from config import CONTEXT_DIGEST_MODEL
+from cache_store import get_cache_json, set_cache_json
+from config import AGENT_STEP_CACHE_ENABLED, AGENT_STEP_CACHE_SECONDS, CONTEXT_DIGEST_MODEL
 from context_digest_payload import (
     _build_context_digest_prompt,
     _ensure_digest_payload_shape,
@@ -74,6 +75,40 @@ def _digest_input_hash(agent_num: int, context: dict) -> str:
     return hashlib.md5(payload.encode("utf-8")).hexdigest()
 
 
+def _context_digest_cache_key(agent_num: int, input_hash: str, model_id: str, context: dict) -> str:
+    key_parts = {
+        "agent_num": int(agent_num),
+        "input_hash": str(input_hash or ""),
+        "model_id": str(model_id or ""),
+        "pipeline_id": str(context.get("pipeline_id") or ""),
+        "prompt_version": str(context.get("prompt_version") or "runtime_rules:unversioned"),
+    }
+    encoded = json.dumps(key_parts, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return "context_digest:" + hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _get_cached_context_digest(cache_key: str) -> str | None:
+    if not AGENT_STEP_CACHE_ENABLED:
+        return None
+    try:
+        cached = get_cache_json(cache_key)
+    except Exception:
+        return None
+    if not isinstance(cached, dict):
+        return None
+    text = str(cached.get("digest") or "").strip()
+    return text or None
+
+
+def _store_cached_context_digest(cache_key: str, digest: str) -> None:
+    if not AGENT_STEP_CACHE_ENABLED or AGENT_STEP_CACHE_SECONDS <= 0 or not str(digest or "").strip():
+        return
+    try:
+        set_cache_json(cache_key, {"schema_version": 1, "digest": digest}, AGENT_STEP_CACHE_SECONDS)
+    except Exception:
+        return
+
+
 def _agent_event_kwargs(context: dict, agent_num: int, model_id: str, phase: str, message: str, level: str = "info") -> dict:
     return dict(
         phase=phase,
@@ -103,8 +138,18 @@ def ensure_context_digest(agent_num: int, context: dict, rotator: KeyRotator, pr
     if agent_num in digests:
         return
 
+    models = _context_digest_model_sequence()
+    for model_id in models:
+        persistent_cache_key = _context_digest_cache_key(agent_num, input_hash, model_id, context)
+        cached_digest = _get_cached_context_digest(persistent_cache_key)
+        if cached_digest is not None:
+            digests[agent_num] = cached_digest
+            digest_hash_map[cache_key] = cached_digest
+            return
+
     prompt = _build_context_digest_prompt(agent_num, context)
-    for model_id in _context_digest_model_sequence():
+    for model_id in models:
+        persistent_cache_key = _context_digest_cache_key(agent_num, input_hash, model_id, context)
         try:
             emit_context_event(
                 context,
@@ -125,6 +170,7 @@ def ensure_context_digest(agent_num: int, context: dict, rotator: KeyRotator, pr
             digest = _normalize_digest_text(response_text(response), agent_num, context)
             digests[agent_num] = digest
             digest_hash_map[cache_key] = digest
+            _store_cached_context_digest(persistent_cache_key, digest)
             emit_log(f"  🧾 Agent {agent_num} 前序提煉摘要完成。")
             emit_context_event(
                 context,
@@ -173,12 +219,15 @@ def ensure_context_digest(agent_num: int, context: dict, rotator: KeyRotator, pr
             emit_context_event(context, make_runtime_event("status", **event), progress_callback)
             break
 
-    digests[agent_num] = json.dumps(
+    fallback_digest = json.dumps(
         _fallback_context_digest_payload(agent_num, context, reason="提煉 Agent 呼叫失敗"),
         ensure_ascii=False,
         indent=2,
         sort_keys=True,
     )
+    digests[agent_num] = fallback_digest
+    if models:
+        _store_cached_context_digest(_context_digest_cache_key(agent_num, input_hash, models[0], context), fallback_digest)
 
 
 async def ensure_context_digest_async(agent_num: int, context: dict, rotator: KeyRotator, progress_callback=None):
@@ -195,8 +244,18 @@ async def ensure_context_digest_async(agent_num: int, context: dict, rotator: Ke
     if agent_num in digests:
         return
 
+    models = _context_digest_model_sequence()
+    for model_id in models:
+        persistent_cache_key = _context_digest_cache_key(agent_num, input_hash, model_id, context)
+        cached_digest = _get_cached_context_digest(persistent_cache_key)
+        if cached_digest is not None:
+            digests[agent_num] = cached_digest
+            digest_hash_map[cache_key] = cached_digest
+            return
+
     prompt = _build_context_digest_prompt(agent_num, context)
-    for model_id in _context_digest_model_sequence():
+    for model_id in models:
+        persistent_cache_key = _context_digest_cache_key(agent_num, input_hash, model_id, context)
         try:
             await emit_context_event_async(
                 context,
@@ -217,6 +276,7 @@ async def ensure_context_digest_async(agent_num: int, context: dict, rotator: Ke
             digest = _normalize_digest_text(response_text(response), agent_num, context)
             digests[agent_num] = digest
             digest_hash_map[cache_key] = digest
+            _store_cached_context_digest(persistent_cache_key, digest)
             emit_log(f"  🧾 Agent {agent_num} 前序提煉摘要完成。")
             await emit_context_event_async(
                 context,
@@ -265,9 +325,12 @@ async def ensure_context_digest_async(agent_num: int, context: dict, rotator: Ke
             await emit_context_event_async(context, make_runtime_event("status", **event), progress_callback)
             break
 
-    digests[agent_num] = json.dumps(
+    fallback_digest = json.dumps(
         _fallback_context_digest_payload(agent_num, context, reason="提煉 Agent 呼叫失敗"),
         ensure_ascii=False,
         indent=2,
         sort_keys=True,
     )
+    digests[agent_num] = fallback_digest
+    if models:
+        _store_cached_context_digest(_context_digest_cache_key(agent_num, input_hash, models[0], context), fallback_digest)

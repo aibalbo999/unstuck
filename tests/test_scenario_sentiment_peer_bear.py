@@ -28,6 +28,36 @@ def test_quant_engine_emits_three_ordered_dcf_scenarios():
     assert result["dcf_intrinsic_value"] == scenarios["base"]["intrinsic_value"]
 
 
+def test_quant_engine_uses_fred_10y_yield_for_dynamic_wacc():
+    from quant_engine import QuantEngine
+
+    result = QuantEngine.compute_all({
+        "current_price": 90,
+        "shares_outstanding": 100,
+        "total_equity": 1_000,
+        "total_debt": 200,
+        "tax_rate": 0.2,
+        "free_cash_flows": [100, 110, 121, 133.1, 146.41],
+        "beta": 1.2,
+        "macro_indicators": {
+            "source": "FRED",
+            "indicators": {
+                "us_10y_yield": {
+                    "series_id": "DGS10",
+                    "value": 4.2,
+                    "date": "2026-06-17",
+                }
+            },
+        },
+    })
+
+    assumptions = result["wacc_assumptions"]
+    assert assumptions["risk_free_rate_source"] == "FRED:DGS10"
+    assert assumptions["risk_free_rate_pct"] == 4.2
+    assert assumptions["cost_of_equity_pct"] > 10.0
+    assert "risk_free_rate" not in result["fallback_fields"]
+
+
 def test_dcf_audit_compares_matching_scenario_prices():
     from final_audit_dcf import dcf_conflict_warnings
 

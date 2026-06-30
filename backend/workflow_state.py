@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import copy
 import json
-from typing import Annotated, Any, TypedDict
+from typing import Annotated, Any, TypedDict, cast
 
 from agent_state import AgentState
 from rag_runtime import InMemoryRagIndex, RagChunk
 
 
-def merge_dicts(left: dict | None, right: dict | None) -> dict:
+def merge_dicts(left: dict[str, Any] | None, right: dict[str, Any] | None) -> dict[str, Any]:
     """Merge parallel graph deltas without sharing mutable nested objects."""
 
     merged = copy.deepcopy(left or {})
@@ -18,7 +18,7 @@ def merge_dicts(left: dict | None, right: dict | None) -> dict:
     return merged
 
 
-def append_unique(left: list | None, right: list | None) -> list:
+def append_unique(left: list[Any] | None, right: list[Any] | None) -> list[Any]:
     """Append graph list deltas while de-duplicating stable items."""
 
     result = copy.deepcopy(left or [])
@@ -49,6 +49,7 @@ class AgentGraphState(TypedDict, total=False):
     company_name: str
     company_identity: dict[str, Any]
     pipeline_id: str
+    prompt_version: str
     raw_financial_data: dict[str, Any]
     provider_values: dict[str, list[dict[str, Any]]]
     normalized_financials: dict[str, Any]
@@ -92,7 +93,7 @@ def agent_state_to_graph(state: AgentState, *, pipeline_id: str) -> AgentGraphSt
 
     payload = copy.deepcopy(state.model_dump(mode="json"))
     payload["pipeline_id"] = str(pipeline_id)
-    return payload
+    return cast(AgentGraphState, payload)
 
 
 def agent_state_from_graph(state: AgentGraphState | dict[str, Any]) -> AgentState:

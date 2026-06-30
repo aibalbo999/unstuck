@@ -4,7 +4,13 @@ Removes calculation responsibility from LLMs to prevent hallucinations and math 
 
 from typing import List, Optional, Dict, Any
 import logging
-from config import WACC_COST_OF_DEBT_DEFAULT_PCT, WACC_COST_OF_EQUITY_DEFAULT_PCT, WACC_TAX_RATE_DEFAULT_PCT
+from config import (
+    WACC_COST_OF_DEBT_DEFAULT_PCT,
+    WACC_COST_OF_EQUITY_DEFAULT_PCT,
+    WACC_TAX_RATE_DEFAULT_PCT,
+    WACC_CREDIT_SPREAD_DEFAULT_PCT,
+    WACC_EQUITY_RISK_PREMIUM_DEFAULT_PCT,
+)
 
 try:
     import pandas as pd
@@ -73,6 +79,74 @@ class QuantEngine:
         return default
 
     @staticmethod
+    def _append_fallback(fallback_fields: list[str], field: str) -> None:
+        if field not in fallback_fields:
+            fallback_fields.append(field)
+
+    @staticmethod
+    def _macro_risk_free_rate_pct(data: Dict[str, Any]) -> tuple[Optional[float], str]:
+        macro = data.get("macro_indicators")
+        if not isinstance(macro, dict):
+            return None, ""
+        indicators = macro.get("indicators")
+        if not isinstance(indicators, dict):
+            return None, ""
+        us_10y = indicators.get("us_10y_yield")
+        if not isinstance(us_10y, dict):
+            return None, ""
+        value = QuantEngine._safe_float(us_10y.get("value"), None)
+        if value is None:
+            return None, ""
+        series_id = str(us_10y.get("series_id") or "DGS10")
+        return float(value), f"FRED:{series_id}"
+
+    @staticmethod
+    def _wacc_assumptions(data: Dict[str, Any], fallback_fields: list[str]) -> dict[str, Any]:
+        risk_free_pct, risk_free_source = QuantEngine._macro_risk_free_rate_pct(data)
+        if risk_free_pct is None:
+            QuantEngine._append_fallback(fallback_fields, "risk_free_rate")
+            return {
+                "risk_free_rate_pct": None,
+                "risk_free_rate_source": "default",
+                "cost_of_equity_pct": WACC_COST_OF_EQUITY_DEFAULT_PCT,
+                "cost_of_debt_pct": WACC_COST_OF_DEBT_DEFAULT_PCT,
+                "equity_beta": None,
+                "equity_risk_premium_pct": None,
+                "credit_spread_pct": None,
+                "uses_market_rate": False,
+            }
+
+        beta = QuantEngine._safe_float(data.get("beta") or data.get("equity_beta"), None)
+        if beta is None or beta <= 0:
+            beta = 1.0
+            QuantEngine._append_fallback(fallback_fields, "equity_beta")
+        equity_risk_premium_pct = QuantEngine._safe_float(
+            data.get("equity_risk_premium_pct") or data.get("market_risk_premium_pct"),
+            None,
+        )
+        if equity_risk_premium_pct is None:
+            equity_risk_premium_pct = WACC_EQUITY_RISK_PREMIUM_DEFAULT_PCT
+            QuantEngine._append_fallback(fallback_fields, "equity_risk_premium")
+        credit_spread_pct = QuantEngine._safe_float(data.get("credit_spread_pct"), None)
+        if credit_spread_pct is None:
+            credit_spread_pct = WACC_CREDIT_SPREAD_DEFAULT_PCT
+            QuantEngine._append_fallback(fallback_fields, "credit_spread")
+        cost_of_debt_pct = QuantEngine._safe_float(data.get("cost_of_debt_pct"), None)
+        if cost_of_debt_pct is None:
+            cost_of_debt_pct = max(risk_free_pct + credit_spread_pct, 0.0)
+        cost_of_equity_pct = max(risk_free_pct + beta * equity_risk_premium_pct, risk_free_pct)
+        return {
+            "risk_free_rate_pct": round(risk_free_pct, 4),
+            "risk_free_rate_source": risk_free_source,
+            "cost_of_equity_pct": round(cost_of_equity_pct, 4),
+            "cost_of_debt_pct": round(cost_of_debt_pct, 4),
+            "equity_beta": round(beta, 4),
+            "equity_risk_premium_pct": round(equity_risk_premium_pct, 4),
+            "credit_spread_pct": round(credit_spread_pct, 4),
+            "uses_market_rate": True,
+        }
+
+    @staticmethod
     def compute_all(data: Dict[str, Any]) -> Dict[str, Any]:
         """Compute all quantitative metrics from raw data for the LLM."""
         try:
@@ -91,6 +165,7 @@ class QuantEngine:
             equity = read_float("total_equity", 1000.0)
             debt = read_float("total_debt", 500.0)
             tax_rate = read_float("tax_rate", WACC_TAX_RATE_DEFAULT_PCT / 100)
+            wacc_assumptions = QuantEngine._wacc_assumptions(data, fallback_fields)
             
             # free_cash_flows might be a list of dicts or numbers
             fcf_raw = data.get("free_cash_flows")
@@ -113,8 +188,8 @@ class QuantEngine:
             wacc = QuantEngine.calculate_wacc(
                 equity,
                 debt,
-                WACC_COST_OF_EQUITY_DEFAULT_PCT / 100,
-                WACC_COST_OF_DEBT_DEFAULT_PCT / 100,
+                wacc_assumptions["cost_of_equity_pct"] / 100,
+                wacc_assumptions["cost_of_debt_pct"] / 100,
                 tax_rate,
             )
             base_wacc = wacc or 0.08
@@ -150,6 +225,7 @@ class QuantEngine:
                 "dcf_scenarios": dcf_scenarios,
                 "implied_pe_ratio": pe_ratio,
                 "margin_of_safety": round((dcf_value - current_price) / dcf_value, 4) if dcf_value > 0 else 0.0,
+                "wacc_assumptions": wacc_assumptions,
                 "note": "以上數據由系統精算模組自動產生，分析師無須重新計算。",
                 "fallback_fields": fallback_fields,
             }

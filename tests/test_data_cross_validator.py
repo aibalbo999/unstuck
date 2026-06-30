@@ -466,10 +466,10 @@ def test_run_analysis_pipeline_async_delegates_to_graph_runner(monkeypatch):
                     "total_time": 0.1,
                 },
                 pipeline_id=request.pipeline_id,
-            )
+    )
 
     monkeypatch.setattr("pipeline_async.AnalysisPipelineRunner", lambda: FakeRunner())
-    monkeypatch.setattr("pipeline_async.API_KEYS", ["test-key"])
+    monkeypatch.setattr("pipeline_async.has_api_keys", lambda: True)
 
     context = asyncio.run(
         run_analysis_pipeline_async({"ticker": "2308.TW", "company_name": "台達電"})
@@ -480,7 +480,7 @@ def test_run_analysis_pipeline_async_delegates_to_graph_runner(monkeypatch):
 
 
 def test_run_analysis_pipeline_requires_api_key_when_initial_data_is_not_blocked(monkeypatch):
-    monkeypatch.setattr("pipeline_async.API_KEYS", [])
+    monkeypatch.setattr("pipeline_async.has_api_keys", lambda: False)
 
     with pytest.raises(RuntimeError) as exc_info:
         asyncio.run(run_analysis_pipeline_async({"ticker": "2308.TW", "company_name": "台達電"}))

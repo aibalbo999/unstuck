@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
+from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from agent_runtime import AnalysisPipelineRunner
@@ -71,6 +72,7 @@ from report_index_maintenance import cleanup_report_index_orphans
 from reporting import ReportRenderer
 from runtime_dependencies import create_api_runtime, get_report_storage_for_output_dir, runtime_settings_for_output_dir
 from runtime_events import emit_log, format_event_log_line
+from api_observability_service import build_prometheus_metrics
 from runtime_health import build_health_payload, build_readiness_payload
 from settings import validate_runtime_settings
 from storage_inventory import build_storage_summary, ensure_runtime_storage
@@ -86,8 +88,6 @@ STATIC_DIR = os.path.join(BASE_DIR, "static")
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-report_cache = {}
-report_cache_lock = threading.Lock()
 analysis_task_queue = create_api_task_queue()
 analysis_pipeline_runner = AnalysisPipelineRunner()
 report_renderer = ReportRenderer()
@@ -241,6 +241,15 @@ def create_app() -> FastAPI:
         allow_headers=cors_allow_headers(),
     )
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+    @app.get("/metrics", include_in_schema=False)
+    async def prometheus_metrics():
+        content = await build_prometheus_metrics(
+            lambda limit=100: get_provider_sla_summary(limit),
+            task_queue=analysis_task_queue,
+        )
+        return PlainTextResponse(content, media_type="text/plain; version=0.0.4")
+
     app.include_router(create_health_router(HealthRouteDeps(
         build_health_payload=build_health_payload,
         build_readiness_payload=lambda: build_readiness_payload(
@@ -253,8 +262,6 @@ def create_app() -> FastAPI:
     app.include_router(create_reports_router(ReportRouteDeps(
         get_output_dir=lambda: OUTPUT_DIR,
         get_report_storage=lambda: get_report_storage_for_output_dir(app, OUTPUT_DIR),
-        get_report_cache=lambda: report_cache,
-        get_report_cache_lock=lambda: report_cache_lock,
         get_refresh_service=lambda: get_data_refresh_service(app),
         get_pipeline_runner=lambda: analysis_pipeline_runner,
         get_report_renderer=lambda: report_renderer,
