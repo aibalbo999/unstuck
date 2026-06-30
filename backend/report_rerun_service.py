@@ -18,7 +18,7 @@ from final_audit import run_final_report_audit
 from llm_client import KeyRotator
 from pipeline_modes import get_pipeline_definition, get_structured_agent_num, normalize_pipeline_id
 from report_history_storage import existing_storage_key
-from report_index import is_safe_report_filename, parse_report_filename
+from report_index_parsing import is_safe_report_filename, parse_report_filename
 from report_rerun_context import (
     RERUN_SCOPE_LABELS,
     normalize_rerun_scope,

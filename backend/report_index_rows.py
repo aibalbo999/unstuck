@@ -9,6 +9,7 @@ from data_trust import normalize_data_trust, unknown_data_trust
 from decision_tracking import build_decision_freshness, build_decision_tracking
 from pipeline_modes import get_pipeline_definition
 from report_index_parsing import parse_recommendation_summary
+from report_index_repair import recommendation_needs_rebuild
 from report_paths import report_storage_candidates_for_filename
 from report_preview import build_report_preview
 
@@ -75,6 +76,10 @@ def row_to_report(row) -> dict:
         recommendation = json.loads(row["recommendation_json"])
     except (TypeError, json.JSONDecodeError):
         recommendation = parse_recommendation_summary(row["filename"], output_dir=row["output_dir"])
+    if recommendation_needs_rebuild(recommendation):
+        rebuilt_recommendation = parse_recommendation_summary(row["filename"], output_dir=row["output_dir"])
+        if not recommendation_needs_rebuild(rebuilt_recommendation):
+            recommendation = rebuilt_recommendation
     try:
         data_trust = normalize_data_trust(json.loads(row["data_trust_json"]))
     except (KeyError, TypeError, json.JSONDecodeError):

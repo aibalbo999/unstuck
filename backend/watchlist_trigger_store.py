@@ -3,10 +3,16 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from datetime import datetime
+from pathlib import Path
 
+from config import CACHE_DB_PATH
 from pipeline_modes import normalize_pipeline_run_id
 import watchlist_store
+
+
+LEGACY_WATCHLIST_DB_PATH = Path(CACHE_DB_PATH).parent / "watchlist.sqlite3"
 
 
 def _ensure_schema(conn) -> None:
@@ -39,6 +45,69 @@ def _ensure_schema(conn) -> None:
         )
         """
     )
+    _ensure_legacy_sqlite_migrated(conn)
+
+
+def _ensure_legacy_sqlite_migrated(conn) -> None:
+    legacy_path = Path(LEGACY_WATCHLIST_DB_PATH)
+    current_path = watchlist_store._db_path().expanduser().resolve(strict=False)
+    migration_key = f"legacy_sqlite_triggers_migrated:{legacy_path.expanduser().resolve(strict=False)}"
+    if watchlist_store._meta_value(conn, migration_key):
+        return
+    if not legacy_path.exists() or legacy_path.expanduser().resolve(strict=False) == current_path:
+        watchlist_store._set_meta(conn, migration_key, watchlist_store._now_iso())
+        return
+    try:
+        with sqlite3.connect(legacy_path) as source:
+            source.row_factory = sqlite3.Row
+            trigger_rows = _legacy_rows(source, "watchlist_item_triggers")
+            event_rows = _legacy_rows(source, "watchlist_trigger_events")
+    except sqlite3.Error:
+        watchlist_store._set_meta(conn, migration_key, watchlist_store._now_iso())
+        return
+
+    for row in trigger_rows:
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO watchlist_item_triggers (
+                ticker, pipeline, triggers_json, updated_at
+            ) VALUES (?, ?, ?, ?)
+            """,
+            (row["ticker"], row["pipeline"], row["triggers_json"], row["updated_at"]),
+        )
+    for row in event_rows:
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO watchlist_trigger_events (
+                ticker, pipeline, trigger_key, evaluation_date, trigger_type,
+                matched, pipeline_selected, message, metrics_json, job_id, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                row["ticker"],
+                row["pipeline"],
+                row["trigger_key"],
+                row["evaluation_date"],
+                row["trigger_type"],
+                row["matched"],
+                row["pipeline_selected"],
+                row["message"],
+                row["metrics_json"],
+                row["job_id"],
+                row["created_at"],
+            ),
+        )
+    watchlist_store._set_meta(conn, migration_key, watchlist_store._now_iso())
+
+
+def _legacy_rows(source: sqlite3.Connection, table_name: str) -> list[sqlite3.Row]:
+    exists = source.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+        (table_name,),
+    ).fetchone()
+    if not exists:
+        return []
+    return list(source.execute(f"SELECT * FROM {table_name}").fetchall())
 
 
 def _normalize_ticker(ticker: str) -> str:

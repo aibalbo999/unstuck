@@ -150,5 +150,7 @@ def test_report_html_response_includes_security_headers(tmp_path):
 
     assert response.headers["content-security-policy"].startswith("default-src 'self'")
     assert "script-src 'none'" in response.headers["content-security-policy"]
+    assert "frame-ancestors 'self'" in response.headers["content-security-policy"]
+    assert "frame-ancestors 'none'" not in response.headers["content-security-policy"]
     assert response.headers["x-content-type-options"] == "nosniff"
     assert response.headers["referrer-policy"] == "no-referrer"

@@ -8,12 +8,14 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from config import TASK_DB_PATH
+from config import CACHE_DB_PATH, TASK_DB_PATH
+from decision_tracking_migrations import ensure_legacy_sqlite_migrated
 from storage.sqlite_resource import ThreadLocalSqliteResource
 
 
 TAIPEI = ZoneInfo("Asia/Taipei")
 DECISION_TRACKING_DB_PATH = os.getenv("DECISION_TRACKING_DB_PATH", TASK_DB_PATH)
+LEGACY_DECISION_TRACKING_DB_PATH = Path(CACHE_DB_PATH).parent / "decision_tracking.sqlite3"
 
 
 def _db_path() -> Path:
@@ -62,6 +64,14 @@ def _init_schema(conn: sqlite3.Connection) -> None:
         "CREATE INDEX IF NOT EXISTS idx_decision_backtests_ticker_date "
         "ON decision_backtest_results (ticker, evaluation_date DESC)"
     )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS decision_tracking_meta (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )
+        """
+    )
 
 
 _resource = ThreadLocalSqliteResource(_db_path, init_schema=_init_schema, row_factory=sqlite3.Row)
@@ -83,6 +93,15 @@ def _normalize_ticker(value: str) -> str:
     return str(value or "").strip().upper()
 
 
+def _ensure_legacy_sqlite_migrated(conn: sqlite3.Connection) -> None:
+    ensure_legacy_sqlite_migrated(
+        conn,
+        target_path=_db_path(),
+        legacy_path=Path(LEGACY_DECISION_TRACKING_DB_PATH),
+        now=_now_iso,
+    )
+
+
 def _row_to_item(row: sqlite3.Row) -> dict:
     return {
         "ticker": row["ticker"],
@@ -98,6 +117,7 @@ def _row_to_item(row: sqlite3.Row) -> dict:
 
 def list_items() -> list[dict]:
     with _connect() as conn:
+        _ensure_legacy_sqlite_migrated(conn)
         rows = conn.execute(
             """
             SELECT ticker, enabled, last_refresh_date, last_refresh_at,
@@ -116,6 +136,7 @@ def upsert_item(payload: dict) -> dict:
     enabled = bool((payload or {}).get("enabled", True))
     now = _now_iso()
     with _connect() as conn:
+        _ensure_legacy_sqlite_migrated(conn)
         row = conn.execute("SELECT created_at FROM decision_tracking_items WHERE ticker = ?", (ticker,)).fetchone()
         conn.execute(
             """
@@ -136,6 +157,7 @@ def upsert_item(payload: dict) -> dict:
 def delete_item(ticker: str) -> dict:
     ticker = _normalize_ticker(ticker)
     with _connect() as conn:
+        _ensure_legacy_sqlite_migrated(conn)
         cursor = conn.execute("DELETE FROM decision_tracking_items WHERE ticker = ?", (ticker,))
     return {"success": True, "deleted": cursor.rowcount, "items": list_items()}
 
@@ -145,6 +167,7 @@ def mark_refresh(ticker: str, *, status: str, message: str = "", now: datetime |
     refresh_at = _now_iso(now)
     refresh_date = (now or datetime.now(TAIPEI)).date().isoformat()
     with _connect() as conn:
+        _ensure_legacy_sqlite_migrated(conn)
         conn.execute(
             """
             UPDATE decision_tracking_items
@@ -179,6 +202,7 @@ def upsert_backtest_result(result: dict) -> dict:
     if not values[0] or values[3] not in {3, 6, 12}:
         raise ValueError("report_filename and valid horizon_months are required")
     with _connect() as conn:
+        _ensure_legacy_sqlite_migrated(conn)
         conn.execute(
             """
             INSERT INTO decision_backtest_results (
@@ -209,6 +233,7 @@ def upsert_backtest_result(result: dict) -> dict:
 
 def backtest_result_exists(report_filename: str, horizon_months: int) -> bool:
     with _connect() as conn:
+        _ensure_legacy_sqlite_migrated(conn)
         row = conn.execute(
             "SELECT 1 FROM decision_backtest_results WHERE report_filename = ? AND horizon_months = ?",
             (str(report_filename or ""), int(horizon_months)),
@@ -224,6 +249,7 @@ def list_backtest_results(*, ticker: str | None = None, limit: int = 200) -> lis
         params.append(_normalize_ticker(ticker))
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     with _connect() as conn:
+        _ensure_legacy_sqlite_migrated(conn)
         rows = conn.execute(
             f"SELECT * FROM decision_backtest_results {where} "
             "ORDER BY evaluation_date DESC, report_filename DESC, horizon_months ASC LIMIT ?",
@@ -234,6 +260,7 @@ def list_backtest_results(*, ticker: str | None = None, limit: int = 200) -> lis
 
 def list_backtests_for_report(report_filename: str) -> list[dict]:
     with _connect() as conn:
+        _ensure_legacy_sqlite_migrated(conn)
         rows = conn.execute(
             "SELECT * FROM decision_backtest_results WHERE report_filename = ? ORDER BY horizon_months ASC",
             (str(report_filename or ""),),

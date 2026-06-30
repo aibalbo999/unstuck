@@ -11,6 +11,9 @@ from typing import Optional
 from config import OUTPUT_DIR
 
 
+_SAFE_SEGMENT_RE = re.compile(r"[^A-Za-z0-9._-]+")
+
+
 def output_dir_key(output_dir: Optional[str] = None) -> str:
     return str(Path(output_dir or OUTPUT_DIR).expanduser().resolve())
 
@@ -56,6 +59,25 @@ def normalize_recommendation_label(value: str) -> str:
     return text or "N/A"
 
 
+def _safe_report_path_segment(value: str, *, fallback: str = "unknown") -> str:
+    segment = _SAFE_SEGMENT_RE.sub("_", str(value or "").strip()).strip("._-")
+    return segment or fallback
+
+
+def _markdown_path_candidates(output_dir: Optional[str], filename: str) -> list[Path]:
+    root = Path(output_dir_key(output_dir))
+    md_filename = filename[:-5] + ".md"
+    candidates = [root / md_filename]
+    parsed = parse_report_filename(filename)
+    report_date = str(parsed.get("date") or "")
+    month = report_date[:7] if re.match(r"^\d{4}-\d{2}", report_date) else "unknown-month"
+    ticker = _safe_report_path_segment(str(parsed.get("ticker") or "unknown"), fallback="unknown-ticker")
+    nested = root / month / ticker / md_filename
+    if nested not in candidates:
+        candidates.append(nested)
+    return candidates
+
+
 def parse_recommendation_summary(
     filename: str,
     output_dir: Optional[str] = None,
@@ -74,15 +96,16 @@ def parse_recommendation_summary(
     if not is_safe_report_filename(filename, ".html"):
         return summary
 
-    md_filename = filename[:-5] + ".md"
     if markdown_text is None:
-        md_path = os.path.join(output_dir_key(output_dir), md_filename)
-        if not os.path.exists(md_path):
-            return summary
-        try:
-            with open(md_path, "r", encoding="utf-8") as f:
-                markdown_text = f.read()
-        except OSError:
+        for md_path in _markdown_path_candidates(output_dir, filename):
+            if not md_path.exists():
+                continue
+            try:
+                markdown_text = md_path.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            break
+        if markdown_text is None:
             return summary
 
     one_page = extract_section(markdown_text, "一頁式摘要")

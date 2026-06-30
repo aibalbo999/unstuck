@@ -26,7 +26,7 @@ from storage.report_storage import ReportStorage
 
 
 REPORT_HTML_SECURITY_HEADERS = {
-    "Content-Security-Policy": "default-src 'self'; script-src 'none'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:",
+    "Content-Security-Policy": "default-src 'self'; script-src 'none'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:",
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer",
 }

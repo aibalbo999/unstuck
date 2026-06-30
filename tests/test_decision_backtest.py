@@ -1,4 +1,5 @@
 import sys
+import sqlite3
 from datetime import date
 from pathlib import Path
 
@@ -75,6 +76,82 @@ def test_backtest_store_upserts_once_and_aggregates(monkeypatch, tmp_path):
     assert len(results) == 1
     assert results[0]["strategy_roi_pct"] == pytest.approx(99)
     assert decision_tracking_store.backtest_result_exists(row["report_filename"], 3) is True
+
+
+def test_decision_tracking_store_migrates_legacy_sqlite_to_operational_db(monkeypatch, tmp_path):
+    import decision_tracking_store
+
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir()
+    legacy_db = cache_dir / "decision_tracking.sqlite3"
+    operational_db = cache_dir / "operational.sqlite3"
+
+    with sqlite3.connect(legacy_db) as conn:
+        conn.row_factory = sqlite3.Row
+        decision_tracking_store._init_schema(conn)
+        conn.execute(
+            """
+            INSERT INTO decision_tracking_items (
+                ticker, enabled, last_refresh_date, last_refresh_at,
+                last_refresh_status, last_refresh_message, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "2308.TW",
+                1,
+                "2026-06-29",
+                "2026-06-29T15:30:00",
+                "ok",
+                "legacy item",
+                "2026-06-20T10:00:00",
+                "2026-06-29T15:30:00",
+            ),
+        )
+        conn.execute(
+            """
+            INSERT INTO decision_backtest_results (
+                report_filename, ticker, pipeline_id, horizon_months,
+                generated_date, evaluation_date, initial_price, actual_price,
+                target_price, recommendation, market_return_pct, strategy_roi_pct,
+                target_error_pct, outcome, reason, evaluated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "2308_v2_report.html",
+                "2308.TW",
+                "v2",
+                3,
+                "2026-03-29",
+                "2026-06-29",
+                100,
+                125,
+                120,
+                "買入",
+                25,
+                25,
+                4.1667,
+                "hit",
+                "direction_and_target_met",
+                "2026-06-29T16:00:00",
+            ),
+        )
+
+    monkeypatch.setattr(decision_tracking_store, "DECISION_TRACKING_DB_PATH", str(operational_db))
+    monkeypatch.setattr(decision_tracking_store, "LEGACY_DECISION_TRACKING_DB_PATH", legacy_db, raising=False)
+    decision_tracking_store.reset_decision_tracking_store_for_tests()
+
+    items = decision_tracking_store.list_items()
+    backtests = decision_tracking_store.list_backtest_results()
+
+    assert [item["ticker"] for item in items] == ["2308.TW"]
+    assert items[0]["last_refresh_message"] == "legacy item"
+    assert [row["report_filename"] for row in backtests] == ["2308_v2_report.html"]
+    assert backtests[0]["strategy_roi_pct"] == pytest.approx(25)
+
+    decision_tracking_store.list_items()
+    with sqlite3.connect(operational_db) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM decision_tracking_items").fetchone()[0] == 1
+        assert conn.execute("SELECT COUNT(*) FROM decision_backtest_results").fetchone()[0] == 1
 
 
 def test_run_due_backtests_is_idempotent_and_builds_stats(monkeypatch, tmp_path):

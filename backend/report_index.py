@@ -11,17 +11,10 @@ from pathlib import Path
 from typing import Optional
 
 from config import CACHE_DB_PATH, OUTPUT_DIR
-from report_index_parsing import (
-    clean_report_text,
-    extract_section,
-    is_safe_report_filename,
-    normalize_recommendation_label,
-    output_dir_key,
-    parse_recommendation_summary,
-    parse_report_filename,
-)
+from report_index_parsing import is_safe_report_filename, normalize_recommendation_label, output_dir_key, parse_recommendation_summary
 from report_index_metadata import build_report_metadata, report_index_mtime
 from report_index_migrations import REPORT_INDEX_MIGRATION_KEY, REPORT_INDEX_SCHEMA_VERSION, run_report_index_migrations
+from report_index_repair import stored_recommendation_needs_rebuild
 from report_index_rows import row_to_report
 
 
@@ -176,16 +169,20 @@ def sync_report_metadata(output_dir: Optional[str] = None) -> None:
 
     with _connect() as conn:
         existing_rows = conn.execute(
-            "SELECT filename, file_mtime FROM reports WHERE output_dir = ?",
+            "SELECT filename, file_mtime, recommendation_json FROM reports WHERE output_dir = ?",
             (out_dir,),
         ).fetchall()
-    existing_mtimes = {row["filename"]: float(row["file_mtime"]) for row in existing_rows}
+    existing = {row["filename"]: row for row in existing_rows}
+    existing_mtimes = {filename: float(row["file_mtime"]) for filename, row in existing.items()}
 
     for filename in filenames:
         file_mtime = report_index_mtime(out_dir, filename)
         if file_mtime <= 0:
             continue
-        if filename not in existing_mtimes or abs(existing_mtimes[filename] - file_mtime) > 0.001:
+        if (
+            filename not in existing_mtimes or abs(existing_mtimes[filename] - file_mtime) > 0.001
+            or stored_recommendation_needs_rebuild(existing[filename], out_dir)
+        ):
             upsert_report_metadata(filename, output_dir=out_dir)
 
     stale = [filename for filename in existing_mtimes if filename not in filename_set]

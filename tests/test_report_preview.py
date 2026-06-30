@@ -23,6 +23,7 @@ from data_trust_snapshot import build_data_snapshot, verify_data_snapshot_integr
 from reporting import ReportBundle  # noqa: E402
 from reporting.html_renderer import generate_html_report  # noqa: E402
 from report_persistence import report_bundle_keys_for_filename  # noqa: E402
+from report_paths import report_storage_prefix_for_filename  # noqa: E402
 from report_repository import ReportListQuery  # noqa: E402
 
 
@@ -77,6 +78,20 @@ def test_parse_recommendation_summary_from_markdown(tmp_path, monkeypatch):
     assert summary["target_12m"] == "NT$350"
     assert summary["confidence"] == "7/10"
     assert "等待回檔" in summary["summary"]
+
+
+def test_parse_recommendation_summary_from_partitioned_markdown(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    filename = "2449_TW_v2_report_20260630_090000.html"
+    report_dir = tmp_path / report_storage_prefix_for_filename(filename)
+    report_dir.mkdir(parents=True)
+    write_report_pair(report_dir, filename, "持有")
+
+    summary = report_history_service.parse_recommendation_summary(filename, output_dir=str(tmp_path))
+
+    assert summary["recommendation"] == "持有"
+    assert summary["current_price"] == "NT$309.50"
+    assert summary["target_12m"] == "NT$350"
 
 
 def test_mode_c_report_preview_uses_bubble_sniper_fields(tmp_path, monkeypatch):
@@ -521,6 +536,80 @@ def test_get_reports_rebuilds_empty_legacy_decision_tracking(tmp_path, monkeypat
     assert tracking["status"] == "tracked"
     assert tracking["latest_price"] == 309.5
     assert tracking["return_pct"] == 0.0
+
+
+def test_get_reports_repairs_bad_recommendation_from_partitioned_markdown(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
+    filename = "2449_TW_v2_report_20260630_090000.html"
+    report_dir = tmp_path / report_storage_prefix_for_filename(filename)
+    report_dir.mkdir(parents=True)
+    write_report_pair(report_dir, filename, "持有")
+    write_data_snapshot(report_dir, filename, "fresh", current_price=309.5)
+    report_index.upsert_report_metadata(filename, output_dir=str(tmp_path))
+    bad_recommendation = {
+        "recommendation": "N/A",
+        "current_price": "N/A",
+        "target_3m": "N/A",
+        "target_6m": "N/A",
+        "target_12m": "N/A",
+        "confidence": "N/A",
+        "summary": "",
+    }
+    with report_index._connect() as conn:
+        conn.execute(
+            "UPDATE reports SET recommendation_json = ?, decision_tracking_json = '{}' WHERE filename = ?",
+            (json.dumps(bad_recommendation, ensure_ascii=False), filename),
+        )
+
+    reports, _ = report_index.query_report_metadata(
+        page=1,
+        limit=10,
+        q="2449",
+        output_dir=str(tmp_path),
+        sync_metadata=False,
+    )
+
+    recommendation = reports[0]["recommendation"]
+    tracking = reports[0]["decision_tracking"]
+    assert recommendation["recommendation"] == "持有"
+    assert recommendation["target_12m"] == "NT$350"
+    assert tracking["status"] == "tracked"
+    assert tracking["initial_price"] == 309.5
+
+
+def test_get_reports_reindexes_bad_partitioned_recommendation_before_filtering(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
+    filename = "2449_TW_v2_report_20260630_090000.html"
+    report_dir = tmp_path / report_storage_prefix_for_filename(filename)
+    report_dir.mkdir(parents=True)
+    write_report_pair(report_dir, filename, "持有")
+    write_data_snapshot(report_dir, filename, "fresh", current_price=309.5)
+    report_index.upsert_report_metadata(filename, output_dir=str(tmp_path))
+    bad_recommendation = {
+        "recommendation": "N/A",
+        "current_price": "N/A",
+        "target_3m": "N/A",
+        "target_6m": "N/A",
+        "target_12m": "N/A",
+        "confidence": "N/A",
+        "summary": "",
+    }
+    with report_index._connect() as conn:
+        conn.execute(
+            """
+            UPDATE reports
+            SET recommendation_json = ?, normalized_recommendation = 'N/A', decision_tracking_json = '{}'
+            WHERE filename = ?
+            """,
+            (json.dumps(bad_recommendation, ensure_ascii=False), filename),
+        )
+
+    result = list_reports_for_test(tmp_path, recommendation="持有")
+
+    assert [report["filename"] for report in result["reports"]] == [filename]
+    assert result["reports"][0]["recommendation"]["recommendation"] == "持有"
 
 
 def test_report_history_uses_repository_boundary(tmp_path):

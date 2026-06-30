@@ -183,10 +183,11 @@ Production profile 請設定 `UNSTUCK_ENV=production` 或 `DEPLOYMENT_MODE=serve
 - `OPERATIONAL_DB_PATH`：任務、SSE event、API usage、provider SLA 與 watchlist 預設共用的 operational SQLite DB，預設 `backend/cache/operational.sqlite3`
 - `LANGGRAPH_CHECKPOINT_PATH`：LangGraph SQLite checkpoint DB，預設跟隨 `CACHE_DB_PATH`
 - `TASK_DB_PATH`：任務與 SSE event SQLite 檔位置，預設跟隨 `OPERATIONAL_DB_PATH`
+- `DECISION_TRACKING_DB_PATH`：決策追蹤與回測 SQLite 檔位置，預設跟隨 `TASK_DB_PATH`；若未設定，舊版 `backend/cache/decision_tracking.sqlite3` 會一次性匯入 operational DB
 - `SQLITE_BACKUP_DIR`：SQLite 每日維護備份目錄，預設 `backend/cache/sqlite_backups`
 - `API_USAGE_DB_PATH`：API 用量 ledger SQLite 檔位置，預設跟隨 `TASK_DB_PATH`
 - `WATCHLIST_PATH`：舊版 watchlist JSON 位置；若存在會一次性匯入 SQLite，預設 `backend/cache/watchlist.json`
-- `WATCHLIST_DB_PATH`：watchlist SQLite 檔位置，預設跟隨 `TASK_DB_PATH`；若顯式設定則使用指定檔案
+- `WATCHLIST_DB_PATH`：watchlist SQLite 檔位置，預設跟隨 `TASK_DB_PATH`；若顯式設定則使用指定檔案，舊版 `backend/cache/watchlist.sqlite3` 的 trigger 設定與事件會一次性匯入
 - `ANALYSIS_JOB_STALE_SECONDS`：queued/running 任務超過此秒數未更新時不再被視為活躍，預設 `21600`
 - `ANALYSIS_JOB_HISTORY_RETENTION_DAYS`：已完成/失敗/取消任務紀錄保留天數，預設 `30`
 - `LLM_AGENT_CALL_TIMEOUT_SECONDS`：單次 Agent LLM 呼叫 timeout 秒數，預設 `120`；會傳入 Google GenAI `HttpOptions.timeout`，非同步路徑另有外層 `asyncio.wait_for` 保護，設為 `0` 可關閉
@@ -459,7 +460,7 @@ backend/output/
 
 `.data.json` 是資料快照，包含來源審計、資料可信度、`data_confidence_score`、結論 guardrails、`reproducibility_packet`、決策追蹤基準與重跑 context。當資料信心低於 60/100 時，snapshot 會標記明確目標價不可用，最終結論只能保留區間或資料不足說明。只刷新資料快照時，HTML / Markdown 正文不會自動改寫。
 
-`backend/cache/` 也已被 Git 忽略。財務資料快取預設保存 24 小時，可透過 `FINANCIAL_DATA_CACHE_SECONDS` 調整；`CACHE_BACKEND=redis` 時會使用 Redis 與 `CACHE_NAMESPACE`，`CACHE_BACKEND=sqlite` 時才使用 `CACHE_DB_PATH`。歷史報告列表由 report index / storage 查詢產生，不依賴 API process 內的 in-memory dict，因此多 uvicorn worker 與獨立 RQ worker 會看到一致的報告狀態。歷史報告預設保留 30 天，可透過 `REPORT_RETENTION_DAYS` 調整；前端刪除 HTML 報告時，後端會同步刪除同名 Markdown 與資料快照。
+`backend/cache/` 也已被 Git 忽略。財務資料快取預設保存 24 小時，可透過 `FINANCIAL_DATA_CACHE_SECONDS` 調整；`CACHE_BACKEND=redis` 時會使用 Redis 與 `CACHE_NAMESPACE`，`CACHE_BACKEND=sqlite` 時才使用 `CACHE_DB_PATH`。歷史報告列表由 report index / storage 查詢產生，不依賴 API process 內的 in-memory dict，因此多 uvicorn worker 與獨立 RQ worker 會看到一致的報告狀態。report index 會讀取分區輸出的 Markdown（例如 `YYYY-MM/ticker/report.md`），若舊索引列只剩 `N/A` 建議但 Markdown 可解析，查詢與同步時會自動重建 recommendation metadata，避免每日決策追蹤表因快取舊值而消失。歷史報告預設保留 30 天，可透過 `REPORT_RETENTION_DAYS` 調整；前端刪除 HTML 報告時，後端會同步刪除同名 Markdown 與資料快照。
 
 ## API / Worker 分離與任務佇列
 
@@ -498,7 +499,7 @@ Redis health check 可用 `redis-cli -u "$REDIS_URL" ping`（預期 `PONG`），
 
 API process manager 可用 `/healthz` 做 liveness probe，用 `/readyz` 做 readiness probe；`/readyz` 會檢查 runtime storage 與 Redis/RQ queue，不可用時回 HTTP 503。Operator 可用 `/api/observability/dashboard` 查看報告耗時 p50/p95/p99、stuck jobs、node/model telemetry、prompt token budget、RQ queue depth、provider degradation 與 API quota ledger 摘要。
 
-任務狀態、SSE 事件、API 用量 ledger、provider SLA 與 watchlist 預設會寫入 `OPERATIONAL_DB_PATH` / `TASK_DB_PATH` 指定的 SQLite 檔，所以 API 與 worker 需要共用同一個檔案路徑。LangGraph checkpoint 預設跟隨 `CACHE_DB_PATH`；若另外設定 `API_USAGE_DB_PATH`、`WATCHLIST_DB_PATH` 或 `LANGGRAPH_CHECKPOINT_PATH`，也要讓 API 與背景 worker 指向同一份檔案。這個預設把 operational data 與 cache/checkpoint data 分成兩個主要 DB，降低備份與維運分散度。
+任務狀態、SSE 事件、API 用量 ledger、provider SLA、watchlist 與 decision tracking 預設會寫入 `OPERATIONAL_DB_PATH` / `TASK_DB_PATH` 指定的 SQLite 檔，所以 API 與 worker 需要共用同一個檔案路徑。LangGraph checkpoint 預設跟隨 `CACHE_DB_PATH`；若另外設定 `API_USAGE_DB_PATH`、`WATCHLIST_DB_PATH`、`DECISION_TRACKING_DB_PATH` 或 `LANGGRAPH_CHECKPOINT_PATH`，也要讓 API 與背景 worker 指向同一份檔案。這個預設把 operational data 與 cache/checkpoint data 分成兩個主要 DB，降低備份與維運分散度；舊版 standalone `decision_tracking.sqlite3` 與 `watchlist.sqlite3` 會在第一次讀寫時匯入目前 operational DB，匯入後以 meta key 去重，避免重啟 worker 重複搬資料。
 
 ## 常見問題
 

@@ -136,6 +136,29 @@ def test_ensure_runtime_storage_creates_openable_sqlite_paths(tmp_path):
             assert conn.execute("PRAGMA user_version").fetchone() is not None
 
 
+def test_ensure_runtime_storage_defaults_operational_consumers_to_task_db(tmp_path, monkeypatch):
+    monkeypatch.delenv("DECISION_TRACKING_DB_PATH", raising=False)
+    monkeypatch.delenv("WATCHLIST_DB_PATH", raising=False)
+    monkeypatch.delenv("WATCHLIST_PATH", raising=False)
+    cache_dir = tmp_path / "cache"
+    cache_db = cache_dir / "stock_agent_cache.sqlite3"
+    task_db = cache_dir / "operational.sqlite3"
+
+    result = ensure_runtime_storage(
+        output_dir=str(tmp_path / "output"),
+        cache_dir=str(cache_dir),
+        cache_db_path=str(cache_db),
+        task_db_path=str(task_db),
+        checkpoint_path=str(cache_db),
+        market_calendar_dir=str(cache_dir / "market_calendars"),
+    )
+
+    assert result["sqlite_paths"]["decision_tracking_db"] == str(task_db.resolve(strict=False))
+    assert result["sqlite_paths"]["watchlist_db"] == str(task_db.resolve(strict=False))
+    assert not (cache_dir / "decision_tracking.sqlite3").exists()
+    assert not (cache_dir / "watchlist.sqlite3").exists()
+
+
 def test_ensure_runtime_storage_rejects_directory_used_as_database(tmp_path):
     bad_cache_db = tmp_path / "cache-as-db"
     bad_cache_db.mkdir()

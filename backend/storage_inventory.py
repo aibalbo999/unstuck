@@ -41,11 +41,8 @@ def ensure_runtime_storage(
     cache_db = Path(cache_db_path or CACHE_DB_PATH)
     task_db = Path(task_db_path or TASK_DB_PATH)
     checkpoint_db = Path(checkpoint_path or LANGGRAPH_CHECKPOINT_PATH)
-    tracking_db = Path(
-        decision_tracking_db_path
-        or os.getenv("DECISION_TRACKING_DB_PATH", str(cache_db.expanduser().parent / "decision_tracking.sqlite3"))
-    )
-    watchlist_db = _default_watchlist_db_path(cache_db, watchlist_db_path)
+    tracking_db = Path(decision_tracking_db_path or os.getenv("DECISION_TRACKING_DB_PATH", str(task_db)))
+    watchlist_db = _default_watchlist_db_path(cache_db, task_db, watchlist_db_path)
     yfinance_cache_path = _ensure_directory(
         Path(yfinance_cache_dir or os.getenv("YFINANCE_CACHE_DIR", str(cache_db.expanduser().parent / "yfinance"))),
         "yfinance_cache_dir",
@@ -195,13 +192,16 @@ def _ensure_sqlite_openable(path: Path, label: str, created_dirs: list[str]) -> 
     return resolved
 
 
-def _default_watchlist_db_path(cache_db: Path, explicit_path: Optional[str]) -> Path:
+def _default_watchlist_db_path(cache_db: Path, task_db: Path, explicit_path: Optional[str]) -> Path:
     if explicit_path:
         return Path(explicit_path)
     env_db_path = os.getenv("WATCHLIST_DB_PATH", "").strip()
     if env_db_path:
         return Path(env_db_path)
-    watchlist_path = Path(os.getenv("WATCHLIST_PATH", str(cache_db.expanduser().parent / "watchlist.json")))
+    default_watchlist_path = cache_db.expanduser().parent / "watchlist.json"
+    watchlist_path = Path(os.getenv("WATCHLIST_PATH", str(default_watchlist_path)))
+    if watchlist_path == default_watchlist_path:
+        return task_db
     return watchlist_path.with_suffix(".sqlite3")
 
 

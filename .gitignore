@@ -29,3 +29,4 @@ env/
 # Editor and OS noise
 .idea/
 .vscode/
+.gstack/

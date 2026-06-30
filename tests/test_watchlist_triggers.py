@@ -165,6 +165,60 @@ def test_watchlist_trigger_store_is_idempotent(monkeypatch, tmp_path):
     assert latest["trigger_type"] == "vix_above"
 
 
+def test_watchlist_trigger_store_migrates_legacy_sqlite_events(monkeypatch, tmp_path):
+    import sqlite3
+    import watchlist_service
+    import watchlist_store
+    import watchlist_trigger_store
+
+    legacy_db = tmp_path / "watchlist.sqlite3"
+    operational_db = tmp_path / "operational.sqlite3"
+    with sqlite3.connect(legacy_db) as conn:
+        conn.execute(
+            """
+            CREATE TABLE watchlist_trigger_events (
+                ticker TEXT NOT NULL,
+                pipeline TEXT NOT NULL,
+                trigger_key TEXT NOT NULL,
+                evaluation_date TEXT NOT NULL,
+                trigger_type TEXT NOT NULL,
+                matched INTEGER NOT NULL,
+                pipeline_selected TEXT NOT NULL,
+                message TEXT NOT NULL,
+                metrics_json TEXT NOT NULL,
+                job_id TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                PRIMARY KEY (ticker, pipeline, trigger_key, evaluation_date)
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO watchlist_trigger_events (
+                ticker, pipeline, trigger_key, evaluation_date, trigger_type,
+                matched, pipeline_selected, message, metrics_json, job_id, created_at
+            ) VALUES ('2308.TW', 'v1', 'vix_above', '2026-06-20', 'vix_above',
+                1, 'v3', 'VIX 35 > 30', '{"vix": 35}', 'job-1', '2026-06-20T16:00:00+08:00')
+            """
+        )
+
+    monkeypatch.setattr(watchlist_service, "WATCHLIST_PATH", tmp_path / "watchlist.json")
+    monkeypatch.setattr(watchlist_service, "WATCHLIST_DB_PATH", str(operational_db))
+    monkeypatch.setattr(watchlist_store, "WATCHLIST_DB_PATH", str(operational_db))
+    monkeypatch.setattr(watchlist_trigger_store, "LEGACY_WATCHLIST_DB_PATH", legacy_db, raising=False)
+    watchlist_service.reset_watchlist_store_for_tests()
+
+    latest = watchlist_trigger_store.latest_event_for_item("2308.TW", "v1")
+    repeated = watchlist_trigger_store.latest_event_for_item("2308.TW", "v1")
+
+    assert latest["trigger_type"] == "vix_above"
+    assert latest["pipeline_selected"] == "v3"
+    assert repeated == latest
+    assert watchlist_store._db_path() == operational_db.resolve(strict=False)
+    with sqlite3.connect(watchlist_store._db_path()) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM watchlist_trigger_events").fetchone()[0] == 1
+
+
 def test_unmatched_trigger_event_can_upgrade_to_matched(monkeypatch, tmp_path):
     import watchlist_service
     import watchlist_trigger_store
