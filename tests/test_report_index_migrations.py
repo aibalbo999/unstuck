@@ -9,6 +9,34 @@ sys.path.insert(0, str(ROOT / "backend"))
 import report_index  # noqa: E402
 
 
+class _TransientWalConnection:
+    def __init__(self, conn, fail_state: dict):
+        object.__setattr__(self, "_conn", conn)
+        object.__setattr__(self, "_fail_state", fail_state)
+
+    def execute(self, sql, *args, **kwargs):
+        if str(sql).startswith("PRAGMA journal_mode=WAL") and not self._fail_state["failed"]:
+            self._fail_state["failed"] = True
+            raise sqlite3.OperationalError("unable to open database file")
+        return self._conn.execute(sql, *args, **kwargs)
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
+    def __setattr__(self, name, value):
+        if name in {"_conn", "_fail_state"}:
+            object.__setattr__(self, name, value)
+        else:
+            setattr(self._conn, name, value)
+
+    def __enter__(self):
+        self._conn.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return self._conn.__exit__(exc_type, exc, tb)
+
+
 def _columns(db_path: Path) -> set[str]:
     with sqlite3.connect(db_path) as conn:
         return {row[1] for row in conn.execute("PRAGMA table_info(reports)").fetchall()}
@@ -68,6 +96,24 @@ def test_report_index_migration_from_empty_db(monkeypatch, tmp_path):
         "data_file_hash",
         "decision_tracking_json",
     }.issubset(_columns(db_path))
+
+
+def test_report_index_connect_retries_transient_wal_open_failure(monkeypatch, tmp_path):
+    db_path = tmp_path / "cache.db"
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(db_path))
+    real_connect = sqlite3.connect
+    state = {"failed": False, "attempts": 0}
+
+    def flaky_connect(*args, **kwargs):
+        state["attempts"] += 1
+        return _TransientWalConnection(real_connect(*args, **kwargs), state)
+
+    monkeypatch.setattr(report_index.sqlite3, "connect", flaky_connect)
+
+    with report_index._connect() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM reports").fetchone()[0] == 0
+
+    assert state == {"failed": True, "attempts": 2}
 
 
 def test_report_index_migration_upgrades_v1_and_v2_idempotently(monkeypatch, tmp_path):

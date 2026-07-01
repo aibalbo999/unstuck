@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Optional
 
 from config import CACHE_DB_PATH, OUTPUT_DIR
+from report_index_connection import connect_report_index_sqlite
 from report_index_parsing import is_safe_report_filename, normalize_recommendation_label, output_dir_key, parse_recommendation_summary
 from report_index_metadata import build_report_metadata, report_index_mtime
 from report_index_migrations import REPORT_INDEX_MIGRATION_KEY, REPORT_INDEX_SCHEMA_VERSION, run_report_index_migrations
@@ -22,12 +23,7 @@ _REPORT_INDEX_LOCK = threading.Lock()
 
 
 def _connect():
-    path = Path(CACHE_DB_PATH)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path, timeout=30)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA busy_timeout=5000")
+    conn = connect_report_index_sqlite(CACHE_DB_PATH, sqlite3.connect)
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS reports (

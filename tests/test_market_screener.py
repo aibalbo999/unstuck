@@ -3,12 +3,24 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
 BACKEND = ROOT / "backend"
 if str(BACKEND) not in sys.path:
     sys.path.insert(0, str(BACKEND))
+
+
+@pytest.fixture(autouse=True)
+def isolated_watchlist_store(monkeypatch, tmp_path):
+    import watchlist_service
+
+    monkeypatch.setattr(watchlist_service, "WATCHLIST_PATH", tmp_path / "watchlist.json")
+    monkeypatch.setattr(watchlist_service, "WATCHLIST_DB_PATH", str(tmp_path / "watchlist.sqlite3"))
+    watchlist_service.reset_watchlist_store_for_tests()
+    yield
+    watchlist_service.reset_watchlist_store_for_tests()
 
 
 class FakeFinMindLoader:
