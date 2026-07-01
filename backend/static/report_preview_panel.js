@@ -17,11 +17,17 @@
         return number > 0 ? 'is-positive' : 'is-negative';
     }
 
+    function normalizeTrackingRecommendation(value) {
+        return window.StockAgentUi?.normalizeRecommendation
+            ? window.StockAgentUi.normalizeRecommendation(value)
+            : String(value || '');
+    }
+
     function returnTone(tracking) {
         const value = Number(tracking && tracking.return_pct);
         if (!Number.isFinite(value) || value === 0) return 'is-neutral';
         if (tracking.status === 'target_hit' || tracking.status === 'avoided_loss') return 'is-positive';
-        if (tracking.recommendation === '避免' || tracking.recommendation === '強烈放空') return value < 0 ? 'is-positive' : 'is-negative';
+        if (['避免', '放空'].includes(normalizeTrackingRecommendation(tracking.recommendation))) return value < 0 ? 'is-positive' : 'is-negative';
         return value > 0 ? 'is-positive' : 'is-negative';
     }
 

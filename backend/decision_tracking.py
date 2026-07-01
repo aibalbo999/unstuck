@@ -8,7 +8,7 @@ from typing import Optional
 
 from confidence_calibration import build_confidence_calibration, has_unresolved_cross_source_conflict
 from price_parser import extract_price_numbers
-from report_index_parsing import normalize_recommendation_label
+from recommendation_labels import normalize_recommendation_label
 
 
 def parse_optional_price(value) -> Optional[float]:

@@ -671,4 +671,7 @@ def test_async_fixture_records_google_and_fmp_failures(monkeypatch):
         if entry["status"] == "error" and entry["provider"] in {"Google Search", "FMP news"}
     ]
     assert {entry["provider"] for entry in errors} == {"Google Search", "FMP news"}
-    assert data["data_trust"]["status"] == "partial"
+    reason_codes = data["data_trust"]["reason_codes"]
+    assert data["data_trust"]["status"] == "fresh"
+    assert "optional_source_error:recent_catalysts" in reason_codes
+    assert "source_error:recent_catalysts" not in reason_codes

@@ -24,6 +24,9 @@ from data_trust_constants import (
 from data_trust_sla_policy import apply_provider_sla_to_trust
 
 
+CORE_SOURCE_SET = set(CORE_DATA_SOURCES)
+
+
 def trust_status_label(status: str) -> str:
     return TRUST_STATUS_LABELS.get(str(status or ""), str(status or "unknown"))
 
@@ -109,11 +112,14 @@ def build_data_trust(data: dict) -> dict:
         if latest_audit.get(source, {}).get("status") == AUDIT_STATUS_ERROR
     ]
     stale_sources = stale_sources_from(source_freshness, latest_audit)
-    error_sources = sorted({
-        str(entry.get("source") or "")
-        for entry in audit_entries
-        if isinstance(entry, dict) and entry.get("status") == AUDIT_STATUS_ERROR and entry.get("source")
-    })
+    optional_stale_sources = optional_stale_sources_from(source_freshness, latest_audit)
+    latest_error_sources = sorted(
+        source
+        for source, entry in latest_audit.items()
+        if isinstance(entry, dict) and entry.get("status") == AUDIT_STATUS_ERROR
+    )
+    error_sources = [source for source in latest_error_sources if is_core_source(source)]
+    optional_error_sources = [source for source in latest_error_sources if not is_core_source(source)]
 
     if critical_failures and not has_usable_critical_data(data, latest_audit):
         status = TRUST_STATUS_ERROR
@@ -140,6 +146,12 @@ def build_data_trust(data: dict) -> dict:
     if optional_degraded:
         notes.append("補充來源降級，核心市場與財報資料仍按既有可信度處理。")
         reason_codes.extend(f"optional_source_degraded:{source}" for source in optional_degraded)
+    if optional_stale_sources:
+        notes.append("補充來源超過新鮮度門檻，已保留提醒，不影響核心資料可信度。")
+        reason_codes.extend(f"optional_source_stale:{source}" for source in optional_stale_sources)
+    if optional_error_sources:
+        notes.append("補充來源異常，核心市場與財報資料仍按既有可信度處理。")
+        reason_codes.extend(f"optional_source_error:{source}" for source in optional_error_sources)
 
     if data.get("data_source_notes"):
         notes.append("另有資料口徑或備援補值註記，詳見報告參考資料區。")
@@ -185,22 +197,35 @@ def latest_audit_by_source(entries: list) -> dict:
 
 
 def stale_sources_from(source_freshness: dict, latest_audit: dict) -> list[str]:
+    return _stale_sources_from(source_freshness, latest_audit, core_only=True)
+
+
+def optional_stale_sources_from(source_freshness: dict, latest_audit: dict) -> list[str]:
+    return _stale_sources_from(source_freshness, latest_audit, core_only=False)
+
+
+def _stale_sources_from(source_freshness: dict, latest_audit: dict, *, core_only: bool) -> list[str]:
     sources = set()
     for source, entry in source_freshness.items():
-        if isinstance(entry, dict) and entry.get("stale"):
-            sources.add(str(source))
+        source_name = str(source or "")
+        if source_name and isinstance(entry, dict) and entry.get("stale") and is_core_source(source_name) == core_only:
+            sources.add(source_name)
     for source, entry in latest_audit.items():
-        if isinstance(entry, dict) and entry.get("stale"):
-            sources.add(str(source))
+        source_name = str(source or "")
+        if source_name and isinstance(entry, dict) and entry.get("stale") and is_core_source(source_name) == core_only:
+            sources.add(source_name)
     return sorted(sources)
 
 
+def is_core_source(source: str) -> bool:
+    return str(source or "") in CORE_SOURCE_SET
+
+
 def optional_sources_with_status(latest_audit: dict, status: str) -> list[str]:
-    core_sources = set(CORE_DATA_SOURCES)
     return sorted(
         source
         for source, entry in latest_audit.items()
-        if source not in core_sources
+        if not is_core_source(source)
         and isinstance(entry, dict)
         and entry.get("status") == status
     )

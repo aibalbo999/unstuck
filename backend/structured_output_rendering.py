@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import re
 
+from recommendation_labels import normalize_recommendation_label
+
 
 def normalize_escaped_newlines(text: str) -> str:
     """Convert model-emitted literal newline escapes inside markdown bodies."""
@@ -55,6 +57,9 @@ def ensure_agent19_required_sections(body: str, structured: dict) -> str:
 
 def format_recommendation_block(agent_num: int, rec: dict) -> str:
     separator = "：" if agent_num == 19 else ": "
+    rec = dict(rec or {})
+    if "建議" in rec:
+        rec["建議"] = normalize_recommendation_label(rec.get("建議"))
     if agent_num == 19:
         ordered_keys = [
             "建議",

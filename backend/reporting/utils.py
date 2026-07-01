@@ -8,6 +8,7 @@ from html import escape
 
 from .common import markdown_lib
 from .html_sanitizer import sanitize_report_html, sanitize_report_plain_text
+from recommendation_labels import normalize_recommendation_label
 
 REPORT_CONTENT_START_RE = re.compile(
     r"^\s*(?:#{1,4}\s+.+|(?:#{1,4}\s+)?(?:[一二三四五六七八九十]+[、.．]|執行摘要|短中長期展望|長期展望|關鍵催化因子|主要風險|最終投資決策論述|"
@@ -244,10 +245,10 @@ def clean_markdown(text: str) -> str:
 
 def get_recommendation_color(rec: str) -> str:
     """根據建議返回顏色"""
-    rec = rec.strip().lower()
-    if "買入" in rec or "買進" in rec or "buy" in rec:
+    rec = normalize_recommendation_label(rec)
+    if rec == "買入":
         return "#10b981"  # 綠色
-    elif "強烈放空" in rec or "放空" in rec or "避免" in rec or "sell" in rec or "avoid" in rec:
+    elif rec in {"避免", "放空"}:
         return "#ef4444"  # 紅色
     else:
         return "#f59e0b"  # 黃色（持有）
@@ -255,10 +256,10 @@ def get_recommendation_color(rec: str) -> str:
 
 def get_recommendation_icon(rec: str) -> str:
     """根據建議返回圖示"""
-    rec_lower = rec.strip().lower()
-    if "買入" in rec_lower or "買進" in rec_lower or "buy" in rec_lower:
+    rec = normalize_recommendation_label(rec)
+    if rec == "買入":
         return "↑"
-    elif "強烈放空" in rec_lower or "放空" in rec_lower or "避免" in rec_lower or "sell" in rec_lower or "avoid" in rec_lower:
+    elif rec in {"避免", "放空"}:
         return "↓"
     else:
         return "→"

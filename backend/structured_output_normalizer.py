@@ -6,6 +6,7 @@ import re
 from typing import Any, Optional
 
 from confidence_calibration import build_confidence_calibration, confidence_score, has_unresolved_cross_source_conflict
+from recommendation_labels import normalize_recommendation_label
 from structured_output_rendering import (
     ensure_agent19_required_sections,
     format_recommendation_block,
@@ -61,6 +62,8 @@ def normalize_structured_output(agent_num: int, payload: Optional[dict]) -> Opti
     """Validate and normalize JSON payloads from structured agents."""
     if not isinstance(payload, dict):
         return None
+    if agent_num in {7, 16, 19}:
+        payload = _normalize_recommendation_payload_aliases(payload)
     payload = validated_structured_payload(agent_num, payload)
     if payload is None:
         return None
@@ -176,7 +179,8 @@ def normalize_structured_output(agent_num: int, payload: Optional[dict]) -> Opti
         normalized_rec = {}
         for key, value in raw_rec.items():
             normalized_key = key_aliases.get(str(key).strip(), str(key).strip())
-            normalized_rec[normalized_key] = str(value).strip()
+            normalized_value = normalize_recommendation_label(value) if normalized_key == "建議" else str(value).strip()
+            normalized_rec[normalized_key] = normalized_value
             
         confidence_basis = payload.get("confidence_basis")
         if isinstance(confidence_basis, dict):
@@ -191,6 +195,17 @@ def normalize_structured_output(agent_num: int, payload: Optional[dict]) -> Opti
         }
 
     return None
+
+
+def _normalize_recommendation_payload_aliases(payload: dict) -> dict:
+    recommendation = payload.get("recommendation")
+    if not isinstance(recommendation, dict):
+        return payload
+    normalized = dict(recommendation)
+    for key in ("建議", "recommendation"):
+        if key in normalized:
+            normalized[key] = normalize_recommendation_label(normalized[key])
+    return {**payload, "recommendation": normalized}
 
 
 def structured_output_to_report_text(agent_num: int, structured: dict, fallback_text: str = "") -> str:

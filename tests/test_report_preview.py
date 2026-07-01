@@ -131,7 +131,7 @@ def test_mode_c_report_preview_uses_bubble_sniper_fields(tmp_path, monkeypatch):
     preview = result["reports"][0]["preview"]
     assert preview["kind"] == "bubble_sniper"
     assert preview["title"] == "2449 泡沫狙擊預覽"
-    assert preview["primary"] == {"label": "空方判斷", "value": "強烈放空", "tone": "is-short"}
+    assert preview["primary"] == {"label": "空方判斷", "value": "放空", "tone": "is-short"}
     assert [item["label"] for item in preview["metrics"]] == ["當日股價", "信心"]
     assert [item["label"] for item in preview["targets"]] == ["做空觸發", "防軋空停損", "3個月壓力"]
     assert "財測下修" in preview["targets"][0]["value"]
@@ -427,6 +427,62 @@ def test_get_reports_filters_pipeline_and_recommendation(tmp_path, monkeypatch):
     assert freshness["status"] == "current"
     assert freshness["requires_rerun"] is False
     assert result["reports"][0]["data_trust"]["status"] == "fresh"
+
+
+def test_get_reports_normalizes_legacy_stored_recommendation_labels(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
+    filename = "2449_v3_report_20260606_010000.html"
+    write_report_pair(tmp_path, filename, "強烈放空")
+    write_data_snapshot(tmp_path, filename, "fresh")
+    report_index.upsert_report_metadata(filename, output_dir=str(tmp_path))
+    legacy_recommendation = {
+        "recommendation": "強烈放空",
+        "current_price": "NT$309.50",
+        "target_3m": "NT$273",
+        "target_6m": "NT$310",
+        "target_12m": "NT$350",
+        "confidence": "7/10",
+        "summary": "測試摘要。",
+    }
+    with report_index._connect() as conn:
+        conn.execute(
+            """
+            UPDATE reports
+            SET recommendation_json = ?, normalized_recommendation = '強烈放空', decision_tracking_json = '{}'
+            WHERE filename = ?
+            """,
+            (json.dumps(legacy_recommendation, ensure_ascii=False), filename),
+        )
+
+    result = list_reports_for_test(tmp_path, pipeline="v3", recommendation="放空")
+
+    assert result["pagination"]["total"] == 1
+    report = result["reports"][0]
+    assert report["recommendation"]["recommendation"] == "放空"
+    assert report["decision_tracking"]["recommendation"] == "放空"
+    assert report["preview"]["primary"]["value"] == "放空"
+
+
+def test_get_reports_recovers_company_name_from_snapshot_when_index_has_ticker(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
+    filename = "2449_v2_report_20260606_010000.html"
+    write_report_pair(tmp_path, filename, "持有")
+    write_data_snapshot(tmp_path, filename, "fresh")
+    report_index.upsert_report_metadata(filename, output_dir=str(tmp_path))
+    with report_index._connect() as conn:
+        conn.execute("UPDATE reports SET company_name = ticker WHERE filename = ?", (filename,))
+
+    reports, _ = report_index.query_report_metadata(
+        page=1,
+        limit=10,
+        output_dir=str(tmp_path),
+        sync_metadata=False,
+    )
+
+    assert reports[0]["ticker"] == "2449"
+    assert reports[0]["company_name"] == "京元電子"
 
 
 def test_report_compare_api_returns_decision_and_tracking_deltas(tmp_path, monkeypatch):

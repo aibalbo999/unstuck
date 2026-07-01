@@ -6,7 +6,7 @@ import calendar
 from datetime import date
 from typing import Any
 
-from report_index import normalize_recommendation_label
+from recommendation_labels import normalize_recommendation_label
 
 
 BACKTEST_HORIZONS = (3, 6, 12)
@@ -36,11 +36,11 @@ def evaluate_prediction(
     target = float(target_price) if target_price not in (None, "") else None
     target_error = ((actual / target - 1) * 100) if target and target > 0 else None
 
-    if recommendation in {"買入", "買進"}:
+    if recommendation == "買入":
         strategy_roi = market_return
         hit = market_return > 0 and (target is None or actual >= target * 0.9)
         reason = "direction_and_target_met" if hit else "buy_thesis_not_met"
-    elif recommendation in {"避免", "強烈放空"}:
+    elif recommendation in {"避免", "放空"}:
         strategy_roi = -market_return
         hit = market_return < 0 and (target is None or actual <= target * 1.1)
         reason = "short_direction_and_target_met" if hit else "short_thesis_not_met"

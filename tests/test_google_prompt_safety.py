@@ -63,7 +63,7 @@ def test_google_prompt_rewrites_explicit_trade_advice_terms():
     assert "買進" not in safe_prompt
     assert "賣出" not in safe_prompt
     assert "研究分類" in safe_prompt
-    assert "高度空方風險" in safe_prompt
+    assert "空方風險觀察" in safe_prompt
 
 
 def test_agent19_google_system_instruction_avoids_direct_short_advice():
@@ -74,7 +74,7 @@ def test_agent19_google_system_instruction_avoids_direct_short_advice():
     assert "強烈放空" not in safe_instruction
     assert "recommend short exposure" not in safe_instruction
     assert "short-selling report author" not in safe_instruction
-    assert "高度空方風險" in safe_instruction
+    assert "空方風險觀察" in safe_instruction
     assert "research-ready downside-risk report" in safe_instruction
 
 
@@ -89,5 +89,5 @@ def test_google_generation_config_rewrites_agent19_schema_for_google():
 
     assert "強烈放空" not in schema_text
     assert "買進" not in schema_text
-    assert "高度空方風險" in schema_text
+    assert "空方風險觀察" in schema_text
     assert "偏多觀察" in schema_text

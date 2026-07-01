@@ -360,6 +360,67 @@ process.stdout.write(table.innerHTML);
     assert 'tracking-compact-note is-below-target' in result.stdout
 
 
+def test_mode_d_tracking_card_uses_trade_setup_instead_of_target_comparison():
+    history_panel_path = STATIC_DIR / "history_panel.js"
+    script = """
+global.window = {};
+require(__HISTORY_PANEL_PATH__);
+const table = { hidden: false, innerHTML: '', classList: { toggle() {} } };
+const panel = window.StockAgentHistoryPanel.create({
+  listEl: null,
+  trackingTableEl: table,
+  paginationEl: null,
+  prevBtn: null,
+  nextBtn: null,
+  pageInfoEl: null,
+  escapeHtml: value => String(value ?? ''),
+  normalizeRecommendation: value => String(value ?? ''),
+  renderPipelineModeBadge: () => '',
+  renderDataTrustBadge: () => '',
+  renderDataTrustReason: () => '',
+  recommendationTone: () => ''
+});
+panel.renderTrackingGroups([{
+  ticker: '1623.TW',
+  company_name: '大東電',
+  reports: [{
+    filename: '1623_v4_report_job_fff62ba7fd52.html',
+    ticker: '1623.TW',
+    company_name: '大東電',
+    pipeline_id: 'v4',
+    date: '2026-07-01 09:13',
+    preview: {
+      kind: 'swing_trade',
+      primary: { label: '交易方向', value: '中性 Neutral', tone: 'is-neutral' },
+      list_metrics: [{ label: '短線目標', value: '213' }, { label: '停損', value: '跌破 205' }]
+    },
+    recommendation: { recommendation: 'N/A' },
+    decision_tracking: {
+      status: 'tracked',
+      recommendation: 'N/A',
+      latest_price: 213,
+      return_pct: 0,
+      tracking_summary_status: '尚無法比較目標',
+      target_comparisons: {
+        target_3m: { status: 'unavailable', target: 0, label: '無法比較' },
+        target_6m: { status: 'unavailable', target: 0, label: '無法比較' },
+        target_12m: { status: 'unavailable', target: 0, label: '無法比較' }
+      }
+    }
+  }]
+}]);
+process.stdout.write(table.innerHTML);
+""".replace("__HISTORY_PANEL_PATH__", json.dumps(str(history_panel_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+
+    assert "大東電" in result.stdout
+    assert "中性 Neutral" in result.stdout
+    assert "短線目標" in result.stdout
+    assert "跌破 205" in result.stdout
+    assert "無法比較" not in result.stdout
+    assert "尚無法比較目標" not in result.stdout
+
+
 def test_report_preview_panel_renders_mode_specific_preview_metrics():
     report_preview_path = STATIC_DIR / "report_preview_panel.js"
     script = """

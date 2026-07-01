@@ -136,6 +136,80 @@ def test_optional_degraded_enrichment_is_not_treated_as_core_failure(monkeypatch
     assert any("補充來源降級" in note for note in trust["notes"])
 
 
+def test_optional_stale_enrichment_sources_do_not_degrade_fresh_core_data(monkeypatch):
+    import provider_sla
+
+    monkeypatch.setattr(provider_sla, "get_provider_sla_alerts", lambda limit=100: [])
+    payload = fresh_audited_payload(provider="fake-yfinance")
+    payload["source_freshness"].update(
+        {
+            "recent_catalysts": {
+                "stale": True,
+                "fetched_at": "2026-06-01T00:00:00+00:00",
+                "fetched_at_epoch": 1780243200,
+            },
+            "social_sentiment": {
+                "stale": True,
+                "fetched_at": "2026-06-01T00:00:00+00:00",
+                "fetched_at_epoch": 1780243200,
+            },
+        }
+    )
+    payload["source_audit"].extend(
+        [
+            data_trust.build_source_audit_entry(
+                "recent_catalysts",
+                "cache",
+                "unavailable",
+                record_count=1,
+                cache_hit=True,
+                stale=True,
+            ),
+            data_trust.build_source_audit_entry(
+                "social_sentiment",
+                "cache",
+                "unavailable",
+                record_count=1,
+                cache_hit=True,
+                stale=True,
+            ),
+        ]
+    )
+
+    trust = data_trust.build_data_trust(payload)
+
+    assert trust["status"] == "fresh"
+    assert trust["score"] >= 90
+    assert trust["stale_sources"] == []
+    assert "optional_source_stale:recent_catalysts" in trust["reason_codes"]
+    assert "optional_source_stale:social_sentiment" in trust["reason_codes"]
+    assert not any(code.startswith("source_stale:") for code in trust["reason_codes"])
+
+
+def test_optional_source_errors_do_not_degrade_fresh_core_data(monkeypatch):
+    import provider_sla
+
+    monkeypatch.setattr(provider_sla, "get_provider_sla_alerts", lambda limit=100: [])
+    payload = fresh_audited_payload(provider="fake-yfinance")
+    payload["source_audit"].append(
+        data_trust.build_source_audit_entry(
+            "recent_catalysts",
+            "News/Search providers",
+            "error",
+            record_count=0,
+            error_kind="ConnectionError",
+            message="補充新聞來源暫時無法連線。",
+        )
+    )
+
+    trust = data_trust.build_data_trust(payload)
+
+    assert trust["status"] == "fresh"
+    assert trust["score"] >= 90
+    assert "optional_source_error:recent_catalysts" in trust["reason_codes"]
+    assert "source_error:recent_catalysts" not in trust["reason_codes"]
+
+
 def test_provider_sla_warning_notes_current_provider_without_downgrade(monkeypatch):
     import provider_sla
 
@@ -154,10 +228,112 @@ def test_provider_sla_warning_notes_current_provider_without_downgrade(monkeypat
     assert any("來源健康度觀察" in note for note in trust["notes"])
 
 
+def test_core_provider_sla_critical_is_notice_when_current_fetch_succeeded(monkeypatch):
+    import provider_sla
+
+    payload = fresh_audited_payload(provider="fake-yfinance")
+    monkeypatch.setattr(
+        provider_sla,
+        "get_provider_sla_alerts",
+        lambda limit=100: [provider_sla_alert(provider="fake-yfinance", level="critical", attempts=20)],
+    )
+
+    trust = data_trust.build_data_trust(payload)
+
+    assert trust["status"] == "fresh"
+    assert trust["score"] >= 90
+    assert "provider_sla_critical" not in trust["reason_codes"]
+    assert "provider_sla_core_health_notice" in trust["reason_codes"]
+    assert any("本次資料抓取成功" in note for note in trust["notes"])
+
+
+def test_core_provider_sla_critical_for_failed_secondary_provider_is_notice_when_source_succeeded(monkeypatch):
+    import provider_sla
+
+    payload = fresh_audited_payload(provider="fake-yfinance")
+    payload["source_audit"].append(
+        data_trust.build_source_audit_entry(
+            "market_data",
+            "fallback-quote",
+            "unavailable",
+            record_count=0,
+            message="備援 quote provider 本次未回傳。",
+        )
+    )
+    monkeypatch.setattr(
+        provider_sla,
+        "get_provider_sla_alerts",
+        lambda limit=100: [
+            provider_sla_alert(source="market_data", provider="fallback-quote", level="critical", attempts=20)
+        ],
+    )
+
+    trust = data_trust.build_data_trust(payload)
+
+    assert trust["status"] == "fresh"
+    assert trust["score"] >= 90
+    assert "provider_sla_critical" not in trust["reason_codes"]
+    assert "provider_sla_core_health_notice" in trust["reason_codes"]
+
+
+def test_optional_provider_sla_critical_is_notice_without_global_downgrade(monkeypatch):
+    import provider_sla
+
+    payload = fresh_audited_payload(provider="fake-yfinance")
+    payload["source_audit"].extend(
+        [
+            data_trust.build_source_audit_entry(
+                "recent_catalysts",
+                "cache",
+                "skipped_fresh_cache",
+                record_count=1,
+                cache_hit=True,
+            ),
+            data_trust.build_source_audit_entry(
+                "social_sentiment",
+                "cache",
+                "skipped_fresh_cache",
+                record_count=1,
+                cache_hit=True,
+            ),
+        ]
+    )
+    monkeypatch.setattr(
+        provider_sla,
+        "get_provider_sla_alerts",
+        lambda limit=100: [
+            provider_sla_alert(source="recent_catalysts", provider="cache", level="critical", attempts=20),
+            provider_sla_alert(source="social_sentiment", provider="cache", level="critical", attempts=20),
+        ],
+    )
+
+    trust = data_trust.build_data_trust(payload)
+
+    assert trust["status"] == "fresh"
+    assert trust["score"] >= 90
+    assert "provider_sla_critical" not in trust["reason_codes"]
+    assert "provider_sla_optional_critical" in trust["reason_codes"]
+    assert any("補充來源健康度警示" in note for note in trust["notes"])
+
+
 def test_provider_sla_critical_downgrades_current_provider_trust(monkeypatch):
     import provider_sla
 
     payload = fresh_audited_payload(provider="fake-yfinance")
+    payload["source_freshness"]["market_data"] = {
+        "stale": True,
+        "fetched_at": "2026-06-01T00:00:00+00:00",
+        "fetched_at_epoch": 1780243200,
+    }
+    payload["source_audit"].append(
+        data_trust.build_source_audit_entry(
+            "market_data",
+            "fake-yfinance",
+            "unavailable",
+            record_count=0,
+            stale=True,
+        )
+    )
     monkeypatch.setattr(
         provider_sla,
         "get_provider_sla_alerts",

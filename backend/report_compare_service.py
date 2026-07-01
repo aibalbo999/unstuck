@@ -11,6 +11,7 @@ from fastapi import HTTPException
 
 from data_trust import normalize_data_trust
 from decision_tracking import parse_optional_price
+from recommendation_labels import normalize_recommendation_label
 from report_index import is_safe_report_filename
 from report_index_metadata import build_report_metadata
 from report_paths import report_storage_candidates_for_filename
@@ -75,7 +76,7 @@ def _side(metadata: dict) -> dict:
         "pipeline_id": metadata.get("pipeline_id"),
         "generated_at": snapshot.get("generated_at"),
         "recommendation": {
-            "recommendation": _rec_value(recommendation, "recommendation"),
+            "recommendation": normalize_recommendation_label(_rec_value(recommendation, "recommendation")),
             "current_price": _rec_value(recommendation, "current_price"),
             "target_3m": _rec_value(recommendation, "target_3m"),
             "target_6m": _rec_value(recommendation, "target_6m"),

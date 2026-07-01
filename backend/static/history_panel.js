@@ -9,11 +9,16 @@
         if (!Number.isFinite(number)) return 'N/A';
         return number.toLocaleString('zh-TW', { maximumFractionDigits: 2 });
     }
+    function normalizeTrackingRecommendation(value) {
+        return window.StockAgentUi?.normalizeRecommendation
+            ? window.StockAgentUi.normalizeRecommendation(value)
+            : String(value || '');
+    }
     function trackingTone(tracking) {
         const value = Number(tracking && tracking.return_pct);
         if (!Number.isFinite(value) || value === 0) return 'is-neutral';
         if (tracking.status === 'target_hit' || tracking.status === 'avoided_loss') return 'is-positive';
-        if (tracking.recommendation === '避免' || tracking.recommendation === '強烈放空') return value < 0 ? 'is-positive' : 'is-negative';
+        if (['避免', '放空'].includes(normalizeTrackingRecommendation(tracking.recommendation))) return value < 0 ? 'is-positive' : 'is-negative';
         return value > 0 ? 'is-positive' : 'is-negative';
     }
     function awaitingTrackingPrice(tracking) {
@@ -129,10 +134,38 @@
         function previewPrimaryValue(report) {
             return report.preview?.primary?.value || report.recommendation?.recommendation;
         }
+        function previewPrimaryTone(report) {
+            return report.preview?.primary?.tone || options.recommendationTone(previewPrimaryValue(report));
+        }
         function previewListValues(report) {
             const metrics = Array.isArray(report.preview?.list_metrics) ? report.preview.list_metrics : [];
             if (metrics.length) return metrics.slice(0, 2).map(item => item?.value || 'N/A');
             return [report.recommendation?.target_12m || 'N/A', report.recommendation?.confidence || 'N/A'];
+        }
+        function isSwingTradeReport(report) {
+            return report?.pipeline_id === 'v4' || report?.preview?.kind === 'swing_trade';
+        }
+        function swingMetricItems(report) {
+            const preview = report?.preview || {};
+            const preferred = Array.isArray(preview.list_metrics) && preview.list_metrics.length
+                ? preview.list_metrics
+                : (Array.isArray(preview.targets) ? preview.targets : []);
+            return preferred
+                .filter(item => item && (item.value || item.label))
+                .slice(0, 3);
+        }
+        function swingMetricCell(item, escapeHtml) {
+            return `<span class="tracking-target-cell tracking-target-chip is-swing" title="${escapeHtml(`${item?.label || '短線'} ${item?.value || 'N/A'}`)}"><span class="tracking-target-period">${escapeHtml(item?.label || '短線')}</span><strong class="tracking-target-value">${escapeHtml(item?.value || 'N/A')}</strong><span class="tracking-target-label">短線</span></span>`;
+        }
+        function swingMetricGrid(report, escapeHtml) {
+            const items = swingMetricItems(report);
+            if (!items.length) return '';
+            return `<div class="tracking-target-grid tracking-swing-grid">${items.map(item => swingMetricCell(item, escapeHtml)).join('')}</div>`;
+        }
+        function swingStatusText(report) {
+            const metrics = Array.isArray(report?.preview?.metrics) ? report.preview.metrics : [];
+            const risk = metrics.find(item => String(item?.label || '').includes('風險'));
+            return risk?.value ? `風險 ${risk.value}` : '短線計畫';
         }
         function groupLatestReport(group) {
             return (group.reports || []).reduce((best, report) => (
@@ -142,6 +175,10 @@
         function reportCard(report) {
             const tracking = report.decision_tracking || {};
             const pipelineLabel = trackingPipelineLabel(report);
+            const swingTrade = isSwingTradeReport(report);
+            const primaryValue = swingTrade ? previewPrimaryValue(report) : (tracking.recommendation || report.recommendation?.recommendation);
+            const primaryTone = swingTrade ? previewPrimaryTone(report) : options.recommendationTone(primaryValue);
+            const statusText = swingTrade ? swingStatusText(report) : (tracking.tracking_summary_status || formatPct(tracking.return_pct));
             const trackingStatusClass = trackingCompact ? `tracking-compact-note ${trackingSummaryTone(tracking)}` : trackingTone(tracking);
             return `
                 <div class="tracking-report-card" data-filename="${escapeHtml(report.filename)}" role="button" tabindex="0" aria-label="預覽 ${escapeHtml(report.ticker || 'N/A')} ${escapeHtml(pipelineLabel)} 追蹤">
@@ -150,11 +187,11 @@
                         <span class="tracking-report-date">${escapeHtml(report.date || '')}</span>
                     </div>
                     <div class="tracking-report-line tracking-report-metrics">
-                        <span class="tracking-recommendation ${options.recommendationTone(tracking.recommendation || report.recommendation?.recommendation)}">${escapeHtml(options.normalizeRecommendation(tracking.recommendation || report.recommendation?.recommendation))}</span>
+                        <span class="tracking-recommendation ${primaryTone}">${escapeHtml(swingTrade ? primaryValue : options.normalizeRecommendation(primaryValue))}</span>
                         <strong class="tracking-latest-price">${escapeHtml(formatNumber(tracking.latest_price))}</strong>
-                        <span class="${trackingStatusClass}">${escapeHtml(tracking.tracking_summary_status || formatPct(tracking.return_pct))}</span>
+                        <span class="${swingTrade ? 'tracking-compact-note is-swing' : trackingStatusClass}">${escapeHtml(statusText)}</span>
                     </div>
-                    ${trackingCompact ? '' : `<div class="tracking-target-grid">${targetComparisonCell(tracking, 'target_3m', escapeHtml)}${targetComparisonCell(tracking, 'target_6m', escapeHtml)}${targetComparisonCell(tracking, 'target_12m', escapeHtml)}</div>`}
+                    ${trackingCompact ? '' : (swingTrade ? swingMetricGrid(report, escapeHtml) : `<div class="tracking-target-grid">${targetComparisonCell(tracking, 'target_3m', escapeHtml)}${targetComparisonCell(tracking, 'target_6m', escapeHtml)}${targetComparisonCell(tracking, 'target_12m', escapeHtml)}</div>`)}
                 </div>
             `;
         }

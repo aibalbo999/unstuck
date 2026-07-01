@@ -9,6 +9,7 @@ from company_display import company_display_name
 from config import format_model_routes
 from investment_thesis import investment_thesis_markdown
 from pipeline_modes import get_pipeline_definition
+from recommendation_labels import normalize_recommendation_label
 
 from .audit_trust import build_audit_markdown, build_data_trust_markdown, build_source_audit_markdown
 from .sections import build_agent_sections, build_tear_sheet_summary
@@ -34,12 +35,7 @@ def generate_markdown_report(context: AnalysisContext) -> str:
                 return v
         return default
         
-    rec_text = get_rec_val(recommendation, "建議", "持有")
-    if "強烈放空" in rec_text: rec_text = "強烈放空"
-    elif "買進" in rec_text: rec_text = "買進"
-    elif "買入" in rec_text or "Buy" in rec_text or "BUY" in rec_text: rec_text = "買入"
-    elif "避免" in rec_text or "Avoid" in rec_text or "AVOID" in rec_text or "賣出" in rec_text or "放空" in rec_text: rec_text = "避免"
-    else: rec_text = "持有"
+    rec_text = normalize_recommendation_label(get_rec_val(recommendation, "建議", "持有"))
 
     target_3m = get_rec_val(recommendation, "3個月", "N/A")
     target_6m = get_rec_val(recommendation, "6個月", "N/A")

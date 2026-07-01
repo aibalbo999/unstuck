@@ -168,7 +168,7 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
         add_agent_repair_issue(recommendation_agent, "缺少最終投資建議結構化資料。")
     else:
         rec_text = _recommendation_value(recommendation, "建議")
-        allowed_recommendations = ["強烈放空", "避免", "持有", "買進"] if pipeline_def["id"] == "v3" else ["買入", "持有", "避免"]
+        allowed_recommendations = ["買入", "持有", "避免", "放空"]
         if not any(word in rec_text for word in allowed_recommendations):
             _add_unique_issue(critical, f"Agent {recommendation_agent} 投資建議不在允許值內：{rec_text or '空白'}")
             add_agent_repair_issue(recommendation_agent, f"投資建議不在允許值內：{rec_text or '空白'}")

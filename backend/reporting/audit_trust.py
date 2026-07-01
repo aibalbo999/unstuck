@@ -130,10 +130,16 @@ def _reason_label(code: str) -> str:
         "missing_usable_critical_data": "缺少可用核心資料",
         "data_source_notes_present": "含資料口徑註記",
         "provider_sla_critical": "系統來源當時不穩",
+        "provider_sla_core_health_notice": "核心來源穩定度提醒",
+        "provider_sla_optional_critical": "補充來源穩定度提醒",
         "provider_sla_warning_note": "來源穩定度提醒",
         "missing_data_trust_snapshot": "未記錄報告資料狀態",
         "source_error": "來源異常",
         "source_stale": "來源過期",
+        "optional_source_error": "補充來源異常",
+        "optional_source_stale": "補充來源過期",
+        "optional_source_degraded": "補充來源降級",
+        "optional_source_not_configured": "補充來源未設定",
     }
     label = labels.get(code, code)
     if source:

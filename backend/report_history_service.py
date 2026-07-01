@@ -173,7 +173,7 @@ def list_reports(
         pipeline_filter = "all"
 
     recommendation_filter = normalize_recommendation_label(recommendation)
-    if recommendation_filter not in {"買入", "買進", "持有", "避免", "強烈放空"}:
+    if recommendation_filter not in {"買入", "持有", "避免", "放空"}:
         recommendation_filter = "all"
     data_trust_value = data_trust if isinstance(data_trust, str) else "all"
     data_trust_filter = data_trust_value.strip().lower()

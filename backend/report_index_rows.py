@@ -8,7 +8,8 @@ import os
 from data_trust import normalize_data_trust, unknown_data_trust
 from decision_tracking import build_decision_freshness, build_decision_tracking
 from pipeline_modes import get_pipeline_definition
-from report_index_parsing import parse_recommendation_summary
+from recommendation_labels import normalize_recommendation_label
+from report_index_parsing import normalize_report_display_date, parse_recommendation_summary
 from report_index_repair import recommendation_needs_rebuild
 from report_paths import report_storage_candidates_for_filename
 from report_preview import build_report_preview
@@ -42,11 +43,7 @@ def _snapshot_path(row) -> str:
     return candidate if os.path.exists(candidate) else ""
 
 
-def _decision_tracking(row, recommendation: dict) -> dict:
-    return build_decision_tracking(recommendation, _snapshot_path(row))
-
-
-def _temporal_memory(row) -> dict:
+def _read_snapshot(row) -> dict:
     path = _snapshot_path(row)
     if not path or not os.path.exists(path):
         return {}
@@ -55,6 +52,51 @@ def _temporal_memory(row) -> dict:
             snapshot = json.load(handle)
     except (OSError, TypeError, json.JSONDecodeError):
         return {}
+    return snapshot if isinstance(snapshot, dict) else {}
+
+
+def _company_name(row) -> str:
+    try:
+        ticker = str(row["ticker"] or "")
+        stored = str(row["company_name"] or "").strip()
+    except (KeyError, IndexError):
+        ticker = ""
+        stored = ""
+    if stored and stored != ticker:
+        return stored
+    snapshot = _read_snapshot(row)
+    data = snapshot.get("data") if isinstance(snapshot.get("data"), dict) else {}
+    for source in (snapshot, data):
+        candidate = str(source.get("company_name") or source.get("raw_company_name") or "").strip()
+        if candidate and candidate not in {ticker, "N/A"}:
+            return candidate
+    return stored or ticker
+
+
+def _report_date(row) -> str:
+    try:
+        parsed_date = row["report_date"] if "report_date" in row.keys() else ""
+        timestamp = float(row["timestamp"] or 0)
+    except (KeyError, IndexError, TypeError, ValueError):
+        parsed_date = ""
+        timestamp = 0.0
+    return normalize_report_display_date(parsed_date, snapshot_path=_snapshot_path(row), timestamp=timestamp)
+
+
+def _decision_tracking(row, recommendation: dict) -> dict:
+    return build_decision_tracking(recommendation, _snapshot_path(row))
+
+
+def _normalize_recommendation_summary(recommendation: dict) -> dict:
+    if not isinstance(recommendation, dict):
+        return {}
+    normalized = dict(recommendation)
+    normalized["recommendation"] = normalize_recommendation_label(normalized.get("recommendation"))
+    return normalized
+
+
+def _temporal_memory(row) -> dict:
+    snapshot = _read_snapshot(row)
     data = snapshot.get("data") if isinstance(snapshot.get("data"), dict) else {}
     memory = data.get("temporal_memory") if isinstance(data.get("temporal_memory"), dict) else {}
     return memory
@@ -80,14 +122,16 @@ def row_to_report(row) -> dict:
         rebuilt_recommendation = parse_recommendation_summary(row["filename"], output_dir=row["output_dir"])
         if not recommendation_needs_rebuild(rebuilt_recommendation):
             recommendation = rebuilt_recommendation
+    recommendation = _normalize_recommendation_summary(recommendation)
     try:
         data_trust = normalize_data_trust(json.loads(row["data_trust_json"]))
     except (KeyError, TypeError, json.JSONDecodeError):
         data_trust = unknown_data_trust()
     decision_tracking = _decision_tracking(row, recommendation)
+    report_date = _report_date(row)
     decision_freshness = build_decision_freshness(
         _snapshot_path(row),
-        report_generated_at=row["report_date"] if "report_date" in row.keys() else "",
+        report_generated_at=report_date,
     )
 
     pipeline_id = row["pipeline_id"] or "v1"
@@ -103,8 +147,8 @@ def row_to_report(row) -> dict:
     return {
         "filename": row["filename"],
         "ticker": row["ticker"],
-        "company_name": row["company_name"],
-        "date": row["report_date"],
+        "company_name": _company_name(row),
+        "date": report_date,
         "timestamp": row["timestamp"],
         "pipeline_id": pipeline_id,
         "pipeline_label": get_pipeline_definition(pipeline_id)["short_label"],

@@ -4,22 +4,20 @@ from __future__ import annotations
 
 from typing import Optional
 
+from recommendation_labels import normalize_recommendation_label
+
 
 # -------------------------------------------------------------------
 # 建議等級 vs 預期報酬率硬性約束矩陣
 # -------------------------------------------------------------------
 RECOMMENDATION_RETURN_GATES: dict[str, dict] = {
-    "強烈放空": {
+    "放空": {
         "max_expected_return_pct": -15.0,
-        "label": "強烈放空建議需要 12 個月預期跌幅 ≥15%",
+        "label": "放空建議需要 12 個月預期跌幅 ≥15%",
     },
     "買入": {
         "min_expected_return_pct": 15.0,
         "label": "買入建議需要 12 個月預期報酬 ≥15%",
-    },
-    "買進": {
-        "min_expected_return_pct": 15.0,
-        "label": "買進建議需要 12 個月預期報酬 ≥15%",
     },
     "持有": {
         "min_expected_return_pct": 5.0,
@@ -34,9 +32,8 @@ RECOMMENDATION_RETURN_GATES: dict[str, dict] = {
 
 # 建議方向與目標價的方向一致性
 RECOMMENDATION_DIRECTION: dict[str, str] = {
-    "強烈放空": "down",
+    "放空": "down",
     "買入": "up",
-    "買進": "up",
     "持有": "neutral",
     "避免": "down",
 }
@@ -67,6 +64,7 @@ def check_recommendation_return_alignment(
     issues: list[str] = []
     if not recommendation or current_price is None or current_price <= 0:
         return issues
+    recommendation = normalize_recommendation_label(recommendation)
     if target_12m is None:
         return issues
 
@@ -113,6 +111,7 @@ def check_target_price_direction(
     issues: list[str] = []
     if not recommendation or current_price is None or current_price <= 0 or target_12m is None:
         return issues
+    recommendation = normalize_recommendation_label(recommendation)
 
     expected_direction = RECOMMENDATION_DIRECTION.get(recommendation)
     actual_return = _pct_change(target_12m, current_price)
@@ -141,10 +140,11 @@ def check_target_price_sequence(
 ) -> list[str]:
     """驗證 3m/6m/12m 目標價時序合理性。
 
-    買入/買進：預期目標價應大致遞增（允許小幅回撤）。
-    避免/強烈放空：預期目標價應大致遞減（允許小幅回撤）。
+    買入：預期目標價應大致遞增（允許小幅回撤）。
+    避免/放空：預期目標價應大致遞減（允許小幅回撤）。
     """
     issues: list[str] = []
+    recommendation = normalize_recommendation_label(recommendation)
     prices = [(label, price) for label, price in [("3個月", target_3m), ("6個月", target_6m), ("12個月", target_12m)] if price is not None]
     if len(prices) < 2:
         return issues

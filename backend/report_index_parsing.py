@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 from config import OUTPUT_DIR
+from recommendation_labels import normalize_recommendation_label
 
 
 _SAFE_SEGMENT_RE = re.compile(r"[^A-Za-z0-9._-]+")
@@ -44,38 +47,71 @@ def extract_section(markdown_text: str, heading: str) -> str:
     return match.group("body").strip() if match else ""
 
 
-def normalize_recommendation_label(value: str) -> str:
-    text = str(value or "").strip()
-    if "強烈放空" in text:
-        return "強烈放空"
-    if "買進" in text:
-        return "買進"
-    if "買入" in text or text.lower() == "buy":
-        return "買入"
-    if "避免" in text or "賣出" in text or text.lower() in {"avoid", "sell"}:
-        return "避免"
-    if "持有" in text or text.lower() == "hold":
-        return "持有"
-    return text or "N/A"
-
-
 def _safe_report_path_segment(value: str, *, fallback: str = "unknown") -> str:
     segment = _SAFE_SEGMENT_RE.sub("_", str(value or "").strip()).strip("._-")
     return segment or fallback
 
 
-def _markdown_path_candidates(output_dir: Optional[str], filename: str) -> list[Path]:
+def _storage_path_candidates(output_dir: Optional[str], filename: str, basename: str) -> list[Path]:
     root = Path(output_dir_key(output_dir))
-    md_filename = filename[:-5] + ".md"
-    candidates = [root / md_filename]
+    candidates = [root / basename]
     parsed = parse_report_filename(filename)
     report_date = str(parsed.get("date") or "")
     month = report_date[:7] if re.match(r"^\d{4}-\d{2}", report_date) else "unknown-month"
     ticker = _safe_report_path_segment(str(parsed.get("ticker") or "unknown"), fallback="unknown-ticker")
-    nested = root / month / ticker / md_filename
+    nested = root / month / ticker / basename
     if nested not in candidates:
         candidates.append(nested)
     return candidates
+
+
+def _markdown_path_candidates(output_dir: Optional[str], filename: str) -> list[Path]:
+    return _storage_path_candidates(output_dir, filename, filename[:-5] + ".md")
+
+
+def _html_path_candidates(output_dir: Optional[str], filename: str) -> list[Path]:
+    return _storage_path_candidates(output_dir, filename, filename)
+
+
+def _format_report_datetime(value: object) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return ""
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone()
+    return parsed.strftime("%Y-%m-%d %H:%M")
+
+
+def _snapshot_generated_at(snapshot_path: str) -> str:
+    if not snapshot_path:
+        return ""
+    try:
+        with open(snapshot_path, "r", encoding="utf-8") as handle:
+            snapshot = json.load(handle)
+    except (OSError, TypeError, json.JSONDecodeError):
+        return ""
+    if not isinstance(snapshot, dict):
+        return ""
+    return _format_report_datetime(snapshot.get("conclusion_generated_at") or snapshot.get("generated_at"))
+
+
+def normalize_report_display_date(parsed_date: str, *, snapshot_path: str = "", timestamp: float = 0.0) -> str:
+    text = str(parsed_date or "").strip()
+    if re.match(r"^\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2})?$", text):
+        return text
+    from_snapshot = _snapshot_generated_at(snapshot_path)
+    if from_snapshot:
+        return from_snapshot
+    if timestamp:
+        try:
+            return time.strftime("%Y-%m-%d %H:%M", time.localtime(float(timestamp)))
+        except (TypeError, ValueError, OSError):
+            pass
+    return text or "未知時間"
 
 
 def parse_recommendation_summary(
@@ -159,6 +195,7 @@ def parse_recommendation_summary(
         if title_match:
             summary["summary"] = clean_report_text(title_match.group(1))
 
+    summary["recommendation"] = normalize_recommendation_label(summary.get("recommendation"))
     return summary
 
 
@@ -192,12 +229,13 @@ def parse_report_filename(filename: str) -> dict:
 def extract_company_name(filename: str, ticker: str, output_dir: str, html_content: Optional[str]) -> str:
     company_name = ticker
     if html_content is None:
-        html_path = os.path.join(output_dir, filename)
-        try:
-            with open(html_path, "r", encoding="utf-8") as f:
-                html_content = f.read()
-        except OSError:
-            html_content = ""
+        html_content = ""
+        for html_path in _html_path_candidates(output_dir, filename):
+            try:
+                html_content = html_path.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            break
     match = re.search(r'<div class="sidebar-name">([^<]+)</div>', html_content or "")
     if match:
         company_name = match.group(1).strip()

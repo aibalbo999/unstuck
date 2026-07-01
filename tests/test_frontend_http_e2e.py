@@ -237,6 +237,7 @@ def test_fake_provider_job_generates_report_snapshot_visible_in_history(tmp_path
     reports_payload = reports.json()
     assert reports_payload["pagination"]["total"] == 1
     assert reports_payload["reports"][0]["filename"] == filename
+    assert "job_" not in reports_payload["reports"][0]["date"]
     assert reports_payload["reports"][0]["data_trust"]["status"] == "fresh"
     assert reports_payload["reports"][0]["data_snapshot_hash"]
     assert reports_payload["reports"][0]["html_hash"]

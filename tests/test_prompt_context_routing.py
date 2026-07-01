@@ -70,7 +70,7 @@ def test_valuation_agents_receive_temporal_memory_slice_only():
             "target_3m": "650",
             "target_6m": "700",
             "target_12m": "800",
-            "recommendation": "買進",
+            "recommendation": "買入",
             "date": "2024-01-01",
             "summary": "很長的前期完整報告文字不應進入估值 Agent。",
         },
@@ -97,7 +97,7 @@ def test_valuation_agents_receive_temporal_memory_slice_only():
 
 def test_build_valuation_memory_slice_keeps_only_valuation_fields():
     result = build_valuation_memory_slice({
-        "previous_report": {"target_3m": "650", "recommendation": "買進", "date": "2024-01-01", "summary": "完整報告"},
+        "previous_report": {"target_3m": "650", "recommendation": "買入", "date": "2024-01-01", "summary": "完整報告"},
         "backtests": [{"roi_pct": 12.5, "hit": True, "details": "long"}],
     })
 

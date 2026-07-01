@@ -9,6 +9,7 @@ from analysis_types import AnalysisContext
 from company_display import company_display_name
 from config import format_model_routes
 from pipeline_modes import get_pipeline_definition
+from recommendation_labels import normalize_recommendation_label
 
 from .audit_trust import build_audit_banner_html, build_data_trust_html, build_source_audit_html
 from .analysis_overlays import (
@@ -126,12 +127,9 @@ def generate_html_report(context: AnalysisContext) -> str:
                 return v
         return default
         
-    rec_text = sanitize_report_plain_text(get_rec_val(recommendation, "建議", "持有")) or "持有"
-    if "強烈放空" in rec_text: rec_text = "強烈放空"
-    elif "買進" in rec_text: rec_text = "買進"
-    elif "買入" in rec_text or "Buy" in rec_text or "BUY" in rec_text: rec_text = "買入"
-    elif "避免" in rec_text or "Avoid" in rec_text or "AVOID" in rec_text or "賣出" in rec_text or "放空" in rec_text: rec_text = "避免"
-    else: rec_text = "持有"
+    rec_text = normalize_recommendation_label(
+        sanitize_report_plain_text(get_rec_val(recommendation, "建議", "持有")) or "持有"
+    )
 
     rec_color = get_recommendation_color(rec_text)
     rec_icon = get_recommendation_icon(rec_text)

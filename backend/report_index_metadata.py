@@ -15,6 +15,7 @@ from report_index_parsing import (
     extract_company_name as _extract_company_name,
     is_safe_report_filename,
     normalize_recommendation_label,
+    normalize_report_display_date,
     output_dir_key,
     parse_recommendation_summary,
     parse_report_filename,
@@ -98,6 +99,7 @@ def build_report_metadata(
     )
     data_snapshot_filename = data_snapshot_filename_for_report(filename)
     data_snapshot_path = _report_path(out_dir, filename, kind="data")
+    report_date = normalize_report_display_date(parsed["date"], snapshot_path=data_snapshot_path, timestamp=html_mtime)
     data_trust_summary = (
         normalize_data_trust(data_trust)
         if data_trust is not None
@@ -105,7 +107,7 @@ def build_report_metadata(
     )
     snapshot_flags = read_snapshot_report_flags(data_snapshot_path)
     decision_tracking = build_decision_tracking(recommendation, data_snapshot_path)
-    decision_freshness = build_decision_freshness(data_snapshot_path, report_generated_at=parsed["date"])
+    decision_freshness = build_decision_freshness(data_snapshot_path, report_generated_at=report_date)
     normalized_recommendation = normalize_recommendation_label(recommendation.get("recommendation"))
     search_text = " ".join([
         filename,
@@ -120,7 +122,7 @@ def build_report_metadata(
         "md_filename": filename[:-5] + ".md",
         "ticker": parsed["ticker"],
         "company_name": company_name,
-        "date": parsed["date"],
+        "date": report_date,
         "timestamp": html_mtime,
         "file_mtime": file_mtime,
         "pipeline_id": parsed["pipeline_id"],

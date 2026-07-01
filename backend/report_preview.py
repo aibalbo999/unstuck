@@ -7,6 +7,7 @@ import os
 import re
 from typing import Any
 
+from recommendation_labels import normalize_recommendation_label, recommendation_tone
 from report_index_parsing import clean_report_text
 
 
@@ -20,12 +21,7 @@ def _metric(label: str, value: Any, tone: str = "") -> dict:
 
 
 def _recommendation_tone(value: str) -> str:
-    text = str(value or "")
-    if "強烈放空" in text or "避免" in text or "賣出" in text:
-        return "is-avoid"
-    if "買入" in text or "買進" in text:
-        return "is-buy"
-    return "is-hold"
+    return recommendation_tone(value)
 
 
 def _trade_direction_label(value: str) -> tuple[str, str]:
@@ -135,7 +131,7 @@ def _base_summary(recommendation: dict, markdown_text: str) -> str:
 
 
 def _investment_preview(ticker: str, recommendation: dict, markdown_text: str) -> dict:
-    rec = recommendation.get("recommendation", "N/A")
+    rec = normalize_recommendation_label(recommendation.get("recommendation", "N/A"))
     return {
         "kind": "investment",
         "title": f"{ticker} 投資建議",
@@ -158,13 +154,13 @@ def _investment_preview(ticker: str, recommendation: dict, markdown_text: str) -
 
 
 def _bubble_sniper_preview(ticker: str, recommendation: dict, markdown_text: str) -> dict:
-    rec = recommendation.get("recommendation", "N/A")
+    rec = normalize_recommendation_label(recommendation.get("recommendation", "N/A"))
     crash = _extract_heading_body(markdown_text, "做空觸發條件")
     stop = _extract_heading_body(markdown_text, "防軋空停損點")
     return {
         "kind": "bubble_sniper",
         "title": f"{ticker} 泡沫狙擊預覽",
-        "primary": {"label": "空方判斷", "value": rec, "tone": "is-short" if "強烈放空" in rec else _recommendation_tone(rec)},
+        "primary": {"label": "空方判斷", "value": rec, "tone": _recommendation_tone(rec)},
         "metrics": [
             _metric("當日股價", recommendation.get("current_price")),
             _metric("信心", recommendation.get("confidence")),

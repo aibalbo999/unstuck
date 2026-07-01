@@ -6,6 +6,7 @@ import re
 
 from analysis_types import AnalysisContext
 from pipeline_modes import get_structured_agent_num
+from recommendation_labels import normalize_recommendation_label
 from price_parser import extract_price_numbers, parse_price_number
 
 
@@ -104,7 +105,12 @@ def parse_recommendation_from_text(text: str) -> dict:
             continue
         sep = ":" if ":" in line else "："
         key, val = line.split(sep, 1)
-        parsed[key.strip()] = val.strip()
+        normalized_key = key.strip()
+        parsed[normalized_key] = (
+            normalize_recommendation_label(val.strip())
+            if normalized_key == "建議"
+            else val.strip()
+        )
     return parsed
 
 
@@ -129,6 +135,7 @@ def parse_structured_data(context: AnalysisContext) -> dict:
         parsed["price_targets"] = dict(structured_outputs[valuation_agent].get("price_targets", {}))
     if recommendation_agent is not None and recommendation_agent in structured_outputs:
         parsed["recommendation"] = dict(structured_outputs[recommendation_agent].get("recommendation", {}))
+        _normalize_parsed_recommendation(parsed["recommendation"])
     if trade_setup_agent is not None and trade_setup_agent in structured_outputs:
         parsed["trade_setup"] = {
             key: structured_outputs[trade_setup_agent].get(key, "")
@@ -156,3 +163,8 @@ def parse_structured_data(context: AnalysisContext) -> dict:
         parsed["recommendation"] = parse_recommendation_from_text(analyses[recommendation_agent])
 
     return parsed
+
+
+def _normalize_parsed_recommendation(recommendation: dict) -> None:
+    if "建議" in recommendation:
+        recommendation["建議"] = normalize_recommendation_label(recommendation.get("建議"))

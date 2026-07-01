@@ -912,7 +912,9 @@ class AuditRuleTests(unittest.TestCase):
         self.assertIn("scenario_reasoning", json.dumps(price_schema, ensure_ascii=False))
         self.assertIn("reasoning_steps", json.dumps(recommendation_schema, ensure_ascii=False))
         bubble_schema = structured_outputs.BubbleSniperStructuredOutput.model_json_schema(by_alias=True)
-        self.assertIn("強烈放空", json.dumps(bubble_schema, ensure_ascii=False))
+        schema_text = json.dumps(bubble_schema, ensure_ascii=False)
+        self.assertIn("放空", schema_text)
+        self.assertNotIn("強烈放空", schema_text)
 
     def test_pipeline_v2_definition_and_prompt_registration(self):
         v2 = pipeline_modes.get_pipeline_definition("v2")
@@ -936,7 +938,8 @@ class AuditRuleTests(unittest.TestCase):
             self.assertIn(agent_num, ar.ANALYSIS_PROMPTS)
             self.assertIn(agent_num, ar.AGENT_MODELS)
         self.assertIn("Traditional Chinese", ar.SYSTEM_PROMPTS[19])
-        self.assertIn("強烈放空", ar.SYSTEM_PROMPTS[19])
+        self.assertIn("放空", ar.SYSTEM_PROMPTS[19])
+        self.assertNotIn("強烈放空", ar.SYSTEM_PROMPTS[19])
 
     def test_dual_pipeline_run_mode_sequence(self):
         self.assertEqual(pipeline_modes.normalize_pipeline_run_id("both"), "both")
@@ -1025,7 +1028,7 @@ class AuditRuleTests(unittest.TestCase):
         sections = report_gen.build_agent_sections(context, html=False)
         markdown = report_gen.generate_markdown_report(context)
 
-        self.assertEqual(parsed["recommendation"]["建議"], "強烈放空")
+        self.assertEqual(parsed["recommendation"]["建議"], "放空")
         self.assertEqual(parsed["moat_scores"], {})
         self.assertEqual(parsed["price_targets"], {})
         self.assertEqual([section["agent_num"] for section in sections], [17, 18, 19])
@@ -1180,10 +1183,10 @@ class AuditRuleTests(unittest.TestCase):
             ],
             "analysis_markdown": "## 做空觸發條件（Catalyst for crash）\n財測下修。\n\n## 防軋空停損點（Stop-loss level）\n突破前高。",
         })
-        self.assertEqual(bubble_recommendation["recommendation"]["建議"], "強烈放空")
+        self.assertEqual(bubble_recommendation["recommendation"]["建議"], "放空")
         report_text = structured_outputs.structured_output_to_report_text(19, bubble_recommendation)
         self.assertTrue(report_text.endswith("[/投資建議]"))
-        self.assertIn("建議：強烈放空", report_text)
+        self.assertIn("建議：放空", report_text)
 
     def test_agent19_renderer_inserts_required_sections_before_tail_block(self):
         bubble_recommendation = structured_outputs.normalize_structured_output(19, {
