@@ -99,7 +99,7 @@ def test_report_index_migration_from_empty_db(monkeypatch, tmp_path):
     }.issubset(_columns(db_path))
 
 
-def test_report_index_connect_retries_transient_wal_open_failure(monkeypatch, tmp_path):
+def test_report_index_connect_continues_after_transient_wal_open_failure(monkeypatch, tmp_path):
     db_path = tmp_path / "cache.db"
     monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(db_path))
     real_connect = sqlite3.connect
@@ -114,7 +114,7 @@ def test_report_index_connect_retries_transient_wal_open_failure(monkeypatch, tm
     with report_index._connect() as conn:
         assert conn.execute("SELECT COUNT(*) FROM reports").fetchone()[0] == 0
 
-    assert state == {"failed": True, "attempts": 2}
+    assert state == {"failed": True, "attempts": 1}
 
 
 def test_report_index_connect_retries_transient_schema_open_failure(monkeypatch, tmp_path):

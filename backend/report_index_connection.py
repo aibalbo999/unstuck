@@ -29,7 +29,7 @@ def connect_report_index_sqlite(
             conn = connect_fn(path, timeout=30)
             conn.row_factory = sqlite3.Row
             conn.execute("PRAGMA busy_timeout=5000")
-            conn.execute("PRAGMA journal_mode=WAL")
+            _enable_wal_best_effort(conn)
             if initialize is not None:
                 initialize(conn)
             return conn
@@ -45,3 +45,11 @@ def connect_report_index_sqlite(
 def _is_transient_open_error(exc: sqlite3.OperationalError) -> bool:
     message = str(exc).lower()
     return any(fragment in message for fragment in _TRANSIENT_OPEN_ERRORS)
+
+
+def _enable_wal_best_effort(conn: sqlite3.Connection) -> None:
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+    except sqlite3.OperationalError as exc:
+        if not _is_transient_open_error(exc):
+            raise
