@@ -23,7 +23,10 @@ _REPORT_INDEX_LOCK = threading.Lock()
 
 
 def _connect():
-    conn = connect_report_index_sqlite(CACHE_DB_PATH, sqlite3.connect)
+    return connect_report_index_sqlite(CACHE_DB_PATH, sqlite3.connect, initialize=_init_schema)
+
+
+def _init_schema(conn):
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS reports (
@@ -61,7 +64,6 @@ def _connect():
         "CREATE INDEX IF NOT EXISTS idx_reports_output_data_trust "
         "ON reports (output_dir, data_trust_status)"
     )
-    return conn
 
 
 def upsert_report_metadata(

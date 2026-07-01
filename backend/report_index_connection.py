@@ -19,6 +19,7 @@ def connect_report_index_sqlite(
     connect_fn: Callable = sqlite3.connect,
     *,
     attempts: int = 3,
+    initialize: Callable[[sqlite3.Connection], None] | None = None,
 ) -> sqlite3.Connection:
     path = Path(db_path).expanduser().resolve(strict=False)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -29,6 +30,8 @@ def connect_report_index_sqlite(
             conn.row_factory = sqlite3.Row
             conn.execute("PRAGMA busy_timeout=5000")
             conn.execute("PRAGMA journal_mode=WAL")
+            if initialize is not None:
+                initialize(conn)
             return conn
         except sqlite3.OperationalError as exc:
             if conn is not None:

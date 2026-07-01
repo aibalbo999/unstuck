@@ -9,13 +9,14 @@ sys.path.insert(0, str(ROOT / "backend"))
 import report_index  # noqa: E402
 
 
-class _TransientWalConnection:
-    def __init__(self, conn, fail_state: dict):
+class _TransientReportIndexConnection:
+    def __init__(self, conn, fail_state: dict, fail_prefix: str):
         object.__setattr__(self, "_conn", conn)
         object.__setattr__(self, "_fail_state", fail_state)
+        object.__setattr__(self, "_fail_prefix", fail_prefix)
 
     def execute(self, sql, *args, **kwargs):
-        if str(sql).startswith("PRAGMA journal_mode=WAL") and not self._fail_state["failed"]:
+        if str(sql).lstrip().startswith(self._fail_prefix) and not self._fail_state["failed"]:
             self._fail_state["failed"] = True
             raise sqlite3.OperationalError("unable to open database file")
         return self._conn.execute(sql, *args, **kwargs)
@@ -24,7 +25,7 @@ class _TransientWalConnection:
         return getattr(self._conn, name)
 
     def __setattr__(self, name, value):
-        if name in {"_conn", "_fail_state"}:
+        if name in {"_conn", "_fail_state", "_fail_prefix"}:
             object.__setattr__(self, name, value)
         else:
             setattr(self._conn, name, value)
@@ -106,7 +107,25 @@ def test_report_index_connect_retries_transient_wal_open_failure(monkeypatch, tm
 
     def flaky_connect(*args, **kwargs):
         state["attempts"] += 1
-        return _TransientWalConnection(real_connect(*args, **kwargs), state)
+        return _TransientReportIndexConnection(real_connect(*args, **kwargs), state, "PRAGMA journal_mode=WAL")
+
+    monkeypatch.setattr(report_index.sqlite3, "connect", flaky_connect)
+
+    with report_index._connect() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM reports").fetchone()[0] == 0
+
+    assert state == {"failed": True, "attempts": 2}
+
+
+def test_report_index_connect_retries_transient_schema_open_failure(monkeypatch, tmp_path):
+    db_path = tmp_path / "cache.db"
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(db_path))
+    real_connect = sqlite3.connect
+    state = {"failed": False, "attempts": 0}
+
+    def flaky_connect(*args, **kwargs):
+        state["attempts"] += 1
+        return _TransientReportIndexConnection(real_connect(*args, **kwargs), state, "CREATE TABLE")
 
     monkeypatch.setattr(report_index.sqlite3, "connect", flaky_connect)
 
