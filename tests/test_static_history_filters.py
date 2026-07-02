@@ -76,6 +76,9 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert 'id="operator-rerun"' in index_html
     assert 'id="api-quota-panel"' in index_html
     assert 'id="watchlist-panel"' in index_html
+    assert 'id="watchlist-symbol-suggestions"' in index_html
+    assert 'id="watchlist-import-text"' in index_html
+    assert 'id="watchlist-import-btn"' in index_html
     assert 'id="performance-panel"' in index_html
     assert 'id="performance-summary"' in index_html
     assert 'id="performance-list"' in index_html
@@ -152,6 +155,12 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "StockAgentOpsWorkspace.create" in app_js
     assert "StockAgentOperatorSummaryPanel.create" in app_js
     assert "operatorSummary.load" in app_js
+    assert "fetchDailyDecisionDashboard" in api_client_extensions_js
+    assert "fetchSymbolSuggestions" in api_client_extensions_js
+    assert "importWatchlistText" in api_client_extensions_js
+    assert "apiClient.fetchDailyDecisionDashboard" in operator_summary_js
+    assert "reports_needing_rerun" in operator_summary_js
+    assert "watchlist_high_priority" in operator_summary_js
     assert "StockAgentHistoryPanel.create" in history_workspace_js
     assert "StockAgentReportPreviewPanel.create" in history_workspace_js
     assert "StockAgentTemporalMemoryPanel.render" in report_preview_js
@@ -230,6 +239,8 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "/api/watchlist" in api_client_extensions_js
     assert "watchlist-trigger-vix" in index_html
     assert "StockAgentWatchlistTriggerForm" in (STATIC_DIR / "watchlist_panel.js").read_text(encoding="utf-8")
+    assert "fetchSymbolSuggestions" in (STATIC_DIR / "watchlist_panel.js").read_text(encoding="utf-8")
+    assert "importWatchlistText" in (STATIC_DIR / "watchlist_panel.js").read_text(encoding="utf-8")
     assert "latest_trigger_event" in (STATIC_DIR / "watchlist_panel.js").read_text(encoding="utf-8")
     assert "watchlist-trigger-summary" in (STATIC_DIR / "watchlist_trigger_form.js").read_text(encoding="utf-8")
     assert "/api/performance/stats" in api_client_extensions_js

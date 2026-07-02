@@ -10,6 +10,12 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query, Request
 
 import market_screener
+import decision_tracking_service
+from daily_decision_dashboard import build_daily_decision_dashboard
+from free_mode_contract import build_free_mode_contract
+from portfolio_risk import analyze_portfolio_csv
+import report_history_service
+from symbol_tools import parse_watchlist_import, suggest_symbols
 import watchlist_service
 
 
@@ -105,6 +111,79 @@ def create_watchlist_router(deps: WatchlistRouteDeps) -> APIRouter:
             sort_by=sort_by,
             sort_direction=sort_direction,
         )
+
+    @router.get("/symbols")
+    async def suggest_watchlist_symbols(
+        q: str = Query("", max_length=48),
+        limit: int = Query(10, ge=1, le=25),
+    ):
+        return suggest_symbols(q, limit=limit)
+
+    @router.get("/daily-dashboard")
+    async def get_daily_decision_dashboard():
+        output_dir = deps.get_output_dir()
+        reports, watchlist, screener, performance = await asyncio.gather(
+            asyncio.to_thread(
+                report_history_service.list_reports,
+                page=1,
+                limit=20,
+                q="",
+                pipeline="all",
+                recommendation="all",
+                data_trust="all",
+                include_versions=False,
+                output_dir=output_dir,
+                report_cache={},
+            ),
+            asyncio.to_thread(watchlist_service.list_watchlist_with_report_alerts, output_dir),
+            asyncio.to_thread(market_screener.list_auto_screener_watchlist, output_dir, limit=20, offset=0),
+            asyncio.to_thread(decision_tracking_service.compute_tracking_performance_stats, output_dir),
+        )
+        return build_daily_decision_dashboard(
+            reports=reports,
+            watchlist=watchlist,
+            screener=screener,
+            performance=performance,
+            free_mode=build_free_mode_contract(),
+        )
+
+    @router.post("/portfolio/risk")
+    async def analyze_portfolio_risk(request: Request):
+        deps.require_mutation_authorized(request)
+        payload = await request.json()
+        csv_text = str((payload or {}).get("csv") or "") if isinstance(payload, dict) else ""
+        thesis_health = (payload or {}).get("thesis_health") if isinstance(payload, dict) else {}
+        if not csv_text.strip():
+            raise HTTPException(status_code=400, detail="csv is required")
+        return await asyncio.to_thread(
+            analyze_portfolio_csv,
+            csv_text,
+            thesis_health=thesis_health if isinstance(thesis_health, dict) else {},
+        )
+
+    @router.post("/import")
+    async def import_watchlist_items(request: Request):
+        deps.require_mutation_authorized(request)
+        payload = await request.json()
+        text = str((payload or {}).get("text") or (payload or {}).get("csv") or "") if isinstance(payload, dict) else ""
+        if not text.strip():
+            raise HTTPException(status_code=400, detail="text is required")
+        parsed = parse_watchlist_import(text)
+        imported = []
+        errors = list(parsed.get("errors") or [])
+        for item in parsed.get("items") or []:
+            try:
+                await asyncio.to_thread(watchlist_service.upsert_watchlist_item, item)
+                imported.append(item)
+            except ValueError as exc:
+                errors.append({"ticker": item.get("ticker"), "error": str(exc)})
+        return {
+            "success": not errors,
+            "imported_count": len(imported),
+            "items": imported,
+            "errors": errors,
+            "watchlist": await asyncio.to_thread(watchlist_service.list_watchlist),
+        }
 
     @router.post("/screener/run")
     async def run_market_screener(request: Request):

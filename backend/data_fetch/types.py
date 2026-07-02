@@ -33,6 +33,9 @@ class ProviderResult:
     audit: dict = field(default_factory=dict)
     duration_ms: int = 0
     warnings: list[str] = field(default_factory=list)
+    as_of: str | None = None
+    confidence: float | None = None
+    raw_ref: str | None = None
 
 
 @dataclass

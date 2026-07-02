@@ -8,17 +8,20 @@
 .watchlist-form .history-search,
 .watchlist-form .history-filter-select,
 .watchlist-form .history-version-toggle,
-.watchlist-form .maintenance-button {
-    min-height: 44px;
-}
+.watchlist-form .maintenance-button { min-height: 44px; }
 .watchlist-toggle {
     grid-column: auto;
     margin: 0;
     font-size: 0.78rem;
 }
-.watchlist-list {
-    align-items: stretch;
+.watchlist-list { align-items: stretch; }
+.watchlist-import-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(92px, 0.18fr);
+    gap: 8px;
+    margin-top: 8px;
 }
+.watchlist-import-row textarea { min-height: 64px; resize: vertical; }
 .watchlist-daily-board {
     flex: 1 1 100%;
     display: grid;
@@ -31,12 +34,7 @@
     background: rgba(0, 212, 255, 0.07);
 }
 .watchlist-daily-board span,
-.watchlist-daily-board em {
-    color: var(--text-secondary);
-    font-size: 0.72rem;
-    font-style: normal;
-    font-weight: 850;
-}
+.watchlist-daily-board em { color: var(--text-secondary); font-size: 0.72rem; font-style: normal; font-weight: 850; }
 .watchlist-chip {
     flex: 1 1 220px;
     justify-content: space-between;
@@ -44,12 +42,7 @@
 }
 .watchlist-chip strong,
 .watchlist-chip em,
-.watchlist-chip span {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
+.watchlist-chip span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .watchlist-delete-button {
     flex: 0 0 auto;
     min-height: 44px;
@@ -62,17 +55,11 @@
     font-weight: 900;
 }
 @media (max-width: 720px) {
-    .watchlist-form {
-        grid-template-columns: 1fr 1fr;
-    }
+    .watchlist-form { grid-template-columns: 1fr 1fr; }
     .watchlist-form .history-filter-field:first-child,
-    .watchlist-form .maintenance-button {
-        grid-column: 1 / -1;
-    }
-    .watchlist-chip {
-        flex-basis: 100%;
-    }
-    .watchlist-daily-board {
-        grid-template-columns: 1fr;
-    }
+    .watchlist-form .maintenance-button,
+    .watchlist-import-row { grid-column: 1 / -1; }
+    .watchlist-import-row { grid-template-columns: 1fr; }
+    .watchlist-chip { flex-basis: 100%; }
+    .watchlist-daily-board { grid-template-columns: 1fr; }
 }

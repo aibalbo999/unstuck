@@ -13,6 +13,8 @@ class FinMindProvider(DataProvider):
     name = "FinMind"
     source = "financial_statements"
     markets = {"tw"}
+    cost_tier = "free"
+    capabilities = {"financial_statements"}
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from .market_sources.taiwan import fetch_finmind_financial_statement_fallback
@@ -32,6 +34,8 @@ class TwseOfficialProvider(DataProvider):
     name = "FinMind TWSE official"
     source = "twse_official"
     markets = {"tw"}
+    cost_tier = "free"
+    capabilities = {"official_filings", "financial_statements"}
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         import external_data_twse
@@ -51,6 +55,8 @@ class MonthlyRevenueProvider(DataProvider):
     name = "FinMind TaiwanStockMonthRevenue"
     source = "monthly_revenue"
     markets = {"tw"}
+    cost_tier = "free"
+    capabilities = {"monthly_revenue"}
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from datetime import datetime, timedelta
@@ -87,6 +93,8 @@ class InstitutionalTradingProvider(DataProvider):
     name = "FinMind"
     source = "institutional_trading"
     markets = {"tw"}
+    cost_tier = "free"
+    capabilities = {"institutional_trading"}
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from .market_sources.taiwan import fetch_institutional_trading_trend

@@ -17,11 +17,30 @@ class DataProvider:
     name = "provider"
     source = "unknown"
     markets = {"us", "tw"}
+    cost_tier = "free"
+    capabilities: set[str] = set()
+    requires_env: tuple[str, ...] = ()
+    freshness_seconds: int | None = None
     execute_in_workflow = True
     primary_source_provider = True
 
     def supports(self, request: FetchRequest) -> bool:
         return infer_market(request.ticker) in self.markets
+
+    def capability(self, request: FetchRequest | None = None) -> dict:
+        """Return the provider's operational contract for free-mode checks and UI."""
+        cost_tier = str(getattr(self, "cost_tier", "free") or "free")
+        return {
+            "name": str(getattr(self, "name", self.__class__.__name__)),
+            "source": str(getattr(self, "source", "unknown")),
+            "markets": sorted(str(market) for market in getattr(self, "markets", set()) or []),
+            "cost_tier": cost_tier,
+            "capabilities": sorted(str(item) for item in getattr(self, "capabilities", set()) or []),
+            "requires_env": list(getattr(self, "requires_env", ()) or ()),
+            "freshness_seconds": getattr(self, "freshness_seconds", None),
+            "enabled_in_free_mode": cost_tier in {"free", "free_with_key"},
+            "supports_request": self.supports(request) if request is not None else True,
+        }
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:  # pragma: no cover - interface
         raise NotImplementedError
@@ -73,6 +92,9 @@ def provider_result_from_audited(result: dict, source: str, provider: str) -> Pr
         value=result.get("value") if isinstance(result, dict) else None,
         audit=dict(audit),
         duration_ms=int(audit.get("duration_ms") or 0),
+        as_of=_optional_text(audit.get("as_of")),
+        confidence=_optional_float(audit.get("confidence")),
+        raw_ref=_optional_text(audit.get("raw_ref")),
     )
 
 
@@ -107,6 +129,9 @@ def provider_result_from_payload(
         audit=dict(matching or {}),
         duration_ms=duration_ms,
         warnings=list(payload.get("data_source_notes", []) or []) if isinstance(payload, dict) else [],
+        as_of=_optional_text((matching or {}).get("as_of")),
+        confidence=_optional_float((matching or {}).get("confidence")),
+        raw_ref=_optional_text((matching or {}).get("raw_ref")),
     )
 
 
@@ -144,3 +169,17 @@ def not_configured_provider_result(source: str, provider: str, message: str = ""
             "message": message,
         },
     )
+
+
+def _optional_text(value) -> str | None:
+    text = str(value or "").strip()
+    return text or None
+
+
+def _optional_float(value) -> float | None:
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None

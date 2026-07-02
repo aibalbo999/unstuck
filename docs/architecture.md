@@ -159,6 +159,14 @@ flowchart LR
 
 `temporal_memory` is injected into the stock data payload before `AnalysisPipelineRunner` starts. Prompt routing treats it as least-privilege external context: only final decision agents 7, 16, and 19 can see it. The data snapshot persists the same block, allowing report preview to show the prior recommendation, target price, and backtest outcome later.
 
+## Free Mode And Qlib-Lite Artifacts
+
+`FREE_MODE=true` is the default operating contract. Provider modules expose a capability contract with `source`, `markets`, `cost_tier`, `capabilities`, `requires_env`, and request support. The ops dashboard includes a `free_mode` summary so optional paid or key-backed enrichment cannot quietly become the only path for a source. `free` and `free_with_key` providers are allowed in free mode; paid providers may exist only as optional enrichment when another free-compatible provider covers the same source/market.
+
+The Qlib-inspired layer is intentionally lightweight. `backend/factor_store.py` builds deterministic `factor_snapshot.v1` payloads from local/free price and fundamental inputs. `backend/backtest_artifacts.py` links a report decision, alpha model id, price path, benchmark path, and factor snapshot into `backtest_artifact.v1`, including strategy ROI, benchmark return, excess return, and drawdown. `backend/alpha_model_registry.py` wraps pipeline modes as versioned alpha models with minimum data confidence, required outputs, and free-mode debate limits. `backend/strategy_evaluator.py` then aggregates artifacts by alpha model, Quality Funnel outcome, and watchlist trigger source so Mode A/B/C/D and trigger-led ideas can be compared without a paid quant platform.
+
+The daily decision dashboard (`GET /api/watchlist/daily-dashboard`) consumes recent reports, watchlist alerts, auto-screener candidates, decision backtest stats, and free-mode status to produce one next-action surface. Its `notification_plan` keeps local UI notifications always available and treats SMTP/Telegram/Discord/Slack only as user-supplied free integrations. Portfolio CSV risk (`POST /api/watchlist/portfolio/risk`) stays broker-free: it parses pasted/exported CSV and returns concentration, sector/country exposure, and thesis-health risk flags. Symbol suggestions (`GET /api/watchlist/symbols`) and watchlist paste/CSV import (`POST /api/watchlist/import`) use local parsing and the existing mutation-token boundary.
+
 ## Event-Driven Radar
 
 ```mermaid

@@ -21,6 +21,11 @@
 - 報告產生時會執行數字證據抽查 exit gate，將 Markdown 數字主張與 data snapshot 比對後寫入 metadata
 - 決策追蹤會自動掃描滿 3 / 6 / 12 個月的歷史報告，抓取發布日與到期日股價，計算 ROI、命中率與 Hit/Miss，並在「報告與維運」顯示回測績效
 - 新報告會載入同股票上一期報告與回測結果，將 `temporal_memory` 只注入最終決策 Agent，強制檢討先前目標價與投資建議是否失準
+- 免費模式合約（`FREE_MODE=true` 預設開啟）會在 ops dashboard 顯示 provider cost tier、免費可跑狀態與付費依賴缺口；付費/需 key 來源只能作為 optional enrichment，不能阻斷基本分析
+- Qlib-lite 決策評估層會產生 deterministic factor snapshot、backtest artifact 與 strategy evaluation，讓 pipeline / alpha model / watchlist trigger 的結論可追溯到本機價格、品質、估值與 benchmark 表現
+- Watchlist 提供每日決策儀表板 API，整合需重跑報告、高優先 watchlist、screener 候選、免費模式狀態、免費通知規劃與決策回測摘要
+- Watchlist 支援本機股票代號建議與貼上/CSV 匯入；台股四碼會正規化成 `.TW`，匯入流程仍受 mutation token 保護
+- Portfolio CSV 風控可在本機分析持股集中度、產業/國家曝險與投資論文健康度，不接券商、不下單
 - 內建報告刪除 API，會同步刪除 `.html`、`.md` 與資料快照
 - 結構化 Agent 使用 JSON 輸出優先解析；Mode A/B 會解析護城河、估值與投資建議，Mode C 會解析泡沫狙擊建議，Mode D 會解析極短線交易設定
 - Mode C 的 Agent 19 報告會強制保留做空觸發條件、防軋空停損點，並將 `[投資建議]` 區塊固定放在最終段落尾端；Mode D 則使用 Agent 24 輸出標準化 Trade Setup
@@ -61,6 +66,9 @@ stock-agent/
 │   ├── watchlist_service.py # Watchlist SQLite 儲存與批次排程 helper
 │   ├── watchlist_triggers.py # Watchlist 事件雷達 trigger 判斷
 │   ├── decision_backtest_service.py # 決策追蹤到期回測與績效統計
+│   ├── strategy_evaluator.py # Alpha model / trigger 回測彙總比較
+│   ├── free_notification_plan.py # 本機免費通知與使用者自備 webhook 規劃
+│   ├── symbol_tools.py # 股票代號建議與 watchlist 貼上匯入解析
 │   ├── temporal_memory_service.py # 上一期報告記憶與最終 Agent 反思 context
 │   ├── watchlist_claim_store.py # Watchlist 排程 due slot 原子認領
 │   ├── analysis_jobs.py    # 可匯入的分析任務入口，本地/RQ worker 共用
@@ -161,6 +169,7 @@ Production profile 請設定 `UNSTUCK_ENV=production` 或 `DEPLOYMENT_MODE=serve
 - `CACHE_BACKEND`：cache 後端，預設 `redis`；測試或離線情境可設 `sqlite` / `memory`
 - `CACHE_NAMESPACE`：Redis cache namespace，預設 `stock-agent`
 - `CACHE_DB_PATH`：SQLite 快取檔位置，預設 `backend/cache/stock_agent_cache.sqlite3`
+- `FREE_MODE` / `STOCK_AGENT_FREE_MODE`：免費模式合約，預設 `true`。開啟時 dashboard 會檢查每個可用 provider source 是否仍有 `free` 或 `free_with_key` 路徑；`optional_paid` 來源只能是補強，不可成為唯一路徑。
 - `FINANCIAL_DATA_CACHE_SECONDS`：財務資料快取秒數，預設 `86400`
 - `REPORT_RETENTION_DAYS`：舊報告保留天數，預設 `30`
 - `REPORT_CLEANUP_INTERVAL_SECONDS`：Worker maintenance 清理週期秒數，預設 `86400`
@@ -438,6 +447,7 @@ curl http://127.0.0.1:8080/metrics
 curl http://127.0.0.1:8080/readyz
 curl -H "X-Mutation-Token: $TOKEN" http://127.0.0.1:8080/api/maintenance/storage-summary
 curl http://127.0.0.1:8080/api/watchlist
+curl "http://127.0.0.1:8080/api/watchlist/symbols?q=233"
 ```
 
 `/metrics` 使用 Prometheus text format，適合接到 Prometheus / Grafana 或外部告警系統；本機維運頁仍可用 JSON dashboard 看同一批 provider SLA 與 queue health。

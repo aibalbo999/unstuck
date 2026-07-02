@@ -14,6 +14,8 @@ from .types import FetchRequest, ProviderResult
 class YFinanceProvider(DataProvider):
     name = "yfinance"
     source = "market_data"
+    cost_tier = "free"
+    capabilities = {"quote", "market_snapshot"}
 
     async def fetch_async(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from .yfinance_snapshot import fetch_yfinance_snapshot
@@ -38,6 +40,9 @@ class FmpProvider(DataProvider):
     name = "FMP stable quote"
     source = "market_data"
     primary_source_provider = False
+    cost_tier = "free_with_key"
+    capabilities = {"quote", "market_snapshot"}
+    requires_env = ("FMP_API_KEY",)
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from .market_sources.http_enrichment import fetch_fmp_quote_fallback

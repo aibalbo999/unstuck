@@ -22,6 +22,8 @@ class SecEdgarProvider(DataProvider):
     name = "SEC EDGAR Filings"
     source = "sec_edgar"
     markets = {"us"}
+    cost_tier = "free"
+    capabilities = {"sec_filings", "official_filings"}
 
     def __init__(self):
         self._ticker_to_cik = None

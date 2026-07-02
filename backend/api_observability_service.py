@@ -10,6 +10,7 @@ from typing import Any
 
 from provider_sla import SLA_CRITICAL_SUCCESS_RATE, SLA_WARNING_SUCCESS_RATE
 from api_quota_service import build_api_quota_payload as _build_api_quota_payload
+from free_mode_contract import build_free_mode_contract
 from job_observability import build_active_jobs_snapshot, build_ops_dashboard_snapshot
 from queue_observability import snapshot_task_queue
 
@@ -205,6 +206,7 @@ async def build_ops_dashboard_payload(
     return {
         "status": status,
         "generated_at": time.time(),
+        "free_mode": _free_mode_dashboard_summary(),
         "jobs": jobs.get("jobs", {}),
         "job_latency": jobs.get("job_latency", {}),
         "stuck_jobs": jobs.get("stuck_jobs", {}),
@@ -216,6 +218,21 @@ async def build_ops_dashboard_payload(
             "alerts": alerts,
         },
         "api_quotas": api_quotas,
+    }
+
+
+def _free_mode_dashboard_summary() -> dict:
+    contract = build_free_mode_contract()
+    by_cost_tier: dict[str, int] = {}
+    for provider in contract.get("providers") or []:
+        tier = str(provider.get("cost_tier") or "unknown")
+        by_cost_tier[tier] = by_cost_tier.get(tier, 0) + 1
+    return {
+        "enabled": contract.get("enabled"),
+        "can_run_without_paid_keys": contract.get("can_run_without_paid_keys"),
+        "provider_count": len(contract.get("providers") or []),
+        "providers_by_cost_tier": by_cost_tier,
+        "violations": contract.get("violations") or [],
     }
 
 

@@ -32,8 +32,9 @@
             elements: {
                 summaryEl: byId('watchlist-summary'), listEl: byId('watchlist-list'),
                 tickerInput: byId('watchlist-ticker-input'), pipelineSelect: byId('watchlist-pipeline-select'),
+                suggestionList: byId('watchlist-symbol-suggestions'), importText: byId('watchlist-import-text'),
                 preMarketInput: byId('watchlist-pre-market'), postMarketInput: byId('watchlist-post-market'),
-                enabledInput: byId('watchlist-enabled'), saveBtn: byId('watchlist-save-btn'),
+                enabledInput: byId('watchlist-enabled'), saveBtn: byId('watchlist-save-btn'), importBtn: byId('watchlist-import-btn'),
                 runBtn: byId('watchlist-run-btn'), refreshBtn: byId('watchlist-refresh')
             }
         });

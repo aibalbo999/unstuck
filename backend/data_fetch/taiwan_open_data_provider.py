@@ -16,6 +16,8 @@ class TaiwanOpenDataProvider(DataProvider):
     name = "Taiwan Open Data (Exchange Rates)"
     source = "taiwan_open_data"
     markets = {"tw"}
+    cost_tier = "free"
+    capabilities = {"taiwan_open_data", "macro_context"}
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from data_trust import AUDIT_STATUS_SUCCESS, AUDIT_STATUS_UNAVAILABLE

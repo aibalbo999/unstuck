@@ -13,6 +13,7 @@ from .types import FetchRequest, ProviderResult
 class FreeNewsWaterfallProvider(DataProvider):
     name = "Free news waterfall"
     source = "recent_catalysts"
+    cost_tier, capabilities = "free", {"news", "recent_catalysts"}
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from data_trust import AUDIT_STATUS_SUCCESS, AUDIT_STATUS_UNAVAILABLE
@@ -46,6 +47,7 @@ class FreeNewsWaterfallProvider(DataProvider):
 class GoogleSearchProvider(DataProvider):
     name = "Google Search"
     source = "recent_catalysts"
+    cost_tier, capabilities, requires_env = "free_with_key", {"search", "recent_catalysts"}, ("GOOGLE_SEARCH_API_KEY", "GOOGLE_CSE_ID")
 
     async def fetch_async(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from config import GOOGLE_CSE_ID, GOOGLE_SEARCH_API_KEY
@@ -78,6 +80,7 @@ class GoogleSearchProvider(DataProvider):
 class AlternativeSearchProvider(DataProvider):
     name = "Alternative Search"
     source = "recent_catalysts"
+    cost_tier, capabilities = "free", {"search", "recent_catalysts"}
 
     async def fetch_async(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from external_search_providers import fetch_alternative_search_catalysts_async
@@ -103,6 +106,7 @@ class AlternativeSearchProvider(DataProvider):
 class YahooProvider(DataProvider):
     name = "Yahoo Finance"
     source = "recent_catalysts"
+    cost_tier, capabilities = "free", {"news", "recent_catalysts"}
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from .market_sources.http_enrichment import fetch_yfinance_news_catalysts
@@ -128,6 +132,7 @@ class YahooProvider(DataProvider):
 class FmpNewsProvider(DataProvider):
     name = "FMP news"
     source = "recent_catalysts"
+    cost_tier, capabilities, requires_env = "free_with_key", {"news", "recent_catalysts"}, ("FMP_API_KEY",)
 
     async def fetch_async(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from config import FMP_API_KEY
@@ -158,6 +163,7 @@ class FmpNewsProvider(DataProvider):
 class EarningsCallProvider(DataProvider):
     name = FREE_EARNINGS_CALL_PROVIDER_NAME
     source = "earnings_call"
+    cost_tier, capabilities = "free", {"earnings_call"}
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         data = (context or {}).get("data", {}) if isinstance((context or {}).get("data"), dict) else {}
@@ -176,6 +182,7 @@ class EarningsCallProvider(DataProvider):
 class GlobalMarketContextProvider(DataProvider):
     name = "yfinance global context"
     source = "global_market_context"
+    cost_tier, capabilities = "free", {"global_market_context"}
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from .market_sources.global_context import fetch_global_market_context
@@ -204,6 +211,7 @@ class GlobalMarketContextProvider(DataProvider):
 class InternationalNewsContextProvider(DataProvider):
     name = "GDELT / Google News RSS"
     source = "international_news_context"
+    cost_tier, capabilities = "free", {"international_news_context", "news"}
 
     async def fetch_async(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from external_data_gdelt import fetch_gdelt_international_news_context
@@ -230,6 +238,7 @@ class InternationalNewsContextProvider(DataProvider):
 class GooglePeerDiscoveryProvider(DataProvider):
     name = "Google Search"
     source = "peer_discovery"
+    cost_tier, capabilities, requires_env = "free_with_key", {"peer_discovery", "search"}, ("GOOGLE_SEARCH_API_KEY", "GOOGLE_CSE_ID")
 
     async def fetch_async(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from config import GOOGLE_CSE_ID, GOOGLE_SEARCH_API_KEY
@@ -263,6 +272,7 @@ class GooglePeerDiscoveryProvider(DataProvider):
 class AlternativePeerDiscoveryProvider(DataProvider):
     name = "Alternative Search"
     source = "peer_discovery"
+    cost_tier, capabilities = "free", {"peer_discovery", "search"}
 
     async def fetch_async(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from external_search_providers import fetch_alternative_peer_discovery_async
@@ -289,6 +299,7 @@ class AlternativePeerDiscoveryProvider(DataProvider):
 class DynamicPeerMetricsProvider(DataProvider):
     name = "FinMind/yfinance"
     source = "dynamic_peer_metrics"
+    cost_tier, capabilities = "free", {"peer_metrics"}
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from .market_sources.peers import fetch_dynamic_peer_metrics
@@ -314,6 +325,7 @@ class DynamicPeerMetricsProvider(DataProvider):
 class PeRiverChartProvider(DataProvider):
     name = "FinMind/default multiples"
     source = "pe_river_chart"
+    cost_tier, capabilities = "free", {"valuation"}
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from .market_sources.valuation import build_pe_river_chart_data

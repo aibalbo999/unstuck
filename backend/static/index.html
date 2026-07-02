@@ -357,7 +357,8 @@
                         <div class="watchlist-form">
                             <label class="history-filter-field">
                                 <span>股票代號</span>
-                                <input id="watchlist-ticker-input" class="history-search" type="text" placeholder="例如 2308.TW" autocomplete="off" spellcheck="false" />
+                                <input id="watchlist-ticker-input" class="history-search" type="text" placeholder="例如 2308.TW" autocomplete="off" spellcheck="false" list="watchlist-symbol-suggestions" />
+                                <datalist id="watchlist-symbol-suggestions"></datalist>
                             </label>
                             <label class="history-filter-field">
                                 <span>模式</span>
@@ -388,6 +389,12 @@
                             </div>
                             <button id="watchlist-save-btn" class="maintenance-button" type="button">
                                 <span>儲存</span>
+                            </button>
+                        </div>
+                        <div class="watchlist-import-row">
+                            <textarea id="watchlist-import-text" class="history-search" rows="2" placeholder="2330.TW,v2&#10;AAPL,v1"></textarea>
+                            <button id="watchlist-import-btn" class="maintenance-button" type="button">
+                                <span>匯入</span>
                             </button>
                         </div>
                         <div id="watchlist-list" class="provider-sla-list watchlist-list"></div>

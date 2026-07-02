@@ -23,6 +23,12 @@ Each report `.data.json` snapshot also includes `data_confidence_score`, `conclu
 
 Watchlist rows also include `decision_priority`, `decision_alert`, and `latest_report` when a matching report exists. `decision_priority = high` means the latest data snapshot changed after the conclusion was generated and the report should be rerun.
 
+Watchlist symbol suggestions are local/free and can be used before saving or importing rows:
+
+```bash
+curl "http://127.0.0.1:8080/api/watchlist/symbols?q=台積"
+```
+
 ## Mutation Token
 
 ```bash
@@ -123,7 +129,33 @@ curl http://127.0.0.1:8080/api/observability/dashboard
 curl http://127.0.0.1:8080/api/ops/dashboard
 ```
 
-回傳內容包含報告完成耗時 `p50/p95/p99`、active job count、stuck job warning、node/model telemetry summary、`prompt_budget` token 摘要、RQ queue depth/registry counts、provider 24 小時 degradation alerts 與 API quota ledger 摘要。`status` 可能是 `ok`、`warning` 或 `critical`。
+回傳內容包含報告完成耗時 `p50/p95/p99`、active job count、stuck job warning、node/model telemetry summary、`prompt_budget` token 摘要、RQ queue depth/registry counts、provider 24 小時 degradation alerts、API quota ledger 摘要，以及 `free_mode` 免費模式合約摘要。`status` 可能是 `ok`、`warning` 或 `critical`。
+
+每日決策儀表板整合近期報告、watchlist、auto-screener、決策回測與免費模式狀態：
+
+```bash
+curl http://127.0.0.1:8080/api/watchlist/daily-dashboard
+```
+
+The daily dashboard also returns `notification_plan`. Local UI notifications are always free; SMTP, Telegram, Discord, and Slack are enabled only when the operator supplies the corresponding environment variables/webhook URLs.
+
+Watchlist paste/CSV import is a mutation endpoint. It accepts `ticker`/`symbol`, optional `pipeline`, `schedule_slots`, `tags`, and `enabled`; four-digit Taiwan symbols are normalized to `.TW`.
+
+```bash
+curl -X POST -H "X-Mutation-Token: $TOKEN" \
+  -H "Content-Type: application/json" \
+  http://127.0.0.1:8080/api/watchlist/import \
+  -d '{"text":"ticker,pipeline,schedule_slots\n2330.TW,v2,pre_market|post_market\nAAPL,v1,post_market"}'
+```
+
+Portfolio CSV 風控是本機研究工具，不接券商、不下單；因使用 POST body，仍需 mutation token：
+
+```bash
+curl -X POST -H "X-Mutation-Token: $TOKEN" \
+  -H "Content-Type: application/json" \
+  http://127.0.0.1:8080/api/watchlist/portfolio/risk \
+  -d '{"csv":"ticker,weight,sector,country\n2330.TW,55,Semiconductors,TW\nAAPL,45,Technology,US"}'
+```
 
 ### Deprecated Compatibility Endpoint
 

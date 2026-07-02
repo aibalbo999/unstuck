@@ -9,6 +9,9 @@ from .types import FetchRequest, ProviderResult
 class MacroIndicatorsProvider(DataProvider):
     name = "FRED macro indicators"
     source = "macro_indicators"
+    cost_tier = "free_with_key"
+    capabilities = {"macro_indicators"}
+    requires_env = ("FRED_API_KEY",)
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from data_trust import AUDIT_STATUS_NOT_CONFIGURED, AUDIT_STATUS_SUCCESS, AUDIT_STATUS_UNAVAILABLE
@@ -44,6 +47,8 @@ class ChipDataProvider(DataProvider):
     name = "TDCC/TWSE chip data"
     source = "chip_data"
     markets = {"tw"}
+    cost_tier = "free"
+    capabilities = {"chip_data", "institutional_context"}
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from data_trust import AUDIT_STATUS_SUCCESS, AUDIT_STATUS_UNAVAILABLE
@@ -80,6 +85,8 @@ class AlternativeJobOpeningsProvider(DataProvider):
     name = "104 & 1111 job openings"
     source = "alternative_data"
     markets = {"tw"}
+    cost_tier = "free"
+    capabilities = {"alternative_data", "job_openings"}
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from data_trust import AUDIT_STATUS_NOT_CONFIGURED, AUDIT_STATUS_SUCCESS, AUDIT_STATUS_UNAVAILABLE
@@ -141,6 +148,8 @@ class SocialSentimentProvider(DataProvider):
     name = "Social Forum Sentiment (Dcard/Mobile01/PTT)"
     source = "social_sentiment"
     markets = {"tw"}
+    cost_tier = "free"
+    capabilities = {"social_sentiment"}
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from data_trust import AUDIT_STATUS_SUCCESS, AUDIT_STATUS_UNAVAILABLE

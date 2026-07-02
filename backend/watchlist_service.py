@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import time
 import inspect
+import logging
+import sqlite3
 from datetime import datetime
 
 from data_fetch import FetchRequest
@@ -19,6 +21,7 @@ TAIPEI = watchlist_store.TAIPEI
 WATCHLIST_PATH = watchlist_store.WATCHLIST_PATH
 WATCHLIST_DB_PATH = watchlist_store.WATCHLIST_DB_PATH
 DEFAULT_SCHEDULES = watchlist_store.DEFAULT_SCHEDULES
+LOGGER = logging.getLogger(__name__)
 
 
 def _sync_store_config() -> None:
@@ -57,16 +60,20 @@ def _latest_report_for_item(item: dict, output_dir: str) -> dict:
     ticker = str(item.get("ticker") or "").strip().upper()
     if not ticker or not output_dir:
         return {}
-    result = report_history_service.list_reports(
-        page=1,
-        limit=5,
-        q=ticker.split(".", 1)[0],
-        pipeline=item.get("pipeline") or "all",
-        recommendation="all",
-        data_trust="all",
-        output_dir=output_dir,
-        report_cache={},
-    )
+    try:
+        result = report_history_service.list_reports(
+            page=1,
+            limit=5,
+            q=ticker.split(".", 1)[0],
+            pipeline=item.get("pipeline") or "all",
+            recommendation="all",
+            data_trust="all",
+            output_dir=output_dir,
+            report_cache={},
+        )
+    except sqlite3.Error as exc:
+        LOGGER.warning("Watchlist report lookup skipped because report index is unavailable: %s", exc)
+        return {}
     reports = result.get("reports", [])
     for report in reports:
         if _ticker_matches(report, ticker):

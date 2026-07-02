@@ -1,6 +1,7 @@
 import json
 import sys
 import asyncio
+import sqlite3
 from datetime import datetime
 from pathlib import Path
 
@@ -369,6 +370,30 @@ def test_watchlist_listing_prioritizes_items_with_stale_decisions(monkeypatch, t
     assert result["items"][0]["decision_priority"] == "high"
     assert result["items"][0]["decision_alert"]["reason"] == "needs_rerun"
     assert result["items"][0]["latest_report"]["filename"] == report
+
+
+def test_watchlist_listing_degrades_when_report_index_unavailable(monkeypatch, tmp_path):
+    monkeypatch.setattr(watchlist_service, "WATCHLIST_PATH", tmp_path / "watchlist.json")
+    watchlist_service.reset_watchlist_store_for_tests()
+    watchlist_service.upsert_watchlist_item({
+        "ticker": "2308.TW",
+        "pipeline": "v2",
+        "schedule_slots": ["post_market"],
+        "enabled": True,
+    })
+
+    def fail_list_reports(**_kwargs):
+        raise sqlite3.OperationalError("unable to open database file")
+
+    monkeypatch.setattr(watchlist_service.report_history_service, "list_reports", fail_list_reports)
+
+    result = watchlist_service.list_watchlist_with_report_alerts(output_dir=str(tmp_path / "output"))
+
+    assert result["priority_counts"]["medium"] == 1
+    assert result["items"][0]["ticker"] == "2308.TW"
+    assert result["items"][0]["decision_priority"] == "medium"
+    assert result["items"][0]["decision_alert"]["reason"] == "missing_report"
+    assert result["items"][0]["latest_report"] == {}
 
 
 def test_watchlist_trigger_monitor_queues_matched_event_once(monkeypatch, tmp_path):

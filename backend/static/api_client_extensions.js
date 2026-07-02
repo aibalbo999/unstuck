@@ -10,6 +10,10 @@
     }
 
     async function fetchWatchlist() { return jsonRequest('/api/watchlist'); }
+    async function fetchDailyDecisionDashboard() { return jsonRequest('/api/watchlist/daily-dashboard'); }
+    async function fetchSymbolSuggestions(q, limit = 10) { const params = new URLSearchParams({ q: q || '', limit: String(limit) }); return jsonRequest(`/api/watchlist/symbols?${params.toString()}`); }
+    async function importWatchlistText(text) { return jsonRequest('/api/watchlist/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: text || '' }) }); }
+    async function analyzePortfolioRisk(csv, thesisHealth = {}) { return jsonRequest('/api/watchlist/portfolio/risk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ csv, thesis_health: thesisHealth || {} }) }); }
 
     async function saveWatchlistItem(item) {
         return jsonRequest('/api/watchlist', {
@@ -66,19 +70,5 @@
         });
     }
 
-    Object.assign(window.StockAgentApiClient, {
-        fetchApiQuotas,
-        fetchPerformanceStats,
-        compareReports,
-        fetchWatchlist,
-        saveWatchlistItem,
-        deleteWatchlistItem,
-        runWatchlist,
-        fetchMarketScreener,
-        runMarketScreener,
-        fetchDecisionTracking,
-        saveDecisionTrackingItem,
-        deleteDecisionTrackingItem,
-        refreshDecisionTracking
-    });
+    Object.assign(window.StockAgentApiClient, { fetchApiQuotas, fetchPerformanceStats, compareReports, fetchWatchlist, fetchDailyDecisionDashboard, fetchSymbolSuggestions, importWatchlistText, analyzePortfolioRisk, saveWatchlistItem, deleteWatchlistItem, runWatchlist, fetchMarketScreener, runMarketScreener, fetchDecisionTracking, saveDecisionTrackingItem, deleteDecisionTrackingItem, refreshDecisionTracking });
 })();
