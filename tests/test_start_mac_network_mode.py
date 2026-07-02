@@ -33,6 +33,16 @@ def test_start_mac_lan_launches_full_local_runtime_stack():
     assert 'Worker 已啟動' in script
 
 
+def test_start_mac_raises_file_descriptor_limit_before_starting_services():
+    script = (ROOT / "start_mac.command").read_text(encoding="utf-8")
+
+    assert 'TARGET_NOFILE_LIMIT="${TARGET_NOFILE_LIMIT:-4096}"' in script
+    assert "raise_file_descriptor_limit()" in script
+    assert 'ulimit -n "$TARGET_NOFILE_LIMIT"' in script
+    assert "raise_file_descriptor_limit" in script
+    assert script.index("raise_file_descriptor_limit") < script.index("start_redis_if_needed")
+
+
 def test_start_mac_stops_project_worker_orphans_before_starting_worker():
     script = (ROOT / "start_mac.command").read_text(encoding="utf-8")
 

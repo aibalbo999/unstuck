@@ -176,6 +176,22 @@ def test_sqlite_cache_backend_round_trip_delete_cleanup_and_close(tmp_path, monk
     cache.reset()
 
 
+def test_sqlite_cache_backend_releases_thread_local_connection_after_operations(tmp_path):
+    cache = SqliteCacheBackend(tmp_path / "cache.sqlite3")
+
+    cache.set_json("current", {"ticker": "MOPS"}, ttl_seconds=60)
+    assert getattr(cache._resource._local, "conn", None) is None
+
+    assert cache.get_json("current") == {"ticker": "MOPS"}
+    assert getattr(cache._resource._local, "conn", None) is None
+
+    assert cache.delete("current") is True
+    assert getattr(cache._resource._local, "conn", None) is None
+
+    assert cache.cleanup_expired() == 0
+    assert getattr(cache._resource._local, "conn", None) is None
+
+
 def test_sqlite_cache_backend_removes_invalid_json(tmp_path):
     cache = SqliteCacheBackend(tmp_path / "cache.sqlite3")
     cache.set_json("broken", {"valid": True}, ttl_seconds=60)

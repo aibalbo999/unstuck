@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -698,6 +699,28 @@ def test_report_history_uses_repository_boundary(tmp_path):
     assert repository.query_arg.include_versions is True
     assert result["pagination"]["include_versions"] is True
     assert result["pagination"]["total"] == 1
+
+
+def test_report_history_returns_empty_payload_when_index_unavailable(tmp_path):
+    class UnavailableRepository:
+        def query(self, query):
+            raise sqlite3.OperationalError("unable to open database file")
+
+    result = report_history_service.list_reports(
+        page=1,
+        limit=8,
+        q="",
+        pipeline="all",
+        recommendation="all",
+        data_trust="all",
+        output_dir=str(tmp_path),
+        report_cache={},
+        repository=UnavailableRepository(),
+    )
+
+    assert result["reports"] == []
+    assert result["pagination"]["total"] == 0
+    assert result["pagination"]["total_pages"] == 1
 
 
 def test_get_reports_defaults_to_latest_report_per_ticker_and_mode(tmp_path, monkeypatch):

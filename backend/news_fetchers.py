@@ -6,6 +6,7 @@ import calendar
 from datetime import datetime, timedelta, timezone
 import logging
 import re
+import threading
 from typing import Any, Iterable, TypedDict
 from urllib.parse import parse_qsl, quote_plus, urlencode, urljoin, urlsplit, urlunsplit
 
@@ -23,6 +24,9 @@ except ImportError:  # pragma: no cover - exercised only with older installation
 
 
 LOGGER = logging.getLogger(__name__)
+_DDGS_CLIENT_LOCK = threading.Lock()
+_DDGS_CLIENT: Any = None
+_DDGS_CLIENT_FACTORY: Any = None
 TAIPEI_TZ = timezone(timedelta(hours=8))
 GOOGLE_NEWS_RSS_URL = "https://news.google.com/rss/search"
 PTT_STOCK_URL = "https://www.ptt.cc/bbs/Stock/index.html"
@@ -167,6 +171,17 @@ def _warn(provider: str, operation: str, exc: BaseException | None = None) -> No
     LOGGER.warning("%s %s failed [%s]", provider, operation, error_kind)
 
 
+def _duckduckgo_news_rows(query: str, max_results: int):
+    global _DDGS_CLIENT, _DDGS_CLIENT_FACTORY
+    if DDGS is None:
+        return None
+    with _DDGS_CLIENT_LOCK:
+        if _DDGS_CLIENT is None or _DDGS_CLIENT_FACTORY is not DDGS:
+            _DDGS_CLIENT = DDGS()
+            _DDGS_CLIENT_FACTORY = DDGS
+        return _DDGS_CLIENT.news(query=query, max_results=max_results)
+
+
 def fetch_google_news_rss(query: str, limit: int = 10) -> list[NewsRecord]:
     """Fetch Google News RSS search results without requiring an API key."""
     cleaned_query = _clean_input(query)
@@ -215,7 +230,7 @@ def fetch_duckduckgo_news(query: str, limit: int = 10) -> list[NewsRecord]:
         return []
     bounded_limit = _clamp_limit(limit)
     try:
-        rows = DDGS().news(query=cleaned_query, max_results=bounded_limit)
+        rows = _duckduckgo_news_rows(cleaned_query, bounded_limit)
         records = []
         for row in rows or []:
             record = _record(

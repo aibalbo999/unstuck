@@ -33,6 +33,34 @@ SERVER_PID=""
 WORKER_PID=""
 REDIS_PID=""
 WORKER_PID_FILE="$DIR/backend/cache/start_mac_worker.pid"
+TARGET_NOFILE_LIMIT="${TARGET_NOFILE_LIMIT:-4096}"
+
+raise_file_descriptor_limit() {
+    case "$TARGET_NOFILE_LIMIT" in
+        ""|*[!0-9]*)
+            TARGET_NOFILE_LIMIT=4096
+            ;;
+    esac
+
+    current_limit="$(ulimit -n 2>/dev/null || echo 0)"
+    if [ "$current_limit" = "unlimited" ]; then
+        echo "檔案描述符上限：unlimited"
+        return 0
+    fi
+
+    if [ "$current_limit" -lt "$TARGET_NOFILE_LIMIT" ] 2>/dev/null; then
+        if ulimit -n "$TARGET_NOFILE_LIMIT" 2>/dev/null; then
+            :
+        elif ulimit -n 1024 2>/dev/null; then
+            :
+        else
+            echo "提醒：無法提高檔案描述符上限，目前為 $current_limit。"
+        fi
+    fi
+    echo "檔案描述符上限：$(ulimit -n 2>/dev/null || echo "$current_limit")"
+}
+
+raise_file_descriptor_limit
 
 cleanup() {
     if [ -n "${SERVER_PID:-}" ]; then

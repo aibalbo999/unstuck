@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import logging
+import sqlite3
 import time
 from contextlib import nullcontext
 from typing import Any
@@ -24,6 +26,8 @@ from report_repository import DEFAULT_REPORT_REPOSITORY, ReportListQuery, Report
 from report_view_repair import repair_report_html_for_view
 from storage.report_storage import ReportStorage
 
+
+LOGGER = logging.getLogger(__name__)
 
 REPORT_HTML_SECURITY_HEADERS = {
     "Content-Security-Policy": "default-src 'self'; script-src 'none'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:",
@@ -184,19 +188,23 @@ def list_reports(
     if storage is None and not os.path.exists(output_dir):
         reports, total = [], 0
     else:
-        reports, total = repository.query(
-            ReportListQuery(
-                page=page,
-                limit=limit,
-                q=query,
-                pipeline=pipeline_filter,
-                recommendation=recommendation_filter,
-                data_trust=data_trust_filter,
-                include_versions=include_versions_filter,
-                output_dir=output_dir,
-                sync_metadata=should_sync_metadata(output_dir, storage),
+        try:
+            reports, total = repository.query(
+                ReportListQuery(
+                    page=page,
+                    limit=limit,
+                    q=query,
+                    pipeline=pipeline_filter,
+                    recommendation=recommendation_filter,
+                    data_trust=data_trust_filter,
+                    include_versions=include_versions_filter,
+                    output_dir=output_dir,
+                    sync_metadata=should_sync_metadata(output_dir, storage),
+                )
             )
-        )
+        except sqlite3.Error as exc:
+            LOGGER.warning("Report history listing skipped because report index is unavailable: %s", exc)
+            reports, total = [], 0
 
     total_pages = max((total + limit - 1) // limit, 1)
     return {

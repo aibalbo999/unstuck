@@ -105,6 +105,24 @@ def test_duckduckgo_maps_keys_and_removes_duplicate_links(monkeypatch):
     }]
 
 
+def test_duckduckgo_reuses_client_between_calls(monkeypatch):
+    instances = []
+
+    class FakeDDGS:
+        def __init__(self):
+            instances.append(self)
+
+        def news(self, **_kwargs):
+            return [{"title": "News", "url": "https://example.com/news"}]
+
+    monkeypatch.setattr(news_fetchers, "DDGS", FakeDDGS)
+
+    assert news_fetchers.fetch_duckduckgo_news("TSMC", limit=1)
+    assert news_fetchers.fetch_duckduckgo_news("TSMC", limit=1)
+
+    assert len(instances) == 1
+
+
 def test_duckduckgo_uses_provider_name_when_publisher_is_missing(monkeypatch):
     class FakeDDGS:
         def news(self, **_kwargs):

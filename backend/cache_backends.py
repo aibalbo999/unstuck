@@ -7,8 +7,9 @@ import json
 import sqlite3
 import threading
 import time
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import Iterator, Protocol, runtime_checkable
 
 from storage.migrations import MigrationRunner
 from storage.sqlite_resource import ThreadLocalSqliteResource
@@ -86,7 +87,7 @@ class SqliteCacheBackend:
 
     def get_json(self, key: str) -> object | None:
         now = time.time()
-        with self._resource.connect() as conn:
+        with self._connection() as conn:
             row = conn.execute(
                 "SELECT value, expires_at, updated_at FROM cache_entries WHERE cache_key = ?",
                 (key,),
@@ -109,7 +110,7 @@ class SqliteCacheBackend:
         _validate_ttl(ttl_seconds)
         now = time.time()
         serialized = _serialize_json(value)
-        with self._lock, self._resource.connect() as conn:
+        with self._lock, self._connection() as conn:
             conn.execute(
                 """
                 INSERT INTO cache_entries (cache_key, value, expires_at, updated_at)
@@ -123,12 +124,12 @@ class SqliteCacheBackend:
             )
 
     def delete(self, key: str) -> bool:
-        with self._lock, self._resource.connect() as conn:
+        with self._lock, self._connection() as conn:
             cursor = conn.execute("DELETE FROM cache_entries WHERE cache_key = ?", (key,))
             return cursor.rowcount > 0
 
     def cleanup_expired(self) -> int:
-        with self._lock, self._resource.connect() as conn:
+        with self._lock, self._connection() as conn:
             cursor = conn.execute("DELETE FROM cache_entries WHERE expires_at <= ?", (time.time(),))
             return cursor.rowcount
 
@@ -137,6 +138,15 @@ class SqliteCacheBackend:
 
     def reset(self) -> None:
         self._resource.reset()
+
+    @contextmanager
+    def _connection(self) -> Iterator[sqlite3.Connection]:
+        conn = self._resource.connect()
+        try:
+            with conn:
+                yield conn
+        finally:
+            self._resource.close_current_thread()
 
     def _delete_if_unchanged(
         self,

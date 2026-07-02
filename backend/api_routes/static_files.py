@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import os
 from collections.abc import Callable
+from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 
 def create_static_router(
@@ -18,7 +19,8 @@ def create_static_router(
 
     @router.get("/")
     def read_root():
-        return FileResponse(os.path.join(get_static_dir(), "index.html"))
+        index_html = Path(get_static_dir(), "index.html").read_text(encoding="utf-8")
+        return HTMLResponse(index_html)
 
     @router.get("/favicon.ico", include_in_schema=False)
     def favicon():
