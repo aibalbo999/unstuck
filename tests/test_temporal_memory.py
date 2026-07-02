@@ -65,6 +65,18 @@ def test_build_temporal_memory_uses_previous_report_and_backtest(monkeypatch, tm
     assert "請在此次分析中明確檢討" in memory["reflection_prompt"]
 
 
+def test_build_temporal_memory_ignores_unavailable_report_history(monkeypatch, tmp_path):
+    import sqlite3
+    import temporal_memory_service
+
+    def raise_unavailable(**_kwargs):
+        raise sqlite3.OperationalError("unable to open database file")
+
+    monkeypatch.setattr(temporal_memory_service.report_history_service, "list_reports", raise_unavailable)
+
+    assert temporal_memory_service.build_temporal_memory("0050.TW", output_dir=str(tmp_path), current_price=213) == {}
+
+
 def test_temporal_memory_is_routed_only_to_final_decision_agents():
     from agent_runtime.prompting import data_for_agent_prompt
 

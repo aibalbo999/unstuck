@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import date, datetime
 from typing import Any
 
@@ -9,28 +10,21 @@ import decision_tracking_store
 import report_history_service
 
 
+LOGGER = logging.getLogger(__name__)
+
+
 def build_temporal_memory(ticker: str, *, output_dir: str, current_price: float | None = None) -> dict[str, Any]:
     """Return the latest prior report memory for the same ticker, or an empty dict."""
     ticker_upper = str(ticker or "").strip().upper()
     if not ticker_upper:
         return {}
-    reports = report_history_service.list_reports(
-        page=1,
-        limit=50,
-        q=ticker_upper.split(".", 1)[0],
-        pipeline="all",
-        recommendation="all",
-        data_trust="all",
-        include_versions=True,
-        output_dir=output_dir,
-        report_cache={},
-    ).get("reports", [])
+    reports = _list_reports_for_temporal_memory(ticker_upper, output_dir=output_dir)
     matched = [report for report in reports if _ticker_matches(report, ticker_upper)]
     if not matched:
         return {}
     previous = max(matched, key=_sort_key)
     recommendation = previous.get("recommendation") if isinstance(previous.get("recommendation"), dict) else {}
-    backtests = decision_tracking_store.list_backtests_for_report(str(previous.get("filename") or ""))
+    backtests = _list_backtests_for_temporal_memory(str(previous.get("filename") or ""))
     prev_date = _parse_report_date(previous)
     elapsed_months = _elapsed_months(prev_date, date.today()) if prev_date else None
     memory = {
@@ -51,6 +45,39 @@ def build_temporal_memory(ticker: str, *, output_dir: str, current_price: float 
     }
     memory["reflection_prompt"] = _reflection_prompt(memory)
     return memory
+
+
+def _list_reports_for_temporal_memory(ticker: str, *, output_dir: str) -> list[dict[str, Any]]:
+    try:
+        response = report_history_service.list_reports(
+            page=1,
+            limit=50,
+            q=ticker.split(".", 1)[0],
+            pipeline="all",
+            recommendation="all",
+            data_trust="all",
+            include_versions=True,
+            output_dir=output_dir,
+            report_cache={},
+        )
+    except Exception as exc:
+        LOGGER.warning("Temporal memory skipped for %s: report history unavailable: %s", ticker, exc)
+        return []
+    if not isinstance(response, dict):
+        return []
+    reports = response.get("reports", [])
+    return reports if isinstance(reports, list) else []
+
+
+def _list_backtests_for_temporal_memory(report_filename: str) -> list[dict[str, Any]]:
+    if not report_filename:
+        return []
+    try:
+        backtests = decision_tracking_store.list_backtests_for_report(report_filename)
+    except Exception as exc:
+        LOGGER.warning("Temporal memory backtests skipped for %s: %s", report_filename, exc)
+        return []
+    return backtests if isinstance(backtests, list) else []
 
 
 def build_valuation_memory_slice(temporal_memory: dict) -> dict:

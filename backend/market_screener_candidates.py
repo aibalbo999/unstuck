@@ -162,7 +162,11 @@ def attach_quality_funnel(candidates: list[dict]) -> list[dict]:
         quality_funnel = candidate.get("quality_funnel")
         if not isinstance(quality_funnel, dict) or not quality_funnel.get("outcome"):
             metrics = candidate.get("metrics") if isinstance(candidate.get("metrics"), dict) else {}
-            quality_funnel = evaluate_quality_funnel(metrics)
+            quality_funnel = evaluate_quality_funnel(
+                metrics,
+                sector=candidate.get("sector") or metrics.get("sector"),
+                industry=candidate.get("industry") or metrics.get("industry"),
+            )
         enriched.append({**candidate, "quality_funnel": quality_funnel})
     return enriched
 

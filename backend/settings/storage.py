@@ -2,25 +2,28 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
-from .env import BASE_DIR, env_int, env_list, json_env_dict
+from .env import BASE_DIR, env_int, env_list, env_str, json_env_dict
 
 
-OUTPUT_DIR = os.getenv("OUTPUT_DIR", str(BASE_DIR / "output"))
-CACHE_DIR = Path(os.getenv("CACHE_DIR", str(BASE_DIR / "cache")))
-CACHE_DB_PATH = os.getenv("CACHE_DB_PATH", str(CACHE_DIR / "stock_agent_cache.sqlite3"))
-REPORT_STORAGE_BACKEND = os.getenv("REPORT_STORAGE_BACKEND", "local").strip().lower()
-CACHE_BACKEND = os.getenv("CACHE_BACKEND", "redis").strip().lower()
-CACHE_NAMESPACE = os.getenv("CACHE_NAMESPACE", "stock-agent").strip().strip(":")
-LANGGRAPH_CHECKPOINT_PATH = os.getenv(
+OUTPUT_DIR = env_str("OUTPUT_DIR", str(BASE_DIR / "output"))
+CACHE_DIR = Path(env_str("CACHE_DIR", str(BASE_DIR / "cache")))
+CACHE_DB_PATH = env_str("CACHE_DB_PATH", str(CACHE_DIR / "stock_agent_cache.sqlite3"))
+REPORT_STORAGE_BACKEND = env_str("REPORT_STORAGE_BACKEND", "local").strip().lower()
+CACHE_BACKEND = env_str("CACHE_BACKEND", "redis").strip().lower()
+CACHE_NAMESPACE = env_str("CACHE_NAMESPACE", "stock-agent").strip().strip(":")
+LANGGRAPH_CHECKPOINT_PATH = env_str(
     "LANGGRAPH_CHECKPOINT_PATH",
     CACHE_DB_PATH,
 )
-MARKET_CALENDAR_DIR = os.getenv("MARKET_CALENDAR_DIR", str(CACHE_DIR / "market_calendars"))
+MARKET_CALENDAR_DIR = env_str("MARKET_CALENDAR_DIR", str(CACHE_DIR / "market_calendars"))
 DATA_SNAPSHOT_MAX_BYTES = env_int("DATA_SNAPSHOT_MAX_BYTES", 2 * 1024 * 1024)
-FINANCIAL_DATA_CACHE_SECONDS = int(os.getenv("FINANCIAL_DATA_CACHE_SECONDS", str(24 * 60 * 60)))
+FINANCIAL_DATA_CACHE_SECONDS = env_int("FINANCIAL_DATA_CACHE_SECONDS", 24 * 60 * 60)
+FINANCIAL_DATA_PAYLOAD_CACHE_TTL_SECONDS = env_int(
+    "FINANCIAL_DATA_PAYLOAD_CACHE_TTL_SECONDS",
+    max(FINANCIAL_DATA_CACHE_SECONDS, 7 * 24 * 60 * 60),
+)
 FINANCIAL_DATA_MARKET_CACHE_SECONDS = env_int("FINANCIAL_DATA_MARKET_CACHE_SECONDS", 15 * 60)
 FINANCIAL_DATA_OFFHOURS_CACHE_SECONDS = env_int(
     "FINANCIAL_DATA_OFFHOURS_CACHE_SECONDS",
@@ -58,17 +61,17 @@ def _load_source_freshness_seconds() -> dict[str, int]:
 
 SOURCE_FRESHNESS_MAX_AGE_SECONDS = _load_source_freshness_seconds()
 
-REPORT_RETENTION_DAYS = int(os.getenv("REPORT_RETENTION_DAYS", "30"))
-REPORT_CLEANUP_INTERVAL_SECONDS = int(os.getenv("REPORT_CLEANUP_INTERVAL_SECONDS", str(24 * 60 * 60)))
-OPERATIONAL_DB_PATH = os.getenv("OPERATIONAL_DB_PATH", str(CACHE_DIR / "operational.sqlite3"))
-TASK_DB_PATH = os.getenv("TASK_DB_PATH", OPERATIONAL_DB_PATH)
-ANALYSIS_JOB_STALE_SECONDS = int(os.getenv("ANALYSIS_JOB_STALE_SECONDS", str(6 * 60 * 60)))
+REPORT_RETENTION_DAYS = env_int("REPORT_RETENTION_DAYS", 30)
+REPORT_CLEANUP_INTERVAL_SECONDS = env_int("REPORT_CLEANUP_INTERVAL_SECONDS", 24 * 60 * 60)
+OPERATIONAL_DB_PATH = env_str("OPERATIONAL_DB_PATH", str(CACHE_DIR / "operational.sqlite3"))
+TASK_DB_PATH = env_str("TASK_DB_PATH", OPERATIONAL_DB_PATH)
+ANALYSIS_JOB_STALE_SECONDS = env_int("ANALYSIS_JOB_STALE_SECONDS", 6 * 60 * 60)
 ANALYSIS_JOB_HISTORY_RETENTION_DAYS = env_int("ANALYSIS_JOB_HISTORY_RETENTION_DAYS", 30)
 PROVIDER_SLA_RETENTION_DAYS = env_int("PROVIDER_SLA_RETENTION_DAYS", 90)
 PROVIDER_SLA_WARNING_MIN_ATTEMPTS = env_int("PROVIDER_SLA_WARNING_MIN_ATTEMPTS", 3)
 PROVIDER_SLA_CRITICAL_MIN_ATTEMPTS = env_int("PROVIDER_SLA_CRITICAL_MIN_ATTEMPTS", 3)
 PROVIDER_SLA_DEGRADE_LEVELS = set(env_list("PROVIDER_SLA_DEGRADE_LEVELS", ["critical"]))
-SQLITE_BACKUP_DIR = os.getenv("SQLITE_BACKUP_DIR", str(CACHE_DIR / "sqlite_backups"))
+SQLITE_BACKUP_DIR = env_str("SQLITE_BACKUP_DIR", str(CACHE_DIR / "sqlite_backups"))
 
 
 __all__ = [name for name in globals() if name.isupper()]

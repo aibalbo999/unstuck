@@ -65,6 +65,74 @@ def test_response_text_joins_text_parts_without_accessing_sdk_text_for_mixed_par
     assert accessed["text"] is False
 
 
+def test_extract_usage_reads_google_usage_metadata():
+    response = SimpleNamespace(
+        usage_metadata=SimpleNamespace(
+            prompt_token_count=123,
+            candidates_token_count=45,
+            total_token_count=168,
+        )
+    )
+
+    assert llm_transport.extract_usage(response) == {
+        "input_tokens": 123,
+        "output_tokens": 45,
+        "total_tokens": 168,
+    }
+
+
+def test_provider_wrappers_preserve_openai_and_anthropic_usage(monkeypatch):
+    responses = [
+        {
+            "output_text": "OpenAI response text",
+            "usage": {"input_tokens": 10, "output_tokens": 4, "total_tokens": 14},
+        },
+        {
+            "content": [{"type": "text", "text": "Anthropic response text"}],
+            "usage": {"input_tokens": 8, "output_tokens": 6},
+        },
+    ]
+
+    class FakeResponse:
+        def __init__(self, payload):
+            self._payload = payload
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return self._payload
+
+    def fake_post(*_args, **_kwargs):
+        return FakeResponse(responses.pop(0))
+
+    monkeypatch.setattr(llm_transport.httpx, "post", fake_post)
+
+    openai_response = llm_transport.generate_content(
+        "openai-key",
+        "openai:gpt-4.1-mini",
+        "請分析資料",
+        SimpleNamespace(max_output_tokens=321, temperature=0.2),
+    )
+    anthropic_response = llm_transport.generate_content(
+        "anthropic-key",
+        "anthropic:claude-4-sonnet",
+        "請分析資料",
+        SimpleNamespace(max_output_tokens=654, temperature=0.1),
+    )
+
+    assert llm_transport.extract_usage(openai_response) == {
+        "input_tokens": 10,
+        "output_tokens": 4,
+        "total_tokens": 14,
+    }
+    assert llm_transport.extract_usage(anthropic_response) == {
+        "input_tokens": 8,
+        "output_tokens": 6,
+        "total_tokens": 14,
+    }
+
+
 def test_generate_content_routes_openai_prefixed_model_to_responses_api(monkeypatch):
     calls = []
 

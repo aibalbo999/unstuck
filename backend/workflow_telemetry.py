@@ -36,6 +36,7 @@ def with_node_telemetry(
                 finished_at=finished_at,
                 status="failed",
                 error=f"{exc.__class__.__name__}: {sanitize_error_message(str(exc))}",
+                result=None,
             )
             raise
         finished_at = time.time()
@@ -48,6 +49,7 @@ def with_node_telemetry(
             finished_at=finished_at,
             status="success",
             error=None,
+            result=result,
         )
         return result
 
@@ -64,10 +66,12 @@ async def _emit_node_telemetry(
     finished_at: float,
     status: str,
     error: str | None,
+    result: Any | None,
 ) -> None:
     callback = getattr(services, "telemetry_callback", None)
     if not callable(callback):
         return
+    input_tokens, output_tokens = _token_usage_for_node(state, result, agent_num)
     payload = {
         "job_id": str(state.get("job_id") or state.get("run_id") or ""),
         "ticker": str(state.get("ticker") or ""),
@@ -79,8 +83,8 @@ async def _emit_node_telemetry(
         "latency_ms": max(0, int(round((finished_at - started_at) * 1000))),
         "status": status,
         "retry_count": _retry_count_for_node(state, agent_num),
-        "input_tokens": None,
-        "output_tokens": None,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
         "cache_hit": False,
         "quality_gate_pass": status == "success",
         "error": error,
@@ -117,3 +121,28 @@ def _retry_count_for_node(state: AgentGraphState, agent_num: int | None) -> int:
         return int(counts.get(str(agent_num), counts.get(agent_num, 0)) or 0)
     except (TypeError, ValueError):
         return 0
+
+
+def _token_usage_for_node(state: AgentGraphState, result: Any | None, agent_num: int | None) -> tuple[int | None, int | None]:
+    if agent_num is None:
+        return None, None
+    for source in (result, state):
+        if not isinstance(source, dict):
+            continue
+        usage_map = source.get("llm_token_usage")
+        if not isinstance(usage_map, dict):
+            continue
+        usage = usage_map.get(str(agent_num), usage_map.get(agent_num))
+        if not isinstance(usage, dict):
+            continue
+        return _optional_int(usage.get("input_tokens")), _optional_int(usage.get("output_tokens"))
+    return None, None
+
+
+def _optional_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None

@@ -6,6 +6,7 @@ import json
 import os
 import re
 import warnings
+from functools import lru_cache
 
 import pandas as pd
 from jinja2 import ChainableUndefined, Environment
@@ -31,10 +32,17 @@ def render_prompt_template(template: str, variables: dict) -> str:
     if not template:
         return ""
 
-    if LEGACY_PLACEHOLDER_RE.search(template):
+    jinja_template, has_legacy_placeholders = _get_compiled_prompt_template(template)
+    if has_legacy_placeholders:
         warnings.warn("legacy prompt placeholder syntax is deprecated; use Jinja2 placeholders like {{ ticker }} instead", DeprecationWarning, stacklevel=2)
-    jinja_template = LEGACY_PLACEHOLDER_RE.sub(r"{{ \1 }}", template)
-    return PROMPT_ENV.from_string(jinja_template).render(**variables)
+    return jinja_template.render(**variables)
+
+
+@lru_cache(maxsize=256)
+def _get_compiled_prompt_template(template: str):
+    has_legacy_placeholders = bool(LEGACY_PLACEHOLDER_RE.search(template))
+    normalized = LEGACY_PLACEHOLDER_RE.sub(r"{{ \1 }}", template)
+    return PROMPT_ENV.from_string(normalized), has_legacy_placeholders
 
 
 def _prompt_number(value, decimals=4):
@@ -78,7 +86,32 @@ def _prompt_history_rows(data: dict) -> list[dict]:
             "total_assets_billion_twd": _prompt_number(at("total_assets_history")),
             "total_equity_billion_twd": _prompt_number(at("total_equity_history")),
         })
-    return rows
+    return _limit_history_rows(rows, data.get("_prompt_history_year_limit"))
+
+
+def _limit_history_rows(rows: list[dict], raw_limit) -> list[dict]:
+    try:
+        limit = int(raw_limit)
+    except (TypeError, ValueError):
+        return rows
+    if limit <= 0 or len(rows) <= limit:
+        return rows
+
+    indexed_years = []
+    for index, row in enumerate(rows):
+        try:
+            year_value = int(str(row.get("year") or "").strip())
+        except ValueError:
+            year_value = None
+        indexed_years.append((index, year_value))
+
+    if all(year_value is not None for _, year_value in indexed_years):
+        selected_indices = {
+            index
+            for index, _year in sorted(indexed_years, key=lambda item: item[1] or 0)[-limit:]
+        }
+        return [row for index, row in enumerate(rows) if index in selected_indices]
+    return rows[-limit:]
 
 
 def _prompt_company_identity(data: dict) -> dict:

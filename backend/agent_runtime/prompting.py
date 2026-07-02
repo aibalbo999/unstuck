@@ -48,6 +48,30 @@ ROUTED_EXTERNAL_CONTEXT_KEYS = {
     "valuation_memory": {4, 14},
 }
 
+AGENT_HISTORY_YEARS = {
+    11: 3,
+    1: 5,
+    2: 5,
+    3: 5,
+    4: 10,
+    5: 5,
+    6: 5,
+    7: 5,
+    12: 5,
+    13: 5,
+    14: 10,
+    15: 5,
+    16: 5,
+    17: 3,
+    18: 5,
+    19: 5,
+    20: 3,
+    21: 5,
+    22: 3,
+    23: 3,
+    24: 3,
+}
+
 
 def get_agent_prompt_token_budget(agent_num: int) -> int:
     """Return the estimated input-token budget left after reserving model output space."""
@@ -96,6 +120,8 @@ def data_for_agent_prompt(agent_num: int, data: StockData) -> StockData:
     for key, allowed_agents in ROUTED_EXTERNAL_CONTEXT_KEYS.items():
         if agent_id not in allowed_agents:
             prompt_data.pop(key, None)
+    if agent_id in AGENT_HISTORY_YEARS:
+        prompt_data["_prompt_history_year_limit"] = AGENT_HISTORY_YEARS[agent_id]
     if agent_id in {4, 14} and isinstance(temporal_memory, dict):
         prompt_data["valuation_memory"] = build_valuation_memory_slice(temporal_memory)
         prompt_data.pop("temporal_memory", None)

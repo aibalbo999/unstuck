@@ -6,7 +6,7 @@ import time as time_module
 from datetime import datetime, timezone
 
 from cache_store import set_cache_json
-from config import FINANCIAL_DATA_CACHE_SECONDS
+from config import FINANCIAL_DATA_PAYLOAD_CACHE_TTL_SECONDS
 from data_trust import build_data_trust
 
 from .audit_helpers import _build_data_freshness, _build_source_freshness, _cache_timestamp_epoch
@@ -36,6 +36,6 @@ def _cache_financial_data(data: dict, original_ticker: str):
         now_epoch=now_epoch,
     )
     cacheable["data_trust"] = build_data_trust(cacheable)
-    set_cache_json(f"financial_data:{original_ticker}", cacheable, FINANCIAL_DATA_CACHE_SECONDS)
+    set_cache_json(f"financial_data:{original_ticker}", cacheable, FINANCIAL_DATA_PAYLOAD_CACHE_TTL_SECONDS)
     if resolved_ticker != original_ticker:
-        set_cache_json(f"financial_data:{resolved_ticker}", cacheable, FINANCIAL_DATA_CACHE_SECONDS)
+        set_cache_json(f"financial_data:{resolved_ticker}", cacheable, FINANCIAL_DATA_PAYLOAD_CACHE_TTL_SECONDS)

@@ -8,6 +8,20 @@ from typing import Any
 
 SCHEMA_VERSION = "quality_funnel.v1"
 
+SECTOR_RULE_OVERRIDES: dict[str, dict[str, Any]] = {
+    "financials": {
+        "skip": {"fcf", "interest_coverage", "gross_margin", "ocf_to_net_income", "debt_to_equity"},
+        "minimum": {"net_margin": 8.0},
+    },
+    "semiconductors": {
+        "minimum": {"gross_margin": 35.0},
+    },
+    "reit": {
+        "skip": {"fcf", "ocf_to_net_income"},
+        "minimum": {"net_margin": 15.0},
+    },
+}
+
 _HARD_RULES: list[dict[str, Any]] = [
     {
         "id": "roe",
@@ -71,15 +85,27 @@ _WARNING_RULES: list[dict[str, Any]] = [
 ]
 
 
-def evaluate_quality_funnel(metrics: dict[str, Any] | None) -> dict[str, Any]:
+def evaluate_quality_funnel(
+    metrics: dict[str, Any] | None,
+    *,
+    sector: str | None = None,
+    industry: str | None = None,
+) -> dict[str, Any]:
     """Evaluate fundamental quality rules without mutating source metrics."""
     values = metrics if isinstance(metrics, dict) else {}
+    profile = _sector_profile(sector, industry)
+    overrides = SECTOR_RULE_OVERRIDES.get(profile, {})
     passed_rules = []
     failed_rules = []
     missing_rules = []
+    skipped_rules = []
     warnings = []
 
-    for rule in _HARD_RULES:
+    for source_rule in _HARD_RULES:
+        rule = _apply_rule_override(source_rule, overrides)
+        if rule is None:
+            skipped_rules.append(_skipped_rule(source_rule))
+            continue
         value = _first_number(values, rule["keys"])
         if value is None:
             missing_rules.append(_missing_rule(rule))
@@ -90,7 +116,10 @@ def evaluate_quality_funnel(metrics: dict[str, Any] | None) -> dict[str, Any]:
         else:
             failed_rules.append(result)
 
-    for rule in _WARNING_RULES:
+    for source_rule in _WARNING_RULES:
+        rule = _apply_rule_override(source_rule, overrides)
+        if rule is None:
+            continue
         value = _first_number(values, rule["keys"])
         if value is None:
             continue
@@ -113,7 +142,46 @@ def evaluate_quality_funnel(metrics: dict[str, Any] | None) -> dict[str, Any]:
         "passed_rules": passed_rules,
         "failed_rules": failed_rules,
         "missing_rules": missing_rules,
+        "skipped_rules": skipped_rules,
         "warnings": warnings,
+    }
+
+
+def _sector_profile(sector: str | None, industry: str | None) -> str | None:
+    signature = f"{sector or ''} {industry or ''}".strip().lower()
+    if not signature:
+        return None
+    if any(keyword in signature for keyword in ("reit", "real estate investment trust", "不動產投資信託")):
+        return "reit"
+    if any(keyword in signature for keyword in ("semiconductor", "semiconductors", "foundry", "wafer", "半導體", "晶圓")):
+        return "semiconductors"
+    if any(keyword in signature for keyword in ("financial", "finance", "bank", "insurance", "金融", "銀行", "保險", "金控")):
+        return "financials"
+    return None
+
+
+def _apply_rule_override(rule: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any] | None:
+    rule_id = str(rule.get("id") or "")
+    if rule_id in set(overrides.get("skip") or set()):
+        return None
+    adjusted = dict(rule)
+    minimums = overrides.get("minimum") if isinstance(overrides.get("minimum"), dict) else {}
+    maximums = overrides.get("maximum") if isinstance(overrides.get("maximum"), dict) else {}
+    if rule_id in minimums:
+        adjusted.pop("maximum", None)
+        adjusted["minimum"] = float(minimums[rule_id])
+    if rule_id in maximums:
+        adjusted.pop("minimum", None)
+        adjusted["maximum"] = float(maximums[rule_id])
+    return adjusted
+
+
+def _skipped_rule(rule: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": rule["id"],
+        "label": rule["label"],
+        "reason": "sector_override_not_applicable",
+        "message": f"{rule['label']} 規則不適用於此產業分類，已由行業化品質漏斗跳過。",
     }
 
 

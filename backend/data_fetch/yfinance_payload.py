@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 import time as time_module
 
 from cache_store import set_cache_json
-from config import FINANCIAL_DATA_CACHE_SECONDS
+from config import FINANCIAL_DATA_PAYLOAD_CACHE_TTL_SECONDS
 from data_trust import append_source_audit, finalize_data_trust
 
 from .audit_helpers import _append_full_fetch_audit, _mark_market_data_fetched, _mark_sources_fetched
@@ -166,8 +166,8 @@ def finalize_and_cache_legacy_payload(
     finalize_data_trust(data)
     data["cache_generated_at_epoch"] = fetched_at_epoch
     data["cache_generated_at"] = datetime.fromtimestamp(fetched_at_epoch, timezone.utc).isoformat()
-    set_cache_json(original_cache_key, data, FINANCIAL_DATA_CACHE_SECONDS)
+    set_cache_json(original_cache_key, data, FINANCIAL_DATA_PAYLOAD_CACHE_TTL_SECONDS)
     resolved_cache_key = f"financial_data:{ticker}"
     if resolved_cache_key != original_cache_key:
-        set_cache_json(resolved_cache_key, data, FINANCIAL_DATA_CACHE_SECONDS)
+        set_cache_json(resolved_cache_key, data, FINANCIAL_DATA_PAYLOAD_CACHE_TTL_SECONDS)
     return data

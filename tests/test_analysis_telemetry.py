@@ -19,8 +19,9 @@ from workflow_state import agent_state_to_graph  # noqa: E402
 
 
 class TelemetryWorkflowServices:
-    def __init__(self, *, fail_agent=False):
+    def __init__(self, *, fail_agent=False, token_usage=None):
         self.fail_agent = fail_agent
+        self.token_usage = token_usage
         self.progress_callback = None
         self.cancel_check = None
         self.telemetry_callback = lambda payload: self.records.append(payload)
@@ -42,7 +43,10 @@ class TelemetryWorkflowServices:
     async def run_agent(self, agent_num, _state):
         if self.fail_agent:
             raise RuntimeError("provider token=sk-live-secret should be hidden")
-        return {"analyses": {str(agent_num): f"agent-{agent_num}"}}
+        delta = {"analyses": {str(agent_num): f"agent-{agent_num}"}}
+        if self.token_usage:
+            delta["llm_token_usage"] = {str(agent_num): self.token_usage}
+        return delta
 
     async def final_audit(self, _state):
         return {"final_audit": {"status": "passed"}}
@@ -71,6 +75,17 @@ def test_langgraph_success_node_writes_telemetry_callback_payload():
     assert agent_record["input_tokens"] is None
     assert agent_record["output_tokens"] is None
     assert agent_record["quality_gate_pass"] is True
+
+
+def test_langgraph_agent_telemetry_uses_token_usage_from_node_delta():
+    services = TelemetryWorkflowServices(token_usage={"input_tokens": 123, "output_tokens": 45})
+    initial_state = services.initialize({"ticker": "2330.TW", "company_name": "台積電"}, "v4")
+
+    asyncio.run(run_analysis_workflow(initial_state=initial_state, pipeline_id="v4", services=services))
+
+    agent_record = next(record for record in services.records if record["node_name"] == "agent_22")
+    assert agent_record["input_tokens"] == 123
+    assert agent_record["output_tokens"] == 45
 
 
 def test_langgraph_failed_node_writes_sanitized_telemetry_before_reraising():

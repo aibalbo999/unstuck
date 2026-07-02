@@ -28,6 +28,10 @@ def response_text(response) -> str:
     return _transport.response_text(response)
 
 
+def extract_usage(response) -> dict[str, int] | None:
+    return _transport.extract_usage(response)
+
+
 def generate_content(api_key: str, model_id: str, prompt: str, config):
     _sync_transport_seams()
     return _transport.generate_content(api_key, model_id, prompt, config)
@@ -70,6 +74,7 @@ __all__ = [
     "embed_content",
     "embed_content_async",
     "estimate_text_tokens",
+    "extract_usage",
     "generate_content",
     "generate_content_async",
     "generate_content_stream_async",

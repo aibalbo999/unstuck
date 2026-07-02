@@ -82,6 +82,29 @@ def test_cache_write_preserves_market_data_timestamp(monkeypatch):
     assert cached["source_freshness"]["market_data"]["age_seconds"] == 400
 
 
+def test_cache_write_uses_payload_retention_ttl_separate_from_freshness(monkeypatch):
+    captured = {}
+
+    def fake_set_cache_json(cache_key, value, ttl_seconds):
+        captured[cache_key] = ttl_seconds
+
+    monkeypatch.setattr(cache_helpers, "set_cache_json", fake_set_cache_json)
+    monkeypatch.setattr(cache_helpers, "FINANCIAL_DATA_PAYLOAD_CACHE_TTL_SECONDS", 7 * 24 * 60 * 60, raising=False)
+    monkeypatch.setattr(cache_helpers.time_module, "time", lambda: 500.0)
+
+    cache_helpers._cache_financial_data(
+        {
+            "ticker": "2330.TW",
+            "company_name": "台積電",
+            "market_data_fetched_at_epoch": 500.0,
+        },
+        "2330",
+    )
+
+    assert captured["financial_data:2330"] == 7 * 24 * 60 * 60
+    assert captured["financial_data:2330.TW"] == 7 * 24 * 60 * 60
+
+
 def test_fetch_stock_data_rebuilds_source_audit_on_cache_hit(monkeypatch):
     monkeypatch.setattr(financial_data.time_module, "time", lambda: 200.0)
     monkeypatch.setattr(audit_helpers, "_is_likely_market_session", lambda ticker: False)

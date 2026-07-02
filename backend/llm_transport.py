@@ -13,6 +13,7 @@ from google.genai import types
 
 from config import LLM_AGENT_CALL_TIMEOUT_SECONDS
 from google_prompt_safety import sanitize_google_generation_config, sanitize_google_prompt
+from llm_usage import extract_usage
 from llm_provider_routes import split_model_provider
 
 
@@ -24,6 +25,7 @@ ANTHROPIC_VERSION = "2023-06-01"
 @dataclass(frozen=True)
 class TextLLMResponse:
     text: str
+    usage: dict[str, int] | None = None
 
 
 def response_text(response) -> str:
@@ -220,7 +222,8 @@ def _generate_openai_content(api_key: str, model_id: str, prompt: str, config) -
         timeout=_provider_timeout_seconds(),
     )
     response.raise_for_status()
-    return TextLLMResponse(_openai_text(response.json()))
+    payload = response.json()
+    return TextLLMResponse(_openai_text(payload), extract_usage(payload))
 
 
 async def _generate_openai_content_async(api_key: str, model_id: str, prompt: str, config) -> TextLLMResponse:
@@ -232,7 +235,8 @@ async def _generate_openai_content_async(api_key: str, model_id: str, prompt: st
             json=payload,
         )
     response.raise_for_status()
-    return TextLLMResponse(_openai_text(response.json()))
+    payload = response.json()
+    return TextLLMResponse(_openai_text(payload), extract_usage(payload))
 
 
 def _openai_payload(model_id: str, prompt: str, config) -> dict:
@@ -273,7 +277,8 @@ def _generate_anthropic_content(api_key: str, model_id: str, prompt: str, config
         timeout=_provider_timeout_seconds(),
     )
     response.raise_for_status()
-    return TextLLMResponse(_anthropic_text(response.json()))
+    payload = response.json()
+    return TextLLMResponse(_anthropic_text(payload), extract_usage(payload))
 
 
 async def _generate_anthropic_content_async(api_key: str, model_id: str, prompt: str, config) -> TextLLMResponse:
@@ -289,7 +294,8 @@ async def _generate_anthropic_content_async(api_key: str, model_id: str, prompt:
             json=payload,
         )
     response.raise_for_status()
-    return TextLLMResponse(_anthropic_text(response.json()))
+    payload = response.json()
+    return TextLLMResponse(_anthropic_text(payload), extract_usage(payload))
 
 
 def _anthropic_payload(model_id: str, prompt: str, config) -> dict:

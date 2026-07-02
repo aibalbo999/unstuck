@@ -183,6 +183,7 @@ def legacy_context_from_graph(state: AgentGraphState, services: WorkflowServices
         "circuit_breaker": copy_json(state.get("circuit_breaker") or {}),
         "context_digests": _legacy_agent_mapping(state.get("context_digests") or {}),
         "rag_context": _legacy_agent_mapping(state.get("rag_context") or {}),
+        "llm_token_usage": _legacy_agent_mapping(state.get("llm_token_usage") or {}),
         "rag_status": copy_json(state.get("rag_status") or {}),
         "blocking_issues": list(state.get("blocking_issues") or []),
         "audit_repair_log": list(state.get("audit_repair_log") or []),
@@ -238,6 +239,12 @@ async def run_agent_node_adapter(agent_num: int, state: AgentGraphState, service
     }
     if structured_output is not None:
         delta["structured_outputs"] = {str(completed_agent_num): copy_json(structured_output)}
+    token_usage = (context.get("llm_token_usage") or {}).get(
+        completed_agent_num,
+        (context.get("llm_token_usage") or {}).get(str(completed_agent_num)),
+    )
+    if isinstance(token_usage, dict):
+        delta["llm_token_usage"] = {str(completed_agent_num): copy_json(token_usage)}
     if report is not None:
         delta["agent_reports"] = {str(completed_agent_num): report.model_dump(mode="json")}
         if report.risk_flags:
@@ -259,6 +266,7 @@ def graph_delta_from_legacy_context(context: AnalysisContext) -> dict[str, Any]:
         "parsed": copy_json(context.get("parsed") or {}),
         "context_digests": _graph_agent_mapping(context.get("context_digests") or {}),
         "rag_context": _graph_agent_mapping(context.get("rag_context") or {}),
+        "llm_token_usage": _graph_agent_mapping(context.get("llm_token_usage") or {}),
         "rag_status": copy_json(context.get("rag_status") or {}),
         "blocking_issues": list(context.get("blocking_issues") or []),
         "audit_repair_log": list(context.get("audit_repair_log") or []),

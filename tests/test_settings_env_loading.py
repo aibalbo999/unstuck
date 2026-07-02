@@ -137,6 +137,52 @@ def test_storage_defaults_consolidate_operational_sqlite_paths(tmp_path):
         _reload_grouped_settings()
 
 
+def test_blank_storage_path_env_vars_fall_back_to_defaults(tmp_path):
+    import settings.env as settings_env
+
+    keys = (
+        "OUTPUT_DIR",
+        "CACHE_DIR",
+        "CACHE_DB_PATH",
+        "LANGGRAPH_CHECKPOINT_PATH",
+        "MARKET_CALENDAR_DIR",
+        "OPERATIONAL_DB_PATH",
+        "TASK_DB_PATH",
+        "SQLITE_BACKUP_DIR",
+    )
+    old_values = {key: os.environ.get(key) for key in keys}
+    original_base_dir = settings_env.BASE_DIR
+    original_signature = getattr(settings_env, "_LOADED_ENV_SIGNATURE", None)
+    try:
+        for key in keys:
+            os.environ[key] = ""
+        settings_env.BASE_DIR = tmp_path
+        settings_env._LOADED_ENV_SIGNATURE = None
+
+        _reload_grouped_settings()
+        import settings.app_config as app_config
+
+        expected_cache_dir = tmp_path / "cache"
+        expected_cache_db = expected_cache_dir / "stock_agent_cache.sqlite3"
+        assert app_config.OUTPUT_DIR == str(tmp_path / "output")
+        assert app_config.CACHE_DIR == expected_cache_dir
+        assert app_config.CACHE_DB_PATH == str(expected_cache_db)
+        assert app_config.LANGGRAPH_CHECKPOINT_PATH == str(expected_cache_db)
+        assert app_config.MARKET_CALENDAR_DIR == str(expected_cache_dir / "market_calendars")
+        assert app_config.OPERATIONAL_DB_PATH == str(expected_cache_dir / "operational.sqlite3")
+        assert app_config.TASK_DB_PATH == str(expected_cache_dir / "operational.sqlite3")
+        assert app_config.SQLITE_BACKUP_DIR == str(expected_cache_dir / "sqlite_backups")
+    finally:
+        settings_env.BASE_DIR = original_base_dir
+        settings_env._LOADED_ENV_SIGNATURE = original_signature
+        for key, value in old_values.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        _reload_grouped_settings()
+
+
 def test_operational_db_consumers_default_to_task_db(tmp_path):
     keys = (
         "CACHE_DIR",

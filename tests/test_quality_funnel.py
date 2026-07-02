@@ -57,6 +57,47 @@ def test_quality_funnel_marks_missing_fundamentals_as_gray():
     assert result["failed_rules"] == []
 
 
+def test_quality_funnel_uses_financial_sector_rule_overrides():
+    from quality_funnel import evaluate_quality_funnel
+
+    result = evaluate_quality_funnel(
+        {
+            "roe_avg_pct": 11.0,
+            "net_margin_pct": 9.0,
+            "share_dilution_5y_pct": 1.0,
+        },
+        sector="Financial Services",
+        industry="Banks",
+    )
+
+    assert result["outcome"] == "pass"
+    skipped_rule_ids = {rule["id"] for rule in result["skipped_rules"]}
+    assert {"fcf", "interest_coverage", "gross_margin", "ocf_to_net_income"} <= skipped_rule_ids
+    assert not result["missing_rules"]
+
+
+def test_quality_funnel_applies_semiconductor_gross_margin_floor():
+    from quality_funnel import evaluate_quality_funnel
+
+    result = evaluate_quality_funnel(
+        {
+            "roe_avg_pct": 22.0,
+            "free_cash_flow_5y_sum": 100_000_000,
+            "interest_coverage": 8.0,
+            "gross_margin_pct": 20.0,
+            "ocf_to_net_income": 1.0,
+            "net_margin_pct": 12.0,
+            "share_dilution_5y_pct": 1.0,
+        },
+        sector="Technology",
+        industry="Semiconductors",
+    )
+
+    assert result["outcome"] == "reject"
+    gross_margin = next(rule for rule in result["failed_rules"] if rule["id"] == "gross_margin")
+    assert gross_margin["threshold"] == 35.0
+
+
 def test_market_screener_import_attaches_quality_funnel(monkeypatch, tmp_path):
     import market_screener
     import watchlist_service

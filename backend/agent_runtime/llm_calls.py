@@ -10,7 +10,7 @@ import asyncio
 
 from analysis_types import AnalysisContext
 from config import LLM_AGENT_CALL_TIMEOUT_SECONDS
-from llm_client import KeyRotator, estimate_text_tokens
+from llm_client import KeyRotator, estimate_text_tokens, extract_usage
 from runtime_events import (
     RUNTIME_EVENT_CALLBACK_KEY,
     emit_context_error,
@@ -86,6 +86,13 @@ def _key_slot_fields(rotator: KeyRotator, api_key: str | None) -> dict:
     return fields
 
 
+def _record_llm_token_usage(context: AnalysisContext, agent_num: int, response) -> None:
+    usage = extract_usage(response)
+    if not usage:
+        return
+    context.setdefault("llm_token_usage", {})[agent_num] = usage
+
+
 def _should_stream_llm_response(context: AnalysisContext) -> bool:
     return bool((context or {}).get(RUNTIME_EVENT_CALLBACK_KEY))
 
@@ -130,6 +137,7 @@ def _run_agent_once(
             ),
         )
         response = _generate_content(api_key, model_id, agent_num, prompt)
+        _record_llm_token_usage(context, agent_num, response)
         result = process_agent_response(agent_num, _response_text(response), context)
     except Exception as exc:
         emit_context_error(
@@ -253,6 +261,7 @@ async def _run_agent_once_async(
                 model_id=model_id,
                 timeout_seconds=timeout_seconds,
             )
+        _record_llm_token_usage(context, agent_num, response)
         result = process_agent_response(agent_num, _response_text(response), context)
     except Exception as exc:
         await emit_context_error_async(
