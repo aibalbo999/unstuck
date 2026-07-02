@@ -396,6 +396,28 @@ def test_watchlist_listing_degrades_when_report_index_unavailable(monkeypatch, t
     assert result["items"][0]["latest_report"] == {}
 
 
+def test_watchlist_report_alert_lookup_skips_repeated_metadata_sync(monkeypatch, tmp_path):
+    monkeypatch.setattr(watchlist_service, "WATCHLIST_PATH", tmp_path / "watchlist.json")
+    watchlist_service.reset_watchlist_store_for_tests()
+    watchlist_service.upsert_watchlist_item({
+        "ticker": "2308.TW",
+        "pipeline": "v2",
+        "schedule_slots": ["post_market"],
+        "enabled": True,
+    })
+    calls = []
+
+    def fake_list_reports(**kwargs):
+        calls.append(kwargs)
+        return {"reports": []}
+
+    monkeypatch.setattr(watchlist_service.report_history_service, "list_reports", fake_list_reports)
+
+    watchlist_service.list_watchlist_with_report_alerts(output_dir=str(tmp_path / "output"))
+
+    assert [call["sync_metadata"] for call in calls] == [True, False]
+
+
 def test_watchlist_trigger_monitor_queues_matched_event_once(monkeypatch, tmp_path):
     monkeypatch.setattr(watchlist_service, "WATCHLIST_PATH", tmp_path / "watchlist.json")
     watchlist_service.reset_watchlist_store_for_tests()

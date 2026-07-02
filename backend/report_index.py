@@ -7,8 +7,9 @@ import os
 import sqlite3
 import threading
 import time
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Optional
+from typing import Iterator, Optional
 
 from config import CACHE_DB_PATH, OUTPUT_DIR
 from report_index_connection import connect_report_index_sqlite
@@ -22,8 +23,14 @@ from report_index_rows import row_to_report
 _REPORT_INDEX_LOCK = threading.Lock()
 
 
-def _connect():
-    return connect_report_index_sqlite(CACHE_DB_PATH, sqlite3.connect, initialize=_init_schema)
+@contextmanager
+def _connect() -> Iterator[sqlite3.Connection]:
+    conn = connect_report_index_sqlite(CACHE_DB_PATH, sqlite3.connect, initialize=_init_schema)
+    try:
+        with conn:
+            yield conn
+    finally:
+        conn.close()
 
 
 def _init_schema(conn):

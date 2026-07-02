@@ -16,7 +16,7 @@ def test_watchlist_daily_dashboard_route(monkeypatch, tmp_path):
     monkeypatch.setattr(
         watchlist_routes.watchlist_service,
         "list_watchlist_with_report_alerts",
-        lambda _output_dir: {"items": [{"ticker": "2308.TW", "enabled": True, "decision_priority": "high"}]},
+        lambda _output_dir, **_kwargs: {"items": [{"ticker": "2308.TW", "enabled": True, "decision_priority": "high"}]},
     )
     monkeypatch.setattr(
         watchlist_routes.market_screener,

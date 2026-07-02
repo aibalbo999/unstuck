@@ -162,6 +162,7 @@ def list_reports(
     report_cache: dict | None = None,
     repository: ReportRepository = DEFAULT_REPORT_REPOSITORY,
     storage: ReportStorage | None = None,
+    sync_metadata: bool | None = None,
 ) -> dict:
     query = q.strip().lower()
     pipeline_filter = pipeline.strip().lower()
@@ -184,6 +185,7 @@ def list_reports(
     if data_trust_filter not in {"all", "fresh", "partial", "stale", "error", "unknown"}:
         data_trust_filter = "all"
     include_versions_filter = _normalize_include_versions(include_versions)
+    sync_metadata_filter = should_sync_metadata(output_dir, storage) if sync_metadata is None else bool(sync_metadata)
 
     if storage is None and not os.path.exists(output_dir):
         reports, total = [], 0
@@ -199,7 +201,7 @@ def list_reports(
                     data_trust=data_trust_filter,
                     include_versions=include_versions_filter,
                     output_dir=output_dir,
-                    sync_metadata=should_sync_metadata(output_dir, storage),
+                    sync_metadata=sync_metadata_filter,
                 )
             )
         except sqlite3.Error as exc:

@@ -70,6 +70,7 @@ def _latest_report_for_item(item: dict, output_dir: str) -> dict:
             data_trust="all",
             output_dir=output_dir,
             report_cache={},
+            sync_metadata=False,
         )
     except sqlite3.Error as exc:
         LOGGER.warning("Watchlist report lookup skipped because report index is unavailable: %s", exc)
@@ -79,6 +80,25 @@ def _latest_report_for_item(item: dict, output_dir: str) -> dict:
         if _ticker_matches(report, ticker):
             return report
     return reports[0] if reports else {}
+
+
+def _sync_report_metadata_once(output_dir: str) -> None:
+    if not output_dir:
+        return
+    try:
+        report_history_service.list_reports(
+            page=1,
+            limit=1,
+            q="",
+            pipeline="all",
+            recommendation="all",
+            data_trust="all",
+            output_dir=output_dir,
+            report_cache={},
+            sync_metadata=True,
+        )
+    except sqlite3.Error as exc:
+        LOGGER.warning("Watchlist report metadata sync skipped because report index is unavailable: %s", exc)
 
 
 def _priority_for_item(item: dict, latest_report: dict) -> tuple[str, dict]:
@@ -92,7 +112,9 @@ def _priority_for_item(item: dict, latest_report: dict) -> tuple[str, dict]:
     return "normal", {"reason": "current", "message": "最新報告結論有效。"}
 
 
-def list_watchlist_with_report_alerts(output_dir: str) -> dict:
+def list_watchlist_with_report_alerts(output_dir: str, *, sync_metadata: bool = True) -> dict:
+    if sync_metadata:
+        _sync_report_metadata_once(output_dir)
     payload = list_watchlist()
     priority_counts = {"high": 0, "medium": 0, "normal": 0, "low": 0}
     items = []

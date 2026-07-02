@@ -208,8 +208,9 @@ def list_auto_screener_watchlist(
     offset: int = 0,
     sort_by: str = "score",
     sort_direction: str = "desc",
+    sync_metadata: bool = True,
 ) -> dict:
-    payload = watchlist_service.list_watchlist_with_report_alerts(output_dir or "")
+    payload = watchlist_service.list_watchlist_with_report_alerts(output_dir or "", sync_metadata=sync_metadata)
     all_items = [
         with_screener_item_metadata(item) for item in payload.get("items", [])
         if item.get("trigger_source") == DAILY_SCREENER_SOURCE or AUTO_SCREENER_TAG in (item.get("tags") or [])

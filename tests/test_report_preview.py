@@ -701,6 +701,33 @@ def test_report_history_uses_repository_boundary(tmp_path):
     assert result["pagination"]["total"] == 1
 
 
+def test_report_history_allows_callers_to_skip_metadata_sync(tmp_path):
+    class FakeRepository:
+        def __init__(self):
+            self.query_arg = None
+
+        def query(self, query):
+            self.query_arg = query
+            return ([], 0)
+
+    repository = FakeRepository()
+
+    report_history_service.list_reports(
+        page=1,
+        limit=5,
+        q="",
+        pipeline="all",
+        recommendation="all",
+        data_trust="all",
+        output_dir=str(tmp_path),
+        report_cache={},
+        repository=repository,
+        sync_metadata=False,
+    )
+
+    assert repository.query_arg.sync_metadata is False
+
+
 def test_report_history_returns_empty_payload_when_index_unavailable(tmp_path):
     class UnavailableRepository:
         def query(self, query):

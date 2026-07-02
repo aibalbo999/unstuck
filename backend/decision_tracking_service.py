@@ -24,14 +24,14 @@ def _ticker_matches(report: dict, ticker: str) -> bool:
     return report_ticker == ticker_upper or report_ticker.split(".", 1)[0] == ticker_upper.split(".", 1)[0]
 
 
-def latest_report_for_ticker(ticker: str, output_dir: str) -> dict:
-    reports = latest_reports_for_ticker(ticker, output_dir)
+def latest_report_for_ticker(ticker: str, output_dir: str, *, sync_metadata: bool = True) -> dict:
+    reports = latest_reports_for_ticker(ticker, output_dir, sync_metadata=sync_metadata)
     if not reports:
         return {}
     return max(reports, key=lambda report: float(report.get("timestamp") or 0))
 
 
-def latest_reports_for_ticker(ticker: str, output_dir: str) -> list[dict]:
+def latest_reports_for_ticker(ticker: str, output_dir: str, *, sync_metadata: bool = True) -> list[dict]:
     ticker = str(ticker or "").strip().upper()
     if not ticker:
         return []
@@ -45,13 +45,28 @@ def latest_reports_for_ticker(ticker: str, output_dir: str) -> list[dict]:
         include_versions=False,
         output_dir=output_dir,
         report_cache={},
+        sync_metadata=sync_metadata,
     ).get("reports", [])
     matched = [report for report in reports if _ticker_matches(report, ticker)]
     return sorted(matched, key=lambda report: (PIPELINE_ORDER.get(report.get("pipeline_id"), 99), -float(report.get("timestamp") or 0)))
 
 
-def _attach_report(item: dict, output_dir: str) -> dict:
-    latest_reports = latest_reports_for_ticker(item.get("ticker", ""), output_dir)
+def _sync_report_metadata_once(output_dir: str) -> None:
+    report_history_service.list_reports(
+        page=1,
+        limit=1,
+        q="",
+        pipeline="all",
+        recommendation="all",
+        data_trust="all",
+        output_dir=output_dir,
+        report_cache={},
+        sync_metadata=True,
+    )
+
+
+def _attach_report(item: dict, output_dir: str, *, sync_metadata: bool = False) -> dict:
+    latest_reports = latest_reports_for_ticker(item.get("ticker", ""), output_dir, sync_metadata=sync_metadata)
     latest_report = max(latest_reports, key=lambda report: float(report.get("timestamp") or 0)) if latest_reports else {}
     company_name = item.get("company_name") or next((report.get("company_name") for report in latest_reports if report.get("company_name")), None)
     alert = {"status": "no_report", "message": "尚未找到可追蹤報告。"}
@@ -61,8 +76,10 @@ def _attach_report(item: dict, output_dir: str) -> dict:
     return {**item, "company_name": company_name, "latest_report": latest_report, "latest_reports": latest_reports, "tracking_alert": alert}
 
 
-def list_decision_tracking(output_dir: str) -> dict:
-    items = [_attach_report(item, output_dir) for item in decision_tracking_store.list_items()]
+def list_decision_tracking(output_dir: str, *, sync_metadata: bool = True) -> dict:
+    if sync_metadata:
+        _sync_report_metadata_once(output_dir)
+    items = [_attach_report(item, output_dir, sync_metadata=False) for item in decision_tracking_store.list_items()]
     enabled = sum(1 for item in items if item.get("enabled"))
     return {"items": items, "enabled_count": enabled, "daily_refresh_slot": DAILY_REFRESH_SLOT}
 
@@ -95,6 +112,7 @@ async def refresh_tracking_items(
     now: datetime | None = None,
 ) -> dict:
     now = now or datetime.now(decision_tracking_store.TAIPEI)
+    _sync_report_metadata_once(output_dir)
     requested = {str(ticker or "").strip().upper() for ticker in (tickers or []) if str(ticker or "").strip()}
     updated_count = 0
     updated_reports_count = 0
@@ -110,7 +128,7 @@ async def refresh_tracking_items(
         if due_only and not _is_due(item, now):
             skipped.append({"ticker": ticker, "reason": "already_refreshed_today"})
             continue
-        reports = latest_reports_for_ticker(ticker, output_dir)
+        reports = latest_reports_for_ticker(ticker, output_dir, sync_metadata=False)
         if not reports:
             message = "尚未找到可追蹤報告。"
             decision_tracking_store.mark_refresh(ticker, status="missing_report", message=message, now=now)

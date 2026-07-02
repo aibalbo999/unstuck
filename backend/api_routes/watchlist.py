@@ -135,8 +135,8 @@ def create_watchlist_router(deps: WatchlistRouteDeps) -> APIRouter:
                 output_dir=output_dir,
                 report_cache={},
             ),
-            asyncio.to_thread(watchlist_service.list_watchlist_with_report_alerts, output_dir),
-            asyncio.to_thread(market_screener.list_auto_screener_watchlist, output_dir, limit=20, offset=0),
+            asyncio.to_thread(watchlist_service.list_watchlist_with_report_alerts, output_dir, sync_metadata=False),
+            asyncio.to_thread(market_screener.list_auto_screener_watchlist, output_dir, limit=20, offset=0, sync_metadata=False),
             asyncio.to_thread(decision_tracking_service.compute_tracking_performance_stats, output_dir),
         )
         return build_daily_decision_dashboard(
