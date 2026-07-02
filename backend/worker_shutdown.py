@@ -68,7 +68,7 @@ def run_async_process(coro_factory: Callable[[], Awaitable[None]]) -> None:
             _run_cleanup_awaitable(loop, loop.shutdown_default_executor)
     finally:
         asyncio.set_event_loop(None)
-        loop.close()
+        _close_event_loop(loop)
 
 
 def _cancel_pending_async_tasks(loop: asyncio.AbstractEventLoop) -> None:
@@ -96,6 +96,16 @@ def _close_awaitable(awaitable: Awaitable[object]) -> None:
     close = getattr(awaitable, "close", None)
     if callable(close) and inspect.iscoroutine(awaitable):
         close()
+
+
+def _close_event_loop(loop: asyncio.AbstractEventLoop) -> None:
+    if loop.is_running():
+        return
+    try:
+        loop.close()
+    except RuntimeError as exc:
+        if "Cannot close a running event loop" not in str(exc):
+            raise
 
 
 def _safe_asyncio_exception_handler(loop: asyncio.AbstractEventLoop, context: dict) -> None:

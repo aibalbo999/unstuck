@@ -1,5 +1,8 @@
 import asyncio
+from datetime import datetime, timezone
 import inspect
+import os
+import socket
 import subprocess
 import sys
 from pathlib import Path
@@ -100,6 +103,78 @@ def test_reconcile_abandoned_rq_jobs_marks_only_sqlite_jobs_missing_from_rq(monk
     assert calls[0][0] == ["missing"]
     assert "Redis/RQ" in calls[0][1]
     assert any("abandoned" in str(call) and "1" in str(call) for call in calls)
+
+
+def test_rq_active_job_ids_keeps_only_started_jobs_claimed_by_live_workers(monkeypatch):
+    import rq
+    import rq.registry
+
+    queue = SimpleNamespace(job_ids=[], connection=object())
+
+    class EmptyRegistry:
+        def __init__(self, *, queue):
+            self.queue = queue
+
+        def get_job_ids(self):
+            return []
+
+    class StartedRegistry(EmptyRegistry):
+        def get_job_ids(self):
+            return ["analysis:orphan", "analysis:live"]
+
+    class LiveWorker:
+        pid = os.getpid()
+
+        @staticmethod
+        def all(*, connection=None):
+            return [LiveWorker()]
+
+        def get_current_job_id(self):
+            return "analysis:live"
+
+    monkeypatch.setattr(rq.registry, "DeferredJobRegistry", EmptyRegistry)
+    monkeypatch.setattr(rq.registry, "ScheduledJobRegistry", EmptyRegistry)
+    monkeypatch.setattr(rq.registry, "StartedJobRegistry", StartedRegistry)
+    monkeypatch.setattr(rq, "Worker", LiveWorker)
+
+    assert worker_main._rq_active_job_ids([queue]) == {"analysis:live"}
+
+
+def test_rq_active_job_ids_excludes_dead_local_worker_even_with_fresh_heartbeat(monkeypatch):
+    import rq
+    import rq.registry
+
+    queue = SimpleNamespace(job_ids=[], connection=object())
+
+    class EmptyRegistry:
+        def __init__(self, *, queue):
+            self.queue = queue
+
+        def get_job_ids(self):
+            return []
+
+    class StartedRegistry(EmptyRegistry):
+        def get_job_ids(self):
+            return ["analysis:dead-local"]
+
+    class DeadLocalWorker:
+        hostname = socket.gethostname()
+        pid = 999999999
+        last_heartbeat = datetime.now(timezone.utc)
+
+        @staticmethod
+        def all(*, connection=None):
+            return [DeadLocalWorker()]
+
+        def get_current_job_id(self):
+            return "analysis:dead-local"
+
+    monkeypatch.setattr(rq.registry, "DeferredJobRegistry", EmptyRegistry)
+    monkeypatch.setattr(rq.registry, "ScheduledJobRegistry", EmptyRegistry)
+    monkeypatch.setattr(rq.registry, "StartedJobRegistry", StartedRegistry)
+    monkeypatch.setattr(rq, "Worker", DeadLocalWorker)
+
+    assert worker_main._rq_active_job_ids([queue]) == set()
 
 
 def test_scheduler_role_runs_scheduler_process_and_closes_runtime(monkeypatch):
@@ -619,6 +694,68 @@ def test_run_async_process_cancels_pending_tasks_after_keyboard_interrupt():
     worker_main._run_async_process(interrupted_process)
 
     assert cancelled == [True]
+
+
+def test_run_async_process_preserves_keyboard_interrupt_if_cleanup_leaves_loop_running(monkeypatch):
+    class FakeTask:
+        def __init__(self):
+            self.cancelled = False
+
+        def cancel(self):
+            self.cancelled = True
+
+    class CleanupInterruptedLoop:
+        def __init__(self):
+            self.run_calls = 0
+            self.running = False
+            self.closed = False
+            self.task = FakeTask()
+
+        def set_exception_handler(self, _handler):
+            pass
+
+        def create_task(self, coroutine):
+            coroutine.close()
+            return self.task
+
+        def run_until_complete(self, _awaitable):
+            self.run_calls += 1
+            if self.run_calls == 1:
+                raise KeyboardInterrupt()
+            if self.run_calls == 4:
+                self.running = True
+                raise KeyboardInterrupt()
+            return None
+
+        def shutdown_asyncgens(self):
+            return object()
+
+        def shutdown_default_executor(self):
+            return object()
+
+        def is_running(self):
+            return self.running
+
+        def close(self):
+            self.closed = True
+            if self.running:
+                raise RuntimeError("Cannot close a running event loop")
+
+    loop = CleanupInterruptedLoop()
+
+    monkeypatch.setattr(worker_shutdown.asyncio, "new_event_loop", lambda: loop)
+    monkeypatch.setattr(worker_shutdown.asyncio, "set_event_loop", lambda _loop: None)
+    monkeypatch.setattr(worker_shutdown.asyncio, "gather", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(worker_shutdown.asyncio, "all_tasks", lambda _loop: [])
+
+    async def interrupted_process():
+        return None
+
+    with pytest.raises(KeyboardInterrupt):
+        worker_shutdown.run_async_process(interrupted_process)
+
+    assert loop.task.cancelled is True
+    assert loop.closed is False
 
 
 def test_asyncio_exception_handler_sanitizes_context_values_with_broken_repr():
