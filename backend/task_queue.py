@@ -18,6 +18,7 @@ from config import (
     TASK_QUEUE_NAMES,
     TASK_QUEUE_ROUTES,
 )
+from task_queue_arq import ARQTaskQueue, arq_worker_functions
 
 logger = logging.getLogger(__name__)
 
@@ -193,14 +194,20 @@ def _normalize_queue_names(queue_names: tuple[str, ...] | list[str] | None, defa
 
 
 def create_api_task_queue():
+    if TASK_QUEUE_BACKEND == "rq":
+        return RQTaskQueue()
+    if TASK_QUEUE_BACKEND == "arq":
+        return ARQTaskQueue()
     if TASK_QUEUE_BACKEND != "rq":
-        raise RuntimeError("API task queue requires Redis and RQ; set TASK_QUEUE_BACKEND=rq.")
+        raise RuntimeError("API task queue requires Redis with RQ or ARQ; set TASK_QUEUE_BACKEND=rq or arq.")
     return RQTaskQueue()
 
 
 def create_task_queue():
     if TASK_QUEUE_BACKEND == "rq":
         return RQTaskQueue()
+    if TASK_QUEUE_BACKEND == "arq":
+        return ARQTaskQueue()
     if TASK_QUEUE_BACKEND != "local":
         logger.warning("Unknown TASK_QUEUE_BACKEND=%s; falling back to local", TASK_QUEUE_BACKEND)
     return LocalAsyncQueue(max_concurrent=5)

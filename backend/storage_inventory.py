@@ -11,6 +11,7 @@ from typing import Optional
 from config import (
     CACHE_DB_PATH,
     CACHE_DIR,
+    LANGGRAPH_CHECKPOINT_BACKEND,
     LANGGRAPH_CHECKPOINT_PATH,
     MARKET_CALENDAR_DIR,
     OUTPUT_DIR,
@@ -26,6 +27,7 @@ def ensure_runtime_storage(
     cache_dir: Optional[str] = None,
     cache_db_path: Optional[str] = None,
     task_db_path: Optional[str] = None,
+    checkpoint_backend: Optional[str] = None,
     checkpoint_path: Optional[str] = None,
     decision_tracking_db_path: Optional[str] = None,
     watchlist_db_path: Optional[str] = None,
@@ -41,6 +43,7 @@ def ensure_runtime_storage(
     cache_db = Path(cache_db_path or CACHE_DB_PATH)
     task_db = Path(task_db_path or TASK_DB_PATH)
     checkpoint_db = Path(checkpoint_path or LANGGRAPH_CHECKPOINT_PATH)
+    checkpoint_backend = str(checkpoint_backend or LANGGRAPH_CHECKPOINT_BACKEND or "sqlite").strip().lower()
     tracking_db = Path(decision_tracking_db_path or os.getenv("DECISION_TRACKING_DB_PATH", str(task_db)))
     watchlist_db = _default_watchlist_db_path(cache_db, task_db, watchlist_db_path)
     yfinance_cache_path = _ensure_directory(
@@ -52,10 +55,11 @@ def ensure_runtime_storage(
     sqlite_paths = {
         "cache_db": _ensure_sqlite_openable(cache_db, "cache_db", created_dirs),
         "task_db": _ensure_sqlite_openable(task_db, "task_db", created_dirs),
-        "checkpoint_db": _ensure_sqlite_openable(checkpoint_db, "checkpoint_db", created_dirs),
         "decision_tracking_db": _ensure_sqlite_openable(tracking_db, "decision_tracking_db", created_dirs),
         "watchlist_db": _ensure_sqlite_openable(watchlist_db, "watchlist_db", created_dirs),
     }
+    if checkpoint_backend != "postgres":
+        sqlite_paths["checkpoint_db"] = _ensure_sqlite_openable(checkpoint_db, "checkpoint_db", created_dirs)
 
     return {
         "success": True,

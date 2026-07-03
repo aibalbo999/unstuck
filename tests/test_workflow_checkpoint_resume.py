@@ -17,7 +17,7 @@ from agent_runtime import AnalysisResult
 from data_fetch import FetchResult
 from data_trust import unknown_data_trust
 import analysis_jobs
-from workflow_graph import execute_persistent_graph, open_sqlite_checkpointer
+from workflow_graph import execute_persistent_graph, open_checkpointer, open_sqlite_checkpointer
 from workflow_state import AgentGraphState
 
 
@@ -107,6 +107,47 @@ def test_sqlite_checkpointer_sets_wal_and_busy_timeout(tmp_path):
 
     assert journal_mode == "wal"
     assert busy_timeout == 30000
+
+
+def test_postgres_checkpointer_uses_langgraph_postgres_saver(monkeypatch):
+    import workflow_graph
+
+    calls = []
+
+    class FakePostgresSaver:
+        @classmethod
+        def from_conn_string(cls, dsn):
+            calls.append(("dsn", dsn))
+            return cls()
+
+        async def __aenter__(self):
+            calls.append(("enter",))
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            calls.append(("exit", exc_type))
+            return False
+
+        async def setup(self):
+            calls.append(("setup",))
+
+    monkeypatch.setattr(workflow_graph, "_load_async_postgres_saver", lambda: FakePostgresSaver)
+
+    async def open_once():
+        async with open_checkpointer(
+            checkpoint_backend="postgres",
+            postgres_dsn="postgresql://stock-agent/checkpoints",
+        ) as saver:
+            assert isinstance(saver, FakePostgresSaver)
+
+    asyncio.run(open_once())
+
+    assert calls == [
+        ("dsn", "postgresql://stock-agent/checkpoints"),
+        ("enter",),
+        ("setup",),
+        ("exit", None),
+    ]
 
 
 def test_sqlite_resume_does_not_repeat_successful_nodes(tmp_path):

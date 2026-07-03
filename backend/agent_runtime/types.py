@@ -37,6 +37,8 @@ class AnalysisRequest:
     thread_id: Optional[str] = None
     checkpointer: Any | None = None
     checkpoint_path: Optional[str] = None
+    checkpoint_backend: str = "sqlite"
+    checkpoint_postgres_dsn: Optional[str] = None
     report_filename: Optional[str] = None
     telemetry_callback: Optional[Callable[[dict], Any]] = None
 

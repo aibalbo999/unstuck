@@ -13,6 +13,7 @@ from google.genai import types
 
 from config import LLM_AGENT_CALL_TIMEOUT_SECONDS
 from google_prompt_safety import sanitize_google_generation_config, sanitize_google_prompt
+from llm_semantic_cache import get_cached_llm_response, store_llm_response
 from llm_usage import extract_usage
 from llm_provider_routes import split_model_provider
 
@@ -104,36 +105,54 @@ async def close_cached_clients_async() -> None:
 
 def generate_content(api_key: str, model_id: str, prompt: str, config):
     """Call the configured LLM provider synchronously with an isolated per-key client."""
+    cached = get_cached_llm_response(model_id, prompt, config)
+    if cached is not None:
+        return TextLLMResponse(str(cached.get("text") or ""), cached.get("usage"))
     provider, provider_model = split_model_provider(model_id)
     if provider == "openai":
-        return _generate_openai_content(api_key, provider_model, prompt, config)
+        return _cache_generated_response(model_id, prompt, config, _generate_openai_content(api_key, provider_model, prompt, config))
     if provider == "anthropic":
-        return _generate_anthropic_content(api_key, provider_model, prompt, config)
+        return _cache_generated_response(model_id, prompt, config, _generate_anthropic_content(api_key, provider_model, prompt, config))
     if provider != "google":
         raise ValueError(f"Unsupported LLM provider: {provider}")
     client = _get_client(api_key)
-    return client.models.generate_content(
+    response = client.models.generate_content(
         model=provider_model,
         contents=sanitize_google_prompt(prompt),
         config=sanitize_google_generation_config(config),
     )
+    return _cache_generated_response(model_id, prompt, config, response)
 
 
 async def generate_content_async(api_key: str, model_id: str, prompt: str, config):
     """Call the configured LLM provider through an async client implementation."""
+    cached = get_cached_llm_response(model_id, prompt, config)
+    if cached is not None:
+        return TextLLMResponse(str(cached.get("text") or ""), cached.get("usage"))
     provider, provider_model = split_model_provider(model_id)
     if provider == "openai":
-        return await _generate_openai_content_async(api_key, provider_model, prompt, config)
+        return _cache_generated_response(
+            model_id,
+            prompt,
+            config,
+            await _generate_openai_content_async(api_key, provider_model, prompt, config),
+        )
     if provider == "anthropic":
-        return await _generate_anthropic_content_async(api_key, provider_model, prompt, config)
+        return _cache_generated_response(
+            model_id,
+            prompt,
+            config,
+            await _generate_anthropic_content_async(api_key, provider_model, prompt, config),
+        )
     if provider != "google":
         raise ValueError(f"Unsupported LLM provider: {provider}")
     client = _get_client(api_key)
-    return await client.aio.models.generate_content(
+    response = await client.aio.models.generate_content(
         model=provider_model,
         contents=sanitize_google_prompt(prompt),
         config=sanitize_google_generation_config(config),
     )
+    return _cache_generated_response(model_id, prompt, config, response)
 
 
 async def generate_content_stream_async(api_key: str, model_id: str, prompt: str, config, *, on_delta=None):
@@ -191,6 +210,12 @@ async def generate_images_async(api_key: str, model_id: str, prompt: str, config
 
 def _provider_timeout_seconds() -> float:
     return max(1.0, float(LLM_AGENT_CALL_TIMEOUT_SECONDS or 60))
+
+
+def _cache_generated_response(model_id: str, prompt: str, config, response):
+    text = response_text(response)
+    store_llm_response(model_id, prompt, config, text=text, usage=extract_usage(response))
+    return response
 
 
 async def _emit_stream_delta(on_delta, delta: str) -> None:

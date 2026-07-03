@@ -12,6 +12,49 @@ if str(BACKEND) not in sys.path:
 import llm_transport  # noqa: E402
 
 
+def test_generate_content_reuses_llm_semantic_cache_for_similar_prompt(monkeypatch):
+    import cache_store
+    import llm_semantic_cache
+    from cache_backends import InMemoryCache
+
+    calls = []
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"output_text": f"OpenAI response #{len(calls)}"}
+
+    def fake_post(*_args, **_kwargs):
+        calls.append("post")
+        return FakeResponse()
+
+    cache_store.set_cache_backend(InMemoryCache())
+    monkeypatch.setattr(llm_semantic_cache, "LLM_SEMANTIC_CACHE_ENABLED", True)
+    monkeypatch.setattr(llm_semantic_cache, "LLM_SEMANTIC_CACHE_MIN_SIMILARITY", 0.35)
+    monkeypatch.setattr(llm_semantic_cache, "LLM_SEMANTIC_CACHE_SECONDS", 60)
+    monkeypatch.setattr(llm_transport.httpx, "post", fake_post)
+
+    first = llm_transport.generate_content(
+        "openai-key",
+        "openai:gpt-4.1-mini",
+        "台積電 今天 財報 分析",
+        SimpleNamespace(max_output_tokens=321, temperature=0.2),
+    )
+    second = llm_transport.generate_content(
+        "openai-key",
+        "openai:gpt-4.1-mini",
+        "請分析 台積電 今天 財報",
+        SimpleNamespace(max_output_tokens=321, temperature=0.2),
+    )
+
+    assert llm_transport.response_text(first) == "OpenAI response #1"
+    assert llm_transport.response_text(second) == "OpenAI response #1"
+    assert calls == ["post"]
+    cache_store.reset_cache_store_for_tests()
+
+
 def test_response_text_does_not_access_sdk_text_when_parts_have_only_function_call():
     accessed = {"text": False}
 

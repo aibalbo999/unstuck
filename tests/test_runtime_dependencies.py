@@ -22,6 +22,8 @@ def test_runtime_settings_for_tests_uses_tmp_path_defaults(tmp_path):
     assert settings.cache_backend == "sqlite"
     assert settings.cache_namespace == "test"
     assert settings.redis_url == "redis://localhost:6379/15"
+    assert settings.checkpoint_backend == "sqlite"
+    assert settings.checkpoint_postgres_dsn == ""
 
 
 def test_runtime_settings_from_environment_reads_settings_at_call_time(monkeypatch):
@@ -33,7 +35,9 @@ def test_runtime_settings_from_environment_reads_settings_at_call_time(monkeypat
     monkeypatch.setattr(storage, "REPORT_STORAGE_BACKEND", "memory")
     monkeypatch.setattr(storage, "CACHE_BACKEND", "memory")
     monkeypatch.setattr(storage, "CACHE_NAMESPACE", "patched")
+    monkeypatch.setattr(storage, "LANGGRAPH_CHECKPOINT_BACKEND", "postgres")
     monkeypatch.setattr(storage, "LANGGRAPH_CHECKPOINT_PATH", "/tmp/checkpoints.sqlite3")
+    monkeypatch.setattr(storage, "LANGGRAPH_CHECKPOINT_POSTGRES_DSN", "postgresql://example/checkpoints")
     monkeypatch.setattr(runtime_limits, "REDIS_URL", "redis://localhost:6379/9")
 
     settings = RuntimeSettings.from_environment()
@@ -43,7 +47,9 @@ def test_runtime_settings_from_environment_reads_settings_at_call_time(monkeypat
     assert settings.report_storage_backend == "memory"
     assert settings.cache_backend == "memory"
     assert settings.cache_namespace == "patched"
+    assert settings.checkpoint_backend == "postgres"
     assert settings.checkpoint_path == "/tmp/checkpoints.sqlite3"
+    assert settings.checkpoint_postgres_dsn == "postgresql://example/checkpoints"
     assert settings.redis_url == "redis://localhost:6379/9"
 
 
@@ -430,3 +436,14 @@ def test_validate_runtime_settings_warns_for_sqlite_checkpoint_in_production(mon
     warnings = app_config.validate_runtime_settings()
 
     assert any("LANGGRAPH_CHECKPOINT_PATH" in warning and "PostgreSQL" in warning for warning in warnings)
+
+
+def test_validate_runtime_settings_reports_postgres_checkpoint_misconfiguration(monkeypatch):
+    from settings import app_config
+
+    monkeypatch.setattr(app_config, "LANGGRAPH_CHECKPOINT_BACKEND", "postgres")
+    monkeypatch.setattr(app_config, "LANGGRAPH_CHECKPOINT_POSTGRES_DSN", "")
+
+    warnings = app_config.validate_runtime_settings()
+
+    assert any("LANGGRAPH_CHECKPOINT_POSTGRES_DSN" in warning for warning in warnings)

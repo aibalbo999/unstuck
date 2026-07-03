@@ -56,6 +56,57 @@ def test_api_task_queue_builds_rq_producer(monkeypatch):
     assert isinstance(built["connection"], FakeRedisClient)
 
 
+def test_api_task_queue_builds_arq_producer(monkeypatch):
+    import task_queue
+
+    monkeypatch.setattr(task_queue, "TASK_QUEUE_BACKEND", "arq")
+
+    queue = task_queue.create_api_task_queue()
+
+    assert isinstance(queue, task_queue.ARQTaskQueue)
+    assert queue.queue_name == task_queue.TASK_QUEUE_NAME
+
+
+def test_arq_enqueue_maps_registered_job_to_async_worker_function():
+    import task_queue
+
+    captured = {}
+
+    class FakePool:
+        async def enqueue_job(self, function, *args, _job_id=None, _queue_name=None, _expires=None, **kwargs):
+            captured.update(
+                {
+                    "function": function,
+                    "args": args,
+                    "job_id": _job_id,
+                    "queue_name": _queue_name,
+                    "expires": _expires,
+                    "kwargs": kwargs,
+                }
+            )
+            return types.SimpleNamespace(job_id=_job_id)
+
+        async def aclose(self):
+            captured["closed"] = True
+
+    def run_stock_analysis_job(job_id, ticker, pipeline_id):
+        return f"{job_id}:{ticker}:{pipeline_id}"
+
+    run_stock_analysis_job.__module__ = "analysis_jobs"
+
+    queue = task_queue.ARQTaskQueue(pool=FakePool(), queue_name="analysis.async")
+
+    job = queue.enqueue("analysis:job-a", run_stock_analysis_job, "job-a", "2330.TW", "v4")
+    queue.close()
+
+    assert job.job_id == "analysis:job-a"
+    assert captured["function"] == "arq_run_stock_analysis_job"
+    assert captured["args"] == ("job-a", "2330.TW", "v4")
+    assert captured["job_id"] == "analysis:job-a"
+    assert captured["queue_name"] == "analysis.async"
+    assert captured["closed"] is True
+
+
 def test_rq_enqueue_passes_retry_settings_to_queue(monkeypatch):
     import task_queue
 
@@ -229,6 +280,16 @@ def test_validate_runtime_settings_warns_for_invalid_queue_config(monkeypatch):
     warnings = app_config.validate_runtime_settings()
 
     assert any("RQ_JOB_MAX_RETRIES" in warning and "大於 0" in warning for warning in warnings)
+
+
+def test_validate_runtime_settings_accepts_arq_queue_backend(monkeypatch):
+    from settings import app_config
+
+    monkeypatch.setattr(app_config, "TASK_QUEUE_BACKEND", "arq")
+
+    warnings = app_config.validate_runtime_settings()
+
+    assert not any("TASK_QUEUE_BACKEND" in warning and "arq" in warning for warning in warnings)
 
 
 def test_validate_runtime_settings_warns_for_unknown_queue_routes(monkeypatch):

@@ -3,7 +3,6 @@ import secrets
 import sys
 import threading
 from contextlib import asynccontextmanager
-
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
@@ -209,6 +208,7 @@ async def lifespan(_app: FastAPI):
     ensure_runtime_storage(
         output_dir=runtime_settings.output_dir,
         cache_db_path=runtime_settings.cache_db_path,
+        checkpoint_backend=runtime_settings.checkpoint_backend,
         checkpoint_path=runtime_settings.checkpoint_path,
     )
     runtime = create_api_runtime(runtime_settings, task_queue=analysis_task_queue)

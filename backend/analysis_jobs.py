@@ -178,6 +178,8 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
                     cancel_check=lambda: _raise_if_cancelled(job_id),
                     thread_id=current_thread_id,
                     checkpoint_path=runtime_settings.checkpoint_path,
+                    checkpoint_backend=getattr(runtime_settings, "checkpoint_backend", "sqlite"),
+                    checkpoint_postgres_dsn=getattr(runtime_settings, "checkpoint_postgres_dsn", ""),
                     report_filename=report_filename,
                     telemetry_callback=telemetry_callback,
                 )

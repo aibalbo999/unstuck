@@ -53,6 +53,8 @@ class AnalysisPipelineRunner:
                 pipeline_id=request.pipeline_id,
                 services=services,
                 checkpoint_path=request.checkpoint_path,
+                checkpoint_backend=request.checkpoint_backend,
+                checkpoint_postgres_dsn=request.checkpoint_postgres_dsn,
                 thread_id=request.thread_id
                 or f"{initial_state.get('run_id', 'analysis')}:{request.pipeline_id}",
             )

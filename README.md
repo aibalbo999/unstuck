@@ -175,11 +175,11 @@ Production profile 請設定 `UNSTUCK_ENV=production` 或 `DEPLOYMENT_MODE=serve
 - `REPORT_RETENTION_DAYS`：舊報告保留天數，預設 `30`
 - `REPORT_CLEANUP_INTERVAL_SECONDS`：Worker maintenance 清理週期秒數，預設 `86400`
 - `ANALYSIS_WORKER_COUNT`：舊版本地佇列 worker 數；Web/API 模式不再啟動本地 worker
-- `TASK_QUEUE_BACKEND`：任務佇列後端，Web/API 模式必須使用 `rq`，預設 `rq`；`TASK_QUEUE_BACKEND=local` 僅保留給嵌入式測試/本地 helper，API 會以 `API task queue requires Redis and RQ` 拒絕啟動
-- `REDIS_URL`：RQ 模式使用的 Redis 連線，預設 `redis://localhost:6379/0`
-- `TASK_QUEUE_NAME`：RQ queue 名稱，預設 `stock-analysis`
+- `TASK_QUEUE_BACKEND`：任務佇列後端，Web/API 模式可用 `rq`（預設，多 queue routing）或 `arq`（async worker）；`TASK_QUEUE_BACKEND=local` 僅保留給嵌入式測試/本地 helper，API 會拒絕啟動
+- `REDIS_URL`：RQ/ARQ 模式使用的 Redis 連線，預設 `redis://localhost:6379/0`
+- `TASK_QUEUE_NAME`：主要 queue 名稱，預設 `stock-analysis`；ARQ backend 會使用此 queue
 - `TASK_QUEUE_NAMES`：RQ worker 會同時監聽的 queue 清單，預設包含 `stock-analysis,analysis.high,analysis.normal,watchlist,maintenance,llm.retry`
-- `TASK_QUEUE_ROUTE_ANALYSIS` / `TASK_QUEUE_ROUTE_REPORT_RERUN` / `TASK_QUEUE_ROUTE_WATCHLIST`：依任務類型路由到指定 queue，預設分別為 `analysis.high`、`analysis.normal`、`watchlist`
+- `TASK_QUEUE_ROUTE_ANALYSIS` / `TASK_QUEUE_ROUTE_REPORT_RERUN` / `TASK_QUEUE_ROUTE_WATCHLIST`：RQ backend 依任務類型路由到指定 queue，預設分別為 `analysis.high`、`analysis.normal`、`watchlist`
 - `UNSTUCK_ENV`：`local` 或 `production`；production 會禁止缺少 mutation token 的不安全啟動
 - `MUTATION_API_TOKEN`：production / server / lan profile 必填；mutation endpoints 使用 `X-Mutation-Token`
 - `ALLOW_LEGACY_ADMIN_TOKEN`：是否暫時接受舊版 `X-Admin-Token` alias，預設 `false`
@@ -191,7 +191,9 @@ Production profile 請設定 `UNSTUCK_ENV=production` 或 `DEPLOYMENT_MODE=serve
 - `RQ_JOB_RETRY_INTERVALS`：RQ 延遲重試秒數清單，預設 `60,300,900,1800`
 - `RQ_JOB_TIMEOUT_SECONDS`：單一 RQ job 最長執行秒數，預設 `14400`（4 小時），避免完整報告/LLM 重跑被 RQ 預設短 timeout 提早中止
 - `OPERATIONAL_DB_PATH`：任務、SSE event、API usage、provider SLA 與 watchlist 預設共用的 operational SQLite DB，預設 `backend/cache/operational.sqlite3`
-- `LANGGRAPH_CHECKPOINT_PATH`：LangGraph SQLite checkpoint DB，預設跟隨 `CACHE_DB_PATH`
+- `LANGGRAPH_CHECKPOINT_BACKEND`：LangGraph checkpoint 後端，預設 `sqlite`；高併發 production 可設 `postgres`
+- `LANGGRAPH_CHECKPOINT_PATH`：SQLite checkpoint DB，`LANGGRAPH_CHECKPOINT_BACKEND=sqlite` 時使用，預設跟隨 `CACHE_DB_PATH`
+- `LANGGRAPH_CHECKPOINT_POSTGRES_DSN`：PostgreSQL checkpoint 連線字串，`LANGGRAPH_CHECKPOINT_BACKEND=postgres` 時必填
 - `TASK_DB_PATH`：任務與 SSE event SQLite 檔位置，預設跟隨 `OPERATIONAL_DB_PATH`
 - `DECISION_TRACKING_DB_PATH`：決策追蹤與回測 SQLite 檔位置，預設跟隨 `TASK_DB_PATH`；若未設定，舊版 `backend/cache/decision_tracking.sqlite3` 會一次性匯入 operational DB
 - `SQLITE_BACKUP_DIR`：SQLite 每日維護備份目錄，預設 `backend/cache/sqlite_backups`
@@ -207,6 +209,10 @@ Production profile 請設定 `UNSTUCK_ENV=production` 或 `DEPLOYMENT_MODE=serve
 - `PROMPT_CONTEXT_RESPONSE_TOKEN_BUDGET` / `PROMPT_CONTEXT_SAFETY_MARGIN_TOKENS`：組 prompt 時預留 response 與安全邊界 token，超出時會截斷非關鍵 context
 - `AGENT_STEP_CACHE_ENABLED`：是否啟用 Agent step cache，預設 `true`
 - `AGENT_STEP_CACHE_SECONDS`：Agent step cache、RAG index cache 與 Context Digest cache TTL 秒數，預設 `604800`（7 天）
+- `LLM_SEMANTIC_CACHE_ENABLED`：是否啟用 provider response semantic cache，預設 `false`；開啟後會使用目前 `CACHE_BACKEND` 儲存相同 model/config 下的相似 prompt 文字回應
+- `LLM_SEMANTIC_CACHE_SECONDS`：LLM semantic cache TTL 秒數，預設 `86400`
+- `LLM_SEMANTIC_CACHE_MIN_SIMILARITY`：語意快取命中門檻，預設 `0.96`
+- `LLM_SEMANTIC_CACHE_MAX_INDEX_ENTRIES`：每個 model/config index 保留的 prompt entry 數，預設 `200`
 - `LLM_SERVER_ERROR_MAX_ATTEMPTS`：模型服務 500/503/忙碌時的持續嘗試次數，預設 `6`
 - `LLM_SERVER_ERROR_RETRY_MAX_WAIT_SECONDS`：模型服務 5xx 重試 backoff 單次等待上限，預設 `45`
 - 429 quota / rate-limit 會至少輪完所有 API key 才判定該模型不可用；任務事件只記錄 `key_slot/key_count`，不保存 key 明文
@@ -481,7 +487,7 @@ backend/output/
 
 ## API / Worker 分離與任務佇列
 
-FastAPI 現在只負責 HTTP 與送任務進 Redis/RQ；耗時分析、watchlist scheduler、decision tracking scheduler 與 maintenance cleanup 都由獨立 Worker process 執行。最小本機啟動順序：
+FastAPI 現在只負責 HTTP 與送任務進 Redis queue；耗時分析、watchlist scheduler、decision tracking scheduler 與 maintenance cleanup 都由獨立 Worker process 執行。預設使用 RQ；若任務多為 LLM / crawler I/O 等待，可改用 `TASK_QUEUE_BACKEND=arq` 讓 queue worker 以 async worker function 執行。最小本機啟動順序：
 
 ```bash
 redis-server
@@ -500,6 +506,15 @@ TASK_QUEUE_NAMES=stock-analysis,analysis.high,analysis.normal,watchlist,maintena
 RQ_JOB_TIMEOUT_SECONDS=14400
 ```
 
+若要使用 ARQ async worker：
+
+```bash
+TASK_QUEUE_BACKEND=arq
+TASK_QUEUE_NAME=stock-analysis
+```
+
+ARQ backend 目前聚焦主要 `TASK_QUEUE_NAME`，不使用 RQ 的多 queue routing；若需要 `analysis.high` / `analysis.normal` / `watchlist` 分流，維持 `TASK_QUEUE_BACKEND=rq`。
+
 可拆成正式 process roles：
 
 ```bash
@@ -510,13 +525,13 @@ python backend/worker_main.py --role maintenance  # report/cache/index cleanup
 
 也就是 `queue / schedulers / maintenance` 三個角色可獨立交給 process manager 管理。`--role all` 使用 multiprocessing `spawn` 在本機一次啟動三個 child processes；收到 `SIGTERM` / `SIGINT` 時會轉送終止訊號並等待子程序收尾。Queue smoke test 可用 `python backend/worker_main.py --role queue --burst --max-jobs 1` 處理一筆 job 後退出。
 
-Redis health check 可用 `redis-cli -u "$REDIS_URL" ping`（預期 `PONG`），RQ queue 可用 `rq info --url "$REDIS_URL"` 檢查。Worker queue role 會監聽 `TASK_QUEUE_NAMES` 內所有 queue，並以 RQ scheduler 推進 `ScheduledJobRegistry` 內的 delayed retry；人工分析預設進 `analysis.high`，報告重跑進 `analysis.normal`，watchlist 批次進 `watchlist`。LLM 429 / transient failure 會依 `RQ_JOB_MAX_RETRIES` 與 `RQ_JOB_RETRY_INTERVALS` 延遲重試，`waiting_retry` 仍會被視為 active job，避免 API/scheduler 重複送同一檔分析。
+Redis health check 可用 `redis-cli -u "$REDIS_URL" ping`（預期 `PONG`），RQ queue 可用 `rq info --url "$REDIS_URL"` 檢查。RQ Worker queue role 會監聽 `TASK_QUEUE_NAMES` 內所有 queue，並以 RQ scheduler 推進 `ScheduledJobRegistry` 內的 delayed retry；人工分析預設進 `analysis.high`，報告重跑進 `analysis.normal`，watchlist 批次進 `watchlist`。LLM 429 / transient failure 會依 `RQ_JOB_MAX_RETRIES` 與 `RQ_JOB_RETRY_INTERVALS` 延遲重試，`waiting_retry` 仍會被視為 active job，避免 API/scheduler 重複送同一檔分析。
 
 若 SQLite job store 仍有 `queued` / `running` / `waiting_retry` 紀錄，但 Redis/RQ 已找不到對應 active 任務，API 與 scheduler 會把該紀錄標為 abandoned，讓前端按鈕、watchlist 批次與後續分析可以重新排隊；若只是既有 `queued` job 遺失 RQ task，建立任務 API 會重新 enqueue 並留下 `queue_recovered` 事件。
 
 API process manager 可用 `/healthz` 做 liveness probe，用 `/readyz` 做 readiness probe；`/readyz` 會檢查 runtime storage 與 Redis/RQ queue，不可用時回 HTTP 503。Operator 可用 `/api/observability/dashboard` 查看報告耗時 p50/p95/p99、stuck jobs、node/model telemetry、prompt token budget、RQ queue depth、provider degradation 與 API quota ledger 摘要。
 
-任務狀態、SSE 事件、API 用量 ledger、provider SLA、watchlist 與 decision tracking 預設會寫入 `OPERATIONAL_DB_PATH` / `TASK_DB_PATH` 指定的 SQLite 檔，所以 API 與 worker 需要共用同一個檔案路徑。LangGraph checkpoint 預設跟隨 `CACHE_DB_PATH`；若另外設定 `API_USAGE_DB_PATH`、`WATCHLIST_DB_PATH`、`DECISION_TRACKING_DB_PATH` 或 `LANGGRAPH_CHECKPOINT_PATH`，也要讓 API 與背景 worker 指向同一份檔案。這個預設把 operational data 與 cache/checkpoint data 分成兩個主要 DB，降低備份與維運分散度；舊版 standalone `decision_tracking.sqlite3` 與 `watchlist.sqlite3` 會在第一次讀寫時匯入目前 operational DB，匯入後以 meta key 去重，避免重啟 worker 重複搬資料。
+任務狀態、SSE 事件、API 用量 ledger、provider SLA、watchlist 與 decision tracking 預設會寫入 `OPERATIONAL_DB_PATH` / `TASK_DB_PATH` 指定的 SQLite 檔，所以 API 與 worker 需要共用同一個檔案路徑。LangGraph checkpoint 預設跟隨 `CACHE_DB_PATH`；production 高併發可改 `LANGGRAPH_CHECKPOINT_BACKEND=postgres` 並設定 `LANGGRAPH_CHECKPOINT_POSTGRES_DSN`，此時 readiness / maintenance 不會再把 checkpoint 當 SQLite 檔處理。若另外設定 `API_USAGE_DB_PATH`、`WATCHLIST_DB_PATH`、`DECISION_TRACKING_DB_PATH` 或 `LANGGRAPH_CHECKPOINT_PATH`，也要讓 API 與背景 worker 指向同一份檔案。這個預設把 operational data 與 cache/checkpoint data 分成兩個主要 DB，降低備份與維運分散度；舊版 standalone `decision_tracking.sqlite3` 與 `watchlist.sqlite3` 會在第一次讀寫時匯入目前 operational DB，匯入後以 meta key 去重，避免重啟 worker 重複搬資料。
 
 ## 常見問題
 

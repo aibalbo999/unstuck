@@ -22,7 +22,12 @@ ROOT = Path(__file__).resolve().parents[1]
 class FakeWorkerRuntime:
     def __init__(self, calls):
         self.calls = calls
-        self.settings = SimpleNamespace(output_dir="/tmp/reports")
+        self.settings = SimpleNamespace(
+            output_dir="/tmp/reports",
+            cache_db_path="/tmp/cache.sqlite3",
+            checkpoint_backend="sqlite",
+            checkpoint_path="/tmp/checkpoints.sqlite3",
+        )
         self.task_queue = type("TaskQueue", (), {"queue": "queue", "redis": "redis"})()
         self.data_refresh_service = "refresh-service"
 
@@ -44,6 +49,23 @@ def test_queue_role_only_runs_rq_worker_and_closes_runtime(monkeypatch):
     worker_main.run_role("queue", runtime_factory=lambda _settings: runtime, burst=True, max_jobs=1)
 
     assert calls == [("reconcile", runtime), ("queue", runtime, True, 1), "close"]
+
+
+def test_queue_role_runs_arq_worker_without_rq_reconciliation(monkeypatch):
+    calls = []
+    runtime = FakeWorkerRuntime(calls)
+    runtime.task_queue = type("TaskQueue", (), {"backend_name": "arq"})()
+
+    monkeypatch.setattr(worker_main, "reconcile_abandoned_rq_jobs", lambda value: calls.append(("reconcile", value)) or 0)
+    monkeypatch.setattr(
+        worker_main,
+        "run_arq_worker",
+        lambda value, *, burst=False, max_jobs=None: calls.append(("arq", value, burst, max_jobs)),
+    )
+
+    worker_main.run_role("queue", runtime_factory=lambda _settings: runtime, burst=True, max_jobs=2)
+
+    assert calls == [("arq", runtime, True, 2), "close"]
 
 
 def test_run_role_initializes_runtime_storage_before_creating_runtime(monkeypatch):
@@ -223,7 +245,7 @@ def test_maintenance_iteration_runs_retention_and_sqlite_maintenance(monkeypatch
     monkeypatch.setattr(worker_main, "cleanup_report_index_orphans", lambda write=True: calls.append(("report-index", write)))
     monkeypatch.setattr(worker_main, "cleanup_analysis_history", lambda write=True: calls.append(("analysis-history", write)))
     monkeypatch.setattr(worker_main, "cleanup_provider_sla_events", lambda write=True: calls.append(("provider-sla", write)))
-    monkeypatch.setattr(worker_main, "run_sqlite_maintenance", lambda write=True: calls.append(("sqlite", write)))
+    monkeypatch.setattr(worker_main, "run_sqlite_maintenance", lambda **kwargs: calls.append(("sqlite", kwargs.get("write"))))
 
     asyncio.run(worker_main._run_maintenance_iteration(runtime, {}))
 

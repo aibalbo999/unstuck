@@ -40,10 +40,10 @@ from worker_rq_reconciliation import (
 )
 from worker_shutdown import (
     handle_rq_pubsub_thread_exception as _handle_rq_pubsub_thread_exception,
-    install_shutdown_quiet_pubsub as _install_shutdown_quiet_pubsub,
-    rq_worker_shutdown_requested as _rq_worker_shutdown_requested,
     run_async_process as _run_async_process,
 )
+from worker_queue_runners import run_arq_worker as _run_arq_worker
+from worker_queue_runners import run_rq_worker as _run_rq_worker
 
 
 Role = Literal["queue", "schedulers", "maintenance", "all"]
@@ -65,31 +65,16 @@ def run_rq_worker(
     burst: bool = False,
     max_jobs: int | None = None,
 ) -> None:
-    task_queue = runtime.task_queue
-    rq_queue = getattr(task_queue, "queue", None)
-    redis = getattr(task_queue, "redis", None)
-    if rq_queue is None or redis is None:
-        raise RuntimeError("RQ worker requires an RQ task queue with queue and redis attributes.")
+    _run_rq_worker(runtime, burst=burst, max_jobs=max_jobs, emit=emit_log)
 
-    from rq import SimpleWorker
-    from redis.exceptions import ConnectionError as RedisConnectionError
 
-    rq_queues = list(getattr(task_queue, "queues", {}) .values()) or [rq_queue]
-    worker = SimpleWorker(rq_queues, connection=redis)
-    _install_shutdown_quiet_pubsub(worker)
-    try:
-        worker.work(
-            burst=burst,
-            max_jobs=max_jobs,
-            # RQ retries are stored in ScheduledJobRegistry; without the RQ
-            # scheduler they stay there forever and the UI appears silent.
-            with_scheduler=True,
-        )
-    except RedisConnectionError as exc:
-        if _rq_worker_shutdown_requested(worker):
-            emit_log("queue worker stopped after Redis shutdown.")
-            return
-        raise
+def run_arq_worker(
+    runtime: WorkerRuntime,
+    *,
+    burst: bool = False,
+    max_jobs: int | None = None,
+) -> None:
+    _run_arq_worker(runtime, burst=burst, max_jobs=max_jobs)
 
 
 def reconcile_abandoned_rq_jobs(runtime: WorkerRuntime) -> int:
@@ -198,7 +183,15 @@ async def _run_maintenance_iteration(runtime: WorkerRuntime, report_cache: dict[
         ("report index orphans", lambda: cleanup_report_index_orphans(write=True)),
         ("analysis job history", lambda: cleanup_analysis_history(write=True)),
         ("provider SLA events", lambda: cleanup_provider_sla_events(write=True)),
-        ("sqlite backup/checkpoint/vacuum", lambda: run_sqlite_maintenance(write=True)),
+        (
+            "sqlite backup/checkpoint/vacuum",
+            lambda: run_sqlite_maintenance(
+                cache_db_path=runtime.settings.cache_db_path,
+                checkpoint_backend=runtime.settings.checkpoint_backend,
+                checkpoint_path=runtime.settings.checkpoint_path,
+                write=True,
+            ),
+        ),
     ]
     for label, action in steps:
         try:
@@ -223,13 +216,17 @@ def run_role(
     ensure_runtime_storage(
         output_dir=runtime_settings.output_dir,
         cache_db_path=runtime_settings.cache_db_path,
+        checkpoint_backend=runtime_settings.checkpoint_backend,
         checkpoint_path=runtime_settings.checkpoint_path,
     )
     runtime = runtime_factory(runtime_settings)
     try:
         if role == "queue":
-            reconcile_abandoned_rq_jobs(runtime)
-            run_rq_worker(runtime, burst=burst, max_jobs=max_jobs)
+            if getattr(runtime.task_queue, "backend_name", "rq") == "arq":
+                run_arq_worker(runtime, burst=burst, max_jobs=max_jobs)
+            else:
+                reconcile_abandoned_rq_jobs(runtime)
+                run_rq_worker(runtime, burst=burst, max_jobs=max_jobs)
         elif role == "schedulers":
             _run_async_process(lambda: run_scheduler_process(runtime))
         elif role == "maintenance":

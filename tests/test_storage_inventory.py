@@ -159,6 +159,24 @@ def test_ensure_runtime_storage_defaults_operational_consumers_to_task_db(tmp_pa
     assert not (cache_dir / "watchlist.sqlite3").exists()
 
 
+def test_ensure_runtime_storage_skips_checkpoint_sqlite_for_postgres_backend(tmp_path):
+    cache_dir = tmp_path / "cache"
+    checkpoint_db = cache_dir / "langgraph_checkpoints.sqlite3"
+
+    result = ensure_runtime_storage(
+        output_dir=str(tmp_path / "output"),
+        cache_dir=str(cache_dir),
+        cache_db_path=str(cache_dir / "stock_agent_cache.sqlite3"),
+        task_db_path=str(cache_dir / "operational.sqlite3"),
+        checkpoint_backend="postgres",
+        checkpoint_path=str(checkpoint_db),
+        market_calendar_dir=str(cache_dir / "market_calendars"),
+    )
+
+    assert "checkpoint_db" not in result["sqlite_paths"]
+    assert not checkpoint_db.exists()
+
+
 def test_ensure_runtime_storage_rejects_directory_used_as_database(tmp_path):
     bad_cache_db = tmp_path / "cache-as-db"
     bad_cache_db.mkdir()

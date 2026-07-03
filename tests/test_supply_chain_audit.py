@@ -11,7 +11,7 @@ from packaging.version import Version
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from requirements_lock import locked_versions as parse_locked_versions  # noqa: E402
+from requirements_lock import locked_requirements, locked_versions as parse_locked_versions  # noqa: E402
 
 
 def _parsed_requirements(path: Path) -> dict[str, Requirement]:
@@ -47,18 +47,13 @@ def test_free_external_data_dependencies_are_locked():
 def test_supply_chain_lockfile_covers_direct_runtime_requirements():
     requirements = (ROOT / "backend" / "requirements.txt").read_text(encoding="utf-8")
     lockfile = ROOT / "backend" / "requirements.lock"
-    locked = lockfile.read_text(encoding="utf-8")
 
     direct_names = [
         line.split("<", 1)[0].split(">", 1)[0].split("=", 1)[0].strip().lower().replace("_", "-")
         for line in requirements.splitlines()
         if line.strip() and not line.strip().startswith("#")
     ]
-    locked_names = {
-        line.split("==", 1)[0].strip().lower().replace("_", "-")
-        for line in locked.splitlines()
-        if "==" in line
-    }
+    locked_names = set(locked_requirements(lockfile))
 
     assert direct_names
     assert set(direct_names) <= locked_names
@@ -86,8 +81,8 @@ def test_langgraph_dependencies_are_direct_and_locked():
     direct = set(_parsed_requirements(ROOT / "backend" / "requirements.txt"))
     locked = set(_locked_versions(ROOT / "backend" / "requirements.lock"))
 
-    assert {"langgraph", "langgraph-checkpoint-sqlite"} <= direct
-    assert {"langgraph", "langgraph-checkpoint-sqlite", "aiosqlite"} <= locked
+    assert {"langgraph", "langgraph-checkpoint-sqlite", "langgraph-checkpoint-postgres"} <= direct
+    assert {"langgraph", "langgraph-checkpoint-sqlite", "langgraph-checkpoint-postgres", "aiosqlite", "psycopg"} <= locked
 
 
 def test_ci_gate_runs_supply_chain_audit_before_tests():

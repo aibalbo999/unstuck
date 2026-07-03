@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Mapping
 
-from config import CACHE_DB_PATH, LANGGRAPH_CHECKPOINT_PATH, SQLITE_BACKUP_DIR, TASK_DB_PATH
+from config import CACHE_DB_PATH, LANGGRAPH_CHECKPOINT_BACKEND, LANGGRAPH_CHECKPOINT_PATH, SQLITE_BACKUP_DIR, TASK_DB_PATH
 from security_sanitizer import sanitize_error_message
 
 
@@ -15,19 +15,24 @@ def runtime_sqlite_paths(
     *,
     cache_db_path: str | None = None,
     task_db_path: str | None = None,
+    checkpoint_backend: str | None = None,
     checkpoint_path: str | None = None,
 ) -> dict[str, str]:
-    return {
+    paths = {
         "cache_db": str(cache_db_path or CACHE_DB_PATH),
         "task_db": str(task_db_path or TASK_DB_PATH),
-        "checkpoint_db": str(checkpoint_path or LANGGRAPH_CHECKPOINT_PATH),
     }
+    backend = str(checkpoint_backend or LANGGRAPH_CHECKPOINT_BACKEND or "sqlite").strip().lower()
+    if backend != "postgres":
+        paths["checkpoint_db"] = str(checkpoint_path or LANGGRAPH_CHECKPOINT_PATH)
+    return paths
 
 
 def run_sqlite_maintenance(
     *,
     cache_db_path: str | None = None,
     task_db_path: str | None = None,
+    checkpoint_backend: str | None = None,
     checkpoint_path: str | None = None,
     backup_dir: str | None = None,
     write: bool = False,
@@ -37,6 +42,7 @@ def run_sqlite_maintenance(
         runtime_sqlite_paths(
             cache_db_path=cache_db_path,
             task_db_path=task_db_path,
+            checkpoint_backend=checkpoint_backend,
             checkpoint_path=checkpoint_path,
         ),
         backup_dir=backup_dir or SQLITE_BACKUP_DIR,

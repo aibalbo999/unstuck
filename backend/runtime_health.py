@@ -45,6 +45,7 @@ def _storage_check(runtime_settings: Any, storage_checker: Callable[..., dict]) 
         result = storage_checker(
             output_dir=runtime_settings.output_dir,
             cache_db_path=runtime_settings.cache_db_path,
+            checkpoint_backend=getattr(runtime_settings, "checkpoint_backend", "sqlite"),
             checkpoint_path=runtime_settings.checkpoint_path,
         )
     except Exception as exc:

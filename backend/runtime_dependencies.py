@@ -20,7 +20,9 @@ class RuntimeSettings:
     report_storage_backend: str
     cache_backend: str
     cache_namespace: str
+    checkpoint_backend: str
     checkpoint_path: str
+    checkpoint_postgres_dsn: str
 
     @classmethod
     def from_environment(cls) -> "RuntimeSettings":
@@ -33,7 +35,9 @@ class RuntimeSettings:
             report_storage_backend=str(storage.REPORT_STORAGE_BACKEND),
             cache_backend=str(storage.CACHE_BACKEND),
             cache_namespace=str(storage.CACHE_NAMESPACE),
+            checkpoint_backend=str(storage.LANGGRAPH_CHECKPOINT_BACKEND),
             checkpoint_path=str(storage.LANGGRAPH_CHECKPOINT_PATH),
+            checkpoint_postgres_dsn=str(storage.LANGGRAPH_CHECKPOINT_POSTGRES_DSN),
         )
 
     @classmethod
@@ -46,7 +50,9 @@ class RuntimeSettings:
             report_storage_backend="local",
             cache_backend="sqlite",
             cache_namespace="test",
+            checkpoint_backend="sqlite",
             checkpoint_path=str(root / "langgraph_checkpoints.sqlite3"),
+            checkpoint_postgres_dsn="",
         )
         if not overrides:
             return settings
@@ -78,6 +84,14 @@ class WorkerRuntime:
     @property
     def checkpoint_path(self) -> str:
         return self.settings.checkpoint_path
+
+    @property
+    def checkpoint_backend(self) -> str:
+        return self.settings.checkpoint_backend
+
+    @property
+    def checkpoint_postgres_dsn(self) -> str:
+        return self.settings.checkpoint_postgres_dsn
 
     def close(self) -> None:
         _close_runtime(self, close_job_store=True)
