@@ -37,7 +37,7 @@ BASIC_AUTH_USERNAME=operator
 BASIC_AUTH_PASSWORD=replace_with_long_random_password
 ```
 
-Production startup fails fast if `MUTATION_API_TOKEN` is missing. `ALLOWED_ORIGINS=*` is rejected in production; use an explicit allowlist. Production/server/lan CORS allows only `GET`, `POST`, `DELETE`, `OPTIONS` and the required request headers instead of wildcards. Network-exposed profiles also require either built-in Basic Auth (`BASIC_AUTH_USERNAME` / `BASIC_AUTH_PASSWORD`) or `EXTERNAL_ACCESS_CONTROLLED=true` when an OAuth proxy, Tailscale ACL, or equivalent external boundary is already enforced. Mutation endpoints check `X-Mutation-Token`; the legacy `X-Admin-Token` alias is disabled unless `ALLOW_LEGACY_ADMIN_TOKEN=true` is set for a short migration window. Mutation calls are rate-limited in memory by `MUTATION_RATE_LIMIT_MAX_REQUESTS` per `MUTATION_RATE_LIMIT_WINDOW_SECONDS`; clients that exceed it receive HTTP 429 with `Retry-After`. Report HTML responses include CSP / nosniff / referrer headers, and API error payloads should not include secrets, stack traces, or local filesystem paths.
+Production startup fails fast if `MUTATION_API_TOKEN` is missing. `ALLOWED_ORIGINS=*` is rejected in production; use an explicit allowlist. Production/server/lan CORS allows only `GET`, `POST`, `DELETE`, `OPTIONS` and the required request headers instead of wildcards. Network-exposed profiles also require either built-in Basic Auth (`BASIC_AUTH_USERNAME` / `BASIC_AUTH_PASSWORD`) or `EXTERNAL_ACCESS_CONTROLLED=true` when an OAuth proxy, Tailscale ACL, or equivalent external boundary is already enforced. Mutation endpoints check `X-Mutation-Token`; the legacy `X-Admin-Token` alias is disabled unless `ALLOW_LEGACY_ADMIN_TOKEN=true` is set for a short migration window. Mutation calls are rate-limited in memory by `MUTATION_RATE_LIMIT_MAX_REQUESTS` per `MUTATION_RATE_LIMIT_WINDOW_SECONDS`; clients that exceed it receive HTTP 429 with `Retry-After`. External data providers that run through `audited_fetch` / `audited_fetch_async` can be locally paced with `PROVIDER_RATE_LIMIT_MIN_INTERVAL_SECONDS` or provider-specific overrides such as `PROVIDER_RATE_LIMIT_YFINANCE_MIN_INTERVAL_SECONDS`; HTTP 429/403/402 responses enter cooldown for `PROVIDER_RATE_LIMIT_COOLDOWN_SECONDS` seconds by default. External httpx helpers can rotate outbound proxies with `PROVIDER_PROXY_URLS` or provider-specific pools such as `PROVIDER_PROXY_FMP_URLS`, `PROVIDER_PROXY_GOOGLE_SEARCH_URLS`, and `PROVIDER_PROXY_GDELT_URLS`. Report HTML responses include CSP / nosniff / referrer headers, and API error payloads should not include secrets, stack traces, or local filesystem paths.
 
 ## Split API / Worker Startup
 
@@ -121,7 +121,7 @@ The background scheduler checks normal due watchlist jobs and then runs the even
 Install the free-source dependencies with the backend requirements:
 
 ```bash
-.venv/bin/python -m pip install -r backend/requirements.txt
+.venv/bin/python -m pip install --require-hashes -r backend/requirements.lock
 ```
 
 The optional free waterfall uses this order:

@@ -10,7 +10,7 @@ from urllib.parse import quote
 
 from cache_store import get_cache_json, set_cache_json
 from external_data_parsers import parse_gdelt_article_payload, parse_google_news_rss_payload
-from external_http_client import async_json_get, log_http_warning
+from external_http_client import async_json_get, log_http_warning, proxy_url_for_provider
 
 import httpx
 
@@ -38,7 +38,11 @@ _gdelt_cooldown_until = 0.0
 
 
 def async_client():
-    return httpx.AsyncClient(timeout=_GDELT_CONNECT_TIMEOUT_SECONDS)
+    kwargs = {"timeout": _GDELT_CONNECT_TIMEOUT_SECONDS}
+    proxy_url = proxy_url_for_provider("GDELT")
+    if proxy_url:
+        kwargs["proxy"] = proxy_url
+    return httpx.AsyncClient(**kwargs)
 
 
 async def fetch_gdelt_international_news_context(

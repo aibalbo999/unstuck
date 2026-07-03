@@ -18,6 +18,6 @@ fi
 "$BASE_PYTHON" scripts/check_runtime.py --strict
 "$BASE_PYTHON" -m venv .venv
 .venv/bin/python -m pip install --upgrade pip
-.venv/bin/python -m pip install -r backend/requirements.txt
+.venv/bin/python -m pip install --require-hashes -r backend/requirements.lock
 
 echo "Created .venv with $(.venv/bin/python --version)"

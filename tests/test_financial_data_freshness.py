@@ -105,6 +105,44 @@ def test_cache_write_uses_payload_retention_ttl_separate_from_freshness(monkeypa
     assert captured["financial_data:2330.TW"] == 7 * 24 * 60 * 60
 
 
+def test_source_is_stale_requires_usable_records(monkeypatch):
+    monkeypatch.setattr(data_freshness.time_module, "time", lambda: 200.0)
+
+    empty_cached_source = {
+        "ticker": "2330.TW",
+        "source_freshness": {
+            "recent_catalysts": {"fetched_at_epoch": 190.0},
+        },
+        "_cache_hit": True,
+    }
+    usable_cached_source = {
+        **empty_cached_source,
+        "recent_catalysts": [{"title": "Cached headline"}],
+    }
+
+    assert data_freshness.source_is_stale(empty_cached_source, "recent_catalysts", "2330.TW") is True
+    assert data_freshness.source_is_stale(usable_cached_source, "recent_catalysts", "2330.TW") is False
+
+
+def test_source_freshness_tracks_earnings_call_as_optional_source(monkeypatch):
+    monkeypatch.setattr(data_freshness.time_module, "time", lambda: 200.0)
+
+    freshness = data_freshness.build_source_freshness(
+        {
+            "ticker": "2330.TW",
+            "source_freshness": {"market_data": {"fetched_at_epoch": 190.0}},
+            "cache_generated_at_epoch": 190.0,
+        },
+        "2330.TW",
+        cache_hit=True,
+        now_epoch=200.0,
+    )
+
+    assert "earnings_call" in freshness
+    assert freshness["earnings_call"]["is_fresh"] is False
+    assert freshness["earnings_call"]["stale"] is True
+
+
 def test_fetch_stock_data_rebuilds_source_audit_on_cache_hit(monkeypatch):
     monkeypatch.setattr(financial_data.time_module, "time", lambda: 200.0)
     monkeypatch.setattr(audit_helpers, "_is_likely_market_session", lambda ticker: False)

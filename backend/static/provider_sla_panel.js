@@ -42,6 +42,13 @@
         return item;
     }
 
+    function healthyCountForStats(stats) {
+        return Number(stats.success_count || 0) + Number(stats.skipped_fresh_cache_count || 0) + Number(stats.degraded_enrichment_count || 0);
+    }
+    function availabilityAttemptsForStats(stats) {
+        return Number.isFinite(Number(stats.availability_attempts)) ? Number(stats.availability_attempts) : Math.max(0, Number(stats.attempts || 0) - Number(stats.not_configured_count || 0));
+    }
+
     function readableSource(source) {
         return SOURCE_LABELS[source] || String(source || '其他資料');
     }
@@ -65,16 +72,18 @@
         providers.forEach(item => {
             const stats = providerSlaStatsForWindow(item, selectedWindow);
             const source = item.source || 'unknown';
-            const current = groups.get(source) || { source, level: 'ok', attempts: 0, healthyCount: 0, totalRecords: 0, providerRows: [], messages: [] };
+            const current = groups.get(source) || { source, level: 'ok', attempts: 0, availabilityAttempts: 0, healthyCount: 0, totalRecords: 0, providerRows: [], messages: [] };
             const level = providerSlaClass(item.alert_level);
             const attempts = Number(stats.attempts || 0);
-            const healthyCount = Number(stats.success_count || 0) + Number(stats.skipped_fresh_cache_count || 0);
+            const availabilityAttempts = availabilityAttemptsForStats(stats);
+            const healthyCount = healthyCountForStats(stats);
             if ((LEVEL_WEIGHT[level] || 0) > (LEVEL_WEIGHT[current.level] || 0)) current.level = level;
             current.attempts += attempts;
+            current.availabilityAttempts += availabilityAttempts;
             current.healthyCount += healthyCount;
             current.totalRecords += Number(stats.total_records || 0);
             if (item.provider) {
-                current.providerRows.push({ provider: item.provider, level, attempts, healthyCount, successRate: attempts ? healthyCount / attempts : NaN,
+                current.providerRows.push({ provider: item.provider, level, attempts, healthyCount, successRate: availabilityAttempts ? healthyCount / availabilityAttempts : NaN,
                     totalRecords: Number(stats.total_records || 0), lastStatus: item.last_status || '', lastMessage: item.alert_message || item.last_message || '' });
             }
             if (item.alert_message || item.last_message) current.messages.push(item.alert_message || item.last_message);
@@ -94,7 +103,7 @@
         const merged = rows.slice();
         EXPECTED_CONTEXT_SOURCES.forEach(expected => {
             if (hasSource(merged, expected.source)) return;
-            merged.push({ source: expected.source, level: 'ok', attempts: 0, healthyCount: 0, totalRecords: 0, messages: [expected.message], expectedContext: true,
+            merged.push({ source: expected.source, level: 'ok', attempts: 0, availabilityAttempts: 0, healthyCount: 0, totalRecords: 0, messages: [expected.message], expectedContext: true,
                 providerRows: [{ provider: expected.provider, level: 'ok', attempts: 0, healthyCount: 0, successRate: NaN, totalRecords: 0, lastStatus: '', lastMessage: expected.message }] });
         });
         return merged;
@@ -130,6 +139,8 @@
     function providerStatusLabel(status) {
         if (status === 'success') return '成功';
         if (status === 'skipped_fresh_cache') return '有效快取';
+        if (status === 'degraded_enrichment') return '降級可用';
+        if (status === 'not_configured') return '未設定';
         if (status === 'error') return '失敗';
         if (status === 'unavailable') return '不可用';
         return status || '未記錄';
@@ -168,7 +179,7 @@
         summaryEl.textContent = summaryText(rows, windowLabel, providers);
         listEl.innerHTML = rows.length
             ? visibleProviderRows(rows).map(row => {
-                const successRate = row.attempts ? row.healthyCount / row.attempts : NaN;
+                const successRate = row.availabilityAttempts ? row.healthyCount / row.availabilityAttempts : NaN;
                 const recordsLabel = row.totalRecords ? `取得 ${row.totalRecords} 筆資料` : '資料量尚少';
                 const checksLabel = row.attempts ? `檢查 ${row.attempts} 次` : '尚未檢查';
                 const title = `${readableSource(row.source)}：${rowStateLabel(row)}。${insightText(row)}`;

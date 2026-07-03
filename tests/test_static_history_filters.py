@@ -211,6 +211,10 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "provider-sla-insight" in provider_sla_js
     assert "正式分析流程" in provider_sla_js
     assert "有效快取或備援來源" in provider_sla_js
+    assert "degraded_enrichment_count" in provider_sla_js
+    assert "降級可用" in provider_sla_js
+    assert "availabilityAttemptsForStats" in provider_sla_js
+    assert "未設定" in provider_sla_js
     assert "先使用仍有效的快取" in provider_sla_js
     assert "系統會優先補快取" not in provider_sla_js
     assert "資料取得率" in provider_sla_js

@@ -10,6 +10,16 @@ from reporting.html_sanitizer import sanitize_report_html, sanitize_report_image
 from reporting.utils import clean_markdown, format_debate_text  # noqa: E402
 
 
+def test_html_sanitizer_uses_maintained_nh3_dependency():
+    requirements = (ROOT / "backend" / "requirements.txt").read_text(encoding="utf-8")
+    sanitizer_source = (ROOT / "backend" / "reporting" / "html_sanitizer.py").read_text(encoding="utf-8")
+
+    assert "nh3" in requirements
+    assert "bleach" not in requirements
+    assert "import nh3" in sanitizer_source
+    assert "import bleach" not in sanitizer_source
+
+
 def test_markdown_and_debate_html_are_sanitized():
     html = clean_markdown(
         """
@@ -138,6 +148,14 @@ def test_taiwan_ticker_autolinks_use_real_quote_pages():
     assert 'href="https://tw.stock.yahoo.com/quote/2308.TW"' in html
     assert 'href="http://2308.TW"' not in html
     assert 'href="https://example.com"' in html
+
+
+def test_report_html_sanitizer_does_not_double_escape_entities():
+    html = sanitize_report_html("AT&T & 台積電 https://example.com?a=1&b=2")
+
+    assert "AT&amp;T &amp; 台積電" in html
+    assert "&amp;amp;" not in html
+    assert 'href="https://example.com?a=1&amp;b=2"' in html
 
 
 def test_report_html_response_includes_security_headers(tmp_path):

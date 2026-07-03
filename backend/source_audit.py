@@ -15,7 +15,12 @@ from data_trust import (
     finalize_data_trust,
     source_record_count,
 )
-from provider_resilience import ProviderCircuitOpenError, call_provider_with_resilience, call_provider_with_resilience_async
+from provider_resilience import (
+    ProviderCircuitOpenError,
+    ProviderRateLimitOpenError,
+    call_provider_with_resilience,
+    call_provider_with_resilience_async,
+)
 
 
 def record_count_from_value(value: Any) -> int:
@@ -50,7 +55,7 @@ def audited_fetch(
     started = time.time()
     try:
         value = call_provider_with_resilience(provider, func, args, kwargs or {})
-    except ProviderCircuitOpenError as exc:
+    except (ProviderCircuitOpenError, ProviderRateLimitOpenError) as exc:
         finished = time.time()
         return {
             "value": default,
@@ -127,7 +132,7 @@ async def audited_fetch_async(
     started = time.time()
     try:
         value = await call_provider_with_resilience_async(provider, func_or_awaitable, args, kwargs or {})
-    except ProviderCircuitOpenError as exc:
+    except (ProviderCircuitOpenError, ProviderRateLimitOpenError) as exc:
         finished = time.time()
         return {
             "value": default,

@@ -13,7 +13,9 @@ if str(BACKEND) not in sys.path:
 
 import agent_runtime.prompting as prompting  # noqa: E402
 from llm_rate_limits import estimate_text_tokens  # noqa: E402
+from pipeline_modes import PIPELINE_DEFINITIONS  # noqa: E402
 from prompt_builder import format_data_for_prompt, render_prompt_template  # noqa: E402
+from state_memory import initialize_agent_state  # noqa: E402
 from temporal_memory_service import build_valuation_memory_slice  # noqa: E402
 
 
@@ -40,6 +42,7 @@ def test_data_for_agent_prompt_routes_new_context_by_role():
         "social_sentiment": {"dcard": [{"title": "Dcard 討論"}]},
         "sec_edgar": {"recent_filings": [{"form": "10-Q"}]},
         "taiwan_open_data": {"rates": {"USD": {"sell": "31.50"}}},
+        "earnings_call": {"period": "2026Q1", "transcript_excerpt": "AI guidance stays strong."},
     }
 
     assert hasattr(prompting, "data_for_agent_prompt")
@@ -55,6 +58,7 @@ def test_data_for_agent_prompt_routes_new_context_by_role():
     assert "sec_edgar" in prompting.data_for_agent_prompt(14, data)
     assert "sec_edgar" in prompting.data_for_agent_prompt(21, data)
     assert "taiwan_open_data" in prompting.data_for_agent_prompt(11, data)
+    assert "earnings_call" in prompting.data_for_agent_prompt(20, data)
     assert "macro_indicators" not in prompting.data_for_agent_prompt(12, data)
     assert "chip_data" not in prompting.data_for_agent_prompt(12, data)
     assert "alternative_data" not in prompting.data_for_agent_prompt(12, data)
@@ -62,6 +66,7 @@ def test_data_for_agent_prompt_routes_new_context_by_role():
     assert "social_sentiment" not in prompting.data_for_agent_prompt(12, data)
     assert "sec_edgar" not in prompting.data_for_agent_prompt(12, data)
     assert "taiwan_open_data" not in prompting.data_for_agent_prompt(12, data)
+    assert "earnings_call" not in prompting.data_for_agent_prompt(12, data)
 
 
 def test_valuation_agents_receive_temporal_memory_slice_only():
@@ -135,6 +140,124 @@ def test_format_data_for_prompt_exposes_only_agent_routed_external_context():
     assert agent_17_payload["agent_context"]["social_sentiment"]["dcard"][0]["title"] == "Dcard 討論"
     assert agent_13_payload["agent_context"]["sec_edgar"]["recent_filings"][0]["form"] == "10-Q"
     assert agent_12_payload["agent_context"] == {}
+
+
+def test_build_prompt_exposes_earnings_call_via_agent_state_view():
+    data = {
+        "ticker": "2308.TW",
+        "company_name": "台達電",
+        "earnings_call": {
+            "period": "2026Q1",
+            "transcript_excerpt": "SENT_EARNINGS_CALL_CONTEXT",
+        },
+    }
+    context = {
+        "analyses": {},
+        "structured_outputs": {},
+        "pipeline_id": "v1",
+        "agent_state": initialize_agent_state(data, run_id="prompt-routing-test"),
+    }
+
+    agent_20_prompt = prompting.build_prompt(20, data, context)
+    agent_21_prompt = prompting.build_prompt(21, data, context)
+    agent_12_prompt = prompting.build_prompt(12, data, context)
+
+    assert "earnings_call_context" in agent_20_prompt
+    assert "SENT_EARNINGS_CALL_CONTEXT" in agent_20_prompt
+    assert "SENT_EARNINGS_CALL_CONTEXT" in agent_21_prompt
+    assert "SENT_EARNINGS_CALL_CONTEXT" not in agent_12_prompt
+
+
+def test_every_pipeline_agent_receives_core_ai_data_payload():
+    data = {
+        "ticker": "2308.TW",
+        "company_name": "台達電",
+        "current_price": 123.45,
+        "market_cap_raw": 9_000_000_000,
+        "years": ["2024"],
+        "revenue_history": [100],
+        "net_income_history": [20],
+        "source_audit": [{"source": "market_data", "provider": "fixture", "status": "success", "record_count": 2}],
+    }
+    all_agents = sorted({agent for definition in PIPELINE_DEFINITIONS.values() for agent in definition["agents"]})
+
+    for agent_num in all_agents:
+        payload = _payload_from_prompt(format_data_for_prompt(prompting.data_for_agent_prompt(agent_num, data)))
+        assert payload["market_data"]["current_price_twd"] == 123.45
+        assert payload["history"]["rows"][0]["revenue_billion_twd"] == 100
+        assert payload["source_audit_summary"][0]["source"] == "market_data"
+
+
+def test_every_workflow_source_has_ai_visible_prompt_path():
+    data = {
+        "ticker": "2330.TW",
+        "company_name": "台積電",
+        "current_price": 123,
+        "market_cap_raw": 999_999_999,
+        "revenue_ttm_raw": 1_000_000_000,
+        "net_income_ttm_raw": 200_000_000,
+        "free_cash_flow_raw": 150_000_000,
+        "gross_margin_raw": 0.55,
+        "operating_margin_raw": 0.45,
+        "profit_margin_raw": 0.20,
+        "years": ["2024"],
+        "revenue_history": [111],
+        "net_income_history": [22],
+        "fcf_history": [55],
+        "recent_monthly_revenue": ["SENT_monthly_revenue"],
+        "institutional_trading": {"daily_total_net_buy_last_10": [{"note": "SENT_institutional"}]},
+        "dynamic_peer_metrics": [{"ticker": "2317.TW", "note": "SENT_peer_metrics"}],
+        "pe_river_chart": {"source": "fixture", "years": [2024], "bands": {"low": [10]}, "note": "SENT_pe_river"},
+        "recent_catalysts": [{"title": "SENT_recent_catalysts", "link": "https://example.test/news"}],
+        "global_market_context": {"items": [{"title": "SENT_global"}]},
+        "international_news_context": {"topics": [{"headline": "SENT_international"}]},
+        "macro_indicators": {"summary_text": "SENT_macro"},
+        "chip_data": {"tdcc_shareholder_distribution": {"note": "SENT_chip"}},
+        "alternative_data": {"job_openings_104": {"note": "SENT_alternative"}},
+        "social_sentiment": {"ptt_stock_direct": [{"title": "SENT_social"}]},
+        "sentiment_context": {"social_sentiment": {"ptt_stock_direct": [{"title": "SENT_social"}]}},
+        "sec_edgar": {"recent_filings": [{"form": "SENT_sec"}]},
+        "taiwan_open_data": {"rates": {"USD": {"sell": "SENT_taiwan_open"}}},
+        "earnings_call": {"transcript_excerpt": "SENT_earnings"},
+        "peer_discovery_results": [{"title": "SENT_peer_discovery"}],
+        "source_audit": [
+            {"source": "twse_official", "provider": "fixture", "status": "success", "record_count": 7},
+        ],
+    }
+    expected_visibility = {
+        "monthly_revenue": ("SENT_monthly_revenue", {1, 2, 3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24}),
+        "institutional_trading": ("SENT_institutional", {1, 2, 3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24}),
+        "dynamic_peer_metrics": ("SENT_peer_metrics", {1, 2, 3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24}),
+        "pe_river_chart": ("SENT_pe_river", {1, 2, 3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24}),
+        "recent_catalysts": ("SENT_recent_catalysts", {1, 2, 3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24}),
+        "global_market_context": ("SENT_global", {1, 2, 3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24}),
+        "international_news_context": ("SENT_international", {1, 2, 3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24}),
+        "macro_indicators": ("SENT_macro", {11}),
+        "chip_data": ("SENT_chip", {15, 18, 23, 24}),
+        "alternative_data": ("SENT_alternative", {13, 14}),
+        "social_sentiment": ("SENT_social", {17}),
+        "sec_edgar": ("SENT_sec", {13, 14, 21}),
+        "taiwan_open_data": ("SENT_taiwan_open", {11}),
+        "earnings_call": ("SENT_earnings", {20, 21}),
+        "peer_discovery": ("SENT_peer_discovery", {1, 2, 3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24}),
+    }
+    all_agents = sorted({agent for definition in PIPELINE_DEFINITIONS.values() for agent in definition["agents"]})
+    context = {
+        "analyses": {},
+        "structured_outputs": {},
+        "pipeline_id": "v1",
+        "agent_state": initialize_agent_state(data, run_id="source-coverage-test"),
+    }
+
+    for source, (sentinel, expected_agents) in expected_visibility.items():
+        visible_agents = {agent_num for agent_num in all_agents if sentinel in prompting.build_prompt(agent_num, data, context)}
+        assert visible_agents == expected_agents, source
+
+    for agent_num in all_agents:
+        payload = _payload_from_prompt(format_data_for_prompt(prompting.data_for_agent_prompt(agent_num, data)))
+        assert payload["ttm_financials"]["revenue_billion_twd"] == 1
+        assert payload["ttm_financials"]["gross_margin_pct"] == 55
+        assert payload["cash_flow"]["free_cash_flow_billion_twd"] == 0.15
 
 
 def test_build_prompt_includes_final_audit_preflight_for_non_structured_agent():

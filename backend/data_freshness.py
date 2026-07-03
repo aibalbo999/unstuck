@@ -17,6 +17,7 @@ from data_freshness_policy import (
     CORE_CACHE_SOURCES,
     SOURCE_FRESHNESS_SOURCES,
 )
+from data_trust_audit import source_record_count
 
 FINANCIAL_DATA_MARKET_CACHE_SECONDS = _DEFAULT_FINANCIAL_DATA_MARKET_CACHE_SECONDS
 FINANCIAL_DATA_OFFHOURS_CACHE_SECONDS = _DEFAULT_FINANCIAL_DATA_OFFHOURS_CACHE_SECONDS
@@ -139,6 +140,8 @@ def source_is_stale(
     now_epoch: Optional[float] = None,
     market_session: Optional[bool] = None,
 ) -> bool:
+    if source != "market_data" and source_record_count(source, data) <= 0:
+        return True
     ticker = str(ticker or data.get("ticker") or "").strip().upper()
     entry = build_source_freshness_entry(
         source,

@@ -10,6 +10,9 @@ if str(BACKEND) not in sys.path:
 
 from data_fetch.enrichment_merge import _merge_optional_http_bundle  # noqa: E402
 from data_fetch.provider_registry import ProviderRegistry  # noqa: E402
+from data_fetch.taiwan_open_data_provider import TaiwanOpenDataProvider  # noqa: E402
+import data_fetch.taiwan_open_data_provider as taiwan_open_data_provider  # noqa: E402
+from data_fetch.types import FetchRequest  # noqa: E402
 
 
 def test_default_provider_registry_includes_chip_macro_and_alternative_sources():
@@ -60,3 +63,39 @@ def test_optional_http_bundle_merges_additional_free_context_sources():
     assert latest_sources["social_sentiment"]["status"] == "success"
     assert latest_sources["sec_edgar"]["status"] == "success"
     assert latest_sources["taiwan_open_data"]["status"] == "success"
+
+
+def test_taiwan_open_data_provider_falls_back_to_fred_when_bot_is_challenged(monkeypatch):
+    calls = []
+
+    class FakeResponse:
+        def __init__(self, content: bytes, status_code: int = 200, json_payload=None):
+            self.content = content
+            self.status_code = status_code
+            self._json_payload = json_payload
+
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                raise RuntimeError(f"HTTP {self.status_code}")
+
+        def json(self):
+            return self._json_payload
+
+    def fake_get(url, **_kwargs):
+        calls.append(url)
+        if "rate.bot.com.tw" in url:
+            return FakeResponse(b"<!DOCTYPE html><title>Challenge Validation</title>")
+        return FakeResponse(
+            b'{"result":"success"}',
+            json_payload={"result": "success", "rates": {"TWD": 31.93}, "time_last_update_utc": "Fri, 03 Jul 2026 00:00:01 +0000"},
+        )
+
+    monkeypatch.setattr(taiwan_open_data_provider, "sync_get", fake_get)
+
+    result = TaiwanOpenDataProvider().fetch(FetchRequest.from_ticker("2330.TW"))
+
+    assert result.status == "success"
+    assert result.value["source"] == "open.er-api.com fallback"
+    assert result.value["rates"]["USD"]["sell"] == "31.9300"
+    assert result.audit["record_count"] == 1
+    assert len(calls) == 2

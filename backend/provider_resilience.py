@@ -18,6 +18,14 @@ from tenacity import (
 )
 
 from provider_circuit_cache import load_persisted_circuit, persist_circuit_state
+from provider_throttle import (
+    ProviderRateLimitOpenError,
+    clear_provider_throttles,
+    enforce_provider_throttle,
+    enforce_provider_throttle_async,
+    mark_rate_limit_cooldown,
+    provider_throttle_state,
+)
 
 
 class ProviderCircuitOpenError(RuntimeError):
@@ -186,7 +194,7 @@ def _retry_wait_strategy():
 
 
 def _should_retry(exc: BaseException) -> bool:
-    return not isinstance(exc, ProviderCircuitOpenError)
+    return not isinstance(exc, (ProviderCircuitOpenError, ProviderRateLimitOpenError))
 
 
 def provider_circuit_state(provider: str) -> dict[str, Any]:
@@ -225,6 +233,7 @@ def clear_provider_circuits(provider: str | None = None) -> None:
 def call_provider_with_resilience(provider: str, func: Callable, args: tuple = (), kwargs: dict | None = None) -> Any:
     """Sync wrapper combining Circuit Breaker and Tenacity Retries."""
     _check_provider_state(provider)
+    enforce_provider_throttle(provider)
 
     try:
         for attempt in Retrying(
@@ -238,6 +247,7 @@ def call_provider_with_resilience(provider: str, func: Callable, args: tuple = (
                 _record_provider_success(provider)
                 return result
     except Exception as exc:
+        mark_rate_limit_cooldown(provider, exc)
         _record_provider_failure(provider, exc)
         raise exc
 
@@ -245,6 +255,7 @@ def call_provider_with_resilience(provider: str, func: Callable, args: tuple = (
 async def call_provider_with_resilience_async(provider: str, func_or_awaitable, args: tuple = (), kwargs: dict | None = None) -> Any:
     """Async wrapper combining Circuit Breaker and Tenacity Retries."""
     _check_provider_state(provider)
+    await enforce_provider_throttle_async(provider)
 
     async def invoke() -> Any:
         if inspect.isawaitable(func_or_awaitable):
@@ -266,5 +277,6 @@ async def call_provider_with_resilience_async(provider: str, func_or_awaitable, 
                 _record_provider_success(provider)
                 return result
     except Exception as exc:
+        mark_rate_limit_cooldown(provider, exc)
         _record_provider_failure(provider, exc)
         raise exc

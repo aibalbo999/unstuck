@@ -145,13 +145,15 @@ def _merge_optional_http_bundle(
             )
 
     if refreshed_sources:
-        _mark_sources_fetched(
-            data,
-            ticker,
-            refreshed_sources,
-            fetched_at_epoch=refresh_epoch,
-            cache_hit=bool(data.get("_cache_hit")),
-        )
+        available_sources = tuple(source for source in refreshed_sources if source_record_count(source, data) > 0)
+        if available_sources:
+            _mark_sources_fetched(
+                data,
+                ticker,
+                available_sources,
+                fetched_at_epoch=refresh_epoch,
+                cache_hit=bool(data.get("_cache_hit")),
+            )
         for source in refreshed_sources:
             count = source_record_count(source, data)
             error_message = str(source_errors.get(source) or "")
@@ -176,7 +178,7 @@ def _merge_optional_http_bundle(
                 finished_at_epoch=refresh_epoch,
                 record_count=count,
                 cache_hit=bool(data.get("_cache_hit")),
-                stale=False,
+                stale=count <= 0,
                 error_kind=error_kind,
                 message=message,
             )

@@ -10,6 +10,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from requirements_lock import locked_requirements, unhashed_locked_requirements
+
 
 ROOT = Path(__file__).resolve().parents[1]
 REQUIREMENTS = ROOT / "backend" / "requirements.txt"
@@ -31,12 +33,7 @@ def direct_requirements() -> set[str]:
 
 
 def locked_packages() -> set[str]:
-    names = set()
-    for line in LOCKFILE.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if "==" in stripped and not stripped.startswith("#"):
-            names.add(stripped.split("==", 1)[0].lower().replace("_", "-"))
-    return names
+    return set(locked_requirements(LOCKFILE))
 
 
 def run_pip_audit_if_available() -> int:
@@ -60,6 +57,10 @@ def main() -> int:
     missing = sorted(direct_requirements() - locked_packages())
     if missing:
         print("Direct requirements missing from lockfile: " + ", ".join(missing))
+        return 1
+    unhashed = unhashed_locked_requirements(LOCKFILE)
+    if unhashed:
+        print("Locked requirements missing hashes: " + ", ".join(unhashed))
         return 1
 
     return run_pip_audit_if_available()

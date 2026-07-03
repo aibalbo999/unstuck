@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
@@ -12,6 +13,7 @@ from runtime_events import emit_log
 
 
 HTTP_TIMEOUT_SECONDS = 8.0
+DEFAULT_PROXY_PROVIDER = "external_http"
 SENSITIVE_QUERY_PARAM_NAMES = {
     "access_token",
     "api_key",
@@ -25,12 +27,37 @@ URL_PATTERN = re.compile(r"https?://[^\s'\"<>]+")
 QUERY_SECRET_PATTERN = re.compile(
     r"(?i)(\b(?:access_token|api_key|apikey|key|password|secret|token)=)[^&\s'\"<>]+"
 )
+_PROXY_ROTATION_INDEX: dict[str, int] = {}
 
 
-def sync_json_get(url: str, params: dict[str, Any], headers: dict[str, str] | None = None) -> Any:
-    response = httpx.get(url, params=params, headers=headers, timeout=HTTP_TIMEOUT_SECONDS)
-    response.raise_for_status()
+def sync_json_get(
+    url: str,
+    params: dict[str, Any],
+    headers: dict[str, str] | None = None,
+    *,
+    provider: str | None = None,
+) -> Any:
+    response = sync_get(url, params=params, headers=headers, provider=provider)
     return response.json()
+
+
+def sync_get(
+    url: str,
+    params: dict[str, Any] | None = None,
+    headers: dict[str, str] | None = None,
+    *,
+    timeout: float = HTTP_TIMEOUT_SECONDS,
+    provider: str | None = None,
+) -> httpx.Response:
+    kwargs: dict[str, Any] = {"headers": headers, "timeout": timeout}
+    if params is not None:
+        kwargs["params"] = params
+    proxy_url = proxy_url_for_request(url, provider)
+    if proxy_url:
+        kwargs["proxy"] = proxy_url
+    response = httpx.get(url, **kwargs)
+    response.raise_for_status()
+    return response
 
 
 async def async_json_get(
@@ -44,8 +71,68 @@ async def async_json_get(
     return response.json()
 
 
-def async_client() -> httpx.AsyncClient:
-    return httpx.AsyncClient(timeout=HTTP_TIMEOUT_SECONDS)
+def async_client(provider: str | None = None, *, timeout: float = HTTP_TIMEOUT_SECONDS) -> httpx.AsyncClient:
+    kwargs = {"timeout": timeout}
+    proxy_url = proxy_url_for_provider(provider or DEFAULT_PROXY_PROVIDER)
+    if proxy_url:
+        kwargs["proxy"] = proxy_url
+    return httpx.AsyncClient(**kwargs)
+
+
+def proxy_url_for_request(url: str, provider: str | None = None) -> str | None:
+    """Return the next proxy URL for a request, preferring an explicit provider."""
+    return proxy_url_for_provider(provider or _provider_from_url(url))
+
+
+def proxy_url_for_provider(provider: str) -> str | None:
+    """Return the next configured proxy URL for a provider using round-robin order."""
+    key = _provider_key(provider)
+    urls = _proxy_urls_for_provider(key)
+    if not urls:
+        return None
+    index = _PROXY_ROTATION_INDEX.get(key, 0)
+    _PROXY_ROTATION_INDEX[key] = index + 1
+    return urls[index % len(urls)]
+
+
+def clear_proxy_rotation_state() -> None:
+    """Reset local proxy rotation counters for tests and process reloads."""
+    _PROXY_ROTATION_INDEX.clear()
+
+
+def _proxy_urls_for_provider(provider: str) -> list[str]:
+    provider_env = f"PROVIDER_PROXY_{_provider_env_prefix(provider)}_URLS"
+    raw = os.getenv(provider_env)
+    if raw is None:
+        raw = os.getenv("PROVIDER_PROXY_URLS", "")
+    return _parse_proxy_urls(raw)
+
+
+def _parse_proxy_urls(raw: str) -> list[str]:
+    return [part.strip() for part in re.split(r"[\s,]+", str(raw or "")) if part.strip()]
+
+
+def _provider_key(provider: str) -> str:
+    return str(provider or DEFAULT_PROXY_PROVIDER).strip() or DEFAULT_PROXY_PROVIDER
+
+
+def _provider_env_prefix(provider: str) -> str:
+    token = "".join(ch if ch.isalnum() else "_" for ch in _provider_key(provider).upper())
+    while "__" in token:
+        token = token.replace("__", "_")
+    return token.strip("_") or "UNKNOWN"
+
+
+def _provider_from_url(url: str) -> str:
+    hostname = urlsplit(str(url or "")).hostname or ""
+    host = hostname.lower()
+    if "financialmodelingprep.com" in host:
+        return "FMP"
+    if "googleapis.com" in host or "google.com" in host:
+        return "Google Search"
+    if "gdeltproject.org" in host:
+        return "GDELT"
+    return DEFAULT_PROXY_PROVIDER
 
 
 def _redact_secrets(text: str) -> str:

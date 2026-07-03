@@ -8,6 +8,7 @@ from pathlib import Path
 
 from config import TASK_DB_PATH
 from api_usage_recorders import record_provider_audit_usage
+from data_trust_constants import AUDIT_STATUS_DEGRADED_ENRICHMENT, AUDIT_STATUS_UNAVAILABLE
 from provider_sla_alert_policy import (
     SLA_CRITICAL_SUCCESS_RATE,
     SLA_WARNING_SUCCESS_RATE,
@@ -45,9 +46,9 @@ def record_source_audit_entries(entries: list[dict] | tuple[dict, ...]) -> None:
             continue
         source = str(entry.get("source") or "unknown")
         provider = str(entry.get("provider") or "unknown")
-        status = str(entry.get("status") or "unknown")
-        duration_ms = int(entry.get("duration_ms") or 0)
         record_count = int(entry.get("record_count") or 0)
+        status = _normalized_sla_status(str(entry.get("status") or "unknown"), record_count=record_count)
+        duration_ms = int(entry.get("duration_ms") or 0)
         message = str(entry.get("message") or "")[:240]
         rows.append((source, provider, status, duration_ms, record_count, message, now))
         usage_entries.append({
@@ -123,6 +124,12 @@ def record_source_audit_entries(entries: list[dict] | tuple[dict, ...]) -> None:
             record_provider_audit_usage(entry, created_at=now, db_path=TASK_DB_PATH)
         except Exception:
             pass
+
+
+def _normalized_sla_status(status: str, *, record_count: int) -> str:
+    if status == AUDIT_STATUS_UNAVAILABLE and int(record_count or 0) > 0:
+        return AUDIT_STATUS_DEGRADED_ENRICHMENT
+    return status
 
 
 def get_provider_sla_summary(limit: int = 100) -> list[dict]:

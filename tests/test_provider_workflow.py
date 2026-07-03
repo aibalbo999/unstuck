@@ -8,6 +8,7 @@ sys.path.insert(0, str(ROOT / "backend"))
 
 from data_fetch import CallableProvider, FetchRequest, ProviderRegistry, ProviderResult, StockDataService  # noqa: E402
 from data_fetch.constants import DATA_SCHEMA_VERSION  # noqa: E402
+from data_fetch.enrichment_merge import _merge_optional_http_bundle  # noqa: E402
 from data_fetch.market_sources.peers import CompanyProfile, rank_peer_candidates, select_peer_profiles  # noqa: E402
 import data_fetch.market_sources.peers as peer_sources  # noqa: E402
 from data_fetch.optional_provider_plan import OPTIONAL_WORKFLOW_SOURCES  # noqa: E402
@@ -292,9 +293,9 @@ def test_stock_data_service_uses_provider_plan_for_optional_enrichment(monkeypat
         return ProviderResult(
             source="recent_catalysts",
             provider="Yahoo Finance news",
-            status="success",
-            value=[{"title": "Yahoo catalyst"}],
-            audit={"source": "recent_catalysts", "provider": "Yahoo Finance news", "status": "success", "record_count": 1},
+            status="unavailable",
+            value=[],
+            audit={"source": "recent_catalysts", "provider": "Yahoo Finance news", "status": "unavailable", "record_count": 0},
         )
 
     def peer_provider(request, context):
@@ -332,7 +333,6 @@ def test_stock_data_service_uses_provider_plan_for_optional_enrichment(monkeypat
         "Free catalyst",
         "Alternative catalyst",
         "FMP catalyst",
-        "Yahoo catalyst",
     ]
     assert [item["title"] for item in result.data["peer_discovery_results"]] == [
         "Alternative peer",
@@ -346,6 +346,10 @@ def test_stock_data_service_uses_provider_plan_for_optional_enrichment(monkeypat
         "FMP news",
         "Yahoo Finance news",
     }
+    latest_sources = {entry["source"]: entry for entry in result.data["source_audit"]}
+    assert latest_sources["recent_catalysts"]["provider"] == "Recent catalysts providers"
+    assert latest_sources["recent_catalysts"]["status"] == "success"
+    assert latest_sources["recent_catalysts"]["record_count"] == 3
 
 
 def test_stock_data_service_merges_global_market_and_international_news_context(monkeypatch):
@@ -445,6 +449,27 @@ def test_stock_data_service_merges_global_market_and_international_news_context(
         }
         for code in result.data["data_trust"].get("reason_codes", [])
     )
+
+
+def test_optional_merge_does_not_mark_empty_source_as_fresh():
+    data = {
+        "ticker": "2330.TW",
+        "company_name": "台積電",
+        "source_audit": [],
+        "source_freshness": {},
+    }
+
+    result = _merge_optional_http_bundle(
+        data,
+        {"taiwan_open_data": {}},
+        refreshed_sources=("taiwan_open_data",),
+    )
+
+    assert "taiwan_open_data" not in result.get("source_freshness", {})
+    latest = {entry["source"]: entry for entry in result["source_audit"]}
+    assert latest["taiwan_open_data"]["status"] == "unavailable"
+    assert latest["taiwan_open_data"]["record_count"] == 0
+    assert latest["taiwan_open_data"]["stale"] is True
 
 
 def test_stock_data_service_auto_merges_free_context_sources(monkeypatch):
@@ -548,6 +573,16 @@ def test_default_provider_registry_includes_global_context_sources():
     assert "international_news_context" in sources
 
 
+def test_mops_earnings_call_provider_only_runs_for_taiwan_tickers():
+    registry = ProviderRegistry()
+
+    us_names = registry.provider_names(FetchRequest.from_ticker("AAPL"), source="earnings_call")
+    tw_names = registry.provider_names(FetchRequest.from_ticker("2330.TW"), source="earnings_call")
+
+    assert "MOPS investor conference" not in us_names
+    assert "MOPS investor conference" in tw_names
+
+
 def test_default_provider_registry_sources_are_covered_by_automatic_workflow():
     registry_sources = {provider.source for provider in ProviderRegistry().providers}
     core_workflow_sources = {
@@ -647,7 +682,13 @@ def test_stock_data_service_fake_registry_e2e_cache_audit_and_trust(monkeypatch,
     assert cached_payloads["financial_data:FAKE"]["data_trust"]["status"] == "fresh"
     assert second.cache_hit is True
     assert calls == ["market", "financial", "catalysts", "peers"]
-    assert {entry["status"] for entry in second.source_audit} <= {"skipped_fresh_cache"}
+    latest_cache_audit = {entry["source"]: entry for entry in second.source_audit}
+    assert latest_cache_audit["market_data"]["status"] == "skipped_fresh_cache"
+    assert latest_cache_audit["financial_statements"]["status"] == "skipped_fresh_cache"
+    assert latest_cache_audit["recent_catalysts"]["status"] == "skipped_fresh_cache"
+    assert latest_cache_audit["peer_discovery"]["status"] == "skipped_fresh_cache"
+    assert latest_cache_audit["earnings_call"]["status"] == "unavailable"
+    assert latest_cache_audit["earnings_call"]["record_count"] == 0
 
 
 def test_provider_workflow_skips_fresh_optional_sources(monkeypatch):

@@ -8,6 +8,7 @@ from typing import Optional, Sequence
 
 import data_freshness as freshness_helpers
 from data_trust import (
+    AUDIT_STATUS_DEGRADED_ENRICHMENT,
     AUDIT_STATUS_ERROR,
     AUDIT_STATUS_SKIPPED_FRESH_CACHE,
     AUDIT_STATUS_SUCCESS,
@@ -197,8 +198,9 @@ def _append_cache_audit_entries(data: dict, ticker: str, now_epoch: Optional[flo
     for source in SOURCE_FRESHNESS_SOURCES:
         entry = freshness.get(source, {}) if isinstance(freshness.get(source), dict) else {}
         stale = bool(entry.get("stale"))
-        status = AUDIT_STATUS_UNAVAILABLE if stale else AUDIT_STATUS_SKIPPED_FRESH_CACHE
-        message = "快取仍在新鮮度門檻內，跳過外部 API。" if not stale else "快取來源已過期，等待重新抓取或 async 補強。"
+        record_count = source_record_count(source, data)
+        status = _cache_audit_status(stale=stale, record_count=record_count)
+        message = _cache_audit_message(stale=stale, record_count=record_count)
         _append_source_fetch_audit(
             data,
             source,
@@ -206,13 +208,29 @@ def _append_cache_audit_entries(data: dict, ticker: str, now_epoch: Optional[flo
             status,
             fetched_at_epoch=entry.get("fetched_at_epoch") if isinstance(entry, dict) else now_epoch,
             finished_at_epoch=now_epoch,
-            record_count=source_record_count(source, data),
+            record_count=record_count,
             cache_hit=True,
             stale=stale,
             message=message,
         )
     finalize_data_trust(data)
     return data
+
+
+def _cache_audit_status(*, stale: bool, record_count: int) -> str:
+    if not stale:
+        return AUDIT_STATUS_SKIPPED_FRESH_CACHE
+    if record_count > 0:
+        return AUDIT_STATUS_DEGRADED_ENRICHMENT
+    return AUDIT_STATUS_UNAVAILABLE
+
+
+def _cache_audit_message(*, stale: bool, record_count: int) -> str:
+    if not stale:
+        return "快取仍在新鮮度門檻內，跳過外部 API。"
+    if record_count > 0:
+        return "過期快取仍有可用資料，已標記為降級補充資料並等待 async 補強。"
+    return "快取來源已過期，等待重新抓取或 async 補強。"
 
 
 def _append_skipped_fresh_cache_audit(data: dict, sources: Sequence[str], now_epoch: Optional[float] = None) -> dict:

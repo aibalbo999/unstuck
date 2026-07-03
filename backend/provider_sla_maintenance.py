@@ -40,6 +40,8 @@ def _rebuild_provider_sla_stats(conn) -> None:
                SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) AS error_count,
                SUM(CASE WHEN status = 'unavailable' THEN 1 ELSE 0 END) AS unavailable_count,
                SUM(CASE WHEN status = 'skipped_fresh_cache' THEN 1 ELSE 0 END) AS skipped_fresh_cache_count,
+               SUM(CASE WHEN status = 'not_configured' THEN 1 ELSE 0 END) AS not_configured_count,
+               SUM(CASE WHEN status = 'degraded_enrichment' THEN 1 ELSE 0 END) AS degraded_enrichment_count,
                SUM(duration_ms) AS total_duration_ms,
                SUM(record_count) AS total_records,
                MAX(created_at) AS last_at
@@ -62,10 +64,11 @@ def _rebuild_provider_sla_stats(conn) -> None:
             """
             INSERT INTO provider_sla_stats (
                 source, provider, attempts, success_count, error_count, unavailable_count,
-                skipped_fresh_cache_count, total_duration_ms, total_records,
+                skipped_fresh_cache_count, not_configured_count, degraded_enrichment_count,
+                total_duration_ms, total_records,
                 last_status, last_message, last_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 row["source"],
@@ -75,6 +78,8 @@ def _rebuild_provider_sla_stats(conn) -> None:
                 int(row["error_count"] or 0),
                 int(row["unavailable_count"] or 0),
                 int(row["skipped_fresh_cache_count"] or 0),
+                int(row["not_configured_count"] or 0),
+                int(row["degraded_enrichment_count"] or 0),
                 int(row["total_duration_ms"] or 0),
                 int(row["total_records"] or 0),
                 last["status"] if last else "",

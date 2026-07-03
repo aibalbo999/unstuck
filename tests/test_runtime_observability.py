@@ -160,6 +160,31 @@ def test_provider_sla_tracks_not_configured_without_alerting(monkeypatch, tmp_pa
     assert provider_sla.get_provider_sla_alerts() == []
 
 
+def test_provider_sla_treats_unavailable_with_records_as_degraded_enrichment(monkeypatch, tmp_path):
+    monkeypatch.setattr(provider_sla, "TASK_DB_PATH", str(tmp_path / "provider.sqlite3"))
+
+    provider_sla.record_source_audit_entries(
+        [
+            {
+                "source": "recent_catalysts",
+                "provider": "cache",
+                "status": "unavailable",
+                "duration_ms": 0,
+                "record_count": 5,
+                "message": "快取來源已過期，等待重新抓取或 async 補強。",
+            },
+        ]
+    )
+
+    summary = provider_sla.get_provider_sla_summary()
+    cache = next(row for row in summary if row["provider"] == "cache")
+    assert cache["attempts"] == 1
+    assert cache["unavailable_count"] == 0
+    assert cache["degraded_enrichment_count"] == 1
+    assert cache["success_rate"] == 1.0
+    assert cache["last_status"] == "degraded_enrichment"
+
+
 def test_provider_sla_api_returns_alerts(monkeypatch):
     monkeypatch.setattr(api, "get_provider_sla_summary", lambda limit=100: [{"provider": "fake", "alert_level": "warning"}])
     monkeypatch.setattr(api, "get_provider_sla_alerts", lambda limit=100: [{"provider": "fake", "alert_level": "warning"}])

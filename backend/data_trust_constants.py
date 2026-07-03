@@ -100,6 +100,7 @@ SOURCE_AUDIT_SOURCES = (
     "dynamic_peer_metrics",
     "pe_river_chart",
     "recent_catalysts",
+    "earnings_call",
     "global_market_context",
     "international_news_context",
     "macro_indicators",

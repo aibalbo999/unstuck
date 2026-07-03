@@ -8,6 +8,8 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from requirements_lock import locked_requirements
+
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_REQUIREMENTS = ROOT / "backend" / "requirements.lock"
@@ -21,11 +23,12 @@ def _package_url(name: str, version: str) -> str:
 
 def parse_locked_components(path: Path) -> list[dict[str, str]]:
     components = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#") or "==" not in stripped:
+    for requirement in locked_requirements(path).values():
+        specifiers = list(requirement.specifier)
+        if len(specifiers) != 1 or specifiers[0].operator != "==":
             continue
-        name, version = [part.strip() for part in stripped.split("==", 1)]
+        name = requirement.name
+        version = specifiers[0].version
         components.append({
             "type": "library",
             "name": name,

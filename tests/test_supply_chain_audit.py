@@ -9,6 +9,9 @@ from packaging.version import Version
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+
+from requirements_lock import locked_versions as parse_locked_versions  # noqa: E402
 
 
 def _parsed_requirements(path: Path) -> dict[str, Requirement]:
@@ -21,12 +24,7 @@ def _parsed_requirements(path: Path) -> dict[str, Requirement]:
 
 
 def _locked_versions(path: Path) -> dict[str, Version]:
-    versions = {}
-    for name, requirement in _parsed_requirements(path).items():
-        specifiers = list(requirement.specifier)
-        if len(specifiers) == 1 and specifiers[0].operator == "==":
-            versions[name] = Version(specifiers[0].version)
-    return versions
+    return parse_locked_versions(path)
 
 
 def test_free_external_data_dependencies_are_locked():
@@ -65,6 +63,24 @@ def test_supply_chain_lockfile_covers_direct_runtime_requirements():
     assert set(direct_names) <= locked_names
 
 
+def test_lockfile_uses_hash_pinned_requirements():
+    lockfile = ROOT / "backend" / "requirements.lock"
+    text = lockfile.read_text(encoding="utf-8")
+    requirement_lines = [
+        line
+        for line in text.splitlines()
+        if line.strip()
+        and not line.lstrip().startswith("#")
+        and not line.startswith(" ")
+        and "==" in line
+    ]
+
+    assert requirement_lines
+    assert "--hash=sha256:" in text
+    for line in requirement_lines:
+        assert line.rstrip().endswith("\\") or "--hash=sha256:" in line
+
+
 def test_langgraph_dependencies_are_direct_and_locked():
     direct = set(_parsed_requirements(ROOT / "backend" / "requirements.txt"))
     locked = set(_locked_versions(ROOT / "backend" / "requirements.lock"))
@@ -80,6 +96,14 @@ def test_ci_gate_runs_supply_chain_audit_before_tests():
     assert audit_script.exists()
     assert "scripts/supply_chain_audit.py" in ci_gate
     assert ci_gate.index("scripts/supply_chain_audit.py") < ci_gate.index("-m pytest")
+
+
+def test_bootstrap_installs_hash_locked_requirements():
+    bootstrap = (ROOT / "scripts" / "bootstrap_venv.sh").read_text(encoding="utf-8")
+
+    assert "backend/requirements.lock" in bootstrap
+    assert "--require-hashes" in bootstrap
+    assert "backend/requirements.txt" not in bootstrap
 
 
 def test_sbom_generator_outputs_cyclonedx_from_lockfile(tmp_path):
@@ -103,6 +127,39 @@ def test_sbom_generator_outputs_cyclonedx_from_lockfile(tmp_path):
 
     assert sbom["bomFormat"] == "CycloneDX"
     assert sbom["specVersion"] == "1.5"
+    assert {component["purl"] for component in sbom["components"]} == {
+        "pkg:pypi/requests@2.34.2",
+        "pkg:pypi/coverage@7.14.3",
+    }
+
+
+def test_sbom_generator_parses_hash_pinned_lockfile(tmp_path):
+    requirements = tmp_path / "requirements.lock"
+    output = tmp_path / "sbom.cdx.json"
+    requirements.write_text(
+        """requests==2.34.2 \\
+    --hash=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \\
+    --hash=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+coverage==7.14.3 \\
+    --hash=sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+""",
+        encoding="utf-8",
+    )
+
+    subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "generate_sbom.py"),
+            "--requirements",
+            str(requirements),
+            "--output",
+            str(output),
+        ],
+        check=True,
+        cwd=ROOT,
+    )
+    sbom = json.loads(output.read_text(encoding="utf-8"))
+
     assert {component["purl"] for component in sbom["components"]} == {
         "pkg:pypi/requests@2.34.2",
         "pkg:pypi/coverage@7.14.3",

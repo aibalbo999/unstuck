@@ -18,6 +18,7 @@ SOURCE_FRESHNESS_SOURCES = (
     "financial_statements",
     "monthly_revenue",
     "recent_catalysts",
+    "earnings_call",
     "global_market_context",
     "international_news_context",
     "macro_indicators",

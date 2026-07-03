@@ -84,7 +84,8 @@ stock-agent/
 │   ├── report_gen.py       # HTML / Markdown 報告產生器
 │   ├── prompts/            # Agent system / analysis prompt JSON
 │   ├── templates/          # Jinja2 HTML 報告模板
-│   ├── requirements.txt    # Python 套件
+│   ├── requirements.txt    # Python 套件相容範圍
+│   ├── requirements.lock   # Hash-pinned deployment lockfile
 │   ├── static/             # 前端頁面
 │   └── output/             # 產生的報告，已被 Git 忽略
 ├── main.py                 # CLI 入口
@@ -215,6 +216,12 @@ Production profile 請設定 `UNSTUCK_ENV=production` 或 `DEPLOYMENT_MODE=serve
 - `WACC_TAX_RATE_PCT`：系統 DCF/WACC 的預設稅率，預設 `20.0`
 - `WACC_EQUITY_RISK_PREMIUM_PCT`：CAPM equity risk premium fallback，預設 `5.5`
 - `WACC_CREDIT_SPREAD_PCT`：cost of debt credit spread fallback，預設 `1.5`
+- `PROVIDER_RATE_LIMIT_MIN_INTERVAL_SECONDS`：所有經 `audited_fetch` / `audited_fetch_async` 包裝之外部 provider 的本機最小呼叫間隔，預設 `0`（停用）
+- `PROVIDER_RATE_LIMIT_<PROVIDER>_MIN_INTERVAL_SECONDS`：指定 provider 的最小呼叫間隔，provider 名稱會轉為大寫並把空白/符號改為 `_`，例如 `PROVIDER_RATE_LIMIT_YFINANCE_MIN_INTERVAL_SECONDS=2`
+- `PROVIDER_RATE_LIMIT_COOLDOWN_SECONDS`：外部 provider 遇到限流 HTTP status 後的本機冷卻秒數，預設 `300`
+- `PROVIDER_RATE_LIMIT_STATUS_CODES`：會觸發 provider cooldown 的 HTTP status 清單，預設 `429,403,402`
+- `PROVIDER_PROXY_URLS`：共用外部 HTTP helper 的全域 proxy URL 池，逗號或空白分隔；空值表示不使用 proxy
+- `PROVIDER_PROXY_<PROVIDER>_URLS`：指定 provider 的 proxy URL 池，例如 `PROVIDER_PROXY_FMP_URLS`、`PROVIDER_PROXY_GOOGLE_SEARCH_URLS`、`PROVIDER_PROXY_GDELT_URLS`
 - `GDELT_RATE_LIMIT_COOLDOWN_SECONDS`：GDELT 國際新聞遇到 HTTP 429 後的冷卻秒數，預設 `900`
 - GDELT 國際新聞會先使用 topic cache；遇到 429 時會進入 cooldown，優先讀快取，否則改用 Google News RSS 備援，避免單次分析連續打爆 GDELT
 
@@ -238,7 +245,7 @@ scripts/bootstrap_venv.sh
 ```bash
 /opt/homebrew/bin/python3.13 -m venv .venv
 source .venv/bin/activate
-python -m pip install -r backend/requirements.txt
+python -m pip install --require-hashes -r backend/requirements.lock
 ```
 
 CI 與 smoke scripts 會優先使用 `PYTHON_BIN`，其次使用專案 `.venv/bin/python`：
@@ -285,7 +292,7 @@ scripts/maintenance.sh verify-snapshots --write
 start_mac.command
 ```
 
-腳本會優先使用專案 `.venv`；若尚未建立，會優先用 `/opt/homebrew/bin/python3.13` 建立虛擬環境並安裝 `backend/requirements.txt`。合併 API / Worker 拆分後，這個一鍵腳本也會自動：
+腳本會優先使用專案 `.venv`；若尚未建立，會優先用 `/opt/homebrew/bin/python3.13` 建立虛擬環境，並以 `backend/requirements.lock` 搭配 `--require-hashes` 安裝固定版本。合併 API / Worker 拆分後，這個一鍵腳本也會自動：
 
 1. 使用 `TASK_QUEUE_BACKEND=rq` 與預設 `REDIS_URL=redis://localhost:6379/0`。
 2. 檢查 Redis；若本機 Redis 尚未啟動，會用 `redis-server` 啟動一個本腳本管理的 Redis。

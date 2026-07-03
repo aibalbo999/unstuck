@@ -27,23 +27,18 @@ def fetch_google_search_catalysts(ticker: str, company_name: str, identity: dict
         return []
 
     official_name = identity.get("official_name") or company_name or ticker
-    query = f"{official_name} {ticker} 法說會 展望 供應鏈 營收 投資"
     try:
-        payload = _sync_google_search_json_get({
-            "key": GOOGLE_SEARCH_API_KEY,
-            "cx": GOOGLE_CSE_ID,
-            "q": query,
-            "num": 5,
-            "dateRestrict": f"d{CATALYST_LOOKBACK_DAYS}",
-            "lr": "lang_zh-TW",
-        })
-        return parse_google_catalyst_payload(payload)
+        for params in _google_catalyst_param_sets(official_name, ticker):
+            payload = _sync_google_search_json_get(params)
+            records = parse_google_catalyst_payload(payload)
+            if records:
+                return records
     except Exception as exc:
         log_http_warning("Google Search", "recent catalysts", exc)
         if _is_restricted_google_search_response(exc):
             _log_google_search_setup_hint(exc)
             _mark_google_search_cooldown()
-        return []
+    return []
 
 
 async def fetch_google_search_catalysts_async(ticker: str, company_name: str, identity: dict) -> list[dict]:
@@ -53,27 +48,19 @@ async def fetch_google_search_catalysts_async(ticker: str, company_name: str, id
         return []
 
     official_name = identity.get("official_name") or company_name or ticker
-    query = f"{official_name} {ticker} 法說會 展望 供應鏈 營收 投資"
     try:
         async with async_client() as client:
-            payload = await _async_google_search_json_get(
-                client,
-                {
-                    "key": GOOGLE_SEARCH_API_KEY,
-                    "cx": GOOGLE_CSE_ID,
-                    "q": query,
-                    "num": 5,
-                    "dateRestrict": f"d{CATALYST_LOOKBACK_DAYS}",
-                    "lr": "lang_zh-TW",
-                },
-            )
-        return parse_google_catalyst_payload(payload)
+            for params in _google_catalyst_param_sets(official_name, ticker):
+                payload = await _async_google_search_json_get(client, params)
+                records = parse_google_catalyst_payload(payload)
+                if records:
+                    return records
     except Exception as exc:
         log_http_warning("Google Search", "recent catalysts async", exc)
         if _is_restricted_google_search_response(exc):
             _log_google_search_setup_hint(exc)
             _mark_google_search_cooldown()
-        return []
+    return []
 
 
 def fetch_google_peer_discovery_results(ticker: str, company_name: str, sector: str, industry: str) -> list[dict]:
@@ -83,21 +70,18 @@ def fetch_google_peer_discovery_results(ticker: str, company_name: str, sector: 
     if _google_search_cooldown_active():
         return []
 
-    query = f"{company_name} {ticker} global competitors peers gross margin {industry} {sector}"
     try:
-        payload = _sync_google_search_json_get({
-            "key": GOOGLE_SEARCH_API_KEY,
-            "cx": GOOGLE_CSE_ID,
-            "q": query,
-            "num": 5,
-        })
-        return parse_google_peer_payload(payload)
+        for params in _google_peer_param_sets(ticker, company_name, sector, industry):
+            payload = _sync_google_search_json_get(params)
+            records = parse_google_peer_payload(payload)
+            if records:
+                return records
     except Exception as exc:
         log_http_warning("Google Search", "peer discovery", exc)
         if _is_restricted_google_search_response(exc):
             _log_google_search_setup_hint(exc)
             _mark_google_search_cooldown()
-        return []
+    return []
 
 
 async def fetch_google_peer_discovery_results_async(ticker: str, company_name: str, sector: str, industry: str) -> list[dict]:
@@ -106,25 +90,39 @@ async def fetch_google_peer_discovery_results_async(ticker: str, company_name: s
     if _google_search_cooldown_active():
         return []
 
-    query = f"{company_name} {ticker} global competitors peers gross margin {industry} {sector}"
     try:
         async with async_client() as client:
-            payload = await _async_google_search_json_get(
-                client,
-                {
-                    "key": GOOGLE_SEARCH_API_KEY,
-                    "cx": GOOGLE_CSE_ID,
-                    "q": query,
-                    "num": 5,
-                },
-            )
-        return parse_google_peer_payload(payload)
+            for params in _google_peer_param_sets(ticker, company_name, sector, industry):
+                payload = await _async_google_search_json_get(client, params)
+                records = parse_google_peer_payload(payload)
+                if records:
+                    return records
     except Exception as exc:
         log_http_warning("Google Search", "peer discovery async", exc)
         if _is_restricted_google_search_response(exc):
             _log_google_search_setup_hint(exc)
             _mark_google_search_cooldown()
-        return []
+    return []
+
+
+def _google_catalyst_param_sets(official_name: str, ticker: str) -> list[dict]:
+    base = {"key": GOOGLE_SEARCH_API_KEY, "cx": GOOGLE_CSE_ID, "num": 5, "dateRestrict": f"d{CATALYST_LOOKBACK_DAYS}"}
+    primary = f"{official_name} {ticker} 法說會 展望 供應鏈 營收 投資".strip()
+    broad = f"{official_name} {ticker}".strip()
+    params = [{**base, "q": primary, "lr": "lang_zh-TW"}]
+    if broad and broad != primary:
+        params.append({**base, "q": broad})
+    return params
+
+
+def _google_peer_param_sets(ticker: str, company_name: str, sector: str, industry: str) -> list[dict]:
+    base = {"key": GOOGLE_SEARCH_API_KEY, "cx": GOOGLE_CSE_ID, "num": 5}
+    primary = f"{company_name} {ticker} global competitors peers gross margin {industry} {sector}".strip()
+    broad = f"{company_name} {ticker} competitors peers {industry or sector}".strip()
+    params = [{**base, "q": primary}]
+    if broad and broad != primary:
+        params.append({**base, "q": broad})
+    return params
 
 
 def _google_search_headers() -> dict[str, str]:

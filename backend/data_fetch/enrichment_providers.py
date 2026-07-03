@@ -162,7 +162,7 @@ class FmpNewsProvider(DataProvider):
 
 class EarningsCallProvider(DataProvider):
     name = FREE_EARNINGS_CALL_PROVIDER_NAME
-    source = "earnings_call"
+    source, markets = "earnings_call", {"tw"}
     cost_tier, capabilities = "free", {"earnings_call"}
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:

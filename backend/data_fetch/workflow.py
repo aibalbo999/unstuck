@@ -180,14 +180,14 @@ async def _run_optional_provider_plan(request: FetchRequest, registry: ProviderR
     }
     refreshed_sources = [source for source, should_refresh in refresh_by_source.items() if should_refresh]
 
+    for audit_entry in async_audit_entries:
+        append_source_audit(data, audit_entry)
     data = _merge_optional_http_bundle(
         data,
         http_bundle,
         refreshed_sources=refreshed_sources,
         source_errors={},
     )
-    for audit_entry in async_audit_entries:
-        append_source_audit(data, audit_entry)
     finalize_data_trust(data)
     cache_financial_payload(data, ticker)
     return data

@@ -125,6 +125,113 @@ def test_provider_resilience_retries_and_opens_circuit(monkeypatch):
     provider_resilience.clear_provider_circuits()
 
 
+def test_provider_resilience_enforces_min_interval_between_provider_calls(monkeypatch):
+    provider_resilience.clear_provider_circuits()
+    provider_resilience.clear_provider_throttles()
+    monkeypatch.setenv("PROVIDER_RETRY_ATTEMPTS", "1")
+    monkeypatch.setenv("PROVIDER_RATE_LIMIT_MIN_INTERVAL_SECONDS", "2")
+    now = {"value": 1_000.0}
+    sleeps = []
+
+    def fake_sleep(seconds):
+        sleeps.append(seconds)
+        now["value"] += seconds
+
+    monkeypatch.setattr(provider_resilience.time, "time", lambda: now["value"])
+    monkeypatch.setattr(provider_resilience.time, "sleep", fake_sleep)
+
+    assert provider_resilience.call_provider_with_resilience("paced-provider", lambda: "first") == "first"
+    now["value"] += 0.25
+    assert provider_resilience.call_provider_with_resilience("paced-provider", lambda: "second") == "second"
+
+    assert sleeps == [1.75]
+    provider_resilience.clear_provider_throttles()
+    provider_resilience.clear_provider_circuits()
+
+
+def test_provider_resilience_cools_down_after_http_rate_limit(monkeypatch):
+    provider_resilience.clear_provider_circuits()
+    provider_resilience.clear_provider_throttles()
+    monkeypatch.setenv("PROVIDER_RETRY_ATTEMPTS", "1")
+    monkeypatch.setenv("PROVIDER_RATE_LIMIT_COOLDOWN_SECONDS", "30")
+    now = {"value": 1_000.0}
+    calls = {"count": 0}
+
+    class FakeResponse:
+        status_code = 429
+
+    class FakeHTTPStatusError(RuntimeError):
+        response = FakeResponse()
+
+    def restricted():
+        calls["count"] += 1
+        raise FakeHTTPStatusError("429 Too Many Requests")
+
+    monkeypatch.setattr(provider_resilience.time, "time", lambda: now["value"])
+
+    with pytest.raises(FakeHTTPStatusError):
+        provider_resilience.call_provider_with_resilience("rate-limited-provider", restricted)
+
+    state = provider_resilience.provider_throttle_state("rate-limited-provider")
+    assert state["cooldown_until"] == 1_030.0
+
+    with pytest.raises(provider_resilience.ProviderRateLimitOpenError):
+        provider_resilience.call_provider_with_resilience("rate-limited-provider", lambda: "skipped")
+    assert calls["count"] == 1
+
+    now["value"] += 31.0
+    assert provider_resilience.call_provider_with_resilience("rate-limited-provider", lambda: "ok") == "ok"
+    provider_resilience.clear_provider_throttles()
+    provider_resilience.clear_provider_circuits()
+
+
+def test_audited_fetch_treats_provider_rate_limit_cooldown_as_unavailable(monkeypatch):
+    provider_resilience.clear_provider_circuits()
+    provider_resilience.clear_provider_throttles()
+    monkeypatch.setenv("PROVIDER_RETRY_ATTEMPTS", "1")
+    monkeypatch.setenv("PROVIDER_RATE_LIMIT_COOLDOWN_SECONDS", "30")
+
+    class FakeResponse:
+        status_code = 429
+
+    class FakeHTTPStatusError(RuntimeError):
+        response = FakeResponse()
+
+    first = source_audit.audited_fetch(
+        "recent_catalysts",
+        "cooldown-provider",
+        lambda: (_ for _ in ()).throw(FakeHTTPStatusError("429 Too Many Requests")),
+        default=[],
+    )
+    second = source_audit.audited_fetch("recent_catalysts", "cooldown-provider", lambda: ["late"], default=[])
+
+    assert first["audit"]["status"] == AUDIT_STATUS_ERROR
+    assert second["audit"]["status"] == AUDIT_STATUS_UNAVAILABLE
+    assert second["audit"]["error_kind"] == "ProviderRateLimitOpenError"
+    provider_resilience.clear_provider_throttles()
+    provider_resilience.clear_provider_circuits()
+
+
+def test_provider_rate_limit_provider_specific_env_override(monkeypatch):
+    provider_resilience.clear_provider_throttles()
+    monkeypatch.setenv("PROVIDER_RATE_LIMIT_MIN_INTERVAL_SECONDS", "0")
+    monkeypatch.setenv("PROVIDER_RATE_LIMIT_YFINANCE_MIN_INTERVAL_SECONDS", "2.5")
+
+    state = provider_resilience.provider_throttle_state("yfinance")
+
+    assert state["min_interval_seconds"] == 2.5
+    provider_resilience.clear_provider_throttles()
+
+
+def test_provider_rate_limit_configuration_is_documented():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    operator_guide = (ROOT / "docs" / "operator-guide.md").read_text(encoding="utf-8")
+
+    assert "PROVIDER_RATE_LIMIT_MIN_INTERVAL_SECONDS" in readme
+    assert "PROVIDER_RATE_LIMIT_YFINANCE_MIN_INTERVAL_SECONDS" in readme
+    assert "PROVIDER_RATE_LIMIT_COOLDOWN_SECONDS" in operator_guide
+
+
 def test_circuit_snapshot_is_pure_and_does_not_transition_expired_open_state(monkeypatch):
     breaker = provider_resilience.CircuitBreaker(failure_threshold=1, recovery_timeout=60)
     monkeypatch.setattr(provider_resilience.time, "time", lambda: 1_000.0)

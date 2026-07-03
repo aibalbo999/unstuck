@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 import data_fetch.cache_helpers as cache_helpers  # noqa: E402
+import data_fetch.audit_helpers as audit_helpers  # noqa: E402
 import data_fetch.market_sources.global_context as global_context  # noqa: E402
 import data_fetch.optional_enrichment as optional_enrichment  # noqa: E402
 import data_fetch.yfinance_payload as yfinance_payload  # noqa: E402
@@ -16,6 +17,7 @@ import data_fetch.yfinance_sync_enrichment as sync_enrichment  # noqa: E402
 import data_fetch.yfinance_core_fetch as financial_data  # noqa: E402
 import external_data_gdelt  # noqa: E402
 import external_data_parsers  # noqa: E402
+from data_trust import AUDIT_STATUS_DEGRADED_ENRICHMENT  # noqa: E402
 
 
 class FakeStock:
@@ -150,6 +152,30 @@ def test_global_market_context_summarizes_market_proxy_history(monkeypatch):
     assert context["items"][0]["change_1d_pct"] == 5.7692
     assert context["items"][0]["change_5d_pct"] == 10.0
     assert context["items"][0]["source"] == "yfinance"
+
+
+def test_stale_cache_audit_with_records_counts_as_degraded_enrichment():
+    payload = {
+        "ticker": "2449.TW",
+        "recent_catalysts": [{"title": "cached catalyst"}],
+        "source_freshness": {
+            "recent_catalysts": {
+                "fetched_at_epoch": 1_783_000_000.0,
+                "stale": True,
+            }
+        },
+    }
+
+    audited = audit_helpers._append_cache_audit_entries(payload, "2449.TW", now_epoch=1_783_100_000.0)
+    cache_audit = next(
+        item
+        for item in audited["source_audit"]
+        if item["source"] == "recent_catalysts" and item["provider"] == "cache"
+    )
+
+    assert cache_audit["record_count"] == 1
+    assert cache_audit["status"] == AUDIT_STATUS_DEGRADED_ENRICHMENT
+    assert "過期快取" in cache_audit["message"]
 
 
 def test_global_market_context_includes_no_key_macro_commodity_and_regional_sources(monkeypatch):

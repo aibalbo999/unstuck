@@ -98,6 +98,40 @@ def test_google_search_sends_optional_referer_header(monkeypatch):
     google.clear_google_search_cooldown()
 
 
+def test_google_search_retries_with_broader_query_when_empty(monkeypatch):
+    import external_data_google as google
+
+    calls = []
+
+    async def search(_client, _url, params, headers=None):
+        calls.append(params["q"])
+        if len(calls) == 1:
+            return {"items": []}
+        return {
+            "items": [
+                {
+                    "title": "TSMC monthly revenue improves",
+                    "snippet": "AI demand supports outlook.",
+                    "link": "https://news.example/tsmc",
+                    "displayLink": "news.example",
+                }
+            ]
+        }
+
+    monkeypatch.setattr(google, "GOOGLE_SEARCH_API_KEY", "test-key")
+    monkeypatch.setattr(google, "GOOGLE_CSE_ID", "test-cx")
+    monkeypatch.setattr(google, "_async_json_get", search)
+    google.clear_google_search_cooldown()
+
+    records = asyncio.run(google.fetch_google_search_catalysts_async("2330.TW", "台積電", {"official_name": "台積電"}))
+
+    assert len(calls) == 2
+    assert "法說會" in calls[0]
+    assert calls[1] == "台積電 2330.TW"
+    assert records[0]["source_type"] == "google_search"
+    google.clear_google_search_cooldown()
+
+
 def test_google_search_referrer_block_hint_identifies_configuration_issue():
     import external_data_google as google
 

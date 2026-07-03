@@ -46,7 +46,7 @@ async def fetch_fmp_quote_fallback_async(ticker: str) -> dict:
 
     symbol = ticker.strip().upper()
     try:
-        async with async_client() as client:
+        async with async_client("FMP") as client:
             payload = await _async_json_get(client, f"{FMP_BASE_URL}/quote", {"symbol": symbol, "apikey": FMP_API_KEY})
         return parse_fmp_quote_payload(payload)
     except Exception as exc:
@@ -114,7 +114,7 @@ async def fetch_fmp_news_catalysts_async(ticker: str) -> list[dict]:
             return []
         return parse_fmp_news_payload(payload)
 
-    async with async_client() as client:
+    async with async_client("FMP") as client:
         results = await asyncio.gather(
             *(fetch_endpoint(client, url, params) for url, params in candidates),
             return_exceptions=False,
