@@ -416,3 +416,17 @@ def test_validate_runtime_settings_reports_runtime_dependency_misconfiguration(m
     assert any("REPORT_STORAGE_BACKEND" in warning and "s3" in warning for warning in warnings)
     assert any("CACHE_BACKEND" in warning and "disk" in warning for warning in warnings)
     assert any("CACHE_NAMESPACE" in warning for warning in warnings)
+
+
+def test_validate_runtime_settings_warns_for_sqlite_checkpoint_in_production(monkeypatch):
+    from settings import app_config
+
+    monkeypatch.setattr(app_config, "DEPLOYMENT_MODE", "production")
+    monkeypatch.setattr(app_config, "MUTATION_API_TOKEN", "prod-token")
+    monkeypatch.setattr(app_config, "ALLOWED_ORIGINS", ["https://app.example"])
+    monkeypatch.setattr(app_config, "has_network_access_guard", lambda: True)
+    monkeypatch.setattr(app_config, "LANGGRAPH_CHECKPOINT_PATH", "/srv/stock-agent/checkpoints.sqlite3")
+
+    warnings = app_config.validate_runtime_settings()
+
+    assert any("LANGGRAPH_CHECKPOINT_PATH" in warning and "PostgreSQL" in warning for warning in warnings)

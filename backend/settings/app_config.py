@@ -56,10 +56,20 @@ def validate_runtime_settings() -> list[str]:
         raise RuntimeError("production/lan/server profile 不允許 ALLOWED_ORIGINS 使用萬用字元 *。")
     if is_production_profile(DEPLOYMENT_MODE) and not has_network_access_guard():
         raise RuntimeError("production/lan/server profile 必須設定 BASIC_AUTH_USERNAME/BASIC_AUTH_PASSWORD，或設 EXTERNAL_ACCESS_CONTROLLED=true 表示已有外層控管。")
+    if is_production_profile(DEPLOYMENT_MODE) and _is_sqlite_checkpoint_path(LANGGRAPH_CHECKPOINT_PATH):
+        warnings.append(
+            "LANGGRAPH_CHECKPOINT_PATH 目前使用 SQLite checkpoint；"
+            "production 高併發建議改用 langgraph-checkpoint-postgres / PostgreSQL。"
+        )
     invalid_freshness = [source for source, seconds in SOURCE_FRESHNESS_MAX_AGE_SECONDS.items() if int(seconds) <= 0]
     if invalid_freshness:
         warnings.append("SOURCE_FRESHNESS_*_SECONDS 必須大於 0：" + ", ".join(sorted(invalid_freshness)))
     return warnings
+
+
+def _is_sqlite_checkpoint_path(value: object) -> bool:
+    text = str(value or "").strip().lower()
+    return text.endswith((".sqlite", ".sqlite3", ".db"))
 
 
 __all__ = sorted({
