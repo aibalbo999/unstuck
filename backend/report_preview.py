@@ -130,8 +130,24 @@ def _base_summary(recommendation: dict, markdown_text: str) -> str:
     return clean_report_text(title.group(1), limit=420) if title else "這份報告沒有可讀的一頁式摘要，可直接查看完整報告。"
 
 
+def _calibration_metric(recommendation: dict) -> dict | None:
+    calibration = recommendation.get("recommendation_calibration")
+    if not isinstance(calibration, dict):
+        return None
+    status = str(calibration.get("status") or "")
+    if status == "adjusted":
+        original = normalize_recommendation_label(calibration.get("original_recommendation"))
+        calibrated = normalize_recommendation_label(calibration.get("calibrated_recommendation"))
+        if original != "N/A" and calibrated != "N/A" and original != calibrated:
+            return _metric("校準", f"{original} → {calibrated}", "is-neutral")
+    if status == "watch":
+        return _metric("校準", "需重審", "is-neutral")
+    return None
+
+
 def _investment_preview(ticker: str, recommendation: dict, markdown_text: str) -> dict:
     rec = normalize_recommendation_label(recommendation.get("recommendation", "N/A"))
+    calibration_metric = _calibration_metric(recommendation)
     return {
         "kind": "investment",
         "title": f"{ticker} 投資建議",
@@ -139,7 +155,7 @@ def _investment_preview(ticker: str, recommendation: dict, markdown_text: str) -
         "metrics": [
             _metric("當日股價", recommendation.get("current_price")),
             _metric("信心", recommendation.get("confidence")),
-        ],
+        ] + ([calibration_metric] if calibration_metric else []),
         "targets": [
             _metric("3個月", recommendation.get("target_3m")),
             _metric("6個月", recommendation.get("target_6m")),

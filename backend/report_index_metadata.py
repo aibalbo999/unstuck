@@ -10,6 +10,7 @@ from typing import Optional
 
 from data_trust import data_snapshot_filename_for_report, normalize_data_trust, read_data_trust_from_snapshot
 from decision_tracking import build_decision_freshness, build_decision_tracking
+from recommendation_calibration import calibrate_recommendation_summary
 from report_paths import report_storage_candidates_for_filename
 from report_index_parsing import (
     extract_company_name as _extract_company_name,
@@ -106,6 +107,12 @@ def build_report_metadata(
         else read_data_trust_from_snapshot(data_snapshot_path)
     )
     snapshot_flags = read_snapshot_report_flags(data_snapshot_path)
+    recommendation = calibrate_recommendation_summary(
+        recommendation,
+        data_trust=data_trust_summary,
+        analysis_text_stale=snapshot_flags["analysis_text_stale"],
+        pipeline_id=parsed["pipeline_id"],
+    )
     decision_tracking = build_decision_tracking(recommendation, data_snapshot_path)
     decision_freshness = build_decision_freshness(data_snapshot_path, report_generated_at=report_date)
     normalized_recommendation = normalize_recommendation_label(recommendation.get("recommendation"))

@@ -151,6 +151,11 @@ def build_decision_tracking(recommendation: dict, data_snapshot_path: str = "") 
         "price_updated_at": _price_updated_at(snapshot),
         "snapshot_refreshed_at": _snapshot_refreshed_at(snapshot),
         "refreshed_without_analysis_rerun": bool(snapshot.get("refreshed_without_analysis_rerun")),
+        "recommendation_calibration": (
+            recommendation.get("recommendation_calibration")
+            if isinstance(recommendation.get("recommendation_calibration"), dict)
+            else {}
+        ),
     }
     tracking["return_pct"] = _pct_change(tracking["latest_price"], tracking["initial_price"])
     tracking["target_12m_gap_pct"] = _pct_change(tracking["target_12m"], tracking["latest_price"])
