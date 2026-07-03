@@ -48,10 +48,13 @@ def sync_get(
     *,
     timeout: Any = HTTP_TIMEOUT_SECONDS,
     provider: str | None = None,
+    verify: Any | None = None,
 ) -> httpx.Response:
     kwargs: dict[str, Any] = {"headers": headers, "timeout": _normalize_timeout(timeout)}
     if params is not None:
         kwargs["params"] = params
+    if verify is not None:
+        kwargs["verify"] = verify
     proxy_url = proxy_url_for_request(url, provider)
     if proxy_url:
         kwargs["proxy"] = proxy_url
@@ -69,6 +72,7 @@ def sync_post(
     *,
     timeout: Any = HTTP_TIMEOUT_SECONDS,
     provider: str | None = None,
+    verify: Any | None = None,
 ) -> httpx.Response:
     kwargs: dict[str, Any] = {"headers": headers, "timeout": _normalize_timeout(timeout)}
     if data is not None:
@@ -77,6 +81,8 @@ def sync_post(
         kwargs["json"] = json
     if params is not None:
         kwargs["params"] = params
+    if verify is not None:
+        kwargs["verify"] = verify
     proxy_url = proxy_url_for_request(url, provider)
     if proxy_url:
         kwargs["proxy"] = proxy_url

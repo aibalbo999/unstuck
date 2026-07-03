@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import requests
+import httpx
 from urllib.parse import urlsplit
 
 import text_extractor
@@ -25,7 +25,9 @@ class Response:
 
     def raise_for_status(self) -> None:
         if self.status_code >= 400:
-            raise requests.HTTPError(f"status {self.status_code}")
+            request = httpx.Request("GET", self.url)
+            response = httpx.Response(self.status_code, request=request)
+            raise httpx.HTTPStatusError(f"status {self.status_code}", request=request, response=response)
 
     def iter_content(self, chunk_size=8192):
         for index in range(0, len(self.content), chunk_size):
@@ -55,7 +57,7 @@ class Socket:
 
 def test_extract_article_text_returns_clean_bounded_text(monkeypatch):
     monkeypatch.setattr(text_extractor, "_resolve_public_host", lambda *_args: True)
-    monkeypatch.setattr(text_extractor.requests, "get", lambda *_args, **_kwargs: Response())
+    monkeypatch.setattr(text_extractor, "_request_with_pinned_dns", lambda _safe_url: Response())
     monkeypatch.setattr(
         text_extractor.trafilatura,
         "extract",
@@ -70,19 +72,31 @@ def test_extract_article_text_passes_safe_download_options(monkeypatch):
     monkeypatch.setattr(text_extractor, "_resolve_public_host", lambda *_args: True)
     monkeypatch.setattr(text_extractor.trafilatura, "extract", lambda *_args, **_kwargs: "body")
 
-    def fake_get(url, **kwargs):
-        captured["url"] = url
-        captured.update(kwargs)
-        return Response()
+    class FakeClient:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
 
-    monkeypatch.setattr(text_extractor.requests, "get", fake_get)
+        def build_request(self, method, url):
+            captured["method"] = method
+            captured["url"] = url
+            return httpx.Request(method, url)
+
+        def send(self, request, *, stream):
+            captured["stream"] = stream
+            return Response(url=str(request.url))
+
+        def close(self):
+            captured["client_closed"] = True
+
+    monkeypatch.setattr(text_extractor.httpx, "Client", FakeClient)
 
     assert text_extractor.extract_article_text("https://news.example/a") == "body"
     assert captured["url"] == "https://news.example/a"
     assert captured["timeout"] == text_extractor.REQUEST_TIMEOUT_SECONDS
-    assert captured["allow_redirects"] is False
+    assert captured["follow_redirects"] is False
     assert captured["stream"] is True
     assert "Mozilla" in captured["headers"]["User-Agent"]
+    assert captured["client_closed"] is True
 
 
 def test_extract_article_text_rejects_unsafe_urls():
@@ -110,7 +124,7 @@ def test_extract_article_text_invalid_port_does_not_touch_network(monkeypatch):
         called = True
         return Response()
 
-    monkeypatch.setattr(text_extractor.requests, "get", fake_get)
+    monkeypatch.setattr(text_extractor, "_request_with_pinned_dns", fake_get)
 
     assert text_extractor.extract_article_text("https://news.example:99999/a") is None
     assert called is False
@@ -125,9 +139,37 @@ def test_extract_article_text_rejects_private_dns_resolution(monkeypatch):
 def test_extract_article_text_rejects_private_request_peer(monkeypatch):
     monkeypatch.setattr(text_extractor, "_resolve_public_host", lambda *_args: True)
     response = Response(peer_ip="127.0.0.1")
-    monkeypatch.setattr(text_extractor.requests, "get", lambda *_args, **_kwargs: response)
+    monkeypatch.setattr(text_extractor, "_request_with_pinned_dns", lambda _safe_url: response)
 
     assert text_extractor.extract_article_text("https://news.example/a") is None
+    assert response.closed is True
+
+
+def test_httpx_stream_response_peer_and_bytes_are_supported():
+    class NetworkStream:
+        def get_extra_info(self, name):
+            return Socket("93.184.216.34") if name == "socket" else None
+
+    class HttpxStyleResponse:
+        status_code = 200
+        headers = {}
+        encoding = "utf-8"
+        extensions = {"network_stream": NetworkStream()}
+
+        def __init__(self):
+            self.closed = False
+
+        def iter_bytes(self, chunk_size=8192):
+            yield b"<html>"
+            yield b"body</html>"
+
+        def close(self):
+            self.closed = True
+
+    response = HttpxStyleResponse()
+
+    assert text_extractor._response_peer_is_public(response) is True
+    assert text_extractor._read_bounded_content(response) == b"<html>body</html>"
     assert response.closed is True
 
 
@@ -152,14 +194,26 @@ def test_extract_article_text_pins_validated_dns_during_request(monkeypatch):
         calls.append(host)
         return public_info if len(calls) == 1 else private_info
 
-    def fake_get(url, **_kwargs):
-        host = urlsplit(url).hostname
-        resolved = text_extractor.socket.getaddrinfo(host, 443, type=text_extractor.socket.SOCK_STREAM)
-        assert resolved[0][4] == ("93.184.216.34", 443)
-        return Response(peer_ip="93.184.216.34")
+    class FakeClient:
+        def __init__(self, **_kwargs):
+            pass
+
+        def build_request(self, method, url):
+            return httpx.Request(method, url)
+
+        def send(self, request, *, stream):
+            host = urlsplit(str(request.url)).hostname
+            assert stream is True
+            resolved = text_extractor.socket.getaddrinfo(host, 443, type=text_extractor.socket.SOCK_STREAM)
+            assert resolved[0][4] == ("93.184.216.34", 443)
+            return Response(peer_ip="93.184.216.34")
+
+        def close(self):
+            return None
+
+    monkeypatch.setattr(text_extractor.httpx, "Client", FakeClient)
 
     monkeypatch.setattr(text_extractor.socket, "getaddrinfo", fake_getaddrinfo)
-    monkeypatch.setattr(text_extractor.requests, "get", fake_get)
     monkeypatch.setattr(text_extractor.trafilatura, "extract", lambda *_args, **_kwargs: "body")
 
     assert text_extractor.extract_article_text("https://news.example/a") == "body"
@@ -169,15 +223,15 @@ def test_extract_article_text_rejects_redirect_to_private_host_before_request(mo
     monkeypatch.setattr(text_extractor, "_resolve_public_host", lambda *_args: True)
     requested = []
 
-    def fake_get(url, **_kwargs):
-        requested.append(url)
+    def fake_get(safe_url):
+        requested.append(safe_url.url)
         return Response(
-            url=url,
+            url=safe_url.url,
             status_code=302,
             headers={"Location": "http://127.0.0.1/admin"},
         )
 
-    monkeypatch.setattr(text_extractor.requests, "get", fake_get)
+    monkeypatch.setattr(text_extractor, "_request_with_pinned_dns", fake_get)
 
     assert text_extractor.extract_article_text("https://news.example/a") is None
     assert requested == ["https://news.example/a"]
@@ -187,19 +241,19 @@ def test_extract_article_text_handles_timeout_http_and_empty_extraction(monkeypa
     monkeypatch.setattr(text_extractor, "_resolve_public_host", lambda *_args: True)
 
     def timeout(*_args, **_kwargs):
-        raise requests.Timeout("private body")
+        raise httpx.TimeoutException("private body")
 
-    monkeypatch.setattr(text_extractor.requests, "get", timeout)
+    monkeypatch.setattr(text_extractor, "_request_with_pinned_dns", timeout)
     assert text_extractor.extract_article_text("https://news.example/a") is None
 
     monkeypatch.setattr(
-        text_extractor.requests,
-        "get",
-        lambda *_args, **_kwargs: Response(status_code=403),
+        text_extractor,
+        "_request_with_pinned_dns",
+        lambda _safe_url: Response(status_code=403),
     )
     assert text_extractor.extract_article_text("https://news.example/a") is None
 
-    monkeypatch.setattr(text_extractor.requests, "get", lambda *_args, **_kwargs: Response())
+    monkeypatch.setattr(text_extractor, "_request_with_pinned_dns", lambda _safe_url: Response())
     monkeypatch.setattr(text_extractor.trafilatura, "extract", lambda *_args, **_kwargs: "   ")
     assert text_extractor.extract_article_text("https://news.example/a") is None
 
@@ -207,9 +261,9 @@ def test_extract_article_text_handles_timeout_http_and_empty_extraction(monkeypa
 def test_extract_article_text_limits_download_bytes(monkeypatch):
     monkeypatch.setattr(text_extractor, "_resolve_public_host", lambda *_args: True)
     monkeypatch.setattr(
-        text_extractor.requests,
-        "get",
-        lambda *_args, **_kwargs: Response(content=b"a" * (text_extractor.MAX_RESPONSE_BYTES + 1)),
+        text_extractor,
+        "_request_with_pinned_dns",
+        lambda _safe_url: Response(content=b"a" * (text_extractor.MAX_RESPONSE_BYTES + 1)),
     )
 
     assert text_extractor.extract_article_text("https://news.example/a") is None
@@ -226,7 +280,7 @@ def test_extract_article_text_stops_streaming_after_byte_limit(monkeypatch):
                 yield chunk
 
     response = StreamingResponse()
-    monkeypatch.setattr(text_extractor.requests, "get", lambda *_args, **_kwargs: response)
+    monkeypatch.setattr(text_extractor, "_request_with_pinned_dns", lambda _safe_url: response)
 
     assert text_extractor.extract_article_text("https://news.example/a") is None
     assert len(chunks_read) == 2
@@ -239,8 +293,8 @@ def test_extract_article_text_handles_streaming_timeout(monkeypatch):
     class StreamingResponse(Response):
         def iter_content(self, chunk_size=8192):
             yield b"partial"
-            raise requests.Timeout("private body")
+            raise httpx.TimeoutException("private body")
 
-    monkeypatch.setattr(text_extractor.requests, "get", lambda *_args, **_kwargs: StreamingResponse())
+    monkeypatch.setattr(text_extractor, "_request_with_pinned_dns", lambda _safe_url: StreamingResponse())
 
     assert text_extractor.extract_article_text("https://news.example/a") is None

@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import Any, Iterator
 from urllib.parse import urljoin, urlsplit
 
-import requests
+import httpx
 import trafilatura
 
 
@@ -61,13 +61,14 @@ def extract_article_text(url: str, max_chars: int = DEFAULT_MAX_CHARS) -> str | 
     return text[:_bounded_max_chars(max_chars)]
 
 
-def _get_public_response(url: SafeUrl) -> requests.Response | None:
+def _get_public_response(url: SafeUrl) -> httpx.Response | None:
     current_url = url
     for _ in range(MAX_REDIRECTS + 1):
         try:
             response = _request_with_pinned_dns(current_url)
-            response.raise_for_status()
-        except requests.RequestException as exc:
+            if not _is_redirect(response):
+                response.raise_for_status()
+        except httpx.HTTPError as exc:
             response = locals().get("response")
             _close_response(response)
             _warn("download", exc)
@@ -94,7 +95,10 @@ def _read_bounded_content(response: Any) -> bytes | None:
     total = 0
     chunks: list[bytes] = []
     try:
-        iterator = response.iter_content(chunk_size=8192)
+        streamer = getattr(response, "iter_content", None)
+        if not callable(streamer):
+            streamer = getattr(response, "iter_bytes")
+        iterator = streamer(chunk_size=8192)
     except AttributeError:
         content = getattr(response, "content", b"")
         try:
@@ -114,7 +118,7 @@ def _read_bounded_content(response: Any) -> bytes | None:
                 return None
             chunks.append(chunk)
         return b"".join(chunks)
-    except requests.RequestException as exc:
+    except httpx.HTTPError as exc:
         _warn("stream", exc)
         return None
     finally:
@@ -122,18 +126,35 @@ def _read_bounded_content(response: Any) -> bytes | None:
 
 
 def _response_peer_is_public(response: Any) -> bool:
-    try:
-        peer = response.raw._connection.sock.getpeername()[0]
-    except (AttributeError, IndexError, TypeError, OSError):
+    peer = _response_peer_ip(response)
+    if not peer:
         _warn("peer")
         return False
     return _host_is_public(str(peer))
+
+
+def _response_peer_ip(response: Any) -> str | None:
+    try:
+        return str(response.raw._connection.sock.getpeername()[0])
+    except (AttributeError, IndexError, TypeError, OSError):
+        pass
+    try:
+        stream = getattr(response, "extensions", {}).get("network_stream")
+        get_extra_info = getattr(stream, "get_extra_info", None)
+        sock = get_extra_info("socket") if callable(get_extra_info) else None
+        return str(sock.getpeername()[0]) if sock is not None else None
+    except (AttributeError, IndexError, TypeError, OSError):
+        return None
 
 
 def _close_response(response: Any) -> None:
     close = getattr(response, "close", None)
     if callable(close):
         close()
+    client = getattr(response, "_stock_agent_httpx_client", None)
+    client_close = getattr(client, "close", None)
+    if callable(client_close):
+        client_close()
 
 
 def _is_redirect(response: Any) -> bool:
@@ -145,15 +166,21 @@ def _redirect_url(current_url: str, response: Any) -> str:
     return urljoin(current_url, location)
 
 
-def _request_with_pinned_dns(safe_url: SafeUrl) -> requests.Response:
+def _request_with_pinned_dns(safe_url: SafeUrl) -> httpx.Response:
     with _pinned_getaddrinfo(safe_url):
-        return requests.get(
-            safe_url.url,
+        client = httpx.Client(
             headers={"User-Agent": USER_AGENT},
             timeout=REQUEST_TIMEOUT_SECONDS,
-            allow_redirects=False,
-            stream=True,
+            follow_redirects=False,
         )
+        try:
+            request = client.build_request("GET", safe_url.url)
+            response = client.send(request, stream=True)
+        except Exception:
+            client.close()
+            raise
+        setattr(response, "_stock_agent_httpx_client", client)
+        return response
 
 
 @contextmanager

@@ -38,11 +38,10 @@ class FakeSession:
         return self.response
 
 
-def test_default_chip_data_session_keeps_certificate_checks_without_x509_strict():
-    from chip_data_fetcher import _build_http_session
+def test_tdcc_tls_context_keeps_certificate_checks_without_x509_strict():
+    from chip_data_fetcher import _build_compatible_tls_context
 
-    session = _build_http_session()
-    context = session.get_adapter("https://").poolmanager.connection_pool_kw["ssl_context"]
+    context = _build_compatible_tls_context()
 
     assert context.verify_mode == ssl.CERT_REQUIRED
     assert context.check_hostname is True
@@ -81,6 +80,30 @@ def test_fetch_tdcc_shareholder_distribution_calculates_major_and_retail_ratios(
     assert result["retail_holders_lt_50_lots_pct"] == pytest.approx(0.89)
     assert result["source"] == "TDCC OpenData"
     assert result["row_count"] == 15
+
+
+def test_fetch_tdcc_shareholder_distribution_uses_shared_http_client(monkeypatch):
+    import chip_data_fetcher
+    from chip_data_fetcher import fetch_tdcc_shareholder_distribution
+
+    calls = []
+    csv_text = """資料日期,證券代號,持股分級,人數,股數,占集保庫存數比例%
+20260618,2308,1,120,8000,0.08
+20260618,2308,15,1520,22000,0.22
+"""
+
+    def fake_get(url, **kwargs):
+        calls.append({"url": url, **kwargs})
+        return FakeResponse(text=csv_text)
+
+    monkeypatch.setattr(chip_data_fetcher, "sync_get", fake_get)
+
+    result = fetch_tdcc_shareholder_distribution("2308.TW", "20260618")
+
+    assert result["status"] == "success"
+    assert calls[0]["provider"] == "TDCC OpenData"
+    assert calls[0]["timeout"] == 20
+    assert calls[0]["verify"].verify_mode == ssl.CERT_REQUIRED
 
 
 def test_fetch_tdcc_shareholder_distribution_uses_latest_date_when_date_missing():
@@ -160,3 +183,29 @@ def test_fetch_twse_margin_short_sales_uses_legacy_borrowed_short_endpoint():
     assert result["as_of_date"] == "20260618"
     assert result["borrowed_short_sale_today"] == 20000
     assert result["borrowed_short_sale_balance"] == 29000
+
+
+def test_fetch_twse_margin_short_sales_uses_shared_http_client(monkeypatch):
+    import chip_data_fetcher
+    from chip_data_fetcher import fetch_twse_margin_short_sales
+
+    calls = []
+
+    def fake_get(url, **kwargs):
+        calls.append({"url": url, **kwargs})
+        if "MI_MARGN" in url:
+            return FakeResponse(payload=[{"股票代號": "2308", "股票名稱": "台達電", "融資今日餘額": "12,345"}])
+        if "TWT93U" in url:
+            return FakeResponse(payload={
+                "date": "20260618",
+                "data": [["2308", "台達電", "0", "0", "0", "0", "456,000", "0", "10,000", "20,000", "1,000", "0", "29,000"]],
+            })
+        raise AssertionError(url)
+
+    monkeypatch.setattr(chip_data_fetcher, "sync_get", fake_get)
+
+    result = fetch_twse_margin_short_sales("2308")
+
+    assert result["margin_balance"] == 12345
+    assert result["borrowed_short_sale_balance"] == 29000
+    assert [call["provider"] for call in calls] == ["TWSE OpenAPI MI_MARGN", "TWSE TWT93U"]

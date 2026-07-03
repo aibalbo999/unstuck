@@ -83,11 +83,13 @@ def test_sync_get_passes_rotated_proxy_and_returns_response(monkeypatch):
         headers={"User-Agent": "Mozilla/5.0"},
         timeout=5,
         provider="Taiwan Open Data",
+        verify=False,
     )
 
     assert response.content == b"csv"
     assert calls[0]["proxy"] == "http://tw-proxy:8080"
     assert calls[0]["timeout"] == 5
+    assert calls[0]["verify"] is False
     external_http_client.clear_proxy_rotation_state()
 
 

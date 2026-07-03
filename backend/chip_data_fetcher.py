@@ -9,9 +9,8 @@ from datetime import date, datetime
 from typing import Any
 
 import pandas as pd
-import requests
-from requests.adapters import HTTPAdapter
 
+from external_http_client import sync_get
 
 TDCC_SHAREHOLDER_DISTRIBUTION_CSV_URL = "https://opendata.tdcc.com.tw/getOD.ashx?id=1-5"
 TWSE_MARGIN_BALANCE_URL = "https://openapi.twse.com.tw/v1/exchangeReport/MI_MARGN"
@@ -25,36 +24,31 @@ RETAIL_LT_50_LOTS_LEVELS = set(range(1, 9))
 MAJOR_GT_1000_LOTS_LEVELS = {15}
 
 
-class _CompatibleTLSAdapter(HTTPAdapter):
+def _build_compatible_tls_context() -> ssl.SSLContext:
     """Keep certificate verification while tolerating legacy public-site chains."""
-
-    def init_poolmanager(self, connections, maxsize, block=False, **pool_kwargs):
-        context = ssl.create_default_context()
-        if hasattr(ssl, "VERIFY_X509_STRICT"):
-            context.verify_flags &= ~ssl.VERIFY_X509_STRICT
-        pool_kwargs["ssl_context"] = context
-        return super().init_poolmanager(connections, maxsize, block=block, **pool_kwargs)
-
-
-def _build_http_session() -> requests.Session:
-    session = requests.Session()
-    session.mount("https://", _CompatibleTLSAdapter())
-    return session
+    context = ssl.create_default_context()
+    if hasattr(ssl, "VERIFY_X509_STRICT"):
+        context.verify_flags &= ~ssl.VERIFY_X509_STRICT
+    return context
 
 
 def fetch_tdcc_shareholder_distribution(
     ticker: str,
     date: str | date | datetime | None = None,
     *,
-    session: requests.Session | None = None,
+    session: Any | None = None,
     timeout: float = 20,
 ) -> dict[str, Any]:
     """Fetch TDCC shareholder distribution and compute major/retail holding ratios."""
     code = _normalize_taiwan_stock_code(ticker)
-    http = session or _build_http_session()
     try:
-        response = http.get(TDCC_SHAREHOLDER_DISTRIBUTION_CSV_URL, headers=DEFAULT_HEADERS, timeout=timeout)
-        response.raise_for_status()
+        response = _http_get(
+            TDCC_SHAREHOLDER_DISTRIBUTION_CSV_URL,
+            session=session,
+            timeout=timeout,
+            provider="TDCC OpenData",
+            verify=_build_compatible_tls_context(),
+        )
         df = _read_tdcc_csv(response.text)
         if df.empty:
             return _unavailable("TDCC OpenData 未回傳股權分散資料。", ticker=code, source="TDCC OpenData")
@@ -96,15 +90,18 @@ def fetch_tdcc_shareholder_distribution(
 def fetch_twse_margin_short_sales(
     ticker: str,
     *,
-    session: requests.Session | None = None,
+    session: Any | None = None,
     timeout: float = 15,
 ) -> dict[str, Any]:
     """Fetch latest TWSE margin/short and borrowed-short balances for one listed ticker."""
     code = _normalize_taiwan_stock_code(ticker)
-    http = session or _build_http_session()
     try:
-        margin_response = http.get(TWSE_MARGIN_BALANCE_URL, headers=DEFAULT_HEADERS, timeout=timeout)
-        margin_response.raise_for_status()
+        margin_response = _http_get(
+            TWSE_MARGIN_BALANCE_URL,
+            session=session,
+            timeout=timeout,
+            provider="TWSE OpenAPI MI_MARGN",
+        )
         margin_rows = margin_response.json()
         margin_record = _find_twse_margin_record(margin_rows, code)
         if not margin_record:
@@ -128,16 +125,20 @@ def fetch_twse_margin_short_sales(
             "source": "TWSE OpenAPI MI_MARGN",
             "source_url": TWSE_MARGIN_BALANCE_URL,
         }
-        result.update(_fetch_borrowed_short_sales(http, code, timeout=timeout))
+        result.update(_fetch_borrowed_short_sales(session, code, timeout=timeout))
         return result
     except Exception as exc:
         return _unavailable(f"TWSE 融資融券資料抓取失敗：{exc}", ticker=code, source="TWSE OpenAPI MI_MARGN")
 
 
-def _fetch_borrowed_short_sales(http: requests.Session, code: str, *, timeout: float) -> dict[str, Any]:
+def _fetch_borrowed_short_sales(session: Any | None, code: str, *, timeout: float) -> dict[str, Any]:
     try:
-        response = http.get(TWSE_BORROWED_SHORT_URL, headers=DEFAULT_HEADERS, timeout=timeout)
-        response.raise_for_status()
+        response = _http_get(
+            TWSE_BORROWED_SHORT_URL,
+            session=session,
+            timeout=timeout,
+            provider="TWSE TWT93U",
+        )
         payload = response.json()
         if not isinstance(payload, dict):
             return {}
@@ -155,6 +156,21 @@ def _fetch_borrowed_short_sales(http: requests.Session, code: str, *, timeout: f
     except Exception:
         return {}
     return {}
+
+
+def _http_get(
+    url: str,
+    *,
+    session: Any | None,
+    timeout: float,
+    provider: str,
+    verify: ssl.SSLContext | None = None,
+):
+    if session is not None:
+        response = session.get(url, headers=DEFAULT_HEADERS, timeout=timeout)
+        response.raise_for_status()
+        return response
+    return sync_get(url, headers=DEFAULT_HEADERS, timeout=timeout, provider=provider, verify=verify)
 
 
 def _read_tdcc_csv(text: str) -> pd.DataFrame:
