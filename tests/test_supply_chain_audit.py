@@ -30,7 +30,7 @@ def _locked_versions(path: Path) -> dict[str, Version]:
 def test_free_external_data_dependencies_are_locked():
     direct = _parsed_requirements(ROOT / "backend" / "requirements.txt")
     locked = _locked_versions(ROOT / "backend" / "requirements.lock")
-    expected = {"feedparser", "ddgs", "beautifulsoup4", "requests", "trafilatura"}
+    expected = {"feedparser", "ddgs", "beautifulsoup4", "httpx", "trafilatura"}
 
     for name in expected:
         assert name in direct, f"{name} must be a direct requirement"
@@ -41,6 +41,7 @@ def test_free_external_data_dependencies_are_locked():
         assert locked[name] in direct[name].specifier, (
             f"locked {name}=={locked[name]} must satisfy {direct[name].specifier}"
         )
+    assert "requests" not in direct, "requests should not be a direct runtime requirement after httpx migration"
 
 
 def test_supply_chain_lockfile_covers_direct_runtime_requirements():
