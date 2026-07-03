@@ -13,6 +13,15 @@ _KV_RE = re.compile(
 )
 _TABLE_CELL_RE = re.compile(r"\|\s*(?P<label>[^|\n]{1,30})\s*\|\s*[~約]?(?:NT\$|\$)?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>%|x|X|倍|億|B|M|T|元|TWD)?\s*\|")
 _NUMBER_IN_STRING_RE = re.compile(r"-?\d[\d,]*(?:\.\d+)?")
+_FIELD_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
+    (("股價", "現價", "currentprice", "current_price"), ("current_price", "regularmarketprice", "stock_price", "share_price")),
+    (("p/e", "pe", "本益比"), ("pe_ratio", "trailingpe", "forwardpe", "price_earnings")),
+    (("營收", "收入", "revenue", "sales"), ("revenue", "monthly_revenue", "sales")),
+    (("淨利", "netincome", "net_income"), ("net_income", "netincome")),
+    (("fcf", "自由現金流", "freecashflow", "free_cash_flow"), ("fcf", "free_cash_flow", "freecashflow")),
+    (("市值", "marketcap", "market_cap"), ("market_cap", "marketcap")),
+    (("eps", "每股盈餘"), ("eps", "earnings_per_share")),
+)
 
 
 def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
@@ -138,7 +147,8 @@ def flatten_snapshot_numbers(snapshot: Any) -> list[dict[str, Any]]:
 
 def _check_claim(claim: dict[str, Any], snapshot_values: list[dict[str, Any]], *, tolerance_pct: float) -> dict[str, Any]:
     reported = float(claim.get("reported_value") or 0)
-    best = _best_match(reported, snapshot_values)
+    candidate_values = _relevant_snapshot_values(claim, snapshot_values)
+    best = _best_match(reported, candidate_values)
     if best and best["diff_pct"] <= tolerance_pct:
         status = "verified"
     else:
@@ -150,6 +160,27 @@ def _check_claim(claim: dict[str, Any], snapshot_values: list[dict[str, Any]], *
         "matched_value": best.get("value") if best else None,
         "diff_pct": round(best.get("diff_pct", 0.0), 4) if best else None,
     }
+
+
+def _relevant_snapshot_values(claim: dict[str, Any], snapshot_values: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    path_markers = _path_markers_for_claim(claim)
+    if not path_markers:
+        return snapshot_values
+    relevant = [
+        item for item in snapshot_values
+        if any(_normalize_match_text(marker) in _normalize_match_text(item.get("path")) for marker in path_markers)
+    ]
+    return relevant or snapshot_values
+
+
+def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
+    label = _normalize_match_text(claim.get("label"))
+    if not label:
+        return ()
+    for label_markers, path_markers in _FIELD_HINTS:
+        if any(_normalize_match_text(marker) in label for marker in label_markers):
+            return path_markers
+    return ()
 
 
 def _best_match(reported: float, snapshot_values: list[dict[str, Any]]) -> dict[str, Any] | None:
@@ -180,6 +211,10 @@ def _clean_number(value: str) -> float | None:
         return float(str(value).replace(",", "").strip())
     except (TypeError, ValueError):
         return None
+
+
+def _normalize_match_text(value: Any) -> str:
+    return re.sub(r"[^0-9a-zA-Z_\u4e00-\u9fff]+", "", str(value or "").lower())
 
 
 def _valid_claim_number(value: float) -> bool:

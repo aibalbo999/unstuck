@@ -178,3 +178,10 @@ def test_ci_gate_runs_mypy_on_core_type_contracts_before_coverage_tests():
     assert "backend/analysis_types.py" in ci_gate
     assert "backend/workflow_state.py" in ci_gate
     assert ci_gate.index("-m mypy") < ci_gate.index("-m coverage run")
+
+
+def test_ci_gate_compileall_excludes_runtime_artifacts():
+    ci_gate = (ROOT / "scripts" / "ci_gate.sh").read_text(encoding="utf-8")
+
+    assert "-m compileall" in ci_gate
+    assert "backend/(cache|output)" in ci_gate

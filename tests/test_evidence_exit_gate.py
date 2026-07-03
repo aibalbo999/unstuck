@@ -56,6 +56,29 @@ def test_evidence_exit_gate_rejects_when_sampled_numbers_are_not_in_snapshot():
     assert any(item["status"] == "mismatch" and item["reported_value"] == 999.0 for item in result["sampled_claims"])
 
 
+def test_evidence_exit_gate_requires_label_relevance_for_numeric_matches():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    markdown = """
+## 關鍵指標
+- 股價: NT$20.0
+"""
+    snapshot = {
+        "data": {
+            "current_price": 100.0,
+            "pe_ratio": "20.0x",
+        },
+        "source_audit": [{"source": "market_data", "status": "success"}],
+    }
+
+    result = evaluate_report_evidence(markdown, snapshot, sample_ratio=1.0)
+
+    assert result["verdict"] == "rejected"
+    assert result["failed_count"] == 1
+    assert result["sampled_claims"][0]["status"] == "mismatch"
+    assert result["sampled_claims"][0]["matched_path"] == "data.current_price"
+
+
 def test_report_renderer_attaches_evidence_exit_gate_to_snapshot_and_metadata(monkeypatch):
     import asyncio
     import reporting.renderer as renderer_module
