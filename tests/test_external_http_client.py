@@ -91,6 +91,38 @@ def test_sync_get_passes_rotated_proxy_and_returns_response(monkeypatch):
     external_http_client.clear_proxy_rotation_state()
 
 
+def test_sync_post_passes_rotated_proxy_and_returns_response(monkeypatch):
+    external_http_client.clear_proxy_rotation_state()
+    monkeypatch.setenv("PROVIDER_PROXY_MOPS_URLS", "http://mops-proxy:8080")
+    calls = []
+
+    class FakeResponse:
+        text = "<table></table>"
+
+        def raise_for_status(self):
+            return None
+
+    def fake_post(url, **kwargs):
+        calls.append({"url": url, **kwargs})
+        return FakeResponse()
+
+    monkeypatch.setattr(external_http_client.httpx, "post", fake_post)
+
+    response = external_http_client.sync_post(
+        "https://mops.twse.com.tw/mops/web/ajax_t164sb03",
+        data={"co_id": "2330"},
+        headers={"User-Agent": "Mozilla/5.0"},
+        timeout=7,
+        provider="MOPS",
+    )
+
+    assert response.text == "<table></table>"
+    assert calls[0]["data"] == {"co_id": "2330"}
+    assert calls[0]["proxy"] == "http://mops-proxy:8080"
+    assert calls[0]["timeout"] == 7
+    external_http_client.clear_proxy_rotation_state()
+
+
 def test_async_client_passes_rotated_proxy_to_httpx_async_client(monkeypatch):
     external_http_client.clear_proxy_rotation_state()
     monkeypatch.setenv("PROVIDER_PROXY_GDELT_URLS", "http://gdelt-proxy:8080")

@@ -7,7 +7,7 @@ import time
 from datetime import date, timedelta
 from typing import Any
 
-import requests
+from external_http_client import sync_get
 
 
 FRED_OBSERVATIONS_URL = "https://api.stlouisfed.org/fred/series/observations"
@@ -18,7 +18,7 @@ _CACHE: dict[str, Any] = {"expires_at": 0.0, "value": None}
 def fetch_key_macro_indicators(
     *,
     api_key: str | None = None,
-    session: requests.Session | None = None,
+    session: Any | None = None,
     use_cache: bool = True,
     cache_ttl_seconds: int = DEFAULT_CACHE_TTL_SECONDS,
     timeout: float = 15,
@@ -36,11 +36,10 @@ def fetch_key_macro_indicators(
     if use_cache and _CACHE.get("value") is not None and now < float(_CACHE.get("expires_at") or 0):
         return _CACHE["value"]
 
-    http = session or requests.Session()
     try:
-        dgs10 = _latest_observation(http, key, "DGS10", timeout=timeout)
-        cpi = _cpi_yoy_observation(http, key, timeout=timeout)
-        vix = _latest_observation(http, key, "VIXCLS", timeout=timeout)
+        dgs10 = _latest_observation(session, key, "DGS10", timeout=timeout)
+        cpi = _cpi_yoy_observation(session, key, timeout=timeout)
+        vix = _latest_observation(session, key, "VIXCLS", timeout=timeout)
         result = {
             "status": "success",
             "source": "FRED",
@@ -83,14 +82,14 @@ def fetch_key_macro_indicators(
 
 
 def _latest_observation(
-    http: requests.Session,
+    session: Any | None,
     api_key: str,
     series_id: str,
     *,
     timeout: float,
 ) -> dict[str, Any]:
     observations = _fred_observations(
-        http,
+        session,
         api_key,
         series_id,
         timeout=timeout,
@@ -103,10 +102,10 @@ def _latest_observation(
     return latest
 
 
-def _cpi_yoy_observation(http: requests.Session, api_key: str, *, timeout: float) -> dict[str, Any]:
+def _cpi_yoy_observation(session: Any | None, api_key: str, *, timeout: float) -> dict[str, Any]:
     start = (date.today() - timedelta(days=420)).isoformat()
     observations = _fred_observations(
-        http,
+        session,
         api_key,
         "CPIAUCSL",
         timeout=timeout,
@@ -126,7 +125,7 @@ def _cpi_yoy_observation(http: requests.Session, api_key: str, *, timeout: float
 
 
 def _fred_observations(
-    http: requests.Session,
+    session: Any | None,
     api_key: str,
     series_id: str,
     *,
@@ -144,10 +143,17 @@ def _fred_observations(
     }
     if observation_start:
         params["observation_start"] = observation_start
-    response = http.get(FRED_OBSERVATIONS_URL, params=params, timeout=timeout)
-    response.raise_for_status()
+    response = _fred_get(session, params=params, timeout=timeout)
     payload = response.json()
     return payload.get("observations", []) if isinstance(payload, dict) else []
+
+
+def _fred_get(session: Any | None, *, params: dict[str, str], timeout: float):
+    if session is not None:
+        response = session.get(FRED_OBSERVATIONS_URL, params=params, timeout=timeout)
+        response.raise_for_status()
+        return response
+    return sync_get(FRED_OBSERVATIONS_URL, params=params, timeout=timeout, provider="FRED")
 
 
 def _first_valid_observation(observations: list[dict[str, Any]]) -> dict[str, Any] | None:

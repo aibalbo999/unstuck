@@ -60,6 +60,27 @@ def test_fetch_key_macro_indicators_formats_latest_macro_context(monkeypatch):
     assert [call[1]["series_id"] for call in session.calls] == ["DGS10", "CPIAUCSL", "VIXCLS"]
 
 
+def test_fetch_key_macro_indicators_uses_shared_http_client(monkeypatch):
+    import macro_fetcher
+    from macro_fetcher import fetch_key_macro_indicators
+
+    monkeypatch.setenv("FRED_API_KEY", "test-key")
+    fake_session = FakeSession()
+    calls = []
+
+    def fake_get(url, **kwargs):
+        calls.append({"url": url, **kwargs})
+        return fake_session.get(url, **kwargs)
+
+    monkeypatch.setattr(macro_fetcher, "sync_get", fake_get)
+
+    result = fetch_key_macro_indicators(use_cache=False)
+
+    assert result["status"] == "success"
+    assert [call["params"]["series_id"] for call in calls] == ["DGS10", "CPIAUCSL", "VIXCLS"]
+    assert {call["provider"] for call in calls} == {"FRED"}
+
+
 def test_fetch_key_macro_indicators_requires_api_key(monkeypatch):
     from macro_fetcher import fetch_key_macro_indicators
 

@@ -87,6 +87,28 @@ def test_twse_filters_ticker_and_normalizes_net_trades():
     assert "Mozilla" in session.last_headers["User-Agent"]
 
 
+def test_twse_institutional_trades_uses_shared_http_client(monkeypatch):
+    calls = []
+
+    def fake_get(url, **kwargs):
+        calls.append({"url": url, **kwargs})
+        return FakeResponse(json_payload=[{
+            "證券代號": "2330",
+            "ForeignInvestorsNet": "100",
+            "InvestmentTrustNet": "20",
+            "DealerNet": "-5",
+            "TotalNet": "115",
+        }])
+
+    monkeypatch.setattr(official_financials, "sync_get", fake_get)
+
+    result = official_financials.fetch_twse_institutional_trades("2330.TW", "2026-06-18")
+
+    assert result["total_net"] == 115
+    assert calls[0]["provider"] == "TWSE OpenAPI"
+    assert calls[0]["timeout"] == official_financials.REQUEST_TIMEOUT
+
+
 def test_twse_rejects_non_taiwan_ticker_and_handles_errors():
     tracking = TrackingSession()
     assert official_financials.fetch_twse_institutional_trades("AAPL", "2026-06-18", session=tracking) is None
@@ -126,6 +148,28 @@ def test_mops_posts_period_and_extracts_balance_sheet(monkeypatch):
     assert result["raw_line_items"]["負債總計"] == 900
 
 
+def test_mops_balance_sheet_uses_shared_http_client(monkeypatch):
+    frame = pd.DataFrame({
+        "會計項目": ["資產總計"],
+        "2025年第4季": ["2,000"],
+    })
+    calls = []
+
+    def fake_post(url, **kwargs):
+        calls.append({"url": url, **kwargs})
+        return FakeResponse(text="<table></table>")
+
+    monkeypatch.setattr(official_financials.pd, "read_html", lambda *_args, **_kwargs: [frame])
+    monkeypatch.setattr(official_financials, "sync_post", fake_post)
+
+    result = official_financials.fetch_mops_balance_sheet("2330", 2025, 4)
+
+    assert result["total_assets"] == 2_000
+    assert calls[0]["provider"] == "MOPS"
+    assert calls[0]["data"]["co_id"] == "2330"
+    assert calls[0]["timeout"] == official_financials.REQUEST_TIMEOUT
+
+
 def test_mops_investor_conference_extracts_latest_materials(monkeypatch):
     frame = pd.DataFrame({
         "公司代號": ["2317", "2330"],
@@ -160,6 +204,29 @@ def test_mops_investor_conference_extracts_latest_materials(monkeypatch):
         "source": "MOPS investor conference",
         "source_url": official_financials.MOPS_INVESTOR_CONFERENCE_URL,
     }]
+
+
+def test_mops_investor_conference_uses_shared_http_client(monkeypatch):
+    frame = pd.DataFrame({
+        "公司代號": ["2330"],
+        "公司名稱": ["台積電"],
+        "召開法人說明會日期": ["2026/06/20"],
+    })
+    calls = []
+
+    def fake_post(url, **kwargs):
+        calls.append({"url": url, **kwargs})
+        return FakeResponse(text="<table></table>")
+
+    monkeypatch.setattr(conference_financials.pd, "read_html", lambda *_args, **_kwargs: [frame])
+    monkeypatch.setattr(conference_financials, "sync_post", fake_post)
+
+    result = official_financials.fetch_mops_investor_conference_events("2330.TW", year=2026)
+
+    assert result[0]["ticker"] == "2330"
+    assert calls[0]["provider"] == "MOPS"
+    assert calls[0]["data"]["co_id"] == "2330"
+    assert calls[0]["timeout"] == conference_financials.REQUEST_TIMEOUT
 
 
 def test_mops_investor_conference_preserves_anchor_material_urls(monkeypatch):

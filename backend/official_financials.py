@@ -7,8 +7,8 @@ import re
 from typing import Any
 
 import pandas as pd
-import requests
 
+from external_http_client import sync_get, sync_post
 from official_financials_mops_conference import MOPS_INVESTOR_CONFERENCE_URL, fetch_mops_investor_conference_events
 
 
@@ -32,16 +32,20 @@ def fetch_twse_institutional_trades(
     ticker: str,
     date: str,
     *,
-    session: requests.Session | None = None,
+    session: Any | None = None,
 ) -> dict[str, Any] | None:
     """Fetch same-day institutional net trades from TWSE OpenAPI."""
     symbol = _twse_symbol(ticker)
     if symbol is None:
         return None
-    client = session or requests.Session()
     try:
-        response = client.get(TWSE_INSTITUTIONAL_TRADES_URL, headers=HEADERS, timeout=REQUEST_TIMEOUT)
-        response.raise_for_status()
+        response = _http_get(
+            TWSE_INSTITUTIONAL_TRADES_URL,
+            session=session,
+            headers=HEADERS,
+            timeout=REQUEST_TIMEOUT,
+            provider="TWSE OpenAPI",
+        )
         rows = response.json() or []
     except Exception as exc:
         _warn("TWSE OpenAPI", "institutional trades", exc)
@@ -66,7 +70,7 @@ def fetch_mops_balance_sheet(
     year: int,
     season: int,
     *,
-    session: requests.Session | None = None,
+    session: Any | None = None,
 ) -> dict[str, Any] | None:
     """Fetch and normalize a MOPS balance sheet table."""
     symbol, typek = _mops_symbol_and_type(ticker)
@@ -77,7 +81,6 @@ def fetch_mops_balance_sheet(
         return None
     if symbol is None or season_int not in {1, 2, 3, 4}:
         return None
-    client = session or requests.Session()
     data = {
         "encodeURIComponent": "1",
         "step": "1",
@@ -92,8 +95,14 @@ def fetch_mops_balance_sheet(
         "season": f"{season_int:02d}",
     }
     try:
-        response = client.post(MOPS_BALANCE_SHEET_URL, data=data, headers=HEADERS, timeout=REQUEST_TIMEOUT)
-        response.raise_for_status()
+        response = _http_post(
+            MOPS_BALANCE_SHEET_URL,
+            data=data,
+            session=session,
+            headers=HEADERS,
+            timeout=REQUEST_TIMEOUT,
+            provider="MOPS",
+        )
         frames = pd.read_html(response.text)
     except Exception as exc:
         _warn("MOPS", "balance sheet", exc)
@@ -114,6 +123,37 @@ def fetch_mops_balance_sheet(
     for field, aliases in BALANCE_ALIASES.items():
         payload[field] = _first_alias_value(raw_line_items, aliases)
     return payload
+
+
+def _http_get(
+    url: str,
+    *,
+    session: Any | None,
+    headers: dict[str, str],
+    timeout: Any,
+    provider: str,
+):
+    if session is not None:
+        response = session.get(url, headers=headers, timeout=timeout)
+        response.raise_for_status()
+        return response
+    return sync_get(url, headers=headers, timeout=timeout, provider=provider)
+
+
+def _http_post(
+    url: str,
+    *,
+    data: dict[str, str],
+    session: Any | None,
+    headers: dict[str, str],
+    timeout: Any,
+    provider: str,
+):
+    if session is not None:
+        response = session.post(url, data=data, headers=headers, timeout=timeout)
+        response.raise_for_status()
+        return response
+    return sync_post(url, data=data, headers=headers, timeout=timeout, provider=provider)
 
 
 def _parse_balance_frames(frames: list[pd.DataFrame], year: int, season: int) -> dict[str, Any] | None:

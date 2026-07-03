@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+from typing import Any
 
 import pandas as pd
-import requests
 
 from config import FINMIND_API_TOKEN
 from data_fetch.market_sources.taiwan import DataLoader
-from external_http_client import log_http_warning
+from external_http_client import log_http_warning, sync_get
 from market_screener_utils import (
     clean_company_name,
     clean_tw_stock_id,
@@ -56,8 +56,8 @@ class FinMindScreenerDataSource:
 class TwseFreeScreenerDataSource:
     provider_name = "TWSE Free API"
 
-    def __init__(self, session: requests.Session | None = None):
-        self.session = session or requests.Session()
+    def __init__(self, session: Any | None = None):
+        self.session = session
 
     def fetch_institutional_frame(self, scan_date: date) -> pd.DataFrame:
         records = []
@@ -92,25 +92,34 @@ class TwseFreeScreenerDataSource:
         return pd.DataFrame(records)
 
     def _json_get(self, url: str) -> list[dict]:
-        response = self.session.get(url, headers=HTTP_HEADERS, timeout=HTTP_TIMEOUT_SECONDS)
-        response.raise_for_status()
+        response = self._get(url)
         payload = response.json() or []
         return payload if isinstance(payload, list) else []
 
     def _twse_rwd_payload(self, url: str, scan_date: date) -> dict:
         for offset in range(10):
             query_date = scan_date - timedelta(days=offset)
-            response = self.session.get(
+            response = self._get(
                 url,
                 params={"response": "json", "date": query_date.strftime("%Y%m%d")},
-                headers=HTTP_HEADERS,
-                timeout=HTTP_TIMEOUT_SECONDS,
             )
-            response.raise_for_status()
             payload = response.json() or {}
             if isinstance(payload, dict) and payload.get("data"):
                 return payload
         return {}
+
+    def _get(self, url: str, *, params: dict[str, str] | None = None):
+        if self.session is not None:
+            response = self.session.get(url, params=params, headers=HTTP_HEADERS, timeout=HTTP_TIMEOUT_SECONDS)
+            response.raise_for_status()
+            return response
+        return sync_get(
+            url,
+            params=params,
+            headers=HTTP_HEADERS,
+            timeout=HTTP_TIMEOUT_SECONDS,
+            provider=self.provider_name,
+        )
 
     def _institutional_records_from_payload(self, payload: dict, investor_name: str, scan_date: date) -> list[dict]:
         if not isinstance(payload, dict):

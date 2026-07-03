@@ -46,10 +46,10 @@ def sync_get(
     params: dict[str, Any] | None = None,
     headers: dict[str, str] | None = None,
     *,
-    timeout: float = HTTP_TIMEOUT_SECONDS,
+    timeout: Any = HTTP_TIMEOUT_SECONDS,
     provider: str | None = None,
 ) -> httpx.Response:
-    kwargs: dict[str, Any] = {"headers": headers, "timeout": timeout}
+    kwargs: dict[str, Any] = {"headers": headers, "timeout": _normalize_timeout(timeout)}
     if params is not None:
         kwargs["params"] = params
     proxy_url = proxy_url_for_request(url, provider)
@@ -58,6 +58,38 @@ def sync_get(
     response = httpx.get(url, **kwargs)
     response.raise_for_status()
     return response
+
+
+def sync_post(
+    url: str,
+    data: Any | None = None,
+    json: Any | None = None,
+    params: dict[str, Any] | None = None,
+    headers: dict[str, str] | None = None,
+    *,
+    timeout: Any = HTTP_TIMEOUT_SECONDS,
+    provider: str | None = None,
+) -> httpx.Response:
+    kwargs: dict[str, Any] = {"headers": headers, "timeout": _normalize_timeout(timeout)}
+    if data is not None:
+        kwargs["data"] = data
+    if json is not None:
+        kwargs["json"] = json
+    if params is not None:
+        kwargs["params"] = params
+    proxy_url = proxy_url_for_request(url, provider)
+    if proxy_url:
+        kwargs["proxy"] = proxy_url
+    response = httpx.post(url, **kwargs)
+    response.raise_for_status()
+    return response
+
+
+def _normalize_timeout(timeout: Any) -> Any:
+    if isinstance(timeout, tuple) and len(timeout) == 2:
+        connect_timeout, read_timeout = timeout
+        return httpx.Timeout(read_timeout, connect=connect_timeout)
+    return timeout
 
 
 async def async_json_get(

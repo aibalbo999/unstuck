@@ -10,8 +10,9 @@ from typing import Any
 from urllib.parse import urljoin
 
 import pandas as pd
-import requests
 from bs4 import BeautifulSoup
+
+from external_http_client import sync_post
 
 
 LOGGER = logging.getLogger(__name__)
@@ -40,14 +41,13 @@ def fetch_mops_investor_conference_events(
     *,
     year: int | None = None,
     limit: int = 3,
-    session: requests.Session | None = None,
+    session: Any | None = None,
 ) -> list[dict[str, Any]]:
     """Fetch free MOPS investor-conference metadata and material links."""
     symbol, typek = _mops_symbol_and_type(ticker)
     if symbol is None:
         return []
     year_int = int(year) if year is not None else date.today().year
-    client = session or requests.Session()
     data = {
         "encodeURIComponent": "1",
         "step": "1",
@@ -58,8 +58,14 @@ def fetch_mops_investor_conference_events(
         "year": str(year_int - 1911),
     }
     try:
-        response = client.post(MOPS_INVESTOR_CONFERENCE_URL, data=data, headers=HEADERS, timeout=REQUEST_TIMEOUT)
-        response.raise_for_status()
+        response = _http_post(
+            MOPS_INVESTOR_CONFERENCE_URL,
+            data=data,
+            session=session,
+            headers=HEADERS,
+            timeout=REQUEST_TIMEOUT,
+            provider="MOPS",
+        )
     except Exception as exc:
         _warn("MOPS", "investor conference", exc)
         return []
@@ -74,6 +80,22 @@ def fetch_mops_investor_conference_events(
         _parse_conference_html(response.text, symbol) + _parse_conference_frames(frames, symbol)
     )
     return records[: max(1, int(limit or 3))]
+
+
+def _http_post(
+    url: str,
+    *,
+    data: dict[str, str],
+    session: Any | None,
+    headers: dict[str, str],
+    timeout: Any,
+    provider: str,
+):
+    if session is not None:
+        response = session.post(url, data=data, headers=headers, timeout=timeout)
+        response.raise_for_status()
+        return response
+    return sync_post(url, data=data, headers=headers, timeout=timeout, provider=provider)
 
 
 def _parse_conference_frames(frames: list[pd.DataFrame], symbol: str) -> list[dict[str, Any]]:

@@ -300,6 +300,30 @@ def test_twse_free_data_source_parses_free_market_payloads():
     assert "2317.TW" not in by_ticker
 
 
+def test_twse_free_data_source_uses_shared_http_client(monkeypatch):
+    import market_screener_sources
+
+    fake_session = FakeTwseSession()
+    calls = []
+
+    def fake_get(url, **kwargs):
+        calls.append({"url": url, **kwargs})
+        return fake_session.get(url, **kwargs)
+
+    monkeypatch.setattr(market_screener_sources, "sync_get", fake_get)
+
+    data_source = market_screener_sources.TwseFreeScreenerDataSource()
+    institutional_frame = data_source.fetch_institutional_frame(date(2026, 6, 26))
+    daily_frame = data_source.fetch_daily_frame(date(2026, 6, 26))
+
+    assert not institutional_frame.empty
+    assert not daily_frame.empty
+    assert {call["provider"] for call in calls} == {"TWSE Free API"}
+    assert {call["timeout"] for call in calls} == {market_screener_sources.HTTP_TIMEOUT_SECONDS}
+    assert any("TWT38U" in call["url"] for call in calls)
+    assert any("STOCK_DAY_ALL" in call["url"] for call in calls)
+
+
 def test_import_screener_candidates_marks_watchlist_items_for_mode_d(monkeypatch, tmp_path):
     import market_screener
     import watchlist_service
