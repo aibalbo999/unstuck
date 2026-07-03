@@ -3,12 +3,15 @@ from __future__ import annotations
 import logging
 from types import SimpleNamespace
 
-import requests
-
+import external_http_client
 import news_fetchers
 
 
 STANDARD_KEYS = {"title", "link", "published_date", "source", "summary"}
+
+
+def test_news_fetchers_use_shared_sync_http_client():
+    assert news_fetchers.sync_get is external_http_client.sync_get
 
 
 def test_google_news_normalizes_schema_date_and_query_url(monkeypatch):
@@ -36,7 +39,7 @@ def test_google_news_normalizes_schema_date_and_query_url(monkeypatch):
         assert payload == b"rss"
         return SimpleNamespace(entries=[entry], bozo=False)
 
-    monkeypatch.setattr(news_fetchers.requests, "get", fake_get)
+    monkeypatch.setattr(news_fetchers, "sync_get", fake_get)
     monkeypatch.setattr(news_fetchers.feedparser, "parse", fake_parse)
 
     result = news_fetchers.fetch_google_news_rss(" 台積電 2330 ", limit=1)
@@ -53,13 +56,14 @@ def test_google_news_normalizes_schema_date_and_query_url(monkeypatch):
     assert "news.google.com/rss/search?" in captured["url"]
     assert "%E5%8F%B0%E7%A9%8D%E9%9B%BB+2330" in captured["url"]
     assert captured["timeout"] == news_fetchers.REQUEST_TIMEOUT_SECONDS
+    assert captured["provider"] == "Google News RSS"
 
 
 def test_google_timeout_returns_empty_and_logs_warning(monkeypatch, caplog):
     def timeout(*_args, **_kwargs):
-        raise requests.Timeout("response body")
+        raise TimeoutError("response body")
 
-    monkeypatch.setattr(news_fetchers.requests, "get", timeout)
+    monkeypatch.setattr(news_fetchers, "sync_get", timeout)
 
     with caplog.at_level(logging.WARNING):
         assert news_fetchers.fetch_google_news_rss("TSMC") == []
@@ -191,7 +195,7 @@ def test_ptt_expands_relative_links_skips_deleted_and_filters_ticker(monkeypatch
         captured.update(kwargs)
         return Response()
 
-    monkeypatch.setattr(news_fetchers.requests, "get", fake_get)
+    monkeypatch.setattr(news_fetchers, "sync_get", fake_get)
     monkeypatch.setattr(news_fetchers, "_current_taipei_datetime", lambda: news_fetchers.datetime(
         2026, 6, 19, 9, 0, tzinfo=news_fetchers.TAIPEI_TZ,
     ))
@@ -207,6 +211,7 @@ def test_ptt_expands_relative_links_skips_deleted_and_filters_ticker(monkeypatch
     }]
     assert captured["url"].endswith("/bbs/Stock/index.html")
     assert captured["timeout"] == news_fetchers.REQUEST_TIMEOUT_SECONDS
+    assert captured["provider"] == "PTT Stock"
     assert "Mozilla" in captured["headers"]["User-Agent"]
     assert news_fetchers.fetch_ptt_stock_sentiment("../../etc/passwd") == []
 
@@ -227,7 +232,7 @@ def test_google_parser_errors_return_empty_and_log_warning(monkeypatch, caplog):
         def raise_for_status():
             return None
 
-    monkeypatch.setattr(news_fetchers.requests, "get", lambda *_args, **_kwargs: Response())
+    monkeypatch.setattr(news_fetchers, "sync_get", lambda *_args, **_kwargs: Response())
 
     def broken_feed(_payload):
         raise ValueError("parser failed")
@@ -243,13 +248,13 @@ def test_google_parser_errors_return_empty_and_log_warning(monkeypatch, caplog):
 
 def test_provider_errors_return_empty_and_log_warning(monkeypatch, caplog):
     def timeout(*_args, **_kwargs):
-        raise requests.Timeout("private response body must not leak")
+        raise TimeoutError("private response body must not leak")
 
     class BrokenDDGS:
         def news(self, **_kwargs):
             raise RuntimeError("DDG unavailable")
 
-    monkeypatch.setattr(news_fetchers.requests, "get", timeout)
+    monkeypatch.setattr(news_fetchers, "sync_get", timeout)
     monkeypatch.setattr(news_fetchers, "DDGS", BrokenDDGS)
 
     with caplog.at_level(logging.WARNING):

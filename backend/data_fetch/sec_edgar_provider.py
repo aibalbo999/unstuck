@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import requests
 from typing import Any
+from external_http_client import sync_get
 from .provider_base import DataProvider
 from .types import FetchRequest, ProviderResult
 
@@ -33,8 +33,12 @@ class SecEdgarProvider(DataProvider):
             return self._ticker_to_cik
         
         try:
-            r = requests.get("https://www.sec.gov/files/company_tickers.json", headers=SEC_HEADERS, timeout=10)
-            r.raise_for_status()
+            r = sync_get(
+                "https://www.sec.gov/files/company_tickers.json",
+                headers=SEC_HEADERS,
+                timeout=10,
+                provider="SEC EDGAR",
+            )
             data = r.json()
             # Format: { "0": { "cik_str": 320193, "ticker": "AAPL", "title": "Apple Inc." }, ... }
             mapping = {}
@@ -62,8 +66,7 @@ class SecEdgarProvider(DataProvider):
             
         try:
             url = f"https://data.sec.gov/submissions/CIK{cik}.json"
-            r = requests.get(url, headers=DATA_SEC_HEADERS, timeout=10)
-            r.raise_for_status()
+            r = sync_get(url, headers=DATA_SEC_HEADERS, timeout=10, provider="SEC EDGAR")
             data = r.json()
             
             recent_filings = data.get("filings", {}).get("recent", {})

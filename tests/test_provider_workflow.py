@@ -1,4 +1,5 @@
 import asyncio
+import json
 import sys
 from pathlib import Path
 
@@ -8,6 +9,7 @@ sys.path.insert(0, str(ROOT / "backend"))
 
 from data_fetch import CallableProvider, FetchRequest, ProviderRegistry, ProviderResult, StockDataService  # noqa: E402
 from data_fetch.constants import DATA_SCHEMA_VERSION  # noqa: E402
+from data_fetch.core_provider_merge import merge_core_provider_result  # noqa: E402
 from data_fetch.enrichment_merge import _merge_optional_http_bundle  # noqa: E402
 from data_fetch.market_sources.peers import CompanyProfile, rank_peer_candidates, select_peer_profiles  # noqa: E402
 import data_fetch.market_sources.peers as peer_sources  # noqa: E402
@@ -15,8 +17,15 @@ from data_fetch.optional_provider_plan import OPTIONAL_WORKFLOW_SOURCES  # noqa:
 import data_fetch.workflow as workflow  # noqa: E402
 import data_freshness  # noqa: E402
 import provider_sla  # noqa: E402
+from prompt_builder import format_data_for_prompt  # noqa: E402
 from data_trust import build_source_audit_entry  # noqa: E402
 from fixtures.data_payloads import FRESH_AT, FRESH_AT_EPOCH, financial_history, fresh_audited_payload  # noqa: E402
+
+
+def _prompt_payload(data: dict) -> dict:
+    prompt_text = format_data_for_prompt(data)
+    payload_text = prompt_text.split("【財務資料 JSON】\n", 1)[1].split("\n\n【使用規則】", 1)[0]
+    return json.loads(payload_text)
 
 
 def test_peer_selection_filters_market_cap_outliers_and_scores_business_overlap():
@@ -219,6 +228,220 @@ def test_dynamic_peer_metrics_uses_ranked_profiles_and_exposes_selection_policy(
     assert records[0]["selection_score"] > 0.55
     assert records[0]["selection_policy"]["market_cap_band"] == "0.2x-5.0x"
     assert records[0]["selection_policy"]["expansion_used"] is True
+
+
+def test_core_provider_merge_preserves_exact_source_values_for_ai_payload():
+    data = {
+        "ticker": "2330.TW",
+        "company_name": "台積電",
+        "source_audit": [],
+    }
+    financial = {
+        "years": ["FY_SENT_2025"],
+        "revenue_history": [101.2345],
+        "net_income_history": [22.3456],
+        "gross_profit_history": [55.4321],
+        "operating_income_history": [44.321],
+        "fcf_history": [33.2109],
+        "total_assets_history": [999.8888],
+        "total_equity_history": [777.6666],
+    }
+    monthly = [{"month": "2026-05", "revenue": "SENT_MONTHLY_REVENUE_123"}]
+    twse = {
+        "revenue_ttm_raw": 123_456_789_000,
+        "net_income_ttm_raw": 23_456_789_000,
+        "free_cash_flow_raw": 12_345_678_000,
+        "gross_margin_raw": 0.4567,
+        "operating_margin_raw": 0.3456,
+        "profit_margin_raw": 0.1901,
+        "total_debt_raw": 7_890_000_000,
+    }
+    institutional = {"daily_total_net_buy_last_10": [{"date": "2026-07-01", "net_buy": "SENT_INST_456"}]}
+    peer_metrics = [{"ticker": "2317.TW", "selection_score": 0.8765, "note": "SENT_PEER_METRIC"}]
+    pe_river = {
+        "source": "SENT_PE_RIVER_SOURCE",
+        "years": [2026],
+        "bands": {"low": [12.34], "mid": [22.22], "high": [33.33]},
+    }
+
+    for result in (
+        ProviderResult("financial_statements", "fixture financials", "success", financial),
+        ProviderResult("monthly_revenue", "fixture monthly", "success", monthly),
+        ProviderResult("twse_official", "fixture twse", "success", twse),
+        ProviderResult("institutional_trading", "fixture institutional", "success", institutional),
+        ProviderResult("dynamic_peer_metrics", "fixture peers", "success", peer_metrics),
+        ProviderResult("pe_river_chart", "fixture pe river", "success", pe_river),
+    ):
+        merge_core_provider_result(data, result)
+
+    assert data["years"] == financial["years"]
+    assert data["revenue_history"] == financial["revenue_history"]
+    assert data["net_income_history"] == financial["net_income_history"]
+    assert data["gross_profit_history"] == financial["gross_profit_history"]
+    assert data["operating_income_history"] == financial["operating_income_history"]
+    assert data["fcf_history"] == financial["fcf_history"]
+    assert data["total_assets_history"] == financial["total_assets_history"]
+    assert data["total_equity_history"] == financial["total_equity_history"]
+    assert data["recent_monthly_revenue"] == monthly
+    assert data["twse_official"] == twse
+    assert data["revenue_ttm_raw"] == twse["revenue_ttm_raw"]
+    assert data["net_income_ttm_raw"] == twse["net_income_ttm_raw"]
+    assert data["free_cash_flow_raw"] == twse["free_cash_flow_raw"]
+    assert data["gross_margin_raw"] == twse["gross_margin_raw"]
+    assert data["operating_margin_raw"] == twse["operating_margin_raw"]
+    assert data["profit_margin_raw"] == twse["profit_margin_raw"]
+    assert data["total_debt_raw"] == twse["total_debt_raw"]
+    assert data["institutional_trading"] == institutional
+    assert data["dynamic_peer_metrics"] == peer_metrics
+    assert data["pe_river_chart"] == pe_river
+
+    payload = _prompt_payload(data)
+    assert payload["history"]["rows"][0]["revenue_billion_twd"] == 101.2345
+    assert payload["history"]["rows"][0]["free_cash_flow_billion_twd"] == 33.2109
+    assert payload["ttm_financials"]["revenue_billion_twd"] == 123.4568
+    assert payload["ttm_financials"]["net_income_billion_twd"] == 23.4568
+    assert payload["ttm_financials"]["gross_margin_pct"] == 45.67
+    assert payload["ttm_financials"]["operating_margin_pct"] == 34.56
+    assert payload["ttm_financials"]["profit_margin_pct_calibrated"] == 19.01
+    assert payload["cash_flow"]["free_cash_flow_billion_twd"] == 12.3457
+    assert payload["balance_sheet"]["total_debt_billion_twd"] == 7.89
+    assert payload["recent_monthly_revenue_text"] == monthly
+    assert payload["institutional_trading"] == institutional
+    assert payload["peer_context"]["dynamic_peer_metrics"] == peer_metrics
+    assert payload["local_valuation_context"]["pe_river_chart"] == pe_river
+
+
+def test_optional_http_merge_preserves_exact_records_for_ai_payload():
+    data = {
+        "ticker": "2330.TW",
+        "company_name": "台積電",
+        "source_audit": [],
+        "source_freshness": {},
+        "sentiment_context": {"preexisting": "SENT_EXISTING_SENTIMENT"},
+        "current_price": None,
+        "market_cap_raw": None,
+        "pe_ratio_raw": None,
+        "week_52_high": None,
+        "week_52_low": None,
+    }
+    free_news = {"title": "SENT_FREE_NEWS", "link": "https://example.test/shared"}
+    duplicate_link_news = {"title": "SENT_DUPLICATE_NEWS", "link": "https://example.test/shared"}
+    search_news = {"title": "SENT_SEARCH_NEWS", "link": "https://example.test/search"}
+    google_news = {"title": "SENT_GOOGLE_NEWS", "link": "https://example.test/google"}
+    fmp_news = {"title": "SENT_FMP_NEWS", "link": "https://example.test/fmp"}
+    yahoo_news = {"title": "SENT_YAHOO_NEWS", "link": "https://example.test/yahoo"}
+    peer_search = {"title": "SENT_PEER_SEARCH", "link": "https://example.test/peer-a"}
+    peer_duplicate = {"title": "SENT_PEER_SEARCH", "link": "https://example.test/peer-duplicate"}
+    peer_google = {"title": "SENT_PEER_GOOGLE", "link": "https://example.test/peer-b"}
+    http_bundle = {
+        "free_news": [free_news],
+        "search_catalysts": [duplicate_link_news, search_news],
+        "google_catalysts": [google_news],
+        "fmp_news": [fmp_news],
+        "yahoo_news": [yahoo_news],
+        "search_peer_discovery": [peer_search],
+        "google_peer_discovery": [peer_duplicate, peer_google],
+        "global_market_context": {"items": [{"symbol": "QQQ", "change_5d_pct": 3.21, "note": "SENT_GLOBAL"}]},
+        "international_news_context": {"topics": [{"headline": "SENT_INTERNATIONAL"}]},
+        "macro_indicators": {"summary_text": "SENT_MACRO"},
+        "chip_data": {"tdcc_shareholder_distribution": {"note": "SENT_CHIP"}},
+        "alternative_data": {"job_openings_104": {"note": "SENT_ALT"}},
+        "social_sentiment": {"ptt_stock_direct": [{"title": "SENT_SOCIAL"}]},
+        "sec_edgar": {"recent_filings": [{"form": "SENT_SEC_10Q"}]},
+        "taiwan_open_data": {"rates": {"USD": {"sell": "SENT_TAIWAN_OPEN"}}},
+        "earnings_call": {"period": "2026Q1", "transcript_excerpt": "SENT_EARNINGS"},
+        "fmp_quote": {
+            "price": 88.12,
+            "marketCap": 999_000_000,
+            "pe": 17.25,
+            "yearHigh": 99.99,
+            "yearLow": 66.66,
+        },
+    }
+
+    result = _merge_optional_http_bundle(
+        data,
+        http_bundle,
+        refreshed_sources=(
+            "recent_catalysts",
+            "global_market_context",
+            "international_news_context",
+            "macro_indicators",
+            "chip_data",
+            "alternative_data",
+            "social_sentiment",
+            "sec_edgar",
+            "taiwan_open_data",
+            "earnings_call",
+            "peer_discovery",
+        ),
+    )
+
+    expected_catalysts = [free_news, search_news, google_news, fmp_news, yahoo_news]
+    expected_peers = [peer_search, peer_google]
+    assert result["recent_catalysts"] == expected_catalysts
+    assert result["peer_discovery_results"] == expected_peers
+    assert result["global_market_context"] == http_bundle["global_market_context"]
+    assert result["international_news_context"] == http_bundle["international_news_context"]
+    assert result["macro_indicators"] == http_bundle["macro_indicators"]
+    assert result["chip_data"] == http_bundle["chip_data"]
+    assert result["alternative_data"] == http_bundle["alternative_data"]
+    assert result["social_sentiment"] == http_bundle["social_sentiment"]
+    assert result["sentiment_context"] == {
+        "preexisting": "SENT_EXISTING_SENTIMENT",
+        "social_sentiment": http_bundle["social_sentiment"],
+    }
+    assert result["sec_edgar"] == http_bundle["sec_edgar"]
+    assert result["taiwan_open_data"] == http_bundle["taiwan_open_data"]
+    assert result["earnings_call"] == http_bundle["earnings_call"]
+    assert result["current_price"] == 88.12
+    assert result["market_cap_raw"] == 999_000_000
+    assert result["pe_ratio_raw"] == 17.25
+    assert result["week_52_high"] == 99.99
+    assert result["week_52_low"] == 66.66
+
+    latest_audit = {entry["source"]: entry for entry in result["source_audit"]}
+    assert latest_audit["market_data"]["provider"] == "FMP stable quote"
+    assert latest_audit["market_data"]["record_count"] == 5
+    expected_counts = {
+        "recent_catalysts": 5,
+        "global_market_context": 1,
+        "international_news_context": 1,
+        "macro_indicators": 1,
+        "chip_data": 1,
+        "alternative_data": 1,
+        "social_sentiment": 1,
+        "sec_edgar": 1,
+        "taiwan_open_data": 1,
+        "earnings_call": 2,
+        "peer_discovery": 2,
+    }
+    for source, expected_count in expected_counts.items():
+        assert latest_audit[source]["status"] == "success"
+        assert latest_audit[source]["record_count"] == expected_count
+        assert latest_audit[source]["stale"] is False
+
+    payload = _prompt_payload(result)
+    assert payload["market_data"]["current_price_twd"] == 88.12
+    assert payload["market_data"]["market_cap_billion_twd"] == 0.999
+    assert payload["valuation_metrics"]["pe_ttm"] == 17.25
+    assert payload["market_catalysts"]["items"] == expected_catalysts
+    assert payload["peer_context"]["search_discovery_results"] == expected_peers
+    assert payload["global_market_context"]["items"][0]["note"] == "SENT_GLOBAL"
+    assert payload["international_news_context"]["topics"][0]["headline"] == "SENT_INTERNATIONAL"
+    assert payload["agent_context"]["macro_indicators"] == http_bundle["macro_indicators"]
+    assert payload["agent_context"]["chip_data"] == http_bundle["chip_data"]
+    assert payload["agent_context"]["alternative_data"] == http_bundle["alternative_data"]
+    assert payload["agent_context"]["social_sentiment"] == http_bundle["social_sentiment"]
+    assert payload["agent_context"]["sentiment_context"]["social_sentiment"] == http_bundle["social_sentiment"]
+    assert payload["agent_context"]["sec_edgar"] == http_bundle["sec_edgar"]
+    assert payload["agent_context"]["taiwan_open_data"] == http_bundle["taiwan_open_data"]
+    assert payload["agent_context"]["earnings_call"] == http_bundle["earnings_call"]
+    audit_summary = {entry["source"]: entry for entry in payload["source_audit_summary"]}
+    assert audit_summary["recent_catalysts"]["provider"] == "Recent catalysts providers"
+    assert audit_summary["recent_catalysts"]["record_count"] == 5
+    assert audit_summary["recent_catalysts"]["merged_record_count"] == 5
+    assert audit_summary["recent_catalysts"]["record_count_mismatch"] is False
 
 
 def test_stock_data_service_uses_provider_plan_for_optional_enrichment(monkeypatch):

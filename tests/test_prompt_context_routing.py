@@ -12,6 +12,7 @@ if str(BACKEND) not in sys.path:
 
 
 import agent_runtime.prompting as prompting  # noqa: E402
+from data_trust import source_record_count  # noqa: E402
 from llm_rate_limits import estimate_text_tokens  # noqa: E402
 from pipeline_modes import PIPELINE_DEFINITIONS  # noqa: E402
 from prompt_builder import format_data_for_prompt, render_prompt_template  # noqa: E402
@@ -123,6 +124,7 @@ def test_format_data_for_prompt_exposes_only_agent_routed_external_context():
         "social_sentiment": {"dcard": [{"title": "Dcard 討論"}]},
         "sec_edgar": {"recent_filings": [{"form": "10-Q"}]},
         "taiwan_open_data": {"rates": {"USD": {"sell": "31.50"}}},
+        "earnings_call": {"period": "2026Q1", "transcript_excerpt": "法說會展望維持強勁"},
     }
 
     assert hasattr(prompting, "data_for_agent_prompt")
@@ -131,6 +133,7 @@ def test_format_data_for_prompt_exposes_only_agent_routed_external_context():
     agent_15_payload = _payload_from_prompt(format_data_for_prompt(prompting.data_for_agent_prompt(15, data)))
     agent_17_payload = _payload_from_prompt(format_data_for_prompt(prompting.data_for_agent_prompt(17, data)))
     agent_13_payload = _payload_from_prompt(format_data_for_prompt(prompting.data_for_agent_prompt(13, data)))
+    agent_20_payload = _payload_from_prompt(format_data_for_prompt(prompting.data_for_agent_prompt(20, data)))
 
     assert agent_11_payload["agent_context"]["macro_indicators"]["source"] == "FRED"
     assert agent_11_payload["agent_context"]["taiwan_open_data"]["rates"]["USD"]["sell"] == "31.50"
@@ -139,6 +142,7 @@ def test_format_data_for_prompt_exposes_only_agent_routed_external_context():
     assert agent_17_payload["agent_context"]["sentiment_context"]["ptt_titles"] == ["AI 題材升溫"]
     assert agent_17_payload["agent_context"]["social_sentiment"]["dcard"][0]["title"] == "Dcard 討論"
     assert agent_13_payload["agent_context"]["sec_edgar"]["recent_filings"][0]["form"] == "10-Q"
+    assert agent_20_payload["agent_context"]["earnings_call"]["transcript_excerpt"] == "法說會展望維持強勁"
     assert agent_12_payload["agent_context"] == {}
 
 
@@ -186,6 +190,142 @@ def test_every_pipeline_agent_receives_core_ai_data_payload():
         assert payload["market_data"]["current_price_twd"] == 123.45
         assert payload["history"]["rows"][0]["revenue_billion_twd"] == 100
         assert payload["source_audit_summary"][0]["source"] == "market_data"
+
+
+def test_every_pipeline_agent_full_prompt_contains_data_payload_and_state_view():
+    data = {
+        "ticker": "2308.TW",
+        "company_name": "台達電",
+        "current_price": 123.45,
+        "market_cap_raw": 9_000_000_000,
+        "years": ["2024"],
+        "revenue_history": [100],
+        "net_income_history": [20],
+        "recent_catalysts": [{"title": "SENT_CORE_AI_DATA"}],
+        "source_audit": [
+            {"source": "market_data", "provider": "fixture", "status": "success", "record_count": 2},
+            {"source": "recent_catalysts", "provider": "fixture", "status": "success", "record_count": 1},
+        ],
+    }
+    context = {
+        "analyses": {},
+        "structured_outputs": {},
+        "pipeline_id": "v1",
+        "agent_state": initialize_agent_state(data, run_id="full-prompt-data-test"),
+    }
+    all_agents = sorted({agent for definition in PIPELINE_DEFINITIONS.values() for agent in definition["agents"]})
+
+    for agent_num in all_agents:
+        prompt = prompting.build_prompt(agent_num, data, context)
+        assert "【財務資料 JSON】" in prompt, agent_num
+        assert "source_audit_summary" in prompt, agent_num
+        assert "SENT_CORE_AI_DATA" in prompt, agent_num
+        assert "【AgentState view】" in prompt, agent_num
+
+
+def test_source_audit_summary_exposes_actual_merged_record_count_when_latest_audit_lags():
+    data = {
+        "ticker": "2892.TW",
+        "company_name": "第一金",
+        "recent_catalysts": [
+            {"title": "SENT_CATALYST_1"},
+            {"title": "SENT_CATALYST_2"},
+            {"title": "SENT_CATALYST_3"},
+            {"title": "SENT_CATALYST_4"},
+            {"title": "SENT_CATALYST_5"},
+        ],
+        "source_audit": [
+            {
+                "source": "recent_catalysts",
+                "provider": "Recent catalysts providers",
+                "status": "success",
+                "record_count": 5,
+                "cache_hit": False,
+                "stale": False,
+            },
+            {
+                "source": "recent_catalysts",
+                "provider": "Yahoo Finance news",
+                "status": "success",
+                "record_count": 1,
+                "cache_hit": False,
+                "stale": False,
+            },
+        ],
+    }
+
+    payload = _payload_from_prompt(format_data_for_prompt(data))
+    summary = {entry["source"]: entry for entry in payload["source_audit_summary"]}
+
+    assert summary["recent_catalysts"]["provider"] == "Yahoo Finance news"
+    assert summary["recent_catalysts"]["record_count"] == 1
+    assert summary["recent_catalysts"]["merged_record_count"] == 5
+    assert summary["recent_catalysts"]["record_count_mismatch"] is True
+
+
+def test_source_audit_summary_counts_are_derived_from_merged_payload_not_audit_claims():
+    data = {
+        "ticker": "2330.TW",
+        "company_name": "台積電",
+        "current_price": 123,
+        "market_cap_raw": 999_999_999,
+        "pe_ratio_raw": 20,
+        "years": ["2024", "2025"],
+        "revenue_history": [100, 120],
+        "net_income_history": [20, 24],
+        "fcf_history": [15, 18],
+        "recent_monthly_revenue": [{"month": "2026-05", "revenue": 50}],
+        "institutional_trading": {"daily_total_net_buy_last_10": [{"date": "2026-07-01", "net_buy": 100}]},
+        "dynamic_peer_metrics": [{"ticker": "2317.TW"}],
+        "pe_river_chart": {"bands": {"low": [10, 11], "mid": [15, 16]}},
+        "recent_catalysts": [{"title": "news"}],
+        "global_market_context": {"items": [{"symbol": "QQQ"}]},
+        "international_news_context": {"topics": [{"tag": "ai"}]},
+        "macro_indicators": {"series": {"DGS10": 4.2}},
+        "chip_data": {"tdcc_shareholder_distribution": {"major": 42}},
+        "alternative_data": {"job_openings_104": {"job_count": 10}},
+        "social_sentiment": {"ptt_stock_direct": [{"title": "討論"}]},
+        "sec_edgar": {"recent_filings": [{"form": "10-Q"}]},
+        "taiwan_open_data": {"rates": {"USD": {"sell": "31.50"}}},
+        "earnings_call": {"period": "2026Q1", "transcript_excerpt": "guidance"},
+        "peer_discovery_results": [{"title": "peer"}],
+        "twse_official": {"revenue_ttm_raw": 1_000_000},
+    }
+    audited_sources = (
+        "market_data",
+        "financial_statements",
+        "monthly_revenue",
+        "institutional_trading",
+        "dynamic_peer_metrics",
+        "pe_river_chart",
+        "recent_catalysts",
+        "global_market_context",
+        "international_news_context",
+        "macro_indicators",
+        "chip_data",
+        "alternative_data",
+        "social_sentiment",
+        "sec_edgar",
+        "taiwan_open_data",
+        "earnings_call",
+        "peer_discovery",
+        "twse_official",
+    )
+    data["source_audit"] = [
+        {"source": source, "provider": "fixture", "status": "success", "record_count": 999}
+        for source in audited_sources
+    ]
+
+    payload = _payload_from_prompt(format_data_for_prompt(data))
+    summary = {entry["source"]: entry for entry in payload["source_audit_summary"]}
+
+    for source in audited_sources:
+        assert summary[source]["merged_record_count"] == source_record_count(source, data), source
+        assert summary[source]["merged_record_count"] > 0, source
+
+    assert summary["recent_catalysts"]["record_count"] == 999
+    assert summary["recent_catalysts"]["merged_record_count"] == 1
+    assert summary["recent_catalysts"]["record_count_mismatch"] is True
 
 
 def test_every_workflow_source_has_ai_visible_prompt_path():

@@ -10,6 +10,8 @@ if str(BACKEND) not in sys.path:
 
 from data_fetch.enrichment_merge import _merge_optional_http_bundle  # noqa: E402
 from data_fetch.provider_registry import ProviderRegistry  # noqa: E402
+from data_fetch.sec_edgar_provider import SecEdgarProvider  # noqa: E402
+import data_fetch.sec_edgar_provider as sec_edgar_provider  # noqa: E402
 from data_fetch.taiwan_open_data_provider import TaiwanOpenDataProvider  # noqa: E402
 import data_fetch.taiwan_open_data_provider as taiwan_open_data_provider  # noqa: E402
 from data_fetch.types import FetchRequest  # noqa: E402
@@ -99,3 +101,44 @@ def test_taiwan_open_data_provider_falls_back_to_fred_when_bot_is_challenged(mon
     assert result.value["rates"]["USD"]["sell"] == "31.9300"
     assert result.audit["record_count"] == 1
     assert len(calls) == 2
+
+
+def test_sec_edgar_provider_uses_shared_sync_get(monkeypatch):
+    calls = []
+
+    class FakeResponse:
+        def __init__(self, payload):
+            self._payload = payload
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return self._payload
+
+    def fake_get(url, **kwargs):
+        calls.append({"url": url, **kwargs})
+        if url.endswith("/company_tickers.json"):
+            return FakeResponse({"0": {"cik_str": 320193, "ticker": "AAPL", "title": "Apple Inc."}})
+        return FakeResponse({
+            "name": "Apple Inc.",
+            "filings": {
+                "recent": {
+                    "accessionNumber": ["0000320193-26-000001"],
+                    "form": ["10-Q"],
+                    "filingDate": ["2026-05-01"],
+                    "reportDate": ["2026-03-31"],
+                    "primaryDocument": ["aapl-20260331.htm"],
+                }
+            },
+        })
+
+    monkeypatch.setattr(sec_edgar_provider, "sync_get", fake_get)
+
+    result = SecEdgarProvider().fetch(FetchRequest.from_ticker("AAPL"))
+
+    assert result.status == "success"
+    assert result.value["cik"] == "0000320193"
+    assert result.value["recent_filings"][0]["form"] == "10-Q"
+    assert calls[0]["provider"] == "SEC EDGAR"
+    assert calls[1]["provider"] == "SEC EDGAR"

@@ -65,6 +65,44 @@ def test_fetch_104_job_openings_count_falls_back_to_text_pattern():
     assert result["job_count"] == 36
 
 
+def test_fetch_104_job_openings_count_uses_shared_http_client(monkeypatch):
+    import alternative_data_fetcher
+    from alternative_data_fetcher import fetch_104_job_openings_count
+
+    calls = []
+
+    def fake_get(url, **kwargs):
+        calls.append({"url": url, **kwargs})
+        return FakeResponse('<script>{"totalCount":88}</script>')
+
+    monkeypatch.setattr(alternative_data_fetcher, "sync_get", fake_get)
+
+    result = fetch_104_job_openings_count("台達電", "散熱")
+
+    assert result["job_count"] == 88
+    assert calls[0]["provider"] == "104 Job Search"
+    assert calls[0]["params"]["keyword"] == "台達電 散熱"
+
+
+def test_fetch_1111_job_openings_count_uses_shared_http_client(monkeypatch):
+    import alternative_data_fetcher
+    from alternative_data_fetcher import fetch_1111_job_openings_count
+
+    calls = []
+
+    def fake_get(url, **kwargs):
+        calls.append({"url": url, **kwargs})
+        return FakeResponse("<main>共 42 筆</main>")
+
+    monkeypatch.setattr(alternative_data_fetcher, "sync_get", fake_get)
+
+    result = fetch_1111_job_openings_count("台達電", "散熱")
+
+    assert result["job_count"] == 42
+    assert calls[0]["provider"] == "1111 Job Search"
+    assert calls[0]["params"]["ks"] == "台達電 散熱"
+
+
 def test_fetch_104_job_openings_count_returns_unavailable_on_parse_failure():
     from alternative_data_fetcher import fetch_104_job_openings_count
 
@@ -79,11 +117,10 @@ def test_fetch_104_job_openings_count_returns_unavailable_on_parse_failure():
 
 def test_fetch_104_job_openings_count_uses_news_fallback_on_transport_failure():
     from alternative_data_fetcher import fetch_104_job_openings_count
-    from requests.exceptions import ConnectionError as RequestsConnectionError
 
     class FailingSession:
         def get(self, url, **kwargs):
-            raise RequestsConnectionError("offline")
+            raise TimeoutError("offline")
 
     fake_news = [{"title": "台達電擴編消息"}]
     with patch("news_fetchers.fetch_google_news_rss", return_value=fake_news) as fetch_news:

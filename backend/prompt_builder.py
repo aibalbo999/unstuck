@@ -14,6 +14,7 @@ from jinja2 import ChainableUndefined, Environment
 from config import CATALYST_LOOKBACK_DAYS
 from financial_tools import build_financial_tool_context, raw_twd_to_billion_twd, safe_float
 from prompt_context_sections import prompt_global_market_context, prompt_international_news_context
+from prompt_source_audit import prompt_source_audit_summary
 
 
 PROMPT_DATA_SCHEMA_VERSION = int(os.getenv("PROMPT_DATA_SCHEMA_VERSION", "3"))
@@ -142,26 +143,7 @@ def _prompt_data_trust(data: dict) -> dict:
 
 
 def _prompt_source_audit_summary(data: dict) -> list[dict]:
-    entries = data.get("source_audit", []) if isinstance(data.get("source_audit"), list) else []
-    latest = {}
-    for entry in entries:
-        if not isinstance(entry, dict):
-            continue
-        source = str(entry.get("source") or "")
-        if source:
-            latest[source] = entry
-    return [
-        {
-            "source": source,
-            "provider": entry.get("provider"),
-            "status": entry.get("status"),
-            "record_count": entry.get("record_count"),
-            "cache_hit": entry.get("cache_hit"),
-            "stale": entry.get("stale"),
-            "message": str(entry.get("message") or entry.get("error_kind") or "")[:160],
-        }
-        for source, entry in sorted(latest.items())
-    ]
+    return prompt_source_audit_summary(data)
 
 
 def _compact_list(items, limit: int) -> list:
@@ -181,7 +163,16 @@ def _compact_pe_river(pe_river: dict) -> dict:
 
 
 def _agent_context(data: dict) -> dict:
-    keys = ("macro_indicators", "chip_data", "alternative_data", "sentiment_context", "social_sentiment", "sec_edgar", "taiwan_open_data")
+    keys = (
+        "macro_indicators",
+        "chip_data",
+        "alternative_data",
+        "sentiment_context",
+        "social_sentiment",
+        "sec_edgar",
+        "taiwan_open_data",
+        "earnings_call",
+    )
     return {key: data.get(key) for key in keys if data.get(key)}
 
 

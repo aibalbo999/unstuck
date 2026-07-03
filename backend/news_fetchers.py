@@ -12,7 +12,8 @@ from urllib.parse import parse_qsl, quote_plus, urlencode, urljoin, urlsplit, ur
 
 from bs4 import BeautifulSoup
 import feedparser
-import requests
+
+from external_http_client import sync_get
 
 try:
     from ddgs import DDGS
@@ -193,12 +194,12 @@ def fetch_google_news_rss(query: str, limit: int = 10) -> list[NewsRecord]:
         "&hl=zh-TW&gl=TW&ceid=TW:zh-Hant"
     )
     try:
-        response = requests.get(
+        response = sync_get(
             url,
             headers={"User-Agent": USER_AGENT},
             timeout=REQUEST_TIMEOUT_SECONDS,
+            provider="Google News RSS",
         )
-        response.raise_for_status()
         feed = feedparser.parse(response.content)
         if getattr(feed, "bozo", False) and not getattr(feed, "entries", []):
             raise ValueError("invalid RSS feed")
@@ -255,12 +256,12 @@ def fetch_ptt_stock_sentiment(ticker: str, limit: int = 10) -> list[NewsRecord]:
         return []
     bounded_limit = _clamp_limit(limit)
     try:
-        response = requests.get(
+        response = sync_get(
             PTT_STOCK_URL,
             headers={"User-Agent": USER_AGENT, "Cookie": "over18=1"},
             timeout=REQUEST_TIMEOUT_SECONDS,
+            provider="PTT Stock",
         )
-        response.raise_for_status()
         soup = BeautifulSoup(response.text, "html.parser")
         records = []
         for item in soup.select("div.r-ent"):
@@ -282,9 +283,6 @@ def fetch_ptt_stock_sentiment(ticker: str, limit: int = 10) -> list[NewsRecord]:
             if record:
                 records.append(record)
         return _dedupe(records, bounded_limit)
-    except requests.RequestException as exc:
-        _warn("PTT Stock", "first-page request", exc)
-        return []
     except Exception as exc:
         _warn("PTT Stock", "parse", exc)
         return []

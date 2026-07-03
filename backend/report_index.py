@@ -19,7 +19,6 @@ from report_index_migrations import REPORT_INDEX_MIGRATION_KEY, REPORT_INDEX_SCH
 from report_index_repair import stored_recommendation_needs_rebuild
 from report_index_rows import row_to_report
 
-
 _REPORT_INDEX_LOCK = threading.Lock()
 
 
