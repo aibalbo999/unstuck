@@ -51,7 +51,13 @@ def _write_report_pair(output_dir: Path, filename: str, recommendation: str = "�
     )
 
 
-def _write_snapshot(output_dir: Path, filename: str, status: str):
+def _write_snapshot(
+    output_dir: Path,
+    filename: str,
+    status: str,
+    evidence_exit_gate: dict | None = None,
+    report_conformance: dict | None = None,
+):
     snapshot = {
         "snapshot_schema_version": 3,
         "snapshot_truncated": False,
@@ -85,6 +91,10 @@ def _write_snapshot(output_dir: Path, filename: str, status: str):
             },
         },
     }
+    if evidence_exit_gate is not None:
+        snapshot["evidence_exit_gate"] = evidence_exit_gate
+    if report_conformance is not None:
+        snapshot["report_conformance"] = report_conformance
     (output_dir / filename.replace(".html", ".data.json")).write_text(
         json.dumps(snapshot, ensure_ascii=False),
         encoding="utf-8",
@@ -252,6 +262,61 @@ def test_fake_provider_job_generates_report_snapshot_visible_in_history(tmp_path
     assert "fresh_core_sources" in snapshot["data_trust"]["reason_codes"]
     assert snapshot["source_audit"][0]["provider"] == "fake-provider"
     assert snapshot["data"]["ticker"] == "FAKE"
+
+
+def test_report_history_exposes_evidence_exit_gate_for_operator_actions(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.sqlite3"))
+    filename = "2449_v2_report_20260606_030000.html"
+    _write_report_pair(tmp_path, filename, "持有")
+    _write_snapshot(
+        tmp_path,
+        filename,
+        "fresh",
+        evidence_exit_gate={
+            "verdict": "rejected",
+            "summary": "超過半數抽樣數字無法對上資料快照。",
+            "failed_count": 2,
+            "sampled_count": 3,
+        },
+    )
+
+    client = TestClient(api.app)
+    response = client.get("/api/reports", params={"limit": 20})
+
+    assert response.status_code == 200
+    report = response.json()["reports"][0]
+    assert report["filename"] == filename
+    assert report["data_trust"]["status"] == "fresh"
+    assert report["evidence_exit_gate"]["verdict"] == "rejected"
+    assert report["evidence_exit_gate"]["failed_count"] == 2
+
+
+def test_report_history_exposes_report_conformance_for_operator_actions(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.sqlite3"))
+    filename = "2449_v2_report_20260606_040000.html"
+    _write_report_pair(tmp_path, filename, "持有")
+    _write_snapshot(
+        tmp_path,
+        filename,
+        "fresh",
+        report_conformance={
+            "status": "blocked",
+            "summary": "報告未符合輸出契約，需修正後再採用。",
+            "blocking_issues": [{"id": "required_visibility", "message": "報告缺少必要可見段落。"}],
+            "warnings": [],
+        },
+    )
+
+    client = TestClient(api.app)
+    response = client.get("/api/reports", params={"limit": 20})
+
+    assert response.status_code == 200
+    report = response.json()["reports"][0]
+    assert report["filename"] == filename
+    assert report["report_conformance"]["status"] == "blocked"
+    assert report["report_conformance"]["blocking_issues"][0]["id"] == "required_visibility"
 
 
 def test_static_css_modules_keep_expected_component_selectors():

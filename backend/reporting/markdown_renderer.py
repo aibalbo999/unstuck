@@ -12,6 +12,13 @@ from pipeline_modes import get_pipeline_definition
 from recommendation_labels import normalize_recommendation_label
 
 from .audit_trust import build_audit_markdown, build_data_trust_markdown, build_source_audit_markdown
+from .execution_summary import build_execution_summary_markdown
+from .mode_templates import (
+    build_mode_template_markdown,
+    decision_markdown_heading,
+    get_report_template_profile,
+    summary_markdown_heading,
+)
 from .sections import build_agent_sections, build_tear_sheet_summary
 
 def generate_markdown_report(context: AnalysisContext) -> str:
@@ -24,6 +31,7 @@ def generate_markdown_report(context: AnalysisContext) -> str:
     name = company_display_name(data, context.get("company_name", ticker))
     fetch_date = data.get("fetch_date", datetime.now().strftime("%Y年%m月%d日"))
     pipeline_def = get_pipeline_definition(context.get("pipeline_id", "v1"))
+    mode_template = get_report_template_profile(pipeline_def["id"])
     report_title = pipeline_def["report_title"]
     
     price_targets = parsed.get("price_targets", {})
@@ -42,8 +50,9 @@ def generate_markdown_report(context: AnalysisContext) -> str:
     target_12m = get_rec_val(recommendation, "12個月", "N/A")
     confidence = get_rec_val(recommendation, "信心", "N/A")
     trade_setup = parsed.get("trade_setup", {}) or {}
-    if pipeline_def["id"] == "v4" and trade_setup:
-        decision_markdown = f"""## 極短線交易計畫
+    decision_heading = decision_markdown_heading(mode_template)
+    if pipeline_def["id"] == "v4":
+        decision_markdown = f"""{decision_heading}
 - **交易方向:** {trade_setup.get("trade_direction", "Neutral")}
 - **進場區間:** {trade_setup.get("entry_zone", "N/A")}
 - **1-2週目標:** {trade_setup.get("target_price", "N/A")}
@@ -51,7 +60,7 @@ def generate_markdown_report(context: AnalysisContext) -> str:
 - **核心催化劑:** {trade_setup.get("core_catalyst", "N/A")}
 - **短期波動風險:** {trade_setup.get("risk_level", "High")}"""
     else:
-        decision_markdown = f"""## 🎯 最終投資建議
+        decision_markdown = f"""{decision_heading}
 - **綜合建議:** {rec_text}
 - **3個月目標:** {target_3m}
 - **6個月目標:** {target_6m}
@@ -59,10 +68,12 @@ def generate_markdown_report(context: AnalysisContext) -> str:
 - **信心指數:** {confidence}"""
     audit_markdown = build_audit_markdown(context)
     data_trust_markdown = build_data_trust_markdown(data, context)
+    model_route_summary = format_model_routes(pipeline_id=pipeline_def["id"])
+    execution_summary_markdown = build_execution_summary_markdown(context, model_routes=model_route_summary)
+    mode_template_markdown = build_mode_template_markdown(mode_template)
     source_audit_markdown = build_source_audit_markdown(data, context)
     thesis_markdown = investment_thesis_markdown(context.get("investment_thesis") or {})
     tear_sheet_summary = build_tear_sheet_summary(context)
-    model_route_summary = format_model_routes(pipeline_id=pipeline_def["id"])
     agent_sections = build_agent_sections(context, html=False)
     agent_markdown = "\n\n---\n\n".join(
         f"## {section['display_num']}. {section['title']} (Agent {section['agent_num']})\n{section['body']}"
@@ -75,7 +86,11 @@ def generate_markdown_report(context: AnalysisContext) -> str:
 {audit_markdown + chr(10) + chr(10) if audit_markdown else ""}
 {data_trust_markdown}
 
-## 一頁式摘要
+{execution_summary_markdown}
+
+{mode_template_markdown}
+
+{summary_markdown_heading(mode_template)}
 {tear_sheet_summary}
 
 ## 📊 關鍵指標

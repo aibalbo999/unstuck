@@ -1670,7 +1670,9 @@ class AuditRuleTests(unittest.TestCase):
             },
         })
         html = report_gen.generate_html_report(context)
-        self.assertIn("One-Page Tear Sheet", html)
+        self.assertIn("一頁式摘要", html)
+        self.assertIn('data-template-id="mode_a_research"', html)
+        self.assertIn("長線基本面投資人", html)
         self.assertIn("peRiverChart", html)
         self.assertIn("P/E 河流圖", html)
         self.assertIn("P/E 河流圖（EPS × 歷史本益比通道）", html)

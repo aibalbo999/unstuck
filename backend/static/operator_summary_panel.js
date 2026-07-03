@@ -8,10 +8,7 @@
         if (strong) strong.textContent = value;
         if (em) em.textContent = detail || '';
     }
-    function quotaErrorCount(service) {
-        const usage = service?.usage || {};
-        return Number(usage.observed_quota_errors_since_reset || usage.observed_24h_errors || 0);
-    }
+    function quotaErrorCount(service) { const usage = service?.usage || {}; return Number(usage.observed_quota_errors_since_reset || usage.observed_24h_errors || 0); }
     function activeJobText(payload) {
         const active = Number(payload?.active_count || 0);
         const jobs = payload?.jobs || [];
@@ -20,10 +17,13 @@
     }
     const dataTrustReasonCodes = report => Array.isArray(report?.data_trust?.reason_codes) ? report.data_trust.reason_codes.map(code => String(code || '')) : [];
     const reportNeedsRerun = report => Boolean(report?.analysis_text_stale || report?.decision_freshness?.requires_rerun || report?.requires_rerun);
+    const reportConformanceStatus = report => String(report?.report_conformance?.status || '');
+    const evidenceExitGateVerdict = report => String(report?.evidence_exit_gate?.verdict || '');
+    const evidenceExitGateNeedsAction = report => ['rejected', 'caution'].includes(evidenceExitGateVerdict(report));
     function requiresDataTrustAction(report) {
         const status = report?.data_trust?.status || 'unknown';
         const codes = dataTrustReasonCodes(report);
-        return status === 'error' || hasRefreshableDataTrustIssue(report) || reportNeedsRerun(report) || codes.some(code => code.startsWith('source_error:'));
+        return status === 'error' || ['blocked', 'warning'].includes(reportConformanceStatus(report)) || evidenceExitGateNeedsAction(report) || hasRefreshableDataTrustIssue(report) || reportNeedsRerun(report) || codes.some(code => code.startsWith('source_error:'));
     }
     const isSourceNotice = report => report?.data_trust?.status === 'partial' && !requiresDataTrustAction(report) && dataTrustReasonCodes(report).includes('provider_sla_critical');
     const sourceNoticeReports = reports => reports.filter(isSourceNotice);
@@ -60,6 +60,10 @@
     function reportAction(report) {
         const status = report?.data_trust?.status;
         if (status === 'error') return { title: '暫勿採用', detail: '來源異常，先查看報告' };
+        if (reportConformanceStatus(report) === 'blocked') return { title: '報告符合性未通過', detail: report?.report_conformance?.summary || '報告未符合輸出契約' };
+        if (reportConformanceStatus(report) === 'warning') return { title: '報告符合性需確認', detail: report?.report_conformance?.summary || '報告符合主要契約，但仍需人工確認' };
+        if (evidenceExitGateVerdict(report) === 'rejected') return { title: '證據抽查未通過', detail: report?.evidence_exit_gate?.summary || '報告數字未能對上資料快照' };
+        if (evidenceExitGateVerdict(report) === 'caution') return { title: '數字證據需人工核對', detail: report?.evidence_exit_gate?.summary || '部分報告數字需人工確認' };
         if (reportNeedsRerun(report)) return { title: '建議完整重跑', detail: '結論與資料可能不同步' };
         if (hasRefreshableDataTrustIssue(report)) return { title: '建議刷新資料', detail: '先更新快照再判斷', action: 'refresh-report', label: '刷新資料' };
         if (status === 'partial' && !isSourceNotice(report)) return { title: '資料需留意', detail: '資料已是最新快照，請查看來源審計' };

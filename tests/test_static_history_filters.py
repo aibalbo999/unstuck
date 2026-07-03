@@ -223,6 +223,12 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "analysis_text_stale" in history_workspace_js
     assert "payload.analysis_text_stale ?? previewReport.analysis_text_stale" in history_workspace_js
     assert "payload.analysis_text_stale_message ?? previewReport.analysis_text_stale_message" in history_workspace_js
+    assert "evidence_exit_gate" in history_panel_js
+    assert "report_conformance" in history_panel_js
+    assert "數字證據需人工核對" in history_panel_js
+    assert "報告符合性未通過" in history_panel_js
+    assert "證據抽查未通過" in operator_summary_js
+    assert "報告符合性未通過" in operator_summary_js
     assert "rerunPreviewReport" in history_workspace_js
     assert "StockAgentReportRerun.rerunPreviewReport" in history_workspace_js
     assert "/rerun?scope=" in report_rerun_js

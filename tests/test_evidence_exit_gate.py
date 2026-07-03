@@ -84,11 +84,18 @@ def test_report_renderer_attaches_evidence_exit_gate_to_snapshot_and_metadata(mo
     import reporting.renderer as renderer_module
     from reporting import ReportRenderer, ReportRequest
 
-    async def fake_html(_context):
-        return "<html><body><p>股價: NT$100.00</p><p>P/E: 20.0x</p><p>營收: 12.0</p></body></html>"
+    async def fake_html(context):
+        return fake_html_sync(context)
 
-    def fake_markdown(_context):
-        return "# 報告\n\n- 股價: NT$100.00\n- P/E: 20.0x\n- 營收: 12.0\n"
+    def fake_html_sync(context):
+        gate = context.get("evidence_exit_gate") or {}
+        gate_line = f"<p>Evidence gate：{gate.get('verdict')}</p>" if gate else ""
+        return f"<html><body><p>股價: NT$100.00</p><p>P/E: 20.0x</p><p>營收: 12.0</p>{gate_line}</body></html>"
+
+    def fake_markdown(context):
+        gate = context.get("evidence_exit_gate") or {}
+        gate_line = f"\n- **Evidence gate:** {gate.get('verdict')}\n" if gate else ""
+        return f"# 報告\n\n- 股價: NT$100.00\n- P/E: 20.0x\n- 營收: 12.0\n{gate_line}"
 
     monkeypatch.setattr(renderer_module, "generate_html_report_async", fake_html)
     monkeypatch.setattr(renderer_module, "generate_markdown_report", fake_markdown)
@@ -117,3 +124,5 @@ def test_report_renderer_attaches_evidence_exit_gate_to_snapshot_and_metadata(mo
 
     assert bundle.metadata["evidence_exit_gate"]["verdict"] == "approved"
     assert bundle.data_snapshot["evidence_exit_gate"]["verdict"] == "approved"
+    assert "Evidence gate：approved" in bundle.html
+    assert "**Evidence gate:** approved" in bundle.markdown

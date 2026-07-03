@@ -103,6 +103,18 @@ def _temporal_memory(row) -> dict:
     return memory
 
 
+def _evidence_exit_gate(row) -> dict:
+    snapshot = _read_snapshot(row)
+    gate = snapshot.get("evidence_exit_gate") if isinstance(snapshot, dict) else {}
+    return gate if isinstance(gate, dict) else {}
+
+
+def _report_conformance(row) -> dict:
+    snapshot = _read_snapshot(row)
+    conformance = snapshot.get("report_conformance") if isinstance(snapshot, dict) else {}
+    return conformance if isinstance(conformance, dict) else {}
+
+
 def _markdown_text(row) -> str:
     path = _row_file_path(row, kind="md")
     if not os.path.exists(path):
@@ -164,6 +176,8 @@ def row_to_report(row) -> dict:
         "decision_tracking": decision_tracking,
         "decision_freshness": decision_freshness,
         "temporal_memory": _temporal_memory(row),
+        "evidence_exit_gate": _evidence_exit_gate(row),
+        "report_conformance": _report_conformance(row),
         "data_snapshot_filename": row["data_snapshot_filename"] if "data_snapshot_filename" in row.keys() else "",
         "data_trust": data_trust,
         "data_trust_status": row["data_trust_status"] if "data_trust_status" in row.keys() else data_trust.get("status", "unknown"),

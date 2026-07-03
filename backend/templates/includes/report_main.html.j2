@@ -35,7 +35,7 @@
         <div class="verdict-banner">
             <div class="verdict-icon">{% if pipeline_def.id == 'v4' and trade_setup %}{{ trade_direction_icon }}{% else %}{{ rec_icon }}{% endif %}</div>
             <div class="verdict-text">
-                <div class="verdict-label">{% if pipeline_def.id == 'v4' and trade_setup %}1-2 週交易方向{% else %}最終投資建議{% endif %}</div>
+                <div class="verdict-label">{{ mode_template.verdict_label }}</div>
                 <div class="verdict-main">{% if pipeline_def.id == 'v4' and trade_setup %}{{ trade_direction_label }}{% else %}{{ rec_text }}{% endif %}</div>
                 <div class="verdict-sub">{{ report_subtitle }}</div>
             </div>
@@ -66,6 +66,10 @@
 
         {% include "includes/data_trust.html.j2" %}
 
+        {{ execution_summary_html|safe }}
+
+        {{ mode_template_html|safe }}
+
         {% if executive_thesis %}
         <div class="executive-thesis">
             <div class="executive-thesis-title">投資核心論點</div>
@@ -74,7 +78,7 @@
         {% endif %}
 
         <div class="tear-sheet">
-            <div class="tear-sheet-title">One-Page Tear Sheet</div>
+            <div class="tear-sheet-title">{{ mode_template.summary_heading }}</div>
             <div class="tear-sheet-body">
                 {{ tear_sheet_summary|safe }}
             </div>

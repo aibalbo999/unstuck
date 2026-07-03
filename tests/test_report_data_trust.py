@@ -87,6 +87,18 @@ def test_html_and_markdown_include_data_trust_and_source_audit():
     context = minimal_context()
     context["prompt_version"] = "runtime-rules:test"
     context["model_id"] = "gemini-test-model"
+    context["agent_sequence"] = [1, 2, 3]
+    context["final_audit"] = {"status": "passed", "critical": [], "warnings": ["高信心需揭露資料限制"], "corrections": []}
+    context["evidence_exit_gate"] = {
+        "verdict": "caution",
+        "summary": "部分抽樣數字無法對上資料快照，需人工確認。",
+        "sampled_count": 3,
+        "failed_count": 1,
+    }
+    context["report_conformance"] = {
+        "status": "warning",
+        "summary": "報告符合輸出契約，但仍需人工注意警示。",
+    }
 
     html = report_gen.generate_html_report(context)
     markdown = report_gen.generate_markdown_report(context)
@@ -100,12 +112,24 @@ def test_html_and_markdown_include_data_trust_and_source_audit():
     assert "股價與市值" in html
     assert "來源審計" in html
     assert "yfinance" in html
+    assert "執行邏輯與模型檢查" in html
+    assert "Pipeline V1" in html
+    assert "Agent 執行序列" in html
+    assert "Final audit：passed" in html
+    assert "Evidence gate：caution" in html
+    assert "Report conformance：warning" in html
     assert "## 本報告資料可信度" in markdown
     assert "**資料信心分數:**" in markdown
     assert "**可重現資訊:**" in markdown
     assert "runtime-rules:test" in markdown
     assert "## 關鍵數據來源對照" in markdown
     assert "## 來源審計" in markdown
+    assert "## 執行邏輯與模型檢查" in markdown
+    assert "**Pipeline:** V1" in markdown
+    assert "**Agent 執行序列:** Agent 1 → Agent 2 → Agent 3" in markdown
+    assert "**Final audit:** passed" in markdown
+    assert "**Evidence gate:** caution" in markdown
+    assert "**Report conformance:** warning" in markdown
     assert "| 股價與市值 | 市場資料 | yfinance | 成功 |" in markdown
     assert "| 市場資料 | yfinance | 成功 |" in markdown
 

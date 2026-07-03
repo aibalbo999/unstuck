@@ -21,7 +21,9 @@ from .analysis_overlays import (
 from .common import build_agent_model_labels, render_report_template
 from .cover import prepare_report_cover_async
 from .evidence_matrix import build_evidence_matrix_payload
+from .execution_summary import build_execution_summary_html
 from .html_sanitizer import sanitize_report_image_url, sanitize_report_plain_text
+from .mode_templates import build_mode_template_html, get_report_template_profile
 from .sections import build_agent_sections, build_tear_sheet_summary
 from .utils import (
     billion_twd_series_to_yi_twd,
@@ -85,6 +87,7 @@ def generate_html_report(context: AnalysisContext) -> str:
     name = sanitize_report_plain_text(company_display_name(data, context.get("company_name", ticker))) or ticker
     fetch_date = data.get("fetch_date", datetime.now().strftime("%Y年%m月%d日"))
     pipeline_def = get_pipeline_definition(context.get("pipeline_id", "v1"))
+    mode_template = get_report_template_profile(pipeline_def["id"])
     report_title = pipeline_def["report_title"]
     report_subtitle = pipeline_def["report_subtitle"]
     pipeline_label = pipeline_def["label"]
@@ -174,6 +177,9 @@ def generate_html_report(context: AnalysisContext) -> str:
         )
     audit_banner_html = build_audit_banner_html(context)
     data_trust_html = build_data_trust_html(data, context)
+    model_route_summary = format_model_routes(pipeline_id=pipeline_def["id"])
+    execution_summary_html = build_execution_summary_html(context, model_routes=model_route_summary)
+    mode_template_html = build_mode_template_html(mode_template)
     source_audit_html = build_source_audit_html(data, context)
     audit_entries = data.get("source_audit", []) if isinstance(data.get("source_audit"), list) else []
     report_ticker = str(data.get("ticker") or ticker)
@@ -280,8 +286,6 @@ def generate_html_report(context: AnalysisContext) -> str:
     total_time = context.get("total_time", 0)
     time_str = f"{total_time:.0f} 秒" if total_time else "N/A"
     agent_model_labels = build_agent_model_labels()
-    model_route_summary = format_model_routes(pipeline_id=pipeline_def["id"])
-    
     current_price_numeric = data.get("current_price", 0) if isinstance(data.get("current_price", 0), (int, float)) else 0
     template_context = dict(locals())
     return render_report_template("report.html.j2", template_context)

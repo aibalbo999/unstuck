@@ -54,8 +54,46 @@
             && !hasRefreshableDataTrustIssue(report)
             && reasonCodes.includes('provider_sla_critical');
     }
+    function evidenceExitGateAction(report) {
+        const gate = report?.evidence_exit_gate || {};
+        if (gate.verdict === 'rejected') {
+            return {
+                label: '證據抽查未通過',
+                tone: 'critical',
+                detail: gate.summary || '報告數字未能對上資料快照，暫勿直接採用。'
+            };
+        }
+        if (gate.verdict === 'caution') {
+            return {
+                label: '數字證據需人工核對',
+                tone: 'warning',
+                detail: gate.summary || '部分報告數字未完成快照核對，請先人工確認。'
+            };
+        }
+        return null;
+    }
+    function reportConformanceAction(report) {
+        const conformance = report?.report_conformance || {};
+        if (conformance.status === 'blocked') {
+            return {
+                label: '報告符合性未通過',
+                tone: 'critical',
+                detail: conformance.summary || '報告未符合輸出契約，暫勿直接採用。'
+            };
+        }
+        if (conformance.status === 'warning') {
+            return {
+                label: '報告符合性需確認',
+                tone: 'warning',
+                detail: conformance.summary || '報告符合主要契約，但仍需人工確認警示。'
+            };
+        }
+        return null;
+    }
     function reportActionBadge(report, escapeHtml) {
         const status = report?.data_trust?.status || 'unknown';
+        const conformanceAction = reportConformanceAction(report);
+        const evidenceAction = evidenceExitGateAction(report);
         let label = '可直接使用';
         let tone = 'ok';
         let detail = '資料與結論可直接查看';
@@ -63,6 +101,14 @@
             label = '暫勿採用';
             tone = 'critical';
             detail = '來源異常，請先重跑或改看其他報告';
+        } else if (conformanceAction) {
+            label = conformanceAction.label;
+            tone = conformanceAction.tone;
+            detail = conformanceAction.detail;
+        } else if (evidenceAction) {
+            label = evidenceAction.label;
+            tone = evidenceAction.tone;
+            detail = evidenceAction.detail;
         } else if (report?.analysis_text_stale || report?.decision_freshness?.requires_rerun || report?.requires_rerun) {
             label = '建議完整重跑';
             tone = 'critical';

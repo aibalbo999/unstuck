@@ -116,6 +116,7 @@ def build_data_snapshot(
         "data_source_notes": sanitize_for_snapshot(data.get("data_source_notes", [])),
         "deterministic_fallbacks": sanitize_for_snapshot(context.get("deterministic_fallbacks", [])),
         "report_lint": sanitize_for_snapshot(context.get("report_lint", {})),
+        "report_conformance": sanitize_for_snapshot(context.get("report_conformance", {})),
         "rerun_context": sanitize_rerun_context(context),
         "data": sanitize_for_snapshot(data),
     }
