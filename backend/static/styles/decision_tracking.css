@@ -39,6 +39,10 @@
 .tracking-target-cell.is-near-target { color: #fde68a; background: rgba(180, 83, 9, 0.18); }
 .tracking-target-cell.is-above-target { color: #86efac; background: rgba(22, 163, 74, 0.15); }
 .tracking-target-cell.is-swing { color: #bae6fd; background: rgba(14, 165, 233, 0.14); }
+.tracking-target-chip { min-height: 40px; padding: 6px; column-gap: 6px; }
+.tracking-target-period { grid-area: period; font-size: 0.68rem; }
+.tracking-target-value { grid-area: value; color: inherit; font-size: 0.78rem; }
+.tracking-target-label { grid-area: label; font-size: 0.68rem; }
 .decision-tracking-table.is-compact .tracking-stock-group { grid-template-columns: minmax(88px, 0.24fr) minmax(0, 1fr); }
 .decision-tracking-table.is-compact .tracking-report-card { min-height: 52px; grid-template-columns: minmax(82px, 0.9fr) minmax(92px, 0.8fr); align-content: center; }
 .decision-track-toggle { min-width: 78px; min-height: 44px; border: 1px solid rgba(0, 212, 255, 0.35); border-radius: 8px; background: rgba(0, 212, 255, 0.08); color: #67e8f9; cursor: pointer; font-size: 0.68rem; font-weight: 900; }
@@ -51,6 +55,7 @@
     .decision-tracking-actions { justify-content: stretch; }
     .tracking-stock-group, .tracking-group-reports { grid-template-columns: 1fr; }
     .tracking-report-card, .decision-tracking-table.is-compact .tracking-report-card { grid-template-columns: minmax(76px, 0.8fr) minmax(86px, 0.8fr); }
+    .tracking-report-card, .decision-tracking-table.is-compact .tracking-report-card { grid-template-columns: 1fr; }
     .tracking-target-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .tracking-target-grid { grid-column: 1 / -1; }
 }

@@ -6,8 +6,7 @@
     }
 
     function create(options) {
-        const apiClient = options.apiClient;
-        const ui = options.ui;
+        const apiClient = options.apiClient, ui = options.ui;
         const elements = {
             providerSlaSummary: byId('provider-sla-summary'),
             providerSlaList: byId('provider-sla-list'),
@@ -27,6 +26,7 @@
         let providerSlaDirty = false;
         const watchlistPanel = window.StockAgentWatchlistPanel.create({
             apiClient,
+            ui,
             escapeHtml: ui.escapeHtml,
             onRunQueued: loadActiveJobs,
             elements: {

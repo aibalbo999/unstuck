@@ -23,7 +23,7 @@
     <main id="home-view" class="view-container active">
         <div class="glass-panel text-center">
             <h1 class="gradient-text title">Wall Street AI</h1>
-            <p class="subtitle">連續式股票分析 Agent</p>
+            <p class="subtitle">研究報告與決策追蹤工作台</p>
 
             <div class="home-tabs" role="tablist" aria-label="首頁頁籤">
                 <button id="home-tab-analysis" class="home-tab-button is-active" type="button" role="tab" aria-selected="true" aria-controls="home-panel-analysis" data-home-tab="analysis">分析</button>
@@ -42,38 +42,39 @@
                         <input type="radio" name="pipeline-mode" value="v1" checked />
                         <span>
                             <strong>模式 A</strong>
-                            <small>學術深度派 · 10 Agent</small>
+                            <small>長線研究 · 10 Agent</small>
                         </span>
                     </label>
                     <label class="pipeline-option">
                         <input type="radio" name="pipeline-mode" value="v2" />
                         <span>
                             <strong>模式 B</strong>
-                            <small>實戰交易派 · 8 Agent</small>
+                            <small>部位決策 · 8 Agent</small>
                         </span>
                     </label>
                     <label class="pipeline-option">
                         <input type="radio" name="pipeline-mode" value="v3" />
                         <span>
                             <strong>模式 C</strong>
-                            <small>逆勢泡沫狙擊 · 5 Agent</small>
+                            <small>逆勢風控 · 5 Agent</small>
                         </span>
                     </label>
                     <label class="pipeline-option">
                         <input type="radio" name="pipeline-mode" value="v4" />
                         <span>
                             <strong>模式 D</strong>
-                            <small>短線波段派 · 3 Agent</small>
+                            <small>事件波段 · 3 Agent</small>
                         </span>
                     </label>
                     <label class="pipeline-option">
                         <input type="radio" name="pipeline-mode" value="both" />
                         <span>
                             <strong>連續 A+B+C</strong>
-                            <small>學術、實戰、逆勢全跑 · 23 模組</small>
+                            <small>三視角交叉檢查 · 23 模組</small>
                         </span>
                     </label>
                 </div>
+                <p id="pipeline-mode-hint" class="pipeline-mode-hint" aria-live="polite">適合判斷是否納入長線研究清單。</p>
 
                 <button id="analyze-btn" class="glow-button">
                     <span>開始深度分析</span>
@@ -521,7 +522,7 @@
         </div>
     </div>
 
-    <script src="/static/ui_helpers.js?v=20260611-operator-clarity"></script>
+    <script src="/static/ui_helpers.js?v=20260704-pipeline-meta"></script>
     <script src="/static/api_client.js?v=20260608-api-quota-watchlist"></script>
     <script src="/static/api_client_extensions.js?v=20260610-dual-tracking"></script>
     <script src="/static/provider_sla_panel.js?v=20260611-operator-clarity"></script>
@@ -530,14 +531,14 @@
     <script src="/static/active_jobs_panel.js?v=20260608-stage-summary"></script>
     <script src="/static/operator_summary_panel.js?v=20260628-watchlist-action-detail"></script>
     <script src="/static/watchlist_trigger_form.js?v=20260620-event-radar"></script>
-    <script src="/static/watchlist_panel.js?v=20260610-operator-workbench"></script>
-    <script src="/static/market_screener_panel.js?v=20260628-screener-grid"></script>
-    <script src="/static/ops_workspace.js?v=20260620-performance"></script>
+    <script src="/static/watchlist_panel.js?v=20260704-pipeline-meta"></script>
+    <script src="/static/market_screener_panel.js?v=20260704-pipeline-meta"></script>
+    <script src="/static/ops_workspace.js?v=20260704-pipeline-meta"></script>
     <script src="/static/maintenance_panel.js?v=20260610-operator-workbench"></script>
     <script src="/static/home_tabs.js?v=20260608-home-tabs"></script>
     <script src="/static/report_rerun.js?v=20260608-full-report"></script>
     <script src="/static/analysis_stream.js?v=20260607-analysis-stream"></script>
-    <script src="/static/history_panel.js?v=20260627-mode-aware-preview"></script>
+    <script src="/static/history_panel.js?v=20260704-pipeline-meta"></script>
     <script src="/static/temporal_memory_panel.js?v=20260620-event-radar"></script>
     <script src="/static/report_preview_panel.js?v=20260627-mode-aware-preview"></script>
     <script src="/static/view_controller.js?v=20260607-view-controller"></script>
@@ -548,6 +549,6 @@
     <script src="/static/decision_tracking_panel.js?v=20260612-fix-tracking-notify"></script>
     <script src="/static/history_workspace.js?v=20260619-tracking-preview-map"></script>
     <script src="/static/notification_center.js?v=20260609-front-end-ops"></script>
-    <script src="/static/app.js?v=20260610-dual-tracking"></script>
+    <script src="/static/app.js?v=20260704-pipeline-meta"></script>
 </body>
 </html>

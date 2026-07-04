@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const tickerInput = document.getElementById('ticker-input');
     const analyzeBtn = document.getElementById('analyze-btn');
     const analyzeBtnText = analyzeBtn ? analyzeBtn.querySelector('span') : null;
+    const pipelineModeHint = document.getElementById('pipeline-mode-hint');
     const backBtn = document.getElementById('back-btn');
     
     const loadingStatus = document.getElementById('loading-status');
@@ -82,20 +83,33 @@ document.addEventListener('DOMContentLoaded', () => {
         return selected ? selected.value : 'v1';
     }
 
+    function syncPipelineOptionLabels() {
+        const choices = typeof ui.pipelineChoices === 'function' ? ui.pipelineChoices({ includeBoth: true }) : [];
+        choices.forEach(choice => {
+            const selector = `input[name="pipeline-mode"][value="${choice.value}"]`;
+            const input = document.querySelector(selector);
+            const label = input ? input.closest('.pipeline-option') : null;
+            if (label) {
+                const title = label.querySelector('strong');
+                const subtitle = label.querySelector('small');
+                if (title) title.textContent = choice.codeLabel || choice.label || choice.value;
+                if (subtitle) subtitle.textContent = choice.optionLabel || choice.shortLabel || choice.intent || '';
+            }
+            const historyOption = historyPipelineFilter?.querySelector(`option[value="${choice.value}"]`);
+            if (historyOption) historyOption.textContent = ui.pipelineModeLabel(choice.value);
+            const watchlistOption = document.querySelector(`#watchlist-pipeline-select option[value="${choice.value}"]`);
+            if (watchlistOption) watchlistOption.textContent = ui.pipelineModeLabel(choice.value);
+        });
+    }
+
     function updateAnalyzeButtonCopy() {
         if (!analyzeBtnText) return;
-        const selectedPipeline = getSelectedPipeline();
-        if (selectedPipeline === 'both') {
-            analyzeBtnText.textContent = '連續執行 A+B+C';
-        } else if (selectedPipeline === 'v4') {
-            analyzeBtnText.textContent = '開始模式 D 分析';
-        } else if (selectedPipeline === 'v3') {
-            analyzeBtnText.textContent = '開始模式 C 分析';
-        } else if (selectedPipeline === 'v2') {
-            analyzeBtnText.textContent = '開始模式 B 分析';
-        } else {
-            analyzeBtnText.textContent = '開始模式 A 分析';
-        }
+        analyzeBtnText.textContent = ui.pipelineCtaLabel(getSelectedPipeline());
+    }
+
+    function updatePipelineModeHint() {
+        if (!pipelineModeHint) return;
+        pipelineModeHint.textContent = ui.pipelineMeta(getSelectedPipeline()).intent || '';
     }
 
     function setAuditNotice(audit) {
@@ -216,9 +230,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     pipelineInputs.forEach(input => {
-        input.addEventListener('change', updateAnalyzeButtonCopy);
+        input.addEventListener('change', () => {
+            updateAnalyzeButtonCopy();
+            updatePipelineModeHint();
+        });
     });
+    syncPipelineOptionLabels();
     updateAnalyzeButtonCopy();
+    updatePipelineModeHint();
 
     const analysisStream = window.StockAgentAnalysisStream.create({
         loadingStatus,

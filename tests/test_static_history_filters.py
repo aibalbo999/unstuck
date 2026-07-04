@@ -218,6 +218,7 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "先使用仍有效的快取" in provider_sla_js
     assert "系統會優先補快取" not in provider_sla_js
     assert "資料取得率" in provider_sla_js
+
     assert "來源明細" in provider_sla_js
     assert "provider-sla-provider-list" in provider_sla_js
     assert "analysis_text_stale" in history_workspace_js
@@ -301,6 +302,96 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "apiClient.requestJson" in report_rerun_js
     assert "fetchActiveJobs" in operator_summary_js
     assert "fetchApiQuotas" in operator_summary_js
+
+
+def test_home_tabs_present_three_even_desktop_choices():
+    history_shell_css = (STATIC_DIR / "styles" / "history_shell.css").read_text(encoding="utf-8")
+    responsive_css = (STATIC_DIR / "styles" / "responsive.css").read_text(encoding="utf-8")
+
+    assert ".home-tabs" in history_shell_css
+    assert "grid-template-columns: repeat(3, minmax(0, 1fr));" in history_shell_css
+    assert ".home-tab-button" in history_shell_css and "min-height: 44px;" in history_shell_css
+    assert ".home-tabs {\n        grid-template-columns: 1fr;" in responsive_css
+
+
+def test_pipeline_mode_options_explain_decision_intent():
+    index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+
+    assert "長線研究 · 10 Agent" in index_html
+    assert "部位決策 · 8 Agent" in index_html
+    assert "逆勢風控 · 5 Agent" in index_html
+    assert "事件波段 · 3 Agent" in index_html
+    assert "三視角交叉檢查 · 23 模組" in index_html
+
+
+def test_home_subtitle_describes_user_outcome_not_internal_agent_shape():
+    index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+
+    assert "研究報告與決策追蹤工作台" in index_html
+    assert "連續式股票分析 Agent" not in index_html
+
+
+def test_pipeline_selection_updates_decision_intent_hint():
+    index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    app_js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
+    ui_helpers_js = (STATIC_DIR / "ui_helpers.js").read_text(encoding="utf-8")
+    forms_controls_css = (STATIC_DIR / "styles" / "forms_controls.css").read_text(encoding="utf-8")
+
+    assert 'id="pipeline-mode-hint"' in index_html
+    assert "pipelineModeHint" in app_js
+    assert "updatePipelineModeHint" in app_js
+    assert ".pipeline-mode-hint" in forms_controls_css
+    assert "intent:" in ui_helpers_js
+    assert "適合判斷是否納入長線研究清單" in ui_helpers_js
+    assert "適合決定進場、續抱或減碼" in ui_helpers_js
+    assert "適合檢查泡沫、避險與做空風險" in ui_helpers_js
+    assert "適合短線事件與波段交易計畫" in ui_helpers_js
+
+
+def test_pipeline_mode_frontend_labels_share_single_metadata_source():
+    app_js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
+    ui_helpers_js = (STATIC_DIR / "ui_helpers.js").read_text(encoding="utf-8")
+    history_panel_js = (STATIC_DIR / "history_panel.js").read_text(encoding="utf-8")
+    market_screener_js = (STATIC_DIR / "market_screener_panel.js").read_text(encoding="utf-8")
+    watchlist_panel_js = (STATIC_DIR / "watchlist_panel.js").read_text(encoding="utf-8")
+
+    assert "function pipelineChoices" in ui_helpers_js
+    assert "function pipelineCtaLabel" in ui_helpers_js
+    assert "ui.pipelineCtaLabel(getSelectedPipeline())" in app_js
+    assert "selectedPipeline === 'v4'" not in app_js
+    assert "this.ui.pipelineChoices" in market_screener_js
+    assert "const PIPELINE_OPTIONS = [" not in market_screener_js
+    assert "window.StockAgentUi?.pipelineModeLabel" in history_panel_js
+    assert "const labels = {" not in history_panel_js
+    assert "ui.pipelineModeLabel" in watchlist_panel_js
+    assert ".toUpperCase())" not in watchlist_panel_js
+
+
+def test_primary_cta_has_readable_contrast_on_cyan_action_background():
+    forms_controls_css = (STATIC_DIR / "styles" / "forms_controls.css").read_text(encoding="utf-8")
+
+    assert ".glow-button" in forms_controls_css
+    assert "background: var(--accent);" in forms_controls_css
+    assert "color: #03111f;" in forms_controls_css
+    assert _contrast_ratio("#03111f", "#00d4ff") >= 4.5
+
+
+def test_history_version_toggle_checkbox_is_visually_legible():
+    history_list_css = (STATIC_DIR / "styles" / "history_list.css").read_text(encoding="utf-8")
+
+    assert ".history-version-toggle input" in history_list_css
+    assert "width: 22px;" in history_list_css
+    assert "height: 22px;" in history_list_css
+
+
+def test_decision_tracking_mobile_cards_prioritize_readable_single_column_data():
+    decision_tracking_css = (STATIC_DIR / "styles" / "decision_tracking.css").read_text(encoding="utf-8")
+
+    assert ".tracking-target-chip { min-height: 40px;" in decision_tracking_css
+    assert ".tracking-target-period { grid-area: period; font-size: 0.68rem;" in decision_tracking_css
+    assert ".tracking-target-value { grid-area: value; color: inherit; font-size: 0.78rem;" in decision_tracking_css
+    assert ".tracking-target-label { grid-area: label; font-size: 0.68rem;" in decision_tracking_css
+    assert ".tracking-report-card, .decision-tracking-table.is-compact .tracking-report-card { grid-template-columns: 1fr;" in decision_tracking_css
 
 
 def test_decision_tracking_bulk_actions_and_compact_colors_are_wired():
@@ -837,7 +928,7 @@ def test_decision_tracking_controls_and_target_statuses_are_wired():
     assert "mergeTrackingReports" in history_workspace_js
     assert "trackingPayload" in history_workspace_js
     assert "item.latest_reports" in history_workspace_js
-    assert "模式 C" in history_panel_js
+    assert "window.StockAgentUi?.pipelineModeLabel" in history_panel_js
     assert "latest_reports" in (STATIC_DIR / "decision_tracking_panel.js").read_text(encoding="utf-8")
     assert "tracking-stock-cell" in history_panel_js
     assert "tracking-company-name" in history_panel_js
@@ -873,7 +964,7 @@ def test_decision_tracking_dense_layout_uses_workspace_efficiently():
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
 
     assert "style.css?v=20260627-mode-aware-preview" in index_html
-    assert "/static/history_panel.js?v=20260627-mode-aware-preview" in index_html
+    assert "/static/history_panel.js?v=20260704-pipeline-meta" in index_html
     assert "/static/report_preview_panel.js?v=20260627-mode-aware-preview" in index_html
     assert "preview_panel.css?v=20260627-mode-aware-preview" in style_css
     assert "decision_tracking.css?v=20260620-compact-colors" in style_css

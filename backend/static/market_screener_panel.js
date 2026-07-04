@@ -1,9 +1,5 @@
 (function () {
     const CATEGORY_LABELS = { institutional_accumulation: '外資投信同步', technical_heat: '股價大漲跌/成交量暴增' };
-    const PIPELINE_OPTIONS = [
-        { value: 'v1', label: '模式 A', shortLabel: '學術深度派' }, { value: 'v2', label: '模式 B', shortLabel: '實戰交易派' },
-        { value: 'v3', label: '模式 C', shortLabel: '逆勢泡沫狙擊' }, { value: 'v4', label: '模式 D', shortLabel: '短線波段派' }
-    ];
     const COLUMNS = [
         ['ticker', '股票'], ['score', '分數'], ['bias_pct', '乖離'], ['rsi_14', 'RSI'],
         ['revenue_growth_yoy_pct', '營收 YoY'], ['total_net_buy_shares', '法人買超'], ['watchlist', '狀態']
@@ -11,6 +7,14 @@
     function create(options) { return new MarketScreenerPanel(options); }
     function categoryLabel(value) { return CATEGORY_LABELS[value] || value || 'Auto-Screener'; }
     function selectorEscape(value) { return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"'); }
+    function fallbackPipelineChoices() {
+        return [
+            { value: 'v1', codeLabel: '模式 A', decisionLabel: '長線研究' },
+            { value: 'v2', codeLabel: '模式 B', decisionLabel: '部位決策' },
+            { value: 'v3', codeLabel: '模式 C', decisionLabel: '逆勢風控' },
+            { value: 'v4', codeLabel: '模式 D', decisionLabel: '事件波段' }
+        ];
+    }
     function dailyTrigger(item) { return (item.triggers || []).find(entry => entry.type === 'daily_screener') || {}; }
     function triggerReason(item) { const trigger = dailyTrigger(item); return item.reason || trigger.reason || item.latest_trigger_event?.message || 'Auto-Screener'; }
     function companyName(item) { const trigger = dailyTrigger(item); return item.company_name || trigger.company_name || trigger.metrics?.company_name || ''; }
@@ -33,6 +37,7 @@
         setSummary(text) { if (this.elements.summaryEl) this.elements.summaryEl.textContent = text; }
         setLoading(value) { this.loading = Boolean(value); this.render(); }
         providersLabel() { return (this.payload.providers || this.payload.data_sources || []).join('、') || '-'; }
+        pipelineOptions() { return typeof this.ui.pipelineChoices === 'function' ? this.ui.pipelineChoices() : fallbackPipelineChoices(); }
         selectedModeValues(ticker, fallbackPipeline) { return this.selectedModes[ticker] || [fallbackPipeline || 'v4']; }
         params() {
             const params = { limit: 50, offset: 0, sort_by: this.sort.key, sort_direction: this.sort.direction };
@@ -63,7 +68,7 @@
             const e = this.escapeHtml, ticker = String(item.ticker || '').toUpperCase();
             if (ticker !== this.selectedTicker) return '';
             const values = this.selectedModeValues(ticker, item.pipeline);
-            return `<tr class="market-screener-detail-row"><td colspan="7"><div class="market-screener-mode-picker" data-screener-mode-picker="${e(ticker)}"><div class="market-screener-mode-options">${PIPELINE_OPTIONS.map(option => `<label class="market-screener-mode-option"><input type="checkbox" data-screener-mode="${e(ticker)}" value="${e(option.value)}" ${values.includes(option.value) ? 'checked' : ''} /><span>${e(option.label)}</span><em>${e(option.shortLabel)}</em></label>`).join('')}</div><button class="maintenance-button market-screener-analyze-button" type="button" data-screener-run-modes="${e(ticker)}"><span>排入分析</span></button></div></td></tr>`;
+            return `<tr class="market-screener-detail-row"><td colspan="7"><div class="market-screener-mode-picker" data-screener-mode-picker="${e(ticker)}"><div class="market-screener-mode-options">${this.pipelineOptions().map(option => `<label class="market-screener-mode-option"><input type="checkbox" data-screener-mode="${e(ticker)}" value="${e(option.value)}" ${values.includes(option.value) ? 'checked' : ''} /><span>${e(option.codeLabel || option.label || option.value)}</span><em>${e(option.decisionLabel || option.shortLabel || option.intent || '')}</em></label>`).join('')}</div><button class="maintenance-button market-screener-analyze-button" type="button" data-screener-run-modes="${e(ticker)}"><span>排入分析</span></button></div></td></tr>`;
         }
         renderTable(items) {
             const e = this.escapeHtml;

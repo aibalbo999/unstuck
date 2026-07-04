@@ -85,6 +85,33 @@ def test_each_pipeline_has_distinct_report_template_profile():
     assert all(profile["visual_focus"] for profile in profiles.values())
 
 
+def test_pipeline_mode_contract_documents_templates_and_decision_intents():
+    from pipeline_modes import get_pipeline_definition
+    from reporting.mode_templates import get_report_template_profile
+
+    contract = (ROOT / "docs" / "pipeline-mode-contract.md").read_text(encoding="utf-8")
+    intents = {
+        "v1": "判斷是否納入長線研究清單",
+        "v2": "決定進場、續抱或減碼",
+        "v3": "檢查泡沫、避險與做空風險",
+        "v4": "短線事件與波段交易計畫",
+    }
+
+    assert "前後端模式契約" in contract
+    for pipeline_id, intent in intents.items():
+        definition = get_pipeline_definition(pipeline_id)
+        profile = get_report_template_profile(pipeline_id)
+
+        assert f"`{pipeline_id}`" in contract
+        assert definition["label"] in contract
+        assert definition["short_label"] in contract
+        assert profile["template_id"] in contract
+        assert profile["summary_heading"] in contract
+        assert profile["decision_heading"] in contract
+        assert profile["core_question"] in contract
+        assert intent in contract
+
+
 def test_markdown_report_uses_mode_specific_template_headings():
     expectations = {
         "v1": ("## 一頁式摘要", "## 🎯 最終投資建議", "長線基本面投資人"),

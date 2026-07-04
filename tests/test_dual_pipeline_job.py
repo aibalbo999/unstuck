@@ -18,8 +18,8 @@ from reporting import ReportBundle  # noqa: E402
 def test_frontend_pipeline_metadata_matches_agent_totals():
     index_html = (ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
 
-    assert "學術深度派 · 10 Agent" in index_html
-    assert "學術、實戰、逆勢全跑 · 23 模組" in index_html
+    assert "長線研究 · 10 Agent" in index_html
+    assert "三視角交叉檢查 · 23 模組" in index_html
 
 
 def test_v1_pipeline_parallelizes_independent_groups_before_valuation_growth():

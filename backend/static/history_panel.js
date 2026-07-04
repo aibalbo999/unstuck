@@ -125,13 +125,10 @@
         return `<span class="history-action-badge is-${tone}" title="${escapeHtml(detail)}">${escapeHtml(label)}</span>`;
     }
     function trackingPipelineLabel(report) {
-        const labels = {
-            v1: '模式 A · 學術深度派',
-            v2: '模式 B · 實戰交易派',
-            v3: '模式 C · 逆勢泡沫狙擊',
-            v4: '模式 D · 短線波段派'
-        };
-        return labels[report?.pipeline_id] || report?.pipeline_label || report?.pipeline_id || '報告';
+        if (window.StockAgentUi?.pipelineModeLabel && report?.pipeline_id) {
+            return window.StockAgentUi.pipelineModeLabel(report.pipeline_id);
+        }
+        return report?.pipeline_label || report?.pipeline_id || '報告';
     }
     function targetComparisonCell(tracking, key, escapeHtml) {
         const comparison = tracking?.target_comparisons?.[key] || {};

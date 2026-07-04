@@ -85,17 +85,25 @@ input:focus {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
 }
+.pipeline-mode-hint {
+    min-height: 24px;
+    margin: -12px 0 18px;
+    color: #bae6fd;
+    font-size: 0.9rem;
+    font-weight: 750;
+    text-align: left;
+}
 
 /* Buttons */
 .glow-button {
     width: 100%;
     background: var(--accent);
-    color: #ffffff;
+    color: #03111f;
     border: none;
     border-radius: 12px;
     padding: 18px 24px;
     font-size: 1.1rem;
-    font-weight: 600;
+    font-weight: 800;
     font-family: 'Outfit', sans-serif;
     cursor: pointer;
     display: flex;

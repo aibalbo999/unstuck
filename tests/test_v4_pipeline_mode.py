@@ -170,7 +170,8 @@ def test_v4_is_available_in_ui_history_and_report_filenames(tmp_path):
     assert 'name="pipeline-mode" value="v4"' in index_html
     assert '<option value="v4">模式 D' in index_html
     assert "模式 D：極短線波段與事件驅動" in ui_helpers
-    assert "開始模式 D 分析" in app_js
+    assert "開始模式 D 分析" in ui_helpers
+    assert "ui.pipelineCtaLabel(getSelectedPipeline())" in app_js
     assert parse_report_filename("2330_TW_v4_report_20260620_120000.html")["pipeline_id"] == "v4"
 
     class FakeRepository:

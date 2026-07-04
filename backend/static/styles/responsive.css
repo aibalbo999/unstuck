@@ -24,6 +24,10 @@
 }
 
 @media (max-width: 560px) {
+    .home-tabs {
+        grid-template-columns: 1fr;
+        width: 100%;
+    }
     .pipeline-selector {
         grid-template-columns: 1fr;
     }

@@ -42,12 +42,14 @@
     function create(options) {
         const apiClient = options.apiClient;
         const elements = options.elements || {};
+        const ui = options.ui || window.StockAgentUi || {};
         const escapeHtml = options.escapeHtml || ((value) => String(value ?? ''));
         const onRunQueued = options.onRunQueued || (() => {});
         let payload = { items: [], schedules: {} };
         let suggestionTimer = null;
 
         function setSummary(message) { if (elements.summaryEl) elements.summaryEl.textContent = message; }
+        function modeLabel(pipeline) { return typeof ui.pipelineModeLabel === 'function' ? ui.pipelineModeLabel(pipeline || 'v1') : String(pipeline || 'v1'); }
 
         function renderList() {
             const items = payload.items || [];
@@ -60,7 +62,7 @@
                     return `
                         <span class="provider-sla-chip watchlist-chip ${priorityClass || (item.enabled ? 'is-ok' : 'is-warning')}">
                             <strong>${escapeHtml(item.ticker)}</strong>
-                            <em>${escapeHtml((item.pipeline || 'v1').toUpperCase())}${disabled}</em>
+                            <em>${escapeHtml(modeLabel(item.pipeline))}${disabled}</em>
                             <span>${escapeHtml(slotLabel(item.schedule_slots, payload.schedules))}</span>
                             <span>${escapeHtml(priorityLabel(item))}</span>
                             ${window.StockAgentWatchlistTriggerForm?.renderItem({ ...item, latest_trigger_event: item.latest_trigger_event }, escapeHtml) || ''}
