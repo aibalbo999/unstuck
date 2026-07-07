@@ -192,7 +192,6 @@ def generate_html_report(context: AnalysisContext) -> str:
     smoothed_markdown_html = clean_markdown(str(context.get("smoothed_markdown") or ""))
     report_cover = context.get("report_cover", {}) or {}
     report_cover_image = sanitize_report_image_url(report_cover.get("image", ""))
-    report_cover_model = report_cover.get("model", "")
     
     agent_sections = build_agent_sections(context, html=True)
     dcf_scenario_rows = build_dcf_scenario_rows(data)
