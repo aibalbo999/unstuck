@@ -8,14 +8,15 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from config import CACHE_DB_PATH, TASK_DB_PATH
 from decision_tracking_migrations import ensure_legacy_sqlite_migrated
+from runtime_paths import current_runtime_paths
 from storage.sqlite_resource import ThreadLocalSqliteResource
 
 
 TAIPEI = ZoneInfo("Asia/Taipei")
-DECISION_TRACKING_DB_PATH = os.getenv("DECISION_TRACKING_DB_PATH", TASK_DB_PATH)
-LEGACY_DECISION_TRACKING_DB_PATH = Path(CACHE_DB_PATH).parent / "decision_tracking.sqlite3"
+_RUNTIME_PATHS = current_runtime_paths()
+DECISION_TRACKING_DB_PATH = os.getenv("DECISION_TRACKING_DB_PATH", str(_RUNTIME_PATHS.task_db))
+LEGACY_DECISION_TRACKING_DB_PATH = _RUNTIME_PATHS.legacy_decision_tracking_db
 
 
 def _db_path() -> Path:

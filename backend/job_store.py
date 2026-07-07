@@ -9,22 +9,21 @@ import uuid
 from collections.abc import Iterable
 from sqlite3 import Row
 
-from config import ANALYSIS_JOB_STALE_SECONDS, TASK_DB_PATH
+from config import ANALYSIS_JOB_STALE_SECONDS
 from api_usage_recorders import record_runtime_event_usage
 import job_store_events
 import job_store_lifecycle
 import job_store_telemetry
 from job_store_schema import init_job_store_schema
+from runtime_paths import current_runtime_paths; TASK_DB_PATH = str(current_runtime_paths().task_db)
 from runtime_events import emit_log, format_event_log_line
 from security_sanitizer import sanitize_error_message
 from storage.sqlite_resource import ThreadLocalSqliteResource
-
 
 _JOB_LOCK = threading.Lock()
 ACTIVE_JOB_STATUSES = ("queued", "running", "waiting_retry")
 TERMINAL_JOB_STATUSES = {"done", "error", "cancelled"}
 PUBLIC_TERMINAL_STATUSES = {"completed", "failed", "cancelled"}
-
 
 _resource = ThreadLocalSqliteResource(
     lambda: TASK_DB_PATH,

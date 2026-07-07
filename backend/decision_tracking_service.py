@@ -10,7 +10,7 @@ from fastapi import HTTPException
 import decision_tracking_store
 import report_history_service
 from decision_backtest_service import compute_performance_stats, run_due_backtests
-from report_refresh_service import refresh_report_data_snapshot
+from tracking_refresh_workflow import refresh_ticker_reports
 
 
 DAILY_REFRESH_SLOT = "post_market"
@@ -135,20 +135,14 @@ async def refresh_tracking_items(
             errors.append({"ticker": ticker, "error": message})
             continue
         try:
-            refreshed_for_ticker = 0
-            refreshed_data = None
-            for report in reports:
-                refresh_result = await refresh_report_data_snapshot(
-                    report["filename"],
-                    output_dir=output_dir,
-                    refresh_service=refresh_service,
-                    refreshed_data=refreshed_data,
-                    return_refreshed_data=refreshed_data is None,
-                )
-                if refreshed_data is None:
-                    refreshed_data = refresh_result.get("refreshed_data")
-                refreshed_for_ticker += 1
-                updated_reports_count += 1
+            refresh_result = await refresh_ticker_reports(
+                ticker,
+                reports,
+                output_dir=output_dir,
+                refresh_service=refresh_service,
+            )
+            refreshed_for_ticker = refresh_result.refreshed_reports_count
+            updated_reports_count += refreshed_for_ticker
             if refreshed_for_ticker:
                 decision_tracking_store.mark_refresh(ticker, status="success", message="最新股價已刷新。", now=now)
                 updated_count += 1

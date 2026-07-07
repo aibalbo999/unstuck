@@ -15,7 +15,8 @@ from config import SOURCE_FRESHNESS_MAX_AGE_SECONDS
 from data_fetch import FetchRequest
 from data_trust import build_data_snapshot, data_snapshot_filename_for_report, normalize_data_trust, utc_now_iso
 from decision_tracking import build_decision_freshness
-from report_history_storage import existing_storage_key, storage_for_existing_output_dir
+from report_artifacts import MissingReportArtifact, ReportArtifactLocator
+from report_history_storage import storage_for_existing_output_dir
 from report_index import is_safe_report_filename, upsert_report_metadata
 from report_persistence import DATA_SNAPSHOT_CONTENT_TYPE
 from storage.report_storage import ReportStorage
@@ -251,21 +252,21 @@ async def refresh_report_data_snapshot(
         raise HTTPException(status_code=400, detail="Invalid filename")
 
     content_storage = storage_for_existing_output_dir(output_dir, storage)
-    html_key = existing_storage_key(content_storage, filename, kind="html") if content_storage is not None else None
-    if html_key is None:
+    if content_storage is None:
         raise HTTPException(status_code=404, detail="找不到報告")
-
     data_filename = data_snapshot_filename_for_report(filename)
-    data_key = existing_storage_key(content_storage, filename, kind="data") if content_storage is not None else None
-    if data_key is None:
-        raise HTTPException(status_code=404, detail="舊報告沒有資料快照，無法只刷新資料")
+    try:
+        bundle = ReportArtifactLocator(content_storage).require_bundle(filename, require_markdown=False)
+    except MissingReportArtifact as exc:
+        if exc.kind == "html":
+            raise HTTPException(status_code=404, detail="找不到報告") from exc
+        if exc.kind == "data":
+            raise HTTPException(status_code=404, detail="舊報告沒有資料快照，無法只刷新資料") from exc
+        raise HTTPException(status_code=404, detail=f"找不到報告檔案：{exc.kind}") from exc
 
     try:
-        item = content_storage.get_report(data_key) if content_storage is not None else None
-        if item is None:
-            raise FileNotFoundError(data_key)
-        previous_snapshot = json.loads(item.content.decode("utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        previous_snapshot = bundle.read_data_snapshot()
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=f"資料快照無法讀取：{exc}") from exc
 
     ticker = str(previous_snapshot.get("ticker") or "").strip().upper()
@@ -317,11 +318,11 @@ async def refresh_report_data_snapshot(
     )
 
     content_storage.save_report(
-        data_key,
+        bundle.data_key,
         json.dumps(refreshed_snapshot, ensure_ascii=False, indent=2).encode("utf-8"),
         content_type=DATA_SNAPSHOT_CONTENT_TYPE,
     )
-    decision_freshness = build_decision_freshness(os.path.join(output_dir, data_key))
+    decision_freshness = build_decision_freshness(os.path.join(output_dir, bundle.data_key))
     metadata = upsert_report_metadata(
         filename,
         output_dir=output_dir,

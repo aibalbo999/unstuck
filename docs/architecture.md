@@ -2,6 +2,8 @@
 
 This system is a local-first stock research workstation. FastAPI owns the HTTP boundary, static assets render the operator UI, and backend services keep long-running analysis, report metadata, data snapshots, and observability separate.
 
+For day-to-day maintenance navigation, see [系統架構關聯圖](system-architecture-map.md). It maps UI/API/service/storage relationships and the canonical runtime paths so operators do not confuse current state with legacy SQLite files or flat report-output paths.
+
 ## Runtime Flow
 
 ```mermaid

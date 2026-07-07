@@ -11,14 +11,14 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator, Optional
 
-from config import CACHE_DB_PATH, OUTPUT_DIR
+from config import OUTPUT_DIR
 from report_index_connection import connect_report_index_sqlite
 from report_index_parsing import is_safe_report_filename, normalize_recommendation_label, output_dir_key, parse_recommendation_summary
 from report_index_metadata import build_report_metadata, report_index_mtime
 from report_index_migrations import REPORT_INDEX_MIGRATION_KEY, REPORT_INDEX_SCHEMA_VERSION, run_report_index_migrations
 from report_index_repair import stored_recommendation_needs_rebuild
 from report_index_rows import row_to_report
-
+from runtime_paths import current_runtime_paths; CACHE_DB_PATH = str(current_runtime_paths().report_index_db)
 _REPORT_INDEX_LOCK = threading.Lock()
 
 

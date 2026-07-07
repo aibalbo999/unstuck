@@ -17,6 +17,14 @@ scripts/check_runtime.py --strict
 scripts/demo_report.sh
 ```
 
+For runtime path and storage navigation checks:
+
+```bash
+$(scripts/project_python.sh) scripts/doctor_runtime.py
+```
+
+The doctor prints the canonical report index DB, operational DB, legacy decision-tracking DB, output directory, queue settings, and storage existence checks. Use it before manually inspecting SQLite files.
+
 ## Local And Production Profiles
 
 Local mode is the default:

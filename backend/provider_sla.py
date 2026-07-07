@@ -6,7 +6,6 @@ import sqlite3
 import time
 from pathlib import Path
 
-from config import TASK_DB_PATH
 from api_usage_recorders import record_provider_audit_usage
 from data_trust_constants import AUDIT_STATUS_DEGRADED_ENRICHMENT, AUDIT_STATUS_UNAVAILABLE
 from provider_sla_alert_policy import (
@@ -15,8 +14,10 @@ from provider_sla_alert_policy import (
     provider_alert_fields,
 )
 from provider_sla_schema import init_provider_sla_schema
+from runtime_paths import current_runtime_paths
 
 
+TASK_DB_PATH = str(current_runtime_paths().task_db)
 SLA_WINDOWS = {
     "last_1h": 60 * 60,
     "last_24h": 24 * 60 * 60,

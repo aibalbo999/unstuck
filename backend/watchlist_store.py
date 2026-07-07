@@ -9,13 +9,15 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from config import CACHE_DB_PATH, TASK_DB_PATH
 from pipeline_modes import normalize_pipeline_run_id
+from runtime_paths import current_runtime_paths
 from storage.sqlite_resource import ThreadLocalSqliteResource
 
 
 TAIPEI = ZoneInfo("Asia/Taipei")
-DEFAULT_WATCHLIST_PATH = Path(CACHE_DB_PATH).parent / "watchlist.json"
+_RUNTIME_PATHS = current_runtime_paths()
+TASK_DB_PATH = str(_RUNTIME_PATHS.task_db)
+DEFAULT_WATCHLIST_PATH = _RUNTIME_PATHS.cache_dir / "watchlist.json"
 WATCHLIST_PATH = Path(os.getenv("WATCHLIST_PATH", str(DEFAULT_WATCHLIST_PATH)))
 WATCHLIST_DB_PATH = os.getenv("WATCHLIST_DB_PATH")
 DEFAULT_SCHEDULES = {
