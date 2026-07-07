@@ -11,10 +11,6 @@
     "gemini-2.5-flash"
   ],
   "embedding_model": "gemini-embedding-2",
-  "report_cover_model": "imagen-4.0-generate-001",
-  "report_cover_fallback_models": [
-    "imagen-4.0-ultra-generate-001"
-  ],
   "agents": {
     "1": "gemma-4-31b-it",
     "2": "gemma-4-31b-it",
@@ -100,9 +96,7 @@
     "gemini-2.5-flash": 5,
     "gemini-3.5-flash": 5,
     "gemini-3.1-flash-lite": 15,
-    "gemini-embedding-2": 100,
-    "imagen-4.0-generate-001": 2,
-    "imagen-4.0-ultra-generate-001": 1
+    "gemini-embedding-2": 100
   },
   "tpm_limits": {},
   "rpd_limits": {}

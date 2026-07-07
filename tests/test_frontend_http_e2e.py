@@ -14,7 +14,6 @@ import analysis_jobs  # noqa: E402
 import job_store  # noqa: E402
 import provider_sla  # noqa: E402
 import report_index  # noqa: E402
-import reporting.html_renderer as html_renderer  # noqa: E402
 from agent_runtime import AnalysisResult  # noqa: E402
 from data_fetch import FetchResult  # noqa: E402
 from fixtures.data_payloads import fresh_audited_payload  # noqa: E402
@@ -173,11 +172,6 @@ def test_fake_provider_job_generates_report_snapshot_visible_in_history(tmp_path
     monkeypatch.setattr(provider_sla, "TASK_DB_PATH", str(tmp_path / "tasks.sqlite3"))
     monkeypatch.setattr(provider_sla, "get_provider_sla_alerts", lambda limit=100: [])
     monkeypatch.setattr(analysis_jobs, "has_api_keys", lambda: True)
-
-    async def no_cover(context):
-        return {}
-
-    monkeypatch.setattr(html_renderer, "prepare_report_cover_async", no_cover)
 
     class FakeStockDataService:
         async def fetch_async(self, request):

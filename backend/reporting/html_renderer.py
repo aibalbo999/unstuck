@@ -19,7 +19,6 @@ from .analysis_overlays import (
     build_peer_comparison_rows,
 )
 from .common import build_agent_model_labels, render_report_template
-from .cover import prepare_report_cover_async
 from .evidence_matrix import build_evidence_matrix_payload
 from .execution_summary import build_execution_summary_html
 from .html_sanitizer import sanitize_report_image_url, sanitize_report_plain_text
@@ -68,8 +67,7 @@ def _collect_next_catalysts(context: AnalysisContext) -> list[dict[str, str]]:
 
 
 async def generate_html_report_async(context: AnalysisContext) -> str:
-    """Async HTML report renderer that can optionally generate an Imagen cover."""
-    await prepare_report_cover_async(context)
+    """Async HTML report renderer."""
     return generate_html_report(context)
 
 

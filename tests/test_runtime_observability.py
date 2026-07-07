@@ -28,7 +28,7 @@ import provider_sla  # noqa: E402
 from data_fetch import FetchResult  # noqa: E402
 from data_trust import DATA_SNAPSHOT_SCHEMA_VERSION, unknown_data_trust  # noqa: E402
 from reporting import ReportBundle  # noqa: E402
-from reporting.cover import _build_cover_generation_config  # noqa: E402
+import reporting.html_renderer as html_renderer  # noqa: E402
 import analysis_jobs  # noqa: E402
 import basic_auth  # noqa: E402
 
@@ -1072,11 +1072,31 @@ def test_client_config_does_not_expose_configured_admin_token(monkeypatch):
         })())
 
 
-def test_report_cover_config_does_not_send_unsupported_enhance_prompt():
-    config = _build_cover_generation_config()
-    payload = config.model_dump(exclude_none=True) if hasattr(config, "model_dump") else dict(config)
+def test_async_html_report_rendering_does_not_generate_imagen_cover(monkeypatch):
+    async def fail_cover_generation(context):
+        raise AssertionError("Imagen cover generation should not run")
 
-    assert "enhance_prompt" not in payload
+    monkeypatch.setattr(html_renderer, "prepare_report_cover_async", fail_cover_generation, raising=False)
+    html = asyncio.run(html_renderer.generate_html_report_async({
+        "ticker": "2330.TW",
+        "company_name": "台積電",
+        "pipeline_id": "v1",
+        "data": {"ticker": "2330.TW", "company_name": "台積電", "current_price": 100, "source_audit": []},
+        "analyses": {},
+        "parsed": {},
+    }))
+
+    assert "台積電" in html
+
+
+def test_model_routes_no_longer_configure_imagen_report_covers():
+    routes = (ROOT / "backend" / "model_routes.json").read_text(encoding="utf-8")
+    settings = (ROOT / "backend" / "settings" / "models.py").read_text(encoding="utf-8")
+
+    assert "report_cover_model" not in routes
+    assert "report_cover_fallback_models" not in routes
+    assert "imagen-4.0" not in routes
+    assert "REPORT_COVER" not in settings
 
 
 def test_job_progress_completion_is_monotonic_for_parallel_agents(monkeypatch, tmp_path):

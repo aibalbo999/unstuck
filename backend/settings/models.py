@@ -67,11 +67,6 @@ TEAR_SHEET_MODEL = env_str("TEAR_SHEET_MODEL", _route_str("tear_sheet_model", CO
 AUDIT_MODEL = env_str("AUDIT_MODEL", _route_str("audit_model", DEFAULT_DECISION_MODEL))
 AUDIT_FALLBACK_MODELS = env_list("AUDIT_FALLBACK_MODELS", _route_list("audit_fallback_models"))
 EMBEDDING_MODEL = env_str("EMBEDDING_MODEL", _route_str("embedding_model", "gemini-embedding-2"))
-REPORT_COVER_MODEL = env_str("REPORT_COVER_MODEL", _route_str("report_cover_model", "imagen-4.0-generate-001"))
-REPORT_COVER_FALLBACK_MODELS = env_list("REPORT_COVER_FALLBACK_MODELS", _route_list("report_cover_fallback_models"))
-ENABLE_REPORT_COVER = env_bool("ENABLE_REPORT_COVER", env_bool("REPORT_COVER_ENABLED", True))
-REPORT_COVER_IMAGE_SIZE = env_str("REPORT_COVER_IMAGE_SIZE", _route_str("report_cover_image_size", "1K"))
-REPORT_COVER_ASPECT_RATIO = env_str("REPORT_COVER_ASPECT_RATIO", _route_str("report_cover_aspect_ratio", "16:9"))
 
 RAG_ENABLED = env_bool("RAG_ENABLED", env_bool("ENABLE_RAG", True))
 RAG_CHUNK_SIZE = env_int("RAG_CHUNK_SIZE", 1600)
@@ -203,8 +198,6 @@ def _load_model_limits(json_env_name: str, default_env_name: str, builtins: dict
         AUDIT_MODEL,
         *AUDIT_FALLBACK_MODELS,
         EMBEDDING_MODEL,
-        REPORT_COVER_MODEL,
-        *REPORT_COVER_FALLBACK_MODELS,
     }
     for fallback_models in AGENT_FALLBACK_MODELS.values():
         configured_models.update(fallback_models)

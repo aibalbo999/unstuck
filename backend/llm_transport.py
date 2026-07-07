@@ -196,18 +196,6 @@ async def embed_content_async(api_key: str, model_id: str, contents, config):
     return await client.aio.models.embed_content(model=model_id, contents=contents, config=config)
 
 
-def generate_images(api_key: str, model_id: str, prompt: str, config):
-    """Call Imagen synchronously with an isolated per-key client."""
-    client = _get_client(api_key)
-    return client.models.generate_images(model=model_id, prompt=sanitize_google_prompt(prompt), config=config)
-
-
-async def generate_images_async(api_key: str, model_id: str, prompt: str, config):
-    """Call Imagen through the async client implementation."""
-    client = _get_client(api_key)
-    return await client.aio.models.generate_images(model=model_id, prompt=sanitize_google_prompt(prompt), config=config)
-
-
 def _provider_timeout_seconds() -> float:
     return max(1.0, float(LLM_AGENT_CALL_TIMEOUT_SECONDS or 60))
 

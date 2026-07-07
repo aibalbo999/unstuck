@@ -57,16 +57,6 @@ async def embed_content_async(api_key: str, model_id: str, contents, config):
     return await _transport.embed_content_async(api_key, model_id, contents, config)
 
 
-def generate_images(api_key: str, model_id: str, prompt: str, config):
-    _sync_transport_seams()
-    return _transport.generate_images(api_key, model_id, prompt, config)
-
-
-async def generate_images_async(api_key: str, model_id: str, prompt: str, config):
-    _sync_transport_seams()
-    return await _transport.generate_images_async(api_key, model_id, prompt, config)
-
-
 __all__ = [
     "KeyRotator",
     "TokenBucket",
@@ -78,8 +68,6 @@ __all__ = [
     "generate_content",
     "generate_content_async",
     "generate_content_stream_async",
-    "generate_images",
-    "generate_images_async",
     "genai",
     "is_auth_error",
     "is_missing_model_error",
