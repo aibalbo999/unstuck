@@ -49,6 +49,39 @@ def test_run_stock_analysis_job_local_returns_awaitable(monkeypatch):
     assert asyncio.run(result) == "ok"
 
 
+def test_run_stock_analysis_job_force_refresh_reaches_data_fetch(monkeypatch):
+    import analysis_jobs
+
+    captured = {}
+
+    class FakeStockDataService:
+        async def fetch_async(self, request):
+            captured["force_refresh"] = request.options.force_refresh
+            return type("Result", (), {"data": {"ticker": request.ticker, "current_price": 100}})()
+
+    monkeypatch.setattr(analysis_jobs, "has_api_keys", lambda: True)
+    monkeypatch.setattr(analysis_jobs, "STOCK_DATA_SERVICE", FakeStockDataService())
+    monkeypatch.setattr(analysis_jobs, "update_job", lambda *args, **kwargs: None)
+    monkeypatch.setattr(analysis_jobs, "append_event", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        analysis_jobs,
+        "build_data_fetch_blocking_notice",
+        lambda _result: {"message": "stop after data fetch", "data_trust": {}},
+    )
+
+    result = asyncio.run(
+        analysis_jobs.run_stock_analysis_job_async(
+            "job-force",
+            "2330.TW",
+            "v1",
+            force_refresh=True,
+        )
+    )
+
+    assert result == ""
+    assert captured["force_refresh"] is True
+
+
 def test_key_rotator_advances_index_once_per_selected_key(monkeypatch):
     import llm_rate_limits
 

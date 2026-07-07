@@ -177,6 +177,7 @@ def test_force_create_analysis_job_cancels_old_active_job(monkeypatch, mutation_
     assert job_store.get_job(first["job_id"])["status"] == "cancelled"
     assert job_store.get_job(forced["job_id"])["status"] == "queued"
     assert len(queue.calls) == 2
+    assert queue.calls[1][0][5] is True
 
 
 def test_analysis_job_status_maps_internal_status_without_internal_path():

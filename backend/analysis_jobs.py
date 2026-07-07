@@ -42,7 +42,12 @@ def _raise_if_cancelled(job_id: str) -> None:
         raise AnalysisJobCancelled("分析任務已取消。")
 
 
-async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: str = "v1") -> str:
+async def run_stock_analysis_job_async(
+    job_id: str,
+    ticker: str,
+    pipeline_id: str = "v1",
+    force_refresh: bool = False,
+) -> str:
     """Run the full stock analysis and persist progress events for SSE clients."""
     ticker_upper = ticker.strip().upper()
     run_id = normalize_pipeline_run_id(pipeline_id)
@@ -90,7 +95,9 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
             "pipeline_label": run_label,
             "pipeline_sequence": list(pipeline_sequence),
         })
-        data_result = await STOCK_DATA_SERVICE.fetch_async(FetchRequest.from_ticker(ticker_upper))
+        data_result = await STOCK_DATA_SERVICE.fetch_async(
+            FetchRequest.from_ticker(ticker_upper, force_refresh=force_refresh)
+        )
         _raise_if_cancelled(job_id)
         data = data_result.data
         blocking_data_notice = build_data_fetch_blocking_notice(data_result)
@@ -274,9 +281,14 @@ async def run_stock_analysis_job_async(job_id: str, ticker: str, pipeline_id: st
         raise
 
 
-def run_stock_analysis_job(job_id: str, ticker: str, pipeline_id: str = "v1") -> str:
+def run_stock_analysis_job(
+    job_id: str,
+    ticker: str,
+    pipeline_id: str = "v1",
+    force_refresh: bool = False,
+) -> str:
     """Synchronous importable wrapper for RQ and local workers."""
     from config import TASK_QUEUE_BACKEND
     if TASK_QUEUE_BACKEND == "local":
-        return run_stock_analysis_job_async(job_id, ticker, pipeline_id)
-    return asyncio.run(run_stock_analysis_job_async(job_id, ticker, pipeline_id))
+        return run_stock_analysis_job_async(job_id, ticker, pipeline_id, force_refresh)
+    return asyncio.run(run_stock_analysis_job_async(job_id, ticker, pipeline_id, force_refresh))

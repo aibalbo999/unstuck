@@ -233,7 +233,7 @@ async def monitor_watchlist_triggers(
         ticker = str(item.get("ticker") or "").strip().upper()
         try:
             if _triggers_need_market_data(triggers):
-                result = await data_service.fetch_async(FetchRequest.from_ticker(ticker))
+                result = await data_service.fetch_async(FetchRequest.from_ticker(ticker, force_refresh=True))
                 data = result.data if isinstance(getattr(result, "data", None), dict) else {}
             else:
                 data = {"ticker": ticker}

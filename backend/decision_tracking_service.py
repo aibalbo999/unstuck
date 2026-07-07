@@ -137,14 +137,6 @@ async def refresh_tracking_items(
         try:
             refreshed_for_ticker = 0
             for report in reports:
-                freshness = report.get("decision_freshness") if isinstance(report.get("decision_freshness"), dict) else {}
-                if report.get("analysis_text_stale") or freshness.get("requires_rerun"):
-                    skipped.append({
-                        "ticker": ticker,
-                        "filename": report.get("filename", ""),
-                        "reason": "needs_full_rerun",
-                    })
-                    continue
                 await refresh_report_data_snapshot(report["filename"], output_dir=output_dir, refresh_service=refresh_service)
                 refreshed_for_ticker += 1
                 updated_reports_count += 1

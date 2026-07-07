@@ -173,7 +173,7 @@ def test_decision_tracking_api_tracks_selected_tickers_and_refreshes_latest_pric
 
     class FakeRefreshService:
         async def fetch_async(self, request):
-            refresh_requests.append(request.ticker)
+            refresh_requests.append(request)
             return FetchResult(
                 request=request,
                 data={
@@ -212,7 +212,8 @@ def test_decision_tracking_api_tracks_selected_tickers_and_refreshes_latest_pric
     assert body["success"] is True
     assert body["updated_count"] == 1
     assert body["updated_reports_count"] == 3
-    assert refresh_requests == ["2449.TW", "2449.TW", "2449.TW"]
+    assert [request.ticker for request in refresh_requests] == ["2449.TW", "2449.TW", "2449.TW"]
+    assert [request.options.force_refresh for request in refresh_requests] == [True, True, True]
     row = body["items"][0]
     assert row["ticker"] == "2449.TW"
     assert row["company_name"] == "測試公司 / Test Co"
@@ -222,7 +223,7 @@ def test_decision_tracking_api_tracks_selected_tickers_and_refreshes_latest_pric
     assert {item["ticker"] for item in body["items"]} == {"2449.TW"}
 
 
-def test_decision_tracking_refresh_skips_reports_that_already_need_full_rerun(tmp_path, monkeypatch, mutation_headers):
+def test_decision_tracking_refresh_updates_prices_even_when_report_needs_full_rerun(tmp_path, monkeypatch, mutation_headers):
     monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
     monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.sqlite3"))
     monkeypatch.setattr(decision_tracking_store, "DECISION_TRACKING_DB_PATH", str(tmp_path / "decision_tracking.sqlite3"))
@@ -234,7 +235,7 @@ def test_decision_tracking_refresh_skips_reports_that_already_need_full_rerun(tm
 
     class FakeRefreshService:
         async def fetch_async(self, request):
-            refresh_requests.append(request.ticker)
+            refresh_requests.append(request)
             return FetchResult(
                 request=request,
                 data={
@@ -256,15 +257,13 @@ def test_decision_tracking_refresh_skips_reports_that_already_need_full_rerun(tm
     assert refreshed.status_code == 200
     body = refreshed.json()
     assert body["updated_count"] == 1
-    assert body["updated_reports_count"] == 1
-    assert refresh_requests == ["2449.TW"]
-    assert body["skipped"] == [
-        {
-            "ticker": "2449.TW",
-            "filename": "2449_report_20260609_090000.html",
-            "reason": "needs_full_rerun",
-        }
-    ]
+    assert body["updated_reports_count"] == 2
+    assert [request.ticker for request in refresh_requests] == ["2449.TW", "2449.TW"]
+    assert [request.options.force_refresh for request in refresh_requests] == [True, True]
+    assert body["skipped"] == []
+    row = body["items"][0]
+    assert [report["decision_tracking"]["latest_price"] for report in row["latest_reports"]] == [132.0, 132.0]
+    assert row["latest_reports"][0]["decision_freshness"]["requires_rerun"] is True
 
 
 def test_scheduler_runs_due_backtests_after_daily_refresh(monkeypatch):

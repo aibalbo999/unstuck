@@ -41,13 +41,13 @@ from .yfinance_derived import (
     calculate_margin_histories,
     calculate_revenue_cagr,
 )
-from .yfinance_extractors import extract_financial_histories, extract_price_history, fetch_monthly_revenue_records
+from .yfinance_extractors import extract_dividend_history, extract_event_calendar, extract_financial_histories, extract_price_history, extract_price_history_ranges, fetch_monthly_revenue_records
 from .yfinance_sync_enrichment import fetch_sync_enrichment_bundle
 
 warnings.filterwarnings("ignore", module="yfinance")
 
 
-def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_provider=None) -> dict:
+def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_provider=None, force_refresh: bool = False) -> dict:
     """
     從 yfinance 獲取股票完整財務數據
     返回格式化的數據字典
@@ -56,25 +56,28 @@ def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_
     original_ticker = ticker
     cache_key = f"financial_data:{original_ticker}"
     fetch_started_epoch = time_module.time()
-    cached = get_cache_json(cache_key)
-    fresh_cached, stale_sources, schema_mismatch = build_fresh_cache_payload(
-        original_ticker,
-        cached,
-        assess_cached=_assess_cached_financial_data,
-        append_cache_audit=_append_cache_audit_entries,
-        now_epoch=time_module.time(),
-    )
-    if fresh_cached:
-        age_minutes = (fresh_cached.get("data_freshness", {}).get("age_seconds") or 0) / 60
-        emit_log(f"  ✅ 使用快取的 {fresh_cached.get('ticker', original_ticker)} 財務數據（市場資料約 {age_minutes:.1f} 分鐘前更新）")
-        return fresh_cached
-    if stale_sources:
-        stale_labels = ", ".join(stale_sources)
-        emit_log(
-            f"  ♻️  {original_ticker} 快取來源已過期（{stale_labels}），重新抓取核心分析資料..."
+    if force_refresh:
+        emit_log(f"  ♻️  {original_ticker} 已要求強制刷新，略過既有財務資料快取...")
+    else:
+        cached = get_cache_json(cache_key)
+        fresh_cached, stale_sources, schema_mismatch = build_fresh_cache_payload(
+            original_ticker,
+            cached,
+            assess_cached=_assess_cached_financial_data,
+            append_cache_audit=_append_cache_audit_entries,
+            now_epoch=time_module.time(),
         )
-    if schema_mismatch:
-        emit_log(f"  ♻️  {original_ticker} 快取資料口徑已更新，重新抓取財務數據...")
+        if fresh_cached:
+            age_minutes = (fresh_cached.get("data_freshness", {}).get("age_seconds") or 0) / 60
+            emit_log(f"  ✅ 使用快取的 {fresh_cached.get('ticker', original_ticker)} 財務數據（市場資料約 {age_minutes:.1f} 分鐘前更新）")
+            return fresh_cached
+        if stale_sources:
+            stale_labels = ", ".join(stale_sources)
+            emit_log(
+                f"  ♻️  {original_ticker} 快取來源已過期（{stale_labels}），重新抓取核心分析資料..."
+            )
+        if schema_mismatch:
+            emit_log(f"  ♻️  {original_ticker} 快取資料口徑已更新，重新抓取財務數據...")
 
     emit_log(f"  📊 正在獲取 {ticker} 財務數據...")
     
@@ -93,6 +96,11 @@ def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_
         raw_company_name = safe_get(info, "longName", safe_get(info, "shortName", ticker))
         company_identity = build_company_identity(ticker, info, raw_company_name)
         company_name = company_identity.get("display_name") or raw_company_name
+        company_summary = safe_get(info, "longBusinessSummary", "")
+        website = safe_get(info, "website", "")
+        exchange = safe_get(info, "exchange", safe_get(info, "fullExchangeName", ""))
+        currency = safe_get(info, "currency", "")
+        financial_currency = safe_get(info, "financialCurrency", currency)
         sector = safe_get(info, "sector", "科技業")
         industry = safe_get(info, "industry", "半導體")
         country = safe_get(info, "country", "Taiwan")
@@ -111,6 +119,11 @@ def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_
             except Exception:
                 pass
 
+        open_price = safe_get(info, "open", "N/A")
+        previous_close = safe_get(info, "previousClose", "N/A")
+        day_high = safe_get(info, "dayHigh", "N/A")
+        day_low = safe_get(info, "dayLow", "N/A")
+        volume = safe_get(info, "volume", "N/A")
         market_cap = safe_get(info, "marketCap", "N/A")
         week_52_high = safe_get(info, "fiftyTwoWeekHigh", "N/A")
         week_52_low = safe_get(info, "fiftyTwoWeekLow", "N/A")
@@ -125,6 +138,12 @@ def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_
         ev = safe_get(info, "enterpriseValue", "N/A")
         
         shares_outstanding = safe_get(info, "sharesOutstanding", "N/A")
+        float_shares = safe_get(info, "floatShares", "N/A")
+        held_percent_insiders = safe_get(info, "heldPercentInsiders", "N/A")
+        held_percent_institutions = safe_get(info, "heldPercentInstitutions", "N/A")
+        shares_short = safe_get(info, "sharesShort", "N/A")
+        short_ratio = safe_get(info, "shortRatio", "N/A")
+        short_percent_of_float = safe_get(info, "shortPercentOfFloat", "N/A")
         forward_eps = safe_get(info, "forwardEps", "N/A")
         trailing_eps = safe_get(info, "trailingEps", "N/A")
         
@@ -210,6 +229,9 @@ def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_
         
         # === 近期股價歷史 ===
         price_history = extract_price_history(stock)
+        price_history_ranges = extract_price_history_ranges(stock)
+        dividend_history = extract_dividend_history(stock)
+        event_calendar = extract_event_calendar(stock, info)
             
         # === FinMind 補充台股每月營收 ===
         recent_monthly_revenue, monthly_revenue_audit = fetch_monthly_revenue_records(ticker, DataLoader)

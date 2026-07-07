@@ -437,10 +437,13 @@ def test_watchlist_trigger_monitor_queues_matched_event_once(monkeypatch, tmp_pa
     class FakeDataService:
         async def fetch_async(self, request):
             assert request.ticker == "2308.TW"
+            assert request.options.force_refresh is True
             return FetchResult(
-                request=FetchRequest.from_ticker(request.ticker),
+                request=request,
                 data={"ticker": request.ticker, "macro_indicators": {"indicators": {"vix": {"value": 35}}}},
             )
+
+    monkeypatch.setattr(watchlist_service.time, "sleep", lambda _seconds: None)
 
     kwargs = {
         "data_service": FakeDataService(),

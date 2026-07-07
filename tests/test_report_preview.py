@@ -908,7 +908,7 @@ def test_refresh_data_snapshot_endpoint_updates_trust(tmp_path, monkeypatch, mut
     assert body["decision_freshness"]["requires_rerun"] is True
     assert body["decision_freshness"]["snapshot_refreshed_at"]
     assert "投資結論仍以原報告生成時間為準" in body["decision_freshness"]["requires_rerun_reason"]
-    assert [item.force_refresh for item in refresh_options] == [False]
+    assert [item.force_refresh for item in refresh_options] == [True]
     assert [item.record_provider_sla for item in refresh_options] == [False]
     assert body["refresh_diff"]["data_trust_status"] == {"before": "stale", "after": "fresh", "changed": True}
     assert "可信度 stale → fresh" in body["refresh_diff"]["summary"]

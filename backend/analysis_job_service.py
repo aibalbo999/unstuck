@@ -83,12 +83,14 @@ def create_or_attach_analysis_job(
 
     try:
         if task_queue_has_task(task_queue, task_id) is not True:
-            task_queue.enqueue(
+            _enqueue_analysis_job(
+                task_queue,
                 task_id,
                 run_stock_analysis_job,
                 job["job_id"],
                 normalized_ticker,
                 normalized_pipeline,
+                force_refresh=bool(force),
             )
     except Exception as exc:
         if _looks_like_duplicate_queue_job(exc):
@@ -163,6 +165,22 @@ def build_analysis_job_id(ticker: str, pipeline_id: str, *, force: bool = False)
 
 def analysis_task_id(job_id: str) -> str:
     return f"analysis:{job_id}"
+
+
+def _enqueue_analysis_job(
+    task_queue: Any,
+    task_id: str,
+    run_stock_analysis_job: Callable[[str, str, str], str],
+    job_id: str,
+    ticker: str,
+    pipeline_id: str,
+    *,
+    force_refresh: bool = False,
+) -> None:
+    args = [task_id, run_stock_analysis_job, job_id, ticker, pipeline_id]
+    if force_refresh:
+        args.append(True)
+    task_queue.enqueue(*args)
 
 
 def _serialize_telemetry_row(row: dict) -> dict:

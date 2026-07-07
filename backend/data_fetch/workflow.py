@@ -128,7 +128,12 @@ def _append_core_provider_audits(data: dict, audit_entries: list[dict]) -> None:
 async def _assemble_core_payload_from_result(core_result: ProviderResult, request: FetchRequest) -> dict:
     value = core_result.value if isinstance(core_result.value, dict) else {}
     if value.get("kind") == "yfinance_snapshot":
-        return await asyncio.to_thread(fetch_stock_data_from_snapshot, value, True)
+        return await asyncio.to_thread(
+            fetch_stock_data_from_snapshot,
+            value,
+            True,
+            request.options.force_refresh,
+        )
     return value
 
 

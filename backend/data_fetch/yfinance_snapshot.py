@@ -49,7 +49,11 @@ class SnapshotMarketDataProvider:
         )
 
 
-def fetch_stock_data_from_snapshot(snapshot: dict, skip_optional_http: bool = False) -> dict:
+def fetch_stock_data_from_snapshot(
+    snapshot: dict,
+    skip_optional_http: bool = False,
+    force_refresh: bool = False,
+) -> dict:
     """Assemble a legacy-compatible payload from a pre-resolved yfinance snapshot."""
     from .yfinance_core_fetch import fetch_stock_data
 
@@ -64,8 +68,10 @@ def fetch_stock_data_from_snapshot(snapshot: dict, skip_optional_http: bool = Fa
             finished_at_epoch=now,
             append_source_fetch_audit=_append_source_fetch_audit,
         )
-    return fetch_stock_data(
-        original_ticker,
-        skip_optional_http=skip_optional_http,
-        market_data_provider=SnapshotMarketDataProvider(snapshot),
-    )
+    kwargs = {
+        "skip_optional_http": skip_optional_http,
+        "market_data_provider": SnapshotMarketDataProvider(snapshot),
+    }
+    if force_refresh:
+        kwargs["force_refresh"] = True
+    return fetch_stock_data(original_ticker, **kwargs)

@@ -16,7 +16,7 @@ from report_persistence import report_bundle_keys_for_filename  # noqa: E402
 from storage.report_storage import InMemoryStorage  # noqa: E402
 
 
-def test_report_refresh_does_not_force_full_refresh_for_fresh_financial_statements(tmp_path):
+def test_report_refresh_forces_quote_refresh_when_financial_statements_are_fresh(tmp_path):
     import report_refresh_service
 
     filename = "2308_TW_v2_report_20260626_120000.html"
@@ -68,6 +68,6 @@ def test_report_refresh_does_not_force_full_refresh_for_fresh_financial_statemen
 
     assert seen_requests
     assert seen_requests[0].ticker == "2308.TW"
-    assert seen_requests[0].options.force_refresh is False
+    assert seen_requests[0].options.force_refresh is True
     assert "financial_statements" not in report_refresh_service._stale_sources(previous_snapshot)
     assert data_snapshot_filename_for_report(filename)

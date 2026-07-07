@@ -16,9 +16,17 @@ def _warn_deprecated(name: str) -> None:
     )
 
 
-def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_provider=None) -> dict:
+def fetch_stock_data(
+    ticker: str,
+    skip_optional_http: bool = False,
+    market_data_provider=None,
+    force_refresh: bool = False,
+) -> dict:
     _warn_deprecated("fetch_stock_data")
-    return _core.fetch_stock_data(ticker, skip_optional_http=skip_optional_http, market_data_provider=market_data_provider)
+    kwargs = {"skip_optional_http": skip_optional_http, "market_data_provider": market_data_provider}
+    if force_refresh:
+        kwargs["force_refresh"] = True
+    return _core.fetch_stock_data(ticker, **kwargs)
 
 
 async def async_fetch_stock_data(ticker: str) -> dict:

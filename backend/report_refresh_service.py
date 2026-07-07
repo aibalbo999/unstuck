@@ -271,7 +271,7 @@ async def refresh_report_data_snapshot(
 
     stale_sources = _stale_sources(previous_snapshot)
     result = await refresh_service.fetch_async(
-        FetchRequest.from_ticker(ticker, force_refresh=False, record_provider_sla=False)
+        FetchRequest.from_ticker(ticker, force_refresh=True, record_provider_sla=False)
     )
     refreshed_data = result.data or {}
     if not isinstance(refreshed_data, dict) or "error" in refreshed_data:

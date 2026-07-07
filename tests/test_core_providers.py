@@ -67,6 +67,107 @@ def test_snapshot_payload_adapter_does_not_mutate_provider_factory(monkeypatch):
     assert calls["resolved"][3] == "2330.TW"
 
 
+def test_yfinance_core_force_refresh_bypasses_fresh_cache_gate(monkeypatch):
+    def fail_cache_gate(*_args, **_kwargs):
+        raise AssertionError("force_refresh should bypass the fresh-cache gate")
+
+    monkeypatch.setattr(core_fetch, "get_cache_json", lambda _key: {"ticker": "AAPL", "current_price": 77})
+    monkeypatch.setattr(core_fetch, "build_fresh_cache_payload", fail_cache_gate)
+    monkeypatch.setattr(core_fetch, "emit_log", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        core_fetch,
+        "extract_financial_histories",
+        lambda *_args, **_kwargs: {
+            "years": ["2025"],
+            "revenue_history": [1],
+            "net_income_history": [1],
+            "gross_profit_history": [1],
+            "operating_income_history": [1],
+            "fcf_history": [1],
+            "total_assets_history": [1],
+            "total_equity_history": [1],
+            "finmind_financial_fallback_audit": None,
+        },
+    )
+    monkeypatch.setattr(
+        core_fetch,
+        "calculate_margin_histories",
+        lambda *_args, **_kwargs: {
+            "gross_margin_history": [1],
+            "op_margin_history": [1],
+            "net_margin_history": [1],
+            "roe_history": [1],
+        },
+    )
+    monkeypatch.setattr(
+        core_fetch,
+        "build_capital_structure_notes",
+        lambda *_args, **_kwargs: {
+            "equity_multiplier": "N/A",
+            "equity_multiplier_note": "",
+            "dupont_identity_note": "",
+            "wacc_capital_structure_note": "",
+        },
+    )
+    monkeypatch.setattr(core_fetch, "calculate_revenue_cagr", lambda *_args, **_kwargs: 0)
+    monkeypatch.setattr(core_fetch, "extract_price_history", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(core_fetch, "extract_price_history_ranges", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(core_fetch, "extract_dividend_history", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(core_fetch, "extract_event_calendar", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(core_fetch, "fetch_monthly_revenue_records", lambda *_args, **_kwargs: ([], None))
+    monkeypatch.setattr(
+        core_fetch,
+        "fetch_sync_enrichment_bundle",
+        lambda **_kwargs: {
+            "audit": [],
+            "recent_catalysts": [],
+            "earnings_call": {},
+            "institutional_trading": {},
+            "dynamic_peer_metrics": [],
+            "peer_discovery_results": [],
+            "pe_river_chart": {},
+        },
+    )
+    monkeypatch.setattr(
+        core_fetch,
+        "build_yfinance_payload_vars",
+        lambda local_vars: (
+            {
+                "ticker": local_vars["ticker"],
+                "company_name": local_vars["company_name"],
+                "current_price": local_vars["current_price"],
+            },
+            {"fmp_quote_audit": None},
+        ),
+    )
+    monkeypatch.setattr(
+        core_fetch,
+        "build_legacy_payload",
+        lambda ctx: {
+            "ticker": ctx["ticker"],
+            "company_name": ctx["company_name"],
+            "current_price": ctx["current_price"],
+            "source_audit": [],
+        },
+    )
+    monkeypatch.setattr(core_fetch, "finalize_and_cache_legacy_payload", lambda **kwargs: kwargs["data"])
+
+    class Provider:
+        name = "fresh-provider"
+
+        def resolve_stock(self, ticker):
+            return object(), {"currentPrice": 123, "longName": "Fresh Co"}, True, ticker, [{"ticker": ticker, "valid": True}]
+
+    data = core_fetch.fetch_stock_data(
+        "AAPL",
+        skip_optional_http=True,
+        market_data_provider=Provider(),
+        force_refresh=True,
+    )
+
+    assert data["current_price"] == 123
+
+
 def test_fmp_provider_fetches_quote_when_market_fields_missing(monkeypatch):
     monkeypatch.setattr(http_sources, "fetch_fmp_quote_fallback", lambda ticker: {"price": 123, "marketCap": 456})
 
