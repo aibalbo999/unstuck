@@ -136,8 +136,17 @@ async def refresh_tracking_items(
             continue
         try:
             refreshed_for_ticker = 0
+            refreshed_data = None
             for report in reports:
-                await refresh_report_data_snapshot(report["filename"], output_dir=output_dir, refresh_service=refresh_service)
+                refresh_result = await refresh_report_data_snapshot(
+                    report["filename"],
+                    output_dir=output_dir,
+                    refresh_service=refresh_service,
+                    refreshed_data=refreshed_data,
+                    return_refreshed_data=refreshed_data is None,
+                )
+                if refreshed_data is None:
+                    refreshed_data = refresh_result.get("refreshed_data")
                 refreshed_for_ticker += 1
                 updated_reports_count += 1
             if refreshed_for_ticker:

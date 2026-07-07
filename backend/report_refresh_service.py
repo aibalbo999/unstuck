@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any
 
@@ -243,6 +244,8 @@ async def refresh_report_data_snapshot(
     output_dir: str,
     refresh_service: Any,
     storage: ReportStorage | None = None,
+    refreshed_data: dict | None = None,
+    return_refreshed_data: bool = False,
 ) -> dict:
     if not is_safe_report_filename(filename, ".html"):
         raise HTTPException(status_code=400, detail="Invalid filename")
@@ -270,10 +273,13 @@ async def refresh_report_data_snapshot(
         raise HTTPException(status_code=400, detail="資料快照缺少 ticker")
 
     stale_sources = _stale_sources(previous_snapshot)
-    result = await refresh_service.fetch_async(
-        FetchRequest.from_ticker(ticker, force_refresh=True, record_provider_sla=False)
-    )
-    refreshed_data = result.data or {}
+    if refreshed_data is None:
+        result = await refresh_service.fetch_async(
+            FetchRequest.from_ticker(ticker, force_refresh=True, record_provider_sla=False)
+        )
+        refreshed_data = result.data or {}
+    else:
+        refreshed_data = deepcopy(refreshed_data)
     if not isinstance(refreshed_data, dict) or "error" in refreshed_data:
         message = refreshed_data.get("error") if isinstance(refreshed_data, dict) else "資料刷新失敗"
         raise HTTPException(status_code=502, detail=message)
@@ -321,7 +327,7 @@ async def refresh_report_data_snapshot(
         output_dir=output_dir,
         data_trust=refreshed_snapshot.get("data_trust"),
     )
-    return {
+    response = {
         "success": True,
         "filename": filename,
         "data_filename": data_filename,
@@ -334,3 +340,6 @@ async def refresh_report_data_snapshot(
         "decision_freshness": decision_freshness,
         "metadata": metadata or {},
     }
+    if return_refreshed_data:
+        response["refreshed_data"] = deepcopy(refreshed_data)
+    return response

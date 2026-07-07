@@ -212,8 +212,8 @@ def test_decision_tracking_api_tracks_selected_tickers_and_refreshes_latest_pric
     assert body["success"] is True
     assert body["updated_count"] == 1
     assert body["updated_reports_count"] == 3
-    assert [request.ticker for request in refresh_requests] == ["2449.TW", "2449.TW", "2449.TW"]
-    assert [request.options.force_refresh for request in refresh_requests] == [True, True, True]
+    assert [request.ticker for request in refresh_requests] == ["2449.TW"]
+    assert [request.options.force_refresh for request in refresh_requests] == [True]
     row = body["items"][0]
     assert row["ticker"] == "2449.TW"
     assert row["company_name"] == "測試公司 / Test Co"
@@ -258,8 +258,8 @@ def test_decision_tracking_refresh_updates_prices_even_when_report_needs_full_re
     body = refreshed.json()
     assert body["updated_count"] == 1
     assert body["updated_reports_count"] == 2
-    assert [request.ticker for request in refresh_requests] == ["2449.TW", "2449.TW"]
-    assert [request.options.force_refresh for request in refresh_requests] == [True, True]
+    assert [request.ticker for request in refresh_requests] == ["2449.TW"]
+    assert [request.options.force_refresh for request in refresh_requests] == [True]
     assert body["skipped"] == []
     row = body["items"][0]
     assert [report["decision_tracking"]["latest_price"] for report in row["latest_reports"]] == [132.0, 132.0]
