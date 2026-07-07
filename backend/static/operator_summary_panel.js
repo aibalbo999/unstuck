@@ -1,6 +1,7 @@
 (function () {
     const byId = id => document.getElementById(id);
     function setItem(el, tone, value, detail) { if (!el) return; el.className = `operator-summary-item is-${tone}`; const strong = el.querySelector('strong'), em = el.querySelector('em'); if (strong) strong.textContent = value; if (em) em.textContent = detail || ''; }
+    function setShift(els, tone, value, detail) { [...els].forEach(el => { el.className = `${el.dataset.operatorShiftClass || 'operator-shift-summary'} is-${tone}`; const strong = el.querySelector('strong'), em = el.querySelector('em'); if (strong) strong.textContent = value; if (em) em.textContent = detail || ''; }); }
     function quotaErrorCount(service) { const usage = service?.usage || {}; return Number(usage.observed_quota_errors_since_reset || usage.observed_24h_errors || 0); }
     function activeJobText(payload) { const active = Number(payload?.active_count || 0), jobs = payload?.jobs || []; if (active) return { tone: 'warning', value: `${active} 個進行中`, detail: jobs[0]?.ticker || '' }; return { tone: 'ok', value: '無進行中任務', detail: jobs[0] ? `最近 ${jobs[0].ticker || 'N/A'}` : '等待下一次分析' }; }
     const dataTrustReasonCodes = report => Array.isArray(report?.data_trust?.reason_codes) ? report.data_trust.reason_codes.map(code => String(code || '')) : [];
@@ -89,7 +90,7 @@
     function create(options) {
         const apiClient = options.apiClient;
         const escapeHtml = options.ui?.escapeHtml || (value => String(value ?? ''));
-        const elements = { activeJobs: byId('operator-active-jobs'), dataTrust: byId('operator-data-trust'), apiQuota: byId('operator-api-quota'), rerun: byId('operator-rerun'), actionList: byId('operator-action-list') };
+        const elements = { shift: document.querySelectorAll('[data-operator-shift-summary]'), activeJobs: byId('operator-active-jobs'), dataTrust: byId('operator-data-trust'), apiQuota: byId('operator-api-quota'), rerun: byId('operator-rerun'), actionList: byId('operator-action-list') };
         function renderActions(items) {
             if (!elements.actionList) return;
             elements.actionList.innerHTML = `<div class="operator-action-list-header"><strong>今日待處理</strong><span>${escapeHtml(String(items.length || 0))} 件快速操作</span></div>${items.map(item => `<div class="operator-action-row"><span><strong>${escapeHtml(item.title)}</strong><em>${escapeHtml(item.detail || '')}</em></span><button class="operator-action-button ${item.action === 'rerun-all-reports' ? 'is-primary' : ''}" type="button" data-operator-action="${escapeHtml(item.action)}" data-filename="${escapeHtml(item.filename || '')}" data-filenames="${escapeHtml(JSON.stringify(item.filenames || []))}" data-ticker="${escapeHtml(item.ticker || '')}" data-pipeline="${escapeHtml(item.pipeline || 'v1')}">${escapeHtml(item.label)}</button></div>`).join('')}`;
@@ -108,7 +109,10 @@
             setItem(elements.apiQuota, quotasText.tone, quotasText.value, quotasText.detail);
             setItem(elements.rerun, rerun.tone, rerun.value, rerun.detail);
             const dashboardActions = dailyDashboard.status === 'fulfilled' ? dashboardActionItems(dailyDashboard.value) : [];
-            renderActions(dashboardActions.length ? dashboardActions : operatorActionItems(jobs.status === 'fulfilled' ? jobs.value : null, quotas.status === 'fulfilled' ? quotas.value : null, reports.status === 'fulfilled' ? reports.value : null, watchlist.status === 'fulfilled' ? watchlist.value : null));
+            const actions = dashboardActions.length ? dashboardActions : operatorActionItems(jobs.status === 'fulfilled' ? jobs.value : null, quotas.status === 'fulfilled' ? quotas.value : null, reports.status === 'fulfilled' ? reports.value : null, watchlist.status === 'fulfilled' ? watchlist.value : null);
+            const warningCount = [jobsText, quotasText, trust, rerun].filter(item => item.tone === 'warning').length, next = actions[0] || {}, updated = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
+            setShift(elements.shift, warningCount ? 'warning' : 'ok', warningCount ? `${warningCount} 類訊號需注意` : '可正常操作', `${updated} · 下一步：${next.label || '查看狀態'} — ${next.title || '目前沒有急件'}`);
+            renderActions(actions);
         }
         async function handleAction(event) {
             const button = event.target.closest('[data-operator-action]');

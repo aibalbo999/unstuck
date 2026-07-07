@@ -4,6 +4,43 @@
     gap: 8px;
     text-align: left;
 }
+.operator-shift-summary {
+    grid-column: 1 / -1;
+    min-height: 68px;
+    display: grid;
+    align-content: center;
+    gap: 4px;
+    border: 1px solid rgba(0, 212, 255, 0.34);
+    border-radius: 8px;
+    padding: 12px 14px;
+    background: rgba(0, 212, 255, 0.08);
+    overflow-wrap: anywhere;
+}
+.operator-shift-summary span {
+    color: var(--text-secondary);
+    font-size: 0.68rem;
+    font-weight: 900;
+}
+.operator-shift-summary strong {
+    color: var(--text-primary);
+    font-size: 1rem;
+    line-height: 1.25;
+}
+.operator-shift-summary em {
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+    font-style: normal;
+    font-weight: 800;
+    line-height: 1.35;
+}
+.operator-shift-summary.is-ok {
+    border-color: rgba(34, 197, 94, 0.42);
+    background: rgba(22, 163, 74, 0.12);
+}
+.operator-shift-summary.is-warning {
+    border-color: rgba(245, 158, 11, 0.5);
+    background: rgba(180, 83, 9, 0.14);
+}
 .operator-summary-item {
     min-height: 74px;
     display: flex;

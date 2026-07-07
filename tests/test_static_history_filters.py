@@ -2290,8 +2290,16 @@ def test_operator_workbench_surfaces_actionable_daily_workflow():
     provider_sla_css = (STATIC_DIR / "styles" / "provider_sla.css").read_text(encoding="utf-8")
 
     assert 'id="operator-action-list"' in index_html
+    assert 'id="operator-shift-summary"' in index_html
+    assert "data-operator-shift-summary" in index_html
+    assert 'role="status"' in index_html
     assert "今日待處理" in index_html
+    assert "操作者值班摘要" in index_html
     assert "operatorActionItems" in operator_summary_js
+    assert "setShift" in operator_summary_js
+    assert "querySelectorAll('[data-operator-shift-summary]')" in operator_summary_js
+    assert "下一步：" in operator_summary_js
+    assert "toLocaleTimeString" in operator_summary_js
     assert "fetchWatchlist" in operator_summary_js
     assert "runWatchlist" in operator_summary_js
     assert "data-operator-action" in operator_summary_js
@@ -2326,6 +2334,8 @@ def test_operator_workbench_surfaces_actionable_daily_workflow():
     assert "maintenance-details" in index_html
     assert "健康摘要" in maintenance_js
     assert ".maintenance-details" in provider_sla_css
+    assert ".operator-shift-summary" in operator_css
+    assert "grid-column: 1 / -1;" in operator_css
     assert ".operator-action-list" in operator_css
     assert ".operator-action-button" in operator_css
 
@@ -2654,12 +2664,12 @@ def test_decision_tracking_dense_layout_uses_workspace_efficiently():
     history_panel_js = (STATIC_DIR / "history_panel.js").read_text(encoding="utf-8")
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
 
-    assert "style.css?v=20260705-commercial-launchpad2" in index_html
+    assert "style.css?v=20260707-operator-human-factors" in index_html
     assert "/static/history_panel.js?v=20260705-tracking-snapshot" in index_html
     assert "/static/report_preview_panel.js?v=20260627-mode-aware-preview" in index_html
     assert "preview_panel.css?v=20260627-mode-aware-preview" in style_css
     assert "decision_tracking.css?v=20260705-tracking-snapshot" in style_css
-    assert "history_shell.css?v=20260705-commercial-launchpad2" in style_css
+    assert "history_shell.css?v=20260707-operator-human-factors" in style_css
     assert "responsive.css?v=20260705-commercial-launchpad2" in style_css
     assert "max-width: min(1360px, 100%)" in base_css
     assert "grid-template-columns: minmax(520px, 1.35fr) minmax(360px, 0.85fr)" in history_list_css
@@ -2687,14 +2697,17 @@ def test_home_commercial_tab_is_a_restart_safe_product_launchpad():
     history_shell_css = (STATIC_DIR / "styles" / "history_shell.css").read_text(encoding="utf-8")
     responsive_css = (STATIC_DIR / "styles" / "responsive.css").read_text(encoding="utf-8")
 
-    assert "style.css?v=20260705-commercial-launchpad2" in index_html
-    assert "history_shell.css?v=20260705-commercial-launchpad2" in style_css
+    assert "style.css?v=20260707-operator-human-factors" in index_html
+    assert "history_shell.css?v=20260707-operator-human-factors" in style_css
     assert "responsive.css?v=20260705-commercial-launchpad2" in style_css
 
     assert 'id="home-panel-commercial"' in index_html
     assert 'class="commercial-entry-launchpad"' in index_html
+    assert 'id="commercial-operator-shift-summary"' in index_html
+    assert 'class="commercial-operator-brief is-loading"' in index_html
     assert 'class="commercial-entry-command-row"' in index_html
     assert "商業版投資工作區" in index_html
+    assert "操作者值班摘要" in index_html
     assert "重啟後從 8080 首頁直接進入新版前端" in index_html
     assert "研究工作台" in index_html
     assert "單股研究" in index_html
@@ -2740,6 +2753,7 @@ def test_home_commercial_tab_is_a_restart_safe_product_launchpad():
 
     for selector in (
         ".commercial-entry-launchpad",
+        ".commercial-operator-brief",
         ".commercial-entry-command-row",
         ".commercial-entry-status-grid",
         ".commercial-entry-card-metrics",

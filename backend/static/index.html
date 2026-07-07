@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=20260705-commercial-launchpad2">
+    <link rel="stylesheet" href="/static/style.css?v=20260707-operator-human-factors">
 </head>
 <body>
     <!-- 背景特效 -->
@@ -91,6 +91,11 @@
                 </button>
 
                 <section id="operator-summary-panel" class="provider-sla-panel operator-summary-panel" aria-live="polite">
+                    <div id="operator-shift-summary" class="operator-shift-summary is-loading" role="status" aria-live="polite" data-operator-shift-summary>
+                        <span>操作者值班摘要</span>
+                        <strong>正在彙整狀態</strong>
+                        <em>讀取任務、資料信任、LLM/API 與重跑判斷</em>
+                    </div>
                     <div id="operator-active-jobs" class="operator-summary-item">
                         <span>任務</span>
                         <strong>載入中</strong>
@@ -410,6 +415,11 @@
                         商業版投資工作區
                     </div>
                     <section class="commercial-entry-launchpad" aria-label="商業版投資工作區">
+                        <div id="commercial-operator-shift-summary" class="commercial-operator-brief is-loading" role="status" aria-live="polite" data-operator-shift-summary data-operator-shift-class="commercial-operator-brief">
+                            <span>操作者值班摘要</span>
+                            <strong>正在彙整狀態</strong>
+                            <em>讀取今日任務與系統健康</em>
+                        </div>
                         <div class="commercial-entry-command-row">
                             <div>
                                 <span>OnStock Pro</span>
@@ -626,7 +636,7 @@
     <script src="/static/api_quota_panel.js?v=20260611-operator-clarity"></script>
     <script src="/static/performance_panel.js?v=20260620-performance"></script>
     <script src="/static/active_jobs_panel.js?v=20260608-stage-summary"></script>
-    <script src="/static/operator_summary_panel.js?v=20260704-rerun-report-actions"></script>
+    <script src="/static/operator_summary_panel.js?v=20260707-operator-human-factors"></script>
     <script src="/static/watchlist_trigger_form.js?v=20260620-event-radar"></script>
     <script src="/static/watchlist_panel.js?v=20260705-watchlist-snapshot"></script>
     <script src="/static/market_screener_panel.js?v=20260704-pipeline-meta"></script>
