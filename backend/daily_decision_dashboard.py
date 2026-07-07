@@ -25,6 +25,7 @@ def build_daily_decision_dashboard(
         if item.get("enabled") is not False and str(item.get("decision_priority") or "") == "high"
     ]
     candidates = _top_candidates(screener_items)
+    rerun_report_items = [_rerun_report_payload(report) for report in rerun_reports]
     actions = _actions(rerun_reports, high_priority_watchlist, candidates, free_mode)
     status = "action_required" if actions and actions[0]["type"] != "monitor" else "ok"
     dashboard = {
@@ -42,6 +43,7 @@ def build_daily_decision_dashboard(
         },
         "performance": dict(performance.get("summary") or {}),
         "top_candidates": candidates,
+        "rerun_reports": rerun_report_items,
         "actions": actions,
     }
     dashboard["notification_plan"] = build_daily_notification_plan(dashboard)
@@ -55,6 +57,29 @@ def _report_needs_rerun(report: dict[str, Any]) -> bool:
         or report.get("requires_rerun")
         or report.get("analysis_text_stale")
     )
+
+
+def _rerun_reason(report: dict[str, Any]) -> str:
+    freshness = report.get("decision_freshness") if isinstance(report.get("decision_freshness"), dict) else {}
+    return str(
+        freshness.get("requires_rerun_reason")
+        or report.get("analysis_text_stale_message")
+        or report.get("requires_rerun_reason")
+        or "資料快照與結論不同步。"
+    )
+
+
+def _rerun_report_payload(report: dict[str, Any]) -> dict[str, Any]:
+    ticker = report.get("ticker") or "報告"
+    pipeline_id = report.get("pipeline_id") or "v1"
+    return {
+        "type": "rerun_report",
+        "title": f"{ticker} {pipeline_id} 結論需重跑",
+        "detail": _rerun_reason(report),
+        "ticker": report.get("ticker"),
+        "filename": report.get("filename"),
+        "pipeline_id": pipeline_id,
+    }
 
 
 def _top_candidates(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -86,15 +111,7 @@ def _actions(
             "detail": "先查看 provider contract，避免報告流程依賴付費來源。",
         })
     if rerun_reports:
-        report = rerun_reports[0]
-        actions.append({
-            "type": "rerun_report",
-            "title": f"{report.get('ticker') or '報告'} 結論需重跑",
-            "detail": "資料快照與結論不同步。",
-            "ticker": report.get("ticker"),
-            "filename": report.get("filename"),
-            "pipeline_id": report.get("pipeline_id") or "v1",
-        })
+        actions.append(_rerun_report_payload(rerun_reports[0]))
     if high_priority_watchlist:
         samples = "、".join(str(item.get("ticker") or "") for item in high_priority_watchlist[:3] if item.get("ticker"))
         actions.append({

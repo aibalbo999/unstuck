@@ -255,16 +255,17 @@
             trackingTableEl.innerHTML = `
                 <div class="decision-tracking-title">每日決策追蹤表<span>${trackingCompact ? '精簡比較' : '高密度三模式比較'}</span></div>
                 <div class="tracking-group-list">
-                    ${visibleGroups.map(group => {
-                        const latest = groupLatestReport(group) || {};
-                        const tracking = latest.decision_tracking || {};
-                        return `
-                            <section class="tracking-stock-group tracking-density-row">
-                                <div class="tracking-stock-cell">
-                                    <strong>${escapeHtml(group.ticker || latest.ticker || 'N/A')}</strong>
-                                    <span class="tracking-company-name">${escapeHtml(group.company_name || latest.company_name || '')}</span>
-                                    <span class="tracking-stock-price">最新 ${escapeHtml(formatNumber(tracking.latest_price))}</span>
-                                </div>
+                        ${visibleGroups.map(group => {
+                            const latest = groupLatestReport(group) || {};
+                            const tracking = latest.decision_tracking || {};
+                            const ticker = group.ticker || latest.ticker || '';
+                            return `
+                                <section class="tracking-stock-group tracking-density-row">
+                                    <div class="tracking-stock-cell">
+                                        <button class="tracking-stock-snapshot-button" type="button" data-tracking-snapshot="${escapeHtml(ticker)}" aria-label="查看 ${escapeHtml(ticker || 'N/A')} 股票快照">${escapeHtml(ticker || 'N/A')}</button>
+                                        <span class="tracking-company-name">${escapeHtml(group.company_name || latest.company_name || '')}</span>
+                                        <span class="tracking-stock-price">最新 ${escapeHtml(formatNumber(tracking.latest_price))}</span>
+                                    </div>
                                 <div class="tracking-group-reports">${group.reports.map(reportCard).join('')}</div>
                             </section>
                         `;
@@ -359,6 +360,8 @@
             });
             if (trackingTableEl) {
                 trackingTableEl.addEventListener('click', (event) => {
+                    const snapshotButton = event.target.closest('[data-tracking-snapshot]');
+                    if (snapshotButton) { callbacks.onOpenSnapshot?.(snapshotButton.dataset.trackingSnapshot); return; }
                     const row = event.target.closest('[data-filename]');
                     if (row) callbacks.onSelect(row.dataset.filename);
                 });

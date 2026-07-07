@@ -40,6 +40,13 @@
     justify-content: space-between;
     gap: 8px;
 }
+.watchlist-ticker-button,
+.watchlist-report-button { flex: 0 0 auto; min-height: 32px; border: 1px solid rgba(0, 212, 255, 0.22); border-radius: 8px; background: rgba(0, 212, 255, 0.08); color: var(--text-primary); cursor: pointer; font-size: 0.76rem; font-weight: 900; padding: 5px 9px; }
+.watchlist-ticker-button:hover, .watchlist-ticker-button:focus-visible,
+.watchlist-report-button:hover, .watchlist-report-button:focus-visible { border-color: rgba(0, 212, 255, 0.45); background: rgba(0, 212, 255, 0.14); outline: none; }
+.watchlist-report-button { border-color: rgba(34, 197, 94, 0.25); background: rgba(34, 197, 94, 0.09); color: #bbf7d0; }
+.watchlist-report-empty { color: var(--text-muted); font-size: 0.68rem; font-weight: 900; }
+.watchlist-stock-snapshot-panel { flex: 1 1 100%; margin: 12px 0 2px; width: 100%; }
 .watchlist-chip strong,
 .watchlist-chip em,
 .watchlist-chip span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

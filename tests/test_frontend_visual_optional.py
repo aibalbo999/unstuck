@@ -43,7 +43,7 @@ def test_history_preview_visual_regression_optional(tmp_path):
                   <input class="history-search" value="2449" />
                   <div class="history-filter-row">
                     <label class="history-filter-field"><span>報告類型</span><select class="history-filter-select"><option>模式 B</option></select></label>
-                    <label class="history-filter-field"><span>投資建議</span><select class="history-filter-select"><option>持有</option></select></label>
+                    <label class="history-filter-field"><span>報告建議</span><select class="history-filter-select"><option>持有</option></select></label>
                     <label class="history-filter-field"><span>本報告資料狀態</span><select class="history-filter-select"><option>部分過期</option></select></label>
                   </div>
                 </div>
@@ -63,7 +63,7 @@ def test_history_preview_visual_regression_optional(tmp_path):
                 </div>
                 <div class="preview-decision-row">
                   <div class="preview-decision"><span class="preview-label">當日股價</span><strong>NT$309.50</strong></div>
-                  <div class="preview-decision"><span class="preview-label">建議</span><strong id="preview-recommendation" class="is-hold">持有</strong></div>
+                  <div class="preview-decision"><span class="preview-label">報告建議</span><strong id="preview-recommendation" class="is-hold">持有</strong></div>
                   <div class="preview-decision"><span class="preview-label">信心</span><strong>7/10</strong></div>
                 </div>
                 <div class="preview-targets"><div><span>3個月</span><strong>NT$273</strong></div><div><span>6個月</span><strong>NT$310</strong></div><div><span>12個月</span><strong>NT$350</strong></div></div>

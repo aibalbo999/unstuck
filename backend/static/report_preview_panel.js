@@ -43,13 +43,15 @@
         if (label) label.textContent = text;
     }
 
+    const FALLBACK_SUMMARY = '這份報告沒有可讀的一頁式摘要，可直接查看完整報告；報告建議仍需自行判斷。';
+
     function legacyPreview(report, rec, options) {
         return {
-            title: `${report.ticker} 投資建議`,
-            primary: { label: '建議', value: options.normalizeRecommendation(rec.recommendation), tone: options.recommendationTone(rec.recommendation) },
+            title: `${report.ticker} 報告建議`,
+            primary: { label: '報告建議', value: options.normalizeRecommendation(rec.recommendation), tone: options.recommendationTone(rec.recommendation) },
             metrics: [{ label: '當日股價', value: rec.current_price || 'N/A' }, { label: '信心', value: rec.confidence || 'N/A' }],
             targets: [{ label: '3個月', value: rec.target_3m || 'N/A' }, { label: '6個月', value: rec.target_6m || 'N/A' }, { label: '12個月', value: rec.target_12m || 'N/A' }],
-            summary: rec.summary || '這份報告沒有可讀的一頁式摘要，可直接查看完整報告。'
+            summary: rec.summary || FALLBACK_SUMMARY
         };
     }
 
@@ -70,12 +72,23 @@
         const meta = typeof pipelineMeta === 'function' ? pipelineMeta(pipelineId) : null;
         const shortLabel = meta?.shortLabel || pipelineId.toUpperCase();
         const isModeB = pipelineId === 'v2';
-        setButtonText(elements.rerunFinalBtn, `重跑${shortLabel}最終建議`);
+        setButtonText(elements.rerunFinalBtn, `重跑${shortLabel}報告結論`);
         setButtonText(elements.rerunFullBtn, `完整重跑${shortLabel}`);
         if (elements.rerunModeBBtn) {
             elements.rerunModeBBtn.hidden = isModeB;
             if (!isModeB) setButtonText(elements.rerunModeBBtn, '產生模式 B 報告');
         }
+    }
+
+    function reportQualityBadge(report, escapeHtml) {
+        const conformance = report?.report_conformance || {};
+        const gate = report?.evidence_exit_gate || {};
+        let label = '', tone = '', detail = '';
+        if (conformance.status === 'blocked') { label = '報告符合性未通過'; tone = 'critical'; detail = conformance.summary || '報告未符合輸出契約，暫勿直接採用。'; }
+        else if (conformance.status === 'warning') { label = '報告符合性需確認'; tone = 'warning'; detail = conformance.summary || '報告符合主要契約，但仍需人工確認。'; }
+        else if (gate.verdict === 'rejected') { label = '證據抽查未通過'; tone = 'critical'; detail = gate.summary || '報告數字未能對上資料快照，暫勿直接採用。'; }
+        else if (gate.verdict === 'caution') { label = '數字證據需人工核對'; tone = 'warning'; detail = gate.summary || '部分報告數字需人工確認。'; }
+        return label ? `<span class="history-action-badge is-${tone}" title="${escapeHtml(detail)}">${escapeHtml(label)}</span>` : '';
     }
 
     function renderTracking(tracking, elements) {
@@ -116,12 +129,12 @@
             const preview = report.preview || legacyPreview(report, rec, options);
             const decisionMetrics = [preview.primary, ...(preview.metrics || [])].filter(Boolean);
 
-            elements.mode.innerHTML = `${options.renderPipelineModeBadge(pipelineId)}${options.renderDataTrustBadge(report.data_trust)}<span class="preview-date">${options.escapeHtml(report.date || '')}</span>`;
+            elements.mode.innerHTML = `${options.renderPipelineModeBadge(pipelineId)}${options.renderDataTrustBadge(report.data_trust)}${reportQualityBadge(report, options.escapeHtml)}<span class="preview-date">${options.escapeHtml(report.date || '')}</span>`;
             configureRerunButtons(elements, pipelineId, options.pipelineMeta);
-            elements.title.textContent = preview.title || `${report.ticker} 投資建議`;
+            elements.title.textContent = preview.title || `${report.ticker} 報告建議`;
             renderMetrics(elements.decisionRow, decisionMetrics, 'preview-decision', options.escapeHtml);
             renderMetrics(elements.targets, preview.targets, '', options.escapeHtml);
-            elements.summary.textContent = preview.summary || rec.summary || '這份報告沒有可讀的一頁式摘要，可直接查看完整報告。';
+            elements.summary.textContent = preview.summary || rec.summary || FALLBACK_SUMMARY;
             renderTracking(report.decision_tracking, elements);
             if (window.StockAgentTemporalMemoryPanel) {
                 window.StockAgentTemporalMemoryPanel.render(report.temporal_memory, elements.temporalMemoryRoot, options.escapeHtml);

@@ -110,3 +110,54 @@ def test_daily_decision_dashboard_prioritizes_reruns_watchlist_and_free_mode():
     assert dashboard["performance"]["hit_rate_pct"] == 58.33
     assert [item["ticker"] for item in dashboard["top_candidates"]] == ["2454.TW"]
     assert [action["type"] for action in dashboard["actions"][:2]] == ["rerun_report", "run_watchlist"]
+
+
+def test_daily_decision_dashboard_returns_full_rerun_report_list():
+    reports = {
+        "reports": [
+            {
+                "ticker": "6282.TW",
+                "filename": "6282_v4.html",
+                "pipeline_id": "v4",
+                "decision_freshness": {
+                    "requires_rerun": True,
+                    "requires_rerun_reason": "資料快照與結論不同步",
+                },
+            },
+            {
+                "ticker": "3653.TW",
+                "filename": "3653_v1.html",
+                "pipeline_id": "v1",
+                "analysis_text_stale": True,
+                "analysis_text_stale_message": "資料快照已刷新，但報告本文未重跑。",
+            },
+            {
+                "ticker": "2330.TW",
+                "filename": "2330_v1.html",
+                "pipeline_id": "v1",
+                "decision_freshness": {"requires_rerun": False},
+            },
+        ]
+    }
+
+    dashboard = build_daily_decision_dashboard(
+        reports=reports,
+        watchlist={"items": []},
+        screener={"items": []},
+        performance={"summary": {}},
+        free_mode={"enabled": True, "can_run_without_paid_keys": True, "violations": []},
+    )
+
+    assert dashboard["summary"]["reports_needing_rerun"] == 2
+    assert [item["filename"] for item in dashboard["rerun_reports"]] == [
+        "6282_v4.html",
+        "3653_v1.html",
+    ]
+    assert dashboard["rerun_reports"][0] == {
+        "type": "rerun_report",
+        "ticker": "6282.TW",
+        "filename": "6282_v4.html",
+        "pipeline_id": "v4",
+        "title": "6282.TW v4 結論需重跑",
+        "detail": "資料快照與結論不同步",
+    }

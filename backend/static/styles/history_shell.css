@@ -7,7 +7,7 @@
 }
 .home-tabs {
     display: inline-grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 4px;
     min-height: 44px;
     margin: 0 auto 24px;
@@ -39,6 +39,8 @@
 .home-tab-panel[hidden] {
     display: none;
 }
+#home-panel-tracking .history-section,
+#home-panel-commercial .history-section,
 #home-panel-ops .history-section {
     margin-top: 0;
     border-top: 0;
@@ -52,4 +54,163 @@
     display: flex;
     align-items: center;
     gap: 8px;
+}
+
+.commercial-entry-launchpad {
+    display: grid;
+    gap: 14px;
+}
+
+.commercial-entry-command-row {
+    display: grid;
+    grid-template-columns: minmax(280px, 0.62fr) minmax(0, 1fr);
+    gap: 12px;
+    align-items: stretch;
+    border: 1px solid rgba(0, 212, 255, 0.22);
+    border-radius: 8px;
+    padding: 14px;
+    background: rgba(4, 13, 26, 0.52);
+}
+
+.commercial-entry-command-row > div:first-child {
+    display: grid;
+    align-content: center;
+    gap: 5px;
+}
+
+.commercial-entry-command-row span,
+.commercial-entry-status-grid span,
+.commercial-entry-card-metrics span {
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    font-weight: 850;
+}
+
+.commercial-entry-command-row strong {
+    color: var(--text-primary);
+    font-size: 1.35rem;
+    line-height: 1.18;
+}
+
+.commercial-entry-command-row em {
+    color: var(--text-secondary);
+    font-size: 0.92rem;
+    font-style: normal;
+    line-height: 1.45;
+}
+
+.commercial-entry-status-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.commercial-entry-status-grid a {
+    min-height: 72px;
+    display: grid;
+    align-content: center;
+    gap: 4px;
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    padding: 10px;
+    color: var(--text-primary);
+    text-decoration: none;
+    background: rgba(255, 255, 255, 0.045);
+}
+
+.commercial-entry-status-grid a:hover,
+.commercial-entry-status-grid a:focus-visible {
+    border-color: rgba(0, 212, 255, 0.52);
+    outline: none;
+    background: rgba(0, 212, 255, 0.08);
+}
+
+.commercial-entry-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.commercial-entry-card {
+    min-height: 190px;
+    display: grid;
+    align-content: space-between;
+    gap: 10px;
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    padding: 18px;
+    background: rgba(255, 255, 255, 0.055);
+    color: var(--text-primary);
+    text-decoration: none;
+    text-align: left;
+    transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+}
+
+.commercial-entry-card:hover,
+.commercial-entry-card:focus-visible {
+    border-color: rgba(0, 212, 255, 0.52);
+    background: rgba(0, 212, 255, 0.08);
+    outline: none;
+    transform: translateY(-1px);
+}
+
+.commercial-entry-card span {
+    color: var(--accent);
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0;
+}
+
+.commercial-entry-card strong {
+    display: block;
+    font-size: 1.16rem;
+    line-height: 1.2;
+}
+
+.commercial-entry-card em {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-style: normal;
+    line-height: 1.45;
+}
+
+.commercial-entry-card b {
+    color: var(--text-primary);
+    font-size: 0.86rem;
+}
+
+.commercial-entry-card-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.commercial-entry-card-metrics small {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+    font-size: inherit;
+}
+
+.commercial-entry-card-metrics strong {
+    font-size: 0.9rem;
+    overflow-wrap: anywhere;
+}
+
+.commercial-entry-card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.commercial-entry-card-action {
+    min-height: 34px;
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid rgba(0, 212, 255, 0.25);
+    border-radius: 8px;
+    padding: 6px 10px;
+    background: rgba(0, 212, 255, 0.08);
 }

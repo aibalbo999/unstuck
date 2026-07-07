@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 import pandas as pd
 
+from .yfinance_enrichment_extractors import extract_dividend_history, extract_event_calendar, extract_price_history_ranges
 from runtime_events import emit_log
 from .market_sources.taiwan import (
     DataLoader,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Callable
 
-from .constants import DATA_SCHEMA_VERSION
+from .constants import DATA_SCHEMA_VERSION, REQUIRED_DATA_SCHEMA_FIELDS
 
 
 def build_fresh_cache_payload(
@@ -18,6 +18,8 @@ def build_fresh_cache_payload(
     if not cached:
         return None, [], False
     if cached.get("data_schema_version") != DATA_SCHEMA_VERSION:
+        return None, [], True
+    if any(field not in cached for field in REQUIRED_DATA_SCHEMA_FIELDS):
         return None, [], True
 
     cache_ticker = str(cached.get("ticker") or original_ticker).strip().upper()

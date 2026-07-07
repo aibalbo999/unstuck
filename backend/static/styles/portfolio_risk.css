@@ -1,0 +1,73 @@
+.portfolio-risk-panel {
+    margin-top: 14px;
+}
+
+.portfolio-risk-input {
+    width: 100%;
+    min-height: 130px;
+    margin-top: 12px;
+    resize: vertical;
+}
+
+.portfolio-risk-result {
+    display: grid;
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.portfolio-risk-result[hidden] {
+    display: none;
+}
+
+.portfolio-risk-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.portfolio-risk-summary-grid div,
+.portfolio-risk-block {
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 8px;
+    background: rgba(4, 13, 26, 0.28);
+    padding: 12px;
+}
+
+.portfolio-risk-summary-grid span,
+.portfolio-risk-summary-grid em {
+    display: block;
+    color: var(--text-secondary);
+    font-size: 0.76rem;
+    font-style: normal;
+    line-height: 1.35;
+}
+
+.portfolio-risk-summary-grid strong {
+    display: block;
+    color: var(--text-primary);
+    font-size: 1.05rem;
+    margin: 6px 0;
+    overflow-wrap: anywhere;
+}
+
+.portfolio-risk-block {
+    display: grid;
+    gap: 8px;
+}
+
+.portfolio-risk-block > strong {
+    color: var(--text-primary);
+    font-size: 0.88rem;
+}
+
+.portfolio-risk-block > div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+@media (max-width: 720px) {
+    .portfolio-risk-summary-grid {
+        grid-template-columns: 1fr;
+    }
+}

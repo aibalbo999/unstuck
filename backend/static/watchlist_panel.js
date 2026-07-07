@@ -24,6 +24,7 @@
     }
 
     function priorityLabel(item) { return item.decision_priority === 'high' ? '需重跑' : (item.decision_priority === 'medium' ? '待分析' : (item.decision_priority === 'low' ? '停用' : '有效')); }
+    function reportButton(item, escapeHtml) { const report = item.latest_report || {}; return report.filename ? `<button class="watchlist-report-button" type="button" data-watchlist-report="${escapeHtml(report.filename)}" data-watchlist-report-ticker="${escapeHtml(item.ticker)}" data-watchlist-report-pipeline="${escapeHtml(item.pipeline || 'v1')}">最新報告</button>` : '<span class="watchlist-report-empty">尚無報告</span>'; }
 
     function watchlistDailyBoard(items, escapeHtml) {
         const enabled = items.filter(item => item.enabled !== false);
@@ -40,11 +41,8 @@
     function renderSuggestions(elements, payload, escapeHtml) { if (elements.suggestionList) elements.suggestionList.innerHTML = (payload.items || []).map(item => `<option value="${escapeHtml(item.ticker)}">${escapeHtml(item.name || item.market || '')}</option>`).join(''); }
 
     function create(options) {
-        const apiClient = options.apiClient;
-        const elements = options.elements || {};
-        const ui = options.ui || window.StockAgentUi || {};
-        const escapeHtml = options.escapeHtml || ((value) => String(value ?? ''));
-        const onRunQueued = options.onRunQueued || (() => {});
+        const apiClient = options.apiClient, elements = options.elements || {}, ui = options.ui || window.StockAgentUi || {};
+        const escapeHtml = options.escapeHtml || ((value) => String(value ?? '')), onRunQueued = options.onRunQueued || (() => {}), onOpenSnapshot = options.onOpenSnapshot || (() => {}), onOpenReport = options.onOpenReport || (() => {});
         let payload = { items: [], schedules: {} };
         let suggestionTimer = null;
 
@@ -61,18 +59,17 @@
                     const priorityClass = item.decision_priority === 'high' ? 'is-critical' : (item.decision_priority === 'medium' ? 'is-warning' : '');
                     return `
                         <span class="provider-sla-chip watchlist-chip ${priorityClass || (item.enabled ? 'is-ok' : 'is-warning')}">
-                            <strong>${escapeHtml(item.ticker)}</strong>
+                            <button class="watchlist-ticker-button" type="button" data-watchlist-snapshot="${escapeHtml(item.ticker)}">${escapeHtml(item.ticker)}</button>
                             <em>${escapeHtml(modeLabel(item.pipeline))}${disabled}</em>
                             <span>${escapeHtml(slotLabel(item.schedule_slots, payload.schedules))}</span>
                             <span>${escapeHtml(priorityLabel(item))}</span>
                             ${window.StockAgentWatchlistTriggerForm?.renderItem({ ...item, latest_trigger_event: item.latest_trigger_event }, escapeHtml) || ''}
-                            <button class="watchlist-delete-button" type="button" data-watchlist-delete="${escapeHtml(item.ticker)}" data-watchlist-pipeline="${escapeHtml(item.pipeline || 'v1')}" aria-label="刪除 ${escapeHtml(item.ticker)}">
-                                刪除
-                            </button>
+                            ${reportButton(item, escapeHtml)}
+                            <button class="watchlist-delete-button" type="button" data-watchlist-delete="${escapeHtml(item.ticker)}" data-watchlist-pipeline="${escapeHtml(item.pipeline || 'v1')}" aria-label="刪除 ${escapeHtml(item.ticker)}">刪除</button>
                         </span>
                     `;
                 }).join('')
-                : '<span class="provider-sla-chip is-warning">尚無 watchlist</span>');
+                : '<span class="provider-sla-chip is-warning">尚無追蹤項目</span>');
         }
 
         async function load() {
@@ -83,7 +80,7 @@
                 renderList();
             } catch (err) {
                 console.error('Failed to load watchlist', err);
-                setSummary('watchlist 讀取失敗');
+                setSummary('追蹤清單讀取失敗');
                 elements.listEl.innerHTML = '<span class="provider-sla-chip is-warning">請稍後重試</span>';
             } finally {
                 if (elements.refreshBtn) elements.refreshBtn.disabled = false;
@@ -147,7 +144,7 @@
                 onRunQueued(result);
             } catch (err) {
                 console.error('Failed to run watchlist', err);
-                setSummary(`批次分析失敗：${err.message || err}`);
+                setSummary(`追蹤清單分析失敗：${err.message || err}`);
             } finally {
                 if (elements.runBtn) elements.runBtn.disabled = false;
             }
@@ -164,9 +161,12 @@
             }
             if (elements.listEl) {
                 elements.listEl.addEventListener('click', event => {
-                    const button = event.target.closest('[data-watchlist-delete]');
-                    if (!button) return;
-                    remove(button.dataset.watchlistDelete, button.dataset.watchlistPipeline || 'all');
+                    const deleteButton = event.target.closest('[data-watchlist-delete]');
+                    if (deleteButton) { remove(deleteButton.dataset.watchlistDelete, deleteButton.dataset.watchlistPipeline || 'all'); return; }
+                    const snapshotButton = event.target.closest('[data-watchlist-snapshot]');
+                    if (snapshotButton) { onOpenSnapshot(snapshotButton.dataset.watchlistSnapshot); return; }
+                    const reportButton = event.target.closest('[data-watchlist-report]');
+                    if (reportButton) onOpenReport(reportButton.dataset.watchlistReport, reportButton.dataset.watchlistReportTicker, reportButton.dataset.watchlistReportPipeline || 'v1');
                 });
             }
         }

@@ -154,10 +154,24 @@ def test_fetch_stock_data_rebuilds_source_audit_on_cache_hit(monkeypatch):
             "data_schema_version": DATA_SCHEMA_VERSION,
             "ticker": "2330.TW",
             "company_name": "台積電",
+            "company_summary": "Fixture company profile.",
+            "website": "https://fixture.example.com",
+            "exchange": "TAI",
+            "currency": "TWD",
+            "financial_currency": "TWD",
+            "float_shares": 80_000_000,
+            "held_percent_insiders": 0.12,
+            "held_percent_institutions": 0.7,
+            "shares_short": 2_000_000,
+            "short_ratio": 1.8,
+            "short_percent_of_float": 0.025,
             "current_price": 100,
             "years": ["2025"],
             "revenue_history": [10],
             "net_income_history": [2],
+            "dividend_history": {"years": [], "dividends": []},
+            "event_calendar": {"as_of_date": "2026-06-07", "events": []},
+            "price_history_ranges": {"source": "fixture", "ranges": {}},
             "cache_generated_at_epoch": 100.0,
             "market_data_fetched_at_epoch": 100.0,
             "source_audit": [{"source": "old_run", "status": "success"}],
@@ -170,6 +184,28 @@ def test_fetch_stock_data_rebuilds_source_audit_on_cache_hit(monkeypatch):
     assert data["source_audit"]
     assert all(entry["source"] != "old_run" for entry in data["source_audit"])
     assert data["source_audit"][0]["status"] == "skipped_fresh_cache"
+
+
+def test_yfinance_cache_missing_dividend_history_is_schema_mismatch():
+    from data_fetch.yfinance_cache_gate import build_fresh_cache_payload
+
+    cached = {
+        "data_schema_version": DATA_SCHEMA_VERSION,
+        "ticker": "2330.TW",
+        "cache_generated_at_epoch": 100.0,
+    }
+
+    payload, stale_sources, schema_mismatch = build_fresh_cache_payload(
+        "2330.TW",
+        cached,
+        assess_cached=lambda data, ticker: (True, {"source_freshness": {}}),
+        append_cache_audit=lambda *args, **kwargs: None,
+        now_epoch=200.0,
+    )
+
+    assert payload is None
+    assert stale_sources == []
+    assert schema_mismatch is True
 
 
 def test_async_fetch_skips_fresh_optional_sources(monkeypatch):

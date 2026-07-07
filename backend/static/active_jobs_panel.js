@@ -38,6 +38,9 @@
         const summaryEl = options.summaryEl;
         const listEl = options.listEl;
         const escapeHtml = options.escapeHtml || ((value) => String(value ?? ''));
+        const pipelineModeLabel = options.pipelineModeLabel
+            || window.StockAgentUi?.pipelineModeLabel
+            || (value => String(value || 'N/A'));
         if (!summaryEl || !listEl) return;
 
         const jobs = payload?.jobs || [];
@@ -54,9 +57,10 @@
                 const phase = stage.phase || (job.status === 'done' ? '完成' : 'idle');
                 const progress = progressLabel(stage);
                 const details = [phase, progress, modelHealth].filter(Boolean).join(' · ');
+                const pipelineLabel = job.pipeline_id ? pipelineModeLabel(job.pipeline_id) : 'N/A';
                 return `
                     <span class="provider-sla-chip is-${tone}" title="${escapeHtml(stage.message || job.error || '')}">
-                        ${escapeHtml(job.ticker || 'N/A')} · ${escapeHtml(job.pipeline_id || 'N/A')}
+                        ${escapeHtml(job.ticker || 'N/A')} · ${escapeHtml(pipelineLabel)}
                         <strong>${escapeHtml(statusLabel(job, showingHistory))}</strong>
                         <em>${escapeHtml(details)}</em>
                     </span>

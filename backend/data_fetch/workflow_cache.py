@@ -7,7 +7,7 @@ from data_freshness import assess_cached_financial_data
 from data_trust import append_source_audit, finalize_data_trust
 
 from .audit_helpers import _append_cache_audit_entries, _append_source_fetch_audit
-from .constants import DATA_SCHEMA_VERSION
+from .constants import DATA_SCHEMA_VERSION, REQUIRED_DATA_SCHEMA_FIELDS
 from .types import ProviderResult
 
 
@@ -15,6 +15,8 @@ def schema_compatible_cached_payload(ticker: str) -> dict | None:
     cache_key = f"financial_data:{ticker}"
     cached = get_cache_json(cache_key)
     if not cached or cached.get("data_schema_version") != DATA_SCHEMA_VERSION:
+        return None
+    if any(field not in cached for field in REQUIRED_DATA_SCHEMA_FIELDS):
         return None
     return cached
 

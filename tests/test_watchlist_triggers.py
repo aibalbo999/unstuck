@@ -130,6 +130,71 @@ def test_daily_screener_trigger_always_routes_to_mode_d():
     assert events[0]["metrics"]["screen_date"] == "2026-06-26"
 
 
+def test_event_upcoming_trigger_matches_inside_notice_window():
+    from watchlist_triggers import evaluate_watchlist_triggers
+
+    item = {
+        "ticker": "2330.TW",
+        "pipeline": "v1",
+        "triggers": [
+            {
+                "type": "event_upcoming",
+                "event_type": "earnings_date",
+                "target_date": "2026-07-16",
+                "days_before": 14,
+                "label": "財報日",
+            }
+        ],
+    }
+    data = {
+        "event_calendar": {
+            "events": [
+                {
+                    "type": "earnings_date",
+                    "label": "財報日",
+                    "date": "2026-07-16",
+                }
+            ]
+        }
+    }
+
+    event = evaluate_watchlist_triggers(item, data, evaluation_date="2026-07-05")[0]
+
+    assert event["matched"] is True
+    assert event["trigger_type"] == "event_upcoming"
+    assert event["pipeline_selected"] == "v4"
+    assert event["label"] == "關鍵日期提醒"
+    assert event["metrics"]["days_until"] == 11
+    assert "財報日" in event["message"]
+
+
+def test_price_near_level_trigger_matches_within_threshold():
+    from watchlist_triggers import evaluate_watchlist_triggers
+
+    item = {
+        "ticker": "2330.TW",
+        "pipeline": "v1",
+        "triggers": [
+            {
+                "type": "price_near_level",
+                "label": "接近分析師目標價",
+                "target_price": 1000,
+                "threshold_pct": 1.0,
+            }
+        ],
+    }
+
+    matched = evaluate_watchlist_triggers(item, {"current_price": 995}, evaluation_date="2026-07-05")[0]
+    missed = evaluate_watchlist_triggers(item, {"current_price": 950}, evaluation_date="2026-07-05")[0]
+
+    assert matched["matched"] is True
+    assert matched["trigger_type"] == "price_near_level"
+    assert matched["pipeline_selected"] == "v2"
+    assert matched["metrics"]["distance_pct"] == -0.5
+    assert missed["matched"] is False
+    assert missed["metrics"]["distance_pct"] == -5.0
+
+
 def test_watchlist_trigger_store_is_idempotent(monkeypatch, tmp_path):
     import watchlist_service
     import watchlist_trigger_store

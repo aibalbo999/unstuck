@@ -11,6 +11,15 @@
     .history-workspace.has-preview {
         grid-template-columns: 1fr;
     }
+    .commercial-entry-launchpad {
+        gap: 12px;
+    }
+    .commercial-entry-command-row {
+        grid-template-columns: 1fr;
+    }
+    .commercial-entry-status-grid {
+        grid-template-columns: 1fr;
+    }
     .history-list-pane,
     .report-preview {
         min-height: auto;
@@ -20,6 +29,9 @@
     }
     .report-preview[hidden] {
         display: none;
+    }
+    .commercial-entry-grid {
+        grid-template-columns: 1fr;
     }
 }
 

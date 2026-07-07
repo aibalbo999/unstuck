@@ -26,7 +26,25 @@
         const apiClient = options.apiClient;
         const elements = options.elements || {};
         const escapeHtml = options.escapeHtml || ((value) => String(value ?? ''));
+        const pipelineModeLabel = options.pipelineModeLabel
+            || window.StockAgentUi?.pipelineModeLabel
+            || ((pipelineId) => String(pipelineId || 'v1'));
         let selected = [];
+
+        function compareWarningMessage(item, left, right) {
+            if (item?.code === 'different_pipeline') return `兩份報告模式不同：${pipelineModeLabel(left.pipeline_id || 'v1')} 與 ${pipelineModeLabel(right.pipeline_id || 'v1')}；這是跨視角比較。`;
+            if (item?.code?.includes('decision_needs_rerun')) return `${item.code.startsWith('left_') ? '左側' : '右側'}報告若要比較投資判斷，需先重跑結論。`;
+            return item?.message || item;
+        }
+
+        function compareSummaryLabel(compatibility) {
+            if (compatibility.same_ticker && compatibility.same_pipeline) return `同股票同模式 · ${dateOrderLabel(compatibility.date_order)}`;
+            if (!compatibility.same_ticker) return `股票不同 · ${dateOrderLabel(compatibility.date_order)}`;
+            if (!compatibility.same_pipeline) return `跨視角比較 · ${dateOrderLabel(compatibility.date_order)}`;
+            return `需留意 · ${dateOrderLabel(compatibility.date_order)}`;
+        }
+
+        function gridCell(label, value) { return `<span><strong>${escapeHtml(label)}</strong><em>${escapeHtml(value)}</em></span>`; }
 
         function renderSelection() {
             if (!elements.summaryEl) return;
@@ -35,7 +53,7 @@
                 return;
             }
             elements.summaryEl.textContent = selected
-                .map(report => `${report.ticker || 'N/A'} · ${report.pipeline_id || 'v1'} · ${report.date || ''}`)
+                .map(report => `${report.ticker || 'N/A'} · ${pipelineModeLabel(report.pipeline_id || 'v1')} · ${report.date || ''}`)
                 .join(' ↔ ');
         }
 
@@ -50,7 +68,7 @@
                 ? `<div class="report-compare-compatibility">
                     ${warnings.map(item => `
                         <span class="provider-sla-chip is-${item.level === 'info' ? 'warning' : 'critical'}">
-                            ${escapeHtml(item.message || item)}
+                            ${escapeHtml(compareWarningMessage(item, left, right))}
                         </span>
                     `).join('')}
                 </div>`
@@ -60,46 +78,25 @@
                     </span>
                 </div>`;
             elements.resultEl.hidden = false;
+            const gridRows = [
+                ['比較結論', compareSummaryLabel(compatibility)],
+                [left.ticker || 'Left', left.filename || ''],
+                [right.ticker || 'Right', right.filename || ''],
+                ['比較基準', `${pipelineModeLabel(left.pipeline_id || 'v1')} → ${pipelineModeLabel(right.pipeline_id || 'v1')}`],
+                ['比較樣本', `${left.date || 'N/A'} → ${right.date || 'N/A'} · ${dateOrderLabel(compatibility.date_order)}`],
+                ['使用提醒', '僅比較既有報告，不代表即時交易指令'],
+                ['判讀層次', '報告差異不等於市場因果；搭配資料可信度與追蹤報酬判讀'],
+                ['報告建議變化', `${diff.recommendation?.before || 'N/A'} → ${diff.recommendation?.after || 'N/A'}`],
+                ['當日股價', formatDelta(diff.current_price)],
+                ['3/6/12月目標', `${formatDelta(diff.target_3m)} · ${formatDelta(diff.target_6m)} · ${formatDelta(diff.target_12m)}`],
+                ['資料可信度', `${diff.data_trust?.status_before || 'N/A'} → ${diff.data_trust?.status_after || 'N/A'} · ${formatDelta(diff.data_trust?.score)}`],
+                ['決策狀態', `${decisionStatusLabel(left.decision_freshness)} → ${decisionStatusLabel(right.decision_freshness)}`],
+                ['追蹤報酬', formatDelta(diff.tracking?.return_pct)],
+                ['最新股價', formatDelta(diff.tracking?.latest_price)],
+            ].map(([label, value]) => gridCell(label, value)).join('');
             elements.resultEl.innerHTML = `
                 ${compatibilityHtml}
-                <div class="report-compare-grid">
-                    <span>
-                        <strong>${escapeHtml(left.ticker || 'Left')}</strong>
-                        <em>${escapeHtml(left.filename || '')}</em>
-                    </span>
-                    <span>
-                        <strong>${escapeHtml(right.ticker || 'Right')}</strong>
-                        <em>${escapeHtml(right.filename || '')}</em>
-                    </span>
-                    <span>
-                        <strong>建議</strong>
-                        <em>${escapeHtml(diff.recommendation?.before || 'N/A')} → ${escapeHtml(diff.recommendation?.after || 'N/A')}</em>
-                    </span>
-                    <span>
-                        <strong>當日股價</strong>
-                        <em>${escapeHtml(formatDelta(diff.current_price))}</em>
-                    </span>
-                    <span>
-                        <strong>3/6/12月目標</strong>
-                        <em>${escapeHtml(formatDelta(diff.target_3m))} · ${escapeHtml(formatDelta(diff.target_6m))} · ${escapeHtml(formatDelta(diff.target_12m))}</em>
-                    </span>
-                    <span>
-                        <strong>資料可信度</strong>
-                        <em>${escapeHtml(diff.data_trust?.status_before || 'N/A')} → ${escapeHtml(diff.data_trust?.status_after || 'N/A')} · ${escapeHtml(formatDelta(diff.data_trust?.score))}</em>
-                    </span>
-                    <span>
-                        <strong>決策狀態</strong>
-                        <em>${escapeHtml(decisionStatusLabel(left.decision_freshness))} → ${escapeHtml(decisionStatusLabel(right.decision_freshness))}</em>
-                    </span>
-                    <span>
-                        <strong>追蹤報酬</strong>
-                        <em>${escapeHtml(formatDelta(diff.tracking?.return_pct))}</em>
-                    </span>
-                    <span>
-                        <strong>最新股價</strong>
-                        <em>${escapeHtml(formatDelta(diff.tracking?.latest_price))}</em>
-                    </span>
-                </div>
+                <div class="report-compare-grid">${gridRows}</div>
             `;
         }
 

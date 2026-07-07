@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from datetime import date
+from datetime import date, datetime
 from statistics import mean
 from typing import Any
 
@@ -18,6 +18,8 @@ TRIGGER_LABELS = {
     "revenue_record_high": "營收創高",
     "report_catalyst": "報告催化條件",
     "daily_screener": "每日市場掃描",
+    "event_upcoming": "關鍵日期提醒",
+    "price_near_level": "價格接近關鍵價位",
 }
 
 
@@ -36,12 +38,15 @@ def evaluate_watchlist_triggers(item: dict, data: dict, *, evaluation_date: str 
             "revenue_record_high": _revenue_record_high,
             "report_catalyst": _report_catalyst,
             "daily_screener": _daily_screener,
+            "event_upcoming": _event_upcoming,
+            "price_near_level": _price_near_level,
         }.get(trigger_type)
         if evaluator is None:
             continue
-        matched, message, metrics = evaluator(trigger, data)
-        selected = _selected_pipeline(trigger_type, trigger, source_pipeline)
         actual_evaluation_date = _monthly_evaluation_date(trigger_type, evaluation_date)
+        trigger_for_eval = {**trigger, "evaluation_date": actual_evaluation_date}
+        matched, message, metrics = evaluator(trigger_for_eval, data)
+        selected = _selected_pipeline(trigger_type, trigger, source_pipeline)
         events.append({
             "ticker": ticker,
             "pipeline": source_pipeline,
@@ -80,6 +85,10 @@ def _selected_pipeline(trigger_type: str, trigger: dict, source_pipeline: str) -
             return "v2"
     if trigger_type == "daily_screener":
         return "v4"
+    if trigger_type == "event_upcoming":
+        return "v4"
+    if trigger_type == "price_near_level":
+        return "v2"
     return source_pipeline
 
 
@@ -214,6 +223,81 @@ def _daily_screener(trigger: dict, data: dict) -> tuple[bool, str, dict]:
         "score": trigger.get("score"),
     }
     return True, reason[:240], payload
+
+
+def _event_upcoming(trigger: dict, data: dict) -> tuple[bool, str, dict]:
+    event_type = str(trigger.get("event_type") or "").strip()
+    days_before = max(0, int(trigger.get("days_before") or 14))
+    evaluation_date = _parse_iso_date(trigger.get("evaluation_date")) or date.today()
+    target_date = _parse_iso_date(trigger.get("target_date"))
+    event = _matching_calendar_event(data, event_type, target_date)
+    event_date = _parse_iso_date(event.get("date")) if event else target_date
+    label = str(trigger.get("label") or event.get("label") if event else trigger.get("label") or event_type or "事件").strip()
+    if event_date is None:
+        return False, f"{label} 日期資料不足，無法建立提醒", {"event_type": event_type, "days_before": days_before}
+    days_until = (event_date - evaluation_date).days
+    matched = 0 <= days_until <= days_before
+    window_text = f"{days_before} 天提醒窗口"
+    status = "已進入" if matched else "尚未進入"
+    return (
+        matched,
+        f"{label} {event_date.isoformat()} {status} {window_text}",
+        {
+            "event_type": event_type,
+            "target_date": event_date.isoformat(),
+            "days_before": days_before,
+            "days_until": days_until,
+        },
+    )
+
+
+def _price_near_level(trigger: dict, data: dict) -> tuple[bool, str, dict]:
+    target = _safe_float(trigger.get("target_price"))
+    threshold = abs(_safe_float(trigger.get("threshold_pct")) or 5.0)
+    current = _safe_float(data.get("current_price"))
+    if current is None:
+        prices = _prices(data)
+        current = prices[-1] if prices else None
+    label = str(trigger.get("label") or "關鍵價位").strip()
+    if current is None or target is None or target == 0:
+        return False, f"{label} 價格資料不足", {"price": current, "target_price": target, "threshold_pct": threshold}
+    distance = round((current / target - 1) * 100, 2)
+    matched = abs(distance) <= threshold
+    status = "已接近" if matched else "尚未接近"
+    return (
+        matched,
+        f"{label}：現價 {current:.2f} {status} {target:.2f}（距離 {distance:+.2f}%）",
+        {
+            "price": current,
+            "target_price": target,
+            "threshold_pct": threshold,
+            "distance_pct": distance,
+        },
+    )
+
+
+def _matching_calendar_event(data: dict, event_type: str, target_date: date | None) -> dict:
+    calendar = data.get("event_calendar") if isinstance(data.get("event_calendar"), dict) else {}
+    events = calendar.get("events") if isinstance(calendar.get("events"), list) else []
+    for item in events:
+        if not isinstance(item, dict):
+            continue
+        if event_type and str(item.get("type") or "") != event_type:
+            continue
+        item_date = _parse_iso_date(item.get("date"))
+        if target_date and item_date != target_date:
+            continue
+        return item
+    return {}
+
+
+def _parse_iso_date(value: object) -> date | None:
+    if value is None:
+        return None
+    try:
+        return datetime.fromisoformat(str(value)[:10]).date()
+    except ValueError:
+        return None
 
 
 def _flatten_text(value: Any) -> str:

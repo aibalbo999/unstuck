@@ -1,0 +1,636 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Stock Agent 前端排版三方案比較</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #08111d;
+      --panel: #111b29;
+      --panel-2: #172336;
+      --line: rgba(148, 163, 184, 0.24);
+      --text: #eef4ff;
+      --muted: #9fb0c7;
+      --soft: #c8d6ea;
+      --accent: #22d3ee;
+      --green: #5ee18a;
+      --amber: #f6c453;
+      --red: #fb7185;
+      --blue: #7aa7ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.45;
+    }
+    .page {
+      max-width: 1540px;
+      margin: 0 auto;
+      padding: 28px 28px 40px;
+    }
+    header {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 22px;
+    }
+    h1, h2, h3, p { margin: 0; }
+    h1 { font-size: 26px; letter-spacing: 0; }
+    header p { max-width: 760px; color: var(--muted); font-size: 14px; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 32px;
+      border: 1px solid rgba(34, 211, 238, 0.35);
+      border-radius: 999px;
+      padding: 5px 12px;
+      color: #b8f4ff;
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+      background: rgba(34, 211, 238, 0.08);
+    }
+    .options {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+    }
+    .option {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.035);
+      overflow: hidden;
+    }
+    .option.is-recommended {
+      border-color: rgba(34, 211, 238, 0.62);
+      box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.14);
+    }
+    .option-head {
+      display: grid;
+      gap: 8px;
+      padding: 16px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.035);
+    }
+    .option-kicker {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+    .option h2 {
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+    .option-head p {
+      min-height: 42px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .mock {
+      height: 470px;
+      padding: 12px;
+      background: #0b1422;
+      border-bottom: 1px solid var(--line);
+    }
+    .screen {
+      height: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      overflow: hidden;
+      display: grid;
+    }
+    .topbar {
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--line);
+      background: #0d1726;
+    }
+    .brand { font-size: 12px; font-weight: 900; color: var(--soft); }
+    .search {
+      flex: 1;
+      max-width: 260px;
+      min-height: 26px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: rgba(255,255,255,0.05);
+    }
+    .navdots {
+      display: flex;
+      gap: 5px;
+    }
+    .navdots span {
+      width: 22px;
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(148,163,184,0.35);
+    }
+    .workspace-a {
+      display: grid;
+      grid-template-columns: 104px minmax(0, 1fr) 150px;
+      min-height: 0;
+    }
+    .left-rail, .main-pane, .right-pane {
+      min-width: 0;
+      padding: 10px;
+      border-right: 1px solid var(--line);
+    }
+    .right-pane { border-right: 0; }
+    .rail-title, .section-title {
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 900;
+      margin-bottom: 7px;
+    }
+    .ticker-row {
+      display: grid;
+      gap: 2px;
+      min-height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 6px;
+      margin-bottom: 6px;
+      background: rgba(255,255,255,0.035);
+    }
+    .ticker-row.is-active {
+      border-color: rgba(34, 211, 238, 0.6);
+      background: rgba(34, 211, 238, 0.09);
+    }
+    .ticker-row strong, .metric strong, .quote strong {
+      font-size: 12px;
+      line-height: 1.1;
+    }
+    .ticker-row span, .metric span, .quote span {
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.1;
+    }
+    .summary-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .metric, .quote {
+      min-height: 48px;
+      display: grid;
+      align-content: center;
+      gap: 3px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 7px;
+      background: rgba(255,255,255,0.04);
+    }
+    .table-head, .table-row {
+      display: grid;
+      grid-template-columns: 1fr 0.8fr 0.8fr 0.8fr;
+      gap: 6px;
+      align-items: center;
+      min-height: 30px;
+      border-bottom: 1px solid rgba(148,163,184,0.15);
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 800;
+    }
+    .table-row {
+      color: var(--soft);
+      min-height: 38px;
+    }
+    .pill {
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 20px;
+      border-radius: 5px;
+      padding: 2px 6px;
+      background: rgba(94, 225, 138, 0.14);
+      color: var(--green);
+      font-size: 10px;
+      font-weight: 900;
+    }
+    .pill.is-amber { background: rgba(246,196,83,0.14); color: var(--amber); }
+    .snapshot-head {
+      display: grid;
+      gap: 5px;
+      margin-bottom: 8px;
+    }
+    .snapshot-head h3 { font-size: 15px; }
+    .snapshot-head p { color: var(--muted); font-size: 10px; }
+    .mini-chart {
+      height: 76px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background:
+        linear-gradient(135deg, transparent 46%, rgba(34,211,238,0.35) 47%, rgba(34,211,238,0.35) 52%, transparent 53%),
+        rgba(255,255,255,0.04);
+      margin-bottom: 8px;
+    }
+    .detail-list {
+      display: grid;
+      gap: 6px;
+    }
+    .detail-list div {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      border-bottom: 1px solid rgba(148,163,184,0.12);
+      padding-bottom: 5px;
+      color: var(--muted);
+      font-size: 10px;
+    }
+    .detail-list strong { color: var(--soft); }
+    .stock-page {
+      grid-template-rows: auto auto minmax(0, 1fr);
+    }
+    .stock-hero {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 10px;
+      padding: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    .stock-title h3 { font-size: 20px; }
+    .stock-title p { color: var(--muted); font-size: 11px; }
+    .price {
+      text-align: right;
+    }
+    .price strong {
+      display: block;
+      font-size: 24px;
+      line-height: 1;
+    }
+    .price span {
+      color: var(--green);
+      font-size: 12px;
+      font-weight: 900;
+    }
+    .tabs {
+      display: flex;
+      gap: 5px;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--line);
+      overflow: hidden;
+    }
+    .tabs span {
+      min-height: 24px;
+      border-radius: 5px;
+      padding: 5px 8px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 900;
+      background: rgba(255,255,255,0.04);
+    }
+    .tabs span:first-child {
+      color: var(--text);
+      background: rgba(34, 211, 238, 0.14);
+    }
+    .stock-body {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 10px;
+      min-height: 0;
+      padding: 12px;
+    }
+    .chart-large {
+      min-height: 170px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background:
+        linear-gradient(160deg, transparent 48%, rgba(122,167,255,0.42) 49%, rgba(122,167,255,0.42) 52%, transparent 53%),
+        rgba(255,255,255,0.035);
+    }
+    .card-list {
+      display: grid;
+      gap: 8px;
+    }
+    .small-card {
+      min-height: 56px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 8px;
+      background: rgba(255,255,255,0.04);
+    }
+    .small-card strong { display: block; font-size: 12px; }
+    .small-card span { display: block; color: var(--muted); font-size: 10px; margin-top: 4px; }
+    .workspace-c {
+      display: grid;
+      grid-template-columns: 126px minmax(0, 1fr) 140px;
+      min-height: 0;
+    }
+    .risk-wheel {
+      height: 92px;
+      border: 12px solid rgba(94,225,138,0.18);
+      border-top-color: var(--green);
+      border-right-color: var(--amber);
+      border-radius: 999px;
+      margin: 6px auto 12px;
+      width: 92px;
+    }
+    .allocation {
+      display: grid;
+      gap: 5px;
+    }
+    .bar {
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr) 28px;
+      gap: 5px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 10px;
+    }
+    .bar i {
+      display: block;
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(34,211,238,0.2);
+      overflow: hidden;
+    }
+    .bar i::before {
+      content: "";
+      display: block;
+      height: 100%;
+      width: var(--w);
+      background: var(--accent);
+    }
+    .notes {
+      display: grid;
+      gap: 8px;
+      padding: 14px 16px 16px;
+    }
+    .notes h3 { font-size: 13px; }
+    .notes ul {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .notes li { margin: 5px 0; }
+    .score {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      border-top: 1px solid var(--line);
+    }
+    .score div {
+      min-height: 58px;
+      display: grid;
+      align-content: center;
+      gap: 2px;
+      padding: 10px;
+      border-right: 1px solid var(--line);
+    }
+    .score div:last-child { border-right: 0; }
+    .score strong { font-size: 16px; }
+    .score span { color: var(--muted); font-size: 10px; }
+    .compare {
+      display: grid;
+      grid-template-columns: 1.2fr repeat(3, minmax(0, 1fr));
+      margin-top: 20px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: rgba(255,255,255,0.035);
+    }
+    .compare div {
+      min-height: 42px;
+      padding: 10px 12px;
+      border-right: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .compare div:nth-child(4n) { border-right: 0; }
+    .compare div:nth-last-child(-n+4) { border-bottom: 0; }
+    .compare .head {
+      color: var(--text);
+      font-weight: 900;
+      background: rgba(255,255,255,0.045);
+    }
+    @media (max-width: 1180px) {
+      .options { grid-template-columns: 1fr; }
+      .mock { height: 520px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <div>
+        <h1>Stock Agent 前端排版三方案比較</h1>
+        <p>用同一套資料密度視覺化三種商業化方向。重點不是配色，而是使用者進入系統後要先看清單、先看單股，還是先看投資組合。</p>
+      </div>
+      <span class="badge">方案 A 為建議第一版</span>
+    </header>
+
+    <section class="options" aria-label="三方案視覺比較">
+      <article class="option is-recommended">
+        <div class="option-head">
+          <div class="option-kicker"><span>方案 A</span><span>研究工作台</span></div>
+          <h2>TradingView / Koyfin 式三欄工作台</h2>
+          <p>適合目前產品。點股票後右側固定顯示快照，中間保留決策追蹤表與報告。</p>
+        </div>
+        <div class="mock">
+          <div class="screen">
+            <div class="topbar"><span class="brand">Wall Street AI</span><span class="search"></span><span class="navdots"><span></span><span></span><span></span></span></div>
+            <div class="workspace-a">
+              <aside class="left-rail">
+                <div class="rail-title">追蹤清單</div>
+                <div class="ticker-row is-active"><strong>1623</strong><span>高優先</span></div>
+                <div class="ticker-row"><strong>2308</strong><span>突破</span></div>
+                <div class="ticker-row"><strong>3017</strong><span>警示</span></div>
+                <div class="ticker-row"><strong>3324</strong><span>觀察</span></div>
+              </aside>
+              <section class="main-pane">
+                <div class="summary-strip">
+                  <div class="metric"><span>追蹤</span><strong>7 檔</strong></div>
+                  <div class="metric"><span>警示</span><strong>24</strong></div>
+                  <div class="metric"><span>需重跑</span><strong>3</strong></div>
+                  <div class="metric"><span>今日勝率</span><strong>68%</strong></div>
+                </div>
+                <div class="section-title">每日決策追蹤表</div>
+                <div class="table-head"><span>股票</span><span>建議</span><span>報酬</span><span>狀態</span></div>
+                <div class="table-row"><strong>1623</strong><span class="pill">持有</span><span>+2.1%</span><span>快照</span></div>
+                <div class="table-row"><strong>2308</strong><span class="pill">買入</span><span>+4.8%</span><span>報告</span></div>
+                <div class="table-row"><strong>3017</strong><span class="pill is-amber">觀察</span><span>-1.4%</span><span>警示</span></div>
+                <div class="table-row"><strong>3324</strong><span class="pill">持有</span><span>+0.9%</span><span>快照</span></div>
+              </section>
+              <aside class="right-pane">
+                <div class="snapshot-head">
+                  <span class="rail-title">股票快照</span>
+                  <h3>1623.TW 大東電</h3>
+                  <p>Industrials · fresh 91</p>
+                </div>
+                <div class="mini-chart"></div>
+                <div class="detail-list">
+                  <div><span>現價</span><strong>214</strong></div>
+                  <div><span>估值</span><strong>合理</strong></div>
+                  <div><span>風險</span><strong>中</strong></div>
+                  <div><span>事件</span><strong>179 天</strong></div>
+                </div>
+              </aside>
+            </div>
+          </div>
+        </div>
+        <div class="notes">
+          <h3>最像商業化 MVP</h3>
+          <ul>
+            <li>保留你現在的追蹤表與快照能力。</li>
+            <li>降低上下捲動找資料的痛點。</li>
+            <li>適合重度研究與每日使用。</li>
+          </ul>
+        </div>
+        <div class="score">
+          <div><strong>9</strong><span>落地速度</span></div>
+          <div><strong>8</strong><span>專業感</span></div>
+          <div><strong>9</strong><span>現有功能適配</span></div>
+        </div>
+      </article>
+
+      <article class="option">
+        <div class="option-head">
+          <div class="option-kicker"><span>方案 B</span><span>單股研究頁</span></div>
+          <h2>StockAnalysis 式股票詳情頁</h2>
+          <p>適合一般用戶。每次搜尋進入一檔股票專頁，用分頁切換快照、報告、財務與新聞。</p>
+        </div>
+        <div class="mock">
+          <div class="screen stock-page">
+            <div class="topbar"><span class="brand">Stock Agent</span><span class="search"></span><span class="badge">Watchlist</span></div>
+            <section class="stock-hero">
+              <div class="stock-title">
+                <h3>1623.TW 大東電</h3>
+                <p>TA TUN ELECTRIC WIRE CABLE CO L · TAI</p>
+              </div>
+              <div class="price"><strong>214</strong><span>+1.4% 今日</span></div>
+            </section>
+            <nav class="tabs"><span>Overview</span><span>Report</span><span>Financials</span><span>Forecast</span><span>News</span></nav>
+            <section class="stock-body">
+              <div>
+                <div class="chart-large"></div>
+                <div class="summary-strip" style="margin-top: 10px;">
+                  <div class="metric"><span>PE</span><strong>16.9x</strong></div>
+                  <div class="metric"><span>Beta</span><strong>1.12</strong></div>
+                  <div class="metric"><span>EPS</span><strong>+41%</strong></div>
+                  <div class="metric"><span>Target</span><strong>合理</strong></div>
+                </div>
+              </div>
+              <div class="card-list">
+                <div class="small-card"><strong>AI 報告建議</strong><span>持有，留意估值與事件風險。</span></div>
+                <div class="small-card"><strong>近期新聞</strong><span>營收與產業事件集中在本週。</span></div>
+                <div class="small-card"><strong>下一步</strong><span>加入追蹤、重跑報告、設定警示。</span></div>
+              </div>
+            </section>
+          </div>
+        </div>
+        <div class="notes">
+          <h3>最像大眾股票資料站</h3>
+          <ul>
+            <li>學習成本低，搜尋一檔就看一頁。</li>
+            <li>適合 SEO 與分享單股研究結果。</li>
+            <li>需要較多頁面路由與內容分層。</li>
+          </ul>
+        </div>
+        <div class="score">
+          <div><strong>6</strong><span>落地速度</span></div>
+          <div><strong>9</strong><span>一般用戶清楚度</span></div>
+          <div><strong>7</strong><span>現有功能適配</span></div>
+        </div>
+      </article>
+
+      <article class="option">
+        <div class="option-head">
+          <div class="option-kicker"><span>方案 C</span><span>投資組合優先</span></div>
+          <h2>Seeking Alpha / Morningstar 式 Portfolio</h2>
+          <p>適合持股管理。首頁先回答配置、風險、績效，再讓用戶深入到單股與 AI 報告。</p>
+        </div>
+        <div class="mock">
+          <div class="screen">
+            <div class="topbar"><span class="brand">Portfolio Health</span><span class="search"></span><span class="navdots"><span></span><span></span></span></div>
+            <div class="workspace-c">
+              <aside class="left-rail">
+                <div class="rail-title">視圖</div>
+                <div class="ticker-row is-active"><strong>核心持股</strong><span>12 檔</span></div>
+                <div class="ticker-row"><strong>高信念</strong><span>5 檔</span></div>
+                <div class="ticker-row"><strong>觀察</strong><span>18 檔</span></div>
+              </aside>
+              <section class="main-pane">
+                <div class="summary-strip">
+                  <div class="metric"><span>總風險</span><strong>中</strong></div>
+                  <div class="metric"><span>集中度</span><strong>42%</strong></div>
+                  <div class="metric"><span>本月</span><strong>+3.8%</strong></div>
+                  <div class="metric"><span>警示</span><strong>6</strong></div>
+                </div>
+                <div class="section-title">自訂持股視圖</div>
+                <div class="table-head"><span>股票</span><span>權重</span><span>AI</span><span>風險</span></div>
+                <div class="table-row"><strong>2330</strong><span>28%</span><span class="pill">買入</span><span>低</span></div>
+                <div class="table-row"><strong>2308</strong><span>18%</span><span class="pill">持有</span><span>中</span></div>
+                <div class="table-row"><strong>1623</strong><span>9%</span><span class="pill is-amber">觀察</span><span>中</span></div>
+                <div class="table-row"><strong>AAPL</strong><span>7%</span><span class="pill">持有</span><span>低</span></div>
+              </section>
+              <aside class="right-pane">
+                <div class="rail-title">組合 X-Ray</div>
+                <div class="risk-wheel"></div>
+                <div class="allocation">
+                  <div class="bar"><span>半導體</span><i style="--w: 76%;"></i><span>45%</span></div>
+                  <div class="bar"><span>電力</span><i style="--w: 38%;"></i><span>22%</span></div>
+                  <div class="bar"><span>美股</span><i style="--w: 24%;"></i><span>14%</span></div>
+                  <div class="bar"><span>現金</span><i style="--w: 18%;"></i><span>10%</span></div>
+                </div>
+              </aside>
+            </div>
+          </div>
+        </div>
+        <div class="notes">
+          <h3>最像投資管理產品</h3>
+          <ul>
+            <li>適合已有持股與資產配置需求的用戶。</li>
+            <li>可以凸顯風險、集中度、重疊曝險。</li>
+            <li>對資料輸入與持股同步要求較高。</li>
+          </ul>
+        </div>
+        <div class="score">
+          <div><strong>5</strong><span>落地速度</span></div>
+          <div><strong>8</strong><span>商業價值</span></div>
+          <div><strong>6</strong><span>現有功能適配</span></div>
+        </div>
+      </article>
+    </section>
+
+    <section class="compare" aria-label="方案比較表">
+      <div class="head">評估面向</div>
+      <div class="head">方案 A 工作台</div>
+      <div class="head">方案 B 單股頁</div>
+      <div class="head">方案 C Portfolio</div>
+      <div>最適合的第一個商業版本</div>
+      <div>高，延續現有功能</div>
+      <div>中，需要路由與內容重組</div>
+      <div>中低，需要持股模型更完整</div>
+      <div>一般用戶理解速度</div>
+      <div>中高，需清楚引導</div>
+      <div>最高，一檔股票一頁</div>
+      <div>中，偏持股管理情境</div>
+      <div>每日使用黏著度</div>
+      <div>最高，追蹤表與快照固定</div>
+      <div>中，偏查詢型</div>
+      <div>高，適合持股者</div>
+      <div>建議定位</div>
+      <div>AI 投資研究工作台</div>
+      <div>AI 股票研究資料站</div>
+      <div>AI Portfolio Health</div>
+    </section>
+  </main>
+</body>
+</html>

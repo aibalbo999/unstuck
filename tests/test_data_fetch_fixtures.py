@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -51,8 +52,29 @@ class FakeStock:
                 cols[1]: {"Total Assets": 1_800_000_000, "Stockholders Equity": 900_000_000},
             }
         )
+        self.dividends = pd.Series(
+            [1.0, 1.2, 1.4, 1.6, 1.8],
+            index=pd.to_datetime(["2021-07-01", "2022-07-01", "2023-07-01", "2024-07-01", "2025-07-01"]),
+        )
+        self.calendar = {
+            "Earnings Date": [pd.Timestamp("2026-07-18"), pd.Timestamp("2026-07-20")],
+            "Ex-Dividend Date": pd.Timestamp("2026-08-01"),
+        }
 
     def history(self, period="1y"):
+        if period == "5y":
+            return pd.DataFrame(
+                {"Close": [50.0, 70.0, 90.0, 100.0, 105.0, 110.0, 121.0]},
+                index=pd.to_datetime([
+                    "2021-07-01",
+                    "2023-07-01",
+                    "2025-07-01",
+                    "2026-01-05",
+                    "2026-04-05",
+                    "2026-06-05",
+                    "2026-07-01",
+                ]),
+            )
         return pd.DataFrame(
             {"Close": [95.0, 100.0]},
             index=pd.to_datetime(["2025-01-31", "2025-02-28"]),
@@ -70,10 +92,21 @@ class FakeProvider:
         info = {
             "longName": "Fixture Corp",
             "shortName": "Fixture",
+            "longBusinessSummary": "Fixture Corp designs advanced chips and packaging services for global customers.",
+            "website": "https://fixture.example.com",
+            "exchange": "TAI",
+            "currency": "TWD",
+            "financialCurrency": "TWD",
             "sector": "Technology",
             "industry": "Semiconductors",
             "country": self.country,
+            "fullTimeEmployees": 77000,
             "currentPrice": 100.0,
+            "open": 98.0,
+            "previousClose": 97.0,
+            "dayHigh": 102.0,
+            "dayLow": 96.0,
+            "volume": 1_234_567,
             "marketCap": 10_000_000_000,
             "fiftyTwoWeekHigh": 120.0,
             "fiftyTwoWeekLow": 80.0,
@@ -85,6 +118,12 @@ class FakeProvider:
             "enterpriseToEbitda": 12.0,
             "enterpriseValue": 11_000_000_000,
             "sharesOutstanding": 100_000_000,
+            "floatShares": 80_000_000,
+            "heldPercentInsiders": 0.12,
+            "heldPercentInstitutions": 0.7,
+            "sharesShort": 2_000_000,
+            "shortRatio": 1.8,
+            "shortPercentOfFloat": 0.025,
             "forwardEps": 5.5,
             "trailingEps": 5.0,
             "totalRevenue": 1_250_000_000,
@@ -102,6 +141,7 @@ class FakeProvider:
             "returnOnAssets": 0.1,
             "dividendYield": 0.02,
             "dividendRate": 2.0,
+            "dividendDate": "2026-08-07",
             "payoutRatio": 0.4,
             "revenueGrowth": 0.1,
             "earningsGrowth": 0.12,
@@ -638,6 +678,116 @@ def test_taiwan_fixture_records_unavailable_finmind_monthly_revenue(monkeypatch)
     assert monthly_entries
     assert monthly_entries[-1]["status"] == "unavailable"
     assert data["recent_monthly_revenue"] == []
+
+
+def test_quote_payload_includes_consumer_market_session_fields(monkeypatch):
+    _patch_common_fetch_dependencies(monkeypatch, resolved_ticker="2330.TW", country="Taiwan")
+    monkeypatch.setattr(financial_data, "DataLoader", EmptyMonthlyRevenueLoader)
+
+    data = financial_data.fetch_stock_data("2330.TW", skip_optional_http=True)
+
+    assert data["open"] == 98.0
+    assert data["previous_close"] == 97.0
+    assert data["day_high"] == 102.0
+    assert data["day_low"] == 96.0
+    assert data["volume"] == 1_234_567
+    assert data["avg_volume"] == 1_000_000
+
+
+def test_yfinance_payload_includes_company_profile_fields(monkeypatch):
+    _patch_common_fetch_dependencies(monkeypatch, resolved_ticker="2330.TW", country="Taiwan")
+    monkeypatch.setattr(financial_data, "DataLoader", EmptyMonthlyRevenueLoader)
+
+    data = financial_data.fetch_stock_data("2330.TW", skip_optional_http=True)
+
+    assert data["company_summary"] == "Fixture Corp designs advanced chips and packaging services for global customers."
+    assert data["website"] == "https://fixture.example.com"
+    assert data["exchange"] == "TAI"
+    assert data["currency"] == "TWD"
+    assert data["financial_currency"] == "TWD"
+    assert data["employees"] == 77000
+
+
+def test_yfinance_payload_includes_share_statistics(monkeypatch):
+    _patch_common_fetch_dependencies(monkeypatch, resolved_ticker="2330.TW", country="Taiwan")
+    monkeypatch.setattr(financial_data, "DataLoader", EmptyMonthlyRevenueLoader)
+
+    data = financial_data.fetch_stock_data("2330.TW", skip_optional_http=True)
+
+    assert data["shares_outstanding_raw"] == 100_000_000
+    assert data["float_shares"] == 80_000_000
+    assert data["held_percent_insiders"] == 0.12
+    assert data["held_percent_institutions"] == 0.7
+    assert data["shares_short"] == 2_000_000
+    assert data["short_ratio"] == 1.8
+    assert data["short_percent_of_float"] == 0.025
+
+
+def test_yfinance_payload_includes_dividend_history(monkeypatch):
+    _patch_common_fetch_dependencies(monkeypatch, resolved_ticker="2330.TW", country="Taiwan")
+    monkeypatch.setattr(financial_data, "DataLoader", EmptyMonthlyRevenueLoader)
+
+    data = financial_data.fetch_stock_data("2330.TW", skip_optional_http=True)
+
+    assert data["shares_outstanding_raw"] == 100_000_000
+    assert data["dividend_history"] == {
+        "years": ["2021", "2022", "2023", "2024", "2025"],
+        "dividends": [1.0, 1.2, 1.4, 1.6, 1.8],
+        "records": [
+            {"date": "2021-07-01", "amount": 1.0},
+            {"date": "2022-07-01", "amount": 1.2},
+            {"date": "2023-07-01", "amount": 1.4},
+            {"date": "2024-07-01", "amount": 1.6},
+            {"date": "2025-07-01", "amount": 1.8},
+        ],
+        "source": "yfinance dividends",
+    }
+
+
+def test_yfinance_payload_includes_event_calendar(monkeypatch):
+    _patch_common_fetch_dependencies(monkeypatch, resolved_ticker="2330.TW", country="Taiwan")
+    monkeypatch.setattr(financial_data, "DataLoader", EmptyMonthlyRevenueLoader)
+
+    data = financial_data.fetch_stock_data("2330.TW", skip_optional_http=True)
+
+    assert data["event_calendar"]["events"] == [
+        {
+            "type": "earnings_date",
+            "label": "財報日",
+            "date": "2026-07-18",
+            "end_date": "2026-07-20",
+            "source": "yfinance calendar",
+        },
+        {
+            "type": "ex_dividend_date",
+            "label": "除息日",
+            "date": "2026-08-01",
+            "source": "yfinance calendar",
+        },
+        {
+            "type": "dividend_pay_date",
+            "label": "股利發放日",
+            "date": "2026-08-07",
+            "source": "yfinance info",
+        },
+    ]
+
+
+def test_yfinance_payload_includes_multi_range_price_history(monkeypatch):
+    _patch_common_fetch_dependencies(monkeypatch, resolved_ticker="2330.TW", country="Taiwan")
+    monkeypatch.setattr(financial_data, "DataLoader", EmptyMonthlyRevenueLoader)
+
+    data = financial_data.fetch_stock_data("2330.TW", skip_optional_http=True)
+
+    ranges = data["price_history_ranges"]["ranges"]
+    assert list(ranges) == ["1m", "3m", "6m", "1y", "3y", "5y"]
+    assert ranges["1m"]["label"] == "1M"
+    assert ranges["1m"]["return_pct"] == pytest.approx(10.0, rel=0.001)
+    assert ranges["1m"]["dates"] == ["2026-06-05", "2026-07-01"]
+    assert ranges["5y"]["return_pct"] == pytest.approx(142.0, rel=0.001)
+    assert ranges["5y"]["dates"][0] == "2021-07-01"
+    assert ranges["5y"]["prices"][-1] == 121.0
+    assert data["price_history_ranges"]["source"] == "yfinance 5y history"
 
 
 def test_us_fixture_has_no_monthly_revenue_without_finmind_call(monkeypatch):

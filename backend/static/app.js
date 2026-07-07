@@ -4,19 +4,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const homeView = document.getElementById('home-view');
     const loadingView = document.getElementById('loading-view');
     const reportView = document.getElementById('report-view');
-    
     const tickerInput = document.getElementById('ticker-input');
     const analyzeBtn = document.getElementById('analyze-btn');
     const analyzeBtnText = analyzeBtn ? analyzeBtn.querySelector('span') : null;
+    const stockSnapshotPanelEl = document.getElementById('stock-snapshot-panel');
+    const stockSnapshotLoadBtn = document.getElementById('stock-snapshot-load-btn');
+    const stockSnapshotShortcutsEl = document.getElementById('stock-snapshot-shortcuts');
     const pipelineModeHint = document.getElementById('pipeline-mode-hint');
     const backBtn = document.getElementById('back-btn');
-    
     const loadingStatus = document.getElementById('loading-status');
     const loadingMsg = document.getElementById('loading-msg');
     const loadingHint = document.getElementById('loading-hint');
     const progressBar = document.getElementById('progress-bar');
     const pipelineInputs = Array.from(document.querySelectorAll('input[name="pipeline-mode"]'));
-    
     const reportIframe = document.getElementById('report-iframe');
     const reportTickerTitle = document.getElementById('report-ticker-title');
     const reportAuditNotice = document.getElementById('report-audit-notice');
@@ -58,17 +58,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const reportCompareSummary = document.getElementById('report-compare-summary');
     const reportCompareResult = document.getElementById('report-compare-result');
     const reportCompareClearBtn = document.getElementById('report-compare-clear-btn');
-    
     const downloadHtmlBtn = document.getElementById('download-html-btn');
     const downloadMdBtn = document.getElementById('download-md-btn');
     const downloadDataBtn = document.getElementById('download-data-btn');
-
-    let currentReportFilename = null;
-    let pendingAuditNotice = null;
+    let currentReportFilename = null, pendingAuditNotice = null;
     let currentPipeline = 'v1';
     const notify = window.StockAgentNotificationCenter.create();
     window.StockAgentNotify = notify;
-
     const viewController = window.StockAgentViewController.create({
         views: {
             'home-view': homeView,
@@ -77,12 +73,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     const switchView = viewController.switchView;
-
     function getSelectedPipeline() {
         const selected = document.querySelector('input[name="pipeline-mode"]:checked') || pipelineInputs.find(input => input.checked);
         return selected ? selected.value : 'v1';
     }
-
     function syncPipelineOptionLabels() {
         const choices = typeof ui.pipelineChoices === 'function' ? ui.pipelineChoices({ includeBoth: true }) : [];
         choices.forEach(choice => {
@@ -101,17 +95,21 @@ document.addEventListener('DOMContentLoaded', () => {
             if (watchlistOption) watchlistOption.textContent = ui.pipelineModeLabel(choice.value);
         });
     }
-
     function updateAnalyzeButtonCopy() {
         if (!analyzeBtnText) return;
         analyzeBtnText.textContent = ui.pipelineCtaLabel(getSelectedPipeline());
     }
-
     function updatePipelineModeHint() {
         if (!pipelineModeHint) return;
         pipelineModeHint.textContent = ui.pipelineMeta(getSelectedPipeline()).intent || '';
     }
-
+    function selectPipelineMode(pipelineId) {
+        const input = pipelineInputs.find(item => item.value === pipelineId);
+        if (!input) return;
+        input.checked = true;
+        updateAnalyzeButtonCopy();
+        updatePipelineModeHint();
+    }
     function setAuditNotice(audit) {
         if (!reportAuditNotice) return;
         if (!audit || audit.status === 'passed') {
@@ -120,7 +118,6 @@ document.addEventListener('DOMContentLoaded', () => {
             reportAuditNotice.className = 'report-audit-notice';
             return;
         }
-
         const label = audit.status === 'needs_attention' ? '稽核提醒' : '稽核註記';
         const detail = audit.status !== 'needs_attention' && Array.isArray(audit.issues) && audit.issues.length > 0
             ? ` ${audit.issues.slice(0, 2).join('；')}`
@@ -129,7 +126,6 @@ document.addEventListener('DOMContentLoaded', () => {
         reportAuditNotice.className = `report-audit-notice ${audit.status === 'needs_attention' ? 'is-warning' : 'is-note'}`;
         reportAuditNotice.hidden = false;
     }
-
     // 開啟報告
     function openReport(filename, ticker, pipelineId = 'v1') {
         currentReportFilename = filename;
@@ -145,8 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
         switchView('report-view');
     }
     window.openReport = openReport;
-
-    const opsWorkspace = window.StockAgentOpsWorkspace.create({ apiClient, ui });
+    const opsWorkspace = window.StockAgentOpsWorkspace.create({ apiClient, ui, notify, onOpenReport: openReport, onSelectPipeline: selectPipelineMode, getSelectedPipeline });
     const operatorSummary = window.StockAgentOperatorSummaryPanel.create({ apiClient, ui });
     const marketScreenerPanel = window.StockAgentMarketScreenerPanel.create({
         apiClient,
@@ -159,7 +154,18 @@ document.addEventListener('DOMContentLoaded', () => {
             refreshBtn: document.getElementById('market-screener-refresh')
         }
     });
-
+    const stockSnapshotPanel = window.StockAgentStockSnapshotPanel.create({
+        apiClient, ui, notify,
+        onSelectPipeline: selectPipelineMode,
+        onWatchlistUpdated: opsWorkspace.loadWatchlistOnce,
+        getSelectedPipeline,
+        elements: {
+            root: stockSnapshotPanelEl,
+            loadButton: stockSnapshotLoadBtn,
+            shortcutsRoot: stockSnapshotShortcutsEl,
+            tickerInput
+        }
+    });
     const historyWorkspace = window.StockAgentHistoryWorkspace.create({
         apiClient,
         ui,
@@ -179,6 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
             historyNext,
             historyPageInfo,
             historyTrackingTable,
+            decisionTrackingStockSnapshotPanel: document.getElementById('decision-tracking-stock-snapshot-panel'),
             decisionTrackingSummary,
             decisionTrackingRefresh,
             decisionTrackingDensity,
@@ -209,7 +216,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     historyWorkspace.bindEvents();
     const loadHistory = historyWorkspace.loadHistory;
-
     window.StockAgentReportActions.bindDownloads({
         htmlBtn: downloadHtmlBtn,
         mdBtn: downloadMdBtn,
@@ -217,18 +223,18 @@ document.addEventListener('DOMContentLoaded', () => {
         getFilename: () => currentReportFilename
     });
     window.StockAgentReportNavigation.bind(reportIframe);
-
     loadHistory();
     operatorSummary.load();
     opsWorkspace.bindEvents();
     marketScreenerPanel.bindEvents();
+    stockSnapshotPanel.bindEvents();
     window.StockAgentHomeTabs.bind({
         onActivate: tabName => {
             if (tabName === 'screener') marketScreenerPanel.loadOnce();
+            if (tabName === 'tracking') opsWorkspace.loadWatchlistOnce();
             if (tabName === 'ops') opsWorkspace.loadAllOnce();
         }
     });
-
     pipelineInputs.forEach(input => {
         input.addEventListener('change', () => {
             updateAnalyzeButtonCopy();
@@ -238,7 +244,6 @@ document.addEventListener('DOMContentLoaded', () => {
     syncPipelineOptionLabels();
     updateAnalyzeButtonCopy();
     updatePipelineModeHint();
-
     const analysisStream = window.StockAgentAnalysisStream.create({
         loadingStatus,
         loadingMsg,
@@ -264,14 +269,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     });
-
     analyzeBtn.addEventListener('click', () => {
         const ticker = tickerInput.value.trim().toUpperCase();
         if (!ticker) {
             notify.error('請輸入股票代號。');
             return;
         }
-
         currentPipeline = getSelectedPipeline();
         loadingStatus.textContent = '連接 Wall Street 系統...';
         loadingMsg.textContent = '';
@@ -283,17 +286,13 @@ document.addEventListener('DOMContentLoaded', () => {
         switchView('loading-view');
         analysisStream.resetAndConnect(ticker, currentPipeline);
     });
-
     backBtn.addEventListener('click', () => {
         analysisStream.close();
         reportIframe.src = 'about:blank'; // 清除記憶體
         tickerInput.value = ''; // 清空輸入框
         switchView('home-view');
     });
-
-    tickerInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            analyzeBtn.click();
-        }
+    tickerInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); analyzeBtn.click(); }
     });
 });

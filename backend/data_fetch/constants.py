@@ -2,6 +2,23 @@
 
 DATA_SCHEMA_VERSION = 4
 
+REQUIRED_DATA_SCHEMA_FIELDS = (
+    "company_summary",
+    "website",
+    "exchange",
+    "currency",
+    "financial_currency",
+    "float_shares",
+    "held_percent_insiders",
+    "held_percent_institutions",
+    "shares_short",
+    "short_ratio",
+    "short_percent_of_float",
+    "dividend_history",
+    "event_calendar",
+    "price_history_ranges",
+)
+
 SOURCE_FRESHNESS_SOURCES = (
     "market_data",
     "financial_statements",

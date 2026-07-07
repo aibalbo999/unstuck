@@ -24,7 +24,6 @@
             recommendationTone: ui.recommendationTone,
             normalizeRecommendation: ui.normalizeRecommendation
         });
-
         const reportPreviewPanel = window.StockAgentReportPreviewPanel.create({
             elements: {
                 workspace: elements.historyWorkspace,
@@ -49,12 +48,13 @@
             recommendationTone: ui.recommendationTone,
             normalizeRecommendation: ui.normalizeRecommendation
         });
-
         const reportComparePanel = window.StockAgentReportComparePanel.create({
             apiClient,
             escapeHtml: ui.escapeHtml,
+            pipelineModeLabel: ui.pipelineModeLabel,
             elements: { addBtn: elements.previewCompareAddBtn, summaryEl: elements.reportCompareSummary, resultEl: elements.reportCompareResult, clearBtn: elements.reportCompareClearBtn }
         });
+        const trackingSnapshotPanel = window.StockAgentStockSnapshotPanel.create({ apiClient, ui, notify, elements: { root: elements.decisionTrackingStockSnapshotPanel } });
         const decisionTrackingPanel = window.StockAgentDecisionTrackingPanel.create({
             apiClient, historyPanel, notify,
             elements: { summaryEl: elements.decisionTrackingSummary, refreshBtn: elements.decisionTrackingRefresh, runActionsBtn: elements.decisionTrackingRunActions },
@@ -98,17 +98,17 @@
                 console.error('Failed to load history', err);
             }
         }
-
         function hideReportPreview() {
             previewReport = null;
             reportPreviewPanel.hide();
             historyPanel.clearSelection();
             if (previewCompactMode) setTrackingCompact(false);
         }
-
+        async function openTrackingSnapshot(ticker) { if (!ticker) return; hideReportPreview(); elements.historyWorkspace?.classList.add('has-preview'); await trackingSnapshotPanel.load(ticker); elements.decisionTrackingStockSnapshotPanel?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
         function showReportPreview(filename) {
             const report = historyReports.get(filename);
             if (!report) return;
+            if (elements.decisionTrackingStockSnapshotPanel) elements.decisionTrackingStockSnapshotPanel.hidden = true;
             previewReport = report;
             setTrackingCompact(true, true);
             if (reportPreviewPanel.show(report)) historyPanel.select(filename);
@@ -149,7 +149,6 @@
                 if (label) label.textContent = originalText;
             }
         }
-
         async function rerunPreviewReport(scope) {
             return window.StockAgentReportRerun.rerunPreviewReport({
                 apiClient,
@@ -189,15 +188,14 @@
                 notify.error('刪除失敗');
             }
         }
-
         async function toggleDecisionTracking(filename, event) {
             event.stopPropagation();
             const report = historyReports.get(filename);
             if (report) { await decisionTrackingPanel.toggleDecisionTracking(report); await loadHistory(); }
         }
-
         function bindEvents() {
-            historyPanel.bindEvents({ onDelete: deleteReport, onSelect: showReportPreview, onToggleTracking: toggleDecisionTracking });
+            historyPanel.bindEvents({ onDelete: deleteReport, onSelect: showReportPreview, onToggleTracking: toggleDecisionTracking, onOpenSnapshot: openTrackingSnapshot });
+            trackingSnapshotPanel.bindEvents();
             if (elements.previewOpenReportBtn) {
                 elements.previewOpenReportBtn.addEventListener('click', () => {
                     if (!previewReport) return;

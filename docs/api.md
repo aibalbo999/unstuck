@@ -11,6 +11,7 @@ curl http://127.0.0.1:8080/api/observability/provider-sla
 curl http://127.0.0.1:8080/api/observability/active-jobs
 curl http://127.0.0.1:8080/api/observability/api-quotas
 curl http://127.0.0.1:8080/api/watchlist
+curl http://127.0.0.1:8080/api/stocks/2330.TW/snapshot
 ```
 
 Report rows include:
@@ -28,6 +29,14 @@ Watchlist symbol suggestions are local/free and can be used before saving or imp
 ```bash
 curl "http://127.0.0.1:8080/api/watchlist/symbols?q=台積"
 ```
+
+股票快照 API 提供一般股票頁需要的摘要結構，不需要 mutation token：
+
+```bash
+curl http://127.0.0.1:8080/api/stocks/{ticker}/snapshot
+```
+
+回傳內容包含 `identity`、`company_profile`、`quote`、`market_session`、`price_trend`、`performance_history`、`technical_summary`、`valuation`、`valuation_range`、`analyst_outlook`、`earnings_forecast`、`share_statistics`、`risk_liquidity`、`profitability_quality`、`dividends`、`dividend_profile`、`event_calendar`、`alert_suggestions`、`financial_health`、`financial_trends`、`peer_comparison`、`ownership_flow`、`events`、`news`、`chip`、`data_quality` 與 `mode_suggestions`。`company_profile` 會整理公司業務摘要、官網、產業、市場/交易所、幣別與員工數；`market_session` 會揭露今日行情、漲跌、日內區間、成交量與均量比較；`price_trend` / `performance_history` / `technical_summary` 會提供近一年趨勢、1M/3M/6M/1Y/3Y/5Y 多週期走勢、均線、52 週位置與動能訊號；`valuation_range` 與 `analyst_outlook` 分別提供 P/E 河流圖估值區間、分析師目標價、共識、Forward P/E 與 EPS 成長；`earnings_forecast` 會整理 Trailing EPS、Forward EPS、Forward EPS 變化、EPS/營收成長、下次財報日期與分析師覆蓋數；`share_statistics` 會整理在外股數、流通股數、內部人/機構持股、空單股數、short ratio 與空單占流通股比例；`risk_liquidity` 會整理 beta、52 週高點回撤、成交量相對均量、負債權益比與流動比率；`profitability_quality` 會整理毛利率、營業利益率、淨利率、ROE、ROA 與 FCF margin；`dividend_profile` 會整理年化股利、殖利率、配息率、近年配息歷史與 FCF 覆蓋；`event_calendar` 會整理財報日、除息日、股利發放日、最近財報季度等關鍵日期，並標出下一事件與距今天數；`alert_suggestions` 會把關鍵日期、分析師目標價、52 週高點與月營收創高等情境轉成可保存到 watchlist 的提醒建議；`financial_health` / `financial_trends` / `peer_comparison` 則把基本面摘要、近年營收/淨利/FCF YoY 與同業比較整理成一般股票頁可讀的摘要；`ownership_flow` 會將法人買賣超、外資/投信/自營商分類、融資券與 TDCC 股權集中度整理成籌碼結構摘要。`mode_suggestions` 則把 `v1` / `v2` / `v3` / `v4` 翻成使用者決策語言，供前端快速切換分析模式。
 
 ## Mutation Token
 
@@ -53,7 +62,7 @@ curl -X DELETE -H "X-Mutation-Token: $TOKEN" \
 curl -X POST http://127.0.0.1:8080/api/analysis-jobs \
   -H "Content-Type: application/json" \
   -H "X-Mutation-Token: $TOKEN" \
-  -d '{"ticker":"2330.TW","pipeline_id":"mode_a","force":false,"resume":true}'
+  -d '{"ticker":"2330.TW","pipeline_id":"v1","force":false,"resume":true}'
 ```
 
 回應包含：
@@ -138,6 +147,12 @@ curl http://127.0.0.1:8080/api/watchlist/daily-dashboard
 ```
 
 The daily dashboard also returns `notification_plan`. Local UI notifications are always free; SMTP, Telegram, Discord, and Slack are enabled only when the operator supplies the corresponding environment variables/webhook URLs.
+
+Auto-screener 候選清單支援商業版前端的篩選與分頁。常用 query 包含 `category`、`min_score`、`fundamental_revenue_growth_yoy_min/max`、`technical_rsi_min/max`、`technical_macd_min`、`technical_macd_histogram_min`、`institutional_total_net_buy_min`、`institutional_foreign_net_buy_min`、`institutional_investment_trust_net_buy_min`、`institutional_dealer_net_buy_min`、`sort_by`、`sort_direction`、`limit` 與 `offset`：
+
+```bash
+curl "http://127.0.0.1:8080/api/watchlist/screener?min_score=70&fundamental_revenue_growth_yoy_min=10&technical_rsi_max=70&institutional_total_net_buy_min=1000000&sort_by=score&sort_direction=desc&limit=20"
+```
 
 Watchlist paste/CSV import is a mutation endpoint. It accepts `ticker`/`symbol`, optional `pipeline`, `schedule_slots`, `tags`, and `enabled`; four-digit Taiwan symbols are normalized to `.TW`.
 

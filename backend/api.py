@@ -5,10 +5,11 @@ import threading
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.openapi.utils import get_openapi
 from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
+from api_openapi_contract import install_openapi_contract
+from api_safe_json import SafeJSONResponse
 from agent_runtime import AnalysisPipelineRunner
 from analysis_job_service import (
     RQ_ABANDONED_JOB_REASON,
@@ -30,6 +31,7 @@ from api_routes.performance import PerformanceRouteDeps, create_performance_rout
 from api_routes.reports import ReportRouteDeps, create_reports_router
 from api_routes.review import ReviewRouteDeps, create_review_router
 from api_routes.static_files import create_static_router
+from api_routes.stock_snapshot import create_stock_snapshot_router
 from api_routes.watchlist import WatchlistRouteDeps, create_watchlist_router
 from config import (
     ALLOW_LEGACY_ADMIN_TOKEN,
@@ -92,8 +94,6 @@ analysis_pipeline_runner = AnalysisPipelineRunner()
 report_renderer = ReportRenderer()
 active_analyses_lock = threading.Lock()
 MUTATION_HEADER_NAME = "X-Mutation-Token"
-MUTATION_SECURITY_SCHEME_NAME = "MutationToken"
-MUTATION_METHODS = {"post", "delete", "put", "patch"}
 RUNTIME_MUTATION_API_TOKEN = secrets.token_urlsafe(32)
 def print_streamed_event(job_id: str, payload: dict) -> None:
     if TASK_QUEUE_BACKEND != "rq":
@@ -127,37 +127,6 @@ def cors_allow_headers() -> list[str]:
     if not is_restricted_cors_profile():
         return ["*"]
     return ["Content-Type", MUTATION_HEADER_NAME, "X-Admin-Token", "Last-Event-ID"]
-def operation_requires_mutation_security(path: str, method: str) -> bool:
-    return method.lower() in MUTATION_METHODS or path == "/api/maintenance/storage-summary"
-def install_openapi_contract(app: FastAPI) -> None:
-    def custom_openapi() -> dict:
-        if app.openapi_schema:
-            return app.openapi_schema
-        schema = get_openapi(
-            title=app.title,
-            version=app.version,
-            description=app.description,
-            routes=app.routes,
-        )
-        security_schemes = schema.setdefault("components", {}).setdefault("securitySchemes", {})
-        security_schemes[MUTATION_SECURITY_SCHEME_NAME] = {
-            "type": "apiKey",
-            "in": "header",
-            "name": MUTATION_HEADER_NAME,
-        }
-        mutation_security = {MUTATION_SECURITY_SCHEME_NAME: []}
-        for path, operations in schema.get("paths", {}).items():
-            for method, operation in operations.items():
-                if not isinstance(operation, dict):
-                    continue
-                if operation_requires_mutation_security(path, method):
-                    security = operation.setdefault("security", [])
-                    if mutation_security not in security:
-                        security.append(mutation_security)
-        app.openapi_schema = schema
-        return app.openapi_schema
-
-    app.openapi = custom_openapi
 def get_allowed_mutation_tokens() -> set[str]:
     runtime_token = get_runtime_mutation_token() if is_local_deployment_mode() else ""
     return {
@@ -222,6 +191,7 @@ async def lifespan(_app: FastAPI):
         runtime.close()
 def create_app() -> FastAPI:
     app = FastAPI(lifespan=lifespan)
+    app.router.default_response_class = SafeJSONResponse
 
     @app.middleware("http")
     async def basic_auth_middleware(request: Request, call_next):
@@ -281,6 +251,7 @@ def create_app() -> FastAPI:
             preserve_ticker_case=True,
         ),
     )))
+    app.include_router(create_stock_snapshot_router())
     app.include_router(create_performance_router(PerformanceRouteDeps(
         get_output_dir=lambda: OUTPUT_DIR,
     )))
@@ -343,7 +314,7 @@ def create_app() -> FastAPI:
         serialize_analysis_job=serialize_analysis_job,
         serialize_node_telemetry=serialize_node_telemetry,
     )))
-    install_openapi_contract(app)
+    install_openapi_contract(app, mutation_header_name=MUTATION_HEADER_NAME)
     return app
 
 app = create_app()

@@ -12,14 +12,15 @@
 - 自動切換 `.TW` / `.TWO` 查詢
 - 多 Agent 串接分析流程，支援 Mode A（學術深度派）、Mode B（實戰交易派）、Mode C（逆勢交易與泡沫狙擊）與 Mode D（極短線波段與事件驅動）
 - 產生 HTML 與 Markdown 報告
-- 前端分成「分析」與「報告與維運」頁籤；歷史報告、預覽、比較留在分析頁，API 額度、watchlist、來源健康與本機維護集中在維運頁並於首次開啟時載入
+- 首頁股票快照會先顯示公司檔案、行情、估值、盈餘預估、股本結構、風險與流動性、獲利品質、股利、財報趨勢、事件、新聞、籌碼、資料品質與模式建議，並可一鍵加入追蹤清單
+- 前端分成「分析」、「市場掃描」、「追蹤」與「報告與維運」頁籤；歷史報告、預覽、比較留在分析頁，watchlist 集中在追蹤頁，API 額度、來源健康與本機維護集中在維運頁
 - 歷史報告支援資料可信度、決策追蹤、版本篩選、報告比較與相容性提示
 - 報告預覽可只刷新資料快照，也可排隊重跑最終投資建議、Mode B 或完整報告
 - 歷史 API 回傳 `decision_freshness`，明確區分「資料快照已更新」與「投資結論是否已依新資料重跑」
 - 報告會輸出投資論文、核心假設、紅線、估值錨點與鏡子測試，方便後續追蹤結論是否仍成立
 - 報告與 `.data.json` 會揭露 `data_confidence_score`、低信心目標價限制與 reproducibility packet，方便追溯 snapshot hash、provider、prompt/model 與資料時間
 - 報告產生時會執行數字證據抽查 exit gate，將 Markdown 數字主張與 data snapshot 比對後寫入 metadata
-- 決策追蹤會自動掃描滿 3 / 6 / 12 個月的歷史報告，抓取發布日與到期日股價，計算 ROI、命中率與 Hit/Miss，並在「報告與維運」顯示回測績效
+- 決策追蹤會自動掃描滿 3 / 6 / 12 個月的歷史報告，抓取發布日與到期日股價，計算 ROI、命中率與 Hit/Miss，並在維運區顯示回測績效
 - 新報告會載入同股票上一期報告與回測結果，將 `temporal_memory` 只注入最終決策 Agent，強制檢討先前目標價與投資建議是否失準
 - 免費模式合約（`FREE_MODE=true` 預設開啟）會在 ops dashboard 顯示 provider cost tier、免費可跑狀態與付費依賴缺口；付費/需 key 來源只能作為 optional enrichment，不能阻斷基本分析
 - Qlib-lite 決策評估層會產生 deterministic factor snapshot、backtest artifact 與 strategy evaluation，讓 pipeline / alpha model / watchlist trigger 的結論可追溯到本機價格、品質、估值與 benchmark 表現
@@ -360,14 +361,16 @@ http://127.0.0.1:8080
 3. 選擇分析模式；預設是 Mode A，也可選 Mode B、Mode C 或 Mode D。
 4. 等待 Agent 依序完成。
 5. 報告完成後會出現在同一頁的歷史清單，可直接預覽、下載、比較或重跑。
-6. 到「報告與維運」查看決策回測績效、API/來源健康、Watchlist 批次排程與事件雷達 trigger。
+6. 到「追蹤」管理追蹤清單、批次分析與事件雷達 trigger；到「報告與維運」查看決策回測績效、API/來源健康與本機維護。
 
 分析時間會受模型回應速度與 API 額度影響。部分個股可能需要 10 分鐘以上。
 
 日常操作建議：
 
 - 「分析」頁籤：新分析、查找歷史報告、篩選 Mode A/B/C/D、查看決策追蹤、刷新資料快照、重跑報告與比較報告。
-- 「報告與維運」頁籤：查看 API 額度、本機 watchlist、來源健康、任務狀態與清理工具；首次打開頁籤才會載入這些維運資料。
+- 「市場掃描」頁籤：依分類、分數、營收成長、RSI/MACD 與法人買超篩選自動掃描候選股，並可把候選清單送入追蹤或分析流程。
+- 「追蹤」頁籤：管理追蹤清單、排程、事件觸發條件與批次分析；股票快照也可以直接加入追蹤，並可貼上持股 CSV 檢查集中度、產業/市場曝險與投資論文缺口。
+- 「報告與維運」頁籤：查看 API 額度、來源健康、任務狀態、決策回測與清理工具；首次打開頁籤才會載入這些維運資料。
 - 「資料快照已刷新，但 HTML/Markdown 分析本文未重新執行」代表只更新了 `.data.json` 的最新股價/來源/可信度，原本報告正文和投資結論還是舊模型在原生成時間做出的判斷；若要讓文字與結論一起更新，請使用重跑功能。
 
 ## API
@@ -389,7 +392,7 @@ TOKEN="$(curl -fsS http://127.0.0.1:8080/api/client-config | python -c 'import j
 JOB_ID="$(curl -fsS -X POST http://127.0.0.1:8080/api/analysis-jobs \
   -H "Content-Type: application/json" \
   -H "X-Mutation-Token: $TOKEN" \
-  -d '{"ticker":"2330.TW","pipeline_id":"mode_a","force":false,"resume":true}' \
+  -d '{"ticker":"2330.TW","pipeline_id":"v1","force":false,"resume":true}' \
   | python -c 'import json,sys; print(json.load(sys.stdin)["job_id"])')"
 curl -N "http://127.0.0.1:8080/api/analysis-jobs/${JOB_ID}/events"
 ```

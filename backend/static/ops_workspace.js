@@ -4,31 +4,28 @@
         if (summaryEl) summaryEl.textContent = message;
         if (listEl) listEl.innerHTML = '<span class="provider-sla-chip is-warning">請稍後重試</span>';
     }
-
     function create(options) {
         const apiClient = options.apiClient, ui = options.ui;
         const elements = {
-            providerSlaSummary: byId('provider-sla-summary'),
-            providerSlaList: byId('provider-sla-list'),
-            providerSlaRefresh: byId('provider-sla-refresh'),
-            providerSlaWindow: byId('provider-sla-window'),
-            activeJobsSummary: byId('active-jobs-summary'),
-            activeJobsList: byId('active-jobs-list'),
-            activeJobsRefresh: byId('active-jobs-refresh'),
-            apiQuotaSummary: byId('api-quota-summary'),
-            apiQuotaList: byId('api-quota-list'),
-            apiQuotaRefresh: byId('api-quota-refresh'),
-            performanceSummary: byId('performance-summary'),
-            performanceList: byId('performance-list'),
+            providerSlaSummary: byId('provider-sla-summary'), providerSlaList: byId('provider-sla-list'),
+            providerSlaRefresh: byId('provider-sla-refresh'), providerSlaWindow: byId('provider-sla-window'),
+            activeJobsSummary: byId('active-jobs-summary'), activeJobsList: byId('active-jobs-list'),
+            activeJobsRefresh: byId('active-jobs-refresh'), apiQuotaSummary: byId('api-quota-summary'),
+            apiQuotaList: byId('api-quota-list'), apiQuotaRefresh: byId('api-quota-refresh'),
+            performanceSummary: byId('performance-summary'), performanceList: byId('performance-list'),
             performanceRefresh: byId('performance-refresh')
         };
         let loaded = false;
         let providerSlaDirty = false;
+        let watchlistLoaded = false;
+        const watchlistStockSnapshotPanel = window.StockAgentStockSnapshotPanel.create({ apiClient, ui, notify: options.notify || window.StockAgentNotify || { error: () => {} }, onSelectPipeline: options.onSelectPipeline || (() => {}), getSelectedPipeline: options.getSelectedPipeline || (() => 'v1'), elements: { root: byId('watchlist-stock-snapshot-panel') } });
+        function onOpenSnapshot(ticker) {
+            const root = byId('watchlist-stock-snapshot-panel');
+            if (root) root.hidden = false;
+            return watchlistStockSnapshotPanel.load(ticker).finally(() => root?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' }));
+        }
         const watchlistPanel = window.StockAgentWatchlistPanel.create({
-            apiClient,
-            ui,
-            escapeHtml: ui.escapeHtml,
-            onRunQueued: loadActiveJobs,
+            apiClient, ui, escapeHtml: ui.escapeHtml, onRunQueued: loadActiveJobs, onOpenSnapshot, onOpenReport: options.onOpenReport,
             elements: {
                 summaryEl: byId('watchlist-summary'), listEl: byId('watchlist-list'),
                 tickerInput: byId('watchlist-ticker-input'), pipelineSelect: byId('watchlist-pipeline-select'),
@@ -38,7 +35,13 @@
                 runBtn: byId('watchlist-run-btn'), refreshBtn: byId('watchlist-refresh')
             }
         });
-
+        const portfolioRiskPanel = window.StockAgentPortfolioRiskPanel.create({
+            apiClient, ui,
+            elements: {
+                summaryEl: byId('portfolio-risk-summary'), csvInput: byId('portfolio-risk-csv'),
+                runBtn: byId('portfolio-risk-run-btn'), resultEl: byId('portfolio-risk-result')
+            }
+        });
         function renderProviderSla(payload) {
             window.StockAgentProviderSlaPanel.render(payload, {
                 summaryEl: elements.providerSlaSummary,
@@ -47,7 +50,6 @@
                 escapeHtml: ui.escapeHtml
             });
         }
-
         async function loadProviderSla() {
             if (!elements.providerSlaSummary || !elements.providerSlaList) return;
             try {
@@ -64,7 +66,6 @@
                 if (elements.providerSlaRefresh) elements.providerSlaRefresh.disabled = false;
             }
         }
-
         async function loadActiveJobs() {
             if (!elements.activeJobsSummary || !elements.activeJobsList) return;
             try {
@@ -73,7 +74,7 @@
                 window.StockAgentActiveJobsPanel.render(payload, {
                     summaryEl: elements.activeJobsSummary,
                     listEl: elements.activeJobsList,
-                    escapeHtml: ui.escapeHtml
+                    escapeHtml: ui.escapeHtml, pipelineModeLabel: ui.pipelineModeLabel
                 });
             } catch (err) {
                 console.error('Failed to load active jobs', err);
@@ -82,7 +83,6 @@
                 if (elements.activeJobsRefresh) elements.activeJobsRefresh.disabled = false;
             }
         }
-
         async function loadApiQuotas() {
             if (!elements.apiQuotaSummary || !elements.apiQuotaList) return;
             try {
@@ -100,7 +100,6 @@
                 if (elements.apiQuotaRefresh) elements.apiQuotaRefresh.disabled = false;
             }
         }
-
         async function loadPerformance() {
             if (!elements.performanceSummary || !elements.performanceList) return;
             try {
@@ -118,18 +117,21 @@
                 if (elements.performanceRefresh) elements.performanceRefresh.disabled = false;
             }
         }
-
         function bindEvents() {
             watchlistPanel.bindEvents();
+            portfolioRiskPanel.bindEvents();
             if (elements.providerSlaRefresh) elements.providerSlaRefresh.addEventListener('click', loadProviderSla);
             if (elements.providerSlaWindow) elements.providerSlaWindow.addEventListener('change', loadProviderSla);
             if (elements.activeJobsRefresh) elements.activeJobsRefresh.addEventListener('click', loadActiveJobs);
             if (elements.apiQuotaRefresh) elements.apiQuotaRefresh.addEventListener('click', loadApiQuotas);
             if (elements.performanceRefresh) elements.performanceRefresh.addEventListener('click', loadPerformance);
         }
-
-        function loadAll() { return Promise.allSettled([loadProviderSla(), loadActiveJobs(), loadApiQuotas(), loadPerformance(), watchlistPanel.load()]); }
-
+        function loadWatchlist() { return watchlistPanel.load(); }
+        function loadWatchlistOnce() {
+            if (!watchlistLoaded) { watchlistLoaded = true; return loadWatchlist(); }
+            return Promise.resolve();
+        }
+        function loadAll() { return Promise.allSettled([loadProviderSla(), loadActiveJobs(), loadApiQuotas(), loadPerformance()]); }
         function loadAllOnce() {
             if (!loaded) {
                 loaded = true;
@@ -142,7 +144,6 @@
             }
             return Promise.resolve();
         }
-
         function refreshProviderSlaIfLoaded() {
             if (!loaded) {
                 providerSlaDirty = true;
@@ -151,9 +152,7 @@
             providerSlaDirty = false;
             return loadProviderSla();
         }
-
-        return { bindEvents, loadActiveJobs, loadAll, loadAllOnce, loadApiQuotas, loadPerformance, loadProviderSla, refreshProviderSlaIfLoaded };
+        return { bindEvents, loadActiveJobs, loadAll, loadAllOnce, loadApiQuotas, loadPerformance, loadProviderSla, loadWatchlist, loadWatchlistOnce, refreshProviderSlaIfLoaded };
     }
-
     window.StockAgentOpsWorkspace = { create };
 })();

@@ -968,12 +968,26 @@ def test_workflow_returns_fresh_cache_before_provider_plan(monkeypatch):
             "data_schema_version": DATA_SCHEMA_VERSION,
             "ticker": "AAPL",
             "company_name": "Fixture",
+            "company_summary": "Fixture company profile.",
+            "website": "https://fixture.example.com",
+            "exchange": "NMS",
+            "currency": "USD",
+            "financial_currency": "USD",
+            "float_shares": 80_000_000,
+            "held_percent_insiders": 0.12,
+            "held_percent_institutions": 0.7,
+            "shares_short": 2_000_000,
+            "short_ratio": 1.8,
+            "short_percent_of_float": 0.025,
             "current_price": 100,
             "market_cap_raw": 10_000,
             "pe_ratio_raw": 20,
             "years": ["2025"],
             "revenue_history": [10],
             "net_income_history": [2],
+            "dividend_history": {"years": [], "dividends": []},
+            "event_calendar": {"as_of_date": "2026-06-07", "events": []},
+            "price_history_ranges": {"source": "fixture", "ranges": {}},
             "cache_generated_at_epoch": 190.0,
             "market_data_fetched_at_epoch": 190.0,
         },
@@ -1016,18 +1030,60 @@ def test_workflow_refetches_when_cached_schema_is_old(monkeypatch):
     assert result.data["data_schema_version"] == DATA_SCHEMA_VERSION
 
 
+def test_workflow_refetches_when_cached_payload_lacks_dividend_history(monkeypatch):
+    monkeypatch.setattr(workflow, "get_cache_json", lambda key: {"data_schema_version": DATA_SCHEMA_VERSION, "ticker": "AAPL"})
+
+    def core_provider(request, context):
+        return ProviderResult(
+            source="market_data",
+            provider="fake-core",
+            status="success",
+            value={
+                "data_schema_version": DATA_SCHEMA_VERSION,
+                "ticker": request.ticker,
+                "company_name": "Fixture",
+                "dividend_history": {"years": [], "dividends": []},
+                "event_calendar": {"as_of_date": "2026-06-07", "events": []},
+                "price_history_ranges": {"source": "fixture", "ranges": {}},
+                "source_audit": [],
+            },
+        )
+
+    registry = ProviderRegistry([CallableProvider("market_data", "fake-core", core_provider)])
+    result = asyncio.run(
+        StockDataService(registry=registry).fetch_async(FetchRequest.from_ticker("AAPL", skip_optional_http=True))
+    )
+
+    assert result.cache_hit is False
+    assert "dividend_history" in result.data
+
+
 def test_workflow_falls_back_to_stale_cache_when_core_provider_fails(monkeypatch):
     monkeypatch.setattr(data_freshness.time_module, "time", lambda: 200_000.0)
     stale_cached = {
         "data_schema_version": DATA_SCHEMA_VERSION,
         "ticker": "AAPL",
         "company_name": "Fixture",
+        "company_summary": "Fixture company profile.",
+        "website": "https://fixture.example.com",
+        "exchange": "NMS",
+        "currency": "USD",
+        "financial_currency": "USD",
+        "float_shares": 80_000_000,
+        "held_percent_insiders": 0.12,
+        "held_percent_institutions": 0.7,
+        "shares_short": 2_000_000,
+        "short_ratio": 1.8,
+        "short_percent_of_float": 0.025,
         "current_price": 100,
         "market_cap_raw": 10_000,
         "pe_ratio_raw": 20,
         "years": ["2025"],
         "revenue_history": [10],
         "net_income_history": [2],
+        "dividend_history": {"years": [], "dividends": []},
+        "event_calendar": {"as_of_date": "2026-06-07", "events": []},
+        "price_history_ranges": {"source": "fixture", "ranges": {}},
         "cache_generated_at_epoch": 1.0,
         "market_data_fetched_at_epoch": 1.0,
     }
