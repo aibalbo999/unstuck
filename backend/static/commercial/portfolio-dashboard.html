@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OnStock 組合健檢</title>
+  <link rel="stylesheet" href="/static/commercial/commercial_pages.css?v=20260705-commercial-pro213">
+  <script src="/static/commercial/commercial_pages.js?v=20260705-commercial-pro213" defer></script>
+</head>
+<body class="commercial-page" data-commercial-page="portfolio-dashboard">
+  <div class="commercial-shell">
+    <header class="commercial-topbar">
+      <a class="commercial-brand" href="/" aria-label="回到主頁">
+        <strong>OnStock AI</strong>
+        <span>投資決策工作區</span>
+      </a>
+      <nav class="commercial-nav" aria-label="商業版投資工作區">
+        <a href="/">主頁</a>
+        <a href="/static/commercial/research-workbench.html">研究工作台</a>
+        <a href="/static/commercial/stock-detail.html">單股研究</a>
+        <a href="/static/commercial/portfolio-dashboard.html" aria-current="page">組合健檢</a>
+      </nav>
+    </header>
+
+    <section id="commercial-portfolio-primary-snapshot" class="commercial-primary-snapshot-dock" aria-label="組合快速快照"></section>
+    <section id="commercial-portfolio-primary-answer" class="commercial-primary-answer-strip" aria-label="組合健檢決策答案"></section>
+    <section id="commercial-portfolio-primary-compare" class="commercial-primary-compare-lens" aria-label="組合基準比較焦點"></section>
+    <section id="commercial-portfolio-primary-customize" class="commercial-primary-customize-strip" aria-label="組合自訂健檢視圖"></section>
+
+    <section id="commercial-portfolio-jump-deck" class="commercial-jump-deck" aria-label="組合首屏導覽"></section>
+
+    <section id="commercial-workspace-chrome" class="commercial-workspace-chrome" aria-label="商業版工作區"></section>
+
+    <section id="commercial-mobile-action-bar" class="commercial-mobile-action-bar" aria-label="手機快速動作"></section>
+
+    <aside id="commercial-desktop-insight-rail" class="commercial-desktop-insight-rail" aria-label="桌面研究洞察捷徑"></aside>
+
+    <main id="commercial-portfolio-page" class="commercial-main" aria-live="polite">
+      <section class="commercial-hero" aria-labelledby="portfolio-title">
+        <div>
+          <h1 id="portfolio-title">組合健檢</h1>
+          <p>組合健檢中心：先看集中度、產業曝險、投資論點缺口與再平衡處理清單。</p>
+        </div>
+        <span class="commercial-status">組合儀表板</span>
+      </section>
+
+      <section id="commercial-portfolio-core-surface" class="commercial-core-surface" aria-label="組合健康核心資料"></section>
+      <section id="commercial-portfolio-health-strip" class="commercial-portfolio-health-strip" aria-label="組合持股與風險快照"></section>
+      <section id="commercial-portfolio-handoff-strip" class="commercial-handoff-strip" aria-label="組合健檢交付摘要"></section>
+      <section id="commercial-portfolio-competitive-strip" class="commercial-competitive-strip" aria-label="組合競品級分析摘要"></section>
+      <section id="commercial-portfolio-view-rail" class="commercial-view-rail" aria-label="組合健檢視角切換"></section>
+      <section id="commercial-portfolio-signal-tape" class="commercial-signal-tape" aria-label="組合即時訊號"></section>
+      <section id="commercial-portfolio-technical-pulse" class="commercial-technical-pulse" aria-label="組合價格風險脈搏"></section>
+      <section id="commercial-portfolio-disclosure-digest" class="commercial-disclosure-digest" aria-label="組合持股資訊揭露摘要"></section>
+      <section id="commercial-portfolio-visual-pulse" class="commercial-visual-pulse" aria-label="組合績效視覺脈搏"></section>
+      <section id="commercial-portfolio-report-locator" class="commercial-report-locator" aria-label="組合客戶報告定位"></section>
+      <section id="commercial-portfolio-data-beacon" class="commercial-data-beacon" aria-label="組合帳戶同步狀態"></section>
+      <section id="commercial-portfolio-alert-beacon" class="commercial-alert-beacon" aria-label="組合風險警示"></section>
+      <section id="commercial-portfolio-preset-beacon" class="commercial-preset-beacon" aria-label="組合檢視預設"></section>
+      <section id="commercial-portfolio-onboarding-beacon" class="commercial-onboarding-beacon" aria-label="組合帳戶匯入啟動"></section>
+      <section id="commercial-portfolio-focus-dock" class="commercial-focus-dock" aria-label="組合健康焦點"></section>
+      <section id="commercial-portfolio-market-coverage" class="commercial-market-coverage" aria-label="組合健檢覆蓋"></section>
+      <section id="commercial-portfolio-decision-radar" class="commercial-decision-radar" aria-label="組合決策雷達"></section>
+      <section id="commercial-global-context" class="commercial-context-bar" aria-label="全域研究脈絡"></section>
+      <section id="commercial-portfolio-action-dock" class="commercial-action-dock" aria-label="組合快速動作列"></section>
+      <section id="commercial-portfolio-control-strip" class="commercial-control-strip" aria-label="組合工作區控制列"></section>
+      <section id="commercial-portfolio-requirement-map" class="commercial-requirement-map" aria-label="組合需求地圖"></section>
+      <section id="commercial-portfolio-answer-strip" class="commercial-answer-strip" aria-label="組合行動答案"></section>
+      <section id="commercial-portfolio-explain-strip" class="commercial-explain-strip" aria-label="組合白話解釋"></section>
+      <section id="commercial-portfolio-trust-strip" class="commercial-trust-strip" aria-label="組合資料信任"></section>
+      <section id="commercial-portfolio-flow-navigator" class="commercial-flow-navigator" aria-label="組合健檢流程導航"></section>
+      <section id="commercial-portfolio-sync-strip" class="commercial-sync-strip" aria-label="組合同步捷徑"></section>
+      <section id="commercial-portfolio-today-inbox" class="commercial-today-inbox" aria-label="組合今日通知匣"></section>
+      <section id="commercial-portfolio-market-brief" class="commercial-market-brief" aria-label="組合今日市場摘要"></section>
+      <section id="commercial-portfolio-session-watch" class="commercial-session-watch" aria-label="組合交易時段監控"></section>
+      <section id="commercial-portfolio-event-strip" class="commercial-event-strip" aria-label="組合事件時程"></section>
+      <section id="commercial-portfolio-priority-strip" class="commercial-priority-strip" aria-label="組合優先模式"></section>
+      <section id="commercial-portfolio-exposure-map" class="commercial-exposure-map" aria-label="組合曝險地圖"></section>
+      <section id="commercial-portfolio-insight-digest" class="commercial-insight-digest" aria-label="組合洞察摘要"></section>
+      <section id="commercial-portfolio-drift-review" class="commercial-mission-deck" aria-label="組合漂移檢查"></section>
+      <section id="commercial-portfolio-factor-lens" class="commercial-factor-lens" aria-label="組合量化因子鏡頭"></section>
+      <section id="commercial-portfolio-setup-launchpad" class="commercial-setup-launchpad" aria-label="組合新手設定"></section>
+      <section id="commercial-portfolio-workflow-lens" class="commercial-workflow-lens" aria-label="組合工作流鏡頭"></section>
+      <section id="commercial-portfolio-data-coverage" class="commercial-data-coverage" aria-label="組合資料覆蓋地圖"></section>
+      <section id="commercial-portfolio-share-brief" class="commercial-share-brief" aria-label="組合分享摘要"></section>
+      <section id="commercial-portfolio-competitive-lens" class="commercial-competitive-lens" aria-label="組合競品級報酬拆解鏡頭"></section>
+      <section id="commercial-portfolio-decision-automation" class="commercial-decision-automation" aria-label="組合決策自動化"></section>
+      <section id="commercial-portfolio-data-sync" class="commercial-data-sync" aria-label="組合帳戶資料同步"></section>
+      <section id="commercial-portfolio-scenario-simulator" class="commercial-scenario-simulator" aria-label="組合情境推演"></section>
+      <section id="commercial-portfolio-report-composer" class="commercial-report-composer" aria-label="組合報告編輯器"></section>
+      <section id="commercial-portfolio-alert-center" class="commercial-smart-alert-center" aria-label="組合智慧警示中心"></section>
+      <section id="commercial-portfolio-position-ledger" class="commercial-position-ledger" aria-label="組合持股成本總覽"></section>
+      <section id="commercial-portfolio-import-center" class="commercial-import-center" aria-label="組合券商同步與匯入中心"></section>
+      <section id="commercial-portfolio-performance-attribution" class="commercial-performance-attribution" aria-label="組合績效貢獻分析"></section>
+      <section id="commercial-portfolio-tax-income" class="commercial-tax-income" aria-label="組合稅務收入報告"></section>
+      <section id="commercial-portfolio-performance-timeline" class="commercial-performance-timeline" aria-label="組合價值與基準時間軸"></section>
+      <section id="commercial-portfolio-risk-lab" class="commercial-risk-lab" aria-label="組合風險與相關性分析"></section>
+      <section id="commercial-portfolio-report-studio" class="commercial-report-studio" aria-label="組合報告與分享工作台"></section>
+      <section id="commercial-portfolio-copilot" class="commercial-copilot-panel" aria-label="組合 AI 研究助理"></section>
+      <section id="commercial-portfolio-personalization" class="commercial-personalization-panel" aria-label="組合個人策略設定"></section>
+      <section id="commercial-portfolio-journey-palette" class="commercial-journey-palette" aria-label="組合研究旅程命令列"></section>
+      <section id="commercial-portfolio-snapshot-inspector" class="commercial-snapshot-inspector" aria-label="組合持股快照檢視器"></section>
+      <section id="commercial-portfolio-event-queue" class="commercial-event-queue" aria-label="組合回顧事件隊列"></section>
+      <section id="commercial-portfolio-progress-coach" class="commercial-progress-coach" aria-label="組合研究進度教練"></section>
+      <section id="commercial-portfolio-coverage-matrix" class="commercial-coverage-matrix" aria-label="組合資料覆蓋矩陣"></section>
+      <section id="commercial-portfolio-change-radar" class="commercial-change-radar" aria-label="組合變動雷達"></section>
+      <section id="commercial-portfolio-evidence-binder" class="commercial-evidence-binder" aria-label="組合研究證據夾"></section>
+      <section id="commercial-portfolio-rebalance-cockpit" class="commercial-page-cockpit" aria-label="組合再平衡工作摘要"></section>
+      <section id="commercial-portfolio-module-layout" class="commercial-module-pinboard" aria-label="組合自訂模組版面"></section>
+      <section id="commercial-portfolio-template-studio" class="commercial-template-studio" aria-label="組合工作區模板"></section>
+      <section id="commercial-portfolio-visual-board" class="commercial-visual-board" aria-label="組合視覺風險地圖"></section>
+      <section id="commercial-portfolio-guardrails" class="commercial-rule-builder" aria-label="組合再平衡守門規則"></section>
+      <section id="commercial-portfolio-holdings-grid-lab" class="commercial-grid-lab" aria-label="組合持股資料格"></section>
+      <section id="commercial-portfolio-score-strip" class="commercial-score-strip" aria-label="組合 X-Ray 決策評分"></section>
+      <section id="commercial-portfolio-compare-dock" class="commercial-compare-dock" aria-label="組合基準比較"></section>
+      <section id="commercial-portfolio-task-rail" class="commercial-task-rail" aria-label="組合健檢任務導覽"></section>
+      <section id="commercial-portfolio-section-nav" class="commercial-section-nav" aria-label="組合健檢區段導覽"></section>
+      <section id="commercial-portfolio-command-hub" class="commercial-command-hub" aria-label="組合 X-Ray 工作視角"></section>
+      <section id="commercial-portfolio-holdings-breakdown" class="commercial-intelligence-panel" aria-label="組合持股拆解"></section>
+      <section id="commercial-portfolio-rebalance-history" class="commercial-memory-panel" aria-label="組合再平衡歷史"></section>
+      <section id="commercial-portfolio-client-pack" class="commercial-delivery-panel" aria-label="組合客戶報告排程"></section>
+
+      <section id="commercial-portfolio-delivery" class="commercial-delivery-bar" aria-live="polite"></section>
+      <section id="commercial-portfolio-data-status" class="commercial-data-status" aria-live="polite"></section>
+      <section id="commercial-portfolio-provenance" class="commercial-provenance-strip" aria-live="polite"></section>
+      <section id="commercial-portfolio-action-rail" class="commercial-next-actions" aria-live="polite"></section>
+
+      <section class="commercial-portfolio-layout" aria-label="投資組合健檢">
+        <section id="commercial-portfolio-workspace-command" class="commercial-workspace-command-bar" aria-label="組合健檢工作區命令列"></section>
+        <section id="commercial-portfolio-coverage-strip" class="commercial-coverage-strip" aria-label="組合資訊覆蓋導覽"></section>
+        <section id="commercial-portfolio-readiness-strip" class="commercial-workflow-readiness" aria-label="組合回顧狀態導覽"></section>
+
+        <aside class="commercial-panel">
+          <div class="commercial-panel-header">
+            <div>
+              <strong>持股資料</strong>
+              <span>CSV 可貼上券商匯出資料</span>
+            </div>
+          </div>
+          <div class="commercial-form-panel">
+            <textarea id="commercial-portfolio-csv" class="commercial-textarea" aria-label="投資組合 CSV"></textarea>
+            <button id="commercial-portfolio-run" class="commercial-button is-primary" type="button">分析組合</button>
+          </div>
+        </aside>
+
+        <section class="commercial-panel">
+          <div class="commercial-panel-header">
+            <div>
+              <strong>組合健康度</strong>
+              <span>集中度、風險旗標與曝險摘要</span>
+            </div>
+          </div>
+          <div id="commercial-portfolio-health-score" class="commercial-detail"></div>
+          <div id="commercial-portfolio-benchmark" class="commercial-strip"></div>
+          <div id="commercial-portfolio-benchmark-delta" class="commercial-detail"></div>
+          <div id="commercial-portfolio-risk-adjusted" class="commercial-detail"></div>
+          <div id="commercial-portfolio-future-income" class="commercial-detail"></div>
+          <div id="commercial-portfolio-tax-rebalance" class="commercial-detail"></div>
+          <div id="commercial-portfolio-goal-funding" class="commercial-detail"></div>
+          <div id="commercial-portfolio-xray" class="commercial-detail"></div>
+          <div id="commercial-portfolio-stock-intersection" class="commercial-detail"></div>
+          <div id="commercial-portfolio-style-box" class="commercial-detail"></div>
+          <div id="commercial-portfolio-factor-exposure" class="commercial-detail"></div>
+          <div id="commercial-portfolio-risk-contribution" class="commercial-detail"></div>
+          <div id="commercial-portfolio-efficient-frontier" class="commercial-detail"></div>
+          <div id="commercial-portfolio-monte-carlo" class="commercial-detail"></div>
+          <div id="commercial-portfolio-drawdown-recovery" class="commercial-detail"></div>
+          <div id="commercial-portfolio-trade-evaluator" class="commercial-detail"></div>
+          <div id="commercial-portfolio-fee-yield" class="commercial-detail"></div>
+          <div id="commercial-portfolio-scenarios" class="commercial-tabs" role="tablist" aria-label="情境壓力測試">
+            <button class="commercial-tab-button is-active" type="button" role="tab" aria-selected="true" data-portfolio-scenario="base">基本</button>
+            <button class="commercial-tab-button" type="button" role="tab" aria-selected="false" data-portfolio-scenario="rate">升息</button>
+            <button class="commercial-tab-button" type="button" role="tab" aria-selected="false" data-portfolio-scenario="chip">半導體修正</button>
+            <button class="commercial-tab-button" type="button" role="tab" aria-selected="false" data-portfolio-scenario="fx">匯率</button>
+          </div>
+          <div id="commercial-portfolio-style-map" class="commercial-detail"></div>
+          <div id="commercial-portfolio-lenses" class="commercial-tabs" role="tablist" aria-label="組合檢視">
+            <button class="commercial-tab-button is-active" type="button" role="tab" aria-selected="true" data-portfolio-lens="sector">產業</button>
+            <button class="commercial-tab-button" type="button" role="tab" aria-selected="false" data-portfolio-lens="country">市場</button>
+            <button class="commercial-tab-button" type="button" role="tab" aria-selected="false" data-portfolio-lens="risk">風險</button>
+            <button class="commercial-tab-button" type="button" role="tab" aria-selected="false" data-portfolio-lens="contribution">貢獻</button>
+          </div>
+          <div id="commercial-portfolio-risk" class="commercial-detail"></div>
+          <div id="commercial-portfolio-contribution" class="commercial-table-wrap"></div>
+        </section>
+
+        <aside class="commercial-panel">
+          <div class="commercial-panel-header">
+            <div>
+              <strong>風險處理清單</strong>
+              <span>讓用戶知道下一步要檢查什麼</span>
+            </div>
+          </div>
+          <div id="commercial-portfolio-what-if-controls" class="commercial-detail">
+            <label class="commercial-target-slider">
+              <span>目標最大持股</span>
+              <input type="range" min="20" max="45" value="35" step="1" data-portfolio-target-weight aria-label="目標最大持股">
+              <strong>35%</strong>
+            </label>
+            <label class="commercial-target-slider">
+              <span>漂移容忍度</span>
+              <input type="range" min="2" max="15" value="5" step="1" data-portfolio-drift-tolerance aria-label="漂移容忍度">
+              <strong>5%</strong>
+            </label>
+          </div>
+          <div id="commercial-portfolio-what-if" class="commercial-detail"></div>
+          <div id="commercial-portfolio-target-model" class="commercial-detail">
+            <div class="commercial-target-model" aria-label="目標配置模型">
+              <button class="commercial-tab-button" type="button" data-portfolio-target-model="income" aria-pressed="false">Income</button>
+              <button class="commercial-tab-button is-active" type="button" data-portfolio-target-model="balanced" aria-pressed="true">Balanced</button>
+              <button class="commercial-tab-button" type="button" data-portfolio-target-model="growth" aria-pressed="false">Growth</button>
+            </div>
+          </div>
+          <div id="commercial-portfolio-drift-panel" class="commercial-detail" aria-live="polite"></div>
+          <div id="commercial-portfolio-before-after" class="commercial-detail" aria-live="polite"></div>
+          <div id="commercial-portfolio-action-checklist" class="commercial-detail"></div>
+          <div id="commercial-portfolio-targets" class="commercial-detail"></div>
+          <div id="commercial-portfolio-rebalance-ticket" class="commercial-detail"></div>
+          <div id="commercial-portfolio-execution-mode" class="commercial-detail">
+            <div class="commercial-execution-mode" aria-label="再平衡執行模式">
+              <button class="commercial-tab-button is-active" type="button" data-portfolio-execution-mode="trim" aria-pressed="true">Trim</button>
+              <button class="commercial-tab-button" type="button" data-portfolio-execution-mode="cash" aria-pressed="false">Cash</button>
+              <button class="commercial-tab-button" type="button" data-portfolio-execution-mode="balanced" aria-pressed="false">Balanced</button>
+            </div>
+          </div>
+          <div id="commercial-portfolio-trade-impact" class="commercial-detail" aria-live="polite"></div>
+          <div id="commercial-portfolio-order-queue" class="commercial-detail" aria-live="polite"></div>
+          <div id="commercial-portfolio-rebalance" class="commercial-detail"></div>
+          <div id="commercial-portfolio-table" class="commercial-table-wrap"></div>
+          <div id="commercial-portfolio-holdings" class="commercial-table-wrap"></div>
+          <div id="commercial-portfolio-overlap" class="commercial-detail"></div>
+          <div id="commercial-portfolio-correlation-matrix" class="commercial-detail"></div>
+        </aside>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

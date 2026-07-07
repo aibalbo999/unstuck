@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OnStock 單股研究</title>
+  <link rel="stylesheet" href="/static/commercial/commercial_pages.css?v=20260705-commercial-pro213">
+  <script src="/static/commercial/commercial_pages.js?v=20260705-commercial-pro213" defer></script>
+</head>
+<body class="commercial-page" data-commercial-page="stock-detail">
+  <div class="commercial-shell">
+    <header class="commercial-topbar">
+      <a class="commercial-brand" href="/" aria-label="回到主頁">
+        <strong>OnStock AI</strong>
+        <span>投資決策工作區</span>
+      </a>
+      <nav class="commercial-nav" aria-label="商業版投資工作區">
+        <a href="/">主頁</a>
+        <a href="/static/commercial/research-workbench.html">研究工作台</a>
+        <a href="/static/commercial/stock-detail.html" aria-current="page">單股研究</a>
+        <a href="/static/commercial/portfolio-dashboard.html">組合健檢</a>
+      </nav>
+    </header>
+
+    <section id="commercial-stock-primary-snapshot" class="commercial-primary-snapshot-dock" aria-label="單股快速快照"></section>
+    <section id="commercial-stock-primary-answer" class="commercial-primary-answer-strip" aria-label="單股研究決策答案"></section>
+    <section id="commercial-stock-primary-compare" class="commercial-primary-compare-lens" aria-label="單股同業比較焦點"></section>
+    <section id="commercial-stock-primary-customize" class="commercial-primary-customize-strip" aria-label="單股自訂研究視圖"></section>
+
+    <section id="commercial-stock-jump-deck" class="commercial-jump-deck" aria-label="單股首屏導覽"></section>
+
+    <section id="commercial-workspace-chrome" class="commercial-workspace-chrome" aria-label="商業版工作區"></section>
+
+    <section id="commercial-mobile-action-bar" class="commercial-mobile-action-bar" aria-label="手機快速動作"></section>
+
+    <aside id="commercial-desktop-insight-rail" class="commercial-desktop-insight-rail" aria-label="桌面研究洞察捷徑"></aside>
+
+    <main id="commercial-stock-page" class="commercial-main" aria-live="polite">
+      <section class="commercial-hero" aria-labelledby="stock-title">
+        <div>
+          <h1 id="stock-title">單股研究</h1>
+          <p>單股快照研究：把快照、走勢、估值、財務與 AI 報告集中到單一股票頁。</p>
+        </div>
+        <span class="commercial-status">個股研究頁</span>
+      </section>
+
+      <section id="commercial-stock-core-surface" class="commercial-core-surface" aria-label="單股快照核心資料"></section>
+      <section id="commercial-stock-market-facts" class="commercial-market-facts" aria-label="單股關鍵市場資訊"></section>
+      <section id="commercial-stock-handoff-strip" class="commercial-handoff-strip" aria-label="單股研究交付摘要"></section>
+      <section id="commercial-stock-competitive-strip" class="commercial-competitive-strip" aria-label="單股競品級因子摘要"></section>
+      <section id="commercial-stock-view-rail" class="commercial-view-rail" aria-label="單股研究視角切換"></section>
+      <section id="commercial-stock-signal-tape" class="commercial-signal-tape" aria-label="單股即時訊號"></section>
+      <section id="commercial-stock-technical-pulse" class="commercial-technical-pulse" aria-label="單股技術面摘要"></section>
+      <section id="commercial-stock-disclosure-digest" class="commercial-disclosure-digest" aria-label="單股新聞公告與法說摘要"></section>
+      <section id="commercial-stock-visual-pulse" class="commercial-visual-pulse" aria-label="單股價格視覺脈搏"></section>
+      <section id="commercial-stock-report-locator" class="commercial-report-locator" aria-label="單股 AI 報告定位"></section>
+      <section id="commercial-stock-data-beacon" class="commercial-data-beacon" aria-label="單股資料來源狀態"></section>
+      <section id="commercial-stock-alert-beacon" class="commercial-alert-beacon" aria-label="單股即時警示"></section>
+      <section id="commercial-stock-preset-beacon" class="commercial-preset-beacon" aria-label="單股研究預設"></section>
+      <section id="commercial-stock-onboarding-beacon" class="commercial-onboarding-beacon" aria-label="單股研究啟動"></section>
+      <section id="commercial-stock-focus-dock" class="commercial-focus-dock" aria-label="單股研究焦點"></section>
+      <section id="commercial-stock-market-coverage" class="commercial-market-coverage" aria-label="單股資訊覆蓋"></section>
+      <section id="commercial-stock-decision-radar" class="commercial-decision-radar" aria-label="單股決策雷達"></section>
+      <section id="commercial-global-context" class="commercial-context-bar" aria-label="全域研究脈絡"></section>
+      <section id="commercial-stock-action-dock" class="commercial-action-dock" aria-label="單股快速動作列"></section>
+      <section id="commercial-stock-control-strip" class="commercial-control-strip" aria-label="單股研究控制列"></section>
+      <section id="commercial-stock-requirement-map" class="commercial-requirement-map" aria-label="單股需求地圖"></section>
+      <section id="commercial-stock-answer-strip" class="commercial-answer-strip" aria-label="單股快照答案"></section>
+      <section id="commercial-stock-explain-strip" class="commercial-explain-strip" aria-label="單股白話解釋"></section>
+      <section id="commercial-stock-trust-strip" class="commercial-trust-strip" aria-label="單股資料信任"></section>
+      <section id="commercial-stock-flow-navigator" class="commercial-flow-navigator" aria-label="單股研究流程導航"></section>
+      <section id="commercial-stock-sync-strip" class="commercial-sync-strip" aria-label="單股資料同步捷徑"></section>
+      <section id="commercial-stock-today-inbox" class="commercial-today-inbox" aria-label="單股今日通知匣"></section>
+      <section id="commercial-stock-market-brief" class="commercial-market-brief" aria-label="單股今日市場摘要"></section>
+      <section id="commercial-stock-session-watch" class="commercial-session-watch" aria-label="單股交易時段監控"></section>
+      <section id="commercial-stock-event-strip" class="commercial-event-strip" aria-label="單股催化事件時程"></section>
+      <section id="commercial-stock-priority-strip" class="commercial-priority-strip" aria-label="單股優先模式"></section>
+      <section id="commercial-stock-snapshot-hero" class="commercial-snapshot-hero" aria-label="單股首屏快照"></section>
+      <section id="commercial-stock-insight-digest" class="commercial-insight-digest" aria-label="單股洞察摘要"></section>
+      <section id="commercial-stock-catalyst-brief" class="commercial-mission-deck" aria-label="單股催化事件摘要"></section>
+      <section id="commercial-stock-factor-lens" class="commercial-factor-lens" aria-label="單股量化因子鏡頭"></section>
+      <section id="commercial-stock-setup-launchpad" class="commercial-setup-launchpad" aria-label="單股新手設定"></section>
+      <section id="commercial-stock-workflow-lens" class="commercial-workflow-lens" aria-label="單股工作流鏡頭"></section>
+      <section id="commercial-stock-data-coverage" class="commercial-data-coverage" aria-label="單股資料覆蓋地圖"></section>
+      <section id="commercial-stock-share-brief" class="commercial-share-brief" aria-label="單股分享摘要"></section>
+      <section id="commercial-stock-competitive-lens" class="commercial-competitive-lens" aria-label="單股競品級基本面鏡頭"></section>
+      <section id="commercial-stock-decision-automation" class="commercial-decision-automation" aria-label="單股決策自動化"></section>
+      <section id="commercial-stock-data-sync" class="commercial-data-sync" aria-label="單股資料來源同步"></section>
+      <section id="commercial-stock-scenario-simulator" class="commercial-scenario-simulator" aria-label="單股情境推演"></section>
+      <section id="commercial-stock-report-composer" class="commercial-report-composer" aria-label="單股報告編輯器"></section>
+      <section id="commercial-stock-alert-center" class="commercial-smart-alert-center" aria-label="單股智慧警示中心"></section>
+      <section id="commercial-stock-position-ledger" class="commercial-position-ledger" aria-label="單股持股成本總覽"></section>
+      <section id="commercial-stock-import-center" class="commercial-import-center" aria-label="單股交易匯入中心"></section>
+      <section id="commercial-stock-performance-attribution" class="commercial-performance-attribution" aria-label="單股總報酬歸因"></section>
+      <section id="commercial-stock-tax-income" class="commercial-tax-income" aria-label="單股稅務與股息中心"></section>
+      <section id="commercial-stock-performance-timeline" class="commercial-performance-timeline" aria-label="單股歷史總報酬時間軸"></section>
+      <section id="commercial-stock-risk-lab" class="commercial-risk-lab" aria-label="單股風險與壓力測試"></section>
+      <section id="commercial-stock-report-studio" class="commercial-report-studio" aria-label="單股報告與分享工作台"></section>
+      <section id="commercial-stock-copilot" class="commercial-copilot-panel" aria-label="單股 AI 研究助理"></section>
+      <section id="commercial-stock-personalization" class="commercial-personalization-panel" aria-label="單股個人策略設定"></section>
+      <section id="commercial-stock-journey-palette" class="commercial-journey-palette" aria-label="單股研究旅程命令列"></section>
+      <section id="commercial-stock-snapshot-inspector" class="commercial-snapshot-inspector" aria-label="單股快照檢視器"></section>
+      <section id="commercial-stock-event-queue" class="commercial-event-queue" aria-label="單股研究事件隊列"></section>
+      <section id="commercial-stock-progress-coach" class="commercial-progress-coach" aria-label="單股研究進度教練"></section>
+      <section id="commercial-stock-coverage-matrix" class="commercial-coverage-matrix" aria-label="單股資料覆蓋矩陣"></section>
+      <section id="commercial-stock-change-radar" class="commercial-change-radar" aria-label="單股變動雷達"></section>
+      <section id="commercial-stock-evidence-binder" class="commercial-evidence-binder" aria-label="單股研究證據夾"></section>
+      <section id="commercial-stock-research-cockpit" class="commercial-page-cockpit" aria-label="單股研究工作摘要"></section>
+      <section id="commercial-stock-module-layout" class="commercial-module-pinboard" aria-label="單股自訂模組版面"></section>
+      <section id="commercial-stock-template-studio" class="commercial-template-studio" aria-label="單股工作區模板"></section>
+      <section id="commercial-stock-chart-workbench" class="commercial-visual-board" aria-label="單股圖表工作台"></section>
+      <section id="commercial-stock-thesis-alerts" class="commercial-rule-builder" aria-label="單股論點警示"></section>
+      <section id="commercial-stock-peer-grid-lab" class="commercial-grid-lab" aria-label="單股同業資料格"></section>
+      <section id="commercial-stock-score-strip" class="commercial-score-strip" aria-label="單股因子評等"></section>
+      <section id="commercial-stock-compare-dock" class="commercial-compare-dock" aria-label="單股同業比較"></section>
+      <section id="commercial-stock-task-rail" class="commercial-task-rail" aria-label="單股研究任務導覽"></section>
+      <section id="commercial-stock-section-nav" class="commercial-section-nav" aria-label="單股研究區段導覽"></section>
+      <section id="commercial-stock-command-hub" class="commercial-command-hub" aria-label="單股研究工作視角"></section>
+      <section id="commercial-stock-info-coverage" class="commercial-intelligence-panel" aria-label="單股資訊覆蓋"></section>
+      <section id="commercial-stock-research-journal" class="commercial-memory-panel" aria-label="單股研究筆記"></section>
+      <section id="commercial-stock-report-builder" class="commercial-delivery-panel" aria-label="單股研究報告組裝"></section>
+
+      <section class="commercial-panel">
+        <div class="commercial-panel-header">
+          <div>
+            <strong>股票查詢</strong>
+            <span>輸入 2330 或 2330.TW 皆可</span>
+          </div>
+          <div class="commercial-inline-form">
+            <input id="commercial-stock-input" class="commercial-input" value="2330.TW" aria-label="股票代號">
+            <button id="commercial-stock-load" class="commercial-button is-primary" type="button">載入快照</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="commercial-stock-delivery" class="commercial-delivery-bar" aria-live="polite"></section>
+      <section id="commercial-stock-data-status" class="commercial-data-status" aria-live="polite"></section>
+      <section id="commercial-stock-provenance" class="commercial-provenance-strip" aria-live="polite"></section>
+      <section id="commercial-stock-action-rail" class="commercial-next-actions" aria-live="polite"></section>
+
+      <section class="commercial-stock-layout" aria-label="單股研究內容">
+        <section id="commercial-stock-workspace-command" class="commercial-workspace-command-bar" aria-label="單股研究工作區命令列"></section>
+        <section id="commercial-stock-coverage-strip" class="commercial-coverage-strip" aria-label="單股資訊覆蓋導覽"></section>
+        <section id="commercial-stock-readiness-strip" class="commercial-workflow-readiness" aria-label="單股研究狀態導覽"></section>
+
+        <section class="commercial-panel">
+          <div class="commercial-panel-header">
+            <div>
+              <strong>研究分頁</strong>
+              <span>保留股票資訊服務常見的橫向瀏覽方式</span>
+            </div>
+          </div>
+          <div id="commercial-stock-tabs" class="commercial-tabs" role="tablist" aria-label="股票研究分頁">
+            <button class="commercial-tab-button is-active" type="button" role="tab" aria-selected="true" data-stock-tab="overview">總覽</button>
+            <button class="commercial-tab-button" type="button" role="tab" aria-selected="false" data-stock-tab="report">AI 報告</button>
+            <button class="commercial-tab-button" type="button" role="tab" aria-selected="false" data-stock-tab="financials">財務估值</button>
+            <button class="commercial-tab-button" type="button" role="tab" aria-selected="false" data-stock-tab="analysts">分析師</button>
+            <button class="commercial-tab-button" type="button" role="tab" aria-selected="false" data-stock-tab="technicals">技術面</button>
+            <button class="commercial-tab-button" type="button" role="tab" aria-selected="false" data-stock-tab="thesis">論點</button>
+            <button class="commercial-tab-button" type="button" role="tab" aria-selected="false" data-stock-tab="ownership">持有人</button>
+            <button class="commercial-tab-button" type="button" role="tab" aria-selected="false" data-stock-tab="news">事件新聞</button>
+          </div>
+          <div id="commercial-stock-chart-controls" class="commercial-chart-toolbar" aria-label="價格圖表時間範圍">
+            <button class="commercial-tab-button is-active" type="button" data-stock-range="1M" aria-pressed="true">1M</button>
+            <button class="commercial-tab-button" type="button" data-stock-range="6M" aria-pressed="false">6M</button>
+            <button class="commercial-tab-button" type="button" data-stock-range="1Y" aria-pressed="false">1Y</button>
+            <button class="commercial-tab-button" type="button" data-stock-range="5Y" aria-pressed="false">5Y</button>
+          </div>
+          <div id="commercial-stock-price-chart" class="commercial-detail" aria-label="價格範圍圖"></div>
+          <div id="commercial-stock-scenario-controls" class="commercial-chart-toolbar" aria-label="Bull Base Bear 情境">
+            <button class="commercial-tab-button" type="button" data-stock-scenario="bear" aria-pressed="false">Bear</button>
+            <button class="commercial-tab-button is-active" type="button" data-stock-scenario="base" aria-pressed="true">Base</button>
+            <button class="commercial-tab-button" type="button" data-stock-scenario="bull" aria-pressed="false">Bull</button>
+          </div>
+          <div id="commercial-stock-scenario-panel" class="commercial-detail" aria-live="polite"></div>
+          <div id="commercial-stock-valuation-band" class="commercial-detail"></div>
+          <div id="commercial-stock-target-distribution" class="commercial-detail"></div>
+          <div id="commercial-stock-analyst-breakdown" class="commercial-detail"></div>
+          <div id="commercial-stock-earnings-panel" class="commercial-detail"></div>
+          <div id="commercial-stock-content" class="commercial-detail"></div>
+          <div id="commercial-stock-actuals-consensus" class="commercial-detail"></div>
+          <div id="commercial-stock-estimate-revisions" class="commercial-detail"></div>
+          <div id="commercial-stock-dcf-sensitivity" class="commercial-detail"></div>
+          <div id="commercial-stock-earnings-reaction" class="commercial-detail"></div>
+          <div id="commercial-stock-financial-statements" class="commercial-detail">
+            <div class="commercial-financial-statement-controls" aria-label="Financial statement type">
+              <button class="commercial-tab-button is-active" type="button" data-stock-financial-statement="income" aria-pressed="true">Income</button>
+              <button class="commercial-tab-button" type="button" data-stock-financial-statement="balance" aria-pressed="false">Balance</button>
+              <button class="commercial-tab-button" type="button" data-stock-financial-statement="cashflow" aria-pressed="false">Cash Flow</button>
+            </div>
+          </div>
+          <div id="commercial-stock-dividend-safety" class="commercial-detail"></div>
+          <div id="commercial-stock-ownership-transcripts" class="commercial-detail"></div>
+          <div id="commercial-stock-etf-exposure" class="commercial-detail"></div>
+          <div id="commercial-stock-percentile-ranks" class="commercial-detail"></div>
+          <div id="commercial-stock-factor-grades" class="commercial-detail"></div>
+          <div id="commercial-stock-peer-table" class="commercial-table-wrap"></div>
+        </section>
+
+        <aside class="commercial-panel">
+          <div class="commercial-panel-header">
+            <div>
+              <strong>股票快照</strong>
+              <span>首屏固定摘要</span>
+            </div>
+          </div>
+          <div id="commercial-stock-ratings-strip" class="commercial-strip"></div>
+          <div id="commercial-stock-snapshot" class="commercial-detail"></div>
+          <div id="commercial-stock-key-stats" class="commercial-detail"></div>
+          <div id="commercial-stock-scorecard" class="commercial-detail"></div>
+          <div id="commercial-stock-rating-explainability" class="commercial-detail"></div>
+          <div id="commercial-stock-research-readiness" class="commercial-detail"></div>
+          <div id="commercial-stock-rating-alerts" class="commercial-detail">
+            <div class="commercial-rating-alerts" aria-label="評等提醒">
+              <button class="commercial-tab-button is-active" type="button" data-stock-alert-preset="downgrade" aria-pressed="true">Downgrade</button>
+              <button class="commercial-tab-button" type="button" data-stock-alert-preset="target" aria-pressed="false">Target</button>
+              <button class="commercial-tab-button" type="button" data-stock-alert-preset="event" aria-pressed="false">Event</button>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      <section class="commercial-operation-grid" aria-label="單股決策摘要">
+        <section id="commercial-stock-decision-brief" class="commercial-panel"></section>
+        <section id="commercial-stock-risk-reward" class="commercial-panel"></section>
+        <section id="commercial-stock-catalysts" class="commercial-panel"></section>
+      </section>
+
+      <section class="commercial-operation-grid" aria-label="單股進階比較">
+        <section id="commercial-stock-revision-timeline" class="commercial-panel"></section>
+        <section id="commercial-stock-peer-matrix" class="commercial-panel"></section>
+        <section id="commercial-stock-financial-trend" class="commercial-panel"></section>
+      </section>
+
+      <section class="commercial-pro-grid" aria-label="單股研究進階層">
+        <section id="commercial-stock-rating-history" class="commercial-panel"></section>
+        <section id="commercial-stock-valuation-factsheet" class="commercial-panel"></section>
+        <section id="commercial-stock-report-outline" class="commercial-panel"></section>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
