@@ -211,7 +211,6 @@ def test_runtime_and_job_helpers_are_split_into_focused_modules():
         "data_freshness_policy.py",
         "data_trust_sla_policy.py",
         "external_data_fmp.py",
-        "external_data_google.py",
         "external_data_parsers.py",
         "market_calendar_store.py",
         "provider_sla_maintenance.py",

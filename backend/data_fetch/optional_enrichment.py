@@ -6,11 +6,7 @@ import asyncio
 
 from data_trust import append_source_audit, finalize_data_trust
 from external_search_providers import fetch_alternative_peer_discovery_async, fetch_alternative_search_catalysts_async
-from .market_sources.http_enrichment import (
-    fetch_fmp_news_catalysts_async,
-    fetch_google_peer_discovery_results_async,
-    fetch_google_search_catalysts_async,
-)
+from .market_sources.http_enrichment import fetch_fmp_news_catalysts_async
 from source_audit import audited_fetch_async
 
 from .audit_helpers import _append_skipped_fresh_cache_audit, _source_is_stale
@@ -19,7 +15,7 @@ from .payload_cache import cache_financial_payload
 
 
 async def enrich_optional_http_async(ticker: str, data: dict) -> dict:
-    """Merge Google/FMP optional enrichments into a core stock payload."""
+    """Merge optional HTTP enrichments into a core stock payload."""
     if not data or "error" in data:
         return data
 
@@ -44,15 +40,6 @@ async def enrich_optional_http_async(ticker: str, data: dict) -> dict:
             cache_hit=cache_hit,
             unavailable_message="Alternative Search 未回傳近期催化劑。",
         )
-        tasks["google_catalysts"] = audited_fetch_async(
-            "recent_catalysts",
-            "Google Search",
-            fetch_google_search_catalysts_async,
-            (resolved_ticker, company_name, identity),
-            default=[],
-            cache_hit=cache_hit,
-            unavailable_message="Google Search 未回傳近期催化劑。",
-        )
         tasks["fmp_news"] = audited_fetch_async(
             "recent_catalysts",
             "FMP news",
@@ -72,15 +59,6 @@ async def enrich_optional_http_async(ticker: str, data: dict) -> dict:
             cache_hit=cache_hit,
             unavailable_message="Alternative Search 未回傳同業搜尋結果。",
         )
-        tasks["google_peer_discovery"] = audited_fetch_async(
-            "peer_discovery",
-            "Google Search",
-            fetch_google_peer_discovery_results_async,
-            (resolved_ticker, company_name, sector, industry),
-            default=[],
-            cache_hit=cache_hit,
-            unavailable_message="Google Search 未回傳同業 discovery 結果。",
-        )
 
     results = {}
     if tasks:
@@ -91,10 +69,6 @@ async def enrich_optional_http_async(ticker: str, data: dict) -> dict:
         result.get("audit") for result in results.values()
         if isinstance(result, dict) and result.get("audit")
     ]
-    google_catalysts_records = (
-        results.get("google_catalysts", {}).get("value", [])
-        if isinstance(results.get("google_catalysts"), dict) else []
-    )
     search_catalysts_records = (
         results.get("search_catalysts", {}).get("value", [])
         if isinstance(results.get("search_catalysts"), dict) else []
@@ -102,10 +76,6 @@ async def enrich_optional_http_async(ticker: str, data: dict) -> dict:
     fmp_news_records = (
         results.get("fmp_news", {}).get("value", [])
         if isinstance(results.get("fmp_news"), dict) else []
-    )
-    google_peer_discovery_records = (
-        results.get("google_peer_discovery", {}).get("value", [])
-        if isinstance(results.get("google_peer_discovery"), dict) else []
     )
     search_peer_discovery_records = (
         results.get("search_peer_discovery", {}).get("value", [])
@@ -127,9 +97,7 @@ async def enrich_optional_http_async(ticker: str, data: dict) -> dict:
 
     http_bundle = {
         "search_catalysts": search_catalysts_records,
-        "google_catalysts": google_catalysts_records,
         "search_peer_discovery": search_peer_discovery_records,
-        "google_peer_discovery": google_peer_discovery_records,
         "fmp_news": fmp_news_records,
     }
 

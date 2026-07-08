@@ -647,11 +647,9 @@ def _patch_common_fetch_dependencies(monkeypatch, resolved_ticker="2330.TW", cou
     monkeypatch.setattr(financial_data, "fetch_recent_catalysts", lambda *args, **kwargs: [])
     monkeypatch.setattr(sync_enrichment, "fetch_finmind_news_catalysts", lambda *args, **kwargs: [])
     monkeypatch.setattr(sync_enrichment, "fetch_yfinance_news_catalysts", lambda *args, **kwargs: [])
-    monkeypatch.setattr(sync_enrichment, "fetch_google_search_catalysts", lambda *args, **kwargs: [])
     monkeypatch.setattr(sync_enrichment, "fetch_fmp_news_catalysts", lambda *args, **kwargs: [])
     monkeypatch.setattr(sync_enrichment, "fetch_institutional_trading_trend", lambda *args, **kwargs: {})
     monkeypatch.setattr(sync_enrichment, "fetch_dynamic_peer_metrics", lambda *args, **kwargs: [])
-    monkeypatch.setattr(sync_enrichment, "fetch_google_peer_discovery_results", lambda *args, **kwargs: [])
     monkeypatch.setattr(financial_data, "fetch_fmp_quote_fallback", lambda *args, **kwargs: {})
     monkeypatch.setattr(
         financial_data,
@@ -822,9 +820,6 @@ def test_async_fixture_records_google_and_fmp_failures(monkeypatch):
             },
         }
 
-    async def fail_google(*args, **kwargs):
-        raise RuntimeError("google down")
-
     async def fail_fmp(*args, **kwargs):
         raise RuntimeError("fmp down")
 
@@ -834,9 +829,7 @@ def test_async_fixture_records_google_and_fmp_failures(monkeypatch):
     monkeypatch.setattr(financial_data, "fetch_stock_data", fake_fetch_stock_data)
     monkeypatch.setattr(optional_enrichment, "fetch_alternative_search_catalysts_async", empty_search)
     monkeypatch.setattr(optional_enrichment, "fetch_alternative_peer_discovery_async", empty_search)
-    monkeypatch.setattr(optional_enrichment, "fetch_google_search_catalysts_async", fail_google)
     monkeypatch.setattr(optional_enrichment, "fetch_fmp_news_catalysts_async", fail_fmp)
-    monkeypatch.setattr(optional_enrichment, "fetch_google_peer_discovery_results_async", fail_google)
     monkeypatch.setattr(cache_helpers, "set_cache_json", lambda *args: None)
     monkeypatch.setattr(financial_data.time_module, "time", lambda: 1_780_800_200.0)
 
@@ -844,9 +837,9 @@ def test_async_fixture_records_google_and_fmp_failures(monkeypatch):
 
     errors = [
         entry for entry in data["source_audit"]
-        if entry["status"] == "error" and entry["provider"] in {"Google Search", "FMP news"}
+        if entry["status"] == "error" and entry["provider"] == "FMP news"
     ]
-    assert {entry["provider"] for entry in errors} == {"Google Search", "FMP news"}
+    assert {entry["provider"] for entry in errors} == {"FMP news"}
     reason_codes = data["data_trust"]["reason_codes"]
     assert data["data_trust"]["status"] == "fresh"
     assert "optional_source_error:recent_catalysts" in reason_codes

@@ -664,7 +664,7 @@ class AuditRuleTests(unittest.TestCase):
             "yahoo_revenue_growth": "12.0%",
             "yahoo_earnings_growth": "10.0%",
             "revenue_cagr_5yr": "41.4%",
-            "peer_discovery_results": [{"title": "global peers", "source_type": "google_peer_discovery"}],
+            "peer_discovery_results": [{"title": "global peers", "source_type": "alternative_peer_discovery"}],
         })
 
         prompt = financial_data.format_data_for_prompt(data)
@@ -679,7 +679,7 @@ class AuditRuleTests(unittest.TestCase):
         self.assertIn("market_catalysts", payload)
         self.assertIn("institutional_trading", payload)
         self.assertIn("peer_context", payload)
-        self.assertEqual(payload["peer_context"]["search_discovery_results"][0]["source_type"], "google_peer_discovery")
+        self.assertEqual(payload["peer_context"]["search_discovery_results"][0]["source_type"], "alternative_peer_discovery")
         self.assertIn("local_valuation_context", payload)
         self.assertNotIn("不可原諒", prompt)
         self.assertNotIn("⚠️【單位與邏輯防呆", prompt)
@@ -1391,23 +1391,9 @@ class AuditRuleTests(unittest.TestCase):
 
     def test_external_http_clients_parse_sync_and_async_payloads(self):
         old_fmp_key = edc.FMP_API_KEY
-        old_google_key = edc.GOOGLE_SEARCH_API_KEY
-        old_google_cse = edc.GOOGLE_CSE_ID
         edc.FMP_API_KEY = "test-fmp"
-        edc.GOOGLE_SEARCH_API_KEY = "test-google"
-        edc.GOOGLE_CSE_ID = "test-cse"
 
         def fake_sync_json_get(url, params):
-            if "customsearch" in url:
-                return {
-                    "items": [{
-                        "title": "法說會釋出展望",
-                        "snippet": "營收與供應鏈展望",
-                        "displayLink": "example.com",
-                        "link": "https://example.test/news",
-                        "pagemap": {"metatags": [{"article:published_time": "2026-06-04"}]},
-                    }]
-                }
             if "gdeltproject.org" in url:
                 return {
                     "articles": [{
@@ -1427,18 +1413,15 @@ class AuditRuleTests(unittest.TestCase):
         try:
             with patch.object(edc, "_sync_json_get", side_effect=fake_sync_json_get):
                 quote = edc.fetch_fmp_quote_fallback("2330.TW")
-                catalysts = edc.fetch_google_search_catalysts("2330.TW", "台積電", {"official_name": "台積電"})
                 fmp_news = edc.fetch_fmp_news_catalysts("2330.TW")
 
             self.assertEqual(quote["price"], 123.4)
-            self.assertEqual(catalysts[0]["source_type"], "google_search")
             self.assertEqual(fmp_news[0]["source_type"], "fmp_news")
 
             async def run_async_checks():
                 with patch.object(edc, "_async_json_get", side_effect=fake_async_json_get), \
                         patch.object(edc._search, "WEB_SEARCH_PROVIDER_ORDER", "gdelt"):
                     quote_async = await edc.fetch_fmp_quote_fallback_async("2330.TW")
-                    catalysts_async = await edc.fetch_google_search_catalysts_async("2330.TW", "台積電", {"official_name": "台積電"})
                     fmp_news_async = await edc.fetch_fmp_news_catalysts_async("2330.TW")
                     bundle = await edc.fetch_optional_http_data_bundle(
                         "2330.TW",
@@ -1448,20 +1431,18 @@ class AuditRuleTests(unittest.TestCase):
                         industry="Semiconductor",
                         include_quote=True,
                     )
-                return quote_async, catalysts_async, fmp_news_async, bundle
+                return quote_async, fmp_news_async, bundle
 
-            quote_async, catalysts_async, fmp_news_async, bundle = asyncio.run(run_async_checks())
+            quote_async, fmp_news_async, bundle = asyncio.run(run_async_checks())
             self.assertEqual(quote_async["price"], 123.4)
-            self.assertEqual(catalysts_async[0]["source_type"], "google_search")
             self.assertEqual(fmp_news_async[0]["title"], "FMP headline")
             self.assertEqual(bundle["fmp_quote"]["price"], 123.4)
             self.assertEqual(bundle["search_catalysts"][0]["source_type"], "gdelt_search")
             self.assertEqual(bundle["search_peer_discovery"][0]["source_type"], "alternative_peer_discovery")
-            self.assertEqual(bundle["google_peer_discovery"][0]["source_type"], "google_peer_discovery")
+            self.assertNotIn("google_catalysts", bundle)
+            self.assertNotIn("google_peer_discovery", bundle)
         finally:
             edc.FMP_API_KEY = old_fmp_key
-            edc.GOOGLE_SEARCH_API_KEY = old_google_key
-            edc.GOOGLE_CSE_ID = old_google_cse
 
     def test_fmp_news_uses_stable_search_stock_news_endpoint(self):
         old_fmp_key = edc.FMP_API_KEY
@@ -1544,15 +1525,15 @@ class AuditRuleTests(unittest.TestCase):
 
     def test_optional_http_bundle_records_task_warnings(self):
         async def boom(*args, **kwargs):
-            raise RuntimeError("google down")
+            raise RuntimeError("fmp down")
 
         async def empty(*args, **kwargs):
             return []
 
         async def run_check():
-            with patch.object(edc, "fetch_google_search_catalysts_async", boom), \
-                    patch.object(edc, "fetch_fmp_news_catalysts_async", empty), \
-                    patch.object(edc, "fetch_google_peer_discovery_results_async", empty):
+            with patch.object(edc, "fetch_alternative_search_catalysts_async", empty), \
+                    patch.object(edc, "fetch_fmp_news_catalysts_async", boom), \
+                    patch.object(edc, "fetch_alternative_peer_discovery_async", empty):
                 return await edc.fetch_optional_http_data_bundle(
                     "2330.TW",
                     "台積電",
@@ -1563,9 +1544,9 @@ class AuditRuleTests(unittest.TestCase):
 
         bundle = asyncio.run(run_check())
 
-        self.assertEqual(bundle["google_catalysts"], [])
+        self.assertEqual(bundle["fmp_news"], [])
         self.assertEqual(bundle["_warnings"][0]["provider"], "optional_http_bundle")
-        self.assertEqual(bundle["_warnings"][0]["operation"], "google_catalysts")
+        self.assertEqual(bundle["_warnings"][0]["operation"], "fmp_news")
         self.assertEqual(bundle["_warnings"][0]["error_kind"], "RuntimeError")
 
     def test_async_stock_fetch_merges_optional_http_bundle(self):
@@ -1588,13 +1569,13 @@ class AuditRuleTests(unittest.TestCase):
 
         calls = {}
 
-        async def fake_google_catalysts(ticker, company_name, identity):
-            calls["google"] = (ticker, company_name, identity)
-            return [{"title": "Google headline", "source_type": "google_search"}]
+        async def fake_search_catalysts(ticker, company_name, identity):
+            calls["search"] = (ticker, company_name, identity)
+            return [{"title": "Search headline", "source_type": "gdelt_search"}]
 
         async def fake_peer_discovery(ticker, company_name, sector, industry):
             calls["peer"] = (ticker, company_name, sector, industry)
-            return [{"title": "Peer result", "source_type": "google_peer_discovery"}]
+            return [{"title": "Peer result", "source_type": "alternative_peer_discovery"}]
 
         async def fake_fmp_news(ticker):
             calls.setdefault("fmp", []).append(ticker)
@@ -1606,22 +1587,20 @@ class AuditRuleTests(unittest.TestCase):
             return []
 
         with patch.object(financial_data, "fetch_stock_data", side_effect=fake_fetch_stock_data), \
-                patch.object(optional_enrichment, "fetch_alternative_search_catalysts_async", side_effect=empty_search), \
-                patch.object(optional_enrichment, "fetch_alternative_peer_discovery_async", side_effect=empty_search), \
-                patch.object(optional_enrichment, "fetch_google_search_catalysts_async", side_effect=fake_google_catalysts), \
-                patch.object(optional_enrichment, "fetch_google_peer_discovery_results_async", side_effect=fake_peer_discovery), \
+                patch.object(optional_enrichment, "fetch_alternative_search_catalysts_async", side_effect=fake_search_catalysts), \
+                patch.object(optional_enrichment, "fetch_alternative_peer_discovery_async", side_effect=fake_peer_discovery), \
                 patch.object(optional_enrichment, "fetch_fmp_news_catalysts_async", side_effect=fake_fmp_news), \
                 patch.object(cache_helpers, "set_cache_json") as cache_mock:
             data = asyncio.run(financial_data.async_fetch_stock_data("2330"))
 
         titles = [item["title"] for item in data["recent_catalysts"]]
         self.assertIn("Yahoo headline", titles)
-        self.assertIn("Google headline", titles)
+        self.assertIn("Search headline", titles)
         self.assertIn("FMP headline", titles)
-        self.assertEqual(data["peer_discovery_results"][0]["source_type"], "google_peer_discovery")
-        self.assertEqual(calls["google"][0], "2330.TW")
-        self.assertEqual(calls["google"][1], "台積電 / Taiwan Semiconductor")
-        self.assertEqual(calls["google"][2]["official_name"], "台積電")
+        self.assertEqual(data["peer_discovery_results"][0]["source_type"], "alternative_peer_discovery")
+        self.assertEqual(calls["search"][0], "2330.TW")
+        self.assertEqual(calls["search"][1], "台積電 / Taiwan Semiconductor")
+        self.assertEqual(calls["search"][2]["official_name"], "台積電")
         self.assertEqual(calls["peer"], ("2330.TW", "台積電 / Taiwan Semiconductor", "Technology", "Semiconductor"))
         self.assertEqual(calls["fmp"], ["2330", "2330.TW"])
         self.assertTrue(cache_mock.called)

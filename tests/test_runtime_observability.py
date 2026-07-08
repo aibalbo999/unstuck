@@ -114,7 +114,7 @@ def test_provider_sla_aggregates_source_audit(monkeypatch, tmp_path):
         [
             {"source": "market_data", "provider": "yfinance", "status": "success", "duration_ms": 100, "record_count": 3},
             {"source": "market_data", "provider": "yfinance", "status": "error", "duration_ms": 50, "record_count": 0, "message": "boom"},
-            {"source": "recent_catalysts", "provider": "Google Search", "status": "skipped_fresh_cache", "duration_ms": 0},
+            {"source": "recent_catalysts", "provider": "Alternative Search", "status": "skipped_fresh_cache", "duration_ms": 0},
         ]
     )
 
@@ -128,12 +128,12 @@ def test_provider_sla_aggregates_source_audit(monkeypatch, tmp_path):
     assert yfinance["windows"]["last_1h"]["attempts"] == 2
     assert yfinance["windows"]["last_1h"]["success_rate"] == 0.5
     assert yfinance["alert_level"] == "warning"
-    google = next(row for row in summary if row["provider"] == "Google Search")
-    assert google["attempts"] == 1
-    assert google["skipped_fresh_cache_count"] == 1
-    assert google["success_rate"] == 1.0
-    assert google["windows"]["last_1h"]["success_rate"] == 1.0
-    assert google["alert_level"] == "ok"
+    search = next(row for row in summary if row["provider"] == "Alternative Search")
+    assert search["attempts"] == 1
+    assert search["skipped_fresh_cache_count"] == 1
+    assert search["success_rate"] == 1.0
+    assert search["windows"]["last_1h"]["success_rate"] == 1.0
+    assert search["alert_level"] == "ok"
     alerts = provider_sla.get_provider_sla_alerts()
     assert alerts and alerts[0]["provider"] == "yfinance"
     assert "windows" in alerts[0]
@@ -144,19 +144,19 @@ def test_provider_sla_tracks_not_configured_without_alerting(monkeypatch, tmp_pa
 
     provider_sla.record_source_audit_entries(
         [
-            {"source": "recent_catalysts", "provider": "Google Search", "status": "not_configured", "duration_ms": 0},
-            {"source": "recent_catalysts", "provider": "Google Search", "status": "not_configured", "duration_ms": 0},
-            {"source": "recent_catalysts", "provider": "Google Search", "status": "not_configured", "duration_ms": 0},
+            {"source": "recent_catalysts", "provider": "Alternative Search", "status": "not_configured", "duration_ms": 0},
+            {"source": "recent_catalysts", "provider": "Alternative Search", "status": "not_configured", "duration_ms": 0},
+            {"source": "recent_catalysts", "provider": "Alternative Search", "status": "not_configured", "duration_ms": 0},
         ]
     )
 
     summary = provider_sla.get_provider_sla_summary()
-    google = next(row for row in summary if row["provider"] == "Google Search")
-    assert google["attempts"] == 3
-    assert google["availability_attempts"] == 0
-    assert google["not_configured_count"] == 3
-    assert google["success_rate"] == 1.0
-    assert google["alert_level"] == "ok"
+    search = next(row for row in summary if row["provider"] == "Alternative Search")
+    assert search["attempts"] == 3
+    assert search["availability_attempts"] == 0
+    assert search["not_configured_count"] == 3
+    assert search["success_rate"] == 1.0
+    assert search["alert_level"] == "ok"
     assert provider_sla.get_provider_sla_alerts() == []
 
 
@@ -578,9 +578,9 @@ def test_ops_dashboard_treats_enrichment_provider_critical_as_warning(monkeypatc
             "alerts": [
                 {
                     "source": "recent_catalysts",
-                    "provider": "Google Search",
+                    "provider": "Alternative Search",
                     "alert_level": "critical",
-                    "alert_message": "Google Search last_24h資料取得率偏低",
+                    "alert_message": "Alternative Search last_24h資料取得率偏低",
                 }
             ],
         }
@@ -847,25 +847,19 @@ def test_api_quota_payload_uses_persistent_usage_ledger(monkeypatch, tmp_path):
         created_at=timestamp,
     )
     api_usage_store.record_provider_audit_usage(
-        {"source": "recent_catalysts", "provider": "Google Search", "status": "success"},
-        created_at=timestamp,
-    )
-    api_usage_store.record_provider_audit_usage(
         {"source": "market_data", "provider": "FMP quote", "status": "error", "message": "quota"},
         created_at=timestamp,
     )
 
     payload = api_quota_service.build_api_quota_payload(lambda limit=100: [
-        {"source": "recent_catalysts", "provider": "Google Search", "last_status": "success", "alert_level": "ok"},
         {"source": "market_data", "provider": "FMP quote", "last_status": "error", "alert_level": "warning"},
     ])
 
     gemini = next(item for item in payload["services"] if item["service"] == "Gemini / Google AI")
-    google = next(item for item in payload["services"] if item["service"] == "Google Custom Search")
     fmp = next(item for item in payload["services"] if item["service"] == "Financial Modeling Prep")
     assert gemini["usage"]["observed_calls_since_reset"] == 1
     assert gemini["usage"]["ledger_source"] == "api_usage_events"
-    assert google["usage"]["observed_24h_attempts"] == 1
+    assert "Google Custom Search" not in {item["service"] for item in payload["services"]}
     assert fmp["usage"]["observed_24h_errors"] == 1
 
 

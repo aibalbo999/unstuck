@@ -9,6 +9,8 @@ from config import (
     BING_SEARCH_ENDPOINT,
     BRAVE_SEARCH_API_KEY,
     CATALYST_LOOKBACK_DAYS,
+    SEARCH_CATALYST_MAX_RESULTS,
+    SEARCH_PEER_DISCOVERY_MAX_RESULTS,
     SERPAPI_API_KEY,
     TAVILY_API_KEY,
     WEB_SEARCH_PROVIDER_ORDER,
@@ -22,6 +24,12 @@ from external_search_payloads import (
     parse_news_rss_payload,
     parse_serpapi_payload,
     parse_tavily_payload,
+)
+from external_search_quality import (
+    provider_request_size as _provider_request_size,
+    result_source_key as _result_source_key,
+    search_quality_satisfied as _search_quality_satisfied,
+    select_quality_results as _select_quality_results,
 )
 from external_search_types import SearchResult
 
@@ -50,7 +58,7 @@ async def fetch_alternative_search_catalysts_async(
     company_name: str,
     identity: dict,
     *,
-    max_results: int = 5,
+    max_results: int = SEARCH_CATALYST_MAX_RESULTS,
 ) -> list[dict]:
     """Fetch recent catalyst-like search results from non-Google providers."""
     official_name = str((identity or {}).get("official_name") or company_name or ticker).strip()
@@ -90,7 +98,7 @@ async def fetch_alternative_peer_discovery_async(
     sector: str,
     industry: str,
     *,
-    max_results: int = 5,
+    max_results: int = SEARCH_PEER_DISCOVERY_MAX_RESULTS,
 ) -> list[dict]:
     """Fetch search snippets that help identify public peers/competitors."""
     query = f"{company_name} {ticker} global competitors peers gross margin {industry} {sector}".strip()
@@ -111,28 +119,41 @@ async def fetch_alternative_peer_discovery_async(
 async def fetch_web_search_results_async(
     query: str,
     *,
-    max_results: int = 5,
+    max_results: int = SEARCH_CATALYST_MAX_RESULTS,
     lookback_days: int = 30,
 ) -> list[SearchResult]:
     """Run configured alternative providers in order until enough records are found."""
     cleaned_query = str(query or "").strip()
     if not cleaned_query:
         return []
+    target_results = max(1, int(max_results))
 
     results: list[SearchResult] = []
     async with async_client() as client:
         for provider in _provider_order():
-            if len(results) >= max_results:
+            selected = _select_quality_results(
+                results,
+                limit=target_results,
+                query=cleaned_query,
+                lookback_days=lookback_days,
+            )
+            if _search_quality_satisfied(
+                selected,
+                max_results=target_results,
+                query=cleaned_query,
+                lookback_days=lookback_days,
+            ):
                 break
             if not _provider_configured(provider):
                 continue
-            remaining = max(max_results - len(results), 1)
+            remaining = target_results - len(selected)
+            request_size = _provider_request_size(remaining, max_results=target_results)
             try:
                 fetched = await _fetch_provider_results(
                     client,
                     provider,
                     cleaned_query,
-                    max_results=remaining,
+                    max_results=request_size,
                     lookback_days=lookback_days,
                 )
             except Exception as exc:
@@ -140,7 +161,12 @@ async def fetch_web_search_results_async(
                 continue
             results.extend(fetched)
 
-    return dedupe_results(results, limit=max_results)
+    return _select_quality_results(
+        results,
+        limit=target_results,
+        query=cleaned_query,
+        lookback_days=lookback_days,
+    )
 
 
 async def _fetch_provider_results(
@@ -290,4 +316,3 @@ def _provider_configured(provider: str) -> bool:
     if provider == "serpapi":
         return bool(SERPAPI_API_KEY)
     return False
-

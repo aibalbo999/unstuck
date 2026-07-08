@@ -98,10 +98,10 @@ def test_optional_not_configured_sources_do_not_degrade_fresh_core_data(monkeypa
     payload["source_audit"].append(
         data_trust.build_source_audit_entry(
             "recent_catalysts",
-            "Google Search",
+            "Alternative Search",
             "not_configured",
             record_count=0,
-            message="Google Custom Search 未設定，僅略過補充催化劑。",
+            message="Alternative Search 未設定，僅略過補充催化劑。",
         )
     )
 
@@ -121,7 +121,7 @@ def test_optional_degraded_enrichment_is_not_treated_as_core_failure(monkeypatch
     payload["source_audit"].append(
         data_trust.build_source_audit_entry(
             "peer_discovery",
-            "Google Search",
+            "Alternative Search",
             "degraded_enrichment",
             record_count=0,
             message="同業搜尋補充來源降級，核心財務資料仍可用。",

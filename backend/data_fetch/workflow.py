@@ -168,7 +168,6 @@ async def _run_optional_provider_plan(request: FetchRequest, registry: ProviderR
     http_bundle = {
         "free_news": provider_value(provider_results, "recent_catalysts", "Free news waterfall"),
         "search_catalysts": provider_value(provider_results, "recent_catalysts", "Alternative Search"),
-        "google_catalysts": provider_value(provider_results, "recent_catalysts", "Google Search"),
         "fmp_news": fmp_news_records,
         "yahoo_news": provider_value(provider_results, "recent_catalysts", "Yahoo Finance"),
         "global_market_context": _provider_context_value(provider_results, "global_market_context"),
@@ -181,7 +180,6 @@ async def _run_optional_provider_plan(request: FetchRequest, registry: ProviderR
         "taiwan_open_data": _provider_context_value(provider_results, "taiwan_open_data"),
         "earnings_call": _provider_context_value(provider_results, "earnings_call"),
         "search_peer_discovery": provider_value(provider_results, "peer_discovery", "Alternative Search"),
-        "google_peer_discovery": provider_value(provider_results, "peer_discovery", "Google Search"),
     }
     refreshed_sources = [source for source, should_refresh in refresh_by_source.items() if should_refresh]
 

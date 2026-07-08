@@ -20,10 +20,6 @@ from data_fetch.market_sources.http_enrichment import (
     fetch_fmp_news_catalysts_async as fetch_fmp_news_catalysts_async_impl,
     fetch_fmp_quote_fallback as fetch_fmp_quote_fallback_impl,
     fetch_recent_catalysts as fetch_recent_catalysts_impl,
-    fetch_google_peer_discovery_results as fetch_google_peer_discovery_results_impl,
-    fetch_google_peer_discovery_results_async as fetch_google_peer_discovery_results_async_impl,
-    fetch_google_search_catalysts as fetch_google_search_catalysts_impl,
-    fetch_google_search_catalysts_async as fetch_google_search_catalysts_async_impl,
     fetch_yfinance_news_catalysts as fetch_yfinance_news_catalysts_impl,
 )
 from data_fetch.market_sources.identity import (
@@ -108,10 +104,6 @@ fetch_finmind_news_catalysts = _deprecated_function("fetch_finmind_news_catalyst
 fetch_fmp_news_catalysts = _deprecated_function("fetch_fmp_news_catalysts", fetch_fmp_news_catalysts_impl)
 fetch_fmp_news_catalysts_async = _deprecated_function("fetch_fmp_news_catalysts_async", fetch_fmp_news_catalysts_async_impl)
 fetch_fmp_quote_fallback = _deprecated_function("fetch_fmp_quote_fallback", fetch_fmp_quote_fallback_impl)
-fetch_google_peer_discovery_results = _deprecated_function("fetch_google_peer_discovery_results", fetch_google_peer_discovery_results_impl)
-fetch_google_peer_discovery_results_async = _deprecated_function("fetch_google_peer_discovery_results_async", fetch_google_peer_discovery_results_async_impl)
-fetch_google_search_catalysts = _deprecated_function("fetch_google_search_catalysts", fetch_google_search_catalysts_impl)
-fetch_google_search_catalysts_async = _deprecated_function("fetch_google_search_catalysts_async", fetch_google_search_catalysts_async_impl)
 fetch_institutional_trading_trend = _deprecated_function("fetch_institutional_trading_trend", fetch_institutional_trading_trend_impl)
 fetch_recent_catalysts = _deprecated_function("fetch_recent_catalysts", fetch_recent_catalysts_impl)
 fetch_yfinance_news_catalysts = _deprecated_function("fetch_yfinance_news_catalysts", fetch_yfinance_news_catalysts_impl)

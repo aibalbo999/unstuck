@@ -166,8 +166,8 @@ def _provider_from_url(url: str) -> str:
     host = hostname.lower()
     if "financialmodelingprep.com" in host:
         return "FMP"
-    if "googleapis.com" in host or "google.com" in host:
-        return "Google Search"
+    if "google.com" in host:
+        return "Google News RSS"
     if "gdeltproject.org" in host:
         return "GDELT"
     return DEFAULT_PROXY_PROVIDER

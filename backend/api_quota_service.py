@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, time as dt_time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from config import API_KEYS, FMP_API_KEY, GOOGLE_CSE_ID, GOOGLE_SEARCH_API_KEY, RPD_LIMITS
+from config import API_KEYS, FMP_API_KEY, RPD_LIMITS
 from api_usage_store import summarize_llm_usage_since, summarize_provider_usage_since
 
 
@@ -93,7 +93,6 @@ def build_api_quota_payload(provider_summary_fetcher) -> dict:
         providers = []
 
     gemini_usage = _llm_usage_since(pacific_prev_utc)
-    google_usage = _provider_attempts(providers, {"Google Search"}, pacific_prev_utc)
     fmp_usage = _provider_attempts(providers, {"FMP quote", "FMP stable quote", "FMP news", "FMP news retry"}, fmp_prev_utc)
 
     return {
@@ -113,17 +112,6 @@ def build_api_quota_payload(provider_summary_fetcher) -> dict:
                     "Gemini RPD 依 Google project 計算，不是依單支 API key 分開計算。",
                     "本機用量來自 api_usage_events ledger；實際額度請以 AI Studio / Google Cloud 為準。",
                 ],
-            ),
-            _quota_row(
-                service="Google Custom Search",
-                configured=bool(GOOGLE_SEARCH_API_KEY and GOOGLE_CSE_ID),
-                key_count=1 if GOOGLE_SEARCH_API_KEY else 0,
-                next_reset_source=pacific_next,
-                next_reset_taipei=pacific_tw,
-                reset_label="每日 quota：Pacific Time 00:00",
-                daily_limit={"default_free_queries_per_day": 100},
-                usage=google_usage,
-                notes=["Custom Search 免費每日 100 queries；實際付費上限以 Google Cloud Console 為準。"],
             ),
             _quota_row(
                 service="Financial Modeling Prep",

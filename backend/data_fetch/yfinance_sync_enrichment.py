@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+from config import SEARCH_CATALYST_MAX_RESULTS
+
 from .market_sources.common import _dedupe_records, _run_named_fetches
 from .market_sources.http_enrichment import (
     fetch_fmp_news_catalysts,
-    fetch_google_peer_discovery_results,
-    fetch_google_search_catalysts,
     fetch_yfinance_news_catalysts,
 )
 from .market_sources.peers import fetch_dynamic_peer_metrics
@@ -64,14 +64,6 @@ def fetch_sync_enrichment_bundle(
             "dynamic_peer_metrics",
             "FinMind/yfinance",
         ),
-        "peer_discovery_results": (
-            (lambda *_args: []) if skip_optional_http else fetch_google_peer_discovery_results,
-            (ticker, company_name, sector, industry),
-            [],
-            "同業 discovery 資料彙整失敗",
-            "peer_discovery",
-            "Google Search",
-        ),
         "pe_river_chart": (
             build_pe_river_chart_data,
             (ticker, years, net_income_history, shares_outstanding),
@@ -82,7 +74,7 @@ def fetch_sync_enrichment_bundle(
         ),
     }
     if not skip_optional_http:
-        from config import FMP_API_KEY, GOOGLE_CSE_ID, GOOGLE_SEARCH_API_KEY
+        from config import FMP_API_KEY
 
         enrichment_fetches.update({
             "earnings_call": (
@@ -94,16 +86,6 @@ def fetch_sync_enrichment_bundle(
                 FREE_EARNINGS_CALL_PROVIDER_NAME,
             ),
         })
-
-        if GOOGLE_SEARCH_API_KEY and GOOGLE_CSE_ID:
-            enrichment_fetches["recent_catalysts_google"] = (
-                fetch_google_search_catalysts,
-                (ticker, company_name, company_identity),
-                [],
-                "Google Search 催化劑資料獲取失敗",
-                "recent_catalysts",
-                "Google Search",
-            )
 
         if FMP_API_KEY:
             enrichment_fetches["recent_catalysts_fmp"] = (
@@ -125,13 +107,15 @@ def fetch_sync_enrichment_bundle(
     for key in (
         "recent_catalysts_finmind",
         "recent_catalysts_yahoo",
-        "recent_catalysts_google",
         "recent_catalysts_fmp",
     ):
         recent_catalyst_records.extend(enrichment.get(key, []) or [])
 
     return {
-        "recent_catalysts": _dedupe_records(recent_catalyst_records, limit=5)[:5],
+        "recent_catalysts": _dedupe_records(
+            recent_catalyst_records,
+            limit=SEARCH_CATALYST_MAX_RESULTS,
+        )[:SEARCH_CATALYST_MAX_RESULTS],
         "institutional_trading": enrichment.get("institutional_trading", {}),
         "dynamic_peer_metrics": enrichment.get("dynamic_peer_metrics", []),
         "peer_discovery_results": enrichment.get("peer_discovery_results", []),

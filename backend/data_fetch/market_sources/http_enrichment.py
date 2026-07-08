@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
+from config import SEARCH_CATALYST_MAX_RESULTS
 from external_data_clients import (
     fetch_fmp_news_catalysts as fetch_fmp_news_catalysts_http,
     fetch_fmp_news_catalysts_async,
     fetch_fmp_quote_fallback as fetch_fmp_quote_fallback_http,
-    fetch_google_peer_discovery_results as fetch_google_peer_discovery_results_http,
-    fetch_google_peer_discovery_results_async,
-    fetch_google_search_catalysts as fetch_google_search_catalysts_http,
-    fetch_google_search_catalysts_async,
 )
 
 from .common import _dedupe_records, _run_named_fetches
@@ -18,14 +15,6 @@ from .taiwan import fetch_finmind_news_catalysts
 
 def fetch_fmp_quote_fallback(ticker: str) -> dict:
     return fetch_fmp_quote_fallback_http(ticker)
-
-
-def fetch_google_search_catalysts(ticker: str, company_name: str, identity: dict) -> list[dict]:
-    return fetch_google_search_catalysts_http(ticker, company_name, identity)
-
-
-def fetch_google_peer_discovery_results(ticker: str, company_name: str, sector: str, industry: str) -> list[dict]:
-    return fetch_google_peer_discovery_results_http(ticker, company_name, sector, industry)
 
 
 def fetch_fmp_news_catalysts(ticker: str) -> list[dict]:
@@ -70,9 +59,8 @@ def fetch_recent_catalysts(
     }
     if not skip_optional_http:
         fetches.update({
-            "google": (fetch_google_search_catalysts, (ticker, company_name, identity), [], "Google Search 催化劑資料獲取失敗"),
             "fmp": (fetch_fmp_news_catalysts, (ticker,), [], "FMP 新聞資料獲取失敗"),
         })
     for items in _run_named_fetches(fetches, max_workers=4).values():
         records.extend(items or [])
-    return _dedupe_records(records, limit=5)[:5]
+    return _dedupe_records(records, limit=SEARCH_CATALYST_MAX_RESULTS)[:SEARCH_CATALYST_MAX_RESULTS]

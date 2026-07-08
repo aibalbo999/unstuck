@@ -235,9 +235,7 @@ def test_async_fetch_skips_fresh_optional_sources(monkeypatch):
     monkeypatch.setattr(financial_data, "fetch_stock_data", fake_fetch_stock_data)
     monkeypatch.setattr(optional_enrichment, "fetch_alternative_search_catalysts_async", fail_if_called)
     monkeypatch.setattr(optional_enrichment, "fetch_alternative_peer_discovery_async", fail_if_called)
-    monkeypatch.setattr(optional_enrichment, "fetch_google_search_catalysts_async", fail_if_called)
     monkeypatch.setattr(optional_enrichment, "fetch_fmp_news_catalysts_async", fail_if_called)
-    monkeypatch.setattr(optional_enrichment, "fetch_google_peer_discovery_results_async", fail_if_called)
     monkeypatch.setattr(cache_helpers, "set_cache_json", lambda *args: cached_writes.append(args))
 
     data = asyncio.run(financial_data.async_fetch_stock_data("2330"))

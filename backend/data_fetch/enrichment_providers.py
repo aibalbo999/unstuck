@@ -6,7 +6,7 @@ from source_audit import audited_fetch, audited_fetch_async
 
 from .earnings_call_fetcher import FREE_EARNINGS_CALL_PROVIDER_NAME, fetch_free_earnings_call_context
 from .market_sources.common import first_number
-from .provider_base import DataProvider, not_configured_provider_result, provider_result_from_audited, unavailable_provider_result
+from .provider_base import DataProvider, not_configured_provider_result, provider_result_from_audited
 from .types import FetchRequest, ProviderResult
 
 
@@ -42,39 +42,6 @@ class FreeNewsWaterfallProvider(DataProvider):
                 "related_entries": list(client.last_news_audit),
             },
         )
-
-
-class GoogleSearchProvider(DataProvider):
-    name = "Google Search"
-    source = "recent_catalysts"
-    cost_tier, capabilities, requires_env = "free_with_key", {"search", "recent_catalysts"}, ("GOOGLE_SEARCH_API_KEY", "GOOGLE_CSE_ID")
-
-    async def fetch_async(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
-        from config import GOOGLE_CSE_ID, GOOGLE_SEARCH_API_KEY
-        from .market_sources.http_enrichment import fetch_google_search_catalysts_async
-
-        if not GOOGLE_SEARCH_API_KEY or not GOOGLE_CSE_ID:
-            return not_configured_provider_result(
-                self.source,
-                self.name,
-                "Google Custom Search 未設定，略過近期催化劑 enrichment。",
-            )
-        context = context or {}
-        data = context.get("data", {}) or {}
-        ticker = str(data.get("ticker") or request.ticker).strip().upper()
-        company_name = str(data.get("company_name") or ticker).strip()
-        identity = data.get("company_identity") if isinstance(data.get("company_identity"), dict) else {}
-        cache_hit = bool(data.get("_cache_hit"))
-        result = await audited_fetch_async(
-            self.source,
-            self.name,
-            fetch_google_search_catalysts_async,
-            (ticker, company_name, identity),
-            default=[],
-            cache_hit=cache_hit,
-            unavailable_message="Google Search 未回傳近期催化劑。",
-        )
-        return provider_result_from_audited(result, self.source, self.name)
 
 
 class AlternativeSearchProvider(DataProvider):
@@ -231,40 +198,6 @@ class InternationalNewsContextProvider(DataProvider):
             record_counter=lambda value: len(value.get("topics", [])) if isinstance(value, dict) else 0,
             cache_hit=cache_hit,
             unavailable_message="GDELT 未回傳國際新聞脈絡。",
-        )
-        return provider_result_from_audited(result, self.source, self.name)
-
-
-class GooglePeerDiscoveryProvider(DataProvider):
-    name = "Google Search"
-    source = "peer_discovery"
-    cost_tier, capabilities, requires_env = "free_with_key", {"peer_discovery", "search"}, ("GOOGLE_SEARCH_API_KEY", "GOOGLE_CSE_ID")
-
-    async def fetch_async(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
-        from config import GOOGLE_CSE_ID, GOOGLE_SEARCH_API_KEY
-        from .market_sources.http_enrichment import fetch_google_peer_discovery_results_async
-
-        if not GOOGLE_SEARCH_API_KEY or not GOOGLE_CSE_ID:
-            return not_configured_provider_result(
-                self.source,
-                self.name,
-                "Google Custom Search 未設定，略過同業搜尋 enrichment。",
-            )
-        context = context or {}
-        data = context.get("data", {}) or {}
-        ticker = str(data.get("ticker") or request.ticker).strip().upper()
-        company_name = str(data.get("company_name") or ticker).strip()
-        sector = str(data.get("sector") or "")
-        industry = str(data.get("industry") or "")
-        cache_hit = bool(data.get("_cache_hit"))
-        result = await audited_fetch_async(
-            self.source,
-            self.name,
-            fetch_google_peer_discovery_results_async,
-            (ticker, company_name, sector, industry),
-            default=[],
-            cache_hit=cache_hit,
-            unavailable_message="Google Search 未回傳同業 discovery 結果。",
         )
         return provider_result_from_audited(result, self.source, self.name)
 

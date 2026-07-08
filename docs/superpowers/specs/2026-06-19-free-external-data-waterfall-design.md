@@ -70,7 +70,7 @@ MOPS 回傳值保留原始列名、原始單位、民國/西元期間與 consoli
 
 ## Provider 與 State 整合
 
-新增免費新聞 Provider，source 使用既有 `recent_catalysts`。預設順序為免費新聞 waterfall，其後才是需要金鑰的 Google Custom Search/FMP；已有可信快取且未過期時沿用現行 freshness policy。
+新增免費新聞 Provider，source 使用既有 `recent_catalysts`。預設順序為免費新聞 waterfall，其後才是 Alternative Search/FMP；已有可信快取且未過期時沿用現行 freshness policy。
 
 TWSE 法人資料改為 FinMind 優先、TWSE OpenAPI 備援。MOPS reconciliation 在資料驗證 circuit breaker 開啟時實際執行，不再只產生文字計畫。官方結果寫入：
 

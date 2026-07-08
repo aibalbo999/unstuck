@@ -28,9 +28,9 @@ def test_external_http_proxy_rotation_uses_global_proxy_urls(monkeypatch):
 def test_external_http_proxy_rotation_prefers_provider_specific_urls(monkeypatch):
     external_http_client.clear_proxy_rotation_state()
     monkeypatch.setenv("PROVIDER_PROXY_URLS", "http://global-proxy:8080")
-    monkeypatch.setenv("PROVIDER_PROXY_GOOGLE_SEARCH_URLS", "http://google-proxy:8080")
+    monkeypatch.setenv("PROVIDER_PROXY_ALTERNATIVE_SEARCH_URLS", "http://search-proxy:8080")
 
-    assert external_http_client.proxy_url_for_provider("Google Search") == "http://google-proxy:8080"
+    assert external_http_client.proxy_url_for_provider("Alternative Search") == "http://search-proxy:8080"
     assert external_http_client.proxy_url_for_provider("FMP") == "http://global-proxy:8080"
     external_http_client.clear_proxy_rotation_state()
 

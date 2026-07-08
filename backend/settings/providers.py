@@ -33,6 +33,14 @@ def _load_llm_api_keys_by_provider() -> dict[str, list[str]]:
     }
 
 
+def _env_int(name: str, default: int, *, minimum: int = 1) -> int:
+    try:
+        value = int(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        value = default
+    return max(minimum, value)
+
+
 API_KEYS = []
 LLM_API_KEYS_BY_PROVIDER = {}
 
@@ -61,9 +69,6 @@ refresh_api_keys()
 FMP_API_KEY = os.getenv("FMP_API_KEY", "").strip()
 FMP_BASE_URL = os.getenv("FMP_BASE_URL", "https://financialmodelingprep.com/stable").rstrip("/")
 FINMIND_API_TOKEN = os.getenv("FINMIND_API_TOKEN", "").strip()
-GOOGLE_SEARCH_API_KEY = os.getenv("GOOGLE_SEARCH_API_KEY", "").strip()
-GOOGLE_CSE_ID = os.getenv("GOOGLE_CSE_ID", "").strip()
-GOOGLE_SEARCH_REFERER = os.getenv("GOOGLE_SEARCH_REFERER", "").strip()
 BRAVE_SEARCH_API_KEY = os.getenv("BRAVE_SEARCH_API_KEY", "").strip()
 BING_SEARCH_API_KEY = os.getenv("BING_SEARCH_API_KEY", "").strip()
 BING_SEARCH_ENDPOINT = os.getenv("BING_SEARCH_ENDPOINT", "https://api.bing.microsoft.com/v7.0/search").strip()
@@ -71,6 +76,10 @@ TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "").strip()
 SERPAPI_API_KEY = os.getenv("SERPAPI_API_KEY", "").strip()
 WEB_SEARCH_PROVIDER_ORDER = os.getenv("WEB_SEARCH_PROVIDER_ORDER", "tavily,serpapi,google_news_rss,gdelt,yahoo_rss,brave").strip()
 CATALYST_LOOKBACK_DAYS = int(os.getenv("CATALYST_LOOKBACK_DAYS", "30"))
+SEARCH_CATALYST_MAX_RESULTS = _env_int("SEARCH_CATALYST_MAX_RESULTS", 8)
+SEARCH_PEER_DISCOVERY_MAX_RESULTS = _env_int("SEARCH_PEER_DISCOVERY_MAX_RESULTS", 8)
+SEARCH_MIN_UNIQUE_SOURCES = _env_int("SEARCH_MIN_UNIQUE_SOURCES", 3)
+SEARCH_PROVIDER_EXPANSION_MIN_RESULTS = _env_int("SEARCH_PROVIDER_EXPANSION_MIN_RESULTS", 3)
 INSTITUTIONAL_LOOKBACK_DAYS = int(os.getenv("INSTITUTIONAL_LOOKBACK_DAYS", "30"))
 WACC_COST_OF_EQUITY_DEFAULT_PCT = float(os.getenv("WACC_COST_OF_EQUITY_PCT", "10.0"))
 WACC_COST_OF_DEBT_DEFAULT_PCT = float(os.getenv("WACC_COST_OF_DEBT_PCT", "3.0"))

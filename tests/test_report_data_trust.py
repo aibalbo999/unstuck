@@ -136,11 +136,11 @@ def test_html_and_markdown_include_data_trust_and_source_audit():
 
 def test_key_evidence_prefers_successful_provider_over_later_empty_provider():
     data = minimal_context()["data"]
-    data["recent_catalysts"] = [{"title": "Google catalyst"}]
+    data["recent_catalysts"] = [{"title": "Alternative catalyst"}]
     data["source_audit"] = [
         {
             "source": "recent_catalysts",
-            "provider": "Google Search",
+            "provider": "Alternative Search",
             "status": "success",
             "fetched_at": "2026-06-07T00:00:00+00:00",
             "record_count": 1,
@@ -162,7 +162,7 @@ def test_key_evidence_prefers_successful_provider_over_later_empty_provider():
     catalyst_row = next(row for row in rows if row["label"] == "近期催化劑")
 
     assert catalyst_row["status"] == "success"
-    assert catalyst_row["provider"] == "Google Search"
+    assert catalyst_row["provider"] == "Alternative Search"
     assert catalyst_row["record_count"] == 1
 
 

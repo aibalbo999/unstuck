@@ -327,20 +327,15 @@ def test_optional_http_merge_preserves_exact_records_for_ai_payload():
     free_news = {"title": "SENT_FREE_NEWS", "link": "https://example.test/shared"}
     duplicate_link_news = {"title": "SENT_DUPLICATE_NEWS", "link": "https://example.test/shared"}
     search_news = {"title": "SENT_SEARCH_NEWS", "link": "https://example.test/search"}
-    google_news = {"title": "SENT_GOOGLE_NEWS", "link": "https://example.test/google"}
     fmp_news = {"title": "SENT_FMP_NEWS", "link": "https://example.test/fmp"}
     yahoo_news = {"title": "SENT_YAHOO_NEWS", "link": "https://example.test/yahoo"}
     peer_search = {"title": "SENT_PEER_SEARCH", "link": "https://example.test/peer-a"}
-    peer_duplicate = {"title": "SENT_PEER_SEARCH", "link": "https://example.test/peer-duplicate"}
-    peer_google = {"title": "SENT_PEER_GOOGLE", "link": "https://example.test/peer-b"}
     http_bundle = {
         "free_news": [free_news],
         "search_catalysts": [duplicate_link_news, search_news],
-        "google_catalysts": [google_news],
         "fmp_news": [fmp_news],
         "yahoo_news": [yahoo_news],
         "search_peer_discovery": [peer_search],
-        "google_peer_discovery": [peer_duplicate, peer_google],
         "global_market_context": {"items": [{"symbol": "QQQ", "change_5d_pct": 3.21, "note": "SENT_GLOBAL"}]},
         "international_news_context": {"topics": [{"headline": "SENT_INTERNATIONAL"}]},
         "macro_indicators": {"summary_text": "SENT_MACRO"},
@@ -377,8 +372,8 @@ def test_optional_http_merge_preserves_exact_records_for_ai_payload():
         ),
     )
 
-    expected_catalysts = [free_news, search_news, google_news, fmp_news, yahoo_news]
-    expected_peers = [peer_search, peer_google]
+    expected_catalysts = [free_news, search_news, fmp_news, yahoo_news]
+    expected_peers = [peer_search]
     assert result["recent_catalysts"] == expected_catalysts
     assert result["peer_discovery_results"] == expected_peers
     assert result["global_market_context"] == http_bundle["global_market_context"]
@@ -404,7 +399,7 @@ def test_optional_http_merge_preserves_exact_records_for_ai_payload():
     assert latest_audit["market_data"]["provider"] == "FMP stable quote"
     assert latest_audit["market_data"]["record_count"] == 5
     expected_counts = {
-        "recent_catalysts": 5,
+        "recent_catalysts": 4,
         "global_market_context": 1,
         "international_news_context": 1,
         "macro_indicators": 1,
@@ -414,7 +409,7 @@ def test_optional_http_merge_preserves_exact_records_for_ai_payload():
         "sec_edgar": 1,
         "taiwan_open_data": 1,
         "earnings_call": 2,
-        "peer_discovery": 2,
+        "peer_discovery": 1,
     }
     for source, expected_count in expected_counts.items():
         assert latest_audit[source]["status"] == "success"
@@ -439,8 +434,8 @@ def test_optional_http_merge_preserves_exact_records_for_ai_payload():
     assert payload["agent_context"]["earnings_call"] == http_bundle["earnings_call"]
     audit_summary = {entry["source"]: entry for entry in payload["source_audit_summary"]}
     assert audit_summary["recent_catalysts"]["provider"] == "Recent catalysts providers"
-    assert audit_summary["recent_catalysts"]["record_count"] == 5
-    assert audit_summary["recent_catalysts"]["merged_record_count"] == 5
+    assert audit_summary["recent_catalysts"]["record_count"] == 4
+    assert audit_summary["recent_catalysts"]["merged_record_count"] == 4
     assert audit_summary["recent_catalysts"]["record_count_mismatch"] is False
 
 
@@ -466,15 +461,6 @@ def test_stock_data_service_uses_provider_plan_for_optional_enrichment(monkeypat
                     "peer_discovery": {"fetched_at_epoch": 100.0},
                 },
             },
-        )
-
-    def google_provider(request, context):
-        return ProviderResult(
-            source="recent_catalysts",
-            provider="Google Search",
-            status="success",
-            value=[{"title": "Google duplicate", "link": "https://shared.example/a"}],
-            audit={"source": "recent_catalysts", "provider": "Google Search", "status": "success", "record_count": 1},
         )
 
     def free_news_provider(request, context):
@@ -521,15 +507,6 @@ def test_stock_data_service_uses_provider_plan_for_optional_enrichment(monkeypat
             audit={"source": "recent_catalysts", "provider": "Yahoo Finance news", "status": "unavailable", "record_count": 0},
         )
 
-    def peer_provider(request, context):
-        return ProviderResult(
-            source="peer_discovery",
-            provider="Google Search",
-            status="success",
-            value=[{"title": "Peer discovery"}],
-            audit={"source": "peer_discovery", "provider": "Google Search", "status": "success", "record_count": 1},
-        )
-
     def alternative_peer_provider(request, context):
         return ProviderResult(
             source="peer_discovery",
@@ -543,11 +520,9 @@ def test_stock_data_service_uses_provider_plan_for_optional_enrichment(monkeypat
         CallableProvider("market_data", "fake-core", core_provider),
         CallableProvider("recent_catalysts", "Free news waterfall", free_news_provider),
         CallableProvider("recent_catalysts", "Alternative Search", alternative_search_provider),
-        CallableProvider("recent_catalysts", "Google Search", google_provider),
         CallableProvider("recent_catalysts", "FMP news", fmp_provider),
         CallableProvider("recent_catalysts", "Yahoo Finance news", yahoo_provider),
         CallableProvider("peer_discovery", "Alternative Search", alternative_peer_provider),
-        CallableProvider("peer_discovery", "Google Search", peer_provider),
     ])
 
     result = asyncio.run(StockDataService(registry=registry).fetch_async(FetchRequest.from_ticker("AAPL")))
@@ -559,12 +534,10 @@ def test_stock_data_service_uses_provider_plan_for_optional_enrichment(monkeypat
     ]
     assert [item["title"] for item in result.data["peer_discovery_results"]] == [
         "Alternative peer",
-        "Peer discovery",
     ]
     assert {entry["provider"] for entry in result.data["source_audit"]} >= {
         "Free news waterfall",
         "Alternative Search",
-        "Google Search",
         "Google News RSS",
         "FMP news",
         "Yahoo Finance news",
@@ -693,6 +666,36 @@ def test_optional_merge_does_not_mark_empty_source_as_fresh():
     assert latest["taiwan_open_data"]["status"] == "unavailable"
     assert latest["taiwan_open_data"]["record_count"] == 0
     assert latest["taiwan_open_data"]["stale"] is True
+
+
+def test_optional_merge_keeps_expanded_catalyst_and_peer_context():
+    data = {
+        "ticker": "2330.TW",
+        "company_name": "台積電",
+        "source_audit": [],
+        "source_freshness": {},
+    }
+    http_bundle = {
+        "search_catalysts": [
+            {"title": f"台積電 catalyst {index}", "link": f"https://news-{index}.example/catalyst"}
+            for index in range(10)
+        ],
+        "search_peer_discovery": [
+            {"title": f"台積電 peer {index}", "link": f"https://peer-{index}.example/context"}
+            for index in range(10)
+        ],
+    }
+
+    result = _merge_optional_http_bundle(
+        data,
+        http_bundle,
+        refreshed_sources=("recent_catalysts", "peer_discovery"),
+    )
+
+    assert len(result["recent_catalysts"]) == 8
+    assert len(result["peer_discovery_results"]) == 8
+    assert result["recent_catalysts"][-1]["title"] == "台積電 catalyst 7"
+    assert result["peer_discovery_results"][-1]["title"] == "台積電 peer 7"
 
 
 def test_stock_data_service_auto_merges_free_context_sources(monkeypatch):
@@ -873,27 +876,27 @@ def test_stock_data_service_fake_registry_e2e_cache_audit_and_trust(monkeypatch,
         calls.append("catalysts")
         return ProviderResult(
             source="recent_catalysts",
-            provider="Google Search",
+            provider="Alternative Search",
             status="success",
             value=[{"title": "Fake provider catalyst"}],
-            audit=build_source_audit_entry("recent_catalysts", "Google Search", "success", fetched_at=FRESH_AT, record_count=1),
+            audit=build_source_audit_entry("recent_catalysts", "Alternative Search", "success", fetched_at=FRESH_AT, record_count=1),
         )
 
     def peers_provider(request, context):
         calls.append("peers")
         return ProviderResult(
             source="peer_discovery",
-            provider="Google Search",
+            provider="Alternative Search",
             status="success",
             value=[{"title": "Fake peer"}],
-            audit=build_source_audit_entry("peer_discovery", "Google Search", "success", fetched_at=FRESH_AT, record_count=1),
+            audit=build_source_audit_entry("peer_discovery", "Alternative Search", "success", fetched_at=FRESH_AT, record_count=1),
         )
 
     registry = ProviderRegistry([
         CallableProvider("market_data", "fake-market", market_provider),
         CallableProvider("financial_statements", "fake-financials", financial_provider),
-        CallableProvider("recent_catalysts", "Google Search", catalysts_provider),
-        CallableProvider("peer_discovery", "Google Search", peers_provider),
+        CallableProvider("recent_catalysts", "Alternative Search", catalysts_provider),
+        CallableProvider("peer_discovery", "Alternative Search", peers_provider),
     ])
     service = StockDataService(registry=registry)
 
@@ -901,7 +904,7 @@ def test_stock_data_service_fake_registry_e2e_cache_audit_and_trust(monkeypatch,
     second = asyncio.run(service.fetch_async(FetchRequest.from_ticker("FAKE")))
 
     assert first.data["data_trust"]["status"] == "fresh"
-    assert {"fake-market", "fake-financials", "Google Search"} <= {entry["provider"] for entry in first.source_audit}
+    assert {"fake-market", "fake-financials", "Alternative Search"} <= {entry["provider"] for entry in first.source_audit}
     assert cached_payloads["financial_data:FAKE"]["data_trust"]["status"] == "fresh"
     assert second.cache_hit is True
     assert calls == ["market", "financial", "catalysts", "peers"]
@@ -946,8 +949,8 @@ def test_provider_workflow_skips_fresh_optional_sources(monkeypatch):
 
     registry = ProviderRegistry([
         CallableProvider("market_data", "fake-core", core_provider),
-        CallableProvider("recent_catalysts", "Google Search", should_not_run),
-        CallableProvider("peer_discovery", "Google Search", should_not_run),
+        CallableProvider("recent_catalysts", "Alternative Search", should_not_run),
+        CallableProvider("peer_discovery", "Alternative Search", should_not_run),
     ])
 
     result = asyncio.run(StockDataService(registry=registry).fetch_async(FetchRequest.from_ticker("AAPL")))

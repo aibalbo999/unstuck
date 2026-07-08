@@ -39,7 +39,7 @@
 - 多 Agent 分析流程已統一走 async LangGraph `StateGraph` 執行；Worker 使用 SQLite checkpoint 以 `job_id:pipeline_id` 恢復 429 / 暫時性中斷，不重跑已完成節點
 - Agent step cache 會以 ticker、資料快照 fingerprint、agent、prompt version、model 與 prompt hash 快取成功輸出，讓相同資料與 prompt 的 rerun 可跳過 LLM 呼叫並還原 structured output
 - RAG index 會以 ticker、資料 snapshot fingerprint、embedding model 與 chunk 設定作為 cache key，在 Agent step cache TTL 內複用 embedding index；Context Digest 也會以 context hash、agent、model 與 prompt version 去重
-- API 額度儀表板使用 `api_usage_events` ledger 統計 LLM provider request、Google Custom Search 與 FMP 本機觀測用量
+- API 額度儀表板使用 `api_usage_events` ledger 統計 LLM provider request 與 FMP 本機觀測用量
 - `/metrics` 會輸出 Prometheus text format，包含 provider SLA 與 RQ queue availability/depth
 - Watchlist 可設定盤前/盤後批次分析，儲存在 SQLite，排程執行會先原子認領 due slot 並保留舊 JSON 一次性匯入相容
 - Watchlist 支援事件驅動雷達 triggers：跌破均線、外資連賣、VIX 飆升會自動派送 Mode C；營收創高會自動派送 Mode B，且每日事件以 SQLite 去重
@@ -155,10 +155,10 @@ Production profile 請設定 `UNSTUCK_ENV=production` 或 `DEPLOYMENT_MODE=serve
 - `GEMINI_API_KEY_1` 到 `GEMINI_API_KEY_10`
 - `OPENAI_API_KEYS` / `OPENAI_API_KEY` / `OPENAI_API_KEY_1` 到 `OPENAI_API_KEY_10`：可選，用於 `openai:<model>` 路由
 - `ANTHROPIC_API_KEYS` / `ANTHROPIC_API_KEY` / `ANTHROPIC_API_KEY_1` 到 `ANTHROPIC_API_KEY_10`：可選，用於 `anthropic:<model>` 或 `claude:<model>` 路由
-- `GOOGLE_SEARCH_API_KEY`、`GOOGLE_CSE_ID`：可選，用於近期新聞與催化劑搜尋
-- `GOOGLE_SEARCH_REFERER`：可選；若 Google Search API key 使用 HTTP Referrer 限制，後端呼叫會把此值送為 `Referer` header。更建議建立一把後端專用 key，Application restriction 使用 IP 或暫時 None，API restriction 限制在 Custom Search JSON API。
 - `WEB_SEARCH_PROVIDER_ORDER`：可選，替代搜尋來源順序，預設 `tavily,serpapi,google_news_rss,gdelt,yahoo_rss,brave`；`google_news_rss`、`gdelt`、`yahoo_rss` 不需 key。
-- `BRAVE_SEARCH_API_KEY`、`TAVILY_API_KEY`、`SERPAPI_API_KEY`：可選，用於替代 Google Search 的近期催化劑與同業搜尋。Bing Search APIs 已於 2025-08-11 退役，不建議新設定使用。
+- `SEARCH_CATALYST_MAX_RESULTS` / `SEARCH_PEER_DISCOVERY_MAX_RESULTS`：可選，近期催化劑與同業搜尋的預設保留筆數，預設皆為 `8`。
+- `SEARCH_MIN_UNIQUE_SOURCES` / `SEARCH_PROVIDER_EXPANSION_MIN_RESULTS`：可選，替代搜尋品質門檻；預設至少 `3` 個不同來源，不足時下一個 provider 至少補抓 `3` 筆候選。
+- `BRAVE_SEARCH_API_KEY`、`TAVILY_API_KEY`、`SERPAPI_API_KEY`：可選，用於近期催化劑與同業搜尋。Bing Search APIs 已於 2025-08-11 退役，不建議新設定使用。
 - `FMP_API_KEY`：可選，用於 yfinance 缺漏時補市場欄位與新聞
 - `FINMIND_API_TOKEN`：可選，用於提高 FinMind 台股官方財報、月營收與法人資料抓取穩定度；未設定時仍會嘗試公開額度
 - `FRED_API_KEY`：可選，用於抓取 DGS10、CPI 年增率與 VIX；模組使用 15 分鐘記憶體快取以降低請求頻率
@@ -228,7 +228,7 @@ Production profile 請設定 `UNSTUCK_ENV=production` 或 `DEPLOYMENT_MODE=serve
 - `PROVIDER_RATE_LIMIT_COOLDOWN_SECONDS`：外部 provider 遇到限流 HTTP status 後的本機冷卻秒數，預設 `300`
 - `PROVIDER_RATE_LIMIT_STATUS_CODES`：會觸發 provider cooldown 的 HTTP status 清單，預設 `429,403,402`
 - `PROVIDER_PROXY_URLS`：共用外部 HTTP helper 的全域 proxy URL 池，逗號或空白分隔；空值表示不使用 proxy
-- `PROVIDER_PROXY_<PROVIDER>_URLS`：指定 provider 的 proxy URL 池，例如 `PROVIDER_PROXY_FMP_URLS`、`PROVIDER_PROXY_GOOGLE_SEARCH_URLS`、`PROVIDER_PROXY_GDELT_URLS`
+- `PROVIDER_PROXY_<PROVIDER>_URLS`：指定 provider 的 proxy URL 池，例如 `PROVIDER_PROXY_FMP_URLS`、`PROVIDER_PROXY_GDELT_URLS`
 - `GDELT_RATE_LIMIT_COOLDOWN_SECONDS`：GDELT 國際新聞遇到 HTTP 429 後的冷卻秒數，預設 `900`
 - GDELT 國際新聞會先使用 topic cache；遇到 429 時會進入 cooldown，優先讀快取，否則改用 Google News RSS 備援，避免單次分析連續打爆 GDELT
 
@@ -596,7 +596,6 @@ xattr -d com.apple.quarantine start_mac_lan.command
 ### 7. API key 每天什麼時候重置額度？
 
 - Gemini / Google AI：每日額度通常依 Google project 在 Pacific Time 00:00 重置，台灣時間會隨夏令時間約為 15:00 或 16:00。
-- Google Custom Search：每日 quota 也以 Pacific Time 00:00 為常見基準。
 - Financial Modeling Prep：FAQ 使用 3 PM EST 字樣，台灣時間約為隔日 04:00；若其系統依美東夏令時間運作，可能約為隔日 03:00。
 
 前端「API 額度」只顯示本機 `api_usage_events` 觀測到的 provider request；最終剩餘額度仍以 Google Cloud / AI Studio / FMP 後台為準。

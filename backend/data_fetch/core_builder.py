@@ -32,10 +32,6 @@ from .market_sources.http_enrichment import (
     fetch_fmp_news_catalysts,
     fetch_fmp_news_catalysts_async,
     fetch_fmp_quote_fallback,
-    fetch_google_peer_discovery_results,
-    fetch_google_peer_discovery_results_async,
-    fetch_google_search_catalysts,
-    fetch_google_search_catalysts_async,
     fetch_recent_catalysts,
     fetch_yfinance_news_catalysts,
 )

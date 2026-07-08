@@ -71,9 +71,9 @@ def test_alternative_search_uses_free_sources_for_catalysts(monkeypatch):
 def test_alternative_peer_discovery_uses_search_results(monkeypatch):
     import external_search_providers as search
 
-    async def fake_search(query, *, max_results=5, lookback_days=30):
+    async def fake_search(query, *, max_results=8, lookback_days=30):
         assert "global competitors" in query
-        assert max_results == 5
+        assert max_results == 8
         return [
             search.SearchResult(
                 title="Power peers include Eaton and Schneider",
@@ -150,7 +150,8 @@ def test_catalyst_search_retries_with_broader_company_query(monkeypatch):
 
     calls = []
 
-    async def fake_search(query, *, max_results=5, lookback_days=30):
+    async def fake_search(query, *, max_results=8, lookback_days=30):
+        assert max_results == 8
         calls.append(query)
         if len(calls) == 1:
             return []
@@ -175,14 +176,150 @@ def test_catalyst_search_retries_with_broader_company_query(monkeypatch):
     assert records[0]["title"] == "TSMC reports monthly revenue"
 
 
-def test_alternative_search_providers_are_registered_before_google():
+def test_web_search_expands_when_first_provider_lacks_source_diversity(monkeypatch):
+    import external_search_providers as search
+
+    calls = []
+    requested_sizes = {}
+
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+    async def fake_fetch(_client, provider, _query, *, max_results, lookback_days):
+        calls.append(provider)
+        requested_sizes[provider] = max_results
+        if provider == "tavily":
+            return [
+                search.SearchResult(
+                    title=f"台積電展望 same-source item {index}",
+                    snippet="台積電 revenue outlook",
+                    link=f"https://same.example/news/{index}",
+                    source="Same Source",
+                    provider="tavily",
+                )
+                for index in range(max_results)
+            ]
+        if provider == "google_news_rss":
+            return [
+                search.SearchResult(
+                    title="台積電展望 fresh independent item",
+                    snippet="台積電 revenue outlook",
+                    link="https://fresh.example/news",
+                    source="Fresh Source",
+                    provider="google_news_rss",
+                )
+            ]
+        return []
+
+    monkeypatch.setattr(search, "WEB_SEARCH_PROVIDER_ORDER", "tavily,google_news_rss,brave")
+    monkeypatch.setattr(search, "async_client", lambda: FakeClient())
+    monkeypatch.setattr(search, "_provider_configured", lambda provider: provider in {"tavily", "google_news_rss"})
+    monkeypatch.setattr(search, "_fetch_provider_results", fake_fetch)
+
+    records = asyncio.run(search.fetch_web_search_results_async("台積電 展望", max_results=5))
+
+    assert calls == ["tavily", "google_news_rss"]
+    assert requested_sizes["google_news_rss"] == 3
+    assert len(records) == 5
+    assert "fresh.example" in {search._result_source_key(record) for record in records}
+
+
+def test_web_search_expands_when_first_provider_lacks_relevant_results(monkeypatch):
+    import external_search_providers as search
+
+    calls = []
+
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+    async def fake_fetch(_client, provider, _query, *, max_results, lookback_days):
+        calls.append(provider)
+        if provider == "tavily":
+            return [
+                search.SearchResult(
+                    title=f"Unrelated sports item {index}",
+                    snippet="stadium match recap",
+                    link=f"https://sports-{index}.example/story",
+                    source=f"Sports Source {index}",
+                    provider="tavily",
+                )
+                for index in range(max_results)
+            ]
+        return [
+            search.SearchResult(
+                title=f"台積電展望 relevant item {index}",
+                snippet="台積電 revenue outlook and earnings catalyst",
+                link=f"https://finance-{index}.example/news",
+                source=f"Finance Source {index}",
+                provider=provider,
+            )
+            for index in range(max_results)
+        ]
+
+    monkeypatch.setattr(search, "WEB_SEARCH_PROVIDER_ORDER", "tavily,google_news_rss")
+    monkeypatch.setattr(search, "async_client", lambda: FakeClient())
+    monkeypatch.setattr(search, "_provider_configured", lambda provider: True)
+    monkeypatch.setattr(search, "_fetch_provider_results", fake_fetch)
+
+    records = asyncio.run(search.fetch_web_search_results_async("台積電 展望", max_results=5))
+
+    assert calls == ["tavily", "google_news_rss"]
+    assert records
+    assert all("sports" not in record.link for record in records[:3])
+
+
+def test_web_search_stops_when_first_provider_is_full_and_diverse(monkeypatch):
+    import external_search_providers as search
+
+    calls = []
+
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+    async def fake_fetch(_client, provider, _query, *, max_results, lookback_days):
+        calls.append(provider)
+        return [
+            search.SearchResult(
+                title=f"台積電展望 diverse item {index}",
+                snippet="台積電 revenue outlook",
+                link=f"https://source-{index}.example/news",
+                source=f"Source {index}",
+                provider=provider,
+            )
+            for index in range(max_results)
+        ]
+
+    monkeypatch.setattr(search, "WEB_SEARCH_PROVIDER_ORDER", "tavily,google_news_rss")
+    monkeypatch.setattr(search, "async_client", lambda: FakeClient())
+    monkeypatch.setattr(search, "_provider_configured", lambda provider: True)
+    monkeypatch.setattr(search, "_fetch_provider_results", fake_fetch)
+
+    records = asyncio.run(search.fetch_web_search_results_async("台積電 展望", max_results=5))
+
+    assert calls == ["tavily"]
+    assert len(records) == 5
+
+
+def test_custom_search_json_api_providers_are_not_registered():
     names = ProviderRegistry().provider_names(FetchRequest.from_ticker("2330.TW"), source="recent_catalysts")
     peer_names = ProviderRegistry().provider_names(FetchRequest.from_ticker("2330.TW"), source="peer_discovery")
 
     assert "Alternative Search" in names
-    assert names.index("Alternative Search") < names.index("Google Search")
+    assert "Google Search" not in names
     assert "Alternative Search" in peer_names
-    assert peer_names.index("Alternative Search") < peer_names.index("Google Search")
+    assert "Google Search" not in peer_names
 
 
 def test_default_search_provider_order_excludes_retired_bing(monkeypatch):
@@ -283,8 +420,6 @@ def test_legacy_optional_enrichment_merges_alternative_search(monkeypatch):
 
     monkeypatch.setattr(optional_enrichment, "fetch_alternative_search_catalysts_async", alternative_catalysts)
     monkeypatch.setattr(optional_enrichment, "fetch_alternative_peer_discovery_async", alternative_peers)
-    monkeypatch.setattr(optional_enrichment, "fetch_google_search_catalysts_async", empty)
-    monkeypatch.setattr(optional_enrichment, "fetch_google_peer_discovery_results_async", empty)
     monkeypatch.setattr(optional_enrichment, "fetch_fmp_news_catalysts_async", empty)
     monkeypatch.setattr(optional_enrichment, "cache_financial_payload", lambda *_args, **_kwargs: None)
 
@@ -305,3 +440,27 @@ def test_legacy_optional_enrichment_merges_alternative_search(monkeypatch):
     assert {"Alternative Search", "Recent catalysts providers", "Peer discovery providers"} <= {
         entry["provider"] for entry in result["source_audit"]
     }
+
+
+def test_optional_http_bundle_excludes_custom_search_json_api(monkeypatch):
+    import external_data_clients as clients
+
+    async def empty(*_args, **_kwargs):
+        return []
+
+    monkeypatch.setattr(clients, "fetch_alternative_search_catalysts_async", empty)
+    monkeypatch.setattr(clients, "fetch_alternative_peer_discovery_async", empty)
+    monkeypatch.setattr(clients, "fetch_fmp_news_catalysts_async", empty)
+
+    bundle = asyncio.run(
+        clients.fetch_optional_http_data_bundle(
+            "2330.TW",
+            "台積電",
+            {"official_name": "台積電"},
+            sector="Technology",
+            industry="Semiconductor",
+        )
+    )
+
+    assert "google_catalysts" not in bundle
+    assert "google_peer_discovery" not in bundle
