@@ -555,6 +555,106 @@ def test_ops_dashboard_api(monkeypatch):
     assert response.json()["status"] == "ok"
 
 
+def test_ops_dashboard_treats_enrichment_provider_critical_as_warning(monkeypatch):
+    monkeypatch.setattr(
+        api_observability_service,
+        "build_ops_dashboard_snapshot",
+        lambda **_kwargs: {
+            "jobs": {"active_count": 0},
+            "job_latency": {},
+            "stuck_jobs": {"count": 0, "jobs": []},
+            "node_telemetry": {},
+        },
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "snapshot_task_queue",
+        lambda _task_queue: {"backend": "rq", "available": True, "depth": 0, "registries": {"failed": 0}},
+    )
+
+    async def fake_provider_payload(*_args, **_kwargs):
+        return {
+            "selected_window": "last_24h",
+            "alerts": [
+                {
+                    "source": "recent_catalysts",
+                    "provider": "Google Search",
+                    "alert_level": "critical",
+                    "alert_message": "Google Search last_24h資料取得率偏低",
+                }
+            ],
+        }
+
+    async def fake_api_quota_payload(_summary_fetcher):
+        return {"services": []}
+
+    monkeypatch.setattr(api_observability_service, "build_provider_sla_payload", fake_provider_payload)
+    monkeypatch.setattr(api_observability_service, "build_api_quota_payload", fake_api_quota_payload)
+
+    payload = asyncio.run(
+        api_observability_service.build_ops_dashboard_payload(
+            lambda _limit: [],
+            lambda _limit: [],
+            task_queue=object(),
+        )
+    )
+
+    assert payload["status"] == "warning"
+    assert payload["providers"]["core_critical_count"] == 0
+    assert payload["providers"]["enrichment_critical_count"] == 1
+    assert payload["providers"]["alerts"][0]["impact"] == "enrichment"
+
+
+def test_ops_dashboard_keeps_core_provider_critical_as_critical(monkeypatch):
+    monkeypatch.setattr(
+        api_observability_service,
+        "build_ops_dashboard_snapshot",
+        lambda **_kwargs: {
+            "jobs": {"active_count": 0},
+            "job_latency": {},
+            "stuck_jobs": {"count": 0, "jobs": []},
+            "node_telemetry": {},
+        },
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "snapshot_task_queue",
+        lambda _task_queue: {"backend": "rq", "available": True, "depth": 0, "registries": {"failed": 0}},
+    )
+
+    async def fake_provider_payload(*_args, **_kwargs):
+        return {
+            "selected_window": "last_24h",
+            "alerts": [
+                {
+                    "source": "market_data",
+                    "provider": "yfinance",
+                    "alert_level": "critical",
+                    "alert_message": "yfinance last_24h資料取得率偏低",
+                }
+            ],
+        }
+
+    async def fake_api_quota_payload(_summary_fetcher):
+        return {"services": []}
+
+    monkeypatch.setattr(api_observability_service, "build_provider_sla_payload", fake_provider_payload)
+    monkeypatch.setattr(api_observability_service, "build_api_quota_payload", fake_api_quota_payload)
+
+    payload = asyncio.run(
+        api_observability_service.build_ops_dashboard_payload(
+            lambda _limit: [],
+            lambda _limit: [],
+            task_queue=object(),
+        )
+    )
+
+    assert payload["status"] == "critical"
+    assert payload["providers"]["core_critical_count"] == 1
+    assert payload["providers"]["enrichment_critical_count"] == 0
+    assert payload["providers"]["alerts"][0]["impact"] == "core"
+
+
 def test_ops_dashboard_legacy_alias(monkeypatch):
     async def fake_dashboard_payload(*_args, **_kwargs):
         return {"status": "ok", "jobs": {"active_count": 0}, "queue": {"available": True}}

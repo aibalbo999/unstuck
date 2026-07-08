@@ -189,7 +189,7 @@ def test_mode_d_report_preview_uses_trade_setup_snapshot(tmp_path, monkeypatch):
 
     preview = result["reports"][0]["preview"]
     assert preview["kind"] == "swing_trade"
-    assert preview["title"] == "2449 極短線交易預覽"
+    assert preview["title"] == "2449.TW 極短線交易預覽"
     assert preview["primary"] == {"label": "交易方向", "value": "偏多 Long", "tone": "is-long"}
     assert [item["label"] for item in preview["metrics"]] == ["當日股價", "風險"]
     assert [item["label"] for item in preview["targets"]] == ["進場區間", "1-2週目標", "停損"]
@@ -482,8 +482,52 @@ def test_get_reports_recovers_company_name_from_snapshot_when_index_has_ticker(t
         sync_metadata=False,
     )
 
-    assert reports[0]["ticker"] == "2449"
+    assert reports[0]["ticker"] == "2449.TW"
     assert reports[0]["company_name"] == "京元電子"
+
+
+def test_report_index_uses_snapshot_ticker_for_legacy_unsuffixed_filename(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
+    filename = "3131_v3_report_20260701_010000.html"
+    write_report_pair(tmp_path, filename, "持有")
+    snapshot = {
+        "ticker": "3131.TWO",
+        "pipeline": "v3",
+        "generated_at": "2026-07-01T01:00:00+00:00",
+        "data_trust": {
+            "status": "fresh",
+            "critical_failures": [],
+            "stale_sources": [],
+            "notes": [],
+        },
+        "source_audit": [],
+        "data": {
+            "data_schema_version": 4,
+            "ticker": "3131.TWO",
+            "company_name": "弘塑",
+            "current_price": 100,
+            "source_freshness": {},
+            "source_audit": [],
+        },
+    }
+    (tmp_path / filename.replace(".html", ".data.json")).write_text(
+        json.dumps(snapshot, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    report_index.upsert_report_metadata(filename, output_dir=str(tmp_path))
+    reports, _ = report_index.query_report_metadata(
+        page=1,
+        limit=10,
+        output_dir=str(tmp_path),
+        sync_metadata=False,
+    )
+
+    assert reports[0]["ticker"] == "3131.TWO"
+    with report_index._connect() as conn:
+        row = conn.execute("SELECT search_text FROM reports WHERE filename = ?", (filename,)).fetchone()
+    assert "3131.two" in row["search_text"]
 
 
 def test_report_compare_api_returns_decision_and_tracking_deltas(tmp_path, monkeypatch):

@@ -124,6 +124,26 @@
         }
         return `<span class="history-action-badge is-${tone}" title="${escapeHtml(detail)}">${escapeHtml(label)}</span>`;
     }
+    function trackingActionNote(report, escapeHtml) {
+        const freshness = report?.decision_freshness || {};
+        const status = report?.data_trust?.status || 'unknown';
+        let label = '';
+        let tone = '';
+        let detail = '';
+        if (report?.analysis_text_stale || freshness.requires_rerun || report?.requires_rerun) {
+            label = '需完整重跑';
+            tone = 'critical';
+            detail = freshness.message
+                || freshness.requires_rerun_reason
+                || report.analysis_text_stale_message
+                || '資料快照已刷新，投資結論需要完整重跑。';
+        } else if (hasRefreshableDataTrustIssue(report) || status === 'partial') {
+            label = '需刷新資料';
+            tone = 'warning';
+            detail = '先刷新資料快照，再用追蹤結果做決策。';
+        }
+        return label ? `<span class="tracking-action-note is-${tone}" title="${escapeHtml(detail)}">${escapeHtml(label)}</span>` : '';
+    }
     function trackingPipelineLabel(report) {
         if (window.StockAgentUi?.pipelineModeLabel && report?.pipeline_id) {
             return window.StockAgentUi.pipelineModeLabel(report.pipeline_id);
@@ -228,6 +248,7 @@
                     <div class="tracking-report-cell tracking-report-head">
                         <strong>${escapeHtml(pipelineLabel)}</strong>
                         <span class="tracking-report-date">${escapeHtml(report.date || '')}</span>
+                        ${trackingActionNote(report, escapeHtml)}
                     </div>
                     <div class="tracking-report-line tracking-report-metrics">
                         <span class="tracking-recommendation ${primaryTone}">${escapeHtml(swingTrade ? primaryValue : options.normalizeRecommendation(primaryValue))}</span>

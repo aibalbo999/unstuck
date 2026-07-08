@@ -7,7 +7,7 @@
                     .filter(report => report && report.filename)
                     .map(report => ({ ...report, tracking_item: item }));
                 return {
-                    ticker: item.ticker,
+                    ticker: reports.find(report => report.ticker)?.ticker || item.ticker,
                     company_name: reports[0]?.company_name || item.company_name || '',
                     tracking_item: item,
                     reports

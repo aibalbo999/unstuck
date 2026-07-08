@@ -11,6 +11,7 @@
         monthly_revenue: '影響台股月營收判讀', institutional_trading: '影響法人籌碼判讀',
         dynamic_peer_metrics: '影響同業財務與估值指標', pe_river_chart: '影響本益比區間參考'
     };
+    const CORE_ANALYSIS_SOURCES = new Set(['market_data', 'financial_statements', 'monthly_revenue', 'institutional_trading', 'twse_official', 'dynamic_peer_metrics', 'pe_river_chart']);
     const LEVEL_WEIGHT = { ok: 0, warning: 1, critical: 2 };
     const EXPECTED_CONTEXT_SOURCES = [
         { source: 'global_market_context', provider: 'yfinance global context', message: '尚未建立檢查樣本；下一次新分析或重新抓取後會更新全球市場脈絡。' },
@@ -57,14 +58,16 @@
         return SOURCE_IMPACT[source] || '影響部分補充資料';
     }
 
-    function stateLabel(level) {
-        if (level === 'critical') return '可能影響分析';
+    function sourceIsCore(source) { return CORE_ANALYSIS_SOURCES.has(source); }
+
+    function stateLabel(level, source) {
+        if (level === 'critical') return sourceIsCore(source) ? '核心資料可能影響分析' : '補充資料不穩';
         if (level === 'warning') return '需要留意';
         return '可安心使用';
     }
     function rowStateLabel(row) {
         if (row.level === 'ok' && !row.attempts) return '無檢查樣本';
-        return stateLabel(row.level);
+        return stateLabel(row.level, row.source);
     }
 
     function groupedProviderRows(providers, selectedWindow) {
@@ -121,9 +124,9 @@
     function summaryText(rows, windowLabel, providers) {
         if (!providers.length) return `正式分析流程 · ${windowLabel} · 尚未建立全系統來源紀錄`;
         if (rows.length && rows.every(row => !row.attempts)) return `正式分析流程 · ${windowLabel} · 尚無檢查樣本，請查看 24 小時或全部紀錄`;
-        const critical = rows.filter(row => row.level === 'critical').length;
-        const warning = rows.filter(row => row.level === 'warning').length;
-        if (critical) return `正式分析流程 · ${windowLabel} · ${critical} 類資料可能影響分析，建議稍後重試`;
+        const coreCritical = rows.filter(row => row.level === 'critical' && sourceIsCore(row.source)).length, enrichmentCritical = rows.filter(row => row.level === 'critical' && !sourceIsCore(row.source)).length, warning = rows.filter(row => row.level === 'warning').length;
+        if (coreCritical) return `正式分析流程 · ${windowLabel} · ${coreCritical} 類核心資料可能影響分析，建議稍後重試`;
+        if (enrichmentCritical) return `正式分析流程 · ${windowLabel} · ${enrichmentCritical} 類補充資料不穩，核心分析仍可進行；需要完整題材或同業資料時再重試`;
         if (warning) return `正式分析流程 · ${windowLabel} · ${warning} 類資料近期不穩，分析時會使用有效快取或備援來源`;
         return `正式分析流程 · ${windowLabel} · 資料抓取穩定，可放心分析`;
     }
@@ -131,7 +134,8 @@
     function insightText(row) {
         if (!row.attempts && row.expectedContext) return '尚未建立檢查樣本；下一次新分析或重新抓取後會更新。';
         if (!row.attempts) return '這段時間還沒有用到這類資料。';
-        if (row.level === 'critical') return `${sourceImpact(row.source)}，這次分析可能需要稍後重跑。`;
+        if (row.level === 'critical' && sourceIsCore(row.source)) return `${sourceImpact(row.source)}，這次分析可能需要稍後重跑。`;
+        if (row.level === 'critical') return `${sourceImpact(row.source)}；核心分析仍可進行，需要完整補充脈絡時再稍後重試。`;
         if (row.level === 'warning') return `${sourceImpact(row.source)}；近期偶有失敗，分析時會先使用仍有效的快取，必要時嘗試備援來源。`;
         return `${sourceImpact(row.source)}，最近抓取順利。`;
     }
@@ -198,12 +202,5 @@
             : '<span class="provider-sla-chip is-ok">下一次分析後會更新全系統資料來源狀態</span>';
     }
 
-    window.StockAgentProviderSlaPanel = {
-        render,
-        providerSlaStatsForWindow,
-        providerSlaWindowLabel,
-        groupedProviderRows,
-        mergeExpectedContextRows,
-        visibleProviderRows
-    };
+    window.StockAgentProviderSlaPanel = { render, providerSlaStatsForWindow, providerSlaWindowLabel, groupedProviderRows, mergeExpectedContextRows, visibleProviderRows, sourceIsCore };
 })();

@@ -56,7 +56,7 @@
                 if (elements.providerSlaRefresh) elements.providerSlaRefresh.disabled = true;
                 const payload = await apiClient.fetchProviderSla({
                     windowValue: elements.providerSlaWindow ? elements.providerSlaWindow.value || 'all' : 'all',
-                    limit: 12
+                    limit: 100
                 });
                 renderProviderSla(payload);
             } catch (err) {

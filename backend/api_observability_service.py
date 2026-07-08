@@ -10,12 +10,14 @@ from typing import Any
 
 from provider_sla import SLA_CRITICAL_SUCCESS_RATE, SLA_WARNING_SUCCESS_RATE
 from api_quota_service import build_api_quota_payload as _build_api_quota_payload
+from data_trust_constants import CORE_DATA_SOURCES
 from free_mode_contract import build_free_mode_contract
 from job_observability import build_active_jobs_snapshot, build_ops_dashboard_snapshot
 from queue_observability import snapshot_task_queue
 
 
 VALID_SLA_WINDOWS = {"all", "last_1h", "last_24h", "last_7d"}
+CORE_PROVIDER_ALERT_SOURCES = set(CORE_DATA_SOURCES)
 
 
 def normalize_sla_window(window: str) -> str:
@@ -201,8 +203,9 @@ async def build_ops_dashboard_payload(
         build_api_quota_payload(summary_fetcher),
         asyncio.to_thread(snapshot_task_queue, task_queue),
     )
-    alerts = providers.get("alerts", [])
+    alerts = [_with_provider_alert_impact(alert) for alert in providers.get("alerts", [])]
     status = _dashboard_status(jobs=jobs, queue=queue, provider_alerts=alerts)
+    provider_counts = _provider_alert_counts(alerts)
     return {
         "status": status,
         "generated_at": time.time(),
@@ -214,7 +217,7 @@ async def build_ops_dashboard_payload(
         "queue": queue,
         "providers": {
             "selected_window": providers.get("selected_window"),
-            "alert_count": len(alerts),
+            **provider_counts,
             "alerts": alerts,
         },
         "api_quotas": api_quotas,
@@ -239,13 +242,44 @@ def _free_mode_dashboard_summary() -> dict:
 def _dashboard_status(*, jobs: dict, queue: dict, provider_alerts: list[dict]) -> str:
     if not queue.get("available"):
         return "critical"
-    if any(alert.get("alert_level") == "critical" for alert in provider_alerts):
+    if any(
+        alert.get("alert_level") == "critical" and alert.get("impact") == "core"
+        for alert in provider_alerts
+    ):
         return "critical"
     if int((jobs.get("stuck_jobs") or {}).get("count") or 0) > 0:
         return "warning"
     if provider_alerts:
         return "warning"
     return "ok"
+
+
+def _with_provider_alert_impact(alert: dict) -> dict:
+    copied = dict(alert)
+    copied["impact"] = "core" if _is_core_provider_alert(alert) else "enrichment"
+    return copied
+
+
+def _is_core_provider_alert(alert: dict) -> bool:
+    return str(alert.get("source") or "") in CORE_PROVIDER_ALERT_SOURCES
+
+
+def _provider_alert_counts(alerts: list[dict]) -> dict:
+    critical = [alert for alert in alerts if alert.get("alert_level") == "critical"]
+    warning = [alert for alert in alerts if alert.get("alert_level") == "warning"]
+    core = [alert for alert in alerts if alert.get("impact") == "core"]
+    enrichment = [alert for alert in alerts if alert.get("impact") != "core"]
+    core_critical = [alert for alert in core if alert.get("alert_level") == "critical"]
+    enrichment_critical = [alert for alert in enrichment if alert.get("alert_level") == "critical"]
+    return {
+        "alert_count": len(alerts),
+        "critical_count": len(critical),
+        "warning_count": len(warning),
+        "core_alert_count": len(core),
+        "core_critical_count": len(core_critical),
+        "enrichment_alert_count": len(enrichment),
+        "enrichment_critical_count": len(enrichment_critical),
+    }
 
 
 def _labels(**labels: Any) -> str:

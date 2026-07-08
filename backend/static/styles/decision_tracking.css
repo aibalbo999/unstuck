@@ -17,6 +17,9 @@
 .decision-tracking-stock-snapshot-panel { margin: 0; max-height: 78vh; overflow: auto; width: 100%; }
 .tracking-report-head { display: grid; gap: 2px; font-size: 0.64rem; font-weight: 900; }
 .tracking-report-date { overflow: visible; text-overflow: clip; white-space: nowrap; }
+.tracking-action-note { width: fit-content; max-width: 100%; display: inline-flex; align-items: center; border: 1px solid rgba(148, 163, 184, 0.24); border-radius: 4px; padding: 1px 4px; font-size: 0.58rem; font-weight: 900; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tracking-action-note.is-critical { color: #fca5a5; border-color: rgba(239, 68, 68, 0.5); background: rgba(185, 28, 28, 0.18); }
+.tracking-action-note.is-warning { color: #fde68a; border-color: rgba(245, 158, 11, 0.5); background: rgba(180, 83, 9, 0.2); }
 .tracking-report-line { display: grid; gap: 2px; color: var(--text-secondary); font-size: 0.62rem; font-weight: 800; font-variant-numeric: tabular-nums; }
 .tracking-latest-price { color: var(--text-primary); font-size: 0.78rem; }
 .tracking-recommendation { display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; padding: 2px 4px; font-size: 0.62rem; font-weight: 800; line-height: 1; color: var(--text-secondary); background: rgba(255, 255, 255, 0.08); }

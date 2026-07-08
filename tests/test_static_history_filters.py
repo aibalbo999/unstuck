@@ -2027,6 +2027,106 @@ process.stdout.write(table.innerHTML);
     assert "尚無法比較目標" not in result.stdout
 
 
+def test_tracking_card_surfaces_full_rerun_action_when_snapshot_outpaces_conclusion():
+    history_panel_path = STATIC_DIR / "history_panel.js"
+    script = """
+global.window = {};
+require(__HISTORY_PANEL_PATH__);
+const table = { hidden: false, innerHTML: '', classList: { toggle() {} } };
+const panel = window.StockAgentHistoryPanel.create({
+  listEl: null,
+  trackingTableEl: table,
+  paginationEl: null,
+  prevBtn: null,
+  nextBtn: null,
+  pageInfoEl: null,
+  escapeHtml: value => String(value ?? ''),
+  normalizeRecommendation: value => String(value ?? ''),
+  renderPipelineModeBadge: () => '',
+  renderDataTrustBadge: () => '',
+  renderDataTrustReason: () => '',
+  recommendationTone: () => ''
+});
+panel.renderTrackingGroups([{
+  ticker: '1623.TW',
+  company_name: '大東電',
+  reports: [{
+    filename: '1623_v1_report_job_stale.html',
+    ticker: '1623.TW',
+    company_name: '大東電',
+    pipeline_id: 'v1',
+    date: '2026-07-03 20:58',
+    analysis_text_stale: true,
+    decision_freshness: {
+      requires_rerun: true,
+      message: '資料快照已刷新，但 HTML/Markdown 分析本文未重新執行。'
+    },
+    recommendation: { recommendation: '持有' },
+    decision_tracking: {
+      status: 'tracked',
+      recommendation: '持有',
+      latest_price: 230.5,
+      return_pct: 7.7,
+      tracking_summary_status: '高於6月目標',
+      target_comparisons: {
+        target_3m: { status: 'above_target', target: 174.5 },
+        target_6m: { status: 'above_target', target: 214 },
+        target_12m: { status: 'below_target', target: 318.5 }
+      }
+    }
+  }]
+}]);
+process.stdout.write(table.innerHTML);
+""".replace("__HISTORY_PANEL_PATH__", json.dumps(str(history_panel_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+
+    assert "需完整重跑" in result.stdout
+    assert "tracking-action-note is-critical" in result.stdout
+    assert "資料快照已刷新" in result.stdout
+
+
+def test_decision_tracking_groups_prefer_full_report_ticker_for_display():
+    decision_tracking_path = STATIC_DIR / "decision_tracking_panel.js"
+    script = """
+global.window = {};
+require(__DECISION_TRACKING_PATH__);
+let renderedGroups = [];
+const panel = window.StockAgentDecisionTrackingPanel.create({
+  apiClient: {
+    async fetchDecisionTracking() {
+      return {
+        items: [{
+          ticker: '1623',
+          enabled: true,
+          company_name: '大東電',
+          latest_report: {
+            filename: '1623_TW_v1_report.html',
+            ticker: '1623.TW',
+            company_name: '大東電',
+            decision_tracking: { status: 'tracked' }
+          },
+          latest_reports: [{
+            filename: '1623_TW_v1_report.html',
+            ticker: '1623.TW',
+            company_name: '大東電',
+            decision_tracking: { status: 'tracked' }
+          }]
+        }]
+      };
+    }
+  },
+  historyPanel: { renderTrackingGroups(groups) { renderedGroups = groups; } },
+  elements: {},
+  onChange: () => {}
+});
+panel.load().then(() => process.stdout.write(JSON.stringify(renderedGroups)));
+""".replace("__DECISION_TRACKING_PATH__", json.dumps(str(decision_tracking_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert payload[0]["ticker"] == "1623.TW"
+
+
 def test_report_preview_panel_renders_mode_specific_preview_metrics():
     report_preview_path = STATIC_DIR / "report_preview_panel.js"
     script = """
@@ -2532,6 +2632,23 @@ def test_provider_sla_shows_global_context_sources_before_first_sample():
     assert "尚未建立檢查樣本" in provider_sla_js
 
 
+def test_provider_sla_copy_distinguishes_core_and_enrichment_critical_sources():
+    provider_sla_js = (STATIC_DIR / "provider_sla_panel.js").read_text(encoding="utf-8")
+
+    assert "CORE_ANALYSIS_SOURCES" in provider_sla_js
+    assert "sourceIsCore" in provider_sla_js
+    assert "核心資料可能影響分析" in provider_sla_js
+    assert "補充資料不穩" in provider_sla_js
+    assert "核心分析仍可進行" in provider_sla_js
+
+
+def test_ops_provider_sla_loads_enough_rows_for_whole_system_status():
+    ops_workspace_js = (STATIC_DIR / "ops_workspace.js").read_text(encoding="utf-8")
+
+    assert "limit: 100" in ops_workspace_js
+    assert "limit: 12" not in ops_workspace_js
+
+
 def test_decision_tracking_controls_and_target_statuses_are_wired():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     app_js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
@@ -2665,10 +2782,13 @@ def test_decision_tracking_dense_layout_uses_workspace_efficiently():
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
 
     assert "style.css?v=20260707-operator-human-factors" in index_html
-    assert "/static/history_panel.js?v=20260705-tracking-snapshot" in index_html
+    assert "/static/provider_sla_panel.js?v=20260708-provider-impact" in index_html
+    assert "/static/ops_workspace.js?v=20260708-provider-impact" in index_html
+    assert "/static/history_panel.js?v=20260708-tracking-action-notes" in index_html
+    assert "/static/decision_tracking_panel.js?v=20260708-tracking-action-notes" in index_html
     assert "/static/report_preview_panel.js?v=20260627-mode-aware-preview" in index_html
     assert "preview_panel.css?v=20260627-mode-aware-preview" in style_css
-    assert "decision_tracking.css?v=20260705-tracking-snapshot" in style_css
+    assert "decision_tracking.css?v=20260708-tracking-action-notes" in style_css
     assert "history_shell.css?v=20260707-operator-human-factors" in style_css
     assert "responsive.css?v=20260705-commercial-launchpad2" in style_css
     assert "max-width: min(1360px, 100%)" in base_css

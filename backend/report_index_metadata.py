@@ -72,6 +72,33 @@ def read_snapshot_report_flags(data_snapshot_path: str) -> dict:
     }
 
 
+def read_snapshot_ticker(data_snapshot_path: str, fallback_ticker: str) -> str:
+    if not os.path.exists(data_snapshot_path):
+        return fallback_ticker
+    try:
+        with open(data_snapshot_path, "r", encoding="utf-8") as f:
+            snapshot = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return fallback_ticker
+    data = snapshot.get("data") if isinstance(snapshot.get("data"), dict) else {}
+    candidates = [
+        snapshot.get("ticker"),
+        snapshot.get("resolved_ticker"),
+        data.get("ticker"),
+        data.get("resolved_ticker"),
+    ]
+    fallback_base = _ticker_base(fallback_ticker)
+    for candidate in candidates:
+        value = str(candidate or "").strip()
+        if value and _ticker_base(value) == fallback_base:
+            return value
+    return fallback_ticker
+
+
+def _ticker_base(ticker: str) -> str:
+    return str(ticker or "").split(".", 1)[0].strip().upper()
+
+
 def build_report_metadata(
     filename: str,
     output_dir: Optional[str] = None,
@@ -92,14 +119,15 @@ def build_report_metadata(
     html_mtime = safe_mtime(html_path) or time.time()
     file_mtime = max(html_mtime, report_index_mtime(out_dir, filename))
 
-    company_name = _extract_company_name(filename, parsed["ticker"], out_dir, html_content)
+    data_snapshot_filename = data_snapshot_filename_for_report(filename)
+    data_snapshot_path = _report_path(out_dir, filename, kind="data")
+    ticker = read_snapshot_ticker(data_snapshot_path, parsed["ticker"])
+    company_name = _extract_company_name(filename, ticker, out_dir, html_content)
     recommendation = parse_recommendation_summary(
         filename,
         output_dir=out_dir,
         markdown_text=markdown_content,
     )
-    data_snapshot_filename = data_snapshot_filename_for_report(filename)
-    data_snapshot_path = _report_path(out_dir, filename, kind="data")
     report_date = normalize_report_display_date(parsed["date"], snapshot_path=data_snapshot_path, timestamp=html_mtime)
     data_trust_summary = (
         normalize_data_trust(data_trust)
@@ -118,7 +146,7 @@ def build_report_metadata(
     normalized_recommendation = normalize_recommendation_label(recommendation.get("recommendation"))
     search_text = " ".join([
         filename,
-        parsed["ticker"],
+        ticker,
         company_name,
         str(recommendation.get("recommendation", "")),
     ]).lower()
@@ -127,7 +155,7 @@ def build_report_metadata(
         "output_dir": out_dir,
         "filename": filename,
         "md_filename": filename[:-5] + ".md",
-        "ticker": parsed["ticker"],
+        "ticker": ticker,
         "company_name": company_name,
         "date": report_date,
         "timestamp": html_mtime,
