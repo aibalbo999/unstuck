@@ -23,6 +23,22 @@ def test_secret_scan_catches_provider_keys(tmp_path):
     assert "leaked.env" in result.stdout
 
 
+def test_secret_scan_catches_google_ai_studio_auth_keys(tmp_path):
+    sample = tmp_path / "leaked.env"
+    sample.write_text("GEMINI_API_KEY_1=AQ." + ("A" * 50) + "\n", encoding="utf-8")
+
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), str(sample)],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "possible_google_api_key" in result.stdout
+    assert "leaked.env" in result.stdout
+
+
 def test_secret_scan_allows_placeholders(tmp_path):
     sample = tmp_path / "example.env"
     sample.write_text(

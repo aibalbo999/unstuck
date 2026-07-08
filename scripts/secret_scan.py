@@ -34,7 +34,7 @@ PLACEHOLDER_MARKERS = {
     "test-only",
 }
 PATTERNS = [
-    ("possible_google_api_key", re.compile(r"AIza[0-9A-Za-z_-]{30,}")),
+    ("possible_google_api_key", re.compile(r"(?:AIza[0-9A-Za-z_-]{30,}|AQ\.[0-9A-Za-z_-]{40,})")),
     ("possible_openai_api_key", re.compile(r"sk-[0-9A-Za-z_-]{24,}")),
     ("possible_anthropic_api_key", re.compile(r"sk-ant-[0-9A-Za-z_-]{24,}")),
     (
