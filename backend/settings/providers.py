@@ -9,16 +9,26 @@ from .env import is_placeholder_key, load_local_env, split_keys
 
 def _load_keys(env_names: tuple[str, ...], numbered_prefixes: tuple[str, ...]) -> list[str]:
     load_local_env()
-    keys = []
+    keys = _load_numbered_keys(numbered_prefixes)
     for env_name in env_names:
         keys.extend(split_keys(os.getenv(env_name, "")))
 
-    for i in range(1, 11):
-        key = next((os.getenv(f"{prefix}_{i}") for prefix in numbered_prefixes if os.getenv(f"{prefix}_{i}")), None)
-        if key:
-            keys.append(key.strip())
-
     return [key for key in dict.fromkeys(keys) if not is_placeholder_key(key)]
+
+
+def _load_numbered_keys(prefixes: tuple[str, ...]) -> list[str]:
+    indexes = set()
+    for env_name in os.environ:
+        for prefix in prefixes:
+            marker = f"{prefix}_"
+            if env_name.startswith(marker) and env_name[len(marker) :].isdigit():
+                indexes.add(int(env_name[len(marker) :]))
+
+    keys = []
+    for index in sorted(indexes):
+        raw = next((os.getenv(f"{prefix}_{index}", "") for prefix in prefixes if os.getenv(f"{prefix}_{index}")), "")
+        keys.extend(split_keys(raw))
+    return keys
 
 
 def _load_api_keys() -> list[str]:
@@ -59,8 +69,9 @@ def has_api_keys() -> bool:
 
 
 API_KEY_SETUP_MESSAGE = (
-    "未設定 LLM API key。請設定 GEMINI_API_KEYS / GOOGLE_API_KEYS，"
-    "或為跨供應商 fallback 設定 OPENAI_API_KEYS / ANTHROPIC_API_KEYS。"
+    "未設定 LLM API key。請設定 GEMINI_API_KEY_1 / GOOGLE_API_KEY_1 等序號格式，"
+    "或使用 legacy GEMINI_API_KEYS / GOOGLE_API_KEYS；跨供應商 fallback 可設定 "
+    "OPENAI_API_KEYS / ANTHROPIC_API_KEYS。"
 )
 
 

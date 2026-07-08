@@ -18,6 +18,7 @@ from .provider_registry import ProviderRegistry
 from .types import FetchRequest, ProviderResult
 from . import workflow_cache as _workflow_cache
 from .workflow_cache import fallback_cached_payload, fresh_cached_payload, schema_compatible_cached_payload
+from .market_sources.identity import is_taiwan_ticker
 from .market_sources.http_enrichment import fetch_fmp_news_catalysts_async
 from .yfinance_snapshot import fetch_stock_data_from_snapshot
 
@@ -149,7 +150,7 @@ async def _run_optional_provider_plan(request: FetchRequest, registry: ProviderR
     fmp_news_records = provider_value(provider_results, "recent_catalysts", "FMP news")
     async_audit_entries = _audit_entries_from_provider_results(provider_results)
 
-    if refresh_catalysts and resolved_ticker != ticker and not fmp_news_records:
+    if refresh_catalysts and resolved_ticker != ticker and not is_taiwan_ticker(resolved_ticker) and not fmp_news_records:
         from config import FMP_API_KEY
         if FMP_API_KEY:
             retry_result = await audited_fetch_async(
@@ -159,6 +160,7 @@ async def _run_optional_provider_plan(request: FetchRequest, registry: ProviderR
                 (resolved_ticker,),
                 default=[],
                 cache_hit=cache_hit,
+                empty_status="degraded_enrichment",
                 unavailable_message="FMP news retry 未回傳近期新聞。",
             )
             fmp_news_records = retry_result.get("value") if isinstance(retry_result.get("value"), list) else []

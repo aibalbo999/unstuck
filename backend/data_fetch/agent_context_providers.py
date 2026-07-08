@@ -89,7 +89,7 @@ class AlternativeJobOpeningsProvider(DataProvider):
     capabilities = {"alternative_data", "job_openings"}
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
-        from data_trust import AUDIT_STATUS_NOT_CONFIGURED, AUDIT_STATUS_SUCCESS, AUDIT_STATUS_UNAVAILABLE
+        from data_trust import AUDIT_STATUS_DEGRADED_ENRICHMENT, AUDIT_STATUS_SUCCESS
         from alternative_data_fetcher import fetch_104_job_openings_count, fetch_1111_job_openings_count
 
         data = (context or {}).get("data", {}) if isinstance((context or {}).get("data"), dict) else {}
@@ -100,21 +100,7 @@ class AlternativeJobOpeningsProvider(DataProvider):
         else:
             keywords = [str(keyword).strip() for keyword in list(raw_keywords or []) if str(keyword).strip()]
         if not keywords:
-            return ProviderResult(
-                source=self.source,
-                provider=self.name,
-                status=AUDIT_STATUS_NOT_CONFIGURED,
-                value=None,
-                audit={
-                    "source": self.source,
-                    "provider": self.name,
-                    "status": AUDIT_STATUS_NOT_CONFIGURED,
-                    "record_count": 0,
-                    "cache_hit": False,
-                    "stale": False,
-                    "message": "alternative_data_keywords 未設定，略過職缺探測。",
-                },
-            )
+            keywords = _default_job_opening_keywords(data)
 
         results_104 = [fetch_104_job_openings_count(company_name, keyword) for keyword in keywords[:3]]
         results_1111 = [fetch_1111_job_openings_count(company_name, keyword) for keyword in keywords[:3]]
@@ -122,7 +108,7 @@ class AlternativeJobOpeningsProvider(DataProvider):
         successful_104 = [item for item in results_104 if isinstance(item, dict) and item.get("status") == "success"]
         successful_1111 = [item for item in results_1111 if isinstance(item, dict) and item.get("status") == "success"]
         
-        status = AUDIT_STATUS_SUCCESS if (successful_104 or successful_1111) else AUDIT_STATUS_UNAVAILABLE
+        status = AUDIT_STATUS_SUCCESS if (successful_104 or successful_1111) else AUDIT_STATUS_DEGRADED_ENRICHMENT
         value = {
             "job_openings_104": successful_104[0] if len(successful_104) == 1 else results_104,
             "job_openings_1111": successful_1111[0] if len(successful_1111) == 1 else results_1111,
@@ -139,7 +125,7 @@ class AlternativeJobOpeningsProvider(DataProvider):
                 "record_count": len(successful_104) + len(successful_1111),
                 "cache_hit": False,
                 "stale": False,
-                "message": "職缺探測 (含新聞備援) 已回傳。" if status == AUDIT_STATUS_SUCCESS else "職缺探測未回傳可用結果。",
+                "message": "職缺探測 (含新聞備援) 已回傳。" if status == AUDIT_STATUS_SUCCESS else "職缺探測本次無新增資料。",
             },
         )
 
@@ -152,7 +138,7 @@ class SocialSentimentProvider(DataProvider):
     capabilities = {"social_sentiment"}
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
-        from data_trust import AUDIT_STATUS_SUCCESS, AUDIT_STATUS_UNAVAILABLE
+        from data_trust import AUDIT_STATUS_DEGRADED_ENRICHMENT, AUDIT_STATUS_SUCCESS
         from news_fetchers import fetch_google_news_rss, fetch_ptt_stock_sentiment
 
         data = (context or {}).get("data", {}) if isinstance((context or {}).get("data"), dict) else {}
@@ -189,7 +175,7 @@ class SocialSentimentProvider(DataProvider):
         }
         
         total_records = len(dcard_news) + len(m01_news) + len(pttweb_news) + len(ptt_direct)
-        status = AUDIT_STATUS_SUCCESS if total_records > 0 else AUDIT_STATUS_UNAVAILABLE
+        status = AUDIT_STATUS_SUCCESS if total_records > 0 else AUDIT_STATUS_DEGRADED_ENRICHMENT
         
         return ProviderResult(
             source=self.source,
@@ -203,9 +189,20 @@ class SocialSentimentProvider(DataProvider):
                 "record_count": total_records,
                 "cache_hit": False,
                 "stale": False,
-                "message": "社群論壇討論串已回傳。" if status == AUDIT_STATUS_SUCCESS else "近期無相關社群論壇討論。",
+                "message": "社群論壇討論串已回傳。" if status == AUDIT_STATUS_SUCCESS else "近期無相關社群論壇討論，已視為可接受空結果。",
             },
         )
+
+
+def _default_job_opening_keywords(data: dict) -> list[str]:
+    signature = f"{data.get('sector') or ''} {data.get('industry') or ''}".lower()
+    if any(token in signature for token in ("semiconductor", "hardware", "software", "technology", "電子", "半導體", "科技")):
+        return ["工程師"]
+    if any(token in signature for token in ("finance", "bank", "insurance", "金融", "銀行", "保險")):
+        return ["業務"]
+    if any(token in signature for token in ("retail", "consumer", "餐飲", "零售", "消費")):
+        return ["門市"]
+    return ["營運"]
 
 
 def _taiwan_stock_id(value: object) -> str:

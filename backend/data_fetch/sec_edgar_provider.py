@@ -50,7 +50,7 @@ class SecEdgarProvider(DataProvider):
             return {}
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
-        from data_trust import AUDIT_STATUS_SUCCESS, AUDIT_STATUS_UNAVAILABLE
+        from data_trust import AUDIT_STATUS_DEGRADED_ENRICHMENT, AUDIT_STATUS_SUCCESS, AUDIT_STATUS_UNAVAILABLE
         ticker = str(request.ticker).upper().replace(".US", "")
         mapping = self._load_tickers()
         cik = mapping.get(ticker)
@@ -59,9 +59,9 @@ class SecEdgarProvider(DataProvider):
             return ProviderResult(
                 source=self.source,
                 provider=self.name,
-                status=AUDIT_STATUS_UNAVAILABLE,
+                status=AUDIT_STATUS_DEGRADED_ENRICHMENT,
                 value=None,
-                audit={"source": self.source, "provider": self.name, "message": f"Cannot find CIK for ticker {ticker} in SEC EDGAR mapping.", "status": AUDIT_STATUS_UNAVAILABLE, "record_count": 0}
+                audit={"source": self.source, "provider": self.name, "message": f"SEC EDGAR mapping has no CIK for ticker {ticker}; treated as no applicable filings.", "status": AUDIT_STATUS_DEGRADED_ENRICHMENT, "record_count": 0}
             )
             
         try:
@@ -71,7 +71,13 @@ class SecEdgarProvider(DataProvider):
             
             recent_filings = data.get("filings", {}).get("recent", {})
             if not recent_filings:
-                raise ValueError("No recent filings found.")
+                return ProviderResult(
+                    source=self.source,
+                    provider=self.name,
+                    status=AUDIT_STATUS_DEGRADED_ENRICHMENT,
+                    value=None,
+                    audit={"source": self.source, "provider": self.name, "message": "SEC EDGAR 本次無近期 filings，已視為可接受空結果。", "status": AUDIT_STATUS_DEGRADED_ENRICHMENT, "record_count": 0},
+                )
                 
             # Extract the 10 most recent filings
             filings_list = []

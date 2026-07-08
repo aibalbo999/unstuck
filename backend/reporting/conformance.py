@@ -42,6 +42,9 @@ def _missing_visible_markers(html: str, markdown: str, profile: dict[str, Any]) 
     decision_heading = str(profile.get("decision_heading") or "最終投資建議")
     if decision_heading not in html_text or decision_markdown_heading(profile) not in markdown_text:
         missing.append({"id": "decision", "label": decision_heading})
+    discipline_heading = str(profile.get("discipline_heading") or "")
+    if discipline_heading and (discipline_heading not in html_text or f"## {discipline_heading}" not in markdown_text):
+        missing.append({"id": "decision_discipline", "label": discipline_heading})
     return missing
 
 

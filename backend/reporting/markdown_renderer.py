@@ -7,7 +7,7 @@ from datetime import datetime
 from analysis_types import AnalysisContext
 from company_display import company_display_name
 from config import format_model_routes
-from investment_thesis import investment_thesis_markdown
+from investment_thesis import build_investment_thesis, investment_thesis_markdown
 from pipeline_modes import get_pipeline_definition
 from recommendation_labels import normalize_recommendation_label
 
@@ -72,7 +72,8 @@ def generate_markdown_report(context: AnalysisContext) -> str:
     execution_summary_markdown = build_execution_summary_markdown(context, model_routes=model_route_summary)
     mode_template_markdown = build_mode_template_markdown(mode_template)
     source_audit_markdown = build_source_audit_markdown(data, context)
-    thesis_markdown = investment_thesis_markdown(context.get("investment_thesis") or {})
+    thesis_payload = context.get("investment_thesis") or build_investment_thesis(context)
+    thesis_markdown = investment_thesis_markdown(thesis_payload)
     tear_sheet_summary = build_tear_sheet_summary(context)
     agent_sections = build_agent_sections(context, html=False)
     agent_markdown = "\n\n---\n\n".join(

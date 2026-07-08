@@ -47,3 +47,34 @@ def test_social_sentiment_provider_directly_fetches_ptt_for_taiwan_ticker(monkey
         {"title": "PTT 台積電討論", "date": "2026-06-27", "source": "PTT Stock"}
     ]
     assert result.audit["record_count"] == 1
+
+
+def test_job_openings_provider_derives_default_keywords_when_missing(monkeypatch):
+    import alternative_data_fetcher
+    from data_fetch.agent_context_providers import AlternativeJobOpeningsProvider
+    from data_fetch.types import FetchRequest
+
+    calls = []
+
+    def fake_104(company, keyword):
+        calls.append(("104", company, keyword))
+        return {"status": "success", "job_count": 12, "source": "104 Job Search"}
+
+    def fake_1111(company, keyword):
+        calls.append(("1111", company, keyword))
+        return {"status": "unavailable", "job_count": None, "source": "1111 Job Search"}
+
+    monkeypatch.setattr(alternative_data_fetcher, "fetch_104_job_openings_count", fake_104)
+    monkeypatch.setattr(alternative_data_fetcher, "fetch_1111_job_openings_count", fake_1111)
+
+    result = AlternativeJobOpeningsProvider().fetch(
+        FetchRequest.from_ticker("2330.TW"),
+        {"data": {"ticker": "2330.TW", "company_name": "台積電", "industry": "Semiconductors"}},
+    )
+
+    assert result.status == "success"
+    assert result.audit["record_count"] == 1
+    assert calls == [
+        ("104", "台積電", "工程師"),
+        ("1111", "台積電", "工程師"),
+    ]

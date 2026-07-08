@@ -21,6 +21,31 @@ def _reload_grouped_settings():
     return importlib.reload(settings)
 
 
+_LLM_KEY_ENV_NAMES = {
+    "GEMINI_API_KEYS",
+    "GOOGLE_API_KEYS",
+    "OPENAI_API_KEYS",
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEYS",
+    "ANTHROPIC_API_KEY",
+}
+_LLM_NUMBERED_KEY_PREFIXES = (
+    "GEMINI_API_KEY_",
+    "GOOGLE_API_KEY_",
+    "OPENAI_API_KEY_",
+    "ANTHROPIC_API_KEY_",
+)
+
+
+def _llm_key_env_names() -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            _LLM_KEY_ENV_NAMES
+            | {name for name in os.environ if name.startswith(_LLM_NUMBERED_KEY_PREFIXES)}
+        )
+    )
+
+
 def test_settings_package_loads_local_env_before_grouped_modules(tmp_path):
     import settings
     import settings.env as settings_env
@@ -72,19 +97,18 @@ def test_settings_package_loads_local_env_before_grouped_modules(tmp_path):
         _reload_grouped_settings()
 
 
-def test_provider_settings_load_cross_provider_llm_keys():
-    keys = (
-        "GEMINI_API_KEYS",
-        "GOOGLE_API_KEYS",
-        "OPENAI_API_KEYS",
-        "OPENAI_API_KEY",
-        "ANTHROPIC_API_KEYS",
-        "ANTHROPIC_API_KEY",
-    )
+def test_provider_settings_load_cross_provider_llm_keys(tmp_path):
+    import settings.env as settings_env
+
+    keys = _llm_key_env_names()
     old_values = {key: os.environ.get(key) for key in keys}
+    original_base_dir = settings_env.BASE_DIR
+    original_signature = getattr(settings_env, "_LOADED_ENV_SIGNATURE", None)
     try:
         for key in keys:
             os.environ.pop(key, None)
+        settings_env.BASE_DIR = tmp_path
+        settings_env._LOADED_ENV_SIGNATURE = None
         os.environ["GEMINI_API_KEYS"] = "google-one,google-two"
         os.environ["OPENAI_API_KEYS"] = "openai-one"
         os.environ["ANTHROPIC_API_KEY"] = "anthropic-one"
@@ -98,6 +122,61 @@ def test_provider_settings_load_cross_provider_llm_keys():
         assert app_config.LLM_API_KEYS_BY_PROVIDER["anthropic"] == ["anthropic-one"]
         assert app_config.has_api_keys() is True
     finally:
+        settings_env.BASE_DIR = original_base_dir
+        settings_env._LOADED_ENV_SIGNATURE = original_signature
+        for key, value in old_values.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        _reload_grouped_settings()
+
+
+def test_provider_settings_load_numbered_google_keys_in_numeric_order(tmp_path):
+    import settings.env as settings_env
+
+    keys = tuple(
+        sorted(
+            set(_llm_key_env_names())
+            | {
+                "GOOGLE_API_KEY_1",
+                "GOOGLE_API_KEY_2",
+                "GOOGLE_API_KEY_10",
+                "GOOGLE_API_KEY_11",
+                "GOOGLE_API_KEY_12",
+            }
+        )
+    )
+    old_values = {key: os.environ.get(key) for key in keys}
+    original_base_dir = settings_env.BASE_DIR
+    original_signature = getattr(settings_env, "_LOADED_ENV_SIGNATURE", None)
+    try:
+        for key in keys:
+            os.environ.pop(key, None)
+        settings_env.BASE_DIR = tmp_path
+        settings_env._LOADED_ENV_SIGNATURE = None
+        os.environ["GEMINI_API_KEYS"] = "legacy-one,legacy-two"
+        os.environ["GOOGLE_API_KEY_2"] = "google-two"
+        os.environ["GOOGLE_API_KEY_12"] = "google-twelve"
+        os.environ["GOOGLE_API_KEY_1"] = "google-one"
+        os.environ["GOOGLE_API_KEY_11"] = "google-eleven"
+        os.environ["GOOGLE_API_KEY_10"] = "google-ten"
+
+        _reload_grouped_settings()
+        import settings.app_config as app_config
+
+        assert app_config.API_KEYS == [
+            "google-one",
+            "google-two",
+            "google-ten",
+            "google-eleven",
+            "google-twelve",
+            "legacy-one",
+            "legacy-two",
+        ]
+    finally:
+        settings_env.BASE_DIR = original_base_dir
+        settings_env._LOADED_ENV_SIGNATURE = original_signature
         for key, value in old_values.items():
             if value is None:
                 os.environ.pop(key, None)

@@ -160,15 +160,16 @@ def build_tear_sheet_summary(context: AnalysisContext) -> str:
         if sanitized and not contains_prompt_leak_residue(sanitized):
             return sanitized[:900]
 
+    pipeline_id = get_pipeline_definition(context.get("pipeline_id", "v1"))["id"]
     data = context.get("data", {}) or {}
     parsed = context.get("parsed", {}) or {}
     recommendation = parsed.get("recommendation", {}) or {}
     price_targets = parsed.get("price_targets", {}) or {}
     trade_setup = parsed.get("trade_setup", {}) or {}
 
-    if trade_setup:
+    if pipeline_id == "v4" and trade_setup:
         return (
-            f"一頁式摘要：{data.get('ticker', 'N/A')} {company_display_name(data)} 的 1-2 週交易方向為"
+            f"事件波段摘要：{data.get('ticker', 'N/A')} {company_display_name(data)} 的 1-2 週交易方向為"
             f"「{trade_setup.get('trade_direction', 'Neutral')}」，進場區間 {trade_setup.get('entry_zone', 'N/A')}，"
             f"目標價 {trade_setup.get('target_price', 'N/A')}，嚴格停損 {trade_setup.get('stop_loss', 'N/A')}。"
             f"核心催化劑為「{trade_setup.get('core_catalyst', '近期催化劑資料不足')}」，"
@@ -186,6 +187,28 @@ def build_tear_sheet_summary(context: AnalysisContext) -> str:
     pe_river = data.get("pe_river_chart", {}) or {}
     pe_source = pe_river.get("source", "N/A")
 
+    if pipeline_id == "v3":
+        target_3m = _get_dict_value_by_substring(recommendation, "3個月", "N/A")
+        target_6m = _get_dict_value_by_substring(recommendation, "6個月", "N/A")
+        crash = _analysis_excerpt(context, "做空觸發條件") or "尚需等待可驗證的崩盤催化"
+        stop = _analysis_excerpt(context, "防軋空停損點") or "若基本面改善或股價突破風控位，需暫停空方假設"
+        return (
+            f"逆勢風險摘要：{data.get('ticker', 'N/A')} {company_display_name(data)} 的空方判斷為「{rec}」，"
+            f"信心指數 {confidence}。短期壓力參考 {target_3m}，中期回歸參考 {target_6m}，"
+            f"泡沫檢查重點在估值敘事、Forward EPS 隱含預期、法證財務與法人籌碼是否互相背離。"
+            f"做空觸發為「{crash}」；防軋空或 thesis invalidation 條件為「{stop}」。"
+        )
+
+    if pipeline_id == "v2":
+        target_3m = _get_dict_value_by_substring(recommendation, "3個月", "N/A")
+        return (
+            f"實戰交易摘要：{data.get('ticker', 'N/A')} {company_display_name(data)} 的部位判斷為「{rec}」，"
+            f"信心指數 {confidence}，3 個月參考 {target_3m}，12 個月參考 {base_target}。"
+            f"本模式優先檢查總經、估值、籌碼與市場情緒是否支持進場、續抱、減碼或等待；"
+            f"目前三大法人趨勢為 {chip_trend}，累計買賣超約 {chip_net} 張。"
+            f"若估值區間、籌碼方向與建議隱含報酬互相矛盾，應先降低部位與信心。"
+        )
+
     return (
         f"一頁式摘要：{data.get('ticker', 'N/A')} {company_display_name(data)} 的綜合建議為「{rec}」，"
         f"信心指數 {confidence}，基本情境目標價為 NT${base_target if base_target != 'N/A' else 'N/A'}。"
@@ -195,3 +218,22 @@ def build_tear_sheet_summary(context: AnalysisContext) -> str:
         f"台股在地估值另以 P/E 河流圖檢視位階（來源：{pe_source}），"
         "若基本面、籌碼與河流圖位階互相背離，短線操作應降低部位與信心。"
     )
+
+
+def _analysis_excerpt(context: AnalysisContext, heading_fragment: str) -> str:
+    analyses = context.get("analyses", {}) or {}
+    for agent_num in (19, 18, 17, 24):
+        text = str(analyses.get(agent_num) or analyses.get(str(agent_num)) or "")
+        if heading_fragment not in text:
+            continue
+        tail = text.split(heading_fragment, 1)[-1]
+        tail = tail.split("\n## ", 1)[0].split("\n### ", 1)[0]
+        cleaned = " ".join(tail.replace("-", " ").replace("#", " ").split())
+        if not cleaned:
+            continue
+        for sep in ("。", ".", "；", ";"):
+            if sep in cleaned:
+                cleaned = cleaned.split(sep, 1)[0]
+                break
+        return cleaned[:120]
+    return ""

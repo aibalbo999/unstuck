@@ -12,6 +12,7 @@ from typing import Optional
 
 from config import OUTPUT_DIR
 from recommendation_labels import normalize_recommendation_label
+from reporting.mode_templates import decision_markdown_heading, get_report_template_profile
 
 
 _SAFE_SEGMENT_RE = re.compile(r"[^A-Za-z0-9._-]+")
@@ -131,6 +132,8 @@ def parse_recommendation_summary(
     }
     if not is_safe_report_filename(filename, ".html"):
         return summary
+    pipeline_id = parse_report_filename(filename).get("pipeline_id", "v1")
+    mode_template = get_report_template_profile(pipeline_id)
 
     if markdown_text is None:
         for md_path in _markdown_path_candidates(output_dir, filename):
@@ -144,7 +147,9 @@ def parse_recommendation_summary(
         if markdown_text is None:
             return summary
 
-    one_page = extract_section(markdown_text, "一頁式摘要")
+    one_page = extract_section(markdown_text, str(mode_template.get("summary_heading") or "一頁式摘要"))
+    if not one_page and mode_template.get("summary_heading") != "一頁式摘要":
+        one_page = extract_section(markdown_text, "一頁式摘要")
     if one_page:
         summary["summary"] = clean_report_text(one_page)
 
@@ -157,7 +162,10 @@ def parse_recommendation_summary(
     if price_match:
         summary["current_price"] = clean_report_text(price_match.group("value"), limit=80)
 
-    recommendation_section = extract_section(markdown_text, "🎯 最終投資建議")
+    decision_heading = decision_markdown_heading(mode_template).removeprefix("## ").strip()
+    recommendation_section = extract_section(markdown_text, decision_heading)
+    if not recommendation_section and decision_heading != "🎯 最終投資建議":
+        recommendation_section = extract_section(markdown_text, "🎯 最終投資建議")
     field_map = {
         "綜合建議": "recommendation",
         "3個月目標": "target_3m",

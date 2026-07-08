@@ -128,25 +128,34 @@ cd "$DIR/backend" || {
 
 if [ ! -f "$DIR/backend/.env" ] && [ -z "${GEMINI_API_KEYS}${GOOGLE_API_KEYS}${GOOGLE_API_KEY_1}${GEMINI_API_KEY_1}" ]; then
     echo "提醒：尚未偵測到 Gemini API key。"
-    echo "請貼上 Gemini API key；若有多組 key，請用逗號分隔。"
+    echo "請貼上 Gemini API key；若有多組 key，請用逗號分隔，系統會寫成一行一把的序號格式。"
     echo "若先不設定，直接按 Enter，伺服器仍會啟動，但分析會被擋下並提示缺少 API key。"
-    read -r -p "GEMINI_API_KEYS: " GEMINI_KEYS_INPUT
+    read -r -p "Gemini API keys: " GEMINI_KEYS_INPUT
     if [ -n "$GEMINI_KEYS_INPUT" ]; then
         cp "$DIR/backend/.env.example" "$DIR/backend/.env"
         "$PYTHON_BIN" - "$DIR/backend/.env" "$GEMINI_KEYS_INPUT" <<'PY'
 from pathlib import Path
+import re
 import sys
 
 path = Path(sys.argv[1])
-keys = sys.argv[2].strip()
+keys = [item.strip() for item in sys.argv[2].replace("\n", ",").split(",") if item.strip()]
 lines = path.read_text(encoding="utf-8").splitlines()
+managed = re.compile(r"^(GEMINI_API_KEYS|GOOGLE_API_KEYS|GEMINI_API_KEY_\d+|GOOGLE_API_KEY_\d+)\s*=")
+insert_at = None
+kept = []
 for i, line in enumerate(lines):
-    if line.startswith("GEMINI_API_KEYS="):
-        lines[i] = f"GEMINI_API_KEYS={keys}"
-        break
-else:
-    lines.append(f"GEMINI_API_KEYS={keys}")
-path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    if managed.match(line.strip()):
+        if insert_at is None:
+            insert_at = len(kept)
+        continue
+    kept.append(line)
+if insert_at is None:
+    insert_at = len(kept)
+block = ["# LLM API key rotation (numeric order)"]
+block.extend(f"GEMINI_API_KEY_{index}={key}" for index, key in enumerate(keys, 1))
+updated = kept[:insert_at] + block + [""] + kept[insert_at:]
+path.write_text("\n".join(updated).rstrip() + "\n", encoding="utf-8")
 PY
         chmod 600 "$DIR/backend/.env" 2>/dev/null || true
         echo "已建立 backend/.env。"

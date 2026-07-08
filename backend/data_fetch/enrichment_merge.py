@@ -7,6 +7,7 @@ from typing import Optional, Sequence
 
 from data_trust import (
     AUDIT_STATUS_ERROR,
+    AUDIT_STATUS_DEGRADED_ENRICHMENT,
     AUDIT_STATUS_SUCCESS,
     AUDIT_STATUS_UNAVAILABLE,
     finalize_data_trust,
@@ -171,9 +172,9 @@ def _merge_optional_http_bundle(
                 error_kind = "async_fetch_error"
                 message = error_message[:240]
             else:
-                status = AUDIT_STATUS_UNAVAILABLE
+                status = AUDIT_STATUS_DEGRADED_ENRICHMENT
                 error_kind = ""
-                message = "optional 外部來源本次未回傳可用資料。"
+                message = "optional 外部來源本次無新增資料，已保留為可接受的補充資料空結果。"
             _append_source_fetch_audit(
                 data,
                 source,

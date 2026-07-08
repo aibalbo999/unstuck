@@ -67,6 +67,22 @@ def test_optional_http_bundle_merges_additional_free_context_sources():
     assert latest_sources["taiwan_open_data"]["status"] == "success"
 
 
+def test_optional_http_bundle_marks_empty_optional_source_as_degraded_enrichment():
+    data = {"ticker": "2330.TW", "source_audit": []}
+
+    merged = _merge_optional_http_bundle(
+        data,
+        {"earnings_call": {}, "sec_edgar": {}, "alternative_data": {}},
+        refreshed_sources=("earnings_call", "sec_edgar", "alternative_data"),
+    )
+
+    latest_sources = {entry["source"]: entry for entry in merged["source_audit"]}
+    assert latest_sources["earnings_call"]["status"] == "degraded_enrichment"
+    assert latest_sources["sec_edgar"]["status"] == "degraded_enrichment"
+    assert latest_sources["alternative_data"]["status"] == "degraded_enrichment"
+    assert latest_sources["earnings_call"]["record_count"] == 0
+
+
 def test_taiwan_open_data_provider_falls_back_to_fred_when_bot_is_challenged(monkeypatch):
     calls = []
 

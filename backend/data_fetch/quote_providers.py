@@ -39,6 +39,7 @@ class YFinanceProvider(DataProvider):
 class FmpProvider(DataProvider):
     name = "FMP stable quote"
     source = "market_data"
+    markets = {"us"}
     primary_source_provider = False
     cost_tier = "free_with_key"
     capabilities = {"quote", "market_snapshot"}

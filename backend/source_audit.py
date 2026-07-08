@@ -8,6 +8,7 @@ from typing import Any, Callable, Optional
 
 from data_trust import (
     AUDIT_STATUS_ERROR,
+    AUDIT_STATUS_DEGRADED_ENRICHMENT,
     AUDIT_STATUS_SUCCESS,
     AUDIT_STATUS_UNAVAILABLE,
     append_source_audit,
@@ -49,6 +50,7 @@ def audited_fetch(
     cache_hit: bool = False,
     stale: bool = False,
     unavailable_if_empty: bool = True,
+    empty_status: str = AUDIT_STATUS_UNAVAILABLE,
     success_message: str = "來源抓取成功。",
     unavailable_message: str = "來源未回傳可用資料。",
 ) -> dict:
@@ -95,7 +97,7 @@ def audited_fetch(
     status = AUDIT_STATUS_SUCCESS
     message = success_message
     if unavailable_if_empty and count <= 0:
-        status = AUDIT_STATUS_UNAVAILABLE
+        status = empty_status if empty_status in {AUDIT_STATUS_UNAVAILABLE, AUDIT_STATUS_DEGRADED_ENRICHMENT} else AUDIT_STATUS_UNAVAILABLE
         message = unavailable_message
     return {
         "value": value,
@@ -126,6 +128,7 @@ async def audited_fetch_async(
     cache_hit: bool = False,
     stale: bool = False,
     unavailable_if_empty: bool = True,
+    empty_status: str = AUDIT_STATUS_UNAVAILABLE,
     success_message: str = "來源抓取成功。",
     unavailable_message: str = "來源未回傳可用資料。",
 ) -> dict:
@@ -172,7 +175,7 @@ async def audited_fetch_async(
     status = AUDIT_STATUS_SUCCESS
     message = success_message
     if unavailable_if_empty and count <= 0:
-        status = AUDIT_STATUS_UNAVAILABLE
+        status = empty_status if empty_status in {AUDIT_STATUS_UNAVAILABLE, AUDIT_STATUS_DEGRADED_ENRICHMENT} else AUDIT_STATUS_UNAVAILABLE
         message = unavailable_message
     return {
         "value": value,

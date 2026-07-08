@@ -220,7 +220,8 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "degraded_enrichment_count" in provider_sla_js
     assert "降級可用" in provider_sla_js
     assert "availabilityAttemptsForStats" in provider_sla_js
-    assert "未設定" in provider_sla_js
+    assert "not_configured" in provider_sla_js
+    assert "選用來源略過" in provider_sla_js
     assert "先使用仍有效的快取" in provider_sla_js
     assert "系統會優先補快取" not in provider_sla_js
     assert "資料取得率" in provider_sla_js
@@ -2642,6 +2643,92 @@ def test_provider_sla_copy_distinguishes_core_and_enrichment_critical_sources():
     assert "核心分析仍可進行" in provider_sla_js
 
 
+def test_provider_sla_groups_do_not_escalate_healthy_fallbacks_to_critical():
+    provider_sla_path = STATIC_DIR / "provider_sla_panel.js"
+    script = """
+global.window = {};
+require(__PROVIDER_SLA_PANEL_PATH__);
+const providers = [
+  {
+    source: 'market_data',
+    provider: 'taiwan_yfinance_finmind',
+    attempts: 20,
+    availability_attempts: 20,
+    success_count: 20,
+    skipped_fresh_cache_count: 0,
+    degraded_enrichment_count: 0,
+    total_records: 20,
+    alert_level: 'ok',
+    last_status: 'success'
+  },
+  {
+    source: 'market_data',
+    provider: 'FMP stable quote',
+    attempts: 20,
+    availability_attempts: 20,
+    success_count: 0,
+    skipped_fresh_cache_count: 0,
+    degraded_enrichment_count: 0,
+    total_records: 0,
+    alert_level: 'critical',
+    last_status: 'unavailable'
+  },
+  {
+    source: 'recent_catalysts',
+    provider: 'Recent catalysts providers',
+    attempts: 10,
+    availability_attempts: 10,
+    success_count: 10,
+    skipped_fresh_cache_count: 0,
+    degraded_enrichment_count: 0,
+    total_records: 10,
+    alert_level: 'ok',
+    last_status: 'success'
+  },
+  {
+    source: 'recent_catalysts',
+    provider: 'PTT Stock',
+    attempts: 10,
+    availability_attempts: 10,
+    success_count: 0,
+    skipped_fresh_cache_count: 0,
+    degraded_enrichment_count: 0,
+    total_records: 0,
+    alert_level: 'critical',
+    last_status: 'unavailable'
+  },
+  {
+    source: 'dynamic_peer_metrics',
+    provider: 'FinMind/yfinance',
+    attempts: 100,
+    availability_attempts: 100,
+    success_count: 60,
+    skipped_fresh_cache_count: 0,
+    degraded_enrichment_count: 0,
+    total_records: 120,
+    alert_level: 'warning',
+    last_status: 'success'
+  }
+];
+const rows = window.StockAgentProviderSlaPanel.groupedProviderRows(providers, 'last_24h');
+const listEl = { innerHTML: '' };
+window.StockAgentProviderSlaPanel.render(
+  { providers },
+  { summaryEl: { textContent: '' }, listEl, windowEl: { value: 'last_24h' }, escapeHtml: value => String(value ?? '') }
+);
+process.stdout.write(JSON.stringify({ rows: rows.map(row => ({ source: row.source, level: row.level })), html: listEl.innerHTML }));
+""".replace("__PROVIDER_SLA_PANEL_PATH__", json.dumps(str(provider_sla_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+    rows = {row["source"]: row["level"] for row in payload["rows"]}
+
+    assert rows["market_data"] == "ok"
+    assert rows["recent_catalysts"] == "ok"
+    assert rows["dynamic_peer_metrics"] == "ok"
+    assert "不可用" not in payload["html"]
+    assert "尚無紀錄 · 未設定" not in payload["html"]
+
+
 def test_ops_provider_sla_loads_enough_rows_for_whole_system_status():
     ops_workspace_js = (STATIC_DIR / "ops_workspace.js").read_text(encoding="utf-8")
 
@@ -2782,8 +2869,8 @@ def test_decision_tracking_dense_layout_uses_workspace_efficiently():
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
 
     assert "style.css?v=20260707-operator-human-factors" in index_html
-    assert "/static/provider_sla_panel.js?v=20260708-provider-impact" in index_html
-    assert "/static/ops_workspace.js?v=20260708-provider-impact" in index_html
+    assert "/static/provider_sla_panel.js?v=20260708-provider-waterfall-health" in index_html
+    assert "/static/ops_workspace.js?v=20260708-provider-group-health" in index_html
     assert "/static/history_panel.js?v=20260708-tracking-action-notes" in index_html
     assert "/static/decision_tracking_panel.js?v=20260708-tracking-action-notes" in index_html
     assert "/static/report_preview_panel.js?v=20260627-mode-aware-preview" in index_html

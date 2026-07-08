@@ -84,6 +84,14 @@
             </div>
         </div>
 
+        {% if investment_thesis_html %}
+        <div class="editor-synthesis">
+            <div class="editor-synthesis-body">
+                {{ investment_thesis_html|safe }}
+            </div>
+        </div>
+        {% endif %}
+
         {% if smoothed_markdown_html %}
         <div class="editor-synthesis">
             <div class="editor-synthesis-title">總編輯整合觀點</div>

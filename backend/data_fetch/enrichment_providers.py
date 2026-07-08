@@ -16,7 +16,7 @@ class FreeNewsWaterfallProvider(DataProvider):
     cost_tier, capabilities = "free", {"news", "recent_catalysts"}
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
-        from data_trust import AUDIT_STATUS_SUCCESS, AUDIT_STATUS_UNAVAILABLE
+        from data_trust import AUDIT_STATUS_DEGRADED_ENRICHMENT, AUDIT_STATUS_SUCCESS
         from external_data_client import ExternalDataClient
 
         data = (context or {}).get("data", {}) if isinstance((context or {}).get("data"), dict) else {}
@@ -25,7 +25,7 @@ class FreeNewsWaterfallProvider(DataProvider):
         query = f"{ticker} {company_name}".strip()
         client = ExternalDataClient()
         records = client.get_news(query, ticker=ticker, limit=5)
-        status = AUDIT_STATUS_SUCCESS if records else AUDIT_STATUS_UNAVAILABLE
+        status = AUDIT_STATUS_SUCCESS if records else AUDIT_STATUS_DEGRADED_ENRICHMENT
         return ProviderResult(
             source=self.source,
             provider=self.name,
@@ -38,7 +38,7 @@ class FreeNewsWaterfallProvider(DataProvider):
                 "record_count": len(records),
                 "cache_hit": bool(data.get("_cache_hit")),
                 "stale": False,
-                "message": "免費新聞 waterfall 已回傳近期催化劑。" if records else "免費新聞 waterfall 未回傳近期催化劑。",
+                "message": "免費新聞 waterfall 已回傳近期催化劑。" if records else "近期沒有命中新聞 waterfall，已視為可接受空結果。",
                 "related_entries": list(client.last_news_audit),
             },
         )
@@ -65,6 +65,7 @@ class AlternativeSearchProvider(DataProvider):
             (ticker, company_name, identity),
             default=[],
             cache_hit=cache_hit,
+            empty_status="degraded_enrichment",
             unavailable_message="Alternative Search 未回傳近期催化劑。",
         )
         return provider_result_from_audited(result, self.source, self.name)
@@ -91,6 +92,7 @@ class YahooProvider(DataProvider):
             fetch_yfinance_news_catalysts,
             (stock,),
             default=[],
+            empty_status="degraded_enrichment",
             unavailable_message="Yahoo Finance 未回傳近期新聞。",
         )
         return provider_result_from_audited(result, self.source, self.name)
@@ -99,6 +101,7 @@ class YahooProvider(DataProvider):
 class FmpNewsProvider(DataProvider):
     name = "FMP news"
     source = "recent_catalysts"
+    markets = {"us"}
     cost_tier, capabilities, requires_env = "free_with_key", {"news", "recent_catalysts"}, ("FMP_API_KEY",)
 
     async def fetch_async(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
@@ -122,6 +125,7 @@ class FmpNewsProvider(DataProvider):
             (ticker,),
             default=[],
             cache_hit=cache_hit,
+            empty_status="degraded_enrichment",
             unavailable_message="FMP news 未回傳近期新聞。",
         )
         return provider_result_from_audited(result, self.source, self.name)
@@ -141,6 +145,7 @@ class EarningsCallProvider(DataProvider):
             fetch_free_earnings_call_context,
             (ticker,),
             default={},
+            empty_status="degraded_enrichment",
             unavailable_message="免費法說會資料未回傳。",
         )
         return provider_result_from_audited(result, self.source, self.name)
@@ -170,6 +175,7 @@ class GlobalMarketContextProvider(DataProvider):
             default={"lookback_days": 5, "items": [], "coverage_notes": ["全球市場脈絡暫無可用資料。"]},
             record_counter=lambda value: len(value.get("items", [])) if isinstance(value, dict) else 0,
             cache_hit=cache_hit,
+            empty_status="degraded_enrichment",
             unavailable_message="yfinance global context 未回傳全球市場脈絡。",
         )
         return provider_result_from_audited(result, self.source, self.name)
@@ -197,6 +203,7 @@ class InternationalNewsContextProvider(DataProvider):
             default={"lookback_days": 7, "topics": [], "coverage_notes": ["國際新聞脈絡暫無可用資料。"]},
             record_counter=lambda value: len(value.get("topics", [])) if isinstance(value, dict) else 0,
             cache_hit=cache_hit,
+            empty_status="degraded_enrichment",
             unavailable_message="GDELT 未回傳國際新聞脈絡。",
         )
         return provider_result_from_audited(result, self.source, self.name)
@@ -224,6 +231,7 @@ class AlternativePeerDiscoveryProvider(DataProvider):
             (ticker, company_name, sector, industry),
             default=[],
             cache_hit=cache_hit,
+            empty_status="degraded_enrichment",
             unavailable_message="Alternative Search 未回傳同業搜尋結果。",
         )
         return provider_result_from_audited(result, self.source, self.name)
@@ -250,6 +258,7 @@ class DynamicPeerMetricsProvider(DataProvider):
                 data.get("company_identity") if isinstance(data.get("company_identity"), dict) else {},
             ),
             default=[],
+            empty_status="degraded_enrichment",
             unavailable_message="同業指標暫無可用資料。",
         )
         return provider_result_from_audited(result, self.source, self.name)

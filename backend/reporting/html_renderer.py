@@ -8,6 +8,7 @@ from html import escape
 from analysis_types import AnalysisContext
 from company_display import company_display_name
 from config import format_model_routes
+from investment_thesis import build_investment_thesis, investment_thesis_markdown
 from pipeline_modes import get_pipeline_definition
 from recommendation_labels import normalize_recommendation_label
 
@@ -188,6 +189,8 @@ def generate_html_report(context: AnalysisContext) -> str:
         if isinstance(entry, dict)
     )
     tear_sheet_summary = clean_markdown(build_tear_sheet_summary(context))
+    thesis_payload = context.get("investment_thesis") or build_investment_thesis(context)
+    investment_thesis_html = clean_markdown(investment_thesis_markdown(thesis_payload))
     executive_thesis = sanitize_report_plain_text(context.get("executive_thesis", ""))
     smoothed_markdown_html = clean_markdown(str(context.get("smoothed_markdown") or ""))
     report_cover = context.get("report_cover", {}) or {}

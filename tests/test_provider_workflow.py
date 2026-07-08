@@ -663,7 +663,7 @@ def test_optional_merge_does_not_mark_empty_source_as_fresh():
 
     assert "taiwan_open_data" not in result.get("source_freshness", {})
     latest = {entry["source"]: entry for entry in result["source_audit"]}
-    assert latest["taiwan_open_data"]["status"] == "unavailable"
+    assert latest["taiwan_open_data"]["status"] == "degraded_enrichment"
     assert latest["taiwan_open_data"]["record_count"] == 0
     assert latest["taiwan_open_data"]["stale"] is True
 
@@ -809,6 +809,16 @@ def test_mops_earnings_call_provider_only_runs_for_taiwan_tickers():
     assert "MOPS investor conference" in tw_names
 
 
+def test_fmp_news_provider_only_runs_for_us_tickers():
+    registry = ProviderRegistry()
+
+    us_names = registry.provider_names(FetchRequest.from_ticker("AAPL"), source="recent_catalysts")
+    tw_names = registry.provider_names(FetchRequest.from_ticker("2330.TW"), source="recent_catalysts")
+
+    assert "FMP news" in us_names
+    assert "FMP news" not in tw_names
+
+
 def test_default_provider_registry_sources_are_covered_by_automatic_workflow():
     registry_sources = {provider.source for provider in ProviderRegistry().providers}
     core_workflow_sources = {
@@ -913,7 +923,7 @@ def test_stock_data_service_fake_registry_e2e_cache_audit_and_trust(monkeypatch,
     assert latest_cache_audit["financial_statements"]["status"] == "skipped_fresh_cache"
     assert latest_cache_audit["recent_catalysts"]["status"] == "skipped_fresh_cache"
     assert latest_cache_audit["peer_discovery"]["status"] == "skipped_fresh_cache"
-    assert latest_cache_audit["earnings_call"]["status"] == "unavailable"
+    assert latest_cache_audit["earnings_call"]["status"] == "degraded_enrichment"
     assert latest_cache_audit["earnings_call"]["record_count"] == 0
 
 

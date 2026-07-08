@@ -199,7 +199,7 @@ def _append_cache_audit_entries(data: dict, ticker: str, now_epoch: Optional[flo
         entry = freshness.get(source, {}) if isinstance(freshness.get(source), dict) else {}
         stale = bool(entry.get("stale"))
         record_count = source_record_count(source, data)
-        status = _cache_audit_status(stale=stale, record_count=record_count)
+        status = _cache_audit_status(source, stale=stale, record_count=record_count)
         message = _cache_audit_message(stale=stale, record_count=record_count)
         _append_source_fetch_audit(
             data,
@@ -217,10 +217,12 @@ def _append_cache_audit_entries(data: dict, ticker: str, now_epoch: Optional[flo
     return data
 
 
-def _cache_audit_status(*, stale: bool, record_count: int) -> str:
+def _cache_audit_status(source: str, *, stale: bool, record_count: int) -> str:
     if not stale:
         return AUDIT_STATUS_SKIPPED_FRESH_CACHE
     if record_count > 0:
+        return AUDIT_STATUS_DEGRADED_ENRICHMENT
+    if source not in CORE_CACHE_SOURCES:
         return AUDIT_STATUS_DEGRADED_ENRICHMENT
     return AUDIT_STATUS_UNAVAILABLE
 

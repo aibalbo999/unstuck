@@ -8,6 +8,18 @@ sys.path.insert(0, str(ROOT / "backend"))
 import reporting.legacy_report_gen as report_gen  # noqa: E402
 
 
+def _extract_section(markdown: str, heading: str) -> str:
+    marker = f"## {heading}"
+    start = markdown.find(marker)
+    if start < 0:
+        return ""
+    body_start = start + len(marker)
+    next_start = markdown.find("\n## ", body_start)
+    if next_start < 0:
+        return markdown[body_start:].strip()
+    return markdown[body_start:next_start].strip()
+
+
 def _context(pipeline_id: str) -> dict:
     trade_setup = {
         "trade_direction": "Long",
@@ -57,7 +69,18 @@ def _context(pipeline_id: str) -> dict:
             "source_audit": [],
             "data_trust": {"status": "fresh", "critical_failures": [], "stale_sources": [], "notes": []},
         },
-        "analyses": {},
+        "analyses": {
+            17: "## 一、當前市場正在炒作的夢想題材\nAI 題材已過熱。",
+            18: "## 一、夢想 vs 財務現實對撞\n法人籌碼顯示派發。",
+            19: (
+                "## 一、泡沫狙擊結論\n估值與籌碼背離。\n\n"
+                "## 四、做空觸發條件（Catalyst for crash）\n- 財測下修。\n\n"
+                "## 五、防軋空停損點（Stop-loss level）\n- 突破前高。"
+            ),
+            22: "## 一、均線與趨勢結構\n短線趨勢轉強。",
+            23: "## 一、外資與投信連續買賣超\n法人連續買超。",
+            24: "## 極短線交易計畫\n短線偏多但需嚴守停損。",
+        },
         "structured_outputs": {24: trade_setup} if pipeline_id == "v4" else {},
         "parsed": parsed,
         "final_audit": {"status": "passed", "critical": [], "warnings": [], "corrections": []},
@@ -83,6 +106,12 @@ def test_each_pipeline_has_distinct_report_template_profile():
     assert profiles["v4"]["decision_heading"] == "極短線交易計畫"
     assert "視覺重點" not in profiles["v1"]["audience"]
     assert all(profile["visual_focus"] for profile in profiles.values())
+    assert [profiles[key]["discipline_heading"] for key in ("v1", "v2", "v3", "v4")] == [
+        "長線投資論文與決策紀律",
+        "部位決策與風控紀律",
+        "逆勢論文與風控紀律",
+        "交易計畫與風控紀律",
+    ]
 
 
 def test_pipeline_mode_contract_documents_templates_and_decision_intents():
@@ -114,23 +143,66 @@ def test_pipeline_mode_contract_documents_templates_and_decision_intents():
 
 def test_markdown_report_uses_mode_specific_template_headings():
     expectations = {
-        "v1": ("## 一頁式摘要", "## 🎯 最終投資建議", "長線基本面投資人"),
-        "v2": ("## 實戰交易摘要", "## 🎯 實戰交易決策", "主動交易與部位管理"),
-        "v3": ("## 逆勢風險摘要", "## 🎯 泡沫狙擊結論", "逆勢交易與風險控管"),
-        "v4": ("## 事件波段摘要", "## 極短線交易計畫", "短線波段與事件交易"),
+        "v1": ("## 一頁式摘要", "## 🎯 最終投資建議", "長線基本面投資人", "## 長線投資論文與決策紀律"),
+        "v2": ("## 實戰交易摘要", "## 🎯 實戰交易決策", "主動交易與部位管理", "## 部位決策與風控紀律"),
+        "v3": ("## 逆勢風險摘要", "## 🎯 泡沫狙擊結論", "逆勢交易與風險控管", "## 逆勢論文與風控紀律"),
+        "v4": ("## 事件波段摘要", "## 極短線交易計畫", "短線波段與事件交易", "## 交易計畫與風控紀律"),
     }
 
-    for pipeline_id, (summary_heading, decision_heading, audience) in expectations.items():
+    for pipeline_id, (summary_heading, decision_heading, audience, discipline_heading) in expectations.items():
         markdown = report_gen.generate_markdown_report(_context(pipeline_id))
 
         assert "## 報告模板與閱讀路徑" in markdown
         assert summary_heading in markdown
         assert decision_heading in markdown
+        assert discipline_heading in markdown
         assert f"**適用受眾:** {audience}" in markdown
         if pipeline_id != "v1":
             assert "## 一頁式摘要" not in markdown
+            assert "## 投資論文與決策紀律" not in markdown
         if pipeline_id == "v4":
             assert "## 🎯 最終投資建議" not in markdown
+
+
+def test_mode_specific_decision_discipline_avoids_wrong_horizon_language():
+    v3_markdown = report_gen.generate_markdown_report(_context("v3"))
+    v3_discipline = _extract_section(v3_markdown, "逆勢論文與風控紀律")
+
+    assert "做空觸發" in v3_discipline
+    assert "防軋空" in v3_discipline
+    assert "護城河判斷" not in v3_discipline
+
+    v4_markdown = report_gen.generate_markdown_report(_context("v4"))
+    v4_discipline = _extract_section(v4_markdown, "交易計畫與風控紀律")
+
+    assert "交易方向" in v4_discipline
+    assert "停損" in v4_discipline
+    assert "催化" in v4_discipline
+    assert "護城河判斷" not in v4_discipline
+    assert "12 個月參考目標" not in v4_discipline
+
+
+def test_report_index_parses_mode_specific_summary_and_decision_sections():
+    from report_index_parsing import parse_recommendation_summary
+
+    v3_markdown = report_gen.generate_markdown_report(_context("v3"))
+    v3_summary = parse_recommendation_summary(
+        "2330_TW_v3_report_20260708_000000.html",
+        markdown_text=v3_markdown,
+    )
+
+    assert v3_summary["recommendation"] == "放空"
+    assert v3_summary["summary"]
+    assert "泡沫" in v3_summary["summary"] or "空方" in v3_summary["summary"]
+
+    v4_markdown = report_gen.generate_markdown_report(_context("v4"))
+    v4_summary = parse_recommendation_summary(
+        "2330_TW_v4_report_20260708_000000.html",
+        markdown_text=v4_markdown,
+    )
+
+    assert v4_summary["summary"]
+    assert "1-2 週交易方向" in v4_summary["summary"]
 
 
 def test_html_report_shows_mode_template_reading_path():
@@ -141,3 +213,4 @@ def test_html_report_shows_mode_template_reading_path():
     assert "逆勢交易與風險控管" in html
     assert "泡沫證據鏈" in html
     assert "做空觸發條件" in html
+    assert "逆勢論文與風控紀律" in html

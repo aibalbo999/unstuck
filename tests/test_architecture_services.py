@@ -104,6 +104,7 @@ def test_default_core_provider_registry_exposes_expected_source_routes():
     assert registry.provider_names(tw_request, source="institutional_trading") == ["FinMind"]
     assert registry.provider_names(tw_request, source="twse_official") == ["FinMind TWSE official"]
     assert registry.provider_names(tw_request, source="pe_river_chart") == ["FinMind/default multiples"]
+    assert registry.provider_names(tw_request, source="market_data") == []
     assert registry.provider_names(us_request, source="monthly_revenue") == []
     assert registry.provider_names(us_request, source="institutional_trading") == []
     assert registry.provider_names(us_request, source="twse_official") == []

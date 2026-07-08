@@ -13,6 +13,7 @@ def _conforming_artifacts():
     <section>執行邏輯與模型檢查</section>
     <section>報告模板與閱讀路徑</section>
     <section>一頁式摘要</section>
+    <section>長線投資論文與決策紀律</section>
     <section>關鍵數據來源對照</section>
     <section>來源審計</section>
     <section>最終投資建議</section>
@@ -22,6 +23,7 @@ def _conforming_artifacts():
 ## 執行邏輯與模型檢查
 ## 報告模板與閱讀路徑
 ## 一頁式摘要
+## 長線投資論文與決策紀律
 ## 關鍵數據來源對照
 ## 來源審計
 ## 🎯 最終投資建議
@@ -73,6 +75,46 @@ def test_report_conformance_blocks_missing_required_visibility_and_rejected_evid
     assert any(issue["id"] == "evidence_exit_gate" for issue in result["blocking_issues"])
 
 
+def test_report_conformance_requires_mode_specific_decision_discipline():
+    from reporting.conformance import evaluate_report_conformance
+
+    html = """
+    <section>本報告資料可信度</section>
+    <section>執行邏輯與模型檢查</section>
+    <section>報告模板與閱讀路徑</section>
+    <section>事件波段摘要</section>
+    <section>關鍵數據來源對照</section>
+    <section>來源審計</section>
+    <section>極短線交易計畫</section>
+    """
+    markdown = """
+## 本報告資料可信度
+## 執行邏輯與模型檢查
+## 報告模板與閱讀路徑
+## 事件波段摘要
+## 關鍵數據來源對照
+## 來源審計
+## 極短線交易計畫
+"""
+
+    result = evaluate_report_conformance(
+        html,
+        markdown,
+        context={
+            "pipeline_id": "v4",
+            "data": {"data_trust": {"status": "fresh"}},
+            "final_audit": {"status": "passed", "critical": [], "warnings": [], "corrections": []},
+        },
+        snapshot={"data_trust": {"status": "fresh"}},
+        report_lint={"status": "passed", "blocking_issues": [], "warnings": []},
+        evidence_exit_gate={"verdict": "approved", "failed_count": 0},
+    )
+
+    assert result["status"] == "blocked"
+    required_visibility = next(issue for issue in result["blocking_issues"] if issue["id"] == "required_visibility")
+    assert {"id": "decision_discipline", "label": "交易計畫與風控紀律"} in required_visibility["details"]
+
+
 def test_report_renderer_attaches_conformance_to_snapshot_metadata_and_final_artifacts(monkeypatch):
     import reporting.renderer as renderer_module
     from reporting import ReportRenderer, ReportRequest
@@ -88,6 +130,7 @@ def test_report_renderer_attaches_conformance_to_snapshot_metadata_and_final_art
             "<section>執行邏輯與模型檢查</section>"
             "<section>報告模板與閱讀路徑</section>"
             "<section>一頁式摘要</section>"
+            "<section>長線投資論文與決策紀律</section>"
             "<section>關鍵數據來源對照</section>"
             "<section>來源審計</section>"
             "<section>最終投資建議</section>"
@@ -107,6 +150,7 @@ def test_report_renderer_attaches_conformance_to_snapshot_metadata_and_final_art
             "## 執行邏輯與模型檢查\n"
             "## 報告模板與閱讀路徑\n"
             "## 一頁式摘要\n"
+            "## 長線投資論文與決策紀律\n"
             "## 關鍵數據來源對照\n"
             "## 來源審計\n"
             "## 🎯 最終投資建議\n"
