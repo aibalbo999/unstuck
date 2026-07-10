@@ -314,6 +314,36 @@ def test_sqlite_backup_interval_creates_backup_after_due_and_maintains_once(tmp_
     assert (backup_dir / "task_db-20260701.sqlite3").exists()
 
 
+def test_sqlite_backup_skips_unsafe_backup_destination_symlink(tmp_path):
+    db_path = tmp_path / "jobs.sqlite3"
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    symlink_target = tmp_path / "outside.sqlite3"
+    destination = backup_dir / "task_db-20260701.sqlite3"
+    symlink_target.write_bytes(b"not a backup")
+    destination.symlink_to(symlink_target)
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("CREATE TABLE sample (value TEXT)")
+        conn.execute("INSERT INTO sample (value) VALUES ('ok')")
+
+    result = database_maintenance.maintain_sqlite_databases(
+        {"task_db": str(db_path)},
+        backup_dir=str(backup_dir),
+        backup_interval_days=30,
+        write=True,
+        now=datetime(2026, 7, 1, tzinfo=timezone.utc),
+    )
+
+    db_result = result["databases"][0]
+    assert db_result["backup"]["status"] == "skipped_unsafe"
+    assert db_result["backup"]["reason"] == "backup destination is not a regular file"
+    assert db_result["wal_checkpoint"]["status"] == "skipped_backup_unsafe"
+    assert db_result["vacuum"]["status"] == "skipped_backup_unsafe"
+    assert destination.is_symlink()
+    assert symlink_target.read_bytes() == b"not a backup"
+
+
 def test_sqlite_backup_pruning_dry_run_preserves_files(tmp_path):
     backup_dir = tmp_path / "backups"
     backup_dir.mkdir()

@@ -21,6 +21,7 @@ from security_sanitizer import sanitize_error_message
 
 
 _MANAGED_BACKUP_PATTERN = re.compile(r"^(cache_db|task_db|checkpoint_db)-(\d{8})\.sqlite3$")
+_BACKUP_STATUSES_THAT_SKIP_MAINTENANCE = {"skipped_interval", "skipped_unsafe"}
 
 
 def runtime_sqlite_paths(
@@ -221,6 +222,8 @@ def _maintain_one_database(
     maintenance_status = "planned" if exists else "skipped_missing"
     if backup.get("status") == "skipped_interval":
         maintenance_status = "skipped_backup_interval"
+    if backup.get("status") == "skipped_unsafe":
+        maintenance_status = "skipped_backup_unsafe"
     result = {
         "label": label,
         "path": str(resolved),
@@ -229,7 +232,11 @@ def _maintain_one_database(
         "wal_checkpoint": {"status": maintenance_status},
         "vacuum": {"status": maintenance_status},
     }
-    if not exists or not write or backup.get("status") == "skipped_interval":
+    if (
+        not exists
+        or not write
+        or backup.get("status") in _BACKUP_STATUSES_THAT_SKIP_MAINTENANCE
+    ):
         return result
 
     try:
@@ -294,6 +301,10 @@ def _backup_plan(
     }
     if not exists:
         metadata["status"] = "skipped_missing"
+        return metadata
+    if path.is_symlink() or (path.exists() and not path.is_file()):
+        metadata["status"] = "skipped_unsafe"
+        metadata["reason"] = "backup destination is not a regular file"
         return metadata
     if latest_date is not None:
         elapsed_days = (stamp_date - latest_date).days
