@@ -214,8 +214,8 @@ def test_sqlite_database_maintenance_dry_run_plans_backup_checkpoint_and_vacuum(
 
     db_result = result["databases"][0]
     assert result["dry_run"] is True
-    assert result["backup_pruning"]["retention_days"] == 3
-    assert result["backup_pruning"]["cutoff"] == "2026-06-27"
+    assert result["backup_pruning"]["retention_days"] == 1
+    assert result["backup_pruning"]["cutoff"] == "2026-06-29"
     assert db_result["label"] == "task_db"
     assert db_result["exists"] is True
     assert db_result["backup"]["path"].endswith("task_db-20260629.sqlite3")
@@ -256,7 +256,62 @@ def test_sqlite_database_maintenance_write_creates_daily_backup_and_is_idempoten
     assert db_result["wal_checkpoint"]["status"] == "ran"
     assert db_result["vacuum"]["status"] == "ran"
     assert rows == [("ok",)]
-    assert second["databases"][0]["backup"]["status"] == "exists"
+    second_db_result = second["databases"][0]
+    assert second_db_result["backup"]["status"] == "skipped_interval"
+    assert second_db_result["wal_checkpoint"]["status"] == "skipped_backup_interval"
+    assert second_db_result["vacuum"]["status"] == "skipped_backup_interval"
+
+
+def test_sqlite_backup_interval_skips_recent_backup_without_maintenance(tmp_path):
+    db_path = tmp_path / "jobs.sqlite3"
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    (backup_dir / "task_db-20260701.sqlite3").write_bytes(b"backup")
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("CREATE TABLE sample (value TEXT)")
+        conn.execute("INSERT INTO sample (value) VALUES ('ok')")
+
+    result = database_maintenance.maintain_sqlite_databases(
+        {"task_db": str(db_path)},
+        backup_dir=str(backup_dir),
+        backup_interval_days=30,
+        write=True,
+        now=datetime(2026, 7, 10, tzinfo=timezone.utc),
+    )
+
+    db_result = result["databases"][0]
+    assert db_result["backup"]["status"] == "skipped_interval"
+    assert db_result["backup"]["latest_backup"].endswith("task_db-20260701.sqlite3")
+    assert db_result["backup"]["next_due_date"] == "2026-07-31"
+    assert db_result["wal_checkpoint"]["status"] == "skipped_backup_interval"
+    assert db_result["vacuum"]["status"] == "skipped_backup_interval"
+    assert not (backup_dir / "task_db-20260710.sqlite3").exists()
+
+
+def test_sqlite_backup_interval_creates_backup_after_due_and_maintains_once(tmp_path):
+    db_path = tmp_path / "jobs.sqlite3"
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    (backup_dir / "task_db-20260601.sqlite3").write_bytes(b"backup")
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("CREATE TABLE sample (value TEXT)")
+        conn.execute("INSERT INTO sample (value) VALUES ('ok')")
+
+    result = database_maintenance.maintain_sqlite_databases(
+        {"task_db": str(db_path)},
+        backup_dir=str(backup_dir),
+        backup_interval_days=30,
+        write=True,
+        now=datetime(2026, 7, 1, tzinfo=timezone.utc),
+    )
+
+    db_result = result["databases"][0]
+    assert db_result["backup"]["status"] == "created"
+    assert db_result["wal_checkpoint"]["status"] == "ran"
+    assert db_result["vacuum"]["status"] == "ran"
+    assert (backup_dir / "task_db-20260701.sqlite3").exists()
 
 
 def test_sqlite_backup_pruning_dry_run_preserves_files(tmp_path):
@@ -290,6 +345,27 @@ def test_sqlite_backup_pruning_dry_run_preserves_files(tmp_path):
     )
 
 
+def test_sqlite_backup_pruning_retention_one_uses_utc_date_cutoff(tmp_path):
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    old = backup_dir / "cache_db-20260628.sqlite3"
+    current = backup_dir / "cache_db-20260629.sqlite3"
+    old.write_bytes(b"backup")
+    current.write_bytes(b"backup")
+
+    result = database_maintenance.maintain_sqlite_databases(
+        {},
+        backup_dir=str(backup_dir),
+        retention_days=1,
+        write=False,
+        now=datetime(2026, 6, 29, tzinfo=timezone.utc),
+    )
+
+    assert result["backup_pruning"]["cutoff"] == "2026-06-29"
+    assert result["backup_pruning"]["candidates"] == [str(old)]
+    assert result["backup_pruning"]["deleted"] == []
+
+
 def test_sqlite_backup_pruning_write_deletes_only_managed_expired_files(tmp_path):
     backup_dir = tmp_path / "backups"
     backup_dir.mkdir()
@@ -309,26 +385,26 @@ def test_sqlite_backup_pruning_write_deletes_only_managed_expired_files(tmp_path
     result = database_maintenance.maintain_sqlite_databases(
         {},
         backup_dir=str(backup_dir),
-        retention_days=3,
+        retention_days=1,
         write=True,
         now=datetime(2026, 6, 29, tzinfo=timezone.utc),
     )
 
     pruning = result["backup_pruning"]
-    assert pruning["retention_days"] == 3
-    assert pruning["cutoff"] == "2026-06-27"
-    assert pruning["candidates"] == [str(old)]
-    assert pruning["deleted"] == [str(old)]
+    assert pruning["retention_days"] == 1
+    assert pruning["cutoff"] == "2026-06-29"
+    assert pruning["candidates"] == [str(old), str(recent)]
+    assert pruning["deleted"] == [str(old), str(recent)]
     assert pruning["dry_run"] is False
     assert not old.exists()
-    assert all(path.exists() for path in (recent, unknown, unmanaged, managed_name_directory))
+    assert all(path.exists() for path in (unknown, unmanaged, managed_name_directory))
     assert managed_name_symlink.is_symlink()
     assert symlink_target.exists()
 
 
-@pytest.mark.parametrize("retention_days", [0, -1])
-def test_sqlite_backup_pruning_rejects_invalid_retention_before_maintenance(
-    tmp_path, retention_days
+@pytest.mark.parametrize("retention_days,backup_interval_days", [(0, 30), (-1, 30), (1, 0), (1, -1)])
+def test_sqlite_backup_pruning_rejects_invalid_values_before_maintenance(
+    tmp_path, retention_days, backup_interval_days
 ):
     db_path = tmp_path / "jobs.sqlite3"
     backup_dir = tmp_path / "backups"
@@ -338,11 +414,17 @@ def test_sqlite_backup_pruning_rejects_invalid_retention_before_maintenance(
     with sqlite3.connect(db_path) as conn:
         conn.execute("CREATE TABLE sample (value TEXT)")
 
-    with pytest.raises(ValueError, match="retention_days must be at least 1"):
+    expected_message = (
+        "retention_days must be at least 1"
+        if retention_days < 1
+        else "backup_interval_days must be at least 1"
+    )
+    with pytest.raises(ValueError, match=expected_message):
         database_maintenance.maintain_sqlite_databases(
             {"task_db": str(db_path)},
             backup_dir=str(backup_dir),
             retention_days=retention_days,
+            backup_interval_days=backup_interval_days,
             write=True,
             now=datetime(2026, 6, 29, tzinfo=timezone.utc),
         )

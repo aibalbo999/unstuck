@@ -229,6 +229,7 @@ def test_blank_storage_path_env_vars_fall_back_to_defaults(tmp_path):
         "TASK_DB_PATH",
         "SQLITE_BACKUP_DIR",
         "SQLITE_BACKUP_RETENTION_DAYS",
+        "SQLITE_BACKUP_INTERVAL_DAYS",
     )
     old_values = {key: os.environ.get(key) for key in keys}
     original_base_dir = settings_env.BASE_DIR
@@ -252,7 +253,8 @@ def test_blank_storage_path_env_vars_fall_back_to_defaults(tmp_path):
         assert app_config.OPERATIONAL_DB_PATH == str(expected_cache_dir / "operational.sqlite3")
         assert app_config.TASK_DB_PATH == str(expected_cache_dir / "operational.sqlite3")
         assert app_config.SQLITE_BACKUP_DIR == str(expected_cache_dir / "sqlite_backups")
-        assert app_config.SQLITE_BACKUP_RETENTION_DAYS == 3
+        assert app_config.SQLITE_BACKUP_RETENTION_DAYS == 1
+        assert app_config.SQLITE_BACKUP_INTERVAL_DAYS == 30
     finally:
         settings_env.BASE_DIR = original_base_dir
         settings_env._LOADED_ENV_SIGNATURE = original_signature

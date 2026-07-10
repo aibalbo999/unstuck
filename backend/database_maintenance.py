@@ -13,6 +13,7 @@ from config import (
     LANGGRAPH_CHECKPOINT_BACKEND,
     LANGGRAPH_CHECKPOINT_PATH,
     SQLITE_BACKUP_DIR,
+    SQLITE_BACKUP_INTERVAL_DAYS,
     SQLITE_BACKUP_RETENTION_DAYS,
     TASK_DB_PATH,
 )
@@ -56,9 +57,11 @@ def run_sqlite_maintenance(
     checkpoint_path: str | None = None,
     backup_dir: str | None = None,
     retention_days: int | None = None,
+    backup_interval_days: int | None = None,
     write: bool = False,
     now: datetime | None = None,
 ) -> dict:
+    _validate_maintenance_config(retention_days, backup_interval_days)
     return maintain_sqlite_databases(
         runtime_sqlite_paths(
             cache_db_path=cache_db_path,
@@ -68,6 +71,7 @@ def run_sqlite_maintenance(
         ),
         backup_dir=backup_dir or SQLITE_BACKUP_DIR,
         retention_days=retention_days,
+        backup_interval_days=backup_interval_days,
         write=write,
         now=now,
     )
@@ -78,19 +82,32 @@ def maintain_sqlite_databases(
     *,
     backup_dir: str | None,
     retention_days: int | None = None,
+    backup_interval_days: int | None = None,
     write: bool = False,
     now: datetime | None = None,
 ) -> dict:
+    _validate_maintenance_config(retention_days, backup_interval_days)
     timestamp = now or datetime.now(timezone.utc)
     effective_retention_days = (
         SQLITE_BACKUP_RETENTION_DAYS if retention_days is None else retention_days
     )
-    if effective_retention_days < 1:
-        raise ValueError("retention_days must be at least 1")
+    effective_backup_interval_days = (
+        SQLITE_BACKUP_INTERVAL_DAYS
+        if backup_interval_days is None
+        else backup_interval_days
+    )
+    _validate_maintenance_config(effective_retention_days, effective_backup_interval_days)
     stamp = _date_stamp(timestamp)
     backup_root = Path(backup_dir).expanduser().resolve(strict=False) if backup_dir else None
     results = [
-        _maintain_one_database(label, Path(path), backup_root=backup_root, stamp=stamp, write=write)
+        _maintain_one_database(
+            label,
+            Path(path),
+            backup_root=backup_root,
+            stamp=stamp,
+            backup_interval_days=effective_backup_interval_days,
+            write=write,
+        )
         for label, path in databases.items()
     ]
     return {
@@ -106,6 +123,18 @@ def maintain_sqlite_databases(
     }
 
 
+def _validate_maintenance_config(
+    retention_days: int | None,
+    backup_interval_days: int | None,
+) -> None:
+    """Reject unsafe maintenance settings before touching any database or backup."""
+
+    if retention_days is not None and retention_days <= 0:
+        raise ValueError("retention_days must be at least 1")
+    if backup_interval_days is not None and backup_interval_days <= 0:
+        raise ValueError("backup_interval_days must be at least 1")
+
+
 def _prune_backup_files(
     backup_root: Path | None,
     *,
@@ -113,6 +142,8 @@ def _prune_backup_files(
     timestamp: datetime,
     write: bool,
 ) -> dict:
+    if retention_days <= 0:
+        raise ValueError("retention_days must be at least 1")
     cutoff = _utc_date(timestamp) - timedelta(days=retention_days - 1)
     candidates: list[str] = []
     if backup_root and backup_root.is_dir():
@@ -150,18 +181,30 @@ def _maintain_one_database(
     backup_root: Path | None,
     stamp: str,
     write: bool,
+    backup_interval_days: int = SQLITE_BACKUP_INTERVAL_DAYS,
 ) -> dict:
     resolved = path.expanduser().resolve(strict=False)
     exists = resolved.exists() and resolved.is_file()
+    backup = _backup_plan(
+        label,
+        backup_root,
+        stamp,
+        exists,
+        write,
+        backup_interval_days=backup_interval_days,
+    )
+    maintenance_status = "planned" if exists else "skipped_missing"
+    if backup.get("status") == "skipped_interval":
+        maintenance_status = "skipped_backup_interval"
     result = {
         "label": label,
         "path": str(resolved),
         "exists": exists,
-        "backup": _backup_plan(label, backup_root, stamp, exists, write),
-        "wal_checkpoint": {"status": "planned" if exists else "skipped_missing"},
-        "vacuum": {"status": "planned" if exists else "skipped_missing"},
+        "backup": backup,
+        "wal_checkpoint": {"status": maintenance_status},
+        "vacuum": {"status": maintenance_status},
     }
-    if not exists or not write:
+    if not exists or not write or backup.get("status") == "skipped_interval":
         return result
 
     try:
@@ -178,15 +221,62 @@ def _maintain_one_database(
     return result
 
 
-def _backup_plan(label: str, backup_root: Path | None, stamp: str, exists: bool, write: bool) -> dict:
+def _backup_plan(
+    label: str,
+    backup_root: Path | None,
+    stamp: str,
+    exists: bool,
+    write: bool,
+    *,
+    backup_interval_days: int = SQLITE_BACKUP_INTERVAL_DAYS,
+) -> dict:
     if backup_root is None:
         return {"status": "disabled", "path": None}
     path = backup_root / f"{label}-{stamp}.sqlite3"
+    stamp_date = datetime.strptime(stamp, "%Y%m%d").date()
+    latest_path: Path | None = None
+    latest_date: date | None = None
+    if backup_root.is_dir():
+        for candidate in backup_root.iterdir():
+            if candidate.is_symlink() or not candidate.is_file():
+                continue
+            match = _MANAGED_BACKUP_PATTERN.fullmatch(candidate.name)
+            if match is None or match.group(1) != label:
+                continue
+            try:
+                candidate_date = datetime.strptime(match.group(2), "%Y%m%d").date()
+            except ValueError:
+                continue
+            if candidate_date > stamp_date:
+                continue
+            if latest_date is None or candidate_date > latest_date:
+                latest_date = candidate_date
+                latest_path = candidate
+    latest_backup = str(latest_path) if latest_path else None
+    next_due_date = (
+        latest_date + timedelta(days=backup_interval_days)
+        if latest_date is not None
+        else stamp_date
+    )
+    metadata = {
+        "path": str(path),
+        "latest": latest_backup,
+        "latest_backup": latest_backup,
+        "latest_backup_date": latest_date.isoformat() if latest_date else None,
+        "next_due": next_due_date.isoformat(),
+        "next_due_date": next_due_date.isoformat(),
+        "interval_days": backup_interval_days,
+    }
     if not exists:
-        return {"status": "skipped_missing", "path": str(path)}
-    if path.exists():
-        return {"status": "exists", "path": str(path)}
-    return {"status": "planned" if not write else "pending", "path": str(path)}
+        metadata["status"] = "skipped_missing"
+        return metadata
+    if latest_date is not None:
+        elapsed_days = (stamp_date - latest_date).days
+        if elapsed_days < backup_interval_days:
+            metadata["status"] = "skipped_interval"
+            return metadata
+    metadata["status"] = "planned" if not write else "pending"
+    return metadata
 
 
 def _create_backup_if_needed(source_path: Path, backup: dict) -> None:
