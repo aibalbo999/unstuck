@@ -39,3 +39,19 @@ def test_commercial_styles_define_single_task_layout_and_responsive_contracts():
     assert "min-height: 44px" in components
     assert "@media (max-width: 560px)" in responsive
     assert "grid-template-columns: 1fr" in responsive
+
+
+def test_decision_page_is_a_single_task_queue_without_demo_fallbacks():
+    html = read("research-workbench.html")
+    js = read("pages/decision_page.js")
+
+    assert 'data-commercial-page="decision"' in html
+    assert 'id="decision-title"' in html
+    assert ">今日決策</h1>" in html
+    assert html.count("commercial-primary-action") == 1
+    assert 'id="decision-task-list"' in html
+    assert 'type="module" src="/static/commercial/pages/decision_page.js' in html
+    assert "/api/decision-tracking" in js
+    assert "stockPageHref" in js
+    assert "fallbackTickers" not in js
+    assert "localStorage" not in js

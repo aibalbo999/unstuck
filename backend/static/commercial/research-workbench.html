@@ -1,351 +1,39 @@
 <!doctype html>
-<html lang="zh-TW">
+<html lang="zh-Hant">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>OnStock 研究工作台</title>
-  <link rel="stylesheet" href="/static/commercial/commercial_pages.css?v=20260705-commercial-pro213">
-  <script src="/static/commercial/commercial_pages.js?v=20260705-commercial-pro213" defer></script>
+  <title>OnStock 今日決策</title>
+  <link rel="stylesheet" href="/static/commercial/styles/tokens.css?v=20260711-simple">
+  <link rel="stylesheet" href="/static/commercial/styles/shell.css?v=20260711-simple">
+  <link rel="stylesheet" href="/static/commercial/styles/components.css?v=20260711-simple">
+  <link rel="stylesheet" href="/static/commercial/styles/responsive.css?v=20260711-simple">
 </head>
-<body class="commercial-page" data-commercial-page="research-workbench">
-  <div class="commercial-shell">
-    <header class="commercial-topbar">
-      <a class="commercial-brand" href="/" aria-label="回到主頁">
-        <strong>OnStock AI</strong>
-        <span>投資決策工作區</span>
-      </a>
-      <nav class="commercial-nav" aria-label="商業版投資工作區">
-        <a href="/">主頁</a>
-        <a href="/static/commercial/research-workbench.html" aria-current="page">研究工作台</a>
-        <a href="/static/commercial/stock-detail.html">單股研究</a>
-        <a href="/static/commercial/portfolio-dashboard.html">組合健檢</a>
-      </nav>
+<body data-commercial-page="decision">
+  <header class="commercial-topbar">
+    <a class="commercial-brand" href="/" aria-label="回到主頁">OnStock AI</a>
+    <nav class="commercial-nav" aria-label="商業版投資工作區">
+      <a href="/static/commercial/research-workbench.html" aria-current="page">今日決策</a>
+      <a href="/static/commercial/stock-detail.html">單股研究</a>
+      <a href="/static/commercial/portfolio-dashboard.html">組合健檢</a>
+    </nav>
+  </header>
+  <main class="commercial-page">
+    <header class="commercial-page-header">
+      <span class="commercial-eyebrow">每日投資流程</span>
+      <h1 id="decision-title" tabindex="-1">今日決策</h1>
+      <p class="commercial-muted">先處理風險、過期資料與需重跑的股票。</p>
     </header>
-
-    <section id="commercial-workbench-primary-snapshot" class="commercial-primary-snapshot-dock" aria-label="追蹤表快速快照"></section>
-    <section id="commercial-workbench-primary-answer" class="commercial-primary-answer-strip" aria-label="追蹤表決策答案"></section>
-    <section id="commercial-workbench-primary-compare" class="commercial-primary-compare-lens" aria-label="追蹤表比較焦點"></section>
-    <section id="commercial-workbench-primary-customize" class="commercial-primary-customize-strip" aria-label="追蹤表自訂視圖"></section>
-
-    <section id="commercial-workbench-jump-deck" class="commercial-jump-deck" aria-label="追蹤表首屏導覽"></section>
-
-    <section id="commercial-workspace-chrome" class="commercial-workspace-chrome" aria-label="商業版工作區"></section>
-
-    <section id="commercial-mobile-action-bar" class="commercial-mobile-action-bar" aria-label="手機快速動作"></section>
-
-    <aside id="commercial-desktop-insight-rail" class="commercial-desktop-insight-rail" aria-label="桌面研究洞察捷徑"></aside>
-
-    <main id="commercial-workbench-page" class="commercial-main" aria-live="polite">
-      <section class="commercial-hero" aria-labelledby="workbench-title">
-        <div>
-          <h1 id="workbench-title">研究工作台</h1>
-          <p>追蹤表決策中樞：每日決策追蹤表、持股快照與 AI 報告摘要集中在同一個工作流。</p>
-        </div>
-        <span class="commercial-status">8080 獨立頁面</span>
-      </section>
-
-      <section id="commercial-workbench-core-surface" class="commercial-core-surface" aria-label="追蹤表核心資料"></section>
-      <section id="commercial-workbench-decision-queue" class="commercial-decision-queue" aria-label="追蹤表即點即看決策隊列"></section>
-      <section id="commercial-workbench-handoff-strip" class="commercial-handoff-strip" aria-label="追蹤表交付摘要"></section>
-      <section id="commercial-workbench-competitive-strip" class="commercial-competitive-strip" aria-label="追蹤表競品級資料格摘要"></section>
-      <section id="commercial-workbench-view-rail" class="commercial-view-rail" aria-label="追蹤表視角切換"></section>
-      <section id="commercial-workbench-signal-tape" class="commercial-signal-tape" aria-label="追蹤表即時訊號"></section>
-      <section id="commercial-workbench-technical-pulse" class="commercial-technical-pulse" aria-label="追蹤表技術面脈搏"></section>
-      <section id="commercial-workbench-disclosure-digest" class="commercial-disclosure-digest" aria-label="追蹤表資訊揭露摘要"></section>
-      <section id="commercial-workbench-visual-pulse" class="commercial-visual-pulse" aria-label="追蹤表視覺脈搏"></section>
-      <section id="commercial-workbench-report-locator" class="commercial-report-locator" aria-label="追蹤表報告定位"></section>
-      <section id="commercial-workbench-data-beacon" class="commercial-data-beacon" aria-label="追蹤表資料同步狀態"></section>
-      <section id="commercial-workbench-alert-beacon" class="commercial-alert-beacon" aria-label="追蹤表警示監控"></section>
-      <section id="commercial-workbench-preset-beacon" class="commercial-preset-beacon" aria-label="追蹤表版面預設"></section>
-      <section id="commercial-workbench-onboarding-beacon" class="commercial-onboarding-beacon" aria-label="追蹤表匯入啟動"></section>
-      <section id="commercial-workbench-focus-dock" class="commercial-focus-dock" aria-label="追蹤表股票快照焦點"></section>
-      <section id="commercial-workbench-market-coverage" class="commercial-market-coverage" aria-label="追蹤表競品需求覆蓋"></section>
-      <section id="commercial-workbench-decision-radar" class="commercial-decision-radar" aria-label="追蹤表決策雷達"></section>
-      <section id="commercial-global-context" class="commercial-context-bar" aria-label="全域研究脈絡"></section>
-      <section id="commercial-workbench-action-dock" class="commercial-action-dock" aria-label="追蹤表快速動作列"></section>
-      <section id="commercial-workbench-control-strip" class="commercial-control-strip" aria-label="追蹤表工作區控制列"></section>
-      <section id="commercial-workbench-requirement-map" class="commercial-requirement-map" aria-label="追蹤表需求地圖"></section>
-      <section id="commercial-workbench-answer-strip" class="commercial-answer-strip" aria-label="追蹤表今日答案"></section>
-      <section id="commercial-workbench-explain-strip" class="commercial-explain-strip" aria-label="追蹤表白話解釋"></section>
-      <section id="commercial-workbench-trust-strip" class="commercial-trust-strip" aria-label="追蹤表資料信任"></section>
-      <section id="commercial-workbench-flow-navigator" class="commercial-flow-navigator" aria-label="追蹤表流程導航"></section>
-      <section id="commercial-workbench-sync-strip" class="commercial-sync-strip" aria-label="追蹤表同步捷徑"></section>
-      <section id="commercial-workbench-today-inbox" class="commercial-today-inbox" aria-label="追蹤表今日通知匣"></section>
-      <section id="commercial-workbench-market-brief" class="commercial-market-brief" aria-label="追蹤表今日市場摘要"></section>
-      <section id="commercial-workbench-session-watch" class="commercial-session-watch" aria-label="追蹤表交易時段監控"></section>
-      <section id="commercial-workbench-event-strip" class="commercial-event-strip" aria-label="追蹤表事件時程"></section>
-      <section id="commercial-workbench-priority-strip" class="commercial-priority-strip" aria-label="追蹤表優先模式"></section>
-      <section id="commercial-workbench-triage-board" class="commercial-triage-board" aria-label="追蹤表分流看板"></section>
-      <section id="commercial-workbench-insight-digest" class="commercial-insight-digest" aria-label="追蹤表洞察摘要"></section>
-      <section id="commercial-workbench-batch-monitor" class="commercial-mission-deck" aria-label="追蹤表批次監控"></section>
-      <section id="commercial-workbench-factor-lens" class="commercial-factor-lens" aria-label="追蹤表量化因子鏡頭"></section>
-      <section id="commercial-workbench-setup-launchpad" class="commercial-setup-launchpad" aria-label="追蹤表新手設定"></section>
-      <section id="commercial-workbench-workflow-lens" class="commercial-workflow-lens" aria-label="追蹤表工作流鏡頭"></section>
-      <section id="commercial-workbench-data-coverage" class="commercial-data-coverage" aria-label="追蹤表資料覆蓋地圖"></section>
-      <section id="commercial-workbench-share-brief" class="commercial-share-brief" aria-label="追蹤表分享摘要"></section>
-      <section id="commercial-workbench-competitive-lens" class="commercial-competitive-lens" aria-label="追蹤表競品級評分鏡頭"></section>
-      <section id="commercial-workbench-decision-automation" class="commercial-decision-automation" aria-label="追蹤表決策自動化"></section>
-      <section id="commercial-workbench-data-sync" class="commercial-data-sync" aria-label="追蹤表資料同步啟動台"></section>
-      <section id="commercial-workbench-scenario-simulator" class="commercial-scenario-simulator" aria-label="追蹤表情境推演"></section>
-      <section id="commercial-workbench-report-composer" class="commercial-report-composer" aria-label="追蹤表報告編輯器"></section>
-      <section id="commercial-workbench-alert-center" class="commercial-smart-alert-center" aria-label="追蹤表智慧警示中心"></section>
-      <section id="commercial-workbench-position-ledger" class="commercial-position-ledger" aria-label="追蹤表持股成本總覽"></section>
-      <section id="commercial-workbench-import-center" class="commercial-import-center" aria-label="追蹤表匯入中心"></section>
-      <section id="commercial-workbench-performance-attribution" class="commercial-performance-attribution" aria-label="追蹤表決策績效歸因"></section>
-      <section id="commercial-workbench-tax-income" class="commercial-tax-income" aria-label="追蹤表股息與稅務隊列"></section>
-      <section id="commercial-workbench-performance-timeline" class="commercial-performance-timeline" aria-label="追蹤表歷史績效時間軸"></section>
-      <section id="commercial-workbench-risk-lab" class="commercial-risk-lab" aria-label="追蹤表風險與壓力測試"></section>
-      <section id="commercial-workbench-report-studio" class="commercial-report-studio" aria-label="追蹤表報告與分享工作台"></section>
-      <section id="commercial-workbench-copilot" class="commercial-copilot-panel" aria-label="追蹤表 AI 研究助理"></section>
-      <section id="commercial-workbench-personalization" class="commercial-personalization-panel" aria-label="追蹤表個人策略設定"></section>
-      <section id="commercial-workbench-journey-palette" class="commercial-journey-palette" aria-label="追蹤表研究旅程命令列"></section>
-      <section id="commercial-workbench-snapshot-inspector" class="commercial-snapshot-inspector" aria-label="追蹤表快照檢視器"></section>
-      <section id="commercial-workbench-event-queue" class="commercial-event-queue" aria-label="追蹤表新聞與事件隊列"></section>
-      <section id="commercial-workbench-progress-coach" class="commercial-progress-coach" aria-label="追蹤表研究進度教練"></section>
-      <section id="commercial-workbench-coverage-matrix" class="commercial-coverage-matrix" aria-label="追蹤表資料覆蓋矩陣"></section>
-      <section id="commercial-workbench-change-radar" class="commercial-change-radar" aria-label="追蹤表每日變動雷達"></section>
-      <section id="commercial-workbench-evidence-binder" class="commercial-evidence-binder" aria-label="追蹤表研究證據夾"></section>
-      <section id="commercial-workbench-decision-cockpit" class="commercial-page-cockpit" aria-label="追蹤表決策工作摘要"></section>
-      <section id="commercial-workbench-module-layout" class="commercial-module-pinboard" aria-label="追蹤表自訂模組版面"></section>
-      <section id="commercial-workbench-template-studio" class="commercial-template-studio" aria-label="追蹤表工作區模板"></section>
-      <section id="commercial-workbench-visual-board" class="commercial-visual-board" aria-label="追蹤表視覺分析"></section>
-      <section id="commercial-workbench-alert-builder" class="commercial-rule-builder" aria-label="追蹤清單警示規則"></section>
-      <section id="commercial-workbench-grid-lab" class="commercial-grid-lab" aria-label="追蹤表資料格工作台"></section>
-      <section id="commercial-workbench-score-strip" class="commercial-score-strip" aria-label="追蹤清單決策評分"></section>
-      <section id="commercial-workbench-compare-dock" class="commercial-compare-dock" aria-label="追蹤清單相對比較"></section>
-      <section id="commercial-workbench-task-rail" class="commercial-task-rail" aria-label="追蹤清單任務導覽"></section>
-      <section id="commercial-workbench-section-nav" class="commercial-section-nav" aria-label="追蹤清單區段導覽"></section>
-      <section id="commercial-workbench-command-hub" class="commercial-command-hub" aria-label="追蹤清單工作視角"></section>
-      <section id="commercial-workbench-quick-actions" class="commercial-intelligence-panel" aria-label="追蹤清單快速動作"></section>
-      <section id="commercial-workbench-workspace-memory" class="commercial-memory-panel" aria-label="追蹤清單工作記憶"></section>
-      <section id="commercial-workbench-monitor-center" class="commercial-delivery-panel" aria-label="追蹤清單監控中心"></section>
-
-      <section class="commercial-panel" aria-label="追蹤總覽">
-        <div class="commercial-kpi-grid">
-          <div class="commercial-kpi"><span>追蹤股票</span><strong id="commercial-kpi-tracked">-</strong></div>
-          <div class="commercial-kpi"><span>警示</span><strong id="commercial-kpi-alerts">-</strong></div>
-          <div class="commercial-kpi"><span>需重跑報告</span><strong id="commercial-kpi-rerun">-</strong></div>
-          <div class="commercial-kpi"><span>平均建議後報酬</span><strong id="commercial-kpi-return">-</strong></div>
-        </div>
-      </section>
-
-      <section id="commercial-workbench-delivery" class="commercial-delivery-bar" aria-live="polite"></section>
-      <section id="commercial-workbench-data-status" class="commercial-data-status" aria-live="polite"></section>
-      <section id="commercial-workbench-provenance" class="commercial-provenance-strip" aria-live="polite"></section>
-      <section id="commercial-workbench-action-rail" class="commercial-next-actions" aria-live="polite"></section>
-
-      <section class="commercial-three-column" aria-label="研究工作台">
-        <section id="commercial-workbench-workspace-command" class="commercial-workspace-command-bar" aria-label="追蹤表工作區命令列"></section>
-        <section id="commercial-workbench-coverage-strip" class="commercial-coverage-strip" aria-label="追蹤表資訊覆蓋導覽"></section>
-        <section id="commercial-workbench-readiness-strip" class="commercial-workflow-readiness" aria-label="追蹤表交付狀態導覽"></section>
-
-        <aside class="commercial-panel">
-          <div class="commercial-panel-header">
-            <div>
-              <strong>追蹤清單</strong>
-              <span>點擊股票切換快照</span>
-            </div>
-          </div>
-          <div id="commercial-workbench-list" class="commercial-list">
-            <button class="commercial-row-button" type="button" disabled>
-              <span><strong>載入中</strong><span>讀取每日決策追蹤表</span></span>
-              <em>-</em>
-            </button>
-          </div>
-        </aside>
-
-        <section class="commercial-panel">
-          <div class="commercial-panel-header">
-            <div>
-              <strong>每日決策追蹤表</strong>
-              <span>桌面版保留表格密度，代號可直接點取</span>
-            </div>
-            <div id="commercial-workbench-filter" class="commercial-segmented" aria-label="追蹤表篩選">
-              <button class="commercial-tab-button is-active" type="button" data-workbench-filter="all">全部</button>
-              <button class="commercial-tab-button" type="button" data-workbench-filter="alerts">警示</button>
-              <button class="commercial-tab-button" type="button" data-workbench-filter="rerun">需重跑</button>
-              <button class="commercial-tab-button" type="button" data-workbench-filter="positive">正報酬</button>
-            </div>
-          </div>
-          <div id="commercial-workbench-table-toolbar" class="commercial-table-toolbar">
-            <button class="commercial-button" type="button" data-workbench-sort="returnPct">依報酬排序</button>
-            <button class="commercial-button" type="button" data-workbench-export-csv>產生 CSV</button>
-          </div>
-          <div id="commercial-workbench-flag-board" class="commercial-detail">
-            <div class="commercial-flag-board" aria-label="Watchlist flags">
-              <button class="commercial-tab-button is-active" type="button" data-workbench-flag="all" aria-pressed="true">All</button>
-              <button class="commercial-tab-button" type="button" data-workbench-flag="priority" aria-pressed="false">Priority</button>
-              <button class="commercial-tab-button" type="button" data-workbench-flag="review" aria-pressed="false">Review</button>
-              <button class="commercial-tab-button" type="button" data-workbench-flag="stable" aria-pressed="false">Stable</button>
-            </div>
-          </div>
-          <pre id="commercial-workbench-export-preview" class="commercial-export-preview" hidden aria-live="polite"></pre>
-          <div id="commercial-workbench-table" class="commercial-table-wrap"></div>
-          <div id="commercial-workbench-compare-basket" class="commercial-detail" aria-live="polite"></div>
-          <div id="commercial-workbench-compare-chart" class="commercial-detail" aria-live="polite"></div>
-        </section>
-
-        <aside class="commercial-panel">
-          <div class="commercial-panel-header">
-            <div>
-              <strong>股票快照</strong>
-              <span>固定在右側，不必上下捲動找報告</span>
-            </div>
-          </div>
-          <div id="commercial-workbench-detail" class="commercial-detail"></div>
-          <div id="commercial-workbench-symbol-details" class="commercial-detail" aria-live="polite"></div>
-          <div id="commercial-workbench-alerts" class="commercial-action-list"></div>
-          <div id="commercial-workbench-inline-alert-builder" class="commercial-detail"></div>
-        </aside>
-      </section>
-
-      <section class="commercial-panel">
-        <div class="commercial-panel-header">
-          <div>
-            <strong>Command Center</strong>
-            <span>快速搜尋、新聞、筆記與下一步動作集中處理</span>
-          </div>
-          <div class="commercial-inline-form">
-            <input id="commercial-workbench-command" class="commercial-input" placeholder="搜尋股票、公司、警示或筆記" aria-label="工作台搜尋">
-            <button class="commercial-button is-primary" type="button" data-workbench-command-action="alerts">聚焦警示</button>
-          </div>
-        </div>
-        <div class="commercial-workbench-command-grid">
-          <div id="commercial-workbench-news" class="commercial-feed"></div>
-          <div id="commercial-workbench-notes" class="commercial-feed"></div>
-        </div>
-      </section>
-
-      <section id="commercial-workbench-market-pulse" class="commercial-pulse-grid" aria-label="盤中脈搏"></section>
-
-      <section id="commercial-workbench-layout-presets" class="commercial-panel" aria-label="Dashboard presets"></section>
-
-      <section id="commercial-workbench-screen-builder" class="commercial-panel" aria-label="Screen builder"></section>
-
-      <section id="commercial-workbench-market-regime" class="commercial-panel" aria-label="Market regime overlay"></section>
-
-      <section id="commercial-workbench-opportunity-radar" class="commercial-panel" aria-label="Opportunity radar"></section>
-
-      <section id="commercial-workbench-heatmap" class="commercial-panel" aria-label="Watchlist heatmap"></section>
-
-      <section id="commercial-workbench-heatmap-controls" class="commercial-panel" aria-label="Heatmap display controls"></section>
-
-      <section id="commercial-workbench-priority-matrix" class="commercial-panel" aria-label="Watchlist priority matrix"></section>
-
-      <section id="commercial-workbench-report-pack" class="commercial-panel" aria-label="Client ready report pack"></section>
-
-      <section id="commercial-workbench-briefing-tape" class="commercial-panel" aria-label="Market briefing tape"></section>
-
-      <section class="commercial-panel">
-        <div class="commercial-panel-header">
-          <div>
-            <strong>Watchlist Views</strong>
-            <span>仿照專業看盤產品，依情境切換欄位與警示焦點</span>
-          </div>
-          <div id="commercial-workbench-views" class="commercial-segmented" aria-label="工作台檢視">
-            <button class="commercial-tab-button is-active" type="button" data-workbench-view="decision">決策</button>
-            <button class="commercial-tab-button" type="button" data-workbench-view="valuation">估值</button>
-            <button class="commercial-tab-button" type="button" data-workbench-view="event">事件</button>
-            <button class="commercial-tab-button" type="button" data-workbench-view="risk">風險</button>
-          </div>
-        </div>
-        <div id="commercial-workbench-view-summary" class="commercial-strip"></div>
-      </section>
-
-      <section id="commercial-workbench-advanced-watchlist" class="commercial-panel" aria-label="Advanced watchlist summary"></section>
-
-      <section class="commercial-operation-grid" aria-label="清單操作">
-        <section class="commercial-panel">
-          <div class="commercial-panel-header">
-            <div>
-              <strong>Column Set</strong>
-              <span>像專業 watchlist 一樣切換欄位組</span>
-            </div>
-            <div id="commercial-workbench-column-set" class="commercial-segmented" aria-label="欄位組">
-              <button class="commercial-tab-button is-active" type="button" data-workbench-column-set="decision">決策</button>
-              <button class="commercial-tab-button" type="button" data-workbench-column-set="fundamental">基本面</button>
-              <button class="commercial-tab-button" type="button" data-workbench-column-set="event">事件</button>
-              <button class="commercial-tab-button" type="button" data-workbench-column-set="risk">風險</button>
-            </div>
-          </div>
-          <div id="commercial-workbench-bulk-actions" class="commercial-command-bar"></div>
-        </section>
-
-        <section class="commercial-panel">
-          <div class="commercial-panel-header">
-            <div>
-              <strong>Insight Queue</strong>
-              <span>把待處理標的變成下一步任務</span>
-            </div>
-          </div>
-          <div id="commercial-workbench-insight-queue" class="commercial-feed"></div>
-        </section>
-      </section>
-
-      <section class="commercial-operation-grid" aria-label="專業清單工具">
-        <section class="commercial-panel">
-          <div class="commercial-panel-header">
-            <div>
-              <strong>Saved Views</strong>
-              <span>保存欄位、篩選與公式設定</span>
-            </div>
-          </div>
-          <div id="commercial-workbench-saved-views" class="commercial-detail"></div>
-        </section>
-
-        <section class="commercial-panel">
-          <div class="commercial-panel-header">
-            <div>
-              <strong>Formula Lab</strong>
-              <span>自訂 watchlist 計算欄位</span>
-            </div>
-          </div>
-          <div id="commercial-workbench-formula-lab" class="commercial-detail"></div>
-        </section>
-
-        <section class="commercial-panel">
-          <div class="commercial-panel-header">
-            <div>
-              <strong>Alerts Manager</strong>
-              <span>跨標的警示狀態與處理</span>
-            </div>
-          </div>
-          <div id="commercial-workbench-alert-manager" class="commercial-detail"></div>
-        </section>
-      </section>
-
-      <section class="commercial-pro-grid" aria-label="競品級 Watchlist 分析">
-        <section class="commercial-panel">
-          <div class="commercial-panel-header">
-            <div>
-              <strong>Grouped Summary</strong>
-              <span>分組、摘要列與清單健康度</span>
-            </div>
-          </div>
-          <div id="commercial-workbench-section-summary" class="commercial-detail"></div>
-        </section>
-
-        <section class="commercial-panel">
-          <div class="commercial-panel-header">
-            <div>
-              <strong>Events & News</strong>
-              <span>財報、新聞與下一個觸發點</span>
-            </div>
-          </div>
-          <div id="commercial-workbench-event-calendar" class="commercial-detail"></div>
-        </section>
-
-        <section class="commercial-panel">
-          <div class="commercial-panel-header">
-            <div>
-              <strong>Screener Rules</strong>
-              <span>把 watchlist 當成可掃描的 universe</span>
-            </div>
-          </div>
-          <div id="commercial-workbench-screener-rules" class="commercial-detail"></div>
-        </section>
-      </section>
-    </main>
-  </div>
+    <section class="commercial-answer" aria-labelledby="decision-answer-title">
+      <span class="commercial-eyebrow">今天最重要</span>
+      <h2 id="decision-answer-title">正在整理待處理項目…</h2>
+      <p id="decision-answer-detail" class="commercial-muted"></p>
+      <ul id="decision-task-list" class="commercial-task-list" aria-label="今日待處理股票"></ul>
+      <a id="decision-primary" class="commercial-primary-action" href="/static/commercial/stock-detail.html" hidden>開始檢查</a>
+      <a id="decision-empty-action" class="commercial-secondary-action" href="/#home-tab-tracking" hidden>設定追蹤股票</a>
+    </section>
+    <section id="decision-source-status" class="commercial-source-status" aria-live="polite"></section>
+  </main>
+  <script type="module" src="/static/commercial/pages/decision_page.js?v=20260711-simple"></script>
 </body>
 </html>
