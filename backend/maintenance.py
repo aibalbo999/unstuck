@@ -8,6 +8,7 @@ import json
 from checkpoint_maintenance import cleanup_terminal_checkpoints
 from config import LANGGRAPH_CHECKPOINT_PATH, TASK_DB_PATH
 from storage.legacy_reports import migrate_legacy_reports
+from checkpoint_maintenance import cleanup_terminal_checkpoints
 from database_maintenance import run_sqlite_maintenance
 from job_store_maintenance import cleanup_analysis_history
 from market_calendar_store import update_market_calendars
@@ -125,6 +126,14 @@ def main() -> int:
             task_db_path=args.task_db_path,
             checkpoint_path=args.checkpoint_path,
             backup_dir=args.backup_dir,
+            write=args.write,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
+    if args.command == "cleanup-terminal-checkpoints":
+        result = cleanup_terminal_checkpoints(
+            checkpoint_db_path=args.checkpoint_db_path,
+            task_db_path=args.task_db_path,
             write=args.write,
         )
         print(json.dumps(result, ensure_ascii=False, indent=2))
