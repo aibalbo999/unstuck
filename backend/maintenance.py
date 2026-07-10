@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 import json
 
+from checkpoint_maintenance import cleanup_terminal_checkpoints
+from config import LANGGRAPH_CHECKPOINT_PATH, TASK_DB_PATH
 from storage.legacy_reports import migrate_legacy_reports
 from database_maintenance import run_sqlite_maintenance
 from job_store_maintenance import cleanup_analysis_history
@@ -40,6 +42,10 @@ def main() -> int:
     job_history_parser.add_argument("--retention-days", type=int, default=None)
     job_history_parser.add_argument("--keep-recent-jobs", type=int, default=20)
     job_history_parser.add_argument("--write", action="store_true")
+    checkpoint_parser = subparsers.add_parser("cleanup-terminal-checkpoints")
+    checkpoint_parser.add_argument("--checkpoint-db-path", default=None)
+    checkpoint_parser.add_argument("--task-db-path", default=None)
+    checkpoint_parser.add_argument("--write", action="store_true")
     storage_parser = subparsers.add_parser("storage-summary")
     storage_parser.add_argument("--output-dir", default=None)
     storage_parser.add_argument("--cache-dir", default=None)
@@ -91,6 +97,14 @@ def main() -> int:
             task_db_path=args.task_db_path,
             retention_days=args.retention_days,
             keep_recent_jobs=args.keep_recent_jobs,
+            write=args.write,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
+    if args.command == "cleanup-terminal-checkpoints":
+        result = cleanup_terminal_checkpoints(
+            checkpoint_db_path=args.checkpoint_db_path or LANGGRAPH_CHECKPOINT_PATH,
+            task_db_path=args.task_db_path or TASK_DB_PATH,
             write=args.write,
         )
         print(json.dumps(result, ensure_ascii=False, indent=2))

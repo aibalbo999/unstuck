@@ -502,3 +502,4 @@ def test_maintenance_wrapper_sets_backend_pythonpath():
     assert "scripts/maintenance.sh storage-summary" in readme
     assert "cleanup-report-index --write" in readme
     assert "cleanup-analysis-history --write" in readme
+    assert "cleanup-terminal-checkpoints --write" in readme

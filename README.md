@@ -284,11 +284,13 @@ scripts/maintenance.sh sqlite-maintenance --write
 scripts/maintenance.sh cleanup-provider-sla
 scripts/maintenance.sh cleanup-report-index --write
 scripts/maintenance.sh cleanup-analysis-history --write
+scripts/maintenance.sh cleanup-terminal-checkpoints --write
 scripts/maintenance.sh verify-snapshots --write
 ```
 
 `cleanup-report-index` 預設只會 dry-run；加上 `--write` 才會刪除已不存在輸出目錄的報告索引列。
 `cleanup-analysis-history` 預設也只會 dry-run；加上 `--write` 才會刪除過舊且已結束的任務與孤兒事件，queued/running 任務會保留。
+`cleanup-terminal-checkpoints` 預設只會 dry-run；加上 `--write` 才會刪除 `done`、`error`、`cancelled` 任務對應的 LangGraph checkpoint `writes` 與 `checkpoints` rows。它用 `thread_id` 第一個 `:` 前的 job id 對應 `analysis_jobs`，會保留 queued/running/waiting_retry 等非終止任務與找不到 job row 的 threads；schema 不完整時只回報 `schema_ready=false`，不刪資料。這個命令不會自動執行 `VACUUM`，請先停服務、dry-run 確認，再搭配一次受控 SQLite 維護。
 `sqlite-maintenance` 預設只會 dry-run，回報預計移除的逾期備份但不刪檔；加上 `--write` 才會刪除候選檔，並在備份到期時對 runtime SQLite DB 建立備份、執行一次 WAL checkpoint 與 `VACUUM`。同一 DB 最近備份未滿 `SQLITE_BACKUP_INTERVAL_DAYS`（預設 30 天）時會回報 `skipped_interval`，不建立備份、不執行 WAL checkpoint／`VACUUM`；同一天重跑也會跳過維護。備份以 `SQLITE_BACKUP_DIR` 為目錄，輪替依本輪 UTC 日期計算 cutoff；預設 `SQLITE_BACKUP_RETENTION_DAYS=1` 會為目前 runtime DB labels 保留各自最新一份受管備份，刪除更舊的同 label 備份，並移除已不屬於目前 runtime DB labels 的 managed backup（例如 canonical 去重後的舊 `checkpoint_db-*`）。輪替只管理 `cache_db-YYYYMMDD.sqlite3`、`task_db-YYYYMMDD.sqlite3`、`checkpoint_db-YYYYMMDD.sqlite3`。`manual-archive.sqlite3` 等未知檔名、目錄、symlink、WAL/SHM 與其他檔案不會被刪除；dry-run 只回報，`--write` 才會 unlink。`SQLITE_BACKUP_INTERVAL_DAYS` 與 `SQLITE_BACKUP_RETENTION_DAYS` 設為非正數會 fail closed。
 
 ## 啟動方式
