@@ -4,6 +4,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
@@ -212,6 +214,8 @@ def test_sqlite_database_maintenance_dry_run_plans_backup_checkpoint_and_vacuum(
 
     db_result = result["databases"][0]
     assert result["dry_run"] is True
+    assert result["backup_pruning"]["retention_days"] == 3
+    assert result["backup_pruning"]["cutoff"] == "2026-06-27"
     assert db_result["label"] == "task_db"
     assert db_result["exists"] is True
     assert db_result["backup"]["path"].endswith("task_db-20260629.sqlite3")
@@ -253,6 +257,98 @@ def test_sqlite_database_maintenance_write_creates_daily_backup_and_is_idempoten
     assert db_result["vacuum"]["status"] == "ran"
     assert rows == [("ok",)]
     assert second["databases"][0]["backup"]["status"] == "exists"
+
+
+def test_sqlite_backup_pruning_dry_run_preserves_files(tmp_path):
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    old = backup_dir / "cache_db-20260625.sqlite3"
+    recent = backup_dir / "cache_db-20260628.sqlite3"
+    unknown = backup_dir / "manual-archive.sqlite3"
+    unmanaged = backup_dir / "cache_db-20260625.sqlite3-wal"
+    managed_name_directory = backup_dir / "task_db-20260625.sqlite3"
+    for path in (old, recent, unknown, unmanaged):
+        path.write_bytes(b"backup")
+    managed_name_directory.mkdir()
+
+    result = database_maintenance.maintain_sqlite_databases(
+        {},
+        backup_dir=str(backup_dir),
+        retention_days=3,
+        write=False,
+        now=datetime(2026, 6, 29, tzinfo=timezone.utc),
+    )
+
+    pruning = result["backup_pruning"]
+    assert pruning["retention_days"] == 3
+    assert pruning["cutoff"] == "2026-06-27"
+    assert pruning["candidates"] == [str(old)]
+    assert pruning["deleted"] == []
+    assert pruning["dry_run"] is True
+    assert all(
+        path.exists() for path in (old, recent, unknown, unmanaged, managed_name_directory)
+    )
+
+
+def test_sqlite_backup_pruning_write_deletes_only_managed_expired_files(tmp_path):
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    old = backup_dir / "cache_db-20260625.sqlite3"
+    recent = backup_dir / "cache_db-20260628.sqlite3"
+    unknown = backup_dir / "manual-archive.sqlite3"
+    unmanaged = backup_dir / "cache_db-20260625.sqlite3-shm"
+    managed_name_directory = backup_dir / "checkpoint_db-20260625.sqlite3"
+    symlink_target = tmp_path / "symlink-target.sqlite3"
+    managed_name_symlink = backup_dir / "task_db-20260625.sqlite3"
+    for path in (old, recent, unknown, unmanaged):
+        path.write_bytes(b"backup")
+    managed_name_directory.mkdir()
+    symlink_target.write_bytes(b"backup")
+    managed_name_symlink.symlink_to(symlink_target)
+
+    result = database_maintenance.maintain_sqlite_databases(
+        {},
+        backup_dir=str(backup_dir),
+        retention_days=3,
+        write=True,
+        now=datetime(2026, 6, 29, tzinfo=timezone.utc),
+    )
+
+    pruning = result["backup_pruning"]
+    assert pruning["retention_days"] == 3
+    assert pruning["cutoff"] == "2026-06-27"
+    assert pruning["candidates"] == [str(old)]
+    assert pruning["deleted"] == [str(old)]
+    assert pruning["dry_run"] is False
+    assert not old.exists()
+    assert all(path.exists() for path in (recent, unknown, unmanaged, managed_name_directory))
+    assert managed_name_symlink.is_symlink()
+    assert symlink_target.exists()
+
+
+@pytest.mark.parametrize("retention_days", [0, -1])
+def test_sqlite_backup_pruning_rejects_invalid_retention_before_maintenance(
+    tmp_path, retention_days
+):
+    db_path = tmp_path / "jobs.sqlite3"
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    old = backup_dir / "task_db-20260625.sqlite3"
+    old.write_bytes(b"backup")
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("CREATE TABLE sample (value TEXT)")
+
+    with pytest.raises(ValueError, match="retention_days must be at least 1"):
+        database_maintenance.maintain_sqlite_databases(
+            {"task_db": str(db_path)},
+            backup_dir=str(backup_dir),
+            retention_days=retention_days,
+            write=True,
+            now=datetime(2026, 6, 29, tzinfo=timezone.utc),
+        )
+
+    assert old.exists()
+    assert not (backup_dir / "task_db-20260629.sqlite3").exists()
 
 
 def test_maintenance_wrapper_sets_backend_pythonpath():
