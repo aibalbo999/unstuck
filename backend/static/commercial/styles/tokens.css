@@ -1,0 +1,14 @@
+:root {
+  color-scheme: dark;
+  --commercial-bg: #08111d;
+  --commercial-surface: #101b2a;
+  --commercial-surface-strong: #162437;
+  --commercial-border: #2b3b50;
+  --commercial-text: #edf4fb;
+  --commercial-muted: #9bacc0;
+  --commercial-primary: #2dd4bf;
+  --commercial-primary-ink: #042f2e;
+  --commercial-warning: #f4b860;
+  --commercial-danger: #fb7185;
+  --commercial-radius: 12px;
+}
