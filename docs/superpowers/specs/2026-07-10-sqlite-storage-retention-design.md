@@ -7,7 +7,7 @@
 ## 目標
 
 - 同一個 canonical SQLite path 每輪只備份、checkpoint、`VACUUM` 一次。
-- 每日備份預設只保留最近 3 個 UTC 日曆日，可由環境變數調整。
+- 備份預設每 30 個 UTC 日曆日最多建立一次，且每個 canonical DB 只保留最新一份，可由環境變數調整。
 - 備份輪替只處理符合系統命名規則的 SQLite 備份，不碰未知檔案。
 - 提供終態分析任務 checkpoint 的 dry-run/write 清理命令；預設不由 Worker 自動刪除。
 - 保留既有報告、追蹤資料與執行中／待重試任務 checkpoint。
@@ -39,9 +39,11 @@
 
 因此不再建立語意重複的 `checkpoint_db-YYYYMMDD.sqlite3`，也不再對 report/checkpoint DB 執行兩次 `VACUUM`。
 
-### 備份保留政策
+### 備份頻率與保留政策
 
-新增 `SQLITE_BACKUP_RETENTION_DAYS`，預設 3。維護回傳值加入 `backup_pruning`，列出 cutoff、候選檔、刪除檔與 dry-run 狀態。
+新增 `SQLITE_BACKUP_INTERVAL_DAYS`，預設 30，以及 `SQLITE_BACKUP_RETENTION_DAYS`，預設 1。維護回傳值加入 `backup_pruning`，列出 cutoff、候選檔、刪除檔與 dry-run 狀態。
+
+若最近一份同 label 備份距本輪 UTC 日期少於 interval，該 DB 回報 `skipped_interval`，不建立新備份，也不執行 WAL checkpoint 或 `VACUUM`。達到 interval 後才建立下一份備份並執行一次維護。
 
 輪替只匹配：
 
@@ -51,7 +53,7 @@ task_db-YYYYMMDD.sqlite3
 checkpoint_db-YYYYMMDD.sqlite3
 ```
 
-cutoff 使用本輪維護的 UTC 日期，保留當日及前 `retention_days - 1` 天。未知檔名、目錄與非 SQLite 檔案一律跳過。dry-run 只回報；`write=True` 才刪除。
+cutoff 使用本輪維護的 UTC 日期，`retention_days=1` 代表每個目前 runtime DB label 至少保留最新一份受管備份，即使該備份早於本輪 UTC 日期。更舊的同 label 備份會被列為候選；已不屬於目前 canonical runtime DB labels 的 managed backup（例如去重後的舊 `checkpoint_db-*`）可被列為候選。未知檔名、目錄、symlink 與非 SQLite 檔案一律跳過。dry-run 只回報；`write=True` 才刪除。
 
 ### 終態 checkpoint 清理
 
@@ -87,4 +89,3 @@ scripts/maintenance.sh cleanup-terminal-checkpoints --write
 - 單元測試：只有終態 job threads 被清理，active/unmatched threads 保留。
 - 回歸測試：既有 maintenance、runtime/storage tests 全部通過。
 - runtime 驗證：正式啟動後 8080、Worker、報告列表、watchlist 與 decision tracking API 可用。
-

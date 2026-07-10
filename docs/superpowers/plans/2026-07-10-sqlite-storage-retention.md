@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 消除同路徑 SQLite 重複維護，將每日備份限制為最近 3 天，並提供安全的終態 checkpoint 清理命令。
+**Goal:** 消除同路徑 SQLite 重複維護，將備份間隔改為 30 天且每個 canonical DB 只留最新一份，並提供安全的終態 checkpoint 清理命令。
 
-**Architecture:** `database_maintenance.py` 負責 canonical path 去重與備份輪替；新的 `checkpoint_maintenance.py` 僅負責把 operational job state 映射到 LangGraph threads 並執行顯式清理。`maintenance.py` 提供 CLI wiring，Worker 只自動執行備份輪替，不自動刪除 checkpoint。
+**Architecture:** `database_maintenance.py` 負責 canonical path 去重、30 天備份間隔與單一最新備份輪替；新的 `checkpoint_maintenance.py` 僅負責把 operational job state 映射到 LangGraph threads 並執行顯式清理。`maintenance.py` 提供 CLI wiring，Worker 只自動執行到期備份輪替，不自動刪除 checkpoint。
 
 **Tech Stack:** Python 3.13、SQLite、pytest、既有 argparse maintenance CLI。
 
@@ -57,7 +57,7 @@ Run: `$(scripts/project_python.sh) -m pytest tests/test_maintenance_commands.py 
 
 Expected: PASS。
 
-### Task 2: 三天備份保留策略
+### Task 2: 30 天備份間隔與單一最新備份
 
 **Files:**
 - Modify: `backend/settings/storage.py:66-76`
@@ -67,7 +67,7 @@ Expected: PASS。
 - Test: `tests/test_settings_env_loading.py`
 - Test: `tests/test_maintenance_commands.py`
 
-- [ ] **Step 1: 寫入設定與 dry-run failing tests**
+- [ ] **Step 1: 寫入設定、間隔與單一保留 failing tests**
 
 ```python
 def test_sqlite_backup_pruning_dry_run_preserves_files(tmp_path):
@@ -88,7 +88,9 @@ def test_sqlite_backup_pruning_dry_run_preserves_files(tmp_path):
     assert old.exists() and recent.exists() and unknown.exists()
 ```
 
-並在既有 `test_blank_storage_path_env_vars_fall_back_to_defaults()` 的 `keys` 加入 `SQLITE_BACKUP_RETENTION_DAYS`，斷言 `app_config.SQLITE_BACKUP_RETENTION_DAYS == 3`。
+並在既有 `test_blank_storage_path_env_vars_fall_back_to_defaults()` 的 `keys` 加入 `SQLITE_BACKUP_RETENTION_DAYS` 與 `SQLITE_BACKUP_INTERVAL_DAYS`，斷言 default 分別為 `1` 與 `30`。
+
+另新增 write test：最近已有 `task_db-20260701.sqlite3`，以 `now=2026-07-10`、`backup_interval_days=30` 執行時，結果為 `skipped_interval`，且 `wal_checkpoint.status` 與 `vacuum.status` 都是 `skipped_backup_interval`；以 `now=2026-07-31` 執行時才建立備份並執行一次維護。
 
 - [ ] **Step 2: 驗證 RED**
 
@@ -102,7 +104,7 @@ Expected: FAIL，缺少 retention setting/argument/result。
 SQLITE_BACKUP_RETENTION_DAYS = env_int("SQLITE_BACKUP_RETENTION_DAYS", 3)
 ```
 
-`_prune_backup_files()` 只接受 `^(cache_db|task_db|checkpoint_db)-(\d{8})\.sqlite3$`，cutoff 為 `UTC date - (retention_days - 1)`；dry-run 回報 candidates，write 才 `unlink()`。
+新增 `SQLITE_BACKUP_INTERVAL_DAYS = env_int("SQLITE_BACKUP_INTERVAL_DAYS", 30)` 與 `SQLITE_BACKUP_RETENTION_DAYS = env_int("SQLITE_BACKUP_RETENTION_DAYS", 1)`。`_backup_plan()` 找同 label 最新 regular backup；未達 interval 回報 `skipped_interval`，達期才 `pending`。`_prune_backup_files()` 只接受 `^(cache_db|task_db|checkpoint_db)-(\d{8})\.sqlite3$`，cutoff 為 UTC 當日（retention=1），但每個目前 runtime DB label 仍保留最新一份；更舊同 label 與已不屬於目前 runtime DB labels 的 managed backup 可列為 candidates，write 才 `unlink()`。非正數 interval/retention 一律 fail closed。
 
 - [ ] **Step 4: 寫入 write-mode failing test**
 
@@ -134,7 +136,7 @@ Expected: PASS。
 
 - [ ] **Step 6: 更新操作文件**
 
-記錄 `SQLITE_BACKUP_RETENTION_DAYS=3`、UTC cutoff、unknown archive 不受管理，以及 dry-run/write 行為。
+記錄 `SQLITE_BACKUP_INTERVAL_DAYS=30`、`SQLITE_BACKUP_RETENTION_DAYS=1`、UTC cutoff、每個目前 runtime DB label 保留最新一份、已不屬於目前 labels 的 managed backup 會被清理、未到期時跳過 WAL/VACUUM、unknown archive 不受管理，以及 dry-run/write 行為。
 
 ### Task 3: 終態 checkpoint 顯式清理
 
@@ -292,7 +294,7 @@ Expected: dry-run/write candidate counts 相同，active/unmatched 為 0 deletio
 
 - [ ] **Step 4: 單次 SQLite 維護並移除舊重複備份**
 
-先保留當日 `cache_db` 與 `task_db` backup，再各對 canonical DB 執行一次 checkpoint/`VACUUM`；移除 `checkpoint_db-20260710.sqlite3`，保留 `checkpoint_db-20260630.sqlite3` 作 legacy recovery point。
+保留當日每個 canonical DB 最新 backup；移除所有舊 managed backup 與重複的 `checkpoint_db-20260710.sqlite3`，不刪 unknown archive。只有當 interval 到期時才各對 canonical DB 執行一次 checkpoint/`VACUUM`。
 
 - [ ] **Step 5: 正式重啟與驗證**
 
