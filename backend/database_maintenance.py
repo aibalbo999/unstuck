@@ -25,7 +25,16 @@ def runtime_sqlite_paths(
     backend = str(checkpoint_backend or LANGGRAPH_CHECKPOINT_BACKEND or "sqlite").strip().lower()
     if backend != "postgres":
         paths["checkpoint_db"] = str(checkpoint_path or LANGGRAPH_CHECKPOINT_PATH)
-    return paths
+
+    deduplicated: dict[str, str] = {}
+    seen_paths: set[Path] = set()
+    for label, path in paths.items():
+        canonical_path = Path(path).expanduser().resolve(strict=False)
+        if canonical_path in seen_paths:
+            continue
+        seen_paths.add(canonical_path)
+        deduplicated[label] = path
+    return deduplicated
 
 
 def run_sqlite_maintenance(

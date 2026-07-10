@@ -182,6 +182,20 @@ def test_cleanup_analysis_history_keeps_recent_and_active_jobs(monkeypatch, tmp_
     assert remaining_events == ["recent-done", "running-old"]
 
 
+def test_runtime_sqlite_paths_deduplicates_same_canonical_path(tmp_path):
+    shared = tmp_path / "shared.sqlite3"
+    task = tmp_path / "task.sqlite3"
+
+    result = database_maintenance.runtime_sqlite_paths(
+        cache_db_path=str(shared),
+        task_db_path=str(task),
+        checkpoint_backend="sqlite",
+        checkpoint_path=str(tmp_path / "nested" / ".." / "shared.sqlite3"),
+    )
+
+    assert result == {"cache_db": str(shared), "task_db": str(task)}
+
+
 def test_sqlite_database_maintenance_dry_run_plans_backup_checkpoint_and_vacuum(tmp_path):
     db_path = tmp_path / "jobs.sqlite3"
     backup_dir = tmp_path / "backups"
