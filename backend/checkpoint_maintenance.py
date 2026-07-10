@@ -5,7 +5,6 @@ from __future__ import annotations
 import math
 import sqlite3
 from pathlib import Path
-from typing import Iterable
 
 from config import LANGGRAPH_CHECKPOINT_PATH, TASK_DB_PATH
 from security_sanitizer import sanitize_error_message
@@ -44,26 +43,20 @@ def cleanup_terminal_checkpoints(
             if not schema["ready"]:
                 return base
 
+            terminal_jobs, active_jobs = _load_job_sets(task_conn)
             thread_ids = _checkpoint_thread_ids(checkpoint_conn)
-            status_by_job_id = _job_status_by_id(
-                task_conn,
-                (_job_id_from_thread(thread_id) for thread_id in thread_ids),
-            )
             candidate_threads, active_threads, unmatched_threads = _classify_threads(
                 thread_ids,
-                status_by_job_id,
+                terminal_jobs=terminal_jobs,
+                active_jobs=active_jobs,
             )
             candidate_checkpoint_rows = _row_count(checkpoint_conn, "checkpoints", candidate_threads)
             candidate_write_rows = _row_count(checkpoint_conn, "writes", candidate_threads)
             result = {
                 **base,
                 "schema_ready": True,
-                "terminal_job_count": sum(
-                    1 for status in status_by_job_id.values() if status in TERMINAL_STATUSES
-                ),
-                "active_job_count": sum(
-                    1 for status in status_by_job_id.values() if status not in TERMINAL_STATUSES
-                ),
+                "terminal_job_count": len(terminal_jobs),
+                "active_job_count": len(active_jobs),
                 "total_thread_count": len(thread_ids),
                 "candidate_thread_count": len(candidate_threads),
                 "active_thread_count": len(active_threads),
@@ -149,37 +142,37 @@ def _checkpoint_thread_ids(conn: sqlite3.Connection) -> list[str]:
     return [str(row[0]) for row in rows if row[0] is not None]
 
 
-def _job_status_by_id(conn: sqlite3.Connection, job_ids: Iterable[str]) -> dict[str, str]:
-    unique_job_ids = sorted({job_id for job_id in job_ids if job_id})
-    statuses: dict[str, str] = {}
-    for batch in _chunks(unique_job_ids, DEFAULT_BATCH_SIZE):
-        rows = conn.execute(
-            f"""
-            SELECT job_id, status
-            FROM analysis_jobs
-            WHERE job_id IN ({_placeholders(batch)})
-            """,
-            batch,
-        ).fetchall()
-        statuses.update({str(job_id): str(status).strip().lower() for job_id, status in rows})
-    return statuses
+def _load_job_sets(task_conn: sqlite3.Connection) -> tuple[set[str], set[str]]:
+    terminal_jobs: set[str] = set()
+    active_jobs: set[str] = set()
+    for job_id, status in task_conn.execute("SELECT job_id, status FROM analysis_jobs"):
+        if job_id is None:
+            continue
+        normalized_status = str(status or "").strip().lower()
+        if normalized_status in TERMINAL_STATUSES:
+            terminal_jobs.add(str(job_id))
+        else:
+            active_jobs.add(str(job_id))
+    return terminal_jobs, active_jobs
 
 
 def _classify_threads(
     thread_ids: list[str],
-    status_by_job_id: dict[str, str],
+    *,
+    terminal_jobs: set[str],
+    active_jobs: set[str],
 ) -> tuple[list[str], list[str], list[str]]:
     candidate_threads: list[str] = []
     active_threads: list[str] = []
     unmatched_threads: list[str] = []
     for thread_id in thread_ids:
-        status = status_by_job_id.get(_job_id_from_thread(thread_id))
-        if status is None:
-            unmatched_threads.append(thread_id)
-        elif status in TERMINAL_STATUSES:
+        job_id = _job_id_from_thread(thread_id)
+        if job_id in terminal_jobs:
             candidate_threads.append(thread_id)
-        else:
+        elif job_id in active_jobs:
             active_threads.append(thread_id)
+        else:
+            unmatched_threads.append(thread_id)
     return candidate_threads, active_threads, unmatched_threads
 
 
