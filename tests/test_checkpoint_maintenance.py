@@ -178,6 +178,31 @@ def test_cleanup_terminal_checkpoints_missing_schema_is_safe(tmp_path):
     assert result["deleted_checkpoint_rows"] == 0
 
 
+def test_cleanup_terminal_checkpoints_missing_required_columns_is_safe(tmp_path):
+    task_db = tmp_path / "task.sqlite3"
+    checkpoint_db = tmp_path / "checkpoint.sqlite3"
+    with sqlite3.connect(task_db) as conn:
+        conn.execute("CREATE TABLE analysis_jobs (job_id TEXT PRIMARY KEY)")
+    with sqlite3.connect(checkpoint_db) as conn:
+        conn.execute("CREATE TABLE checkpoints (checkpoint_id TEXT)")
+        conn.execute("CREATE TABLE writes (checkpoint_id TEXT)")
+
+    result = checkpoint_maintenance.cleanup_terminal_checkpoints(
+        checkpoint_db_path=str(checkpoint_db),
+        task_db_path=str(task_db),
+        write=True,
+    )
+
+    assert result["schema_ready"] is False
+    assert result["missing_schema"] == [
+        "task.analysis_jobs(job_id,status)",
+        "checkpoint.checkpoints(thread_id)",
+        "checkpoint.writes(thread_id)",
+    ]
+    assert result["deleted_write_rows"] == 0
+    assert result["deleted_checkpoint_rows"] == 0
+
+
 def test_cleanup_terminal_checkpoints_writes_in_batches(tmp_path):
     task_db = tmp_path / "task.sqlite3"
     checkpoint_db = tmp_path / "checkpoint.sqlite3"
