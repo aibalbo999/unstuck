@@ -70,3 +70,17 @@ def test_stock_page_has_one_snapshot_action_and_four_evidence_tabs():
     assert "isValidTicker" in js
     assert "fallbackTickers" not in js
     assert "fallbackSnapshot" not in js
+
+
+def test_portfolio_page_validates_csv_and_posts_one_real_risk_request():
+    html = read("portfolio-dashboard.html")
+    js = read("pages/portfolio_page.js")
+
+    assert 'data-commercial-page="portfolio"' in html
+    assert html.count("commercial-primary-action") == 1
+    assert 'id="portfolio-csv"' in html
+    assert 'id="portfolio-recommendations"' in html
+    assert "/api/watchlist/portfolio/risk" in js
+    assert "validatePortfolioCsv" in js
+    assert "fallbackPortfolio" not in js
+    assert "localStorage" not in js
