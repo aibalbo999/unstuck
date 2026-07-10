@@ -55,3 +55,18 @@ def test_decision_page_is_a_single_task_queue_without_demo_fallbacks():
     assert "stockPageHref" in js
     assert "fallbackTickers" not in js
     assert "localStorage" not in js
+
+
+def test_stock_page_has_one_snapshot_action_and_four_evidence_tabs():
+    html = read("stock-detail.html")
+    js = read("pages/stock_page.js")
+
+    assert 'data-commercial-page="stock"' in html
+    assert html.count("commercial-primary-action") == 1
+    for name in ("answer", "fundamentals", "events", "technical"):
+        assert f'data-tab="{name}"' in html
+    assert "/api/stocks/" in js and "/snapshot" in js
+    assert "bindTabs" in js
+    assert "isValidTicker" in js
+    assert "fallbackTickers" not in js
+    assert "fallbackSnapshot" not in js
