@@ -2900,28 +2900,17 @@ def test_decision_tracking_dense_layout_uses_workspace_efficiently():
 
 def test_home_commercial_tab_is_a_restart_safe_product_launchpad():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
-    style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
-    history_shell_css = (STATIC_DIR / "styles" / "history_shell.css").read_text(encoding="utf-8")
-    responsive_css = (STATIC_DIR / "styles" / "responsive.css").read_text(encoding="utf-8")
+    entry_css = (STATIC_DIR / "commercial" / "styles" / "home_entry.css").read_text(encoding="utf-8")
 
     assert "style.css?v=20260707-operator-human-factors" in index_html
-    assert "history_shell.css?v=20260707-operator-human-factors" in style_css
-    assert "responsive.css?v=20260705-commercial-launchpad2" in style_css
-
+    assert "/static/commercial/styles/home_entry.css?v=20260711-simple" in index_html
     assert 'id="home-panel-commercial"' in index_html
     assert 'class="commercial-entry-launchpad"' in index_html
-    assert 'id="commercial-operator-shift-summary"' in index_html
-    assert 'class="commercial-operator-brief is-loading"' in index_html
-    assert 'class="commercial-entry-command-row"' in index_html
-    assert "商業版投資工作區" in index_html
-    assert "操作者值班摘要" in index_html
-    assert "重啟後從 8080 首頁直接進入新版前端" in index_html
-    assert "研究工作台" in index_html
-    assert "單股研究" in index_html
-    assert "組合健檢" in index_html
-    assert "決策佇列" in index_html
-    assert "快照研究" in index_html
-    assert "曝險透視" in index_html
+    assert 'class="commercial-entry-primary"' in index_html
+    assert index_html.count('class="commercial-entry-secondary"') == 2
+    assert "今天先處理什麼" in index_html
+    assert "研究一檔股票" in index_html
+    assert "檢查整體持股風險" in index_html
 
     for href in (
         "/static/commercial/research-workbench.html",
@@ -2930,49 +2919,20 @@ def test_home_commercial_tab_is_a_restart_safe_product_launchpad():
     ):
         assert href in index_html
 
-    for marker in (
-        'data-commercial-entry="workbench"',
-        'data-commercial-entry="stock"',
-        'data-commercial-entry="portfolio"',
-        'class="commercial-entry-card-metrics"',
-        'class="commercial-entry-card-actions"',
-        "追蹤表工作台",
-        "單股研究頁",
-        "組合健檢頁",
-        "風險旗標",
-        "開啟快照",
-        "財務資料",
+    for removed_control in (
+        'id="commercial-operator-shift-summary"',
+        'class="commercial-entry-command-row"',
+        'class="commercial-entry-card"',
+        "產生 AI 報告",
         "建立再平衡單",
+        "整理客戶包",
     ):
-        assert marker in index_html
+        assert removed_control not in index_html
 
-    for legacy_label in (
-        "Commercial OS",
-        "Watchlist Queue",
-        "Stock Snapshot",
-        "Portfolio X-Ray",
-        "Open Snapshot",
-        "AI Report",
-        "Rebalance Ticket",
-        "Client Pack",
-    ):
-        assert legacy_label not in index_html
-
-    for selector in (
-        ".commercial-entry-launchpad",
-        ".commercial-operator-brief",
-        ".commercial-entry-command-row",
-        ".commercial-entry-status-grid",
-        ".commercial-entry-card-metrics",
-        ".commercial-entry-card-actions",
-        ".commercial-entry-card-action",
-    ):
-        assert selector in history_shell_css
-    assert "grid-template-columns: minmax(280px, 0.62fr) minmax(0, 1fr);" in history_shell_css
-    assert "grid-template-columns: repeat(3, minmax(0, 1fr));" in history_shell_css
-    assert ".commercial-entry-launchpad" in responsive_css
-    assert ".commercial-entry-command-row" in responsive_css
-    assert ".commercial-entry-status-grid" in responsive_css
+    assert ".commercial-entry-primary" in entry_css
+    assert ".commercial-entry-secondary" in entry_css
+    assert "grid-template-columns: repeat(2, minmax(0, 1fr))" in entry_css
+    assert "@media (max-width: 560px)" in entry_css
 
 
 def test_frontend_uiux_accessibility_contracts_are_wired():

@@ -121,3 +121,8 @@ def test_metrics_tabs_focus_and_visibility_follow_accessible_contracts():
     assert "[hidden]" in components
     assert ".commercial-source-status:empty" in components
     assert ".commercial-page > .commercial-answer" in components
+
+
+def test_legacy_commercial_bundle_is_removed_after_page_modules_take_over():
+    assert not (COMMERCIAL_DIR / "commercial_pages.js").exists()
+    assert not (COMMERCIAL_DIR / "commercial_pages.css").exists()
