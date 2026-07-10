@@ -4,6 +4,10 @@ textarea {
   font: inherit;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 button,
 .commercial-primary-action,
 .commercial-secondary-action {
@@ -16,6 +20,11 @@ button,
   border: 1px solid var(--commercial-border);
   border-radius: var(--commercial-radius);
   background: var(--commercial-surface);
+}
+
+.commercial-page > .commercial-answer,
+.commercial-page > .commercial-panel {
+  margin-top: 16px;
 }
 
 .commercial-answer h2 {
@@ -121,6 +130,10 @@ button,
   padding: 12px 14px;
   border-left: 3px solid var(--commercial-primary);
   background: var(--commercial-surface);
+}
+
+.commercial-source-status:empty {
+  display: none;
 }
 
 .commercial-source-status[data-state="error"] {

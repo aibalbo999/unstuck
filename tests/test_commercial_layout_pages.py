@@ -84,3 +84,40 @@ def test_portfolio_page_validates_csv_and_posts_one_real_risk_request():
     assert "validatePortfolioCsv" in js
     assert "fallbackPortfolio" not in js
     assert "localStorage" not in js
+
+
+def test_three_pages_share_navigation_and_do_not_load_legacy_bundle():
+    pages = {
+        "research-workbench.html": "decision_page.js",
+        "stock-detail.html": "stock_page.js",
+        "portfolio-dashboard.html": "portfolio_page.js",
+    }
+    for filename, module in pages.items():
+        html = read(filename)
+        assert html.count('class="commercial-primary-action') == 1
+        assert 'href="/static/commercial/research-workbench.html"' in html
+        assert 'href="/static/commercial/stock-detail.html"' in html
+        assert 'href="/static/commercial/portfolio-dashboard.html"' in html
+        assert f"/static/commercial/pages/{module}" in html
+        assert "commercial_pages.js" not in html
+        assert "commercial_pages.css" not in html
+        assert '<a class="commercial-brand" href="/"' in html
+
+
+def test_metrics_tabs_focus_and_visibility_follow_accessible_contracts():
+    components = read("styles/components.css")
+    shell = read("shared/shell.js")
+    for filename in (
+        "research-workbench.html",
+        "stock-detail.html",
+        "portfolio-dashboard.html",
+    ):
+        html = read(filename)
+        assert 'class="commercial-metric" role="button"' not in html
+    assert "ArrowLeft" in shell and "ArrowRight" in shell
+    assert "focusPageHeading" in shell
+    assert ":focus-visible" in components
+    assert "min-height: 44px" in components
+    assert "[hidden]" in components
+    assert ".commercial-source-status:empty" in components
+    assert ".commercial-page > .commercial-answer" in components
