@@ -366,6 +366,36 @@ def test_sqlite_backup_pruning_retention_one_uses_utc_date_cutoff(tmp_path):
     assert result["backup_pruning"]["deleted"] == []
 
 
+def test_sqlite_backup_pruning_retention_one_preserves_latest_active_label_backup(tmp_path):
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    stale_cache = backup_dir / "cache_db-20260601.sqlite3"
+    latest_cache = backup_dir / "cache_db-20260701.sqlite3"
+    latest_task = backup_dir / "task_db-20260630.sqlite3"
+    inactive_checkpoint = backup_dir / "checkpoint_db-20260710.sqlite3"
+    for path in (stale_cache, latest_cache, latest_task, inactive_checkpoint):
+        path.write_bytes(b"backup")
+
+    result = database_maintenance.maintain_sqlite_databases(
+        {
+            "cache_db": str(tmp_path / "missing-cache.sqlite3"),
+            "task_db": str(tmp_path / "missing-task.sqlite3"),
+        },
+        backup_dir=str(backup_dir),
+        retention_days=1,
+        write=True,
+        now=datetime(2026, 7, 10, tzinfo=timezone.utc),
+    )
+
+    pruning = result["backup_pruning"]
+    assert pruning["candidates"] == [str(stale_cache), str(inactive_checkpoint)]
+    assert pruning["deleted"] == [str(stale_cache), str(inactive_checkpoint)]
+    assert not stale_cache.exists()
+    assert not inactive_checkpoint.exists()
+    assert latest_cache.exists()
+    assert latest_task.exists()
+
+
 def test_sqlite_backup_pruning_write_deletes_only_managed_expired_files(tmp_path):
     backup_dir = tmp_path / "backups"
     backup_dir.mkdir()
@@ -393,11 +423,11 @@ def test_sqlite_backup_pruning_write_deletes_only_managed_expired_files(tmp_path
     pruning = result["backup_pruning"]
     assert pruning["retention_days"] == 1
     assert pruning["cutoff"] == "2026-06-29"
-    assert pruning["candidates"] == [str(old), str(recent)]
-    assert pruning["deleted"] == [str(old), str(recent)]
+    assert pruning["candidates"] == [str(old)]
+    assert pruning["deleted"] == [str(old)]
     assert pruning["dry_run"] is False
     assert not old.exists()
-    assert all(path.exists() for path in (unknown, unmanaged, managed_name_directory))
+    assert all(path.exists() for path in (recent, unknown, unmanaged, managed_name_directory))
     assert managed_name_symlink.is_symlink()
     assert symlink_target.exists()
 

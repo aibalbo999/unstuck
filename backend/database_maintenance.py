@@ -119,6 +119,7 @@ def maintain_sqlite_databases(
             retention_days=effective_retention_days,
             timestamp=timestamp,
             write=write,
+            protected_labels=set(databases) if databases else None,
         ),
     }
 
@@ -141,11 +142,14 @@ def _prune_backup_files(
     retention_days: int,
     timestamp: datetime,
     write: bool,
+    protected_labels: set[str] | None = None,
 ) -> dict:
     if retention_days <= 0:
         raise ValueError("retention_days must be at least 1")
     cutoff = _utc_date(timestamp) - timedelta(days=retention_days - 1)
     candidates: list[str] = []
+    latest_by_label: dict[str, Path] = {}
+    managed_backups: list[tuple[Path, str, date]] = []
     if backup_root and backup_root.is_dir():
         for path in sorted(backup_root.iterdir()):
             if path.is_symlink() or not path.is_file():
@@ -157,7 +161,27 @@ def _prune_backup_files(
                 backup_date = datetime.strptime(match.group(2), "%Y%m%d").date()
             except ValueError:
                 continue
-            if backup_date < cutoff:
+            label = match.group(1)
+            managed_backups.append((path, label, backup_date))
+            if protected_labels is None or label in protected_labels:
+                latest = latest_by_label.get(label)
+                if latest is None:
+                    latest_by_label[label] = path
+                    continue
+                latest_match = _MANAGED_BACKUP_PATTERN.fullmatch(latest.name)
+                latest_date = (
+                    datetime.strptime(latest_match.group(2), "%Y%m%d").date()
+                    if latest_match
+                    else date.min
+                )
+                if backup_date > latest_date:
+                    latest_by_label[label] = path
+
+        protected_latest_paths = set(latest_by_label.values())
+        for path, label, backup_date in managed_backups:
+            if protected_labels is not None and label not in protected_labels:
+                candidates.append(str(path))
+            elif backup_date < cutoff and path not in protected_latest_paths:
                 candidates.append(str(path))
 
     deleted: list[str] = []
@@ -171,6 +195,7 @@ def _prune_backup_files(
         "candidates": candidates,
         "deleted": deleted,
         "dry_run": not write,
+        "protected_labels": sorted(protected_labels) if protected_labels is not None else None,
     }
 
 

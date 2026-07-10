@@ -199,7 +199,7 @@ Production profile 請設定 `UNSTUCK_ENV=production` 或 `DEPLOYMENT_MODE=serve
 - `DECISION_TRACKING_DB_PATH`：決策追蹤與回測 SQLite 檔位置，預設跟隨 `TASK_DB_PATH`；若未設定，舊版 `backend/cache/decision_tracking.sqlite3` 會一次性匯入 operational DB
 - `SQLITE_BACKUP_DIR`：SQLite 每日維護備份目錄，預設 `backend/cache/sqlite_backups`
 - `SQLITE_BACKUP_INTERVAL_DAYS`：同一個受管 SQLite DB 建立備份的最短 UTC 日曆日間隔，預設 `30`
-- `SQLITE_BACKUP_RETENTION_DAYS`：受管 SQLite 備份保留的 UTC 日曆日數，預設 `1`（只保留最新／當日備份）
+- `SQLITE_BACKUP_RETENTION_DAYS`：受管 SQLite 備份保留的 UTC 日曆日數，預設 `1`（每個目前 runtime DB label 只保留最新一份）
 - `API_USAGE_DB_PATH`：API 用量 ledger SQLite 檔位置，預設跟隨 `TASK_DB_PATH`
 - `WATCHLIST_PATH`：舊版 watchlist JSON 位置；若存在會一次性匯入 SQLite，預設 `backend/cache/watchlist.json`
 - `WATCHLIST_DB_PATH`：watchlist SQLite 檔位置，預設跟隨 `TASK_DB_PATH`；若顯式設定則使用指定檔案，舊版 `backend/cache/watchlist.sqlite3` 的 trigger 設定與事件會一次性匯入
@@ -289,7 +289,7 @@ scripts/maintenance.sh verify-snapshots --write
 
 `cleanup-report-index` 預設只會 dry-run；加上 `--write` 才會刪除已不存在輸出目錄的報告索引列。
 `cleanup-analysis-history` 預設也只會 dry-run；加上 `--write` 才會刪除過舊且已結束的任務與孤兒事件，queued/running 任務會保留。
-`sqlite-maintenance` 預設只會 dry-run，回報預計移除的逾期備份但不刪檔；加上 `--write` 才會刪除候選檔，並在備份到期時對 runtime SQLite DB 建立備份、執行一次 WAL checkpoint 與 `VACUUM`。同一 DB 最近備份未滿 `SQLITE_BACKUP_INTERVAL_DAYS`（預設 30 天）時會回報 `skipped_interval`，不建立備份、不執行 WAL checkpoint／`VACUUM`；同一天重跑也會跳過維護。備份以 `SQLITE_BACKUP_DIR` 為目錄，輪替依本輪 UTC 日期計算 cutoff；預設 `SQLITE_BACKUP_RETENTION_DAYS=1` 只保留當日最新備份，且只管理 `cache_db-YYYYMMDD.sqlite3`、`task_db-YYYYMMDD.sqlite3`、`checkpoint_db-YYYYMMDD.sqlite3`。`manual-archive.sqlite3` 等未知檔名、目錄、symlink、WAL/SHM 與其他檔案不會被刪除；dry-run 只回報，`--write` 才會 unlink。`SQLITE_BACKUP_INTERVAL_DAYS` 與 `SQLITE_BACKUP_RETENTION_DAYS` 設為非正數會 fail closed。
+`sqlite-maintenance` 預設只會 dry-run，回報預計移除的逾期備份但不刪檔；加上 `--write` 才會刪除候選檔，並在備份到期時對 runtime SQLite DB 建立備份、執行一次 WAL checkpoint 與 `VACUUM`。同一 DB 最近備份未滿 `SQLITE_BACKUP_INTERVAL_DAYS`（預設 30 天）時會回報 `skipped_interval`，不建立備份、不執行 WAL checkpoint／`VACUUM`；同一天重跑也會跳過維護。備份以 `SQLITE_BACKUP_DIR` 為目錄，輪替依本輪 UTC 日期計算 cutoff；預設 `SQLITE_BACKUP_RETENTION_DAYS=1` 會為目前 runtime DB labels 保留各自最新一份受管備份，刪除更舊的同 label 備份，並移除已不屬於目前 runtime DB labels 的 managed backup（例如 canonical 去重後的舊 `checkpoint_db-*`）。輪替只管理 `cache_db-YYYYMMDD.sqlite3`、`task_db-YYYYMMDD.sqlite3`、`checkpoint_db-YYYYMMDD.sqlite3`。`manual-archive.sqlite3` 等未知檔名、目錄、symlink、WAL/SHM 與其他檔案不會被刪除；dry-run 只回報，`--write` 才會 unlink。`SQLITE_BACKUP_INTERVAL_DAYS` 與 `SQLITE_BACKUP_RETENTION_DAYS` 設為非正數會 fail closed。
 
 ## 啟動方式
 
