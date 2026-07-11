@@ -83,7 +83,7 @@ def test_decision_empty_and_api_error_states_never_render_sample_stocks():
         browser.close()
 
 
-def test_five_million_operator_controls_have_visible_results():
+def test_configurable_operator_controls_persist_and_drive_visible_results():
     sync_api = live_browser()
     with sync_api.sync_playwright() as playwright:
         browser = playwright.chromium.launch()
@@ -139,7 +139,17 @@ def test_five_million_operator_controls_have_visible_results():
             f"{BASE_URL}/static/commercial/research-workbench.html",
             wait_until="networkidle",
         )
-        assert "NT$5,000,000" in page.locator("#decision-policy").inner_text()
+        page.locator("#decision-policy-editor summary").click()
+        page.locator('[name="capital"]').fill("10000000")
+        page.locator('[name="cashReservePct"]').fill("25")
+        page.locator('[name="maxPositionPct"]').fill("12")
+        page.locator('[name="maxTradeRiskPct"]').fill("0.8")
+        page.get_by_role("button", name="套用設定").click()
+        policy_text = page.locator("#decision-policy").inner_text()
+        assert "NT$10,000,000" in policy_text
+        assert "NT$2,500,000" in policy_text
+        assert "NT$1,200,000" in policy_text
+        assert "NT$80,000" in policy_text
         assert page.locator("#decision-task-list li").count() == 2
         page.get_by_role("button", name="需重跑").click()
         assert page.locator("#decision-task-list li").count() == 1
@@ -191,9 +201,10 @@ def test_five_million_operator_controls_have_visible_results():
             f"{BASE_URL}/static/commercial/stock-detail.html?ticker=2330.TW",
             wait_until="networkidle",
         )
-        assert "NT$500,000" in page.locator("#stock-position-metrics").inner_text()
+        assert "NT$10,000,000" in page.locator("#stock-policy").inner_text()
+        assert "NT$800,000" in page.locator("#stock-position-metrics").inner_text()
         page.locator("#stock-stop-price").fill("95")
-        assert "NT$37,500" in page.locator("#stock-position-metrics").inner_text()
+        assert "NT$60,000" in page.locator("#stock-position-metrics").inner_text()
 
         portfolio_payload = {
             "total_positions": 3,
@@ -237,10 +248,10 @@ def test_five_million_operator_controls_have_visible_results():
             f"{BASE_URL}/static/commercial/portfolio-dashboard.html",
             wait_until="networkidle",
         )
-        page.get_by_role("button", name="分析 500 萬組合").click()
+        page.get_by_role("button", name="分析目前組合").click()
         page.locator("#portfolio-position-rows tr").first.wait_for()
-        assert "NT$5,000,000" in page.locator("#portfolio-capital-metrics").inner_text()
-        assert "NT$350,000" in page.locator("#portfolio-position-table").inner_text()
+        assert "NT$10,000,000" in page.locator("#portfolio-capital-metrics").inner_text()
+        assert "NT$1,000,000" in page.locator("#portfolio-position-table").inner_text()
         assert "現金保留" in page.locator("#portfolio-position-table").inner_text()
         browser.close()
 
@@ -275,7 +286,7 @@ def test_stock_and_portfolio_api_errors_show_recovery_state_without_fallbacks():
             ),
         )
         page.goto(f"{BASE_URL}/static/commercial/portfolio-dashboard.html", wait_until="networkidle")
-        page.get_by_role("button", name="分析 500 萬組合").click()
+        page.get_by_role("button", name="分析目前組合").click()
         page.locator("#portfolio-source-status[data-state=error]").wait_for()
         assert "portfolio unavailable" in page.locator("#portfolio-source-status").inner_text()
         assert page.locator("#portfolio-recommendations li").count() == 0

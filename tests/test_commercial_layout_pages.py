@@ -198,8 +198,9 @@ def test_three_pages_bust_cached_assets_with_the_same_current_version():
     }
     for filename, module in pages.items():
         html = read(filename)
-        assert html.count("?v=20260711-operator3") == 5
-        assert "operator_policy.js?v=20260711-operator3" in read(module)
+        assert html.count("?v=20260711-operator4") == 5
+        assert "operator_policy.js?v=20260711-operator4" in read(module)
+        assert "operator_policy_ui.js?v=20260711-operator4" in read(module)
 
 
 def test_metrics_tabs_focus_and_visibility_follow_accessible_contracts():

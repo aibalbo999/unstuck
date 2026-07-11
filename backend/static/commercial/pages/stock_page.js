@@ -3,9 +3,11 @@ import { setAsyncState } from '../shared/async_state.js';
 import {
   formatPercent,
   formatTwd,
+  OPERATOR_POLICY,
   policyAmounts,
   positionPlan,
-} from '../shared/operator_policy.js?v=20260711-operator3';
+} from '../shared/operator_policy.js?v=20260711-operator4';
+import { mountOperatorPolicyEditor } from '../shared/operator_policy_ui.js?v=20260711-operator4';
 import {
   bindTabs,
   focusPageHeading,
@@ -32,6 +34,7 @@ const evidence = document.getElementById('stock-evidence');
 const statusRoot = document.getElementById('stock-source-status');
 let snapshot = null;
 let activeTab = 'plan';
+let activePolicy = OPERATOR_POLICY;
 
 function label(value, fallback = '資料不足') {
   return value === null || value === undefined || value === '' ? fallback : String(value);
@@ -65,12 +68,12 @@ function policyMetric(name, value, note) {
 }
 
 function renderPolicy() {
-  const amounts = policyAmounts();
+  const amounts = policyAmounts(activePolicy);
   policyRoot.replaceChildren(
-    policyMetric('操作資金', formatTwd(amounts.capital), '固定基準'),
-    policyMetric('現金保留', formatTwd(amounts.cashReserve), '20%'),
-    policyMetric('單一持股上限', formatTwd(amounts.maxPosition), '15%'),
-    policyMetric('單筆最大風險', formatTwd(amounts.maxTradeRisk), '1%'),
+    policyMetric('操作資金', formatTwd(amounts.capital), '目前設定'),
+    policyMetric('現金保留', formatTwd(amounts.cashReserve), `${activePolicy.cashReservePct}%`),
+    policyMetric('單一持股上限', formatTwd(amounts.maxPosition), `${activePolicy.maxPositionPct}%`),
+    policyMetric('單筆最大風險', formatTwd(amounts.maxTradeRisk), `${activePolicy.maxTradeRiskPct}%`),
   );
 }
 
@@ -103,6 +106,7 @@ function currentPositionPlan() {
     entryPrice: entryInput.value,
     stopPrice: stopInput.value,
     targetPrice: snapshot.valuation?.analyst_target?.price,
+    policy: activePolicy,
   });
 }
 
@@ -114,7 +118,7 @@ function renderPositionPlan() {
   if (!isTaiwanTicker(snapshot.ticker)) {
     entryInput.disabled = true;
     stopInput.disabled = true;
-    positionError.textContent = '海外股票需要匯率才能換算 500 萬台幣部位；目前只顯示研究資料。';
+    positionError.textContent = `海外股票需要匯率才能換算 ${formatTwd(activePolicy.capital)} 台幣部位；目前只顯示研究資料。`;
     if (activeTab === 'plan') renderEvidence();
     return;
   }
@@ -171,9 +175,9 @@ function planLines() {
   if (!plan) return ['請修正進場價與停損價後再查看操作計畫。'];
   return [
     `建議股數 ${plan.shares.toLocaleString('zh-TW')} 股；投入 ${formatTwd(plan.investment)}。`,
-    `占 500 萬資金 ${plan.capitalPct.toFixed(1)}%；最大損失 ${formatTwd(plan.maxLoss)}。`,
+    `占 ${formatTwd(activePolicy.capital)} 資金 ${plan.capitalPct.toFixed(1)}%；最大損失 ${formatTwd(plan.maxLoss)}。`,
     `目標潛在報酬 ${formatTwd(plan.targetGain)}；風險報酬比 ${plan.riskReward === null ? '資料不足' : `${plan.riskReward.toFixed(2)}x`}。`,
-    `限制來源：${plan.binding === 'risk' ? '單筆最大風險 1%' : '單一持股上限 15%'}。`,
+    `限制來源：${plan.binding === 'risk' ? `單筆最大風險 ${activePolicy.maxTradeRiskPct}%` : `單一持股上限 ${activePolicy.maxPositionPct}%`}。`,
   ];
 }
 
@@ -300,7 +304,13 @@ positionForm.addEventListener('submit', event => event.preventDefault());
 [entryInput, stopInput].forEach(field => field.addEventListener('input', renderPositionPlan));
 
 input.value = tickerFromLocation();
-renderPolicy();
+mountOperatorPolicyEditor(document.getElementById('stock-policy-editor'), {
+  onChange(policy) {
+    activePolicy = policy;
+    renderPolicy();
+    renderPositionPlan();
+  },
+});
 focusPageHeading('stock-title');
 renderEvidence();
 loadSnapshot(input.value);

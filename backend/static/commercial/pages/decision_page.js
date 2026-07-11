@@ -2,8 +2,10 @@ import { requestJson } from '../shared/api.js';
 import {
   formatPercent,
   formatTwd,
+  OPERATOR_POLICY,
   policyAmounts,
-} from '../shared/operator_policy.js?v=20260711-operator3';
+} from '../shared/operator_policy.js?v=20260711-operator4';
+import { mountOperatorPolicyEditor } from '../shared/operator_policy_ui.js?v=20260711-operator4';
 import { focusPageHeading, stockPageHref } from '../shared/shell.js';
 import { renderSourceStatus } from '../shared/source_status.js';
 
@@ -20,6 +22,7 @@ const emptyAction = document.getElementById('decision-empty-action');
 const statusRoot = document.getElementById('decision-source-status');
 let queueTasks = [];
 let activeFilter = 'all';
+let activePolicy = OPERATOR_POLICY;
 
 function finite(value) {
   const number = Number(value);
@@ -56,12 +59,12 @@ function summaryMetric(name, value) {
 }
 
 function renderPolicy() {
-  const amounts = policyAmounts();
+  const amounts = policyAmounts(activePolicy);
   policyRoot.replaceChildren(
-    operatorMetric('操作資金', formatTwd(amounts.capital), '固定基準'),
-    operatorMetric('現金保留', formatTwd(amounts.cashReserve), '20%'),
-    operatorMetric('單一持股上限', formatTwd(amounts.maxPosition), '15%'),
-    operatorMetric('單筆最大風險', formatTwd(amounts.maxTradeRisk), '1%'),
+    operatorMetric('操作資金', formatTwd(amounts.capital), '目前設定'),
+    operatorMetric('現金保留', formatTwd(amounts.cashReserve), `${activePolicy.cashReservePct}%`),
+    operatorMetric('單一持股上限', formatTwd(amounts.maxPosition), `${activePolicy.maxPositionPct}%`),
+    operatorMetric('單筆最大風險', formatTwd(amounts.maxTradeRisk), `${activePolicy.maxTradeRiskPct}%`),
   );
 }
 
@@ -241,6 +244,11 @@ filters.addEventListener('click', event => {
   renderFilteredTasks();
 });
 
-renderPolicy();
+mountOperatorPolicyEditor(document.getElementById('decision-policy-editor'), {
+  onChange(policy) {
+    activePolicy = policy;
+    renderPolicy();
+  },
+});
 focusPageHeading('decision-title');
 loadDecisionQueue();

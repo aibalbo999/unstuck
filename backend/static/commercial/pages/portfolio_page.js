@@ -7,7 +7,8 @@ import {
   OPERATOR_POLICY,
   policyAmounts,
   trimToPositionLimit,
-} from '../shared/operator_policy.js?v=20260711-operator3';
+} from '../shared/operator_policy.js?v=20260711-operator4';
+import { mountOperatorPolicyEditor } from '../shared/operator_policy_ui.js?v=20260711-operator4';
 import { bindTabs, focusPageHeading } from '../shared/shell.js';
 import { renderSourceStatus } from '../shared/source_status.js';
 
@@ -28,6 +29,7 @@ let report = null;
 let activeTab = 'allocation';
 let basisCapital = OPERATOR_POLICY.capital;
 let actionLines = [];
+let activePolicy = OPERATOR_POLICY;
 
 export function validatePortfolioCsv(text) {
   const lines = String(text || '').trim().split(/\r?\n/).filter(Boolean);
@@ -69,12 +71,12 @@ function policyMetric(name, value, note) {
 }
 
 function renderPolicy() {
-  const amounts = policyAmounts();
+  const amounts = policyAmounts(activePolicy);
   policyRoot.replaceChildren(
-    policyMetric('操作資金', formatTwd(amounts.capital), '固定基準'),
-    policyMetric('現金保留', formatTwd(amounts.cashReserve), '20%'),
-    policyMetric('單一持股上限', formatTwd(amounts.maxPosition), '15%'),
-    policyMetric('單筆最大風險', formatTwd(amounts.maxTradeRisk), '1%'),
+    policyMetric('操作資金', formatTwd(amounts.capital), '目前設定'),
+    policyMetric('現金保留', formatTwd(amounts.cashReserve), `${activePolicy.cashReservePct}%`),
+    policyMetric('單一持股上限', formatTwd(amounts.maxPosition), `${activePolicy.maxPositionPct}%`),
+    policyMetric('單筆最大風險', formatTwd(amounts.maxTradeRisk), `${activePolicy.maxTradeRiskPct}%`),
   );
 }
 
@@ -84,7 +86,7 @@ function isCash(position) {
 }
 
 function positionPolicy() {
-  return { ...OPERATOR_POLICY, capital: basisCapital };
+  return { ...activePolicy, capital: basisCapital };
 }
 
 function amountForPosition(position) {
@@ -106,10 +108,10 @@ function cashPosition(payload) {
 
 function operatorViolations(payload) {
   const overweight = (payload.positions || [])
-    .filter(position => !isCash(position) && Number(position.weight_pct) > OPERATOR_POLICY.maxPositionPct)
+    .filter(position => !isCash(position) && Number(position.weight_pct) > activePolicy.maxPositionPct)
     .length;
   const cashWeight = Number(cashPosition(payload)?.weight_pct || 0);
-  return overweight + (cashWeight < OPERATOR_POLICY.cashReservePct ? 1 : 0);
+  return overweight + (cashWeight < activePolicy.cashReservePct ? 1 : 0);
 }
 
 function healthScore(payload) {
@@ -123,18 +125,18 @@ function healthScore(payload) {
 function recommendationLines(payload) {
   const lines = [];
   const overweight = (payload.positions || [])
-    .filter(position => !isCash(position) && Number(position.weight_pct) > OPERATOR_POLICY.maxPositionPct)
+    .filter(position => !isCash(position) && Number(position.weight_pct) > activePolicy.maxPositionPct)
     .sort((left, right) => Number(right.weight_pct) - Number(left.weight_pct));
   overweight.forEach(position => {
     lines.push(
-      `${position.ticker} 由 ${position.weight_pct}% 降至 ${OPERATOR_POLICY.maxPositionPct}%，減少 ${formatTwd(trimAmount(position))}`,
+      `${position.ticker} 由 ${position.weight_pct}% 降至 ${activePolicy.maxPositionPct}%，減少 ${formatTwd(trimAmount(position))}`,
     );
   });
 
   const cashWeight = Number(cashPosition(payload)?.weight_pct || 0);
-  if (cashWeight < OPERATOR_POLICY.cashReservePct) {
-    const required = amountForWeight(OPERATOR_POLICY.cashReservePct - cashWeight, basisCapital);
-    lines.push(`現金由 ${cashWeight}% 補至 ${OPERATOR_POLICY.cashReservePct}%，增加 ${formatTwd(required)}`);
+  if (cashWeight < activePolicy.cashReservePct) {
+    const required = amountForWeight(activePolicy.cashReservePct - cashWeight, basisCapital);
+    lines.push(`現金由 ${cashWeight}% 補至 ${activePolicy.cashReservePct}%，增加 ${formatTwd(required)}`);
   }
   if ((payload.risk_flags || []).includes('sector_over_60_pct')) {
     lines.push('降低最大產業集中度，避免單一產業超過 60%。');
@@ -150,7 +152,7 @@ function recommendationLines(payload) {
   }
   return lines.length
     ? lines.slice(0, 5)
-    : ['目前符合 500 萬操作護欄；維持例行檢查。'];
+    : ['目前符合操作護欄；維持例行檢查。'];
 }
 
 function renderPositionTable(payload) {
@@ -181,9 +183,9 @@ function renderCapitalMetrics(payload) {
   const allocated = Math.max(0, basisCapital - cashAmount);
   const top = payload.concentration?.top_position || {};
   const [country, countryWeight] = countryLeader(payload);
-  const sourceNote = basisCapital === OPERATOR_POLICY.capital
-    ? '500 萬操作基準'
-    : `較 500 萬基準 ${formatTwd(basisCapital - OPERATOR_POLICY.capital)}`;
+  const sourceNote = basisCapital === activePolicy.capital
+    ? '目前操作資金基準'
+    : `較操作資金 ${formatTwd(basisCapital - activePolicy.capital)}`;
   capitalMetrics.replaceChildren(
     metric('總資金', formatTwd(basisCapital), sourceNote),
     metric('已配置', formatTwd(allocated)),
@@ -251,7 +253,14 @@ bindTabs(document.getElementById('portfolio-tabs'), tab => {
   activeTab = tab;
   renderEvidence();
 });
-renderPolicy();
+mountOperatorPolicyEditor(document.getElementById('portfolio-policy-editor'), {
+  onChange(policy) {
+    activePolicy = policy;
+    basisCapital = capitalFromCsv(input.value, activePolicy.capital);
+    renderPolicy();
+    if (report) renderReport(report);
+  },
+});
 focusPageHeading('portfolio-title');
 form.addEventListener('submit', async event => {
   event.preventDefault();
@@ -263,7 +272,7 @@ form.addEventListener('submit', async event => {
   }
   setAsyncState(button, statusRoot, 'loading', '正在分析組合');
   try {
-    basisCapital = capitalFromCsv(input.value);
+    basisCapital = capitalFromCsv(input.value, activePolicy.capital);
     report = await requestJson('/api/watchlist/portfolio/risk', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

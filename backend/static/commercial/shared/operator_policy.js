@@ -49,7 +49,8 @@ export function readOperatorPolicy(storage) {
 export function writeOperatorPolicy(storage, policy) {
   const normalized = normalizeOperatorPolicy(policy);
   try {
-    storage?.setItem(POLICY_STORAGE_KEY, JSON.stringify(normalized));
+    if (typeof storage?.setItem !== 'function') return false;
+    storage.setItem(POLICY_STORAGE_KEY, JSON.stringify(normalized));
     return true;
   } catch (_error) {
     return false;
