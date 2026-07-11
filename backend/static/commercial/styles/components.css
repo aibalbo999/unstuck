@@ -71,7 +71,7 @@ button,
 
 .commercial-policy-editor-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 12px;
   padding-top: 16px;
 }
@@ -385,6 +385,11 @@ button,
   background: var(--commercial-bg);
   border: 1px solid var(--commercial-border);
   border-radius: 9px;
+}
+
+.commercial-field .commercial-input-with-suffix input {
+  border: 0;
+  background: transparent;
 }
 
 .commercial-position-planner {
