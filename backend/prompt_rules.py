@@ -11,47 +11,94 @@ BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_RULES_FILE = BASE_DIR / "prompts" / "runtime_rules.json"
 
 
-@lru_cache(maxsize=1)
+@lru_cache(maxsize=None)
 def load_runtime_prompt_rules(rules_file: str | None = None) -> dict:
+    """Return the process-stable runtime rule snapshot for one rules path."""
     path = Path(rules_file) if rules_file else DEFAULT_RULES_FILE
     with path.open("r", encoding="utf-8") as handle:
-        return json.load(handle)
+        rules = json.load(handle)
+    if not isinstance(rules, dict):
+        raise ValueError("Runtime prompt rules root must be an object")
+    return rules
+
+
+def _safe_rule_text(value, fallback: str = "") -> str:
+    try:
+        text = str(value).strip()
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+        return fallback
+    return text if text else fallback
+
+
+def _safe_format_rule_template(template, values: dict) -> str:
+    template_text = _safe_rule_text(template)
+    if not template_text:
+        return ""
+    try:
+        return template_text.format(**values).strip()
+    except (KeyError, IndexError, TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+        return ""
+
+
+def _rule_config_is_empty(config: dict) -> bool:
+    try:
+        return dict.__len__(config) == 0
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+        return False
+
+
+def _rule_config_get(config: dict, key: str, default=None):
+    return dict.get(config, key, default)
+
+
+def _runtime_rule_section(section: str, default=None):
+    fallback = {} if default is None else default
+    rules = load_runtime_prompt_rules()
+    if not isinstance(rules, dict):
+        return fallback
+    return dict.get(rules, section, fallback)
 
 
 def build_output_cleanliness_rule() -> str:
-    config = load_runtime_prompt_rules().get("output_cleanliness_rule", {})
-    title = config.get("title", "正式報告輸出契約")
-    rules = config.get("rules", []) or []
-    lines = [f"【{title}】"]
-    lines.extend(f"- {rule}" for rule in rules)
-    return "\n".join(lines)
+    config = _runtime_rule_section("output_cleanliness_rule")
+    if not isinstance(config, dict):
+        config = {}
+    block_config = {
+        "title": _safe_rule_text(_rule_config_get(config, "title", ""), "正式報告輸出契約"),
+        "rules": _rule_config_get(config, "rules", []),
+    }
+    return _build_titled_rule_block(block_config)
 
 
 def _build_titled_rule_block(config: dict, alert: bool = False) -> str:
-    if not config:
+    if not isinstance(config, dict):
+        return ""
+    if _rule_config_is_empty(config):
         return ""
 
-    title = config.get("title", "")
+    title = _safe_rule_text(_rule_config_get(config, "title", ""))
     prefix = "🚨" if alert else ""
     lines = [f"{prefix}【{title}】"] if title else []
 
-    intro = config.get("intro")
+    intro = _safe_rule_text(_rule_config_get(config, "intro"))
     if intro:
-        lines.append(str(intro))
+        lines.append(intro)
 
-    schema_lines = config.get("schema_lines") or []
+    schema_lines = _coerce_rule_list(_rule_config_get(config, "schema_lines", []))
     if schema_lines:
         lines.append("JSON schema:")
-        lines.extend(str(line) for line in schema_lines)
+        lines.extend(schema_lines)
 
-    lines.extend(f"- {rule}" for rule in config.get("rules", []) or [])
+    lines.extend(f"- {rule}" for rule in _coerce_rule_list(_rule_config_get(config, "rules", [])))
     return "\n".join(lines).strip()
 
 
 def build_structured_agent_instructions() -> dict[int, str]:
-    configs = load_runtime_prompt_rules().get("structured_agent_instructions", {}) or {}
+    configs = _runtime_rule_section("structured_agent_instructions")
+    if not isinstance(configs, dict):
+        configs = {}
     instructions = {}
-    for agent_num, config in configs.items():
+    for agent_num, config in dict.items(configs):
         try:
             key = int(agent_num)
         except (TypeError, ValueError):
@@ -64,74 +111,100 @@ def build_structured_agent_instructions() -> dict[int, str]:
 
 def _coerce_rule_list(value) -> list[str]:
     if isinstance(value, dict):
-        value = value.get("rules", [])
+        value = dict.get(value, "rules", [])
     if not isinstance(value, list):
         return []
-    return [str(rule) for rule in value if str(rule).strip()]
+    rules = []
+    try:
+        iterator = iter(value)
+        for rule in iterator:
+            text = _safe_rule_text(rule)
+            if text:
+                rules.append(text)
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+        pass
+    return rules
 
 
 def build_final_audit_preflight_rule(agent_num: int, pipeline_id: str = "") -> str:
     """Build the pre-output checklist that mirrors final audit failure modes."""
-    config = load_runtime_prompt_rules().get("final_audit_preflight_rule", {})
+    config = _runtime_rule_section("final_audit_preflight_rule")
     if not isinstance(config, dict):
         return ""
 
-    rules = _coerce_rule_list(config.get("rules", []))
-    per_agent = config.get("per_agent", {}) or {}
-    rules.extend(_coerce_rule_list(per_agent.get(str(agent_num), [])))
+    rules = _coerce_rule_list(_rule_config_get(config, "rules", []))
+    per_agent = _rule_config_get(config, "per_agent", {})
+    if not isinstance(per_agent, dict):
+        per_agent = {}
+    rules.extend(_coerce_rule_list(_rule_config_get(per_agent, str(agent_num), [])))
 
-    normalized_pipeline = str(pipeline_id or "").strip()
-    per_pipeline = config.get("per_pipeline", {}) or {}
+    try:
+        normalized_pipeline = "" if pipeline_id is None else str(pipeline_id).strip()
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+        normalized_pipeline = ""
+    per_pipeline = _rule_config_get(config, "per_pipeline", {})
+    if not isinstance(per_pipeline, dict):
+        per_pipeline = {}
     if normalized_pipeline:
-        rules.extend(_coerce_rule_list(per_pipeline.get(normalized_pipeline, [])))
+        rules.extend(_coerce_rule_list(_rule_config_get(per_pipeline, normalized_pipeline, [])))
 
     block_config = {
-        "title": config.get("title", "最終審核前自檢"),
-        "intro": config.get("intro", ""),
+        "title": _rule_config_get(config, "title", "最終審核前自檢"),
+        "intro": _rule_config_get(config, "intro", ""),
         "rules": rules,
     }
     return _build_titled_rule_block(block_config, alert=True)
 
 
 def build_agent_rule_block(section: str, agent_num: int) -> str:
-    configs = load_runtime_prompt_rules().get(section, {}) or {}
-    config = configs.get(str(agent_num), {})
+    configs = _runtime_rule_section(section)
+    if not isinstance(configs, dict):
+        configs = {}
+    config = dict.get(configs, str(agent_num), {})
     return _build_titled_rule_block(config)
 
 
 def get_task_prompt_config(task_name: str) -> dict:
-    configs = load_runtime_prompt_rules().get("assistant_task_prompts", {}) or {}
-    config = configs.get(task_name, {})
+    configs = _runtime_rule_section("assistant_task_prompts")
+    if not isinstance(configs, dict):
+        return {}
+    config = _rule_config_get(configs, task_name, {})
     return config if isinstance(config, dict) else {}
 
 
 def get_task_system_instruction(task_name: str, default: str = "") -> str:
-    return str(get_task_prompt_config(task_name).get("system_instruction") or default)
+    return _safe_rule_text(_rule_config_get(get_task_prompt_config(task_name), "system_instruction"), default)
 
 
 def get_task_instruction_lines(task_name: str) -> list[str]:
-    lines = get_task_prompt_config(task_name).get("instruction_lines", []) or []
-    return [str(line) for line in lines if str(line).strip()]
+    return _coerce_rule_list(_rule_config_get(get_task_prompt_config(task_name), "instruction_lines", []))
 
 
 def build_identity_guard_rule_lines(values: dict) -> list[str]:
-    config = load_runtime_prompt_rules().get("identity_guard", {})
-    title = config.get("title", "公司身分一致性硬性規則")
+    config = _runtime_rule_section("identity_guard")
+    if not isinstance(config, dict):
+        config = {}
+    title = _safe_rule_text(_rule_config_get(config, "title", ""), "公司身分一致性硬性規則")
     lines = [f"🚨【{title}】"]
 
-    for rule in config.get("rules", []) or []:
-        lines.append(f"- {rule.format(**values)}")
+    for rule in _coerce_rule_list(_rule_config_get(config, "rules", [])):
+        formatted_rule = _safe_format_rule_template(rule, values)
+        if formatted_rule:
+            lines.append(f"- {formatted_rule}")
 
-    legal_name = values.get("legal_name")
-    if legal_name and config.get("legal_name_rule"):
-        lines.append(f"- {config['legal_name_rule'].format(**values)}")
+    legal_name = _safe_rule_text(_rule_config_get(values, "legal_name"))
+    legal_name_rule = _safe_format_rule_template(_rule_config_get(config, "legal_name_rule"), values)
+    if legal_name and legal_name_rule:
+        lines.append(f"- {legal_name_rule}")
 
-    english_names = values.get("english_names")
-    if english_names and config.get("english_names_rule"):
-        lines.append(f"- {config['english_names_rule'].format(**values)}")
+    english_names = _safe_rule_text(_rule_config_get(values, "english_names"))
+    english_names_rule = _safe_format_rule_template(_rule_config_get(config, "english_names_rule"), values)
+    if english_names and english_names_rule:
+        lines.append(f"- {english_names_rule}")
 
-    forbidden_aliases = values.get("forbidden_aliases")
-    if forbidden_aliases and config.get("forbidden_aliases_rule"):
-        lines.append(f"- {config['forbidden_aliases_rule'].format(**values)}")
+    forbidden_aliases = _safe_rule_text(_rule_config_get(values, "forbidden_aliases"))
+    forbidden_aliases_rule = _safe_format_rule_template(_rule_config_get(config, "forbidden_aliases_rule"), values)
+    if forbidden_aliases and forbidden_aliases_rule:
+        lines.append(f"- {forbidden_aliases_rule}")
 
     return lines

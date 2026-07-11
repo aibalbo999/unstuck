@@ -28,6 +28,34 @@ def test_watchlist_daily_dashboard_route(monkeypatch, tmp_path):
         "compute_tracking_performance_stats",
         lambda _output_dir: {"summary": {"hit_rate_pct": 50}},
     )
+    monkeypatch.setattr(
+        watchlist_routes.job_observability,
+        "build_ops_dashboard_snapshot",
+        lambda **_kwargs: {
+            "model_route_budget": {
+                "warnings": [
+                    {
+                        "id": "quality_gate_failures",
+                        "route": "v2/gemini-2.5-pro",
+                        "message": "quality_gate_failures=1",
+                    }
+                ]
+            }
+        },
+    )
+    monkeypatch.setattr(
+        watchlist_routes,
+        "get_delivery_audit_summary",
+        lambda: {
+            "total_count": 3,
+            "sent_count": 1,
+            "failed_count": 2,
+            "pending_count": 0,
+            "retry_exhausted_count": 1,
+            "channel_counts": {"telegram_webhook": 2, "local": 1},
+        },
+        raising=False,
+    )
 
     app = FastAPI()
     app.include_router(create_watchlist_router(WatchlistRouteDeps(
@@ -46,6 +74,10 @@ def test_watchlist_daily_dashboard_route(monkeypatch, tmp_path):
     assert payload["summary"]["reports_needing_rerun"] == 1
     assert payload["summary"]["watchlist_high_priority"] == 1
     assert payload["performance"]["hit_rate_pct"] == 50
+    assert any(item["type"] == "model_route_warning" for item in payload["decision_queue"]["items"])
+    delivery_item = next(item for item in payload["decision_queue"]["items"] if item["type"] == "fix_notification_delivery")
+    assert delivery_item["failed_count"] == 2
+    assert delivery_item["suppress_notification"] is True
 
 
 def test_daily_decision_dashboard_prioritizes_reruns_watchlist_and_free_mode():
@@ -78,7 +110,13 @@ def test_daily_decision_dashboard_prioritizes_reruns_watchlist_and_free_mode():
     }
     screener = {
         "items": [
-            {"ticker": "2454.TW", "score": 91, "quality_funnel": {"outcome": "pass"}},
+            {
+                "ticker": "2408.TW",
+                "company_name": "南亞科",
+                "score": 18680.0,
+                "reason": "外資買超 15430 張、投信買超 3250 張、自營商 0 張",
+                "quality_funnel": {"outcome": "pass"},
+            },
             {"ticker": "9999.TW", "score": 88, "quality_funnel": {"outcome": "reject"}},
         ]
     }
@@ -108,8 +146,30 @@ def test_daily_decision_dashboard_prioritizes_reruns_watchlist_and_free_mode():
     assert dashboard["summary"]["reports_needing_rerun"] == 1
     assert dashboard["summary"]["watchlist_high_priority"] == 1
     assert dashboard["performance"]["hit_rate_pct"] == 58.33
-    assert [item["ticker"] for item in dashboard["top_candidates"]] == ["2454.TW"]
+    assert dashboard["top_candidates"][0] == {
+        "ticker": "2408.TW",
+        "company_name": "南亞科",
+        "score": 18680.0,
+        "quality_outcome": "pass",
+        "reason": "外資買超 15430 張、投信買超 3250 張、自營商 0 張",
+    }
     assert [action["type"] for action in dashboard["actions"][:2]] == ["rerun_report", "run_watchlist"]
+
+
+def test_daily_decision_dashboard_keeps_monitor_only_notifications_quiet():
+    dashboard = build_daily_decision_dashboard(
+        reports={"reports": []},
+        watchlist={"items": []},
+        screener={"items": []},
+        performance={"summary": {}, "details": []},
+        free_mode={"enabled": True, "can_run_without_paid_keys": True, "violations": []},
+    )
+
+    assert dashboard["status"] == "ok"
+    assert dashboard["decision_queue"]["summary"]["total_actionable"] == 0
+    assert dashboard["actions"][0]["type"] == "monitor"
+    assert dashboard["notification_plan"]["status"] == "quiet"
+    assert dashboard["notification_plan"]["messages"] == []
 
 
 def test_daily_decision_dashboard_returns_full_rerun_report_list():
@@ -161,3 +221,276 @@ def test_daily_decision_dashboard_returns_full_rerun_report_list():
         "title": "6282.TW v4 結論需重跑",
         "detail": "資料快照與結論不同步",
     }
+
+
+def test_daily_decision_dashboard_prioritizes_report_repair_queue_before_watchlist():
+    dashboard = build_daily_decision_dashboard(
+        reports={
+            "reports": [
+                {
+                    "ticker": "2330.TW",
+                    "filename": "2330_blocked.html",
+                    "pipeline_id": "v2",
+                    "content_credibility": {
+                        "status": "blocked",
+                        "summary": "目標價與買入建議不一致。",
+                    },
+                }
+            ]
+        },
+        watchlist={"items": [{"ticker": "2308.TW", "enabled": True, "decision_priority": "high"}]},
+        screener={"items": []},
+        performance={"summary": {}},
+        free_mode={"enabled": True, "can_run_without_paid_keys": True, "violations": []},
+    )
+
+    assert dashboard["summary"]["report_repairs_required"] == 1
+    assert dashboard["repair_queue"]["items"][0]["filename"] == "2330_blocked.html"
+    assert dashboard["actions"][0]["type"] == "manual_review"
+    assert dashboard["actions"][0]["filename"] == "2330_blocked.html"
+    assert dashboard["actions"][0]["title"] == "2330.TW v2 內容可信度未通過"
+
+
+def test_daily_decision_dashboard_excludes_blocked_repairs_from_direct_rerun_bucket():
+    dashboard = build_daily_decision_dashboard(
+        reports={
+            "reports": [
+                {
+                    "ticker": "2330.TW",
+                    "filename": "2330_blocked_stale.html",
+                    "pipeline_id": "v2",
+                    "content_credibility": {
+                        "status": "blocked",
+                        "summary": "買入建議與目標價方向互相矛盾。",
+                    },
+                    "decision_freshness": {
+                        "requires_rerun": True,
+                        "requires_rerun_reason": "資料快照已刷新，但內容可信度仍未通過。",
+                    },
+                }
+            ]
+        },
+        watchlist={"items": []},
+        screener={"items": []},
+        performance={"summary": {}, "details": []},
+        free_mode={"enabled": True, "can_run_without_paid_keys": True, "violations": []},
+    )
+
+    assert dashboard["summary"]["report_repairs_required"] == 1
+    assert dashboard["summary"]["reports_needing_rerun"] == 0
+    assert dashboard["rerun_reports"] == []
+    assert dashboard["actions"][0]["type"] == "manual_review"
+    assert dashboard["actions"][0]["filename"] == "2330_blocked_stale.html"
+
+
+def test_daily_decision_dashboard_rerun_bucket_uses_full_repair_coverage_not_display_limit():
+    reports = [
+        {
+            "ticker": f"100{index}.TW",
+            "filename": f"100{index}_blocked.html",
+            "pipeline_id": "v1",
+            "content_credibility": {
+                "status": "blocked",
+                "summary": "內容可信度未通過。",
+            },
+        }
+        for index in range(1, 6)
+    ]
+    reports.append({
+        "ticker": "9999.TW",
+        "filename": "9999_blocked_stale.html",
+        "pipeline_id": "v2",
+        "content_credibility": {
+            "status": "blocked",
+            "summary": "第六份 blocked report 不在顯示上限內。",
+        },
+        "decision_freshness": {
+            "requires_rerun": True,
+            "requires_rerun_reason": "資料快照已刷新，但內容仍需人工審核。",
+        },
+    })
+
+    dashboard = build_daily_decision_dashboard(
+        reports={"reports": reports},
+        watchlist={"items": []},
+        screener={"items": []},
+        performance={"summary": {}, "details": []},
+        free_mode={"enabled": True, "can_run_without_paid_keys": True, "violations": []},
+    )
+
+    assert dashboard["summary"]["report_repairs_required"] == 6
+    assert len(dashboard["repair_queue"]["items"]) == 5
+    assert "9999_blocked_stale.html" not in [item["filename"] for item in dashboard["repair_queue"]["items"]]
+    assert dashboard["summary"]["reports_needing_rerun"] == 0
+    assert dashboard["rerun_reports"] == []
+
+
+def test_daily_decision_dashboard_queue_uses_full_repair_coverage_for_backtest_skip():
+    reports = [
+        {
+            "ticker": f"200{index}.TW",
+            "filename": f"200{index}_blocked.html",
+            "pipeline_id": "v1",
+            "content_credibility": {
+                "status": "blocked",
+                "summary": "內容可信度未通過。",
+            },
+        }
+        for index in range(1, 6)
+    ]
+    reports.append({
+        "ticker": "8888.TW",
+        "filename": "8888_blocked_due.html",
+        "pipeline_id": "v2",
+        "date": "2025-01-01",
+        "content_credibility": {
+            "status": "blocked",
+            "summary": "第六份 blocked report 已到回測期。",
+        },
+    })
+
+    dashboard = build_daily_decision_dashboard(
+        reports={"reports": reports},
+        watchlist={"items": []},
+        screener={"items": []},
+        performance={"summary": {}, "details": []},
+        free_mode={"enabled": True, "can_run_without_paid_keys": True, "violations": []},
+    )
+
+    assert dashboard["summary"]["report_repairs_required"] == 6
+    assert len(dashboard["repair_queue"]["items"]) == 5
+    assert "8888_blocked_due.html" not in [item["filename"] for item in dashboard["repair_queue"]["items"]]
+    assert dashboard["decision_queue"]["summary"]["sources"]["report_repair"] == 6
+    assert "backtest_due" not in dashboard["decision_queue"]["summary"]["sources"]
+
+
+def test_daily_decision_dashboard_includes_outcome_calibration_from_backtests():
+    dashboard = build_daily_decision_dashboard(
+        reports={
+            "reports": [
+                {
+                    "ticker": "2308.TW",
+                    "filename": "2308_low_trust.html",
+                    "pipeline_id": "v2",
+                    "data_trust": {"status": "partial", "score": 45},
+                    "content_credibility": {"status": "passed"},
+                    "report_conformance": {"status": "passed"},
+                }
+            ]
+        },
+        watchlist={"items": []},
+        screener={"items": []},
+        performance={
+            "summary": {"total_predictions": 1, "hit_rate_pct": 0},
+            "details": [
+                {
+                    "report_filename": "2308_low_trust.html",
+                    "ticker": "2308.TW",
+                    "pipeline_id": "v2",
+                    "horizon_months": 3,
+                    "outcome": "miss",
+                    "strategy_roi_pct": -9.5,
+                    "reason": "buy_thesis_not_met",
+                }
+            ],
+        },
+        free_mode={"enabled": True, "can_run_without_paid_keys": True, "violations": []},
+    )
+
+    calibration = dashboard["outcome_calibration"]
+    assert calibration["summary"]["total_evaluated"] == 1
+    assert calibration["summary"]["miss_attribution_counts"]["data_quality_issue"] == 1
+    assert calibration["details"][0]["quality_signal"]["data_trust_status"] == "partial"
+
+
+def test_daily_decision_dashboard_includes_provider_impact_ledger():
+    dashboard = build_daily_decision_dashboard(
+        reports={
+            "reports": [
+                {
+                    "ticker": "NVDA",
+                    "filename": "nvda_provider.html",
+                    "pipeline_id": "v2",
+                    "data_trust": {
+                        "status": "partial",
+                        "reason_codes": ["provider_sla_critical"],
+                        "provider_sla_alerts": [
+                            {
+                                "source": "market_data",
+                                "provider": "yfinance",
+                                "alert_level": "critical",
+                                "current_status": "unavailable",
+                            }
+                        ],
+                    },
+                }
+            ]
+        },
+        watchlist={"items": []},
+        screener={"items": []},
+        performance={"summary": {}, "details": []},
+        free_mode={"enabled": True, "can_run_without_paid_keys": True, "violations": []},
+    )
+
+    ledger = dashboard["provider_impact_ledger"]
+    assert ledger["summary"]["reports_with_impacts"] == 1
+    assert ledger["summary"]["blocked_reports"] == 1
+    assert ledger["items"][0]["filename"] == "nvda_provider.html"
+
+
+def test_daily_decision_dashboard_exposes_prioritized_decision_queue():
+    dashboard = build_daily_decision_dashboard(
+        reports={
+            "reports": [
+                {
+                    "ticker": "NVDA",
+                    "filename": "nvda_provider.html",
+                    "pipeline_id": "v2",
+                    "data_trust": {
+                        "status": "partial",
+                        "reason_codes": ["provider_sla_critical"],
+                        "provider_sla_alerts": [
+                            {
+                                "source": "market_data",
+                                "provider": "yfinance",
+                                "alert_level": "critical",
+                                "current_status": "unavailable",
+                            }
+                        ],
+                    },
+                },
+                {
+                    "ticker": "2308.TW",
+                    "filename": "2308_due.html",
+                    "pipeline_id": "v1",
+                    "date": "2025-01-02",
+                    "decision_freshness": {"requires_rerun": True},
+                },
+            ]
+        },
+        watchlist={"items": [{"ticker": "2454.TW", "enabled": True, "decision_priority": "high"}]},
+        screener={"items": []},
+        performance={"summary": {}, "details": []},
+        free_mode={"enabled": True, "can_run_without_paid_keys": True, "violations": []},
+        ops={
+            "model_route_budget": {
+                "warnings": [
+                    {
+                        "id": "quality_gate_failures",
+                        "route": "v2/gemini-2.5-pro",
+                        "message": "quality_gate_failures=1",
+                    }
+                ]
+            }
+        },
+    )
+
+    queue = dashboard["decision_queue"]
+    assert queue["schema_version"] == "daily_decision_queue.v1"
+    assert queue["items"][0]["type"] == "wait_provider_recovery"
+    assert [item["type"] for item in dashboard["actions"][:3]] == [
+        "wait_provider_recovery",
+        "model_route_warning",
+        "backtest_due",
+    ]
+    assert any(item["type"] == "model_route_warning" for item in queue["items"])

@@ -1,0 +1,148 @@
+/* Stock Snapshot Responsive Headers */
+@media (max-width: 760px) {
+    .stock-snapshot-header,
+    .stock-snapshot-company-profile-header,
+    .stock-snapshot-session,
+    .stock-snapshot-trend,
+    .stock-snapshot-performance-header,
+    .stock-snapshot-performance-chart,
+    .stock-snapshot-technical-header,
+    .stock-snapshot-valuation-header,
+    .stock-snapshot-analyst-header,
+    .stock-snapshot-earnings-header,
+    .stock-snapshot-shares-header,
+    .stock-snapshot-risk-header,
+    .stock-snapshot-profitability-header,
+    .stock-snapshot-dividend-header,
+    .stock-snapshot-calendar-header,
+    .stock-snapshot-alert-header,
+    .stock-snapshot-fundamentals-header,
+    .stock-snapshot-financial-trends-header,
+    .stock-snapshot-peers-header,
+    .stock-snapshot-ownership-header,
+    .stock-snapshot-strip,
+    .stock-snapshot-news,
+    .stock-snapshot-modes {
+        grid-template-columns: 1fr;
+    }
+
+    .stock-snapshot-header {
+        display: grid;
+    }
+
+    .stock-snapshot-performance-header {
+        display: grid;
+    }
+
+    .stock-snapshot-company-profile-header {
+        display: grid;
+    }
+
+    .stock-snapshot-technical-header {
+        display: grid;
+    }
+
+    .stock-snapshot-technical-header div:last-child {
+        justify-content: flex-start;
+    }
+
+    .stock-snapshot-fundamentals-header {
+        display: grid;
+    }
+
+    .stock-snapshot-financial-trends-header {
+        display: grid;
+    }
+
+    .stock-snapshot-valuation-header {
+        display: grid;
+    }
+
+    .stock-snapshot-analyst-header {
+        display: grid;
+    }
+
+    .stock-snapshot-earnings-header {
+        display: grid;
+    }
+
+    .stock-snapshot-shares-header {
+        display: grid;
+    }
+
+    .stock-snapshot-risk-header {
+        display: grid;
+    }
+
+    .stock-snapshot-profitability-header {
+        display: grid;
+    }
+
+    .stock-snapshot-dividend-header {
+        display: grid;
+    }
+
+    .stock-snapshot-calendar-header {
+        display: grid;
+    }
+
+    .stock-snapshot-alert-header {
+        display: grid;
+    }
+
+    .stock-snapshot-peers-header {
+        display: grid;
+    }
+
+    .stock-snapshot-ownership-header {
+        display: grid;
+    }
+
+    .stock-snapshot-valuation-header div:last-child {
+        justify-content: flex-start;
+    }
+
+    .stock-snapshot-analyst-header div:last-child {
+        justify-content: flex-start;
+    }
+
+    .stock-snapshot-earnings-header div:last-child {
+        justify-content: flex-start;
+    }
+
+    .stock-snapshot-shares-header div:last-child {
+        justify-content: flex-start;
+    }
+
+    .stock-snapshot-risk-header div:last-child {
+        justify-content: flex-start;
+    }
+
+    .stock-snapshot-profitability-header div:last-child {
+        justify-content: flex-start;
+    }
+
+    .stock-snapshot-dividend-header div:last-child {
+        justify-content: flex-start;
+    }
+
+    .stock-snapshot-calendar-header div:last-child {
+        justify-content: flex-start;
+    }
+
+    .stock-snapshot-fundamentals-header div:last-child {
+        justify-content: flex-start;
+    }
+
+    .stock-snapshot-financial-trends-header div:last-child {
+        justify-content: flex-start;
+    }
+
+    .stock-snapshot-peers-header div:last-child {
+        justify-content: flex-start;
+    }
+
+    .stock-snapshot-ownership-header div:last-child {
+        justify-content: flex-start;
+    }
+}

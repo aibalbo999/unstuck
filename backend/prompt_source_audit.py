@@ -27,33 +27,35 @@ PROMPT_COUNT_COMPARABLE_SOURCES = {
 
 
 def prompt_source_audit_summary(data: dict) -> list[dict]:
-    entries = data.get("source_audit", []) if isinstance(data.get("source_audit"), list) else []
+    raw_entries = dict.get(data, "source_audit", [])
+    entries = raw_entries if isinstance(raw_entries, list) else []
     latest = {}
     for entry in entries:
         if not isinstance(entry, dict):
             continue
-        source = str(entry.get("source") or "")
+        source = _safe_text(dict.get(entry, "source")).strip()
         if source:
             latest[source] = entry
 
     summary = []
     for source, entry in sorted(latest.items()):
         merged_record_count = source_record_count(source, data)
-        audit_record_count = _optional_int(entry.get("record_count"))
+        audit_record_count = _optional_int(dict.get(entry, "record_count"))
+        message = _safe_text(dict.get(entry, "message")) or _safe_text(dict.get(entry, "error_kind"))
         summary.append({
             "source": source,
-            "provider": entry.get("provider"),
-            "status": entry.get("status"),
-            "record_count": entry.get("record_count"),
+            "provider": _safe_text(dict.get(entry, "provider")).strip(),
+            "status": _safe_text(dict.get(entry, "status")).strip(),
+            "record_count": audit_record_count,
             "merged_record_count": merged_record_count,
             "record_count_mismatch": (
                 source in PROMPT_COUNT_COMPARABLE_SOURCES
                 and audit_record_count is not None
                 and merged_record_count != audit_record_count
             ),
-            "cache_hit": entry.get("cache_hit"),
-            "stale": entry.get("stale"),
-            "message": str(entry.get("message") or entry.get("error_kind") or "")[:160],
+            "cache_hit": _optional_bool(dict.get(entry, "cache_hit")),
+            "stale": _optional_bool(dict.get(entry, "stale")),
+            "message": message[:160],
         })
     return summary
 
@@ -61,5 +63,21 @@ def prompt_source_audit_summary(data: dict) -> list[dict]:
 def _optional_int(value):
     try:
         return int(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
         return None
+
+
+def _optional_bool(value):
+    if value is None:
+        return None
+    try:
+        return bool(value)
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+        return None
+
+
+def _safe_text(value):
+    try:
+        return "" if value is None else str(value)
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+        return ""

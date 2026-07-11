@@ -46,7 +46,7 @@
 - Daily screener 會為候選股附加 Quality Funnel：基本面不足標示 `gray`，硬性品質缺陷標示 `reject`，完整通過標示 `pass`
 - 研究 playbook registry 統一描述 Mode A/B/C/D 與買入前 checklist、投資論文追蹤、組合檢查、品質篩選等非 pipeline 工作流
 - LLM route 支援 provider-prefixed model ID，例如 `openai:gpt-4.1-mini`、`anthropic:claude-...`；未加 prefix 時預設視為 Google / Gemini，相同 agent 可設定跨供應商 fallback
-- Prompt 設定在 runtime 以 Pydantic schema 驗證，`prompt_version` 會進入 Agent step cache key，避免 prompt 變更後誤用舊 cache
+- Prompt 設定在 runtime 以 Pydantic schema 驗證；`prompt_version` 由人類版本與 effective prompt bundle fingerprint 組成，涵蓋 agent templates、state-view policy 與 `runtime_rules.json`，並會進入 Agent step cache key；完整 `prompt_fingerprint` 則會傳入報告 reproducibility packet。Fingerprint 與 prompt injection 共用同一份 process-stable runtime-rule snapshot，避免同一 workflow 的記錄版本與實際規則漂移；workflow 初始化也會記錄 Git commit 與 dirty state，避免未提交程式碼被誤認為可由單一 commit 重現
 - 財務抓取與分析管線走單一 async 路徑；Google / Gemini 呼叫使用新版 `google-genai` 非同步 client，OpenAI / Anthropic 走 HTTP adapter；舊同步 pipeline 與 compat 層已移除
 - 針對常見財務錯誤加入品質檢查，例如 DuPont、DCF / P/E、WACC、FCF 與公司身分一致性
 
@@ -90,6 +90,7 @@ stock-agent/
 │   ├── static/             # 前端頁面
 │   └── output/             # 產生的報告，已被 Git 忽略
 ├── main.py                 # CLI 入口
+├── DESIGN.md               # 前端設計系統與視覺驗收基線
 ├── docs/
 │   ├── architecture.md     # 系統邊界與資料流程
 │   ├── operator-guide.md   # 操作者日常流程與維護指南
@@ -103,6 +104,7 @@ stock-agent/
 
 ## 文件入口
 
+- [DESIGN.md](DESIGN.md)：前端字體、色彩、密度、可及性、mobile 與視覺驗收基線。
 - [docs/architecture.md](docs/architecture.md)：系統資料流、服務邊界、`decision_freshness` 與 mutation token 設計。
 - [docs/operator-guide.md](docs/operator-guide.md)：操作者日常分析、報告重跑、維護與安全注意事項。
 - [docs/api.md](docs/api.md)：常用 API、修改端點 token header、維護 dry-run 範例。
@@ -270,8 +272,9 @@ scripts/setup_visual_regression.sh
 scripts/visual_regression.sh
 ```
 
-CI 可用 `RUN_VISUAL_REGRESSION=1 scripts/ci_gate.sh` 一併執行；一般 `pytest` 仍會在 Playwright 不可用時 skip。
+CI 環境的 `CI=1`、`CI=true` 或 `CI=yes` 會讓 `scripts/ci_gate.sh` 預設執行必須成功的視覺回歸；本機可用 `RUN_VISUAL_REGRESSION=1 scripts/ci_gate.sh` 強制執行，或維持一般快速 gate。執行視覺 gate 前，CI runner 請先跑 `scripts/setup_visual_regression.sh` 安裝並實際啟動驗證 Playwright/Chromium；其驗證命令是 `scripts/check_visual_regression.py`，`scripts/ci_gate.sh` 也會在 visual suite 前做同一個 preflight，缺少 browser 時會提前失敗並列出修復命令；一般 `pytest` 仍會在 Playwright 不可用時 skip。
 `scripts/ci_gate.sh` 會產生 `backend/cache/sbom.cdx.json` CycloneDX SBOM，並以 `coverage run --source=backend` 執行非 live 測試，要求 backend line coverage 不低於 75%。
+pipeline mode 的首屏 fallback 由 `scripts/generate_pipeline_mode_fallback.py` 產生；`scripts/ci_gate.sh` 會執行 `scripts/generate_pipeline_mode_fallback.py --check`，避免後端 catalog 與前端 fallback 靜默漂移。
 報告防回歸測試包含 `tests/test_golden_reports.py`；若報告文字或章節結構是預期變更，請先人工檢查 fixed fake data 的 Markdown 輸出，再更新 `tests/fixtures/golden_reports/2330_v1_markdown.json` 的 SHA-256。
 
 ## 維護工具
@@ -372,6 +375,7 @@ http://127.0.0.1:8080
 日常操作建議：
 
 - 「分析」頁籤：新分析、查找歷史報告、篩選 Mode A/B/C/D、查看決策追蹤、刷新資料快照、重跑報告與比較報告。
+- 每日決策工作台的 screener 候選會保留 ticker、公司名稱與入選理由，提供「查看股票快照」、「加入追蹤」、「選擇分析模式」三個下一步；選擇分析模式只預填並聚焦，不會自動送出分析。
 - 「市場掃描」頁籤：依分類、分數、營收成長、RSI/MACD 與法人買超篩選自動掃描候選股，並可把候選清單送入追蹤或分析流程。
 - 「追蹤」頁籤：管理追蹤清單、排程、事件觸發條件與批次分析；股票快照也可以直接加入追蹤，並可貼上持股 CSV 檢查集中度、產業/市場曝險與投資論文缺口。
 - 「報告與維運」頁籤：查看 API 額度、來源健康、任務狀態、決策回測與清理工具；首次打開頁籤才會載入這些維運資料。
@@ -612,7 +616,7 @@ xattr -d com.apple.quarantine start_mac_lan.command
 
 - 不要把生成報告提交到 Git。
 - 不要把真實 API key 寫進程式碼。
-- Prompt 主要放在 `backend/prompts/agents.json`，runtime 會用 Pydantic schema 驗證；修改後請確認各 pipeline 的 Agent 都保留 system 與 analysis prompt，並更新或確認 `prompt_version`。Mode C 使用 Agent 17 / 18 / 19，Mode D 使用 Agent 22 / 23 / 24。
+- Prompt 主要放在 `backend/prompts/agents.json`，analysis prompt 使用 Jinja `{{ variable }}` 佔位符，runtime 會用 Pydantic schema 驗證；允許的頂層變數是 `ticker`、`name`、`fin_data`、`prev`、`rag_context`、`data`、`context`、`agent_num`，未知變數或 Jinja 語法錯誤會在載入時直接失敗。`prompt_version` 會自動附加 system prompt、analysis prompt、state-view policy 與 `backend/prompts/runtime_rules.json` 的 canonical SHA-256 fingerprint；`prompt_rules.load_runtime_prompt_rules()` 是 fingerprint 與 prompt injection 共用的 canonical process snapshot loader，修改檔案後需重啟 process 或明確清除 cache 才會載入新快照。語意世代改變時仍應提升人類可讀的 `version`。Legacy `{ticker}` 等語法只保留在 renderer 相容層，不應寫入正式 prompt config。Mode C 使用 Agent 17 / 18 / 19，Mode D 使用 Agent 22 / 23 / 24。
 - HTML 報告版型主要放在 `backend/templates/report.html.j2`，Python 只負責整理資料與渲染模板。
 - 修改 prompt、品質檢查、pipeline 或核心型別後，建議跑 `scripts/ci_gate.sh`；CI gate 會執行 runtime check、secret scan、SBOM、`compileall`、核心 mypy strict 與 coverage 測試。
 - 修改 DCF/WACC 或 `quant_metrics` 時，請確認 `fallback_fields`、`data_quality_warning`、Agent 7【資料警示】與 final audit 的 DCF 衝突檢查仍一致。

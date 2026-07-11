@@ -36,20 +36,20 @@ def _missing_visible_markers(html: str, markdown: str, profile: dict[str, Any]) 
     for marker in _REQUIRED_VISIBLE_MARKERS:
         if marker["html"] not in html_text or marker["markdown"] not in markdown_text:
             missing.append({"id": marker["id"], "label": marker["label"]})
-    summary_heading = str(profile.get("summary_heading") or "一頁式摘要")
+    summary_heading = str(dict.get(profile, "summary_heading") or "一頁式摘要")
     if summary_heading not in html_text or summary_markdown_heading(profile) not in markdown_text:
         missing.append({"id": "tear_sheet", "label": summary_heading})
-    decision_heading = str(profile.get("decision_heading") or "最終投資建議")
+    decision_heading = str(dict.get(profile, "decision_heading") or "最終投資建議")
     if decision_heading not in html_text or decision_markdown_heading(profile) not in markdown_text:
         missing.append({"id": "decision", "label": decision_heading})
-    discipline_heading = str(profile.get("discipline_heading") or "")
+    discipline_heading = str(dict.get(profile, "discipline_heading") or "")
     if discipline_heading and (discipline_heading not in html_text or f"## {discipline_heading}" not in markdown_text):
         missing.append({"id": "decision_discipline", "label": discipline_heading})
     return missing
 
 
 def _append_issue(target: list[dict], step: dict) -> None:
-    target.append({"id": step["id"], "message": step["message"], "details": step.get("details")})
+    target.append({"id": step["id"], "message": step["message"], "details": dict.get(step, "details")})
 
 
 def evaluate_report_conformance(
@@ -60,20 +60,27 @@ def evaluate_report_conformance(
     snapshot: dict | None = None,
     report_lint: dict | None = None,
     evidence_exit_gate: dict | None = None,
+    content_credibility: dict | None = None,
 ) -> dict:
     """Evaluate whether rendered report artifacts satisfy the system output contract."""
     context = _as_dict(context)
     snapshot = _as_dict(snapshot)
     report_lint = _as_dict(report_lint)
     evidence_exit_gate = _as_dict(evidence_exit_gate)
-    profile = get_report_template_profile(context.get("pipeline_id") or snapshot.get("pipeline") or "v1")
+    raw_content_credibility = (
+        content_credibility
+        if content_credibility is not None
+        else dict.get(context, "content_credibility") or dict.get(snapshot, "content_credibility")
+    )
+    content_credibility = _as_dict(raw_content_credibility)
+    profile = get_report_template_profile(dict.get(context, "pipeline_id") or dict.get(snapshot, "pipeline") or "v1")
     decision_tree: list[dict] = []
     blocking_issues: list[dict] = []
     warnings: list[dict] = []
 
-    lint_status = str(report_lint.get("status") or "not_recorded")
-    lint_blocking = report_lint.get("blocking_issues") if isinstance(report_lint.get("blocking_issues"), list) else []
-    lint_warnings = report_lint.get("warnings") if isinstance(report_lint.get("warnings"), list) else []
+    lint_status = str(dict.get(report_lint, "status") or "not_recorded")
+    lint_blocking = raw_lint_blocking if isinstance(raw_lint_blocking := dict.get(report_lint, "blocking_issues"), list) else []
+    lint_warnings = raw_lint_warnings if isinstance(raw_lint_warnings := dict.get(report_lint, "warnings"), list) else []
     if lint_status == "blocked" or lint_blocking:
         step = _step("report_lint", "blocked", "報告 lint 發現阻斷問題。", lint_blocking)
         _append_issue(blocking_issues, step)
@@ -92,10 +99,10 @@ def evaluate_report_conformance(
         step = _step("required_visibility", "passed", "必要段落已在 HTML 與 Markdown 顯示。")
     decision_tree.append(step)
 
-    final_audit = _as_dict(context.get("final_audit"))
-    final_status = str(final_audit.get("status") or "passed")
-    critical = final_audit.get("critical") if isinstance(final_audit.get("critical"), list) else []
-    audit_warnings = final_audit.get("warnings") if isinstance(final_audit.get("warnings"), list) else []
+    final_audit = _as_dict(dict.get(context, "final_audit"))
+    final_status = str(dict.get(final_audit, "status") or "passed")
+    critical = raw_critical if isinstance(raw_critical := dict.get(final_audit, "critical"), list) else []
+    audit_warnings = raw_audit_warnings if isinstance(raw_audit_warnings := dict.get(final_audit, "warnings"), list) else []
     if final_status in {"blocked", "failed", "rejected"} or critical:
         step = _step("final_audit", "blocked", "最終稽核存在 critical 問題。", critical or final_status)
         _append_issue(blocking_issues, step)
@@ -106,7 +113,7 @@ def evaluate_report_conformance(
         step = _step("final_audit", "passed", "最終稽核通過。")
     decision_tree.append(step)
 
-    evidence_verdict = str(evidence_exit_gate.get("verdict") or "not_recorded")
+    evidence_verdict = str(dict.get(evidence_exit_gate, "verdict") or "not_recorded")
     if evidence_verdict == "rejected":
         step = _step("evidence_exit_gate", "blocked", "證據抽查拒絕報告數字。", evidence_exit_gate)
         _append_issue(blocking_issues, step)
@@ -117,8 +124,21 @@ def evaluate_report_conformance(
         step = _step("evidence_exit_gate", "passed", "證據抽查通過。")
     decision_tree.append(step)
 
-    data_trust = normalize_data_trust(snapshot.get("data_trust") or _as_dict(context.get("data")).get("data_trust"))
-    trust_status = str(data_trust.get("status") or "unknown")
+    content_status = str(dict.get(content_credibility, "status") or "not_recorded")
+    content_blocking = raw_content_blocking if isinstance(raw_content_blocking := dict.get(content_credibility, "blocking_issues"), list) else []
+    content_warnings = raw_content_warnings if isinstance(raw_content_warnings := dict.get(content_credibility, "warnings"), list) else []
+    if content_status == "blocked" or content_blocking:
+        step = _step("content_credibility", "blocked", "內容可信度檢查發現阻斷矛盾。", content_blocking or content_credibility)
+        _append_issue(blocking_issues, step)
+    elif content_status == "warning" or content_warnings:
+        step = _step("content_credibility", "warning", "內容可信度檢查有警示。", content_warnings or content_credibility)
+        _append_issue(warnings, step)
+    else:
+        step = _step("content_credibility", "passed", "內容可信度檢查通過。")
+    decision_tree.append(step)
+
+    data_trust = normalize_data_trust(dict.get(snapshot, "data_trust") or dict.get(_as_dict(dict.get(context, "data")), "data_trust"))
+    trust_status = str(dict.get(data_trust, "status") or "unknown")
     if trust_status == "fresh":
         step = _step("data_trust", "passed", "資料可信度為 fresh。")
     else:

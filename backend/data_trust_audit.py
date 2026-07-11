@@ -25,11 +25,13 @@ def iso_from_epoch(epoch: Optional[float]) -> Optional[str]:
 
 
 def source_label(source: str) -> str:
-    return SOURCE_LABELS.get(str(source or ""), str(source or "unknown"))
+    source_text = _safe_text(source).strip()
+    return SOURCE_LABELS.get(source_text, source_text or "unknown")
 
 
 def audit_status_label(status: str) -> str:
-    return AUDIT_STATUS_LABELS.get(str(status or ""), str(status or "unknown"))
+    status_text = _safe_text(status).strip()
+    return AUDIT_STATUS_LABELS.get(status_text, status_text or "unknown")
 
 
 def data_snapshot_filename_for_report(filename: str) -> str:
@@ -60,20 +62,21 @@ def build_source_audit_entry(
     error_kind: str = "",
     message: str = "",
 ) -> dict:
-    normalized_status = status if status in AUDIT_STATUSES else AUDIT_STATUS_UNAVAILABLE
+    status_text = _safe_text(status).strip()
+    normalized_status = status_text if status_text in AUDIT_STATUSES else AUDIT_STATUS_UNAVAILABLE
     finished_at_epoch = finished_at_epoch if isinstance(finished_at_epoch, (int, float)) else time.time()
     fetched_at_value = fetched_at or iso_from_epoch(fetched_at_epoch or finished_at_epoch)
     return {
-        "source": str(source or "unknown"),
-        "provider": str(provider or ""),
+        "source": _safe_text(source).strip() or "unknown",
+        "provider": _safe_text(provider).strip(),
         "status": normalized_status,
         "fetched_at": fetched_at_value,
         "duration_ms": duration_ms_fn(started_at_epoch, finished_at_epoch, duration_ms),
-        "record_count": int(record_count or 0),
-        "cache_hit": bool(cache_hit),
-        "stale": bool(stale),
-        "error_kind": str(error_kind or ""),
-        "message": str(message or ""),
+        "record_count": _safe_int(record_count),
+        "cache_hit": _safe_bool(cache_hit),
+        "stale": _safe_bool(stale),
+        "error_kind": _safe_text(error_kind).strip(),
+        "message": _safe_text(message).strip(),
     }
 
 
@@ -95,7 +98,7 @@ def append_source_audit(data: dict, entry: dict) -> dict:
 def source_record_count(source: str, data: dict) -> int:
     if not isinstance(data, dict):
         return 0
-    source = str(source or "")
+    source = _safe_text(source).strip()
     if source == "market_data":
         fields = ("current_price", "market_cap_raw", "pe_ratio_raw", "pb_ratio", "price_history")
         return sum(1 for field in fields if has_value(data.get(field)))
@@ -167,10 +170,43 @@ def has_value(value: Any) -> bool:
 
 
 def string_list(value: Any) -> list[str]:
-    if isinstance(value, list):
-        return [str(item) for item in value if str(item).strip()]
-    if isinstance(value, tuple):
-        return [str(item) for item in value if str(item).strip()]
-    if value:
-        return [str(value)]
-    return []
+    if isinstance(value, (list, tuple)):
+        return [
+            text
+            for item in value
+            if (text := _safe_text(item).strip())
+        ]
+    if value is None:
+        return []
+    if isinstance(value, str):
+        text = value.strip()
+        return [text] if text else []
+    if isinstance(value, (bool, int, float)) and not value:
+        return []
+    text = _safe_text(value).strip()
+    return [text] if text else []
+
+
+def _safe_text(value: Any) -> str:
+    if value is None:
+        return ""
+    try:
+        return str(value)
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+        return ""
+
+
+def _safe_int(value: Any) -> int:
+    if value is None:
+        return 0
+    try:
+        return int(value)
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+        return 0
+
+
+def _safe_bool(value: Any) -> bool:
+    try:
+        return bool(value)
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+        return False

@@ -8,6 +8,7 @@ sys.path.insert(0, str(ROOT / "backend"))
 
 import final_audit  # noqa: E402
 import decision_tracking  # noqa: E402
+import data_trust_sla_policy  # noqa: E402
 import prompt_builder  # noqa: E402
 import structured_outputs  # noqa: E402
 from agent_runtime.prompting import build_prompt  # noqa: E402
@@ -138,6 +139,346 @@ def test_prompt_payload_includes_data_trust_and_audit_summary():
     assert payload["source_audit_summary"][0]["source"] == "financial_statements"
     assert payload["source_audit_summary"][0]["status"] == "error"
     assert "不得在沒有額外佐證下給出高信心" in prompt
+
+
+def test_data_trust_provider_sla_evidence_uses_safe_window_attempts():
+    class BrokenTruthInt:
+        def __bool__(self):
+            raise RuntimeError("data trust provider sla attempts truthiness unavailable")
+
+        def __int__(self):
+            return 3
+
+    data = {
+        "source_audit": [
+            {
+                "source": "market_data",
+                "provider": "yfinance",
+                "status": "error",
+                "record_count": 0,
+            }
+        ]
+    }
+    trust = {"status": "fresh", "reason_codes": [], "notes": []}
+    alerts = [
+        {
+            "source": "market_data",
+            "provider": "yfinance",
+            "alert_level": "critical",
+            "alert_message": "provider outage",
+            "alert_basis": "last_24h",
+            "windows": {"last_24h": {"attempts": BrokenTruthInt()}},
+        }
+    ]
+
+    result = data_trust_sla_policy.apply_provider_sla_to_trust(data, trust, alerts=alerts)
+
+    assert result["status"] == "partial"
+    assert "provider_sla_critical" in result["reason_codes"]
+    assert result["provider_sla_alerts"][0]["evidence_attempts"] == 3
+
+
+def test_data_trust_provider_sla_alert_matching_uses_safe_text_fields():
+    class BrokenTruthText:
+        def __init__(self, value):
+            self.value = value
+
+        def __bool__(self):
+            raise RuntimeError("data trust provider sla alert text truthiness unavailable")
+
+        def __str__(self):
+            return self.value
+
+    data = {
+        "source_audit": [
+            {
+                "source": "market_data",
+                "provider": "yfinance",
+                "status": "error",
+                "record_count": 0,
+            }
+        ]
+    }
+    trust = {"status": "fresh", "reason_codes": [], "notes": []}
+    alerts = [
+        {
+            "source": BrokenTruthText(" market_data "),
+            "provider": BrokenTruthText(" yfinance "),
+            "alert_level": BrokenTruthText(" critical "),
+            "alert_message": BrokenTruthText(" provider outage "),
+            "alert_basis": "last_24h",
+            "windows": {"last_24h": {"attempts": 3}},
+        }
+    ]
+
+    result = data_trust_sla_policy.apply_provider_sla_to_trust(data, trust, alerts=alerts)
+
+    assert result["status"] == "partial"
+    assert "provider_sla_critical" in result["reason_codes"]
+    assert result["provider_sla_alerts"][0]["source"] == "market_data"
+    assert result["provider_sla_alerts"][0]["provider"] == "yfinance"
+    assert result["provider_sla_alerts"][0]["alert_level"] == "critical"
+
+
+def test_data_trust_provider_sla_source_audit_uses_safe_fields():
+    class BrokenTruthText:
+        def __init__(self, value):
+            self.value = value
+
+        def __bool__(self):
+            raise RuntimeError("data trust source audit text truthiness unavailable")
+
+        def __str__(self):
+            return self.value
+
+    class BrokenTruthBool:
+        def __bool__(self):
+            raise RuntimeError("data trust source audit stale truthiness unavailable")
+
+    data = {
+        "source_audit": [
+            {
+                "source": BrokenTruthText(" market_data "),
+                "provider": BrokenTruthText(" yfinance "),
+                "status": BrokenTruthText(" error "),
+                "record_count": 0,
+                "stale": BrokenTruthBool(),
+            }
+        ]
+    }
+    trust = {"status": "fresh", "reason_codes": [], "notes": []}
+    alerts = [
+        {
+            "source": "market_data",
+            "provider": "yfinance",
+            "alert_level": "critical",
+            "alert_message": "provider outage",
+            "alert_basis": "last_24h",
+            "windows": {"last_24h": {"attempts": 3}},
+        }
+    ]
+
+    result = data_trust_sla_policy.apply_provider_sla_to_trust(data, trust, alerts=alerts)
+
+    assert result["status"] == "partial"
+    assert "provider_sla_critical" in result["reason_codes"]
+    assert result["provider_sla_alerts"][0]["current_status"] == "error"
+    assert result["provider_sla_alerts"][0]["current_stale"] is False
+
+
+def test_data_trust_provider_sla_trust_metadata_uses_safe_fields():
+    class BrokenTruthText:
+        def __init__(self, value):
+            self.value = value
+
+        def __bool__(self):
+            raise RuntimeError("data trust status truthiness unavailable")
+
+        def __str__(self):
+            return self.value
+
+    class BrokenTruthList(list):
+        def __bool__(self):
+            raise RuntimeError("data trust metadata list truthiness unavailable")
+
+    data = {
+        "source_audit": [
+            {
+                "source": "market_data",
+                "provider": "yfinance",
+                "status": "error",
+                "record_count": 0,
+            }
+        ]
+    }
+    trust = {
+        "status": BrokenTruthText(" fresh "),
+        "reason_codes": BrokenTruthList(["existing_reason"]),
+        "notes": BrokenTruthList(["existing trust note"]),
+    }
+    alerts = [
+        {
+            "source": "market_data",
+            "provider": "yfinance",
+            "alert_level": "critical",
+            "alert_message": "provider outage",
+            "alert_basis": "last_24h",
+            "windows": {"last_24h": {"attempts": 3}},
+        }
+    ]
+
+    result = data_trust_sla_policy.apply_provider_sla_to_trust(data, trust, alerts=alerts)
+
+    assert result["status"] == "partial"
+    assert "existing_reason" in result["reason_codes"]
+    assert "provider_sla_critical" in result["reason_codes"]
+    assert "existing trust note" in result["notes"]
+
+
+def test_data_trust_provider_sla_trust_metadata_preserves_valid_iterator_items():
+    class BrokenMetadataRows:
+        def __init__(self, first_item: str, error_message: str):
+            self.first_item = first_item
+            self.error_message = error_message
+
+        def __iter__(self):
+            class RowsIterator:
+                def __init__(self, first_item: str, error_message: str):
+                    self.first_item = first_item
+                    self.error_message = error_message
+                    self.index = 0
+
+                def __iter__(self):
+                    return self
+
+                def __next__(self):
+                    if self.index == 0:
+                        self.index += 1
+                        return self.first_item
+                    raise RuntimeError(self.error_message)
+
+            return RowsIterator(self.first_item, self.error_message)
+
+    data = {
+        "source_audit": [
+            {
+                "source": "market_data",
+                "provider": "yfinance",
+                "status": "error",
+                "record_count": 0,
+            }
+        ]
+    }
+    trust = {
+        "status": "fresh",
+        "reason_codes": BrokenMetadataRows("existing_reason", "data trust reason iterator unavailable"),
+        "notes": BrokenMetadataRows("existing trust note", "data trust note iterator unavailable"),
+    }
+    alerts = [
+        {
+            "source": "market_data",
+            "provider": "yfinance",
+            "alert_level": "critical",
+            "alert_message": "provider outage",
+            "alert_basis": "last_24h",
+            "windows": {"last_24h": {"attempts": 3}},
+        }
+    ]
+
+    result = data_trust_sla_policy.apply_provider_sla_to_trust(data, trust, alerts=alerts)
+
+    assert result["status"] == "partial"
+    assert "existing_reason" in result["reason_codes"]
+    assert "provider_sla_critical" in result["reason_codes"]
+    assert "existing trust note" in result["notes"]
+
+
+def test_data_trust_provider_sla_alert_collection_uses_safe_iteration():
+    class BrokenTruthList(list):
+        def __bool__(self):
+            raise RuntimeError("data trust provider sla alert collection truthiness unavailable")
+
+    data = {
+        "source_audit": [
+            {
+                "source": "market_data",
+                "provider": "yfinance",
+                "status": "error",
+                "record_count": 0,
+            }
+        ]
+    }
+    trust = {"status": "fresh", "reason_codes": [], "notes": []}
+    alerts = BrokenTruthList(
+        [
+            {
+                "source": "market_data",
+                "provider": "yfinance",
+                "alert_level": "critical",
+                "alert_message": "provider outage",
+                "alert_basis": "last_24h",
+                "windows": {"last_24h": {"attempts": 3}},
+            }
+        ]
+    )
+
+    result = data_trust_sla_policy.apply_provider_sla_to_trust(data, trust, alerts=alerts)
+
+    assert result["status"] == "partial"
+    assert "provider_sla_critical" in result["reason_codes"]
+    assert result["provider_sla_alerts"][0]["provider"] == "yfinance"
+
+
+def test_data_trust_provider_sla_source_audit_collection_preserves_valid_rows():
+    source_audit_entry = {
+        "source": "market_data",
+        "provider": "yfinance",
+        "status": "error",
+        "record_count": 0,
+    }
+
+    class BrokenSourceAuditRows(list):
+        def __iter__(self):
+            class RowsIterator:
+                def __init__(self):
+                    self.index = 0
+
+                def __iter__(self):
+                    return self
+
+                def __next__(self):
+                    if self.index == 0:
+                        self.index += 1
+                        return source_audit_entry
+                    raise RuntimeError("data trust source audit iterator unavailable")
+
+            return RowsIterator()
+
+    data = {"source_audit": BrokenSourceAuditRows()}
+    trust = {"status": "fresh", "reason_codes": [], "notes": []}
+    alerts = [
+        {
+            "source": "market_data",
+            "provider": "yfinance",
+            "alert_level": "critical",
+            "alert_message": "provider outage",
+            "alert_basis": "last_24h",
+            "windows": {"last_24h": {"attempts": 3}},
+        }
+    ]
+
+    result = data_trust_sla_policy.apply_provider_sla_to_trust(data, trust, alerts=alerts)
+
+    assert result["status"] == "partial"
+    assert "provider_sla_critical" in result["reason_codes"]
+    assert result["provider_sla_alerts"][0]["current_status"] == "error"
+
+
+def test_data_trust_provider_sla_alert_fetch_failures_keep_existing_trust(monkeypatch):
+    import provider_sla
+
+    def fail_provider_sla_alert_fetch(limit: int):
+        raise RuntimeError("provider sla alert fetch unavailable")
+
+    monkeypatch.setattr(provider_sla, "get_provider_sla_alerts", fail_provider_sla_alert_fetch)
+    data = {
+        "source_audit": [
+            {
+                "source": "market_data",
+                "provider": "yfinance",
+                "status": "error",
+                "record_count": 0,
+            }
+        ]
+    }
+    trust = {"status": "fresh", "reason_codes": ["existing_reason"], "notes": ["existing note"]}
+
+    result = data_trust_sla_policy.apply_provider_sla_to_trust(data, trust, alerts=None)
+
+    assert result is trust
+    assert result["status"] == "fresh"
+    assert result["reason_codes"] == ["existing_reason"]
+    assert result["notes"] == ["existing note"]
 
 
 def test_prompt_payload_includes_global_market_and_international_news_context():

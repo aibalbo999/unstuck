@@ -23,8 +23,13 @@ import context_digest_tasks  # noqa: E402
 import job_observability  # noqa: E402
 import job_store  # noqa: E402
 import job_store_maintenance  # noqa: E402
+import notification_delivery_observability as notification_observability  # noqa: E402
+import queue_dashboard_payload  # noqa: E402
 import queue_observability  # noqa: E402
 import provider_sla  # noqa: E402
+import provider_sla_alert_policy  # noqa: E402
+import provider_sla_observability  # noqa: E402
+import provider_sla_payload_shape  # noqa: E402
 from data_fetch import FetchResult  # noqa: E402
 from data_trust import DATA_SNAPSHOT_SCHEMA_VERSION, unknown_data_trust  # noqa: E402
 from reporting import ReportBundle  # noqa: E402
@@ -139,6 +144,32 @@ def test_provider_sla_aggregates_source_audit(monkeypatch, tmp_path):
     assert "windows" in alerts[0]
 
 
+def test_provider_sla_alert_policy_ignores_window_stats_truthiness_failures():
+    class BrokenTruthDict(dict):
+        def __bool__(self):
+            raise RuntimeError("provider sla alert policy window stats truthiness unavailable")
+
+    try:
+        fields = provider_sla_alert_policy.provider_alert_fields({
+            "provider": "fake",
+            "last_status": "success",
+            "windows": {
+                "last_24h": BrokenTruthDict({
+                    "attempts": 3,
+                    "availability_attempts": 3,
+                    "success_rate": 0.25,
+                    "error_count": 0,
+                }),
+            },
+        })
+    except RuntimeError as exc:
+        pytest.fail(f"provider alert policy should ignore malformed window truthiness: {exc}")
+
+    assert fields["alert_level"] == "critical"
+    assert fields["alert_basis"] == "last_24h"
+    assert "fake last_24h資料取得率偏低" in fields["alert_message"]
+
+
 def test_provider_sla_tracks_not_configured_without_alerting(monkeypatch, tmp_path):
     monkeypatch.setattr(provider_sla, "TASK_DB_PATH", str(tmp_path / "provider.sqlite3"))
 
@@ -209,6 +240,16 @@ def test_prometheus_metrics_endpoint_exports_provider_sla_and_queue(monkeypatch)
         "error_count": 1,
         "alert_level": "warning",
     }])
+    monkeypatch.setattr(api_observability_service, "get_delivery_audit_summary", lambda: {
+        "total_count": 3,
+        "sent_count": 1,
+        "failed_count": 2,
+        "pending_count": 0,
+        "retry_exhausted_count": 1,
+        "channel_counts": {"telegram_webhook": 2, "local": 1},
+        "failure_reason_counts": {"timeout": 1, "auth": 1},
+        "health": "warning",
+    })
     monkeypatch.setattr(api, "analysis_task_queue", SimpleNamespace(queue=FakeLocalQueue(), active_tasks=[object(), object()]))
 
     client = TestClient(api.app)
@@ -222,6 +263,637 @@ def test_prometheus_metrics_endpoint_exports_provider_sla_and_queue(monkeypatch)
     assert 'stock_agent_provider_sla_alert{source="market_data",provider="fake-provider",level="warning"} 1' in body
     assert 'stock_agent_queue_available{backend="local"} 1' in body
     assert 'stock_agent_queue_depth{queue="local"} 5' in body
+    assert 'stock_agent_notification_delivery_count{status="failed"} 2' in body
+    assert 'stock_agent_notification_delivery_count{status="retry_exhausted"} 1' in body
+    assert 'stock_agent_notification_delivery_channel_count{channel="telegram_webhook"} 2' in body
+    assert 'stock_agent_notification_delivery_failure_reason_count{reason="timeout"} 1' in body
+    assert 'stock_agent_notification_delivery_failure_reason_count{reason="auth"} 1' in body
+    assert 'stock_agent_notification_delivery_health{state="ok"} 0' in body
+    assert 'stock_agent_notification_delivery_health{state="warning"} 1' in body
+
+
+def test_prometheus_provider_labels_ignore_truthiness_failures(monkeypatch):
+    class BrokenTruthLabel:
+        def __init__(self, value):
+            self.value = value
+
+        def __bool__(self):
+            raise RuntimeError("prometheus label truthiness unavailable")
+
+        def __str__(self):
+            return self.value
+
+    class FakeLocalQueue:
+        def qsize(self):
+            return 0
+
+    monkeypatch.setattr(api, "get_provider_sla_summary", lambda limit=100: [{
+        "source": BrokenTruthLabel("market_data"),
+        "provider": BrokenTruthLabel("fake-provider"),
+        "attempts": 1,
+        "success_rate": 1.0,
+        "error_count": 0,
+        "alert_level": "warning",
+    }])
+    monkeypatch.setattr(api_observability_service, "get_delivery_audit_summary", lambda: {
+        "total_count": 0,
+        "sent_count": 0,
+        "failed_count": 0,
+        "pending_count": 0,
+        "retry_exhausted_count": 0,
+        "channel_counts": {},
+        "failure_reason_counts": {},
+    })
+    monkeypatch.setattr(api, "analysis_task_queue", SimpleNamespace(queue=FakeLocalQueue(), active_tasks=[]))
+
+    response = TestClient(api.app).get("/metrics")
+
+    assert response.status_code == 200
+    body = response.text
+    assert 'stock_agent_provider_sla_success_rate{source="market_data",provider="fake-provider"} 1' in body
+    assert 'stock_agent_provider_sla_alert{source="market_data",provider="fake-provider",level="warning"} 1' in body
+
+
+def test_prometheus_provider_rows_ignore_mapping_failures(monkeypatch):
+    class BrokenProviderRow:
+        def __iter__(self):
+            raise RuntimeError("prometheus provider row mapping unavailable")
+
+    class FakeLocalQueue:
+        def qsize(self):
+            return 0
+
+    monkeypatch.setattr(api, "get_provider_sla_summary", lambda limit=100: [
+        BrokenProviderRow(),
+        {
+            "source": "market_data",
+            "provider": "fake-provider",
+            "attempts": 2,
+            "success_rate": 0.5,
+            "error_count": 1,
+            "alert_level": "warning",
+        },
+    ])
+    monkeypatch.setattr(api_observability_service, "get_delivery_audit_summary", lambda: {
+        "total_count": 0,
+        "sent_count": 0,
+        "failed_count": 0,
+        "pending_count": 0,
+        "retry_exhausted_count": 0,
+        "channel_counts": {},
+        "failure_reason_counts": {},
+    })
+    monkeypatch.setattr(api, "analysis_task_queue", SimpleNamespace(queue=FakeLocalQueue(), active_tasks=[]))
+
+    response = TestClient(api.app).get("/metrics")
+
+    assert response.status_code == 200
+    body = response.text
+    assert 'stock_agent_provider_sla_success_rate{source="market_data",provider="fake-provider"} 0.5' in body
+    assert 'stock_agent_provider_sla_success_rate{source="",provider=""}' not in body
+
+
+def test_prometheus_provider_summary_fetch_failure_keeps_other_metrics(monkeypatch):
+    def broken_provider_summary(limit=100):
+        raise RuntimeError("prometheus provider summary unavailable")
+
+    monkeypatch.setattr(api, "get_provider_sla_summary", broken_provider_summary)
+    monkeypatch.setattr(api_observability_service, "get_delivery_audit_summary", lambda: {
+        "total_count": 2,
+        "sent_count": 1,
+        "failed_count": 1,
+        "pending_count": 0,
+        "retry_exhausted_count": 0,
+        "channel_counts": {"telegram_webhook": 1},
+        "failure_reason_counts": {"timeout": 1},
+        "health": "warning",
+    })
+    monkeypatch.setattr(api_observability_service, "snapshot_task_queue", lambda _task_queue: {
+        "backend": "rq",
+        "available": True,
+        "queue_name": "stock-analysis",
+        "depth": 3,
+        "queues": {},
+    })
+    monkeypatch.setattr(api, "analysis_task_queue", SimpleNamespace(queue=object(), active_tasks=[]))
+
+    response = TestClient(api.app).get("/metrics")
+
+    assert response.status_code == 200
+    body = response.text
+    assert 'stock_agent_provider_sla_success_rate{source=' not in body
+    assert 'stock_agent_queue_available{backend="rq"} 1' in body
+    assert 'stock_agent_queue_depth{queue="stock-analysis"} 3' in body
+    assert 'stock_agent_notification_delivery_count{status="failed"} 1' in body
+
+
+def test_prometheus_provider_summary_ignores_non_iterable_payload(monkeypatch):
+    monkeypatch.setattr(api, "get_provider_sla_summary", lambda limit=100: object())
+    monkeypatch.setattr(api_observability_service, "get_delivery_audit_summary", lambda: {
+        "total_count": 2,
+        "sent_count": 1,
+        "failed_count": 1,
+        "pending_count": 0,
+        "retry_exhausted_count": 0,
+        "channel_counts": {"telegram_webhook": 1},
+        "failure_reason_counts": {"timeout": 1},
+        "health": "warning",
+    })
+    monkeypatch.setattr(api_observability_service, "snapshot_task_queue", lambda _task_queue: {
+        "backend": "rq",
+        "available": True,
+        "queue_name": "stock-analysis",
+        "depth": 3,
+        "queues": {},
+    })
+    monkeypatch.setattr(api, "analysis_task_queue", SimpleNamespace(queue=object(), active_tasks=[]))
+
+    response = TestClient(api.app).get("/metrics")
+
+    assert response.status_code == 200
+    body = response.text
+    assert 'stock_agent_provider_sla_success_rate{source=' not in body
+    assert 'stock_agent_queue_available{backend="rq"} 1' in body
+    assert 'stock_agent_queue_depth{queue="stock-analysis"} 3' in body
+    assert 'stock_agent_notification_delivery_count{status="failed"} 1' in body
+
+
+def test_prometheus_provider_summary_preserves_rows_before_iterator_failure(monkeypatch):
+    class PartiallyBrokenProviderSummary:
+        def __iter__(self):
+            yield {
+                "source": "market_data",
+                "provider": "fake-provider",
+                "attempts": 2,
+                "success_rate": 0.5,
+                "error_count": 1,
+                "alert_level": "warning",
+            }
+            raise RuntimeError("prometheus provider summary iterator unavailable")
+
+    monkeypatch.setattr(api, "get_provider_sla_summary", lambda limit=100: PartiallyBrokenProviderSummary())
+    monkeypatch.setattr(api_observability_service, "get_delivery_audit_summary", lambda: {
+        "total_count": 2,
+        "sent_count": 1,
+        "failed_count": 1,
+        "pending_count": 0,
+        "retry_exhausted_count": 0,
+        "channel_counts": {"telegram_webhook": 1},
+        "failure_reason_counts": {"timeout": 1},
+        "health": "warning",
+    })
+    monkeypatch.setattr(api_observability_service, "snapshot_task_queue", lambda _task_queue: {
+        "backend": "rq",
+        "available": True,
+        "queue_name": "stock-analysis",
+        "depth": 3,
+        "queues": {},
+    })
+    monkeypatch.setattr(api, "analysis_task_queue", SimpleNamespace(queue=object(), active_tasks=[]))
+
+    response = TestClient(api.app).get("/metrics")
+
+    assert response.status_code == 200
+    body = response.text
+    assert 'stock_agent_provider_sla_success_rate{source="market_data",provider="fake-provider"} 0.5' in body
+    assert 'stock_agent_provider_sla_errors_total{source="market_data",provider="fake-provider"} 1' in body
+    assert 'stock_agent_queue_available{backend="rq"} 1' in body
+    assert 'stock_agent_notification_delivery_count{status="failed"} 1' in body
+
+
+def test_prometheus_queue_snapshot_fetch_failure_keeps_other_metrics(monkeypatch):
+    def broken_queue_snapshot(_task_queue):
+        raise RuntimeError("prometheus queue snapshot unavailable")
+
+    monkeypatch.setattr(api, "get_provider_sla_summary", lambda limit=100: [{
+        "source": "market_data",
+        "provider": "fake-provider",
+        "attempts": 2,
+        "success_rate": 0.5,
+        "error_count": 1,
+        "alert_level": "warning",
+    }])
+    monkeypatch.setattr(api_observability_service, "get_delivery_audit_summary", lambda: {
+        "total_count": 2,
+        "sent_count": 1,
+        "failed_count": 1,
+        "pending_count": 0,
+        "retry_exhausted_count": 0,
+        "channel_counts": {"telegram_webhook": 1},
+        "failure_reason_counts": {"timeout": 1},
+        "health": "warning",
+    })
+    monkeypatch.setattr(api_observability_service, "snapshot_task_queue", broken_queue_snapshot)
+    monkeypatch.setattr(api, "analysis_task_queue", SimpleNamespace(queue=object(), active_tasks=[]))
+
+    response = TestClient(api.app).get("/metrics")
+
+    assert response.status_code == 200
+    body = response.text
+    assert 'stock_agent_provider_sla_success_rate{source="market_data",provider="fake-provider"} 0.5' in body
+    assert 'stock_agent_queue_available{backend="unknown"} 0' in body
+    assert 'stock_agent_queue_depth{queue="unknown"} 0' in body
+    assert 'stock_agent_notification_delivery_count{status="failed"} 1' in body
+
+
+def test_prometheus_notification_delivery_fetch_failure_keeps_other_metrics(monkeypatch):
+    def broken_delivery_summary():
+        raise RuntimeError("prometheus notification delivery summary unavailable")
+
+    monkeypatch.setattr(api, "get_provider_sla_summary", lambda limit=100: [{
+        "source": "market_data",
+        "provider": "fake-provider",
+        "attempts": 2,
+        "success_rate": 0.5,
+        "error_count": 1,
+        "alert_level": "warning",
+    }])
+    monkeypatch.setattr(api_observability_service, "get_delivery_audit_summary", broken_delivery_summary)
+    monkeypatch.setattr(api_observability_service, "snapshot_task_queue", lambda _task_queue: {
+        "backend": "rq",
+        "available": True,
+        "queue_name": "stock-analysis",
+        "depth": 3,
+        "queues": {},
+    })
+    monkeypatch.setattr(api, "analysis_task_queue", SimpleNamespace(queue=object(), active_tasks=[]))
+
+    response = TestClient(api.app).get("/metrics")
+
+    assert response.status_code == 200
+    body = response.text
+    assert 'stock_agent_provider_sla_success_rate{source="market_data",provider="fake-provider"} 0.5' in body
+    assert 'stock_agent_queue_available{backend="rq"} 1' in body
+    assert 'stock_agent_queue_depth{queue="stock-analysis"} 3' in body
+    assert 'stock_agent_notification_delivery_count{status="failed"} 0' in body
+    assert 'stock_agent_notification_delivery_health{state="ok"} 1' in body
+    assert 'stock_agent_notification_delivery_health{state="warning"} 0' in body
+
+
+def test_prometheus_queue_snapshot_ignores_mapping_failures(monkeypatch):
+    class BrokenQueueSnapshot:
+        def __iter__(self):
+            raise RuntimeError("prometheus queue snapshot mapping unavailable")
+
+    monkeypatch.setattr(api, "get_provider_sla_summary", lambda limit=100: [])
+    monkeypatch.setattr(api_observability_service, "get_delivery_audit_summary", lambda: {
+        "total_count": 0,
+        "sent_count": 0,
+        "failed_count": 0,
+        "pending_count": 0,
+        "retry_exhausted_count": 0,
+        "channel_counts": {},
+        "failure_reason_counts": {},
+    })
+    monkeypatch.setattr(api_observability_service, "snapshot_task_queue", lambda _task_queue: BrokenQueueSnapshot())
+    monkeypatch.setattr(api, "analysis_task_queue", SimpleNamespace(queue=object(), active_tasks=[]))
+
+    response = TestClient(api.app).get("/metrics")
+
+    assert response.status_code == 200
+    assert 'stock_agent_queue_available{backend="unknown"} 0' in response.text
+    assert 'stock_agent_queue_depth{queue="unknown"} 0' in response.text
+
+
+def test_prometheus_alert_level_ignores_truthiness_failures(monkeypatch):
+    class BrokenTruthText:
+        def __init__(self, value):
+            self.value = value
+
+        def __bool__(self):
+            raise RuntimeError("prometheus alert level truthiness unavailable")
+
+        def __str__(self):
+            return self.value
+
+    class FakeLocalQueue:
+        def qsize(self):
+            return 0
+
+    monkeypatch.setattr(api, "get_provider_sla_summary", lambda limit=100: [{
+        "source": "market_data",
+        "provider": "fake-provider",
+        "attempts": 1,
+        "success_rate": 0.5,
+        "error_count": 1,
+        "alert_level": BrokenTruthText("warning"),
+    }])
+    monkeypatch.setattr(api_observability_service, "get_delivery_audit_summary", lambda: {
+        "total_count": 0,
+        "sent_count": 0,
+        "failed_count": 0,
+        "pending_count": 0,
+        "retry_exhausted_count": 0,
+        "channel_counts": {},
+        "failure_reason_counts": {},
+    })
+    monkeypatch.setattr(api, "analysis_task_queue", SimpleNamespace(queue=FakeLocalQueue(), active_tasks=[]))
+
+    response = TestClient(api.app).get("/metrics")
+
+    assert response.status_code == 200
+    assert 'stock_agent_provider_sla_alert{source="market_data",provider="fake-provider",level="warning"} 1' in response.text
+
+
+def test_prometheus_queue_labels_ignore_truthiness_failures(monkeypatch):
+    class BrokenTruthText:
+        def __init__(self, value):
+            self.value = value
+
+        def __bool__(self):
+            raise RuntimeError("prometheus queue label truthiness unavailable")
+
+        def __str__(self):
+            return self.value
+
+    monkeypatch.setattr(api, "get_provider_sla_summary", lambda limit=100: [])
+    monkeypatch.setattr(api_observability_service, "get_delivery_audit_summary", lambda: {
+        "total_count": 0,
+        "sent_count": 0,
+        "failed_count": 0,
+        "pending_count": 0,
+        "retry_exhausted_count": 0,
+        "channel_counts": {},
+        "failure_reason_counts": {},
+    })
+    monkeypatch.setattr(api_observability_service, "snapshot_task_queue", lambda _task_queue: {
+        "backend": BrokenTruthText("rq"),
+        "available": True,
+        "queue_name": BrokenTruthText("stock-analysis"),
+        "depth": 7,
+        "queues": {BrokenTruthText("maintenance"): {"depth": 2}},
+    })
+    monkeypatch.setattr(api, "analysis_task_queue", SimpleNamespace(queue=object(), active_tasks=[]))
+
+    response = TestClient(api.app).get("/metrics")
+
+    assert response.status_code == 200
+    body = response.text
+    assert 'stock_agent_queue_available{backend="rq"} 1' in body
+    assert 'stock_agent_queue_depth{queue="stock-analysis"} 7' in body
+    assert 'stock_agent_queue_depth{queue="maintenance"} 2' in body
+
+
+def test_prometheus_queue_available_ignores_truthiness_failures(monkeypatch):
+    class BrokenTruthBool:
+        def __bool__(self):
+            raise RuntimeError("prometheus queue availability truthiness unavailable")
+
+        def __str__(self):
+            return "true"
+
+    monkeypatch.setattr(api, "get_provider_sla_summary", lambda limit=100: [])
+    monkeypatch.setattr(api_observability_service, "get_delivery_audit_summary", lambda: {
+        "total_count": 0,
+        "sent_count": 0,
+        "failed_count": 0,
+        "pending_count": 0,
+        "retry_exhausted_count": 0,
+        "channel_counts": {},
+        "failure_reason_counts": {},
+    })
+    monkeypatch.setattr(api_observability_service, "snapshot_task_queue", lambda _task_queue: {
+        "backend": "rq",
+        "available": BrokenTruthBool(),
+        "queue_name": "stock-analysis",
+        "depth": 1,
+        "queues": {},
+    })
+    monkeypatch.setattr(api, "analysis_task_queue", SimpleNamespace(queue=object(), active_tasks=[]))
+
+    response = TestClient(api.app).get("/metrics")
+
+    assert response.status_code == 200
+    assert 'stock_agent_queue_available{backend="rq"} 1' in response.text
+
+
+def test_prometheus_queue_maps_ignore_truthiness_failures(monkeypatch):
+    class BrokenTruthDict(dict):
+        def __bool__(self):
+            raise RuntimeError("prometheus queue map truthiness unavailable")
+
+    monkeypatch.setattr(api, "get_provider_sla_summary", lambda limit=100: [])
+    monkeypatch.setattr(api_observability_service, "get_delivery_audit_summary", lambda: {
+        "total_count": 0,
+        "sent_count": 0,
+        "failed_count": 0,
+        "pending_count": 0,
+        "retry_exhausted_count": 0,
+        "channel_counts": {},
+        "failure_reason_counts": {},
+    })
+    monkeypatch.setattr(api_observability_service, "snapshot_task_queue", lambda _task_queue: {
+        "backend": "rq",
+        "available": True,
+        "queue_name": "stock-analysis",
+        "depth": 1,
+        "queues": BrokenTruthDict({"maintenance": BrokenTruthDict({"depth": 2})}),
+    })
+    monkeypatch.setattr(api, "analysis_task_queue", SimpleNamespace(queue=object(), active_tasks=[]))
+
+    response = TestClient(api.app).get("/metrics")
+
+    assert response.status_code == 200
+    assert 'stock_agent_queue_depth{queue="maintenance"} 2' in response.text
+
+
+def test_prometheus_integer_metrics_ignore_conversion_failures(monkeypatch):
+    class BrokenInt:
+        def __int__(self):
+            raise RuntimeError("prometheus integer conversion unavailable")
+
+    monkeypatch.setattr(api, "get_provider_sla_summary", lambda limit=100: [{
+        "source": "market_data",
+        "provider": "fake-provider",
+        "attempts": BrokenInt(),
+        "success_rate": 1.0,
+        "error_count": BrokenInt(),
+        "alert_level": "ok",
+    }])
+    monkeypatch.setattr(api_observability_service, "get_delivery_audit_summary", lambda: {
+        "total_count": 0,
+        "sent_count": 0,
+        "failed_count": 0,
+        "pending_count": 0,
+        "retry_exhausted_count": 0,
+        "channel_counts": {},
+        "failure_reason_counts": {},
+    })
+    monkeypatch.setattr(api_observability_service, "snapshot_task_queue", lambda _task_queue: {
+        "backend": "rq",
+        "available": True,
+        "queue_name": "stock-analysis",
+        "depth": BrokenInt(),
+        "queues": {"maintenance": {"depth": BrokenInt()}},
+    })
+    monkeypatch.setattr(api, "analysis_task_queue", SimpleNamespace(queue=object(), active_tasks=[]))
+
+    response = TestClient(api.app).get("/metrics")
+
+    assert response.status_code == 200
+    body = response.text
+    assert 'stock_agent_provider_sla_attempts_total{source="market_data",provider="fake-provider"} 0' in body
+    assert 'stock_agent_provider_sla_errors_total{source="market_data",provider="fake-provider"} 0' in body
+    assert 'stock_agent_queue_depth{queue="stock-analysis"} 0' in body
+    assert 'stock_agent_queue_depth{queue="maintenance"} 0' in body
+
+
+def test_prometheus_float_metrics_ignore_conversion_failures(monkeypatch):
+    class BrokenFloat:
+        def __float__(self):
+            raise RuntimeError("prometheus float conversion unavailable")
+
+    monkeypatch.setattr(api, "get_provider_sla_summary", lambda limit=100: [{
+        "source": "market_data",
+        "provider": "fake-provider",
+        "attempts": 1,
+        "success_rate": BrokenFloat(),
+        "error_count": 0,
+        "alert_level": "ok",
+    }])
+    monkeypatch.setattr(api_observability_service, "get_delivery_audit_summary", lambda: {
+        "total_count": 0,
+        "sent_count": 0,
+        "failed_count": 0,
+        "pending_count": 0,
+        "retry_exhausted_count": 0,
+        "channel_counts": {},
+        "failure_reason_counts": {},
+    })
+    monkeypatch.setattr(api_observability_service, "snapshot_task_queue", lambda _task_queue: {
+        "backend": "rq",
+        "available": True,
+        "queue_name": "stock-analysis",
+        "depth": 0,
+        "queues": {},
+    })
+    monkeypatch.setattr(api, "analysis_task_queue", SimpleNamespace(queue=object(), active_tasks=[]))
+
+    response = TestClient(api.app).get("/metrics")
+
+    assert response.status_code == 200
+    assert 'stock_agent_provider_sla_success_rate{source="market_data",provider="fake-provider"} 0' in response.text
+
+
+def test_prometheus_notification_delivery_health_exports_stable_ok_and_warning_series(monkeypatch):
+    class FakeLocalQueue:
+        def qsize(self):
+            return 0
+
+    monkeypatch.setattr(api, "get_provider_sla_summary", lambda limit=100: [])
+    monkeypatch.setattr(api_observability_service, "get_delivery_audit_summary", lambda: {
+        "total_count": 1,
+        "sent_count": 1,
+        "failed_count": 0,
+        "pending_count": 0,
+        "retry_exhausted_count": 0,
+        "channel_counts": {"local": 1},
+        "health": "ok",
+    })
+    monkeypatch.setattr(api, "analysis_task_queue", SimpleNamespace(queue=FakeLocalQueue(), active_tasks=[]))
+
+    response = TestClient(api.app).get("/metrics")
+
+    assert response.status_code == 200
+    body = response.text
+    assert 'stock_agent_notification_delivery_health{state="ok"} 1' in body
+    assert 'stock_agent_notification_delivery_health{state="warning"} 0' in body
+
+
+def test_notification_delivery_metrics_ignore_summary_truthiness_failures():
+    class BrokenTruthDict(dict):
+        def __bool__(self):
+            raise RuntimeError("notification delivery summary truthiness unavailable")
+
+    def labels(**values):
+        return "{" + ",".join(f'{key}="{value}"' for key, value in values.items()) + "}"
+
+    lines = notification_observability.notification_delivery_prometheus_lines(
+        BrokenTruthDict(
+            {
+                "total_count": 3,
+                "sent_count": 1,
+                "failed_count": 2,
+                "pending_count": 0,
+                "retry_exhausted_count": 1,
+                "channel_counts": BrokenTruthDict({"telegram_webhook": 2}),
+                "failure_reason_counts": BrokenTruthDict({"timeout": 2}),
+            }
+        ),
+        labels,
+    )
+
+    assert 'stock_agent_notification_delivery_count{status="failed"} 2' in lines
+    assert 'stock_agent_notification_delivery_count{status="retry_exhausted"} 1' in lines
+    assert 'stock_agent_notification_delivery_channel_count{channel="telegram_webhook"} 2' in lines
+    assert 'stock_agent_notification_delivery_failure_reason_count{reason="timeout"} 2' in lines
+    assert 'stock_agent_notification_delivery_health{state="warning"} 1' in lines
+
+
+def test_notification_delivery_attention_required_ignores_summary_get_failures():
+    class BrokenGetDict(dict):
+        def get(self, *_args, **_kwargs):
+            raise RuntimeError("notification delivery summary get unavailable")
+
+    assert notification_observability.notification_delivery_attention_required(
+        BrokenGetDict({"failed_count": 2, "retry_exhausted_count": 0})
+    ) is True
+
+
+def test_notification_delivery_metrics_ignore_count_conversion_failures():
+    class BrokenInt:
+        def __int__(self):
+            raise RuntimeError("notification delivery count conversion unavailable")
+
+    def labels(**values):
+        return "{" + ",".join(f'{key}="{value}"' for key, value in values.items()) + "}"
+
+    lines = notification_observability.notification_delivery_prometheus_lines(
+        {
+            "total_count": BrokenInt(),
+            "sent_count": 1,
+            "failed_count": BrokenInt(),
+            "pending_count": 0,
+            "retry_exhausted_count": 0,
+            "channel_counts": {"telegram_webhook": BrokenInt()},
+            "failure_reason_counts": {"timeout": BrokenInt()},
+        },
+        labels,
+    )
+
+    assert 'stock_agent_notification_delivery_count{status="total"} 0' in lines
+    assert 'stock_agent_notification_delivery_count{status="failed"} 0' in lines
+    assert 'stock_agent_notification_delivery_channel_count{channel="telegram_webhook"} 0' in lines
+    assert 'stock_agent_notification_delivery_failure_reason_count{reason="timeout"} 0' in lines
+    assert 'stock_agent_notification_delivery_health{state="ok"} 1' in lines
+
+
+def test_notification_delivery_metrics_sanitize_label_truthiness_failures():
+    class BrokenTruthLabel:
+        def __init__(self, value):
+            self.value = value
+
+        def __bool__(self):
+            raise RuntimeError("notification delivery label truthiness unavailable")
+
+        def __str__(self):
+            return self.value
+
+    lines = notification_observability.notification_delivery_prometheus_lines(
+        {
+            "total_count": 2,
+            "sent_count": 0,
+            "failed_count": 2,
+            "pending_count": 0,
+            "retry_exhausted_count": 0,
+            "channel_counts": {BrokenTruthLabel("telegram_webhook"): 2},
+            "failure_reason_counts": {BrokenTruthLabel("timeout"): 2},
+        },
+        api_observability_service._labels,
+    )
+
+    assert 'stock_agent_notification_delivery_channel_count{channel="telegram_webhook"} 2' in lines
+    assert 'stock_agent_notification_delivery_failure_reason_count{reason="timeout"} 2' in lines
 
 
 def test_provider_sla_api_applies_window_server_side(monkeypatch):
@@ -261,6 +933,519 @@ def test_provider_sla_api_applies_window_server_side(monkeypatch):
     assert body["providers"][0]["success_rate"] == 0.3333
     assert body["providers"][0]["alert_level"] == "critical"
     assert body["alerts"][0]["provider"] == "fake"
+
+
+def test_provider_sla_window_selection_uses_string_safe_conversion():
+    class BrokenTruthWindow:
+        def __bool__(self):
+            raise RuntimeError("provider sla window truthiness unavailable")
+
+        def __str__(self):
+            return " last_24h "
+
+    payload = asyncio.run(api_observability_service.build_provider_sla_payload(
+        lambda limit: [{
+            "source": "market_data",
+            "provider": "fake",
+            "attempts": 10,
+            "success_rate": 1.0,
+            "windows": {"last_24h": {"attempts": 3, "success_rate": 1.0}},
+        }],
+        lambda limit: [],
+        100,
+        window=BrokenTruthWindow(),
+    ))
+
+    assert payload["selected_window"] == "last_24h"
+    assert payload["providers"][0]["attempts"] == 3
+
+
+def test_provider_sla_window_alerts_ignore_numeric_conversion_failures():
+    class BrokenInt:
+        def __int__(self):
+            raise RuntimeError("provider sla integer conversion unavailable")
+
+    class BrokenFloat:
+        def __float__(self):
+            raise RuntimeError("provider sla float conversion unavailable")
+
+    providers = [{
+        "source": "market_data",
+        "provider": "fake",
+        "alert_level": "critical",
+        "alert_message": "stale outage",
+        "windows": {
+            "last_24h": {
+                "attempts": BrokenInt(),
+                "availability_attempts": BrokenInt(),
+                "error_count": BrokenInt(),
+                "success_rate": BrokenFloat(),
+            },
+        },
+    }]
+
+    windowed = api_observability_service.apply_provider_sla_window(providers, "last_24h")
+
+    assert windowed[0]["selected_window"] == "last_24h"
+    assert windowed[0]["alert_level"] == "ok"
+    assert windowed[0]["alert_message"] == ""
+    assert windowed[0]["alert_basis"] == "last_24h"
+
+
+def test_provider_sla_window_stats_use_safe_output_conversion():
+    class BrokenInt:
+        def __int__(self):
+            raise RuntimeError("provider sla window integer conversion unavailable")
+
+    providers = [{
+        "source": "market_data",
+        "provider": "fake",
+        "attempts": 10,
+        "success_rate": 1.0,
+        "windows": {
+            "last_24h": {
+                "attempts": BrokenInt(),
+                "availability_attempts": BrokenInt(),
+                "success_count": BrokenInt(),
+                "error_count": BrokenInt(),
+                "unavailable_count": BrokenInt(),
+                "skipped_fresh_cache_count": BrokenInt(),
+                "not_configured_count": BrokenInt(),
+                "degraded_enrichment_count": BrokenInt(),
+                "success_rate": float("inf"),
+                "avg_duration_ms": float("nan"),
+                "total_records": BrokenInt(),
+            },
+        },
+    }]
+
+    windowed = api_observability_service.apply_provider_sla_window(providers, "last_24h")
+
+    assert windowed[0]["attempts"] == 0
+    assert windowed[0]["availability_attempts"] == 0
+    assert windowed[0]["success_count"] == 0
+    assert windowed[0]["error_count"] == 0
+    assert windowed[0]["unavailable_count"] == 0
+    assert windowed[0]["skipped_fresh_cache_count"] == 0
+    assert windowed[0]["not_configured_count"] == 0
+    assert windowed[0]["degraded_enrichment_count"] == 0
+    assert windowed[0]["success_rate"] == 0.0
+    assert windowed[0]["avg_duration_ms"] == 0.0
+    assert windowed[0]["total_records"] == 0
+    assert windowed[0]["selected_window"] == "last_24h"
+    assert windowed[0]["alert_level"] == "ok"
+
+
+def test_provider_sla_apply_window_normalizes_nested_windows_output():
+    class BrokenInt:
+        def __int__(self):
+            raise RuntimeError("provider sla apply window nested integer conversion unavailable")
+
+    providers = [{
+        "source": "market_data",
+        "provider": "fake",
+        "windows": {
+            "last_24h": {
+                "attempts": BrokenInt(),
+                "success_rate": float("inf"),
+                "avg_duration_ms": float("nan"),
+                "total_records": BrokenInt(),
+            },
+        },
+    }]
+
+    windowed = api_observability_service.apply_provider_sla_window(providers, "last_24h")
+    nested_stats = windowed[0]["windows"]["last_24h"]
+
+    assert nested_stats["attempts"] == 0
+    assert nested_stats["success_rate"] == 0.0
+    assert nested_stats["avg_duration_ms"] == 0.0
+    assert nested_stats["total_records"] == 0
+
+
+def test_provider_sla_provider_windows_use_safe_numeric_output_conversion():
+    class BrokenInt:
+        def __int__(self):
+            raise RuntimeError("provider sla nested window integer conversion unavailable")
+
+    payload = asyncio.run(api_observability_service.build_provider_sla_payload(
+        lambda limit: [{
+            "provider": "summary-provider",
+            "windows": {
+                "last_24h": {
+                    "attempts": BrokenInt(),
+                    "availability_attempts": BrokenInt(),
+                    "success_count": BrokenInt(),
+                    "error_count": BrokenInt(),
+                    "unavailable_count": BrokenInt(),
+                    "skipped_fresh_cache_count": BrokenInt(),
+                    "not_configured_count": BrokenInt(),
+                    "degraded_enrichment_count": BrokenInt(),
+                    "success_rate": float("inf"),
+                    "avg_duration_ms": float("nan"),
+                    "total_records": BrokenInt(),
+                    "label": "kept",
+                },
+            },
+        }],
+        lambda limit: [],
+        100,
+        window="all",
+    ))
+
+    window_stats = payload["providers"][0]["windows"]["last_24h"]
+    assert window_stats["attempts"] == 0
+    assert window_stats["availability_attempts"] == 0
+    assert window_stats["success_count"] == 0
+    assert window_stats["error_count"] == 0
+    assert window_stats["unavailable_count"] == 0
+    assert window_stats["skipped_fresh_cache_count"] == 0
+    assert window_stats["not_configured_count"] == 0
+    assert window_stats["degraded_enrichment_count"] == 0
+    assert window_stats["success_rate"] == 0.0
+    assert window_stats["avg_duration_ms"] == 0.0
+    assert window_stats["total_records"] == 0
+    assert window_stats["label"] == "kept"
+
+
+def test_provider_sla_provider_windows_keep_only_canonical_window_keys():
+    payload = asyncio.run(api_observability_service.build_provider_sla_payload(
+        lambda limit: [{
+            "provider": "summary-provider",
+            "windows": {
+                " LAST_1H ": {"attempts": 1},
+                "last_24h": {"attempts": 2},
+                "experimental_5m": {"attempts": 3},
+                "": {"attempts": 4},
+            },
+        }],
+        lambda limit: [],
+        100,
+        window="all",
+    ))
+
+    assert payload["providers"][0]["windows"] == {
+        "last_1h": {"attempts": 1},
+        "last_24h": {"attempts": 2},
+    }
+
+
+def test_provider_sla_window_alerts_ignore_status_truthiness_failures():
+    class BrokenTruthText:
+        def __bool__(self):
+            raise RuntimeError("provider sla status truthiness unavailable")
+
+        def __str__(self):
+            return "error"
+
+    providers = [{
+        "source": "market_data",
+        "provider": "fake",
+        "attempts": 3,
+        "success_rate": 1.0,
+        "error_count": 0,
+        "last_status": BrokenTruthText(),
+        "windows": {"last_24h": {"attempts": 3, "success_rate": 1.0, "error_count": 0}},
+    }]
+
+    windowed = api_observability_service.apply_provider_sla_window(providers, "last_24h")
+
+    assert windowed[0]["alert_level"] == "warning"
+    assert "fake 最近有來源異常" in windowed[0]["alert_message"]
+    assert windowed[0]["alert_basis"] == "last_24h"
+
+
+def test_provider_sla_window_alerts_ignore_window_map_truthiness_failures():
+    class BrokenTruthDict(dict):
+        def __bool__(self):
+            raise RuntimeError("provider sla window map truthiness unavailable")
+
+    providers = [{
+        "source": "market_data",
+        "provider": "fake",
+        "attempts": 10,
+        "success_rate": 1.0,
+        "error_count": 0,
+        "alert_level": "critical",
+        "alert_message": "stale outage",
+        "windows": BrokenTruthDict({
+            "last_24h": BrokenTruthDict({
+                "attempts": 3,
+                "availability_attempts": 3,
+                "success_rate": 0.25,
+                "error_count": 0,
+            }),
+        }),
+    }]
+
+    windowed = api_observability_service.apply_provider_sla_window(providers, "last_24h")
+
+    assert windowed[0]["attempts"] == 3
+    assert windowed[0]["success_rate"] == 0.25
+    assert windowed[0]["alert_level"] == "critical"
+    assert "fake last_24h資料取得率偏低" in windowed[0]["alert_message"]
+
+
+def test_provider_sla_window_alerts_ignore_provider_row_mapping_failures():
+    class BrokenProviderRow:
+        def __iter__(self):
+            raise RuntimeError("provider sla provider row mapping unavailable")
+
+    windowed = api_observability_service.apply_provider_sla_window([BrokenProviderRow()], "last_24h")
+
+    assert windowed == [{
+        "selected_window": "last_24h",
+        "alert_level": "ok",
+        "alert_message": "",
+        "alert_basis": "last_24h",
+    }]
+
+
+def test_provider_sla_alert_projection_ignores_provider_row_mapping_failures():
+    class BrokenProviderRow:
+        def __iter__(self):
+            raise RuntimeError("provider sla alert row mapping unavailable")
+
+    alerts = api_observability_service.alerts_from_providers([BrokenProviderRow()])
+
+    assert alerts == []
+
+
+def test_provider_sla_alert_projection_uses_string_safe_alert_level():
+    class BrokenAlertLevel:
+        def __hash__(self):
+            raise RuntimeError("provider sla alert level hash unavailable")
+
+        def __str__(self):
+            return "warning"
+
+    alerts = api_observability_service.alerts_from_providers([{
+        "source": "market_data",
+        "provider": "fake",
+        "alert_level": BrokenAlertLevel(),
+        "alert_message": "provider is stale",
+    }])
+
+    assert alerts == [{
+        "source": "market_data",
+        "provider": "fake",
+        "alert_level": "warning",
+        "alert_message": "provider is stale",
+        "success_rate": None,
+        "last_status": None,
+        "alert_basis": None,
+        "selected_window": "all",
+        "windows": {},
+    }]
+
+
+def test_provider_sla_alert_projection_uses_safe_output_conversion():
+    class BrokenTruthText:
+        def __init__(self, value):
+            self.value = value
+
+        def __bool__(self):
+            raise RuntimeError("provider sla alert text truthiness unavailable")
+
+        def __str__(self):
+            return self.value
+
+    class BrokenWindows:
+        def __iter__(self):
+            raise RuntimeError("provider sla alert windows unavailable")
+
+    alerts = api_observability_service.alerts_from_providers([{
+        "source": BrokenTruthText(" market_data "),
+        "provider": BrokenTruthText(" fake "),
+        "alert_level": BrokenTruthText(" warning "),
+        "alert_message": BrokenTruthText(" provider is stale "),
+        "success_rate": float("inf"),
+        "last_status": BrokenTruthText(" error "),
+        "alert_basis": BrokenTruthText(" last_24h "),
+        "selected_window": BrokenTruthText(" last_24h "),
+        "windows": BrokenWindows(),
+    }])
+
+    assert alerts == [{
+        "source": "market_data",
+        "provider": "fake",
+        "alert_level": "warning",
+        "alert_message": "provider is stale",
+        "success_rate": 0.0,
+        "last_status": "error",
+        "alert_basis": "last_24h",
+        "selected_window": "last_24h",
+        "windows": {},
+    }]
+
+
+def test_provider_sla_alert_projection_windows_use_safe_numeric_output_conversion():
+    class BrokenInt:
+        def __int__(self):
+            raise RuntimeError("provider sla alert window integer conversion unavailable")
+
+    alerts = api_observability_service.alerts_from_providers([{
+        "provider": "fake",
+        "alert_level": "warning",
+        "windows": {
+            "last_24h": {
+                "attempts": BrokenInt(),
+                "success_rate": float("-inf"),
+                "avg_duration_ms": float("nan"),
+                "total_records": BrokenInt(),
+            },
+        },
+    }])
+
+    assert alerts[0]["windows"]["last_24h"]["attempts"] == 0
+    assert alerts[0]["windows"]["last_24h"]["success_rate"] == 0.0
+    assert alerts[0]["windows"]["last_24h"]["avg_duration_ms"] == 0.0
+    assert alerts[0]["windows"]["last_24h"]["total_records"] == 0
+
+
+def test_provider_sla_all_window_projects_cumulative_alerts_safely():
+    class BrokenAlertLevel:
+        def __hash__(self):
+            raise RuntimeError("provider sla cumulative alert level hash unavailable")
+
+        def __str__(self):
+            return "critical"
+
+    class BrokenProviderRow:
+        def __iter__(self):
+            raise RuntimeError("provider sla cumulative alert row mapping unavailable")
+
+    payload = asyncio.run(api_observability_service.build_provider_sla_payload(
+        lambda limit: [{"provider": "summary-provider", "alert_level": "ok"}],
+        lambda limit: [
+            BrokenProviderRow(),
+            {
+                "source": "market_data",
+                "provider": "fake",
+                "alert_level": BrokenAlertLevel(),
+                "alert_message": "provider outage",
+            },
+        ],
+        100,
+        window="all",
+    ))
+
+    assert payload["selected_window"] == "all"
+    assert payload["providers"] == [{"provider": "summary-provider", "alert_level": "ok"}]
+    assert payload["alerts"] == [{
+        "source": "market_data",
+        "provider": "fake",
+        "alert_level": "critical",
+        "alert_message": "provider outage",
+        "success_rate": None,
+        "last_status": None,
+        "alert_basis": None,
+        "selected_window": "all",
+        "windows": {},
+    }]
+
+
+def test_provider_sla_all_window_projects_provider_rows_safely():
+    class BrokenProviderRow:
+        def __iter__(self):
+            raise RuntimeError("provider sla cumulative provider row mapping unavailable")
+
+    payload = asyncio.run(api_observability_service.build_provider_sla_payload(
+        lambda limit: [BrokenProviderRow(), {"provider": "summary-provider", "alert_level": "ok"}],
+        lambda limit: [],
+        100,
+        window="all",
+    ))
+
+    assert payload["selected_window"] == "all"
+    assert payload["providers"] == [{}, {"provider": "summary-provider", "alert_level": "ok"}]
+    assert payload["alerts"] == []
+
+
+def test_provider_sla_all_window_provider_stats_use_safe_output_conversion():
+    class BrokenInt:
+        def __int__(self):
+            raise RuntimeError("provider sla cumulative integer conversion unavailable")
+
+    payload = asyncio.run(api_observability_service.build_provider_sla_payload(
+        lambda limit: [{
+            "provider": "summary-provider",
+            "attempts": BrokenInt(),
+            "availability_attempts": BrokenInt(),
+            "success_count": BrokenInt(),
+            "error_count": BrokenInt(),
+            "unavailable_count": BrokenInt(),
+            "skipped_fresh_cache_count": BrokenInt(),
+            "not_configured_count": BrokenInt(),
+            "degraded_enrichment_count": BrokenInt(),
+            "success_rate": float("-inf"),
+            "avg_duration_ms": float("nan"),
+            "total_records": BrokenInt(),
+        }],
+        lambda limit: [],
+        100,
+        window="all",
+    ))
+
+    provider = payload["providers"][0]
+    assert provider["attempts"] == 0
+    assert provider["availability_attempts"] == 0
+    assert provider["success_count"] == 0
+    assert provider["error_count"] == 0
+    assert provider["unavailable_count"] == 0
+    assert provider["skipped_fresh_cache_count"] == 0
+    assert provider["not_configured_count"] == 0
+    assert provider["degraded_enrichment_count"] == 0
+    assert provider["success_rate"] == 0.0
+    assert provider["avg_duration_ms"] == 0.0
+    assert provider["total_records"] == 0
+    assert payload["selected_window"] == "all"
+    assert payload["alerts"] == []
+
+
+def test_provider_sla_numeric_fields_ignore_row_mapping_failures():
+    class BrokenProviderRow:
+        def __iter__(self):
+            raise RuntimeError("provider sla numeric row mapping unavailable")
+
+    assert provider_sla_payload_shape.normalize_provider_sla_numeric_fields(BrokenProviderRow()) == {}
+
+
+def test_provider_sla_payload_summary_fetch_failure_returns_empty_provider_lists():
+    def broken_summary_fetcher(_limit):
+        raise RuntimeError("provider sla summary unavailable")
+
+    payload = asyncio.run(api_observability_service.build_provider_sla_payload(
+        broken_summary_fetcher,
+        lambda limit: [{
+            "source": "market_data",
+            "provider": "fake",
+            "alert_level": "critical",
+            "alert_message": "provider outage",
+        }],
+        100,
+        window="last_24h",
+    ))
+
+    assert payload == {"providers": [], "alerts": [], "selected_window": "last_24h"}
+
+
+def test_provider_sla_payload_alert_fetch_failure_keeps_provider_rows():
+    def broken_alerts_fetcher(_limit):
+        raise RuntimeError("provider sla alerts unavailable")
+
+    payload = asyncio.run(api_observability_service.build_provider_sla_payload(
+        lambda limit: [{"provider": "summary-provider", "alert_level": "ok"}],
+        broken_alerts_fetcher,
+        100,
+        window="all",
+    ))
+
+    assert payload == {
+        "providers": [{"provider": "summary-provider", "alert_level": "ok"}],
+        "alerts": [],
+        "selected_window": "all",
+    }
 
 
 def test_provider_sla_window_without_samples_does_not_reuse_stale_alert(monkeypatch):
@@ -474,6 +1659,11 @@ def test_ops_dashboard_summarizes_latency_stuck_jobs_and_node_telemetry(monkeypa
     assert budget["estimated_cached_input_tokens"] == 100
     assert budget["nodes"]["valuation_agent"]["avg_input_tokens"] == 100
     assert budget["models"]["gemini-2.5-pro"]["avg_total_tokens"] == 150
+    route_budget = payload["model_route_budget"]
+    assert route_budget["summary"]["estimated_cost_available"] is False
+    assert route_budget["routes"]["v1/gemini-2.5-pro"]["total_tokens"] == 450
+    assert route_budget["routes"]["v1/gemini-2.5-pro"]["billable_total_tokens"] == 300
+    assert route_budget["routes"]["v1/gemini-2.5-pro"]["estimated_cost_usd"] is None
     assert "secret-should-hide" not in str(payload)
 
 
@@ -605,6 +1795,1313 @@ def test_ops_dashboard_treats_enrichment_provider_critical_as_warning(monkeypatc
     assert payload["providers"]["alerts"][0]["impact"] == "enrichment"
 
 
+def test_ops_dashboard_payload_exposes_model_route_budget(monkeypatch):
+    monkeypatch.setattr(
+        api_observability_service,
+        "build_ops_dashboard_snapshot",
+        lambda **_kwargs: {
+            "jobs": {"active_count": 0},
+            "job_latency": {},
+            "stuck_jobs": {"count": 0, "jobs": []},
+            "node_telemetry": {},
+            "model_route_budget": {
+                "schema_version": "model_route_budget.v1",
+                "warnings": [{"id": "retry_storm", "route": "v2/gemini-2.5-pro"}],
+            },
+        },
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "snapshot_task_queue",
+        lambda _task_queue: {"backend": "rq", "available": True, "depth": 0, "registries": {"failed": 0}},
+    )
+
+    async def fake_provider_payload(*_args, **_kwargs):
+        return {"selected_window": "last_24h", "alerts": []}
+
+    async def fake_api_quota_payload(_summary_fetcher):
+        return {"services": []}
+
+    monkeypatch.setattr(api_observability_service, "build_provider_sla_payload", fake_provider_payload)
+    monkeypatch.setattr(api_observability_service, "build_api_quota_payload", fake_api_quota_payload)
+
+    payload = asyncio.run(
+        api_observability_service.build_ops_dashboard_payload(
+            lambda _limit: [],
+            lambda _limit: [],
+            task_queue=object(),
+        )
+    )
+
+    assert payload["model_route_budget"]["schema_version"] == "model_route_budget.v1"
+    assert payload["model_route_budget"]["warnings"][0]["id"] == "retry_storm"
+
+
+def test_ops_dashboard_warns_on_notification_delivery_failures(monkeypatch):
+    monkeypatch.setattr(
+        api_observability_service,
+        "build_ops_dashboard_snapshot",
+        lambda **_kwargs: {
+            "jobs": {"active_count": 0},
+            "job_latency": {},
+            "stuck_jobs": {"count": 0, "jobs": []},
+            "node_telemetry": {},
+        },
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "snapshot_task_queue",
+        lambda _task_queue: {"backend": "rq", "available": True, "depth": 0, "registries": {"failed": 0}},
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "get_delivery_audit_summary",
+        lambda: {
+            "total_count": 3,
+            "sent_count": 1,
+            "failed_count": 2,
+            "pending_count": 0,
+            "retry_exhausted_count": 1,
+            "channel_counts": {"telegram_webhook": 2, "local": 1},
+        },
+        raising=False,
+    )
+
+    async def fake_provider_payload(*_args, **_kwargs):
+        return {"selected_window": "last_24h", "alerts": []}
+
+    async def fake_api_quota_payload(_summary_fetcher):
+        return {"services": []}
+
+    monkeypatch.setattr(api_observability_service, "build_provider_sla_payload", fake_provider_payload)
+    monkeypatch.setattr(api_observability_service, "build_api_quota_payload", fake_api_quota_payload)
+
+    payload = asyncio.run(
+        api_observability_service.build_ops_dashboard_payload(
+            lambda _limit: [],
+            lambda _limit: [],
+            task_queue=object(),
+        )
+    )
+
+    assert payload["status"] == "warning"
+    assert payload["notification_delivery"]["health"] == "warning"
+    assert payload["notification_delivery"]["retry_exhausted_count"] == 1
+    assert payload["notification_delivery"]["channel_counts"]["telegram_webhook"] == 2
+
+
+def test_ops_dashboard_queue_snapshot_failure_keeps_other_sections(monkeypatch):
+    monkeypatch.setattr(
+        api_observability_service,
+        "build_ops_dashboard_snapshot",
+        lambda **_kwargs: {
+            "jobs": {"active_count": 0},
+            "job_latency": {"p95_seconds": 1.5},
+            "stuck_jobs": {"count": 0, "jobs": []},
+            "node_telemetry": {"nodes": {}},
+            "model_route_budget": {"warnings": []},
+        },
+    )
+
+    def broken_queue_snapshot(_task_queue):
+        raise RuntimeError("ops dashboard queue snapshot unavailable")
+
+    monkeypatch.setattr(api_observability_service, "snapshot_task_queue", broken_queue_snapshot)
+    monkeypatch.setattr(
+        api_observability_service,
+        "get_delivery_audit_summary",
+        lambda: {
+            "total_count": 1,
+            "sent_count": 1,
+            "failed_count": 0,
+            "pending_count": 0,
+            "retry_exhausted_count": 0,
+            "channel_counts": {"local": 1},
+        },
+        raising=False,
+    )
+
+    async def fake_provider_payload(*_args, **_kwargs):
+        return {"selected_window": "last_24h", "alerts": []}
+
+    async def fake_api_quota_payload(_summary_fetcher):
+        return {"services": [{"service": "alpha_vantage"}]}
+
+    monkeypatch.setattr(api_observability_service, "build_provider_sla_payload", fake_provider_payload)
+    monkeypatch.setattr(api_observability_service, "build_api_quota_payload", fake_api_quota_payload)
+
+    payload = asyncio.run(
+        api_observability_service.build_ops_dashboard_payload(
+            lambda _limit: [],
+            lambda _limit: [],
+            task_queue=object(),
+        )
+    )
+
+    assert payload["status"] == "critical"
+    assert payload["queue"] == {"backend": "unknown", "available": False, "queue_name": "unknown", "depth": 0, "queues": {}}
+    assert payload["jobs"] == {"active_count": 0}
+    assert payload["job_latency"] == {"p95_seconds": 1.5}
+    assert payload["providers"]["selected_window"] == "last_24h"
+    assert payload["api_quotas"] == {"services": [{"service": "alpha_vantage"}]}
+    assert payload["notification_delivery"]["health"] == "ok"
+
+
+def test_ops_dashboard_stuck_job_count_truthiness_keeps_other_sections(monkeypatch):
+    class BrokenStuckJobCount:
+        def __bool__(self):
+            raise RuntimeError("ops dashboard stuck job count truthiness unavailable")
+
+        def __int__(self):
+            return 0
+
+    monkeypatch.setattr(
+        api_observability_service,
+        "build_ops_dashboard_snapshot",
+        lambda **_kwargs: {
+            "jobs": {"active_count": 0},
+            "job_latency": {"p95_seconds": 1.5},
+            "stuck_jobs": {"count": BrokenStuckJobCount(), "jobs": []},
+            "node_telemetry": {"nodes": {}},
+            "model_route_budget": {"warnings": []},
+        },
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "snapshot_task_queue",
+        lambda _task_queue: {"backend": "rq", "available": True, "queue_name": "stock-analysis", "depth": 0},
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "get_delivery_audit_summary",
+        lambda: {
+            "total_count": 1,
+            "sent_count": 1,
+            "failed_count": 0,
+            "pending_count": 0,
+            "retry_exhausted_count": 0,
+            "channel_counts": {"local": 1},
+        },
+        raising=False,
+    )
+
+    async def fake_provider_payload(*_args, **_kwargs):
+        return {"selected_window": "last_24h", "alerts": []}
+
+    async def fake_api_quota_payload(_summary_fetcher):
+        return {"services": [{"service": "alpha_vantage"}]}
+
+    monkeypatch.setattr(api_observability_service, "build_provider_sla_payload", fake_provider_payload)
+    monkeypatch.setattr(api_observability_service, "build_api_quota_payload", fake_api_quota_payload)
+
+    payload = asyncio.run(
+        api_observability_service.build_ops_dashboard_payload(
+            lambda _limit: [],
+            lambda _limit: [],
+            task_queue=object(),
+        )
+    )
+
+    assert payload["status"] == "ok"
+    assert payload["queue"]["available"] is True
+    assert payload["stuck_jobs"]["jobs"] == []
+    assert payload["providers"]["selected_window"] == "last_24h"
+    assert payload["api_quotas"] == {"services": [{"service": "alpha_vantage"}]}
+    assert payload["notification_delivery"]["health"] == "ok"
+
+
+def test_ops_dashboard_queue_available_truthiness_keeps_other_sections(monkeypatch):
+    class AvailableWithBrokenTruthiness:
+        def __bool__(self):
+            raise RuntimeError("ops dashboard queue availability truthiness unavailable")
+
+        def __str__(self):
+            return "true"
+
+    monkeypatch.setattr(
+        api_observability_service,
+        "build_ops_dashboard_snapshot",
+        lambda **_kwargs: {
+            "jobs": {"active_count": 0},
+            "job_latency": {"p95_seconds": 1.5},
+            "stuck_jobs": {"count": 0, "jobs": []},
+            "node_telemetry": {"nodes": {}},
+            "model_route_budget": {"warnings": []},
+        },
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "snapshot_task_queue",
+        lambda _task_queue: {
+            "backend": "rq",
+            "available": AvailableWithBrokenTruthiness(),
+            "queue_name": "stock-analysis",
+            "depth": 0,
+        },
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "get_delivery_audit_summary",
+        lambda: {
+            "total_count": 1,
+            "sent_count": 1,
+            "failed_count": 0,
+            "pending_count": 0,
+            "retry_exhausted_count": 0,
+            "channel_counts": {"local": 1},
+        },
+        raising=False,
+    )
+
+    async def fake_provider_payload(*_args, **_kwargs):
+        return {"selected_window": "last_24h", "alerts": []}
+
+    async def fake_api_quota_payload(_summary_fetcher):
+        return {"services": [{"service": "alpha_vantage"}]}
+
+    monkeypatch.setattr(api_observability_service, "build_provider_sla_payload", fake_provider_payload)
+    monkeypatch.setattr(api_observability_service, "build_api_quota_payload", fake_api_quota_payload)
+
+    payload = asyncio.run(
+        api_observability_service.build_ops_dashboard_payload(
+            lambda _limit: [],
+            lambda _limit: [],
+            task_queue=object(),
+        )
+    )
+
+    assert payload["status"] == "ok"
+    assert payload["queue"]["available"] is True
+    assert payload["jobs"] == {"active_count": 0}
+    assert payload["providers"]["selected_window"] == "last_24h"
+    assert payload["api_quotas"] == {"services": [{"service": "alpha_vantage"}]}
+    assert payload["notification_delivery"]["health"] == "ok"
+
+
+def test_ops_dashboard_queue_metadata_uses_safe_output_conversion(monkeypatch):
+    class BrokenTruthText:
+        def __init__(self, value):
+            self.value = value
+
+        def __bool__(self):
+            raise RuntimeError("ops dashboard queue metadata truthiness unavailable")
+
+        def __str__(self):
+            return self.value
+
+    class BrokenQueueDepth:
+        def __int__(self):
+            raise RuntimeError("ops dashboard queue depth unavailable")
+
+    class BrokenQueueMap:
+        def __iter__(self):
+            raise RuntimeError("ops dashboard queue map unavailable")
+
+    monkeypatch.setattr(
+        api_observability_service,
+        "build_ops_dashboard_snapshot",
+        lambda **_kwargs: {
+            "jobs": {"active_count": 0},
+            "job_latency": {"p95_seconds": 1.5},
+            "stuck_jobs": {"count": 0, "jobs": []},
+            "node_telemetry": {"nodes": {}},
+            "model_route_budget": {"warnings": []},
+        },
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "snapshot_task_queue",
+        lambda _task_queue: {
+            "backend": BrokenTruthText("rq"),
+            "available": True,
+            "queue_name": BrokenTruthText("stock-analysis"),
+            "depth": BrokenQueueDepth(),
+            "queues": BrokenQueueMap(),
+        },
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "get_delivery_audit_summary",
+        lambda: {
+            "total_count": 1,
+            "sent_count": 1,
+            "failed_count": 0,
+            "pending_count": 0,
+            "retry_exhausted_count": 0,
+            "channel_counts": {"local": 1},
+        },
+        raising=False,
+    )
+
+    async def fake_provider_payload(*_args, **_kwargs):
+        return {"selected_window": "last_24h", "alerts": []}
+
+    async def fake_api_quota_payload(_summary_fetcher):
+        return {"services": [{"service": "alpha_vantage"}]}
+
+    monkeypatch.setattr(api_observability_service, "build_provider_sla_payload", fake_provider_payload)
+    monkeypatch.setattr(api_observability_service, "build_api_quota_payload", fake_api_quota_payload)
+
+    payload = asyncio.run(
+        api_observability_service.build_ops_dashboard_payload(
+            lambda _limit: [],
+            lambda _limit: [],
+            task_queue=object(),
+        )
+    )
+
+    assert payload["status"] == "ok"
+    assert payload["queue"] == {
+        "backend": "rq",
+        "available": True,
+        "queue_name": "stock-analysis",
+        "depth": 0,
+        "queues": {},
+    }
+    assert payload["jobs"] == {"active_count": 0}
+    assert payload["providers"]["selected_window"] == "last_24h"
+    assert payload["api_quotas"] == {"services": [{"service": "alpha_vantage"}]}
+    assert payload["notification_delivery"]["health"] == "ok"
+
+
+def test_ops_dashboard_named_queue_details_use_safe_output_conversion(monkeypatch):
+    class BrokenTruthText:
+        def __init__(self, value):
+            self.value = value
+
+        def __bool__(self):
+            raise RuntimeError("ops dashboard named queue truthiness unavailable")
+
+        def __str__(self):
+            return self.value
+
+    class BrokenQueueDetails:
+        def __iter__(self):
+            raise RuntimeError("ops dashboard named queue detail unavailable")
+
+    monkeypatch.setattr(
+        api_observability_service,
+        "build_ops_dashboard_snapshot",
+        lambda **_kwargs: {
+            "jobs": {"active_count": 0},
+            "job_latency": {"p95_seconds": 1.5},
+            "stuck_jobs": {"count": 0, "jobs": []},
+            "node_telemetry": {"nodes": {}},
+            "model_route_budget": {"warnings": []},
+        },
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "snapshot_task_queue",
+        lambda _task_queue: {
+            "backend": "rq",
+            "available": True,
+            "queue_name": "stock-analysis",
+            "depth": 0,
+            "queues": {
+                BrokenTruthText("maintenance"): {"depth": 2, "registry": "started"},
+                "broken": BrokenQueueDetails(),
+            },
+        },
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "get_delivery_audit_summary",
+        lambda: {
+            "total_count": 1,
+            "sent_count": 1,
+            "failed_count": 0,
+            "pending_count": 0,
+            "retry_exhausted_count": 0,
+            "channel_counts": {"local": 1},
+        },
+        raising=False,
+    )
+
+    async def fake_provider_payload(*_args, **_kwargs):
+        return {"selected_window": "last_24h", "alerts": []}
+
+    async def fake_api_quota_payload(_summary_fetcher):
+        return {"services": [{"service": "alpha_vantage"}]}
+
+    monkeypatch.setattr(api_observability_service, "build_provider_sla_payload", fake_provider_payload)
+    monkeypatch.setattr(api_observability_service, "build_api_quota_payload", fake_api_quota_payload)
+
+    payload = asyncio.run(
+        api_observability_service.build_ops_dashboard_payload(
+            lambda _limit: [],
+            lambda _limit: [],
+            task_queue=object(),
+        )
+    )
+
+    assert payload["status"] == "ok"
+    assert payload["queue"]["queues"] == {
+        "maintenance": {"depth": 2, "registry": "started"},
+        "broken": {},
+    }
+    assert payload["jobs"] == {"active_count": 0}
+    assert payload["providers"]["selected_window"] == "last_24h"
+    assert payload["api_quotas"] == {"services": [{"service": "alpha_vantage"}]}
+    assert payload["notification_delivery"]["health"] == "ok"
+
+
+def test_ops_dashboard_named_queue_detail_fields_use_safe_output_conversion(monkeypatch):
+    class BrokenTruthText:
+        def __init__(self, value):
+            self.value = value
+
+        def __bool__(self):
+            raise RuntimeError("ops dashboard named queue detail truthiness unavailable")
+
+        def __str__(self):
+            return self.value
+
+    class BrokenQueueCount:
+        def __int__(self):
+            raise RuntimeError("ops dashboard named queue count unavailable")
+
+    monkeypatch.setattr(
+        api_observability_service,
+        "build_ops_dashboard_snapshot",
+        lambda **_kwargs: {
+            "jobs": {"active_count": 0},
+            "job_latency": {"p95_seconds": 1.5},
+            "stuck_jobs": {"count": 0, "jobs": []},
+            "node_telemetry": {"nodes": {}},
+            "model_route_budget": {"warnings": []},
+        },
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "snapshot_task_queue",
+        lambda _task_queue: {
+            "backend": "rq",
+            "available": True,
+            "queue_name": "stock-analysis",
+            "depth": 0,
+            "queues": {
+                "maintenance": {
+                    "depth": BrokenQueueCount(),
+                    "registries": {BrokenTruthText("started"): BrokenQueueCount(), "failed": 3},
+                    "registry": BrokenTruthText("started"),
+                },
+            },
+        },
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "get_delivery_audit_summary",
+        lambda: {
+            "total_count": 1,
+            "sent_count": 1,
+            "failed_count": 0,
+            "pending_count": 0,
+            "retry_exhausted_count": 0,
+            "channel_counts": {"local": 1},
+        },
+        raising=False,
+    )
+
+    async def fake_provider_payload(*_args, **_kwargs):
+        return {"selected_window": "last_24h", "alerts": []}
+
+    async def fake_api_quota_payload(_summary_fetcher):
+        return {"services": [{"service": "alpha_vantage"}]}
+
+    monkeypatch.setattr(api_observability_service, "build_provider_sla_payload", fake_provider_payload)
+    monkeypatch.setattr(api_observability_service, "build_api_quota_payload", fake_api_quota_payload)
+
+    payload = asyncio.run(
+        api_observability_service.build_ops_dashboard_payload(
+            lambda _limit: [],
+            lambda _limit: [],
+            task_queue=object(),
+        )
+    )
+
+    assert payload["status"] == "ok"
+    assert payload["queue"]["queues"]["maintenance"] == {
+        "depth": 0,
+        "registries": {"started": 0, "failed": 3},
+        "registry": "started",
+    }
+    assert payload["jobs"] == {"active_count": 0}
+    assert payload["providers"]["selected_window"] == "last_24h"
+    assert payload["api_quotas"] == {"services": [{"service": "alpha_vantage"}]}
+    assert payload["notification_delivery"]["health"] == "ok"
+
+
+def test_ops_dashboard_queue_supplemental_fields_use_safe_output_conversion(monkeypatch):
+    class BrokenTruthText:
+        def __init__(self, value):
+            self.value = value
+
+        def __bool__(self):
+            raise RuntimeError("ops dashboard queue supplemental truthiness unavailable")
+
+        def __str__(self):
+            return self.value
+
+    class BrokenInt:
+        def __int__(self):
+            raise RuntimeError("ops dashboard queue supplemental integer unavailable")
+
+    class BrokenFloat:
+        def __float__(self):
+            raise RuntimeError("ops dashboard queue supplemental float unavailable")
+
+    monkeypatch.setattr(
+        api_observability_service,
+        "build_ops_dashboard_snapshot",
+        lambda **_kwargs: {
+            "jobs": {"active_count": 0},
+            "job_latency": {"p95_seconds": 1.5},
+            "stuck_jobs": {"count": 0, "jobs": []},
+            "node_telemetry": {"nodes": {}},
+            "model_route_budget": {"warnings": []},
+        },
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "snapshot_task_queue",
+        lambda _task_queue: {
+            "backend": "rq",
+            "available": True,
+            "queue_name": "stock-analysis",
+            "depth": 0,
+            "queues": {},
+            "registries": {BrokenTruthText("failed"): BrokenInt(), "scheduled": 4},
+            "active_tasks": BrokenInt(),
+            "oldest_queued_seconds": BrokenFloat(),
+            "job_timeout_seconds": BrokenInt(),
+            "error": BrokenTruthText("redis timeout"),
+        },
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "get_delivery_audit_summary",
+        lambda: {
+            "total_count": 1,
+            "sent_count": 1,
+            "failed_count": 0,
+            "pending_count": 0,
+            "retry_exhausted_count": 0,
+            "channel_counts": {"local": 1},
+        },
+        raising=False,
+    )
+
+    async def fake_provider_payload(*_args, **_kwargs):
+        return {"selected_window": "last_24h", "alerts": []}
+
+    async def fake_api_quota_payload(_summary_fetcher):
+        return {"services": [{"service": "alpha_vantage"}]}
+
+    monkeypatch.setattr(api_observability_service, "build_provider_sla_payload", fake_provider_payload)
+    monkeypatch.setattr(api_observability_service, "build_api_quota_payload", fake_api_quota_payload)
+
+    payload = asyncio.run(
+        api_observability_service.build_ops_dashboard_payload(
+            lambda _limit: [],
+            lambda _limit: [],
+            task_queue=object(),
+        )
+    )
+
+    assert payload["status"] == "ok"
+    assert payload["queue"] == {
+        "backend": "rq",
+        "available": True,
+        "queue_name": "stock-analysis",
+        "depth": 0,
+        "queues": {},
+        "registries": {"failed": 0, "scheduled": 4},
+        "active_tasks": 0,
+        "oldest_queued_seconds": 0.0,
+        "job_timeout_seconds": 0,
+        "error": "redis timeout",
+    }
+    assert payload["jobs"] == {"active_count": 0}
+    assert payload["providers"]["selected_window"] == "last_24h"
+    assert payload["api_quotas"] == {"services": [{"service": "alpha_vantage"}]}
+    assert payload["notification_delivery"]["health"] == "ok"
+
+
+def test_queue_dashboard_payload_replaces_non_finite_age_with_zero():
+    infinite = queue_dashboard_payload.normalize_ops_queue_payload({
+        "backend": "rq",
+        "available": True,
+        "queue_name": "stock-analysis",
+        "depth": 0,
+        "oldest_queued_seconds": float("inf"),
+    })
+    nan = queue_dashboard_payload.normalize_ops_queue_payload({
+        "backend": "rq",
+        "available": True,
+        "queue_name": "stock-analysis",
+        "depth": 0,
+        "oldest_queued_seconds": float("nan"),
+    })
+
+    assert infinite["oldest_queued_seconds"] == 0.0
+    assert nan["oldest_queued_seconds"] == 0.0
+
+
+def test_ops_dashboard_notification_delivery_summary_fetch_failure_keeps_other_sections(monkeypatch):
+    monkeypatch.setattr(
+        api_observability_service,
+        "build_ops_dashboard_snapshot",
+        lambda **_kwargs: {
+            "jobs": {"active_count": 0},
+            "job_latency": {"p95_seconds": 1.5},
+            "stuck_jobs": {"count": 0, "jobs": []},
+            "node_telemetry": {"nodes": {}},
+            "model_route_budget": {"warnings": []},
+        },
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "snapshot_task_queue",
+        lambda _task_queue: {"backend": "rq", "available": True, "queue_name": "stock-analysis", "depth": 0},
+    )
+
+    def broken_delivery_summary():
+        raise RuntimeError("ops dashboard notification delivery summary unavailable")
+
+    monkeypatch.setattr(api_observability_service, "get_delivery_audit_summary", broken_delivery_summary, raising=False)
+
+    async def fake_provider_payload(*_args, **_kwargs):
+        return {"selected_window": "last_24h", "alerts": []}
+
+    async def fake_api_quota_payload(_summary_fetcher):
+        return {"services": [{"service": "alpha_vantage"}]}
+
+    monkeypatch.setattr(api_observability_service, "build_provider_sla_payload", fake_provider_payload)
+    monkeypatch.setattr(api_observability_service, "build_api_quota_payload", fake_api_quota_payload)
+
+    payload = asyncio.run(
+        api_observability_service.build_ops_dashboard_payload(
+            lambda _limit: [],
+            lambda _limit: [],
+            task_queue=object(),
+        )
+    )
+
+    assert payload["status"] == "ok"
+    assert payload["queue"]["available"] is True
+    assert payload["jobs"] == {"active_count": 0}
+    assert payload["job_latency"] == {"p95_seconds": 1.5}
+    assert payload["providers"]["selected_window"] == "last_24h"
+    assert payload["api_quotas"] == {"services": [{"service": "alpha_vantage"}]}
+    assert payload["notification_delivery"]["health"] == "ok"
+    assert payload["notification_delivery"]["total_count"] == 0
+    assert payload["notification_delivery"]["failed_count"] == 0
+    assert payload["notification_delivery"]["channel_counts"] == {}
+
+
+def test_ops_dashboard_api_quota_payload_failure_keeps_other_sections(monkeypatch):
+    monkeypatch.setattr(
+        api_observability_service,
+        "build_ops_dashboard_snapshot",
+        lambda **_kwargs: {
+            "jobs": {"active_count": 0},
+            "job_latency": {"p95_seconds": 1.5},
+            "stuck_jobs": {"count": 0, "jobs": []},
+            "node_telemetry": {"nodes": {}},
+            "model_route_budget": {"warnings": []},
+        },
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "snapshot_task_queue",
+        lambda _task_queue: {"backend": "rq", "available": True, "queue_name": "stock-analysis", "depth": 0},
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "get_delivery_audit_summary",
+        lambda: {
+            "total_count": 1,
+            "sent_count": 1,
+            "failed_count": 0,
+            "pending_count": 0,
+            "retry_exhausted_count": 0,
+            "channel_counts": {"local": 1},
+        },
+        raising=False,
+    )
+
+    def broken_api_quota_payload(_summary_fetcher):
+        raise RuntimeError("ops dashboard api quota payload unavailable")
+
+    monkeypatch.setattr(api_observability_service, "_build_api_quota_payload", broken_api_quota_payload)
+
+    async def fake_provider_payload(*_args, **_kwargs):
+        return {"selected_window": "last_24h", "alerts": []}
+
+    monkeypatch.setattr(api_observability_service, "build_provider_sla_payload", fake_provider_payload)
+
+    payload = asyncio.run(
+        api_observability_service.build_ops_dashboard_payload(
+            lambda _limit: [],
+            lambda _limit: [],
+            task_queue=object(),
+        )
+    )
+
+    assert payload["status"] == "ok"
+    assert payload["queue"]["available"] is True
+    assert payload["jobs"] == {"active_count": 0}
+    assert payload["providers"]["selected_window"] == "last_24h"
+    assert payload["api_quotas"] == {"services": []}
+    assert payload["notification_delivery"]["health"] == "ok"
+
+
+def test_ops_dashboard_malformed_api_quota_payload_keeps_other_sections(monkeypatch):
+    class BrokenApiQuotaPayload:
+        def __iter__(self):
+            raise RuntimeError("ops dashboard api quota payload mapping unavailable")
+
+    monkeypatch.setattr(
+        api_observability_service,
+        "build_ops_dashboard_snapshot",
+        lambda **_kwargs: {
+            "jobs": {"active_count": 0},
+            "job_latency": {"p95_seconds": 1.5},
+            "stuck_jobs": {"count": 0, "jobs": []},
+            "node_telemetry": {"nodes": {}},
+            "model_route_budget": {"warnings": []},
+        },
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "snapshot_task_queue",
+        lambda _task_queue: {"backend": "rq", "available": True, "queue_name": "stock-analysis", "depth": 0},
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "get_delivery_audit_summary",
+        lambda: {
+            "total_count": 1,
+            "sent_count": 1,
+            "failed_count": 0,
+            "pending_count": 0,
+            "retry_exhausted_count": 0,
+            "channel_counts": {"local": 1},
+        },
+        raising=False,
+    )
+
+    async def fake_provider_payload(*_args, **_kwargs):
+        return {"selected_window": "last_24h", "alerts": []}
+
+    async def malformed_api_quota_payload(_summary_fetcher):
+        return BrokenApiQuotaPayload()
+
+    monkeypatch.setattr(api_observability_service, "build_provider_sla_payload", fake_provider_payload)
+    monkeypatch.setattr(api_observability_service, "build_api_quota_payload", malformed_api_quota_payload)
+
+    payload = asyncio.run(
+        api_observability_service.build_ops_dashboard_payload(
+            lambda _limit: [],
+            lambda _limit: [],
+            task_queue=object(),
+        )
+    )
+
+    assert payload["status"] == "ok"
+    assert payload["queue"]["available"] is True
+    assert payload["jobs"] == {"active_count": 0}
+    assert payload["job_latency"] == {"p95_seconds": 1.5}
+    assert payload["providers"]["selected_window"] == "last_24h"
+    assert payload["api_quotas"] == {"services": []}
+    assert payload["notification_delivery"]["health"] == "ok"
+
+
+def test_ops_dashboard_malformed_api_quota_services_keep_other_sections(monkeypatch):
+    class BrokenApiQuotaServices:
+        def __iter__(self):
+            raise RuntimeError("ops dashboard api quota services unavailable")
+
+    monkeypatch.setattr(
+        api_observability_service,
+        "build_ops_dashboard_snapshot",
+        lambda **_kwargs: {
+            "jobs": {"active_count": 0},
+            "job_latency": {"p95_seconds": 1.5},
+            "stuck_jobs": {"count": 0, "jobs": []},
+            "node_telemetry": {"nodes": {}},
+            "model_route_budget": {"warnings": []},
+        },
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "snapshot_task_queue",
+        lambda _task_queue: {"backend": "rq", "available": True, "queue_name": "stock-analysis", "depth": 0},
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "get_delivery_audit_summary",
+        lambda: {
+            "total_count": 1,
+            "sent_count": 1,
+            "failed_count": 0,
+            "pending_count": 0,
+            "retry_exhausted_count": 0,
+            "channel_counts": {"local": 1},
+        },
+        raising=False,
+    )
+
+    async def fake_provider_payload(*_args, **_kwargs):
+        return {"selected_window": "last_24h", "alerts": []}
+
+    async def malformed_api_quota_services(_summary_fetcher):
+        return {"services": BrokenApiQuotaServices(), "timezone": "Asia/Taipei"}
+
+    monkeypatch.setattr(api_observability_service, "build_provider_sla_payload", fake_provider_payload)
+    monkeypatch.setattr(api_observability_service, "build_api_quota_payload", malformed_api_quota_services)
+
+    payload = asyncio.run(
+        api_observability_service.build_ops_dashboard_payload(
+            lambda _limit: [],
+            lambda _limit: [],
+            task_queue=object(),
+        )
+    )
+
+    assert payload["status"] == "ok"
+    assert payload["queue"]["available"] is True
+    assert payload["jobs"] == {"active_count": 0}
+    assert payload["job_latency"] == {"p95_seconds": 1.5}
+    assert payload["providers"]["selected_window"] == "last_24h"
+    assert payload["api_quotas"] == {"services": [], "timezone": "Asia/Taipei"}
+    assert payload["notification_delivery"]["health"] == "ok"
+
+
+def test_ops_dashboard_job_snapshot_failure_keeps_other_sections(monkeypatch):
+    def broken_ops_snapshot(**_kwargs):
+        raise RuntimeError("ops dashboard job snapshot unavailable")
+
+    monkeypatch.setattr(api_observability_service, "build_ops_dashboard_snapshot", broken_ops_snapshot)
+    monkeypatch.setattr(
+        api_observability_service,
+        "snapshot_task_queue",
+        lambda _task_queue: {"backend": "rq", "available": True, "queue_name": "stock-analysis", "depth": 0},
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "get_delivery_audit_summary",
+        lambda: {
+            "total_count": 1,
+            "sent_count": 1,
+            "failed_count": 0,
+            "pending_count": 0,
+            "retry_exhausted_count": 0,
+            "channel_counts": {"local": 1},
+        },
+        raising=False,
+    )
+
+    async def fake_provider_payload(*_args, **_kwargs):
+        return {"selected_window": "last_24h", "alerts": []}
+
+    async def fake_api_quota_payload(_summary_fetcher):
+        return {"services": [{"service": "alpha_vantage"}]}
+
+    monkeypatch.setattr(api_observability_service, "build_provider_sla_payload", fake_provider_payload)
+    monkeypatch.setattr(api_observability_service, "build_api_quota_payload", fake_api_quota_payload)
+
+    payload = asyncio.run(
+        api_observability_service.build_ops_dashboard_payload(
+            lambda _limit: [],
+            lambda _limit: [],
+            task_queue=object(),
+        )
+    )
+
+    assert payload["status"] == "warning"
+    assert payload["queue"]["available"] is True
+    assert payload["jobs"] == {}
+    assert payload["job_latency"] == {}
+    assert payload["stuck_jobs"] == {}
+    assert payload["node_telemetry"] == {}
+    assert payload["model_route_budget"] == {}
+    assert payload["providers"]["selected_window"] == "last_24h"
+    assert payload["api_quotas"] == {"services": [{"service": "alpha_vantage"}]}
+    assert payload["notification_delivery"]["health"] == "ok"
+
+
+def test_ops_dashboard_job_unavailable_flag_truthiness_keeps_other_sections(monkeypatch):
+    class UnavailableFlagWithBrokenTruthiness:
+        def __bool__(self):
+            raise RuntimeError("ops dashboard job unavailable flag truthiness unavailable")
+
+        def __str__(self):
+            return "true"
+
+    monkeypatch.setattr(
+        api_observability_service,
+        "build_ops_dashboard_snapshot",
+        lambda **_kwargs: {
+            "observability_unavailable": UnavailableFlagWithBrokenTruthiness(),
+            "jobs": {"active_count": 0},
+            "job_latency": {"p95_seconds": 1.5},
+            "stuck_jobs": {"count": 0, "jobs": []},
+            "node_telemetry": {"nodes": {}},
+            "model_route_budget": {"warnings": []},
+        },
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "snapshot_task_queue",
+        lambda _task_queue: {"backend": "rq", "available": True, "queue_name": "stock-analysis", "depth": 0},
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "get_delivery_audit_summary",
+        lambda: {
+            "total_count": 1,
+            "sent_count": 1,
+            "failed_count": 0,
+            "pending_count": 0,
+            "retry_exhausted_count": 0,
+            "channel_counts": {"local": 1},
+        },
+        raising=False,
+    )
+
+    async def fake_provider_payload(*_args, **_kwargs):
+        return {"selected_window": "last_24h", "alerts": []}
+
+    async def fake_api_quota_payload(_summary_fetcher):
+        return {"services": [{"service": "alpha_vantage"}]}
+
+    monkeypatch.setattr(api_observability_service, "build_provider_sla_payload", fake_provider_payload)
+    monkeypatch.setattr(api_observability_service, "build_api_quota_payload", fake_api_quota_payload)
+
+    payload = asyncio.run(
+        api_observability_service.build_ops_dashboard_payload(
+            lambda _limit: [],
+            lambda _limit: [],
+            task_queue=object(),
+        )
+    )
+
+    assert payload["status"] == "warning"
+    assert payload["queue"]["available"] is True
+    assert payload["jobs"] == {"active_count": 0}
+    assert payload["providers"]["selected_window"] == "last_24h"
+    assert payload["api_quotas"] == {"services": [{"service": "alpha_vantage"}]}
+    assert payload["notification_delivery"]["health"] == "ok"
+
+
+def test_ops_dashboard_malformed_job_sections_fall_back_to_empty_sections(monkeypatch):
+    class BrokenJobSection:
+        def __iter__(self):
+            raise RuntimeError("ops dashboard nested job section unavailable")
+
+    monkeypatch.setattr(
+        api_observability_service,
+        "build_ops_dashboard_snapshot",
+        lambda **_kwargs: {
+            "jobs": BrokenJobSection(),
+            "job_latency": BrokenJobSection(),
+            "stuck_jobs": BrokenJobSection(),
+            "node_telemetry": BrokenJobSection(),
+            "model_route_budget": BrokenJobSection(),
+        },
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "snapshot_task_queue",
+        lambda _task_queue: {"backend": "rq", "available": True, "queue_name": "stock-analysis", "depth": 0},
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "get_delivery_audit_summary",
+        lambda: {
+            "total_count": 1,
+            "sent_count": 1,
+            "failed_count": 0,
+            "pending_count": 0,
+            "retry_exhausted_count": 0,
+            "channel_counts": {"local": 1},
+        },
+        raising=False,
+    )
+
+    async def fake_provider_payload(*_args, **_kwargs):
+        return {"selected_window": "last_24h", "alerts": []}
+
+    async def fake_api_quota_payload(_summary_fetcher):
+        return {"services": [{"service": "alpha_vantage"}]}
+
+    monkeypatch.setattr(api_observability_service, "build_provider_sla_payload", fake_provider_payload)
+    monkeypatch.setattr(api_observability_service, "build_api_quota_payload", fake_api_quota_payload)
+
+    payload = asyncio.run(
+        api_observability_service.build_ops_dashboard_payload(
+            lambda _limit: [],
+            lambda _limit: [],
+            task_queue=object(),
+        )
+    )
+
+    assert payload["status"] == "ok"
+    assert payload["queue"]["available"] is True
+    assert payload["jobs"] == {}
+    assert payload["job_latency"] == {}
+    assert payload["stuck_jobs"] == {}
+    assert payload["node_telemetry"] == {}
+    assert payload["model_route_budget"] == {}
+    assert payload["providers"]["selected_window"] == "last_24h"
+    assert payload["api_quotas"] == {"services": [{"service": "alpha_vantage"}]}
+    assert payload["notification_delivery"]["health"] == "ok"
+
+
+def test_ops_dashboard_malformed_job_payload_keeps_other_sections(monkeypatch):
+    class BrokenJobPayload:
+        def __iter__(self):
+            raise RuntimeError("ops dashboard job payload mapping unavailable")
+
+    monkeypatch.setattr(api_observability_service, "build_ops_dashboard_snapshot", lambda **_kwargs: BrokenJobPayload())
+    monkeypatch.setattr(
+        api_observability_service,
+        "snapshot_task_queue",
+        lambda _task_queue: {"backend": "rq", "available": True, "queue_name": "stock-analysis", "depth": 0},
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "get_delivery_audit_summary",
+        lambda: {
+            "total_count": 1,
+            "sent_count": 1,
+            "failed_count": 0,
+            "pending_count": 0,
+            "retry_exhausted_count": 0,
+            "channel_counts": {"local": 1},
+        },
+        raising=False,
+    )
+
+    async def fake_provider_payload(*_args, **_kwargs):
+        return {"selected_window": "last_24h", "alerts": []}
+
+    async def fake_api_quota_payload(_summary_fetcher):
+        return {"services": [{"service": "alpha_vantage"}]}
+
+    monkeypatch.setattr(api_observability_service, "build_provider_sla_payload", fake_provider_payload)
+    monkeypatch.setattr(api_observability_service, "build_api_quota_payload", fake_api_quota_payload)
+
+    payload = asyncio.run(
+        api_observability_service.build_ops_dashboard_payload(
+            lambda _limit: [],
+            lambda _limit: [],
+            task_queue=object(),
+        )
+    )
+
+    assert payload["status"] == "warning"
+    assert payload["queue"]["available"] is True
+    assert payload["jobs"] == {}
+    assert payload["job_latency"] == {}
+    assert payload["stuck_jobs"] == {}
+    assert payload["node_telemetry"] == {}
+    assert payload["model_route_budget"] == {}
+    assert payload["providers"]["selected_window"] == "last_24h"
+    assert payload["api_quotas"] == {"services": [{"service": "alpha_vantage"}]}
+    assert payload["notification_delivery"]["health"] == "ok"
+
+
+def test_ops_dashboard_malformed_provider_payload_keeps_other_sections(monkeypatch):
+    class BrokenProviderPayload:
+        def __iter__(self):
+            raise RuntimeError("ops dashboard provider payload mapping unavailable")
+
+    monkeypatch.setattr(
+        api_observability_service,
+        "build_ops_dashboard_snapshot",
+        lambda **_kwargs: {
+            "jobs": {"active_count": 0},
+            "job_latency": {"p95_seconds": 1.5},
+            "stuck_jobs": {"count": 0, "jobs": []},
+            "node_telemetry": {"nodes": {}},
+            "model_route_budget": {"warnings": []},
+        },
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "snapshot_task_queue",
+        lambda _task_queue: {"backend": "rq", "available": True, "queue_name": "stock-analysis", "depth": 0},
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "get_delivery_audit_summary",
+        lambda: {
+            "total_count": 1,
+            "sent_count": 1,
+            "failed_count": 0,
+            "pending_count": 0,
+            "retry_exhausted_count": 0,
+            "channel_counts": {"local": 1},
+        },
+        raising=False,
+    )
+
+    async def malformed_provider_payload(*_args, **_kwargs):
+        return BrokenProviderPayload()
+
+    async def fake_api_quota_payload(_summary_fetcher):
+        return {"services": [{"service": "alpha_vantage"}]}
+
+    monkeypatch.setattr(api_observability_service, "build_provider_sla_payload", malformed_provider_payload)
+    monkeypatch.setattr(api_observability_service, "build_api_quota_payload", fake_api_quota_payload)
+
+    payload = asyncio.run(
+        api_observability_service.build_ops_dashboard_payload(
+            lambda _limit: [],
+            lambda _limit: [],
+            task_queue=object(),
+        )
+    )
+
+    assert payload["status"] == "ok"
+    assert payload["queue"]["available"] is True
+    assert payload["jobs"] == {"active_count": 0}
+    assert payload["job_latency"] == {"p95_seconds": 1.5}
+    assert payload["providers"]["selected_window"] == "last_24h"
+    assert payload["providers"]["alert_count"] == 0
+    assert payload["providers"]["alerts"] == []
+    assert payload["api_quotas"] == {"services": [{"service": "alpha_vantage"}]}
+    assert payload["notification_delivery"]["health"] == "ok"
+
+
+def test_ops_dashboard_provider_selected_window_uses_string_safe_output(monkeypatch):
+    class ProviderWindowWithBrokenTruthiness:
+        def __bool__(self):
+            raise RuntimeError("ops dashboard provider selected window truthiness unavailable")
+
+        def __str__(self):
+            return "last_24h"
+
+    monkeypatch.setattr(
+        api_observability_service,
+        "build_ops_dashboard_snapshot",
+        lambda **_kwargs: {
+            "jobs": {"active_count": 0},
+            "job_latency": {"p95_seconds": 1.5},
+            "stuck_jobs": {"count": 0, "jobs": []},
+            "node_telemetry": {"nodes": {}},
+            "model_route_budget": {"warnings": []},
+        },
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "snapshot_task_queue",
+        lambda _task_queue: {"backend": "rq", "available": True, "queue_name": "stock-analysis", "depth": 0},
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "get_delivery_audit_summary",
+        lambda: {
+            "total_count": 1,
+            "sent_count": 1,
+            "failed_count": 0,
+            "pending_count": 0,
+            "retry_exhausted_count": 0,
+            "channel_counts": {"local": 1},
+        },
+        raising=False,
+    )
+
+    async def malformed_provider_window(*_args, **_kwargs):
+        return {"selected_window": ProviderWindowWithBrokenTruthiness(), "alerts": []}
+
+    async def fake_api_quota_payload(_summary_fetcher):
+        return {"services": [{"service": "alpha_vantage"}]}
+
+    monkeypatch.setattr(api_observability_service, "build_provider_sla_payload", malformed_provider_window)
+    monkeypatch.setattr(api_observability_service, "build_api_quota_payload", fake_api_quota_payload)
+
+    payload = asyncio.run(
+        api_observability_service.build_ops_dashboard_payload(
+            lambda _limit: [],
+            lambda _limit: [],
+            task_queue=object(),
+        )
+    )
+
+    assert payload["status"] == "ok"
+    assert payload["queue"]["available"] is True
+    assert payload["providers"]["selected_window"] == "last_24h"
+    assert payload["providers"]["alerts"] == []
+    assert payload["api_quotas"] == {"services": [{"service": "alpha_vantage"}]}
+    assert payload["notification_delivery"]["health"] == "ok"
+
+
+def test_ops_dashboard_malformed_provider_alerts_keep_other_sections(monkeypatch):
+    class BrokenProviderAlerts:
+        def __iter__(self):
+            raise RuntimeError("ops dashboard provider alerts unavailable")
+
+    monkeypatch.setattr(
+        api_observability_service,
+        "build_ops_dashboard_snapshot",
+        lambda **_kwargs: {
+            "jobs": {"active_count": 0},
+            "job_latency": {"p95_seconds": 1.5},
+            "stuck_jobs": {"count": 0, "jobs": []},
+            "node_telemetry": {"nodes": {}},
+            "model_route_budget": {"warnings": []},
+        },
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "snapshot_task_queue",
+        lambda _task_queue: {"backend": "rq", "available": True, "queue_name": "stock-analysis", "depth": 0},
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "get_delivery_audit_summary",
+        lambda: {
+            "total_count": 1,
+            "sent_count": 1,
+            "failed_count": 0,
+            "pending_count": 0,
+            "retry_exhausted_count": 0,
+            "channel_counts": {"local": 1},
+        },
+        raising=False,
+    )
+
+    async def malformed_provider_payload(*_args, **_kwargs):
+        return {"selected_window": "last_24h", "alerts": BrokenProviderAlerts()}
+
+    async def fake_api_quota_payload(_summary_fetcher):
+        return {"services": [{"service": "alpha_vantage"}]}
+
+    monkeypatch.setattr(api_observability_service, "build_provider_sla_payload", malformed_provider_payload)
+    monkeypatch.setattr(api_observability_service, "build_api_quota_payload", fake_api_quota_payload)
+
+    payload = asyncio.run(
+        api_observability_service.build_ops_dashboard_payload(
+            lambda _limit: [],
+            lambda _limit: [],
+            task_queue=object(),
+        )
+    )
+
+    assert payload["status"] == "ok"
+    assert payload["queue"]["available"] is True
+    assert payload["jobs"] == {"active_count": 0}
+    assert payload["providers"]["selected_window"] == "last_24h"
+    assert payload["providers"]["alert_count"] == 0
+    assert payload["providers"]["alerts"] == []
+    assert payload["api_quotas"] == {"services": [{"service": "alpha_vantage"}]}
+    assert payload["notification_delivery"]["health"] == "ok"
+
+
 def test_ops_dashboard_keeps_core_provider_critical_as_critical(monkeypatch):
     monkeypatch.setattr(
         api_observability_service,
@@ -653,6 +3150,293 @@ def test_ops_dashboard_keeps_core_provider_critical_as_critical(monkeypatch):
     assert payload["providers"]["core_critical_count"] == 1
     assert payload["providers"]["enrichment_critical_count"] == 0
     assert payload["providers"]["alerts"][0]["impact"] == "core"
+
+
+def test_ops_dashboard_provider_alert_source_truthiness_does_not_break_payload(monkeypatch):
+    class CoreSourceWithBrokenTruthiness:
+        def __bool__(self):
+            raise RuntimeError("ops dashboard provider alert source truthiness unavailable")
+
+        def __str__(self):
+            return "market_data"
+
+    monkeypatch.setattr(
+        api_observability_service,
+        "build_ops_dashboard_snapshot",
+        lambda **_kwargs: {
+            "jobs": {"active_count": 0},
+            "job_latency": {},
+            "stuck_jobs": {"count": 0, "jobs": []},
+            "node_telemetry": {},
+            "model_route_budget": {},
+        },
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "snapshot_task_queue",
+        lambda _task_queue: {"backend": "rq", "available": True, "queue_name": "stock-analysis", "depth": 0},
+    )
+
+    async def fake_provider_payload(*_args, **_kwargs):
+        return {
+            "selected_window": "last_24h",
+            "alerts": [
+                {
+                    "source": CoreSourceWithBrokenTruthiness(),
+                    "provider": "yfinance",
+                    "alert_level": "critical",
+                    "alert_message": "yfinance last_24h資料取得率偏低",
+                }
+            ],
+        }
+
+    async def fake_api_quota_payload(_summary_fetcher):
+        return {"services": [{"service": "alpha_vantage"}]}
+
+    monkeypatch.setattr(api_observability_service, "build_provider_sla_payload", fake_provider_payload)
+    monkeypatch.setattr(api_observability_service, "build_api_quota_payload", fake_api_quota_payload)
+
+    payload = asyncio.run(
+        api_observability_service.build_ops_dashboard_payload(
+            lambda _limit: [],
+            lambda _limit: [],
+            task_queue=object(),
+        )
+    )
+
+    assert payload["status"] == "critical"
+    assert payload["queue"]["available"] is True
+    assert payload["providers"]["core_critical_count"] == 1
+    assert payload["providers"]["enrichment_critical_count"] == 0
+    assert payload["providers"]["alerts"][0]["impact"] == "core"
+    assert payload["api_quotas"] == {"services": [{"service": "alpha_vantage"}]}
+
+
+def test_ops_dashboard_provider_alert_level_comparison_does_not_break_payload(monkeypatch):
+    class CriticalAlertLevelWithBrokenComparison:
+        def __eq__(self, _other):
+            raise RuntimeError("ops dashboard provider alert level comparison unavailable")
+
+        def __str__(self):
+            return "critical"
+
+    monkeypatch.setattr(
+        api_observability_service,
+        "build_ops_dashboard_snapshot",
+        lambda **_kwargs: {
+            "jobs": {"active_count": 0},
+            "job_latency": {},
+            "stuck_jobs": {"count": 0, "jobs": []},
+            "node_telemetry": {},
+            "model_route_budget": {},
+        },
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "snapshot_task_queue",
+        lambda _task_queue: {"backend": "rq", "available": True, "queue_name": "stock-analysis", "depth": 0},
+    )
+
+    async def fake_provider_payload(*_args, **_kwargs):
+        return {
+            "selected_window": "last_24h",
+            "alerts": [
+                {
+                    "source": "market_data",
+                    "provider": "yfinance",
+                    "alert_level": CriticalAlertLevelWithBrokenComparison(),
+                    "alert_message": "yfinance last_24h資料取得率偏低",
+                }
+            ],
+        }
+
+    async def fake_api_quota_payload(_summary_fetcher):
+        return {"services": [{"service": "alpha_vantage"}]}
+
+    monkeypatch.setattr(api_observability_service, "build_provider_sla_payload", fake_provider_payload)
+    monkeypatch.setattr(api_observability_service, "build_api_quota_payload", fake_api_quota_payload)
+
+    payload = asyncio.run(
+        api_observability_service.build_ops_dashboard_payload(
+            lambda _limit: [],
+            lambda _limit: [],
+            task_queue=object(),
+        )
+    )
+
+    assert payload["status"] == "critical"
+    assert payload["queue"]["available"] is True
+    assert payload["providers"]["critical_count"] == 1
+    assert payload["providers"]["core_critical_count"] == 1
+    assert payload["providers"]["alerts"][0]["alert_level"] == "critical"
+    assert payload["api_quotas"] == {"services": [{"service": "alpha_vantage"}]}
+
+
+def test_ops_dashboard_provider_alert_success_rate_uses_finite_output_conversion(monkeypatch):
+    monkeypatch.setattr(
+        api_observability_service,
+        "build_ops_dashboard_snapshot",
+        lambda **_kwargs: {
+            "jobs": {"active_count": 0},
+            "job_latency": {},
+            "stuck_jobs": {"count": 0, "jobs": []},
+            "node_telemetry": {},
+            "model_route_budget": {},
+        },
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "snapshot_task_queue",
+        lambda _task_queue: {"backend": "rq", "available": True, "queue_name": "stock-analysis", "depth": 0},
+    )
+
+    async def fake_provider_payload(*_args, **_kwargs):
+        return {
+            "selected_window": "last_24h",
+            "alerts": [
+                {
+                    "source": "market_data",
+                    "provider": "yfinance",
+                    "alert_level": "warning",
+                    "alert_message": "yfinance last_24h資料取得率偏低",
+                    "success_rate": float("inf"),
+                },
+                {
+                    "source": "news",
+                    "provider": "search",
+                    "alert_level": "warning",
+                    "alert_message": "search last_24h資料取得率偏低",
+                    "success_rate": float("nan"),
+                },
+            ],
+        }
+
+    async def fake_api_quota_payload(_summary_fetcher):
+        return {"services": [{"service": "alpha_vantage"}]}
+
+    monkeypatch.setattr(api_observability_service, "build_provider_sla_payload", fake_provider_payload)
+    monkeypatch.setattr(api_observability_service, "build_api_quota_payload", fake_api_quota_payload)
+
+    payload = asyncio.run(
+        api_observability_service.build_ops_dashboard_payload(
+            lambda _limit: [],
+            lambda _limit: [],
+            task_queue=object(),
+        )
+    )
+
+    assert payload["status"] == "warning"
+    assert payload["queue"]["available"] is True
+    assert [alert["success_rate"] for alert in payload["providers"]["alerts"]] == [0.0, 0.0]
+    assert payload["providers"]["warning_count"] == 2
+    assert payload["api_quotas"] == {"services": [{"service": "alpha_vantage"}]}
+
+
+def test_ops_dashboard_provider_alert_text_fields_use_safe_output_conversion(monkeypatch):
+    class BrokenTruthText:
+        def __init__(self, value):
+            self.value = value
+
+        def __bool__(self):
+            raise RuntimeError("ops dashboard provider alert text truthiness unavailable")
+
+        def __str__(self):
+            return self.value
+
+    class BrokenWindows:
+        def __iter__(self):
+            raise RuntimeError("ops dashboard provider alert windows unavailable")
+
+    monkeypatch.setattr(
+        api_observability_service,
+        "build_ops_dashboard_snapshot",
+        lambda **_kwargs: {
+            "jobs": {"active_count": 0},
+            "job_latency": {},
+            "stuck_jobs": {"count": 0, "jobs": []},
+            "node_telemetry": {},
+            "model_route_budget": {},
+        },
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "snapshot_task_queue",
+        lambda _task_queue: {"backend": "rq", "available": True, "queue_name": "stock-analysis", "depth": 0},
+    )
+
+    async def fake_provider_payload(*_args, **_kwargs):
+        return {
+            "selected_window": "last_24h",
+            "alerts": [{
+                "source": BrokenTruthText(" market_data "),
+                "provider": BrokenTruthText(" yfinance "),
+                "alert_level": "warning",
+                "alert_message": BrokenTruthText(" provider stale "),
+                "success_rate": 0.5,
+                "last_status": BrokenTruthText(" error "),
+                "alert_basis": BrokenTruthText(" last_24h "),
+                "selected_window": BrokenTruthText(" last_24h "),
+                "windows": BrokenWindows(),
+            }],
+        }
+
+    async def fake_api_quota_payload(_summary_fetcher):
+        return {"services": [{"service": "alpha_vantage"}]}
+
+    monkeypatch.setattr(api_observability_service, "build_provider_sla_payload", fake_provider_payload)
+    monkeypatch.setattr(api_observability_service, "build_api_quota_payload", fake_api_quota_payload)
+
+    payload = asyncio.run(
+        api_observability_service.build_ops_dashboard_payload(
+            lambda _limit: [],
+            lambda _limit: [],
+            task_queue=object(),
+        )
+    )
+
+    assert payload["status"] == "warning"
+    assert payload["providers"]["alerts"][0] == {
+        "source": "market_data",
+        "provider": "yfinance",
+        "alert_level": "warning",
+        "alert_message": "provider stale",
+        "success_rate": 0.5,
+        "last_status": "error",
+        "alert_basis": "last_24h",
+        "selected_window": "last_24h",
+        "windows": {},
+        "impact": "core",
+    }
+    assert payload["jobs"] == {"active_count": 0}
+    assert payload["api_quotas"] == {"services": [{"service": "alpha_vantage"}]}
+
+
+def test_provider_sla_dashboard_alert_payload_ignores_mapping_get_failures():
+    class BrokenGetDict(dict):
+        def get(self, *_args, **_kwargs):
+            raise RuntimeError("provider alert get accessor unavailable")
+
+    payload = provider_sla_observability.dashboard_provider_alert_payload(
+        BrokenGetDict(
+            {
+                "source": "market_data",
+                "provider": "yfinance",
+                "alert_level": "critical",
+                "alert_message": "source unavailable",
+                "success_rate": 0.25,
+                "last_status": "error",
+                "alert_basis": "last_24h",
+                "selected_window": "last_24h",
+                "windows": {"last_24h": {"attempts": 4, "success_rate": 0.25}},
+            }
+        ),
+        core_sources={"market_data"},
+    )
+
+    assert payload["impact"] == "core"
+    assert payload["provider"] == "yfinance"
+    assert payload["alert_level"] == "critical"
+    assert payload["windows"]["last_24h"]["attempts"] == 4
 
 
 def test_ops_dashboard_legacy_alias(monkeypatch):

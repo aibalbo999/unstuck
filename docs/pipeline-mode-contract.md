@@ -1,16 +1,24 @@
 # 前後端模式契約
 
-更新時間：2026-07-05
+更新時間：2026-07-11
 
 本文件是股票研究系統的模式對照基準，用來檢查前端選項、後端 pipeline、報告模板與使用者決策是否一致。若修改 `backend/pipeline_modes.py`、`backend/reporting/mode_templates.py` 或 `backend/static/ui_helpers.js`，必須同步檢查本文件與對應測試。
 
 ## 契約邊界
 
 - 後端執行來源：`backend/pipeline_modes.py`
+- Runtime 顯示 catalog：`backend/pipeline_mode_catalog.py`，唯讀 API 為 `/api/pipeline-modes`
 - 報告模板來源：`backend/reporting/mode_templates.py`
-- 前端顯示來源：`backend/static/ui_helpers.js`
-- 驗證測試：`tests/test_report_mode_templates.py`、`tests/test_static_history_filters.py`
+- 前端初始 fallback：`backend/static/pipeline_mode_fallback.js`，由 `scripts/generate_pipeline_mode_fallback.py` 產生
+- fallback CI 閘門：`scripts/generate_pipeline_mode_fallback.py --check`
+- 前端模式 helper：`backend/static/ui_helpers.js`
+- 前端 runtime merge：`backend/static/pipeline_mode_catalog.js`
+- 驗證測試：`tests/test_report_mode_templates.py`、`tests/test_static_history_filters.py`、`tests/test_pipeline_mode_catalog.py`、`tests/test_pipeline_mode_metadata_sync.py`
 - 文件與新整合範例一律使用 canonical pipeline ids：`v1` / `v2` / `v3` / `v4`。`mode_a`、`mode_b` 等 alias 只保留作為後端相容輸入，不應出現在新文件範例。
+
+## 前後端模式漂移閘門
+
+執行語意仍由 `backend/pipeline_modes.py` 維護，使用者可見的完整模式 catalog 則由 `backend/pipeline_mode_catalog.py` 組裝並透過 `/api/pipeline-modes` 提供。前端依序載入 generated `pipeline_mode_fallback.js`、`ui_helpers.js` 與 `pipeline_mode_catalog.js` 的 runtime merge：API 成功時採用 canonical catalog，API 失敗時保留可用的初始選項，不阻擋首頁操作。`tests/test_pipeline_mode_catalog.py` 驗證後端 catalog、generator/CI check 與 API，`tests/test_pipeline_mode_metadata_sync.py` 驗證生成 fallback、runtime merge，以及前後端已知欄位的漂移。這是 drift guard 加上 runtime canonical source 與可逆的 generated fallback，不把 API 或 fallback 任一層誤寫成完全消除所有來源的 single source。舊版 drift guard 曾記錄「仍需設計 API 或 build-time catalog」；本輪已完成 runtime API 與 build-time artifact，剩餘工作是持續維護生成命令與新增模式的 schema 相容性。
 
 ## 模式選擇速記
 
@@ -39,7 +47,7 @@
 
 先問三題：
 
-1. 有沒有改 `[投資建議]`、prompt、parser regex 或 template decision heading？
+1. 有沒有改 `[投資建議]`、prompt、parser regex、`content_credibility` 或 template decision heading？
 2. 有沒有改完整報告正文、Markdown/HTML 標題或 template 顯示文案？
 3. 是不是只改前端 filter、preview、compare 或 rerun CTA？
 
@@ -47,9 +55,24 @@
 
 | 通道 | 進入條件 | 最小測試命令 | 判讀 |
 |---|---|---|---|
-| 高顯著性機器契約通道 | 改 `[投資建議]`、`[/投資建議]`、`最終投資建議`、prompt、parser regex 或 template decision heading。 | `$(scripts/project_python.sh) -m pytest tests/test_report_preview.py tests/test_report_conformance.py tests/test_audit_rules.py tests/test_prompt_context_routing.py -q` | 綠燈代表核心機器契約未被已知測試打破；不得解讀為所有生成報告語意安全。 |
+| 高顯著性機器契約通道 | 改 `[投資建議]`、`[/投資建議]`、`最終投資建議`、prompt、parser regex、`content_credibility` 或 template decision heading。 | `$(scripts/project_python.sh) -m pytest tests/test_content_credibility.py tests/test_report_preview.py tests/test_report_conformance.py tests/test_audit_rules.py tests/test_prompt_context_routing.py -q` | 綠燈代表核心機器契約未被已知測試打破；不得解讀為所有生成報告語意安全。 |
 | 混合層報告呈現通道 | 改完整報告正文、Markdown/HTML 標題或 template 顯示文案，且使用者會直接閱讀。 | `$(scripts/project_python.sh) -m pytest tests/test_report_mode_templates.py tests/test_report_storage_integration.py tests/test_frontend_http_e2e.py -q` | 綠燈代表目前模板、儲存與 preview 路徑未回退；仍需人工檢查語氣是否降低權威感。 |
 | 低顯著性顯示層通道 | 只改前端 filter、preview、compare 或 rerun CTA，且不碰 parser/template。 | `$(scripts/project_python.sh) -m pytest tests/test_static_history_filters.py tests/test_frontend_visual_optional.py -q` | 綠燈代表前端入口文字契約未回退；不得支持 parser、prompt 或 report template 契約詞替換。 |
+
+## Quality Signal 與 Repair Queue CI Lane Map
+
+P0/P1 系統優化後，報告品質不只由模式模板決定，也由 `content_credibility`、`report_conformance`、`evidence_exit_gate`、`data_trust`、`decision_freshness`、`report_quality_repair_queue`、`provider_impact`、`outcome_calibration`、`model_route_budget`、`notification_delivery` 與 `daily_decision_queue` 共同決定。任何修改若碰到這些 quality signal 或 operator queue，必須依風險選測試 lane，不得用單一綠燈外推整個報告系統安全。
+
+| 修改類型 | 影響的契約 | 測試 lane | 判讀限制 |
+|---|---|---|---|
+| Report content quality gate：改 `content_credibility`、`report_conformance`、`evidence_exit_gate`、報告 renderer 或 conformance 規則。 | 報告是否可被採用、是否需要人工審核、是否能進入 repair queue。 | `$(scripts/project_python.sh) -m pytest tests/test_content_credibility.py tests/test_report_conformance.py tests/test_report_quality_repair_queue.py tests/test_docs_contract.py -q` | 綠燈只代表既有品質 gate contract 未回退，不代表所有生成報告內容都正確。 |
+| Repair / provider impact lane：改 `report_quality_repair_queue`、`provider_impact`、`data_trust.reason_codes` 或 provider SLA impact mapping。 | blocked report、wait provider recovery、rerun/refresh action 的排序與阻擋條件。 | `$(scripts/project_python.sh) -m pytest tests/test_report_quality_repair_queue.py tests/test_provider_impact.py tests/test_daily_decision_dashboard.py -q` | provider warning 不等於 provider billing truth；核心/補充來源必須分開判讀。 |
+| Outcome calibration lane：改 `outcome_calibration`、decision backtest detail mapping、miss attribution 或 quality signal join。 | backtest miss 如何歸因到 data quality、insufficient evidence、thesis error、timing error 或 unknown。 | `$(scripts/project_python.sh) -m pytest tests/test_outcome_calibration.py tests/test_daily_decision_dashboard.py tests/test_decision_tracking_workflow.py -q` | 回測綠燈不代表投資策略有效，只代表 attribution 與 payload contract 未回退。 |
+| Model route / cost observability lane：改 `model_route_budget`、job telemetry、cache hit、retry storm 或 route warning。 | model/pipeline route 的 latency、retry、billable tokens 與 operator warning。 | `$(scripts/project_python.sh) -m pytest tests/test_model_route_budget.py tests/test_runtime_observability.py tests/test_import_boundaries.py::test_backend_python_modules_stay_split_below_threshold -q` | 沒有 verified price table 時，`estimated_cost_usd` 必須維持 null；不得填假精準成本。 |
+| Daily decision queue lane：改 `daily_decision_queue`、`daily_decision_dashboard`、watchlist daily dashboard route、`notification_delivery` queue action 或 `actions` 相容 payload。 | blocked repair、provider wait、notification delivery repair、due backtest、rerun、model route warning、watchlist 與 screener 的每日排序。 | `$(scripts/project_python.sh) -m pytest tests/test_daily_decision_queue.py tests/test_daily_decision_dashboard.py tests/test_free_notification_plan.py tests/test_watchlist_service.py tests/test_decision_tracking_workflow.py -q` | top 5 只代表當日操作順序，不代表其他 secondary items 不重要；notification delivery repair 必須保持 `suppress_notification`，避免用壞掉的外部通道通知外部通道故障。 |
+| Runtime/storage lane：改 `runtime_paths`、report artifact locator、report storage helper、decision tracking store 或 operational DB wiring。 | current state 是否仍來自 canonical DB，report artifact 是否仍透過 locator/storage helper 查找。 | `$(scripts/project_python.sh) -m pytest tests/test_runtime_paths.py tests/test_report_artifacts.py tests/test_import_boundaries.py -q` | 不得使用 `backend/cache/decision_tracking.sqlite3` 驗證 current state；不得手拼 `backend/output/<filename>`。 |
+
+若一個 patch 同時碰到兩個以上 lane，必須跑所有相關 lane。若只改文件，至少跑 `tests/test_docs_contract.py`；若文件列出命令，文件命令必須與實際測試檔名一致。
 
 ## 契約矩陣操作流程
 
@@ -64,7 +87,7 @@
 
 | 情境 | 判斷方式 | 建議通道 |
 |---|---|---|
-| 情境 A：調整 parser、prompt 或 decision heading | 只要影響 `[投資建議]`、report conformance、prompt routing 或 template decision heading，就視為機器契約變更。 | 高顯著性機器契約通道 |
+| 情境 A：調整 parser、prompt、content credibility 或 decision heading | 只要影響 `[投資建議]`、content credibility、report conformance、prompt routing 或 template decision heading，就視為機器契約變更。 | 高顯著性機器契約通道 |
 | 情境 B：改完整報告模板或正文標題 | 使用者會直接閱讀，且 report storage、mode template 或 HTTP preview 可能受影響。 | 混合層報告呈現通道 |
 | 情境 C：只改前端顯示文案 | 只在 filter、preview、compare、rerun CTA 顯示，且不被 parser 或 template 讀取。 | 低顯著性顯示層通道 |
 

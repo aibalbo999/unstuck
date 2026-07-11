@@ -56,6 +56,7 @@ def _write_snapshot(
     status: str,
     evidence_exit_gate: dict | None = None,
     report_conformance: dict | None = None,
+    content_credibility: dict | None = None,
 ):
     snapshot = {
         "snapshot_schema_version": 3,
@@ -94,6 +95,8 @@ def _write_snapshot(
         snapshot["evidence_exit_gate"] = evidence_exit_gate
     if report_conformance is not None:
         snapshot["report_conformance"] = report_conformance
+    if content_credibility is not None:
+        snapshot["content_credibility"] = content_credibility
     (output_dir / filename.replace(".html", ".data.json")).write_text(
         json.dumps(snapshot, ensure_ascii=False),
         encoding="utf-8",
@@ -114,6 +117,7 @@ def test_frontend_shell_static_assets_and_report_history_flow(tmp_path, monkeypa
 
     shell = client.get("/")
     assert shell.status_code == 200
+    assert "/static/pipeline_mode_fallback.js" in shell.text
     assert "/static/ui_helpers.js" in shell.text
     assert "/static/api_client.js" in shell.text
     assert "/static/home_tabs.js" in shell.text
@@ -125,10 +129,26 @@ def test_frontend_shell_static_assets_and_report_history_flow(tmp_path, monkeypa
     assert "/static/styles/preview_panel.css" in style.text
     for asset in (
         "/static/styles/base.css",
+        "/static/styles/history_shell_tabs.css",
+        "/static/styles/history_shell_commercial.css",
         "/static/styles/history_list.css",
         "/static/styles/preview_panel.css",
+        "/static/styles/stock_snapshot_overview_trend.css",
+        "/static/styles/stock_snapshot_overview_performance.css",
+        "/static/styles/stock_snapshot_overview_technical.css",
+        "/static/styles/stock_snapshot_research_analyst.css",
+        "/static/styles/stock_snapshot_signal_dividend.css",
+        "/static/styles/stock_snapshot_signal_events.css",
+        "/static/styles/stock_snapshot_core_peer_ownership.css",
+        "/static/styles/stock_snapshot_responsive_headers.css",
+        "/static/styles/stock_snapshot_responsive_mobile.css",
+        "/static/pipeline_mode_fallback.js",
         "/static/ui_helpers.js",
         "/static/api_client.js",
+        "/static/report_quality_gate_policy.js",
+        "/static/report_quality_policy.js",
+        "/static/history_panel_quality_helpers.js",
+        "/static/operator_summary_quality_helpers.js",
         "/static/home_tabs.js",
         "/static/app.js",
     ):
@@ -313,11 +333,57 @@ def test_report_history_exposes_report_conformance_for_operator_actions(tmp_path
     assert report["report_conformance"]["blocking_issues"][0]["id"] == "required_visibility"
 
 
+def test_report_history_exposes_content_credibility_for_repair_queue(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.sqlite3"))
+    filename = "2449_v2_report_20260606_050000.html"
+    _write_report_pair(tmp_path, filename, "買入")
+    _write_snapshot(
+        tmp_path,
+        filename,
+        "fresh",
+        content_credibility={
+            "status": "blocked",
+            "summary": "買入建議與主要目標價矛盾。",
+            "blocking_issues": [{"id": "buy_target_below_current_price"}],
+        },
+    )
+
+    client = TestClient(api.app)
+    response = client.get("/api/reports", params={"limit": 20})
+
+    assert response.status_code == 200
+    report = response.json()["reports"][0]
+    assert report["filename"] == filename
+    assert report["content_credibility"]["status"] == "blocked"
+    assert report["content_credibility"]["blocking_issues"][0]["id"] == "buy_target_below_current_price"
+
+
 def test_static_css_modules_keep_expected_component_selectors():
     selectors = {
-        STATIC_DIR / "styles" / "history_list.css": [".history-item", ".history-pagination", ".data-trust-badge", ".data-trust-reason", ".history-tracking"],
-        STATIC_DIR / "styles" / "provider_sla.css": [".provider-sla-panel", ".provider-sla-chip", ".maintenance-actions"],
-        STATIC_DIR / "styles" / "preview_panel.css": [".report-preview", ".preview-open-button", ".preview-tracking"],
+        STATIC_DIR / "styles" / "history_shell.css": [".history-section", ".history-title"],
+        STATIC_DIR / "styles" / "history_shell_tabs.css": [".home-tabs", ".home-tab-button", ".home-tab-panel[hidden]"],
+        STATIC_DIR / "styles" / "history_shell_commercial.css": [".commercial-entry-launchpad", ".commercial-operator-brief", ".commercial-entry-command-row", ".commercial-entry-status-grid", ".commercial-entry-card-action"],
+        STATIC_DIR / "styles" / "history_list.css": [".history-item", ".data-trust-badge", ".data-trust-reason", ".history-tracking", ".history-action-badge"],
+        STATIC_DIR / "styles" / "history_list_controls.css": [".history-filter-select", ".history-pagination", ".delete-btn", ".pager-btn"],
+        STATIC_DIR / "styles" / "provider_sla.css": [".provider-sla-panel", ".provider-sla-chip"],
+        STATIC_DIR / "styles" / "provider_sla_controls.css": [".provider-sla-window", ".maintenance-actions", ".maintenance-button"],
+        STATIC_DIR / "styles" / "preview_panel.css": [".report-preview", ".preview-tracking"],
+        STATIC_DIR / "styles" / "preview_panel_actions.css": [".preview-open-button", ".preview-refresh-button", ".preview-rerun-button"],
+        STATIC_DIR / "styles" / "stock_snapshot_overview.css": [".stock-snapshot-company-profile", ".stock-snapshot-company-profile-grid", ".stock-snapshot-session", ".stock-snapshot-session-grid"],
+        STATIC_DIR / "styles" / "stock_snapshot_overview_trend.css": [".stock-snapshot-trend", ".stock-snapshot-trend-chart", ".stock-snapshot-trend-returns"],
+        STATIC_DIR / "styles" / "stock_snapshot_overview_performance.css": [".stock-snapshot-performance", ".stock-snapshot-performance-controls", ".stock-snapshot-performance-chart"],
+        STATIC_DIR / "styles" / "stock_snapshot_overview_technical.css": [".stock-snapshot-technical", ".stock-snapshot-technical-header", ".stock-snapshot-technical-grid"],
+        STATIC_DIR / "styles" / "stock_snapshot_research.css": [".stock-snapshot-valuation-range", ".stock-snapshot-valuation-band", ".stock-snapshot-earnings", ".stock-snapshot-earnings-grid"],
+        STATIC_DIR / "styles" / "stock_snapshot_research_analyst.css": [".stock-snapshot-analyst", ".stock-snapshot-analyst-header", ".stock-snapshot-analyst-grid"],
+        STATIC_DIR / "styles" / "stock_snapshot_signal.css": [".stock-snapshot-shares", ".stock-snapshot-risk", ".stock-snapshot-profitability"],
+        STATIC_DIR / "styles" / "stock_snapshot_signal_dividend.css": [".stock-snapshot-dividend", ".stock-snapshot-dividend-grid", ".stock-snapshot-dividend-bars"],
+        STATIC_DIR / "styles" / "stock_snapshot_signal_events.css": [".stock-snapshot-calendar", ".stock-snapshot-calendar-grid", ".stock-snapshot-alerts", ".stock-snapshot-alert-grid"],
+        STATIC_DIR / "styles" / "stock_snapshot_core.css": [".stock-snapshot-fundamentals", ".stock-snapshot-financial-trends", ".stock-snapshot-financial-trend-row"],
+        STATIC_DIR / "styles" / "stock_snapshot_core_peer_ownership.css": [".stock-snapshot-peers", ".stock-snapshot-peer-table", ".stock-snapshot-ownership", ".stock-snapshot-ownership-grid"],
+        STATIC_DIR / "styles" / "stock_snapshot_responsive_headers.css": ["@media (max-width: 760px)", ".stock-snapshot-header,", ".stock-snapshot-company-profile-header", ".stock-snapshot-alert-header"],
+        STATIC_DIR / "styles" / "stock_snapshot_responsive.css": ["@media (max-width: 760px)", ".stock-snapshot-grid", ".stock-snapshot-summary-rail", ".stock-snapshot-peer-row"],
+        STATIC_DIR / "styles" / "stock_snapshot_responsive_mobile.css": ["@media (max-width: 520px)", ".stock-snapshot-peer-table", ".stock-snapshot-financial-trend-row", ".stock-snapshot-valuation-bands"],
     }
     for path, expected in selectors.items():
         css = path.read_text(encoding="utf-8")

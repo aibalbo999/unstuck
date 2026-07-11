@@ -97,3 +97,61 @@ def test_history_preview_visual_regression_optional(tmp_path):
         if required:
             pytest.fail(f"Playwright browser is required for visual regression: {exc}")
         pytest.skip(f"Playwright browser is unavailable: {exc}")
+
+
+def test_home_workspace_grouping_visual_regression_optional(tmp_path):
+    required = os.getenv("VISUAL_REGRESSION_REQUIRED") == "1"
+    try:
+        import playwright.sync_api as sync_api
+    except ImportError as exc:
+        if required:
+            pytest.fail(f"Playwright is required for visual regression: {exc}")
+        pytest.skip(f"Playwright is unavailable: {exc}")
+
+    base_css = (STATIC_DIR / "styles" / "base.css").read_text(encoding="utf-8")
+    tabs_css = (STATIC_DIR / "styles" / "history_shell_tabs.css").read_text(encoding="utf-8")
+    responsive_css = (STATIC_DIR / "styles" / "responsive.css").read_text(encoding="utf-8")
+    html = f"""
+    <html><head><style>
+    :root {{ --glass-border: rgba(148, 163, 184, 0.3); --text-primary: #f0f4ff; --text-secondary: #8899bb; --text-muted: #6677aa; --accent: #00d4ff; }}
+    {base_css}
+    body {{ margin: 0; background: #040d1a; color: var(--text-primary); font-family: Inter, sans-serif; }}
+    {tabs_css}
+    {responsive_css}
+    </style></head><body>
+      <nav class="home-workspace-nav" aria-label="工作區導覽">
+        <section class="home-workspace-group is-analysis"><h2 class="home-workspace-label">分析工作台</h2>
+          <div class="home-tabs"><button class="home-tab-button">分析</button><button class="home-tab-button">市場掃描</button></div>
+        </section>
+        <section class="home-workspace-group is-monitoring"><h2 class="home-workspace-label">監控工作台</h2>
+          <div class="home-tabs"><button class="home-tab-button">追蹤</button><button class="home-tab-button">商業版</button><button class="home-tab-button">報告與維運</button></div>
+        </section>
+      </nav>
+    </body></html>
+    """
+
+    try:
+        with sync_api.sync_playwright() as p:
+            browser = p.chromium.launch()
+            page = browser.new_page(viewport={"width": 1280, "height": 720})
+            page.set_content(html, wait_until="load")
+            desktop_analysis = page.locator(".is-analysis").bounding_box()
+            desktop_monitoring = page.locator(".is-monitoring").bounding_box()
+            desktop_shot = page.screenshot(full_page=True)
+            assert desktop_analysis and desktop_monitoring
+            assert desktop_analysis["x"] < desktop_monitoring["x"]
+            assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+            assert len(desktop_shot) > 5_000
+
+            page.set_viewport_size({"width": 390, "height": 844})
+            page.set_content(html, wait_until="load")
+            mobile_analysis = page.locator(".is-analysis").bounding_box()
+            mobile_monitoring = page.locator(".is-monitoring").bounding_box()
+            assert mobile_analysis and mobile_monitoring
+            assert mobile_analysis["x"] == mobile_monitoring["x"]
+            assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+            browser.close()
+    except Exception as exc:
+        if required:
+            pytest.fail(f"Playwright browser is required for visual regression: {exc}")
+        pytest.skip(f"Playwright browser is unavailable: {exc}")

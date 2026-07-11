@@ -28,32 +28,32 @@ def _status(value: Any, default: str = "N/A") -> str:
 
 
 def _execution_summary_values(context: AnalysisContext, *, model_routes: str | None = None) -> dict:
-    data = context.get("data", {}) if isinstance(context.get("data"), dict) else {}
-    pipeline_def = get_pipeline_definition(context.get("pipeline_id", "v1"))
+    data = raw_data if isinstance(raw_data := dict.get(context, "data"), dict) else {}
+    pipeline_def = get_pipeline_definition(dict.get(context, "pipeline_id", "v1"))
     agent_sequence = _agent_sequence(context, pipeline_def)
-    final_audit = context.get("final_audit") if isinstance(context.get("final_audit"), dict) else {}
-    evidence_gate = context.get("evidence_exit_gate") if isinstance(context.get("evidence_exit_gate"), dict) else {}
-    report_conformance = context.get("report_conformance") if isinstance(context.get("report_conformance"), dict) else {}
-    report_lint = context.get("report_lint") if isinstance(context.get("report_lint"), dict) else {}
-    data_trust = normalize_data_trust(data.get("data_trust"))
-    structured_agents = pipeline_def.get("structured_agents") if isinstance(pipeline_def.get("structured_agents"), dict) else {}
+    final_audit = raw_final_audit if isinstance(raw_final_audit := dict.get(context, "final_audit"), dict) else {}
+    evidence_gate = raw_evidence_gate if isinstance(raw_evidence_gate := dict.get(context, "evidence_exit_gate"), dict) else {}
+    report_conformance = raw_report_conformance if isinstance(raw_report_conformance := dict.get(context, "report_conformance"), dict) else {}
+    report_lint = raw_report_lint if isinstance(raw_report_lint := dict.get(context, "report_lint"), dict) else {}
+    data_trust = normalize_data_trust(dict.get(data, "data_trust"))
+    structured_agents = raw_structured_agents if isinstance(raw_structured_agents := dict.get(pipeline_def, "structured_agents"), dict) else {}
     return {
-        "pipeline": f"V{str(pipeline_def.get('id', 'v1')).lstrip('v').upper()}",
-        "pipeline_label": pipeline_def.get("label", "N/A"),
+        "pipeline": f"V{str(dict.get(pipeline_def, 'id', 'v1')).lstrip('v').upper()}",
+        "pipeline_label": dict.get(pipeline_def, "label", "N/A"),
         "agent_count": len(agent_sequence),
         "agent_sequence": agent_sequence,
         "structured_agent_count": len(structured_agents),
-        "model_routes": model_routes or format_model_routes(pipeline_id=pipeline_def.get("id", "v1")),
-        "data_trust": trust_status_label(str(data_trust.get("status") or "unknown")),
-        "data_trust_raw": str(data_trust.get("status") or "unknown"),
-        "final_audit": _status(final_audit.get("status"), "not_recorded"),
-        "evidence_gate": _status(evidence_gate.get("verdict"), "not_recorded"),
-        "evidence_summary": _status(evidence_gate.get("summary"), ""),
-        "report_conformance": _status(report_conformance.get("status"), "not_recorded"),
-        "conformance_summary": _status(report_conformance.get("summary"), ""),
-        "report_lint": _status(report_lint.get("status"), "not_recorded"),
-        "prompt_version": _status(context.get("prompt_version"), "N/A"),
-        "model_id": _status(context.get("model_id") or context.get("decision_model_id") or context.get("final_model_id"), "N/A"),
+        "model_routes": model_routes or format_model_routes(pipeline_id=dict.get(pipeline_def, "id", "v1")),
+        "data_trust": trust_status_label(str(dict.get(data_trust, "status") or "unknown")),
+        "data_trust_raw": str(dict.get(data_trust, "status") or "unknown"),
+        "final_audit": _status(dict.get(final_audit, "status"), "not_recorded"),
+        "evidence_gate": _status(dict.get(evidence_gate, "verdict"), "not_recorded"),
+        "evidence_summary": _status(dict.get(evidence_gate, "summary"), ""),
+        "report_conformance": _status(dict.get(report_conformance, "status"), "not_recorded"),
+        "conformance_summary": _status(dict.get(report_conformance, "summary"), ""),
+        "report_lint": _status(dict.get(report_lint, "status"), "not_recorded"),
+        "prompt_version": _status(dict.get(context, "prompt_version"), "N/A"),
+        "model_id": _status(dict.get(context, "model_id") or dict.get(context, "decision_model_id") or dict.get(context, "final_model_id"), "N/A"),
     }
 
 

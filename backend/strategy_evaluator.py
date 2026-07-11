@@ -6,13 +6,14 @@ from statistics import mean
 from typing import Any
 
 from alpha_model_registry import model_for_pipeline
+from mapping_fields import safe_dict_list
 
 
 SCHEMA_VERSION = "strategy_evaluation.v1"
 
 
 def evaluate_strategy_artifacts(artifacts: list[dict[str, Any]]) -> dict[str, Any]:
-    rows = [_normalize_artifact(item) for item in artifacts if isinstance(item, dict)]
+    rows = [_normalize_artifact(item) for item in safe_dict_list(artifacts)]
     rows = [row for row in rows if row["model_id"]]
     models = _group_stats(rows, "model_id")
     triggers = _group_stats([row for row in rows if row.get("trigger_source")], "trigger_source")
@@ -32,19 +33,24 @@ def evaluate_strategy_artifacts(artifacts: list[dict[str, Any]]) -> dict[str, An
 
 
 def _normalize_artifact(item: dict[str, Any]) -> dict[str, Any]:
-    metrics = item.get("metrics") if isinstance(item.get("metrics"), dict) else item
-    model_id = str(item.get("alpha_model_id") or "").strip()
-    if not model_id and item.get("pipeline_id"):
-        model_id = model_for_pipeline(str(item.get("pipeline_id")))["id"]
-    quality = item.get("quality_funnel") if isinstance(item.get("quality_funnel"), dict) else {}
+    metrics_value = _field(item, "metrics")
+    metrics = metrics_value if isinstance(metrics_value, dict) else item
+    model_id = _text(_field(item, "alpha_model_id")).strip()
+    pipeline_id = _text(_field(item, "pipeline_id")).strip()
+    if not model_id and pipeline_id:
+        model_id = model_for_pipeline(pipeline_id)["id"]
+    quality = _dict(_field(item, "quality_funnel"))
+    quality_outcome = _text(_field(quality, "outcome")).strip().lower()
+    if not quality_outcome:
+        quality_outcome = _text(_field(item, "quality_outcome")).strip().lower()
     return {
         "model_id": model_id,
-        "trigger_source": str(item.get("trigger_source") or "").strip(),
-        "quality_outcome": str(quality.get("outcome") or item.get("quality_outcome") or "").strip().lower(),
+        "trigger_source": _text(_field(item, "trigger_source")).strip(),
+        "quality_outcome": quality_outcome,
         "hit": _is_hit(metrics),
-        "strategy_roi_pct": _number(metrics.get("strategy_roi_pct")),
-        "excess_return_pct": _number(metrics.get("excess_return_pct")),
-        "max_drawdown_pct": _number(metrics.get("max_drawdown_pct")),
+        "strategy_roi_pct": _number(_field(metrics, "strategy_roi_pct")),
+        "excess_return_pct": _number(_field(metrics, "excess_return_pct")),
+        "max_drawdown_pct": _number(_field(metrics, "max_drawdown_pct")),
     }
 
 
@@ -70,14 +76,40 @@ def _stats(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 def _is_hit(metrics: dict[str, Any]) -> bool:
     if "hit" in metrics:
-        return bool(metrics.get("hit"))
-    return str(metrics.get("outcome") or "").strip().lower() == "hit"
+        hit = _bool_or_none(_field(metrics, "hit"))
+        if hit is not None:
+            return hit
+    return _text(_field(metrics, "outcome")).strip().lower() == "hit"
+
+
+def _bool_or_none(value: Any) -> bool | None:
+    try:
+        return bool(value)
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+        return None
+
+
+def _dict(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _field(mapping: dict[str, Any], key: str, default: Any = None) -> Any:
+    if not isinstance(mapping, dict):
+        return default
+    return dict.get(mapping, key, default)
+
+
+def _text(value: Any) -> str:
+    try:
+        return "" if value is None else str(value)
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+        return ""
 
 
 def _number(value: Any) -> float | None:
     try:
         return float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
         return None
 
 

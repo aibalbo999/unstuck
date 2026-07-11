@@ -7,17 +7,29 @@ from data_trust_snapshot import set_snapshot_integrity
 from evidence_exit_gate import evaluate_report_evidence
 
 from .conformance import evaluate_report_conformance
+from .content_credibility import evaluate_content_credibility
 from .html_renderer import generate_html_report_async
 from .lint import ReportLintError, assert_report_lint_passed, scrub_structured_json_key_leaks
 from .markdown_renderer import generate_markdown_report
 from .types import ReportBundle, ReportRequest
 
 
+def _lint_blocking_labels(result: dict) -> set:
+    issues = dict.get(result, "blocking_issues", []) if isinstance(result, dict) else []
+    if not isinstance(issues, list):
+        return set()
+    return {
+        dict.get(issue, "label")
+        for issue in issues
+        if isinstance(issue, dict)
+    }
+
+
 def _lint_or_repair(html: str, markdown: str) -> tuple[str, str, dict]:
     try:
         report_lint = assert_report_lint_passed(html, markdown)
     except ReportLintError as exc:
-        labels = {issue.get("label") for issue in exc.result.get("blocking_issues", [])}
+        labels = _lint_blocking_labels(exc.result)
         if labels != {"structured_json_key_leak"}:
             raise
         html = scrub_structured_json_key_leaks(html)
@@ -42,6 +54,8 @@ class ReportRenderer:
         final_context = dict(request.context)
         final_context["report_lint"] = report_lint
         final_context["evidence_exit_gate"] = evidence_exit_gate
+        content_credibility = evaluate_content_credibility(final_context, snapshot, markdown=markdown)
+        final_context["content_credibility"] = content_credibility
         html = await generate_html_report_async(final_context)
         markdown = generate_markdown_report(final_context)
         html, markdown, report_lint = _lint_or_repair(html, markdown)
@@ -59,8 +73,10 @@ class ReportRenderer:
             snapshot=snapshot,
             report_lint=report_lint,
             evidence_exit_gate=evidence_exit_gate,
+            content_credibility=content_credibility,
         )
         final_context["report_lint"] = report_lint
+        final_context["content_credibility"] = content_credibility
         final_context["report_conformance"] = report_conformance
         html = await generate_html_report_async(final_context)
         markdown = generate_markdown_report(final_context)
@@ -73,6 +89,7 @@ class ReportRenderer:
             generated_at=request.generated_at,
         )
         snapshot["evidence_exit_gate"] = evidence_exit_gate
+        snapshot["content_credibility"] = content_credibility
         snapshot["report_conformance"] = report_conformance
         snapshot = set_snapshot_integrity(snapshot)
         metadata = {
@@ -83,6 +100,7 @@ class ReportRenderer:
             "data_trust": snapshot.get("data_trust", {}),
             "report_lint": report_lint,
             "evidence_exit_gate": evidence_exit_gate,
+            "content_credibility": content_credibility,
             "report_conformance": report_conformance,
         }
         return ReportBundle(html=html, markdown=markdown, data_snapshot=snapshot, metadata=metadata)

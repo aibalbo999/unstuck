@@ -31,6 +31,11 @@ def _conforming_artifacts():
     return html, markdown
 
 
+class BrokenConformanceGateGet(dict):
+    def get(self, key, default=None):
+        raise RuntimeError("report conformance gate get unavailable")
+
+
 def test_report_conformance_decision_tree_passes_visible_contracts():
     from reporting.conformance import evaluate_report_conformance
 
@@ -54,8 +59,68 @@ def test_report_conformance_decision_tree_passes_visible_contracts():
         "required_visibility",
         "final_audit",
         "evidence_exit_gate",
+        "content_credibility",
         "data_trust",
     ]
+
+
+def test_report_conformance_keeps_quality_gate_mappings_when_accessor_fails():
+    from reporting.conformance import evaluate_report_conformance
+
+    html, markdown = _conforming_artifacts()
+    result = evaluate_report_conformance(
+        html,
+        markdown,
+        context={
+            "data": {"data_trust": {"status": "fresh"}},
+            "final_audit": BrokenConformanceGateGet(
+                {
+                    "status": "warning",
+                    "critical": [],
+                    "warnings": [{"id": "audit_warning"}],
+                }
+            ),
+        },
+        snapshot={"data_trust": {"status": "fresh"}},
+        report_lint=BrokenConformanceGateGet(
+            {
+                "status": "warning",
+                "blocking_issues": [],
+                "warnings": [{"id": "lint_warning"}],
+            }
+        ),
+        evidence_exit_gate=BrokenConformanceGateGet(
+            {
+                "verdict": "rejected",
+                "failed_count": 1,
+            }
+        ),
+        content_credibility=BrokenConformanceGateGet(
+            {
+                "status": "blocked",
+                "blocking_issues": [{"id": "credibility_blocker"}],
+                "warnings": [],
+            }
+        ),
+    )
+
+    assert result["status"] == "blocked"
+    assert [step["status"] for step in result["decision_tree"]] == [
+        "warning",
+        "passed",
+        "warning",
+        "blocked",
+        "blocked",
+        "passed",
+    ]
+    assert {issue["id"] for issue in result["blocking_issues"]} == {
+        "evidence_exit_gate",
+        "content_credibility",
+    }
+    assert {issue["id"] for issue in result["warnings"]} == {
+        "report_lint",
+        "final_audit",
+    }
 
 
 def test_report_conformance_blocks_missing_required_visibility_and_rejected_evidence():

@@ -15,6 +15,7 @@ def build_trust_controls_html(data: dict, context: dict | None = None) -> str:
     packet = build_reproducibility_packet(ctx, trust, str(ctx.get("generated_at") or ""))
     status = "允許明確目標價" if guardrail["allowed"] else "僅允許區間或資料不足"
     providers = ", ".join(packet.get("provider_list") or []) or "N/A"
+    code_status = _code_status(packet)
     return f"""
         <div class="data-trust-controls">
             <span>資料信心分數：{escape(str(controls["data_confidence_score"]))}/100</span>
@@ -22,6 +23,7 @@ def build_trust_controls_html(data: dict, context: dict | None = None) -> str:
             <span>可重現資訊：Pipeline {escape(packet.get("pipeline_id") or "N/A")} ·
                 Model {escape(packet.get("model_id") or "unknown")} ·
                 Prompt 版本 {escape(packet.get("prompt_version") or "N/A")} ·
+                {escape(code_status)} ·
                 Provider {escape(providers)} ·
                 資料時間 {escape(packet.get("source_data_time") or "N/A")}
             </span>
@@ -37,10 +39,12 @@ def build_trust_controls_markdown(data: dict, context: dict | None = None) -> li
     packet = build_reproducibility_packet(ctx, trust, str(ctx.get("generated_at") or ""))
     status = "允許明確目標價" if guardrail["allowed"] else "僅允許區間或資料不足"
     providers = ", ".join(packet.get("provider_list") or []) or "N/A"
+    code_status = _code_status(packet)
     repro = (
         f"Pipeline {packet.get('pipeline_id') or 'N/A'}；"
         f"Model {packet.get('model_id') or 'unknown'}；"
         f"Prompt 版本 {packet.get('prompt_version') or 'N/A'}；"
+        f"{code_status}；"
         f"Provider {providers}；"
         f"資料時間 {packet.get('source_data_time') or 'N/A'}"
     )
@@ -49,6 +53,16 @@ def build_trust_controls_markdown(data: dict, context: dict | None = None) -> li
         f"- **目標價規則:** {status}",
         f"- **可重現資訊:** {repro}",
     ]
+
+
+def _code_status(packet: dict) -> str:
+    commit = str(packet.get("code_commit") or "N/A").strip()[:12] or "N/A"
+    dirty = packet.get("code_dirty")
+    if dirty is True:
+        return f"程式碼狀態：{commit}（含未提交變更）"
+    if dirty is False:
+        return f"程式碼狀態：{commit}（乾淨）"
+    return f"程式碼狀態：{commit}（工作樹狀態未知）"
 
 
 def _context_with_data(data: dict, context: dict | None) -> dict:

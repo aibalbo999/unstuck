@@ -24,6 +24,7 @@ from .evidence_matrix import build_evidence_matrix_payload
 from .execution_summary import build_execution_summary_html
 from .html_sanitizer import sanitize_report_image_url, sanitize_report_plain_text
 from .mode_templates import build_mode_template_html, get_report_template_profile
+from .reading_notice import build_report_reading_notice_html
 from .sections import build_agent_sections, build_tear_sheet_summary
 from .utils import (
     billion_twd_series_to_yi_twd,
@@ -175,6 +176,7 @@ def generate_html_report(context: AnalysisContext) -> str:
             "#d97706",
         )
     audit_banner_html = build_audit_banner_html(context)
+    report_reading_notice_html = build_report_reading_notice_html(context)
     data_trust_html = build_data_trust_html(data, context)
     model_route_summary = format_model_routes(pipeline_id=pipeline_def["id"])
     execution_summary_html = build_execution_summary_html(context, model_routes=model_route_summary)

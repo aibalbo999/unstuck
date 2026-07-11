@@ -164,14 +164,17 @@ def test_v4_markdown_uses_short_term_trade_setup():
 
 def test_v4_is_available_in_ui_history_and_report_filenames(tmp_path):
     index_html = (ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
+    pipeline_mode_fallback = (ROOT / "backend" / "static" / "pipeline_mode_fallback.js").read_text(encoding="utf-8")
     ui_helpers = (ROOT / "backend" / "static" / "ui_helpers.js").read_text(encoding="utf-8")
     app_js = (ROOT / "backend" / "static" / "app.js").read_text(encoding="utf-8")
+    app_pipeline_controls = (ROOT / "backend" / "static" / "app_pipeline_controls.js").read_text(encoding="utf-8")
 
     assert 'name="pipeline-mode" value="v4"' in index_html
     assert '<option value="v4">模式 D' in index_html
-    assert "模式 D：極短線波段與事件驅動" in ui_helpers
-    assert "開始模式 D 分析" in ui_helpers
-    assert "ui.pipelineCtaLabel(getSelectedPipeline())" in app_js
+    assert "模式 D：極短線波段與事件驅動" in pipeline_mode_fallback
+    assert "開始模式 D 分析" in pipeline_mode_fallback
+    assert "pipelineControls.getSelectedPipeline" in app_js
+    assert "ui.pipelineCtaLabel(getSelectedPipeline())" in app_pipeline_controls
     assert parse_report_filename("2330_TW_v4_report_20260620_120000.html")["pipeline_id"] == "v4"
 
     class FakeRepository:
