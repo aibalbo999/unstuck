@@ -186,3 +186,13 @@ Job cleanup keeps active `queued`, `running`, and `waiting_retry` rows. It remov
 ## Safety
 
 Mutation endpoints require `X-Mutation-Token`. The browser UI receives a same-origin runtime token automatically. Direct API clients should call `/api/client-config` first or set `MUTATION_API_TOKEN` and send that value in `X-Mutation-Token`. Avoid `X-Admin-Token`; it is a temporary legacy alias only when explicitly enabled.
+
+## Commercial Investment Workspace
+
+從首頁的「商業版」分頁進入後，依序使用三個單一任務頁面：
+
+1. **今日決策**：先看風險、過期資料與需重跑的前三項，按唯一主動作「開始檢查」進入最高優先股票。每一列股票也可直接開啟對應研究頁。
+2. **單股研究**：輸入股票代號後按「更新股票快照」。先讀結論與四個核心指標，再用「基本面、事件、技術」分頁查證；這些分頁只切換證據，不會重新送出分析。
+3. **組合健檢**：貼上含 `ticker`，以及 `weight` 或 `market_value` 的 CSV，再按「產生調整建議」。先處理最上方的三項建議，再到曝險、情境與貢獻分頁查看原因。
+
+青色按鈕是每頁唯一的下一步；頁首導覽只負責切換任務。若資料來源失敗，頁面會保留輸入並顯示可讀錯誤，不會顯示範例資料或假結果。修正代號、CSV 或服務狀態後，再按同一個主動作重試。
