@@ -629,10 +629,11 @@
 - D586：P3-480 將首頁五個平鋪 tab 收斂成「分析工作台」與「監控工作台」兩組，保留既有 panel ID/deep link 與預設商業版入口；keyboard Arrow/Home/End 改在所屬 tablist 內移動，桌面兩組並排、手機單欄，home focused `4 passed`、visual regression `3 passed`、完整 suite `1736 passed, 5 skipped`。
 - D587：P3-481 在完整 HTML/Markdown 報告正文頂部新增 `報告使用範圍與判讀限制` reading notice；它讀取既有 `data_trust`、`evidence_exit_gate`、`content_credibility`、`report_conformance`，在 gate 缺漏時保持 pending/warning，只有完整通過才顯示已通過已知檢查，並明確說明不等於即時下單訊號或投資保證；reading notice `4 passed`、高顯著性報告契約組 `250 passed`、完整 suite `1740 passed, 5 skipped`。
 - D588：P3-482 將同一個 reading boundary 推到歷史報告 preview，讓舊 artifact 或缺少品質 gate 的 snapshot 在建議數字前先顯示 pending/warning/blocked/passed 採用前提示；新增 `report_reading_boundary_policy.js`、preview DOM/CSS 與明確 app wiring，preview boundary `2 passed`、static/accessibility/size focused `4 passed`、完整 suite `1742 passed, 5 skipped`。
+- D589：P3-483 新增 `scripts/check_visual_regression.py` runtime preflight，讓 CI、直接 visual script 與 setup script 都在 visual suite 前實際 launch headless Chromium；browser 缺失時提前輸出 `scripts/setup_visual_regression.sh` 修復命令，不在 CI gate 中偷偷安裝未鎖版本套件；preflight `3 passed`、正式 CI gate `1744 passed, 4 skipped, 1 deselected`、coverage `84%`、visual regression `3 passed`。
 
 ## 未解問題
 
-- CI runner 必須先安裝 Playwright/Chromium；若環境未準備 browser dependency，視覺 gate 會明確失敗，不會將 skip 當成通過。
+- CI runner 仍需在 image/setup step 安裝 Playwright/Chromium；`check_visual_regression.py` 現在會在 coverage/visual suite 前提前失敗並列出 `scripts/setup_visual_regression.sh`，但為了可重現性不由正式 CI gate 自動安裝未鎖版本 browser dependency。
 - 後端 runtime catalog 與前端首屏 fallback 已分別由 `pipeline_mode_catalog.py` 和 generated `pipeline_mode_fallback.js` 提供，CI 會檢查兩者是否漂移；新增模式仍需維護 schema version、生成 artifact 與前端 runtime 相容性。
 - 2026-07-08 新一輪 HCS Plus 系統優化已完成 P0/P1/P2 主要工程票；尚未宣稱新一輪嚴格單項三輪巡迴完成。
 

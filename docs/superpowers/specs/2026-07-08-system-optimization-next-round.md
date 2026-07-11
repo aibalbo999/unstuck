@@ -2254,6 +2254,27 @@ $(scripts/project_python.sh) -m pytest -q
 
 驗證：preview boundary `2 passed`、static/accessibility/size focused `4 passed`；report/preview group `54 passed`、完整 static/history `135 passed`、frontend HTTP + docs/HCS `137 passed`、視覺回歸 `3 passed`；live 8080 asset/script-order/API row 驗證通過；Node syntax、`git diff --check` 通過；完整 suite `1742 passed, 5 skipped`。
 
+## P3-483 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Visual Regression Runtime Preflight`，把 browser dependency 的可用性從「visual suite 最後才知道」前移成明確、可重跑的 runtime gate；不在正式 CI 中自動安裝未鎖版本的 Playwright，避免把環境漂移藏在測試命令裡。
+
+落地檔案：
+
+- `scripts/check_visual_regression.py`：實際 import Python Playwright 並 headless launch Chromium；輸出 human-readable 或 `--json` 結果，失敗時附上 `scripts/setup_visual_regression.sh`。
+- `scripts/ci_gate.sh`：required visual lane 在執行 suite 前先做 preflight。
+- `scripts/visual_regression.sh`、`scripts/setup_visual_regression.sh`：直接執行與安裝完成後都使用相同 preflight，避免入口之間的環境判定漂移。
+- `README.md`、`tests/test_visual_regression_preflight.py`、`tests/test_static_history_filters.py`：補上命令、順序與 runtime contract。
+
+已固定的行為：
+
+1. Playwright 套件缺少或 Chromium 無法啟動時，visual lane 會在 expensive coverage/visual suite 前失敗，且列出可執行修復命令。
+2. `pytest` 的 optional visual skip 行為不變；只有 required visual lane 使用 preflight 與 fail-fast gate。
+3. setup script 安裝後立即驗證實際 browser launch；direct visual script 與 CI gate 使用同一檢查邏輯。
+
+驗證：preflight `3 passed`、正式 `CI=1 RUN_VISUAL_REGRESSION=1 scripts/ci_gate.sh` 通過（`1744 passed, 4 skipped, 1 deselected`、coverage `84%`、visual regression `3 passed`）；direct `scripts/visual_regression.sh` `3 passed`；bash syntax、`git diff --check` 通過。
+
 ## P3-475 執行紀錄
 
 執行時間：2026-07-11

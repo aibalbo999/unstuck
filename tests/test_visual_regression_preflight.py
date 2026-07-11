@@ -27,3 +27,10 @@ def test_ci_gate_runs_visual_preflight_before_required_visual_regression():
 
     assert "scripts/check_visual_regression.py" in ci_gate
     assert ci_gate.index("scripts/check_visual_regression.py") < ci_gate.index("VISUAL_REGRESSION_REQUIRED=1 scripts/visual_regression.sh")
+
+
+def test_direct_visual_regression_script_runs_the_same_preflight_before_pytest():
+    visual_script = (ROOT / "scripts" / "visual_regression.sh").read_text(encoding="utf-8")
+
+    assert "scripts/check_visual_regression.py" in visual_script
+    assert visual_script.index("scripts/check_visual_regression.py") < visual_script.index("-m pytest")
