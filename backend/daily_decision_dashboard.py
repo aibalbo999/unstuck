@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from daily_decision_queue import build_daily_decision_queue
 from free_notification_plan import build_daily_notification_plan
+from outcome_calibration import build_outcome_calibration
+from provider_impact import build_provider_impact_ledger
+from report_quality_repair_queue import build_report_quality_repair_queue
 
 
 def build_daily_decision_dashboard(
@@ -14,25 +18,51 @@ def build_daily_decision_dashboard(
     screener: dict[str, Any],
     performance: dict[str, Any],
     free_mode: dict[str, Any],
+    ops: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return the operator's next-best-action dashboard."""
     report_rows = list(reports.get("reports") or [])
     watch_items = list(watchlist.get("items") or [])
     screener_items = list(screener.get("items") or [])
-    rerun_reports = [report for report in report_rows if _report_needs_rerun(report)]
+    repair_queue = build_report_quality_repair_queue(report_rows, limit=5)
+    repair_items = list(repair_queue.get("items") or [])
+    repair_coverage = build_report_quality_repair_queue(report_rows, limit=len(report_rows))
+    repair_coverage_items = list(repair_coverage.get("items") or [])
+    direct_rerun_blocked_keys = _direct_rerun_blocked_keys(repair_coverage_items)
+    rerun_reports = [
+        report for report in report_rows
+        if _report_needs_rerun(report) and _report_key(report) not in direct_rerun_blocked_keys
+    ]
     high_priority_watchlist = [
         item for item in watch_items
         if item.get("enabled") is not False and str(item.get("decision_priority") or "") == "high"
     ]
     candidates = _top_candidates(screener_items)
     rerun_report_items = [_rerun_report_payload(report) for report in rerun_reports]
-    actions = _actions(rerun_reports, high_priority_watchlist, candidates, free_mode)
+    outcome_calibration = build_outcome_calibration(
+        backtests=list(performance.get("details") or []),
+        reports=report_rows,
+    )
+    provider_impact_ledger = build_provider_impact_ledger(report_rows)
+    decision_queue = build_daily_decision_queue(
+        reports=report_rows,
+        repair_items=repair_coverage_items,
+        rerun_reports=rerun_reports,
+        high_priority_watchlist=high_priority_watchlist,
+        candidates=candidates,
+        performance=performance,
+        free_mode=free_mode,
+        provider_impact_ledger=provider_impact_ledger,
+        ops=ops or {},
+    )
+    actions = list(decision_queue.get("items") or [])
     status = "action_required" if actions and actions[0]["type"] != "monitor" else "ok"
     dashboard = {
         "status": status,
         "summary": {
             "sampled_reports": len(report_rows),
             "reports_needing_rerun": len(rerun_reports),
+            "report_repairs_required": int((repair_queue.get("summary") or {}).get("action_required") or 0),
             "watchlist_high_priority": len(high_priority_watchlist),
             "top_candidate_count": len(candidates),
         },
@@ -42,8 +72,12 @@ def build_daily_decision_dashboard(
             "violations": list(free_mode.get("violations") or []),
         },
         "performance": dict(performance.get("summary") or {}),
+        "outcome_calibration": outcome_calibration,
+        "provider_impact_ledger": provider_impact_ledger,
         "top_candidates": candidates,
         "rerun_reports": rerun_report_items,
+        "repair_queue": repair_queue,
+        "decision_queue": decision_queue,
         "actions": actions,
     }
     dashboard["notification_plan"] = build_daily_notification_plan(dashboard)
@@ -57,6 +91,21 @@ def _report_needs_rerun(report: dict[str, Any]) -> bool:
         or report.get("requires_rerun")
         or report.get("analysis_text_stale")
     )
+
+
+def _report_key(report: dict[str, Any]) -> str:
+    filename = str(report.get("filename") or report.get("report_filename") or "")
+    if filename:
+        return filename
+    return f"{report.get('ticker') or ''}:{report.get('pipeline_id') or 'v1'}"
+
+
+def _direct_rerun_blocked_keys(repair_items: list[dict[str, Any]]) -> set[str]:
+    return {
+        key
+        for item in repair_items
+        if (key := _report_key(item)) and item.get("recommended_action") != "rerun_analysis"
+    }
 
 
 def _rerun_reason(report: dict[str, Any]) -> str:
@@ -90,45 +139,12 @@ def _top_candidates(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
             continue
         accepted.append({
             "ticker": item.get("ticker"),
+            "company_name": item.get("company_name") or "",
             "score": item.get("score"),
             "quality_outcome": quality.get("outcome"),
             "reason": item.get("reason") or item.get("category") or "",
         })
     return sorted(accepted, key=lambda row: float(row.get("score") or 0), reverse=True)[:5]
-
-
-def _actions(
-    rerun_reports: list[dict[str, Any]],
-    high_priority_watchlist: list[dict[str, Any]],
-    candidates: list[dict[str, Any]],
-    free_mode: dict[str, Any],
-) -> list[dict[str, Any]]:
-    actions = []
-    if not free_mode.get("can_run_without_paid_keys", True):
-        actions.append({
-            "type": "fix_free_mode",
-            "title": "免費模式有付費依賴缺口",
-            "detail": "先查看 provider contract，避免報告流程依賴付費來源。",
-        })
-    if rerun_reports:
-        actions.append(_rerun_report_payload(rerun_reports[0]))
-    if high_priority_watchlist:
-        samples = "、".join(str(item.get("ticker") or "") for item in high_priority_watchlist[:3] if item.get("ticker"))
-        actions.append({
-            "type": "run_watchlist",
-            "title": f"{len(high_priority_watchlist)} 檔 watchlist 待分析",
-            "detail": samples,
-        })
-    if candidates:
-        actions.append({
-            "type": "review_candidate",
-            "title": f"{candidates[0].get('ticker')} 進入候選清單",
-            "detail": f"score {candidates[0].get('score')}",
-            "ticker": candidates[0].get("ticker"),
-        })
-    if not actions:
-        actions.append({"type": "monitor", "title": "目前沒有急件", "detail": "保持每日追蹤。"})
-    return actions[:5]
 
 
 __all__ = ["build_daily_decision_dashboard"]

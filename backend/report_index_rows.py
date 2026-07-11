@@ -115,6 +115,12 @@ def _report_conformance(row) -> dict:
     return conformance if isinstance(conformance, dict) else {}
 
 
+def _content_credibility(row) -> dict:
+    snapshot = _read_snapshot(row)
+    credibility = snapshot.get("content_credibility") if isinstance(snapshot, dict) else {}
+    return credibility if isinstance(credibility, dict) else {}
+
+
 def _markdown_text(row) -> str:
     path = _row_file_path(row, kind="md")
     if not os.path.exists(path):
@@ -178,6 +184,7 @@ def row_to_report(row) -> dict:
         "temporal_memory": _temporal_memory(row),
         "evidence_exit_gate": _evidence_exit_gate(row),
         "report_conformance": _report_conformance(row),
+        "content_credibility": _content_credibility(row),
         "data_snapshot_filename": row["data_snapshot_filename"] if "data_snapshot_filename" in row.keys() else "",
         "data_trust": data_trust,
         "data_trust_status": row["data_trust_status"] if "data_trust_status" in row.keys() else data_trust.get("status", "unknown"),

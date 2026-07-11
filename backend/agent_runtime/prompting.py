@@ -27,6 +27,13 @@ from structured_outputs import build_structured_output_instruction
 from temporal_memory_service import build_valuation_memory_slice
 
 from .prompt_config import ANALYSIS_PROMPTS
+from .prompt_safety import (
+    _safe_bool_flag,
+    _safe_prompt_json_item,
+    _safe_prompt_json_list,
+    _safe_prompt_text,
+    _safe_prompt_text_list,
+)
 
 OUTPUT_CLEANLINESS_RULE = build_output_cleanliness_rule()
 
@@ -130,23 +137,28 @@ def data_for_agent_prompt(agent_num: int, data: StockData) -> StockData:
 
 def build_company_identity_guard(data: StockData) -> str:
     """Build a hard identity lock so agents do not assign peer facts to the target company."""
-    identity = data.get("company_identity", {}) or {}
-    if not identity:
-        return ""
+    identity = raw_identity if isinstance(raw_identity := dict.get(data, "company_identity"), dict) else {}
+    try:
+        if len(identity) == 0:
+            return ""
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+        pass
 
-    ticker = data.get("ticker", identity.get("ticker", "N/A"))
-    stock_id = identity.get("stock_id", ticker)
-    official_name = identity.get("official_name") or data.get("company_name", ticker)
-    legal_name = identity.get("legal_name")
-    english_names = identity.get("english_names", [])
-    forbidden_aliases = identity.get("forbidden_aliases", [])
+    identity_ticker = _safe_prompt_text(dict.get(identity, "ticker"), "N/A")
+    ticker = _safe_prompt_text(dict.get(data, "ticker"), identity_ticker)
+    stock_id = _safe_prompt_text(dict.get(identity, "stock_id"), ticker)
+    company_name = _safe_prompt_text(dict.get(data, "company_name"), ticker)
+    official_name = _safe_prompt_text(dict.get(identity, "official_name"), company_name)
+    legal_name = _safe_prompt_text(dict.get(identity, "legal_name"))
+    english_names = _safe_prompt_text_list(dict.get(identity, "english_names", []), limit=3)
+    forbidden_aliases = _safe_prompt_text_list(dict.get(identity, "forbidden_aliases", []))
 
     lines = build_identity_guard_rule_lines({
         "ticker": ticker,
         "stock_id": stock_id,
         "official_name": official_name,
         "legal_name": legal_name,
-        "english_names": ", ".join(english_names[:3]),
+        "english_names": ", ".join(english_names),
         "forbidden_aliases": ", ".join(forbidden_aliases),
     })
 
@@ -169,7 +181,7 @@ def build_state_view_section(agent_num: int, context: AnalysisContext) -> str:
     if state is None:
         return ""
 
-    view = state_view_for(agent_num, state)
+    view = _safe_prompt_json_item(state_view_for(agent_num, state))
     return "\n".join(
         [
             "【AgentState view】",
@@ -183,14 +195,15 @@ def build_temporal_memory_section(agent_num: int, data: StockData) -> str:
     if int(agent_num) not in {7, 16, 19, 24}:
         return ""
     memory = data.get("temporal_memory") if isinstance(data.get("temporal_memory"), dict) else {}
-    prompt = str(memory.get("reflection_prompt") or "").strip()
+    raw_reflection_prompt = memory.get("reflection_prompt")
+    prompt = "" if raw_reflection_prompt is None else _safe_prompt_text(raw_reflection_prompt)
     if not prompt:
         return ""
-    backtests = memory.get("backtests", [])
+    backtests = _safe_prompt_json_list(memory.get("backtests", []), limit=6)
     return "\n".join([
         prompt,
         "到期回測紀錄：",
-        json.dumps(backtests[:6], ensure_ascii=False, indent=2, allow_nan=False),
+        json.dumps(backtests, ensure_ascii=False, indent=2, allow_nan=False),
     ])
 
 
@@ -198,7 +211,7 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     """根據 Agent 編號建立分析提示詞。"""
     ticker = data["ticker"]
     name = data["company_name"]
-    compact_primary = bool(context.get("_primary_probe_prompt"))
+    compact_primary = _safe_bool_flag(context.get("_primary_probe_prompt"))
     prompt_data = data_for_agent_prompt(agent_num, data)
     fin_data = format_data_for_prompt(prompt_data, compact=compact_primary)
     prev = (
@@ -206,23 +219,29 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
         if compact_primary
         else _format_previous(context, agent_num)
     )
-    rag_context = (context.get("rag_context", {}) or {}).get(agent_num, "")
+    raw_rag_context = context.get("rag_context")
+    rag_contexts = raw_rag_context if isinstance(raw_rag_context, dict) else {}
+    raw_agent_rag_context = rag_contexts.get(agent_num, "")
+    rag_context = "" if raw_agent_rag_context is None else _safe_prompt_text(raw_agent_rag_context)
     if compact_primary and len(rag_context) > PRIMARY_PROMPT_RAG_CONTEXT_CHARS:
         rag_context = rag_context[: max(PRIMARY_PROMPT_RAG_CONTEXT_CHARS - 32, 0)].rstrip() + "\n...（RAG 片段截斷）"
     identity_guard = build_company_identity_guard(data)
     numeric_tool_instruction = build_numeric_tool_instruction(agent_num)
     enrichment_instruction = build_data_enrichment_instruction(agent_num)
-    retry_instruction = context.get("_identity_retry_instruction", "")
-    audit_retry_instruction = context.get("_audit_retry_instruction", "")
-    audit_reflection_instruction = context.get("_audit_reflection_instruction", "")
+    retry_instruction = _safe_prompt_text(context.get("_identity_retry_instruction", ""))
+    audit_retry_instruction = _safe_prompt_text(context.get("_audit_retry_instruction", ""))
+    audit_reflection_instruction = _safe_prompt_text(context.get("_audit_reflection_instruction", ""))
     state_view_section = build_state_view_section(agent_num, context)
     temporal_memory_section = build_temporal_memory_section(agent_num, prompt_data)
     final_audit_preflight_rule = build_final_audit_preflight_rule(agent_num, context.get("pipeline_id", ""))
 
     # v2 Agent 14：注入財務排雷品質警示
     forensic_warning = ""
-    if agent_num == 14 and context.get("_v2_forensic_warning"):
-        forensic_warning = f"【財務排雷品質警示】{context['_v2_forensic_warning']}"
+    if agent_num == 14:
+        raw_forensic_warning = context.get("_v2_forensic_warning")
+        forensic_warning_text = "" if raw_forensic_warning is None else _safe_prompt_text(raw_forensic_warning)
+        if forensic_warning_text:
+            forensic_warning = f"【財務排雷品質警示】{forensic_warning_text}"
 
     template = ANALYSIS_PROMPTS[agent_num]
     analysis_prompt = render_prompt_template(

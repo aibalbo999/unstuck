@@ -117,19 +117,37 @@ def calculate_dcf(
     }
 
 def _latest_numeric(values: list[Any]) -> Optional[float]:
-    for value in reversed(values or []):
+    for value in reversed(_safe_sequence(values)):
         number = safe_float(value)
         if number is not None:
             return number
     return None
 
+
+def _safe_sequence(values: object) -> list[Any]:
+    if values is None:
+        return []
+    try:
+        iterator = iter(values)
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+        return []
+    items = []
+    while True:
+        try:
+            items.append(next(iterator))
+        except StopIteration:
+            return items
+        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+            return items
+
+
 def build_financial_tool_context(data: dict) -> dict:
     """Precompute deterministic tool outputs that agents can cite directly."""
-    revenue_history = data.get("revenue_history", []) or []
-    net_income_history = data.get("net_income_history", []) or []
-    fcf_history = data.get("fcf_history", []) or []
-    sector = str(data.get("sector", "") or "")
-    industry = str(data.get("industry", "") or "")
+    revenue_history = _safe_sequence(dict.get(data, "revenue_history", []))
+    net_income_history = _safe_sequence(dict.get(data, "net_income_history", []))
+    fcf_history = _safe_sequence(dict.get(data, "fcf_history", []))
+    sector = str(dict.get(data, "sector", "") or "")
+    industry = str(dict.get(data, "industry", "") or "")
 
     tool_context: dict[str, Any] = {
         "unit_contract": {
@@ -168,17 +186,17 @@ def build_financial_tool_context(data: dict) -> dict:
             "formula": "latest annual FCF / latest annual net income",
         }
 
-    market_cap = safe_float(data.get("market_cap_raw"))
-    total_debt = safe_float(data.get("total_debt_raw"))
-    total_cash = safe_float(data.get("total_cash_raw"))
-    shares = safe_float(data.get("shares_raw"))
+    market_cap = safe_float(dict.get(data, "market_cap_raw"))
+    total_debt = safe_float(dict.get(data, "total_debt_raw"))
+    total_cash = safe_float(dict.get(data, "total_cash_raw"))
+    shares = safe_float(dict.get(data, "shares_raw"))
     if market_cap is not None and total_debt is not None:
         wacc = calculate_wacc(market_cap, total_debt)
         tool_context["calculations"]["market_value_wacc_default"] = wacc
     else:
         wacc = {}
 
-    base_fcf = raw_twd_to_billion_twd(data.get("free_cash_flow_raw"))
+    base_fcf = raw_twd_to_billion_twd(dict.get(data, "free_cash_flow_raw"))
     if base_fcf is None:
         base_fcf = latest_fcf
     base_note = "latest available FCF"
@@ -252,8 +270,8 @@ def build_financial_tool_context(data: dict) -> dict:
             "scenarios": dcf_results,
         }
 
-    dividend_rate = safe_float(data.get("dividend_rate_raw"))
-    dividend_yield = safe_float(data.get("dividend_yield_raw"))
+    dividend_rate = safe_float(dict.get(data, "dividend_rate_raw"))
+    dividend_yield = safe_float(dict.get(data, "dividend_yield_raw"))
     is_financial = any(keyword in f"{sector} {industry}" for keyword in ["Financial", "銀行", "金融", "保險", "金控"])
     if dividend_rate and (is_financial or (dividend_yield is not None and dividend_yield >= 0.05)):
         ddm_scenarios = {

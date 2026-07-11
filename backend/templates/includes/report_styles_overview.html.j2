@@ -214,6 +214,137 @@
             text-align: right;
         }
 
+        .report-reading-notice {
+            margin-top: 18px;
+            padding: 18px 20px;
+            border: 1px solid #cbd5e1;
+            border-radius: 12px;
+            background: #f8fafc;
+        }
+
+        .report-reading-notice-pending,
+        .report-reading-notice-warning {
+            border-color: #fcd34d;
+            background: #fffbeb;
+        }
+
+        .report-reading-notice-blocked {
+            border-color: #fca5a5;
+            background: #fef2f2;
+        }
+
+        .report-reading-notice-passed {
+            border-color: #86efac;
+            background: #f0fdf4;
+        }
+
+        .report-reading-notice-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+
+        .report-reading-notice-kicker {
+            color: var(--text-muted);
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .report-reading-notice h2 {
+            margin-top: 3px;
+            color: var(--text-primary);
+            font-size: 16px;
+            line-height: 1.35;
+        }
+
+        .report-reading-notice-status {
+            max-width: 100%;
+            padding: 5px 9px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            color: #475569;
+            background: #ffffff;
+            font-size: 12px;
+            font-weight: 800;
+            overflow-wrap: anywhere;
+        }
+
+        .report-reading-notice-pending .report-reading-notice-status,
+        .report-reading-notice-warning .report-reading-notice-status {
+            border-color: #fcd34d;
+            color: #92400e;
+            background: #fef3c7;
+        }
+
+        .report-reading-notice-blocked .report-reading-notice-status {
+            border-color: #fca5a5;
+            color: #991b1b;
+            background: #fee2e2;
+        }
+
+        .report-reading-notice-passed .report-reading-notice-status {
+            border-color: #86efac;
+            color: #166534;
+            background: #dcfce7;
+        }
+
+        .report-reading-notice > p {
+            margin-top: 10px;
+            color: var(--text-secondary);
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .report-reading-notice-checks {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 8px;
+            margin: 14px 0 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .report-reading-notice-checks li {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 8px;
+            min-width: 0;
+            padding: 8px 10px;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.72);
+            font-size: 11px;
+        }
+
+        .report-reading-notice-checks li span {
+            color: var(--text-muted);
+        }
+
+        .report-reading-notice-checks li strong {
+            color: var(--text-primary);
+            text-align: right;
+            overflow-wrap: anywhere;
+        }
+
+        .report-reading-notice .report-reading-notice-note {
+            color: #92400e;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .report-reading-notice-blocked .report-reading-notice-note {
+            color: #991b1b;
+        }
+
+        .report-reading-notice-passed .report-reading-notice-note {
+            color: #166534;
+        }
+
         .audit-banner {
             background: #fffbeb;
             border: 1px solid #fde68a;

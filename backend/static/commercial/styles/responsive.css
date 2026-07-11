@@ -1,3 +1,40 @@
+@media (min-width: 1024px) {
+  .commercial-page {
+    display: grid;
+    grid-template-columns: minmax(220px, 0.28fr) minmax(0, 1fr);
+    column-gap: 12px;
+    padding-top: 24px;
+  }
+
+  .commercial-page > * {
+    grid-column: 1 / -1;
+  }
+
+  .commercial-page > .commercial-page-header {
+    grid-row: 1;
+    margin-bottom: 16px;
+  }
+
+  .commercial-page > [data-operator-policy-editor] {
+    grid-column: 1;
+    grid-row: 2;
+    margin-bottom: 0;
+  }
+
+  .commercial-page > .commercial-policy-strip {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  body[data-commercial-page="portfolio"] #portfolio-csv {
+    min-height: 112px;
+    height: 112px;
+  }
+
+  body[data-commercial-page="portfolio"] #portfolio-csv-help {
+    margin-top: 8px;
+  }
+}
 @media (max-width: 768px) {
   .commercial-topbar {
     align-items: flex-start;

@@ -122,6 +122,8 @@ def test_validation_and_provider_facades_are_sized():
     limits = {
         BACKEND / "config.py": 40,
         BACKEND / "settings" / "app_config.py": 80,
+        BACKEND / "daily_decision_queue.py": 340,
+        BACKEND / "daily_decision_route_warnings.py": 80,
         BACKEND / "data_fetch" / "yfinance_core_fetch.py": 300,
         BACKEND / "validators.py": 90,
         BACKEND / "structured_outputs.py": 90,
@@ -135,6 +137,28 @@ def test_validation_and_provider_facades_are_sized():
         assert line_count < limit, str(path.relative_to(ROOT))
 
 
+def test_free_notification_identity_helpers_are_split_from_plan():
+    plan = BACKEND / "free_notification_plan.py"
+    identity = BACKEND / "free_notification_identity.py"
+    plan_text = plan.read_text(encoding="utf-8")
+
+    assert identity.exists()
+    assert "from free_notification_identity import" in plan_text
+    assert len(plan_text.splitlines()) < 300
+    assert len(identity.read_text(encoding="utf-8").splitlines()) < 120
+
+
+def test_provider_sla_payload_helpers_are_split_from_observability_service():
+    service = BACKEND / "api_observability_service.py"
+    provider_payload = BACKEND / "provider_sla_observability.py"
+    service_text = service.read_text(encoding="utf-8")
+
+    assert provider_payload.exists()
+    assert "from provider_sla_observability import" in service_text
+    assert len(service_text.splitlines()) < 280
+    assert len(provider_payload.read_text(encoding="utf-8").splitlines()) < 170
+
+
 def test_backend_python_modules_stay_split_below_threshold():
     offenders = []
     for path in BACKEND.rglob("*.py"):
@@ -145,6 +169,19 @@ def test_backend_python_modules_stay_split_below_threshold():
             offenders.append(f"{path.relative_to(ROOT)} has {line_count} lines; limit is {MAX_BACKEND_MODULE_LINES}")
 
     assert offenders == []
+
+
+def test_agent_runtime_prompt_safety_helpers_are_split_from_prompting():
+    prompting = BACKEND / "agent_runtime" / "prompting.py"
+    prompt_safety = BACKEND / "agent_runtime" / "prompt_safety.py"
+    prompting_text = prompting.read_text(encoding="utf-8")
+
+    assert prompt_safety.exists()
+    assert "from .prompt_safety import" in prompting_text
+    assert "def _safe_prompt_text(" not in prompting_text
+    assert "def _safe_prompt_json_list(" not in prompting_text
+    assert len(prompting_text.splitlines()) < 320
+    assert len(prompt_safety.read_text(encoding="utf-8").splitlines()) < 120
 
 
 def test_frontend_bootstrap_is_split_into_focused_modules():
@@ -265,5 +302,54 @@ def test_pipeline_runtime_does_not_print_directly():
         for path in paths
         if "print(" in path.read_text(encoding="utf-8")
     ]
+
+    assert offenders == []
+
+
+def test_api_routes_do_not_bypass_storage_or_operational_boundaries():
+    offenders = []
+    forbidden_text = (
+        "sqlite3",
+        "backend/output",
+        "decision_tracking.sqlite3",
+        "stock_agent_cache.sqlite3",
+        "operational.sqlite3",
+        ".data.json",
+    )
+    allowed_storage_helpers = {
+        "existing_storage_key",
+        "load_storage_item",
+        "report_storage_candidates_for_filename",
+    }
+    for path in (BACKEND / "api_routes").rglob("*.py"):
+        text = path.read_text(encoding="utf-8")
+        tree = ast.parse(text, filename=str(path))
+        for token in forbidden_text:
+            if token in text:
+                offenders.append(f"{path.relative_to(ROOT)} contains {token}")
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                func = node.func
+                if isinstance(func, ast.Name) and func.id == "open":
+                    offenders.append(f"{path.relative_to(ROOT)} calls open() directly")
+                if isinstance(func, ast.Name) and func.id == "Path":
+                    literal_args = [
+                        arg.value
+                        for arg in node.args
+                        if isinstance(arg, ast.Constant) and isinstance(arg.value, str)
+                    ]
+                    if any(value in {"output", "backend/output"} for value in literal_args):
+                        offenders.append(f"{path.relative_to(ROOT)} builds report output Path directly")
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name == "sqlite3":
+                        offenders.append(f"{path.relative_to(ROOT)} imports sqlite3")
+            if isinstance(node, ast.ImportFrom) and node.module == "sqlite3":
+                offenders.append(f"{path.relative_to(ROOT)} imports from sqlite3")
+            if isinstance(node, ast.ImportFrom) and node.module in {"report_history_storage", "report_artifacts"}:
+                imported = {alias.name for alias in node.names}
+                unexpected = imported - allowed_storage_helpers
+                if unexpected:
+                    offenders.append(f"{path.relative_to(ROOT)} imports unexpected storage helpers {sorted(unexpected)}")
 
     assert offenders == []

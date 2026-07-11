@@ -19,6 +19,7 @@ from .mode_templates import (
     get_report_template_profile,
     summary_markdown_heading,
 )
+from .reading_notice import build_report_reading_notice_markdown
 from .sections import build_agent_sections, build_tear_sheet_summary
 
 def generate_markdown_report(context: AnalysisContext) -> str:
@@ -67,6 +68,7 @@ def generate_markdown_report(context: AnalysisContext) -> str:
 - **12個月目標:** {target_12m}
 - **信心指數:** {confidence}"""
     audit_markdown = build_audit_markdown(context)
+    report_reading_notice_markdown = build_report_reading_notice_markdown(context)
     data_trust_markdown = build_data_trust_markdown(data, context)
     model_route_summary = format_model_routes(pipeline_id=pipeline_def["id"])
     execution_summary_markdown = build_execution_summary_markdown(context, model_routes=model_route_summary)
@@ -83,6 +85,8 @@ def generate_markdown_report(context: AnalysisContext) -> str:
 
     md = f"""# {ticker} {name} - {report_title}
 📅 分析日期：{fetch_date}
+
+{report_reading_notice_markdown}
 
 {audit_markdown + chr(10) + chr(10) if audit_markdown else ""}
 {data_trust_markdown}

@@ -94,6 +94,15 @@ def test_ci_gate_runs_supply_chain_audit_before_tests():
     assert ci_gate.index("scripts/supply_chain_audit.py") < ci_gate.index("-m pytest")
 
 
+def test_ci_gate_runs_visual_regression_by_default_in_ci():
+    ci_gate = (ROOT / "scripts" / "ci_gate.sh").read_text(encoding="utf-8")
+
+    assert 'case "${CI:-}" in' in ci_gate
+    assert "1|true|TRUE|yes|YES)" in ci_gate
+    assert 'RUN_VISUAL_REGRESSION:-' in ci_gate
+    assert "VISUAL_REGRESSION_REQUIRED=1 scripts/visual_regression.sh" in ci_gate
+
+
 def test_bootstrap_installs_hash_locked_requirements():
     bootstrap = (ROOT / "scripts" / "bootstrap_venv.sh").read_text(encoding="utf-8")
 

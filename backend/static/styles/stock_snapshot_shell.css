@@ -1,0 +1,214 @@
+.stock-snapshot-actions {
+    display: flex;
+    justify-content: center;
+    margin: -10px 0 18px;
+}
+
+.stock-snapshot-load-button {
+    min-width: 132px;
+}
+
+.stock-snapshot-shortcuts {
+    display: flex;
+    justify-content: center;
+    margin: -6px auto 12px;
+    width: min(100%, 980px);
+}
+
+.stock-snapshot-shortcuts-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+}
+
+.stock-snapshot-shortcuts-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.stock-snapshot-shortcuts-group span {
+    color: var(--text-secondary);
+    font-size: 0.74rem;
+    font-weight: 800;
+    line-height: 1.2;
+}
+
+.stock-snapshot-shortcuts-group button {
+    min-height: 30px;
+    border: 1px solid rgba(255, 255, 255, 0.11);
+    border-radius: 8px;
+    background: rgba(4, 13, 26, 0.28);
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-weight: 800;
+    padding: 5px 9px;
+}
+
+.stock-snapshot-shortcuts-group button:hover,
+.stock-snapshot-shortcuts-group button:focus-visible {
+    border-color: rgba(0, 212, 255, 0.42);
+    background: rgba(0, 212, 255, 0.1);
+    outline: none;
+}
+
+.stock-snapshot-panel {
+    margin: 0 auto 24px;
+    width: min(100%, 980px);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.055);
+    padding: 18px;
+    text-align: left;
+}
+
+.stock-snapshot-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.stock-snapshot-kicker,
+.stock-snapshot-header p,
+.stock-snapshot-company-profile span,
+.stock-snapshot-company-profile p,
+.stock-snapshot-metric span,
+.stock-snapshot-metric em,
+.stock-snapshot-session span,
+.stock-snapshot-session em,
+.stock-snapshot-performance span,
+.stock-snapshot-performance em,
+.stock-snapshot-technical span,
+.stock-snapshot-technical em,
+.stock-snapshot-analyst span,
+.stock-snapshot-analyst em,
+.stock-snapshot-earnings span,
+.stock-snapshot-earnings em,
+.stock-snapshot-shares span,
+.stock-snapshot-shares em,
+.stock-snapshot-risk span,
+.stock-snapshot-risk em,
+.stock-snapshot-profitability span,
+.stock-snapshot-profitability em,
+.stock-snapshot-dividend span,
+.stock-snapshot-dividend em,
+.stock-snapshot-calendar span,
+.stock-snapshot-calendar em,
+.stock-snapshot-alerts span,
+.stock-snapshot-alerts em,
+.stock-snapshot-fundamentals span,
+.stock-snapshot-fundamentals em,
+.stock-snapshot-financial-trends span,
+.stock-snapshot-financial-trends em,
+.stock-snapshot-peers span,
+.stock-snapshot-peers em,
+.stock-snapshot-ownership span,
+.stock-snapshot-ownership em,
+.stock-snapshot-valuation-range span,
+.stock-snapshot-valuation-range em,
+.stock-snapshot-news span,
+.stock-snapshot-modes span,
+.stock-snapshot-error span {
+    color: var(--text-secondary);
+}
+
+.stock-snapshot-kicker {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 800;
+    margin-bottom: 4px;
+}
+
+.stock-snapshot-header h2 {
+    font-size: 1.35rem;
+    line-height: 1.2;
+    margin: 0 0 4px;
+}
+
+.stock-snapshot-actions-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.stock-snapshot-actions-row .maintenance-button {
+    min-height: 40px;
+}
+
+.stock-snapshot-quality {
+    flex: 0 0 auto;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+    color: var(--text-primary);
+    font-size: 0.78rem;
+    font-weight: 800;
+    padding: 6px 10px;
+}
+
+.stock-snapshot-quality.is-fresh {
+    border-color: rgba(34, 197, 94, 0.4);
+    color: #86efac;
+}
+
+.stock-snapshot-quality.is-stale,
+.stock-snapshot-quality.is-partial {
+    border-color: rgba(251, 191, 36, 0.45);
+    color: #fde68a;
+}
+
+.stock-snapshot-quality.is-error {
+    border-color: rgba(248, 113, 113, 0.5);
+    color: #fecaca;
+}
+
+.stock-snapshot-summary-rail {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.stock-snapshot-summary-rail div {
+    min-height: 76px;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 8px;
+    background: rgba(4, 13, 26, 0.28);
+    padding: 10px;
+}
+
+.stock-snapshot-summary-rail span,
+.stock-snapshot-summary-rail strong,
+.stock-snapshot-summary-rail em {
+    display: block;
+    line-height: 1.35;
+}
+
+.stock-snapshot-summary-rail span,
+.stock-snapshot-summary-rail em {
+    color: var(--text-secondary);
+    font-size: 0.74rem;
+    font-style: normal;
+}
+
+.stock-snapshot-summary-rail strong {
+    color: var(--text-primary);
+    font-size: 0.95rem;
+    margin: 5px 0;
+    overflow-wrap: anywhere;
+}
+
+.stock-snapshot-summary-rail .is-up em,
+.stock-snapshot-summary-rail .is-positive em {
+    color: #86efac;
+}
+
+.stock-snapshot-summary-rail .is-down em {
+    color: #fecaca;
+}

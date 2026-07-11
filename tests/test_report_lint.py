@@ -13,6 +13,27 @@ from reporting.audit_trust import build_audit_markdown  # noqa: E402
 from reporting.lint import ReportLintError, assert_report_lint_passed, get_critical_lint_rules, lint_report_artifacts  # noqa: E402
 
 
+class BrokenRendererLintResultGet(dict):
+    def get(self, key, default=None):
+        if key == "blocking_issues":
+            raise RuntimeError("renderer lint result get unavailable")
+        return dict.get(self, key, default)
+
+
+class BrokenRendererLintIssueGet(dict):
+    def get(self, key, default=None):
+        if key == "label":
+            raise RuntimeError("renderer lint issue get unavailable")
+        return dict.get(self, key, default)
+
+
+def _fabricated_lint_error(result):
+    exc = ReportLintError.__new__(ReportLintError)
+    RuntimeError.__init__(exc, "Report pre-save lint failed")
+    exc.result = result
+    return exc
+
+
 def test_report_lint_passes_clean_artifacts():
     result = assert_report_lint_passed("<h1>台積電投資建議</h1>", "# 台積電投資建議\n\n內容乾淨。")
 
@@ -130,6 +151,48 @@ def test_report_renderer_scrubs_structured_key_leaks_before_final_lint(monkeypat
     assert "分析正文" in bundle.html
     assert "同業比較推論" in bundle.markdown
     assert bundle.metadata["report_lint"]["status"] == "passed"
+
+
+def test_report_renderer_lint_repair_keeps_result_mapping_when_accessor_fails(monkeypatch):
+    import reporting.renderer as renderer_module
+
+    calls = {"count": 0}
+
+    def fake_assert_report_lint_passed(html, markdown):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise _fabricated_lint_error(
+                BrokenRendererLintResultGet(
+                    {
+                        "blocking_issues": [
+                            BrokenRendererLintIssueGet(
+                                {
+                                    "artifact": "markdown",
+                                    "label": "structured_json_key_leak",
+                                    "snippet": "peer_reasoning",
+                                }
+                            )
+                        ]
+                    }
+                )
+            )
+        assert "analysis_markdown" not in html
+        assert "peer_reasoning" not in markdown
+        return {"status": "passed", "blocking_issues": [], "warnings": []}
+
+    monkeypatch.setattr(renderer_module, "assert_report_lint_passed", fake_assert_report_lint_passed)
+
+    html, markdown, report_lint = renderer_module._lint_or_repair(
+        "<html><body>analysis_markdown: 正文</body></html>",
+        "# 報告\n\npeer_reasoning: 同業比較",
+    )
+
+    assert calls["count"] == 2
+    assert "analysis_markdown" not in html
+    assert "peer_reasoning" not in markdown
+    assert "分析正文" in html
+    assert "同業比較推論" in markdown
+    assert report_lint["status"] == "passed"
 
 
 def test_report_renderer_still_blocks_non_structured_lint_issues(monkeypatch):

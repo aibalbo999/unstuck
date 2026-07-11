@@ -66,28 +66,29 @@ def _prompt_ratio_to_pct(value, decimals=4):
 
 
 def _prompt_history_rows(data: dict) -> list[dict]:
-    years = data.get("years", []) or []
+    years = _safe_iterable_prefix(dict.get(data, "years", []))
     rows = []
     for idx, year in enumerate(years):
-        def at(key):
-            values = data.get(key, []) or []
-            return values[idx] if idx < len(values) else None
-
         rows.append({
             "year": str(year),
-            "revenue_billion_twd": _prompt_number(at("revenue_history")),
-            "net_income_billion_twd": _prompt_number(at("net_income_history")),
-            "gross_profit_billion_twd": _prompt_number(at("gross_profit_history")),
-            "operating_income_billion_twd": _prompt_number(at("operating_income_history")),
-            "free_cash_flow_billion_twd": _prompt_number(at("fcf_history")),
-            "gross_margin_pct": _prompt_number(at("gross_margin_history")),
-            "operating_margin_pct": _prompt_number(at("op_margin_history")),
-            "net_margin_pct": _prompt_number(at("net_margin_history")),
-            "roe_pct": _prompt_number(at("roe_history")),
-            "total_assets_billion_twd": _prompt_number(at("total_assets_history")),
-            "total_equity_billion_twd": _prompt_number(at("total_equity_history")),
+            "revenue_billion_twd": _prompt_number(_history_value_at(data, "revenue_history", idx)),
+            "net_income_billion_twd": _prompt_number(_history_value_at(data, "net_income_history", idx)),
+            "gross_profit_billion_twd": _prompt_number(_history_value_at(data, "gross_profit_history", idx)),
+            "operating_income_billion_twd": _prompt_number(_history_value_at(data, "operating_income_history", idx)),
+            "free_cash_flow_billion_twd": _prompt_number(_history_value_at(data, "fcf_history", idx)),
+            "gross_margin_pct": _prompt_number(_history_value_at(data, "gross_margin_history", idx)),
+            "operating_margin_pct": _prompt_number(_history_value_at(data, "op_margin_history", idx)),
+            "net_margin_pct": _prompt_number(_history_value_at(data, "net_margin_history", idx)),
+            "roe_pct": _prompt_number(_history_value_at(data, "roe_history", idx)),
+            "total_assets_billion_twd": _prompt_number(_history_value_at(data, "total_assets_history", idx)),
+            "total_equity_billion_twd": _prompt_number(_history_value_at(data, "total_equity_history", idx)),
         })
-    return _limit_history_rows(rows, data.get("_prompt_history_year_limit"))
+    return _limit_history_rows(rows, dict.get(data, "_prompt_history_year_limit"))
+
+
+def _history_value_at(data: dict, key: str, idx: int):
+    values = _safe_iterable_prefix(dict.get(data, key, []), idx + 1)
+    return values[idx] if idx < len(values) else None
 
 
 def _limit_history_rows(rows: list[dict], raw_limit) -> list[dict]:
@@ -116,29 +117,29 @@ def _limit_history_rows(rows: list[dict], raw_limit) -> list[dict]:
 
 
 def _prompt_company_identity(data: dict) -> dict:
-    identity = data.get("company_identity", {}) or {}
+    identity = raw_identity if isinstance(raw_identity := dict.get(data, "company_identity"), dict) else {}
     return {
-        "ticker": data.get("ticker"),
-        "company_name": data.get("company_name"),
-        "stock_id": identity.get("stock_id"),
-        "official_name": identity.get("official_name"),
-        "legal_name": identity.get("legal_name"),
-        "allowed_aliases": identity.get("allowed_aliases", []),
-        "forbidden_aliases": identity.get("forbidden_aliases", []),
-        "industry_categories": identity.get("industry_categories", []),
-        "same_industry_peers": identity.get("same_industry_peers", []),
+        "ticker": dict.get(data, "ticker"),
+        "company_name": dict.get(data, "company_name"),
+        "stock_id": dict.get(identity, "stock_id"),
+        "official_name": dict.get(identity, "official_name"),
+        "legal_name": dict.get(identity, "legal_name"),
+        "allowed_aliases": dict.get(identity, "allowed_aliases", []),
+        "forbidden_aliases": dict.get(identity, "forbidden_aliases", []),
+        "industry_categories": dict.get(identity, "industry_categories", []),
+        "same_industry_peers": dict.get(identity, "same_industry_peers", []),
     }
 
 
 def _prompt_data_trust(data: dict) -> dict:
-    trust = data.get("data_trust", {}) if isinstance(data.get("data_trust"), dict) else {}
+    trust = raw_trust if isinstance(raw_trust := dict.get(data, "data_trust"), dict) else {}
     return {
-        "status": trust.get("status", "unknown"),
-        "critical_failures": trust.get("critical_failures", []) or [],
-        "stale_sources": trust.get("stale_sources", []) or [],
-        "last_market_data_at": trust.get("last_market_data_at"),
-        "notes": trust.get("notes", []) or [],
-        "reason_codes": trust.get("reason_codes", []) or [],
+        "status": dict.get(trust, "status", "unknown"),
+        "critical_failures": _safe_iterable_prefix(dict.get(trust, "critical_failures", [])),
+        "stale_sources": _safe_iterable_prefix(dict.get(trust, "stale_sources", [])),
+        "last_market_data_at": dict.get(trust, "last_market_data_at"),
+        "notes": _safe_iterable_prefix(dict.get(trust, "notes", [])),
+        "reason_codes": _safe_iterable_prefix(dict.get(trust, "reason_codes", [])),
     }
 
 
@@ -146,18 +147,45 @@ def _prompt_source_audit_summary(data: dict) -> list[dict]:
     return prompt_source_audit_summary(data)
 
 
+def _has_prompt_value(value) -> bool:
+    try:
+        return value is not None and bool(value)
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+        return value is not None
+
+
 def _compact_list(items, limit: int) -> list:
-    return list(items or [])[: max(0, int(limit))]
+    try:
+        max_items = max(0, int(limit))
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+        return []
+    return _safe_iterable_prefix(items, max_items)
+
+
+def _safe_iterable_prefix(items, limit: int | None = None) -> list:
+    if items is None or limit == 0:
+        return []
+    try:
+        iterator = iter(items)
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+        return []
+    values = []
+    while limit is None or len(values) < limit:
+        try:
+            values.append(next(iterator))
+        except (StopIteration, TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+            return values
+    return values
 
 
 def _compact_pe_river(pe_river: dict) -> dict:
     if not isinstance(pe_river, dict):
         return {}
-    bands = pe_river.get("bands") if isinstance(pe_river.get("bands"), dict) else {}
+    bands = raw_bands if isinstance(raw_bands := dict.get(pe_river, "bands"), dict) else {}
     return {
-        "source": pe_river.get("source"),
-        "years": _compact_list((pe_river.get("years", []) or [])[-5:], 5),
-        "multiples": _compact_list(pe_river.get("multiples", []), 5),
+        "source": dict.get(pe_river, "source"),
+        "years": _safe_iterable_prefix(dict.get(pe_river, "years", []))[-5:],
+        "multiples": _compact_list(dict.get(pe_river, "multiples", []), 5),
         "band_labels": list(bands.keys())[:5],
     }
 
@@ -173,15 +201,15 @@ def _agent_context(data: dict) -> dict:
         "taiwan_open_data",
         "earnings_call",
     )
-    return {key: data.get(key) for key in keys if data.get(key)}
+    return {key: value for key in keys if _has_prompt_value(value := dict.get(data, key))}
 
 
 def format_data_for_prompt(data: dict, *, compact: bool = False) -> str:
     """Format financial data as clean JSON to avoid unit drift and prompt overload."""
-    shares = safe_float(data.get("shares_raw"))
-    forward_eps = safe_float(data.get("forward_eps"))
-    profit_margin_raw = safe_float(data.get("profit_margin_raw"))
-    revenue_ttm_raw = safe_float(data.get("revenue_ttm_raw"))
+    shares = safe_float(dict.get(data, "shares_raw"))
+    forward_eps = safe_float(dict.get(data, "forward_eps"))
+    profit_margin_raw = safe_float(dict.get(data, "profit_margin_raw"))
+    revenue_ttm_raw = safe_float(dict.get(data, "revenue_ttm_raw"))
 
     implied_forward_net_income_b = None
     implied_forward_revenue_b = None
@@ -198,14 +226,14 @@ def format_data_for_prompt(data: dict, *, compact: bool = False) -> str:
                     4,
                 )
 
-    total_debt_b = raw_twd_to_billion_twd(data.get("total_debt_raw"))
-    total_cash_b = raw_twd_to_billion_twd(data.get("total_cash_raw"))
+    total_debt_b = raw_twd_to_billion_twd(dict.get(data, "total_debt_raw"))
+    total_cash_b = raw_twd_to_billion_twd(dict.get(data, "total_cash_raw"))
     net_debt_b = None
     if total_debt_b is not None or total_cash_b is not None:
         net_debt_b = round((total_debt_b or 0) - (total_cash_b or 0), 4)
 
     payload = {
-        "schema_version": data.get("data_schema_version", PROMPT_DATA_SCHEMA_VERSION),
+        "schema_version": dict.get(data, "data_schema_version", PROMPT_DATA_SCHEMA_VERSION),
         "unit_contract": {
             "money": "billion_twd",
             "price": "twd_per_share",
@@ -214,65 +242,65 @@ def format_data_for_prompt(data: dict, *, compact: bool = False) -> str:
         },
         "company": {
             "identity": _prompt_company_identity(data),
-            "sector": data.get("sector"),
-            "industry": data.get("industry"),
-            "country": data.get("country"),
-            "employees": data.get("employees"),
-            "fetch_date": data.get("fetch_date"),
+            "sector": dict.get(data, "sector"),
+            "industry": dict.get(data, "industry"),
+            "country": dict.get(data, "country"),
+            "employees": dict.get(data, "employees"),
+            "fetch_date": dict.get(data, "fetch_date"),
         },
-        "data_freshness": data.get("data_freshness", {}) or {},
-        "source_freshness": data.get("source_freshness", {}) or {},
+        "data_freshness": raw_data_freshness if isinstance(raw_data_freshness := dict.get(data, "data_freshness"), dict) else {},
+        "source_freshness": raw_source_freshness if isinstance(raw_source_freshness := dict.get(data, "source_freshness"), dict) else {},
         "data_trust": _prompt_data_trust(data),
         "source_audit_summary": _prompt_source_audit_summary(data),
         "agent_context": _agent_context(data),
         "market_data": {
-            "current_price_twd": _prompt_number(data.get("current_price")),
-            "market_cap_billion_twd": raw_twd_to_billion_twd(data.get("market_cap_raw")),
-            "week_52_high_twd": _prompt_number(data.get("week_52_high")),
-            "week_52_low_twd": _prompt_number(data.get("week_52_low")),
+            "current_price_twd": _prompt_number(dict.get(data, "current_price")),
+            "market_cap_billion_twd": raw_twd_to_billion_twd(dict.get(data, "market_cap_raw")),
+            "week_52_high_twd": _prompt_number(dict.get(data, "week_52_high")),
+            "week_52_low_twd": _prompt_number(dict.get(data, "week_52_low")),
         },
         "valuation_metrics": {
-            "pe_ttm": _prompt_number(data.get("pe_ratio_raw")),
-            "forward_pe": _prompt_number(data.get("forward_pe_raw")),
-            "pb": _prompt_number(data.get("pb_ratio")),
-            "ps": _prompt_number(data.get("ps_ratio")),
-            "ev_ebitda": _prompt_number(data.get("ev_ebitda")),
-            "shares_outstanding": _prompt_number(data.get("shares_raw"), 0),
-            "trailing_eps_twd": _prompt_number(data.get("trailing_eps")),
-            "forward_eps_twd": _prompt_number(data.get("forward_eps")),
-            "dividend_yield_pct": _prompt_ratio_to_pct(data.get("dividend_yield_raw")),
-            "dividend_per_share_twd": _prompt_number(data.get("dividend_rate_raw")),
-            "payout_ratio_pct": _prompt_ratio_to_pct(data.get("payout_ratio_raw")),
+            "pe_ttm": _prompt_number(dict.get(data, "pe_ratio_raw")),
+            "forward_pe": _prompt_number(dict.get(data, "forward_pe_raw")),
+            "pb": _prompt_number(dict.get(data, "pb_ratio")),
+            "ps": _prompt_number(dict.get(data, "ps_ratio")),
+            "ev_ebitda": _prompt_number(dict.get(data, "ev_ebitda")),
+            "shares_outstanding": _prompt_number(dict.get(data, "shares_raw"), 0),
+            "trailing_eps_twd": _prompt_number(dict.get(data, "trailing_eps")),
+            "forward_eps_twd": _prompt_number(dict.get(data, "forward_eps")),
+            "dividend_yield_pct": _prompt_ratio_to_pct(dict.get(data, "dividend_yield_raw")),
+            "dividend_per_share_twd": _prompt_number(dict.get(data, "dividend_rate_raw")),
+            "payout_ratio_pct": _prompt_ratio_to_pct(dict.get(data, "payout_ratio_raw")),
         },
         "ttm_financials": {
-            "revenue_billion_twd": raw_twd_to_billion_twd(data.get("revenue_ttm_raw")),
-            "net_income_billion_twd": raw_twd_to_billion_twd(data.get("net_income_ttm_raw")),
-            "net_income_source": data.get("net_income_ttm_source"),
-            "ebitda_billion_twd": raw_twd_to_billion_twd(data.get("ebitda_raw")),
-            "gross_margin_pct": _prompt_ratio_to_pct(data.get("gross_margin_raw")),
-            "operating_margin_pct": _prompt_ratio_to_pct(data.get("operating_margin_raw")),
-            "profit_margin_pct_calibrated": _prompt_ratio_to_pct(data.get("profit_margin_raw")),
-            "profit_margin_pct_provider": _prompt_ratio_to_pct(data.get("profit_margin_provider_raw")),
+            "revenue_billion_twd": raw_twd_to_billion_twd(dict.get(data, "revenue_ttm_raw")),
+            "net_income_billion_twd": raw_twd_to_billion_twd(dict.get(data, "net_income_ttm_raw")),
+            "net_income_source": dict.get(data, "net_income_ttm_source"),
+            "ebitda_billion_twd": raw_twd_to_billion_twd(dict.get(data, "ebitda_raw")),
+            "gross_margin_pct": _prompt_ratio_to_pct(dict.get(data, "gross_margin_raw")),
+            "operating_margin_pct": _prompt_ratio_to_pct(dict.get(data, "operating_margin_raw")),
+            "profit_margin_pct_calibrated": _prompt_ratio_to_pct(dict.get(data, "profit_margin_raw")),
+            "profit_margin_pct_provider": _prompt_ratio_to_pct(dict.get(data, "profit_margin_provider_raw")),
         },
         "cash_flow": {
-            "free_cash_flow_billion_twd": raw_twd_to_billion_twd(data.get("free_cash_flow_raw")),
-            "operating_cash_flow_billion_twd": raw_twd_to_billion_twd(data.get("operating_cash_flow_raw")),
+            "free_cash_flow_billion_twd": raw_twd_to_billion_twd(dict.get(data, "free_cash_flow_raw")),
+            "operating_cash_flow_billion_twd": raw_twd_to_billion_twd(dict.get(data, "operating_cash_flow_raw")),
         },
         "balance_sheet": {
             "total_debt_billion_twd": total_debt_b,
             "total_cash_billion_twd": total_cash_b,
             "net_debt_billion_twd": net_debt_b,
-            "debt_to_equity_pct": _prompt_number(data.get("debt_to_equity")),
-            "current_ratio": _prompt_number(data.get("current_ratio")),
-            "equity_multiplier": data.get("equity_multiplier"),
+            "debt_to_equity_pct": _prompt_number(dict.get(data, "debt_to_equity")),
+            "current_ratio": _prompt_number(dict.get(data, "current_ratio")),
+            "equity_multiplier": dict.get(data, "equity_multiplier"),
         },
         "growth": {
-            "latest_annual_revenue_growth_pct": _prompt_number(data.get("latest_annual_revenue_growth")),
-            "latest_annual_net_income_growth_pct": _prompt_number(data.get("latest_annual_net_income_growth")),
-            "ttm_vs_latest_annual_revenue_change_pct": _prompt_number(data.get("ttm_vs_latest_annual_revenue_change")),
-            "yahoo_recent_revenue_growth_pct": _prompt_number(data.get("yahoo_revenue_growth")),
-            "yahoo_recent_earnings_growth_pct": _prompt_number(data.get("yahoo_earnings_growth")),
-            "revenue_cagr_5yr_pct": _prompt_number(data.get("revenue_cagr_5yr")),
+            "latest_annual_revenue_growth_pct": _prompt_number(dict.get(data, "latest_annual_revenue_growth")),
+            "latest_annual_net_income_growth_pct": _prompt_number(dict.get(data, "latest_annual_net_income_growth")),
+            "ttm_vs_latest_annual_revenue_change_pct": _prompt_number(dict.get(data, "ttm_vs_latest_annual_revenue_change")),
+            "yahoo_recent_revenue_growth_pct": _prompt_number(dict.get(data, "yahoo_revenue_growth")),
+            "yahoo_recent_earnings_growth_pct": _prompt_number(dict.get(data, "yahoo_earnings_growth")),
+            "revenue_cagr_5yr_pct": _prompt_number(dict.get(data, "revenue_cagr_5yr")),
         },
         "history": {
             "unit": "billion_twd",
@@ -280,27 +308,27 @@ def format_data_for_prompt(data: dict, *, compact: bool = False) -> str:
         },
         "market_catalysts": {
             "lookback_days": CATALYST_LOOKBACK_DAYS,
-            "items": _compact_list(data.get("recent_catalysts", []), 3) if compact else data.get("recent_catalysts", []) or [],
+            "items": _compact_list(dict.get(data, "recent_catalysts", []), 3) if compact else _safe_iterable_prefix(dict.get(data, "recent_catalysts", [])),
         },
         "global_market_context": prompt_global_market_context(data, compact=compact),
         "international_news_context": prompt_international_news_context(data, compact=compact),
-        "institutional_trading": data.get("institutional_trading", {}) or {},
+        "institutional_trading": raw_institutional_trading if isinstance(raw_institutional_trading := dict.get(data, "institutional_trading"), dict) else {},
         "peer_context": {
-            "dynamic_peer_metrics": _compact_list(data.get("dynamic_peer_metrics", []), 5) if compact else data.get("dynamic_peer_metrics", []) or [],
-            "search_discovery_results": [] if compact else data.get("peer_discovery_results", []) or [],
+            "dynamic_peer_metrics": _compact_list(dict.get(data, "dynamic_peer_metrics", []), 5) if compact else _safe_iterable_prefix(dict.get(data, "dynamic_peer_metrics", [])),
+            "search_discovery_results": [] if compact else _safe_iterable_prefix(dict.get(data, "peer_discovery_results", [])),
         },
         "local_valuation_context": {
-            "pe_river_chart": _compact_pe_river(data.get("pe_river_chart", {}) or {}) if compact else data.get("pe_river_chart", {}) or {},
+            "pe_river_chart": _compact_pe_river(raw_pe_river_chart := dict.get(data, "pe_river_chart")) if compact else (raw_pe_river_chart if isinstance(raw_pe_river_chart := dict.get(data, "pe_river_chart"), dict) else {}),
         },
         "cross_checks": {
             "forward_eps_implied_net_income_billion_twd": implied_forward_net_income_b,
             "forward_eps_implied_revenue_billion_twd": implied_forward_revenue_b,
             "forward_eps_implied_revenue_growth_pct": implied_forward_revenue_growth_pct,
-            "dupont_identity_note": data.get("dupont_identity_note") or data.get("equity_multiplier_note"),
-            "wacc_capital_structure_note": data.get("wacc_capital_structure_note"),
+            "dupont_identity_note": dict.get(data, "dupont_identity_note") or dict.get(data, "equity_multiplier_note"),
+            "wacc_capital_structure_note": dict.get(data, "wacc_capital_structure_note"),
         },
-        "data_quality_notes": _compact_list(data.get("data_source_notes", []), 5) if compact else data.get("data_source_notes", []) or [],
-        "recent_monthly_revenue_text": _compact_list(data.get("recent_monthly_revenue", []), 4) if compact else data.get("recent_monthly_revenue", []) or [],
+        "data_quality_notes": _compact_list(dict.get(data, "data_source_notes", []), 5) if compact else _safe_iterable_prefix(dict.get(data, "data_source_notes", [])),
+        "recent_monthly_revenue_text": _compact_list(dict.get(data, "recent_monthly_revenue", []), 4) if compact else _safe_iterable_prefix(dict.get(data, "recent_monthly_revenue", [])),
         "deterministic_financial_tool_results": build_financial_tool_context(data),
     }
 

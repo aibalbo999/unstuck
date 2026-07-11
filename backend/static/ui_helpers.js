@@ -1,13 +1,11 @@
 (function () {
-    const PIPELINE_META = {
-        v1: { label: '模式 A：學術深度派', codeLabel: '模式 A', displayLabel: '模式 A · 學術深度派', shortLabel: '學術深度派', decisionLabel: '長線研究', optionLabel: '長線研究 · 10 Agent', ctaLabel: '開始模式 A 分析', reportSuffix: '深度分析報告', intent: '適合判斷是否納入長線研究清單。', hint: '請稍候，10 個 AI 分析模組正在為您撰寫深度研報...' },
-        v2: { label: '模式 B：實戰交易派', codeLabel: '模式 B', displayLabel: '模式 B · 實戰交易派', shortLabel: '實戰交易派', decisionLabel: '部位決策', optionLabel: '部位決策 · 8 Agent', ctaLabel: '開始模式 B 分析', reportSuffix: '實戰交易決策報告', intent: '適合決定進場、續抱或減碼。', hint: '請稍候，8 個 AI 分析模組正在整合總經、籌碼與進出場策略...' },
-        v3: { label: '模式 C：逆勢交易與泡沫狙擊', codeLabel: '模式 C', displayLabel: '模式 C · 逆勢泡沫狙擊', shortLabel: '逆勢泡沫狙擊', decisionLabel: '逆勢風控', optionLabel: '逆勢風控 · 5 Agent', ctaLabel: '開始模式 C 分析', reportSuffix: '泡沫狙擊研究報告', intent: '適合檢查泡沫、避險與做空風險。', hint: '請稍候，5 個 AI 逆勢分析模組正在檢驗題材泡沫、財務漏洞與做空觸發條件...' },
-        v4: { label: '模式 D：極短線波段與事件驅動', codeLabel: '模式 D', displayLabel: '模式 D · 短線波段派', shortLabel: '短線波段派', decisionLabel: '事件波段', optionLabel: '事件波段 · 3 Agent', ctaLabel: '開始模式 D 分析', reportSuffix: '極短線交易策略報告', intent: '適合短線事件與波段交易計畫。', hint: '請稍候，AI 動能分析師正在比對技術突破點、籌碼集中度與近期事件催化劑...' },
-        both: { label: '連續模式：模式 A → 模式 B → 模式 C', codeLabel: '連續 A+B+C', displayLabel: '連續 A+B+C · 三份報告', shortLabel: 'A+B+C 連續', decisionLabel: '三視角交叉檢查', optionLabel: '三視角交叉檢查 · 23 模組', ctaLabel: '連續執行 A+B+C', reportSuffix: '三模式分析完成', intent: '適合同一檔股票需要長線、交易與逆勢三視角交叉檢查。', hint: '將依序執行學術深度派、實戰交易派與逆勢泡沫狙擊；完成後會產出三份獨立報告。' }
-    };
+    const { dataTrustClass, dataTrustLabel, dataTrustReasonSummary, dataTrustScoreLabel, providerSlaOnlyPartial } = window.StockAgentUiDataTrust;
+    const fallbackCatalog = window.StockAgentUiPipelineModeFallback || {};
+    const PIPELINE_META = Object.fromEntries(
+        (Array.isArray(fallbackCatalog.modes) ? fallbackCatalog.modes : []).map(mode => [mode.id, mode])
+    );
     function pipelineMeta(pipelineId) {
-        return PIPELINE_META[pipelineId] || PIPELINE_META.v1;
+        return PIPELINE_META[pipelineId] || PIPELINE_META.v1 || {};
     }
     function pipelineChoices(options = {}) {
         const ids = options.includeBoth ? ['v1', 'v2', 'v3', 'v4', 'both'] : ['v1', 'v2', 'v3', 'v4'];
@@ -21,61 +19,6 @@
     }
     function pipelineModeLabel(pipelineId) { return pipelineMeta(pipelineId).displayLabel || pipelineMeta(pipelineId).label; }
     function pipelineCtaLabel(pipelineId) { return pipelineMeta(pipelineId).ctaLabel || `開始${pipelineMeta(pipelineId).codeLabel || '模式 A'}分析`; }
-    function providerSlaOnlyPartial(trust) {
-        const codes = trust && Array.isArray(trust.reason_codes) ? trust.reason_codes : [], stale = trust && Array.isArray(trust.stale_sources) ? trust.stale_sources.filter(Boolean) : [], failures = trust && Array.isArray(trust.critical_failures) ? trust.critical_failures.filter(Boolean) : [];
-        return trust?.status === 'partial' && codes.includes('provider_sla_critical') && !stale.length && !failures.length;
-    }
-    function dataTrustLabel(trust) {
-        const status = trust && trust.status ? trust.status : 'unknown';
-        const labels = {
-            fresh: '本報告資料新鮮',
-            partial: providerSlaOnlyPartial(trust) ? '本報告來源提醒' : '本報告資料需留意',
-            stale: '本報告部分過期',
-            error: '本報告來源異常',
-            unknown: '本報告未記錄'
-        };
-        return labels[status] || labels.unknown;
-    }
-    function dataTrustClass(trust) {
-        const status = trust && trust.status ? trust.status : 'unknown';
-        return ['fresh', 'partial', 'stale', 'error'].includes(status) ? status : 'unknown';
-    }
-    function dataTrustReasonLabel(code) {
-        const parts = String(code || '').split(':');
-        const base = parts[0];
-        const source = parts[1] || '';
-        const labels = {
-            fresh_core_sources: '核心資料新鮮',
-            critical_sources_error: '核心來源異常',
-            missing_usable_critical_data: '缺少核心資料',
-            data_source_notes_present: '含口徑註記',
-            provider_sla_critical: '系統來源當時不穩',
-            provider_sla_core_health_notice: '核心來源穩定度提醒',
-            provider_sla_optional_critical: '補充來源穩定度提醒',
-            provider_sla_warning_note: '來源穩定度提醒',
-            missing_data_trust_snapshot: '未記錄報告資料狀態',
-            source_error: '來源異常',
-            source_stale: '來源過期',
-            optional_source_error: '補充來源異常',
-            optional_source_stale: '補充來源過期',
-            optional_source_degraded: '補充來源降級',
-            optional_source_not_configured: '補充來源未設定'
-        };
-        const sourceLabels = { market_data: '市場資料', financial_statements: '年度財報', monthly_revenue: '月營收', institutional_trading: '法人籌碼', dynamic_peer_metrics: '同業指標', pe_river_chart: 'P/E 河流圖', recent_catalysts: '近期催化劑', peer_discovery: '同業搜尋', social_sentiment: '社群討論情緒', alternative_data: '另類數據', earnings_call: '法說會資料' };
-        return `${labels[base] || base}${source ? `：${sourceLabels[source] || source}` : ''}`;
-    }
-    function dataTrustReasonSummary(trust) {
-        const codes = trust && Array.isArray(trust.reason_codes) ? trust.reason_codes : [];
-        const reasons = codes.slice(0, 2).map(dataTrustReasonLabel);
-        const scoreReasons = trust && Array.isArray(trust.score_reasons) ? trust.score_reasons : [];
-        if (!reasons.length && scoreReasons.length) return scoreReasons.slice(0, 2).join('、');
-        return reasons.join('、');
-    }
-    function dataTrustScoreLabel(trust) {
-        const score = trust && Number(trust.score);
-        if (!Number.isFinite(score)) return '';
-        return `${Math.max(0, Math.min(100, Math.round(score)))}分`;
-    }
     function normalizeRecommendation(value) {
         const text = String(value || 'N/A');
         const lower = text.toLowerCase();

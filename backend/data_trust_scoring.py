@@ -28,48 +28,53 @@ CORE_SOURCE_SET = set(CORE_DATA_SOURCES)
 
 
 def trust_status_label(status: str) -> str:
-    return TRUST_STATUS_LABELS.get(str(status or ""), str(status or "unknown"))
+    status_text = _safe_text(status).strip()
+    return TRUST_STATUS_LABELS.get(status_text, status_text or "unknown")
 
 
 def normalize_data_trust(value: Any) -> dict:
     if not isinstance(value, dict):
         return unknown_data_trust()
 
-    status = str(value.get("status") or TRUST_STATUS_UNKNOWN)
+    status = _safe_text(dict.get(value, "status")).strip() or TRUST_STATUS_UNKNOWN
     if status not in TRUST_STATUSES:
         status = TRUST_STATUS_UNKNOWN
-    notes = value.get("notes", [])
+    notes = dict.get(value, "notes", [])
     if isinstance(notes, str):
         notes = [notes]
     elif not isinstance(notes, list):
         notes = []
 
-    score = value.get("score", value.get("trust_score"))
+    score = dict.get(value, "score", dict.get(value, "trust_score"))
     try:
         score_value = int(round(float(score)))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
         score_value = _score_for_trust(
             status=status,
-            critical_failures=string_list(value.get("critical_failures")),
-            stale_sources=string_list(value.get("stale_sources")),
-            reason_codes=string_list(value.get("reason_codes")),
+            critical_failures=string_list(dict.get(value, "critical_failures")),
+            stale_sources=string_list(dict.get(value, "stale_sources")),
+            reason_codes=string_list(dict.get(value, "reason_codes")),
         )[0]
     normalized = {
         "status": status,
-        "critical_failures": string_list(value.get("critical_failures")),
-        "stale_sources": string_list(value.get("stale_sources")),
-        "last_market_data_at": value.get("last_market_data_at"),
-        "notes": [str(item) for item in notes if str(item).strip()],
-        "reason_codes": string_list(value.get("reason_codes")),
+        "critical_failures": string_list(dict.get(value, "critical_failures")),
+        "stale_sources": string_list(dict.get(value, "stale_sources")),
+        "last_market_data_at": dict.get(value, "last_market_data_at"),
+        "notes": [
+            text
+            for item in notes
+            if (text := _safe_text(item).strip())
+        ],
+        "reason_codes": string_list(dict.get(value, "reason_codes")),
         "score": max(0, min(score_value, 100)),
-        "score_reasons": string_list(value.get("score_reasons")) or _score_for_trust(
+        "score_reasons": string_list(dict.get(value, "score_reasons")) or _score_for_trust(
             status=status,
-            critical_failures=string_list(value.get("critical_failures")),
-            stale_sources=string_list(value.get("stale_sources")),
-            reason_codes=string_list(value.get("reason_codes")),
+            critical_failures=string_list(dict.get(value, "critical_failures")),
+            stale_sources=string_list(dict.get(value, "stale_sources")),
+            reason_codes=string_list(dict.get(value, "reason_codes")),
         )[1],
     }
-    alerts = value.get("provider_sla_alerts")
+    alerts = dict.get(value, "provider_sla_alerts")
     if isinstance(alerts, list):
         normalized["provider_sla_alerts"] = [
             item for item in alerts
@@ -169,7 +174,7 @@ def build_data_trust(data: dict) -> dict:
         },
     )
     score, score_reasons = _score_for_trust(
-        status=str(trust.get("status") or TRUST_STATUS_UNKNOWN),
+        status=_safe_text(trust.get("status")).strip() or TRUST_STATUS_UNKNOWN,
         critical_failures=string_list(trust.get("critical_failures")),
         stale_sources=string_list(trust.get("stale_sources")),
         reason_codes=string_list(trust.get("reason_codes")),
@@ -190,7 +195,7 @@ def latest_audit_by_source(entries: list) -> dict:
     for entry in entries:
         if not isinstance(entry, dict):
             continue
-        source = str(entry.get("source") or "")
+        source = _safe_text(entry.get("source")).strip()
         if source:
             latest[source] = entry
     return latest
@@ -207,18 +212,18 @@ def optional_stale_sources_from(source_freshness: dict, latest_audit: dict) -> l
 def _stale_sources_from(source_freshness: dict, latest_audit: dict, *, core_only: bool) -> list[str]:
     sources = set()
     for source, entry in source_freshness.items():
-        source_name = str(source or "")
+        source_name = _safe_text(source).strip()
         if source_name and isinstance(entry, dict) and entry.get("stale") and is_core_source(source_name) == core_only:
             sources.add(source_name)
     for source, entry in latest_audit.items():
-        source_name = str(source or "")
+        source_name = _safe_text(source).strip()
         if source_name and isinstance(entry, dict) and entry.get("stale") and is_core_source(source_name) == core_only:
             sources.add(source_name)
     return sorted(sources)
 
 
 def is_core_source(source: str) -> bool:
-    return str(source or "") in CORE_SOURCE_SET
+    return _safe_text(source).strip() in CORE_SOURCE_SET
 
 
 def optional_sources_with_status(latest_audit: dict, status: str) -> list[str]:
@@ -238,6 +243,15 @@ def last_market_data_at(data: dict, source_freshness: dict, latest_audit: dict) 
         or data.get("market_data_fetched_at")
         or latest_audit.get("market_data", {}).get("fetched_at")
     )
+
+
+def _safe_text(value: Any) -> str:
+    if value is None:
+        return ""
+    try:
+        return str(value)
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+        return ""
 
 
 def has_usable_critical_data(data: dict, latest_audit: dict) -> bool:

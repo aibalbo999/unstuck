@@ -1,0 +1,102 @@
+.stock-snapshot-performance {
+    border: 1px solid rgba(0, 212, 255, 0.16);
+    border-radius: 8px;
+    background: rgba(14, 116, 144, 0.12);
+    margin-bottom: 14px;
+    padding: 12px;
+}
+
+.stock-snapshot-performance-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.stock-snapshot-performance-header strong {
+    color: var(--text-primary);
+    display: block;
+    font-size: 1rem;
+    line-height: 1.3;
+    margin-top: 2px;
+}
+
+.stock-snapshot-performance-header em {
+    font-size: 0.74rem;
+    font-style: normal;
+    line-height: 1.35;
+}
+
+.stock-snapshot-performance-controls {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.stock-snapshot-performance-controls button {
+    min-height: 34px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    background: rgba(4, 13, 26, 0.24);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+.stock-snapshot-performance-controls button.is-active,
+.stock-snapshot-performance-controls button:hover,
+.stock-snapshot-performance-controls button:focus-visible {
+    border-color: rgba(0, 212, 255, 0.42);
+    background: rgba(0, 212, 255, 0.12);
+    color: var(--text-primary);
+    outline: none;
+}
+
+.stock-snapshot-performance-chart {
+    display: grid;
+    grid-template-columns: minmax(120px, 0.55fr) minmax(180px, 1fr);
+    align-items: center;
+    gap: 12px;
+    min-height: 92px;
+}
+
+.stock-snapshot-performance-chart span,
+.stock-snapshot-performance-chart em {
+    display: block;
+    font-size: 0.76rem;
+    font-style: normal;
+    line-height: 1.35;
+}
+
+.stock-snapshot-performance-chart strong {
+    color: var(--text-primary);
+    display: block;
+    font-size: 1.2rem;
+    line-height: 1.25;
+    margin: 4px 0;
+}
+
+.stock-snapshot-performance-chart strong.is-positive {
+    color: #86efac;
+}
+
+.stock-snapshot-performance-chart strong.is-negative {
+    color: #fecaca;
+}
+
+.stock-snapshot-performance-line {
+    display: block;
+    height: 52px;
+    width: 100%;
+}
+
+.stock-snapshot-performance-line polyline {
+    fill: none;
+    stroke: var(--accent);
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 3;
+}

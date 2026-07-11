@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=20260707-operator-human-factors">
+    <link rel="stylesheet" href="/static/style.css?v=20260711-candidate-next-actions-v3">
     <link rel="stylesheet" href="/static/commercial/styles/home_entry.css?v=20260711-simple">
 </head>
 <body>
@@ -26,13 +26,23 @@
             <h1 class="gradient-text title">Wall Street AI</h1>
             <p class="subtitle">研究報告與決策追蹤工作台</p>
 
-            <div class="home-tabs" role="tablist" aria-label="首頁頁籤">
-                <button id="home-tab-analysis" class="home-tab-button" type="button" role="tab" aria-selected="false" aria-controls="home-panel-analysis" data-home-tab="analysis">分析</button>
-                <button id="home-tab-screener" class="home-tab-button" type="button" role="tab" aria-selected="false" aria-controls="home-panel-screener" data-home-tab="screener">市場掃描</button>
-                <button id="home-tab-tracking" class="home-tab-button" type="button" role="tab" aria-selected="false" aria-controls="home-panel-tracking" data-home-tab="tracking">追蹤</button>
-                <button id="home-tab-commercial" class="home-tab-button is-active" type="button" role="tab" aria-selected="true" aria-controls="home-panel-commercial" data-home-tab="commercial">商業版</button>
-                <button id="home-tab-ops" class="home-tab-button" type="button" role="tab" aria-selected="false" aria-controls="home-panel-ops" data-home-tab="ops">報告與維運</button>
-            </div>
+            <nav class="home-workspace-nav" aria-label="工作區導覽">
+                <section class="home-workspace-group is-analysis" aria-labelledby="home-workspace-analysis-label">
+                    <h2 id="home-workspace-analysis-label" class="home-workspace-label">分析工作台</h2>
+                    <div class="home-tabs" role="tablist" aria-label="分析工作台">
+                        <button id="home-tab-analysis" class="home-tab-button" type="button" role="tab" aria-selected="false" aria-controls="home-panel-analysis" data-home-tab="analysis">分析</button>
+                        <button id="home-tab-screener" class="home-tab-button" type="button" role="tab" aria-selected="false" aria-controls="home-panel-screener" data-home-tab="screener">市場掃描</button>
+                    </div>
+                </section>
+                <section class="home-workspace-group is-monitoring" aria-labelledby="home-workspace-monitoring-label">
+                    <h2 id="home-workspace-monitoring-label" class="home-workspace-label">監控工作台</h2>
+                    <div class="home-tabs" role="tablist" aria-label="監控工作台">
+                        <button id="home-tab-tracking" class="home-tab-button" type="button" role="tab" aria-selected="false" aria-controls="home-panel-tracking" data-home-tab="tracking">追蹤</button>
+                        <button id="home-tab-commercial" class="home-tab-button is-active" type="button" role="tab" aria-selected="true" aria-controls="home-panel-commercial" data-home-tab="commercial">商業版</button>
+                        <button id="home-tab-ops" class="home-tab-button" type="button" role="tab" aria-selected="false" aria-controls="home-panel-ops" data-home-tab="ops">報告與維運</button>
+                    </div>
+                </section>
+            </nav>
 
             <section id="home-panel-analysis" class="home-tab-panel" role="tabpanel" aria-labelledby="home-tab-analysis" hidden>
                 <div class="input-group">
@@ -211,6 +221,7 @@
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
                             </button>
                         </div>
+                        <div id="preview-reading-notice" class="preview-reading-notice" hidden></div>
                         <div class="preview-decision-row">
                             <div class="preview-decision">
                                 <span class="preview-label">當日股價</span>
@@ -590,35 +601,89 @@
         </div>
     </div>
 
-    <script src="/static/ui_helpers.js?v=20260704-pipeline-meta"></script>
+    <script src="/static/daily_decision_queue_context.js?v=20260709-daily-queue-context"></script>
+    <script src="/static/operator_dashboard_actions.js?v=20260711-candidate-next-actions-v3"></script>
+    <script src="/static/report_quality_gate_policy.js?v=20260709-report-quality-gate-policy"></script>
+    <script src="/static/report_reading_boundary_policy.js?v=20260711-report-reading-boundary"></script>
+    <script src="/static/report_quality_policy.js?v=20260709-report-quality-policy"></script>
+    <script src="/static/ui_data_trust.js?v=20260709-data-trust"></script>
+    <script src="/static/pipeline_mode_fallback.js?v=20260711-pipeline-fallback"></script>
+    <script src="/static/ui_helpers.js?v=20260711-pipeline-fallback"></script>
+    <script src="/static/pipeline_mode_catalog.js?v=20260711-pipeline-fallback"></script>
+    <script src="/static/api_request.js?v=20260709-api-request"></script>
     <script src="/static/api_client.js?v=20260608-api-quota-watchlist"></script>
     <script src="/static/api_client_extensions.js?v=20260610-dual-tracking"></script>
+    <script src="/static/provider_sla_helpers.js?v=20260709-provider-sla-helpers"></script>
     <script src="/static/provider_sla_panel.js?v=20260708-provider-waterfall-health"></script>
     <script src="/static/api_quota_panel.js?v=20260611-operator-clarity"></script>
     <script src="/static/performance_panel.js?v=20260620-performance"></script>
     <script src="/static/active_jobs_panel.js?v=20260608-stage-summary"></script>
-    <script src="/static/operator_summary_panel.js?v=20260707-operator-human-factors"></script>
+    <script src="/static/operator_summary_quality_helpers.js?v=20260709-operator-summary-quality-helpers"></script>
+    <script src="/static/operator_summary_helpers.js?v=20260709-operator-summary-helpers"></script>
+    <script src="/static/operator_summary_panel.js?v=20260711-candidate-next-actions-v3"></script>
     <script src="/static/watchlist_trigger_form.js?v=20260620-event-radar"></script>
+    <script src="/static/watchlist_panel_helpers.js?v=20260709-watchlist-helpers"></script>
+    <script src="/static/watchlist_panel_actions.js?v=20260709-watchlist-actions"></script>
     <script src="/static/watchlist_panel.js?v=20260705-watchlist-snapshot"></script>
+    <script src="/static/market_screener_helpers.js?v=20260709-screener-helpers"></script>
     <script src="/static/market_screener_panel.js?v=20260704-pipeline-meta"></script>
-    <script src="/static/stock_snapshot_panel.js?v=20260705-snapshot-ux"></script>
+    <script src="/static/stock_snapshot_numeric_format_helpers.js?v=20260709-stock-snapshot-numeric-format-helpers"></script>
+    <script src="/static/stock_snapshot_domain_format_helpers.js?v=20260709-stock-snapshot-domain-format-helpers"></script>
+    <script src="/static/stock_snapshot_performance_helpers.js?v=20260709-stock-snapshot-performance-helpers"></script>
+    <script src="/static/stock_snapshot_format_helpers.js?v=20260709-stock-snapshot-format-helpers"></script>
+    <script src="/static/stock_snapshot_helpers.js?v=20260709-stock-snapshot-helpers"></script>
+    <script src="/static/stock_snapshot_input_helpers.js?v=20260709-stock-snapshot-input-helpers"></script>
+    <script src="/static/stock_snapshot_load_helpers.js?v=20260709-stock-snapshot-load-helpers"></script>
+    <script src="/static/stock_snapshot_action_helpers.js?v=20260709-stock-snapshot-action-helpers"></script>
+    <script src="/static/stock_snapshot_summary_helpers.js?v=20260709-stock-snapshot-summary-helpers"></script>
+    <script src="/static/stock_snapshot_sections.js?v=20260709-stock-snapshot-sections"></script>
+    <script src="/static/stock_snapshot_overview_sections.js?v=20260709-stock-snapshot-overview-sections"></script>
+    <script src="/static/stock_snapshot_research_sections.js?v=20260709-stock-snapshot-research-sections"></script>
+    <script src="/static/stock_snapshot_signal_sections.js?v=20260709-stock-snapshot-signal-sections"></script>
+    <script src="/static/stock_snapshot_supplemental_sections.js?v=20260709-stock-snapshot-supplemental-sections"></script>
+    <script src="/static/stock_snapshot_interaction_helpers.js?v=20260709-stock-snapshot-interaction-helpers"></script>
+    <script src="/static/stock_snapshot_render_helpers.js?v=20260709-stock-snapshot-render-helpers"></script>
+    <script src="/static/stock_snapshot_event_helpers.js?v=20260709-stock-snapshot-event-helpers"></script>
+    <script src="/static/stock_snapshot_panel.js?v=20260709-stock-snapshot-event-helpers"></script>
     <script src="/static/portfolio_risk_panel.js?v=20260705-consumer-portfolio"></script>
+    <script src="/static/ops_workspace_elements.js?v=20260709-ops-elements"></script>
+    <script src="/static/ops_workspace_loaders.js?v=20260709-ops-loaders"></script>
+    <script src="/static/ops_workspace_panels.js?v=20260709-ops-panels"></script>
     <script src="/static/ops_workspace.js?v=20260708-provider-group-health"></script>
+    <script src="/static/maintenance_notification_delivery.js?v=20260709-notification-delivery"></script>
+    <script src="/static/maintenance_panel_helpers.js?v=20260709-maintenance-panel-helpers"></script>
     <script src="/static/maintenance_panel.js?v=20260610-operator-workbench"></script>
-    <script src="/static/home_tabs.js?v=20260608-home-tabs"></script>
+    <script src="/static/home_tabs.js?v=20260711-home-workspaces"></script>
+    <script src="/static/report_rerun_stream.js?v=20260709-report-rerun-stream"></script>
     <script src="/static/report_rerun.js?v=20260608-full-report"></script>
+    <script src="/static/analysis_stream_events.js?v=20260709-analysis-stream-events"></script>
     <script src="/static/analysis_stream.js?v=20260607-analysis-stream"></script>
+    <script src="/static/history_panel_quality_helpers.js?v=20260709-history-panel-quality-helpers"></script>
+    <script src="/static/history_panel_helpers.js?v=20260709-history-panel-helpers"></script>
+    <script src="/static/history_panel_renderers.js?v=20260709-history-panel-renderers"></script>
     <script src="/static/history_panel.js?v=20260708-tracking-action-notes"></script>
     <script src="/static/temporal_memory_panel.js?v=20260620-event-radar"></script>
-    <script src="/static/report_preview_panel.js?v=20260627-mode-aware-preview"></script>
+    <script src="/static/report_preview_helpers.js?v=20260709-report-preview-helpers"></script>
+    <script src="/static/report_preview_tracking_helpers.js?v=20260709-report-preview-tracking-helpers"></script>
+    <script src="/static/report_preview_rerun_helpers.js?v=20260709-report-preview-rerun-helpers"></script>
+    <script src="/static/report_preview_panel.js?v=20260709-report-preview-helpers"></script>
     <script src="/static/view_controller.js?v=20260607-view-controller"></script>
     <script src="/static/history_filters.js?v=20260607-latest-report-versions"></script>
     <script src="/static/report_actions.js?v=20260607-report-actions"></script>
-    <script src="/static/report_navigation.js?v=20260608-report-navigation-fix"></script>
+    <script src="/static/report_navigation_targets.js?v=20260709-report-nav-targets"></script>
+    <script src="/static/report_navigation.js?v=20260709-report-navigation-headroom"></script>
+    <script src="/static/report_compare_helpers.js?v=20260709-compare-helpers"></script>
+    <script src="/static/report_compare_renderers.js?v=20260709-compare-renderers"></script>
     <script src="/static/report_compare_panel.js?v=20260608-report-compare"></script>
+    <script src="/static/decision_tracking_helpers.js?v=20260709-tracking-helpers"></script>
     <script src="/static/decision_tracking_panel.js?v=20260708-tracking-action-notes"></script>
+    <script src="/static/history_workspace_panels.js?v=20260709-history-panels"></script>
+    <script src="/static/history_workspace_actions.js?v=20260709-history-actions"></script>
     <script src="/static/history_workspace.js?v=20260705-tracking-snapshot"></script>
     <script src="/static/notification_center.js?v=20260609-front-end-ops"></script>
+    <script src="/static/app_elements.js?v=20260709-app-elements"></script>
+    <script src="/static/app_pipeline_controls.js?v=20260709-app-pipeline-controls"></script>
+    <script src="/static/app_panels.js?v=20260711-candidate-next-actions-v3"></script>
     <script src="/static/app.js?v=20260705-tracking-snapshot"></script>
 </body>
 </html>

@@ -18,6 +18,7 @@ from llm_client import KeyRotator
 from pipeline_modes import get_pipeline_definition, normalize_pipeline_id
 from prompt_loader import load_agent_prompt_config
 from rag_runtime import build_rag_index_async
+from runtime_code_identity import runtime_code_identity
 from runtime_events import RUNTIME_EVENT_CALLBACK_KEY, emit_log
 from state_memory import initialize_agent_state
 from tear_sheet_tasks import ensure_tear_sheet_summary_async
@@ -124,7 +125,14 @@ def initialize_graph_state(data: dict[str, Any], *, pipeline_id: str) -> AgentGr
     load_provider_values_from_payload(domain_state, data)
     validate_state_provider_values(domain_state)
     graph_state = agent_state_to_graph(domain_state, pipeline_id=normalize_pipeline_id(pipeline_id))
-    graph_state["prompt_version"] = str(load_agent_prompt_config().get("prompt_version") or "agents:unversioned")
+    prompt_config = load_agent_prompt_config()
+    code_identity = runtime_code_identity()
+    graph_state["prompt_version"] = str(prompt_config.get("prompt_version") or "agents:unversioned")
+    graph_state["prompt_fingerprint"] = str(prompt_config.get("prompt_fingerprint") or "")
+    graph_state["code_commit"] = str(code_identity.get("commit") or "")
+    graph_state["code_dirty"] = (
+        code_identity.get("dirty") if isinstance(code_identity.get("dirty"), bool) else None
+    )
     graph_state["analyses"] = {}
     graph_state["structured_outputs"] = {}
     graph_state["blocking_issues"] = []
@@ -203,6 +211,9 @@ def legacy_context_from_graph(state: AgentGraphState, services: WorkflowServices
         "pipeline_id": pipeline_def["id"],
         "pipeline_label": pipeline_def["label"],
         "prompt_version": str(state.get("prompt_version") or load_agent_prompt_config().get("prompt_version") or "agents:unversioned"),
+        "prompt_fingerprint": str(state.get("prompt_fingerprint") or ""),
+        "code_commit": str(state.get("code_commit") or ""),
+        "code_dirty": state.get("code_dirty") if isinstance(state.get("code_dirty"), bool) else None,
         "agent_sequence": agent_sequence,
         "agent_positions": {agent_num: idx + 1 for idx, agent_num in enumerate(agent_sequence)},
         "agent_total": len(agent_sequence),

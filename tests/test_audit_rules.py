@@ -1313,14 +1313,15 @@ class AuditRuleTests(unittest.TestCase):
         self.assertIn("河流圖", query)
 
     def test_prompt_builder_supports_jinja_and_legacy_placeholders(self):
-        rendered = prompt_builder.render_prompt_template(
-            "標的 {ticker} {{ name }}{% if data.dividend_yield_raw > 0.05 %} DDM{% endif %}",
-            {
-                "ticker": "2330.TW",
-                "name": "台積電",
-                "data": {"dividend_yield_raw": 0.06},
-            },
-        )
+        with self.assertWarns(DeprecationWarning):
+            rendered = prompt_builder.render_prompt_template(
+                "標的 {ticker} {{ name }}{% if data.dividend_yield_raw > 0.05 %} DDM{% endif %}",
+                {
+                    "ticker": "2330.TW",
+                    "name": "台積電",
+                    "data": {"dividend_yield_raw": 0.06},
+                },
+            )
         self.assertEqual(rendered, "標的 2330.TW 台積電 DDM")
 
     def test_model_routing_policy(self):

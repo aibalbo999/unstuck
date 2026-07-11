@@ -1,0 +1,37 @@
+@media (max-width: 520px) {
+    .stock-snapshot-grid,
+    .stock-snapshot-shortcuts-row,
+    .stock-snapshot-company-profile-grid,
+    .stock-snapshot-session-grid,
+    .stock-snapshot-summary-rail,
+    .stock-snapshot-performance-controls,
+    .stock-snapshot-performance-chart,
+    .stock-snapshot-technical-grid,
+    .stock-snapshot-analyst-grid,
+    .stock-snapshot-earnings-grid,
+    .stock-snapshot-shares-grid,
+    .stock-snapshot-risk-grid,
+    .stock-snapshot-profitability-grid,
+    .stock-snapshot-dividend-grid,
+    .stock-snapshot-dividend-bars,
+    .stock-snapshot-calendar-grid,
+    .stock-snapshot-alert-grid,
+    .stock-snapshot-ownership-grid,
+    .stock-snapshot-fundamental-grid,
+    .stock-snapshot-valuation-bands,
+    .stock-snapshot-trend-returns {
+        grid-template-columns: 1fr;
+    }
+
+    .stock-snapshot-peer-table {
+        overflow-x: auto;
+    }
+
+    .stock-snapshot-financial-trend-row {
+        min-width: 620px;
+    }
+
+    .stock-snapshot-peer-row {
+        min-width: 520px;
+    }
+}

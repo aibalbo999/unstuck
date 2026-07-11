@@ -8,6 +8,14 @@ sys.path.insert(0, str(ROOT / "backend"))
 import reporting.legacy_report_gen as report_gen  # noqa: E402
 from data_trust import build_data_snapshot  # noqa: E402
 from reporting.evidence import build_key_evidence_rows  # noqa: E402
+from reporting.execution_summary import build_execution_summary_html, build_execution_summary_markdown  # noqa: E402
+
+
+class BrokenExecutionSummaryGateGet(dict):
+    def get(self, key, default=None):
+        if key in {"status", "verdict", "summary"}:
+            raise RuntimeError("execution summary gate get unavailable")
+        return dict.get(self, key, default)
 
 
 def minimal_context():
@@ -87,6 +95,8 @@ def test_html_and_markdown_include_data_trust_and_source_audit():
     context = minimal_context()
     context["prompt_version"] = "runtime-rules:test"
     context["model_id"] = "gemini-test-model"
+    context["code_commit"] = "abc123"
+    context["code_dirty"] = True
     context["agent_sequence"] = [1, 2, 3]
     context["final_audit"] = {"status": "passed", "critical": [], "warnings": ["高信心需揭露資料限制"], "corrections": []}
     context["evidence_exit_gate"] = {
@@ -104,9 +114,12 @@ def test_html_and_markdown_include_data_trust_and_source_audit():
     markdown = report_gen.generate_markdown_report(context)
 
     assert "本報告資料可信度" in html
+    assert "報告使用範圍與判讀限制" in html
+    assert "品質 gate 有警示" in html
     assert "資料信心分數" in html
     assert "可重現資訊" in html
     assert "gemini-test-model" in html
+    assert "程式碼狀態：abc123（含未提交變更）" in html
     assert "資料新鮮" in html
     assert "關鍵數據來源對照" in html
     assert "股價與市值" in html
@@ -119,9 +132,12 @@ def test_html_and_markdown_include_data_trust_and_source_audit():
     assert "Evidence gate：caution" in html
     assert "Report conformance：warning" in html
     assert "## 本報告資料可信度" in markdown
+    assert "## 報告使用範圍與判讀限制" in markdown
+    assert "品質 gate 有警示" in markdown
     assert "**資料信心分數:**" in markdown
     assert "**可重現資訊:**" in markdown
     assert "runtime-rules:test" in markdown
+    assert "程式碼狀態：abc123（含未提交變更）" in markdown
     assert "## 關鍵數據來源對照" in markdown
     assert "## 來源審計" in markdown
     assert "## 執行邏輯與模型檢查" in markdown
@@ -132,6 +148,35 @@ def test_html_and_markdown_include_data_trust_and_source_audit():
     assert "**Report conformance:** warning" in markdown
     assert "| 股價與市值 | 市場資料 | yfinance | 成功 |" in markdown
     assert "| 市場資料 | yfinance | 成功 |" in markdown
+
+
+def test_execution_summary_keeps_quality_gate_mappings_when_accessor_fails():
+    context = minimal_context()
+    context["final_audit"] = BrokenExecutionSummaryGateGet({"status": "warning"})
+    context["evidence_exit_gate"] = BrokenExecutionSummaryGateGet({
+        "verdict": "caution",
+        "summary": "部分抽樣數字需人工確認。",
+    })
+    context["report_conformance"] = BrokenExecutionSummaryGateGet({
+        "status": "warning",
+        "summary": "報告符合主要輸出契約，但仍需人工注意警示。",
+    })
+    context["report_lint"] = BrokenExecutionSummaryGateGet({"status": "warning"})
+
+    markdown = build_execution_summary_markdown(context)
+    html = build_execution_summary_html(context)
+
+    assert "**Final audit:** warning" in markdown
+    assert "**Evidence gate:** caution" in markdown
+    assert "**Report conformance:** warning" in markdown
+    assert "**Report lint:** warning" in markdown
+    assert "部分抽樣數字需人工確認。" in markdown
+    assert "報告符合主要輸出契約" in markdown
+    assert "Final audit：warning" in html
+    assert "Evidence gate：caution" in html
+    assert "Report conformance：warning" in html
+    assert "Report lint：warning" in html
+    assert "部分抽樣數字需人工確認。" in html
 
 
 def test_key_evidence_prefers_successful_provider_over_later_empty_provider():

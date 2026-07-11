@@ -1,0 +1,74 @@
+.provider-sla-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.provider-sla-window {
+    min-height: 44px;
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-primary);
+    padding: 0 28px 0 10px;
+    font-size: 0.76rem;
+    font-weight: 800;
+}
+.maintenance-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+}
+.maintenance-button {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 0.7rem;
+    font-weight: 900;
+}
+.maintenance-button:disabled {
+    cursor: wait;
+    opacity: 0.55;
+}
+.maintenance-button span {
+    overflow-wrap: anywhere;
+}
+.maintenance-details {
+    margin-top: 10px;
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.04);
+}
+.maintenance-details summary {
+    min-height: 34px;
+    display: flex;
+    align-items: center;
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-weight: 900;
+}
+.maintenance-chip {
+    flex: 1 1 150px;
+    justify-content: space-between;
+}
+.maintenance-result {
+    min-height: 18px;
+    margin: 8px 0 0;
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+    font-weight: 750;
+}
+@media (max-width: 720px) {
+    .maintenance-actions {
+        grid-template-columns: 1fr;
+    }
+}

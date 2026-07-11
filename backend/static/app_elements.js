@@ -1,0 +1,75 @@
+(function () {
+    function byId(doc, id) {
+        return doc.getElementById(id);
+    }
+
+    function collect(doc = document) {
+        const analyzeBtn = byId(doc, 'analyze-btn');
+        return {
+            homeView: byId(doc, 'home-view'),
+            loadingView: byId(doc, 'loading-view'),
+            reportView: byId(doc, 'report-view'),
+            tickerInput: byId(doc, 'ticker-input'),
+            analyzeBtn,
+            analyzeBtnText: analyzeBtn ? analyzeBtn.querySelector('span') : null,
+            stockSnapshotPanelEl: byId(doc, 'stock-snapshot-panel'),
+            stockSnapshotLoadBtn: byId(doc, 'stock-snapshot-load-btn'),
+            stockSnapshotShortcutsEl: byId(doc, 'stock-snapshot-shortcuts'),
+            pipelineModeHint: byId(doc, 'pipeline-mode-hint'),
+            backBtn: byId(doc, 'back-btn'),
+            loadingStatus: byId(doc, 'loading-status'),
+            loadingMsg: byId(doc, 'loading-msg'),
+            loadingHint: byId(doc, 'loading-hint'),
+            progressBar: byId(doc, 'progress-bar'),
+            pipelineInputs: Array.from(doc.querySelectorAll('input[name="pipeline-mode"]')),
+            reportIframe: byId(doc, 'report-iframe'),
+            reportTickerTitle: byId(doc, 'report-ticker-title'),
+            reportAuditNotice: byId(doc, 'report-audit-notice'),
+            historyList: byId(doc, 'history-list'),
+            historySearch: byId(doc, 'history-search'),
+            historyPipelineFilter: byId(doc, 'history-pipeline-filter'),
+            historyRecommendationFilter: byId(doc, 'history-recommendation-filter'),
+            historyDataTrustFilter: byId(doc, 'history-data-trust-filter'),
+            historyIncludeVersions: byId(doc, 'history-include-versions'),
+            historyPagination: byId(doc, 'history-pagination'),
+            historyPrev: byId(doc, 'history-prev'),
+            historyNext: byId(doc, 'history-next'),
+            historyPageInfo: byId(doc, 'history-page-info'),
+            historyTrackingTable: byId(doc, 'history-tracking-table'),
+            decisionTrackingSummary: byId(doc, 'decision-tracking-summary'),
+            decisionTrackingRefresh: byId(doc, 'decision-tracking-refresh'),
+            decisionTrackingDensity: byId(doc, 'decision-tracking-density'),
+            decisionTrackingRunActions: byId(doc, 'decision-tracking-run-actions'),
+            decisionTrackingStockSnapshotPanel: byId(doc, 'decision-tracking-stock-snapshot-panel'),
+            historyWorkspaceEl: doc.querySelector('.history-workspace'),
+            reportPreview: byId(doc, 'report-preview'),
+            previewMode: byId(doc, 'preview-mode'),
+            previewTitle: byId(doc, 'preview-title'),
+            previewPrice: byId(doc, 'preview-price'),
+            previewRecommendation: byId(doc, 'preview-recommendation'),
+            previewConfidence: byId(doc, 'preview-confidence'),
+            previewTarget3m: byId(doc, 'preview-target-3m'),
+            previewTarget6m: byId(doc, 'preview-target-6m'),
+            previewTarget12m: byId(doc, 'preview-target-12m'),
+            previewSummary: byId(doc, 'preview-summary'),
+            previewReadingNotice: byId(doc, 'preview-reading-notice'),
+            previewStaleNotice: byId(doc, 'preview-stale-notice'),
+            previewOpenReportBtn: byId(doc, 'preview-open-report-btn'),
+            previewRefreshDataBtn: byId(doc, 'preview-refresh-data-btn'),
+            previewCompareAddBtn: byId(doc, 'preview-compare-add-btn'),
+            previewRerunFinalBtn: byId(doc, 'preview-rerun-final-btn'),
+            previewRerunFullBtn: byId(doc, 'preview-rerun-full-btn'),
+            previewRerunModeBBtn: byId(doc, 'preview-rerun-modeb-btn'),
+            previewRerunCancelBtn: byId(doc, 'preview-rerun-cancel-btn'),
+            previewCloseBtn: byId(doc, 'preview-close-btn'),
+            reportCompareSummary: byId(doc, 'report-compare-summary'),
+            reportCompareResult: byId(doc, 'report-compare-result'),
+            reportCompareClearBtn: byId(doc, 'report-compare-clear-btn'),
+            downloadHtmlBtn: byId(doc, 'download-html-btn'),
+            downloadMdBtn: byId(doc, 'download-md-btn'),
+            downloadDataBtn: byId(doc, 'download-data-btn')
+        };
+    }
+
+    window.StockAgentAppElements = { collect };
+})();

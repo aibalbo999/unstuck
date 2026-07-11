@@ -12,7 +12,7 @@
 | Worker / Scheduler / Maintenance | `worker_main.py --role all` | `backend/worker_main.py` | 由 `start_mac.command` 啟動，負責 RQ worker、排程和維護。 |
 | Redis / RQ | `redis://localhost:6379/0` | `backend/task_queue.py` | API 只 enqueue，Worker consume。 |
 | Report index | `backend/cache/stock_agent_cache.sqlite3` | `backend/report_index.py` | `reports` table 是報告列表、搜尋、追蹤卡片的索引。 |
-| Operational state | `backend/cache/operational.sqlite3` | `backend/job_store.py`, `backend/decision_tracking_store.py`, `backend/watchlist_store.py`, `backend/provider_sla.py` | 分析任務、SSE events、telemetry、decision tracking、watchlist、provider SLA 的主要狀態。 |
+| Operational state | `backend/cache/operational.sqlite3` | `backend/job_store.py`, `backend/decision_tracking_store.py`, `backend/watchlist_store.py`, `backend/provider_sla.py`, `backend/notification_delivery_audit.py` | 分析任務、SSE events、telemetry、decision tracking、watchlist、provider SLA、notification delivery audit 的主要狀態。 |
 | Report artifacts | `backend/output/**/<ticker>/*.{html,md,data.json}` | `backend/report_history_storage.py`, `backend/report_paths.py`, `storage.report_storage` | 不要手動假設 `backend/output/<filename>`；報告可能在月份和 ticker 子資料夾。 |
 | Data fetch cache | Redis 或 `CACHE_DB_PATH` | `backend/cache_store.py`, `backend/cache_backends.py` | 依 `CACHE_BACKEND` 切換，目前本機常用 Redis。 |
 | Legacy tracking DB | `backend/cache/decision_tracking.sqlite3` | legacy migration only | 不要用它判斷畫面狀態；目前 canonical 是 `operational.sqlite3`。 |
@@ -99,6 +99,7 @@ flowchart LR
     JobStore --> OpDB
     WatchlistStore --> OpDB
     OpsRoute --> OpDB
+    NotificationAudit["notification_delivery_audit"] --> OpDB
 ```
 
 讀圖規則：
@@ -177,6 +178,7 @@ flowchart TD
 | 報告 snapshot 最新價 | `backend/output/**/<filename>.data.json` | `backend/output/<filename>.data.json` 固定路徑假設 |
 | 分析任務進度 | `operational.sqlite3` -> `analysis_jobs`, `analysis_events` | RQ registry alone |
 | Provider 健康度 | `operational.sqlite3` -> `provider_sla_*` | 外部 provider billing/dashboard |
+| Notification delivery 結果 | `operational.sqlite3` -> `notification_delivery_audit` | `stock_agent_cache.sqlite3` 或外部 channel dashboard |
 | Watchlist 狀態 | `operational.sqlite3` -> `watchlist_*` | legacy JSON path |
 | 報告列表/搜尋 | `stock_agent_cache.sqlite3` -> `reports` | filesystem scan alone |
 
@@ -186,6 +188,8 @@ flowchart TD
 - 新長流程先建立 service/workflow Module，再由 route 注入依賴。
 - Runtime path 真相走 `runtime_paths`，不要在新 Module 自己猜 `backend/cache/*.sqlite3`。
 - 新持久狀態若屬 operational state，優先放 `TASK_DB_PATH` 管轄的 store Module。
+- Notification delivery 的成功、失敗與重試稽核屬 operational state，走 `notification_delivery_audit`，不要寫進 report index。
+- Provider SLA dashboard payload shaping 與 window/alert projection 放 `provider_sla_observability`，`api_observability_service` 只負責聚合維運 API payload。
 - 新報告索引欄位才放 `report_index`；不要把任務狀態塞進 report index。
 - 新 report artifact 行為走 `report_artifacts` / storage helper；不要新增另一套 path guessing。
 - 新外部資料來源走 `data_fetch` / provider audit；不要在 UI route 裡直接呼叫 provider。

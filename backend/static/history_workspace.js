@@ -8,57 +8,19 @@
         let historyReports = new Map(), previewReport = null, trackedTickers = new Set();
         let trackingCompact = false, previewCompactMode = false;
 
-        const historyFilters = window.StockAgentHistoryFilters.create({ searchEl: elements.historySearch, pipelineEl: elements.historyPipelineFilter, recommendationEl: elements.historyRecommendationFilter, dataTrustEl: elements.historyDataTrustFilter, includeVersionsEl: elements.historyIncludeVersions });
-
-        const historyPanel = window.StockAgentHistoryPanel.create({
-            listEl: elements.historyList,
-            trackingTableEl: elements.historyTrackingTable,
-            paginationEl: elements.historyPagination,
-            prevBtn: elements.historyPrev,
-            nextBtn: elements.historyNext,
-            pageInfoEl: elements.historyPageInfo,
-            escapeHtml: ui.escapeHtml,
-            renderPipelineModeBadge: ui.renderPipelineModeBadge,
-            renderDataTrustBadge: ui.renderDataTrustBadge,
-            renderDataTrustReason: ui.renderDataTrustReason,
-            recommendationTone: ui.recommendationTone,
-            normalizeRecommendation: ui.normalizeRecommendation
-        });
-        const reportPreviewPanel = window.StockAgentReportPreviewPanel.create({
-            elements: {
-                workspace: elements.historyWorkspace,
-                root: elements.reportPreview,
-                mode: elements.previewMode,
-                title: elements.previewTitle,
-                price: elements.previewPrice,
-                recommendation: elements.previewRecommendation,
-                confidence: elements.previewConfidence,
-                target3m: elements.previewTarget3m,
-                target6m: elements.previewTarget6m,
-                target12m: elements.previewTarget12m,
-                summary: elements.previewSummary,
-                staleNotice: elements.previewStaleNotice,
-                rerunFinalBtn: elements.previewRerunFinalBtn,
-                rerunFullBtn: elements.previewRerunFullBtn,
-                rerunModeBBtn: elements.previewRerunModeBBtn
-            },
-            escapeHtml: ui.escapeHtml,
-            renderPipelineModeBadge: ui.renderPipelineModeBadge,
-            renderDataTrustBadge: ui.renderDataTrustBadge,
-            recommendationTone: ui.recommendationTone,
-            normalizeRecommendation: ui.normalizeRecommendation
-        });
-        const reportComparePanel = window.StockAgentReportComparePanel.create({
+        const {
+            historyFilters,
+            historyPanel,
+            reportPreviewPanel,
+            reportComparePanel,
+            trackingSnapshotPanel,
+            decisionTrackingPanel
+        } = window.StockAgentHistoryWorkspacePanels.create({
             apiClient,
-            escapeHtml: ui.escapeHtml,
-            pipelineModeLabel: ui.pipelineModeLabel,
-            elements: { addBtn: elements.previewCompareAddBtn, summaryEl: elements.reportCompareSummary, resultEl: elements.reportCompareResult, clearBtn: elements.reportCompareClearBtn }
-        });
-        const trackingSnapshotPanel = window.StockAgentStockSnapshotPanel.create({ apiClient, ui, notify, elements: { root: elements.decisionTrackingStockSnapshotPanel } });
-        const decisionTrackingPanel = window.StockAgentDecisionTrackingPanel.create({
-            apiClient, historyPanel, notify,
-            elements: { summaryEl: elements.decisionTrackingSummary, refreshBtn: elements.decisionTrackingRefresh, runActionsBtn: elements.decisionTrackingRunActions },
-            onChange: tickers => { trackedTickers = tickers; historyPanel.setTrackedTickers(trackedTickers); }
+            ui,
+            elements,
+            notify,
+            onTrackedTickersChange: tickers => { trackedTickers = tickers; }
         });
         function setTrackingCompact(value, fromPreview = false) {
             trackingCompact = Boolean(value);
@@ -113,88 +75,23 @@
             setTrackingCompact(true, true);
             if (reportPreviewPanel.show(report)) historyPanel.select(filename);
         }
-
-        async function refreshPreviewDataSnapshot() {
-            const button = elements.previewRefreshDataBtn;
-            if (!previewReport || !button) return;
-            const filename = previewReport.filename;
-            const label = button.querySelector('span');
-            const originalText = label ? label.textContent : '刷新資料快照';
-            button.disabled = true;
-            if (label) label.textContent = '刷新中';
-            try {
-                const payload = await apiClient.refreshReportDataSnapshot(filename);
-                const updated = {
-                    ...previewReport,
-                    data_trust: payload.data_trust || previewReport.data_trust,
-                    data_snapshot_filename: payload.data_filename || previewReport.data_snapshot_filename,
-                    analysis_text_stale: payload.analysis_text_stale ?? previewReport.analysis_text_stale,
-                    analysis_text_stale_message: payload.analysis_text_stale_message ?? previewReport.analysis_text_stale_message,
-                    decision_freshness: payload.decision_freshness ?? previewReport.decision_freshness
-                };
-                historyReports.set(filename, updated);
-                previewReport = updated;
-                showReportPreview(filename);
-                await loadHistory();
-                await refreshProviderSlaIfLoaded();
-                const summary = payload.refresh_diff && Array.isArray(payload.refresh_diff.summary)
-                    ? payload.refresh_diff.summary.slice(0, 3).join('；')
-                    : '資料快照已刷新';
-                notify.success(`資料快照已刷新：${summary}`);
-            } catch (err) {
-                console.error('Failed to refresh data snapshot', err);
-                notify.error(`刷新資料快照失敗：${err.message || err}`);
-            } finally {
-                button.disabled = false;
-                if (label) label.textContent = originalText;
-            }
-        }
-        async function rerunPreviewReport(scope) {
-            return window.StockAgentReportRerun.rerunPreviewReport({
-                apiClient,
-                scope,
-                previewReport,
-                buttons: {
-                    final: elements.previewRerunFinalBtn,
-                    full: elements.previewRerunFullBtn,
-                    modeB: elements.previewRerunModeBBtn,
-                    cancel: elements.previewRerunCancelBtn
-                },
-                statusEl: elements.previewStaleNotice,
-                loadHistory,
-                notify,
-                refreshProviderSlaIfLoaded,
-                openReport
-            });
-        }
-
-        async function deleteReport(filename, event) {
-            event.stopPropagation();
-            const confirmed = await notify.confirm ('確定要刪除這份報告嗎？', {
-                title: '刪除報告',
-                confirmLabel: '刪除'
-            });
-            if (!confirmed) return;
-            try {
-                const result = await apiClient.deleteReport(filename);
-                if (result.success) {
-                    if (previewReport && previewReport.filename === filename) hideReportPreview();
-                    loadHistory();
-                } else {
-                    notify.error('刪除失敗：' + result.error);
-                }
-            } catch (err) {
-                console.error(err);
-                notify.error('刪除失敗');
-            }
-        }
-        async function toggleDecisionTracking(filename, event) {
-            event.stopPropagation();
-            const report = historyReports.get(filename);
-            if (report) { await decisionTrackingPanel.toggleDecisionTracking(report); await loadHistory(); }
-        }
+        const actions = window.StockAgentHistoryWorkspaceActions.create({
+            apiClient,
+            notify,
+            elements,
+            decisionTrackingPanel,
+            getPreviewReport: () => previewReport,
+            setPreviewReport: report => { previewReport = report; },
+            getReport: filename => historyReports.get(filename),
+            setReport: (filename, report) => { historyReports.set(filename, report); },
+            showReportPreview,
+            hideReportPreview,
+            loadHistory,
+            refreshProviderSlaIfLoaded,
+            openReport
+        });
         function bindEvents() {
-            historyPanel.bindEvents({ onDelete: deleteReport, onSelect: showReportPreview, onToggleTracking: toggleDecisionTracking, onOpenSnapshot: openTrackingSnapshot });
+            historyPanel.bindEvents({ onDelete: actions.deleteReport, onSelect: showReportPreview, onToggleTracking: actions.toggleDecisionTracking, onOpenSnapshot: openTrackingSnapshot });
             trackingSnapshotPanel.bindEvents();
             if (elements.previewOpenReportBtn) {
                 elements.previewOpenReportBtn.addEventListener('click', () => {
@@ -204,10 +101,10 @@
             }
 
             [
-                [elements.previewRefreshDataBtn, refreshPreviewDataSnapshot],
-                [elements.previewRerunFinalBtn, () => rerunPreviewReport('final_recommendation')],
-                [elements.previewRerunFullBtn, () => rerunPreviewReport('full_report')],
-                [elements.previewRerunModeBBtn, () => rerunPreviewReport('mode_b')],
+                [elements.previewRefreshDataBtn, actions.refreshPreviewDataSnapshot],
+                [elements.previewRerunFinalBtn, () => actions.rerunPreviewReport('final_recommendation')],
+                [elements.previewRerunFullBtn, () => actions.rerunPreviewReport('full_report')],
+                [elements.previewRerunModeBBtn, () => actions.rerunPreviewReport('mode_b')],
                 [elements.previewCloseBtn, hideReportPreview]
             ].forEach(([button, handler]) => {
                 if (button) button.addEventListener('click', handler);
@@ -241,7 +138,7 @@
                     loadHistory();
                 });
             }
-            window.deleteReport = deleteReport;
+            window.deleteReport = actions.deleteReport;
         }
 
         return {
