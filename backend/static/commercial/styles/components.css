@@ -414,6 +414,20 @@ button,
   padding: 7px 10px;
 }
 
+.commercial-portfolio-input-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.commercial-portfolio-input-grid #portfolio-csv {
+  min-height: 112px;
+}
+
+.commercial-portfolio-input-grid #portfolio-csv-help {
+  margin: 0;
+}
+
 #portfolio-csv-file-status {
   min-height: 1.5em;
   margin: 0 0 14px;

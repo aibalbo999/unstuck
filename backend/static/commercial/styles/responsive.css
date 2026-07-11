@@ -87,6 +87,10 @@
     grid-template-columns: 1fr;
   }
 
+  .commercial-portfolio-input-grid {
+    grid-template-columns: 1fr;
+  }
+
   .commercial-filter-bar {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
