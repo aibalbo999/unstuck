@@ -3,7 +3,7 @@ import {
   formatPercent,
   formatTwd,
   policyAmounts,
-} from '../shared/operator_policy.js';
+} from '../shared/operator_policy.js?v=20260711-operator3';
 import { focusPageHeading, stockPageHref } from '../shared/shell.js';
 import { renderSourceStatus } from '../shared/source_status.js';
 

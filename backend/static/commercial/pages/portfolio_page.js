@@ -7,7 +7,7 @@ import {
   OPERATOR_POLICY,
   policyAmounts,
   trimToPositionLimit,
-} from '../shared/operator_policy.js';
+} from '../shared/operator_policy.js?v=20260711-operator3';
 import { bindTabs, focusPageHeading } from '../shared/shell.js';
 import { renderSourceStatus } from '../shared/source_status.js';
 
@@ -165,7 +165,9 @@ function renderPositionTable(payload) {
     amount.textContent = formatTwd(amountForPosition(position));
     const trim = document.createElement('td');
     const reduction = trimAmount(position);
-    trim.textContent = reduction > 0 ? `減少 ${formatTwd(reduction)}` : '在上限內';
+    trim.textContent = isCash(position)
+      ? '現金保留'
+      : reduction > 0 ? `減少 ${formatTwd(reduction)}` : '在上限內';
     if (reduction > 0) trim.dataset.state = 'negative';
     row.append(ticker, weight, amount, trim);
     return row;

@@ -124,6 +124,20 @@ button,
   color: var(--commercial-muted);
 }
 
+.commercial-metric small {
+  display: block;
+  margin-top: 4px;
+}
+
+.commercial-capital-metrics {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.commercial-capital-metrics .commercial-metric strong {
+  overflow-wrap: anywhere;
+  font-size: 1.05rem;
+}
+
 .commercial-primary-action {
   display: inline-flex;
   align-items: center;

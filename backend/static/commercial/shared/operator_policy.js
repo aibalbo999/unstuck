@@ -14,11 +14,10 @@ function finite(value) {
 export function formatTwd(value) {
   const number = finite(value);
   if (number === null) return '資料不足';
-  return new Intl.NumberFormat('zh-TW', {
-    style: 'currency',
-    currency: 'TWD',
+  const amount = new Intl.NumberFormat('zh-TW', {
     maximumFractionDigits: 0,
   }).format(number);
+  return `NT$${amount}`;
 }
 
 export function formatPercent(value, digits = 1) {

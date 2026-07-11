@@ -64,7 +64,7 @@ def test_weight_amount_and_trim_amount_use_operator_capital():
 
 
 def test_format_twd_does_not_turn_missing_values_into_zero():
-    assert "5,000,000" in run_policy("policy.formatTwd(5000000)")
+    assert run_policy("policy.formatTwd(5000000)") == "NT$5,000,000"
     assert run_policy("policy.formatTwd(null)") == "資料不足"
 
 

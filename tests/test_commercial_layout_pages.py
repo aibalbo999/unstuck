@@ -47,6 +47,8 @@ def test_commercial_styles_define_single_task_layout_and_responsive_contracts():
         assert selector in components
     assert "font-variant-numeric: tabular-nums" in components
     assert "overflow-x: auto" in components
+    assert ".commercial-capital-metrics" in components
+    assert ".commercial-metric small" in components and "display: block" in components
     assert "@media (max-width: 560px)" in responsive
     assert "@media (max-width: 768px)" in responsive
     assert "grid-template-columns: 1fr" in responsive
@@ -93,6 +95,7 @@ def test_stock_page_has_one_snapshot_action_and_five_operator_tabs():
 
     assert 'data-commercial-page="stock"' in html
     assert html.count("commercial-primary-action") == 1
+    assert '<div class="commercial-workspace-grid">' in html
     for marker in (
         'id="stock-policy"',
         'id="stock-position-form"',
@@ -159,13 +162,15 @@ def test_three_pages_share_navigation_and_do_not_load_legacy_bundle():
 
 
 def test_three_pages_bust_cached_assets_with_the_same_current_version():
-    for filename in (
-        "research-workbench.html",
-        "stock-detail.html",
-        "portfolio-dashboard.html",
-    ):
+    pages = {
+        "research-workbench.html": "pages/decision_page.js",
+        "stock-detail.html": "pages/stock_page.js",
+        "portfolio-dashboard.html": "pages/portfolio_page.js",
+    }
+    for filename, module in pages.items():
         html = read(filename)
-        assert html.count("?v=20260711-operator1") == 5
+        assert html.count("?v=20260711-operator3") == 5
+        assert "operator_policy.js?v=20260711-operator3" in read(module)
 
 
 def test_metrics_tabs_focus_and_visibility_follow_accessible_contracts():

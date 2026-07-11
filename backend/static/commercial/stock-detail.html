@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>OnStock 單股研究</title>
-  <link rel="stylesheet" href="/static/commercial/styles/tokens.css?v=20260711-operator1">
-  <link rel="stylesheet" href="/static/commercial/styles/shell.css?v=20260711-operator1">
-  <link rel="stylesheet" href="/static/commercial/styles/components.css?v=20260711-operator1">
-  <link rel="stylesheet" href="/static/commercial/styles/responsive.css?v=20260711-operator1">
+  <link rel="stylesheet" href="/static/commercial/styles/tokens.css?v=20260711-operator3">
+  <link rel="stylesheet" href="/static/commercial/styles/shell.css?v=20260711-operator3">
+  <link rel="stylesheet" href="/static/commercial/styles/components.css?v=20260711-operator3">
+  <link rel="stylesheet" href="/static/commercial/styles/responsive.css?v=20260711-operator3">
 </head>
 <body data-commercial-page="stock">
   <header class="commercial-topbar">
@@ -25,19 +25,21 @@
       <p class="commercial-muted">先判斷是否值得占用一個部位，再決定最多投入多少。</p>
     </header>
     <section id="stock-policy" class="commercial-policy-strip" aria-label="500 萬操作護欄" data-derived-from="operator-policy"></section>
-    <form id="stock-form" class="commercial-panel">
-      <label class="commercial-field" for="stock-ticker">
-        <span>股票代號</span>
-        <input id="stock-ticker" name="ticker" autocomplete="off" required>
-      </label>
-      <button id="stock-load" class="commercial-primary-action" type="submit">更新股票快照</button>
-    </form>
-    <section class="commercial-answer" aria-labelledby="stock-answer-title">
-      <span id="stock-company" class="commercial-eyebrow"></span>
-      <h2 id="stock-answer-title">輸入股票代號以載入快照</h2>
-      <p id="stock-answer-detail" class="commercial-muted"></p>
-      <div id="stock-metrics" class="commercial-metrics"></div>
-    </section>
+    <div class="commercial-workspace-grid">
+      <form id="stock-form" class="commercial-panel">
+        <label class="commercial-field" for="stock-ticker">
+          <span>股票代號</span>
+          <input id="stock-ticker" name="ticker" autocomplete="off" required>
+        </label>
+        <button id="stock-load" class="commercial-primary-action" type="submit">更新股票快照</button>
+      </form>
+      <section class="commercial-answer" aria-labelledby="stock-answer-title">
+        <span id="stock-company" class="commercial-eyebrow"></span>
+        <h2 id="stock-answer-title">輸入股票代號以載入快照</h2>
+        <p id="stock-answer-detail" class="commercial-muted"></p>
+        <div id="stock-metrics" class="commercial-metrics"></div>
+      </section>
+    </div>
     <form id="stock-position-form" class="commercial-panel commercial-position-planner" novalidate data-derived-from="operator-policy">
       <div class="commercial-section-heading">
         <div>
@@ -69,6 +71,6 @@
     <section id="stock-evidence" class="commercial-panel" aria-live="polite"></section>
     <section id="stock-source-status" class="commercial-source-status" aria-live="polite"></section>
   </main>
-  <script type="module" src="/static/commercial/pages/stock_page.js?v=20260711-operator1"></script>
+  <script type="module" src="/static/commercial/pages/stock_page.js?v=20260711-operator3"></script>
 </body>
 </html>

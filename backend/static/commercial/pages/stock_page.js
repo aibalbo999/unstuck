@@ -5,7 +5,7 @@ import {
   formatTwd,
   policyAmounts,
   positionPlan,
-} from '../shared/operator_policy.js';
+} from '../shared/operator_policy.js?v=20260711-operator3';
 import {
   bindTabs,
   focusPageHeading,
