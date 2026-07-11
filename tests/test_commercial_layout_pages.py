@@ -27,6 +27,34 @@ def test_commercial_shared_modules_define_request_state_and_navigation_contracts
     assert "export function renderSourceStatus" in source_status
 
 
+def test_three_pages_mount_the_configurable_operator_policy_editor():
+    editor_path = COMMERCIAL_DIR / "shared" / "operator_policy_ui.js"
+    assert editor_path.exists()
+    editor = editor_path.read_text(encoding="utf-8")
+
+    for filename in (
+        "research-workbench.html",
+        "stock-detail.html",
+        "portfolio-dashboard.html",
+    ):
+        html = read(filename)
+        assert 'data-operator-policy-editor' in html
+        assert "500 萬操作護欄" not in html
+
+    for text in (
+        "操作資金",
+        "現金保留",
+        "單一持股上限",
+        "單筆最大風險",
+        "套用設定",
+        "恢復預設",
+    ):
+        assert text in editor
+    assert "mountOperatorPolicyEditor" in editor
+    assert "readOperatorPolicy" in editor
+    assert "writeOperatorPolicy" in editor
+
+
 def test_commercial_styles_define_single_task_layout_and_responsive_contracts():
     tokens = read("styles/tokens.css")
     shell = read("styles/shell.css")
@@ -39,6 +67,7 @@ def test_commercial_styles_define_single_task_layout_and_responsive_contracts():
     assert "min-height: 44px" in components
     for selector in (
         ".commercial-policy-strip",
+        ".commercial-policy-editor",
         ".commercial-data-table",
         ".commercial-status-badge",
         ".commercial-position-planner",

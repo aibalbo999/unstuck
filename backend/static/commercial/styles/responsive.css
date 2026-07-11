@@ -26,6 +26,10 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .commercial-policy-editor-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .commercial-task-facts {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -76,6 +80,10 @@
   }
 
   .commercial-input-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .commercial-policy-editor-grid {
     grid-template-columns: 1fr;
   }
 

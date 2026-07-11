@@ -24,7 +24,8 @@
       <h1 id="portfolio-title" tabindex="-1">組合健檢</h1>
       <p class="commercial-muted">把權重換成實際金額，先看現金、集中度與需要調整多少。</p>
     </header>
-    <section id="portfolio-policy" class="commercial-policy-strip" aria-label="500 萬操作護欄" data-derived-from="operator-policy"></section>
+    <section id="portfolio-policy-editor" data-operator-policy-editor aria-label="操作設定"></section>
+    <section id="portfolio-policy" class="commercial-policy-strip" aria-label="操作護欄" data-derived-from="operator-policy"></section>
     <div class="commercial-workspace-grid">
       <form id="portfolio-form" class="commercial-panel" novalidate>
       <label class="commercial-field" for="portfolio-csv">
@@ -37,7 +38,7 @@ Cash,19,Cash,TW</textarea>
       </label>
       <p id="portfolio-csv-help" class="commercial-muted">必要欄位：ticker，以及 weight 或 market_value。</p>
       <p id="portfolio-csv-error" role="alert"></p>
-      <button id="portfolio-run" class="commercial-primary-action" type="submit">分析 500 萬組合</button>
+      <button id="portfolio-run" class="commercial-primary-action" type="submit">分析目前組合</button>
       </form>
       <section class="commercial-answer" aria-labelledby="portfolio-answer-title">
         <span class="commercial-eyebrow">組合答案</span>
@@ -56,7 +57,7 @@ Cash,19,Cash,TW</textarea>
     <section id="portfolio-allocation-panel" class="commercial-panel" aria-labelledby="portfolio-allocation-title">
       <div class="commercial-section-heading">
         <div>
-          <span class="commercial-eyebrow">500 萬配置明細</span>
+          <span class="commercial-eyebrow">操作資金配置明細</span>
           <h2 id="portfolio-allocation-title">每檔持股金額</h2>
         </div>
       </div>
@@ -67,7 +68,7 @@ Cash,19,Cash,TW</textarea>
               <th scope="col">Ticker</th>
               <th scope="col">權重</th>
               <th scope="col">金額</th>
-              <th scope="col">15% 上限差額</th>
+              <th scope="col">單股上限差額</th>
             </tr>
           </thead>
           <tbody id="portfolio-position-rows"></tbody>

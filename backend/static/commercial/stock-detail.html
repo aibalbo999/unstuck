@@ -24,7 +24,8 @@
       <h1 id="stock-title" tabindex="-1">單股研究</h1>
       <p class="commercial-muted">先判斷是否值得占用一個部位，再決定最多投入多少。</p>
     </header>
-    <section id="stock-policy" class="commercial-policy-strip" aria-label="500 萬操作護欄" data-derived-from="operator-policy"></section>
+    <section id="stock-policy-editor" data-operator-policy-editor aria-label="操作設定"></section>
+    <section id="stock-policy" class="commercial-policy-strip" aria-label="操作護欄" data-derived-from="operator-policy"></section>
     <div class="commercial-workspace-grid">
       <form id="stock-form" class="commercial-panel">
         <label class="commercial-field" for="stock-ticker">
@@ -43,7 +44,7 @@
     <form id="stock-position-form" class="commercial-panel commercial-position-planner" novalidate data-derived-from="operator-policy">
       <div class="commercial-section-heading">
         <div>
-          <span class="commercial-eyebrow">500 萬操作規則試算</span>
+          <span class="commercial-eyebrow">目前操作規則試算</span>
           <h2>部位與最大損失</h2>
         </div>
         <p class="commercial-muted">預設停損使用 6M 均線；無資料時使用現價下方 8%。</p>
