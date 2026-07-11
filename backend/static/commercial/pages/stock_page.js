@@ -19,6 +19,7 @@ import { renderSourceStatus } from '../shared/source_status.js';
 
 const form = document.getElementById('stock-form');
 const input = document.getElementById('stock-ticker');
+const tickerSelect = document.getElementById('stock-ticker-select');
 const button = document.getElementById('stock-load');
 const policyRoot = document.getElementById('stock-policy');
 const company = document.getElementById('stock-company');
@@ -35,6 +36,54 @@ const statusRoot = document.getElementById('stock-source-status');
 let snapshot = null;
 let activeTab = 'plan';
 let activePolicy = OPERATOR_POLICY;
+let snapshotRequestSequence = 0;
+
+function tickerChoice(item) {
+  const report = item?.latest_report || item;
+  const ticker = normalizeTicker(report?.ticker || item?.ticker || '');
+  if (!isValidTicker(ticker)) return null;
+  return {
+    ticker,
+    name: report?.company_name || report?.name || item?.company_name || item?.name || '',
+  };
+}
+
+function renderTickerOptions(choices) {
+  const prompt = document.createElement('option');
+  prompt.value = '';
+  prompt.textContent = choices.length ? '選擇股票' : '目前無清單，請手動輸入';
+  const options = choices.map(choice => {
+    const option = document.createElement('option');
+    option.value = choice.ticker;
+    option.textContent = choice.name ? `${choice.ticker} · ${choice.name}` : choice.ticker;
+    return option;
+  });
+  tickerSelect.replaceChildren(prompt, ...options);
+  tickerSelect.value = choices.some(choice => choice.ticker === normalizeTicker(input.value))
+    ? normalizeTicker(input.value)
+    : '';
+}
+
+export async function loadTickerOptions() {
+  const sources = await Promise.allSettled([
+    requestJson('/api/watchlist/symbols?q=&limit=25'),
+    requestJson('/api/decision-tracking'),
+    requestJson('/api/reports?limit=100'),
+  ]);
+  const rows = [];
+  sources.forEach((source, index) => {
+    if (source.status !== 'fulfilled') return;
+    if (index === 2) rows.push(...(source.value.reports || []));
+    else rows.push(...(source.value.items || []));
+  });
+  const unique = new Map();
+  rows.map(tickerChoice).filter(Boolean).forEach(choice => {
+    if (!unique.has(choice.ticker)) unique.set(choice.ticker, choice);
+  });
+  const current = tickerChoice({ ticker: input.value });
+  if (current && !unique.has(current.ticker)) unique.set(current.ticker, current);
+  renderTickerOptions([...unique.values()].sort((left, right) => left.ticker.localeCompare(right.ticker)));
+}
 
 function label(value, fallback = '資料不足') {
   return value === null || value === undefined || value === '' ? fallback : String(value);
@@ -265,9 +314,11 @@ async function loadSnapshot(ticker) {
     return;
   }
   input.setCustomValidity('');
+  const requestSequence = ++snapshotRequestSequence;
   setAsyncState(button, statusRoot, 'loading', `正在載入 ${normalized}`);
   try {
     const next = await requestJson(`/api/stocks/${encodeURIComponent(normalized)}/snapshot`);
+    if (requestSequence !== snapshotRequestSequence) return;
     snapshot = next;
     renderSummary(next);
     setupPositionInputs(next);
@@ -282,13 +333,14 @@ async function loadSnapshot(ticker) {
       updatedAt: next.quote?.as_of || '',
     });
   } catch (error) {
+    if (requestSequence !== snapshotRequestSequence) return;
     renderSourceStatus(statusRoot, {
       state: 'error',
       message: error.message,
       source: 'Stock Snapshot API',
     });
   } finally {
-    setAsyncState(button, null, 'idle', '');
+    if (requestSequence === snapshotRequestSequence) setAsyncState(button, null, 'idle', '');
   }
 }
 
@@ -299,6 +351,15 @@ bindTabs(document.getElementById('stock-tabs'), tab => {
 form.addEventListener('submit', event => {
   event.preventDefault();
   loadSnapshot(input.value);
+});
+tickerSelect.addEventListener('change', () => {
+  if (tickerSelect.value) input.value = tickerSelect.value;
+});
+input.addEventListener('input', () => {
+  const normalized = normalizeTicker(input.value);
+  tickerSelect.value = Array.from(tickerSelect.options).some(option => option.value === normalized)
+    ? normalized
+    : '';
 });
 positionForm.addEventListener('submit', event => event.preventDefault());
 [entryInput, stopInput].forEach(field => field.addEventListener('input', renderPositionPlan));
@@ -313,4 +374,5 @@ mountOperatorPolicyEditor(document.getElementById('stock-policy-editor'), {
 });
 focusPageHeading('stock-title');
 renderEvidence();
+loadTickerOptions();
 loadSnapshot(input.value);

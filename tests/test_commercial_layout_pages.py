@@ -127,6 +127,7 @@ def test_stock_page_has_one_snapshot_action_and_five_operator_tabs():
     assert '<div class="commercial-workspace-grid">' in html
     for marker in (
         'id="stock-policy"',
+        'id="stock-ticker-select"',
         'id="stock-position-form"',
         'id="stock-entry-price"',
         'id="stock-stop-price"',
@@ -136,6 +137,10 @@ def test_stock_page_has_one_snapshot_action_and_five_operator_tabs():
     for name in ("plan", "valuation", "fundamentals", "events", "technical"):
         assert f'data-tab="{name}"' in html
     assert "/api/stocks/" in js and "/snapshot" in js
+    assert "/api/watchlist/symbols" in js
+    assert "/api/decision-tracking" in js
+    assert "/api/reports" in js
+    assert "loadTickerOptions" in js
     assert "bindTabs" in js
     assert "isValidTicker" in js
     assert "positionPlan" in js
@@ -153,6 +158,9 @@ def test_portfolio_page_translates_risk_into_five_million_amounts():
     assert 'data-commercial-page="portfolio"' in html
     assert html.count("commercial-primary-action") == 1
     assert 'id="portfolio-csv"' in html
+    assert 'id="portfolio-csv-file"' in html
+    assert 'accept=".csv,text/csv"' in html
+    assert 'id="portfolio-csv-file-status"' in html
     assert 'id="portfolio-recommendations"' in html
     for marker in (
         'id="portfolio-policy"',
@@ -164,6 +172,8 @@ def test_portfolio_page_translates_risk_into_five_million_amounts():
         assert f'data-tab="{name}"' in html
     assert "/api/watchlist/portfolio/risk" in js
     assert "validatePortfolioCsv" in js
+    assert "readPortfolioFile" in js
+    assert ".text()" in js
     assert "amountForWeight" in js
     assert "trimToPositionLimit" in js
     assert "renderPositionTable" in js

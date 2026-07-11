@@ -28,10 +28,18 @@
     <section id="stock-policy" class="commercial-policy-strip" aria-label="操作護欄" data-derived-from="operator-policy"></section>
     <div class="commercial-workspace-grid">
       <form id="stock-form" class="commercial-panel">
-        <label class="commercial-field" for="stock-ticker">
-          <span>股票代號</span>
-          <input id="stock-ticker" name="ticker" autocomplete="off" required>
-        </label>
+        <div class="commercial-input-grid commercial-ticker-inputs">
+          <label class="commercial-field" for="stock-ticker-select">
+            <span>從清單選擇</span>
+            <select id="stock-ticker-select">
+              <option value="">正在載入股票清單…</option>
+            </select>
+          </label>
+          <label class="commercial-field" for="stock-ticker">
+            <span>或輸入股票代號</span>
+            <input id="stock-ticker" name="ticker" autocomplete="off" required>
+          </label>
+        </div>
         <button id="stock-load" class="commercial-primary-action" type="submit">更新股票快照</button>
       </form>
       <section class="commercial-answer" aria-labelledby="stock-answer-title">

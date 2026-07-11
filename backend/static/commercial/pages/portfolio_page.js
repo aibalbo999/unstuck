@@ -14,6 +14,8 @@ import { renderSourceStatus } from '../shared/source_status.js';
 
 const form = document.getElementById('portfolio-form');
 const input = document.getElementById('portfolio-csv');
+const fileInput = document.getElementById('portfolio-csv-file');
+const fileStatus = document.getElementById('portfolio-csv-file-status');
 const errorRoot = document.getElementById('portfolio-csv-error');
 const button = document.getElementById('portfolio-run');
 const policyRoot = document.getElementById('portfolio-policy');
@@ -46,6 +48,29 @@ export function validatePortfolioCsv(text) {
   const width = headers.length;
   const invalid = lines.slice(1).findIndex(line => line.split(',').length !== width);
   return invalid >= 0 ? `第 ${invalid + 2} 列欄位數與標題列不同。` : '';
+}
+
+export async function readPortfolioFile(file) {
+  if (!file) return;
+  if (!file.name.toLowerCase().endsWith('.csv')) {
+    errorRoot.textContent = '請選擇副檔名為 .csv 的檔案。';
+    fileStatus.textContent = '檔案未載入。';
+    return;
+  }
+  try {
+    const text = await file.text();
+    if (!text.trim()) {
+      errorRoot.textContent = '選擇的 CSV 是空檔案。';
+      fileStatus.textContent = '檔案未載入。';
+      return;
+    }
+    input.value = text;
+    errorRoot.textContent = '';
+    fileStatus.textContent = `已載入 ${file.name}；可先檢查內容再分析。`;
+  } catch (_error) {
+    errorRoot.textContent = '無法讀取這個 CSV 檔案，請重新選擇。';
+    fileStatus.textContent = '檔案未載入。';
+  }
 }
 
 function metric(name, value, note = '') {
@@ -253,6 +278,7 @@ bindTabs(document.getElementById('portfolio-tabs'), tab => {
   activeTab = tab;
   renderEvidence();
 });
+fileInput.addEventListener('change', () => readPortfolioFile(fileInput.files?.[0]));
 mountOperatorPolicyEditor(document.getElementById('portfolio-policy-editor'), {
   onChange(policy) {
     activePolicy = policy;

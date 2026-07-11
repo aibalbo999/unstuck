@@ -402,6 +402,23 @@ button,
   margin-bottom: 0;
 }
 
+.commercial-ticker-inputs {
+  margin: 0 0 14px;
+}
+
+.commercial-file-field {
+  margin-bottom: 6px;
+}
+
+.commercial-file-field input[type="file"] {
+  padding: 7px 10px;
+}
+
+#portfolio-csv-file-status {
+  min-height: 1.5em;
+  margin: 0 0 14px;
+}
+
 #stock-position-error:empty,
 #portfolio-csv-error:empty {
   display: none;

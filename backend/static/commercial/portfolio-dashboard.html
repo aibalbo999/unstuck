@@ -28,8 +28,13 @@
     <section id="portfolio-policy" class="commercial-policy-strip" aria-label="操作護欄" data-derived-from="operator-policy"></section>
     <div class="commercial-workspace-grid">
       <form id="portfolio-form" class="commercial-panel" novalidate>
+      <label class="commercial-field commercial-file-field" for="portfolio-csv-file">
+        <span>選擇持股 CSV 檔案</span>
+        <input id="portfolio-csv-file" type="file" accept=".csv,text/csv" aria-describedby="portfolio-csv-file-status portfolio-csv-error">
+      </label>
+      <p id="portfolio-csv-file-status" class="commercial-muted" aria-live="polite">尚未選擇檔案；也可直接貼上或編輯下方內容。</p>
       <label class="commercial-field" for="portfolio-csv">
-        <span>持股 CSV</span>
+        <span>持股 CSV 內容</span>
         <textarea id="portfolio-csv" aria-describedby="portfolio-csv-help portfolio-csv-error">ticker,weight,sector,country
 2330.TW,45,Semiconductor,TW
 2308.TW,22,Power,TW

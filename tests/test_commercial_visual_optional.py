@@ -291,3 +291,99 @@ def test_stock_and_portfolio_api_errors_show_recovery_state_without_fallbacks():
         assert "portfolio unavailable" in page.locator("#portfolio-source-status").inner_text()
         assert page.locator("#portfolio-recommendations li").count() == 0
         browser.close()
+
+
+def test_stock_and_portfolio_accept_operator_selected_inputs(tmp_path):
+    sync_api = live_browser()
+    csv_path = tmp_path / "my-portfolio.csv"
+    csv_path.write_text(
+        "ticker,weight,sector,country\n2330.TW,80,Semi,TW\nCash,20,Cash,TW\n",
+        encoding="utf-8",
+    )
+
+    with sync_api.sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page(viewport={"width": 1280, "height": 720})
+        page.route(
+            "**/api/watchlist/symbols*",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps({
+                    "items": [
+                        {"ticker": "2330.TW", "name": "台積電"},
+                        {"ticker": "AAPL", "name": "Apple"},
+                    ]
+                }),
+            ),
+        )
+        page.route(
+            "**/api/decision-tracking",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps({"items": [{"ticker": "2308.TW", "company_name": "台達電"}]}),
+            ),
+        )
+        page.route(
+            "**/api/reports*",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps({"reports": [{"ticker": "2887.TW", "company_name": "台新新光金"}]}),
+            ),
+        )
+
+        def stock_snapshot(route):
+            ticker = route.request.url.split("/api/stocks/", 1)[1].split("/snapshot", 1)[0]
+            payload = {
+                "ticker": ticker,
+                "identity": {"company_name": "選擇的股票"},
+                "quote": {"price": 100, "price_label": "NT$100"},
+                "valuation": {"analyst_target": {"price": 120, "label": "NT$120"}},
+                "analyst_outlook": {"consensus": {"recommendation_label": "觀察"}},
+                "technical_summary": {"moving_averages": {"ma_6m": {"value": 90}}},
+                "financial_health": {},
+                "profitability_quality": {},
+                "event_calendar": {},
+                "data_quality": {},
+            }
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(payload))
+
+        page.route("**/api/stocks/*/snapshot", stock_snapshot)
+        page.goto(f"{BASE_URL}/static/commercial/stock-detail.html", wait_until="networkidle")
+        page.locator("#stock-ticker-select").select_option("AAPL")
+        assert page.locator("#stock-ticker").input_value() == "AAPL"
+        page.get_by_role("button", name="更新股票快照").click()
+        sync_api.expect(page.locator("#stock-company")).to_contain_text("AAPL")
+
+        portfolio_payload = {
+            "total_positions": 2,
+            "positions": [
+                {"ticker": "2330.TW", "weight_pct": 80, "sector": "Semi", "country": "TW"},
+                {"ticker": "CASH", "weight_pct": 20, "sector": "Cash", "country": "TW"},
+            ],
+            "concentration": {
+                "top_position": {"ticker": "2330.TW", "weight_pct": 80},
+                "sector_weights": {"Semi": 80, "Cash": 20},
+                "country_weights": {"TW": 100},
+            },
+            "thesis_health": {},
+            "risk_flags": [],
+        }
+        page.route(
+            "**/api/watchlist/portfolio/risk",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps(portfolio_payload),
+            ),
+        )
+        page.goto(f"{BASE_URL}/static/commercial/portfolio-dashboard.html", wait_until="networkidle")
+        page.locator("#portfolio-csv-file").set_input_files(str(csv_path))
+        assert "my-portfolio.csv" in page.locator("#portfolio-csv-file-status").inner_text()
+        assert "2330.TW,80" in page.locator("#portfolio-csv").input_value()
+        page.get_by_role("button", name="分析目前組合").click()
+        page.locator("#portfolio-position-rows tr").first.wait_for()
+        assert "2330.TW" in page.locator("#portfolio-position-table").inner_text()
+        browser.close()
