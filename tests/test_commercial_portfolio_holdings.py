@@ -23,47 +23,55 @@ def run_holdings(expression: str):
     return json.loads(result.stdout)["value"]
 
 
-def test_upsert_weight_holding_adds_and_updates_without_losing_extra_columns():
-    original = "ticker,weight,sector,country\n2330.TW,45,Semi,TW"
+def test_upsert_amount_holding_converts_weight_csv_and_balances_cash():
+    original = "ticker,weight,sector,country\n2330.TW,45,Semi,TW\nCash,55,Cash,TW"
     added = run_holdings(
-        f"holdings.upsertWeightHolding({json.dumps(original)}, "
-        "{ticker: 'AAPL', weight: 20})"
+        f"holdings.upsertAmountHolding({json.dumps(original)}, "
+        "{ticker: 'AAPL', amount: 600000, capital: 5000000})"
     )
 
     assert added == {
-        "text": "ticker,weight,sector,country\n2330.TW,45,Semi,TW\nAAPL,20,,",
+        "text": (
+            "ticker,market_value,sector,country\n"
+            "2330.TW,2250000,Semi,TW\n"
+            "AAPL,600000,,\n"
+            "CASH,2150000,Cash,TW"
+        ),
         "error": "",
     }
 
     updated = run_holdings(
-        f"holdings.upsertWeightHolding({json.dumps(added['text'])}, "
-        "{ticker: '2330.TW', weight: 30})"
+        f"holdings.upsertAmountHolding({json.dumps(added['text'])}, "
+        "{ticker: 'AAPL', amount: 1000000, capital: 5000000})"
     )
     assert updated["error"] == ""
-    assert updated["text"].count("2330.TW") == 1
-    assert "2330.TW,30,Semi,TW" in updated["text"]
+    assert updated["text"].count("AAPL") == 1
+    assert "AAPL,1000000,," in updated["text"]
+    assert "CASH,1750000,Cash,TW" in updated["text"]
 
 
-def test_parse_and_remove_weight_holdings_keep_csv_in_sync():
-    csv_text = "ticker,weight_pct\n2330.TW,60\nCash,40"
+def test_parse_and_remove_amount_holdings_show_weight_and_return_money_to_cash():
+    csv_text = "ticker,market_value\n2330.TW,2250000\nAAPL,600000\nCash,2150000"
 
     assert run_holdings(
-        f"holdings.parseWeightHoldings({json.dumps(csv_text)})"
+        f"holdings.parseAmountHoldings({json.dumps(csv_text)}, 5000000)"
     ) == [
-        {"ticker": "2330.TW", "weight": 60},
-        {"ticker": "CASH", "weight": 40},
+        {"ticker": "2330.TW", "amount": 2_250_000, "weight": 45},
+        {"ticker": "AAPL", "amount": 600_000, "weight": 12},
+        {"ticker": "CASH", "amount": 2_150_000, "weight": 43},
     ]
-    assert run_holdings(
-        f"holdings.removeHolding({json.dumps(csv_text)}, '2330.TW')"
-    ) == "ticker,weight_pct\nCash,40"
+    removed = run_holdings(
+        f"holdings.removeAmountHolding({json.dumps(csv_text)}, 'AAPL', 5000000)"
+    )
+    assert removed == "ticker,market_value\n2330.TW,2250000\nCASH,2750000"
 
 
-def test_holding_selector_refuses_to_rewrite_market_value_csv():
+def test_amount_holding_rejects_non_cash_total_above_operator_capital():
     csv_text = "ticker,market_value\n2330.TW,3000000\nCash,2000000"
 
     result = run_holdings(
-        f"holdings.upsertWeightHolding({json.dumps(csv_text)}, "
-        "{ticker: 'AAPL', weight: 10})"
+        f"holdings.upsertAmountHolding({json.dumps(csv_text)}, "
+        "{ticker: 'AAPL', amount: 3000000, capital: 5000000})"
     )
     assert result["text"] == csv_text
-    assert "market_value" in result["error"]
+    assert "超過操作資金" in result["error"]
