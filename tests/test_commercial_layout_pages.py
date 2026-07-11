@@ -14,6 +14,10 @@ def test_commercial_shared_modules_define_request_state_and_navigation_contracts
     async_state = read("shared/async_state.js")
     shell = read("shared/shell.js")
     source_status = read("shared/source_status.js")
+    ticker_options_path = COMMERCIAL_DIR / "shared" / "ticker_options.js"
+
+    assert ticker_options_path.exists()
+    ticker_options = ticker_options_path.read_text(encoding="utf-8")
 
     assert "export class ApiError" in api
     assert "X-Mutation-Token" in api
@@ -25,6 +29,9 @@ def test_commercial_shared_modules_define_request_state_and_navigation_contracts
     assert "export function focusPageHeading" in shell
     assert "export function bindTabs" in shell
     assert "export function renderSourceStatus" in source_status
+    assert "export async function loadTickerChoices" in ticker_options
+    for endpoint in ("/api/watchlist/symbols", "/api/decision-tracking", "/api/reports"):
+        assert endpoint in ticker_options
 
 
 def test_three_pages_mount_the_configurable_operator_policy_editor():
@@ -139,10 +146,9 @@ def test_stock_page_has_one_snapshot_action_and_five_operator_tabs():
     for name in ("plan", "valuation", "fundamentals", "events", "technical"):
         assert f'data-tab="{name}"' in html
     assert "/api/stocks/" in js and "/snapshot" in js
-    assert "/api/watchlist/symbols" in js
-    assert "/api/decision-tracking" in js
-    assert "/api/reports" in js
     assert "loadTickerOptions" in js
+    assert "loadTickerChoices" in js
+    assert "ticker_options.js" in js
     assert "bindTabs" in js
     assert "isValidTicker" in js
     assert "positionPlan" in js
