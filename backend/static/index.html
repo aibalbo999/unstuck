@@ -13,6 +13,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css?v=20260707-operator-human-factors">
+    <link rel="stylesheet" href="/static/commercial/styles/home_entry.css?v=20260711-simple">
 </head>
 <body>
     <!-- 背景特效 -->
@@ -415,62 +416,22 @@
                         商業版投資工作區
                     </div>
                     <section class="commercial-entry-launchpad" aria-label="商業版投資工作區">
-                        <div id="commercial-operator-shift-summary" class="commercial-operator-brief is-loading" role="status" aria-live="polite" data-operator-shift-summary data-operator-shift-class="commercial-operator-brief">
-                            <span>操作者值班摘要</span>
-                            <strong>正在彙整狀態</strong>
-                            <em>讀取今日任務與系統健康</em>
-                        </div>
-                        <div class="commercial-entry-command-row">
-                            <div>
-                                <span>OnStock Pro</span>
-                                <strong>商業版投資工作區</strong>
-                                <em>重啟後從 8080 首頁直接進入新版前端</em>
-                            </div>
-                            <div class="commercial-entry-status-grid" aria-label="商業版頁面狀態">
-                                <a href="/static/commercial/research-workbench.html"><span>研究工作台</span><strong>決策佇列</strong></a>
-                                <a href="/static/commercial/stock-detail.html"><span>單股研究</span><strong>快照研究</strong></a>
-                                <a href="/static/commercial/portfolio-dashboard.html"><span>組合健檢</span><strong>曝險透視</strong></a>
-                            </div>
-                        </div>
-                        <div class="commercial-entry-grid" aria-label="商業版投資工作區入口">
-                            <a class="commercial-entry-card" data-commercial-entry="workbench" href="/static/commercial/research-workbench.html">
-                                <span>追蹤表工作台</span>
-                                <strong>追蹤表決策中樞</strong>
-                                <em>追蹤表、快照、報告摘要集中在同一個工作台。</em>
-                                <div class="commercial-entry-card-metrics">
-                                    <small><span>主要任務</span><strong>決策佇列</strong></small>
-                                    <small><span>訊號</span><strong>風險旗標</strong></small>
-                                </div>
-                                <div class="commercial-entry-card-actions">
-                                    <b class="commercial-entry-card-action">開啟快照</b>
-                                    <b class="commercial-entry-card-action">匯出 CSV</b>
-                                </div>
+                        <a class="commercial-entry-primary" href="/static/commercial/research-workbench.html">
+                            <span>今日決策</span>
+                            <strong>今天先處理什麼</strong>
+                            <small>依風險、資料時效與需重跑狀態整理待辦</small>
+                            <b>查看今日決策</b>
+                        </a>
+                        <div class="commercial-entry-secondary-grid">
+                            <a class="commercial-entry-secondary" href="/static/commercial/stock-detail.html">
+                                <span>單股研究</span>
+                                <strong>研究一檔股票</strong>
+                                <small>先看結論，再查基本面、事件與技術證據</small>
                             </a>
-                            <a class="commercial-entry-card" data-commercial-entry="stock" href="/static/commercial/stock-detail.html">
-                                <span>單股研究頁</span>
-                                <strong>單股快照研究</strong>
-                                <em>從股票查詢進入快照、走勢、AI 報告與財務估值。</em>
-                                <div class="commercial-entry-card-metrics">
-                                    <small><span>主要任務</span><strong>快照研究</strong></small>
-                                    <small><span>資料</span><strong>財務資料</strong></small>
-                                </div>
-                                <div class="commercial-entry-card-actions">
-                                    <b class="commercial-entry-card-action">開啟快照</b>
-                                    <b class="commercial-entry-card-action">產生 AI 報告</b>
-                                </div>
-                            </a>
-                            <a class="commercial-entry-card" data-commercial-entry="portfolio" href="/static/commercial/portfolio-dashboard.html">
-                                <span>組合健檢頁</span>
-                                <strong>組合健檢中心</strong>
-                                <em>持股集中度、產業曝險與風險處理清單。</em>
-                                <div class="commercial-entry-card-metrics">
-                                    <small><span>主要任務</span><strong>曝險透視</strong></small>
-                                    <small><span>動作</span><strong>風險旗標</strong></small>
-                                </div>
-                                <div class="commercial-entry-card-actions">
-                                    <b class="commercial-entry-card-action">建立再平衡單</b>
-                                    <b class="commercial-entry-card-action">整理客戶包</b>
-                                </div>
+                            <a class="commercial-entry-secondary" href="/static/commercial/portfolio-dashboard.html">
+                                <span>組合健檢</span>
+                                <strong>檢查整體持股風險</strong>
+                                <small>查看集中度與最多三項調整建議</small>
                             </a>
                         </div>
                     </section>

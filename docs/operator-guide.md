@@ -186,3 +186,23 @@ Job cleanup keeps active `queued`, `running`, and `waiting_retry` rows. It remov
 ## Safety
 
 Mutation endpoints require `X-Mutation-Token`. The browser UI receives a same-origin runtime token automatically. Direct API clients should call `/api/client-config` first or set `MUTATION_API_TOKEN` and send that value in `X-Mutation-Token`. Avoid `X-Admin-Token`; it is a temporary legacy alias only when explicitly enabled.
+
+## Commercial Investment Workspace
+
+從首頁的「商業版」分頁進入後，依序使用三個共用操作設定的資金頁面：
+
+1. **今日決策**：查看最多五筆工作佇列，並以「全部、需重跑、報酬轉弱」篩選。按唯一主動作「檢查最高優先股票」進入最需要處理的股票；每一列也可直接開啟單股研究。
+2. **單股研究**：可從清單選擇股票（來源包含追蹤股票、既有報告與常用代號），也可手動輸入股票代號，再按「更新股票快照」。先看結論與部位試算，再用「操作計畫、估值、基本面、事件、技術」分頁查證。修改進場價或停損價只會更新試算，不會送出交易或修改研究結論。
+3. **組合健檢**：持股可從追蹤股票、既有報告與常用股票清單選擇，輸入新台幣金額後按「加入／更新持股」，也可從目前持股清單移除。系統會自動換算權重，並把剩餘操作資金列為 Cash。另可選擇 .csv 檔案，或直接貼上與編輯含 `ticker`，以及 `weight` 或 `market_value` 的內容，再按「分析目前組合」。先看每檔實際金額與前三項調整，再到資金配置、曝險、論點與調整清單查看原因。
+
+### 可調整操作設定
+
+- 展開「調整操作資金與風險設定」，可修改操作資金、現金保留、單一持股上限與單筆最大風險。
+- 按「套用設定」後會保存在目前瀏覽器並由三頁共用；按「恢復預設」回到 500 萬、20%、15%、1%。
+- 預設現金保留 20%（NT$1,000,000）、單一持股上限 15%（NT$750,000）、單筆最大風險 1%（NT$50,000），但這些數值不再寫死於試算。
+- `weight` CSV 依目前操作資金換算；`market_value` CSV 使用檔案實際總額，並顯示與操作資金的差異。
+- 快速建立器以 market_value 保存輸入金額；既有 weight CSV 會先依目前操作資金轉換。股票投入總額超過操作資金時不會修改組合，也不會產生負數 Cash。
+- 單股部位與組合調整金額是操作規則試算，不是後端投資建議、報酬承諾或下單指令。
+- 海外股票需要匯率才能換算新台幣部位；缺少匯率時只顯示研究資料，不計算股數。
+
+青色按鈕是每頁唯一的資料更新或主要導覽動作。若資料來源失敗，頁面會保留輸入與上一次成功內容，並顯示可讀錯誤，不會顯示或改用範例資料、假結果。修正代號、CSV 或服務狀態後，再按同一個主動作重試。
