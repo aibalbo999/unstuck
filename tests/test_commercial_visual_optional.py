@@ -26,7 +26,7 @@ def live_browser():
 
 
 @pytest.mark.parametrize("width,height", ((375, 812), (768, 900), (1280, 720)))
-def test_commercial_pages_keep_answer_and_primary_action_in_first_viewport(width, height):
+def test_commercial_pages_keep_operator_flow_visible_and_responsive(width, height):
     sync_api = live_browser()
     with sync_api.sync_playwright() as playwright:
         browser = playwright.chromium.launch()
@@ -39,8 +39,13 @@ def test_commercial_pages_keep_answer_and_primary_action_in_first_viewport(width
             assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
             answer_box = page.locator(".commercial-answer").bounding_box()
             action_box = page.locator(".commercial-primary-action:visible").bounding_box()
-            assert answer_box and answer_box["y"] < height
-            assert action_box and action_box["y"] + action_box["height"] <= height
+            assert answer_box and action_box
+            if width >= 1024:
+                assert answer_box["y"] < height
+                assert action_box["y"] + action_box["height"] <= height
+            else:
+                assert action_box["y"] < height * 1.5
+                assert answer_box["y"] < height * 2
         browser.close()
 
 

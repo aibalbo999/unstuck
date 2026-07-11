@@ -37,7 +37,18 @@ def test_commercial_styles_define_single_task_layout_and_responsive_contracts():
     assert "width: min(100% - 32px, 1200px)" in shell
     assert ".commercial-primary-action" in components
     assert "min-height: 44px" in components
+    for selector in (
+        ".commercial-policy-strip",
+        ".commercial-data-table",
+        ".commercial-status-badge",
+        ".commercial-position-planner",
+        ".commercial-filter-bar",
+    ):
+        assert selector in components
+    assert "font-variant-numeric: tabular-nums" in components
+    assert "overflow-x: auto" in components
     assert "@media (max-width: 560px)" in responsive
+    assert "@media (max-width: 768px)" in responsive
     assert "grid-template-columns: 1fr" in responsive
 
 
@@ -154,7 +165,7 @@ def test_three_pages_bust_cached_assets_with_the_same_current_version():
         "portfolio-dashboard.html",
     ):
         html = read(filename)
-        assert html.count("?v=20260711-simple2") == 5
+        assert html.count("?v=20260711-operator1") == 5
 
 
 def test_metrics_tabs_focus_and_visibility_follow_accessible_contracts():

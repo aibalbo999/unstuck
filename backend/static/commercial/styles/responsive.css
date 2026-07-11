@@ -21,6 +21,28 @@
   .commercial-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .commercial-policy-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .commercial-task-facts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .commercial-section-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .commercial-section-heading > .commercial-muted {
+    max-width: none;
+    text-align: left;
+  }
+
+  .commercial-workspace-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 560px) {
@@ -31,6 +53,39 @@
 
   .commercial-metrics {
     grid-template-columns: 1fr;
+  }
+
+  .commercial-summary-metrics,
+  .commercial-position-metrics,
+  .commercial-capital-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .commercial-policy-item {
+    min-height: 72px;
+    padding: 10px 12px;
+  }
+
+  .commercial-task-heading {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .commercial-task-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .commercial-input-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .commercial-filter-bar {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .commercial-filter-bar button {
+    padding: 0 8px;
   }
 
   .commercial-answer,

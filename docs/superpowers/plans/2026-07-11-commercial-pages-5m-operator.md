@@ -501,7 +501,7 @@ Expected: FAIL，缺少共用 selector。
 VISUAL_REGRESSION_REQUIRED=1 COMMERCIAL_BASE_URL=http://127.0.0.1:8080 \
   $(scripts/project_python.sh) -m pytest \
   tests/test_commercial_layout_pages.py \
-  tests/test_commercial_visual_optional.py::test_commercial_pages_keep_answer_and_primary_action_in_first_viewport -q
+  tests/test_commercial_visual_optional.py::test_commercial_pages_keep_operator_flow_visible_and_responsive -q
 ```
 
 Expected: PASS。
