@@ -466,9 +466,10 @@ button,
 }
 
 .commercial-import-details summary {
-  display: flex;
-  align-items: center;
+  display: list-item;
   min-height: 44px;
+  padding: 0;
+  line-height: 44px;
   color: var(--commercial-muted);
   cursor: pointer;
 }

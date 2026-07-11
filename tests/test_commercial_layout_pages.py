@@ -87,6 +87,8 @@ def test_commercial_styles_define_single_task_layout_and_responsive_contracts():
     assert ".commercial-metric small" in components and "display: block" in components
     assert "repeat(auto-fit, minmax(160px, 1fr))" in components
     assert ".commercial-field .commercial-input-with-suffix input" in components
+    assert ".commercial-import-details summary" in components
+    assert "display: list-item" in components
     assert "@media (max-width: 560px)" in responsive
     assert "@media (max-width: 768px)" in responsive
     assert "grid-template-columns: 1fr" in responsive
