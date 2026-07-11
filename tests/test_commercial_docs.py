@@ -15,7 +15,9 @@ def test_operator_guide_explains_the_three_task_oriented_commercial_pages():
     assert "組合健檢" in guide and "選擇 .csv 檔案" in guide and "分析目前組合" in guide
     assert "持股可從追蹤股票、既有報告與常用股票清單選擇" in guide
     assert "加入／更新持股" in guide and "移除" in guide
-    assert "market_value CSV" in guide and "文字編輯" in guide
+    assert "輸入新台幣金額" in guide and "自動換算權重" in guide
+    assert "剩餘操作資金列為 Cash" in guide
+    assert "超過操作資金" in guide
     assert "保存在目前瀏覽器" in guide
     assert "market_value" in guide and "檔案實際總額" in guide
     for amount in ("NT$1,000,000", "NT$750,000", "NT$50,000"):
