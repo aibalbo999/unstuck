@@ -20,6 +20,7 @@ def test_simplified_commercial_assets_are_served_by_fastapi():
         "/static/commercial/styles/home_entry.css",
         "/static/commercial/shared/api.js",
         "/static/commercial/shared/async_state.js",
+        "/static/commercial/shared/operator_policy.js",
         "/static/commercial/shared/shell.js",
         "/static/commercial/shared/source_status.js",
         "/static/commercial/pages/decision_page.js",
