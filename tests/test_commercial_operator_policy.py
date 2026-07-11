@@ -78,3 +78,62 @@ def test_market_value_csv_uses_actual_total_and_weight_csv_uses_five_million():
     assert run_policy(
         f"policy.capitalFromCsv({json.dumps(weight_csv)})"
     ) == 5_000_000
+
+
+def test_custom_operator_policy_is_normalized_and_drives_amounts():
+    custom = run_policy(
+        "policy.normalizeOperatorPolicy({"
+        "capital: 10000000, cashReservePct: 25, "
+        "maxPositionPct: 12, maxTradeRiskPct: 0.8})"
+    )
+
+    assert custom == {
+        "capital": 10_000_000,
+        "cashReservePct": 25,
+        "maxPositionPct": 12,
+        "maxTradeRiskPct": 0.8,
+    }
+    assert run_policy(f"policy.policyAmounts({json.dumps(custom)})") == {
+        "capital": 10_000_000,
+        "cashReserve": 2_500_000,
+        "deployableCapital": 7_500_000,
+        "maxPosition": 1_200_000,
+        "maxTradeRisk": 80_000,
+    }
+
+
+def test_invalid_operator_policy_fields_fall_back_to_defaults():
+    assert run_policy(
+        "policy.normalizeOperatorPolicy({"
+        "capital: 99999, cashReservePct: 96, "
+        "maxPositionPct: 0, maxTradeRiskPct: 'bad'})"
+    ) == {
+        "capital": 5_000_000,
+        "cashReservePct": 20,
+        "maxPositionPct": 15,
+        "maxTradeRiskPct": 1,
+    }
+
+
+def test_operator_policy_round_trips_through_injected_storage():
+    stored = run_policy(
+        "(() => {"
+        "const values = {};"
+        "const storage = {"
+        "getItem: key => values[key] ?? null,"
+        "setItem: (key, value) => { values[key] = value; }"
+        "};"
+        "policy.writeOperatorPolicy(storage, {"
+        "capital: 8000000, cashReservePct: 30, "
+        "maxPositionPct: 10, maxTradeRiskPct: 0.5"
+        "});"
+        "return policy.readOperatorPolicy(storage);"
+        "})()"
+    )
+
+    assert stored == {
+        "capital": 8_000_000,
+        "cashReservePct": 30,
+        "maxPositionPct": 10,
+        "maxTradeRiskPct": 0.5,
+    }

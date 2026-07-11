@@ -5,10 +5,55 @@ export const OPERATOR_POLICY = Object.freeze({
   maxTradeRiskPct: 1,
 });
 
+export const POLICY_STORAGE_KEY = 'onstock.commercial.operator-policy.v1';
+
+const POLICY_RANGES = Object.freeze({
+  capital: [100_000, Number.MAX_SAFE_INTEGER],
+  cashReservePct: [0, 95],
+  maxPositionPct: [1, 100],
+  maxTradeRiskPct: [0.1, 100],
+});
+
 function finite(value) {
   if (value === null || value === undefined || value === '') return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
+}
+
+function policyValue(source, key) {
+  const value = finite(source?.[key]);
+  const [minimum, maximum] = POLICY_RANGES[key];
+  return value !== null && value >= minimum && value <= maximum
+    ? value
+    : OPERATOR_POLICY[key];
+}
+
+export function normalizeOperatorPolicy(source = {}) {
+  return {
+    capital: policyValue(source, 'capital'),
+    cashReservePct: policyValue(source, 'cashReservePct'),
+    maxPositionPct: policyValue(source, 'maxPositionPct'),
+    maxTradeRiskPct: policyValue(source, 'maxTradeRiskPct'),
+  };
+}
+
+export function readOperatorPolicy(storage) {
+  try {
+    const raw = storage?.getItem(POLICY_STORAGE_KEY);
+    return normalizeOperatorPolicy(raw ? JSON.parse(raw) : OPERATOR_POLICY);
+  } catch (_error) {
+    return normalizeOperatorPolicy(OPERATOR_POLICY);
+  }
+}
+
+export function writeOperatorPolicy(storage, policy) {
+  const normalized = normalizeOperatorPolicy(policy);
+  try {
+    storage?.setItem(POLICY_STORAGE_KEY, JSON.stringify(normalized));
+    return true;
+  } catch (_error) {
+    return false;
+  }
 }
 
 export function formatTwd(value) {
