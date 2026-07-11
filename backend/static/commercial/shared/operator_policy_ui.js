@@ -3,7 +3,7 @@ import {
   normalizeOperatorPolicy,
   readOperatorPolicy,
   writeOperatorPolicy,
-} from './operator_policy.js?v=20260711-operator4';
+} from './operator_policy.js?v=20260711-operator5';
 
 const FIELDS = [
   {

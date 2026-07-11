@@ -7,15 +7,26 @@ import {
   OPERATOR_POLICY,
   policyAmounts,
   trimToPositionLimit,
-} from '../shared/operator_policy.js?v=20260711-operator4';
-import { mountOperatorPolicyEditor } from '../shared/operator_policy_ui.js?v=20260711-operator4';
+} from '../shared/operator_policy.js?v=20260711-operator5';
+import { mountOperatorPolicyEditor } from '../shared/operator_policy_ui.js?v=20260711-operator5';
 import { bindTabs, focusPageHeading } from '../shared/shell.js';
 import { renderSourceStatus } from '../shared/source_status.js';
+import { loadTickerChoices } from '../shared/ticker_options.js?v=20260711-operator5';
+import {
+  parseWeightHoldings,
+  removeHolding,
+  upsertWeightHolding,
+} from '../shared/portfolio_holdings.js?v=20260711-operator5';
 
 const form = document.getElementById('portfolio-form');
 const input = document.getElementById('portfolio-csv');
 const fileInput = document.getElementById('portfolio-csv-file');
 const fileStatus = document.getElementById('portfolio-csv-file-status');
+const holdingTicker = document.getElementById('portfolio-ticker-select');
+const holdingWeight = document.getElementById('portfolio-holding-weight');
+const holdingAdd = document.getElementById('portfolio-holding-add');
+const holdingError = document.getElementById('portfolio-holding-error');
+const holdingList = document.getElementById('portfolio-holding-list');
 const errorRoot = document.getElementById('portfolio-csv-error');
 const button = document.getElementById('portfolio-run');
 const policyRoot = document.getElementById('portfolio-policy');
@@ -32,6 +43,7 @@ let activeTab = 'allocation';
 let basisCapital = OPERATOR_POLICY.capital;
 let actionLines = [];
 let activePolicy = OPERATOR_POLICY;
+let tickerChoices = [];
 
 export function validatePortfolioCsv(text) {
   const lines = String(text || '').trim().split(/\r?\n/).filter(Boolean);
@@ -67,10 +79,81 @@ export async function readPortfolioFile(file) {
     input.value = text;
     errorRoot.textContent = '';
     fileStatus.textContent = `已載入 ${file.name}；可先檢查內容再分析。`;
+    renderHoldingDraft();
   } catch (_error) {
     errorRoot.textContent = '無法讀取這個 CSV 檔案，請重新選擇。';
     fileStatus.textContent = '檔案未載入。';
   }
+}
+
+function renderHoldingTickerOptions() {
+  const choices = new Map(tickerChoices.map(choice => [choice.ticker, choice]));
+  choices.set('CASH', { ticker: 'CASH', name: '現金' });
+  parseWeightHoldings(input.value).forEach(holding => {
+    if (!choices.has(holding.ticker)) choices.set(holding.ticker, { ticker: holding.ticker, name: '' });
+  });
+  const selected = holdingTicker.value;
+  const prompt = document.createElement('option');
+  prompt.value = '';
+  prompt.textContent = '選擇持股';
+  const options = [...choices.values()]
+    .sort((left, right) => left.ticker.localeCompare(right.ticker))
+    .map(choice => {
+      const option = document.createElement('option');
+      option.value = choice.ticker;
+      option.textContent = choice.name ? `${choice.ticker} · ${choice.name}` : choice.ticker;
+      return option;
+    });
+  holdingTicker.replaceChildren(prompt, ...options);
+  holdingTicker.value = choices.has(selected) ? selected : '';
+}
+
+export function renderHoldingDraft() {
+  const holdings = parseWeightHoldings(input.value);
+  const rows = holdings.map(holding => {
+    const item = document.createElement('li');
+    item.dataset.ticker = holding.ticker;
+    const label = document.createElement('span');
+    label.textContent = `${holding.ticker} · ${holding.weight}%`;
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'commercial-text-action';
+    remove.dataset.removeTicker = holding.ticker;
+    remove.textContent = '移除';
+    item.append(label, remove);
+    return item;
+  });
+  if (!rows.length) {
+    const empty = document.createElement('li');
+    empty.className = 'commercial-muted';
+    empty.textContent = '目前沒有可用的 weight 持股。';
+    rows.push(empty);
+  }
+  holdingList.replaceChildren(...rows);
+  renderHoldingTickerOptions();
+}
+
+async function loadPortfolioTickerOptions() {
+  tickerChoices = await loadTickerChoices();
+  renderHoldingTickerOptions();
+}
+
+function updateHoldingDraft() {
+  if (!holdingTicker.value) {
+    holdingError.textContent = '請先選擇股票代號。';
+    holdingTicker.focus();
+    return;
+  }
+  if (!holdingWeight.reportValidity()) return;
+  const result = upsertWeightHolding(input.value, {
+    ticker: holdingTicker.value,
+    weight: holdingWeight.value,
+  });
+  holdingError.textContent = result.error;
+  if (result.error) return;
+  input.value = result.text;
+  fileStatus.textContent = '持股內容已由選擇器更新；可直接分析或展開 CSV 檢查。';
+  renderHoldingDraft();
 }
 
 function metric(name, value, note = '') {
@@ -279,6 +362,20 @@ bindTabs(document.getElementById('portfolio-tabs'), tab => {
   renderEvidence();
 });
 fileInput.addEventListener('change', () => readPortfolioFile(fileInput.files?.[0]));
+holdingAdd.addEventListener('click', updateHoldingDraft);
+holdingTicker.addEventListener('change', () => {
+  const existing = parseWeightHoldings(input.value)
+    .find(holding => holding.ticker === holdingTicker.value);
+  holdingWeight.value = existing ? String(existing.weight) : '';
+});
+holdingList.addEventListener('click', event => {
+  const button = event.target.closest('[data-remove-ticker]');
+  if (!button) return;
+  input.value = removeHolding(input.value, button.dataset.removeTicker);
+  holdingError.textContent = '';
+  renderHoldingDraft();
+});
+input.addEventListener('input', renderHoldingDraft);
 mountOperatorPolicyEditor(document.getElementById('portfolio-policy-editor'), {
   onChange(policy) {
     activePolicy = policy;
@@ -288,6 +385,8 @@ mountOperatorPolicyEditor(document.getElementById('portfolio-policy-editor'), {
   },
 });
 focusPageHeading('portfolio-title');
+renderHoldingDraft();
+loadPortfolioTickerOptions();
 form.addEventListener('submit', async event => {
   event.preventDefault();
   const validationError = validatePortfolioCsv(input.value);

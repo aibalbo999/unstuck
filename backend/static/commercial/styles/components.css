@@ -411,6 +411,68 @@ button,
   margin: 0 0 14px;
 }
 
+.commercial-holding-builder {
+  display: grid;
+  gap: 10px;
+}
+
+.commercial-holding-controls {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(100px, 0.38fr) auto;
+  align-items: end;
+  gap: 10px;
+}
+
+.commercial-holding-controls .commercial-field {
+  margin: 0;
+}
+
+.commercial-holding-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.commercial-holding-list li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding-left: 10px;
+  border: 1px solid var(--commercial-border);
+  border-radius: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.commercial-holding-list li.commercial-muted {
+  padding: 10px;
+}
+
+#portfolio-holding-error {
+  margin: 0;
+  color: var(--commercial-danger);
+}
+
+#portfolio-holding-error:empty {
+  display: none;
+}
+
+.commercial-import-details {
+  margin: 3px 0;
+  border-top: 1px solid var(--commercial-border);
+}
+
+.commercial-import-details summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--commercial-muted);
+  cursor: pointer;
+}
+
 .commercial-file-field {
   margin-bottom: 6px;
 }

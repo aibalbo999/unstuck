@@ -380,8 +380,30 @@ def test_stock_and_portfolio_accept_operator_selected_inputs(tmp_path):
             ),
         )
         page.goto(f"{BASE_URL}/static/commercial/portfolio-dashboard.html", wait_until="networkidle")
+        option_values = page.locator("#portfolio-ticker-select option").evaluate_all(
+            "options => options.map(option => option.value)"
+        )
+        for ticker in ("AAPL", "2308.TW", "2887.TW"):
+            assert ticker in option_values
+
+        page.locator("#portfolio-ticker-select").select_option("2887.TW")
+        page.locator("#portfolio-holding-weight").fill("10")
+        page.get_by_role("button", name="加入／更新持股").click()
+        assert "2887.TW,10" in page.locator("#portfolio-csv").input_value()
+        page.locator("#portfolio-holding-weight").fill("12")
+        page.get_by_role("button", name="加入／更新持股").click()
+        assert page.locator("#portfolio-csv").input_value().count("2887.TW") == 1
+        assert "2887.TW,12" in page.locator("#portfolio-csv").input_value()
+        page.locator('#portfolio-holding-list [data-ticker="2887.TW"]').get_by_role(
+            "button", name="移除"
+        ).click()
+        assert "2887.TW" not in page.locator("#portfolio-csv").input_value()
+
+        page.locator(".commercial-import-details summary").click()
         page.locator("#portfolio-csv-file").set_input_files(str(csv_path))
-        assert "my-portfolio.csv" in page.locator("#portfolio-csv-file-status").inner_text()
+        sync_api.expect(page.locator("#portfolio-csv-file-status")).to_contain_text(
+            "my-portfolio.csv"
+        )
         assert "2330.TW,80" in page.locator("#portfolio-csv").input_value()
         page.get_by_role("button", name="分析目前組合").click()
         page.locator("#portfolio-position-rows tr").first.wait_for()

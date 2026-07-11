@@ -4,8 +4,8 @@ import {
   formatTwd,
   OPERATOR_POLICY,
   policyAmounts,
-} from '../shared/operator_policy.js?v=20260711-operator4';
-import { mountOperatorPolicyEditor } from '../shared/operator_policy_ui.js?v=20260711-operator4';
+} from '../shared/operator_policy.js?v=20260711-operator5';
+import { mountOperatorPolicyEditor } from '../shared/operator_policy_ui.js?v=20260711-operator5';
 import { focusPageHeading, stockPageHref } from '../shared/shell.js';
 import { renderSourceStatus } from '../shared/source_status.js';
 

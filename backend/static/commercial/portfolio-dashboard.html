@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>OnStock 組合健檢</title>
-  <link rel="stylesheet" href="/static/commercial/styles/tokens.css?v=20260711-operator4">
-  <link rel="stylesheet" href="/static/commercial/styles/shell.css?v=20260711-operator4">
-  <link rel="stylesheet" href="/static/commercial/styles/components.css?v=20260711-operator4">
-  <link rel="stylesheet" href="/static/commercial/styles/responsive.css?v=20260711-operator4">
+  <link rel="stylesheet" href="/static/commercial/styles/tokens.css?v=20260711-operator5">
+  <link rel="stylesheet" href="/static/commercial/styles/shell.css?v=20260711-operator5">
+  <link rel="stylesheet" href="/static/commercial/styles/components.css?v=20260711-operator5">
+  <link rel="stylesheet" href="/static/commercial/styles/responsive.css?v=20260711-operator5">
 </head>
 <body data-commercial-page="portfolio">
   <header class="commercial-topbar">
@@ -28,27 +28,48 @@
     <section id="portfolio-policy" class="commercial-policy-strip" aria-label="操作護欄" data-derived-from="operator-policy"></section>
     <div class="commercial-workspace-grid">
       <form id="portfolio-form" class="commercial-panel" novalidate>
-      <div class="commercial-portfolio-input-grid">
-        <div>
-          <label class="commercial-field commercial-file-field" for="portfolio-csv-file">
-            <span>選擇持股 CSV 檔案</span>
-            <input id="portfolio-csv-file" type="file" accept=".csv,text/csv" aria-describedby="portfolio-csv-file-status portfolio-csv-error">
+      <section class="commercial-holding-builder" aria-label="選擇持股與權重">
+        <span class="commercial-eyebrow">快速建立持股</span>
+        <div class="commercial-holding-controls">
+          <label class="commercial-field" for="portfolio-ticker-select">
+            <span>股票代號</span>
+            <select id="portfolio-ticker-select">
+              <option value="">正在載入股票清單…</option>
+            </select>
           </label>
-          <p id="portfolio-csv-file-status" class="commercial-muted" aria-live="polite">尚未選擇檔案；也可直接編輯內容。</p>
+          <label class="commercial-field" for="portfolio-holding-weight">
+            <span>權重 %</span>
+            <input id="portfolio-holding-weight" type="number" min="0" max="100" step="0.1" inputmode="decimal" required>
+          </label>
+          <button id="portfolio-holding-add" class="commercial-secondary-action" type="button">加入／更新持股</button>
         </div>
-        <div>
-          <label class="commercial-field" for="portfolio-csv">
-            <span>持股 CSV 內容</span>
-            <textarea id="portfolio-csv" aria-describedby="portfolio-csv-help portfolio-csv-error">ticker,weight,sector,country
+        <p id="portfolio-holding-error" role="alert"></p>
+        <ul id="portfolio-holding-list" class="commercial-holding-list" aria-live="polite"></ul>
+      </section>
+      <details class="commercial-import-details">
+        <summary>CSV 檔案或文字編輯</summary>
+        <div class="commercial-portfolio-input-grid">
+          <div>
+            <label class="commercial-field commercial-file-field" for="portfolio-csv-file">
+              <span>選擇持股 CSV 檔案</span>
+              <input id="portfolio-csv-file" type="file" accept=".csv,text/csv" aria-describedby="portfolio-csv-file-status portfolio-csv-error">
+            </label>
+            <p id="portfolio-csv-file-status" class="commercial-muted" aria-live="polite">尚未選擇檔案；也可直接編輯內容。</p>
+          </div>
+          <div>
+            <label class="commercial-field" for="portfolio-csv">
+              <span>持股 CSV 內容</span>
+              <textarea id="portfolio-csv" aria-describedby="portfolio-csv-help portfolio-csv-error">ticker,weight,sector,country
 2330.TW,45,Semiconductor,TW
 2308.TW,22,Power,TW
 AAPL,14,Software,US
 Cash,19,Cash,TW</textarea>
-          </label>
-          <p id="portfolio-csv-help" class="commercial-muted">必要欄位：ticker，以及 weight 或 market_value。</p>
+            </label>
+            <p id="portfolio-csv-help" class="commercial-muted">必要欄位：ticker，以及 weight 或 market_value。</p>
+          </div>
         </div>
-      </div>
-      <p id="portfolio-csv-error" role="alert"></p>
+        <p id="portfolio-csv-error" role="alert"></p>
+      </details>
       <button id="portfolio-run" class="commercial-primary-action" type="submit">分析目前組合</button>
       </form>
       <section class="commercial-answer" aria-labelledby="portfolio-answer-title">
@@ -89,6 +110,6 @@ Cash,19,Cash,TW</textarea>
     <section id="portfolio-evidence" class="commercial-panel" aria-live="polite" hidden>完成健檢後顯示細節。</section>
     <section id="portfolio-source-status" class="commercial-source-status" aria-live="polite"></section>
   </main>
-  <script type="module" src="/static/commercial/pages/portfolio_page.js?v=20260711-operator4"></script>
+  <script type="module" src="/static/commercial/pages/portfolio_page.js?v=20260711-operator5"></script>
 </body>
 </html>
