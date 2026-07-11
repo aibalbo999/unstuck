@@ -387,17 +387,36 @@ def test_stock_and_portfolio_accept_operator_selected_inputs(tmp_path):
             assert ticker in option_values
 
         page.locator("#portfolio-ticker-select").select_option("2887.TW")
-        page.locator("#portfolio-holding-weight").fill("10")
+        page.locator("#portfolio-holding-amount").fill("600000")
         page.get_by_role("button", name="加入／更新持股").click()
-        assert "2887.TW,10" in page.locator("#portfolio-csv").input_value()
-        page.locator("#portfolio-holding-weight").fill("12")
+        csv_text = page.locator("#portfolio-csv").input_value()
+        assert "market_value" in csv_text.splitlines()[0]
+        assert "2887.TW,600000" in csv_text
+        assert "CASH,350000" in csv_text
+        holding_text = page.locator(
+            '#portfolio-holding-list [data-ticker="2887.TW"]'
+        ).inner_text()
+        assert "NT$600,000" in holding_text and "12%" in holding_text
+
+        page.locator("#portfolio-policy-editor summary").click()
+        page.locator('[name="capital"]').fill("6000000")
+        page.get_by_role("button", name="套用設定").click()
+        assert "2887.TW,600000" in page.locator("#portfolio-csv").input_value()
+        assert "CASH,1350000" in page.locator("#portfolio-csv").input_value()
+        assert "10%" in page.locator(
+            '#portfolio-holding-list [data-ticker="2887.TW"]'
+        ).inner_text()
+
+        page.locator("#portfolio-holding-amount").fill("800000")
         page.get_by_role("button", name="加入／更新持股").click()
         assert page.locator("#portfolio-csv").input_value().count("2887.TW") == 1
-        assert "2887.TW,12" in page.locator("#portfolio-csv").input_value()
+        assert "2887.TW,800000" in page.locator("#portfolio-csv").input_value()
+        assert "CASH,1150000" in page.locator("#portfolio-csv").input_value()
         page.locator('#portfolio-holding-list [data-ticker="2887.TW"]').get_by_role(
             "button", name="移除"
         ).click()
         assert "2887.TW" not in page.locator("#portfolio-csv").input_value()
+        assert "CASH,1950000" in page.locator("#portfolio-csv").input_value()
 
         page.locator(".commercial-import-details summary").click()
         page.locator("#portfolio-csv-file").set_input_files(str(csv_path))

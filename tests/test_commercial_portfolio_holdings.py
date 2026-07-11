@@ -49,6 +49,13 @@ def test_upsert_amount_holding_converts_weight_csv_and_balances_cash():
     assert "AAPL,1000000,," in updated["text"]
     assert "CASH,1750000,Cash,TW" in updated["text"]
 
+    rebased = run_holdings(
+        f"holdings.rebalanceAmountCash({json.dumps(added['text'])}, 6000000)"
+    )
+    assert "2330.TW,2250000,Semi,TW" in rebased
+    assert "AAPL,600000,," in rebased
+    assert "CASH,3150000,Cash,TW" in rebased
+
 
 def test_parse_and_remove_amount_holdings_show_weight_and_return_money_to_cash():
     csv_text = "ticker,market_value\n2330.TW,2250000\nAAPL,600000\nCash,2150000"

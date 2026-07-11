@@ -7,23 +7,24 @@ import {
   OPERATOR_POLICY,
   policyAmounts,
   trimToPositionLimit,
-} from '../shared/operator_policy.js?v=20260711-operator5';
-import { mountOperatorPolicyEditor } from '../shared/operator_policy_ui.js?v=20260711-operator5';
+} from '../shared/operator_policy.js?v=20260711-operator6';
+import { mountOperatorPolicyEditor } from '../shared/operator_policy_ui.js?v=20260711-operator6';
 import { bindTabs, focusPageHeading } from '../shared/shell.js';
 import { renderSourceStatus } from '../shared/source_status.js';
-import { loadTickerChoices } from '../shared/ticker_options.js?v=20260711-operator5';
+import { loadTickerChoices } from '../shared/ticker_options.js?v=20260711-operator6';
 import {
-  parseWeightHoldings,
-  removeHolding,
-  upsertWeightHolding,
-} from '../shared/portfolio_holdings.js?v=20260711-operator5';
+  parseAmountHoldings,
+  rebalanceAmountCash,
+  removeAmountHolding,
+  upsertAmountHolding,
+} from '../shared/portfolio_holdings.js?v=20260711-operator6';
 
 const form = document.getElementById('portfolio-form');
 const input = document.getElementById('portfolio-csv');
 const fileInput = document.getElementById('portfolio-csv-file');
 const fileStatus = document.getElementById('portfolio-csv-file-status');
 const holdingTicker = document.getElementById('portfolio-ticker-select');
-const holdingWeight = document.getElementById('portfolio-holding-weight');
+const holdingAmount = document.getElementById('portfolio-holding-amount');
 const holdingAdd = document.getElementById('portfolio-holding-add');
 const holdingError = document.getElementById('portfolio-holding-error');
 const holdingList = document.getElementById('portfolio-holding-list');
@@ -44,6 +45,7 @@ let basisCapital = OPERATOR_POLICY.capital;
 let actionLines = [];
 let activePolicy = OPERATOR_POLICY;
 let tickerChoices = [];
+let holdingDraftManaged = false;
 
 export function validatePortfolioCsv(text) {
   const lines = String(text || '').trim().split(/\r?\n/).filter(Boolean);
@@ -77,6 +79,7 @@ export async function readPortfolioFile(file) {
       return;
     }
     input.value = text;
+    holdingDraftManaged = false;
     errorRoot.textContent = '';
     fileStatus.textContent = `已載入 ${file.name}；可先檢查內容再分析。`;
     renderHoldingDraft();
@@ -88,8 +91,8 @@ export async function readPortfolioFile(file) {
 
 function renderHoldingTickerOptions() {
   const choices = new Map(tickerChoices.map(choice => [choice.ticker, choice]));
-  choices.set('CASH', { ticker: 'CASH', name: '現金' });
-  parseWeightHoldings(input.value).forEach(holding => {
+  parseAmountHoldings(input.value, activePolicy.capital).forEach(holding => {
+    if (holding.ticker === 'CASH') return;
     if (!choices.has(holding.ticker)) choices.set(holding.ticker, { ticker: holding.ticker, name: '' });
   });
   const selected = holdingTicker.value;
@@ -109,24 +112,35 @@ function renderHoldingTickerOptions() {
 }
 
 export function renderHoldingDraft() {
-  const holdings = parseWeightHoldings(input.value);
+  const holdings = parseAmountHoldings(input.value, activePolicy.capital);
   const rows = holdings.map(holding => {
     const item = document.createElement('li');
     item.dataset.ticker = holding.ticker;
     const label = document.createElement('span');
-    label.textContent = `${holding.ticker} · ${holding.weight}%`;
-    const remove = document.createElement('button');
-    remove.type = 'button';
-    remove.className = 'commercial-text-action';
-    remove.dataset.removeTicker = holding.ticker;
-    remove.textContent = '移除';
-    item.append(label, remove);
+    label.className = 'commercial-holding-label';
+    const ticker = document.createElement('strong');
+    ticker.textContent = holding.ticker;
+    const detail = document.createElement('small');
+    const weightLabel = Number(holding.weight.toFixed(1)).toLocaleString('zh-TW', {
+      maximumFractionDigits: 1,
+    });
+    detail.textContent = `${formatTwd(holding.amount)} · ${weightLabel}%`;
+    label.append(ticker, detail);
+    item.append(label);
+    if (holding.ticker !== 'CASH') {
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'commercial-text-action';
+      remove.dataset.removeTicker = holding.ticker;
+      remove.textContent = '移除';
+      item.append(remove);
+    }
     return item;
   });
   if (!rows.length) {
     const empty = document.createElement('li');
     empty.className = 'commercial-muted';
-    empty.textContent = '目前沒有可用的 weight 持股。';
+    empty.textContent = '目前沒有可用的持股金額。';
     rows.push(empty);
   }
   holdingList.replaceChildren(...rows);
@@ -144,14 +158,16 @@ function updateHoldingDraft() {
     holdingTicker.focus();
     return;
   }
-  if (!holdingWeight.reportValidity()) return;
-  const result = upsertWeightHolding(input.value, {
+  if (!holdingAmount.reportValidity()) return;
+  const result = upsertAmountHolding(input.value, {
     ticker: holdingTicker.value,
-    weight: holdingWeight.value,
+    amount: holdingAmount.value,
+    capital: activePolicy.capital,
   });
   holdingError.textContent = result.error;
   if (result.error) return;
   input.value = result.text;
+  holdingDraftManaged = true;
   fileStatus.textContent = '持股內容已由選擇器更新；可直接分析或展開 CSV 檢查。';
   renderHoldingDraft();
 }
@@ -364,23 +380,36 @@ bindTabs(document.getElementById('portfolio-tabs'), tab => {
 fileInput.addEventListener('change', () => readPortfolioFile(fileInput.files?.[0]));
 holdingAdd.addEventListener('click', updateHoldingDraft);
 holdingTicker.addEventListener('change', () => {
-  const existing = parseWeightHoldings(input.value)
+  const existing = parseAmountHoldings(input.value, activePolicy.capital)
     .find(holding => holding.ticker === holdingTicker.value);
-  holdingWeight.value = existing ? String(existing.weight) : '';
+  holdingAmount.value = existing ? String(existing.amount) : '';
 });
 holdingList.addEventListener('click', event => {
   const button = event.target.closest('[data-remove-ticker]');
   if (!button) return;
-  input.value = removeHolding(input.value, button.dataset.removeTicker);
+  input.value = removeAmountHolding(
+    input.value,
+    button.dataset.removeTicker,
+    activePolicy.capital,
+  );
+  holdingDraftManaged = true;
   holdingError.textContent = '';
   renderHoldingDraft();
 });
-input.addEventListener('input', renderHoldingDraft);
+input.addEventListener('input', () => {
+  holdingDraftManaged = false;
+  renderHoldingDraft();
+});
 mountOperatorPolicyEditor(document.getElementById('portfolio-policy-editor'), {
   onChange(policy) {
+    const capitalChanged = activePolicy.capital !== policy.capital;
     activePolicy = policy;
+    if (holdingDraftManaged && capitalChanged) {
+      input.value = rebalanceAmountCash(input.value, activePolicy.capital);
+    }
     basisCapital = capitalFromCsv(input.value, activePolicy.capital);
     renderPolicy();
+    renderHoldingDraft();
     if (report) renderReport(report);
   },
 });

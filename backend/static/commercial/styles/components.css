@@ -438,12 +438,25 @@ button,
 
 .commercial-holding-list li {
   display: inline-flex;
+  flex: 1 1 210px;
   align-items: center;
+  justify-content: space-between;
   gap: 6px;
   min-height: 44px;
   padding-left: 10px;
   border: 1px solid var(--commercial-border);
   border-radius: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.commercial-holding-label {
+  display: grid;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.commercial-holding-label small {
+  color: var(--commercial-muted);
   font-variant-numeric: tabular-nums;
 }
 

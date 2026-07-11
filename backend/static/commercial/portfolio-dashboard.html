@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>OnStock 組合健檢</title>
-  <link rel="stylesheet" href="/static/commercial/styles/tokens.css?v=20260711-operator5">
-  <link rel="stylesheet" href="/static/commercial/styles/shell.css?v=20260711-operator5">
-  <link rel="stylesheet" href="/static/commercial/styles/components.css?v=20260711-operator5">
-  <link rel="stylesheet" href="/static/commercial/styles/responsive.css?v=20260711-operator5">
+  <link rel="stylesheet" href="/static/commercial/styles/tokens.css?v=20260711-operator6">
+  <link rel="stylesheet" href="/static/commercial/styles/shell.css?v=20260711-operator6">
+  <link rel="stylesheet" href="/static/commercial/styles/components.css?v=20260711-operator6">
+  <link rel="stylesheet" href="/static/commercial/styles/responsive.css?v=20260711-operator6">
 </head>
 <body data-commercial-page="portfolio">
   <header class="commercial-topbar">
@@ -37,9 +37,9 @@
               <option value="">正在載入股票清單…</option>
             </select>
           </label>
-          <label class="commercial-field" for="portfolio-holding-weight">
-            <span>權重 %</span>
-            <input id="portfolio-holding-weight" type="number" min="0" max="100" step="0.1" inputmode="decimal" required>
+          <label class="commercial-field" for="portfolio-holding-amount">
+            <span>投入金額 NT$</span>
+            <input id="portfolio-holding-amount" type="number" min="1" step="1" inputmode="numeric" required>
           </label>
           <button id="portfolio-holding-add" class="commercial-secondary-action" type="button">加入／更新持股</button>
         </div>
@@ -110,6 +110,6 @@ Cash,19,Cash,TW</textarea>
     <section id="portfolio-evidence" class="commercial-panel" aria-live="polite" hidden>完成健檢後顯示細節。</section>
     <section id="portfolio-source-status" class="commercial-source-status" aria-live="polite"></section>
   </main>
-  <script type="module" src="/static/commercial/pages/portfolio_page.js?v=20260711-operator5"></script>
+  <script type="module" src="/static/commercial/pages/portfolio_page.js?v=20260711-operator6"></script>
 </body>
 </html>

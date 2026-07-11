@@ -66,7 +66,7 @@ Expected: FAIL，頁面仍使用權重輸入。
 - [ ] **Step 3: 最小實作**
 
 ```html
-<input id="portfolio-holding-amount" type="number" min="1" step="1000" inputmode="numeric">
+<input id="portfolio-holding-amount" type="number" min="1" step="1" inputmode="numeric">
 ```
 
 ```js

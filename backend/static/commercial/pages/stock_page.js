@@ -6,8 +6,8 @@ import {
   OPERATOR_POLICY,
   policyAmounts,
   positionPlan,
-} from '../shared/operator_policy.js?v=20260711-operator5';
-import { mountOperatorPolicyEditor } from '../shared/operator_policy_ui.js?v=20260711-operator5';
+} from '../shared/operator_policy.js?v=20260711-operator6';
+import { mountOperatorPolicyEditor } from '../shared/operator_policy_ui.js?v=20260711-operator6';
 import {
   bindTabs,
   focusPageHeading,
@@ -16,7 +16,7 @@ import {
   tickerFromLocation,
 } from '../shared/shell.js';
 import { renderSourceStatus } from '../shared/source_status.js';
-import { loadTickerChoices } from '../shared/ticker_options.js?v=20260711-operator5';
+import { loadTickerChoices } from '../shared/ticker_options.js?v=20260711-operator6';
 
 const form = document.getElementById('stock-form');
 const input = document.getElementById('stock-ticker');
