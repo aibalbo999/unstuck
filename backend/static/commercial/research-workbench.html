@@ -22,15 +22,31 @@
     <header class="commercial-page-header">
       <span class="commercial-eyebrow">每日投資流程</span>
       <h1 id="decision-title" tabindex="-1">今日決策</h1>
-      <p class="commercial-muted">先處理風險、過期資料與需重跑的股票。</p>
+      <p class="commercial-muted">用 500 萬操作護欄，先處理風險、過期資料與需重跑的股票。</p>
     </header>
+    <section id="decision-policy" class="commercial-policy-strip" aria-label="500 萬操作護欄" data-derived-from="operator-policy"></section>
     <section class="commercial-answer" aria-labelledby="decision-answer-title">
       <span class="commercial-eyebrow">今天最重要</span>
       <h2 id="decision-answer-title">正在整理待處理項目…</h2>
       <p id="decision-answer-detail" class="commercial-muted"></p>
+      <div id="decision-summary-metrics" class="commercial-metrics commercial-summary-metrics"></div>
       <a id="decision-primary" class="commercial-primary-action" href="/static/commercial/stock-detail.html" hidden>開始檢查</a>
       <a id="decision-all-action" class="commercial-secondary-action" href="/#home-tab-tracking" hidden>查看全部追蹤股票</a>
       <a id="decision-empty-action" class="commercial-secondary-action" href="/#home-tab-tracking" hidden>設定追蹤股票</a>
+    </section>
+    <section class="commercial-panel commercial-queue-panel" aria-labelledby="decision-queue-title">
+      <div class="commercial-section-heading">
+        <div>
+          <span class="commercial-eyebrow">操作佇列</span>
+          <h2 id="decision-queue-title">優先處理 5 筆</h2>
+        </div>
+        <div id="decision-filters" class="commercial-filter-bar" aria-label="篩選今日決策">
+          <button type="button" data-filter="all" aria-pressed="true">全部</button>
+          <button type="button" data-filter="rerun" aria-pressed="false">需重跑</button>
+          <button type="button" data-filter="weak" aria-pressed="false">報酬轉弱</button>
+        </div>
+      </div>
+      <p id="decision-filter-status" class="commercial-muted" aria-live="polite"></p>
       <ul id="decision-task-list" class="commercial-task-list" aria-label="今日待處理股票"></ul>
     </section>
     <section id="decision-source-status" class="commercial-source-status" aria-live="polite"></section>

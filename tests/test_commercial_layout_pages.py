@@ -50,11 +50,27 @@ def test_decision_page_is_a_single_task_queue_without_demo_fallbacks():
     assert ">今日決策</h1>" in html
     assert html.count("commercial-primary-action") == 1
     assert 'id="decision-task-list"' in html
+    assert 'id="decision-policy"' in html
+    assert 'id="decision-summary-metrics"' in html
+    assert 'id="decision-filters"' in html
+    for name in ("all", "rerun", "weak"):
+        assert f'data-filter="{name}"' in html
     assert 'id="decision-all-action"' in html
     assert ">查看全部追蹤股票</a>" in html
     assert 'type="module" src="/static/commercial/pages/decision_page.js' in html
     assert "/api/decision-tracking" in js
     assert "stockPageHref" in js
+    for field in (
+        "recommendation",
+        "latestPrice",
+        "returnPct",
+        "targetGap",
+        "confidence",
+    ):
+        assert field in js
+    assert ".slice(0, 5)" in js
+    assert "renderFilteredTasks" in js
+    assert "operator_policy.js" in js
     assert "allAction.hidden = false" in js
     assert "fallbackTickers" not in js
     assert "localStorage" not in js
