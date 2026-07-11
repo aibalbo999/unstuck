@@ -66,3 +66,15 @@ def test_weight_amount_and_trim_amount_use_operator_capital():
 def test_format_twd_does_not_turn_missing_values_into_zero():
     assert "5,000,000" in run_policy("policy.formatTwd(5000000)")
     assert run_policy("policy.formatTwd(null)") == "資料不足"
+
+
+def test_market_value_csv_uses_actual_total_and_weight_csv_uses_five_million():
+    market_value_csv = "ticker,market_value\n2330.TW,3000000\nCash,1800000"
+    weight_csv = "ticker,weight\n2330.TW,70\nCash,30"
+
+    assert run_policy(
+        f"policy.capitalFromCsv({json.dumps(market_value_csv)})"
+    ) == 4_800_000
+    assert run_policy(
+        f"policy.capitalFromCsv({json.dumps(weight_csv)})"
+    ) == 5_000_000

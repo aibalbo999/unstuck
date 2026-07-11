@@ -1,5 +1,13 @@
 import { requestJson } from '../shared/api.js';
 import { setAsyncState } from '../shared/async_state.js';
+import {
+  amountForWeight,
+  capitalFromCsv,
+  formatTwd,
+  OPERATOR_POLICY,
+  policyAmounts,
+  trimToPositionLimit,
+} from '../shared/operator_policy.js';
 import { bindTabs, focusPageHeading } from '../shared/shell.js';
 import { renderSourceStatus } from '../shared/source_status.js';
 
@@ -7,14 +15,19 @@ const form = document.getElementById('portfolio-form');
 const input = document.getElementById('portfolio-csv');
 const errorRoot = document.getElementById('portfolio-csv-error');
 const button = document.getElementById('portfolio-run');
+const policyRoot = document.getElementById('portfolio-policy');
 const answer = document.getElementById('portfolio-answer-title');
 const detail = document.getElementById('portfolio-answer-detail');
-const metrics = document.getElementById('portfolio-metrics');
+const capitalMetrics = document.getElementById('portfolio-capital-metrics');
 const recommendations = document.getElementById('portfolio-recommendations');
+const allocationPanel = document.getElementById('portfolio-allocation-panel');
+const positionRows = document.getElementById('portfolio-position-rows');
 const evidence = document.getElementById('portfolio-evidence');
 const statusRoot = document.getElementById('portfolio-source-status');
 let report = null;
-let activeTab = 'exposure';
+let activeTab = 'allocation';
+let basisCapital = OPERATOR_POLICY.capital;
+let actionLines = [];
 
 export function validatePortfolioCsv(text) {
   const lines = String(text || '').trim().split(/\r?\n/).filter(Boolean);
@@ -33,7 +46,7 @@ export function validatePortfolioCsv(text) {
   return invalid >= 0 ? `第 ${invalid + 2} 列欄位數與標題列不同。` : '';
 }
 
-function metric(name, value) {
+function metric(name, value, note = '') {
   const root = document.createElement('div');
   root.className = 'commercial-metric';
   const key = document.createElement('span');
@@ -41,21 +54,87 @@ function metric(name, value) {
   const strong = document.createElement('strong');
   strong.textContent = String(value ?? '資料不足');
   root.append(key, strong);
+  if (note) {
+    const small = document.createElement('small');
+    small.textContent = note;
+    root.append(small);
+  }
   return root;
 }
 
+function policyMetric(name, value, note) {
+  const root = metric(name, value, note);
+  root.className = 'commercial-policy-item';
+  return root;
+}
+
+function renderPolicy() {
+  const amounts = policyAmounts();
+  policyRoot.replaceChildren(
+    policyMetric('操作資金', formatTwd(amounts.capital), '固定基準'),
+    policyMetric('現金保留', formatTwd(amounts.cashReserve), '20%'),
+    policyMetric('單一持股上限', formatTwd(amounts.maxPosition), '15%'),
+    policyMetric('單筆最大風險', formatTwd(amounts.maxTradeRisk), '1%'),
+  );
+}
+
+function isCash(position) {
+  return String(position.ticker || '').toUpperCase() === 'CASH'
+    || String(position.sector || '').toLowerCase() === 'cash';
+}
+
+function positionPolicy() {
+  return { ...OPERATOR_POLICY, capital: basisCapital };
+}
+
+function amountForPosition(position) {
+  return amountForWeight(position.weight_pct, basisCapital);
+}
+
+function trimAmount(position) {
+  return isCash(position) ? 0 : trimToPositionLimit(position.weight_pct, positionPolicy());
+}
+
+function countryLeader(payload) {
+  return Object.entries(payload.concentration?.country_weights || {})
+    .sort((left, right) => Number(right[1]) - Number(left[1]))[0] || [];
+}
+
+function cashPosition(payload) {
+  return (payload.positions || []).find(isCash) || null;
+}
+
+function operatorViolations(payload) {
+  const overweight = (payload.positions || [])
+    .filter(position => !isCash(position) && Number(position.weight_pct) > OPERATOR_POLICY.maxPositionPct)
+    .length;
+  const cashWeight = Number(cashPosition(payload)?.weight_pct || 0);
+  return overweight + (cashWeight < OPERATOR_POLICY.cashReservePct ? 1 : 0);
+}
+
 function healthScore(payload) {
-  const flagPenalty = (payload.risk_flags || []).length * 12;
-  const invalidPenalty = (payload.thesis_health?.invalidated || []).length * 12;
-  const missingPenalty = Math.min((payload.thesis_health?.missing || []).length * 5, 20);
-  return Math.max(0, 100 - flagPenalty - invalidPenalty - missingPenalty);
+  const flagPenalty = (payload.risk_flags || []).length * 10;
+  const operatorPenalty = operatorViolations(payload) * 10;
+  const invalidPenalty = (payload.thesis_health?.invalidated || []).length * 10;
+  const missingPenalty = Math.min((payload.thesis_health?.missing || []).length * 4, 16);
+  return Math.max(0, 100 - flagPenalty - operatorPenalty - invalidPenalty - missingPenalty);
 }
 
 function recommendationLines(payload) {
-  const top = payload.concentration?.top_position || {};
   const lines = [];
-  if ((payload.risk_flags || []).includes('single_position_over_40_pct')) {
-    lines.push(`降低 ${top.ticker || '最大部位'} 權重；目前 ${top.weight_pct}%`);
+  const overweight = (payload.positions || [])
+    .filter(position => !isCash(position) && Number(position.weight_pct) > OPERATOR_POLICY.maxPositionPct)
+    .sort((left, right) => Number(right.weight_pct) - Number(left.weight_pct));
+  overweight.forEach(position => {
+    lines.push(
+      `${position.ticker} 由 ${position.weight_pct}% 降至 ${OPERATOR_POLICY.maxPositionPct}%，減少 ${formatTwd(trimAmount(position))}`,
+    );
+  });
+
+  const cashWeight = Number(cashPosition(payload)?.weight_pct || 0);
+  if (cashWeight < OPERATOR_POLICY.cashReservePct) {
+    const required = amountForWeight(OPERATOR_POLICY.cashReservePct - cashWeight, basisCapital);
+    lines.push(`現金由 ${cashWeight}% 補至 ${OPERATOR_POLICY.cashReservePct}%，增加 ${formatTwd(required)}`);
   }
   if ((payload.risk_flags || []).includes('sector_over_60_pct')) {
     lines.push('降低最大產業集中度，避免單一產業超過 60%。');
@@ -70,52 +149,107 @@ function recommendationLines(payload) {
     lines.push(`補齊投資論點：${payload.thesis_health.missing.join('、')}`);
   }
   return lines.length
-    ? lines.slice(0, 3)
-    : ['目前沒有超過門檻的集中風險；維持例行檢查。'];
+    ? lines.slice(0, 5)
+    : ['目前符合 500 萬操作護欄；維持例行檢查。'];
 }
 
-function renderReport(payload) {
-  const score = healthScore(payload);
+function renderPositionTable(payload) {
+  const rows = (payload.positions || []).map(position => {
+    const row = document.createElement('tr');
+    const ticker = document.createElement('th');
+    ticker.scope = 'row';
+    ticker.textContent = position.ticker || '資料不足';
+    const weight = document.createElement('td');
+    weight.textContent = `${position.weight_pct}%`;
+    const amount = document.createElement('td');
+    amount.textContent = formatTwd(amountForPosition(position));
+    const trim = document.createElement('td');
+    const reduction = trimAmount(position);
+    trim.textContent = reduction > 0 ? `減少 ${formatTwd(reduction)}` : '在上限內';
+    if (reduction > 0) trim.dataset.state = 'negative';
+    row.append(ticker, weight, amount, trim);
+    return row;
+  });
+  positionRows.replaceChildren(...rows);
+}
+
+function renderCapitalMetrics(payload) {
+  const cash = cashPosition(payload);
+  const cashAmount = cash ? amountForPosition(cash) : 0;
+  const allocated = Math.max(0, basisCapital - cashAmount);
   const top = payload.concentration?.top_position || {};
-  const lines = recommendationLines(payload);
-  answer.textContent = `健康度 ${score}｜${(payload.risk_flags || []).length ? '需要調整' : '風險在門檻內'}`;
-  detail.textContent = `${payload.total_positions || 0} 個部位 · ${lines.length} 項下一步`;
-  metrics.replaceChildren(
-    metric('健康度', score),
-    metric('最大部位', top.ticker),
-    metric('最大權重', top.weight_pct === undefined ? null : `${top.weight_pct}%`),
-    metric('風險旗標', (payload.risk_flags || []).length),
+  const [country, countryWeight] = countryLeader(payload);
+  const sourceNote = basisCapital === OPERATOR_POLICY.capital
+    ? '500 萬操作基準'
+    : `較 500 萬基準 ${formatTwd(basisCapital - OPERATOR_POLICY.capital)}`;
+  capitalMetrics.replaceChildren(
+    metric('總資金', formatTwd(basisCapital), sourceNote),
+    metric('已配置', formatTwd(allocated)),
+    metric('現金', formatTwd(cashAmount), cash ? `${cash.weight_pct}%` : '0%'),
+    metric('最大部位', formatTwd(amountForWeight(top.weight_pct, basisCapital)), top.ticker || ''),
+    metric('最大國家曝險', country ? `${country} ${countryWeight}%` : null),
   );
-  recommendations.replaceChildren(...lines.map(text => {
+}
+
+function evidenceList(lines) {
+  const list = document.createElement('ul');
+  list.className = 'commercial-recommendations commercial-evidence-list';
+  lines.forEach(text => {
     const item = document.createElement('li');
     item.textContent = text;
-    return item;
-  }));
-  renderEvidence();
+    list.append(item);
+  });
+  return list;
 }
 
 function renderEvidence() {
+  const allocationActive = activeTab === 'allocation';
+  allocationPanel.hidden = !allocationActive;
+  evidence.hidden = allocationActive;
+  if (allocationActive) return;
   if (!report) {
     evidence.textContent = '完成健檢後顯示細節。';
     return;
   }
-  if (activeTab === 'scenario') {
-    evidence.textContent = '目前壓力來源：'
-      + ((report.risk_flags || []).join('、') || '沒有超過門檻的風險旗標');
-  } else if (activeTab === 'contribution') {
-    evidence.textContent = '持股權重由高至低：'
-      + (report.positions || []).map(item => `${item.ticker} ${item.weight_pct}%`).join('、');
+  if (activeTab === 'exposure') {
+    const sectorLines = Object.entries(report.concentration?.sector_weights || {})
+      .sort((left, right) => Number(right[1]) - Number(left[1]))
+      .map(([key, value]) => `產業 ${key}：${value}%`);
+    const countryLines = Object.entries(report.concentration?.country_weights || {})
+      .sort((left, right) => Number(right[1]) - Number(left[1]))
+      .map(([key, value]) => `國家 ${key}：${value}%`);
+    evidence.replaceChildren(evidenceList([...sectorLines, ...countryLines]));
+  } else if (activeTab === 'thesis') {
+    const invalidated = (report.thesis_health?.invalidated || []).map(ticker => `失效論點：${ticker}`);
+    const missing = (report.thesis_health?.missing || []).map(ticker => `缺少論點：${ticker}`);
+    evidence.replaceChildren(evidenceList(
+      invalidated.length || missing.length ? [...invalidated, ...missing] : ['所有持股都有有效投資論點。'],
+    ));
   } else {
-    evidence.textContent = '產業曝險：'
-      + Object.entries(report.concentration?.sector_weights || {})
-        .map(([key, value]) => `${key} ${value}%`).join('、');
+    evidence.replaceChildren(evidenceList(actionLines));
   }
+}
+
+function renderReport(payload) {
+  const score = healthScore(payload);
+  actionLines = recommendationLines(payload);
+  answer.textContent = `健康度 ${score}｜${operatorViolations(payload) ? '需要調整' : '操作護欄內'}`;
+  detail.textContent = `${payload.total_positions || 0} 個部位 · ${actionLines.length} 項下一步`;
+  renderCapitalMetrics(payload);
+  recommendations.replaceChildren(...actionLines.slice(0, 3).map(text => {
+    const item = document.createElement('li');
+    item.textContent = text;
+    return item;
+  }));
+  renderPositionTable(payload);
+  renderEvidence();
 }
 
 bindTabs(document.getElementById('portfolio-tabs'), tab => {
   activeTab = tab;
   renderEvidence();
 });
+renderPolicy();
 focusPageHeading('portfolio-title');
 form.addEventListener('submit', async event => {
   event.preventDefault();
@@ -127,6 +261,7 @@ form.addEventListener('submit', async event => {
   }
   setAsyncState(button, statusRoot, 'loading', '正在分析組合');
   try {
+    basisCapital = capitalFromCsv(input.value);
     report = await requestJson('/api/watchlist/portfolio/risk', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

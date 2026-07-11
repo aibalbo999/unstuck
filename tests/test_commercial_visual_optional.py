@@ -107,7 +107,7 @@ def test_stock_and_portfolio_api_errors_show_recovery_state_without_fallbacks():
             ),
         )
         page.goto(f"{BASE_URL}/static/commercial/portfolio-dashboard.html", wait_until="networkidle")
-        page.get_by_role("button", name="產生調整建議").click()
+        page.get_by_role("button", name="分析 500 萬組合").click()
         page.locator("#portfolio-source-status[data-state=error]").wait_for()
         assert "portfolio unavailable" in page.locator("#portfolio-source-status").inner_text()
         assert page.locator("#portfolio-recommendations li").count() == 0

@@ -103,7 +103,7 @@ def test_stock_page_has_one_snapshot_action_and_five_operator_tabs():
     assert "fallbackSnapshot" not in js
 
 
-def test_portfolio_page_validates_csv_and_posts_one_real_risk_request():
+def test_portfolio_page_translates_risk_into_five_million_amounts():
     html = read("portfolio-dashboard.html")
     js = read("pages/portfolio_page.js")
 
@@ -111,8 +111,20 @@ def test_portfolio_page_validates_csv_and_posts_one_real_risk_request():
     assert html.count("commercial-primary-action") == 1
     assert 'id="portfolio-csv"' in html
     assert 'id="portfolio-recommendations"' in html
+    for marker in (
+        'id="portfolio-policy"',
+        'id="portfolio-capital-metrics"',
+        'id="portfolio-position-table"',
+    ):
+        assert marker in html
+    for name in ("allocation", "exposure", "thesis", "actions"):
+        assert f'data-tab="{name}"' in html
     assert "/api/watchlist/portfolio/risk" in js
     assert "validatePortfolioCsv" in js
+    assert "amountForWeight" in js
+    assert "trimToPositionLimit" in js
+    assert "renderPositionTable" in js
+    assert "operator_policy.js" in js
     assert "fallbackPortfolio" not in js
     assert "localStorage" not in js
 

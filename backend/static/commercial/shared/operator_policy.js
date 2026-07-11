@@ -43,6 +43,19 @@ export function amountForWeight(weightPct, capital = OPERATOR_POLICY.capital) {
   return weight === null ? null : capital * weight / 100;
 }
 
+export function capitalFromCsv(text, fallbackCapital = OPERATOR_POLICY.capital) {
+  const lines = String(text || '').trim().split(/\r?\n/).filter(Boolean);
+  if (lines.length < 2) return fallbackCapital;
+  const headers = lines[0].split(',').map(value => value.trim().toLowerCase());
+  const marketValueIndex = headers.indexOf('market_value');
+  if (marketValueIndex < 0) return fallbackCapital;
+  const values = lines.slice(1).map(line => Number(line.split(',')[marketValueIndex]));
+  if (!values.length || values.some(value => !Number.isFinite(value) || value < 0)) {
+    return fallbackCapital;
+  }
+  return values.reduce((sum, value) => sum + value, 0) || fallbackCapital;
+}
+
 export function positionPlan({
   entryPrice,
   stopPrice,

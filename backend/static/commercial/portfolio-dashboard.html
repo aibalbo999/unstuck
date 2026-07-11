@@ -22,7 +22,9 @@
     <header class="commercial-page-header">
       <span class="commercial-eyebrow">Portfolio Health</span>
       <h1 id="portfolio-title" tabindex="-1">組合健檢</h1>
+      <p class="commercial-muted">把權重換成實際金額，先看現金、集中度與需要調整多少。</p>
     </header>
+    <section id="portfolio-policy" class="commercial-policy-strip" aria-label="500 萬操作護欄" data-derived-from="operator-policy"></section>
     <form id="portfolio-form" class="commercial-panel" novalidate>
       <label class="commercial-field" for="portfolio-csv">
         <span>持股 CSV</span>
@@ -34,21 +36,43 @@ Cash,19,Cash,TW</textarea>
       </label>
       <p id="portfolio-csv-help" class="commercial-muted">必要欄位：ticker，以及 weight 或 market_value。</p>
       <p id="portfolio-csv-error" role="alert"></p>
-      <button id="portfolio-run" class="commercial-primary-action" type="submit">產生調整建議</button>
+      <button id="portfolio-run" class="commercial-primary-action" type="submit">分析 500 萬組合</button>
     </form>
     <section class="commercial-answer" aria-labelledby="portfolio-answer-title">
       <span class="commercial-eyebrow">組合答案</span>
       <h2 id="portfolio-answer-title">貼上持股資料以開始健檢</h2>
       <p id="portfolio-answer-detail" class="commercial-muted"></p>
-      <div id="portfolio-metrics" class="commercial-metrics"></div>
+      <div id="portfolio-capital-metrics" class="commercial-metrics commercial-capital-metrics" data-derived-from="operator-policy"></div>
       <ol id="portfolio-recommendations" class="commercial-recommendations"></ol>
     </section>
     <div id="portfolio-tabs" class="commercial-tabs" role="tablist" aria-label="組合研究證據">
-      <button type="button" role="tab" aria-selected="true" data-tab="exposure">曝險</button>
-      <button type="button" role="tab" aria-selected="false" tabindex="-1" data-tab="scenario">情境</button>
-      <button type="button" role="tab" aria-selected="false" tabindex="-1" data-tab="contribution">貢獻</button>
+      <button type="button" role="tab" aria-selected="true" data-tab="allocation">資金配置</button>
+      <button type="button" role="tab" aria-selected="false" tabindex="-1" data-tab="exposure">曝險</button>
+      <button type="button" role="tab" aria-selected="false" tabindex="-1" data-tab="thesis">論點</button>
+      <button type="button" role="tab" aria-selected="false" tabindex="-1" data-tab="actions">調整清單</button>
     </div>
-    <section id="portfolio-evidence" class="commercial-panel" aria-live="polite">完成健檢後顯示細節。</section>
+    <section id="portfolio-allocation-panel" class="commercial-panel" aria-labelledby="portfolio-allocation-title">
+      <div class="commercial-section-heading">
+        <div>
+          <span class="commercial-eyebrow">500 萬配置明細</span>
+          <h2 id="portfolio-allocation-title">每檔持股金額</h2>
+        </div>
+      </div>
+      <div class="commercial-table-wrap">
+        <table id="portfolio-position-table" class="commercial-data-table">
+          <thead>
+            <tr>
+              <th scope="col">Ticker</th>
+              <th scope="col">權重</th>
+              <th scope="col">金額</th>
+              <th scope="col">15% 上限差額</th>
+            </tr>
+          </thead>
+          <tbody id="portfolio-position-rows"></tbody>
+        </table>
+      </div>
+    </section>
+    <section id="portfolio-evidence" class="commercial-panel" aria-live="polite" hidden>完成健檢後顯示細節。</section>
     <section id="portfolio-source-status" class="commercial-source-status" aria-live="polite"></section>
   </main>
   <script type="module" src="/static/commercial/pages/portfolio_page.js?v=20260711-simple2"></script>
