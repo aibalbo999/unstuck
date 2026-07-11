@@ -117,6 +117,8 @@ def test_metrics_tabs_focus_and_visibility_follow_accessible_contracts():
     assert "ArrowLeft" in shell and "ArrowRight" in shell
     assert "focusPageHeading" in shell
     assert ":focus-visible" in components
+    assert '.commercial-page h1[tabindex="-1"]:focus' in components
+    assert "outline: none" in components
     assert "min-height: 44px" in components
     assert "[hidden]" in components
     assert ".commercial-source-status:empty" in components

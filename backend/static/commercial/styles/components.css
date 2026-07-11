@@ -166,3 +166,8 @@ button,
   outline: 3px solid color-mix(in srgb, var(--commercial-primary) 70%, white);
   outline-offset: 3px;
 }
+
+/* Page headings receive programmatic focus so screen readers announce route changes. */
+.commercial-page h1[tabindex="-1"]:focus {
+  outline: none;
+}
