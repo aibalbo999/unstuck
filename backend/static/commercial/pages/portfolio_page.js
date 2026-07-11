@@ -405,7 +405,9 @@ mountOperatorPolicyEditor(document.getElementById('portfolio-policy-editor'), {
     const capitalChanged = activePolicy.capital !== policy.capital;
     activePolicy = policy;
     if (holdingDraftManaged && capitalChanged) {
-      input.value = rebalanceAmountCash(input.value, activePolicy.capital);
+      const rebalance = rebalanceAmountCash(input.value, activePolicy.capital);
+      input.value = rebalance.text;
+      holdingError.textContent = rebalance.error;
     }
     basisCapital = capitalFromCsv(input.value, activePolicy.capital);
     renderPolicy();

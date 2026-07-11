@@ -424,8 +424,14 @@ def test_stock_and_portfolio_accept_operator_selected_inputs(tmp_path):
         assert "NT$600,000" in holding_text and "12%" in holding_text
 
         page.locator("#portfolio-policy-editor summary").click()
+        page.locator('[name="capital"]').fill("4000000")
+        page.get_by_role("button", name="套用設定").click()
+        assert "超過操作資金" in page.locator("#portfolio-holding-error").inner_text()
+        assert "CASH,-" not in page.locator("#portfolio-csv").input_value()
+
         page.locator('[name="capital"]').fill("6000000")
         page.get_by_role("button", name="套用設定").click()
+        assert page.locator("#portfolio-holding-error").inner_text() == ""
         assert "2887.TW,600000" in page.locator("#portfolio-csv").input_value()
         assert "CASH,1350000" in page.locator("#portfolio-csv").input_value()
         assert "10%" in page.locator(

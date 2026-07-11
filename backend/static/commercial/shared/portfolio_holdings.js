@@ -132,7 +132,7 @@ export function removeAmountHolding(text, ticker, capital) {
 export function rebalanceAmountCash(text, capital) {
   const source = String(text || '').trim();
   const converted = amountCsv(source, capital);
-  if (converted.error) return source;
+  if (converted.error) return { text: source, error: converted.error };
   converted.capital = Number(capital);
-  return balanceCash(converted).text;
+  return balanceCash(converted);
 }

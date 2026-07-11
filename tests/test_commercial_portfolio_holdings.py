@@ -52,9 +52,10 @@ def test_upsert_amount_holding_converts_weight_csv_and_balances_cash():
     rebased = run_holdings(
         f"holdings.rebalanceAmountCash({json.dumps(added['text'])}, 6000000)"
     )
-    assert "2330.TW,2250000,Semi,TW" in rebased
-    assert "AAPL,600000,," in rebased
-    assert "CASH,3150000,Cash,TW" in rebased
+    assert rebased["error"] == ""
+    assert "2330.TW,2250000,Semi,TW" in rebased["text"]
+    assert "AAPL,600000,," in rebased["text"]
+    assert "CASH,3150000,Cash,TW" in rebased["text"]
 
 
 def test_parse_and_remove_amount_holdings_show_weight_and_return_money_to_cash():
@@ -82,3 +83,15 @@ def test_amount_holding_rejects_non_cash_total_above_operator_capital():
     )
     assert result["text"] == csv_text
     assert "超過操作資金" in result["error"]
+
+
+def test_rebalance_rejects_capital_below_existing_stock_amounts():
+    csv_text = "ticker,market_value\n2330.TW,3000000\nAAPL,1000000\nCash,1000000"
+
+    result = run_holdings(
+        f"holdings.rebalanceAmountCash({json.dumps(csv_text)}, 3500000)"
+    )
+
+    assert result["text"] == csv_text
+    assert "超過操作資金" in result["error"]
+    assert "CASH,-" not in result["text"]
