@@ -2273,7 +2273,7 @@ $(scripts/project_python.sh) -m pytest -q
 2. `pytest` 的 optional visual skip 行為不變；只有 required visual lane 使用 preflight 與 fail-fast gate。
 3. setup script 安裝後立即驗證實際 browser launch；direct visual script 與 CI gate 使用同一檢查邏輯。
 
-驗證：preflight `3 passed`、正式 `CI=1 RUN_VISUAL_REGRESSION=1 scripts/ci_gate.sh` 通過（`1744 passed, 4 skipped, 1 deselected`、coverage `84%`、visual regression `3 passed`）；direct `scripts/visual_regression.sh` `3 passed`；bash syntax、`git diff --check` 通過。
+驗證：preflight `3 passed`、正式 `CI=1 RUN_VISUAL_REGRESSION=1 scripts/ci_gate.sh` 通過（`1745 passed, 4 skipped, 1 deselected`、coverage `84%`、visual regression `3 passed`）；direct `scripts/visual_regression.sh` `3 passed`；bash syntax、`git diff --check` 通過。
 
 ## P3-475 執行紀錄
 

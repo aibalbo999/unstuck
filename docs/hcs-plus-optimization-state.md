@@ -629,7 +629,7 @@
 - D586：P3-480 將首頁五個平鋪 tab 收斂成「分析工作台」與「監控工作台」兩組，保留既有 panel ID/deep link 與預設商業版入口；keyboard Arrow/Home/End 改在所屬 tablist 內移動，桌面兩組並排、手機單欄，home focused `4 passed`、visual regression `3 passed`、完整 suite `1736 passed, 5 skipped`。
 - D587：P3-481 在完整 HTML/Markdown 報告正文頂部新增 `報告使用範圍與判讀限制` reading notice；它讀取既有 `data_trust`、`evidence_exit_gate`、`content_credibility`、`report_conformance`，在 gate 缺漏時保持 pending/warning，只有完整通過才顯示已通過已知檢查，並明確說明不等於即時下單訊號或投資保證；reading notice `4 passed`、高顯著性報告契約組 `250 passed`、完整 suite `1740 passed, 5 skipped`。
 - D588：P3-482 將同一個 reading boundary 推到歷史報告 preview，讓舊 artifact 或缺少品質 gate 的 snapshot 在建議數字前先顯示 pending/warning/blocked/passed 採用前提示；新增 `report_reading_boundary_policy.js`、preview DOM/CSS 與明確 app wiring，preview boundary `2 passed`、static/accessibility/size focused `4 passed`、完整 suite `1742 passed, 5 skipped`。
-- D589：P3-483 新增 `scripts/check_visual_regression.py` runtime preflight，讓 CI、直接 visual script 與 setup script 都在 visual suite 前實際 launch headless Chromium；browser 缺失時提前輸出 `scripts/setup_visual_regression.sh` 修復命令，不在 CI gate 中偷偷安裝未鎖版本套件；preflight `3 passed`、正式 CI gate `1744 passed, 4 skipped, 1 deselected`、coverage `84%`、visual regression `3 passed`。
+- D589：P3-483 新增 `scripts/check_visual_regression.py` runtime preflight，讓 CI、直接 visual script 與 setup script 都在 visual suite 前實際 launch headless Chromium；browser 缺失時提前輸出 `scripts/setup_visual_regression.sh` 修復命令，不在 CI gate 中偷偷安裝未鎖版本套件；preflight `3 passed`、正式 CI gate `1745 passed, 4 skipped, 1 deselected`、coverage `84%`、visual regression `3 passed`。
 
 ## 未解問題
 
