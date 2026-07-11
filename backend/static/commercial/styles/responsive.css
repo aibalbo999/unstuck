@@ -35,7 +35,6 @@
     margin-top: 8px;
   }
 }
-
 @media (max-width: 768px) {
   .commercial-topbar {
     align-items: flex-start;
