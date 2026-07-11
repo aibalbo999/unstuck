@@ -169,5 +169,7 @@ button,
 
 /* Page headings receive programmatic focus so screen readers announce route changes. */
 .commercial-page h1[tabindex="-1"]:focus {
-  outline: none;
+  outline: 2px solid color-mix(in srgb, var(--commercial-primary) 45%, transparent);
+  outline-offset: 4px;
+  border-radius: 4px;
 }

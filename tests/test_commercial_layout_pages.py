@@ -50,9 +50,12 @@ def test_decision_page_is_a_single_task_queue_without_demo_fallbacks():
     assert ">今日決策</h1>" in html
     assert html.count("commercial-primary-action") == 1
     assert 'id="decision-task-list"' in html
+    assert 'id="decision-all-action"' in html
+    assert ">查看全部追蹤股票</a>" in html
     assert 'type="module" src="/static/commercial/pages/decision_page.js' in html
     assert "/api/decision-tracking" in js
     assert "stockPageHref" in js
+    assert "allAction.hidden = false" in js
     assert "fallbackTickers" not in js
     assert "localStorage" not in js
 
@@ -104,6 +107,16 @@ def test_three_pages_share_navigation_and_do_not_load_legacy_bundle():
         assert '<a class="commercial-brand" href="/"' in html
 
 
+def test_three_pages_bust_cached_assets_with_the_same_current_version():
+    for filename in (
+        "research-workbench.html",
+        "stock-detail.html",
+        "portfolio-dashboard.html",
+    ):
+        html = read(filename)
+        assert html.count("?v=20260711-simple2") == 5
+
+
 def test_metrics_tabs_focus_and_visibility_follow_accessible_contracts():
     components = read("styles/components.css")
     shell = read("shared/shell.js")
@@ -118,7 +131,8 @@ def test_metrics_tabs_focus_and_visibility_follow_accessible_contracts():
     assert "focusPageHeading" in shell
     assert ":focus-visible" in components
     assert '.commercial-page h1[tabindex="-1"]:focus' in components
-    assert "outline: none" in components
+    assert "outline: 2px solid" in components
+    assert "outline: none" not in components
     assert "min-height: 44px" in components
     assert "[hidden]" in components
     assert ".commercial-source-status:empty" in components

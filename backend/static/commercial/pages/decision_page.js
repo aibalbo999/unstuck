@@ -6,6 +6,7 @@ const title = document.getElementById('decision-answer-title');
 const detail = document.getElementById('decision-answer-detail');
 const list = document.getElementById('decision-task-list');
 const primary = document.getElementById('decision-primary');
+const allAction = document.getElementById('decision-all-action');
 const emptyAction = document.getElementById('decision-empty-action');
 const statusRoot = document.getElementById('decision-source-status');
 
@@ -63,6 +64,7 @@ async function loadDecisionQueue() {
       title.textContent = '尚無追蹤股票';
       detail.textContent = '先建立追蹤清單，系統才會整理每日待辦。';
       primary.hidden = true;
+      allAction.hidden = true;
       emptyAction.hidden = false;
     } else {
       title.textContent = `今天有 ${allTasks.length} 件事要處理`;
@@ -72,6 +74,7 @@ async function loadDecisionQueue() {
       primary.href = stockPageHref(tasks[0].ticker, 'decision');
       primary.textContent = `開始檢查 ${tasks[0].ticker}`;
       primary.hidden = false;
+      allAction.hidden = false;
       emptyAction.hidden = true;
     }
     renderSourceStatus(statusRoot, {
@@ -84,6 +87,7 @@ async function loadDecisionQueue() {
     detail.textContent = '請確認服務狀態後重新整理頁面。';
     list.replaceChildren();
     primary.hidden = true;
+    allAction.hidden = true;
     emptyAction.hidden = true;
     renderSourceStatus(statusRoot, {
       state: 'error',
