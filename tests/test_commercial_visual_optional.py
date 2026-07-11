@@ -50,6 +50,31 @@ def test_commercial_pages_keep_operator_flow_visible_and_responsive(width, heigh
         browser.close()
 
 
+def test_portfolio_amount_builder_fits_desktop_without_optional_responsive_overrides():
+    sync_api = live_browser()
+    with sync_api.sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page(viewport={"width": 1280, "height": 720})
+        page.route(
+            "**/styles/responsive.css*",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="text/css",
+                body="",
+            ),
+        )
+        page.goto(
+            f"{BASE_URL}/static/commercial/portfolio-dashboard.html",
+            wait_until="networkidle",
+        )
+
+        action_box = page.locator(".commercial-primary-action:visible").bounding_box()
+        assert action_box
+        assert action_box["y"] + action_box["height"] <= 720
+        assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+        browser.close()
+
+
 def test_decision_empty_and_api_error_states_never_render_sample_stocks():
     sync_api = live_browser()
     with sync_api.sync_playwright() as playwright:
