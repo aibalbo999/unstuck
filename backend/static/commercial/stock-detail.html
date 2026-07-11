@@ -22,7 +22,9 @@
     <header class="commercial-page-header">
       <span class="commercial-eyebrow">股票快照</span>
       <h1 id="stock-title" tabindex="-1">單股研究</h1>
+      <p class="commercial-muted">先判斷是否值得占用一個部位，再決定最多投入多少。</p>
     </header>
+    <section id="stock-policy" class="commercial-policy-strip" aria-label="500 萬操作護欄" data-derived-from="operator-policy"></section>
     <form id="stock-form" class="commercial-panel">
       <label class="commercial-field" for="stock-ticker">
         <span>股票代號</span>
@@ -36,8 +38,30 @@
       <p id="stock-answer-detail" class="commercial-muted"></p>
       <div id="stock-metrics" class="commercial-metrics"></div>
     </section>
+    <form id="stock-position-form" class="commercial-panel commercial-position-planner" novalidate data-derived-from="operator-policy">
+      <div class="commercial-section-heading">
+        <div>
+          <span class="commercial-eyebrow">500 萬操作規則試算</span>
+          <h2>部位與最大損失</h2>
+        </div>
+        <p class="commercial-muted">預設停損使用 6M 均線；無資料時使用現價下方 8%。</p>
+      </div>
+      <div class="commercial-input-grid">
+        <label class="commercial-field" for="stock-entry-price">
+          <span>預計進場價</span>
+          <input id="stock-entry-price" type="number" min="0.01" step="0.01" inputmode="decimal">
+        </label>
+        <label class="commercial-field" for="stock-stop-price">
+          <span>停損參考價</span>
+          <input id="stock-stop-price" type="number" min="0" step="0.01" inputmode="decimal">
+        </label>
+      </div>
+      <p id="stock-position-error" role="alert"></p>
+      <div id="stock-position-metrics" class="commercial-metrics commercial-position-metrics" aria-live="polite"></div>
+    </form>
     <div id="stock-tabs" class="commercial-tabs" role="tablist" aria-label="股票研究證據">
-      <button type="button" role="tab" aria-selected="true" data-tab="answer">結論</button>
+      <button type="button" role="tab" aria-selected="true" data-tab="plan">操作計畫</button>
+      <button type="button" role="tab" aria-selected="false" tabindex="-1" data-tab="valuation">估值</button>
       <button type="button" role="tab" aria-selected="false" tabindex="-1" data-tab="fundamentals">基本面</button>
       <button type="button" role="tab" aria-selected="false" tabindex="-1" data-tab="events">事件</button>
       <button type="button" role="tab" aria-selected="false" tabindex="-1" data-tab="technical">技術</button>

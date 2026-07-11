@@ -76,17 +76,29 @@ def test_decision_page_is_a_single_task_queue_without_demo_fallbacks():
     assert "localStorage" not in js
 
 
-def test_stock_page_has_one_snapshot_action_and_four_evidence_tabs():
+def test_stock_page_has_one_snapshot_action_and_five_operator_tabs():
     html = read("stock-detail.html")
     js = read("pages/stock_page.js")
 
     assert 'data-commercial-page="stock"' in html
     assert html.count("commercial-primary-action") == 1
-    for name in ("answer", "fundamentals", "events", "technical"):
+    for marker in (
+        'id="stock-policy"',
+        'id="stock-position-form"',
+        'id="stock-entry-price"',
+        'id="stock-stop-price"',
+        'id="stock-position-metrics"',
+    ):
+        assert marker in html
+    for name in ("plan", "valuation", "fundamentals", "events", "technical"):
         assert f'data-tab="{name}"' in html
     assert "/api/stocks/" in js and "/snapshot" in js
     assert "bindTabs" in js
     assert "isValidTicker" in js
+    assert "positionPlan" in js
+    assert "renderPositionPlan" in js
+    assert "operator_policy.js" in js
+    assert "海外股票需要匯率" in js
     assert "fallbackTickers" not in js
     assert "fallbackSnapshot" not in js
 

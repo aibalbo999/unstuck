@@ -353,6 +353,8 @@ renderPositionPlan();
 
 `renderPositionPlan()` 呼叫 `positionPlan()`，以 `formatTwd()` 顯示投入、最大損失與目標潛在報酬；無效價格在 `role="alert"` 顯示「停損價必須低於進場價」。input 事件立即重算，不發網路請求。
 
+若 ticker 不是 `.TW` / `.TWO`，停用兩個試算輸入並顯示「海外股票需要匯率才能換算 500 萬台幣部位」；不得直接用外幣股價計算新台幣部位。
+
 - [ ] **Step 5: 實作五分頁資料映射**
 
 `linesFor()` 或結構化 renderers 分別使用：
