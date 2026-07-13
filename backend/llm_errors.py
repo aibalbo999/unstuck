@@ -24,6 +24,34 @@ def is_quota_or_rate_error(error_msg: str) -> bool:
     )
 
 
+def is_requests_per_day_error(error: Any) -> bool:
+    """Return True only for explicit per-day request quota exhaustion."""
+    details = getattr(error, "details", None)
+    raw = " ".join([str(error), json.dumps(details, ensure_ascii=False) if details else ""])
+    normalized = raw.lower()
+    compact = re.sub(r"[^a-z0-9]+", "", normalized)
+    snake = re.sub(r"[^a-z0-9]+", "_", normalized).strip("_")
+
+    explicit_rpd_markers = (
+        "requestsperday" in compact
+        or "generaterequestsperday" in compact
+        or "requests_per_day" in snake
+        or "request_per_day" in snake
+        or "per_day" in snake
+    )
+    if not explicit_rpd_markers:
+        return False
+
+    rpm_or_tpm_markers = (
+        "requestsperminute" in compact
+        or "tokensperminute" in compact
+        or "requests_per_minute" in snake
+        or "tokens_per_minute" in snake
+        or bool(re.search(r"\b[rt]pm\b", normalized))
+    )
+    return not rpm_or_tpm_markers
+
+
 def is_auth_error(error_msg: str) -> bool:
     normalized = (error_msg or "").lower()
     compact = re.sub(r"[^a-z0-9]+", "", normalized)

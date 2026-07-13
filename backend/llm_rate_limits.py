@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from config import API_KEY_SETUP_MESSAGE, RPM_LIMITS, TPM_LIMITS
 from llm_provider_routes import provider_for_model
 from runtime_events import emit_log
-from shared_runtime_guards import create_shared_llm_limiter
+from shared_runtime_guards import LocalFixedWindowRateLimiter, create_shared_llm_limiter
 
 
 @dataclass
@@ -70,6 +70,15 @@ class TokenBucket:
         self.updated_at = max(self.updated_at, time.monotonic() + max(seconds, 0.0))
 
 
+class AllKeysRpdDisabledError(RuntimeError):
+    """Raised when every configured key for a model is disabled by RPD reset time."""
+
+    def __init__(self, model: str, retry_wait_seconds: float):
+        super().__init__(f"所有 API key 對模型 {model} 的每日額度已暫停，約 {retry_wait_seconds:.1f} 秒後恢復。")
+        self.model = model
+        self.retry_wait_seconds = retry_wait_seconds
+
+
 class KeyRotator:
     """
     API Key rotator with per-key/model token buckets.
@@ -91,6 +100,7 @@ class KeyRotator:
         self._sync_lock = threading.Lock()
         self._async_lock = asyncio.Lock()
         self._shared_limiter = create_shared_llm_limiter()
+        self._local_rpd_limiter = LocalFixedWindowRateLimiter()
 
     def _bucket(self, store: dict, key: str, model: str, limit: int | float) -> TokenBucket:
         bucket_key = (key, model)
@@ -133,6 +143,27 @@ class KeyRotator:
 
         return wait
 
+    def _rpd_disabled_wait(self, key: str, model: str) -> float:
+        limiter = self._shared_limiter if self._shared_limiter and self._shared_limiter.enabled else self._local_rpd_limiter
+        if not hasattr(limiter, "rpd_disabled_wait"):
+            return 0.0
+        return float(limiter.rpd_disabled_wait(key, model) or 0.0)
+
+    def _available_candidate_key_positions(self, model: str) -> tuple[str, list[str], list[tuple[int, str]]]:
+        provider, keys, candidates = self._candidate_key_positions(model)
+        available = []
+        disabled_waits = []
+        for position, key in candidates:
+            disabled_wait = self._rpd_disabled_wait(key, model)
+            if disabled_wait > 0:
+                disabled_waits.append(disabled_wait)
+                continue
+            available.append((position, key))
+        if not available:
+            retry_wait = min(disabled_waits) if disabled_waits else 60.0
+            raise AllKeysRpdDisabledError(model, retry_wait)
+        return provider, keys, available
+
     def _keys_for_model(self, model: str) -> tuple[str, list[str]]:
         provider = provider_for_model(model)
         keys = self.provider_keys.get(provider, [])
@@ -156,7 +187,7 @@ class KeyRotator:
         """Return a key after reserving RPM/TPM budget; sleeps only when budget is depleted."""
         while True:
             with self._sync_lock:
-                provider, keys, candidates = self._candidate_key_positions(model)
+                provider, keys, candidates = self._available_candidate_key_positions(model)
                 reservations = [
                     (self._wait_for_key(key, model, estimated_tokens), position, key)
                     for position, key in candidates
@@ -183,7 +214,7 @@ class KeyRotator:
         """Async version of get_key for parallel agent execution."""
         while True:
             async with self._async_lock:
-                provider, keys, candidates = self._candidate_key_positions(model)
+                provider, keys, candidates = self._available_candidate_key_positions(model)
                 reservations = [
                     (self._wait_for_key(key, model, estimated_tokens), position, key)
                     for position, key in candidates
@@ -216,6 +247,13 @@ class KeyRotator:
                 self._bucket(self._tpm_buckets, key, model, tpm_limit).penalize(wait_seconds)
             if self._shared_limiter:
                 self._shared_limiter.penalize(key, model, wait_seconds)
+
+    def disable_rpd_until_reset(self, key: str, model: str) -> float:
+        """Disable a key/model pair until the next Pacific Time daily reset."""
+        limiter = self._shared_limiter if self._shared_limiter and self._shared_limiter.enabled else self._local_rpd_limiter
+        if not hasattr(limiter, "disable_rpd_until_reset"):
+            return self._local_rpd_limiter.disable_rpd_until_reset(key, model)
+        return float(limiter.disable_rpd_until_reset(key, model) or 0.0)
 
     def get_status(self) -> dict:
         now = time.monotonic()

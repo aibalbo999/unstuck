@@ -15,8 +15,10 @@ from llm_client import (
     is_auth_error,
     is_missing_model_error,
     is_quota_or_rate_error,
+    is_requests_per_day_error,
     retry_delay_seconds,
 )
+from llm_rate_limits import AllKeysRpdDisabledError
 from runtime_events import emit_context_event, emit_log, make_runtime_event
 
 
@@ -218,6 +220,17 @@ def _key_error_metadata(exc: Exception | None) -> dict:
 
 def _raise_agent_call_error(exc: Exception, api_key: Optional[str], model_id: str, rotator: KeyRotator, quota_default: float):
     error_msg = str(exc)
+    if isinstance(exc, AllKeysRpdDisabledError):
+        key_slot, key_count = _key_slot(api_key, rotator)
+        retry_wait = max(float(exc.retry_wait_seconds), 1.0)
+        raise AgentRateLimitError(
+            f"每日請求額度（RPD）：模型 {exc.model} 的所有 key 暫停至 Pacific Time 下一個午夜",
+            retry_wait,
+            retry_wait,
+            key_slot=key_slot,
+            key_count=key_count,
+        ) from exc
+
     if is_auth_error(error_msg):
         key_slot, key_count = _key_slot(api_key, rotator)
         raise AgentAuthError(
@@ -230,7 +243,10 @@ def _raise_agent_call_error(exc: Exception, api_key: Optional[str], model_id: st
     if is_quota_or_rate_error(error_msg):
         key_cooldown = retry_delay_seconds(exc, default=quota_default)
         if api_key:
-            rotator.penalize(api_key, model_id, key_cooldown)
+            if is_requests_per_day_error(exc) and hasattr(rotator, "disable_rpd_until_reset"):
+                key_cooldown = rotator.disable_rpd_until_reset(api_key, model_id)
+            else:
+                rotator.penalize(api_key, model_id, key_cooldown)
         retry_wait = 1.0 if len(getattr(rotator, "keys", []) or []) > 1 else key_cooldown
         key_slot, key_count = _key_slot(api_key, rotator)
         raise AgentRateLimitError(
@@ -271,6 +287,8 @@ def _key_slot(api_key: Optional[str], rotator: KeyRotator) -> tuple[int | None, 
 
 def _agent_error_category(exc: Exception) -> str:
     error_msg = str(exc)
+    if isinstance(exc, AllKeysRpdDisabledError):
+        return "quota"
     if is_auth_error(error_msg):
         return "auth"
     if is_quota_or_rate_error(error_msg):

@@ -6,7 +6,9 @@ import hashlib
 import os
 import threading
 import time
+from datetime import datetime, time as datetime_time, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from config import REDIS_URL, TASK_QUEUE_BACKEND
 
@@ -73,6 +75,21 @@ def guard_hash(value: str) -> str:
     return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:16]
 
 
+def seconds_until_next_pacific_midnight(now: datetime | None = None) -> float:
+    """Seconds until the next America/Los_Angeles midnight."""
+    try:
+        pacific = ZoneInfo("America/Los_Angeles")
+        current = now or datetime.now(pacific)
+        if current.tzinfo is None:
+            current = current.replace(tzinfo=pacific)
+        current = current.astimezone(pacific)
+        next_day = current.date() + timedelta(days=1)
+        reset_at = datetime.combine(next_day, datetime_time.min, tzinfo=pacific)
+        return max((reset_at - current).total_seconds(), 1.0)
+    except Exception:
+        return 24 * 60 * 60.0
+
+
 class LocalFixedWindowRateLimiter:
     """Thread-safe fallback that preserves API quotas when Redis is unavailable."""
 
@@ -80,6 +97,7 @@ class LocalFixedWindowRateLimiter:
         self._lock = threading.Lock()
         self._windows: dict[tuple[str, str, int], dict[str, float]] = {}
         self._cooldowns: dict[tuple[str, str], float] = {}
+        self._rpd_disabled_until: dict[tuple[str, str], float] = {}
 
     def reserve(
         self,
@@ -119,6 +137,27 @@ class LocalFixedWindowRateLimiter:
                 self._cooldowns.get(identity, 0.0),
                 time.time() + max(float(wait_seconds), 0.001),
             )
+
+    def disable_rpd_until_reset(self, api_key: str, model: str, *, now: datetime | None = None) -> float:
+        wait_seconds = seconds_until_next_pacific_midnight(now)
+        base_now = now.timestamp() if now is not None else time.time()
+        identity = (guard_hash(api_key), guard_hash(model))
+        with self._lock:
+            self._rpd_disabled_until[identity] = max(
+                self._rpd_disabled_until.get(identity, 0.0),
+                base_now + wait_seconds,
+            )
+        return wait_seconds
+
+    def rpd_disabled_wait(self, api_key: str, model: str, *, now: datetime | None = None) -> float:
+        base_now = now.timestamp() if now is not None else time.time()
+        identity = (guard_hash(api_key), guard_hash(model))
+        with self._lock:
+            disabled_until = self._rpd_disabled_until.get(identity, 0.0)
+            if disabled_until <= base_now:
+                self._rpd_disabled_until.pop(identity, None)
+                return 0.0
+            return disabled_until - base_now
 
 
 class LocalProviderCircuitStore:
@@ -212,6 +251,32 @@ class RedisFixedWindowRateLimiter:
         except Exception:
             self._client = None
             self._fallback.penalize(api_key, model, wait_seconds)
+
+    def disable_rpd_until_reset(self, api_key: str, model: str, *, now: datetime | None = None) -> float:
+        wait_seconds = seconds_until_next_pacific_midnight(now)
+        if self._client is None:
+            return self._fallback.disable_rpd_until_reset(api_key, model, now=now)
+        try:
+            disable_key = self._rpd_key(api_key, model)
+            self._client.set(disable_key, "1", px=max(int(wait_seconds * 1000), 1))
+            self._fallback.disable_rpd_until_reset(api_key, model, now=now)
+            return wait_seconds
+        except Exception:
+            self._client = None
+            return self._fallback.disable_rpd_until_reset(api_key, model, now=now)
+
+    def rpd_disabled_wait(self, api_key: str, model: str, *, now: datetime | None = None) -> float:
+        if self._client is None:
+            return self._fallback.rpd_disabled_wait(api_key, model, now=now)
+        try:
+            ttl_ms = int(self._client.pttl(self._rpd_key(api_key, model)) or -1)
+            return max(float(ttl_ms) / 1000.0, 0.0) if ttl_ms > 0 else 0.0
+        except Exception:
+            self._client = None
+            return self._fallback.rpd_disabled_wait(api_key, model, now=now)
+
+    def _rpd_key(self, api_key: str, model: str) -> str:
+        return f"{self._namespace}:llm:{guard_hash(model)}:{guard_hash(api_key)}:rpd-disabled"
 
 
 class RedisProviderCircuitStore:

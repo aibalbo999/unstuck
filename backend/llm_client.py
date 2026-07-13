@@ -12,6 +12,7 @@ from llm_errors import (
     is_auth_error,
     is_missing_model_error,
     is_quota_or_rate_error,
+    is_requests_per_day_error,
     retry_delay_seconds,
 )
 from llm_rate_limits import KeyRotator, TokenBucket, estimate_text_tokens
@@ -72,6 +73,7 @@ __all__ = [
     "is_auth_error",
     "is_missing_model_error",
     "is_quota_or_rate_error",
+    "is_requests_per_day_error",
     "response_text",
     "retry_delay_seconds",
     "types",

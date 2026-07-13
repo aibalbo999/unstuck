@@ -24,6 +24,7 @@ from agent_runtime.retry_policy import (  # noqa: E402
     _agent_error_category,
     _raise_agent_call_error,
 )
+from llm_rate_limits import AllKeysRpdDisabledError  # noqa: E402
 from settings.models import is_large_context_model  # noqa: E402
 
 
@@ -110,6 +111,95 @@ def test_rate_limit_error_records_key_slot_metadata():
         assert exc.key_count == 3
     else:
         raise AssertionError("429 should become AgentRateLimitError")
+
+
+def test_rpd_429_disables_key_model_until_reset():
+    class FakeRpdError(RuntimeError):
+        details = [
+            {
+                "violations": [
+                    {
+                        "quotaMetric": "generativelanguage.googleapis.com/generate_content_requests_per_day",
+                        "quotaDimensions": {"model": "gemini-2.5-flash"},
+                    }
+                ]
+            }
+        ]
+
+    class FakeRotator:
+        keys = ["key-a", "key-b"]
+
+        def __init__(self):
+            self.disabled = []
+            self.penalties = []
+
+        def disable_rpd_until_reset(self, key, model):
+            self.disabled.append((key, model))
+            return 43200
+
+        def penalize(self, key, model, wait_seconds):
+            self.penalties.append((key, model, wait_seconds))
+
+    rotator = FakeRotator()
+
+    try:
+        _raise_agent_call_error(FakeRpdError("429 RESOURCE_EXHAUSTED"), "key-b", "gemini-2.5-flash", rotator, 1)
+    except AgentRateLimitError as exc:
+        assert exc.key_slot == 2
+        assert exc.key_count == 2
+        assert exc.key_cooldown_seconds == 43200
+    else:
+        raise AssertionError("RPD 429 should become AgentRateLimitError")
+
+    assert rotator.disabled == [("key-b", "gemini-2.5-flash")]
+    assert rotator.penalties == []
+
+
+def test_non_rpd_429_keeps_short_key_penalty():
+    class FakeRotator:
+        keys = ["key-a", "key-b"]
+
+        def __init__(self):
+            self.disabled = []
+            self.penalties = []
+
+        def disable_rpd_until_reset(self, key, model):
+            self.disabled.append((key, model))
+            return 43200
+
+        def penalize(self, key, model, wait_seconds):
+            self.penalties.append((key, model, wait_seconds))
+
+    rotator = FakeRotator()
+
+    try:
+        _raise_agent_call_error(RuntimeError("429 RESOURCE_EXHAUSTED RequestsPerMinute"), "key-b", "gemini-2.5-flash", rotator, 7)
+    except AgentRateLimitError as exc:
+        assert exc.key_cooldown_seconds == 7
+    else:
+        raise AssertionError("429 should become AgentRateLimitError")
+
+    assert rotator.disabled == []
+    assert rotator.penalties == [("key-b", "gemini-2.5-flash", 7)]
+
+
+def test_all_keys_rpd_disabled_is_classified_as_rate_limit():
+    class FakeRotator:
+        keys = ["key-a", "key-b"]
+
+    error = AllKeysRpdDisabledError("gemini-2.5-flash", 1800)
+
+    try:
+        _raise_agent_call_error(error, None, "gemini-2.5-flash", FakeRotator(), 1)
+    except AgentRateLimitError as exc:
+        assert exc.retry_wait_seconds == 1800
+        assert exc.key_cooldown_seconds == 1800
+        assert exc.key_slot is None
+        assert exc.key_count == 2
+    else:
+        raise AssertionError("all-disabled RPD should become AgentRateLimitError")
+
+    assert _agent_error_category(error) == "quota"
 
 
 def test_auth_error_is_classified_separately_from_quota_and_records_key_slot():
