@@ -11,7 +11,12 @@ from packaging.version import Version
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from requirements_lock import locked_requirements, locked_versions as parse_locked_versions  # noqa: E402
+from requirements_lock import (  # noqa: E402
+    locked_requirements,
+    locked_versions as parse_locked_versions,
+    unhashed_locked_requirements,
+)
+import supply_chain_audit as audit  # noqa: E402
 
 
 def _parsed_requirements(path: Path) -> dict[str, Requirement]:
@@ -77,6 +82,71 @@ def test_lockfile_uses_hash_pinned_requirements():
         assert line.rstrip().endswith("\\") or "--hash=sha256:" in line
 
 
+def test_supply_chain_audit_covers_visual_runtime_lockfile():
+    audit_script = (ROOT / "scripts" / "supply_chain_audit.py").read_text(encoding="utf-8")
+    source = ROOT / "scripts" / "visual_requirements.txt"
+    lockfile = ROOT / "scripts" / "visual_requirements.lock"
+    direct = _parsed_requirements(source)
+    locked = locked_requirements(lockfile)
+
+    assert "visual_requirements.txt" in audit_script
+    assert "visual_requirements.lock" in audit_script
+    assert set(direct) <= set(locked)
+    assert unhashed_locked_requirements(lockfile) == []
+
+
+def test_backend_lock_excludes_currently_reported_vulnerable_versions():
+    direct = _parsed_requirements(ROOT / "backend" / "requirements.txt")
+    locked = _locked_versions(ROOT / "backend" / "requirements.lock")
+    minimums = {
+        "aiohttp": Version("3.14.1"),
+        "cryptography": Version("48.0.1"),
+        "pytest": Version("9.0.3"),
+        "starlette": Version("1.3.1"),
+    }
+
+    for name, minimum in minimums.items():
+        assert name in direct
+        assert minimum in direct[name].specifier
+        assert locked[name] >= minimum
+
+
+def test_pip_audit_toolchain_is_hash_locked_and_bootstrapped():
+    source = ROOT / "scripts" / "security_requirements.txt"
+    lockfile = ROOT / "scripts" / "security_requirements.lock"
+    bootstrap = (ROOT / "scripts" / "bootstrap_venv.sh").read_text(encoding="utf-8")
+
+    assert source.exists()
+    assert lockfile.exists()
+    assert "scripts/setup_security_audit.sh" in bootstrap
+    direct = _parsed_requirements(source)
+    locked = locked_requirements(lockfile)
+    assert set(direct) <= set(locked)
+    assert str(locked["pip-audit"].specifier) == "==2.10.1"
+    assert unhashed_locked_requirements(lockfile) == []
+
+
+def test_supply_chain_audit_fails_closed_without_pip_audit(monkeypatch):
+    monkeypatch.delenv("SUPPLY_CHAIN_SKIP_PIP_AUDIT", raising=False)
+    monkeypatch.setattr(audit, "resolve_pip_audit", lambda: None)
+
+    assert audit.run_pip_audit_if_available() == 1
+
+
+def test_security_audit_uses_isolated_hash_locked_environment():
+    setup_script = ROOT / "scripts" / "setup_security_audit.sh"
+    setup = setup_script.read_text(encoding="utf-8") if setup_script.exists() else ""
+    bootstrap = (ROOT / "scripts" / "bootstrap_venv.sh").read_text(encoding="utf-8")
+    ci_gate = (ROOT / "scripts" / "ci_gate.sh").read_text(encoding="utf-8")
+
+    assert setup_script.exists()
+    assert ".audit-venv" in setup
+    assert "--require-hashes -r scripts/security_requirements.lock" in setup
+    assert "scripts/setup_security_audit.sh" in bootstrap
+    assert "scripts/setup_security_audit.sh" in ci_gate
+    assert ci_gate.index("scripts/setup_security_audit.sh") < ci_gate.index("scripts/supply_chain_audit.py")
+
+
 def test_langgraph_dependencies_are_direct_and_locked():
     direct = set(_parsed_requirements(ROOT / "backend" / "requirements.txt"))
     locked = set(_locked_versions(ROOT / "backend" / "requirements.lock"))
@@ -92,6 +162,15 @@ def test_ci_gate_runs_supply_chain_audit_before_tests():
     assert audit_script.exists()
     assert "scripts/supply_chain_audit.py" in ci_gate
     assert ci_gate.index("scripts/supply_chain_audit.py") < ci_gate.index("-m pytest")
+
+
+def test_ci_gate_runs_visual_regression_by_default_in_ci():
+    ci_gate = (ROOT / "scripts" / "ci_gate.sh").read_text(encoding="utf-8")
+
+    assert 'case "${CI:-}" in' in ci_gate
+    assert "1|true|TRUE|yes|YES)" in ci_gate
+    assert 'RUN_VISUAL_REGRESSION:-' in ci_gate
+    assert "VISUAL_REGRESSION_REQUIRED=1 scripts/visual_regression.sh" in ci_gate
 
 
 def test_bootstrap_installs_hash_locked_requirements():
@@ -169,6 +248,14 @@ def test_ci_gate_generates_sbom_before_coverage_tests():
     assert sbom_script.exists()
     assert "scripts/generate_sbom.py" in ci_gate
     assert ci_gate.index("scripts/generate_sbom.py") < ci_gate.index("-m coverage run")
+
+
+def test_ci_gate_generates_visual_runtime_sbom_before_coverage_tests():
+    ci_gate = (ROOT / "scripts" / "ci_gate.sh").read_text(encoding="utf-8")
+
+    assert "scripts/visual_requirements.lock" in ci_gate
+    assert "backend/cache/visual-sbom.cdx.json" in ci_gate
+    assert ci_gate.index("visual-sbom.cdx.json") < ci_gate.index("-m coverage run")
 
 
 def test_ci_gate_runs_mypy_on_core_type_contracts_before_coverage_tests():

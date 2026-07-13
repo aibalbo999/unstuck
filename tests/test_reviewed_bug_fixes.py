@@ -213,6 +213,33 @@ def test_analysis_stream_replays_from_last_event_id_header():
     assert '"type": "done"' in second["data"]
 
 
+def test_analysis_stream_malformed_since_id_falls_back_to_last_event_id_header():
+    from api_routes.analysis_sse import resolve_resume_after_id
+
+    class Request:
+        headers = {"last-event-id": "6"}
+
+    assert resolve_resume_after_id(Request(), last_event_id=None, since_id="malformed") == 6
+
+
+def test_analysis_stream_negative_since_id_falls_back_to_last_event_id_header():
+    from api_routes.analysis_sse import resolve_resume_after_id
+
+    class Request:
+        headers = {"last-event-id": "6"}
+
+    assert resolve_resume_after_id(Request(), last_event_id=None, since_id=-2) == 6
+
+
+def test_analysis_stream_boolean_since_id_falls_back_to_last_event_id_header():
+    from api_routes.analysis_sse import resolve_resume_after_id
+
+    class Request:
+        headers = {"last-event-id": "6"}
+
+    assert resolve_resume_after_id(Request(), last_event_id=None, since_id=True) == 6
+
+
 def test_analysis_stream_does_not_persist_client_disconnect_noise():
     from api_routes.analysis_sse import analysis_event_generator
 
@@ -256,6 +283,116 @@ def test_analysis_stream_does_not_persist_client_disconnect_noise():
 
     assert '"type": "job"' in first["data"]
     assert appended == []
+
+
+def test_analysis_stream_malformed_replay_payload_uses_status_fallback():
+    from api_routes.analysis_sse import analysis_event_generator
+
+    events = [
+        {"id": 1, "payload": ["malformed", "event"], "created_at": "now"},
+        {"id": 2, "payload": {"type": "done", "filename": "done.html"}, "created_at": "now"},
+    ]
+    streamed = []
+
+    class Deps:
+        def append_event(self, job_id, payload):
+            raise AssertionError("replay fallback should not persist a synthetic event")
+
+        def request_job_cancel(self, job_id, reason):
+            raise AssertionError("cancel should not be requested")
+
+        def get_events_since(self, job_id, after_id):
+            return [event for event in events if event["id"] > after_id]
+
+        def get_job(self, job_id):
+            return {"job_id": job_id, "status": "done", "pipeline_id": "v1", "filename": "done.html"}
+
+        def print_streamed_event(self, job_id, payload):
+            streamed.append(payload)
+
+        def get_pipeline_run_sequence(self, pipeline_id):
+            return (pipeline_id,)
+
+    class Request:
+        async def is_disconnected(self):
+            return False
+
+    generator = analysis_event_generator(
+        Deps(),
+        Request(),
+        job_id="job-malformed-event",
+        resume_after_id=0,
+        cancel_on_disconnect=False,
+        intro_payload={"type": "job", "pipeline_id": "v1"},
+    )
+
+    first = asyncio.run(generator.__anext__())
+    second = asyncio.run(generator.__anext__())
+    third = asyncio.run(generator.__anext__())
+
+    assert '"type": "job"' in first["data"]
+    assert second["id"] == "1"
+    assert '"type": "status"' in second["data"]
+    assert "略過格式異常的分析任務事件" in second["data"]
+    assert third["id"] == "2"
+    assert '"type": "done"' in third["data"]
+    assert streamed[0]["type"] == "status"
+
+
+def test_analysis_stream_malformed_replay_event_row_uses_status_fallback():
+    from api_routes.analysis_sse import analysis_event_generator
+
+    events = [
+        ["malformed", "event"],
+        {"id": 2, "payload": {"type": "done", "filename": "done.html"}, "created_at": "now"},
+    ]
+    streamed = []
+
+    class Deps:
+        def append_event(self, job_id, payload):
+            raise AssertionError("replay fallback should not persist a synthetic event")
+
+        def request_job_cancel(self, job_id, reason):
+            raise AssertionError("cancel should not be requested")
+
+        def get_events_since(self, job_id, after_id):
+            if after_id == 0:
+                return events
+            return []
+
+        def get_job(self, job_id):
+            return {"job_id": job_id, "status": "done", "pipeline_id": "v1", "filename": "done.html"}
+
+        def print_streamed_event(self, job_id, payload):
+            streamed.append(payload)
+
+        def get_pipeline_run_sequence(self, pipeline_id):
+            return (pipeline_id,)
+
+    class Request:
+        async def is_disconnected(self):
+            return False
+
+    generator = analysis_event_generator(
+        Deps(),
+        Request(),
+        job_id="job-malformed-event-row",
+        resume_after_id=0,
+        cancel_on_disconnect=False,
+        intro_payload={"type": "job", "pipeline_id": "v1"},
+    )
+
+    first = asyncio.run(generator.__anext__())
+    second = asyncio.run(generator.__anext__())
+    third = asyncio.run(generator.__anext__())
+
+    assert '"type": "job"' in first["data"]
+    assert "id" not in second
+    assert '"type": "status"' in second["data"]
+    assert "略過格式異常的分析任務事件" in second["data"]
+    assert third["id"] == "2"
+    assert '"type": "done"' in third["data"]
+    assert streamed[0]["type"] == "status"
 
 
 def test_analysis_stream_persists_terminal_fallback_with_event_id():
@@ -307,6 +444,397 @@ def test_analysis_stream_persists_terminal_fallback_with_event_id():
     assert second["id"] == "1"
     assert '"type": "done"' in second["data"]
     assert events[0]["payload"]["filename"] == "done.html"
+
+
+def test_analysis_terminal_event_presence_accepts_mapping_event_rows():
+    from collections.abc import Mapping
+
+    from api_routes.analysis_sse import persist_terminal_event_if_missing
+
+    class ReadOnlyMapping(Mapping):
+        def __init__(self, values):
+            self._values = values
+
+        def __getitem__(self, key):
+            return self._values[key]
+
+        def __iter__(self):
+            return iter(self._values)
+
+        def __len__(self):
+            return len(self._values)
+
+    existing_terminal_event = ReadOnlyMapping(
+        {
+            "id": 1,
+            "payload": ReadOnlyMapping({"type": "done", "filename": "done.html"}),
+        }
+    )
+    appended = []
+
+    class Deps:
+        def get_events_since(self, job_id, after_id):
+            return [existing_terminal_event]
+
+        def append_event(self, job_id, payload):
+            appended.append((job_id, payload))
+
+    result = persist_terminal_event_if_missing(
+        Deps(),
+        "job-done",
+        {"type": "done", "filename": "done.html"},
+    )
+
+    assert result is False
+    assert appended == []
+
+
+def test_analysis_stream_malformed_event_collection_uses_terminal_fallback():
+    from api_routes.analysis_sse import analysis_event_generator
+
+    class Deps:
+        def append_event(self, job_id, payload):
+            raise AssertionError("malformed event collection should not persist a synthetic event")
+
+        def request_job_cancel(self, job_id, reason):
+            raise AssertionError("cancel should not be requested")
+
+        def get_events_since(self, job_id, after_id):
+            return None
+
+        def get_job(self, job_id):
+            return {
+                "job_id": job_id,
+                "status": "done",
+                "pipeline_id": "v1",
+                "filename": "done.html",
+            }
+
+        def print_streamed_event(self, job_id, payload):
+            pass
+
+        def get_pipeline_run_sequence(self, pipeline_id):
+            return (pipeline_id,)
+
+    class Request:
+        async def is_disconnected(self):
+            return False
+
+    generator = analysis_event_generator(
+        Deps(),
+        Request(),
+        job_id="job-malformed-event-collection",
+        resume_after_id=0,
+        cancel_on_disconnect=False,
+        intro_payload={"type": "job", "pipeline_id": "v1"},
+    )
+
+    first = asyncio.run(generator.__anext__())
+    second = asyncio.run(generator.__anext__())
+
+    assert '"type": "job"' in first["data"]
+    assert "id" not in second
+    assert '"type": "done"' in second["data"]
+    assert '"filename": "done.html"' in second["data"]
+
+
+def test_analysis_stream_missing_job_row_uses_terminal_error_fallback():
+    from api_routes.analysis_sse import analysis_event_generator
+
+    class Deps:
+        def append_event(self, job_id, payload):
+            raise RuntimeError("missing job fallback persistence unavailable")
+
+        def request_job_cancel(self, job_id, reason):
+            raise AssertionError("cancel should not be requested")
+
+        def get_events_since(self, job_id, after_id):
+            return []
+
+        def get_job(self, job_id):
+            return None
+
+        def print_streamed_event(self, job_id, payload):
+            pass
+
+        def get_pipeline_run_sequence(self, pipeline_id):
+            return (pipeline_id,)
+
+    class Request:
+        async def is_disconnected(self):
+            return False
+
+    generator = analysis_event_generator(
+        Deps(),
+        Request(),
+        job_id="job-missing-row",
+        resume_after_id=0,
+        cancel_on_disconnect=False,
+        intro_payload={"type": "job", "pipeline_id": "v1"},
+    )
+
+    first = asyncio.run(generator.__anext__())
+    second = asyncio.run(generator.__anext__())
+
+    assert '"type": "job"' in first["data"]
+    assert "id" not in second
+    assert '"type": "error"' in second["data"]
+    assert '"phase": "missing_job"' in second["data"]
+    assert "找不到分析任務" in second["data"]
+
+
+def test_analysis_stream_empty_job_row_uses_terminal_error_fallback():
+    from api_routes.analysis_sse import analysis_event_generator
+
+    class Deps:
+        def append_event(self, job_id, payload):
+            raise RuntimeError("missing job fallback persistence unavailable")
+
+        def request_job_cancel(self, job_id, reason):
+            raise AssertionError("cancel should not be requested")
+
+        def get_events_since(self, job_id, after_id):
+            return []
+
+        def get_job(self, job_id):
+            return {}
+
+        def print_streamed_event(self, job_id, payload):
+            pass
+
+        def get_pipeline_run_sequence(self, pipeline_id):
+            return (pipeline_id,)
+
+    class Request:
+        async def is_disconnected(self):
+            return False
+
+    generator = analysis_event_generator(
+        Deps(),
+        Request(),
+        job_id="job-empty-row",
+        resume_after_id=0,
+        cancel_on_disconnect=False,
+        intro_payload={"type": "job", "pipeline_id": "v1"},
+    )
+
+    first = asyncio.run(generator.__anext__())
+    second = asyncio.run(generator.__anext__())
+
+    assert '"type": "job"' in first["data"]
+    assert "id" not in second
+    assert '"type": "error"' in second["data"]
+    assert '"phase": "missing_job"' in second["data"]
+    assert "找不到分析任務" in second["data"]
+
+
+def test_analysis_stream_done_terminal_fallback_uses_safe_identity_fields():
+    from api_routes.analysis_sse import analysis_event_generator
+
+    events = []
+    requested_pipeline_ids = []
+
+    class Deps:
+        def append_event(self, job_id, payload):
+            events.append({"id": len(events) + 1, "payload": payload, "created_at": "now"})
+
+        def request_job_cancel(self, job_id, reason):
+            raise AssertionError("cancel should not be requested")
+
+        def get_events_since(self, job_id, after_id):
+            return [event for event in events if event["id"] > after_id]
+
+        def get_job(self, job_id):
+            return {
+                "job_id": job_id,
+                "status": "done",
+                "pipeline_id": memoryview(b"unsafe-pipeline"),
+                "filename": memoryview(b"unsafe-report.html"),
+            }
+
+        def print_streamed_event(self, job_id, payload):
+            pass
+
+        def get_pipeline_run_sequence(self, pipeline_id):
+            requested_pipeline_ids.append(pipeline_id)
+            return (pipeline_id, memoryview(b"unsafe-last-pipeline"))
+
+    class Request:
+        async def is_disconnected(self):
+            return False
+
+    generator = analysis_event_generator(
+        Deps(),
+        Request(),
+        job_id="job-done-malformed",
+        resume_after_id=0,
+        cancel_on_disconnect=False,
+        intro_payload={"type": "job", "pipeline_id": "v1"},
+    )
+
+    first = asyncio.run(generator.__anext__())
+    second = asyncio.run(generator.__anext__())
+
+    assert '"type": "job"' in first["data"]
+    assert second["id"] == "1"
+    assert '"type": "done"' in second["data"]
+    assert requested_pipeline_ids == ["v1"]
+    assert events[0]["payload"]["filename"] is None
+    assert events[0]["payload"]["pipeline_id"] == "v1"
+    assert events[0]["payload"]["last_pipeline_id"] == "v1"
+
+
+def test_analysis_stream_malformed_job_status_does_not_interrupt_polling():
+    from api_routes.analysis_sse import analysis_event_generator
+
+    class BrokenStatus:
+        def __eq__(self, _other):
+            raise RuntimeError("status comparison failed")
+
+        def __str__(self):
+            raise RuntimeError("status string conversion failed")
+
+    class Deps:
+        def append_event(self, job_id, payload):
+            raise AssertionError("malformed status should not synthesize terminal events")
+
+        def request_job_cancel(self, job_id, reason):
+            raise AssertionError("cancel should not be requested")
+
+        def get_events_since(self, job_id, after_id):
+            return []
+
+        def get_job(self, job_id):
+            return {"job_id": job_id, "status": BrokenStatus(), "pipeline_id": "v1"}
+
+        def print_streamed_event(self, job_id, payload):
+            pass
+
+        def get_pipeline_run_sequence(self, pipeline_id):
+            return (pipeline_id,)
+
+    class Request:
+        async def is_disconnected(self):
+            return False
+
+    generator = analysis_event_generator(
+        Deps(),
+        Request(),
+        job_id="job-malformed-status",
+        resume_after_id=0,
+        cancel_on_disconnect=False,
+        intro_payload={"type": "job", "pipeline_id": "v1"},
+    )
+
+    first = asyncio.run(generator.__anext__())
+    second = asyncio.run(generator.__anext__())
+
+    assert '"type": "job"' in first["data"]
+    assert second["event"] == "ping"
+
+
+def test_analysis_stream_error_terminal_fallback_uses_safe_message():
+    from api_routes.analysis_sse import analysis_event_generator
+
+    events = []
+
+    class Deps:
+        def append_event(self, job_id, payload):
+            events.append({"id": len(events) + 1, "payload": payload, "created_at": "now"})
+
+        def request_job_cancel(self, job_id, reason):
+            raise AssertionError("cancel should not be requested")
+
+        def get_events_since(self, job_id, after_id):
+            return [event for event in events if event["id"] > after_id]
+
+        def get_job(self, job_id):
+            return {
+                "job_id": job_id,
+                "status": "error",
+                "pipeline_id": "v1",
+                "error": memoryview(b"unsafe-analysis-error"),
+            }
+
+        def print_streamed_event(self, job_id, payload):
+            pass
+
+        def get_pipeline_run_sequence(self, pipeline_id):
+            return (pipeline_id,)
+
+    class Request:
+        async def is_disconnected(self):
+            return False
+
+    generator = analysis_event_generator(
+        Deps(),
+        Request(),
+        job_id="job-error",
+        resume_after_id=0,
+        cancel_on_disconnect=False,
+        intro_payload={"type": "job", "pipeline_id": "v1"},
+    )
+
+    first = asyncio.run(generator.__anext__())
+    second = asyncio.run(generator.__anext__())
+
+    assert '"type": "job"' in first["data"]
+    assert second["id"] == "1"
+    assert '"type": "error"' in second["data"]
+    assert "分析任務失敗" in second["data"]
+    assert events[0]["payload"]["message"] == "分析任務失敗"
+
+
+def test_analysis_stream_cancelled_terminal_fallback_uses_safe_message():
+    from api_routes.analysis_sse import analysis_event_generator
+
+    events = []
+
+    class Deps:
+        def append_event(self, job_id, payload):
+            events.append({"id": len(events) + 1, "payload": payload, "created_at": "now"})
+
+        def request_job_cancel(self, job_id, reason):
+            raise AssertionError("cancel should not be requested")
+
+        def get_events_since(self, job_id, after_id):
+            return [event for event in events if event["id"] > after_id]
+
+        def get_job(self, job_id):
+            return {
+                "job_id": job_id,
+                "status": "cancelled",
+                "pipeline_id": "v1",
+                "error": memoryview(b"unsafe-cancel-reason"),
+            }
+
+        def print_streamed_event(self, job_id, payload):
+            pass
+
+        def get_pipeline_run_sequence(self, pipeline_id):
+            return (pipeline_id,)
+
+    class Request:
+        async def is_disconnected(self):
+            return False
+
+    generator = analysis_event_generator(
+        Deps(),
+        Request(),
+        job_id="job-cancelled",
+        resume_after_id=0,
+        cancel_on_disconnect=False,
+        intro_payload={"type": "job", "pipeline_id": "v1"},
+    )
+
+    first = asyncio.run(generator.__anext__())
+    second = asyncio.run(generator.__anext__())
+
+    assert '"type": "job"' in first["data"]
+    assert second["id"] == "1"
+    assert '"phase": "cancelled"' in second["data"]
+    assert "分析任務已取消" in second["data"]
+    assert events[0]["payload"]["message"] == "分析任務已取消"
 
 
 def test_validate_runtime_settings_blocks_lan_without_mutation_token(monkeypatch):

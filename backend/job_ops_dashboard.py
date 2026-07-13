@@ -10,6 +10,7 @@ from pathlib import Path
 
 from config import TASK_DB_PATH
 from job_store import ACTIVE_JOB_STATUSES
+from model_route_budget import build_model_route_budget
 from security_sanitizer import sanitize_error_message
 
 
@@ -56,6 +57,7 @@ def build_ops_dashboard_snapshot(
         },
         "node_telemetry": _node_telemetry_summary(telemetry_rows),
         "prompt_budget": _prompt_budget_summary(telemetry_rows),
+        "model_route_budget": build_model_route_budget(telemetry_rows),
     }
 
 
@@ -96,6 +98,7 @@ def _empty_ops_dashboard(*, db_exists: bool, stuck_after_seconds: int) -> dict:
             },
         },
         "prompt_budget": _prompt_budget_summary([]),
+        "model_route_budget": build_model_route_budget([]),
     }
 
 
@@ -156,7 +159,7 @@ def _stuck_job_rows(conn: sqlite3.Connection, now: float, stuck_after_seconds: i
 def _telemetry_rows(conn: sqlite3.Connection, limit: int) -> list[dict]:
     rows = conn.execute(
         """
-        SELECT node_name, model, latency_ms, status, retry_count,
+        SELECT pipeline_id, node_name, model, latency_ms, status, retry_count,
                input_tokens, output_tokens, cache_hit, quality_gate_pass, error
         FROM analysis_node_telemetry
         ORDER BY id DESC

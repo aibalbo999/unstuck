@@ -230,10 +230,18 @@ def _report_file_counts(output_path: Path) -> dict:
         return {"exists": False, "html": 0, "markdown": 0, "data_snapshots": 0}
     return {
         "exists": True,
-        "html": len(list(output_path.glob("*.html"))),
-        "markdown": len(list(output_path.glob("*.md"))),
-        "data_snapshots": len(list(output_path.glob("*.data.json"))),
+        "html": _count_report_files(output_path, "*.html"),
+        "markdown": _count_report_files(output_path, "*.md"),
+        "data_snapshots": _count_report_files(output_path, "*.data.json"),
     }
+
+
+def _count_report_files(output_path: Path, pattern: str) -> int:
+    return sum(
+        1
+        for path in output_path.rglob(pattern)
+        if path.is_file() and not path.is_symlink()
+    )
 
 
 def _sqlite_table_counts(path: Path, table_names: tuple[str, ...]) -> dict:

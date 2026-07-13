@@ -50,6 +50,9 @@ class AgentGraphState(TypedDict, total=False):
     company_identity: dict[str, Any]
     pipeline_id: str
     prompt_version: str
+    prompt_fingerprint: str
+    code_commit: str
+    code_dirty: bool | None
     raw_financial_data: dict[str, Any]
     provider_values: dict[str, list[dict[str, Any]]]
     normalized_financials: dict[str, Any]

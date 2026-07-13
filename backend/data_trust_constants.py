@@ -180,3 +180,4 @@ SENSITIVE_KEY_RE = re.compile(
     r"(api[_-]?key|secret|password|token|authorization|prompt|retry|env(?:iron)?(?:ment)?)",
     re.IGNORECASE,
 )
+SHA256_HEX_RE = re.compile(r"^[0-9a-f]{64}$", re.IGNORECASE)

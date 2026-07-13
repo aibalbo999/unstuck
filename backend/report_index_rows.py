@@ -6,6 +6,7 @@ import json
 import os
 
 from data_trust import normalize_data_trust, unknown_data_trust
+from data_trust_snapshot import verify_data_snapshot_integrity
 from decision_tracking import build_decision_freshness, build_decision_tracking
 from pipeline_modes import get_pipeline_definition
 from recommendation_calibration import calibrate_recommendation_summary
@@ -54,6 +55,37 @@ def _read_snapshot(row) -> dict:
     except (OSError, TypeError, json.JSONDecodeError):
         return {}
     return snapshot if isinstance(snapshot, dict) else {}
+
+
+def _snapshot_integrity(row) -> dict:
+    snapshot = _read_snapshot(row)
+    if not snapshot:
+        return {
+            "status": "unverified",
+            "valid": None,
+            "hash": "",
+            "expected_hash": "",
+            "errors": ["snapshot unavailable"],
+        }
+
+    integrity = verify_data_snapshot_integrity(snapshot)
+    expected_hash = str(integrity.get("expected_hash") or "").strip()
+    if not expected_hash:
+        return {
+            "status": "unverified",
+            "valid": None,
+            "hash": str(integrity.get("hash") or ""),
+            "expected_hash": "",
+            "errors": ["snapshot_hash missing"],
+        }
+
+    return {
+        "status": "verified" if integrity.get("valid") else "invalid",
+        "valid": bool(integrity.get("valid")),
+        "hash": str(integrity.get("hash") or ""),
+        "expected_hash": expected_hash,
+        "errors": [str(error) for error in integrity.get("errors", []) if str(error)],
+    }
 
 
 def _company_name(row) -> str:
@@ -113,6 +145,12 @@ def _report_conformance(row) -> dict:
     snapshot = _read_snapshot(row)
     conformance = snapshot.get("report_conformance") if isinstance(snapshot, dict) else {}
     return conformance if isinstance(conformance, dict) else {}
+
+
+def _content_credibility(row) -> dict:
+    snapshot = _read_snapshot(row)
+    credibility = snapshot.get("content_credibility") if isinstance(snapshot, dict) else {}
+    return credibility if isinstance(credibility, dict) else {}
 
 
 def _markdown_text(row) -> str:
@@ -178,6 +216,8 @@ def row_to_report(row) -> dict:
         "temporal_memory": _temporal_memory(row),
         "evidence_exit_gate": _evidence_exit_gate(row),
         "report_conformance": _report_conformance(row),
+        "content_credibility": _content_credibility(row),
+        "snapshot_integrity": _snapshot_integrity(row),
         "data_snapshot_filename": row["data_snapshot_filename"] if "data_snapshot_filename" in row.keys() else "",
         "data_trust": data_trust,
         "data_trust_status": row["data_trust_status"] if "data_trust_status" in row.keys() else data_trust.get("status", "unknown"),

@@ -5,8 +5,9 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from data_trust import data_snapshot_filename_for_report
+from data_trust import data_snapshot_filename_for_report, sanitize_for_snapshot
 from data_trust_snapshot import set_snapshot_integrity
+from mapping_fields import safe_mapping_dict
 from report_persistence import persist_report_bundle
 from reporting import ReportRequest
 from report_rerun_context import RERUN_SCOPE_LABELS
@@ -32,8 +33,9 @@ async def render_and_save_rerun_report(
     source_filename: str,
     storage: ReportStorage | None = None,
 ) -> dict:
-    filename, _, _ = rerun_report_filename(context.get("ticker"), pipeline_id)
-    context["partial_rerun"] = {
+    context_payload = safe_mapping_dict(context) or {}
+    filename, _, _ = rerun_report_filename(context_payload.get("ticker"), pipeline_id)
+    context_payload["partial_rerun"] = {
         "scope": scope,
         "label": RERUN_SCOPE_LABELS[scope],
         "source_report": source_filename,
@@ -41,13 +43,16 @@ async def render_and_save_rerun_report(
     }
     report_bundle = await report_renderer.render_async(
         ReportRequest(
-            context=context,
+            context=context_payload,
             pipeline_id=pipeline_id,
             filename=filename,
         )
     )
-    data_snapshot = dict(report_bundle.data_snapshot)
-    data_snapshot["partial_rerun"] = context["partial_rerun"]
+    data_snapshot_map = safe_mapping_dict(report_bundle.data_snapshot) or {}
+    data_snapshot = sanitize_for_snapshot(data_snapshot_map)
+    if not isinstance(data_snapshot, dict):
+        data_snapshot = {}
+    data_snapshot["partial_rerun"] = context_payload["partial_rerun"]
     data_snapshot["rerun_from_report"] = source_filename
     data_snapshot["rerun_scope"] = scope
     set_snapshot_integrity(data_snapshot)
@@ -69,6 +74,6 @@ async def render_and_save_rerun_report(
         "md_filename": persisted["md_filename"],
         "data_filename": persisted["data_filename"],
         "data_trust": persisted["data_trust"],
-        "partial_rerun": context["partial_rerun"],
+        "partial_rerun": context_payload["partial_rerun"],
         "metadata": persisted["metadata"],
     }

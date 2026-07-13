@@ -8,52 +8,64 @@ from typing import Any
 from analysis_types import AnalysisContext
 from config import format_model_routes
 from data_trust import normalize_data_trust, trust_status_label
+from mapping_fields import safe_mapping_dict, safe_text
 from pipeline_modes import get_pipeline_definition
+
+
+def _as_dict(value: Any) -> dict:
+    return safe_mapping_dict(value) or {}
 
 
 def _agent_sequence(context: AnalysisContext, pipeline_def: dict) -> list[int]:
     raw_sequence = context.get("agent_sequence") or pipeline_def.get("agents") or []
+    if not isinstance(raw_sequence, (list, tuple)):
+        raw_sequence = pipeline_def.get("agents") or []
     sequence: list[int] = []
     for item in raw_sequence:
+        if isinstance(item, (bool, bytes, bytearray, memoryview)):
+            continue
         try:
             sequence.append(int(item))
         except (TypeError, ValueError):
             continue
-    return sequence
+    return sequence or list(pipeline_def.get("agents") or [])
 
 
 def _status(value: Any, default: str = "N/A") -> str:
-    text = str(value or "").strip()
-    return text or default
+    text = safe_text(value).strip()
+    if not text:
+        return default
+    return " ".join(line.strip() for line in text.splitlines() if line.strip())
 
 
 def _execution_summary_values(context: AnalysisContext, *, model_routes: str | None = None) -> dict:
-    data = context.get("data", {}) if isinstance(context.get("data"), dict) else {}
-    pipeline_def = get_pipeline_definition(context.get("pipeline_id", "v1"))
+    context = _as_dict(context)
+    data = _as_dict(dict.get(context, "data"))
+    pipeline_def = get_pipeline_definition(dict.get(context, "pipeline_id", "v1"))
     agent_sequence = _agent_sequence(context, pipeline_def)
-    final_audit = context.get("final_audit") if isinstance(context.get("final_audit"), dict) else {}
-    evidence_gate = context.get("evidence_exit_gate") if isinstance(context.get("evidence_exit_gate"), dict) else {}
-    report_conformance = context.get("report_conformance") if isinstance(context.get("report_conformance"), dict) else {}
-    report_lint = context.get("report_lint") if isinstance(context.get("report_lint"), dict) else {}
-    data_trust = normalize_data_trust(data.get("data_trust"))
-    structured_agents = pipeline_def.get("structured_agents") if isinstance(pipeline_def.get("structured_agents"), dict) else {}
+    final_audit = _as_dict(dict.get(context, "final_audit"))
+    evidence_gate = _as_dict(dict.get(context, "evidence_exit_gate"))
+    report_conformance = _as_dict(dict.get(context, "report_conformance"))
+    report_lint = _as_dict(dict.get(context, "report_lint"))
+    data_trust = normalize_data_trust(dict.get(data, "data_trust"))
+    structured_agents = _as_dict(dict.get(pipeline_def, "structured_agents"))
     return {
-        "pipeline": f"V{str(pipeline_def.get('id', 'v1')).lstrip('v').upper()}",
-        "pipeline_label": pipeline_def.get("label", "N/A"),
+        "pipeline": f"V{str(dict.get(pipeline_def, 'id', 'v1')).lstrip('v').upper()}",
+        "pipeline_label": dict.get(pipeline_def, "label", "N/A"),
         "agent_count": len(agent_sequence),
         "agent_sequence": agent_sequence,
         "structured_agent_count": len(structured_agents),
-        "model_routes": model_routes or format_model_routes(pipeline_id=pipeline_def.get("id", "v1")),
-        "data_trust": trust_status_label(str(data_trust.get("status") or "unknown")),
-        "data_trust_raw": str(data_trust.get("status") or "unknown"),
-        "final_audit": _status(final_audit.get("status"), "not_recorded"),
-        "evidence_gate": _status(evidence_gate.get("verdict"), "not_recorded"),
-        "evidence_summary": _status(evidence_gate.get("summary"), ""),
-        "report_conformance": _status(report_conformance.get("status"), "not_recorded"),
-        "conformance_summary": _status(report_conformance.get("summary"), ""),
-        "report_lint": _status(report_lint.get("status"), "not_recorded"),
-        "prompt_version": _status(context.get("prompt_version"), "N/A"),
-        "model_id": _status(context.get("model_id") or context.get("decision_model_id") or context.get("final_model_id"), "N/A"),
+        "model_routes": _status(model_routes or format_model_routes(pipeline_id=dict.get(pipeline_def, "id", "v1"))),
+        "data_trust": trust_status_label(str(dict.get(data_trust, "status") or "unknown")),
+        "data_trust_raw": str(dict.get(data_trust, "status") or "unknown"),
+        "final_audit": _status(dict.get(final_audit, "status"), "not_recorded"),
+        "evidence_gate": _status(dict.get(evidence_gate, "verdict"), "not_recorded"),
+        "evidence_summary": _status(dict.get(evidence_gate, "summary"), ""),
+        "report_conformance": _status(dict.get(report_conformance, "status"), "not_recorded"),
+        "conformance_summary": _status(dict.get(report_conformance, "summary"), ""),
+        "report_lint": _status(dict.get(report_lint, "status"), "not_recorded"),
+        "prompt_version": _status(dict.get(context, "prompt_version"), "N/A"),
+        "model_id": _status(dict.get(context, "model_id") or dict.get(context, "decision_model_id") or dict.get(context, "final_model_id"), "N/A"),
     }
 
 

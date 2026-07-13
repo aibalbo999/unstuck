@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from mapping_fields import safe_dict_list, safe_mapping_dict, safe_sequence_items, safe_text
+
 
 SCENARIO_META = {
     "bear": ("熊市情境", "悲觀"),
@@ -14,17 +16,18 @@ SCENARIO_META = {
 
 
 def build_dcf_scenario_rows(data: dict) -> list[dict]:
-    quant = data.get("quant_metrics") if isinstance(data.get("quant_metrics"), dict) else {}
-    raw = quant.get("dcf_scenarios") if isinstance(quant, dict) else None
-    if not isinstance(raw, dict):
-        tools = data.get("deterministic_financial_tool_results")
-        calculations = tools.get("calculations", {}) if isinstance(tools, dict) else {}
-        default = calculations.get("dcf_scenarios_default", {}) if isinstance(calculations, dict) else {}
-        raw = default.get("scenarios", {}) if isinstance(default, dict) else {}
+    data = safe_mapping_dict(data) or {}
+    quant = safe_mapping_dict(data.get("quant_metrics")) or {}
+    raw = safe_mapping_dict(quant.get("dcf_scenarios"))
+    if raw is None:
+        tools = safe_mapping_dict(data.get("deterministic_financial_tool_results")) or {}
+        calculations = safe_mapping_dict(tools.get("calculations")) or {}
+        default = safe_mapping_dict(calculations.get("dcf_scenarios_default")) or {}
+        raw = safe_mapping_dict(default.get("scenarios")) or {}
     rows = []
     for key in ("bear", "base", "bull"):
-        item = raw.get(key) if isinstance(raw, dict) else None
-        if not isinstance(item, dict):
+        item = safe_mapping_dict(raw.get(key)) if isinstance(raw, dict) else None
+        if item is None:
             continue
         price = _number(item.get("intrinsic_value", item.get("price_per_share_twd")))
         wacc = _number(item.get("wacc_pct"))
@@ -46,9 +49,9 @@ def build_dcf_scenario_rows(data: dict) -> list[dict]:
 def build_management_sentiment(context: dict) -> dict:
     output = _structured_output(context, 20)
     return {
-        "tone": str(output.get("guidance_tone") or "資料不足"),
+        "tone": _text(output.get("guidance_tone"), "資料不足"),
         "confidence": _number(output.get("confidence")),
-        "highlights": [item for item in output.get("highlights", []) if isinstance(item, dict)][:3],
+        "highlights": _highlight_rows(output.get("highlights", [])),
         "available": bool(output),
     }
 
@@ -56,20 +59,19 @@ def build_management_sentiment(context: dict) -> dict:
 def build_downside_view(context: dict) -> dict:
     output = _structured_output(context, 21)
     return {
-        "summary": str(output.get("thesis_summary") or "紅軍分析未產出可用結論。"),
-        "risks": [item for item in output.get("downside_risks", []) if isinstance(item, dict)][:5],
+        "summary": _text(output.get("thesis_summary"), "紅軍分析未產出可用結論。"),
+        "risks": _risk_rows(output.get("downside_risks", [])),
         "available": bool(output),
     }
 
 
 def build_peer_comparison_rows(data: dict) -> list[dict]:
+    data = safe_mapping_dict(data) or {}
     rows = [_target_peer_row(data)]
-    for item in list(data.get("dynamic_peer_metrics") or [])[:5]:
-        if not isinstance(item, dict):
-            continue
+    for item in safe_dict_list(data.get("dynamic_peer_metrics"))[:5]:
         rows.append({
-            "name": str(item.get("name") or item.get("ticker") or "同業"),
-            "ticker": str(item.get("ticker") or ""),
+            "name": _text(item.get("name") or item.get("ticker"), "同業"),
+            "ticker": _text(item.get("ticker"), ""),
             "is_target": False,
             "gross_margin_pct": _number(item.get("gross_margin_pct")),
             "roe_pct": _number(item.get("roe_pct")),
@@ -85,8 +87,8 @@ def _target_peer_row(data: dict) -> dict:
     revenue_raw = _number(data.get("revenue_ttm_raw"))
     asset_turnover = revenue_raw / (assets * 1e9) if revenue_raw and assets else None
     return {
-        "name": str(data.get("company_name") or data.get("ticker") or "目標公司"),
-        "ticker": str(data.get("ticker") or ""),
+        "name": _text(data.get("company_name") or data.get("ticker"), "目標公司"),
+        "ticker": _text(data.get("ticker"), ""),
         "is_target": True,
         "gross_margin_pct": _pct(data.get("gross_margin_raw", data.get("gross_margin"))),
         "roe_pct": _pct(data.get("roe_raw", data.get("roe"))),
@@ -97,15 +99,17 @@ def _target_peer_row(data: dict) -> dict:
 
 
 def _structured_output(context: dict, agent_num: int) -> dict:
-    outputs = context.get("structured_outputs") if isinstance(context.get("structured_outputs"), dict) else {}
+    outputs = safe_mapping_dict(context.get("structured_outputs")) or {}
     value = outputs.get(agent_num, outputs.get(str(agent_num), {}))
-    return value if isinstance(value, dict) else {}
+    return safe_mapping_dict(value) or {}
 
 
 def _number(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
     if isinstance(value, (int, float)):
         return round(float(value), 4)
-    match = re.search(r"-?\d+(?:\.\d+)?", str(value or "").replace(",", ""))
+    match = re.search(r"-?\d+(?:\.\d+)?", safe_text(value).replace(",", ""))
     return round(float(match.group()), 4) if match else None
 
 
@@ -117,10 +121,47 @@ def _pct(value: Any) -> float | None:
 
 
 def _last_number(value: Any) -> float | None:
-    if not isinstance(value, list):
-        return None
-    for item in reversed(value):
+    for item in reversed(safe_sequence_items(value)):
         number = _number(item)
         if number is not None:
             return number
     return None
+
+
+def _text(value: Any, default: str) -> str:
+    text = safe_text(value).strip()
+    return " ".join(line.strip() for line in text.splitlines() if line.strip()) or default
+
+
+def _highlight_rows(value: Any) -> list[dict[str, str]]:
+    rows = []
+    for item in safe_dict_list(value):
+        rows.append({
+            "keyword": _text(item.get("keyword"), "亮點"),
+            "quote": _text(item.get("quote"), ""),
+        })
+        if len(rows) >= 3:
+            break
+    return rows
+
+
+def _risk_rows(value: Any) -> list[dict[str, str]]:
+    rows = []
+    for item in safe_dict_list(value):
+        row = {
+            "title": _text(item.get("title"), "下行風險"),
+            "evidence": _text(item.get("evidence"), "資料不足"),
+            "severity": _severity_class(item.get("severity")),
+        }
+        impact = _text(item.get("impact"), "")
+        if impact:
+            row["impact"] = impact
+        rows.append(row)
+        if len(rows) >= 5:
+            break
+    return rows
+
+
+def _severity_class(value: Any) -> str:
+    text = safe_text(value).strip().lower()
+    return text if text in {"low", "medium", "high", "critical"} else "high"

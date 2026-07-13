@@ -54,6 +54,33 @@ def test_storage_summary_counts_reports_databases_and_calendars(tmp_path):
     assert summary["market_calendars"]["json_files"] == 1
 
 
+def test_storage_summary_counts_partitioned_report_artifacts(tmp_path):
+    output_dir = tmp_path / "output"
+    report_dir = output_dir / "2026-07" / "AAPL"
+    report_dir.mkdir(parents=True)
+    (report_dir / "AAPL_v1_report_20260711_000000.html").write_text("<html></html>", encoding="utf-8")
+    (report_dir / "AAPL_v1_report_20260711_000000.md").write_text("# report", encoding="utf-8")
+    (report_dir / "AAPL_v1_report_20260711_000000.data.json").write_text("{}", encoding="utf-8")
+
+    summary = build_storage_summary(output_dir=str(output_dir), cache_db_path=str(tmp_path / "cache.sqlite3"))
+
+    assert summary["reports"]["html"] == 1
+    assert summary["reports"]["markdown"] == 1
+    assert summary["reports"]["data_snapshots"] == 1
+
+
+def test_storage_summary_ignores_symlink_report_artifacts(tmp_path):
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+    external = tmp_path / "external.html"
+    external.write_text("<html></html>", encoding="utf-8")
+    (output_dir / "linked.html").symlink_to(external)
+
+    summary = build_storage_summary(output_dir=str(output_dir), cache_db_path=str(tmp_path / "cache.sqlite3"))
+
+    assert summary["reports"]["html"] == 0
+
+
 def test_clear_runtime_storage_requires_confirmation_and_removes_contents(tmp_path):
     output_dir = tmp_path / "output"
     cache_dir = tmp_path / "cache"

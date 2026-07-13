@@ -67,6 +67,9 @@ class AnalysisContext(TypedDict, total=False):
     pipeline_id: str
     pipeline_label: str
     prompt_version: str
+    prompt_fingerprint: str
+    code_commit: str
+    code_dirty: bool | None
     agent_sequence: tuple[int, ...]
     agent_positions: dict[int, int]
     agent_total: int

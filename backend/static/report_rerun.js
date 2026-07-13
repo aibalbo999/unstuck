@@ -30,46 +30,6 @@
         statusEl.hidden = !message;
     }
 
-    function openRerunStream(options) {
-        return new Promise((resolve, reject) => {
-            const eventSource = new EventSource(options.streamUrl);
-            eventSource.onmessage = (event) => {
-                let payload = {};
-                try {
-                    payload = JSON.parse(event.data);
-                } catch (err) {
-                    return;
-                }
-
-                if (payload.type === 'status') {
-                    options.onStatus(payload.message || '報告重跑中...');
-                    return;
-                }
-                if (payload.type === 'progress') {
-                    const name = payload.name ? `：${payload.name}` : '';
-                    options.onStatus(`報告重跑中${name}`);
-                    return;
-                }
-                if (payload.type === 'report_done') {
-                    options.onStatus('新報告已產生，正在整理列表...');
-                    return;
-                }
-                if (payload.type === 'done') {
-                    eventSource.close();
-                    resolve(payload);
-                    return;
-                }
-                if (payload.type === 'error') {
-                    eventSource.close();
-                    reject(new Error(payload.message || '報告重跑失敗'));
-                }
-            };
-            eventSource.onerror = () => {
-                options.onStatus('重跑連線暫時中斷，瀏覽器正在自動接續...');
-            };
-        });
-    }
-
     async function rerunPreviewReport(options) {
         const previewReport = options.previewReport;
         if (!previewReport) return;
@@ -109,7 +69,7 @@
                 });
             }
             const donePayload = payload.queued && payload.stream_url
-                ? await openRerunStream({
+                ? await window.StockAgentReportRerunStream.open({
                     streamUrl: payload.stream_url,
                     onStatus: message => setStatus(options.statusEl, message)
                 })

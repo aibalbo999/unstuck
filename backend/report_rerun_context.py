@@ -10,6 +10,7 @@ from typing import Any
 from fastapi import HTTPException
 
 from data_trust import data_snapshot_filename_for_report
+from mapping_fields import safe_mapping_dict, safe_text
 from report_history_storage import existing_storage_key
 from report_index import is_safe_report_filename
 from storage.report_storage import ReportStorage
@@ -107,10 +108,11 @@ def parse_agent_sections_from_markdown(markdown_text: str) -> dict[int, str]:
 
 
 def coerce_agent_map(value: Any) -> dict[int, Any]:
-    if not isinstance(value, dict):
+    value_map = safe_mapping_dict(value)
+    if value_map is None:
         return {}
     result: dict[int, Any] = {}
-    for key, item in value.items():
+    for key, item in value_map.items():
         try:
             agent_num = int(key)
         except (TypeError, ValueError):
@@ -120,11 +122,12 @@ def coerce_agent_map(value: Any) -> dict[int, Any]:
 
 
 def rerun_context_from_snapshot(snapshot: dict) -> tuple[dict[int, str], dict[int, Any]]:
-    rerun_context = snapshot.get("rerun_context") if isinstance(snapshot.get("rerun_context"), dict) else {}
-    analyses = {
-        agent_num: str(text)
-        for agent_num, text in coerce_agent_map(rerun_context.get("analyses")).items()
-        if str(text or "").strip()
-    }
-    structured_outputs = coerce_agent_map(rerun_context.get("structured_outputs"))
+    snapshot_map = safe_mapping_dict(snapshot) or {}
+    rerun_context = safe_mapping_dict(dict.get(snapshot_map, "rerun_context")) or {}
+    analyses = {}
+    for agent_num, text in coerce_agent_map(dict.get(rerun_context, "analyses")).items():
+        analysis_text = safe_text(text).strip()
+        if analysis_text:
+            analyses[agent_num] = analysis_text
+    structured_outputs = coerce_agent_map(dict.get(rerun_context, "structured_outputs"))
     return analyses, structured_outputs

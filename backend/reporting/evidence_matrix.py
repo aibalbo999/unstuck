@@ -3,34 +3,80 @@
 from __future__ import annotations
 
 from html import escape
+from math import isfinite
 from typing import Any
 
 from data_trust_audit import audit_status_label, source_label
 from data_trust_scoring import normalize_data_trust, trust_status_label
+from mapping_fields import safe_dict_list, safe_mapping_dict, safe_text, safe_text_list
 
 from .evidence import build_key_evidence_rows
 from .html_sanitizer import sanitize_report_plain_text
 
 
 def _as_dict(value: Any) -> dict:
-    return value if isinstance(value, dict) else {}
+    return safe_mapping_dict(value) or {}
 
 
 def _as_notes(value: Any) -> list[str]:
-    if isinstance(value, list):
-        return [str(item).strip() for item in value if str(item).strip()]
-    if isinstance(value, str) and value.strip():
-        return [value.strip()]
+    if isinstance(value, (list, tuple)):
+        return safe_text_list(value)
+    if text := _text(value, "").strip():
+        return [text]
     return []
 
 
 def _text(value: Any, default: str = "N/A") -> str:
-    text = sanitize_report_plain_text(value).strip() if value is not None else ""
+    text = sanitize_report_plain_text(safe_text(value)).strip()
     return text or default
 
 
-def _format_price(value: Any) -> str:
+def _has_message_value(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(_text(value, "").strip())
+    if isinstance(value, (bytes, bytearray, memoryview, list, tuple, dict, set, frozenset)):
+        try:
+            return len(value) > 0
+        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
+            return False
+    if isinstance(value, bool):
+        return value
     if isinstance(value, (int, float)):
+        return value != 0
+    return True
+
+
+def _safe_bool_flag(value: Any) -> bool:
+    return value if isinstance(value, bool) else False
+
+
+def _source_message_text(message: Any, error_kind: Any = None, source: Any = None) -> str:
+    message_text = _source_message_candidate(message)
+    if message_text:
+        return message_text
+    error_text = _source_message_candidate(error_kind)
+    if error_text:
+        return error_text
+    if _has_message_value(message) or _has_message_value(error_kind):
+        return "N/A"
+    source_text = _source_message_candidate(source)
+    return source_text or "N/A"
+
+
+def _source_message_candidate(value: Any) -> str:
+    if not _has_message_value(value):
+        return ""
+    return _text(value, "").strip()
+
+
+def _format_price(value: Any) -> str:
+    if isinstance(value, bool):
+        return "N/A"
+    if isinstance(value, (int, float)):
+        if not isfinite(value):
+            return "N/A"
         return f"NT${value:,.0f}"
     return _text(value)
 
@@ -38,19 +84,28 @@ def _format_price(value: Any) -> str:
 def _unique(values: list[str]) -> list[str]:
     seen = []
     for value in values:
-        item = str(value or "").strip()
+        item = _text(value, "").strip()
         if item and item not in seen:
             seen.append(item)
     return seen
 
 
 def _latest_fetched_at(rows: list[dict]) -> str:
-    values = sorted(str(row.get("fetched_at") or "") for row in rows if row.get("fetched_at") and row.get("fetched_at") != "N/A")
+    values = []
+    for row in rows:
+        row_map = _as_dict(row)
+        fetched_at = _text(row_map.get("fetched_at"), "").strip()
+        if fetched_at and fetched_at != "N/A":
+            values.append(fetched_at)
+    values = sorted(values)
     return values[-1] if values else "N/A"
 
 
 def _combined_status(rows: list[dict], trust_status: str) -> str:
-    statuses = [str(row.get("status") or "unknown") for row in rows]
+    statuses = [
+        _text(_as_dict(row).get("status"), "unknown")
+        for row in rows
+    ]
     if any(status == "error" for status in statuses) or trust_status == "error":
         return "error"
     if not statuses:
@@ -67,7 +122,12 @@ def _data_limitations(data: dict, trust: dict, rows: list[dict]) -> str:
     trust_status = str(trust.get("status") or "unknown")
     if trust_status != "fresh":
         notes.append(f"資料可信度：{trust_status_label(trust_status)}。")
-    stale_sources = _unique([str(row.get("source_label") or "") for row in rows if row.get("stale")])
+    stale_source_values = []
+    for row in rows:
+        row_map = _as_dict(row)
+        if _safe_bool_flag(row_map.get("stale")):
+            stale_source_values.append(row_map.get("source_label"))
+    stale_sources = _unique(stale_source_values)
     if stale_sources:
         notes.append("過期來源：" + "、".join(stale_sources) + "。")
     critical = _unique([source_label(source) for source in trust.get("critical_failures", []) or []])
@@ -77,7 +137,13 @@ def _data_limitations(data: dict, trust: dict, rows: list[dict]) -> str:
 
 
 def _source_rows_by_label(data: dict) -> dict[str, dict]:
-    return {row["label"]: row for row in build_key_evidence_rows(data)}
+    rows_by_label = {}
+    for row in build_key_evidence_rows(data):
+        row_map = _as_dict(row)
+        label = _text(row_map.get("label"), "").strip()
+        if label:
+            rows_by_label[label] = row_map
+    return rows_by_label
 
 
 def _row(
@@ -91,8 +157,9 @@ def _row(
 ) -> dict:
     trust_status = str(trust.get("status") or "unknown")
     status = _combined_status(evidence_rows, trust_status)
-    providers = _unique([str(row.get("provider") or "") for row in evidence_rows])
-    sources = _unique([str(row.get("source_label") or "") for row in evidence_rows] + source_labels)
+    evidence_row_maps = [_as_dict(row) for row in evidence_rows]
+    providers = _unique([row.get("provider") for row in evidence_row_maps])
+    sources = _unique([row.get("source_label") for row in evidence_row_maps] + source_labels)
     return {
         "claim": claim,
         "basis": basis,
@@ -108,7 +175,13 @@ def _row(
 def _price_target_basis(price_targets: dict) -> str:
     if not price_targets:
         return ""
-    return "；".join(f"{_text(scenario)}: {_format_price(price)}" for scenario, price in price_targets.items())
+    parts = []
+    for scenario, price in price_targets.items():
+        scenario_text = _text(scenario, "")
+        if not scenario_text:
+            continue
+        parts.append(f"{scenario_text}: {_format_price(price)}")
+    return "；".join(parts)
 
 
 def _moat_basis(moat_scores: dict) -> str:
@@ -118,12 +191,26 @@ def _moat_basis(moat_scores: dict) -> str:
     parts = []
     if overall is not None:
         parts.append(f"整體護城河: {_text(overall)}/10")
-    parts.extend(
-        f"{_text(metric)}: {_text(score)}/10"
-        for metric, score in moat_scores.items()
-        if metric != "整體護城河"
-    )
+    for metric, score in moat_scores.items():
+        metric_text = _text(metric, "")
+        if not metric_text or metric_text == "整體護城河":
+            continue
+        parts.append(f"{metric_text}: {_text(score)}/10")
     return "；".join(parts)
+
+
+def _basis_value_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return _text(value, "").strip()
+    if isinstance(value, (list, tuple, dict, set, frozenset)):
+        try:
+            if len(value) == 0:
+                return ""
+        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
+            return ""
+    return _text(value, "").strip()
 
 
 def _recommendation_basis(recommendation: dict) -> str:
@@ -131,9 +218,10 @@ def _recommendation_basis(recommendation: dict) -> str:
         return ""
     fields = []
     for label in ("建議", "3個月", "6個月", "12個月", "信心"):
-        value = next((item for key, item in recommendation.items() if label in str(key)), None)
-        if value not in (None, "", [], {}):
-            fields.append(f"{label}: {_text(value)}")
+        value = next((item for key, item in recommendation.items() if label in safe_text(key)), None)
+        value_text = _basis_value_text(value)
+        if value_text:
+            fields.append(f"{label}: {value_text}")
     return "；".join(fields)
 
 
@@ -214,7 +302,7 @@ def build_evidence_matrix_rows(context: dict) -> list[dict]:
 
 
 def _source_id(value: Any) -> str:
-    text = sanitize_report_plain_text(value).strip()
+    text = _text(value, "").strip()
     return "".join(ch for ch in text if ch.isalnum() or ch in {"_", "-", ".", ":"})[:96]
 
 
@@ -224,20 +312,19 @@ def build_evidence_matrix_payload(context: dict) -> dict:
     data = _as_dict(context.get("data"))
     sources: dict[str, dict] = {}
 
-    entries = data.get("source_audit") if isinstance(data.get("source_audit"), list) else []
+    entries = safe_dict_list(data.get("source_audit"))
     for entry in entries:
-        if not isinstance(entry, dict):
-            continue
-        source_id = _source_id(entry.get("source") or entry.get("provider"))
+        source_text = _text(entry.get("source"), "")
+        source_id = _source_id(source_text or _text(entry.get("provider"), ""))
         if not source_id:
             continue
         provider = _text(entry.get("provider"))
         status = _text(entry.get("status"), "unknown")
         fetched_at = _text(entry.get("fetched_at"))
-        message = _text(entry.get("message") or entry.get("error_kind") or entry.get("source"))
+        message = _source_message_text(entry.get("message"), entry.get("error_kind"), entry.get("source"))
         sources[source_id] = {
             "source_id": source_id,
-            "source": source_label(entry.get("source") or source_id),
+            "source": source_label(source_text or source_id),
             "source_document": provider,
             "status": status,
             "status_label": audit_status_label(status),
@@ -268,13 +355,13 @@ def build_evidence_matrix_html(context: dict) -> str:
         return ""
     body = "".join(
         "<tr>"
-        f"<td>{escape(row['claim'])}</td>"
-        f"<td>{escape(str(row['basis']))}</td>"
-        f"<td>{escape(str(row['source']))}</td>"
-        f"<td>{escape(str(row['provider']))}</td>"
-        f"<td><span class=\"audit-status audit-status-{escape(str(row['status']))}\">{escape(str(row['status_label']))}</span></td>"
-        f"<td>{escape(str(row['fetched_at']))}</td>"
-        f"<td>{escape(str(row['limitation']))}</td>"
+        f"<td>{_html_cell(row['claim'])}</td>"
+        f"<td>{_html_cell(row['basis'])}</td>"
+        f"<td>{_html_cell(row['source'])}</td>"
+        f"<td>{_html_cell(row['provider'])}</td>"
+        f"<td><span class=\"audit-status audit-status-{_html_cell(row['status'])}\">{_html_cell(row['status_label'])}</span></td>"
+        f"<td>{_html_cell(row['fetched_at'])}</td>"
+        f"<td>{_html_cell(row['limitation'])}</td>"
         "</tr>"
         for row in rows
     )
@@ -296,8 +383,12 @@ def build_evidence_matrix_html(context: dict) -> str:
     """
 
 
+def _html_cell(value: Any) -> str:
+    return escape(_text(value))
+
+
 def _markdown_cell(value: Any) -> str:
-    return str(value or "N/A").replace("|", "/").replace("\n", " ")
+    return _text(value).replace("|", "/").replace("\n", " ")
 
 
 def build_evidence_matrix_markdown(context: dict) -> list[str]:

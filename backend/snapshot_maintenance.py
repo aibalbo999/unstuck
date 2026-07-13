@@ -12,10 +12,27 @@ from data_trust_snapshot import set_snapshot_integrity, verify_data_snapshot_int
 
 def verify_snapshots(output_dir: Optional[str] = None, write: bool = False) -> dict:
     root = Path(output_dir or OUTPUT_DIR)
-    files = sorted(root.glob("*.data.json")) if root.exists() else []
+    files = (
+        sorted(
+            (
+                path
+                for path in root.rglob("*.data.json")
+                if path.is_file() and not path.is_symlink()
+            ),
+            key=lambda path: path.relative_to(root).as_posix(),
+        )
+        if root.exists()
+        else []
+    )
     results = []
     for path in files:
-        results.append(_verify_one(path, write=write))
+        results.append(
+            _verify_one(
+                path,
+                write=write,
+                file_label=path.relative_to(root).as_posix(),
+            )
+        )
     return {
         "output_dir": str(root),
         "checked": len(results),
@@ -28,38 +45,39 @@ def verify_snapshots(output_dir: Optional[str] = None, write: bool = False) -> d
     }
 
 
-def _verify_one(path: Path, write: bool = False) -> dict:
+def _verify_one(path: Path, write: bool = False, file_label: Optional[str] = None) -> dict:
+    file_name = file_label or path.name
     try:
         snapshot = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        return {"file": path.name, "status": "invalid_json", "message": str(exc)[:180]}
+        return {"file": file_name, "status": "invalid_json", "message": str(exc)[:180]}
     if not isinstance(snapshot, dict):
-        return {"file": path.name, "status": "invalid_json", "message": "snapshot is not an object"}
+        return {"file": file_name, "status": "invalid_json", "message": "snapshot is not an object"}
 
-    has_hash = bool(snapshot.get("snapshot_hash") or snapshot.get("content_hash"))
     integrity = verify_data_snapshot_integrity(snapshot)
+    has_hash = bool(integrity.get("expected_hash", ""))
     if has_hash and not integrity["valid"]:
         if write:
             previous_hash = integrity.get("expected_hash", "")
             set_snapshot_integrity(snapshot)
             path.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8")
             return {
-                "file": path.name,
+                "file": file_name,
                 "status": "repaired",
                 "hash": snapshot.get("snapshot_hash", ""),
                 "previous_hash": previous_hash,
             }
         return {
-            "file": path.name,
+            "file": file_name,
             "status": "mismatch",
             "hash": integrity.get("hash", ""),
             "expected_hash": integrity.get("expected_hash", ""),
         }
     if has_hash:
-        return {"file": path.name, "status": "ok", "hash": integrity.get("hash") or snapshot.get("snapshot_hash", "")}
+        return {"file": file_name, "status": "ok", "hash": integrity.get("hash") or snapshot.get("snapshot_hash", "")}
 
     if not write:
-        return {"file": path.name, "status": "missing_hash"}
+        return {"file": file_name, "status": "missing_hash"}
     set_snapshot_integrity(snapshot)
     path.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8")
-    return {"file": path.name, "status": "backfilled", "hash": snapshot.get("snapshot_hash", "")}
+    return {"file": file_name, "status": "backfilled", "hash": snapshot.get("snapshot_hash", "")}

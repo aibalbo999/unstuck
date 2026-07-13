@@ -1,0 +1,107 @@
+.stock-snapshot-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.stock-snapshot-metric {
+    min-height: 92px;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 8px;
+    background: rgba(4, 13, 26, 0.32);
+    padding: 12px;
+}
+
+.stock-snapshot-metric span,
+.stock-snapshot-metric em {
+    display: block;
+    font-size: 0.78rem;
+    line-height: 1.35;
+}
+
+.stock-snapshot-metric strong {
+    display: block;
+    color: var(--text-primary);
+    font-size: 1.05rem;
+    line-height: 1.25;
+    margin: 6px 0;
+    overflow-wrap: anywhere;
+}
+
+.stock-snapshot-strip,
+.stock-snapshot-news,
+.stock-snapshot-modes {
+    display: grid;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.stock-snapshot-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.stock-snapshot-strip span,
+.stock-snapshot-news article {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 10px 12px;
+}
+
+.stock-snapshot-strip strong,
+.stock-snapshot-news strong,
+.stock-snapshot-news span,
+.stock-snapshot-modes strong,
+.stock-snapshot-modes span {
+    display: block;
+    line-height: 1.4;
+}
+
+.stock-snapshot-strip strong,
+.stock-snapshot-news strong,
+.stock-snapshot-modes strong {
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+.stock-snapshot-news {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.stock-snapshot-news span,
+.stock-snapshot-modes span {
+    font-size: 0.78rem;
+    margin-top: 4px;
+}
+
+.stock-snapshot-modes {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.stock-snapshot-modes button {
+    min-height: 88px;
+    border: 1px solid rgba(0, 212, 255, 0.18);
+    border-radius: 8px;
+    background: rgba(0, 212, 255, 0.06);
+    color: inherit;
+    cursor: pointer;
+    padding: 10px;
+    text-align: left;
+}
+
+.stock-snapshot-modes button:hover,
+.stock-snapshot-modes button:focus-visible {
+    border-color: rgba(0, 212, 255, 0.42);
+    background: rgba(0, 212, 255, 0.11);
+    outline: none;
+}
+
+.stock-snapshot-error {
+    border: 1px solid rgba(248, 113, 113, 0.35);
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.stock-snapshot-error strong,
+.stock-snapshot-error span {
+    display: block;
+}

@@ -1,11 +1,12 @@
 {
   "name": "2330.TW v1 Markdown report",
-  "sha256": "c0a1d207027c5307101dfdb61964e025a7ae019d7334a4b0b2070403e6a967ed",
+  "sha256": "d07762d740cc0c1eaf24c50f94373d660189e5fede8664414f3b0397d929695c",
   "required_markers": [
     "# 2330.TW 台積電 -",
     "## 本報告資料可信度",
     "**資料信心分數:**",
     "**可重現資訊:**",
+    "程式碼狀態：golden123（乾淨）",
     "## 執行邏輯與模型檢查",
     "**模型路由:** golden model route",
     "**Report conformance:** not_recorded",
@@ -23,6 +24,8 @@
     "pipeline_id": "v1",
     "prompt_version": "runtime-rules:golden",
     "model_id": "golden-model",
+    "code_commit": "golden123",
+    "code_dirty": false,
     "data": {
       "data_schema_version": 4,
       "ticker": "2330.TW",

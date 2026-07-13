@@ -5,6 +5,7 @@ from __future__ import annotations
 from html import escape
 
 from data_trust import audit_status_label, source_label
+from mapping_fields import safe_dict_list, safe_int, safe_mapping_dict, safe_sequence_items, safe_text
 
 
 KEY_EVIDENCE_DEFINITIONS = (
@@ -21,76 +22,99 @@ KEY_EVIDENCE_DEFINITIONS = (
 
 
 def _audit_entries_by_source(data: dict) -> dict[str, list[dict]]:
-    entries = data.get("source_audit") if isinstance(data, dict) else []
+    data = safe_mapping_dict(data) or {}
+    entries = safe_dict_list(data.get("source_audit"))
     grouped: dict[str, list[dict]] = {}
-    if not isinstance(entries, list):
-        return grouped
     for entry in entries:
-        if not isinstance(entry, dict) or not entry.get("source"):
+        source = safe_text(entry.get("source")).strip()
+        if not source:
             continue
-        grouped.setdefault(str(entry.get("source")), []).append(entry)
+        grouped.setdefault(source, []).append(entry)
     return grouped
 
 
 def _has_evidence_value(data: dict, keys: tuple[str, ...]) -> bool:
+    data = safe_mapping_dict(data) or {}
     for key in keys:
-        value = data.get(key)
-        if value in (None, "", [], {}):
-            continue
-        return True
+        if _has_usable_evidence_value(data.get(key)):
+            return True
     return False
 
 
+def _has_usable_evidence_value(value) -> bool:
+    if value is None or isinstance(value, (bool, bytes, bytearray, memoryview)):
+        return False
+    if isinstance(value, str):
+        return bool(safe_text(value).strip())
+    if isinstance(value, (list, tuple)):
+        return any(_has_usable_evidence_value(item) for item in safe_sequence_items(value))
+    value_map = safe_mapping_dict(value)
+    if value_map is not None:
+        return any(_has_usable_evidence_value(child) for child in value_map.values())
+    return bool(safe_text(value).strip())
+
+
 def _record_count(entry: dict) -> int:
-    try:
-        return max(0, int(entry.get("record_count") or 0))
-    except (TypeError, ValueError):
-        return 0
+    return max(0, safe_int(entry.get("record_count")))
+
+
+def _safe_bool_flag(value) -> bool:
+    return value if isinstance(value, bool) else False
 
 
 def _source_evidence_entry(data: dict, source: str, keys: tuple[str, ...]) -> dict:
+    data = safe_mapping_dict(data) or {}
     entries = _audit_entries_by_source(data).get(source, [])
     if not entries:
         return {}
     successful = [
         entry for entry in entries
-        if str(entry.get("status") or "") in {"success", "skipped_fresh_cache"}
+        if safe_text(entry.get("status")).strip() in {"success", "skipped_fresh_cache"}
         and _record_count(entry) > 0
     ]
     if _has_evidence_value(data, keys) and successful:
         providers = []
         for entry in successful:
-            provider = str(entry.get("provider") or "").strip()
+            provider = safe_text(entry.get("provider")).strip()
             if provider and provider not in providers:
                 providers.append(provider)
-        fetched_at = next((entry.get("fetched_at") for entry in reversed(successful) if entry.get("fetched_at")), None)
+        fetched_at = next(
+            (
+                text
+                for entry in reversed(successful)
+                if (text := safe_text(entry.get("fetched_at")).strip())
+            ),
+            None,
+        )
         return {
             "provider": " + ".join(providers) if providers else "未記錄",
             "status": "success",
             "fetched_at": fetched_at or "N/A",
             "record_count": sum(_record_count(entry) for entry in successful),
-            "stale": all(bool(entry.get("stale")) for entry in successful),
+            "stale": all(_safe_bool_flag(entry.get("stale")) for entry in successful),
         }
     return entries[-1]
 
 
 def build_key_evidence_rows(data: dict) -> list[dict]:
-    if not isinstance(data, dict):
+    data = safe_mapping_dict(data)
+    if data is None:
         return []
     rows = []
     for label, source, keys in KEY_EVIDENCE_DEFINITIONS:
         if not _has_evidence_value(data, keys):
             continue
         entry = _source_evidence_entry(data, source, keys)
+        status = safe_text(entry.get("status")).strip() or "unknown"
         rows.append({
             "label": label,
             "source_label": source_label(source),
-            "provider": entry.get("provider") or "未記錄",
-            "status": entry.get("status") or "unknown",
-            "status_label": audit_status_label(entry.get("status") or "unknown"),
-            "fetched_at": entry.get("fetched_at") or "N/A",
-            "record_count": entry.get("record_count", "N/A"),
-            "stale": bool(entry.get("stale")),
+            "provider": safe_text(entry.get("provider")).strip() or "未記錄",
+            "status": status,
+            "status_label": audit_status_label(status),
+            "fetched_at": safe_text(entry.get("fetched_at")).strip() or "N/A",
+            "record_count": _record_count(entry),
+            "stale": _safe_bool_flag(entry.get("stale")),
         })
     return rows
 
@@ -129,6 +153,11 @@ def build_key_evidence_html(data: dict) -> str:
     """
 
 
+def _markdown_cell(value) -> str:
+    text = safe_text(value).strip() or "N/A"
+    return text.replace("|", "/").replace("\n", " ")
+
+
 def build_key_evidence_markdown(data: dict) -> list[str]:
     rows = build_key_evidence_rows(data)
     if not rows:
@@ -142,12 +171,12 @@ def build_key_evidence_markdown(data: dict) -> list[str]:
     for row in rows:
         lines.append(
             "| "
-            f"{row['label']} | "
-            f"{row['source_label']} | "
-            f"{row['provider']} | "
-            f"{row['status_label']} | "
-            f"{row['fetched_at']} | "
-            f"{row['record_count']} | "
+            f"{_markdown_cell(row['label'])} | "
+            f"{_markdown_cell(row['source_label'])} | "
+            f"{_markdown_cell(row['provider'])} | "
+            f"{_markdown_cell(row['status_label'])} | "
+            f"{_markdown_cell(row['fetched_at'])} | "
+            f"{_markdown_cell(row['record_count'])} | "
             f"{'是' if row['stale'] else '否'} |"
         )
     lines.append("")

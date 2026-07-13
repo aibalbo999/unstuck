@@ -1,0 +1,67 @@
+/* Stock Snapshot Overview Trend */
+.stock-snapshot-trend {
+    display: grid;
+    grid-template-columns: minmax(120px, 0.8fr) minmax(180px, 1.4fr) minmax(180px, 1fr);
+    align-items: center;
+    gap: 14px;
+    border: 1px solid rgba(0, 212, 255, 0.16);
+    border-radius: 8px;
+    background: rgba(0, 212, 255, 0.045);
+    margin-bottom: 14px;
+    padding: 12px;
+}
+
+.stock-snapshot-trend span,
+.stock-snapshot-trend em {
+    color: var(--text-secondary);
+    display: block;
+    font-size: 0.76rem;
+    font-style: normal;
+    line-height: 1.35;
+}
+
+.stock-snapshot-trend strong {
+    color: var(--text-primary);
+    display: block;
+    font-size: 1.08rem;
+    line-height: 1.25;
+    margin-top: 4px;
+    overflow-wrap: anywhere;
+}
+
+.stock-snapshot-trend-chart {
+    display: block;
+    height: 42px;
+    width: 100%;
+}
+
+.stock-snapshot-trend-chart polyline {
+    fill: none;
+    stroke: var(--accent);
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 3;
+}
+
+.stock-snapshot-trend-returns {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.stock-snapshot-trend-returns span {
+    border-left: 1px solid rgba(255, 255, 255, 0.12);
+    padding-left: 10px;
+}
+
+.stock-snapshot-trend-returns strong {
+    font-size: 0.94rem;
+}
+
+.stock-snapshot-trend-returns .is-positive {
+    color: #86efac;
+}
+
+.stock-snapshot-trend-returns .is-negative {
+    color: #fecaca;
+}

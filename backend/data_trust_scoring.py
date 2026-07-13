@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from data_trust_audit import _safe_bool as safe_bool
 from data_trust_audit import source_record_count, string_list
 from data_trust_constants import (
     AUDIT_STATUS_DEGRADED_ENRICHMENT,
@@ -22,59 +23,59 @@ from data_trust_constants import (
     TRUST_STATUSES,
 )
 from data_trust_sla_policy import apply_provider_sla_to_trust
+from mapping_fields import safe_dict_list, safe_mapping_dict, safe_text
 
 
 CORE_SOURCE_SET = set(CORE_DATA_SOURCES)
 
 
 def trust_status_label(status: str) -> str:
-    return TRUST_STATUS_LABELS.get(str(status or ""), str(status or "unknown"))
+    status_text = _safe_text(status).strip()
+    return TRUST_STATUS_LABELS.get(status_text, status_text or "unknown")
 
 
 def normalize_data_trust(value: Any) -> dict:
-    if not isinstance(value, dict):
+    value_map = safe_mapping_dict(value)
+    if value_map is None:
         return unknown_data_trust()
+    value = value_map
 
-    status = str(value.get("status") or TRUST_STATUS_UNKNOWN)
+    status = _safe_text(dict.get(value, "status")).strip() or TRUST_STATUS_UNKNOWN
     if status not in TRUST_STATUSES:
         status = TRUST_STATUS_UNKNOWN
-    notes = value.get("notes", [])
-    if isinstance(notes, str):
-        notes = [notes]
-    elif not isinstance(notes, list):
-        notes = []
+    notes = string_list(dict.get(value, "notes"))
+    last_market_data_at = _safe_text(dict.get(value, "last_market_data_at")).strip() or None
 
-    score = value.get("score", value.get("trust_score"))
+    score = dict.get(value, "score", dict.get(value, "trust_score"))
     try:
+        if isinstance(score, bool):
+            raise TypeError("boolean score is not numeric evidence")
         score_value = int(round(float(score)))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
         score_value = _score_for_trust(
             status=status,
-            critical_failures=string_list(value.get("critical_failures")),
-            stale_sources=string_list(value.get("stale_sources")),
-            reason_codes=string_list(value.get("reason_codes")),
+            critical_failures=string_list(dict.get(value, "critical_failures")),
+            stale_sources=string_list(dict.get(value, "stale_sources")),
+            reason_codes=string_list(dict.get(value, "reason_codes")),
         )[0]
     normalized = {
         "status": status,
-        "critical_failures": string_list(value.get("critical_failures")),
-        "stale_sources": string_list(value.get("stale_sources")),
-        "last_market_data_at": value.get("last_market_data_at"),
-        "notes": [str(item) for item in notes if str(item).strip()],
-        "reason_codes": string_list(value.get("reason_codes")),
+        "critical_failures": string_list(dict.get(value, "critical_failures")),
+        "stale_sources": string_list(dict.get(value, "stale_sources")),
+        "last_market_data_at": last_market_data_at,
+        "notes": notes,
+        "reason_codes": string_list(dict.get(value, "reason_codes")),
         "score": max(0, min(score_value, 100)),
-        "score_reasons": string_list(value.get("score_reasons")) or _score_for_trust(
+        "score_reasons": string_list(dict.get(value, "score_reasons")) or _score_for_trust(
             status=status,
-            critical_failures=string_list(value.get("critical_failures")),
-            stale_sources=string_list(value.get("stale_sources")),
-            reason_codes=string_list(value.get("reason_codes")),
+            critical_failures=string_list(dict.get(value, "critical_failures")),
+            stale_sources=string_list(dict.get(value, "stale_sources")),
+            reason_codes=string_list(dict.get(value, "reason_codes")),
         )[1],
     }
-    alerts = value.get("provider_sla_alerts")
-    if isinstance(alerts, list):
-        normalized["provider_sla_alerts"] = [
-            item for item in alerts
-            if isinstance(item, dict)
-        ][:10]
+    alerts = dict.get(value, "provider_sla_alerts")
+    if isinstance(alerts, (list, tuple)):
+        normalized["provider_sla_alerts"] = safe_dict_list(alerts)[:10]
     return normalized
 
 
@@ -92,11 +93,12 @@ def unknown_data_trust() -> dict:
 
 
 def build_data_trust(data: dict) -> dict:
-    if not isinstance(data, dict):
+    source_data = safe_mapping_dict(data)
+    if source_data is None:
         return unknown_data_trust()
 
-    source_freshness = data.get("source_freshness") if isinstance(data.get("source_freshness"), dict) else {}
-    audit_entries = data.get("source_audit") if isinstance(data.get("source_audit"), list) else []
+    source_freshness = _safe_mapping_children(dict.get(source_data, "source_freshness"))
+    audit_entries = safe_dict_list(dict.get(source_data, "source_audit"))
     if not source_freshness and not audit_entries:
         return unknown_data_trust()
 
@@ -104,24 +106,24 @@ def build_data_trust(data: dict) -> dict:
     critical_failures = [
         source
         for source in CRITICAL_TRUST_SOURCES
-        if latest_audit.get(source, {}).get("status") == AUDIT_STATUS_ERROR
+        if _audit_status(dict.get(latest_audit, source)) == AUDIT_STATUS_ERROR
     ]
     core_failures = [
         source
         for source in CORE_DATA_SOURCES
-        if latest_audit.get(source, {}).get("status") == AUDIT_STATUS_ERROR
+        if _audit_status(dict.get(latest_audit, source)) == AUDIT_STATUS_ERROR
     ]
     stale_sources = stale_sources_from(source_freshness, latest_audit)
     optional_stale_sources = optional_stale_sources_from(source_freshness, latest_audit)
     latest_error_sources = sorted(
         source
         for source, entry in latest_audit.items()
-        if isinstance(entry, dict) and entry.get("status") == AUDIT_STATUS_ERROR
+        if _audit_status(entry) == AUDIT_STATUS_ERROR
     )
     error_sources = [source for source in latest_error_sources if is_core_source(source)]
     optional_error_sources = [source for source in latest_error_sources if not is_core_source(source)]
 
-    if critical_failures and not has_usable_critical_data(data, latest_audit):
+    if critical_failures and not has_usable_critical_data(source_data, latest_audit):
         status = TRUST_STATUS_ERROR
         notes = ["核心市場或財報來源失敗，且沒有足夠可用資料。"]
         reason_codes = ["critical_sources_error", "missing_usable_critical_data"]
@@ -153,26 +155,53 @@ def build_data_trust(data: dict) -> dict:
         notes.append("補充來源異常，核心市場與財報資料仍按既有可信度處理。")
         reason_codes.extend(f"optional_source_error:{source}" for source in optional_error_sources)
 
-    if data.get("data_source_notes"):
+    if _data_source_notes(dict.get(source_data, "data_source_notes")):
         notes.append("另有資料口徑或備援補值註記，詳見報告參考資料區。")
         reason_codes.append("data_source_notes_present")
 
-    trust = apply_provider_sla_to_trust(
-        data,
-        {
-            "status": status,
-            "critical_failures": core_failures,
-            "stale_sources": stale_sources,
-            "last_market_data_at": last_market_data_at(data, source_freshness, latest_audit),
-            "notes": notes,
-            "reason_codes": reason_codes,
-        },
-    )
+    base_trust = {
+        "status": status,
+        "critical_failures": core_failures,
+        "stale_sources": stale_sources,
+        "last_market_data_at": last_market_data_at(source_data, source_freshness, latest_audit),
+        "notes": notes,
+        "reason_codes": reason_codes,
+    }
+    provider_sla_trust = {
+        **base_trust,
+        "critical_failures": list(core_failures),
+        "stale_sources": list(stale_sources),
+        "notes": list(notes),
+        "reason_codes": list(reason_codes),
+    }
+    try:
+        trust = safe_mapping_dict(apply_provider_sla_to_trust(source_data, provider_sla_trust)) or dict(base_trust)
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
+        trust = dict(base_trust)
+    status_text = _safe_text(dict.get(trust, "status")).strip() or TRUST_STATUS_UNKNOWN
+    if status_text not in TRUST_STATUSES:
+        status_text = TRUST_STATUS_UNKNOWN
+    trust["status"] = status_text
+    critical_failure_list = string_list(dict.get(trust, "critical_failures"))
+    stale_source_list = string_list(dict.get(trust, "stale_sources"))
+    note_list = string_list(dict.get(trust, "notes"))
+    reason_code_list = string_list(dict.get(trust, "reason_codes"))
+    trust["critical_failures"] = critical_failure_list
+    trust["stale_sources"] = stale_source_list
+    trust["notes"] = note_list
+    trust["reason_codes"] = reason_code_list
+    last_market_data_at_text = _safe_text(dict.get(trust, "last_market_data_at")).strip() or None
+    trust["last_market_data_at"] = last_market_data_at_text
+    provider_sla_alert_rows = safe_dict_list(dict.get(trust, "provider_sla_alerts"))[:10]
+    if provider_sla_alert_rows:
+        trust["provider_sla_alerts"] = provider_sla_alert_rows
+    else:
+        trust.pop("provider_sla_alerts", None)
     score, score_reasons = _score_for_trust(
-        status=str(trust.get("status") or TRUST_STATUS_UNKNOWN),
-        critical_failures=string_list(trust.get("critical_failures")),
-        stale_sources=string_list(trust.get("stale_sources")),
-        reason_codes=string_list(trust.get("reason_codes")),
+        status=status_text,
+        critical_failures=critical_failure_list,
+        stale_sources=stale_source_list,
+        reason_codes=reason_code_list,
     )
     trust["score"] = score
     trust["score_reasons"] = score_reasons
@@ -188,11 +217,12 @@ def finalize_data_trust(data: dict) -> dict:
 def latest_audit_by_source(entries: list) -> dict:
     latest = {}
     for entry in entries:
-        if not isinstance(entry, dict):
+        entry_map = safe_mapping_dict(entry)
+        if entry_map is None:
             continue
-        source = str(entry.get("source") or "")
+        source = _safe_text(dict.get(entry_map, "source")).strip()
         if source:
-            latest[source] = entry
+            latest[source] = entry_map
     return latest
 
 
@@ -207,49 +237,100 @@ def optional_stale_sources_from(source_freshness: dict, latest_audit: dict) -> l
 def _stale_sources_from(source_freshness: dict, latest_audit: dict, *, core_only: bool) -> list[str]:
     sources = set()
     for source, entry in source_freshness.items():
-        source_name = str(source or "")
-        if source_name and isinstance(entry, dict) and entry.get("stale") and is_core_source(source_name) == core_only:
+        source_name = _safe_text(source).strip()
+        entry_map = safe_mapping_dict(entry)
+        if (
+            source_name
+            and entry_map is not None
+            and safe_bool(dict.get(entry_map, "stale"))
+            and is_core_source(source_name) == core_only
+        ):
             sources.add(source_name)
     for source, entry in latest_audit.items():
-        source_name = str(source or "")
-        if source_name and isinstance(entry, dict) and entry.get("stale") and is_core_source(source_name) == core_only:
+        source_name = _safe_text(source).strip()
+        entry_map = safe_mapping_dict(entry)
+        if (
+            source_name
+            and entry_map is not None
+            and safe_bool(dict.get(entry_map, "stale"))
+            and is_core_source(source_name) == core_only
+        ):
             sources.add(source_name)
     return sorted(sources)
 
 
 def is_core_source(source: str) -> bool:
-    return str(source or "") in CORE_SOURCE_SET
+    return _safe_text(source).strip() in CORE_SOURCE_SET
 
 
 def optional_sources_with_status(latest_audit: dict, status: str) -> list[str]:
+    audit = safe_mapping_dict(latest_audit) or {}
+    status_text = _safe_text(status).strip()
     return sorted(
-        source
-        for source, entry in latest_audit.items()
-        if not is_core_source(source)
-        and isinstance(entry, dict)
-        and entry.get("status") == status
+        source_name
+        for source, entry in audit.items()
+        if (source_name := _safe_text(source).strip())
+        and not is_core_source(source_name)
+        and _audit_status(entry) == status_text
     )
 
 
 def last_market_data_at(data: dict, source_freshness: dict, latest_audit: dict) -> Optional[str]:
-    market = source_freshness.get("market_data") if isinstance(source_freshness.get("market_data"), dict) else {}
-    return (
-        market.get("fetched_at")
-        or data.get("market_data_fetched_at")
-        or latest_audit.get("market_data", {}).get("fetched_at")
-    )
+    source_data = safe_mapping_dict(data) or {}
+    freshness = safe_mapping_dict(source_freshness) or {}
+    audit = safe_mapping_dict(latest_audit) or {}
+    market = safe_mapping_dict(dict.get(freshness, "market_data")) or {}
+    market_audit = safe_mapping_dict(dict.get(audit, "market_data")) or {}
+    for candidate in (
+        dict.get(market, "fetched_at"),
+        dict.get(source_data, "market_data_fetched_at"),
+        dict.get(market_audit, "fetched_at"),
+    ):
+        timestamp = _safe_text(candidate).strip()
+        if timestamp:
+            return timestamp
+    return None
+
+
+def _safe_text(value: Any) -> str:
+    return safe_text(value)
+
+
+def _safe_mapping_children(value: Any) -> dict:
+    rows = safe_mapping_dict(value) or {}
+    normalized = {}
+    for key, child in rows.items():
+        child_map = safe_mapping_dict(child)
+        if child_map is not None:
+            normalized[key] = child_map
+    return normalized
+
+
+def _data_source_notes(value: Any) -> list[str]:
+    if not isinstance(value, (str, list, tuple)):
+        return []
+    return string_list(value)
+
+
+def _audit_status(entry: Any) -> str:
+    entry_map = safe_mapping_dict(entry)
+    if entry_map is None:
+        return ""
+    return _safe_text(dict.get(entry_map, "status")).strip()
 
 
 def has_usable_critical_data(data: dict, latest_audit: dict) -> bool:
-    market_entry = latest_audit.get("market_data", {})
-    financial_entry = latest_audit.get("financial_statements", {})
+    source_data = safe_mapping_dict(data) or {}
+    audit = safe_mapping_dict(latest_audit) or {}
+    market_status = _audit_status(dict.get(audit, "market_data"))
+    financial_status = _audit_status(dict.get(audit, "financial_statements"))
     market_ok = (
-        market_entry.get("status") in {AUDIT_STATUS_SUCCESS, AUDIT_STATUS_SKIPPED_FRESH_CACHE}
-        or source_record_count("market_data", data) > 0
+        market_status in {AUDIT_STATUS_SUCCESS, AUDIT_STATUS_SKIPPED_FRESH_CACHE}
+        or source_record_count("market_data", source_data) > 0
     )
     financial_ok = (
-        financial_entry.get("status") in {AUDIT_STATUS_SUCCESS, AUDIT_STATUS_SKIPPED_FRESH_CACHE}
-        or source_record_count("financial_statements", data) > 0
+        financial_status in {AUDIT_STATUS_SUCCESS, AUDIT_STATUS_SKIPPED_FRESH_CACHE}
+        or source_record_count("financial_statements", source_data) > 0
     )
     return market_ok and financial_ok
 

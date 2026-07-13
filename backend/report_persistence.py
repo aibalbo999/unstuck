@@ -7,7 +7,7 @@ import os
 from dataclasses import dataclass
 from typing import Any
 
-from data_trust import data_snapshot_filename_for_report
+from data_trust import data_snapshot_filename_for_report, sanitize_for_snapshot
 from report_paths import report_markdown_filename_for_report, report_storage_key_for_filename
 from report_repository import DEFAULT_REPORT_REPOSITORY, ReportRepository
 from storage.report_storage import ReportStorage
@@ -58,7 +58,11 @@ def persist_report_bundle(
     """Save report content first, then index metadata after all content is durable."""
 
     keys = report_bundle_keys_for_filename(filename)
-    data_bytes = json.dumps(data_snapshot, ensure_ascii=False, indent=2).encode("utf-8")
+    data_snapshot_payload = sanitize_for_snapshot(data_snapshot)
+    if not isinstance(data_snapshot_payload, dict):
+        data_snapshot_payload = {}
+    data_trust = data_snapshot_payload.get("data_trust")
+    data_bytes = json.dumps(data_snapshot_payload, ensure_ascii=False, indent=2).encode("utf-8")
     saved_keys: list[str] = []
 
     try:
@@ -82,7 +86,7 @@ def persist_report_bundle(
             output_dir=output_dir,
             html_content=html_content,
             markdown_content=markdown_content,
-            data_trust=data_snapshot.get("data_trust") if isinstance(data_snapshot, dict) else None,
+            data_trust=data_trust,
         )
     except Exception:
         for saved_key in reversed(saved_keys):
@@ -98,7 +102,7 @@ def persist_report_bundle(
         "html_key": keys.html_key,
         "md_key": keys.md_key,
         "data_key": keys.data_key,
-        "data_trust": data_snapshot.get("data_trust") if isinstance(data_snapshot, dict) else None,
+        "data_trust": data_trust,
         "metadata": metadata or {},
     }
 

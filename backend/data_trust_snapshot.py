@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Optional
 
@@ -16,30 +17,60 @@ from data_trust_constants import (
     SNAPSHOT_TRIMMABLE_LIST_FIELDS,
     SUPPORTED_DATA_SNAPSHOT_SCHEMA_VERSIONS,
 )
+from data_trust_snapshot_mapping import hashable_snapshot_value as _hashable_snapshot_value, mapping_get, mapping_has_key
 from data_trust_scoring import build_data_trust, normalize_data_trust, unknown_data_trust
-from report_reproducibility import build_data_confidence_controls, build_reproducibility_packet
+from mapping_fields import (
+    safe_text,
+    safe_mapping_dict,
+    safe_mapping_items as _safe_mapping_items,
+    safe_sequence_items as _safe_sequence_items,
+)
+from report_reproducibility import build_data_confidence_controls, build_reproducibility_packet, validated_prompt_fingerprint
 
 
 def sanitize_for_snapshot(value: Any) -> Any:
-    if isinstance(value, dict):
+    if isinstance(value, Mapping):
         clean = {}
-        for key, item in value.items():
-            key_str = str(key)
+        for key, item in _safe_mapping_items(value):
+            key_str = _safe_text(key)
+            if not key_str:
+                continue
+            if key_str == "prompt_fingerprint":
+                if fingerprint := validated_prompt_fingerprint(item):
+                    clean[key_str] = fingerprint
+                continue
             if key_str.startswith("_") or (key_str != "prompt_version" and SENSITIVE_KEY_RE.search(key_str)):
                 continue
             clean[key_str] = sanitize_for_snapshot(item)
         return clean
-    if isinstance(value, list):
-        return [sanitize_for_snapshot(item) for item in value]
-    if isinstance(value, tuple):
-        return [sanitize_for_snapshot(item) for item in value]
+    if isinstance(value, (list, tuple)):
+        return [sanitize_for_snapshot(item) for item in _safe_sequence_items(value)]
     if isinstance(value, (str, int, float, bool)) or value is None:
         return value
-    return str(value)
+    return _safe_text(value)
+
+
+def _safe_bool(value: Any) -> bool:
+    try:
+        return bool(value)
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
+        return False
+
+
+def _safe_text(value: Any) -> str:
+    return safe_text(value)
+
+
+def _first_text(*values: Any, default: str = "") -> str:
+    for value in values:
+        text = _safe_text(value)
+        if text != "":
+            return text
+    return default
 
 
 def snapshot_text(value: Any, *, max_chars: int = SNAPSHOT_RERUN_ANALYSIS_MAX_CHARS) -> str:
-    text = str(value or "")
+    text = _safe_text(value)
     if len(text) <= max_chars:
         return text
     return text[:max_chars] + "\n[Snapshot truncated for size]"
@@ -50,20 +81,23 @@ def sanitize_rerun_context(context: dict) -> dict:
         return {"analyses": {}, "structured_outputs": {}, "parsed": {}}
 
     analyses = {}
-    raw_analyses = context.get("analyses", {})
+    raw_analyses = dict.get(context, "analyses", {})
     if isinstance(raw_analyses, dict):
         for agent_num, text in raw_analyses.items():
             if text is None:
                 continue
-            analyses[str(agent_num)] = snapshot_text(text)
+            agent_key = _safe_text(agent_num)
+            if not agent_key:
+                continue
+            analyses[agent_key] = snapshot_text(text)
 
     return sanitize_for_snapshot({
         "analyses": analyses,
-        "structured_outputs": context.get("structured_outputs", {}),
-        "parsed": context.get("parsed", {}),
-        "pipeline_id": context.get("pipeline_id"),
-        "pipeline_label": context.get("pipeline_label"),
-        "agent_sequence": context.get("agent_sequence"),
+        "structured_outputs": dict.get(context, "structured_outputs", {}),
+        "parsed": dict.get(context, "parsed", {}),
+        "pipeline_id": dict.get(context, "pipeline_id"),
+        "pipeline_label": dict.get(context, "pipeline_label"),
+        "agent_sequence": dict.get(context, "agent_sequence"),
     })
 
 
@@ -73,10 +107,24 @@ def build_data_snapshot(
     generated_at: Optional[str] = None,
     max_bytes: Optional[int] = None,
 ) -> dict:
-    data = context.get("data", {}) if isinstance(context, dict) else {}
-    if not isinstance(data, dict):
+    context_map = safe_mapping_dict(context)
+    if context_map is None:
+        context = {}
+    else:
+        context = context_map
+    data = dict.get(context, "data", {}) if isinstance(context, dict) else {}
+    data_map = safe_mapping_dict(data)
+    if data_map is None:
         data = {}
-    data_trust = normalize_data_trust(data.get("data_trust")) if data.get("data_trust") else build_data_trust(data)
+    else:
+        data = data_map
+    existing_data_trust = dict.get(data, "data_trust")
+    existing_data_trust_map = safe_mapping_dict(existing_data_trust)
+    data_trust = (
+        normalize_data_trust(existing_data_trust_map)
+        if existing_data_trust_map is not None
+        else build_data_trust(data)
+    )
     try:
         from reporting.evidence_matrix import build_evidence_matrix_rows
 
@@ -91,20 +139,28 @@ def build_data_snapshot(
         "snapshot_size_bytes": 0,
         "snapshot_omitted_sections": [],
         "snapshot_migrated_from_legacy": False,
-        "ticker": context.get("ticker") or data.get("ticker"),
-        "company_name": context.get("company_name") or data.get("company_name"),
-        "pipeline": pipeline_id or context.get("pipeline_id"),
+        "ticker": _first_text(dict.get(context, "ticker"), dict.get(data, "ticker")),
+        "company_name": _first_text(dict.get(context, "company_name"), dict.get(data, "company_name")),
+        "pipeline": _first_text(pipeline_id, dict.get(context, "pipeline_id"), dict.get(data, "pipeline_id")),
         "generated_at": snapshot_generated_at,
-        "conclusion_generated_at": sanitize_for_snapshot(context.get("conclusion_generated_at") or snapshot_generated_at),
-        "snapshot_refreshed_at": sanitize_for_snapshot(context.get("snapshot_refreshed_at", "")),
-        "decision_validity_status": sanitize_for_snapshot(context.get("decision_validity_status") or "current"),
-        "requires_rerun_reason": sanitize_for_snapshot(context.get("requires_rerun_reason", "")),
-        "refreshed_from_report": sanitize_for_snapshot(context.get("refreshed_from_report", "")),
-        "refreshed_without_analysis_rerun": bool(context.get("refreshed_without_analysis_rerun")),
-        "analysis_text_stale_message": sanitize_for_snapshot(context.get("analysis_text_stale_message", "")),
-        "data_schema_version": data.get("data_schema_version"),
-        "source_freshness": sanitize_for_snapshot(data.get("source_freshness", {})),
-        "source_audit": sanitize_for_snapshot(data.get("source_audit", [])),
+        "conclusion_generated_at": sanitize_for_snapshot(
+            dict.get(context, "conclusion_generated_at") or snapshot_generated_at
+        ),
+        "snapshot_refreshed_at": sanitize_for_snapshot(dict.get(context, "snapshot_refreshed_at", "")),
+        "decision_validity_status": sanitize_for_snapshot(
+            dict.get(context, "decision_validity_status") or "current"
+        ),
+        "requires_rerun_reason": sanitize_for_snapshot(dict.get(context, "requires_rerun_reason", "")),
+        "refreshed_from_report": sanitize_for_snapshot(dict.get(context, "refreshed_from_report", "")),
+        "refreshed_without_analysis_rerun": _safe_bool(
+            dict.get(context, "refreshed_without_analysis_rerun")
+        ),
+        "analysis_text_stale_message": sanitize_for_snapshot(
+            dict.get(context, "analysis_text_stale_message", "")
+        ),
+        "data_schema_version": dict.get(data, "data_schema_version"),
+        "source_freshness": sanitize_for_snapshot(dict.get(data, "source_freshness", {})),
+        "source_audit": sanitize_for_snapshot(dict.get(data, "source_audit", [])),
         "data_trust": data_trust,
         "data_confidence_score": confidence_controls["data_confidence_score"],
         "data_confidence_status": confidence_controls["data_confidence_status"],
@@ -113,10 +169,11 @@ def build_data_snapshot(
             build_reproducibility_packet(context, data_trust, snapshot_generated_at)
         ),
         "evidence_matrix": sanitize_for_snapshot(evidence_matrix),
-        "data_source_notes": sanitize_for_snapshot(data.get("data_source_notes", [])),
-        "deterministic_fallbacks": sanitize_for_snapshot(context.get("deterministic_fallbacks", [])),
-        "report_lint": sanitize_for_snapshot(context.get("report_lint", {})),
-        "report_conformance": sanitize_for_snapshot(context.get("report_conformance", {})),
+        "data_source_notes": sanitize_for_snapshot(dict.get(data, "data_source_notes", [])),
+        "deterministic_fallbacks": sanitize_for_snapshot(dict.get(context, "deterministic_fallbacks", [])),
+        "report_lint": sanitize_for_snapshot(dict.get(context, "report_lint", {})),
+        "content_credibility": sanitize_for_snapshot(dict.get(context, "content_credibility", {})),
+        "report_conformance": sanitize_for_snapshot(dict.get(context, "report_conformance", {})),
         "rerun_context": sanitize_rerun_context(context),
         "data": sanitize_for_snapshot(data),
     }
@@ -124,26 +181,22 @@ def build_data_snapshot(
 
 
 def snapshot_size_bytes(snapshot: dict) -> int:
-    return len(json.dumps(snapshot, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+    return len(
+        json.dumps(sanitize_for_snapshot(snapshot), ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    )
 
 
-def snapshot_content_hash(snapshot: dict) -> str:
-    if not isinstance(snapshot, dict):
+def snapshot_content_hash(snapshot: Mapping) -> str:
+    if not isinstance(snapshot, Mapping):
         return ""
-    stable = {
-        key: _hashable_snapshot_value(key, value) for key, value in snapshot.items()
-        if key not in {"snapshot_hash", "content_hash", "snapshot_size_bytes"}
-    }
+    stable = {}
+    for key, value in _safe_mapping_items(snapshot):
+        key_str = _safe_text(key)
+        if not key_str or key_str in {"snapshot_hash", "content_hash", "snapshot_size_bytes"}:
+            continue
+        stable[key_str] = _hashable_snapshot_value(key_str, value)
     encoded = json.dumps(stable, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
-
-
-def _hashable_snapshot_value(key: str, value: Any) -> Any:
-    if key == "reproducibility_packet" and isinstance(value, dict):
-        packet = dict(value)
-        packet.pop("data_snapshot_hash", None)
-        return packet
-    return value
 
 
 def set_snapshot_integrity(snapshot: dict) -> dict:
@@ -157,9 +210,11 @@ def set_snapshot_integrity(snapshot: dict) -> dict:
 
 
 def verify_data_snapshot_integrity(snapshot: Any) -> dict:
-    if not isinstance(snapshot, dict):
+    if not isinstance(snapshot, Mapping):
         return {"valid": False, "hash": "", "expected_hash": "", "errors": ["snapshot must be an object"]}
-    expected = str(snapshot.get("snapshot_hash") or snapshot.get("content_hash") or "")
+    expected = _safe_text(mapping_get(snapshot, "snapshot_hash")).strip()
+    if not expected:
+        expected = _safe_text(mapping_get(snapshot, "content_hash")).strip()
     if not expected:
         return {"valid": True, "hash": "", "expected_hash": "", "errors": []}
     actual = snapshot_content_hash(snapshot)
@@ -183,9 +238,10 @@ def set_stable_snapshot_size(snapshot: dict) -> dict:
 
 def validate_data_snapshot(snapshot: Any) -> dict:
     errors = []
-    if not isinstance(snapshot, dict):
+    if not isinstance(snapshot, Mapping):
         return {"valid": False, "errors": ["snapshot must be an object"]}
-    if snapshot.get("snapshot_schema_version") not in SUPPORTED_DATA_SNAPSHOT_SCHEMA_VERSIONS:
+    schema_version = mapping_get(snapshot, "snapshot_schema_version")
+    if schema_version not in SUPPORTED_DATA_SNAPSHOT_SCHEMA_VERSIONS:
         errors.append("unsupported snapshot_schema_version")
     required_keys = [
         "ticker",
@@ -197,21 +253,21 @@ def validate_data_snapshot(snapshot: Any) -> dict:
         "data_trust",
         "data",
     ]
-    if snapshot.get("snapshot_schema_version") == DATA_SNAPSHOT_SCHEMA_VERSION:
+    if schema_version == DATA_SNAPSHOT_SCHEMA_VERSION:
         required_keys.extend([
             "data_confidence_score",
             "conclusion_guardrails",
             "reproducibility_packet",
         ])
     for key in required_keys:
-        if key not in snapshot:
+        if not mapping_has_key(snapshot, key):
             errors.append(f"missing {key}")
-    if not isinstance(snapshot.get("source_audit", []), list):
+    if not isinstance(mapping_get(snapshot, "source_audit", []), list):
         errors.append("source_audit must be a list")
-    if not isinstance(snapshot.get("data_trust", {}), dict):
+    if not isinstance(mapping_get(snapshot, "data_trust", {}), Mapping):
         errors.append("data_trust must be an object")
     integrity = verify_data_snapshot_integrity(snapshot)
-    errors.extend(integrity.get("errors", []))
+    errors.extend(dict.get(integrity, "errors", []))
     return {"valid": not errors, "errors": errors}
 
 
@@ -223,7 +279,7 @@ def apply_snapshot_size_governance(snapshot: dict, max_bytes: Optional[int] = No
     except Exception:
         limit = int(max_bytes or 2 * 1024 * 1024)
 
-    governed = json.loads(json.dumps(snapshot, ensure_ascii=False, default=str))
+    governed = json.loads(json.dumps(sanitize_for_snapshot(snapshot), ensure_ascii=False, default=str))
     governed["snapshot_truncated"] = False
     governed["snapshot_omitted_sections"] = []
     governed["snapshot_size_bytes"] = 0
@@ -255,7 +311,7 @@ def apply_snapshot_size_governance(snapshot: dict, max_bytes: Optional[int] = No
         shortened = {}
         omitted_chars = 0
         for agent_num, text in analyses.items():
-            text_value = str(text or "")
+            text_value = _safe_text(text)
             shortened_text = snapshot_text(text_value, max_chars=2000)
             omitted_chars += max(0, len(text_value) - len(shortened_text))
             shortened[str(agent_num)] = shortened_text

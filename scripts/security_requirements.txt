@@ -1,0 +1,2 @@
+# Hash-lock source for the CI vulnerability scanner.
+pip-audit==2.10.1

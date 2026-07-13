@@ -1,5 +1,5 @@
 (function () {
-    const tabButtons = () => Array.from(document.querySelectorAll('[data-home-tab]'));
+    const tabButtons = (root = document) => Array.from(root.querySelectorAll('[data-home-tab]'));
 
     function activate(tabName, options = {}) {
         tabButtons().forEach(button => {
@@ -22,7 +22,8 @@
     }
 
     function activateNextTab(currentButton, direction, options) {
-        const buttons = tabButtons();
+        const tablist = currentButton.closest('[role="tablist"]');
+        const buttons = tabButtons(tablist || document);
         const index = buttons.indexOf(currentButton);
         if (index >= 0) focusButton(buttons[(index + direction + buttons.length) % buttons.length], options);
     }
@@ -37,7 +38,8 @@
                     event.preventDefault();
                     activateNextTab(button, moves[event.key], options);
                 } else if (event.key === 'Home' || event.key === 'End') {
-                    const buttons = tabButtons();
+                    const tablist = button.closest('[role="tablist"]');
+                    const buttons = tabButtons(tablist || document);
                     event.preventDefault();
                     focusButton(buttons[event.key === 'Home' ? 0 : buttons.length - 1], options);
                 }

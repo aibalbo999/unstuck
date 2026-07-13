@@ -1,0 +1,70 @@
+.stock-snapshot-analyst {
+    border: 1px solid rgba(244, 114, 182, 0.16);
+    border-radius: 8px;
+    background: rgba(80, 7, 36, 0.14);
+    margin-bottom: 14px;
+    padding: 12px;
+}
+
+.stock-snapshot-analyst-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.stock-snapshot-analyst-header strong {
+    color: var(--text-primary);
+    display: block;
+    font-size: 1rem;
+    line-height: 1.3;
+    margin-top: 2px;
+}
+
+.stock-snapshot-analyst-header div:last-child {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.stock-snapshot-analyst-header em {
+    border: 1px solid rgba(244, 114, 182, 0.24);
+    border-radius: 999px;
+    background: rgba(244, 114, 182, 0.08);
+    color: #fbcfe8;
+    font-size: 0.75rem;
+    font-style: normal;
+    font-weight: 800;
+    padding: 4px 8px;
+}
+
+.stock-snapshot-analyst-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.stock-snapshot-analyst-grid div {
+    min-height: 82px;
+    border-top: 1px solid rgba(255, 255, 255, 0.09);
+    padding-top: 10px;
+}
+
+.stock-snapshot-analyst-grid span,
+.stock-snapshot-analyst-grid em {
+    display: block;
+    font-size: 0.76rem;
+    font-style: normal;
+    line-height: 1.35;
+}
+
+.stock-snapshot-analyst-grid strong {
+    color: var(--text-primary);
+    display: block;
+    font-size: 1rem;
+    line-height: 1.25;
+    margin: 6px 0;
+    overflow-wrap: anywhere;
+}

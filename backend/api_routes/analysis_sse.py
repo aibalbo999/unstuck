@@ -4,10 +4,15 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import Request
+
+from data_trust import sanitize_for_snapshot
+from mapping_fields import safe_int, safe_mapping_dict, safe_sequence_items, safe_text
 
 
 INITIAL_SSE_POLL_INTERVAL_SECONDS = 0.5
@@ -43,28 +48,108 @@ async def analysis_event_generator(
                 await asyncio.to_thread(deps.request_job_cancel, job_id, "SSE 客戶端斷線，已要求取消分析任務。")
             break
 
-        events = await asyncio.to_thread(deps.get_events_since, job_id, last_sent_event_id)
+        events = _event_rows(await asyncio.to_thread(deps.get_events_since, job_id, last_sent_event_id))
+        replay_advanced = False
         for event in events:
             if await request.is_disconnected():
                 terminal_sent = True
                 break
-            last_sent_event_id = event["id"]
-            payload = event["payload"]
+            event_row = safe_mapping_dict(event)
+            event_id = replay_event_id(event_row.get("id")) if event_row is not None else 0
+            if event_row is None or event_id <= 0:
+                payload = {
+                    "type": "status",
+                    "level": "warning",
+                    "message": "略過格式異常的分析任務事件",
+                    "job_id": job_id,
+                }
+                deps.print_streamed_event(job_id, payload)
+                yield {"data": json.dumps(payload, ensure_ascii=False)}
+                continue
+            last_sent_event_id = event_id
+            replay_advanced = True
+            payload = safe_mapping_dict(event_row.get("payload"))
+            if payload is None:
+                payload = {
+                    "type": "status",
+                    "level": "warning",
+                    "message": "略過格式異常的分析任務事件",
+                    "job_id": job_id,
+                }
+            else:
+                payload_type = replay_payload_type(payload.get("type"))
+                if not payload_type:
+                    payload = {
+                        "type": "status",
+                        "level": "warning",
+                        "message": "略過格式異常的分析任務事件",
+                        "job_id": job_id,
+                    }
+                else:
+                    payload = {**payload, "type": payload_type}
+                    if "message" in payload:
+                        payload["message"] = replay_text_field(payload.get("message"))
+                    for text_field in ("phase", "level"):
+                        if text_field in payload:
+                            payload[text_field] = replay_text_field(payload.get(text_field))
+                    for text_field in ("filename", "md_filename", "data_filename", "pipeline_id", "last_pipeline_id", "thread_id"):
+                        if text_field in payload:
+                            payload[text_field] = replay_text_field(payload.get(text_field))
+                    for text_field in ("name", "detail", "pipeline_label"):
+                        if text_field in payload:
+                            payload[text_field] = replay_text_field(payload.get(text_field))
+                    for text_field in ("node_name", "model", "status", "error"):
+                        if text_field in payload:
+                            payload[text_field] = replay_text_field(payload.get(text_field))
+                    for count_field in (
+                        "current",
+                        "total",
+                        "agent_num",
+                        "pipeline_current",
+                        "pipeline_total",
+                        "pipeline_index",
+                        "agent_total",
+                        "agent_offset",
+                    ):
+                        if count_field in payload:
+                            payload[count_field] = replay_count_field(payload.get(count_field))
+                    if "latency_ms" in payload:
+                        payload["latency_ms"] = replay_float_field(payload.get("latency_ms"))
+                    if "retry_count" in payload:
+                        payload["retry_count"] = replay_count_field(payload.get("retry_count"))
+                    if "quality_gate_pass" in payload:
+                        payload["quality_gate_pass"] = replay_bool_field(payload.get("quality_gate_pass"))
+                    for structured_field in ("metadata", "data_trust", "audit", "filenames", "reports", "pipeline_sequence"):
+                        if structured_field in payload:
+                            payload[structured_field] = sanitize_for_snapshot(payload.get(structured_field))
             deps.print_streamed_event(job_id, payload)
-            yield {"id": str(event["id"]), "data": json.dumps(payload, ensure_ascii=False)}
+            yield {"id": str(event_id), "data": json.dumps(payload, ensure_ascii=False)}
             if payload.get("type") in ["done", "error"]:
                 terminal_sent = True
                 break
 
         if terminal_sent:
             break
-        if events:
+        if replay_advanced:
             poll_interval = next_sse_poll_interval(had_events=True, current_interval=poll_interval)
             continue
 
         job = await asyncio.to_thread(deps.get_job, job_id)
-        if job.get("status") in ["done", "error", "cancelled"]:
-            payload = terminal_payload_for_job(deps, job)
+        job_row = safe_mapping_dict(job)
+        if not job_row:
+            payload = {
+                "type": "error",
+                "phase": "missing_job",
+                "message": "找不到分析任務",
+            }
+            if await asyncio.to_thread(persist_terminal_event_if_missing, deps, job_id, payload):
+                continue
+            yield {"data": json.dumps(payload, ensure_ascii=False)}
+            break
+
+        job_status = safe_text(job_row.get("status")).strip()
+        if job_status in ["done", "error", "cancelled"]:
+            payload = terminal_payload_for_job(deps, job_row)
             if await asyncio.to_thread(persist_terminal_event_if_missing, deps, job_id, payload):
                 continue
             yield {"data": json.dumps(payload, ensure_ascii=False)}
@@ -78,57 +163,142 @@ async def analysis_event_generator(
 
 
 def terminal_payload_for_job(deps: Any, job: dict) -> dict:
-    status = job.get("status")
-    pipeline_id = job.get("pipeline_id", "v1")
+    status = safe_text(job.get("status")).strip()
+    pipeline_id = safe_text(job.get("pipeline_id")).strip() or "v1"
     if status == "done":
         sequence = deps.get_pipeline_run_sequence(pipeline_id)
+        pipeline_sequence = [
+            text
+            for item in (sequence or ())
+            if (text := safe_text(item).strip())
+        ]
         return {
             "type": "done",
-            "filename": job.get("filename"),
+            "filename": safe_text(job.get("filename")).strip() or None,
             "pipeline_id": pipeline_id,
-            "last_pipeline_id": sequence[-1] if sequence else pipeline_id,
+            "last_pipeline_id": pipeline_sequence[-1] if pipeline_sequence else pipeline_id,
         }
     if status == "cancelled":
-        return {"type": "error", "phase": "cancelled", "message": job.get("error", "分析任務已取消")}
-    return {"type": "error", "message": job.get("error", "分析任務失敗")}
+        message = safe_text(job.get("error")).strip() or "分析任務已取消"
+        return {"type": "error", "phase": "cancelled", "message": message}
+    message = safe_text(job.get("error")).strip() or "分析任務失敗"
+    return {"type": "error", "message": message}
 
 
 def persist_terminal_event_if_missing(deps: Any, job_id: str, payload: dict) -> bool:
     try:
-        existing_events = deps.get_events_since(job_id, 0)
+        existing_events = _event_rows(deps.get_events_since(job_id, 0))
     except Exception:
         return False
     for event in existing_events:
-        event_payload = event.get("payload") if isinstance(event, dict) else {}
-        if isinstance(event_payload, dict) and event_payload.get("type") in {"done", "error"}:
+        if _terminal_event_type(event) in {"done", "error"}:
             return False
     try:
         deps.append_event(job_id, payload)
     except Exception:
         return False
     try:
-        updated_events = deps.get_events_since(job_id, 0)
+        updated_events = _event_rows(deps.get_events_since(job_id, 0))
     except Exception:
         return False
-    return any(
-        isinstance(event, dict)
-        and isinstance(event.get("payload"), dict)
-        and event["payload"].get("type") in {"done", "error"}
-        for event in updated_events
-    )
+    return any(_terminal_event_type(event) in {"done", "error"} for event in updated_events)
+
+
+def _terminal_event_type(event: Any) -> str:
+    event_row = safe_mapping_dict(event)
+    if event_row is None:
+        return ""
+    payload = safe_mapping_dict(event_row.get("payload"))
+    if payload is None:
+        return ""
+    return safe_text(payload.get("type")).strip()
+
+
+def _event_rows(events: Any) -> list[Any]:
+    return safe_sequence_items(events)
+
+
+def replay_event_id(value: Any) -> int:
+    if isinstance(value, (bool, bytes, bytearray, memoryview)):
+        return 0
+    return safe_int(value)
+
+
+def replay_count_field(value: Any) -> int:
+    if isinstance(value, (bool, bytes, bytearray, memoryview)):
+        return 0
+    return safe_int(value)
+
+
+def replay_float_field(value: Any) -> float:
+    if isinstance(value, (bool, bytes, bytearray, memoryview)):
+        return 0.0
+    try:
+        number = float(0.0 if value is None else value)
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+        return 0.0
+    return number if math.isfinite(number) else 0.0
+
+
+def replay_bool_field(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (bytes, bytearray, memoryview)):
+        return False
+    if isinstance(value, Mapping) or isinstance(value, (list, tuple, set, frozenset)):
+        return False
+    if isinstance(value, str):
+        text = value.strip().lower()
+        if text in {"1", "true", "yes", "on"}:
+            return True
+        if text in {"", "0", "false", "no", "off", "none", "null"}:
+            return False
+        return False
+    if isinstance(value, (int, float)):
+        try:
+            number = float(value)
+        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+            return False
+        if not math.isfinite(number):
+            return False
+        return number == 1
+    return False
+
+
+def replay_text_field(value: Any) -> str:
+    if isinstance(value, Mapping) or isinstance(value, (list, tuple, set, frozenset)):
+        return ""
+    return safe_text(value).strip()
+
+
+def replay_payload_type(value: Any) -> str:
+    if not isinstance(value, str):
+        return ""
+    return safe_text(value).strip()
 
 
 def resolve_resume_after_id(request: Request, last_event_id: int | None, since_id: int | None) -> int:
     if since_id is not None:
-        return int(since_id)
+        resume_after_id = _resume_id_or_none(since_id)
+        if resume_after_id is not None:
+            return resume_after_id
     if last_event_id is None:
         header_last_event_id = request.headers.get("last-event-id")
         if header_last_event_id:
-            try:
-                last_event_id = int(header_last_event_id)
-            except ValueError:
-                last_event_id = 0
-    return int(last_event_id or 0)
+            last_event_id = _resume_id_or_none(header_last_event_id)
+    return _resume_id_or_none(last_event_id) or 0
+
+
+def _resume_id_or_none(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        resume_id = int(value)
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+        return None
+    if resume_id < 0:
+        return None
+    return resume_id
 
 
 def _now_iso() -> str:

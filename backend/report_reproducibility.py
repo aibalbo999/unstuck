@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import os
 import re
+import math
 from typing import Any
 
+from data_trust_constants import SHA256_HEX_RE
 from data_trust_scoring import normalize_data_trust
+from mapping_fields import safe_dict_list, safe_mapping_dict, safe_text
 
 
 EXPLICIT_TARGET_PRICE_MIN_SCORE = 60
@@ -36,13 +39,12 @@ def data_confidence_score(data_trust: Any) -> int:
 
 
 def provider_list_from_audit(data: dict) -> list[str]:
-    entries = data.get("source_audit") if isinstance(data, dict) else []
+    data = safe_mapping_dict(data) or {}
+    entries = dict.get(data, "source_audit")
     providers: list[str] = []
     seen = set()
-    for entry in entries if isinstance(entries, list) else []:
-        if not isinstance(entry, dict):
-            continue
-        provider = str(entry.get("provider") or "").strip()
+    for entry in safe_dict_list(entries):
+        provider = _safe_text(dict.get(entry, "provider")).strip()
         if provider and provider not in seen:
             providers.append(provider)
             seen.add(provider)
@@ -50,14 +52,17 @@ def provider_list_from_audit(data: dict) -> list[str]:
 
 
 def source_data_time(data: dict, data_trust: Any) -> str:
+    data = safe_mapping_dict(data) or {}
     trust = normalize_data_trust(data_trust)
-    if trust.get("last_market_data_at"):
-        return str(trust.get("last_market_data_at"))
-    entries = data.get("source_audit") if isinstance(data, dict) else []
-    fetched = [
-        str(entry.get("fetched_at"))
-        for entry in entries if isinstance(entry, dict) and entry.get("fetched_at")
-    ] if isinstance(entries, list) else []
+    last_market_data_at = _safe_text(dict.get(trust, "last_market_data_at")).strip()
+    if last_market_data_at:
+        return last_market_data_at
+    entries = dict.get(data, "source_audit")
+    fetched = []
+    for entry in safe_dict_list(entries):
+        fetched_at = _safe_text(dict.get(entry, "fetched_at")).strip()
+        if fetched_at:
+            fetched.append(fetched_at)
     return max(fetched) if fetched else ""
 
 
@@ -87,26 +92,48 @@ def build_data_confidence_controls(context: dict, data_trust: Any) -> dict:
 
 
 def build_reproducibility_packet(context: dict, data_trust: Any, generated_at: str) -> dict:
-    data = context.get("data", {}) if isinstance(context, dict) else {}
-    if not isinstance(data, dict):
-        data = {}
+    context = safe_mapping_dict(context) or {}
+    data = safe_mapping_dict(dict.get(context, "data")) or {}
+    prompt_fingerprint = validated_prompt_fingerprint(_first_text(context, data, "prompt_fingerprint"))
     return {
-        "ticker": str(context.get("ticker") or data.get("ticker") or ""),
+        "ticker": _first_value_text(
+            dict.get(context, "ticker") if isinstance(context, dict) else None,
+            dict.get(data, "ticker"),
+        ),
         "data_snapshot_hash": "",
         "prompt_version": _first_text(context, data, "prompt_version") or DEFAULT_PROMPT_VERSION,
+        "prompt_fingerprint": prompt_fingerprint,
         "model_id": _model_id(context, data),
-        "pipeline_id": str(context.get("pipeline_id") or data.get("pipeline_id") or ""),
+        "pipeline_id": _first_value_text(
+            dict.get(context, "pipeline_id") if isinstance(context, dict) else None,
+            dict.get(data, "pipeline_id"),
+        ),
         "code_commit": _first_text(context, data, "code_commit") or os.getenv("GIT_COMMIT", ""),
-        "generated_at": str(generated_at or ""),
+        "code_dirty": _first_bool(context, data, "code_dirty"),
+        "generated_at": _safe_text(generated_at),
         "provider_list": provider_list_from_audit(data),
         "source_data_time": source_data_time(data, data_trust),
     }
 
 
+def _first_bool(context: dict, data: dict, key: str) -> bool | None:
+    for source in (context, data):
+        value = dict.get(source, key) if isinstance(source, dict) else None
+        if isinstance(value, bool):
+            return value
+    return None
+
+
+def validated_prompt_fingerprint(value: Any) -> str:
+    fingerprint = _safe_text(value).strip().lower()
+    return fingerprint if SHA256_HEX_RE.fullmatch(fingerprint) else ""
+
+
 def detect_explicit_target_price_fields(context: dict) -> list[str]:
+    context_map = safe_mapping_dict(context) or {}
     fields: list[str] = []
     for root in ("parsed", "structured_outputs"):
-        value = context.get(root) if isinstance(context, dict) else None
+        value = dict.get(context_map, root)
         fields.extend(_detect_target_prices(value, (root,)))
     return sorted(dict.fromkeys(fields))
 
@@ -114,12 +141,24 @@ def detect_explicit_target_price_fields(context: dict) -> list[str]:
 def _detect_target_prices(value: Any, path: tuple[str, ...]) -> list[str]:
     if isinstance(value, dict):
         fields: list[str] = []
-        for key, item in value.items():
-            fields.extend(_detect_target_prices(item, (*path, str(key))))
+        for key, item in _safe_dict_items(value):
+            key_text = _safe_text(key)
+            if not key_text:
+                continue
+            fields.extend(_detect_target_prices(item, (*path, key_text)))
         return fields
-    if isinstance(value, list):
+    mapping_value = safe_mapping_dict(value)
+    if mapping_value is not None:
         fields = []
-        for index, item in enumerate(value):
+        for key, item in mapping_value.items():
+            key_text = _safe_text(key)
+            if not key_text:
+                continue
+            fields.extend(_detect_target_prices(item, (*path, key_text)))
+        return fields
+    if isinstance(value, (list, tuple)):
+        fields = []
+        for index, item in _safe_enumerate_sequence(value):
             fields.extend(_detect_target_prices(item, (*path, str(index))))
         return fields
     if _is_target_path(path) and _is_explicit_price(value):
@@ -135,9 +174,11 @@ def _is_target_path(path: tuple[str, ...]) -> bool:
 def _is_explicit_price(value: Any) -> bool:
     if isinstance(value, bool) or value is None:
         return False
-    if isinstance(value, (int, float)):
+    if isinstance(value, int):
         return True
-    text = str(value).strip()
+    if isinstance(value, float):
+        return math.isfinite(value)
+    text = _safe_text(value).strip()
     if not text:
         return False
     upper_text = text.upper()
@@ -149,12 +190,99 @@ def _is_explicit_price(value: Any) -> bool:
     return bool(numbers)
 
 
+def _safe_enumerate_sequence(value: list | tuple) -> list[tuple[int, Any]]:
+    items: list[tuple[int, Any]] = []
+    try:
+        iterator = iter(value)
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
+        try:
+            iterator = _native_sequence_iterator(value)
+        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
+            return items
+    index = 0
+    used_native = False
+    while True:
+        try:
+            item = next(iterator)
+        except StopIteration:
+            return items
+        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
+            if items or used_native:
+                return items
+            try:
+                iterator = _native_sequence_iterator(value)
+            except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
+                return items
+            used_native = True
+            continue
+        items.append((index, item))
+        index += 1
+
+
+def _native_sequence_iterator(value: list | tuple):
+    if isinstance(value, list):
+        return list.__iter__(value)
+    return tuple.__iter__(value)
+
+
+def _safe_dict_items(value: dict) -> list[tuple[Any, Any]]:
+    items: list[tuple[Any, Any]] = []
+    try:
+        raw_items = value.items()
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
+        try:
+            raw_items = dict.items(value)
+        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
+            return items
+    used_native = False
+    try:
+        iterator = iter(raw_items)
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
+        try:
+            iterator = iter(dict.items(value))
+        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
+            return items
+        used_native = True
+    while True:
+        try:
+            item = next(iterator)
+        except StopIteration:
+            return items
+        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
+            if items or used_native:
+                return items
+            try:
+                iterator = iter(dict.items(value))
+            except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
+                return items
+            used_native = True
+            continue
+        try:
+            key, child = item
+        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
+            continue
+        items.append((key, child))
+
+
 def _first_text(context: dict, data: dict, key: str) -> str:
     for source in (context, data):
-        value = source.get(key) if isinstance(source, dict) else None
-        if str(value or "").strip():
-            return str(value).strip()
+        value = dict.get(source, key) if isinstance(source, dict) else None
+        text = _safe_text(value).strip()
+        if text:
+            return text
     return ""
+
+
+def _first_value_text(*values: Any) -> str:
+    for value in values:
+        text = _safe_text(value).strip()
+        if text:
+            return text
+    return ""
+
+
+def _safe_text(value: Any) -> str:
+    return safe_text(value)
 
 
 def _model_id(context: dict, data: dict) -> str:
@@ -162,7 +290,10 @@ def _model_id(context: dict, data: dict) -> str:
         value = _first_text(context, data, key)
         if value:
             return value
-    metadata = context.get("metadata") if isinstance(context, dict) else None
-    if isinstance(metadata, dict) and str(metadata.get("model_id") or "").strip():
-        return str(metadata.get("model_id")).strip()
+    metadata = dict.get(context, "metadata") if isinstance(context, dict) else None
+    metadata_map = safe_mapping_dict(metadata)
+    if metadata_map is not None:
+        model_id = _safe_text(dict.get(metadata_map, "model_id")).strip()
+        if model_id:
+            return model_id
     return "unknown"

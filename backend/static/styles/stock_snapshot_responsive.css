@@ -1,0 +1,78 @@
+@media (max-width: 760px) {
+    .stock-snapshot-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .stock-snapshot-performance-controls {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .stock-snapshot-session-main {
+        min-height: auto;
+        border-right: 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        padding-right: 0;
+        padding-bottom: 12px;
+    }
+
+    .stock-snapshot-session-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .stock-snapshot-fundamental-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .stock-snapshot-company-profile-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .stock-snapshot-analyst-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .stock-snapshot-earnings-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .stock-snapshot-shares-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .stock-snapshot-risk-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .stock-snapshot-profitability-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .stock-snapshot-dividend-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .stock-snapshot-calendar-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .stock-snapshot-alert-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .stock-snapshot-summary-rail {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .stock-snapshot-ownership-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .stock-snapshot-peer-row {
+        grid-template-columns: minmax(120px, 1.2fr) repeat(4, minmax(48px, 0.6fr));
+    }
+
+    .stock-snapshot-trend-returns span {
+        border-left: 0;
+        padding-left: 0;
+    }
+}

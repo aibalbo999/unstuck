@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from analysis_types import AnalysisContext
+from mapping_fields import safe_mapping_dict
 
 
 @dataclass(frozen=True)
@@ -25,4 +26,5 @@ class ReportBundle:
 
     @property
     def data_trust(self) -> dict:
-        return self.data_snapshot.get("data_trust", {}) if isinstance(self.data_snapshot, dict) else {}
+        snapshot = safe_mapping_dict(self.data_snapshot) or {}
+        return safe_mapping_dict(dict.get(snapshot, "data_trust")) or {}

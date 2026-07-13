@@ -1,6 +1,7 @@
 import asyncio
 import copy
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -25,7 +26,9 @@ from validators import (
     validate_company_identity,
     validate_prompt_leakage,
 )
+from prompt_loader import load_agent_prompt_config
 from workflow_graph import create_default_workflow_services, legacy_context_from_graph
+import workflow_services  # noqa: E402
 from workflow_services import initialize_graph_state
 from workflow_state import agent_state_to_graph
 
@@ -65,9 +68,62 @@ def test_initialize_graph_state_sets_versioned_prompt_cache_key():
     services = create_default_workflow_services(rotator=FakeRotator(), progress_callback=None)
     state = initialize_graph_state({"ticker": "2330.TW", "company_name": "台積電"}, pipeline_id="v1")
     context = legacy_context_from_graph(state, services)
+    prompt_config = load_agent_prompt_config()
 
-    assert state["prompt_version"] == "agents:v1"
-    assert context["prompt_version"] == "agents:v1"
+    assert state["prompt_version"] == prompt_config["prompt_version"]
+    assert context["prompt_version"] == prompt_config["prompt_version"]
+    assert state["prompt_fingerprint"] == prompt_config["prompt_fingerprint"]
+    assert context["prompt_fingerprint"] == prompt_config["prompt_fingerprint"]
+
+
+def test_runtime_code_identity_marks_dirty_git_worktree(tmp_path, monkeypatch):
+    identity_fn = getattr(workflow_services, "runtime_code_identity", None)
+    assert callable(identity_fn), "workflow runtime code identity helper is missing"
+    monkeypatch.delenv("GIT_COMMIT", raising=False)
+    monkeypatch.delenv("GIT_DIRTY", raising=False)
+    subprocess.run(["git", "init", str(tmp_path)], check=True, capture_output=True, text=True)
+    subprocess.run(
+        ["git", "-C", str(tmp_path), "config", "user.email", "stock-agent-tests@example.invalid"],
+        check=True,
+    )
+    subprocess.run(["git", "-C", str(tmp_path), "config", "user.name", "Stock Agent Tests"], check=True)
+    tracked = tmp_path / "tracked.txt"
+    tracked.write_text("clean\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(tmp_path), "add", "tracked.txt"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "commit", "-m", "initial"], check=True, capture_output=True)
+
+    identity_fn.cache_clear()
+    clean = identity_fn(str(tmp_path))
+    tracked.write_text("dirty\n", encoding="utf-8")
+    identity_fn.cache_clear()
+    dirty = identity_fn(str(tmp_path))
+    identity_fn.cache_clear()
+
+    assert len(clean["commit"]) == 40
+    assert clean["dirty"] is False
+    assert dirty["commit"] == clean["commit"]
+    assert dirty["dirty"] is True
+
+
+def test_initialize_graph_state_captures_runtime_code_identity(monkeypatch):
+    monkeypatch.setattr(
+        workflow_services,
+        "runtime_code_identity",
+        lambda: {"commit": "abc123", "dirty": True},
+        raising=False,
+    )
+    services = create_default_workflow_services(rotator=FakeRotator(), progress_callback=None)
+
+    state = workflow_services.initialize_graph_state(
+        {"ticker": "2330.TW", "company_name": "台積電"},
+        pipeline_id="v1",
+    )
+    context = legacy_context_from_graph(state, services)
+
+    assert state["code_commit"] == "abc123"
+    assert state["code_dirty"] is True
+    assert context["code_commit"] == "abc123"
+    assert context["code_dirty"] is True
 
 
 def test_agent_node_rebuilds_legacy_context_and_returns_isolated_delta(monkeypatch):

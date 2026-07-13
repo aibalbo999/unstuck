@@ -70,11 +70,12 @@ TRAILING_LINK_PUNCTUATION = ".,;:!?)]}，。；：！？）】"
 
 def sanitize_report_html(html: str) -> str:
     """Strip unsafe tags and attributes from model/report HTML fragments."""
-    if not html:
+    text = _safe_input_text(html)
+    if not text:
         return ""
-    html = DANGEROUS_BLOCK_RE.sub("", str(html))
+    text = DANGEROUS_BLOCK_RE.sub("", text)
     cleaned = nh3.clean(
-        str(html),
+        text,
         tags=ALLOWED_TAGS,
         attributes=ALLOWED_ATTRIBUTES,
         url_schemes=ALLOWED_PROTOCOLS,
@@ -86,14 +87,14 @@ def sanitize_report_html(html: str) -> str:
 
 def sanitize_report_plain_text(value) -> str:
     """Strip HTML from values that should render as plain text only."""
-    text = DANGEROUS_BLOCK_RE.sub("", str(value or ""))
+    text = DANGEROUS_BLOCK_RE.sub("", _safe_input_text(value))
     text = nh3.clean(text, tags=set(), attributes={}, strip_comments=True)
     return re.sub(r"\s+", " ", text).strip()
 
 
 def sanitize_report_image_url(value) -> str:
     """Allow only browser-safe image URLs for inline report cover styles."""
-    text = str(value or "").strip()
+    text = _safe_input_text(value).strip()
     if not text:
         return ""
     if DATA_IMAGE_RE.match(text):
@@ -104,9 +105,18 @@ def sanitize_report_image_url(value) -> str:
     return ""
 
 
+def _safe_input_text(value) -> str:
+    if value is None:
+        return ""
+    try:
+        return str(value)
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
+        return ""
+
+
 def _linkify_sanitized_html(html: str) -> str:
     parser = _ReportHtmlLinkifier()
-    parser.feed(str(html or ""))
+    parser.feed(_safe_input_text(html))
     parser.close()
     return parser.output
 

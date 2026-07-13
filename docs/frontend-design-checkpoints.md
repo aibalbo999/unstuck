@@ -1,8 +1,8 @@
 # Frontend Design Checkpoints
 
-更新時間：2026-07-04
+更新時間：2026-07-11
 
-本文件紀錄前端介面優化的最低驗收基準。它不是設計系統，而是每次調整工作台 UI 前後都要核對的證據清單。
+本文件紀錄前端介面優化的最低驗收基準；正式設計系統基線請先讀根目錄的 `DESIGN.md`。本文件負責把設計規則轉成每次調整工作台 UI 前後都要核對的證據清單。
 
 ## 目前基準
 
@@ -10,6 +10,7 @@
 - 主要受眾：本機操作者、研究流程維護者、需要快速判斷報告可信度的投資研究使用者。
 - 主要任務：輸入股票代號、選擇分析模式、查看任務/資料/LLM 健康、檢查歷史報告與決策追蹤。
 - 最新設計審查 artifact：`~/.gstack/projects/aibalbo999-unstuck/designs/design-audit-20260704-065346/`
+- 正式設計基線：`DESIGN.md`
 
 ## 必檢問題
 
@@ -23,15 +24,21 @@
 
 ## 已建立的合約測試
 
-- `test_home_tabs_present_three_even_desktop_choices`
+- `test_home_tabs_present_in_two_desktop_workspaces`
+- `test_home_workspace_groups_separate_analysis_and_monitoring_navigation`
 - `test_primary_cta_has_readable_contrast_on_cyan_action_background`
 - `test_history_version_toggle_checkbox_is_visually_legible`
 - `test_decision_tracking_mobile_cards_prioritize_readable_single_column_data`
 - `test_pipeline_mode_frontend_labels_share_single_metadata_source`
 - `test_pipeline_mode_contract_documents_templates_and_decision_intents`
+- `test_design_system_contract_is_discoverable_and_operational`
+- `test_report_preview_reading_boundary_covers_missing_partial_blocked_and_passed_reports`
+- `test_report_reading_boundary_downgrades_unverified_and_blocks_invalid_snapshots`
+- `test_report_preview_panel_renders_reading_boundary_before_decision_metrics`
+- `test_home_workspace_grouping_visual_regression_optional`
 
 ## 下一個高價值檢查點
 
 - 將 `docs/pipeline-mode-contract.md` 納入 PR/release 檢查，降低使用者選錯模式與報告模板漂移的機率。
 - 將設計審查 artifact 的截圖摘要納入 release / PR 說明。
-- 評估是否建立正式 `DESIGN.md`，把字級、色彩、密度與資料視覺化規則寫成專案基準。
+- 將 `DESIGN.md` 的驗收門檻逐步映射到 Playwright viewport、CSS token 與前端文件契約測試。
