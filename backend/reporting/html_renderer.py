@@ -4,11 +4,14 @@ from __future__ import annotations
 
 from datetime import datetime
 from html import escape
+import math
+import re
 
 from analysis_types import AnalysisContext
 from company_display import company_display_name
 from config import format_model_routes
 from investment_thesis import build_investment_thesis, investment_thesis_markdown
+from mapping_fields import safe_dict_list, safe_mapping_dict, safe_text
 from pipeline_modes import get_pipeline_definition
 from recommendation_labels import normalize_recommendation_label
 
@@ -19,6 +22,7 @@ from .analysis_overlays import (
     build_management_sentiment,
     build_peer_comparison_rows,
 )
+from .chart_payload import chart_number, chart_number_series, chart_pe_river, chart_price_history, chart_text_series
 from .common import build_agent_model_labels, render_report_template
 from .evidence_matrix import build_evidence_matrix_payload
 from .execution_summary import build_execution_summary_html
@@ -27,9 +31,7 @@ from .mode_templates import build_mode_template_html, get_report_template_profil
 from .reading_notice import build_report_reading_notice_html
 from .sections import build_agent_sections, build_tear_sheet_summary
 from .utils import (
-    billion_twd_series_to_yi_twd,
     clean_markdown,
-    filter_future_price_history,
     get_recommendation_color,
     get_recommendation_icon,
     normalize_moat_scores,
@@ -37,16 +39,20 @@ from .utils import (
 
 
 def _structured_output_values(context: AnalysisContext) -> list[dict]:
-    outputs = context.get("structured_outputs", {}) or {}
-    return [value for value in outputs.values() if isinstance(value, dict)]
+    outputs = safe_mapping_dict(context.get("structured_outputs", {})) or {}
+    values = []
+    for value in outputs.values():
+        output = safe_mapping_dict(value)
+        if output is not None:
+            values.append(output)
+    return values
 
 
 def _collect_next_catalysts(context: AnalysisContext) -> list[dict[str, str]]:
     catalysts: list[dict[str, str]] = []
     for source in [context, *_structured_output_values(context)]:
-        for item in source.get("next_catalysts", []) if isinstance(source.get("next_catalysts"), list) else []:
-            if not isinstance(item, dict):
-                continue
+        source_map = safe_mapping_dict(source) or {}
+        for item in safe_dict_list(source_map.get("next_catalysts")):
             trigger = sanitize_report_plain_text(item.get("trigger_condition"))
             event_name = sanitize_report_plain_text(item.get("event_name")) or "未命名催化事件"
             if not trigger:
@@ -68,6 +74,11 @@ def _collect_next_catalysts(context: AnalysisContext) -> list[dict[str, str]]:
     return unique[:5]
 
 
+def _display_text(value, default: str = "N/A") -> str:
+    text = safe_text(value).strip()
+    return text or default
+
+
 async def generate_html_report_async(context: AnalysisContext) -> str:
     """Async HTML report renderer."""
     return generate_html_report(context)
@@ -76,16 +87,16 @@ async def generate_html_report_async(context: AnalysisContext) -> str:
 def generate_html_report(context: AnalysisContext) -> str:
     """生成完整的 HTML 報告"""
     
-    data = dict(context.get("data", {}) or {})
-    for text_key in ("company_name", "sector", "industry", "fetch_date", "current_price_fmt", "market_cap_fmt"):
+    data = safe_mapping_dict(context.get("data", {})) or {}
+    for text_key in ("ticker", "company_name", "sector", "industry", "fetch_date", "current_price_fmt", "market_cap_fmt"):
         if text_key in data:
-            data[text_key] = sanitize_report_plain_text(data.get(text_key))
+            data[text_key] = sanitize_report_plain_text(safe_text(data.get(text_key)))
     analyses = context.get("analyses", {})
-    parsed = context.get("parsed", {})
+    parsed = safe_mapping_dict(context.get("parsed", {})) or {}
     
-    ticker = sanitize_report_plain_text(context.get("ticker", "N/A")) or "N/A"
+    ticker = sanitize_report_plain_text(safe_text(context.get("ticker", "N/A"))) or "N/A"
     name = sanitize_report_plain_text(company_display_name(data, context.get("company_name", ticker))) or ticker
-    fetch_date = data.get("fetch_date", datetime.now().strftime("%Y年%m月%d日"))
+    fetch_date = data.get("fetch_date") or datetime.now().strftime("%Y年%m月%d日")
     pipeline_def = get_pipeline_definition(context.get("pipeline_id", "v1"))
     mode_template = get_report_template_profile(pipeline_def["id"])
     report_title = pipeline_def["report_title"]
@@ -101,23 +112,23 @@ def generate_html_report(context: AnalysisContext) -> str:
     op_margin_data = data.get("op_margin_history", [])
     net_margin_data = data.get("net_margin_history", [])
     roe_data = data.get("roe_history", [])
-    price_history = filter_future_price_history(data.get("price_history", {}))
+    price_history = chart_price_history(data.get("price_history", {}))
     
     # 護城河評分
-    moat_scores = normalize_moat_scores(parsed.get("moat_scores", {}))
+    moat_scores = normalize_moat_scores(safe_mapping_dict(parsed.get("moat_scores", {})) or {})
     moat_labels = list(moat_scores.keys())
     moat_values = list(moat_scores.values())
     overall_moat = moat_scores.get("整體護城河", 0)
     
     # 目標股價
-    raw_price_targets = parsed.get("price_targets", {}) or {}
+    raw_price_targets = safe_mapping_dict(parsed.get("price_targets", {})) or {}
     price_targets = {
-        sanitize_report_plain_text(key) or "情境": value
+        sanitize_report_plain_text(safe_text(key)) or "情境": _price_target_number(value)
         for key, value in raw_price_targets.items()
     }
-    recommendation = parsed.get("recommendation", {})
-    pe_river = data.get("pe_river_chart", {}) or {}
-    pe_river_source = str(pe_river.get("source", "") or "")
+    recommendation = safe_mapping_dict(parsed.get("recommendation", {})) or {}
+    pe_river = chart_pe_river(data.get("pe_river_chart", {}))
+    pe_river_source = safe_text(pe_river.get("source", "")).strip()
     pe_river_title = (
         "P/E 河流圖（EPS × 預設本益比通道）"
         if "default" in pe_river_source.lower()
@@ -125,25 +136,25 @@ def generate_html_report(context: AnalysisContext) -> str:
     )
     
     def get_rec_val(rec_dict, target_sub, default="N/A"):
-        for k, v in rec_dict.items():
-            if target_sub in k:
+        for k, v in (rec_dict or {}).items():
+            if target_sub in safe_text(k):
                 return v
         return default
         
     rec_text = normalize_recommendation_label(
-        sanitize_report_plain_text(get_rec_val(recommendation, "建議", "持有")) or "持有"
+        sanitize_report_plain_text(_display_text(get_rec_val(recommendation, "建議", "持有"), "持有")) or "持有"
     )
 
     rec_color = get_recommendation_color(rec_text)
     rec_icon = get_recommendation_icon(rec_text)
     
-    target_3m = sanitize_report_plain_text(get_rec_val(recommendation, "3個月", "N/A")) or "N/A"
-    target_6m = sanitize_report_plain_text(get_rec_val(recommendation, "6個月", "N/A")) or "N/A"
-    target_12m = sanitize_report_plain_text(get_rec_val(recommendation, "12個月", "N/A")) or "N/A"
-    confidence = sanitize_report_plain_text(get_rec_val(recommendation, "信心", "N/A")) or "N/A"
-    raw_trade_setup = parsed.get("trade_setup", {}) or {}
+    target_3m = sanitize_report_plain_text(_display_text(get_rec_val(recommendation, "3個月", "N/A"))) or "N/A"
+    target_6m = sanitize_report_plain_text(_display_text(get_rec_val(recommendation, "6個月", "N/A"))) or "N/A"
+    target_12m = sanitize_report_plain_text(_display_text(get_rec_val(recommendation, "12個月", "N/A"))) or "N/A"
+    confidence = sanitize_report_plain_text(_display_text(get_rec_val(recommendation, "信心", "N/A"))) or "N/A"
+    raw_trade_setup = safe_mapping_dict(parsed.get("trade_setup", {})) or {}
     trade_setup = {
-        key: sanitize_report_plain_text(raw_trade_setup.get(key, ""))
+        key: sanitize_report_plain_text(safe_text(raw_trade_setup.get(key, "")))
         for key in (
             "trade_direction",
             "entry_zone",
@@ -182,20 +193,22 @@ def generate_html_report(context: AnalysisContext) -> str:
     execution_summary_html = build_execution_summary_html(context, model_routes=model_route_summary)
     mode_template_html = build_mode_template_html(mode_template)
     source_audit_html = build_source_audit_html(data, context)
-    audit_entries = data.get("source_audit", []) if isinstance(data.get("source_audit"), list) else []
-    report_ticker = str(data.get("ticker") or ticker)
+    audit_entries = safe_dict_list(data.get("source_audit"))
+    report_ticker = _display_text(data.get("ticker") or ticker, ticker)
     is_taiwan_ticker = report_ticker.split(".")[0].isdigit()
     twse_official_unavailable = is_taiwan_ticker and not any(
-        entry.get("source") == "twse_official" and entry.get("status") == "success"
+        safe_text(entry.get("source")).strip() == "twse_official"
+        and safe_text(entry.get("status")).strip() == "success"
         for entry in audit_entries
-        if isinstance(entry, dict)
     )
     tear_sheet_summary = clean_markdown(build_tear_sheet_summary(context))
-    thesis_payload = context.get("investment_thesis") or build_investment_thesis(context)
+    thesis_payload = safe_mapping_dict(context.get("investment_thesis"))
+    if not thesis_payload:
+        thesis_payload = build_investment_thesis(context)
     investment_thesis_html = clean_markdown(investment_thesis_markdown(thesis_payload))
-    executive_thesis = sanitize_report_plain_text(context.get("executive_thesis", ""))
-    smoothed_markdown_html = clean_markdown(str(context.get("smoothed_markdown") or ""))
-    report_cover = context.get("report_cover", {}) or {}
+    executive_thesis = sanitize_report_plain_text(safe_text(context.get("executive_thesis", "")))
+    smoothed_markdown_html = clean_markdown(safe_text(context.get("smoothed_markdown", "")))
+    report_cover = safe_mapping_dict(context.get("report_cover", {})) or {}
     report_cover_image = sanitize_report_image_url(report_cover.get("image", ""))
     
     agent_sections = build_agent_sections(context, html=True)
@@ -206,24 +219,25 @@ def generate_html_report(context: AnalysisContext) -> str:
     
     # 準備 JSON 數據給圖表
     chart_data = {
-        "years": years,
+        "years": chart_text_series(years),
         "moneyUnit": "hundred_million_twd",
         "sourceMoneyUnit": "billion_twd",
-        "revenue": billion_twd_series_to_yi_twd(revenue_data),
-        "netIncome": billion_twd_series_to_yi_twd(net_income_data),
-        "fcf": billion_twd_series_to_yi_twd(fcf_data),
-        "grossMargin": [v for v in gross_margin_data],
-        "opMargin": [v for v in op_margin_data],
-        "netMargin": [v for v in net_margin_data],
-        "roe": [v for v in roe_data],
+        "revenue": chart_number_series(revenue_data, scale=10),
+        "netIncome": chart_number_series(net_income_data, scale=10),
+        "fcf": chart_number_series(fcf_data, scale=10),
+        "grossMargin": chart_number_series(gross_margin_data),
+        "opMargin": chart_number_series(op_margin_data),
+        "netMargin": chart_number_series(net_margin_data),
+        "roe": chart_number_series(roe_data),
         "priceHistory": price_history,
-        "moatLabels": moat_labels,
-        "moatValues": moat_values,
+        "moatLabels": chart_text_series(moat_labels),
+        "moatValues": chart_number_series(moat_values),
         "priceTargets": price_targets,
         "peRiver": pe_river,
     }
     evidence_payload = build_evidence_matrix_payload(context)
     next_catalysts = _collect_next_catalysts(context)
+    current_price_numeric = chart_number(data.get("current_price", 0)) or 0
     
     # 關鍵指標卡片
     key_metrics = [
@@ -242,7 +256,7 @@ def generate_html_report(context: AnalysisContext) -> str:
         metrics_html += f'''
             <div class="metric-card">
                 <div class="metric-label">{escape(str(label))}</div>
-                <div class="metric-value">{escape(str(value))}</div>
+                <div class="metric-value">{escape(_display_text(value))}</div>
             </div>'''
     
     # 目標股價卡片
@@ -259,19 +273,14 @@ def generate_html_report(context: AnalysisContext) -> str:
             color = "#3b82f6"
             icon = "→"
         
-        current = data.get("current_price", 0)
-        price_num = price if isinstance(price, (int, float)) else None
-        if price_num is None:
-            try:
-                price_num = float(str(price).replace(",", ""))
-            except (TypeError, ValueError):
-                price_num = None
+        current = current_price_numeric
+        price_num = _price_target_number(price)
         if isinstance(current, (int, float)) and current > 0 and price_num is not None:
             pct = ((price_num - current) / current) * 100
             pct_str = f"({'+' if pct > 0 else ''}{pct:.1f}%)"
         else:
             pct_str = ""
-        price_display = f"NT${price_num:.0f}" if price_num is not None else escape(str(price))
+        price_display = f"NT${price_num:.0f}" if price_num is not None else "N/A"
         
         price_targets_html += f'''
             <div class="price-target-card" style="border-color: {color};">
@@ -288,6 +297,22 @@ def generate_html_report(context: AnalysisContext) -> str:
     total_time = context.get("total_time", 0)
     time_str = f"{total_time:.0f} 秒" if total_time else "N/A"
     agent_model_labels = build_agent_model_labels()
-    current_price_numeric = data.get("current_price", 0) if isinstance(data.get("current_price", 0), (int, float)) else 0
     template_context = dict(locals())
     return render_report_template("report.html.j2", template_context)
+
+
+def _price_target_number(value) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        number = float(value)
+        return number if math.isfinite(number) else None
+    text = safe_text(value).replace(",", "")
+    match = re.search(r"-?\d+(?:\.\d+)?", text)
+    if not match:
+        return None
+    try:
+        number = float(match.group(0))
+    except ValueError:
+        return None
+    return number if math.isfinite(number) else None

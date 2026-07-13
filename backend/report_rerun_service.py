@@ -14,8 +14,10 @@ from agent_runtime.quality_gates import run_agent_with_quality_gates_async
 from company_display import company_display_name
 from config import LLM_API_KEYS_BY_PROVIDER
 from data_fetch import FetchRequest
+from data_trust import sanitize_for_snapshot
 from final_audit import run_final_report_audit
 from llm_client import KeyRotator
+from mapping_fields import safe_mapping_dict
 from pipeline_modes import get_pipeline_definition, get_structured_agent_num, normalize_pipeline_id
 from report_history_storage import existing_storage_key
 from report_index_parsing import is_safe_report_filename, parse_report_filename
@@ -32,6 +34,14 @@ from storage.report_storage import ReportStorage
 from structured_outputs import parse_structured_data
 
 
+def _rerun_data_payload(raw_data: Any) -> dict:
+    data_map = safe_mapping_dict(raw_data)
+    if data_map is None:
+        return {}
+    data = sanitize_for_snapshot(data_map)
+    return data if isinstance(data, dict) else {}
+
+
 async def _run_full_pipeline_rerun(
     *,
     snapshot: dict,
@@ -46,11 +56,12 @@ async def _run_full_pipeline_rerun(
     cancel_check: Any = None,
     storage: ReportStorage | None = None,
 ) -> dict:
-    data = dict(snapshot.get("data") or {})
+    snapshot_map = safe_mapping_dict(snapshot) or {}
+    data = _rerun_data_payload(dict.get(snapshot_map, "data"))
     if not data:
         raise HTTPException(status_code=400, detail="資料快照缺少 data payload")
     if refresh_service is not None:
-        ticker = str(snapshot.get("ticker") or data.get("ticker") or "").strip().upper()
+        ticker = str(dict.get(snapshot_map, "ticker") or data.get("ticker") or "").strip().upper()
         if not ticker:
             raise HTTPException(status_code=400, detail="資料快照缺少 ticker，無法完整重抓資料")
         if callable(progress_callback):
@@ -63,9 +74,13 @@ async def _run_full_pipeline_rerun(
         fetch_result = await refresh_service.fetch_async(
             FetchRequest.from_ticker(ticker, force_refresh=True)
         )
-        refreshed_data = fetch_result.data or {}
-        if not isinstance(refreshed_data, dict) or refreshed_data.get("error"):
-            message = refreshed_data.get("error") if isinstance(refreshed_data, dict) else "資料刷新失敗"
+        raw_refreshed_data = getattr(fetch_result, "data", None)
+        refreshed_data_map = safe_mapping_dict(raw_refreshed_data) if raw_refreshed_data is not None else {}
+        if refreshed_data_map is None:
+            raise HTTPException(status_code=502, detail="完整重跑前資料刷新失敗：資料刷新失敗")
+        refreshed_data = sanitize_for_snapshot(refreshed_data_map)
+        if not isinstance(refreshed_data, dict) or "error" in refreshed_data:
+            message = dict.get(refreshed_data, "error") if isinstance(refreshed_data, dict) else "資料刷新失敗"
             raise HTTPException(status_code=502, detail=f"完整重跑前資料刷新失敗：{message}")
         data = refreshed_data
     if callable(cancel_check):
@@ -92,14 +107,22 @@ def _build_final_rerun_context(
     output_dir: str,
     storage: ReportStorage | None = None,
 ) -> tuple[dict, dict, int]:
-    data = dict(snapshot.get("data") or {})
-    pipeline_id = normalize_pipeline_id(snapshot.get("pipeline") or parse_report_filename(filename)["pipeline_id"])
+    snapshot_map = safe_mapping_dict(snapshot) or {}
+    data = _rerun_data_payload(dict.get(snapshot_map, "data"))
+    pipeline_id = normalize_pipeline_id(dict.get(snapshot_map, "pipeline") or parse_report_filename(filename)["pipeline_id"])
     pipeline_def = get_pipeline_definition(pipeline_id)
     final_agent = get_structured_agent_num("recommendation", pipeline_id)
     if final_agent is None:
         raise HTTPException(status_code=400, detail="此 pipeline 沒有可重跑的最終建議 Agent")
-    if snapshot.get("refreshed_without_analysis_rerun") or snapshot.get("decision_validity_status") == "needs_rerun":
-        reason = str(snapshot.get("requires_rerun_reason") or snapshot.get("analysis_text_stale_message") or "").strip()
+    if (
+        dict.get(snapshot_map, "refreshed_without_analysis_rerun")
+        or dict.get(snapshot_map, "decision_validity_status") == "needs_rerun"
+    ):
+        reason = str(
+            dict.get(snapshot_map, "requires_rerun_reason")
+            or dict.get(snapshot_map, "analysis_text_stale_message")
+            or ""
+        ).strip()
         detail = "資料快照已刷新，但前序分析、估值與風險段落仍來自舊資料；請使用完整重跑產生一致報告。"
         if reason:
             detail = f"{detail} 原因：{reason}"
@@ -119,8 +142,8 @@ def _build_final_rerun_context(
     structured_outputs.pop(final_agent, None)
 
     context = {
-        "ticker": snapshot.get("ticker") or data.get("ticker"),
-        "company_name": company_display_name(data, snapshot.get("company_name") or data.get("ticker")),
+        "ticker": dict.get(snapshot_map, "ticker") or data.get("ticker"),
+        "company_name": company_display_name(data, dict.get(snapshot_map, "company_name") or data.get("ticker")),
         "data": data,
         "analyses": analyses,
         "structured_outputs": structured_outputs,

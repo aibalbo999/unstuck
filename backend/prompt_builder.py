@@ -13,6 +13,7 @@ from jinja2 import ChainableUndefined, Environment
 
 from config import CATALYST_LOOKBACK_DAYS
 from financial_tools import build_financial_tool_context, raw_twd_to_billion_twd, safe_float
+from mapping_fields import safe_mapping_dict
 from prompt_context_sections import prompt_global_market_context, prompt_international_news_context
 from prompt_source_audit import prompt_source_audit_summary
 
@@ -132,7 +133,7 @@ def _prompt_company_identity(data: dict) -> dict:
 
 
 def _prompt_data_trust(data: dict) -> dict:
-    trust = raw_trust if isinstance(raw_trust := dict.get(data, "data_trust"), dict) else {}
+    trust = safe_mapping_dict(dict.get(data, "data_trust")) or {}
     return {
         "status": dict.get(trust, "status", "unknown"),
         "critical_failures": _safe_iterable_prefix(dict.get(trust, "critical_failures", [])),

@@ -34,6 +34,7 @@ from investment_thesis_common import (
     trigger_from_structured as _trigger_from_structured,
     valuation_line as _valuation_line,
 )
+from mapping_fields import safe_dict_list, safe_mapping_dict, safe_text, safe_text_list
 from pipeline_modes import normalize_pipeline_id
 
 
@@ -84,10 +85,16 @@ def build_investment_thesis(context: dict[str, Any]) -> dict[str, Any]:
     pipeline_id = normalize_pipeline_id(context.get("pipeline_id", "v1"))
     profile = _discipline_profile(pipeline_id)
 
-    ticker = str(context.get("ticker") or data.get("ticker") or "")
-    company_name = str(context.get("company_name") or data.get("company_name") or ticker or "本標的")
+    ticker = _display_text(context.get("ticker"), "") or _display_text(data.get("ticker"), "")
+    company_name = (
+        _display_text(context.get("company_name"), "")
+        or _display_text(data.get("company_name"), "")
+        or ticker
+        or "本標的"
+    )
     rec_text = _first_mapping_value(recommendation, "建議") or "持有"
-    target_12m = _first_mapping_value(recommendation, "12個月") or price_targets.get("基本情境") or "N/A"
+    target_12m = _first_mapping_value(recommendation, "12個月") or _display_text(price_targets.get("基本情境"), "")
+    target_12m = target_12m or "N/A"
     confidence_text = _first_mapping_value(recommendation, "信心") or "5/10"
     confidence = _confidence_number(confidence_text)
     richness = _information_richness(data)
@@ -110,11 +117,11 @@ def build_investment_thesis(context: dict[str, Any]) -> dict[str, Any]:
         core_assumptions = _trade_core_assumptions(trade_setup)
         red_lines = _trade_red_lines(trade_setup)
         valuation_anchor = {
-            "current_price": data.get("current_price_fmt") or data.get("current_price") or "N/A",
+            "current_price": _current_price_text(data),
             "target_12m": "N/A",
             "bear_case": "N/A",
-            "base_case": trade_setup.get("target_price") or "N/A",
-            "bull_case": trade_setup.get("target_price") or "N/A",
+            "base_case": _display_text(trade_setup.get("target_price")),
+            "bull_case": _display_text(trade_setup.get("target_price")),
         }
         next_review = {
             "trigger": "下一個交易日收盤或催化事件前後",
@@ -124,7 +131,7 @@ def build_investment_thesis(context: dict[str, Any]) -> dict[str, Any]:
         crash_trigger = _analysis_section_excerpt(context, "做空觸發條件") or _trigger_from_structured(context, {"bearish_downgrade"})
         stop_condition = _analysis_section_excerpt(context, "防軋空停損點") or _trigger_from_structured(context, {"neutral_review", "bullish_upgrade"})
         mirror_lines = [
-            f"我以 {data.get('current_price_fmt') or data.get('current_price') or 'N/A'} 評估 {company_name}，逆勢結論為 {rec_text}。",
+            f"我以 {_current_price_text(data)} 評估 {company_name}，逆勢結論為 {rec_text}。",
             f"泡沫假設：{_first_analysis_sentence_for_agents(context, (17,)) or business_line}",
             f"硬證據：{_first_analysis_sentence_for_agents(context, (18,)) or downside_line}",
             f"做空觸發：{crash_trigger or '尚需等待可驗證催化，不能只因估值高就追空'}",
@@ -133,7 +140,7 @@ def build_investment_thesis(context: dict[str, Any]) -> dict[str, Any]:
         core_assumptions = _contrarian_core_assumptions(crash_trigger, stop_condition)
         red_lines = _contrarian_red_lines()
         valuation_anchor = {
-            "current_price": data.get("current_price_fmt") or data.get("current_price") or "N/A",
+            "current_price": _current_price_text(data),
             "target_12m": target_12m,
             "bear_case": _first_mapping_value(recommendation, "3個月") or "N/A",
             "base_case": _first_mapping_value(recommendation, "6個月") or "N/A",
@@ -145,7 +152,7 @@ def build_investment_thesis(context: dict[str, Any]) -> dict[str, Any]:
         }
     elif pipeline_id == "v2":
         mirror_lines = [
-            f"我以 {data.get('current_price_fmt') or data.get('current_price') or 'N/A'} 評估 {company_name}，部位判斷為 {rec_text}。",
+            f"我以 {_current_price_text(data)} 評估 {company_name}，部位判斷為 {rec_text}。",
             f"交易脈絡：{business_line}",
             f"籌碼與情緒：{_chip_line(data)}",
             f"風險報酬：12 個月參考目標 {target_12m}，{valuation_line}",
@@ -154,11 +161,11 @@ def build_investment_thesis(context: dict[str, Any]) -> dict[str, Any]:
         core_assumptions = _position_core_assumptions(data, price_targets, recommendation)
         red_lines = _position_red_lines(data, rec_text)
         valuation_anchor = {
-            "current_price": data.get("current_price_fmt") or data.get("current_price") or "N/A",
+            "current_price": _current_price_text(data),
             "target_12m": target_12m,
-            "bear_case": price_targets.get("熊市情境", "N/A"),
-            "base_case": price_targets.get("基本情境", "N/A"),
-            "bull_case": price_targets.get("牛市情境", "N/A"),
+            "bear_case": _display_text(price_targets.get("熊市情境")),
+            "base_case": _display_text(price_targets.get("基本情境")),
+            "bull_case": _display_text(price_targets.get("牛市情境")),
         }
         next_review = {
             "trigger": "下一次收盤、籌碼轉折、重大新聞或估值區間失效時",
@@ -166,7 +173,7 @@ def build_investment_thesis(context: dict[str, Any]) -> dict[str, Any]:
         }
     else:
         mirror_lines = [
-            f"我以 {data.get('current_price_fmt') or data.get('current_price') or 'N/A'} 評估 {company_name}，目前結論為 {rec_text}。",
+            f"我以 {_current_price_text(data)} 評估 {company_name}，目前結論為 {rec_text}。",
             f"這門生意的本質是：{business_line}",
             f"護城河判斷：{moat_line}",
             f"估值錨點：12 個月參考目標 {target_12m}，{valuation_line}",
@@ -175,11 +182,11 @@ def build_investment_thesis(context: dict[str, Any]) -> dict[str, Any]:
         core_assumptions = _core_assumptions(data, moat_scores, price_targets, recommendation)
         red_lines = _red_lines(data, rec_text)
         valuation_anchor = {
-            "current_price": data.get("current_price_fmt") or data.get("current_price") or "N/A",
+            "current_price": _current_price_text(data),
             "target_12m": target_12m,
-            "bear_case": price_targets.get("熊市情境", "N/A"),
-            "base_case": price_targets.get("基本情境", "N/A"),
-            "bull_case": price_targets.get("牛市情境", "N/A"),
+            "bear_case": _display_text(price_targets.get("熊市情境")),
+            "base_case": _display_text(price_targets.get("基本情境")),
+            "bull_case": _display_text(price_targets.get("牛市情境")),
         }
         next_review = {
             "trigger": "下一次季報或重大法說會後",
@@ -216,36 +223,66 @@ def build_investment_thesis(context: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _display_text(value: Any, default: str = "N/A") -> str:
+    text = safe_text(value).strip()
+    if not text:
+        return default
+    return " ".join(line.strip() for line in text.splitlines() if line.strip())
+
+
+def _current_price_text(data: dict[str, Any]) -> str:
+    text = _display_text(data.get("current_price_fmt"), "")
+    if text:
+        return text
+    return _display_text(data.get("current_price"))
+
+
 def investment_thesis_markdown(thesis: dict[str, Any]) -> str:
     """Render the thesis payload as a compact Markdown section."""
-    if not thesis:
+    thesis_payload = safe_mapping_dict(thesis) or {}
+    if not thesis_payload:
         return ""
-    profile = _discipline_profile(thesis.get("pipeline_id", "v1"))
-    lines = [f"## {thesis.get('discipline_heading') or profile['heading']}"]
-    info = thesis.get("information_richness", {}) if isinstance(thesis.get("information_richness"), dict) else {}
-    mirror = thesis.get("mirror_test", {}) if isinstance(thesis.get("mirror_test"), dict) else {}
-    lines.append(f"- **{thesis.get('health_label') or profile['health_label']}:** {thesis.get('health_score', 'N/A')}/10")
-    lines.append(f"- **資訊豐富度:** {info.get('grade', 'N/A')}（{info.get('summary', 'N/A')}）")
-    lines.append(f"- **鏡子測試:** {mirror.get('status', 'N/A')}")
+    profile = _discipline_profile(thesis_payload.get("pipeline_id", "v1"))
+    heading = _display_text(thesis_payload.get("discipline_heading"), profile["heading"])
+    health_label = _display_text(thesis_payload.get("health_label"), profile["health_label"])
+    health_score = _display_text(thesis_payload.get("health_score"))
+    mirror_heading = _display_text(thesis_payload.get("mirror_heading"), profile["mirror_heading"])
+    assumptions_heading = _display_text(thesis_payload.get("assumptions_heading"), profile["assumptions_heading"])
+    red_lines_heading = _display_text(thesis_payload.get("red_lines_heading"), profile["red_lines_heading"])
+    lines = [f"## {heading}"]
+    info = safe_mapping_dict(thesis_payload.get("information_richness")) or {}
+    mirror = safe_mapping_dict(thesis_payload.get("mirror_test")) or {}
+    lines.append(f"- **{health_label}:** {health_score}/10")
+    lines.append(f"- **資訊豐富度:** {_display_text(info.get('grade'))}（{_display_text(info.get('summary'))}）")
+    lines.append(f"- **鏡子測試:** {_display_text(mirror.get('status'))}")
     lines.append("")
-    lines.append(f"### {thesis.get('mirror_heading') or profile['mirror_heading']}")
-    for item in mirror.get("lines", []) or []:
-        lines.append(f"- {item}")
+    lines.append(f"### {mirror_heading}")
+    for item in safe_text_list(mirror.get("lines")):
+        lines.append(f"- {_display_text(item)}")
     lines.append("")
-    lines.append(f"### {thesis.get('assumptions_heading') or profile['assumptions_heading']}")
-    for item in thesis.get("core_assumptions", []) or []:
-        lines.append(f"- **{item.get('assumption', 'N/A')}**：{item.get('validation', 'N/A')}（{item.get('frequency', 'N/A')}）")
+    lines.append(f"### {assumptions_heading}")
+    for item in safe_dict_list(thesis_payload.get("core_assumptions")):
+        assumption = _display_text(item.get("assumption"))
+        validation = _display_text(item.get("validation"))
+        frequency = _display_text(item.get("frequency"))
+        lines.append(f"- **{assumption}**：{validation}（{frequency}）")
     lines.append("")
-    lines.append(f"### {thesis.get('red_lines_heading') or profile['red_lines_heading']}")
-    for item in thesis.get("red_lines", []) or []:
-        lines.append(f"- **{item.get('severity', 'N/A')}**：{item.get('condition', 'N/A')} -> {item.get('action', 'N/A')}")
-    gaps = thesis.get("data_gaps", []) or []
+    lines.append(f"### {red_lines_heading}")
+    for item in safe_dict_list(thesis_payload.get("red_lines")):
+        severity = _display_text(item.get("severity"))
+        condition = _display_text(item.get("condition"))
+        action = _display_text(item.get("action"))
+        lines.append(f"- **{severity}**：{condition} -> {action}")
+    gaps = safe_text_list(thesis_payload.get("data_gaps"))
     if gaps:
         lines.append("")
         lines.append("### 資料缺口")
         for gap in gaps[:5]:
-            lines.append(f"- {gap}")
-    next_review = thesis.get("next_review", {}) if isinstance(thesis.get("next_review"), dict) else {}
+            lines.append(f"- {_display_text(gap)}")
+    next_review = safe_mapping_dict(thesis_payload.get("next_review")) or {}
     lines.append("")
-    lines.append(f"**下次檢查:** {next_review.get('trigger', 'N/A')}；重點：{next_review.get('focus', 'N/A')}")
+    lines.append(
+        f"**下次檢查:** {_display_text(next_review.get('trigger'))}；"
+        f"重點：{_display_text(next_review.get('focus'))}"
+    )
     return "\n".join(lines).strip()

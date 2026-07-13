@@ -69,8 +69,242 @@ P0/P1 系統優化後，報告品質不只由模式模板決定，也由 `conten
 | Repair / provider impact lane：改 `report_quality_repair_queue`、`provider_impact`、`data_trust.reason_codes` 或 provider SLA impact mapping。 | blocked report、wait provider recovery、rerun/refresh action 的排序與阻擋條件。 | `$(scripts/project_python.sh) -m pytest tests/test_report_quality_repair_queue.py tests/test_provider_impact.py tests/test_daily_decision_dashboard.py -q` | provider warning 不等於 provider billing truth；核心/補充來源必須分開判讀。 |
 | Outcome calibration lane：改 `outcome_calibration`、decision backtest detail mapping、miss attribution 或 quality signal join。 | backtest miss 如何歸因到 data quality、insufficient evidence、thesis error、timing error 或 unknown。 | `$(scripts/project_python.sh) -m pytest tests/test_outcome_calibration.py tests/test_daily_decision_dashboard.py tests/test_decision_tracking_workflow.py -q` | 回測綠燈不代表投資策略有效，只代表 attribution 與 payload contract 未回退。 |
 | Model route / cost observability lane：改 `model_route_budget`、job telemetry、cache hit、retry storm 或 route warning。 | model/pipeline route 的 latency、retry、billable tokens 與 operator warning。 | `$(scripts/project_python.sh) -m pytest tests/test_model_route_budget.py tests/test_runtime_observability.py tests/test_import_boundaries.py::test_backend_python_modules_stay_split_below_threshold -q` | 沒有 verified price table 時，`estimated_cost_usd` 必須維持 null；不得填假精準成本。 |
-| Daily decision queue lane：改 `daily_decision_queue`、`daily_decision_dashboard`、watchlist daily dashboard route、`notification_delivery` queue action 或 `actions` 相容 payload。 | blocked repair、provider wait、notification delivery repair、due backtest、rerun、model route warning、watchlist 與 screener 的每日排序。 | `$(scripts/project_python.sh) -m pytest tests/test_daily_decision_queue.py tests/test_daily_decision_dashboard.py tests/test_free_notification_plan.py tests/test_watchlist_service.py tests/test_decision_tracking_workflow.py -q` | top 5 只代表當日操作順序，不代表其他 secondary items 不重要；notification delivery repair 必須保持 `suppress_notification`，避免用壞掉的外部通道通知外部通道故障。 |
+| Daily decision queue lane：改 `daily_decision_queue`、`daily_decision_dashboard`、watchlist daily dashboard route、`notification_delivery` queue action 或 `actions` 相容 payload。 | blocked repair、provider wait、notification delivery repair、due backtest、rerun、model route warning、watchlist 與 screener 的每日排序；report repair action 必須保留 `blocks_auto_rerun` 與 `reason_codes`；Daily decision queue report repair action `title` fields use string-safe conversion；Daily decision queue report repair action `detail` fields use string-safe conversion；Daily decision queue report repair `filename` and `report_filename` aliases use string-safe selection；`notification_plan.messages` and `delivery_outbox` preserve `reason_codes`；`notification_plan.delivery_outbox` also preserves report repair action `detail`。 | `$(scripts/project_python.sh) -m pytest tests/test_daily_decision_queue.py tests/test_daily_decision_dashboard.py tests/test_free_notification_plan.py tests/test_watchlist_service.py tests/test_decision_tracking_workflow.py -q` | top 5 只代表當日操作順序，不代表其他 secondary items 不重要；notification delivery repair 必須保持 `suppress_notification`，避免用壞掉的外部通道通知外部通道故障。 |
 | Runtime/storage lane：改 `runtime_paths`、report artifact locator、report storage helper、decision tracking store 或 operational DB wiring。 | current state 是否仍來自 canonical DB，report artifact 是否仍透過 locator/storage helper 查找。 | `$(scripts/project_python.sh) -m pytest tests/test_runtime_paths.py tests/test_report_artifacts.py tests/test_import_boundaries.py -q` | 不得使用 `backend/cache/decision_tracking.sqlite3` 驗證 current state；不得手拼 `backend/output/<filename>`。 |
+
+Daily decision queue display limits use integer-safe conversion before slicing rendered items, so malformed limit truthiness cannot interrupt daily queue assembly or inflate secondary-count calculations.
+
+Daily decision queue integer conversions ignore malformed conversion failures before priority, horizon, display, and summary calculations, so broken numeric payloads fall back instead of interrupting queue assembly.
+
+Daily decision queue integer conversions treat boolean values as malformed before priority, horizon, display, and summary calculations, so boolean payload drift cannot become synthetic `1` or `0` queue values.
+
+Daily decision queue integer conversions treat fractional float values as malformed before priority, horizon, display, and summary calculations, so decimal payload drift cannot be silently truncated into queue values.
+
+Daily decision queue integer conversions treat fractional exact numeric values as malformed before priority, horizon, display, and summary calculations, so Decimal or Fraction payload drift cannot be silently truncated into queue values.
+
+Shared integer conversion treats boolean values as malformed numeric input before queue, repair, audit, and observability count projection, so boolean payload drift cannot become synthetic `1` or `0` counts.
+
+Shared integer conversion treats fractional float values as malformed numeric input before queue, repair, audit, and observability count projection, so decimal payload drift cannot be silently truncated into synthetic counts.
+
+Shared integer conversion treats fractional exact numeric values as malformed numeric input before queue, repair, audit, and observability count projection, so Decimal or Fraction payload drift cannot be silently truncated into synthetic counts.
+
+Shared text conversion treats boolean values as malformed text input before queue, repair, audit, and notification payload projection, so boolean payload drift cannot become visible `"True"` or `"False"` strings.
+
+Shared text conversion treats binary values as malformed text input before queue, repair, audit, and notification payload projection, so bytes payload drift cannot become visible Python byte-literal strings.
+
+Shared text conversion treats memory view values as malformed text input before queue, repair, audit, and notification payload projection, so buffer-view payload drift cannot become visible nondeterministic memory-address strings.
+
+Report quality repair queue identity fields use shared text conversion before repair action projection, so malformed ticker, filename, report filename, or pipeline fields cannot bypass the shared boolean, binary, and memory-view text guards.
+
+Provider impact identity fields use shared text conversion before provider recovery projection, so malformed ticker, filename, report filename, or pipeline fields cannot bypass the shared boolean, binary, and memory-view text guards.
+
+Data trust scoring audit source names use shared text conversion before trust reason-code projection, so malformed source audit keys cannot become synthetic optional-source errors or leak boolean, binary, or memory-view text into report trust metadata.
+
+Data trust reproducibility packet identity fields use shared text conversion before snapshot provenance projection, so malformed ticker, prompt version, pipeline id, code commit, generated time, model id, provider, or source time fields cannot leak boolean, binary, or memory-view text into report reproducibility metadata.
+
+Daily decision queue notification delivery summary maps use mapping-safe conversion before repair action projection, so immutable sender audit summary payloads cannot hide a visible notification-channel repair action.
+
+Daily decision queue notification delivery count fields use integer-safe conversion before repair action projection, so malformed sender audit counts cannot interrupt queue assembly or hide a visible notification-channel repair action.
+
+Daily decision queue notification delivery count fields and count maps use strict count conversion before repair action projection, so boolean, binary, or memory-view failed, exhausted, channel, and reason counts cannot become synthetic delivery-failure evidence.
+
+Daily decision queue notification delivery health fields use string-safe conversion before warning-state checks, so malformed sender audit health truthiness cannot interrupt queue assembly or hide a visible notification-channel repair action.
+
+Daily decision queue notification delivery nested count maps use mapping-safe conversion before repair action projection, so immutable sender audit channel and failure-reason maps still preserve triage context.
+
+Daily decision queue notification delivery channel count maps use dict-safe conversion before repair action projection, so malformed sender audit channel-count truthiness cannot interrupt queue assembly or erase visible channel distribution context.
+
+Daily decision queue notification delivery failure reason maps use truthiness-safe detail rendering before repair action projection, so malformed sender audit failure-reason truthiness cannot interrupt queue assembly or erase timeout/auth triage context.
+
+Daily decision queue notification delivery failure reason item access failures fall back to native dict items before repair action projection, so malformed sender audit reason-map accessors cannot interrupt queue assembly or erase valid timeout/auth reason summaries.
+
+Daily decision queue notification delivery failure reason count values fall back to integer-safe rendering before repair action projection, so malformed count text cannot erase valid timeout/auth reason summaries when integer conversion still works.
+
+Daily decision queue notification delivery failure reason unrenderable counts are omitted from reason detail before repair action projection, so malformed count values cannot create misleading `reason=... 0` summaries.
+
+Daily decision queue notification delivery failure reason non-positive counts are omitted from reason detail before repair action projection, so zero or negative sender audit counts cannot appear as active timeout/auth reason summaries.
+
+Daily decision queue notification delivery failure reason boolean counts are omitted from reason detail before repair action projection, so boolean sender audit flags cannot appear as numeric timeout/auth reason summaries.
+
+Daily decision queue notification delivery failure reason fractional counts are omitted from reason detail before repair action projection, so decimal or fractional sender audit counts cannot be truncated into active timeout/auth reason summaries.
+
+Daily decision queue notification delivery failure reason malformed keys are omitted from reason detail before repair action projection, so non-string or blank sender audit reason keys cannot appear as synthetic timeout/auth reason summaries.
+
+Daily decision queue notification delivery failure reason raw keys are omitted from reason detail before repair action projection, so raw exception strings or non-canonical sender audit reason keys cannot bypass low-cardinality timeout/auth/network bucket rendering.
+
+Daily decision queue notification delivery failure reason duplicate buckets are aggregated in reason detail before repair action projection, so casing or whitespace drift cannot duplicate timeout/auth/network summaries.
+
+Daily decision queue notification delivery failure reason partial item failures fall back to native dict items before repair action projection, so sender audit dict subclasses that stop mid-iteration do not erase later valid timeout/auth/network reason summaries.
+
+Daily decision queue notification delivery attention context iterator failures fall back to native sequence items before repair action projection, so malformed sender audit context list wrappers cannot interrupt queue assembly or erase valid affected ticker/report/CTA context.
+
+Daily decision queue notification delivery attention context partial iterator failures fall back to native sequence items before repair action projection, so sender audit context list wrappers that stop mid-iteration do not erase later affected ticker/report/CTA context.
+
+Daily decision queue notification delivery attention context tuple payloads are preserved before repair action projection, so immutable sender audit context batches still reach operator triage.
+
+Daily decision queue notification delivery attention context mapping rows normalize to plain dicts before repair action projection, so immutable sender audit context rows and nested context maps remain JSON-friendly.
+
+Daily decision queue notification delivery attention context dict subclasses normalize to plain dicts before repair action projection, so custom sender audit context wrappers do not leak into queue API payloads.
+
+Daily decision queue notification delivery attention context nested mappings normalize recursively to plain dicts before repair action projection, so nested sender audit metadata remains JSON-friendly.
+
+Daily decision queue notification delivery attention context nested mapping item failures fall back to native dict items before repair action projection, so malformed metadata wrappers cannot interrupt queue assembly or erase valid nested context.
+
+Daily decision queue notification delivery attention context nested sequence iterator failures fall back to native sequence items before repair action projection, so malformed metadata list wrappers cannot erase valid nested triage tags or CTA evidence.
+
+Shared sequence conversion treats lookup iterator failures as native-sequence fallbacks before queue, repair, refresh, and audit payload projection, so `KeyError` or `IndexError` from malformed list or tuple iterators cannot erase underlying sequence evidence.
+
+Shared sequence conversion treats lookup iterator creation failures as native-sequence fallbacks before queue, repair, refresh, and audit payload projection, so `KeyError` or `IndexError` from malformed list or tuple `__iter__` access cannot erase underlying sequence evidence before iteration starts.
+
+Daily decision queue report repair collections use iterator-safe dict-list conversion before repair action projection, so malformed repair collection truthiness cannot interrupt daily queue assembly or suppress later valid report repair rows.
+
+Daily decision queue report repair partial iterator failures fall back to native dict-list items before repair action projection, so repair list wrappers that stop mid-iteration do not erase later valid report repair rows.
+
+Daily decision queue report repair reason code partial iterator failures fall back to native text-list items before repair action projection, so reason-code list wrappers that stop mid-iteration do not erase later blocked-repair causes.
+
+Shared mapping dict conversion normalizes dict subclasses to plain dict copies before queue, repair, and audit payload projection, so custom mapping wrappers do not leak into JSON-facing API responses while native dict fields remain readable.
+
+Shared mapping dict conversion uses mapping-item traversal when mapping key iteration fails before queue, repair, and audit payload projection, so Mapping wrappers with readable `.items()` still preserve fields even when `keys()` or `__iter__()` are unavailable.
+
+Shared mapping dict conversion uses Mapping traversal when `.items()` lookup fails before queue, repair, and audit payload projection, so Mapping wrappers with readable keys and item access still preserve fields when custom `.items()` accessors raise `KeyError` or `IndexError`.
+
+Shared mapping dict conversion uses Mapping traversal when `.items()` iterables fail lookup before queue, repair, refresh, and audit payload projection, so Mapping wrappers with readable keys and item access still preserve fields when custom `.items()` iterable wrappers raise `KeyError` or `IndexError` during iterator creation.
+
+Shared mapping dict conversion skips lookup item failures during Mapping traversal before queue, repair, and audit payload projection, so one broken key lookup cannot erase later valid fields from custom Mapping wrappers.
+
+Shared mapping dict conversion skips lookup key hash failures during Mapping traversal before queue, repair, refresh, and audit payload projection, so one malformed mapping key cannot erase later valid fields after `.items()` fallback.
+
+Shared mapping dict conversion preserves safely empty Mapping wrappers as plain empty dicts before queue, repair, and audit payload projection, so optional empty metadata stays distinct from malformed mapping access failures.
+
+Shared mapping item conversion preserves partial dict-subclass items when native fallback is empty before queue, repair, and audit payload projection, so custom item wrappers that yield valid metadata before stopping do not erase that partial evidence.
+
+Shared mapping item conversion skips lookup item unpack failures before queue, repair, refresh, and audit payload projection, so custom `.items()` wrappers cannot erase later valid fields when one item pair raises `KeyError` or `IndexError` during unpacking.
+
+Shared mapping item conversion skips lookup key hash failures before queue, repair, refresh, and audit payload projection, so custom `.items()` wrappers cannot erase later valid fields when one item key raises `KeyError` or `IndexError` during hash validation.
+
+Shared mapping item conversion skips string-like malformed item pairs before queue, repair, and audit payload projection, so malformed custom item wrappers cannot turn two-character strings into synthetic mapping fields.
+
+Shared mapping item conversion skips unhashable malformed item keys before queue, repair, and audit payload projection, so custom mapping wrappers cannot crash plain-dict normalization with list-like keys while later valid fields remain available.
+
+Daily decision queue ops payloads use type-safe fallback before notification delivery and route warning projection, so malformed ops truthiness cannot interrupt daily queue assembly or suppress later valid ops warning rows.
+
+Daily decision queue route warning projection suppresses `slow_route` latency warnings while preserving `retry_storm`, `quality_gate_failures`, and future actionable route warnings, so p95 latency noise stays out of frontstage actions without hiding retry-failure evidence.
+
+Observability dashboard and Prometheus payload shaping uses payload-safe mapping conversion instead of persistence JSON pruning, so empty job lists, named queue keys, provider SLA numeric fields, notification delivery label maps, and non-finite numeric fields remain present and are normalized to safe output values.
+
+Prometheus label rendering uses shared text conversion with unknown fallback, so malformed, boolean, binary, or memory-view provider, queue, or delivery label values cannot leak into metrics output.
+
+Provider SLA alert projection text fields use shared text conversion before dashboard alert output, so boolean, binary, or memory-view source, provider, message, status, basis, or selected-window values cannot leak into provider alert payloads.
+
+Provider SLA nested window keys use shared text conversion before canonical bucket matching, so binary or memory-view keys cannot be decoded into accepted `last_1h`, `last_24h`, or `last_7d` windows.
+
+Ops dashboard queue text metadata uses shared text conversion before payload output, so boolean, binary, or memory-view queue labels and error details cannot leak as operator-facing strings.
+
+Prometheus named queue depth maps use payload-safe conversion, so malformed queue map or detail truthiness cannot interrupt queue gauges, and named queues with malformed detail rows still emit zero-depth series instead of disappearing.
+
+Daily decision queue free-mode violation lists use string-safe conversion before fix-free-mode action output, so direct queue callers cannot leak non-string paid-dependency labels or drop tuple violation evidence.
+
+Daily decision queue free-mode can-run flags use bool-safe fallback before fix-free-mode action projection, so malformed `can_run_without_paid_keys` truthiness cannot interrupt queue assembly or hide paid-dependency repair actions.
+
+Daily decision queue explicit backtest collections use iterator-safe dict-list conversion before due-item projection, so malformed `due_backtests` or `backtest_due` truthiness cannot interrupt daily queue assembly or suppress valid backtest due rows.
+
+Daily decision queue backtest evaluation `details` use iterator-safe dict-list conversion before computed due checks, so malformed evaluation detail truthiness cannot interrupt daily queue assembly or make due reports look already evaluated.
+
+Daily decision queue computed backtest report rows use iterator-safe dict-list conversion before due-date checks, so malformed report collection truthiness cannot interrupt daily queue assembly or hide reports that are due for backtest.
+
+Daily decision queue computed backtest report artifact fields use string-safe conversion before evaluated-key and due-date checks, so malformed filename or report filename truthiness cannot interrupt computed backtest due detection or hide due reports.
+
+Daily decision queue computed backtest report date fields use string- and float-safe conversion before due-date checks, so malformed date or timestamp truthiness cannot interrupt queue assembly or hide later valid due reports.
+
+Daily decision queue backtest due action text fields use string-safe conversion before title, artifact identity, and pipeline projection, so malformed ticker, filename, report filename, or pipeline truthiness cannot interrupt backtest due output or leak non-string display fields.
+
+Daily decision queue rerun report collections use iterator-safe dict-list conversion before stale-report action projection, so malformed rerun collection truthiness cannot interrupt daily queue assembly or suppress valid rerun report rows.
+
+Daily decision queue watchlist collections use iterator-safe dict-list conversion before watchlist action projection, so malformed watchlist collection truthiness cannot interrupt daily queue assembly or suppress valid watchlist rows.
+
+Daily decision queue screener candidate collections use iterator-safe dict-list conversion before candidate action projection, so malformed candidate collection truthiness cannot interrupt daily queue assembly or suppress valid screener candidate rows.
+
+Daily decision queue screener candidate action text fields use string-safe conversion before title and detail projection, so malformed ticker, company name, or reason truthiness cannot interrupt candidate action output or leak non-string display fields.
+
+Daily decision queue report repair action `recommended_action` fields use string-safe conversion before action-type mapping, so malformed action truthiness cannot interrupt safe refresh, rerun, wait-provider, or manual-review routing.
+
+Daily decision queue report repair action `ticker` fields use string-safe conversion before title and payload output, so malformed ticker truthiness cannot interrupt queue assembly or leak non-string report identity into consumers.
+
+Daily decision queue report repair action `pipeline_id` fields use string-safe conversion before title and payload output, so malformed pipeline truthiness cannot interrupt queue assembly or leak non-string report identity into consumers.
+
+Daily decision queue report repair action `priority_score` fields use integer-safe conversion before priority ordering, so malformed priority truthiness cannot interrupt queue assembly or hide valid repair priority.
+
+Daily decision queue report repair action `severity` fields use string-safe conversion before payload output, so malformed severity truthiness cannot leak non-string repair state into consumers.
+
+Daily decision queue report repair action `action_label` fields use string-safe conversion before payload output, so malformed CTA label truthiness cannot leak non-string operator action text into consumers.
+
+Daily decision queue rerun report action `ticker` fields use string-safe conversion before title and payload output, so malformed ticker truthiness cannot interrupt stale-report rerun ordering or leak non-string report identity into consumers.
+
+Daily decision queue rerun report action `pipeline_id` fields use string-safe conversion before title and payload output, so malformed pipeline truthiness cannot interrupt stale-report rerun ordering or leak non-string report identity into consumers.
+
+Daily decision queue rerun report `filename` and `report_filename` aliases use string-safe selection before dedupe and payload output, so malformed filename truthiness cannot interrupt stale-report rerun ordering or erase artifact identity.
+
+Daily decision queue rerun report action `detail` fields use string-safe fallback before payload output, so malformed rerun reason truthiness cannot interrupt stale-report rerun ordering or erase concrete stale-snapshot evidence.
+
+Daily decision queue report key `ticker` fields use string-safe conversion before dedupe, so malformed ticker truthiness cannot interrupt report repair or stale-report rerun skip-key matching.
+
+Daily decision queue report key `pipeline_id` fields use string-safe conversion before dedupe, so malformed pipeline truthiness cannot interrupt report repair or stale-report rerun skip-key matching.
+
+Daily decision dashboard report envelopes use mapping-safe conversion before row projection, so malformed envelope accessors cannot hide sampled reports, rerun evidence, repair actions, or provider impacts.
+
+Daily decision dashboard report row collections use iterator-safe dict-list conversion before repair, rerun, and provider-impact aggregation, so falsey report-list wrappers cannot hide sampled reports or rerun evidence.
+
+Daily decision dashboard rerun report `filename` and `report_filename` aliases use string-safe selection before rerun dedupe and payload output, so malformed filename truthiness cannot interrupt rerun-bucket aggregation or leak non-string artifact identity.
+
+Daily decision dashboard rerun reason fields use string-safe fallback before `rerun_reports` payload output, so malformed freshness reason truthiness cannot interrupt rerun-bucket aggregation or erase stale-snapshot evidence.
+
+Daily decision dashboard rerun freshness flags use bool-safe fallback before rerun-bucket projection, so malformed flag truthiness cannot interrupt dashboard aggregation or hide fallback stale-report evidence.
+
+Daily decision dashboard performance envelopes use mapping-safe conversion before outcome calibration and queue projection, so malformed performance accessors cannot hide backtest evidence, summary metrics, or due-backtest actions.
+
+Daily decision dashboard watchlist envelopes use mapping-safe conversion before high-priority action projection, so malformed watchlist accessors cannot hide watchlist rerun actions or high-priority counts.
+
+Daily decision dashboard watchlist `decision_priority` fields use string-safe conversion before high-priority action projection, so malformed priority truthiness cannot interrupt dashboard aggregation or hide other valid high-priority watchlist rows.
+
+Daily decision dashboard screener envelopes use mapping-safe conversion before candidate projection, so malformed screener accessors cannot hide review-candidate actions or top-candidate counts.
+
+Daily decision dashboard screener quality-funnel maps use mapping-safe conversion before candidate filtering, so immutable reject outcomes cannot surface rejected candidates as review-candidate actions.
+
+Daily decision dashboard screener quality outcome fields use string-safe conversion before reject filtering and top-candidate output, so malformed outcome truthiness cannot interrupt dashboard aggregation or leak non-string quality labels.
+
+Daily decision dashboard screener candidate text fields use string-safe conversion before top-candidate output, so malformed ticker, company, reason, or category truthiness cannot interrupt dashboard aggregation or leak non-string candidate labels.
+
+Daily decision dashboard screener score fields use conversion-safe fallback before top-candidate payload output, so malformed score objects cannot leak into dashboard or action payloads.
+
+Daily decision dashboard screener score fields use conversion-safe fallback before candidate ordering, so malformed scores cannot interrupt dashboard aggregation or outrank valid candidates.
+
+Daily decision dashboard free-mode envelopes use mapping-safe conversion before dashboard and queue projection, so malformed free-mode accessors cannot hide paid-dependency violations or fix-free-mode actions.
+
+Daily decision dashboard free-mode violation lists use string-safe conversion before dashboard and queue projection, so malformed violation truthiness cannot interrupt aggregation or leak non-string paid-dependency labels.
+
+Daily decision dashboard free-mode boolean flags use bool-safe fallback before dashboard and queue projection, so malformed enabled or can-run flags cannot interrupt aggregation or hide paid-dependency repair actions.
+
+Daily decision dashboard decision freshness maps use mapping-safe conversion before rerun-bucket projection, so immutable report freshness wrappers cannot hide reports that need full reruns from the dashboard summary.
+
+Daily decision queue provider impact ledger objects use type-safe fallback before provider recovery filtering, so malformed ledger truthiness cannot interrupt daily queue assembly or suppress valid provider impact rows.
+
+Daily decision queue provider impact ledger maps use mapping-safe conversion before provider recovery filtering, so immutable provider-impact ledgers cannot hide wait-provider-recovery actions from the daily operating queue.
+
+Daily decision queue provider impact summary maps use mapping-safe conversion before provider recovery filtering, so immutable provider-impact summaries cannot hide blocking wait-provider-recovery flags from the daily operating queue.
+
+Daily decision queue provider impact ledger `items` use iterator-safe dict-list conversion before provider recovery filtering, so malformed ledger item truthiness cannot interrupt provider recovery ordering or suppress later valid provider impact rows.
+
+Daily decision queue provider impact `impacts[].message` fields use string-safe conversion before detail output, so malformed impact-message truthiness cannot interrupt provider recovery ordering or erase concrete provider evidence.
+
+Daily decision queue provider impact `filename` and `report_filename` aliases use string-safe selection before payload output, so malformed filename truthiness cannot interrupt provider recovery ordering or erase artifact identity.
+
+Daily decision queue provider impact `blocks_auto_rerun` fields use bool-safe conversion before provider recovery filtering, so malformed blocking-flag truthiness cannot interrupt daily queue assembly and unparseable flags remain non-blocking.
+
+Daily decision queue provider impact `recommended_action` fields use string-safe fallback before action payload output, so malformed action truthiness cannot interrupt provider recovery ordering or hide wait/retry policy intent.
+
+Daily decision queue provider impact `ticker` fields use string-safe conversion before title and payload output, so malformed ticker truthiness cannot interrupt provider recovery ordering or leak non-string source identity into queue consumers.
+
+Daily decision queue provider impact `pipeline_id` fields use string-safe conversion before payload output, so malformed pipeline truthiness cannot interrupt provider recovery ordering or leak non-string pipeline identity into queue consumers.
 
 若一個 patch 同時碰到兩個以上 lane，必須跑所有相關 lane。若只改文件，至少跑 `tests/test_docs_contract.py`；若文件列出命令，文件命令必須與實際測試檔名一致。
 

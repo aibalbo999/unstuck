@@ -12,6 +12,7 @@ from data_trust import (
     trust_status_label,
     unknown_data_trust,
 )
+from mapping_fields import safe_dict_list, safe_int, safe_mapping_dict, safe_text, safe_text_list
 from .evidence import build_key_evidence_html, build_key_evidence_markdown
 from .evidence_matrix import build_evidence_matrix_html, build_evidence_matrix_markdown
 from .html_sanitizer import sanitize_report_plain_text
@@ -32,43 +33,73 @@ _LINT_MASK = [
 
 def _mask_blocking_issue(text: str) -> str:
     """Sanitize lint-triggering substrings before rendering into the report."""
-    text = str(text or "")
+    text = _safe_text(text)
     for old, new in _LINT_MASK:
         text = text.replace(old, new)
     return text
 
 
+def _safe_text(value, default: str = "") -> str:
+    text = safe_text(value).strip()
+    return text or default
+
+
+def _markdown_cell(value, default: str = "N/A") -> str:
+    text = _safe_text(value, default).replace("|", "/")
+    return " ".join(line.strip() for line in text.splitlines() if line.strip()) or default
+
+
+def _safe_duration_ms(value) -> str:
+    if value is None or isinstance(value, (bool, bytes, bytearray, memoryview)):
+        return "N/A"
+    return str(safe_int(value))
+
+
+def _safe_record_count(value) -> str:
+    return str(safe_int(value))
+
+
+def _safe_bool_flag(value) -> bool:
+    return value if isinstance(value, bool) else False
+
+
+def _source_audit_entries(data: dict) -> list[dict]:
+    data = safe_mapping_dict(data) or {}
+    return safe_dict_list(data.get("source_audit"))
+
+
 def _mask_items(items) -> list[str]:
-    return [_mask_blocking_issue(item) for item in (items or []) if str(item).strip()]
+    return [
+        masked
+        for item in safe_text_list(items)
+        if (masked := _mask_blocking_issue(item))
+    ]
 
 def build_audit_sections(context: AnalysisContext) -> list[tuple[str, list[str]]]:
     """Collect final audit and preserved abnormality notes for rendering."""
-    audit = context.get("final_audit", {}) or {}
+    context = safe_mapping_dict(context) or {}
+    audit = safe_mapping_dict(context.get("final_audit")) or {}
     sections = []
 
-    critical = _mask_items(audit.get("critical", []) or [])
-    blocking = [
-        _mask_blocking_issue(issue)
-        for issue in (context.get("blocking_issues", []) or [])
-        if issue not in critical
-    ]
+    critical = _mask_items(audit.get("critical"))
+    blocking = [issue for issue in _mask_items(context.get("blocking_issues")) if issue not in critical]
     if not critical and not blocking:
         return []
 
     if critical or blocking:
         sections.append(("仍需注意的異常", [*critical[:10], *blocking[:6]]))
 
-    repair_log = context.get("audit_repair_log", []) or []
+    repair_log = _mask_items(context.get("audit_repair_log"))
     if repair_log:
-        sections.append(("自動修復紀錄", _mask_items(repair_log)[:10]))
+        sections.append(("自動修復紀錄", repair_log[:10]))
 
-    corrections = audit.get("corrections", []) or []
+    corrections = _mask_items(audit.get("corrections"))
     if corrections:
-        sections.append(("系統已套用校正", _mask_items(corrections)[:8]))
+        sections.append(("系統已套用校正", corrections[:8]))
 
-    warnings = audit.get("warnings", []) or []
+    warnings = _mask_items(audit.get("warnings"))
     if warnings:
-        sections.append(("非阻斷提醒", _mask_items(warnings)[:8]))
+        sections.append(("非阻斷提醒", warnings[:8]))
 
     return [(title, items) for title, items in sections if items]
 
@@ -81,7 +112,7 @@ def build_audit_banner_html(context: AnalysisContext) -> str:
 
     section_html = []
     for title, items in sections:
-        lis = "".join(f"<li>{escape(str(item))}</li>" for item in items)
+        lis = "".join(f"<li>{escape(item)}</li>" for item in items)
         section_html.append(f"<div class=\"audit-section\"><strong>{escape(title)}</strong><ul>{lis}</ul></div>")
 
     return f"""
@@ -106,16 +137,17 @@ def build_audit_markdown(context: AnalysisContext) -> str:
     ]
     for title, items in sections:
         lines.append(f"### {title}")
-        lines.extend(f"- {item}" for item in items)
+        lines.extend(f"- {item_text}" for item in items if (item_text := _markdown_cell(item, "")))
         lines.append("")
     return "\n".join(lines).strip()
 
 
 def _as_notes(value) -> list[str]:
     if isinstance(value, list):
-        return [str(item) for item in value if str(item).strip()]
-    if isinstance(value, str) and value.strip():
-        return [value.strip()]
+        return [text for item in value if (text := _safe_text(item))]
+    text = _safe_text(value)
+    if text:
+        return [text]
     return []
 
 
@@ -152,14 +184,16 @@ def _reason_labels(trust: dict, limit: int = 4) -> list[str]:
 
 
 def build_data_trust_html(data: dict, context: AnalysisContext | None = None) -> str:
-    trust = normalize_data_trust(data.get("data_trust") if isinstance(data, dict) else None)
-    status = trust.get("status", "unknown")
+    data = safe_mapping_dict(data) or {}
+    trust = normalize_data_trust(data.get("data_trust"))
+    status = _safe_text(trust.get("status"), "unknown")
     notes = _as_notes(trust.get("notes")) or unknown_data_trust()["notes"]
     critical = trust.get("critical_failures", []) or []
     stale = trust.get("stale_sources", []) or []
     detail_parts = []
-    if trust.get("last_market_data_at"):
-        detail_parts.append(f"市場資料：{escape(str(trust.get('last_market_data_at')))}")
+    last_market_data_at = _safe_text(trust.get("last_market_data_at"))
+    if last_market_data_at:
+        detail_parts.append(f"市場資料：{escape(last_market_data_at)}")
     if critical:
         detail_parts.append("核心異常：" + "、".join(escape(source_label(source)) for source in critical[:4]))
     if stale:
@@ -168,13 +202,13 @@ def build_data_trust_html(data: dict, context: AnalysisContext | None = None) ->
     if reasons:
         detail_parts.append("原因：" + "、".join(escape(reason) for reason in reasons))
     # quant_metrics fallback warning
-    quant = data.get("quant_metrics") if isinstance(data, dict) else None
+    quant = safe_mapping_dict(data.get("quant_metrics"))
     quant_warning_html = ""
-    if isinstance(quant, dict):
-        fallback_fields = quant.get("fallback_fields") or []
-        warning_msg = quant.get("data_quality_warning") or ""
+    if quant is not None:
+        fallback_fields = safe_text_list(quant.get("fallback_fields"))
+        warning_msg = _safe_text(quant.get("data_quality_warning"))
         if fallback_fields:
-            fields_str = "、".join(escape(str(f)) for f in fallback_fields[:6])
+            fields_str = "、".join(escape(field) for field in fallback_fields[:6])
             msg = escape(warning_msg) if warning_msg else f"以下欄位使用預設假設，DCF/WACC 結論僅供參考：{fields_str}"
             quant_warning_html = f'<div class="data-trust-quant-warning">⚠️ <strong>量化模型警示：</strong>{msg}</div>'
     detail_html = "".join(f"<span>{part}</span>" for part in detail_parts)
@@ -193,13 +227,12 @@ def build_data_trust_html(data: dict, context: AnalysisContext | None = None) ->
         </div>
     """
 
-
-
 def build_source_audit_html(data: dict, context: AnalysisContext | None = None) -> str:
+    data = safe_mapping_dict(data) or {}
     matrix_html = build_evidence_matrix_html(context or {}) if context else ""
     evidence_html = build_key_evidence_html(data)
-    entries = data.get("source_audit") if isinstance(data, dict) else []
-    if not isinstance(entries, list) or not entries:
+    entries = _source_audit_entries(data)
+    if not entries:
         return matrix_html + evidence_html + """
             <div class="source-audit-block">
                 <h4>來源審計</h4>
@@ -209,20 +242,24 @@ def build_source_audit_html(data: dict, context: AnalysisContext | None = None) 
 
     rows = []
     for entry in entries:
-        if not isinstance(entry, dict):
-            continue
-        status = str(entry.get("status") or "unknown")
-        message = sanitize_report_plain_text(entry.get("message") or entry.get("error_kind") or "")
+        status = _safe_text(entry.get("status"), "unknown")
+        message = sanitize_report_plain_text(
+            _safe_text(entry.get("message")) or _safe_text(entry.get("error_kind"))
+        )
+        duration_ms = _safe_duration_ms(entry.get("duration_ms"))
+        record_count = _safe_record_count(entry.get("record_count"))
+        cache_hit = _safe_bool_flag(entry.get("cache_hit"))
+        stale = _safe_bool_flag(entry.get("stale"))
         rows.append(
             "<tr>"
-            f"<td>{escape(source_label(entry.get('source', '')))}</td>"
-            f"<td>{escape(sanitize_report_plain_text(entry.get('provider') or 'N/A'))}</td>"
+            f"<td>{escape(source_label(_safe_text(entry.get('source'))))}</td>"
+            f"<td>{escape(sanitize_report_plain_text(_safe_text(entry.get('provider'), 'N/A')))}</td>"
             f"<td><span class=\"audit-status audit-status-{escape(status)}\">{escape(audit_status_label(status))}</span></td>"
-            f"<td>{escape(str(entry.get('fetched_at') or 'N/A'))}</td>"
-            f"<td>{escape(str(entry.get('duration_ms') if entry.get('duration_ms') is not None else 'N/A'))}</td>"
-            f"<td>{escape(str(entry.get('record_count', 0)))}</td>"
-            f"<td>{'是' if entry.get('cache_hit') else '否'}</td>"
-            f"<td>{'是' if entry.get('stale') else '否'}</td>"
+            f"<td>{escape(_safe_text(entry.get('fetched_at'), 'N/A'))}</td>"
+            f"<td>{escape(duration_ms)}</td>"
+            f"<td>{escape(record_count)}</td>"
+            f"<td>{'是' if cache_hit else '否'}</td>"
+            f"<td>{'是' if stale else '否'}</td>"
             f"<td>{escape(message)}</td>"
             "</tr>"
         )
@@ -246,60 +283,72 @@ def build_source_audit_html(data: dict, context: AnalysisContext | None = None) 
 
 
 def build_data_trust_markdown(data: dict, context: AnalysisContext | None = None) -> str:
-    trust = normalize_data_trust(data.get("data_trust") if isinstance(data, dict) else None)
-    notes = _as_notes(trust.get("notes")) or unknown_data_trust()["notes"]
-    reasons = _reason_labels(trust, limit=8)
+    data = safe_mapping_dict(data) or {}
+    trust = normalize_data_trust(data.get("data_trust"))
+    status = _safe_text(trust.get("status"), "unknown")
+    last_market_data_at = _markdown_cell(trust.get("last_market_data_at"), "N/A")
+    notes = [_markdown_cell(note, "") for note in (_as_notes(trust.get("notes")) or unknown_data_trust()["notes"])]
+    notes = [note for note in notes if note]
+    reasons = [_markdown_cell(reason, "") for reason in _reason_labels(trust, limit=8)]
+    reasons = [reason for reason in reasons if reason]
+    critical_sources = [_markdown_cell(source_label(source), "") for source in trust.get("critical_failures", []) or []]
+    critical_sources = [source for source in critical_sources if source]
+    stale_sources = [_markdown_cell(source_label(source), "") for source in trust.get("stale_sources", []) or []]
+    stale_sources = [source for source in stale_sources if source]
     lines = [
         "## 本報告資料可信度",
-        f"- **狀態:** {trust_status_label(trust.get('status', 'unknown'))}",
-        f"- **市場資料時間:** {trust.get('last_market_data_at') or 'N/A'}",
-        f"- **核心異常:** {', '.join(source_label(source) for source in trust.get('critical_failures', []) or []) or '無'}",
-        f"- **過期來源:** {', '.join(source_label(source) for source in trust.get('stale_sources', []) or []) or '無'}",
+        f"- **狀態:** {trust_status_label(status)}",
+        f"- **市場資料時間:** {last_market_data_at}",
+        f"- **核心異常:** {', '.join(critical_sources) or '無'}",
+        f"- **過期來源:** {', '.join(stale_sources) or '無'}",
         f"- **原因:** {', '.join(reasons) or '無'}",
         f"- **摘要:** {'；'.join(notes)}",
     ]
     lines.extend(build_trust_controls_markdown(data, context))
     # quant_metrics fallback warning — injected when key DCF fields use default assumptions
-    quant = data.get("quant_metrics") if isinstance(data, dict) else None
-    if isinstance(quant, dict):
-        fallback_fields = quant.get("fallback_fields") or []
-        warning_msg = quant.get("data_quality_warning") or ""
+    quant = safe_mapping_dict(data.get("quant_metrics"))
+    if quant is not None:
+        fallback_fields = safe_text_list(quant.get("fallback_fields"))
+        warning_msg = _safe_text(quant.get("data_quality_warning"))
         if fallback_fields:
-            fields_str = "、".join(str(f) for f in fallback_fields[:6])
-            msg = warning_msg if warning_msg else f"以下欄位使用預設假設，DCF/WACC 結論僅供參考：{fields_str}"
+            fields = [_markdown_cell(field, "") for field in fallback_fields[:6]]
+            fields_str = "、".join(field for field in fields if field)
+            msg = _markdown_cell(warning_msg, "") if warning_msg else f"以下欄位使用預設假設，DCF/WACC 結論僅供參考：{fields_str}"
             lines.append(f"- **⚠️ 量化模型警示:** {msg}")
     return "\n".join(lines)
 
-
-
 def build_source_audit_markdown(data: dict, context: AnalysisContext | None = None) -> str:
-    entries = data.get("source_audit") if isinstance(data, dict) else []
+    data = safe_mapping_dict(data) or {}
+    entries = _source_audit_entries(data)
     lines = build_evidence_matrix_markdown(context or {}) if context else []
-    lines.extend(build_key_evidence_markdown(data if isinstance(data, dict) else {}))
+    lines.extend(build_key_evidence_markdown(data))
     lines.extend([
         "## 來源審計",
         "",
         "| 來源 | Provider | 狀態 | 抓取時間 | 耗時 ms | 筆數 | 快取 | 過期 | 訊息 |",
         "|---|---|---|---|---:|---:|---|---|---|",
     ])
-    if not isinstance(entries, list) or not entries:
+    if not entries:
         lines.append("| 未記錄 | N/A | 未記錄 | N/A | N/A | 0 | N/A | N/A | 舊報告未保存 source_audit。 |")
         return "\n".join(lines)
 
     for entry in entries:
-        if not isinstance(entry, dict):
-            continue
-        message = str(entry.get("message") or entry.get("error_kind") or "").replace("|", "/")
+        status = _safe_text(entry.get("status"))
+        message = _markdown_cell(_safe_text(entry.get("message")) or _safe_text(entry.get("error_kind")), "")
+        duration_ms = _safe_duration_ms(entry.get("duration_ms"))
+        record_count = _safe_record_count(entry.get("record_count"))
+        cache_hit = _safe_bool_flag(entry.get("cache_hit"))
+        stale = _safe_bool_flag(entry.get("stale"))
         lines.append(
             "| "
-            f"{source_label(entry.get('source', ''))} | "
-            f"{entry.get('provider') or 'N/A'} | "
-            f"{audit_status_label(entry.get('status', ''))} | "
-            f"{entry.get('fetched_at') or 'N/A'} | "
-            f"{entry.get('duration_ms') if entry.get('duration_ms') is not None else 'N/A'} | "
-            f"{entry.get('record_count', 0)} | "
-            f"{'是' if entry.get('cache_hit') else '否'} | "
-            f"{'是' if entry.get('stale') else '否'} | "
+            f"{_markdown_cell(source_label(_safe_text(entry.get('source'))))} | "
+            f"{_markdown_cell(entry.get('provider'))} | "
+            f"{_markdown_cell(audit_status_label(status))} | "
+            f"{_markdown_cell(entry.get('fetched_at'))} | "
+            f"{_markdown_cell(duration_ms)} | "
+            f"{_markdown_cell(record_count)} | "
+            f"{'是' if cache_hit else '否'} | "
+            f"{'是' if stale else '否'} | "
             f"{message} |"
         )
     return "\n".join(lines)

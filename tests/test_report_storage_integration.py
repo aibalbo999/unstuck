@@ -3,7 +3,7 @@ import json
 import os
 import time
 from datetime import datetime, timezone
-from types import SimpleNamespace
+from types import MappingProxyType, SimpleNamespace
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -154,6 +154,43 @@ def test_persist_report_bundle_saves_content_before_indexing():
     ).encode("utf-8")
 
 
+def test_persist_report_bundle_accepts_mapping_safe_data_snapshot():
+    from report_persistence import persist_report_bundle
+
+    filename = "2308_TW_v2_report_20260626_120000.html"
+    storage = RecordingStorage()
+    repository = RecordingRepository(storage.order)
+    data_snapshot = MappingProxyType(
+        {
+            "ticker": "2308.TW",
+            "data_trust": MappingProxyType(
+                {
+                    "status": "fresh",
+                    "reason_codes": ("fresh_core_sources",),
+                }
+            ),
+        }
+    )
+
+    result = persist_report_bundle(
+        filename=filename,
+        html_content="<html>台達電</html>",
+        markdown_content="# 台達電\n",
+        data_snapshot=data_snapshot,
+        storage=storage,
+        output_dir="/reports",
+        repository=repository,
+    )
+
+    expected_snapshot = {
+        "ticker": "2308.TW",
+        "data_trust": {"status": "fresh", "reason_codes": ["fresh_core_sources"]},
+    }
+    assert repository.upserts[0]["data_trust"] == expected_snapshot["data_trust"]
+    assert result["data_trust"] == expected_snapshot["data_trust"]
+    assert json.loads(storage.saved[result["data_key"]].content.decode("utf-8")) == expected_snapshot
+
+
 def test_persist_report_bundle_rolls_back_saved_content_when_data_save_fails():
     from report_persistence import persist_report_bundle
 
@@ -273,6 +310,521 @@ def test_get_report_file_reads_storage_and_repairs_html():
     assert 'href="https://tw.stock.yahoo.com/quote/2308.TW"' in response.body.decode("utf-8")
 
 
+def test_get_report_file_replaces_static_notice_when_snapshot_integrity_is_invalid():
+    storage = InMemoryStorage()
+    filename = "2308_TW_v2_report_20260626_120000.html"
+    storage.save_report(
+        filename,
+        """
+        <html><body>
+        <section class="report-reading-notice report-reading-notice-passed">
+            <span class="report-reading-notice-status">已通過已知檢查</span>
+        </section>
+        <p>from storage</p>
+        </body></html>
+        """.encode("utf-8"),
+        content_type="text/html",
+    )
+    storage.save_report(
+        data_snapshot_filename_for_report(filename),
+        json.dumps(
+            {
+                "ticker": "2308.TW",
+                "snapshot_hash": "expected-but-stale",
+                "data_trust": {"status": "fresh"},
+                "evidence_exit_gate": {"verdict": "approved"},
+                "content_credibility": {"status": "passed"},
+                "report_conformance": {"status": "passed"},
+            },
+            ensure_ascii=False,
+        ).encode("utf-8"),
+        content_type="application/json",
+    )
+
+    response = get_report_file(filename, "/missing-output-dir", storage=storage)
+    body = response.body.decode("utf-8")
+
+    assert response.status_code == 200
+    assert "from storage" in body
+    assert "report-reading-notice-blocked" in body
+    assert "品質 gate 未通過" in body
+    assert "snapshot_hash mismatch" in body
+    assert "report-reading-notice-passed" not in body
+
+
+def test_get_report_file_replaces_static_notice_when_data_snapshot_is_malformed():
+    storage = InMemoryStorage()
+    filename = "2308_TW_v2_report_20260626_120000.html"
+    storage.save_report(
+        filename,
+        """
+        <html><body>
+        <section class="report-reading-notice report-reading-notice-passed">
+            <span class="report-reading-notice-status">已通過已知檢查</span>
+        </section>
+        <p>malformed snapshot report</p>
+        </body></html>
+        """.encode("utf-8"),
+        content_type="text/html",
+    )
+    storage.save_report(data_snapshot_filename_for_report(filename), b"{", content_type="application/json")
+
+    response = get_report_file(filename, "/missing-output-dir", storage=storage)
+    body = response.body.decode("utf-8")
+
+    assert response.status_code == 200
+    assert "malformed snapshot report" in body
+    assert "report-reading-notice-blocked" in body
+    assert "資料快照無法解析" in body
+    assert "report-reading-notice-passed" not in body
+
+
+def test_get_report_file_replaces_static_notice_when_snapshot_records_invalid_integrity_without_hash():
+    storage = InMemoryStorage()
+    filename = "2308_TW_v2_report_20260626_120000.html"
+    storage.save_report(
+        filename,
+        """
+        <html><body>
+        <section class="report-reading-notice report-reading-notice-passed">
+            <span class="report-reading-notice-status">已通過已知檢查</span>
+        </section>
+        <p>recorded invalid snapshot report</p>
+        </body></html>
+        """.encode("utf-8"),
+        content_type="text/html",
+    )
+    storage.save_report(
+        data_snapshot_filename_for_report(filename),
+        json.dumps(
+            {
+                "ticker": "2308.TW",
+                "snapshot_integrity": {
+                    "status": "verified",
+                    "valid": False,
+                    "errors": ["snapshot verifier rejected stale source bundle"],
+                },
+                "data_trust": {"status": "fresh"},
+                "evidence_exit_gate": {"verdict": "approved"},
+                "content_credibility": {"status": "passed"},
+                "report_conformance": {"status": "passed"},
+            },
+            ensure_ascii=False,
+        ).encode("utf-8"),
+        content_type="application/json",
+    )
+
+    response = get_report_file(filename, "/missing-output-dir", storage=storage)
+    body = response.body.decode("utf-8")
+
+    assert response.status_code == 200
+    assert "recorded invalid snapshot report" in body
+    assert "report-reading-notice-blocked" in body
+    assert "snapshot verifier rejected stale source bundle" in body
+    assert "report-reading-notice-passed" not in body
+
+
+def test_get_report_file_derives_hash_mismatch_detail_from_recorded_invalid_integrity_hashes():
+    storage = InMemoryStorage()
+    filename = "2308_TW_v2_report_20260626_120000.html"
+    storage.save_report(
+        filename,
+        """
+        <html><body>
+        <section class="report-reading-notice report-reading-notice-passed">
+            <span class="report-reading-notice-status">已通過已知檢查</span>
+        </section>
+        <p>recorded hash mismatch report</p>
+        </body></html>
+        """.encode("utf-8"),
+        content_type="text/html",
+    )
+    storage.save_report(
+        data_snapshot_filename_for_report(filename),
+        json.dumps(
+            {
+                "ticker": "2308.TW",
+                "snapshot_integrity": {
+                    "status": "invalid",
+                    "hash": "actual-hash",
+                    "expected_hash": "expected-hash",
+                },
+                "data_trust": {"status": "fresh"},
+                "evidence_exit_gate": {"verdict": "approved"},
+                "content_credibility": {"status": "passed"},
+                "report_conformance": {"status": "passed"},
+            },
+            ensure_ascii=False,
+        ).encode("utf-8"),
+        content_type="application/json",
+    )
+
+    response = get_report_file(filename, "/missing-output-dir", storage=storage)
+    body = response.body.decode("utf-8")
+
+    assert response.status_code == 200
+    assert "recorded hash mismatch report" in body
+    assert "report-reading-notice-blocked" in body
+    assert "snapshot_hash mismatch" in body
+    assert "report-reading-notice-passed" not in body
+
+
+def test_get_report_file_prefers_hash_mismatch_over_recorded_generic_integrity_error():
+    storage = InMemoryStorage()
+    filename = "2308_TW_v2_report_20260626_120000.html"
+    generic_error = "資料快照完整性未通過，不能直接引用報告結論。"
+    storage.save_report(
+        filename,
+        """
+        <html><body>
+        <section class="report-reading-notice report-reading-notice-passed">
+            <span class="report-reading-notice-status">已通過已知檢查</span>
+        </section>
+        <p>recorded generic hash mismatch report</p>
+        </body></html>
+        """.encode("utf-8"),
+        content_type="text/html",
+    )
+    storage.save_report(
+        data_snapshot_filename_for_report(filename),
+        json.dumps(
+            {
+                "ticker": "2308.TW",
+                "snapshot_integrity": {
+                    "status": "invalid",
+                    "errors": [generic_error],
+                    "hash": "actual-hash",
+                    "expected_hash": "expected-hash",
+                },
+                "data_trust": {"status": "fresh"},
+                "evidence_exit_gate": {"verdict": "approved"},
+                "content_credibility": {"status": "passed"},
+                "report_conformance": {"status": "passed"},
+            },
+            ensure_ascii=False,
+        ).encode("utf-8"),
+        content_type="application/json",
+    )
+
+    response = get_report_file(filename, "/missing-output-dir", storage=storage)
+    body = response.body.decode("utf-8")
+
+    assert response.status_code == 200
+    assert "recorded generic hash mismatch report" in body
+    assert "report-reading-notice-blocked" in body
+    assert "snapshot_hash mismatch" in body
+    assert generic_error not in body
+    assert "report-reading-notice-passed" not in body
+
+
+def test_get_report_file_removes_recorded_generic_integrity_error_when_specific_detail_exists():
+    storage = InMemoryStorage()
+    filename = "2308_TW_v2_report_20260626_120000.html"
+    generic_error = "資料快照完整性未通過，不能直接引用報告結論。"
+    specific_error = "provider audit source digest mismatch"
+    storage.save_report(
+        filename,
+        """
+        <html><body>
+        <section class="report-reading-notice report-reading-notice-passed">
+            <span class="report-reading-notice-status">已通過已知檢查</span>
+        </section>
+        <p>recorded mixed integrity errors report</p>
+        </body></html>
+        """.encode("utf-8"),
+        content_type="text/html",
+    )
+    storage.save_report(
+        data_snapshot_filename_for_report(filename),
+        json.dumps(
+            {
+                "ticker": "2308.TW",
+                "snapshot_integrity": {
+                    "status": "invalid",
+                    "errors": [generic_error, specific_error],
+                },
+                "data_trust": {"status": "fresh"},
+                "evidence_exit_gate": {"verdict": "approved"},
+                "content_credibility": {"status": "passed"},
+                "report_conformance": {"status": "passed"},
+            },
+            ensure_ascii=False,
+        ).encode("utf-8"),
+        content_type="application/json",
+    )
+
+    response = get_report_file(filename, "/missing-output-dir", storage=storage)
+    body = response.body.decode("utf-8")
+
+    assert response.status_code == 200
+    assert "recorded mixed integrity errors report" in body
+    assert "report-reading-notice-blocked" in body
+    assert specific_error in body
+    assert generic_error not in body
+    assert "report-reading-notice-passed" not in body
+
+
+def test_get_report_file_deduplicates_recorded_integrity_error_details():
+    storage = InMemoryStorage()
+    filename = "2308_TW_v2_report_20260626_120000.html"
+    specific_error = "provider audit source digest mismatch"
+    storage.save_report(
+        filename,
+        """
+        <html><body>
+        <section class="report-reading-notice report-reading-notice-passed">
+            <span class="report-reading-notice-status">已通過已知檢查</span>
+        </section>
+        <p>recorded duplicate integrity errors report</p>
+        </body></html>
+        """.encode("utf-8"),
+        content_type="text/html",
+    )
+    storage.save_report(
+        data_snapshot_filename_for_report(filename),
+        json.dumps(
+            {
+                "ticker": "2308.TW",
+                "snapshot_integrity": {
+                    "status": "invalid",
+                    "errors": [specific_error, specific_error],
+                },
+                "data_trust": {"status": "fresh"},
+                "evidence_exit_gate": {"verdict": "approved"},
+                "content_credibility": {"status": "passed"},
+                "report_conformance": {"status": "passed"},
+            },
+            ensure_ascii=False,
+        ).encode("utf-8"),
+        content_type="application/json",
+    )
+
+    response = get_report_file(filename, "/missing-output-dir", storage=storage)
+    body = response.body.decode("utf-8")
+
+    assert response.status_code == 200
+    assert "recorded duplicate integrity errors report" in body
+    assert "report-reading-notice-blocked" in body
+    assert body.count(specific_error) == 1
+    assert "report-reading-notice-passed" not in body
+
+
+def test_get_report_file_replaces_static_notice_when_nested_snapshot_integrity_is_invalid():
+    storage = InMemoryStorage()
+    filename = "2308_TW_v2_report_20260626_120000.html"
+    storage.save_report(
+        filename,
+        """
+        <html><body>
+        <section class="report-reading-notice report-reading-notice-passed">
+            <span class="report-reading-notice-status">已通過已知檢查</span>
+        </section>
+        <p>nested invalid snapshot report</p>
+        </body></html>
+        """.encode("utf-8"),
+        content_type="text/html",
+    )
+    storage.save_report(
+        data_snapshot_filename_for_report(filename),
+        json.dumps(
+            {
+                "ticker": "2308.TW",
+                "data": {
+                    "snapshot_integrity": {
+                        "status": "invalid",
+                        "errors": ["nested snapshot integrity rejected stale source bundle"],
+                    },
+                },
+                "data_trust": {"status": "fresh"},
+                "evidence_exit_gate": {"verdict": "approved"},
+                "content_credibility": {"status": "passed"},
+                "report_conformance": {"status": "passed"},
+            },
+            ensure_ascii=False,
+        ).encode("utf-8"),
+        content_type="application/json",
+    )
+
+    response = get_report_file(filename, "/missing-output-dir", storage=storage)
+    body = response.body.decode("utf-8")
+
+    assert response.status_code == 200
+    assert "nested invalid snapshot report" in body
+    assert "report-reading-notice-blocked" in body
+    assert "nested snapshot integrity rejected stale source bundle" in body
+    assert "report-reading-notice-passed" not in body
+
+
+def test_get_report_file_uses_nested_invalid_integrity_even_when_top_level_is_verified():
+    storage = InMemoryStorage()
+    filename = "2308_TW_v2_report_20260626_120000.html"
+    storage.save_report(
+        filename,
+        """
+        <html><body>
+        <section class="report-reading-notice report-reading-notice-passed">
+            <span class="report-reading-notice-status">已通過已知檢查</span>
+        </section>
+        <p>conflicting snapshot report</p>
+        </body></html>
+        """.encode("utf-8"),
+        content_type="text/html",
+    )
+    storage.save_report(
+        data_snapshot_filename_for_report(filename),
+        json.dumps(
+            {
+                "ticker": "2308.TW",
+                "snapshot_integrity": {"status": "verified", "valid": True},
+                "data": {
+                    "snapshot_integrity": {
+                        "status": "invalid",
+                        "errors": ["nested integrity must override top-level verified status"],
+                    },
+                },
+                "data_trust": {"status": "fresh"},
+                "evidence_exit_gate": {"verdict": "approved"},
+                "content_credibility": {"status": "passed"},
+                "report_conformance": {"status": "passed"},
+            },
+            ensure_ascii=False,
+        ).encode("utf-8"),
+        content_type="application/json",
+    )
+
+    response = get_report_file(filename, "/missing-output-dir", storage=storage)
+    body = response.body.decode("utf-8")
+
+    assert response.status_code == 200
+    assert "conflicting snapshot report" in body
+    assert "report-reading-notice-blocked" in body
+    assert "nested integrity must override top-level verified status" in body
+    assert "report-reading-notice-passed" not in body
+
+
+def test_get_report_file_prefers_specific_nested_invalid_detail_over_generic_top_level_invalid():
+    storage = InMemoryStorage()
+    filename = "2308_TW_v2_report_20260626_120000.html"
+    storage.save_report(
+        filename,
+        """
+        <html><body>
+        <section class="report-reading-notice report-reading-notice-passed">
+            <span class="report-reading-notice-status">已通過已知檢查</span>
+        </section>
+        <p>specific nested detail report</p>
+        </body></html>
+        """.encode("utf-8"),
+        content_type="text/html",
+    )
+    storage.save_report(
+        data_snapshot_filename_for_report(filename),
+        json.dumps(
+            {
+                "ticker": "2308.TW",
+                "snapshot_integrity": {"status": "invalid"},
+                "data": {
+                    "snapshot_integrity": {
+                        "status": "invalid",
+                        "errors": ["nested provider audit hash mismatch"],
+                    },
+                },
+                "data_trust": {"status": "fresh"},
+                "evidence_exit_gate": {"verdict": "approved"},
+                "content_credibility": {"status": "passed"},
+                "report_conformance": {"status": "passed"},
+            },
+            ensure_ascii=False,
+        ).encode("utf-8"),
+        content_type="application/json",
+    )
+
+    response = get_report_file(filename, "/missing-output-dir", storage=storage)
+    body = response.body.decode("utf-8")
+
+    assert response.status_code == 200
+    assert "specific nested detail report" in body
+    assert "report-reading-notice-blocked" in body
+    assert "nested provider audit hash mismatch" in body
+    assert "report-reading-notice-passed" not in body
+
+
+def test_get_report_file_prefers_specific_nested_invalid_detail_over_generic_top_level_error_text():
+    storage = InMemoryStorage()
+    filename = "2308_TW_v2_report_20260626_120000.html"
+    storage.save_report(
+        filename,
+        """
+        <html><body>
+        <section class="report-reading-notice report-reading-notice-passed">
+            <span class="report-reading-notice-status">已通過已知檢查</span>
+        </section>
+        <p>generic top-level detail report</p>
+        </body></html>
+        """.encode("utf-8"),
+        content_type="text/html",
+    )
+    storage.save_report(
+        data_snapshot_filename_for_report(filename),
+        json.dumps(
+            {
+                "ticker": "2308.TW",
+                "snapshot_integrity": {
+                    "status": "invalid",
+                    "errors": ["資料快照完整性未通過，不能直接引用報告結論。"],
+                },
+                "data": {
+                    "snapshot_integrity": {
+                        "status": "invalid",
+                        "errors": ["nested provider audit hash mismatch"],
+                    },
+                },
+                "data_trust": {"status": "fresh"},
+                "evidence_exit_gate": {"verdict": "approved"},
+                "content_credibility": {"status": "passed"},
+                "report_conformance": {"status": "passed"},
+            },
+            ensure_ascii=False,
+        ).encode("utf-8"),
+        content_type="application/json",
+    )
+
+    response = get_report_file(filename, "/missing-output-dir", storage=storage)
+    body = response.body.decode("utf-8")
+
+    assert response.status_code == 200
+    assert "generic top-level detail report" in body
+    assert "report-reading-notice-blocked" in body
+    assert "nested provider audit hash mismatch" in body
+    assert "report-reading-notice-passed" not in body
+
+
+def test_get_report_file_replaces_static_notice_when_data_snapshot_is_missing():
+    storage = InMemoryStorage()
+    filename = "2308_TW_v2_report_20260626_120000.html"
+    storage.save_report(
+        filename,
+        """
+        <html><body>
+        <section class="report-reading-notice report-reading-notice-passed">
+            <span class="report-reading-notice-status">已通過已知檢查</span>
+        </section>
+        <p>missing snapshot report</p>
+        </body></html>
+        """.encode("utf-8"),
+        content_type="text/html",
+    )
+
+    response = get_report_file(filename, "/missing-output-dir", storage=storage)
+    body = response.body.decode("utf-8")
+
+    assert response.status_code == 200
+    assert "missing snapshot report" in body
+    assert "report-reading-notice-warning" in body
+    assert "資料快照不存在" in body
+    assert "report-reading-notice-passed" not in body
+
+
 def test_download_report_file_reads_storage_for_html_markdown_and_data():
     storage = InMemoryStorage()
     filename = "2308_TW_v2_report_20260626_120000.html"
@@ -301,6 +853,622 @@ def test_download_report_file_reads_storage_for_html_markdown_and_data():
     assert data_response.body == b'{"ticker":"2308.TW"}'
     assert data_response.headers["content-disposition"] == f"attachment; filename={data_filename}"
     assert data_response.headers["content-type"].startswith("application/json")
+
+
+def test_download_html_report_replaces_static_notice_when_snapshot_integrity_is_invalid():
+    storage = InMemoryStorage()
+    filename = "2308_TW_v2_report_20260626_120000.html"
+    storage.save_report(
+        filename,
+        """
+        <html><body>
+        <section class="report-reading-notice report-reading-notice-passed">
+            <span class="report-reading-notice-status">已通過已知檢查</span>
+        </section>
+        <p>downloaded report</p>
+        </body></html>
+        """.encode("utf-8"),
+        content_type="text/html",
+    )
+    storage.save_report(
+        data_snapshot_filename_for_report(filename),
+        json.dumps(
+            {
+                "ticker": "2308.TW",
+                "snapshot_hash": "expected-but-stale",
+                "data_trust": {"status": "fresh"},
+                "evidence_exit_gate": {"verdict": "approved"},
+                "content_credibility": {"status": "passed"},
+                "report_conformance": {"status": "passed"},
+            },
+            ensure_ascii=False,
+        ).encode("utf-8"),
+        content_type="application/json",
+    )
+
+    response = download_report_file(filename, "/missing-output-dir", "html", storage=storage)
+    body = response.body.decode("utf-8")
+
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == f"attachment; filename={filename}"
+    assert "downloaded report" in body
+    assert "report-reading-notice-blocked" in body
+    assert "snapshot_hash mismatch" in body
+    assert "report-reading-notice-passed" not in body
+
+
+def test_download_markdown_report_replaces_static_notice_when_snapshot_integrity_is_invalid():
+    storage = InMemoryStorage()
+    filename = "2308_TW_v2_report_20260626_120000.html"
+    md_filename = "2308_TW_v2_report_20260626_120000.md"
+    storage.save_report(
+        md_filename,
+        """
+## 報告使用範圍與判讀限制
+
+- **品質 gate 狀態:** 已通過已知檢查
+> 綠燈只代表已知自動檢查通過
+
+## 其他章節
+
+downloaded markdown
+        """.encode("utf-8"),
+        content_type="text/markdown",
+    )
+    storage.save_report(
+        data_snapshot_filename_for_report(filename),
+        json.dumps(
+            {
+                "ticker": "2308.TW",
+                "snapshot_hash": "expected-but-stale",
+                "data_trust": {"status": "fresh"},
+                "evidence_exit_gate": {"verdict": "approved"},
+                "content_credibility": {"status": "passed"},
+                "report_conformance": {"status": "passed"},
+            },
+            ensure_ascii=False,
+        ).encode("utf-8"),
+        content_type="application/json",
+    )
+
+    response = download_report_file(filename, "/missing-output-dir", "md", storage=storage)
+    body = response.body.decode("utf-8")
+
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == f"attachment; filename={md_filename}"
+    assert "品質 gate 未通過" in body
+    assert "snapshot_hash mismatch" in body
+    assert "已通過已知檢查" not in body
+    assert "## 其他章節" in body
+    assert "downloaded markdown" in body
+
+
+def test_download_markdown_report_replaces_static_notice_when_data_snapshot_is_malformed():
+    storage = InMemoryStorage()
+    filename = "2308_TW_v2_report_20260626_120000.html"
+    md_filename = "2308_TW_v2_report_20260626_120000.md"
+    storage.save_report(
+        md_filename,
+        """
+## 報告使用範圍與判讀限制
+
+- **品質 gate 狀態:** 已通過已知檢查
+> 綠燈只代表已知自動檢查通過
+
+## 其他章節
+
+malformed snapshot markdown
+        """.encode("utf-8"),
+        content_type="text/markdown",
+    )
+    storage.save_report(data_snapshot_filename_for_report(filename), b"{", content_type="application/json")
+
+    response = download_report_file(filename, "/missing-output-dir", "md", storage=storage)
+    body = response.body.decode("utf-8")
+
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == f"attachment; filename={md_filename}"
+    assert "品質 gate 未通過" in body
+    assert "資料快照無法解析" in body
+    assert "已通過已知檢查" not in body
+    assert "## 其他章節" in body
+    assert "malformed snapshot markdown" in body
+
+
+def test_download_markdown_report_replaces_static_notice_when_snapshot_records_invalid_integrity_without_hash():
+    storage = InMemoryStorage()
+    filename = "2308_TW_v2_report_20260626_120000.html"
+    md_filename = "2308_TW_v2_report_20260626_120000.md"
+    storage.save_report(
+        md_filename,
+        """
+## 報告使用範圍與判讀限制
+
+- **品質 gate 狀態:** 已通過已知檢查
+> 綠燈只代表已知自動檢查通過
+
+## 其他章節
+
+recorded invalid snapshot markdown
+        """.encode("utf-8"),
+        content_type="text/markdown",
+    )
+    storage.save_report(
+        data_snapshot_filename_for_report(filename),
+        json.dumps(
+            {
+                "ticker": "2308.TW",
+                "snapshot_integrity": {
+                    "status": "verified",
+                    "valid": False,
+                    "errors": ["snapshot verifier rejected stale source bundle"],
+                },
+                "data_trust": {"status": "fresh"},
+                "evidence_exit_gate": {"verdict": "approved"},
+                "content_credibility": {"status": "passed"},
+                "report_conformance": {"status": "passed"},
+            },
+            ensure_ascii=False,
+        ).encode("utf-8"),
+        content_type="application/json",
+    )
+
+    response = download_report_file(filename, "/missing-output-dir", "md", storage=storage)
+    body = response.body.decode("utf-8")
+
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == f"attachment; filename={md_filename}"
+    assert "品質 gate 未通過" in body
+    assert "snapshot verifier rejected stale source bundle" in body
+    assert "已通過已知檢查" not in body
+    assert "## 其他章節" in body
+    assert "recorded invalid snapshot markdown" in body
+
+
+def test_download_markdown_report_derives_hash_mismatch_detail_from_recorded_invalid_integrity_hashes():
+    storage = InMemoryStorage()
+    filename = "2308_TW_v2_report_20260626_120000.html"
+    md_filename = "2308_TW_v2_report_20260626_120000.md"
+    storage.save_report(
+        md_filename,
+        """
+## 報告使用範圍與判讀限制
+
+- **品質 gate 狀態:** 已通過已知檢查
+> 綠燈只代表已知自動檢查通過
+
+## 其他章節
+
+recorded hash mismatch markdown
+        """.encode("utf-8"),
+        content_type="text/markdown",
+    )
+    storage.save_report(
+        data_snapshot_filename_for_report(filename),
+        json.dumps(
+            {
+                "ticker": "2308.TW",
+                "snapshot_integrity": {
+                    "status": "invalid",
+                    "hash": "actual-hash",
+                    "expected_hash": "expected-hash",
+                },
+                "data_trust": {"status": "fresh"},
+                "evidence_exit_gate": {"verdict": "approved"},
+                "content_credibility": {"status": "passed"},
+                "report_conformance": {"status": "passed"},
+            },
+            ensure_ascii=False,
+        ).encode("utf-8"),
+        content_type="application/json",
+    )
+
+    response = download_report_file(filename, "/missing-output-dir", "md", storage=storage)
+    body = response.body.decode("utf-8")
+
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == f"attachment; filename={md_filename}"
+    assert "品質 gate 未通過" in body
+    assert "snapshot_hash mismatch" in body
+    assert "已通過已知檢查" not in body
+    assert "## 其他章節" in body
+    assert "recorded hash mismatch markdown" in body
+
+
+def test_download_markdown_report_prefers_hash_mismatch_over_recorded_generic_integrity_error():
+    storage = InMemoryStorage()
+    filename = "2308_TW_v2_report_20260626_120000.html"
+    md_filename = "2308_TW_v2_report_20260626_120000.md"
+    generic_error = "資料快照完整性未通過，不能直接引用報告結論。"
+    storage.save_report(
+        md_filename,
+        """
+## 報告使用範圍與判讀限制
+
+- **品質 gate 狀態:** 已通過已知檢查
+> 綠燈只代表已知自動檢查通過
+
+## 其他章節
+
+recorded generic hash mismatch markdown
+        """.encode("utf-8"),
+        content_type="text/markdown",
+    )
+    storage.save_report(
+        data_snapshot_filename_for_report(filename),
+        json.dumps(
+            {
+                "ticker": "2308.TW",
+                "snapshot_integrity": {
+                    "status": "invalid",
+                    "errors": [generic_error],
+                    "hash": "actual-hash",
+                    "expected_hash": "expected-hash",
+                },
+                "data_trust": {"status": "fresh"},
+                "evidence_exit_gate": {"verdict": "approved"},
+                "content_credibility": {"status": "passed"},
+                "report_conformance": {"status": "passed"},
+            },
+            ensure_ascii=False,
+        ).encode("utf-8"),
+        content_type="application/json",
+    )
+
+    response = download_report_file(filename, "/missing-output-dir", "md", storage=storage)
+    body = response.body.decode("utf-8")
+
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == f"attachment; filename={md_filename}"
+    assert "品質 gate 未通過" in body
+    assert "snapshot_hash mismatch" in body
+    assert generic_error not in body
+    assert "已通過已知檢查" not in body
+    assert "## 其他章節" in body
+    assert "recorded generic hash mismatch markdown" in body
+
+
+def test_download_markdown_report_removes_recorded_generic_integrity_error_when_specific_detail_exists():
+    storage = InMemoryStorage()
+    filename = "2308_TW_v2_report_20260626_120000.html"
+    md_filename = "2308_TW_v2_report_20260626_120000.md"
+    generic_error = "資料快照完整性未通過，不能直接引用報告結論。"
+    specific_error = "provider audit source digest mismatch"
+    storage.save_report(
+        md_filename,
+        """
+## 報告使用範圍與判讀限制
+
+- **品質 gate 狀態:** 已通過已知檢查
+> 綠燈只代表已知自動檢查通過
+
+## 其他章節
+
+recorded mixed integrity errors markdown
+        """.encode("utf-8"),
+        content_type="text/markdown",
+    )
+    storage.save_report(
+        data_snapshot_filename_for_report(filename),
+        json.dumps(
+            {
+                "ticker": "2308.TW",
+                "snapshot_integrity": {
+                    "status": "invalid",
+                    "errors": [generic_error, specific_error],
+                },
+                "data_trust": {"status": "fresh"},
+                "evidence_exit_gate": {"verdict": "approved"},
+                "content_credibility": {"status": "passed"},
+                "report_conformance": {"status": "passed"},
+            },
+            ensure_ascii=False,
+        ).encode("utf-8"),
+        content_type="application/json",
+    )
+
+    response = download_report_file(filename, "/missing-output-dir", "md", storage=storage)
+    body = response.body.decode("utf-8")
+
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == f"attachment; filename={md_filename}"
+    assert "品質 gate 未通過" in body
+    assert specific_error in body
+    assert generic_error not in body
+    assert "已通過已知檢查" not in body
+    assert "## 其他章節" in body
+    assert "recorded mixed integrity errors markdown" in body
+
+
+def test_download_markdown_report_deduplicates_recorded_integrity_error_details():
+    storage = InMemoryStorage()
+    filename = "2308_TW_v2_report_20260626_120000.html"
+    md_filename = "2308_TW_v2_report_20260626_120000.md"
+    specific_error = "provider audit source digest mismatch"
+    storage.save_report(
+        md_filename,
+        """
+## 報告使用範圍與判讀限制
+
+- **品質 gate 狀態:** 已通過已知檢查
+> 綠燈只代表已知自動檢查通過
+
+## 其他章節
+
+recorded duplicate integrity errors markdown
+        """.encode("utf-8"),
+        content_type="text/markdown",
+    )
+    storage.save_report(
+        data_snapshot_filename_for_report(filename),
+        json.dumps(
+            {
+                "ticker": "2308.TW",
+                "snapshot_integrity": {
+                    "status": "invalid",
+                    "errors": [specific_error, specific_error],
+                },
+                "data_trust": {"status": "fresh"},
+                "evidence_exit_gate": {"verdict": "approved"},
+                "content_credibility": {"status": "passed"},
+                "report_conformance": {"status": "passed"},
+            },
+            ensure_ascii=False,
+        ).encode("utf-8"),
+        content_type="application/json",
+    )
+
+    response = download_report_file(filename, "/missing-output-dir", "md", storage=storage)
+    body = response.body.decode("utf-8")
+
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == f"attachment; filename={md_filename}"
+    assert "品質 gate 未通過" in body
+    assert body.count(specific_error) == 1
+    assert "已通過已知檢查" not in body
+    assert "## 其他章節" in body
+    assert "recorded duplicate integrity errors markdown" in body
+
+
+def test_download_markdown_report_replaces_static_notice_when_nested_snapshot_integrity_is_invalid():
+    storage = InMemoryStorage()
+    filename = "2308_TW_v2_report_20260626_120000.html"
+    md_filename = "2308_TW_v2_report_20260626_120000.md"
+    storage.save_report(
+        md_filename,
+        """
+## 報告使用範圍與判讀限制
+
+- **品質 gate 狀態:** 已通過已知檢查
+> 綠燈只代表已知自動檢查通過
+
+## 其他章節
+
+nested invalid snapshot markdown
+        """.encode("utf-8"),
+        content_type="text/markdown",
+    )
+    storage.save_report(
+        data_snapshot_filename_for_report(filename),
+        json.dumps(
+            {
+                "ticker": "2308.TW",
+                "data": {
+                    "snapshot_integrity": {
+                        "status": "invalid",
+                        "errors": ["nested snapshot integrity rejected stale source bundle"],
+                    },
+                },
+                "data_trust": {"status": "fresh"},
+                "evidence_exit_gate": {"verdict": "approved"},
+                "content_credibility": {"status": "passed"},
+                "report_conformance": {"status": "passed"},
+            },
+            ensure_ascii=False,
+        ).encode("utf-8"),
+        content_type="application/json",
+    )
+
+    response = download_report_file(filename, "/missing-output-dir", "md", storage=storage)
+    body = response.body.decode("utf-8")
+
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == f"attachment; filename={md_filename}"
+    assert "品質 gate 未通過" in body
+    assert "nested snapshot integrity rejected stale source bundle" in body
+    assert "已通過已知檢查" not in body
+    assert "## 其他章節" in body
+    assert "nested invalid snapshot markdown" in body
+
+
+def test_download_markdown_report_uses_nested_invalid_integrity_even_when_top_level_is_verified():
+    storage = InMemoryStorage()
+    filename = "2308_TW_v2_report_20260626_120000.html"
+    md_filename = "2308_TW_v2_report_20260626_120000.md"
+    storage.save_report(
+        md_filename,
+        """
+## 報告使用範圍與判讀限制
+
+- **品質 gate 狀態:** 已通過已知檢查
+> 綠燈只代表已知自動檢查通過
+
+## 其他章節
+
+conflicting snapshot markdown
+        """.encode("utf-8"),
+        content_type="text/markdown",
+    )
+    storage.save_report(
+        data_snapshot_filename_for_report(filename),
+        json.dumps(
+            {
+                "ticker": "2308.TW",
+                "snapshot_integrity": {"status": "verified", "valid": True},
+                "data": {
+                    "snapshot_integrity": {
+                        "status": "invalid",
+                        "errors": ["nested integrity must override top-level verified status"],
+                    },
+                },
+                "data_trust": {"status": "fresh"},
+                "evidence_exit_gate": {"verdict": "approved"},
+                "content_credibility": {"status": "passed"},
+                "report_conformance": {"status": "passed"},
+            },
+            ensure_ascii=False,
+        ).encode("utf-8"),
+        content_type="application/json",
+    )
+
+    response = download_report_file(filename, "/missing-output-dir", "md", storage=storage)
+    body = response.body.decode("utf-8")
+
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == f"attachment; filename={md_filename}"
+    assert "品質 gate 未通過" in body
+    assert "nested integrity must override top-level verified status" in body
+    assert "已通過已知檢查" not in body
+    assert "## 其他章節" in body
+    assert "conflicting snapshot markdown" in body
+
+
+def test_download_markdown_report_prefers_specific_nested_invalid_detail_over_generic_top_level_invalid():
+    storage = InMemoryStorage()
+    filename = "2308_TW_v2_report_20260626_120000.html"
+    md_filename = "2308_TW_v2_report_20260626_120000.md"
+    storage.save_report(
+        md_filename,
+        """
+## 報告使用範圍與判讀限制
+
+- **品質 gate 狀態:** 已通過已知檢查
+> 綠燈只代表已知自動檢查通過
+
+## 其他章節
+
+specific nested detail markdown
+        """.encode("utf-8"),
+        content_type="text/markdown",
+    )
+    storage.save_report(
+        data_snapshot_filename_for_report(filename),
+        json.dumps(
+            {
+                "ticker": "2308.TW",
+                "snapshot_integrity": {"status": "invalid"},
+                "data": {
+                    "snapshot_integrity": {
+                        "status": "invalid",
+                        "errors": ["nested provider audit hash mismatch"],
+                    },
+                },
+                "data_trust": {"status": "fresh"},
+                "evidence_exit_gate": {"verdict": "approved"},
+                "content_credibility": {"status": "passed"},
+                "report_conformance": {"status": "passed"},
+            },
+            ensure_ascii=False,
+        ).encode("utf-8"),
+        content_type="application/json",
+    )
+
+    response = download_report_file(filename, "/missing-output-dir", "md", storage=storage)
+    body = response.body.decode("utf-8")
+
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == f"attachment; filename={md_filename}"
+    assert "品質 gate 未通過" in body
+    assert "nested provider audit hash mismatch" in body
+    assert "已通過已知檢查" not in body
+    assert "## 其他章節" in body
+    assert "specific nested detail markdown" in body
+
+
+def test_download_markdown_report_prefers_specific_nested_invalid_detail_over_generic_top_level_error_text():
+    storage = InMemoryStorage()
+    filename = "2308_TW_v2_report_20260626_120000.html"
+    md_filename = "2308_TW_v2_report_20260626_120000.md"
+    storage.save_report(
+        md_filename,
+        """
+## 報告使用範圍與判讀限制
+
+- **品質 gate 狀態:** 已通過已知檢查
+> 綠燈只代表已知自動檢查通過
+
+## 其他章節
+
+generic top-level detail markdown
+        """.encode("utf-8"),
+        content_type="text/markdown",
+    )
+    storage.save_report(
+        data_snapshot_filename_for_report(filename),
+        json.dumps(
+            {
+                "ticker": "2308.TW",
+                "snapshot_integrity": {
+                    "status": "invalid",
+                    "errors": ["資料快照完整性未通過，不能直接引用報告結論。"],
+                },
+                "data": {
+                    "snapshot_integrity": {
+                        "status": "invalid",
+                        "errors": ["nested provider audit hash mismatch"],
+                    },
+                },
+                "data_trust": {"status": "fresh"},
+                "evidence_exit_gate": {"verdict": "approved"},
+                "content_credibility": {"status": "passed"},
+                "report_conformance": {"status": "passed"},
+            },
+            ensure_ascii=False,
+        ).encode("utf-8"),
+        content_type="application/json",
+    )
+
+    response = download_report_file(filename, "/missing-output-dir", "md", storage=storage)
+    body = response.body.decode("utf-8")
+
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == f"attachment; filename={md_filename}"
+    assert "品質 gate 未通過" in body
+    assert "nested provider audit hash mismatch" in body
+    assert "已通過已知檢查" not in body
+    assert "## 其他章節" in body
+    assert "generic top-level detail markdown" in body
+
+
+def test_download_markdown_report_replaces_static_notice_when_data_snapshot_is_missing():
+    storage = InMemoryStorage()
+    filename = "2308_TW_v2_report_20260626_120000.html"
+    md_filename = "2308_TW_v2_report_20260626_120000.md"
+    storage.save_report(
+        md_filename,
+        """
+## 報告使用範圍與判讀限制
+
+- **品質 gate 狀態:** 已通過已知檢查
+> 綠燈只代表已知自動檢查通過
+
+## 其他章節
+
+missing snapshot markdown
+        """.encode("utf-8"),
+        content_type="text/markdown",
+    )
+
+    response = download_report_file(filename, "/missing-output-dir", "md", storage=storage)
+    body = response.body.decode("utf-8")
+
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == f"attachment; filename={md_filename}"
+    assert "品質 gate 有警示" in body
+    assert "資料快照不存在" in body
+    assert "已通過已知檢查" not in body
+    assert "## 其他章節" in body
+    assert "missing snapshot markdown" in body
 
 
 def test_refresh_data_snapshot_reads_and_updates_partitioned_storage(tmp_path, monkeypatch):

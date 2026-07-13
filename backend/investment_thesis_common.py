@@ -5,13 +5,15 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from mapping_fields import safe_dict_list, safe_mapping_items, safe_sequence_items, safe_text, safe_text_list
 from output_sanitizer import sanitize_model_output
 
 
 def first_mapping_value(mapping: dict[str, Any], needle: str) -> Any:
-    for key, value in (mapping or {}).items():
-        if needle in str(key):
-            return value
+    for key, value in safe_mapping_items(mapping):
+        if needle in safe_text(key):
+            text = safe_text(value).strip()
+            return text or None
     return None
 
 
@@ -24,14 +26,18 @@ def trade_setup_from_context(context: dict[str, Any], parsed: dict[str, Any]) ->
         if isinstance(structured_outputs.get(key), dict):
             candidates.append(structured_outputs.get(key))
     for candidate in candidates:
-        cleaned = {str(key): str(value).strip() for key, value in (candidate or {}).items() if value is not None}
+        cleaned = {
+            key_text: value_text
+            for key, value in safe_mapping_items(candidate)
+            if (key_text := safe_text(key).strip()) and (value_text := safe_text(value).strip())
+        }
         if cleaned:
             return cleaned
     return {}
 
 
 def trade_direction_label(value: Any) -> str:
-    direction = str(value or "Neutral").strip()
+    direction = safe_text(value).strip() or "Neutral"
     labels = {
         "Long": "偏多 Long",
         "Short": "偏空 Short",
@@ -41,13 +47,13 @@ def trade_direction_label(value: Any) -> str:
 
 
 def trade_health_score(trade_setup: dict[str, str], richness: dict[str, Any]) -> int:
-    base = {"A": 7, "B": 6, "C": 4}.get(str(richness.get("grade") or "C"), 4)
-    risk = str(trade_setup.get("risk_level") or "High")
+    base = {"A": 7, "B": 6, "C": 4}.get(safe_text(richness.get("grade")).strip() or "C", 4)
+    risk = safe_text(trade_setup.get("risk_level")).strip() or "High"
     if risk == "Low":
         base += 1
     elif risk == "High":
         base -= 1
-    if str(trade_setup.get("trade_direction") or "Neutral") == "Neutral":
+    if (safe_text(trade_setup.get("trade_direction")).strip() or "Neutral") == "Neutral":
         base = min(base, 6)
     missing = [
         key for key in ("trade_direction", "entry_zone", "target_price", "stop_loss", "core_catalyst")
@@ -63,8 +69,9 @@ def trade_mirror_lines(data: dict[str, Any], company_name: str, trade_setup: dic
     stop = trade_setup.get("stop_loss") or "尚未定義停損"
     catalyst = trade_setup.get("core_catalyst") or "近期催化資料不足"
     risk = trade_setup.get("risk_level") or "High"
+    current_price = safe_text(data.get("current_price_fmt")).strip() or safe_text(data.get("current_price")).strip() or "N/A"
     return [
-        f"我以 {data.get('current_price_fmt') or data.get('current_price') or 'N/A'} 評估 {company_name}，1-2 週交易方向為 {direction}。",
+        f"我以 {current_price} 評估 {company_name}，1-2 週交易方向為 {direction}。",
         f"交易計畫：進場區間 {entry}，1-2 週目標 {target}，嚴格停損 {stop}。",
         f"催化條件：{catalyst}",
         "風控邊界：若價格觸發停損、技術與籌碼互相衝突或催化失效，需取消交易或回到 Neutral。",
@@ -74,7 +81,15 @@ def trade_mirror_lines(data: dict[str, Any], company_name: str, trade_setup: dic
 
 def agent_text(context: dict[str, Any], agent_num: int) -> str:
     analyses = context.get("analyses", {}) if isinstance(context.get("analyses"), dict) else {}
-    return str(analyses.get(agent_num) or analyses.get(str(agent_num)) or "")
+    missing = object()
+    for key in (agent_num, str(agent_num)):
+        value = analyses.get(key, missing)
+        if value is missing:
+            continue
+        text = safe_text(value)
+        if text.strip():
+            return text
+    return ""
 
 
 def analysis_section_excerpt(context: dict[str, Any], heading_fragment: str) -> str:
@@ -97,11 +112,11 @@ def trigger_from_structured(context: dict[str, Any], directions: set[str]) -> st
     for payload in structured_outputs.values():
         if not isinstance(payload, dict):
             continue
-        for trigger in payload.get("scenario_triggers") or []:
+        for trigger in safe_dict_list(payload.get("scenario_triggers")):
             if not isinstance(trigger, dict) or trigger.get("direction") not in directions:
                 continue
-            condition = str(trigger.get("trigger_condition") or "").strip()
-            action = str(trigger.get("action") or "").strip()
+            condition = safe_text(trigger.get("trigger_condition")).strip()
+            action = safe_text(trigger.get("action")).strip()
             if condition and action:
                 return f"{condition}：{action}"
             if condition:
@@ -110,7 +125,7 @@ def trigger_from_structured(context: dict[str, Any], directions: set[str]) -> st
 
 
 def confidence_number(value: Any) -> int:
-    match = re.search(r"(\d+(?:\.\d+)?)", str(value or ""))
+    match = re.search(r"(\d+(?:\.\d+)?)", safe_text(value))
     if not match:
         return 5
     return int(round(max(1.0, min(10.0, float(match.group(1))))))
@@ -118,10 +133,14 @@ def confidence_number(value: Any) -> int:
 
 def information_richness(data: dict[str, Any]) -> dict[str, Any]:
     data_trust = data.get("data_trust", {}) if isinstance(data.get("data_trust"), dict) else {}
-    status = str(data_trust.get("status") or "unknown")
-    audit_count = len(data.get("source_audit") or []) if isinstance(data.get("source_audit"), list) else 0
-    history_count = sum(1 for key in ("revenue_history", "net_income_history", "fcf_history") if data.get(key))
-    catalyst_count = len(data.get("recent_catalysts") or []) if isinstance(data.get("recent_catalysts"), list) else 0
+    status = safe_text(data_trust.get("status")).strip() or "unknown"
+    audit_count = len(safe_dict_list(data.get("source_audit")))
+    history_count = sum(
+        1
+        for key in ("revenue_history", "net_income_history", "fcf_history")
+        if safe_sequence_items(data.get(key))
+    )
+    catalyst_count = len(safe_dict_list(data.get("recent_catalysts")))
 
     if status == "fresh" and audit_count >= 5 and history_count >= 2:
         grade = "A"
@@ -147,10 +166,10 @@ def data_gaps(data: dict[str, Any], audit: dict[str, Any], richness: dict[str, A
     if richness.get("grade") == "C":
         gaps.append("資料不足：無法把所有投資論文假設升級為高確定性結論。")
     data_trust = data.get("data_trust", {}) if isinstance(data.get("data_trust"), dict) else {}
-    if data_trust.get("status") not in {"fresh", None}:
-        gaps.append(f"資料可信度狀態為 {data_trust.get('status')}，需保留信心折讓。")
-    for warning in list(audit.get("warnings") or [])[:3]:
-        gaps.append(str(warning))
+    status = safe_text(data_trust.get("status")).strip()
+    if status and status != "fresh":
+        gaps.append(f"資料可信度狀態為 {status}，需保留信心折讓。")
+    gaps.extend(safe_text_list(audit.get("warnings"))[:3])
     return gaps
 
 
@@ -176,11 +195,11 @@ def first_analysis_sentence_for_agents(context: dict[str, Any], agent_nums: tupl
 
 
 def clean_analysis_text(value: Any) -> str:
-    return sanitize_model_output(str(value or "")).strip()
+    return sanitize_model_output(safe_text(value)).strip()
 
 
 def first_sentence(text: str, limit: int = 90) -> str:
-    cleaned = " ".join(str(text or "").replace("#", " ").split())
+    cleaned = " ".join(safe_text(text).replace("#", " ").split())
     for sep in ("。", ".", "；", ";"):
         if sep in cleaned:
             cleaned = cleaned.split(sep, 1)[0]
@@ -192,7 +211,10 @@ def moat_line(moat_scores: dict[str, Any]) -> str:
     overall = moat_scores.get("整體護城河")
     if overall is None:
         return "護城河資料不足，需以競爭格局與客戶黏著度補驗證"
-    return f"整體護城河 {overall}/10，需追蹤分數是否由可驗證證據支撐"
+    overall_text = safe_text(overall).strip()
+    if not overall_text:
+        return "護城河資料不足，需以競爭格局與客戶黏著度補驗證"
+    return f"整體護城河 {overall_text}/10，需追蹤分數是否由可驗證證據支撐"
 
 
 def valuation_line(data: dict[str, Any], price_targets: dict[str, Any], target_12m: Any) -> str:
@@ -205,9 +227,9 @@ def valuation_line(data: dict[str, Any], price_targets: dict[str, Any], target_1
 
 
 def downside_line(audit: dict[str, Any], gaps: list[str]) -> str:
-    critical = list(audit.get("critical") or []) if isinstance(audit, dict) else []
+    critical = safe_text_list(audit.get("critical")) if isinstance(audit, dict) else []
     if critical:
-        return str(critical[0])
+        return critical[0]
     if gaps:
         return gaps[0]
     return "財務品質、估值收斂或核心成長假設未達成"
@@ -217,9 +239,10 @@ def chip_line(data: dict[str, Any]) -> str:
     institutional = data.get("institutional_trading", {}) if isinstance(data.get("institutional_trading"), dict) else {}
     trend = institutional.get("trend")
     net = institutional.get("total_net_buy_thousand_shares")
-    has_net = net is not None and net != ""
-    if trend or has_net:
-        return f"三大法人趨勢 {trend or 'N/A'}，累計買賣超約 {net if has_net else 'N/A'} 張"
+    trend_text = safe_text(trend).strip()
+    net_text = safe_text(net).strip()
+    if trend_text or net_text:
+        return f"三大法人趨勢 {trend_text or 'N/A'}，累計買賣超約 {net_text or 'N/A'} 張"
     return "籌碼資料不足，需用法人買賣超、融資券或 TDCC 補驗證"
 
 

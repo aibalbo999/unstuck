@@ -63,6 +63,54 @@ def test_verify_snapshots_write_repairs_mismatched_hash(tmp_path):
     assert verify_data_snapshot_integrity(stored)["valid"] is True
 
 
+def test_verify_snapshots_treats_falsey_hash_metadata_as_mismatch(tmp_path):
+    snapshot = build_data_snapshot({"ticker": "TEST", "pipeline_id": "v1", "data": {"ticker": "TEST"}})
+    snapshot["snapshot_hash"] = 0
+    snapshot.pop("content_hash", None)
+    path = tmp_path / "TEST_v1_report_20260607_000000.data.json"
+    path.write_text(json.dumps(snapshot, ensure_ascii=False), encoding="utf-8")
+
+    before = verify_snapshots(output_dir=str(tmp_path), write=False)
+    after = verify_snapshots(output_dir=str(tmp_path), write=True)
+    stored = json.loads(path.read_text(encoding="utf-8"))
+
+    assert before["missing_hash"] == 0
+    assert before["mismatch"] == 1
+    assert before["results"][0]["expected_hash"] == "0"
+    assert after["repaired"] == 1
+    assert after["results"][0]["previous_hash"] == "0"
+    assert verify_data_snapshot_integrity(stored)["valid"] is True
+
+
+def test_verify_snapshots_covers_partitioned_report_artifacts(tmp_path):
+    snapshot = build_data_snapshot({"ticker": "TEST", "pipeline_id": "v1", "data": {"ticker": "TEST"}})
+    snapshot.pop("snapshot_hash", None)
+    snapshot.pop("content_hash", None)
+    path = tmp_path / "2026-07" / "TEST" / "TEST_v1_report_20260711_000000.data.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(snapshot, ensure_ascii=False), encoding="utf-8")
+
+    result = verify_snapshots(output_dir=str(tmp_path), write=False)
+
+    assert result["checked"] == 1
+    assert result["missing_hash"] == 1
+    assert result["results"][0]["file"] == "2026-07/TEST/TEST_v1_report_20260711_000000.data.json"
+
+
+def test_verify_snapshots_ignores_symlink_artifacts(tmp_path):
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+    external = tmp_path / "external.data.json"
+    external.write_text("{}", encoding="utf-8")
+    linked = output_dir / "2026-07" / "TEST" / "linked.data.json"
+    linked.parent.mkdir(parents=True)
+    linked.symlink_to(external)
+
+    result = verify_snapshots(output_dir=str(output_dir), write=False)
+
+    assert result["checked"] == 0
+
+
 def test_cleanup_provider_sla_events_applies_retention_and_rebuilds_stats(monkeypatch, tmp_path):
     monkeypatch.setattr(provider_sla, "TASK_DB_PATH", str(tmp_path / "provider.sqlite3"))
     monkeypatch.setattr(provider_sla.time, "time", lambda: 100.0)

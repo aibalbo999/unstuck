@@ -7,7 +7,8 @@ from collections.abc import Callable
 from typing import Any
 
 from mapping_fields import mapping_field as _field
-from notification_delivery_audit_context import safe_dict, safe_float, safe_int, safe_text
+from mapping_fields import safe_mapping_dict, safe_text
+from notification_delivery_audit_context import safe_float, safe_int
 from provider_sla import SLA_CRITICAL_SUCCESS_RATE, SLA_WARNING_SUCCESS_RATE
 from provider_sla_payload_shape import finite_float, normalize_provider_sla_numeric_fields, normalize_provider_sla_windows, provider_sla_numeric_value
 
@@ -33,7 +34,7 @@ def provider_rows_or_empty(providers: Any) -> list[dict]:
             return rows
         except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
             return rows
-        item = safe_dict(raw_item)
+        item = _payload_dict(raw_item)
         if item:
             rows.append(item)
 
@@ -73,12 +74,12 @@ def _alert_fields_for_window(item: dict, window: str) -> dict:
 def apply_provider_sla_window(providers: list[dict], window: str) -> list[dict]:
     normalized_window = normalize_sla_window(window)
     if normalized_window == "all":
-        return [dict(normalize_provider_sla_numeric_fields(safe_dict(item)), selected_window=normalized_window) for item in providers]
+        return [dict(normalize_provider_sla_numeric_fields(item), selected_window=normalized_window) for item in providers]
 
     windowed = []
     for item in providers:
-        copied = normalize_provider_sla_numeric_fields(safe_dict(item))
-        stats = safe_dict(_field(safe_dict(_field(copied, "windows")), normalized_window))
+        copied = normalize_provider_sla_numeric_fields(item)
+        stats = _payload_dict(_field(_payload_dict(_field(copied, "windows")), normalized_window))
         for key in (
             "attempts",
             "availability_attempts",
@@ -103,7 +104,7 @@ def apply_provider_sla_window(providers: list[dict], window: str) -> list[dict]:
 def alerts_from_providers(providers: list[dict]) -> list[dict]:
     alerts = []
     for raw_item in providers:
-        item = safe_dict(raw_item)
+        item = _payload_dict(raw_item)
         level = safe_text(_field(item, "alert_level")).strip()
         if level not in {"warning", "critical"}:
             continue
@@ -154,7 +155,7 @@ async def build_provider_sla_payload(
         asyncio.to_thread(_fetch_provider_payload_rows_or_empty, summary_fetcher, limit),
         asyncio.to_thread(_fetch_provider_payload_rows_or_empty, alerts_fetcher, limit),
     )
-    windowed_providers = [normalize_provider_sla_numeric_fields(safe_dict(item)) for item in providers]
+    windowed_providers = [normalize_provider_sla_numeric_fields(item) for item in providers]
     if normalized_window == "all":
         return {"providers": windowed_providers, "alerts": alerts_from_providers(cumulative_alerts), "selected_window": normalized_window}
 
@@ -164,3 +165,7 @@ async def build_provider_sla_payload(
         "alerts": alerts_from_providers(windowed_providers),
         "selected_window": normalized_window,
     }
+
+
+def _payload_dict(value: Any) -> dict[Any, Any]:
+    return safe_mapping_dict(value) or {}

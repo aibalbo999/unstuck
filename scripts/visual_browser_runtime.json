@@ -1,0 +1,6 @@
+{
+  "browser": "chromium",
+  "browser_version": "148.0.7778.96",
+  "playwright": "1.60.0",
+  "revision": "1223"
+}

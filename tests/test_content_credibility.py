@@ -1,6 +1,7 @@
 import asyncio
 import sys
 from pathlib import Path
+from types import MappingProxyType
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -99,6 +100,70 @@ def test_content_credibility_warns_when_final_recommendation_lacks_evidence_matr
 
     assert result["status"] == "warning"
     assert any(issue["id"] == "missing_final_recommendation_evidence" for issue in result["warnings"])
+
+
+def test_content_credibility_accepts_tuple_evidence_matrix_rows():
+    from reporting.content_credibility import evaluate_content_credibility
+
+    context = _base_context(recommendation="持有", target_12m="NT$105", confidence="6/10")
+    evidence_matrix = (
+        {"claim": "最終投資建議", "basis": "建議: 持有；12個月: NT$105", "status": "success"},
+    )
+
+    result = evaluate_content_credibility(context, _base_snapshot(context, evidence_matrix=evidence_matrix))
+
+    assert result["status"] == "passed"
+    assert not any(issue["id"] == "missing_final_recommendation_evidence" for issue in result["warnings"])
+
+
+def test_content_credibility_accepts_mapping_safe_evidence_matrix_rows():
+    from reporting.content_credibility import evaluate_content_credibility
+
+    context = _base_context(recommendation="持有", target_12m="NT$105", confidence="6/10")
+    evidence_matrix = (
+        MappingProxyType({"claim": "最終投資建議", "basis": "建議: 持有；12個月: NT$105", "status": "success"}),
+    )
+
+    result = evaluate_content_credibility(context, _base_snapshot(context, evidence_matrix=evidence_matrix))
+
+    assert result["status"] == "passed"
+    assert not any(issue["id"] == "missing_final_recommendation_evidence" for issue in result["warnings"])
+
+
+def test_content_credibility_accepts_mapping_safe_context_and_snapshot():
+    from reporting.content_credibility import evaluate_content_credibility
+
+    context = _base_context(recommendation="買入", target_12m="NT$90")
+    snapshot = _base_snapshot(context)
+
+    result = evaluate_content_credibility(MappingProxyType(context), MappingProxyType(snapshot))
+
+    assert result["status"] == "blocked"
+    assert any(issue["id"] == "buy_target_below_current_price" for issue in result["blocking_issues"])
+
+
+def test_content_credibility_recommendation_keys_and_values_use_safe_text_fallback():
+    from reporting.content_credibility import evaluate_content_credibility
+
+    class MalformedText:
+        def __str__(self):
+            raise RuntimeError("content credibility text unavailable")
+
+    context = _base_context(recommendation="買入", target_12m="NT$130")
+    context["parsed"]["recommendation"] = {
+        MalformedText(): "ignored",
+        "建議": "買入",
+        "12個月": MalformedText(),
+        "6個月": "NT$90",
+        "信心": MalformedText(),
+    }
+
+    result = evaluate_content_credibility(context, _base_snapshot(context))
+
+    assert result["status"] == "blocked"
+    issue = next(issue for issue in result["blocking_issues"] if issue["id"] == "buy_target_below_current_price")
+    assert issue["details"]["target_source"] == "recommendation.6個月"
+    assert issue["details"]["target_price"] == 90.0
 
 
 def test_report_renderer_attaches_content_credibility_to_snapshot_and_metadata(monkeypatch):

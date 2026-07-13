@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from data_trust_scoring import normalize_data_trust, trust_status_label
+from mapping_fields import safe_mapping_dict, safe_sequence_items, safe_text
 from price_parser import extract_price_numbers
 from recommendation_labels import normalize_recommendation_label
 from report_reproducibility import (
@@ -21,11 +22,11 @@ HIGH_CONFIDENCE_MIN_SCORE = 8.0
 
 
 def _as_dict(value: Any) -> dict:
-    return value if isinstance(value, dict) else {}
+    return safe_mapping_dict(value) or {}
 
 
 def _as_list(value: Any) -> list:
-    return value if isinstance(value, list) else []
+    return safe_sequence_items(value)
 
 
 def _issue(issue_id: str, message: str, details: dict | None = None) -> dict:
@@ -44,7 +45,7 @@ def _check(check_id: str, status: str, message: str, details: dict | None = None
 
 def _first_value_by_key_fragment(values: dict, fragment: str) -> Any:
     for key, value in values.items():
-        if fragment in str(key):
+        if fragment in safe_text(key):
             return value
     return None
 
@@ -55,7 +56,7 @@ def _first_price(value: Any) -> float | None:
     if isinstance(value, (int, float)):
         return float(value)
     try:
-        prices = extract_price_numbers(str(value))
+        prices = extract_price_numbers(safe_text(value))
     except (TypeError, ValueError):
         return None
     return float(prices[0]) if prices else None
@@ -79,7 +80,7 @@ def _target_price_candidates(parsed: dict) -> list[dict]:
         for label, value in price_targets.items():
             price = _first_price(value)
             if price is not None:
-                candidates.append({"source": f"price_targets.{label}", "label": str(label), "price": price, "raw": value})
+                candidates.append({"source": f"price_targets.{safe_text(label)}", "label": safe_text(label), "price": price, "raw": value})
     return candidates
 
 
@@ -93,7 +94,7 @@ def _confidence_score(recommendation: dict) -> float | None:
     if value is None:
         return None
     try:
-        numbers = extract_price_numbers(str(value))
+        numbers = extract_price_numbers(safe_text(value))
     except (TypeError, ValueError):
         return None
     if not numbers:
@@ -126,7 +127,11 @@ def _evidence_matrix_rows(context: dict, snapshot: dict) -> list:
 
 
 def _has_evidence_claim(rows: list, claim: str) -> bool:
-    return any(isinstance(row, dict) and str(row.get("claim") or "") == claim for row in rows)
+    for row in rows:
+        row_map = _as_dict(row)
+        if safe_text(row_map.get("claim")).strip() == claim:
+            return True
+    return False
 
 
 def evaluate_content_credibility(context: dict, snapshot: dict | None = None, markdown: str | None = None) -> dict:
@@ -141,7 +146,7 @@ def evaluate_content_credibility(context: dict, snapshot: dict | None = None, ma
     recommendation_label = normalize_recommendation_label(_first_value_by_key_fragment(recommendation, "建議"))
     main_target = _main_target_price(parsed)
     evidence_gate = _evidence_exit_gate(context, snapshot)
-    evidence_verdict = str(evidence_gate.get("verdict") or "not_recorded")
+    evidence_verdict = safe_text(evidence_gate.get("verdict")).strip() or "not_recorded"
     confidence_score = _confidence_score(recommendation)
     explicit_target_fields = detect_explicit_target_price_fields(context)
     evidence_rows = _evidence_matrix_rows(context, snapshot)
@@ -208,7 +213,7 @@ def evaluate_content_credibility(context: dict, snapshot: dict | None = None, ma
         blocking.append(issue)
         checks.append(_check("data_confidence_target_guardrail", "blocked", issue["message"], details))
     elif data_trust.get("status") != "fresh":
-        details = {"data_trust_status": data_trust.get("status"), "data_trust_label": trust_status_label(str(data_trust.get("status")))}
+        details = {"data_trust_status": data_trust.get("status"), "data_trust_label": trust_status_label(safe_text(data_trust.get("status")))}
         warnings.append(_issue("non_fresh_data_trust", "資料可信度不是 fresh，內容可信度需保留限制。", details))
         checks.append(_check("data_confidence_target_guardrail", "warning", "資料可信度不是 fresh。", details))
     else:

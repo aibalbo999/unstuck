@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 
+from mapping_fields import safe_dict_list, safe_mapping_dict, safe_text
 from recommendation_labels import normalize_recommendation_label
 
 
@@ -17,18 +18,25 @@ def normalize_escaped_newlines(text: str) -> str:
 
 
 def _coerce_text(value) -> str:
-    return str(value).strip() if value is not None else ""
+    return safe_text(value).strip()
 
 
-def _trigger_lines(triggers: list, directions: set[str]) -> list[str]:
+def _display_line(value, default: str = "") -> str:
+    text = _coerce_text(value)
+    return " ".join(line.strip() for line in text.splitlines() if line.strip()) or default
+
+
+def _display_value(value, default: str = "N/A") -> str:
+    return _display_line(value, default)
+
+
+def _trigger_lines(triggers, directions: set[str], fallback_action: str = "") -> list[str]:
     lines = []
-    for trigger in triggers or []:
-        if not isinstance(trigger, dict):
+    for trigger in safe_dict_list(triggers):
+        if safe_text(trigger.get("direction")).strip() not in directions:
             continue
-        if trigger.get("direction") not in directions:
-            continue
-        condition = _coerce_text(trigger.get("trigger_condition"))
-        action = _coerce_text(trigger.get("action"))
+        condition = _display_line(trigger.get("trigger_condition"))
+        action = _display_line(trigger.get("action"), fallback_action)
         if not condition:
             continue
         lines.append(f"- {condition}：{action}" if action else f"- {condition}")
@@ -38,16 +46,17 @@ def _trigger_lines(triggers: list, directions: set[str]) -> list[str]:
 def ensure_agent19_required_sections(body: str, structured: dict) -> str:
     body = normalize_escaped_newlines(body or "").strip()
     blocks = [body] if body else []
-    triggers = structured.get("scenario_triggers", []) or []
+    structured = safe_mapping_dict(structured) or {}
+    triggers = structured.get("scenario_triggers")
 
     if "做空觸發條件（Catalyst for crash）" not in body:
-        crash_lines = _trigger_lines(triggers, {"bearish_downgrade"})
+        crash_lines = _trigger_lines(triggers, {"bearish_downgrade"}, "重新檢查空方假設")
         if not crash_lines:
             crash_lines = ["- 模型未提供足夠可量化崩盤催化；應等待財測下修、毛利率壓縮、法人派發擴大或估值均值回歸等可驗證事件。"]
         blocks.append("## 做空觸發條件（Catalyst for crash）\n" + "\n".join(crash_lines))
 
     if "防軋空停損點（Stop-loss level）" not in body:
-        stop_lines = _trigger_lines(triggers, {"neutral_review", "bullish_upgrade"})
+        stop_lines = _trigger_lines(triggers, {"neutral_review", "bullish_upgrade"}, "回補或暫停空方假設")
         if not stop_lines:
             stop_lines = ["- 模型未提供足夠可量化停損價位；若股價放量突破前高、基本面證據改善或估值重新獲得財務支撐，應回補或暫停空方假設。"]
         blocks.append("## 防軋空停損點（Stop-loss level）\n" + "\n".join(stop_lines))
@@ -57,7 +66,7 @@ def ensure_agent19_required_sections(body: str, structured: dict) -> str:
 
 def format_recommendation_block(agent_num: int, rec: dict) -> str:
     separator = "：" if agent_num == 19 else ": "
-    rec = dict(rec or {})
+    rec = safe_mapping_dict(rec) or {}
     if "建議" in rec:
         rec["建議"] = normalize_recommendation_label(rec.get("建議"))
     if agent_num == 19:
@@ -69,8 +78,14 @@ def format_recommendation_block(agent_num: int, rec: dict) -> str:
             "長期潛力（5年）",
             "信心指數",
         ]
-        lines = [f"{key}{separator}{rec.get(key, 'N/A')}" for key in ordered_keys]
+        lines = [f"{key}{separator}{_display_value(rec.get(key))}" for key in ordered_keys]
     else:
-        display_rec = {k: v for k, v in rec.items() if not isinstance(v, dict)}
-        lines = [f"{key}{separator}{value}" for key, value in display_rec.items()]
+        display_rec = {
+            _display_line(key): _display_line(value)
+            for key, value in rec.items()
+            if safe_mapping_dict(value) is None and _display_line(key)
+        }
+        lines = [f"{key}{separator}{value}" for key, value in display_rec.items() if value]
+        if not lines:
+            lines = [f"建議{separator}N/A"]
     return "[投資建議]\n" + "\n".join(lines) + "\n[/投資建議]"

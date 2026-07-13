@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from investment_thesis_common import chip_line, first_mapping_value, trade_direction_label
+from mapping_fields import safe_dict_list, safe_text
 
 
 def trade_core_assumptions(trade_setup: dict[str, str]) -> list[dict[str, str]]:
@@ -76,18 +77,18 @@ def core_assumptions(
         },
         {
             "assumption": "護城河沒有被同業明確突破",
-            "validation": f"追蹤整體護城河分數 {moat_scores.get('整體護城河', 'N/A')} 與競爭證據",
+            "validation": f"追蹤整體護城河分數 {_text(moat_scores.get('整體護城河'))} 與競爭證據",
             "frequency": "每半年",
             "status": "active",
         },
         {
             "assumption": "估值仍落在三情境可解釋區間",
-            "validation": f"熊/基/牛情境：{price_targets.get('熊市情境', 'N/A')} / {price_targets.get('基本情境', 'N/A')} / {price_targets.get('牛市情境', 'N/A')}",
+            "validation": f"熊/基/牛情境：{_scenario_summary(price_targets)}",
             "frequency": "每次重跑報告",
             "status": "active",
         },
     ]
-    if data.get("recent_catalysts"):
+    if safe_dict_list(data.get("recent_catalysts")):
         assumptions.append({
             "assumption": "近期催化劑能轉化為可驗證營運數據",
             "validation": "追蹤催化事件後的月營收、訂單或毛利率變化",
@@ -110,7 +111,7 @@ def position_core_assumptions(
     recommendation: dict[str, Any],
 ) -> list[dict[str, str]]:
     target_3m = first_mapping_value(recommendation, "3個月") or "N/A"
-    target_12m = first_mapping_value(recommendation, "12個月") or price_targets.get("基本情境", "N/A")
+    target_12m = first_mapping_value(recommendation, "12個月") or _text(price_targets.get("基本情境"))
     return [
         {
             "assumption": "短中期風險報酬仍可接受",
@@ -126,7 +127,7 @@ def position_core_assumptions(
         },
         {
             "assumption": "估值區間仍能約束部位大小",
-            "validation": f"熊/基/牛情境：{price_targets.get('熊市情境', 'N/A')} / {price_targets.get('基本情境', 'N/A')} / {price_targets.get('牛市情境', 'N/A')}",
+            "validation": f"熊/基/牛情境：{_scenario_summary(price_targets)}",
             "frequency": "每次重大價格變動後",
             "status": "active",
         },
@@ -157,7 +158,7 @@ def position_red_lines(data: dict[str, Any], recommendation: str) -> list[dict[s
             "action": "改為觀望，不把單一訊號當成交易依據",
         },
     ]
-    if data.get("data_trust", {}).get("status") == "partial":
+    if _data_trust_status(data) == "partial":
         lines.append({
             "condition": "資料可信度為 partial 且缺少官方資料補驗證",
             "severity": "警告",
@@ -170,6 +171,18 @@ def position_red_lines(data: dict[str, Any], recommendation: str) -> list[dict[s
             "action": "停止追價，等待回測或重新估值",
         })
     return lines
+
+
+def _text(value: Any, default: str = "N/A") -> str:
+    text = safe_text(value).strip()
+    return text or default
+
+
+def _scenario_summary(price_targets: dict[str, Any]) -> str:
+    return " / ".join(
+        _text(price_targets.get(key))
+        for key in ("熊市情境", "基本情境", "牛市情境")
+    )
 
 
 def contrarian_core_assumptions(crash_trigger: str, stop_condition: str) -> list[dict[str, str]]:
@@ -255,10 +268,15 @@ def red_lines(data: dict[str, Any], recommendation: str) -> list[dict[str, str]]
             "severity": "警告",
             "action": "停止加碼並檢查安全邊際",
         })
-    if data.get("data_trust", {}).get("status") == "partial":
+    if _data_trust_status(data) == "partial":
         lines.append({
             "condition": "partial data trust 持續且無法取得官方資料補驗證",
             "severity": "警告",
             "action": "維持灰色地帶，不提高信心分數",
         })
     return lines
+
+
+def _data_trust_status(data: dict[str, Any]) -> str:
+    data_trust = data.get("data_trust", {}) if isinstance(data.get("data_trust"), dict) else {}
+    return safe_text(data_trust.get("status")).strip()

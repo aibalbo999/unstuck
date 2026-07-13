@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import json
 import sys
 import subprocess
 import sqlite3
@@ -312,6 +313,85 @@ def test_prometheus_provider_labels_ignore_truthiness_failures(monkeypatch):
     body = response.text
     assert 'stock_agent_provider_sla_success_rate{source="market_data",provider="fake-provider"} 1' in body
     assert 'stock_agent_provider_sla_alert{source="market_data",provider="fake-provider",level="warning"} 1' in body
+
+
+def test_prometheus_labels_reject_boolean_and_binary_values(monkeypatch):
+    monkeypatch.setattr(api, "get_provider_sla_summary", lambda limit=100: [{
+        "source": True,
+        "provider": b"fake-provider",
+        "attempts": 1,
+        "success_rate": 1.0,
+        "error_count": 0,
+        "alert_level": "ok",
+    }])
+    monkeypatch.setattr(api_observability_service, "get_delivery_audit_summary", lambda: {
+        "total_count": 2,
+        "sent_count": 0,
+        "failed_count": 2,
+        "pending_count": 0,
+        "retry_exhausted_count": 0,
+        "channel_counts": {True: 1},
+        "failure_reason_counts": {memoryview(b"timeout"): 1},
+    })
+    monkeypatch.setattr(api_observability_service, "snapshot_task_queue", lambda _task_queue: {
+        "backend": "rq",
+        "available": True,
+        "queue_name": "stock-analysis",
+        "depth": 0,
+        "queues": {},
+    })
+    monkeypatch.setattr(api, "analysis_task_queue", SimpleNamespace(queue=object(), active_tasks=[]))
+
+    response = TestClient(api.app).get("/metrics")
+
+    assert response.status_code == 200
+    body = response.text
+    assert 'stock_agent_provider_sla_success_rate{source="unknown",provider="unknown"} 1' in body
+    assert 'stock_agent_notification_delivery_channel_count{channel="unknown"} 1' in body
+    assert 'stock_agent_notification_delivery_failure_reason_count{reason="unknown"} 1' in body
+    assert 'source="True"' not in body
+    assert 'provider="fake-provider"' not in body
+    assert 'channel="True"' not in body
+    assert 'reason="timeout"' not in body
+
+
+def test_prometheus_numeric_metrics_reject_binary_values(monkeypatch):
+    monkeypatch.setattr(api, "get_provider_sla_summary", lambda limit=100: [{
+        "source": "market_data",
+        "provider": "fake-provider",
+        "attempts": b"4",
+        "success_rate": b"0.75",
+        "error_count": memoryview(b"2"),
+        "alert_level": "ok",
+    }])
+    monkeypatch.setattr(api_observability_service, "get_delivery_audit_summary", lambda: {
+        "total_count": 0,
+        "sent_count": 0,
+        "failed_count": 0,
+        "pending_count": 0,
+        "retry_exhausted_count": 0,
+        "channel_counts": {},
+        "failure_reason_counts": {},
+    })
+    monkeypatch.setattr(api_observability_service, "snapshot_task_queue", lambda _task_queue: {
+        "backend": "rq",
+        "available": True,
+        "queue_name": "stock-analysis",
+        "depth": 0,
+        "queues": {},
+    })
+    monkeypatch.setattr(api, "analysis_task_queue", SimpleNamespace(queue=object(), active_tasks=[]))
+
+    response = TestClient(api.app).get("/metrics")
+
+    assert response.status_code == 200
+    body = response.text
+    assert 'stock_agent_provider_sla_success_rate{source="market_data",provider="fake-provider"} 0' in body
+    assert 'stock_agent_provider_sla_attempts_total{source="market_data",provider="fake-provider"} 0' in body
+    assert 'stock_agent_provider_sla_errors_total{source="market_data",provider="fake-provider"} 0' in body
+    assert 'stock_agent_provider_sla_success_rate{source="market_data",provider="fake-provider"} 0.75' not in body
+    assert 'stock_agent_provider_sla_attempts_total{source="market_data",provider="fake-provider"} 4' not in body
+    assert 'stock_agent_provider_sla_errors_total{source="market_data",provider="fake-provider"} 2' not in body
 
 
 def test_prometheus_provider_rows_ignore_mapping_failures(monkeypatch):
@@ -697,6 +777,66 @@ def test_prometheus_queue_maps_ignore_truthiness_failures(monkeypatch):
     assert 'stock_agent_queue_depth{queue="maintenance"} 2' in response.text
 
 
+def test_prometheus_named_queue_depth_preserves_malformed_detail_as_zero(monkeypatch):
+    class BrokenQueueDetails:
+        def __iter__(self):
+            raise RuntimeError("prometheus named queue details unavailable")
+
+    monkeypatch.setattr(api, "get_provider_sla_summary", lambda limit=100: [])
+    monkeypatch.setattr(api_observability_service, "get_delivery_audit_summary", lambda: {
+        "total_count": 0,
+        "sent_count": 0,
+        "failed_count": 0,
+        "pending_count": 0,
+        "retry_exhausted_count": 0,
+        "channel_counts": {},
+        "failure_reason_counts": {},
+    })
+    monkeypatch.setattr(api_observability_service, "snapshot_task_queue", lambda _task_queue: {
+        "backend": "rq",
+        "available": True,
+        "queue_name": "stock-analysis",
+        "depth": 1,
+        "queues": {"broken": BrokenQueueDetails()},
+    })
+    monkeypatch.setattr(api, "analysis_task_queue", SimpleNamespace(queue=object(), active_tasks=[]))
+
+    response = TestClient(api.app).get("/metrics")
+
+    assert response.status_code == 200
+    assert 'stock_agent_queue_depth{queue="broken"} 0' in response.text
+
+
+def test_prometheus_queue_depth_rejects_binary_numeric_values(monkeypatch):
+    monkeypatch.setattr(api, "get_provider_sla_summary", lambda limit=100: [])
+    monkeypatch.setattr(api_observability_service, "get_delivery_audit_summary", lambda: {
+        "total_count": 0,
+        "sent_count": 0,
+        "failed_count": 0,
+        "pending_count": 0,
+        "retry_exhausted_count": 0,
+        "channel_counts": {},
+        "failure_reason_counts": {},
+    })
+    monkeypatch.setattr(api_observability_service, "snapshot_task_queue", lambda _task_queue: {
+        "backend": "rq",
+        "available": True,
+        "queue_name": "stock-analysis",
+        "depth": b"6",
+        "queues": {"maintenance": {"depth": bytearray(b"3")}},
+    })
+    monkeypatch.setattr(api, "analysis_task_queue", SimpleNamespace(queue=object(), active_tasks=[]))
+
+    response = TestClient(api.app).get("/metrics")
+
+    assert response.status_code == 200
+    body = response.text
+    assert 'stock_agent_queue_depth{queue="stock-analysis"} 0' in body
+    assert 'stock_agent_queue_depth{queue="maintenance"} 0' in body
+    assert 'stock_agent_queue_depth{queue="stock-analysis"} 6' not in body
+    assert 'stock_agent_queue_depth{queue="maintenance"} 3' not in body
+
+
 def test_prometheus_integer_metrics_ignore_conversion_failures(monkeypatch):
     class BrokenInt:
         def __int__(self):
@@ -830,6 +970,66 @@ def test_notification_delivery_metrics_ignore_summary_truthiness_failures():
     assert 'stock_agent_notification_delivery_health{state="warning"} 1' in lines
 
 
+def test_notification_delivery_dashboard_summary_normalizes_count_map_keys_for_json():
+    class BrokenTruthLabel:
+        def __init__(self, value):
+            self.value = value
+
+        def __bool__(self):
+            raise RuntimeError("notification delivery dashboard key truthiness unavailable")
+
+        def __str__(self):
+            return self.value
+
+    payload = notification_observability.notification_delivery_dashboard_summary(
+        {
+            "total_count": 5,
+            "sent_count": 0,
+            "failed_count": 5,
+            "pending_count": 0,
+            "retry_exhausted_count": 0,
+            "channel_counts": {
+                BrokenTruthLabel("telegram_webhook"): "2",
+                memoryview(b"decoded_channel_should_not_leak"): "2",
+                True: "1",
+            },
+            "failure_reason_counts": {
+                "timeout": "2",
+                b"auth_should_not_leak": "1",
+                memoryview(b"timeout"): "2",
+            },
+        }
+    )
+
+    assert payload["channel_counts"] == {"telegram_webhook": 2, "unknown": 3}
+    assert payload["failure_reason_counts"] == {"timeout": 2, "unknown": 3}
+    assert json.loads(json.dumps(payload))["channel_counts"] == {"telegram_webhook": 2, "unknown": 3}
+
+
+def test_notification_delivery_dashboard_summary_rejects_binary_and_boolean_counts():
+    payload = notification_observability.notification_delivery_dashboard_summary(
+        {
+            "total_count": b"5",
+            "sent_count": True,
+            "failed_count": bytearray(b"3"),
+            "pending_count": memoryview(b"2"),
+            "retry_exhausted_count": b"1",
+            "channel_counts": {"local": b"4", "webhook": True},
+            "failure_reason_counts": {"timeout": memoryview(b"2"), "auth": bytearray(b"1")},
+        }
+    )
+
+    assert payload["total_count"] == 0
+    assert payload["sent_count"] == 0
+    assert payload["failed_count"] == 0
+    assert payload["pending_count"] == 0
+    assert payload["retry_exhausted_count"] == 0
+    assert payload["channel_counts"] == {"local": 0, "webhook": 0}
+    assert payload["failure_reason_counts"] == {"timeout": 0, "auth": 0}
+    assert payload["attention_required"] is False
+    assert payload["health"] == "ok"
+
+
 def test_notification_delivery_attention_required_ignores_summary_get_failures():
     class BrokenGetDict(dict):
         def get(self, *_args, **_kwargs):
@@ -866,6 +1066,34 @@ def test_notification_delivery_metrics_ignore_count_conversion_failures():
     assert 'stock_agent_notification_delivery_channel_count{channel="telegram_webhook"} 0' in lines
     assert 'stock_agent_notification_delivery_failure_reason_count{reason="timeout"} 0' in lines
     assert 'stock_agent_notification_delivery_health{state="ok"} 1' in lines
+
+
+def test_notification_delivery_metrics_reject_binary_and_boolean_counts():
+    def labels(**values):
+        return "{" + ",".join(f'{key}="{value}"' for key, value in values.items()) + "}"
+
+    lines = notification_observability.notification_delivery_prometheus_lines(
+        {
+            "total_count": b"5",
+            "sent_count": True,
+            "failed_count": bytearray(b"3"),
+            "pending_count": memoryview(b"2"),
+            "retry_exhausted_count": b"1",
+            "channel_counts": {"local": b"4"},
+            "failure_reason_counts": {"timeout": memoryview(b"2")},
+        },
+        labels,
+    )
+
+    assert 'stock_agent_notification_delivery_count{status="total"} 0' in lines
+    assert 'stock_agent_notification_delivery_count{status="sent"} 0' in lines
+    assert 'stock_agent_notification_delivery_count{status="failed"} 0' in lines
+    assert 'stock_agent_notification_delivery_count{status="pending"} 0' in lines
+    assert 'stock_agent_notification_delivery_count{status="retry_exhausted"} 0' in lines
+    assert 'stock_agent_notification_delivery_channel_count{channel="local"} 0' in lines
+    assert 'stock_agent_notification_delivery_failure_reason_count{reason="timeout"} 0' in lines
+    assert 'stock_agent_notification_delivery_health{state="ok"} 1' in lines
+    assert 'stock_agent_notification_delivery_health{state="warning"} 0' in lines
 
 
 def test_notification_delivery_metrics_sanitize_label_truthiness_failures():
@@ -1130,6 +1358,26 @@ def test_provider_sla_provider_windows_keep_only_canonical_window_keys():
     }
 
 
+def test_provider_sla_provider_windows_reject_binary_window_keys():
+    payload = asyncio.run(api_observability_service.build_provider_sla_payload(
+        lambda limit: [{
+            "provider": "summary-provider",
+            "windows": {
+                "last_1h": {"attempts": 1},
+                b"last_24h": {"attempts": 2},
+                memoryview(b"last_7d"): {"attempts": 3},
+            },
+        }],
+        lambda limit: [],
+        100,
+        window="all",
+    ))
+
+    assert payload["providers"][0]["windows"] == {
+        "last_1h": {"attempts": 1},
+    }
+
+
 def test_provider_sla_window_alerts_ignore_status_truthiness_failures():
     class BrokenTruthText:
         def __bool__(self):
@@ -1279,6 +1527,30 @@ def test_provider_sla_alert_projection_uses_safe_output_conversion():
     }]
 
 
+def test_provider_sla_alert_projection_rejects_boolean_and_binary_text_fields():
+    alerts = api_observability_service.alerts_from_providers([{
+        "source": True,
+        "provider": b"fake",
+        "alert_level": "warning",
+        "alert_message": memoryview(b"provider is stale"),
+        "last_status": bytearray(b"error"),
+        "alert_basis": True,
+        "selected_window": memoryview(b"last_24h"),
+    }])
+
+    assert alerts == [{
+        "source": "",
+        "provider": "",
+        "alert_level": "warning",
+        "alert_message": "",
+        "success_rate": None,
+        "last_status": "",
+        "alert_basis": "",
+        "selected_window": "all",
+        "windows": {},
+    }]
+
+
 def test_provider_sla_alert_projection_windows_use_safe_numeric_output_conversion():
     class BrokenInt:
         def __int__(self):
@@ -1401,6 +1673,89 @@ def test_provider_sla_all_window_provider_stats_use_safe_output_conversion():
     assert provider["total_records"] == 0
     assert payload["selected_window"] == "all"
     assert payload["alerts"] == []
+
+
+def test_provider_sla_all_window_provider_stats_reject_binary_and_boolean_values():
+    payload = asyncio.run(api_observability_service.build_provider_sla_payload(
+        lambda limit: [{
+            "provider": "summary-provider",
+            "attempts": b"4",
+            "availability_attempts": True,
+            "success_count": bytearray(b"3"),
+            "error_count": memoryview(b"2"),
+            "unavailable_count": b"1",
+            "skipped_fresh_cache_count": True,
+            "not_configured_count": bytearray(b"1"),
+            "degraded_enrichment_count": memoryview(b"1"),
+            "success_rate": b"0.75",
+            "avg_duration_ms": True,
+            "total_records": b"10",
+            "windows": {
+                "last_24h": {
+                    "attempts": b"5",
+                    "success_rate": memoryview(b"0.5"),
+                    "avg_duration_ms": bytearray(b"12.5"),
+                    "total_records": True,
+                },
+            },
+        }],
+        lambda limit: [],
+        100,
+        window="all",
+    ))
+
+    provider = payload["providers"][0]
+    assert provider["attempts"] == 0
+    assert provider["availability_attempts"] == 0
+    assert provider["success_count"] == 0
+    assert provider["error_count"] == 0
+    assert provider["unavailable_count"] == 0
+    assert provider["skipped_fresh_cache_count"] == 0
+    assert provider["not_configured_count"] == 0
+    assert provider["degraded_enrichment_count"] == 0
+    assert provider["success_rate"] == 0.0
+    assert provider["avg_duration_ms"] == 0.0
+    assert provider["total_records"] == 0
+    nested = provider["windows"]["last_24h"]
+    assert nested["attempts"] == 0
+    assert nested["success_rate"] == 0.0
+    assert nested["avg_duration_ms"] == 0.0
+    assert nested["total_records"] == 0
+
+
+def test_provider_sla_selected_window_provider_stats_reject_binary_and_boolean_values():
+    payload = asyncio.run(api_observability_service.build_provider_sla_payload(
+        lambda limit: [{
+            "provider": "summary-provider",
+            "attempts": 10,
+            "success_rate": 1.0,
+            "windows": {
+                "last_24h": {
+                    "attempts": b"5",
+                    "availability_attempts": bytearray(b"5"),
+                    "success_count": memoryview(b"2"),
+                    "error_count": True,
+                    "success_rate": b"0.25",
+                    "avg_duration_ms": memoryview(b"12.5"),
+                    "total_records": bytearray(b"7"),
+                },
+            },
+        }],
+        lambda limit: [],
+        100,
+        window="last_24h",
+    ))
+
+    provider = payload["providers"][0]
+    assert provider["attempts"] == 0
+    assert provider["availability_attempts"] == 0
+    assert provider["success_count"] == 0
+    assert provider["error_count"] == 0
+    assert provider["success_rate"] == 0.0
+    assert provider["avg_duration_ms"] == 0.0
+    assert provider["total_records"] == 0
+    assert provider["alert_level"] == "ok"
+    assert provider["alert_message"] == ""
 
 
 def test_provider_sla_numeric_fields_ignore_row_mapping_failures():
@@ -2010,6 +2365,59 @@ def test_ops_dashboard_stuck_job_count_truthiness_keeps_other_sections(monkeypat
     assert payload["notification_delivery"]["health"] == "ok"
 
 
+def test_ops_dashboard_stuck_job_binary_count_does_not_raise_warning_or_leak_payload(monkeypatch):
+    monkeypatch.setattr(
+        api_observability_service,
+        "build_ops_dashboard_snapshot",
+        lambda **_kwargs: {
+            "jobs": {"active_count": 0},
+            "job_latency": {"p95_seconds": 1.5},
+            "stuck_jobs": {"count": b"3", "jobs": []},
+            "node_telemetry": {"nodes": {}},
+            "model_route_budget": {"warnings": []},
+        },
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "snapshot_task_queue",
+        lambda _task_queue: {"backend": "rq", "available": True, "queue_name": "stock-analysis", "depth": 0},
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "get_delivery_audit_summary",
+        lambda: {
+            "total_count": 1,
+            "sent_count": 1,
+            "failed_count": 0,
+            "pending_count": 0,
+            "retry_exhausted_count": 0,
+            "channel_counts": {"local": 1},
+        },
+        raising=False,
+    )
+
+    async def fake_provider_payload(*_args, **_kwargs):
+        return {"selected_window": "last_24h", "alerts": []}
+
+    async def fake_api_quota_payload(_summary_fetcher):
+        return {"services": [{"service": "alpha_vantage"}]}
+
+    monkeypatch.setattr(api_observability_service, "build_provider_sla_payload", fake_provider_payload)
+    monkeypatch.setattr(api_observability_service, "build_api_quota_payload", fake_api_quota_payload)
+
+    payload = asyncio.run(
+        api_observability_service.build_ops_dashboard_payload(
+            lambda _limit: [],
+            lambda _limit: [],
+            task_queue=object(),
+        )
+    )
+
+    assert payload["status"] == "ok"
+    assert payload["stuck_jobs"]["count"] == 0
+    assert json.loads(json.dumps(payload))["stuck_jobs"]["count"] == 0
+
+
 def test_ops_dashboard_queue_available_truthiness_keeps_other_sections(monkeypatch):
     class AvailableWithBrokenTruthiness:
         def __bool__(self):
@@ -2428,6 +2836,61 @@ def test_ops_dashboard_queue_supplemental_fields_use_safe_output_conversion(monk
     assert payload["notification_delivery"]["health"] == "ok"
 
 
+def test_queue_dashboard_payload_rejects_boolean_and_binary_text_metadata():
+    payload = queue_dashboard_payload.normalize_ops_queue_payload({
+        "backend": True,
+        "available": True,
+        "queue_name": b"stock-analysis",
+        "depth": 0,
+        "queues": {
+            b"maintenance": {
+                "depth": 2,
+                "registry": True,
+                "note": memoryview(b"internal"),
+            },
+        },
+        "error": True,
+        b"debug": "should not leak",
+    })
+
+    assert payload["backend"] == "unknown"
+    assert payload["queue_name"] == "unknown"
+    assert payload["queues"] == {
+        "unknown": {
+            "depth": 2,
+            "registry": "",
+            "note": "",
+        },
+    }
+    assert payload["error"] == ""
+    assert "debug" not in payload
+
+
+def test_queue_dashboard_payload_rejects_binary_integer_fields():
+    payload = queue_dashboard_payload.normalize_ops_queue_payload({
+        "backend": "rq",
+        "available": True,
+        "queue_name": "stock-analysis",
+        "depth": b"6",
+        "queues": {
+            "maintenance": {
+                "depth": bytearray(b"3"),
+                "registries": {"failed": memoryview(b"2")},
+            },
+        },
+        "registries": {"failed": b"4"},
+        "active_tasks": True,
+        "job_timeout_seconds": memoryview(b"900"),
+    })
+
+    assert payload["depth"] == 0
+    assert payload["queues"]["maintenance"]["depth"] == 0
+    assert payload["queues"]["maintenance"]["registries"] == {"failed": 0}
+    assert payload["registries"] == {"failed": 0}
+    assert payload["active_tasks"] == 0
+    assert payload["job_timeout_seconds"] == 0
+
+
 def test_queue_dashboard_payload_replaces_non_finite_age_with_zero():
     infinite = queue_dashboard_payload.normalize_ops_queue_payload({
         "backend": "rq",
@@ -2446,6 +2909,19 @@ def test_queue_dashboard_payload_replaces_non_finite_age_with_zero():
 
     assert infinite["oldest_queued_seconds"] == 0.0
     assert nan["oldest_queued_seconds"] == 0.0
+
+
+def test_queue_dashboard_payload_rejects_binary_and_boolean_age_fields():
+    for raw_age in (b"3600.5", bytearray(b"15.25"), memoryview(b"2.5"), True):
+        payload = queue_dashboard_payload.normalize_ops_queue_payload({
+            "backend": "rq",
+            "available": True,
+            "queue_name": "stock-analysis",
+            "depth": 0,
+            "oldest_queued_seconds": raw_age,
+        })
+
+        assert payload["oldest_queued_seconds"] == 0.0
 
 
 def test_ops_dashboard_notification_delivery_summary_fetch_failure_keeps_other_sections(monkeypatch):
@@ -3645,6 +4121,41 @@ def test_api_quota_payload_uses_persistent_usage_ledger(monkeypatch, tmp_path):
     assert gemini["usage"]["ledger_source"] == "api_usage_events"
     assert "Google Custom Search" not in {item["service"] for item in payload["services"]}
     assert fmp["usage"]["observed_24h_errors"] == 1
+
+
+def test_api_quota_payload_rejects_binary_and_boolean_observation_fields(monkeypatch, tmp_path):
+    db_path = tmp_path / "api_usage.sqlite3"
+    monkeypatch.setattr(api_usage_store, "API_USAGE_DB_PATH", str(db_path))
+    monkeypatch.setattr(
+        api_quota_service,
+        "RPD_LIMITS",
+        {"gemini-2.5-pro": memoryview(b"1500"), "bool_limit": True, memoryview(b"leaky_limit"): 25},
+    )
+    api_usage_store.reset_api_usage_store_for_tests()
+
+    payload = api_quota_service.build_api_quota_payload(lambda limit=100: [
+        {
+            "source": memoryview(b"internal_market_data"),
+            "provider": "FMP quote",
+            "last_status": True,
+            "alert_level": bytearray(b"critical"),
+            "success_rate": memoryview(b"0.75"),
+        },
+    ])
+
+    gemini = next(item for item in payload["services"] if item["service"] == "Gemini / Google AI")
+    fmp = next(item for item in payload["services"] if item["service"] == "Financial Modeling Prep")
+
+    assert gemini["daily_limit"] == {"gemini-2.5-pro": 0, "bool_limit": 0}
+    assert fmp["usage"]["providers"] == [
+        {
+            "source": "unknown",
+            "provider": "FMP quote",
+            "last_status": "unknown",
+            "alert_level": "unknown",
+            "success_rate": 0.0,
+        }
+    ]
 
 
 def test_provider_usage_counts_real_fmp_stable_quote_attempts_only(monkeypatch, tmp_path):

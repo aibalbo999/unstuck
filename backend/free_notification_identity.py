@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from mapping_fields import mapping_field as _field
+from mapping_fields import mapping_field as _field, safe_text
 
 IDENTITY_ERRORS = (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError)
 
@@ -74,10 +74,22 @@ def _first_identity(action: dict[str, Any], fallback: Any, *keys: str) -> str:
 
 
 def identity_part(value: Any, fallback: Any) -> str:
+    if value is None:
+        candidate = fallback
+    elif isinstance(value, str):
+        candidate = value if value != "" else fallback
+    else:
+        try:
+            value == ""
+        except IDENTITY_ERRORS:
+            candidate = fallback
+        else:
+            candidate = value
     try:
-        text = str(value if value not in (None, "") else fallback)
+        text = safe_text(candidate).strip() or safe_text(fallback).strip()
     except IDENTITY_ERRORS:
-        text = str(fallback)
+        candidate = fallback
+        text = safe_text(candidate).strip() or safe_text(fallback).strip()
     return text.replace("|", "/").strip() or str(fallback)
 
 

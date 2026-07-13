@@ -33,6 +33,7 @@
 - `test_pipeline_mode_contract_documents_templates_and_decision_intents`
 - `test_design_system_contract_is_discoverable_and_operational`
 - `test_report_preview_reading_boundary_covers_missing_partial_blocked_and_passed_reports`
+- `test_report_reading_boundary_downgrades_unverified_and_blocks_invalid_snapshots`
 - `test_report_preview_panel_renders_reading_boundary_before_decision_metrics`
 - `test_home_workspace_grouping_visual_regression_optional`
 

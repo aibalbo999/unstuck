@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from html import escape
 
+from reporting.reading_notice import build_report_reading_notice_html, build_report_reading_notice_markdown
 from ticker_links import quote_url_from_autolink_href
 
 
@@ -19,6 +20,15 @@ REPORT_SECTION_RE = re.compile(
     r'<div class="section-num">(?P<num>.*?)</div>\s*<div class="section-title">(?P<title>.*?)</div>',
     re.DOTALL,
 )
+REPORT_READING_NOTICE_RE = re.compile(
+    r'<section\b(?=[^>]*\breport-reading-notice\b)[\s\S]*?</section>',
+    re.IGNORECASE,
+)
+MARKDOWN_READING_NOTICE_RE = re.compile(
+    r"^## 報告使用範圍與判讀限制\s*\n[\s\S]*?(?=^## |\Z)",
+    re.MULTILINE,
+)
+BODY_CLOSE_RE = re.compile(r"</body\s*>", re.IGNORECASE)
 TAG_RE = re.compile(r"<[^>]+>")
 
 
@@ -66,5 +76,33 @@ def repair_sidebar_navigation(html: str) -> str:
     return NAV_SECTION_RE.sub(lambda match: f"{match.group('prefix')}{nav_html}{match.group('suffix')}", html, count=1)
 
 
-def repair_report_html_for_view(html: str) -> str:
-    return repair_sidebar_navigation(normalize_ticker_autolinks(str(html or "")))
+def repair_report_reading_notice(html: str, context: dict | None = None) -> str:
+    if not context:
+        return html
+    notice = build_report_reading_notice_html(context).strip()
+    if "report-reading-notice-blocked" not in notice and "report-reading-notice-warning" not in notice:
+        return html
+    if REPORT_READING_NOTICE_RE.search(html):
+        return REPORT_READING_NOTICE_RE.sub(notice, html, count=1)
+    match = BODY_CLOSE_RE.search(html)
+    if match:
+        return f"{html[:match.start()]}{notice}\n{html[match.start():]}"
+    return f"{notice}\n{html}"
+
+
+def repair_report_html_for_view(html: str, reading_notice_context: dict | None = None) -> str:
+    repaired = normalize_ticker_autolinks(str(html or ""))
+    repaired = repair_report_reading_notice(repaired, reading_notice_context)
+    return repair_sidebar_navigation(repaired)
+
+
+def repair_report_markdown_for_download(markdown: str, reading_notice_context: dict | None = None) -> str:
+    text = str(markdown or "")
+    if not reading_notice_context:
+        return text
+    notice = build_report_reading_notice_markdown(reading_notice_context).strip()
+    if "品質 gate 未通過" not in notice and "品質 gate 有警示" not in notice:
+        return text
+    if MARKDOWN_READING_NOTICE_RE.search(text):
+        return MARKDOWN_READING_NOTICE_RE.sub(f"{notice}\n\n", text, count=1)
+    return f"{notice}\n\n{text}"

@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
+from fractions import Fraction
 import os
 from typing import Any, Mapping
 
 from daily_decision_source_labels import normalize_source_counts, source_display_overrides, source_key, source_label, source_labels, source_text, source_texts
 from free_notification_identity import dedupe_context, delivery_key, message_delivery_identity
-from mapping_fields import mapping_field as _field
+from mapping_fields import mapping_field as _field, safe_dict_list, safe_int, safe_mapping_dict, safe_text, safe_text_list
 SCHEMA_VERSION = "notification_plan.v1"
 SUPPRESSED_NOTIFICATION_TYPES = {"monitor", "fix_notification_delivery"}
 CHANNELS = (
@@ -30,6 +32,7 @@ MESSAGE_CONTEXT_KEYS = (
     "horizon_months",
     "recommended_action",
     "blocks_auto_rerun",
+    "reason_codes",
     "severity",
     "action_label",
     "target_panel",
@@ -39,7 +42,20 @@ MESSAGE_CONTEXT_KEYS = (
     "dedupe_key",
     "message_id",
 )
-DELIVERY_CONTEXT_KEYS = ("type", *MESSAGE_CONTEXT_KEYS, "source_label", "source_text", "queue_rank", "queue_displayed_count", "is_top_priority")
+NUMERIC_MESSAGE_CONTEXT_KEYS = ("priority_score", "horizon_months")
+BOOLEAN_MESSAGE_CONTEXT_KEYS = ("blocks_auto_rerun",)
+TEXT_MESSAGE_CONTEXT_KEYS = (
+    "ticker",
+    "filename",
+    "report_filename",
+    "pipeline_id",
+    "route",
+    "warning_id",
+    "recommended_action",
+    "severity",
+    "action_label",
+)
+DELIVERY_CONTEXT_KEYS = ("type", "detail", *MESSAGE_CONTEXT_KEYS, "source_label", "source_text", "queue_rank", "queue_displayed_count", "is_top_priority")
 
 OPERATOR_ACTION_BY_TYPE = {
     "rerun_report": ("rerun-report", "完整重跑"),
@@ -71,7 +87,7 @@ def build_daily_notification_plan(
     *,
     env: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
-    env = os.environ if env is None else env
+    env = os.environ if env is None else safe_mapping_dict(env) or {}
     actions, queue_context = _notification_actions(dashboard)
     messages = _messages(actions)
     channels = [_channel_payload(channel_id, label, required, cost, env) for channel_id, label, required, cost in CHANNELS]
@@ -98,7 +114,7 @@ def _channel_payload(
     cost_tier: str,
     env: Mapping[str, str],
 ) -> dict[str, Any]:
-    missing = [name for name in required_env if not str(env.get(name) or "").strip()]
+    missing = [name for name in required_env if not _env_value_present(env, name)]
     return {
         "id": channel_id,
         "label": label,
@@ -107,6 +123,11 @@ def _channel_payload(
         "requires_env": list(required_env),
         "missing_env": missing,
     }
+
+
+def _env_value_present(env: Mapping[str, str], name: str) -> bool:
+    value = env.get(name)
+    return isinstance(value, str) and value.strip() != ""
 
 
 def _delivery_summary(
@@ -145,23 +166,24 @@ def _delivery_outbox(messages: list[dict[str, Any]], channels: list[dict[str, An
 
 
 def _notification_actions(dashboard: dict[str, Any]) -> tuple[list[Any], dict[str, Any]]:
+    dashboard = safe_mapping_dict(dashboard) or {}
     raw_queue = _field(dashboard, "decision_queue")
-    queue = raw_queue if isinstance(raw_queue, dict) else {}
+    queue = safe_mapping_dict(raw_queue) or {}
     raw_queue_items = _field(queue, "items")
-    queue_items = raw_queue_items if isinstance(raw_queue_items, list) else None
+    queue_items = safe_dict_list(raw_queue_items) if isinstance(raw_queue_items, (list, tuple)) else None
     if queue_items is not None:
         return queue_items, _decision_queue_context(queue)
 
     raw_actions = _field(dashboard, "actions")
-    actions = raw_actions if isinstance(raw_actions, list) else []
+    actions = safe_dict_list(raw_actions) if isinstance(raw_actions, (list, tuple)) else []
     return actions, _legacy_actions_context(actions)
 
 
 def _decision_queue_context(queue: dict[str, Any]) -> dict[str, Any]:
     raw_summary = _field(queue, "summary")
-    summary = raw_summary if isinstance(raw_summary, dict) else {}
+    summary = safe_mapping_dict(raw_summary) or {}
     raw_sources = _field(summary, "sources")
-    sources = raw_sources if isinstance(raw_sources, dict) else {}
+    sources = safe_mapping_dict(raw_sources) or {}
     source_counts = normalize_source_counts(sources)
     return {
         "source": "decision_queue",
@@ -176,7 +198,7 @@ def _decision_queue_context(queue: dict[str, Any]) -> dict[str, Any]:
 
 
 def _legacy_actions_context(actions: list[Any]) -> dict[str, Any]:
-    actionable = [action for action in actions if isinstance(action, dict) and _text(_field(action, "type")) != "monitor"]
+    actionable = [action for action in actions if isinstance(action, dict) and _action_type(action) != "monitor"]
     source_counts = _source_counts(actionable)
     return {
         "source": "actions",
@@ -199,9 +221,9 @@ def _messages(actions: list[Any]) -> list[dict[str, Any]]:
     displayed_count = len(actionable)
     return [
         _message_context(action) | _rank_context(index, displayed_count) | {
-            "type": _text(_field(action, "type")) or "daily_status",
-            "title": _text(_field(action, "title")) or "今日決策狀態",
-            "detail": _text(_field(action, "detail")),
+            "type": _action_type(action) or "daily_status",
+            "title": _text(_field(action, "title")).strip() or "今日決策狀態",
+            "detail": _text(_field(action, "detail")).strip(),
         }
         for index, action in enumerate(actionable, start=1)
     ]
@@ -217,6 +239,24 @@ def _rank_context(index: int, displayed_count: int) -> dict[str, Any]:
 
 def _message_context(action: dict[str, Any]) -> dict[str, Any]:
     context = {key: _field(action, key) for key in MESSAGE_CONTEXT_KEYS if _present(_field(action, key))}
+    for key in NUMERIC_MESSAGE_CONTEXT_KEYS:
+        if key in context:
+            context[key] = _int(context[key])
+    for key in BOOLEAN_MESSAGE_CONTEXT_KEYS:
+        if key in context:
+            context[key] = _explicit_bool(context[key])
+    for key in TEXT_MESSAGE_CONTEXT_KEYS:
+        if key in context:
+            text = _text(context[key]).strip()
+            if text:
+                context[key] = text
+            else:
+                context.pop(key, None)
+    reason_codes = safe_text_list(_field(action, "reason_codes"))
+    if reason_codes:
+        context["reason_codes"] = reason_codes
+    else:
+        context.pop("reason_codes", None)
     source = source_key(context.get("source"))
     if source:
         context["source"] = source
@@ -224,6 +264,8 @@ def _message_context(action: dict[str, Any]) -> dict[str, Any]:
             context[key] = (value.strip() if isinstance(value := context.get(key), str) else "") or fallback
     else:
         context.pop("source", None)
+        context.pop("source_label", None)
+        context.pop("source_text", None)
     filename = _first_text(action, "filename", "report_filename")
     if filename != "":
         for key in ("filename", "report_filename"):
@@ -242,13 +284,25 @@ def _message_context(action: dict[str, Any]) -> dict[str, Any]:
 
 
 def _suppress_notification(action: dict[str, Any]) -> bool:
-    try: suppressed = bool(_field(action, "suppress_notification"))
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError): suppressed = False
-    return suppressed or _text(_field(action, "type")) in SUPPRESSED_NOTIFICATION_TYPES
+    suppressed = _explicit_bool(_field(action, "suppress_notification"))
+    return suppressed or _action_type(action) in SUPPRESSED_NOTIFICATION_TYPES
+
+
+def _explicit_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if not isinstance(value, str):
+        return False
+    text = value.strip().lower()
+    if text in {"1", "true", "yes", "y", "on"}:
+        return True
+    if text in {"", "0", "false", "no", "n", "off"}:
+        return False
+    return False
 
 
 def _operator_cta_context(action: dict[str, Any]) -> dict[str, str]:
-    default_action, default_label = OPERATOR_ACTION_BY_TYPE.get(_text(_field(action, "type")), ("open-ops", "查看狀態"))
+    default_action, default_label = OPERATOR_ACTION_BY_TYPE.get(_action_type(action), ("open-ops", "查看狀態"))
     return {
         "operator_action": _first_text(action, "operator_action", "operatorAction") or default_action,
         "operator_action_label": _first_text(action, "operator_action_label", "operatorActionLabel", "action_label") or default_label,
@@ -256,7 +310,7 @@ def _operator_cta_context(action: dict[str, Any]) -> dict[str, str]:
 
 
 def _target_context(action: dict[str, Any]) -> dict[str, str]:
-    panel = _first_text(action, "target_panel", "targetPanel") or TARGET_PANEL_BY_TYPE.get(_text(_field(action, "type"))) or "active-jobs-panel"
+    panel = _first_text(action, "target_panel", "targetPanel") or TARGET_PANEL_BY_TYPE.get(_action_type(action)) or "active-jobs-panel"
     tab = _first_text(action, "target_tab", "targetTab") or _target_tab_for_panel(panel)
     return {"target_panel": panel, "target_tab": tab}
 
@@ -274,20 +328,26 @@ def _source_counts(actions: list[dict[str, Any]]) -> dict[str, int]:
 
 
 def _first_text(action: dict[str, Any], *keys: str) -> str:
-    return next((text for key in keys if (text := _text(_field(action, key))) != ""), "")
+    return next((text for key in keys if (text := _text(_field(action, key)).strip()) != ""), "")
+
+
+def _action_type(action: dict[str, Any]) -> str:
+    return _text(_field(action, "type")).strip()
 
 
 def _text(value: Any) -> str:
-    try: return "" if value is None else value if isinstance(value, str) else str(value)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
-        return ""
+    return safe_text(value)
 def _present(value: Any) -> bool:
-    try: return value not in (None, "")
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError): return True
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return value != ""
+    return True
 def _int(value: Any) -> int:
-    try:
-        return int(value or 0)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+    if isinstance(value, (bool, bytes, bytearray, memoryview)):
         return 0
+    if not isinstance(value, (int, float, str, Decimal, Fraction)):
+        return 0
+    return max(0, safe_int(value))
 
 __all__ = ["SCHEMA_VERSION", "build_daily_notification_plan"]

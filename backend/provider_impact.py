@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from data_trust_constants import AUDIT_STATUS_SKIPPED_FRESH_CACHE, AUDIT_STATUS_SUCCESS, CORE_DATA_SOURCES
+from mapping_fields import safe_mapping_dict, safe_text
 
 
 SCHEMA_VERSION = "provider_impact.v1"
@@ -16,6 +17,7 @@ SEVERITY_RANK = {"none": 0, "notice": 1, "warning": 2, "critical": 3}
 
 def build_provider_impact(report: dict[str, Any]) -> dict[str, Any]:
     """Return provider impact for one report row."""
+    report = _dict(report)
     trust = _dict(_field(report, "data_trust"))
     codes = _reason_codes(trust)
     impacts = [_impact_for_alert(alert, codes) for alert in _alerts(trust)]
@@ -32,9 +34,10 @@ def build_provider_impact(report: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def build_provider_impact_ledger(reports: list[dict[str, Any]]) -> dict[str, Any]:
+def build_provider_impact_ledger(reports: dict[str, Any] | list[dict[str, Any]]) -> dict[str, Any]:
     """Return provider impact rows for report collections."""
-    report_rows = _safe_dict_list(reports)
+    envelope = safe_mapping_dict(reports)
+    report_rows = _safe_dict_list(_field(envelope, "reports") if envelope is not None else reports)
     items = []
     for report in report_rows:
         impact = build_provider_impact(report)
@@ -156,7 +159,7 @@ def _reason_codes(trust: dict[str, Any]) -> list[str]:
 
 
 def _dict(value: Any) -> dict[str, Any]:
-    return value if isinstance(value, dict) else {}
+    return safe_mapping_dict(value) or {}
 
 
 def _safe_dict_list(value: Any) -> list[dict[str, Any]]:
@@ -172,7 +175,7 @@ def _safe_dict_list(value: Any) -> list[dict[str, Any]]:
             item = next(iterator)
         except StopIteration:
             break
-        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
             if rows or used_native:
                 break
             iterator = _native_sequence_iterator(value)
@@ -180,30 +183,28 @@ def _safe_dict_list(value: Any) -> list[dict[str, Any]]:
                 break
             used_native = True
             continue
-        if isinstance(item, dict):
-            rows.append(item)
+        row = safe_mapping_dict(item)
+        if row is not None:
+            rows.append(row)
     return rows
 
 
 def _safe_bool(value: Any) -> bool:
     try:
         return bool(value)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
         return False
 
 
 def _safe_int(value: Any) -> int:
     try:
         return int(0 if value is None else value)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
         return 0
 
 
 def _safe_text(value: Any) -> str:
-    try:
-        return "" if value is None else str(value)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
-        return ""
+    return safe_text(value)
 
 
 def _safe_text_list(value: Any) -> list[str]:
@@ -219,7 +220,7 @@ def _safe_text_list(value: Any) -> list[str]:
             item = next(iterator)
         except StopIteration:
             break
-        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
             if texts or used_native:
                 break
             iterator = _native_sequence_iterator(value)
@@ -236,7 +237,7 @@ def _safe_text_list(value: Any) -> list[str]:
 def _sequence_iterator(value: list[Any] | tuple[Any, ...]):
     try:
         return iter(value)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
         return _native_sequence_iterator(value)
     return None
 

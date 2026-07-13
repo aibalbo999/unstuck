@@ -15,7 +15,10 @@ _SECRET_PATTERNS = [
 def sanitize_error_message(message: object, *, max_length: int = 240) -> str | None:
     if message is None:
         return None
-    text = str(message)
+    try:
+        text = str(message)
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+        return None
     for pattern in _SECRET_PATTERNS:
         if pattern.pattern.startswith("(?i)\\b"):
             text = pattern.sub(lambda match: f"{match.group(1)}{match.group(2)}[redacted]", text)

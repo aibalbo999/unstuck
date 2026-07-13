@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Optional
 
@@ -12,7 +12,9 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from sse_starlette.sse import EventSourceResponse
 
 from analysis_job_service import task_queue_has_task
-from api_routes.analysis_sse import persist_terminal_event_if_missing
+from api_routes.analysis_sse import persist_terminal_event_if_missing, resolve_resume_after_id
+from data_trust import sanitize_for_snapshot
+from mapping_fields import safe_int, safe_mapping_dict, safe_sequence_items, safe_text
 from report_index import is_safe_report_filename
 from report_history_storage import existing_storage_key
 import report_history_service
@@ -136,12 +138,13 @@ def create_reports_router(deps: ReportRouteDeps) -> APIRouter:
             result = deps.create_or_attach_job(filename, pipeline_id)
             job = result["job"]
             job_id = job["job_id"]
-            should_enqueue = bool(result.get("created"))
+            should_enqueue = result.get("created") is True
             task_id = f"report-rerun:{job_id}"
             task_queue = deps.get_task_queue()
+            job_status = safe_text(job.get("status")).strip()
             if (
                 not should_enqueue
-                and str(job.get("status") or "") == "queued"
+                and job_status == "queued"
                 and task_queue_has_task(task_queue, task_id) is False
             ):
                 should_enqueue = True
@@ -160,9 +163,15 @@ def create_reports_router(deps: ReportRouteDeps) -> APIRouter:
                     normalized_scope,
                 )
             except Exception as exc:
-                message = f"報告重跑任務送入佇列失敗：{exc}"
+                failure_detail = safe_text(exc).strip() or "未知錯誤"
+                message = f"報告重跑任務送入佇列失敗：{failure_detail}"
                 deps.update_job(job_id, "error", error=message)
-                deps.append_event(job_id, {"type": "error", "message": message, "rerun_scope": normalized_scope})
+                deps.append_event(job_id, {
+                    "type": "error",
+                    "message": message,
+                    "rerun_scope": normalized_scope,
+                    "source_filename": filename,
+                })
             else:
                 if recovered_orphaned_queue_task:
                     deps.append_event(job_id, {
@@ -195,21 +204,56 @@ def create_reports_router(deps: ReportRouteDeps) -> APIRouter:
         if not is_safe_report_filename(filename, ".html"):
             raise HTTPException(status_code=400, detail="Invalid filename")
         job = deps.get_job(job_id)
-        if not job or job.get("ticker") != filename or not str(job.get("pipeline_id", "")).startswith("rerun:"):
+        job_row = safe_mapping_dict(job)
+        pipeline_id = safe_text(job_row.get("pipeline_id")).strip() if job_row is not None else ""
+        job_ticker = safe_text(job_row.get("ticker")).strip() if job_row is not None else ""
+        if job_row is None or job_ticker != filename or not pipeline_id.startswith("rerun:"):
             raise HTTPException(status_code=404, detail="找不到報告重跑任務")
 
-        header_last_event_id = request.headers.get("last-event-id")
-        if last_event_id is None and header_last_event_id:
-            try:
-                last_event_id = int(header_last_event_id)
-            except ValueError:
-                last_event_id = 0
-        resume_after_id = int(last_event_id or 0)
-        rerun_scope = str(job.get("pipeline_id") or "rerun:final_recommendation").split(":", 1)[-1]
+        resume_after_id = resolve_resume_after_id(request, last_event_id, None)
+        rerun_scope = (
+            pipeline_id
+            .strip()
+            .split(":", 1)[-1]
+            .strip()
+            .lower()
+            .replace("-", "_")
+            or "final_recommendation"
+        )
 
         async def event_generator():
             last_sent_event_id = resume_after_id
             terminal_sent = False
+
+            def malformed_replay_payload() -> dict[str, str]:
+                return {
+                    "type": "status",
+                    "level": "warning",
+                    "message": "略過格式異常的報告重跑事件",
+                    "rerun_scope": rerun_scope,
+                    "source_filename": filename,
+                }
+
+            def replay_text_field(value: Any) -> str:
+                if isinstance(value, Mapping) or isinstance(value, (list, tuple, set, frozenset)):
+                    return ""
+                return safe_text(value).strip()
+
+            def replay_payload_type(value: Any) -> str:
+                if not isinstance(value, str):
+                    return ""
+                return safe_text(value).strip()
+
+            def replay_count_field(value: Any) -> int:
+                if isinstance(value, (bool, bytes, bytearray, memoryview)):
+                    return 0
+                return safe_int(value)
+
+            def replay_event_id(value: Any) -> int:
+                if isinstance(value, (bool, bytes, bytearray, memoryview)):
+                    return 0
+                return safe_int(value)
+
             yield {
                 "data": json.dumps(
                     {
@@ -228,16 +272,58 @@ def create_reports_router(deps: ReportRouteDeps) -> APIRouter:
                         await asyncio.to_thread(deps.request_job_cancel, job_id, "SSE 客戶端斷線，已要求取消報告重跑任務。")
                     break
 
-                events = await asyncio.to_thread(deps.get_events_since, job_id, last_sent_event_id)
+                events = safe_sequence_items(await asyncio.to_thread(deps.get_events_since, job_id, last_sent_event_id))
                 for event in events:
                     if await request.is_disconnected():
                         terminal_sent = True
                         break
-                    last_sent_event_id = event["id"]
-                    payload = event["payload"]
+                    event_row = safe_mapping_dict(event)
+                    event_id = replay_event_id(event_row.get("id")) if event_row is not None else 0
+                    if event_row is None or event_id <= 0:
+                        payload = malformed_replay_payload()
+                        deps.print_streamed_event(job_id, payload)
+                        yield {"data": json.dumps(payload, ensure_ascii=False)}
+                        continue
+                    last_sent_event_id = event_id
+                    payload = safe_mapping_dict(event_row.get("payload"))
+                    if payload is None:
+                        payload = malformed_replay_payload()
+                        payload_type = "status"
+                    else:
+                        payload_type = replay_payload_type(payload.get("type"))
+                        if not payload_type:
+                            payload = malformed_replay_payload()
+                            payload_type = "status"
+                        else:
+                            payload = {**payload, "type": payload_type}
+                            for control_field in ("phase", "level"):
+                                if control_field in payload:
+                                    payload[control_field] = replay_text_field(payload.get(control_field))
+                            for count_field in ("current", "total", "agent_num", "status_code"):
+                                if count_field in payload:
+                                    payload[count_field] = replay_count_field(payload.get(count_field))
+                            for structured_field in ("data_trust", "partial_rerun", "metadata", "details"):
+                                if structured_field in payload:
+                                    payload[structured_field] = sanitize_for_snapshot(payload.get(structured_field))
+                            if "message" in payload:
+                                payload["message"] = replay_text_field(payload.get("message"))
+                            for text_field in (
+                                "filename",
+                                "md_filename",
+                                "data_filename",
+                                "source_filename",
+                                "rerun_scope",
+                                "scope_label",
+                                "pipeline_id",
+                                "pipeline_label",
+                                "name",
+                                "detail",
+                            ):
+                                if text_field in payload:
+                                    payload[text_field] = replay_text_field(payload.get(text_field))
                     deps.print_streamed_event(job_id, payload)
-                    yield {"id": str(event["id"]), "data": json.dumps(payload, ensure_ascii=False)}
-                    if payload.get("type") in ["done", "error"]:
+                    yield {"id": str(event_id), "data": json.dumps(payload, ensure_ascii=False)}
+                    if payload_type in ["done", "error"]:
                         terminal_sent = True
                         break
 
@@ -245,18 +331,45 @@ def create_reports_router(deps: ReportRouteDeps) -> APIRouter:
                     break
 
                 job = await asyncio.to_thread(deps.get_job, job_id)
-                if job.get("status") in ["done", "error", "cancelled"]:
-                    if job.get("status") == "done":
+                job_row = safe_mapping_dict(job)
+                if not job_row:
+                    payload = {
+                        "type": "error",
+                        "message": "找不到報告重跑任務",
+                        "rerun_scope": rerun_scope,
+                        "source_filename": filename,
+                    }
+                    if await asyncio.to_thread(persist_terminal_event_if_missing, deps, job_id, payload):
+                        continue
+                    yield {"data": json.dumps(payload, ensure_ascii=False)}
+                    break
+                job_status = safe_text(job_row.get("status")).strip()
+                if job_status in ["done", "error", "cancelled"]:
+                    job_filename = safe_text(job_row.get("filename")).strip() or None
+                    if job_status == "done":
                         payload = {
                             "type": "done",
-                            "filename": job.get("filename"),
+                            "filename": job_filename,
                             "rerun_scope": rerun_scope,
                             "source_filename": filename,
                         }
-                    elif job.get("status") == "cancelled":
-                        payload = {"type": "error", "phase": "cancelled", "message": job.get("error", "報告重跑任務已取消")}
+                    elif job_status == "cancelled":
+                        message = safe_text(job_row.get("error")).strip() or "報告重跑任務已取消"
+                        payload = {
+                            "type": "error",
+                            "phase": "cancelled",
+                            "message": message,
+                            "rerun_scope": rerun_scope,
+                            "source_filename": filename,
+                        }
                     else:
-                        payload = {"type": "error", "message": job.get("error", "報告重跑任務失敗")}
+                        message = safe_text(job_row.get("error")).strip() or "報告重跑任務失敗"
+                        payload = {
+                            "type": "error",
+                            "message": message,
+                            "rerun_scope": rerun_scope,
+                            "source_filename": filename,
+                        }
                     if await asyncio.to_thread(persist_terminal_event_if_missing, deps, job_id, payload):
                         continue
                     yield {"data": json.dumps(payload, ensure_ascii=False)}
@@ -278,7 +391,10 @@ def create_reports_router(deps: ReportRouteDeps) -> APIRouter:
     ):
         deps.require_mutation_authorized(request)
         job = deps.get_job(job_id)
-        if not job or job.get("ticker") != filename or not str(job.get("pipeline_id", "")).startswith("rerun:"):
+        job_row = safe_mapping_dict(job)
+        pipeline_id = safe_text(job_row.get("pipeline_id")).strip() if job_row is not None else ""
+        job_ticker = safe_text(job_row.get("ticker")).strip() if job_row is not None else ""
+        if job_row is None or job_ticker != filename or not pipeline_id.startswith("rerun:"):
             return {"ok": False, "message": "找不到可取消的報告重跑任務"}
         ok = deps.request_job_cancel(job_id, "使用者要求取消報告重跑任務。")
         return {"ok": ok, "job_id": job_id, "status": "cancelling" if ok else "not_found"}

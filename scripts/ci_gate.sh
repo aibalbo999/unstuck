@@ -7,8 +7,12 @@ PYTHON_BIN="${PYTHON_BIN:-$(scripts/project_python.sh)}"
 
 "$PYTHON_BIN" scripts/check_runtime.py --strict
 "$PYTHON_BIN" scripts/secret_scan.py
+scripts/setup_security_audit.sh
 "$PYTHON_BIN" scripts/supply_chain_audit.py
 "$PYTHON_BIN" scripts/generate_sbom.py
+"$PYTHON_BIN" scripts/generate_sbom.py \
+  --requirements scripts/visual_requirements.lock \
+  --output backend/cache/visual-sbom.cdx.json
 "$PYTHON_BIN" scripts/generate_pipeline_mode_fallback.py --check
 "$PYTHON_BIN" -m compileall -q -x '(^|/)backend/(cache|output)(/|$)' backend
 "$PYTHON_BIN" -m mypy --strict --follow-imports=skip backend/analysis_types.py backend/workflow_state.py

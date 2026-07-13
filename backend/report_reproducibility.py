@@ -9,6 +9,7 @@ from typing import Any
 
 from data_trust_constants import SHA256_HEX_RE
 from data_trust_scoring import normalize_data_trust
+from mapping_fields import safe_dict_list, safe_mapping_dict, safe_text
 
 
 EXPLICIT_TARGET_PRICE_MIN_SCORE = 60
@@ -38,12 +39,11 @@ def data_confidence_score(data_trust: Any) -> int:
 
 
 def provider_list_from_audit(data: dict) -> list[str]:
-    entries = dict.get(data, "source_audit") if isinstance(data, dict) else []
+    data = safe_mapping_dict(data) or {}
+    entries = dict.get(data, "source_audit")
     providers: list[str] = []
     seen = set()
-    for entry in entries if isinstance(entries, list) else []:
-        if not isinstance(entry, dict):
-            continue
+    for entry in safe_dict_list(entries):
         provider = _safe_text(dict.get(entry, "provider")).strip()
         if provider and provider not in seen:
             providers.append(provider)
@@ -52,19 +52,17 @@ def provider_list_from_audit(data: dict) -> list[str]:
 
 
 def source_data_time(data: dict, data_trust: Any) -> str:
+    data = safe_mapping_dict(data) or {}
     trust = normalize_data_trust(data_trust)
     last_market_data_at = _safe_text(dict.get(trust, "last_market_data_at")).strip()
     if last_market_data_at:
         return last_market_data_at
-    entries = dict.get(data, "source_audit") if isinstance(data, dict) else []
+    entries = dict.get(data, "source_audit")
     fetched = []
-    if isinstance(entries, list):
-        for entry in entries:
-            if not isinstance(entry, dict):
-                continue
-            fetched_at = _safe_text(dict.get(entry, "fetched_at")).strip()
-            if fetched_at:
-                fetched.append(fetched_at)
+    for entry in safe_dict_list(entries):
+        fetched_at = _safe_text(dict.get(entry, "fetched_at")).strip()
+        if fetched_at:
+            fetched.append(fetched_at)
     return max(fetched) if fetched else ""
 
 
@@ -94,9 +92,8 @@ def build_data_confidence_controls(context: dict, data_trust: Any) -> dict:
 
 
 def build_reproducibility_packet(context: dict, data_trust: Any, generated_at: str) -> dict:
-    data = dict.get(context, "data", {}) if isinstance(context, dict) else {}
-    if not isinstance(data, dict):
-        data = {}
+    context = safe_mapping_dict(context) or {}
+    data = safe_mapping_dict(dict.get(context, "data")) or {}
     prompt_fingerprint = validated_prompt_fingerprint(_first_text(context, data, "prompt_fingerprint"))
     return {
         "ticker": _first_value_text(
@@ -133,9 +130,10 @@ def validated_prompt_fingerprint(value: Any) -> str:
 
 
 def detect_explicit_target_price_fields(context: dict) -> list[str]:
+    context_map = safe_mapping_dict(context) or {}
     fields: list[str] = []
     for root in ("parsed", "structured_outputs"):
-        value = dict.get(context, root) if isinstance(context, dict) else None
+        value = dict.get(context_map, root)
         fields.extend(_detect_target_prices(value, (root,)))
     return sorted(dict.fromkeys(fields))
 
@@ -149,9 +147,18 @@ def _detect_target_prices(value: Any, path: tuple[str, ...]) -> list[str]:
                 continue
             fields.extend(_detect_target_prices(item, (*path, key_text)))
         return fields
-    if isinstance(value, list):
+    mapping_value = safe_mapping_dict(value)
+    if mapping_value is not None:
         fields = []
-        for index, item in _safe_enumerate_list(value):
+        for key, item in mapping_value.items():
+            key_text = _safe_text(key)
+            if not key_text:
+                continue
+            fields.extend(_detect_target_prices(item, (*path, key_text)))
+        return fields
+    if isinstance(value, (list, tuple)):
+        fields = []
+        for index, item in _safe_enumerate_sequence(value):
             fields.extend(_detect_target_prices(item, (*path, str(index))))
         return fields
     if _is_target_path(path) and _is_explicit_price(value):
@@ -183,14 +190,14 @@ def _is_explicit_price(value: Any) -> bool:
     return bool(numbers)
 
 
-def _safe_enumerate_list(value: list) -> list[tuple[int, Any]]:
+def _safe_enumerate_sequence(value: list | tuple) -> list[tuple[int, Any]]:
     items: list[tuple[int, Any]] = []
     try:
         iterator = iter(value)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
         try:
-            iterator = list.__iter__(value)
-        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+            iterator = _native_sequence_iterator(value)
+        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
             return items
     index = 0
     used_native = False
@@ -199,12 +206,12 @@ def _safe_enumerate_list(value: list) -> list[tuple[int, Any]]:
             item = next(iterator)
         except StopIteration:
             return items
-        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
             if items or used_native:
                 return items
             try:
-                iterator = list.__iter__(value)
-            except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+                iterator = _native_sequence_iterator(value)
+            except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
                 return items
             used_native = True
             continue
@@ -212,22 +219,28 @@ def _safe_enumerate_list(value: list) -> list[tuple[int, Any]]:
         index += 1
 
 
+def _native_sequence_iterator(value: list | tuple):
+    if isinstance(value, list):
+        return list.__iter__(value)
+    return tuple.__iter__(value)
+
+
 def _safe_dict_items(value: dict) -> list[tuple[Any, Any]]:
     items: list[tuple[Any, Any]] = []
     try:
         raw_items = value.items()
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
         try:
             raw_items = dict.items(value)
-        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
             return items
     used_native = False
     try:
         iterator = iter(raw_items)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
         try:
             iterator = iter(dict.items(value))
-        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
             return items
         used_native = True
     while True:
@@ -235,18 +248,18 @@ def _safe_dict_items(value: dict) -> list[tuple[Any, Any]]:
             item = next(iterator)
         except StopIteration:
             return items
-        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
             if items or used_native:
                 return items
             try:
                 iterator = iter(dict.items(value))
-            except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+            except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
                 return items
             used_native = True
             continue
         try:
             key, child = item
-        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
             continue
         items.append((key, child))
 
@@ -269,12 +282,7 @@ def _first_value_text(*values: Any) -> str:
 
 
 def _safe_text(value: Any) -> str:
-    if value is None:
-        return ""
-    try:
-        return str(value)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
-        return ""
+    return safe_text(value)
 
 
 def _model_id(context: dict, data: dict) -> str:
@@ -283,8 +291,9 @@ def _model_id(context: dict, data: dict) -> str:
         if value:
             return value
     metadata = dict.get(context, "metadata") if isinstance(context, dict) else None
-    if isinstance(metadata, dict):
-        model_id = _safe_text(dict.get(metadata, "model_id")).strip()
+    metadata_map = safe_mapping_dict(metadata)
+    if metadata_map is not None:
+        model_id = _safe_text(dict.get(metadata_map, "model_id")).strip()
         if model_id:
             return model_id
     return "unknown"

@@ -22,6 +22,7 @@ backend/cache/
 
 # Local virtual environments
 .venv/
+.audit-venv/
 venv/
 env/
 .worktrees/

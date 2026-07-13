@@ -1,12 +1,18 @@
 import json
 import sys
+from collections.abc import Mapping
+from decimal import Decimal
+from fractions import Fraction
 from pathlib import Path
+from types import MappingProxyType
 
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 import data_trust  # noqa: E402
+import data_trust_audit  # noqa: E402
+import data_trust_scoring  # noqa: E402
 import data_fetch.audit_helpers as audit_helpers  # noqa: E402
 import report_reproducibility  # noqa: E402
 from data_fetch.constants import DATA_SCHEMA_VERSION  # noqa: E402
@@ -40,6 +46,16 @@ class BrokenTruthBool:
         raise ValueError("bool truthiness unavailable")
 
 
+class BrokenLookupInt:
+    def __int__(self):
+        raise KeyError("integer lookup unavailable")
+
+
+class BrokenLookupBool:
+    def __bool__(self):
+        raise KeyError("bool lookup unavailable")
+
+
 class BrokenTruthDict(dict):
     def __bool__(self):
         raise ValueError("dict truthiness unavailable")
@@ -48,6 +64,22 @@ class BrokenTruthDict(dict):
 class BrokenGetDict(dict):
     def get(self, *_args, **_kwargs):
         raise RuntimeError("mapping get unavailable")
+
+
+class BrokenLookupCopyDict(dict):
+    def __iter__(self):
+        raise KeyError("mapping copy iterator lookup unavailable")
+
+    def keys(self):
+        raise KeyError("mapping copy lookup unavailable")
+
+    def __getitem__(self, key):
+        raise KeyError("mapping copy item lookup unavailable")
+
+
+class BrokenLenDict(dict):
+    def __len__(self):
+        raise RuntimeError("mapping length unavailable")
 
 
 class BrokenString:
@@ -61,6 +93,11 @@ class BrokenString:
 class BrokenFloatScore:
     def __float__(self):
         raise RuntimeError("score conversion unavailable")
+
+
+class BrokenLookupFloatScore:
+    def __float__(self):
+        raise KeyError("score lookup unavailable")
 
 
 class BrokenTargetRows(list):
@@ -87,6 +124,24 @@ class BrokenTargetFirstNextRows(list):
         return BrokenTargetFirstNextIterator()
 
 
+class BrokenTargetLookupNativeRows(list):
+    def __iter__(self):
+        raise KeyError("target native row iterator lookup unavailable")
+
+
+class BrokenTargetLookupNextIterator:
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        raise KeyError("target row lookup iterator unavailable")
+
+
+class BrokenTargetLookupNextRows(list):
+    def __iter__(self):
+        return BrokenTargetLookupNextIterator()
+
+
 class BrokenTargetMapping(dict):
     def items(self):
         yield ("recommendation", {"target_price": "NT$120"})
@@ -96,6 +151,11 @@ class BrokenTargetMapping(dict):
 class BrokenTargetNativeMapping(dict):
     def items(self):
         raise RuntimeError("target mapping items accessor unavailable")
+
+
+class BrokenTargetLookupNativeMapping(dict):
+    def items(self):
+        raise KeyError("target mapping items lookup unavailable")
 
 
 class BrokenTargetFirstNextItems:
@@ -109,6 +169,19 @@ class BrokenTargetFirstNextItems:
 class BrokenTargetFirstNextMapping(dict):
     def items(self):
         return BrokenTargetFirstNextItems()
+
+
+class BrokenTargetLookupNextItems:
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        raise KeyError("target mapping lookup iterator unavailable")
+
+
+class BrokenTargetLookupNextMapping(dict):
+    def items(self):
+        return BrokenTargetLookupNextItems()
 
 
 class BrokenTargetItemsIterable:
@@ -131,6 +204,16 @@ class BrokenNativeTextList(list):
         raise RuntimeError("native text list iterator accessor unavailable")
 
 
+class BrokenProviderSlaLookupIteratorRowsList(list):
+    def __iter__(self):
+        raise KeyError("provider SLA row iterator creation lookup unavailable")
+
+
+class BrokenProviderSlaLookupIteratorTextList(list):
+    def __iter__(self):
+        raise KeyError("provider SLA text iterator creation lookup unavailable")
+
+
 class BrokenProviderSlaFirstNextRowsIterator:
     def __iter__(self):
         return self
@@ -142,6 +225,19 @@ class BrokenProviderSlaFirstNextRowsIterator:
 class BrokenProviderSlaFirstNextRowsList(list):
     def __iter__(self):
         return BrokenProviderSlaFirstNextRowsIterator()
+
+
+class BrokenProviderSlaLookupNextRowsIterator:
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        raise KeyError("provider SLA row lookup iterator unavailable")
+
+
+class BrokenProviderSlaLookupNextRowsList(list):
+    def __iter__(self):
+        return BrokenProviderSlaLookupNextRowsIterator()
 
 
 class BrokenProviderSlaFirstNextTextIterator:
@@ -157,9 +253,60 @@ class BrokenProviderSlaFirstNextTextList(list):
         return BrokenProviderSlaFirstNextTextIterator()
 
 
+class BrokenProviderSlaLookupNextTextIterator:
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        raise KeyError("provider SLA text lookup iterator unavailable")
+
+
+class BrokenProviderSlaLookupNextTextList(list):
+    def __iter__(self):
+        return BrokenProviderSlaLookupNextTextIterator()
+
+
 class BrokenNativeTuple(tuple):
     def __iter__(self):
         raise RuntimeError("native tuple iterator accessor unavailable")
+
+
+class BrokenNativeSet(set):
+    def __iter__(self):
+        raise RuntimeError("native set iterator accessor unavailable")
+
+
+class BrokenNativeFrozenSet(frozenset):
+    def __iter__(self):
+        raise RuntimeError("native frozenset iterator accessor unavailable")
+
+
+class BrokenLookupNativeSet(set):
+    def __iter__(self):
+        raise KeyError("native set iterator lookup unavailable")
+
+
+class BrokenLookupNativeFrozenSet(frozenset):
+    def __iter__(self):
+        raise KeyError("native frozenset iterator lookup unavailable")
+
+
+class BrokenLookupSetIterator:
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        raise KeyError("set iterator lookup unavailable")
+
+
+class BrokenLookupNextSet(set):
+    def __iter__(self):
+        return BrokenLookupSetIterator()
+
+
+class BrokenLookupNextFrozenSet(frozenset):
+    def __iter__(self):
+        return BrokenLookupSetIterator()
 
 
 class BrokenFirstNextIterator:
@@ -201,6 +348,26 @@ class BrokenSnapshotFirstNextItems:
 class BrokenSnapshotFirstNextMapping(dict):
     def items(self):
         return BrokenSnapshotFirstNextItems()
+
+
+class BrokenSnapshotLookupFieldMapping(Mapping):
+    def __init__(self, snapshot: dict):
+        self._snapshot = snapshot
+
+    def __getitem__(self, key):
+        return self._snapshot[key]
+
+    def __iter__(self):
+        return iter(self._snapshot)
+
+    def __len__(self):
+        return len(self._snapshot)
+
+    def __contains__(self, _key):
+        raise KeyError("snapshot field containment lookup unavailable")
+
+    def get(self, *_args, **_kwargs):
+        raise KeyError("snapshot field get lookup unavailable")
 
 
 def test_source_audit_success_error_and_skipped_cache_entries():
@@ -266,6 +433,80 @@ def test_source_audit_entry_text_fields_do_not_depend_on_truthiness():
     assert entry["message"] == "temporary provider failure"
 
 
+def test_source_audit_entry_text_fields_use_shared_text_safety_for_malformed_inputs():
+    entry = data_trust.build_source_audit_entry(
+        True,
+        b"bad-provider",
+        memoryview(b"success"),
+        record_count=1,
+        error_kind=True,
+        message=bytearray(b"bad-message"),
+    )
+
+    assert entry["source"] == "unknown"
+    assert entry["provider"] == ""
+    assert entry["status"] == data_trust.AUDIT_STATUS_UNAVAILABLE
+    assert entry["error_kind"] == ""
+    assert entry["message"] == ""
+
+
+def test_source_audit_entry_fetched_at_uses_safe_text_before_epoch_fallback():
+    entry = data_trust.build_source_audit_entry(
+        "market_data",
+        "fallback-provider",
+        "success",
+        fetched_at=True,
+        fetched_at_epoch=100.0,
+    )
+
+    assert entry["fetched_at"] == "1970-01-01T00:01:40+00:00"
+
+
+def test_source_audit_entry_fetched_at_epoch_validates_before_finished_fallback():
+    for fetched_at_epoch in (True, float("nan"), float("inf")):
+        entry = data_trust.build_source_audit_entry(
+            "market_data",
+            "fallback-provider",
+            "success",
+            fetched_at_epoch=fetched_at_epoch,
+            finished_at_epoch=100.0,
+        )
+
+        assert entry["fetched_at"] == "1970-01-01T00:01:40+00:00"
+
+
+def test_source_audit_entry_fetched_at_epoch_range_errors_fallback_to_finished_timestamp():
+    entry = None
+    error = None
+    try:
+        entry = data_trust.build_source_audit_entry(
+            "market_data",
+            "fallback-provider",
+            "success",
+            fetched_at_epoch=1e20,
+            finished_at_epoch=100.0,
+        )
+    except (OSError, OverflowError, ValueError) as exc:
+        error = exc
+
+    assert error is None
+    assert entry["fetched_at"] == "1970-01-01T00:01:40+00:00"
+
+
+def test_source_audit_entry_finished_at_epoch_uses_current_time_when_malformed(monkeypatch):
+    monkeypatch.setattr(data_trust_audit.time, "time", lambda: 100.0)
+
+    for finished_at_epoch in (True, 0, -1, float("nan"), float("inf")):
+        entry = data_trust.build_source_audit_entry(
+            "market_data",
+            "fallback-provider",
+            "success",
+            finished_at_epoch=finished_at_epoch,
+        )
+
+        assert entry["fetched_at"] == "1970-01-01T00:01:40+00:00"
+
+
 def test_source_audit_entry_status_uses_safe_text_conversion():
     entry = data_trust.build_source_audit_entry(
         "market_data",
@@ -277,6 +518,118 @@ def test_source_audit_entry_status_uses_safe_text_conversion():
     assert entry["status"] == "success"
 
 
+def test_source_audit_entry_duration_ignores_boolean_override_and_uses_epoch_delta():
+    entry = data_trust.build_source_audit_entry(
+        "market_data",
+        "fallback-provider",
+        "success",
+        started_at_epoch=99.5,
+        finished_at_epoch=100.0,
+        duration_ms=True,
+    )
+
+    assert entry["duration_ms"] == 500
+
+
+def test_source_audit_entry_duration_ignores_non_finite_override_and_uses_epoch_delta():
+    for duration_override in (float("nan"), float("inf"), float("-inf")):
+        entry = None
+        error = None
+        try:
+            entry = data_trust.build_source_audit_entry(
+                "market_data",
+                "fallback-provider",
+                "success",
+                started_at_epoch=99.5,
+                finished_at_epoch=100.0,
+                duration_ms=duration_override,
+            )
+        except (TypeError, ValueError, OverflowError) as exc:
+            error = exc
+
+        assert error is None
+        assert entry["duration_ms"] == 500
+
+
+def test_source_audit_entry_duration_ignores_overflowing_override_and_uses_epoch_delta():
+    entry = None
+    error = None
+    try:
+        entry = data_trust.build_source_audit_entry(
+            "market_data",
+            "fallback-provider",
+            "success",
+            started_at_epoch=99.5,
+            finished_at_epoch=100.0,
+            duration_ms=10**400,
+        )
+    except (TypeError, ValueError, OverflowError) as exc:
+        error = exc
+
+    assert error is None
+    assert entry["duration_ms"] == 500
+
+
+def test_source_audit_entry_duration_ignores_non_finite_epoch_delta():
+    for started_at_epoch, finished_at_epoch in (
+        (float("nan"), 100.0),
+        (99.5, float("inf")),
+        (float("-inf"), 100.0),
+    ):
+        entry = None
+        error = None
+        try:
+            entry = data_trust.build_source_audit_entry(
+                "market_data",
+                "fallback-provider",
+                "success",
+                started_at_epoch=started_at_epoch,
+                finished_at_epoch=finished_at_epoch,
+            )
+        except (TypeError, ValueError, OverflowError) as exc:
+            error = exc
+
+        assert error is None
+        assert entry["duration_ms"] is None
+
+
+def test_source_audit_entry_duration_ignores_overflowing_epoch_delta():
+    for started_at_epoch, finished_at_epoch in (
+        (10**400, 100.0),
+        (99.5, 10**400),
+    ):
+        entry = None
+        error = None
+        try:
+            entry = data_trust.build_source_audit_entry(
+                "market_data",
+                "fallback-provider",
+                "success",
+                started_at_epoch=started_at_epoch,
+                finished_at_epoch=finished_at_epoch,
+            )
+        except (TypeError, ValueError, OverflowError) as exc:
+            error = exc
+
+        assert error is None
+        assert entry["duration_ms"] is None
+
+
+def test_source_audit_entry_duration_ignores_out_of_range_epoch_delta(monkeypatch):
+    monkeypatch.setattr(data_trust_audit.time, "time", lambda: 100.0)
+
+    entry = data_trust.build_source_audit_entry(
+        "market_data",
+        "fallback-provider",
+        "success",
+        started_at_epoch=99.5,
+        finished_at_epoch=1e20,
+    )
+
+    assert entry["fetched_at"] == "1970-01-01T00:01:40+00:00"
+    assert entry["duration_ms"] is None
+
+
 def test_source_audit_entry_record_count_does_not_depend_on_truthiness():
     entry = data_trust.build_source_audit_entry(
         "market_data",
@@ -286,6 +639,29 @@ def test_source_audit_entry_record_count_does_not_depend_on_truthiness():
     )
 
     assert entry["record_count"] == 7
+
+
+def test_source_audit_entry_record_count_treats_bool_as_malformed_count():
+    entry = data_trust.build_source_audit_entry(
+        "market_data",
+        "fallback-provider",
+        "success",
+        record_count=True,
+    )
+
+    assert entry["record_count"] == 0
+
+
+def test_source_audit_entry_record_count_treats_fractional_numbers_as_malformed_counts():
+    for record_count in (1.5, Decimal("2.5")):
+        entry = data_trust.build_source_audit_entry(
+            "market_data",
+            "fallback-provider",
+            "success",
+            record_count=record_count,
+        )
+
+        assert entry["record_count"] == 0
 
 
 def test_source_audit_entry_bool_fields_do_not_depend_on_truthiness():
@@ -301,6 +677,163 @@ def test_source_audit_entry_bool_fields_do_not_depend_on_truthiness():
     assert entry["stale"] is False
 
 
+def test_source_audit_entry_bool_fields_treat_lookup_truthiness_failures_as_false():
+    entry = data_trust.build_source_audit_entry(
+        "market_data",
+        "fallback-provider",
+        "success",
+        cache_hit=BrokenLookupBool(),
+        stale=BrokenLookupBool(),
+    )
+
+    assert entry["cache_hit"] is False
+    assert entry["stale"] is False
+
+
+def test_source_audit_entry_bool_fields_treat_false_text_as_false():
+    for false_text in ("false", "False", "0", "no", "off", ""):
+        entry = data_trust.build_source_audit_entry(
+            "market_data",
+            "fallback-provider",
+            "success",
+            cache_hit=false_text,
+            stale=false_text,
+        )
+
+        assert entry["cache_hit"] is False
+        assert entry["stale"] is False
+
+
+def test_source_audit_entry_bool_fields_treat_numeric_text_as_numeric_values():
+    explicit_values = (("0.0", False), ("1.0", True))
+    malformed_values = (("0.5", False), ("2", False), ("-1", False), ("NaN", False), ("Infinity", False))
+    for raw_value, expected_bool in explicit_values + malformed_values:
+        entry = data_trust.build_source_audit_entry(
+            "market_data",
+            "fallback-provider",
+            "success",
+            cache_hit=raw_value,
+            stale=raw_value,
+        )
+
+        assert entry["cache_hit"] is expected_bool
+        assert entry["stale"] is expected_bool
+
+
+def test_source_audit_entry_bool_fields_treat_freeform_text_as_malformed():
+    for malformed_text in ("cached", "stale", "unknown", "N/A", "enabled-ish"):
+        entry = data_trust.build_source_audit_entry(
+            "market_data",
+            "fallback-provider",
+            "success",
+            cache_hit=malformed_text,
+            stale=malformed_text,
+        )
+
+        assert entry["cache_hit"] is False
+        assert entry["stale"] is False
+
+
+def test_source_audit_entry_bool_fields_treat_binary_values_as_malformed():
+    for malformed_value in (b"false", bytearray(b"true"), memoryview(b"1")):
+        entry = data_trust.build_source_audit_entry(
+            "market_data",
+            "fallback-provider",
+            "success",
+            cache_hit=malformed_value,
+            stale=malformed_value,
+        )
+
+        assert entry["cache_hit"] is False
+        assert entry["stale"] is False
+
+
+def test_source_audit_entry_bool_fields_treat_non_finite_numbers_as_malformed():
+    for malformed_value in (float("nan"), float("inf"), float("-inf"), Decimal("NaN")):
+        entry = data_trust.build_source_audit_entry(
+            "market_data",
+            "fallback-provider",
+            "success",
+            cache_hit=malformed_value,
+            stale=malformed_value,
+        )
+
+        assert entry["cache_hit"] is False
+        assert entry["stale"] is False
+
+
+def test_source_audit_entry_bool_fields_treat_fractional_numbers_as_malformed():
+    for malformed_value in (0.5, -0.5, Decimal("0.5"), Decimal("2")):
+        entry = data_trust.build_source_audit_entry(
+            "market_data",
+            "fallback-provider",
+            "success",
+            cache_hit=malformed_value,
+            stale=malformed_value,
+        )
+
+        assert entry["cache_hit"] is False
+        assert entry["stale"] is False
+
+
+def test_source_audit_entry_bool_fields_treat_rational_numbers_as_numeric_values():
+    explicit_values = ((Fraction(0, 1), False), (Fraction(1, 1), True))
+    malformed_values = ((Fraction(1, 2), False), (Fraction(2, 1), False))
+    for raw_value, expected_bool in explicit_values + malformed_values:
+        entry = data_trust.build_source_audit_entry(
+            "market_data",
+            "fallback-provider",
+            "success",
+            cache_hit=raw_value,
+            stale=raw_value,
+        )
+
+        assert entry["cache_hit"] is expected_bool
+        assert entry["stale"] is expected_bool
+
+
+def test_source_audit_entry_bool_fields_treat_overflowing_real_numbers_as_malformed():
+    for malformed_value in (10**400, Fraction(10**400, 1)):
+        entry = data_trust.build_source_audit_entry(
+            "market_data",
+            "fallback-provider",
+            "success",
+            cache_hit=malformed_value,
+            stale=malformed_value,
+        )
+
+        assert entry["cache_hit"] is False
+        assert entry["stale"] is False
+
+
+def test_source_audit_entry_bool_fields_treat_complex_numbers_as_malformed():
+    for malformed_value in (complex(1, 0), complex(0, 1)):
+        entry = data_trust.build_source_audit_entry(
+            "market_data",
+            "fallback-provider",
+            "success",
+            cache_hit=malformed_value,
+            stale=malformed_value,
+        )
+
+        assert entry["cache_hit"] is False
+        assert entry["stale"] is False
+
+
+def test_source_audit_entry_bool_fields_treat_containers_as_malformed():
+    for malformed_value in ([False], (True,), {"value": False}, {True}, frozenset({False})):
+        entry = data_trust.build_source_audit_entry(
+            "market_data",
+            "fallback-provider",
+            "success",
+            cache_hit=malformed_value,
+            stale=malformed_value,
+        )
+
+        assert entry["cache_hit"] is False
+        assert entry["stale"] is False
+
+
 def test_source_record_count_source_key_does_not_depend_on_truthiness():
     count = data_trust.source_record_count(
         BrokenTruthText("market_data"),
@@ -314,6 +847,417 @@ def test_source_record_count_source_key_does_not_depend_on_truthiness():
     )
 
     assert count == 3
+
+
+def test_source_record_count_root_data_uses_mapping_safe_field_reads():
+    count = data_trust.source_record_count(
+        "market_data",
+        BrokenGetDict(
+            {
+                "current_price": 100,
+                "market_cap_raw": None,
+                "pe_ratio_raw": None,
+                "pb_ratio": None,
+                "price_history": [99, 100],
+            }
+        ),
+    )
+
+    assert count == 2
+
+
+def test_source_record_count_institutional_trading_uses_mapping_safe_field_reads():
+    count = data_trust.source_record_count(
+        "institutional_trading",
+        {
+            "institutional_trading": BrokenGetDict(
+                {"daily_total_net_buy_last_10": [{"date": "2026-07-10"}]}
+            )
+        },
+    )
+
+    assert count == 1
+
+
+def test_source_record_count_institutional_trading_empty_daily_only_is_missing():
+    count = data_trust.source_record_count(
+        "institutional_trading",
+        {"institutional_trading": {"daily_total_net_buy_last_10": []}},
+    )
+
+    assert count == 0
+
+
+def test_source_record_count_global_market_context_uses_mapping_safe_field_reads():
+    count = data_trust.source_record_count(
+        "global_market_context",
+        {"global_market_context": BrokenGetDict({"items": [{"region": "US"}]})},
+    )
+
+    assert count == 1
+
+
+def test_source_record_count_international_news_context_uses_mapping_safe_field_reads():
+    count = data_trust.source_record_count(
+        "international_news_context",
+        {"international_news_context": BrokenGetDict({"topics": [{"headline": "Fed"}]})},
+    )
+
+    assert count == 1
+
+
+def test_source_record_count_pe_river_chart_uses_mapping_safe_field_reads():
+    count = data_trust.source_record_count(
+        "pe_river_chart",
+        {"pe_river_chart": BrokenGetDict({"years": ["2024"], "eps_twd": []})},
+    )
+
+    assert count == 1
+
+
+def test_source_record_count_pe_river_chart_bands_use_mapping_safe_count():
+    count = data_trust.source_record_count(
+        "pe_river_chart",
+        {
+            "pe_river_chart": {
+                "bands": MappingProxyType(
+                    {
+                        "low": [10, 11],
+                        "mid": [12],
+                    }
+                )
+            }
+        },
+    )
+
+    assert count == 2
+
+
+def test_source_record_count_pe_river_chart_empty_bands_fall_back_to_years():
+    count = data_trust.source_record_count(
+        "pe_river_chart",
+        {
+            "pe_river_chart": {
+                "bands": {"low": (), "mid": []},
+                "years": ["2024", "2025"],
+                "eps_twd": [],
+            }
+        },
+    )
+
+    assert count == 2
+
+
+def test_source_record_count_lists_use_native_sequence_fallback():
+    count = data_trust.source_record_count(
+        "financial_statements",
+        {
+            "years": BrokenNativeRowsList(["2024", "2025"]),
+            "revenue_history": [],
+            "net_income_history": [],
+            "fcf_history": [],
+        },
+    )
+
+    assert count == 2
+
+
+def test_source_record_count_tuple_source_values_count_as_rows():
+    count = data_trust.source_record_count(
+        "custom_enrichment",
+        {"custom_enrichment": ({"headline": "A"}, {"headline": "B"})},
+    )
+
+    assert count == 2
+
+
+def test_source_record_count_default_mapping_values_use_mapping_safe_count():
+    count = data_trust.source_record_count(
+        "custom_metrics",
+        {"custom_metrics": BrokenLenDict({"alpha": 1, "beta": 2})},
+    )
+
+    assert count == 2
+
+
+def test_source_record_count_default_mapping_values_require_child_values():
+    count = data_trust.source_record_count(
+        "custom_metrics",
+        {"custom_metrics": {"alpha": None, "beta": "", "gamma": []}},
+    )
+
+    assert count == 0
+
+
+def test_source_record_count_value_presence_avoids_mapping_truthiness():
+    count = data_trust.source_record_count(
+        "market_data",
+        {
+            "current_price": None,
+            "market_cap_raw": None,
+            "pe_ratio_raw": None,
+            "pb_ratio": None,
+            "price_history": BrokenTruthDict({"dates": ["2026-06-07"], "prices": [100]}),
+        },
+    )
+
+    assert count == 1
+
+
+def test_source_record_count_value_presence_treats_empty_tuple_as_missing():
+    count = data_trust.source_record_count(
+        "market_data",
+        {
+            "current_price": None,
+            "market_cap_raw": None,
+            "pe_ratio_raw": None,
+            "pb_ratio": None,
+            "price_history": (),
+        },
+    )
+
+    assert count == 0
+
+
+def test_source_record_count_value_presence_treats_boolean_scalars_as_missing():
+    count = data_trust.source_record_count(
+        "market_data",
+        {
+            "current_price": False,
+            "market_cap_raw": True,
+            "pe_ratio_raw": None,
+            "pb_ratio": None,
+            "price_history": None,
+        },
+    )
+
+    assert count == 0
+
+
+def test_source_record_count_value_presence_treats_non_finite_numbers_as_missing():
+    count = data_trust.source_record_count(
+        "market_data",
+        {
+            "current_price": float("nan"),
+            "market_cap_raw": float("inf"),
+            "pe_ratio_raw": float("-inf"),
+            "pb_ratio": None,
+            "price_history": None,
+        },
+    )
+
+    assert count == 0
+
+
+def test_source_record_count_value_presence_treats_overflowing_numbers_as_missing():
+    for overflowing_number in (10**400, Fraction(10**400, 1)):
+        count = None
+        error = None
+        try:
+            count = data_trust.source_record_count(
+                "market_data",
+                {
+                    "current_price": overflowing_number,
+                    "market_cap_raw": None,
+                    "pe_ratio_raw": None,
+                    "pb_ratio": None,
+                    "price_history": None,
+                },
+            )
+        except OverflowError as exc:
+            error = exc
+
+        assert error is None
+        assert count == 0
+
+
+def test_source_record_count_value_presence_treats_non_finite_numeric_strings_as_missing():
+    count = data_trust.source_record_count(
+        "market_data",
+        {
+            "current_price": "NaN",
+            "market_cap_raw": "Infinity",
+            "pe_ratio_raw": "-Infinity",
+            "pb_ratio": "0",
+            "price_history": None,
+        },
+    )
+
+    assert count == 1
+
+
+def test_source_record_count_value_presence_treats_placeholder_strings_as_missing():
+    count = data_trust.source_record_count(
+        "market_data",
+        {
+            "current_price": "None",
+            "market_cap_raw": "null",
+            "pe_ratio_raw": "--",
+            "pb_ratio": "0",
+            "price_history": None,
+        },
+    )
+
+    assert count == 1
+
+
+def test_source_record_count_value_presence_treats_non_finite_decimals_as_missing():
+    count = data_trust.source_record_count(
+        "market_data",
+        {
+            "current_price": Decimal("NaN"),
+            "market_cap_raw": Decimal("Infinity"),
+            "pe_ratio_raw": Decimal("-Infinity"),
+            "pb_ratio": Decimal("0"),
+            "price_history": None,
+        },
+    )
+
+    assert count == 1
+
+
+def test_source_record_count_value_presence_treats_binary_scalars_as_missing():
+    count = data_trust.source_record_count(
+        "market_data",
+        {
+            "current_price": b"101.5",
+            "market_cap_raw": bytearray(b"2000"),
+            "pe_ratio_raw": memoryview(b"15"),
+            "pb_ratio": None,
+            "price_history": None,
+        },
+    )
+
+    assert count == 0
+
+
+def test_source_record_count_value_presence_treats_complex_scalars_as_missing():
+    count = data_trust.source_record_count(
+        "market_data",
+        {
+            "current_price": complex(101.5, 0),
+            "market_cap_raw": complex(2000, 1),
+            "pe_ratio_raw": None,
+            "pb_ratio": None,
+            "price_history": None,
+        },
+    )
+
+    assert count == 0
+
+
+def test_source_record_count_value_presence_treats_empty_mapping_proxy_as_missing():
+    count = data_trust.source_record_count(
+        "market_data",
+        {
+            "current_price": None,
+            "market_cap_raw": None,
+            "pe_ratio_raw": None,
+            "pb_ratio": None,
+            "price_history": MappingProxyType({}),
+        },
+    )
+
+    assert count == 0
+
+
+def test_source_record_count_value_presence_treats_empty_set_as_missing():
+    count = data_trust.source_record_count(
+        "market_data",
+        {
+            "current_price": None,
+            "market_cap_raw": None,
+            "pe_ratio_raw": None,
+            "pb_ratio": None,
+            "price_history": set(),
+        },
+    )
+
+    assert count == 0
+
+
+def test_source_record_count_set_source_values_count_as_rows():
+    count = data_trust.source_record_count(
+        "custom_enrichment",
+        {"custom_enrichment": {"alpha", "beta"}},
+    )
+
+    assert count == 2
+
+
+def test_source_record_count_set_source_values_use_native_iterator_fallback():
+    for row_batch in (BrokenNativeSet({"alpha", "beta"}), BrokenNativeFrozenSet({"alpha", "beta"})):
+        count = data_trust.source_record_count(
+            "custom_enrichment",
+            {"custom_enrichment": row_batch},
+        )
+
+        assert count == 2
+
+
+def test_source_record_count_set_source_values_survive_lookup_iterator_creation_failures():
+    for row_batch in (BrokenLookupNativeSet({"alpha", "beta"}), BrokenLookupNativeFrozenSet({"alpha", "beta"})):
+        count = data_trust.source_record_count(
+            "custom_enrichment",
+            {"custom_enrichment": row_batch},
+        )
+
+        assert count == 2
+
+
+def test_source_record_count_set_source_values_survive_lookup_iterator_failures():
+    for row_batch in (BrokenLookupNextSet({"alpha", "beta"}), BrokenLookupNextFrozenSet({"alpha", "beta"})):
+        count = data_trust.source_record_count(
+            "custom_enrichment",
+            {"custom_enrichment": row_batch},
+        )
+
+        assert count == 2
+
+
+def test_source_record_count_value_presence_requires_sequence_items_with_value():
+    count = data_trust.source_record_count(
+        "market_data",
+        {
+            "current_price": None,
+            "market_cap_raw": None,
+            "pe_ratio_raw": None,
+            "pb_ratio": None,
+            "price_history": [None, "", "N/A"],
+        },
+    )
+
+    assert count == 0
+
+
+def test_source_record_count_value_presence_requires_mapping_children_with_value():
+    count = data_trust.source_record_count(
+        "market_data",
+        {
+            "current_price": None,
+            "market_cap_raw": None,
+            "pe_ratio_raw": None,
+            "pb_ratio": None,
+            "price_history": {"dates": [], "prices": []},
+        },
+    )
+
+    assert count == 0
+
+
+def test_append_source_audit_preserves_tuple_entries():
+    payload = {"source_audit": ({"source": "market_data", "provider": "yfinance"},)}
+
+    result = data_trust.append_source_audit(
+        payload,
+        {"source": "financial_statements", "provider": "yfinance"},
+    )
+
+    assert result is payload
+    assert payload["source_audit"] == [
+        {"source": "market_data", "provider": "yfinance"},
+        {"source": "financial_statements", "provider": "yfinance"},
+    ]
 
 
 def test_normalize_data_trust_uses_dict_native_field_reads():
@@ -348,6 +1292,33 @@ def test_normalize_data_trust_uses_dict_native_field_reads():
     }
 
 
+def test_normalize_data_trust_accepts_mapping_safe_payloads():
+    alert = MappingProxyType({"provider": "yfinance", "alert_level": "warning"})
+    trust_payload = MappingProxyType(
+        {
+            "status": "fresh",
+            "critical_failures": (),
+            "stale_sources": (),
+            "last_market_data_at": " 2026-06-07T01:00:00+00:00 ",
+            "notes": ("只讀 payload 仍保留有效資料可信度。",),
+            "reason_codes": ("fresh_core_sources",),
+            "score": 91,
+            "score_reasons": ("manual score reason",),
+            "provider_sla_alerts": (alert,),
+        }
+    )
+
+    normalized = data_trust.normalize_data_trust(trust_payload)
+
+    assert normalized["status"] == "fresh"
+    assert normalized["score"] == 91
+    assert normalized["last_market_data_at"] == "2026-06-07T01:00:00+00:00"
+    assert normalized["notes"] == ["只讀 payload 仍保留有效資料可信度。"]
+    assert normalized["reason_codes"] == ["fresh_core_sources"]
+    assert normalized["score_reasons"] == ["manual score reason"]
+    assert normalized["provider_sla_alerts"] == [{"provider": "yfinance", "alert_level": "warning"}]
+
+
 def test_normalize_data_trust_reason_codes_do_not_depend_on_truthiness():
     normalized = data_trust.normalize_data_trust(
         {
@@ -358,6 +1329,109 @@ def test_normalize_data_trust_reason_codes_do_not_depend_on_truthiness():
     )
 
     assert normalized["reason_codes"] == ["manual_reason"]
+
+
+def test_normalize_data_trust_notes_use_string_list_conversion():
+    normalized = data_trust.normalize_data_trust(
+        {
+            "status": "fresh",
+            "score": 90,
+            "notes": ("有效資料可信度備註。", b"bad-note"),
+        }
+    )
+
+    assert normalized["notes"] == ["有效資料可信度備註。"]
+
+
+def test_normalize_data_trust_text_lists_drop_non_finite_numeric_items():
+    normalized = data_trust.normalize_data_trust(
+        {
+            "status": "partial",
+            "score": 72,
+            "critical_failures": [float("inf"), "market_data"],
+            "stale_sources": [float("-inf"), "financial_statements"],
+            "notes": [float("nan"), Decimal("NaN"), "有效資料可信度備註。"],
+            "reason_codes": [Decimal("Infinity"), "manual_reason"],
+            "score_reasons": [float("inf"), "manual score reason"],
+        }
+    )
+
+    assert normalized["critical_failures"] == ["market_data"]
+    assert normalized["stale_sources"] == ["financial_statements"]
+    assert normalized["notes"] == ["有效資料可信度備註。"]
+    assert normalized["reason_codes"] == ["manual_reason"]
+    assert normalized["score_reasons"] == ["manual score reason"]
+
+
+def test_normalize_data_trust_score_treats_boolean_values_as_malformed():
+    for score in (True, False):
+        normalized = data_trust.normalize_data_trust(
+            {
+                "status": "fresh",
+                "score": score,
+                "reason_codes": ["fresh_core_sources"],
+            }
+        )
+
+        assert normalized["score"] == 95
+
+
+def test_normalize_data_trust_last_market_data_at_uses_safe_text_conversion():
+    normalized = data_trust.normalize_data_trust(
+        {
+            "status": "fresh",
+            "score": 90,
+            "last_market_data_at": " 2026-06-07T01:00:00+00:00 ",
+        }
+    )
+
+    assert normalized["last_market_data_at"] == "2026-06-07T01:00:00+00:00"
+
+    for malformed_timestamp in (True, False, b"2026-06-07T01:00:00+00:00", memoryview(b"bad")):
+        normalized = data_trust.normalize_data_trust(
+            {
+                "status": "fresh",
+                "score": 90,
+                "last_market_data_at": malformed_timestamp,
+            }
+        )
+
+        assert normalized["last_market_data_at"] is None
+
+
+def test_normalize_data_trust_text_lists_use_native_sequence_fallback():
+    normalized = data_trust.normalize_data_trust(
+        {
+            "status": "partial",
+            "critical_failures": BrokenNativeTextList(["market_data"]),
+            "stale_sources": BrokenNativeTextList(["financial_statements"]),
+            "notes": BrokenNativeTextList(["有效資料可信度備註。"]),
+            "reason_codes": BrokenNativeTextList(["manual_reason"]),
+            "score_reasons": BrokenNativeTextList(["manual score reason"]),
+            "score": 72,
+        }
+    )
+
+    assert normalized["critical_failures"] == ["market_data"]
+    assert normalized["stale_sources"] == ["financial_statements"]
+    assert normalized["notes"] == ["有效資料可信度備註。"]
+    assert normalized["reason_codes"] == ["manual_reason"]
+    assert normalized["score_reasons"] == ["manual score reason"]
+
+
+def test_normalize_data_trust_provider_sla_alerts_use_dict_list_conversion():
+    alert = {"provider": "yfinance", "alert_level": "warning"}
+
+    for alerts in ((alert,), BrokenNativeRowsList([alert])):
+        normalized = data_trust.normalize_data_trust(
+            {
+                "status": "partial",
+                "score": 72,
+                "provider_sla_alerts": alerts,
+            }
+        )
+
+        assert normalized.get("provider_sla_alerts") == [alert]
 
 
 def test_data_trust_statuses_fresh_stale_error_unknown():
@@ -389,6 +1463,432 @@ def test_data_trust_statuses_fresh_stale_error_unknown():
     assert unknown["score"] == 35
     assert unknown["score_reasons"]
     assert "missing_data_trust_snapshot" in unknown["reason_codes"]
+
+
+def test_data_trust_scoring_uses_shared_text_safety_for_audit_source_names(monkeypatch):
+    import provider_sla
+
+    monkeypatch.setattr(provider_sla, "get_provider_sla_alerts", lambda limit=100: [])
+    trust = data_trust.build_data_trust(
+        {
+            "source_audit": [
+                {"source": True, "status": "error", "record_count": 0},
+                {"source": b"market_data", "status": "error", "record_count": 0},
+                {"source": memoryview(b"financial_statements"), "status": "error", "record_count": 0},
+                {"source": "market_data", "status": "success", "record_count": 1},
+                {"source": "financial_statements", "status": "success", "record_count": 1},
+            ]
+        }
+    )
+
+    assert trust["status"] == "fresh"
+    assert "fresh_core_sources" in trust["reason_codes"]
+    assert not any(code.startswith("optional_source_error:") for code in trust["reason_codes"])
+
+
+def test_latest_audit_by_source_uses_safe_row_conversion():
+    latest = data_trust_scoring.latest_audit_by_source(
+        [
+            BrokenGetDict({"source": "market_data", "status": "success"}),
+            BrokenGetDict({"source": "financial_statements", "status": "error"}),
+        ]
+    )
+
+    assert latest["market_data"]["status"] == "success"
+    assert latest["financial_statements"]["status"] == "error"
+
+
+def test_optional_sources_with_status_uses_safe_row_conversion():
+    optional_sources = data_trust_scoring.optional_sources_with_status(
+        BrokenGetDict(
+            {
+                "market_data": BrokenGetDict({"status": BrokenTruthText("not_configured")}),
+                "recent_catalysts": BrokenGetDict({"status": BrokenTruthText("not_configured")}),
+                "peer_discovery": BrokenGetDict({"status": "degraded_enrichment"}),
+            }
+        ),
+        "not_configured",
+    )
+
+    assert optional_sources == ["recent_catalysts"]
+
+
+def test_has_usable_critical_data_uses_safe_audit_maps():
+    assert data_trust_scoring.has_usable_critical_data(
+        {},
+        BrokenGetDict(
+            {
+                "market_data": BrokenGetDict({"status": BrokenTruthText("success")}),
+                "financial_statements": BrokenGetDict({"status": BrokenTruthText("skipped_fresh_cache")}),
+            }
+        ),
+    ) is True
+
+
+def test_build_data_trust_uses_string_safe_audit_status_comparison(monkeypatch):
+    import provider_sla
+
+    monkeypatch.setattr(provider_sla, "get_provider_sla_alerts", lambda limit=100: [])
+    trust = data_trust.build_data_trust(
+        {
+            "source_audit": [
+                {"source": "market_data", "status": BrokenTruthText("error"), "record_count": 0},
+                {"source": "financial_statements", "status": BrokenTruthText("error"), "record_count": 0},
+            ]
+        }
+    )
+
+    assert trust["status"] == "error"
+    assert trust["critical_failures"] == ["market_data", "financial_statements"]
+    assert "critical_sources_error" in trust["reason_codes"]
+
+
+def test_build_data_trust_last_market_timestamp_uses_safe_text(monkeypatch):
+    import provider_sla
+
+    monkeypatch.setattr(provider_sla, "get_provider_sla_alerts", lambda limit=100: [])
+    trust = data_trust.build_data_trust(
+        {
+            "source_freshness": {
+                "market_data": {"fetched_at": BrokenTruthText("2026-06-01T00:00:00+00:00")},
+            },
+            "source_audit": [
+                {"source": "market_data", "provider": "yfinance", "status": "success", "record_count": 1},
+                {"source": "financial_statements", "provider": "yfinance", "status": "success", "record_count": 1},
+            ],
+        }
+    )
+
+    assert trust["status"] == "fresh"
+    assert trust["last_market_data_at"] == "2026-06-01T00:00:00+00:00"
+
+
+def test_build_data_trust_final_score_uses_safe_post_sla_mapping(monkeypatch):
+    def fake_apply_provider_sla_to_trust(_data, _trust):
+        return BrokenGetDict(
+            {
+                "status": "partial",
+                "critical_failures": ["market_data"],
+                "stale_sources": [],
+                "last_market_data_at": None,
+                "notes": ["Provider SLA 後仍需保留信心分數。"],
+                "reason_codes": ["source_error:market_data"],
+            }
+        )
+
+    monkeypatch.setattr(data_trust_scoring, "apply_provider_sla_to_trust", fake_apply_provider_sla_to_trust)
+    trust = data_trust.build_data_trust(
+        {
+            "source_audit": [
+                {"source": "market_data", "provider": "yfinance", "status": "success", "record_count": 1},
+                {"source": "financial_statements", "provider": "yfinance", "status": "success", "record_count": 1},
+            ]
+        }
+    )
+
+    assert trust["status"] == "partial"
+    assert trust["score"] == 60
+    assert "核心來源異常：market_data" in trust["score_reasons"]
+
+
+def test_build_data_trust_post_sla_status_uses_canonical_status(monkeypatch):
+    def fake_apply_provider_sla_to_trust(_data, _trust):
+        return {
+            "status": "surprising-status",
+            "critical_failures": [],
+            "stale_sources": [],
+            "last_market_data_at": None,
+            "notes": ["Provider SLA 回傳非 canonical status。"],
+            "reason_codes": ["fresh_core_sources"],
+        }
+
+    monkeypatch.setattr(data_trust_scoring, "apply_provider_sla_to_trust", fake_apply_provider_sla_to_trust)
+    trust = data_trust.build_data_trust(
+        {
+            "source_audit": [
+                {"source": "market_data", "provider": "yfinance", "status": "success", "record_count": 1},
+                {"source": "financial_statements", "provider": "yfinance", "status": "success", "record_count": 1},
+            ]
+        }
+    )
+
+    assert trust["status"] == "unknown"
+    assert trust["score"] == 35
+
+
+def test_build_data_trust_post_sla_list_metadata_is_normalized(monkeypatch):
+    def fake_apply_provider_sla_to_trust(_data, _trust):
+        return {
+            "status": "partial",
+            "critical_failures": BrokenTruthText("market_data"),
+            "stale_sources": BrokenTruthText("financial_statements"),
+            "last_market_data_at": None,
+            "notes": BrokenTruthText("Provider SLA metadata normalized."),
+            "reason_codes": BrokenTruthText("provider_sla_critical"),
+        }
+
+    monkeypatch.setattr(data_trust_scoring, "apply_provider_sla_to_trust", fake_apply_provider_sla_to_trust)
+    trust = data_trust.build_data_trust(
+        {
+            "source_audit": [
+                {"source": "market_data", "provider": "yfinance", "status": "success", "record_count": 1},
+                {"source": "financial_statements", "provider": "yfinance", "status": "success", "record_count": 1},
+            ]
+        }
+    )
+
+    assert trust["critical_failures"] == ["market_data"]
+    assert trust["stale_sources"] == ["financial_statements"]
+    assert trust["notes"] == ["Provider SLA metadata normalized."]
+    assert trust["reason_codes"] == ["provider_sla_critical"]
+    assert trust["score"] == 42
+
+
+def test_build_data_trust_post_sla_last_market_timestamp_is_normalized(monkeypatch):
+    def fake_apply_provider_sla_to_trust(_data, _trust):
+        return {
+            "status": "fresh",
+            "critical_failures": [],
+            "stale_sources": [],
+            "last_market_data_at": BrokenTruthText(" 2026-06-01T00:00:00+00:00 "),
+            "notes": ["Provider SLA timestamp normalized."],
+            "reason_codes": ["fresh_core_sources"],
+        }
+
+    monkeypatch.setattr(data_trust_scoring, "apply_provider_sla_to_trust", fake_apply_provider_sla_to_trust)
+    trust = data_trust.build_data_trust(
+        {
+            "source_audit": [
+                {"source": "market_data", "provider": "yfinance", "status": "success", "record_count": 1},
+                {"source": "financial_statements", "provider": "yfinance", "status": "success", "record_count": 1},
+            ]
+        }
+    )
+
+    assert trust["last_market_data_at"] == "2026-06-01T00:00:00+00:00"
+    assert trust["score"] == 95
+
+
+def test_build_data_trust_post_sla_provider_alerts_are_normalized(monkeypatch):
+    alert = {"source": "market_data", "provider": "yfinance", "alert_level": "warning"}
+
+    def fake_apply_provider_sla_to_trust(_data, _trust):
+        return {
+            "status": "fresh",
+            "critical_failures": [],
+            "stale_sources": [],
+            "last_market_data_at": None,
+            "notes": ["Provider SLA alerts normalized."],
+            "reason_codes": ["fresh_core_sources"],
+            "provider_sla_alerts": BrokenProviderSlaFirstNextRowsList([alert]),
+        }
+
+    monkeypatch.setattr(data_trust_scoring, "apply_provider_sla_to_trust", fake_apply_provider_sla_to_trust)
+    trust = data_trust.build_data_trust(
+        {
+            "source_audit": [
+                {"source": "market_data", "provider": "yfinance", "status": "success", "record_count": 1},
+                {"source": "financial_statements", "provider": "yfinance", "status": "success", "record_count": 1},
+            ]
+        }
+    )
+
+    assert type(trust["provider_sla_alerts"]) is list
+    assert trust["provider_sla_alerts"] == [alert]
+    assert trust["score"] == 95
+
+
+def test_build_data_trust_preserves_base_trust_when_provider_sla_policy_fails(monkeypatch):
+    def raise_provider_sla_policy(_data, _trust):
+        raise RuntimeError("provider SLA policy unavailable")
+
+    monkeypatch.setattr(data_trust_scoring, "apply_provider_sla_to_trust", raise_provider_sla_policy)
+    trust = data_trust.build_data_trust(
+        {
+            "source_audit": [
+                {"source": "market_data", "provider": "yfinance", "status": "success", "record_count": 1},
+                {"source": "financial_statements", "provider": "yfinance", "status": "success", "record_count": 1},
+            ]
+        }
+    )
+
+    assert trust["status"] == "fresh"
+    assert "fresh_core_sources" in trust["reason_codes"]
+    assert trust["score"] == 95
+
+
+def test_build_data_trust_preserves_base_trust_when_provider_sla_policy_lookup_fails(monkeypatch):
+    def raise_provider_sla_policy(_data, _trust):
+        raise KeyError("provider SLA policy lookup unavailable")
+
+    monkeypatch.setattr(data_trust_scoring, "apply_provider_sla_to_trust", raise_provider_sla_policy)
+    trust = data_trust.build_data_trust(
+        {
+            "source_audit": [
+                {"source": "market_data", "provider": "yfinance", "status": "success", "record_count": 1},
+                {"source": "financial_statements", "provider": "yfinance", "status": "success", "record_count": 1},
+            ]
+        }
+    )
+
+    assert trust["status"] == "fresh"
+    assert "fresh_core_sources" in trust["reason_codes"]
+    assert trust["score"] == 95
+
+
+def test_build_data_trust_policy_failure_uses_unmutated_base_trust_snapshot(monkeypatch):
+    def mutate_then_raise_provider_sla_policy(_data, trust):
+        trust["status"] = "error"
+        trust["critical_failures"].append("market_data")
+        trust["stale_sources"].append("market_data")
+        trust["reason_codes"].append("provider_sla_critical")
+        trust["notes"].append("provider SLA partial mutation before failure")
+        raise RuntimeError("provider SLA policy failed after mutation")
+
+    monkeypatch.setattr(data_trust_scoring, "apply_provider_sla_to_trust", mutate_then_raise_provider_sla_policy)
+    trust = data_trust.build_data_trust(
+        {
+            "source_audit": [
+                {"source": "market_data", "provider": "yfinance", "status": "success", "record_count": 1},
+                {"source": "financial_statements", "provider": "yfinance", "status": "success", "record_count": 1},
+            ]
+        }
+    )
+
+    assert trust["status"] == "fresh"
+    assert trust["critical_failures"] == []
+    assert trust["stale_sources"] == []
+    assert "fresh_core_sources" in trust["reason_codes"]
+    assert "provider_sla_critical" not in trust["reason_codes"]
+    assert trust["score"] == 95
+
+
+def test_build_data_trust_uses_safe_source_data_and_audit_collections(monkeypatch):
+    import provider_sla
+
+    monkeypatch.setattr(provider_sla, "get_provider_sla_alerts", lambda limit=100: [])
+    source_audit = [
+        {"source": "market_data", "provider": "yfinance", "status": "success", "record_count": 1},
+        {"source": "financial_statements", "provider": "yfinance", "status": "success", "record_count": 1},
+    ]
+
+    for payload in (
+        BrokenGetDict({"source_audit": source_audit}),
+        {"source_audit": tuple(source_audit)},
+        {"source_audit": BrokenNativeRowsList(source_audit)},
+    ):
+        trust = data_trust.build_data_trust(payload)
+
+        assert trust["status"] == "fresh"
+        assert "fresh_core_sources" in trust["reason_codes"]
+
+
+def test_build_data_trust_accepts_mapping_safe_source_payloads(monkeypatch):
+    import provider_sla
+
+    monkeypatch.setattr(provider_sla, "get_provider_sla_alerts", lambda limit=100: [])
+    trust = data_trust.build_data_trust(
+        MappingProxyType(
+            {
+                "source_audit": (
+                    MappingProxyType(
+                        {"source": "market_data", "provider": "yfinance", "status": "success", "record_count": 1}
+                    ),
+                    MappingProxyType(
+                        {
+                            "source": "financial_statements",
+                            "provider": "yfinance",
+                            "status": "success",
+                            "record_count": 1,
+                        }
+                    ),
+                )
+            }
+        )
+    )
+
+    assert trust["status"] == "fresh"
+    assert trust["score"] == 95
+    assert "fresh_core_sources" in trust["reason_codes"]
+
+
+def test_build_data_trust_source_freshness_child_maps_use_safe_conversion(monkeypatch):
+    import provider_sla
+
+    monkeypatch.setattr(provider_sla, "get_provider_sla_alerts", lambda limit=100: [])
+    trust = data_trust.build_data_trust(
+        {
+            "source_freshness": {
+                "market_data": BrokenGetDict(
+                    {
+                        "stale": True,
+                        "fetched_at": "2026-06-01T00:00:00+00:00",
+                    }
+                ),
+                "financial_statements": BrokenGetDict({"stale": False}),
+            },
+            "source_audit": [
+                {"source": "market_data", "provider": "yfinance", "status": "success", "record_count": 1},
+                {"source": "financial_statements", "provider": "yfinance", "status": "success", "record_count": 1},
+            ],
+        }
+    )
+
+    assert trust["status"] == "stale"
+    assert trust["stale_sources"] == ["market_data"]
+    assert trust["last_market_data_at"] == "2026-06-01T00:00:00+00:00"
+
+
+def test_build_data_trust_source_freshness_stale_flags_use_bool_safe_conversion(monkeypatch):
+    import provider_sla
+
+    monkeypatch.setattr(provider_sla, "get_provider_sla_alerts", lambda limit=100: [])
+    trust = data_trust.build_data_trust(
+        {
+            "source_freshness": {
+                "market_data": {
+                    "stale": BrokenTruthBool(),
+                    "fetched_at": "2026-06-01T00:00:00+00:00",
+                },
+                "financial_statements": {"stale": False},
+            },
+            "source_audit": [
+                {"source": "market_data", "provider": "yfinance", "status": "success", "record_count": 1},
+                {"source": "financial_statements", "provider": "yfinance", "status": "success", "record_count": 1},
+            ],
+        }
+    )
+
+    assert trust["status"] == "fresh"
+    assert trust["stale_sources"] == []
+    assert trust["last_market_data_at"] == "2026-06-01T00:00:00+00:00"
+
+
+def test_build_data_trust_data_source_notes_use_string_list_conversion(monkeypatch):
+    import provider_sla
+
+    monkeypatch.setattr(provider_sla, "get_provider_sla_alerts", lambda limit=100: [])
+    source_audit = [
+        {"source": "market_data", "provider": "yfinance", "status": "success", "record_count": 1},
+        {"source": "financial_statements", "provider": "yfinance", "status": "success", "record_count": 1},
+    ]
+
+    malformed = data_trust.build_data_trust(
+        {
+            "source_audit": source_audit,
+            "data_source_notes": BrokenTruthBool(),
+        }
+    )
+    assert malformed["status"] == "fresh"
+    assert "data_source_notes_present" not in malformed["reason_codes"]
+
+    valid = data_trust.build_data_trust(
+        {
+            "source_audit": source_audit,
+            "data_source_notes": ("TTM 淨利率已依最新財報補值。", b"bad-note"),
+        }
+    )
+    assert "data_source_notes_present" in valid["reason_codes"]
 
 
 def test_optional_not_configured_sources_do_not_degrade_fresh_core_data(monkeypatch):
@@ -711,6 +2211,47 @@ def test_provider_sla_row_mapping_get_failures_do_not_interrupt_trust_downgrade(
     assert any("來源健康度警示" in note for note in result["notes"])
 
 
+def test_provider_sla_row_mapping_copy_lookup_failures_preserve_downgrade_evidence():
+    import data_trust_sla_policy
+
+    payload = {
+        "source_audit": [
+            BrokenLookupCopyDict(
+                {
+                    "source": "market_data",
+                    "provider": "fake-yfinance",
+                    "status": "unavailable",
+                    "record_count": 0,
+                    "stale": True,
+                }
+            )
+        ]
+    }
+    trust = {"status": "fresh", "notes": [], "reason_codes": []}
+    alerts = [
+        BrokenLookupCopyDict(
+            {
+                "source": "market_data",
+                "provider": "fake-yfinance",
+                "alert_level": "critical",
+                "alert_message": "success rate low",
+                "success_rate": 0.4,
+                "last_status": "error",
+                "alert_basis": "last_24h",
+                "windows": {"last_24h": {"attempts": 3}},
+            }
+        )
+    ]
+
+    result = data_trust_sla_policy.apply_provider_sla_to_trust(payload, trust, alerts=alerts)
+
+    assert result["status"] == "partial"
+    assert result["provider_sla_alerts"][0]["provider"] == "fake-yfinance"
+    assert result["provider_sla_alerts"][0]["evidence_attempts"] == 3
+    assert "provider_sla_critical" in result["reason_codes"]
+    assert any("來源健康度警示" in note for note in result["notes"])
+
+
 def test_provider_sla_source_data_get_failure_does_not_interrupt_trust_downgrade():
     import data_trust_sla_policy
 
@@ -762,6 +2303,57 @@ def test_provider_sla_nested_window_get_failure_falls_back_to_alert_attempts():
     assert "provider_sla_critical" in result["reason_codes"]
 
 
+def test_provider_sla_source_audit_lookup_scalar_failures_do_not_interrupt_trust_downgrade():
+    import data_trust_sla_policy
+
+    payload = {
+        "source_audit": [
+            {
+                "source": "market_data",
+                "provider": "fake-yfinance",
+                "status": "unavailable",
+                "record_count": BrokenLookupInt(),
+                "stale": BrokenLookupBool(),
+            }
+        ]
+    }
+    trust = {"status": "fresh", "notes": [], "reason_codes": []}
+    alerts = [provider_sla_alert(provider="fake-yfinance", level="critical", attempts=3)]
+
+    result = data_trust_sla_policy.apply_provider_sla_to_trust(payload, trust, alerts=alerts)
+
+    assert result["status"] == "partial"
+    assert result["provider_sla_alerts"][0]["current_record_count"] == 0
+    assert result["provider_sla_alerts"][0]["current_stale"] is False
+    assert "provider_sla_critical" in result["reason_codes"]
+
+
+def test_provider_sla_lookup_attempt_failures_do_not_interrupt_policy():
+    import data_trust_sla_policy
+
+    payload = {
+        "source_audit": [
+            {
+                "source": "market_data",
+                "provider": "fake-yfinance",
+                "status": "unavailable",
+                "record_count": 0,
+                "stale": True,
+            }
+        ]
+    }
+    trust = {"status": "fresh", "notes": [], "reason_codes": []}
+    alert = provider_sla_alert(provider="fake-yfinance", level="critical", attempts=3)
+    alert["attempts"] = BrokenLookupInt()
+    alert["windows"] = {"last_24h": {"attempts": BrokenLookupInt()}}
+
+    result = data_trust_sla_policy.apply_provider_sla_to_trust(payload, trust, alerts=[alert])
+
+    assert result is trust
+    assert result["status"] == "fresh"
+    assert "provider_sla_critical" not in result["reason_codes"]
+
+
 def test_provider_sla_source_audit_native_lists_preserve_downgrade_evidence():
     import data_trust_sla_policy
 
@@ -804,6 +2396,58 @@ def test_provider_sla_alert_native_lists_preserve_downgrade_evidence():
     }
     trust = {"status": "fresh", "notes": [], "reason_codes": []}
     alerts = BrokenNativeRowsList([provider_sla_alert(provider="fake-yfinance", level="critical", attempts=3)])
+
+    result = data_trust_sla_policy.apply_provider_sla_to_trust(payload, trust, alerts=alerts)
+
+    assert result["status"] == "partial"
+    assert result["provider_sla_alerts"][0]["provider"] == "fake-yfinance"
+    assert "provider_sla_critical" in result["reason_codes"]
+
+
+def test_provider_sla_source_audit_rows_survive_lookup_iterator_creation_failures():
+    import data_trust_sla_policy
+
+    payload = {
+        "source_audit": BrokenProviderSlaLookupIteratorRowsList(
+            [
+                {
+                    "source": "market_data",
+                    "provider": "fake-yfinance",
+                    "status": "unavailable",
+                    "record_count": 0,
+                    "stale": True,
+                }
+            ]
+        )
+    }
+    trust = {"status": "fresh", "notes": [], "reason_codes": []}
+    alerts = [provider_sla_alert(provider="fake-yfinance", level="critical", attempts=3)]
+
+    result = data_trust_sla_policy.apply_provider_sla_to_trust(payload, trust, alerts=alerts)
+
+    assert result["status"] == "partial"
+    assert result["provider_sla_alerts"][0]["provider"] == "fake-yfinance"
+    assert "provider_sla_critical" in result["reason_codes"]
+
+
+def test_provider_sla_alert_rows_survive_lookup_iterator_creation_failures():
+    import data_trust_sla_policy
+
+    payload = {
+        "source_audit": [
+            {
+                "source": "market_data",
+                "provider": "fake-yfinance",
+                "status": "unavailable",
+                "record_count": 0,
+                "stale": True,
+            }
+        ]
+    }
+    trust = {"status": "fresh", "notes": [], "reason_codes": []}
+    alerts = BrokenProviderSlaLookupIteratorRowsList(
+        [provider_sla_alert(provider="fake-yfinance", level="critical", attempts=3)]
+    )
 
     result = data_trust_sla_policy.apply_provider_sla_to_trust(payload, trust, alerts=alerts)
 
@@ -864,6 +2508,58 @@ def test_provider_sla_alert_rows_survive_first_next_iterator_failures():
     assert "provider_sla_critical" in result["reason_codes"]
 
 
+def test_provider_sla_source_audit_rows_survive_lookup_iterator_failures():
+    import data_trust_sla_policy
+
+    payload = {
+        "source_audit": BrokenProviderSlaLookupNextRowsList(
+            [
+                {
+                    "source": "market_data",
+                    "provider": "fake-yfinance",
+                    "status": "unavailable",
+                    "record_count": 0,
+                    "stale": True,
+                }
+            ]
+        )
+    }
+    trust = {"status": "fresh", "notes": [], "reason_codes": []}
+    alerts = [provider_sla_alert(provider="fake-yfinance", level="critical", attempts=3)]
+
+    result = data_trust_sla_policy.apply_provider_sla_to_trust(payload, trust, alerts=alerts)
+
+    assert result["status"] == "partial"
+    assert result["provider_sla_alerts"][0]["provider"] == "fake-yfinance"
+    assert "provider_sla_critical" in result["reason_codes"]
+
+
+def test_provider_sla_alert_rows_survive_lookup_iterator_failures():
+    import data_trust_sla_policy
+
+    payload = {
+        "source_audit": [
+            {
+                "source": "market_data",
+                "provider": "fake-yfinance",
+                "status": "unavailable",
+                "record_count": 0,
+                "stale": True,
+            }
+        ]
+    }
+    trust = {"status": "fresh", "notes": [], "reason_codes": []}
+    alerts = BrokenProviderSlaLookupNextRowsList(
+        [provider_sla_alert(provider="fake-yfinance", level="critical", attempts=3)]
+    )
+
+    result = data_trust_sla_policy.apply_provider_sla_to_trust(payload, trust, alerts=alerts)
+
+    assert result["status"] == "partial"
+    assert result["provider_sla_alerts"][0]["provider"] == "fake-yfinance"
+    assert "provider_sla_critical" in result["reason_codes"]
+
+
 def test_provider_sla_trust_metadata_native_lists_preserve_existing_context():
     import data_trust_sla_policy
 
@@ -882,6 +2578,66 @@ def test_provider_sla_trust_metadata_native_lists_preserve_existing_context():
         "status": "fresh",
         "notes": BrokenNativeTextList(["既有資料可信度備註"]),
         "reason_codes": BrokenNativeTextList(["existing_manual_review"]),
+    }
+    alerts = [provider_sla_alert(provider="fake-yfinance", level="critical", attempts=3)]
+
+    result = data_trust_sla_policy.apply_provider_sla_to_trust(payload, trust, alerts=alerts)
+
+    assert result["status"] == "partial"
+    assert "existing_manual_review" in result["reason_codes"]
+    assert "provider_sla_critical" in result["reason_codes"]
+    assert result["notes"][0] == "既有資料可信度備註"
+    assert any("來源健康度警示" in note for note in result["notes"])
+
+
+def test_provider_sla_trust_metadata_survives_lookup_iterator_failures():
+    import data_trust_sla_policy
+
+    payload = {
+        "source_audit": [
+            {
+                "source": "market_data",
+                "provider": "fake-yfinance",
+                "status": "unavailable",
+                "record_count": 0,
+                "stale": True,
+            }
+        ]
+    }
+    trust = {
+        "status": "fresh",
+        "notes": BrokenProviderSlaLookupNextTextList(["既有資料可信度備註"]),
+        "reason_codes": BrokenProviderSlaLookupNextTextList(["existing_manual_review"]),
+    }
+    alerts = [provider_sla_alert(provider="fake-yfinance", level="critical", attempts=3)]
+
+    result = data_trust_sla_policy.apply_provider_sla_to_trust(payload, trust, alerts=alerts)
+
+    assert result["status"] == "partial"
+    assert "existing_manual_review" in result["reason_codes"]
+    assert "provider_sla_critical" in result["reason_codes"]
+    assert result["notes"][0] == "既有資料可信度備註"
+    assert any("來源健康度警示" in note for note in result["notes"])
+
+
+def test_provider_sla_trust_metadata_survives_lookup_iterator_creation_failures():
+    import data_trust_sla_policy
+
+    payload = {
+        "source_audit": [
+            {
+                "source": "market_data",
+                "provider": "fake-yfinance",
+                "status": "unavailable",
+                "record_count": 0,
+                "stale": True,
+            }
+        ]
+    }
+    trust = {
+        "status": "fresh",
+        "notes": BrokenProviderSlaLookupIteratorTextList(["既有資料可信度備註"]),
+        "reason_codes": BrokenProviderSlaLookupIteratorTextList(["existing_manual_review"]),
     }
     alerts = [provider_sla_alert(provider="fake-yfinance", level="critical", attempts=3)]
 
@@ -999,6 +2755,29 @@ def test_data_snapshot_validators_use_dict_native_field_reads():
     assert data_trust.validate_data_snapshot(wrapped_snapshot) == {"valid": True, "errors": []}
 
 
+def test_data_snapshot_validators_preserve_mapping_fields_when_lookup_accessors_fail():
+    snapshot = data_trust.build_data_snapshot(
+        {
+            "ticker": "VALID",
+            "pipeline_id": "v2",
+            "data": {
+                "data_schema_version": DATA_SCHEMA_VERSION,
+                "ticker": "VALID",
+                "source_audit": [],
+                "data_trust": data_trust.unknown_data_trust(),
+            },
+        },
+        generated_at="2026-06-07T00:10:00+00:00",
+    )
+    wrapped_snapshot = BrokenSnapshotLookupFieldMapping(snapshot)
+
+    integrity = data_trust.verify_data_snapshot_integrity(wrapped_snapshot)
+
+    assert integrity["valid"] is True
+    assert integrity["hash"] == snapshot["snapshot_hash"]
+    assert data_trust.validate_data_snapshot(wrapped_snapshot) == {"valid": True, "errors": []}
+
+
 def test_data_snapshot_content_hash_keys_use_safe_text_conversion():
     snapshot = data_trust.build_data_snapshot(
         {
@@ -1036,6 +2815,26 @@ def test_data_snapshot_content_hash_uses_safe_mapping_items():
         generated_at="2026-06-07T00:10:00+00:00",
     )
     wrapped_snapshot = BrokenNativeSnapshotMapping(snapshot)
+
+    assert data_trust.snapshot_content_hash(wrapped_snapshot) == snapshot["snapshot_hash"]
+    assert data_trust.verify_data_snapshot_integrity(wrapped_snapshot)["valid"] is True
+
+
+def test_data_snapshot_content_hash_accepts_mapping_snapshot_wrappers():
+    snapshot = data_trust.build_data_snapshot(
+        {
+            "ticker": "HASH",
+            "pipeline_id": "v2",
+            "data": {
+                "data_schema_version": DATA_SCHEMA_VERSION,
+                "ticker": "HASH",
+                "source_audit": [],
+                "data_trust": data_trust.unknown_data_trust(),
+            },
+        },
+        generated_at="2026-06-07T00:10:00+00:00",
+    )
+    wrapped_snapshot = MappingProxyType(snapshot)
 
     assert data_trust.snapshot_content_hash(wrapped_snapshot) == snapshot["snapshot_hash"]
     assert data_trust.verify_data_snapshot_integrity(wrapped_snapshot)["valid"] is True
@@ -1122,6 +2921,28 @@ def test_data_snapshot_identity_fields_do_not_depend_on_truthiness():
     assert snapshot["ticker"] == "CTX"
     assert snapshot["company_name"] == "Context Co"
     assert snapshot["pipeline"] == "v2"
+
+
+def test_data_snapshot_identity_fields_use_shared_text_safety_for_malformed_inputs():
+    snapshot = data_trust.build_data_snapshot(
+        {
+            "ticker": True,
+            "company_name": b"Bad Co",
+            "pipeline_id": memoryview(b"bad-pipeline"),
+            "data": {
+                "ticker": "DATA",
+                "company_name": "Data Co",
+                "pipeline_id": "v1",
+                "source_audit": [],
+                "data_trust": data_trust.unknown_data_trust(),
+            },
+        },
+        generated_at="2026-06-07T00:10:00+00:00",
+    )
+
+    assert snapshot["ticker"] == "DATA"
+    assert snapshot["company_name"] == "Data Co"
+    assert snapshot["pipeline"] == "v1"
 
 
 def test_data_snapshot_build_uses_dict_native_context_and_data_reads():
@@ -1260,6 +3081,135 @@ def test_reproducibility_packet_uses_dict_native_mapping_reads():
         "provider_list": ["yfinance"],
         "source_data_time": "2026-06-07T01:00:00+00:00",
     }
+
+
+def test_reproducibility_packet_accepts_mapping_safe_contexts():
+    packet = report_reproducibility.build_reproducibility_packet(
+        MappingProxyType(
+            {
+                "ticker": "2330.TW",
+                "prompt_version": "runtime-rules:test",
+                "pipeline_id": "v2",
+                "code_commit": "abc123",
+                "code_dirty": True,
+                "metadata": MappingProxyType({"model_id": "gemini-test-model"}),
+                "data": MappingProxyType(
+                    {
+                        "ticker": "DATA",
+                        "pipeline_id": "v1",
+                        "source_audit": (
+                            MappingProxyType(
+                                {
+                                    "provider": " yfinance ",
+                                    "fetched_at": "2026-06-07T01:00:00+00:00",
+                                }
+                            ),
+                        ),
+                    }
+                ),
+            }
+        ),
+        data_trust.unknown_data_trust(),
+        generated_at="2026-06-07T00:10:00+00:00",
+    )
+
+    assert packet == {
+        "ticker": "2330.TW",
+        "data_snapshot_hash": "",
+        "prompt_version": "runtime-rules:test",
+        "prompt_fingerprint": "",
+        "model_id": "gemini-test-model",
+        "pipeline_id": "v2",
+        "code_commit": "abc123",
+        "code_dirty": True,
+        "generated_at": "2026-06-07T00:10:00+00:00",
+        "provider_list": ["yfinance"],
+        "source_data_time": "2026-06-07T01:00:00+00:00",
+    }
+
+
+def test_reproducibility_source_audit_helpers_accept_mapping_safe_data():
+    data = MappingProxyType(
+        {
+            "source_audit": (
+                MappingProxyType(
+                    {
+                        "provider": " yfinance ",
+                        "fetched_at": "2026-06-07T01:00:00+00:00",
+                    }
+                ),
+                MappingProxyType(
+                    {
+                        "provider": " FinMind ",
+                        "fetched_at": "2026-06-07T02:00:00+00:00",
+                    }
+                ),
+            )
+        }
+    )
+
+    providers = report_reproducibility.provider_list_from_audit(data)
+    source_time = report_reproducibility.source_data_time(data, data_trust.unknown_data_trust())
+
+    assert providers == ["yfinance", "FinMind"]
+    assert source_time == "2026-06-07T02:00:00+00:00"
+
+
+def test_reproducibility_packet_uses_shared_text_safety_for_identity_fields():
+    packet = report_reproducibility.build_reproducibility_packet(
+        {
+            "ticker": True,
+            "prompt_version": memoryview(b"bad-prompt-version"),
+            "pipeline_id": bytearray(b"bad-pipeline"),
+            "code_commit": b"bad-commit",
+            "metadata": {"model_id": memoryview(b"bad-model")},
+            "data": {
+                "ticker": "DATA",
+                "prompt_version": "runtime-rules:data",
+                "pipeline_id": "v1",
+                "code_commit": "data-commit",
+                "source_audit": [
+                    {"provider": True, "fetched_at": True},
+                    {"provider": " yfinance ", "fetched_at": memoryview(b"bad-time")},
+                    {"provider": " fmp ", "fetched_at": "2026-06-07T02:00:00+00:00"},
+                ],
+            },
+        },
+        data_trust.unknown_data_trust(),
+        generated_at=memoryview(b"bad-generated-at"),
+    )
+
+    assert packet["ticker"] == "DATA"
+    assert packet["prompt_version"] == "runtime-rules:data"
+    assert packet["pipeline_id"] == "v1"
+    assert packet["code_commit"] == "data-commit"
+    assert packet["model_id"] == "unknown"
+    assert packet["generated_at"] == ""
+    assert packet["provider_list"] == ["yfinance", "fmp"]
+    assert packet["source_data_time"] == "2026-06-07T02:00:00+00:00"
+
+
+def test_reproducibility_packet_preserves_source_audit_when_iterator_lookup_fails():
+    class BrokenSourceAuditIterator(list):
+        def __iter__(self):
+            raise KeyError("source audit iterator unavailable")
+
+    packet = report_reproducibility.build_reproducibility_packet(
+        {
+            "ticker": "2330.TW",
+            "data": {
+                "source_audit": BrokenSourceAuditIterator([
+                    {"provider": " yfinance ", "fetched_at": "2026-06-07T01:00:00+00:00"},
+                    {"provider": " FinMind ", "fetched_at": "2026-06-07T02:00:00+00:00"},
+                ]),
+            },
+        },
+        data_trust.unknown_data_trust(),
+        generated_at="2026-06-07T00:10:00+00:00",
+    )
+
+    assert packet["provider_list"] == ["yfinance", "FinMind"]
+    assert packet["source_data_time"] == "2026-06-07T02:00:00+00:00"
 
 
 def test_data_snapshot_sanitizer_tolerates_malformed_string_conversion():
@@ -1576,9 +3526,49 @@ def test_explicit_target_price_detector_uses_native_root_mapping_reads():
     ]
 
 
+def test_explicit_target_price_detector_accepts_mapping_safe_contexts():
+    fields = report_reproducibility.detect_explicit_target_price_fields(
+        MappingProxyType(
+            {
+                "parsed": MappingProxyType(
+                    {
+                        "recommendation": MappingProxyType(
+                            {
+                                "target_price": "NT$120",
+                            }
+                        )
+                    }
+                ),
+                "structured_outputs": MappingProxyType(
+                    {
+                        "forecast": MappingProxyType(
+                            {
+                                "price_targets": "NT$130",
+                            }
+                        )
+                    }
+                ),
+            }
+        )
+    )
+
+    assert fields == [
+        "parsed.recommendation.target_price",
+        "structured_outputs.forecast.price_targets",
+    ]
+
+
 def test_explicit_target_price_detector_preserves_valid_list_items_before_iterator_failure():
     fields = report_reproducibility.detect_explicit_target_price_fields(
         {"parsed": {"recommendation_targets": BrokenTargetRows()}}
+    )
+
+    assert fields == ["parsed.recommendation_targets.0.target_price"]
+
+
+def test_explicit_target_price_detector_accepts_tuple_sequences():
+    fields = report_reproducibility.detect_explicit_target_price_fields(
+        {"parsed": {"recommendation_targets": ({"target_price": "NT$120"},)}}
     )
 
     assert fields == ["parsed.recommendation_targets.0.target_price"]
@@ -1600,6 +3590,22 @@ def test_explicit_target_price_detector_lists_survive_first_next_iterator_failur
     assert fields == ["parsed.recommendation_targets.0.target_price"]
 
 
+def test_explicit_target_price_detector_lists_survive_lookup_iterator_creation_failures():
+    fields = report_reproducibility.detect_explicit_target_price_fields(
+        {"parsed": {"recommendation_targets": BrokenTargetLookupNativeRows([{"target_price": "NT$120"}])}}
+    )
+
+    assert fields == ["parsed.recommendation_targets.0.target_price"]
+
+
+def test_explicit_target_price_detector_lists_survive_lookup_iterator_failures():
+    fields = report_reproducibility.detect_explicit_target_price_fields(
+        {"parsed": {"recommendation_targets": BrokenTargetLookupNextRows([{"target_price": "NT$120"}])}}
+    )
+
+    assert fields == ["parsed.recommendation_targets.0.target_price"]
+
+
 def test_explicit_target_price_detector_preserves_valid_mapping_items_before_iterator_failure():
     fields = report_reproducibility.detect_explicit_target_price_fields(
         {"parsed": BrokenTargetMapping()}
@@ -1616,9 +3622,25 @@ def test_explicit_target_price_detector_native_mappings_preserve_valid_items():
     assert fields == ["parsed.recommendation.target_price"]
 
 
+def test_explicit_target_price_detector_mappings_survive_lookup_items_accessor_failures():
+    fields = report_reproducibility.detect_explicit_target_price_fields(
+        {"parsed": BrokenTargetLookupNativeMapping({"recommendation": {"target_price": "NT$120"}})}
+    )
+
+    assert fields == ["parsed.recommendation.target_price"]
+
+
 def test_explicit_target_price_detector_mappings_survive_first_next_iterator_failures():
     fields = report_reproducibility.detect_explicit_target_price_fields(
         {"parsed": BrokenTargetFirstNextMapping({"recommendation": {"target_price": "NT$120"}})}
+    )
+
+    assert fields == ["parsed.recommendation.target_price"]
+
+
+def test_explicit_target_price_detector_mappings_survive_lookup_iterator_failures():
+    fields = report_reproducibility.detect_explicit_target_price_fields(
+        {"parsed": BrokenTargetLookupNextMapping({"recommendation": {"target_price": "NT$120"}})}
     )
 
     assert fields == ["parsed.recommendation.target_price"]
@@ -1676,6 +3698,106 @@ def test_data_snapshot_existing_data_trust_does_not_depend_on_truthiness():
     assert snapshot["data_confidence_score"] == 90
 
 
+def test_data_snapshot_existing_data_trust_accepts_mapping_safe_payloads():
+    snapshot = data_trust.build_data_snapshot(
+        {
+            "ticker": "TRUST",
+            "pipeline_id": "v2",
+            "data": {
+                "data_schema_version": DATA_SCHEMA_VERSION,
+                "ticker": "TRUST",
+                "source_audit": [],
+                "data_trust": MappingProxyType(
+                    {
+                        "status": "fresh",
+                        "score": 91,
+                        "reason_codes": ("fresh_core_sources",),
+                        "notes": ("read-only trust snapshot",),
+                    }
+                ),
+            },
+        },
+        generated_at="2026-06-07T00:10:00+00:00",
+    )
+
+    assert snapshot["data_trust"]["status"] == "fresh"
+    assert snapshot["data_trust"]["reason_codes"] == ["fresh_core_sources"]
+    assert snapshot["data_confidence_score"] == 91
+
+
+def test_data_snapshot_source_data_accepts_mapping_safe_payloads(monkeypatch):
+    import provider_sla
+
+    monkeypatch.setattr(provider_sla, "get_provider_sla_alerts", lambda limit=100: [])
+    snapshot = data_trust.build_data_snapshot(
+        {
+            "ticker": "TRUST",
+            "pipeline_id": "v2",
+            "data": MappingProxyType(
+                {
+                    "data_schema_version": DATA_SCHEMA_VERSION,
+                    "ticker": "TRUST",
+                    "source_audit": (
+                        MappingProxyType(
+                            {"source": "market_data", "provider": "yfinance", "status": "success", "record_count": 1}
+                        ),
+                        MappingProxyType(
+                            {
+                                "source": "financial_statements",
+                                "provider": "yfinance",
+                                "status": "success",
+                                "record_count": 1,
+                            }
+                        ),
+                    ),
+                }
+            ),
+        },
+        generated_at="2026-06-07T00:10:00+00:00",
+    )
+
+    assert snapshot["data_trust"]["status"] == "fresh"
+    assert snapshot["data_trust"]["score"] == 95
+    assert snapshot["data_confidence_score"] == 95
+
+
+def test_data_snapshot_context_accepts_mapping_safe_payloads(monkeypatch):
+    import provider_sla
+
+    monkeypatch.setattr(provider_sla, "get_provider_sla_alerts", lambda limit=100: [])
+    snapshot = data_trust.build_data_snapshot(
+        MappingProxyType(
+            {
+                "ticker": "TRUST",
+                "pipeline_id": "v2",
+                "data": {
+                    "data_schema_version": DATA_SCHEMA_VERSION,
+                    "ticker": "TRUST",
+                    "source_audit": (
+                        MappingProxyType(
+                            {"source": "market_data", "provider": "yfinance", "status": "success", "record_count": 1}
+                        ),
+                        MappingProxyType(
+                            {
+                                "source": "financial_statements",
+                                "provider": "yfinance",
+                                "status": "success",
+                                "record_count": 1,
+                            }
+                        ),
+                    ),
+                },
+            }
+        ),
+        generated_at="2026-06-07T00:10:00+00:00",
+    )
+
+    assert snapshot["ticker"] == "TRUST"
+    assert snapshot["pipeline"] == "v2"
+    assert snapshot["data_trust"]["status"] == "fresh"
+    assert snapshot["data_confidence_score"] == 95
+
+
 def test_data_snapshot_existing_data_trust_score_conversion_failure_uses_status_score():
     snapshot = data_trust.build_data_snapshot(
         {
@@ -1701,12 +3823,56 @@ def test_data_snapshot_existing_data_trust_score_conversion_failure_uses_status_
     assert snapshot["data_confidence_score"] == 95
 
 
+def test_data_snapshot_existing_data_trust_lookup_score_conversion_failure_uses_status_score():
+    snapshot = data_trust.build_data_snapshot(
+        {
+            "ticker": "TRUST",
+            "pipeline_id": "v2",
+            "data": {
+                "data_schema_version": DATA_SCHEMA_VERSION,
+                "ticker": "TRUST",
+                "source_audit": [],
+                "data_trust": {
+                    "status": "fresh",
+                    "score": BrokenLookupFloatScore(),
+                    "reason_codes": [],
+                    "notes": ["manual trust snapshot"],
+                },
+            },
+        },
+        generated_at="2026-06-07T00:10:00+00:00",
+    )
+
+    assert snapshot["data_trust"]["status"] == "fresh"
+    assert snapshot["data_trust"]["score"] == 95
+    assert snapshot["data_confidence_score"] == 95
+
+
 def test_data_snapshot_refresh_flag_does_not_depend_on_truthiness():
     snapshot = data_trust.build_data_snapshot(
         {
             "ticker": "REFRESH",
             "pipeline_id": "v2",
             "refreshed_without_analysis_rerun": BrokenTruthBool(),
+            "data": {
+                "data_schema_version": DATA_SCHEMA_VERSION,
+                "ticker": "REFRESH",
+                "source_audit": [],
+                "data_trust": data_trust.unknown_data_trust(),
+            },
+        },
+        generated_at="2026-06-07T00:10:00+00:00",
+    )
+
+    assert snapshot["refreshed_without_analysis_rerun"] is False
+
+
+def test_data_snapshot_refresh_flag_lookup_failure_falls_back_to_false():
+    snapshot = data_trust.build_data_snapshot(
+        {
+            "ticker": "REFRESH",
+            "pipeline_id": "v2",
+            "refreshed_without_analysis_rerun": BrokenLookupBool(),
             "data": {
                 "data_schema_version": DATA_SCHEMA_VERSION,
                 "ticker": "REFRESH",

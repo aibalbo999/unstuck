@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from mapping_fields import safe_dict_list, safe_int, safe_text_list
+from mapping_fields import safe_dict_list, safe_int, safe_mapping_dict, safe_text, safe_text_list
 from provider_impact import build_provider_impact
+from report_quality_integrity import snapshot_integrity_repair_item
 
 
 SCHEMA_VERSION = "report_quality_repair_queue.v1"
@@ -17,7 +18,7 @@ def build_report_quality_repair_queue(reports: dict[str, Any] | list[dict[str, A
     items = [_repair_item(report) for report in report_rows]
     actionable = [item for item in items if item is not None]
     actionable.sort(key=lambda item: (-int(item["priority_score"]), str(item.get("ticker") or ""), str(item.get("filename") or "")))
-    limited = actionable[: max(0, safe_int(limit))]
+    limited = actionable[: max(0, safe_int(limit, default=5))]
     return {
         "schema_version": SCHEMA_VERSION,
         "summary": {
@@ -32,8 +33,9 @@ def build_report_quality_repair_queue(reports: dict[str, Any] | list[dict[str, A
 
 
 def _report_rows(reports: dict[str, Any] | list[dict[str, Any]]) -> list[dict[str, Any]]:
-    if isinstance(reports, dict):
-        rows = _field(reports, "reports")
+    envelope = safe_mapping_dict(reports)
+    if envelope is not None:
+        rows = _field(envelope, "reports")
     else:
         rows = reports
     return safe_dict_list(rows)
@@ -41,6 +43,7 @@ def _report_rows(reports: dict[str, Any] | list[dict[str, Any]]) -> list[dict[st
 
 def _repair_item(report: dict[str, Any]) -> dict[str, Any] | None:
     candidates = [
+        snapshot_integrity_repair_item(_field(report, "snapshot_integrity")),
         _content_credibility_item(report),
         _report_conformance_item(report),
         _evidence_exit_gate_item(report),
@@ -249,7 +252,7 @@ def _item(
 
 
 def _dict(value: Any) -> dict[str, Any]:
-    return value if isinstance(value, dict) else {}
+    return safe_mapping_dict(value) or {}
 
 
 def _field(mapping: dict[str, Any], key: str, default: Any = None) -> Any:
@@ -306,16 +309,13 @@ def _pipeline_id(report: dict[str, Any]) -> str:
 
 
 def _safe_text(value: Any) -> str:
-    try:
-        return "" if value is None else str(value)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
-        return ""
+    return safe_text(value)
 
 
 def _safe_bool(value: Any) -> bool:
     try:
         return bool(value)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
         return False
 
 
@@ -343,6 +343,3 @@ def _reason_codes(trust: dict[str, Any]) -> list[str]:
 
 def _has_stale_source(trust: dict[str, Any], codes: list[str]) -> bool:
     return bool(safe_text_list(_field(trust, "stale_sources"))) or any(code.startswith("source_stale:") for code in codes)
-
-
-__all__ = ["build_report_quality_repair_queue"]

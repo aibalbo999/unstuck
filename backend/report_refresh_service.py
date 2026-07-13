@@ -13,12 +13,13 @@ from fastapi import HTTPException
 from company_display import company_display_name
 from config import SOURCE_FRESHNESS_MAX_AGE_SECONDS
 from data_fetch import FetchRequest
-from data_trust import build_data_snapshot, data_snapshot_filename_for_report, normalize_data_trust, utc_now_iso
+from data_trust import build_data_snapshot, data_snapshot_filename_for_report, normalize_data_trust, sanitize_for_snapshot, utc_now_iso
 from decision_tracking import build_decision_freshness
 from report_artifacts import MissingReportArtifact, ReportArtifactLocator
 from report_history_storage import storage_for_existing_output_dir
 from report_index import is_safe_report_filename, upsert_report_metadata
 from report_persistence import DATA_SNAPSHOT_CONTENT_TYPE
+from mapping_fields import safe_mapping_dict, safe_sequence_items, safe_text
 from storage.report_storage import ReportStorage
 
 
@@ -54,21 +55,23 @@ HIGH_FREQUENCY_REFRESH_SOURCES = ("market_data", "recent_catalysts")
 
 def _stale_sources(previous_snapshot: dict, *, now: datetime | None = None) -> list[str]:
     now = now or datetime.now(timezone.utc)
-    entries = previous_snapshot.get("source_audit", []) if isinstance(previous_snapshot, dict) else []
-    if not isinstance(entries, list):
+    previous_snapshot_map = safe_mapping_dict(previous_snapshot) or {}
+    entries = safe_sequence_items(dict.get(previous_snapshot_map, "source_audit", []))
+    if not entries:
         return list(HIGH_FREQUENCY_REFRESH_SOURCES)
 
     stale: set[str] = set()
     latest_success: dict[str, datetime] = {}
     seen_sources: set[str] = set()
-    for entry in entries:
-        if not isinstance(entry, dict):
+    for raw_entry in entries:
+        entry = safe_mapping_dict(raw_entry)
+        if entry is None:
             continue
-        source = str(entry.get("source") or "").strip()
+        source = str(dict.get(entry, "source") or "").strip()
         if not source:
             continue
         seen_sources.add(source)
-        if str(entry.get("status") or "").strip().lower() != "success":
+        if str(dict.get(entry, "status") or "").strip().lower() != "success":
             stale.add(source)
             continue
         timestamp = _source_audit_timestamp(entry)
@@ -91,9 +94,10 @@ def _stale_sources(previous_snapshot: dict, *, now: datetime | None = None) -> l
 
 
 def _source_audit_timestamp(entry: dict) -> datetime | None:
+    entry_map = safe_mapping_dict(entry) or {}
     for key in ("created_at", "fetched_at", "timestamp"):
-        value = entry.get(key)
-        if not value:
+        value = dict.get(entry_map, key)
+        if value is None:
             continue
         parsed = _parse_datetime(value)
         if parsed is not None:
@@ -102,12 +106,12 @@ def _source_audit_timestamp(entry: dict) -> datetime | None:
 
 
 def _parse_datetime(value: object) -> datetime | None:
-    if isinstance(value, (int, float)):
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
         try:
             return datetime.fromtimestamp(float(value), timezone.utc)
         except (OSError, OverflowError, ValueError):
             return None
-    text = str(value or "").strip()
+    text = safe_text(value).strip()
     if not text:
         return None
     try:
@@ -121,26 +125,28 @@ def _parse_datetime(value: object) -> datetime | None:
 
 def _source_status_map(snapshot: dict) -> dict:
     status_map = {}
-    entries = snapshot.get("source_audit", []) if isinstance(snapshot, dict) else []
-    if not isinstance(entries, list):
-        return status_map
-    for entry in entries:
-        if not isinstance(entry, dict):
+    snapshot_map = safe_mapping_dict(snapshot) or {}
+    entries = safe_sequence_items(dict.get(snapshot_map, "source_audit", []))
+    for raw_entry in entries:
+        entry = safe_mapping_dict(raw_entry)
+        if entry is None:
             continue
-        source = str(entry.get("source") or "unknown")
-        provider = str(entry.get("provider") or "unknown")
+        source = str(dict.get(entry, "source") or "unknown")
+        provider = str(dict.get(entry, "provider") or "unknown")
         status_map[(source, provider)] = {
             "source": source,
             "provider": provider,
-            "status": str(entry.get("status") or "unknown"),
-            "message": str(entry.get("message") or entry.get("error_kind") or "")[:160],
+            "status": str(dict.get(entry, "status") or "unknown"),
+            "message": str(dict.get(entry, "message") or dict.get(entry, "error_kind") or "")[:160],
         }
     return status_map
 
 
 def refresh_data_diff(previous_snapshot: dict, refreshed_snapshot: dict) -> dict:
-    before_trust = normalize_data_trust(previous_snapshot.get("data_trust") if isinstance(previous_snapshot, dict) else None)
-    after_trust = normalize_data_trust(refreshed_snapshot.get("data_trust") if isinstance(refreshed_snapshot, dict) else None)
+    previous_snapshot_map = safe_mapping_dict(previous_snapshot) or {}
+    refreshed_snapshot_map = safe_mapping_dict(refreshed_snapshot) or {}
+    before_trust = normalize_data_trust(dict.get(previous_snapshot_map, "data_trust"))
+    after_trust = normalize_data_trust(dict.get(refreshed_snapshot_map, "data_trust"))
     before_stale = set(before_trust.get("stale_sources", []) or [])
     after_stale = set(after_trust.get("stale_sources", []) or [])
     before_failures = set(before_trust.get("critical_failures", []) or [])
@@ -192,21 +198,29 @@ def refresh_data_diff(previous_snapshot: dict, refreshed_snapshot: dict) -> dict
 
 
 def refresh_requires_analysis_rerun(previous_snapshot: dict, refreshed_snapshot: dict, refresh_diff: dict) -> bool:
-    if previous_snapshot.get("refreshed_without_analysis_rerun") or previous_snapshot.get("decision_validity_status") == "needs_rerun":
+    previous_snapshot_map = safe_mapping_dict(previous_snapshot) or {}
+    refreshed_snapshot_map = safe_mapping_dict(refreshed_snapshot) or {}
+    refresh_diff_map = safe_mapping_dict(refresh_diff) or {}
+    if (
+        dict.get(previous_snapshot_map, "refreshed_without_analysis_rerun")
+        or dict.get(previous_snapshot_map, "decision_validity_status") == "needs_rerun"
+    ):
         return True
-    before_data = previous_snapshot.get("data") if isinstance(previous_snapshot.get("data"), dict) else {}
-    after_data = refreshed_snapshot.get("data") if isinstance(refreshed_snapshot.get("data"), dict) else {}
+    before_data = safe_mapping_dict(dict.get(previous_snapshot_map, "data")) or {}
+    after_data = safe_mapping_dict(dict.get(refreshed_snapshot_map, "data")) or {}
     for key in DECISION_RELEVANT_DATA_KEYS:
         if _stable_data_value(before_data, key) != _stable_data_value(after_data, key):
             return True
 
-    if refresh_diff.get("stale_sources", {}).get("removed") or refresh_diff.get("stale_sources", {}).get("added"):
+    stale_sources_diff = safe_mapping_dict(dict.get(refresh_diff_map, "stale_sources")) or {}
+    if dict.get(stale_sources_diff, "removed") or dict.get(stale_sources_diff, "added"):
         return True
-    if refresh_diff.get("critical_failures", {}).get("removed") or refresh_diff.get("critical_failures", {}).get("added"):
+    critical_failures_diff = safe_mapping_dict(dict.get(refresh_diff_map, "critical_failures")) or {}
+    if dict.get(critical_failures_diff, "removed") or dict.get(critical_failures_diff, "added"):
         return True
 
-    before_trust = normalize_data_trust(previous_snapshot.get("data_trust") if isinstance(previous_snapshot, dict) else None)
-    after_trust = normalize_data_trust(refreshed_snapshot.get("data_trust") if isinstance(refreshed_snapshot, dict) else None)
+    before_trust = normalize_data_trust(dict.get(previous_snapshot_map, "data_trust"))
+    after_trust = normalize_data_trust(dict.get(refreshed_snapshot_map, "data_trust"))
     if _actionable_reason_codes(before_trust) != _actionable_reason_codes(after_trust):
         return True
     if before_trust.get("status") != after_trust.get("status"):
@@ -278,11 +292,17 @@ async def refresh_report_data_snapshot(
         result = await refresh_service.fetch_async(
             FetchRequest.from_ticker(ticker, force_refresh=True, record_provider_sla=False)
         )
-        refreshed_data = result.data or {}
+        raw_refreshed_data = getattr(result, "data", None)
     else:
-        refreshed_data = deepcopy(refreshed_data)
-    if not isinstance(refreshed_data, dict) or "error" in refreshed_data:
-        message = refreshed_data.get("error") if isinstance(refreshed_data, dict) else "資料刷新失敗"
+        raw_refreshed_data = refreshed_data
+    refreshed_data_map = safe_mapping_dict(raw_refreshed_data) if raw_refreshed_data is not None else {}
+    if refreshed_data_map is None:
+        raise HTTPException(status_code=502, detail="資料刷新失敗")
+    refreshed_data = sanitize_for_snapshot(refreshed_data_map)
+    if not isinstance(refreshed_data, dict):
+        raise HTTPException(status_code=502, detail="資料刷新失敗")
+    if "error" in refreshed_data:
+        message = dict.get(refreshed_data, "error") or "資料刷新失敗"
         raise HTTPException(status_code=502, detail=message)
 
     refresh_generated_at = utc_now_iso()

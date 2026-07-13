@@ -1,3 +1,7 @@
+from decimal import Decimal
+from fractions import Fraction
+from types import MappingProxyType
+
 from free_notification_plan import build_daily_notification_plan
 
 
@@ -187,6 +191,34 @@ def test_notification_plan_messages_drop_blank_action_source_keys():
                 "items": [
                     {
                         "source": "   ",
+                        "type": "manual_review",
+                        "title": "Manual review",
+                        "detail": "No source key available.",
+                    }
+                ]
+            }
+        },
+        env={},
+    )
+
+    message = plan["messages"][0]
+    outbox = plan["delivery_outbox"][0]
+    assert "source" not in message
+    assert "source_label" not in message
+    assert "source_text" not in message
+    assert "source" not in outbox
+    assert "source_label" not in outbox
+    assert "source_text" not in outbox
+
+
+def test_notification_plan_messages_drop_orphan_source_display_context():
+    plan = build_daily_notification_plan(
+        {
+            "decision_queue": {
+                "items": [
+                    {
+                        "source_label": b"decoded label should not leak",
+                        "source_text": True,
                         "type": "manual_review",
                         "title": "Manual review",
                         "detail": "No source key available.",
@@ -508,6 +540,153 @@ def test_notification_plan_queue_context_ignores_numeric_conversion_failures():
     assert plan["queue_context"]["sources"] == {"watchlist": 1}
 
 
+def test_notification_plan_queue_context_rejects_binary_and_boolean_counts():
+    plan = build_daily_notification_plan(
+        {
+            "decision_queue": {
+                "summary": {
+                    "total_actionable": b"4",
+                    "displayed_count": True,
+                    "top_priority_score": memoryview(b"980"),
+                    "sources": {"watchlist": 1},
+                },
+                "secondary_count": bytearray(b"3"),
+                "items": [
+                    {
+                        "source": "watchlist",
+                        "type": "run_watchlist",
+                        "title": "追蹤清單待分析",
+                        "detail": "1 檔待更新。",
+                    }
+                ],
+            }
+        },
+        env={},
+    )
+
+    assert plan["queue_context"]["total_actionable"] == 0
+    assert plan["queue_context"]["displayed_count"] == 0
+    assert plan["queue_context"]["secondary_count"] == 0
+    assert plan["queue_context"]["top_priority_score"] == 0
+    assert plan["queue_context"]["sources"] == {"watchlist": 1}
+    assert plan["messages"][0]["type"] == "run_watchlist"
+
+
+def test_notification_plan_rejects_fractional_numeric_counts_and_metadata():
+    plan = build_daily_notification_plan(
+        {
+            "decision_queue": {
+                "summary": {
+                    "total_actionable": 1.5,
+                    "displayed_count": Decimal("2.5"),
+                    "top_priority_score": Fraction(7, 2),
+                    "sources": {"watchlist": 1},
+                },
+                "secondary_count": Fraction(3, 2),
+                "items": [
+                    {
+                        "source": "watchlist",
+                        "type": "run_watchlist",
+                        "priority_score": 1.7,
+                        "horizon_months": Decimal("3.5"),
+                        "title": "追蹤清單待分析",
+                        "detail": "1 檔待更新。",
+                    }
+                ],
+            }
+        },
+        env={},
+    )
+
+    assert plan["queue_context"]["total_actionable"] == 0
+    assert plan["queue_context"]["displayed_count"] == 0
+    assert plan["queue_context"]["secondary_count"] == 0
+    assert plan["queue_context"]["top_priority_score"] == 0
+    assert plan["messages"][0]["priority_score"] == 0
+    assert plan["messages"][0]["horizon_months"] == 0
+    assert plan["delivery_outbox"][0]["priority_score"] == 0
+    assert plan["delivery_outbox"][0]["horizon_months"] == 0
+
+
+def test_notification_plan_rejects_negative_numeric_counts_and_metadata():
+    plan = build_daily_notification_plan(
+        {
+            "decision_queue": {
+                "summary": {
+                    "total_actionable": -1,
+                    "displayed_count": "-2",
+                    "top_priority_score": Decimal("-3"),
+                    "sources": {"watchlist": 1},
+                },
+                "secondary_count": Fraction(-4, 1),
+                "items": [
+                    {
+                        "source": "watchlist",
+                        "type": "run_watchlist",
+                        "priority_score": -5,
+                        "horizon_months": "-6",
+                        "title": "追蹤清單待分析",
+                        "detail": "1 檔待更新。",
+                    }
+                ],
+            }
+        },
+        env={},
+    )
+
+    assert plan["queue_context"]["total_actionable"] == 0
+    assert plan["queue_context"]["displayed_count"] == 0
+    assert plan["queue_context"]["secondary_count"] == 0
+    assert plan["queue_context"]["top_priority_score"] == 0
+    assert plan["messages"][0]["priority_score"] == 0
+    assert plan["messages"][0]["horizon_months"] == 0
+    assert plan["delivery_outbox"][0]["priority_score"] == 0
+    assert plan["delivery_outbox"][0]["horizon_months"] == 0
+
+
+def test_notification_plan_rejects_arbitrary_numeric_counts_and_metadata():
+    class SyntheticCount:
+        def __init__(self, value):
+            self.value = value
+
+        def __int__(self):
+            return self.value
+
+    plan = build_daily_notification_plan(
+        {
+            "decision_queue": {
+                "summary": {
+                    "total_actionable": SyntheticCount(4),
+                    "displayed_count": SyntheticCount(3),
+                    "top_priority_score": SyntheticCount(980),
+                    "sources": {"watchlist": 1},
+                },
+                "secondary_count": SyntheticCount(2),
+                "items": [
+                    {
+                        "source": "watchlist",
+                        "type": "run_watchlist",
+                        "priority_score": SyntheticCount(760),
+                        "horizon_months": SyntheticCount(12),
+                        "title": "追蹤清單待分析",
+                        "detail": "1 檔待更新。",
+                    }
+                ],
+            }
+        },
+        env={},
+    )
+
+    assert plan["queue_context"]["total_actionable"] == 0
+    assert plan["queue_context"]["displayed_count"] == 0
+    assert plan["queue_context"]["secondary_count"] == 0
+    assert plan["queue_context"]["top_priority_score"] == 0
+    assert plan["messages"][0]["priority_score"] == 0
+    assert plan["messages"][0]["horizon_months"] == 0
+    assert plan["delivery_outbox"][0]["priority_score"] == 0
+    assert plan["delivery_outbox"][0]["horizon_months"] == 0
+
+
 def test_notification_plan_preserves_action_specific_metadata():
     plan = build_daily_notification_plan(
         {
@@ -560,6 +739,183 @@ def test_notification_plan_preserves_action_specific_metadata():
     assert provider_message["blocks_auto_rerun"] is True
 
 
+def test_notification_plan_numeric_message_metadata_uses_strict_count_conversion():
+    plan = build_daily_notification_plan(
+        {
+            "decision_queue": {
+                "items": [
+                    {
+                        "source": "backtest_due",
+                        "type": "backtest_due",
+                        "priority_score": b"763",
+                        "title": "NVDA 回測到期",
+                        "detail": "先完成到期回測。",
+                        "ticker": "NVDA",
+                        "filename": "nvda_due.html",
+                        "pipeline_id": "v2",
+                        "horizon_months": memoryview(b"3"),
+                    },
+                    {
+                        "source": "provider_impact",
+                        "type": "wait_provider_recovery",
+                        "priority_score": True,
+                        "title": "Provider degraded",
+                        "detail": "需要查看來源。",
+                    },
+                ]
+            }
+        },
+        env={"TELEGRAM_BOT_TOKEN": "token", "TELEGRAM_CHAT_ID": "chat"},
+    )
+
+    backtest_message, provider_message = plan["messages"]
+    assert backtest_message["priority_score"] == 0
+    assert backtest_message["horizon_months"] == 0
+    assert "unknown-horizon" in backtest_message["dedupe_key"]
+    assert "memory" not in backtest_message["dedupe_key"]
+    assert provider_message["priority_score"] == 0
+    assert all(entry["priority_score"] == 0 for entry in plan["delivery_outbox"])
+    assert all(entry.get("horizon_months", 0) == 0 for entry in plan["delivery_outbox"])
+
+
+def test_notification_plan_text_message_metadata_uses_shared_text_conversion():
+    plan = build_daily_notification_plan(
+        {
+            "decision_queue": {
+                "items": [
+                    {
+                        "source": "report_repair",
+                        "type": "manual_review",
+                        "title": "報告需審核",
+                        "detail": "資料可信度不足。",
+                        "ticker": b"NVDA",
+                        "filename": bytearray(b"bad.html"),
+                        "report_filename": memoryview(b"worse.html"),
+                        "pipeline_id": True,
+                        "route": b"v2/gemini",
+                        "warning_id": memoryview(b"retry_storm"),
+                        "recommended_action": True,
+                        "blocks_auto_rerun": True,
+                        "severity": bytearray(b"critical"),
+                        "action_label": memoryview(b"manual review"),
+                    }
+                ]
+            }
+        },
+        env={"TELEGRAM_BOT_TOKEN": "token", "TELEGRAM_CHAT_ID": "chat"},
+    )
+
+    message = plan["messages"][0]
+    outbox = plan["delivery_outbox"]
+    malformed_keys = {
+        "ticker",
+        "filename",
+        "report_filename",
+        "pipeline_id",
+        "route",
+        "warning_id",
+        "recommended_action",
+        "severity",
+        "action_label",
+    }
+    assert malformed_keys.isdisjoint(message)
+    assert message["blocks_auto_rerun"] is True
+    assert message["operator_action"] == "view-report"
+    assert message["operator_action_label"] == "查看報告"
+    assert all(malformed_keys.isdisjoint(entry) for entry in outbox)
+    assert all(entry["blocks_auto_rerun"] is True for entry in outbox)
+
+
+def test_notification_plan_boolean_message_metadata_uses_explicit_bool_text_conversion():
+    plan = build_daily_notification_plan(
+        {
+            "decision_queue": {
+                "items": [
+                    {
+                        "source": "report_repair",
+                        "type": "manual_review",
+                        "title": "明確不阻擋",
+                        "detail": "這筆可以自動處理。",
+                        "blocks_auto_rerun": "false",
+                    },
+                    {
+                        "source": "report_repair",
+                        "type": "manual_review",
+                        "title": "明確阻擋",
+                        "detail": "這筆需要人工處理。",
+                        "blocks_auto_rerun": "true",
+                    },
+                    {
+                        "source": "report_repair",
+                        "type": "manual_review",
+                        "title": "binary 不可信",
+                        "detail": "binary flag 不應外洩。",
+                        "blocks_auto_rerun": b"true",
+                    },
+                    {
+                        "source": "report_repair",
+                        "type": "manual_review",
+                        "title": "memoryview 不可信",
+                        "detail": "memoryview flag 不應外洩。",
+                        "blocks_auto_rerun": memoryview(b"true"),
+                    },
+                ]
+            }
+        },
+        env={"TELEGRAM_BOT_TOKEN": "token", "TELEGRAM_CHAT_ID": "chat"},
+    )
+
+    assert [message["blocks_auto_rerun"] for message in plan["messages"]] == [
+        False,
+        True,
+        False,
+        False,
+    ]
+    assert [entry["blocks_auto_rerun"] for entry in plan["delivery_outbox"]] == [
+        False,
+        False,
+        True,
+        True,
+        False,
+        False,
+        False,
+        False,
+    ]
+
+
+def test_notification_plan_preserves_report_repair_reason_codes():
+    plan = build_daily_notification_plan(
+        {
+            "decision_queue": {
+                "summary": {"total_actionable": 1, "displayed_count": 1},
+                "items": [
+                    {
+                        "source": "report_repair",
+                        "type": "manual_review",
+                        "priority_score": 980,
+                        "title": "2330.TW v2 資料快照完整性未通過",
+                        "detail": "snapshot_hash mismatch",
+                        "ticker": "2330.TW",
+                        "filename": "2330_corrupt.html",
+                        "pipeline_id": "v2",
+                        "recommended_action": "manual_review",
+                        "blocks_auto_rerun": True,
+                        "reason_codes": ["data_snapshot_integrity_invalid"],
+                    }
+                ],
+            }
+        },
+        env={"TELEGRAM_BOT_TOKEN": "token", "TELEGRAM_CHAT_ID": "chat"},
+    )
+
+    message = plan["messages"][0]
+    assert message["blocks_auto_rerun"] is True
+    assert message["detail"] == "snapshot_hash mismatch"
+    assert message["reason_codes"] == ["data_snapshot_integrity_invalid"]
+    assert all(entry["detail"] == "snapshot_hash mismatch" for entry in plan["delivery_outbox"])
+    assert all(entry["reason_codes"] == ["data_snapshot_integrity_invalid"] for entry in plan["delivery_outbox"])
+
+
 def test_notification_plan_reads_decision_queue_action_fields_without_mapping_get_accessors():
     class BrokenGetDict(dict):
         def get(self, *args, **kwargs):
@@ -604,6 +960,193 @@ def test_notification_plan_reads_decision_queue_action_fields_without_mapping_ge
     assert [entry["channel_id"] for entry in plan["delivery_outbox"]] == ["local", "telegram_webhook"]
     assert all(entry["filename"] == "nvda_due_alias.html" for entry in plan["delivery_outbox"])
     assert all(entry["source_text"] == "決策回測 (backtest_due)" for entry in plan["delivery_outbox"])
+
+
+def test_notification_plan_decision_queue_items_iterator_failure_uses_native_actions():
+    class BrokenActionList(list):
+        def __iter__(self):
+            raise RuntimeError("notification action iterator unavailable")
+
+    plan = build_daily_notification_plan(
+        {
+            "decision_queue": {
+                "items": BrokenActionList(
+                    [
+                        {
+                            "source": "watchlist",
+                            "type": "run_watchlist",
+                            "title": "追蹤清單待分析",
+                            "detail": "1 檔待更新。",
+                        },
+                        "malformed action should be ignored",
+                    ]
+                )
+            }
+        },
+        env={},
+    )
+
+    assert plan["messages"][0]["type"] == "run_watchlist"
+    assert plan["messages"][0]["source"] == "watchlist"
+    assert plan["delivery_outbox"][0]["source"] == "watchlist"
+
+
+def test_notification_plan_legacy_actions_iterator_failure_uses_native_actions():
+    class BrokenActionList(list):
+        def __iter__(self):
+            raise RuntimeError("legacy notification action iterator unavailable")
+
+    plan = build_daily_notification_plan(
+        {
+            "actions": BrokenActionList(
+                [
+                    {
+                        "source": "provider_impact",
+                        "type": "wait_provider_recovery",
+                        "title": "Provider degraded",
+                        "detail": "需要查看資料來源。",
+                    },
+                    object(),
+                ]
+            )
+        },
+        env={},
+    )
+
+    assert plan["queue_context"]["sources"] == {"provider_impact": 1}
+    assert plan["messages"][0]["type"] == "wait_provider_recovery"
+    assert plan["messages"][0]["source"] == "provider_impact"
+
+
+def test_notification_plan_decision_queue_accepts_tuple_actions():
+    plan = build_daily_notification_plan(
+        {
+            "decision_queue": {
+                "items": (
+                    {
+                        "source": "watchlist",
+                        "type": "run_watchlist",
+                        "title": "追蹤清單待分析",
+                        "detail": "1 檔待更新。",
+                    },
+                    "malformed action should be ignored",
+                )
+            }
+        },
+        env={},
+    )
+
+    assert plan["queue_context"]["source"] == "decision_queue"
+    assert plan["messages"][0]["type"] == "run_watchlist"
+    assert plan["messages"][0]["source"] == "watchlist"
+    assert plan["delivery_outbox"][0]["source"] == "watchlist"
+
+
+def test_notification_plan_legacy_actions_accepts_tuple_actions():
+    plan = build_daily_notification_plan(
+        {
+            "actions": (
+                {
+                    "source": "provider_impact",
+                    "type": "wait_provider_recovery",
+                    "title": "Provider degraded",
+                    "detail": "需要查看資料來源。",
+                },
+                object(),
+            )
+        },
+        env={},
+    )
+
+    assert plan["queue_context"]["sources"] == {"provider_impact": 1}
+    assert plan["messages"][0]["type"] == "wait_provider_recovery"
+    assert plan["messages"][0]["source"] == "provider_impact"
+
+
+def test_notification_plan_accepts_mapping_decision_queue_payloads():
+    plan = build_daily_notification_plan(
+        {
+            "decision_queue": MappingProxyType(
+                {
+                    "summary": {"sources": {"watchlist": 1}},
+                    "items": [
+                        {
+                            "source": "watchlist",
+                            "type": "run_watchlist",
+                            "title": "追蹤清單待分析",
+                            "detail": "1 檔待更新。",
+                        }
+                    ],
+                }
+            )
+        },
+        env={},
+    )
+
+    assert plan["queue_context"]["source"] == "decision_queue"
+    assert plan["queue_context"]["sources"] == {"watchlist": 1}
+    assert plan["messages"][0]["type"] == "run_watchlist"
+    assert plan["messages"][0]["source"] == "watchlist"
+
+
+def test_notification_plan_accepts_mapping_decision_queue_summary_payloads():
+    plan = build_daily_notification_plan(
+        {
+            "decision_queue": {
+                "summary": MappingProxyType(
+                    {
+                        "total_actionable": 1,
+                        "displayed_count": 1,
+                        "top_priority_score": 710,
+                        "sources": MappingProxyType({"provider_impact": 1}),
+                        "source_labels": MappingProxyType({"provider_impact": "資料來源修復"}),
+                    }
+                ),
+                "items": [
+                    {
+                        "source": "provider_impact",
+                        "type": "wait_provider_recovery",
+                        "title": "Provider degraded",
+                        "detail": "需要查看資料來源。",
+                    }
+                ],
+            }
+        },
+        env={},
+    )
+
+    assert plan["queue_context"]["total_actionable"] == 1
+    assert plan["queue_context"]["displayed_count"] == 1
+    assert plan["queue_context"]["top_priority_score"] == 710
+    assert plan["queue_context"]["sources"] == {"provider_impact": 1}
+    assert plan["queue_context"]["source_labels"] == {"provider_impact": "資料來源修復"}
+    assert plan["messages"][0]["source"] == "provider_impact"
+
+
+def test_notification_plan_accepts_mapping_dashboard_payloads():
+    plan = build_daily_notification_plan(
+        MappingProxyType(
+            {
+                "decision_queue": {
+                    "summary": {"sources": {"watchlist": 1}},
+                    "items": [
+                        {
+                            "source": "watchlist",
+                            "type": "run_watchlist",
+                            "title": "追蹤清單待分析",
+                            "detail": "1 檔待更新。",
+                        }
+                    ],
+                }
+            }
+        ),
+        env={},
+    )
+
+    assert plan["queue_context"]["source"] == "decision_queue"
+    assert plan["queue_context"]["sources"] == {"watchlist": 1}
+    assert plan["messages"][0]["type"] == "run_watchlist"
+    assert plan["messages"][0]["source"] == "watchlist"
 
 
 def test_notification_plan_preserves_report_filename_alias_context():
@@ -733,6 +1276,37 @@ def test_notification_plan_preserves_context_when_value_comparison_fails():
     assert all(str(entry["recommended_action"]) == "manual_review" for entry in plan["delivery_outbox"])
 
 
+def test_notification_plan_preserves_context_when_value_compares_equal_to_blank():
+    class BlankComparableMetadata:
+        def __eq__(self, other):
+            return other == ""
+
+        def __str__(self):
+            return "manual_review"
+
+    plan = build_daily_notification_plan(
+        {
+            "decision_queue": {
+                "items": [
+                    {
+                        "source": "report_repair",
+                        "type": "manual_review",
+                        "title": "TSM 報告需人工審核",
+                        "detail": "內容可信度未通過。",
+                        "filename": "tsm_repair.html",
+                        "recommended_action": BlankComparableMetadata(),
+                    }
+                ]
+            }
+        },
+        env={"TELEGRAM_BOT_TOKEN": "token", "TELEGRAM_CHAT_ID": "chat"},
+    )
+
+    message = plan["messages"][0]
+    assert message["recommended_action"] == "manual_review"
+    assert all(entry["recommended_action"] == "manual_review" for entry in plan["delivery_outbox"])
+
+
 def test_notification_plan_ignores_malformed_suppress_notification_flag():
     class BrokenSuppressFlag:
         def __bool__(self):
@@ -758,6 +1332,101 @@ def test_notification_plan_ignores_malformed_suppress_notification_flag():
 
     assert plan["messages"][0]["title"] == "TSM 報告需人工審核"
     assert len(plan["delivery_outbox"]) == 2
+
+
+def test_notification_plan_suppression_flag_uses_explicit_bool_text_conversion():
+    plan = build_daily_notification_plan(
+        {
+            "decision_queue": {
+                "items": [
+                    {
+                        "source": "watchlist",
+                        "type": "run_watchlist",
+                        "title": "追蹤清單待分析",
+                        "detail": "1 檔待更新。",
+                        "suppress_notification": "false",
+                    },
+                    {
+                        "source": "provider_impact",
+                        "type": "wait_provider_recovery",
+                        "title": "Provider degraded",
+                        "detail": "需要查看來源。",
+                        "suppress_notification": b"false",
+                    },
+                    {
+                        "source": "report_repair",
+                        "type": "manual_review",
+                        "title": "報告需審核",
+                        "detail": "資料可信度不足。",
+                        "suppress_notification": memoryview(b"true"),
+                    },
+                    {
+                        "source": "report_repair",
+                        "type": "manual_review",
+                        "title": "明確壓掉通知",
+                        "detail": "這筆只留在 queue。",
+                        "suppress_notification": "true",
+                    },
+                    {
+                        "source": "report_repair",
+                        "type": "manual_review",
+                        "title": "布林壓掉通知",
+                        "detail": "這筆只留在 queue。",
+                        "suppress_notification": True,
+                    },
+                ]
+            }
+        },
+        env={},
+    )
+
+    assert [message["type"] for message in plan["messages"]] == [
+        "run_watchlist",
+        "wait_provider_recovery",
+        "manual_review",
+    ]
+    assert [message["title"] for message in plan["messages"]] == [
+        "追蹤清單待分析",
+        "Provider degraded",
+        "報告需審核",
+    ]
+
+
+def test_notification_plan_boolean_fields_reject_arbitrary_stringlike_tokens():
+    class SyntheticBoolToken:
+        def __str__(self):
+            return "true"
+
+    plan = build_daily_notification_plan(
+        {
+            "decision_queue": {
+                "items": [
+                    {
+                        "source": "report_repair",
+                        "type": "manual_review",
+                        "title": "未知 bool metadata",
+                        "detail": "不可偽裝成阻擋。",
+                        "blocks_auto_rerun": SyntheticBoolToken(),
+                    },
+                    {
+                        "source": "watchlist",
+                        "type": "run_watchlist",
+                        "title": "未知 suppress token",
+                        "detail": "不可偽裝成壓制通知。",
+                        "suppress_notification": SyntheticBoolToken(),
+                    },
+                ]
+            }
+        },
+        env={},
+    )
+
+    assert [message["title"] for message in plan["messages"]] == [
+        "未知 bool metadata",
+        "未知 suppress token",
+    ]
+    assert plan["messages"][0]["blocks_auto_rerun"] is False
+    assert plan["delivery_outbox"][0]["blocks_auto_rerun"] is False
 
 
 def test_notification_plan_adds_operator_target_metadata():
@@ -833,6 +1502,32 @@ def test_notification_plan_preserves_target_metadata_when_truthiness_fails():
     assert message["target_tab"] == "custom-tab"
 
 
+def test_notification_plan_trims_action_type_before_default_cta_target_lookup():
+    plan = build_daily_notification_plan(
+        {
+            "decision_queue": {
+                "items": [
+                    {
+                        "source": "provider_impact",
+                        "type": " \t wait_provider_recovery \n",
+                        "title": "Provider degraded",
+                        "detail": "需要查看資料來源。",
+                    }
+                ]
+            }
+        },
+        env={},
+    )
+
+    message = plan["messages"][0]
+    assert message["type"] == "wait_provider_recovery"
+    assert message["operator_action"] == "open-ops"
+    assert message["operator_action_label"] == "查看來源"
+    assert message["target_panel"] == "provider-sla-panel"
+    assert message["target_tab"] == "ops"
+    assert plan["delivery_outbox"][0]["target_panel"] == "provider-sla-panel"
+
+
 def test_notification_plan_preserves_message_envelope_when_truthiness_fails():
     class BrokenTruthText:
         def __init__(self, value):
@@ -865,6 +1560,56 @@ def test_notification_plan_preserves_message_envelope_when_truthiness_fails():
     assert message["type"] == "manual_review"
     assert message["title"] == "TSM 報告需人工審核"
     assert message["detail"] == "內容可信度未通過。"
+
+
+def test_notification_plan_message_envelope_rejects_binary_and_boolean_text():
+    plan = build_daily_notification_plan(
+        {
+            "decision_queue": {
+                "items": [
+                    {
+                        "source": "watchlist",
+                        "type": True,
+                        "title": b"decoded title should not leak",
+                        "detail": memoryview(b"decoded detail should not leak"),
+                    }
+                ]
+            }
+        },
+        env={"TELEGRAM_BOT_TOKEN": "token", "TELEGRAM_CHAT_ID": "chat"},
+    )
+
+    message = plan["messages"][0]
+    assert message["type"] == "daily_status"
+    assert message["title"] == "今日決策狀態"
+    assert message["detail"] == ""
+    assert plan["delivery_outbox"][0]["type"] == "daily_status"
+    assert "detail" not in plan["delivery_outbox"][0]
+
+
+def test_notification_plan_message_envelope_trims_blank_fields_before_fallbacks():
+    plan = build_daily_notification_plan(
+        {
+            "decision_queue": {
+                "items": [
+                    {
+                        "source": "watchlist",
+                        "type": " \t ",
+                        "title": "\n  ",
+                        "detail": "  ",
+                    }
+                ]
+            }
+        },
+        env={},
+    )
+
+    message = plan["messages"][0]
+    assert message["type"] == "daily_status"
+    assert message["title"] == "今日決策狀態"
+    assert message["detail"] == ""
+    assert plan["delivery_outbox"][0]["type"] == "daily_status"
+    assert "detail" not in plan["delivery_outbox"][0]
 
 
 def test_notification_plan_adds_operator_cta_metadata():
@@ -939,6 +1684,38 @@ def test_notification_plan_preserves_operator_cta_when_truthiness_fails():
     message = plan["messages"][0]
     assert message["operator_action"] == "custom-action"
     assert message["operator_action_label"] == "自訂處理"
+
+
+def test_notification_plan_ignores_blank_custom_cta_and_target_metadata():
+    plan = build_daily_notification_plan(
+        {
+            "decision_queue": {
+                "items": [
+                    {
+                        "source": "report_repair",
+                        "type": "manual_review",
+                        "title": "TSM 報告需人工審核",
+                        "detail": "內容可信度未通過。",
+                        "operator_action": " \n ",
+                        "operator_action_label": "\t ",
+                        "target_panel": "  ",
+                        "target_tab": "\r\n",
+                    }
+                ]
+            }
+        },
+        env={},
+    )
+
+    message = plan["messages"][0]
+    assert message["operator_action"] == "view-report"
+    assert message["operator_action_label"] == "查看報告"
+    assert message["target_panel"] == "active-jobs-panel"
+    assert message["target_tab"] == "ops"
+    assert plan["delivery_outbox"][0]["operator_action"] == "view-report"
+    assert plan["delivery_outbox"][0]["operator_action_label"] == "查看報告"
+    assert plan["delivery_outbox"][0]["target_panel"] == "active-jobs-panel"
+    assert plan["delivery_outbox"][0]["target_tab"] == "ops"
 
 
 def test_notification_plan_adds_queue_rank_metadata():
@@ -1106,6 +1883,43 @@ def test_notification_plan_ignores_malformed_dedupe_overrides():
     assert all(entry["message_id"] == expected for entry in plan["delivery_outbox"])
 
 
+def test_notification_plan_preserves_dedupe_override_when_value_compares_equal_to_blank():
+    class BlankComparableIdentity:
+        def __init__(self, value):
+            self.value = value
+
+        def __eq__(self, other):
+            return other == ""
+
+        def __str__(self):
+            return self.value
+
+    plan = build_daily_notification_plan(
+        {
+            "decision_queue": {
+                "items": [
+                    {
+                        "source": "watchlist",
+                        "type": "run_watchlist",
+                        "title": "追蹤清單待分析",
+                        "detail": "需要建立報告。",
+                        "dedupe_key": BlankComparableIdentity("custom-dedupe"),
+                        "message_id": BlankComparableIdentity("custom-message"),
+                    }
+                ]
+            }
+        },
+        env={"TELEGRAM_BOT_TOKEN": "token", "TELEGRAM_CHAT_ID": "chat"},
+    )
+
+    message = plan["messages"][0]
+    assert message["dedupe_key"] == "custom-dedupe"
+    assert message["message_id"] == "custom-message"
+    assert all(entry["dedupe_key"] == "custom-dedupe" for entry in plan["delivery_outbox"])
+    assert all(entry["message_id"] == "custom-message" for entry in plan["delivery_outbox"])
+    assert all("custom-message" in entry["delivery_key"] for entry in plan["delivery_outbox"])
+
+
 def test_notification_plan_builds_delivery_outbox_for_enabled_channels():
     action = {
         "source": "provider_impact",
@@ -1229,6 +2043,105 @@ def test_notification_plan_enables_user_supplied_free_integrations():
     assert all(channel["cost_tier"] in {"free", "free_with_user_key"} for channel in plan["channels"])
 
 
+def test_notification_plan_external_channels_reject_binary_and_boolean_env_values():
+    plan = build_daily_notification_plan(
+        {
+            "decision_queue": {
+                "items": [
+                    {
+                        "source": "provider_impact",
+                        "type": "wait_provider_recovery",
+                        "title": "Provider degraded",
+                        "detail": "需要查看資料來源。",
+                    }
+                ]
+            }
+        },
+        env={
+            "SMTP_HOST": "smtp.example.test",
+            "SMTP_TO": b"me@example.test",
+            "TELEGRAM_BOT_TOKEN": True,
+            "TELEGRAM_CHAT_ID": "chat",
+            "DISCORD_WEBHOOK_URL": memoryview(b"https://discord.example/webhook"),
+            "SLACK_WEBHOOK_URL": bytearray(b"https://hooks.slack.example/webhook"),
+        },
+    )
+
+    channels = {channel["id"]: channel for channel in plan["channels"]}
+    assert [channel["id"] for channel in plan["channels"] if channel["enabled"]] == ["local"]
+    assert channels["email_smtp"]["missing_env"] == ["SMTP_TO"]
+    assert channels["telegram_webhook"]["missing_env"] == ["TELEGRAM_BOT_TOKEN"]
+    assert channels["discord_webhook"]["missing_env"] == ["DISCORD_WEBHOOK_URL"]
+    assert channels["slack_webhook"]["missing_env"] == ["SLACK_WEBHOOK_URL"]
+    assert plan["delivery_summary"]["enabled_channel_count"] == 1
+    assert [entry["channel_id"] for entry in plan["delivery_outbox"]] == ["local"]
+
+
+def test_notification_plan_external_channels_reject_arbitrary_stringlike_env_values():
+    class SyntheticEnvValue:
+        def __str__(self):
+            return "token"
+
+    plan = build_daily_notification_plan(
+        {
+            "decision_queue": {
+                "items": [
+                    {
+                        "source": "provider_impact",
+                        "type": "wait_provider_recovery",
+                        "title": "Provider degraded",
+                        "detail": "需要查看資料來源。",
+                    }
+                ]
+            }
+        },
+        env={
+            "SMTP_HOST": "smtp.example.test",
+            "SMTP_TO": SyntheticEnvValue(),
+            "TELEGRAM_BOT_TOKEN": SyntheticEnvValue(),
+            "TELEGRAM_CHAT_ID": "chat",
+            "DISCORD_WEBHOOK_URL": SyntheticEnvValue(),
+            "SLACK_WEBHOOK_URL": SyntheticEnvValue(),
+        },
+    )
+
+    channels = {channel["id"]: channel for channel in plan["channels"]}
+    assert [channel["id"] for channel in plan["channels"] if channel["enabled"]] == ["local"]
+    assert channels["email_smtp"]["missing_env"] == ["SMTP_TO"]
+    assert channels["telegram_webhook"]["missing_env"] == ["TELEGRAM_BOT_TOKEN"]
+    assert channels["discord_webhook"]["missing_env"] == ["DISCORD_WEBHOOK_URL"]
+    assert channels["slack_webhook"]["missing_env"] == ["SLACK_WEBHOOK_URL"]
+    assert plan["delivery_summary"]["enabled_channel_count"] == 1
+    assert [entry["channel_id"] for entry in plan["delivery_outbox"]] == ["local"]
+
+
+def test_notification_plan_external_channels_treat_malformed_env_as_missing():
+    plan = build_daily_notification_plan(
+        {
+            "decision_queue": {
+                "items": [
+                    {
+                        "source": "provider_impact",
+                        "type": "wait_provider_recovery",
+                        "title": "Provider degraded",
+                        "detail": "需要查看資料來源。",
+                    }
+                ]
+            }
+        },
+        env=object(),
+    )
+
+    channels = {channel["id"]: channel for channel in plan["channels"]}
+    assert [channel["id"] for channel in plan["channels"] if channel["enabled"]] == ["local"]
+    assert channels["email_smtp"]["missing_env"] == ["SMTP_HOST", "SMTP_TO"]
+    assert channels["telegram_webhook"]["missing_env"] == ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"]
+    assert channels["discord_webhook"]["missing_env"] == ["DISCORD_WEBHOOK_URL"]
+    assert channels["slack_webhook"]["missing_env"] == ["SLACK_WEBHOOK_URL"]
+    assert plan["delivery_summary"]["enabled_channel_count"] == 1
+    assert [entry["channel_id"] for entry in plan["delivery_outbox"]] == ["local"]
+
+
 def test_notification_plan_keeps_monitor_only_dashboard_quiet():
     plan = build_daily_notification_plan(
         {"actions": [{"type": "monitor", "title": "目前沒有急件", "detail": "保持每日追蹤。"}]},
@@ -1237,6 +2150,18 @@ def test_notification_plan_keeps_monitor_only_dashboard_quiet():
 
     assert plan["status"] == "quiet"
     assert plan["messages"] == []
+
+
+def test_notification_plan_suppresses_padded_monitor_type_before_message_filtering():
+    plan = build_daily_notification_plan(
+        {"actions": [{"type": " \t monitor \n", "title": "目前沒有急件", "detail": "保持每日追蹤。"}]},
+        env={},
+    )
+
+    assert plan["status"] == "quiet"
+    assert plan["messages"] == []
+    assert plan["delivery_outbox"] == []
+    assert plan["queue_context"]["total_actionable"] == 0
 
 
 def test_notification_plan_suppresses_notification_delivery_repair_actions():

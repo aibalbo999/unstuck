@@ -1325,6 +1325,39 @@ def test_source_audit_summary_uses_safe_prompt_field_conversion():
     assert summary["message"] == ""
 
 
+def test_source_audit_summary_uses_shared_text_safety_for_prompt_fields():
+    data = {
+        "ticker": "2892.TW",
+        "company_name": "第一金",
+        "recent_catalysts": [{"title": "SENT_CATALYST"}],
+        "source_audit": [
+            {
+                "source": True,
+                "provider": "bad-provider",
+                "status": "error",
+                "record_count": 1,
+            },
+            {
+                "source": "recent_catalysts",
+                "provider": True,
+                "status": b"bad-status",
+                "record_count": 1,
+                "cache_hit": False,
+                "stale": False,
+                "message": memoryview(b"bad-message"),
+            },
+        ],
+    }
+
+    payload = _payload_from_prompt(format_data_for_prompt(data))
+    summary_by_source = {entry["source"]: entry for entry in payload["source_audit_summary"]}
+
+    assert "True" not in summary_by_source
+    assert summary_by_source["recent_catalysts"]["provider"] == ""
+    assert summary_by_source["recent_catalysts"]["status"] == ""
+    assert summary_by_source["recent_catalysts"]["message"] == ""
+
+
 def test_source_audit_summary_keeps_root_source_data_mapping_when_accessor_fails():
     data = BrokenPromptSourceAuditRootGet(
         {

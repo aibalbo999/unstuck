@@ -5,6 +5,7 @@ from __future__ import annotations
 from html import escape
 from typing import Any
 
+from mapping_fields import safe_text, safe_text_list
 from pipeline_modes import normalize_pipeline_id
 
 
@@ -70,24 +71,24 @@ def get_report_template_profile(pipeline_id: Any = "v1") -> dict[str, Any]:
 
 
 def decision_markdown_heading(profile: dict[str, Any]) -> str:
-    heading = str(profile.get("decision_heading") or "最終投資建議")
-    if profile.get("template_id") == "mode_d_event_swing":
+    heading = _text(profile.get("decision_heading"), "最終投資建議")
+    if _text(profile.get("template_id"), "") == "mode_d_event_swing":
         return f"## {heading}"
     return f"## 🎯 {heading}"
 
 
 def summary_markdown_heading(profile: dict[str, Any]) -> str:
-    return f"## {profile.get('summary_heading') or '一頁式摘要'}"
+    return f"## {_text(profile.get('summary_heading'), '一頁式摘要')}"
 
 
 def build_mode_template_markdown(profile: dict[str, Any]) -> str:
-    visual_focus = "、".join(str(item) for item in profile.get("visual_focus", []) if item)
-    reading_path = " → ".join(str(item) for item in profile.get("reading_path", []) if item)
+    visual_focus = "、".join(_text_items(profile.get("visual_focus", [])))
+    reading_path = " → ".join(_text_items(profile.get("reading_path", [])))
     return "\n".join([
         "## 報告模板與閱讀路徑",
-        f"- **模板:** {profile.get('template_name', '模式模板')}",
-        f"- **適用受眾:** {profile.get('audience', 'N/A')}",
-        f"- **核心問題:** {profile.get('core_question', 'N/A')}",
+        f"- **模板:** {_text(profile.get('template_name'), '模式模板')}",
+        f"- **適用受眾:** {_text(profile.get('audience'), 'N/A')}",
+        f"- **核心問題:** {_text(profile.get('core_question'), 'N/A')}",
         f"- **視覺重點:** {visual_focus or 'N/A'}",
         f"- **閱讀路徑:** {reading_path or 'N/A'}",
     ])
@@ -95,32 +96,41 @@ def build_mode_template_markdown(profile: dict[str, Any]) -> str:
 
 def build_mode_template_html(profile: dict[str, Any]) -> str:
     chips = "".join(
-        f"<span>{escape(str(item))}</span>"
-        for item in profile.get("visual_focus", [])
-        if item
+        f"<span>{escape(item)}</span>"
+        for item in _text_items(profile.get("visual_focus", []))
     )
     path = "".join(
-        f"<li>{escape(str(item))}</li>"
-        for item in profile.get("reading_path", [])
-        if item
+        f"<li>{escape(item)}</li>"
+        for item in _text_items(profile.get("reading_path", []))
     )
     return f"""
-        <div class="mode-template-card" data-template-id="{escape(str(profile.get('template_id', '')))}">
+        <div class="mode-template-card" data-template-id="{escape(_text(profile.get('template_id'), ''))}">
             <div class="mode-template-head">
                 <span>報告模板與閱讀路徑</span>
-                <strong>{escape(str(profile.get('template_name', '模式模板')))}</strong>
+                <strong>{escape(_text(profile.get('template_name'), '模式模板'))}</strong>
             </div>
             <div class="mode-template-body">
                 <div>
                     <b>適用受眾</b>
-                    <p>{escape(str(profile.get('audience', 'N/A')))}</p>
+                    <p>{escape(_text(profile.get('audience'), 'N/A'))}</p>
                 </div>
                 <div>
                     <b>核心問題</b>
-                    <p>{escape(str(profile.get('core_question', 'N/A')))}</p>
+                    <p>{escape(_text(profile.get('core_question'), 'N/A'))}</p>
                 </div>
             </div>
             <div class="mode-template-chips">{chips}</div>
             <ol class="mode-template-path">{path}</ol>
         </div>
     """
+
+
+def _text(value: Any, default: str) -> str:
+    text = safe_text(value).strip()
+    if not text:
+        return default
+    return " ".join(line.strip() for line in text.splitlines() if line.strip())
+
+
+def _text_items(value: Any) -> list[str]:
+    return [text for item in safe_text_list(value) if (text := _text(item, ""))]

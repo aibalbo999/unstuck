@@ -2275,6 +2275,3124 @@ $(scripts/project_python.sh) -m pytest -q
 
 驗證：preflight `3 passed`、正式 `CI=1 RUN_VISUAL_REGRESSION=1 scripts/ci_gate.sh` 通過（`1745 passed, 4 skipped, 1 deselected`、coverage `84%`、visual regression `3 passed`）；direct `scripts/visual_regression.sh` `3 passed`；bash syntax、`git diff --check` 通過。
 
+## P3-484 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Pin Visual Regression Runtime Dependency`，把 visual setup 的 Python Playwright 套件固定為 `1.60.0`，並修正 preflight script 的 executable 權限，讓 README 的 direct diagnostic command 可以真的執行。
+
+落地檔案：
+
+- `scripts/setup_visual_regression.sh`：由浮動 `playwright` 改為固定 `playwright==1.60.0`，Chromium 仍由相同版本的 Playwright browser installer 準備。
+- `scripts/check_visual_regression.py`：保留既有 preflight 行為並設為可直接執行，支援 `--json` 診斷入口。
+- `README.md`、`tests/test_visual_regression_preflight.py`：補上固定版本、direct command 與 executable/ordering/runtime contract。
+
+已固定的行為：
+
+1. setup 不會因 PyPI 最新版變更而悄悄改變 Python Playwright API 或 browser compatibility。
+2. `scripts/check_visual_regression.py --json` 可直接啟動並回報 Chromium 狀態。
+3. 正式 CI 仍要求 image/setup step 預先準備 dependency，不在 gate 內自動安裝未經環境審核的 browser artifact。
+
+驗證：先以版本契約與 executable contract 建立 RED，再轉 GREEN；preflight `5 passed`，focused visual/document/supply-chain `152 passed`，正式 `CI=1 RUN_VISUAL_REGRESSION=1 scripts/ci_gate.sh` 通過（`1747 passed, 4 skipped, 1 deselected`、coverage `84%`、visual regression `3 passed`）；direct `scripts/check_visual_regression.py --json`、`scripts/visual_regression.sh`、bash syntax 與 `git diff --check` 通過。
+
+## P3-485 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Hash-Locked Visual Runtime and SBOM`，把 optional visual runtime 納入與 backend 相同的供應鏈可重現性與資產清單流程。
+
+落地檔案：
+
+- `scripts/visual_requirements.txt`、`scripts/visual_requirements.lock`：固定 Playwright `1.60.0` 及其 `greenlet`、`pyee`、`typing-extensions`，lock 內含跨平台 wheel hashes。
+- `scripts/setup_visual_regression.sh`：改用 `pip install --require-hashes -r scripts/visual_requirements.lock`。
+- `scripts/supply_chain_audit.py`：同時檢查 backend 與 visual source/lock，若 `pip-audit` 可用則對兩份 lock 執行掃描。
+- `scripts/ci_gate.sh`：在 coverage 前產生 `backend/cache/visual-sbom.cdx.json`。
+- `tests/test_visual_regression_preflight.py`、`tests/test_supply_chain_audit.py`：補上 lock coverage、hash、SBOM 與順序契約。
+
+已固定的行為：
+
+1. visual setup 不再讓 Playwright 的 transitive Python dependencies 隨最新版本漂移。
+2. CI 在測試前能發現 visual lock 漏包、缺 hash 或 SBOM wiring 遺失。
+3. Python package provenance 與 Chromium browser artifact 明確分層；後者仍由 image/setup step 管理，不假裝已完成 repository hash-lock。
+
+驗證：先以 setup lock、supply-chain coverage 與 visual SBOM contract 建立 RED，再轉 GREEN；setup script 實際安裝與 Chromium preflight 通過，focused visual/supply-chain `20 passed`，visual SBOM 實際輸出 CycloneDX `1.5` 並包含 4 個元件；正式 `CI=1 RUN_VISUAL_REGRESSION=1 scripts/ci_gate.sh` 通過（`1751 passed, 4 skipped, 1 deselected`、coverage `84%`、visual regression `3 passed`）；strict mypy、bash syntax、`git diff --check` 通過。`pip-audit` 因目前 runtime 未安裝而維持 skipped，這是明確剩餘風險。
+
+## P3-486 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Fail-Closed Vulnerability Audit and Dependency Remediation`，把漏洞掃描從 optional skipped 提升為隔離、可重現且缺少工具時會阻擋 gate 的品質門檻。
+
+落地檔案：
+
+- `scripts/security_requirements.txt`、`scripts/security_requirements.lock`：固定 `pip-audit==2.10.1` 及其完整 transitive dependencies/hashes，包含 unsafe `pip` pin。
+- `scripts/setup_security_audit.sh`、`.gitignore`：建立隔離 `.audit-venv`，避免 scanner 與 backend runtime 共享衝突版本。
+- `scripts/supply_chain_audit.py`：驗證三份 source/lock，使用隔離 scanner 掃描 runtime、visual、security lock；缺少 scanner 時回傳非零，僅明確 `SUPPLY_CHAIN_SKIP_PIP_AUDIT=1` 可跳過。
+- `scripts/ci_gate.sh`、`scripts/bootstrap_venv.sh`：在 audit 前準備隔離環境，bootstrap 不再把 security tool dependencies 裝入主 `.venv`。
+- `backend/requirements.txt`、`backend/requirements.lock`：加入修正版下限並重新生成 hash lock，修補本輪 scanner 發現的 aiohttp、cryptography、pytest、starlette 漏洞。
+- `tests/test_supply_chain_audit.py`：補上隔離環境、fail-closed、修正版下限與三份 lock contract。
+
+已固定的行為：
+
+1. 主 `.venv` 不會被 pip-audit 的 `requests`/`rich` 等 transitive dependency 覆寫。
+2. CI 先建立 scanner，再執行三份 lock 的漏洞掃描；缺少 scanner 不再產生假綠燈。
+3. backend 修正版依賴會進入 source constraint 與 hash lock，避免下一次重新 lock 時回到已知漏洞版本。
+
+驗證：先以 security toolchain/isolation 與 vulnerable-version regression 建立 RED，再轉 GREEN；`scripts/setup_security_audit.sh` 實際建立 `.audit-venv` 並輸出 `pip-audit 2.10.1`；三份 lock 均 `No known vulnerabilities found`；主 `.venv` 依 backend lock 安裝後 `pip check` 通過；focused supply-chain `17 passed`；正式 `CI=1 RUN_VISUAL_REGRESSION=1 scripts/ci_gate.sh` 通過（`1755 passed, 4 skipped, 1 deselected, 12 subtests passed`、coverage `84%`、visual regression `3 passed`）；strict mypy、SBOM、runtime doctor、bash syntax 與 `git diff --check` 通過。
+
+## P3-487 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Pin Browser Runtime Identity`，補上 Playwright Python package pin 與實際 Chromium binary 之間的可驗證契約。
+
+落地檔案：
+
+- `scripts/visual_browser_runtime.json`：記錄 Playwright `1.60.0`、Chromium revision `1223` 與 Chrome for Testing `148.0.7778.96`。
+- `scripts/check_visual_regression.py`：讀取 Playwright 內建 `browsers.json`，核對 package/catalog/manifest、`chromium-1223` install marker、executable path 與啟動後 browser version。
+- `tests/test_visual_regression_preflight.py`、`README.md`：補上 identity contract，並要求診斷命令使用 project Python，避免系統 Python 載入不同版本。
+
+已固定的行為：
+
+1. Playwright package 與實際 Chromium revision/version 不一致時，visual lane 會在 suite 前阻擋。
+2. browser cache 缺少 `INSTALLATION_COMPLETE` 或 executable 不在預期 revision 目錄時，preflight 會失敗並列出 setup remediation。
+3. 仍不把大型 browser binary 放進 repository；manifest guard 只承諾 identity/完整安裝，不冒充 binary hash-lock。
+
+驗證：先以 browser manifest 與 preflight payload 建立 RED，再轉 GREEN；project Python `check_visual_regression.py --json` 回報 revision `1223`、version `148.0.7778.96`，focused visual/docs `9 passed`；正式 CI gate、visual regression、runtime doctor、strict mypy、bash syntax 與 `git diff --check` 均於本輪收尾驗證。
+
+## P3-629 執行紀錄
+
+執行時間：2026-07-12
+
+完成 `Data Trust Scoring Shared Text Guard`，讓 `data_trust_scoring._safe_text()` 委派 shared `mapping_fields.safe_text()`，避免 source audit source key 繞過已加固的 shared text fail-closed 邊界。
+
+落地檔案：
+
+- `backend/data_trust_scoring.py`：本地 `_safe_text()` 改用 shared `safe_text()`，保留既有 caller 介面並收斂 source/status/note text conversion 行為。
+- `tests/test_data_trust.py`：新增 data trust scoring audit source regression，鎖住 malformed `source_audit[].source` 不再外洩成 `optional_source_error:True`、Python byte-literal 或 memory-address literal。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Data trust scoring audit source names use shared text conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D735 狀態紀錄。
+
+已固定的行為：
+
+1. `latest_audit_by_source()` 不再把 bool/binary/memory-view source keys 投影成合成來源名稱。
+2. Malformed source audit rows 不會污染 `reason_codes` 為 synthetic `optional_source_error:*`。
+3. 有效 core source audit rows 仍保留，讓 data trust status 與 `fresh_core_sources` 判斷維持既有語意。
+
+驗證：先以 `tests/test_data_trust.py::test_data_trust_scoring_uses_shared_text_safety_for_audit_source_names` 建立 RED，失敗為 malformed source 產生 `optional_source_error:*`；修正後 data trust 單測轉 GREEN。
+
+## P3-628 執行紀錄
+
+執行時間：2026-07-12
+
+完成 `Provider Impact Shared Text Guard`，讓 `provider_impact._safe_text()` 委派 shared `mapping_fields.safe_text()`，避免 provider recovery ledger 身分欄位繞過已加固的 shared text fail-closed 邊界。
+
+落地檔案：
+
+- `backend/provider_impact.py`：本地 `_safe_text()` 改用 shared `safe_text()`，保留既有 caller 介面並收斂轉換行為。
+- `tests/test_provider_impact.py`：新增 provider impact identity regression，鎖住 malformed `ticker`、`filename` 與 `pipeline_id` 不再外洩 `"True"`、Python byte-literal 或 memory-address literal。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Provider impact identity fields use shared text conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D734 狀態紀錄。
+
+已固定的行為：
+
+1. Provider impact ledger 自己產生的 `ticker`、`filename`、`report_filename`、`pipeline_id` 也吃 shared boolean/binary/memory-view text guards。
+2. Malformed primary `filename` 會降級後讓 valid `report_filename` alias 接手，避免 provider recovery action artifact identity 被 byte-literal 污染。
+3. `pipeline_id` malformed 時回到既有 `v1` fallback，而不是把 memory-address literal 暴露到 daily queue。
+
+驗證：先以 `tests/test_provider_impact.py::test_provider_impact_uses_shared_text_safety_for_report_identity_fields` 建立 RED，失敗為 `impact["ticker"] == "True"`；修正後 provider impact 單測轉 GREEN。
+
+## P3-627 執行紀錄
+
+執行時間：2026-07-12
+
+完成 `Report Quality Repair Queue Shared Text Guard`，讓 `report_quality_repair_queue._safe_text()` 委派 shared `mapping_fields.safe_text()`，避免 repair queue 身分欄位繞過已加固的 shared text fail-closed 邊界。
+
+落地檔案：
+
+- `backend/report_quality_repair_queue.py`：本地 `_safe_text()` 改用 shared `safe_text()`，保留既有 caller 介面並收斂轉換行為。
+- `tests/test_report_quality_repair_queue.py`：新增 repair queue identity regression，鎖住 malformed `ticker`、`filename` 與 `pipeline_id` 不再外洩 `"True"`、Python byte-literal 或 memory-address literal。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Report quality repair queue identity fields use shared text conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D733 狀態紀錄。
+
+已固定的行為：
+
+1. Repair queue 自己產生的 `ticker`、`filename`、`report_filename`、`pipeline_id` 也吃 shared boolean/binary/memory-view text guards。
+2. Malformed primary `filename` 會降級後讓 valid `report_filename` alias 接手，避免 artifact identity 被 byte-literal 污染。
+3. `pipeline_id` malformed 時回到既有 `v1` fallback，而不是把 memory-address literal 暴露到 operator queue。
+
+驗證：先以 `tests/test_report_quality_repair_queue.py::test_repair_queue_uses_shared_text_safety_for_report_identity_fields` 建立 RED，失敗為 `item["ticker"] == "True"`；修正後 repair queue 單測轉 GREEN。
+
+## P3-626 執行紀錄
+
+執行時間：2026-07-12
+
+完成 `Shared Text Memory View Input Guard`，讓 shared `mapping_fields.safe_text()` 將 `memoryview` 視為 malformed text input，而不是把 buffer view 字串化成含記憶體位址的不可重現字串。
+
+落地檔案：
+
+- `backend/mapping_fields.py`：`safe_text()` 在 string conversion 前攔截 `memoryview`，統一回傳空字串。
+- `tests/test_mapping_fields.py`：新增 memoryview text input regression，鎖住 `safe_text(memoryview(b"ticker"))` 降級為空字串。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Shared text conversion treats memory view values as malformed text input。
+- `docs/hcs-plus-optimization-state.md`：新增 D732 狀態紀錄。
+
+已固定的行為：
+
+1. Buffer-view payload drift 不再被 shared text conversion 變成 `<memory at 0x...>` 這類不穩定 literal。
+2. `bytes` / `bytearray` 與 `memoryview` 形成同一組 binary text fail-closed 邊界。
+3. 下游 queue、repair、audit 與 notification payload 的 text projection 不會暴露 memory-address 字串。
+
+驗證：先以 `tests/test_mapping_fields.py::test_safe_text_treats_memoryview_values_as_malformed_text_input` 建立 RED，失敗為 `safe_text(memoryview(b"ticker")) == "<memory at ...>"`；修正後 mapping helper 單測轉 GREEN。
+
+## P3-625 執行紀錄
+
+執行時間：2026-07-12
+
+完成 `Shared Text Binary Input Guard`，讓 shared `mapping_fields.safe_text()` 將 `bytes` 與 `bytearray` 視為 malformed text input，而不是把二進位 payload 字串化成 Python byte-literal。
+
+落地檔案：
+
+- `backend/mapping_fields.py`：`safe_text()` 在 string conversion 前攔截 `bytes` / `bytearray`，統一回傳空字串。
+- `tests/test_mapping_fields.py`：新增 binary text input regression，鎖住 `safe_text(b"ticker")` 與 `safe_text(bytearray(b"ticker"))` 都降級為空字串。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Shared text conversion treats binary values as malformed text input。
+- `docs/hcs-plus-optimization-state.md`：新增 D731 狀態紀錄。
+
+已固定的行為：
+
+1. Binary payload drift 不再被 shared text conversion 變成 `"b'...'"` 或 `bytearray(...)` 這類 Python literal。
+2. 一般可字串化的文字或識別欄位仍維持既有 conversion 行為。
+3. 下游 queue、repair、audit 與 notification payload 的 text projection 共享同一個 binary fail-closed 邊界。
+
+驗證：先以 `tests/test_mapping_fields.py::test_safe_text_treats_binary_values_as_malformed_text_input` 建立 RED，失敗為 `safe_text(b"ticker") == "b'ticker'"`；修正後 mapping helper 單測轉 GREEN。
+
+## P3-624 執行紀錄
+
+執行時間：2026-07-12
+
+完成 `Shared Text Boolean Input Guard`，讓 shared `mapping_fields.safe_text()` 將 bool 視為 malformed text input，而不是把 `True` / `False` 字串化成可見 payload。
+
+落地檔案：
+
+- `backend/mapping_fields.py`：`safe_text()` 在 string conversion 前攔截 `bool`，統一回傳空字串。
+- `tests/test_mapping_fields.py`：新增 boolean text input regression，鎖住 `safe_text(True)` 與 `safe_text(False)` 都降級為空字串。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Shared text conversion treats boolean values as malformed text input。
+- `docs/hcs-plus-optimization-state.md`：新增 D730 狀態紀錄。
+
+已固定的行為：
+
+1. Boolean payload drift 不再被 shared text conversion 變成 `"True"` / `"False"`。
+2. 其他可字串化的文字或識別欄位仍維持既有 conversion 行為。
+3. 下游 queue、repair、audit 與 notification payload 的 text projection 共享同一個 bool fail-closed 邊界。
+
+驗證：先以 `tests/test_mapping_fields.py::test_safe_text_treats_boolean_values_as_malformed_text_input` 建立 RED，失敗為 `safe_text(True) == "True"`；修正後 mapping helper 單測轉 GREEN。
+
+## P3-623 執行紀錄
+
+執行時間：2026-07-12
+
+完成 `Shared Integer Fractional Exact Numeric Input Guard`，讓 shared `mapping_fields.safe_int()` 將 fractional `Decimal` 與 `Fraction` 視為 malformed numeric input，而不是把 `Decimal("1.5")` 或 `Fraction(3, 2)` 靜默截斷成 synthetic `1`。
+
+落地檔案：
+
+- `backend/mapping_fields.py`：`safe_int()` 在 int conversion 前攔截 fractional `Decimal` / `Fraction`；整數值 exact numeric 例如 `Decimal("2.0")`、`Fraction(4, 2)` 仍可轉成 `2`。
+- `tests/test_mapping_fields.py`：新增 fractional exact numeric input regression，鎖住 `Decimal("1.5")` 與 `Fraction(3, 2)` 降級為 `0`，並保留整數值 exact numeric。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Shared integer conversion treats fractional exact numeric values as malformed numeric input。
+- `docs/hcs-plus-optimization-state.md`：新增 D729 狀態紀錄。
+
+已固定的行為：
+
+1. Fractional exact numeric 不再被 shared integer conversion 靜默截斷成 count/limit/attempt。
+2. 整數值 Decimal/Fraction、整數值 float、可轉整數字串與一般 int 行為維持明確。
+3. 下游 queue、repair、audit 與 observability numeric projection 共享同一個 exact-fractional fail-closed 邊界。
+
+驗證：先以 `tests/test_mapping_fields.py::test_safe_int_treats_fractional_exact_numeric_values_as_malformed_numeric_input` 建立 RED，失敗為 `safe_int(Decimal("1.5")) == 1`；修正後 mapping helper 單測轉 GREEN。
+
+## P3-622 執行紀錄
+
+執行時間：2026-07-12
+
+完成 `Shared Integer Fractional Float Input Guard`，讓 shared `mapping_fields.safe_int()` 將非整數 float 視為 malformed numeric input，而不是把 `1.5` 靜默截斷成 synthetic `1`。
+
+落地檔案：
+
+- `backend/mapping_fields.py`：`safe_int()` 在 int conversion 前攔截非整數 float，統一回傳 `0`；整數值 float 例如 `2.0` 仍可轉成 `2`。
+- `tests/test_mapping_fields.py`：新增 fractional float input regression，鎖住 `safe_int(1.5)` 與 `safe_int(-1.5)` 降級為 `0`，並保留 `safe_int(2.0) == 2`。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Shared integer conversion treats fractional float values as malformed numeric input。
+- `docs/hcs-plus-optimization-state.md`：新增 D728 狀態紀錄。
+
+已固定的行為：
+
+1. Fractional float 不再被 shared integer conversion 靜默截斷成 count/limit/attempt。
+2. 整數值 float、可轉整數字串、一般 int 與既有 bool fail-closed 行為維持明確。
+3. 下游 queue、repair、audit 與 observability numeric projection 共享同一個 fractional-float fail-closed 邊界。
+
+驗證：先以 `tests/test_mapping_fields.py::test_safe_int_treats_fractional_float_values_as_malformed_numeric_input` 建立 RED，失敗為 `safe_int(1.5) == 1`；修正後 mapping helper 單測轉 GREEN。
+
+## P3-621 執行紀錄
+
+執行時間：2026-07-12
+
+完成 `Shared Integer Boolean Input Guard`，讓 shared `mapping_fields.safe_int()` 將 bool 視為 malformed numeric input，而不是沿用 Python `bool` 是 `int` subclass 的語意把 `True` 轉成 synthetic `1`。
+
+落地檔案：
+
+- `backend/mapping_fields.py`：`safe_int()` 在 int conversion 前先攔截 `bool`，統一回傳 `0`。
+- `tests/test_mapping_fields.py`：新增 boolean input regression，鎖住 `safe_int(True)` 與 `safe_int(False)` 都降級為 `0`。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Shared integer conversion treats boolean values as malformed numeric input。
+- `docs/hcs-plus-optimization-state.md`：新增 D727 狀態紀錄。
+
+已固定的行為：
+
+1. `True` 不再被 shared integer conversion 誤收成 count/limit/attempt 的 `1`。
+2. 既有 `None`、可轉整數字串與一般 numeric input conversion 行為不變。
+3. 下游 queue、repair、audit 與 observability payload 的 numeric projection 共享同一個 bool fail-closed 邊界。
+
+驗證：先以 `tests/test_mapping_fields.py::test_safe_int_treats_boolean_values_as_malformed_numeric_input` 建立 RED，失敗為 `safe_int(True) == 1`；修正後 mapping helper 單測轉 GREEN。
+
+## P3-620 執行紀錄
+
+執行時間：2026-07-12
+
+完成 `Shared Mapping Unhashable Item Key Guard`，讓 shared `mapping_fields.safe_mapping_items()` 在 custom `.items()` 產生不可 hash 的 malformed key 時跳過該 item，避免 `safe_mapping_dict()` plain-dict normalization 被 list-like key 的 `TypeError` 中斷，並保留後續有效欄位。
+
+落地檔案：
+
+- `backend/mapping_fields.py`：在 item unpack 後、append 前以 `hash(key)` 驗證 key 可放入 dict；不可 hash 或 hash accessor 故障時跳過該 item。
+- `tests/test_mapping_fields.py`：新增 unhashable item key regression，鎖住 `.items()` 回傳 `(["bad"], "BROKEN")` 與 `("ticker", "NVDA")` 時，`safe_mapping_dict()` 只保留有效 ticker 欄位。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Shared mapping item conversion skips unhashable malformed item keys。
+- `docs/hcs-plus-optimization-state.md`：新增 D726 狀態紀錄。
+
+已固定的行為：
+
+1. 不可 hash 的 custom mapping item key 不再讓 shared mapping dict normalization 崩潰。
+2. 同一個 payload 中後續有效 key/value pair 仍會被保留，避免單筆 malformed metadata 擋掉整批 evidence。
+3. Dict subclass native copy、string-like malformed item pair skip 與 partial item preservation 行為不變。
+
+驗證：先以 `tests/test_mapping_fields.py::test_safe_mapping_dict_skips_unhashable_mapping_item_keys` 建立 RED，失敗為 `TypeError: unhashable type: 'list'`；修正後 mapping helper 單測轉 GREEN。
+
+## P3-619 執行紀錄
+
+執行時間：2026-07-12
+
+完成 `Shared Mapping Malformed String Item Pair Guard`，讓 shared `mapping_fields.safe_mapping_items()` 在 custom `.items()` 產生 string-like malformed item 時跳過該 item，避免 Python 將兩字元字串誤解包成 synthetic key/value 並污染 daily queue、report repair 或 notification audit payload。
+
+落地檔案：
+
+- `backend/mapping_fields.py`：在 item unpack 前排除 `str` / `bytes` / `bytearray` item，維持其他可解包 pair 的相容性。
+- `tests/test_mapping_fields.py`：新增 string-like malformed item regression，鎖住 `.items()` 回傳 `"ti"` 與 `("ticker", "NVDA")` 時只保留有效 ticker pair。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Shared mapping item conversion skips string-like malformed item pairs。
+- `docs/hcs-plus-optimization-state.md`：新增 D725 狀態紀錄。
+
+已固定的行為：
+
+1. 兩字元字串不再因 Python iterable unpack 語意被誤收成 mapping 欄位。
+2. 後續有效 item pair 仍會被保留，避免單筆畸形 metadata 擋掉整個 payload。
+3. Dict subclass native fallback、partial item preservation 與一般 Mapping `.items()` traversal 行為不變。
+
+驗證：先以 `tests/test_mapping_fields.py::test_safe_mapping_items_skips_string_like_malformed_item_pairs` 建立 RED，失敗為回傳 `[("t", "i"), ("ticker", "NVDA")]`；修正後 mapping helper 單測轉 GREEN。
+
+## P3-618 執行紀錄
+
+執行時間：2026-07-12
+
+完成 `Shared Mapping Partial Dict-Subclass Item Fallback Guard`，讓 shared `mapping_fields.safe_mapping_items()` 在 dict subclass 的自訂 `.items()` iterator 已吐出有效欄位後才中途故障、且 native `dict.items()` fallback 為空時，保留已解析 partial evidence，而不是把結果重設成空清單。
+
+落地檔案：
+
+- `backend/mapping_fields.py`：iterator failure 分支改為先收集 native dict items；只有 native fallback 有資料時才取代 partial items，否則回傳目前已解析的 item pairs。
+- `tests/test_mapping_fields.py`：新增 partial dict subclass regression，鎖住 custom `.items()` 先吐出 `("ticker", "NVDA")` 後故障、但 native backing 為空時，仍保留該欄位。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Shared mapping item conversion preserves partial dict-subclass items when native fallback is empty。
+- `docs/hcs-plus-optimization-state.md`：新增 D724 狀態紀錄。
+
+已固定的行為：
+
+1. 空的 native dict fallback 不再擦掉 custom `.items()` iterator 先前已成功解析的欄位。
+2. 當 native dict fallback 有資料時，仍優先使用 native full backing，維持 D716 對 dict subclass partial item failure 的修復方向。
+3. 非 dict Mapping 與完全 malformed item wrappers 仍維持既有 fail-closed / partial-preserving 行為。
+
+驗證：先以 `tests/test_mapping_fields.py::test_safe_mapping_items_preserves_partial_dict_subclass_items_when_native_backing_is_empty` 建立 RED，失敗為回傳 `[]`；修正後 mapping helper 單測轉 GREEN。
+
+## P3-617 執行紀錄
+
+執行時間：2026-07-12
+
+完成 `Shared Mapping Safely Empty Mapping Normalization Guard`，讓 shared `mapping_fields.safe_mapping_dict()` 能把可安全確認為空的非 dict `Mapping` wrapper 正規化成 plain `{}`，避免合法空 metadata 被誤當成 malformed mapping `None`。
+
+落地檔案：
+
+- `backend/mapping_fields.py`：一般 `Mapping` 分支在 `safe_mapping_items()` 無結果時，會嘗試安全讀取 `len(value)`；只有 `len(value) == 0` 時回傳 `{}`，其他讀取失敗或非空但無法列舉的 mapping 仍回 `None`。
+- `tests/test_mapping_fields.py`：新增 empty mapping wrapper regression，鎖住 `keys()` / `__iter__()` 故障但 `len() == 0` 且 `.items()` 為空時，仍輸出 plain `{}`。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Shared mapping dict conversion preserves safely empty Mapping wrappers as plain empty dicts。
+- `docs/hcs-plus-optimization-state.md`：新增 D723 狀態紀錄。
+
+已固定的行為：
+
+1. 空的 non-dict Mapping wrapper 與壞掉的 non-dict Mapping wrapper 不再都落到 `None`。
+2. 只有能安全確認 `len(value) == 0` 的 mapping 會輸出 `{}`；不可安全判斷或有欄位但不可列舉的 mapping 仍維持 fail-closed。
+3. Dict subclass plain-copy、general Mapping items traversal 與 malformed mapping isolation 行為不變。
+
+驗證：先以 `tests/test_mapping_fields.py::test_safe_mapping_dict_normalizes_empty_mapping_wrappers_to_plain_dict` 建立 RED，失敗為回傳 `None`；修正後 mapping helper 單測轉 GREEN。
+
+## P3-616 執行紀錄
+
+執行時間：2026-07-12
+
+完成 `Shared Mapping General Mapping Item Traversal Guard`，讓 shared `mapping_fields.safe_mapping_dict()` 對非 dict 的 `Mapping` wrapper 也能優先走 safe `.items()` traversal；當 mapping 的 `keys()` 或 `__iter__()` accessor 故障、但 `.items()` 可讀時，仍保留 payload 欄位並輸出 plain dict。
+
+落地檔案：
+
+- `backend/mapping_fields.py`：`safe_mapping_dict()` 的一般 `Mapping` 分支改用 `safe_mapping_items(value)` 建立 plain dict copy，不再直接 `dict(value)`。
+- `tests/test_mapping_fields.py`：新增 `ItemsOnlyMapping` regression，鎖住 `.items()` 可讀但 `keys()` / `__iter__()` 會拋錯時，仍能回傳 `{"ticker": "TSM", "priority_score": 880}`。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Shared mapping dict conversion uses mapping-item traversal when mapping key iteration fails。
+- `docs/hcs-plus-optimization-state.md`：新增 D722 狀態紀錄。
+
+已固定的行為：
+
+1. 非 dict 的 `Mapping` wrapper 不再因 `dict(value)` 走到壞掉的 `keys()` 或 `__iter__()` 而被整筆降級為 `None`。
+2. 一般 Mapping 的欄位複製沿用 `safe_mapping_items()` 的 item unpack / iterator failure 隔離，與 dict subclass native copy guard 對齊。
+3. 無可讀 `.items()` 的 malformed Mapping 仍回傳 `None`，讓上層 fail closed 或跳過單筆 entry。
+
+驗證：先以 `tests/test_mapping_fields.py::test_safe_mapping_dict_uses_mapping_items_when_mapping_keys_fail` 建立 RED，失敗為 `None`；修正後 mapping helper 單測轉 GREEN。
+
+## P3-615 執行紀錄
+
+執行時間：2026-07-12
+
+完成 `Shared Mapping Dict Subclass Plain Dict Normalization Guard`，讓 shared `mapping_fields.safe_mapping_dict()` 對 dict subclass 回傳真正的 plain dict copy，避免自訂 mapping wrapper 外溢到 daily queue、report repair、notification delivery audit 或其他 JSON-facing payload。
+
+落地檔案：
+
+- `backend/mapping_fields.py`：`safe_mapping_dict()` 對 dict / dict subclass 以 base `dict.items(value)` 讀取 native entries，再建立 plain dict；這避開覆寫失敗的 `items()`、`keys()` 或 `__iter__()` accessor，並讓呼叫端拿到標準 `dict`。
+- `tests/test_mapping_fields.py`：新增 shared helper regression，鎖住 dict subclass 同時覆寫 `items()`、`keys()`、`__iter__()` 且皆失敗時，仍能回傳 `type(result) is dict` 並保留底層欄位。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Shared mapping dict conversion normalizes dict subclasses to plain dict copies。
+- `docs/hcs-plus-optimization-state.md`：新增 D721 狀態紀錄。
+
+已固定的行為：
+
+1. Dict subclass row 不再因 helper 直接回傳原物件而把 custom wrapper 留在 API/audit payload 中。
+2. 覆寫且故障的 `items()`、`keys()`、`__iter__()` 不會阻止底層 native dict 欄位被複製。
+3. 一般 `Mapping` 仍走既有安全轉換；無法正規化的 mapping 仍回傳 `None`，讓呼叫端 fail closed 或跳過單筆 entry。
+
+驗證：先以 `tests/test_mapping_fields.py::test_safe_mapping_dict_normalizes_dict_subclasses_to_plain_dict` 建立 RED，失敗為回傳 `BrokenAccessorDict` 原型別；修正後單測轉 GREEN。
+
+## P3-614 執行紀錄
+
+執行時間：2026-07-12
+
+完成 `Notification Delivery Audit Context Partial Sequence Metadata Preservation Guard`，讓 notification delivery audit context 在 optional sequence metadata list/tuple subclass custom iterator 已吐出有效項目後故障、但 native backing list 為空時，仍保留已解析 metadata，避免 persisted context 丟失 `related_reports` 這類 sender triage evidence。
+
+落地檔案：
+
+- `backend/mapping_fields.py`：`safe_sequence_items()` 遇到 list/tuple subclass iterator 中途故障時，會先嘗試 native list/tuple iterator；只有 native sequence 有項目時才替換 partial stream，避免空 native backing 清掉已解析項目。
+- `backend/notification_delivery_audit_context.py`：`context_json_from_outbox()` 不再於 JSON-safe normalization 前用 `_present()` 預先過濾 metadata，讓 sequence wrapper 可先被 `safe_sequence_items()` 正規化，再由 normalized 結果決定是否為 empty collection。
+- `tests/test_notification_delivery_audit.py`：新增 partial sequence metadata regression，鎖住 custom list wrapper 先吐出 `nvda_invalid_snapshot.html` 後故障且 native backing 為空時，persisted audit context 仍保留 `related_reports`。
+- `docs/api.md`、`docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 Notification delivery audit context partial sequence metadata is normalized before empty collection filtering。
+- `docs/hcs-plus-optimization-state.md`：新增 D720 狀態紀錄。
+
+已固定的行為：
+
+1. Optional sequence metadata 不再因 wrapper native backing list 為空而在 normalization 前被誤判為 empty collection。
+2. `safe_sequence_items()` 保留一般 custom iterator 已解析的 partial evidence；只有 native fallback 有內容時才用 native items 重跑。
+3. 既有空集合清理、whitespace-only metadata 清理、non-finite numeric 清理、reason_codes text-list normalization 行為不變。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_context_preserves_partial_sequence_metadata_when_native_backing_is_empty` 建立 RED，失敗為 persisted context 缺少 `related_reports`；修正後單測轉 GREEN。
+
+## P3-613 執行紀錄
+
+執行時間：2026-07-12
+
+完成 `Daily Decision Queue Report Repair Reason Code Partial Iterator Fallback Guard`，讓 daily decision queue 在 report repair `reason_codes` list/tuple subclass custom iterator 中途故障時，仍能回到 native text-list items 讀取完整 reason codes，避免 operator action、notification message 與 delivery audit context 只保留第一個 blocked-repair cause。
+
+落地檔案：
+
+- `backend/mapping_fields.py`：`safe_text_list()` 遇到 list/tuple subclass custom iterator 中途故障時，會嘗試 native list/tuple iterator；只有 native text list 有有效文字時才替換 partial stream，避免清空一般 iterator 已解析 evidence。
+- `tests/test_daily_decision_queue.py`：新增 report repair reason-code partial iterator regression，鎖住 custom iterator 先吐出 `data_snapshot_integrity_invalid` 後故障時，仍保留 native list 裡後續 `data_trust_stale` reason code。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue report repair reason code partial iterator failures fall back to native text-list items。
+- `docs/hcs-plus-optimization-state.md`：新增 D719 狀態紀錄。
+
+已固定的行為：
+
+1. Report repair reason-code list wrapper 中途故障時，不再只保留故障前的 partial blocked-repair cause。
+2. Native text-list fallback 只在 native list/tuple 能提供有效文字時替換 partial stream，保留一般 iterator 的 partial-preservation 語意。
+3. 既有 malformed string omission、tuple support、first-next fallback、notification_plan reason_codes preservation 行為不變。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_report_repair_reason_codes_partial_iterator_failures_use_remaining_native_items` 建立 RED，失敗為只輸出 `data_snapshot_integrity_invalid`；修正後單測轉 GREEN。
+
+## P3-612 執行紀錄
+
+執行時間：2026-07-12
+
+完成 `Daily Decision Queue Report Repair Partial Iterator Fallback Guard`，讓 daily decision queue 在 `repair_items` list/tuple subclass custom iterator 中途故障時，仍能回到 native dict-list items 讀取完整 repair rows，避免 operator queue 只顯示第一筆 report repair、漏掉後續有效修復項。
+
+落地檔案：
+
+- `backend/mapping_fields.py`：`safe_dict_list()` 遇到 list/tuple subclass custom iterator 中途故障時，改用 native list/tuple iterator 重跑，並丟棄不完整 partial stream。
+- `tests/test_daily_decision_queue.py`：新增 report repair partial iterator regression，鎖住 custom iterator 先吐出 `2330_corrupt.html` 後故障時，仍保留 native list 裡後續 `2317_stale.html` repair item。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue report repair partial iterator failures fall back to native dict-list items。
+- `docs/hcs-plus-optimization-state.md`：新增 D718 狀態紀錄。
+
+已固定的行為：
+
+1. Report repair collection wrapper 中途故障時，不再只保留故障前的 partial repair action。
+2. Native dict-list fallback 會重新讀取底層 list/tuple items，避免 partial stream 與 native fallback 重複列出同一 repair row。
+3. 既有 report repair priority、reason_codes、blocks_auto_rerun 與 filename/report_filename payload 行為不變。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_report_repair_partial_iterator_failures_use_remaining_native_items` 建立 RED，失敗為 `summary.sources.report_repair = 1`；修正後單測轉 GREEN。
+
+## P3-611 執行紀錄
+
+執行時間：2026-07-12
+
+完成 `Daily Decision Queue Notification Delivery Attention Context Partial Iterator Fallback Guard`，讓 notification delivery repair action 在 `attention_contexts` list/tuple subclass custom iterator 中途故障時，仍能回到 native sequence items 讀取完整 affected context，避免 operator 只看到第一筆 ticker/report/CTA、漏掉後續受影響項目。
+
+落地檔案：
+
+- `backend/mapping_fields.py`：`safe_sequence_items()` 遇到 list/tuple subclass custom iterator 中途故障時，改用 native list/tuple iterator 重跑，並丟棄不完整 partial stream。
+- `tests/test_daily_decision_queue.py`：新增 attention context partial iterator regression，鎖住 custom iterator 先吐出 `NVDA` 後故障時，仍保留 native list 裡後續 `TSM` context。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue notification delivery attention context partial iterator failures fall back to native sequence items。
+- `docs/hcs-plus-optimization-state.md`：新增 D717 狀態紀錄。
+
+已固定的行為：
+
+1. Attention context list wrapper 中途故障時，不再只保留故障前的 partial context。
+2. Native sequence fallback 會重新讀取底層 list/tuple items，避免 partial stream 與 native fallback 重複列出同一 context。
+3. 既有 tuple payload preservation、nested mapping normalization 與 failure reason detail rendering 行為不變。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_notification_delivery_attention_contexts_partial_iterator_failures_use_remaining_native_items` 建立 RED，失敗為 `attention_contexts` 只保留 `NVDA`；修正後單測轉 GREEN。
+
+## P3-610 執行紀錄
+
+執行時間：2026-07-12
+
+完成 `Daily Decision Queue Notification Delivery Failure Reason Partial Item Fallback Guard`，讓 notification delivery repair action 在 failure reason map 的 custom `.items()` 迭代中途故障時，仍能回到 dict subclass 的 native items 讀取完整 reason buckets，避免 operator detail 只顯示故障前的 partial timeout/auth/network 摘要。
+
+落地檔案：
+
+- `backend/mapping_fields.py`：`safe_mapping_items()` 遇到 dict subclass custom iterator 中途故障時，改用 `dict.items(value)` 重新走 native items，並丟棄不完整 partial stream。
+- `tests/test_daily_decision_queue.py`：新增 partial item failure regression，鎖住 `.items()` 先吐出 `timeout` 後故障時，仍保留 native dict 裡後續 `network` bucket。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue notification delivery failure reason partial item failures fall back to native dict items。
+- `docs/hcs-plus-optimization-state.md`：新增 D716 狀態紀錄。
+
+已固定的行為：
+
+1. Failure reason detail 不會因 custom `.items()` 中途故障，只保留故障前的 partial reason summary。
+2. Native dict fallback 會重新讀取底層 dict items，避免同一 bucket 被 partial stream 與 native fallback 重複計算。
+3. 既有 duplicate bucket aggregation、canonical low-cardinality bucket gate、count validation 與 raw `failure_reason_counts` payload 保留行為不變。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_notification_delivery_failure_reason_partial_item_failures_use_remaining_native_items` 建立 RED，失敗為 `detail` 只輸出 `reason=timeout 1`；修正後單測轉 GREEN。`tests/test_daily_decision_queue.py` 為 `96 passed`，`tests/test_docs_contract.py` 為 `68 passed`。
+
+## P3-609 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Notification Delivery Failure Reason Duplicate Bucket Aggregation Guard`，讓 notification delivery repair action 在產生 failure reason detail 時，先把 normalized canonical reason bucket 加總，再輸出 operator summary，避免 casing 或 whitespace drift 讓同一個 timeout/network bucket 重複出現。
+
+落地檔案：
+
+- `backend/daily_decision_queue_notifications.py`：新增 `_reason_summary_item()` 並讓 `_notification_delivery_detail()` 以 insertion-order totals 聚合 canonical bucket；`_safe_positive_count()` 回傳 int，讓 count aggregation 不依賴已格式化文字。
+- `tests/test_daily_decision_queue.py`：新增 duplicate bucket regression，鎖住 ` TIMEOUT ` + `timeout`、`Network` + `network` 會合併為 `timeout 5`、`network 5`。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue notification delivery failure reason duplicate buckets are aggregated in reason detail。
+- `docs/hcs-plus-optimization-state.md`：新增 D715 狀態紀錄。
+
+已固定的行為：
+
+1. Operator-facing reason detail 不再重複顯示同一 canonical bucket。
+2. Reason bucket 的首次出現順序保留，後續同 bucket 只累加 count。
+3. Raw `failure_reason_counts` payload 仍保留原始 key/value，避免本地 triage 資料被 detail rendering 提早丟棄。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_notification_delivery_failure_reason_duplicate_buckets_are_aggregated` 建立 RED，失敗為 `detail` 輸出 `reason=timeout 3, timeout 2, network 4, network 1, other 2`；修正後單測與 docs contract 已轉 GREEN。`tests/test_daily_decision_queue.py` 為 `95 passed`，`tests/test_docs_contract.py` 為 `68 passed`，`tests/test_hcs_plus_state.py` 為 `67 passed`；最終 focused queue/docs/HCS/import 驗證 `284 passed`。
+
+## P3-608 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Notification Delivery Failure Reason Raw Key Omission Guard`，讓 notification delivery repair action 在產生 failure reason detail 時，只顯示 canonical low-cardinality reason bucket，避免 raw exception 字串或非標準 sender audit reason key 直接外洩到 operator detail。
+
+落地檔案：
+
+- `backend/daily_decision_queue_notifications.py`：新增 `_FAILURE_REASON_BUCKETS`，讓 `_safe_reason_text()` 只輸出 `timeout`、`auth`、`rate_limited`、`configuration`、`network`、`other`、`unknown`，並正規化大小寫與周邊空白。
+- `tests/test_daily_decision_queue.py`：新增 raw reason key regression，鎖住 `TimeoutError(...)` 與 `smtp_auth_error` 不進 `detail`，但 ` TIMEOUT `、`network` 與 `other` 仍保留為 canonical bucket。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue notification delivery failure reason raw keys are omitted from reason detail。
+- `docs/hcs-plus-optimization-state.md`：新增 D714 狀態紀錄。
+
+已固定的行為：
+
+1. Operator-facing failure reason detail 只呈現低基數 bucket，不直接顯示 raw exception 或 sender-specific reason string。
+2. Raw `failure_reason_counts` payload 仍保留給本地 triage，避免丟失診斷資料。
+3. Canonical bucket 的大小寫與周邊空白會正規化，讓 upstream casing drift 不會造成有效 bucket 消失。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_notification_delivery_failure_reason_raw_keys_do_not_emit_reason_detail` 建立 RED，失敗為 `detail` 輸出 `reason=TimeoutError('smtp timeout') 2, smtp_auth_error 1, TIMEOUT 3, network 4, other 5`；修正後單測與 docs contract 已轉 GREEN。`tests/test_daily_decision_queue.py` 為 `94 passed`，`tests/test_docs_contract.py` 為 `68 passed`，`tests/test_hcs_plus_state.py` 為 `67 passed`；最終 focused queue/docs/HCS/import 驗證 `283 passed`。
+
+## P3-607 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Notification Delivery Failure Reason Malformed Key Omission Guard`，讓 notification delivery repair action 在產生 failure reason detail 時，只渲染非空白字串 reason bucket，避免 boolean、numeric 或 blank sender audit reason key 變成 `reason=True 2`、`7 3` 或 synthetic `unknown 1` 摘要。
+
+落地檔案：
+
+- `backend/daily_decision_queue_notifications.py`：新增 `_safe_reason_text()`，讓 `_reason_summary_part()` 在 reason key 不是非空白字串時略過該片段。
+- `tests/test_daily_decision_queue.py`：新增 malformed reason key regression，鎖住 non-string 與 blank key 不進 `detail`，但明確字串 bucket `network` 與 `unknown` 仍保留。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue notification delivery failure reason malformed keys are omitted from reason detail。
+- `docs/hcs-plus-optimization-state.md`：新增 D713 狀態紀錄。
+
+已固定的行為：
+
+1. Failure reason detail 只顯示明確的字串 bucket，避免 operator 看到非低基數分類。
+2. Explicit `"unknown"` bucket 仍可顯示；空白 key 不再被自動改寫成 `unknown`，避免把 malformed key 誤導成真 bucket。
+3. Payload 的 `failure_reason_counts` 原始 map 仍保留給本地 triage；本票只修正 human detail rendering。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_notification_delivery_failure_reason_malformed_keys_do_not_emit_reason_detail` 建立 RED，失敗為 `detail` 輸出 `reason=True 2, 7 3, unknown 1, network 4, unknown 5`；修正後單測與 docs contract 已轉 GREEN。`tests/test_daily_decision_queue.py` 為 `93 passed`，`tests/test_docs_contract.py` 為 `68 passed`，`tests/test_hcs_plus_state.py` 為 `67 passed`；最終 focused queue/docs/HCS/import 驗證 `282 passed`。
+
+## P3-606 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Notification Delivery Failure Reason Fractional Count Omission Guard`，讓 notification delivery repair action 在產生 failure reason detail 時，遇到 fractional numeric count 不再被 Python `int()` 靜默截斷後顯示成 active reason 摘要，避免 operator 將 `1.7`、`Decimal("1.5")` 或 `Fraction(3, 2)` 誤判為有效 sender audit count。
+
+落地檔案：
+
+- `backend/daily_decision_queue_notifications.py`：`_safe_positive_count_text()` 對非字串 numeric count 要求 value 等於自身整數值，並將整數值 numeric count 正規化為整數文字。
+- `tests/test_daily_decision_queue.py`：新增 fractional failure reason count regression，鎖住 float、Decimal 與 Fraction 小數不會出現在 `detail`，但 `Decimal("2.0")`、`Fraction(4, 1)` 與 `"5"` 仍保留。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue notification delivery failure reason fractional counts are omitted from reason detail。
+- `docs/hcs-plus-optimization-state.md`：新增 D712 狀態紀錄。
+
+已固定的行為：
+
+1. Failure reason count 若是 fractional numeric，不會進入 operator-facing `detail`。
+2. Integral numeric count 會以整數文字呈現，避免 `2.0` 這類格式看起來像非 count 值。
+3. 字串整數與 P3-602 的 custom integer fallback 行為不變；本票只修正 Python numeric truncation 邊界。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_notification_delivery_failure_reason_fractional_counts_do_not_emit_reason_detail` 建立 RED，失敗為 `detail` 輸出 `reason=timeout 1.7, auth 1.5, rate_limited 3/2, network 2.0, configuration 4, other 5`；修正後單測與 docs contract 已轉 GREEN。`tests/test_daily_decision_queue.py` 為 `92 passed`，`tests/test_docs_contract.py` 為 `68 passed`，`tests/test_hcs_plus_state.py` 為 `67 passed`；最終 focused queue/docs/HCS/import 驗證 `281 passed`。
+
+## P3-605 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Notification Delivery Failure Reason Boolean Count Omission Guard`，讓 notification delivery repair action 在產生 failure reason detail 時，遇到 boolean count 不再因 Python `bool` 是 `int` subclass 而被當成 active count 顯示，避免 operator 看到 `reason=timeout True` 這種非數量摘要。
+
+落地檔案：
+
+- `backend/daily_decision_queue_notifications.py`：`_safe_positive_count_text()` 明確排除 boolean count，只讓真正的 positive numeric count 進入 reason detail。
+- `tests/test_daily_decision_queue.py`：新增 boolean failure reason count regression，鎖住 `timeout: True` 與 `auth: False` 不會出現在 `detail`，但 `network: 2` 仍保留。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue notification delivery failure reason boolean counts are omitted from reason detail。
+- `docs/hcs-plus-optimization-state.md`：新增 D711 狀態紀錄。
+
+已固定的行為：
+
+1. Failure reason count 若是 boolean flag，不會進入 operator-facing `detail`。
+2. Payload 的 `failure_reason_counts` 仍保留原始 map，避免本地 triage 資料被 detail rendering 提早丟棄。
+3. P3-602 的正數 integer fallback、P3-603 的不可恢復 count omission 與 P3-604 的非正數 omission 行為不變；本票只修正 boolean 被誤認為 count 的 Python 邊界。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_notification_delivery_failure_reason_boolean_counts_do_not_emit_reason_detail` 建立 RED，失敗為 `detail` 輸出 `reason=timeout True, network 2`；修正後單測與 docs contract 已轉 GREEN。`tests/test_daily_decision_queue.py` 為 `91 passed`，`tests/test_docs_contract.py` 為 `68 passed`，`tests/test_hcs_plus_state.py` 為 `67 passed`；最終 focused queue/docs/HCS/import 驗證 `280 passed`。
+
+## P3-604 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Notification Delivery Failure Reason Non-positive Count Omission Guard`，讓 notification delivery repair action 在產生 failure reason detail 時，遇到 0 或負數 count 不再輸出為 active reason 摘要，避免 operator 誤判 timeout/auth 仍有有效待修原因。
+
+落地檔案：
+
+- `backend/daily_decision_queue_notifications.py`：新增 `_safe_positive_count_text()`，讓 `_reason_summary_part()` 只輸出 positive reason count。
+- `tests/test_daily_decision_queue.py`：新增 non-positive failure reason count regression，鎖住 `timeout: 0` 與 `auth: -1` 不會出現在 `detail`，但 `network: 2` 仍保留。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue notification delivery failure reason non-positive counts are omitted from reason detail。
+- `docs/hcs-plus-optimization-state.md`：新增 D710 狀態紀錄。
+
+已固定的行為：
+
+1. Failure reason count 必須能轉成正整數才會進入 operator-facing `detail`。
+2. Payload 的 `failure_reason_counts` 仍保留原始 map，避免診斷資料被提早丟棄。
+3. P3-602 的正數 integer fallback 與 P3-603 的不可恢復 count omission 行為不變；本票只收緊 0 與負數 detail rendering。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_notification_delivery_failure_reason_non_positive_counts_do_not_emit_reason_detail` 建立 RED，失敗為 `detail` 輸出 `reason=timeout 0, auth -1, network 2`；修正後單測與 docs contract 已轉 GREEN。`tests/test_daily_decision_queue.py` 為 `90 passed`，`tests/test_docs_contract.py` 為 `68 passed`，`tests/test_hcs_plus_state.py` 為 `67 passed`；最終 focused queue/docs/HCS/import 驗證 `279 passed`。
+
+## P3-603 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Notification Delivery Failure Reason Unrenderable Count Omission Guard`，讓 notification delivery repair action 在產生 failure reason detail 時，遇到 count value 文字化與整數化都不可用，不再產生 `reason=... 0` 這種看似有資料、實際是 fallback 的摘要。
+
+落地檔案：
+
+- `backend/daily_decision_queue_notifications.py`：`_reason_summary_part()` 在 count value 無法 string-safe 或 integer-safe rendering 時回傳空片段；`_notification_delivery_detail()` 組裝 reason summary 時略過空片段。
+- `tests/test_daily_decision_queue.py`：新增 unrenderable failure reason count regression，鎖住不可恢復 count 不會在 `detail` 產生 `reason=timeout 0`。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue notification delivery failure reason unrenderable counts are omitted from reason detail。
+- `docs/hcs-plus-optimization-state.md`：新增 D709 狀態紀錄。
+
+已固定的行為：
+
+1. Failure reason count 若文字化與整數化都失敗，該 reason 不會出現在 `detail`，避免誤導 operator 以為 timeout/auth count 為 0。
+2. 若同一 reason map 中還有其他可 render 的 item，其他 item 仍會保留在 reason summary。
+3. P3-602 的可整數化 fallback 行為不變；本票只處理不可恢復 count。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_notification_delivery_failure_reason_unrenderable_counts_do_not_emit_zero_reason` 建立 RED，失敗為 `detail` 輸出 `reason=timeout 0`；修正後單測與 docs contract 已轉 GREEN。`tests/test_daily_decision_queue.py` 為 `89 passed`，最終 focused queue/docs/HCS/import 驗證 `278 passed`。
+
+## P3-602 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Notification Delivery Failure Reason Count Rendering Guard`，讓 notification delivery repair action 在產生 failure reason detail 時，遇到 reason count value 的文字化故障但整數化可用，仍能保留 timeout/auth reason summary，避免操作者第一眼只看到 base failed/exhausted counts。
+
+落地檔案：
+
+- `backend/daily_decision_queue_notifications.py`：新增 `_reason_summary_part()`，對 reason key 做 string-safe rendering，對 count value 先 string-safe rendering、失敗時回退 `_int()`。
+- `tests/test_daily_decision_queue.py`：新增 failure reason count value rendering regression，鎖住 `__str__()` 故障但 `__int__()` 可用時仍輸出 `reason=timeout 2`。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue notification delivery failure reason count values fall back to integer-safe rendering。
+- `docs/hcs-plus-optimization-state.md`：新增 D708 狀態紀錄。
+
+已固定的行為：
+
+1. Failure reason count value 若文字化失敗但 `int()` 可用，queue item `detail` 仍會保留對應 reason count。
+2. Reason key 文字化失敗時會使用 `unknown`，不中斷其他可用 reason item rendering。
+3. P3-600 的 native dict item fallback 行為不變；本票處理 item value rendering。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_notification_delivery_failure_reason_values_use_integer_fallback` 建立 RED，失敗為 `detail` 只輸出 `failed=2, exhausted=0`；修正後單測與 docs contract 已轉 GREEN。`tests/test_daily_decision_queue.py` 為 `88 passed`，最終 focused queue/docs/HCS/import 驗證 `277 passed`。
+
+## P3-601 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Notification Delivery Attention Context Top-Level Sequence Fallback Guard`，讓 notification delivery repair action 在複製 sender audit top-level `attention_contexts` 時，遇到 list subclass iterator 故障也能回退到 native sequence items，避免 valid affected ticker/report/CTA context 被整批清空。
+
+落地檔案：
+
+- `backend/daily_decision_queue_notifications.py`：`_safe_list()` 改用 shared `safe_sequence_items()`，沿用 list/tuple native iterator fallback。
+- `tests/test_daily_decision_queue.py`：升級 top-level attention contexts iterator regression，鎖住 iterator 故障但 native rows 可讀時仍保留 `ticker` 與 `target_panel` context。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue notification delivery attention context iterator failures fall back to native sequence items。
+- `docs/hcs-plus-optimization-state.md`：新增 D707 狀態紀錄。
+
+已固定的行為：
+
+1. Sender audit `attention_contexts` 是 list subclass 且 iterator 故障時，daily queue repair action 仍會保留 native rows 裡的 affected ticker/panel/CTA context。
+2. 真正不可序列化或不可列舉的 context list 仍降級為空清單，不中斷 queue assembly。
+3. P3-599 的 nested metadata sequence fallback 行為不變；本票處理 top-level row batch 複製。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_notification_delivery_attention_contexts_iterator_failures_use_native_items` 建立 RED，失敗為 `attention_contexts` 被輸出成 `[]`；修正後單測與 docs contract 已轉 GREEN。`tests/test_daily_decision_queue.py` 為 `87 passed`，最終 focused queue/docs/HCS/import 驗證 `276 passed`。
+
+## P3-600 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Notification Delivery Failure Reason Native Item Detail Guard`，讓 notification delivery repair action 在產生 `detail` 的 reason summary 時，遇到 `failure_reason_counts` dict subclass `.items()` accessor 故障也能回退到 native dict items，避免 queue item 雖保留 `failure_reason_counts`，但操作者最先看到的 detail 只剩 base failed/exhausted counts。
+
+落地檔案：
+
+- `backend/daily_decision_queue_notifications.py`：`_notification_delivery_detail()` 改用 shared `safe_mapping_items()` 讀取 failure reason map，沿用 dict subclass native item fallback。
+- `tests/test_daily_decision_queue.py`：升級 failure reason item-access regression，鎖住 `.items()` 故障時仍輸出 `reason=timeout 1`。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue notification delivery failure reason item access failures fall back to native dict items。
+- `docs/hcs-plus-optimization-state.md`：新增 D706 狀態紀錄。
+
+已固定的行為：
+
+1. `failure_reason_counts` 是 dict subclass 且 `.items()` 故障時，queue payload 仍保留 map，`detail` 也保留 timeout/auth 摘要。
+2. 若 reason map 真正無法列舉，`detail` 仍保留 base `failed/exhausted` 摘要，不中斷 queue assembly。
+3. P3-590 的「不中斷」保證保留，本票把可恢復 dict subclass 的輸出品質從 base detail 提升為 native item reason summary。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_notification_delivery_failure_reason_items_failures_use_native_items` 建立 RED，失敗為 `detail` 只輸出 `failed=1, exhausted=0`；修正後單測與 docs contract 已轉 GREEN。`tests/test_daily_decision_queue.py` 為 `87 passed`，最終 focused queue/docs/HCS/import 驗證 `276 passed`。
+
+## P3-599 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Notification Delivery Attention Context Nested Sequence Fallback Guard`，讓 notification delivery repair action 在遞迴正規化 sender audit `attention_contexts` 的 nested metadata list 時，遇到 list subclass iterator 故障也能回退到 native sequence items，避免有效 triage tags 或 CTA evidence 被空清單取代。
+
+落地檔案：
+
+- `backend/daily_decision_queue_notifications.py`：`_plain_value()` 改用 shared `safe_sequence_items()` 遍歷 nested list/tuple metadata，沿用 native list/tuple iterator fallback。
+- `tests/test_daily_decision_queue.py`：新增 nested attention context metadata list iterator failure regression，鎖住有效 `tags` metadata 仍輸出為 exact `list`。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue notification delivery attention context nested sequence iterator failures fall back to native sequence items。
+- `docs/hcs-plus-optimization-state.md`：新增 D705 狀態紀錄。
+
+已固定的行為：
+
+1. Sender audit `attention_contexts[].context.metadata.tags` 若是 list subclass 且 iterator 故障，仍會用 native sequence items 保留原有 tags。
+2. Top-level `attention_contexts` malformed iterator 的既有降級策略不變；本票只處理已通過 row/context normalization 後的 nested metadata。
+3. P3-595 到 P3-598 的 mapping row、dict subclass row、nested mapping 與 nested mapping item fallback 行為不變。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_notification_delivery_attention_context_nested_sequence_iterator_failures_fall_back` 建立 RED，失敗為 nested metadata `tags` 被輸出成 `[]`；修正後單測與 docs contract 已轉 GREEN。`tests/test_daily_decision_queue.py` 為 `87 passed`，最終 focused queue/docs/HCS/import 驗證 `276 passed`。
+
+## P3-598 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Notification Delivery Attention Context Nested Mapping Item Fallback Guard`，讓 notification delivery repair action 在遞迴正規化 sender audit `attention_contexts` 的 nested metadata 時，遇到 dict subclass `.items()` accessor 故障也能回退到 native dict items，避免有效 nested metadata 因 wrapper 故障中斷 queue assembly 或被抹除。
+
+落地檔案：
+
+- `backend/daily_decision_queue_notifications.py`：`_plain_value()` 改用 shared `safe_mapping_items()` 遍歷 nested mapping，沿用 dict subclass native item fallback。
+- `tests/test_daily_decision_queue.py`：新增 nested attention context metadata `.items()` failure regression，鎖住有效 `target_panel` / `cta` metadata 仍輸出為 exact `dict`。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue notification delivery attention context nested mapping item failures fall back to native dict items。
+- `docs/hcs-plus-optimization-state.md`：新增 D704 狀態紀錄。
+
+已固定的行為：
+
+1. Sender audit `attention_contexts[].context.metadata` 若是 dict subclass 且 `.items()` 故障，仍會用 native dict items 保留原有 metadata。
+2. Nested mapping/list recursive normalization 行為不變，只把 mapping traversal 換成 shared safe traversal。
+3. P3-595/P3-596/P3-597 的 immutable row、dict subclass row 與 deeper mapping plain-dict normalization 行為不變。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_notification_delivery_attention_context_nested_mapping_items_failures_fall_back` 建立 RED，失敗為 `_plain_value()` 呼叫 nested metadata `.items()` 時拋出 `RuntimeError`；修正後單測與 docs contract 已轉 GREEN。`tests/test_daily_decision_queue.py` 為 `86 passed`，最終 focused queue/docs/HCS/import 驗證 `275 passed`。
+
+## P3-597 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Notification Delivery Attention Context Nested Mapping Guard`，讓 notification delivery repair action 在輸出 sender audit `attention_contexts` 時，遞迴正規化 nested mapping metadata，避免 deeper `MappingProxyType` metadata 外溢到 queue API payload 或中斷 JSON serialization。
+
+落地檔案：
+
+- `backend/daily_decision_queue_notifications.py`：新增 `_plain_value()`，遞迴將 mapping 轉為 plain dict、list/tuple 轉為 list，並保留 scalar。
+- `tests/test_daily_decision_queue.py`：新增 nested attention context mapping regression，鎖住 `context.metadata` 這類 deeper mapping 也會輸出為 exact `dict`。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue notification delivery attention context nested mappings normalize recursively to plain dicts。
+- `docs/hcs-plus-optimization-state.md`：新增 D703 狀態紀錄。
+
+已固定的行為：
+
+1. Sender audit `attention_contexts[].context.metadata` 等 deeper mapping metadata 會遞迴輸出為 plain dict。
+2. Nested list/tuple payload 會遞迴轉成 JSON-friendly list。
+3. P3-595/P3-596 的 context row / nested context plain-dict normalization 行為不變。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_notification_delivery_attention_context_nested_mappings_normalize_to_plain_dicts` 建立 RED，失敗為 nested metadata 仍是 `mappingproxy`；修正後 nested mapping、dict-subclass 與 mappingproxy 相鄰單測 `3 passed`，`tests/test_daily_decision_queue.py` 為 `85 passed`。最終 focused queue/docs/HCS/import 驗證 `274 passed`。
+
+## P3-596 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Notification Delivery Attention Context Dict Subclass Guard`，讓 notification delivery repair action 在輸出 sender audit `attention_contexts` 時，將 dict subclass rows 與 nested `context` wrappers 正規化為真正的 plain dict，避免自訂 context wrapper 外溢到 queue API payload。
+
+落地檔案：
+
+- `backend/daily_decision_queue_notifications.py`：`_safe_contexts()` 現在一律以 `dict(row)` 與 `dict(nested_context)` 複製 context row / nested context，避免 `safe_mapping_dict()` 對 dict subclass 保留原型別。
+- `tests/test_daily_decision_queue.py`：新增 attention context dict-subclass regression，鎖住 row 與 nested context 的輸出型別都是 exact `dict`。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue notification delivery attention context dict subclasses normalize to plain dicts。
+- `docs/hcs-plus-optimization-state.md`：新增 D702 狀態紀錄。
+
+已固定的行為：
+
+1. Sender audit `attention_contexts` row 是 dict subclass 時，queue item 輸出 exact plain `dict`。
+2. Nested `context` 是 dict subclass 時，也會輸出 exact plain `dict`。
+3. P3-595 的 immutable mapping row / mappingproxy normalization 行為不變。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_notification_delivery_attention_context_dict_subclasses_normalize_to_plain_dicts` 建立 RED，失敗為 nested `context` 仍是自訂 dict subclass；修正後 dict-subclass 與 mappingproxy 相鄰單測 `2 passed`，`tests/test_daily_decision_queue.py` 為 `84 passed`。最終 focused queue/docs/HCS/import 驗證 `273 passed`。
+
+## P3-595 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Notification Delivery Attention Context Mapping Row Guard`，讓 notification delivery repair action 在輸出 sender audit `attention_contexts` 時，將 immutable mapping rows 與 nested `context` maps 正規化為 plain dict，避免 mapping proxy 物件外溢到 queue API payload 或中斷 JSON serialization。
+
+落地檔案：
+
+- `backend/daily_decision_queue_notifications.py`：新增 `_safe_contexts()`，先沿用 `_safe_list()` 保留 list/tuple 與 iterator fallback，再將每個 mapping context row 正規化為 plain dict；nested `context` mapping 也正規化。
+- `tests/test_daily_decision_queue.py`：新增 attention context mapping row regression，鎖住 `MappingProxyType` row 與 nested context 都會輸出為 plain dict。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue notification delivery attention context mapping rows normalize to plain dicts。
+- `docs/hcs-plus-optimization-state.md`：新增 D701 狀態紀錄。
+
+已固定的行為：
+
+1. Sender audit `attention_contexts` row 是 immutable mapping 時，queue item 仍保留 context row，但輸出為 plain dict。
+2. Nested `context` 是 immutable mapping 時，也會輸出為 plain dict，讓 API payload 更接近 JSON-safe。
+3. 既有 tuple payload preservation 與 malformed iterator fallback 行為不變。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_notification_delivery_attention_context_rows_accept_mapping_payloads` 建立 RED，失敗為 context row 仍是 `mappingproxy`；修正後 mapping row、tuple 與 iterator fallback 相鄰單測 `3 passed`，`tests/test_daily_decision_queue.py` 為 `83 passed`。最終 focused queue/docs/HCS/import 驗證 `272 passed`。
+
+## P3-594 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Notification Delivery Attention Context Tuple Guard`，讓 notification delivery repair action 在複製 sender audit `attention_contexts` 時保留 tuple payload，避免 immutable context batch 被當成空清單而失去受影響 ticker/report/CTA triage context。
+
+落地檔案：
+
+- `backend/daily_decision_queue_notifications.py`：`notification_delivery_items()` 將 `attention_contexts` 接受範圍擴為 `list | tuple`，並讓 `_safe_list()` 複製 tuple payload。
+- `tests/test_daily_decision_queue.py`：新增 notification delivery attention context tuple regression，鎖住 tuple context 仍會保留 ticker 與 target panel。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue notification delivery attention context tuple payloads are preserved。
+- `docs/hcs-plus-optimization-state.md`：新增 D700 狀態紀錄。
+
+已固定的行為：
+
+1. Sender audit `attention_contexts` 是 tuple 時，`fix_notification_delivery.attention_contexts` 仍保留 context rows。
+2. 前一輪 malformed list iterator guard 仍會在 iterator 失敗時降級成空 list。
+3. Queue action 的 failed/exhausted counts、CTA 與 suppress-notification 行為不變。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_notification_delivery_attention_contexts_accept_tuple_payloads` 建立 RED，失敗為 `attention_contexts` 被輸出成空 list；修正後 tuple 與 iterator fallback 相鄰單測 `2 passed`，`tests/test_daily_decision_queue.py` 為 `82 passed`。最終 focused queue/docs/HCS/import 驗證 `271 passed`。
+
+## P3-593 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Notification Delivery Nested Count Mapping Guard`，讓 notification delivery repair action 在讀取 sender audit `channel_counts` 與 `failure_reason_counts` 時接受 immutable mapping payload，避免有效的通道分布與 timeout/auth 失敗原因 context 因 nested map 不是 concrete `dict` 而被清空。
+
+落地檔案：
+
+- `backend/daily_decision_queue_notifications.py`：`notification_delivery_items()` 改用 `_safe_mapping()` 包住 `safe_mapping_dict()`，以 `is None` 判斷 fallback，避免重新觸發 malformed dict truthiness。
+- `tests/test_daily_decision_queue.py`：新增 notification delivery nested count mapping regression，鎖住 `MappingProxyType` channel/reason maps 仍會保留到 queue item 與 detail。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue notification delivery nested count maps use mapping-safe conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D699 狀態紀錄。
+
+已固定的行為：
+
+1. Sender audit `channel_counts` 是 immutable mapping 時，`fix_notification_delivery.channel_counts` 仍保留通道分布。
+2. Sender audit `failure_reason_counts` 是 immutable mapping 時，queue item 與 detail 仍保留 timeout/auth 等 triage context。
+3. `safe_mapping_dict()` fallback 不再透過 `or {}` 觸發 malformed dict truthiness，保留 P3-588/P3-589 既有 guard。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_notification_delivery_nested_counts_accept_mapping_payloads` 建立 RED，失敗為 `channel_counts` 被輸出成 `{}`；修正後單測 `1 passed`，並以相鄰 truthiness guards `3 passed` 確認沒有回退，`tests/test_daily_decision_queue.py` 為 `81 passed`。最終 focused queue/docs/HCS/import 驗證 `270 passed`。
+
+## P3-592 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Notification Delivery Summary Mapping Guard`，讓 notification delivery repair action 在讀取 sender audit `notification_delivery` summary 時接受 immutable mapping payload，避免有效的 warning/failed counts 因 summary 不是 concrete `dict` 而被當成空摘要。
+
+落地檔案：
+
+- `backend/daily_decision_queue_notifications.py`：`notification_delivery_items()` 改用 `safe_mapping_dict()` 正規化 top-level notification delivery summary。
+- `tests/test_daily_decision_queue.py`：新增 notification delivery summary mapping regression，鎖住 `MappingProxyType` summary 仍會產生 `fix_notification_delivery` action。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue notification delivery summary maps use mapping-safe conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D698 狀態紀錄。
+
+已固定的行為：
+
+1. Sender audit summary 是 immutable mapping 時，daily queue 仍會讀取 health、failed count 與 retry exhausted count。
+2. `fix_notification_delivery` action 不會因 summary payload 型別過窄而消失。
+3. 既有 malformed count、health、channel/reason/context guard 仍維持原本降級行為。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_notification_delivery_summary_accepts_mapping_payloads` 建立 RED，失敗為 `decision_queue.summary.sources` 缺少 `notification_delivery`；修正後單測 `1 passed`，`tests/test_daily_decision_queue.py` 為 `80 passed`。最終 focused queue/docs/HCS/import 驗證 `269 passed`。
+
+## P3-591 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Notification Delivery Attention Context Iterator Guard`，讓 notification delivery repair action 在複製 `attention_contexts` 時捕捉 malformed list iterator failure，避免通知通道 context list 故障中斷每日 queue assembly 或隱藏可見的 `fix_notification_delivery` action。
+
+落地檔案：
+
+- `backend/daily_decision_queue_notifications.py`：新增 `_safe_list()` 包住 `attention_contexts` copy；iterator 或轉換失敗時降級為空 list。
+- `tests/test_daily_decision_queue.py`：新增 notification delivery attention context iterator regression，鎖住壞 iterator 時仍產生通知通道修復 action，且 context list 回落為 `[]`。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue notification delivery attention context iterator failures fall back to an empty context list。
+- `docs/hcs-plus-optimization-state.md`：新增 D697 狀態紀錄。
+
+已固定的行為：
+
+1. Sender audit `attention_contexts` list iterator 失敗不再中斷 daily queue assembly。
+2. `fix_notification_delivery` action 仍會出現在 queue 中，避免外部通知通道故障被 malformed context list 隱藏。
+3. Context list 會降級為 `[]`，讓 operator 仍看到 failed/exhausted counts 與基本修復 CTA。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_notification_delivery_attention_contexts_iterator_failures_fall_back` 建立 RED，失敗為 `notification_delivery_items()` 呼叫 malformed `attention_contexts` iterator；修正後單測 `1 passed`，`tests/test_daily_decision_queue.py` 為 `79 passed`。最終 focused queue/docs/HCS/import 驗證 `268 passed`。
+
+## P3-590 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Notification Delivery Failure Reason Item Access Guard`，讓 notification delivery repair action 在輸出 `failure_reason_counts` detail 時捕捉 malformed reason-map accessor 與 item unpack failures，避免通知失敗原因 map 的 `items()` 故障中斷每日 queue assembly。
+
+落地檔案：
+
+- `backend/daily_decision_queue_notifications.py`：`_notification_delivery_detail()` 以 fallback 包住 reason summary rendering；accessor 或 item unpack 失敗時回到 base detail。
+- `tests/test_daily_decision_queue.py`：新增 notification delivery failure reason items accessor regression，鎖住 `failure_reason_counts.items()` 故障時仍產生 `fix_notification_delivery` 並保留 base detail。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue notification delivery failure reason item access failures fall back to base detail。
+- `docs/hcs-plus-optimization-state.md`：新增 D696 狀態紀錄。
+
+已固定的行為：
+
+1. Sender audit failure-reason map 的 `items()` 或 item unpack 失敗不再中斷 daily queue assembly。
+2. `fix_notification_delivery.detail` 會降級為 `failed=..., exhausted=...`，保留最低限度的 operator triage 訊息。
+3. `fix_notification_delivery` action 仍會出現在 queue 中，避免通知通道故障被 malformed reason-map accessor 隱藏。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_notification_delivery_failure_reason_items_failures_fall_back` 建立 RED，失敗為 `_notification_delivery_detail()` 呼叫 malformed `failure_reason_counts.items()`；修正後單測 `1 passed`，`tests/test_daily_decision_queue.py` 為 `78 passed`。最終 focused queue/docs/HCS/import 驗證 `267 passed`。
+
+## P3-589 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Notification Delivery Failure Reason Detail Truthiness Guard`，讓 notification delivery repair action 在輸出 `failure_reason_counts` detail 前不再評估 raw mapping truthiness，避免 malformed 通知失敗原因分布中斷每日 queue assembly 或抹掉 timeout/auth triage context。
+
+落地檔案：
+
+- `backend/daily_decision_queue_notifications.py`：`_notification_delivery_detail()` 改為先產生 reason summary 字串，再以字串是否為空決定是否附加 reason detail，避免 raw mapping truthiness。
+- `tests/test_daily_decision_queue.py`：新增 notification delivery failure-reason map truthiness regression，鎖住 `failure_reason_counts` 是 dict-like 但不可 truthiness 時仍會保留 detail 與 payload map。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue notification delivery failure reason maps use truthiness-safe detail rendering。
+- `docs/hcs-plus-optimization-state.md`：新增 D695 狀態紀錄。
+
+已固定的行為：
+
+1. Sender audit failure-reason map 不再因 raw `__bool__()` 故障而中斷 daily queue assembly。
+2. `fix_notification_delivery.detail` 仍保留 `reason=timeout 2, auth 1` 這類 operator triage 摘要。
+3. `fix_notification_delivery.failure_reason_counts` payload map 仍會輸出，供 operator UI 與通知通道維護畫面使用。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_notification_delivery_failure_reasons_do_not_depend_on_truthiness` 建立 RED，失敗為 `_notification_delivery_detail()` 呼叫 malformed `failure_reason_counts.__bool__()`；修正後單測 `1 passed`，`tests/test_daily_decision_queue.py` 為 `77 passed`。最終 focused queue/docs/HCS/import 驗證 `266 passed`。
+
+## P3-588 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Notification Delivery Channel Count Map Truthiness Guard`，讓 notification delivery repair action 在輸出 sender audit `channel_counts` 前使用 dict-safe conversion，避免 malformed 通知通道分布 truthiness 中斷每日 queue assembly 或抹掉可見 channel context。
+
+落地檔案：
+
+- `backend/daily_decision_queue_notifications.py`：`notification_delivery_items()` 將 `channel_counts` 改為先以 native dict type guard 讀取，再輸出 copy，避免 raw truthiness fallback。
+- `tests/test_daily_decision_queue.py`：新增 notification delivery channel-count map truthiness regression，鎖住 `channel_counts` 是 dict-like 但不可 truthiness 時仍會保留 channel distribution。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue notification delivery channel count maps use dict-safe conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D694 狀態紀錄。
+
+已固定的行為：
+
+1. Sender audit channel-count map 不再因 raw `__bool__()` 故障而中斷 daily queue assembly。
+2. `fix_notification_delivery` 仍會保留 `channel_counts`，讓 operator 能看見受影響的通知通道分布。
+3. 非 dict 的 malformed channel-count payload 仍降級為空 map，維持 action payload 型態穩定。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_notification_delivery_channel_counts_do_not_depend_on_truthiness` 建立 RED，失敗為 `notification_delivery_items()` 呼叫 malformed `channel_counts.__bool__()`；修正後單測 `1 passed`，`tests/test_daily_decision_queue.py` 為 `76 passed`。最終 focused queue/docs/HCS/import 驗證 `265 passed`。
+
+## P3-587 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Notification Delivery Health Truthiness Guard`，讓 notification delivery repair action 在判斷 sender audit `health = warning` 前使用 string-safe conversion，避免 malformed 通知通道健康狀態 truthiness 中斷每日 queue assembly 或隱藏可見的通知通道修復 action。
+
+落地檔案：
+
+- `backend/daily_decision_queue_notifications.py`：`notification_delivery_items()` 將 `health` 正規化改為 `safe_text(...).strip().lower()`，不再透過 raw truthiness fallback 判斷 warning state。
+- `tests/test_daily_decision_queue.py`：新增 notification delivery health truthiness regression，鎖住 `health` 可 `str()` 但不可 truthiness 時仍會產生 `fix_notification_delivery`。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue notification delivery health fields use string-safe conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D693 狀態紀錄。
+
+已固定的行為：
+
+1. Sender audit health payload 不再因 raw `__bool__()` 故障而中斷 daily queue assembly。
+2. `health = warning` 仍可在 failed/retry-exhausted counts 都是 `0` 時產生 notification delivery repair action。
+3. 壞掉的外部通知通道健康狀態仍能顯示為 `fix_notification_delivery`，不會因 health payload malformed 而被隱藏。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_notification_delivery_health_does_not_depend_on_truthiness` 建立 RED，失敗為 `notification_delivery_items()` 呼叫 malformed `health.__bool__()`；修正後單測 `1 passed`，`tests/test_daily_decision_queue.py` 為 `75 passed`。最終 focused queue/docs/HCS/import 驗證 `264 passed`。
+
+## P3-586 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Notification Delivery Count Truthiness Guard`，讓 notification delivery repair action 在讀取 sender audit `failed_count` 與 `retry_exhausted_count` 前使用 integer-safe conversion，避免 malformed 通知通道計數 truthiness 中斷每日 queue assembly 或隱藏可見的通知通道修復 action。
+
+落地檔案：
+
+- `backend/daily_decision_queue_notifications.py`：`_int()` 改為不依賴 raw truthiness，並捕捉 malformed numeric conversion failures。
+- `tests/test_daily_decision_queue.py`：新增 notification delivery count truthiness regression，鎖住 `failed_count` 可 `int()` 但不可 truthiness 時仍會產生 `fix_notification_delivery`。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue notification delivery count fields use integer-safe conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D692 狀態紀錄。
+
+已固定的行為：
+
+1. Sender audit count payload 不再因 raw `__bool__()` 故障而中斷 daily queue assembly。
+2. `failed_count` 與 `retry_exhausted_count` 仍維持整數輸出，供 notification delivery repair item、detail 與 operator UI 使用。
+3. 壞掉的外部通知通道仍能在 queue 中顯示為 `fix_notification_delivery`，不會因計數 payload malformed 而被隱藏。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_notification_delivery_counts_do_not_depend_on_truthiness` 建立 RED，失敗為 `daily_decision_queue_notifications._int()` 呼叫 malformed `failed_count.__bool__()`；修正後單測 `1 passed`，`tests/test_daily_decision_queue.py` 為 `74 passed`。最終 focused queue/docs/HCS/import 驗證 `263 passed`。
+
+## P3-585 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Integer Conversion Failure Guard`，讓 daily decision queue 的 integer-safe conversion 捕捉 malformed numeric payload 在 `__int__()` 階段拋出的轉換例外，避免 priority、horizon、display 與 summary 計算因壞數字欄位中斷 queue assembly。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`_int()` 擴大 malformed numeric exception fallback，與既有 string/bool safe conversion 邊界一致。
+- `tests/test_daily_decision_queue.py`：新增 repair priority score conversion failure regression，鎖住壞掉的 `priority_score.__int__()` 會 fallback 到既有 report repair 預設分數。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue integer conversions ignore malformed conversion failures。
+- `docs/hcs-plus-optimization-state.md`：新增 D691 狀態紀錄。
+
+已固定的行為：
+
+1. Numeric payload 的 `__int__()` 若拋出 malformed conversion failure，不再中斷 daily queue assembly。
+2. Report repair `priority_score` conversion failure 會回到既有預設 `700`。
+3. Priority、horizon、display 與 summary calculations 共用一致的 integer-safe fallback 邊界。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_repair_priority_score_int_failures_fall_back` 建立 RED，失敗為 `_int()` 呼叫 malformed `priority_score.__int__()`；修正後單測 `1 passed`，`tests/test_daily_decision_queue.py` 為 `73 passed`。最終 focused queue/docs/HCS/import 驗證 `262 passed`。
+
+## P3-584 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Display Limit Truthiness Guard`，讓 daily decision queue 在切片 rendered items 前以 integer-safe conversion 讀取 `limit`，避免 malformed display limit truthiness 中斷 queue assembly 或讓 displayed / secondary count 計算失真。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`build_daily_decision_queue()` 將 `int(limit or 5)` 改為先以 `_int(limit)` 轉換，再沿用 `0` fallback 到 `5` 與最小 `1` 的既有顯示語意。
+- `tests/test_daily_decision_queue.py`：新增 display limit truthiness regression，鎖住可 `int()` 但不可 truthiness 的 limit 仍能正確限制 displayed items 並保留 secondary count。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue display limits use integer-safe conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D690 狀態紀錄。
+
+已固定的行為：
+
+1. Display `limit` 讀取不再依賴 raw truthiness。
+2. `limit = 0` 仍 fallback 到既有預設 `5`。
+3. 負數 limit 仍由 `max(1, ...)` 收斂到至少顯示一筆。
+4. `displayed_count` 與 `secondary_count` 仍以實際 rendered slice 和 actionable count 計算。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_display_limit_does_not_depend_on_truthiness` 建立 RED，失敗為 `build_daily_decision_queue()` 中 `int(limit or 5)` 呼叫 malformed limit `__bool__()`；修正後單測 `1 passed`，`tests/test_daily_decision_queue.py` 為 `72 passed`。最終 focused queue/docs/HCS/import 驗證 `261 passed`。
+
+## P3-583 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Computed Backtest Artifact Truthiness Guard`，讓 computed backtest due detection 在比對 evaluated details 與 report due-date 前以 string-safe conversion 讀取 `filename` / `report_filename`，避免 malformed artifact truthiness 中斷 due detection 或隱藏已到期但尚未回測的 report。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`_backtest_due_items()` 將 evaluated detail artifact key 與 computed report filename selection 改用 `safe_text(...).strip()`，保留既有 due-date 與 horizon 比對語意。
+- `tests/test_daily_decision_queue.py`：新增 computed backtest report filename truthiness regression，鎖住 malformed report filename 不需要經過 raw `__bool__()` 也能被判定為 due backtest action。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue computed backtest report artifact fields use string-safe conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D689 狀態紀錄。
+
+已固定的行為：
+
+1. Computed due report `filename` 讀取不再依賴 raw truthiness。
+2. Computed due report `report_filename` fallback 讀取不再依賴 raw truthiness。
+3. Evaluated backtest detail artifact key 讀取不再依賴 raw truthiness，避免已回測判斷被 malformed artifact value 中斷。
+4. Computed due action 仍保留 generated date、horizon 與 existing backtest ordering semantics。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_computed_backtest_report_filename_does_not_depend_on_truthiness` 建立 RED，失敗為 `_backtest_due_items()` 中 `str(_field(report, "filename") or _field(report, "report_filename") or "")` 呼叫 malformed report filename `__bool__()`；修正後單測 `1 passed`，`tests/test_daily_decision_queue.py` 為 `71 passed`。最終 focused queue/docs/HCS/import 驗證 `260 passed`。
+
+## P3-582 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Backtest Due Text Field Truthiness Guard`，讓 due backtest action 在產生 title、artifact identity 與 pipeline context 前以 string-safe conversion 讀取 `ticker`、`filename` / `report_filename`、`pipeline_id`，避免 malformed due-backtest text truthiness 中斷 daily queue assembly 或把非字串 identity 流向 queue consumers。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`_due_item()` 將 due backtest `ticker`、`filename` / `report_filename`、`pipeline_id` 改用 `safe_text(...).strip()`，保留既有 horizon 與 priority score 語意。
+- `tests/test_daily_decision_queue.py`：新增 backtest due text-field truthiness regression，鎖住 malformed text values 不需要經過 raw `__bool__()` 也能輸出 backtest due action title、artifact identity 與 pipeline context。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue backtest due action text fields use string-safe conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D688 狀態紀錄。
+
+已固定的行為：
+
+1. Backtest due `ticker` 讀取不再依賴 raw truthiness。
+2. Backtest due `filename` / `report_filename` alias selection 不再依賴 raw truthiness。
+3. Backtest due `pipeline_id` 讀取不再依賴 raw truthiness，仍保留空白時 fallback 到 `v1`。
+4. Backtest due action 仍保留 horizon、priority score 與 existing alias semantics。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_backtest_due_text_fields_do_not_depend_on_truthiness` 建立 RED，失敗為 `_due_item()` 中 `_field(row, "ticker") or "報告"` 呼叫 malformed due text `__bool__()`；修正後單測 `1 passed`，`tests/test_daily_decision_queue.py` 為 `70 passed`。最終 focused queue/docs/HCS/import 驗證 `259 passed`。
+
+## P3-581 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Screener Candidate Text Field Truthiness Guard`，讓 auto-screener candidate action 在產生 title、detail 與 context payload 前以 string-safe conversion 讀取 `ticker`、`company_name`、`reason`，避免 malformed candidate text truthiness 中斷 daily queue assembly 或把非字串顯示欄位流向 queue consumers。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`_candidate_items()` 將 candidate `ticker`、`company_name`、`reason` 改用 `safe_text(...).strip()`，保留既有 title/detail fallback 語意。
+- `tests/test_daily_decision_queue.py`：新增 screener candidate text-field truthiness regression，鎖住 malformed text values 不需要經過 raw `__bool__()` 也能輸出 candidate action title/detail/context。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue screener candidate action text fields use string-safe conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D687 狀態紀錄。
+
+已固定的行為：
+
+1. Screener candidate `ticker` 讀取不再依賴 raw truthiness。
+2. Screener candidate `company_name` 讀取不再依賴 raw truthiness。
+3. Screener candidate `reason` 讀取不再依賴 raw truthiness，仍保留空白時 fallback 到 `市場掃描候選`。
+4. Candidate action 仍保留 score 與既有 `priority_score = 420` 排序。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_candidate_text_fields_do_not_depend_on_truthiness` 建立 RED，失敗為 `_candidate_items()` 中 `str(_field(candidate, "ticker") or "")` 呼叫 malformed candidate text `__bool__()`；修正後單測 `1 passed`，`tests/test_daily_decision_queue.py` 為 `69 passed`。最終 focused queue/docs/HCS/import 驗證 `258 passed`。
+
+## P3-580 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Screener Candidate Collection Truthiness Guard`，讓 auto-screener candidate rows 在進入 `_candidate_items()` candidate action projection 前以 iterator-safe dict-list conversion 讀取，避免 raw `candidates` collection truthiness 中斷 daily queue assembly 或抹掉有效 screener candidate rows。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`_candidate_items()` 改以 `safe_dict_list(candidates)` 走訪 candidate rows，再取第一筆有效 dict-like candidate row 產生 `review_candidate` action。
+- `tests/test_daily_decision_queue.py`：新增 screener candidate collection truthiness regression，鎖住 list-like candidate collection 不需要經過 raw `__bool__()` 也能輸出 candidate action。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue screener candidate collections use iterator-safe dict-list conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D686 狀態紀錄。
+
+已固定的行為：
+
+1. Screener candidate collection 讀取不再依賴 raw truthiness。
+2. 有效 dict-like candidate rows 會保留並進入 `review_candidate` action projection。
+3. 第一筆有效 screener candidate 仍保留 ticker、company name、reason 與 score context。
+4. Screener candidate action 仍維持 `priority_score = 420`，排在 watchlist 與其他更高優先任務之後。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_candidate_items_do_not_depend_on_truthiness` 建立 RED，失敗為 `_candidate_items()` 中 `if not candidates` 呼叫 malformed candidate collection `__bool__()`；修正後單測 `1 passed`，`tests/test_daily_decision_queue.py` 為 `68 passed`。最終 focused queue/docs/HCS/import 驗證 `257 passed`。
+
+## P3-579 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Watchlist Collection Truthiness Guard`，讓 high-priority watchlist rows 在進入 `_watchlist_items()` watchlist action projection 前以 iterator-safe dict-list conversion 讀取，避免 raw `high_priority_watchlist` collection truthiness 中斷 daily queue assembly 或抹掉有效 watchlist rows。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`_watchlist_items()` 改以 `safe_dict_list(items)` 走訪 watchlist rows，ticker sample 以 string-safe conversion 產生。
+- `tests/test_daily_decision_queue.py`：新增 watchlist collection truthiness regression，鎖住 list-like watchlist collection 不需要經過 raw `__bool__()` 也能輸出 watchlist action。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue watchlist collections use iterator-safe dict-list conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D685 狀態紀錄。
+
+已固定的行為：
+
+1. Watchlist collection 讀取不再依賴 raw truthiness。
+2. 有效 dict-like watchlist rows 會保留並進入 watchlist action projection。
+3. Watchlist ticker sample 以 string-safe conversion 產生，避免 malformed ticker truthiness 中斷 queue assembly。
+4. Watchlist action 仍維持 `priority_score = 560`，排在 rerun/model route warning 之後與 screener candidate 之前。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_watchlist_items_do_not_depend_on_truthiness` 建立 RED，失敗為 `_watchlist_items()` 中 `if not items` 呼叫 malformed watchlist `__bool__()`；修正後單測 `1 passed`，`tests/test_daily_decision_queue.py` 為 `67 passed`，docs contract 單測 `1 passed`。最終 focused queue/docs/HCS/import 驗證 `256 passed`。
+
+## P3-578 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Rerun Report Collection Truthiness Guard`，讓 stale-report rerun rows 在進入 `_rerun_report_payload()` 前以 iterator-safe dict-list conversion 讀取，避免 raw `rerun_reports` collection truthiness 中斷 daily queue assembly 或抹掉有效 rerun report rows。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`_rerun_items()` 改以 `safe_dict_list(rerun_reports)` 走訪 rerun report rows，保留只處理 dict-like rerun row 的語意。
+- `tests/test_daily_decision_queue.py`：新增 rerun reports truthiness regression，鎖住 list-like rerun reports 不需要經過 raw `__bool__()` 也能輸出 rerun action。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue rerun report collections use iterator-safe dict-list conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D684 狀態紀錄。
+
+已固定的行為：
+
+1. Rerun report collection 讀取不再依賴 raw truthiness。
+2. 有效 dict-like rerun rows 會保留並進入 `_rerun_report_payload()` projection。
+3. 非 dict row 或 malformed mapping conversion 仍會被 safe dict-list conversion 隔離，不流入 stale-report rerun action payload。
+4. Report repair skip keys 仍會阻擋同一 artifact 被同時提升為 rerun action。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_rerun_reports_do_not_depend_on_truthiness` 建立 RED，失敗為 `_rerun_items()` 中 `rerun_reports or []` 呼叫 malformed rerun reports `__bool__()`；修正後單測 `1 passed`，`tests/test_daily_decision_queue.py` 為 `66 passed`。最終 focused queue/docs/HCS/import 驗證 `255 passed`。
+
+## P3-577 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Computed Backtest Report Collection Truthiness Guard`，讓 computed backtest due checks 在走訪 report rows 前以 iterator-safe dict-list conversion 處理，避免 raw reports collection truthiness 中斷 daily queue assembly 或隱藏已到期但尚未回測的 report。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`_backtest_due_items()` 改以 `safe_dict_list(reports)` 走訪 computed due report rows，保留只處理 dict-like report row 的語意。
+- `tests/test_daily_decision_queue.py`：新增 computed backtest reports truthiness regression，鎖住 list-like reports 不需要經過 raw `__bool__()` 也能輸出 backtest due action。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue computed backtest report rows use iterator-safe dict-list conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D683 狀態紀錄。
+
+已固定的行為：
+
+1. Computed backtest due report collection 讀取不再依賴 raw truthiness。
+2. 有效 dict-like report rows 仍會依 report date 與 horizon 產生 backtest due action。
+3. 非 dict row 或 malformed mapping conversion 仍會被 safe dict-list conversion 隔離，不流入 due-date checks。
+4. Explicit `due_backtests` / `backtest_due` rows 仍優先於 computed report rows。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_backtest_reports_do_not_depend_on_truthiness` 建立 RED，失敗為 `_backtest_due_items()` 中 `reports or []` 呼叫 malformed reports `__bool__()`；修正後單測 `1 passed`，`tests/test_daily_decision_queue.py` 為 `65 passed`。最終 focused queue/docs/HCS/import 驗證 `254 passed`。
+
+## P3-576 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Backtest Evaluation Details Truthiness Guard`，讓 computed backtest due checks 在讀取已完成回測 evaluation details 前以 iterator-safe dict-list conversion 處理，避免 raw `performance.details` collection truthiness 中斷 daily queue assembly 或讓真正到期的 report 被誤判為已完成回測。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`_backtest_due_items()` 改以 `safe_dict_list(_field(performance, "details"))` 讀取 evaluated backtest rows。
+- `tests/test_daily_decision_queue.py`：新增 backtest details truthiness regression，鎖住 list-like `performance.details` 不需要經過 raw `__bool__()` 也能讓有效 due report 進入 backtest due action。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue backtest evaluation `details` use iterator-safe dict-list conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D682 狀態紀錄。
+
+已固定的行為：
+
+1. `performance.details` collection 讀取不再依賴 raw truthiness。
+2. 有效 dict-like evaluated rows 仍會用於避免重複產生同一 horizon 的 backtest due action。
+3. 非 dict row 或 malformed mapping conversion 仍會被 safe dict-list conversion 隔離，不會讓 due report 被誤判為已回測。
+4. 本輪 production 行數不增加，維持 daily decision queue size guard。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_backtest_details_do_not_depend_on_truthiness` 建立 RED，失敗為 `_backtest_due_items()` 中 `performance.details or []` 呼叫 malformed details `__bool__()`；修正後單測 `1 passed`，`tests/test_daily_decision_queue.py` 為 `64 passed`。最終 focused queue/docs/HCS/import 驗證 `253 passed`。
+
+## P3-575 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Explicit Backtest Collection Truthiness Guard`，讓 explicit backtest due rows 在進入 due-item projection 前以 iterator-safe dict-list conversion 讀取，避免 raw `due_backtests` 或 legacy `backtest_due` collection object 的 truthiness 中斷 daily queue assembly 或抹掉有效 backtest due rows。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`_backtest_due_items()` 改以 `safe_dict_list(_field(performance, "due_backtests"))` 讀取 explicit rows，沒有有效 rows 時再讀取 legacy `backtest_due` alias。
+- `tests/test_daily_decision_queue.py`：新增 explicit backtests truthiness regression，鎖住 list-like `due_backtests` 不需要經過 raw `__bool__()` 也能輸出 backtest due action。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue explicit backtest collections use iterator-safe dict-list conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D681 狀態紀錄。
+
+已固定的行為：
+
+1. Explicit `due_backtests` collection 讀取不再依賴 raw truthiness。
+2. 有效 dict-like backtest due rows 會保留並進入 `_due_item()` projection。
+3. `due_backtests` 沒有有效 rows 時仍會讀取 legacy `backtest_due` alias。
+4. 非 dict row 或 malformed mapping conversion 仍會被 safe dict-list conversion 隔離，不流入 due action payload。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_explicit_backtests_do_not_depend_on_truthiness` 建立 RED，失敗為 `_backtest_due_items()` 中 `due_backtests or backtest_due or []` 呼叫 malformed due backtests `__bool__()`；修正後單測 `1 passed`，`tests/test_daily_decision_queue.py` 為 `63 passed`。最終 focused queue/docs/HCS/import 驗證 `252 passed`。
+
+## P3-574 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Ops Payload Truthiness Guard`，讓 ops payload 在進入 notification delivery 與 route warning projection 前以 type-safe fallback 處理，避免 raw ops object 的 truthiness 中斷 daily queue assembly 或抹掉有效 ops warning rows。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`build_daily_decision_queue()` 先建立 `ops_payload = ops if isinstance(ops, dict) else {}`，再傳入 `notification_delivery_items()` 與 `route_warning_items()`。
+- `tests/test_daily_decision_queue.py`：新增 ops payload truthiness regression，鎖住 dict-like ops 不需要經過 raw `__bool__()` 也能保留 report repair 與 actionable route warning。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue ops payloads use type-safe fallback。
+- `docs/hcs-plus-optimization-state.md`：新增 D680 狀態紀錄。
+
+已固定的行為：
+
+1. Ops payload fallback 不再依賴 raw truthiness。
+2. 有效 dict-like ops 會保留並進入 notification delivery 與 route warning projection。
+3. `None` 或非 dict ops 仍降級為空 payload，不流入 ops action projection。
+4. slow-route / p95-latency 類前台抑制邊界不變；本輪只保護 ops payload 讀取，不重新浮出 non-actionable route warnings。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_ops_payload_does_not_depend_on_truthiness` 建立 RED，失敗為 `build_daily_decision_queue()` 中 `notification_delivery_items(ops or {})` 呼叫 malformed ops `__bool__()`；修正後單測 `1 passed`。最終 focused queue/docs/HCS/import 驗證 `251 passed`。
+
+## P3-573 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Report Repair Collection Truthiness Guard`，讓 report quality repair rows 在進入 daily decision queue action projection 前以 iterator-safe dict-list conversion 讀取，避免 raw repair collection object 的 truthiness 中斷 daily queue assembly 或抹掉後續有效 blocked-repair rows。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`build_daily_decision_queue()` 改以 `safe_dict_list(repair_items)` 讀取 report repair rows，保留只投影 dict-like repair row 的語意。
+- `tests/test_daily_decision_queue.py`：新增 report repair collection truthiness regression，鎖住 list-like repair items 不需要經過 raw `__bool__()` 也能輸出 report repair action。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue report repair collections use iterator-safe dict-list conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D679 狀態紀錄。
+
+已固定的行為：
+
+1. Report repair collection 讀取不再依賴 raw truthiness。
+2. 有效 dict-like repair rows 會保留並進入 repair action projection。
+3. 非 dict row 或 malformed mapping conversion 仍會被 safe dict-list conversion 隔離，不流入 queue payload。
+4. 本輪 production 行數仍低於 340 行 guard。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_report_repair_items_do_not_depend_on_truthiness` 建立 RED，失敗為 `build_daily_decision_queue()` 中 `repair_items or []` 呼叫 malformed repair items `__bool__()`；修正後單測 `1 passed`。最終 focused queue/docs/HCS/import 驗證 `250 passed`。
+
+## P3-572 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Provider Impact Ledger Object Truthiness Guard`，讓 provider impact ledger 在進入 `_provider_items()` 前以 type-safe fallback 處理，避免 raw ledger object 的 truthiness 中斷 daily queue assembly 或抹掉有效 provider recovery rows。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`build_daily_decision_queue()` 改以 `provider_impact_ledger if isinstance(provider_impact_ledger, dict) else {}` 傳入 `_provider_items()`，保留 `None`/非 dict 降級為空 ledger 的語意。
+- `tests/test_daily_decision_queue.py`：新增 provider impact ledger object truthiness regression，鎖住 dict-like ledger 不需要經過 raw `__bool__()` 也能輸出 provider recovery action。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue provider impact ledger objects use type-safe fallback。
+- `docs/hcs-plus-optimization-state.md`：新增 D678 狀態紀錄。
+
+已固定的行為：
+
+1. Provider impact ledger object fallback 不再依賴 raw truthiness。
+2. 有效 dict ledger 會保留並進入 `_provider_items()`。
+3. `None` 或非 dict ledger 仍降級為空 ledger，不流入 provider recovery payload。
+4. 本輪 production 行數仍低於 340 行 guard。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_provider_impact_ledger_does_not_depend_on_truthiness` 建立 RED，失敗為 `build_daily_decision_queue()` 中 `provider_impact_ledger or {}` 呼叫 malformed ledger `__bool__()`；修正後單測 `1 passed`。最終 focused queue/docs/HCS/import 驗證 `249 passed`。
+
+## P3-571 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Provider Impact Message Truthiness Guard`，讓 provider recovery action 在輸出 detail evidence 前以 iterator-safe dict-list conversion 與 string-safe conversion 讀取 `impacts[].message`，避免 raw impact message object 的 truthiness 中斷 provider wait ordering 或抹掉具體 provider evidence。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`_provider_detail()` 以 `safe_dict_list(_field(row, "impacts"))` 與 `safe_text(...).strip()` 取得第一個非空 impact message。
+- `tests/test_daily_decision_queue.py`：新增 provider impact message truthiness regression，鎖住可字串化 impact message 不需要經過 raw `__bool__()` 也能輸出 detail evidence。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue provider impact `impacts[].message` fields use string-safe conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D677 狀態紀錄。
+
+已固定的行為：
+
+1. Provider impact detail evidence 不再依賴 raw message truthiness。
+2. 可字串化 impact message 會保留為 queue item 的 `detail`。
+3. malformed impacts row 仍會被 safe dict-list conversion 隔離，不流入 detail selection。
+4. 本輪 production 行數下降，仍低於 340 行 guard。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_provider_impact_message_uses_string_safe_detail` 建立 RED，失敗為 `_provider_detail()` 中 `_field(item, "message")` truthiness 呼叫 malformed message `__bool__()`；修正後單測 `1 passed`。最終 focused queue/docs/HCS/import 驗證 `248 passed`。
+
+## P3-570 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Provider Impact Ledger Items Truthiness Guard`，讓 provider impact ledger 轉入 daily decision queue 前以 iterator-safe dict-list conversion 讀取 `items`，避免 raw item list object 的 truthiness 中斷 provider wait ordering 或抹掉後續有效 provider impact rows。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`_provider_items()` 以 `safe_dict_list(_field(ledger, "items"))` 讀取 provider impact ledger rows，保留既有只處理 dict row 的語意。
+- `tests/test_daily_decision_queue.py`：新增 provider impact ledger items truthiness regression，鎖住 list-like ledger items 不需要經過 raw `__bool__()` 也能輸出 provider recovery action。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue provider impact ledger `items` use iterator-safe dict-list conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D676 狀態紀錄。
+
+已固定的行為：
+
+1. Provider impact ledger `items` 讀取不再依賴 raw truthiness。
+2. 有效 dict row 會保留並進入 provider recovery filtering。
+3. 非 dict row 或 malformed mapping conversion 仍會被忽略，不流入 queue payload。
+4. 本輪 production 行數不增加，仍低於 340 行 guard。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_provider_impact_items_do_not_depend_on_truthiness` 建立 RED，失敗為 `_provider_items()` 中 `_field(ledger, "items") or []` 呼叫 malformed items `__bool__()`；修正後單測 `1 passed`。最終 focused queue/docs/HCS/import 驗證 `247 passed`。
+
+## P3-569 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Provider Impact Pipeline Identity Truthiness Guard`，讓 provider recovery action 在輸出 `pipeline_id` payload 前以 string-safe conversion 處理 pipeline identity，避免 raw pipeline object 的 truthiness 中斷 provider wait ordering 或把非字串 pipeline identity 傳給 queue consumers。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`_provider_items()` 以 `safe_text(...).strip() or "v1"` 正規化 provider impact `pipeline_id`。
+- `tests/test_daily_decision_queue.py`：新增 provider impact pipeline_id truthiness regression，鎖住可字串化 pipeline id 不需要經過 raw `__bool__()` 也能保留 pipeline identity。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue provider impact `pipeline_id` fields use string-safe conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D675 狀態紀錄。
+
+已固定的行為：
+
+1. Provider impact action 的 `pipeline_id` payload 不再依賴 raw truthiness。
+2. 可字串化 pipeline id 會保留為 queue item 的 `pipeline_id` payload。
+3. 空白、無法轉字串或缺值時仍 fallback 到 `v1`。
+4. 本輪 production 行數仍低於 340 行 guard。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_provider_impact_pipeline_id_uses_string_safe_payload` 建立 RED，失敗為 `_provider_items()` 中 `_field(row, "pipeline_id") or "v1"` 呼叫 malformed pipeline id `__bool__()`；修正後單測 `1 passed`。最終 focused queue/docs/HCS/import 驗證 `246 passed`。
+
+## P3-568 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Provider Impact Ticker Truthiness Guard`，讓 provider recovery action 在輸出 title 與 `ticker` payload 前以 string-safe conversion 處理 source identity，避免 raw ticker object 的 truthiness 中斷 provider wait ordering 或把非字串 identity 傳給 queue consumers。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`_provider_items()` 以 `safe_text(...).strip()` 正規化 provider impact `ticker`，並共用於 title 與 payload。
+- `tests/test_daily_decision_queue.py`：新增 provider impact ticker truthiness regression，鎖住可字串化 ticker 不需要經過 raw `__bool__()` 也能保留 source identity。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue provider impact `ticker` fields use string-safe conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D674 狀態紀錄。
+
+已固定的行為：
+
+1. Provider impact action title 不再依賴 raw ticker truthiness。
+2. 可字串化 ticker 會保留為 queue item 的 `ticker` payload。
+3. 空白、無法轉字串或缺值時仍以 `報告` 作為 title fallback。
+4. 本輪 production 行數仍低於 340 行 guard。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_provider_impact_ticker_uses_string_safe_payload` 建立 RED，失敗為 `_provider_items()` 中 `_field(row, "ticker") or "報告"` 呼叫 malformed ticker `__bool__()`；修正後單測 `1 passed`。最終 focused queue/docs/HCS/import 驗證 `245 passed`。
+
+## P3-567 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Provider Impact Recommended Action Truthiness Guard`，讓 provider recovery action 在輸出 `recommended_action` payload 前以 string-safe fallback 處理 wait/retry policy intent，避免 raw action object 的 truthiness 中斷 provider wait ordering 或抹掉可執行的 recovery policy。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`_provider_items()` 以 `safe_text(...).strip() or "wait_provider_recovery"` 讀取 provider impact `summary.recommended_action`。
+- `tests/test_daily_decision_queue.py`：新增 provider impact recommended_action truthiness regression，鎖住可字串化 action 不需要經過 raw `__bool__()` 也能輸出 provider recovery intent。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue provider impact `recommended_action` fields use string-safe fallback。
+- `docs/hcs-plus-optimization-state.md`：新增 D673 狀態紀錄。
+
+已固定的行為：
+
+1. Provider impact action 的 `recommended_action` 選取不再依賴 raw truthiness。
+2. 可字串化 action 會保留為 queue item 的 `recommended_action` payload。
+3. 空白、無法轉字串或缺值時仍 fallback 到 `wait_provider_recovery`。
+4. 本輪維持 production 行數不增加，仍低於 340 行 guard。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_provider_impact_recommended_action_does_not_depend_on_truthiness` 建立 RED，失敗為 `_provider_items()` 中 `_field(summary, "recommended_action") or "wait_provider_recovery"` 呼叫 malformed action `__bool__()`；修正後單測 `1 passed`。最終 focused queue/docs/HCS/import 驗證 `244 passed`。
+
+## P3-566 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Provider Impact Blocks Flag Truthiness Guard`，讓 provider recovery action 在 provider impact ledger 轉入 daily decision queue 前以 bool-safe conversion 讀取 `blocks_auto_rerun`，避免 raw blocking flag object 的 truthiness 中斷 provider wait ordering；無法安全判讀時保守視為 non-blocking。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`_provider_items()` 以 `_bool()` 讀取 provider impact `summary.blocks_auto_rerun`，沿用本 module 既有 conversion-failure-as-False 語意。
+- `tests/test_daily_decision_queue.py`：新增 provider impact blocks flag truthiness regression，鎖住 malformed blocking flag 不會中斷每日 queue，且保守降級為 monitor fallback / non-blocking。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue provider impact `blocks_auto_rerun` fields use bool-safe conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D672 狀態紀錄。
+
+已固定的行為：
+
+1. Provider impact action 的 blocking filter 不再直接呼叫 raw flag truthiness。
+2. malformed `blocks_auto_rerun` 不會中斷 daily queue assembly。
+3. 無法安全判讀的 flag 仍保守視為 non-blocking，避免錯誤製造 provider wait action。
+4. 本輪維持 production 行數不增加，仍低於 340 行 guard。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_provider_impact_blocks_flag_does_not_interrupt_queue` 建立 RED，失敗為 `_provider_items()` 中 `bool(_field(summary, "blocks_auto_rerun"))` 呼叫 malformed flag `__bool__()`；修正後單測 `1 passed`。最終 focused queue/docs/HCS/import 驗證 `243 passed`。
+
+## P3-565 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Provider Impact Filename Alias Truthiness Guard`，讓 provider recovery action 在輸出 `filename` / `report_filename` payload 時以 string-safe selection 處理 artifact identity，避免 raw filename object 的 truthiness 中斷 provider wait ordering 或抹掉可點回報告的目標。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`_provider_items()` 以 `safe_text(...).strip()` 選取 provider impact `filename` / `report_filename`，並用 normalized filename 回填兩個 alias。
+- `tests/test_daily_decision_queue.py`：新增 provider impact filename alias truthiness regression，鎖住可字串化 filename 不需要經過 raw `__bool__()` 也能輸出 action artifact identity。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue provider impact `filename` and `report_filename` aliases use string-safe selection。
+- `docs/hcs-plus-optimization-state.md`：新增 D671 狀態紀錄。
+
+已固定的行為：
+
+1. Provider impact action 的 `filename` / `report_filename` 選取不再依賴 raw truthiness。
+2. 可字串化 filename 會同時用於 `filename` payload 與 `report_filename` payload。
+3. 缺 filename 時仍可回退到 `report_filename`，兩者皆空時維持 `None` payload。
+4. 本輪維持 production 行數不增加，仍低於 340 行 guard。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_provider_impact_filename_alias_does_not_depend_on_truthiness` 建立 RED，失敗為 `_provider_items()` 中 `_field(row, "filename") or _field(row, "report_filename")` 呼叫 malformed filename `__bool__()`；修正後單測 `1 passed`。最終 focused queue/docs/HCS/import 驗證 `242 passed`。
+
+## P3-564 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Report Key Pipeline Identity Truthiness Guard`，讓 daily decision queue 在產生 report repair / stale-report rerun 的 skip-key identity 時以 string-safe conversion 處理 `pipeline_id`，避免沒有 filename 的 action 在 dedupe 前被 raw pipeline object 的 truthiness 中斷。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`_report_key()` 以 `safe_text(...).strip() or "v1"` 讀取 `pipeline_id`，保留既有 filename 優先、ticker:pipeline fallback 的 identity 策略。
+- `tests/test_daily_decision_queue.py`：新增 report key pipeline_id truthiness regression，鎖住沒有 filename 的 rerun report 也能用可字串化 pipeline identity 進入 skip-key matching 與 payload generation。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue report key `pipeline_id` fields use string-safe conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D670 狀態紀錄。
+
+已固定的行為：
+
+1. Report key identity 的 pipeline fallback 不再依賴 raw truthiness。
+2. 沒有 filename 的 rerun report 仍能用 stringable pipeline identity 產生 `ticker:pipeline_id` skip key。
+3. 空白 pipeline identity 仍回到 `v1`，維持既有 fallback。
+4. 本輪維持 production 行數不增加，仍低於 340 行 guard。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_report_key_pipeline_id_does_not_depend_on_truthiness` 建立 RED，失敗為 `_report_key()` 中 `str(_field(row, "pipeline_id") or "v1")` 呼叫 malformed pipeline `__bool__()`；修正後單測 `1 passed`。最終 focused queue/docs/HCS/import 驗證 `241 passed`。
+
+## P3-563 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Report Key Ticker Truthiness Guard`，讓 daily decision queue 在產生 report repair / stale-report rerun 的 skip-key identity 時以 string-safe conversion 處理 `ticker`，避免沒有 filename 的 action 在 dedupe 前被 raw ticker object 的 truthiness 中斷。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`_report_key()` 以 `safe_text(...).strip()` 讀取 `ticker`，保留既有 filename 優先、ticker:pipeline fallback 的 identity 策略。
+- `tests/test_daily_decision_queue.py`：新增 report key ticker truthiness regression，鎖住沒有 filename 的 rerun report 也能用可字串化 ticker 進入 skip-key matching 與 payload generation。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue report key `ticker` fields use string-safe conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D669 狀態紀錄。
+
+已固定的行為：
+
+1. Report key identity 的 ticker fallback 不再依賴 raw truthiness。
+2. 沒有 filename 的 rerun report 仍能用 stringable ticker 產生 `ticker:pipeline_id` skip key。
+3. 空白 ticker 仍回傳空 key，維持既有無法辨識 report identity 的保守語意。
+4. 本輪維持 production 行數不增加，仍低於 340 行 guard。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_report_key_ticker_does_not_depend_on_truthiness` 建立 RED，失敗為 `_report_key()` 中 `str(_field(row, "ticker") or "")` 呼叫 malformed ticker `__bool__()`；修正後單測 `1 passed`。最終 focused queue/docs/HCS/import 驗證 `240 passed`。
+
+## P3-562 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Rerun Report Detail Truthiness Guard`，讓 stale-report rerun action 在輸出 `detail` 時以 string-safe fallback 處理 freshness reason、analysis stale message 與 report-level reason，避免 raw reason object 的 truthiness 中斷 rerun ordering 或抹掉具體 stale-snapshot 證據。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`_rerun_report_payload()` 以 `safe_text(...).strip()` 依序讀取 freshness reason、analysis stale message、report-level rerun reason，最後才回到預設文案。
+- `tests/test_daily_decision_queue.py`：新增 rerun detail truthiness regression，鎖住可字串化 rerun reason 不需要經過 raw `__bool__()` 也能輸出成 action detail。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue rerun report action `detail` fields use string-safe fallback。
+- `docs/hcs-plus-optimization-state.md`：新增 D668 狀態紀錄。
+
+已固定的行為：
+
+1. Rerun report action 的 detail fallback 不再依賴 raw reason truthiness。
+2. 可字串化 freshness reason 會保留為下游可讀 `detail`。
+3. 空白 reason 仍依序 fallback 到 analysis stale message、report-level reason、預設文案。
+4. 本輪減少一行 production code，維持在 340 行 guard 以下。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_rerun_detail_does_not_depend_on_truthiness` 建立 RED，失敗為 `_field(freshness, "requires_rerun_reason") or ...` 呼叫 malformed reason `__bool__()`；修正後單測 `1 passed`。最終 focused queue/docs/HCS/import 驗證 `239 passed`。
+
+## P3-561 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Rerun Report Filename Alias Truthiness Guard`，讓 stale-report rerun action 在 dedupe/skip-key 與 payload 輸出時以 string-safe selection 處理 `filename` / `report_filename`，避免 raw filename object 的 truthiness 中斷 rerun ordering 或抹掉 artifact identity。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`_report_key()` 與 `_rerun_report_payload()` 以 `safe_text(...).strip()` 選取 rerun report `filename` / `report_filename`，並用 normalized filename 回填 `filename` 與 `report_filename`。
+- `tests/test_daily_decision_queue.py`：新增 rerun filename alias truthiness regression，鎖住可字串化 filename 不需要經過 raw `__bool__()` 也能進入 dedupe key 與 action payload。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue rerun report `filename` and `report_filename` aliases use string-safe selection。
+- `docs/hcs-plus-optimization-state.md`：新增 D667 狀態紀錄。
+
+已固定的行為：
+
+1. Rerun report action 的 `filename` / `report_filename` 選取不再依賴 raw truthiness。
+2. 可字串化 filename 會同時用於 dedupe key、`filename` payload 與 `report_filename` payload。
+3. 缺 filename 時仍可回退到 `report_filename`，兩者皆空時維持 `None` payload。
+4. 本輪維持 production 行數不增加，避免碰到 340 行 guard。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_rerun_filename_alias_does_not_depend_on_truthiness` 建立 RED，失敗為 `_report_key()` 中 `_field(row, "filename") or _field(row, "report_filename")` 呼叫 malformed filename `__bool__()`；修正後單測 `1 passed`。最終 focused queue/docs/HCS/import 驗證 `238 passed`。
+
+## P3-560 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Rerun Report Pipeline Identity Truthiness Guard`，讓 stale-report rerun action 在進入每日決策 queue 時以 string-safe conversion 輸出 `pipeline_id`，避免 raw pipeline object 的 truthiness 中斷 rerun ordering 或流入 queue/notification/UI consumer。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`_rerun_report_payload()` 以 `safe_text(...).strip()` 選取 rerun report `pipeline_id`，並用 normalized pipeline identity 生成 title 與 queue item。
+- `tests/test_daily_decision_queue.py`：新增 rerun pipeline_id truthiness regression，鎖住可字串化 pipeline identity 不需要經過 raw `__bool__()` 也能生成 title 與 payload。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue rerun report action `pipeline_id` fields use string-safe conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D666 狀態紀錄。
+
+已固定的行為：
+
+1. Rerun report action 的 `pipeline_id` 不再依賴 raw truthiness。
+2. 可字串化 pipeline identity 會同時出現在 `title` 與 queue item `pipeline_id` payload。
+3. 空白 pipeline identity 仍回到 `v1`，維持 legacy fallback。
+4. 本輪維持 production 行數不增加，避免碰到 340 行 guard。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_rerun_pipeline_id_does_not_depend_on_truthiness` 建立 RED，失敗為 `_field(report, "pipeline_id") or "v1"` 呼叫 malformed pipeline `__bool__()`；修正後單測 `1 passed`。最終 focused queue/docs/HCS/import 驗證 `237 passed`。
+
+## P3-559 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Rerun Report Ticker Truthiness Guard`，讓 stale-report rerun action 在進入每日決策 queue 時以 string-safe conversion 輸出 `ticker`，避免 raw ticker object 的 truthiness 中斷 rerun ordering 或流入 queue/notification/UI consumer。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`_rerun_report_payload()` 以 `safe_text(...).strip()` 選取 rerun report `ticker`，並用同一個 normalized ticker 回填 queue item。
+- `tests/test_daily_decision_queue.py`：新增 rerun ticker truthiness regression，鎖住可字串化 ticker 不需要經過 raw `__bool__()` 也能生成 title 與 payload。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue rerun report action `ticker` fields use string-safe conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D665 狀態紀錄。
+
+已固定的行為：
+
+1. Rerun report action 的 `ticker` 不再依賴 raw truthiness。
+2. 可字串化 ticker 會同時出現在 `title` 與 queue item `ticker` payload。
+3. 空白 ticker 仍回到 `報告`，維持 legacy fallback。
+4. 本輪維持 production 行數不增加，避免碰到 340 行 guard。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_rerun_ticker_does_not_depend_on_truthiness` 建立 RED，失敗為 `_field(report, "ticker") or "報告"` 呼叫 malformed ticker `__bool__()`；修正後單測 `1 passed`。最終 focused queue/docs/HCS/import 驗證 `236 passed`。
+
+## P3-558 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Report Repair Action Label Payload Guard`，讓 report repair action 在進入每日決策 queue 時以 string-safe conversion 輸出 `action_label`，避免 raw CTA label object 流向 queue、notification 或 UI consumer。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`_repair_action_payload()` 以 `safe_text(...).strip()` 輸出 `action_label`，空白時維持 `None`。
+- `tests/test_daily_decision_queue.py`：新增 repair action_label payload regression，鎖住可字串化 CTA label 會輸出為字串而不是原始物件。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue report repair action `action_label` fields use string-safe conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D664 狀態紀錄。
+
+已固定的行為：
+
+1. Report repair action 的 `action_label` 不再把 raw object 放進 queue item。
+2. 可字串化的 CTA label 仍會保留為下游可讀字串。
+3. 空白 action label 仍輸出 `None`，避免製造空字串 CTA。
+4. 本輪維持一行 production 修補，不增加 `daily_decision_queue.py` 行數，避免碰到 340 行 guard。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_repair_action_label_uses_string_safe_payload` 建立 RED，失敗為 action_label payload 仍是 raw `StringableActionLabel` object；修正後單測 `1 passed`。最終 focused queue/docs/HCS/import 驗證 `235 passed`。
+
+## P3-557 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Report Repair Severity Payload Guard`，讓 report repair action 在進入每日決策 queue 時以 string-safe conversion 輸出 `severity`，避免 raw severity object 流向 queue、notification 或 UI consumer。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`_repair_action_payload()` 以 `safe_text(...).strip()` 輸出 `severity`，空白時維持 `None`。
+- `tests/test_daily_decision_queue.py`：新增 repair severity payload regression，鎖住可字串化 severity 會輸出為字串而不是原始物件。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue report repair action `severity` fields use string-safe conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D663 狀態紀錄。
+
+已固定的行為：
+
+1. Report repair action 的 `severity` 不再把 raw object 放進 queue item。
+2. 可字串化的 severity 仍會保留為 `blocked` / `warning` 等下游可讀字串。
+3. 空白 severity 仍輸出 `None`，避免製造空字串狀態。
+4. 本輪維持一行 production 修補，不增加 `daily_decision_queue.py` 行數，避免碰到 340 行 guard。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_repair_severity_uses_string_safe_payload` 建立 RED，失敗為 severity payload 仍是 raw `StringableSeverity` object；修正後單測 `1 passed`。最終 focused queue/docs/HCS/import 驗證 `234 passed`。
+
+## P3-556 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Report Repair Priority Score Truthiness Guard`，讓 report repair action 在進入每日決策 queue 時以 integer-safe conversion 保留 `priority_score`，而不是在整數轉換前依賴 raw truthiness。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`_int()` 改成只在 `value is None` 時使用 `0` fallback，避免可 `int()` 的 priority object 因 `__bool__()` 異常而中斷 queue assembly。
+- `tests/test_daily_decision_queue.py`：新增 repair priority_score truthiness regression，鎖住可整數化 priority 仍會保留在 queue item。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue report repair action `priority_score` fields use integer-safe conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D662 狀態紀錄。
+
+已固定的行為：
+
+1. Report repair action 的 `priority_score` 不再因 malformed truthiness 中斷每日 queue。
+2. 可整數化的 priority object 仍會保留成實際排序分數。
+3. `None`、空字串或不可整數化值仍 fallback 到既有預設排序行為。
+4. 本輪維持一行 production 修補，不增加 `daily_decision_queue.py` 行數，避免碰到 340 行 guard。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_repair_priority_score_does_not_depend_on_truthiness` 建立 RED，失敗為 `RuntimeError: daily queue repair priority score truthiness unavailable`；修正後單測 `1 passed`。最終 focused queue/docs/HCS/import 驗證 `233 passed`。
+
+## P3-555 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Report Repair Pipeline Identity Truthiness Guard`，讓 report repair action 在進入每日決策 queue 時以 string-safe conversion 保留 `pipeline_id` report identity，而不是依賴 raw truthiness 或把 raw 物件流向 payload consumer。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`_repair_action_payload()` 以 `safe_text(...).strip()` 讀取 `pipeline_id`；缺值時維持 `v1` fallback，並讓 title 與 queue item 使用同一個安全 pipeline id。
+- `tests/test_daily_decision_queue.py`：新增 repair pipeline_id truthiness regression，鎖住可字串化 pipeline id 仍會保留在 payload 與 title。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue report repair action `pipeline_id` fields use string-safe conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D661 狀態紀錄。
+
+已固定的行為：
+
+1. Report repair action 的 `pipeline_id` 不再因 malformed truthiness 中斷每日 queue。
+2. 可字串化的 pipeline id 仍會保留在 `pipeline_id` payload 與使用者可見 title。
+3. 缺少或空白 pipeline id 時仍 fallback 到 `v1`，維持既有安全預設。
+4. 本輪維持一行 production 修補，不增加 `daily_decision_queue.py` 行數，避免碰到 340 行 guard。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_repair_pipeline_id_does_not_depend_on_truthiness` 建立 RED，失敗為 `RuntimeError: daily queue repair pipeline id truthiness unavailable`；修正後單測 `1 passed`。最終 focused queue/docs/HCS/import 驗證 `232 passed`。
+
+## P3-554 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Report Repair Ticker Truthiness Guard`，讓 report repair action 在進入每日決策 queue 時以 string-safe conversion 保留 `ticker` report identity，而不是依賴 raw truthiness 或把 raw 物件流向 payload consumer。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`_repair_action_payload()` 以 `safe_text(...).strip()` 讀取 `ticker`，並把 queue item 的 `ticker` 欄位回填為同一個安全字串；缺值時維持 `報告` fallback。
+- `tests/test_daily_decision_queue.py`：新增 repair ticker truthiness regression，鎖住可字串化 ticker 仍會保留在 payload 與 title。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue report repair action `ticker` fields use string-safe conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D660 狀態紀錄。
+
+已固定的行為：
+
+1. Report repair action 的 `ticker` 不再因 malformed truthiness 中斷每日 queue。
+2. 可字串化的 ticker 仍會保留在 `ticker` payload 與使用者可見 title。
+3. 缺少或空白 ticker 時仍 fallback 到 `報告`，維持既有安全預設。
+4. 本輪維持小範圍 production 修補，不增加 `daily_decision_queue.py` 行數，避免碰到 340 行 guard。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_repair_ticker_does_not_depend_on_truthiness` 建立 RED，失敗為 `RuntimeError: daily queue repair ticker truthiness unavailable`；修正後單測 `1 passed`。最終 focused queue/docs/HCS/import 驗證 `231 passed`。
+
+## P3-553 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Report Repair Recommended Action Truthiness Guard`，讓 report repair action 在進入每日決策 queue 時以 string-safe conversion 保留 `recommended_action` routing intent，而不是依賴 raw truthiness。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`_repair_action_payload()` 以 `safe_text(...).strip()` 讀取 `recommended_action`，避免 malformed `__bool__()` 中斷 queue assembly，並在缺值時維持 `manual_review` fallback。
+- `tests/test_daily_decision_queue.py`：新增 repair recommended_action truthiness regression，鎖住可字串化 action 仍會映射到 `refresh_data_snapshot`。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue report repair action `recommended_action` fields use string-safe conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D659 狀態紀錄。
+
+已固定的行為：
+
+1. Report repair action 的 `recommended_action` 不再因 malformed truthiness 中斷每日 queue。
+2. 可字串化的 `refresh_data_snapshot` 仍會映射成 `type = refresh_data_snapshot`。
+3. 缺少或空白 action 時仍 fallback 到 `manual_review`，維持既有安全預設。
+4. 本輪維持一行 production 修補，不增加 `daily_decision_queue.py` 行數，避免碰到 340 行 guard。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_repair_recommended_action_does_not_depend_on_truthiness` 建立 RED，失敗為 `RuntimeError: daily queue repair recommended action truthiness unavailable`；修正後單測 `1 passed`。最終 focused queue/docs/HCS/import 驗證 `230 passed`。
+
+## P3-552 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Report Repair Filename Alias Truthiness Guard`，讓 report repair action 在進入每日決策 queue 時以 string-safe selection 保留 `filename` / `report_filename` artifact identity，而不是依賴 raw truthiness。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`_repair_action_payload()` 以 `safe_text(...).strip()` 依序選擇 `filename`、`report_filename`，避免 malformed `__bool__()` 中斷 queue assembly，並在缺值時維持 `None`。
+- `tests/test_daily_decision_queue.py`：新增 repair filename truthiness regression，鎖住可字串化 filename 仍會成為 `filename` 與 `report_filename`。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue report repair `filename` and `report_filename` aliases use string-safe selection。
+- `docs/hcs-plus-optimization-state.md`：新增 D658 狀態紀錄。
+
+已固定的行為：
+
+1. Report repair action 的 `filename` 不再因 malformed truthiness 中斷每日 queue。
+2. 可字串化的 filename 仍會保留為 artifact identity，並同步到 `report_filename`。
+3. 只有 `report_filename` 的既有 alias 行為維持不變。
+4. 本輪維持一行 production 修補，不增加 `daily_decision_queue.py` 行數，避免碰到 340 行 guard。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_repair_filename_does_not_depend_on_truthiness` 建立 RED，失敗為 `RuntimeError: daily queue repair filename truthiness unavailable`；修正後單測 `1 passed`。最終 focused queue/docs/HCS/import 驗證 `229 passed`。
+
+## P3-551 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Report Repair Title Truthiness Guard`，讓 report repair action 在進入每日決策 queue 時以 string-safe conversion 保留 title，而不是依賴 raw truthiness。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`_repair_action_payload()` 將 repair action title 先以 `safe_text(...).strip()` 正規化，再用 `報告需處理` fallback，避免 malformed `__bool__()` 中斷 queue assembly。
+- `tests/test_daily_decision_queue.py`：新增 repair title truthiness regression，鎖住 `2330.TW v2 資料快照完整性未通過` 仍會成為 queue title。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue report repair action `title` fields use string-safe conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D657 狀態紀錄。
+
+已固定的行為：
+
+1. Report repair action 的 `title` 不再因 malformed truthiness 中斷每日 queue。
+2. 可字串化的 title 仍會和 ticker / pipeline 一起形成 operator 可讀 queue title。
+3. `detail`、`blocks_auto_rerun`、`reason_codes`、priority ordering 與 notification handoff 契約維持原本行為。
+4. 本輪不改其他 daily queue action title 欄位，避免把小切面擴成跨來源 payload 重構。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_repair_title_does_not_depend_on_truthiness` 建立 RED，失敗為 `RuntimeError: daily queue repair title truthiness unavailable`；修正後單測 `1 passed`。最終 focused queue/docs/HCS/import 驗證 `228 passed`。
+
+## P3-550 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Decision Queue Report Repair Detail Truthiness Guard`，讓 report repair action 在進入每日決策 queue 時以 string-safe conversion 保留具體 detail，而不是依賴 raw truthiness。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`_repair_action_payload()` 將 `detail` 改為 `safe_text(_field(item, "detail"))`，避免 malformed `__bool__()` 中斷 queue assembly，同時保留可 `str()` 的 mismatch detail。
+- `tests/test_daily_decision_queue.py`：新增 repair detail truthiness regression，鎖住 `snapshot_hash mismatch` 會進入 `decision_queue.items[0].detail`。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 Daily decision queue report repair action `detail` fields use string-safe conversion。
+- `docs/hcs-plus-optimization-state.md`：新增 D656 狀態紀錄。
+
+已固定的行為：
+
+1. Report repair action 的 `detail` 不再因 malformed truthiness 中斷每日 queue。
+2. 可字串化的 `detail` 仍會保留，例如 `snapshot_hash mismatch`。
+3. `blocks_auto_rerun`、`reason_codes`、priority ordering 與 notification handoff 契約維持原本行為。
+4. 本輪不改其他 daily queue action 欄位，避免把小切面擴成廣泛 payload 重構。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_repair_detail_does_not_depend_on_truthiness` 建立 RED，失敗為 `RuntimeError: daily queue repair detail truthiness unavailable`；修正後單測 `1 passed`。最終 focused queue/docs/HCS/import 驗證 `227 passed`。
+
+## P3-549 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Outbox Report Repair Detail Guard`，讓 report repair action 的具體 detail 進入出站通知 payload 與後續 delivery audit context，而不是只保留 reason code。
+
+落地檔案：
+
+- `backend/free_notification_plan.py`：將 `detail` 納入 `DELIVERY_CONTEXT_KEYS`，讓 `_delivery_outbox()` 從既有 message envelope 保留 blocked-repair detail，同時不改 `dedupe_key` / `message_id` identity 計算。
+- `tests/test_free_notification_plan.py`：加嚴 report repair notification regression，鎖住 message 與每個 outbox entry 都保留 `snapshot_hash mismatch`。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 delivery outbox 會保留 report repair action `detail`。
+- `docs/hcs-plus-optimization-state.md`：新增 D655 狀態紀錄。
+
+已固定的行為：
+
+1. Report repair message 仍保留 `blocks_auto_rerun` 與 `reason_codes`。
+2. `delivery_outbox` entries 會保留 `detail = snapshot_hash mismatch`，讓外部 sender 與 audit context 看得到具體 blocked-repair 證據。
+3. `dedupe_key` / `message_id` 仍排除 title/detail/priority 變化，避免文案變更造成重複通知身份。
+4. `fix_notification_delivery` suppression 與現有 channel enablement 行為維持原契約。
+
+驗證：先以 `tests/test_free_notification_plan.py::test_notification_plan_preserves_report_repair_reason_codes` 建立 RED，失敗為 `KeyError: 'detail'`；修正後單測 `1 passed`。最終 focused notification/docs/HCS/import 驗證 `254 passed`。
+
+## P3-548 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Report Preview Reading Boundary Snapshot Integrity Detail Guard`，讓 preview 上方的判讀限制在 invalid snapshot integrity 時保留 mismatch detail，而不是只顯示泛用品質 gate blocked 文案。
+
+落地檔案：
+
+- `backend/static/report_reading_boundary_policy.js`：新增 `safeText()` 與 `snapshotIntegrityDetail()`，在 `snapshot_integrity.status = invalid` 時把 scalar 或 array errors 附加到 blocked detail。
+- `tests/test_report_preview_reading_boundary.py`：新增 scalar `snapshot_integrity.errors` regression，鎖住 preview boundary detail 會包含 `snapshot_hash mismatch`。
+- `docs/api.md`、`docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Report preview reading boundaries include snapshot integrity mismatch details` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D654 狀態紀錄。
+
+已固定的行為：
+
+1. Report preview 的 invalid snapshot notice 不再只顯示泛用 blocked 文案。
+2. `snapshot_integrity.errors` 是 scalar string 時，`snapshot_hash mismatch` 仍會顯示在 preview reading boundary detail。
+3. `errors` 是 array 時也會以 `；` 串接，保留後端多筆 mismatch/error detail。
+4. Pending、warning、passed 與 preview panel render 流程維持原契約。
+
+驗證：先以 `tests/test_report_preview_reading_boundary.py::test_report_reading_boundary_includes_snapshot_integrity_error_detail` 建立 RED，失敗為 detail 只有 `品質 gate 未通過；先處理品質警示，暫勿直接採用報告結論。`；修正後單測 `1 passed`，reading boundary 全檔 `4 passed`。最終 focused preview/docs/HCS/import 驗證 `142 passed`。
+
+## P3-547 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Report Quality Repair Queue Snapshot Integrity Scalar Error Detail Guard`，讓 invalid snapshot integrity 的 scalar error detail 仍能進入 manual-review action，而不是退成泛用修復文字。
+
+落地檔案：
+
+- `backend/report_quality_integrity.py`：新增 `_integrity_errors()`，先保留既有 list/tuple error detail，再以 string-safe fallback 接受 scalar `errors` 值。
+- `tests/test_report_quality_repair_queue.py`：新增 scalar `snapshot_integrity.errors` regression，鎖住 `snapshot_hash mismatch` 會成為 repair item detail。
+- `docs/api.md`、`docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Report quality repair queue snapshot integrity error details use string-safe conversion` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D653 狀態紀錄。
+
+已固定的行為：
+
+1. `snapshot_integrity.errors` 是單一字串時，blocked repair action 仍保留原始 mismatch detail。
+2. list/tuple errors 仍維持既有 `；` 串接行為。
+3. invalid snapshot integrity 仍輸出 `manual_review`、`blocked` 與 `data_snapshot_integrity_invalid`。
+4. 既有 immutable mapping integrity guard 與 repair queue prioritization 行為維持原契約。
+
+驗證：先以 `tests/test_report_quality_repair_queue.py::test_repair_queue_preserves_scalar_snapshot_integrity_error_detail` 建立 RED，失敗為 detail 退成 `資料快照 hash 不一致，不能直接引用報告結論。`；修正後單測 `1 passed`，repair queue 全檔 `22 passed`。最終 focused repair/downstream/docs/HCS/import 驗證 `208 passed`。
+
+## P3-546 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Report Quality Repair Queue Snapshot Integrity Mapping Guard`，讓 report repair action projector 能接受 immutable `snapshot_integrity` metadata，避免 invalid snapshot hash 在 repair queue 入口被漏掉。
+
+落地檔案：
+
+- `backend/report_quality_integrity.py`：`snapshot_integrity_repair_item()` 改用 `mapping_fields.safe_mapping_dict()` 正規化 integrity payload，保留既有 dict 行為並支援一般 `Mapping`。
+- `tests/test_report_quality_repair_queue.py`：新增 nested `MappingProxyType` snapshot integrity regression，鎖住 invalid snapshot hash 仍會排在 stale snapshot 前成為 blocked manual-review action。
+- `docs/api.md`、`docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Report quality repair queue snapshot integrity maps use mapping-safe conversion` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D652 狀態紀錄。
+
+已固定的行為：
+
+1. `snapshot_integrity` 是 immutable mapping 時，`report_quality_repair_queue` 不再忽略 invalid hash blocker。
+2. invalid snapshot integrity 仍以 `manual_review`、`blocked`、`blocks_auto_rerun = true`、`data_snapshot_integrity_invalid` 進入 repair queue。
+3. Tuple `errors` 仍透過 shared text-list conversion 保留可讀 mismatch detail。
+4. 既有 content credibility、provider SLA、data trust stale、decision freshness prioritization 維持原契約。
+
+驗證：先以 `tests/test_report_quality_repair_queue.py::test_repair_queue_blocks_invalid_mapping_snapshot_integrity_before_stale_snapshot` 建立 RED，失敗為 repair queue 只產生 `2308_stale.html`，漏掉 `2330_corrupt.html`；修正後單測 `1 passed`，repair queue 全檔 `21 passed`。最終 focused repair/downstream/docs/HCS/import 驗證 `207 passed`。
+
+## P3-545 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Snapshot Maintenance Falsey Hash Metadata Guard`，讓 `verify-snapshots` 維護命令沿用 core integrity verifier 的 hash presence 判斷，不再用 Python truthiness 把 malformed-but-present hash metadata 誤分類為 missing hash。
+
+落地檔案：
+
+- `backend/snapshot_maintenance.py`：`_verify_one()` 改以 `verify_data_snapshot_integrity()` 回傳的 `expected_hash` 判斷 hash metadata 是否存在，維持 missing hash、mismatch、repair/backfill 的語意分界。
+- `tests/test_maintenance_commands.py`：新增 falsey hash metadata regression，鎖住 JSON-safe `snapshot_hash: 0` 會回報 mismatch，write mode 會修復並保留 `previous_hash = "0"`。
+- `docs/api.md`、`docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Snapshot maintenance verify-snapshots uses verifier-derived hash presence` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D651 狀態紀錄。
+
+已固定的行為：
+
+1. `verify-snapshots` 不再把 falsey hash metadata（例如 `0`）視為 missing hash。
+2. dry-run 會把 malformed hash metadata 回報為 mismatch，避免 operator 以為只是 legacy/hashless snapshot。
+3. write mode 會走 repair 而不是 backfill，並回報原本的 `previous_hash` 供維運稽核。
+4. 既有 missing-hash backfill、mismatched-hash repair、partitioned artifact scan 與 symlink skip 行為維持原契約。
+
+驗證：先以 `tests/test_maintenance_commands.py::test_verify_snapshots_treats_falsey_hash_metadata_as_mismatch` 建立 RED，失敗為 `before["missing_hash"] == 1`；修正後單測 `1 passed`，並以 verify-snapshots 鄰近維護測試 `5 passed` 確認 backfill/repair/partitioned/symlink 行為未回退。最終 focused maintenance/docs/HCS/import 驗證 `161 passed`。
+
+## P3-544 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Data Trust Snapshot Mapping Wrapper Integrity Guard`，讓 immutable snapshot container 仍可參與 content-hash 與 integrity verification，而不是在 hash 前被誤判成非 object。
+
+落地檔案：
+
+- `backend/data_trust_snapshot.py`：`sanitize_for_snapshot()`、`snapshot_content_hash()`、`verify_data_snapshot_integrity()` 與 `validate_data_snapshot()` 接受一般 `Mapping`，同時保留 dict subclass 的 native field read 防護。
+- `backend/data_trust_snapshot_mapping.py`：抽出 mapping snapshot field read、key presence 與 reproducibility packet hash-normalization helper，讓 `data_trust_snapshot.py` 維持 module size gate。
+- `tests/test_data_trust.py`：新增 `MappingProxyType` snapshot wrapper regression，鎖住 immutable snapshot container 的 hash 與 integrity validity。
+- `docs/api.md`、`docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Data trust snapshot content hash accepts mapping snapshot wrappers before integrity verification` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D650 狀態紀錄。
+
+已固定的行為：
+
+1. `snapshot_content_hash(MappingProxyType(snapshot))` 不再回傳空字串，而是產生與原 snapshot 相同的 content hash。
+2. `verify_data_snapshot_integrity()` 不再把 immutable mapping snapshot wrapper 視為非 object。
+3. 既有 malformed dict subclass `.get()`、`.items()` 與 first-next fallback 防護維持原契約。
+4. 新 helper 拆分後 `data_trust_snapshot.py` 回到 343 行，低於 350 行 module size gate。
+
+驗證：先以 `tests/test_data_trust.py::test_data_snapshot_content_hash_accepts_mapping_snapshot_wrappers` 建立 RED，失敗為 `snapshot_content_hash()` 對 `MappingProxyType` 回傳 `""`；修正後單測 `1 passed`，並以 hash mapping/fallback 鄰近邊界單測 `4 passed` 確認既有 guards 沒有回退。第一次 focused lane 揭露 `data_trust_snapshot.py` 372 行超過 `< 350`，拆出 `data_trust_snapshot_mapping.py` 後 module size gate `2 passed`，最終 focused data-trust/docs/HCS/import 驗證 `206 passed`。`py_compile`、`git diff --check` 與 runtime doctor 通過；runtime doctor 仍確認 report index 在 `backend/cache/stock_agent_cache.sqlite3`、operational/task/decision tracking 在 `backend/cache/operational.sqlite3`。
+
+## P3-543 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Audit Context Nested Mapping Metadata Guard`，讓 delivery audit context 的 nested immutable mapping metadata 仍保存成結構化 JSON context，而不是被字串化。
+
+落地檔案：
+
+- `backend/mapping_fields.py`：`safe_mapping_items()` 支援一般 `Mapping`，保留既有 dict subclass native fallback 行為，並讓 immutable mapping 可被 shared helper 枚舉。
+- `backend/notification_delivery_audit_context.py`：`_json_safe_value()` 將 `Mapping` 視為 structured mapping，讓 nested mapping metadata 走相同 JSON-safe child normalization。
+- `tests/test_notification_delivery_audit.py`：新增 nested `MappingProxyType` metadata regression，鎖住 nested `queue_rank` 仍以 dict 形式持久化，空 child metadata 被清除。
+- `docs/api.md`、`docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery audit context preserves mapping metadata values before JSON serialization` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D649 狀態紀錄。
+
+已固定的行為：
+
+1. Nested immutable mapping metadata 不再被 `safe_text()` 字串化成 `"mappingproxy(...)"` 或 dict repr。
+2. 有效 nested child metadata 仍保留為 structured dict，空 child metadata 仍依既有 `_present()` 規則移除。
+3. 既有 malformed `.items()` dict subclass fallback、non-string metadata key filtering、mapping outbox write/reconcile guards 都維持原契約。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_context_preserves_mapping_metadata_values` 建立 RED，失敗為 nested mapping 被持久化成 `"{'queue_rank': 1, 'empty': ''}"` 字串；修正後單測 `1 passed`，並以 context items/non-string-key/mapping-write 鄰近邊界單測 `3 passed` 確認既有 guards 沒有回退。收尾 focused notification audit/docs/HCS/import 驗證 `214 passed`。
+
+## P3-542 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Audit Persistence Malformed Mapping Outbox Entry Fail-Closed Guard`，讓 `record_delivery_attempt()` 對 malformed mapping outbox entry 回到清楚的必填 identity 錯誤，而不是漏出底層 mapping iterator/accessor exception。
+
+落地檔案：
+
+- `backend/mapping_fields.py`：新增 `safe_mapping_dict()`，集中處理 dict / mapping entry normalization；無法安全轉換的 mapping 回傳 `None`。
+- `backend/notification_delivery_audit.py`：`record_delivery_attempt()` 改用 `safe_mapping_dict()`，讓壞 mapping entry 以空 identity payload fail closed；`reconcile_outbox_with_audit()` 仍沿用 `safe_dict_list()`。
+- `tests/test_notification_delivery_audit.py`：新增 malformed mapping write-path regression，鎖住底層 iterator failure 會轉成 `ValueError: delivery_key is required`。
+- `docs/api.md`、`docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery audit persistence rejects malformed mapping outbox entries with required identity errors` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D648 狀態紀錄。
+
+已固定的行為：
+
+1. `record_delivery_attempt()` 不再把 malformed mapping iterator/accessor exception 直接漏給 caller。
+2. 無法正規化的 outbox mapping 會被視為缺少 required identity，回到既有 `delivery_key is required` 驗證語意。
+3. 可正規化 immutable mapping entry 仍可寫入 audit 並保留 context；batch reconcile 的 malformed-entry isolation 也沒有回退。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_record_rejects_malformed_mapping_outbox_entries_with_required_identity_error` 建立 RED，失敗為 `RuntimeError: record outbox mapping iterator unavailable`；修正後單測 `1 passed`，並以 mapping write/reconcile 邊界單測 `3 passed` 確認 P3-540/P3-541 沒有回退。收尾 focused notification audit/docs/HCS/import 驗證 `213 passed`。
+
+## P3-541 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Reconcile Malformed Mapping Outbox Entry Isolation Guard`，讓 sender preflight 在 list/tuple batch 混入單筆壞 mapping entry 時，仍能保留相鄰有效 pending delivery work。
+
+落地檔案：
+
+- `backend/mapping_fields.py`：`safe_dict_list()` 支援一般 `Mapping` entry，會把可正規化 mapping 轉成 dict，並跳過無法安全轉換的單筆 entry。
+- `backend/notification_delivery_audit.py`：`reconcile_outbox_with_audit()` 改用 `safe_dict_list()` 正規化 outbox batch，避免入口直接 `dict(entry)` 讓單筆壞 mapping 中斷整批 preflight。
+- `tests/test_notification_delivery_audit.py`：新增 broken `Mapping` regression，鎖住壞 mapping entry 會被跳過，而同批有效 pending delivery 仍得到 `not_seen` preflight result。
+- `docs/api.md`、`docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery reconcile preflight skips malformed mapping outbox entries before audit lookup` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D647 狀態紀錄。
+
+已固定的行為：
+
+1. 單筆 malformed mapping outbox entry 不會在 audit lookup 前中斷整批 reconcile preflight。
+2. 同批有效 mapping/dict entry 仍會保留 pending delivery work 並正常輸出 `audit_status = not_seen`。
+3. 這次只隔離無法正規化的 mapping entry；不嘗試修復壞 entry，也不擴大為任意 iterable batch。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_reconcile_skips_malformed_mapping_outbox_entries` 建立 RED，失敗為 `RuntimeError: outbox mapping iterator unavailable`；修正後單測 `1 passed`，並以 mapping/tuple/missing outbox 邊界單測 `3 passed` 確認 P3-537/P3-539 沒有回退。收尾 focused notification audit/docs/HCS/import 驗證 `212 passed`。
+
+## P3-540 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Audit Persistence Mapping Outbox Entries Guard`，讓 `record_delivery_attempt()` 與 P3-539 的 preflight 邊界一致：sender 傳入 immutable mapping outbox entry 時，audit write 仍能讀取 identity 並保存 context。
+
+落地檔案：
+
+- `backend/notification_delivery_audit.py`：`record_delivery_attempt()` 的 outbox entry 型別放寬為 `Mapping[str, Any]`，並在 identity/context extraction 前把 mapping entry 正規化為一般 dict，維持 `_field()` 與 context helpers 的 dict-native 契約。
+- `tests/test_notification_delivery_audit.py`：新增 `MappingProxyType` write-path regression，鎖住 immutable mapping entry 可以寫入 delivery audit，且 source/ticker context 不會消失。
+- `docs/api.md`、`docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery audit persistence evaluates mapping outbox entries before identity and context extraction` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D646 狀態紀錄。
+
+已固定的行為：
+
+1. Preflight 已接受的 mapping outbox entry 不會在 `record_delivery_attempt()` 寫 audit 時崩潰。
+2. Mapping entry 的 identity fields 與 context metadata 會先轉成 dict，再沿用既有 string-safe 與 JSON-safe persistence guards。
+3. 這次只對 audit write 入口補 mapping normalization；不擴大 `mapping_field()` 或 context helper 的全域型別契約。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_record_accepts_mapping_outbox_entries` 建立 RED，失敗為 `TypeError: descriptor 'get' for 'dict' objects doesn't apply to a 'mappingproxy' object`；修正後單測 `1 passed`，並以 outbox identity/context/reconcile mapping 邊界單測 `3 passed` 確認既有 guard 沒有回退。收尾 focused notification audit/docs/HCS/import 驗證 `211 passed`。
+
+## P3-539 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Reconcile Mapping Outbox Entries Guard`，讓 sender preflight 保留 list/tuple batch 裡的 immutable mapping entry，而不是只接受 mutable `dict`。
+
+落地檔案：
+
+- `backend/notification_delivery_audit.py`：`reconcile_outbox_with_audit()` 的 outbox entry 型別放寬為 `Mapping[str, Any]`，並在 preflight 入口把 mapping entry 轉成一般 dict，讓既有 dict-native field helpers 不必改契約。
+- `tests/test_notification_delivery_audit.py`：新增 `MappingProxyType` regression，鎖住 immutable mapping entry 仍會得到 `not_seen` preflight result。
+- `docs/api.md`、`docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery reconcile preflight evaluates mapping outbox entries before audit lookup` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D645 狀態紀錄。
+
+已固定的行為：
+
+1. List/tuple batch 裡的 mapping outbox entry 會保留 pending delivery work，不會被 `dict` 型別檢查清空。
+2. Mapping entry 會在 preflight 入口正規化成 dict，維持 `_field()` 等既有 helper 的 dict-native 契約。
+3. 這次不擴大為任意 iterable batch；`None` 或其它非 list/tuple outbox payload 仍維持 P3-537 的空結果契約。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_reconcile_accepts_mapping_outbox_entries` 建立 RED，失敗為 `IndexError: list index out of range`；修正後單測 `1 passed`，並以 tuple/missing outbox 邊界單測 `2 passed` 確認 P3-537/P3-538 沒有回退。收尾 focused notification audit/docs/HCS/import 驗證 `210 passed`。
+
+## P3-538 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Reconcile Tuple Outbox Entries Guard`，讓 sender preflight 保留 tuple outbox entry batches，而不是把 immutable sender payload 視為空 outbox。
+
+落地檔案：
+
+- `backend/notification_delivery_audit.py`：`reconcile_outbox_with_audit()` 的 `outbox_entries` 型別支援 `tuple[dict[str, Any], ...]`，並把 list/tuple 都當成可枚舉 batch；`None` 與其它非 sequence payload 仍回傳空 preflight result。
+- `tests/test_notification_delivery_audit.py`：新增 tuple outbox regression，鎖住 tuple 裡的 pending delivery work 仍會得到 `not_seen` preflight result。
+- `docs/api.md`、`docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery reconcile preflight evaluates tuple outbox entry batches before audit lookup` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D644 狀態紀錄。
+
+已固定的行為：
+
+1. Tuple outbox entry batches 會保留 pending delivery work，不會被 missing payload fallback 清空。
+2. `None` 或其它非 list/tuple outbox payload 仍維持 P3-537 的空結果契約。
+3. 這次只修 sender preflight 的 batch shape；不改 delivery identity、retry budget、retry backoff 或 already-sent 判斷。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_reconcile_accepts_tuple_outbox_entries` 建立 RED，失敗為 `IndexError: list index out of range`；修正後單測 `1 passed`，並以 `test_notification_delivery_audit_reconcile_treats_missing_outbox_entries_as_empty` 確認 missing outbox fallback 沒有回退。Docs contract 補文後 `tests/test_docs_contract.py` `68 passed`，notification audit suite `72 passed`。收尾 focused notification audit/docs/HCS/import 驗證 `209 passed`。
+
+## P3-537 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Reconcile Missing Outbox Entries Guard`，讓 sender preflight 在 caller 沒有提供 outbox entries 時回傳空結果，而不是在 audit lookup 前崩潰。
+
+落地檔案：
+
+- `backend/notification_delivery_audit.py`：`reconcile_outbox_with_audit()` 的 `outbox_entries` 型別放寬為 `list[dict[str, Any]] | None`，並只在輸入為 list 時枚舉 dict entry；缺失或非 list payload 會得到空 entries。
+- `tests/test_notification_delivery_audit.py`：新增 missing outbox regression，鎖住 `reconcile_outbox_with_audit(None) == []`。
+- `docs/api.md`、`docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery reconcile preflight treats missing outbox entries as an empty list` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D643 狀態紀錄。
+
+已固定的行為：
+
+1. Optional sender payload 若沒有 outbox entries，preflight 會回傳空 list，不會在 audit lookup 前丟 `TypeError`。
+2. 正常 list outbox entries 仍維持既有 sent/not-seen reconciliation 行為。
+3. 這次只修 missing input handling，不改 delivery identity、retry budget、retry backoff 或 already-sent 判斷。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_reconcile_treats_missing_outbox_entries_as_empty` 建立 RED，失敗為 `TypeError: 'NoneType' object is not iterable`；修正後單測 `1 passed`，並以 `test_notification_delivery_audit_reconciles_outbox_before_send` 確認正常 list outbox 行為沒有回退。Docs contract 補文後 `tests/test_docs_contract.py` `68 passed`，notification audit suite `71 passed`。收尾 focused notification audit/docs/HCS/import 驗證 `208 passed`。
+
+## P3-536 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Reconcile Optional Retry Backoff Guard`，讓 sender preflight 在 caller 傳入 optional `retry_backoff_seconds=None` 時沿用預設 backoff window，而不是立刻重送 failed delivery。
+
+落地檔案：
+
+- `backend/notification_delivery_audit.py`：`reconcile_outbox_with_audit()` 的 `retry_backoff_seconds` 型別放寬為 `float | None`，並把 `None` 轉回 `DEFAULT_RETRY_BACKOFF_SECONDS`；非有限數值仍沿用既有 finite-float guard 轉為 0 秒。
+- `tests/test_notification_delivery_audit.py`：新增 optional retry backoff regression，鎖住一次 failed attempt 在 `retry_backoff_seconds=None` 且仍在預設 backoff window 內時保持 `retry_wait`，不會立即 `should_send`。
+- `docs/api.md`、`docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery reconcile retry backoff treats None as the default backoff window` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D642 狀態紀錄。
+
+已固定的行為：
+
+1. Optional caller backoff 若為 `None`，會使用預設 900 秒等待，不會被 safe float conversion 壓成 0 秒。
+2. 一次 failed delivery 在預設 backoff 內仍會回傳 `should_send = false`、`skip_reason = retry_wait`、`retry_wait_seconds` 與 `next_retry_at`。
+3. 非有限 backoff（例如 Infinity）仍維持原本的 0 秒防爆行為，不造成 sender preflight exception 或無限等待。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_reconcile_uses_default_backoff_when_backoff_is_none` 建立 RED，失敗為 `should_send = true`；修正後單測 `1 passed`，並以 `test_notification_delivery_audit_reconcile_treats_non_finite_retry_backoff_as_zero` 確認既有 finite guard 沒有回退。Docs contract 補文後 `tests/test_docs_contract.py` `68 passed`，notification audit suite `70 passed`。收尾 focused notification audit/docs/HCS/import 驗證 `207 passed`。
+
+## P3-535 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Reconcile Optional Retry Budget Guard`，讓 sender preflight 在 caller 傳入 optional `max_attempts=None` 時沿用預設 retry budget，而不是把第一次 failed delivery 直接視為 exhausted。
+
+落地檔案：
+
+- `backend/notification_delivery_audit.py`：`reconcile_outbox_with_audit()` 的 `max_attempts` 型別放寬為 `int | None`，並在呼叫 `_reconciled_outbox_entry()` 前把 `None` 轉回 `DEFAULT_MAX_DELIVERY_ATTEMPTS`；明確數值仍沿用既有 `_retry_exhausted()` clamp。
+- `tests/test_notification_delivery_audit.py`：新增 optional retry budget regression，鎖住一次 failed attempt 在 `max_attempts=None` 且 backoff 已過時仍可重送，不會被標記 `retry_exhausted`。
+- `docs/api.md`、`docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery reconcile retry budgets treat None max attempts as the default retry budget` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D641 狀態紀錄。
+
+已固定的行為：
+
+1. Optional caller retry budget 若為 `None`，會使用預設 3 次上限，不會被 safe integer conversion 壓成 1 次。
+2. 一次 failed delivery 在 backoff 結束後仍會回傳 `should_send = true`、`retry_exhausted = false` 與 `next_attempt_count = 2`。
+3. 明確傳入的 retry budget 數值與既有 exhausted/backoff/idempotency 判斷不變。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_reconcile_uses_default_retry_budget_when_max_attempts_is_none` 建立 RED，失敗為 `retry_exhausted = true`；修正後單測 `1 passed`，並以 `test_notification_delivery_audit_stops_retry_after_budget_exhausted` 確認既有 retry exhausted 判斷沒有回退。Docs contract 補文後 `tests/test_docs_contract.py` `68 passed`，notification audit suite `69 passed`。收尾 focused notification audit/docs/HCS/import 驗證 `206 passed`。
+
+## P3-534 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Attention Context Optional Limit Guard`，讓 failed delivery attention context 在 caller 傳入 optional `limit=None` 時仍保留預設摘要上限，而不是被壓成空結果。
+
+落地檔案：
+
+- `backend/notification_delivery_audit_context.py`：`attention_contexts_from_records()` 的 `limit` 型別放寬為 `int | None`，並把 `None` 視為預設 5 筆上限；明確數值仍沿用既有 `safe_int` 與 non-negative clamp。
+- `tests/test_notification_delivery_audit.py`：新增 optional limit regression，鎖住 `limit=None` 時 failed delivery context 仍會輸出 source/ticker 脈絡。
+- `docs/api.md`、`docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification attention context limit handling treats None as the default cap before summary output` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D640 狀態紀錄。
+
+已固定的行為：
+
+1. Optional caller limit 若為 `None`，不會被 safe integer conversion 當成 0 而清空 failed delivery attention context。
+2. 明確 `limit=0` 或負數仍維持原本的空結果/非負 clamp 行為，不擴大輸出範圍。
+3. 既有 malformed truthiness guard 仍可用，failed delivery context 的 source/ticker 會保留到 ops、daily queue 或 sender summary。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_attention_contexts_default_limit_when_limit_is_none` 建立 RED，失敗為 `limit=None` 回傳 `[]`；修正後單測 `1 passed`，並以 `test_notification_delivery_audit_attention_contexts_ignore_record_truthiness_failures` 確認既有 malformed limit/context guard 沒有回退。Docs contract 補文後 `tests/test_docs_contract.py` `68 passed`，notification audit suite `68 passed`。收尾 focused notification audit/docs/HCS/import 驗證 `205 passed`。
+
+## P3-533 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Audit Context Empty Collection Metadata Guard`，讓 audit context snapshot 在 metadata normalization 後不再保存空 list/object 容器。
+
+落地檔案：
+
+- `backend/notification_delivery_audit_context.py`：`_present()` 對 list/tuple/dict 以 length 判斷是否仍有內容，並避免使用 equality comparison，讓 normalization 後為空的 collection 被視為缺值。
+- `tests/test_notification_delivery_audit.py`：新增 empty collection metadata regression，以空白 list item、nested object value 與 nested list/object 鎖住全空容器不進 persisted context。
+- `docs/api.md`、`docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery audit context drops empty collection metadata after normalization` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D639 狀態紀錄。
+
+已固定的行為：
+
+1. Optional list/object context metadata 若 children 全被 whitespace/unusable-value normalization 移除，不會留下空 `[]` 或 `{}` audit history。
+2. `_present()` 維持 type/length-based 判斷，不觸發自訂 equality comparison，既有 malformed equality guard 不回退。
+3. 有效鄰近 context（例如 source display fallback）仍會保留。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_context_drops_empty_collections_after_normalization` 建立 RED，失敗為 `related_reports = []`、`metadata = {}` 與 `nested_items = [{}]` 仍存在；修正後單測 `1 passed`，並以 `test_notification_delivery_audit_context_values_ignore_equality_failures` 確認 equality guard 沒有回退。Docs contract 補文後 `tests/test_docs_contract.py` `68 passed`，notification audit suite `67 passed`。收尾 focused notification audit/docs/HCS/import 驗證 `204 passed`。
+
+## P3-532 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Audit Context Whitespace-Only Metadata Guard`，讓 audit context snapshot 不再把只有格式空白的 optional metadata 保存為歷史 context。
+
+落地檔案：
+
+- `backend/notification_delivery_audit_context.py`：`_present()` 改為對字串套用 `strip()` 後判斷是否為空，讓 top-level、nested dict 與 sequence metadata 都能丟棄 whitespace-only values。
+- `tests/test_notification_delivery_audit.py`：新增 whitespace-only metadata regression，以空白 `ticker`、`filename`、nested CTA 與 list item 鎖住 context snapshot 不保存無效空白欄位，同時保留 valid source fallback 與有效 related report。
+- `docs/api.md`、`docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery audit context drops whitespace-only metadata before JSON serialization` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D638 狀態紀錄。
+
+已固定的行為：
+
+1. Optional audit context metadata 若只有 spaces、tabs 或 newlines，不會進 persisted audit history。
+2. Nested dict 與 list/tuple metadata 也套用同一個 presence rule；有效鄰近欄位仍會保留。
+3. Source display fallback 仍正常補上 readable source wording，不會因清理空白 optional metadata 而被移除。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_context_drops_whitespace_only_metadata` 建立 RED，失敗為空白 `ticker`、`filename`、nested/list metadata 仍存在；修正後單測 `1 passed`。Docs contract 補文後 `tests/test_docs_contract.py` `68 passed`，notification audit suite `66 passed`。收尾 focused notification audit/docs/HCS/import 驗證 `203 passed`。
+
+## P3-531 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Direct Context Map JSON-Safe Output Guard`，讓 direct/mocked audit context map output 對齊 persisted JSON context 的 JSON-safe normalization。
+
+落地檔案：
+
+- `backend/notification_delivery_audit_context.py`：`safe_dict()` 在 dict conversion 後改走既有 `_json_safe_context()`，統一丟棄 NaN/Infinity、非字串 key 與不可安全序列化的 nested values。
+- `tests/test_notification_delivery_audit.py`：新增 direct audit context non-finite regression，以 mocked `audit_record.context` 鎖住 reconcile `audit_context` 不洩漏 `Infinity` / `NaN`，且可通過 `json.dumps(..., allow_nan=False)`。
+- `docs/api.md`、`docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery audit context maps use JSON-safe dict conversion before reconcile and summary output` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D637 狀態紀錄。
+
+已固定的行為：
+
+1. Reconcile preflight 若接到 direct/mocked context map，會先清掉非標準 JSON numeric values，再輸出 `audit_context`。
+2. Ops 與 daily queue summary 透過同一個 `safe_dict()` 讀 context，因此 direct/mocked failed attention context 也不會洩漏 NaN/Infinity。
+3. 這次只收斂 output conversion helper，不改 audit persistence、context schema 或 retry decision。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_reconcile_context_drops_non_finite_values` 建立 RED，失敗為 `audit_context` 保留 `bad_score = inf` 與 nested `bad_wait = nan`；修正後單測 `1 passed`。Docs contract 補文後 `tests/test_docs_contract.py` `68 passed`，notification audit suite `65 passed`。收尾 focused notification audit/docs/HCS/import 驗證 `202 passed`。
+
+## P3-530 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Attention Context Identity Strip Guard`，讓 failed audit attention context summary 對齊 audit row identity output normalization。
+
+落地檔案：
+
+- `backend/notification_delivery_audit_context.py`：`attention_contexts_from_records()` 輸出 `delivery_key` 與 `channel_id` 前改為 `safe_text(...).strip()`，避免 summary payload 洩漏 repaired/mock row 的外框 whitespace。
+- `tests/test_notification_delivery_audit.py`：新增 attention context identity strip regression，以 padded failed row 鎖住 `get_delivery_audit_summary().attention_contexts` 的 identity 欄位乾淨輸出。
+- `docs/api.md`、`docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification attention context identity fields are stripped before summary output` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D636 狀態紀錄。
+
+已固定的行為：
+
+1. Failed audit row 來源若是 repaired/mocked record，`attention_contexts` 不會把 `delivery_key` 或 `channel_id` 的 tab/newline/space padding 傳給 ops、daily queue 或 sender context summary。
+2. `last_error` 仍維持 string-safe 原文輸出，不把自由診斷訊息當 identity metadata strip。
+3. 這次只修 summary projection，不改 audit persistence、retry decision 或 notification outbox contract。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_summary_strips_attention_context_identity_fields` 建立 RED，失敗為 padded `delivery_key` 原樣輸出；修正後單測 `1 passed`。Docs contract 補文後 `tests/test_docs_contract.py` `68 passed`。收尾 focused notification audit/docs/HCS/import 驗證 `201 passed`。
+
+## P3-529 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Context JSON String-Safe Parsing Guard`，讓 persisted audit context recovery 對齊 notification audit 其他 string-safe 邊界。
+
+落地檔案：
+
+- `backend/notification_delivery_audit_context.py`：`context_from_json()` 在 `json.loads()` 前改用 `safe_text(payload)`，保留 `None -> {}` 與 malformed fallback，但讓可字串化 JSON payload 能被解析。
+- `tests/test_notification_delivery_audit.py`：新增 string-safe context JSON parsing regression，以只有 `__str__()` 的 payload 鎖住 source/ticker context 不被丟成 `{}`。
+- `docs/api.md`、`docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery audit context JSON parsing uses string-safe conversion before loading persisted context` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D635 狀態紀錄。
+
+已固定的行為：
+
+1. Repaired 或 mocked persisted `context_json` 若不是原生 `str`、但可安全字串化為 JSON，`context_from_json()` 仍會載入 context。
+2. Sender preflight 的 `audit_context` 與維運 context recovery 不會因 payload wrapper 型別而丟掉 source、ticker、report 或 CTA 脈絡。
+3. 這次只修 JSON parsing input normalization，不改 context schema、outbox snapshot 寫入規則或 SQLite migration。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_context_json_parsing_uses_string_safe_payloads` 建立 RED，失敗為 context 回傳 `{}`；修正後單測 `1 passed`。Docs contract 補文後 `tests/test_docs_contract.py` `68 passed`。收尾 focused notification audit/docs/HCS/import 驗證 `200 passed`。
+
+## P3-528 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Response Id Output Strip Guard`，讓 notification delivery audit 的 response id output 對齊其他 identity-like metadata normalization。
+
+落地檔案：
+
+- `backend/notification_delivery_audit.py`：`_row_to_record()` 與 `_reconciled_outbox_entry()` 輸出 `last_response_id` 前改為 `safe_text(...).strip()`，保留 string-safe conversion，但移除外框 tab/newline/space padding。
+- `tests/test_notification_delivery_audit.py`：新增 response-id output strip regression，以 `response_id = "\ttelegram:sent\n"` 鎖住 `record_delivery_attempt()` 回傳值、`list_delivery_records()` 與 `reconcile_outbox_with_audit()` 都不洩漏 padding。
+- `docs/api.md`、`docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery response ids are stripped before record and sender preflight output` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D634 狀態紀錄。
+
+已固定的行為：
+
+1. Sender 回寫或 repaired row 的 `last_response_id` 若只有外框 whitespace，對外 record/list/API 與 sender preflight output 會回傳乾淨 identifier。
+2. `last_error` 仍保留原始 string-safe 文字，不 strip 診斷訊息格式，避免把自由錯誤訊息壓扁成 identity metadata。
+3. 這次只修 output normalization，不做 SQLite migration，也不改 sent duplicate response-id preservation 規則。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_strips_response_ids_before_output` 建立 RED，失敗為 `saved["last_response_id"] == "\ttelegram:sent\n"`；修正後單測 `1 passed`。Docs contract 補文後 `tests/test_docs_contract.py` `68 passed`。收尾 focused notification audit/docs/HCS/import 驗證 `199 passed`，audit module 維持 349 行。
+
+## P3-527 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Reconcile Success Timestamp Finite Output Guard`，讓 sender preflight 的 sent success timestamp output 對齊 audit row output 的 finite-float normalization。
+
+落地檔案：
+
+- `backend/notification_delivery_audit.py`：`_reconciled_outbox_entry()` 輸出 `last_success_at` 前改走 `safe_float()`，保留 `None`，但把 NaN/Infinity 或 malformed numeric 降級為 `0.0`。
+- `tests/test_notification_delivery_audit.py`：新增 non-finite last-success regression，以 sent audit record 的 `last_success_at = Infinity` 鎖住 reconcile output 不再洩漏非標準 JSON number。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery reconcile success timestamps use finite-float conversion before sender preflight output` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D633 狀態紀錄。
+
+已固定的行為：
+
+1. Reconcile preflight 若讀到 repaired/mocked sent row 的 `last_success_at = Infinity`，會輸出 `0.0`，並可通過 `json.dumps(..., allow_nan=False)`。
+2. 沒有 success timestamp 的 failed/not-seen row 仍維持 `None`，不把缺值假裝成成功時間。
+3. 這次只修 sender preflight output，不改 SQLite persisted value 或歷史資料遷移。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_reconcile_normalizes_non_finite_last_success_at` 建立 RED，失敗為 `last_success_at == inf`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 success timestamp finite output 說明；補文後 `tests/test_docs_contract.py` `68 passed`。收尾 focused notification audit/docs/HCS/import 驗證 `198 passed`，`py_compile` 與 `git diff --check` 通過，audit module 維持 349 行。
+
+## P3-526 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Reconcile Normalized Status Decision Guard`，讓 sender preflight 的 already-sent 與 retry-wait 決策也對齊 canonical status normalization。
+
+落地檔案：
+
+- `backend/notification_delivery_audit.py`：`_reconciled_outbox_entry()` 輸出 `audit_status` 前先 `strip().lower()`，並讓 `_next_retry_at()` 以 normalized failed status 判斷是否計算 backoff。
+- `tests/test_notification_delivery_audit.py`：新增 normalized status reconcile regression，以 `\tSENT\n` 鎖住已送 suppression，以 `\rFAILED\n` 鎖住 retry wait/backoff 不被漏掉。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery reconcile statuses are normalized before retry and already-sent decisions` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D632 狀態紀錄。
+
+已固定的行為：
+
+1. Reconcile preflight 若讀到 padded/uppercase `sent`，仍回傳 canonical `audit_status = sent`、`already_sent = true`、`should_send = false` 與 `skip_reason = already_sent`。
+2. Reconcile preflight 若讀到 padded/uppercase `failed`，仍會計算 retry backoff，避免 sender 在 backoff window 內重送外部通知。
+3. 這次只調整 status decision normalization，不改 audit row persistence、duplicate key lookup 或 retry budget 計算規則。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_reconcile_normalizes_statuses_before_decisions` 建立 RED，失敗為 `audit_status == "SENT"`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 normalized reconcile status decision 說明；補文後 `tests/test_docs_contract.py` `68 passed`。收尾 focused notification audit/docs/HCS/import 驗證 `197 passed`，`py_compile` 與 `git diff --check` 通過，audit module 維持 349 行。
+
+## P3-525 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Summary Normalized Status Projection Guard`，讓 notification delivery summary 與 attention context projection 在讀取 repaired/mocked audit records 時也沿用 canonical status normalization。
+
+落地檔案：
+
+- `backend/notification_delivery_audit.py`：`get_delivery_audit_summary()` 的 sent/failed/pending/failure-reason 統計與 `_retry_exhausted()` 改為對 `delivery_status` 先 `strip().lower()`，避免 padded/uppercase status 被漏算。
+- `backend/notification_delivery_audit_context.py`：`attention_contexts_from_records()` 投影 failed delivery context 前會先 normalize status，並輸出 canonical `failed`。
+- `tests/test_notification_delivery_audit.py`：新增 normalized status summary regression，以 `\tFAILED\n`、` SENT ` 與 `\rPENDING\n` record 鎖住 status counts、retry exhausted、failure reason 與 affected context 不漏失。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification attention context record serialization normalizes failed statuses before projection` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D631 狀態紀錄。
+
+已固定的行為：
+
+1. Summary 即使接到非 `_row_to_record()` 直接產出的 repaired/mocked records，也不會因 status padding 或大小寫漏掉 sent/failed/pending 統計。
+2. Retry exhausted count 會把 normalized failed status 視為 failed，避免維運健康度低估已耗盡重試的外部通知。
+3. Attention contexts 會保留 normalized failed row 的 source、ticker、report、CTA context，讓 ops maintenance 與 daily queue repair context 不因 status formatting 漏掉受影響標的。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_summary_normalizes_statuses_before_counting_contexts` 建立 RED，失敗為 `sent_count == 0`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 normalized failed status projection 說明；補文後 `tests/test_docs_contract.py` `68 passed`。收尾 focused notification audit/docs/HCS/import 驗證 `196 passed`，`py_compile` 與 `git diff --check` 通過，audit module 維持 349 行。
+
+## P3-524 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Audit Explicit Zero Limit Clamp Guard`，讓 audit listing 的 explicit zero limit 不再被誤當成預設頁面大小。
+
+落地檔案：
+
+- `backend/notification_delivery_audit.py`：`list_delivery_records()` 改為先保留 `None` 的預設 100，再對明確傳入的 `limit` 套用 integer-safe conversion 與 `max(1, min(..., 1000))`，讓 `limit=0` clamp 到 1。
+- `tests/test_notification_delivery_audit.py`：新增 explicit zero limit regression，建立兩筆 audit rows 後以 `limit=0` 查詢，鎖住只回傳最新 1 筆。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery audit listing clamps explicit zero limits before querying records` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D630 狀態紀錄。
+
+已固定的行為：
+
+1. 呼叫端明確要求 `limit=0` 時不再拿到預設 100 筆，避免維運面板或診斷命令誤拉整頁 audit rows。
+2. 未傳入 limit 的預設行為仍是 100；上限仍是 1000，排序仍以 `last_attempt_at DESC, delivery_key ASC` 為準。
+3. malformed limit 仍透過 `safe_int()` 降級，不會因 truthiness 或 conversion failure 中斷 listing。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_list_limit_clamps_explicit_zero_to_one` 建立 RED，失敗為 `len(records) == 2`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 explicit zero limit clamp 說明；補文後 `tests/test_docs_contract.py` `68 passed`。收尾時 import boundary 指出 `notification_delivery_audit.py` 350 行踩到 `>= 350` guard，移除檔尾無語意空白行後，notification audit/docs/HCS/import focused 驗證 `195 passed`，`py_compile` 與 `git diff --check` 通過，audit module 維持 349 行。
+
+## P3-523 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Audit Normalized Sent Status Upsert Preservation Guard`，讓 record upsert 在既有 row 的 `delivery_status` 是 padded/uppercase sent 變體時仍保留已送狀態與成功 metadata。
+
+落地檔案：
+
+- `backend/notification_delivery_audit.py`：`record_delivery_attempt()` 的 update CASE 與 saved row 排序改用 `LOWER(TRIM(CAST(delivery_status AS TEXT), CHAR(9) || CHAR(10) || CHAR(13) || CHAR(32))) = 'sent'` 判斷既有 sent row，讓 late failed attempt 不會覆寫 padded/uppercase sent row 的 status、identity、last error、response id 或 context。
+- `tests/test_notification_delivery_audit.py`：新增 normalized sent status upsert regression，先記錄 sent attempt，再把 stored `delivery_status` 修成 `\tSENT\n`，確認 late failed attempt 仍回傳 canonical `sent`、保留空 `last_error` 與成功 response id。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery record upsert preserves normalized sent duplicate statuses before writing failed attempts` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D629 狀態紀錄。
+
+已固定的行為：
+
+1. repaired audit row 若已送但 `delivery_status` 以 padded/uppercase sent 形式儲存，下一次 failed attempt 不會把它降級成 retryable failed row。
+2. record upsert 與 reconcile preflight 針對 sent status normalization 使用同一組 tab/newline/carriage-return/space trim + lowercase 判斷。
+3. 這次只修 runtime update / saved selection，不改 persisted status value 或做資料遷移，避免混入資料修復風險。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_record_preserves_normalized_sent_duplicate_key_status` 建立 RED，失敗為 `delivery_status == "failed"`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 normalized sent status upsert preservation 說明；補文後 `tests/test_docs_contract.py` `68 passed`。
+
+## P3-522 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Audit Normalized Sent Status Duplicate Preference Guard`，讓 sender preflight 在 duplicate decoded delivery key rows 中也把 padded/uppercase `sent` status 視為已送紀錄。
+
+落地檔案：
+
+- `backend/notification_delivery_audit.py`：`_records_by_delivery_key()` 的 duplicate row 排序改用 `LOWER(TRIM(CAST(delivery_status AS TEXT), CHAR(9) || CHAR(10) || CHAR(13) || CHAR(32))) = 'sent'` 判斷 sent row，讓 legacy/repaired padded 或 uppercase status row 最後寫入 lookup map。
+- `tests/test_notification_delivery_audit.py`：新增 normalized sent status duplicate regression，直接建立 TEXT failed row 與 BLOB key / padded-uppercase sent status row，鎖住 `reconcile_outbox_with_audit()` 仍回傳 `already_sent = true` / `should_send = false`。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery reconcile preflight treats normalized sent statuses as sent duplicate rows before retrying` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D628 狀態紀錄。
+
+已固定的行為：
+
+1. duplicate decoded key rows 中，若 repaired row 的 `delivery_status` 儲存為 `\tSENT\n` 或其他常見 padded/uppercase sent 變體，sender preflight 仍保留已送 suppression。
+2. 沒有 sent duplicate 時，查詢仍保留既有 decoded key lookup 與 retry metadata 行為；這次只避免已送訊號被較新的 failed/pending duplicate row 蓋掉。
+3. 這次只修 reconcile preflight duplicate 選擇；record upsert 的 normalized sent status preservation 對稱邊界需另以紅燈測試處理。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_reconcile_prefers_normalized_sent_status_duplicate_key` 建立 RED，失敗為 `audit_status == "failed"`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 normalized sent status duplicate 說明；補文後 `tests/test_docs_contract.py` `68 passed`。
+
+## P3-521 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Audit Identity Record Output Strip Guard`，讓 audit row 對外輸出 delivery identity metadata 時與寫入路徑的 stripped required text 保持一致。
+
+落地檔案：
+
+- `backend/notification_delivery_audit.py`：`_row_to_record()` 對 `channel_id`、`message_id` 與 `dedupe_key` 套用 string-safe conversion 後再 `strip()`，避免 stored identity 的 tab/newline/space padding 洩漏到 list output、summary 或 sender preflight。
+- `tests/test_notification_delivery_audit.py`：新增 identity field output strip regression，先把 failed audit row 的 stored `channel_id`、`message_id` 與 `dedupe_key` 修成 padded values，再確認 `list_delivery_records()` 回傳 canonical identity metadata。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery audit row identity fields are stripped before record output` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D627 狀態紀錄。
+
+已固定的行為：
+
+1. legacy 或修復流程留下的 padded stored channel/message/dedupe identity 不會在 record output、summary 或 API response 顯示成帶格式空白的 metadata。
+2. record output 與 `record_delivery_attempt()` 的 `_required_text()` 寫入語意對齊，讓維運畫面和 sender preflight 讀到一致身份欄位。
+3. 這次只正規化 identity 欄位輸出，不 strip `last_error` 或 `last_response_id` 等自由文字欄位，避免壓縮診斷內容。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_records_strip_identity_fields_before_output` 建立 RED，失敗為輸出 raw padded `channel_id`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 identity field strip output 說明；補文後 `tests/test_docs_contract.py` `68 passed`。
+
+## P3-520 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Audit Status Record Output Normalization Guard`，讓 audit row 對外輸出 delivery status 時與新寫入路徑的 canonical lowercase status 保持一致。
+
+落地檔案：
+
+- `backend/notification_delivery_audit.py`：`_row_to_record()` 對 `delivery_status` 套用 string-safe conversion 後再 `strip().lower()`，避免 stored status 的 tab/newline/space padding 或 uppercase 值洩漏到 list output、summary 或 sender preflight。
+- `tests/test_notification_delivery_audit.py`：新增 status output normalization regression，先把 failed audit row 的 stored `delivery_status` 修成 `\tFAILED\n`，再確認 `list_delivery_records()` 回傳 canonical `failed`。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery audit row statuses are normalized before record output` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D626 狀態紀錄。
+
+已固定的行為：
+
+1. legacy 或修復流程留下的 padded/uppercase stored delivery status 不會在 record output、summary 或 API response 顯示成非 canonical status。
+2. record output 與 `record_delivery_attempt()` 的 `_normalize_status()` 寫入語意對齊，讓維運畫面和 sender preflight 讀到一致的小寫狀態。
+3. 這次只正規化輸出值，不更新資料庫 row，避免資料修復與 runtime serialization 風險混在一起。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_records_normalize_status_before_output` 建立 RED，失敗為輸出 `\tFAILED\n` raw status；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 status normalization output 說明；補文後 `tests/test_docs_contract.py` `68 passed`。
+
+## P3-519 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Audit Delivery Key Record Output Strip Guard`，讓 audit row 對外輸出 delivery key 時與 sender preflight 的 stripped identity 保持一致。
+
+落地檔案：
+
+- `backend/notification_delivery_audit.py`：`_row_to_record()` 對 `delivery_key` 套用 string-safe conversion 後再 `strip()`，避免 stored key 的 tab/newline/space padding 洩漏到 list output、summary 或 sender preflight。
+- `tests/test_notification_delivery_audit.py`：新增 control-whitespace stored delivery key output regression，先把 failed audit row 的 stored `delivery_key` 修成 tab/newline padding，再確認 `list_delivery_records()` 回傳 canonical delivery key。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery audit row delivery keys are stripped before record output` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D625 狀態紀錄。
+
+已固定的行為：
+
+1. legacy 或修復流程留下的 padded stored delivery key 不會在 record output、summary 或 API response 顯示成帶格式空白的 identity。
+2. 查找與對外輸出都使用 stripped delivery key identity，降低維運畫面把同一筆 delivery 看成不同 key 的機率。
+3. 這次只正規化輸出值，不更新資料庫 primary key，避免資料修復與 runtime serialization 風險混在一起。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_record_output_strips_control_whitespace_delivery_key` 建立 RED，失敗為輸出 `\t...\n` raw delivery key；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 delivery key strip output 說明；補文後 `tests/test_docs_contract.py` `68 passed`。
+
+## P3-518 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Audit Control-Whitespace Stored Delivery Key Upsert Guard`，讓 record upsert 的 stored delivery key normalization 對齊 sender preflight lookup。
+
+落地檔案：
+
+- `backend/notification_delivery_audit.py`：`record_delivery_attempt()` 查找、更新與回讀既有 audit row 時改用 `TRIM(CAST(delivery_key AS TEXT), CHAR(9) || CHAR(10) || CHAR(13) || CHAR(32)) = ?`，讓 tab、newline、carriage return 與 space padded stored key 都可被後續 attempt 更新。
+- `tests/test_notification_delivery_audit.py`：新增 control-whitespace stored delivery key upsert regression，先把 failed audit row 的 stored `delivery_key` 修成 tab/newline padding，再確認下一次 sent attempt 更新既有 row、`attempt_count` 累加到 2，且不插入第二筆 stripped-key row。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery record upsert matches control-whitespace-padded stored delivery keys before inserting` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D624 狀態紀錄。
+
+已固定的行為：
+
+1. legacy 或修復流程留下的 tab/newline/carriage-return/space padded stored delivery key 不會讓下一次 delivery attempt 建立 duplicate audit row。
+2. record upsert 與 sender preflight lookup 現在對常見 control whitespace 使用同一組 SQLite trim 字元集。
+3. 這次只擴充 lookup normalization，不改 stored primary key，避免資料修復與主鍵更新風險混在一起。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_record_updates_control_whitespace_stored_delivery_key` 建立 RED，失敗為 `len(records) == 2`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 control-whitespace stored delivery key upsert 說明；補文後 focused audit/docs/import-boundary suite `189 passed`。
+
+## P3-517 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Audit Control-Whitespace Stored Delivery Key Reconcile Guard`，讓 sender preflight 的 stored delivery key normalization 對齊 outbox key 的 Python `.strip()` 常見空白字元。
+
+落地檔案：
+
+- `backend/notification_delivery_audit.py`：`_records_by_delivery_key()` 的 stored delivery key trim 比對改為指定 `CHAR(9) || CHAR(10) || CHAR(13) || CHAR(32)`，讓 tab、newline、carriage return 與 space padding 都可匹配正常 outbox delivery key。
+- `tests/test_notification_delivery_audit.py`：新增 control-whitespace stored delivery key regression，先把 sent audit row 的 stored `delivery_key` 修成 tab/newline padding，再確認 `reconcile_outbox_with_audit()` 仍回傳 `already_sent` 並 suppress duplicate send。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery reconcile preflight matches control-whitespace-padded stored delivery keys before sending` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D623 狀態紀錄。
+
+已固定的行為：
+
+1. legacy 或修復流程留下的 tab/newline/carriage-return/space padded stored delivery key 不會讓 sender preflight 誤判 `not_seen`。
+2. outbox delivery key 的 Python `.strip()` 與 SQLite stored-key lookup 現在對常見控制空白有一致的 normalization。
+3. 這次只擴充 reconcile lookup，不改 record upsert；record upsert 的 control-whitespace 對稱邊界需另以紅燈測試處理。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_reconcile_matches_control_whitespace_stored_delivery_key` 建立 RED，失敗為 `audit_status == "not_seen"`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 control-whitespace stored delivery key 說明；補文後 focused audit/docs/import-boundary suite `188 passed`。
+
+## P3-516 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Audit Whitespace-Padded Stored Delivery Key Upsert Guard`，讓 record upsert 不會因 legacy/repaired audit row 的 padded delivery key 插入第二筆 trimmed-key row。
+
+落地檔案：
+
+- `backend/notification_delivery_audit.py`：`record_delivery_attempt()` 查找、更新與回讀既有 audit row 時新增 `TRIM(CAST(delivery_key AS TEXT)) = ?` 比對，讓 padded TEXT key 仍可被後續 attempt 更新。
+- `tests/test_notification_delivery_audit.py`：新增 whitespace-padded stored delivery key upsert regression，先把 failed audit row 的 stored `delivery_key` 修成前後空白，再確認下一次 sent attempt 更新既有 row、`attempt_count` 累加到 2，且不插入第二筆 normal key row。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery record upsert matches whitespace-padded stored delivery keys before inserting` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D622 狀態紀錄。
+
+已固定的行為：
+
+1. legacy 或修復流程留下的 padded stored delivery key 不會讓下一次 delivery attempt 建立 duplicate audit row。
+2. 這次只擴充 upsert lookup normalization，不改 primary key 本身，避免與既有 BLOB/TEXT duplicate row 發生主鍵更新衝突。
+3. sender preflight 的 padded-key reconcile guard 與 record upsert guard 現在對稱，兩條路徑都能處理 padded stored key。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_record_updates_trimmed_stored_delivery_key` 建立 RED，失敗為 `len(records) == 2`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 whitespace-padded stored delivery key upsert 說明；補文後 focused audit/docs/import-boundary suite `187 passed`。
+
+## P3-515 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Audit Whitespace-Padded Stored Delivery Key Reconcile Guard`，讓 sender preflight 不會因 legacy/repaired audit row 的 padded delivery key 誤判為未送。
+
+落地檔案：
+
+- `backend/notification_delivery_audit.py`：`_records_by_delivery_key()` 查詢 audit rows 時新增 `TRIM(CAST(delivery_key AS TEXT))` 比對，lookup map 也以 stripped decoded key 建立，讓 padded TEXT key 仍可匹配正常 outbox delivery key。
+- `tests/test_notification_delivery_audit.py`：新增 whitespace-padded stored delivery key regression，先把 sent audit row 的 stored `delivery_key` 修成前後空白，再確認 `reconcile_outbox_with_audit()` 仍回傳 `already_sent` 並 suppress duplicate send。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery reconcile preflight matches whitespace-padded stored delivery keys before sending` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D621 狀態紀錄。
+
+已固定的行為：
+
+1. legacy 或修復流程留下的 padded stored delivery key 不會讓 sender preflight 誤判 `not_seen`。
+2. BLOB/TEXT duplicate sent row 選擇與 sent terminal preservation 邊界維持原邏輯；這次只擴充 lookup normalization。
+3. 正常 outbox delivery key 仍由 `_required_text()` / reconcile preflight strip 後使用，不改 delivery identity 生成規則。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_reconcile_matches_trimmed_stored_delivery_key` 建立 RED，失敗為 `audit_status == "not_seen"`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 whitespace-padded stored delivery key 說明；補文後 focused audit/docs/import-boundary suite `186 passed`。
+
+## P3-514 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Audit Sent Duplicate Identity Metadata Preservation Guard`，讓 late failed duplicate attempt 不會污染已送 audit row 的 channel/message/dedupe 身份快照。
+
+落地檔案：
+
+- `backend/notification_delivery_audit.py`：`record_delivery_attempt()` 更新既有 row 時，若 row 已是 `sent` 或 byte-like sent status，會保留既有 `channel_id`、`message_id` 與 `dedupe_key`，避免 sent row 被 failed attempt 的不一致 identity metadata 覆蓋。
+- `tests/test_notification_delivery_audit.py`：新增 sent duplicate identity-fields regression，先記錄 Telegram/provider action 的 sent attempt，再記錄同一 delivery key 下帶 local/repair identity metadata 的 late failed attempt，鎖住 saved record 與 list output 都維持原 sent identity fields。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery record upsert preserves sent duplicate identity fields before writing failed attempts` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D620 狀態紀錄。
+
+已固定的行為：
+
+1. 已送 audit row 不會被 late failed duplicate attempt 的錯誤 channel/message/dedupe metadata 覆蓋，避免維運畫面或 sender preflight 顯示與成功 delivery key 不一致的身份資訊。
+2. 未送 row 仍會正常接收更新後的 identity metadata；這次只保護既有 sent row 的終態一致性。
+3. 這是 record upsert 的保守一致性邊界，不改 schema，也不改 retry budget 判斷。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_record_preserves_sent_duplicate_key_identity_fields` 建立 RED，失敗為 `channel_id == "local"`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 sent duplicate identity fields preservation 說明；補文後 focused audit/docs/import-boundary suite `185 passed`。
+
+## P3-513 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Audit Sent Duplicate Context Preservation Guard`，讓 late failed duplicate attempt 不會污染已送 audit row 的通知 context snapshot。
+
+落地檔案：
+
+- `backend/notification_delivery_audit.py`：`record_delivery_attempt()` 更新既有 row 時，若 row 已是 `sent` 或 byte-like sent status，會保留既有 `context_json`，避免 sent row 被 failed attempt 的 source、ticker、filename 或 operator CTA context 覆蓋。
+- `tests/test_notification_delivery_audit.py`：新增 sent duplicate context regression，先記錄 provider impact 的 sent attempt，再記錄同一 identity 下帶 report repair context 的 late failed attempt，鎖住 saved record 與 list output 都維持原 sent context。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery record upsert preserves sent duplicate context snapshots before writing failed attempts` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D619 狀態紀錄。
+
+已固定的行為：
+
+1. 已送 audit row 不會被 late failed duplicate attempt 的錯誤 context 覆蓋，避免維運畫面把已送訊息的來源、股票、報告或 CTA 顯示成後續失敗 attempt 的內容。
+2. 未送 row 仍會正常接收非空 context snapshot；這次只保護既有 sent row 的終態一致性。
+3. 這是 record upsert 的保守一致性邊界，不改 schema，也不改 retry budget 判斷。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_record_preserves_sent_duplicate_key_context` 建立 RED，失敗為 `context.source == "report_repair"`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 sent duplicate context snapshot preservation 說明；補文後 focused audit/docs/import-boundary suite `184 passed`。
+
+## P3-512 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Audit Sent Duplicate Response ID Preservation Guard`，讓 late failed duplicate attempt 不會污染已送 audit row 的成功 response id。
+
+落地檔案：
+
+- `backend/notification_delivery_audit.py`：`record_delivery_attempt()` 更新既有 row 時，若 row 已是 `sent` 或 byte-like sent status，會保留既有 `last_response_id`，避免 sent row 被 failed attempt 的 error response id 覆蓋。
+- `tests/test_notification_delivery_audit.py`：新增 sent duplicate response-id regression，先記錄 sent attempt，再記錄帶 error response id 的 late failed attempt，鎖住 saved record 與 list output 都維持原成功 response id。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery record upsert preserves sent duplicate response ids before writing failed attempts` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D618 狀態紀錄。
+
+已固定的行為：
+
+1. 已送 audit row 不會被 late failed duplicate attempt 的 error response id 覆蓋，避免維運畫面失去原成功 sender id。
+2. 未送 row 仍會正常保留非空 response id；這次只保護既有 sent row 的終態一致性。
+3. 這是 record upsert 的保守一致性邊界，不改 schema，也不改 retry budget 判斷。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_record_preserves_sent_duplicate_key_response_id` 建立 RED，失敗為 `last_response_id == "telegram:error-123"`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 sent duplicate response-id preservation 說明，補文後 `1 passed`。
+
+## P3-511 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Audit Sent Duplicate Last Error Preservation Guard`，讓 late failed duplicate attempt 不會污染已送 audit row 的 `last_error`。
+
+落地檔案：
+
+- `backend/notification_delivery_audit.py`：`record_delivery_attempt()` 更新既有 row 時，若 row 已是 `sent` 或 byte-like sent status，會保留既有 `last_error`，避免 sent row 被 failed attempt 寫入錯誤訊息。
+- `tests/test_notification_delivery_audit.py`：新增 sent duplicate last-error regression，先記錄 sent attempt，再記錄 late failed attempt，鎖住 saved record 與 list output 都維持 `delivery_status = sent` 且 `last_error = ""`。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery record upsert preserves sent duplicate last errors before writing failed attempts` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D617 狀態紀錄。
+
+已固定的行為：
+
+1. 已送 audit row 不會被 late failed duplicate attempt 寫入 failure error，避免維運畫面出現「sent 但 last_error 是 failure」的混合訊號。
+2. 未送 row 仍會正常記錄 failed error；這次只保護既有 sent row 的終態一致性。
+3. 這是 record upsert 的保守一致性邊界，不改 schema，也不改 retry budget 判斷。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_record_preserves_sent_duplicate_key_last_error` 建立 RED，失敗為 `last_error == "late duplicate failure"`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 sent duplicate last-error preservation 說明，補文後 `1 passed`。
+
+## P3-510 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Audit Sent Duplicate Upsert Preservation Guard`，讓 record delivery attempt 不會把已送 duplicate row 降級成 failed/pending。
+
+落地檔案：
+
+- `backend/notification_delivery_audit.py`：`record_delivery_attempt()` 更新既有 row 時，若 row 已是 `sent` 或 byte-like sent status，會保留既有 sent status；回讀 saved row 時也優先取 sent row。
+- `tests/test_notification_delivery_audit.py`：新增 late duplicate failed attempt regression，直接建立 TEXT sent row 與 BLOB failed row，再記錄 failed attempt，鎖住 saved record 與 preflight 仍保留 `sent` / `already_sent = true` / `should_send = false`。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery record upsert preserves sent duplicate decoded delivery keys before writing failed attempts` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D616 狀態紀錄。
+
+已固定的行為：
+
+1. 已送過的 decoded delivery key 不會因 late failed duplicate attempt 被降級成 retryable failed row。
+2. 正常 failed -> sent upsert 仍維持原行為；未送 row 仍會依新 attempt status 更新。
+3. 這是 delivery audit 的保守一致性邊界，不改 schema，也不自動清理 duplicate rows。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_record_preserves_sent_duplicate_key_status` 建立 RED，失敗為 `delivery_status == "failed"`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 sent duplicate upsert preservation 說明，補文後 `1 passed`。
+
+## P3-509 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Audit Byte-Like Sent Status Duplicate Preference Guard`，讓 sender preflight 在 duplicate decoded delivery key rows 中也把 byte-like `sent` status 視為已送紀錄。
+
+落地檔案：
+
+- `backend/notification_delivery_audit.py`：`_records_by_delivery_key()` 的 duplicate row 排序除 `delivery_status = 'sent'` 外，也比對 `CAST(delivery_status AS TEXT) = 'sent'`，避免 repaired BLOB status row 被當成非 sent。
+- `tests/test_notification_delivery_audit.py`：新增 byte-like sent status duplicate regression，直接建立 TEXT failed row 與 BLOB key/BLOB status sent row，鎖住 `reconcile_outbox_with_audit()` 仍回傳 `already_sent = true` / `should_send = false`。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery reconcile preflight treats byte-like sent statuses as sent duplicate rows before retrying` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D615 狀態紀錄。
+
+已固定的行為：
+
+1. duplicate decoded key rows 中，若 repaired row 的 `delivery_status` 以 BLOB/byte-like 型態儲存為 `sent`，sender preflight 仍保留已送 suppression。
+2. 既有 TEXT `sent` preference 不變；沒有 sent row 時仍照 retry/exhaustion metadata 判斷。
+3. 這只調整查詢排序與相容舊資料，不改 audit schema 或自動清理 duplicate rows。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_reconcile_prefers_blob_sent_status_duplicate_key` 建立 RED，失敗為 `audit_status == "failed"`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 byte-like sent status duplicate 說明，補文後 `1 passed`。
+
+## P3-508 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Audit Duplicate Decoded Delivery Key Sent Preference Guard`，讓 sender preflight 在 legacy/repaired BLOB/TEXT duplicate rows 中優先採用已送紀錄。
+
+落地檔案：
+
+- `backend/notification_delivery_audit.py`：`_records_by_delivery_key()` 查詢 duplicate decoded delivery key rows 時，排序讓 `delivery_status = sent` 的 row 最後寫入 lookup map，避免 failed/pending duplicate row 覆蓋已送 suppression。
+- `tests/test_notification_delivery_audit.py`：新增 duplicate decoded key regression，直接建立同一 decoded key 的 TEXT sent row 與 BLOB failed row，鎖住 `reconcile_outbox_with_audit()` 回傳 `already_sent = true` / `should_send = false`。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery reconcile preflight prefers sent duplicate decoded delivery keys before retrying` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D614 狀態紀錄。
+
+已固定的行為：
+
+1. 若 legacy/repaired audit store 已經同時有 TEXT 與 BLOB key rows，只要其中任何 decoded key matching row 已 `sent`，sender preflight 會保留已送 suppression。
+2. 沒有 sent duplicate 時，查詢仍保留既有 decoded key lookup 與 retry metadata 行為；這次只避免已送訊號被較新的 failed/pending duplicate row 蓋掉。
+3. 這是相容舊資料的讀取邊界，不改 schema，也不自動刪除重複 rows。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_reconcile_prefers_sent_duplicate_decoded_delivery_key` 建立 RED，失敗為 `audit_status == "failed"`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 duplicate decoded key sent preference 說明，補文後 `1 passed`。
+
+## P3-507 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Audit Byte-Like Stored Delivery Key Upsert Guard`，讓 record delivery attempt 的 upsert 路徑也能匹配 legacy/repaired audit row 中的 BLOB delivery key。
+
+落地檔案：
+
+- `backend/notification_delivery_audit.py`：`record_delivery_attempt()` 查找既有 row、更新 row 與回讀 saved row 時同時比對 raw `delivery_key` 與 `CAST(delivery_key AS TEXT)`，避免 BLOB primary key 在下一次 attempt 被視為不存在。
+- `tests/test_notification_delivery_audit.py`：新增 blob stored delivery key upsert regression，直接把 failed audit row primary key 改成 BLOB，再記錄 sent attempt，鎖住只保留一筆 row、`attempt_count = 2` 且 response id 被更新。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery record upsert matches byte-like stored delivery keys before inserting` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D613 狀態紀錄。
+
+已固定的行為：
+
+1. legacy 或手動修復過的 audit row 即使把 `delivery_key` 存成 BLOB，只要 decoded key 與 outbox item 相同，下一次 `record_delivery_attempt()` 會更新既有 row，而不是插入第二筆 TEXT key row。
+2. attempt count、status、last response id 與 context update 行為維持既有 upsert 語意。
+3. 正常 TEXT delivery key lookup 維持不變；這次只讓 record/upsert path 與 sender preflight 使用一致的 byte-like key 相容邊界。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_record_updates_blob_stored_delivery_key` 建立 RED，失敗為 `len(records) == 2`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 byte-like stored delivery key upsert 說明，補文後 `1 passed`。
+
+## P3-506 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Audit Byte-Like Stored Delivery Key Preflight Guard`，讓 sender preflight 能匹配 legacy/repaired audit row 中的 BLOB delivery key。
+
+落地檔案：
+
+- `backend/notification_delivery_audit.py`：`_records_by_delivery_key()` 查詢 audit rows 時同時比對 raw `delivery_key` 與 `CAST(delivery_key AS TEXT)`，並以 `safe_text(row["delivery_key"])` 建立 lookup map，避免 BLOB primary key 造成 outbox preflight 找不到既有紀錄。
+- `tests/test_notification_delivery_audit.py`：新增 blob stored delivery key regression，直接把已 sent 的 audit row primary key 改成 BLOB，鎖住 `reconcile_outbox_with_audit()` 仍回傳 `already_sent = true` / `should_send = false`。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery reconcile preflight matches byte-like stored delivery keys before sending` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D612 狀態紀錄。
+
+已固定的行為：
+
+1. legacy 或手動修復過的 audit row 即使把 `delivery_key` 存成 BLOB，只要 decoded key 與 outbox item 相同，sender preflight 仍會視為已送並避免重複發送。
+2. 正常 TEXT delivery key lookup 維持不變；這次只加上 byte-like stored key 相容路徑與 string-safe map key。
+3. 變更只影響 audit lookup/preflight；不改變 record output、attempt count、retry wait 或 delivery status 判斷。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_reconcile_matches_blob_stored_delivery_key` 建立 RED，失敗為 `audit_status == "not_seen"`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 byte-like stored delivery key preflight 說明，補文後 `1 passed`。
+
+## P3-505 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Audit Persisted Context JSON Non-Finite Number Guard`，讓 persisted audit context JSON 載入後也套用 JSON-safe normalization。
+
+落地檔案：
+
+- `backend/notification_delivery_audit_context.py`：`context_from_json()` 解析出 dict 後改走 `_json_safe_context()`，避免 legacy persisted context JSON 中的 `NaN` / `Infinity` 被帶到 record output。
+- `tests/test_notification_delivery_audit.py`：新增 persisted context non-finite regression，鎖住 `source` 與正常 `queue_rank` 保留，`bad_score: NaN` 與 `bad_wait: Infinity` 會被丟棄。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery audit context JSON parsing drops non-finite numeric values before record output` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D611 狀態紀錄。
+
+已固定的行為：
+
+1. legacy 或手動修復過的 persisted audit context 即使含 Python JSON parser 可接受的 non-standard numeric constants，也不會把 NaN/Infinity 泄漏到 sender preflight、summary 或 API response。
+2. 正常 source、queue rank、ticker、filename 與 action metadata 仍保留；只丟棄無法安全輸出的 context value。
+3. 變更只影響 persisted context loading 後的 output normalization；不改變 context snapshot 寫入、row text decode、attempt count 或 retry 判斷。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_context_json_parsing_drops_non_finite_numbers` 建立 RED，失敗為 context 仍包含 `bad_score: nan` 與 `bad_wait: inf`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 persisted context non-finite numeric 說明，補文後 `1 passed`。
+
+## P3-504 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Audit Byte-Like Text Readability Guard`，讓 audit text conversion 將 bytes 類型解碼成可讀文字，而不是輸出 Python bytes representation。
+
+落地檔案：
+
+- `backend/notification_delivery_audit_context.py`：`safe_text()` 針對 bytes、bytearray、memoryview 先以 UTF-8 `errors="replace"` 解碼，再回傳字串；其他型別仍維持既有 string-safe fallback。
+- `tests/test_notification_delivery_audit.py`：強化 blob text field regression，直接模擬 operational DB row 含 BLOB channel/message/dedupe/status/error/response id，鎖住 `list_delivery_records()` 輸出為可讀文字值，而不是 `"b'...'"`。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery audit text conversion decodes byte-like values before record output` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D610 狀態紀錄。
+
+已固定的行為：
+
+1. repaired 或 legacy audit rows 中的 BLOB text fields 會輸出可讀 channel/message/status/error/response id，不再污染 sender preflight、summary 或 API response。
+2. 一般字串與非 byte-like 物件仍沿用原有 string-safe conversion；無法安全轉字串的值仍回退為空字串。
+3. 變更只影響 notification delivery audit/context 共用文字轉換；不改變 retry、attempt count、timestamp 或 persisted context JSON 行為。
+
+驗證：先強化 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_records_normalize_blob_text_fields_before_output` 建立 RED，失敗為 `channel_id` 輸出 `"b'telegram_webhook'"`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 byte-like decode 說明，補文後 `1 passed`。
+
+## P3-503 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Audit Persisted Context JSON Truthiness Guard`，讓 persisted audit context JSON 載入前不再觸發 payload truthiness。
+
+落地檔案：
+
+- `backend/notification_delivery_audit_context.py`：`context_from_json()` 改為只在 payload 是 `None` 時 fallback 到 `{}`，避免 `payload or "{}"` 觸發 malformed persisted context payload 的 `__bool__`；同時把 `RuntimeError` 視為不可解析 context，回傳 `{}`。
+- `tests/test_notification_delivery_audit.py`：新增 persisted context payload truthiness regression，鎖住 string-like JSON payload 即使 truthiness 壞掉也能解析既有 context。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery audit context JSON parsing avoids truthiness checks before loading persisted context` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D609 狀態紀錄。
+
+已固定的行為：
+
+1. persisted audit context JSON 載入不再依賴 payload truthiness，避免 sender preflight、summary 或 API response 被 malformed context payload 中斷。
+2. 正常 JSON string/bytes 載入行為維持不變；空字串或無法解析 payload 仍回傳 `{}`。
+3. 變更只影響 persisted context parsing；不改變 context snapshot serialization、row text/timestamp/attempt-count normalization 或 notification 排序。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_context_json_parsing_ignores_payload_truthiness_failures` 建立 RED，失敗為 `RuntimeError: context payload truthiness unavailable`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 persisted context JSON truthiness 說明，補文後 `1 passed`。
+
+## P3-502 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Audit Row Attempt Count Safe-Int Guard`，讓既有 audit row 的 attempt count 輸出前先轉成 string-safe integer value。
+
+落地檔案：
+
+- `backend/notification_delivery_audit.py`：`_row_to_record()` 的 `attempt_count` 改用 `safe_int()`，避免 legacy/corrupt row 的 malformed BLOB/TEXT value 中斷 record output。
+- `tests/test_notification_delivery_audit.py`：新增 bad attempt-count regression，直接模擬 operational DB row 含 malformed `attempt_count` BLOB，鎖住 `list_delivery_records()` 輸出為 `0`。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery audit row attempt counts use string-safe integer conversion before record output` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D608 狀態紀錄。
+
+已固定的行為：
+
+1. legacy 或修復過的 `notification_delivery_audit` row 即使含 malformed `attempt_count`，也不會中斷 sender preflight、summary 或 API response。
+2. 正常整數、可轉換字串與既有 retry exhaustion/reconcile 行為維持不變；只有無法轉換的 attempt count 會回退為 `0`。
+3. 變更只影響 audit row serialization；不改變 delivery status、channel summary、timestamp normalization 或 notification 排序。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_records_normalize_bad_attempt_count_before_output` 建立 RED，失敗為 `ValueError: invalid literal for int() with base 10: b'not-an-integer'`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 audit row attempt-count safe-int 說明，補文後 `1 passed`。
+
+## P3-501 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Audit Row Text Field String-Safe Guard`，讓既有 audit row 的文字欄位輸出前先轉成 string-safe values。
+
+落地檔案：
+
+- `backend/notification_delivery_audit.py`：`_row_to_record()` 的 delivery key、channel id、message id、dedupe key、delivery status、last error、last response id 改用 `safe_text()`，避免 legacy/corrupt row 的 BLOB value 進入 record output。
+- `tests/test_notification_delivery_audit.py`：新增 blob text field regression，直接模擬 operational DB row 含 BLOB channel、message、status、error 與 response id，鎖住 `list_delivery_records()` 輸出為 string-safe values。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery audit row text fields use string-safe conversion before record output` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D607 狀態紀錄。
+
+已固定的行為：
+
+1. legacy 或修復過的 `notification_delivery_audit` row 即使含 BLOB text fields，也不會把 bytes 輸出給 sender preflight、summary 或 API response。
+2. 正常文字欄位行為維持不變；只有非字串/bytes 類型會經過 string-safe normalization。
+3. 變更只影響 audit row serialization；不改變 delivery key、dedupe key、attempt count、channel summary 或 notification 排序。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_records_normalize_blob_text_fields_before_output` 建立 RED，失敗為 `channel_id` 仍輸出 `bytes`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 audit row text field string-safe 說明，補文後 `1 passed`。
+
+## P3-500 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Audit Row Timestamp Finite-Float Guard`，讓既有 audit row 輸出前先排除非有限 timestamp。
+
+落地檔案：
+
+- `backend/notification_delivery_audit.py`：`_row_to_record()` 的 `first_seen_at`、`last_attempt_at`、`last_success_at` 改用 finite-safe `safe_float()`，避免 legacy/corrupt row 的 `Infinity` timestamp 進入 record output。
+- `tests/test_notification_delivery_audit.py`：新增 non-finite stored timestamp regression，直接模擬 operational DB row 含 `Infinity` / `-Infinity`，鎖住 `list_delivery_records()` 輸出為 finite timestamp。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery audit row timestamps use finite-float conversion before record output` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D606 狀態紀錄。
+
+已固定的行為：
+
+1. legacy 或修復過的 `notification_delivery_audit` row 即使含非有限 timestamp，也不會把非標準 numeric values 輸出給 sender preflight、summary 或 API response。
+2. 正常 timestamp 行為維持不變；只有非有限值會退回 `0.0`。
+3. 變更只影響 audit row serialization；不改變 delivery key、dedupe key、attempt count、channel summary 或 notification 排序。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_records_normalize_non_finite_stored_timestamps` 建立 RED，第一次測試資料發現 SQLite 將 `NaN` 綁成 NULL 而非有效儲存值，修正測試資料為可保存的 `Infinity` / `-Infinity` 後，正確失敗為 `first_seen_at` 仍輸出 `inf`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 audit row timestamp finite-float 說明，補文後 `1 passed`。
+
+## P3-499 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Reconcile Current-Time Finite-Float Guard`，讓 sender preflight 在計算 retry wait 前先排除非有限 current-time input。
+
+落地檔案：
+
+- `backend/notification_delivery_audit_context.py`：新增 `safe_timestamp()`，呼叫端 `now` 為 `NaN`、`Infinity`、`-Infinity` 或轉換失敗時回退到 `time.time()`。
+- `backend/notification_delivery_audit.py`：`record_delivery_attempt()` 與 `reconcile_outbox_with_audit()` 改用 shared timestamp helper，讓 audit store 保持在 module split 門檻內。
+- `tests/test_notification_delivery_audit.py`：新增 non-finite current-time regression，鎖住 `now=float("inf")` 不會讓 reconcile 進入 `math.ceil(-inf)`，並會以 runtime current time 計算 retry wait。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery reconcile current time uses finite-float fallback before wait calculation` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D605 狀態紀錄。
+
+已固定的行為：
+
+1. 外部 sender 或呼叫端傳入非有限 `now` 時，不會造成 sender preflight exception。
+2. 非有限 current-time input 會回退到 runtime current time，因此既有 failed delivery 仍能得到正確的 `retry_wait_seconds`、`skip_reason` 與 `should_send`。
+3. 變更只影響 notification delivery audit 的 timestamp input normalization；不改變 delivery key、dedupe key、attempt count、channel summary 或 notification 排序。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_reconcile_uses_current_time_when_now_is_non_finite` 建立 RED，失敗為 `OverflowError: cannot convert float infinity to integer`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 current-time finite-float 說明，補文後 `1 passed`。
+
+## P3-498 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Delivery Reconcile Retry Backoff Finite-Float Guard`，讓 sender preflight 在計算 retry wait 前先排除非有限 backoff。
+
+落地檔案：
+
+- `backend/notification_delivery_audit_context.py`：`safe_float()` 轉換成功後改用 `math.isfinite()` 檢查，讓 `NaN`、`Infinity`、`-Infinity` 回到 `0.0`。
+- `tests/test_notification_delivery_audit.py`：新增 non-finite retry backoff regression，鎖住 `retry_backoff_seconds=float("inf")` 不會讓 reconcile 進入 `math.ceil(inf)`，並會把該 failed delivery 視為已可重送。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery reconcile retry backoff uses finite-float conversion before wait calculation` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D604 狀態紀錄。
+
+已固定的行為：
+
+1. 外部 sender 或呼叫端傳入非有限 retry backoff 時，不會造成 sender preflight exception 或無限 retry wait。
+2. 非有限 backoff 會退回 0 秒，讓既有 failed delivery 依目前 audit 狀態判斷是否可重送。
+3. 變更只影響 notification delivery audit 的 safe float conversion；不改變 delivery key、dedupe key、attempt count、channel summary 或 notification 排序。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_reconcile_treats_non_finite_retry_backoff_as_zero` 建立 RED，失敗為 `OverflowError: cannot convert float infinity to integer`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 retry backoff finite-float 說明，補文後 `1 passed`。
+
+## P3-497 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Audit Context Numeric Metadata JSON Guard`，把 delivery audit context 的 scalar/list/dict metadata 中非有限 float 擋在 JSON serialization 前。
+
+落地檔案：
+
+- `backend/notification_delivery_audit_context.py`：`_json_safe_value()` 對 float 改用 `math.isfinite()` 檢查，丟棄 `NaN`、`Infinity`、`-Infinity`，保留有限數值與其他既有安全 metadata。
+- `tests/test_notification_delivery_audit.py`：新增 non-finite numeric metadata regression，鎖住 scalar、list、dict 內非有限數值會被移除，且 context 仍可用 `json.dumps(..., allow_nan=False)` 驗證為標準 JSON-safe。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery audit context drops non-finite numeric metadata before JSON serialization` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D603 狀態紀錄。
+
+已固定的行為：
+
+1. 外部 sender 或 legacy outbox entry 混入 `NaN` / `Infinity` optional metadata 時，不會把非標準 JSON number 寫進 persisted audit context。
+2. list/dict 內的有效 numeric metadata 仍會保留，壞數值只被局部移除。
+3. 變更只影響 context snapshot metadata normalization；不改變 delivery key、dedupe key、retry budget、channel summary 或 notification 排序。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_context_drops_non_finite_numeric_metadata` 建立 RED，失敗為 persisted context 仍包含 `priority_score: nan` 與 nested `-inf`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 non-finite numeric metadata 說明，補文後 `1 passed`。
+
+## P3-496 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Audit Context Sequence Metadata Guard`，把 delivery audit context 的 list/tuple metadata 讀取改成 sequence-safe conversion。
+
+落地檔案：
+
+- `backend/notification_delivery_audit_context.py`：`_json_safe_value()` 的 list/tuple 分支改用 `safe_sequence_items()`，避免壞掉的 sequence iterator 直接中斷 JSON context snapshot persistence。
+- `tests/test_notification_delivery_audit.py`：新增 broken sequence metadata regression，鎖住有效 native sequence item 仍會保留，且 source、ticker 與 blocked-repair `reason_codes` 不會被抹掉。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery audit context normalizes sequence metadata values with sequence-safe conversion` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D602 狀態紀錄。
+
+已固定的行為：
+
+1. 外部 sender 或 legacy outbox entry 混入 list/tuple subclass，且其 `__iter__()` 失敗時，不會讓 delivery audit persistence 中斷。
+2. 有效的 native sequence metadata 仍會被保留到 persisted context snapshot，讓 report repair 與 sender triage 可看見相鄰 report/reason context。
+3. 變更只影響 context snapshot 的 metadata normalization；不改變 delivery key、dedupe key、retry budget、channel summary 或 notification 排序。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_context_preserves_native_sequence_metadata_when_iterator_fails` 建立 RED，失敗為 `RuntimeError: audit context metadata sequence iterator unavailable`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 sequence metadata normalization 說明，補文後 `1 passed`。
+
+## P3-495 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Audit Context Metadata Value Guard`，把 delivery audit context 的 JSON serialization 邊界改成先正規化 metadata values。
+
+落地檔案：
+
+- `backend/notification_delivery_audit_context.py`：新增 `_json_safe_value()` 與 `_json_safe_context()`，在 `json.dumps(sort_keys=True)` 前保留安全 scalar/list/dict，並丟棄無法安全轉文字的 optional metadata value。
+- `tests/test_notification_delivery_audit.py`：新增 unstringable metadata value regression，鎖住 delivery audit 不會因單一壞 optional value 中斷寫入，且仍保留 source、ticker 與 blocked-repair `reason_codes`。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery audit context normalizes metadata values before JSON serialization` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D601 狀態紀錄。
+
+已固定的行為：
+
+1. 外部 sender 或 legacy outbox entry 混入無法 `str()` 的 optional metadata value 時，不會讓 context snapshot JSON serialization 失敗。
+2. 有效的 source、ticker、report、CTA、queue rank 與 blocked-repair reason context 仍會被保留。
+3. 變更只影響 context snapshot persistence；不改變 delivery key、dedupe key、retry budget、channel summary 或 notification 排序。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_context_ignores_unstringable_metadata_values` 建立 RED，失敗為 `RuntimeError: audit context metadata value string unavailable`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 metadata value normalization 說明，補文後 `1 passed`。
+
+## P3-494 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Audit Context JSON Key Guard`，把 delivery audit context 的 JSON serialization 邊界改成只保留字串 metadata key。
+
+落地檔案：
+
+- `backend/notification_delivery_audit_context.py`：`context_json_from_outbox()` 在建立 context snapshot 時忽略非字串 outbox metadata key，避免 mixed string/int keys 進入 `json.dumps(sort_keys=True)`。
+- `tests/test_notification_delivery_audit.py`：新增 numeric metadata key regression，鎖住 delivery audit 仍保留 source、ticker 與 blocked-repair `reason_codes`，但不保存 `7` 或 `"7"` 這類 synthetic field。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery audit context ignores non-string outbox metadata keys before JSON serialization` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D600 狀態紀錄。
+
+已固定的行為：
+
+1. 外部 sender 或 legacy outbox entry 混入非字串 metadata key 時，不會讓 sorted JSON context snapshot 序列化失敗。
+2. 有效的 source、ticker、report、CTA、queue rank 與 blocked-repair reason context 仍會被保留。
+3. 非字串 key 會被忽略而不是轉成字串，避免 audit history 出現 synthetic persisted field names。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_context_ignores_non_string_metadata_keys` 建立 RED，失敗為 `TypeError: '<' not supported between instances of 'int' and 'str'`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 non-string metadata key serialization 說明，補文後 `1 passed`。
+
+## P3-493 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Audit Context Mapping Item Guard`，把 delivery audit context 的 outbox metadata 枚舉改成 shared mapping-safe path。
+
+落地檔案：
+
+- `backend/notification_delivery_audit_context.py`：`context_json_from_outbox()` 改用 `mapping_fields.safe_mapping_items()` 枚舉 outbox metadata，避免直接呼叫 `.items()`。
+- `tests/test_notification_delivery_audit.py`：新增 broken `.items()` accessor regression，鎖住 delivery audit 在 outbox mapping accessor 失敗時仍保留 source、ticker、`reason_codes` 與 queue rank。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery audit context enumerates outbox metadata with mapping-item safe conversion` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D599 狀態紀錄。
+
+已固定的行為：
+
+1. 外部 sender 或 legacy outbox entry 的 custom `.items()` accessor 失敗時，audit context 會 fallback 到 native dict items。
+2. 有效的 source、ticker、report、CTA、queue rank 與 blocked-repair reason context 不會因 mapping accessor failure 被整批抹掉。
+3. 變更只影響 context snapshot 組裝；不改變 delivery key、dedupe key、retry budget、channel summary 或 notification 排序。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_context_preserves_native_items_when_items_accessor_fails` 建立 RED，失敗為 `RuntimeError: audit context items accessor unavailable`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 mapping-item safe conversion 說明，補文後 `1 passed`。
+
+## P3-492 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Audit Reason Code Hardening`，把上一輪 notification 出站 `reason_codes` 保留契約加固到 delivery audit 持久化邊界。
+
+落地檔案：
+
+- `backend/notification_delivery_audit_context.py`：`context_json_from_outbox()` 在序列化 audit context 前以 `safe_text_list()` 正規化 `reason_codes`，保留壞元素前已解析的 blocked-repair reason code，空清單則不寫入 context。
+- `tests/test_notification_delivery_audit.py`：新增 malformed reason-code string failure regression，鎖住 delivery audit 不會因單一壞 reason code 中斷寫入，且會保留 `data_snapshot_integrity_invalid`。
+- `docs/operator-guide.md`、`tests/test_docs_contract.py`：文件化 `Notification delivery audit context normalizes reason_codes with text-list safe conversion` 契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D598 狀態紀錄。
+
+已固定的行為：
+
+1. 即使外部 sender 或未來 outbox path 傳入未清洗的 `reason_codes`，delivery audit 仍會保存已可讀的 blocked-repair reason code。
+2. 壞掉的 reason-code 物件不會讓 `record_delivery_attempt()` 在寫入 operational audit 前失敗。
+3. Audit context 的 `reason_codes` 僅作為回溯上下文，不改變 delivery identity、retry budget、channel summary 或 attention ordering。
+
+驗證：先以 `tests/test_notification_delivery_audit.py::test_notification_delivery_audit_preserves_reason_codes_before_string_failures` 建立 RED，失敗為 `RuntimeError: delivery audit reason code string unavailable`；修正後單測 `1 passed`。Docs contract 先 RED 於 operator guide 缺少 audit reason-code 正規化說明，補文後 `1 passed`。
+
+## P3-491 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Notification Report Repair Reason Code Projection`，把 blocked report repair 的原因碼從 daily decision queue 延伸到 notification 出站 payload。
+
+落地檔案：
+
+- `backend/free_notification_plan.py`：`MESSAGE_CONTEXT_KEYS` 納入 `reason_codes`，並在 `_message_context()` 以 `safe_text_list()` 清洗後寫入 message context；`delivery_outbox` 透過既有 context projection 同步保留該欄位。
+- `tests/test_free_notification_plan.py`：新增 report repair manual review action 的 RED→GREEN regression，鎖住 `notification_plan.messages` 與 `delivery_outbox` 都保留 `data_snapshot_integrity_invalid`。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 `notification_plan.messages` and `delivery_outbox` preserve `reason_codes` 的出站契約。
+- `docs/hcs-plus-optimization-state.md`：新增 D597 狀態紀錄。
+
+已固定的行為：
+
+1. Daily queue 的 report repair `reason_codes` 不會在通知 message 層掉失。
+2. Delivery outbox 與後續 delivery audit context 能保留 blocked 原因，方便 sender log、外部 channel 與本機維修畫面回溯。
+3. `reason_codes` 只作為上下文保留，不改變 dedupe key、delivery key 或通知排序。
+
+驗證：先以 `tests/test_free_notification_plan.py::test_notification_plan_preserves_report_repair_reason_codes` 建立 RED，失敗為 `KeyError: 'reason_codes'`；修正後單測 `1 passed`。第一次完整 CI 抓到 `free_notification_plan.py` 剛好 300 行、違反 `< 300` size guard，根因是新增 import/context 欄位後踩線；合併同模組 import 後檔案回到 299 行。notification/queue/dashboard/audit/docs/HCS/import focused suite `252 passed`，`py_compile` 與 `git diff --check` 通過。
+
+## P3-490 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Daily Queue Repair Boundary Projection`，修正 report repair item 轉入 daily decision queue 時的品質邊界遺失。
+
+落地檔案：
+
+- `backend/daily_decision_queue.py`：`_repair_action_payload()` 保留 `blocks_auto_rerun` 與 `reason_codes`，讓 dashboard、notification plan 或後續 automation 不需要重新讀 repair queue 才知道該 action 是否禁止盲目重跑。
+- `tests/test_daily_decision_queue.py`：新增 blocked snapshot integrity repair 的 RED→GREEN regression，鎖住 `manual_review` action 必須攜帶 `blocks_auto_rerun = true` 與 `data_snapshot_integrity_invalid` reason code。
+- `docs/api.md`、`docs/operator-guide.md`、`docs/pipeline-mode-contract.md`、`tests/test_docs_contract.py`：文件化 daily queue 的 report repair boundary contract。
+- `docs/hcs-plus-optimization-state.md`：新增 D596 狀態紀錄。
+
+已固定的行為：
+
+1. `report_quality_repair_queue` 給出的 blocked repair 不會在 `decision_queue.items` 中掉失 `blocks_auto_rerun`。
+2. `reason_codes` 會保留為安全文字清單，讓操作者、通知和後續自動化知道 blocker 原因。
+3. 這只保留 repair 邊界，不新增自動重跑或人工審核流程。
+
+驗證：先以 `tests/test_daily_decision_queue.py::test_daily_decision_queue_preserves_blocked_repair_boundaries` 建立 RED，失敗為 `KeyError: 'blocks_auto_rerun'`；修正後單測 `1 passed`，queue/dashboard/repair focused suite `69 passed`。
+
+## P3-489 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Partitioned Report Artifact Maintenance Coverage`，修正正式分層報告 artifact 與 legacy flat artifact 在維運掃描上的覆蓋差距。
+
+落地檔案：
+
+- `backend/snapshot_maintenance.py`：`verify-snapshots` 從 root-only glob 改為遞迴掃描 `.data.json`，保留 flat path 相容性，排除 symlink，並以相對 output key 回報 nested artifact，避免同名 snapshot 無法區分。
+- `backend/storage_inventory.py`：storage summary 的 HTML、Markdown 與 data snapshot 統計改為遞迴掃描並排除 symlink，讓維運摘要反映 canonical 分層輸出。
+- `tests/test_maintenance_commands.py`、`tests/test_storage_inventory.py`：新增 nested artifact 與 symlink boundary regression。
+- `README.md`、`docs/api.md`、`docs/operator-guide.md`、`docs/architecture.md`、`tests/test_docs_contract.py`：固定 `YYYY-MM/TICKER` 分層路徑、legacy 相容、遞迴掃描與相對 storage key 契約。
+
+已固定的行為：
+
+1. `verify-snapshots` 會同時檢查根目錄 flat snapshot 與 `YYYY-MM/TICKER/` 分層 snapshot。
+2. `storage-summary` 的報告檔案計數不再漏掉分層 HTML、Markdown 或 data snapshot。
+3. 兩個維運掃描器都不會跟隨 symlink，因此不會把 output root 外的檔案納入完整性或容量統計。
+4. nested 結果使用相對 storage key，例如 `2026-07/TEST/report.data.json`，維持可追溯且避免 basename collision。
+
+驗證：先以 nested snapshot 與 storage summary failing tests 建立 RED，再轉 GREEN；新增 nested/symlink/docs focused suite `5 passed`，既有 flat snapshot backfill/repair 與 storage summary regression 同批 `5 passed`。
+
+## P3-488 執行紀錄
+
+執行時間：2026-07-11
+
+完成 `Report Snapshot Integrity Projection`，把資料快照的既有 content hash 驗證推進到操作者可見的報告品質流程。
+
+落地檔案：
+
+- `backend/report_index_rows.py`：每個 report row 即時計算 `snapshot_integrity`，區分 `verified`、`unverified` 與 `invalid`，不把 legacy/hashless snapshot 誤判為損壞。
+- `backend/report_quality_integrity.py`：將 invalid snapshot 投影成獨立 repair candidate，讓 queue facade 維持既有模組尺寸護欄。
+- `backend/report_quality_repair_queue.py`：`invalid` snapshot 以 blocked/manual review 進入 repair queue，並設定 `blocks_auto_rerun = true`。
+- `backend/static/report_reading_boundary_policy.js`：preview 只有 `verified` 才能顯示 passed；`unverified` 降為 warning，`invalid` 直接 blocked。
+- `tests/test_report_preview.py`、`tests/test_report_quality_repair_queue.py`、`tests/test_report_preview_reading_boundary.py`、`tests/test_docs_contract.py`：補上 row、queue、前端 boundary 與文件契約回歸。
+
+已固定的行為：
+
+1. 快照 hash mismatch 不再只存在於低層驗證函式，而會變成每日可處理的人工修復項目。
+2. hashless/legacy snapshot 仍可被列出，但不會被誤報為 verified，也不會直接升級成 blocked。
+3. report preview 的品質邊界與 daily repair queue 使用同一個 integrity status 語意。
+4. 這只驗證 snapshot content hash，不外推成 HTML/Markdown 全部內容一致或使用者已理解報告限制。
+
+驗證：先以三個 failing tests 建立 RED，再轉 GREEN；品質 repair queue `20 passed`、report preview `42 passed`、reading boundary `7 passed`、static/history `135 passed`、daily dashboard `1 passed`、module-size guard `1 passed`、Node syntax 與 `git diff --check` 通過。完整 CI 與 runtime 收尾驗證仍需在本批最後執行。
+
 ## P3-475 執行紀錄
 
 執行時間：2026-07-11

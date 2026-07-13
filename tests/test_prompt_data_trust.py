@@ -1,6 +1,7 @@
 import json
 import sys
 from pathlib import Path
+from types import MappingProxyType
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -139,6 +140,34 @@ def test_prompt_payload_includes_data_trust_and_audit_summary():
     assert payload["source_audit_summary"][0]["source"] == "financial_statements"
     assert payload["source_audit_summary"][0]["status"] == "error"
     assert "不得在沒有額外佐證下給出高信心" in prompt
+
+
+def test_prompt_payload_accepts_mapping_safe_data_trust():
+    prompt = prompt_builder.format_data_for_prompt(
+        {
+            "data_schema_version": 4,
+            "ticker": "2330.TW",
+            "company_name": "台積電",
+            "data_trust": MappingProxyType(
+                {
+                    "status": "fresh",
+                    "critical_failures": (),
+                    "stale_sources": (),
+                    "last_market_data_at": "2026-07-12T01:00:00+00:00",
+                    "notes": ("all core sources fresh",),
+                    "reason_codes": ("fresh_core_sources",),
+                }
+            ),
+        }
+    )
+
+    payload_text = prompt.split("【財務資料 JSON】\n", 1)[1].split("\n\n【使用規則】", 1)[0]
+    payload = json.loads(payload_text)
+
+    assert payload["data_trust"]["status"] == "fresh"
+    assert payload["data_trust"]["last_market_data_at"] == "2026-07-12T01:00:00+00:00"
+    assert payload["data_trust"]["notes"] == ["all core sources fresh"]
+    assert payload["data_trust"]["reason_codes"] == ["fresh_core_sources"]
 
 
 def test_data_trust_provider_sla_evidence_uses_safe_window_attempts():
@@ -313,6 +342,40 @@ def test_data_trust_provider_sla_trust_metadata_uses_safe_fields():
     assert "existing_reason" in result["reason_codes"]
     assert "provider_sla_critical" in result["reason_codes"]
     assert "existing trust note" in result["notes"]
+
+
+def test_data_trust_provider_sla_trust_metadata_uses_shared_text_safety_for_malformed_entries():
+    data = {
+        "source_audit": [
+            {
+                "source": "market_data",
+                "provider": "yfinance",
+                "status": "error",
+                "record_count": 0,
+            }
+        ]
+    }
+    trust = {
+        "status": "fresh",
+        "reason_codes": [True, b"bad-reason", memoryview(b"bad-reason"), "existing_reason"],
+        "notes": [bytearray(b"bad-note"), "existing trust note"],
+    }
+    alerts = [
+        {
+            "source": "market_data",
+            "provider": "yfinance",
+            "alert_level": "critical",
+            "alert_message": "provider outage",
+            "alert_basis": "last_24h",
+            "windows": {"last_24h": {"attempts": 3}},
+        }
+    ]
+
+    result = data_trust_sla_policy.apply_provider_sla_to_trust(data, trust, alerts=alerts)
+
+    assert set(result["reason_codes"]) == {"existing_reason", "provider_sla_critical"}
+    assert "existing trust note" in result["notes"]
+    assert all("bad-note" not in note for note in result["notes"])
 
 
 def test_data_trust_provider_sla_trust_metadata_preserves_valid_iterator_items():

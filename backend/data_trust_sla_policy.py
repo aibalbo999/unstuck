@@ -18,6 +18,7 @@ from data_trust_constants import (
     TRUST_STATUS_PARTIAL,
     TRUST_STATUS_UNKNOWN,
 )
+from mapping_fields import safe_text
 
 
 SLA_WARNING_MIN_ATTEMPTS = PROVIDER_SLA_WARNING_MIN_ATTEMPTS
@@ -160,15 +161,12 @@ def _audit_entry_is_healthy(entry: dict) -> bool:
 def _safe_int(value: object) -> int:
     try:
         return int(0 if value is None else value)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
         return 0
 
 
 def _safe_text(value: object) -> str:
-    try:
-        return "" if value is None else str(value)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
-        return ""
+    return safe_text(value)
 
 
 def _safe_text_list(value: object) -> list[str]:
@@ -187,7 +185,7 @@ def _safe_text_list(value: object) -> list[str]:
             item = next(iterator)
         except StopIteration:
             return texts
-        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
             if texts or used_native:
                 return texts
             iterator = _native_sequence_iterator(value)
@@ -204,8 +202,11 @@ def _safe_dict(value: object) -> dict:
         return {}
     try:
         return dict(value)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
-        return {}
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
+        try:
+            return {key: child for key, child in dict.items(value)}
+        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
+            return {}
 
 
 def _safe_dict_rows(value: object) -> list[dict]:
@@ -221,7 +222,7 @@ def _safe_dict_rows(value: object) -> list[dict]:
             item = next(iterator)
         except StopIteration:
             return rows
-        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
             if rows or used_native:
                 return rows
             iterator = _native_sequence_iterator(value)
@@ -236,7 +237,7 @@ def _safe_dict_rows(value: object) -> list[dict]:
 def _safe_iterator(value: object):
     try:
         return iter(value)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
         return _native_sequence_iterator(value)
     return None
 
@@ -272,7 +273,7 @@ def _fetch_provider_sla_alerts() -> object:
 def _safe_bool(value: object) -> bool:
     try:
         return bool(value)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
         return False
 
 

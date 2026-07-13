@@ -19,5 +19,6 @@ fi
 "$BASE_PYTHON" -m venv .venv
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install --require-hashes -r backend/requirements.lock
+scripts/setup_security_audit.sh
 
 echo "Created .venv with $(.venv/bin/python --version)"

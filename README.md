@@ -19,6 +19,7 @@
 - 歷史 API 回傳 `decision_freshness`，明確區分「資料快照已更新」與「投資結論是否已依新資料重跑」
 - 報告會輸出投資論文、核心假設、紅線、估值錨點與鏡子測試，方便後續追蹤結論是否仍成立
 - 報告與 `.data.json` 會揭露 `data_confidence_score`、低信心目標價限制與 reproducibility packet，方便追溯 snapshot hash、provider、prompt/model 與資料時間
+- 報告列表與每日工作台會檢查 `snapshot_integrity`：hash mismatch 會阻擋自動重跑並進入人工修復，legacy/hashless snapshot 會降級為 warning
 - 報告產生時會執行數字證據抽查 exit gate，將 Markdown 數字主張與 data snapshot 比對後寫入 metadata
 - 決策追蹤會自動掃描滿 3 / 6 / 12 個月的歷史報告，抓取發布日與到期日股價，計算 ROI、命中率與 Hit/Miss，並在維運區顯示回測績效
 - 新報告會載入同股票上一期報告與回測結果，將 `temporal_memory` 只注入最終決策 Agent，強制檢討先前目標價與投資建議是否失準
@@ -272,7 +273,7 @@ scripts/setup_visual_regression.sh
 scripts/visual_regression.sh
 ```
 
-CI 環境的 `CI=1`、`CI=true` 或 `CI=yes` 會讓 `scripts/ci_gate.sh` 預設執行必須成功的視覺回歸；本機可用 `RUN_VISUAL_REGRESSION=1 scripts/ci_gate.sh` 強制執行，或維持一般快速 gate。執行視覺 gate 前，CI runner 請先跑 `scripts/setup_visual_regression.sh` 安裝並實際啟動驗證 Playwright/Chromium；其驗證命令是 `scripts/check_visual_regression.py`，`scripts/ci_gate.sh` 也會在 visual suite 前做同一個 preflight，缺少 browser 時會提前失敗並列出修復命令；一般 `pytest` 仍會在 Playwright 不可用時 skip。
+CI 環境的 `CI=1`、`CI=true` 或 `CI=yes` 會讓 `scripts/ci_gate.sh` 預設執行必須成功的視覺回歸；本機可用 `RUN_VISUAL_REGRESSION=1 scripts/ci_gate.sh` 強制執行，或維持一般快速 gate。執行視覺 gate 前，CI runner 請先跑 `scripts/setup_security_audit.sh` 與 `scripts/setup_visual_regression.sh`；前者在隔離的 `.audit-venv` 依 `scripts/security_requirements.lock` 安裝固定版 `pip-audit`，後者依 `scripts/visual_requirements.lock` 安裝固定版本的 Playwright Python runtime（目前 Playwright 為 `1.60.0`）並實際啟動驗證 Chromium。若要單獨診斷，請使用專案 Python 執行 `$(scripts/project_python.sh) scripts/check_visual_regression.py --json`，避免 macOS 系統 Python 載入不同 Playwright 版本；`scripts/ci_gate.sh` 也會在 visual suite 前做同一個 preflight，缺少 browser、revision 或版本不一致時會提前失敗並列出修復命令；一般 `pytest` 仍會在 Playwright 不可用時 skip。供應鏈 gate 會 fail-closed 檢查 `backend/requirements.lock`、`scripts/visual_requirements.lock` 與 `scripts/security_requirements.lock`，並產生 `backend/cache/visual-sbom.cdx.json`；Chromium browser artifact 仍由 CI image/setup step 管理。只有明確設定 `SUPPLY_CHAIN_SKIP_PIP_AUDIT=1` 才會跳過漏洞掃描。
 `scripts/ci_gate.sh` 會產生 `backend/cache/sbom.cdx.json` CycloneDX SBOM，並以 `coverage run --source=backend` 執行非 live 測試，要求 backend line coverage 不低於 75%。
 pipeline mode 的首屏 fallback 由 `scripts/generate_pipeline_mode_fallback.py` 產生；`scripts/ci_gate.sh` 會執行 `scripts/generate_pipeline_mode_fallback.py --check`，避免後端 catalog 與前端 fallback 靜默漂移。
 報告防回歸測試包含 `tests/test_golden_reports.py`；若報告文字或章節結構是預期變更，請先人工檢查 fixed fake data 的 Markdown 輸出，再更新 `tests/fixtures/golden_reports/2330_v1_markdown.json` 的 SHA-256。
@@ -295,6 +296,7 @@ scripts/maintenance.sh verify-snapshots --write
 `cleanup-analysis-history` 預設也只會 dry-run；加上 `--write` 才會刪除過舊且已結束的任務與孤兒事件，queued/running 任務會保留。
 `cleanup-terminal-checkpoints` 預設只會 dry-run；加上 `--write` 才會刪除 `done`、`error`、`cancelled` 任務對應的 LangGraph checkpoint `writes` 與 `checkpoints` rows。它用 `thread_id` 第一個 `:` 前的 job id 對應 `analysis_jobs`，會保留 queued/running/waiting_retry 等非終止任務與找不到 job row 的 threads；schema 不完整時只回報 `schema_ready=false`，不刪資料。這個命令不會自動執行 `VACUUM`，請先停服務、dry-run 確認，再搭配一次受控 SQLite 維護。
 `sqlite-maintenance` 預設只會 dry-run，回報預計移除的逾期備份但不刪檔；加上 `--write` 才會刪除候選檔，並在備份到期時對 runtime SQLite DB 建立備份、執行一次 WAL checkpoint 與 `VACUUM`。同一 DB 最近備份未滿 `SQLITE_BACKUP_INTERVAL_DAYS`（預設 30 天）時會回報 `skipped_interval`，不建立備份、不執行 WAL checkpoint／`VACUUM`；同一天重跑也會跳過維護。備份以 `SQLITE_BACKUP_DIR` 為目錄，輪替依本輪 UTC 日期計算 cutoff；預設 `SQLITE_BACKUP_RETENTION_DAYS=1` 會為目前 runtime DB labels 保留各自最新一份受管備份，刪除更舊的同 label 備份，並移除已不屬於目前 runtime DB labels 的 managed backup（例如 canonical 去重後的舊 `checkpoint_db-*`）。輪替只管理 `cache_db-YYYYMMDD.sqlite3`、`task_db-YYYYMMDD.sqlite3`、`checkpoint_db-YYYYMMDD.sqlite3`。`manual-archive.sqlite3` 等未知檔名、目錄、symlink、WAL/SHM 與其他檔案不會被刪除；dry-run 只回報，`--write` 才會 unlink。`SQLITE_BACKUP_INTERVAL_DAYS` 與 `SQLITE_BACKUP_RETENTION_DAYS` 設為非正數會 fail closed。
+報告 artifact 目前可能以 `backend/output/YYYY-MM/TICKER/` 分層儲存，也可能保留 legacy flat path；`verify-snapshots` 與 `storage-summary` 會遞迴掃描兩種位置，並以相對 storage key 回報檔案，symlink 不會被計入。
 
 ## 啟動方式
 
@@ -494,7 +496,7 @@ backend/output/
 
 `.data.json` 是資料快照，包含來源審計、資料可信度、`data_confidence_score`、結論 guardrails、`reproducibility_packet`、決策追蹤基準與重跑 context。當資料信心低於 60/100 時，snapshot 會標記明確目標價不可用，最終結論只能保留區間或資料不足說明。只刷新資料快照時，HTML / Markdown 正文不會自動改寫。
 
-`backend/cache/` 也已被 Git 忽略。財務資料快取預設保存 24 小時，可透過 `FINANCIAL_DATA_CACHE_SECONDS` 調整；`CACHE_BACKEND=redis` 時會使用 Redis 與 `CACHE_NAMESPACE`，`CACHE_BACKEND=sqlite` 時才使用 `CACHE_DB_PATH`。歷史報告列表由 report index / storage 查詢產生，不依賴 API process 內的 in-memory dict，因此多 uvicorn worker 與獨立 RQ worker 會看到一致的報告狀態。report index 會讀取分區輸出的 Markdown（例如 `YYYY-MM/ticker/report.md`），若舊索引列只剩 `N/A` 建議但 Markdown 可解析，查詢與同步時會自動重建 recommendation metadata，避免每日決策追蹤表因快取舊值而消失。歷史報告預設保留 30 天，可透過 `REPORT_RETENTION_DAYS` 調整；前端刪除 HTML 報告時，後端會同步刪除同名 Markdown 與資料快照。
+`backend/cache/` 也已被 Git 忽略。財務資料快取預設保存 24 小時，可透過 `FINANCIAL_DATA_CACHE_SECONDS` 調整；`CACHE_BACKEND=redis` 時會使用 Redis 與 `CACHE_NAMESPACE`，`CACHE_BACKEND=sqlite` 時才使用 `CACHE_DB_PATH`。歷史報告列表由 report index / storage 查詢產生，不依賴 API process 內的 in-memory dict，因此多 uvicorn worker 與獨立 RQ worker 會看到一致的報告狀態。report index 會讀取分區輸出的 Markdown（例如 `backend/output/YYYY-MM/TICKER/<filename>.md`），若舊索引列只剩 `N/A` 建議但 Markdown 可解析，查詢與同步時會自動重建 recommendation metadata，避免每日決策追蹤表因快取舊值而消失。歷史報告預設保留 30 天，可透過 `REPORT_RETENTION_DAYS` 調整；前端刪除 HTML 報告時，後端會同步刪除同名 Markdown 與資料快照。
 
 ## API / Worker 分離與任務佇列
 

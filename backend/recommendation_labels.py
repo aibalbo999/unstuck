@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from mapping_fields import safe_text
+
 
 CANONICAL_RECOMMENDATIONS = ("買入", "持有", "避免", "放空")
 UNKNOWN_RECOMMENDATION = "N/A"
@@ -9,7 +11,7 @@ UNKNOWN_RECOMMENDATION = "N/A"
 
 def normalize_recommendation_label(value: object) -> str:
     """Collapse recommendation aliases into the product-wide label set."""
-    text = str(value or "").strip()
+    text = safe_text(value).strip()
     if not text:
         return UNKNOWN_RECOMMENDATION
     lower = text.lower()

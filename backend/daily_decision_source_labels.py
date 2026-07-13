@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
+from fractions import Fraction
 from types import MappingProxyType
 from typing import Any, Mapping
 
@@ -19,11 +21,21 @@ SOURCE_LABELS = MappingProxyType({
     "monitor": "監控",
 })
 
+SOURCE_HELPER_ERRORS = (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError)
+
+
+def _trimmed_source_text(value: Any) -> str:
+    if not isinstance(value, str):
+        return ""
+    try:
+        text = value.strip()
+    except SOURCE_HELPER_ERRORS:
+        return ""
+    return text if type(text) is str else ""
+
 
 def source_key(source: Any) -> str:
-    if not isinstance(source, str):
-        return ""
-    return source.strip()
+    return _trimmed_source_text(source)
 
 
 def source_label(source: Any) -> str:
@@ -40,16 +52,20 @@ def source_text(source: Any) -> str:
 def _source_count(value: Any) -> int:
     if isinstance(value, bool):
         return 0
+    if isinstance(value, str) and type(value) is not str:
+        return 0
+    if not isinstance(value, (int, float, str, Decimal, Fraction)):
+        return 0
     try:
         count = int(value or 0)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+    except SOURCE_HELPER_ERRORS:
         return 0
     if isinstance(value, str):
         return count
     try:
         if value != count:
             return 0
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+    except SOURCE_HELPER_ERRORS:
         return 0
     return count
 
@@ -69,22 +85,31 @@ def source_display_overrides(active_sources: Mapping[str, Any], overrides: Mappi
     result: dict[str, str] = {}
     for source, value in _source_items(overrides):
         key = source_key(source)
-        if key in active_keys and isinstance(value, str) and value.strip():
-            result[key] = value.strip()
+        text = _trimmed_source_text(value)
+        if key in active_keys and text:
+            result[key] = text
     return result
 
 
+def _source_method(sources: Any, name: str) -> Any:
+    try:
+        method = getattr(sources, name, None)
+    except SOURCE_HELPER_ERRORS:
+        return None
+    return method if callable(method) else None
+
+
 def _source_items(sources: Any) -> list[tuple[Any, Any]]:
-    items = getattr(sources, "items", None)
+    items = _source_method(sources, "items")
     if not callable(items):
         return []
     try:
         raw_items = items()
-    except (TypeError, ValueError, RuntimeError, AttributeError):
+    except SOURCE_HELPER_ERRORS:
         return []
     try:
         item_iter = iter(raw_items)
-    except (TypeError, ValueError, RuntimeError, AttributeError):
+    except SOURCE_HELPER_ERRORS:
         return []
     source_items: list[tuple[Any, Any]] = []
     while True:
@@ -92,31 +117,31 @@ def _source_items(sources: Any) -> list[tuple[Any, Any]]:
             item = next(item_iter)
         except StopIteration:
             break
-        except (TypeError, ValueError, RuntimeError, AttributeError):
+        except SOURCE_HELPER_ERRORS:
             break
         if isinstance(item, (str, bytes)):
             continue
         try:
             source, value = item
-        except (TypeError, ValueError, RuntimeError, AttributeError):
+        except SOURCE_HELPER_ERRORS:
             continue
         source_items.append((source, value))
     return source_items
 
 
 def _source_keys(sources: Any) -> list[Any]:
-    keys = getattr(sources, "keys", None)
+    keys = _source_method(sources, "keys")
     if not callable(keys):
         return []
     try:
         raw_keys = keys()
-    except (TypeError, ValueError, RuntimeError, AttributeError):
+    except SOURCE_HELPER_ERRORS:
         return []
     if isinstance(raw_keys, (str, bytes)):
         return []
     try:
         key_iter = iter(raw_keys)
-    except (TypeError, ValueError, RuntimeError, AttributeError):
+    except SOURCE_HELPER_ERRORS:
         return []
     source_keys: list[Any] = []
     while True:
@@ -124,7 +149,7 @@ def _source_keys(sources: Any) -> list[Any]:
             source_keys.append(next(key_iter))
         except StopIteration:
             break
-        except (TypeError, ValueError, RuntimeError, AttributeError):
+        except SOURCE_HELPER_ERRORS:
             break
     return source_keys
 

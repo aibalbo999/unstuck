@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Optional
 
@@ -16,8 +17,11 @@ from data_trust_constants import (
     SNAPSHOT_TRIMMABLE_LIST_FIELDS,
     SUPPORTED_DATA_SNAPSHOT_SCHEMA_VERSIONS,
 )
+from data_trust_snapshot_mapping import hashable_snapshot_value as _hashable_snapshot_value, mapping_get, mapping_has_key
 from data_trust_scoring import build_data_trust, normalize_data_trust, unknown_data_trust
 from mapping_fields import (
+    safe_text,
+    safe_mapping_dict,
     safe_mapping_items as _safe_mapping_items,
     safe_sequence_items as _safe_sequence_items,
 )
@@ -25,7 +29,7 @@ from report_reproducibility import build_data_confidence_controls, build_reprodu
 
 
 def sanitize_for_snapshot(value: Any) -> Any:
-    if isinstance(value, dict):
+    if isinstance(value, Mapping):
         clean = {}
         for key, item in _safe_mapping_items(value):
             key_str = _safe_text(key)
@@ -49,17 +53,12 @@ def sanitize_for_snapshot(value: Any) -> Any:
 def _safe_bool(value: Any) -> bool:
     try:
         return bool(value)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
         return False
 
 
 def _safe_text(value: Any) -> str:
-    if value is None:
-        return ""
-    try:
-        return str(value)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
-        return ""
+    return safe_text(value)
 
 
 def _first_text(*values: Any, default: str = "") -> str:
@@ -108,13 +107,22 @@ def build_data_snapshot(
     generated_at: Optional[str] = None,
     max_bytes: Optional[int] = None,
 ) -> dict:
+    context_map = safe_mapping_dict(context)
+    if context_map is None:
+        context = {}
+    else:
+        context = context_map
     data = dict.get(context, "data", {}) if isinstance(context, dict) else {}
-    if not isinstance(data, dict):
+    data_map = safe_mapping_dict(data)
+    if data_map is None:
         data = {}
+    else:
+        data = data_map
     existing_data_trust = dict.get(data, "data_trust")
+    existing_data_trust_map = safe_mapping_dict(existing_data_trust)
     data_trust = (
-        normalize_data_trust(existing_data_trust)
-        if isinstance(existing_data_trust, dict)
+        normalize_data_trust(existing_data_trust_map)
+        if existing_data_trust_map is not None
         else build_data_trust(data)
     )
     try:
@@ -133,7 +141,7 @@ def build_data_snapshot(
         "snapshot_migrated_from_legacy": False,
         "ticker": _first_text(dict.get(context, "ticker"), dict.get(data, "ticker")),
         "company_name": _first_text(dict.get(context, "company_name"), dict.get(data, "company_name")),
-        "pipeline": _first_text(pipeline_id, dict.get(context, "pipeline_id")),
+        "pipeline": _first_text(pipeline_id, dict.get(context, "pipeline_id"), dict.get(data, "pipeline_id")),
         "generated_at": snapshot_generated_at,
         "conclusion_generated_at": sanitize_for_snapshot(
             dict.get(context, "conclusion_generated_at") or snapshot_generated_at
@@ -178,8 +186,8 @@ def snapshot_size_bytes(snapshot: dict) -> int:
     )
 
 
-def snapshot_content_hash(snapshot: dict) -> str:
-    if not isinstance(snapshot, dict):
+def snapshot_content_hash(snapshot: Mapping) -> str:
+    if not isinstance(snapshot, Mapping):
         return ""
     stable = {}
     for key, value in _safe_mapping_items(snapshot):
@@ -189,14 +197,6 @@ def snapshot_content_hash(snapshot: dict) -> str:
         stable[key_str] = _hashable_snapshot_value(key_str, value)
     encoded = json.dumps(stable, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
-
-
-def _hashable_snapshot_value(key: str, value: Any) -> Any:
-    if key == "reproducibility_packet" and isinstance(value, dict):
-        packet = dict(value)
-        packet.pop("data_snapshot_hash", None)
-        return packet
-    return value
 
 
 def set_snapshot_integrity(snapshot: dict) -> dict:
@@ -210,11 +210,11 @@ def set_snapshot_integrity(snapshot: dict) -> dict:
 
 
 def verify_data_snapshot_integrity(snapshot: Any) -> dict:
-    if not isinstance(snapshot, dict):
+    if not isinstance(snapshot, Mapping):
         return {"valid": False, "hash": "", "expected_hash": "", "errors": ["snapshot must be an object"]}
-    expected = _safe_text(dict.get(snapshot, "snapshot_hash")).strip()
+    expected = _safe_text(mapping_get(snapshot, "snapshot_hash")).strip()
     if not expected:
-        expected = _safe_text(dict.get(snapshot, "content_hash")).strip()
+        expected = _safe_text(mapping_get(snapshot, "content_hash")).strip()
     if not expected:
         return {"valid": True, "hash": "", "expected_hash": "", "errors": []}
     actual = snapshot_content_hash(snapshot)
@@ -238,9 +238,9 @@ def set_stable_snapshot_size(snapshot: dict) -> dict:
 
 def validate_data_snapshot(snapshot: Any) -> dict:
     errors = []
-    if not isinstance(snapshot, dict):
+    if not isinstance(snapshot, Mapping):
         return {"valid": False, "errors": ["snapshot must be an object"]}
-    schema_version = dict.get(snapshot, "snapshot_schema_version")
+    schema_version = mapping_get(snapshot, "snapshot_schema_version")
     if schema_version not in SUPPORTED_DATA_SNAPSHOT_SCHEMA_VERSIONS:
         errors.append("unsupported snapshot_schema_version")
     required_keys = [
@@ -260,11 +260,11 @@ def validate_data_snapshot(snapshot: Any) -> dict:
             "reproducibility_packet",
         ])
     for key in required_keys:
-        if key not in snapshot:
+        if not mapping_has_key(snapshot, key):
             errors.append(f"missing {key}")
-    if not isinstance(dict.get(snapshot, "source_audit", []), list):
+    if not isinstance(mapping_get(snapshot, "source_audit", []), list):
         errors.append("source_audit must be a list")
-    if not isinstance(dict.get(snapshot, "data_trust", {}), dict):
+    if not isinstance(mapping_get(snapshot, "data_trust", {}), Mapping):
         errors.append("data_trust must be an object")
     integrity = verify_data_snapshot_integrity(snapshot)
     errors.extend(dict.get(integrity, "errors", []))

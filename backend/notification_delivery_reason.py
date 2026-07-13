@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from notification_delivery_audit_context import safe_text
+from mapping_fields import safe_text
 
 
 def failure_reason_bucket(error: Any) -> str:

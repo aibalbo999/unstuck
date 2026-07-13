@@ -7,7 +7,7 @@ from typing import Any
 from mapping_fields import mapping_field as _field
 
 
-NON_ACTIONABLE_WARNING_IDS = frozenset({"slow_route", "retry_storm"})
+NON_ACTIONABLE_WARNING_IDS = frozenset({"slow_route"})
 
 
 def route_warning_items(ops: dict[str, Any]) -> list[dict[str, Any]]:

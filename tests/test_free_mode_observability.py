@@ -112,6 +112,51 @@ def test_ops_dashboard_free_mode_provider_shape_keeps_other_sections(monkeypatch
     assert payload["notification_delivery"]["health"] == "ok"
 
 
+def test_ops_dashboard_free_mode_rejects_binary_provider_tiers_and_violations(monkeypatch):
+    class SafeStringValue:
+        def __init__(self, value):
+            self.value = value
+
+        def __bool__(self):
+            raise RuntimeError("free mode value truthiness unavailable")
+
+        def __str__(self):
+            return self.value
+
+    monkeypatch.setattr(
+        api_observability_service,
+        "build_free_mode_contract",
+        lambda: {
+            "enabled": True,
+            "can_run_without_paid_keys": False,
+            "providers": [
+                {"cost_tier": "free"},
+                {"cost_tier": b"paid_should_not_leak"},
+                {"cost_tier": memoryview(b"free_with_key_should_not_leak")},
+                {"cost_tier": True},
+                {"cost_tier": SafeStringValue("free_with_key")},
+            ],
+            "violations": [
+                "provider:missing-free-source",
+                b"binary violation should not leak",
+                memoryview(b"buffer violation should not leak"),
+                True,
+                SafeStringValue("provider:paid-source"),
+            ],
+        },
+    )
+
+    payload = api_observability_service._free_mode_dashboard_summary()
+
+    assert payload == {
+        "enabled": True,
+        "can_run_without_paid_keys": False,
+        "provider_count": 5,
+        "providers_by_cost_tier": {"free": 1, "free_with_key": 1, "unknown": 3},
+        "violations": ["provider:missing-free-source", "provider:paid-source"],
+    }
+
+
 def test_ops_dashboard_free_mode_violation_shape_keeps_other_sections(monkeypatch):
     class ViolationWithBrokenTruthiness:
         def __bool__(self):

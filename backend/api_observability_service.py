@@ -12,8 +12,9 @@ from api_quota_service import build_api_quota_payload as _build_api_quota_payloa
 from data_trust_constants import CORE_DATA_SOURCES
 from free_mode_contract import build_free_mode_contract
 from job_observability import build_active_jobs_snapshot, build_ops_dashboard_snapshot
+from mapping_fields import safe_mapping_dict, safe_mapping_items, safe_text, safe_text_list
 from notification_delivery_audit import get_delivery_audit_summary
-from notification_delivery_audit_context import safe_dict, safe_float, safe_int, safe_text
+from notification_delivery_audit_context import safe_dict, safe_float, safe_int
 from notification_delivery_observability import (
     notification_delivery_attention_required,
     notification_delivery_dashboard_summary,
@@ -56,7 +57,7 @@ async def build_prometheus_metrics(
         asyncio.to_thread(_notification_delivery_summary_or_empty),
     )
     providers = provider_rows_or_empty(providers)
-    queue = safe_dict(queue)
+    queue = normalize_ops_queue_payload(queue)
     lines = [
         "# HELP stock_agent_provider_sla_success_rate Provider success rate by source.",
         "# TYPE stock_agent_provider_sla_success_rate gauge",
@@ -97,8 +98,8 @@ async def build_prometheus_metrics(
         "# TYPE stock_agent_queue_depth gauge",
         f"stock_agent_queue_depth{_labels(queue=queue_name)} {_metric_int(queue.get('depth'))}",
     ])
-    for name, details in safe_dict(queue.get("queues")).items():
-        lines.append(f"stock_agent_queue_depth{_labels(queue=name)} {_metric_int(safe_dict(details).get('depth'))}")
+    for name, details in safe_mapping_items(_payload_dict(queue.get("queues"))):
+        lines.append(f"stock_agent_queue_depth{_labels(queue=name)} {_metric_int(_payload_dict(details).get('depth'))}")
 
     lines.extend(notification_delivery_prometheus_lines(notification_delivery, _labels))
     lines.append("")
@@ -149,8 +150,11 @@ async def build_ops_dashboard_payload(
         asyncio.to_thread(_queue_snapshot_or_empty, task_queue),
         asyncio.to_thread(_notification_delivery_summary_or_empty),
     )
-    jobs, queue, providers, api_quotas = safe_dict(jobs) or {"observability_unavailable": True}, safe_dict(queue), safe_dict(providers) or {"selected_window": "last_24h", "alerts": []}, safe_dict(api_quotas) or {"services": []}
-    queue, api_quotas["services"] = normalize_ops_queue_payload(queue), provider_rows_or_empty(api_quotas.get("services"))
+    jobs = _payload_dict(jobs) or {"observability_unavailable": True}
+    queue = normalize_ops_queue_payload(queue)
+    providers = _payload_dict(providers) or {"selected_window": "last_24h", "alerts": []}
+    api_quotas = _payload_dict(api_quotas) or {"services": []}
+    api_quotas["services"] = provider_rows_or_empty(api_quotas.get("services"))
     alerts = [_with_provider_alert_impact(alert) for alert in provider_rows_or_empty(providers.get("alerts"))]
     notification_delivery_summary = notification_delivery_dashboard_summary(notification_delivery)
     status = _dashboard_status(
@@ -164,11 +168,11 @@ async def build_ops_dashboard_payload(
         "status": status,
         "generated_at": time.time(),
         "free_mode": _free_mode_dashboard_summary(),
-        "jobs": safe_dict(jobs.get("jobs")),
-        "job_latency": safe_dict(jobs.get("job_latency")),
-        "stuck_jobs": safe_dict(jobs.get("stuck_jobs")),
-        "node_telemetry": safe_dict(jobs.get("node_telemetry")),
-        "model_route_budget": safe_dict(jobs.get("model_route_budget")),
+        "jobs": _payload_dict(jobs.get("jobs")),
+        "job_latency": _payload_dict(jobs.get("job_latency")),
+        "stuck_jobs": _stuck_jobs_payload(jobs.get("stuck_jobs")),
+        "node_telemetry": _payload_dict(jobs.get("node_telemetry")),
+        "model_route_budget": _payload_dict(jobs.get("model_route_budget")),
         "queue": queue,
         "providers": {
             "selected_window": safe_text(providers.get("selected_window")).strip() or "last_24h",
@@ -181,7 +185,7 @@ async def build_ops_dashboard_payload(
 
 
 def _free_mode_dashboard_summary() -> dict:
-    contract = safe_dict(build_free_mode_contract()); providers = provider_rows_or_empty(contract.get("providers"))
+    contract = _payload_dict(build_free_mode_contract()); providers = provider_rows_or_empty(contract.get("providers"))
     by_cost_tier: dict[str, int] = {}
     for provider in providers:
         tier = safe_text(provider.get("cost_tier")).strip() or "unknown"
@@ -191,7 +195,7 @@ def _free_mode_dashboard_summary() -> dict:
         "can_run_without_paid_keys": _metric_bool(contract.get("can_run_without_paid_keys")),
         "provider_count": len(providers),
         "providers_by_cost_tier": by_cost_tier,
-        "violations": [text for raw in contract.get("violations") if (text := safe_text(raw).strip())] if type(contract.get("violations")) is list else [],
+        "violations": safe_text_list(contract.get("violations")),
     }
 
 
@@ -211,7 +215,7 @@ def _dashboard_status(
         return "critical"
     if _metric_bool(jobs.get("observability_unavailable")):
         return "warning"
-    if safe_int(safe_dict(jobs.get("stuck_jobs")).get("count")) > 0:
+    if _stuck_job_count(jobs.get("stuck_jobs")) > 0:
         return "warning"
     if provider_alerts:
         return "warning"
@@ -241,16 +245,35 @@ def _provider_alert_counts(alerts: list[dict]) -> dict:
     }
 
 
+def _stuck_jobs_payload(value: Any) -> dict:
+    payload = _payload_dict(value)
+    if "count" in payload:
+        payload["count"] = _strict_count(payload.get("count"))
+    return payload
+
+
+def _stuck_job_count(value: Any) -> int:
+    return _strict_count(_payload_dict(value).get("count"))
+
+
+def _strict_count(value: Any) -> int:
+    if isinstance(value, (bool, bytes, bytearray, memoryview)):
+        return 0
+    return safe_int(value)
+
+
 def _labels(**labels: Any) -> str:
     rendered = []
     for key, value in labels.items():
         safe_key = re.sub(r"[^a-zA-Z0-9_]", "_", safe_text(key).strip() or "label")
-        safe_value = safe_text(value).replace("\\", "\\\\").replace("\n", "\\n").replace('"', '\\"')
+        safe_value = (safe_text(value).strip() or "unknown").replace("\\", "\\\\").replace("\n", "\\n").replace('"', '\\"')
         rendered.append(f'{safe_key}="{safe_value}"')
     return "{" + ",".join(rendered) + "}"
 
 
 def _metric_number(value: Any) -> float:
+    if isinstance(value, (bool, bytes, bytearray, memoryview)):
+        return 0.0
     number = safe_float(value)
     if number != number or number in {float("inf"), float("-inf")}:
         return 0.0
@@ -271,4 +294,8 @@ def _metric_bool(value: Any) -> bool:
 
 
 def _metric_int(value: Any) -> int:
-    return safe_int(value)
+    return _strict_count(value)
+
+
+def _payload_dict(value: Any) -> dict[Any, Any]:
+    return safe_mapping_dict(value) or {}

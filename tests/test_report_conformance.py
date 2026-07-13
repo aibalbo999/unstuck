@@ -1,6 +1,7 @@
 import asyncio
 import sys
 from pathlib import Path
+from types import MappingProxyType
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,6 +35,11 @@ def _conforming_artifacts():
 class BrokenConformanceGateGet(dict):
     def get(self, key, default=None):
         raise RuntimeError("report conformance gate get unavailable")
+
+
+class MalformedConformanceText:
+    def __str__(self):
+        raise RuntimeError("report conformance text unavailable")
 
 
 def test_report_conformance_decision_tree_passes_visible_contracts():
@@ -121,6 +127,90 @@ def test_report_conformance_keeps_quality_gate_mappings_when_accessor_fails():
         "report_lint",
         "final_audit",
     }
+
+
+def test_report_conformance_visible_and_gate_text_fields_use_safe_text_fallback():
+    from reporting.conformance import evaluate_report_conformance
+
+    malformed = MalformedConformanceText()
+    result = evaluate_report_conformance(
+        malformed,
+        malformed,
+        context={
+            "pipeline_id": "v1",
+            "data": {"data_trust": {"status": malformed}},
+            "final_audit": {"status": malformed, "critical": [], "warnings": [{"id": "audit_warning"}]},
+        },
+        snapshot={"data_trust": {"status": malformed}},
+        report_lint={"status": malformed, "blocking_issues": [], "warnings": [{"id": "lint_warning"}]},
+        evidence_exit_gate={"verdict": malformed},
+        content_credibility={
+            "status": malformed,
+            "blocking_issues": [],
+            "warnings": [{"id": "credibility_warning"}],
+        },
+    )
+
+    assert result["status"] == "blocked"
+    assert any(issue["id"] == "required_visibility" for issue in result["blocking_issues"])
+    assert [step["status"] for step in result["decision_tree"]] == [
+        "warning",
+        "blocked",
+        "warning",
+        "warning",
+        "warning",
+        "warning",
+    ]
+
+
+def test_report_conformance_accepts_mapping_safe_quality_gate_inputs():
+    from reporting.conformance import evaluate_report_conformance
+
+    html, markdown = _conforming_artifacts()
+    result = evaluate_report_conformance(
+        html,
+        markdown,
+        context=MappingProxyType({
+            "data": {"data_trust": {"status": "fresh"}},
+            "final_audit": {"status": "passed", "critical": [], "warnings": [], "corrections": []},
+        }),
+        snapshot=MappingProxyType({"data_trust": {"status": "fresh"}}),
+        report_lint=MappingProxyType({"status": "passed", "blocking_issues": [], "warnings": []}),
+        evidence_exit_gate=MappingProxyType({"verdict": "approved", "failed_count": 0}),
+        content_credibility=MappingProxyType({
+            "status": "blocked",
+            "blocking_issues": [{"id": "credibility_blocker"}],
+            "warnings": [],
+        }),
+    )
+
+    assert result["status"] == "blocked"
+    assert any(issue["id"] == "content_credibility" for issue in result["blocking_issues"])
+
+
+def test_report_conformance_accepts_tuple_quality_gate_issue_lists():
+    from reporting.conformance import evaluate_report_conformance
+
+    html, markdown = _conforming_artifacts()
+    result = evaluate_report_conformance(
+        html,
+        markdown,
+        context={
+            "data": {"data_trust": {"status": "fresh"}},
+            "final_audit": {"status": "passed", "critical": [], "warnings": [], "corrections": []},
+        },
+        snapshot={"data_trust": {"status": "fresh"}},
+        report_lint={"status": "passed", "blocking_issues": [], "warnings": []},
+        evidence_exit_gate={"verdict": "approved", "failed_count": 0},
+        content_credibility={
+            "status": "passed",
+            "blocking_issues": ({"id": "credibility_blocker"},),
+            "warnings": (),
+        },
+    )
+
+    assert result["status"] == "blocked"
+    assert any(issue["id"] == "content_credibility" for issue in result["blocking_issues"])
 
 
 def test_report_conformance_blocks_missing_required_visibility_and_rejected_evidence():

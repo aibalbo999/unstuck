@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from data_trust import source_record_count
+from mapping_fields import safe_text
 
 
 PROMPT_COUNT_COMPARABLE_SOURCES = {
@@ -77,7 +78,4 @@ def _optional_bool(value):
 
 
 def _safe_text(value):
-    try:
-        return "" if value is None else str(value)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
-        return ""
+    return safe_text(value)
