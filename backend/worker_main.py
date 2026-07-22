@@ -11,20 +11,14 @@ from collections.abc import Callable
 from types import FrameType
 from typing import Literal
 
-import report_history_service
 from analysis_job_service import RQ_ABANDONED_JOB_REASON, analysis_task_id, task_queue_has_task
-from cache_store import cleanup_expired_cache_entries
-from config import REPORT_CLEANUP_INTERVAL_SECONDS, REPORT_RETENTION_DAYS
-from database_maintenance import run_sqlite_maintenance
 from decision_tracking_scheduler import run_decision_tracking_scheduler
 from job_store import create_job, find_active_job, list_active_jobs, mark_jobs_abandoned
-from job_store_maintenance import cleanup_analysis_history
-from provider_sla_maintenance import cleanup_provider_sla_events
-from report_index_maintenance import cleanup_report_index_orphans
 from runtime_dependencies import RuntimeSettings, WorkerRuntime, create_worker_runtime
 from runtime_events import emit_log
 from storage_inventory import ensure_runtime_storage
 from watchlist_scheduler import run_watchlist_scheduler
+from worker_maintenance import run_maintenance_process
 from worker_rq_reconciliation import (
     RQ_WORKER_HEARTBEAT_GRACE_SECONDS,
     coerce_datetime as _coerce_datetime,
@@ -44,6 +38,12 @@ from worker_shutdown import (
 )
 from worker_queue_runners import run_arq_worker as _run_arq_worker
 from worker_queue_runners import run_rq_worker as _run_rq_worker
+from worker_child_processes import (
+    all_children_exited as _all_children_exited,
+    has_nonzero_exit as _has_nonzero_exit,
+    join_children as _join_children,
+    terminate_live_children as _terminate_live_children,
+)
 
 
 Role = Literal["queue", "schedulers", "maintenance", "all"]
@@ -158,50 +158,6 @@ async def run_scheduler_process(runtime: WorkerRuntime) -> None:
         await asyncio.gather(*tasks, return_exceptions=True)
 
 
-async def run_maintenance_process(runtime: WorkerRuntime) -> None:
-    report_cache: dict[str, str] = {}
-    while True:
-        await _run_maintenance_iteration(runtime, report_cache)
-        await asyncio.sleep(REPORT_CLEANUP_INTERVAL_SECONDS)
-
-
-async def _run_maintenance_iteration(runtime: WorkerRuntime, report_cache: dict[str, str]) -> None:
-    steps = [
-        (
-            "expired reports",
-            lambda: report_history_service.cleanup_expired_reports(
-                runtime.settings.output_dir,
-                report_cache,
-                REPORT_RETENTION_DAYS,
-            ),
-        ),
-        (
-            "orphan markdown reports",
-            lambda: report_history_service.cleanup_orphan_markdown_reports(runtime.settings.output_dir),
-        ),
-        ("expired cache entries", cleanup_expired_cache_entries),
-        ("report index orphans", lambda: cleanup_report_index_orphans(write=True)),
-        ("analysis job history", lambda: cleanup_analysis_history(write=True)),
-        ("provider SLA events", lambda: cleanup_provider_sla_events(write=True)),
-        (
-            "sqlite backup/checkpoint/vacuum",
-            lambda: run_sqlite_maintenance(
-                cache_db_path=runtime.settings.cache_db_path,
-                checkpoint_backend=runtime.settings.checkpoint_backend,
-                checkpoint_path=runtime.settings.checkpoint_path,
-                write=True,
-            ),
-        ),
-    ]
-    for label, action in steps:
-        try:
-            await asyncio.to_thread(action)
-        except asyncio.CancelledError:
-            raise
-        except Exception as exc:
-            emit_log(f"maintenance cleanup failed ({label}): {exc}")
-
-
 def run_role(
     role: str,
     runtime_factory: Callable[[RuntimeSettings], WorkerRuntime] = create_worker_runtime,
@@ -252,25 +208,6 @@ def child_main(role: str) -> None:
     finally:
         for sig, previous_handler in previous_handlers.items():
             signal.signal(sig, previous_handler)
-
-
-def _terminate_live_children(processes) -> None:
-    for process in processes:
-        if process.is_alive():
-            process.terminate()
-
-
-def _join_children(processes, timeout: float | None = None) -> None:
-    for process in processes:
-        process.join(timeout=timeout)
-
-
-def _has_nonzero_exit(processes) -> bool:
-    return any(process.exitcode not in (None, 0) for process in processes)
-
-
-def _all_children_exited(processes) -> bool:
-    return all(process.exitcode is not None for process in processes)
 
 
 def run_all_roles() -> int:

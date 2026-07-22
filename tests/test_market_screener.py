@@ -229,6 +229,67 @@ def test_scan_taiwan_market_filters_pages_and_reports_freshness():
     assert result["candidates"][0]["watchlist_status"]["in_watchlist"] is False
 
 
+def test_market_screener_candidate_query_filters_sorts_and_pages_metrics():
+    import market_screener_candidate_query
+
+    candidates = [
+        {
+            "ticker": "2330.TW",
+            "category": "technical_heat",
+            "categories": ["technical_heat", "institutional_accumulation"],
+            "score": 12,
+            "metrics": {
+                "rsi_14": 62.5,
+                "macd_histogram": 0.7,
+                "revenue_growth_yoy_pct": 18.2,
+            },
+        },
+        {
+            "ticker": "2449.TW",
+            "category": "technical_heat",
+            "categories": ["technical_heat"],
+            "score": 9,
+            "metrics": {
+                "rsi_14": 76,
+                "macd_histogram": -0.3,
+                "revenue_growth_yoy_pct": -4,
+            },
+        },
+        {
+            "ticker": "2308.TW",
+            "category": "institutional_accumulation",
+            "categories": ["institutional_accumulation"],
+            "score": 15,
+            "metrics": {
+                "foreign_net_buy_shares": 2_100_000,
+                "investment_trust_net_buy_shares": 700_000,
+                "dealer_net_buy_shares": 200_000,
+            },
+        },
+    ]
+
+    filtered = market_screener_candidate_query.filter_candidates(
+        candidates,
+        {
+            "categories": ["technical_heat"],
+            "technical": {"rsi_max": 70, "macd_histogram_min": 0},
+            "fundamental": {"revenue_growth_yoy_pct_min": 10},
+            "min_score": 10,
+        },
+    )
+    ordered = market_screener_candidate_query.sort_candidates(
+        candidates,
+        sort_by="foreign_net_buy_shares",
+        sort_direction="desc",
+    )
+    page, pagination = market_screener_candidate_query.paginate_candidates(ordered, limit=2, offset=1)
+
+    assert [candidate["ticker"] for candidate in filtered] == ["2330.TW"]
+    assert [candidate["ticker"] for candidate in ordered] == ["2308.TW", "2330.TW", "2449.TW"]
+    assert [candidate["ticker"] for candidate in page] == ["2330.TW", "2449.TW"]
+    assert pagination == {"limit": 2, "offset": 1, "total": 3, "has_more": False}
+
+
 def test_scan_taiwan_market_can_use_cached_candidate_page(monkeypatch):
     import market_screener
 

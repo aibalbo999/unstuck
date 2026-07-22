@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import sqlite3
@@ -10,13 +9,21 @@ import time
 from contextlib import nullcontext
 from typing import Any
 
-from fastapi.responses import HTMLResponse, Response
-
 from config import REPORT_RETENTION_DAYS
-from data_trust import data_snapshot_filename_for_report
-from data_trust_snapshot import verify_data_snapshot_integrity
-from mapping_fields import safe_mapping_dict, safe_text, safe_text_list
-from report_index import is_safe_report_filename, normalize_recommendation_label, parse_recommendation_summary as parse_report_recommendation_summary
+from report_history_downloads import (
+    download_report_response,
+    missing_report_response,
+    report_file_response,
+    secure_html_response,
+)
+from report_history_query import normalize_report_list_filters
+from report_history_storage_keys import (
+    basename_for_storage_key as _basename_for_storage_key,
+    bundle_keys_for_html_key as _bundle_keys_for_html_key,
+    delete_storage_key as _delete_storage_key,
+    html_key_for_related_storage_key as _html_key_for_related_storage_key,
+)
+from report_index import is_safe_report_filename, parse_recommendation_summary as parse_report_recommendation_summary
 from report_index_maintenance import cleanup_empty_report_directories
 from report_history_storage import (
     existing_storage_key,
@@ -26,22 +33,10 @@ from report_history_storage import (
     storage_for_existing_output_dir,
 )
 from report_repository import DEFAULT_REPORT_REPOSITORY, ReportListQuery, ReportRepository
-from report_view_repair import repair_report_html_for_view, repair_report_markdown_for_download
 from storage.report_storage import ReportStorage
 
 
 LOGGER = logging.getLogger(__name__)
-
-GENERIC_SNAPSHOT_INTEGRITY_ERRORS = {
-    "資料快照完整性未通過，不能直接引用報告結論。",
-}
-
-REPORT_HTML_SECURITY_HEADERS = {
-    "Content-Security-Policy": "default-src 'self'; script-src 'none'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:",
-    "X-Content-Type-Options": "nosniff",
-    "Referrer-Policy": "no-referrer",
-}
-
 
 def parse_recommendation_summary(filename: str, output_dir: str) -> dict:
     return parse_report_recommendation_summary(filename, output_dir=output_dir)
@@ -106,56 +101,6 @@ def cleanup_orphan_markdown_reports(output_dir: str, storage: ReportStorage | No
     return deleted
 
 
-def _basename_for_storage_key(key: str) -> str:
-    return str(key or "").rsplit("/", 1)[-1]
-
-
-def _dirname_for_storage_key(key: str) -> str:
-    parts = str(key or "").rsplit("/", 1)
-    return parts[0] if len(parts) == 2 else ""
-
-
-def _join_storage_key(prefix: str, basename: str) -> str:
-    return f"{prefix}/{basename}" if prefix else basename
-
-
-def _bundle_keys_for_html_key(key: str) -> list[str]:
-    prefix = _dirname_for_storage_key(key)
-    filename = _basename_for_storage_key(key)
-    markdown = filename[:-5] + ".md" if filename.endswith(".html") else f"{filename}.md"
-    return [
-        key,
-        _join_storage_key(prefix, markdown),
-        _join_storage_key(prefix, data_snapshot_filename_for_report(filename)),
-    ]
-
-
-def _html_key_for_related_storage_key(key: str) -> str:
-    prefix = _dirname_for_storage_key(key)
-    filename = _basename_for_storage_key(key)
-    if filename.endswith(".data.json"):
-        html = filename[:-10] + ".html"
-    else:
-        html = os.path.splitext(filename)[0] + ".html"
-    return _join_storage_key(prefix, html)
-
-
-def _delete_storage_key(storage: ReportStorage, key: str, deleted: list[str]) -> None:
-    try:
-        if storage.delete_report(key):
-            deleted.append(key)
-    except OSError:
-        pass
-
-
-def _normalize_include_versions(value) -> bool:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        return value.strip().lower() in {"1", "true", "yes", "on"}
-    return False
-
-
 def list_reports(
     *,
     page: int,
@@ -171,27 +116,13 @@ def list_reports(
     storage: ReportStorage | None = None,
     sync_metadata: bool | None = None,
 ) -> dict:
-    query = q.strip().lower()
-    pipeline_filter = pipeline.strip().lower()
-    if pipeline_filter in {"mode_a", "a", "academic"}:
-        pipeline_filter = "v1"
-    elif pipeline_filter in {"mode_b", "b", "trading"}:
-        pipeline_filter = "v2"
-    elif pipeline_filter in {"mode_c", "c", "contrarian", "bubble", "short"}:
-        pipeline_filter = "v3"
-    elif pipeline_filter in {"mode_d", "d", "swing", "short_term", "short-term", "momentum"}:
-        pipeline_filter = "v4"
-    if pipeline_filter not in {"all", "v1", "v2", "v3", "v4"}:
-        pipeline_filter = "all"
-
-    recommendation_filter = normalize_recommendation_label(recommendation)
-    if recommendation_filter not in {"買入", "持有", "避免", "放空"}:
-        recommendation_filter = "all"
-    data_trust_value = data_trust if isinstance(data_trust, str) else "all"
-    data_trust_filter = data_trust_value.strip().lower()
-    if data_trust_filter not in {"all", "fresh", "partial", "stale", "error", "unknown"}:
-        data_trust_filter = "all"
-    include_versions_filter = _normalize_include_versions(include_versions)
+    filters = normalize_report_list_filters(
+        q=q,
+        pipeline=pipeline,
+        recommendation=recommendation,
+        data_trust=data_trust,
+        include_versions=include_versions,
+    )
     sync_metadata_filter = should_sync_metadata(output_dir, storage) if sync_metadata is None else bool(sync_metadata)
 
     if storage is None and not os.path.exists(output_dir):
@@ -202,11 +133,11 @@ def list_reports(
                 ReportListQuery(
                     page=page,
                     limit=limit,
-                    q=query,
-                    pipeline=pipeline_filter,
-                    recommendation=recommendation_filter,
-                    data_trust=data_trust_filter,
-                    include_versions=include_versions_filter,
+                    q=filters["query"],
+                    pipeline=filters["pipeline"],
+                    recommendation=filters["recommendation"],
+                    data_trust=filters["data_trust"],
+                    include_versions=filters["include_versions"],
                     output_dir=output_dir,
                     sync_metadata=sync_metadata_filter,
                 )
@@ -226,10 +157,10 @@ def list_reports(
             "has_prev": page > 1,
             "has_next": page < total_pages,
             "query": q,
-            "pipeline": pipeline_filter,
-            "recommendation": recommendation_filter,
-            "data_trust": data_trust_filter,
-            "include_versions": include_versions_filter,
+            "pipeline": filters["pipeline"],
+            "recommendation": filters["recommendation"],
+            "data_trust": filters["data_trust"],
+            "include_versions": filters["include_versions"],
         },
     }
 
@@ -286,235 +217,17 @@ def delete_report_files(
 
 def get_report_file(filename: str, output_dir: str, storage: ReportStorage | None = None):
     if not is_safe_report_filename(filename, ".html"):
-        return _secure_html_response("<h1>Invalid filename</h1>", status_code=400)
+        return secure_html_response("<h1>Invalid filename</h1>", status_code=400)
     content_storage = storage_for_existing_output_dir(output_dir, storage)
     if content_storage is None:
-        return _secure_html_response("<h1>找不到報告</h1>", status_code=404)
-    item = load_storage_item(content_storage, filename, kind="html")
-    if item is None:
-        return _secure_html_response("<h1>找不到報告</h1>", status_code=404)
-    html = repair_report_html_for_view(
-        item.content.decode("utf-8"),
-        reading_notice_context=_invalid_snapshot_notice_context(content_storage, filename),
-    )
-    return _secure_html_response(html)
+        return missing_report_response("html")
+    return report_file_response(filename, content_storage)
 
 
 def download_report_file(filename: str, output_dir: str, kind: str, storage: ReportStorage | None = None):
     if not is_safe_report_filename(filename, ".html"):
-        return _secure_html_response("<h1>Invalid filename</h1>", status_code=400)
+        return secure_html_response("<h1>Invalid filename</h1>", status_code=400)
     content_storage = storage_for_existing_output_dir(output_dir, storage)
     if content_storage is None:
-        if kind == "md":
-            return _secure_html_response("<h1>找不到報告 Markdown 版本</h1>", status_code=404)
-        if kind == "data":
-            return _secure_html_response("<h1>找不到報告資料快照</h1>", status_code=404)
-        if kind == "html":
-            return _secure_html_response("<h1>找不到報告</h1>", status_code=404)
-        raise ValueError(f"Unknown report download kind: {kind}")
-    if kind == "html":
-        item = load_storage_item(content_storage, filename, kind="html")
-        if item is None:
-            return HTMLResponse("<h1>找不到報告</h1>", status_code=404)
-        html = repair_report_html_for_view(
-            item.content.decode("utf-8"),
-            reading_notice_context=_invalid_snapshot_notice_context(content_storage, filename),
-        )
-        return _secure_html_response(
-            html,
-            headers={"Content-Disposition": f"attachment; filename={filename}"},
-        )
-    if kind == "md":
-        md_filename = filename[:-5] + ".md"
-        item = load_storage_item(content_storage, filename, kind="md")
-        if item is not None:
-            markdown = repair_report_markdown_for_download(
-                item.content.decode("utf-8"),
-                reading_notice_context=_invalid_snapshot_notice_context(content_storage, filename),
-            )
-            return Response(
-                content=markdown.encode("utf-8"),
-                media_type=item.metadata.content_type,
-                headers={"Content-Disposition": f"attachment; filename={md_filename}"},
-            )
-        return _secure_html_response("<h1>找不到報告 Markdown 版本</h1>", status_code=404)
-    if kind == "data":
-        data_filename = data_snapshot_filename_for_report(filename)
-        item = load_storage_item(content_storage, filename, kind="data")
-        if item is not None:
-            return Response(
-                content=item.content,
-                media_type=item.metadata.content_type,
-                headers={"Content-Disposition": f"attachment; filename={data_filename}"},
-            )
-        return _secure_html_response("<h1>找不到報告資料快照</h1>", status_code=404)
-    raise ValueError(f"Unknown report download kind: {kind}")
-
-
-def _invalid_snapshot_notice_context(storage: ReportStorage, filename: str) -> dict | None:
-    item = load_storage_item(storage, filename, kind="data")
-    if item is None:
-        return _snapshot_notice_context(
-            "unverified",
-            valid=None,
-            errors=["資料快照不存在，請先核對來源與限制。"],
-        )
-    try:
-        snapshot = json.loads(item.content.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError):
-        return _snapshot_notice_context("invalid", valid=False, errors=["資料快照無法解析，不能直接引用報告結論。"])
-    if not isinstance(snapshot, dict):
-        return _snapshot_notice_context("invalid", valid=False, errors=["資料快照格式不是物件，不能直接引用報告結論。"])
-
-    recorded_integrity_context = _recorded_snapshot_integrity_notice_context(snapshot)
-    if recorded_integrity_context is not None:
-        return recorded_integrity_context
-
-    integrity = verify_data_snapshot_integrity(snapshot)
-    expected_hash = str(integrity.get("expected_hash") or "").strip()
-    if not expected_hash or integrity.get("valid") is not False:
-        return None
-
-    return _snapshot_notice_context(
-        "invalid",
-        valid=False,
-        errors=[str(error) for error in integrity.get("errors", []) if str(error)],
-        data_trust=snapshot.get("data_trust", {}),
-        evidence_exit_gate=snapshot.get("evidence_exit_gate", {}),
-        content_credibility=snapshot.get("content_credibility", {}),
-        report_conformance=snapshot.get("report_conformance", {}),
-        hash_value=str(integrity.get("hash") or ""),
-        expected_hash=expected_hash,
-    )
-
-
-def _recorded_snapshot_integrity_notice_context(snapshot: dict[str, Any]) -> dict | None:
-    integrity = _recorded_snapshot_integrity(snapshot)
-    if integrity is None:
-        return None
-    status = safe_text(dict.get(integrity, "status")).strip().lower()
-    if status != "invalid" and dict.get(integrity, "valid") is not False:
-        return None
-    return _snapshot_notice_context(
-        "invalid",
-        valid=False,
-        errors=_recorded_snapshot_integrity_errors(integrity),
-        data_trust=snapshot.get("data_trust", {}),
-        evidence_exit_gate=snapshot.get("evidence_exit_gate", {}),
-        content_credibility=snapshot.get("content_credibility", {}),
-        report_conformance=snapshot.get("report_conformance", {}),
-        hash_value=safe_text(dict.get(integrity, "hash")).strip(),
-        expected_hash=safe_text(dict.get(integrity, "expected_hash")).strip(),
-    )
-
-
-def _recorded_snapshot_integrity(snapshot: dict[str, Any]) -> dict[str, Any] | None:
-    candidates = []
-    integrity = safe_mapping_dict(dict.get(snapshot, "snapshot_integrity"))
-    if integrity is not None:
-        candidates.append(integrity)
-    data = safe_mapping_dict(dict.get(snapshot, "data"))
-    if data is not None:
-        nested_integrity = safe_mapping_dict(dict.get(data, "snapshot_integrity"))
-        if nested_integrity is not None:
-            candidates.append(nested_integrity)
-    invalid_candidates = []
-    for candidate in candidates:
-        status = safe_text(dict.get(candidate, "status")).strip().lower()
-        if status == "invalid" or dict.get(candidate, "valid") is False:
-            invalid_candidates.append(candidate)
-    for candidate in invalid_candidates:
-        if _recorded_snapshot_integrity_specific_errors(candidate):
-            return candidate
-    for candidate in invalid_candidates:
-        if _recorded_snapshot_integrity_errors(candidate):
-            return candidate
-    if invalid_candidates:
-        return invalid_candidates[0]
-    return candidates[0] if candidates else None
-
-
-def _recorded_snapshot_integrity_specific_errors(integrity: dict[str, Any]) -> list[str]:
-    return _specific_snapshot_integrity_errors(_recorded_snapshot_integrity_errors(integrity))
-
-
-def _recorded_snapshot_integrity_errors(integrity: dict[str, Any]) -> list[str]:
-    errors = _snapshot_integrity_errors(dict.get(integrity, "errors"))
-    mismatch_error = _recorded_snapshot_integrity_hash_mismatch_error(integrity)
-    if errors:
-        specific_errors = _specific_snapshot_integrity_errors(errors)
-        if specific_errors:
-            return specific_errors
-        if mismatch_error:
-            return [mismatch_error]
-        return errors
-    if mismatch_error:
-        return [mismatch_error]
-    return []
-
-
-def _specific_snapshot_integrity_errors(errors: list[str]) -> list[str]:
-    return [error for error in errors if error not in GENERIC_SNAPSHOT_INTEGRITY_ERRORS]
-
-
-def _recorded_snapshot_integrity_hash_mismatch_error(integrity: dict[str, Any]) -> str:
-    hash_value = safe_text(dict.get(integrity, "hash")).strip()
-    expected_hash = safe_text(dict.get(integrity, "expected_hash")).strip()
-    if hash_value and expected_hash and hash_value != expected_hash:
-        return "snapshot_hash mismatch"
-    return ""
-
-
-def _snapshot_integrity_errors(value: Any) -> list[str]:
-    errors = safe_text_list(value)
-    if errors:
-        return _unique_texts(errors)
-    text = safe_text(value).strip()
-    return [text] if text else []
-
-
-def _unique_texts(values: list[str]) -> list[str]:
-    unique = []
-    seen = set()
-    for value in values:
-        if value in seen:
-            continue
-        seen.add(value)
-        unique.append(value)
-    return unique
-
-
-def _snapshot_notice_context(
-    status: str,
-    *,
-    valid: bool | None,
-    errors: list[str] | None = None,
-    data_trust: Any = None,
-    evidence_exit_gate: Any = None,
-    content_credibility: Any = None,
-    report_conformance: Any = None,
-    hash_value: str = "",
-    expected_hash: str = "",
-) -> dict:
-    details = [error for error in errors or [] if error]
-    if not details:
-        details = ["資料快照完整性未通過，不能直接引用報告結論。"]
-    return {
-        "data": {"data_trust": data_trust or {}},
-        "evidence_exit_gate": evidence_exit_gate or {},
-        "content_credibility": content_credibility or {},
-        "report_conformance": report_conformance or {},
-        "snapshot_integrity": {
-            "status": status,
-            "valid": valid,
-            "hash": hash_value,
-            "expected_hash": expected_hash,
-            "errors": details,
-        },
-    }
-
-
-def _secure_html_response(content: str, *, status_code: int = 200, headers: dict | None = None) -> HTMLResponse:
-    response_headers = dict(REPORT_HTML_SECURITY_HEADERS)
-    response_headers.update(headers or {})
-    return HTMLResponse(content, status_code=status_code, media_type="text/html", headers=response_headers)
+        return missing_report_response(kind)
+    return download_report_response(filename, kind, content_storage)

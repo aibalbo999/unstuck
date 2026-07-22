@@ -8,6 +8,8 @@ from typing import Any
 from mapping_fields import safe_text, safe_text_list
 from pipeline_modes import normalize_pipeline_id
 
+from .text_tokens import is_missing_text_token
+
 
 _PROFILES: dict[str, dict[str, Any]] = {
     "v1": {
@@ -127,7 +129,7 @@ def build_mode_template_html(profile: dict[str, Any]) -> str:
 
 def _text(value: Any, default: str) -> str:
     text = safe_text(value).strip()
-    if not text:
+    if not text or is_missing_text_token(text):
         return default
     return " ".join(line.strip() for line in text.splitlines() if line.strip())
 

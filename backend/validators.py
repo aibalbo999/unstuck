@@ -43,8 +43,10 @@ from output_sanitizer import (
 )
 from price_parser import (
     _extract_price_numbers,
+    _extract_target_price_numbers,
     _parse_price_number,
     extract_price_numbers,
+    extract_target_price_numbers,
     parse_price_number,
 )
 

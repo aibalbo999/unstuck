@@ -7,12 +7,29 @@ from mapping_fields import safe_text
 
 CANONICAL_RECOMMENDATIONS = ("買入", "持有", "避免", "放空")
 UNKNOWN_RECOMMENDATION = "N/A"
+_MISSING_LABEL_TOKENS = {
+    "NAN",
+    "INF",
+    "+INF",
+    "-INF",
+    "INFINITY",
+    "+INFINITY",
+    "-INFINITY",
+    "MISSING",
+    "NIL",
+    "NONE",
+    "NULL",
+    "-",
+    "--",
+    "N/A",
+    "NA",
+}
 
 
 def normalize_recommendation_label(value: object) -> str:
     """Collapse recommendation aliases into the product-wide label set."""
     text = safe_text(value).strip()
-    if not text:
+    if not text or text.upper() in _MISSING_LABEL_TOKENS:
         return UNKNOWN_RECOMMENDATION
     lower = text.lower()
 

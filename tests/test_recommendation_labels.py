@@ -28,6 +28,13 @@ def test_backend_recommendation_labels_are_canonical():
         assert normalize_recommendation_label(raw) == expected
 
 
+def test_recommendation_label_normalizer_uses_unknown_for_missing_tokens():
+    from recommendation_labels import UNKNOWN_RECOMMENDATION, normalize_recommendation_label
+
+    for raw in ("NaN", "Infinity", "-Infinity", "MISSING", "NIL", "-", "--", float("nan"), float("inf")):
+        assert normalize_recommendation_label(raw) == UNKNOWN_RECOMMENDATION
+
+
 def test_parse_recommendation_summary_returns_canonical_label(tmp_path):
     from report_history_service import parse_recommendation_summary
 
@@ -85,10 +92,10 @@ def test_structured_output_normalizes_legacy_recommendation_aliases():
 
 def test_recommendation_schema_and_frontend_filter_use_canonical_options():
     import json
-    import structured_outputs
+    from structured_output_recommendation_outputs import BubbleSniperStructuredOutput
 
     schema_text = json.dumps(
-        structured_outputs.BubbleSniperStructuredOutput.model_json_schema(by_alias=True),
+        BubbleSniperStructuredOutput.model_json_schema(by_alias=True),
         ensure_ascii=False,
     )
     index_html = (ROOT / "backend/static/index.html").read_text(encoding="utf-8")

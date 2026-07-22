@@ -592,6 +592,8 @@ Report structured-output schema-derived next catalysts filter schema-invalid map
 
 Report structured-output catalyst text fields use safe text fallback before direct model validation, so malformed catalyst event, timeframe, impact, or trigger fields cannot drop otherwise valid catalyst rows.
 
+Report recommendation legacy text uses event metadata fallback for single-character next catalysts, so plain-text catalyst rows show `待確認催化事件 / 待後續資料確認` instead of non-actionable one-character event names or timeframes.
+
 Report structured-output scenario-trigger text fields use safe text fallback before direct model validation, so malformed trigger condition, action, or direction fields cannot drop otherwise valid scenario trigger rows.
 
 Report structured-output schema-derived next catalysts use safe scenario-trigger text before model validation, so malformed trigger rows cannot interrupt automatic catalyst extraction when enough valid triggers exist.
@@ -740,9 +742,15 @@ Report structured-output trade-plan text fields use safe text fallback before mo
 
 Report structured-output trade-plan root payloads use mapping-safe fallback before model validation, so malformed scalar trade-plan payloads cannot drop the 1-2 week trade setup section.
 
+Report structured-output trade-plan direct schema preserves enum and required-field strictness, so invalid string trade directions or missing trade-plan fields still fail direct model validation while malformed non-string values can use safe fallbacks.
+
 Report structured-output normalizer payloads use mapping-safe conversion before schema validation and legacy report text rendering, so read-only structured agent payloads and nested recommendation maps cannot be dropped before final recommendation, confidence, catalyst, or trigger output.
 
 Report structured-output normalizer scalar root payloads use schema fallback before final projection, so malformed scalar strict-schema payloads can keep conservative fallback structured sections instead of being rejected before validation.
+
+Report structured-output runtime parsing rejects non-JSON structured responses before schema fallback, so quality gates retry malformed model output instead of accepting conservative `資料不足` report sections as successful structured output.
+
+Report structured-output normalizer rejects incomplete supplied core sections before final projection, so partial moat, valuation, or recommendation JSON cannot be padded into report-contract output when companion core sections were omitted.
 
 Report structured-output normalizer reasoning steps use safe text conversion before schema validation, so malformed reasoning-step values cannot drop otherwise valid recommendation payloads before final report rendering.
 
@@ -884,7 +892,7 @@ Report structured-output normalizer trade-plan text fields use safe text convers
 
 Report structured-output normalizer trade-plan enum fields use literal fallback before schema validation, so invalid trade direction or risk level values cannot drop otherwise valid 1-2 week trade setup payloads.
 
-Report structured-output normalizer trade-plan analysis markdown uses safe text projection after schema validation, so Agent 24 normalized payloads keep trade setup body context for legacy report text rendering.
+Report structured-output normalizer trade-plan analysis markdown uses safe text projection after schema validation, so Agent 24 normalized payloads keep trade setup body context for legacy report text rendering when callers provide it.
 
 Report Agent 19 required structured sections use dict-list safe scenario triggers before legacy report text rendering, so read-only trigger rows still populate crash-catalyst and stop-loss sections instead of placeholder warnings.
 
@@ -892,19 +900,27 @@ Report Agent 19 required structured trigger rows collapse embedded newlines befo
 
 Report Agent 19 required structured trigger rows use action fallback before legacy report text rendering, so crash-catalyst and stop-loss bullets keep an actionable response when malformed or missing action text would otherwise leave only a trigger condition.
 
+Report Agent 19 required structured trigger rows guard single-character fragments before legacy report text rendering, so crash-catalyst and stop-loss bullets skip non-actionable one-character trigger conditions and use actionable fallback text for one-character actions.
+
 Report recommendation block skips mapping-safe nested confidence-basis maps before legacy report text rendering, so read-only confidence-basis payloads do not leak Python mapping representations into final investment recommendation blocks.
 
 Report recommendation block display keys use shared text conversion before legacy report text rendering, so malformed recommendation field names are skipped instead of leaking Python literal text into final investment recommendation blocks.
 
+Report recommendation block skips single-character display keys before legacy report text rendering, so Agent 7/16 plain-text recommendation rows do not present non-actionable one-character field names while preserving compact valid values.
+
 Report recommendation block uses fallback row for empty standard recommendations, so Agent 7/16 plain-text recommendation sections show `建議: N/A` instead of leaving an empty `[投資建議]` block when no recommendation rows are displayable.
 
 Report Agent 19 recommendation ordered values use shared text conversion before legacy report text rendering, so malformed binary or memory-view target fields fall back to `N/A` instead of leaking Python literal text into final investment recommendation blocks.
+
+Report Agent 19 recommendation ordered values guard single-character fragments before legacy report text rendering, so ordered target and recommendation rows fall back to `N/A` for non-numeric one-character scraps while preserving compact numeric confidence values.
 
 Report recommendation block Markdown display rows collapse embedded newlines before legacy report text rendering, so recommendation labels and values cannot split investment recommendation rows.
 
 Report recommendation tail basis and trigger fields use shared text conversion before legacy report text rendering, so malformed confidence-basis items or trigger actions are skipped or blanked instead of leaking Python literal text into final recommendation tail sections.
 
 Report recommendation tail confidence-basis bullets skip single-character fragments in legacy reports, so Agent 7/16/19 confidence-basis sections do not present non-actionable one-character evidence, risk, or data-gap scraps.
+
+Report recommendation legacy analysis bodies use fallback for single-character fragments, so Agent 7/16/19 plain-text recommendation report bodies show `資料不足` instead of non-actionable one-character analysis scraps.
 
 Report recommendation tail trigger actions use fallback text in legacy reports, so Agent 7/16/19 scenario trigger rows keep an actionable `重新檢查投資結論` recommendation when safe conversion drops malformed action values.
 
@@ -922,6 +938,8 @@ Report moat score legacy text uses semantic key fallback, so Agent 3/12 score ro
 
 Report moat score legacy text uses key fallback for single-character fragments, so Agent 3/12 score rows show `護城河指標` instead of non-actionable one-character moat-score labels while preserving compact numeric score values.
 
+Report moat score legacy text uses value fallback for single-character fragments, so Agent 3/12 score rows show `N/A` instead of non-actionable one-character moat-score values while preserving compact numeric score values.
+
 Report moat score legacy text uses fallback row for empty scores, so Agent 3/12 plain-text score sections show `護城河指標: N/A` instead of leaving an empty moat-score block when no score rows are displayable.
 
 Report valuation summary legacy text uses semantic key fallback, so Agent 4/14 structured valuation checks show `估值檢查項目` instead of `N/A` when malformed summary keys cannot be displayed safely.
@@ -931,6 +949,62 @@ Report valuation summary legacy text uses fallback for single-character fragment
 Report legacy score and valuation Markdown key-value fields collapse embedded newlines before legacy report text rendering, so moat-score and valuation-summary labels or values cannot split score rows or valuation bullets.
 
 Report legacy analysis markdown body uses shared text conversion before escaped-newline normalization, so malformed analysis bodies fall back to safe fallback text instead of leaking Python literal text into structured report bodies.
+
+Report structured-output normalization analysis bodies use string-only fallback before legacy report text rendering, so non-string objects with custom `__str__` methods cannot persist Python-derived literals into normalized structured report payloads.
+
+Report structured-output schema analysis bodies use string-only fallback before legacy report text rendering, so direct model validation cannot persist Python-derived literals into structured report analysis bodies.
+
+Report structured-output schema executive thesis fields use string-only fallback before legacy report text rendering, so direct model validation cannot persist Python-derived literals into executive thesis summaries, resolved contradictions, or smoothed markdown.
+
+Report structured-output normalization display fields use string-only fallback before legacy report text rendering, so non-string objects with custom `__str__` methods cannot persist Python-derived literals into downside thesis summaries, recommendation target rows, or short-term trade-plan fields.
+
+Report structured-output schema display fields use string-only fallback before legacy report text rendering, so direct model validation cannot persist Python-derived literals into management highlights, downside-risk rows, downside thesis summaries, or short-term trade-plan fields.
+
+Report structured-output schema valuation and recommendation text fields use string-only fallback before legacy report text rendering, so direct model validation cannot persist Python-derived literals into valuation reasoning, double-counting checks, target rows, or confidence text fields.
+
+Report structured-output schema DCF scenario names use string-only enum fallback before legacy report text rendering, so direct model validation cannot route non-string objects with custom `__str__` methods into bear, base, or bull DCF scenario rows.
+
+Report structured-output schema boolean fields use string-only coercion before legacy report text rendering, so direct model validation cannot let non-string objects with custom `__str__` methods choose valuation boolean flags.
+
+Report structured-output normalization boolean fields use string-only coercion before legacy report text rendering, so normalized payloads cannot let numeric literals choose valuation boolean flags.
+
+Report structured-output schema numeric fields use primitive-only coercion before legacy report text rendering, so direct model validation cannot let non-string objects with custom `__float__` or `__str__` methods choose valuation target or DCF scenario numbers.
+
+Report structured-output normalization numeric fields use primitive-only coercion before legacy report text rendering, so normalized payloads cannot let non-string objects with custom `__float__` methods choose valuation target, DCF scenario, confidence, or score numbers.
+
+Report structured-output schema recommendation keys and labels use string-only routing before legacy report text rendering, so direct model validation cannot let non-string objects with custom `__str__` methods choose recommendation labels or target-row aliases.
+
+Report structured-output normalization recommendation keys and labels use string-only routing before legacy report text rendering, so normalized Agent 7/16/19 payloads cannot let non-string objects with custom `__str__` methods choose recommendation labels or target-row aliases.
+
+Report structured-output schema alias lookups use string-only mapping keys before legacy report text rendering, so direct model validation cannot let non-string keys with custom equality choose valuation reasoning, target aliases, or moat-score aliases.
+
+Report structured-output schema field lookups use string-only mapping keys before legacy report text rendering, so direct model validation cannot let non-string keys with custom equality choose valuation summary methods, boolean flags, double-counting checks, DCF scenario names, DCF scenario numbers, or recommendation trigger/catalyst fields.
+
+Report structured-output normalization alias lookups use string-only mapping keys before legacy report text rendering, so normalized payloads cannot let non-string keys with custom equality choose valuation target aliases.
+
+Report recommendation block legacy text uses primitive-only display fallback before legacy report text rendering, so non-string objects with custom `__str__` methods cannot persist Python-derived literals into standard recommendation rows or Agent 19 ordered recommendation fields.
+
+Report recommendation tail legacy next-catalyst text uses primitive-only display fallback before legacy report text rendering, so direct legacy rendering cannot persist Python-derived literals into next-catalyst event names, timeframes, directions, or trigger conditions.
+
+Report recommendation legacy reasoning steps use primitive-only display fallback before legacy report text rendering, so direct legacy rendering cannot persist Python-derived literals into investment reasoning-step bullets.
+
+Report recommendation legacy confidence basis uses primitive-only display fallback before legacy report text rendering, so direct legacy rendering cannot persist Python-derived literals into evidence, risk, or data-gap bullets.
+
+Report Agent 19 required-section trigger directions use primitive-only enum checks before legacy report text rendering, so non-string objects with custom `__str__` methods cannot route crash or stop-loss trigger rows into required sections.
+
+Report structured-output normalization nested display rows use string-only fallback before legacy report text rendering, so non-string objects with custom `__str__` methods cannot persist Python-derived literals into management highlight rows or downside-risk rows.
+
+Report structured-output normalization valuation display fields use string-only fallback before legacy report text rendering, so non-string objects with custom `__str__` methods cannot persist Python-derived literals into valuation reasoning or structured valuation-check rows.
+
+Report structured-output normalization recommendation tail fields use string-only fallback before legacy report text rendering, so non-string objects with custom `__str__` methods cannot persist Python-derived literals into scenario trigger rows or next-catalyst rows.
+
+Report structured-output schema recommendation tail fields use string-only fallback before legacy report text rendering, so direct model validation cannot persist Python-derived literals into scenario trigger rows or next-catalyst rows.
+
+Report structured-output normalization reasoning steps use string-only fallback before legacy report text rendering, so non-string objects with custom `__str__` methods cannot persist Python-derived literals into moat or recommendation reasoning chains.
+
+Report structured-output normalization confidence basis fields use string-only fallback before legacy report text rendering, so non-string objects with custom `__str__` methods cannot persist Python-derived literals into evidence, risk, or data-gap lists.
+
+Report legacy score and valuation analysis bodies use fallback for single-character fragments, so Agent 3/12/4/14 plain-text report bodies show `資料不足` instead of non-actionable one-character analysis scraps.
 
 Report legacy structured display fields use shared text conversion before legacy report text rendering, so malformed management tone, highlight, downside-risk, or short-term trade-plan values fall back to defaults instead of leaking Python literal text into final report bodies.
 
@@ -2430,6 +2504,8 @@ Report downside-risk legacy text uses analysis body fallback for single-characte
 Report downside-risk legacy text uses fallback row for empty risk lists, so Agent 21 plain-text sections show `下行風險 / 資料不足` instead of leaving an empty downside-risk block when no individual risks are displayable.
 
 Report valuation legacy text surfaces valuation reasoning from structured outputs, so Agent 4/14 plain-text sections keep DCF, peer, and scenario reasoning with the target-price table.
+
+Report valuation legacy text skips single-character valuation reasoning fragments, so Agent 4/14 plain-text valuation reasoning sections do not present non-actionable one-character DCF, peer, or scenario scraps.
 
 Report valuation legacy text surfaces DCF scenario assumptions from structured outputs, so Agent 4/14 plain-text sections keep bear/base/bull model sensitivities beside the valuation reasoning.
 

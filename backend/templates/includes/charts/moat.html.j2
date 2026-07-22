@@ -1,8 +1,26 @@
     // ─── 5. 護城河雷達圖 ─────────────────────────────────────
     const moatCtx = document.getElementById('moatChart')?.getContext('2d');
     if (moatCtx && CHART_DATA.moatLabels.length > 0) {
-        const filteredLabels = CHART_DATA.moatLabels.filter(l => !l.includes('整體'));
-        const filteredValues = CHART_DATA.moatValues.filter((_, i) => !CHART_DATA.moatLabels[i].includes('整體'));
+        function moatLabelText(value) {
+            return value === null || value === undefined ? '' : String(value);
+        }
+
+        function isOverallMoatLabel(label) {
+            return moatLabelText(label).includes('整體');
+        }
+
+        function moatOverallValue(labels, values, filteredValues) {
+            const overallIndex = labels.findIndex(isOverallMoatLabel);
+            const explicitOverall = overallIndex >= 0 ? values[overallIndex] : null;
+            if (Number.isFinite(explicitOverall)) return explicitOverall;
+            const numericValues = filteredValues.filter(value => Number.isFinite(value));
+            if (!numericValues.length) return null;
+            return (numericValues.reduce((a, b) => a + b, 0) / numericValues.length).toFixed(1);
+        }
+
+        const moatLabels = CHART_DATA.moatLabels.map(moatLabelText);
+        const filteredLabels = moatLabels.filter(label => !isOverallMoatLabel(label));
+        const filteredValues = CHART_DATA.moatValues.filter((_, i) => !isOverallMoatLabel(moatLabels[i]));
 
         new Chart(moatCtx, {
             type: 'radar',
@@ -42,24 +60,36 @@
         const moatList = document.querySelector('.moat-scores-list');
         if (moatList) {
             const colorMap = { 9: '#10b981', 8: '#22c55e', 7: '#84cc16', 6: '#f59e0b', 5: '#f97316', 4: '#ef4444', 3: '#dc2626' };
+            moatList.textContent = '';
             filteredLabels.forEach((label, i) => {
                 const val = filteredValues[i];
                 const color = colorMap[Math.round(val)] || '#6b7280';
-                moatList.innerHTML += `
-                    <div class="moat-score-item">
-                        <div class="moat-score-label">${label}</div>
-                        <div class="moat-score-bar-wrapper">
-                            <div class="moat-score-bar" style="width: ${val*10}%; background: ${color};"></div>
-                        </div>
-                        <div class="moat-score-num">${val}</div>
-                    </div>`;
+                const pct = Math.max(0, Math.min(100, (Number(val) || 0) * 10));
+                const item = document.createElement('div');
+                const labelEl = document.createElement('div');
+                const wrapper = document.createElement('div');
+                const bar = document.createElement('div');
+                const num = document.createElement('div');
+                item.className = 'moat-score-item';
+                labelEl.className = 'moat-score-label';
+                labelEl.textContent = label;
+                wrapper.className = 'moat-score-bar-wrapper';
+                bar.className = 'moat-score-bar';
+                bar.style.width = `${pct}%`;
+                bar.style.backgroundColor = color;
+                num.className = 'moat-score-num';
+                num.textContent = String(val);
+                wrapper.appendChild(bar);
+                item.appendChild(labelEl);
+                item.appendChild(wrapper);
+                item.appendChild(num);
+                moatList.appendChild(item);
             });
         }
 
         const overallEl = document.getElementById('moat-overall-score');
         if (overallEl) {
-            const overall = CHART_DATA.moatValues[CHART_DATA.moatLabels.indexOf('整體護城河')] ||
-                           (filteredValues.reduce((a,b) => a+b, 0) / filteredValues.length).toFixed(1);
-            overallEl.textContent = overall;
+            const overall = moatOverallValue(moatLabels, CHART_DATA.moatValues, filteredValues);
+            overallEl.textContent = overall === null ? 'N/A' : String(overall);
         }
     }

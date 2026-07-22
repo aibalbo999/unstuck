@@ -2,33 +2,35 @@
 
 from __future__ import annotations
 
-import time
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
 from agent_runtime.audit_repair import finalize_final_audit_async
-from agent_runtime.cancellation import attach_cancel_check
 from agent_runtime.state_report_adapter import record_agent_state_report
-from analysis_types import AnalysisContext
-from company_display import company_display_name
 from config import EMBEDDING_MODEL, LLM_API_KEYS_BY_PROVIDER
 from data_financial_metric_validator import load_provider_values_from_payload, validate_state_provider_values
 from data_reconciliation import build_reconciliation_plan, reconcile_with_official_filing
 from llm_client import KeyRotator
-from pipeline_modes import get_pipeline_definition, normalize_pipeline_id
+from pipeline_modes import normalize_pipeline_id
 from prompt_loader import load_agent_prompt_config
 from rag_runtime import build_rag_index_async
 from runtime_code_identity import runtime_code_identity
-from runtime_events import RUNTIME_EVENT_CALLBACK_KEY, emit_log
+from runtime_events import emit_log
 from state_memory import initialize_agent_state
 from tear_sheet_tasks import ensure_tear_sheet_summary_async
 from workflow_chief_editor import run_chief_editor_synthesis
+from workflow_context import (
+    copy_json,
+    graph_agent_mapping,
+    graph_delta_from_legacy_context,
+    input_data_from_state,
+    legacy_context_from_graph,
+)
 from workflow_quarters import latest_closed_quarter_for_reconciliation
 from workflow_state import (
     AgentGraphState,
     agent_state_from_graph,
     agent_state_to_graph,
-    rag_index_from_payload,
     rag_index_to_payload,
 )
 
@@ -163,7 +165,7 @@ def validate_graph_state(state: AgentGraphState) -> AgentGraphState:
 
 def repair_graph_state(state: AgentGraphState) -> AgentGraphState:
     domain_state = agent_state_from_graph(state)
-    data = _input_data_from_state(state)
+    data = input_data_from_state(state)
     year, season = latest_closed_quarter_for_reconciliation(data)
     reconciliation = reconcile_with_official_filing(domain_state, year=year, season=season)
     validate_state_provider_values(domain_state)
@@ -173,59 +175,6 @@ def repair_graph_state(state: AgentGraphState) -> AgentGraphState:
         "data_reconciliation_plan": build_reconciliation_plan(domain_state),
     }
     return graph_state
-
-
-def legacy_context_from_graph(state: AgentGraphState, services: WorkflowServices) -> AnalysisContext:
-    pipeline_def = get_pipeline_definition(normalize_pipeline_id(state.get("pipeline_id", "v1")))
-    data = _input_data_from_state(state)
-    ticker = str(state.get("ticker") or data.get("ticker") or "")
-    company_name = str(state.get("company_name") or company_display_name(data, data.get("company_name", ticker)) or ticker)
-    agent_sequence = pipeline_def["agents"]
-    context: AnalysisContext = {
-        "ticker": ticker,
-        "company_name": company_name,
-        "data": data,
-        "analyses": _legacy_agent_mapping(state.get("analyses") or {}),
-        "structured_outputs": _legacy_agent_mapping(state.get("structured_outputs") or {}),
-        "parsed": copy_json(state.get("parsed") or {}),
-        "circuit_breaker": copy_json(state.get("circuit_breaker") or {}),
-        "context_digests": _legacy_agent_mapping(state.get("context_digests") or {}),
-        "rag_context": _legacy_agent_mapping(state.get("rag_context") or {}),
-        "llm_token_usage": _legacy_agent_mapping(state.get("llm_token_usage") or {}),
-        "rag_status": copy_json(state.get("rag_status") or {}),
-        "blocking_issues": list(state.get("blocking_issues") or []),
-        "audit_repair_log": list(state.get("audit_repair_log") or []),
-        "repair_attempt_counts": copy_json(state.get("repair_attempt_counts") or {}),
-        "agent_quality_retry_counts": _legacy_agent_mapping(state.get("agent_quality_retry_counts") or {}),
-        "repair_iteration_count": int(state.get("repair_iteration_count") or 0),
-        "final_audit": copy_json(state.get("final_audit") or {}),
-        "executive_thesis": str(state.get("executive_thesis") or ""),
-        "investment_thesis": copy_json(state.get("investment_thesis") or {}),
-        "smoothed_markdown": str(state.get("smoothed_markdown") or ""),
-        "next_catalysts": copy_json(state.get("next_catalysts") or []),
-        "tear_sheet_summary": str(state.get("tear_sheet_summary") or ""),
-        "report_cover": copy_json(state.get("report_cover") or {}),
-        "report_filename": str(state.get("report_filename") or ""),
-        "start_time": float(state.get("started_at") or time.time()),
-        "execution_mode": "langgraph",
-        "pipeline_id": pipeline_def["id"],
-        "pipeline_label": pipeline_def["label"],
-        "prompt_version": str(state.get("prompt_version") or load_agent_prompt_config().get("prompt_version") or "agents:unversioned"),
-        "prompt_fingerprint": str(state.get("prompt_fingerprint") or ""),
-        "code_commit": str(state.get("code_commit") or ""),
-        "code_dirty": state.get("code_dirty") if isinstance(state.get("code_dirty"), bool) else None,
-        "agent_sequence": agent_sequence,
-        "agent_positions": {agent_num: idx + 1 for idx, agent_num in enumerate(agent_sequence)},
-        "agent_total": len(agent_sequence),
-        "agent_state": agent_state_from_graph(state),
-    }
-    rag_payload = (state.get("tool_results") or {}).get("rag_index")
-    if isinstance(rag_payload, dict):
-        context["rag_index"] = rag_index_from_payload(rag_payload)
-    if services.progress_callback:
-        context[RUNTIME_EVENT_CALLBACK_KEY] = services.progress_callback
-    attach_cancel_check(context, services.cancel_check)
-    return context
 
 
 async def run_agent_node_adapter(agent_num: int, state: AgentGraphState, services: WorkflowServices, rotator: Any) -> dict[str, Any]:
@@ -266,75 +215,5 @@ async def run_agent_node_adapter(agent_num: int, state: AgentGraphState, service
         delta["blocking_issues"] = new_blocking
     agent_quality_retry_counts = context.get("agent_quality_retry_counts") or {}
     if agent_quality_retry_counts:
-        delta["agent_quality_retry_counts"] = _graph_agent_mapping(agent_quality_retry_counts)
+        delta["agent_quality_retry_counts"] = graph_agent_mapping(agent_quality_retry_counts)
     return delta
-
-
-def graph_delta_from_legacy_context(context: AnalysisContext) -> dict[str, Any]:
-    delta: dict[str, Any] = {
-        "analyses": _graph_agent_mapping(context.get("analyses") or {}),
-        "structured_outputs": _graph_agent_mapping(context.get("structured_outputs") or {}),
-        "parsed": copy_json(context.get("parsed") or {}),
-        "context_digests": _graph_agent_mapping(context.get("context_digests") or {}),
-        "rag_context": _graph_agent_mapping(context.get("rag_context") or {}),
-        "llm_token_usage": _graph_agent_mapping(context.get("llm_token_usage") or {}),
-        "rag_status": copy_json(context.get("rag_status") or {}),
-        "blocking_issues": list(context.get("blocking_issues") or []),
-        "audit_repair_log": list(context.get("audit_repair_log") or []),
-        "repair_attempt_counts": copy_json(context.get("repair_attempt_counts") or {}),
-        "agent_quality_retry_counts": _graph_agent_mapping(context.get("agent_quality_retry_counts") or {}),
-        "repair_iteration_count": int(context.get("repair_iteration_count") or 0),
-        "final_audit": copy_json(context.get("final_audit") or {}),
-        "executive_thesis": str(context.get("executive_thesis") or ""),
-        "investment_thesis": copy_json(context.get("investment_thesis") or {}),
-        "smoothed_markdown": str(context.get("smoothed_markdown") or ""),
-        "next_catalysts": copy_json(context.get("next_catalysts") or []),
-        "tear_sheet_summary": str(context.get("tear_sheet_summary") or ""),
-        "report_cover": copy_json(context.get("report_cover") or {}),
-    }
-    if context.get("report_filename"):
-        delta["report_filename"] = str(context.get("report_filename"))
-    if context.get("status"):
-        delta["status"] = str(context.get("status"))
-    domain_state = context.get("agent_state")
-    if domain_state is not None:
-        delta["agent_reports"] = {agent_id: report.model_dump(mode="json") for agent_id, report in domain_state.agent_reports.items()}
-        delta["executive_thesis"] = domain_state.executive_thesis or delta.get("executive_thesis", "")
-        delta["smoothed_markdown"] = domain_state.smoothed_markdown or delta.get("smoothed_markdown", "")
-        if domain_state.next_catalysts:
-            delta["next_catalysts"] = copy_json(domain_state.next_catalysts)
-        delta["risk_flags"] = [flag.model_dump(mode="json") for flag in domain_state.risk_flags]
-    return delta
-
-
-def _input_data_from_state(state: AgentGraphState) -> dict[str, Any]:
-    raw = state.get("raw_financial_data") or {}
-    if isinstance(raw.get("input"), dict):
-        return copy_json(raw["input"])
-    normalized = state.get("normalized_financials")
-    return copy_json(normalized if isinstance(normalized, dict) else {})
-
-
-def _legacy_agent_mapping(mapping: dict[Any, Any]) -> dict[Any, Any]:
-    return {_legacy_agent_key(key): copy_json(value) for key, value in mapping.items()}
-
-
-def _graph_agent_mapping(mapping: dict[Any, Any]) -> dict[str, Any]:
-    return {str(key): copy_json(value) for key, value in mapping.items()}
-
-
-def _legacy_agent_key(value: Any) -> Any:
-    text = str(value)
-    return int(text) if text.isdecimal() else value
-
-
-def copy_json(value: Any) -> Any:
-    if hasattr(value, "model_dump"):
-        return copy_json(value.model_dump(mode="json"))
-    if isinstance(value, dict):
-        return {str(key): copy_json(item) for key, item in value.items()}
-    if isinstance(value, list):
-        return [copy_json(item) for item in value]
-    if isinstance(value, tuple):
-        return [copy_json(item) for item in value]
-    return value

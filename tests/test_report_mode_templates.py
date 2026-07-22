@@ -1,4 +1,5 @@
 import sys
+from decimal import Decimal
 from pathlib import Path
 
 
@@ -186,6 +187,56 @@ def test_markdown_single_line_fields_collapse_embedded_newlines():
     assert "NT$100\n盤後" not in markdown
 
 
+def test_markdown_key_metrics_render_non_finite_numbers_as_na():
+    context = _context("v1")
+    context["data"]["market_cap_fmt"] = float("nan")
+    context["data"]["pe_ratio"] = float("inf")
+    context["data"]["pb_ratio"] = float("-inf")
+
+    markdown = report_gen.generate_markdown_report(context)
+    key_metrics = markdown.split("## 📊 關鍵指標", 1)[1].split("---", 1)[0]
+
+    assert "- **市值:** N/A" in key_metrics
+    assert "- **P/E:** N/A" in key_metrics
+    assert "- **P/B:** N/A" in key_metrics
+    assert "nan" not in key_metrics.lower()
+    assert "inf" not in key_metrics.lower()
+
+
+def test_markdown_key_metrics_render_decimal_non_finite_numbers_as_na():
+    context = _context("v1")
+    context["data"]["market_cap_fmt"] = Decimal("NaN")
+    context["data"]["pe_ratio"] = Decimal("Infinity")
+    context["data"]["pb_ratio"] = Decimal("-Infinity")
+
+    markdown = report_gen.generate_markdown_report(context)
+    key_metrics = markdown.split("## 📊 關鍵指標", 1)[1].split("---", 1)[0]
+
+    assert "- **市值:** N/A" in key_metrics
+    assert "- **P/E:** N/A" in key_metrics
+    assert "- **P/B:** N/A" in key_metrics
+    assert "nan" not in key_metrics.lower()
+    assert "infinity" not in key_metrics.lower()
+
+
+def test_markdown_key_metrics_render_string_empty_tokens_as_na():
+    context = _context("v1")
+    context["data"]["market_cap_fmt"] = "NaN"
+    context["data"]["pe_ratio"] = "Infinity"
+    context["data"]["pb_ratio"] = "-Infinity"
+    context["data"]["gross_margin"] = "N/A"
+
+    markdown = report_gen.generate_markdown_report(context)
+    key_metrics = markdown.split("## 📊 關鍵指標", 1)[1].split("---", 1)[0]
+
+    assert "- **市值:** N/A" in key_metrics
+    assert "- **P/E:** N/A" in key_metrics
+    assert "- **P/B:** N/A" in key_metrics
+    assert "- **毛利率:** N/A" in key_metrics
+    assert "nan" not in key_metrics.lower()
+    assert "infinity" not in key_metrics.lower()
+
+
 def test_mode_template_renderers_use_shared_text_safety_for_display_fields():
     from reporting.mode_templates import (
         build_mode_template_html,
@@ -299,6 +350,103 @@ def test_analysis_overlay_peer_comparison_accepts_tuple_asset_history():
 
     assert rows[0]["is_target"] is True
     assert rows[0]["asset_turnover"] == 2.0
+
+
+def test_analysis_overlay_numeric_rows_drop_non_finite_numbers():
+    from reporting.analysis_overlays import build_dcf_scenario_rows, build_peer_comparison_rows
+
+    scenario_rows = build_dcf_scenario_rows({
+        "quant_metrics": {
+            "dcf_scenarios": {
+                "bear": {
+                    "intrinsic_value": float("nan"),
+                    "wacc_pct": float("inf"),
+                    "growth_bias_pct": float("-inf"),
+                    "margin_bias_pct": "Infinity",
+                }
+            }
+        }
+    })
+    peer_rows = build_peer_comparison_rows({
+        "ticker": "2330.TW",
+        "company_name": "台積電",
+        "gross_margin_raw": float("nan"),
+        "roe_raw": float("inf"),
+        "revenue_ttm_raw": float("nan"),
+        "total_assets_history": [float("inf")],
+        "dynamic_peer_metrics": [
+            {
+                "name": "同業甲",
+                "gross_margin_pct": float("nan"),
+                "roe_pct": float("-inf"),
+                "pe_ttm": "NaN",
+                "ps_ttm": "Infinity",
+            }
+        ],
+    })
+
+    assert scenario_rows[0]["intrinsic_value"] is None
+    assert scenario_rows[0]["wacc_pct"] is None
+    assert scenario_rows[0]["growth_bias_pct"] is None
+    assert scenario_rows[0]["margin_bias_pct"] is None
+    assert peer_rows[0]["gross_margin_pct"] is None
+    assert peer_rows[0]["roe_pct"] is None
+    assert peer_rows[0]["asset_turnover"] is None
+    assert peer_rows[1]["gross_margin_pct"] is None
+    assert peer_rows[1]["roe_pct"] is None
+    rendered = str(scenario_rows + peer_rows).lower()
+    assert "nan" not in rendered
+    assert "inf" not in rendered
+
+
+def test_analysis_overlay_numeric_rows_parse_scientific_text_with_units():
+    from reporting.analysis_overlays import build_dcf_scenario_rows, build_peer_comparison_rows
+
+    scenario_rows = build_dcf_scenario_rows({
+        "quant_metrics": {
+            "dcf_scenarios": {
+                "base": {
+                    "intrinsic_value": "NT$1e3",
+                    "wacc_pct": "1e1%",
+                    "growth_bias_pct": "1e309%",
+                    "margin_bias_pct": "-2.5e1%",
+                }
+            }
+        }
+    })
+    peer_rows = build_peer_comparison_rows({
+        "ticker": "2330.TW",
+        "company_name": "台積電",
+        "gross_margin": "5e1%",
+        "roe": "2.5e1%",
+        "pe_ratio": "NT$1e309",
+        "ps_ratio": "1.5e1x",
+        "revenue_ttm_raw": "2e11",
+        "total_assets_history": ["1e2"],
+        "dynamic_peer_metrics": [
+            {
+                "name": "同業甲",
+                "gross_margin_pct": "4e1%",
+                "roe_pct": "1.5e1%",
+                "pe_ttm": "NT$1e309",
+                "ps_ttm": "2e1x",
+            }
+        ],
+    })
+
+    assert scenario_rows[0]["intrinsic_value"] == 1000.0
+    assert scenario_rows[0]["wacc_pct"] == 10.0
+    assert scenario_rows[0]["growth_bias_pct"] is None
+    assert scenario_rows[0]["margin_bias_pct"] == -25.0
+    assert peer_rows[0]["gross_margin_pct"] == 50.0
+    assert peer_rows[0]["roe_pct"] == 25.0
+    assert peer_rows[0]["pe_ttm"] is None
+    assert peer_rows[0]["ps_ttm"] == 15.0
+    assert peer_rows[0]["asset_turnover"] == 2.0
+    assert peer_rows[1]["gross_margin_pct"] == 40.0
+    assert peer_rows[1]["roe_pct"] == 15.0
+    assert peer_rows[1]["pe_ttm"] is None
+    assert peer_rows[1]["ps_ttm"] == 20.0
 
 
 def test_report_summary_and_decision_use_shared_text_safety_for_snapshot_fields():

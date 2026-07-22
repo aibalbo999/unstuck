@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from typing import Optional
 
 from tenacity import wait_exponential
@@ -20,6 +19,14 @@ from llm_client import (
 )
 from llm_rate_limits import AllKeysRpdDisabledError
 from runtime_events import emit_context_event, emit_log, make_runtime_event
+
+from .retry_error_classification import (
+    _agent_error_category,
+    _is_invalid_argument_error,
+    _is_server_5xx_error,
+    _is_transient_provider_error,
+    _key_slot,
+)
 
 
 class AgentRetryableError(Exception):
@@ -90,47 +97,6 @@ SERVER_ERROR_RETRY_WAIT = wait_exponential(
     min=2,
     max=max(2.0, float(LLM_SERVER_ERROR_RETRY_MAX_WAIT_SECONDS or 45.0)),
 )
-
-
-def _is_server_5xx_error(error_msg: str) -> bool:
-    normalized = (error_msg or "").lower()
-    return bool(re.search(r"\b5\d{2}\b", normalized)) or any(
-        marker in normalized
-        for marker in [
-            "internal server",
-            "service unavailable",
-            "server error",
-            "backend error",
-            "overloaded",
-            "high demand",
-        ]
-    )
-
-
-def _is_invalid_argument_error(error_msg: str) -> bool:
-    """Return True for permanent 400 INVALID_ARGUMENT errors (e.g. bad response_schema).
-
-    These are NOT transient — retrying with the same config will always fail.
-    Detecting them early causes immediate fallback rather than burning all retries.
-    """
-    normalized = (error_msg or "").lower()
-    return "400" in normalized and "invalid_argument" in normalized
-
-
-def _is_transient_provider_error(error_msg: str) -> bool:
-    normalized = (error_msg or "").lower()
-    return any(
-        marker in normalized
-        for marker in [
-            "503",
-            "500",
-            "unavailable",
-            "deadline",
-            "timeout",
-            "temporarily",
-            "connection",
-        ]
-    )
 
 
 def _agent_retry_wait(retry_state) -> float:
@@ -273,32 +239,3 @@ def _raise_agent_call_error(exc: Exception, api_key: Optional[str], model_id: st
         raise AgentTransientError(error_msg) from exc
 
     raise AgentTransientError(error_msg) from exc
-
-
-def _key_slot(api_key: Optional[str], rotator: KeyRotator) -> tuple[int | None, int | None]:
-    keys = list(getattr(rotator, "keys", []) or [])
-    if not api_key or not keys:
-        return None, len(keys) or None
-    try:
-        return keys.index(api_key) + 1, len(keys)
-    except ValueError:
-        return None, len(keys)
-
-
-def _agent_error_category(exc: Exception) -> str:
-    error_msg = str(exc)
-    if isinstance(exc, AllKeysRpdDisabledError):
-        return "quota"
-    if is_auth_error(error_msg):
-        return "auth"
-    if is_quota_or_rate_error(error_msg):
-        return "quota"
-    if is_missing_model_error(error_msg):
-        return "missing_model"
-    if _is_invalid_argument_error(error_msg):
-        return "schema_error"
-    if _is_server_5xx_error(error_msg):
-        return "server_5xx"
-    if _is_transient_provider_error(error_msg):
-        return "timeout" if "timeout" in error_msg.lower() or "deadline" in error_msg.lower() else "provider"
-    return "provider"

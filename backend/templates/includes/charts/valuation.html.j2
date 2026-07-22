@@ -1,32 +1,49 @@
     // ─── 6. 估值圖 ───────────────────────────────────────────
+    function finitePriceValue(value) {
+        return Number.isFinite(value) ? value : null;
+    }
+
+    function ntPriceLabel(value) {
+        const number = finitePriceValue(value);
+        return number === null ? 'N/A' : `NT$${number.toFixed(0)}`;
+    }
+
+    function valuationScenarioColor(label) {
+        if (label.includes('熊')) return 'rgba(239,68,68,0.7)';
+        if (label.includes('牛')) return 'rgba(16,185,129,0.7)';
+        return 'rgba(59,130,246,0.7)';
+    }
+
+    function valuationRow(label, price, color) {
+        const number = finitePriceValue(price);
+        return number === null ? null : { label, price: number, color };
+    }
+
+    function hasFinitePriceSeries(values) {
+        return Array.isArray(values) && values.some(value => finitePriceValue(value) !== null);
+    }
+
     const valCtx = document.getElementById('valuationChart')?.getContext('2d');
     if (valCtx) {
-        const currentPrice = {{ current_price_numeric }};
+        const currentPrice = CHART_DATA.currentPrice;
         const targets = CHART_DATA.priceTargets;
 
         const scenarios = Object.keys(targets);
-        const prices = Object.values(targets);
+        const valuationRows = [
+            valuationRow('當前股價', currentPrice, 'rgba(245,158,11,0.7)'),
+            ...scenarios.map(s => valuationRow(s, targets[s], valuationScenarioColor(s))),
+        ].filter(Boolean);
 
-        const colors = scenarios.map(s => {
-            if (s.includes('熊')) return 'rgba(239,68,68,0.7)';
-            if (s.includes('牛')) return 'rgba(16,185,129,0.7)';
-            return 'rgba(59,130,246,0.7)';
-        });
-
-        const allLabels = ['當前股價', ...scenarios];
-        const allPrices = [currentPrice, ...prices];
-        const allColors = ['rgba(245,158,11,0.7)', ...colors];
-
-        if (allPrices.some(p => p > 0)) {
+        if (valuationRows.length > 0) {
             new Chart(valCtx, {
                 type: 'bar',
                 data: {
-                    labels: allLabels,
+                    labels: valuationRows.map(row => row.label),
                     datasets: [{
                         label: '股價（NT$）',
-                        data: allPrices,
-                        backgroundColor: allColors,
-                        borderColor: allColors.map(c => c.replace('0.7', '1')),
+                        data: valuationRows.map(row => row.price),
+                        backgroundColor: valuationRows.map(row => row.color),
+                        borderColor: valuationRows.map(row => row.color.replace('0.7', '1')),
                         borderWidth: 1,
                         borderRadius: 6,
                     }]
@@ -38,7 +55,7 @@
                         legend: { display: false },
                         tooltip: {
                             callbacks: {
-                                label: ctx => `NT$${ctx.raw.toFixed(0)}`
+                                label: ctx => ntPriceLabel(ctx.raw)
                             }
                         }
                     },
@@ -70,8 +87,8 @@
             pointRadius: 3,
             fill: false,
             tension: 0.25,
-        }));
-        const currentPrice = {{ current_price_numeric }};
+        })).filter(dataset => hasFinitePriceSeries(dataset.data));
+        const currentPrice = CHART_DATA.currentPrice;
         const positiveBandValues = Object.values(bands)
             .flat()
             .map(Number)
@@ -79,7 +96,8 @@
         const maxBandValue = positiveBandValues.length ? Math.max(...positiveBandValues) : 0;
         const minBandValue = positiveBandValues.length ? Math.min(...positiveBandValues) : 0;
         const useLogScale = currentPrice > 0 && maxBandValue > 0 && minBandValue > 0 && currentPrice / maxBandValue > 2;
-        if (currentPrice > 0) {
+        const hasRiverBandDatasets = bandDatasets.length > 0;
+        if (hasRiverBandDatasets && currentPrice > 0) {
             bandDatasets.push({
                 label: '當前股價',
                 data: riverYears.map(() => currentPrice),
@@ -90,7 +108,7 @@
                 fill: false,
             });
         }
-        if (bandDatasets.length > 0) {
+        if (hasRiverBandDatasets) {
             new Chart(peRiverCtx, {
                 type: 'line',
                 data: {
@@ -104,7 +122,7 @@
                         legend: { position: 'bottom', labels: { padding: 12, font: { size: 11 } } },
                         tooltip: {
                             callbacks: {
-                                label: ctx => `${ctx.dataset.label}: NT$${Number(ctx.raw || 0).toFixed(0)}`
+                                label: ctx => `${ctx.dataset.label}: ${ntPriceLabel(ctx.raw)}`
                             }
                         }
                     },

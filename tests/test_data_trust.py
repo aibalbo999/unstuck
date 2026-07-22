@@ -1363,6 +1363,34 @@ def test_normalize_data_trust_text_lists_drop_non_finite_numeric_items():
     assert normalized["score_reasons"] == ["manual score reason"]
 
 
+def test_normalize_data_trust_text_lists_drop_non_finite_string_tokens():
+    normalized = data_trust.normalize_data_trust(
+        {
+            "status": "partial",
+            "score": 72,
+            "critical_failures": ["Infinity", "market_data"],
+            "stale_sources": ["-Infinity", "financial_statements"],
+            "notes": ["NaN", "N/A", "有效資料可信度備註。"],
+            "reason_codes": ["Infinity", "manual_reason"],
+            "score_reasons": ["nan", "manual score reason"],
+        }
+    )
+
+    assert normalized["critical_failures"] == ["market_data"]
+    assert normalized["stale_sources"] == ["financial_statements"]
+    assert normalized["notes"] == ["有效資料可信度備註。"]
+    assert normalized["reason_codes"] == ["manual_reason"]
+    assert normalized["score_reasons"] == ["manual score reason"]
+    text_fields = (
+        normalized["critical_failures"]
+        + normalized["stale_sources"]
+        + normalized["notes"]
+        + normalized["reason_codes"]
+        + normalized["score_reasons"]
+    )
+    assert not any(item.lower() in {"nan", "infinity", "-infinity", "n/a"} for item in text_fields)
+
+
 def test_normalize_data_trust_score_treats_boolean_values_as_malformed():
     for score in (True, False):
         normalized = data_trust.normalize_data_trust(
@@ -1387,7 +1415,28 @@ def test_normalize_data_trust_last_market_data_at_uses_safe_text_conversion():
 
     assert normalized["last_market_data_at"] == "2026-06-07T01:00:00+00:00"
 
-    for malformed_timestamp in (True, False, b"2026-06-07T01:00:00+00:00", memoryview(b"bad")):
+    for malformed_timestamp in (
+        True,
+        False,
+        b"2026-06-07T01:00:00+00:00",
+        memoryview(b"bad"),
+        float("nan"),
+        float("inf"),
+        Decimal("-Infinity"),
+    ):
+        normalized = data_trust.normalize_data_trust(
+            {
+                "status": "fresh",
+                "score": 90,
+                "last_market_data_at": malformed_timestamp,
+            }
+        )
+
+        assert normalized["last_market_data_at"] is None
+
+
+def test_normalize_data_trust_last_market_data_at_drops_non_finite_string_tokens():
+    for malformed_timestamp in ("NaN", "Infinity", "-Infinity", "N/A"):
         normalized = data_trust.normalize_data_trust(
             {
                 "status": "fresh",
@@ -1561,6 +1610,49 @@ def test_build_data_trust_last_market_timestamp_uses_safe_text(monkeypatch):
 
     assert trust["status"] == "fresh"
     assert trust["last_market_data_at"] == "2026-06-01T00:00:00+00:00"
+
+
+def test_build_data_trust_last_market_timestamp_skips_non_finite_candidates(monkeypatch):
+    import provider_sla
+
+    monkeypatch.setattr(provider_sla, "get_provider_sla_alerts", lambda limit=100: [])
+    trust = data_trust.build_data_trust(
+        {
+            "market_data_fetched_at": "2026-06-02T00:00:00+00:00",
+            "source_freshness": {
+                "market_data": {"fetched_at": Decimal("Infinity")},
+            },
+            "source_audit": [
+                {"source": "market_data", "provider": "yfinance", "status": "success", "record_count": 1},
+                {"source": "financial_statements", "provider": "yfinance", "status": "success", "record_count": 1},
+            ],
+        }
+    )
+
+    assert trust["status"] == "fresh"
+    assert trust["last_market_data_at"] == "2026-06-02T00:00:00+00:00"
+    assert "infinity" not in str(trust).lower()
+
+
+def test_build_data_trust_last_market_timestamp_skips_non_finite_string_candidates(monkeypatch):
+    import provider_sla
+
+    monkeypatch.setattr(provider_sla, "get_provider_sla_alerts", lambda limit=100: [])
+    trust = data_trust.build_data_trust(
+        {
+            "market_data_fetched_at": "2026-06-02T00:00:00+00:00",
+            "source_freshness": {
+                "market_data": {"fetched_at": "Infinity"},
+            },
+            "source_audit": [
+                {"source": "market_data", "provider": "yfinance", "status": "success", "record_count": 1},
+                {"source": "financial_statements", "provider": "yfinance", "status": "success", "record_count": 1},
+            ],
+        }
+    )
+
+    assert trust["status"] == "fresh"
+    assert trust["last_market_data_at"] == "2026-06-02T00:00:00+00:00"
 
 
 def test_build_data_trust_final_score_uses_safe_post_sla_mapping(monkeypatch):
@@ -2211,6 +2303,53 @@ def test_provider_sla_row_mapping_get_failures_do_not_interrupt_trust_downgrade(
     assert any("來源健康度警示" in note for note in result["notes"])
 
 
+def test_provider_sla_alert_helper_matches_current_provider_and_health_metadata():
+    import data_trust_sla_alerts
+
+    payload = {
+        "source_audit": [
+            {
+                "source": "market_data",
+                "provider": "fake-yfinance",
+                "status": "success",
+                "record_count": 12,
+                "stale": False,
+            },
+            {
+                "source": "market_data",
+                "provider": "backup-provider",
+                "status": "unavailable",
+                "record_count": 0,
+                "stale": True,
+            },
+        ]
+    }
+    alerts = [
+        provider_sla_alert(provider="fake-yfinance", level="critical", attempts=3),
+        provider_sla_alert(provider="backup-provider", level="warning", attempts=1),
+        provider_sla_alert(provider="unrelated-provider", level="critical", attempts=3),
+    ]
+
+    matched = data_trust_sla_alerts.matched_provider_sla_alerts(payload, alerts=alerts)
+
+    assert matched == [
+        {
+            "source": "market_data",
+            "provider": "fake-yfinance",
+            "alert_level": "critical",
+            "alert_message": "success rate low",
+            "success_rate": 0.4,
+            "last_status": "error",
+            "alert_basis": "last_24h",
+            "evidence_attempts": 3,
+            "current_status": "success",
+            "current_record_count": 12,
+            "current_stale": False,
+            "current_source_has_healthy_entry": True,
+        }
+    ]
+
+
 def test_provider_sla_row_mapping_copy_lookup_failures_preserve_downgrade_evidence():
     import data_trust_sla_policy
 
@@ -2858,6 +2997,34 @@ def test_data_snapshot_content_hash_survives_first_next_mapping_failures():
 
     assert data_trust.snapshot_content_hash(wrapped_snapshot) == snapshot["snapshot_hash"]
     assert data_trust.verify_data_snapshot_integrity(wrapped_snapshot)["valid"] is True
+
+
+def test_data_snapshot_integrity_helper_sets_hash_and_stable_size():
+    import data_trust_snapshot_integrity
+
+    snapshot = {
+        "snapshot_schema_version": data_trust.DATA_SNAPSHOT_SCHEMA_VERSION,
+        "ticker": "HASH",
+        "pipeline": "v1",
+        "generated_at": "2026-06-07T00:10:00+00:00",
+        "data_schema_version": DATA_SCHEMA_VERSION,
+        "source_freshness": {},
+        "source_audit": [],
+        "data_trust": data_trust.unknown_data_trust(),
+        "data_confidence_score": 0,
+        "conclusion_guardrails": {},
+        "reproducibility_packet": {},
+        "data": {"ticker": "HASH"},
+    }
+
+    updated = data_trust_snapshot_integrity.set_snapshot_integrity(snapshot)
+
+    assert updated["snapshot_hash"] == data_trust_snapshot_integrity.snapshot_content_hash(updated)
+    assert updated["content_hash"] == updated["snapshot_hash"]
+    assert updated["reproducibility_packet"]["data_snapshot_hash"] == updated["snapshot_hash"]
+    assert updated["snapshot_size_bytes"] == data_trust_snapshot_integrity.snapshot_size_bytes(updated)
+    assert data_trust_snapshot_integrity.verify_data_snapshot_integrity(updated)["valid"] is True
+    assert data_trust_snapshot_integrity.validate_data_snapshot(updated) == {"valid": True, "errors": []}
 
 
 def test_data_snapshot_size_governance_uses_sanitized_snapshot_keys():

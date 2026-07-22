@@ -7,6 +7,13 @@ from typing import Any
 from mapping_fields import safe_dict_list, safe_int, safe_mapping_dict, safe_text, safe_text_list
 from provider_impact import build_provider_impact
 from report_quality_integrity import snapshot_integrity_repair_item
+from report_quality_repair_items import (
+    content_credibility_repair_item,
+    data_trust_repair_item,
+    decision_freshness_repair_item,
+    evidence_exit_gate_repair_item,
+    report_conformance_repair_item,
+)
 
 
 SCHEMA_VERSION = "report_quality_repair_queue.v1"
@@ -44,12 +51,12 @@ def _report_rows(reports: dict[str, Any] | list[dict[str, Any]]) -> list[dict[st
 def _repair_item(report: dict[str, Any]) -> dict[str, Any] | None:
     candidates = [
         snapshot_integrity_repair_item(_field(report, "snapshot_integrity")),
-        _content_credibility_item(report),
-        _report_conformance_item(report),
-        _evidence_exit_gate_item(report),
+        content_credibility_repair_item(report),
+        report_conformance_repair_item(report),
+        evidence_exit_gate_repair_item(report),
         _provider_sla_item(report),
-        _data_trust_item(report),
-        _decision_freshness_item(report),
+        data_trust_repair_item(report),
+        decision_freshness_repair_item(report),
     ]
     items = [item for item in candidates if item is not None]
     if not items:
@@ -71,87 +78,6 @@ def _base_item(report: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _content_credibility_item(report: dict[str, Any]) -> dict[str, Any] | None:
-    gate = _dict(_field(report, "content_credibility"))
-    status = _status(_field(gate, "status"))
-    if status == "blocked":
-        return _item(
-            severity="blocked",
-            priority=1000,
-            action="manual_review",
-            label="人工審核",
-            title="內容可信度未通過",
-            detail=_summary(gate, "報告建議、目標價或資料限制互相矛盾。"),
-            reason_codes=["content_credibility_blocked"],
-            blocks_auto_rerun=True,
-        )
-    if status == "warning":
-        return _item(
-            severity="warning",
-            priority=780,
-            action="manual_review",
-            label="人工審核",
-            title="內容可信度需確認",
-            detail=_summary(gate, "報告內容可信度有警示，採用前需人工確認。"),
-            reason_codes=["content_credibility_warning"],
-        )
-    return None
-
-
-def _report_conformance_item(report: dict[str, Any]) -> dict[str, Any] | None:
-    conformance = _dict(_field(report, "report_conformance"))
-    status = _status(_field(conformance, "status"))
-    if status == "blocked":
-        return _item(
-            severity="blocked",
-            priority=960,
-            action="manual_review",
-            label="人工審核",
-            title="報告符合性未通過",
-            detail=_summary(conformance, "報告未符合輸出契約。"),
-            reason_codes=["report_conformance_blocked"],
-            blocks_auto_rerun=True,
-        )
-    if status == "warning":
-        return _item(
-            severity="warning",
-            priority=740,
-            action="manual_review",
-            label="人工審核",
-            title="報告符合性需確認",
-            detail=_summary(conformance, "報告符合主要契約，但仍需人工確認。"),
-            reason_codes=["report_conformance_warning"],
-        )
-    return None
-
-
-def _evidence_exit_gate_item(report: dict[str, Any]) -> dict[str, Any] | None:
-    gate = _dict(_field(report, "evidence_exit_gate"))
-    verdict = _status(_field(gate, "verdict"))
-    if verdict == "rejected":
-        return _item(
-            severity="blocked",
-            priority=940,
-            action="manual_review",
-            label="人工審核",
-            title="證據抽查未通過",
-            detail=_summary(gate, "報告數字未能對上資料快照。"),
-            reason_codes=["evidence_exit_gate_rejected"],
-            blocks_auto_rerun=True,
-        )
-    if verdict == "caution":
-        return _item(
-            severity="warning",
-            priority=720,
-            action="manual_review",
-            label="人工審核",
-            title="數字證據需核對",
-            detail=_summary(gate, "部分報告數字需人工確認。"),
-            reason_codes=["evidence_exit_gate_caution"],
-        )
-    return None
-
-
 def _provider_sla_item(report: dict[str, Any]) -> dict[str, Any] | None:
     impact = build_provider_impact(_provider_impact_report(report))
     summary = _dict(_field(impact, "summary"))
@@ -168,59 +94,6 @@ def _provider_sla_item(report: dict[str, Any]) -> dict[str, Any] | None:
         reason_codes=codes,
         blocks_auto_rerun=True,
         extra={"provider_impact": impact},
-    )
-
-
-def _data_trust_item(report: dict[str, Any]) -> dict[str, Any] | None:
-    trust = _dict(_field(report, "data_trust"))
-    status = _status(_field(trust, "status"))
-    codes = _reason_codes(trust)
-    if status == "error" or any(code.startswith("source_error:") for code in codes):
-        return _item(
-            severity="blocked",
-            priority=860,
-            action="manual_review",
-            label="查看報告",
-            title="資料來源異常",
-            detail="資料來源錯誤，採用或重跑前需先確認來源審計。",
-            reason_codes=codes or ["data_trust_error"],
-            blocks_auto_rerun=True,
-        )
-    if status == "stale" or _has_stale_source(trust, codes):
-        return _item(
-            severity="warning",
-            priority=620,
-            action="refresh_data_snapshot",
-            label="刷新資料",
-            title="資料快照過期",
-            detail="先刷新資料快照，再判斷是否需要完整重跑。",
-            reason_codes=codes or ["data_trust_stale"],
-        )
-    return None
-
-
-def _decision_freshness_item(report: dict[str, Any]) -> dict[str, Any] | None:
-    freshness = _dict(_field(report, "decision_freshness"))
-    if not (
-        _safe_bool(_field(freshness, "requires_rerun"))
-        or _safe_bool(_field(report, "requires_rerun"))
-        or _safe_bool(_field(report, "analysis_text_stale"))
-    ):
-        return None
-    detail = _first_text(
-        _field(freshness, "requires_rerun_reason"),
-        _field(report, "analysis_text_stale_message"),
-        _field(report, "requires_rerun_reason"),
-        fallback="資料快照與結論不同步，舊 Markdown 不應視為最新判斷。",
-    )
-    return _item(
-        severity="warning",
-        priority=700,
-        action="rerun_analysis",
-        label="完整重跑",
-        title="結論需完整重跑",
-        detail=detail,
-        reason_codes=["decision_freshness_needs_rerun"],
     )
 
 
@@ -291,10 +164,6 @@ def _provider_impact_alert(alert: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _status(value: Any) -> str:
-    return _safe_text(value).strip().lower()
-
-
 def _report_ticker(report: dict[str, Any]) -> str:
     return _safe_text(_field(report, "ticker")).strip()
 
@@ -312,34 +181,5 @@ def _safe_text(value: Any) -> str:
     return safe_text(value)
 
 
-def _safe_bool(value: Any) -> bool:
-    try:
-        return bool(value)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
-        return False
-
-
-def _summary(payload: dict[str, Any], fallback: str) -> str:
-    summary = _safe_text(_field(payload, "summary")).strip()
-    if summary:
-        return summary
-    message = _safe_text(_field(payload, "message")).strip()
-    if message:
-        return message
-    return fallback
-
-
-def _first_text(*values: Any, fallback: str) -> str:
-    for value in values:
-        text = _safe_text(value).strip()
-        if text:
-            return text
-    return fallback
-
-
 def _reason_codes(trust: dict[str, Any]) -> list[str]:
     return safe_text_list(_field(trust, "reason_codes"))
-
-
-def _has_stale_source(trust: dict[str, Any], codes: list[str]) -> bool:
-    return bool(safe_text_list(_field(trust, "stale_sources"))) or any(code.startswith("source_stale:") for code in codes)

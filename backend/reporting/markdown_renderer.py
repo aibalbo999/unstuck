@@ -9,24 +9,27 @@ from company_display import company_display_name
 from config import format_model_routes
 from investment_thesis import build_investment_thesis, investment_thesis_markdown
 from mapping_fields import safe_mapping_dict, safe_text
+from numeric_safety import is_non_finite_number
 from pipeline_modes import get_pipeline_definition
-from recommendation_labels import normalize_recommendation_label
 
 from .audit_trust import build_audit_markdown, build_data_trust_markdown, build_source_audit_markdown
 from .execution_summary import build_execution_summary_markdown
+from .markdown_decision_context import build_markdown_decision_section
 from .mode_templates import (
     build_mode_template_markdown,
-    decision_markdown_heading,
     get_report_template_profile,
     summary_markdown_heading,
 )
 from .reading_notice import build_report_reading_notice_markdown
 from .sections import build_agent_sections, build_tear_sheet_summary
+from .text_tokens import is_missing_text_token
 
 
 def _display_text(value, default: str = "N/A") -> str:
+    if is_non_finite_number(value):
+        return default
     text = safe_text(value).strip()
-    if not text:
+    if not text or is_missing_text_token(text):
         return default
     return " ".join(line.strip() for line in text.splitlines() if line.strip())
 
@@ -40,46 +43,19 @@ def generate_markdown_report(context: AnalysisContext) -> str:
     data = safe_mapping_dict(context.get("data", {})) or {}
     analyses = context.get("analyses", {})
     parsed = safe_mapping_dict(context.get("parsed", {})) or {}
-    
+
     ticker = _display_text(context.get("ticker", "N/A"))
     name = _display_text(company_display_name(data, context.get("company_name", ticker)))
     fetch_date = _display_text(data.get("fetch_date"), datetime.now().strftime("%Y年%m月%d日"))
     pipeline_def = get_pipeline_definition(context.get("pipeline_id", "v1"))
     mode_template = get_report_template_profile(pipeline_def["id"])
     report_title = pipeline_def["report_title"]
-    
-    price_targets = safe_mapping_dict(parsed.get("price_targets", {})) or {}
-    recommendation = safe_mapping_dict(parsed.get("recommendation", {})) or {}
-    
-    def get_rec_val(rec_dict, target_sub, default="N/A"):
-        for k, v in (safe_mapping_dict(rec_dict) or {}).items():
-            if target_sub in safe_text(k):
-                return _display_text(v, default)
-        return default
-        
-    rec_text = normalize_recommendation_label(get_rec_val(recommendation, "建議", "持有"))
 
-    target_3m = get_rec_val(recommendation, "3個月", "N/A")
-    target_6m = get_rec_val(recommendation, "6個月", "N/A")
-    target_12m = get_rec_val(recommendation, "12個月", "N/A")
-    confidence = get_rec_val(recommendation, "信心", "N/A")
-    trade_setup = safe_mapping_dict(parsed.get("trade_setup", {})) or {}
-    decision_heading = decision_markdown_heading(mode_template)
-    if pipeline_def["id"] == "v4":
-        decision_markdown = f"""{decision_heading}
-- **交易方向:** {_display_text(trade_setup.get("trade_direction"), "Neutral")}
-- **進場區間:** {_display_text(trade_setup.get("entry_zone"))}
-- **1-2週目標:** {_display_text(trade_setup.get("target_price"))}
-- **嚴格停損:** {_display_text(trade_setup.get("stop_loss"))}
-- **核心催化劑:** {_display_text(trade_setup.get("core_catalyst"))}
-- **短期波動風險:** {_display_text(trade_setup.get("risk_level"), "High")}"""
-    else:
-        decision_markdown = f"""{decision_heading}
-- **綜合建議:** {rec_text}
-- **3個月目標:** {target_3m}
-- **6個月目標:** {target_6m}
-- **12個月目標:** {target_12m}
-- **信心指數:** {confidence}"""
+    decision_markdown = build_markdown_decision_section(
+        parsed,
+        pipeline_id=pipeline_def["id"],
+        mode_template=mode_template,
+    )
     audit_markdown = build_audit_markdown(context)
     report_reading_notice_markdown = build_report_reading_notice_markdown(context)
     data_trust_markdown = build_data_trust_markdown(data, context)

@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import math
 from typing import Any
+
+from quality_funnel_values import first_number, format_metric_value
 
 
 SCHEMA_VERSION = "quality_funnel.v1"
@@ -106,7 +107,7 @@ def evaluate_quality_funnel(
         if rule is None:
             skipped_rules.append(_skipped_rule(source_rule))
             continue
-        value = _first_number(values, rule["keys"])
+        value = first_number(values, rule["keys"])
         if value is None:
             missing_rules.append(_missing_rule(rule))
             continue
@@ -120,7 +121,7 @@ def evaluate_quality_funnel(
         rule = _apply_rule_override(source_rule, overrides)
         if rule is None:
             continue
-        value = _first_number(values, rule["keys"])
+        value = first_number(values, rule["keys"])
         if value is None:
             continue
         result = _rule_result(rule, value)
@@ -202,7 +203,7 @@ def _rule_result(rule: dict[str, Any], value: float) -> dict[str, Any]:
         "operator": operator,
         "unit": rule.get("unit", ""),
         "passed": passed,
-        "message": f"{rule['label']} {_format_value(value, rule.get('unit', ''))} {operator} {_format_value(threshold, rule.get('unit', ''))}",
+        "message": f"{rule['label']} {format_metric_value(value, rule.get('unit', ''))} {operator} {format_metric_value(threshold, rule.get('unit', ''))}",
     }
 
 
@@ -224,49 +225,6 @@ def _summary(outcome: str, failed_rules: list[dict[str, Any]], missing_rules: li
         suffix = "等" if len(missing_rules) > 3 else ""
         return f"品質漏斗灰區：缺少 {labels}{suffix}，需補資料後再判斷。"
     return "品質漏斗通過：主要獲利、現金流與稀釋指標未觸發否決。"
-
-
-def _first_number(metrics: dict[str, Any], keys: list[str]) -> float | None:
-    lower_map = {str(key).strip().lower(): value for key, value in metrics.items()}
-    for key in keys:
-        if key in metrics:
-            value = _to_number(metrics[key])
-            if value is not None:
-                return value
-        value = _to_number(lower_map.get(str(key).strip().lower()))
-        if value is not None:
-            return value
-    return None
-
-
-def _to_number(value: Any) -> float | None:
-    if isinstance(value, bool) or value is None:
-        return None
-    if isinstance(value, (int, float)):
-        number = float(value)
-        return number if math.isfinite(number) else None
-    text = str(value).strip()
-    if not text or text in {"-", "--", "N/A", "na", "null"}:
-        return None
-    negative = text.startswith("(") and text.endswith(")")
-    text = text.replace(",", "").replace("%", "").replace("+", "").replace("(", "").replace(")", "")
-    try:
-        number = float(text)
-    except ValueError:
-        return None
-    if negative:
-        number = -number
-    return number if math.isfinite(number) else None
-
-
-def _format_value(value: float, unit: str) -> str:
-    if abs(value) >= 1000 and unit == "":
-        text = f"{value:,.0f}"
-    elif float(value).is_integer():
-        text = f"{value:.0f}"
-    else:
-        text = f"{value:.2f}".rstrip("0").rstrip(".")
-    return f"{text}{unit}" if unit else text
 
 
 __all__ = ["evaluate_quality_funnel"]

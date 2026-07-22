@@ -12,6 +12,13 @@ from zoneinfo import ZoneInfo
 from pipeline_modes import normalize_pipeline_run_id
 from runtime_paths import current_runtime_paths
 from storage.sqlite_resource import ThreadLocalSqliteResource
+from watchlist_store_items import (
+    DEFAULT_SCHEDULES,
+    item_from_row as _item_from_row,
+    normalize_item as _normalize_item,
+    replace_item_row as _replace_item_row,
+    select_item as _select_item,
+)
 
 
 TAIPEI = ZoneInfo("Asia/Taipei")
@@ -20,10 +27,6 @@ TASK_DB_PATH = str(_RUNTIME_PATHS.task_db)
 DEFAULT_WATCHLIST_PATH = _RUNTIME_PATHS.cache_dir / "watchlist.json"
 WATCHLIST_PATH = Path(os.getenv("WATCHLIST_PATH", str(DEFAULT_WATCHLIST_PATH)))
 WATCHLIST_DB_PATH = os.getenv("WATCHLIST_DB_PATH")
-DEFAULT_SCHEDULES = {
-    "pre_market": {"label": "盤前", "time": "08:30"},
-    "post_market": {"label": "盤後", "time": "15:30"},
-}
 
 
 def _db_path() -> Path:
@@ -87,68 +90,6 @@ def _now_iso(now: datetime | None = None) -> str:
     return (now or datetime.now(TAIPEI)).isoformat(timespec="seconds")
 
 
-def _json_dumps(value) -> str:
-    return json.dumps(value, ensure_ascii=False, sort_keys=True)
-
-
-def _json_list(value: str | None) -> list:
-    try:
-        parsed = json.loads(value or "[]")
-    except json.JSONDecodeError:
-        return []
-    return parsed if isinstance(parsed, list) else []
-
-
-def _json_dict(value: str | None) -> dict:
-    try:
-        parsed = json.loads(value or "{}")
-    except json.JSONDecodeError:
-        return {}
-    return parsed if isinstance(parsed, dict) else {}
-
-
-def _normalize_slots(value) -> list[str]:
-    if isinstance(value, str):
-        value = [value]
-    if not isinstance(value, list):
-        value = ["post_market"]
-    slots = []
-    for item in value:
-        slot = str(item or "").strip().lower()
-        if slot in DEFAULT_SCHEDULES and slot not in slots:
-            slots.append(slot)
-    return slots or ["post_market"]
-
-
-def _normalize_tags(value) -> list[str]:
-    if isinstance(value, str):
-        value = [value]
-    if not isinstance(value, list):
-        return []
-    tags = []
-    for item in value:
-        tag = str(item or "").strip()
-        if tag and tag not in tags:
-            tags.append(tag)
-    return tags
-
-
-def _normalize_item(item: dict) -> dict:
-    ticker = str(item.get("ticker") or "").strip().upper()
-    pipeline = normalize_pipeline_run_id(item.get("pipeline") or item.get("pipeline_id") or "v1")
-    return {
-        "ticker": ticker,
-        "pipeline": pipeline,
-        "enabled": bool(item.get("enabled", True)),
-        "schedule_slots": _normalize_slots(item.get("schedule_slots")),
-        "last_run_dates": item.get("last_run_dates") if isinstance(item.get("last_run_dates"), dict) else {},
-        "tags": _normalize_tags(item.get("tags")),
-        "trigger_source": str(item.get("trigger_source") or "").strip().lower(),
-        "created_at": item.get("created_at") or _now_iso(),
-        "updated_at": item.get("updated_at") or _now_iso(),
-    }
-
-
 def _read_legacy_json_store() -> dict:
     if not WATCHLIST_PATH.exists():
         return {"items": [], "updated_at": None}
@@ -184,51 +125,6 @@ def _touch_store(conn: sqlite3.Connection, updated_at: str | None = None) -> str
     return value
 
 
-def _item_from_row(row: sqlite3.Row) -> dict:
-    return {
-        "ticker": row["ticker"],
-        "pipeline": row["pipeline"],
-        "enabled": bool(row["enabled"]),
-        "schedule_slots": _normalize_slots(_json_list(row["schedule_slots_json"])),
-        "last_run_dates": _json_dict(row["last_run_dates_json"]),
-        "tags": _normalize_tags(_json_list(row["tags_json"])),
-        "trigger_source": str(row["trigger_source"] or ""),
-        "created_at": row["created_at"],
-        "updated_at": row["updated_at"],
-    }
-
-
-def _replace_item_row(conn: sqlite3.Connection, item: dict) -> None:
-    conn.execute(
-        """
-        INSERT INTO watchlist_items (
-            ticker, pipeline, enabled, schedule_slots_json,
-            last_run_dates_json, tags_json, trigger_source, created_at, updated_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(ticker, pipeline) DO UPDATE SET
-            enabled = excluded.enabled,
-            schedule_slots_json = excluded.schedule_slots_json,
-            last_run_dates_json = excluded.last_run_dates_json,
-            tags_json = excluded.tags_json,
-            trigger_source = excluded.trigger_source,
-            created_at = excluded.created_at,
-            updated_at = excluded.updated_at
-        """,
-        (
-            item["ticker"],
-            item["pipeline"],
-            1 if item.get("enabled") else 0,
-            _json_dumps(_normalize_slots(item.get("schedule_slots"))),
-            _json_dumps(item.get("last_run_dates") if isinstance(item.get("last_run_dates"), dict) else {}),
-            _json_dumps(_normalize_tags(item.get("tags"))),
-            str(item.get("trigger_source") or ""),
-            item["created_at"],
-            item["updated_at"],
-        ),
-    )
-
-
 def _read_store_from_conn(conn: sqlite3.Connection) -> dict:
     rows = conn.execute(
         """
@@ -258,19 +154,6 @@ def _ensure_legacy_json_migrated(conn: sqlite3.Connection) -> None:
         if legacy.get("items"):
             _touch_store(conn, legacy.get("updated_at") or _now_iso())
     _set_meta(conn, migration_key, _now_iso())
-
-
-def _select_item(conn: sqlite3.Connection, ticker: str, pipeline: str) -> dict | None:
-    row = conn.execute(
-        """
-        SELECT ticker, pipeline, enabled, schedule_slots_json, last_run_dates_json,
-               tags_json, trigger_source, created_at, updated_at
-        FROM watchlist_items
-        WHERE ticker = ? AND pipeline = ?
-        """,
-        (ticker, pipeline),
-    ).fetchone()
-    return _item_from_row(row) if row else None
 
 
 def list_watchlist() -> dict:

@@ -4,17 +4,17 @@ from __future__ import annotations
 
 import asyncio
 import time
-import re
 from collections.abc import Callable
 from typing import Any
 
+from api_observability_prometheus import _labels, _metric_bool, _metric_int, _metric_number
 from api_quota_service import build_api_quota_payload as _build_api_quota_payload
 from data_trust_constants import CORE_DATA_SOURCES
 from free_mode_contract import build_free_mode_contract
 from job_observability import build_active_jobs_snapshot, build_ops_dashboard_snapshot
 from mapping_fields import safe_mapping_dict, safe_mapping_items, safe_text, safe_text_list
 from notification_delivery_audit import get_delivery_audit_summary
-from notification_delivery_audit_context import safe_dict, safe_float, safe_int
+from notification_delivery_audit_context import safe_dict, safe_int
 from notification_delivery_observability import (
     notification_delivery_attention_required,
     notification_delivery_dashboard_summary,
@@ -260,41 +260,6 @@ def _strict_count(value: Any) -> int:
     if isinstance(value, (bool, bytes, bytearray, memoryview)):
         return 0
     return safe_int(value)
-
-
-def _labels(**labels: Any) -> str:
-    rendered = []
-    for key, value in labels.items():
-        safe_key = re.sub(r"[^a-zA-Z0-9_]", "_", safe_text(key).strip() or "label")
-        safe_value = (safe_text(value).strip() or "unknown").replace("\\", "\\\\").replace("\n", "\\n").replace('"', '\\"')
-        rendered.append(f'{safe_key}="{safe_value}"')
-    return "{" + ",".join(rendered) + "}"
-
-
-def _metric_number(value: Any) -> float:
-    if isinstance(value, (bool, bytes, bytearray, memoryview)):
-        return 0.0
-    number = safe_float(value)
-    if number != number or number in {float("inf"), float("-inf")}:
-        return 0.0
-    return number
-
-
-def _metric_bool(value: Any) -> bool:
-    if isinstance(value, bool): return value
-    normalized = safe_text(value).strip().lower()
-    if normalized in {"1", "true", "yes", "y", "on", "available"}:
-        return True
-    if normalized in {"", "0", "false", "no", "n", "off", "unavailable"}:
-        return False
-    try:
-        return bool(value)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
-        return False
-
-
-def _metric_int(value: Any) -> int:
-    return _strict_count(value)
 
 
 def _payload_dict(value: Any) -> dict[Any, Any]:

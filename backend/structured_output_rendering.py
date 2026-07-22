@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import re
+import math
+from numbers import Real
 
 from mapping_fields import safe_dict_list, safe_mapping_dict, safe_text
 from recommendation_labels import normalize_recommendation_label
@@ -18,6 +20,11 @@ def normalize_escaped_newlines(text: str) -> str:
 
 
 def _coerce_text(value) -> str:
+    if not isinstance(value, str):
+        if isinstance(value, bool) or not isinstance(value, Real):
+            return ""
+        if not math.isfinite(float(value)):
+            return ""
     return safe_text(value).strip()
 
 
@@ -30,15 +37,24 @@ def _display_value(value, default: str = "N/A") -> str:
     return _display_line(value, default)
 
 
+def _ordered_recommendation_value(value, default: str = "N/A") -> str:
+    text = _display_value(value, default)
+    if len(text) < 2 and not text.isdigit():
+        return default
+    return text
+
+
 def _trigger_lines(triggers, directions: set[str], fallback_action: str = "") -> list[str]:
     lines = []
     for trigger in safe_dict_list(triggers):
-        if safe_text(trigger.get("direction")).strip() not in directions:
+        if _coerce_text(trigger.get("direction")) not in directions:
             continue
         condition = _display_line(trigger.get("trigger_condition"))
         action = _display_line(trigger.get("action"), fallback_action)
-        if not condition:
+        if len(condition) < 2:
             continue
+        if fallback_action and len(action) < 2:
+            action = fallback_action
         lines.append(f"- {condition}：{action}" if action else f"- {condition}")
     return lines
 
@@ -78,12 +94,12 @@ def format_recommendation_block(agent_num: int, rec: dict) -> str:
             "長期潛力（5年）",
             "信心指數",
         ]
-        lines = [f"{key}{separator}{_display_value(rec.get(key))}" for key in ordered_keys]
+        lines = [f"{key}{separator}{_ordered_recommendation_value(rec.get(key))}" for key in ordered_keys]
     else:
         display_rec = {
-            _display_line(key): _display_line(value)
+            _display_line(key): _display_value(value)
             for key, value in rec.items()
-            if safe_mapping_dict(value) is None and _display_line(key)
+            if safe_mapping_dict(value) is None and len(_display_line(key)) >= 2
         }
         lines = [f"{key}{separator}{value}" for key, value in display_rec.items() if value]
         if not lines:

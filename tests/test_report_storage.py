@@ -19,6 +19,7 @@ from storage.report_storage import (  # noqa: E402
     StoredReportContent,
     normalize_report_key,
 )
+from storage.memory_report_storage import InMemoryStorage as DirectInMemoryStorage  # noqa: E402
 import storage.report_storage as report_storage_module  # noqa: E402
 
 
@@ -318,6 +319,10 @@ def test_in_memory_storage_defensively_copies_mutable_content_and_deletes():
     assert storage.delete_report("report.md") is False
     assert storage.exists("report.md") is False
     assert storage.get_report("report.md") is None
+
+
+def test_in_memory_storage_keeps_report_storage_reexport_identity():
+    assert InMemoryStorage is DirectInMemoryStorage
 
 
 def test_in_memory_prefix_listing_is_deterministic_and_returns_value_copies():

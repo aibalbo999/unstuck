@@ -36,6 +36,7 @@ from .yfinance_cache_gate import build_fresh_cache_payload
 from .yfinance_capital_notes import build_capital_structure_notes
 from .yfinance_core_context import build_yfinance_payload_vars
 from .yfinance_error_payload import build_fetch_error_payload
+from .yfinance_fetch_runtime import build_core_fetch_request, read_current_price, read_fresh_cache_payload, resolve_core_stock
 from .yfinance_payload import build_legacy_payload, finalize_and_cache_legacy_payload
 from .yfinance_derived import (
     calculate_margin_histories,
@@ -52,46 +53,33 @@ def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_
     從 yfinance 獲取股票完整財務數據
     返回格式化的數據字典
     """
-    ticker = ticker.strip().upper()
-    original_ticker = ticker
-    cache_key = f"financial_data:{original_ticker}"
-    fetch_started_epoch = time_module.time()
-    if force_refresh:
-        emit_log(f"  ♻️  {original_ticker} 已要求強制刷新，略過既有財務資料快取...")
-    else:
-        cached = get_cache_json(cache_key)
-        fresh_cached, stale_sources, schema_mismatch = build_fresh_cache_payload(
-            original_ticker,
-            cached,
-            assess_cached=_assess_cached_financial_data,
-            append_cache_audit=_append_cache_audit_entries,
-            now_epoch=time_module.time(),
-        )
-        if fresh_cached:
-            age_minutes = (fresh_cached.get("data_freshness", {}).get("age_seconds") or 0) / 60
-            emit_log(f"  ✅ 使用快取的 {fresh_cached.get('ticker', original_ticker)} 財務數據（市場資料約 {age_minutes:.1f} 分鐘前更新）")
-            return fresh_cached
-        if stale_sources:
-            stale_labels = ", ".join(stale_sources)
-            emit_log(
-                f"  ♻️  {original_ticker} 快取來源已過期（{stale_labels}），重新抓取核心分析資料..."
-            )
-        if schema_mismatch:
-            emit_log(f"  ♻️  {original_ticker} 快取資料口徑已更新，重新抓取財務數據...")
+    request = build_core_fetch_request(ticker, now_epoch=time_module.time)
+    ticker = request.ticker
+    fetch_started_epoch = request.fetch_started_epoch
+    fresh_cached = read_fresh_cache_payload(
+        request,
+        force_refresh=force_refresh,
+        get_cached=get_cache_json,
+        build_fresh_cache_payload=build_fresh_cache_payload,
+        assess_cached=_assess_cached_financial_data,
+        append_cache_audit=_append_cache_audit_entries,
+        now_epoch=time_module.time,
+        emit=emit_log,
+    )
+    if fresh_cached:
+        return fresh_cached
 
     emit_log(f"  📊 正在獲取 {ticker} 財務數據...")
     
     try:
-        provider = market_data_provider or get_market_data_provider(ticker)
-        stock, info, is_valid, resolved_ticker, attempts = provider.resolve_stock(ticker)
-        for index, attempt in enumerate(attempts[1:], start=1):
-            previous = attempts[index - 1]
-            if not previous.get("valid"):
-                emit_log(f"    ⚠️ {previous.get('ticker')} 查無資料，嘗試 {attempt.get('ticker')}...")
-        if is_valid:
-            ticker = resolved_ticker
+        resolved = resolve_core_stock(
+            ticker,
+            market_data_provider=market_data_provider,
+            get_market_data_provider=get_market_data_provider,
+            emit=emit_log,
+        )
+        provider, stock, info, ticker = resolved.provider, resolved.stock, resolved.info, resolved.ticker
 
-        
         # === 基本資訊 ===
         raw_company_name = safe_get(info, "longName", safe_get(info, "shortName", ticker))
         company_identity = build_company_identity(ticker, info, raw_company_name)
@@ -107,17 +95,7 @@ def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_
         employees = safe_get(info, "fullTimeEmployees", "N/A")
         
         # === 市場數據 ===
-        current_price = safe_get(info, "currentPrice", safe_get(info, "regularMarketPrice", "N/A"))
-        if current_price == "N/A":
-            current_price = safe_get(info, "previousClose", "N/A")
-        
-        if current_price == "N/A":
-            try:
-                hist_1d = stock.history(period="5d")
-                if not hist_1d.empty:
-                    current_price = round(float(hist_1d["Close"].iloc[-1]), 2)
-            except Exception:
-                pass
+        current_price = read_current_price(stock, info, safe_get=safe_get)
 
         open_price = safe_get(info, "open", "N/A")
         previous_close = safe_get(info, "previousClose", "N/A")
@@ -267,7 +245,7 @@ def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_
         data = finalize_and_cache_legacy_payload(
             data=data,
             ticker=ticker,
-            original_cache_key=cache_key,
+            original_cache_key=request.cache_key,
             provider=provider,
             fetch_started_epoch=fetch_started_epoch,
             skip_optional_http=skip_optional_http,

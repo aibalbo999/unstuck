@@ -1,4 +1,5 @@
 import sys
+from decimal import Decimal
 from types import MappingProxyType
 from pathlib import Path
 
@@ -272,6 +273,56 @@ def test_report_reading_notice_deduplicates_snapshot_integrity_error_details():
     assert html.count(detail) == 1
     assert "品質 gate 未通過" in markdown
     assert markdown.count(detail) == 1
+
+
+def test_report_reading_notice_drops_non_finite_snapshot_integrity_error_details():
+    from reporting.reading_notice import build_report_reading_notice_html, build_report_reading_notice_markdown
+
+    detail = "provider audit source digest mismatch"
+    context = _context(
+        evidence_exit_gate={"verdict": "approved"},
+        content_credibility={"status": "passed"},
+        report_conformance={"status": "passed"},
+        snapshot_integrity={
+            "status": "invalid",
+            "valid": False,
+            "errors": [float("nan"), Decimal("Infinity"), detail],
+        },
+    )
+
+    html = build_report_reading_notice_html(context)
+    markdown = build_report_reading_notice_markdown(context)
+    rendered = f"{html}\n{markdown}"
+
+    assert "report-reading-notice-blocked" in html
+    assert detail in rendered
+    assert "nan" not in rendered.lower()
+    assert "infinity" not in rendered.lower()
+
+
+def test_report_reading_notice_drops_non_finite_string_snapshot_integrity_error_details():
+    from reporting.reading_notice import build_report_reading_notice_html, build_report_reading_notice_markdown
+
+    detail = "provider audit source digest mismatch"
+    context = _context(
+        evidence_exit_gate={"verdict": "approved"},
+        content_credibility={"status": "passed"},
+        report_conformance={"status": "passed"},
+        snapshot_integrity={
+            "status": "invalid",
+            "valid": False,
+            "errors": ["NaN", "Infinity", "-Infinity", "N/A", detail],
+        },
+    )
+
+    html = build_report_reading_notice_html(context)
+    markdown = build_report_reading_notice_markdown(context)
+    rendered = f"{html}\n{markdown}"
+
+    assert "report-reading-notice-blocked" in html
+    assert detail in rendered
+    assert "nan" not in rendered.lower()
+    assert "infinity" not in rendered.lower()
 
 
 def test_report_reading_notice_removes_generic_snapshot_integrity_error_when_specific_detail_exists():

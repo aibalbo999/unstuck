@@ -1,4 +1,5 @@
 import asyncio
+import importlib
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -10,6 +11,13 @@ if str(BACKEND) not in sys.path:
     sys.path.insert(0, str(BACKEND))
 
 import llm_transport  # noqa: E402
+
+
+def _http_provider_module():
+    try:
+        return importlib.import_module("llm_http_providers")
+    except ModuleNotFoundError:
+        return llm_transport
 
 
 def test_generate_content_reuses_llm_semantic_cache_for_similar_prompt(monkeypatch):
@@ -34,7 +42,7 @@ def test_generate_content_reuses_llm_semantic_cache_for_similar_prompt(monkeypat
     monkeypatch.setattr(llm_semantic_cache, "LLM_SEMANTIC_CACHE_ENABLED", True)
     monkeypatch.setattr(llm_semantic_cache, "LLM_SEMANTIC_CACHE_MIN_SIMILARITY", 0.35)
     monkeypatch.setattr(llm_semantic_cache, "LLM_SEMANTIC_CACHE_SECONDS", 60)
-    monkeypatch.setattr(llm_transport.httpx, "post", fake_post)
+    monkeypatch.setattr(_http_provider_module().httpx, "post", fake_post)
 
     first = llm_transport.generate_content(
         "openai-key",
@@ -149,7 +157,7 @@ def test_provider_wrappers_preserve_openai_and_anthropic_usage(monkeypatch):
     def fake_post(*_args, **_kwargs):
         return FakeResponse(responses.pop(0))
 
-    monkeypatch.setattr(llm_transport.httpx, "post", fake_post)
+    monkeypatch.setattr(_http_provider_module().httpx, "post", fake_post)
 
     openai_response = llm_transport.generate_content(
         "openai-key",
@@ -190,7 +198,7 @@ def test_generate_content_routes_openai_prefixed_model_to_responses_api(monkeypa
         calls.append({"url": url, "headers": headers, "json": json, "timeout": timeout})
         return FakeResponse()
 
-    monkeypatch.setattr(llm_transport.httpx, "post", fake_post)
+    monkeypatch.setattr(_http_provider_module().httpx, "post", fake_post)
 
     response = llm_transport.generate_content(
         "openai-key",
@@ -221,7 +229,7 @@ def test_generate_content_routes_anthropic_prefixed_model_to_messages_api(monkey
         calls.append({"url": url, "headers": headers, "json": json, "timeout": timeout})
         return FakeResponse()
 
-    monkeypatch.setattr(llm_transport.httpx, "post", fake_post)
+    monkeypatch.setattr(_http_provider_module().httpx, "post", fake_post)
 
     response = llm_transport.generate_content(
         "anthropic-key",
@@ -236,6 +244,74 @@ def test_generate_content_routes_anthropic_prefixed_model_to_messages_api(monkey
     assert calls[0]["json"]["model"] == "claude-4-sonnet"
     assert calls[0]["json"]["messages"] == [{"role": "user", "content": "請分析資料"}]
     assert calls[0]["json"]["max_tokens"] == 654
+
+
+def test_http_provider_helpers_build_provider_requests_and_usage(monkeypatch):
+    helpers_path = BACKEND / "llm_http_providers.py"
+    assert helpers_path.exists()
+    providers = importlib.import_module("llm_http_providers")
+    responses = [
+        {
+            "output": [{"content": [{"text": "OpenAI nested response"}]}],
+            "usage": {"input_tokens": 11, "output_tokens": 5, "total_tokens": 16},
+        },
+        {
+            "content": [{"type": "text", "text": "Anthropic response"}],
+            "usage": {"input_tokens": 7, "output_tokens": 9},
+        },
+    ]
+    calls = []
+
+    class FakeResponse:
+        def __init__(self, payload):
+            self._payload = payload
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return self._payload
+
+    def fake_post(url, *, headers, json, timeout):
+        calls.append({"url": url, "headers": headers, "json": json, "timeout": timeout})
+        return FakeResponse(responses.pop(0))
+
+    monkeypatch.setattr(providers.httpx, "post", fake_post)
+
+    openai_response = providers.generate_openai_content(
+        "openai-key",
+        "gpt-4.1-mini",
+        "請分析 OpenAI",
+        SimpleNamespace(max_output_tokens=111, temperature=0.4),
+    )
+    anthropic_response = providers.generate_anthropic_content(
+        "anthropic-key",
+        "claude-4-sonnet",
+        "請分析 Anthropic",
+        SimpleNamespace(max_output_tokens=222, temperature=0.1),
+    )
+
+    assert isinstance(openai_response, providers.TextLLMResponse)
+    assert openai_response.text == "OpenAI nested response"
+    assert openai_response.usage == {"input_tokens": 11, "output_tokens": 5, "total_tokens": 16}
+    assert anthropic_response.text == "Anthropic response"
+    assert anthropic_response.usage == {"input_tokens": 7, "output_tokens": 9, "total_tokens": 16}
+    assert calls[0]["url"] == "https://api.openai.com/v1/responses"
+    assert calls[0]["headers"]["Authorization"] == "Bearer openai-key"
+    assert calls[0]["json"] == {
+        "model": "gpt-4.1-mini",
+        "input": "請分析 OpenAI",
+        "max_output_tokens": 111,
+        "temperature": 0.4,
+    }
+    assert calls[1]["url"] == "https://api.anthropic.com/v1/messages"
+    assert calls[1]["headers"]["x-api-key"] == "anthropic-key"
+    assert calls[1]["json"] == {
+        "model": "claude-4-sonnet",
+        "messages": [{"role": "user", "content": "請分析 Anthropic"}],
+        "max_tokens": 222,
+        "temperature": 0.1,
+    }
 
 
 def test_generate_content_stream_async_emits_google_deltas(monkeypatch):

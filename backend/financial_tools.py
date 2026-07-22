@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from config import WACC_COST_OF_DEBT_DEFAULT_PCT, WACC_COST_OF_EQUITY_DEFAULT_PCT, WACC_TAX_RATE_DEFAULT_PCT
-from financial_tool_utils import pct_from_ratio, raw_twd_to_billion_twd, safe_float
+from financial_dcf_scenarios import build_dcf_scenarios
+from financial_tool_utils import latest_numeric, pct_from_ratio, raw_twd_to_billion_twd, safe_float, safe_sequence
 from financial_valuation_tools import calculate_ddm, calculate_implied_revenue_growth
+
 
 def calculate_cagr(start_value: float, end_value: float, periods: int) -> dict:
     """Calculate CAGR as percentage points from positive start/end values."""
@@ -33,6 +35,7 @@ def calculate_dupont(net_margin_pct: float, asset_turnover: float, equity_multip
         "roe_pct": round(roe_pct, 4),
         "formula": "ROE = net margin x asset turnover x equity multiplier",
     }
+
 
 def calculate_wacc(
     market_cap_twd: float,
@@ -61,6 +64,7 @@ def calculate_wacc(
         "after_tax_cost_of_debt_pct": round(after_tax_debt_cost, 4),
         "wacc_pct": round(wacc_pct, 4),
     }
+
 
 def calculate_dcf(
     base_fcf_billion_twd: float,
@@ -116,36 +120,12 @@ def calculate_dcf(
         "price_per_share_twd": round(price_per_share_twd, 4),
     }
 
-def _latest_numeric(values: list[Any]) -> Optional[float]:
-    for value in reversed(_safe_sequence(values)):
-        number = safe_float(value)
-        if number is not None:
-            return number
-    return None
-
-
-def _safe_sequence(values: object) -> list[Any]:
-    if values is None:
-        return []
-    try:
-        iterator = iter(values)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
-        return []
-    items = []
-    while True:
-        try:
-            items.append(next(iterator))
-        except StopIteration:
-            return items
-        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
-            return items
-
 
 def build_financial_tool_context(data: dict) -> dict:
     """Precompute deterministic tool outputs that agents can cite directly."""
-    revenue_history = _safe_sequence(dict.get(data, "revenue_history", []))
-    net_income_history = _safe_sequence(dict.get(data, "net_income_history", []))
-    fcf_history = _safe_sequence(dict.get(data, "fcf_history", []))
+    revenue_history = safe_sequence(dict.get(data, "revenue_history", []))
+    net_income_history = safe_sequence(dict.get(data, "net_income_history", []))
+    fcf_history = safe_sequence(dict.get(data, "fcf_history", []))
     sector = str(dict.get(data, "sector", "") or "")
     industry = str(dict.get(data, "industry", "") or "")
 
@@ -177,8 +157,8 @@ def build_financial_tool_context(data: dict) -> dict:
                 "formula": "latest annual revenue / prior annual revenue - 1",
             }
 
-    latest_net_income = _latest_numeric(net_income_history)
-    latest_fcf = _latest_numeric(fcf_history)
+    latest_net_income = latest_numeric(net_income_history)
+    latest_fcf = latest_numeric(fcf_history)
     if latest_net_income and latest_fcf is not None:
         fcf_conversion_pct = latest_fcf / latest_net_income * 100
         tool_context["calculations"]["latest_fcf_conversion"] = {
@@ -218,57 +198,15 @@ def build_financial_tool_context(data: dict) -> dict:
         net_debt = (total_debt or 0) / 1e9 - (total_cash or 0) / 1e9
 
     if base_fcf and shares and wacc_pct:
-        # 依公司成長階段動態調整 DCF 成長率上限
-        # 高成長期（年增 > 30%）：上限放寬，反映 AI / 高科技供應鏈的真實成長潛力
-        # 穩定期（年增 ≤ 30%）：維持原有保守上限
-        _rev_g = latest_revenue_growth_pct or 0
-        if _rev_g > 30:
-            # 高成長期：乘數提高、上限放寬；terminal growth 也略為上調
-            _growth_phase = "high_growth"
-            base_growth = max(min(_rev_g * 0.40, 25), 5)
-            scenarios = {
-                "bear": {"growth_rate_pct": base_growth * 0.8, "growth_bias_pct": -20, "margin_bias_pct": -20, "wacc_delta_pct": 1.5, "terminal_growth_pct": 1.5},
-                "base": {"growth_rate_pct": base_growth, "growth_bias_pct": 0, "margin_bias_pct": 0, "wacc_delta_pct": 0, "terminal_growth_pct": 2.5},
-                "bull": {"growth_rate_pct": min(base_growth * 1.2, 35), "growth_bias_pct": 20, "margin_bias_pct": 20, "wacc_delta_pct": -1.0, "terminal_growth_pct": 3.0},
-            }
-        else:
-            # 穩定期：維持原有保守邏輯
-            _growth_phase = "stable"
-            base_growth = max(min(_rev_g * 0.25, 10), 0)
-            scenarios = {
-                "bear": {"growth_rate_pct": base_growth * 0.8, "growth_bias_pct": -20, "margin_bias_pct": -20, "wacc_delta_pct": 1.5, "terminal_growth_pct": 1.0},
-                "base": {"growth_rate_pct": base_growth, "growth_bias_pct": 0, "margin_bias_pct": 0, "wacc_delta_pct": 0, "terminal_growth_pct": 2.0},
-                "bull": {"growth_rate_pct": max(min(base_growth * 1.2, 15), 2), "growth_bias_pct": 20, "margin_bias_pct": 20, "wacc_delta_pct": -1.0, "terminal_growth_pct": 2.5},
-            }
-        dcf_results = {}
-        for scenario, assumptions in scenarios.items():
-            scenario_wacc = max(wacc_pct + assumptions["wacc_delta_pct"], assumptions["terminal_growth_pct"] + 0.5)
-            scenario_base_fcf = base_fcf * (1 + assumptions["margin_bias_pct"] / 100)
-            dcf_results[scenario] = {
-                **calculate_dcf(
-                    base_fcf_billion_twd=scenario_base_fcf,
-                    growth_rate_pct=assumptions["growth_rate_pct"],
-                    wacc_pct=scenario_wacc,
-                    terminal_growth_pct=assumptions["terminal_growth_pct"],
-                    shares_outstanding=shares,
-                    net_debt_billion_twd=net_debt or 0,
-                ),
-                "growth_bias_pct": assumptions["growth_bias_pct"],
-                "margin_bias_pct": assumptions["margin_bias_pct"],
-            }
-        tool_context["calculations"]["dcf_scenarios_default"] = {
-            "base_fcf_billion_twd": round(base_fcf, 4),
-            "base_fcf_note": base_note,
-            "growth_phase": _growth_phase,
-            "growth_phase_note": (
-                "高成長期（年增>30%）：DCF 成長率上限已放寬至 bear=15% / base=25% / bull=35%，"
-                "反映高科技供應鏈實際成長潛力；估值 agent 應優先以 Forward P/E 相對估值交叉驗證。"
-                if _growth_phase == "high_growth"
-                else
-                "穩定期（年增≤30%）：DCF 成長率採保守上限，bear=6% / base=10% / bull=15%。"
-            ),
-            "scenarios": dcf_results,
-        }
+        tool_context["calculations"]["dcf_scenarios_default"] = build_dcf_scenarios(
+            base_fcf_billion_twd=base_fcf,
+            base_fcf_note=base_note,
+            latest_revenue_growth_pct=latest_revenue_growth_pct,
+            wacc_pct=wacc_pct,
+            shares_outstanding=shares,
+            net_debt_billion_twd=net_debt or 0,
+            dcf_calculator=calculate_dcf,
+        )
 
     dividend_rate = safe_float(dict.get(data, "dividend_rate_raw"))
     dividend_yield = safe_float(dict.get(data, "dividend_yield_raw"))

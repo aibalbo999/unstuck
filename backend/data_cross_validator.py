@@ -6,13 +6,20 @@ Flags divergences above threshold and upgrades data_trust accordingly.
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from statistics import median
+from typing import Any
 
+from data_cross_validation_thresholds import (
+    DEFAULT_CONFLICT_THRESHOLD_PCT,
+    DEFAULT_DIVERGENCE_THRESHOLD_PCT,
+    dynamic_cross_validation_thresholds,
+)
 from data_financial_metric_validator import (
     DEFAULT_FINANCIAL_METRIC_FIELDS,
     HIGH_DISCREPANCY_FLAG,
     validate_financial_metrics,
 )
+from data_validation_values import relative_divergence, safe_float
 
 
 # ------------------------------------------------------------------
@@ -34,75 +41,8 @@ CROSS_VALIDATE_FIELDS: dict[str, str] = {
     "current_price": "當前股價",
 }
 
-# Divergence threshold: above this % → flag as divergent
-DIVERGENCE_THRESHOLD_PCT = 5.0
-
-# If any field diverges beyond this → escalate to 'conflict'
-CONFLICT_THRESHOLD_PCT = 20.0
-
-
-# ------------------------------------------------------------------
-# Helpers
-# ------------------------------------------------------------------
-
-def _safe_float(value: Any) -> Optional[float]:
-    if value is None or value == "N/A":
-        return None
-    try:
-        if isinstance(value, str):
-            cleaned = value.replace(",", "").replace("NT$", "").replace("$", "").replace("%", "").strip()
-            if not cleaned:
-                return None
-            value = cleaned
-        result = float(value)
-        import math
-        if not math.isfinite(result):
-            return None
-        return result
-    except (TypeError, ValueError):
-        return None
-
-
-def _relative_divergence(a: float, b: float) -> float:
-    """Return |a-b| / max(|a|, |b|, 1) as percentage."""
-    return abs(a - b) / max(abs(a), abs(b), 1.0) * 100
-
-
-def _median_of(*values: Optional[float]) -> Optional[float]:
-    """Return median of non-None values."""
-    valid = sorted(v for v in values if v is not None)
-    n = len(valid)
-    if n == 0:
-        return None
-    if n % 2 == 1:
-        return valid[n // 2]
-    return (valid[n // 2 - 1] + valid[n // 2]) / 2
-
-
-def _dynamic_thresholds(primary_data: dict) -> tuple[float, float]:
-    ticker = str(primary_data.get("ticker") or "").strip().upper() if isinstance(primary_data, dict) else ""
-    if not _is_taiwan_ticker_for_threshold(ticker):
-        return DIVERGENCE_THRESHOLD_PCT, CONFLICT_THRESHOLD_PCT
-    market_cap = _safe_float(primary_data.get("market_cap_raw")) if isinstance(primary_data, dict) else None
-    if market_cap is None:
-        return DIVERGENCE_THRESHOLD_PCT, CONFLICT_THRESHOLD_PCT
-    market_cap_twd_billion = market_cap / 100_000_000
-    if market_cap_twd_billion > 500:
-        return DIVERGENCE_THRESHOLD_PCT, CONFLICT_THRESHOLD_PCT
-    if market_cap_twd_billion > 100:
-        return 8.0, 28.0
-    return 12.0, 40.0
-
-
-def _is_taiwan_ticker_for_threshold(ticker: str) -> bool:
-    text = str(ticker or "").strip().upper()
-    if text.endswith(".TWO"):
-        stock_id = text[:-4]
-        return stock_id.isdigit() and len(stock_id) == 4
-    if text.endswith(".TW"):
-        stock_id = text[:-3]
-        return stock_id.isdigit() and len(stock_id) == 4
-    return text.isdigit() and len(text) == 4
+DIVERGENCE_THRESHOLD_PCT = DEFAULT_DIVERGENCE_THRESHOLD_PCT
+CONFLICT_THRESHOLD_PCT = DEFAULT_CONFLICT_THRESHOLD_PCT
 
 
 # ------------------------------------------------------------------
@@ -134,7 +74,7 @@ def cross_validate_field(
         }
     """
     numeric: dict[str, Optional[float]] = {
-        src: _safe_float(val) for src, val in sources.items()
+        src: safe_float(val) for src, val in sources.items()
     }
     valid = {src: v for src, v in numeric.items() if v is not None}
 
@@ -148,9 +88,9 @@ def cross_validate_field(
             "divergent_sources": [],
         }
 
-    consensus = _median_of(*valid.values())
+    consensus = median(valid.values())
     divergences: dict[str, float] = {
-        src: _relative_divergence(v, consensus)
+        src: relative_divergence(v, consensus)
         for src, v in valid.items()
         if consensus is not None
     }
@@ -207,7 +147,7 @@ def cross_validate_sources(
     field_results: dict[str, dict] = {}
     conflict_fields: list[str] = []
     divergent_fields: list[str] = []
-    divergence_threshold_pct, conflict_threshold_pct = _dynamic_thresholds(primary_data)
+    divergence_threshold_pct, conflict_threshold_pct = dynamic_cross_validation_thresholds(primary_data)
 
     for field_key in CROSS_VALIDATE_FIELDS:
         sources: dict[str, Any] = {"yfinance": primary_data.get(field_key)}

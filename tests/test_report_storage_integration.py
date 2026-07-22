@@ -1,4 +1,5 @@
 import asyncio
+import importlib
 import json
 import os
 import time
@@ -19,6 +20,7 @@ from report_history_service import (
     list_reports,
 )
 from reporting import ReportBundle
+from report_history_downloads import secure_html_response
 from storage.report_storage import InMemoryStorage, StoredReport, StoredReportContent
 
 
@@ -295,6 +297,40 @@ def test_list_reports_uses_metadata_without_syncing_nonlocal_storage(tmp_path):
     assert [report["filename"] for report in result["reports"]] == [filename]
 
 
+def test_report_history_query_helpers_normalize_public_filters():
+    helpers = importlib.import_module("report_history_query")
+
+    filters = helpers.normalize_report_list_filters(
+        q="  2308 ",
+        pipeline=" Mode_D ",
+        recommendation="買進",
+        data_trust=" PARTIAL ",
+        include_versions="yes",
+    )
+
+    assert filters == {
+        "query": "2308",
+        "pipeline": "v4",
+        "recommendation": "買入",
+        "data_trust": "partial",
+        "include_versions": True,
+    }
+    assert helpers.normalize_include_versions("off") is False
+    assert helpers.normalize_report_list_filters(
+        q="",
+        pipeline="unsupported",
+        recommendation="???",
+        data_trust=object(),
+        include_versions=object(),
+    ) == {
+        "query": "",
+        "pipeline": "all",
+        "recommendation": "all",
+        "data_trust": "all",
+        "include_versions": False,
+    }
+
+
 def test_get_report_file_reads_storage_and_repairs_html():
     storage = InMemoryStorage()
     filename = "2308_TW_v2_report_20260626_120000.html"
@@ -308,6 +344,17 @@ def test_get_report_file_reads_storage_and_repairs_html():
 
     assert response.status_code == 200
     assert 'href="https://tw.stock.yahoo.com/quote/2308.TW"' in response.body.decode("utf-8")
+
+
+def test_report_history_download_helper_builds_secure_html_response():
+    response = secure_html_response("<h1>safe</h1>", status_code=202, headers={"X-Report": "ok"})
+
+    assert response.status_code == 202
+    assert response.headers["content-security-policy"].startswith("default-src 'self'")
+    assert "script-src 'none'" in response.headers["content-security-policy"]
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["referrer-policy"] == "no-referrer"
+    assert response.headers["x-report"] == "ok"
 
 
 def test_get_report_file_replaces_static_notice_when_snapshot_integrity_is_invalid():

@@ -7,6 +7,8 @@ from html import escape
 from mapping_fields import safe_mapping_dict, safe_text, safe_text_list
 from report_reproducibility import build_data_confidence_controls, build_reproducibility_packet
 
+from .text_tokens import is_missing_text_token
+
 
 def build_trust_controls_html(data: dict, context: dict | None = None) -> str:
     data = safe_mapping_dict(data) or {}
@@ -84,7 +86,7 @@ def _provider_list_text(packet: dict) -> str:
 
 def _line_text(value, default: str = "N/A") -> str:
     text = safe_text(value).strip()
-    if not text:
+    if is_missing_text_token(text):
         return default
     return " ".join(line.strip() for line in text.splitlines() if line.strip())
 

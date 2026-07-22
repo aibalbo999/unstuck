@@ -5,19 +5,11 @@ from __future__ import annotations
 from datetime import datetime
 
 import watchlist_store
+from watchlist_schedule_helpers import slot_due
 
 
 TAIPEI = watchlist_store.TAIPEI
 DEFAULT_SCHEDULES = watchlist_store.DEFAULT_SCHEDULES
-
-
-def _slot_due(slot: str, now: datetime) -> bool:
-    spec = DEFAULT_SCHEDULES.get(slot)
-    if not spec:
-        return False
-    hour, minute = [int(part) for part in spec["time"].split(":", 1)]
-    scheduled = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-    return now >= scheduled
 
 
 def claim_due_watchlist_items(now: datetime | None = None) -> list[dict]:
@@ -35,7 +27,7 @@ def claim_due_watchlist_items(now: datetime | None = None) -> list[dict]:
             last_run_dates = dict(item.get("last_run_dates") or {})
             item_claimed = False
             for slot in item.get("schedule_slots", []):
-                if not _slot_due(slot, now) or last_run_dates.get(slot) == today:
+                if not slot_due(slot, now, schedules=DEFAULT_SCHEDULES) or last_run_dates.get(slot) == today:
                     continue
                 claimed.append({**item, "due_slot": slot, "due_label": DEFAULT_SCHEDULES[slot]["label"], "due_date": today})
                 last_run_dates[slot] = today

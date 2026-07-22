@@ -7,7 +7,7 @@ from agent_catalog import AGENT_NAMES
 from final_audit import run_final_report_audit
 from llm_client import KeyRotator
 from runtime_events import emit_context_event, emit_context_event_async, emit_log, make_runtime_event
-from structured_outputs import parse_structured_data
+from structured_output_parser import parse_structured_data
 
 from . import repair_loop as _repair_loop
 from .deterministic_fallbacks import (

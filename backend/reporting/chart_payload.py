@@ -7,8 +7,12 @@ import re
 
 from mapping_fields import safe_mapping_dict, safe_mapping_items, safe_sequence_items, safe_text
 
+from .chart_values import filter_future_price_history
 from .html_sanitizer import sanitize_report_plain_text
-from .utils import filter_future_price_history
+from .text_tokens import is_missing_text_token
+
+
+CHART_NUMERIC_TOKEN_RE = re.compile(r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?")
 
 
 def chart_text_series(values) -> list[str]:
@@ -63,7 +67,8 @@ def chart_pe_river(value) -> dict:
     bands = {}
     raw_bands = safe_mapping_dict(value.get("bands", {})) or {}
     for label, series in safe_mapping_items(raw_bands):
-        bands[_chart_text(label)] = chart_number_series(series)
+        label_text = _unique_chart_label(bands, _chart_text(label), "估值通道")
+        bands[label_text] = chart_number_series(series)
     payload["bands"] = bands
 
     for key in ("eps_twd", "eps", "multiples"):
@@ -73,7 +78,20 @@ def chart_pe_river(value) -> dict:
 
 
 def _chart_text(value) -> str:
-    return sanitize_report_plain_text(safe_text(value)).strip()
+    text = sanitize_report_plain_text(safe_text(value)).strip()
+    if is_missing_text_token(text):
+        return ""
+    return text
+
+
+def _unique_chart_label(existing: dict, label: str, fallback: str) -> str:
+    base = label or fallback
+    candidate = base
+    suffix = 2
+    while candidate in existing:
+        candidate = f"{base} {suffix}"
+        suffix += 1
+    return candidate
 
 
 def _chart_number(value, *, scale: float = 1) -> float | None:
@@ -88,11 +106,11 @@ def _chart_number(value, *, scale: float = 1) -> float | None:
         try:
             number = float(text)
         except ValueError:
-            match = re.search(r"-?\d+(?:\.\d+)?", text)
-            if not match:
+            tokens = CHART_NUMERIC_TOKEN_RE.findall(text)
+            if len(tokens) != 1:
                 return None
             try:
-                number = float(match.group(0))
+                number = float(tokens[0])
             except ValueError:
                 return None
     number *= scale

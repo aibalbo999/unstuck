@@ -149,6 +149,148 @@ def test_rendered_report_escapes_external_and_model_strings():
     assert "台積電" in html
 
 
+def test_rendered_report_identity_drops_string_empty_tokens():
+    context = {
+        "ticker": "NaN",
+        "company_name": "Infinity",
+        "pipeline_id": "v1",
+        "data": {
+            "ticker": "NaN",
+            "company_name": "Infinity",
+            "current_price": 100,
+            "current_price_fmt": "NT$100",
+            "source_audit": [],
+        },
+        "analyses": {},
+        "parsed": {
+            "recommendation": {"建議": "持有", "12個月": "NT$120", "信心": "6/10"},
+            "price_targets": {},
+            "moat_scores": {},
+        },
+    }
+
+    html = generate_html_report(context)
+
+    assert ">NaN<" not in html
+    assert ">Infinity<" not in html
+    assert "N/A" in html
+
+
+def test_rendered_report_meta_drops_string_empty_tokens():
+    context = {
+        "ticker": "2330.TW",
+        "company_name": "台積電",
+        "pipeline_id": "v1",
+        "data": {
+            "ticker": "2330.TW",
+            "company_name": "台積電",
+            "sector": "NaN",
+            "industry": "Infinity",
+            "fetch_date": "-Infinity",
+            "current_price": 100,
+            "current_price_fmt": "NT$100",
+            "source_audit": [],
+        },
+        "analyses": {},
+        "parsed": {
+            "recommendation": {"建議": "持有", "12個月": "NT$120", "信心": "6/10"},
+            "price_targets": {},
+            "moat_scores": {},
+        },
+    }
+
+    html = generate_html_report(context)
+
+    assert "NaN ·" not in html
+    assert "· Infinity" not in html
+    assert "-Infinity" not in html
+    assert "N/A · N/A" in html
+
+
+def test_rendered_report_synthesis_drops_string_empty_tokens():
+    context = {
+        "ticker": "2330.TW",
+        "company_name": "台積電",
+        "pipeline_id": "v1",
+        "data": {
+            "ticker": "2330.TW",
+            "company_name": "台積電",
+            "current_price": 100,
+            "current_price_fmt": "NT$100",
+            "source_audit": [],
+        },
+        "analyses": {},
+        "parsed": {
+            "recommendation": {"建議": "持有", "12個月": "NT$120", "信心": "6/10"},
+            "price_targets": {},
+            "moat_scores": {},
+        },
+        "executive_thesis": "NaN",
+        "smoothed_markdown": "Infinity",
+    }
+
+    html = generate_html_report(context)
+
+    assert ">NaN<" not in html
+    assert ">Infinity<" not in html
+    assert "投資核心論點" not in html
+    assert "總編輯整合觀點" not in html
+
+
+def test_rendered_report_runtime_duration_drops_string_empty_tokens():
+    context = {
+        "ticker": "2330.TW",
+        "company_name": "台積電",
+        "pipeline_id": "v1",
+        "data": {
+            "ticker": "2330.TW",
+            "company_name": "台積電",
+            "current_price": 100,
+            "current_price_fmt": "NT$100",
+            "source_audit": [],
+        },
+        "analyses": {},
+        "parsed": {
+            "recommendation": {"建議": "持有", "12個月": "NT$120", "信心": "6/10"},
+            "price_targets": {},
+            "moat_scores": {},
+        },
+        "total_time": "Infinity",
+    }
+
+    html = generate_html_report(context)
+
+    assert "分析耗時：N/A" in html
+    assert "Infinity 秒" not in html
+
+
+def test_rendered_report_agent_section_drops_string_empty_tokens():
+    context = {
+        "ticker": "2330.TW",
+        "company_name": "台積電",
+        "pipeline_id": "v1",
+        "agent_sequence": [1],
+        "data": {
+            "ticker": "2330.TW",
+            "company_name": "台積電",
+            "current_price": 100,
+            "current_price_fmt": "NT$100",
+            "source_audit": [],
+        },
+        "analyses": {1: "NaN"},
+        "parsed": {
+            "recommendation": {"建議": "持有", "12個月": "NT$120", "信心": "6/10"},
+            "price_targets": {},
+            "moat_scores": {},
+        },
+    }
+
+    html = generate_html_report(context)
+
+    assert ">NaN<" not in html
+    assert "分析進行中" in html
+
+
 def test_rendered_report_embeds_safe_traceability_and_chart_payloads():
     context = {
         "ticker": "2330.TW",
@@ -356,6 +498,28 @@ def test_analysis_overlay_display_fields_collapse_embedded_newlines():
     assert peers[0]["ticker"] == "2330 TW"
     assert peers[1]["name"] == "同業 甲"
     assert peers[1]["ticker"] == "VALID A"
+
+
+def test_analysis_overlay_peer_labels_drop_string_empty_tokens():
+    from reporting.analysis_overlays import build_peer_comparison_rows
+
+    rows = build_peer_comparison_rows({
+        "ticker": "NaN",
+        "company_name": "Infinity",
+        "dynamic_peer_metrics": [
+            {"name": "N/A", "ticker": "-Infinity"},
+            {"name": "有效同業", "ticker": "VALID"},
+        ],
+    })
+
+    assert rows[0]["name"] == "目標公司"
+    assert rows[0]["ticker"] == ""
+    assert rows[1]["name"] == "同業"
+    assert rows[1]["ticker"] == ""
+    assert rows[2]["name"] == "有效同業"
+    assert rows[2]["ticker"] == "VALID"
+    assert "nan" not in str(rows).lower()
+    assert "infinity" not in str(rows).lower()
 
 
 def test_analysis_overlay_structured_outputs_use_mapping_safe_conversion():
@@ -683,7 +847,7 @@ def test_chart_payload_series_use_json_safe_values():
     assert payload["opMargin"] == [30, None]
     assert payload["priceHistory"] == {"dates": ["2026-01-02"], "prices": [None]}
     assert payload["peRiver"]["years"] == ["", "2026"]
-    assert payload["peRiver"]["bands"] == {"15x": [None, 120], "": [80]}
+    assert payload["peRiver"]["bands"] == {"15x": [None, 120], "估值通道": [80]}
     assert payload["peRiver"]["eps"] == [None, 8]
     for residue in [
         "bad-year",
@@ -941,7 +1105,7 @@ def test_pe_river_chart_payload_accepts_mapping_wrappers():
     assert payload["peRiver"]["eps"] == [6, 8]
 
 
-def test_current_price_chart_literal_uses_finite_number_fallback():
+def test_current_price_chart_payload_uses_finite_number_fallback():
     context = {
         "ticker": "2330.TW",
         "company_name": "台積電",
@@ -965,14 +1129,24 @@ def test_current_price_chart_literal_uses_finite_number_fallback():
 
     html = generate_html_report(context)
 
-    assert "const currentPrice = 0;" in html
+    match = re.search(r'<script id="report-chart-data" type="application/json">(.*?)</script>', html)
+    assert match
+    payload = json.loads(match.group(1))
+    assert payload["currentPrice"] is None
+    assert "const currentPrice = CHART_DATA.currentPrice;" in html
+    assert "const currentPrice = CHART_DATA.currentPrice || 0;" not in html
     assert "const currentPrice = True;" not in html
     assert "(+14900.0%)" not in html
 
     context["data"]["current_price"] = float("nan")
     html = generate_html_report(context)
 
-    assert "const currentPrice = 0;" in html
+    match = re.search(r'<script id="report-chart-data" type="application/json">(.*?)</script>', html)
+    assert match
+    payload = json.loads(match.group(1))
+    assert payload["currentPrice"] is None
+    assert "const currentPrice = CHART_DATA.currentPrice;" in html
+    assert "const currentPrice = CHART_DATA.currentPrice || 0;" not in html
     assert "const currentPrice = nan;" not in html
 
 

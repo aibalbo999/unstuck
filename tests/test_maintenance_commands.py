@@ -1,4 +1,6 @@
 import json
+import importlib
+import importlib.util
 import sqlite3
 import sys
 from datetime import datetime, timezone
@@ -19,6 +21,41 @@ from data_trust_snapshot import build_data_snapshot, verify_data_snapshot_integr
 from market_calendar_store import update_market_calendars  # noqa: E402
 from snapshot_maintenance import verify_snapshots  # noqa: E402
 from storage_inventory import build_storage_summary  # noqa: E402
+
+
+def test_database_maintenance_backups_plan_and_prune_policy(tmp_path):
+    assert importlib.util.find_spec("database_maintenance_backups") is not None
+    backups = importlib.import_module("database_maintenance_backups")
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    latest = backup_dir / "task_db-20260701.sqlite3"
+    stale_active = backup_dir / "task_db-20260601.sqlite3"
+    stale_inactive = backup_dir / "checkpoint_db-20260601.sqlite3"
+    for path in (latest, stale_active, stale_inactive):
+        path.write_bytes(b"backup")
+
+    plan = backups.backup_plan(
+        "task_db",
+        backup_dir,
+        "20260710",
+        exists=True,
+        write=True,
+        backup_interval_days=30,
+    )
+    pruning = backups.prune_backup_files(
+        backup_dir,
+        retention_days=1,
+        timestamp=datetime(2026, 7, 10, tzinfo=timezone.utc),
+        write=False,
+        protected_labels={"task_db"},
+    )
+
+    assert plan["status"] == "skipped_interval"
+    assert plan["latest_backup"] == str(latest)
+    assert plan["next_due_date"] == "2026-07-31"
+    assert set(pruning["candidates"]) == {str(stale_active), str(stale_inactive)}
+    assert pruning["deleted"] == []
+    assert pruning["protected_labels"] == ["task_db"]
 
 
 def test_update_market_calendars_writes_seed_files(tmp_path):

@@ -19,6 +19,7 @@ from config import (
 )
 from job_store_maintenance import analysis_history_summary
 from report_index_maintenance import report_index_orphan_summary
+from storage_inventory_summary import report_file_counts, sqlite_table_counts
 
 
 def ensure_runtime_storage(
@@ -96,15 +97,15 @@ def build_storage_summary(
             "task_db_path": str(task_db),
             "market_calendar_dir": str(calendar_path),
         },
-        "reports": _report_file_counts(output_path),
+        "reports": report_file_counts(output_path),
         "cache_db": {
             "exists": cache_db.exists(),
-            "tables": _sqlite_table_counts(cache_db, ("cache_entries", "reports", "schema_migrations")),
+            "tables": sqlite_table_counts(cache_db, ("cache_entries", "reports", "schema_migrations")),
             "report_index_orphans": report_index_orphan_summary(str(cache_db)),
         },
         "task_db": {
             "exists": task_db.exists(),
-            "tables": _sqlite_table_counts(
+            "tables": sqlite_table_counts(
                 task_db,
                 (
                     "analysis_jobs",
@@ -223,48 +224,6 @@ def _configure_yfinance_cache(cache_dir: Path) -> None:
     if all(manager is not None and manager.get_location() == desired for manager in managers):
         return
     yf_cache.set_cache_location(desired)
-
-
-def _report_file_counts(output_path: Path) -> dict:
-    if not output_path.exists():
-        return {"exists": False, "html": 0, "markdown": 0, "data_snapshots": 0}
-    return {
-        "exists": True,
-        "html": _count_report_files(output_path, "*.html"),
-        "markdown": _count_report_files(output_path, "*.md"),
-        "data_snapshots": _count_report_files(output_path, "*.data.json"),
-    }
-
-
-def _count_report_files(output_path: Path, pattern: str) -> int:
-    return sum(
-        1
-        for path in output_path.rglob(pattern)
-        if path.is_file() and not path.is_symlink()
-    )
-
-
-def _sqlite_table_counts(path: Path, table_names: tuple[str, ...]) -> dict:
-    if not path.exists():
-        return {name: None for name in table_names}
-    counts = {}
-    try:
-        with sqlite3.connect(path) as conn:
-            for table_name in table_names:
-                counts[table_name] = _table_count(conn, table_name)
-    except sqlite3.Error:
-        return {name: None for name in table_names}
-    return counts
-
-
-def _table_count(conn: sqlite3.Connection, table_name: str) -> int | None:
-    exists = conn.execute(
-        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
-        (table_name,),
-    ).fetchone()
-    if not exists:
-        return None
-    return int(conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0])
 
 
 def _remove_sqlite_family(path: Path, removed: list[str], seen: set[Path]) -> None:

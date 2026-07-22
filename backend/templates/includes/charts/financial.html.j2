@@ -1,4 +1,24 @@
     // ─── 1. 營收與淨利圖 ────────────────────────────────────
+    function finiteChartValue(value) {
+        return Number.isFinite(value) ? value : null;
+    }
+
+    function moneyYiLabel(value) {
+        const number = finiteChartValue(value);
+        return number === null ? 'N/A' : `NT$${number}億`;
+    }
+
+    function percentLabel(value) {
+        const number = finiteChartValue(value);
+        return number === null ? 'N/A' : `${number}%`;
+    }
+
+    function fcfBarColor(value) {
+        const number = finiteChartValue(value);
+        if (number === null) return 'rgba(148,163,184,0.45)';
+        return number >= 0 ? 'rgba(16,185,129,0.7)' : 'rgba(239,68,68,0.7)';
+    }
+
     const revCtx = document.getElementById('revenueChart')?.getContext('2d');
     if (revCtx && CHART_DATA.years.length > 0) {
         new Chart(revCtx, {
@@ -31,7 +51,7 @@
                     legend: { position: 'bottom', labels: { padding: 16, font: { size: 11 } } },
                     tooltip: {
                         callbacks: {
-                            label: ctx => `${ctx.dataset.label}: NT$${ctx.raw}億`
+                            label: ctx => `${ctx.dataset.label}: ${moneyYiLabel(ctx.raw)}`
                         }
                     }
                 },
@@ -90,7 +110,7 @@
                     legend: { position: 'bottom', labels: { padding: 12, font: { size: 11 } } },
                     tooltip: {
                         callbacks: {
-                            label: ctx => `${ctx.dataset.label}: ${ctx.raw}%`
+                            label: ctx => `${ctx.dataset.label}: ${percentLabel(ctx.raw)}`
                         }
                     }
                 },
@@ -105,7 +125,7 @@
     // ─── 3. 自由現金流圖 ─────────────────────────────────────
     const fcfCtx = document.getElementById('fcfChart')?.getContext('2d');
     if (fcfCtx && CHART_DATA.years.length > 0) {
-        const fcfColors = (CHART_DATA.fcf || []).map(v => v >= 0 ? 'rgba(16,185,129,0.7)' : 'rgba(239,68,68,0.7)');
+        const fcfColors = (CHART_DATA.fcf || []).map(fcfBarColor);
         new Chart(fcfCtx, {
             type: 'bar',
             data: {
@@ -126,7 +146,7 @@
                     legend: { display: false },
                     tooltip: {
                         callbacks: {
-                            label: ctx => `自由現金流: NT$${ctx.raw}億`
+                            label: ctx => `自由現金流: ${moneyYiLabel(ctx.raw)}`
                         }
                     }
                 },
@@ -164,7 +184,7 @@
                     legend: { display: false },
                     tooltip: {
                         callbacks: {
-                            label: ctx => `ROE: ${ctx.raw}%`
+                            label: ctx => `ROE: ${percentLabel(ctx.raw)}`
                         }
                     }
                 },

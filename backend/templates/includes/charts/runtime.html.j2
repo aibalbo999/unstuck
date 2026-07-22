@@ -1,9 +1,104 @@
     // ─── 圖表數據 ─────────────────────────────────────────
     const chartPayload = document.getElementById('report-chart-data');
-    const CHART_DATA = {{ chart_data|tojson }};
-    if (chartPayload) {
-        Object.assign(CHART_DATA, JSON.parse(chartPayload.textContent || '{}'));
+    function defaultChartData() {
+        return {
+            years: [],
+            revenue: [],
+            netIncome: [],
+            grossMargin: [],
+            opMargin: [],
+            netMargin: [],
+            fcf: [],
+            roe: [],
+            moatLabels: [],
+            moatValues: [],
+            priceTargets: {},
+            currentPrice: null,
+            peRiver: null,
+        };
     }
+
+    function chartArray(value) {
+        return Array.isArray(value) ? value : [];
+    }
+
+    function chartObject(value) {
+        return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    }
+
+    function finiteChartNumber(value) {
+        if (value === null || value === undefined) return null;
+        if (typeof value === 'boolean') return null;
+        if (typeof value === 'string' && !value.trim()) return null;
+        const number = Number(value);
+        return Number.isFinite(number) ? number : null;
+    }
+
+    function chartNumberSeries(value) {
+        return chartArray(value).map(item => finiteChartNumber(item));
+    }
+
+    function normalizePriceTargets(value) {
+        const targets = chartObject(value);
+        const normalized = {};
+        Object.keys(targets).forEach(label => {
+            const price = finiteChartNumber(targets[label]);
+            if (price !== null) normalized[label] = price;
+        });
+        return normalized;
+    }
+
+    function normalizePeRiverBands(value) {
+        const bands = chartObject(value);
+        const normalized = {};
+        Object.keys(bands).forEach(label => {
+            normalized[label] = chartNumberSeries(bands[label]);
+        });
+        return normalized;
+    }
+
+    function normalizePeRiver(value) {
+        const peRiver = chartObject(value);
+        if (!Object.keys(peRiver).length) return null;
+        return Object.assign({}, peRiver, {
+            years: chartArray(peRiver.years),
+            bands: normalizePeRiverBands(peRiver.bands),
+            eps: chartNumberSeries(peRiver.eps),
+        });
+    }
+
+    function normalizeChartData(parsed) {
+        return Object.assign(defaultChartData(), parsed, {
+            years: chartArray(parsed.years),
+            revenue: chartNumberSeries(parsed.revenue),
+            netIncome: chartNumberSeries(parsed.netIncome),
+            grossMargin: chartNumberSeries(parsed.grossMargin),
+            opMargin: chartNumberSeries(parsed.opMargin),
+            netMargin: chartNumberSeries(parsed.netMargin),
+            fcf: chartNumberSeries(parsed.fcf),
+            roe: chartNumberSeries(parsed.roe),
+            moatLabels: chartArray(parsed.moatLabels),
+            moatValues: chartNumberSeries(parsed.moatValues),
+            priceTargets: normalizePriceTargets(parsed.priceTargets),
+            currentPrice: finiteChartNumber(parsed.currentPrice),
+            peRiver: normalizePeRiver(parsed.peRiver),
+        });
+    }
+
+    function readChartPayload() {
+        if (!chartPayload) return defaultChartData();
+        try {
+            const parsed = JSON.parse(chartPayload.textContent || '{}') || {};
+            if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+                return defaultChartData();
+            }
+            return normalizeChartData(parsed);
+        } catch (_) {
+            return defaultChartData();
+        }
+    }
+
+    const CHART_DATA = readChartPayload();
 
     window.StockAgentReportTraceability = (function () {
         let payload = null;

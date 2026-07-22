@@ -4,15 +4,21 @@ from __future__ import annotations
 
 import asyncio
 import json
-import math
-from collections.abc import Mapping
 from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import Request
 
-from data_trust import sanitize_for_snapshot
-from mapping_fields import safe_int, safe_mapping_dict, safe_sequence_items, safe_text
+from api_routes.analysis_sse_payloads import (
+    replay_bool_field,
+    replay_count_field,
+    replay_event_id,
+    replay_float_field,
+    replay_payload_type,
+    replay_text_field,
+    sanitize_replay_payload,
+)
+from mapping_fields import safe_mapping_dict, safe_sequence_items, safe_text
 
 
 INITIAL_SSE_POLL_INTERVAL_SECONDS = 0.5
@@ -68,60 +74,7 @@ async def analysis_event_generator(
                 continue
             last_sent_event_id = event_id
             replay_advanced = True
-            payload = safe_mapping_dict(event_row.get("payload"))
-            if payload is None:
-                payload = {
-                    "type": "status",
-                    "level": "warning",
-                    "message": "略過格式異常的分析任務事件",
-                    "job_id": job_id,
-                }
-            else:
-                payload_type = replay_payload_type(payload.get("type"))
-                if not payload_type:
-                    payload = {
-                        "type": "status",
-                        "level": "warning",
-                        "message": "略過格式異常的分析任務事件",
-                        "job_id": job_id,
-                    }
-                else:
-                    payload = {**payload, "type": payload_type}
-                    if "message" in payload:
-                        payload["message"] = replay_text_field(payload.get("message"))
-                    for text_field in ("phase", "level"):
-                        if text_field in payload:
-                            payload[text_field] = replay_text_field(payload.get(text_field))
-                    for text_field in ("filename", "md_filename", "data_filename", "pipeline_id", "last_pipeline_id", "thread_id"):
-                        if text_field in payload:
-                            payload[text_field] = replay_text_field(payload.get(text_field))
-                    for text_field in ("name", "detail", "pipeline_label"):
-                        if text_field in payload:
-                            payload[text_field] = replay_text_field(payload.get(text_field))
-                    for text_field in ("node_name", "model", "status", "error"):
-                        if text_field in payload:
-                            payload[text_field] = replay_text_field(payload.get(text_field))
-                    for count_field in (
-                        "current",
-                        "total",
-                        "agent_num",
-                        "pipeline_current",
-                        "pipeline_total",
-                        "pipeline_index",
-                        "agent_total",
-                        "agent_offset",
-                    ):
-                        if count_field in payload:
-                            payload[count_field] = replay_count_field(payload.get(count_field))
-                    if "latency_ms" in payload:
-                        payload["latency_ms"] = replay_float_field(payload.get("latency_ms"))
-                    if "retry_count" in payload:
-                        payload["retry_count"] = replay_count_field(payload.get("retry_count"))
-                    if "quality_gate_pass" in payload:
-                        payload["quality_gate_pass"] = replay_bool_field(payload.get("quality_gate_pass"))
-                    for structured_field in ("metadata", "data_trust", "audit", "filenames", "reports", "pipeline_sequence"):
-                        if structured_field in payload:
-                            payload[structured_field] = sanitize_for_snapshot(payload.get(structured_field))
+            payload = sanitize_replay_payload(event_row.get("payload"), job_id=job_id)
             deps.print_streamed_event(job_id, payload)
             yield {"id": str(event_id), "data": json.dumps(payload, ensure_ascii=False)}
             if payload.get("type") in ["done", "error"]:
@@ -216,65 +169,6 @@ def _terminal_event_type(event: Any) -> str:
 
 def _event_rows(events: Any) -> list[Any]:
     return safe_sequence_items(events)
-
-
-def replay_event_id(value: Any) -> int:
-    if isinstance(value, (bool, bytes, bytearray, memoryview)):
-        return 0
-    return safe_int(value)
-
-
-def replay_count_field(value: Any) -> int:
-    if isinstance(value, (bool, bytes, bytearray, memoryview)):
-        return 0
-    return safe_int(value)
-
-
-def replay_float_field(value: Any) -> float:
-    if isinstance(value, (bool, bytes, bytearray, memoryview)):
-        return 0.0
-    try:
-        number = float(0.0 if value is None else value)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
-        return 0.0
-    return number if math.isfinite(number) else 0.0
-
-
-def replay_bool_field(value: Any) -> bool:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (bytes, bytearray, memoryview)):
-        return False
-    if isinstance(value, Mapping) or isinstance(value, (list, tuple, set, frozenset)):
-        return False
-    if isinstance(value, str):
-        text = value.strip().lower()
-        if text in {"1", "true", "yes", "on"}:
-            return True
-        if text in {"", "0", "false", "no", "off", "none", "null"}:
-            return False
-        return False
-    if isinstance(value, (int, float)):
-        try:
-            number = float(value)
-        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
-            return False
-        if not math.isfinite(number):
-            return False
-        return number == 1
-    return False
-
-
-def replay_text_field(value: Any) -> str:
-    if isinstance(value, Mapping) or isinstance(value, (list, tuple, set, frozenset)):
-        return ""
-    return safe_text(value).strip()
-
-
-def replay_payload_type(value: Any) -> str:
-    if not isinstance(value, str):
-        return ""
-    return safe_text(value).strip()
 
 
 def resolve_resume_after_id(request: Request, last_event_id: int | None, since_id: int | None) -> int:

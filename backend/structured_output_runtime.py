@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import re
 from analysis_types import AnalysisContext
-from structured_output_models import STRUCTURED_AGENT_INSTRUCTIONS, _extract_json_payload
+from json_utils import extract_json_payload
+from structured_output_models import STRUCTURED_AGENT_INSTRUCTIONS
 from structured_output_normalizer import (
     normalize_structured_output,
     price_targets_have_unit_error,
@@ -29,7 +30,9 @@ def process_agent_response(agent_num: int, raw_text: str, context: AnalysisConte
     if agent_num not in STRUCTURED_AGENT_INSTRUCTIONS:
         return _sanitize_text(raw_text or "")
 
-    payload = _extract_json_payload(raw_text or "")
+    payload = extract_json_payload(raw_text or "")
+    if payload is None:
+        return _sanitize_text(raw_text or "")
     structured = normalize_structured_output(agent_num, payload)
     if not structured:
         if isinstance(payload, dict) and "analysis_markdown" in payload:

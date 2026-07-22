@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import re
 from typing import Any, Optional
 
+from confidence_score_parser import parse_confidence_score_text
 from data_trust_scoring import normalize_data_trust, trust_status_label
 
 
@@ -18,13 +18,7 @@ TRUST_CONFIDENCE_CAPS = {
 
 
 def confidence_score(value: Any) -> Optional[float]:
-    match = re.search(r"(\d+(?:\.\d+)?)", str(value or ""))
-    if not match:
-        return None
-    score = float(match.group(1))
-    if score <= 1:
-        return round(score * 10, 2)
-    return round(score, 2)
+    return parse_confidence_score_text(value)
 
 
 def confidence_value(recommendation: dict) -> str:
@@ -65,14 +59,14 @@ def build_confidence_calibration(
         conflict_note = None
     raw_confidence = confidence_value(recommendation)
     score = confidence_score(raw_confidence)
-    
+
     basis = recommendation.get("confidence_basis") or {}
     evidence_items = basis.get("evidence_items", []) if isinstance(basis, dict) else []
     risks = basis.get("key_risks_acknowledged", []) if isinstance(basis, dict) else []
-    
+
     penalty = 0
     penalty_reasons = []
-    
+
     if isinstance(basis, dict) and basis:
         if len(evidence_items) < 3:
             penalty += 2

@@ -1,5 +1,7 @@
 import asyncio
 import base64
+import importlib
+import importlib.util
 import json
 import sys
 import subprocess
@@ -1911,6 +1913,56 @@ def test_active_jobs_api(monkeypatch):
 
     assert response.status_code == 200
     assert response.json()["active_count"] == 0
+
+
+def test_job_ops_dashboard_metrics_summarize_latency_telemetry_and_prompt_budget():
+    assert importlib.util.find_spec("job_ops_dashboard_metrics") is not None
+    metrics = importlib.import_module("job_ops_dashboard_metrics")
+    latency_rows = [
+        {"created_at": 0.0, "started_at": 10.0, "updated_at": 70.0, "finished_at": 70.0},
+        {"created_at": 0.0, "started_at": 20.0, "updated_at": 200.0, "finished_at": 200.0},
+        {"created_at": 0.0, "started_at": 30.0, "updated_at": 630.0, "finished_at": 630.0},
+    ]
+    telemetry_rows = [
+        {
+            "node_name": "valuation_agent",
+            "model": "gemini-2.5-pro",
+            "latency_ms": 1_000,
+            "status": "success",
+            "retry_count": 0,
+            "input_tokens": 120,
+            "output_tokens": 40,
+            "cache_hit": True,
+            "quality_gate_pass": 1,
+        },
+        {
+            "node_name": "valuation_agent",
+            "model": "gemini-2.5-pro",
+            "latency_ms": 2_500,
+            "status": "failed",
+            "retry_count": 2,
+            "input_tokens": 80,
+            "output_tokens": 20,
+            "cache_hit": False,
+            "quality_gate_pass": 0,
+            "error": "timeout waiting for model",
+        },
+    ]
+
+    latency = metrics.job_latency_summary(latency_rows)
+    telemetry = metrics.node_telemetry_summary(telemetry_rows)
+    budget = metrics.prompt_budget_summary(telemetry_rows)
+
+    assert latency["p50_seconds"] == 180.0
+    assert latency["p95_seconds"] == 600.0
+    node = telemetry["nodes"]["valuation_agent"]
+    assert node["calls"] == 2
+    assert node["failure_rate"] == 0.5
+    assert node["quality_gate_failures"] == 1
+    assert telemetry["models"]["gemini-2.5-pro"]["timeout_errors"] == 1
+    assert budget["sample_size"] == 2
+    assert budget["total_tokens"] == 260
+    assert budget["cache_hit_count"] == 1
 
 
 def test_ops_dashboard_summarizes_latency_stuck_jobs_and_node_telemetry(monkeypatch, tmp_path):
@@ -4363,6 +4415,49 @@ def test_legacy_admin_token_alias_can_be_temporarily_enabled(monkeypatch):
     })())
 
 
+def test_api_mutation_security_helper_builds_tokens_cors_and_authorization():
+    assert importlib.util.find_spec("api_mutation_security") is not None
+    security = importlib.import_module("api_mutation_security")
+    rate_limit_calls = []
+
+    assert security.allowed_mutation_tokens("local", "runtime-token", "configured-token") == {
+        "runtime-token",
+        "configured-token",
+    }
+    assert security.allowed_mutation_tokens("server", "runtime-token", "") == set()
+    assert security.client_config("local", "runtime-token", "X-Mutation-Token") == {
+        "mutation_header": "X-Mutation-Token",
+        "mutation_token": "runtime-token",
+        "deployment_mode": "local",
+    }
+    assert security.client_config("server", "runtime-token", "X-Mutation-Token")["mutation_token"] == ""
+    assert security.cors_allow_methods("lan") == ["GET", "POST", "DELETE", "OPTIONS"]
+    assert security.cors_allow_headers("prod", "X-Mutation-Token") == [
+        "Content-Type",
+        "X-Mutation-Token",
+        "X-Admin-Token",
+        "Last-Event-ID",
+    ]
+
+    class FakeRequest:
+        headers = {"x-admin-token": "configured-token"}
+        client = None
+
+    security.require_mutation_authorized(
+        FakeRequest(),
+        check_mutation_rate_limit=lambda request, tokens, max_requests, window_seconds: rate_limit_calls.append(
+            (tokens, max_requests, window_seconds)
+        ),
+        allow_legacy_admin_token=True,
+        mutation_api_token="configured-token",
+        runtime_mutation_token="runtime-token",
+        deployment_mode="server",
+        max_requests=3,
+        window_seconds=60,
+    )
+    assert rate_limit_calls == [(["", "configured-token"], 3, 60)]
+
+
 def test_mutation_authorization_rate_limits_repeated_attempts(monkeypatch):
     import mutation_rate_limit
 
@@ -4588,6 +4683,75 @@ def test_context_digest_hash_cache_reuses_successful_digest(monkeypatch):
     assert calls["llm"] == 1
     assert context["context_digests"][4] == first_digest
     assert context["_digest_hash_map"]
+
+
+def test_context_digest_runtime_helpers_scope_hash_cache_key_and_event_metadata():
+    runtime_path = ROOT / "backend" / "context_digest_runtime.py"
+    assert runtime_path.exists()
+    context_digest_runtime = importlib.import_module("context_digest_runtime")
+    context = {
+        "pipeline_id": "pipe-v1",
+        "pipeline_label": "夜間批次",
+        "prompt_version": "prompt-a",
+        "agent_positions": {4: 2},
+        "agent_total": 6,
+        "analyses": {
+            1: "商業模式" * 120,
+            "2": "財務分析",
+            4: "本輪 Agent 不應進 hash",
+            5: "後續 Agent 不應進 hash",
+            "peer": "非數字 key 不應進 hash",
+        },
+    }
+
+    input_hash = context_digest_runtime._digest_input_hash(4, context)
+    changed_non_inputs = dict(
+        context,
+        analyses={
+            **context["analyses"],
+            4: "本輪 Agent 改變仍不應進 hash",
+            5: "後續 Agent 改變仍不應進 hash",
+            "peer": "非數字 key 改變仍不應進 hash",
+        },
+    )
+    changed_prior = dict(context, analyses={**context["analyses"], "2": "前序分析改變"})
+
+    assert context_digest_runtime._digest_input_hash(4, changed_non_inputs) == input_hash
+    assert context_digest_runtime._digest_input_hash(4, changed_prior) != input_hash
+
+    cache_key = context_digest_runtime._context_digest_cache_key(4, input_hash, "gemini-a", context)
+    changed_prompt_key = context_digest_runtime._context_digest_cache_key(
+        4,
+        input_hash,
+        "gemini-a",
+        dict(context, prompt_version="prompt-b"),
+    )
+
+    assert cache_key.startswith("context_digest:")
+    assert changed_prompt_key != cache_key
+    assert context_digest_runtime._context_digest_model_sequence()
+
+    event = context_digest_runtime._agent_event_kwargs(
+        context,
+        4,
+        "gemini-a",
+        "context_digest_done",
+        "摘要完成",
+        level="warning",
+    )
+
+    assert event == {
+        "phase": "context_digest_done",
+        "level": "warning",
+        "message": "摘要完成",
+        "current": 2,
+        "total": 6,
+        "name": "投資銀行估值分析",
+        "agent_num": 4,
+        "pipeline_id": "pipe-v1",
+        "pipeline_label": "夜間批次",
+        "metadata": {"model_id": "gemini-a", "task": "context_digest"},
+    }
 
 
 def test_context_digest_cache_reuses_digest_across_contexts(monkeypatch):

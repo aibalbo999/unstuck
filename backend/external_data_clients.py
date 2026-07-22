@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 
 import external_data_fmp as _fmp
+import external_search_provider_clients as _search_clients
 import external_search_providers as _search
 from config import (
     FMP_API_KEY,
@@ -26,6 +27,7 @@ def _sync_source_seams() -> None:
     _fmp.log_http_warning = log_http_warning
 
     _search._async_json_get = _async_json_get
+    _search_clients._async_json_get = _async_json_get
 
 
 def fetch_fmp_quote_fallback(ticker: str) -> dict:

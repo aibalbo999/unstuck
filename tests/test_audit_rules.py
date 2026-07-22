@@ -3,6 +3,8 @@ import httpx
 import sys
 import json
 import unittest
+import importlib
+from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -29,11 +31,16 @@ import pipeline_modes  # noqa: E402
 import rag_runtime  # noqa: E402
 import reporting.legacy_report_gen as report_gen  # noqa: E402
 import reporting.utils as report_utils  # noqa: E402
-import structured_outputs  # noqa: E402
 from quant_engine import QuantEngine  # noqa: E402
 from llm_client import KeyRotator  # noqa: E402
 from openai_structured_outputs import openai_json_schema_response_format  # noqa: E402
-from structured_output_models import PriceTargetStructuredOutput  # noqa: E402
+from structured_output_normalizer import normalize_structured_output  # noqa: E402
+from structured_output_recommendation_outputs import (  # noqa: E402
+    BubbleSniperStructuredOutput,
+    RecommendationStructuredOutput,
+)
+from structured_output_report_text import structured_output_to_report_text  # noqa: E402
+from structured_output_valuation_models import MoatStructuredOutput, PriceTargetStructuredOutput  # noqa: E402
 
 
 def base_data():
@@ -166,6 +173,42 @@ def complete_v2_context():
     }
     context["parsed"] = ar.parse_structured_data(context)
     return context
+
+
+def test_final_audit_helpers_extract_prices_and_corrections_without_truthiness_surprises():
+    assert importlib.util.find_spec("final_audit_helpers") is not None
+    final_audit_helpers = importlib.import_module("final_audit_helpers")
+    recommendation = {
+        "長期目標（12個月）": "基本情境 NT$1,200，若逆風 NT$980",
+        "信心指數": "7/10",
+    }
+
+    assert final_audit_helpers.recommendation_value(recommendation, "12個月") == recommendation["長期目標（12個月）"]
+    assert final_audit_helpers.extract_first_price(recommendation["長期目標（12個月）"]) == 1200
+    assert final_audit_helpers.extract_first_price("上行60％，目標價100-160") == 130
+    assert final_audit_helpers.extract_first_price("上行 6e1%，目標價100-160") == 130
+    assert final_audit_helpers.extract_first_price("NT$100-160") == 130
+    assert final_audit_helpers.extract_first_price("目標價100元-160") == 130
+    assert final_audit_helpers.extract_first_price("目標價100至NT$160") == 130
+    assert final_audit_helpers.extract_first_price("12個月目標價 100-160") == 130
+    assert final_audit_helpers.extract_first_price("2027年目標價100-160") == 130
+    assert final_audit_helpers.extract_first_price("12M target 100-160") == 130
+    assert final_audit_helpers.extract_first_price("12M target price 100 to 160") == 130
+    assert final_audit_helpers.extract_first_price("price target 100 to NT$160") == 130
+    assert final_audit_helpers.extract_first_price("12M target between 100 and 160") == 130
+    assert final_audit_helpers.extract_first_price("target price between 100 and 160") == 130
+    assert final_audit_helpers.extract_first_price("目標價介於100與160元") == 130
+    assert final_audit_helpers.source_note_corrections([
+        "淨利/淨利率口徑互斥，採 EPS/P/E 校準",
+        "Yahoo revenueGrowth 為近期或季度口徑",
+    ]) == [
+        "資料源出現淨利/淨利率口徑互斥時，報告已採用 EPS/P/E 自洽的校準口徑。",
+        "Yahoo revenueGrowth 已降級為近期/季度口徑，不得直接當年度或 TTM 年增率。",
+    ]
+    assert final_audit_helpers.future_price_history_correction(
+        {"2026-06-01": 100, "2026-07-15": 101, "not-a-date": 102},
+        today=date(2026, 7, 1),
+    ) == "歷史股價含未來日期，報告圖表會忽略：2026-07-15。"
 
 
 class AuditRuleTests(unittest.TestCase):
@@ -301,6 +344,84 @@ class AuditRuleTests(unittest.TestCase):
         self.assertTrue(calibration["has_unresolved_conflict"])
         self.assertEqual(calibration["status"], "needs_downgrade")
         self.assertIn("跨來源", calibration["reasons"][0])
+
+    def test_confidence_calibration_uses_normalized_confidence_score_formats(self):
+        cases = [
+            ("50/100", 5.0, 5.0, "calibrated"),
+            ("50％", 5.0, 5.0, "calibrated"),
+            ("5％", 0.5, 1, "calibrated"),
+            ("０．５％", 0.05, 1, "calibrated"),
+            ("55點5%", 5.55, 5.55, "calibrated"),
+            ("85點5%", 8.55, 8.55, "needs_downgrade"),
+            ("120/100", 10.0, 10.0, "needs_downgrade"),
+            ("９０－１２０／１００", 9.5, 9.5, "needs_downgrade"),
+            ("信心十分之五點五", 5.5, 5.5, "calibrated"),
+            ("信心10分之7.5", 7.5, 7.5, "needs_downgrade"),
+            ("信心百分之八十五", 8.5, 8.5, "needs_downgrade"),
+            ("信心百分之百", 10.0, 10.0, "needs_downgrade"),
+            ("信心百分之一百", 10.0, 10.0, "needs_downgrade"),
+            ("信心百分百", 10.0, 10.0, "needs_downgrade"),
+            ("信心百分之一百二十", 10.0, 10.0, "needs_downgrade"),
+            ("4 out of 5", 8.0, 8.0, "needs_downgrade"),
+            ("4分滿分5分", 8.0, 8.0, "needs_downgrade"),
+            ("4星/5星", 8.0, 8.0, "needs_downgrade"),
+            ("四分滿分五分", 8.0, 8.0, "needs_downgrade"),
+            ("四星/五星", 8.0, 8.0, "needs_downgrade"),
+            ("四星半/五星", 9.0, 9.0, "needs_downgrade"),
+            ("4星半/5星", 9.0, 9.0, "needs_downgrade"),
+            ("四分半滿分五分", 9.0, 9.0, "needs_downgrade"),
+            ("5分制4.5分", 9.0, 9.0, "needs_downgrade"),
+            ("五分制四點五分", 9.0, 9.0, "needs_downgrade"),
+            ("五顆星給四顆半", 9.0, 9.0, "needs_downgrade"),
+            ("五分之四", 8.0, 8.0, "needs_downgrade"),
+            ("5分之4", 8.0, 8.0, "needs_downgrade"),
+            ("6點5/10", 6.5, 6.5, "calibrated"),
+            ("5-6/10", 5.5, 5.5, "calibrated"),
+            ("８０－９０／１００", 8.5, 8.5, "needs_downgrade"),
+            ("50-60%", 5.5, 5.5, "calibrated"),
+            ("８０－９０％", 8.5, 8.5, "needs_downgrade"),
+            ("信心約五成五", 5.5, 5.5, "calibrated"),
+            ("信心五點五成", 5.5, 5.5, "calibrated"),
+            ("信心５．５成", 5.5, 5.5, "calibrated"),
+            ("信心6~7成", 6.5, 6.5, "calibrated"),
+            ("信心六七成", 6.5, 6.5, "calibrated"),
+            ("信心八點五成", 8.5, 8.5, "needs_downgrade"),
+            ("信心８～９成", 8.5, 8.5, "needs_downgrade"),
+            ("信心八九成", 8.5, 8.5, "needs_downgrade"),
+            ("滿分10分，信心5分", 5.0, 5.0, "calibrated"),
+            ("滿分10分，信心8分", 8.0, 8.0, "needs_downgrade"),
+            ("滿分十分，信心五分", 5.0, 5.0, "calibrated"),
+            ("信心五分到六分", 5.5, 5.5, "calibrated"),
+            ("信心五分半", 5.5, 5.5, "calibrated"),
+            ("信心七分半", 7.5, 7.5, "needs_downgrade"),
+            ("信心七點五分", 7.5, 7.5, "needs_downgrade"),
+            ("信心七．五分", 7.5, 7.5, "needs_downgrade"),
+            ("信心七.五分", 7.5, 7.5, "needs_downgrade"),
+            ("信心7點5分", 7.5, 7.5, "needs_downgrade"),
+            ("信心５點５分", 5.5, 5.5, "calibrated"),
+            ("7點5分", 7.5, 7.5, "needs_downgrade"),
+            ("七點五分", 7.5, 7.5, "needs_downgrade"),
+            ("七分半", 7.5, 7.5, "needs_downgrade"),
+            ("滿分10分，7點5分", 7.5, 7.5, "needs_downgrade"),
+            ("七點五", 7.5, 7.5, "needs_downgrade"),
+            ("約7點5", 7.5, 7.5, "needs_downgrade"),
+            ("10中7.5", 7.5, 7.5, "needs_downgrade"),
+            ("10分中7.5", 7.5, 7.5, "needs_downgrade"),
+            ("信心八分", 8.0, 8.0, "needs_downgrade"),
+            ("信心50分", 5.0, 5.0, "calibrated"),
+            ("信心80分", 8.0, 8.0, "needs_downgrade"),
+        ]
+
+        for confidence, expected_original_score, expected_effective_score, expected_status in cases:
+            with self.subTest(confidence=confidence):
+                calibration = build_confidence_calibration(
+                    {"confidence": confidence},
+                    {"status": "stale"},
+                )
+
+                self.assertEqual(calibration["original_score"], expected_original_score)
+                self.assertEqual(calibration["confidence_score"], expected_effective_score)
+                self.assertEqual(calibration["status"], expected_status)
 
     def test_final_audit_blocks_explicit_target_prices_when_data_confidence_low(self):
         context = complete_context()
@@ -445,6 +566,21 @@ class AuditRuleTests(unittest.TestCase):
         context["parsed"] = ar.parse_structured_data(context)
         audit = ar.run_final_report_audit(context, append_section=False)
         self.assert_has_issue(audit["critical"], "三情境目標價順序不合理")
+
+    def test_final_audit_uses_target_range_midpoint_after_percent_preface(self):
+        context = complete_context()
+        context["structured_outputs"][7]["recommendation"]["長期目標（12個月）"] = "上行60％，目標價 NT$1000-1600"
+        context["analyses"][7] = (
+            "## 最終投資決策\n"
+            "投資建議：持有。目標價：3 個月 NT$900、6 個月 NT$1000、"
+            "12 個月上行60％，目標價 NT$1000-1600。"
+        )
+        context["parsed"] = ar.parse_structured_data(context)
+        audit = ar.run_final_report_audit(context, append_section=False)
+
+        self.assertEqual(audit["status"], "passed")
+        self.assertNotIn("三情境區間差距較大", "\n".join(audit["warnings"]))
+        self.assertNotIn("建議/報酬矛盾", "\n".join(audit["critical"]))
 
     def test_missing_and_failed_agents_are_repairable(self):
         context = complete_context()
@@ -852,7 +988,7 @@ class AuditRuleTests(unittest.TestCase):
         self.assertIsNotNone(getattr(v3_config_obj, "response_schema", None))
 
     def test_structured_schema_omits_additional_properties_for_genai(self):
-        schema = structured_outputs.MoatStructuredOutput.model_json_schema(by_alias=True)
+        schema = MoatStructuredOutput.model_json_schema(by_alias=True)
         self.assertNotIn("additionalProperties", json.dumps(schema, ensure_ascii=False))
 
     def test_generation_config_schema_omits_genai_rejected_numeric_bounds(self):
@@ -902,16 +1038,16 @@ class AuditRuleTests(unittest.TestCase):
             openai_json_schema_response_format("invalid schema name!", PriceTargetStructuredOutput)
 
     def test_structured_schemas_include_reasoning_fields(self):
-        moat_schema = structured_outputs.MoatStructuredOutput.model_json_schema(by_alias=True)
-        price_schema = structured_outputs.PriceTargetStructuredOutput.model_json_schema(by_alias=True)
-        recommendation_schema = structured_outputs.RecommendationStructuredOutput.model_json_schema(by_alias=True)
+        moat_schema = MoatStructuredOutput.model_json_schema(by_alias=True)
+        price_schema = PriceTargetStructuredOutput.model_json_schema(by_alias=True)
+        recommendation_schema = RecommendationStructuredOutput.model_json_schema(by_alias=True)
 
         self.assertIn("reasoning_steps", json.dumps(moat_schema, ensure_ascii=False))
         self.assertIn("dcf_reasoning", json.dumps(price_schema, ensure_ascii=False))
         self.assertIn("peer_reasoning", json.dumps(price_schema, ensure_ascii=False))
         self.assertIn("scenario_reasoning", json.dumps(price_schema, ensure_ascii=False))
         self.assertIn("reasoning_steps", json.dumps(recommendation_schema, ensure_ascii=False))
-        bubble_schema = structured_outputs.BubbleSniperStructuredOutput.model_json_schema(by_alias=True)
+        bubble_schema = BubbleSniperStructuredOutput.model_json_schema(by_alias=True)
         schema_text = json.dumps(bubble_schema, ensure_ascii=False)
         self.assertIn("放空", schema_text)
         self.assertNotIn("強烈放空", schema_text)
@@ -1105,7 +1241,7 @@ class AuditRuleTests(unittest.TestCase):
         self.assertIn("缺少防軋空停損點", "\n".join(audit["critical"]))
 
     def test_normalized_structured_outputs_preserve_reasoning_without_polluting_prices(self):
-        moat = structured_outputs.normalize_structured_output(3, {
+        moat = normalize_structured_output(3, {
             "reasoning_steps": ["品牌證據支持 6 分", "轉換成本較強", "網路效應偏弱"],
             "moat_scores": {
                 "品牌影響力": 6,
@@ -1119,7 +1255,7 @@ class AuditRuleTests(unittest.TestCase):
         })
         self.assertEqual(moat["reasoning_steps"][0], "品牌證據支持 6 分")
 
-        valuation = structured_outputs.normalize_structured_output(4, {
+        valuation = normalize_structured_output(4, {
             "price_targets": {
                 "dcf_reasoning": "normalized FCF 搭配市場價值 WACC。",
                 "peer_reasoning": "同業倍數只作交叉檢查。",
@@ -1139,7 +1275,7 @@ class AuditRuleTests(unittest.TestCase):
         self.assertEqual(set(valuation["price_targets"].keys()), {"熊市情境", "基本情境", "牛市情境"})
         self.assertEqual(valuation["valuation_reasoning"]["dcf_reasoning"], "normalized FCF 搭配市場價值 WACC。")
 
-        recommendation = structured_outputs.normalize_structured_output(7, {
+        recommendation = normalize_structured_output(7, {
             "reasoning_steps": ["估值合理", "風險仍高", "空方指出下修風險"],
             "recommendation": {
                 "建議": "持有",
@@ -1162,7 +1298,7 @@ class AuditRuleTests(unittest.TestCase):
         })
         self.assertIn("空方指出下修風險", recommendation["reasoning_steps"])
 
-        bubble_recommendation = structured_outputs.normalize_structured_output(19, {
+        bubble_recommendation = normalize_structured_output(19, {
             "reasoning_steps": ["題材過熱", "財務現實不支持", "籌碼轉為派發"],
             "recommendation": {
                 "建議": "強烈放空",
@@ -1184,12 +1320,12 @@ class AuditRuleTests(unittest.TestCase):
             "analysis_markdown": "## 做空觸發條件（Catalyst for crash）\n財測下修。\n\n## 防軋空停損點（Stop-loss level）\n突破前高。",
         })
         self.assertEqual(bubble_recommendation["recommendation"]["建議"], "放空")
-        report_text = structured_outputs.structured_output_to_report_text(19, bubble_recommendation)
+        report_text = structured_output_to_report_text(19, bubble_recommendation)
         self.assertTrue(report_text.endswith("[/投資建議]"))
         self.assertIn("建議：放空", report_text)
 
     def test_agent19_renderer_inserts_required_sections_before_tail_block(self):
-        bubble_recommendation = structured_outputs.normalize_structured_output(19, {
+        bubble_recommendation = normalize_structured_output(19, {
             "reasoning_steps": ["題材過熱", "財務現實不支持", "籌碼轉為派發"],
             "recommendation": {
                 "建議": "避免",
@@ -1211,7 +1347,7 @@ class AuditRuleTests(unittest.TestCase):
             "analysis_markdown": "## 一、泡沫狙擊結論\\n市場題材已超前基本面。",
         })
 
-        report_text = structured_outputs.structured_output_to_report_text(19, bubble_recommendation)
+        report_text = structured_output_to_report_text(19, bubble_recommendation)
 
         self.assertIn("## 一、泡沫狙擊結論\n市場題材已超前基本面。", report_text)
         self.assertIn("## 做空觸發條件（Catalyst for crash）", report_text)
@@ -1239,7 +1375,7 @@ class AuditRuleTests(unittest.TestCase):
         self.assertTrue(text.rstrip().endswith("[/投資建議]"))
 
     def test_incomplete_structured_outputs_are_rejected_before_report_contract(self):
-        self.assertIsNone(structured_outputs.normalize_structured_output(3, {
+        self.assertIsNone(normalize_structured_output(3, {
             "moat_scores": {
                 "品牌影響力": 6,
                 "網路效應": 3,
@@ -1251,7 +1387,7 @@ class AuditRuleTests(unittest.TestCase):
             "analysis_markdown": "正文",
         }))
 
-        self.assertIsNone(structured_outputs.normalize_structured_output(4, {
+        self.assertIsNone(normalize_structured_output(4, {
             "price_targets": {
                 "dcf_reasoning": "normalized FCF 搭配市場價值 WACC。",
                 "熊市情境": 800,
@@ -1261,7 +1397,7 @@ class AuditRuleTests(unittest.TestCase):
             "analysis_markdown": "正文",
         }))
 
-        self.assertIsNone(structured_outputs.normalize_structured_output(7, {
+        self.assertIsNone(normalize_structured_output(7, {
             "reasoning_steps": ["估值合理", "風險仍高", "空方指出下修風險"],
             "recommendation": {
                 "建議": "持有",
@@ -1672,7 +1808,9 @@ class AuditRuleTests(unittest.TestCase):
         })
 
         html = report_gen.generate_html_report(context)
-        payload_text = html.split("const CHART_DATA = ", 1)[1].split(";\n", 1)[0]
+        payload_text = html.split(
+            '<script id="report-chart-data" type="application/json">', 1
+        )[1].split("</script>", 1)[0]
         chart_data = json.loads(payload_text)
 
         self.assertEqual(chart_data["sourceMoneyUnit"], "billion_twd")

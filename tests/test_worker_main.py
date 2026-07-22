@@ -12,6 +12,7 @@ import pytest
 
 import decision_tracking_scheduler
 import watchlist_scheduler
+import worker_maintenance
 import worker_shutdown
 import worker_main
 
@@ -232,22 +233,22 @@ def test_maintenance_iteration_runs_retention_and_sqlite_maintenance(monkeypatch
     runtime = FakeWorkerRuntime(calls)
 
     monkeypatch.setattr(
-        worker_main.report_history_service,
+        worker_maintenance.report_history_service,
         "cleanup_expired_reports",
         lambda *_args: calls.append("expired-reports"),
     )
     monkeypatch.setattr(
-        worker_main.report_history_service,
+        worker_maintenance.report_history_service,
         "cleanup_orphan_markdown_reports",
         lambda *_args: calls.append("orphan-markdown"),
     )
-    monkeypatch.setattr(worker_main, "cleanup_expired_cache_entries", lambda: calls.append("cache"))
-    monkeypatch.setattr(worker_main, "cleanup_report_index_orphans", lambda write=True: calls.append(("report-index", write)))
-    monkeypatch.setattr(worker_main, "cleanup_analysis_history", lambda write=True: calls.append(("analysis-history", write)))
-    monkeypatch.setattr(worker_main, "cleanup_provider_sla_events", lambda write=True: calls.append(("provider-sla", write)))
-    monkeypatch.setattr(worker_main, "run_sqlite_maintenance", lambda **kwargs: calls.append(("sqlite", kwargs.get("write"))))
+    monkeypatch.setattr(worker_maintenance, "cleanup_expired_cache_entries", lambda: calls.append("cache"))
+    monkeypatch.setattr(worker_maintenance, "cleanup_report_index_orphans", lambda write=True: calls.append(("report-index", write)))
+    monkeypatch.setattr(worker_maintenance, "cleanup_analysis_history", lambda write=True: calls.append(("analysis-history", write)))
+    monkeypatch.setattr(worker_maintenance, "cleanup_provider_sla_events", lambda write=True: calls.append(("provider-sla", write)))
+    monkeypatch.setattr(worker_maintenance, "run_sqlite_maintenance", lambda **kwargs: calls.append(("sqlite", kwargs.get("write"))))
 
-    asyncio.run(worker_main._run_maintenance_iteration(runtime, {}))
+    asyncio.run(worker_maintenance.run_maintenance_iteration(runtime, {}))
 
     assert calls == [
         "expired-reports",
@@ -836,15 +837,15 @@ def test_maintenance_process_logs_cleanup_errors_and_keeps_running(monkeypatch):
     async def cancel_after_iteration(_seconds):
         raise asyncio.CancelledError()
 
-    monkeypatch.setattr(worker_main.report_history_service, "cleanup_expired_reports", failing_cleanup)
-    monkeypatch.setattr(worker_main.report_history_service, "cleanup_orphan_markdown_reports", lambda *_args: calls.append("orphan"))
-    monkeypatch.setattr(worker_main, "cleanup_expired_cache_entries", lambda: calls.append("cache"))
-    monkeypatch.setattr(worker_main, "cleanup_report_index_orphans", lambda **_kwargs: calls.append("index"))
-    monkeypatch.setattr(worker_main, "emit_log", calls.append)
-    monkeypatch.setattr(worker_main.asyncio, "sleep", cancel_after_iteration)
+    monkeypatch.setattr(worker_maintenance.report_history_service, "cleanup_expired_reports", failing_cleanup)
+    monkeypatch.setattr(worker_maintenance.report_history_service, "cleanup_orphan_markdown_reports", lambda *_args: calls.append("orphan"))
+    monkeypatch.setattr(worker_maintenance, "cleanup_expired_cache_entries", lambda: calls.append("cache"))
+    monkeypatch.setattr(worker_maintenance, "cleanup_report_index_orphans", lambda **_kwargs: calls.append("index"))
+    monkeypatch.setattr(worker_maintenance, "emit_log", calls.append)
+    monkeypatch.setattr(worker_maintenance.asyncio, "sleep", cancel_after_iteration)
 
     with pytest.raises(asyncio.CancelledError):
-        asyncio.run(worker_main.run_maintenance_process(runtime))
+        asyncio.run(worker_maintenance.run_maintenance_process(runtime))
 
     assert any("maintenance" in str(call) and "cleanup exploded" in str(call) for call in calls)
     assert "orphan" in calls

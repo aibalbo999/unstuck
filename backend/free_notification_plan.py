@@ -9,77 +9,19 @@ from typing import Any, Mapping
 
 from daily_decision_source_labels import normalize_source_counts, source_display_overrides, source_key, source_label, source_labels, source_text, source_texts
 from free_notification_identity import dedupe_context, delivery_key, message_delivery_identity
+from free_notification_plan_constants import (
+    BOOLEAN_MESSAGE_CONTEXT_KEYS,
+    CHANNELS,
+    DELIVERY_CONTEXT_KEYS,
+    MESSAGE_CONTEXT_KEYS,
+    NUMERIC_MESSAGE_CONTEXT_KEYS,
+    OPERATOR_ACTION_BY_TYPE,
+    TARGET_PANEL_BY_TYPE,
+    TEXT_MESSAGE_CONTEXT_KEYS,
+)
+from free_notification_suppression import explicit_bool, suppress_notification_action
 from mapping_fields import mapping_field as _field, safe_dict_list, safe_int, safe_mapping_dict, safe_text, safe_text_list
 SCHEMA_VERSION = "notification_plan.v1"
-SUPPRESSED_NOTIFICATION_TYPES = {"monitor", "fix_notification_delivery"}
-CHANNELS = (
-    ("local", "本機 UI 通知", (), "free"),
-    ("email_smtp", "SMTP Email", ("SMTP_HOST", "SMTP_TO"), "free_with_user_key"),
-    ("telegram_webhook", "Telegram Bot", ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"), "free_with_user_key"),
-    ("discord_webhook", "Discord Webhook", ("DISCORD_WEBHOOK_URL",), "free_with_user_key"),
-    ("slack_webhook", "Slack Webhook", ("SLACK_WEBHOOK_URL",), "free_with_user_key"),
-)
-
-MESSAGE_CONTEXT_KEYS = (
-    "source", "source_label", "source_text",
-    "priority_score",
-    "ticker",
-    "filename",
-    "report_filename",
-    "pipeline_id",
-    "route",
-    "warning_id",
-    "horizon_months",
-    "recommended_action",
-    "blocks_auto_rerun",
-    "reason_codes",
-    "severity",
-    "action_label",
-    "target_panel",
-    "target_tab",
-    "operator_action",
-    "operator_action_label",
-    "dedupe_key",
-    "message_id",
-)
-NUMERIC_MESSAGE_CONTEXT_KEYS = ("priority_score", "horizon_months")
-BOOLEAN_MESSAGE_CONTEXT_KEYS = ("blocks_auto_rerun",)
-TEXT_MESSAGE_CONTEXT_KEYS = (
-    "ticker",
-    "filename",
-    "report_filename",
-    "pipeline_id",
-    "route",
-    "warning_id",
-    "recommended_action",
-    "severity",
-    "action_label",
-)
-DELIVERY_CONTEXT_KEYS = ("type", "detail", *MESSAGE_CONTEXT_KEYS, "source_label", "source_text", "queue_rank", "queue_displayed_count", "is_top_priority")
-
-OPERATOR_ACTION_BY_TYPE = {
-    "rerun_report": ("rerun-report", "完整重跑"),
-    "run_watchlist": ("run-watchlist", "建立/更新報告"),
-    "refresh_data_snapshot": ("refresh-report", "刷新資料"),
-    "manual_review": ("view-report", "查看報告"),
-    "wait_provider_recovery": ("open-ops", "查看來源"),
-    "backtest_due": ("open-ops", "查看回測"),
-    "model_route_warning": ("open-ops", "查看路由"),
-    "monitor_provider": ("open-ops", "查看來源"),
-    "fix_free_mode": ("open-ops", "修免費模式"),
-    "review_candidate": ("open-ops", "查看候選"),
-    "monitor": ("monitor", "查看狀態"),
-}
-
-TARGET_PANEL_BY_TYPE = {
-    "wait_provider_recovery": "provider-sla-panel",
-    "monitor_provider": "provider-sla-panel",
-    "fix_free_mode": "provider-sla-panel",
-    "backtest_due": "performance-panel",
-    "model_route_warning": "api-quota-panel",
-    "review_candidate": "market-screener-panel",
-    "run_watchlist": "watchlist-panel",
-}
 
 
 def build_daily_notification_plan(
@@ -198,7 +140,7 @@ def _decision_queue_context(queue: dict[str, Any]) -> dict[str, Any]:
 
 
 def _legacy_actions_context(actions: list[Any]) -> dict[str, Any]:
-    actionable = [action for action in actions if isinstance(action, dict) and _action_type(action) != "monitor"]
+    actionable = [action for action in actions if isinstance(action, dict) and not suppress_notification_action(action)]
     source_counts = _source_counts(actionable)
     return {
         "source": "actions",
@@ -216,7 +158,7 @@ def _messages(actions: list[Any]) -> list[dict[str, Any]]:
     actionable = [
         action
         for action in actions
-        if isinstance(action, dict) and not _suppress_notification(action)
+        if isinstance(action, dict) and not suppress_notification_action(action)
     ][:5]
     displayed_count = len(actionable)
     return [
@@ -244,7 +186,7 @@ def _message_context(action: dict[str, Any]) -> dict[str, Any]:
             context[key] = _int(context[key])
     for key in BOOLEAN_MESSAGE_CONTEXT_KEYS:
         if key in context:
-            context[key] = _explicit_bool(context[key])
+            context[key] = explicit_bool(context[key])
     for key in TEXT_MESSAGE_CONTEXT_KEYS:
         if key in context:
             text = _text(context[key]).strip()
@@ -283,24 +225,6 @@ def _message_context(action: dict[str, Any]) -> dict[str, Any]:
     return context
 
 
-def _suppress_notification(action: dict[str, Any]) -> bool:
-    suppressed = _explicit_bool(_field(action, "suppress_notification"))
-    return suppressed or _action_type(action) in SUPPRESSED_NOTIFICATION_TYPES
-
-
-def _explicit_bool(value: Any) -> bool:
-    if isinstance(value, bool):
-        return value
-    if not isinstance(value, str):
-        return False
-    text = value.strip().lower()
-    if text in {"1", "true", "yes", "y", "on"}:
-        return True
-    if text in {"", "0", "false", "no", "n", "off"}:
-        return False
-    return False
-
-
 def _operator_cta_context(action: dict[str, Any]) -> dict[str, str]:
     default_action, default_label = OPERATOR_ACTION_BY_TYPE.get(_action_type(action), ("open-ops", "查看狀態"))
     return {
@@ -335,14 +259,9 @@ def _action_type(action: dict[str, Any]) -> str:
     return _text(_field(action, "type")).strip()
 
 
-def _text(value: Any) -> str:
-    return safe_text(value)
+_text = safe_text
 def _present(value: Any) -> bool:
-    if value is None:
-        return False
-    if isinstance(value, str):
-        return value != ""
-    return True
+    return value is not None and (not isinstance(value, str) or value != "")
 def _int(value: Any) -> int:
     if isinstance(value, (bool, bytes, bytearray, memoryview)):
         return 0

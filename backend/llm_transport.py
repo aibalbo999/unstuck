@@ -4,29 +4,23 @@ from __future__ import annotations
 
 import threading
 from contextlib import suppress
-from dataclasses import dataclass
 from inspect import isawaitable
 
-import httpx
 from google import genai
 from google.genai import types
 
 from config import LLM_AGENT_CALL_TIMEOUT_SECONDS
 from google_prompt_safety import sanitize_google_generation_config, sanitize_google_prompt
+from llm_http_providers import (
+    TextLLMResponse,
+    generate_anthropic_content,
+    generate_anthropic_content_async,
+    generate_openai_content,
+    generate_openai_content_async,
+)
 from llm_semantic_cache import get_cached_llm_response, store_llm_response
 from llm_usage import extract_usage
 from llm_provider_routes import split_model_provider
-
-
-OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
-ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages"
-ANTHROPIC_VERSION = "2023-06-01"
-
-
-@dataclass(frozen=True)
-class TextLLMResponse:
-    text: str
-    usage: dict[str, int] | None = None
 
 
 def response_text(response) -> str:
@@ -110,9 +104,19 @@ def generate_content(api_key: str, model_id: str, prompt: str, config):
         return TextLLMResponse(str(cached.get("text") or ""), cached.get("usage"))
     provider, provider_model = split_model_provider(model_id)
     if provider == "openai":
-        return _cache_generated_response(model_id, prompt, config, _generate_openai_content(api_key, provider_model, prompt, config))
+        return _cache_generated_response(
+            model_id,
+            prompt,
+            config,
+            generate_openai_content(api_key, provider_model, prompt, config),
+        )
     if provider == "anthropic":
-        return _cache_generated_response(model_id, prompt, config, _generate_anthropic_content(api_key, provider_model, prompt, config))
+        return _cache_generated_response(
+            model_id,
+            prompt,
+            config,
+            generate_anthropic_content(api_key, provider_model, prompt, config),
+        )
     if provider != "google":
         raise ValueError(f"Unsupported LLM provider: {provider}")
     client = _get_client(api_key)
@@ -135,14 +139,14 @@ async def generate_content_async(api_key: str, model_id: str, prompt: str, confi
             model_id,
             prompt,
             config,
-            await _generate_openai_content_async(api_key, provider_model, prompt, config),
+            await generate_openai_content_async(api_key, provider_model, prompt, config),
         )
     if provider == "anthropic":
         return _cache_generated_response(
             model_id,
             prompt,
             config,
-            await _generate_anthropic_content_async(api_key, provider_model, prompt, config),
+            await generate_anthropic_content_async(api_key, provider_model, prompt, config),
         )
     if provider != "google":
         raise ValueError(f"Unsupported LLM provider: {provider}")
@@ -196,10 +200,6 @@ async def embed_content_async(api_key: str, model_id: str, contents, config):
     return await client.aio.models.embed_content(model=model_id, contents=contents, config=config)
 
 
-def _provider_timeout_seconds() -> float:
-    return max(1.0, float(LLM_AGENT_CALL_TIMEOUT_SECONDS or 60))
-
-
 def _cache_generated_response(model_id: str, prompt: str, config, response):
     text = response_text(response)
     store_llm_response(model_id, prompt, config, text=text, usage=extract_usage(response))
@@ -220,109 +220,3 @@ async def _collect_stream_chunk(chunk, chunks: list[str], on_delta) -> None:
         return
     chunks.append(delta)
     await _emit_stream_delta(on_delta, delta)
-
-
-def _config_value(config, name: str, default):
-    return getattr(config, name, default) if config is not None else default
-
-
-def _generate_openai_content(api_key: str, model_id: str, prompt: str, config) -> TextLLMResponse:
-    payload = _openai_payload(model_id, prompt, config)
-    response = httpx.post(
-        OPENAI_RESPONSES_URL,
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        json=payload,
-        timeout=_provider_timeout_seconds(),
-    )
-    response.raise_for_status()
-    payload = response.json()
-    return TextLLMResponse(_openai_text(payload), extract_usage(payload))
-
-
-async def _generate_openai_content_async(api_key: str, model_id: str, prompt: str, config) -> TextLLMResponse:
-    payload = _openai_payload(model_id, prompt, config)
-    async with httpx.AsyncClient(timeout=_provider_timeout_seconds()) as client:
-        response = await client.post(
-            OPENAI_RESPONSES_URL,
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json=payload,
-        )
-    response.raise_for_status()
-    payload = response.json()
-    return TextLLMResponse(_openai_text(payload), extract_usage(payload))
-
-
-def _openai_payload(model_id: str, prompt: str, config) -> dict:
-    payload = {
-        "model": model_id,
-        "input": prompt,
-        "max_output_tokens": int(_config_value(config, "max_output_tokens", 4096) or 4096),
-    }
-    temperature = _config_value(config, "temperature", None)
-    if temperature is not None:
-        payload["temperature"] = float(temperature)
-    return payload
-
-
-def _openai_text(payload: dict) -> str:
-    text = payload.get("output_text")
-    if isinstance(text, str):
-        return text
-    parts = []
-    for item in payload.get("output", []) or []:
-        for content in item.get("content", []) or []:
-            content_text = content.get("text")
-            if isinstance(content_text, str):
-                parts.append(content_text)
-    return "\n".join(parts)
-
-
-def _generate_anthropic_content(api_key: str, model_id: str, prompt: str, config) -> TextLLMResponse:
-    payload = _anthropic_payload(model_id, prompt, config)
-    response = httpx.post(
-        ANTHROPIC_MESSAGES_URL,
-        headers={
-            "x-api-key": api_key,
-            "anthropic-version": ANTHROPIC_VERSION,
-            "Content-Type": "application/json",
-        },
-        json=payload,
-        timeout=_provider_timeout_seconds(),
-    )
-    response.raise_for_status()
-    payload = response.json()
-    return TextLLMResponse(_anthropic_text(payload), extract_usage(payload))
-
-
-async def _generate_anthropic_content_async(api_key: str, model_id: str, prompt: str, config) -> TextLLMResponse:
-    payload = _anthropic_payload(model_id, prompt, config)
-    async with httpx.AsyncClient(timeout=_provider_timeout_seconds()) as client:
-        response = await client.post(
-            ANTHROPIC_MESSAGES_URL,
-            headers={
-                "x-api-key": api_key,
-                "anthropic-version": ANTHROPIC_VERSION,
-                "Content-Type": "application/json",
-            },
-            json=payload,
-        )
-    response.raise_for_status()
-    payload = response.json()
-    return TextLLMResponse(_anthropic_text(payload), extract_usage(payload))
-
-
-def _anthropic_payload(model_id: str, prompt: str, config) -> dict:
-    return {
-        "model": model_id,
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": int(_config_value(config, "max_output_tokens", 4096) or 4096),
-        "temperature": float(_config_value(config, "temperature", 0.2) or 0.0),
-    }
-
-
-def _anthropic_text(payload: dict) -> str:
-    parts = []
-    for item in payload.get("content", []) or []:
-        if item.get("type") == "text" and isinstance(item.get("text"), str):
-            parts.append(item["text"])
-    return "\n".join(parts)

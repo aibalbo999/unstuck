@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 import sys
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from data_fetch import FetchRequest, ProviderRegistry  # noqa: E402
 
 def test_alternative_search_uses_free_sources_for_catalysts(monkeypatch):
     import external_search_providers as search
+    provider_clients = importlib.import_module("external_search_provider_clients")
 
     rss = """<?xml version="1.0" encoding="UTF-8" ?>
     <rss><channel>
@@ -58,14 +60,56 @@ def test_alternative_search_uses_free_sources_for_catalysts(monkeypatch):
 
     monkeypatch.setattr(search, "WEB_SEARCH_PROVIDER_ORDER", "gdelt,yahoo_rss")
     monkeypatch.setattr(search, "async_client", lambda: FakeClient())
-    monkeypatch.setattr(search.httpx, "AsyncClient", lambda **_kwargs: FakeClient())
-    monkeypatch.setattr(search, "_async_json_get", fake_json_get)
+    monkeypatch.setattr(provider_clients.httpx, "AsyncClient", lambda **_kwargs: FakeClient())
+    monkeypatch.setattr(provider_clients, "_async_json_get", fake_json_get)
 
     records = asyncio.run(search.fetch_alternative_search_catalysts_async("2330.TW", "台積電", {}, max_results=2))
 
     assert [record["source_type"] for record in records] == ["gdelt_search", "yahoo_rss_search"]
     assert records[0]["title"] == "TSMC earnings call points to AI demand"
     assert records[1]["source"] == "Yahoo News"
+
+
+def test_external_search_provider_clients_fetch_brave_payload(monkeypatch):
+    provider_clients = importlib.import_module("external_search_provider_clients")
+    calls = []
+
+    class FakeClient:
+        pass
+
+    async def fake_json_get(client, url, params, headers=None):
+        calls.append({"client": client, "url": url, "params": params, "headers": headers})
+        return {
+            "web": {
+                "results": [
+                    {
+                        "title": "TSMC AI demand update",
+                        "description": "Revenue outlook improves.",
+                        "url": "https://news.example/tsmc",
+                        "profile": {"name": "Example Wire"},
+                    }
+                ]
+            }
+        }
+
+    monkeypatch.setattr(provider_clients, "BRAVE_SEARCH_API_KEY", "brave-key")
+    monkeypatch.setattr(provider_clients, "_async_json_get", fake_json_get)
+
+    records = asyncio.run(
+        provider_clients.fetch_provider_results(
+            FakeClient(),
+            "brave",
+            "台積電 展望",
+            max_results=25,
+            lookback_days=7,
+        )
+    )
+
+    assert records[0].provider == "brave"
+    assert records[0].title == "TSMC AI demand update"
+    assert calls[0]["url"] == "https://api.search.brave.com/res/v1/web/search"
+    assert calls[0]["params"] == {"q": "台積電 展望", "count": "20"}
+    assert calls[0]["headers"] == {"Accept": "application/json", "X-Subscription-Token": "brave-key"}
 
 
 def test_alternative_peer_discovery_uses_search_results(monkeypatch):

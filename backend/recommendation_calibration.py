@@ -5,7 +5,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from price_parser import extract_price_numbers
+from confidence_score_parser import parse_confidence_score_text
+from price_parser import extract_price_numbers, extract_target_price_numbers
 from recommendation_labels import normalize_recommendation_label
 
 
@@ -20,6 +21,7 @@ LABEL_KEYS = ("recommendation", "建議")
 CURRENT_PRICE_KEYS = ("current_price", "當日股價", "股價")
 TARGET_12M_KEYS = ("target_12m", "長期目標（12個月）", "12個月目標", "12個月")
 CONFIDENCE_KEYS = ("confidence", "信心指數", "信心")
+PERCENT_NUMBER_PATTERN = r"(?:[+＋\-−－]\s*)?\d+(?:[.．]\d+)?(?:[eE][-+]?\d+)?\s*[%％]"
 
 
 def _first_value(mapping: dict, keys: tuple[str, ...]) -> Any:
@@ -37,7 +39,7 @@ def _first_key(mapping: dict, keys: tuple[str, ...], fallback: str) -> str:
     return fallback
 
 
-def _parse_price(value: Any) -> float | None:
+def _parse_price(value: Any, *, target_context: bool = False) -> float | None:
     if isinstance(value, bool) or value is None:
         return None
     if isinstance(value, (int, float)):
@@ -46,36 +48,34 @@ def _parse_price(value: Any) -> float | None:
     if not text or text.upper() == "N/A":
         return None
     try:
-        numbers = extract_price_numbers(text)
+        extractor = extract_target_price_numbers if target_context else extract_price_numbers
+        numbers = extractor(text)
     except (TypeError, ValueError):
         return None
     numbers = [number for number in numbers if number > 0]
     if not numbers:
         return None
     if _looks_like_price_range(text):
-        range_numbers = _range_numbers(text)
+        range_numbers = _range_numbers(text, target_context=target_context)
         if len(range_numbers) >= 2:
             return sum(range_numbers[:2]) / 2
     return numbers[0]
 
 
 def _looks_like_price_range(text: str) -> bool:
-    return bool(re.search(r"\d\s*(?:-|~|～|至|到)\s*(?:NT\$?|NTD|TWD|新台幣|臺幣|台幣)?\s*\d", text))
+    return bool(
+        re.search(
+            r"\d\s*(?:元|塊)?\s*(?:-|–|—|－|−|~|～|〜|至|到|\bto\b|\band\b|與|和)\s*"
+            r"(?:NT\$?|NTD|TWD|新台幣|臺幣|台幣)?\s*\d",
+            text,
+        )
+    )
 
 
-def _range_numbers(text: str) -> list[float]:
-    cleaned = re.sub(r"\d+(?:\.\d+)?\s*%", "", text)
-    matches = re.findall(r"\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?", cleaned)
-    return [float(match.replace(",", "")) for match in matches]
-
-
-def _parse_confidence(value: Any) -> float | None:
-    if isinstance(value, bool) or value is None:
-        return None
-    if isinstance(value, (int, float)):
-        return float(value)
-    match = re.search(r"\d+(?:\.\d+)?", str(value or ""))
-    return float(match.group()) if match else None
+def _range_numbers(text: str, *, target_context: bool = False) -> list[float]:
+    cleaned = re.sub(PERCENT_NUMBER_PATTERN, "", text)
+    extractor = extract_target_price_numbers if target_context else extract_price_numbers
+    return extractor(cleaned)
 
 
 def _expected_return_pct(target: float, current: float) -> float:
@@ -120,12 +120,12 @@ def calibrate_recommendation_summary(
         return calibrated
 
     current_price = _parse_price(_first_value(calibrated, CURRENT_PRICE_KEYS))
-    target_12m = _parse_price(_first_value(calibrated, TARGET_12M_KEYS))
+    target_12m = _parse_price(_first_value(calibrated, TARGET_12M_KEYS), target_context=True)
     if current_price is None or current_price <= 0 or target_12m is None:
         return calibrated
 
     data_trust_status = str((data_trust or {}).get("status") or "unknown")
-    confidence = _parse_confidence(_first_value(calibrated, CONFIDENCE_KEYS))
+    confidence = parse_confidence_score_text(_first_value(calibrated, CONFIDENCE_KEYS))
     expected_return = _expected_return_pct(target_12m, current_price)
     new_label = original_label
     status = "ok"

@@ -739,6 +739,40 @@ def test_notification_plan_preserves_action_specific_metadata():
     assert provider_message["blocks_auto_rerun"] is True
 
 
+def test_notification_plan_suppresses_legacy_slow_route_actions_but_keeps_retry_warnings():
+    plan = build_daily_notification_plan(
+        {
+            "actions": [
+                {
+                    "source": "model_route_budget",
+                    "type": "model_route_warning",
+                    "priority_score": 610,
+                    "title": "v1/gemini-2.5-flash 模型路由需檢查",
+                    "detail": "p95_latency_ms=120000",
+                    "route": "v1/gemini-2.5-flash",
+                    "warning_id": " slow_route ",
+                },
+                {
+                    "source": "model_route_budget",
+                    "type": "model_route_warning",
+                    "priority_score": 650,
+                    "title": "v2/gemini-2.5-pro 模型路由需檢查",
+                    "detail": "retry_count=7",
+                    "route": "v2/gemini-2.5-pro",
+                    "warning_id": "retry_storm",
+                },
+            ]
+        },
+        env={},
+    )
+
+    assert len(plan["messages"]) == 1
+    assert plan["messages"][0]["warning_id"] == "retry_storm"
+    assert plan["delivery_summary"]["message_count"] == 1
+    assert plan["queue_context"]["total_actionable"] == 1
+    assert plan["queue_context"]["sources"] == {"model_route_budget": 1}
+
+
 def test_notification_plan_numeric_message_metadata_uses_strict_count_conversion():
     plan = build_daily_notification_plan(
         {

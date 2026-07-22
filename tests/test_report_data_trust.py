@@ -1,4 +1,5 @@
 import sys
+from decimal import Decimal
 from pathlib import Path
 from types import MappingProxyType
 
@@ -7,7 +8,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 import reporting.legacy_report_gen as report_gen  # noqa: E402
+import reporting.evidence as evidence_renderer  # noqa: E402
 import reporting.evidence_matrix as evidence_matrix  # noqa: E402
+import reporting.trust_controls as trust_controls  # noqa: E402
 from data_trust import build_data_snapshot  # noqa: E402
 from reporting import ReportBundle  # noqa: E402
 from reporting.audit_trust import (  # noqa: E402
@@ -327,6 +330,49 @@ def test_audit_banner_sections_use_shared_text_safety_for_abnormality_text():
     assert "bad-repair" not in rendered
 
 
+def test_audit_banner_sections_drop_non_finite_abnormality_text():
+    context = minimal_context()
+    context["final_audit"] = {
+        "critical": [float("nan"), "有效異常提醒。"],
+        "warnings": [Decimal("Infinity")],
+        "corrections": [Decimal("-Infinity")],
+    }
+    context["blocking_issues"] = [float("inf"), "有效阻斷提醒。"]
+    context["audit_repair_log"] = [Decimal("NaN"), "有效修復紀錄。"]
+
+    html = build_audit_banner_html(context)
+    markdown = build_audit_markdown(context)
+    rendered = html + markdown
+
+    assert "有效異常提醒。" in rendered
+    assert "有效阻斷提醒。" in rendered
+    assert "有效修復紀錄。" in rendered
+    assert "nan" not in rendered.lower()
+    assert "infinity" not in rendered.lower()
+
+
+def test_audit_banner_sections_drop_non_finite_string_abnormality_text():
+    context = minimal_context()
+    context["final_audit"] = {
+        "critical": ["NaN", "有效異常提醒。"],
+        "warnings": ["Infinity"],
+        "corrections": ["-Infinity"],
+    }
+    context["blocking_issues"] = ["N/A", "有效阻斷提醒。"]
+    context["audit_repair_log"] = ["NaN", "有效修復紀錄。"]
+
+    html = build_audit_banner_html(context)
+    markdown = build_audit_markdown(context)
+    rendered = html + markdown
+
+    assert "有效異常提醒。" in rendered
+    assert "有效阻斷提醒。" in rendered
+    assert "有效修復紀錄。" in rendered
+    assert "nan" not in rendered.lower()
+    assert "infinity" not in rendered.lower()
+    assert "n/a" not in rendered.lower()
+
+
 def test_audit_markdown_collapses_embedded_newlines_in_abnormality_bullets():
     context = minimal_context()
     context["final_audit"] = {
@@ -584,6 +630,32 @@ def test_key_evidence_markdown_cells_escape_table_separators():
     assert "2026-06-07T00:00:00+00:00/local batch" in markdown
     assert "yf|finance" not in markdown
     assert "local\nbatch" not in markdown
+
+
+def test_key_evidence_rendered_cells_drop_non_finite_values(monkeypatch):
+    def malformed_key_evidence_rows(data):
+        return [
+            {
+                "label": "股價與市值",
+                "source_label": "Infinity",
+                "provider": float("nan"),
+                "status": Decimal("Infinity"),
+                "status_label": float("nan"),
+                "fetched_at": Decimal("-Infinity"),
+                "record_count": Decimal("NaN"),
+                "stale": False,
+            }
+        ]
+
+    monkeypatch.setattr(evidence_renderer, "build_key_evidence_rows", malformed_key_evidence_rows)
+
+    html = evidence_renderer.build_key_evidence_html(minimal_context()["data"])
+    markdown = "\n".join(evidence_renderer.build_key_evidence_markdown(minimal_context()["data"]))
+    rendered = (html + markdown).lower()
+
+    assert "股價與市值" in markdown
+    assert "nan" not in rendered
+    assert "infinity" not in rendered
 
 
 def test_source_audit_report_sections_use_shared_text_safety_for_audit_fields():
@@ -884,6 +956,96 @@ def test_trust_controls_markdown_collapses_embedded_newlines_in_reproducibility_
     assert "\n" not in reproducibility_line
 
 
+def test_trust_controls_drop_non_finite_reproducibility_fields():
+    context = minimal_context()
+    context["pipeline_id"] = Decimal("Infinity")
+    context["model_id"] = Decimal("-Infinity")
+    context["prompt_version"] = float("nan")
+    context["code_commit"] = Decimal("NaN")
+    context["generated_at"] = float("inf")
+    context["data"]["data_trust"]["last_market_data_at"] = Decimal("-Infinity")
+    context["data"]["source_audit"] = [
+        {
+            "source": "market_data",
+            "provider": float("nan"),
+            "status": "success",
+            "fetched_at": Decimal("-Infinity"),
+        }
+    ]
+
+    html = build_trust_controls_html(context["data"], context)
+    markdown = "\n".join(build_trust_controls_markdown(context["data"], context))
+    rendered = html + markdown
+
+    assert "Pipeline N/A" in rendered
+    assert "Model unknown" in rendered
+    assert "Prompt 版本 runtime_rules:unversioned" in rendered
+    assert "程式碼狀態：N/A" in rendered
+    assert "Provider N/A" in rendered
+    assert "資料時間 N/A" in rendered
+    assert "nan" not in rendered.lower()
+    assert "infinity" not in rendered.lower()
+
+
+def test_trust_controls_drop_non_finite_string_reproducibility_fields():
+    context = minimal_context()
+    context["pipeline_id"] = "Infinity"
+    context["model_id"] = "NaN"
+    context["prompt_version"] = "N/A"
+    context["code_commit"] = "-Infinity"
+    context["generated_at"] = "NaN"
+    context["data"]["data_trust"]["last_market_data_at"] = "Infinity"
+    context["data"]["source_audit"] = [
+        {
+            "source": "market_data",
+            "provider": "NaN",
+            "status": "success",
+            "fetched_at": "-Infinity",
+        }
+    ]
+
+    html = build_trust_controls_html(context["data"], context)
+    markdown = "\n".join(build_trust_controls_markdown(context["data"], context))
+    rendered = html + markdown
+
+    assert "Pipeline N/A" in rendered
+    assert "Model unknown" in rendered
+    assert "Prompt 版本 runtime_rules:unversioned" in rendered
+    assert "程式碼狀態：N/A" in rendered
+    assert "Provider N/A" in rendered
+    assert "資料時間 N/A" in rendered
+    assert "nan" not in rendered.lower()
+    assert "infinity" not in rendered.lower()
+
+
+def test_trust_controls_renderer_drops_string_empty_packet_tokens(monkeypatch):
+    def malformed_reproducibility_packet(context, trust, generated_at):
+        return {
+            "pipeline_id": "Infinity",
+            "model_id": "NaN",
+            "prompt_version": "N/A",
+            "code_commit": "-Infinity",
+            "code_dirty": None,
+            "provider_list": ["NaN", "有效來源"],
+            "source_data_time": "Infinity",
+        }
+
+    monkeypatch.setattr(trust_controls, "build_reproducibility_packet", malformed_reproducibility_packet)
+
+    context = minimal_context()
+    html = build_trust_controls_html(context["data"], context)
+    markdown = "\n".join(build_trust_controls_markdown(context["data"], context))
+    rendered = html + markdown
+
+    assert "有效來源" in rendered
+    assert "Pipeline N/A" in rendered
+    assert "Model unknown" in rendered
+    assert "Provider 有效來源" in rendered
+    assert "資料時間 N/A" in rendered
+    assert "nan" not in rendered.lower()
+    assert "infinity" not in rendered.lower()
+
+
 def test_key_evidence_includes_global_market_and_international_news_context():
     data = minimal_context()["data"]
     data["global_market_context"] = {
@@ -992,18 +1154,22 @@ def test_evidence_matrix_price_target_basis_skips_non_finite_targets():
     assert "壓力情境: N/A" in valuation_row["basis"]
 
 
-def test_evidence_matrix_price_target_basis_skips_malformed_scenario_keys():
+def test_evidence_matrix_price_target_basis_uses_unique_fallback_scenario_labels():
     context = minimal_context()
     context["parsed"]["price_targets"] = {
-        memoryview(b"bad-scenario"): 120,
+        memoryview(b"bad-scenario-one"): 120,
+        memoryview(b"bad-scenario-two"): 130,
         "牛市情境": 150,
     }
 
     rows = build_evidence_matrix_rows(context)
     valuation_row = next(row for row in rows if row["claim"] == "估值結論")
 
+    assert "情境: NT$120" in valuation_row["basis"]
+    assert "情境 2: NT$130" in valuation_row["basis"]
     assert "牛市情境: NT$150" in valuation_row["basis"]
     assert "N/A: NT$120" not in valuation_row["basis"]
+    assert "N/A: NT$130" not in valuation_row["basis"]
     assert "bad-scenario" not in valuation_row["basis"]
 
 
@@ -1091,6 +1257,33 @@ def test_evidence_matrix_moat_basis_skips_malformed_metric_keys():
     assert "bad-moat-key" not in moat_row["basis"]
 
 
+def test_evidence_matrix_basis_drops_string_empty_tokens():
+    context = minimal_context()
+    context["parsed"]["price_targets"] = {
+        "NaN": "Infinity",
+        "基本情境": "120",
+    }
+    context["parsed"]["moat_scores"] = {
+        "整體護城河": "NaN",
+        "Infinity": 8,
+        "轉換成本": "6",
+    }
+    context["parsed"]["recommendation"] = {
+        "建議": "NaN",
+        "12個月": "Infinity",
+        "信心": "7/10",
+    }
+
+    rows = build_evidence_matrix_rows(context)
+    rendered_basis = " ".join(row["basis"] for row in rows)
+
+    assert "基本情境: 120" in rendered_basis
+    assert "轉換成本: 6/10" in rendered_basis
+    assert "信心: 7/10" in rendered_basis
+    assert "NaN" not in rendered_basis
+    assert "Infinity" not in rendered_basis
+
+
 def test_evidence_matrix_payload_uses_shared_text_safety_for_source_audit_fields():
     context = minimal_context()
     context["data"]["source_audit"] = [
@@ -1114,6 +1307,60 @@ def test_evidence_matrix_payload_uses_shared_text_safety_for_source_audit_fields
     assert "bad-provider" not in str(payload)
     assert "bad-time" not in str(payload)
     assert "bad-message" not in str(payload)
+
+
+def test_evidence_matrix_payload_drops_non_finite_source_audit_fields():
+    context = minimal_context()
+    context["data"]["source_audit"] = [
+        {
+            "source": "market_data",
+            "provider": float("nan"),
+            "status": Decimal("Infinity"),
+            "fetched_at": Decimal("-Infinity"),
+            "message": Decimal("NaN"),
+            "record_count": 1,
+            "stale": False,
+        }
+    ]
+
+    payload = build_evidence_matrix_payload(context)
+    source_payload = payload["sources"]["market_data"]
+    rendered = str(payload)
+
+    assert source_payload["source_document"] == "N/A"
+    assert source_payload["status"] == "unknown"
+    assert source_payload["status_label"] == "unknown"
+    assert source_payload["fetched_at"] == "N/A"
+    assert source_payload["text"] == "N/A"
+    assert "nan" not in rendered.lower()
+    assert "infinity" not in rendered.lower()
+
+
+def test_evidence_matrix_payload_drops_non_finite_string_source_audit_fields():
+    context = minimal_context()
+    context["data"]["source_audit"] = [
+        {
+            "source": "market_data",
+            "provider": "NaN",
+            "status": "Infinity",
+            "fetched_at": "-Infinity",
+            "message": "N/A",
+            "record_count": 1,
+            "stale": False,
+        }
+    ]
+
+    payload = build_evidence_matrix_payload(context)
+    source_payload = payload["sources"]["market_data"]
+    rendered = str(payload)
+
+    assert source_payload["source_document"] == "N/A"
+    assert source_payload["status"] == "unknown"
+    assert source_payload["status_label"] == "unknown"
+    assert source_payload["fetched_at"] == "N/A"
+    assert source_payload["text"] == "market_data"
+    assert "nan" not in rendered.lower()
+    assert "infinity" not in rendered.lower()
 
 
 def test_evidence_matrix_payload_message_fallback_skips_text_empty_malformed_values():
@@ -1354,6 +1601,60 @@ def test_evidence_matrix_html_cells_use_shared_text_safety(monkeypatch):
     assert "evidence matrix html cell string unavailable" not in html
 
 
+def test_evidence_matrix_rendered_cells_drop_non_finite_values(monkeypatch):
+    def malformed_evidence_matrix_rows(context):
+        return [
+            {
+                "claim": "估值結論",
+                "basis": Decimal("Infinity"),
+                "source": float("nan"),
+                "provider": Decimal("-Infinity"),
+                "status": Decimal("Infinity"),
+                "status_label": float("nan"),
+                "fetched_at": Decimal("NaN"),
+                "limitation": "有效限制。",
+            }
+        ]
+
+    monkeypatch.setattr(evidence_matrix, "build_evidence_matrix_rows", malformed_evidence_matrix_rows)
+
+    markdown = "\n".join(evidence_matrix.build_evidence_matrix_markdown(minimal_context()))
+    html = evidence_matrix.build_evidence_matrix_html(minimal_context())
+    rendered = (markdown + html).lower()
+
+    assert "估值結論" in markdown
+    assert "有效限制。" in html
+    assert "nan" not in rendered
+    assert "infinity" not in rendered
+
+
+def test_evidence_matrix_rendered_cells_drop_string_empty_tokens(monkeypatch):
+    def malformed_evidence_matrix_rows(context):
+        return [
+            {
+                "claim": "估值結論",
+                "basis": "Infinity",
+                "source": "NaN",
+                "provider": "-Infinity",
+                "status": "Infinity",
+                "status_label": "NaN",
+                "fetched_at": "N/A",
+                "limitation": "有效限制。",
+            }
+        ]
+
+    monkeypatch.setattr(evidence_matrix, "build_evidence_matrix_rows", malformed_evidence_matrix_rows)
+
+    markdown = "\n".join(evidence_matrix.build_evidence_matrix_markdown(minimal_context()))
+    html = evidence_matrix.build_evidence_matrix_html(minimal_context())
+    rendered = (markdown + html).lower()
+
+    assert "估值結論" in markdown
+    assert "有效限制。" in html
+    assert "nan" not in rendered
+    assert "infinity" not in rendered
+
+
 def test_evidence_matrix_rows_use_truthiness_safe_status(monkeypatch):
     class BrokenEvidenceMatrixStatusTruthiness:
         def __bool__(self):
@@ -1453,6 +1754,35 @@ def test_evidence_matrix_rows_use_text_safe_source_labels(monkeypatch):
     valuation_row = next(row for row in rows if row["claim"] == "估值結論")
     assert valuation_row["source"] == "市場資料 + 年度財報 + P/E 河流圖"
     assert valuation_row["provider"] == "yfinance"
+
+
+def test_evidence_matrix_rows_drop_non_finite_key_evidence_text_fields(monkeypatch):
+    def malformed_key_evidence_rows(data):
+        return [
+            {
+                "label": "股價與市值",
+                "source_label": Decimal("Infinity"),
+                "provider": float("nan"),
+                "status": Decimal("Infinity"),
+                "fetched_at": Decimal("-Infinity"),
+                "stale": False,
+            }
+        ]
+
+    monkeypatch.setattr(evidence_matrix, "build_key_evidence_rows", malformed_key_evidence_rows)
+    context = minimal_context()
+    context["parsed"]["price_targets"] = {"基本情境": 120}
+
+    rows = build_evidence_matrix_rows(context)
+
+    valuation_row = next(row for row in rows if row["claim"] == "估值結論")
+    assert valuation_row["source"] == "市場資料 + 年度財報 + P/E 河流圖"
+    assert valuation_row["provider"] == "未記錄"
+    assert valuation_row["status"] == "unknown"
+    assert valuation_row["fetched_at"] == "N/A"
+    row_text = str(valuation_row).lower()
+    assert "nan" not in row_text
+    assert "infinity" not in row_text
 
 
 def test_evidence_matrix_limitations_use_bool_safe_stale_flags(monkeypatch):

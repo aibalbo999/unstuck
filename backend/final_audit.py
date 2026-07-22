@@ -2,52 +2,33 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
-from typing import Optional
-
 from analysis_types import AnalysisContext, AuditResult
 from agent_catalog import AGENT_NAMES
 from confidence_calibration import build_confidence_calibration, has_unresolved_cross_source_conflict
 from final_audit_context_coverage import missing_final_context_labels
 from final_audit_dcf import dcf_conflict_warnings
+from final_audit_helpers import (
+    add_unique_issue as _add_unique_issue,
+    extract_first_price as _extract_first_price,
+    future_price_history_correction,
+    is_agent_execution_failure as _is_agent_execution_failure,
+    recommendation_value as _recommendation_value,
+    source_note_corrections,
+)
 from final_audit_lint import critical_lint_issues_for_pipeline
 from final_audit_mode_contracts import v3_recommendation_contract_issues, v4_trade_setup_contract_issues
+from final_audit_price_targets import REQUIRED_PRICE_TARGETS, price_target_audit_issues
 from final_audit_sections import append_final_audit_section
 from forward_consistency_checker import run_forward_consistency_checks
 from pipeline_modes import get_pipeline_definition, get_structured_agent_num
 from report_reproducibility import build_data_confidence_controls
 from runtime_events import emit_log
 from validators import (
-    _extract_price_numbers,
     strip_generated_audit_sections,
     validate_analysis_output,
     validate_company_identity,
     validate_prompt_leakage,
 )
-
-
-def _is_agent_execution_failure(text: str) -> bool:
-    return bool(text and text.startswith("[Agent ") and "執行失敗" in text)
-
-
-def _recommendation_value(recommendation: dict, key_fragment: str) -> str:
-    for key, value in (recommendation or {}).items():
-        if key_fragment in str(key):
-            return str(value)
-    return ""
-
-
-def _extract_first_price(value: str) -> Optional[float]:
-    try:
-        prices = _extract_price_numbers(value or "")
-    except Exception:
-        return None
-    return prices[0] if prices else None
-
-
-def _add_unique_issue(items: list[str], issue: str):
-    if issue and issue not in items:
-        items.append(issue)
 
 
 def run_final_report_audit(context: AnalysisContext, append_section: bool = True) -> AuditResult:
@@ -107,9 +88,7 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
             add_agent_repair_issue(agent_num, issue)
 
     if pipeline_def["id"] == "v3":
-        for issue in v3_recommendation_contract_issues(
-            analyses, structured_outputs, recommendation_agent, completed_agents
-        ):
+        for issue in v3_recommendation_contract_issues(analyses, structured_outputs, recommendation_agent, completed_agents):
             _add_unique_issue(critical, f"Agent {recommendation_agent} {issue}")
             add_agent_repair_issue(recommendation_agent, issue)
 
@@ -126,27 +105,12 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
             add_agent_repair_issue(agent_num, f"{label} 未提供可解析 JSON 結構化輸出。")
 
     price_targets = parsed.get("price_targets", {}) or {}
-    required_targets = ["熊市情境", "基本情境", "牛市情境"]
-    missing_targets = [key for key in required_targets if key not in price_targets] if valuation_agent is not None else []
-    if valuation_agent is not None and missing_targets:
-        _add_unique_issue(critical, f"Agent {valuation_agent} 缺少目標價情境：{', '.join(missing_targets)}")
-        add_agent_repair_issue(valuation_agent, f"缺少目標價情境：{', '.join(missing_targets)}")
-
     current_price = data.get("current_price")
     numeric_targets = {key: value for key, value in price_targets.items() if isinstance(value, (int, float))}
-    if isinstance(current_price, (int, float)) and current_price > 100:
-        tiny_targets = [f"{key}=NT${value:g}" for key, value in numeric_targets.items() if value < current_price * 0.05]
-        if tiny_targets:
-            _add_unique_issue(critical, f"目標價疑似單位縮小錯誤：{', '.join(tiny_targets)}")
-            add_agent_repair_issue(valuation_agent, f"目標價疑似單位縮小錯誤：{', '.join(tiny_targets)}")
-
-    if all(key in numeric_targets for key in required_targets):
-        bear = numeric_targets["熊市情境"]
-        base = numeric_targets["基本情境"]
-        bull = numeric_targets["牛市情境"]
-        if not (bear <= base <= bull):
-            _add_unique_issue(critical, f"三情境目標價順序不合理：熊市 {bear:g}、基本 {base:g}、牛市 {bull:g}。")
-            add_agent_repair_issue(valuation_agent, f"三情境目標價順序不合理：熊市 {bear:g}、基本 {base:g}、牛市 {bull:g}。")
+    for issue in price_target_audit_issues(price_targets, current_price=current_price, valuation_agent=valuation_agent):
+        _add_unique_issue(critical, issue["critical"])
+        if issue.get("repair_agent") is not None:
+            add_agent_repair_issue(issue["repair_agent"], issue["repair_issue"])
 
     moat_scores = parsed.get("moat_scores", {}) or {}
     required_moat = {"品牌影響力", "網路效應", "轉換成本", "成本優勢", "專利技術", "整體護城河"}
@@ -196,7 +160,7 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
             _add_unique_issue(warnings, f"Agent {recommendation_agent} 在 data_trust={data_trust_status} 時給出高信心（{raw_confidence}），建議信心上限 {cap}/10，報告需明確揭露資料限制。")
 
         target_12m = _extract_first_price(_recommendation_value(recommendation, "12個月"))
-        if valuation_agent is not None and target_12m is not None and all(key in numeric_targets for key in required_targets):
+        if valuation_agent is not None and target_12m is not None and all(key in numeric_targets for key in REQUIRED_PRICE_TARGETS):
             bear = numeric_targets["熊市情境"]
             bull = numeric_targets["牛市情境"]
             lower = bear * 0.7
@@ -207,11 +171,9 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
                     f"Agent {recommendation_agent} 的 12 個月目標價 NT${target_12m:g} 與 Agent {valuation_agent} 三情境區間差距較大，需人工確認。"
                 )
 
-        # Forward consistency checks
         target_3m = _extract_first_price(_recommendation_value(recommendation, "3個月"))
         target_6m = _extract_first_price(_recommendation_value(recommendation, "6個月"))
         rec_text = _recommendation_value(recommendation, "建議")
-        
         forward_checks = run_forward_consistency_checks(
             recommendation=rec_text,
             current_price=current_price,
@@ -245,10 +207,8 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
                 if agent_num is not None:
                     add_agent_repair_issue(agent_num, "資料信心不足，請改用區間或資料不足說明，不得產生明確目標價。")
     data_notes = data.get("data_source_notes", []) or []
-    if any("口徑互斥" in note for note in data_notes):
-        _add_unique_issue(corrections, "資料源出現淨利/淨利率口徑互斥時，報告已採用 EPS/P/E 自洽的校準口徑。")
-    if any("revenueGrowth" in note for note in data_notes):
-        _add_unique_issue(corrections, "Yahoo revenueGrowth 已降級為近期/季度口徑，不得直接當年度或 TTM 年增率。")
+    for correction in source_note_corrections(data_notes):
+        _add_unique_issue(corrections, correction)
 
     for warning in context.get("structured_quality_warnings", []) or []:
         _add_unique_issue(warnings, str(warning))
@@ -257,27 +217,11 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
         _add_unique_issue(warnings, warning)
 
     price_history = data.get("price_history", {}) or {}
-    if isinstance(price_history, dict):
-        future_dates = []
-        today = date.today()
-        for raw_date in price_history.keys():
-            try:
-                parsed_date = datetime.fromisoformat(str(raw_date)[:10]).date()
-            except ValueError:
-                continue
-            if parsed_date > today:
-                future_dates.append(str(raw_date)[:10])
-        if future_dates:
-            _add_unique_issue(
-                corrections,
-                f"歷史股價含未來日期，報告圖表會忽略：{', '.join(sorted(future_dates)[:5])}。"
-            )
+    _add_unique_issue(corrections, future_price_history_correction(price_history))
 
     critical_lint_agent = recommendation_agent if recommendation_agent is not None else trade_setup_agent
     if critical_lint_agent is not None:
-        final_agent_output = str(
-            analyses.get(critical_lint_agent, analyses.get(str(critical_lint_agent), "")) or ""
-        )
+        final_agent_output = str(analyses.get(critical_lint_agent, analyses.get(str(critical_lint_agent), "")) or "")
         for issue_msg in critical_lint_issues_for_pipeline(pipeline_def["id"], final_agent_output):
             _add_unique_issue(critical, issue_msg)
             add_agent_repair_issue(critical_lint_agent, issue_msg)

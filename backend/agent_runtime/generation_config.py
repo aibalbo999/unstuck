@@ -11,7 +11,7 @@ from google.genai import types
 from config import LLM_AGENT_CALL_TIMEOUT_SECONDS
 from google_prompt_safety import sanitize_google_system_instruction
 from llm_client import generate_content, generate_content_async, generate_content_stream_async, response_text
-from structured_outputs import STRUCTURED_AGENT_INSTRUCTIONS, get_structured_response_schema
+from structured_output_models import STRUCTURED_AGENT_INSTRUCTIONS, get_structured_response_schema
 
 from .prompt_config import SYSTEM_PROMPTS
 from .retry_policy import AgentTransientError

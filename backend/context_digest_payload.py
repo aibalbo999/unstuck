@@ -6,7 +6,7 @@ import json
 
 from agent_catalog import AGENT_NAMES
 from assistant_context import _format_previous, _format_structured_outputs_for_context
-from structured_outputs import _extract_json_payload
+from json_utils import extract_json_payload
 
 
 def _build_context_digest_prompt(current_agent: int, context: dict) -> str:
@@ -43,7 +43,7 @@ def _build_context_digest_prompt(current_agent: int, context: dict) -> str:
 
 
 def _normalize_digest_text(text: str, current_agent: int, context: dict) -> str:
-    payload = _extract_json_payload(text or "")
+    payload = extract_json_payload(text or "")
     if isinstance(payload, dict):
         payload = _ensure_digest_payload_shape(payload)
         return json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True)

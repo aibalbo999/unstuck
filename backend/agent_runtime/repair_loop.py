@@ -16,13 +16,10 @@ from validators import (
     validate_prompt_leakage,
 )
 
-from .deterministic_fallbacks import (
-    _clear_agent_blocking_issues,
-    _deterministic_quality_fallback,
-    _deterministic_structured_fallback,
-    _record_deterministic_fallback,
-)
+from .deterministic_fallbacks import _clear_agent_blocking_issues
 from .repair_circuit_breaker import is_repair_429_error, record_repair_429_failure, repair_429_circuit_state
+from .repair_context import capture_repair_context, install_repair_attempt_context, restore_repair_context
+from .repair_quality_fallback import record_quality_fallback
 from .repair_attempt_limits import apply_429_fallback, increment_repair_attempt_count, per_job_repair_limit_fallback
 from .repair_reflection import (
     build_audit_reflection_instruction,
@@ -44,45 +41,9 @@ def _structured_output_missing(context: AnalysisContext, agent_num: int) -> bool
     return agent_num in structured_agents and agent_num not in (context.get("structured_outputs", {}) or {})
 
 
-def _restore_repair_context(context: AnalysisContext, previous: dict[str, object]) -> None:
-    for key, value in previous.items():
-        if value is None:
-            context.pop(key, None)
-        else:
-            context[key] = value
-
-
-def _record_quality_fallback(
-    agent_num: int,
-    data: StockData,
-    context: AnalysisContext,
-    original_analysis: str,
-    current_issues: list[str],
-    last_quality_issues: list[str],
-    last_result: str | None,
-) -> tuple[bool, str]:
-    fallback_ok, fallback_message = _deterministic_structured_fallback(agent_num, data, context, original_analysis)
-    if not fallback_ok:
-        fallback_ok, fallback_message = _deterministic_quality_fallback(agent_num, data, context, last_quality_issues or current_issues)
-    if fallback_ok:
-        _record_deterministic_fallback(
-            context,
-            agent_num,
-            fallback_message,
-            "quality_fallback_after_retries",
-            issues=last_quality_issues or current_issues,
-            raw_failure=last_result or "",
-        )
-    return fallback_ok, fallback_message
-
-
 def _repair_agent_output(agent_num: int, data: StockData, context: AnalysisContext, rotator: KeyRotator, issues: list[str]) -> tuple[bool, str]:
     """Synchronously ask the relevant agent to rewrite after final audit failure."""
-    previous = {
-        "_audit_retry_instruction": context.get("_audit_retry_instruction"),
-        "_audit_reflection_instruction": context.get("_audit_reflection_instruction"),
-        "_model_sequence_override": context.get("_model_sequence_override"),
-    }
+    previous = capture_repair_context(context)
     original_analysis = str(context.get("analyses", {}).get(agent_num, ""))
     try:
         limit_result = per_job_repair_limit_fallback(agent_num, data, context, original_analysis, list(issues))
@@ -113,12 +74,13 @@ def _repair_agent_output(agent_num: int, data: StockData, context: AnalysisConte
                 data,
                 rotator,
             )
-            context["_audit_reflection_instruction"] = build_audit_reflection_instruction(reflection)
-            context["_audit_retry_instruction"] = build_audit_retry_instruction(agent_num, current_issues)
-            model_override = dict(context.get("_model_sequence_override", {}) or {})
-            model_override[agent_num] = get_audit_model_sequence()
-            context["_model_sequence_override"] = model_override
-            context.setdefault("structured_outputs", {}).pop(agent_num, None)
+            install_repair_attempt_context(
+                context,
+                agent_num,
+                reflection_instruction=build_audit_reflection_instruction(reflection),
+                retry_instruction=build_audit_retry_instruction(agent_num, current_issues),
+                model_sequence=get_audit_model_sequence(),
+            )
             try:
                 result = sanitize_model_output(run_single_agent(agent_num, data, context, rotator, max_retries=1))
             finally:
@@ -157,7 +119,7 @@ def _repair_agent_output(agent_num: int, data: StockData, context: AnalysisConte
             return True, "已重寫並通過品質檢查"
         if last_result:
             context["analyses"][agent_num] = last_result
-        fallback_ok, fallback_message = _record_quality_fallback(
+        fallback_ok, fallback_message = record_quality_fallback(
             agent_num, data, context, original_analysis, current_issues, last_quality_issues, last_result
         )
         if fallback_ok:
@@ -178,16 +140,12 @@ def _repair_agent_output(agent_num: int, data: StockData, context: AnalysisConte
         )
         return False, str(exc)[:160]
     finally:
-        _restore_repair_context(context, previous)
+        restore_repair_context(context, previous)
 
 
 async def _repair_agent_output_async(agent_num: int, data: StockData, context: AnalysisContext, rotator: KeyRotator, issues: list[str]) -> tuple[bool, str]:
     """Asynchronously ask the relevant agent to rewrite after final audit failure."""
-    previous = {
-        "_audit_retry_instruction": context.get("_audit_retry_instruction"),
-        "_audit_reflection_instruction": context.get("_audit_reflection_instruction"),
-        "_model_sequence_override": context.get("_model_sequence_override"),
-    }
+    previous = capture_repair_context(context)
     original_analysis = str(context.get("analyses", {}).get(agent_num, ""))
     try:
         limit_result = per_job_repair_limit_fallback(agent_num, data, context, original_analysis, list(issues))
@@ -218,12 +176,13 @@ async def _repair_agent_output_async(agent_num: int, data: StockData, context: A
                 data,
                 rotator,
             )
-            context["_audit_reflection_instruction"] = build_audit_reflection_instruction(reflection)
-            context["_audit_retry_instruction"] = build_audit_retry_instruction(agent_num, current_issues)
-            model_override = dict(context.get("_model_sequence_override", {}) or {})
-            model_override[agent_num] = get_audit_model_sequence()
-            context["_model_sequence_override"] = model_override
-            context.setdefault("structured_outputs", {}).pop(agent_num, None)
+            install_repair_attempt_context(
+                context,
+                agent_num,
+                reflection_instruction=build_audit_reflection_instruction(reflection),
+                retry_instruction=build_audit_retry_instruction(agent_num, current_issues),
+                model_sequence=get_audit_model_sequence(),
+            )
             try:
                 result = sanitize_model_output(await run_single_agent_async(agent_num, data, context, rotator, max_retries=1))
             finally:
@@ -262,7 +221,7 @@ async def _repair_agent_output_async(agent_num: int, data: StockData, context: A
             return True, "已重寫並通過品質檢查"
         if last_result:
             context["analyses"][agent_num] = last_result
-        fallback_ok, fallback_message = _record_quality_fallback(
+        fallback_ok, fallback_message = record_quality_fallback(
             agent_num, data, context, original_analysis, current_issues, last_quality_issues, last_result
         )
         if fallback_ok:
@@ -283,4 +242,4 @@ async def _repair_agent_output_async(agent_num: int, data: StockData, context: A
         )
         return False, str(exc)[:160]
     finally:
-        _restore_repair_context(context, previous)
+        restore_repair_context(context, previous)

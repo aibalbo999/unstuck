@@ -12,8 +12,9 @@ from analysis_job_helpers import (
 )
 from analysis_job_progress import make_pipeline_progress_callback
 from analysis_job_reports import render_and_persist_report
+from analysis_job_telemetry import make_analysis_job_telemetry_callback
 from data_fetch import FetchRequest, StockDataService
-from job_store import append_event, is_job_cancel_requested, record_node_telemetry, sanitize_error_message, update_job
+from job_store import append_event, is_job_cancel_requested, update_job
 from pipeline_modes import (
     get_pipeline_definition,
     get_pipeline_run_agent_total,
@@ -58,28 +59,12 @@ async def run_stock_analysis_job_async(
     current_pipeline_label = run_label
     update_job(job_id, "running")
 
-    def telemetry_callback(payload: dict) -> None:
-        telemetry_payload = {
-            **dict(payload or {}),
-            "job_id": job_id,
-            "ticker": ticker_upper,
-            "pipeline_id": str((payload or {}).get("pipeline_id") or run_id),
-        }
-        record_node_telemetry(telemetry_payload)
-        append_event(
-            job_id,
-            {
-                "type": "telemetry",
-                "node_name": telemetry_payload.get("node_name"),
-                "model": telemetry_payload.get("model"),
-                "status": telemetry_payload.get("status"),
-                "latency_ms": telemetry_payload.get("latency_ms"),
-                "retry_count": telemetry_payload.get("retry_count", 0),
-                "quality_gate_pass": telemetry_payload.get("quality_gate_pass"),
-                "error": sanitize_error_message(telemetry_payload.get("error")),
-                "pipeline_id": telemetry_payload.get("pipeline_id"),
-            },
-        )
+    telemetry_callback = make_analysis_job_telemetry_callback(
+        job_id=job_id,
+        ticker_upper=ticker_upper,
+        run_id=run_id,
+        append_event_func=append_event,
+    )
 
     try:
         if not has_api_keys():

@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-import math
 import sqlite3
 import time
 from pathlib import Path
 from typing import Any
 
-from notification_delivery_audit_context import attention_contexts_from_records, context_from_json, context_json_from_outbox, safe_dict, safe_float, safe_int, safe_text, safe_timestamp
+from notification_delivery_audit_context import attention_contexts_from_records, context_from_json, context_json_from_outbox, safe_float, safe_int, safe_text, safe_timestamp
 from notification_delivery_reason import failure_reason_bucket
+from notification_delivery_reconcile import reconciled_outbox_entry as _reconciled_outbox_entry, retry_exhausted as _retry_exhausted
 from mapping_fields import mapping_field as _field, safe_dict_list, safe_mapping_dict
 from runtime_paths import current_runtime_paths
 
@@ -203,7 +203,7 @@ def get_delivery_audit_summary() -> dict[str, Any]:
         "sent_count": sum(1 for record in records if safe_text(_field(record, "delivery_status")).strip().lower() == "sent"),
         "failed_count": sum(1 for record in records if safe_text(_field(record, "delivery_status")).strip().lower() == "failed"),
         "pending_count": sum(1 for record in records if safe_text(_field(record, "delivery_status")).strip().lower() == "pending"),
-        "retry_exhausted_count": sum(1 for record in records if _retry_exhausted(record)),
+        "retry_exhausted_count": sum(1 for record in records if _retry_exhausted(record, max_attempts=DEFAULT_MAX_DELIVERY_ATTEMPTS)),
         "channel_counts": channel_counts,
         "failure_reason_counts": dict(sorted(failure_reason_counts.items())),
         "attention_contexts": attention_contexts_from_records(records),
@@ -224,95 +224,6 @@ def _records_by_delivery_key(delivery_keys: list[str]) -> dict[str, dict[str, An
             (*delivery_keys, *delivery_keys, *delivery_keys),
         ).fetchall()
     return {safe_text(row["delivery_key"]).strip(): _row_to_record(row) for row in rows}
-
-
-def _reconciled_outbox_entry(
-    entry: dict[str, Any],
-    audit_record: dict[str, Any] | None,
-    *,
-    max_attempts: int,
-    now: float,
-    retry_backoff_seconds: float,
-) -> dict[str, Any]:
-    if not audit_record:
-        return {
-            **entry,
-            "audit_status": "not_seen",
-            "audit_attempt_count": 0,
-            "already_sent": False,
-            "should_send": True,
-            "retry_exhausted": False,
-            "retry_wait_seconds": 0,
-            "next_retry_at": None,
-            "next_attempt_count": 1,
-            "skip_reason": "",
-            "last_error": "",
-            "last_response_id": "",
-            "last_success_at": None,
-            "audit_context": {},
-        }
-    attempt_count = safe_int(_field(audit_record, "attempt_count"))
-    audit_status = safe_text(_field(audit_record, "delivery_status")).strip().lower() or "unknown"
-    already_sent = audit_status == "sent"
-    retry_exhausted = _retry_exhausted(audit_record, max_attempts=max_attempts)
-    next_retry_at = _next_retry_at(
-        audit_record,
-        retry_exhausted=retry_exhausted,
-        retry_backoff_seconds=retry_backoff_seconds,
-    )
-    retry_wait_seconds = _retry_wait_seconds(next_retry_at, now=now)
-    retry_wait = retry_wait_seconds > 0
-    return {
-        **entry,
-        "audit_status": audit_status,
-        "audit_attempt_count": attempt_count,
-        "already_sent": already_sent,
-        "should_send": not already_sent and not retry_exhausted and not retry_wait,
-        "retry_exhausted": retry_exhausted,
-        "retry_wait_seconds": retry_wait_seconds,
-        "next_retry_at": next_retry_at,
-        "next_attempt_count": attempt_count + 1,
-        "skip_reason": _skip_reason(
-            already_sent=already_sent,
-            retry_exhausted=retry_exhausted,
-            retry_wait=retry_wait,
-        ),
-        "last_error": safe_text(_field(audit_record, "last_error")),
-        "last_response_id": safe_text(_field(audit_record, "last_response_id")).strip(),
-        "last_success_at": safe_float(_field(audit_record, "last_success_at")) if _field(audit_record, "last_success_at") is not None else None,
-        "audit_context": safe_dict(_field(audit_record, "context")),
-    }
-
-
-def _retry_exhausted(record: dict[str, Any], *, max_attempts: int = DEFAULT_MAX_DELIVERY_ATTEMPTS) -> bool:
-    return safe_text(_field(record, "delivery_status")).strip().lower() == "failed" and safe_int(_field(record, "attempt_count")) >= max(1, safe_int(max_attempts))
-
-
-def _next_retry_at(
-    record: dict[str, Any],
-    *,
-    retry_exhausted: bool,
-    retry_backoff_seconds: float,
-) -> float | None:
-    if safe_text(_field(record, "delivery_status")).strip().lower() != "failed" or retry_exhausted:
-        return None
-    return safe_float(_field(record, "last_attempt_at")) + retry_backoff_seconds
-
-
-def _retry_wait_seconds(next_retry_at: float | None, *, now: float) -> int:
-    if next_retry_at is None:
-        return 0
-    return max(0, int(math.ceil(next_retry_at - now)))
-
-
-def _skip_reason(*, already_sent: bool, retry_exhausted: bool, retry_wait: bool) -> str:
-    if already_sent:
-        return "already_sent"
-    if retry_exhausted:
-        return "retry_exhausted"
-    if retry_wait:
-        return "retry_wait"
-    return ""
 
 
 def _required_text(payload: dict[str, Any], key: str) -> str:

@@ -8,10 +8,8 @@ from agent_catalog import AGENT_NAMES
 from analysis_types import AnalysisContext, StockData
 from context_digest_tasks import CONTEXT_DIGEST_TARGET_AGENTS, ensure_context_digest_async
 from llm_client import KeyRotator
-from pipeline_modes import get_pipeline_definition
 from rag_runtime import ensure_agent_rag_context_async
 from runtime_events import emit_log, emit_status_async
-from structured_outputs import process_agent_response
 from validators import (
     append_identity_warnings,
     append_quality_warnings,
@@ -23,31 +21,9 @@ from validators import (
 )
 from .cancellation import raise_if_cancelled
 from .quality_retry import retry_after_agent_quality_issues
+from .quality_structured_outputs import try_parse_structured_output as _try_parse_structured_output
 from .routing import get_runtime_model_sequence, is_agent_execution_failure
 from .single_agent import run_single_agent_async
-
-
-def _is_structured_agent(agent_num: int, context: AnalysisContext) -> bool:
-    pipeline_def = get_pipeline_definition(context.get("pipeline_id", "v1"))
-    return int(agent_num) in set(pipeline_def["structured_agents"].values())
-
-
-def _try_parse_structured_output(agent_num: int, result: str, context: AnalysisContext) -> tuple[bool, str]:
-    """Parse structured output immediately when a structured agent did not persist one."""
-
-    if not _is_structured_agent(agent_num, context):
-        return True, result
-    structured_outputs = context.setdefault("structured_outputs", {})
-    existing = structured_outputs.get(agent_num, structured_outputs.get(str(agent_num)))
-    if existing:
-        return True, result
-
-    parsed_result = process_agent_response(agent_num, result, context)
-    parsed = structured_outputs.get(agent_num, structured_outputs.get(str(agent_num)))
-    if parsed:
-        return True, parsed_result
-    return False, parsed_result
-
 
 async def run_agent_with_quality_gates_async(
     agent_num: int,

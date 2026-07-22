@@ -37,3 +37,28 @@ def pct_from_ratio(value: Any) -> Optional[float]:
     if number is None:
         return None
     return round(number * 100, 4)
+
+
+def safe_sequence(values: object) -> list[Any]:
+    if values is None:
+        return []
+    try:
+        iterator = iter(values)
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+        return []
+    items = []
+    while True:
+        try:
+            items.append(next(iterator))
+        except StopIteration:
+            return items
+        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+            return items
+
+
+def latest_numeric(values: object) -> Optional[float]:
+    for value in reversed(safe_sequence(values)):
+        number = safe_float(value)
+        if number is not None:
+            return number
+    return None

@@ -11,7 +11,7 @@ from assistant_tasks import (  # noqa: F401
 )
 from config import AGENT_MODELS  # noqa: F401
 from final_audit import run_final_report_audit  # noqa: F401
-from structured_outputs import parse_structured_data  # noqa: F401
+from structured_output_parser import parse_structured_data  # noqa: F401
 from runtime_events import emit_log
 from validators import (  # noqa: F401
     append_quality_warnings,

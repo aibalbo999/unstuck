@@ -1,4 +1,5 @@
 import json
+import importlib
 import sys
 from pathlib import Path
 from types import MappingProxyType
@@ -11,9 +12,29 @@ import final_audit  # noqa: E402
 import decision_tracking  # noqa: E402
 import data_trust_sla_policy  # noqa: E402
 import prompt_builder  # noqa: E402
-import structured_outputs  # noqa: E402
 from agent_runtime.prompting import build_prompt  # noqa: E402
 from state_memory import initialize_agent_state  # noqa: E402
+from structured_output_runtime import process_agent_response  # noqa: E402
+
+
+def test_data_trust_source_status_helpers_classify_core_and_optional_sources():
+    source_status = importlib.import_module("data_trust_source_status")
+    latest_audit = source_status.latest_audit_by_source(
+        [
+            {"source": "market_data", "status": "success", "fetched_at": "2026-07-12T01:00:00+00:00"},
+            {"source": "global_market_context", "status": "not_configured"},
+            {"source": "international_news_context", "status": "success", "stale": True},
+        ]
+    )
+    source_freshness = {
+        "market_data": {"stale": True, "fetched_at": "2026-07-12T02:00:00+00:00"},
+        "international_news_context": {"stale": True},
+    }
+
+    assert source_status.stale_sources_from(source_freshness, latest_audit) == ["market_data"]
+    assert source_status.optional_stale_sources_from(source_freshness, latest_audit) == ["international_news_context"]
+    assert source_status.optional_sources_with_status(latest_audit, "not_configured") == ["global_market_context"]
+    assert source_status.last_market_data_at({}, source_freshness, latest_audit) == "2026-07-12T02:00:00+00:00"
 
 
 def _recommendation_payload(confidence: str = "9/10") -> dict:
@@ -632,7 +653,7 @@ def test_structured_output_warns_on_high_confidence_with_low_trust():
         "analyses": {},
     }
 
-    report_text = structured_outputs.process_agent_response(
+    report_text = process_agent_response(
         7,
         json.dumps(_recommendation_payload("9/10"), ensure_ascii=False),
         context,

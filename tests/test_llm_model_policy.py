@@ -97,6 +97,26 @@ def test_503_is_classified_as_server_error_not_plain_transient():
     assert _agent_error_category(RuntimeError("503 UNAVAILABLE high demand")) == "server_5xx"
 
 
+def test_retry_error_classification_helpers_cover_error_kind_and_key_slot():
+    from agent_runtime.retry_error_classification import (
+        _agent_error_category,
+        _is_invalid_argument_error,
+        _is_server_5xx_error,
+        _is_transient_provider_error,
+        _key_slot,
+    )
+
+    class FakeRotator:
+        keys = ["key-a", "key-b"]
+
+    assert _is_server_5xx_error("503 UNAVAILABLE high demand") is True
+    assert _is_invalid_argument_error("400 INVALID_ARGUMENT bad schema") is True
+    assert _is_transient_provider_error("deadline timeout") is True
+    assert _agent_error_category(RuntimeError("deadline exceeded")) == "timeout"
+    assert _key_slot("key-b", FakeRotator()) == (2, 2)
+    assert _key_slot("missing-key", FakeRotator()) == (None, 2)
+
+
 def test_rate_limit_error_records_key_slot_metadata():
     class FakeRotator:
         keys = ["key-a", "key-b", "key-c"]

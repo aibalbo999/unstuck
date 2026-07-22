@@ -20,6 +20,7 @@ from structured_output_models import (  # noqa: E402
     ExecutiveThesisOutput,
     ManagementHighlight,
     ManagementSentimentStructuredOutput,
+    MoatScores,
     MoatStructuredOutput,
     PriceTargets,
     PriceTargetStructuredOutput,
@@ -87,6 +88,121 @@ class MalformedStructuredNumber:
         raise RuntimeError("structured number unavailable")
 
 
+class FloatingStructuredNumber:
+    def __float__(self):
+        return 999.0
+
+
+class StringifyingStructuredText:
+    def __str__(self):
+        return "bad-body-literal"
+
+
+class StringifyingBearishDirection:
+    def __str__(self):
+        return "bearish_downgrade"
+
+
+class StringifyingBearScenario:
+    def __str__(self):
+        return "bear"
+
+
+class StringifyingTrueValue:
+    def __str__(self):
+        return "true"
+
+
+class StringifyingNumberValue:
+    def __str__(self):
+        return "999"
+
+
+class StringifyingRecommendationKey:
+    def __str__(self):
+        return "建議"
+
+
+class StringifyingRecommendationTargetKey:
+    def __str__(self):
+        return "短期目標（3個月）"
+
+
+class StringifyingBuyLabel:
+    def __str__(self):
+        return "買入"
+
+
+class EqualToBaseCaseKey:
+    def __hash__(self):
+        return hash("基本情境")
+
+    def __eq__(self, other):
+        return other == "基本情境"
+
+
+class EqualToDcfReasoningKey:
+    def __hash__(self):
+        return hash("dcf_reasoning")
+
+    def __eq__(self, other):
+        return other == "dcf_reasoning"
+
+
+class EqualToOverallMoatKey:
+    def __hash__(self):
+        return hash("整體護城河")
+
+    def __eq__(self, other):
+        return other == "整體護城河"
+
+
+class EqualToPrimaryMethodKey:
+    def __hash__(self):
+        return hash("primary_method")
+
+    def __eq__(self, other):
+        return other == "primary_method"
+
+
+class EqualToMarketValueWaccKey:
+    def __hash__(self):
+        return hash("uses_market_value_wacc")
+
+    def __eq__(self, other):
+        return other == "uses_market_value_wacc"
+
+
+class EqualToDoubleCountingCheckKey:
+    def __hash__(self):
+        return hash("double_counting_check")
+
+    def __eq__(self, other):
+        return other == "double_counting_check"
+
+
+class EqualToDcfScenarioFieldKey:
+    def __init__(self, field_name):
+        self.field_name = field_name
+
+    def __hash__(self):
+        return hash(self.field_name)
+
+    def __eq__(self, other):
+        return other == self.field_name
+
+
+class EqualToRecommendationTailFieldKey:
+    def __init__(self, field_name):
+        self.field_name = field_name
+
+    def __hash__(self):
+        return hash(self.field_name)
+
+    def __eq__(self, other):
+        return other == self.field_name
+
+
 def test_scenario_trigger_uses_fallback_for_malformed_text_fields_before_validation():
     output = ScenarioTrigger.model_validate({
         "trigger_condition": MalformedStructuredText(),
@@ -111,6 +227,115 @@ def test_catalyst_uses_fallback_for_malformed_text_fields_before_validation():
     assert output.expected_timeframe == "待後續資料確認"
     assert output.impact_direction == "volatile"
     assert output.trigger_condition == "待後續資料確認"
+
+
+def test_recommendation_tail_models_ignore_non_string_literals_before_validation():
+    trigger = ScenarioTrigger.model_validate({
+        "trigger_condition": StringifyingStructuredText(),
+        "action": StringifyingStructuredText(),
+        "direction": StringifyingStructuredText(),
+    })
+    catalyst = Catalyst.model_validate({
+        "event_name": StringifyingStructuredText(),
+        "expected_timeframe": StringifyingStructuredText(),
+        "impact_direction": StringifyingStructuredText(),
+        "trigger_condition": StringifyingStructuredText(),
+    })
+
+    assert trigger.trigger_condition == "待後續資料確認觸發條件"
+    assert trigger.action == "重新檢查投資結論"
+    assert trigger.direction == "neutral_review"
+    assert catalyst.event_name == "待確認催化事件"
+    assert catalyst.expected_timeframe == "待後續資料確認"
+    assert catalyst.impact_direction == "volatile"
+    assert catalyst.trigger_condition == "待後續資料確認"
+
+    payload = _recommendation_payload(next_catalysts=[
+        {
+            "event_name": StringifyingStructuredText(),
+            "expected_timeframe": StringifyingStructuredText(),
+            "impact_direction": StringifyingStructuredText(),
+            "trigger_condition": StringifyingStructuredText(),
+        },
+    ])
+    payload["scenario_triggers"] = [
+        {
+            "trigger_condition": StringifyingStructuredText(),
+            "action": StringifyingStructuredText(),
+            "direction": StringifyingStructuredText(),
+        },
+        {
+            "trigger_condition": "法說會正式調升全年營收與毛利率展望",
+            "action": "重新評估上行情境",
+            "direction": "bullish_upgrade",
+        },
+    ]
+
+    recommendation = RecommendationStructuredOutput.model_validate(payload)
+
+    assert [row.trigger_condition for row in recommendation.scenario_triggers] == [
+        "法說會正式調升全年營收與毛利率展望",
+        "待後續資料確認觸發條件",
+    ]
+    assert recommendation.next_catalysts[0].trigger_condition == "法說會正式調升全年營收與毛利率展望"
+    assert "bad-body-literal" not in repr(recommendation)
+
+
+def test_schema_recommendation_tail_fields_ignore_non_string_equal_keys_before_validation():
+    trigger = ScenarioTrigger.model_validate({
+        EqualToRecommendationTailFieldKey("trigger_condition"): "季度毛利率低於 43% 且管理層未提出改善計畫",
+        EqualToRecommendationTailFieldKey("action"): "下調至持有並重估目標價",
+        EqualToRecommendationTailFieldKey("direction"): "bearish_downgrade",
+    })
+    catalyst = Catalyst.model_validate({
+        EqualToRecommendationTailFieldKey("event_name"): "Q4 法說會",
+        EqualToRecommendationTailFieldKey("expected_timeframe"): "Q4 2026",
+        EqualToRecommendationTailFieldKey("impact_direction"): "bullish",
+        EqualToRecommendationTailFieldKey("trigger_condition"): "若管理層調升毛利率指引，重新評估上行情境。",
+    })
+
+    assert trigger.trigger_condition == "待後續資料確認觸發條件"
+    assert trigger.action == "重新檢查投資結論"
+    assert trigger.direction == "neutral_review"
+    assert catalyst.event_name == "待確認催化事件"
+    assert catalyst.expected_timeframe == "待後續資料確認"
+    assert catalyst.impact_direction == "volatile"
+    assert catalyst.trigger_condition == "待後續資料確認"
+
+    payload = _recommendation_payload(next_catalysts=[
+        {
+            EqualToRecommendationTailFieldKey("event_name"): "Q4 法說會",
+            EqualToRecommendationTailFieldKey("expected_timeframe"): "Q4 2026",
+            EqualToRecommendationTailFieldKey("impact_direction"): "bullish",
+            EqualToRecommendationTailFieldKey("trigger_condition"): "若管理層調升毛利率指引，重新評估上行情境。",
+        },
+        {
+            "event_name": "月營收公布",
+            "expected_timeframe": "下個月",
+            "impact_direction": "volatile",
+            "trigger_condition": "若營收連續兩個月回升，重新評估上行情境。",
+        },
+    ])
+    payload["scenario_triggers"] = [
+        {
+            EqualToRecommendationTailFieldKey("trigger_condition"): "季度毛利率低於 43% 且管理層未提出改善計畫",
+            EqualToRecommendationTailFieldKey("action"): "下調至持有並重估目標價",
+            EqualToRecommendationTailFieldKey("direction"): "bearish_downgrade",
+        },
+        {
+            "trigger_condition": "法說會正式調升全年營收與毛利率展望",
+            "action": "上調至買入並重估上行情境",
+            "direction": "bullish_upgrade",
+        },
+    ]
+
+    recommendation = RecommendationStructuredOutput.model_validate(payload)
+
+    assert [row.trigger_condition for row in recommendation.scenario_triggers] == [
+        "法說會正式調升全年營收與毛利率展望",
+        "待後續資料確認觸發條件",
+    ]
+    assert [row.event_name for row in recommendation.next_catalysts] == ["月營收公布"]
 
 
 def test_executive_thesis_output_caps_core_thesis_to_300_words():
@@ -158,6 +383,26 @@ def test_executive_thesis_output_uses_fallback_for_malformed_text_fields_before_
     assert output.smoothed_markdown == "資料不足"
 
 
+def test_executive_thesis_output_ignores_non_string_literals_before_validation():
+    output = ExecutiveThesisOutput.model_validate({
+        "core_thesis": StringifyingStructuredText(),
+        "bull_case_summary": StringifyingStructuredText(),
+        "bear_case_summary": StringifyingStructuredText(),
+        "resolved_contradictions": [
+            "有效矛盾整理",
+            StringifyingStructuredText(),
+        ],
+        "smoothed_markdown": StringifyingStructuredText(),
+    })
+
+    assert output.core_thesis == "資料不足"
+    assert output.bull_case_summary == "資料不足"
+    assert output.bear_case_summary == "資料不足"
+    assert output.resolved_contradictions == ["有效矛盾整理", "資料不足"]
+    assert output.smoothed_markdown == "資料不足"
+    assert "bad-body-literal" not in repr(output)
+
+
 def test_executive_thesis_output_uses_fallback_for_malformed_resolved_contradictions_before_validation():
     output = ExecutiveThesisOutput.model_validate({
         "core_thesis": "核心論點保留。",
@@ -191,6 +436,86 @@ def test_moat_output_uses_fallback_for_malformed_analysis_markdown_before_valida
     })
 
     assert output.analysis_markdown == "資料不足"
+
+
+def test_structured_output_schema_analysis_markdown_ignores_non_string_literals_before_validation():
+    moat = MoatStructuredOutput.model_validate({
+        "reasoning_steps": ["品牌證據可量化", "技術優勢仍需折價", "整體分數需保留"],
+        "moat_scores": {
+            "品牌影響力": 8,
+            "網路效應": 7,
+            "轉換成本": 6,
+            "成本優勢": 5,
+            "專利技術": 4,
+            "整體護城河": 6,
+        },
+        "analysis_markdown": StringifyingStructuredText(),
+    })
+    valuation = PriceTargetStructuredOutput.model_validate({
+        "price_targets": {
+            "dcf_reasoning": "DCF 假設完整",
+            "peer_reasoning": "同業比較完整",
+            "scenario_reasoning": "三情境差異完整",
+            "熊市情境": 90,
+            "基本情境": 120,
+            "牛市情境": 150,
+        },
+        "valuation_summary": {
+            "primary_method": "blended",
+            "uses_market_value_wacc": True,
+            "uses_normalized_fcf": True,
+            "double_counting_check": "未重複計算成長與多重評價。",
+        },
+        "analysis_markdown": StringifyingStructuredText(),
+    })
+    recommendation_payload = _recommendation_payload()
+    recommendation_payload["analysis_markdown"] = StringifyingStructuredText()
+    recommendation = RecommendationStructuredOutput.model_validate(recommendation_payload)
+    bubble_payload = _recommendation_payload()
+    bubble_payload["analysis_markdown"] = StringifyingStructuredText()
+    bubble = BubbleSniperStructuredOutput.model_validate(bubble_payload)
+    management = ManagementSentimentStructuredOutput.model_validate({
+        "guidance_tone": "中立",
+        "confidence": 0.7,
+        "highlights": [
+            {"keyword": "需求回溫", "quote": "AI 訂單恢復成長"},
+            {"keyword": "毛利率", "quote": "管理層維持全年展望"},
+            {"keyword": "資本支出", "quote": "供應鏈投資保持紀律"},
+        ],
+        "analysis_markdown": StringifyingStructuredText(),
+    })
+    downside = BearAdvocateStructuredOutput.model_validate({
+        "thesis_summary": "下行風險仍需折價。",
+        "downside_risks": [
+            {
+                "title": "毛利率壓力",
+                "evidence": "同業報價下修且庫存去化慢於預期。",
+                "impact": "估值倍數下修",
+                "severity": "high",
+                "confidence": 0.8,
+            },
+            {
+                "title": "現金流轉弱",
+                "evidence": "營運資金需求上升使 FCF 轉換率下滑。",
+                "impact": "DCF 折價",
+                "severity": "warning",
+                "confidence": 0.6,
+            },
+            {
+                "title": "客戶集中",
+                "evidence": "主要客戶拉貨節奏可能放大營收波動。",
+                "impact": "營收能見度下降",
+                "severity": "warning",
+                "confidence": 0.5,
+            },
+        ],
+        "analysis_markdown": StringifyingStructuredText(),
+    })
+
+    outputs = [moat, valuation, recommendation, bubble, management, downside]
+
+    assert [output.analysis_markdown for output in outputs] == ["資料不足"] * len(outputs)
+    assert "bad-body-literal" not in "".join(repr(output) for output in outputs)
 
 
 def test_moat_output_uses_minimum_fallback_for_malformed_reasoning_steps_before_validation():
@@ -262,6 +587,24 @@ def test_moat_output_uses_fallback_for_malformed_score_container_before_validati
     assert output.moat_scores.overall_moat == 1
 
 
+def test_schema_moat_score_aliases_ignore_non_string_equal_keys_before_validation():
+    output = MoatScores.model_validate({
+        "品牌影響力": 8,
+        "網路效應": 7,
+        "轉換成本": 6,
+        "成本優勢": 5,
+        "專利技術": 4,
+        EqualToOverallMoatKey(): 9,
+    })
+
+    assert output.brand_influence == 8
+    assert output.network_effect == 7
+    assert output.switching_cost == 6
+    assert output.cost_advantage == 5
+    assert output.patent_technology == 4
+    assert output.overall_moat == 1
+
+
 def test_moat_output_uses_fallback_for_missing_score_container_before_validation():
     output = MoatStructuredOutput.model_validate({
         "reasoning_steps": ["品牌證據可量化", "技術優勢仍需折價", "整體分數需保留"],
@@ -317,6 +660,58 @@ def test_price_targets_uses_fallback_for_malformed_root_before_validation():
     assert output.bear_case == 0
     assert output.base_case == 0
     assert output.bull_case == 0
+
+
+def test_schema_valuation_and_recommendation_text_fields_ignore_non_string_literals_before_validation():
+    price_targets = PriceTargets.model_validate({
+        "dcf_reasoning": StringifyingStructuredText(),
+        "peer_reasoning": "同業比較完整",
+        "scenario_reasoning": StringifyingStructuredText(),
+        "熊市情境": 90,
+        "基本情境": 120,
+        "牛市情境": 150,
+    })
+    valuation_summary = ValuationSummary.model_validate({
+        "primary_method": StringifyingStructuredText(),
+        "uses_market_value_wacc": True,
+        "uses_normalized_fcf": True,
+        "double_counting_check": StringifyingStructuredText(),
+    })
+    recommendation = RecommendationFields.model_validate({
+        "建議": "持有",
+        "短期目標（3個月）": StringifyingStructuredText(),
+        "中期目標（6個月）": "NT$330",
+        "長期目標（12個月）": StringifyingStructuredText(),
+        "長期潛力（5年）": StringifyingStructuredText(),
+        "信心指數": StringifyingStructuredText(),
+    })
+    bubble = BubbleSniperRecommendationFields.model_validate({
+        "建議": "避免",
+        "短期目標（3個月）": StringifyingStructuredText(),
+        "中期目標（6個月）": "NT$190",
+        "長期目標（12個月）": StringifyingStructuredText(),
+        "長期潛力（5年）": StringifyingStructuredText(),
+        "信心指數": StringifyingStructuredText(),
+    })
+
+    assert price_targets.dcf_reasoning == "資料不足"
+    assert price_targets.peer_reasoning == "同業比較完整"
+    assert price_targets.scenario_reasoning == "資料不足"
+    assert valuation_summary.primary_method == "blended"
+    assert valuation_summary.double_counting_check == "資料不足"
+    assert recommendation.target_3m == "N/A"
+    assert recommendation.target_6m == "NT$330"
+    assert recommendation.target_12m == "N/A"
+    assert recommendation.long_term_potential_5y == "N/A"
+    assert recommendation.confidence == "N/A"
+    assert bubble.target_3m == "N/A"
+    assert bubble.target_6m == "NT$190"
+    assert bubble.target_12m == "N/A"
+    assert bubble.long_term_potential_5y == "N/A"
+    assert bubble.confidence == "N/A"
+    assert "bad-body-literal" not in (
+        repr(price_targets) + repr(valuation_summary) + repr(recommendation) + repr(bubble)
+    )
 
 
 def test_price_target_output_uses_fallback_for_malformed_analysis_markdown_before_validation():
@@ -486,6 +881,32 @@ def test_valuation_summary_uses_fallback_for_malformed_root_before_validation():
     assert output.double_counting_check == "資料不足"
 
 
+def test_valuation_summary_boolean_fields_ignore_non_string_literals_before_validation():
+    output = ValuationSummary.model_validate({
+        "primary_method": "blended",
+        "uses_market_value_wacc": StringifyingTrueValue(),
+        "uses_normalized_fcf": "yes",
+        "double_counting_check": "未重複計算成長與多重評價。",
+    })
+
+    assert output.uses_market_value_wacc is False
+    assert output.uses_normalized_fcf is True
+
+
+def test_schema_valuation_summary_fields_ignore_non_string_equal_keys_before_validation():
+    output = ValuationSummary.model_validate({
+        EqualToPrimaryMethodKey(): "normalized_dcf",
+        EqualToMarketValueWaccKey(): True,
+        "uses_normalized_fcf": "yes",
+        EqualToDoubleCountingCheckKey(): "未重複計算成長與多重評價。",
+    })
+
+    assert output.primary_method == "blended"
+    assert output.uses_market_value_wacc is False
+    assert output.uses_normalized_fcf is True
+    assert output.double_counting_check == "資料不足"
+
+
 def test_price_target_output_uses_fallback_for_malformed_target_numbers_before_validation():
     output = PriceTargetStructuredOutput.model_validate({
         "price_targets": {
@@ -508,6 +929,48 @@ def test_price_target_output_uses_fallback_for_malformed_target_numbers_before_v
     assert output.price_targets.bear_case == 0
     assert output.price_targets.base_case == 120
     assert output.price_targets.bull_case == 150
+
+
+def test_schema_numeric_fields_ignore_non_primitive_number_literals_before_validation():
+    targets = PriceTargets.model_validate({
+        "dcf_reasoning": "DCF 假設完整",
+        "peer_reasoning": "同業比較完整",
+        "scenario_reasoning": "三情境差異完整",
+        "熊市情境": FloatingStructuredNumber(),
+        "基本情境": StringifyingNumberValue(),
+        "牛市情境": "150",
+    })
+    scenario = DcfScenarioOutput.model_validate({
+        "scenario": "base",
+        "revenue_growth_bias_pct": FloatingStructuredNumber(),
+        "margin_bias_pct": "1.5",
+        "wacc_pct": StringifyingNumberValue(),
+        "intrinsic_value": 120,
+    })
+
+    assert targets.bear_case == 0
+    assert targets.base_case == 0
+    assert targets.bull_case == 150
+    assert scenario.revenue_growth_bias_pct == 0
+    assert scenario.margin_bias_pct == 1.5
+    assert scenario.wacc_pct == 1.0
+    assert scenario.intrinsic_value == 120
+
+
+def test_schema_price_target_aliases_ignore_non_string_equal_keys_before_validation():
+    targets = PriceTargets.model_validate({
+        EqualToDcfReasoningKey(): "DCF 假設完整",
+        "peer_reasoning": "同業比較完整",
+        "scenario_reasoning": "三情境差異完整",
+        EqualToBaseCaseKey(): 120,
+    })
+
+    assert targets.dcf_reasoning == "資料不足"
+    assert targets.peer_reasoning == "同業比較完整"
+    assert targets.scenario_reasoning == "三情境差異完整"
+    assert targets.bear_case == 0
+    assert targets.base_case == 0
+    assert targets.bull_case == 0
 
 
 def test_price_target_output_uses_fallback_for_malformed_dcf_scenario_numbers_before_validation():
@@ -570,6 +1033,104 @@ def test_dcf_scenario_output_uses_fallback_for_invalid_scenario_name_before_vali
     assert output.margin_bias_pct == 2.0
     assert output.wacc_pct == 8.5
     assert output.intrinsic_value == 150
+
+
+def test_dcf_scenario_schema_ignores_non_string_scenario_literals_before_validation():
+    direct = DcfScenarioOutput.model_validate({
+        "scenario": StringifyingBearScenario(),
+        "revenue_growth_bias_pct": 4.5,
+        "margin_bias_pct": 2.0,
+        "wacc_pct": 8.5,
+        "intrinsic_value": 150,
+    })
+    nested = PriceTargetStructuredOutput.model_validate({
+        "price_targets": {
+            "dcf_reasoning": "DCF 假設完整",
+            "peer_reasoning": "同業比較完整",
+            "scenario_reasoning": "三情境差異完整",
+            "熊市情境": 90,
+            "基本情境": 120,
+            "牛市情境": 150,
+        },
+        "valuation_summary": {
+            "primary_method": "blended",
+            "uses_market_value_wacc": True,
+            "uses_normalized_fcf": True,
+            "double_counting_check": "未重複計算成長與多重評價。",
+        },
+        "dcf_scenarios": [
+            {
+                "scenario": StringifyingBearScenario(),
+                "revenue_growth_bias_pct": -5.0,
+                "margin_bias_pct": -2.0,
+                "wacc_pct": 9.5,
+                "intrinsic_value": 90,
+            },
+            {
+                "scenario": "base",
+                "revenue_growth_bias_pct": 2.5,
+                "margin_bias_pct": 1.0,
+                "wacc_pct": 9.5,
+                "intrinsic_value": 120,
+            },
+        ],
+        "analysis_markdown": "估值正文",
+    })
+
+    assert direct.scenario == "base"
+    assert [scenario.scenario for scenario in nested.dcf_scenarios] == ["base"]
+    assert nested.dcf_scenarios[0].intrinsic_value == 120
+
+
+def test_schema_dcf_scenario_fields_ignore_non_string_equal_keys_before_validation():
+    direct = DcfScenarioOutput.model_validate({
+        EqualToDcfScenarioFieldKey("scenario"): "bull",
+        EqualToDcfScenarioFieldKey("revenue_growth_bias_pct"): 4.5,
+        "margin_bias_pct": 2.0,
+        EqualToDcfScenarioFieldKey("wacc_pct"): 8.5,
+        EqualToDcfScenarioFieldKey("intrinsic_value"): 150,
+    })
+    nested = PriceTargetStructuredOutput.model_validate({
+        "price_targets": {
+            "dcf_reasoning": "DCF 假設完整",
+            "peer_reasoning": "同業比較完整",
+            "scenario_reasoning": "三情境差異完整",
+            "熊市情境": 90,
+            "基本情境": 120,
+            "牛市情境": 150,
+        },
+        "valuation_summary": {
+            "primary_method": "blended",
+            "uses_market_value_wacc": True,
+            "uses_normalized_fcf": True,
+            "double_counting_check": "未重複計算成長與多重評價。",
+        },
+        "dcf_scenarios": [
+            {
+                EqualToDcfScenarioFieldKey("scenario"): "bull",
+                EqualToDcfScenarioFieldKey("intrinsic_value"): 90,
+                "revenue_growth_bias_pct": -5.0,
+                "margin_bias_pct": -2.0,
+                "wacc_pct": 9.5,
+            },
+            {
+                "scenario": "base",
+                "revenue_growth_bias_pct": 2.5,
+                "margin_bias_pct": 1.0,
+                "wacc_pct": 9.5,
+                "intrinsic_value": 120,
+            },
+        ],
+        "analysis_markdown": "估值正文",
+    })
+
+    assert direct.scenario == "base"
+    assert direct.revenue_growth_bias_pct == 0
+    assert direct.margin_bias_pct == 2.0
+    assert direct.wacc_pct == 1.0
+    assert direct.intrinsic_value == 0
+    assert [scenario.scenario for scenario in nested.dcf_scenarios] == ["base"]
+    assert nested.dcf_scenarios[0].intrinsic_value == 120
 
 
 def test_price_target_output_skips_malformed_dcf_scenario_rows_before_validation():
@@ -1066,6 +1627,88 @@ def test_swing_trade_setup_uses_fallback_for_malformed_text_fields_before_valida
     assert output.risk_level == "High"
 
 
+def test_structured_display_models_ignore_non_string_literals_before_validation():
+    highlight = ManagementHighlight.model_validate({
+        "keyword": StringifyingStructuredText(),
+        "quote": StringifyingStructuredText(),
+    })
+    management = ManagementSentimentStructuredOutput.model_validate({
+        "guidance_tone": StringifyingStructuredText(),
+        "confidence": 0.7,
+        "highlights": [
+            {"keyword": StringifyingStructuredText(), "quote": "有效引述"},
+            {"keyword": "有效亮點", "quote": StringifyingStructuredText()},
+        ],
+        "analysis_markdown": "管理層正文",
+    })
+    downside_risk = DownsideRisk.model_validate({
+        "title": StringifyingStructuredText(),
+        "evidence": StringifyingStructuredText(),
+        "impact": StringifyingStructuredText(),
+        "severity": StringifyingStructuredText(),
+        "confidence": 0.8,
+    })
+    downside = BearAdvocateStructuredOutput.model_validate({
+        "thesis_summary": StringifyingStructuredText(),
+        "downside_risks": [
+            {
+                "title": StringifyingStructuredText(),
+                "evidence": "有效證據",
+                "impact": StringifyingStructuredText(),
+                "severity": StringifyingStructuredText(),
+                "confidence": 0.8,
+            },
+            {
+                "title": "有效風險",
+                "evidence": StringifyingStructuredText(),
+                "impact": "有效影響",
+                "severity": "high",
+                "confidence": 0.6,
+            },
+        ],
+        "analysis_markdown": "空方正文",
+    })
+    trade = SwingTradeSetup.model_validate({
+        "trade_direction": StringifyingStructuredText(),
+        "entry_zone": StringifyingStructuredText(),
+        "target_price": "NT$112",
+        "stop_loss": StringifyingStructuredText(),
+        "core_catalyst": StringifyingStructuredText(),
+        "risk_level": StringifyingStructuredText(),
+    })
+
+    assert highlight.keyword == "亮點"
+    assert highlight.quote == "資料不足"
+    assert management.guidance_tone == "資料不足"
+    assert [(row.keyword, row.quote) for row in management.highlights] == [
+        ("亮點", "有效引述"),
+        ("有效亮點", "資料不足"),
+        ("亮點", "資料不足"),
+    ]
+    assert downside_risk.title == "下行風險"
+    assert downside_risk.evidence == "資料不足"
+    assert downside_risk.impact == ""
+    assert downside_risk.severity == "warning"
+    assert downside.thesis_summary == "資料不足"
+    assert [
+        (risk.title, risk.evidence, risk.impact, risk.severity, risk.confidence)
+        for risk in downside.downside_risks
+    ] == [
+        ("下行風險", "有效證據", "", "warning", 0.8),
+        ("有效風險", "資料不足", "有效影響", "high", 0.6),
+        ("下行風險", "資料不足", "", "warning", 0.7),
+    ]
+    assert trade.trade_direction == "Neutral"
+    assert trade.entry_zone == "N/A"
+    assert trade.target_price == "NT$112"
+    assert trade.stop_loss == "N/A"
+    assert trade.core_catalyst == "N/A"
+    assert trade.risk_level == "High"
+    assert "bad-body-literal" not in (
+        repr(highlight) + repr(management) + repr(downside_risk) + repr(downside) + repr(trade)
+    )
+
+
 def test_swing_trade_setup_uses_fallback_for_malformed_root_before_validation():
     output = SwingTradeSetup.model_validate(MalformedStructuredText())
 
@@ -1135,6 +1778,34 @@ def test_recommendation_fields_uses_fallback_for_malformed_root_before_validatio
     assert output.target_12m == "N/A"
     assert output.long_term_potential_5y == "N/A"
     assert output.confidence == "N/A"
+
+
+def test_recommendation_schema_ignores_non_string_keys_and_labels_before_validation():
+    standard = RecommendationFields.model_validate({
+        StringifyingRecommendationKey(): "買入",
+        "建議": StringifyingBuyLabel(),
+        StringifyingRecommendationTargetKey(): "NT$999",
+        "中期目標（6個月）": "NT$120",
+        "長期目標（12個月）": "NT$130",
+        "長期潛力（5年）": "NT$150",
+        "信心指數": "7/10",
+    })
+    bubble = BubbleSniperRecommendationFields.model_validate({
+        StringifyingRecommendationKey(): "買入",
+        "建議": StringifyingBuyLabel(),
+        StringifyingRecommendationTargetKey(): "NT$999",
+        "中期目標（6個月）": "NT$100",
+        "長期目標（12個月）": "NT$80",
+        "長期潛力（5年）": "NT$60",
+        "信心指數": "6/10",
+    })
+
+    assert standard.recommendation == "持有"
+    assert standard.target_3m == "N/A"
+    assert standard.target_6m == "NT$120"
+    assert bubble.recommendation == "避免"
+    assert bubble.target_3m == "N/A"
+    assert bubble.target_6m == "NT$100"
 
 
 def test_recommendation_output_requires_next_catalysts():
@@ -1365,6 +2036,37 @@ def test_recommendation_output_uses_list_fallback_for_malformed_confidence_basis
     assert output.recommendation.recommendation == "持有"
 
 
+def test_recommendation_confidence_basis_ignores_non_string_literals_before_validation():
+    from structured_output_normalizer import normalize_structured_output, structured_output_to_report_text  # noqa: E402
+
+    basis_payload = {
+        "evidence_items": ["估值接近基本情境", StringifyingStructuredText(), "FCF 維持正值"],
+        "key_risks_acknowledged": ["毛利率下滑", StringifyingStructuredText()],
+        "data_gaps": [StringifyingStructuredText(), "月營收細項待補"],
+    }
+
+    direct_basis = ConfidenceBasis.model_validate(basis_payload)
+
+    assert direct_basis.evidence_items == ["估值接近基本情境", "FCF 維持正值", "待補具體佐證"]
+    assert direct_basis.key_risks_acknowledged == ["毛利率下滑", "待補已納入風險"]
+    assert direct_basis.data_gaps == ["月營收細項待補"]
+
+    payload = _recommendation_payload()
+    payload["confidence_basis"] = basis_payload
+
+    normalized = normalize_structured_output(7, payload)
+
+    assert normalized is not None
+    confidence_basis = normalized["recommendation"]["confidence_basis"]
+    assert confidence_basis["evidence_items"] == ["估值接近基本情境", "FCF 維持正值", "待補具體佐證"]
+    assert confidence_basis["key_risks_acknowledged"] == ["毛利率下滑", "待補已納入風險"]
+    assert confidence_basis["data_gaps"] == ["月營收細項待補"]
+
+    report_text = structured_output_to_report_text(7, normalized)
+
+    assert "bad-body-literal" not in (repr(direct_basis) + repr(normalized) + report_text)
+
+
 def test_confidence_basis_uses_fallback_for_malformed_root_before_validation():
     output = ConfidenceBasis.model_validate(MalformedStructuredText())
 
@@ -1429,6 +2131,123 @@ def test_recommendation_output_uses_fallback_for_malformed_recommendation_text_f
     assert output.recommendation.target_3m == "N/A"
     assert output.recommendation.target_6m == "NT$330"
     assert output.recommendation.confidence == "N/A"
+
+
+def test_recommendation_output_uses_fallback_for_string_empty_tokens_before_validation():
+    from structured_output_normalizer import normalize_structured_output, structured_output_to_report_text  # noqa: E402
+
+    payload = _recommendation_payload(next_catalysts=[
+        {
+            "event_name": "NaN",
+            "expected_timeframe": "Infinity",
+            "impact_direction": "-Infinity",
+            "trigger_condition": "N/A",
+        },
+    ])
+    payload["reasoning_steps"] = ["估值支持中性", "NaN", "催化劑決定再評估"]
+    payload["recommendation"] = {
+        **payload["recommendation"],
+        "建議": "NaN",
+        "短期目標（3個月）": "NaN",
+        "信心指數": "Infinity",
+    }
+    payload["confidence_basis"] = {
+        "evidence_items": ["NaN", "估值接近基本情境", "Infinity"],
+        "key_risks_acknowledged": ["-Infinity", "需求能見度不足"],
+        "data_gaps": ["N/A", "月營收細項待補"],
+    }
+    payload["scenario_triggers"] = [
+        {
+            "trigger_condition": "NaN",
+            "action": "Infinity",
+            "direction": "-Infinity",
+        },
+        {
+            "trigger_condition": "法說會正式調升全年營收與毛利率展望",
+            "action": "重新評估上行情境",
+            "direction": "bullish_upgrade",
+        },
+    ]
+    payload["analysis_markdown"] = "-Infinity"
+
+    output = RecommendationStructuredOutput.model_validate(payload)
+    normalized = normalize_structured_output(7, payload)
+
+    assert output.reasoning_steps == ["估值支持中性", "催化劑決定再評估", "待補推論步驟"]
+    assert output.recommendation.recommendation == "持有"
+    assert output.recommendation.target_3m == "N/A"
+    assert output.recommendation.confidence == "N/A"
+    assert output.confidence_basis.evidence_items == ["估值接近基本情境", "待補具體佐證", "待補具體佐證"]
+    assert output.confidence_basis.key_risks_acknowledged == ["需求能見度不足", "待補已納入風險"]
+    assert output.confidence_basis.data_gaps == ["月營收細項待補"]
+    assert output.scenario_triggers[0].trigger_condition == "法說會正式調升全年營收與毛利率展望"
+    assert output.scenario_triggers[1].action == "重新檢查投資結論"
+    assert output.next_catalysts[0].event_name == "Scenario trigger 1"
+    assert output.next_catalysts[0].trigger_condition == "法說會正式調升全年營收與毛利率展望"
+    assert output.analysis_markdown == "資料不足"
+
+    assert normalized is not None
+    report_text = structured_output_to_report_text(7, normalized)
+    assert "nan" not in (repr(normalized) + report_text).lower()
+    assert "infinity" not in (repr(normalized) + report_text).lower()
+
+
+def test_recommendation_output_uses_fallback_for_dash_and_missing_tokens_before_validation():
+    from structured_output_normalizer import normalize_structured_output, structured_output_to_report_text  # noqa: E402
+
+    payload = _recommendation_payload(next_catalysts=[
+        {
+            "event_name": "--",
+            "expected_timeframe": "MISSING",
+            "impact_direction": "NIL",
+            "trigger_condition": "-",
+        },
+    ])
+    payload["reasoning_steps"] = ["估值支持中性", "-", "催化劑決定再評估"]
+    payload["recommendation"] = {
+        **payload["recommendation"],
+        "建議": "-",
+        "短期目標（3個月）": "--",
+        "信心指數": "MISSING",
+    }
+    payload["confidence_basis"] = {
+        "evidence_items": ["--", "估值接近基本情境", "MISSING"],
+        "key_risks_acknowledged": ["NIL", "需求能見度不足"],
+        "data_gaps": ["-", "月營收細項待補"],
+    }
+    payload["scenario_triggers"] = [
+        {
+            "trigger_condition": "-",
+            "action": "--",
+            "direction": "MISSING",
+        },
+        {
+            "trigger_condition": "法說會正式調升全年營收與毛利率展望",
+            "action": "重新評估上行情境",
+            "direction": "bullish_upgrade",
+        },
+    ]
+    payload["analysis_markdown"] = "NIL"
+
+    output = RecommendationStructuredOutput.model_validate(payload)
+    normalized = normalize_structured_output(7, payload)
+
+    assert output.reasoning_steps == ["估值支持中性", "催化劑決定再評估", "待補推論步驟"]
+    assert output.recommendation.recommendation == "持有"
+    assert output.recommendation.target_3m == "N/A"
+    assert output.recommendation.confidence == "N/A"
+    assert output.confidence_basis.evidence_items == ["估值接近基本情境", "待補具體佐證", "待補具體佐證"]
+    assert output.confidence_basis.key_risks_acknowledged == ["需求能見度不足", "待補已納入風險"]
+    assert output.confidence_basis.data_gaps == ["月營收細項待補"]
+    assert output.scenario_triggers[0].trigger_condition == "法說會正式調升全年營收與毛利率展望"
+    assert output.scenario_triggers[1].action == "重新檢查投資結論"
+    assert output.next_catalysts[0].event_name == "Scenario trigger 1"
+    assert output.analysis_markdown == "資料不足"
+
+    assert normalized is not None
+    report_text = structured_output_to_report_text(7, normalized)
+    assert "missing" not in (repr(normalized) + report_text).lower()
+    assert "nil" not in (repr(normalized) + report_text).lower()
 
 
 def test_recommendation_output_uses_fallback_for_missing_recommendation_text_fields():
@@ -1847,6 +2666,42 @@ def test_normalize_structured_output_recommendation_reasoning_step_scalar_object
     assert normalized["reasoning_steps"] == ["待補推論步驟", "待補推論步驟", "待補推論步驟"]
     assert normalized["recommendation"]["建議"] == "持有"
     assert normalized["next_catalysts"][0]["event_name"] == "Q3 法說會"
+
+
+def test_normalize_structured_output_reasoning_steps_ignore_non_string_literals():
+    from structured_output_normalizer import normalize_structured_output, structured_output_to_report_text  # noqa: E402
+
+    moat = normalize_structured_output(3, {
+        "reasoning_steps": ["品牌證據可量化", StringifyingStructuredText(), "整體分數需保守"],
+        "moat_scores": {
+            "品牌影響力": 8,
+            "網路效應": 7,
+            "轉換成本": 6,
+            "成本優勢": 5,
+            "專利技術": 4,
+            "整體護城河": 7,
+        },
+        "analysis_markdown": "護城河正文",
+    })
+    recommendation_payload = _recommendation_payload()
+    recommendation_payload["reasoning_steps"] = [
+        "估值支持中性",
+        StringifyingStructuredText(),
+        "催化劑決定再評估",
+    ]
+    recommendation = normalize_structured_output(7, recommendation_payload)
+
+    assert moat is not None
+    assert recommendation is not None
+    assert moat["reasoning_steps"] == ["品牌證據可量化", "整體分數需保守", "待補推論步驟"]
+    assert recommendation["reasoning_steps"] == ["估值支持中性", "催化劑決定再評估", "待補推論步驟"]
+    combined = (
+        repr(moat)
+        + repr(recommendation)
+        + structured_output_to_report_text(3, moat)
+        + structured_output_to_report_text(7, recommendation)
+    )
+    assert "bad-body-literal" not in combined
 
 
 def test_normalize_structured_output_skips_malformed_scenario_trigger_rows_before_validation():
@@ -2333,6 +3188,36 @@ def test_normalize_structured_output_recommendation_fields_use_safe_text_before_
         (19, "避免"),
     ],
 )
+def test_normalize_structured_output_recommendation_keys_and_labels_ignore_non_string_literals(
+    agent_num,
+    expected_label,
+):
+    from structured_output_normalizer import normalize_structured_output  # noqa: E402
+
+    payload = _recommendation_payload()
+    payload["recommendation"] = {
+        **payload["recommendation"],
+        StringifyingRecommendationKey(): "買入",
+        "建議": StringifyingBuyLabel(),
+        "recommendation": StringifyingBuyLabel(),
+        StringifyingRecommendationTargetKey(): "NT$999",
+    }
+
+    normalized = normalize_structured_output(agent_num, payload)
+
+    assert normalized is not None
+    assert normalized["recommendation"]["建議"] == expected_label
+    assert normalized["recommendation"]["短期目標（3個月）"] == "NT$300"
+    assert "bad-body-literal" not in repr(normalized)
+
+
+@pytest.mark.parametrize(
+    ("agent_num", "expected_label"),
+    [
+        (7, "持有"),
+        (19, "避免"),
+    ],
+)
 @pytest.mark.parametrize("label_key", ["建議", "recommendation"])
 def test_normalize_structured_output_recommendation_label_fallback_matches_agent_bias_before_validation(
     agent_num,
@@ -2370,6 +3255,58 @@ def test_normalize_structured_output_next_catalyst_fields_use_safe_text_before_v
     assert normalized["next_catalysts"][0]["event_name"] == "待確認催化事件"
     assert normalized["next_catalysts"][0]["expected_timeframe"] == "Q4 2026"
     assert normalized["next_catalysts"][0]["trigger_condition"] == "若管理層調升毛利率指引，重新評估上行情境。"
+
+
+def test_normalize_structured_output_recommendation_tail_fields_ignore_non_string_literals():
+    from structured_output_normalizer import normalize_structured_output, structured_output_to_report_text  # noqa: E402
+
+    payload = _recommendation_payload(next_catalysts=[
+        {
+            "event_name": StringifyingStructuredText(),
+            "expected_timeframe": StringifyingStructuredText(),
+            "impact_direction": StringifyingStructuredText(),
+            "trigger_condition": StringifyingStructuredText(),
+        },
+    ])
+    payload["scenario_triggers"] = [
+        {
+            "trigger_condition": StringifyingStructuredText(),
+            "action": StringifyingStructuredText(),
+            "direction": StringifyingStructuredText(),
+        },
+        {
+            "trigger_condition": "法說會正式調升全年營收與毛利率展望",
+            "action": "重新評估上行情境",
+            "direction": "bullish_upgrade",
+        },
+    ]
+
+    normalized = normalize_structured_output(7, payload)
+
+    assert normalized is not None
+    assert normalized["scenario_triggers"] == [
+        {
+            "trigger_condition": "法說會正式調升全年營收與毛利率展望",
+            "action": "重新評估上行情境",
+            "direction": "bullish_upgrade",
+        },
+        {
+            "trigger_condition": "待後續資料確認觸發條件",
+            "action": "重新檢查投資結論",
+            "direction": "neutral_review",
+        },
+    ]
+    assert normalized["next_catalysts"] == [
+        {
+            "event_name": "待確認催化事件",
+            "expected_timeframe": "待後續資料確認",
+            "impact_direction": "volatile",
+            "trigger_condition": "待後續資料確認",
+        }
+    ]
+    report_text = structured_output_to_report_text(7, normalized)
+    assert "法說會正式調升全年營收與毛利率展望" in report_text
+    assert "bad-body-literal" not in (repr(normalized) + report_text)
 
 
 def test_normalize_structured_output_next_catalyst_rows_use_fallback_before_validation():
@@ -2574,6 +3511,76 @@ def test_normalize_structured_output_skips_malformed_price_targets_before_valida
     assert normalized["valuation_reasoning"]["dcf_reasoning"] == "DCF 假設完整"
 
 
+def test_normalize_structured_output_price_target_aliases_ignore_non_string_equal_keys_before_validation():
+    from structured_output_normalizer import normalize_structured_output  # noqa: E402
+
+    payload = {
+        "price_targets": {
+            "dcf_reasoning": "DCF 假設完整",
+            "peer_reasoning": "同業比較完整",
+            "scenario_reasoning": "三情境差異完整",
+            EqualToBaseCaseKey(): 120,
+        },
+        "valuation_summary": {
+            "primary_method": "blended",
+            "uses_market_value_wacc": True,
+            "uses_normalized_fcf": True,
+            "double_counting_check": "未重複計算成長與多重評價。",
+        },
+        "analysis_markdown": "估值正文",
+    }
+
+    normalized = normalize_structured_output(4, payload)
+
+    assert normalized is not None
+    assert normalized["price_targets"] == {"熊市情境": 0.0, "基本情境": 0.0, "牛市情境": 0.0}
+
+
+def test_normalize_structured_output_numeric_fields_ignore_non_primitive_number_literals():
+    from structured_output_normalizer import normalize_structured_output  # noqa: E402
+
+    payload = {
+        "price_targets": {
+            "dcf_reasoning": "DCF 假設完整",
+            "peer_reasoning": "同業比較完整",
+            "scenario_reasoning": "三情境差異完整",
+            "熊市情境": FloatingStructuredNumber(),
+            "基本情境": "120",
+            "牛市情境": 150,
+        },
+        "valuation_summary": {
+            "primary_method": "blended",
+            "uses_market_value_wacc": True,
+            "uses_normalized_fcf": True,
+            "double_counting_check": "未重複計算成長與多重評價。",
+        },
+        "dcf_scenarios": [
+            {
+                "scenario": "base",
+                "revenue_growth_bias_pct": FloatingStructuredNumber(),
+                "margin_bias_pct": "1.5",
+                "wacc_pct": FloatingStructuredNumber(),
+                "intrinsic_value": 120,
+            }
+        ],
+        "analysis_markdown": "估值正文",
+    }
+
+    normalized = normalize_structured_output(4, payload)
+
+    assert normalized is not None
+    assert normalized["price_targets"] == {"基本情境": 120.0, "牛市情境": 150.0}
+    assert normalized["dcf_scenarios"] == [
+        {
+            "scenario": "base",
+            "revenue_growth_bias_pct": 0.0,
+            "margin_bias_pct": 1.5,
+            "wacc_pct": 1.0,
+            "intrinsic_value": 120.0,
+        }
+    ]
+
+
 def test_normalize_structured_output_missing_price_targets_use_schema_fallback_before_validation():
     from structured_output_normalizer import normalize_structured_output, structured_output_to_report_text  # noqa: E402
 
@@ -2628,6 +3635,67 @@ def test_normalize_structured_output_valuation_summary_uses_safe_text_before_val
     assert normalized is not None
     assert normalized["valuation_summary"]["double_counting_check"] == "資料不足"
     assert normalized["price_targets"] == {"熊市情境": 90.0, "基本情境": 120.0, "牛市情境": 150.0}
+
+
+def test_normalize_structured_output_boolean_fields_ignore_numeric_literals_before_validation():
+    from structured_output_normalizer import normalize_structured_output  # noqa: E402
+
+    payload = {
+        "price_targets": {
+            "dcf_reasoning": "DCF 假設完整",
+            "peer_reasoning": "同業比較完整",
+            "scenario_reasoning": "三情境差異完整",
+            "熊市情境": 90,
+            "基本情境": 120,
+            "牛市情境": 150,
+        },
+        "valuation_summary": {
+            "primary_method": "blended",
+            "uses_market_value_wacc": 1,
+            "uses_normalized_fcf": "yes",
+            "double_counting_check": "未重複計算成長與多重評價。",
+        },
+        "analysis_markdown": "估值正文",
+    }
+
+    normalized = normalize_structured_output(4, payload)
+
+    assert normalized is not None
+    assert normalized["valuation_summary"]["uses_market_value_wacc"] is False
+    assert normalized["valuation_summary"]["uses_normalized_fcf"] is True
+
+
+def test_normalize_structured_output_valuation_display_fields_ignore_non_string_literals():
+    from structured_output_normalizer import normalize_structured_output, structured_output_to_report_text  # noqa: E402
+
+    payload = {
+        "price_targets": {
+            "dcf_reasoning": StringifyingStructuredText(),
+            "peer_reasoning": "同業比較完整",
+            "scenario_reasoning": StringifyingStructuredText(),
+            "熊市情境": 90,
+            "基本情境": 120,
+            "牛市情境": 150,
+        },
+        "valuation_summary": {
+            "primary_method": "blended",
+            "uses_market_value_wacc": True,
+            "uses_normalized_fcf": True,
+            "double_counting_check": StringifyingStructuredText(),
+        },
+        "analysis_markdown": "估值正文",
+    }
+
+    normalized = normalize_structured_output(4, payload)
+
+    assert normalized is not None
+    assert normalized["valuation_reasoning"]["dcf_reasoning"] == "資料不足"
+    assert normalized["valuation_reasoning"]["peer_reasoning"] == "同業比較完整"
+    assert normalized["valuation_reasoning"]["scenario_reasoning"] == "資料不足"
+    assert normalized["valuation_summary"]["double_counting_check"] == "資料不足"
+    report_text = structured_output_to_report_text(4, normalized)
+    assert "同業比較完整" in report_text
+    assert "bad-body-literal" not in (repr(normalized) + report_text)
 
 
 def test_normalize_structured_output_valuation_summary_booleans_use_safe_fallback_before_validation():
@@ -2814,6 +3882,179 @@ def test_normalize_structured_output_moat_analysis_markdown_uses_safe_text_befor
     assert normalized is not None
     assert normalized["moat_scores"]["品牌影響力"] == 8.0
     assert normalized["analysis_markdown"] == "資料不足"
+
+
+def test_normalize_structured_output_analysis_markdown_ignores_non_string_literals():
+    from structured_output_normalizer import normalize_structured_output  # noqa: E402
+
+    cases = [
+        (
+            3,
+            {
+                "reasoning_steps": ["品牌證據可量化", "技術優勢仍需折價", "整體分數需保留"],
+                "moat_scores": {
+                    "品牌影響力": 8,
+                    "網路效應": 7,
+                    "轉換成本": 6,
+                    "成本優勢": 5,
+                    "專利技術": 4,
+                    "整體護城河": 6,
+                },
+            },
+        ),
+        (
+            4,
+            {
+                "price_targets": {
+                    "基本情境": 120,
+                },
+                "valuation_summary": {
+                    "primary_method": "blended",
+                    "uses_market_value_wacc": True,
+                    "uses_normalized_fcf": True,
+                    "double_counting_check": "未重複計算成長與多重評價。",
+                },
+            },
+        ),
+        (7, {"recommendation": {"建議": "持有"}}),
+        (
+            20,
+            {
+                "guidance_tone": "中立",
+                "highlights": [{"keyword": "訂單", "quote": "AI 訂單恢復成長"}],
+            },
+        ),
+        (
+            21,
+            {
+                "thesis_summary": "空方風險仍需驗證",
+                "downside_risks": [{"title": "需求風險", "evidence": "庫存去化慢於預期"}],
+            },
+        ),
+        (
+            24,
+            {
+                "trade_direction": "Long",
+                "entry_zone": "NT$100-105",
+                "target_price": "NT$112",
+                "stop_loss": "NT$96",
+                "core_catalyst": "法說會調升指引",
+                "risk_level": "Medium",
+            },
+        ),
+    ]
+
+    for agent_num, payload in cases:
+        normalized = normalize_structured_output(agent_num, {
+            **payload,
+            "analysis_markdown": StringifyingStructuredText(),
+        })
+
+        assert normalized is not None
+        assert normalized["analysis_markdown"] == "資料不足"
+
+
+def test_normalize_structured_output_display_fields_ignore_non_string_literals():
+    from structured_output_normalizer import normalize_structured_output, structured_output_to_report_text  # noqa: E402
+
+    downside = normalize_structured_output(21, {
+        "thesis_summary": StringifyingStructuredText(),
+        "downside_risks": [{"title": "需求風險", "evidence": "庫存去化慢於預期"}],
+        "analysis_markdown": "空方正文",
+    })
+    recommendation = normalize_structured_output(7, {
+        "recommendation": {
+            "建議": "持有",
+            "短期目標（3個月）": StringifyingStructuredText(),
+            "中期目標（6個月）": "NT$330",
+        },
+        "analysis_markdown": "正式報告正文",
+    })
+    trade = normalize_structured_output(24, {
+        "trade_direction": "Long",
+        "entry_zone": StringifyingStructuredText(),
+        "target_price": "NT$112",
+        "stop_loss": "NT$96",
+        "core_catalyst": StringifyingStructuredText(),
+        "risk_level": "Medium",
+        "analysis_markdown": "短線交易正文",
+    })
+
+    assert downside is not None
+    assert recommendation is not None
+    assert trade is not None
+    assert downside["thesis_summary"] == "資料不足"
+    assert recommendation["recommendation"]["短期目標（3個月）"] == "N/A"
+    assert recommendation["recommendation"]["中期目標（6個月）"] == "NT$330"
+    assert trade["entry_zone"] == "N/A"
+    assert trade["core_catalyst"] == "N/A"
+    combined = (
+        structured_output_to_report_text(21, downside)
+        + structured_output_to_report_text(7, recommendation)
+        + structured_output_to_report_text(24, trade)
+    )
+    assert "bad-body-literal" not in combined
+
+
+def test_normalize_structured_output_nested_display_rows_ignore_non_string_literals():
+    from structured_output_normalizer import normalize_structured_output, structured_output_to_report_text  # noqa: E402
+
+    management = normalize_structured_output(20, {
+        "guidance_tone": "中立",
+        "confidence": 0.4,
+        "highlights": [
+            {"keyword": StringifyingStructuredText(), "quote": "有效引述"},
+            {"keyword": "有效亮點", "quote": StringifyingStructuredText()},
+        ],
+        "analysis_markdown": "管理層正文",
+    })
+    downside = normalize_structured_output(21, {
+        "thesis_summary": "空方風險仍需驗證",
+        "downside_risks": [
+            {
+                "title": StringifyingStructuredText(),
+                "evidence": "有效證據",
+                "impact": StringifyingStructuredText(),
+                "severity": StringifyingStructuredText(),
+                "confidence": 0.8,
+            },
+            {
+                "title": "有效風險",
+                "evidence": StringifyingStructuredText(),
+                "impact": "有效影響",
+                "severity": "high",
+                "confidence": 0.6,
+            },
+            {
+                "title": "保留風險",
+                "evidence": "保留證據",
+                "impact": "保留影響",
+                "severity": "critical",
+                "confidence": 0.4,
+            },
+        ],
+        "analysis_markdown": "空方正文",
+    })
+
+    assert management is not None
+    assert downside is not None
+    assert management["highlights"][0]["keyword"] == "亮點"
+    assert management["highlights"][1]["quote"] == "資料不足"
+    assert downside["downside_risks"][0]["title"] == "保留風險"
+    assert downside["downside_risks"][0]["evidence"] == "保留證據"
+    assert downside["downside_risks"][1]["title"] == "下行風險"
+    assert downside["downside_risks"][1]["evidence"] == "有效證據"
+    assert downside["downside_risks"][1]["impact"] == ""
+    assert downside["downside_risks"][1]["severity"] == "warning"
+    assert downside["downside_risks"][2]["title"] == "有效風險"
+    assert downside["downside_risks"][2]["evidence"] == "資料不足"
+    combined = (
+        repr(management)
+        + repr(downside)
+        + structured_output_to_report_text(20, management)
+        + structured_output_to_report_text(21, downside)
+    )
+    assert "bad-body-literal" not in combined
 
 
 def test_normalize_structured_output_skips_boolean_management_confidence():
@@ -3561,6 +4802,43 @@ def test_normalize_structured_output_price_target_reasoning_uses_safe_text_befor
     assert normalized["valuation_reasoning"]["peer_reasoning"] == "同業比較完整"
 
 
+def test_normalize_structured_output_price_target_drops_string_empty_tokens_before_validation():
+    from structured_output_normalizer import normalize_structured_output, structured_output_to_report_text  # noqa: E402
+
+    payload = {
+        "price_targets": {
+            "dcf_reasoning": "NaN",
+            "peer_reasoning": "Infinity",
+            "scenario_reasoning": "-Infinity",
+            "熊市情境": 90,
+            "基本情境": 120,
+            "牛市情境": 150,
+        },
+        "valuation_summary": {
+            "primary_method": "blended",
+            "uses_market_value_wacc": True,
+            "uses_normalized_fcf": True,
+            "double_counting_check": "N/A",
+        },
+        "analysis_markdown": "NaN",
+    }
+
+    normalized = normalize_structured_output(4, payload)
+    report_text = structured_output_to_report_text(4, normalized)
+
+    assert normalized["analysis_markdown"] == "資料不足"
+    assert normalized["valuation_reasoning"] == {
+        "dcf_reasoning": "資料不足",
+        "peer_reasoning": "資料不足",
+        "scenario_reasoning": "資料不足",
+    }
+    assert normalized["valuation_summary"]["double_counting_check"] == "資料不足"
+    assert "nan" not in str(normalized).lower()
+    assert "infinity" not in str(normalized).lower()
+    assert "nan" not in report_text.lower()
+    assert "infinity" not in report_text.lower()
+
+
 def test_normalize_structured_output_agent24_uses_safe_text_before_validation():
     from structured_output_normalizer import normalize_structured_output  # noqa: E402
 
@@ -3712,6 +4990,57 @@ def test_agent19_required_sections_use_action_fallback_when_trigger_action_blank
     assert "memory" not in report_text
 
 
+def test_agent19_required_sections_guard_single_character_trigger_fragments():
+    from structured_output_normalizer import structured_output_to_report_text  # noqa: E402
+
+    report_text = structured_output_to_report_text(19, {
+        "recommendation": {
+            "建議": "放空",
+        },
+        "scenario_triggers": [
+            {
+                "trigger_condition": "跌",
+                "action": "砍",
+                "direction": "bearish_downgrade",
+            },
+            {
+                "trigger_condition": "股價放量突破前高",
+                "action": "補",
+                "direction": "neutral_review",
+            },
+        ],
+        "analysis_markdown": "正式報告正文",
+    })
+    lines = report_text.splitlines()
+
+    assert "- 跌：砍" not in lines
+    assert "- 股價放量突破前高：回補或暫停空方假設" in lines
+    assert "模型未提供足夠可量化崩盤催化" in report_text
+
+
+def test_agent19_required_sections_ignore_non_string_trigger_directions():
+    from structured_output_normalizer import structured_output_to_report_text  # noqa: E402
+
+    report_text = structured_output_to_report_text(19, {
+        "recommendation": {
+            "建議": "放空",
+        },
+        "scenario_triggers": [
+            {
+                "trigger_condition": "財測下修幅度超過預期",
+                "action": "提高空方權重",
+                "direction": StringifyingBearishDirection(),
+            },
+        ],
+        "analysis_markdown": "正式報告正文",
+    })
+    lines = report_text.splitlines()
+
+    assert "- 財測下修幅度超過預期：提高空方權重" not in lines
+    assert "bearish_downgrade" not in report_text
+    assert "模型未提供足夠可量化崩盤催化" in report_text
+
+
 def test_recommendation_report_text_skips_readonly_confidence_basis_maps():
     from structured_output_normalizer import normalize_structured_output, structured_output_to_report_text  # noqa: E402
 
@@ -3743,6 +5072,60 @@ def test_recommendation_report_text_skips_malformed_display_keys():
     assert "不應輸出" not in report_text
     assert "memory" not in report_text
     assert "bad-recommendation-key" not in report_text
+
+
+def test_recommendation_report_text_skips_single_character_display_keys():
+    from structured_output_normalizer import structured_output_to_report_text  # noqa: E402
+
+    report_text = structured_output_to_report_text(7, {
+        "recommendation": {
+            "建議": "持有",
+            "短": "不應輸出",
+            "信心指數": "8",
+        },
+        "analysis_markdown": "正式報告正文",
+    })
+    lines = report_text.splitlines()
+
+    assert "建議: 持有" in lines
+    assert "信心指數: 8" in lines
+    assert "短: 不應輸出" not in lines
+    assert "不應輸出" not in report_text
+
+
+def test_recommendation_report_text_ignores_non_string_display_literals():
+    from structured_output_normalizer import structured_output_to_report_text  # noqa: E402
+
+    standard_text = structured_output_to_report_text(7, {
+        "recommendation": {
+            "建議": "持有",
+            StringifyingStructuredText(): "不應輸出",
+            "短期目標（3個月）": StringifyingStructuredText(),
+            "信心指數": 8,
+        },
+        "analysis_markdown": "正式報告正文",
+    })
+    agent19_text = structured_output_to_report_text(19, {
+        "recommendation": {
+            "建議": "放空",
+            "短期目標（3個月）": StringifyingStructuredText(),
+            "中期目標（6個月）": "NT$330",
+            "長期目標（12個月）": StringifyingStructuredText(),
+            "長期潛力（5年）": "NT$420",
+            "信心指數": 8,
+        },
+        "analysis_markdown": "## 做空觸發條件（Catalyst for crash）\n財測下修。",
+    })
+
+    assert "建議: 持有" in standard_text
+    assert "短期目標（3個月）: N/A" in standard_text
+    assert "信心指數: 8" in standard_text
+    assert "不應輸出" not in standard_text
+    assert "短期目標（3個月）：N/A" in agent19_text
+    assert "中期目標（6個月）：NT$330" in agent19_text
+    assert "長期目標（12個月）：N/A" in agent19_text
+    assert "信心指數：8" in agent19_text
+    assert "bad-body-literal" not in (standard_text + agent19_text)
 
 
 def test_recommendation_report_text_uses_fallback_row_when_standard_recommendation_empty():
@@ -3781,6 +5164,33 @@ def test_agent19_recommendation_report_text_uses_text_safe_ordered_values():
     assert "信心指數：N/A" in report_text
     assert "memory" not in report_text
     assert "bad-long-target" not in report_text
+
+
+def test_agent19_recommendation_report_text_uses_fallback_for_single_character_ordered_values():
+    from structured_output_normalizer import structured_output_to_report_text  # noqa: E402
+
+    report_text = structured_output_to_report_text(19, {
+        "recommendation": {
+            "建議": "空",
+            "短期目標（3個月）": "高",
+            "中期目標（6個月）": "NT$330",
+            "長期目標（12個月）": "低",
+            "長期潛力（5年）": "NT$420",
+            "信心指數": "8",
+        },
+        "analysis_markdown": "## 做空觸發條件（Catalyst for crash）\n財測下修。",
+    })
+    lines = report_text.splitlines()
+
+    assert "建議：N/A" in lines
+    assert "短期目標（3個月）：N/A" in lines
+    assert "中期目標（6個月）：NT$330" in lines
+    assert "長期目標（12個月）：N/A" in lines
+    assert "長期潛力（5年）：NT$420" in lines
+    assert "信心指數：8" in lines
+    assert "建議：空" not in lines
+    assert "短期目標（3個月）：高" not in lines
+    assert "長期目標（12個月）：低" not in lines
 
 
 def test_recommendation_block_markdown_collapses_embedded_newlines_in_display_rows():
@@ -4178,6 +5588,26 @@ def test_recommendation_tail_trigger_actions_use_fallback_for_single_character_f
     assert "- 若「毛利率連續兩季低於 43%」：建議 改" not in lines
 
 
+def test_recommendation_report_text_uses_body_fallback_for_single_character_fragments():
+    from structured_output_normalizer import structured_output_to_report_text  # noqa: E402
+
+    standard_text = structured_output_to_report_text(7, {
+        "recommendation": {"建議": "持有"},
+        "analysis_markdown": "X",
+    })
+    agent19_text = structured_output_to_report_text(19, {
+        "recommendation": {"建議": "放空"},
+        "analysis_markdown": "弱",
+    })
+    lines = (standard_text + "\n" + agent19_text).splitlines()
+
+    assert "資料不足" in lines
+    assert "X" not in lines
+    assert "弱" not in lines
+    assert "[投資建議]" in lines
+    assert "## 做空觸發條件（Catalyst for crash）" in lines
+
+
 def test_recommendation_tail_markdown_collapses_embedded_newlines_in_basis_and_triggers():
     from structured_output_normalizer import structured_output_to_report_text  # noqa: E402
 
@@ -4231,6 +5661,28 @@ def test_recommendation_tail_omits_empty_basis_and_trigger_sections():
     assert "不應輸出" not in report_text
     assert "memory" not in report_text
     assert "bad-" not in report_text
+
+
+def test_recommendation_tail_confidence_basis_ignores_non_string_display_literals():
+    from structured_output_normalizer import structured_output_to_report_text  # noqa: E402
+
+    report_text = structured_output_to_report_text(7, {
+        "recommendation": {
+            "建議": "持有",
+            "confidence_basis": {
+                "evidence_items": ["估值接近基本情境", StringifyingStructuredText()],
+                "key_risks_acknowledged": [StringifyingStructuredText(), "毛利率下滑"],
+                "data_gaps": [StringifyingStructuredText(), "月營收細項待補"],
+            },
+        },
+        "analysis_markdown": "正式報告正文",
+    })
+    lines = report_text.splitlines()
+
+    assert "- **具體佐證**: 估值接近基本情境" in lines
+    assert "- **已納入考量的風險**: 毛利率下滑" in lines
+    assert "- **已知缺口**: 月營收細項待補" in lines
+    assert "bad-body-literal" not in report_text
 
 
 def test_recommendation_tail_confidence_basis_skips_single_character_fragments():
@@ -4370,6 +5822,34 @@ def test_recommendation_tail_next_catalysts_use_event_metadata_fallback_for_sing
     assert "- **法**（Q，bullish）：若管理層調升毛利率指引，重新評估上行情境。" not in lines
 
 
+def test_recommendation_tail_next_catalysts_ignore_non_string_display_literals():
+    from structured_output_normalizer import structured_output_to_report_text  # noqa: E402
+
+    report_text = structured_output_to_report_text(7, {
+        "recommendation": {"建議": "持有"},
+        "next_catalysts": [
+            {
+                "event_name": StringifyingStructuredText(),
+                "expected_timeframe": StringifyingStructuredText(),
+                "impact_direction": StringifyingStructuredText(),
+                "trigger_condition": StringifyingStructuredText(),
+            },
+            {
+                "event_name": "月營收公布",
+                "expected_timeframe": "下個月",
+                "impact_direction": "bullish",
+                "trigger_condition": "若營收連續兩個月回升，重新評估上行情境。",
+            },
+        ],
+        "analysis_markdown": "正式報告正文",
+    })
+    lines = report_text.splitlines()
+
+    assert "- **待確認催化事件**（待後續資料確認，volatile）：待後續資料確認" in lines
+    assert "- **月營收公布**（下個月，bullish）：若營收連續兩個月回升，重新評估上行情境。" in lines
+    assert "bad-body-literal" not in report_text
+
+
 def test_agent19_recommendation_tail_keeps_next_catalysts_before_final_block():
     from structured_output_normalizer import structured_output_to_report_text  # noqa: E402
 
@@ -4431,6 +5911,25 @@ def test_recommendation_tail_reasoning_steps_skip_single_character_fragments():
     assert "- 估值接近基本情境" in lines
     assert "- 風險已反映於信心折讓" in lines
     assert "- 短" not in lines
+
+
+def test_recommendation_tail_reasoning_steps_ignore_non_string_display_literals():
+    from structured_output_normalizer import structured_output_to_report_text  # noqa: E402
+
+    report_text = structured_output_to_report_text(7, {
+        "recommendation": {"建議": "買進"},
+        "reasoning_steps": [
+            "確認營收成長仍在",
+            StringifyingStructuredText(),
+            "風險已反映於信心折讓",
+        ],
+        "analysis_markdown": "建議正文",
+    })
+    lines = report_text.splitlines()
+
+    assert "- 確認營收成長仍在" in lines
+    assert "- 風險已反映於信心折讓" in lines
+    assert "bad-body-literal" not in report_text
 
 
 def test_agent19_recommendation_tail_keeps_reasoning_steps_before_final_block():
@@ -4521,6 +6020,25 @@ def test_legacy_moat_score_uses_metric_key_fallback_for_single_character_fragmen
     assert "品: 5" not in lines
 
 
+def test_legacy_moat_score_uses_value_fallback_for_single_character_fragments():
+    from structured_output_normalizer import structured_output_to_report_text  # noqa: E402
+
+    report_text = structured_output_to_report_text(3, {
+        "moat_scores": {
+            "品牌": "高",
+            "技術": 8,
+            "規模": "7",
+        },
+        "analysis_markdown": "護城河正文",
+    })
+    lines = report_text.splitlines()
+
+    assert "品牌: N/A" in lines
+    assert "技術: 8" in lines
+    assert "規模: 7" in lines
+    assert "品牌: 高" not in lines
+
+
 def test_legacy_moat_score_report_text_uses_score_fallback_row_when_empty():
     from structured_output_normalizer import structured_output_to_report_text  # noqa: E402
 
@@ -4587,6 +6105,27 @@ def test_legacy_valuation_report_text_uses_price_target_fallback_row_when_empty(
     assert lines.index("[目標股價]") < lines.index("目標價: N/A") < lines.index("[/目標股價]")
 
 
+def test_legacy_score_and_valuation_report_text_use_body_fallback_for_single_character_fragments():
+    from structured_output_normalizer import structured_output_to_report_text  # noqa: E402
+
+    moat_text = structured_output_to_report_text(3, {
+        "moat_scores": {"品牌": 8},
+        "analysis_markdown": "X",
+    })
+    valuation_text = structured_output_to_report_text(4, {
+        "price_targets": {"基本情境": 120},
+        "analysis_markdown": "弱",
+    })
+
+    moat_lines = moat_text.splitlines()
+    valuation_lines = valuation_text.splitlines()
+
+    assert moat_lines[-1] == "資料不足"
+    assert valuation_lines[-1] == "資料不足"
+    assert "X" not in moat_text
+    assert "弱" not in valuation_text
+
+
 def test_legacy_moat_report_text_surfaces_reasoning_steps():
     from structured_output_normalizer import structured_output_to_report_text  # noqa: E402
 
@@ -4637,6 +6176,28 @@ def test_legacy_valuation_report_text_surfaces_valuation_reasoning():
     assert "- 情境推論: 牛熊情境差距大，基本情境採中位數。" in lines
     assert lines.index("## 估值推論") < lines.index("估值正文")
     assert all(not line.startswith("保守且使用正常化現金流") for line in lines)
+
+
+def test_legacy_valuation_reasoning_skips_single_character_fragments():
+    from structured_output_normalizer import structured_output_to_report_text  # noqa: E402
+
+    report_text = structured_output_to_report_text(4, {
+        "price_targets": {
+            "基本情境": 120,
+        },
+        "valuation_reasoning": {
+            "dcf_reasoning": "好",
+            "peer_reasoning": "同業比較完整",
+            "scenario_reasoning": "弱",
+        },
+        "analysis_markdown": "估值正文",
+    })
+    lines = report_text.splitlines()
+
+    assert "## 估值推論" in lines
+    assert "- 同業推論: 同業比較完整" in lines
+    assert "- DCF 推論: 好" not in lines
+    assert "- 情境推論: 弱" not in lines
 
 
 def test_legacy_valuation_report_text_surfaces_dcf_scenarios():

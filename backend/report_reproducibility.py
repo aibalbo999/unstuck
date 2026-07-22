@@ -3,31 +3,34 @@
 from __future__ import annotations
 
 import os
-import re
-import math
 from typing import Any
 
 from data_trust_constants import SHA256_HEX_RE
 from data_trust_scoring import normalize_data_trust
 from mapping_fields import safe_dict_list, safe_mapping_dict, safe_text
+from numeric_safety import is_non_finite_number
+from report_target_price_detection import detect_explicit_target_price_fields
 
 
 EXPLICIT_TARGET_PRICE_MIN_SCORE = 60
 DEFAULT_PROMPT_VERSION = "runtime_rules:unversioned"
-_PRICE_NUMBER_RE = re.compile(r"\d[\d,]*(?:\.\d+)?")
-_TARGET_KEY_MARKERS = (
-    "target_price",
-    "price_targets",
-    "targetprice",
-    "目標價",
-    "目標",
-    "3個月",
-    "6個月",
-    "12個月",
-    "1-2週目標",
-)
-_RANGE_MARKERS = ("~", "-", "–", "—", "至", "到", "區間", "range")
-_INSUFFICIENT_MARKERS = ("資料不足", "不足", "無法", "不產生", "不提供", "未提供", "N/A", "NA")
+MISSING_TEXT_TOKENS = {
+    "N/A",
+    "NA",
+    "NONE",
+    "NULL",
+    "NIL",
+    "MISSING",
+    "-",
+    "--",
+    "NAN",
+    "INF",
+    "+INF",
+    "-INF",
+    "INFINITY",
+    "+INFINITY",
+    "-INFINITY",
+}
 
 
 def data_confidence_score(data_trust: Any) -> int:
@@ -129,141 +132,6 @@ def validated_prompt_fingerprint(value: Any) -> str:
     return fingerprint if SHA256_HEX_RE.fullmatch(fingerprint) else ""
 
 
-def detect_explicit_target_price_fields(context: dict) -> list[str]:
-    context_map = safe_mapping_dict(context) or {}
-    fields: list[str] = []
-    for root in ("parsed", "structured_outputs"):
-        value = dict.get(context_map, root)
-        fields.extend(_detect_target_prices(value, (root,)))
-    return sorted(dict.fromkeys(fields))
-
-
-def _detect_target_prices(value: Any, path: tuple[str, ...]) -> list[str]:
-    if isinstance(value, dict):
-        fields: list[str] = []
-        for key, item in _safe_dict_items(value):
-            key_text = _safe_text(key)
-            if not key_text:
-                continue
-            fields.extend(_detect_target_prices(item, (*path, key_text)))
-        return fields
-    mapping_value = safe_mapping_dict(value)
-    if mapping_value is not None:
-        fields = []
-        for key, item in mapping_value.items():
-            key_text = _safe_text(key)
-            if not key_text:
-                continue
-            fields.extend(_detect_target_prices(item, (*path, key_text)))
-        return fields
-    if isinstance(value, (list, tuple)):
-        fields = []
-        for index, item in _safe_enumerate_sequence(value):
-            fields.extend(_detect_target_prices(item, (*path, str(index))))
-        return fields
-    if _is_target_path(path) and _is_explicit_price(value):
-        return [".".join(path)]
-    return []
-
-
-def _is_target_path(path: tuple[str, ...]) -> bool:
-    key_text = ".".join(path).lower().replace(" ", "")
-    return any(marker.lower().replace(" ", "") in key_text for marker in _TARGET_KEY_MARKERS)
-
-
-def _is_explicit_price(value: Any) -> bool:
-    if isinstance(value, bool) or value is None:
-        return False
-    if isinstance(value, int):
-        return True
-    if isinstance(value, float):
-        return math.isfinite(value)
-    text = _safe_text(value).strip()
-    if not text:
-        return False
-    upper_text = text.upper()
-    if any(marker.upper() in upper_text for marker in _INSUFFICIENT_MARKERS):
-        return False
-    numbers = _PRICE_NUMBER_RE.findall(text)
-    if len(numbers) >= 2 and any(marker in text for marker in _RANGE_MARKERS):
-        return False
-    return bool(numbers)
-
-
-def _safe_enumerate_sequence(value: list | tuple) -> list[tuple[int, Any]]:
-    items: list[tuple[int, Any]] = []
-    try:
-        iterator = iter(value)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
-        try:
-            iterator = _native_sequence_iterator(value)
-        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
-            return items
-    index = 0
-    used_native = False
-    while True:
-        try:
-            item = next(iterator)
-        except StopIteration:
-            return items
-        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
-            if items or used_native:
-                return items
-            try:
-                iterator = _native_sequence_iterator(value)
-            except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
-                return items
-            used_native = True
-            continue
-        items.append((index, item))
-        index += 1
-
-
-def _native_sequence_iterator(value: list | tuple):
-    if isinstance(value, list):
-        return list.__iter__(value)
-    return tuple.__iter__(value)
-
-
-def _safe_dict_items(value: dict) -> list[tuple[Any, Any]]:
-    items: list[tuple[Any, Any]] = []
-    try:
-        raw_items = value.items()
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
-        try:
-            raw_items = dict.items(value)
-        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
-            return items
-    used_native = False
-    try:
-        iterator = iter(raw_items)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
-        try:
-            iterator = iter(dict.items(value))
-        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
-            return items
-        used_native = True
-    while True:
-        try:
-            item = next(iterator)
-        except StopIteration:
-            return items
-        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
-            if items or used_native:
-                return items
-            try:
-                iterator = iter(dict.items(value))
-            except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
-                return items
-            used_native = True
-            continue
-        try:
-            key, child = item
-        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
-            continue
-        items.append((key, child))
-
-
 def _first_text(context: dict, data: dict, key: str) -> str:
     for source in (context, data):
         value = dict.get(source, key) if isinstance(source, dict) else None
@@ -282,7 +150,17 @@ def _first_value_text(*values: Any) -> str:
 
 
 def _safe_text(value: Any) -> str:
-    return safe_text(value)
+    if is_non_finite_number(value):
+        return ""
+    text = safe_text(value)
+    if isinstance(value, str) and _is_missing_text_token(text):
+        return ""
+    return text
+
+
+def _is_missing_text_token(text: str) -> bool:
+    stripped = text.strip()
+    return not stripped or stripped.upper() in MISSING_TEXT_TOKENS
 
 
 def _model_id(context: dict, data: dict) -> str:

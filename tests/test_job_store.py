@@ -1,11 +1,143 @@
-from pathlib import Path
+import importlib
+import importlib.util
+import json
+import sqlite3
 import threading
+from pathlib import Path
 
 import job_observability
 import job_store
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_job_update_assignment_records_running_and_terminal_fields():
+    assert importlib.util.find_spec("job_store_updates") is not None
+    updates = importlib.import_module("job_store_updates")
+
+    running = updates.build_job_update_assignment(
+        status="running",
+        filename=None,
+        error=None,
+        data_snapshot=None,
+        metrics_snapshot=None,
+        now=42.0,
+        terminal_statuses={"done", "error", "cancelled"},
+    )
+
+    assert running.set_clauses == [
+        "status = ?",
+        "filename = COALESCE(?, filename)",
+        "error = ?",
+        "updated_at = ?",
+        "started_at = COALESCE(started_at, ?)",
+    ]
+    assert running.params == ["running", None, None, 42.0, 42.0]
+
+    terminal = updates.build_job_update_assignment(
+        status="done",
+        filename="2330.html",
+        error="ok",
+        data_snapshot={"price": 123},
+        metrics_snapshot={"latency_ms": 456},
+        now=84.0,
+        terminal_statuses={"done", "error", "cancelled"},
+    )
+
+    assert terminal.set_clauses[:5] == [
+        "status = ?",
+        "filename = COALESCE(?, filename)",
+        "error = ?",
+        "updated_at = ?",
+        "finished_at = COALESCE(finished_at, ?)",
+    ]
+    assert terminal.params[:5] == ["done", "2330.html", "ok", 84.0, 84.0]
+    assert json.loads(terminal.params[5]) == {"price": 123}
+    assert json.loads(terminal.params[6]) == {"latency_ms": 456}
+
+
+def test_abandoned_job_update_rows_share_cancelled_transition_shape():
+    assert importlib.util.find_spec("job_store_updates") is not None
+    updates = importlib.import_module("job_store_updates")
+    assert hasattr(updates, "abandoned_job_update_rows")
+
+    rows = updates.abandoned_job_update_rows([" job-a ", "", "job-b"], "restart cleanup", 42.0)
+
+    assert rows == [
+        ("restart cleanup", 42.0, 42.0, 42.0, "job-a"),
+        ("restart cleanup", 42.0, 42.0, 42.0, "job-b"),
+    ]
+
+
+def test_job_cancel_update_plan_sanitizes_and_splits_queued_running_updates():
+    assert importlib.util.find_spec("job_store_cancellation") is not None
+    cancellation = importlib.import_module("job_store_cancellation")
+
+    queued = cancellation.build_cancel_job_update(
+        "queued",
+        job_id="job-a",
+        reason="api_key=secret-token\nstop now",
+        now=42.0,
+    )
+    running = cancellation.build_cancel_job_update(
+        "running",
+        job_id="job-b",
+        reason="stop now",
+        now=84.0,
+    )
+
+    assert "status = 'cancelled'" in queued.sql
+    assert queued.params == (42.0, 42.0, "api_key=[redacted] stop now", 42.0, "job-a")
+    assert "finished_at" not in running.sql
+    assert running.params == (84.0, "stop now", 84.0, "job-b")
+    assert cancellation.should_emit_cancel_event("waiting_retry", ("queued", "running", "waiting_retry")) is True
+    assert cancellation.should_emit_cancel_event("done", ("queued", "running", "waiting_retry")) is False
+
+
+def test_job_store_event_writer_appends_event_and_refreshes_active_jobs():
+    assert importlib.util.find_spec("job_store_event_writer") is not None
+    writer = importlib.import_module("job_store_event_writer")
+    schema = importlib.import_module("job_store_schema")
+
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    schema.init_job_store_schema(conn)
+    conn.execute(
+        """
+        INSERT INTO analysis_jobs (job_id, ticker, pipeline_id, status, created_at, updated_at)
+        VALUES ('job-a', '2330.TW', 'v1', 'running', 1.0, 1.0)
+        """
+    )
+
+    usage_calls = []
+    log_calls = []
+    payload = {"type": "status", "phase": "model_call", "level": "info", "message": "running"}
+    writer.append_job_event(
+        lambda: conn,
+        threading.Lock(),
+        ("queued", "running", "waiting_retry"),
+        "jobs.sqlite3",
+        "job-a",
+        payload,
+        now_fn=lambda: 42.0,
+        usage_recorder=lambda job_id, event_payload, **kwargs: usage_calls.append(
+            (job_id, event_payload, kwargs)
+        ),
+        event_logger=lambda job_id, event_payload: log_calls.append((job_id, event_payload)),
+    )
+
+    event = conn.execute("SELECT * FROM analysis_events WHERE job_id = 'job-a'").fetchone()
+    job = conn.execute("SELECT updated_at FROM analysis_jobs WHERE job_id = 'job-a'").fetchone()
+
+    assert json.loads(event["payload"]) == payload
+    assert event["created_at"] == 42.0
+    assert event["event_type"] == "status"
+    assert event["phase"] == "model_call"
+    assert event["level"] == "info"
+    assert job["updated_at"] == 42.0
+    assert usage_calls == [("job-a", payload, {"created_at": 42.0, "db_path": "jobs.sqlite3"})]
+    assert log_calls == [("job-a", payload)]
 
 
 def test_waiting_retry_job_remains_active():

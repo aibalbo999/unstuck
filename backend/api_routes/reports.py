@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import asyncio
-import json
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Optional
 
@@ -12,9 +10,9 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from sse_starlette.sse import EventSourceResponse
 
 from analysis_job_service import task_queue_has_task
-from api_routes.analysis_sse import persist_terminal_event_if_missing, resolve_resume_after_id
-from data_trust import sanitize_for_snapshot
-from mapping_fields import safe_int, safe_mapping_dict, safe_sequence_items, safe_text
+from api_routes.analysis_sse import resolve_resume_after_id
+from api_routes.report_rerun_stream import report_rerun_event_generator
+from mapping_fields import safe_mapping_dict, safe_text
 from report_index import is_safe_report_filename
 from report_history_storage import existing_storage_key
 import report_history_service
@@ -221,167 +219,15 @@ def create_reports_router(deps: ReportRouteDeps) -> APIRouter:
             or "final_recommendation"
         )
 
-        async def event_generator():
-            last_sent_event_id = resume_after_id
-            terminal_sent = False
-
-            def malformed_replay_payload() -> dict[str, str]:
-                return {
-                    "type": "status",
-                    "level": "warning",
-                    "message": "略過格式異常的報告重跑事件",
-                    "rerun_scope": rerun_scope,
-                    "source_filename": filename,
-                }
-
-            def replay_text_field(value: Any) -> str:
-                if isinstance(value, Mapping) or isinstance(value, (list, tuple, set, frozenset)):
-                    return ""
-                return safe_text(value).strip()
-
-            def replay_payload_type(value: Any) -> str:
-                if not isinstance(value, str):
-                    return ""
-                return safe_text(value).strip()
-
-            def replay_count_field(value: Any) -> int:
-                if isinstance(value, (bool, bytes, bytearray, memoryview)):
-                    return 0
-                return safe_int(value)
-
-            def replay_event_id(value: Any) -> int:
-                if isinstance(value, (bool, bytes, bytearray, memoryview)):
-                    return 0
-                return safe_int(value)
-
-            yield {
-                "data": json.dumps(
-                    {
-                        "type": "job",
-                        "job_id": job_id,
-                        "filename": filename,
-                        "rerun_scope": rerun_scope,
-                        "resume_after_id": resume_after_id,
-                    },
-                    ensure_ascii=False,
-                )
-            }
-            while True:
-                if await request.is_disconnected():
-                    if cancel_on_disconnect:
-                        await asyncio.to_thread(deps.request_job_cancel, job_id, "SSE 客戶端斷線，已要求取消報告重跑任務。")
-                    break
-
-                events = safe_sequence_items(await asyncio.to_thread(deps.get_events_since, job_id, last_sent_event_id))
-                for event in events:
-                    if await request.is_disconnected():
-                        terminal_sent = True
-                        break
-                    event_row = safe_mapping_dict(event)
-                    event_id = replay_event_id(event_row.get("id")) if event_row is not None else 0
-                    if event_row is None or event_id <= 0:
-                        payload = malformed_replay_payload()
-                        deps.print_streamed_event(job_id, payload)
-                        yield {"data": json.dumps(payload, ensure_ascii=False)}
-                        continue
-                    last_sent_event_id = event_id
-                    payload = safe_mapping_dict(event_row.get("payload"))
-                    if payload is None:
-                        payload = malformed_replay_payload()
-                        payload_type = "status"
-                    else:
-                        payload_type = replay_payload_type(payload.get("type"))
-                        if not payload_type:
-                            payload = malformed_replay_payload()
-                            payload_type = "status"
-                        else:
-                            payload = {**payload, "type": payload_type}
-                            for control_field in ("phase", "level"):
-                                if control_field in payload:
-                                    payload[control_field] = replay_text_field(payload.get(control_field))
-                            for count_field in ("current", "total", "agent_num", "status_code"):
-                                if count_field in payload:
-                                    payload[count_field] = replay_count_field(payload.get(count_field))
-                            for structured_field in ("data_trust", "partial_rerun", "metadata", "details"):
-                                if structured_field in payload:
-                                    payload[structured_field] = sanitize_for_snapshot(payload.get(structured_field))
-                            if "message" in payload:
-                                payload["message"] = replay_text_field(payload.get("message"))
-                            for text_field in (
-                                "filename",
-                                "md_filename",
-                                "data_filename",
-                                "source_filename",
-                                "rerun_scope",
-                                "scope_label",
-                                "pipeline_id",
-                                "pipeline_label",
-                                "name",
-                                "detail",
-                            ):
-                                if text_field in payload:
-                                    payload[text_field] = replay_text_field(payload.get(text_field))
-                    deps.print_streamed_event(job_id, payload)
-                    yield {"id": str(event_id), "data": json.dumps(payload, ensure_ascii=False)}
-                    if payload_type in ["done", "error"]:
-                        terminal_sent = True
-                        break
-
-                if terminal_sent:
-                    break
-
-                job = await asyncio.to_thread(deps.get_job, job_id)
-                job_row = safe_mapping_dict(job)
-                if not job_row:
-                    payload = {
-                        "type": "error",
-                        "message": "找不到報告重跑任務",
-                        "rerun_scope": rerun_scope,
-                        "source_filename": filename,
-                    }
-                    if await asyncio.to_thread(persist_terminal_event_if_missing, deps, job_id, payload):
-                        continue
-                    yield {"data": json.dumps(payload, ensure_ascii=False)}
-                    break
-                job_status = safe_text(job_row.get("status")).strip()
-                if job_status in ["done", "error", "cancelled"]:
-                    job_filename = safe_text(job_row.get("filename")).strip() or None
-                    if job_status == "done":
-                        payload = {
-                            "type": "done",
-                            "filename": job_filename,
-                            "rerun_scope": rerun_scope,
-                            "source_filename": filename,
-                        }
-                    elif job_status == "cancelled":
-                        message = safe_text(job_row.get("error")).strip() or "報告重跑任務已取消"
-                        payload = {
-                            "type": "error",
-                            "phase": "cancelled",
-                            "message": message,
-                            "rerun_scope": rerun_scope,
-                            "source_filename": filename,
-                        }
-                    else:
-                        message = safe_text(job_row.get("error")).strip() or "報告重跑任務失敗"
-                        payload = {
-                            "type": "error",
-                            "message": message,
-                            "rerun_scope": rerun_scope,
-                            "source_filename": filename,
-                        }
-                    if await asyncio.to_thread(persist_terminal_event_if_missing, deps, job_id, payload):
-                        continue
-                    yield {"data": json.dumps(payload, ensure_ascii=False)}
-                    break
-
-                if not events:
-                    if await request.is_disconnected():
-                        break
-                    yield {"event": "ping", "data": "ping"}
-                await asyncio.sleep(0.5)
-
-        return EventSourceResponse(event_generator())
+        return EventSourceResponse(report_rerun_event_generator(
+            deps,
+            request,
+            filename=filename,
+            job_id=job_id,
+            resume_after_id=resume_after_id,
+            rerun_scope=rerun_scope,
+            cancel_on_disconnect=cancel_on_disconnect,
+        ))
 
     @router.post("/api/report/{filename}/rerun/cancel")
     async def cancel_report_rerun(

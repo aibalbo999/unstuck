@@ -4,16 +4,15 @@ from __future__ import annotations
 
 import time
 import inspect
-import logging
-import sqlite3
 from datetime import datetime
 
 from data_fetch import FetchRequest
 from pipeline_modes import normalize_pipeline_run_id
-import report_history_service
 import watchlist_claim_store
 import watchlist_store
 import watchlist_trigger_store
+from watchlist_report_alerts import apply_report_alerts, report_history_service, sync_report_metadata_once
+from watchlist_schedule_helpers import due_watchlist_items as _scheduled_due_watchlist_items, post_market_due
 from watchlist_triggers import evaluate_watchlist_triggers
 
 
@@ -21,7 +20,6 @@ TAIPEI = watchlist_store.TAIPEI
 WATCHLIST_PATH = watchlist_store.WATCHLIST_PATH
 WATCHLIST_DB_PATH = watchlist_store.WATCHLIST_DB_PATH
 DEFAULT_SCHEDULES = watchlist_store.DEFAULT_SCHEDULES
-LOGGER = logging.getLogger(__name__)
 
 
 def _sync_store_config() -> None:
@@ -50,95 +48,13 @@ def list_watchlist() -> dict:
     return payload
 
 
-def _ticker_matches(report: dict, ticker: str) -> bool:
-    report_ticker = str(report.get("ticker") or "").upper()
-    ticker_upper = str(ticker or "").upper()
-    return report_ticker == ticker_upper or report_ticker.split(".", 1)[0] == ticker_upper.split(".", 1)[0]
-
-
-def _latest_report_for_item(item: dict, output_dir: str) -> dict:
-    ticker = str(item.get("ticker") or "").strip().upper()
-    if not ticker or not output_dir:
-        return {}
-    try:
-        result = report_history_service.list_reports(
-            page=1,
-            limit=5,
-            q=ticker.split(".", 1)[0],
-            pipeline=item.get("pipeline") or "all",
-            recommendation="all",
-            data_trust="all",
-            output_dir=output_dir,
-            report_cache={},
-            sync_metadata=False,
-        )
-    except sqlite3.Error as exc:
-        LOGGER.warning("Watchlist report lookup skipped because report index is unavailable: %s", exc)
-        return {}
-    reports = result.get("reports", [])
-    for report in reports:
-        if _ticker_matches(report, ticker):
-            return report
-    return reports[0] if reports else {}
-
-
-def _sync_report_metadata_once(output_dir: str) -> None:
-    if not output_dir:
-        return
-    try:
-        report_history_service.list_reports(
-            page=1,
-            limit=1,
-            q="",
-            pipeline="all",
-            recommendation="all",
-            data_trust="all",
-            output_dir=output_dir,
-            report_cache={},
-            sync_metadata=True,
-        )
-    except sqlite3.Error as exc:
-        LOGGER.warning("Watchlist report metadata sync skipped because report index is unavailable: %s", exc)
-
-
-def _priority_for_item(item: dict, latest_report: dict) -> tuple[str, dict]:
-    if not item.get("enabled"):
-        return "low", {"reason": "disabled", "message": "watchlist 項目已停用。"}
-    if not latest_report:
-        return "medium", {"reason": "missing_report", "message": "尚未產生最新報告。"}
-    freshness = latest_report.get("decision_freshness") if isinstance(latest_report.get("decision_freshness"), dict) else {}
-    if freshness.get("requires_rerun"):
-        return "high", {"reason": "needs_rerun", "message": freshness.get("message") or "資料已更新，投資結論需重跑。"}
-    return "normal", {"reason": "current", "message": "最新報告結論有效。"}
-
-
 def list_watchlist_with_report_alerts(output_dir: str, *, sync_metadata: bool = True) -> dict:
     if sync_metadata:
-        _sync_report_metadata_once(output_dir)
+        sync_report_metadata_once(output_dir)
     payload = list_watchlist()
-    priority_counts = {"high": 0, "medium": 0, "normal": 0, "low": 0}
-    items = []
-    for item in payload.get("items", []):
-        latest_report = _latest_report_for_item(item, output_dir)
-        priority, alert = _priority_for_item(item, latest_report)
-        priority_counts[priority] += 1
-        compact_report = {}
-        if latest_report:
-            compact_report = {
-                "filename": latest_report.get("filename"),
-                "date": latest_report.get("date"),
-                "decision_freshness": latest_report.get("decision_freshness") or {},
-                "data_trust": latest_report.get("data_trust") or {},
-            }
-        items.append({
-            **item,
-            "decision_priority": priority,
-            "decision_alert": alert,
-            "latest_report": compact_report,
-        })
-    priority_order = {"high": 0, "medium": 1, "normal": 2, "low": 3}
-    payload["items"] = sorted(items, key=lambda item: (priority_order.get(item.get("decision_priority"), 9), item.get("ticker", "")))
-    payload["priority_counts"] = priority_counts
+    alert_payload = apply_report_alerts(payload.get("items", []), output_dir)
+    payload["items"] = alert_payload["items"]
+    payload["priority_counts"] = alert_payload["priority_counts"]
     return payload
 
 
@@ -170,34 +86,8 @@ def mark_watchlist_run(
     watchlist_store.mark_watchlist_run(ticker, pipeline, slot, now=now, run_date=run_date)
 
 
-def _slot_due(slot: str, now: datetime) -> bool:
-    spec = DEFAULT_SCHEDULES.get(slot)
-    if not spec:
-        return False
-    hour, minute = [int(part) for part in spec["time"].split(":", 1)]
-    scheduled = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-    return now >= scheduled
-
-
 def due_watchlist_items(now: datetime | None = None) -> list[dict]:
-    now = now or datetime.now(TAIPEI)
-    today = now.date().isoformat()
-    due = []
-    for item in list_watchlist()["items"]:
-        if not item.get("enabled"):
-            continue
-        for slot in item.get("schedule_slots", []):
-            if not _slot_due(slot, now):
-                continue
-            if (item.get("last_run_dates") or {}).get(slot) == today:
-                continue
-            due.append({**item, "due_slot": slot, "due_label": DEFAULT_SCHEDULES[slot]["label"], "due_date": today})
-    return due
-
-
-def _post_market_due(now: datetime) -> bool:
-    hour, minute = [int(part) for part in DEFAULT_SCHEDULES["post_market"]["time"].split(":", 1)]
-    return now >= now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    return _scheduled_due_watchlist_items(list_watchlist()["items"], now=now, schedules=DEFAULT_SCHEDULES)
 
 
 def _triggers_need_market_data(triggers: list) -> bool:
@@ -220,7 +110,7 @@ async def monitor_watchlist_triggers(
 ) -> dict:
     _sync_store_config()
     now = now or datetime.now(TAIPEI)
-    if not _post_market_due(now):
+    if not post_market_due(now, schedules=DEFAULT_SCHEDULES):
         return {"success": True, "queued": [], "skipped": [{"reason": "before_post_market"}], "errors": []}
     queued = []
     skipped = []

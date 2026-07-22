@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import threading
 import time
 import uuid
@@ -10,13 +9,21 @@ from collections.abc import Iterable
 from sqlite3 import Row
 
 from config import ANALYSIS_JOB_STALE_SECONDS
-from api_usage_recorders import record_runtime_event_usage
 import job_store_events
+from job_store_cancellation import (
+    is_job_cancel_requested as _is_job_cancel_requested,
+    request_job_cancel as _request_job_cancel,
+)
+from job_store_event_writer import append_job_event
 import job_store_lifecycle
 import job_store_telemetry
 from job_store_schema import init_job_store_schema
+from job_store_updates import (
+    ABANDON_JOB_UPDATE_SQL,
+    abandoned_job_update_rows,
+    build_job_update_assignment,
+)
 from runtime_paths import current_runtime_paths; TASK_DB_PATH = str(current_runtime_paths().task_db)
-from runtime_events import emit_log, format_event_log_line
 from security_sanitizer import sanitize_error_message
 from storage.sqlite_resource import ThreadLocalSqliteResource
 
@@ -110,29 +117,23 @@ def update_job(job_id: str, status: str, filename: str = None, error: str = None
             next_status = "cancelled"
             next_filename = None
             next_error = current["error"] or "任務已取消，忽略完成狀態。"
-        set_clauses = ["status = ?", "filename = COALESCE(?, filename)", "error = ?", "updated_at = ?"]
         now = time.time()
-        params = [next_status, next_filename, sanitize_error_message(next_error), now]
-        if next_status == "running":
-            set_clauses.append("started_at = COALESCE(started_at, ?)")
-            params.append(now)
-        if next_status in TERMINAL_JOB_STATUSES:
-            set_clauses.append("finished_at = COALESCE(finished_at, ?)")
-            params.append(now)
-        
-        if data_snapshot is not None:
-            set_clauses.append("data_snapshot = ?")
-            params.append(json.dumps(data_snapshot, ensure_ascii=False))
-        if metrics_snapshot is not None:
-            set_clauses.append("metrics_snapshot = ?")
-            params.append(json.dumps(metrics_snapshot, ensure_ascii=False))
-            
+        assignment = build_job_update_assignment(
+            status=next_status,
+            filename=next_filename,
+            error=next_error,
+            data_snapshot=data_snapshot,
+            metrics_snapshot=metrics_snapshot,
+            now=now,
+            terminal_statuses=TERMINAL_JOB_STATUSES,
+        )
+        params = list(assignment.params)
         params.append(job_id)
-        
+
         conn.execute(
             f"""
             UPDATE analysis_jobs
-            SET {', '.join(set_clauses)}
+            SET {', '.join(assignment.set_clauses)}
             WHERE job_id = ?
             """,
             tuple(params),
@@ -191,19 +192,7 @@ def mark_jobs_abandoned(job_ids: Iterable[str], reason: str) -> int:
         ).fetchall()
         active_ids = [row["job_id"] for row in active_rows]
         if active_ids:
-            conn.executemany(
-                """
-                UPDATE analysis_jobs
-                SET status = 'error',
-                    error = ?,
-                    cancel_requested = 1,
-                    cancelled_at = COALESCE(cancelled_at, ?),
-                    finished_at = COALESCE(finished_at, ?),
-                    updated_at = ?
-                WHERE job_id = ?
-                """,
-                [(sanitize_error_message(reason), now, now, now, job_id) for job_id in active_ids],
-            )
+            conn.executemany(ABANDON_JOB_UPDATE_SQL, abandoned_job_update_rows(active_ids, reason, now))
 
     for job_id in active_ids:
         append_event(job_id, {"type": "error", "phase": "queue_abandoned", "message": reason})
@@ -229,19 +218,7 @@ def mark_incomplete_jobs_abandoned(reason: str, worker_instance_id: str | None =
         ).fetchall()
         job_ids = [row["job_id"] for row in rows]
         if job_ids:
-            conn.executemany(
-                """
-                UPDATE analysis_jobs
-                SET status = 'error',
-                    error = ?,
-                    cancel_requested = 1,
-                    cancelled_at = COALESCE(cancelled_at, ?),
-                    finished_at = COALESCE(finished_at, ?),
-                    updated_at = ?
-                WHERE job_id = ?
-                """,
-                [(sanitize_error_message(reason), now, now, now, job_id) for job_id in job_ids],
-            )
+            conn.executemany(ABANDON_JOB_UPDATE_SQL, abandoned_job_update_rows(job_ids, reason, now))
 
     for job_id in job_ids:
         append_event(job_id, {"type": "error", "message": reason})
@@ -250,74 +227,24 @@ def mark_incomplete_jobs_abandoned(reason: str, worker_instance_id: str | None =
 
 
 def request_job_cancel(job_id: str, reason: str = "使用者要求取消分析任務。") -> bool:
-    now = time.time()
-    with _JOB_LOCK, _connect() as conn:
-        row = conn.execute("SELECT status FROM analysis_jobs WHERE job_id = ?", (job_id,)).fetchone()
-        if row is None:
-            return False
-        status = row["status"]
-        if status == "queued":
-            conn.execute(
-                """
-                UPDATE analysis_jobs
-                SET status = 'cancelled',
-                    cancel_requested = 1,
-                    cancelled_at = COALESCE(cancelled_at, ?),
-                    finished_at = COALESCE(finished_at, ?),
-                    error = COALESCE(error, ?),
-                    updated_at = ?
-                WHERE job_id = ?
-                """,
-                (now, now, sanitize_error_message(reason), now, job_id),
-            )
-        else:
-            conn.execute(
-                """
-                UPDATE analysis_jobs
-                SET cancel_requested = 1,
-                    cancelled_at = COALESCE(cancelled_at, ?),
-                    error = COALESCE(error, ?),
-                    updated_at = ?
-                WHERE job_id = ?
-                """,
-                (now, sanitize_error_message(reason), now, job_id),
-            )
-    if status in ACTIVE_JOB_STATUSES:
-        append_event(job_id, {"type": "status", "phase": "cancelling", "level": "warning", "message": reason})
-    return True
+    return _request_job_cancel(
+        _connect,
+        _JOB_LOCK,
+        ACTIVE_JOB_STATUSES,
+        append_event,
+        job_id,
+        reason,
+        now_fn=time.time,
+    )
 
 
 def is_job_cancel_requested(job_id: str) -> bool:
-    with _connect() as conn:
-        row = conn.execute("SELECT cancel_requested FROM analysis_jobs WHERE job_id = ?", (job_id,)).fetchone()
-    return bool(row and row["cancel_requested"])
+    return _is_job_cancel_requested(_connect, job_id)
 
 def append_event(job_id: str, payload: dict) -> None:
-    now = time.time()
-    event_type = str(payload.get("type") or "event")
-    phase = str(payload.get("phase") or "")
-    level = str(payload.get("level") or "")
-    with _JOB_LOCK, _connect() as conn:
-        conn.execute(
-            """
-            INSERT INTO analysis_events (job_id, payload, created_at, event_type, phase, level)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (job_id, json.dumps(payload, ensure_ascii=False), now, event_type, phase, level),
-        )
-        conn.execute(
-            f"UPDATE analysis_jobs SET updated_at = ? WHERE job_id = ? AND status IN ({_active_status_placeholders()})",
-            (now, job_id, *ACTIVE_JOB_STATUSES),
-        )
-    try:
-        record_runtime_event_usage(job_id, payload, created_at=now, db_path=TASK_DB_PATH)
-    except Exception:
-        pass
-    _print_job_event(job_id, payload)
+    append_job_event(_connect, _JOB_LOCK, ACTIVE_JOB_STATUSES, TASK_DB_PATH, job_id, payload, now_fn=time.time)
 
 
-def _print_job_event(job_id: str, payload: dict) -> None:
-    emit_log(format_event_log_line(job_id, payload, prefix="job"))
 def get_events_since(job_id: str, after_id: int = 0) -> list[dict]:
     return job_store_events.get_events_since(_connect, job_id, after_id)
 

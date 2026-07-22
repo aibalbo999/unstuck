@@ -2,7 +2,8 @@
 <main class="main">
 
     {% if report_cover_image %}
-    <section class="report-cover" id="overview" style="background-image: url('{{ report_cover_image }}');">
+    <section class="report-cover" id="overview">
+        <img class="report-cover-media" src="{{ report_cover_image }}" alt="" aria-hidden="true" loading="eager" decoding="async">
         <div class="report-cover-content">
             <div class="report-cover-kicker">Wall Street Equity Research</div>
             <div class="report-cover-title">{{ name }}（{{ ticker }}）</div>
@@ -43,20 +44,20 @@
                 {% if pipeline_def.id == 'v4' and trade_setup %}
                 <div class="vm-label">進場區間</div>
                 <div class="vm-value">{{ swing_entry_zone }}</div>
-                <div class="vm-label" style="margin-top:8px">1-2週目標</div>
+                <div class="vm-label">1-2週目標</div>
                 <div class="vm-value">{{ swing_target_price }}</div>
-                <div class="vm-label" style="margin-top:8px">嚴格停損</div>
+                <div class="vm-label">嚴格停損</div>
                 <div class="vm-value">{{ swing_stop_loss }}</div>
-                <div class="vm-label" style="margin-top:8px">波動風險</div>
+                <div class="vm-label">波動風險</div>
                 <div class="vm-value">{{ swing_risk_level }}</div>
                 {% else %}
                 <div class="vm-label">3個月目標</div>
                 <div class="vm-value">{{ target_3m }}</div>
-                <div class="vm-label" style="margin-top:8px">6個月目標</div>
+                <div class="vm-label">6個月目標</div>
                 <div class="vm-value">{{ target_6m }}</div>
-                <div class="vm-label" style="margin-top:8px">12個月目標</div>
+                <div class="vm-label">12個月目標</div>
                 <div class="vm-value">{{ target_12m }}</div>
-                <div class="vm-label" style="margin-top:8px">信心指數</div>
+                <div class="vm-label">信心指數</div>
                 <div class="vm-value">{{ confidence }}</div>
                 {% endif %}
             </div>
@@ -153,7 +154,7 @@
             </div>
 
             {% if section.kind == "moat" %}
-            <div class="moat-grid" style="margin-bottom: 24px;">
+            <div class="moat-grid">
                 <div class="chart-card">
                     <div class="chart-title">護城河雷達圖</div>
                     <div class="chart-canvas-wrapper">
@@ -173,7 +174,7 @@
             <div class="price-targets-grid">
                 {{ price_targets_html|safe }}
             </div>
-            <div class="charts-grid" style="margin-bottom: 24px;">
+            <div class="charts-grid">
                 <div class="chart-card full-width">
                     <div class="chart-title">DCF 三情境估值 vs 當前股價</div>
                     <div class="chart-canvas-wrapper">
@@ -220,7 +221,7 @@
             <h4>📚 參考資料來源與數據誤差訴明</h4>
             {% include "includes/source_audit.html.j2" %}
             {% if twse_official_unavailable %}
-            <p style="font-size:13px; color:var(--accent-amber); margin:10px 0 14px; line-height:1.5; font-weight: 600;">
+            <p class="reference-official-warning">
                 ⚠ 台股官方財務資料（TWSE/MOPS）本次未取得，請以公開財報為準
             </p>
             {% endif %}
@@ -229,14 +230,14 @@
                     <span class="ref-icon">📊</span>
                     <div>
                         <div class="ref-name">Yahoo Finance (yfinance)</div>
-                        <div class="ref-desc">市場即時資料、年度財務報表、估值指標、負債結構、分析師評等<br>API：<code style="font-size:11px; color:var(--accent-blue); background: #f1f5f9; padding: 2px 4px; border-radius: 4px;">pypi.org/project/yfinance</code></div>
+                        <div class="ref-desc">市場即時資料、年度財務報表、估值指標、負債結構、分析師評等<br>API：<code>pypi.org/project/yfinance</code></div>
                     </div>
                 </div>
                 <div class="ref-item">
                     <span class="ref-icon">🇹🇼</span>
                     <div>
                         <div class="ref-name">FinMind Open Data</div>
-                        <div class="ref-desc">台股每月營收、新聞、三大法人買賣超、PER/PBR 河流圖資料<br>API：<code style="font-size:11px; color:var(--accent-blue); background: #f1f5f9; padding: 2px 4px; border-radius: 4px;">finmindtrade.com</code></div>
+                        <div class="ref-desc">台股每月營收、新聞、三大法人買賣超、PER/PBR 河流圖資料<br>API：<code>finmindtrade.com</code></div>
                     </div>
                 </div>
                 <div class="ref-item">
@@ -261,7 +262,7 @@
                     </div>
                 </div>
             </div>
-            <p style="font-size:11px; color:var(--text-muted); margin-top:12px; line-height:1.5;">
+            <p class="reference-data-note">
                 ⚠️ <strong>數據誤差訴明</strong>：Yahoo Finance 所提供的台股歷史財務報表有時存在年份缺失或延遲問題；<code>Debt to Equity</code> 指標已轉換為百分比形式；歷史營收、淨利、現金流等數據單位為 <strong>Billion TWD (10億台幣)</strong>。
                 建議將本報告筆記的財務數據与公開資訊觀測站進行交叉比對。
             </p>

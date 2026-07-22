@@ -1,6 +1,7 @@
 import json
 import sys
 import asyncio
+import importlib
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -16,6 +17,95 @@ import report_index  # noqa: E402
 import watchlist_service  # noqa: E402
 import watchlist_scheduler  # noqa: E402
 from data_fetch import FetchRequest, FetchResult  # noqa: E402
+
+
+def test_watchlist_store_item_helpers_normalize_and_round_trip_sqlite_row():
+    helpers = importlib.import_module("watchlist_store_items")
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.execute(
+        """
+        CREATE TABLE watchlist_items (
+            ticker TEXT NOT NULL,
+            pipeline TEXT NOT NULL,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            schedule_slots_json TEXT NOT NULL,
+            last_run_dates_json TEXT NOT NULL,
+            tags_json TEXT NOT NULL DEFAULT '[]',
+            trigger_source TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (ticker, pipeline)
+        )
+        """
+    )
+
+    item = helpers.normalize_item(
+        {
+            "ticker": " 2330.tw ",
+            "pipeline_id": "v2",
+            "enabled": False,
+            "schedule_slots": ["post_market", "Post_Market", "pre_market", "bad"],
+            "last_run_dates": {"post_market": "2026-06-08"},
+            "tags": ["core", "core", " semi ", ""],
+            "trigger_source": " Daily_Screener ",
+        },
+        now_iso_factory=lambda: "2026-06-08T08:00:00+08:00",
+    )
+    helpers.replace_item_row(conn, item)
+    stored = helpers.select_item(conn, "2330.TW", "v2")
+
+    assert stored == {
+        "ticker": "2330.TW",
+        "pipeline": "v2",
+        "enabled": False,
+        "schedule_slots": ["post_market", "pre_market"],
+        "last_run_dates": {"post_market": "2026-06-08"},
+        "tags": ["core", "semi"],
+        "trigger_source": "daily_screener",
+        "created_at": "2026-06-08T08:00:00+08:00",
+        "updated_at": "2026-06-08T08:00:00+08:00",
+    }
+
+
+def test_watchlist_schedule_helpers_pick_due_slots_without_store_dependency():
+    helpers = importlib.import_module("watchlist_schedule_helpers")
+    now = datetime(2026, 6, 8, 8, 31, tzinfo=watchlist_service.TAIPEI)
+
+    due = helpers.due_watchlist_items(
+        [
+            {
+                "ticker": "2308.TW",
+                "pipeline": "v2",
+                "enabled": True,
+                "schedule_slots": ["pre_market", "post_market"],
+                "last_run_dates": {"post_market": "2026-06-08"},
+            },
+            {
+                "ticker": "2330.TW",
+                "pipeline": "v1",
+                "enabled": False,
+                "schedule_slots": ["pre_market"],
+                "last_run_dates": {},
+            },
+        ],
+        now=now,
+    )
+
+    assert due == [
+        {
+            "ticker": "2308.TW",
+            "pipeline": "v2",
+            "enabled": True,
+            "schedule_slots": ["pre_market", "post_market"],
+            "last_run_dates": {"post_market": "2026-06-08"},
+            "due_slot": "pre_market",
+            "due_label": "盤前",
+            "due_date": "2026-06-08",
+        }
+    ]
+    assert helpers.post_market_due(datetime(2026, 6, 8, 15, 29, tzinfo=watchlist_service.TAIPEI)) is False
+    assert helpers.post_market_due(datetime(2026, 6, 8, 15, 30, tzinfo=watchlist_service.TAIPEI)) is True
 
 
 def _write_report_pair(output_dir: Path, filename: str):

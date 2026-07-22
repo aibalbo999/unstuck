@@ -6,15 +6,13 @@ from typing import Optional
 
 from pydantic import ValidationError
 
-from structured_output_models import (
+from structured_output_recommendation_outputs import BubbleSniperStructuredOutput, RecommendationStructuredOutput
+from structured_output_risk_models import (
     BearAdvocateStructuredOutput,
-    BubbleSniperStructuredOutput,
     ManagementSentimentStructuredOutput,
-    MoatStructuredOutput,
-    PriceTargetStructuredOutput,
-    RecommendationStructuredOutput,
     SwingTradeSetup,
 )
+from structured_output_valuation_models import MoatStructuredOutput, PriceTargetStructuredOutput
 
 
 STRICT_STRUCTURED_SCHEMAS = {

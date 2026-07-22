@@ -3,12 +3,12 @@ import secrets
 import sys
 import threading
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi import FastAPI, Request
 
+from api_app_setup import install_cors_static_and_metrics
+import api_mutation_security
 from api_openapi_contract import install_openapi_contract
+from api_mutation_security import MUTATION_HEADER_NAME
 from api_safe_json import SafeJSONResponse
 from agent_runtime import AnalysisPipelineRunner
 from analysis_job_service import (
@@ -74,7 +74,6 @@ from report_index_maintenance import cleanup_report_index_orphans
 from reporting import ReportRenderer
 from runtime_dependencies import create_api_runtime, get_report_storage_for_output_dir, runtime_settings_for_output_dir
 from runtime_events import emit_log, format_event_log_line
-from api_observability_service import build_prometheus_metrics
 from runtime_health import build_health_payload, build_readiness_payload
 from settings import validate_runtime_settings
 from storage_inventory import build_storage_summary, ensure_runtime_storage
@@ -87,14 +86,11 @@ if hasattr(sys.stderr, "reconfigure"):
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
-
 os.makedirs(OUTPUT_DIR, exist_ok=True)
-
 analysis_task_queue = create_api_task_queue()
 analysis_pipeline_runner = AnalysisPipelineRunner()
 report_renderer = ReportRenderer()
 active_analyses_lock = threading.Lock()
-MUTATION_HEADER_NAME = "X-Mutation-Token"
 RUNTIME_MUTATION_API_TOKEN = secrets.token_urlsafe(32)
 def print_streamed_event(job_id: str, payload: dict) -> None:
     if TASK_QUEUE_BACKEND != "rq":
@@ -102,54 +98,29 @@ def print_streamed_event(job_id: str, payload: dict) -> None:
     emit_log(format_event_log_line(job_id, payload, prefix="stream"))
 
 def require_mutation_authorized(request: Request) -> None:
-    mutation_token = str(request.headers.get("x-mutation-token") or "").strip()
-    legacy_token = str(request.headers.get("x-admin-token") or "").strip()
-    check_mutation_rate_limit(
+    return api_mutation_security.require_mutation_authorized(
         request,
-        [mutation_token, legacy_token],
+        check_mutation_rate_limit=check_mutation_rate_limit,
+        allow_legacy_admin_token=ALLOW_LEGACY_ADMIN_TOKEN,
+        mutation_api_token=MUTATION_API_TOKEN,
+        runtime_mutation_token=get_runtime_mutation_token(),
+        deployment_mode=DEPLOYMENT_MODE,
         max_requests=MUTATION_RATE_LIMIT_MAX_REQUESTS,
         window_seconds=MUTATION_RATE_LIMIT_WINDOW_SECONDS,
     )
-    supplied_tokens = [mutation_token]
-    if ALLOW_LEGACY_ADMIN_TOKEN:
-        supplied_tokens.append(legacy_token)
-    allowed = get_allowed_mutation_tokens()
-    if not any(token and token in allowed for token in supplied_tokens):
-        raise HTTPException(status_code=403, detail="Mutation endpoint requires a valid mutation token")
-def get_runtime_mutation_token() -> str:
-    return str(RUNTIME_MUTATION_API_TOKEN or "").strip()
-def is_local_deployment_mode() -> bool:
-    return str(DEPLOYMENT_MODE or "local").strip().lower() == "local"
-def is_restricted_cors_profile() -> bool:
-    return str(DEPLOYMENT_MODE or "local").strip().lower() in {"production", "prod", "server", "lan"}
-def cors_allow_methods() -> list[str]:
-    return ["GET", "POST", "DELETE", "OPTIONS"] if is_restricted_cors_profile() else ["*"]
-def cors_allow_headers() -> list[str]:
-    if not is_restricted_cors_profile():
-        return ["*"]
-    return ["Content-Type", MUTATION_HEADER_NAME, "X-Admin-Token", "Last-Event-ID"]
-def get_allowed_mutation_tokens() -> set[str]:
-    runtime_token = get_runtime_mutation_token() if is_local_deployment_mode() else ""
-    return {
-        token for token in {
-            runtime_token,
-            str(MUTATION_API_TOKEN or "").strip(),
-        }
-        if token
-    }
-def get_client_config() -> dict:
-    return {
-        "mutation_header": MUTATION_HEADER_NAME,
-        "mutation_token": get_runtime_mutation_token() if is_local_deployment_mode() else "",
-        "deployment_mode": str(DEPLOYMENT_MODE or "local").strip().lower(),
-    }
+get_runtime_mutation_token = lambda: api_mutation_security.runtime_mutation_token(RUNTIME_MUTATION_API_TOKEN)
+is_local_deployment_mode = lambda: api_mutation_security.is_local_deployment_mode(DEPLOYMENT_MODE)
+is_restricted_cors_profile = lambda: api_mutation_security.is_restricted_cors_profile(DEPLOYMENT_MODE)
+cors_allow_methods = lambda: api_mutation_security.cors_allow_methods(DEPLOYMENT_MODE)
+cors_allow_headers = lambda: api_mutation_security.cors_allow_headers(DEPLOYMENT_MODE, MUTATION_HEADER_NAME)
+get_allowed_mutation_tokens = lambda: api_mutation_security.allowed_mutation_tokens(DEPLOYMENT_MODE, get_runtime_mutation_token(), MUTATION_API_TOKEN)
+get_client_config = lambda: api_mutation_security.client_config(DEPLOYMENT_MODE, get_runtime_mutation_token(), MUTATION_HEADER_NAME)
 def runtime_settings_warnings_for_readiness() -> list[str]:
     try:
         return validate_runtime_settings()
     except Exception as exc:
         return [str(exc)]
-def create_runtime_job(ticker: str, pipeline_id: str = "v1") -> str:
-    return create_job(ticker, pipeline_id)
+create_runtime_job = create_job
 def find_queue_backed_active_job(ticker: str, pipeline_id: str = "v1") -> dict:
     job = find_active_job(ticker, pipeline_id)
     if not job or TASK_QUEUE_BACKEND != "rq":
@@ -196,30 +167,16 @@ def create_app() -> FastAPI:
 
     @app.middleware("http")
     async def basic_auth_middleware(request: Request, call_next):
-        if basic_auth_enabled() and not basic_auth_exempt_path(request.url.path):
-            if not is_basic_auth_authorized(request.headers.get("authorization")):
-                return basic_auth_challenge_response()
+        if basic_auth_enabled() and not basic_auth_exempt_path(request.url.path) and not is_basic_auth_authorized(request.headers.get("authorization")):
+            return basic_auth_challenge_response()
         return await call_next(request)
 
-    _allow_credentials = "*" not in ALLOWED_ORIGINS
-    if not _allow_credentials:
-        emit_log("警告：ALLOWED_ORIGINS 含萬用字元 *，已停用 credentials 支援。")
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=ALLOWED_ORIGINS,
-        allow_credentials=_allow_credentials,
-        allow_methods=cors_allow_methods(),
-        allow_headers=cors_allow_headers(),
+    install_cors_static_and_metrics(
+        app, allowed_origins=ALLOWED_ORIGINS, allow_methods=cors_allow_methods(),
+        allow_headers=cors_allow_headers(), static_dir=STATIC_DIR,
+        get_provider_sla_summary=lambda limit=100: get_provider_sla_summary(limit), get_task_queue=lambda: analysis_task_queue,
+        emit_warning=emit_log,
     )
-    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-
-    @app.get("/metrics", include_in_schema=False)
-    async def prometheus_metrics():
-        content = await build_prometheus_metrics(
-            lambda limit=100: get_provider_sla_summary(limit),
-            task_queue=analysis_task_queue,
-        )
-        return PlainTextResponse(content, media_type="text/plain; version=0.0.4")
 
     app.include_router(create_health_router(HealthRouteDeps(
         build_health_payload=build_health_payload,

@@ -6,8 +6,7 @@ import asyncio
 from collections.abc import Callable
 from typing import Any
 
-from mapping_fields import mapping_field as _field
-from mapping_fields import safe_mapping_dict, safe_text
+from mapping_fields import mapping_field as _field, safe_mapping_dict, safe_text
 from notification_delivery_audit_context import safe_float, safe_int
 from provider_sla import SLA_CRITICAL_SUCCESS_RATE, SLA_WARNING_SUCCESS_RATE
 from provider_sla_payload_shape import finite_float, normalize_provider_sla_numeric_fields, normalize_provider_sla_windows, provider_sla_numeric_value
@@ -140,7 +139,6 @@ def dashboard_provider_alert_payload(alert: dict, *, core_sources: set[str]) -> 
 
 def _optional_text(value: Any) -> str | None:
     return None if value is None else safe_text(value).strip()
-
 def _optional_finite_float(value: Any) -> float | None:
     return None if value is None else finite_float(value)
 
@@ -165,7 +163,6 @@ async def build_provider_sla_payload(
         "alerts": alerts_from_providers(windowed_providers),
         "selected_window": normalized_window,
     }
-
 
 def _payload_dict(value: Any) -> dict[Any, Any]:
     return safe_mapping_dict(value) or {}

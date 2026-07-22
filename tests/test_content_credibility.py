@@ -68,6 +68,16 @@ def test_content_credibility_blocks_buy_when_main_target_is_below_current_price(
     assert any(issue["id"] == "buy_target_below_current_price" for issue in result["blocking_issues"])
 
 
+def test_content_credibility_uses_target_range_midpoint_after_percent_preface():
+    from reporting.content_credibility import evaluate_content_credibility
+
+    context = _base_context(recommendation="買入", target_12m="上行60％，目標價100-160")
+    result = evaluate_content_credibility(context, _base_snapshot(context))
+
+    assert result["status"] == "passed"
+    assert not any(issue["id"] == "buy_target_below_current_price" for issue in result["blocking_issues"])
+
+
 def test_content_credibility_blocks_explicit_targets_when_data_confidence_is_low():
     from reporting.content_credibility import evaluate_content_credibility
 

@@ -2535,6 +2535,45 @@ def test_analysis_job_events_malformed_replay_pipeline_count_fields_use_integer_
     assert '"type": "done"' in text
 
 
+def test_analysis_sse_payload_helper_sanitizes_replay_payload_fields():
+    from api_routes.analysis_sse_payloads import sanitize_replay_payload
+
+    payload = sanitize_replay_payload(
+        {
+            "type": "progress",
+            "message": memoryview(b"unsafe-message"),
+            "phase": memoryview(b"phase"),
+            "filename": memoryview(b"report.html"),
+            "current": memoryview(b"1"),
+            "total": "7",
+            "latency_ms": float("nan"),
+            "retry_count": b"2",
+            "quality_gate_pass": "yes",
+            "metadata": {"token": "secret", "safe": 1},
+            "reports": [{"filename": "safe.html"}],
+        },
+        job_id="job-sanitize",
+    )
+
+    assert payload["type"] == "progress"
+    assert payload["message"] == ""
+    assert payload["phase"] == ""
+    assert payload["filename"] == ""
+    assert payload["current"] == 0
+    assert payload["total"] == 7
+    assert payload["latency_ms"] == 0.0
+    assert payload["retry_count"] == 0
+    assert payload["quality_gate_pass"] is True
+    assert payload["metadata"] == {"safe": 1}
+    assert payload["reports"] == [{"filename": "safe.html"}]
+    assert sanitize_replay_payload({"type": memoryview(b"done"), "message": "unsafe"}, job_id="job") == {
+        "type": "status",
+        "level": "warning",
+        "message": "略過格式異常的分析任務事件",
+        "job_id": "job",
+    }
+
+
 def test_analysis_job_events_malformed_replay_progress_text_fields_use_safe_text_fallback(monkeypatch):
     job_id = job_store.create_job("2330.TW", "v1")
     job_store.update_job(job_id, "done", filename="report.html")

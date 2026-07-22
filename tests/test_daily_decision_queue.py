@@ -1479,6 +1479,84 @@ def test_daily_decision_queue_excludes_latency_but_preserves_retry_route_warning
     ]
 
 
+def test_daily_decision_queue_route_warnings_accept_mapping_payloads():
+    queue = build_daily_decision_queue(
+        reports=[],
+        repair_items=[],
+        rerun_reports=[],
+        high_priority_watchlist=[],
+        candidates=[],
+        performance={"summary": {}, "details": []},
+        free_mode={"enabled": True, "can_run_without_paid_keys": True, "violations": []},
+        ops=MappingProxyType({
+            "model_route_budget": MappingProxyType({
+                "warnings": (
+                    MappingProxyType({
+                        "id": "slow_route",
+                        "route": "v1/gemini-2.5-flash",
+                        "message": "p95_latency_ms=120000",
+                    }),
+                    MappingProxyType({
+                        "id": "retry_storm",
+                        "route": "v2/gemini-2.5-pro",
+                        "message": "retry_count=7",
+                    }),
+                    MappingProxyType({
+                        "id": "quality_gate_failures",
+                        "route": "v3/gemini-2.5-pro",
+                        "message": "quality_gate_failures=2",
+                    }),
+                )
+            })
+        }),
+    )
+
+    assert queue["summary"]["total_actionable"] == 2
+    assert queue["summary"]["sources"] == {"model_route_budget": 2}
+    assert [item["warning_id"] for item in queue["items"]] == [
+        "quality_gate_failures",
+        "retry_storm",
+    ]
+
+
+def test_daily_decision_queue_route_warning_text_fields_use_safe_fallbacks():
+    class BrokenRouteWarningText:
+        def __str__(self):
+            raise RuntimeError("route warning text unavailable")
+
+    queue = build_daily_decision_queue(
+        reports=[],
+        repair_items=[],
+        rerun_reports=[],
+        high_priority_watchlist=[],
+        candidates=[],
+        performance={"summary": {}, "details": []},
+        free_mode={"enabled": True, "can_run_without_paid_keys": True, "violations": []},
+        ops={
+            "model_route_budget": {
+                "warnings": [
+                    {
+                        "id": " slow_route ",
+                        "route": "v1/gemini-2.5-flash",
+                        "message": "p95_latency_ms=120000",
+                    },
+                    {
+                        "id": "retry_storm",
+                        "route": BrokenRouteWarningText(),
+                        "message": BrokenRouteWarningText(),
+                    },
+                ]
+            }
+        },
+    )
+
+    assert queue["summary"]["total_actionable"] == 1
+    assert queue["items"][0]["warning_id"] == "retry_storm"
+    assert queue["items"][0]["route"] == "unknown"
+    assert queue["items"][0]["detail"] == "retry_storm"
+    assert queue["items"][0]["title"] == "unknown 模型路由需檢查"
+
+
 def test_daily_decision_queue_excludes_nonblocking_provider_monitor():
     queue = build_daily_decision_queue(
         reports=[],

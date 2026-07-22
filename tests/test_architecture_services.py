@@ -430,6 +430,53 @@ def test_llm_async_call_streams_deltas_and_processes_full_response(monkeypatch):
     assert context["_runtime_events"][-1]["phase"] == "llm_model_response"
 
 
+def test_llm_call_event_helpers_capture_metadata_usage_and_stream_gate():
+    from agent_runtime.llm_call_events import (
+        _key_slot_fields,
+        _model_event_fields,
+        _record_llm_token_usage,
+        _should_stream_llm_response,
+    )
+    from runtime_events import RUNTIME_EVENT_CALLBACK_KEY
+
+    class FakeRotator:
+        keys = ["first-key", "second-key"]
+
+    context = {
+        "agent_positions": {3: 2},
+        "agent_total": 5,
+        "pipeline_id": "v1",
+        "pipeline_label": "test",
+    }
+
+    fields = _model_event_fields(context, 3, "gemini-test", "prompt", timeout_seconds=1.5)
+    assert fields["current"] == 2
+    assert fields["total"] == 5
+    assert fields["metadata"]["model_id"] == "gemini-test"
+    assert fields["metadata"]["timeout_seconds"] == 1.5
+    assert fields["metadata"]["estimated_tokens"] > 0
+    assert _key_slot_fields(FakeRotator(), "second-key") == {"key_count": 2, "key_slot": 2}
+    assert _key_slot_fields(FakeRotator(), "missing-key") == {"key_count": 2}
+
+    response = SimpleNamespace(
+        usage_metadata=SimpleNamespace(
+            prompt_token_count=11,
+            candidates_token_count=7,
+            total_token_count=18,
+        )
+    )
+    _record_llm_token_usage(context, 3, response)
+    assert context["llm_token_usage"][3] == {
+        "input_tokens": 11,
+        "output_tokens": 7,
+        "total_tokens": 18,
+    }
+    assert _should_stream_llm_response(context) is False
+
+    context[RUNTIME_EVENT_CALLBACK_KEY] = object()
+    assert _should_stream_llm_response(context) is True
+
+
 def test_llm_sync_call_records_timeout_metadata_without_name_error(monkeypatch):
     import agent_runtime.llm_calls as llm_calls
 

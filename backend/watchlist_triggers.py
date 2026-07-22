@@ -2,15 +2,24 @@
 
 from __future__ import annotations
 
-import re
-from datetime import date, datetime
+from datetime import date
 from statistics import mean
 from typing import Any
 
 from pipeline_modes import normalize_pipeline_run_id
+from watchlist_trigger_helpers import (
+    flatten_text as _flatten_text,
+    matching_calendar_event as _matching_calendar_event,
+    monthly_evaluation_date as _monthly_evaluation_date,
+    parse_iso_date as _parse_iso_date,
+    parse_revenue_value as _parse_revenue_value,
+    prices as _prices,
+    safe_float as _safe_float,
+    selected_pipeline as _selected_pipeline,
+    volumes as _volumes,
+)
 
 
-BEARISH_TRIGGERS = {"price_below_sma", "foreign_sell_streak", "vix_above"}
 TRIGGER_LABELS = {
     "price_below_sma": "股價跌破均線",
     "foreign_sell_streak": "外資連續賣超",
@@ -60,52 +69,6 @@ def evaluate_watchlist_triggers(item: dict, data: dict, *, evaluation_date: str 
             "label": TRIGGER_LABELS.get(trigger_type, trigger_type),
         })
     return events
-
-
-def _monthly_evaluation_date(trigger_type: str, evaluation_date: str | None) -> str:
-    base = evaluation_date or date.today().isoformat()
-    if trigger_type != "revenue_record_high":
-        return base
-    match = re.match(r"^(\d{4})-(\d{2})", str(base or ""))
-    if not match:
-        return base
-    return f"{match.group(1)}-{match.group(2)}-01"
-
-
-def _selected_pipeline(trigger_type: str, trigger: dict, source_pipeline: str) -> str:
-    if trigger_type in BEARISH_TRIGGERS:
-        return "v3"
-    if trigger_type == "revenue_record_high":
-        return "v2"
-    if trigger_type == "report_catalyst":
-        direction = str(trigger.get("impact_direction") or "").strip().lower()
-        if direction == "bearish":
-            return "v3"
-        if direction == "bullish":
-            return "v2"
-    if trigger_type == "daily_screener":
-        return "v4"
-    if trigger_type == "event_upcoming":
-        return "v4"
-    if trigger_type == "price_near_level":
-        return "v2"
-    return source_pipeline
-
-
-def _prices(data: dict) -> list[float]:
-    daily = data.get("daily_prices") or data.get("price_history_daily")
-    if isinstance(daily, list):
-        values = [row.get("close") if isinstance(row, dict) else row for row in daily]
-    else:
-        history = data.get("price_history") if isinstance(data.get("price_history"), dict) else {}
-        values = history.get("prices") if isinstance(history.get("prices"), list) else []
-    result = []
-    for value in values:
-        try:
-            result.append(float(value))
-        except (TypeError, ValueError):
-            continue
-    return result
 
 
 def _price_below_sma(trigger: dict, data: dict) -> tuple[bool, str, dict]:
@@ -173,7 +136,6 @@ def _revenue_record_high(trigger: dict, data: dict) -> tuple[bool, str, dict]:
         },
     )
 
-
 def _volume_confirmation(trigger: dict, data: dict) -> tuple[float | None, float, bool]:
     threshold = float(trigger.get("volume_ratio_threshold") or 1.3)
     volumes = _volumes(data)
@@ -185,20 +147,6 @@ def _volume_confirmation(trigger: dict, data: dict) -> tuple[float | None, float
         return None, threshold, True
     ratio = sample[-1] / avg_volume
     return round(ratio, 4), threshold, ratio >= threshold
-
-
-def _volumes(data: dict) -> list[float]:
-    daily = data.get("daily_prices") or data.get("price_history_daily")
-    if not isinstance(daily, list):
-        return []
-    result = []
-    for row in daily:
-        value = row.get("volume") if isinstance(row, dict) else None
-        try:
-            result.append(float(value))
-        except (TypeError, ValueError):
-            continue
-    return result
 
 
 def _report_catalyst(trigger: dict, data: dict) -> tuple[bool, str, dict]:
@@ -274,57 +222,3 @@ def _price_near_level(trigger: dict, data: dict) -> tuple[bool, str, dict]:
             "distance_pct": distance,
         },
     )
-
-
-def _matching_calendar_event(data: dict, event_type: str, target_date: date | None) -> dict:
-    calendar = data.get("event_calendar") if isinstance(data.get("event_calendar"), dict) else {}
-    events = calendar.get("events") if isinstance(calendar.get("events"), list) else []
-    for item in events:
-        if not isinstance(item, dict):
-            continue
-        if event_type and str(item.get("type") or "") != event_type:
-            continue
-        item_date = _parse_iso_date(item.get("date"))
-        if target_date and item_date != target_date:
-            continue
-        return item
-    return {}
-
-
-def _parse_iso_date(value: object) -> date | None:
-    if value is None:
-        return None
-    try:
-        return datetime.fromisoformat(str(value)[:10]).date()
-    except ValueError:
-        return None
-
-
-def _flatten_text(value: Any) -> str:
-    if isinstance(value, dict):
-        return " ".join(_flatten_text(item) for item in value.values())
-    if isinstance(value, list):
-        return " ".join(_flatten_text(item) for item in value)
-    return str(value or "")
-
-
-def _parse_revenue_value(value: object) -> float | None:
-    if isinstance(value, dict):
-        value = value.get("revenue") or value.get("value")
-    text = str(value or "")
-    match = re.search(r"([-+]?\d+(?:\.\d+)?)", text.replace(",", ""))
-    number = _safe_float(match.group(1)) if match else _safe_float(value)
-    if number is None:
-        return None
-    if "億" in text:
-        return number * 100_000_000
-    if "萬" in text:
-        return number * 10_000
-    return number
-
-
-def _safe_float(value: object) -> float | None:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None

@@ -34,33 +34,8 @@ from .step_cache import (
     restore_cached_agent_step,
     store_cached_agent_step,
 )
-from runtime_events import emit_context_event, emit_context_event_async, emit_log, make_runtime_event
-
-
-def _event_fields(context: AnalysisContext, agent_num: int, model_id: str, **metadata) -> dict:
-    return {
-        "current": (context.get("agent_positions", {}) or {}).get(agent_num, agent_num),
-        "total": context.get("agent_total"),
-        "name": f"Agent {agent_num}",
-        "agent_num": agent_num,
-        "pipeline_id": context.get("pipeline_id"),
-        "pipeline_label": context.get("pipeline_label"),
-        "metadata": {"model_id": model_id, **{k: v for k, v in metadata.items() if v is not None}},
-    }
-
-
-def _emit_sync_model_event(context: AnalysisContext, agent_num: int, phase: str, level: str, message: str, model_id: str, **metadata) -> None:
-    emit_context_event(
-        context,
-        make_runtime_event("status", phase=phase, level=level, message=message, **_event_fields(context, agent_num, model_id, **metadata)),
-    )
-
-
-async def _emit_async_model_event(context: AnalysisContext, agent_num: int, phase: str, level: str, message: str, model_id: str, **metadata) -> None:
-    await emit_context_event_async(
-        context,
-        make_runtime_event("status", phase=phase, level=level, message=message, **_event_fields(context, agent_num, model_id, **metadata)),
-    )
+from .single_agent_events import emit_async_model_event, emit_sync_model_event
+from runtime_events import emit_log
 
 def run_single_agent(
     agent_num: int,
@@ -88,12 +63,12 @@ def run_single_agent(
         if model_index > 0:
             message = f"切換備援模型：{model_id}"
             emit_log(f"    🔁 {message}")
-            _emit_sync_model_event(context, agent_num, "model_fallback", "warning", message, model_id, model_index=model_index)
+            emit_sync_model_event(context, agent_num, "model_fallback", "warning", message, model_id, model_index=model_index)
 
         if is_model_circuit_open(context, model_id) and model_index < len(model_sequence) - 1:
             message = f"模型 {model_id} 暫時熔斷，直接切換備援模型。"
             emit_log(f"    🔁 {message}")
-            _emit_sync_model_event(context, agent_num, "model_circuit_open", "warning", message, model_id)
+            emit_sync_model_event(context, agent_num, "model_circuit_open", "warning", message, model_id)
             continue
 
         has_fallback = len(model_sequence) > model_index + 1
@@ -107,7 +82,7 @@ def run_single_agent(
         cache_key = build_agent_step_cache_key(agent_num, data, context, model_id, prompt)
         cached_step = get_cached_agent_step(cache_key)
         if cached_step is not None:
-            _emit_sync_model_event(
+            emit_sync_model_event(
                 context,
                 agent_num,
                 "agent_step_cache_hit",
@@ -151,20 +126,20 @@ def run_single_agent(
             last_error = str(exc)
             message = f"模型 {model_id} 不可用，改試下一個備援模型..."
             emit_log(f"    ❌ {message}")
-            _emit_sync_model_event(context, agent_num, "model_fallback", "warning", message, model_id, error_kind=exc.__class__.__name__)
+            emit_sync_model_event(context, agent_num, "model_fallback", "warning", message, model_id, error_kind=exc.__class__.__name__)
             continue
         except AgentConfigurationError as exc:
             last_error = str(exc)
             message = f"模型 {model_id} 請求設定不相容，改試下一個備援模型..."
             emit_log(f"    ❌ {message}")
-            _emit_sync_model_event(context, agent_num, "model_config_error", "warning", message, model_id, error_kind=exc.__class__.__name__)
+            emit_sync_model_event(context, agent_num, "model_config_error", "warning", message, model_id, error_kind=exc.__class__.__name__)
             continue
         except AgentRetryableError as exc:
             last_error = str(exc)
             circuit_state = record_model_failure(context, model_id, exc)
             message = f"{model_id} 多次重試後仍失敗：{last_error[:120]}"
             emit_log(f"    ❌ {message}")
-            _emit_sync_model_event(
+            emit_sync_model_event(
                 context,
                 agent_num,
                 "model_failed",
@@ -199,12 +174,12 @@ async def run_single_agent_async(
         if model_index > 0:
             message = f"切換備援模型：{model_id}"
             emit_log(f"    🔁 {message}")
-            await _emit_async_model_event(context, agent_num, "model_fallback", "warning", message, model_id, model_index=model_index)
+            await emit_async_model_event(context, agent_num, "model_fallback", "warning", message, model_id, model_index=model_index)
 
         if is_model_circuit_open(context, model_id) and model_index < len(model_sequence) - 1:
             message = f"模型 {model_id} 暫時熔斷，直接切換備援模型。"
             emit_log(f"    🔁 {message}")
-            await _emit_async_model_event(context, agent_num, "model_circuit_open", "warning", message, model_id)
+            await emit_async_model_event(context, agent_num, "model_circuit_open", "warning", message, model_id)
             continue
 
         has_fallback = len(model_sequence) > model_index + 1
@@ -218,7 +193,7 @@ async def run_single_agent_async(
         cache_key = build_agent_step_cache_key(agent_num, data, context, model_id, prompt)
         cached_step = get_cached_agent_step(cache_key)
         if cached_step is not None:
-            await _emit_async_model_event(
+            await emit_async_model_event(
                 context,
                 agent_num,
                 "agent_step_cache_hit",
@@ -262,20 +237,20 @@ async def run_single_agent_async(
             last_error = str(exc)
             message = f"模型 {model_id} 不可用，改試下一個備援模型..."
             emit_log(f"    ❌ {message}")
-            await _emit_async_model_event(context, agent_num, "model_fallback", "warning", message, model_id, error_kind=exc.__class__.__name__)
+            await emit_async_model_event(context, agent_num, "model_fallback", "warning", message, model_id, error_kind=exc.__class__.__name__)
             continue
         except AgentConfigurationError as exc:
             last_error = str(exc)
             message = f"模型 {model_id} 請求設定不相容，改試下一個備援模型..."
             emit_log(f"    ❌ {message}")
-            await _emit_async_model_event(context, agent_num, "model_config_error", "warning", message, model_id, error_kind=exc.__class__.__name__)
+            await emit_async_model_event(context, agent_num, "model_config_error", "warning", message, model_id, error_kind=exc.__class__.__name__)
             continue
         except AgentRetryableError as exc:
             last_error = str(exc)
             circuit_state = record_model_failure(context, model_id, exc)
             message = f"{model_id} 多次重試後仍失敗：{last_error[:120]}"
             emit_log(f"    ❌ {message}")
-            await _emit_async_model_event(
+            await emit_async_model_event(
                 context,
                 agent_num,
                 "model_failed",

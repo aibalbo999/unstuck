@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+import importlib
+import importlib.util
 import sys
 from pathlib import Path
 from types import MappingProxyType
@@ -43,6 +45,33 @@ class LookupItemMapping(Mapping):
 
     def __len__(self):
         return len(self._data) + 1
+
+
+def test_report_quality_repair_items_project_blocked_content_credibility():
+    assert importlib.util.find_spec("report_quality_repair_items") is not None
+    helpers = importlib.import_module("report_quality_repair_items")
+
+    item = helpers.content_credibility_repair_item(
+        {
+            "content_credibility": MappingProxyType(
+                {
+                    "status": "blocked",
+                    "summary": "買入建議與目標價方向互相矛盾",
+                }
+            )
+        }
+    )
+
+    assert item == {
+        "severity": "blocked",
+        "priority_score": 1000,
+        "recommended_action": "manual_review",
+        "action_label": "人工審核",
+        "title": "內容可信度未通過",
+        "detail": "買入建議與目標價方向互相矛盾",
+        "reason_codes": ["content_credibility_blocked"],
+        "blocks_auto_rerun": True,
+    }
 
 
 def test_repair_queue_prioritizes_content_credibility_blocked_before_stale_snapshot():

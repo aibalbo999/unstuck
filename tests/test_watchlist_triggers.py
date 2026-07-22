@@ -1,4 +1,5 @@
 import sys
+import importlib
 from pathlib import Path
 
 
@@ -6,6 +7,41 @@ ROOT = Path(__file__).resolve().parents[1]
 BACKEND = ROOT / "backend"
 if str(BACKEND) not in sys.path:
     sys.path.insert(0, str(BACKEND))
+
+
+def test_watchlist_trigger_helpers_parse_inputs_dates_and_routing():
+    helpers = importlib.import_module("watchlist_trigger_helpers")
+    data = {
+        "daily_prices": [
+            {"close": "101.5", "volume": "1000"},
+            {"close": None, "volume": "bad"},
+            {"close": 103, "volume": 1200},
+            "105.5",
+        ],
+        "event_calendar": {
+            "events": [
+                {"type": "dividend", "label": "除息", "date": "2026-07-16"},
+                {"type": "earnings_date", "label": "財報日", "date": "2026-07-20"},
+            ]
+        },
+    }
+
+    assert helpers.monthly_evaluation_date("revenue_record_high", "2026-06-20") == "2026-06-01"
+    assert helpers.monthly_evaluation_date("vix_above", "2026-06-20") == "2026-06-20"
+    assert helpers.prices(data) == [101.5, 103.0, 105.5]
+    assert helpers.volumes(data) == [1000.0, 1200.0]
+    assert helpers.parse_revenue_value("2026年5月: NT$3.10億") == 310_000_000
+    assert helpers.parse_revenue_value({"revenue": "2.5萬"}) == 25_000
+    assert helpers.selected_pipeline("report_catalyst", {"impact_direction": "bearish"}, "v1") == "v3"
+    assert helpers.selected_pipeline("daily_screener", {}, "v1") == "v4"
+
+    event = helpers.matching_calendar_event(
+        data,
+        "earnings_date",
+        helpers.parse_iso_date("2026-07-20"),
+    )
+    assert event["label"] == "財報日"
+    assert "101.5" in helpers.flatten_text(data)
 
 
 def test_evaluate_watchlist_triggers_routes_bearish_and_revenue_events():

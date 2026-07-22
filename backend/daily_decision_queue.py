@@ -6,17 +6,15 @@ from datetime import date, datetime
 from typing import Any
 
 from daily_decision_queue_notifications import notification_delivery_items
+from daily_decision_queue_summary import SOURCE_ORDER, queue_response
+from daily_decision_provider_items import provider_impact_items
+from daily_decision_report_keys import report_key
 from daily_decision_route_warnings import route_warning_items
-from daily_decision_source_labels import source_labels, source_texts
 from decision_backtest import BACKTEST_HORIZONS, add_calendar_months
 from mapping_fields import mapping_field as _field
 from mapping_fields import safe_dict_list, safe_int, safe_mapping_dict, safe_text, safe_text_list
 
 SCHEMA_VERSION = "daily_decision_queue.v1"
-SOURCE_ORDER = {source: index for index, source in enumerate((
-    "free_mode", "report_repair", "provider_impact", "notification_delivery", "backtest_due",
-    "rerun_report", "model_route_budget", "watchlist", "screener", "monitor",
-))}
 
 
 def build_daily_decision_queue(
@@ -35,18 +33,18 @@ def build_daily_decision_queue(
 ) -> dict[str, Any]:
     """Return one sorted queue across report, tracking, provider, and ops signals."""
     repair_actions = [_repair_action_payload(item) for item in safe_dict_list(repair_items)]
-    repair_keys = {_report_key(item) for item in repair_actions if _report_key(item)}
+    repair_keys = {report_key(item) for item in repair_actions if report_key(item)}
     blocking_repair_keys = {
-        _report_key(item)
+        report_key(item)
         for item in repair_actions
-        if _report_key(item) and _field(item, "type") != "rerun_report"
+        if report_key(item) and _field(item, "type") != "rerun_report"
     }
-    ops_payload = ops if isinstance(ops, dict) else {}
+    ops_payload = safe_mapping_dict(ops) or {}
     provider_ledger = safe_mapping_dict(provider_impact_ledger) or {}
     items = []
     items.extend(_free_mode_items(free_mode))
     items.extend(repair_actions)
-    items.extend(_provider_items(provider_ledger, skip_keys=repair_keys))
+    items.extend(provider_impact_items(provider_ledger, skip_keys=repair_keys))
     items.extend(notification_delivery_items(ops_payload))
     items.extend(_backtest_due_items(reports, performance, as_of=as_of or date.today(), skip_keys=blocking_repair_keys))
     items.extend(_rerun_items(rerun_reports, skip_keys=repair_keys))
@@ -54,24 +52,7 @@ def build_daily_decision_queue(
     items.extend(_watchlist_items(high_priority_watchlist))
     items.extend(_candidate_items(candidates))
     actionable = [item for item in items if item]
-    actionable.sort(key=_sort_key)
-    render_items = actionable or [_monitor_item()]
-    display_limit = _int(limit) or 5
-    displayed = render_items[: max(1, display_limit)]
-    source_counts = _source_counts(actionable)
-    return {
-        "schema_version": SCHEMA_VERSION,
-        "summary": {
-            "total_actionable": len(actionable),
-            "displayed_count": len(displayed),
-            "top_priority_score": int(_field(displayed[0], "priority_score") or 0) if displayed else 0,
-            "sources": source_counts,
-            "source_labels": source_labels(source_counts),
-            "source_texts": source_texts(source_counts),
-        },
-        "items": displayed,
-        "secondary_count": max(0, len(actionable) - len(displayed)),
-    }
+    return queue_response(actionable, limit=limit, schema_version=SCHEMA_VERSION)
 
 
 def _free_mode_items(free_mode: dict[str, Any]) -> list[dict[str, Any]]:
@@ -87,36 +68,6 @@ def _free_mode_items(free_mode: dict[str, Any]) -> list[dict[str, Any]]:
         "violations": violations,
     }]
 
-
-def _provider_items(ledger: dict[str, Any], *, skip_keys: set[str]) -> list[dict[str, Any]]:
-    items = []
-    for row in safe_dict_list(_field(ledger, "items")):
-        if not isinstance(row, dict) or _report_key(row) in skip_keys:
-            continue
-        summary = safe_mapping_dict(_field(row, "summary")) or {}
-        blocks = _bool(_field(summary, "blocks_auto_rerun"))
-        if not blocks:
-            continue
-        action = safe_text(_field(summary, "recommended_action")).strip() or "wait_provider_recovery"
-        filename = safe_text(_field(row, "filename")).strip() or safe_text(_field(row, "report_filename")).strip() or None
-        ticker = safe_text(_field(row, "ticker")).strip()
-        pipeline_id = safe_text(_field(row, "pipeline_id")).strip() or "v1"
-        items.append({
-            "source": "provider_impact",
-            "type": "wait_provider_recovery" if blocks else "monitor_provider",
-            "priority_score": 900 if blocks else 520,
-            "title": f"{ticker or '報告'} provider 影響需處理",
-            "detail": _provider_detail(row, blocks),
-            "ticker": ticker,
-            "filename": filename,
-            "report_filename": filename,
-            "pipeline_id": pipeline_id,
-            "recommended_action": action,
-            "blocks_auto_rerun": blocks,
-        })
-    return items
-
-
 def _backtest_due_items(
     reports: list[dict[str, Any]], performance: dict[str, Any], *, as_of: date, skip_keys: set[str]
 ) -> list[dict[str, Any]]:
@@ -124,14 +75,14 @@ def _backtest_due_items(
     if not explicit:
         explicit = safe_dict_list(_field(performance, "backtest_due"))
     if explicit:
-        return [_due_item(row, skip_keys=skip_keys) for row in explicit if isinstance(row, dict) and _report_key(row) not in skip_keys]
+        return [_due_item(row, skip_keys=skip_keys) for row in explicit if isinstance(row, dict) and report_key(row) not in skip_keys]
     evaluated = {
         (safe_text(_field(row, "report_filename")).strip() or safe_text(_field(row, "filename")).strip(), _int(_field(row, "horizon_months")))
         for row in safe_dict_list(_field(performance, "details"))
     }
     due = []
     for report in safe_dict_list(reports):
-        if _report_key(report) in skip_keys:
+        if report_key(report) in skip_keys:
             continue
         generated = _report_date(report)
         filename = safe_text(_field(report, "filename")).strip() or safe_text(_field(report, "report_filename")).strip()
@@ -164,7 +115,7 @@ def _due_item(row: dict[str, Any], *, skip_keys: set[str]) -> dict[str, Any]:
 
 
 def _rerun_items(rerun_reports: list[dict[str, Any]], *, skip_keys: set[str]) -> list[dict[str, Any]]:
-    return [_rerun_report_payload(report) for report in safe_dict_list(rerun_reports) if _report_key(report) not in skip_keys]
+    return [_rerun_report_payload(report) for report in safe_dict_list(rerun_reports) if report_key(report) not in skip_keys]
 
 
 def _watchlist_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -255,37 +206,6 @@ def _rerun_report_payload(report: dict[str, Any]) -> dict[str, Any]:
         "pipeline_id": pipeline_id,
     }
 
-
-def _provider_detail(row: dict[str, Any], blocks: bool) -> str:
-    message = next((text for item in safe_dict_list(_field(row, "impacts")) if (text := safe_text(_field(item, "message")).strip())), "")
-    if message:
-        return message
-    if blocks:
-        return "核心來源不穩，先等待 provider recovery，避免盲目重跑。"
-    return "來源有警示但未阻擋核心資料，列為監控。"
-
-
-def _monitor_item() -> dict[str, Any]:
-    return {
-        "source": "monitor",
-        "type": "monitor",
-        "priority_score": 0,
-        "title": "目前沒有急件",
-        "detail": "保持每日追蹤。",
-    }
-
-
-def _report_key(row: dict[str, Any]) -> str:
-    filename = safe_text(_field(row, "filename")).strip() or safe_text(_field(row, "report_filename")).strip()
-    if filename:
-        return filename
-    ticker = safe_text(_field(row, "ticker")).strip()
-    if not ticker:
-        return ""
-    pipeline_id = safe_text(_field(row, "pipeline_id")).strip() or "v1"
-    return f"{ticker}:{pipeline_id}"
-
-
 def _report_date(report: dict[str, Any]) -> date | None:
     date_text = safe_text(_field(report, "date")).strip()
     try:
@@ -303,24 +223,6 @@ def _report_date(report: dict[str, Any]) -> date | None:
         return datetime.fromtimestamp(timestamp).date()
     except (OSError, OverflowError, ValueError):
         return None
-
-
-def _source_counts(items: list[dict[str, Any]]) -> dict[str, int]:
-    counts: dict[str, int] = {}
-    for item in items:
-        source = str(_field(item, "source") or "unknown")
-        counts[source] = counts.get(source, 0) + 1
-    return counts
-
-
-def _sort_key(item: dict[str, Any]) -> tuple[int, int, str, str]:
-    source = str(_field(item, "source") or "")
-    return (
-        -_int(_field(item, "priority_score")),
-        SOURCE_ORDER.get(source, 8),
-        str(_field(item, "ticker") or ""),
-        str(_field(item, "filename") or _field(item, "route") or ""),
-    )
 
 
 def _int(value: Any) -> int:

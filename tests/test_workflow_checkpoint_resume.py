@@ -1,4 +1,5 @@
 import asyncio
+import importlib
 import sys
 from pathlib import Path
 
@@ -110,7 +111,7 @@ def test_sqlite_checkpointer_sets_wal_and_busy_timeout(tmp_path):
 
 
 def test_postgres_checkpointer_uses_langgraph_postgres_saver(monkeypatch):
-    import workflow_graph
+    workflow_checkpoints = importlib.import_module("workflow_checkpoints")
 
     calls = []
 
@@ -131,10 +132,10 @@ def test_postgres_checkpointer_uses_langgraph_postgres_saver(monkeypatch):
         async def setup(self):
             calls.append(("setup",))
 
-    monkeypatch.setattr(workflow_graph, "_load_async_postgres_saver", lambda: FakePostgresSaver)
+    monkeypatch.setattr(workflow_checkpoints, "_load_async_postgres_saver", lambda: FakePostgresSaver)
 
     async def open_once():
-        async with open_checkpointer(
+        async with workflow_checkpoints.open_checkpointer(
             checkpoint_backend="postgres",
             postgres_dsn="postgresql://stock-agent/checkpoints",
         ) as saver:
