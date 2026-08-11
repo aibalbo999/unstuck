@@ -355,7 +355,7 @@ def test_quality_gates_retries_once_when_financial_redline_fails(monkeypatch):
     assert len(retry_events) == 1
 
 
-def test_quality_retry_excludes_gemini_35_flash_from_model_override(monkeypatch):
+def test_quality_retry_excludes_gemini_36_flash_from_model_override(monkeypatch):
     calls = []
     model_overrides = []
     bad_decision_output = (
@@ -404,7 +404,7 @@ def test_quality_retry_excludes_gemini_35_flash_from_model_override(monkeypatch)
     assert completed_agent == 7
     assert len(calls) == 2
     assert model_overrides[0] in (None, {})
-    assert model_overrides[1] == {7: ["gemini-2.5-flash"]}
+    assert model_overrides[1] == {7: ["gemini-3-flash-preview"]}
     assert context.get("_model_sequence_override") is None
     assert context["analyses"][7] == markdown == clean_decision_output
 
@@ -461,7 +461,7 @@ def test_quality_gates_appends_warning_after_quality_retry_still_fails(monkeypat
     assert len(retry_events) == 1
 
 
-def test_sync_quality_gate_retries_financial_redline_without_gemini_35(monkeypatch):
+def test_sync_quality_gate_retries_financial_redline_without_gemini_36(monkeypatch):
     calls = []
     model_overrides = []
     statuses = []
@@ -515,7 +515,7 @@ def test_sync_quality_gate_retries_financial_redline_without_gemini_35(monkeypat
 
     assert result == clean_decision_output
     assert calls == [7]
-    assert model_overrides == [{7: ["gemini-2.5-flash"]}]
+    assert model_overrides == [{7: ["gemini-3-flash-preview"]}]
     assert context.get("_model_sequence_override") is None
     assert context["agent_quality_retry_counts"] == {7: 1}
     retry_events = [item for item in statuses if item[1].get("phase") == "agent_quality_retry"]

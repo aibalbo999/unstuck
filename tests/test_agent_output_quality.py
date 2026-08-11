@@ -212,7 +212,7 @@ def test_prompt_identity_and_injection_share_runtime_rules_snapshot(tmp_path, mo
         prompt_rules.load_runtime_prompt_rules.cache_clear()
 
 
-def test_model_routes_allow_gemini_35_flash_with_flash_25_fallback_rotation():
+def test_model_routes_allow_gemini_36_flash_with_gemini_3_flash_preview_fallback_rotation():
     routes = json.loads((ROOT / "backend" / "model_routes.json").read_text(encoding="utf-8"))
     routed_models = [
         routes.get("default_analysis_model"),
@@ -227,10 +227,14 @@ def test_model_routes_allow_gemini_35_flash_with_flash_25_fallback_rotation():
     for fallback_models in (routes.get("agent_fallbacks") or {}).values():
         routed_models.extend(fallback_models or [])
 
-    assert "gemini-3.5-flash" in routed_models
-    assert "gemini-2.5-flash" in routed_models
-    assert routes["default_decision_model"] == "gemini-3.5-flash"
-    assert set(routes["audit_fallback_models"]) == {"gemini-2.5-flash"}
+    assert "gemini-3.6-flash" in routed_models
+    assert "gemini-3-flash-preview" in routed_models
+    assert "gemini-3.5-flash" not in routed_models
+    assert "gemini-2.5-flash" not in routed_models
+    assert routes["default_decision_model"] == "gemini-3.6-flash"
+    assert set(routes["audit_fallback_models"]) == {"gemini-3-flash-preview"}
+    assert routes["rpm_limits"]["gemini-3.6-flash"] == 5
+    assert routes["rpm_limits"]["gemini-3-flash-preview"] == 5
     for agent_num in ("7", "16", "19", "24"):
-        assert routes["agents"][agent_num] == "gemini-3.5-flash"
-        assert "gemini-2.5-flash" in routes["agent_fallbacks"][agent_num]
+        assert routes["agents"][agent_num] == "gemini-3.6-flash"
+        assert routes["agent_fallbacks"][agent_num] == ["gemini-3-flash-preview"]

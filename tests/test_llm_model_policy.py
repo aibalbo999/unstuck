@@ -289,4 +289,4 @@ def test_model_circuit_opens_after_repeated_failures():
 
 def test_gemma_receives_large_context_budget_by_default():
     assert is_large_context_model("gemma-4-31b-it") is True
-    assert is_large_context_model("gemini-3.5-flash") is True
+    assert is_large_context_model("gemini-3.6-flash") is True

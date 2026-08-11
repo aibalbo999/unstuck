@@ -13,7 +13,7 @@ from .cancellation import raise_if_cancelled
 from .repair_reflection import build_audit_retry_instruction
 from .routing import get_agent_model_sequence, get_runtime_model_sequence
 
-QUALITY_RETRY_EXCLUDED_MODELS = {"gemini-3.5-flash"}
+QUALITY_RETRY_EXCLUDED_MODELS = {"gemini-3.6-flash"}
 
 
 def record_agent_quality_retry(context: AnalysisContext, agent_num: int) -> None:

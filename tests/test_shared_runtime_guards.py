@@ -166,7 +166,7 @@ def test_key_rotator_uses_provider_specific_keys(monkeypatch):
 
     assert rotator.get_key("openai:gpt-4.1-mini") == "openai-key"
     assert rotator.get_key("anthropic:claude-4-sonnet") == "anthropic-key"
-    assert rotator.get_key("gemini-3.5-flash") == "google-key"
+    assert rotator.get_key("gemini-3.6-flash") == "google-key"
 
 
 def test_provider_resilience_uses_shared_circuit_store(monkeypatch):

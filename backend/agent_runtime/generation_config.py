@@ -103,7 +103,7 @@ def _response_text(response) -> str:
 
 def google_safe_agent_system_instruction(agent_num: int, model_id: str) -> str:
     system_instruction = SYSTEM_PROMPTS.get(agent_num, "")
-    if "gemini-2.5-flash" in model_id:
+    if "gemini-3-flash-preview" in model_id:
         system_instruction += "\n\nIMPORTANT: You are operating as a fallback model. You MUST provide a comprehensive, highly detailed, and complete analysis. Ensure your response is sufficiently long and detailed to form a formal report section. Do not provide a short or truncated response."
     return sanitize_google_system_instruction(system_instruction)
 
