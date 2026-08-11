@@ -33901,6 +33901,117 @@ def test_report_target_price_detection_ignores_policy_issued_app_rating_fpy_yiel
     )
 
 
+def test_report_target_price_detection_ignores_build_service_queue_targets():
+    from itertools import permutations
+
+    from report_target_price_detection import detect_explicit_target_price_fields
+
+    terms = ("certificate", "closure", "exception", "corrective action")
+    states = ("management", "control", "assurance", "readiness", "response")
+    phases = (
+        "monitoring",
+        "oversight",
+        "review",
+        "assessment",
+        "testing",
+        "finding",
+        "remediation",
+        "exception",
+        "validation",
+    )
+    prefixes = tuple(
+        prefix
+        for phase in phases
+        for prefix in (f"build {phase}", *(f"build {phase} {state}" for state in states))
+    )
+    selected_combos = tuple(
+        combo for size in (2, 3, 4) for combo in permutations(terms, size)
+    )[:20]
+    selected_targets = tuple(
+        f"{prefix} {' '.join(combo)} queue items {suffix}"
+        for prefix in prefixes
+        for combo in selected_combos
+        for suffix in ("target 160", "reached 160 in Q4")
+    )
+    targets = {
+        f"build_service_queue_{index}_target_price": raw
+        for index, raw in enumerate(selected_targets, start=1)
+    }
+    valid_cases = {
+        f"price_with_{field_name}": f"target price NT$160 with {raw}"
+        for field_name, raw in targets.items()
+    }
+
+    fields = detect_explicit_target_price_fields(
+        {"parsed": {"recommendation": {**targets, **valid_cases}}}
+    )
+
+    assert fields == sorted(
+        f"parsed.recommendation.{field_name}" for field_name in valid_cases
+    )
+
+
+def test_report_target_price_detection_ignores_software_workflow_service_queue_targets():
+    from itertools import permutations
+
+    from report_target_price_detection import detect_explicit_target_price_fields
+
+    terms = ("certificate", "closure", "exception", "corrective action")
+    states = ("management", "control", "assurance", "readiness", "response")
+    roots = (
+        "bug fixed",
+        "defect resolved",
+        "escaped defect",
+        "story point",
+        "sprint velocity",
+        "deployment",
+        "software release",
+        "code review",
+    )
+    phases = (
+        "monitoring",
+        "oversight",
+        "review",
+        "assessment",
+        "testing",
+        "finding",
+        "remediation",
+        "exception",
+        "validation",
+    )
+    base_prefixes = tuple(f"{root} {phase}" for root in roots for phase in phases)
+    prefixes = tuple(
+        prefix
+        for base_prefix in base_prefixes
+        for prefix in (base_prefix, *(f"{base_prefix} {state}" for state in states))
+    )
+    selected_combos = tuple(
+        combo for size in (2, 3, 4) for combo in permutations(terms, size)
+    )[:20]
+    selected_targets = tuple(
+        f"{prefix} {' '.join(combo)} queue items {suffix}"
+        for prefix in prefixes
+        for combo in selected_combos
+        for suffix in ("target 160", "reached 160 in Q4")
+    )
+    targets = {
+        f"software_workflow_service_queue_{index}_target_price": raw
+        for index, raw in enumerate(selected_targets, start=1)
+    }
+    valid_cases = {
+        f"price_with_{field_name}": f"target price NT$160 with {raw}"
+        for field_name, raw in targets.items()
+    }
+
+    fields = detect_explicit_target_price_fields(
+        {"parsed": {"recommendation": {**targets, **valid_cases}}}
+    )
+
+    assert fields == sorted(
+        f"parsed.recommendation.{field_name}" for field_name in valid_cases
+    )
+
+
 def test_report_target_price_detection_ignores_supplier_vendor_identity_management_recovery_continuity_resilience_certificate_closure_corrective_action_service_queue_targets():
     from itertools import permutations
 

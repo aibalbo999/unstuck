@@ -25074,6 +25074,123 @@ def test_parse_price_targets_from_text_ignores_policy_issued_app_rating_fpy_yiel
     }
 
 
+def test_parse_price_targets_from_text_ignores_build_service_queue_only_values():
+    from itertools import permutations
+
+    terms = ("certificate", "closure", "exception", "corrective action")
+    states = ("management", "control", "assurance", "readiness", "response")
+    phases = (
+        "monitoring",
+        "oversight",
+        "review",
+        "assessment",
+        "testing",
+        "finding",
+        "remediation",
+        "exception",
+        "validation",
+    )
+    prefixes = tuple(
+        prefix
+        for phase in phases
+        for prefix in (f"build {phase}", *(f"build {phase} {state}" for state in states))
+    )
+    selected_combos = tuple(
+        combo for size in (2, 3, 4) for combo in permutations(terms, size)
+    )[:20]
+    selected_targets = tuple(
+        f"{prefix} {' '.join(combo)} queue items {suffix}"
+        for prefix in prefixes
+        for combo in selected_combos
+        for suffix in ("target 160", "reached 160 in Q4")
+    )
+    targets = {
+        f"BuildServiceQueue{index}情境": raw
+        for index, raw in enumerate(selected_targets, start=1)
+    }
+    text = "[目標股價]\n" + "".join(
+        f"{label}：{raw}\n" for label, raw in targets.items()
+    ) + "[/目標股價]"
+
+    assert parse_price_targets_from_text(text, current_price=100) == {}
+
+    valid_targets = {
+        label.replace("情境", "有效情境"): f"target price NT$160 with {raw}"
+        for label, raw in targets.items()
+    }
+    valid_text = "[目標股價]\n" + "".join(
+        f"{label}：{raw}\n" for label, raw in valid_targets.items()
+    ) + "[/目標股價]"
+
+    assert parse_price_targets_from_text(valid_text, current_price=100) == {
+        label: 160.0 for label in valid_targets
+    }
+
+
+def test_parse_price_targets_from_text_ignores_software_workflow_service_queue_only_values():
+    from itertools import permutations
+
+    terms = ("certificate", "closure", "exception", "corrective action")
+    states = ("management", "control", "assurance", "readiness", "response")
+    roots = (
+        "bug fixed",
+        "defect resolved",
+        "escaped defect",
+        "story point",
+        "sprint velocity",
+        "deployment",
+        "software release",
+        "code review",
+    )
+    phases = (
+        "monitoring",
+        "oversight",
+        "review",
+        "assessment",
+        "testing",
+        "finding",
+        "remediation",
+        "exception",
+        "validation",
+    )
+    base_prefixes = tuple(f"{root} {phase}" for root in roots for phase in phases)
+    prefixes = tuple(
+        prefix
+        for base_prefix in base_prefixes
+        for prefix in (base_prefix, *(f"{base_prefix} {state}" for state in states))
+    )
+    selected_combos = tuple(
+        combo for size in (2, 3, 4) for combo in permutations(terms, size)
+    )[:20]
+    selected_targets = tuple(
+        f"{prefix} {' '.join(combo)} queue items {suffix}"
+        for prefix in prefixes
+        for combo in selected_combos
+        for suffix in ("target 160", "reached 160 in Q4")
+    )
+    targets = {
+        f"SoftwareWorkflowServiceQueue{index}情境": raw
+        for index, raw in enumerate(selected_targets, start=1)
+    }
+    text = "[目標股價]\n" + "".join(
+        f"{label}：{raw}\n" for label, raw in targets.items()
+    ) + "[/目標股價]"
+
+    assert parse_price_targets_from_text(text, current_price=100) == {}
+
+    valid_targets = {
+        label.replace("情境", "有效情境"): f"target price NT$160 with {raw}"
+        for label, raw in targets.items()
+    }
+    valid_text = "[目標股價]\n" + "".join(
+        f"{label}：{raw}\n" for label, raw in valid_targets.items()
+    ) + "[/目標股價]"
+
+    assert parse_price_targets_from_text(valid_text, current_price=100) == {
+        label: 160.0 for label in valid_targets
+    }
+
+
 def test_parse_price_targets_from_text_ignores_supplier_vendor_identity_management_recovery_continuity_resilience_certificate_closure_corrective_action_service_queue_only_values():
     from itertools import permutations
 

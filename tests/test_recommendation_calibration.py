@@ -29909,6 +29909,141 @@ def test_policy_issued_app_rating_fpy_yield_defect_scrap_rework_warranty_service
         assert calibrated["recommendation_calibration"]["target_12m"] == 160.0
 
 
+def test_build_service_queue_target_12m_does_not_trigger_calibration():
+    from itertools import permutations
+
+    from recommendation_calibration import calibrate_recommendation_summary
+
+    terms = ("certificate", "closure", "exception", "corrective action")
+    states = ("management", "control", "assurance", "readiness", "response")
+    phases = (
+        "monitoring",
+        "oversight",
+        "review",
+        "assessment",
+        "testing",
+        "finding",
+        "remediation",
+        "exception",
+        "validation",
+    )
+    prefixes = tuple(
+        prefix
+        for phase in phases
+        for prefix in (f"build {phase}", *(f"build {phase} {state}" for state in states))
+    )
+    selected_combos = tuple(
+        combo for size in (2, 3, 4) for combo in permutations(terms, size)
+    )[:20]
+    targets = tuple(
+        f"{prefix} {' '.join(combo)} queue items {suffix}"
+        for prefix in prefixes
+        for combo in selected_combos
+        for suffix in ("target 160", "reached 160 in Q4")
+    )
+
+    for target_12m in targets:
+        calibrated = calibrate_recommendation_summary(
+            {
+                "recommendation": "買入",
+                "current_price": "100",
+                "target_12m": target_12m,
+                "confidence": "7/10",
+            },
+            data_trust={"status": "fresh"},
+        )
+
+        assert calibrated["recommendation"] == "買入"
+        assert "recommendation_calibration" not in calibrated
+
+    for target_12m in (f"target price NT$160 with {target}" for target in targets):
+        calibrated = calibrate_recommendation_summary(
+            {
+                "recommendation": "持有",
+                "current_price": "100",
+                "target_12m": target_12m,
+                "confidence": "7/10",
+            },
+            data_trust={"status": "fresh"},
+        )
+
+        assert calibrated["recommendation"] == "買入"
+        assert calibrated["recommendation_calibration"]["target_12m"] == 160.0
+
+
+def test_software_workflow_service_queue_target_12m_does_not_trigger_calibration():
+    from itertools import permutations
+
+    from recommendation_calibration import calibrate_recommendation_summary
+
+    terms = ("certificate", "closure", "exception", "corrective action")
+    states = ("management", "control", "assurance", "readiness", "response")
+    roots = (
+        "bug fixed",
+        "defect resolved",
+        "escaped defect",
+        "story point",
+        "sprint velocity",
+        "deployment",
+        "software release",
+        "code review",
+    )
+    phases = (
+        "monitoring",
+        "oversight",
+        "review",
+        "assessment",
+        "testing",
+        "finding",
+        "remediation",
+        "exception",
+        "validation",
+    )
+    base_prefixes = tuple(f"{root} {phase}" for root in roots for phase in phases)
+    prefixes = tuple(
+        prefix
+        for base_prefix in base_prefixes
+        for prefix in (base_prefix, *(f"{base_prefix} {state}" for state in states))
+    )
+    selected_combos = tuple(
+        combo for size in (2, 3, 4) for combo in permutations(terms, size)
+    )[:20]
+    targets = tuple(
+        f"{prefix} {' '.join(combo)} queue items {suffix}"
+        for prefix in prefixes
+        for combo in selected_combos
+        for suffix in ("target 160", "reached 160 in Q4")
+    )
+
+    for target_12m in targets:
+        calibrated = calibrate_recommendation_summary(
+            {
+                "recommendation": "買入",
+                "current_price": "100",
+                "target_12m": target_12m,
+                "confidence": "7/10",
+            },
+            data_trust={"status": "fresh"},
+        )
+
+        assert calibrated["recommendation"] == "買入"
+        assert "recommendation_calibration" not in calibrated
+
+    for target_12m in (f"target price NT$160 with {target}" for target in targets):
+        calibrated = calibrate_recommendation_summary(
+            {
+                "recommendation": "持有",
+                "current_price": "100",
+                "target_12m": target_12m,
+                "confidence": "7/10",
+            },
+            data_trust={"status": "fresh"},
+        )
+
+        assert calibrated["recommendation"] == "買入"
+        assert calibrated["recommendation_calibration"]["target_12m"] == 160.0
+
+
 def test_supplier_vendor_identity_management_recovery_continuity_resilience_certificate_closure_corrective_action_service_queue_target_12m_does_not_trigger_calibration():
     from itertools import permutations
 

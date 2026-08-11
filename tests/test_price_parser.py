@@ -17230,6 +17230,93 @@ def test_extract_target_price_numbers_ignores_policy_issued_app_rating_fpy_yield
         ]
 
 
+def test_extract_target_price_numbers_ignores_software_workflow_service_queue_targets():
+    from itertools import permutations
+
+    terms = ("certificate", "closure", "exception", "corrective action")
+    states = ("management", "control", "assurance", "readiness", "response")
+    roots = (
+        "bug fixed",
+        "defect resolved",
+        "escaped defect",
+        "story point",
+        "sprint velocity",
+        "deployment",
+        "software release",
+        "code review",
+    )
+    phases = (
+        "monitoring",
+        "oversight",
+        "review",
+        "assessment",
+        "testing",
+        "finding",
+        "remediation",
+        "exception",
+        "validation",
+    )
+    base_prefixes = tuple(f"{root} {phase}" for root in roots for phase in phases)
+    prefixes = tuple(
+        prefix
+        for base_prefix in base_prefixes
+        for prefix in (base_prefix, *(f"{base_prefix} {state}" for state in states))
+    )
+    selected_combos = tuple(
+        combo for size in (2, 3, 4) for combo in permutations(terms, size)
+    )[:20]
+    targets = tuple(
+        f"{prefix} {' '.join(combo)} queue items {suffix}"
+        for prefix in prefixes
+        for combo in selected_combos
+        for suffix in ("target 160", "reached 160 in Q4")
+    )
+
+    for target in targets:
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(f"target price NT$160 with {target}") == [
+            160.0
+        ]
+
+
+def test_extract_target_price_numbers_ignores_build_service_queue_targets():
+    from itertools import permutations
+
+    terms = ("certificate", "closure", "exception", "corrective action")
+    states = ("management", "control", "assurance", "readiness", "response")
+    phases = (
+        "monitoring",
+        "oversight",
+        "review",
+        "assessment",
+        "testing",
+        "finding",
+        "remediation",
+        "exception",
+        "validation",
+    )
+    prefixes = tuple(
+        prefix
+        for phase in phases
+        for prefix in (f"build {phase}", *(f"build {phase} {state}" for state in states))
+    )
+    selected_combos = tuple(
+        combo for size in (2, 3, 4) for combo in permutations(terms, size)
+    )[:20]
+    targets = tuple(
+        f"{prefix} {' '.join(combo)} queue items {suffix}"
+        for prefix in prefixes
+        for combo in selected_combos
+        for suffix in ("target 160", "reached 160 in Q4")
+    )
+
+    for target in targets:
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(f"target price NT$160 with {target}") == [
+            160.0
+        ]
+
+
 def test_extract_target_price_numbers_ignores_supplier_vendor_identity_management_recovery_continuity_resilience_certificate_closure_corrective_action_service_queue_targets():
     from itertools import permutations
 
