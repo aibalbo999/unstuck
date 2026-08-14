@@ -8997,6 +8997,44 @@ def test_target_price_candidates_ignore_time_to_training_event_lifecycle_metric_
     ]
 
 
+def test_target_price_candidates_ignore_time_to_training_session_lifecycle_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to schedule training session",
+        "time to deliver training session",
+        "time to enroll training session",
+        "time to start training session",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+    combinations = tuple(product(roots, phases, states, prefixes))
+    targets = {
+        (
+            f"TimeToTrainingSessionLifecycle{root.title().replace(' ', '')}"
+            f"{phase.title()}{state.title()}{prefix.title()}情境"
+        ): f"{phase} {prefix} {root} {state} 12 個"
+        for root, phase, state, prefix in combinations
+    }
+    valid_cases = {
+        label.replace("情境", "有效情境"): f"target price NT$160 with {raw}"
+        for label, raw in targets.items()
+    }
+
+    candidates = target_price_candidates({"price_targets": {**targets, **valid_cases}})
+
+    assert candidates == [
+        {
+            "source": f"price_targets.{label}",
+            "label": label,
+            "price": 160.0,
+            "raw": raw,
+        }
+        for label, raw in valid_cases.items()
+    ]
+
+
 def test_target_price_candidates_ignore_time_to_incident_lifecycle_metric_values():
     from itertools import product
 

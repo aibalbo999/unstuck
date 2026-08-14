@@ -6560,6 +6560,42 @@ def test_report_target_price_detection_ignores_time_to_training_event_lifecycle_
     )
 
 
+def test_report_target_price_detection_ignores_time_to_training_session_lifecycle_metric_values():
+    from itertools import product
+
+    from report_target_price_detection import detect_explicit_target_price_fields
+
+    roots = (
+        "time to schedule training session",
+        "time to deliver training session",
+        "time to enroll training session",
+        "time to start training session",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate")
+    combinations = tuple(product(roots, phases, states, prefixes))
+    targets = {
+        (
+            f"time_to_training_session_{root.replace(' ', '_')}_"
+            f"{phase}_{state}_{prefix}_target_price"
+        ): f"{phase} {prefix} {root} {state} 12 個"
+        for root, phase, state, prefix in combinations
+    }
+    valid_cases = {
+        f"price_with_{field_name}": f"target price NT$160 with {raw}"
+        for field_name, raw in targets.items()
+    }
+
+    fields = detect_explicit_target_price_fields(
+        {"parsed": {"recommendation": {**targets, **valid_cases}}}
+    )
+
+    assert fields == sorted(
+        f"parsed.recommendation.{field_name}" for field_name in valid_cases
+    )
+
+
 def test_report_target_price_detection_ignores_time_to_incident_lifecycle_metric_values():
     from itertools import product
 
