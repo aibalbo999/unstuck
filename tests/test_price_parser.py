@@ -12709,6 +12709,27 @@ def test_extract_target_price_numbers_ignores_time_to_course_lifecycle_metric_va
         ) == [205.0]
 
 
+def test_extract_target_price_numbers_ignores_time_to_course_residual_lifecycle_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to schedule course",
+        "time to deliver course",
+        "time to finish course",
+        "time to certify course",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+
 def test_extract_target_price_numbers_ignores_time_to_incident_lifecycle_metric_values():
     from itertools import product
 

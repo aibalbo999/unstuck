@@ -8303,6 +8303,34 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 - D3376-D3387 adjacent regression：`60 passed, 3740 deselected in 423.61s`。
 - completion gate：import boundary `503 passed in 11.00s`；HCS/文件契約 `135 passed in 3.50s`；`py_compile` exit 0；`git diff --check` exit 0；trailing-whitespace 無命中；runtime doctor exit 0，canonical operational DB 為 `backend/cache/operational.sqlite3`、report index 為 `backend/cache/stock_agent_cache.sqlite3`，Redis 為 `redis://localhost:6379/0`；parser/detector 行數維持 `349/189`。
 
+### 完成後維護 / D3390 / #拆解問題 #差距分析 #偏誤降低 #比較組 #證據基礎 #可驗證性 #來源品質
+
+本次使用：在 D3389 後重新掃描 deferred course roots、training 與 course-module candidates，沿用 D3389 的 backlog 邊界，收斂 schedule/deliver/finish/certify course；以 `time to enroll training`、financial time-to 與 explicit target price 作為比較組。
+
+核心判斷
+
+1. `time to schedule/deliver/finish/certify course` 是課程流程 KPI；其數值不應進入股票 target-price candidates。
+2. pre-fix matrix 為 `480 cases / 2000 leaks / 792 valid-misses`；每個入口各有 400 leaks，valid-miss 分布為 parser 192、calibration 120、credibility 0、structured output 120、detector 360。
+3. production 只追加四個 deferred course roots 到共享 `QUALITY_SERVICE_METRIC_PATTERN`；`time to enroll training` 保持 residual control，financial `time to price` 維持獨立。
+
+落地修改
+
+1. 五個報告品質入口新增 course-residual lifecycle regression；parser、calibration、credibility、structured output 覆蓋 480 組語料，detector 依既有 path boundary 覆蓋 400 組語料。
+2. `backend/price_parser.py` 共享 time-to branch 加入四個 deferred course roots，維持 parser/detector `349/189` 行及 runtime/storage 邊界。
+
+優化說明
+
+1. 五入口 RED 後 shared-pattern GREEN 通過 `5 passed in 24.42s`，沒有新增 consumer-specific cleanup。
+2. D3390 post-fix course-residual matrix 為 `480 cases / leaks=0 / valid_misses=0`；explicit target price `[205.0]`、financial `time to price` 與 existing course control 均為 `[]`，residual `time to enroll training` 仍為 `[12.0]`。
+3. D3376-D3390 完整相鄰 regression 為 `75 passed, 3740 deselected in 493.87s`。
+
+驗證方式
+
+- `$(scripts/project_python.sh) -m pytest tests/test_price_parser.py tests/test_recommendation_calibration.py tests/test_content_credibility_inputs.py tests/test_structured_output_parser.py tests/test_report_target_price_detection.py -q -k 'time_to_course_residual_lifecycle'`：`5 passed in 24.42s`。
+- D3390 post-fix course-residual matrix：`480 cases / leaks=0 / valid_misses=0`。
+- explicit target price：`[205.0]`；financial `time to price`：`[]`；residual `time to enroll training`：`[12.0]`。
+- D3376-D3390 adjacent regression：`75 passed, 3740 deselected in 493.87s`。
+
 ### 完成後維護 / D3389 / #拆解問題 #差距分析 #偏誤降低 #比較組 #證據基礎 #可驗證性 #來源品質
 
 本次使用：在 D3388 後重新掃描 course lifecycle 與 training controls，選擇明確非金融且尚未被既有 training guard 覆蓋的 enroll/start/complete/evaluate course roots；以 schedule course 作為 residual control，並保留 financial time-to 邊界。
