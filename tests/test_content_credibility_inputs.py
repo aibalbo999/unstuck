@@ -10251,6 +10251,44 @@ def test_target_price_candidates_ignore_time_to_renewal_validation_recertificati
     ]
 
 
+def test_target_price_candidates_ignore_time_to_schedule_renewal_validation_certification_attendance_recertification_lifecycle_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to schedule renewal validation certification attendance recertification",
+        "time to complete validation certification attendance renewal recertification",
+        "time to issue recertification attendance renewal validation certification",
+        "time to attend certification validation renewal recertification attendance",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+    combinations = tuple(product(roots, phases, states, prefixes))
+    targets = {
+        (
+            "TimeToScheduleRenewalValidationCertificationAttendanceRecertificationLifecycle"
+            f"{root.title().replace(' ', '')}{phase.title()}{state.title()}{prefix.title()}情境"
+        ): f"{phase} {prefix} {root} {state} 12 個"
+        for root, phase, state, prefix in combinations
+    }
+    valid_cases = {
+        label.replace("情境", "有效情境"): f"target price NT$160 with {raw}"
+        for label, raw in targets.items()
+    }
+
+    candidates = target_price_candidates({"price_targets": {**targets, **valid_cases}})
+
+    assert candidates == [
+        {
+            "source": f"price_targets.{label}",
+            "label": label,
+            "price": 160.0,
+            "raw": raw,
+        }
+        for label, raw in valid_cases.items()
+    ]
+
+
 def test_target_price_candidates_ignore_time_to_verify_certification_attendance_renewal_validation_recertification_lifecycle_metric_values():
     from itertools import product
 
