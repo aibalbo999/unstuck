@@ -11168,6 +11168,45 @@ def test_parse_price_targets_from_text_ignores_time_to_training_course_lifecycle
     }
 
 
+def test_parse_price_targets_from_text_ignores_time_to_learning_module_lifecycle_only_values():
+    from itertools import product
+
+    roots = (
+        "time to enroll learning module",
+        "time to start learning module",
+        "time to complete learning module",
+        "time to evaluate learning module",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+    combinations = tuple(product(roots, phases, states, prefixes))
+    targets = {
+        (
+            f"TimeToLearningModuleLifecycle{root.title().replace(' ', '')}"
+            f"{phase.title()}{state.title()}{prefix.title()}情境"
+        ): f"{phase} {prefix} {root} {state} 12 個"
+        for root, phase, state, prefix in combinations
+    }
+    text = "[目標股價]\n" + "".join(
+        f"{label}：{raw}\n" for label, raw in targets.items()
+    ) + "[/目標股價]"
+
+    assert parse_price_targets_from_text(text, current_price=100) == {}
+
+    valid_targets = {
+        label.replace("情境", "有效情境"): f"target price NT$160 with {raw}"
+        for label, raw in targets.items()
+    }
+    valid_text = "[目標股價]\n" + "".join(
+        f"{label}：{raw}\n" for label, raw in valid_targets.items()
+    ) + "[/目標股價]"
+
+    assert parse_price_targets_from_text(valid_text, current_price=100) == {
+        label: 160.0 for label in valid_targets
+    }
+
+
 def test_parse_price_targets_from_text_ignores_time_to_incident_lifecycle_only_values():
     from itertools import product
 
