@@ -8303,6 +8303,34 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 - D3376-D3387 adjacent regression：`60 passed, 3740 deselected in 423.61s`。
 - completion gate：import boundary `503 passed in 11.00s`；HCS/文件契約 `135 passed in 3.50s`；`py_compile` exit 0；`git diff --check` exit 0；trailing-whitespace 無命中；runtime doctor exit 0，canonical operational DB 為 `backend/cache/operational.sqlite3`、report index 為 `backend/cache/stock_agent_cache.sqlite3`，Redis 為 `redis://localhost:6379/0`；parser/detector 行數維持 `349/189`。
 
+### 完成後維護 / D3406 / #拆解問題 #差距分析 #偏誤降低 #比較組 #證據基礎 #可驗證性 #來源品質
+
+本次使用：在 D3405 後重新掃描 certification-training attendance、certificate recertification verification、certificate renewal completion、certification-training renewal 與後續 variants，選擇 attend certification training、verify certificate recertification、complete certificate renewal 及 renew certification training；以 `time to issue certification renewal`、既有 course control、financial time-to 與 explicit target price 作為比較組。
+
+核心判斷
+
+1. `time to attend certification training`、`time to verify certificate recertification`、`time to complete certificate renewal` 與 `time to renew certification training` 是 certification-renewal attendance/verification lifecycle KPI；其數值不應進入股票 target-price candidates。
+2. pre-fix matrix 為 `480 cases / 2000 leaks / 792 valid-misses`；四個 roots 各有 500 leaks。
+3. production 只追加四個 certification-renewal lifecycle roots 到共享 `QUALITY_SERVICE_METRIC_PATTERN`；financial `time to price` 與後續 certification issuance/attendance variants 保持獨立。
+
+落地修改
+
+1. 五個報告品質入口新增 certification-renewal attendance lifecycle regression；parser、calibration、credibility、structured output 覆蓋 480 組語料，detector 依既有 path boundary 覆蓋 400 組語料。
+2. `backend/price_parser.py` 共享 time-to branch 加入四個 certification-renewal lifecycle roots，維持 parser/detector `349/189` 行及 runtime/storage 邊界。
+
+優化說明
+
+1. 五入口 RED 後 shared-pattern GREEN 通過 `5 passed in 27.87s`，沒有新增 consumer-specific cleanup。
+2. D3406 post-fix certification-renewal attendance matrix 為 `480 cases / leaks=0 / valid_misses=0`；explicit target price `[205.0]`、financial `time to price`、existing `time to complete course` 與 newly guarded `time to verify certificate recertification` controls 均為 `[]`，residual `time to issue certification renewal forecast 12 個` 仍為 `[12.0]`。
+3. D3405-D3406 adjacent regression 通過 `10 passed, 3885 deselected in 54.89s`。
+
+驗證方式
+
+- `$(scripts/project_python.sh) -m pytest tests/test_price_parser.py tests/test_recommendation_calibration.py tests/test_content_credibility_inputs.py tests/test_structured_output_parser.py tests/test_report_target_price_detection.py -q -k 'time_to_certification_renewal_attendance_lifecycle'`：`5 passed in 27.87s`。
+- D3406 post-fix certification-renewal attendance matrix：`480 cases / leaks=0 / valid_misses=0`。
+- explicit target price：`[205.0]`；financial `time to price`：`[]`；existing course：`[]`；newly guarded certificate recertification：`[]`；residual `time to issue certification renewal forecast 12 個`：`[12.0]`。
+- D3405-D3406 adjacent regression：`10 passed, 3885 deselected in 54.89s`。
+
 ### 完成後維護 / D3405 / #拆解問題 #差距分析 #偏誤降低 #比較組 #證據基礎 #可驗證性 #來源品質
 
 本次使用：在 D3404 後重新掃描 certification-training scheduling、training certificate review attendance、certificate renewal verification 與 certificate-training scheduling variants，選擇 schedule certification training、attend training certificate review、verify certificate renewal 及 schedule certificate training；以 `time to attend certification training`、既有 training certification review control、financial time-to 與 explicit target price 作為比較組。另 probe 確認 `time to complete training certification review` 已由 D3404 覆蓋。
