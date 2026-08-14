@@ -7720,3 +7720,585 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 - 完成後維護 / 定期複檢契約矩陣：後續新增 pipeline、模式語意、報告模板或完成回報規則時，先更新契約章節與測試。
 - 例外升級：碰到 parser、prompt、template、audit、runtime、交易語氣或使用者理解宣稱時，先補對應測試與人工 review。
 - 下一步：完成後維護 / 定期複檢契約矩陣。
+
+### 完成後維護 / D3369 / #可驗證性
+
+狀態：完成
+
+本次使用：檢查完成後維護是否讓測試名稱、實際收集範圍與報告品質宣稱保持一致。
+
+核心判斷
+
+1. 五個報告品質入口各有重複的 `time_to_payment_operations` 測試定義，後定義會覆蓋前定義，造成測試契約不透明。
+2. order case 曾附著在重複 payment 函式內；雖然 focused run 仍可能執行案例，但函式責任與收集名稱不一致。
+3. 去重不代表新增 production 覆蓋；因此只整理測試結構，並以 payment/order focused regression 驗證案例仍存在。
+
+落地修改
+
+1. 清理 `tests/test_price_parser.py`、`tests/test_recommendation_calibration.py`、`tests/test_content_credibility_inputs.py`、`tests/test_structured_output_parser.py` 與 `tests/test_report_target_price_detection.py` 的重複定義。
+2. 每個入口保留單一 payment 測試與單一 order 測試，避免 Python 後定義覆蓋前定義。
+3. 在 `docs/hcs-plus-optimization-state.md` 記錄 D3369 完成後維護證據。
+
+優化說明
+
+1. 測試名稱與收集範圍重新一致，後續 failure triage 可直接定位到責任案例。
+2. 代價是刪除重複測試文字；實際 payment/order 行為案例數維持不變。
+3. 下一輪仍需擴大非金融 residual 語料，不能把測試去重解讀成 parser coverage 完成。
+
+驗證方式
+
+- `$(scripts/project_python.sh) -m pytest tests/test_price_parser.py tests/test_recommendation_calibration.py tests/test_content_credibility_inputs.py tests/test_structured_output_parser.py tests/test_report_target_price_detection.py -q -k 'time_to_payment_operations or time_to_order_fulfillment'`
+- `$(scripts/project_python.sh) -m pytest tests/test_docs_contract.py tests/test_hcs_plus_state.py -q`
+- `git diff --check`
+
+### 完成後維護 / D3370 / #差距分析 #偏誤降低 #可驗證性 #來源品質
+
+狀態：完成
+
+本次使用：從 D3368 後的非金融候選語料重新取樣，將 people/admin 作業詞根與仍需保留的金融語意邊界分開處理。
+
+核心判斷
+
+1. `recruit employee`、`retain employee`、`promote employee`、`transfer employee`、`reassign employee`、`terminate employee`、`schedule meeting`、`facilitate meeting` 是明確的行政或人員作業語意，可安全納入既有 time-to quality metric guard。
+2. fresh pre-fix matrix 為 960 cases，680 個會漏入 target-price 路徑，384 個有效 metric values 會被漏判；因此這是可量測且可局部修正的 residual。
+3. case/document、knowledge-records 與 `time to price`、`time to quote`、`time to bill`、`time to invoice`、`time to charge` 仍分開保留，避免把非金融修正外推成金融語意修正。
+
+落地修改
+
+1. 在 `backend/price_parser.py` 既有 `QUALITY_SERVICE_METRIC_PATTERN` time-to branch 加入 8 個 people/admin roots。
+2. 五個報告品質入口各新增一個同一語料矩陣的 regression，覆蓋 target/forecast/actual/baseline/current 狀態。
+3. 在狀態表保留 pre-fix、final、focused、adjacent 與 import evidence，讓下一輪可從 case/document 或 knowledge-records residual 接續。
+
+優化說明
+
+1. RED→GREEN：五入口先得到 5 failed，production guard 完成後為 5 passed。
+2. final matrix 為 960 cases，leaks=0、valid_misses=0；D3349-D3370 相鄰 regression 為 97 passed in 1,545.34s。
+3. import boundary 為 503 passed in 9.63s，`backend/price_parser.py` 與 `backend/report_target_price_detection.py` 維持 349/189 行；production scope 沒有擴大到金融價格語意。
+
+驗證方式
+
+- 五入口 D3370 focused regression：`5 passed in 48.98s`。
+- 五入口 D3349-D3370 adjacent regression：`97 passed in 1,545.34s`。
+- D3370 post-fix matrix：`960 cases / leaks=0 / valid_misses=0`。
+- `$(scripts/project_python.sh) -m pytest tests/test_import_boundaries.py -q`：`503 passed in 9.63s`。
+- `git diff --check` 與指定 modules `py_compile` 通過。
+
+### 完成後維護 / D3371 / #差距分析 #偏誤降低 #可驗證性 #來源品質
+
+狀態：完成
+
+本次使用：從 D3370 後的非金融候選語料重新取樣，先用 case/document 對照矩陣驗證 residual，再以既有 time-to guard 做局部修正。
+
+核心判斷
+
+1. `create case`、`update case`、`archive case`、`reopen case`、`draft document`、`sign document`、`upload document`、`retrieve document` 是案件或文件作業語意，不應把其 KPI 數值當成股票目標價。
+2. fresh pre-fix matrix 為 960 cases，800 個會漏入 target-price 路徑，384 個有效 metric values 會被漏判；因此具備明確的 RED 與可量測修正邊界。
+3. knowledge-records 與 `time to price`、`time to quote`、`time to bill`、`time to invoice`、`time to charge` 保留為獨立 residual，不能由本批非金融修正推論已完成。
+
+落地修改
+
+1. 在 `backend/price_parser.py` 的既有 `QUALITY_SERVICE_METRIC_PATTERN` time-to branch 加入 8 個 case/document roots。
+2. 五個報告品質入口各新增同一語料矩陣的 regression，覆蓋 target/forecast/actual/baseline/current 狀態，並保留同句真實 `target price NT$205/160` 對照。
+3. 在狀態表記錄 D3371 的 pre-fix、final、focused、adjacent 與 import evidence，下一批明確指向 knowledge-records。
+
+優化說明
+
+1. RED→GREEN：五入口先得到 5 failed，production guard 完成後為 5 passed。
+2. final matrix 為 960 cases，leaks=0、valid_misses=0；D3349-D3371 相鄰 regression 為 102 passed in 1,590.31s。
+3. import boundary 為 503 passed in 10.12s，`backend/price_parser.py` 與 `backend/report_target_price_detection.py` 維持 349/189 行；production scope 沒有擴大到金融價格語意。
+
+驗證方式
+
+- 五入口 D3371 focused regression：`5 passed in 47.00s`。
+- 五入口 D3349-D3371 adjacent regression：`102 passed in 1,590.31s`。
+- D3371 post-fix matrix：`960 cases / leaks=0 / valid_misses=0`。
+- `$(scripts/project_python.sh) -m pytest tests/test_import_boundaries.py -q`：`503 passed in 10.12s`。
+- `py_compile`、`git diff --check` 與行數 guard 通過。
+
+### 完成後維護 / D3372 / #差距分析 #偏誤降低 #可驗證性 #來源品質
+
+狀態：完成
+
+本次使用：從 D3371 後的非金融候選語料逐 root 取樣，將 knowledge-records 與股票價格語意分離，再以同一組五入口對照矩陣驗證修正。
+
+核心判斷
+
+1. `create record`、`update record`、`archive record`、`retrieve record`、`publish knowledge`、`review knowledge`、`answer question`、`verify record` 是知識或紀錄作業語意，不應把其 KPI 數值當成股票目標價。
+2. fresh pre-fix matrix 為 960 cases，800 個會漏入 target-price 路徑，384 個有效 metric values 會被漏判；因此具備明確的 RED 與可量測修正邊界。
+3. `time to price`、`time to quote`、`time to bill`、`time to invoice`、`time to charge` 仍是金融語意 residual，本批只擴展非金融 vocabulary，沒有改變金融邊界。
+
+落地修改
+
+1. 在 `backend/price_parser.py` 的既有 `QUALITY_SERVICE_METRIC_PATTERN` time-to branch 加入 8 個 knowledge-records roots。
+2. 五個報告品質入口各新增同一語料矩陣的 regression，覆蓋 target/forecast/actual/baseline/current 狀態，並保留同句真實 `target price NT$205/160` 對照。
+3. 在狀態表記錄 D3372 的 pre-fix、final、focused、adjacent 與 import evidence，完成目前已盤點的非金融 residual 批次。
+
+優化說明
+
+1. RED→GREEN：五入口先得到 5 failed，production guard 完成後為 5 passed。
+2. final matrix 為 960 cases，leaks=0、valid_misses=0；D3349-D3372 相鄰 regression 為 107 passed in 1,631.11s。
+3. import boundary 為 503 passed in 10.24s，`backend/price_parser.py` 與 `backend/report_target_price_detection.py` 維持 349/189 行；production scope 沒有擴大到金融價格語意。
+
+驗證方式
+
+- 五入口 D3372 focused regression：`5 passed in 47.29s`。
+- 五入口 D3349-D3372 adjacent regression：`107 passed in 1,631.11s`。
+- D3372 post-fix matrix：`960 cases / leaks=0 / valid_misses=0`。
+- `$(scripts/project_python.sh) -m pytest tests/test_import_boundaries.py -q`：`503 passed in 10.24s`。
+- `py_compile`、`git diff --check` 與行數 guard 通過。
+
+### 完成後維護 / D3373 / #差距分析 #風險意識 #證據基礎 #制定策略
+
+狀態：完成
+
+本次使用：把尚未安全收斂的 financial time-to 語料單獨取樣，確認它不是非金融 vocabulary guard 可以直接吸收的普通 residual。
+
+核心判斷
+
+1. `time to price`、`time to quote`、`time to bill`、`time to invoice`、`time to charge` 可能同時表達金融作業週期與價格、報價、帳單、發票、收費語意。
+2. boundary matrix 為 600 cases，現況為 504 個候選數值抽出與 258 個真實 target-price 對照未完整保留；這證明仍需獨立規格與案例分類，不能把它誤判成單純 non-price metric 漏網詞。
+3. 本輪沒有 production patch，避免以非金融修正覆蓋真正的價格語意；下一次若要處理，必須先拆分 financial cycle-time 與 explicit target-price context。
+
+落地修改
+
+1. 在 `docs/hcs-plus-optimization-state.md` 記錄 financial boundary 的取樣範圍、現況數字與延後理由。
+2. 在本 strict log 建立獨立的 financial semantics 維護入口，讓後續規格、測試與人工 review 有可追蹤位置。
+3. 保留目前 `backend/price_parser.py` 與五入口非金融回歸結果，不把本輪 audit 誤報為 production behavior change。
+
+驗證方式
+
+- Financial boundary matrix：`600 cases / leaks=504 / valid_misses=258`，作為延後與拆分規格的證據。
+- D3372 focused、adjacent、import、docs、runtime 與 compile guards 已在前一批完成，未因本輪 audit 改變。
+- `git diff --check` 與 runtime canonical path 檢查維持通過。
+
+### 完成後維護 / D3374 / #拆解問題 #差距分析 #偏誤降低 #證據基礎 #可驗證性 #來源品質
+
+狀態：完成
+
+本次使用：把 D3373 的 financial boundary audit 轉成可執行的 semantics 規格，先建立五入口 RED，再用最小 scoped branch 修正並以相鄰回歸驗證。
+
+核心判斷
+
+1. 五個 financial roots 只有在明確 `time to <root>` cycle-time 結構中才進入本批；一般 `price`、`quote`、`bill`、`invoice`、`charge` 欄位不受影響。
+2. 純 KPI value 應被移除，不應建立 target-price candidate；同句明確 `target price NT$205` 或 `target price NT$160` 必須保留。
+3. path-level detector 也要遵守相同規則，避免欄位名稱含 `target_price` 就把 cycle-time value 誤判為股票價格。
+
+落地修改
+
+1. 新增 `docs/financial-time-to-semantics.md`，記錄規則、600-case matrix、排除範圍與完成門檻。
+2. 五個報告品質入口各新增 financial cycle-time regression，覆蓋 5 roots × 4 phases × 5 states × 6 prefixes 及明確 target-price 對照。
+3. 在 `backend/price_parser.py` 既有 time-to quality metric branch 加入 5 roots，沒有新增 parser 層或改變 runtime/storage。
+
+優化說明
+
+1. RED→GREEN：五入口 `5 failed` 後，production guard 使其成為 `5 passed in 28.03s`。
+2. final matrix 為 `600 cases / leaks=0 / valid_misses=0`；D3349-D3374 adjacent regression 為 `112 passed in 1,669.41s`。
+3. import boundary 為 `503 passed in 10.02s`，parser/detector 維持 `349/189` 行；金融一般欄位與既有非金融 roots 均由相鄰回歸保護。
+
+驗證方式
+
+- `PYTHONPATH=backend $(scripts/project_python.sh) -m pytest tests/test_price_parser.py tests/test_recommendation_calibration.py tests/test_content_credibility_inputs.py tests/test_structured_output_parser.py tests/test_report_target_price_detection.py -q -k 'financial_time_to_cycle'`：`5 passed in 28.03s`。
+- D3374 post-fix financial matrix：`600 cases / leaks=0 / valid_misses=0`。
+- D3349-D3374 adjacent regression：`112 passed in 1,669.41s`。
+- `$(scripts/project_python.sh) -m pytest tests/test_import_boundaries.py -q`：`503 passed in 10.02s`。
+- 規格 docs、`py_compile`、`git diff --check` 與行數 guard 通過。
+
+### 完成後維護 / D3375 / #拆解問題 #差距分析 #偏誤降低 #比較組 #證據基礎 #可驗證性 #來源品質
+
+狀態：完成
+
+本次使用：把 fresh residual scan 中的 incident lifecycle family 拆成八個可比較 roots，先用既有 `resolve incident` 作為 control root，再以最小 production 變更收斂其餘七個 roots。
+
+核心判斷
+
+1. `time to open/create/update/assign/close/reopen/escalate incident` 在明確 cycle-time 結構中是事件作業 KPI，純 KPI 數值不應成為 target-price candidate。
+2. `time to resolve incident` 已由既有 guard 覆蓋，本輪只把它放進比較組，不重複加入 production pattern。
+3. 一般 incident 欄位與明確 `target price` 語意不在本輪修改範圍，避免把作業 KPI guard 擴成廣泛的 incident 或價格排除規則。
+
+落地修改
+
+1. 五個報告品質入口各新增 incident lifecycle regression，覆蓋 8 roots × 4 phases × 5 states × 6 prefixes，並保留明確 target-price 對照。
+2. 在 `backend/price_parser.py` 既有 time-to quality metric branch 加入 7 個未覆蓋 roots，沒有新增 parser 層或改變 runtime/storage。
+
+優化說明
+
+1. RED→GREEN：五入口 `5 failed` 後，production guard 使其成為 `5 passed in 47.89s`。
+2. pre-fix matrix 為 `960 cases / leaks=700 / valid_misses=336`；post-fix matrix 為 `960 cases / leaks=0 / valid_misses=0`。
+3. D3349-D3375 adjacent regression 為 `117 passed in 1,715.59s`；import boundary 為 `503 passed in 10.27s`；parser/detector 維持 `349/189` 行。
+
+驗證方式
+
+- `PYTHONPATH=backend $(scripts/project_python.sh) -m pytest tests/test_price_parser.py tests/test_recommendation_calibration.py tests/test_content_credibility_inputs.py tests/test_structured_output_parser.py tests/test_report_target_price_detection.py -q -k 'incident_lifecycle'`：`5 passed in 47.89s`。
+- D3375 post-fix incident lifecycle matrix：`960 cases / leaks=0 / valid_misses=0`。
+- D3349-D3375 adjacent regression：`117 passed in 1,715.59s`。
+- `$(scripts/project_python.sh) -m pytest tests/test_import_boundaries.py -q`：`503 passed in 10.27s`。
+- 規格 docs、`py_compile`、`git diff --check` 與行數 guard 通過。
+
+### 完成後維護 / D3376 / #拆解問題 #差距分析 #偏誤降低 #比較組 #證據基礎 #可驗證性 #來源品質
+
+狀態：完成
+
+本次使用：在 D3375 後重新掃描 forms、appointments、support、approvals residual，先以四個 family 的同構矩陣比較，再選擇語意最清楚的 forms workflow 進行局部修正。
+
+核心判斷
+
+1. `time to create/submit/review/approve/process/complete/update/archive form` 是表單作業週期 KPI，純 KPI 數值不應成為股票 target-price candidate。
+2. fresh residual scan 顯示 forms 與 appointments 各 `800 leaks / 384 valid_misses`，support 為 `640 / 384`，approvals 為 `600 / 288`；本輪先處理 forms，其他 family 保留為下一輪候選。
+3. detector 的 path-level `score` boundary 是既有非價格欄位保護；D3376 detector regression 延續既有五-prefix boundary，不放寬一般 `score` path。
+
+落地修改
+
+1. 五個報告品質入口各新增 forms workflow regression，parser 等入口覆蓋 8 roots × 4 phases × 5 states × 6 prefixes，並保留明確 target-price 對照；detector 依既有 path boundary 使用五個安全 prefixes。
+2. 在 `backend/price_parser.py` 既有 time-to quality metric branch 加入 8 個 forms roots，沒有新增 parser 層或改變 runtime/storage。
+
+優化說明
+
+1. RED→GREEN：五入口先得到 `5 failed, 3740 deselected in 36.88s`，production guard 後為 `5 passed, 3740 deselected in 46.82s`。
+2. post-fix forms matrix 為 `960 cases / leaks=0 / valid_misses=0`；explicit target price control 仍為 `[205.0]`，ordinary form control 仍保留 `[12.0]`。
+3. D3349-D3376 adjacent regression 為 `122 passed, 3623 deselected in 1,758.93s`；import boundary 為 `503 passed in 9.69s`；parser/detector 維持 `349/189` 行。
+
+驗證方式
+
+- `PYTHONPATH=backend $(scripts/project_python.sh) -m pytest tests/test_price_parser.py tests/test_recommendation_calibration.py tests/test_content_credibility_inputs.py tests/test_structured_output_parser.py tests/test_report_target_price_detection.py -q -k 'form_workflow'`：`5 passed, 3740 deselected in 46.82s`。
+- D3376 post-fix forms matrix：`960 cases / leaks=0 / valid_misses=0`。
+- D3349-D3376 adjacent regression：`122 passed, 3623 deselected in 1,758.93s`。
+- `$(scripts/project_python.sh) -m pytest tests/test_import_boundaries.py -q`：`503 passed in 9.69s`。
+- 規格 docs、`py_compile`、`git diff --check` 與行數 guard 通過。
+
+### 完成後維護 / D3377 / #拆解問題 #差距分析 #偏誤降低 #比較組 #證據基礎 #可驗證性 #來源品質
+
+狀態：完成
+
+本次使用：在 D3376 後重新量測 appointments、support、approvals residual，依同構矩陣選出 appointments lifecycle，並以 forms 已收斂結果作為相鄰比較組。
+
+核心判斷
+
+1. `time to schedule/book/confirm/attend/reschedule/cancel/check in/close appointment` 是預約作業週期 KPI，純 KPI 數值不應成為股票 target-price candidate。
+2. fresh residual scan 顯示 appointments 為 `800 leaks / 384 valid_misses`，support 為 `640 / 384`，approvals 為 `600 / 288`；本輪先處理 appointments，其他 family 保留為下一輪候選。
+3. detector 的 path-level `score` boundary 是既有非價格欄位保護；D3377 detector regression 延續既有五-prefix boundary，不放寬一般 `score` path。
+
+落地修改
+
+1. 五個報告品質入口各新增 appointments lifecycle regression，parser 等入口覆蓋 8 roots × 4 phases × 5 states × 6 prefixes，並保留明確 target-price 對照；detector 依既有 path boundary 使用五個安全 prefixes。
+2. 在 `backend/price_parser.py` 既有 time-to quality metric branch 加入 8 個 appointments roots，沒有新增 parser 層或改變 runtime/storage。
+
+優化說明
+
+1. RED→GREEN：五入口先得到 `5 failed, 3745 deselected in 40.00s`，production guard 後為 `5 passed, 3745 deselected in 48.82s`。
+2. post-fix appointments matrix 為 `960 cases / leaks=0 / valid_misses=0`；explicit target price control 仍為 `[205.0]`，ordinary appointment control 仍保留 `[12.0]`。
+3. D3349-D3377 adjacent regression 為 `127 passed, 3623 deselected in 1,804.78s`；import boundary 為 `503 passed in 9.56s`；parser/detector 維持 `349/189` 行。
+
+驗證方式
+
+- `PYTHONPATH=backend $(scripts/project_python.sh) -m pytest tests/test_price_parser.py tests/test_recommendation_calibration.py tests/test_content_credibility_inputs.py tests/test_structured_output_parser.py tests/test_report_target_price_detection.py -q -k 'appointment_lifecycle'`：`5 passed, 3745 deselected in 48.82s`。
+- D3377 post-fix appointments matrix：`960 cases / leaks=0 / valid_misses=0`。
+- D3349-D3377 adjacent regression：`127 passed, 3623 deselected in 1,804.78s`。
+- `$(scripts/project_python.sh) -m pytest tests/test_import_boundaries.py -q`：`503 passed in 9.56s`。
+- 規格 docs、`py_compile`、`git diff --check` 與行數 guard 通過。
+
+### 完成後維護 / D3378 / #拆解問題 #差距分析 #偏誤降低 #比較組 #證據基礎 #可驗證性 #來源品質
+
+狀態：完成
+
+本次使用：在 D3377 後重新量測四個已盤點 family，將 support ticket lifecycle 與已收斂的 forms/appointments 做比較，並以 approvals 與 financial semantics 作為保留邊界。
+
+核心判斷
+
+1. `time to open/create/assign/update/resolve/close/escalate/respond support ticket` 是客服工單作業週期 KPI，純 KPI 數值不應成為股票 target-price candidate。
+2. fresh residual scan 顯示 forms、appointments 已為 `0/0`，support 為 `640 leaks / 384 valid_misses`，approvals 為 `600 / 288`；本輪先處理 support，approvals 保留為下一輪候選。
+3. 一般 `support ticket` 已是既有 non-price guard，control `support ticket target 12 個` 維持空結果；本輪只處理 `time to <support ticket lifecycle>`，不擴大一般欄位。
+
+落地修改
+
+1. 五個報告品質入口各新增 support ticket lifecycle regression，parser 等入口覆蓋 8 roots × 4 phases × 5 states × 6 prefixes，並保留明確 target-price 對照；detector 依既有 path boundary 使用五個安全 prefixes。
+2. 在 `backend/price_parser.py` 既有 time-to quality metric branch 加入 8 個 support ticket roots，沒有新增 parser 層或改變 runtime/storage。
+
+優化說明
+
+1. RED→GREEN：五入口先得到 `5 failed, 3750 deselected in 38.40s`，production guard 後為 `5 passed, 3750 deselected in 50.05s`。
+2. post-fix support matrix 為 `960 cases / leaks=0 / valid_misses=0`；explicit target price control 為 `[205.0]`，financial control 為 `[]`，既有 support ticket control 也維持 `[]`。
+3. D3349-D3378 adjacent regression 為 `132 passed, 3623 deselected in 1,853.94s`；import boundary 為 `503 passed in 9.51s`；parser/detector 維持 `349/189` 行。
+
+驗證方式
+
+- `PYTHONPATH=backend $(scripts/project_python.sh) -m pytest tests/test_price_parser.py tests/test_recommendation_calibration.py tests/test_content_credibility_inputs.py tests/test_structured_output_parser.py tests/test_report_target_price_detection.py -q -k 'support_ticket_lifecycle'`：`5 passed, 3750 deselected in 50.05s`。
+- D3378 post-fix support matrix：`960 cases / leaks=0 / valid_misses=0`。
+- D3349-D3378 adjacent regression：`132 passed, 3623 deselected in 1,853.94s`。
+- `$(scripts/project_python.sh) -m pytest tests/test_import_boundaries.py -q`：`503 passed in 9.51s`。
+- 規格 docs、`py_compile`、`git diff --check` 與行數 guard 通過。
+
+### 完成後維護 / D3379 / #拆解問題 #差距分析 #偏誤降低 #比較組 #證據基礎 #可驗證性 #來源品質
+
+狀態：完成
+
+本次使用：在 D3378 後重新量測四個已盤點 family，先以 root-level control 分離既有 `approve/reject request` guard，再收斂未覆蓋的 approvals workflow roots。
+
+核心判斷
+
+1. `time to request/submit/review/escalate/record/close approval` 是審批作業週期 KPI，純 KPI 數值不應成為股票 target-price candidate。
+2. `time to approve request` 與 `time to reject request` 已由既有 guard 覆蓋，本輪作為比較組，不重複加入 production pattern。
+3. approvals family 的 pre-fix `600 leaks / 288 valid_misses` 可由六個未覆蓋 roots 完整解釋；financial semantics 仍維持獨立邊界，不因本批 approval 語意而放寬。
+
+落地修改
+
+1. 五個報告品質入口各新增 approvals workflow regression，parser 等入口覆蓋 8 roots × 4 phases × 5 states × 6 prefixes，並保留明確 target-price 對照；detector 依既有 path boundary 使用五個安全 prefixes。
+2. 在 `backend/price_parser.py` 既有 time-to quality metric branch 加入 6 個未覆蓋 approval roots，沒有新增 parser 層或改變 runtime/storage。
+
+優化說明
+
+1. RED→GREEN：五入口先得到 `5 failed, 3755 deselected in 35.04s`，production guard 後為 `5 passed, 3755 deselected in 47.89s`。
+2. post-fix approvals matrix 為 `960 cases / leaks=0 / valid_misses=0`；explicit target price control 為 `[205.0]`，approve/reject request controls 均為 `[]`。
+3. D3349-D3379 adjacent regression 為 `137 passed, 3623 deselected in 1,943.19s`；import boundary 為 `503 passed in 10.66s`；parser/detector 維持 `349/189` 行。
+
+驗證方式
+
+- `PYTHONPATH=backend $(scripts/project_python.sh) -m pytest tests/test_price_parser.py tests/test_recommendation_calibration.py tests/test_content_credibility_inputs.py tests/test_structured_output_parser.py tests/test_report_target_price_detection.py -q -k 'approval_workflow'`：`5 passed, 3755 deselected in 47.89s`。
+- D3379 post-fix approvals matrix：`960 cases / leaks=0 / valid_misses=0`。
+- D3349-D3379 adjacent regression：`137 passed, 3623 deselected in 1,943.19s`。
+- `$(scripts/project_python.sh) -m pytest tests/test_import_boundaries.py -q`：`503 passed in 10.66s`。
+- 規格 docs、`py_compile`、`git diff --check` 與行數 guard 通過。
+
+### 完成後維護 / D3380 / #拆解問題 #差距分析 #偏誤降低 #比較組 #證據基礎 #可驗證性 #來源品質
+
+狀態：完成
+
+本次使用：在 D3379 後擴大 fresh candidate probe，從既有 service queue 語料中分離 project/task workflow 的 time-to residual，並以既有 `time to complete task` 與 financial time-to semantics 作為比較組。
+
+核心判斷
+
+1. `time to create/update/complete/close task`、`time to create/update/fulfill requirement` 與 `time to create project milestone` 是專案執行週期 KPI，純 KPI 數值不應成為股票 target-price candidate。
+2. pre-fix `960 cases / 660 leaks / 336 valid-misses` 中，`time to complete task` 已由既有 guard 覆蓋；本輪只新增 7 個未覆蓋 roots，避免重複 pattern。
+3. `time to price` 仍是金融語意控制，不因 project/task workflow 修正而擴大非價格 guard。
+
+落地修改
+
+1. 五個報告品質入口各新增 project/task workflow regression，parser 等入口覆蓋 8 roots × 4 phases × 5 states × 6 prefixes，並保留明確 target-price 對照；detector 依既有 path boundary 使用五個安全 prefixes。
+2. 在 `backend/price_parser.py` 既有 time-to quality metric branch 加入 7 個未覆蓋 roots，沒有新增 parser 層或改變 runtime/storage。
+
+優化說明
+
+1. RED→GREEN：五入口 focused regression 先各自取得 failure，production guard 後五個入口均 `1 passed`；合併相鄰 selector 為 `25 passed, 3740 deselected in 249.05s`。
+2. post-fix project/task matrix 為 `960 cases / leaks=0 / valid_misses=0`；explicit target price control 為 `[205.0]`，financial `time to price` control 為 `[]`，既有 `time to complete task` control 也為 `[]`。
+3. parser/detector 維持 `349/189` 行；完整 import、文件契約、runtime doctor 與 diff guards 於 completion gate 重新驗證。
+
+驗證方式
+
+- `$(scripts/project_python.sh) -m pytest tests/test_price_parser.py tests/test_recommendation_calibration.py tests/test_content_credibility_inputs.py tests/test_structured_output_parser.py tests/test_report_target_price_detection.py -q -k 'time_to_form or time_to_appointment or time_to_support_ticket or time_to_approval or time_to_project_task'`：`25 passed, 3740 deselected in 249.05s`。
+- D3380 post-fix project-task matrix：`960 cases / leaks=0 / valid_misses=0`。
+- explicit target price：`[205.0]`；financial `time to price`：`[]`；existing `time to complete task`：`[]`。
+- `$(scripts/project_python.sh) -m pytest tests/test_import_boundaries.py -q`、文件契約、`py_compile`、`git diff --check` 與 runtime doctor 為本輪 completion gate。
+
+### 完成後維護 / D3381 / #拆解問題 #差距分析 #偏誤降低 #比較組 #證據基礎 #可驗證性 #來源品質
+
+狀態：完成
+
+本次使用：在 D3380 後重新掃描非金融 time-to workflow 語料，先用 knowledge article、proposal、user story、feature、hotfix、build、release candidate 與 training 比較，再把最接近既有 knowledge-records coverage 的 knowledge article lifecycle 收斂到共享 parser pattern。
+
+核心判斷
+
+1. `time to create/update/publish/review/archive/approve knowledge article` 是知識管理文章生命週期 KPI；其 `12 個` 不能成為股票 target-price candidate。
+2. pre-fix 六個 roots 各有 `80/120 leaks` 與 `30/120 valid-misses`，合計 `720 cases / 480 leaks / 180 valid-misses`；這證明問題同時影響純 KPI 與帶明確目標價的複合句。
+3. 最小正確修正是把六個 roots 加入既有 `QUALITY_SERVICE_METRIC_PATTERN` time-to branch；`time to price`、`time to quote`、`time to bill`、`time to invoice`、`time to charge` 仍保留金融語意比較組。
+
+落地修改
+
+1. 五個報告品質入口各新增 knowledge article lifecycle regression；parser、calibration、credibility、structured output 覆蓋 720 組語料，detector 依既有 path boundary 覆蓋 600 組語料，並保留明確 target-price 對照。
+2. `backend/price_parser.py` 共享 time-to quality branch 加入六個 knowledge article roots；沒有新增 parser/detector 層、runtime/storage 或 route 變更，parser/detector 維持 `349/189` 行。
+
+優化說明
+
+1. 五入口 RED 後收斂回共享 pattern，focused GREEN 通過 `5 passed in 43.23s`；避免留下 parser 與 detector 各自維護的暫時 cleanup。
+2. D3381 post-fix matrix 為 `720 cases / leaks=0 / valid_misses=0`；explicit target price control 為 `[205.0]`，financial `time to price` 與 existing `time to publish knowledge` controls 均為 `[]`。
+3. D3376-D3381 相鄰 regression 通過 `30 passed, 3740 deselected in 298.43s`；下一輪仍以 fresh residual scan 決定語料，不把 proposal/user story 等未驗證 root 偷渡進本輪 production guard。
+
+驗證方式
+
+- `$(scripts/project_python.sh) -m pytest tests/test_price_parser.py tests/test_recommendation_calibration.py tests/test_content_credibility_inputs.py tests/test_structured_output_parser.py tests/test_report_target_price_detection.py -q -k 'time_to_knowledge_article_lifecycle'`：`5 passed in 43.23s`。
+- D3381 post-fix knowledge-article matrix：`720 cases / leaks=0 / valid_misses=0`。
+- explicit target price：`[205.0]`；financial `time to price`：`[]`；existing `time to publish knowledge`：`[]`。
+- D3376-D3381 adjacent regression：`30 passed, 3740 deselected in 298.43s`。
+- import boundary：`503 passed in 10.93s`；HCS state + docs contract：`135 passed in 3.29s`；指定模組 `py_compile` exit 0；`git diff --check` exit 0；trailing-whitespace 掃描無命中；runtime doctor exit 0，canonical operational/report index DB 仍為 `operational.sqlite3` / `stock_agent_cache.sqlite3`，Redis `redis://localhost:6379/0`、RQ queue `stock-analysis`。
+
+### 完成後維護 / D3382 / #拆解問題 #差距分析 #偏誤降低 #比較組 #證據基礎 #可驗證性 #來源品質
+
+狀態：完成
+
+本次使用：在 D3381 後依 fresh residual scan 的排序，從 proposal、user story、feature、hotfix、build、release candidate 與 training 中選取 proposal lifecycle，並以同一組五入口 target-price boundary 驗證。
+
+核心判斷
+
+1. `time to create/draft/submit/review/approve/close proposal` 是提案流程 KPI；純流程數字不應進入股票目標價候選。
+2. pre-fix matrix 為 `720 cases / 600 leaks / 180 valid-misses`，五個 consumer 都能重現污染，且合法 `target price NT$160` 對照也需要被保留。
+3. production 只追加六個 proposal roots 到既有 `QUALITY_SERVICE_METRIC_PATTERN` time-to branch；金融 `time to quote` 不納入本輪 guard。
+
+落地修改
+
+1. 五個報告品質入口新增 proposal lifecycle regression；parser、calibration、credibility、structured output 覆蓋 720 組語料，detector 依既有 path boundary 覆蓋 600 組語料。
+2. `backend/price_parser.py` 共享 branch 加入六個 proposal roots，維持 parser/detector `349/189` 行與既有 runtime/storage 邊界。
+
+優化說明
+
+1. 五入口 RED 後 shared-pattern GREEN 通過 `5 passed in 40.15s`，沒有新增第二套 parser cleanup。
+2. D3382 post-fix proposal matrix 為 `720 cases / leaks=0 / valid_misses=0`；explicit target price `[205.0]`，financial `time to quote` 與 existing `time to publish knowledge` controls 均為 `[]`。
+3. D3376-D3382 相鄰 regression 為 `35 passed, 3740 deselected in 348.60s`；下一輪依 fresh scan 選 root，不提前擴大到 user story 或 feature。
+
+驗證方式
+
+- `$(scripts/project_python.sh) -m pytest tests/test_price_parser.py tests/test_recommendation_calibration.py tests/test_content_credibility_inputs.py tests/test_structured_output_parser.py tests/test_report_target_price_detection.py -q -k 'time_to_proposal_lifecycle'`：`5 passed in 40.15s`。
+- D3382 post-fix proposal matrix：`720 cases / leaks=0 / valid_misses=0`。
+- explicit target price：`[205.0]`；financial `time to quote`：`[]`；existing `time to publish knowledge`：`[]`。
+- D3376-D3382 adjacent regression：`35 passed, 3740 deselected in 348.60s`。
+- import boundary：`503 passed in 11.13s`；HCS state + docs contract：`135 passed in 3.49s`；指定模組 `py_compile` exit 0；`git diff --check` exit 0；trailing-whitespace 掃描無命中；runtime doctor exit 0，canonical operational/report index DB 仍為 `operational.sqlite3` / `stock_agent_cache.sqlite3`，Redis `redis://localhost:6379/0`、RQ queue `stock-analysis`。
+
+### 完成後維護 / D3383 / #拆解問題 #差距分析 #偏誤降低 #比較組 #證據基礎 #可驗證性 #來源品質
+
+狀態：完成
+
+本次使用：在 D3382 後對 user story、feature、hotfix、build 做 fresh residual scan，選取第一個 user story lifecycle residual，並以五個報告品質入口與金融 time-to comparison controls 驗證。
+
+核心判斷
+
+1. `time to create/update/complete/close user story` 是產品開發流程 KPI；純 KPI 數字不應污染股票目標價候選。
+2. pre-fix matrix 為 `480 cases / 400 leaks / 120 valid-misses`，表示 user story root 尚未被既有 proposal/knowledge/time-to guards 覆蓋。
+3. production 只追加四個 user story roots 到共享 `QUALITY_SERVICE_METRIC_PATTERN`；金融 `time to price` 仍保持獨立比較組。
+
+落地修改
+
+1. 五個報告品質入口新增 user story lifecycle regression；parser、calibration、credibility、structured output 覆蓋 480 組語料，detector 依既有 path boundary 覆蓋 400 組語料。
+2. `backend/price_parser.py` 共享 time-to branch 加入四個 roots，維持 parser/detector `349/189` 行與 runtime/storage 邊界。
+
+優化說明
+
+1. 五入口 RED 後 shared-pattern GREEN 通過 `5 passed in 27.74s`，沒有建立另一套 consumer-specific parser logic。
+2. D3383 post-fix user-story matrix 為 `480 cases / leaks=0 / valid_misses=0`；explicit target price `[205.0]`，financial `time to price` 與 existing `time to create proposal` controls 均為 `[]`。
+3. D3376-D3383 相鄰 regression 為 `40 passed, 3740 deselected in 373.69s`；下一輪仍先 fresh scan，再決定 feature/hotfix/build 的收斂順序。
+
+驗證方式
+
+- `$(scripts/project_python.sh) -m pytest tests/test_price_parser.py tests/test_recommendation_calibration.py tests/test_content_credibility_inputs.py tests/test_structured_output_parser.py tests/test_report_target_price_detection.py -q -k 'time_to_user_story_lifecycle'`：`5 passed in 27.74s`。
+- D3383 post-fix user-story matrix：`480 cases / leaks=0 / valid_misses=0`。
+- explicit target price：`[205.0]`；financial `time to price`：`[]`；existing `time to create proposal`：`[]`。
+- D3376-D3383 adjacent regression：`40 passed, 3740 deselected in 373.69s`。
+- import boundary：`503 passed in 11.25s`；HCS state + docs contract：`135 passed in 3.46s`；指定模組 `py_compile` exit 0；`git diff --check` exit 0；trailing-whitespace 掃描無命中；runtime doctor exit 0，canonical operational/report index DB 仍為 `operational.sqlite3` / `stock_agent_cache.sqlite3`，Redis `redis://localhost:6379/0`、RQ queue `stock-analysis`。
+
+### 完成後維護 / D3384 / #拆解問題 #差距分析 #偏誤降低 #比較組 #證據基礎 #可驗證性 #來源品質
+
+狀態：完成
+
+本次使用：在 D3383 後 fresh scan feature、hotfix、build 與 release candidate，選取第一個 feature lifecycle residual，並以五個報告品質入口及金融比較組驗證。
+
+核心判斷
+
+1. `time to create/develop/release/retire feature` 是產品開發流程 KPI；其數字不應被當成股票目標價。
+2. pre-fix matrix 為 `480 cases / 400 leaks / 120 valid-misses`，四個 feature roots 均在既有 time-to guard 外。
+3. production 只追加四個 feature roots 到共享 `QUALITY_SERVICE_METRIC_PATTERN`，金融 `time to price` 仍保持獨立。
+
+落地修改
+
+1. 五個報告品質入口新增 feature lifecycle regression；parser、calibration、credibility、structured output 覆蓋 480 組語料，detector 依既有 path boundary 覆蓋 400 組語料。
+2. `backend/price_parser.py` 共享 time-to branch 加入四個 roots，維持 parser/detector `349/189` 行及 runtime/storage 邊界。
+
+優化說明
+
+1. 五入口 RED 後 shared-pattern GREEN 通過 `5 passed in 27.44s`，沒有增加 consumer-specific cleanup。
+2. D3384 post-fix feature matrix 為 `480 cases / leaks=0 / valid_misses=0`；explicit target price `[205.0]`，financial `time to price` 與 existing `time to create user story` controls 均為 `[]`。
+3. D3376-D3384 相鄰 regression 為 `45 passed, 3740 deselected in 367.17s`；下一輪仍先 fresh scan，再決定 hotfix/build/release candidate 順序。
+
+驗證方式
+
+- `$(scripts/project_python.sh) -m pytest tests/test_price_parser.py tests/test_recommendation_calibration.py tests/test_content_credibility_inputs.py tests/test_structured_output_parser.py tests/test_report_target_price_detection.py -q -k 'time_to_feature_lifecycle'`：`5 passed in 27.44s`。
+- D3384 post-fix feature matrix：`480 cases / leaks=0 / valid_misses=0`。
+- explicit target price：`[205.0]`；financial `time to price`：`[]`；existing `time to create user story`：`[]`。
+- D3376-D3384 adjacent regression：`45 passed, 3740 deselected in 367.17s`。
+- import boundary：`503 passed in 10.16s`；HCS state + docs contract：`135 passed in 3.20s`；指定模組 `py_compile` exit 0；`git diff --check` exit 0；trailing-whitespace 掃描無命中；runtime doctor exit 0，canonical operational/report index DB 仍為 `operational.sqlite3` / `stock_agent_cache.sqlite3`，Redis `redis://localhost:6379/0`、RQ queue `stock-analysis`。
+
+### 完成後維護 / D3385 / #拆解問題 #差距分析 #偏誤降低 #比較組 #證據基礎 #可驗證性 #來源品質
+
+狀態：完成
+
+本次使用：在 D3384 後 fresh scan hotfix、build、release candidate 與 training，選取第一個 hotfix lifecycle residual，並以五個報告品質入口和金融比較組完成收斂。
+
+核心判斷
+
+1. `time to create/deploy/rollback/resolve hotfix` 是事件修復流程 KPI；其數值不應成為股票目標價。
+2. pre-fix matrix 為 `480 cases / 320 leaks / 120 valid-misses`，四個 hotfix roots 尚未被既有 feature guard 覆蓋。
+3. production 只追加四個 hotfix roots 到共享 `QUALITY_SERVICE_METRIC_PATTERN`，金融 `time to price` 保持獨立比較組。
+
+落地修改
+
+1. 五個報告品質入口新增 hotfix lifecycle regression；parser、calibration、credibility、structured output 覆蓋 480 組語料，detector 依既有 path boundary 覆蓋 400 組語料。
+2. `backend/price_parser.py` 共享 time-to branch 加入四個 hotfix roots，維持 parser/detector `349/189` 行及 runtime/storage 邊界。
+
+優化說明
+
+1. 五入口 RED 後 shared-pattern GREEN 通過 `5 passed in 24.21s`，沒有新增 consumer-specific cleanup。
+2. D3385 post-fix hotfix matrix 為 `480 cases / leaks=0 / valid_misses=0`；explicit target price `[205.0]`，financial `time to price` 與 existing `time to create feature` controls 均為 `[]`。
+3. D3376-D3385 相鄰 regression 為 `50 passed, 3740 deselected in 392.62s`；下一輪再以 fresh scan 決定 build/release candidate/training 順序。
+
+驗證方式
+
+- `$(scripts/project_python.sh) -m pytest tests/test_price_parser.py tests/test_recommendation_calibration.py tests/test_content_credibility_inputs.py tests/test_structured_output_parser.py tests/test_report_target_price_detection.py -q -k 'time_to_hotfix_lifecycle'`：`5 passed in 24.21s`。
+- D3385 post-fix hotfix matrix：`480 cases / leaks=0 / valid_misses=0`。
+- explicit target price：`[205.0]`；financial `time to price`：`[]`；existing `time to create feature`：`[]`。
+- D3376-D3385 adjacent regression：`50 passed, 3740 deselected in 392.62s`。
+- import boundary：`503 passed in 10.44s`；HCS state + docs contract：`135 passed in 3.31s`；指定模組 `py_compile` exit 0；`git diff --check` exit 0；trailing-whitespace 掃描無命中；runtime doctor exit 0，canonical operational/report index DB 仍為 `operational.sqlite3` / `stock_agent_cache.sqlite3`，Redis `redis://localhost:6379/0`、RQ queue `stock-analysis`。
+
+### 完成後維護 / D3386 / #拆解問題 #差距分析 #偏誤降低 #比較組 #證據基礎 #可驗證性 #來源品質
+
+狀態：完成
+
+本次使用：在 D3385 後 fresh scan build、release candidate 與 training，選取第一個 build lifecycle residual，並以五個報告品質入口和金融比較組完成收斂。
+
+核心判斷
+
+1. `time to run/fix/complete build` 是建置流程 KPI；其數值不應進入股票 target-price candidates。
+2. pre-fix matrix 為 `360 cases / 300 leaks / 90 valid-misses`，三個 build roots 尚未被 hotfix guard 覆蓋。
+3. production 只追加三個 build roots 到共享 `QUALITY_SERVICE_METRIC_PATTERN`，金融 `time to price` 保持獨立。
+
+落地修改
+
+1. 五個報告品質入口新增 build lifecycle regression；parser、calibration、credibility、structured output 覆蓋 360 組語料，detector 依既有 path boundary 覆蓋 300 組語料。
+2. `backend/price_parser.py` 共享 time-to branch 加入三個 build roots，維持 parser/detector `349/189` 行及 runtime/storage 邊界。
+
+優化說明
+
+1. 五入口 RED 後 shared-pattern GREEN 通過 `5 passed in 18.25s`，沒有新增 consumer-specific cleanup。
+2. D3386 post-fix build matrix 為 `360 cases / leaks=0 / valid_misses=0`；explicit target price `[205.0]`，financial `time to price` 與 existing `time to create hotfix` controls 均為 `[]`。
+3. D3376-D3386 相鄰 regression 為 `55 passed, 3740 deselected in 406.07s`；下一輪再以 fresh scan 決定 release candidate/training 順序。
+
+驗證方式
+
+- `$(scripts/project_python.sh) -m pytest tests/test_price_parser.py tests/test_recommendation_calibration.py tests/test_content_credibility_inputs.py tests/test_structured_output_parser.py tests/test_report_target_price_detection.py -q -k 'time_to_build_lifecycle'`：`5 passed in 18.25s`。
+- D3386 post-fix build matrix：`360 cases / leaks=0 / valid_misses=0`。
+- explicit target price：`[205.0]`；financial `time to price`：`[]`；existing `time to create hotfix`：`[]`。
+- D3376-D3386 adjacent regression：`55 passed, 3740 deselected in 406.07s`。
+- completion gate：import boundary `503 passed in 10.60s`；HCS/文件契約 `135 passed in 2.85s`；`py_compile` exit 0；`git diff --check` exit 0；trailing-whitespace 無命中；runtime doctor exit 0，canonical operational DB 為 `backend/cache/operational.sqlite3`、report index 為 `backend/cache/stock_agent_cache.sqlite3`，Redis 為 `redis://localhost:6379/0`；parser/detector 行數維持 `349/189`。
+
+### 完成後維護 / D3387 / #拆解問題 #差距分析 #偏誤降低 #比較組 #證據基礎 #可驗證性 #來源品質
+
+本次使用：在 D3386 後重新掃描 release candidate 與 training candidate，選擇非金融且可用既有共享 time-to guard 表達的 release-candidate lifecycle；以 build、financial `time to price` 與 explicit target price 作為比較組。
+
+核心判斷
+
+1. `time to create/approve/publish release candidate` 是發布流程 KPI；其數值不應進入股票 target-price candidates。
+2. pre-fix matrix 為 `360 cases / 1500 leaks / 594 valid-misses`；每個入口各有 300 leaks，valid-miss 分布為 parser 144、calibration 90、credibility 0、structured output 90、detector 270；三個 release-candidate roots 尚未被 hotfix/build guard 覆蓋。
+3. production 只追加三個 release-candidate roots 到共享 `QUALITY_SERVICE_METRIC_PATTERN`，金融 `time to price` 保持獨立。
+
+落地修改
+
+1. 五個報告品質入口新增 release-candidate lifecycle regression；parser、calibration、credibility、structured output 覆蓋 360 組語料，detector 依既有 path boundary 覆蓋 300 組語料。
+2. `backend/price_parser.py` 共享 time-to branch 加入三個 release-candidate roots，維持 parser/detector `349/189` 行及 runtime/storage 邊界。
+
+優化說明
+
+1. 五入口 RED 後 shared-pattern GREEN 通過 `5 passed in 20.77s`，沒有新增 consumer-specific cleanup。
+2. D3387 post-fix release-candidate matrix 為 `360 cases / leaks=0 / valid_misses=0`；explicit target price `[205.0]`，financial `time to price` 與 existing `time to run build` controls 均為 `[]`。
+3. D3376-D3387 完整相鄰 regression 為 `60 passed, 3740 deselected in 423.61s`。
+
+驗證方式
+
+- `$(scripts/project_python.sh) -m pytest tests/test_price_parser.py tests/test_recommendation_calibration.py tests/test_content_credibility_inputs.py tests/test_structured_output_parser.py tests/test_report_target_price_detection.py -q -k 'time_to_release_candidate_lifecycle'`：`5 passed in 20.77s`。
+- D3387 post-fix release-candidate matrix：`360 cases / leaks=0 / valid_misses=0`。
+- explicit target price：`[205.0]`；financial `time to price`：`[]`；existing `time to run build`：`[]`。
+- D3376-D3387 adjacent regression：`60 passed, 3740 deselected in 423.61s`。
+- completion gate：import boundary `503 passed in 11.00s`；HCS/文件契約 `135 passed in 3.50s`；`py_compile` exit 0；`git diff --check` exit 0；trailing-whitespace 無命中；runtime doctor exit 0，canonical operational DB 為 `backend/cache/operational.sqlite3`、report index 為 `backend/cache/stock_agent_cache.sqlite3`，Redis 為 `redis://localhost:6379/0`；parser/detector 行數維持 `349/189`。

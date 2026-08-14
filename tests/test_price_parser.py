@@ -12391,6 +12391,629 @@ def test_extract_target_price_numbers_ignores_cold_storage_management_certificat
         assert _extract_target_price_numbers(f"target price NT$160 with {target}") == [
             160.0
         ]
+
+
+def test_extract_target_price_numbers_ignores_time_to_form_workflow_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to create form",
+        "time to submit form",
+        "time to review form",
+        "time to approve form",
+        "time to process form",
+        "time to complete form",
+        "time to update form",
+        "time to archive form",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+
+def test_extract_target_price_numbers_ignores_time_to_appointment_lifecycle_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to schedule appointment",
+        "time to book appointment",
+        "time to confirm appointment",
+        "time to attend appointment",
+        "time to reschedule appointment",
+        "time to cancel appointment",
+        "time to check in appointment",
+        "time to close appointment",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+
+def test_extract_target_price_numbers_ignores_time_to_support_ticket_lifecycle_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to open support ticket",
+        "time to create support ticket",
+        "time to assign support ticket",
+        "time to update support ticket",
+        "time to resolve support ticket",
+        "time to close support ticket",
+        "time to escalate support ticket",
+        "time to respond support ticket",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+
+def test_extract_target_price_numbers_ignores_time_to_approval_workflow_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to request approval",
+        "time to submit approval",
+        "time to review approval",
+        "time to approve request",
+        "time to reject request",
+        "time to escalate approval",
+        "time to record approval",
+        "time to close approval",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+
+def test_extract_target_price_numbers_ignores_time_to_project_task_workflow_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to create task",
+        "time to update task",
+        "time to complete task",
+        "time to close task",
+        "time to create requirement",
+        "time to update requirement",
+        "time to fulfill requirement",
+        "time to create project milestone",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+
+def test_extract_target_price_numbers_ignores_time_to_knowledge_article_lifecycle_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to create knowledge article",
+        "time to update knowledge article",
+        "time to publish knowledge article",
+        "time to review knowledge article",
+        "time to archive knowledge article",
+        "time to approve knowledge article",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+
+def test_extract_target_price_numbers_ignores_time_to_proposal_lifecycle_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to create proposal",
+        "time to draft proposal",
+        "time to submit proposal",
+        "time to review proposal",
+        "time to approve proposal",
+        "time to close proposal",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+
+def test_extract_target_price_numbers_ignores_time_to_user_story_lifecycle_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to create user story",
+        "time to update user story",
+        "time to complete user story",
+        "time to close user story",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+
+def test_extract_target_price_numbers_ignores_time_to_feature_lifecycle_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to create feature",
+        "time to develop feature",
+        "time to release feature",
+        "time to retire feature",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+
+def test_extract_target_price_numbers_ignores_time_to_hotfix_lifecycle_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to create hotfix",
+        "time to deploy hotfix",
+        "time to rollback hotfix",
+        "time to resolve hotfix",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+
+def test_extract_target_price_numbers_ignores_time_to_build_lifecycle_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to run build",
+        "time to fix build",
+        "time to complete build",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+
+def test_extract_target_price_numbers_ignores_time_to_release_candidate_lifecycle_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to create release candidate",
+        "time to approve release candidate",
+        "time to publish release candidate",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+
+def test_extract_target_price_numbers_ignores_time_to_incident_lifecycle_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to open incident",
+        "time to create incident",
+        "time to update incident",
+        "time to assign incident",
+        "time to resolve incident",
+        "time to close incident",
+        "time to reopen incident",
+        "time to escalate incident",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+
+def test_extract_target_price_numbers_ignores_financial_time_to_cycle_values():
+    from itertools import product
+
+    roots = (
+        "time to price",
+        "time to quote",
+        "time to bill",
+        "time to invoice",
+        "time to charge",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+
+def test_extract_target_price_numbers_ignores_time_to_knowledge_records_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to create record",
+        "time to update record",
+        "time to archive record",
+        "time to retrieve record",
+        "time to publish knowledge",
+        "time to review knowledge",
+        "time to answer question",
+        "time to verify record",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+
+def test_extract_target_price_numbers_ignores_time_to_case_document_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to create case",
+        "time to update case",
+        "time to archive case",
+        "time to reopen case",
+        "time to draft document",
+        "time to sign document",
+        "time to upload document",
+        "time to retrieve document",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+
+def test_extract_target_price_numbers_ignores_time_to_people_admin_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to recruit employee",
+        "time to retain employee",
+        "time to promote employee",
+        "time to transfer employee",
+        "time to reassign employee",
+        "time to terminate employee",
+        "time to schedule meeting",
+        "time to facilitate meeting",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+
+def test_extract_target_price_numbers_ignores_time_to_data_inventory_resilience_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to stock",
+        "time to restock",
+        "time to provision",
+        "time to activate",
+        "time to configure",
+        "time to integrate",
+        "time to migrate",
+        "time to synchronize data",
+        "time to validate data",
+        "time to cleanse data",
+        "time to load data",
+        "time to export data",
+        "time to import data",
+        "time to query",
+        "time to index",
+        "time to back up",
+        "time to restore backup",
+        "time to recover data",
+        "time to patch",
+        "time to restart",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+def test_extract_target_price_numbers_ignores_time_to_people_process_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to hire",
+        "time to screen candidate",
+        "time to schedule interview",
+        "time to make offer",
+        "time to onboard employee",
+        "time to offboard employee",
+        "time to train employee",
+        "time to approve leave",
+        "time to complete training",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+
+def test_extract_target_price_numbers_ignores_time_to_engineering_delivery_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to build artifact",
+        "time to compile code",
+        "time to test build",
+        "time to run pipeline",
+        "time to merge change",
+        "time to review code",
+        "time to approve pull request",
+        "time to deploy change",
+        "time to rollback deployment",
+        "time to package release",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+
+def test_extract_target_price_numbers_ignores_time_to_product_delivery_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to design product",
+        "time to develop product",
+        "time to prototype",
+        "time to validate product",
+        "time to launch product",
+        "time to retire product",
+        "time to decommission product",
+        "time to sunset feature",
+        "time to approve release",
+        "time to publish release",
+        "time to rollback release",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+
+def test_extract_target_price_numbers_ignores_time_to_asset_logistics_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to receive shipment",
+        "time to put away inventory",
+        "time to replenish stock",
+        "time to pick item",
+        "time to pack item",
+        "time to ship item",
+        "time to deliver shipment",
+        "time to install equipment",
+        "time to inspect asset",
+        "time to repair asset",
+        "time to maintain asset",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+
+def test_extract_target_price_numbers_ignores_time_to_service_observability_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to monitor service",
+        "time to detect anomaly",
+        "time to acknowledge alert",
+        "time to investigate alert",
+        "time to resolve alert",
+        "time to failover service",
+        "time to restore endpoint",
+        "time to recover endpoint",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+
+def test_extract_target_price_numbers_ignores_time_to_data_governance_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to archive data",
+        "time to retain data",
+        "time to delete data",
+        "time to purge data",
+        "time to classify data",
+        "time to mask data",
+        "time to anonymize data",
+        "time to restore record",
+        "time to deduplicate data",
+        "time to reconcile data",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+
+def test_extract_target_price_numbers_ignores_time_to_security_access_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to rotate key",
+        "time to renew certificate",
+        "time to encrypt data",
+        "time to decrypt data",
+        "time to verify access",
+        "time to grant access",
+        "time to revoke token",
+        "time to issue token",
+        "time to rotate secret",
+        "time to patch vulnerability",
+        "time to scan vulnerability",
+        "time to remediate vulnerability",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+
 def test_extract_target_price_numbers_ignores_refrigeration_assurance_certificate_closure_corrective_action_service_queue_targets():
     from itertools import permutations
 
@@ -17315,6 +17938,349 @@ def test_extract_target_price_numbers_ignores_build_service_queue_targets():
         assert _extract_target_price_numbers(f"target price NT$160 with {target}") == [
             160.0
         ]
+
+
+def test_extract_target_price_numbers_ignores_mean_time_to_recovery_metric_values():
+    from itertools import product
+
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+    terms = ("", "服務佇列", "服務佇列指標", "service queue", "service queue metric", "KPI")
+    suffixes = ("", "項", "件")
+
+    for phase, state, prefix, term, suffix in product(
+        phases, states, prefixes, terms, suffixes
+    ):
+        target = (
+            f"{phase} {term} {prefix} mean time to recovery "
+            f"{state} {suffix} 12 個"
+        )
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+
+def test_extract_target_price_numbers_ignores_incident_recovery_time_metric_values():
+    from itertools import product
+
+    roots = (
+        "mean time to restore",
+        "mean time to respond",
+        "mean time to acknowledge",
+        "mean time to mitigate",
+        "mean time to resolve",
+        "mean time to close",
+        "time to recovery",
+        "time to restore",
+        "time to resolve",
+        "time to mitigate",
+        "time to acknowledge",
+        "time to fix",
+        "time to close",
+        "time to remediate",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+
+def test_extract_target_price_numbers_ignores_time_to_operational_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to inspect",
+        "time to verify",
+        "time to validate",
+        "time to approve",
+        "time to deploy",
+        "time to release",
+        "time to onboard",
+        "time to implement",
+        "time to deliver",
+        "time to first response",
+        "mean time to restore service",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+
+def test_extract_target_price_numbers_ignores_time_to_workflow_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to analyze",
+        "time to assess",
+        "time to review",
+        "time to test",
+        "time to complete",
+        "time to process",
+        "time to resolve request",
+        "time to close case",
+        "time to fulfill",
+        "time to ship",
+        "time to receive",
+        "time to reconcile",
+        "time to recover",
+        "time to respond",
+        "time to action",
+        "time to escalate",
+        "time to route",
+        "time to dispatch",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+
+def test_extract_target_price_numbers_ignores_time_to_documentation_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to document",
+        "time to report",
+        "time to notify",
+        "time to schedule",
+        "time to approve change",
+        "time to complete task",
+        "time to resolve issue",
+        "time to close ticket",
+        "time to fulfill order",
+        "time to ship order",
+        "time to receive order",
+        "time to reconcile account",
+        "time to recover service",
+        "time to respond customer",
+        "time to escalate case",
+        "time to route request",
+        "time to dispatch technician",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+
+def test_extract_target_price_numbers_ignores_time_to_workflow_extension_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to coordinate",
+        "time to assign",
+        "time to triage",
+        "time to prioritize",
+        "time to plan",
+        "time to initiate",
+        "time to start",
+        "time to finish",
+        "time to deliver service",
+        "time to fulfill request",
+        "time to investigate",
+        "time to diagnose",
+        "time to monitor",
+        "time to track",
+        "time to update",
+        "time to communicate",
+        "time to follow up",
+        "time to respond request",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+
+def test_extract_target_price_numbers_ignores_time_to_payment_operations_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to collect payment",
+        "time to refund",
+        "time to settle",
+        "time to pay",
+        "time to reconcile payment",
+        "time to approve payment",
+        "time to process payment",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+def test_extract_target_price_numbers_ignores_time_to_order_fulfillment_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to create order",
+        "time to approve order",
+        "time to process order",
+        "time to pick order",
+        "time to pack order",
+        "time to deliver order",
+        "time to replace order",
+        "time to cancel order",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+def test_extract_target_price_numbers_ignores_time_to_account_case_request_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to enroll",
+        "time to verify identity",
+        "time to approve access",
+        "time to revoke access",
+        "time to reset password",
+        "time to unlock account",
+        "time to create account",
+        "time to close account",
+        "time to open case",
+        "time to create ticket",
+        "time to assign ticket",
+        "time to update ticket",
+        "time to resolve ticket",
+        "time to reopen ticket",
+        "time to transfer case",
+        "time to accept request",
+        "time to reject request",
+        "time to cancel request",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+def test_extract_target_price_numbers_ignores_time_to_triage_routing_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to allocate",
+        "time to delegate",
+        "time to assign owner",
+        "time to queue",
+        "time to prioritize request",
+        "time to classify",
+        "time to categorize",
+        "time to tag",
+        "time to route ticket",
+        "time to dispatch case",
+        "time to handoff",
+        "time to hand off",
+        "time to escalate issue",
+        "time to deescalate",
+        "time to page",
+        "time to alert",
+        "time to notify team",
+        "time to convene",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+
+def test_extract_target_price_numbers_ignores_time_to_case_management_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to handle",
+        "time to manage",
+        "time to support",
+        "time to service",
+        "time to resolve case",
+        "time to close request",
+        "time to process request",
+        "time to approve request",
+        "time to complete process",
+        "time to deploy change",
+        "time to restore service",
+        "time to resolve incident",
+        "time to remediate issue",
+        "time to issue",
+        "time to publish",
+        "time to submit",
+        "time to acknowledge request",
+        "time to answer",
+        "time to wait",
+        "time to escalate request",
+        "time to route case",
+        "time to dispatch request",
+        "time to review request",
+        "time to validate request",
+        "time to verify case",
+        "time to audit",
+        "time to certify",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
 
 
 def test_extract_target_price_numbers_ignores_supplier_vendor_identity_management_recovery_continuity_resilience_certificate_closure_corrective_action_service_queue_targets():

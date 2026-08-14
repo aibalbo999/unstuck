@@ -160,7 +160,7 @@ def _is_horizon_path(path: tuple[str, ...]) -> bool:
     return any(marker in key_text for marker in ("horizon", "timeframe", "period", "date", "期限", "期間", "日期"))
 
 def _is_non_price_target_metric_path(path: tuple[str, ...]) -> bool:
-    key_text = ".".join(path).lower().replace(" ", "_").replace("-", "_")
+    key_text = ".".join(path).lower().replace(" ", "_").replace("-", "_").replace("time_to_return", "")
     return bool(_NON_PRICE_TARGET_METRIC_PATH_RE.search(key_text))
 
 def _revision_target_tail(text: str) -> str | None:
