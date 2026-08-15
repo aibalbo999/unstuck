@@ -12022,3 +12022,9 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 - repeated live probe 量得 historical audit 約 1.85 秒；以 filtered audit 降低 targeted review 成本，不用未驗證的 TTL cache 掩蓋新 snapshot。
 - RED→GREEN 鎖定 `q`/`pipeline` 從 FastAPI route 傳到 `query_report_metadata`，並保持 `include_versions=True` 與 `all_indexed_versions` 語意。
 - 文件補充 filtered `audited_reports` 的分母意義；builder/route compile 與 focused tests 通過，仍無 mutation authorization 或寫入副作用。
+
+### 完成後維護 / D3543 / #拆解問題 #差距分析 #偏誤降低 #證據基礎 #受眾 #語意含義 #可驗證性
+
+- live pipeline probe 找到 v1/v2/v3 高缺口與 v4 低缺口的集中差異；不把全歷史 coverage 當成所有模式同質。
+- RED→GREEN 新增 `quality_metadata_by_pipeline` 與前端「模式缺口」摘要；每個分組保留 verified denominator/basis，避免分組百分比失去語意。
+- 完成 docs contract、Node syntax、focused regression；詳細查核仍走 q/pipeline read-only filter，不新增 queue、rerun 或 repair side effect。

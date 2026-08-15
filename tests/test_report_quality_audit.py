@@ -57,6 +57,23 @@ def test_report_quality_audit_counts_verified_reports_with_missing_quality_metad
             "evidence_exit_gate": 1,
             "content_credibility": 1,
         },
+        "quality_metadata_by_pipeline": {
+            "v1": {
+                "audited_reports": 3,
+                "verified_snapshot_reports": 2,
+                "snapshot_invalid_reports": 1,
+                "snapshot_unverified_reports": 0,
+                "quality_metadata_complete_reports": 1,
+                "quality_metadata_missing_reports": 1,
+                "missing_quality_field_counts": {
+                    "report_conformance": 1,
+                    "evidence_exit_gate": 1,
+                    "content_credibility": 1,
+                },
+                "quality_metadata_coverage_pct": 50.0,
+                "quality_metadata_coverage_basis": "verified_snapshot_reports",
+            }
+        },
         "quality_metadata_coverage_pct": 50.0,
         "quality_metadata_coverage_basis": "verified_snapshot_reports",
         "items_returned": 1,
@@ -146,6 +163,64 @@ def test_report_quality_audit_counts_missing_gates_independently():
         "report_conformance": 1,
         "evidence_exit_gate": 1,
         "content_credibility": 1,
+    }
+
+
+def test_report_quality_audit_groups_coverage_by_pipeline():
+    from report_quality_audit import build_report_quality_audit
+
+    payload = build_report_quality_audit(
+        [
+            {
+                "pipeline_id": "v1",
+                "snapshot_integrity": {"status": "verified"},
+                "report_conformance": {},
+                "evidence_exit_gate": {},
+                "content_credibility": {},
+            },
+            {
+                "pipeline_id": "v2",
+                "snapshot_integrity": {"status": "verified"},
+                "report_conformance": {"status": "passed"},
+                "evidence_exit_gate": {"verdict": "approved"},
+                "content_credibility": {"status": "passed"},
+            },
+        ],
+        scope="all_historical_indexed_reports",
+        selection_basis="all_indexed_versions",
+    )
+
+    assert payload["quality_metadata_by_pipeline"] == {
+        "v1": {
+            "audited_reports": 1,
+            "verified_snapshot_reports": 1,
+            "snapshot_invalid_reports": 0,
+            "snapshot_unverified_reports": 0,
+            "quality_metadata_complete_reports": 0,
+            "quality_metadata_missing_reports": 1,
+            "missing_quality_field_counts": {
+                "report_conformance": 1,
+                "evidence_exit_gate": 1,
+                "content_credibility": 1,
+            },
+            "quality_metadata_coverage_pct": 0.0,
+            "quality_metadata_coverage_basis": "verified_snapshot_reports",
+        },
+        "v2": {
+            "audited_reports": 1,
+            "verified_snapshot_reports": 1,
+            "snapshot_invalid_reports": 0,
+            "snapshot_unverified_reports": 0,
+            "quality_metadata_complete_reports": 1,
+            "quality_metadata_missing_reports": 0,
+            "missing_quality_field_counts": {
+                "report_conformance": 0,
+                "evidence_exit_gate": 0,
+                "content_credibility": 0,
+            },
+            "quality_metadata_coverage_pct": 100.0,
+            "quality_metadata_coverage_basis": "verified_snapshot_reports",
+        },
     }
 
 

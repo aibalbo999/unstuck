@@ -2217,6 +2217,12 @@
 - historical endpoint 新增既有 report-history 語意的 `q`、`pipeline` filters，仍固定 `include_versions=True`、`selection_basis=all_indexed_versions`；篩選後 `audited_reports` 明示為符合條件的完整版本集合。
 - 不引入可能產生 stale coverage 的快取；保留 read-only、無 artifact/index/rerun side effect，並以 builder/route/docs regression 鎖定 query 傳遞。
 
+## D3543：揭露品質缺口的 pipeline 分布
+
+- live historical audit 顯示 v1/v2/v3 各約 42 個版本卻各有 35/36 個缺口，v4 有 1204 個版本、36 個缺口；總數不足以表達集中風險。
+- 新增 `quality_metadata_by_pipeline`，每個 pipeline 保留 audited/verified/invalid/unverified、complete/missing、coverage basis 與 missing gate counts；daily board 只顯示有缺口的模式。
+- 一次 full audit 即可完成模式排序，再以既有 `q`/`pipeline` filtered endpoint 讀取明細；不引入 stale cache，也不改 read-only、無 rerun/repair 邊界。
+
 綜合視角：
 
 - `#可驗證性`：每個模式的報告模板與決策用途必須有測試與文件可查。

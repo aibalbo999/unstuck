@@ -175,6 +175,8 @@ The daily decision dashboard (`GET /api/watchlist/daily-dashboard`) consumes rec
 
 品質稽核 envelope 的 `missing_quality_field_counts` 會在 verified snapshot 範圍內按三個品質 gate 分組缺口，讓操作人員能排序人工核對；它不被解讀成通過率，也不會觸發重跑。
 
+同一 envelope 的 `quality_metadata_by_pipeline` 會保留每個模式的 verified 分母與 coverage，daily board 只顯示有缺口的模式；需要深入時再使用 `q`/`pipeline` filtered historical audit。
+
 ## Event-Driven Radar
 
 ```mermaid

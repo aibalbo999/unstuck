@@ -88,11 +88,15 @@ const payload = {
   report_quality_audit: {
     selection_basis: 'latest_per_ticker_pipeline',
     quality_metadata_missing_reports: 2,
-    missing_quality_field_counts: {
-      report_conformance: 2,
-      evidence_exit_gate: 1,
-      content_credibility: 2
-    }
+      missing_quality_field_counts: {
+        report_conformance: 2,
+        evidence_exit_gate: 1,
+        content_credibility: 2
+      },
+      quality_metadata_by_pipeline: {
+        v1: { quality_metadata_missing_reports: 1 },
+        v2: { quality_metadata_missing_reports: 1 }
+      }
   }
 };
 const board = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], payload, value => String(value ?? ''));
@@ -101,7 +105,7 @@ process.stdout.write(JSON.stringify({ board }));
     result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
     payload = json.loads(result.stdout)
 
-    assert "缺口：報告一致性 2、證據關卡 1、內容可信度 2" in payload["board"]
+    assert "缺口：報告一致性 2、證據關卡 1、內容可信度 2；模式缺口：v1 1、v2 1" in payload["board"]
 
 
 def test_watchlist_board_does_not_treat_unavailable_quality_audit_as_zero_gaps():

@@ -116,27 +116,42 @@ def build_report_quality_audit(
     complete_reports = 0
     missing_items = []
     missing_quality_field_counts = {field: 0 for field in QUALITY_METADATA_FIELDS}
+    pipeline_quality_stats: dict[str, dict[str, Any]] = {}
     for report in rows:
+        pipeline_id = safe_text(report.get("pipeline_id")).strip() or "v1"
+        pipeline_stats = pipeline_quality_stats.setdefault(pipeline_id, _new_quality_stats())
+        pipeline_stats["audited_reports"] += 1
         snapshot = safe_mapping_dict(report.get("snapshot_integrity")) or {}
         snapshot_status = safe_text(snapshot.get("status")).strip().lower()
         if snapshot_status != "verified":
             if snapshot_status == "invalid":
                 invalid_snapshot_reports += 1
+                pipeline_stats["snapshot_invalid_reports"] += 1
             else:
                 unverified_snapshot_reports += 1
+                pipeline_stats["snapshot_unverified_reports"] += 1
             continue
         verified_snapshot_reports += 1
+        pipeline_stats["verified_snapshot_reports"] += 1
         item = quality_metadata_repair_item(report)
         if item is None:
             complete_reports += 1
+            pipeline_stats["quality_metadata_complete_reports"] += 1
             continue
+        missing_count_for_pipeline = pipeline_stats["quality_metadata_missing_reports"] + 1
+        pipeline_stats["quality_metadata_missing_reports"] = missing_count_for_pipeline
         for field in safe_text_list(item.get("missing_quality_fields")):
             if field in missing_quality_field_counts:
                 missing_quality_field_counts[field] += 1
+                pipeline_stats["missing_quality_field_counts"][field] += 1
         missing_items.append(_audit_item(report, item))
 
     missing_count = len(missing_items)
     coverage = round(complete_reports / verified_snapshot_reports * 100, 2) if verified_snapshot_reports else None
+    quality_metadata_by_pipeline = {
+        pipeline_id: _finalize_quality_stats(pipeline_quality_stats[pipeline_id])
+        for pipeline_id in sorted(pipeline_quality_stats)
+    }
     item_limit_value = max(0, safe_int(item_limit, default=5))
     returned_items = missing_items[:item_limit_value]
     return {
@@ -150,6 +165,7 @@ def build_report_quality_audit(
         "quality_metadata_complete_reports": complete_reports,
         "quality_metadata_missing_reports": missing_count,
         "missing_quality_field_counts": missing_quality_field_counts,
+        "quality_metadata_by_pipeline": quality_metadata_by_pipeline,
         "quality_metadata_coverage_pct": coverage,
         "quality_metadata_coverage_basis": "verified_snapshot_reports",
         "items": returned_items,
@@ -182,6 +198,28 @@ def _audit_item(report: dict[str, Any], item: dict[str, Any]) -> dict[str, Any]:
         "recommended_action": safe_text(item.get("recommended_action")).strip(),
         "priority_score": safe_int(item.get("priority_score"), default=0),
         "blocks_auto_rerun": bool(item.get("blocks_auto_rerun")),
+    }
+
+
+def _new_quality_stats() -> dict[str, Any]:
+    return {
+        "audited_reports": 0,
+        "verified_snapshot_reports": 0,
+        "snapshot_invalid_reports": 0,
+        "snapshot_unverified_reports": 0,
+        "quality_metadata_complete_reports": 0,
+        "quality_metadata_missing_reports": 0,
+        "missing_quality_field_counts": {field: 0 for field in QUALITY_METADATA_FIELDS},
+    }
+
+
+def _finalize_quality_stats(stats: dict[str, Any]) -> dict[str, Any]:
+    verified_snapshot_reports = safe_int(stats.get("verified_snapshot_reports"), default=0)
+    complete_reports = safe_int(stats.get("quality_metadata_complete_reports"), default=0)
+    return {
+        **stats,
+        "quality_metadata_coverage_pct": round(complete_reports / verified_snapshot_reports * 100, 2) if verified_snapshot_reports else None,
+        "quality_metadata_coverage_basis": "verified_snapshot_reports",
     }
 
 
