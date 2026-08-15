@@ -128,6 +128,7 @@ def _audit_item(report: dict[str, Any], item: dict[str, Any]) -> dict[str, Any]:
         "pipeline_id": safe_text(report.get("pipeline_id")).strip() or "v1",
         "title": safe_text(item.get("title")).strip(),
         "detail": safe_text(item.get("detail")).strip(),
+        "missing_quality_fields": safe_text_list(item.get("missing_quality_fields")),
         "reason_codes": safe_text_list(item.get("reason_codes")),
         "recommended_action": safe_text(item.get("recommended_action")).strip(),
         "priority_score": safe_int(item.get("priority_score"), default=0),

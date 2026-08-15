@@ -39,7 +39,8 @@
             const title = item.title || '品質缺口';
             const detail = item.detail || title;
             const reasonCodes = Array.isArray(item.reason_codes) ? item.reason_codes.join(',') : '';
-            return `<button class="watchlist-quality-report-button" type="button" data-quality-report="${escapeHtml(item.filename)}" data-quality-report-ticker="${escapeHtml(ticker)}" data-quality-report-pipeline="${escapeHtml(pipeline)}" data-quality-reason-codes="${escapeHtml(reasonCodes)}" title="${escapeHtml(detail)}" aria-label="${escapeHtml(`人工核對 ${ticker} ${pipeline}：${title}`)}">查看 ${escapeHtml(ticker)} ${escapeHtml(pipeline)}</button>`;
+            const missingQualityFields = Array.isArray(item.missing_quality_fields) ? item.missing_quality_fields.join(',') : '';
+            return `<button class="watchlist-quality-report-button" type="button" data-quality-report="${escapeHtml(item.filename)}" data-quality-report-ticker="${escapeHtml(ticker)}" data-quality-report-pipeline="${escapeHtml(pipeline)}" data-quality-reason-codes="${escapeHtml(reasonCodes)}" data-quality-missing-fields="${escapeHtml(missingQualityFields)}" title="${escapeHtml(detail)}" aria-label="${escapeHtml(`人工核對 ${ticker} ${pipeline}：${title}`)}">查看 ${escapeHtml(ticker)} ${escapeHtml(pipeline)}</button>`;
         }).join('');
         const auditControls = auditButtons ? `<div class="watchlist-quality-audit-actions">${auditButtons}</div>` : '';
         if (top && top.type !== 'monitor' && total > 0) {

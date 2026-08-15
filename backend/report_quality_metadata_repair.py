@@ -37,6 +37,7 @@ def quality_metadata_repair_item(report: dict[str, Any]) -> dict[str, Any] | Non
         "action_label": "人工審核",
         "title": title,
         "detail": detail,
+        "missing_quality_fields": missing,
         "reason_codes": reason_codes,
         "blocks_auto_rerun": True,
     }

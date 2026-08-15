@@ -60,6 +60,7 @@ def test_report_quality_audit_counts_verified_reports_with_missing_quality_metad
                 "pipeline_id": "v1",
                 "title": "品質證據未記錄",
                 "detail": "報告未記錄 report_conformance、evidence_exit_gate、content_credibility 品質證據，採用前需人工查看。",
+                "missing_quality_fields": ["report_conformance", "evidence_exit_gate", "content_credibility"],
                 "reason_codes": ["quality_metadata_missing"],
                 "recommended_action": "manual_review",
                 "priority_score": 820,

@@ -119,6 +119,7 @@ const payload = {
       pipeline_id: 'v2',
       title: '刷新後品質證據缺口',
       detail: '資料快照曾在報告後刷新，採用前需人工查看 artifact 與 freshness。',
+      missing_quality_fields: ['report_conformance', 'evidence_exit_gate', 'content_credibility'],
       reason_codes: ['quality_metadata_missing', 'quality_metadata_after_refresh']
     }]
   }
@@ -132,6 +133,7 @@ process.stdout.write(JSON.stringify({ board }));
     assert 'title="資料快照曾在報告後刷新，採用前需人工查看 artifact 與 freshness。"' in payload["board"]
     assert 'aria-label="人工核對 1623.TW v2：刷新後品質證據缺口"' in payload["board"]
     assert 'data-quality-reason-codes="quality_metadata_missing,quality_metadata_after_refresh"' in payload["board"]
+    assert 'data-quality-missing-fields="report_conformance,evidence_exit_gate,content_credibility"' in payload["board"]
 
 
 def test_quality_report_button_opens_the_audited_report_through_existing_callback():

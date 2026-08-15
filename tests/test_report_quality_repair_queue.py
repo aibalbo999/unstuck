@@ -94,6 +94,7 @@ def test_report_quality_repair_items_project_missing_quality_metadata():
         "action_label": "人工審核",
         "title": "品質證據未記錄",
         "detail": "報告未記錄 report_conformance、evidence_exit_gate、content_credibility 品質證據，採用前需人工查看。",
+        "missing_quality_fields": ["report_conformance", "evidence_exit_gate", "content_credibility"],
         "reason_codes": ["quality_metadata_missing"],
         "blocks_auto_rerun": True,
     }

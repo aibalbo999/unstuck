@@ -11974,3 +11974,9 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 
 - 把核心 provider critical 拆成 covered/uncovered summary count，讓操作人員不用逐筆展開 alert 才知道是否已有同 source 的健康資料。
 - count 只讀取已判定的 `current_source_has_healthy_entry`，不重算、不改 system-level `critical`，也不越界到單份報告 rerun；新增 runtime 與 docs contract assertions。
+
+### 完成後維護 / D3535 / #拆解問題 #差距分析 #偏誤降低 #證據基礎 #受眾 #責任 #可驗證性
+
+- 將品質 repair item 的精確缺 gate 輸出為 `missing_quality_fields`，並在 audit serializer 與 watchlist CTA 保留；前端另以 `data-quality-missing-fields` 和新 cache-buster 確保人工核對讀到新欄位。
+- 以 live full audit 的 160 份 verified snapshot、158 份 complete、2 份 1623.TW 缺 metadata 作為範圍證據；欄位只描述已存在的缺口，不從 HTML/Markdown 重建品質結果。
+- RED→GREEN 鎖定 repair queue、full audit、前端 attribute、docs contract；不自動修 artifact/index、不進 daily action queue、不 enqueue rerun。

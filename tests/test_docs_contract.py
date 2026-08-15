@@ -57,6 +57,7 @@ def test_report_quality_docs_cover_snapshot_integrity_contract():
         assert "unverified" in document
         assert "invalid" in document
     for document in [api_reference, operator_guide]:
+        assert "missing_quality_fields" in document
         assert "Report preview reading boundaries include snapshot integrity mismatch details" in document
         assert "Report preview reading boundaries derive a `snapshot_hash mismatch` detail from invalid snapshot integrity hashes" in document
         assert "Report preview reading boundaries prefer hash mismatch details over default generic snapshot integrity errors" in document

@@ -2169,6 +2169,12 @@
 - 新增 `core_critical_covered_count` 與 `core_critical_uncovered_count`；只改善 summary 掃讀，不改 `status`、`impact` 或 report-level rerun predicate。
 - RED→GREEN 補上完整 dashboard count regression 與 API/docs contract；covered 是同視窗 provider evidence，不等於所有歷史報告 ready。
 
+## D3535：把報告品質稽核的缺少 gate 欄位結構化
+
+- live full audit 仍是 read-only：160/160 份有 verified snapshot，158 份 complete，2 份缺 quality metadata；兩份 1623.TW v1/v2 都是 refresh provenance 下缺少同一組 gate。
+- `report_quality_metadata_repair.py` 現在輸出精確的 `missing_quality_fields`，audit serializer 與 watchlist CTA 同步保留這組欄位；人工核對不必從 `detail` 或 HTML/Markdown 猜測缺口。
+- RED→GREEN 覆蓋 repair item、完整 audit、前端 `data-quality-missing-fields` 與 cache-buster；維持唯讀 preview 邊界，不重建 gate、不寫 artifact/index、不 enqueue rerun。
+
 綜合視角：
 
 - `#可驗證性`：每個模式的報告模板與決策用途必須有測試與文件可查。
