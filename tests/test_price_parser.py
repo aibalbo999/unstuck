@@ -13486,6 +13486,27 @@ def test_extract_target_price_numbers_ignores_time_to_renewal_validation_recerti
         ) == [205.0]
 
 
+def test_extract_target_price_numbers_ignores_time_to_issue_validation_renewal_attendance_certification_recertification_lifecycle_metric_values():
+    from itertools import product
+
+    roots = (
+        "time to issue validation renewal attendance certification recertification",
+        "time to issue validation attendance certification renewal recertification",
+        "time to issue validation attendance renewal certification recertification",
+        "time to renew recertification validation renewal attendance certification",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+
+    for root, phase, state, prefix in product(roots, phases, states, prefixes):
+        target = f"{phase} {prefix} {root} {state} 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+
 def test_extract_target_price_numbers_ignores_time_to_issue_recertification_validation_renewal_attendance_certification_lifecycle_metric_values():
     from itertools import product
 
