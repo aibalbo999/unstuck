@@ -1,7 +1,7 @@
 """Currency and target-price parsing helpers."""
 from __future__ import annotations
 import math, re, unicodedata
-PERCENT_NUMBER_PATTERN = r"(?:[+＋\-−－]\s*)?\d+(?:[.．]\d+)?(?:[eE][-+]?\d+)?\s*[%％]"; TARGET_NUMBER_PATTERN = r"\d[\d,，]*(?:[.．]\d+)?(?:[eE][-+]?\d+)?"
+PERCENT_NUMBER_PATTERN = r"(?:[+＋\-−－]\s*)?\d+(?:[.．]\d+)?(?:[eE][-+]?\d+)?\s*[%％]"; TARGET_NUMBER_PATTERN = r"\d[\d,，]*(?:[.．]\d+)?(?:[eE][-+]?\d+)?"; QUALITY_SERVICE_TIME_TO_METRIC_PATTERN = re.compile(rf"time\s+to\s+(?:complete\s+attendance\s+certification\s+renewal\s+recertification\s+validation|issue\s+validation\s+certification\s+renewal\s+recertification\s+attendance|verify\s+renewal\s+recertification\s+attendance\s+certification\s+validation|schedule\s+attendance\s+renewal\s+certification\s+validation\s+recertification)", re.IGNORECASE); QUALITY_SERVICE_TIME_TO_METRIC_VALUE_PATTERN = re.compile(rf"time\s+to\s+(?:complete\s+attendance\s+certification\s+renewal\s+recertification\s+validation|issue\s+validation\s+certification\s+renewal\s+recertification\s+attendance|verify\s+renewal\s+recertification\s+attendance\s+certification\s+validation|schedule\s+attendance\s+renewal\s+certification\s+validation\s+recertification)\s+(?:target|forecast|actual|baseline|current)\s*{TARGET_NUMBER_PATTERN}", re.IGNORECASE)
 CURRENCY_TOKEN_PATTERN = r"(?:NT\$?|NTD|TWD|US\$|USD|HK\$|\$|新台幣|臺幣|台幣)"
 TARGET_PRICE_MARKER_PATTERN = re.compile(
     r"(?:目標價|合理價值|合理股價|合理價|參考目標|目標|price\s+target|target(?:\s+price)?)",
@@ -321,14 +321,14 @@ def extract_target_price_numbers(text: str) -> list[float]:
     """Extract prices from target-price wording without treating horizon labels as prices."""
     normalized_text = unicodedata.normalize("NFKC", str(text or ""))
     cleaned = re.sub(PERCENT_NUMBER_PATTERN, "", normalized_text)
-    if HORIZON_ONLY_PATTERN.match(cleaned):
+    if HORIZON_ONLY_PATTERN.match(cleaned) or (QUALITY_SERVICE_TIME_TO_METRIC_PATTERN.search(cleaned) and not PRICE_SPECIFIC_TARGET_MARKER_PATTERN.search(cleaned)):
         return []
     cleaned = RISK_REWARD_RATIO_PATTERN.sub("", cleaned)
     if NON_PRICE_METRIC_TARGET_PATTERN.search(cleaned) and not PRICE_SPECIFIC_TARGET_MARKER_PATTERN.search(cleaned):
         return []
     if NON_PRICE_TARGET_METRIC_PATTERN.search(cleaned) and not PRICE_SPECIFIC_TARGET_MARKER_PATTERN.search(cleaned):
         return []
-    cleaned = PEOPLE_COMPLIANCE_ACKNOWLEDGMENT_TARGET_VALUE_PATTERN.sub("", NON_PRICE_METRIC_VALUE_PATTERN.sub("", cleaned))
+    cleaned = QUALITY_SERVICE_TIME_TO_METRIC_VALUE_PATTERN.sub("", PEOPLE_COMPLIANCE_ACKNOWLEDGMENT_TARGET_VALUE_PATTERN.sub("", NON_PRICE_METRIC_VALUE_PATTERN.sub("", cleaned)))
     preferred_context = _long_term_target_context(cleaned)
     price_marker_matches, marker_matches = list(PRICE_SPECIFIC_TARGET_MARKER_PATTERN.finditer(cleaned)), list(TARGET_PRICE_MARKER_PATTERN.finditer(cleaned))
     if preferred_context:
