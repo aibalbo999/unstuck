@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from mapping_fields import safe_mapping_dict, safe_text, safe_text_list
+from mapping_fields import safe_dict_list, safe_mapping_dict, safe_text, safe_text_list
 
 GateRule = tuple[str, int, str, str, str, str, list[str], bool]
 
@@ -19,6 +19,8 @@ REPORT_CONFORMANCE_RULES: dict[str, GateRule] = {
     "warning": ("warning", 740, "manual_review", "人工審核", "報告符合性需確認", "報告符合主要契約，但仍需人工確認。", ["report_conformance_warning"], False),
 }
 
+FINAL_AUDIT_RETRY_MARKERS = ("輸出為失敗訊息", "缺少 Agent 輸出", "仍含佔位文字")
+
 EVIDENCE_EXIT_GATE_RULES: dict[str, GateRule] = {
     "rejected": ("blocked", 940, "manual_review", "人工審核", "證據抽查未通過", "報告數字未能對上資料快照。", ["evidence_exit_gate_rejected"], True),
     "caution": ("warning", 720, "manual_review", "人工審核", "數字證據需核對", "部分報告數字需人工確認。", ["evidence_exit_gate_caution"], False),
@@ -30,6 +32,10 @@ def content_credibility_repair_item(report: dict[str, Any]) -> dict[str, Any] | 
 
 
 def report_conformance_repair_item(report: dict[str, Any]) -> dict[str, Any] | None:
+    gate = _dict(_field(report, "report_conformance"))
+    retry_detail = _final_audit_retry_detail(gate)
+    if retry_detail:
+        return _item(severity="blocked", priority=840, action="rerun_analysis", label="完整重跑", title="Agent 輸出失敗，建議重跑", detail=retry_detail, reason_codes=["final_audit_agent_retry"])
     return _gate_repair_item(report, "report_conformance", "status", REPORT_CONFORMANCE_RULES)
 
 
@@ -125,14 +131,8 @@ def _item(
     blocks_auto_rerun: bool = False,
 ) -> dict[str, Any]:
     return {
-        "severity": severity,
-        "priority_score": priority,
-        "recommended_action": action,
-        "action_label": label,
-        "title": title,
-        "detail": detail,
-        "reason_codes": reason_codes,
-        "blocks_auto_rerun": blocks_auto_rerun,
+        "severity": severity, "priority_score": priority, "recommended_action": action, "action_label": label,
+        "title": title, "detail": detail, "reason_codes": reason_codes, "blocks_auto_rerun": blocks_auto_rerun,
     }
 
 
@@ -181,3 +181,7 @@ def _reason_codes(trust: dict[str, Any]) -> list[str]:
 
 def _has_stale_source(trust: dict[str, Any], codes: list[str]) -> bool:
     return bool(safe_text_list(_field(trust, "stale_sources"))) or any(code.startswith("source_stale:") for code in codes)
+
+
+def _final_audit_retry_detail(gate: dict[str, Any]) -> str | None:
+    return next((detail for issue in safe_dict_list(_field(gate, "blocking_issues")) if _status(_field(issue, "id")) == "final_audit" for detail in (safe_text_list(_field(issue, "details")) or [safe_text(_field(issue, "details")).strip()]) if any(marker in detail for marker in FINAL_AUDIT_RETRY_MARKERS)), None)

@@ -504,6 +504,39 @@ def test_daily_decision_dashboard_excludes_blocked_repairs_from_direct_rerun_buc
     assert dashboard["actions"][0]["filename"] == "2330_blocked_stale.html"
 
 
+def test_daily_decision_dashboard_routes_failed_final_audit_to_full_rerun():
+    dashboard = build_daily_decision_dashboard(
+        reports={
+            "reports": [
+                {
+                    "ticker": "2367.TW",
+                    "filename": "2367_v2_failed_agent.html",
+                    "pipeline_id": "v2",
+                    "report_conformance": {
+                        "status": "blocked",
+                        "blocking_issues": [
+                            {
+                                "id": "final_audit",
+                                "details": ["技術動能分析師 輸出為失敗訊息，不能產生正式報告。"],
+                            }
+                        ],
+                    },
+                }
+            ]
+        },
+        watchlist={"items": []},
+        screener={"items": []},
+        performance={"summary": {}, "details": []},
+        free_mode={"enabled": True, "can_run_without_paid_keys": True, "violations": []},
+    )
+
+    assert dashboard["summary"]["report_repairs_required"] == 1
+    assert dashboard["summary"]["reports_needing_rerun"] == 0
+    assert dashboard["rerun_reports"] == []
+    assert dashboard["actions"][0]["type"] == "rerun_report"
+    assert dashboard["actions"][0]["filename"] == "2367_v2_failed_agent.html"
+
+
 def test_daily_decision_dashboard_rerun_bucket_uses_full_repair_coverage_not_display_limit():
     reports = [
         {

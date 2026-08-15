@@ -1,6 +1,6 @@
 # HCS Plus Strict Habit Log
 
-更新時間：2026-07-05
+更新時間：2026-08-15
 
 本文件是 `docs/hcs-plus-optimization-state.md` 的嚴格單項輪巡附件。先前已完成四大類批次式優化；本次開始把每個 HCS 單項思考習慣獨立落地、獨立驗證，避免「類別完成」掩蓋單項盲點。
 
@@ -8302,6 +8302,28 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 - explicit target price：`[205.0]`；financial `time to price`：`[]`；existing `time to run build`：`[]`。
 - D3376-D3387 adjacent regression：`60 passed, 3740 deselected in 423.61s`。
 - completion gate：import boundary `503 passed in 11.00s`；HCS/文件契約 `135 passed in 3.50s`；`py_compile` exit 0；`git diff --check` exit 0；trailing-whitespace 無命中；runtime doctor exit 0，canonical operational DB 為 `backend/cache/operational.sqlite3`、report index 為 `backend/cache/stock_agent_cache.sqlite3`，Redis 為 `redis://localhost:6379/0`；parser/detector 行數維持 `349/189`。
+
+### 完成後維護 / D3503 / #拆解問題 #問對問題 #差距分析 #偏誤降低 #決策樹 #效用 #證據基礎 #比較組 #介入研究 #可驗證性 #來源品質
+
+本次使用：live artifact scan 顯示 1334 份 data snapshot 中有 21 份 `final_audit` blocked；最近 dashboard sample 20 份有 13 份需修復、8 份 blocked。主要阻斷細節是 Agent 輸出失敗，但 repair queue 原本一律導向人工審核並阻擋自動重跑，與 final audit 的「重新執行本 Agent」修復指示不一致。
+
+核心判斷
+
+1. `輸出為失敗訊息`、`缺少 Agent 輸出`、`仍含佔位文字` 是可重試的執行失敗訊號，應導向完整重跑。
+2. 公司身分污染、價格/資料可信度衝突等非可重試內容風險仍須人工審核，不能由 marker 擴張誤判。
+3. retry priority 設為 `840`，低於 provider critical `900`，確保來源不可用時仍先等待恢復，不會盲目重跑。
+
+落地修改
+
+1. `backend/report_quality_repair_items.py` 新增 final-audit retry marker 分流，產生 `rerun_analysis`、`完整重跑`、`final_audit_agent_retry`，且 `blocks_auto_rerun=false`。
+2. `tests/test_report_quality_repair_queue.py` 鎖住可重試、不可重試與 provider critical precedence 三種邊界。
+3. `tests/test_daily_decision_dashboard.py` 鎖住 dashboard action 會轉成 `rerun_report`，而不是 `manual_review`。
+
+驗證方式
+
+- repair queue focused regression：`10 passed, 32 deselected`；queue/dashboard adjacent regression：`12 passed, 61 deselected`。
+- provider critical control：仍為 `wait_provider_recovery` 且 `blocks_auto_rerun=true`；company identity control：仍為 `manual_review` 且 `blocks_auto_rerun=true`。
+- live runtime evidence：API `healthz` 正常；修改後需重載 API process 才能讓既有長駐 process 讀到新 module。
 
 ### 完成後維護 / D3502 / #拆解問題 #差距分析 #偏誤降低 #比較組 #證據基礎 #可驗證性 #來源品質
 

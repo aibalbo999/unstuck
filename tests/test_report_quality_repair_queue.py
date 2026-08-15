@@ -284,6 +284,105 @@ def test_repair_queue_treats_lookup_item_mapping_content_credibility_gate_as_rec
     assert "目標價方向互相矛盾" in queue["items"][0]["detail"]
 
 
+def test_report_conformance_agent_failure_recommends_rerun_without_blocking_auto_rerun():
+    from report_quality_repair_queue import build_report_quality_repair_queue
+
+    queue = build_report_quality_repair_queue(
+        [
+            {
+                "ticker": "2367.TW",
+                "filename": "2367_v2.html",
+                "pipeline_id": "v2",
+                "report_conformance": {
+                    "status": "blocked",
+                    "blocking_issues": [
+                        {
+                            "id": "final_audit",
+                            "details": ["技術動能分析師 輸出為失敗訊息，不能產生正式報告。"],
+                        }
+                    ],
+                },
+            }
+        ]
+    )
+
+    item = queue["items"][0]
+    assert item["recommended_action"] == "rerun_analysis"
+    assert item["action_label"] == "完整重跑"
+    assert item["severity"] == "blocked"
+    assert item["priority_score"] == 840
+    assert item["reason_codes"] == ["final_audit_agent_retry"]
+    assert item["blocks_auto_rerun"] is False
+    assert "輸出為失敗訊息" in item["detail"]
+
+
+def test_report_conformance_non_retryable_final_audit_stays_manual_review():
+    from report_quality_repair_queue import build_report_quality_repair_queue
+
+    queue = build_report_quality_repair_queue(
+        [
+            {
+                "ticker": "3017.TW",
+                "filename": "3017_v1.html",
+                "pipeline_id": "v1",
+                "report_conformance": {
+                    "status": "blocked",
+                    "blocking_issues": [
+                        {
+                            "id": "final_audit",
+                            "details": ["主力籌碼分析師：公司身分污染。"],
+                        }
+                    ],
+                },
+            }
+        ]
+    )
+
+    item = queue["items"][0]
+    assert item["recommended_action"] == "manual_review"
+    assert item["blocks_auto_rerun"] is True
+    assert item["reason_codes"] == ["report_conformance_blocked"]
+
+
+def test_provider_critical_still_precedes_agent_retry_recommendation():
+    from report_quality_repair_queue import build_report_quality_repair_queue
+
+    queue = build_report_quality_repair_queue(
+        [
+            {
+                "ticker": "1623.TW",
+                "filename": "1623_v3.html",
+                "pipeline_id": "v3",
+                "report_conformance": {
+                    "status": "blocked",
+                    "blocking_issues": [
+                        {
+                            "id": "final_audit",
+                            "details": ["主力籌碼分析師 輸出為失敗訊息，不能產生正式報告。"],
+                        }
+                    ],
+                },
+                "data_trust": {
+                    "status": "partial",
+                    "reason_codes": ["provider_sla_critical"],
+                    "provider_sla_alerts": [
+                        {
+                            "source": "market_data",
+                            "provider": "yfinance",
+                            "alert_level": "critical",
+                            "current_status": "unavailable",
+                        }
+                    ],
+                },
+            }
+        ]
+    )
+
+    item = queue["items"][0]
+    assert item["recommended_action"] == "wait_provider_recovery"
+    assert item["blocks_auto_rerun"] is True
+
+
 def test_repair_queue_blocks_false_valid_snapshot_integrity_before_stale_snapshot():
     from report_quality_repair_queue import build_report_quality_repair_queue
 
