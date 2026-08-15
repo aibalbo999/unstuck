@@ -51,15 +51,17 @@ Repeated read-only quality audits may reuse an in-process row derivation cache f
 
 The same historical endpoint accepts read-only `review_status=all|pending|approved_with_gap|rejected|deferred`. A selected status filters the audited version set before coverage and item pagination, and the response records the applied value in `review_status_filter`; this helps operators revisit one review state without implying that other states were audited in that response. It does not write the review ledger.
 
+It also accepts read-only `missing_field=all|report_conformance|evidence_exit_gate|content_credibility`. A selected field keeps only verified reports whose `missing_quality_fields` contains that gate, then applies any selected `review_status`; the response records the normalized value in `missing_quality_field_filter`, and `audited_reports`, coverage, and pagination counts describe only that field-scoped set. The history UI labels this as `缺口範圍` and keeps an `all` navigation entry, including when the selected field has zero rows. This filter is GET-only and does not repair artifacts, write the review ledger, enqueue reruns, or alter the daily queue.
+
 The response keeps `quality_review_by_status` keys even when a selected status has count `0`; clients should keep the current status and an `all` navigation entry visible so an empty filtered result remains recoverable.
 
 The history UI derives its visible review progress from this map: `approved_with_gap + rejected + deferred` is the decided count, and the sum of all four statuses is the missing-quality denominator for the current response scope. Complete reports are never included in that progress denominator.
 
 The daily watchlist board uses the same derivation for its latest-per-ticker/pipeline audit summary, so the two read-only entry points expose the same review workload semantics while remaining separate from `decision_queue` actions.
 
-When `review_status` is not `all`, `quality_metadata_coverage_pct`, `audited_reports`, and pagination counts describe only the selected review-status set. Consumers must not present the filtered coverage percentage as whole-library quality; the history UI labels the selected scope as `審核範圍` and reserves `品質 metadata 完整度` for the unfiltered response.
+When `review_status` or `missing_field` is not `all`, `quality_metadata_coverage_pct`, `audited_reports`, and pagination counts describe only the selected scope. Consumers must not present the filtered coverage percentage as whole-library quality; the history UI labels the selected scope as `審核範圍` or `缺口範圍` and reserves `品質 metadata 完整度` for the unfiltered response.
 
-For a filtered response with `audited_reports=0` and `items_total=0`, the correct interpretation is「目前沒有符合該審核狀態的品質缺口」；it is not evidence that zero reports were complete or that the whole library has zero coverage.
+For a filtered response with `audited_reports=0` and `items_total=0`, the correct interpretation is「目前沒有符合該審核狀態或缺口欄位的品質缺口」；it is not evidence that zero reports were complete or that the whole library has zero coverage.
 
 The daily watchlist board reuses the same `artifact_quality_summary` item evidence when it renders report-quality targets. It may expose the marker fields through `data-quality-artifact-fields` and human-readable target context, but this remains a read-only manual-review hint and does not alter the daily decision queue.
 

@@ -72,6 +72,7 @@ def _build_historical_quality_audit_or_unavailable(
     q: str,
     pipeline: str,
     review_status: str,
+    missing_field: str,
 ) -> dict:
     try:
         return build_historical_indexed_report_quality_audit(
@@ -82,13 +83,16 @@ def _build_historical_quality_audit_or_unavailable(
             q=q,
             pipeline=pipeline,
             review_status=review_status,
+            missing_field=missing_field,
         )
     except Exception:
         LOGGER.exception("Historical report quality audit is unavailable")
-        return build_unavailable_report_quality_audit(
+        payload = build_unavailable_report_quality_audit(
             scope="all_historical_indexed_reports",
             selection_basis="all_indexed_versions",
         )
+        payload["missing_quality_field_filter"] = missing_field
+        return payload
 
 
 @dataclass(frozen=True)
@@ -208,6 +212,7 @@ def create_watchlist_router(deps: WatchlistRouteDeps) -> APIRouter:
         q: str = Query("", max_length=80),
         pipeline: str = Query("all", max_length=24),
         review_status: str = Query("all", pattern="^(all|pending|approved_with_gap|rejected|deferred)$"),
+        missing_field: str = Query("all", max_length=32, pattern="^(all|report_conformance|evidence_exit_gate|content_credibility)$"),
     ):
         return await asyncio.to_thread(
             _build_historical_quality_audit_or_unavailable,
@@ -217,6 +222,7 @@ def create_watchlist_router(deps: WatchlistRouteDeps) -> APIRouter:
             q,
             pipeline,
             review_status,
+            missing_field,
         )
 
     register_report_quality_review_routes(

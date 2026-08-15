@@ -396,6 +396,7 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "fetchHistoricalReportQualityAudit" in api_client_extensions_js
     assert "itemOffset" in api_client_extensions_js
     assert "reviewStatus" in api_client_extensions_js
+    assert "missingField" in api_client_extensions_js
     assert "fetchSymbolSuggestions" in api_client_extensions_js
     assert "importWatchlistText" in api_client_extensions_js
     assert "apiClient.fetchDailyDecisionDashboard" in operator_summary_js

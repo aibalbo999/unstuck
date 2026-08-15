@@ -7,10 +7,10 @@
         const onSelectPipeline = options.onSelectPipeline || (() => {});
         const notify = options.notify || { error: () => {} };
         const itemLimit = 5;
-        let loadVersion = 0, itemOffset = 0, reviewStatus = 'all', filterKey = '', currentValues = null, lastAudit = null, reviewSubmissionInFlight = false;
+        let loadVersion = 0, itemOffset = 0, reviewStatus = 'all', missingField = 'all', filterKey = '', currentValues = null, lastAudit = null, reviewSubmissionInFlight = false;
 
         function auditFilterKey(values) {
-            return JSON.stringify([values?.includeVersions, values?.query || '', values?.pipelineFilter || 'all', reviewStatus]);
+            return JSON.stringify([values?.includeVersions, values?.query || '', values?.pipelineFilter || 'all', reviewStatus, missingField]);
         }
 
         function render(audit) {
@@ -48,6 +48,7 @@
             try {
                 const request = { itemLimit, itemOffset, query: values.query, pipeline: values.pipelineFilter };
                 if (reviewStatus !== 'all') request.reviewStatus = reviewStatus;
+                if (missingField !== 'all') request.missingField = missingField;
                 const audit = await fetchAudit(request);
                 if (requestVersion === loadVersion) { lastAudit = audit; render(audit); }
             } catch (_error) {
@@ -102,6 +103,12 @@
                     itemOffset = 0;
                     return load(currentValues);
                 }
+                const missingFieldButton = event.target.closest('[data-quality-audit-missing-field]');
+                if (missingFieldButton?.dataset?.qualityAuditMissingField) {
+                    missingField = missingFieldButton.dataset.qualityAuditMissingField || 'all';
+                    itemOffset = 0;
+                    return load(currentValues);
+                }
                 const pipelineButton = event.target.closest('[data-quality-audit-pipeline]');
                 if (pipelineButton?.dataset?.qualityAuditPipeline && !pipelineButton?.dataset?.qualityAuditReport) {
                     onSelectPipeline(pipelineButton.dataset.qualityAuditPipeline || 'all');
@@ -115,6 +122,7 @@
 
         function resetReviewStatus() {
             reviewStatus = 'all';
+            missingField = 'all';
             itemOffset = 0;
         }
 

@@ -11,7 +11,7 @@ from time import monotonic
 from typing import Any
 
 from data_trust_snapshot import verify_data_snapshot_integrity
-from mapping_fields import safe_text
+from mapping_fields import safe_text, safe_text_list
 from report_history_pagination import collect_all_report_pages
 from report_history_storage import load_storage_item, storage_for_existing_output_dir
 from report_index import query_report_metadata
@@ -81,6 +81,7 @@ def build_historical_indexed_report_quality_audit(
     q: str = "",
     pipeline: str = "all",
     review_status: str = "all",
+    missing_field: str = "all",
 ) -> dict[str, Any]:
     rows = collect_all_report_pages(
         list_indexed_report_quality_rows,
@@ -104,12 +105,19 @@ def build_historical_indexed_report_quality_audit(
     from report_quality_review_workflow import attach_quality_reviews
     attach_quality_reviews(reports, output_dir)
     review_status_filter = _normalize_review_status_filter(review_status)
-    if review_status_filter != "all":
-        reports = [
-            report
-            for report in reports
-            if quality_metadata_repair_item(report) is not None and _quality_review_status(report) == review_status_filter
-        ]
+    missing_quality_field_filter = _normalize_quality_field_filter(missing_field)
+    if review_status_filter != "all" or missing_quality_field_filter != "all":
+        filtered_reports = []
+        for report in reports:
+            item = quality_metadata_repair_item(report)
+            if item is None:
+                continue
+            if review_status_filter != "all" and _quality_review_status(report) != review_status_filter:
+                continue
+            if missing_quality_field_filter != "all" and missing_quality_field_filter not in safe_text_list(item.get("missing_quality_fields")):
+                continue
+            filtered_reports.append(report)
+        reports = filtered_reports
     payload = build_report_quality_audit(
         reports,
         scope="all_historical_indexed_reports",
@@ -118,6 +126,7 @@ def build_historical_indexed_report_quality_audit(
         item_offset=item_offset,
     )
     payload["review_status_filter"] = review_status_filter
+    payload["missing_quality_field_filter"] = missing_quality_field_filter
     return payload
 
 
@@ -287,3 +296,8 @@ def _snapshot_integrity(snapshot: dict[str, Any]) -> dict[str, Any]:
 def _normalize_review_status_filter(value: Any) -> str:
     normalized = safe_text(value).strip().lower()
     return normalized if normalized in QUALITY_REVIEW_STATUSES else "all"
+
+
+def _normalize_quality_field_filter(value: Any) -> str:
+    normalized = safe_text(value).strip().lower()
+    return normalized if normalized in QUALITY_METADATA_FIELDS else "all"

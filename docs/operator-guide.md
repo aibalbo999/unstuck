@@ -107,7 +107,9 @@ The read-only report quality audit exposes `missing_quality_fields` on each affe
 
 歷史稽核也可用 `review_status=pending|approved_with_gap|rejected|deferred` 只看某一種目前 revision 審核狀態；回應的 `review_status_filter` 會標示套用的範圍，篩選後的 coverage 與分頁數字只代表該狀態，不代表其他狀態不存在。這仍是 GET-only 查詢，不會寫入 review ledger。
 
-使用 review status 篩選時，先讀摘要中的「審核範圍」再解讀數字；篩選後若顯示 `0%`，它只代表該狀態集合的 coverage，不是全庫品質降為零。只有 `review_status=all` 的摘要才使用「品質 metadata 完整度」作為未篩選範圍的 coverage 文案。
+歷史稽核摘要也提供「只看報告一致性缺口／只看證據關卡缺口／只看內容可信度缺口」的欄位快捷入口。欄位篩選後的 `audited_reports`、coverage 與明細只代表該欄位缺口集合，畫面會標示「缺口範圍」；即使結果是 `0`，仍保留目前欄位與「全部缺口欄位」入口，方便切回完整稽核。這是唯讀 GET 篩選，不代表 gate 已修復，也不會寫 review、建立重跑或加入今日待辦。
+
+使用 review status 或缺口欄位篩選時，先讀摘要中的「審核範圍」或「缺口範圍」再解讀數字；篩選後若顯示 `0%`，它只代表目前集合的 coverage，不是全庫品質降為零。只有兩種篩選都為 `all` 時，摘要才使用「品質 metadata 完整度」作為未篩選範圍的 coverage 文案。
 
 某個狀態完成最後一筆核對後，畫面仍會保留該狀態的 `（0）` 按鈕與「全部審核狀態」入口；這代表目前篩選已無結果，不是稽核面板失效，直接切回全部即可繼續其他狀態。
 

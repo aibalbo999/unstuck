@@ -138,7 +138,7 @@ def test_historical_report_quality_audit_route_is_read_only_and_explicit(monkeyp
     monkeypatch.setattr(
         watchlist_routes,
         "_build_historical_quality_audit_or_unavailable",
-        lambda output_dir, item_limit, item_offset, q, pipeline, review_status: calls.append((output_dir, item_limit, item_offset, q, pipeline, review_status)) or {
+        lambda output_dir, item_limit, item_offset, q, pipeline, review_status, missing_field: calls.append((output_dir, item_limit, item_offset, q, pipeline, review_status, missing_field)) or {
             "scope": "all_historical_indexed_reports",
             "selection_basis": "all_indexed_versions",
             "audited_reports": 1330,
@@ -159,13 +159,13 @@ def test_historical_report_quality_audit_route_is_read_only_and_explicit(monkeyp
 
     response = TestClient(app).get(
         "/api/watchlist/report-quality-audit/historical",
-        params={"item_limit": 0, "item_offset": 5, "q": "1623.TW", "pipeline": "v2", "review_status": "approved_with_gap"},
+        params={"item_limit": 0, "item_offset": 5, "q": "1623.TW", "pipeline": "v2", "review_status": "approved_with_gap", "missing_field": "content_credibility"},
     )
 
     assert response.status_code == 200
     assert response.json()["selection_basis"] == "all_indexed_versions"
     assert response.json()["quality_metadata_missing_reports"] == 143
-    assert calls == [(str(tmp_path), 0, 5, "1623.TW", "v2", "approved_with_gap")]
+    assert calls == [(str(tmp_path), 0, 5, "1623.TW", "v2", "approved_with_gap", "content_credibility")]
 
 
 def test_daily_decision_dashboard_prioritizes_reruns_watchlist_and_free_mode():

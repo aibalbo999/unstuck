@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3578 / missing quality field scope
+
+- `#拆解問題` / `#差距分析`：live audit 已有三個 gate 的缺口 aggregate，但人工核對入口仍以所有缺口為集合；缺少「只看某一欄位缺口」的可驗證範圍。
+- `#受眾` / `#語意含義` / `#溝通設計`：新增欄位快捷入口與「缺口範圍」文案，將 field-scoped coverage 與全庫 coverage 分開；目前欄位即使為零也保留回復入口，避免空集合卡死。
+- `#責任` / `#倫理判斷` / `#偏誤降低`：backend 只在 current review attach 後投影 verified repair item 的缺口集合，與 review status 共同 GET 篩選；不把欄位缺口篩選誤做成修復、核准、rerun 或 daily queue action。
+- `#可驗證性` / `#來源品質` / `#限制條件`：以 backend/route/frontend RED→GREEN、cache-buster、Node syntax、行數護欄、live exact query、health/readiness 與 review ledger count 驗證；本批不執行 review mutation。
+
 ## D3577 / scoped daily-to-history review navigation
 
 - `#差距分析` / `#受眾`：daily 最新品質 target 已知道 filename、ticker、pipeline 與 pending 狀態，但原入口只開 preview 或泛用 history audit；操作員必須重新搜尋歷史缺口，且可能誤留在其他 review status filter。

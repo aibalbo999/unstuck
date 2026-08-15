@@ -97,6 +97,59 @@ process.stdout.write(JSON.stringify({ html }));
     assert "artifact 欄位可查：報告一致性 1、證據關卡 1、內容可信度 0" in payload["html"]
 
 
+def test_history_quality_audit_renders_missing_field_scope_and_filters():
+    helper_path = STATIC_DIR / "history_panel_quality_helpers.js"
+    renderer_path = STATIC_DIR / "history_quality_audit_render.js"
+    script = """
+global.window = {};
+require(__HELPER_PATH__);
+require(__RENDERER_PATH__);
+const html = window.StockAgentHistoricalQualityAuditRenderer.render({
+  audited_reports: 143,
+  quality_metadata_missing_reports: 143,
+  quality_metadata_coverage_pct: 0,
+  quality_metadata_coverage_basis: 'verified_snapshot_reports',
+  missing_quality_field_counts: { report_conformance: 143, evidence_exit_gate: 143, content_credibility: 143 },
+  missing_quality_field_filter: 'content_credibility',
+  quality_review_by_status: { pending: 143, approved_with_gap: 0, rejected: 0, deferred: 0 },
+  items: []
+}, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ html }));
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path))).replace("__RENDERER_PATH__", json.dumps(str(renderer_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "缺口範圍：內容可信度" in payload["html"]
+    assert 'data-quality-audit-missing-field="content_credibility"' in payload["html"]
+    assert "只看內容可信度缺口" in payload["html"]
+    assert 'data-quality-audit-missing-field="all"' in payload["html"]
+
+
+def test_history_quality_audit_filtered_missing_field_empty_state_keeps_scope_semantics():
+    helper_path = STATIC_DIR / "history_panel_quality_helpers.js"
+    renderer_path = STATIC_DIR / "history_quality_audit_render.js"
+    script = """
+global.window = {};
+require(__HELPER_PATH__);
+require(__RENDERER_PATH__);
+const html = window.StockAgentHistoricalQualityAuditRenderer.render({
+  audited_reports: 0,
+  quality_metadata_missing_reports: 0,
+  quality_metadata_coverage_pct: 100,
+  quality_metadata_coverage_basis: 'verified_snapshot_reports',
+  missing_quality_field_counts: { report_conformance: 0, evidence_exit_gate: 0, content_credibility: 0 },
+  missing_quality_field_filter: 'content_credibility',
+  items: []
+}, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ html }));
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path))).replace("__RENDERER_PATH__", json.dumps(str(renderer_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "目前沒有符合「內容可信度」的品質 metadata 缺口" in payload["html"]
+    assert "符合條件的 0 份已驗證 snapshot 沒有品質 metadata 缺口" not in payload["html"]
+
+
 def test_history_quality_audit_module_filters_requests_and_reuses_open_report_callback():
     helper_path = STATIC_DIR / "history_panel_quality_helpers.js"
     renderer_path = STATIC_DIR / "history_quality_audit_render.js"
@@ -294,6 +347,50 @@ def test_history_quality_audit_review_status_shortcut_reloads_status_filter():
     ]
 
 
+def test_history_quality_audit_missing_field_shortcut_reloads_field_filter():
+    helper_path = STATIC_DIR / "history_panel_quality_helpers.js"
+    renderer_path = STATIC_DIR / "history_quality_audit_render.js"
+    module_path = STATIC_DIR / "history_quality_audit.js"
+    script = """
+(async () => {
+  global.window = {};
+  require(__HELPER_PATH__);
+  require(__RENDERER_PATH__);
+  require(__MODULE_PATH__);
+  let clickHandler;
+  const captured = [];
+  const element = {
+    hidden: true,
+    innerHTML: '',
+    setAttribute: () => {},
+    removeAttribute: () => {},
+    addEventListener: (type, handler) => { if (type === 'click') clickHandler = handler; }
+  };
+  const audit = window.StockAgentHistoricalQualityAudit.create({
+    apiClient: {
+      fetchHistoricalReportQualityAudit: async params => {
+        captured.push(params);
+        return { audited_reports: 1, quality_metadata_missing_reports: 1, missing_quality_field_counts: { pending: 1 }, items: [] };
+      }
+    },
+    ui: { escapeHtml: value => String(value ?? '') },
+    element
+  });
+  audit.bindEvents();
+  await audit.load({ includeVersions: true, query: '', pipelineFilter: 'all' });
+  await clickHandler({ target: { closest: selector => selector === '[data-quality-audit-missing-field]' ? { dataset: { qualityAuditMissingField: 'content_credibility' } } : null } });
+  process.stdout.write(JSON.stringify({ captured }));
+})();
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path))).replace("__RENDERER_PATH__", json.dumps(str(renderer_path))).replace("__MODULE_PATH__", json.dumps(str(module_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert payload["captured"] == [
+        {"itemLimit": 5, "itemOffset": 0, "query": "", "pipeline": "all"},
+        {"itemLimit": 5, "itemOffset": 0, "query": "", "pipeline": "all", "missingField": "content_credibility"},
+    ]
+
+
 def test_history_quality_audit_pages_manual_review_targets_in_batches():
     helper_path = STATIC_DIR / "history_panel_quality_helpers.js"
     renderer_path = STATIC_DIR / "history_quality_audit_render.js"
@@ -423,10 +520,10 @@ def test_history_workspace_wires_historical_quality_audit_without_daily_queue_si
     workspace = (STATIC_DIR / "history_workspace.js").read_text(encoding="utf-8")
 
     assert 'id="history-quality-audit"' in index_html
-    assert "/static/api_client_extensions.js?v=20260816-quality-review-status-filter" in index_html
-    assert "/static/history_panel_quality_helpers.js?v=20260816-quality-review-revision-context" in index_html
-    assert "/static/history_quality_audit_render.js?v=20260816-quality-review-progress-summary" in index_html
-    assert "/static/history_quality_audit.js?v=20260816-scoped-quality-review-navigation" in index_html
+    assert "/static/api_client_extensions.js?v=20260816-quality-review-field-filter" in index_html
+    assert "/static/history_panel_quality_helpers.js?v=20260816-quality-review-field-filter" in index_html
+    assert "/static/history_quality_audit_render.js?v=20260816-quality-review-field-filter" in index_html
+    assert "/static/history_quality_audit.js?v=20260816-quality-review-field-filter" in index_html
     assert index_html.index("/static/history_quality_audit_render.js") < index_html.index("/static/history_quality_audit.js")
     assert len((STATIC_DIR / "history_panel_quality_helpers.js").read_text(encoding="utf-8").splitlines()) < 120
     assert len((STATIC_DIR / "history_quality_audit_render.js").read_text(encoding="utf-8").splitlines()) < 100

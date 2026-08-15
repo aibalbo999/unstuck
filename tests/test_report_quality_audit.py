@@ -785,6 +785,52 @@ def test_historical_indexed_report_quality_audit_filters_revision_review_status(
     assert [item["filename"] for item in payload["items"]] == ["2330_v1.html"]
 
 
+def test_historical_indexed_report_quality_audit_filters_missing_quality_field(monkeypatch, tmp_path):
+    import report_quality_audit as audit
+
+    reports = [
+        {
+            "ticker": "1623.TW",
+            "filename": "1623_v1.html",
+            "pipeline_id": "v1",
+            "snapshot_integrity": {"status": "verified"},
+            "report_conformance": {},
+            "evidence_exit_gate": {},
+            "content_credibility": {},
+        },
+        {
+            "ticker": "2330.TW",
+            "filename": "2330_v1.html",
+            "pipeline_id": "v1",
+            "snapshot_integrity": {"status": "verified"},
+            "report_conformance": {"status": "passed"},
+            "evidence_exit_gate": {"verdict": "approved"},
+            "content_credibility": {},
+        },
+        {
+            "ticker": "2454.TW",
+            "filename": "2454_v1.html",
+            "pipeline_id": "v1",
+            "snapshot_integrity": {"status": "verified"},
+            "report_conformance": {"status": "passed"},
+            "evidence_exit_gate": {"verdict": "approved"},
+            "content_credibility": {"status": "passed"},
+        },
+    ]
+    monkeypatch.setattr(audit, "collect_all_report_pages", lambda *_args, **_kwargs: {"reports": reports})
+    monkeypatch.setattr(audit, "storage_for_existing_output_dir", lambda *_args: None)
+    monkeypatch.setattr(audit, "_cached_indexed_quality_reports", lambda *_args, **_kwargs: reports)
+
+    payload = audit.build_historical_indexed_report_quality_audit(
+        str(tmp_path), item_limit=5, missing_field="content_credibility"
+    )
+
+    assert payload["missing_quality_field_filter"] == "content_credibility"
+    assert payload["audited_reports"] == 2
+    assert payload["quality_metadata_missing_reports"] == 2
+    assert [item["filename"] for item in payload["items"]] == ["1623_v1.html", "2330_v1.html"]
+
+
 def test_collect_all_report_pages_follows_index_pagination():
     from report_history_pagination import collect_all_report_pages
 

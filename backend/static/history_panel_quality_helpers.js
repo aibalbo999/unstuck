@@ -88,12 +88,24 @@
         }).filter(Boolean).join('');
         return buttons ? `<div class="history-quality-audit-filter-actions" aria-label="按審核狀態查看品質缺口">${buttons}</div>` : '';
     }
+    function renderQualityMissingFieldFilters(audit, escapeHtml) {
+        const e = escapeHtml || (value => String(value ?? ''));
+        const current = String(audit?.missing_quality_field_filter || 'all').trim().toLowerCase() || 'all';
+        const labels = [['all', '全部缺口欄位'], ['report_conformance', '報告一致性'], ['evidence_exit_gate', '證據關卡'], ['content_credibility', '內容可信度']];
+        const buttons = labels.map(([key, label]) => {
+            const count = Number(audit?.missing_quality_field_counts?.[key] || 0);
+            if (key === 'all' ? current === 'all' : current !== key && (!Number.isFinite(count) || count <= 0)) return '';
+            return `<button class="history-quality-audit-filter" type="button" data-quality-audit-missing-field="${e(key)}"${current === key ? ' aria-pressed="true"' : ''}>${e(key === 'all' ? label : `只看${label}缺口`)}${key === 'all' ? '' : `（${Math.floor(count)}）`}</button>`;
+        }).filter(Boolean).join('');
+        return buttons ? `<div class="history-quality-audit-filter-actions" aria-label="按品質欄位查看缺口">${buttons}</div>` : '';
+    }
 
     window.StockAgentHistoryPanelQualityHelpers = {
         hasRefreshableDataTrustIssue,
         reportActionBadge,
         trackingActionNote,
         renderQualityReview,
-        renderQualityReviewStatusFilters
+        renderQualityReviewStatusFilters,
+        renderQualityMissingFieldFilters
     };
 })();

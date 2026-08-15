@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-16
+- D3578：live 歷史稽核雖已提供三個品質 gate 的缺口 aggregate，但操作員仍要在 `143` 筆結果中自行辨識「報告一致性／證據關卡／內容可信度」；新增 GET-only `missing_field` filter，backend 先依 verified repair item 的 `missing_quality_fields` 篩選，再與既有 `review_status` 共同套用。歷史 UI 新增欄位快捷入口、明示「缺口範圍」，並保留零結果的目前欄位與全部入口；不改 coverage 全庫語意、review ledger、artifact/index、rerun 或 daily queue。
+- D3578 驗證收斂：先以 backend、route、renderer、module request 的 RED→GREEN 鎖定 field-scoped contract 與空集合語意；完成後執行 focused quality suite、Node syntax、行數護欄與 `git diff --check`，再以 live `missing_field=content_credibility`、health/readiness、assets 與 review ledger 驗證。下一個待觀察缺口是欄位篩選與人工 review 狀態同時選取時的 combined-scope 可讀性。
 - D3577：daily 最新品質 target 原本只能開報告 preview，或進入未帶範圍的歷史稽核；操作員要在 `143` 個歷史缺口中重新搜尋同一檔案。新增 filename/pipeline scoped review navigation，並在 workspace 重設 recommendation、data-trust、review-status、頁碼與 preview，沿用既有 GET audit/list，不新增 queue、rerun、artifact/index 或 review mutation。
 - D3577 驗證收斂：先取得 target markup、panel delegation、workspace filter 套用與 stale review-status RED，再 GREEN targeted navigation suite `240 passed`；完整跨層 suite `962 passed`，Node syntax、行數護欄與 `git diff --check` 通過。live daily renderer 產生 scoped target；filename/pipeline query 的 historical audit 與 report list 都縮小為 `1` 筆，七個新版 JS/CSS assets `200`，health/readiness 正常，daily pending `2`、queue 仍為既有 1 筆 screener action、review ledger `0`。
 - D3576：live historical audit item 已帶 64 字元 `report_quality_revision`，但 review context 只顯示 ticker、模式與日期；操作員無法在畫面快速核對目前 revision。新增短版版本識別碼，完整值保留在 `title`/`aria-label`，不改 API payload、mutation token、server revision validation、ledger、artifact/index、queue 或 rerun。
