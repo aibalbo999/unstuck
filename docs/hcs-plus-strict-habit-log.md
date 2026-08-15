@@ -35,6 +35,14 @@
 - `#責任` / `#限制條件`：這是 history renderer 的呈現修正，backend filtered envelope、review ledger、artifact/index、queue、rerun 與 mutation 邊界均不變；更新 renderer 專屬 cache-buster，避免舊 bundle 留在瀏覽器。
 - `#可驗證性` / `#來源品質`：先以前端 fixture 取得 RED，再 GREEN targeted `9 passed`、跨層 `954 passed`；維持 renderer 99 行責任護欄，並以 Node syntax、diff check 與 live pending/all scope/asset response 作最終驗證。
 
+## D3570 / review submission feedback and duplicate guard
+
+- `#證據基礎` / `#差距分析`：live canonical review ledger 仍有 `143` 個 pending 缺口；既有 history control 只有 mutation call，沒有 in-flight 狀態或成功回饋，操作員無法從畫面分辨請求是否已落 ledger。
+- `#偏誤降低` / `#系統動力學`：page-level lock 在第一次提交後立即阻擋同筆連點，button 同步設為 disabled/`aria-busy`，避免一次人工決策形成多筆 append-only event；server revision/token 邊界仍是最終防線。
+- `#受眾` / `#溝通設計`：成功顯示「人工審核已儲存」，失敗顯示錯誤並恢復按鈕；不把人工決策寫成品質 gate pass，也不將 reload/loading 誤報成完成。
+- `#責任` / `#限制條件`：修改只在 `history_quality_audit.js` 的 client interaction owner，API、review store、artifact/index、queue、rerun 與 mutation contract 不變；更新專屬 cache-buster 讓舊 bundle 不殘留。
+- `#可驗證性` / `#來源品質`：先取得 duplicate-submit RED，再 GREEN `15 passed`；失敗路徑也確認 error toast 與 unlock，並以跨層 suite、Node syntax、diff check、live asset/health/readiness 與 ledger count 做收斂驗證。
+
 ## D3564 / model-level quota observability boundary
 
 - `#證據基礎` / `#來源品質`：live dashboard 只提供 aggregate Gemini quota error，無法把 `2909` 次 observed calls 與 `2569` 次 errors 對齊到模型；先以同一 `api_usage_events` reset window 分組 `observed_model_calls`、`quota_error` 與 `rate_limited`，不把 provider 回應外推成官方剩餘額度。

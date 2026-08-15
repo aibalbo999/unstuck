@@ -143,6 +143,108 @@ def test_historical_quality_audit_saves_review_with_visible_revision():
     assert payload["fetchCount"] == 2
 
 
+def test_historical_quality_audit_prevents_duplicate_review_submission_and_confirms_success():
+    module_path = STATIC_DIR / "history_quality_audit.js"
+    script = """
+(async () => {
+  global.window = { prompt: () => '已核對 artifact，保留缺口。', StockAgentHistoricalQualityAuditRenderer: { render: () => '' } };
+  require(__MODULE_PATH__);
+  let clickHandler;
+  let savedCount = 0;
+  const notifications = [];
+  const attrs = {};
+  const reviewButton = {
+    disabled: false,
+    dataset: {
+      qualityReviewDecision: 'approved_with_gap', qualityReviewFilename: '1623_v1.html', qualityReviewTicker: '1623.TW',
+      qualityReviewPipeline: 'v1', qualityReviewRevision: 'rev-current'
+    },
+    setAttribute: (name, value) => { attrs[name] = value; },
+    removeAttribute: name => { delete attrs[name]; }
+  };
+  const element = {
+    hidden: true,
+    innerHTML: '',
+    setAttribute: () => {},
+    removeAttribute: () => {},
+    addEventListener: (type, handler) => { if (type === 'click') clickHandler = handler; }
+  };
+  const audit = window.StockAgentHistoricalQualityAudit.create({
+    apiClient: {
+      fetchHistoricalReportQualityAudit: async () => ({ audited_reports: 1, quality_metadata_missing_reports: 1, items: [] }),
+      saveHistoricalReportQualityReview: async () => { savedCount += 1; return { success: true }; }
+    },
+    ui: { escapeHtml: value => String(value ?? '') },
+    notify: { success: message => notifications.push(message), error: message => notifications.push(`error:${message}`) },
+    element
+  });
+  audit.bindEvents();
+  await audit.load({ includeVersions: true, query: '', pipelineFilter: 'all' });
+  const event = { target: { closest: selector => selector === '[data-quality-review-decision]' ? reviewButton : null } };
+  clickHandler(event);
+  clickHandler(event);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  process.stdout.write(JSON.stringify({ savedCount, notifications, disabled: reviewButton.disabled, attrs }));
+})();
+""".replace("__MODULE_PATH__", json.dumps(str(module_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert payload["savedCount"] == 1
+    assert payload["notifications"] == ["人工審核已儲存"]
+    assert payload["disabled"] is False
+    assert "aria-busy" not in payload["attrs"]
+
+
+def test_historical_quality_audit_reenables_review_after_save_failure():
+    module_path = STATIC_DIR / "history_quality_audit.js"
+    script = """
+(async () => {
+  global.window = { prompt: () => '核對失敗後保留現況。', StockAgentHistoricalQualityAuditRenderer: { render: () => '' } };
+  require(__MODULE_PATH__);
+  let clickHandler;
+  const notifications = [];
+  const attrs = {};
+  const reviewButton = {
+    disabled: false,
+    dataset: {
+      qualityReviewDecision: 'deferred', qualityReviewFilename: '1623_v1.html', qualityReviewTicker: '1623.TW',
+      qualityReviewPipeline: 'v1', qualityReviewRevision: 'rev-current'
+    },
+    setAttribute: (name, value) => { attrs[name] = value; },
+    removeAttribute: name => { delete attrs[name]; }
+  };
+  const element = {
+    hidden: true,
+    innerHTML: '',
+    setAttribute: () => {},
+    removeAttribute: () => {},
+    addEventListener: (type, handler) => { if (type === 'click') clickHandler = handler; }
+  };
+  const audit = window.StockAgentHistoricalQualityAudit.create({
+    apiClient: {
+      fetchHistoricalReportQualityAudit: async () => ({ audited_reports: 1, quality_metadata_missing_reports: 1, items: [] }),
+      saveHistoricalReportQualityReview: async () => { throw new Error('review backend unavailable'); }
+    },
+    ui: { escapeHtml: value => String(value ?? '') },
+    notify: { success: message => notifications.push(message), error: message => notifications.push(`error:${message}`) },
+    element
+  });
+  audit.bindEvents();
+  await audit.load({ includeVersions: true, query: '', pipelineFilter: 'all' });
+  clickHandler({ target: { closest: selector => selector === '[data-quality-review-decision]' ? reviewButton : null } });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  process.stdout.write(JSON.stringify({ notifications, disabled: reviewButton.disabled, attrs }));
+})();
+""".replace("__MODULE_PATH__", json.dumps(str(module_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert payload["notifications"] == ["error:review backend unavailable"]
+    assert payload["disabled"] is False
+    assert "aria-busy" not in payload["attrs"]
+
+
 def test_watchlist_board_discloses_truncated_quality_audit_items():
     helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
     script = """

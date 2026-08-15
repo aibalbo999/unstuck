@@ -111,6 +111,8 @@ The read-only report quality audit exposes `missing_quality_fields` on each affe
 
 追蹤工作台若發現最新每股票/模式版本有品質缺口，按「查看歷史版本稽核」即可切到分析工作台並開啟「顯示舊版報告」；這只是查詢導引，不會建立今日待辦或重跑。歷史報告頁會用目前的搜尋代號與報告類型同步顯示同一範圍的品質稽核摘要；摘要會標示「品質 metadata 完整度」的分母是已驗證 snapshot，若有 invalid 或未驗證 snapshot 會另外警示，避免把排除資料當成完整證據。稽核區每批列 5 個可直接查看的報告 target，每個 target 同時顯示缺少的 gate、刷新 provenance，以及 artifact 是否仍有可見 gate 摘要；artifact 摘要只供人工核對，不能當成 structured gate 已恢復。可用「上一批／下一批」繼續人工核對，沿用既有報告 preview，不會把歷史缺口加入「今日待處理」。快速切換搜尋或報告類型時，報告列表與稽核摘要都只採用最後一次篩選的結果。
 
+按下「核准保留缺口／退回處理／暫緩」後，該按鈕會暫時鎖定並顯示忙碌狀態；同一筆 review 在回應完成前不會重複送出。成功會顯示「人工審核已儲存」，失敗會顯示錯誤且恢復按鈕，操作員可在確認 revision 後重試。這不代表品質 gate 被自動修復，真正決策仍以 canonical review ledger 為準。
+
 Report quality metadata repair accepts mapping-safe top-level report envelopes and nested gate mappings; a read-only mapping wrapper is treated as the same payload shape as a normal report dictionary and must not interrupt audit classification.
 
 品質完整度不是「欄位有文字就算完成」：`report_conformance`/`content_credibility` 必須是 `passed`、`warning` 或阻斷狀態，`evidence_exit_gate` 必須是 `approved`、`caution` 或 `rejected`；`not_recorded`、`unknown`、`N/A` 仍會列為缺 metadata。

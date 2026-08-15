@@ -199,6 +199,8 @@ daily target 只複用同一筆 `quality_review.status` 做可見與 accessible 
 
 前端對 `review_status_filter != all` 的 envelope 只呈現「審核範圍：<狀態>」，隱藏一般全庫 coverage 文案；這是避免篩選集合被誤讀的呈現責任，不改 backend 計算、review ledger、artifact/index 或任何 queue/rerun 副作用。
 
+歷史 review control 由 `history_quality_audit` 保留一個 page-level submission lock；成功 mutation 後重新載入目前範圍，失敗則經 notification center 呈現並解除 lock。這只降低瀏覽器連點造成的重複請求，不取代 server 的 mutation token、revision fingerprint 或 append-only ledger 約束。
+
 ## Event-Driven Radar
 
 ```mermaid

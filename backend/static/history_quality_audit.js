@@ -7,7 +7,7 @@
         const onSelectPipeline = options.onSelectPipeline || (() => {});
         const notify = options.notify || { error: () => {} };
         const itemLimit = 5;
-        let loadVersion = 0, itemOffset = 0, reviewStatus = 'all', filterKey = '', currentValues = null, lastAudit = null;
+        let loadVersion = 0, itemOffset = 0, reviewStatus = 'all', filterKey = '', currentValues = null, lastAudit = null, reviewSubmissionInFlight = false;
 
         function auditFilterKey(values) {
             return JSON.stringify([values?.includeVersions, values?.query || '', values?.pipelineFilter || 'all', reviewStatus]);
@@ -67,6 +67,7 @@
                 }
                 const reviewButton = event.target.closest('[data-quality-review-decision]');
                 if (reviewButton?.dataset?.qualityReviewDecision) {
+                    if (reviewSubmissionInFlight) return;
                     const saveReview = apiClient?.saveHistoricalReportQualityReview;
                     if (typeof saveReview !== 'function') return;
                     const decision = reviewButton.dataset.qualityReviewDecision;
@@ -75,14 +76,21 @@
                         ? window.prompt(`${label}：請留下核對理由`, '')
                         : '';
                     if (!String(note || '').trim()) return;
-                    Promise.resolve(saveReview({
+                    reviewSubmissionInFlight = true;
+                    reviewButton.disabled = true;
+                    reviewButton.setAttribute?.('aria-busy', 'true');
+                    Promise.resolve().then(() => saveReview({
                         filename: reviewButton.dataset.qualityReviewFilename,
                         ticker: reviewButton.dataset.qualityReviewTicker,
                         pipeline_id: reviewButton.dataset.qualityReviewPipeline || 'v1',
                         report_quality_revision: reviewButton.dataset.qualityReviewRevision,
                         decision,
                         note: String(note).trim()
-                    })).then(() => load(currentValues)).catch(error => notify.error(error?.message || '人工審核未儲存'));
+                    })).then(() => { notify.success?.('人工審核已儲存'); return load(currentValues); }).catch(error => notify.error(error?.message || '人工審核未儲存')).finally(() => {
+                        reviewSubmissionInFlight = false;
+                        reviewButton.disabled = false;
+                        reviewButton.removeAttribute?.('aria-busy');
+                    });
                     return;
                 }
                 const reviewStatusButton = event.target.closest('[data-quality-audit-review-status]');
