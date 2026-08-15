@@ -1321,6 +1321,8 @@ curl http://127.0.0.1:8080/api/observability/dashboard
 curl http://127.0.0.1:8080/api/ops/dashboard
 ```
 
+`stuck_jobs` 只包含 `running` 與 `waiting_retry` 超過未更新門檻的工作；`queued` backlog 應以 RQ queue depth 與 `oldest_queued_seconds` 判斷。
+
 回傳內容包含報告完成耗時 `p50/p95/p99`、active job count、stuck job warning、node/model telemetry summary、`prompt_budget` token 摘要、RQ queue depth/registry counts、provider 24 小時 degradation alerts、API quota ledger 摘要、`notification_delivery` sender audit health，以及 `free_mode` 免費模式合約摘要。`notification_delivery` 會揭露 `failed_count`、`retry_exhausted_count`、`channel_counts`、`failure_reason_counts`、`attention_contexts` 與 `health`；`attention_contexts` 是低量 failed delivery context snapshot，讓 operator 或 repair flow 可定位受影響 source、ticker、report 與 CTA。當 delivery audit 出現 failed 或 retry exhausted 時，dashboard `status` 會升為 `warning`。`status` 可能是 `ok`、`warning` 或 `critical`。
 
 Prometheus `/metrics` 也輸出 notification delivery audit 摘要：`stock_agent_notification_delivery_count{status="failed"}`、`stock_agent_notification_delivery_count{status="retry_exhausted"}`、`stock_agent_notification_delivery_channel_count{channel="..."}`、`stock_agent_notification_delivery_failure_reason_count{reason="timeout|auth|rate_limited|configuration|network|other|unknown"}` 與 `stock_agent_notification_delivery_health{state="ok|warning"}`。這些都是目前 audit rows 的 gauge；health 會固定輸出 `state="ok"` 和 `state="warning"` 兩條 one-hot series，failure reason 只使用低基數分類，不把 raw `last_error` 放進 label，讓外部監控在 in-app 工作台之外也能穩定告警通知通道故障。

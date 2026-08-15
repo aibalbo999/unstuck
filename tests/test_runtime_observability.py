@@ -2014,6 +2014,16 @@ def test_ops_dashboard_summarizes_latency_stuck_jobs_and_node_telemetry(monkeypa
             """,
             (now - 2_400, now - 1_200, stuck_job_id),
         )
+    queued_backlog_id = job_store.create_job("8888.TW", "v1")
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            UPDATE analysis_jobs
+            SET status = 'queued', updated_at = ?
+            WHERE job_id = ?
+            """,
+            (now - 2_400, queued_backlog_id),
+        )
     job_store.record_node_telemetry(
         {
             "job_id": stuck_job_id,
@@ -2045,6 +2055,7 @@ def test_ops_dashboard_summarizes_latency_stuck_jobs_and_node_telemetry(monkeypa
     assert payload["stuck_jobs"]["count"] == 1
     assert payload["stuck_jobs"]["jobs"][0]["job_id"] == stuck_job_id
     assert payload["stuck_jobs"]["jobs"][0]["seconds_since_update"] == 1200.0
+    assert queued_backlog_id not in {job["job_id"] for job in payload["stuck_jobs"]["jobs"]}
     node = payload["node_telemetry"]["nodes"]["valuation_agent"]
     assert node["calls"] == 4
     assert node["failures"] == 1

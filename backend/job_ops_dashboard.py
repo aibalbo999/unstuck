@@ -13,6 +13,7 @@ from job_ops_dashboard_metrics import job_latency_summary, node_telemetry_summar
 from model_route_budget import build_model_route_budget
 from security_sanitizer import sanitize_error_message
 
+STUCK_JOB_STATUSES = ("running", "waiting_retry")
 
 def build_ops_dashboard_snapshot(
     *,
@@ -63,6 +64,10 @@ def build_ops_dashboard_snapshot(
 
 def _active_status_placeholders() -> str:
     return ", ".join("?" for _ in ACTIVE_JOB_STATUSES)
+
+
+def _stuck_status_placeholders() -> str:
+    return ", ".join("?" for _ in STUCK_JOB_STATUSES)
 
 
 def _empty_ops_dashboard(*, db_exists: bool, stuck_after_seconds: int) -> dict:
@@ -134,12 +139,12 @@ def _stuck_job_rows(conn: sqlite3.Connection, now: float, stuck_after_seconds: i
         f"""
         SELECT job_id, ticker, pipeline_id, status, updated_at, started_at, created_at
         FROM analysis_jobs
-        WHERE status IN ({_active_status_placeholders()})
+        WHERE status IN ({_stuck_status_placeholders()})
           AND updated_at <= ?
         ORDER BY updated_at ASC
         LIMIT 20
         """,
-        (*ACTIVE_JOB_STATUSES, now - stuck_after_seconds),
+        (*STUCK_JOB_STATUSES, now - stuck_after_seconds),
     ).fetchall()
     return [
         {

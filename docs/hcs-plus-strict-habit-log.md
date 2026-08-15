@@ -8303,6 +8303,28 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 - D3376-D3387 adjacent regression：`60 passed, 3740 deselected in 423.61s`。
 - completion gate：import boundary `503 passed in 11.00s`；HCS/文件契約 `135 passed in 3.50s`；`py_compile` exit 0；`git diff --check` exit 0；trailing-whitespace 無命中；runtime doctor exit 0，canonical operational DB 為 `backend/cache/operational.sqlite3`、report index 為 `backend/cache/stock_agent_cache.sqlite3`，Redis 為 `redis://localhost:6379/0`；parser/detector 行數維持 `349/189`。
 
+### 完成後維護 / D3507 / #拆解問題 #問對問題 #差距分析 #偏誤降低 #決策樹 #目的 #效用 #描述統計 #證據基礎 #來源品質 #可驗證性
+
+本次使用：live `/api/observability/dashboard` 回傳 `active_count=33`、`running=2`、`queued=31`，但 `stuck_jobs` 前 20 筆全是長時間 queued backlog；以 canonical `operational.sqlite3` 重算後，真正未更新超過 15 分鐘的 running job 只有 1 筆。這是卡住警示的分類邊界錯誤，不是 queue backlog 本身的品質失敗。
+
+核心判斷
+
+1. `queued` 是等待壓力，應由 RQ queue depth 與 oldest queued age 觀測，不應直接升格為 stuck execution。
+2. `running` 與 `waiting_retry` 長時間未更新才進入 stuck warning，避免操作人員被正常排隊量誤導。
+3. 保留 active job count 與 queue lifecycle，不把排隊工作刪除、取消或改寫成終態。
+
+落地修改
+
+1. `backend/job_ops_dashboard.py` 新增 `STUCK_JOB_STATUSES`，將 stuck query 限縮為 `running`、`waiting_retry`。
+2. `tests/test_runtime_observability.py` 新增老化 queued backlog 不得進入 stuck list 的回歸案例。
+3. `docs/operator-guide.md` 與 `docs/api.md` 補上 stuck 與 queue pressure 的判讀契約。
+
+驗證方式
+
+- observability focused regression：`1 passed`；job-store adjacent：`10 passed`。
+- live canonical DB direct audit：`active=33 (queued=31, running=2)`，stuck result 只含 1 筆 running。
+- 未修改 job status、RQ payload、queue depth 或報告品質 gate。
+
 ### 完成後維護 / D3506 / #拆解問題 #問對問題 #差距分析 #偏誤降低 #決策樹 #效用 #證據基礎 #比較組 #介入研究 #可驗證性 #來源品質
 
 本次使用：live Redis/RQ 檢查發現 `SimpleWorker` 有 current job `report-rerun:365f...` 且 worker live，但 `StartedJobRegistry` 暫時為空；SQLite 另有未被 live worker claim 的舊 `running` job `a4d9...`，操作佇列因此多報一筆執行中工作。
