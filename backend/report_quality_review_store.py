@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from mapping_fields import safe_text, safe_text_list
+from mapping_fields import safe_int, safe_text, safe_text_list
 from report_index_parsing import is_safe_report_filename
 from runtime_paths import current_runtime_paths
 from storage.sqlite_resource import ThreadLocalSqliteResource
@@ -186,6 +186,60 @@ def list_latest_reviews(
     return result
 
 
+def list_review_history(
+    output_dir: str,
+    targets: list[tuple[str, str, str]] | tuple[tuple[str, str, str], ...],
+    *,
+    limit: int = 20,
+) -> dict[tuple[str, str, str], list[dict[str, Any]]]:
+    normalized_targets = {
+        (safe_text(filename).strip(), safe_text(pipeline_id).strip() or "v1", safe_text(revision).strip())
+        for filename, pipeline_id, revision in targets
+        if safe_text(filename).strip() and safe_text(revision).strip()
+    }
+    if not normalized_targets:
+        return {}
+    try:
+        history_limit = min(max(int(limit), 1), 50)
+    except (TypeError, ValueError):
+        history_limit = 20
+    output_dir_key = str(Path(output_dir).expanduser().resolve(strict=False))
+    filenames = sorted({filename for filename, _pipeline_id, _revision in normalized_targets})
+    placeholders = ", ".join("?" for _ in filenames)
+    with _connect() as conn:
+        rows = conn.execute(
+            f"""
+            WITH ranked_reviews AS (
+                SELECT *,
+                       COUNT(*) OVER (
+                           PARTITION BY filename, pipeline_id, report_quality_revision
+                       ) AS event_count,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY filename, pipeline_id, report_quality_revision
+                           ORDER BY event_id DESC
+                       ) AS history_rank
+                FROM report_quality_review_events
+                WHERE output_dir = ? AND filename IN ({placeholders})
+            )
+            SELECT *
+            FROM ranked_reviews
+            WHERE history_rank <= ?
+            ORDER BY event_id DESC
+            """,
+            (output_dir_key, *filenames, history_limit),
+        ).fetchall()
+    result: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+    for row in rows:
+        key = (
+            safe_text(row["filename"]).strip(),
+            safe_text(row["pipeline_id"]).strip() or "v1",
+            safe_text(row["report_quality_revision"]).strip(),
+        )
+        if key in normalized_targets:
+            result.setdefault(key, []).append(_row_to_review(row, event_count=row["event_count"]))
+    return result
+
+
 def pending_review(*, report_quality_revision: str) -> dict[str, Any]:
     return {
         "status": "pending",
@@ -227,6 +281,7 @@ def _row_to_review(row: sqlite3.Row, *, event_count: int) -> dict[str, Any]:
     except (TypeError, ValueError, json.JSONDecodeError):
         artifact_summary = {}
     return {
+        "event_id": safe_int(row["event_id"], default=0),
         "status": decision or "pending",
         "decision": decision,
         "decision_label": REVIEW_DECISION_LABELS.get(decision, decision),
@@ -246,6 +301,7 @@ __all__ = [
     "SCHEMA_VERSION",
     "VALID_REVIEW_DECISIONS",
     "list_latest_reviews",
+    "list_review_history",
     "pending_review",
     "record_review",
     "reset_report_quality_review_store_for_tests",

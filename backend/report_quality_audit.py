@@ -277,6 +277,14 @@ def _audit_item(report: dict[str, Any], item: dict[str, Any]) -> dict[str, Any]:
     if quality_review is not None:
         from report_quality_review_workflow import serialize_quality_review
         payload["quality_review"] = serialize_quality_review(quality_review, revision)
+    quality_review_history = report.get("quality_review_history")
+    if isinstance(quality_review_history, list):
+        from report_quality_review_workflow import serialize_quality_review
+        payload["quality_review_history"] = [
+            serialize_quality_review(review, revision)
+            for review in quality_review_history
+            if safe_mapping_dict(review) is not None
+        ]
     artifact_summary = safe_mapping_dict(report.get("artifact_quality_summary"))
     if artifact_summary is not None:
         payload["artifact_quality_summary"] = {

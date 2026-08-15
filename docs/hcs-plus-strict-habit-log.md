@@ -2,6 +2,14 @@
 
 更新時間：2026-08-16
 
+## D3559 / revision-scoped review timeline
+
+- `#證據基礎` / `#責任`：D3558 ledger 已保存每次決策，但 audit payload 只帶最新 state 與 event count；若只看最新事件，無法驗證誰在何時留下哪個理由。新增 `list_review_history()`，以 filename、pipeline、revision 精確分組，最多回傳 20 筆且按 event id 倒序。
+- `#偏誤降低` / `#來源品質`：history query 以當前 report-quality revision 為必要鍵，舊 artifact fingerprint 的事件不會混入新報告；仍不把人工決策轉成 gate pass，也不從 Markdown 重建 structured metadata。
+- `#受眾` / `#可驗證性`：audit item 新增 `quality_review_history`，歷史頁用可展開區塊顯示事件編號、時間、操作人、決策與 note；更新 `review-history` cache-buster，TDD 先以 store/audit/frontend RED，再 GREEN。
+
+本批暫定決策：先把目前 revision 的決策時間線做成唯讀 evidence，保留事件上限與 revision 邊界；若要跨 revision 比對，另立報告版本比較規格，不在本批混合顯示。
+
 ## D3558 / revision-scoped manual quality review
 
 - `#差距分析` / `#證據基礎`：artifact marker 能指出可查文字，但不能回答人工核對是否已完成；若只用 filename，報告刷新後舊結論可能誤套到新 artifact。

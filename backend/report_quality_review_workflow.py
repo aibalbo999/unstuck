@@ -8,7 +8,7 @@ from typing import Any
 import report_quality_audit
 from mapping_fields import safe_int, safe_mapping_dict, safe_text
 from report_quality_repair_items import quality_metadata_repair_item
-from report_quality_review_store import list_latest_reviews, pending_review
+from report_quality_review_store import list_review_history, pending_review
 
 
 def report_quality_revision(row: dict[str, Any]) -> str:
@@ -23,7 +23,7 @@ def report_quality_revision(row: dict[str, Any]) -> str:
 
 
 def serialize_quality_review(review: dict[str, Any], revision: str) -> dict[str, Any]:
-    return {
+    payload = {
         "status": safe_text(review.get("status")).strip() or "pending",
         "decision": safe_text(review.get("decision")).strip(),
         "decision_label": safe_text(review.get("decision_label")).strip() or "待人工核對",
@@ -33,6 +33,10 @@ def serialize_quality_review(review: dict[str, Any], revision: str) -> dict[str,
         "event_count": max(0, safe_int(review.get("event_count"), default=0)),
         "report_quality_revision": safe_text(review.get("report_quality_revision")).strip() or revision,
     }
+    event_id = safe_int(review.get("event_id"), default=0)
+    if event_id > 0:
+        payload["event_id"] = event_id
+    return payload
 
 
 def attach_quality_reviews(reports: list[dict[str, Any]], output_dir: str) -> None:
@@ -46,7 +50,7 @@ def attach_quality_reviews(reports: list[dict[str, Any]], output_dir: str) -> No
         for report in reports
         if quality_metadata_repair_item(report) is not None and safe_text(report.get("report_quality_revision")).strip()
     ]
-    latest_reviews = list_latest_reviews(normalized_output_dir, targets) if normalized_output_dir and targets else {}
+    review_history = list_review_history(normalized_output_dir, targets) if normalized_output_dir and targets else {}
     for report in reports:
         if quality_metadata_repair_item(report) is None:
             continue
@@ -55,7 +59,9 @@ def attach_quality_reviews(reports: list[dict[str, Any]], output_dir: str) -> No
             safe_text(report.get("pipeline_id")).strip() or "v1",
             safe_text(report.get("report_quality_revision")).strip(),
         )
-        report["quality_review"] = latest_reviews.get(target) or pending_review(report_quality_revision=target[2])
+        history = review_history.get(target, [])
+        report["quality_review_history"] = history
+        report["quality_review"] = history[0] if history else pending_review(report_quality_revision=target[2])
 
 
 def get_indexed_report_quality_review_target(
@@ -100,8 +106,9 @@ def get_indexed_report_quality_review_target(
         return None
     report["artifact_quality_summary"] = report_quality_audit._read_artifact_quality_summary(storage, normalized_filename)
     target = (normalized_filename, normalized_pipeline, safe_text(report.get("report_quality_revision")).strip())
-    latest = list_latest_reviews(output_dir, [target]).get(target)
-    report["quality_review"] = latest or pending_review(report_quality_revision=target[2])
+    history = list_review_history(output_dir, [target]).get(target, [])
+    report["quality_review_history"] = history
+    report["quality_review"] = history[0] if history else pending_review(report_quality_revision=target[2])
     return report_quality_audit._audit_item(report, item)
 
 

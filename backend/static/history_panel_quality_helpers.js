@@ -66,8 +66,14 @@
         const note = String(review.note || '').trim();
         const summary = status === 'pending' ? '人工審核：待核對' : `人工審核：${label}${review.event_count > 1 ? `（第 ${Math.floor(Number(review.event_count))} 次）` : ''}`;
         const revision = String(item.report_quality_revision || review.report_quality_revision || '').trim();
+        const history = Array.isArray(item.quality_review_history) ? item.quality_review_history : [];
+        const historyHtml = history.length ? `<details class="history-quality-audit-review-history"><summary>審核紀錄（${history.length} 次）</summary><ol>${history.map(entry => {
+            const eventId = Number(entry.event_id) > 0 ? `#${Math.floor(Number(entry.event_id))}` : '';
+            const eventLabel = [eventId, entry.reviewed_at, entry.reviewer_label, entry.decision_label].filter(Boolean).join(' · ');
+            return `<li><span>${e(eventLabel)}</span><small>${e(entry.note || '')}</small></li>`;
+        }).join('')}</ol></details>` : '';
         const actions = revision ? [['approved_with_gap', '核准保留缺口'], ['rejected', '退回處理'], ['deferred', '暫緩']].map(([decision, text]) => `<button class="history-quality-audit-review" type="button" data-quality-review-decision="${decision}" data-quality-review-filename="${e(item.filename)}" data-quality-review-ticker="${e(item.ticker || '')}" data-quality-review-pipeline="${e(item.pipeline_id || 'v1')}" data-quality-review-revision="${e(revision)}" aria-label="${e(`${text}：${targetLabel}`)}">${text}</button>`).join('') : '';
-        return `<div class="history-quality-audit-review" title="${e(note ? `${summary}：${note}` : summary)}"><small>${e(summary)}</small>${actions ? `<div class="history-quality-audit-review-actions" aria-label="${e(`更新人工審核：${targetLabel}`)}">${actions}</div>` : ''}</div>`;
+        return `<div class="history-quality-audit-review" title="${e(note ? `${summary}：${note}` : summary)}"><small>${e(summary)}</small>${historyHtml}${actions ? `<div class="history-quality-audit-review-actions" aria-label="${e(`更新人工審核：${targetLabel}`)}">${actions}</div>` : ''}</div>`;
     }
 
     window.StockAgentHistoryPanelQualityHelpers = {

@@ -41,11 +41,24 @@ def test_report_quality_review_store_keeps_append_only_revision_scoped_history(t
     assert latest[("1623_TW_v1_report.html", "v1", "rev-1")]["decision"] == "approved_with_gap"
     assert latest[("1623_TW_v1_report.html", "v1", "rev-1")]["event_count"] == 2
 
+    history = review_store.list_review_history(
+        str(tmp_path / "reports"),
+        [("1623_TW_v1_report.html", "v1", "rev-1")],
+    )
+    events = history[("1623_TW_v1_report.html", "v1", "rev-1")]
+    assert [event["event_id"] for event in events] == [second["event_id"], first["event_id"]]
+    assert [event["reviewer_label"] for event in events] == ["operator-b", "operator-a"]
+    assert events[0]["note"].startswith("已核對 artifact")
+
     old_revision = review_store.list_latest_reviews(
         str(tmp_path / "reports"),
         [("1623_TW_v1_report.html", "v1", "rev-2")],
     )
     assert old_revision == {}
+    assert review_store.list_review_history(
+        str(tmp_path / "reports"),
+        [("1623_TW_v1_report.html", "v1", "rev-2")],
+    ) == {}
 
 
 def test_report_quality_review_store_rejects_missing_note_and_unknown_decision(tmp_path, monkeypatch):
@@ -116,6 +129,62 @@ def test_report_quality_audit_item_exposes_revision_and_review_state():
         "event_count": 0,
         "report_quality_revision": "rev-1",
     }
+
+
+def test_report_quality_audit_item_exposes_revision_scoped_review_history():
+    from report_quality_audit import build_report_quality_audit
+
+    payload = build_report_quality_audit(
+        [{
+            "ticker": "1623.TW",
+            "filename": "1623_TW_v1_report.html",
+            "pipeline_id": "v1",
+            "snapshot_integrity": {"status": "verified"},
+            "report_conformance": {},
+            "evidence_exit_gate": {},
+            "content_credibility": {},
+            "report_quality_revision": "rev-2",
+            "quality_review": {
+                "status": "approved_with_gap",
+                "decision": "approved_with_gap",
+                "decision_label": "已核准保留缺口",
+                "reviewer_label": "operator-b",
+                "note": "保留缺口。",
+                "reviewed_at": "2026-08-16T04:00:00+00:00",
+                "event_count": 2,
+                "event_id": 2,
+                "report_quality_revision": "rev-2",
+            },
+            "quality_review_history": [{
+                "status": "approved_with_gap",
+                "decision": "approved_with_gap",
+                "decision_label": "已核准保留缺口",
+                "reviewer_label": "operator-b",
+                "note": "保留缺口。",
+                "reviewed_at": "2026-08-16T04:00:00+00:00",
+                "event_count": 2,
+                "event_id": 2,
+                "report_quality_revision": "rev-2",
+            }, {
+                "status": "deferred",
+                "decision": "deferred",
+                "decision_label": "已暫緩",
+                "reviewer_label": "operator-a",
+                "note": "等待證據。",
+                "reviewed_at": "2026-08-16T03:00:00+00:00",
+                "event_count": 2,
+                "event_id": 1,
+                "report_quality_revision": "rev-2",
+            }],
+        }],
+        scope="all_historical_indexed_reports",
+        selection_basis="all_indexed_versions",
+    )
+
+    history = payload["items"][0]["quality_review_history"]
+    assert [event["event_id"] for event in history] == [2, 1]
+    assert history[1]["reviewer_label"] == "operator-a"
+    assert history[1]["note"] == "等待證據。"
 
 
 def test_report_quality_review_api_requires_current_revision_and_records_explicit_decision(tmp_path, monkeypatch):

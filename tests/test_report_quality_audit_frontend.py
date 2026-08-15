@@ -66,6 +66,29 @@ process.stdout.write(html);
     assert 'data-quality-review-revision="rev-current"' in result.stdout
 
 
+def test_historical_quality_audit_renders_revision_review_timeline():
+    helper_path = STATIC_DIR / "history_panel_quality_helpers.js"
+    script = """
+global.window = {};
+require(__HELPER_PATH__);
+const html = window.StockAgentHistoryPanelQualityHelpers.renderQualityReview({
+  filename: '1623_TW_v1_report.html',
+  pipeline_id: 'v1',
+  report_quality_revision: 'rev-2',
+  quality_review: { status: 'approved_with_gap', decision_label: '已核准保留缺口', event_count: 2 },
+  quality_review_history: [
+    { event_id: 2, reviewer_label: 'operator-b', reviewed_at: '2026-08-16T04:00:00+00:00', decision_label: '已核准保留缺口', note: '保留缺口。' },
+    { event_id: 1, reviewer_label: 'operator-a', reviewed_at: '2026-08-16T03:00:00+00:00', decision_label: '已暫緩', note: '等待證據。' }
+  ]
+}, '1623.TW v1', value => String(value ?? ''));
+process.stdout.write(html);
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    assert "審核紀錄" in result.stdout
+    assert "operator-a" in result.stdout
+    assert "等待證據。" in result.stdout
+
+
 def test_historical_quality_audit_saves_review_with_visible_revision():
     module_path = STATIC_DIR / "history_quality_audit.js"
     script = """
