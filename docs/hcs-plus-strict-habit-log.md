@@ -2,6 +2,14 @@
 
 更新時間：2026-08-16
 
+## D3549 / 歷史列表與稽核的共同回應序號
+
+- `#差距分析` / `#系統動力學`：D3548 只保護 historical audit summary；`loadHistory()` 的 report list 仍可能在 filter race 中讓舊 `/api/reports` response 覆蓋新列表，造成摘要與列表不一致。
+- `#偏誤降低` / `#責任`：workspace 在 load 開始固定 filter snapshot，使用單一 generation 丟棄 stale list response，並提前把同一 snapshot 傳給 quality audit；pagination/render/preview 行為不被改寫。
+- `#可驗證性`：新增 controlled deferred response harness；RED 觀察 final `old`，GREEN `10 passed` 觀察 final `new`，另以 fresh live audit navigation 確認 `1330/143` 與既有 GET-only boundary。
+
+本批暫定決策：以 workspace generation 統一列表與稽核的顯示一致性，不引入 AbortController 或更改後端 endpoint。
+
 ## D3548 / 今日範圍到歷史範圍的唯讀導引
 
 - `#受眾` / `#組成`：追蹤工作台目前只顯示 latest-per-ticker/pipeline 的 `2` 個缺口；歷史頁則有 `143` 個版本缺口，兩者分母不同但缺少入口連接。

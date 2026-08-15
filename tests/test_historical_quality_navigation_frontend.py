@@ -65,6 +65,65 @@ process.stdout.write(JSON.stringify({ opened }));
     assert payload["opened"] == 1
 
 
+def test_history_workspace_ignores_stale_report_list_response():
+    module_path = STATIC_DIR / "history_workspace.js"
+    script = """
+(async () => {
+  global.window = {
+    StockAgentHistoricalQualityAudit: { create: () => ({ load: () => {}, bindEvents: () => {} }) },
+    StockAgentHistoryWorkspacePanels: {
+      create: () => ({
+        historyFilters: {
+          values: (() => { let calls = 0; return () => ({ query: ['old', 'new'][calls++], pipelineFilter: 'all', recommendationFilter: 'all', dataTrustFilter: 'all', includeVersions: false }); })(),
+          bind: () => {}
+        },
+        historyPanel: {
+          renderReports: reports => { global.renderedQuery = reports[0]?.query || ''; },
+          renderPagination: () => 1,
+          setTrackingCompact: () => {},
+          bindEvents: () => {},
+          clearSelection: () => {}
+        },
+        reportPreviewPanel: { hide: () => {}, show: () => false },
+        reportComparePanel: { bindEvents: () => {} },
+        trackingSnapshotPanel: { bindEvents: () => {}, load: async () => {} },
+        decisionTrackingPanel: {
+          load: () => new Promise(resolve => global.trackingResolvers.push(resolve))
+        }
+      })
+    },
+    StockAgentHistoryWorkspaceActions: { create: () => ({}) }
+  };
+  global.trackingResolvers = [];
+  const reportResolvers = {};
+  const workspace = require(__MODULE_PATH__);
+  const instance = window.StockAgentHistoryWorkspace.create({
+    apiClient: {
+      fetchReports: params => new Promise(resolve => { reportResolvers[params.query] = resolve; })
+    },
+    ui: {},
+    elements: { historyIncludeVersions: { checked: false } },
+    openReport: () => {}
+  });
+  const first = instance.loadHistory();
+  const second = instance.loadHistory();
+  global.trackingResolvers[1]({ items: [] });
+  await Promise.resolve();
+  global.trackingResolvers[0]({ items: [] });
+  await Promise.resolve();
+  reportResolvers.new({ reports: [{ query: 'new', filename: 'new.html' }] });
+  await Promise.resolve();
+  reportResolvers.old({ reports: [{ query: 'old', filename: 'old.html' }] });
+  await Promise.all([first, second]);
+  process.stdout.write(JSON.stringify({ renderedQuery: global.renderedQuery }));
+})();
+""".replace("__MODULE_PATH__", json.dumps(str(module_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert payload["renderedQuery"] == "new"
+
+
 def test_historical_audit_navigation_wiring_uses_cache_busters_and_existing_scope():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")

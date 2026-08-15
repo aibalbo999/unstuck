@@ -7,6 +7,7 @@
         const historyLimit = 20;
         let historyReports = new Map(), previewReport = null, trackedTickers = new Set();
         let trackingCompact = false, previewCompactMode = false;
+        let loadVersion = 0;
         const qualityAudit = window.StockAgentHistoricalQualityAudit.create({ apiClient, ui, element: elements.historyQualityAudit, openReport });
 
         const {
@@ -36,11 +37,12 @@
                 .forEach(report => { if (report?.filename) historyReports.set(report.filename, report); });
         }
         async function loadHistory() {
+            const requestVersion = ++loadVersion;
             try {
-                const trackingPayload = await decisionTrackingPanel.load();
                 const values = historyFilters.values();
-                const { query, pipelineFilter, recommendationFilter, dataTrustFilter, includeVersions } = values;
                 qualityAudit.load(values);
+                const trackingPayload = await decisionTrackingPanel.load();
+                const { query, pipelineFilter, recommendationFilter, dataTrustFilter, includeVersions } = values;
                 const data = await apiClient.fetchReports({
                     page: historyPage,
                     limit: historyLimit,
@@ -50,6 +52,7 @@
                     dataTrust: dataTrustFilter,
                     includeVersions
                 });
+                if (requestVersion !== loadVersion) return;
                 const pagination = data.pagination || { page: 1, total_pages: 1, total: 0, has_prev: false, has_next: false };
                 const reports = data.reports || [];
                 historyReports = new Map(reports.map(report => [report.filename, report]));
