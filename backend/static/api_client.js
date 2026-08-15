@@ -19,9 +19,18 @@
     async function cleanupReportIndex() {
         return requestJson('/api/maintenance/cleanup-report-index?write=true', { method: 'POST' });
     }
+    async function previewReportIndex() { return requestJson('/api/maintenance/cleanup-report-index?write=false', { method: 'POST' }); }
     async function cleanupAnalysisHistory({ retentionDays = 30, keepRecentJobs = 20 } = {}) {
         const params = new URLSearchParams({
             write: 'true',
+            retention_days: String(retentionDays),
+            keep_recent_jobs: String(keepRecentJobs)
+        });
+        return requestJson(`/api/maintenance/cleanup-analysis-history?${params.toString()}`, { method: 'POST' });
+    }
+    async function previewAnalysisHistory({ retentionDays = 30, keepRecentJobs = 20 } = {}) {
+        const params = new URLSearchParams({
+            write: 'false',
             retention_days: String(retentionDays),
             keep_recent_jobs: String(keepRecentJobs)
         });
@@ -31,6 +40,7 @@
         const params = new URLSearchParams({ write: 'true', retention_days: String(retentionDays) });
         return requestJson(`/api/maintenance/cleanup-provider-sla?${params.toString()}`, { method: 'POST' });
     }
+    async function previewProviderSla({ retentionDays = 90 } = {}) { const params = new URLSearchParams({ write: 'false', retention_days: String(retentionDays) }); return requestJson(`/api/maintenance/cleanup-provider-sla?${params.toString()}`, { method: 'POST' }); }
     async function cleanupFailedQueue({ staleAfterSeconds = 7 * 24 * 60 * 60 } = {}) {
         const params = new URLSearchParams({ write: 'true', stale_after_seconds: String(staleAfterSeconds) });
         return requestJson(`/api/maintenance/cleanup-failed-queue?${params.toString()}`, { method: 'POST' });
@@ -64,8 +74,11 @@
         fetchMaintenanceSummary,
         fetchOpsDashboard,
         cleanupReportIndex,
+        previewReportIndex,
         cleanupAnalysisHistory,
+        previewAnalysisHistory,
         cleanupProviderSla,
+        previewProviderSla,
         cleanupFailedQueue,
         previewFailedQueue,
         fetchReports,

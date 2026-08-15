@@ -96,6 +96,9 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert ops_workspace_panels_path.exists()
     ops_workspace_panels_js = ops_workspace_panels_path.read_text(encoding="utf-8")
     maintenance_js = (STATIC_DIR / "maintenance_panel.js").read_text(encoding="utf-8")
+    maintenance_action_helpers_path = STATIC_DIR / "maintenance_action_helpers.js"
+    assert maintenance_action_helpers_path.exists()
+    maintenance_action_helpers_js = maintenance_action_helpers_path.read_text(encoding="utf-8")
     maintenance_helpers_path = STATIC_DIR / "maintenance_panel_helpers.js"
     assert maintenance_helpers_path.exists()
     maintenance_helpers_js = maintenance_helpers_path.read_text(encoding="utf-8")
@@ -272,9 +275,11 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "/static/maintenance_notification_delivery.js" in index_html
     assert "/static/daily_decision_queue_context.js" in index_html
     assert index_html.index("/static/daily_decision_queue_context.js") < index_html.index("/static/maintenance_notification_delivery.js")
+    assert "/static/maintenance_action_helpers.js" in index_html
     assert "/static/maintenance_panel_helpers.js" in index_html
     assert "/static/maintenance_panel.js" in index_html
     assert index_html.index("/static/maintenance_notification_delivery.js") < index_html.index("/static/maintenance_panel_helpers.js")
+    assert index_html.index("/static/maintenance_action_helpers.js") < index_html.index("/static/maintenance_panel_helpers.js")
     assert index_html.index("/static/maintenance_panel_helpers.js") < index_html.index("/static/maintenance_panel.js")
     assert index_html.index("/static/maintenance_notification_delivery.js") < index_html.index("/static/maintenance_panel.js")
     assert "/static/home_tabs.js" in index_html
@@ -612,22 +617,29 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "/api/maintenance/storage-summary" in api_client_js
     assert "/api/maintenance/cleanup-failed-queue" in api_client_js
     assert "cleanupFailedQueue" in api_client_js
+    assert "cleanup-report-index?write=false" in api_client_js
+    assert "write: 'false'" in api_client_js
+    assert "previewReportIndex" in api_client_js
+    assert "previewAnalysisHistory" in api_client_js
+    assert "previewProviderSla" in api_client_js
     assert "previewFailedQueue" in api_client_js
     assert "/api/observability/dashboard" in api_client_js
     assert "mutation: true" in api_client_js
     assert "fetchOpsDashboard" in api_client_js
     assert "cleanupAnalysisHistory" in api_client_js
     assert "StockAgentMaintenancePanel" in maintenance_js
+    assert "StockAgentMaintenanceActionHelpers" in maintenance_js
+    assert "runConfirmedAction" in maintenance_action_helpers_js
     assert "StockAgentMaintenancePanelHelpers" in maintenance_js
     assert "StockAgentMaintenanceNotificationDelivery" in maintenance_helpers_js
     assert "StockAgentMaintenancePanelHelpers" in maintenance_helpers_js
     assert "StockAgentMaintenanceNotificationDelivery" in maintenance_notification_js
     assert "maintenance-clean-provider-sla" in maintenance_js
     assert "maintenance-clean-failed-queue" in maintenance_js
-    assert "cleanupFailedQueue" in maintenance_js
-    assert "previewFailedQueue" in maintenance_js
-    assert "notify.confirm" in maintenance_js
-    assert "清理前先確認" in maintenance_js
+    assert "cleanupFailedQueue" in maintenance_action_helpers_js
+    assert "previewFailedQueue" in maintenance_action_helpers_js
+    assert "notify.confirm" in maintenance_action_helpers_js
+    assert "清理前先確認" in maintenance_action_helpers_js
     assert "maintenance-clean-failed-queue" in index_html
     assert "notification_delivery" in maintenance_js
     assert "retry_exhausted_count" in maintenance_notification_js
@@ -705,8 +717,9 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "fetchApiQuotas" in operator_summary_js
 
 
-def test_maintenance_failed_queue_cleanup_requires_preview_confirmation():
+def test_maintenance_cleanup_actions_require_preview_confirmation():
     maintenance_panel_path = STATIC_DIR / "maintenance_panel.js"
+    maintenance_action_helpers_path = STATIC_DIR / "maintenance_action_helpers.js"
     script = """
 global.window = {
   StockAgentMaintenancePanelHelpers: {
@@ -715,6 +728,7 @@ global.window = {
   }
 };
 global.document = { addEventListener: () => {} };
+require(__MAINTENANCE_ACTION_HELPERS_PATH__);
 require(__MAINTENANCE_PANEL_PATH__);
 const button = () => ({
   listeners: {},
@@ -723,15 +737,26 @@ const button = () => ({
   removeAttribute() { this.disabled = false; },
   addEventListener(name, handler) { this.listeners[name] = handler; }
 });
-const failedQueue = button();
 const resultEl = { textContent: '' };
-let previews = 0;
-let writes = 0;
+const actionButtons = {
+  reportIndex: button(),
+  analysisHistory: button(),
+  providerSla: button(),
+  failedQueue: button()
+};
+const previews = [];
+const writes = [];
 let approved = false;
 const apiClient = {
   fetchMaintenanceSummary: async () => ({ summary: {} }),
-  previewFailedQueue: async () => { previews += 1; return { result: { stale_failed_jobs: 2 } }; },
-  cleanupFailedQueue: async () => { writes += 1; return { result: { deleted_jobs: 2 } }; }
+  previewReportIndex: async () => { previews.push('report-index'); return { result: { orphan_rows: 2 } }; },
+  cleanupReportIndex: async () => { writes.push('report-index'); return { result: { deleted_rows: 2 } }; },
+  previewAnalysisHistory: async () => { previews.push('analysis-history'); return { result: { stale_terminal_jobs: 2, orphan_events: 1 } }; },
+  cleanupAnalysisHistory: async () => { writes.push('analysis-history'); return { result: { deleted_jobs: 2, deleted_events: 1 } }; },
+  previewProviderSla: async () => { previews.push('provider-sla'); return { result: { stale_events: 2 } }; },
+  cleanupProviderSla: async () => { writes.push('provider-sla'); return { result: { deleted: 2 } }; },
+  previewFailedQueue: async () => { previews.push('failed-queue'); return { result: { stale_failed_jobs: 2 } }; },
+  cleanupFailedQueue: async () => { writes.push('failed-queue'); return { result: { deleted_jobs: 2 } }; }
 };
 window.StockAgentMaintenancePanel.bind({
   apiClient,
@@ -739,28 +764,31 @@ window.StockAgentMaintenancePanel.bind({
   listEl: { innerHTML: '' },
   resultEl,
   refreshEl: button(),
-  actionButtons: { failedQueue },
+  actionButtons,
   notify: { confirm: async () => approved }
 });
 (async () => {
   await Promise.resolve();
-  await failedQueue.listeners.click();
-  const cancelled = { previews, writes, message: resultEl.textContent };
+  for (const button of Object.values(actionButtons)) await button.listeners.click();
+  const cancelled = { previews: [...previews], writes: [...writes], message: resultEl.textContent };
   approved = true;
-  await failedQueue.listeners.click();
+  for (const button of Object.values(actionButtons)) await button.listeners.click();
   process.stdout.write(JSON.stringify({ cancelled, previews, writes, message: resultEl.textContent }));
 })();
-""".replace("__MAINTENANCE_PANEL_PATH__", json.dumps(str(maintenance_panel_path)))
+""".replace("__MAINTENANCE_ACTION_HELPERS_PATH__", json.dumps(str(maintenance_action_helpers_path))).replace("__MAINTENANCE_PANEL_PATH__", json.dumps(str(maintenance_panel_path)))
     result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
     payload = json.loads(result.stdout)
 
     assert payload["cancelled"] == {
-        "previews": 1,
-        "writes": 0,
+        "previews": ["report-index", "analysis-history", "provider-sla", "failed-queue"],
+        "writes": [],
         "message": "已取消清理過期失敗任務",
     }
-    assert payload["previews"] == 2
-    assert payload["writes"] == 1
+    assert payload["previews"] == [
+        "report-index", "analysis-history", "provider-sla", "failed-queue",
+        "report-index", "analysis-history", "provider-sla", "failed-queue",
+    ]
+    assert payload["writes"] == ["report-index", "analysis-history", "provider-sla", "failed-queue"]
     assert payload["message"] == "已完成"
 
 
@@ -5992,8 +6020,9 @@ def test_candidate_next_actions_assets_use_shared_cache_buster():
     assert "/static/style.css?v=20260816-historical-quality-target-context" in index_html
     assert "/static/watchlist_panel_helpers.js?v=20260816-historical-quality-artifact-field-aggregate" in index_html
     assert "/static/watchlist_panel.js?v=20260816-historical-quality-navigation" in index_html
-    assert "/static/maintenance_panel_helpers.js?v=20260816-stale-failed-queue-confirmation" in index_html
-    assert "/static/maintenance_panel.js?v=20260816-stale-failed-queue-confirmation" in index_html
+    assert "/static/maintenance_action_helpers.js?v=20260816-maintenance-confirmation" in index_html
+    assert "/static/maintenance_panel_helpers.js?v=20260816-maintenance-confirmation" in index_html
+    assert "/static/maintenance_panel.js?v=20260816-maintenance-confirmation" in index_html
     assert "/static/operator_dashboard_actions.js?v=20260711-candidate-next-actions-v3" in index_html
     assert "/static/operator_summary_panel.js?v=20260711-candidate-next-actions-v3" in index_html
     assert "/static/app_panels.js?v=20260816-historical-quality-audit" in index_html
@@ -7965,6 +7994,7 @@ def test_frontend_static_modules_are_sized():
         "provider_sla_panel.js": 120,
         "provider_sla_helpers.js": 170,
         "maintenance_panel.js": 105,
+        "maintenance_action_helpers.js": 100,
         "maintenance_panel_helpers.js": 100,
         "maintenance_notification_delivery.js": 80,
         "daily_decision_queue_context.js": 60,

@@ -2,6 +2,17 @@
 
 更新時間：2026-08-16
 
+## D3563 / shared maintenance preview-confirmation boundary
+
+- `#拆解問題` / `#差距分析`：D3562 只把 stale queue 做成 preview-confirmation；同一維護面板的報告索引、任務紀錄與來源健康紀錄仍可點擊即寫入，形成不一致的副作用邊界。
+- `#倫理判斷` / `#責任`：新增 `maintenance_action_helpers.js` 作為共同 owner，四個 action 都先呼叫既有 endpoint 的 `write=false`，候選數為零、確認器不存在或操作員取消時回傳不寫入；核准後才委派原本的 `write=true` API/後端規則。
+- `#受眾` / `#溝通設計`：各 action 用白話呈現實際候選數與清理類型，沿用既有 danger dialog；不把預覽結果誤報成已刪除，也不讓 UI 自己重建 backend cleanup 判定。
+- `#可驗證性` / `#限制條件`：Node 行為測試覆蓋四個按鈕的取消與核准路徑，既有 `api_client.js <90`、`maintenance_panel.js <105` 責任護欄維持；live 驗證確認四個 preview request 均為 `write=false`，本批不執行 destructive cleanup。
+
+本批暫定決策：先統一所有維護入口的人工確認邊界，不改 API payload、後端刪除條件、CLI 行為或現場資料。
+
+驗證收斂：scoped maintenance/frontend/docs suite `897 passed`；live report-index、analysis-history、provider-sla、failed-queue preview 均 `success=true,dry_run=true`，deleted count 為 `0`，stale queue 為 `10` 筆；新版三個資產與 `healthz/readyz` 均 `200`。
+
 ## D3562 / stale failed queue confirmation gate
 
 - `#偏誤降低` / `#責任`：原維護按鈕直接進入 `write=true`，操作員可能未先核對候選數；UI 改成先呼叫 `previewFailedQueue()`，只把 API 回傳的 `stale_failed_jobs` 作為確認內容，取消、零候選或沒有共用確認器時都不寫入。

@@ -15,6 +15,8 @@
 
     function bind(options) {
         const apiClient = options.apiClient;
+        const actionHelpers = window.StockAgentMaintenanceActionHelpers;
+        const notify = options.notify || window.StockAgentNotify || window.StockAgentNotificationCenter?.create?.();
         const refreshEl = options.refreshEl;
         const resultEl = options.resultEl;
         const actionButtons = options.actionButtons || {};
@@ -59,18 +61,16 @@
 
         if (refreshEl) refreshEl.addEventListener('click', loadSummary);
         [
-            ['reportIndex', 'report-index', 'cleanupReportIndex'],
-            ['analysisHistory', 'analysis-history', 'cleanupAnalysisHistory'],
-            ['providerSla', 'provider-sla', 'cleanupProviderSla'],
-            ['failedQueue', 'failed-queue', 'cleanupFailedQueue']
-        ].forEach(([key, action, method]) => {
-            if (action === 'failed-queue') actionButtons[key]?.addEventListener('click', () => runAction(action, async () => {
-                const preview = await apiClient.previewFailedQueue(), count = Number(preview?.result?.stale_failed_jobs || 0), notify = options.notify || window.StockAgentNotify || window.StockAgentNotificationCenter?.create?.();
-                if (!(count > 0)) { if (resultEl) resultEl.textContent = '沒有可清理的過期失敗任務'; return null; }
-                if (!notify?.confirm || !(await notify.confirm(`清理前先確認：將刪除 ${count} 筆過期失敗任務。`, { title: '清理過期失敗任務', confirmLabel: '刪除', danger: true }))) { if (resultEl) resultEl.textContent = '已取消清理過期失敗任務'; return null; }
-                return apiClient.cleanupFailedQueue();
-            })); else actionButtons[key]?.addEventListener('click', () => runAction(action, apiClient[method]));
-        });
+            ['reportIndex', 'report-index'],
+            ['analysisHistory', 'analysis-history'],
+            ['providerSla', 'provider-sla'],
+            ['failedQueue', 'failed-queue']
+        ].forEach(([key, action]) => actionButtons[key]?.addEventListener('click', () => runAction(action, () => actionHelpers?.runConfirmedAction({
+            action,
+            apiClient,
+            notify,
+            onMessage: message => { if (resultEl) resultEl.textContent = message; }
+        }))));
         loadSummary();
     }
 

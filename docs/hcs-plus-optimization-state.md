@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-16
+- D3563：D3562 只保護 stale failed queue，維護面板的報告索引、任務紀錄與來源健康紀錄按鈕仍會直接呼叫 `write=true`。新增 `previewReportIndex()`、`previewAnalysisHistory()`、`previewProviderSla()` 與共用 `maintenance_action_helpers.js`，四個清理動作統一先 dry-run、再以既有確認視窗核准；取消、零候選或確認器不可用都不寫入。維持 API、CLI 與後端刪除規則不變。
+- D3563 驗證收斂：scoped maintenance/frontend/docs suite `897 passed`；`api_client.js=88`、`maintenance_action_helpers.js=55`、`maintenance_panel.js=99` 行，均守住既有 size boundary；live 四個 preview 都是 `success=true,dry_run=true` 且所有 `deleted_*` 為 `0`，stale queue 回報 `stale_failed_jobs=10`，新版資產與 `healthz/readyz` 均 `200`。本批沒有執行 destructive `write=true`。
 - D3562：stale failed queue 已有 dry-run 與可授權寫入入口，但維護面板原本點擊即直接呼叫 `write=true`，人工操作容易跳過候選數核對。新增 `previewFailedQueue()`，UI 先取得 stale 候選數，再用共用 `notification_center.confirm()` 呈現刪除筆數；取消、無候選或缺少確認介面都不呼叫寫入 API，並更新 cache-buster。新增 Node 行為測試鎖定「取消 0 次寫入、核准 1 次寫入」。
 - D3562 驗證收斂：維護與前端 scoped suite `829 passed`；`node --check`、`git diff --check` 通過；live `healthz/readyz=200`，API dry-run 掃描 `10` 筆 stale、`deleted_jobs=0`、`errors=0`，新版 API client/panel 資產皆 `200`。本批沒有執行 destructive `write=true`。
 - D3561：live RQ snapshot 發現 `stock-analysis` 有 `10` 筆 2026-06-28 stale failed jobs；維護面板雖顯示「過期失敗殘留」，沒有對應人工清理入口，且 stale-only queue chip 仍呈現綠色。新增 `queue_maintenance.cleanup_stale_failed_jobs`，共用 API/UI/CLI，預設 dry-run，`write=true` 需 mutation token 且只刪除有 `ended_at`/`created_at` 年齡證據的 job；同步修正 stale chip 為 warning。不自動重試、不在 worker maintenance 中清除。
