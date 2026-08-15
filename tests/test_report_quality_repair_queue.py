@@ -100,6 +100,21 @@ def test_report_quality_repair_items_project_missing_quality_metadata():
     }
 
 
+def test_quality_metadata_repair_accepts_mapping_safe_report_envelopes():
+    from report_quality_metadata_repair import quality_metadata_repair_item
+
+    report = MappingProxyType(
+        {
+            "snapshot_integrity": MappingProxyType({"status": "verified"}),
+            "report_conformance": MappingProxyType({"status": "passed"}),
+            "evidence_exit_gate": MappingProxyType({"verdict": "approved"}),
+            "content_credibility": MappingProxyType({"status": "passed"}),
+        }
+    )
+
+    assert quality_metadata_repair_item(report) is None
+
+
 def test_report_quality_repair_items_identify_quality_gap_after_snapshot_refresh():
     from report_quality_repair_items import quality_metadata_repair_item
 

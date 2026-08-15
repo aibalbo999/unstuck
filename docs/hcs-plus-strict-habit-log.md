@@ -11986,3 +11986,9 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 - full audit 的缺口總數與可見 item 明細不是同一個集合；先以 `items_returned`/`items_truncated` 固定 envelope 語意，再讓前端明說未展開筆數，避免把 UI cap 誤讀成 audit cap。
 - RED 測試先讓 3 筆缺口、`item_limit=2` 暴露 metadata 缺失，再以工作台 8 筆缺口/2 筆可見案例鎖定提示文字；GREEN 後維持 read-only 與 report history 查詢邊界。
 - 不用 `items.length` 猜全量、不新增 rerun/repair side effect；docs contract、audit regression 與 JavaScript syntax check 共同驗證跨層契約。
+
+### 完成後維護 / D3537 / #拆解問題 #差距分析 #偏誤降低 #證據基礎 #責任 #可驗證性
+
+- 用 `MappingProxyType` 做邊界 probe，確認 repair helper 的 `dict.get` 對唯讀 top-level mapping 會直接 TypeError；先修容器形狀邊界，再保留原有 gate 判定與優先級。
+- RED→GREEN 以完整 verified snapshot 加三個 passed gate 的 mapping wrapper 驗證 helper 回傳 `None`，並同步要求 nested gate mapping 可被安全讀取；不以例外 fallback 掩蓋品質缺口。
+- 新增 mapping-safe code path、docs contract 與 HCS 紀錄；audit/repair focused regression 通過，後續仍需跑完整跨層回歸與 live restart。

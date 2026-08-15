@@ -28,6 +28,8 @@ Report rows include:
 
 The read-only `report_quality_audit.items[]` payload exposes `missing_quality_fields` beside `detail` and `reason_codes`. The audit envelope also exposes `items_returned` and `items_truncated`, because the full audit may cap item details for the UI while retaining the complete missing count. This is the exact list of absent quality gates for manual review; consumers must not reconstruct gate payloads from HTML or Markdown text or treat a truncated item list as the full set.
 
+Report quality metadata repair accepts mapping-safe top-level report envelopes and nested gate mappings before checking `snapshot_integrity`, `report_conformance`, `evidence_exit_gate`, or `content_credibility`; read-only mapping wrappers must not interrupt the audit.
+
 Report preview reading boundaries include snapshot integrity mismatch details when `snapshot_integrity.status = invalid`, so operators see the concrete hash evidence before opening the full report.
 
 Report preview reading boundaries derive a `snapshot_hash mismatch` detail from invalid snapshot integrity hashes when `hash` and `expected_hash` disagree but `errors` is missing, so preview notices keep hash evidence visible.

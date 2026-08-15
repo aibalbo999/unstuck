@@ -2,23 +2,25 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from mapping_fields import safe_mapping_dict, safe_text
 
 
-def quality_metadata_repair_item(report: dict[str, Any]) -> dict[str, Any] | None:
-    snapshot_integrity = safe_mapping_dict(dict.get(report, "snapshot_integrity", {})) or {}
+def quality_metadata_repair_item(report: Mapping[str, Any]) -> dict[str, Any] | None:
+    report_payload = safe_mapping_dict(report) or {}
+    snapshot_integrity = safe_mapping_dict(dict.get(report_payload, "snapshot_integrity", {})) or {}
     if safe_text(dict.get(snapshot_integrity, "status")).strip().lower() != "verified":
         return None
     missing = [
         gate_key
         for gate_key in ("report_conformance", "evidence_exit_gate", "content_credibility")
-        if not _quality_gate_recorded(dict.get(report, gate_key))
+        if not _quality_gate_recorded(dict.get(report_payload, gate_key))
     ]
     if not missing:
         return None
-    refreshed_from_report = safe_text(dict.get(report, "refreshed_from_report")).strip()
+    refreshed_from_report = safe_text(dict.get(report_payload, "refreshed_from_report")).strip()
     if refreshed_from_report:
         title = "刷新後品質證據缺口"
         detail = (

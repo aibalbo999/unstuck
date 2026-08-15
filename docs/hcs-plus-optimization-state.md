@@ -2181,6 +2181,12 @@
 - 新增 `items_returned` 與 `items_truncated`，watchlist 工作台在截斷時顯示「目前顯示 N 份，另有 M 份未展開」；操作人員需另以報告歷史查詢剩餘項目，不擴大 daily action queue、不自動修 artifact/index。
 - RED→GREEN 鎖定 audit envelope、前端摘要與 docs contract；空 audit、unavailable audit 與既有唯讀 preview 行為保持相容。
 
+## D3537：修正品質 repair 的 top-level mapping 邊界
+
+- 以 `MappingProxyType` 實測發現 `quality_metadata_repair_item()` 直接呼叫 `dict.get(report, ...)` 會拋 `TypeError`；這是 mapping-safe contract 的真實缺口，不是資料品質本身的缺 gate。
+- helper 現在先把 top-level report 與 nested gate 轉成安全 dict，再執行既有 verified snapshot 與三 gate status/verdict 判定；不改 priority、reason code、唯讀或 artifact 邊界。
+- RED→GREEN 補上 mapping-safe repair regression、API/operator docs contract、compile 與既有 audit/repair regression，避免容器形狀錯誤中斷全量稽核。
+
 綜合視角：
 
 - `#可驗證性`：每個模式的報告模板與決策用途必須有測試與文件可查。
