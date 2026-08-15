@@ -2,6 +2,15 @@
 
 更新時間：2026-08-15
 
+## D3523 / 品質 metadata repair module 責任拆分
+
+- `#拆解問題` / `#差距分析`：完整 import boundary 的唯一紅燈是 `report_quality_repair_items.py` 超過既有 `<190` 行責任護欄；根因是 D3521 把新的品質 metadata 判定直接加進共用 repair helper。
+- `#限制條件` / `#最佳化`：不壓縮語句、不放寬 boundary、不改既有呼叫者；新增 `report_quality_metadata_repair.py` 承擔 verified snapshot 與三 gate metadata 缺口判定，原 module 只做相容匯出與其他 repair builders。
+- `#語意含義` / `#責任`：`quality_metadata_repair_item.__module__` 明確指向專責 module，但 queue/audit 仍從既有 `report_quality_repair_items` import，維持既有 API 邊界與 priority 820、manual review、blocks_auto_rerun 行為。
+- `#可驗證性`：先以 ownership contract 及既有行數 test RED，再 GREEN；專責/既有 metadata/import `3 passed`，quality repair/audit/dashboard/frontend `84 passed`，完整 import boundary `503 passed`，新 module compile 通過。
+
+本批暫定決策：將新增品質規則放入 domain-specific module，保留 façade 相容入口；後續新增 repair rule 必須先確認責任模組與 import-boundary 預算。
+
 ## D3522 / 全量品質覆蓋與每日 action scope 分離
 
 - `#拆解問題` / `#差距分析`：近期 20 份報告是可執行的每日工作範圍，不等於 report index 的全部最新 row；live 全量為 160 份，若只看 sample 會漏掉歷史品質 metadata 缺口。

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from mapping_fields import safe_dict_list, safe_mapping_dict, safe_text, safe_text_list
+from report_quality_metadata_repair import quality_metadata_repair_item
 
 GateRule = tuple[str, int, str, str, str, str, list[str], bool]
 
@@ -29,30 +30,6 @@ EVIDENCE_EXIT_GATE_RULES: dict[str, GateRule] = {
 
 def content_credibility_repair_item(report: dict[str, Any]) -> dict[str, Any] | None:
     return _gate_repair_item(report, "content_credibility", "status", CONTENT_CREDIBILITY_RULES)
-
-
-def quality_metadata_repair_item(report: dict[str, Any]) -> dict[str, Any] | None:
-    snapshot_integrity = _dict(_field(report, "snapshot_integrity"))
-    if _status(_field(snapshot_integrity, "status")) != "verified":
-        return None
-    missing = [
-        gate_key
-        for gate_key in ("report_conformance", "evidence_exit_gate", "content_credibility")
-        if not _quality_gate_recorded(_field(report, gate_key))
-    ]
-    if not missing:
-        return None
-    detail = f"報告未記錄 {'、'.join(missing)} 品質證據，採用前需人工查看。"
-    return _item(
-        severity="blocked",
-        priority=820,
-        action="manual_review",
-        label="人工審核",
-        title="品質證據未記錄",
-        detail=detail,
-        reason_codes=["quality_metadata_missing"],
-        blocks_auto_rerun=True,
-    )
 
 
 def report_conformance_repair_item(report: dict[str, Any]) -> dict[str, Any] | None:
@@ -172,11 +149,6 @@ def _field(mapping: dict[str, Any], key: str, default: Any = None) -> Any:
 
 def _status(value: Any) -> str:
     return safe_text(value).strip().lower()
-
-
-def _quality_gate_recorded(value: Any) -> bool:
-    gate = _dict(value)
-    return bool(_status(_field(gate, "status")) or _status(_field(gate, "verdict")))
 
 
 def _safe_bool(value: Any) -> bool:

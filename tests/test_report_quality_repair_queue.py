@@ -99,6 +99,13 @@ def test_report_quality_repair_items_project_missing_quality_metadata():
     }
 
 
+def test_quality_metadata_repair_item_is_owned_by_dedicated_module():
+    assert importlib.util.find_spec("report_quality_metadata_repair") is not None
+    helpers = importlib.import_module("report_quality_repair_items")
+
+    assert helpers.quality_metadata_repair_item.__module__ == "report_quality_metadata_repair"
+
+
 def test_repair_queue_prioritizes_content_credibility_blocked_before_stale_snapshot():
     from report_quality_repair_queue import build_report_quality_repair_queue
 
