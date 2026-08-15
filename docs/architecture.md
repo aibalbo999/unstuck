@@ -173,7 +173,7 @@ The daily decision dashboard (`GET /api/watchlist/daily-dashboard`) consumes rec
 
 獨立的 `GET /api/watchlist/report-quality-audit/historical` 會以 `scope=all_historical_indexed_reports`、`selection_basis=all_indexed_versions` 讀取符合 `q`/`pipeline` 篩選的索引版本品質 coverage；它維持 read-only，不進每日 decision queue，也不寫入 artifact、report index 或 rerun 任務。
 
-歷史頁勾選「顯示舊版報告」後，前端以目前搜尋與 pipeline 篩選呼叫同一 historical endpoint；`history_quality_audit` 只負責摘要與 report preview target，並在背景載入，不阻塞既有歷史報告列表。
+歷史頁勾選「顯示舊版報告」後，前端以目前搜尋與 pipeline 篩選呼叫同一 historical endpoint；`history_quality_audit` 只負責摘要與 report preview target，並在背景載入，不阻塞既有歷史報告列表。模組以 load generation 實作 latest-request-wins，避免快速切換篩選時舊回應覆蓋新範圍。
 
 品質稽核 envelope 的 `missing_quality_field_counts` 會在 verified snapshot 範圍內按三個品質 gate 分組缺口，讓操作人員能排序人工核對；它不被解讀成通過率，也不會觸發重跑。
 

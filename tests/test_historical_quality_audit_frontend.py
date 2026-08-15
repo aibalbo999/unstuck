@@ -109,6 +109,45 @@ def test_history_quality_audit_module_filters_requests_and_reuses_open_report_ca
     assert payload["hidden"] is True
 
 
+def test_history_quality_audit_ignores_stale_filter_response():
+    helper_path = STATIC_DIR / "history_panel_quality_helpers.js"
+    module_path = STATIC_DIR / "history_quality_audit.js"
+    script = """
+(async () => {
+  global.window = {};
+  require(__HELPER_PATH__);
+  require(__MODULE_PATH__);
+  const pending = {};
+  const element = {
+    hidden: true,
+    innerHTML: '',
+    setAttribute: () => {},
+    removeAttribute: () => {},
+    addEventListener: () => {}
+  };
+  const audit = window.StockAgentHistoricalQualityAudit.create({
+    apiClient: {
+      fetchHistoricalReportQualityAudit: params => new Promise(resolve => { pending[params.query] = resolve; })
+    },
+    ui: { escapeHtml: value => String(value ?? '') },
+    element
+  });
+  const stale = audit.load({ includeVersions: true, query: 'old', pipelineFilter: 'all' });
+  const latest = audit.load({ includeVersions: true, query: 'new', pipelineFilter: 'v2' });
+  pending.new({ audited_reports: 1, quality_metadata_missing_reports: 0, items: [] });
+  await latest;
+  pending.old({ audited_reports: 9, quality_metadata_missing_reports: 9, items: [] });
+  await stale;
+  process.stdout.write(JSON.stringify({ html: element.innerHTML }));
+})();
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path))).replace("__MODULE_PATH__", json.dumps(str(module_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "範圍：1 份" in payload["html"]
+    assert "範圍：9 份" not in payload["html"]
+
+
 def test_history_workspace_wires_historical_quality_audit_without_daily_queue_side_effects():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     api_client = (STATIC_DIR / "api_client_extensions.js").read_text(encoding="utf-8")

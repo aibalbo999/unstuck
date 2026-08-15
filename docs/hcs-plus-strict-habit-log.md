@@ -2,6 +2,14 @@
 
 更新時間：2026-08-16
 
+## D3546 / 歷史品質稽核篩選回應一致性
+
+- `#差距分析` / `#系統動力學`：歷史稽核是背景請求；搜尋或 pipeline 連續變更會形成多個 in-flight request，完成順序不一定等於操作順序，舊 coverage 可能覆蓋新範圍。
+- `#偏誤降低` / `#責任`：`history_quality_audit` 以 `loadVersion` 保存單一模組責任，只有最後一次 load 能 render；includeVersions 關閉、API 不存在與 exception 路徑也不讓過期 response 改寫畫面。
+- `#可驗證性`：新增延遲 response Node harness，先完成新範圍 `1` 份，再完成舊範圍 `9` 份；RED 確認舊值覆蓋，GREEN 確認畫面仍保留 `範圍：1 份`。專屬前端 suite `4 passed`。
+
+本批暫定決策：只修正前端 response ordering，不在 API 增加取消機制或改變 audit selection；既有 read-only、背景載入與 openReport 行為維持不變。
+
 ## D3545 / 歷史品質稽核進入操作閉環
 
 - `#受眾` / `#差距分析`：API 已有 1330 份 historical coverage 與 143 個缺口，但歷史頁沒有入口；操作員若不使用 curl，無法在既有報告流程中定位缺口。

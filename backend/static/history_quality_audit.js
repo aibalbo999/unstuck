@@ -4,6 +4,7 @@
         const ui = options.ui;
         const element = options.element;
         const openReport = options.openReport || (() => {});
+        let loadVersion = 0;
 
         function render(audit) {
             if (!element) return;
@@ -20,20 +21,22 @@
         }
 
         async function load(values) {
+            const requestVersion = ++loadVersion;
             if (!values?.includeVersions) {
-                render(null);
+                if (requestVersion === loadVersion) render(null);
                 return;
             }
             const fetchAudit = apiClient?.fetchHistoricalReportQualityAudit;
             if (typeof fetchAudit !== 'function') {
-                render({ status: 'unavailable' });
+                if (requestVersion === loadVersion) render({ status: 'unavailable' });
                 return;
             }
             render({ status: 'loading' });
             try {
-                render(await fetchAudit({ itemLimit: 5, query: values.query, pipeline: values.pipelineFilter }));
+                const audit = await fetchAudit({ itemLimit: 5, query: values.query, pipeline: values.pipelineFilter });
+                if (requestVersion === loadVersion) render(audit);
             } catch (_error) {
-                render({ status: 'unavailable' });
+                if (requestVersion === loadVersion) render({ status: 'unavailable' });
             }
         }
 
