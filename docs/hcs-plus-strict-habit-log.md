@@ -8303,6 +8303,28 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 - D3376-D3387 adjacent regression：`60 passed, 3740 deselected in 423.61s`。
 - completion gate：import boundary `503 passed in 11.00s`；HCS/文件契約 `135 passed in 3.50s`；`py_compile` exit 0；`git diff --check` exit 0；trailing-whitespace 無命中；runtime doctor exit 0，canonical operational DB 為 `backend/cache/operational.sqlite3`、report index 為 `backend/cache/stock_agent_cache.sqlite3`，Redis 為 `redis://localhost:6379/0`；parser/detector 行數維持 `349/189`。
 
+### 完成後維護 / D3511 / #拆解問題 #問對問題 #差距分析 #變數分析 #偏誤降低 #決策樹 #目的 #效用 #證據基礎 #來源品質 #可驗證性
+
+本次使用：live c998 v3 retry 的 canonical event ledger 顯示 Agent 18 的 gemma primary quota sweep 失敗並開啟 model circuit，但平行 Agent 20 成功分支完成後，Agent 21 仍重新呼叫 gemma。根因不是 D3509 的 state 欄位缺失，而是 LangGraph 平行 delta 使用一般 top-level merge，成功分支的空 circuit map 覆蓋了失敗分支的 open state。
+
+核心判斷
+
+1. 平行 Agent 的 model circuit reducer 必須保留任一分支的 open circuit，不能把成功分支的空 map 當成清除訊號。
+2. 同一模型多個分支同時失敗時，應保留較大的 failure count 與較晚的 opened-until，讓後續 Agent 直接走 fallback。
+3. reducer 只作用於同一 job 的 checkpoint state，不改跨 job quota policy，也不阻止第一輪完整 key sweep。
+
+落地修改
+
+1. `backend/workflow_state.py` 新增 `merge_model_circuits`，替換 `llm_model_circuits` 的一般 `merge_dicts` reducer。
+2. `tests/test_workflow_agent_adapter.py` 新增成功/失敗平行分支與較新熔斷窗口 regression。
+3. 保留 D3510 context-digest guard；本批只修正平行 graph delta 的 state merge 邊界。
+
+驗證方式
+
+- workflow/state regression：`21 passed`；context-digest/import regression：`3 passed`。
+- RED evidence：live c998 Agent 18 開啟 gemma circuit 後，Agent 21 仍有 gemma calls；修正後以 reducer tests 鎖定「空成功分支不得清除 open circuit」。
+- completion gate：`compileall` exit 0；`git diff --check` exit 0；尚待新 Worker 載入本批 commit 後重做 live event verification。
+
 ### 完成後維護 / D3510 / #拆解問題 #問對問題 #差距分析 #變數分析 #偏誤降低 #決策樹 #目的 #效用 #證據基礎 #來源品質 #可驗證性
 
 本次使用：新版 Worker `51862` 執行 f28 v4 report 已完成，event ledger 顯示 Agent 23 完成 `gemma-4-31b-it` 的 16-key quota sweep 後切換 fallback；同一 job 的後續 Agent 24 只呼叫 fallback。接著觀察新版 a4d9 v2 retry，發現 Agent 14 的 primary quota sweep 後，Agent 21 的前序 context digest 仍準備呼叫 gemma；這是獨立 direct caller 沒有讀取 job model circuit 的邊界。

@@ -18,6 +18,29 @@ def merge_dicts(left: dict[str, Any] | None, right: dict[str, Any] | None) -> di
     return merged
 
 
+def merge_model_circuits(
+    left: dict[str, dict[str, Any]] | None,
+    right: dict[str, dict[str, Any]] | None,
+) -> dict[str, dict[str, Any]]:
+    """Keep the strongest model circuit when parallel agents finish together."""
+
+    merged = copy.deepcopy(left or {})
+    for model_id, candidate in (right or {}).items():
+        if not isinstance(candidate, dict):
+            continue
+        existing = merged.get(str(model_id))
+        if not isinstance(existing, dict):
+            merged[str(model_id)] = copy.deepcopy(candidate)
+            continue
+        existing_failures = int(existing.get("failures") or 0)
+        candidate_failures = int(candidate.get("failures") or 0)
+        existing_opened_until = float(existing.get("opened_until") or 0.0)
+        candidate_opened_until = float(candidate.get("opened_until") or 0.0)
+        strongest = candidate if (candidate_opened_until, candidate_failures) > (existing_opened_until, existing_failures) else existing
+        merged[str(model_id)] = copy.deepcopy(strongest)
+    return merged
+
+
 def append_unique(left: list[Any] | None, right: list[Any] | None) -> list[Any]:
     """Append graph list deltas while de-duplicating stable items."""
 
@@ -75,7 +98,7 @@ class AgentGraphState(TypedDict, total=False):
     context_digests: Annotated[dict[str, str], merge_dicts]
     rag_context: Annotated[dict[str, str], merge_dicts]
     llm_token_usage: Annotated[dict[str, dict[str, int]], merge_dicts]
-    llm_model_circuits: Annotated[dict[str, dict[str, Any]], merge_dicts]
+    llm_model_circuits: Annotated[dict[str, dict[str, Any]], merge_model_circuits]
     rag_status: dict[str, Any]
     blocking_issues: Annotated[list[str], append_unique]
     audit_repair_log: Annotated[list[str], append_unique]

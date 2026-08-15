@@ -34,7 +34,7 @@ from workflow_graph import (
 )
 import workflow_services  # noqa: E402
 from workflow_services import initialize_graph_state
-from workflow_state import agent_state_to_graph
+from workflow_state import agent_state_to_graph, merge_model_circuits
 
 
 class FakeRotator:
@@ -211,6 +211,38 @@ def test_model_circuit_state_is_visible_to_next_agent_node(monkeypatch):
     asyncio.run(services.run_agent(2, next_state))
 
     assert seen_open == [False, True]
+
+
+def test_parallel_model_circuit_reducer_preserves_open_branch_against_success_branch():
+    opened = {
+        "gemma-4-31b-it": {
+            "failures": 1,
+            "opened_until": 4_000_000_000.0,
+            "last_error": "all keys exhausted",
+        }
+    }
+
+    assert merge_model_circuits(opened, {}) == opened
+    assert merge_model_circuits({}, opened) == opened
+
+
+def test_parallel_model_circuit_reducer_keeps_latest_open_window():
+    earlier = {
+        "gemma-4-31b-it": {
+            "failures": 1,
+            "opened_until": 4_000_000_000.0,
+            "last_error": "first failure",
+        }
+    }
+    later = {
+        "gemma-4-31b-it": {
+            "failures": 2,
+            "opened_until": 4_000_100_000.0,
+            "last_error": "later failure",
+        }
+    }
+
+    assert merge_model_circuits(earlier, later) == later
 
 
 def test_analysis_pipeline_runner_invokes_langgraph_and_preserves_result_contract(monkeypatch):
