@@ -2,6 +2,14 @@
 
 更新時間：2026-08-16
 
+## D3547 / 品質完整度分母與 snapshot 驗證邊界
+
+- `#語意含義` / `#來源品質`：API 的 coverage 是以 `verified_snapshot_reports` 為分母，不能把 `audited_reports` 或被排除的 invalid/unverified rows 說成完整證據。
+- `#偏誤降低` / `#受眾`：歷史稽核摘要明示完整度百分比與「分母：已驗證快照」，另列 `snapshot 無法驗證` 的 invalid/未驗證數；無缺口時也只宣稱 verified snapshot 沒有 metadata 缺口。
+- `#可驗證性`：新增完整度與驗證邊界 fixture；RED 確認舊 UI 不呈現 basis，GREEN `6 passed` 確認 `89.25%` 與 `1 invalid/2 未驗證` 都可見，並鎖住 renderer/helper cache-buster 與 size boundary。
+
+本批暫定決策：只補充現有 API evidence 的正確呈現，不改 coverage 計算、audit scope、artifact 或 daily queue 行為。
+
 ## D3546 / 歷史品質稽核篩選回應一致性
 
 - `#差距分析` / `#系統動力學`：歷史稽核是背景請求；搜尋或 pipeline 連續變更會形成多個 in-flight request，完成順序不一定等於操作順序，舊 coverage 可能覆蓋新範圍。

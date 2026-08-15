@@ -16,7 +16,7 @@
             }
             element.hidden = false;
             element.setAttribute('aria-busy', 'true');
-            element.innerHTML = window.StockAgentHistoryPanelQualityHelpers.renderHistoricalQualityAudit(audit, ui.escapeHtml);
+            element.innerHTML = window.StockAgentHistoricalQualityAuditRenderer.render(audit, ui.escapeHtml);
             element.removeAttribute('aria-busy');
         }
 

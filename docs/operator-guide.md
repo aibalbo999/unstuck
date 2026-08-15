@@ -99,7 +99,7 @@ The read-only report quality audit exposes `missing_quality_fields` on each affe
 
 若要檢查歷史版本，不要把它和每日待辦混在一起：使用 `GET /api/watchlist/report-quality-audit/historical`。這個唯讀入口的 `scope=all_historical_indexed_reports`、`selection_basis=all_indexed_versions` 會掃描索引版本；可用既有 `q` 與 `pipeline` 篩選 ticker/模式，篩選後的 `audited_reports` 是符合條件的全部版本。只想看數字時加上 `item_limit=0`。它不會自動修復 artifact、不會 enqueue rerun，也不會寫入 report index。
 
-歷史報告頁勾選「顯示舊版報告」後，會用目前的搜尋代號與報告類型同步顯示同一範圍的品質稽核摘要；稽核區只列最多 5 個可直接查看的報告 target，沿用既有報告 preview，不會把歷史缺口加入「今日待處理」。快速切換搜尋或報告類型時，畫面只採用最後一次篩選的結果。
+歷史報告頁勾選「顯示舊版報告」後，會用目前的搜尋代號與報告類型同步顯示同一範圍的品質稽核摘要；摘要會標示「品質 metadata 完整度」的分母是已驗證 snapshot，若有 invalid 或未驗證 snapshot 會另外警示，避免把排除資料當成完整證據。稽核區只列最多 5 個可直接查看的報告 target，沿用既有報告 preview，不會把歷史缺口加入「今日待處理」。快速切換搜尋或報告類型時，畫面只採用最後一次篩選的結果。
 
 Report quality metadata repair accepts mapping-safe top-level report envelopes and nested gate mappings; a read-only mapping wrapper is treated as the same payload shape as a normal report dictionary and must not interrupt audit classification.
 

@@ -9,12 +9,18 @@ STATIC_DIR = ROOT / "backend" / "static"
 
 def test_history_quality_helper_renders_read_only_historical_audit_summary_and_targets():
     helper_path = STATIC_DIR / "history_panel_quality_helpers.js"
+    renderer_path = STATIC_DIR / "history_quality_audit_render.js"
     script = """
 global.window = {};
 require(__HELPER_PATH__);
+require(__RENDERER_PATH__);
 const audit = {
   scope: 'all_historical_indexed_reports',
   audited_reports: 1330,
+  quality_metadata_coverage_pct: 89.25,
+  quality_metadata_coverage_basis: 'verified_snapshot_reports',
+  snapshot_invalid_reports: 0,
+  snapshot_unverified_reports: 0,
   quality_metadata_missing_reports: 143,
   missing_quality_field_counts: {
     report_conformance: 143,
@@ -48,9 +54,9 @@ const audit = {
     }
   ]
 };
-const html = window.StockAgentHistoryPanelQualityHelpers.renderHistoricalQualityAudit(audit, value => String(value ?? ''));
+const html = window.StockAgentHistoricalQualityAuditRenderer.render(audit, value => String(value ?? ''));
 process.stdout.write(JSON.stringify({ html }));
-""".replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path))).replace("__RENDERER_PATH__", json.dumps(str(renderer_path)))
     result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
     payload = json.loads(result.stdout)
 
@@ -60,6 +66,7 @@ process.stdout.write(JSON.stringify({ html }));
     assert "來源：刷新後缺口 143" in payload["html"]
     assert "模式缺口：v1 36、v2 36" in payload["html"]
     assert "另有 141 份未展開" in payload["html"]
+    assert "品質 metadata 完整度：89.25%（分母：已驗證快照）" in payload["html"]
     assert 'data-quality-audit-report="1623_TW_v2.html"' in payload["html"]
     assert 'data-quality-reason-codes="quality_metadata_missing,quality_metadata_after_refresh"' in payload["html"]
     assert "查看 1623.TW v2 · 2026-08-15 15:47" in payload["html"]
@@ -67,11 +74,13 @@ process.stdout.write(JSON.stringify({ html }));
 
 def test_history_quality_audit_module_filters_requests_and_reuses_open_report_callback():
     helper_path = STATIC_DIR / "history_panel_quality_helpers.js"
+    renderer_path = STATIC_DIR / "history_quality_audit_render.js"
     module_path = STATIC_DIR / "history_quality_audit.js"
     script = """
 (async () => {
   global.window = {};
   require(__HELPER_PATH__);
+  require(__RENDERER_PATH__);
   require(__MODULE_PATH__);
   let clickHandler;
   let captured;
@@ -100,7 +109,7 @@ def test_history_quality_audit_module_filters_requests_and_reuses_open_report_ca
   await audit.load({ includeVersions: false, query: '1623.TW', pipelineFilter: 'v2' });
   process.stdout.write(JSON.stringify({ captured, opened, hidden: element.hidden }));
 })();
-""".replace("__HELPER_PATH__", json.dumps(str(helper_path))).replace("__MODULE_PATH__", json.dumps(str(module_path)))
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path))).replace("__RENDERER_PATH__", json.dumps(str(renderer_path))).replace("__MODULE_PATH__", json.dumps(str(module_path)))
     result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
     payload = json.loads(result.stdout)
 
@@ -111,11 +120,13 @@ def test_history_quality_audit_module_filters_requests_and_reuses_open_report_ca
 
 def test_history_quality_audit_ignores_stale_filter_response():
     helper_path = STATIC_DIR / "history_panel_quality_helpers.js"
+    renderer_path = STATIC_DIR / "history_quality_audit_render.js"
     module_path = STATIC_DIR / "history_quality_audit.js"
     script = """
 (async () => {
   global.window = {};
   require(__HELPER_PATH__);
+  require(__RENDERER_PATH__);
   require(__MODULE_PATH__);
   const pending = {};
   const element = {
@@ -140,12 +151,37 @@ def test_history_quality_audit_ignores_stale_filter_response():
   await stale;
   process.stdout.write(JSON.stringify({ html: element.innerHTML }));
 })();
-""".replace("__HELPER_PATH__", json.dumps(str(helper_path))).replace("__MODULE_PATH__", json.dumps(str(module_path)))
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path))).replace("__RENDERER_PATH__", json.dumps(str(renderer_path))).replace("__MODULE_PATH__", json.dumps(str(module_path)))
     result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
     payload = json.loads(result.stdout)
 
     assert "範圍：1 份" in payload["html"]
     assert "範圍：9 份" not in payload["html"]
+
+
+def test_history_quality_helper_surfaces_snapshot_verification_boundary():
+    helper_path = STATIC_DIR / "history_panel_quality_helpers.js"
+    renderer_path = STATIC_DIR / "history_quality_audit_render.js"
+    script = """
+global.window = {};
+require(__HELPER_PATH__);
+require(__RENDERER_PATH__);
+const html = window.StockAgentHistoricalQualityAuditRenderer.render({
+  audited_reports: 10,
+  quality_metadata_coverage_pct: 100,
+  quality_metadata_coverage_basis: 'verified_snapshot_reports',
+  snapshot_invalid_reports: 1,
+  snapshot_unverified_reports: 2,
+  quality_metadata_missing_reports: 0,
+  items: []
+}, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ html }));
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path))).replace("__RENDERER_PATH__", json.dumps(str(renderer_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "品質 metadata 完整度：100%（分母：已驗證快照）" in payload["html"]
+    assert "snapshot 無法驗證 3 份（invalid 1、未驗證 2）" in payload["html"]
 
 
 def test_history_workspace_wires_historical_quality_audit_without_daily_queue_side_effects():
@@ -156,7 +192,12 @@ def test_history_workspace_wires_historical_quality_audit_without_daily_queue_si
     workspace = (STATIC_DIR / "history_workspace.js").read_text(encoding="utf-8")
 
     assert 'id="history-quality-audit"' in index_html
+    assert "/static/history_panel_quality_helpers.js?v=20260816-historical-quality-basis" in index_html
+    assert "/static/history_quality_audit_render.js?v=20260816-historical-quality-basis" in index_html
     assert "/static/history_quality_audit.js?v=20260816-historical-quality-audit" in index_html
+    assert index_html.index("/static/history_quality_audit_render.js") < index_html.index("/static/history_quality_audit.js")
+    assert len((STATIC_DIR / "history_panel_quality_helpers.js").read_text(encoding="utf-8").splitlines()) < 120
+    assert len((STATIC_DIR / "history_quality_audit_render.js").read_text(encoding="utf-8").splitlines()) < 100
     assert "fetchHistoricalReportQualityAudit" in api_client
     assert "historyQualityAudit" in app_elements
     assert "historyQualityAudit" in app_panels
