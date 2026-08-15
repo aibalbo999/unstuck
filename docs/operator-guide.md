@@ -71,7 +71,7 @@ Queue workers consume every name in `TASK_QUEUE_NAMES`. Keep `TASK_QUEUE_NAME` f
 
 RQ retry behavior is configured with `RQ_JOB_MAX_RETRIES` and `RQ_JOB_RETRY_INTERVALS`; long-running job timeout is configured with `RQ_JOB_TIMEOUT_SECONDS` (default 4 hours). The queue role runs the RQ scheduler so delayed retries stored in `ScheduledJobRegistry` are promoted back to runnable queues. A job waiting for a delayed retry uses status `waiting_retry` and remains active in duplicate-job checks and dashboards.
 
-The ops dashboard `stuck_jobs` warning only includes `running` and `waiting_retry` jobs whose status has not updated past the threshold. Older `queued` work is queue backlog, so use the RQ queue depth and `oldest_queued_seconds` fields to assess queue pressure instead of treating normal waiting work as a stuck execution.
+The ops dashboard `stuck_jobs` warning only includes `running` and `waiting_retry` jobs whose status has not updated past the threshold. When the dashboard can inspect the same RQ task, a `waiting_retry` job explicitly in `queued`, `deferred`, or `scheduled` state is treated as queue wait rather than stuck execution; `started`, unknown, or unreadable RQ state remains eligible for the warning. Older `queued` work is queue backlog, so use the RQ queue depth and `oldest_queued_seconds` fields to assess queue pressure instead of treating normal waiting work as a stuck execution.
 
 When a Worker restarts, RQ queued, deferred, or scheduled retry jobs are reconciled to SQLite status `waiting_retry`; only a live started/current claim remains `running`.
 

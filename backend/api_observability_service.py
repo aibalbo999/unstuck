@@ -144,6 +144,7 @@ async def build_ops_dashboard_payload(
             completed_limit=completed_limit,
             telemetry_limit=telemetry_limit,
             stuck_after_seconds=stuck_after_seconds,
+            task_queue=task_queue,
         ),
         build_provider_sla_payload(summary_fetcher, alerts_fetcher, provider_limit, window="last_24h"),
         build_api_quota_payload(summary_fetcher),

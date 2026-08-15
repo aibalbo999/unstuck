@@ -2085,6 +2085,40 @@ def test_ops_dashboard_summarizes_latency_stuck_jobs_and_node_telemetry(monkeypa
     assert "secret-should-hide" not in str(payload)
 
 
+def test_ops_dashboard_excludes_queue_backed_waiting_retry_from_stuck_jobs(monkeypatch, tmp_path):
+    db_path = tmp_path / "jobs.sqlite3"
+    monkeypatch.setattr(job_store, "TASK_DB_PATH", str(db_path))
+    monkeypatch.setattr(job_observability, "TASK_DB_PATH", str(db_path))
+    job_store.reset_job_store_for_tests()
+    job_id = job_store.create_job("2465.TW", "v4")
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            UPDATE analysis_jobs
+            SET status = 'waiting_retry', updated_at = ?, started_at = ?
+            WHERE job_id = ?
+            """,
+            (100.0, 0.0, job_id),
+        )
+
+    class FakeRqJob:
+        def get_status(self, refresh=True):
+            return "queued"
+
+    class FakeRqQueue:
+        def fetch_job(self, task_id):
+            return FakeRqJob() if task_id == f"analysis:{job_id}" else None
+
+    payload = job_observability.build_ops_dashboard_snapshot(
+        db_path=str(db_path),
+        now=2_000.0,
+        stuck_after_seconds=900,
+        task_queue=SimpleNamespace(queue=FakeRqQueue()),
+    )
+
+    assert payload["stuck_jobs"]["count"] == 0
+
+
 def test_queue_observability_reports_rq_depth_and_registries():
     class FakeRedis:
         def ping(self):

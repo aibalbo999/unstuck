@@ -1321,7 +1321,7 @@ curl http://127.0.0.1:8080/api/observability/dashboard
 curl http://127.0.0.1:8080/api/ops/dashboard
 ```
 
-`stuck_jobs` 只包含 `running` 與 `waiting_retry` 超過未更新門檻的工作；`queued` backlog 應以 RQ queue depth 與 `oldest_queued_seconds` 判斷。
+`stuck_jobs` 只包含 `running` 與 `waiting_retry` 超過未更新門檻的工作；若同一 task identity 可由 RQ 明確確認為 `queued`、`deferred` 或 `scheduled`，則 `waiting_retry` 視為 queue wait 而不列入 stuck。`started`、unknown 或 RQ 查詢失敗仍保留告警資格；一般 `queued` backlog 應以 RQ queue depth 與 `oldest_queued_seconds` 判斷。
 
 回傳內容包含報告完成耗時 `p50/p95/p99`、active job count、stuck job warning、node/model telemetry summary、`prompt_budget` token 摘要、RQ queue depth/registry counts、provider 24 小時 degradation alerts、API quota ledger 摘要、`notification_delivery` sender audit health，以及 `free_mode` 免費模式合約摘要。`notification_delivery` 會揭露 `failed_count`、`retry_exhausted_count`、`channel_counts`、`failure_reason_counts`、`attention_contexts` 與 `health`；`attention_contexts` 是低量 failed delivery context snapshot，讓 operator 或 repair flow 可定位受影響 source、ticker、report 與 CTA。當 delivery audit 出現 failed 或 retry exhausted 時，dashboard `status` 會升為 `warning`。`status` 可能是 `ok`、`warning` 或 `critical`。
 

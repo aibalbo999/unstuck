@@ -1,6 +1,7 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-15
+- D3514：live dashboard 的 `6ccedf...` 在 canonical `operational.sqlite3` 是老化 `waiting_retry`，但 Redis/RQ `watchlist` 仍明確為 `queued`；dashboard 只看 SQLite 時把正常 queue wait 誤報成 stuck。新增 queue-aware stuck predicate：只有明確 `queued/deferred/scheduled` 才排除 `waiting_retry`，`started`、unknown 或無法查詢仍保留告警；完成 RED/GREEN、observability/worker/queue regression，待 API 重啟後再做同一 job 的 live post-fix predicate verify。
 - D3513：新 Worker 的 `3443.TW` baseline 顯示 Agent 22/23 都完成 quota retry，但 `model_failed.circuit_open=false`；canonical policy 只在觀察到全部唯一 key slot 時標記 exhausted，slot 重複時即使達到 `key_count*2` ceiling 仍不開 circuit。新增 ceiling exhausted marker 與 regression，讓 D3512 在 repeated-slot quota storm 也能 fail-fast。
 - D3512：live v4 `2344.TW` 的平行 Agent 22/23 各自對 gemma 進行約 21/32 次 quota retry；Agent 22 已 `circuit_open=true` 後，另一分支仍繼續 provider calls。新增 job-scoped `KeyRotator` model circuit、tenacity peer-circuit fail-fast 與 `shared_circuit_open` event metadata；先完成 RED/GREEN 與模型/rotator/graph regression，待新 Worker 載入後驗證 provider call 數下降。
 - D3511：live c998 v3 retry 進一步證明 D3509 的 graph state 在平行群組仍有 reducer 缺口：Agent 18 對 gemma 開啟熔斷後，平行 Agent 20 的成功分支以空字典覆蓋，後續 Agent 21 再次送出 gemma。新增 `merge_model_circuits`，平行 delta 取較強的 failure/opened-until 狀態；新增 reducer regression，workflow adapter `21 passed`、context-digest/import regression `3 passed`。

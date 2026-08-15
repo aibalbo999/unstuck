@@ -8303,6 +8303,28 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 - D3376-D3387 adjacent regression：`60 passed, 3740 deselected in 423.61s`。
 - completion gate：import boundary `503 passed in 11.00s`；HCS/文件契約 `135 passed in 3.50s`；`py_compile` exit 0；`git diff --check` exit 0；trailing-whitespace 無命中；runtime doctor exit 0，canonical operational DB 為 `backend/cache/operational.sqlite3`、report index 為 `backend/cache/stock_agent_cache.sqlite3`，Redis 為 `redis://localhost:6379/0`；parser/detector 行數維持 `349/189`。
 
+### 完成後維護 / D3514 / #拆解問題 #問對問題 #差距分析 #變數分析 #偏誤降低 #決策樹 #目的 #效用 #證據基礎 #來源品質 #可驗證性
+
+本次使用：live `/api/observability/dashboard` 的 `6ccedf...` 顯示 SQLite `waiting_retry` 且超過 900 秒，但同一 task identity `analysis:6ccedf...` 仍在 RQ `watchlist` queue，RQ status 為 `queued`。根因是 dashboard stuck query 只讀 canonical SQLite，沒有使用同一 API request 已取得的 queue state。
+
+核心判斷
+
+1. `waiting_retry` 仍是 active status，但若 RQ 明確為 `queued/deferred/scheduled`，它代表等待 Worker 接續，不應升格為 stuck execution。
+2. `started` 仍可能是長時間執行中的真正卡住候選；RQ status unknown 或檢查失敗時不能樂觀排除告警。
+3. queue-aware filter 必須使用與 worker 相同的 `analysis:` / `report-rerun:` task identity，且只改 dashboard projection，不改 SQLite status、RQ job 或 retry lifecycle。
+
+落地修改
+
+1. `backend/analysis_job_queue_state.py` 新增 `task_queue_job_state`，保留既有 queue lookup 的 unknown 三態語意。
+2. `backend/job_ops_dashboard.py` 接收 API 的 task queue，只排除明確 queue-wait 的 `waiting_retry`；`backend/api_observability_service.py` 傳入同一 queue instance。
+3. `tests/test_runtime_observability.py` 新增老化 SQLite `waiting_retry` 對應 RQ `queued` 時不得列入 stuck 的回歸測試，並保留既有真正 stuck 與 RQ lookup failure 覆蓋。
+
+驗證方式
+
+- RED：新測試初始因 `build_ops_dashboard_snapshot()` 不接受 `task_queue` 而失敗。
+- GREEN：queue-backed waiting-retry focused regression `4 passed`；observability + worker regression `167 passed`；task queue boundary regression `14 passed`；compileall 與 `git diff --check` 通過。
+- live pre-fix evidence：job `6ccedf...` 的 RQ `watchlist` status 為 `queued`、SQLite status 為 `waiting_retry`；post-fix API restart 與同一 job predicate verify 尚待完成，不把 source regression 當成 live 完成證據。
+
 ### 完成後維護 / D3513 / #拆解問題 #問對問題 #差距分析 #變數分析 #偏誤降低 #決策樹 #目的 #效用 #證據基礎 #來源品質 #可驗證性
 
 本次使用：新 Worker `3e336d8d` 的 v4 `3443.TW` live baseline 顯示 Agent 22/23 都遭遇 gemma quota failure，但兩個 `model_failed` 都是 `circuit_open=false`。追查 retry reducer 後確認，當 provider 反覆選到相同 key slot 時，`key_slots` 集合未達 configured key count；雖然 retry 已達 `key_count*2` ceiling，仍沒有設定 `all_keys_exhausted`。

@@ -6,7 +6,9 @@ import sqlite3
 import time
 from collections import Counter
 from pathlib import Path
+from typing import Any
 
+from analysis_job_queue_state import task_queue_job_state
 from config import TASK_DB_PATH
 from job_store import ACTIVE_JOB_STATUSES
 from job_ops_dashboard_metrics import job_latency_summary, node_telemetry_summary, prompt_budget_summary
@@ -22,6 +24,7 @@ def build_ops_dashboard_snapshot(
     stuck_after_seconds: int = 15 * 60,
     completed_limit: int = 500,
     telemetry_limit: int = 5000,
+    task_queue: Any | None = None,
 ) -> dict:
     path = Path(db_path or TASK_DB_PATH)
     current_time = float(now if now is not None else time.time())
@@ -36,7 +39,7 @@ def build_ops_dashboard_snapshot(
             conn.row_factory = sqlite3.Row
             jobs = _job_latency_rows(conn, safe_completed_limit)
             active_counts = _active_job_counts(conn)
-            stuck_jobs = _stuck_job_rows(conn, current_time, safe_stuck_after)
+            stuck_jobs = _stuck_job_rows(conn, current_time, safe_stuck_after, task_queue=task_queue)
             telemetry_rows = _telemetry_rows(conn, safe_telemetry_limit)
     except sqlite3.Error as exc:
         payload = _empty_ops_dashboard(db_exists=True, stuck_after_seconds=safe_stuck_after)
@@ -134,7 +137,13 @@ def _active_job_counts(conn: sqlite3.Connection) -> Counter:
     return Counter({row["status"]: int(row["count"] or 0) for row in rows})
 
 
-def _stuck_job_rows(conn: sqlite3.Connection, now: float, stuck_after_seconds: int) -> list[dict]:
+def _stuck_job_rows(
+    conn: sqlite3.Connection,
+    now: float,
+    stuck_after_seconds: int,
+    *,
+    task_queue: Any | None = None,
+) -> list[dict]:
     rows = conn.execute(
         f"""
         SELECT job_id, ticker, pipeline_id, status, updated_at, started_at, created_at
@@ -146,18 +155,34 @@ def _stuck_job_rows(conn: sqlite3.Connection, now: float, stuck_after_seconds: i
         """,
         (*STUCK_JOB_STATUSES, now - stuck_after_seconds),
     ).fetchall()
-    return [
-        {
-            "job_id": row["job_id"],
-            "ticker": row["ticker"],
-            "pipeline_id": row["pipeline_id"],
-            "status": row["status"],
-            "updated_at": row["updated_at"],
-            "seconds_since_update": round(max(0.0, now - float(row["updated_at"] or now)), 1),
-            "runtime_seconds": round(max(0.0, now - float(row["started_at"] or row["created_at"] or now)), 1),
-        }
-        for row in rows
-    ]
+    result = []
+    for row in rows:
+        if _is_queue_backed_waiting_retry(row, task_queue):
+            continue
+        result.append(
+            {
+                "job_id": row["job_id"],
+                "ticker": row["ticker"],
+                "pipeline_id": row["pipeline_id"],
+                "status": row["status"],
+                "updated_at": row["updated_at"],
+                "seconds_since_update": round(max(0.0, now - float(row["updated_at"] or now)), 1),
+                "runtime_seconds": round(max(0.0, now - float(row["started_at"] or row["created_at"] or now)), 1),
+            }
+        )
+    return result
+
+
+def _is_queue_backed_waiting_retry(row: sqlite3.Row, task_queue: Any | None) -> bool:
+    if task_queue is None or row["status"] != "waiting_retry":
+        return False
+    pipeline_id = str(row["pipeline_id"] or "")
+    prefix = "report-rerun:" if pipeline_id.startswith("rerun:") else "analysis:"
+    try:
+        state = task_queue_job_state(task_queue, f"{prefix}{row['job_id']}")
+    except Exception:
+        return False
+    return state in {"queued", "deferred", "scheduled"}
 
 
 def _telemetry_rows(conn: sqlite3.Connection, limit: int) -> list[dict]:
