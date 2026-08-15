@@ -207,6 +207,8 @@ daily target 只複用同一筆 `quality_review.status` 做可見與 accessible 
 
 同一 renderer 只從 `quality_review_by_status` 派生目前範圍的人工審核進度；complete rows 不在該 map 中，因此不會被誤放入 review denominator，且切換 filter 會自然重新計算。
 
+daily `watchlist_panel_helpers` 複用同樣的四狀態分子/分母規則，只替 latest-per-ticker/pipeline audit 做呈現；它不把 read-only quality summary 轉成 `decision_queue` action。
+
 ## Event-Driven Radar
 
 ```mermaid

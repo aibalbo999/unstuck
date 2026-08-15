@@ -119,6 +119,8 @@ filtered view 沒有結果時，摘要會寫「目前沒有符合〈狀態〉的
 
 歷史摘要的「人工審核進度：已決策／總缺口」只計算目前 response 範圍內的缺 metadata 報告；切換 pipeline 或 review status 後，分母也會跟著範圍改變，不是全庫永久累計值。
 
+今日工作台的全量報告品質摘要也使用同一個進度算法，但它的範圍是每個 ticker/pipeline 最新一筆；它提供工作量提示與歷史稽核入口，不會把品質 coverage 自動塞進今日決策 queue。
+
 Report quality metadata repair accepts mapping-safe top-level report envelopes and nested gate mappings; a read-only mapping wrapper is treated as the same payload shape as a normal report dictionary and must not interrupt audit classification.
 
 品質完整度不是「欄位有文字就算完成」：`report_conformance`/`content_credibility` 必須是 `passed`、`warning` 或阻斷狀態，`evidence_exit_gate` 必須是 `approved`、`caution` 或 `rejected`；`not_recorded`、`unknown`、`N/A` 仍會列為缺 metadata。

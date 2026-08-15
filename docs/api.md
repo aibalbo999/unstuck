@@ -55,6 +55,8 @@ The response keeps `quality_review_by_status` keys even when a selected status h
 
 The history UI derives its visible review progress from this map: `approved_with_gap + rejected + deferred` is the decided count, and the sum of all four statuses is the missing-quality denominator for the current response scope. Complete reports are never included in that progress denominator.
 
+The daily watchlist board uses the same derivation for its latest-per-ticker/pipeline audit summary, so the two read-only entry points expose the same review workload semantics while remaining separate from `decision_queue` actions.
+
 When `review_status` is not `all`, `quality_metadata_coverage_pct`, `audited_reports`, and pagination counts describe only the selected review-status set. Consumers must not present the filtered coverage percentage as whole-library quality; the history UI labels the selected scope as `審核範圍` and reserves `品質 metadata 完整度` for the unfiltered response.
 
 For a filtered response with `audited_reports=0` and `items_total=0`, the correct interpretation is「目前沒有符合該審核狀態的品質缺口」；it is not evidence that zero reports were complete or that the whole library has zero coverage.

@@ -38,6 +38,7 @@ process.stdout.write(JSON.stringify({ board }));
     assert "artifact 摘要可查 2 份" in payload["board"]
     assert "artifact 欄位可查：報告一致性 2、證據關卡 2、內容可信度 0" in payload["board"]
     assert "審核狀態：待人工核對 2、已核准保留缺口 1" in payload["board"]
+    assert "人工審核進度：1/3" in payload["board"]
 
 
 def test_historical_quality_audit_renders_revision_scoped_review_controls():

@@ -67,6 +67,14 @@
 - `#責任` / `#限制條件`：修改只在 history renderer 與 cache-buster，backend aggregate、review ledger、artifact/index、queue、rerun 與 mutation 不變。
 - `#可驗證性` / `#來源品質`：先以 progress fixture 取得 RED，再 GREEN `11 passed`；維持 renderer 99 行，並以跨層 suite、Node syntax、diff check 與 live asset/health/readiness 作最終驗證。
 
+## D3574 / daily and historical review progress parity
+
+- `#差距分析` / `#受眾`：daily board live 有 `2` 個 latest-scope pending 缺口，但原本只有「審核狀態」分布；history 已有 progress，兩入口對人工工作量的表達不一致。
+- `#語意含義` / `#偏誤降低`：daily 與 history 都以 approved/rejected/deferred 為已決策、四狀態總和為缺口分母；daily 明確仍是 latest-per-ticker/pipeline scope，不冒充 historical 全量。
+- `#溝通設計` / `#責任`：daily 只顯示進度提示並保留「查看歷史版本稽核」入口，不新增 queue action、review mutation 或第二套決策流程。
+- `#限制條件` / `#來源品質`：修改只在 watchlist helper 與 cache-buster，保留 95 行責任護欄與既有 read-only boundary。
+- `#可驗證性`：先以 daily fixture 取得 RED，再 GREEN `15 passed`；並以跨層 suite、Node syntax、diff check 與 live daily asset/summary/ledger 檢查收斂。
+
 ## D3564 / model-level quota observability boundary
 
 - `#證據基礎` / `#來源品質`：live dashboard 只提供 aggregate Gemini quota error，無法把 `2909` 次 observed calls 與 `2569` 次 errors 對齊到模型；先以同一 `api_usage_events` reset window 分組 `observed_model_calls`、`quota_error` 與 `rate_limited`，不把 provider 回應外推成官方剩餘額度。
