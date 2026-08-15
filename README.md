@@ -40,7 +40,7 @@
 - 多 Agent 分析流程已統一走 async LangGraph `StateGraph` 執行；Worker 使用 SQLite checkpoint 以 `job_id:pipeline_id` 恢復 429 / 暫時性中斷，不重跑已完成節點
 - Agent step cache 會以 ticker、資料快照 fingerprint、agent、prompt version、model 與 prompt hash 快取成功輸出，讓相同資料與 prompt 的 rerun 可跳過 LLM 呼叫並還原 structured output
 - RAG index 會以 ticker、資料 snapshot fingerprint、embedding model 與 chunk 設定作為 cache key，在 Agent step cache TTL 內複用 embedding index；Context Digest 也會以 context hash、agent、model 與 prompt version 去重
-- API 額度儀表板使用 `api_usage_events` ledger 統計 LLM provider request 與 FMP 本機觀測用量
+- API 額度儀表板使用 `api_usage_events` ledger 統計 LLM provider request 與 FMP 本機觀測用量；Gemini 另按模型顯示呼叫數、quota/rate-limit 錯誤數與本機錯誤率，這些數字不是 provider 官方剩餘額度
 - `/metrics` 會輸出 Prometheus text format，包含 provider SLA 與 RQ queue availability/depth
 - Watchlist 可設定盤前/盤後批次分析，儲存在 SQLite，排程執行會先原子認領 due slot 並保留舊 JSON 一次性匯入相容
 - Watchlist 支援事件驅動雷達 triggers：跌破均線、外資連賣、VIX 飆升會自動派送 Mode C；營收創高會自動派送 Mode B，且每日事件以 SQLite 去重

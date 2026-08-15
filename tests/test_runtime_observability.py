@@ -4357,6 +4357,7 @@ def test_api_usage_ledger_records_llm_job_events(monkeypatch, tmp_path):
 
     assert usage["observed_calls_since_reset"] == 1
     assert usage["observed_model_calls"]["gemini-2.5-pro"] == 1
+    assert usage["observed_model_quota_errors"]["gemini-2.5-pro"] == 1
     assert usage["observed_quota_errors_since_reset"] == 1
     assert usage["recent_quota_events"][0]["model_id"] == "gemini-2.5-pro"
 
@@ -4450,6 +4451,7 @@ def test_api_quota_payload_uses_persistent_usage_ledger(monkeypatch, tmp_path):
     gemini = next(item for item in payload["services"] if item["service"] == "Gemini / Google AI")
     fmp = next(item for item in payload["services"] if item["service"] == "Financial Modeling Prep")
     assert gemini["usage"]["observed_calls_since_reset"] == 1
+    assert gemini["usage"]["observed_model_quota_errors"]["gemini-2.5-pro"] == 0
     assert gemini["usage"]["ledger_source"] == "api_usage_events"
     assert "Google Custom Search" not in {item["service"] for item in payload["services"]}
     assert fmp["usage"]["observed_24h_errors"] == 1

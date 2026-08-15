@@ -16,12 +16,12 @@ from assistant_context import (  # noqa: F401
     _select_relevant_context,
     _split_context_chunks,
 )
+from context_digest_payload import _ensure_digest_payload_shape  # noqa: F401
 from context_digest_tasks import (  # noqa: F401
     CONTEXT_DIGEST_TARGET_AGENTS,
     _build_context_digest_prompt,
     _build_digest_generation_config,
     _context_digest_model_sequence,
-    _ensure_digest_payload_shape,
     _fallback_context_digest_payload,
     _generate_context_digest_content,
     _generate_context_digest_content_async,

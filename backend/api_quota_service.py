@@ -112,7 +112,7 @@ def _usage_payload(value: Any) -> dict:
     for key, child in safe_mapping_items(raw_usage):
         if key in count_fields:
             normalized[key] = _strict_count(child)
-        elif key == "observed_model_calls":
+        elif key in {"observed_model_calls", "observed_model_quota_errors"}:
             normalized[key] = _count_map(child)
         else:
             normalized[key] = child

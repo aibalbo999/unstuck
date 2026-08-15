@@ -34,8 +34,11 @@
         if (Number.isFinite(Number(usage?.observed_24h_errors)) && Number(usage.observed_24h_errors) > 0) {
             parts.push(`錯誤 ${Number(usage.observed_24h_errors)} 次`);
         }
+        const model = modelUsageLabel(usage);
+        if (model) parts.push(`模型 ${model}`);
         return parts.join(' · ') || '尚無本機觀測';
     }
+    function modelUsageLabel(usage) { const errors = usage?.observed_model_quota_errors || {}; return Object.entries(usage?.observed_model_calls || {}).slice(0, 6).map(([model, calls]) => { const count = Number(calls || 0), error = Number(errors[model] || 0), rate = count ? Math.round(error / count * 1000) / 10 : 0; return `${model} ${count} 次${error ? ` · 額度錯誤 ${error} 次 (${rate}%)` : ''}`; }).join('；'); }
     function quotaErrorCount(service) {
         const usage = service?.usage || {};
         return Number(usage.observed_quota_errors_since_reset || usage.observed_24h_errors || 0);

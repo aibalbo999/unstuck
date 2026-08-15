@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3564 / model-level quota observability boundary
+
+- `#證據基礎` / `#來源品質`：live dashboard 只提供 aggregate Gemini quota error，無法把 `2909` 次 observed calls 與 `2569` 次 errors 對齊到模型；先以同一 `api_usage_events` reset window 分組 `observed_model_calls`、`quota_error` 與 `rate_limited`，不把 provider 回應外推成官方剩餘額度。
+- `#偏誤降低` / `#語意含義`：新增 `observed_model_quota_errors`，對有呼叫但零錯誤的模型保留 `0`，UI 顯示「模型呼叫數、額度錯誤數、本機錯誤率」；避免只見 aggregate error 就誤停用所有模型，也避免零值缺席被誤讀成沒有該模型。
+- `#責任` / `#受眾`：backend 只做 ledger read-only aggregation，quota service 只做 safe integer-map normalization，frontend 只做呈現；不改 routing、Redis circuit、key/model disable、queue、report rerun 或 mutation boundary。操作員可用模型集中度決定下一步查 provider response 與 retry evidence。
+- `#可驗證性`：RED 先鎖定 quota event 的模型分組、成功模型的零錯誤值與前端錯誤率；GREEN 再以 live 匿名化 model map、asset cache-buster、health/readiness 和 scoped regression 驗證。全量 pytest 可收集，人工停止於 `953 passed, 4 skipped, 75 subtests passed` 的歷史長批次，未將未完成的全量結果宣稱為通過。
+
 更新時間：2026-08-16
 
 ## D3563 / shared maintenance preview-confirmation boundary

@@ -20,6 +20,8 @@ curl http://127.0.0.1:8080/api/stocks/2330.TW/snapshot
 
 LLM quota observations are local ledger evidence, not provider-authoritative quota. Explicit per-key/model RPD responses use the existing reset-time disable; generic project/model quota exhaustion opens a Redis-backed model-scoped circuit only after the configured key retry budget is exhausted. While open, later jobs do not send another request for that model and may use the configured fallback route. Other models and 5xx retry handling remain independent.
 
+The Gemini usage object also exposes `observed_model_calls` and `observed_model_quota_errors`, keyed by model id. The latter counts local `quota_error` and `rate_limited` ledger events in the same reset window; zero values are retained for models with calls but no observed quota errors. The UI derives a model-level error rate from these two maps. This is diagnostic evidence for routing and retry review, not official provider quota or a reason to disable a key/model by itself.
+
 Report rows include:
 
 - `data_trust`: data-source quality and freshness.

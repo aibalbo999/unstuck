@@ -157,6 +157,18 @@ def summarize_llm_usage_since(since_utc: datetime | float | int) -> dict:
             """,
             (since_ts,),
         ).fetchall()
+        model_quota_error_rows = conn.execute(
+            """
+            SELECT COALESCE(model_id, 'unknown') AS model_id, COUNT(*) AS errors
+            FROM api_usage_events
+            WHERE service = 'Gemini / Google AI'
+              AND status IN ('quota_error', 'rate_limited')
+              AND created_at >= ?
+            GROUP BY COALESCE(model_id, 'unknown')
+            ORDER BY errors DESC, model_id ASC
+            """,
+            (since_ts,),
+        ).fetchall()
         quota_rows = conn.execute(
             """
             SELECT *
@@ -179,9 +191,15 @@ def summarize_llm_usage_since(since_utc: datetime | float | int) -> dict:
             """,
             (since_ts,),
         ).fetchone()
+    observed_model_calls = {row["model_id"]: int(row["calls"] or 0) for row in model_rows}
+    observed_model_quota_errors = {row["model_id"]: int(row["errors"] or 0) for row in model_quota_error_rows}
+    for model_id in observed_model_calls:
+        observed_model_quota_errors.setdefault(model_id, 0)
+
     return {
         "observed_calls_since_reset": int(call_row["calls"] or 0),
-        "observed_model_calls": {row["model_id"]: int(row["calls"] or 0) for row in model_rows},
+        "observed_model_calls": observed_model_calls,
+        "observed_model_quota_errors": observed_model_quota_errors,
         "observed_quota_errors_since_reset": int(quota_count_row["quota_errors"] or 0),
         "recent_quota_events": [
             {

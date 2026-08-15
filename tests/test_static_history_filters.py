@@ -650,6 +650,9 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "LLM 健康" not in index_html
     assert "LLM/API 本機觀測讀取失敗" in ops_workspace_panels_js
     assert "LLM/API 本機觀測" in api_quota_panel_js
+    assert "observed_model_quota_errors" in api_quota_panel_js
+    assert "模型" in api_quota_panel_js
+    assert "api_quota_panel.js?v=20260816-model-quota-breakdown" in index_html
     assert "LLM/API 本機觀測" in operator_summary_helpers_js
     assert "LLM/API 健康" not in api_quota_panel_js
     assert "LLM 健康" not in operator_summary_helpers_js
@@ -4394,7 +4397,11 @@ require(__PANEL_PATH__);
 const summaryEl = { textContent: '' };
 const listEl = { innerHTML: '' };
 window.StockAgentApiQuotaPanel.render({
-  services: [{ service: 'Gemini / Google AI', configured: true, usage: {} }],
+  services: [{ service: 'Gemini / Google AI', configured: true, usage: {
+    observed_calls_since_reset: 100,
+    observed_model_calls: { 'gemma-4-31b-it': 80, 'gemini-3.6-flash': 20 },
+    observed_model_quota_errors: { 'gemma-4-31b-it': 72, 'gemini-3.6-flash': 1 }
+  } }],
   model_route_budget: {
     summary: { sample_size: 12, warning_count: 3 },
     warnings: [
@@ -4414,6 +4421,9 @@ process.stdout.write(JSON.stringify({ summary: summaryEl.textContent, html: list
     assert "模型重試過多" in payload["html"]
     assert "品質檢查失敗" in payload["html"]
     assert "v4/gemma-4-31b-it" in payload["html"]
+    assert "模型 gemma-4-31b-it 80 次" in payload["html"]
+    assert "額度錯誤 72 次" in payload["html"]
+    assert "90%" in payload["html"]
     assert "維運觀測" in payload["html"]
 
 

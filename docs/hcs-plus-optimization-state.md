@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-16
+- D3564：live dashboard 的 Gemini ledger 有 `2909` 次 observed calls、`2569` 次 quota/rate-limit errors，且 `gemma-4-31b-it` 占 `2293` 次呼叫；原 API/UI 只有 aggregate error count，無法直接定位模型集中度。新增 read-only `observed_model_quota_errors`，與既有 `observed_model_calls` 同一 reset window 對齊，成功呼叫但零錯誤的模型補 `0`；UI 顯示每模型呼叫數、錯誤數與本機錯誤率。不改 routing、circuit、key/model disable 或官方 quota policy，不輸出 key identity。
+- D3564 驗證收斂：先以 backend/UI RED 鎖定 quota event 分組、零錯誤模型與模型錯誤率，再完成 scoped `869 passed`、audit import regression `80 passed`、Node syntax、`git diff --check`；全量 pytest 可正常收集並在人工停止前完成 `953 passed, 4 skipped, 75 subtests passed`，停在歷史 `price_parser.py` 長批次，非 failure。live 重啟後只驗證匿名 model aggregate 與資產/health/readiness，不執行 provider smoke 或 mutation。
 - D3563：D3562 只保護 stale failed queue，維護面板的報告索引、任務紀錄與來源健康紀錄按鈕仍會直接呼叫 `write=true`。新增 `previewReportIndex()`、`previewAnalysisHistory()`、`previewProviderSla()` 與共用 `maintenance_action_helpers.js`，四個清理動作統一先 dry-run、再以既有確認視窗核准；取消、零候選或確認器不可用都不寫入。維持 API、CLI 與後端刪除規則不變。
 - D3563 驗證收斂：scoped maintenance/frontend/docs suite `897 passed`；`api_client.js=88`、`maintenance_action_helpers.js=55`、`maintenance_panel.js=99` 行，均守住既有 size boundary；live 四個 preview 都是 `success=true,dry_run=true` 且所有 `deleted_*` 為 `0`，stale queue 回報 `stale_failed_jobs=10`，新版資產與 `healthz/readyz` 均 `200`。本批沒有執行 destructive `write=true`。
 - D3562：stale failed queue 已有 dry-run 與可授權寫入入口，但維護面板原本點擊即直接呼叫 `write=true`，人工操作容易跳過候選數核對。新增 `previewFailedQueue()`，UI 先取得 stale 候選數，再用共用 `notification_center.confirm()` 呈現刪除筆數；取消、無候選或缺少確認介面都不呼叫寫入 API，並更新 cache-buster。新增 Node 行為測試鎖定「取消 0 次寫入、核准 1 次寫入」。

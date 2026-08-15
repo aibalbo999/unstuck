@@ -60,7 +60,7 @@ flowchart LR
 - Agent step cache lives behind the existing JSON cache facade. A successful agent output is keyed by ticker, data snapshot hash/fingerprint, agent id, prompt version, model id, and prompt hash; cache hits skip provider calls, restore structured output, and emit `agent_step_cache_hit` runtime events.
 - Maintenance routes default to dry-run unless `write=true` is provided.
 - Long-running maintenance also runs in the worker `maintenance` role. `worker_main.py --role all` starts queue, scheduler, and maintenance children with multiprocessing `spawn` and forwards `SIGTERM` / `SIGINT` for shutdown.
-- Provider SLA and API quota dashboards are local observations, not provider billing truth.
+- Provider SLA and API quota dashboards are local observations, not provider billing truth. Gemini quota panels retain model-level call and quota/rate-limit error maps so routing review can distinguish a concentrated model failure from aggregate traffic; the derived error rate does not authorize automatic key/model disable.
 - Decision backtests live in `decision_backtest_results` and are keyed by report filename plus horizon to make reruns idempotent.
 - Watchlist trigger configuration and trigger events live beside the watchlist SQLite store, keeping event-radar state separate from report metadata.
 
