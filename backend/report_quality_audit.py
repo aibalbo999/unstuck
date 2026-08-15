@@ -6,7 +6,7 @@ import json
 from typing import Any
 
 from data_trust_snapshot import verify_data_snapshot_integrity
-from mapping_fields import safe_dict_list, safe_int, safe_mapping_dict, safe_text
+from mapping_fields import safe_dict_list, safe_int, safe_mapping_dict, safe_text, safe_text_list
 from report_history_pagination import collect_all_report_pages
 from report_history_storage import load_storage_item, storage_for_existing_output_dir
 from report_index import query_report_metadata
@@ -127,6 +127,8 @@ def _audit_item(report: dict[str, Any], item: dict[str, Any]) -> dict[str, Any]:
         "filename": safe_text(report.get("filename") or report.get("report_filename")).strip(),
         "pipeline_id": safe_text(report.get("pipeline_id")).strip() or "v1",
         "title": safe_text(item.get("title")).strip(),
+        "detail": safe_text(item.get("detail")).strip(),
+        "reason_codes": safe_text_list(item.get("reason_codes")),
         "recommended_action": safe_text(item.get("recommended_action")).strip(),
         "priority_score": safe_int(item.get("priority_score"), default=0),
         "blocks_auto_rerun": bool(item.get("blocks_auto_rerun")),

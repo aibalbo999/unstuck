@@ -198,6 +198,7 @@ flowchart TD
 - audit 的 coverage 分母固定是 `verified_snapshot_reports`，並另回報 invalid/unverified snapshot 數；單一 row 的 storage、JSON 或 integrity failure 在 row boundary 轉為 unverified，不中止其他 indexed rows。
 - `report_refresh_service.refresh_report_data_snapshot()` 只刷新資料快照時，必須從既有 snapshot 保留 `report_lint`、`evidence_exit_gate`、`content_credibility` 與 `report_conformance`；freshness/rerun 重新計算，但不可把原報告品質證據抹成空物件。
 - 品質 metadata repair 若看到 `refreshed_from_report` 且三個 gate 缺失，標示 `quality_metadata_after_refresh` 的 provenance；這只是風險分類，不代表可以從 HTML 摘要重建完整 gate payload，也不自動修復歷史 artifact。
+- `report_quality_audit.items[]` 必須保留 repair item 的 `detail` 與 `reason_codes`，避免 serializer 只留下 title 而切斷品質判定證據鏈。
 - watchlist board 的品質缺口 CTA 只呼叫既有 `openReport(filename, ticker, pipeline)` preview path；它不進 daily decision queue、不呼叫 rerun API，也不寫入 artifact/index。相關 JS/CSS 使用獨立 cache-buster。
 - watchlist board 將已知 `quality_metadata_coverage_basis=verified_snapshot_reports` 映射為「已驗證快照覆蓋」，避免把 coverage 百分比誤讀成全索引分母；未知或缺失 basis 維持相容的泛稱。
 - 品質 repair 的 metadata 缺口判定放在 `report_quality_metadata_repair.py`；`report_quality_repair_items.py` 只保留相容匯出與其他 gate builders，避免新增 domain rule 使共用 helper 超過 import-boundary 責任上限。

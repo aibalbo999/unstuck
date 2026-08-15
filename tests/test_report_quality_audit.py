@@ -59,6 +59,8 @@ def test_report_quality_audit_counts_verified_reports_with_missing_quality_metad
                 "filename": "1623_v1.html",
                 "pipeline_id": "v1",
                 "title": "品質證據未記錄",
+                "detail": "報告未記錄 report_conformance、evidence_exit_gate、content_credibility 品質證據，採用前需人工查看。",
+                "reason_codes": ["quality_metadata_missing"],
                 "recommended_action": "manual_review",
                 "priority_score": 820,
                 "blocks_auto_rerun": True,
@@ -178,6 +180,7 @@ def test_indexed_report_quality_audit_exposes_snapshot_refresh_provenance(monkey
     payload = audit.build_indexed_report_quality_audit(str(tmp_path))
 
     assert payload["items"][0]["title"] == "刷新後品質證據缺口"
+    assert payload["items"][0]["reason_codes"] == ["quality_metadata_missing", "quality_metadata_after_refresh"]
 
 
 def test_collect_all_report_pages_follows_index_pagination():

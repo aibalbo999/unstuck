@@ -2,6 +2,15 @@
 
 更新時間：2026-08-16
 
+## D3529 / full audit 保留 provenance detail
+
+- `#可驗證性` / `#責任`：live probe 證明 repair helper 有 `quality_metadata_after_refresh`，但 `_audit_item()` serializer 丟掉 detail/reason codes；只看 title 無法追查判定依據。
+- `#溝通設計` / `#受眾`：full audit `items[]` 現在保留 detail 與 reason codes，操作員/API consumer 可知道是「刷新後缺口」，而不是只看到泛稱標題。
+- `#偏誤降低`：只增加輸出證據，不改 priority `820`、人工審核、阻擋自動重跑與 98.75% coverage 結論。
+- `#可驗證性`：audit/repair regression RED→GREEN `52 passed`，並需用重啟後 live endpoint 確認 reason code 真正穿透 API。
+
+本批暫定決策：full audit item 的 detail/reason codes 是觀測證據，不等同於歷史 gate 已恢復；仍禁止從摘要推測完整 structured payload。
+
 ## D3528 / 刷新 provenance 的品質缺口語意
 
 - `#來源品質` / `#證據基礎`：job event 與 checkpoint 沒有可安全重建的三個 structured gate；snapshot 的 `refreshed_from_report` 與 artifact 內摘要只能證明曾刷新與曾渲染摘要，不能推測完整 gate payload。
