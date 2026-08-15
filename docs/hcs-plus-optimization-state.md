@@ -2187,6 +2187,12 @@
 - helper 現在先把 top-level report 與 nested gate 轉成安全 dict，再執行既有 verified snapshot 與三 gate status/verdict 判定；不改 priority、reason code、唯讀或 artifact 邊界。
 - RED→GREEN 補上 mapping-safe repair regression、API/operator docs contract、compile 與既有 audit/repair regression，避免容器形狀錯誤中斷全量稽核。
 
+## D3538：避免 placeholder gate 狀態被算成完整 metadata
+
+- probe 發現 repair helper 原本只檢查 gate 欄位是否有非空文字；`status=not_recorded`、`verdict=unknown`、`status=N/A` 因而可能把實際缺證據的報告算進完整度。
+- 新增 gate-specific allowlist：`report_conformance`/`content_credibility` 接受 passed、warning、blocked 等已知結果，`evidence_exit_gate` 接受 approved、caution、rejected；placeholder 或未知值維持缺 metadata。
+- RED→GREEN 同時鎖定 helper 與 full audit：非通過但有記錄的結果不被誤報缺失，未記錄 placeholder 不被誤報完整；不改現有 live 兩筆 1623.TW 缺口與唯讀邊界。
+
 綜合視角：
 
 - `#可驗證性`：每個模式的報告模板與決策用途必須有測試與文件可查。

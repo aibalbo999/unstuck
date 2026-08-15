@@ -11992,3 +11992,9 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 - 用 `MappingProxyType` 做邊界 probe，確認 repair helper 的 `dict.get` 對唯讀 top-level mapping 會直接 TypeError；先修容器形狀邊界，再保留原有 gate 判定與優先級。
 - RED→GREEN 以完整 verified snapshot 加三個 passed gate 的 mapping wrapper 驗證 helper 回傳 `None`，並同步要求 nested gate mapping 可被安全讀取；不以例外 fallback 掩蓋品質缺口。
 - 新增 mapping-safe code path、docs contract 與 HCS 紀錄；audit/repair focused regression 通過，後續仍需跑完整跨層回歸與 live restart。
+
+### 完成後維護 / D3538 / #拆解問題 #差距分析 #偏誤降低 #證據基礎 #語意含義 #可驗證性
+
+- `非空文字` 不是品質 gate 結果；先用 contract allowlist 區分「已記錄但 warning/blocked」與「placeholder/未知值」，避免 coverage 產生假綠燈。
+- RED 以 `not_recorded`、`unknown`、`N/A` 三種 placeholder 鎖定三 gate 缺失，再用 `warning`、`caution`、`blocked` 比較組確認合法非通過狀態仍算已記錄。
+- GREEN 同時覆蓋 repair helper 與 full audit；保留既有 priority、reason code、live artifact 不寫入與 daily action queue 邊界。

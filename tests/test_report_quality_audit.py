@@ -107,6 +107,33 @@ def test_report_quality_audit_exposes_item_truncation_metadata():
     assert len(payload["items"]) == 2
 
 
+def test_report_quality_audit_does_not_count_placeholder_gate_states_as_complete():
+    from report_quality_audit import build_report_quality_audit
+
+    payload = build_report_quality_audit(
+        [
+            {
+                "ticker": "2330.TW",
+                "filename": "2330_v1.html",
+                "pipeline_id": "v1",
+                "snapshot_integrity": {"status": "verified"},
+                "report_conformance": {"status": "not_recorded"},
+                "evidence_exit_gate": {"verdict": "unknown"},
+                "content_credibility": {"status": "N/A"},
+            }
+        ],
+        scope="all_indexed_reports",
+    )
+
+    assert payload["quality_metadata_complete_reports"] == 0
+    assert payload["quality_metadata_missing_reports"] == 1
+    assert payload["items"][0]["missing_quality_fields"] == [
+        "report_conformance",
+        "evidence_exit_gate",
+        "content_credibility",
+    ]
+
+
 def test_report_quality_audit_keeps_unverified_snapshots_out_of_coverage_denominator():
     from report_quality_audit import build_report_quality_audit
 

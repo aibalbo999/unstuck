@@ -30,6 +30,8 @@ The read-only `report_quality_audit.items[]` payload exposes `missing_quality_fi
 
 Report quality metadata repair accepts mapping-safe top-level report envelopes and nested gate mappings before checking `snapshot_integrity`, `report_conformance`, `evidence_exit_gate`, or `content_credibility`; read-only mapping wrappers must not interrupt the audit.
 
+The quality metadata completeness check recognizes only contract states: `report_conformance` and `content_credibility` use `passed`, `warning`, or blocking states, while `evidence_exit_gate` uses `approved`, `caution`, or `rejected`. Placeholder values such as `not_recorded`, `unknown`, and `N/A` remain missing metadata.
+
 Report preview reading boundaries include snapshot integrity mismatch details when `snapshot_integrity.status = invalid`, so operators see the concrete hash evidence before opening the full report.
 
 Report preview reading boundaries derive a `snapshot_hash mismatch` detail from invalid snapshot integrity hashes when `hash` and `expected_hash` disagree but `errors` is missing, so preview notices keep hash evidence visible.

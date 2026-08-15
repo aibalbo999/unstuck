@@ -115,6 +115,39 @@ def test_quality_metadata_repair_accepts_mapping_safe_report_envelopes():
     assert quality_metadata_repair_item(report) is None
 
 
+def test_quality_metadata_repair_rejects_placeholder_gate_states_as_missing():
+    from report_quality_metadata_repair import quality_metadata_repair_item
+
+    item = quality_metadata_repair_item(
+        {
+            "snapshot_integrity": {"status": "verified"},
+            "report_conformance": {"status": "not_recorded"},
+            "evidence_exit_gate": {"verdict": "unknown"},
+            "content_credibility": {"status": "N/A"},
+        }
+    )
+
+    assert item is not None
+    assert item["missing_quality_fields"] == [
+        "report_conformance",
+        "evidence_exit_gate",
+        "content_credibility",
+    ]
+
+
+def test_quality_metadata_repair_keeps_recorded_nonpassing_gate_states_complete():
+    from report_quality_metadata_repair import quality_metadata_repair_item
+
+    assert quality_metadata_repair_item(
+        {
+            "snapshot_integrity": {"status": "verified"},
+            "report_conformance": {"status": "warning"},
+            "evidence_exit_gate": {"verdict": "caution"},
+            "content_credibility": {"status": "blocked"},
+        }
+    ) is None
+
+
 def test_report_quality_repair_items_identify_quality_gap_after_snapshot_refresh():
     from report_quality_repair_items import quality_metadata_repair_item
 

@@ -61,6 +61,8 @@ def test_report_quality_docs_cover_snapshot_integrity_contract():
         assert "items_returned" in document
         assert "items_truncated" in document
         assert "Report quality metadata repair accepts mapping-safe top-level report envelopes" in document
+        assert "not_recorded" in document
+        assert "unknown" in document
         assert "Report preview reading boundaries include snapshot integrity mismatch details" in document
         assert "Report preview reading boundaries derive a `snapshot_hash mismatch` detail from invalid snapshot integrity hashes" in document
         assert "Report preview reading boundaries prefer hash mismatch details over default generic snapshot integrity errors" in document

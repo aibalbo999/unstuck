@@ -8,6 +8,13 @@ from typing import Any
 from mapping_fields import safe_mapping_dict, safe_text
 
 
+RECORDED_GATE_STATES: dict[str, tuple[str, frozenset[str]]] = {
+    "report_conformance": ("status", frozenset({"passed", "warning", "blocked", "failed", "rejected"})),
+    "evidence_exit_gate": ("verdict", frozenset({"approved", "caution", "rejected"})),
+    "content_credibility": ("status", frozenset({"passed", "warning", "blocked", "failed", "rejected"})),
+}
+
+
 def quality_metadata_repair_item(report: Mapping[str, Any]) -> dict[str, Any] | None:
     report_payload = safe_mapping_dict(report) or {}
     snapshot_integrity = safe_mapping_dict(dict.get(report_payload, "snapshot_integrity", {})) or {}
@@ -16,7 +23,7 @@ def quality_metadata_repair_item(report: Mapping[str, Any]) -> dict[str, Any] | 
     missing = [
         gate_key
         for gate_key in ("report_conformance", "evidence_exit_gate", "content_credibility")
-        if not _quality_gate_recorded(dict.get(report_payload, gate_key))
+        if not _quality_gate_recorded(gate_key, dict.get(report_payload, gate_key))
     ]
     if not missing:
         return None
@@ -45,9 +52,7 @@ def quality_metadata_repair_item(report: Mapping[str, Any]) -> dict[str, Any] | 
     }
 
 
-def _quality_gate_recorded(value: Any) -> bool:
+def _quality_gate_recorded(gate_key: str, value: Any) -> bool:
     gate = safe_mapping_dict(value) or {}
-    return bool(
-        safe_text(dict.get(gate, "status")).strip()
-        or safe_text(dict.get(gate, "verdict")).strip()
-    )
+    field_name, allowed_states = RECORDED_GATE_STATES[gate_key]
+    return safe_text(dict.get(gate, field_name)).strip().lower() in allowed_states
