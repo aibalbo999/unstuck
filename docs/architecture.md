@@ -205,6 +205,8 @@ daily target 只複用同一筆 `quality_review.status` 做可見與 accessible 
 
 `history_quality_audit_render` 在 filtered empty response 使用 status-specific empty copy，而非套用 unfiltered 的 complete-report 文案；這避免把「沒有匹配的審核狀態」錯當成 quality gate 已完成的統計。
 
+同一 renderer 只從 `quality_review_by_status` 派生目前範圍的人工審核進度；complete rows 不在該 map 中，因此不會被誤放入 review denominator，且切換 filter 會自然重新計算。
+
 ## Event-Driven Radar
 
 ```mermaid

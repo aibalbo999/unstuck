@@ -59,6 +59,14 @@
 - `#責任` / `#限制條件`：修改限於 history renderer 與 cache-buster，backend audit、review ledger、artifact/index、queue、rerun 不變。
 - `#可驗證性`：先以 filtered-empty fixture 取得 RED，再 GREEN `11 passed`；維持 renderer 99 行，並以跨層 suite、Node syntax、diff check 與 live asset/health/readiness 作最終驗證。
 
+## D3573 / scoped review progress summary
+
+- `#證據基礎` / `#差距分析`：live historical audit 有 `143` 個 pending 缺口；狀態數能說明分布，卻不能直接回答人工核對已完成多少，逐批處理容易失去進度感。
+- `#語意含義` / `#偏誤降低`：進度分子只取 `approved_with_gap`、`rejected`、`deferred`，分母是四種 review status 的總和；complete report 不在 review map 中，避免把品質完整誤當成人工審核完成。
+- `#受眾` / `#溝通設計`：摘要顯示「人工審核進度：已決策／總缺口」，切換 pipeline/status 後明確跟著目前範圍變化，不冒充全庫永久 KPI。
+- `#責任` / `#限制條件`：修改只在 history renderer 與 cache-buster，backend aggregate、review ledger、artifact/index、queue、rerun 與 mutation 不變。
+- `#可驗證性` / `#來源品質`：先以 progress fixture 取得 RED，再 GREEN `11 passed`；維持 renderer 99 行，並以跨層 suite、Node syntax、diff check 與 live asset/health/readiness 作最終驗證。
+
 ## D3564 / model-level quota observability boundary
 
 - `#證據基礎` / `#來源品質`：live dashboard 只提供 aggregate Gemini quota error，無法把 `2909` 次 observed calls 與 `2569` 次 errors 對齊到模型；先以同一 `api_usage_events` reset window 分組 `observed_model_calls`、`quota_error` 與 `rate_limited`，不把 provider 回應外推成官方剩餘額度。

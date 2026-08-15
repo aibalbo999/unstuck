@@ -78,6 +78,7 @@ process.stdout.write(JSON.stringify({ html }));
     assert "缺口：報告一致性 143、證據關卡 143、內容可信度 143" in payload["html"]
     assert "來源：刷新後缺口 143" in payload["html"]
     assert "審核狀態：待人工核對 143" in payload["html"]
+    assert "人工審核進度：0/143" in payload["html"]
     assert "模式缺口：v1 36、v2 36" in payload["html"]
     assert "另有 141 份未展開" in payload["html"]
     assert "品質 metadata 完整度：89.25%（分母：已驗證快照）" in payload["html"]
@@ -424,7 +425,7 @@ def test_history_workspace_wires_historical_quality_audit_without_daily_queue_si
     assert 'id="history-quality-audit"' in index_html
     assert "/static/api_client_extensions.js?v=20260816-quality-review-status-filter" in index_html
     assert "/static/history_panel_quality_helpers.js?v=20260816-quality-review-status-empty-state" in index_html
-    assert "/static/history_quality_audit_render.js?v=20260816-quality-review-empty-filter-copy" in index_html
+    assert "/static/history_quality_audit_render.js?v=20260816-quality-review-progress-summary" in index_html
     assert "/static/history_quality_audit.js?v=20260816-quality-review-submit-feedback" in index_html
     assert index_html.index("/static/history_quality_audit_render.js") < index_html.index("/static/history_quality_audit.js")
     assert len((STATIC_DIR / "history_panel_quality_helpers.js").read_text(encoding="utf-8").splitlines()) < 120
