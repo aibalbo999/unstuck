@@ -99,6 +99,19 @@ def test_parallel_peer_circuit_stops_current_quota_retry_immediately():
     assert error.parallel_circuit_open is True
 
 
+def test_quota_attempt_ceiling_marks_circuit_when_key_slots_repeat():
+    policy = model_attempt_policy(model_index=0, has_fallback=True, max_retries=3, key_count=3)
+    stop = make_model_retry_stop(policy)
+    errors = [
+        AgentRateLimitError("429 project quota", 0, 60, key_slot=slot, key_count=3)
+        for slot in (1, 1, 2, 2, 1, 2)
+    ]
+
+    for attempt, error in enumerate(errors, start=1):
+        assert stop(_retry_state(attempt, error)) is (attempt == len(errors))
+    assert errors[-1].all_keys_exhausted is True
+
+
 def test_server_5xx_policy_keeps_retrying_longer_than_primary_timeout():
     policy = model_attempt_policy(model_index=0, has_fallback=True, max_retries=3, key_count=6)
 

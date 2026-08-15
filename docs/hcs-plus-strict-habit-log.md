@@ -8303,6 +8303,28 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 - D3376-D3387 adjacent regression：`60 passed, 3740 deselected in 423.61s`。
 - completion gate：import boundary `503 passed in 11.00s`；HCS/文件契約 `135 passed in 3.50s`；`py_compile` exit 0；`git diff --check` exit 0；trailing-whitespace 無命中；runtime doctor exit 0，canonical operational DB 為 `backend/cache/operational.sqlite3`、report index 為 `backend/cache/stock_agent_cache.sqlite3`，Redis 為 `redis://localhost:6379/0`；parser/detector 行數維持 `349/189`。
 
+### 完成後維護 / D3513 / #拆解問題 #問對問題 #差距分析 #變數分析 #偏誤降低 #決策樹 #目的 #效用 #證據基礎 #來源品質 #可驗證性
+
+本次使用：新 Worker `3e336d8d` 的 v4 `3443.TW` live baseline 顯示 Agent 22/23 都遭遇 gemma quota failure，但兩個 `model_failed` 都是 `circuit_open=false`。追查 retry reducer 後確認，當 provider 反覆選到相同 key slot 時，`key_slots` 集合未達 configured key count；雖然 retry 已達 `key_count*2` ceiling，仍沒有設定 `all_keys_exhausted`。
+
+核心判斷
+
+1. `key_count*2` 是明確的 quota retry 上限；到達上限就代表本 job 不應再繼續同模型，不應依賴 slot 去重結果才能開 circuit。
+2. unique slot evidence 仍優先保留，slot 重複只改用 ceiling evidence 補足，不改第一輪 key rotation 順序。
+3. D3512 的 peer fail-fast 必須建立在可靠的 exhausted marker 上，否則 repeated-slot storm 會繞過共享 circuit。
+
+落地修改
+
+1. `backend/agent_runtime/model_policy.py` 在 quota attempt ceiling 與無 slot evidence 的 stop path 設定 `AgentRateLimitError.all_keys_exhausted`。
+2. `tests/test_llm_model_policy.py` 新增 repeated key-slot ceiling regression，並保留原有 unique-slot 與 peer-circuit tests。
+3. 不改跨 job rotator scope、provider key 實際輪換或 fallback model route。
+
+驗證方式
+
+- RED：repeated-slot ceiling test 初始在 stop 後仍得到 `all_keys_exhausted=False`。
+- GREEN：D3513 focused policy tests `3 passed`；完整 model/rotator、workflow、import/HCS/docs、runtime/architecture gate 待本批推送前重跑。
+- live baseline：`3443.TW` 兩個 branch 的 `model_failed.circuit_open=false` 已被 canonical event ledger 證實；尚未把修正後結果宣稱為 live 命中。
+
 ### 完成後維護 / D3512 / #拆解問題 #問對問題 #差距分析 #變數分析 #偏誤降低 #決策樹 #目的 #效用 #證據基礎 #來源品質 #可驗證性
 
 本次使用：live v4 `2344.TW` 的 canonical event ledger 顯示平行 Agent 22/23 都以 gemma 為 primary；Agent 22 先完成 quota sweep 並記錄 `circuit_open=true`，但 Agent 23 仍持續 provider retry，造成同一 job 對同一模型重複消耗 quota。這是 D3511 只能在 graph join 後合併 state、無法中止已在 retry loop 中的 peer branch 的邊界。

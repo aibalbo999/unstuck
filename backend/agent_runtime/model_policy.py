@@ -118,8 +118,14 @@ def make_model_retry_stop(
                     exc.all_keys_exhausted = True
                 return True
             if not key_slots and key_failures >= policy.quota_attempts:
+                if isinstance(exc, AgentRateLimitError):
+                    exc.all_keys_exhausted = True
                 return True
-            return key_failures >= policy.quota_attempt_ceiling
+            if key_failures >= policy.quota_attempt_ceiling:
+                if isinstance(exc, AgentRateLimitError):
+                    exc.all_keys_exhausted = True
+                return True
+            return False
         if isinstance(exc, AgentServerError):
             return server_failures >= policy.server_error_attempts
         if isinstance(exc, AgentShortResponseError):
