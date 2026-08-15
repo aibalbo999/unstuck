@@ -78,7 +78,11 @@
             const provenance = item.quality_metadata_provenance === 'after_refresh' || reasonCodes.includes('quality_metadata_after_refresh')
                 ? '刷新後'
                 : item.quality_metadata_provenance === 'no_refresh_provenance' ? '未標記刷新來源' : '';
-            const targetContext = [missingFieldText ? `缺少${missingFieldText}` : '', provenance ? `來源：${provenance}` : ''].filter(Boolean).join('；');
+            const artifactSummary = item.artifact_quality_summary?.status === 'present'
+                ? (Array.isArray(item.artifact_quality_summary.fields) ? item.artifact_quality_summary.fields : [])
+                    .map(field => fieldLabels.find(([key]) => key === field)?.[1] || field).filter(Boolean).join('、')
+                : '';
+            const targetContext = [missingFieldText ? `缺少${missingFieldText}` : '', provenance ? `來源：${provenance}` : '', artifactSummary ? `artifact 摘要可查：${artifactSummary}` : ''].filter(Boolean).join('；');
             const targetDetail = targetContext ? `${title}；品質缺口：${targetContext}` : title;
             const targetLabel = reportDate ? `${ticker} ${pipeline} · ${reportDate}` : `${ticker} ${pipeline}`;
             return `<button class="history-quality-audit-target" type="button" data-quality-audit-report="${e(item.filename)}" data-quality-audit-ticker="${e(ticker)}" data-quality-audit-pipeline="${e(pipeline)}" data-quality-reason-codes="${e(reasonCodes)}" title="${e(`${detail}${targetContext ? `；${targetContext}` : ''}`)}" aria-label="${e(`人工核對 ${targetLabel}：${targetDetail}`)}"><span>查看 ${e(targetLabel)}</span>${targetContext ? `<small>${e(targetContext)}</small>` : ''}</button>`;

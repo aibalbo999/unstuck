@@ -175,7 +175,7 @@ The daily decision dashboard (`GET /api/watchlist/daily-dashboard`) consumes rec
 
 歷史頁勾選「顯示舊版報告」後，前端以目前搜尋與 pipeline 篩選呼叫同一 historical endpoint；追蹤工作台在 latest-per-ticker/pipeline audit 有品質缺口時提供唯讀 shortcut，只切換工作區並開啟既有 checkbox，不建立 action。`history_quality_audit` 只負責摘要、五筆一批的 report preview target 與 `item_offset` 分頁，並在背景載入，不阻塞既有歷史報告列表；每筆 target 顯示缺少的 gate 與品質 provenance，並同步提供 accessible title/aria context。摘要明示 `verified_snapshot_reports` 分母，並在 invalid/unverified snapshot 存在時顯示排除警示；history workspace 會固定每次 load 的 filter snapshot，並以 generation 同時保護稽核與報告列表，避免快速切換時舊回應覆蓋新範圍。
 
-品質稽核 envelope 的 `missing_quality_field_counts` 會在 verified snapshot 範圍內按三個品質 gate 分組缺口，讓操作人員能排序人工核對；它不被解讀成通過率，也不會觸發重跑。
+品質稽核 envelope 的 `missing_quality_field_counts` 會在 verified snapshot 範圍內按三個品質 gate 分組缺口，讓操作人員能排序人工核對；indexed audit 的 `artifact_quality_summary` 只標示 Markdown/HTML 是否仍有可見 gate 摘要與欄位，不重建 structured gate，也不被解讀成通過率或觸發重跑。
 
 同一 envelope 的 `quality_metadata_missing_by_provenance` 會把缺 metadata 的報告分成 `after_refresh` 與 `no_refresh_provenance`；後者只表示沒有 `refreshed_from_report` attribution，不能推論「從未刷新」。audit item 會保留 provenance、刷新來源檔名與 `snapshot_refreshed_at`，但不從 HTML/Markdown 重建 gate payload。
 

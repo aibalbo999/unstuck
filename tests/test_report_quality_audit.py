@@ -472,6 +472,48 @@ def test_indexed_report_quality_audit_exposes_snapshot_refresh_provenance(monkey
     assert payload["items"][0]["reason_codes"] == ["quality_metadata_missing", "quality_metadata_after_refresh"]
 
 
+def test_indexed_report_quality_audit_exposes_artifact_quality_summary_without_reconstructing_gates(monkeypatch, tmp_path):
+    import report_quality_audit as audit
+
+    monkeypatch.setattr(
+        audit,
+        "collect_all_report_pages",
+        lambda *_args, **_kwargs: {
+            "reports": [{"ticker": "1623.TW", "filename": "1623_v1.html", "pipeline_id": "v1"}]
+        },
+    )
+    monkeypatch.setattr(audit, "storage_for_existing_output_dir", lambda *_args: object())
+
+    def load_item(_storage, _filename, *, kind):
+        if kind == "data":
+            return SimpleNamespace(content=json.dumps({
+                "snapshot_hash": "hash",
+                "report_conformance": {},
+                "evidence_exit_gate": {},
+                "content_credibility": {},
+            }))
+        assert kind == "md"
+        return SimpleNamespace(content=(
+            "- **Evidence gate:** approved\n"
+            "- **Report conformance:** blocked\n"
+        ).encode("utf-8"))
+
+    monkeypatch.setattr(audit, "load_storage_item", load_item)
+    monkeypatch.setattr(
+        audit,
+        "verify_data_snapshot_integrity",
+        lambda _snapshot: {"valid": True, "expected_hash": "hash", "errors": []},
+    )
+
+    payload = audit.build_indexed_report_quality_audit(str(tmp_path))
+
+    assert payload["items"][0]["artifact_quality_summary"] == {
+        "status": "present",
+        "source": "markdown",
+        "fields": ["report_conformance", "evidence_exit_gate"],
+    }
+
+
 def test_historical_indexed_report_quality_audit_includes_every_indexed_version(monkeypatch, tmp_path):
     import report_quality_audit as audit
 

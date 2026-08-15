@@ -49,7 +49,8 @@ const audit = {
       detail: '資料快照曾在報告後刷新，採用前需人工查看。',
       reason_codes: ['quality_metadata_missing', 'quality_metadata_after_refresh'],
       missing_quality_fields: ['report_conformance', 'evidence_exit_gate', 'content_credibility'],
-      quality_metadata_provenance: 'after_refresh'
+      quality_metadata_provenance: 'after_refresh',
+      artifact_quality_summary: { status: 'present', source: 'markdown', fields: ['report_conformance', 'evidence_exit_gate'] }
     },
     {
       ticker: '3017.TW',
@@ -86,6 +87,7 @@ process.stdout.write(JSON.stringify({ html }));
     assert "缺少報告一致性、證據關卡、內容可信度" in payload["html"]
     assert "來源：刷新後" in payload["html"]
     assert "品質缺口：缺少報告一致性、證據關卡、內容可信度；來源：刷新後" in payload["html"]
+    assert "artifact 摘要可查：報告一致性、證據關卡" in payload["html"]
 
 
 def test_history_quality_audit_module_filters_requests_and_reuses_open_report_callback():
@@ -300,7 +302,7 @@ def test_history_workspace_wires_historical_quality_audit_without_daily_queue_si
 
     assert 'id="history-quality-audit"' in index_html
     assert "/static/history_panel_quality_helpers.js?v=20260816-historical-quality-basis" in index_html
-    assert "/static/history_quality_audit_render.js?v=20260816-historical-quality-target-context" in index_html
+    assert "/static/history_quality_audit_render.js?v=20260816-historical-quality-artifact-summary" in index_html
     assert "/static/history_quality_audit.js?v=20260816-historical-quality-pagination" in index_html
     assert index_html.index("/static/history_quality_audit_render.js") < index_html.index("/static/history_quality_audit.js")
     assert len((STATIC_DIR / "history_panel_quality_helpers.js").read_text(encoding="utf-8").splitlines()) < 120

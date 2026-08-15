@@ -2,6 +2,14 @@
 
 更新時間：2026-08-16
 
+## D3553 / artifact 摘要與 structured gate 邊界
+
+- `#來源品質` / `#證據基礎`：live historical audit 的 143 筆缺 metadata row，其 Markdown 都保留 `Evidence gate`、`Report conformance` 與品質 gate 狀態文字；這是可查的 artifact evidence，不等同 snapshot 已有 structured gate。
+- `#偏誤降低` / `#責任`：indexed audit 只對已判定缺口的 row 讀取 Markdown/HTML marker，輸出 `artifact_quality_summary.status/source/fields`；前端顯示「artifact 摘要可查」，不從文字重建 gate payload、不改 coverage、不回寫 artifact、不 enqueue rerun。
+- `#可驗證性`：先新增 backend 與 renderer fixture 取得 RED，再完成 marker detection、欄位白名單與 accessible target context；TDD focused tests GREEN，renderer 94 行仍低於 100 行責任護欄。
+
+本批暫定決策：補足人工核對的 evidence availability，不把 artifact 文字摘要升格為品質通過結論，也不自動修復 143 筆歷史 snapshot。
+
 ## D3552 / 歷史品質 target 的可見缺口 context
 
 - `#受眾` / `#溝通設計`：live historical audit 的 143 筆 target 已能分批讀取，但每個按鈕原本只寫 ticker/mode；missing gate 與刷新 provenance 只在 tooltip，鍵盤或手機人工核對仍不夠可辨識。

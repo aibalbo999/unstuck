@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from data_trust_snapshot import verify_data_snapshot_integrity
@@ -16,6 +17,20 @@ from report_quality_repair_items import quality_metadata_repair_item
 SCHEMA_VERSION = "report_quality_audit.v1"
 QUALITY_METADATA_FIELDS = ("report_conformance", "evidence_exit_gate", "content_credibility")
 QUALITY_METADATA_PROVENANCE = ("after_refresh", "no_refresh_provenance")
+ARTIFACT_QUALITY_MARKERS = {
+    "report_conformance": (
+        re.compile(r"(?im)^\s*-\s*\*\*Report conformance:\*\*\s*\S+"),
+        re.compile(r"(?is)<[^>]*>\s*Report conformance[:：]\s*[^<\n]+"),
+    ),
+    "evidence_exit_gate": (
+        re.compile(r"(?im)^\s*-\s*\*\*Evidence gate:\*\*\s*\S+"),
+        re.compile(r"(?is)<[^>]*>\s*Evidence gate[:：]\s*[^<\n]+"),
+    ),
+    "content_credibility": (
+        re.compile(r"(?im)^\s*-\s*\*\*Content credibility:\*\*\s*\S+"),
+        re.compile(r"(?is)<[^>]*>\s*Content credibility[:：]\s*[^<\n]+"),
+    ),
+}
 
 
 def build_indexed_report_quality_audit(output_dir: str, *, page_size: int = 100, item_limit: int = 5, item_offset: int = 0) -> dict[str, Any]:
@@ -31,7 +46,7 @@ def build_indexed_report_quality_audit(output_dir: str, *, page_size: int = 100,
         sync_metadata=False,
     )
     storage = storage_for_existing_output_dir(output_dir, None)
-    reports = [_report_from_index_row(row, storage) for row in rows.get("reports", [])]
+    reports = _indexed_quality_reports(rows.get("reports", []), storage)
     return build_report_quality_audit(reports, scope="all_indexed_reports", item_limit=item_limit, item_offset=item_offset)
 
 
@@ -56,7 +71,7 @@ def build_historical_indexed_report_quality_audit(
         sync_metadata=False,
     )
     storage = storage_for_existing_output_dir(output_dir, None)
-    reports = [_report_from_index_row(row, storage) for row in rows.get("reports", [])]
+    reports = _indexed_quality_reports(rows.get("reports", []), storage)
     return build_report_quality_audit(
         reports,
         scope="all_historical_indexed_reports",
@@ -204,7 +219,7 @@ def build_unavailable_report_quality_audit(
 
 
 def _audit_item(report: dict[str, Any], item: dict[str, Any]) -> dict[str, Any]:
-    return {
+    payload = {
         "ticker": safe_text(report.get("ticker")).strip(),
         "filename": safe_text(report.get("filename") or report.get("report_filename")).strip(),
         "report_date": safe_text(report.get("report_date")).strip(),
@@ -220,6 +235,49 @@ def _audit_item(report: dict[str, Any], item: dict[str, Any]) -> dict[str, Any]:
         "priority_score": safe_int(item.get("priority_score"), default=0),
         "blocks_auto_rerun": bool(item.get("blocks_auto_rerun")),
     }
+    artifact_summary = safe_mapping_dict(report.get("artifact_quality_summary"))
+    if artifact_summary is not None:
+        payload["artifact_quality_summary"] = {
+            "status": safe_text(artifact_summary.get("status")).strip() or "unavailable",
+            "source": safe_text(artifact_summary.get("source")).strip(),
+            "fields": [field for field in safe_text_list(artifact_summary.get("fields")) if field in QUALITY_METADATA_FIELDS],
+        }
+    return payload
+
+
+def _indexed_quality_reports(rows: list[dict[str, Any]], storage: Any) -> list[dict[str, Any]]:
+    reports = []
+    for row in rows:
+        report = _report_from_index_row(row, storage)
+        if quality_metadata_repair_item(report) is not None:
+            report["artifact_quality_summary"] = _read_artifact_quality_summary(storage, report.get("filename"))
+        reports.append(report)
+    return reports
+
+
+def _read_artifact_quality_summary(storage: Any, filename: Any) -> dict[str, Any]:
+    source = ""
+    for kind in ("md", "html"):
+        try:
+            item = load_storage_item(storage, safe_text(filename).strip(), kind=kind)
+        except Exception:
+            continue
+        if item is None:
+            continue
+        source = "markdown" if kind == "md" else kind
+        try:
+            content = item.content
+            text = content.decode("utf-8") if isinstance(content, bytes) else safe_text(content)
+        except Exception:
+            continue
+        fields = [
+            field
+            for field in QUALITY_METADATA_FIELDS
+            if any(pattern.search(text) for pattern in ARTIFACT_QUALITY_MARKERS[field])
+        ]
+        if fields:
+            return {"status": "present", "source": source, "fields": fields}
+    return {"status": "not_found" if source else "unavailable", "source": source, "fields": []}
 
 
 def _new_quality_stats() -> dict[str, Any]:
