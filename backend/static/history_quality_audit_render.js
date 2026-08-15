@@ -38,10 +38,9 @@
         const coverage = Number.isFinite(coverageValue) && coverageValue >= 0 && coverageValue <= 100
             ? Math.round(coverageValue * 100) / 100
             : null;
-        const coverageSummary = reviewFilter !== 'all'
-            ? `審核範圍：${reviewFilterLabel}`
-            : missingFieldFilter !== 'all' ? `缺口範圍：${missingFieldFilterLabel}`
-            : coverage != null && audit.quality_metadata_coverage_basis === 'verified_snapshot_reports' ? `品質 metadata 完整度：${coverage}%（分母：已驗證快照）` : '';
+        const scopeSummary = [reviewFilter !== 'all' ? `審核範圍：${reviewFilterLabel}` : '', missingFieldFilter !== 'all' ? `缺口範圍：${missingFieldFilterLabel}` : ''].filter(Boolean).join('；');
+        const filteredEmptyLabel = [reviewFilter !== 'all' ? reviewFilterLabel : '', missingFieldFilter !== 'all' ? missingFieldFilterLabel : ''].filter(Boolean).join('；');
+        const coverageSummary = scopeSummary || (coverage != null && audit.quality_metadata_coverage_basis === 'verified_snapshot_reports' ? `品質 metadata 完整度：${coverage}%（分母：已驗證快照）` : '');
         const invalidSnapshots = Number(audit.snapshot_invalid_reports || 0);
         const unverifiedSnapshots = Number(audit.snapshot_unverified_reports || 0);
         const invalidCount = Number.isFinite(invalidSnapshots) && invalidSnapshots > 0 ? Math.floor(invalidSnapshots) : 0;
@@ -68,7 +67,7 @@
             audit.items_has_prev === true ? '<button class="history-quality-audit-page" type="button" data-quality-audit-page="prev" aria-label="查看上一批品質缺口">上一批</button>' : '',
             audit.items_has_next === true ? '<button class="history-quality-audit-page" type="button" data-quality-audit-page="next" aria-label="查看下一批品質缺口">下一批</button>' : ''
         ].filter(Boolean).join('');
-        const auditDetails = missing > 0 ? `<span>${Math.floor(missing)} 份品質 metadata 缺口${truncation}</span><em>${fieldSummary ? `缺口：${e(fieldSummary)}` : ''}${pipelineSummary ? `；模式缺口：${e(pipelineSummary)}` : ''}${reviewSummary ? `；審核狀態：${e(reviewSummary)}` : ''}${reviewProgressSummary ? `；${e(reviewProgressSummary)}` : ''}${provenanceSummary ? `；來源：${e(provenanceSummary)}` : ''}</em>${artifactEvidenceSummary ? `<em>${e(artifactEvidenceSummary)}</em>` : ''}${artifactFieldSummary ? `<em>artifact 欄位可查：${e(artifactFieldSummary)}</em>` : ''}${basisSummary ? `<em>${e(basisSummary)}</em>` : ''}` : reviewFilter !== 'all' ? `<span>目前沒有符合「${e(reviewFilterLabel)}」的品質 metadata 缺口</span>${basisSummary ? `<em>${e(basisSummary)}</em>` : ''}` : missingFieldFilter !== 'all' ? `<span>目前沒有符合「${e(missingFieldFilterLabel)}」的品質 metadata 缺口</span>${basisSummary ? `<em>${e(basisSummary)}</em>` : ''}` : `<span>符合條件的 ${complete} 份已驗證 snapshot 沒有品質 metadata 缺口</span>${basisSummary ? `<em>${e(basisSummary)}</em>` : ''}`;
+        const auditDetails = missing > 0 ? `<span>${Math.floor(missing)} 份品質 metadata 缺口${truncation}</span><em>${fieldSummary ? `缺口：${e(fieldSummary)}` : ''}${pipelineSummary ? `；模式缺口：${e(pipelineSummary)}` : ''}${reviewSummary ? `；審核狀態：${e(reviewSummary)}` : ''}${reviewProgressSummary ? `；${e(reviewProgressSummary)}` : ''}${provenanceSummary ? `；來源：${e(provenanceSummary)}` : ''}</em>${artifactEvidenceSummary ? `<em>${e(artifactEvidenceSummary)}</em>` : ''}${artifactFieldSummary ? `<em>artifact 欄位可查：${e(artifactFieldSummary)}</em>` : ''}${basisSummary ? `<em>${e(basisSummary)}</em>` : ''}` : filteredEmptyLabel ? `<span>目前沒有符合「${e(filteredEmptyLabel)}」的品質 metadata 缺口</span>${basisSummary ? `<em>${e(basisSummary)}</em>` : ''}` : `<span>符合條件的 ${complete} 份已驗證 snapshot 沒有品質 metadata 缺口</span>${basisSummary ? `<em>${e(basisSummary)}</em>` : ''}`;
         const targets = (Array.isArray(audit.items) ? audit.items : []).filter(item => item && item.filename).map(item => {
             const ticker = item.ticker || '報告';
             const pipeline = item.pipeline_id || 'v1';

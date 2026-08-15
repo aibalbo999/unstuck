@@ -201,7 +201,7 @@ daily quality target 的人工核對導引只傳 filename/pipeline scope 到 his
 
 歷史 audit 的 `missing_field` filter 也在 attach current revision review 後，依 repair item 的 `missing_quality_fields` 與 `review_status` 共同縮小 rows，再由同一套 coverage/pagination builder 產生 envelope；response 以 `missing_quality_field_filter` 明示範圍。欄位 filter 只改 read-only audit projection，不修復 artifact、不寫 review ledger、不 enqueue rerun，也不改 daily decision queue。
 
-前端對 `review_status_filter != all` 或 `missing_quality_field_filter != all` 的 envelope 只呈現「審核範圍：<狀態>」或「缺口範圍：<欄位>」，隱藏一般全庫 coverage 文案；這是避免篩選集合被誤讀的呈現責任，不改 backend 計算、review ledger、artifact/index 或任何 queue/rerun 副作用。
+前端對 `review_status_filter != all` 或 `missing_quality_field_filter != all` 的 envelope 呈現「審核範圍：<狀態>」與／或「缺口範圍：<欄位>」，兩者同時存在時不隱藏任一個，並隱藏一般全庫 coverage 文案；這是避免篩選集合被誤讀的呈現責任，不改 backend 計算、review ledger、artifact/index 或任何 queue/rerun 副作用。
 
 歷史 review control 由 `history_quality_audit` 保留一個 page-level submission lock；成功 mutation 後重新載入目前範圍，失敗則經 notification center 呈現並解除 lock。這只降低瀏覽器連點造成的重複請求，不取代 server 的 mutation token、revision fingerprint 或 append-only ledger 約束。
 

@@ -150,6 +150,33 @@ process.stdout.write(JSON.stringify({ html }));
     assert "符合條件的 0 份已驗證 snapshot 沒有品質 metadata 缺口" not in payload["html"]
 
 
+def test_history_quality_audit_renders_both_review_and_missing_field_scopes():
+    helper_path = STATIC_DIR / "history_panel_quality_helpers.js"
+    renderer_path = STATIC_DIR / "history_quality_audit_render.js"
+    script = """
+global.window = {};
+require(__HELPER_PATH__);
+require(__RENDERER_PATH__);
+const html = window.StockAgentHistoricalQualityAuditRenderer.render({
+  audited_reports: 143,
+  quality_metadata_missing_reports: 143,
+  quality_metadata_coverage_pct: 0,
+  quality_metadata_coverage_basis: 'verified_snapshot_reports',
+  missing_quality_field_counts: { report_conformance: 143, evidence_exit_gate: 143, content_credibility: 143 },
+  missing_quality_field_filter: 'content_credibility',
+  review_status_filter: 'pending',
+  quality_review_by_status: { pending: 143, approved_with_gap: 0, rejected: 0, deferred: 0 },
+  items: []
+}, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ html }));
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path))).replace("__RENDERER_PATH__", json.dumps(str(renderer_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "審核範圍：待人工核對" in payload["html"]
+    assert "缺口範圍：內容可信度" in payload["html"]
+
+
 def test_history_quality_audit_module_filters_requests_and_reuses_open_report_callback():
     helper_path = STATIC_DIR / "history_panel_quality_helpers.js"
     renderer_path = STATIC_DIR / "history_quality_audit_render.js"
@@ -522,7 +549,7 @@ def test_history_workspace_wires_historical_quality_audit_without_daily_queue_si
     assert 'id="history-quality-audit"' in index_html
     assert "/static/api_client_extensions.js?v=20260816-quality-review-field-filter" in index_html
     assert "/static/history_panel_quality_helpers.js?v=20260816-quality-review-field-filter" in index_html
-    assert "/static/history_quality_audit_render.js?v=20260816-quality-review-field-filter" in index_html
+    assert "/static/history_quality_audit_render.js?v=20260816-quality-review-combined-scope" in index_html
     assert "/static/history_quality_audit.js?v=20260816-quality-review-field-filter" in index_html
     assert index_html.index("/static/history_quality_audit_render.js") < index_html.index("/static/history_quality_audit.js")
     assert len((STATIC_DIR / "history_panel_quality_helpers.js").read_text(encoding="utf-8").splitlines()) < 120

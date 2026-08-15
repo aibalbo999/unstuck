@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-16
+- D3579：D3578 同時允許 `review_status` 與 `missing_field`，但 renderer 優先顯示審核範圍，操作員看不到第二個限制。新增 combined-scope summary，明示「審核範圍」與「缺口範圍」，並讓雙重篩選的空集合文案同時包含兩個條件；backend 維持 AND、GET-only 與既有 coverage/pagination，不改 review ledger、artifact/index、rerun 或 daily queue。
+- D3579 驗證收斂：先取得 combined-scope renderer RED，再 GREEN `15 passed` frontend audit tests 與 backend AND contract；同步更新 renderer cache-buster，live `pending + content_credibility` 回傳 `143` 筆、`0%`，health/readiness 與新版 asset 維持可用，review ledger 不寫入。下一個待觀察缺口是篩選狀態在重新載入或 workspace 導航後的可見持久性。
 - D3578：live 歷史稽核雖已提供三個品質 gate 的缺口 aggregate，但操作員仍要在 `143` 筆結果中自行辨識「報告一致性／證據關卡／內容可信度」；新增 GET-only `missing_field` filter，backend 先依 verified repair item 的 `missing_quality_fields` 篩選，再與既有 `review_status` 共同套用。歷史 UI 新增欄位快捷入口、明示「缺口範圍」，並保留零結果的目前欄位與全部入口；不改 coverage 全庫語意、review ledger、artifact/index、rerun 或 daily queue。
 - D3578 驗證收斂：先以 backend、route、renderer、module request 的 RED→GREEN 鎖定 field-scoped contract 與空集合語意；跨層 suite `966 passed`，最後契約/前端/靜態 suite `220 passed`，Node syntax、Python compile、行數護欄與 `git diff --check` 通過。live `missing_field=content_credibility` 回傳 `143/143/0%`，未篩選維持 `1330/143/89.25%`，非法欄位為 `422`，新版資產與 health/readiness 均 `200`，daily decision queue `1`，review ledger `0`。下一個待觀察缺口是欄位篩選與人工 review 狀態同時選取時的 combined-scope 可讀性。
 - D3577：daily 最新品質 target 原本只能開報告 preview，或進入未帶範圍的歷史稽核；操作員要在 `143` 個歷史缺口中重新搜尋同一檔案。新增 filename/pipeline scoped review navigation，並在 workspace 重設 recommendation、data-trust、review-status、頁碼與 preview，沿用既有 GET audit/list，不新增 queue、rerun、artifact/index 或 review mutation。

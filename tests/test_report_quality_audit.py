@@ -831,6 +831,60 @@ def test_historical_indexed_report_quality_audit_filters_missing_quality_field(m
     assert [item["filename"] for item in payload["items"]] == ["1623_v1.html", "2330_v1.html"]
 
 
+def test_historical_indexed_report_quality_audit_combines_review_and_missing_field_filters(monkeypatch, tmp_path):
+    import report_quality_audit as audit
+    import report_quality_review_workflow as review_workflow
+
+    reports = [
+        {
+            "ticker": "1623.TW",
+            "filename": "1623_v1.html",
+            "pipeline_id": "v1",
+            "snapshot_integrity": {"status": "verified"},
+            "report_conformance": {},
+            "evidence_exit_gate": {},
+            "content_credibility": {},
+        },
+        {
+            "ticker": "2330.TW",
+            "filename": "2330_v1.html",
+            "pipeline_id": "v1",
+            "snapshot_integrity": {"status": "verified"},
+            "report_conformance": {},
+            "evidence_exit_gate": {},
+            "content_credibility": {},
+        },
+        {
+            "ticker": "2454.TW",
+            "filename": "2454_v1.html",
+            "pipeline_id": "v1",
+            "snapshot_integrity": {"status": "verified"},
+            "report_conformance": {},
+            "evidence_exit_gate": {},
+            "content_credibility": {"status": "passed"},
+        },
+    ]
+    monkeypatch.setattr(audit, "collect_all_report_pages", lambda *_args, **_kwargs: {"reports": reports})
+    monkeypatch.setattr(audit, "storage_for_existing_output_dir", lambda *_args: None)
+    monkeypatch.setattr(audit, "_cached_indexed_quality_reports", lambda *_args, **_kwargs: reports)
+
+    def attach_quality_reviews(loaded, _output_dir):
+        loaded[0]["quality_review"] = {"status": "pending"}
+        loaded[1]["quality_review"] = {"status": "approved_with_gap"}
+        loaded[2]["quality_review"] = {"status": "pending"}
+
+    monkeypatch.setattr(review_workflow, "attach_quality_reviews", attach_quality_reviews)
+
+    payload = audit.build_historical_indexed_report_quality_audit(
+        str(tmp_path), item_limit=5, review_status="pending", missing_field="content_credibility"
+    )
+
+    assert payload["review_status_filter"] == "pending"
+    assert payload["missing_quality_field_filter"] == "content_credibility"
+    assert payload["audited_reports"] == 1
+    assert [item["filename"] for item in payload["items"]] == ["1623_v1.html"]
+
+
 def test_collect_all_report_pages_follows_index_pagination():
     from report_history_pagination import collect_all_report_pages
 

@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3579 / combined audit scope semantics
+
+- `#偏誤辨識` / `#語意含義`：live response 同時帶有 review status 與 missing field，但原 renderer 只顯示前者；這會把交集數字誤讀成單一篩選結果。
+- `#組成` / `#溝通設計` / `#受眾`：新增雙重 scope summary，保留兩個 quick-filter 群組與雙重空集合語意，讓操作員能直接知道目前看的交集。
+- `#責任` / `#倫理判斷`：backend 既有 AND filter 保持唯一資料範圍來源，前端只呈現 envelope 的兩個 normalized filter，不自行推算或寫入 review 狀態。
+- `#可驗證性` / `#限制條件`：以 combined renderer RED→GREEN、backend AND contract、cache-buster、Node syntax、跨層測試、live read-only query 與 ledger count 驗證；本批不執行 review mutation。
+
 ## D3578 / missing quality field scope
 
 - `#拆解問題` / `#差距分析`：live audit 已有三個 gate 的缺口 aggregate，但人工核對入口仍以所有缺口為集合；缺少「只看某一欄位缺口」的可驗證範圍。
