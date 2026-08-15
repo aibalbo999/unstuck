@@ -8322,14 +8322,14 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 
 1. 五入口 RED 為 `5 failed, 4135 deselected in 32.47s`；shared guard GREEN 為 `5 passed, 4135 deselected in 23.18s`，沒有新增 consumer-specific cleanup。
 2. D3455 post-fix matrix 為 parser、calibration、credibility、structured output 各 `480 cases / 0 leaks / 0 valid-misses`，detector `400 cases / 0 leaks / 0 valid-misses`；explicit target price `[205.0]`、financial `time to price`、existing `time to complete course`、newly guarded issue certification attendance renewal validation recertification 與 already-guarded issue certification attendance recertification renewal validation controls 均為 `[]`。
-3. D3454-D3455 adjacent regression 通過 `10 passed, 4130 deselected in 46.35s`。
+3. D3454-D3455 adjacent regression 通過 `10 passed, 4130 deselected in 44.65s`。
 
 驗證方式
 
 - `$(./scripts/project_python.sh) -m pytest tests/test_price_parser.py tests/test_recommendation_calibration.py tests/test_content_credibility_inputs.py tests/test_structured_output_parser.py tests/test_report_target_price_detection.py -q -k 'time_to_issue_certification_attendance_renewal_validation_recertification_lifecycle'`：RED `5 failed, 4135 deselected in 32.47s`；GREEN `5 passed, 4135 deselected in 23.18s`。
 - D3455 post-fix matrix：四入口各 `480 cases / leaks=0 / valid_misses=0`；detector `400 cases / leaks=0 / valid_misses=0`；union `leaks=0 / valid_misses=0`。
 - controls：explicit target price `[205.0]`；financial `time to price`、existing `time to complete course`、newly guarded `time to issue certification attendance renewal validation recertification` 與 already-guarded `time to issue certification attendance recertification renewal validation` 均為 `[]`；next residual `planning metric time to issue certification renewal recertification attendance validation forecast 12 個` 為 `[12.0]`。
-- D3454-D3455 adjacent regression：`10 passed, 4130 deselected in 46.35s`。
+- D3454-D3455 adjacent regression：`10 passed, 4130 deselected in 44.65s`。
 
 ### 完成後維護 / D3454 / #拆解問題 #差距分析 #偏誤降低 #比較組 #證據基礎 #可驗證性 #來源品質
 
