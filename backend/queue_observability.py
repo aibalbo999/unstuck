@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import time
 from typing import Any
 
 from security_sanitizer import sanitize_error_message
+
+FAILED_JOB_STALE_AFTER_SECONDS = 7 * 24 * 60 * 60
 
 
 def snapshot_task_queue(task_queue: Any) -> dict:
@@ -31,10 +34,7 @@ def _snapshot_rq_queue(task_queue: Any, queue: Any, redis_client: Any) -> dict:
     queues = dict(getattr(task_queue, "queues", {}) or {})
     if queues:
         queue_details = {
-            name: {
-                "depth": _queue_depth(item),
-                "registries": _rq_registry_counts(item),
-            }
+            name: _rq_queue_detail(item, redis_client)
             for name, item in queues.items()
         }
         depth_values = [value["depth"] for value in queue_details.values() if value["depth"] is not None]
@@ -48,14 +48,17 @@ def _snapshot_rq_queue(task_queue: Any, queue: Any, redis_client: Any) -> dict:
             "registries": registries,
             "queues": queue_details,
         }
+        payload.update(_aggregate_failed_registry_stats(queue_details, registries.get("failed", 0)))
     else:
+        registries = _rq_registry_counts(queue)
         payload = {
             "backend": "rq",
             "available": True,
             "queue_name": getattr(queue, "name", None),
             "depth": _queue_depth(queue),
-            "registries": _rq_registry_counts(queue),
+            "registries": registries,
         }
+        payload.update(_failed_registry_stats(queue, redis_client, registries.get("failed", 0)))
     try:
         ping = getattr(redis_client, "ping", None)
         if callable(ping):
@@ -70,6 +73,75 @@ def _snapshot_rq_queue(task_queue: Any, queue: Any, redis_client: Any) -> dict:
     if timeout is not None:
         payload["job_timeout_seconds"] = timeout
     return payload
+
+
+def _rq_queue_detail(queue: Any, redis_client: Any) -> dict:
+    registries = _rq_registry_counts(queue)
+    detail = {"depth": _queue_depth(queue), "registries": registries}
+    detail.update(_failed_registry_stats(queue, redis_client, registries.get("failed", 0)))
+    return detail
+
+
+def _aggregate_failed_registry_stats(queue_details: dict, failed_count: int) -> dict:
+    stats = [detail for detail in queue_details.values() if "failed_recent" in detail]
+    if not stats:
+        return {}
+    recent = sum(int(detail.get("failed_recent") or 0) for detail in stats)
+    stale = sum(int(detail.get("failed_stale") or 0) for detail in stats)
+    return {"failed_recent": recent + max(0, int(failed_count) - recent - stale), "failed_stale": stale}
+
+
+def _failed_registry_stats(queue: Any, redis_client: Any, failed_count: int) -> dict:
+    if failed_count <= 0:
+        return {}
+    registry = getattr(queue, "failed_job_registry", None)
+    connection = getattr(queue, "connection", None) or redis_client
+    zrange = getattr(connection, "zrange", None)
+    key = getattr(registry, "key", None)
+    if not callable(zrange) or not key:
+        return {"failed_recent": failed_count}
+    try:
+        job_ids = zrange(key, 0, -1)
+    except Exception:
+        return {"failed_recent": failed_count}
+    fetch_job = getattr(queue, "fetch_job", None)
+    if not callable(fetch_job):
+        return {"failed_recent": failed_count}
+    recent = 0
+    stale = 0
+    now = time.time()
+    for job_id in job_ids:
+        try:
+            if isinstance(job_id, (bytes, bytearray)):
+                job_id = job_id.decode("utf-8", "replace")
+            job = fetch_job(job_id)
+            timestamp = getattr(job, "ended_at", None) or getattr(job, "created_at", None)
+            age = _job_age_seconds(timestamp, now)
+        except Exception:
+            recent += 1
+            continue
+        if age is None:
+            recent += 1
+            continue
+        if age > FAILED_JOB_STALE_AFTER_SECONDS:
+            stale += 1
+        else:
+            recent += 1
+    recent += max(0, int(failed_count) - recent - stale)
+    return {"failed_recent": recent, "failed_stale": stale}
+
+
+def _job_age_seconds(timestamp: Any, now: float) -> float | None:
+    if timestamp is None:
+        return None
+    if isinstance(timestamp, datetime):
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
+        return max(0.0, now - timestamp.timestamp())
+    try:
+        return max(0.0, now - float(timestamp))
+    except (TypeError, ValueError, OverflowError):
+        return None
 
 
 def _sum_registries(registry_counts: list[dict]) -> dict:

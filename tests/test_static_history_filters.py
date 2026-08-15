@@ -5922,7 +5922,7 @@ def test_candidate_next_actions_assets_use_shared_cache_buster():
     assert "/static/style.css?v=20260815-quality-audit-traceability" in index_html
     assert "/static/watchlist_panel_helpers.js?v=20260816-quality-audit-provenance-ui" in index_html
     assert "/static/watchlist_panel.js?v=20260815-quality-audit-traceability" in index_html
-    assert "/static/maintenance_panel_helpers.js?v=20260816-queue-failure-observability" in index_html
+    assert "/static/maintenance_panel_helpers.js?v=20260816-queue-failure-age-classification" in index_html
     assert "/static/maintenance_panel.js?v=20260816-queue-failure-observability" in index_html
     assert "/static/operator_dashboard_actions.js?v=20260711-candidate-next-actions-v3" in index_html
     assert "/static/operator_summary_panel.js?v=20260711-candidate-next-actions-v3" in index_html
@@ -6635,7 +6635,9 @@ const queue = {
   available: true,
   depth: 0,
   queue_name: 'stock-analysis',
-  registries: { failed: 10 }
+  registries: { failed: 10 },
+  failed_recent: 0,
+  failed_stale: 10
 };
 process.stdout.write(JSON.stringify({
   text: helpers.summaryText(summary, {}, queue),
@@ -6646,10 +6648,11 @@ process.stdout.write(JSON.stringify({
     result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
     payload = json.loads(result.stdout)
 
-    assert "分析佇列有 10 筆失敗任務" in payload["text"]
+    assert "分析佇列有 10 筆過期失敗殘留" in payload["text"]
     assert "分析佇列" in payload["chips"]
     assert "失敗 10" in payload["chips"]
-    assert "請檢查失敗任務" in payload["result"]
+    assert "過期 10" in payload["chips"]
+    assert "人工清理" in payload["result"]
 
 
 def test_market_screener_frontend_tab_is_wired():

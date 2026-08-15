@@ -11958,3 +11958,8 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 - 以 live RQ snapshot 的 `stock-analysis failed=10` 作為問題證據，確認既有 queue depth/registry payload 未形成 metric、ops status 或維運 UI 的一致訊號。
 - 先以 RED 鎖定 failed registry metric、named queue aggregate、ops warning 與 maintenance copy，再以 GREEN 實作共用 `failed_queue_count` 和 `stock_agent_queue_failed_jobs`；不觸發清除、重試或資料寫入。
 - safe-output regression 校正為：有效的 `failed=3` 即使伴隨 malformed named fields，也必須保留 `warning`，避免安全轉換掩蓋真實失敗工作。
+
+### 完成後維護 / D3532 / #拆解問題 #差距分析 #偏誤降低 #證據基礎 #抽樣 #可驗證性 #來源品質
+
+- 抽樣 live failed registry 的 10 筆 job，確認皆為 6 月 28 日 `test_rq_sys_config.run_job` timeout/abandoned；以 RQ `failure_ttl=7 天` 作為過期比較組。
+- RED 先鎖定 job `ended_at`/`created_at` 的 recent/stale 分類、stale-only 不觸發 ops warning、三組 Prometheus metrics 與前端「過期失敗殘留」文案；GREEN 後保留總量證據但降低過期殘留對事故警示的干擾。

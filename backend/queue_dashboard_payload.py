@@ -36,6 +36,23 @@ def failed_queue_count(queue: Any) -> int:
     )
 
 
+def failed_queue_attention_count(queue: Any) -> int:
+    source = _payload_dict(queue)
+    if "failed_recent" in source:
+        return _safe_int(source.get("failed_recent"))
+    return failed_queue_count(source)
+
+
+def stale_failed_queue_count(queue: Any) -> int:
+    source = _payload_dict(queue)
+    if "failed_stale" in source:
+        return _safe_int(source.get("failed_stale"))
+    return sum(
+        _safe_int(_payload_dict(details).get("failed_stale"))
+        for _, details in safe_mapping_items(_payload_dict(source.get("queues")))
+    )
+
+
 def _copy_queue_supplemental_fields(payload: dict[str, Any], source: dict[str, Any]) -> None:
     if "registries" in source:
         payload["registries"] = _registry_counts(source.get("registries"))
@@ -45,6 +62,9 @@ def _copy_queue_supplemental_fields(payload: dict[str, Any], source: dict[str, A
         payload["oldest_queued_seconds"] = _safe_finite_float(source.get("oldest_queued_seconds"))
     if "job_timeout_seconds" in source:
         payload["job_timeout_seconds"] = _safe_int(source.get("job_timeout_seconds"))
+    for key in ("failed_recent", "failed_stale"):
+        if key in source:
+            payload[key] = _safe_int(source.get(key))
     if "error" in source:
         payload["error"] = safe_text(source.get("error")).strip()
     for key, value in source.items():
@@ -62,6 +82,9 @@ def _named_queue_detail(details: Any) -> dict[str, Any]:
         payload["depth"] = _safe_int(detail.get("depth"))
     if "registries" in detail:
         payload["registries"] = _registry_counts(detail.get("registries"))
+    for key in ("failed_recent", "failed_stale"):
+        if key in detail:
+            payload[key] = _safe_int(detail.get(key))
     return payload
 
 

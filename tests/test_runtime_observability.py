@@ -302,6 +302,29 @@ def test_prometheus_metrics_exports_failed_queue_registry(monkeypatch):
     assert 'stock_agent_queue_failed_jobs{queue="stock-analysis"} 3' in response.text
 
 
+def test_prometheus_metrics_separates_stale_failed_queue_jobs(monkeypatch):
+    monkeypatch.setattr(api, "get_provider_sla_summary", lambda limit=100: [])
+    monkeypatch.setattr(api_observability_service, "get_delivery_audit_summary", lambda: {})
+    monkeypatch.setattr(api_observability_service, "snapshot_task_queue", lambda _task_queue: {
+        "backend": "rq",
+        "available": True,
+        "queue_name": "stock-analysis",
+        "depth": 0,
+        "registries": {"failed": 10},
+        "failed_recent": 0,
+        "failed_stale": 10,
+        "queues": {},
+    })
+    monkeypatch.setattr(api, "analysis_task_queue", object())
+
+    response = TestClient(api.app).get("/metrics")
+
+    assert response.status_code == 200
+    assert 'stock_agent_queue_failed_jobs{queue="stock-analysis"} 10' in response.text
+    assert 'stock_agent_queue_failed_jobs_attention{queue="stock-analysis"} 0' in response.text
+    assert 'stock_agent_queue_failed_jobs_stale{queue="stock-analysis"} 10' in response.text
+
+
 def test_prometheus_provider_labels_ignore_truthiness_failures(monkeypatch):
     class BrokenTruthLabel:
         def __init__(self, value):
@@ -2233,6 +2256,55 @@ def test_ops_dashboard_warns_when_failed_queue_registry_is_present():
         provider_alerts=[],
         notification_delivery={},
     ) == "warning"
+
+
+def test_ops_dashboard_ignores_stale_failed_queue_registry_for_attention():
+    assert api_observability_service._dashboard_status(
+        jobs={"stuck_jobs": {"count": 0}},
+        queue={
+            "available": True,
+            "registries": {"failed": 10},
+            "failed_recent": 0,
+            "failed_stale": 10,
+        },
+        provider_alerts=[],
+        notification_delivery={},
+    ) == "ok"
+
+
+def test_queue_observability_classifies_failed_jobs_by_registry_age(monkeypatch):
+    now = 2_000_000.0
+
+    class FakeRedis:
+        def ping(self):
+            return True
+
+        def zrange(self, _key, _start, _end):
+            return [b"old", b"recent"]
+
+    class FakeRegistry:
+        key = "rq:wip:stock-analysis"
+        count = 2
+
+    class FakeRqQueue:
+        name = "stock-analysis"
+        count = 0
+        failed_job_registry = FakeRegistry()
+
+        def fetch_job(self, job_id):
+            return SimpleNamespace(
+                ended_at=datetime.fromtimestamp(now - (8 * 24 * 60 * 60 if job_id == "old" else 60), timezone.utc),
+                created_at=None,
+            )
+
+    monkeypatch.setattr(queue_observability.time, "time", lambda: now)
+    payload = queue_observability.snapshot_task_queue(
+        SimpleNamespace(queue=FakeRqQueue(), redis=FakeRedis())
+    )
+
+    assert payload["registries"]["failed"] == 2
+    assert payload["failed_recent"] == 1
+    assert payload["failed_stale"] == 1
 
 
 def test_ops_dashboard_api(monkeypatch):

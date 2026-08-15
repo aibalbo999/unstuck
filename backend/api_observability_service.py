@@ -29,7 +29,12 @@ from provider_sla_observability import (
     normalize_sla_window,
     provider_rows_or_empty,
 )
-from queue_dashboard_payload import failed_queue_count, normalize_ops_queue_payload
+from queue_dashboard_payload import (
+    failed_queue_attention_count,
+    failed_queue_count,
+    normalize_ops_queue_payload,
+    stale_failed_queue_count,
+)
 from queue_observability import snapshot_task_queue
 
 
@@ -101,11 +106,19 @@ async def build_prometheus_metrics(
         "# HELP stock_agent_queue_failed_jobs Number of jobs in the failed registry.",
         "# TYPE stock_agent_queue_failed_jobs gauge",
         f"stock_agent_queue_failed_jobs{_labels(queue=queue_name)} {failed_queue_count(queue)}",
+        "# HELP stock_agent_queue_failed_jobs_attention Number of recent failed jobs requiring attention.",
+        "# TYPE stock_agent_queue_failed_jobs_attention gauge",
+        f"stock_agent_queue_failed_jobs_attention{_labels(queue=queue_name)} {failed_queue_attention_count(queue)}",
+        "# HELP stock_agent_queue_failed_jobs_stale Number of stale failed jobs.",
+        "# TYPE stock_agent_queue_failed_jobs_stale gauge",
+        f"stock_agent_queue_failed_jobs_stale{_labels(queue=queue_name)} {stale_failed_queue_count(queue)}",
     ])
     for name, details in safe_mapping_items(_payload_dict(queue.get("queues"))):
         detail = _payload_dict(details)
         lines.append(f"stock_agent_queue_depth{_labels(queue=name)} {_metric_int(detail.get('depth'))}")
         lines.append(f"stock_agent_queue_failed_jobs{_labels(queue=name)} {failed_queue_count(detail)}")
+        lines.append(f"stock_agent_queue_failed_jobs_attention{_labels(queue=name)} {failed_queue_attention_count(detail)}")
+        lines.append(f"stock_agent_queue_failed_jobs_stale{_labels(queue=name)} {stale_failed_queue_count(detail)}")
 
     lines.extend(notification_delivery_prometheus_lines(notification_delivery, _labels))
     lines.append("")
@@ -220,7 +233,7 @@ def _dashboard_status(
         for alert in provider_alerts
     ):
         return "critical"
-    if failed_queue_count(queue) > 0:
+    if failed_queue_attention_count(queue) > 0:
         return "warning"
     if _metric_bool(jobs.get("observability_unavailable")):
         return "warning"

@@ -15,13 +15,15 @@
         return { orphanRows, staleJobs, orphanEvents, warnings: orphanRows + staleJobs + orphanEvents };
     }
     function queueStats(queue) {
-        const failed = Number((queue?.registries || {}).failed), depth = Number(queue?.depth);
-        return { available: queue?.available !== false, depth: Number.isFinite(depth) && depth >= 0 ? depth : 0, failed: Number.isFinite(failed) && failed >= 0 ? failed : 0 };
+        const failed = Number((queue?.registries || {}).failed), recent = Number(queue?.failed_recent), stale = Number(queue?.failed_stale), depth = Number(queue?.depth);
+        return { available: queue?.available !== false, depth: Number.isFinite(depth) && depth >= 0 ? depth : 0, failed: Number.isFinite(failed) && failed >= 0 ? failed : 0, recent: Number.isFinite(recent) && recent >= 0 ? recent : failed, stale: Number.isFinite(stale) && stale >= 0 ? stale : 0 };
     }
     function queueAttention(queue) {
         if (!queue) return '';
         const stats = queueStats(queue);
-        return !stats.available ? '分析佇列無法使用' : stats.failed > 0 ? `分析佇列有 ${stats.failed} 筆失敗任務` : '';
+        if (!stats.available) return '分析佇列無法使用';
+        if (stats.recent > 0) return `分析佇列有 ${stats.recent} 筆近期失敗任務`;
+        return stats.stale > 0 ? `分析佇列有 ${stats.stale} 筆過期失敗殘留` : '';
     }
     function summaryText(summary, delivery, queue) {
         const counts = maintenanceCounts(summary);
@@ -36,9 +38,9 @@
     function queueChip(queue, escapeHtml) {
         if (!queue) return '';
         const stats = queueStats(queue);
-        const tone = stats.available && stats.failed === 0 ? 'is-ok' : 'is-warning';
+        const tone = stats.available && stats.recent === 0 ? 'is-ok' : 'is-warning';
         const status = stats.available ? '可用' : '無法使用';
-        return `<span class="provider-sla-chip maintenance-chip ${tone}">分析佇列 <strong>${escapeHtml(status)}</strong><em>失敗 ${escapeHtml(String(stats.failed))} · 排隊 ${escapeHtml(String(stats.depth))}</em></span>`;
+        return `<span class="provider-sla-chip maintenance-chip ${tone}">分析佇列 <strong>${escapeHtml(status)}</strong><em>失敗 ${escapeHtml(String(stats.failed))} · 近期 ${escapeHtml(String(stats.recent))} · 過期 ${escapeHtml(String(stats.stale))} · 排隊 ${escapeHtml(String(stats.depth))}</em></span>`;
     }
     function storageChips(summary, delivery, escapeHtml, queue) {
         const counts = maintenanceCounts(summary);
@@ -61,7 +63,7 @@
     }
     function defaultResultText(delivery, queue) {
         const queueWarning = queueAttention(queue);
-        if (queueWarning) return `${queueWarning}；請檢查失敗任務，不會自動清除或重試。`;
+        if (queueWarning) return `${queueWarning}；請安排人工清理，不會自動清除或重試。`;
         return notificationDelivery().isWarning?.(delivery)
             ? '通知通道有失敗或重試耗盡項目；請檢查外部 webhook 或憑證，再重跑 sender。'
             : '健康摘要已更新；需要時再展開清理過舊任務、孤兒索引與來源健康事件。';
@@ -90,9 +92,7 @@
         actionMessage,
         defaultResultText,
         maintenanceCounts,
-        queueAttention,
-        render,
-        storageChips,
+        render, storageChips,
         summaryText,
         tableCount
     };

@@ -2151,6 +2151,12 @@
 - 新增共用 `failed_queue_count`：ops dashboard 在 queue 可用但存在 failed jobs 時標為 `warning`，Prometheus 輸出總佇列與 named queue 的 `stock_agent_queue_failed_jobs`，maintenance panel 顯示「分析佇列有 N 筆失敗任務」及失敗/排隊數。
 - 只增加觀測與人工提示，不自動清除或重試；新增的 frontend helper 維持 100 行責任上限，並以 cache-buster 避免舊瀏覽器資源誤用。
 
+## D3532：區分近期失敗與過期 failed registry 殘留
+
+- 以 live `test_rq_sys_config.run_job` 的 6 月 28 日 timeout/abandoned jobs 為證據，確認單純顯示 failed 總數會把過期殘留誤報成當前事故。
+- 沿用 RQ `failure_ttl=7 天` 作為門檻；snapshot 讀取 failed registry 的 job IDs，再用 job `ended_at`（缺失時用 `created_at`）分類，保留 `failed` 總數並新增 `failed_recent`、`failed_stale`。只有 recent failed 觸發 ops `warning`，stale 仍顯示為需人工清理的殘留。
+- Prometheus 同步輸出 total/attention/stale 三種 metric，maintenance panel 顯示近期與過期分布；不讀取 job args、不自動修改 Redis。
+
 綜合視角：
 
 - `#可驗證性`：每個模式的報告模板與決策用途必須有測試與文件可查。
