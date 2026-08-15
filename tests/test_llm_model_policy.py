@@ -72,6 +72,23 @@ def test_stateful_retry_stop_keeps_trying_when_quota_slots_repeat():
     assert stop(_retry_state(7, AgentRateLimitError("429", 1, 60, key_slot=6, key_count=6))) is True
 
 
+def test_all_key_quota_exhaustion_marks_model_for_job_scoped_circuit():
+    policy = model_attempt_policy(model_index=0, has_fallback=True, max_retries=3, key_count=3)
+    stop = make_model_retry_stop(policy)
+    errors = [AgentRateLimitError("429 project quota", 0, 60, key_slot=slot, key_count=3) for slot in (1, 2, 3)]
+
+    assert stop(_retry_state(1, errors[0])) is False
+    assert stop(_retry_state(2, errors[1])) is False
+    assert stop(_retry_state(3, errors[2])) is True
+    assert errors[-1].all_keys_exhausted is True
+
+    context = {}
+    state = record_model_failure(context, "gemma-4-31b-it", errors[-1])
+    assert state["failures"] == 1
+    assert state["opened_until"] > time.time()
+    assert is_model_circuit_open(context, "gemma-4-31b-it") is True
+
+
 def test_server_5xx_policy_keeps_retrying_longer_than_primary_timeout():
     policy = model_attempt_policy(model_index=0, has_fallback=True, max_retries=3, key_count=6)
 

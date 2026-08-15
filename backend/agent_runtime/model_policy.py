@@ -104,6 +104,8 @@ def make_model_retry_stop(policy: ModelAttemptPolicy):
 
         if isinstance(exc, (AgentRateLimitError, AgentAuthError)):
             if policy.key_count > 1 and len(key_slots) >= policy.key_count:
+                if isinstance(exc, AgentRateLimitError):
+                    exc.all_keys_exhausted = True
                 return True
             if not key_slots and key_failures >= policy.quota_attempts:
                 return True
@@ -143,7 +145,8 @@ def record_model_failure(context: dict, model_id: str, exc: BaseException) -> di
     state = _model_circuit_state(context).setdefault(model_id, {"failures": 0, "opened_until": 0.0, "last_error": ""})
     state["failures"] = int(state.get("failures") or 0) + 1
     state["last_error"] = str(exc)[:240]
-    if state["failures"] >= max(1, int(LLM_MODEL_CIRCUIT_THRESHOLD)):
+    exhausted_quota_keys = isinstance(exc, AgentRateLimitError) and bool(getattr(exc, "all_keys_exhausted", False))
+    if exhausted_quota_keys or state["failures"] >= max(1, int(LLM_MODEL_CIRCUIT_THRESHOLD)):
         state["opened_until"] = time.time() + max(1.0, float(LLM_MODEL_CIRCUIT_COOLDOWN_SECONDS or 1))
     return dict(state)
 

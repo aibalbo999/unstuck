@@ -330,6 +330,45 @@ def test_single_agent_async_exhausts_quota_across_all_keys_before_fallback(monke
     ]
 
 
+def test_single_agent_async_skips_exhausted_primary_for_later_agents(monkeypatch):
+    import agent_runtime.single_agent as single_agent_module
+    from agent_runtime.retry_policy import AgentRateLimitError
+
+    class FakeRotator:
+        keys = ["k1", "k2", "k3", "k4"]
+
+    calls = []
+
+    async def fake_run_once(agent_num, context, rotator, model_id, prompt, quota_default=1, timeout_seconds=None):
+        calls.append((agent_num, model_id, timeout_seconds))
+        if model_id == "primary-model":
+            slot = sum(1 for _, called_model, _ in calls if called_model == "primary-model")
+            raise AgentRateLimitError("429 project quota", 0, 60, key_slot=slot, key_count=4)
+        return "fallback result " * 20
+
+    monkeypatch.setattr(single_agent_module, "build_prompt", lambda *_args, **_kwargs: "prompt")
+    monkeypatch.setattr(single_agent_module, "get_runtime_model_sequence", lambda *_args, **_kwargs: ["primary-model", "fallback-model"])
+    monkeypatch.setattr(single_agent_module, "_agent_retry_wait", lambda _retry_state: 0)
+    monkeypatch.setattr(single_agent_module, "_run_agent_once_async", fake_run_once)
+    monkeypatch.setattr(single_agent_module, "get_cached_agent_step", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(single_agent_module, "store_cached_agent_step", lambda *_args, **_kwargs: None)
+
+    context = {"structured_outputs": {}}
+    first = asyncio.run(single_agent_module.run_single_agent_async(7, {"ticker": "AAPL"}, context, FakeRotator()))
+    second = asyncio.run(single_agent_module.run_single_agent_async(8, {"ticker": "AAPL"}, context, FakeRotator()))
+
+    assert "fallback result" in first
+    assert "fallback result" in second
+    assert calls == [
+        (7, "primary-model", 360.0),
+        (7, "primary-model", 360.0),
+        (7, "primary-model", 360.0),
+        (7, "primary-model", 360.0),
+        (7, "fallback-model", 120.0),
+        (8, "fallback-model", 120.0),
+    ]
+
+
 def test_llm_async_call_timeout_becomes_retryable(monkeypatch):
     import agent_runtime.llm_calls as llm_calls
 

@@ -63,6 +63,7 @@ class AgentRateLimitError(AgentRetryableError):
         self.key_cooldown_seconds = key_cooldown_seconds
         self.key_slot = key_slot
         self.key_count = key_count
+        self.all_keys_exhausted = False
 
 
 class AgentAuthError(AgentRetryableError):

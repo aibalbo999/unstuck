@@ -8303,6 +8303,28 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 - D3376-D3387 adjacent regression：`60 passed, 3740 deselected in 423.61s`。
 - completion gate：import boundary `503 passed in 11.00s`；HCS/文件契約 `135 passed in 3.50s`；`py_compile` exit 0；`git diff --check` exit 0；trailing-whitespace 無命中；runtime doctor exit 0，canonical operational DB 為 `backend/cache/operational.sqlite3`、report index 為 `backend/cache/stock_agent_cache.sqlite3`，Redis 為 `redis://localhost:6379/0`；parser/detector 行數維持 `349/189`。
 
+### 完成後維護 / D3505 / #拆解問題 #問對問題 #差距分析 #偏誤降低 #決策樹 #效用 #證據基礎 #比較組 #介入研究 #可驗證性 #來源品質
+
+本次使用：live Worker trace 觀察到同一份重跑的 `gemma-4-31b-it` 對 16 個 key 逐一回覆 429，完成整輪 key rotation 後才切換 `gemini-3.6-flash`。既有 model circuit threshold 為 2，後續 Agent 仍可能重複 primary quota sweep，形成可避免的延遲與錯誤噪音。
+
+核心判斷
+
+1. 第一個 Agent 仍須完整嘗試每個已載入 key，保留 key-level quota evidence；不能用代表 key 取代完整測試。
+2. 同一 job、同一 model 已確認所有 key 都耗盡 quota/rate attempt 後，後續 Agent 應立即使用既有 fallback。
+3. circuit 僅寫入目前 job context 的 model id；其他 model、其他 job 與 fallback route 不受影響。
+
+落地修改
+
+1. `backend/agent_runtime/retry_policy.py` 為 `AgentRateLimitError` 增加 `all_keys_exhausted` marker。
+2. `backend/agent_runtime/model_policy.py` 在 quota key slots 全部耗盡時設 marker，並讓 model circuit 立即開啟。
+3. `tests/test_llm_model_policy.py` 與 `tests/test_architecture_services.py` 鎖住第一輪完整 key sweep 及後續 Agent fail-fast fallback。
+
+驗證方式
+
+- model-policy focused regression：`8 passed`；architecture quota/circuit regression：`3 passed`。
+- 第一個 Agent calls：primary 4 次後 fallback；第二個 Agent：只呼叫 fallback 1 次。
+- 未修改 key rotation 的第一輪完整嘗試邊界，也未把 model circuit 擴成全域 key/model 停用。
+
 ### 完成後維護 / D3504 / #拆解問題 #問對問題 #差距分析 #偏誤降低 #決策樹 #效用 #證據基礎 #比較組 #介入研究 #可驗證性 #來源品質
 
 本次使用：live dashboard 的 3017 v1/v2 repair item 只顯示泛化 report-conformance summary；對照 data snapshot 的 `blocking_issues[].details`，實際原因是「持有」建議與 12 個月目標報酬 39.1%/64.0% 矛盾。這是可觀測的操作資訊損失，不是品質門檻本身判定錯誤。
