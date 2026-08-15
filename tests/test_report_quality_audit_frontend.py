@@ -71,3 +71,33 @@ process.stdout.write(JSON.stringify({ board }));
     payload = json.loads(result.stdout)
 
     assert "2 份 snapshot 無法驗證" in payload["board"]
+
+
+def test_watchlist_board_provides_read_only_report_targets_for_missing_quality_items():
+    helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
+    panel_path = STATIC_DIR / "watchlist_panel.js"
+    script = """
+global.window = {};
+require(__HELPER_PATH__);
+const payload = {
+  decision_queue: { summary: { total_actionable: 0 }, items: [{ type: 'monitor' }] },
+  report_quality_audit: {
+    quality_metadata_missing_reports: 2,
+    quality_metadata_coverage_pct: 98.75,
+    items: [
+      { ticker: '1623.TW', filename: '1623_v2.html', pipeline_id: 'v2' },
+      { ticker: '1623.TW', filename: '1623_v1.html', pipeline_id: 'v1' }
+    ]
+  }
+};
+const board = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], payload, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ board }));
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+    panel = panel_path.read_text(encoding="utf-8")
+
+    assert 'data-quality-report="1623_v2.html"' in payload["board"]
+    assert "查看 1623.TW v2" in payload["board"]
+    assert "data-quality-report" in panel
+    assert "onOpenReport" in panel

@@ -32,17 +32,20 @@
         if (missingQuality > 0) auditParts.push(`${missingQuality} 份待人工核對${coverage == null ? '' : `（覆蓋 ${coverage}%）`}`);
         if (excludedSnapshots > 0) auditParts.push(`${excludedSnapshots} 份 snapshot 無法驗證`);
         const auditText = audit.status === 'unavailable' ? ' · 全量報告品質：暫時無法讀取' : auditParts.length ? ` · 全量報告品質：${auditParts.join('；')}` : '';
+        const auditItems = Array.isArray(audit.items) ? audit.items.filter(item => item && item.filename) : [];
+        const auditButtons = auditItems.map(item => `<button class="watchlist-quality-report-button" type="button" data-quality-report="${escapeHtml(item.filename)}" data-quality-report-ticker="${escapeHtml(item.ticker || '報告')}" data-quality-report-pipeline="${escapeHtml(item.pipeline_id || 'v1')}">查看 ${escapeHtml(item.ticker || '報告')} ${escapeHtml(item.pipeline_id || 'v1')}</button>`).join('');
+        const auditControls = auditButtons ? `<div class="watchlist-quality-audit-actions">${auditButtons}</div>` : '';
         if (top && top.type !== 'monitor' && total > 0) {
             const secondary = Number(queue.secondary_count || 0), source = window.StockAgentDailyQueueContext?.sourceLabel?.(top.source) || top.source || 'queue';
             const attentionContext = window.StockAgentDailyQueueContext?.attentionContextText?.(top);
             const contextText = attentionContext ? ` · ${escapeHtml(attentionContext)}` : '';
-            return `<div class="watchlist-daily-board"><strong>今日工作台</strong><span>需處理 ${escapeHtml(String(total))} 件 · 次要待辦 ${escapeHtml(String(secondary))}${escapeHtml(auditText)}</span><em>最高優先：${escapeHtml(top.title || '今日待處理')} · 來源：${escapeHtml(source)} · priority_score ${escapeHtml(String(top.priority_score ?? ''))}${contextText}</em></div>`;
+            return `<div class="watchlist-daily-board"><strong>今日工作台</strong><span>需處理 ${escapeHtml(String(total))} 件 · 次要待辦 ${escapeHtml(String(secondary))}${escapeHtml(auditText)}</span><em>最高優先：${escapeHtml(top.title || '今日待處理')} · 來源：${escapeHtml(source)} · priority_score ${escapeHtml(String(top.priority_score ?? ''))}${contextText}</em>${auditControls}</div>`;
         }
         const enabled = items.filter(item => item.enabled !== false);
         const needs = enabled.filter(item => ['high', 'medium'].includes(item.decision_priority));
         const next = needs.slice(0, 3).map(item => item.ticker).join('、') || '無急件';
         const detail = auditText ? auditText.slice(3) : next;
-        return `<div class="watchlist-daily-board"><strong>今日工作台</strong><span>需處理 ${escapeHtml(String(needs.length))} 檔${escapeHtml(auditText)}</span><em>${escapeHtml(detail)}</em></div>`;
+        return `<div class="watchlist-daily-board"><strong>今日工作台</strong><span>需處理 ${escapeHtml(String(needs.length))} 檔${escapeHtml(auditText)}</span><em>${escapeHtml(detail)}</em>${auditControls}</div>`;
     }
 
     function renderSuggestions(elements, payload, escapeHtml) {

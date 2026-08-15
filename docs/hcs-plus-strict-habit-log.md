@@ -2,6 +2,16 @@
 
 更新時間：2026-08-15
 
+## D3525 / 品質缺口的可追溯人工入口
+
+- `#受眾` / `#差距分析`：backend audit 已有兩份 missing item 的報告定位資料，但 watchlist board 只顯示數字；操作員仍需自行切換 history，增加人工核對成本。
+- `#語意含義` / `#溝通設計`：新增「查看 1623.TW v1/v2」類型的明確 read-only CTA，語意是開啟報告查看，不是重跑、修復或採用報告。
+- `#偏誤降低` / `#責任`：按鈕只走既有 `openReport(filename, ticker, pipeline)`，不進 decision queue、不 POST rerun、不寫 artifact/index；invalid/unverified snapshot 仍只顯示警示。
+- `#最佳化` / `#限制條件`：沿用既有 watchlist board、事件 delegation 與 report preview，不新增第二套報告路徑；更新 style/script cache-buster，讓瀏覽器不留在舊 bundle。
+- `#可驗證性`：RED→GREEN static/history `136 passed`、HTTP/quality/dashboard `49 passed`，JS syntax 與 file-size budget 通過。
+
+本批暫定決策：人工核對入口可直接定位報告，但不自動產生 remediation action；後續若要批次修復，仍需另外核准 workflow 與 audit trail。
+
 ## D3524 / snapshot 排除數與逐筆 audit 隔離
 
 - `#拆解問題` / `#差距分析`：audit coverage 只看 verified snapshot，若沒有 invalid/unverified 計數，操作者難以區分「沒有缺口」與「資料根本未納入分母」。

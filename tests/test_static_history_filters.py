@@ -3589,9 +3589,11 @@ def test_watchlist_is_first_class_tracking_tab_for_consumers():
     assert "loadWatchlistOnce" in ops_workspace_js
     assert "data-watchlist-snapshot" in watchlist_panel_js
     assert "data-watchlist-report" in watchlist_panel_js
+    assert "data-quality-report" in watchlist_panel_js
     assert "最新報告" in watchlist_helpers_js
     assert ".watchlist-ticker-button" in watchlist_css
     assert ".watchlist-report-button" in watchlist_css
+    assert ".watchlist-quality-report-button" in watchlist_css
     assert "tabName === 'tracking'" in app_js
     assert "opsWorkspace.loadWatchlistOnce" in app_js
     assert "loadWatchlistOnce" in app_panels_js
@@ -5916,7 +5918,9 @@ def test_candidate_next_actions_assets_use_shared_cache_buster():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
 
-    assert "/static/style.css?v=20260711-candidate-next-actions-v3" in index_html
+    assert "/static/style.css?v=20260815-quality-audit-traceability" in index_html
+    assert "/static/watchlist_panel_helpers.js?v=20260815-quality-audit-traceability" in index_html
+    assert "/static/watchlist_panel.js?v=20260815-quality-audit-traceability" in index_html
     assert "/static/operator_dashboard_actions.js?v=20260711-candidate-next-actions-v3" in index_html
     assert "/static/operator_summary_panel.js?v=20260711-candidate-next-actions-v3" in index_html
     assert "/static/app_panels.js?v=20260711-candidate-next-actions-v3" in index_html
@@ -7653,7 +7657,7 @@ def test_decision_tracking_dense_layout_uses_workspace_efficiently():
     history_panel_renderers_js = (STATIC_DIR / "history_panel_renderers.js").read_text(encoding="utf-8")
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
 
-    assert "style.css?v=20260711-candidate-next-actions-v3" in index_html
+    assert "style.css?v=20260815-quality-audit-traceability" in index_html
     assert "/static/provider_sla_panel.js?v=20260708-provider-waterfall-health" in index_html
     assert "/static/ops_workspace.js?v=20260708-provider-group-health" in index_html
     assert "/static/history_panel.js?v=20260708-tracking-action-notes" in index_html
@@ -7704,7 +7708,7 @@ def test_home_commercial_tab_is_a_restart_safe_product_launchpad():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     entry_css = (STATIC_DIR / "commercial" / "styles" / "home_entry.css").read_text(encoding="utf-8")
 
-    assert "style.css?v=20260711-candidate-next-actions-v3" in index_html
+    assert "style.css?v=20260815-quality-audit-traceability" in index_html
     assert "/static/commercial/styles/home_entry.css?v=20260711-simple" in index_html
     assert 'id="home-panel-commercial"' in index_html
     assert 'class="commercial-entry-launchpad"' in index_html
