@@ -101,6 +101,12 @@ def _markdown_trade_setup(markdown_text: str) -> dict:
     return setup
 
 
+def extract_trade_setup(snapshot: dict, markdown_text: str = "") -> dict:
+    """Return the mode-D trade setup from snapshot data, then Markdown fallback."""
+    snapshot = snapshot if isinstance(snapshot, dict) else {}
+    return _snapshot_trade_setup(snapshot) or _markdown_trade_setup(markdown_text)
+
+
 def _snapshot_current_price(snapshot: dict, fallback: str = "N/A") -> str:
     data = snapshot.get("data") if isinstance(snapshot.get("data"), dict) else {}
     for source in (data, snapshot):
@@ -195,7 +201,7 @@ def _bubble_sniper_preview(ticker: str, recommendation: dict, markdown_text: str
 
 
 def _swing_trade_preview(ticker: str, recommendation: dict, markdown_text: str, snapshot: dict) -> dict:
-    setup = _snapshot_trade_setup(snapshot) or _markdown_trade_setup(markdown_text)
+    setup = extract_trade_setup(snapshot, markdown_text)
     direction_label, direction_tone = _trade_direction_label(setup.get("trade_direction"))
     return {
         "kind": "swing_trade",

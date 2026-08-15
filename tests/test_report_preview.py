@@ -301,6 +301,70 @@ def test_mode_d_report_preview_falls_back_to_markdown_trade_plan(tmp_path, monke
     assert preview["metrics"][1]["value"] == "Medium"
 
 
+def test_mode_d_history_upgrades_legacy_content_credibility_from_trade_plan(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
+    filename = "2449_TW_v4_report_20260708_010000.html"
+    (tmp_path / filename).write_text("<div class=\"sidebar-name\">京元電子</div>", encoding="utf-8")
+    (tmp_path / filename.replace(".html", ".md")).write_text(
+        """# 2449.TW 京元電子 - 極短線交易策略報告
+
+## 事件波段摘要
+短線交易計畫摘要。
+
+## 極短線交易計畫
+- **交易方向:** Long
+- **進場區間:** NT$98-100
+- **1-2週目標:** NT$112
+- **嚴格停損:** NT$94
+- **核心催化劑:** 法說會可能釋出出貨上修訊號。
+- **短期波動風險:** Medium
+""",
+        encoding="utf-8",
+    )
+    snapshot = {
+        "ticker": "2449.TW",
+        "pipeline": "v4",
+        "data_trust": {"status": "fresh", "score": 90, "critical_failures": [], "stale_sources": [], "notes": []},
+        "data": {
+            "ticker": "2449.TW",
+            "current_price": 100.0,
+            "data_trust": {"status": "fresh", "score": 90, "critical_failures": [], "stale_sources": [], "notes": []},
+            "source_audit": [],
+        },
+        "evidence_exit_gate": {"verdict": "approved", "failed_count": 0},
+        "evidence_matrix": [],
+        "content_credibility": {
+            "schema_version": 1,
+            "status": "passed",
+            "blocking_issues": [],
+            "warnings": [],
+            "checks": [{
+                "id": "recommendation_target_alignment",
+                "status": "passed",
+                "message": "未記錄最終建議或主要目標價，略過方向一致性檢查。",
+            }],
+        },
+    }
+    (tmp_path / filename.replace(".html", ".data.json")).write_text(
+        json.dumps(snapshot, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    report_index.upsert_report_metadata(filename, output_dir=str(tmp_path))
+    result = list_reports_for_test(tmp_path, pipeline="v4")
+
+    credibility = result["reports"][0]["content_credibility"]
+    assert credibility["status"] == "passed"
+    assert credibility["checks"][0]["id"] == "trade_setup_alignment"
+    assert credibility["checks"][0]["details"] == {
+        "trade_direction": "Long",
+        "current_price": 100.0,
+        "target_price": 112.0,
+        "stop_loss": 94.0,
+    }
+
+
 def test_rendered_report_surfaces_catalysts_with_watchlist_buttons():
     html = generate_html_report({
         "ticker": "2449.TW",

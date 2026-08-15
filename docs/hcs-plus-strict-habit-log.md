@@ -2,6 +2,16 @@
 
 更新時間：2026-08-15
 
+## D3520 / 歷史 v4 品質 gate 相容性
+
+- `#拆解問題` / `#差距分析`：live 最近 20 份 v4 history row 都是部署前 snapshot，仍帶 `recommendation_target_alignment` 舊 check；但 preview 已能讀出交易方向、目標與停損，造成新舊報告的品質證據不一致。
+- `#語意含義` / `#受眾`：歷史卡片、preview 與每日 repair queue 都應使用同一套 v4 短線交易計畫語意；不能因 API 通用 recommendation 是 `N/A` 就把短線交易計畫說成沒有可檢查內容。
+- `#偏誤降低`：row mapping 只在 v4、舊 gate、且 snapshot/Markdown 可解析交易計畫時 lazy 重算 `trade_setup_alignment`；v1–v3、缺少交易計畫、已具新 check 的報告原樣保留，且不寫回任何 artifact/index。
+- `#可驗證性`：先以歷史 row RED 測試鎖住舊 check，再以 `148 passed` 通過 preview、content credibility、frontend history 與 temporal-memory 回歸；runtime 重啟後 live 最近 20/20 v4 為新 check，`legacy_skip_count=0`，preview 方向未變。
+- `#責任` / `#制定策略`：RQ failed registry 的 10 筆紀錄已核對為 2026-06-28 的 `test_rq_sys_config.run_job` 歷史測試工作；它們沒有對應 canonical `analysis_jobs` 可執行任務，也沒有進 daily decision queue，因此保留 raw registry 觀測，不把歷史測試失敗變成操作員待辦。
+
+本批暫定決策：相容性修正放在讀取邊界，讓歷史品質判斷立即一致；不回寫報告檔、不改長短線欄位語意，也不把 raw RQ registry 計數冒充報告工作失敗。
+
 ## D3519 / Mode D 交易計畫可信度
 
 - `#拆解問題` / `#差距分析`：live `2465.TW` 的 v4 `preview` 已有交易方向、進場區間、1–2 週目標與停損，但通用 recommendation metadata 是 `N/A`；品質 gate 因此只說略過方向一致性檢查。

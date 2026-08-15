@@ -8,13 +8,15 @@ import os
 from data_trust import normalize_data_trust, unknown_data_trust
 from data_trust_snapshot import verify_data_snapshot_integrity
 from decision_tracking import build_decision_freshness, build_decision_tracking
+from mapping_fields import safe_mapping_dict
 from pipeline_modes import get_pipeline_definition
 from recommendation_calibration import calibrate_recommendation_summary
 from recommendation_labels import normalize_recommendation_label
 from report_index_parsing import normalize_report_display_date, parse_recommendation_summary
 from report_index_repair import recommendation_needs_rebuild
 from report_paths import report_storage_candidates_for_filename
-from report_preview import build_report_preview
+from report_preview import build_report_preview, extract_trade_setup
+from reporting.content_credibility import evaluate_content_credibility
 
 
 def _row_file_path(row, *, kind: str) -> str:
@@ -147,10 +149,29 @@ def _report_conformance(row) -> dict:
     return conformance if isinstance(conformance, dict) else {}
 
 
-def _content_credibility(row) -> dict:
-    snapshot = _read_snapshot(row)
+def _content_credibility(row, *, pipeline_id: str, markdown_text: str, snapshot: dict | None = None) -> dict:
+    snapshot = snapshot if isinstance(snapshot, dict) else _read_snapshot(row)
     credibility = snapshot.get("content_credibility") if isinstance(snapshot, dict) else {}
-    return credibility if isinstance(credibility, dict) else {}
+    credibility = credibility if isinstance(credibility, dict) else {}
+    if pipeline_id != "v4":
+        return credibility
+
+    checks = credibility.get("checks") if isinstance(credibility.get("checks"), list) else []
+    if any(isinstance(check, dict) and check.get("id") == "trade_setup_alignment" for check in checks):
+        return credibility
+
+    trade_setup = extract_trade_setup(snapshot, markdown_text)
+    if not trade_setup:
+        return credibility
+
+    data = safe_mapping_dict(snapshot.get("data")) or {}
+    context = {
+        "pipeline_id": "v4",
+        "data": data,
+        "parsed": {"trade_setup": trade_setup},
+        "evidence_exit_gate": safe_mapping_dict(snapshot.get("evidence_exit_gate")) or {},
+    }
+    return evaluate_content_credibility(context, snapshot, markdown=markdown_text)
 
 
 def _markdown_text(row) -> str:
@@ -216,7 +237,11 @@ def row_to_report(row) -> dict:
         "temporal_memory": _temporal_memory(row),
         "evidence_exit_gate": _evidence_exit_gate(row),
         "report_conformance": _report_conformance(row),
-        "content_credibility": _content_credibility(row),
+        "content_credibility": _content_credibility(
+            row,
+            pipeline_id=pipeline_id,
+            markdown_text=markdown_text,
+        ),
         "snapshot_integrity": _snapshot_integrity(row),
         "data_snapshot_filename": row["data_snapshot_filename"] if "data_snapshot_filename" in row.keys() else "",
         "data_trust": data_trust,
