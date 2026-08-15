@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
+from typing import Any, Callable
 
 from config import (
     FALLBACK_LLM_AGENT_CALL_TIMEOUT_SECONDS,
@@ -70,7 +71,11 @@ def should_stop_retry(retry_state, policy: ModelAttemptPolicy) -> bool:
     return attempt >= policy.transient_attempts
 
 
-def make_model_retry_stop(policy: ModelAttemptPolicy):
+def make_model_retry_stop(
+    policy: ModelAttemptPolicy,
+    *,
+    shared_circuit_open: Callable[[], bool] | None = None,
+):
     """Return a stop predicate that counts retry classes independently."""
     counted_attempts: set[int] = set()
     key_failures = 0
@@ -83,6 +88,11 @@ def make_model_retry_stop(policy: ModelAttemptPolicy):
         nonlocal key_failures, server_failures, short_failures, transient_failures
         attempt = int(getattr(retry_state, "attempt_number", 1) or 1)
         exc = retry_state.outcome.exception() if retry_state.outcome else None
+        if shared_circuit_open is not None and shared_circuit_open():
+            if isinstance(exc, AgentRateLimitError):
+                exc.all_keys_exhausted = True
+                exc.parallel_circuit_open = True
+            return True
         if attempt not in counted_attempts:
             counted_attempts.add(attempt)
             if isinstance(exc, (AgentRateLimitError, AgentAuthError)):
@@ -117,6 +127,29 @@ def make_model_retry_stop(policy: ModelAttemptPolicy):
         return transient_failures >= policy.transient_attempts
 
     return _stop
+
+
+def shared_model_circuit_open(rotator: Any, model_id: str) -> bool:
+    checker = getattr(rotator, "is_model_circuit_open", None)
+    return bool(checker(model_id)) if callable(checker) else False
+
+
+def model_circuit_open_for_job(context: dict, rotator: Any, model_id: str) -> bool:
+    return is_model_circuit_open(context, model_id) or shared_model_circuit_open(rotator, model_id)
+
+
+def publish_shared_model_circuit(rotator: Any, model_id: str, circuit_state: dict) -> None:
+    opener = getattr(rotator, "open_model_circuit", None)
+    opened_until = float(circuit_state.get("opened_until") or 0.0)
+    if callable(opener) and opened_until > 0.0:
+        opener(model_id, opened_until=opened_until)
+
+
+def make_model_retry_stop_for_rotator(policy: ModelAttemptPolicy, rotator: Any, model_id: str):
+    return make_model_retry_stop(
+        policy,
+        shared_circuit_open=lambda: shared_model_circuit_open(rotator, model_id),
+    )
 
 
 def timeout_for_model_call(model_index: int, has_fallback: bool) -> float:

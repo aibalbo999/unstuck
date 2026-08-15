@@ -89,6 +89,16 @@ def test_all_key_quota_exhaustion_marks_model_for_job_scoped_circuit():
     assert is_model_circuit_open(context, "gemma-4-31b-it") is True
 
 
+def test_parallel_peer_circuit_stops_current_quota_retry_immediately():
+    policy = model_attempt_policy(model_index=0, has_fallback=True, max_retries=3, key_count=16)
+    stop = make_model_retry_stop(policy, shared_circuit_open=lambda: True)
+    error = AgentRateLimitError("429 project quota", 0, 60, key_slot=4, key_count=16)
+
+    assert stop(_retry_state(1, error)) is True
+    assert error.all_keys_exhausted is True
+    assert error.parallel_circuit_open is True
+
+
 def test_server_5xx_policy_keeps_retrying_longer_than_primary_timeout():
     policy = model_attempt_policy(model_index=0, has_fallback=True, max_retries=3, key_count=6)
 

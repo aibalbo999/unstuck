@@ -8,6 +8,7 @@ import time
 
 from config import API_KEY_SETUP_MESSAGE, RPM_LIMITS, TPM_LIMITS
 from llm_rate_limit_buckets import TokenBucket
+from llm_model_circuits import ModelCircuitStore
 from llm_provider_routes import provider_for_model
 from runtime_events import emit_log
 from shared_runtime_guards import LocalFixedWindowRateLimiter, create_shared_llm_limiter
@@ -44,6 +45,7 @@ class KeyRotator:
         self._async_lock = asyncio.Lock()
         self._shared_limiter = create_shared_llm_limiter()
         self._local_rpd_limiter = LocalFixedWindowRateLimiter()
+        self._model_circuits = ModelCircuitStore()
 
     def _bucket(self, store: dict, key: str, model: str, limit: int | float) -> TokenBucket:
         bucket_key = (key, model)
@@ -190,6 +192,20 @@ class KeyRotator:
                 self._bucket(self._tpm_buckets, key, model, tpm_limit).penalize(wait_seconds)
             if self._shared_limiter:
                 self._shared_limiter.penalize(key, model, wait_seconds)
+
+    def open_model_circuit(
+        self,
+        model: str,
+        *,
+        cooldown_seconds: float | None = None,
+        opened_until: float | None = None,
+    ) -> None:
+        """Publish a model circuit to other agents sharing this job rotator."""
+        self._model_circuits.open(model, cooldown_seconds=cooldown_seconds, opened_until=opened_until)
+
+    def is_model_circuit_open(self, model: str) -> bool:
+        """Return whether a peer has opened this model circuit in this job."""
+        return self._model_circuits.is_open(model)
 
     def disable_rpd_until_reset(self, key: str, model: str) -> float:
         """Disable a key/model pair until the next Pacific Time daily reset."""

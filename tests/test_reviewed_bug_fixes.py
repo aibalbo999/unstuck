@@ -108,6 +108,19 @@ def test_key_rotator_async_advances_index_once_per_selected_key(monkeypatch):
     assert asyncio.run(run()) == ("k1", "k2", 2)
 
 
+def test_key_rotator_model_circuit_is_scoped_to_one_job_rotator(monkeypatch):
+    import llm_rate_limits
+
+    monkeypatch.setattr(llm_rate_limits, "emit_log", lambda message: None)
+    first_job = llm_rate_limits.KeyRotator(["k1"])
+    second_job = llm_rate_limits.KeyRotator(["k1"])
+
+    first_job.open_model_circuit("gemma-4-31b-it", cooldown_seconds=30)
+
+    assert first_job.is_model_circuit_open("gemma-4-31b-it") is True
+    assert second_job.is_model_circuit_open("gemma-4-31b-it") is False
+
+
 def test_analysis_done_fallback_handles_empty_pipeline_sequence():
     from api_routes.analysis import AnalysisRouteDeps, create_analysis_router
 

@@ -1,6 +1,7 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-15
+- D3512：live v4 `2344.TW` 的平行 Agent 22/23 各自對 gemma 進行約 21/32 次 quota retry；Agent 22 已 `circuit_open=true` 後，另一分支仍繼續 provider calls。新增 job-scoped `KeyRotator` model circuit、tenacity peer-circuit fail-fast 與 `shared_circuit_open` event metadata；先完成 RED/GREEN 與模型/rotator/graph regression，待新 Worker 載入後驗證 provider call 數下降。
 - D3511：live c998 v3 retry 進一步證明 D3509 的 graph state 在平行群組仍有 reducer 缺口：Agent 18 對 gemma 開啟熔斷後，平行 Agent 20 的成功分支以空字典覆蓋，後續 Agent 21 再次送出 gemma。新增 `merge_model_circuits`，平行 delta 取較強的 failure/opened-until 狀態；新增 reducer regression，workflow adapter `21 passed`、context-digest/import regression `3 passed`。
 - D3510：新版 Worker `51862` 的 f28 v4 report 已完成，canonical event ledger 顯示 Agent 23 的 `gemma-4-31b-it` 16-key quota sweep 後 fallback；進一步觀察新版 a4d9 v2 retry 發現 Agent 14 之後的 Agent 21 context digest 仍直接呼叫 gemma，因 `context_digest_tasks.py` 繞過 model circuit。新增 sync/async context-digest circuit guard、成功清除與 quota failure 回寫；direct caller regression `133 passed`。
 - D3509：live `bcad...` 報告事件顯示 Agent 2 在 `gemma-4-31b-it` 完成 16 key quota sweep 並 fallback 後，Agent 3 又重新呼叫同一 primary model；根因是 D3505 的 model circuit 只存在 legacy context，LangGraph 每個 node 重建 context 時遺失。將 `llm_model_circuits` 納入 checkpoint-safe graph state、context round-trip 與每個 Agent delta，跨 Agent 共享同一 job 的熔斷狀態；adapter/cross-agent regression `13 passed`。

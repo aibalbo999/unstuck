@@ -8303,6 +8303,29 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 - D3376-D3387 adjacent regression：`60 passed, 3740 deselected in 423.61s`。
 - completion gate：import boundary `503 passed in 11.00s`；HCS/文件契約 `135 passed in 3.50s`；`py_compile` exit 0；`git diff --check` exit 0；trailing-whitespace 無命中；runtime doctor exit 0，canonical operational DB 為 `backend/cache/operational.sqlite3`、report index 為 `backend/cache/stock_agent_cache.sqlite3`，Redis 為 `redis://localhost:6379/0`；parser/detector 行數維持 `349/189`。
 
+### 完成後維護 / D3512 / #拆解問題 #問對問題 #差距分析 #變數分析 #偏誤降低 #決策樹 #目的 #效用 #證據基礎 #來源品質 #可驗證性
+
+本次使用：live v4 `2344.TW` 的 canonical event ledger 顯示平行 Agent 22/23 都以 gemma 為 primary；Agent 22 先完成 quota sweep 並記錄 `circuit_open=true`，但 Agent 23 仍持續 provider retry，造成同一 job 對同一模型重複消耗 quota。這是 D3511 只能在 graph join 後合併 state、無法中止已在 retry loop 中的 peer branch 的邊界。
+
+核心判斷
+
+1. 第一個 branch 完整 sweep 後開啟 circuit，其他同 job branch 的 tenacity retry 應在下一次 retry 判斷時停止。
+2. 共享 circuit 必須放在每個 job 專用的 `KeyRotator`，不能使用 process-global state，避免不同股票或不同任務互相停用模型。
+3. 只有真正已開啟的 circuit 才發布到共享 rotator；普通 transient/server failure 仍依原本 threshold 重試。
+
+落地修改
+
+1. `backend/llm_rate_limits.py` 新增 job-scoped `open_model_circuit` / `is_model_circuit_open`。
+2. `backend/agent_runtime/model_policy.py` 讓 retry stop 接收 peer circuit probe，並標記 `parallel_circuit_open`。
+3. `backend/agent_runtime/single_agent.py` 在 sync/async agent retry 與 failure publish 接上共享 circuit，事件補 `shared_circuit_open` metadata。
+4. `tests/test_llm_model_policy.py`、`tests/test_reviewed_bug_fixes.py` 新增 fail-fast 與跨 rotator isolation regression。
+
+驗證方式
+
+- RED：新增 peer-circuit test 初始因 `make_model_retry_stop()` 不接受 probe 而失敗。
+- GREEN：model policy + reviewed bug fixes `48 passed`；workflow/state/checkpoint `37 passed`；runtime/architecture `154 passed`；compileall/diff check 通過。
+- live baseline：`2344.TW` 在舊 Worker 上記錄 Agent 22/23 約 `21/32` 次 gemma calls；D3512 尚未載入該 job，因此待新 Worker 的後續 quota failure 事件確認 call 數縮短。
+
 ### 完成後維護 / D3511 / #拆解問題 #問對問題 #差距分析 #變數分析 #偏誤降低 #決策樹 #目的 #效用 #證據基礎 #來源品質 #可驗證性
 
 本次使用：live c998 v3 retry 的 canonical event ledger 顯示 Agent 18 的 gemma primary quota sweep 失敗並開啟 model circuit，但平行 Agent 20 成功分支完成後，Agent 21 仍重新呼叫 gemma。根因不是 D3509 的 state 欄位缺失，而是 LangGraph 平行 delta 使用一般 top-level merge，成功分支的空 circuit map 覆蓋了失敗分支的 open state。

@@ -18,9 +18,10 @@ from .llm_calls import (
 )
 from .cancellation import raise_if_cancelled
 from .model_policy import (
-    is_model_circuit_open,
-    make_model_retry_stop,
+    make_model_retry_stop_for_rotator,
+    model_circuit_open_for_job,
     model_attempt_policy,
+    publish_shared_model_circuit,
     record_model_failure,
     record_model_success,
     timeout_for_model_call,
@@ -36,7 +37,6 @@ from .step_cache import (
 )
 from .single_agent_events import emit_async_model_event, emit_sync_model_event
 from runtime_events import emit_log
-
 def run_single_agent(
     agent_num: int,
     data: StockData,
@@ -65,7 +65,7 @@ def run_single_agent(
             emit_log(f"    🔁 {message}")
             emit_sync_model_event(context, agent_num, "model_fallback", "warning", message, model_id, model_index=model_index)
 
-        if is_model_circuit_open(context, model_id) and model_index < len(model_sequence) - 1:
+        if model_circuit_open_for_job(context, rotator, model_id) and model_index < len(model_sequence) - 1:
             message = f"模型 {model_id} 暫時熔斷，直接切換備援模型。"
             emit_log(f"    🔁 {message}")
             emit_sync_model_event(context, agent_num, "model_circuit_open", "warning", message, model_id)
@@ -95,7 +95,7 @@ def run_single_agent(
             return restore_cached_agent_step(context, agent_num, cached_step)
         record_agent_step_cache_miss(context)
         retryer = Retrying(
-            stop=make_model_retry_stop(policy),
+            stop=make_model_retry_stop_for_rotator(policy, rotator, model_id),
             wait=_agent_retry_wait,
             retry=retry_if_exception_type(AgentRetryableError),
             before_sleep=make_agent_retry_logger(context, agent_num, model_id),
@@ -137,6 +137,7 @@ def run_single_agent(
         except AgentRetryableError as exc:
             last_error = str(exc)
             circuit_state = record_model_failure(context, model_id, exc)
+            publish_shared_model_circuit(rotator, model_id, circuit_state)
             message = f"{model_id} 多次重試後仍失敗：{last_error[:120]}"
             emit_log(f"    ❌ {message}")
             emit_sync_model_event(
@@ -148,6 +149,7 @@ def run_single_agent(
                 model_id,
                 error_kind=exc.__class__.__name__,
                 circuit_open=bool(circuit_state.get("opened_until")),
+                shared_circuit_open=bool(getattr(exc, "parallel_circuit_open", False)),
             )
             continue
 
@@ -176,7 +178,7 @@ async def run_single_agent_async(
             emit_log(f"    🔁 {message}")
             await emit_async_model_event(context, agent_num, "model_fallback", "warning", message, model_id, model_index=model_index)
 
-        if is_model_circuit_open(context, model_id) and model_index < len(model_sequence) - 1:
+        if model_circuit_open_for_job(context, rotator, model_id) and model_index < len(model_sequence) - 1:
             message = f"模型 {model_id} 暫時熔斷，直接切換備援模型。"
             emit_log(f"    🔁 {message}")
             await emit_async_model_event(context, agent_num, "model_circuit_open", "warning", message, model_id)
@@ -206,7 +208,7 @@ async def run_single_agent_async(
             return restore_cached_agent_step(context, agent_num, cached_step)
         record_agent_step_cache_miss(context)
         retryer = AsyncRetrying(
-            stop=make_model_retry_stop(policy),
+            stop=make_model_retry_stop_for_rotator(policy, rotator, model_id),
             wait=_agent_retry_wait,
             retry=retry_if_exception_type(AgentRetryableError),
             before_sleep=make_agent_retry_logger(context, agent_num, model_id),
@@ -248,6 +250,7 @@ async def run_single_agent_async(
         except AgentRetryableError as exc:
             last_error = str(exc)
             circuit_state = record_model_failure(context, model_id, exc)
+            publish_shared_model_circuit(rotator, model_id, circuit_state)
             message = f"{model_id} 多次重試後仍失敗：{last_error[:120]}"
             emit_log(f"    ❌ {message}")
             await emit_async_model_event(
@@ -259,6 +262,7 @@ async def run_single_agent_async(
                 model_id,
                 error_kind=exc.__class__.__name__,
                 circuit_open=bool(circuit_state.get("opened_until")),
+                shared_circuit_open=bool(getattr(exc, "parallel_circuit_open", False)),
             )
             continue
 
