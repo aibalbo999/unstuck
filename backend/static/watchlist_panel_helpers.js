@@ -52,7 +52,12 @@
             const missingQualityFields = Array.isArray(item.missing_quality_fields) ? item.missing_quality_fields.join(',') : '';
             return `<button class="watchlist-quality-report-button" type="button" data-quality-report="${escapeHtml(item.filename)}" data-quality-report-ticker="${escapeHtml(ticker)}" data-quality-report-pipeline="${escapeHtml(pipeline)}" data-quality-reason-codes="${escapeHtml(reasonCodes)}" data-quality-missing-fields="${escapeHtml(missingQualityFields)}" title="${escapeHtml(detail)}" aria-label="${escapeHtml(`人工核對 ${ticker} ${pipeline}：${title}`)}">查看 ${escapeHtml(ticker)} ${escapeHtml(pipeline)}</button>`;
         }).join('');
-        const auditControls = auditButtons ? `<div class="watchlist-quality-audit-actions">${auditButtons}</div>` : '';
+        const historicalAuditButton = audit.selection_basis === 'latest_per_ticker_pipeline' && missingQuality > 0
+            ? '<button class="watchlist-quality-history-button" type="button" data-quality-history-audit>查看歷史版本稽核</button>'
+            : '';
+        const auditControls = historicalAuditButton || auditButtons
+            ? `<div class="watchlist-quality-audit-actions">${historicalAuditButton}${auditButtons}</div>`
+            : '';
         if (top && top.type !== 'monitor' && total > 0) {
             const secondary = Number(queue.secondary_count || 0), source = window.StockAgentDailyQueueContext?.sourceLabel?.(top.source) || top.source || 'queue';
             const attentionContext = window.StockAgentDailyQueueContext?.attentionContextText?.(top);

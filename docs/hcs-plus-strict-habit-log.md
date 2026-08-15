@@ -2,6 +2,14 @@
 
 更新時間：2026-08-16
 
+## D3548 / 今日範圍到歷史範圍的唯讀導引
+
+- `#受眾` / `#組成`：追蹤工作台目前只顯示 latest-per-ticker/pipeline 的 `2` 個缺口；歷史頁則有 `143` 個版本缺口，兩者分母不同但缺少入口連接。
+- `#溝通設計` / `#責任`：新增「查看歷史版本稽核」按鈕，僅呼叫 app navigation 與既有 `openHistoricalQualityAudit()`；history workspace 自己負責 checkbox、篩選狀態與捲動，追蹤面板不複製 audit 邏輯。
+- `#可驗證性`：RED→GREEN navigation/delegation `3 passed`；fresh browser 從追蹤頁點擊後確認分析頁、舊版 checkbox、`1330/143` 摘要，performance resource 只見既有 GET，沒有 mutation。
+
+本批暫定決策：只補 scope discovery 與唯讀導引，不合併 daily/history 數字、不把歷史缺口加入今日 queue，也不改任何 audit 計算。
+
 ## D3547 / 品質完整度分母與 snapshot 驗證邊界
 
 - `#語意含義` / `#來源品質`：API 的 coverage 是以 `verified_snapshot_reports` 為分母，不能把 `audited_reports` 或被排除的 invalid/unverified rows 說成完整證據。

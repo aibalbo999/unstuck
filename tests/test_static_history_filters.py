@@ -5920,8 +5920,8 @@ def test_candidate_next_actions_assets_use_shared_cache_buster():
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
 
     assert "/static/style.css?v=20260815-quality-audit-traceability" in index_html
-    assert "/static/watchlist_panel_helpers.js?v=20260816-quality-audit-provenance" in index_html
-    assert "/static/watchlist_panel.js?v=20260815-quality-audit-traceability" in index_html
+    assert "/static/watchlist_panel_helpers.js?v=20260816-historical-quality-navigation" in index_html
+    assert "/static/watchlist_panel.js?v=20260816-historical-quality-navigation" in index_html
     assert "/static/maintenance_panel_helpers.js?v=20260816-queue-failure-age-classification" in index_html
     assert "/static/maintenance_panel.js?v=20260816-queue-failure-observability" in index_html
     assert "/static/operator_dashboard_actions.js?v=20260711-candidate-next-actions-v3" in index_html
@@ -7102,7 +7102,7 @@ def test_decision_tracking_controls_and_target_statuses_are_wired():
     assert "/static/history_workspace_actions.js" in index_html
     assert index_html.index("/static/history_workspace_panels.js") < index_html.index("/static/history_workspace_actions.js")
     assert index_html.index("/static/history_workspace_actions.js") < index_html.index("/static/history_workspace.js")
-    assert "/static/history_workspace.js?v=20260816-historical-quality-audit" in index_html
+    assert "/static/history_workspace.js?v=20260816-historical-quality-navigation" in index_html
     assert "mergeTrackingReports" in history_workspace_js
     assert "trackingPayload" in history_workspace_js
     assert "item.latest_reports" in history_workspace_js

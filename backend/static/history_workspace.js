@@ -63,6 +63,17 @@
                 console.error('Failed to load history', err);
             }
         }
+        async function openHistoricalQualityAudit() {
+            const includeVersions = elements.historyIncludeVersions;
+            if (!includeVersions) return;
+            if (!includeVersions.checked) {
+                includeVersions.checked = true;
+                await loadHistory();
+            } else {
+                await qualityAudit.load(historyFilters.values());
+            }
+            elements.historyQualityAudit?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+        }
         function hideReportPreview() {
             previewReport = null;
             reportPreviewPanel.hide();
@@ -150,6 +161,7 @@
             hideReportPreview,
             loadHistory,
             loadQualityAudit: qualityAudit.load,
+            openHistoricalQualityAudit,
             getPreviewReport: () => previewReport
         };
     }
