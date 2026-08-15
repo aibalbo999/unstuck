@@ -2,6 +2,15 @@
 
 更新時間：2026-08-16
 
+## D3555 / artifact evidence availability aggregate
+
+- `#差距分析` / `#受眾`：daily/historical audit 逐筆 target 已有 `artifact_quality_summary`，但 envelope 只回傳分頁 items；若只看前 5 筆，操作員無法知道全部 missing-metadata rows 的 artifact evidence 可用性。
+- `#來源品質` / `#語意含義`：新增 `artifact_quality_summary_by_status`，只在已判定的 missing row 上累計 `present`、`not_found`、`unavailable`，並明確標示 `present` 是 Markdown/HTML marker 可查，不是 structured gate pass。
+- `#偏誤降低` / `#責任`：daily 與 historical UI 共用同一 aggregate，避免把 pagination slice 誤當全量；不改 verified snapshot coverage 分母、不重建 gate、不寫 artifact/index、不 enqueue rerun。
+- `#可驗證性`：先用 audit、historical renderer、watchlist board fixture 取得 RED，再完成 backend/UI GREEN；cache-buster 更新，保留 renderer/helper 行數責任護欄。
+
+本批暫定決策：把 artifact evidence availability 作為完整度提示，不把 marker 存在升格為品質通過，也不由 aggregate 自動產生 remediation action。
+
 ## D3554 / daily 與 historical artifact evidence context 一致
 
 - `#受眾` / `#溝通設計`：live daily dashboard 的 2 筆品質缺口已帶 `artifact_quality_summary`，但「今日工作台」target 原本只顯示 missing gate/provenance；同一筆報告在不同入口看到的 evidence context 不一致。

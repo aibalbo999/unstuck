@@ -177,6 +177,8 @@ The daily decision dashboard (`GET /api/watchlist/daily-dashboard`) consumes rec
 
 品質稽核 envelope 的 `missing_quality_field_counts` 會在 verified snapshot 範圍內按三個品質 gate 分組缺口，讓操作人員能排序人工核對；indexed audit 的 `artifact_quality_summary` 只標示 Markdown/HTML 是否仍有可見 gate 摘要與欄位，不重建 structured gate，也不被解讀成通過率或觸發重跑。
 
+同一 envelope 的 `artifact_quality_summary_by_status` 會在 `items[]` 分頁前統計所有缺 metadata row 的 artifact marker 狀態（`present`、`not_found`、`unavailable`），讓 daily 與 historical UI 顯示完整 evidence availability；它仍只代表可查的文字摘要，不代表 structured gate 通過，也不改 coverage 分母或 read-only 邊界。
+
 同一 envelope 的 `quality_metadata_missing_by_provenance` 會把缺 metadata 的報告分成 `after_refresh` 與 `no_refresh_provenance`；後者只表示沒有 `refreshed_from_report` attribution，不能推論「從未刷新」。audit item 會保留 provenance、刷新來源檔名與 `snapshot_refreshed_at`，但不從 HTML/Markdown 重建 gate payload。
 
 同一 envelope 的 `quality_metadata_by_pipeline` 會保留每個模式的 verified 分母與 coverage，daily board 只顯示有缺口的模式；歷史稽核摘要會把有缺口的模式轉成唯讀快速篩選鈕，沿用 history workspace 的 `pipeline` filter、重設頁碼與 preview 後重新載入，不新增另一套查詢或 action。需要深入時仍可使用 `q`/`pipeline` filtered historical audit。

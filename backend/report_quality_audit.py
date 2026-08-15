@@ -17,6 +17,7 @@ from report_quality_repair_items import quality_metadata_repair_item
 SCHEMA_VERSION = "report_quality_audit.v1"
 QUALITY_METADATA_FIELDS = ("report_conformance", "evidence_exit_gate", "content_credibility")
 QUALITY_METADATA_PROVENANCE = ("after_refresh", "no_refresh_provenance")
+ARTIFACT_QUALITY_SUMMARY_STATUSES = ("present", "not_found", "unavailable")
 ARTIFACT_QUALITY_MARKERS = {
     "report_conformance": (
         re.compile(r"(?im)^\s*-\s*\*\*Report conformance:\*\*\s*\S+"),
@@ -136,6 +137,7 @@ def build_report_quality_audit(
     missing_items = []
     missing_quality_field_counts = {field: 0 for field in QUALITY_METADATA_FIELDS}
     missing_quality_by_provenance = {provenance: 0 for provenance in QUALITY_METADATA_PROVENANCE}
+    artifact_quality_summary_by_status = {status: 0 for status in ARTIFACT_QUALITY_SUMMARY_STATUSES}
     pipeline_quality_stats: dict[str, dict[str, Any]] = {}
     for report in rows:
         pipeline_id = safe_text(report.get("pipeline_id")).strip() or "v1"
@@ -167,6 +169,10 @@ def build_report_quality_audit(
         provenance = _quality_metadata_provenance(item)
         missing_quality_by_provenance[provenance] += 1
         pipeline_stats["quality_metadata_missing_by_provenance"][provenance] += 1
+        artifact_summary = safe_mapping_dict(report.get("artifact_quality_summary")) or {}
+        artifact_status = safe_text(artifact_summary.get("status")).strip().lower()
+        if artifact_status in artifact_quality_summary_by_status:
+            artifact_quality_summary_by_status[artifact_status] += 1
         missing_items.append(_audit_item(report, item))
 
     missing_count = len(missing_items)
@@ -192,6 +198,7 @@ def build_report_quality_audit(
         "quality_metadata_missing_reports": missing_count,
         "missing_quality_field_counts": missing_quality_field_counts,
         "quality_metadata_missing_by_provenance": missing_quality_by_provenance,
+        "artifact_quality_summary_by_status": artifact_quality_summary_by_status,
         "quality_metadata_by_pipeline": quality_metadata_by_pipeline,
         "quality_metadata_coverage_pct": coverage,
         "quality_metadata_coverage_basis": "verified_snapshot_reports",

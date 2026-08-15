@@ -19,6 +19,7 @@
             const count = Number(audit.quality_metadata_missing_by_provenance?.[key] || 0);
             return Number.isFinite(count) && count > 0 ? `${label} ${Math.floor(count)}` : '';
         }).filter(Boolean).join('、');
+        const artifactEvidenceSummary = [['present', 'artifact 摘要可查'], ['not_found', 'artifact 無 gate 摘要'], ['unavailable', 'artifact 無法讀取']].map(([key, label]) => { const count = Number(audit.artifact_quality_summary_by_status?.[key] || 0); return Number.isFinite(count) && count > 0 ? `${label} ${Math.floor(count)} 份` : ''; }).filter(Boolean).join('、');
         const pipelineQuality = audit.quality_metadata_by_pipeline && typeof audit.quality_metadata_by_pipeline === 'object' && !Array.isArray(audit.quality_metadata_by_pipeline) ? audit.quality_metadata_by_pipeline : {};
         const pipelineSummary = Object.entries(pipelineQuality).map(([pipeline, summary]) => {
             const count = Number(summary?.quality_metadata_missing_reports || 0);
@@ -64,7 +65,7 @@
             audit.items_has_next === true ? '<button class="history-quality-audit-page" type="button" data-quality-audit-page="next" aria-label="查看下一批品質缺口">下一批</button>' : ''
         ].filter(Boolean).join('');
         const auditDetails = missing > 0
-            ? `<span>${Math.floor(missing)} 份待人工核對${truncation}</span><em>${fieldSummary ? `缺口：${e(fieldSummary)}` : ''}${pipelineSummary ? `；模式缺口：${e(pipelineSummary)}` : ''}${provenanceSummary ? `；來源：${e(provenanceSummary)}` : ''}</em>${basisSummary ? `<em>${e(basisSummary)}</em>` : ''}`
+            ? `<span>${Math.floor(missing)} 份待人工核對${truncation}</span><em>${fieldSummary ? `缺口：${e(fieldSummary)}` : ''}${pipelineSummary ? `；模式缺口：${e(pipelineSummary)}` : ''}${provenanceSummary ? `；來源：${e(provenanceSummary)}` : ''}</em>${artifactEvidenceSummary ? `<em>${e(artifactEvidenceSummary)}</em>` : ''}${basisSummary ? `<em>${e(basisSummary)}</em>` : ''}`
             : `<span>符合條件的 ${complete} 份已驗證 snapshot 沒有品質 metadata 缺口</span>${basisSummary ? `<em>${e(basisSummary)}</em>` : ''}`;
         const targets = (Array.isArray(audit.items) ? audit.items : []).filter(item => item && item.filename).map(item => {
             const ticker = item.ticker || '報告';

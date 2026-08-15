@@ -33,6 +33,8 @@ The read-only `report_quality_audit.items[]` payload exposes `missing_quality_fi
 
 `quality_metadata_missing_by_provenance` groups missing metadata reports into `after_refresh` and `no_refresh_provenance`. The latter means the snapshot has no `refreshed_from_report` attribution; it does not prove that the snapshot was never refreshed. Each returned item repeats this as `quality_metadata_provenance` and includes `refreshed_from_report` and `snapshot_refreshed_at` when available.
 
+`artifact_quality_summary_by_status` counts the artifact marker evidence for all missing-metadata rows before `items[]` pagination: `present`, `not_found`, and `unavailable`. `present` means Markdown/HTML contains visible gate summary markers for manual review only; it is not a structured gate pass, and zero counts do not prove that an artifact is absent when the row has no readable artifact summary.
+
 `quality_metadata_by_pipeline` repeats the same audit counts per `pipeline_id`, including its own `verified_snapshot_reports`, `quality_metadata_coverage_pct`, `quality_metadata_coverage_basis`, and missing-gate counts. This makes a full historical response sufficient for pipeline prioritization without issuing one request per mode.
 
 `report_quality_audit.selection_basis = latest_per_ticker_pipeline` means the `all_indexed_reports` scope audits the latest indexed row for each ticker/pipeline pair, not every historical artifact version. Use this field with `audited_reports` when describing coverage.

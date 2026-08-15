@@ -62,6 +62,11 @@ def test_report_quality_audit_counts_verified_reports_with_missing_quality_metad
             "after_refresh": 0,
             "no_refresh_provenance": 1,
         },
+        "artifact_quality_summary_by_status": {
+            "present": 0,
+            "not_found": 0,
+            "unavailable": 0,
+        },
         "quality_metadata_by_pipeline": {
             "v1": {
                 "audited_reports": 3,
@@ -511,6 +516,11 @@ def test_indexed_report_quality_audit_exposes_artifact_quality_summary_without_r
         "status": "present",
         "source": "markdown",
         "fields": ["report_conformance", "evidence_exit_gate"],
+    }
+    assert payload["artifact_quality_summary_by_status"] == {
+        "present": 1,
+        "not_found": 0,
+        "unavailable": 0,
     }
 
 
