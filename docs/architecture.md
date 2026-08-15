@@ -173,6 +173,8 @@ The daily decision dashboard (`GET /api/watchlist/daily-dashboard`) consumes rec
 
 獨立的 `GET /api/watchlist/report-quality-audit/historical` 會以 `scope=all_historical_indexed_reports`、`selection_basis=all_indexed_versions` 讀取所有索引版本的品質 coverage；它維持 read-only，不進每日 decision queue，也不寫入 artifact、report index 或 rerun 任務。
 
+品質稽核 envelope 的 `missing_quality_field_counts` 會在 verified snapshot 範圍內按三個品質 gate 分組缺口，讓操作人員能排序人工核對；它不被解讀成通過率，也不會觸發重跑。
+
 ## Event-Driven Radar
 
 ```mermaid

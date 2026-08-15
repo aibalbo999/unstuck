@@ -12010,3 +12010,9 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 - live historical audit 量化為 1330 個 indexed versions、143 個品質 metadata 缺口、89.25% verified snapshot coverage；確認缺口不能只靠 daily 最新列觀察。
 - RED→GREEN 新增 `build_historical_indexed_report_quality_audit()` 與 `/api/watchlist/report-quality-audit/historical`，以明確 `all_indexed_versions` selection basis 和 `item_limit=0` summary mode 保持操作範圍可讀。
 - route test 證明歷史查核不呼叫 mutation authorization；保留 read-only artifact/index/rerun 邊界，並同步 API、operator、architecture、OpenAPI 契約。
+
+### 完成後維護 / D3541 / #拆解問題 #差距分析 #偏誤降低 #證據基礎 #受眾 #語意含義 #可驗證性
+
+- 以 live 143 筆 historical 缺口確認總數不足以判斷人工順序；field distribution 必須與 verified snapshot 分母同一個 evidence boundary。
+- RED→GREEN 新增 `missing_quality_field_counts`，三個 gate 各自計數；前端以白話 label 顯示，未知欄位不被渲染成任意文字。
+- 完成 API/operator/architecture/docs contract、Node syntax、focused regression；不把欄位統計轉成 daily queue、rerun 或 repair。

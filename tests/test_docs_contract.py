@@ -58,6 +58,7 @@ def test_report_quality_docs_cover_snapshot_integrity_contract():
         assert "invalid" in document
     for document in [api_reference, operator_guide]:
         assert "missing_quality_fields" in document
+        assert "missing_quality_field_counts" in document
         assert "items_returned" in document
         assert "items_truncated" in document
         assert "selection_basis" in document

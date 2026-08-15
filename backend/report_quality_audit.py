@@ -14,6 +14,7 @@ from report_quality_repair_items import quality_metadata_repair_item
 
 
 SCHEMA_VERSION = "report_quality_audit.v1"
+QUALITY_METADATA_FIELDS = ("report_conformance", "evidence_exit_gate", "content_credibility")
 
 
 def build_indexed_report_quality_audit(output_dir: str, *, page_size: int = 100, item_limit: int = 5) -> dict[str, Any]:
@@ -112,6 +113,7 @@ def build_report_quality_audit(
     unverified_snapshot_reports = 0
     complete_reports = 0
     missing_items = []
+    missing_quality_field_counts = {field: 0 for field in QUALITY_METADATA_FIELDS}
     for report in rows:
         snapshot = safe_mapping_dict(report.get("snapshot_integrity")) or {}
         snapshot_status = safe_text(snapshot.get("status")).strip().lower()
@@ -126,6 +128,9 @@ def build_report_quality_audit(
         if item is None:
             complete_reports += 1
             continue
+        for field in safe_text_list(item.get("missing_quality_fields")):
+            if field in missing_quality_field_counts:
+                missing_quality_field_counts[field] += 1
         missing_items.append(_audit_item(report, item))
 
     missing_count = len(missing_items)
@@ -142,6 +147,7 @@ def build_report_quality_audit(
         "snapshot_unverified_reports": unverified_snapshot_reports,
         "quality_metadata_complete_reports": complete_reports,
         "quality_metadata_missing_reports": missing_count,
+        "missing_quality_field_counts": missing_quality_field_counts,
         "quality_metadata_coverage_pct": coverage,
         "quality_metadata_coverage_basis": "verified_snapshot_reports",
         "items": returned_items,

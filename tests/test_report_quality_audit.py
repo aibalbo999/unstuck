@@ -52,6 +52,11 @@ def test_report_quality_audit_counts_verified_reports_with_missing_quality_metad
         "snapshot_unverified_reports": 0,
         "quality_metadata_complete_reports": 1,
         "quality_metadata_missing_reports": 1,
+        "missing_quality_field_counts": {
+            "report_conformance": 1,
+            "evidence_exit_gate": 1,
+            "content_credibility": 1,
+        },
         "quality_metadata_coverage_pct": 50.0,
         "quality_metadata_coverage_basis": "verified_snapshot_reports",
         "items_returned": 1,
@@ -106,6 +111,42 @@ def test_report_quality_audit_exposes_item_truncation_metadata():
     assert payload["items_returned"] == 2
     assert payload["items_truncated"] is True
     assert len(payload["items"]) == 2
+
+
+def test_report_quality_audit_counts_missing_gates_independently():
+    from report_quality_audit import build_report_quality_audit
+
+    payload = build_report_quality_audit(
+        [
+            {
+                "snapshot_integrity": {"status": "verified"},
+                "report_conformance": {},
+                "evidence_exit_gate": {"verdict": "approved"},
+                "content_credibility": {"status": "passed"},
+            },
+            {
+                "snapshot_integrity": {"status": "verified"},
+                "report_conformance": {"status": "warning"},
+                "evidence_exit_gate": {},
+                "content_credibility": {"status": "passed"},
+            },
+            {
+                "snapshot_integrity": {"status": "verified"},
+                "report_conformance": {"status": "passed"},
+                "evidence_exit_gate": {"verdict": "caution"},
+                "content_credibility": {},
+            },
+        ],
+        scope="all_historical_indexed_reports",
+        selection_basis="all_indexed_versions",
+    )
+
+    assert payload["quality_metadata_missing_reports"] == 3
+    assert payload["missing_quality_field_counts"] == {
+        "report_conformance": 1,
+        "evidence_exit_gate": 1,
+        "content_credibility": 1,
+    }
 
 
 def test_report_quality_audit_does_not_count_placeholder_gate_states_as_complete():

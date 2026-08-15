@@ -2205,6 +2205,12 @@
 - 新增 `GET /api/watchlist/report-quality-audit/historical`，固定以 `include_versions=True`、`scope=all_historical_indexed_reports`、`selection_basis=all_indexed_versions` 掃描歷史索引；`item_limit=0` 可只取 coverage counts。
 - 歷史入口維持 read-only，不進 daily decision queue、不修復 artifact、不 enqueue rerun、不寫 report index；RED→GREEN 鎖定 builder、route、OpenAPI、文件與 mutation boundary。
 
+## D3541：按品質 gate 揭露缺口分布
+
+- live historical audit 已確認 143 個缺口同時涉及三個 gate，但既有 envelope 只有總缺口數，人工無法由 API 直接排序缺證據類型。
+- 新增 `missing_quality_field_counts`，只從 verified snapshot 的 repair item `missing_quality_fields` 聚合 `report_conformance`、`evidence_exit_gate`、`content_credibility`；invalid/unverified row 不進統計。
+- watchlist daily board 顯示 gate 分布，並以 cache-buster 更新 helper；保留 read-only、無 rerun/repair side effect，文件與 tests 同步鎖定。
+
 綜合視角：
 
 - `#可驗證性`：每個模式的報告模板與決策用途必須有測試與文件可查。

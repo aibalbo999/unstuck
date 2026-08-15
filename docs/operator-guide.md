@@ -89,6 +89,8 @@ Use `core_critical_covered_count` and `core_critical_uncovered_count` for a quic
 
 The read-only report quality audit exposes `missing_quality_fields` on each affected item plus `items_returned` and `items_truncated` on the envelope. When `items_truncated=true`, the dashboard is showing only the returned detail rows; use the report history search for the remaining items. These fields are exact audit evidence, not a reconstructed quality result, and do not enqueue a rerun or repair.
 
+`missing_quality_field_counts` 會把缺口按 `report_conformance`、`evidence_exit_gate`、`content_credibility` 分組，且只以 verified snapshot 計算；它協助排序人工核對，不代表報告通過或應立即重跑。
+
 `selection_basis=latest_per_ticker_pipeline` means「全量報告品質」是每個 ticker/pipeline 的最新索引列，不是磁碟上每個歷史 artifact 版本；回報 coverage 時要一起說明這個範圍。
 
 若要檢查歷史版本，不要把它和每日待辦混在一起：使用 `GET /api/watchlist/report-quality-audit/historical`。這個唯讀入口的 `scope=all_historical_indexed_reports`、`selection_basis=all_indexed_versions` 會掃描所有索引版本；只想看數字時加上 `item_limit=0`。它不會自動修復 artifact、不會 enqueue rerun，也不會寫入 report index。
