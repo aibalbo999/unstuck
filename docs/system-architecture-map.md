@@ -195,6 +195,7 @@ flowchart TD
 - Provider SLA dashboard payload shaping 與 window/alert projection 放 `provider_sla_observability`，`api_observability_service` 只負責聚合維運 API payload。
 - `/api/watchlist/daily-dashboard` 的近期報告列表仍是 20 份 action scope；`report_quality_audit.v1` 另以 read-only 方式 audit 全部 latest-per-ticker/pipeline index rows，不把完整度觀測轉成每日 action。
 - `report_quality_audit` 使用 `report_index.query_report_metadata(..., row_mapper=...)`、`report_history_storage.load_storage_item()` 與 `verify_data_snapshot_integrity()`；不讀 preview/decision-tracking rendering，不回寫 artifact 或 report index。audit 失敗時由 route 降級為 `unavailable`，不遮蔽每日工作台。
+- audit 的 coverage 分母固定是 `verified_snapshot_reports`，並另回報 invalid/unverified snapshot 數；單一 row 的 storage、JSON 或 integrity failure 在 row boundary 轉為 unverified，不中止其他 indexed rows。
 - 品質 repair 的 metadata 缺口判定放在 `report_quality_metadata_repair.py`；`report_quality_repair_items.py` 只保留相容匯出與其他 gate builders，避免新增 domain rule 使共用 helper 超過 import-boundary 責任上限。
 - 新報告索引欄位才放 `report_index`；不要把任務狀態塞進 report index。
 - 新 report artifact 行為走 `report_artifacts` / storage helper；不要新增另一套 path guessing。

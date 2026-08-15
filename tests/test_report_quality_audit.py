@@ -1,4 +1,6 @@
 import importlib.util
+import json
+from types import SimpleNamespace
 
 
 def test_report_quality_audit_counts_verified_reports_with_missing_quality_metadata():
@@ -45,9 +47,12 @@ def test_report_quality_audit_counts_verified_reports_with_missing_quality_metad
         "scope": "all_indexed_reports",
         "audited_reports": 3,
         "verified_snapshot_reports": 2,
+        "snapshot_invalid_reports": 1,
+        "snapshot_unverified_reports": 0,
         "quality_metadata_complete_reports": 1,
         "quality_metadata_missing_reports": 1,
         "quality_metadata_coverage_pct": 50.0,
+        "quality_metadata_coverage_basis": "verified_snapshot_reports",
         "items": [
             {
                 "ticker": "1623.TW",
@@ -71,6 +76,70 @@ def test_report_quality_audit_marks_sample_scope_when_full_index_is_not_availabl
     assert payload["audited_reports"] == 0
     assert payload["quality_metadata_coverage_pct"] is None
     assert payload["items"] == []
+
+
+def test_report_quality_audit_keeps_unverified_snapshots_out_of_coverage_denominator():
+    from report_quality_audit import build_report_quality_audit
+
+    payload = build_report_quality_audit(
+        [
+            {
+                "snapshot_integrity": {"status": "verified"},
+                "report_conformance": {"status": "passed"},
+                "evidence_exit_gate": {"verdict": "approved"},
+                "content_credibility": {"status": "passed"},
+            },
+            {"snapshot_integrity": {"status": "unverified"}},
+        ],
+        scope="all_indexed_reports",
+    )
+
+    assert payload["verified_snapshot_reports"] == 1
+    assert payload["snapshot_invalid_reports"] == 0
+    assert payload["snapshot_unverified_reports"] == 1
+    assert payload["quality_metadata_coverage_pct"] == 100.0
+    assert payload["quality_metadata_coverage_basis"] == "verified_snapshot_reports"
+
+
+def test_indexed_report_quality_audit_isolates_one_snapshot_load_failure(monkeypatch, tmp_path):
+    import report_quality_audit as audit
+
+    monkeypatch.setattr(
+        audit,
+        "collect_all_report_pages",
+        lambda *_args, **_kwargs: {
+            "reports": [
+                {"ticker": "BAD", "filename": "bad.html", "pipeline_id": "v1"},
+                {"ticker": "GOOD", "filename": "good.html", "pipeline_id": "v1"},
+            ]
+        },
+    )
+    monkeypatch.setattr(audit, "storage_for_existing_output_dir", lambda *_args: object())
+
+    def load_item(_storage, filename, *, kind):
+        assert kind == "data"
+        if filename == "bad.html":
+            raise OSError("simulated artifact read failure")
+        return SimpleNamespace(content=json.dumps({
+            "snapshot_hash": "hash",
+            "report_conformance": {"status": "passed"},
+            "evidence_exit_gate": {"verdict": "approved"},
+            "content_credibility": {"status": "passed"},
+        }))
+
+    monkeypatch.setattr(audit, "load_storage_item", load_item)
+    monkeypatch.setattr(
+        audit,
+        "verify_data_snapshot_integrity",
+        lambda _snapshot: {"valid": True, "expected_hash": "hash", "errors": []},
+    )
+
+    payload = audit.build_indexed_report_quality_audit(str(tmp_path))
+
+    assert payload["audited_reports"] == 2
+    assert payload["verified_snapshot_reports"] == 1
+    assert payload["snapshot_unverified_reports"] == 1
+    assert payload["quality_metadata_complete_reports"] == 1
 
 
 def test_collect_all_report_pages_follows_index_pagination():

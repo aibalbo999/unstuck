@@ -27,8 +27,11 @@
 
     function watchlistDailyBoard(items, daily, escapeHtml) {
         const queue = daily?.decision_queue || {}, queueItems = Array.isArray(queue.items) ? queue.items : [], top = queueItems[0], total = Number(queue.summary?.total_actionable || 0);
-        const audit = daily?.report_quality_audit || {}, missingQuality = Number(audit.quality_metadata_missing_reports || 0), coverage = audit.quality_metadata_coverage_pct;
-        const auditText = audit.status === 'unavailable' ? ' · 全量報告品質：暫時無法讀取' : missingQuality > 0 ? ` · 全量報告品質：${missingQuality} 份待人工核對${coverage == null ? '' : `（覆蓋 ${coverage}%）`}` : '';
+        const audit = daily?.report_quality_audit || {}, missingQuality = Number(audit.quality_metadata_missing_reports || 0), excludedSnapshots = Number(audit.snapshot_invalid_reports || 0) + Number(audit.snapshot_unverified_reports || 0), coverage = audit.quality_metadata_coverage_pct;
+        const auditParts = [];
+        if (missingQuality > 0) auditParts.push(`${missingQuality} 份待人工核對${coverage == null ? '' : `（覆蓋 ${coverage}%）`}`);
+        if (excludedSnapshots > 0) auditParts.push(`${excludedSnapshots} 份 snapshot 無法驗證`);
+        const auditText = audit.status === 'unavailable' ? ' · 全量報告品質：暫時無法讀取' : auditParts.length ? ` · 全量報告品質：${auditParts.join('；')}` : '';
         if (top && top.type !== 'monitor' && total > 0) {
             const secondary = Number(queue.secondary_count || 0), source = window.StockAgentDailyQueueContext?.sourceLabel?.(top.source) || top.source || 'queue';
             const attentionContext = window.StockAgentDailyQueueContext?.attentionContextText?.(top);

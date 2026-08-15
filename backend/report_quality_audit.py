@@ -76,11 +76,18 @@ def build_report_quality_audit(
 ) -> dict[str, Any]:
     rows = _report_rows(reports)
     verified_snapshot_reports = 0
+    invalid_snapshot_reports = 0
+    unverified_snapshot_reports = 0
     complete_reports = 0
     missing_items = []
     for report in rows:
         snapshot = safe_mapping_dict(report.get("snapshot_integrity")) or {}
-        if safe_text(snapshot.get("status")).strip().lower() != "verified":
+        snapshot_status = safe_text(snapshot.get("status")).strip().lower()
+        if snapshot_status != "verified":
+            if snapshot_status == "invalid":
+                invalid_snapshot_reports += 1
+            else:
+                unverified_snapshot_reports += 1
             continue
         verified_snapshot_reports += 1
         item = quality_metadata_repair_item(report)
@@ -96,9 +103,12 @@ def build_report_quality_audit(
         "scope": safe_text(scope).strip() or "daily_report_sample",
         "audited_reports": len(rows),
         "verified_snapshot_reports": verified_snapshot_reports,
+        "snapshot_invalid_reports": invalid_snapshot_reports,
+        "snapshot_unverified_reports": unverified_snapshot_reports,
         "quality_metadata_complete_reports": complete_reports,
         "quality_metadata_missing_reports": missing_count,
         "quality_metadata_coverage_pct": coverage,
+        "quality_metadata_coverage_basis": "verified_snapshot_reports",
         "items": missing_items[: max(0, safe_int(item_limit, default=5))],
     }
 
@@ -135,11 +145,14 @@ def _raw_row(row: Any) -> dict[str, Any]:
 def _report_from_index_row(row: dict[str, Any], storage: Any) -> dict[str, Any]:
     filename = safe_text(row.get("filename")).strip()
     snapshot = {}
-    item = load_storage_item(storage, filename, kind="data") if storage and filename else None
+    try:
+        item = load_storage_item(storage, filename, kind="data") if storage and filename else None
+    except Exception:
+        item = None
     if item is not None:
         try:
             snapshot = json.loads(item.content)
-        except (AttributeError, TypeError, UnicodeDecodeError, json.JSONDecodeError):
+        except Exception:
             snapshot = {}
     snapshot = snapshot if isinstance(snapshot, dict) else {}
     integrity = _snapshot_integrity(snapshot)
@@ -157,7 +170,10 @@ def _report_from_index_row(row: dict[str, Any], storage: Any) -> dict[str, Any]:
 def _snapshot_integrity(snapshot: dict[str, Any]) -> dict[str, Any]:
     if not snapshot:
         return {"status": "unverified", "valid": None, "errors": ["snapshot unavailable"]}
-    integrity = verify_data_snapshot_integrity(snapshot)
+    try:
+        integrity = verify_data_snapshot_integrity(snapshot)
+    except Exception:
+        return {"status": "unverified", "valid": None, "errors": ["snapshot integrity check failed"]}
     expected_hash = safe_text(integrity.get("expected_hash")).strip()
     if not expected_hash:
         return {"status": "unverified", "valid": None, "errors": ["snapshot_hash missing"]}

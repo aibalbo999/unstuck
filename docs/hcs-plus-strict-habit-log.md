@@ -2,6 +2,17 @@
 
 更新時間：2026-08-15
 
+## D3524 / snapshot 排除數與逐筆 audit 隔離
+
+- `#拆解問題` / `#差距分析`：audit coverage 只看 verified snapshot，若沒有 invalid/unverified 計數，操作者難以區分「沒有缺口」與「資料根本未納入分母」。
+- `#偏誤降低` / `#語意含義`：新增 `snapshot_invalid_reports`、`snapshot_unverified_reports` 與 `quality_metadata_coverage_basis`；coverage 明確以 verified snapshot 為分母，排除 row 不再靜默消失。
+- `#可驗證性` / `#責任`：`load_storage_item()`、JSON parse 與 integrity check 都在 row 邊界隔離例外；單筆 failure 只成為 unverified，不會把其他報告或每日工作台整體變成 unavailable。
+- `#受眾` / `#溝通設計`：前端在有排除 row 時顯示「snapshot 無法驗證」，不把它解讀成品質 gate 通過，也不新增 daily action。
+- `#最佳化`：coverage 計算維持原 denominator 與 160-row 輸出，只增加可追蹤欄位與失敗隔離，避免擴大 audit 成為 artifact repair。
+- `#可驗證性`：RED→GREEN audit/前端 `8 passed`，quality repair/dashboard/queue/provider `231 passed`；runtime 重啟後 `/healthz=ok`、`/readyz=ready`，live 160/160 verified、invalid 0、unverified 0、158 complete、2 missing、coverage `98.75%`，dashboard 約 `1.94–1.98` 秒。
+
+本批暫定決策：完整度 audit 必須同時報告分母與排除數；先保留排除 row 為 unverified，修復 artifact 另列人工 scope。
+
 ## D3523 / 品質 metadata repair module 責任拆分
 
 - `#拆解問題` / `#差距分析`：完整 import boundary 的唯一紅燈是 `report_quality_repair_items.py` 超過既有 `<190` 行責任護欄；根因是 D3521 把新的品質 metadata 判定直接加進共用 repair helper。
