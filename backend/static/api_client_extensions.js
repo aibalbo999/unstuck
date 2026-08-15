@@ -18,8 +18,8 @@
 
     async function fetchWatchlist() { return jsonRequest('/api/watchlist'); }
     async function fetchDailyDecisionDashboard() { return jsonRequest('/api/watchlist/daily-dashboard'); }
-    async function fetchHistoricalReportQualityAudit({ itemLimit = 5, query = '', pipeline = 'all' } = {}) {
-        const params = new URLSearchParams({ item_limit: String(itemLimit), q: query || '', pipeline: pipeline || 'all' });
+    async function fetchHistoricalReportQualityAudit({ itemLimit = 5, itemOffset = 0, query = '', pipeline = 'all' } = {}) {
+        const params = new URLSearchParams({ item_limit: String(itemLimit), item_offset: String(itemOffset), q: query || '', pipeline: pipeline || 'all' });
         return jsonRequest(`/api/watchlist/report-quality-audit/historical?${params.toString()}`);
     }
     async function fetchSymbolSuggestions(q, limit = 10) { const params = new URLSearchParams({ q: q || '', limit: String(limit) }); return jsonRequest(`/api/watchlist/symbols?${params.toString()}`); }

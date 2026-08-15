@@ -18,7 +18,7 @@ QUALITY_METADATA_FIELDS = ("report_conformance", "evidence_exit_gate", "content_
 QUALITY_METADATA_PROVENANCE = ("after_refresh", "no_refresh_provenance")
 
 
-def build_indexed_report_quality_audit(output_dir: str, *, page_size: int = 100, item_limit: int = 5) -> dict[str, Any]:
+def build_indexed_report_quality_audit(output_dir: str, *, page_size: int = 100, item_limit: int = 5, item_offset: int = 0) -> dict[str, Any]:
     rows = collect_all_report_pages(
         list_indexed_report_quality_rows,
         page_size=page_size,
@@ -32,7 +32,7 @@ def build_indexed_report_quality_audit(output_dir: str, *, page_size: int = 100,
     )
     storage = storage_for_existing_output_dir(output_dir, None)
     reports = [_report_from_index_row(row, storage) for row in rows.get("reports", [])]
-    return build_report_quality_audit(reports, scope="all_indexed_reports", item_limit=item_limit)
+    return build_report_quality_audit(reports, scope="all_indexed_reports", item_limit=item_limit, item_offset=item_offset)
 
 
 def build_historical_indexed_report_quality_audit(
@@ -40,6 +40,7 @@ def build_historical_indexed_report_quality_audit(
     *,
     page_size: int = 100,
     item_limit: int = 25,
+    item_offset: int = 0,
     q: str = "",
     pipeline: str = "all",
 ) -> dict[str, Any]:
@@ -61,6 +62,7 @@ def build_historical_indexed_report_quality_audit(
         scope="all_historical_indexed_reports",
         selection_basis="all_indexed_versions",
         item_limit=item_limit,
+        item_offset=item_offset,
     )
 
 
@@ -104,6 +106,7 @@ def build_report_quality_audit(
     *,
     scope: str = "daily_report_sample",
     item_limit: int = 5,
+    item_offset: int = 0,
     selection_basis: str | None = None,
 ) -> dict[str, Any]:
     rows = _report_rows(reports)
@@ -158,7 +161,10 @@ def build_report_quality_audit(
         for pipeline_id in sorted(pipeline_quality_stats)
     }
     item_limit_value = max(0, safe_int(item_limit, default=5))
-    returned_items = missing_items[:item_limit_value]
+    item_offset_value = max(0, safe_int(item_offset, default=0))
+    returned_items = missing_items[item_offset_value:item_offset_value + item_limit_value] if item_limit_value else []
+    items_has_prev = item_offset_value > 0 and item_limit_value > 0
+    items_has_next = item_limit_value > 0 and item_offset_value + len(returned_items) < missing_count
     return {
         "schema_version": SCHEMA_VERSION,
         "scope": scope_text,
@@ -174,8 +180,13 @@ def build_report_quality_audit(
         "quality_metadata_by_pipeline": quality_metadata_by_pipeline,
         "quality_metadata_coverage_pct": coverage,
         "quality_metadata_coverage_basis": "verified_snapshot_reports",
+        "items_offset": item_offset_value,
+        "items_limit": item_limit_value,
+        "items_total": missing_count,
         "items": returned_items,
         "items_returned": len(returned_items),
+        "items_has_prev": items_has_prev,
+        "items_has_next": items_has_next,
         "items_truncated": missing_count > len(returned_items),
     }
 

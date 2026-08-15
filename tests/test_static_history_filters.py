@@ -388,6 +388,8 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "StockAgentOperatorSummaryHelpers" in operator_summary_helpers_js
     assert "operatorSummary.load" in app_panels_js
     assert "fetchDailyDecisionDashboard" in api_client_extensions_js
+    assert "fetchHistoricalReportQualityAudit" in api_client_extensions_js
+    assert "itemOffset" in api_client_extensions_js
     assert "fetchSymbolSuggestions" in api_client_extensions_js
     assert "importWatchlistText" in api_client_extensions_js
     assert "apiClient.fetchDailyDecisionDashboard" in operator_summary_js
@@ -7710,8 +7712,8 @@ def test_decision_tracking_dense_layout_uses_workspace_efficiently():
     assert "history_list.css?v=20260628-glass-dark" in style_css
     assert "history_list_controls.css?v=20260816-historical-quality-audit" in style_css
     assert style_css.index("history_list.css?v=20260628-glass-dark") < style_css.index("history_list_controls.css?v=20260816-historical-quality-audit")
-    assert style_css.index("history_list_controls.css?v=20260816-historical-quality-audit") < style_css.index("history_quality_audit.css?v=20260816-historical-quality-pipeline-filter")
-    assert style_css.index("history_quality_audit.css?v=20260816-historical-quality-pipeline-filter") < style_css.index("decision_tracking.css?v=20260708-tracking-action-notes")
+    assert style_css.index("history_list_controls.css?v=20260816-historical-quality-audit") < style_css.index("history_quality_audit.css?v=20260816-historical-quality-pagination")
+    assert style_css.index("history_quality_audit.css?v=20260816-historical-quality-pagination") < style_css.index("decision_tracking.css?v=20260708-tracking-action-notes")
     assert "decision_tracking.css?v=20260708-tracking-action-notes" in style_css
     assert "history_shell.css?v=20260707-operator-human-factors" in style_css
     assert "history_shell_tabs.css?v=20260711-home-workspaces" in style_css

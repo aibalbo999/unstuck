@@ -5,7 +5,12 @@
         const element = options.element;
         const openReport = options.openReport || (() => {});
         const onSelectPipeline = options.onSelectPipeline || (() => {});
-        let loadVersion = 0;
+        const itemLimit = 5;
+        let loadVersion = 0, itemOffset = 0, filterKey = '', currentValues = null, lastAudit = null;
+
+        function auditFilterKey(values) {
+            return JSON.stringify([values?.includeVersions, values?.query || '', values?.pipelineFilter || 'all']);
+        }
 
         function render(audit) {
             if (!element) return;
@@ -22,8 +27,14 @@
         }
 
         async function load(values) {
+            const nextFilterKey = auditFilterKey(values);
+            if (nextFilterKey !== filterKey) itemOffset = 0;
+            filterKey = nextFilterKey;
+            currentValues = values ? { ...values } : null;
             const requestVersion = ++loadVersion;
             if (!values?.includeVersions) {
+                itemOffset = 0;
+                lastAudit = null;
                 if (requestVersion === loadVersion) render(null);
                 return;
             }
@@ -34,8 +45,8 @@
             }
             render({ status: 'loading' });
             try {
-                const audit = await fetchAudit({ itemLimit: 5, query: values.query, pipeline: values.pipelineFilter });
-                if (requestVersion === loadVersion) render(audit);
+                const audit = await fetchAudit({ itemLimit, itemOffset, query: values.query, pipeline: values.pipelineFilter });
+                if (requestVersion === loadVersion) { lastAudit = audit; render(audit); }
             } catch (_error) {
                 if (requestVersion === loadVersion) render({ status: 'unavailable' });
             }
@@ -43,6 +54,14 @@
 
         function bindEvents() {
             element?.addEventListener('click', event => {
+                const pageButton = event.target.closest('[data-quality-audit-page]');
+                if (pageButton?.dataset?.qualityAuditPage) {
+                    const pageSize = Number(lastAudit?.items_limit) || itemLimit;
+                    const currentOffset = Number(lastAudit?.items_offset);
+                    const offset = Number.isFinite(currentOffset) && currentOffset >= 0 ? currentOffset : itemOffset;
+                    itemOffset = pageButton.dataset.qualityAuditPage === 'next' ? offset + pageSize : Math.max(0, offset - pageSize);
+                    return load(currentValues);
+                }
                 const pipelineButton = event.target.closest('[data-quality-audit-pipeline]');
                 if (pipelineButton?.dataset?.qualityAuditPipeline && !pipelineButton?.dataset?.qualityAuditReport) {
                     onSelectPipeline(pipelineButton.dataset.qualityAuditPipeline || 'all');

@@ -65,6 +65,7 @@ def _build_quality_audit_or_unavailable(output_dir: str) -> dict:
 def _build_historical_quality_audit_or_unavailable(
     output_dir: str,
     item_limit: int,
+    item_offset: int,
     q: str,
     pipeline: str,
 ) -> dict:
@@ -73,6 +74,7 @@ def _build_historical_quality_audit_or_unavailable(
             output_dir,
             page_size=100,
             item_limit=item_limit,
+            item_offset=item_offset,
             q=q,
             pipeline=pipeline,
         )
@@ -197,6 +199,7 @@ def create_watchlist_router(deps: WatchlistRouteDeps) -> APIRouter:
     @router.get("/report-quality-audit/historical")
     async def get_historical_report_quality_audit(
         item_limit: int = Query(25, ge=0, le=500),
+        item_offset: int = Query(0, ge=0, le=100000),
         q: str = Query("", max_length=80),
         pipeline: str = Query("all", max_length=24),
     ):
@@ -204,6 +207,7 @@ def create_watchlist_router(deps: WatchlistRouteDeps) -> APIRouter:
             _build_historical_quality_audit_or_unavailable,
             deps.get_output_dir(),
             item_limit,
+            item_offset,
             q,
             pipeline,
         )

@@ -95,13 +95,13 @@ The read-only report quality audit exposes `missing_quality_fields` on each affe
 
 `quality_metadata_by_pipeline` 會再按 `pipeline_id` 分組，保留各模式自己的 verified 分母、coverage 與缺 gate 數；先看模式分布，再用 `q`/`pipeline` targeted audit 開啟明細，可以避免把全庫缺口和單一模式混在一起。
 
-歷史稽核摘要中的「只看 vN 缺口」按鈕是既有模式篩選的快速入口。它只改變歷史列表與稽核的讀取範圍，會重設頁碼並關閉目前 preview；它不代表品質已修復，也不會建立重跑、修復或每日待辦。
+歷史稽核摘要中的「只看 vN 缺口」按鈕是既有模式篩選的快速入口；稽核明細以 `item_offset`/`item_limit` 分批，並用 `items_has_prev`/`items_has_next` 決定「上一批／下一批」。它只改變歷史列表與稽核的讀取範圍，會重設頁碼並關閉目前 preview；它不代表品質已修復，也不會建立重跑、修復或每日待辦。
 
 `selection_basis=latest_per_ticker_pipeline` means「全量報告品質」是每個 ticker/pipeline 的最新索引列，不是磁碟上每個歷史 artifact 版本；回報 coverage 時要一起說明這個範圍。
 
 若要檢查歷史版本，不要把它和每日待辦混在一起：使用 `GET /api/watchlist/report-quality-audit/historical`。這個唯讀入口的 `scope=all_historical_indexed_reports`、`selection_basis=all_indexed_versions` 會掃描索引版本；可用既有 `q` 與 `pipeline` 篩選 ticker/模式，篩選後的 `audited_reports` 是符合條件的全部版本。只想看數字時加上 `item_limit=0`。它不會自動修復 artifact、不會 enqueue rerun，也不會寫入 report index。
 
-追蹤工作台若發現最新每股票/模式版本有品質缺口，按「查看歷史版本稽核」即可切到分析工作台並開啟「顯示舊版報告」；這只是查詢導引，不會建立今日待辦或重跑。歷史報告頁會用目前的搜尋代號與報告類型同步顯示同一範圍的品質稽核摘要；摘要會標示「品質 metadata 完整度」的分母是已驗證 snapshot，若有 invalid 或未驗證 snapshot 會另外警示，避免把排除資料當成完整證據。稽核區只列最多 5 個可直接查看的報告 target，沿用既有報告 preview，不會把歷史缺口加入「今日待處理」。快速切換搜尋或報告類型時，報告列表與稽核摘要都只採用最後一次篩選的結果。
+追蹤工作台若發現最新每股票/模式版本有品質缺口，按「查看歷史版本稽核」即可切到分析工作台並開啟「顯示舊版報告」；這只是查詢導引，不會建立今日待辦或重跑。歷史報告頁會用目前的搜尋代號與報告類型同步顯示同一範圍的品質稽核摘要；摘要會標示「品質 metadata 完整度」的分母是已驗證 snapshot，若有 invalid 或未驗證 snapshot 會另外警示，避免把排除資料當成完整證據。稽核區每批列 5 個可直接查看的報告 target，可用「上一批／下一批」繼續人工核對，沿用既有報告 preview，不會把歷史缺口加入「今日待處理」。快速切換搜尋或報告類型時，報告列表與稽核摘要都只採用最後一次篩選的結果。
 
 Report quality metadata repair accepts mapping-safe top-level report envelopes and nested gate mappings; a read-only mapping wrapper is treated as the same payload shape as a normal report dictionary and must not interrupt audit classification.
 

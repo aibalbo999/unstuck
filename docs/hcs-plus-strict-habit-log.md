@@ -2,6 +2,14 @@
 
 更新時間：2026-08-16
 
+## D3551 / 歷史品質缺口批次核對
+
+- `#差距分析` / `#受眾`：live historical audit 有 `143` 筆缺口，但回應與畫面原本只列前 `5` 筆；即使選定 pipeline，人工仍無法沿既有頁面走完其餘 target。
+- `#責任` / `#最佳化`：backend 只切 `items[]` slice，保留完整 coverage 統計；API client 傳 `item_offset`，module 由 generation 保護批次 response，renderer 提供「上一批／下一批」，不複製 report preview 或 repair 邏輯。
+- `#可驗證性`：RED 暴露缺少 offset contract、舊 callback 相容性與 cache-buster；GREEN `192 passed`，live offset `0` 與 `5` 各回傳 5 筆不同檔案、`items_total=143`，health/ready 通過。
+
+本批暫定決策：只改善人工核對明細的可達性，不擴張 audit scope、不改 verified snapshot 分母、不自動修復、不把歷史缺口加入每日 action。
+
 ## D3550 / 歷史稽核模式缺口快速聚焦
 
 - `#受眾` / `#差距分析`：live historical audit 的 `143` 個缺口已按 `v1/v2/v3/v4` 聚合，但摘要只提供文字；操作員若要逐模式核對，仍需手動改 pipeline 下拉選單，且容易忘記先關閉舊 preview。

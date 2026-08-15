@@ -51,7 +51,18 @@
         const complete = Number.isFinite(completeValue) && completeValue >= 0 ? Math.floor(completeValue) : Math.max(0, verified - missing);
         const returnedValue = Number(audit.items_returned);
         const returned = Number.isFinite(returnedValue) && returnedValue >= 0 ? Math.floor(returnedValue) : Array.isArray(audit.items) ? audit.items.length : 0;
-        const truncation = audit.items_truncated === true && missing > returned ? `（目前顯示 ${returned} 份，另有 ${missing - returned} 份未展開）` : '';
+        const offsetValue = Number(audit.items_offset);
+        const itemOffset = Number.isFinite(offsetValue) && offsetValue >= 0 ? Math.floor(offsetValue) : 0;
+        const totalValue = Number(audit.items_total);
+        const itemTotal = Number.isFinite(totalValue) && totalValue >= 0 ? Math.floor(totalValue) : missing;
+        const pageEnd = Math.min(itemTotal, itemOffset + returned);
+        const truncation = itemOffset > 0 && returned > 0
+            ? `（目前顯示第 ${itemOffset + 1}-${pageEnd} 份，共 ${itemTotal} 份）`
+            : audit.items_truncated === true && missing > returned ? `（目前顯示 ${returned} 份，另有 ${missing - returned} 份未展開）` : '';
+        const pageControls = [
+            audit.items_has_prev === true ? '<button class="history-quality-audit-page" type="button" data-quality-audit-page="prev" aria-label="查看上一批品質缺口">上一批</button>' : '',
+            audit.items_has_next === true ? '<button class="history-quality-audit-page" type="button" data-quality-audit-page="next" aria-label="查看下一批品質缺口">下一批</button>' : ''
+        ].filter(Boolean).join('');
         const auditDetails = missing > 0
             ? `<span>${Math.floor(missing)} 份待人工核對${truncation}</span><em>${fieldSummary ? `缺口：${e(fieldSummary)}` : ''}${pipelineSummary ? `；模式缺口：${e(pipelineSummary)}` : ''}${provenanceSummary ? `；來源：${e(provenanceSummary)}` : ''}</em>${basisSummary ? `<em>${e(basisSummary)}</em>` : ''}`
             : `<span>符合條件的 ${complete} 份已驗證 snapshot 沒有品質 metadata 缺口</span>${basisSummary ? `<em>${e(basisSummary)}</em>` : ''}`;
@@ -65,7 +76,7 @@
             const targetLabel = reportDate ? `${ticker} ${pipeline} · ${reportDate}` : `${ticker} ${pipeline}`;
             return `<button class="history-quality-audit-target" type="button" data-quality-audit-report="${e(item.filename)}" data-quality-audit-ticker="${e(ticker)}" data-quality-audit-pipeline="${e(pipeline)}" data-quality-reason-codes="${e(reasonCodes)}" title="${e(detail)}" aria-label="${e(`人工核對 ${targetLabel}：${title}`)}">查看 ${e(targetLabel)}</button>`;
         }).join('');
-        return `<div class="history-quality-audit" role="status"><div class="history-quality-audit-header"><strong>歷史版本品質稽核</strong><span>範圍：${Math.floor(audited)} 份</span></div><div class="history-quality-audit-summary">${auditDetails}</div>${pipelineActions ? `<div class="history-quality-audit-filter-actions" aria-label="按模式查看品質缺口">${pipelineActions}</div>` : ''}${targets ? `<div class="history-quality-audit-actions">${targets}</div>` : ''}</div>`;
+        return `<div class="history-quality-audit" role="status"><div class="history-quality-audit-header"><strong>歷史版本品質稽核</strong><span>範圍：${Math.floor(audited)} 份</span></div><div class="history-quality-audit-summary">${auditDetails}</div>${pipelineActions ? `<div class="history-quality-audit-filter-actions" aria-label="按模式查看品質缺口">${pipelineActions}</div>` : ''}${pageControls ? `<div class="history-quality-audit-pagination" aria-label="品質缺口分頁">${pageControls}</div>` : ''}${targets ? `<div class="history-quality-audit-actions">${targets}</div>` : ''}</div>`;
     }
 
     window.StockAgentHistoricalQualityAuditRenderer = { render };

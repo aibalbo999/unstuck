@@ -85,7 +85,12 @@ def test_report_quality_audit_counts_verified_reports_with_missing_quality_metad
         },
         "quality_metadata_coverage_pct": 50.0,
         "quality_metadata_coverage_basis": "verified_snapshot_reports",
+        "items_offset": 0,
+        "items_limit": 5,
+        "items_total": 1,
         "items_returned": 1,
+        "items_has_prev": False,
+        "items_has_next": False,
         "items_truncated": False,
         "items": [
             {
@@ -141,6 +146,34 @@ def test_report_quality_audit_exposes_item_truncation_metadata():
     assert payload["items_returned"] == 2
     assert payload["items_truncated"] is True
     assert len(payload["items"]) == 2
+
+
+def test_report_quality_audit_paginates_manual_review_items_without_changing_totals():
+    from report_quality_audit import build_report_quality_audit
+
+    reports = [
+        {
+            "ticker": ticker,
+            "filename": f"{ticker}_v1.html",
+            "pipeline_id": "v1",
+            "snapshot_integrity": {"status": "verified"},
+            "report_conformance": {},
+            "evidence_exit_gate": {},
+            "content_credibility": {},
+        }
+        for ticker in ("1623.TW", "2330.TW", "2454.TW")
+    ]
+
+    payload = build_report_quality_audit(reports, scope="all_historical_indexed_reports", item_limit=2, item_offset=2)
+
+    assert payload["quality_metadata_missing_reports"] == 3
+    assert payload["items_offset"] == 2
+    assert payload["items_limit"] == 2
+    assert payload["items_total"] == 3
+    assert payload["items_returned"] == 1
+    assert payload["items_has_prev"] is True
+    assert payload["items_has_next"] is False
+    assert payload["items"][0]["filename"] == "2454.TW_v1.html"
 
 
 def test_report_quality_audit_counts_missing_gates_independently():

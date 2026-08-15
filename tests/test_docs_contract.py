@@ -63,6 +63,8 @@ def test_report_quality_docs_cover_snapshot_integrity_contract():
         assert "quality_metadata_by_pipeline" in document
         assert "items_returned" in document
         assert "items_truncated" in document
+        assert "item_offset" in document
+        assert "items_has_next" in document
         assert "selection_basis" in document
         assert "all_historical_indexed_reports" in document
         assert "all_indexed_versions" in document
