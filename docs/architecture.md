@@ -197,6 +197,8 @@ daily target 只複用同一筆 `quality_review.status` 做可見與 accessible 
 
 歷史 audit 的 `review_status` filter 在 attach current revision review 後才縮小 rows，再由同一套 coverage/pagination builder 產生 envelope；因此 filtered response 的 `audited_reports`、分母與 `items[]` 都有一致範圍，且仍維持 GET-only。
 
+前端對 `review_status_filter != all` 的 envelope 只呈現「審核範圍：<狀態>」，隱藏一般全庫 coverage 文案；這是避免篩選集合被誤讀的呈現責任，不改 backend 計算、review ledger、artifact/index 或任何 queue/rerun 副作用。
+
 ## Event-Driven Radar
 
 ```mermaid

@@ -19,7 +19,7 @@
             const count = Number(audit.quality_metadata_missing_by_provenance?.[key] || 0);
             return Number.isFinite(count) && count > 0 ? `${label} ${Math.floor(count)}` : '';
         }).filter(Boolean).join('、');
-        const reviewLabels = [['pending', '待人工核對'], ['approved_with_gap', '已核准保留缺口'], ['rejected', '退回處理'], ['deferred', '已暫緩']]; const reviewSummary = reviewLabels.map(([key, label]) => { const count = Number(audit.quality_review_by_status?.[key] || 0); return Number.isFinite(count) && count > 0 ? `${label} ${Math.floor(count)}` : ''; }).filter(Boolean).join('、'); const reviewFilterActions = window.StockAgentHistoryPanelQualityHelpers?.renderQualityReviewStatusFilters?.(audit, e) || '';
+        const reviewLabels = [['pending', '待人工核對'], ['approved_with_gap', '已核准保留缺口'], ['rejected', '退回處理'], ['deferred', '已暫緩']]; const reviewSummary = reviewLabels.map(([key, label]) => { const count = Number(audit.quality_review_by_status?.[key] || 0); return Number.isFinite(count) && count > 0 ? `${label} ${Math.floor(count)}` : ''; }).filter(Boolean).join('、'); const reviewFilter = String(audit.review_status_filter || 'all').trim().toLowerCase() || 'all'; const reviewFilterLabel = { pending: '待人工核對', approved_with_gap: '已核准保留缺口', rejected: '退回處理', deferred: '已暫緩' }[reviewFilter] || reviewFilter; const reviewFilterActions = window.StockAgentHistoryPanelQualityHelpers?.renderQualityReviewStatusFilters?.(audit, e) || '';
         const artifactEvidenceSummary = [['present', 'artifact 摘要可查'], ['not_found', 'artifact 無 gate 摘要'], ['unavailable', 'artifact 無法讀取']].map(([key, label]) => { const count = Number(audit.artifact_quality_summary_by_status?.[key] || 0); return Number.isFinite(count) && count > 0 ? `${label} ${Math.floor(count)} 份` : ''; }).filter(Boolean).join('、');
         const artifactFieldStats = audit.artifact_quality_summary_by_field && typeof audit.artifact_quality_summary_by_field === 'object' && !Array.isArray(audit.artifact_quality_summary_by_field) ? audit.artifact_quality_summary_by_field : null;
         const artifactFieldSummary = artifactFieldStats ? fieldLabels.map(([key, label]) => { const count = Number(artifactFieldStats[key] || 0); return Number.isFinite(count) && count >= 0 ? `${label} ${Math.floor(count)}` : ''; }).filter(Boolean).join('、') : '';
@@ -38,9 +38,9 @@
         const coverage = Number.isFinite(coverageValue) && coverageValue >= 0 && coverageValue <= 100
             ? Math.round(coverageValue * 100) / 100
             : null;
-        const coverageSummary = coverage != null && audit.quality_metadata_coverage_basis === 'verified_snapshot_reports'
-            ? `品質 metadata 完整度：${coverage}%（分母：已驗證快照）`
-            : '';
+        const coverageSummary = reviewFilter !== 'all'
+            ? `審核範圍：${reviewFilterLabel}`
+            : coverage != null && audit.quality_metadata_coverage_basis === 'verified_snapshot_reports' ? `品質 metadata 完整度：${coverage}%（分母：已驗證快照）` : '';
         const invalidSnapshots = Number(audit.snapshot_invalid_reports || 0);
         const unverifiedSnapshots = Number(audit.snapshot_unverified_reports || 0);
         const invalidCount = Number.isFinite(invalidSnapshots) && invalidSnapshots > 0 ? Math.floor(invalidSnapshots) : 0;

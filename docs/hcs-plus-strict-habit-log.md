@@ -28,6 +28,13 @@
 - `#責任` / `#倫理判斷`：API/client/history module 只傳 GET query；review ledger、revision、artifact/index、rerun、queue 與 mutation token 邊界不變，status quick filter 不另造寫入入口。
 - `#可驗證性` / `#來源品質`：backend/route/renderer/module RED 後 targeted `5 passed`、跨層 `953 passed`；同步鎖定 status button、cache-buster、pipeline/page regression，待重啟後以 live pending/approved filter 做範圍核對。
 
+## D3569 / filtered quality coverage scope wording
+
+- `#語意含義` / `#偏誤降低`：live pending filter 的 `0%` 是因為篩選集合本身全是缺口，不是整個歷史庫的品質結論；UI 改用「審核範圍」標籤，避免把 subset coverage 誤讀成 global coverage。
+- `#受眾` / `#溝通設計`：pending、approved_with_gap、rejected、deferred 各自使用白話狀態名稱；只有 `review_status=all` 顯示「品質 metadata 完整度」，讓操作員先辨識數字的分母與閱讀範圍。
+- `#責任` / `#限制條件`：這是 history renderer 的呈現修正，backend filtered envelope、review ledger、artifact/index、queue、rerun 與 mutation 邊界均不變；更新 renderer 專屬 cache-buster，避免舊 bundle 留在瀏覽器。
+- `#可驗證性` / `#來源品質`：先以前端 fixture 取得 RED，再 GREEN targeted `9 passed`、跨層 `954 passed`；維持 renderer 99 行責任護欄，並以 Node syntax、diff check 與 live pending/all scope/asset response 作最終驗證。
+
 ## D3564 / model-level quota observability boundary
 
 - `#證據基礎` / `#來源品質`：live dashboard 只提供 aggregate Gemini quota error，無法把 `2909` 次 observed calls 與 `2569` 次 errors 對齊到模型；先以同一 `api_usage_events` reset window 分組 `observed_model_calls`、`quota_error` 與 `rate_limited`，不把 provider 回應外推成官方剩餘額度。
