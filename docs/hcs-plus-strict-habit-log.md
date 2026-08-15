@@ -8323,7 +8323,7 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 
 - workflow/state regression：`21 passed`；context-digest/import regression：`3 passed`。
 - RED evidence：live c998 Agent 18 開啟 gemma circuit 後，Agent 21 仍有 gemma calls；修正後以 reducer tests 鎖定「空成功分支不得清除 open circuit」。
-- completion gate：`compileall` exit 0；`git diff --check` exit 0；尚待新 Worker 載入本批 commit 後重做 live event verification。
+- completion gate：`compileall` exit 0；`git diff --check` exit 0；新 Worker `24420dde...` 已載入 `09d63b99`，live v4 `1319.TW` 的平行 Agent 22/23 都成功使用 gemma，本輪沒有觸發 failure/success 混合分支；trigger behavior 由 reducer regression 覆蓋，未把未觸發的 live 情境宣稱為已觀察。
 
 ### 完成後維護 / D3510 / #拆解問題 #問對問題 #差距分析 #變數分析 #偏誤降低 #決策樹 #目的 #效用 #證據基礎 #來源品質 #可驗證性
 
