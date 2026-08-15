@@ -143,7 +143,7 @@ def _strip_non_price_tokens(text: str) -> str:
     without_multiples = _MULTIPLE_TOKEN_RE.sub("", without_percent)
     without_ratios = RISK_REWARD_RATIO_PATTERN.sub("", without_multiples)
     without_people_compliance_acknowledgment = _PEOPLE_COMPLIANCE_ACKNOWLEDGMENT_TARGET_VALUE_RE.sub("", without_ratios)
-    return QUALITY_SERVICE_TIME_TO_METRIC_VALUE_PATTERN.sub("", _NON_PRICE_METRIC_VALUE_RE.sub("", NON_PRICE_TARGET_METRIC_VALUE_PATTERN.sub("", without_people_compliance_acknowledgment)))
+    return _NON_PRICE_METRIC_VALUE_RE.sub("", NON_PRICE_TARGET_METRIC_VALUE_PATTERN.sub("", QUALITY_SERVICE_TIME_TO_METRIC_VALUE_PATTERN.sub("", without_people_compliance_acknowledgment)))
 
 
 def _target_price_context(text: str) -> str:
