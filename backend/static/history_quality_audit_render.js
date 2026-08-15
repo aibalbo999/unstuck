@@ -24,6 +24,12 @@
             const count = Number(summary?.quality_metadata_missing_reports || 0);
             return Number.isFinite(count) && count > 0 ? `${pipeline} ${Math.floor(count)}` : '';
         }).filter(Boolean).join('、');
+        const pipelineActions = Object.entries(pipelineQuality).map(([pipeline, summary]) => {
+            const count = Number(summary?.quality_metadata_missing_reports || 0);
+            return Number.isFinite(count) && count > 0
+                ? `<button class="history-quality-audit-filter" type="button" data-quality-audit-pipeline="${e(pipeline)}" aria-label="只看 ${e(pipeline)} 模式的品質缺口">只看 ${e(pipeline)} 缺口（${Math.floor(count)}）</button>`
+                : '';
+        }).filter(Boolean).join('');
         const coverageValue = Number(audit.quality_metadata_coverage_pct);
         const coverage = Number.isFinite(coverageValue) && coverageValue >= 0 && coverageValue <= 100
             ? Math.round(coverageValue * 100) / 100
@@ -59,7 +65,7 @@
             const targetLabel = reportDate ? `${ticker} ${pipeline} · ${reportDate}` : `${ticker} ${pipeline}`;
             return `<button class="history-quality-audit-target" type="button" data-quality-audit-report="${e(item.filename)}" data-quality-audit-ticker="${e(ticker)}" data-quality-audit-pipeline="${e(pipeline)}" data-quality-reason-codes="${e(reasonCodes)}" title="${e(detail)}" aria-label="${e(`人工核對 ${targetLabel}：${title}`)}">查看 ${e(targetLabel)}</button>`;
         }).join('');
-        return `<div class="history-quality-audit" role="status"><div class="history-quality-audit-header"><strong>歷史版本品質稽核</strong><span>範圍：${Math.floor(audited)} 份</span></div><div class="history-quality-audit-summary">${auditDetails}</div>${targets ? `<div class="history-quality-audit-actions">${targets}</div>` : ''}</div>`;
+        return `<div class="history-quality-audit" role="status"><div class="history-quality-audit-header"><strong>歷史版本品質稽核</strong><span>範圍：${Math.floor(audited)} 份</span></div><div class="history-quality-audit-summary">${auditDetails}</div>${pipelineActions ? `<div class="history-quality-audit-filter-actions" aria-label="按模式查看品質缺口">${pipelineActions}</div>` : ''}${targets ? `<div class="history-quality-audit-actions">${targets}</div>` : ''}</div>`;
     }
 
     window.StockAgentHistoricalQualityAuditRenderer = { render };

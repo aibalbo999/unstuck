@@ -4,6 +4,7 @@
         const ui = options.ui;
         const element = options.element;
         const openReport = options.openReport || (() => {});
+        const onSelectPipeline = options.onSelectPipeline || (() => {});
         let loadVersion = 0;
 
         function render(audit) {
@@ -42,6 +43,11 @@
 
         function bindEvents() {
             element?.addEventListener('click', event => {
+                const pipelineButton = event.target.closest('[data-quality-audit-pipeline]');
+                if (pipelineButton?.dataset?.qualityAuditPipeline && !pipelineButton?.dataset?.qualityAuditReport) {
+                    onSelectPipeline(pipelineButton.dataset.qualityAuditPipeline || 'all');
+                    return;
+                }
                 const button = event.target.closest('[data-quality-audit-report]');
                 if (!button) return;
                 openReport(button.dataset.qualityAuditReport, button.dataset.qualityAuditTicker, button.dataset.qualityAuditPipeline || 'v1');

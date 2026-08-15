@@ -67,6 +67,8 @@ process.stdout.write(JSON.stringify({ html }));
     assert "模式缺口：v1 36、v2 36" in payload["html"]
     assert "另有 141 份未展開" in payload["html"]
     assert "品質 metadata 完整度：89.25%（分母：已驗證快照）" in payload["html"]
+    assert 'data-quality-audit-pipeline="v1"' in payload["html"]
+    assert "只看 v1 缺口" in payload["html"]
     assert 'data-quality-audit-report="1623_TW_v2.html"' in payload["html"]
     assert 'data-quality-reason-codes="quality_metadata_missing,quality_metadata_after_refresh"' in payload["html"]
     assert "查看 1623.TW v2 · 2026-08-15 15:47" in payload["html"]
@@ -116,6 +118,42 @@ def test_history_quality_audit_module_filters_requests_and_reuses_open_report_ca
     assert payload["captured"] == {"itemLimit": 5, "query": "1623.TW", "pipeline": "v2"}
     assert payload["opened"] == ["1623_v2.html", "1623.TW", "v2"]
     assert payload["hidden"] is True
+
+
+def test_history_quality_audit_pipeline_shortcut_delegates_filter_selection():
+    helper_path = STATIC_DIR / "history_panel_quality_helpers.js"
+    renderer_path = STATIC_DIR / "history_quality_audit_render.js"
+    module_path = STATIC_DIR / "history_quality_audit.js"
+    script = """
+(async () => {
+  global.window = {};
+  require(__HELPER_PATH__);
+  require(__RENDERER_PATH__);
+  require(__MODULE_PATH__);
+  let clickHandler;
+  let selected;
+  const element = {
+    hidden: true,
+    innerHTML: '',
+    setAttribute: () => {},
+    removeAttribute: () => {},
+    addEventListener: (type, handler) => { if (type === 'click') clickHandler = handler; }
+  };
+  const audit = window.StockAgentHistoricalQualityAudit.create({
+    apiClient: { fetchHistoricalReportQualityAudit: async () => ({ audited_reports: 1, items: [] }) },
+    ui: { escapeHtml: value => String(value ?? '') },
+    element,
+    onSelectPipeline: pipeline => { selected = pipeline; }
+  });
+  audit.bindEvents();
+  clickHandler({ target: { closest: selector => selector === '[data-quality-audit-pipeline]' ? { dataset: { qualityAuditPipeline: 'v2' } } : null } });
+  process.stdout.write(JSON.stringify({ selected }));
+})();
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path))).replace("__RENDERER_PATH__", json.dumps(str(renderer_path))).replace("__MODULE_PATH__", json.dumps(str(module_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert payload["selected"] == "v2"
 
 
 def test_history_quality_audit_ignores_stale_filter_response():
@@ -193,8 +231,8 @@ def test_history_workspace_wires_historical_quality_audit_without_daily_queue_si
 
     assert 'id="history-quality-audit"' in index_html
     assert "/static/history_panel_quality_helpers.js?v=20260816-historical-quality-basis" in index_html
-    assert "/static/history_quality_audit_render.js?v=20260816-historical-quality-basis" in index_html
-    assert "/static/history_quality_audit.js?v=20260816-historical-quality-audit" in index_html
+    assert "/static/history_quality_audit_render.js?v=20260816-historical-quality-pipeline-filter" in index_html
+    assert "/static/history_quality_audit.js?v=20260816-historical-quality-pipeline-filter" in index_html
     assert index_html.index("/static/history_quality_audit_render.js") < index_html.index("/static/history_quality_audit.js")
     assert len((STATIC_DIR / "history_panel_quality_helpers.js").read_text(encoding="utf-8").splitlines()) < 120
     assert len((STATIC_DIR / "history_quality_audit_render.js").read_text(encoding="utf-8").splitlines()) < 100
@@ -202,4 +240,6 @@ def test_history_workspace_wires_historical_quality_audit_without_daily_queue_si
     assert "historyQualityAudit" in app_elements
     assert "historyQualityAudit" in app_panels
     assert "qualityAudit.load(values)" in workspace
+    assert "onSelectPipeline" in workspace
+    assert "historyPipelineFilter.value = pipeline" in workspace
     assert "data-quality-audit-report" in workspace or "qualityAudit.bindEvents()" in workspace

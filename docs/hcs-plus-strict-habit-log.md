@@ -2,6 +2,14 @@
 
 更新時間：2026-08-16
 
+## D3550 / 歷史稽核模式缺口快速聚焦
+
+- `#受眾` / `#差距分析`：live historical audit 的 `143` 個缺口已按 `v1/v2/v3/v4` 聚合，但摘要只提供文字；操作員若要逐模式核對，仍需手動改 pipeline 下拉選單，且容易忘記先關閉舊 preview。
+- `#溝通設計` / `#最佳化`：renderer 對每個有缺口的模式提供 `只看 vN 缺口`，使用 `data-quality-audit-pipeline`；module 只委派既有 filter，不複製 API 查詢或 audit 判定。
+- `#責任` / `#可驗證性`：workspace 重新載入前重設頁碼並關閉 preview，保留 history list/audit generation、report target `openReport()`、daily queue 與 `verified_snapshot_reports` 分母；前端 RED→GREEN 測試確認模式按鈕與 delegation，`history_workspace.js` 維持 177 行。
+
+本批暫定決策：改善模式級人工核對的尋路成本，不擴張 historical item limit、不自動修復、不把歷史缺口轉成每日 action。
+
 ## D3549 / 歷史列表與稽核的共同回應序號
 
 - `#差距分析` / `#系統動力學`：D3548 只保護 historical audit summary；`loadHistory()` 的 report list 仍可能在 filter race 中讓舊 `/api/reports` response 覆蓋新列表，造成摘要與列表不一致。

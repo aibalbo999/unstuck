@@ -7102,7 +7102,7 @@ def test_decision_tracking_controls_and_target_statuses_are_wired():
     assert "/static/history_workspace_actions.js" in index_html
     assert index_html.index("/static/history_workspace_panels.js") < index_html.index("/static/history_workspace_actions.js")
     assert index_html.index("/static/history_workspace_actions.js") < index_html.index("/static/history_workspace.js")
-    assert "/static/history_workspace.js?v=20260816-historical-quality-navigation" in index_html
+    assert "/static/history_workspace.js?v=20260816-historical-quality-pipeline-filter" in index_html
     assert "mergeTrackingReports" in history_workspace_js
     assert "trackingPayload" in history_workspace_js
     assert "item.latest_reports" in history_workspace_js
@@ -7710,8 +7710,8 @@ def test_decision_tracking_dense_layout_uses_workspace_efficiently():
     assert "history_list.css?v=20260628-glass-dark" in style_css
     assert "history_list_controls.css?v=20260816-historical-quality-audit" in style_css
     assert style_css.index("history_list.css?v=20260628-glass-dark") < style_css.index("history_list_controls.css?v=20260816-historical-quality-audit")
-    assert style_css.index("history_list_controls.css?v=20260816-historical-quality-audit") < style_css.index("history_quality_audit.css?v=20260816-historical-quality-audit")
-    assert style_css.index("history_quality_audit.css?v=20260816-historical-quality-audit") < style_css.index("decision_tracking.css?v=20260708-tracking-action-notes")
+    assert style_css.index("history_list_controls.css?v=20260816-historical-quality-audit") < style_css.index("history_quality_audit.css?v=20260816-historical-quality-pipeline-filter")
+    assert style_css.index("history_quality_audit.css?v=20260816-historical-quality-pipeline-filter") < style_css.index("decision_tracking.css?v=20260708-tracking-action-notes")
     assert "decision_tracking.css?v=20260708-tracking-action-notes" in style_css
     assert "history_shell.css?v=20260707-operator-human-factors" in style_css
     assert "history_shell_tabs.css?v=20260711-home-workspaces" in style_css

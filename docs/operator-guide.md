@@ -95,6 +95,8 @@ The read-only report quality audit exposes `missing_quality_fields` on each affe
 
 `quality_metadata_by_pipeline` 會再按 `pipeline_id` 分組，保留各模式自己的 verified 分母、coverage 與缺 gate 數；先看模式分布，再用 `q`/`pipeline` targeted audit 開啟明細，可以避免把全庫缺口和單一模式混在一起。
 
+歷史稽核摘要中的「只看 vN 缺口」按鈕是既有模式篩選的快速入口。它只改變歷史列表與稽核的讀取範圍，會重設頁碼並關閉目前 preview；它不代表品質已修復，也不會建立重跑、修復或每日待辦。
+
 `selection_basis=latest_per_ticker_pipeline` means「全量報告品質」是每個 ticker/pipeline 的最新索引列，不是磁碟上每個歷史 artifact 版本；回報 coverage 時要一起說明這個範圍。
 
 若要檢查歷史版本，不要把它和每日待辦混在一起：使用 `GET /api/watchlist/report-quality-audit/historical`。這個唯讀入口的 `scope=all_historical_indexed_reports`、`selection_basis=all_indexed_versions` 會掃描索引版本；可用既有 `q` 與 `pipeline` 篩選 ticker/模式，篩選後的 `audited_reports` 是符合條件的全部版本。只想看數字時加上 `item_limit=0`。它不會自動修復 artifact、不會 enqueue rerun，也不會寫入 report index。

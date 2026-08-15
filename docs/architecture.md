@@ -179,7 +179,7 @@ The daily decision dashboard (`GET /api/watchlist/daily-dashboard`) consumes rec
 
 同一 envelope 的 `quality_metadata_missing_by_provenance` 會把缺 metadata 的報告分成 `after_refresh` 與 `no_refresh_provenance`；後者只表示沒有 `refreshed_from_report` attribution，不能推論「從未刷新」。audit item 會保留 provenance、刷新來源檔名與 `snapshot_refreshed_at`，但不從 HTML/Markdown 重建 gate payload。
 
-同一 envelope 的 `quality_metadata_by_pipeline` 會保留每個模式的 verified 分母與 coverage，daily board 只顯示有缺口的模式；需要深入時再使用 `q`/`pipeline` filtered historical audit。
+同一 envelope 的 `quality_metadata_by_pipeline` 會保留每個模式的 verified 分母與 coverage，daily board 只顯示有缺口的模式；歷史稽核摘要會把有缺口的模式轉成唯讀快速篩選鈕，沿用 history workspace 的 `pipeline` filter、重設頁碼與 preview 後重新載入，不新增另一套查詢或 action。需要深入時仍可使用 `q`/`pipeline` filtered historical audit。
 
 ## Event-Driven Radar
 

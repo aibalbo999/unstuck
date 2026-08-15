@@ -138,5 +138,5 @@ def test_historical_audit_navigation_wiring_uses_cache_busters_and_existing_scop
     assert "StockAgentOpenHistoricalQualityAudit" in app_js
     assert "/static/watchlist_panel_helpers.js?v=20260816-historical-quality-navigation" in index_html
     assert "/static/watchlist_panel.js?v=20260816-historical-quality-navigation" in index_html
-    assert "/static/history_workspace.js?v=20260816-historical-quality-navigation" in index_html
+    assert "/static/history_workspace.js?v=20260816-historical-quality-pipeline-filter" in index_html
     assert "/static/styles/watchlist.css?v=20260816-historical-quality-navigation" in style_css

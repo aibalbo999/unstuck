@@ -8,8 +8,6 @@
         let historyReports = new Map(), previewReport = null, trackedTickers = new Set();
         let trackingCompact = false, previewCompactMode = false;
         let loadVersion = 0;
-        const qualityAudit = window.StockAgentHistoricalQualityAudit.create({ apiClient, ui, element: elements.historyQualityAudit, openReport });
-
         const {
             historyFilters,
             historyPanel,
@@ -24,6 +22,12 @@
             notify,
             onTrackedTickersChange: tickers => { trackedTickers = tickers; }
         });
+        const qualityAudit = window.StockAgentHistoricalQualityAudit.create({ apiClient, ui, element: elements.historyQualityAudit, openReport, onSelectPipeline: pipeline => {
+            if (!elements.historyPipelineFilter) return;
+            elements.historyPipelineFilter.value = pipeline;
+            historyPage = 1;
+            hideReportPreview(); loadHistory();
+        }});
         function setTrackingCompact(value, fromPreview = false) {
             trackingCompact = Boolean(value);
             previewCompactMode = Boolean(fromPreview && trackingCompact);
