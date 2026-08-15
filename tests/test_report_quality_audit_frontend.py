@@ -18,7 +18,8 @@ const payload = {
     scope: 'all_indexed_reports',
     audited_reports: 160,
     quality_metadata_missing_reports: 2,
-    quality_metadata_coverage_pct: 98.75
+    quality_metadata_coverage_pct: 98.75,
+    quality_metadata_coverage_basis: 'verified_snapshot_reports'
   }
 };
 const board = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], payload, value => String(value ?? ''));
@@ -29,7 +30,7 @@ process.stdout.write(JSON.stringify({ board }));
 
     assert "全量報告品質" in payload["board"]
     assert "2 份待人工核對" in payload["board"]
-    assert "98.75%" in payload["board"]
+    assert "已驗證快照覆蓋 98.75%" in payload["board"]
 
 
 def test_watchlist_board_does_not_treat_unavailable_quality_audit_as_zero_gaps():
@@ -101,3 +102,39 @@ process.stdout.write(JSON.stringify({ board }));
     assert "查看 1623.TW v2" in payload["board"]
     assert "data-quality-report" in panel
     assert "onOpenReport" in panel
+
+
+def test_quality_report_button_opens_the_audited_report_through_existing_callback():
+    helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
+    panel_path = STATIC_DIR / "watchlist_panel.js"
+    script = """
+global.window = {};
+require(__HELPER_PATH__);
+let clickHandler;
+let opened;
+window.StockAgentWatchlistPanelActions = { create: () => ({}) };
+require(__PANEL_PATH__);
+const listEl = { addEventListener: (type, handler) => { if (type === 'click') clickHandler = handler; } };
+const panel = window.StockAgentWatchlistPanel.create({
+  elements: { listEl },
+  onOpenReport: (...args) => { opened = args; }
+});
+panel.bindEvents();
+const qualityButton = {
+  dataset: {
+    qualityReport: '1623_TW_v2_report_20260815_154718.html',
+    qualityReportTicker: '1623.TW',
+    qualityReportPipeline: 'v2'
+  }
+};
+clickHandler({ target: { closest: selector => selector === '[data-quality-report]' ? qualityButton : null } });
+process.stdout.write(JSON.stringify({ opened }));
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path))).replace("__PANEL_PATH__", json.dumps(str(panel_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert payload["opened"] == [
+        "1623_TW_v2_report_20260815_154718.html",
+        "1623.TW",
+        "v2",
+    ]

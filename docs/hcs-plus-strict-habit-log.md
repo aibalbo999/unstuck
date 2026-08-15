@@ -1,6 +1,14 @@
 # HCS Plus Strict Habit Log
 
-更新時間：2026-08-15
+更新時間：2026-08-16
+
+## D3526 / 品質 coverage 分母明確化
+
+- `#語意含義` / `#偏誤降低`：live audit 的 `quality_metadata_coverage_basis=verified_snapshot_reports` 不應在 UI 被簡化成無分母的「覆蓋 98.75%」；改顯示「已驗證快照覆蓋 98.75%」，避免 snapshot 被排除時誤判全索引品質。
+- `#受眾` / `#責任`：操作員能直接知道這個百分比的證據範圍，並把缺少品質 metadata 與無法驗證 snapshot 分開處理；沒有 basis 的相容 payload 仍維持一般「覆蓋」文案。
+- `#可驗證性`：先新增 Node 行為測試確認品質 CTA click 傳遞 `filename/ticker/pipeline`，再以 coverage 文案 RED→GREEN；前端 audit suite `5 passed`。
+
+本批暫定決策：UI 只映射已知 basis label，不直接把未知後端字串暴露給操作員；後續新增 basis 必須同步定義白話中文語意與測試。
 
 ## D3525 / 品質缺口的可追溯人工入口
 

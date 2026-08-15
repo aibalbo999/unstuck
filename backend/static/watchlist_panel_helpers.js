@@ -27,9 +27,9 @@
 
     function watchlistDailyBoard(items, daily, escapeHtml) {
         const queue = daily?.decision_queue || {}, queueItems = Array.isArray(queue.items) ? queue.items : [], top = queueItems[0], total = Number(queue.summary?.total_actionable || 0);
-        const audit = daily?.report_quality_audit || {}, missingQuality = Number(audit.quality_metadata_missing_reports || 0), excludedSnapshots = Number(audit.snapshot_invalid_reports || 0) + Number(audit.snapshot_unverified_reports || 0), coverage = audit.quality_metadata_coverage_pct;
+        const audit = daily?.report_quality_audit || {}, missingQuality = Number(audit.quality_metadata_missing_reports || 0), excludedSnapshots = Number(audit.snapshot_invalid_reports || 0) + Number(audit.snapshot_unverified_reports || 0), coverage = audit.quality_metadata_coverage_pct, coverageLabel = audit.quality_metadata_coverage_basis === 'verified_snapshot_reports' ? '已驗證快照覆蓋' : '覆蓋';
         const auditParts = [];
-        if (missingQuality > 0) auditParts.push(`${missingQuality} 份待人工核對${coverage == null ? '' : `（覆蓋 ${coverage}%）`}`);
+        if (missingQuality > 0) auditParts.push(`${missingQuality} 份待人工核對${coverage == null ? '' : `（${coverageLabel} ${coverage}%）`}`);
         if (excludedSnapshots > 0) auditParts.push(`${excludedSnapshots} 份 snapshot 無法驗證`);
         const auditText = audit.status === 'unavailable' ? ' · 全量報告品質：暫時無法讀取' : auditParts.length ? ` · 全量報告品質：${auditParts.join('；')}` : '';
         const auditItems = Array.isArray(audit.items) ? audit.items.filter(item => item && item.filename) : [];
