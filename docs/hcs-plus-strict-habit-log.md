@@ -2,6 +2,15 @@
 
 更新時間：2026-08-16
 
+## D3557 / report quality audit read cost
+
+- `#差距分析` / `#最佳化`：live historical audit 首次約 `7.13s`、warm 約 `1.87–2.03s`，daily 約 `2.34s`；相同 read-only request 反覆讀取未變更的 report snapshot 與 Markdown。
+- `#限制條件` / `#系統動力學`：新增最多 8 筆、15 秒 TTL 的 process row cache；key 同時含 scope、output_dir、filter 與 indexed row fingerprint，避免不同 storage root 或 report version 誤用同一結果。
+- `#責任` / `#來源品質`：cache 只重用已由 canonical report index fingerprint 證明未變更的 derived rows；`updated_at`、`file_mtime`、stored hash 變化會重新讀取，不跨重啟、不寫入任何 operational state。
+- `#可驗證性`：先以重複呼叫取得 RED，再 GREEN；回歸測試特別鎖定不同 temporary storage root 不可碰撞，後續以 live cold/warm latency 驗收。
+
+本批暫定決策：優先降低重複 read cost，但不以永久 cache 或無 fingerprint TTL 掩蓋新的品質 evidence。
+
 ## D3556 / artifact evidence field coverage
 
 - `#差距分析` / `#來源品質`：live historical `143` 筆缺口全部是 `status=present`，但 field marker 只有 `report_conformance=143`、`evidence_exit_gate=143`，`content_credibility=0`；status-only 摘要會隱藏部分 evidence。

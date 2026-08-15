@@ -577,6 +577,41 @@ def test_report_quality_audit_artifact_field_summary_counts_all_missing_rows_bef
     }
 
 
+def test_indexed_report_quality_audit_reuses_unchanged_rows_but_refreshes_when_index_fingerprint_changes(monkeypatch, tmp_path):
+    import report_quality_audit as audit
+
+    rows = [{"ticker": "1623.TW", "filename": "1623_v1.html", "pipeline_id": "v1", "updated_at": 1}]
+    calls = {"data": 0, "md": 0}
+    monkeypatch.setattr(audit, "collect_all_report_pages", lambda *_args, **_kwargs: {"reports": rows})
+    monkeypatch.setattr(audit, "storage_for_existing_output_dir", lambda *_args: object())
+
+    def load_item(_storage, _filename, *, kind):
+        calls[kind] += 1
+        if kind == "data":
+            return SimpleNamespace(content=json.dumps({
+                "snapshot_hash": "hash",
+                "report_conformance": {},
+                "evidence_exit_gate": {},
+                "content_credibility": {},
+            }))
+        return SimpleNamespace(content="- **Report conformance:** blocked\n".encode("utf-8"))
+
+    monkeypatch.setattr(audit, "load_storage_item", load_item)
+    monkeypatch.setattr(
+        audit,
+        "verify_data_snapshot_integrity",
+        lambda _snapshot: {"valid": True, "expected_hash": "hash", "errors": []},
+    )
+
+    audit.build_indexed_report_quality_audit(str(tmp_path))
+    audit.build_indexed_report_quality_audit(str(tmp_path))
+    assert calls == {"data": 1, "md": 1}
+
+    rows[0]["updated_at"] = 2
+    audit.build_indexed_report_quality_audit(str(tmp_path))
+    assert calls == {"data": 2, "md": 2}
+
+
 def test_historical_indexed_report_quality_audit_includes_every_indexed_version(monkeypatch, tmp_path):
     import report_quality_audit as audit
 

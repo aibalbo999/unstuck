@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import json
 import re
+from collections import OrderedDict
+from hashlib import sha256
+from threading import RLock
+from time import monotonic
 from typing import Any
 
 from data_trust_snapshot import verify_data_snapshot_integrity
@@ -18,6 +22,10 @@ SCHEMA_VERSION = "report_quality_audit.v1"
 QUALITY_METADATA_FIELDS = ("report_conformance", "evidence_exit_gate", "content_credibility")
 QUALITY_METADATA_PROVENANCE = ("after_refresh", "no_refresh_provenance")
 ARTIFACT_QUALITY_SUMMARY_STATUSES = ("present", "not_found", "unavailable")
+REPORT_QUALITY_ROWS_CACHE_TTL_SECONDS = 15.0
+REPORT_QUALITY_ROWS_CACHE_MAX_ENTRIES = 8
+_REPORT_QUALITY_ROWS_CACHE: OrderedDict[tuple[str, str], tuple[float, list[dict[str, Any]]]] = OrderedDict()
+_REPORT_QUALITY_ROWS_CACHE_LOCK = RLock()
 ARTIFACT_QUALITY_MARKERS = {
     "report_conformance": (
         re.compile(r"(?im)^\s*-\s*\*\*Report conformance:\*\*\s*\S+"),
@@ -47,7 +55,11 @@ def build_indexed_report_quality_audit(output_dir: str, *, page_size: int = 100,
         sync_metadata=False,
     )
     storage = storage_for_existing_output_dir(output_dir, None)
-    reports = _indexed_quality_reports(rows.get("reports", []), storage)
+    reports = _cached_indexed_quality_reports(
+        rows.get("reports", []),
+        storage,
+        cache_namespace=f"latest_per_ticker_pipeline:{output_dir}",
+    )
     return build_report_quality_audit(reports, scope="all_indexed_reports", item_limit=item_limit, item_offset=item_offset)
 
 
@@ -72,7 +84,13 @@ def build_historical_indexed_report_quality_audit(
         sync_metadata=False,
     )
     storage = storage_for_existing_output_dir(output_dir, None)
-    reports = _indexed_quality_reports(rows.get("reports", []), storage)
+    reports = _cached_indexed_quality_reports(
+        rows.get("reports", []),
+        storage,
+        cache_namespace=(
+            f"historical:{output_dir}:{safe_text(q).strip().lower()}:{safe_text(pipeline).strip().lower()}"
+        ),
+    )
     return build_report_quality_audit(
         reports,
         scope="all_historical_indexed_reports",
@@ -266,6 +284,48 @@ def _indexed_quality_reports(rows: list[dict[str, Any]], storage: Any) -> list[d
             report["artifact_quality_summary"] = _read_artifact_quality_summary(storage, report.get("filename"))
         reports.append(report)
     return reports
+
+
+def _cached_indexed_quality_reports(
+    rows: list[dict[str, Any]],
+    storage: Any,
+    *,
+    cache_namespace: str,
+) -> list[dict[str, Any]]:
+    cache_key = (cache_namespace, _indexed_rows_fingerprint(rows))
+    now = monotonic()
+    with _REPORT_QUALITY_ROWS_CACHE_LOCK:
+        cached = _REPORT_QUALITY_ROWS_CACHE.get(cache_key)
+        if cached is not None and now - cached[0] < REPORT_QUALITY_ROWS_CACHE_TTL_SECONDS:
+            _REPORT_QUALITY_ROWS_CACHE.move_to_end(cache_key)
+            return cached[1]
+
+    reports = _indexed_quality_reports(rows, storage)
+    with _REPORT_QUALITY_ROWS_CACHE_LOCK:
+        _REPORT_QUALITY_ROWS_CACHE[cache_key] = (monotonic(), reports)
+        _REPORT_QUALITY_ROWS_CACHE.move_to_end(cache_key)
+        while len(_REPORT_QUALITY_ROWS_CACHE) > REPORT_QUALITY_ROWS_CACHE_MAX_ENTRIES:
+            _REPORT_QUALITY_ROWS_CACHE.popitem(last=False)
+    return reports
+
+
+def _indexed_rows_fingerprint(rows: list[dict[str, Any]]) -> str:
+    digest = sha256()
+    fields = (
+        "output_dir",
+        "filename",
+        "pipeline_id",
+        "updated_at",
+        "file_mtime",
+        "data_snapshot_hash",
+        "html_hash",
+        "markdown_hash",
+        "data_file_hash",
+    )
+    for row in rows:
+        digest.update("\x1f".join(safe_text(row.get(field)) for field in fields).encode("utf-8"))
+        digest.update(b"\x1e")
+    return digest.hexdigest()
 
 
 def _read_artifact_quality_summary(storage: Any, filename: Any) -> dict[str, Any]:

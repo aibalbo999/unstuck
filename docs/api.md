@@ -37,6 +37,8 @@ The read-only `report_quality_audit.items[]` payload exposes `missing_quality_fi
 
 `artifact_quality_summary_by_field` counts visible marker evidence by quality field across the same full missing-metadata set: `report_conformance`, `evidence_exit_gate`, and `content_credibility`. The field counts may be lower than `present`; this difference is intentional and makes partial artifact evidence explicit instead of implying all three gates are available.
 
+Repeated read-only quality audits may reuse an in-process row derivation cache for up to 15 seconds when the report-index artifact fingerprint is unchanged. The cache is bounded, invalidates when indexed timestamps or artifact hashes change, and never writes artifacts, indexes, queues, or rerun state.
+
 `quality_metadata_by_pipeline` repeats the same audit counts per `pipeline_id`, including its own `verified_snapshot_reports`, `quality_metadata_coverage_pct`, `quality_metadata_coverage_basis`, and missing-gate counts. This makes a full historical response sufficient for pipeline prioritization without issuing one request per mode.
 
 `report_quality_audit.selection_basis = latest_per_ticker_pipeline` means the `all_indexed_reports` scope audits the latest indexed row for each ticker/pipeline pair, not every historical artifact version. Use this field with `audited_reports` when describing coverage.
