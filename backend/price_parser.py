@@ -175,7 +175,7 @@ NON_PRICE_TARGET_METRIC_VALUE_PATTERN = re.compile(
     rf"(?:目標|target)?\s*(?:報酬率|報酬|上行|下行|機率|概率|信心|分數|排名|名次|return|upside|downside|probability|confidence(?:\s+score)?|score|rank|ranking)\s*{TARGET_NUMBER_PATTERN}(?:\s*[%％])?",
     flags=re.IGNORECASE,
 )
-VALUATION_MULTIPLE_VALUE_PATTERN = re.compile(
+QUALITY_SERVICE_TIME_TO_METRIC_PATTERN = re.compile(rf"(?:{QUALITY_SERVICE_TIME_TO_METRIC_PATTERN.pattern}|time\s+to\s+(?:renew\s+validation\s+attendance\s+renewal\s+certification\s+recertification|renew\s+attendance\s+renewal\s+certification\s+recertification\s+validation|renew\s+renewal\s+attendance\s+certification\s+recertification\s+validation|renew\s+renewal\s+certification\s+recertification\s+attendance\s+validation))", re.IGNORECASE); QUALITY_SERVICE_TIME_TO_METRIC_VALUE_PATTERN = re.compile(rf"(?:{QUALITY_SERVICE_TIME_TO_METRIC_VALUE_PATTERN.pattern}|time\s+to\s+(?:renew\s+validation\s+attendance\s+renewal\s+certification\s+recertification|renew\s+attendance\s+renewal\s+certification\s+recertification\s+validation|renew\s+renewal\s+attendance\s+certification\s+recertification\s+validation|renew\s+renewal\s+certification\s+recertification\s+attendance\s+validation)\s+(?:target|forecast|actual|baseline|current)\s*{TARGET_NUMBER_PATTERN})", re.IGNORECASE); VALUATION_MULTIPLE_VALUE_PATTERN = re.compile(
     rf"{TARGET_NUMBER_PATTERN}\s*(?:x|X|倍)(?:\s*(?:P/?E|PE|本益比|營收|sales|revenue|current\s+price|現價))?",
     flags=re.IGNORECASE,
 )
