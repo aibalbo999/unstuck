@@ -2687,6 +2687,52 @@ def test_time_to_renew_attendance_certification_renewal_validation_recertificati
         assert calibrated["recommendation_calibration"]["target_12m"] == 160.0
 
 
+def test_time_to_issue_attendance_validation_recertification_renewal_certification_lifecycle_metric_target_12m_does_not_trigger_calibration():
+    from itertools import product
+
+    from recommendation_calibration import calibrate_recommendation_summary
+
+    roots = (
+        "time to issue attendance validation recertification renewal certification",
+        "time to issue attendance validation renewal recertification certification",
+        "time to issue attendance validation renewal certification recertification",
+        "time to issue attendance validation certification renewal recertification",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+    targets = tuple(
+        f"{phase} {prefix} {root} {state} 12 個"
+        for root, phase, state, prefix in product(roots, phases, states, prefixes)
+    )
+
+    for target_12m in targets:
+        calibrated = calibrate_recommendation_summary(
+            {
+                "recommendation": "買入",
+                "current_price": "100",
+                "target_12m": target_12m,
+                "confidence": "7/10",
+            },
+            data_trust={"status": "fresh"},
+        )
+        assert calibrated["recommendation"] == "買入"
+        assert "recommendation_calibration" not in calibrated
+
+    for target_12m in (f"target price NT$160 with {target}" for target in targets):
+        calibrated = calibrate_recommendation_summary(
+            {
+                "recommendation": "持有",
+                "current_price": "100",
+                "target_12m": target_12m,
+                "confidence": "7/10",
+            },
+            data_trust={"status": "fresh"},
+        )
+        assert calibrated["recommendation"] == "買入"
+        assert calibrated["recommendation_calibration"]["target_12m"] == 160.0
+
+
 def test_time_to_issue_validation_renewal_certification_recertification_attendance_lifecycle_metric_target_12m_does_not_trigger_calibration():
     from itertools import product
 
