@@ -192,7 +192,7 @@ flowchart TD
 - Runtime path 真相走 `runtime_paths`，不要在新 Module 自己猜 `backend/cache/*.sqlite3`。
 - 新持久狀態若屬 operational state，優先放 `TASK_DB_PATH` 管轄的 store Module。
 - Notification delivery 的成功、失敗與重試稽核屬 operational state，走 `notification_delivery_audit`，不要寫進 report index。
-- Provider SLA dashboard payload shaping 與 window/alert projection 放 `provider_sla_observability`，`api_observability_service` 只負責聚合維運 API payload。
+- Provider SLA dashboard 的 window/metric normalization 留在 `provider_sla_observability`，alert/source-health projection 放 `provider_sla_dashboard_payload`，shape-safe queue/stuck helpers 放 `api_observability_payload_helpers`；`api_observability_service` 只負責聚合維運 API payload。
 - Provider SLA dashboard 保留核心來源的 system-level `critical`；若同一 source 在選定視窗有可用 provider，alert 另標記 `current_source_has_healthy_entry=true`，並以 `core_critical_covered_count`/`core_critical_uncovered_count` 提供快速掃讀，讓操作人員看見備援覆蓋，但不把它誤當成單份報告已可重跑或已恢復。
 - RQ queue observability 必須同時保留 per-queue registry counts；`failed_queue_count` 是總量，`failed_queue_attention_count` 依 `failure_ttl` 的 7 天門檻判定近期需處理量，供 ops status、Prometheus 與維運面板共用，不自動清除或重試 failed jobs。
 - `/api/watchlist/daily-dashboard` 的近期報告列表仍是 20 份 action scope；`report_quality_audit.v1` 另以 read-only 方式 audit 全部 latest-per-ticker/pipeline index rows，API 以 `selection_basis=latest_per_ticker_pipeline` 明示這個範圍，不把完整度觀測轉成每日 action。
@@ -200,6 +200,7 @@ flowchart TD
 - `report_quality_audit.artifact_quality_summary_by_status` 在 item pagination 前統計所有 missing-metadata row 的 artifact marker availability；`present` 只表示 Markdown/HTML 有可見摘要可供人工核對，不等於 gate pass，daily/historical UI 共享同一組統計。
 - `report_quality_audit.artifact_quality_summary_by_field` 同樣在 item pagination 前按 `report_conformance`、`evidence_exit_gate`、`content_credibility` 統計 marker；field count 保留零值，避免 `present` 被誤讀成三個品質欄位都可查。
 - repeated quality audit 只在相同 `output_dir/scope/filter/index-row fingerprint` 下使用 15 秒 bounded process cache；`updated_at`、`file_mtime` 或 stored hash 變化即重新讀 artifact，cache 不取代 canonical report index/storage。
+- `report_quality_audit` 只負責 indexed-row/storage orchestration，audit envelope/statistics 放 `report_quality_audit_payload`；revision review API 由 `api_routes/report_quality_review` 註冊，並由 watchlist route 注入 target/record callable，避免跨 route owner 直接耦合。
 - 歷史 quality gap 的人工核准走 `backend/report_quality_review_store.py`，把 `report_quality_revision` 綁在 indexed row/artifact fingerprint，事件 append-only 寫入 canonical `operational.sqlite3` 的 `report_quality_review_events`；`approved_with_gap` 只代表「核對後保留缺口」，不代表 structured gate 通過，revision 變更時必須重新審核。
 - `POST /api/watchlist/report-quality-audit/review` 必須經 mutation token，且只留下 decision/note audit event；它明確回報 `artifact_written=false`、`report_index_written=false`、`rerun_enqueued=false`，不得從 HTML/Markdown 重建 gate 或自動修復歷史報告。
 - historical audit item 的 `quality_review_history` 只讀取同一 filename/pipeline/revision 最近 20 筆 append-only 事件，按 event id 倒序呈現；舊 revision 事件不會進入目前報告的 review timeline。

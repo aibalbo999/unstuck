@@ -2,6 +2,14 @@
 
 更新時間：2026-08-16
 
+## D3560 / module responsibility boundary convergence
+
+- `#拆解問題` / `#責任`：import boundary 的失敗由 report-quality audit、review route 與 observability payload 混合責任造成；先依實際 import/monkeypatch 依賴拆出 `report_quality_audit_payload`、`api_routes/report_quality_review`、`api_observability_payload_helpers` 與 `provider_sla_dashboard_payload`，保留 public import 與 route callable injection。
+- `#最佳化` / `#系統動力學`：拆分後 `report_quality_audit=272`、`watchlist=313`、`api_observability_service=279`、`provider_sla_observability=127`，bounded cache、review history、provider impact、queue warning 的行為維持原 owner contract。
+- `#可驗證性` / `#來源品質`：import boundary `503 passed`、observability `148 passed`、品質稽核／review／前端／文件跨層 `157 passed`；Python compile、Node syntax 與 diff check 通過，沒有新增 artifact/index/queue/rerun side effect。
+
+本批暫定決策：先完成現有 boundary 的責任收斂，不為降低行數做行為重寫；下一步仍以 live runtime 與品質 evidence 的真實差距選擇優化點。
+
 ## D3559 / revision-scoped review timeline
 
 - `#證據基礎` / `#責任`：D3558 ledger 已保存每次決策，但 audit payload 只帶最新 state 與 event count；若只看最新事件，無法驗證誰在何時留下哪個理由。新增 `list_review_history()`，以 filename、pipeline、revision 精確分組，最多回傳 20 筆且按 event id 倒序。

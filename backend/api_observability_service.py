@@ -8,14 +8,15 @@ from collections.abc import Callable
 from typing import Any
 
 from api_observability_prometheus import _labels, _metric_bool, _metric_int, _metric_number
+from api_observability_payload_helpers import _payload_dict, _stuck_job_count, _stuck_jobs_payload
 from api_quota_service import build_api_quota_payload as _build_api_quota_payload
 from data_trust_constants import CORE_DATA_SOURCES
 from free_mode_contract import build_free_mode_contract
 from job_observability import build_active_jobs_snapshot, build_ops_dashboard_snapshot
-from mapping_fields import safe_mapping_dict, safe_mapping_items, safe_text, safe_text_list
+from mapping_fields import safe_mapping_items, safe_text, safe_text_list
 from model_route_observability import build_model_route_budget_payload
 from notification_delivery_audit import get_delivery_audit_summary
-from notification_delivery_audit_context import safe_dict, safe_int
+from notification_delivery_audit_context import safe_dict
 from notification_delivery_observability import (
     notification_delivery_attention_required,
     notification_delivery_dashboard_summary,
@@ -37,7 +38,6 @@ from queue_dashboard_payload import (
     stale_failed_queue_count,
 )
 from queue_observability import snapshot_task_queue
-
 
 CORE_PROVIDER_ALERT_SOURCES = set(CORE_DATA_SOURCES)
 
@@ -277,24 +277,3 @@ def _provider_alert_counts(alerts: list[dict]) -> dict:
         "enrichment_alert_count": len(enrichment),
         "enrichment_critical_count": len(enrichment_critical),
     }
-
-
-def _stuck_jobs_payload(value: Any) -> dict:
-    payload = _payload_dict(value)
-    if "count" in payload:
-        payload["count"] = _strict_count(payload.get("count"))
-    return payload
-
-
-def _stuck_job_count(value: Any) -> int:
-    return _strict_count(_payload_dict(value).get("count"))
-
-
-def _strict_count(value: Any) -> int:
-    if isinstance(value, (bool, bytes, bytearray, memoryview)):
-        return 0
-    return safe_int(value)
-
-
-def _payload_dict(value: Any) -> dict[Any, Any]:
-    return safe_mapping_dict(value) or {}
