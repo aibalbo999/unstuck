@@ -108,6 +108,30 @@ process.stdout.write(JSON.stringify({ board }));
     assert "缺口：報告一致性 2、證據關卡 1、內容可信度 2；模式缺口：v1 1、v2 1" in payload["board"]
 
 
+def test_watchlist_board_surfaces_quality_metadata_provenance_counts():
+    helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
+    script = """
+global.window = {};
+require(__HELPER_PATH__);
+const payload = {
+  decision_queue: { summary: { total_actionable: 0 }, items: [{ type: 'monitor' }] },
+  report_quality_audit: {
+    quality_metadata_missing_reports: 3,
+    quality_metadata_missing_by_provenance: {
+      after_refresh: 2,
+      no_refresh_provenance: 1
+    }
+  }
+};
+const board = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], payload, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ board }));
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "來源：刷新後缺口 2、未標記刷新來源 1" in payload["board"]
+
+
 def test_watchlist_board_does_not_treat_unavailable_quality_audit_as_zero_gaps():
     helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
     script = """

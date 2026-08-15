@@ -15,6 +15,7 @@ from report_quality_repair_items import quality_metadata_repair_item
 
 SCHEMA_VERSION = "report_quality_audit.v1"
 QUALITY_METADATA_FIELDS = ("report_conformance", "evidence_exit_gate", "content_credibility")
+QUALITY_METADATA_PROVENANCE = ("after_refresh", "no_refresh_provenance")
 
 
 def build_indexed_report_quality_audit(output_dir: str, *, page_size: int = 100, item_limit: int = 5) -> dict[str, Any]:
@@ -116,6 +117,7 @@ def build_report_quality_audit(
     complete_reports = 0
     missing_items = []
     missing_quality_field_counts = {field: 0 for field in QUALITY_METADATA_FIELDS}
+    missing_quality_by_provenance = {provenance: 0 for provenance in QUALITY_METADATA_PROVENANCE}
     pipeline_quality_stats: dict[str, dict[str, Any]] = {}
     for report in rows:
         pipeline_id = safe_text(report.get("pipeline_id")).strip() or "v1"
@@ -144,6 +146,9 @@ def build_report_quality_audit(
             if field in missing_quality_field_counts:
                 missing_quality_field_counts[field] += 1
                 pipeline_stats["missing_quality_field_counts"][field] += 1
+        provenance = _quality_metadata_provenance(item)
+        missing_quality_by_provenance[provenance] += 1
+        pipeline_stats["quality_metadata_missing_by_provenance"][provenance] += 1
         missing_items.append(_audit_item(report, item))
 
     missing_count = len(missing_items)
@@ -165,6 +170,7 @@ def build_report_quality_audit(
         "quality_metadata_complete_reports": complete_reports,
         "quality_metadata_missing_reports": missing_count,
         "missing_quality_field_counts": missing_quality_field_counts,
+        "quality_metadata_missing_by_provenance": missing_quality_by_provenance,
         "quality_metadata_by_pipeline": quality_metadata_by_pipeline,
         "quality_metadata_coverage_pct": coverage,
         "quality_metadata_coverage_basis": "verified_snapshot_reports",
@@ -195,6 +201,9 @@ def _audit_item(report: dict[str, Any], item: dict[str, Any]) -> dict[str, Any]:
         "detail": safe_text(item.get("detail")).strip(),
         "missing_quality_fields": safe_text_list(item.get("missing_quality_fields")),
         "reason_codes": safe_text_list(item.get("reason_codes")),
+        "quality_metadata_provenance": _quality_metadata_provenance(item),
+        "refreshed_from_report": safe_text(report.get("refreshed_from_report")).strip(),
+        "snapshot_refreshed_at": safe_text(report.get("snapshot_refreshed_at")).strip(),
         "recommended_action": safe_text(item.get("recommended_action")).strip(),
         "priority_score": safe_int(item.get("priority_score"), default=0),
         "blocks_auto_rerun": bool(item.get("blocks_auto_rerun")),
@@ -210,6 +219,7 @@ def _new_quality_stats() -> dict[str, Any]:
         "quality_metadata_complete_reports": 0,
         "quality_metadata_missing_reports": 0,
         "missing_quality_field_counts": {field: 0 for field in QUALITY_METADATA_FIELDS},
+        "quality_metadata_missing_by_provenance": {provenance: 0 for provenance in QUALITY_METADATA_PROVENANCE},
     }
 
 
@@ -226,6 +236,10 @@ def _finalize_quality_stats(stats: dict[str, Any]) -> dict[str, Any]:
 def _report_rows(reports: dict[str, Any] | list[dict[str, Any]]) -> list[dict[str, Any]]:
     envelope = safe_mapping_dict(reports)
     return safe_dict_list(envelope.get("reports") if envelope is not None else reports)
+
+
+def _quality_metadata_provenance(item: dict[str, Any]) -> str:
+    return "after_refresh" if "quality_metadata_after_refresh" in safe_text_list(item.get("reason_codes")) else "no_refresh_provenance"
 
 
 def _raw_row(row: Any) -> dict[str, Any]:

@@ -203,6 +203,7 @@ flowchart TD
 - 品質 metadata repair 先以三個 gate 的 contract state allowlist 判定是否真的有結果；`not_recorded`/`unknown`/`N/A` 不算完整。若看到 `refreshed_from_report` 且 gate 缺失，再標示 `quality_metadata_after_refresh` 的 provenance；這只是風險分類，不代表可以從 HTML 摘要重建完整 gate payload，也不自動修復歷史 artifact。
 - `report_quality_audit.items[]` 必須保留 repair item 的 `detail`、`reason_codes` 與 `missing_quality_fields`，audit envelope 另保留 `items_returned`/`items_truncated`，讓人工核對能知道明細是否被限制；不得從 HTML/Markdown 重建 gate payload，也不得把截斷明細當成全量結果。
 - `report_quality_audit.missing_quality_field_counts` 以 verified snapshot 為分母中的缺口摘要，分別統計 `report_conformance`、`evidence_exit_gate`、`content_credibility`；它只提供人工排序資訊，不轉成 rerun 或 repair side effect。
+- `report_quality_audit.quality_metadata_missing_by_provenance` 只針對缺 metadata 的 verified rows 分成 `after_refresh` 與 `no_refresh_provenance`；後者是沒有 `refreshed_from_report` attribution，不是「從未刷新」的證明。明細另保留 `quality_metadata_provenance`、`refreshed_from_report`、`snapshot_refreshed_at`，讓人工核對能回到 artifact/freshness 證據。
 - `report_quality_audit.quality_metadata_by_pipeline` 以 `pipeline_id` 分組保留 verified 分母、coverage basis 與缺 gate counts，讓一次 historical response 可完成模式優先級判斷；詳細明細仍用 `q`/`pipeline` targeted audit，且不做 side effect。
 - watchlist board 的品質缺口 CTA 只呼叫既有 `openReport(filename, ticker, pipeline)` preview path；它不進 daily decision queue、不呼叫 rerun API，也不寫入 artifact/index。相關 JS/CSS 使用獨立 cache-buster。
 - watchlist board 的品質缺口 CTA 需將 audit item 的白話 `detail` 放入 tooltip、`title` 放入稽核標題的無障礙 `aria-label`，並以 `data-quality-reason-codes` 保留可追蹤 reason code；這些欄位只供人工核對，不改變唯讀 preview 行為。

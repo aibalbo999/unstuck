@@ -2,6 +2,16 @@
 
 更新時間：2026-08-16
 
+## D3544 / 品質缺口 provenance 聚合
+
+- `#來源品質` / `#證據基礎`：live historical audit 的 143 筆缺口全部是 `quality_metadata_after_refresh`，且現行 refresh service 已有 gate preservation；因此不能把歷史 evidence gap 誤寫成目前 refresh regression。
+- `#語意含義` / `#偏誤降低`：新增 `after_refresh` 與 `no_refresh_provenance` 聚合；後者只表示沒有 `refreshed_from_report` attribution，不等同於「從未刷新」。
+- `#受眾` / `#溝通設計`：watchlist board 在有新欄位時顯示「來源：刷新後缺口／未標記刷新來源」，item 保留刷新檔名與時間，操作員可回到 artifact/freshness 查證。
+- `#責任` / `#倫理判斷`：維持 read-only audit、priority `820`、人工核對與 `blocks_auto_rerun`；不從 HTML/Markdown 重建 gate、不回寫歷史 snapshot、不自動 enqueue rerun。
+- `#可驗證性`：先以 audit regression 取得 RED，再完成後端/前端 GREEN；本批後續重啟 runtime 後需確認 live full historical、daily dashboard、filtered endpoint 與 served cache-buster。
+
+本批暫定決策：先補 provenance evidence 與可讀摘要，再決定是否需要獨立的人工歷史修復 workflow；不把分類欄位誤升格為修復結論。
+
 ## D3529 / full audit 保留 provenance detail
 
 - `#可驗證性` / `#責任`：live probe 證明 repair helper 有 `quality_metadata_after_refresh`，但 `_audit_item()` serializer 丟掉 detail/reason codes；只看 title 無法追查判定依據。

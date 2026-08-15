@@ -91,6 +91,8 @@ The read-only report quality audit exposes `missing_quality_fields` on each affe
 
 `missing_quality_field_counts` 會把缺口按 `report_conformance`、`evidence_exit_gate`、`content_credibility` 分組，且只以 verified snapshot 計算；它協助排序人工核對，不代表報告通過或應立即重跑。
 
+`quality_metadata_missing_by_provenance` 會把缺口分成 `after_refresh` 與 `no_refresh_provenance`。後者只表示 snapshot 沒有 `refreshed_from_report` 可供歸因，不代表可以證明它從未刷新；明細會附 `quality_metadata_provenance`、`refreshed_from_report` 與 `snapshot_refreshed_at`，供人工核對 artifact/freshness。
+
 `quality_metadata_by_pipeline` 會再按 `pipeline_id` 分組，保留各模式自己的 verified 分母、coverage 與缺 gate 數；先看模式分布，再用 `q`/`pipeline` targeted audit 開啟明細，可以避免把全庫缺口和單一模式混在一起。
 
 `selection_basis=latest_per_ticker_pipeline` means「全量報告品質」是每個 ticker/pipeline 的最新索引列，不是磁碟上每個歷史 artifact 版本；回報 coverage 時要一起說明這個範圍。
