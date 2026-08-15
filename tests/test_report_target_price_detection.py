@@ -7850,6 +7850,31 @@ def test_report_target_price_detection_ignores_all_lifecycle_time_to_metric_perm
     )
 
 
+def test_report_target_price_detection_ignores_generic_queue_metric_values():
+    from itertools import product
+
+    from report_target_price_detection import detect_explicit_target_price_fields
+
+    queue_labels = ("queue items", "queue item", "queue reviews", "work queue")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    targets = {
+        f"queue_metric_{index}_target_price": f"{queue_label} {state} 160"
+        for index, (queue_label, state) in enumerate(product(queue_labels, states))
+    }
+    valid_cases = {
+        f"price_with_{field_name}": f"target price NT$160 with {raw}"
+        for field_name, raw in targets.items()
+    }
+
+    fields = detect_explicit_target_price_fields(
+        {"parsed": {"recommendation": {**targets, **valid_cases}}}
+    )
+
+    assert fields == sorted(
+        f"parsed.recommendation.{field_name}" for field_name in valid_cases
+    )
+
+
 def test_report_target_price_detection_ignores_time_to_issue_attendance_recertification_validation_renewal_certification_lifecycle_metric_values():
     from itertools import product
 

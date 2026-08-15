@@ -12644,6 +12644,34 @@ def test_parse_price_targets_from_text_ignores_all_lifecycle_time_to_metric_perm
     }
 
 
+def test_parse_price_targets_from_text_ignores_generic_queue_metric_values():
+    from itertools import product
+
+    queue_labels = ("queue items", "queue item", "queue reviews", "work queue")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    targets = {
+        f"QueueMetric{index}情境": f"{queue_label} {state} 160"
+        for index, (queue_label, state) in enumerate(product(queue_labels, states))
+    }
+    text = "[目標股價]\n" + "".join(
+        f"{label}：{raw}\n" for label, raw in targets.items()
+    ) + "[/目標股價]"
+
+    assert parse_price_targets_from_text(text, current_price=100) == {}
+
+    valid_targets = {
+        label.replace("情境", "有效情境"): f"target price NT$160 with {raw}"
+        for label, raw in targets.items()
+    }
+    valid_text = "[目標股價]\n" + "".join(
+        f"{label}：{raw}\n" for label, raw in valid_targets.items()
+    ) + "[/目標股價]"
+
+    assert parse_price_targets_from_text(valid_text, current_price=100) == {
+        label: 160.0 for label in valid_targets
+    }
+
+
 def test_parse_price_targets_from_text_ignores_time_to_issue_attendance_recertification_validation_renewal_certification_lifecycle_only_values():
     from itertools import product
 

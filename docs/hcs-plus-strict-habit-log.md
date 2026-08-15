@@ -8303,6 +8303,34 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 - D3376-D3387 adjacent regression：`60 passed, 3740 deselected in 423.61s`。
 - completion gate：import boundary `503 passed in 11.00s`；HCS/文件契約 `135 passed in 3.50s`；`py_compile` exit 0；`git diff --check` exit 0；trailing-whitespace 無命中；runtime doctor exit 0，canonical operational DB 為 `backend/cache/operational.sqlite3`、report index 為 `backend/cache/stock_agent_cache.sqlite3`，Redis 為 `redis://localhost:6379/0`；parser/detector 行數維持 `349/189`。
 
+### 完成後維護 / D3502 / #拆解問題 #差距分析 #偏誤降低 #比較組 #證據基礎 #可驗證性 #來源品質
+
+本次使用：廣域 parser audit 將五入口測試語料的非明確價格命中縮小到 4 個候選；核對後 3 個是合法價格區間或 AST 組合片段，唯一可修正的通用行政量是 `queue items target 160`，因此以 queue 表達與 state 的小矩陣補強 shared guard。
+
+核心判斷
+
+1. `queue items/work queue` 後接 target state 與數字是行政佇列量，不是股票價格；應與既有具體 queue 名稱使用同一個報告品質邊界。
+2. guard 僅涵蓋 `queue items`、`queue item`、`queue reviews`、`work queue` 四種表達及五種 state，共 20 cases；不改變 `time to price` 或明確 target price 的金融語意。
+3. 混合句 `target price NT$205 with queue items target 160` 必須保留 `[205.0]`，用來防止非價格清理誤刪合法價格。
+
+落地修改
+
+1. `backend/price_parser.py` 新增 `QUALITY_SERVICE_QUEUE_METRIC_PATTERN` 與 value pattern，接入 parser early return 與 value stripping；維持 349 行。
+2. `backend/report_target_price_detection.py` 共用 queue pattern/value pattern，讓 explicit detector 與 parser 的非價格邊界一致；維持 189 行。
+3. 五個報告品質入口新增 queue metric regression，並將 20 組 bad cases 與 20 組 mixed-valid cases 綁在同一組測試契約。
+
+優化說明
+
+1. 五入口 RED 為 `5 failed, 4370 deselected in 7.56s`；shared queue guard GREEN 為 `5 passed, 4370 deselected in 1.54s`。
+2. queue matrix 為 `20 cases / parser_leaks=0 / parser_valid_misses=0`；detector 只保留 mixed-valid explicit field。
+3. controls 為 financial `time to price=[]`、explicit target price `[205.0]`、mixed queue target price `[205.0]`；D3501 lifecycle adjacent regression `10 passed, 4365 deselected in 47.07s`。
+
+驗證方式
+
+- `$(./scripts/project_python.sh) -m pytest tests/test_price_parser.py tests/test_recommendation_calibration.py tests/test_content_credibility_inputs.py tests/test_structured_output_parser.py tests/test_report_target_price_detection.py -q -k 'generic_queue_metric'`：`5 passed, 4370 deselected in 1.54s`。
+- queue matrix：20 cases、parser leaks/valid-misses 皆為 0；detector fields 僅為 mixed-valid explicit field。
+- adjacent regression：`10 passed, 4365 deselected in 47.07s`。
+
 ### 完成後維護 / D3501 / #拆解問題 #差距分析 #偏誤降低 #比較組 #證據基礎 #來源品質
 
 本次使用：D3500 後 live scan 顯示八組動詞 × lifecycle 五詞排列仍有 `592` 個 residual；先以候選 generic regex 做 960/960 離線 permutation proof，再以五入口廣域 RED/GREEN 與 controls 驗證共享 guard 的安全邊界。

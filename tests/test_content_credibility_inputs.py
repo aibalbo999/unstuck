@@ -10359,6 +10359,33 @@ def test_target_price_candidates_ignore_all_lifecycle_time_to_metric_permutation
     ]
 
 
+def test_target_price_candidates_ignore_generic_queue_metric_values():
+    from itertools import product
+
+    queue_labels = ("queue items", "queue item", "queue reviews", "work queue")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    targets = {
+        f"QueueMetric{index}情境": f"{queue_label} {state} 160"
+        for index, (queue_label, state) in enumerate(product(queue_labels, states))
+    }
+    valid_cases = {
+        label.replace("情境", "有效情境"): f"target price NT$160 with {raw}"
+        for label, raw in targets.items()
+    }
+
+    candidates = target_price_candidates({"price_targets": {**targets, **valid_cases}})
+
+    assert candidates == [
+        {
+            "source": f"price_targets.{label}",
+            "label": label,
+            "price": 160.0,
+            "raw": raw,
+        }
+        for label, raw in valid_cases.items()
+    ]
+
+
 def test_target_price_candidates_ignore_time_to_issue_attendance_recertification_validation_renewal_certification_lifecycle_metric_values():
     from itertools import product
 

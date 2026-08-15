@@ -13550,6 +13550,19 @@ def test_extract_target_price_numbers_ignores_all_lifecycle_time_to_metric_permu
     assert _extract_target_price_numbers("time to complete course target 12 個") == []
 
 
+def test_extract_target_price_numbers_ignores_generic_queue_metric_values():
+    from itertools import product
+
+    queue_labels = ("queue items", "queue item", "queue reviews", "work queue")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    for queue_label, state in product(queue_labels, states):
+        metric = f"{queue_label} {state} 160"
+        assert _extract_target_price_numbers(metric) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {metric}"
+        ) == [205.0]
+
+
 def test_extract_target_price_numbers_ignores_time_to_issue_attendance_recertification_validation_renewal_certification_lifecycle_metric_values():
     from itertools import product
 

@@ -2727,6 +2727,40 @@ def test_all_lifecycle_time_to_metric_permutations_do_not_trigger_calibration():
         assert valid["recommendation_calibration"]["target_12m"] == 160.0
 
 
+def test_generic_queue_metric_targets_do_not_trigger_calibration():
+    from itertools import product
+
+    from recommendation_calibration import calibrate_recommendation_summary
+
+    queue_labels = ("queue items", "queue item", "queue reviews", "work queue")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    for queue_label, state in product(queue_labels, states):
+        metric = f"{queue_label} {state} 160"
+        calibrated = calibrate_recommendation_summary(
+            {
+                "recommendation": "買入",
+                "current_price": "100",
+                "target_12m": metric,
+                "confidence": "7/10",
+            },
+            data_trust={"status": "fresh"},
+        )
+        assert calibrated["recommendation"] == "買入"
+        assert "recommendation_calibration" not in calibrated
+
+        valid = calibrate_recommendation_summary(
+            {
+                "recommendation": "持有",
+                "current_price": "100",
+                "target_12m": f"target price NT$160 with {metric}",
+                "confidence": "7/10",
+            },
+            data_trust={"status": "fresh"},
+        )
+        assert valid["recommendation"] == "買入"
+        assert valid["recommendation_calibration"]["target_12m"] == 160.0
+
+
 def test_time_to_issue_attendance_recertification_validation_renewal_certification_lifecycle_metric_target_12m_does_not_trigger_calibration():
     from itertools import product
 
