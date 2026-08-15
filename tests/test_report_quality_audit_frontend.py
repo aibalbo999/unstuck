@@ -33,6 +33,29 @@ process.stdout.write(JSON.stringify({ board }));
     assert "已驗證快照覆蓋 98.75%" in payload["board"]
 
 
+def test_watchlist_board_discloses_truncated_quality_audit_items():
+    helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
+    script = """
+global.window = {};
+require(__HELPER_PATH__);
+const payload = {
+  decision_queue: { summary: { total_actionable: 0 }, items: [{ type: 'monitor' }] },
+  report_quality_audit: {
+    quality_metadata_missing_reports: 8,
+    items_returned: 2,
+    items_truncated: true,
+    items: [{ ticker: '1623.TW', filename: '1623_v1.html', pipeline_id: 'v1' }, { ticker: '2330.TW', filename: '2330_v1.html', pipeline_id: 'v1' }]
+  }
+};
+const board = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], payload, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ board }));
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "8 份待人工核對（目前顯示 2 份，另有 6 份未展開）" in payload["board"]
+
+
 def test_watchlist_board_does_not_treat_unavailable_quality_audit_as_zero_gaps():
     helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
     script = """

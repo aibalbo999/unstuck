@@ -2175,6 +2175,12 @@
 - `report_quality_metadata_repair.py` 現在輸出精確的 `missing_quality_fields`，audit serializer 與 watchlist CTA 同步保留這組欄位；人工核對不必從 `detail` 或 HTML/Markdown 猜測缺口。
 - RED→GREEN 覆蓋 repair item、完整 audit、前端 `data-quality-missing-fields` 與 cache-buster；維持唯讀 preview 邊界，不重建 gate、不寫 artifact/index、不 enqueue rerun。
 
+## D3536：揭露全量稽核明細是否被截斷
+
+- `report_quality_audit` 會保留全量 `quality_metadata_missing_reports`，但 `items` 明細預設只回傳前 5 筆；若不揭露截斷狀態，操作人員可能把可見明細誤當成全部缺口。
+- 新增 `items_returned` 與 `items_truncated`，watchlist 工作台在截斷時顯示「目前顯示 N 份，另有 M 份未展開」；操作人員需另以報告歷史查詢剩餘項目，不擴大 daily action queue、不自動修 artifact/index。
+- RED→GREEN 鎖定 audit envelope、前端摘要與 docs contract；空 audit、unavailable audit 與既有唯讀 preview 行為保持相容。
+
 綜合視角：
 
 - `#可驗證性`：每個模式的報告模板與決策用途必須有測試與文件可查。

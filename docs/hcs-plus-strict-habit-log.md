@@ -11980,3 +11980,9 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 - 將品質 repair item 的精確缺 gate 輸出為 `missing_quality_fields`，並在 audit serializer 與 watchlist CTA 保留；前端另以 `data-quality-missing-fields` 和新 cache-buster 確保人工核對讀到新欄位。
 - 以 live full audit 的 160 份 verified snapshot、158 份 complete、2 份 1623.TW 缺 metadata 作為範圍證據；欄位只描述已存在的缺口，不從 HTML/Markdown 重建品質結果。
 - RED→GREEN 鎖定 repair queue、full audit、前端 attribute、docs contract；不自動修 artifact/index、不進 daily action queue、不 enqueue rerun。
+
+### 完成後維護 / D3536 / #拆解問題 #差距分析 #偏誤降低 #證據基礎 #受眾 #語意含義 #可驗證性
+
+- full audit 的缺口總數與可見 item 明細不是同一個集合；先以 `items_returned`/`items_truncated` 固定 envelope 語意，再讓前端明說未展開筆數，避免把 UI cap 誤讀成 audit cap。
+- RED 測試先讓 3 筆缺口、`item_limit=2` 暴露 metadata 缺失，再以工作台 8 筆缺口/2 筆可見案例鎖定提示文字；GREEN 後維持 read-only 與 report history 查詢邊界。
+- 不用 `items.length` 猜全量、不新增 rerun/repair side effect；docs contract、audit regression 與 JavaScript syntax check 共同驗證跨層契約。

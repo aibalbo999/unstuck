@@ -98,6 +98,8 @@ def build_report_quality_audit(
 
     missing_count = len(missing_items)
     coverage = round(complete_reports / verified_snapshot_reports * 100, 2) if verified_snapshot_reports else None
+    item_limit_value = max(0, safe_int(item_limit, default=5))
+    returned_items = missing_items[:item_limit_value]
     return {
         "schema_version": SCHEMA_VERSION,
         "scope": safe_text(scope).strip() or "daily_report_sample",
@@ -109,7 +111,9 @@ def build_report_quality_audit(
         "quality_metadata_missing_reports": missing_count,
         "quality_metadata_coverage_pct": coverage,
         "quality_metadata_coverage_basis": "verified_snapshot_reports",
-        "items": missing_items[: max(0, safe_int(item_limit, default=5))],
+        "items": returned_items,
+        "items_returned": len(returned_items),
+        "items_truncated": missing_count > len(returned_items),
     }
 
 

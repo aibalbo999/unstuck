@@ -53,6 +53,8 @@ def test_report_quality_audit_counts_verified_reports_with_missing_quality_metad
         "quality_metadata_missing_reports": 1,
         "quality_metadata_coverage_pct": 50.0,
         "quality_metadata_coverage_basis": "verified_snapshot_reports",
+        "items_returned": 1,
+        "items_truncated": False,
         "items": [
             {
                 "ticker": "1623.TW",
@@ -79,6 +81,30 @@ def test_report_quality_audit_marks_sample_scope_when_full_index_is_not_availabl
     assert payload["audited_reports"] == 0
     assert payload["quality_metadata_coverage_pct"] is None
     assert payload["items"] == []
+
+
+def test_report_quality_audit_exposes_item_truncation_metadata():
+    from report_quality_audit import build_report_quality_audit
+
+    reports = [
+        {
+            "ticker": ticker,
+            "filename": f"{ticker}_v1.html",
+            "pipeline_id": "v1",
+            "snapshot_integrity": {"status": "verified"},
+            "report_conformance": {},
+            "evidence_exit_gate": {},
+            "content_credibility": {},
+        }
+        for ticker in ("1623.TW", "2330.TW", "2454.TW")
+    ]
+
+    payload = build_report_quality_audit(reports, scope="all_indexed_reports", item_limit=2)
+
+    assert payload["quality_metadata_missing_reports"] == 3
+    assert payload["items_returned"] == 2
+    assert payload["items_truncated"] is True
+    assert len(payload["items"]) == 2
 
 
 def test_report_quality_audit_keeps_unverified_snapshots_out_of_coverage_denominator():

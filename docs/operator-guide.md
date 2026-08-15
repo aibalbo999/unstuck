@@ -87,7 +87,7 @@ When a core source has a healthy provider in the same selected window, the ops d
 
 Use `core_critical_covered_count` and `core_critical_uncovered_count` for a quick provider panel scan; a covered count is evidence of fallback data, not proof that every existing report is ready.
 
-The read-only report quality audit exposes `missing_quality_fields` on each affected item. Treat it as the exact absent-gate list for manual artifact and freshness review; it is not a reconstructed quality result and does not enqueue a rerun or repair.
+The read-only report quality audit exposes `missing_quality_fields` on each affected item plus `items_returned` and `items_truncated` on the envelope. When `items_truncated=true`, the dashboard is showing only the returned detail rows; use the report history search for the remaining items. These fields are exact audit evidence, not a reconstructed quality result, and do not enqueue a rerun or repair.
 
 When a Worker restarts, RQ queued, deferred, or scheduled retry jobs are reconciled to SQLite status `waiting_retry`; only a live started/current claim remains `running`.
 

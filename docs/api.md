@@ -26,7 +26,7 @@ Report rows include:
 - `decision_tracking`: performance since the report recommendation.
 - `decision_freshness`: whether the conclusion still matches the current data snapshot.
 
-The read-only `report_quality_audit.items[]` payload exposes `missing_quality_fields` beside `detail` and `reason_codes`. This is the exact list of absent quality gates for manual review; consumers must not reconstruct gate payloads from HTML or Markdown text.
+The read-only `report_quality_audit.items[]` payload exposes `missing_quality_fields` beside `detail` and `reason_codes`. The audit envelope also exposes `items_returned` and `items_truncated`, because the full audit may cap item details for the UI while retaining the complete missing count. This is the exact list of absent quality gates for manual review; consumers must not reconstruct gate payloads from HTML or Markdown text or treat a truncated item list as the full set.
 
 Report preview reading boundaries include snapshot integrity mismatch details when `snapshot_integrity.status = invalid`, so operators see the concrete hash evidence before opening the full report.
 
