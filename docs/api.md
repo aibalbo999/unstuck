@@ -55,6 +55,8 @@ The response keeps `quality_review_by_status` keys even when a selected status h
 
 When `review_status` is not `all`, `quality_metadata_coverage_pct`, `audited_reports`, and pagination counts describe only the selected review-status set. Consumers must not present the filtered coverage percentage as whole-library quality; the history UI labels the selected scope as `審核範圍` and reserves `品質 metadata 完整度` for the unfiltered response.
 
+For a filtered response with `audited_reports=0` and `items_total=0`, the correct interpretation is「目前沒有符合該審核狀態的品質缺口」；it is not evidence that zero reports were complete or that the whole library has zero coverage.
+
 The daily watchlist board reuses the same `artifact_quality_summary` item evidence when it renders report-quality targets. It may expose the marker fields through `data-quality-artifact-fields` and human-readable target context, but this remains a read-only manual-review hint and does not alter the daily decision queue.
 
 Daily report-quality targets also expose the current `quality_review.status` in visible and accessible target context. This is status evidence only; review decisions and notes remain owned by the historical review controls and their mutation-token boundary.

@@ -51,6 +51,14 @@
 - `#責任` / `#限制條件`：修正只在 status-filter helper，更新專屬 cache-buster；backend aggregate、review mutation、artifact/index、queue 與 rerun 不變。
 - `#可驗證性` / `#來源品質`：先以 count=0 fixture 取得 RED，再 GREEN `10 passed`；維持 helper 97 行，並以跨層 suite、Node syntax、diff check 與 live asset/health/readiness 作最終驗證。
 
+## D3572 / filtered empty summary semantics
+
+- `#語意含義` / `#偏誤降低`：filtered response 的 `audited_reports=0` 代表目前審核狀態沒有匹配缺口，不代表有 `0` 份 complete snapshot；renderer 分離 status-specific empty copy 與 unfiltered complete copy。
+- `#證據基礎` / `#來源品質`：API 的 `review_status_filter`、`items_total` 與 quality status map 是範圍證據；不從空集合推導全庫 quality coverage，也不重算 backend denominator。
+- `#受眾` / `#溝通設計`：操作員看到「目前沒有符合〈狀態〉的品質 metadata 缺口」，可搭配仍保留的 `（0）`/all 導航理解目前篩選結果。
+- `#責任` / `#限制條件`：修改限於 history renderer 與 cache-buster，backend audit、review ledger、artifact/index、queue、rerun 不變。
+- `#可驗證性`：先以 filtered-empty fixture 取得 RED，再 GREEN `11 passed`；維持 renderer 99 行，並以跨層 suite、Node syntax、diff check 與 live asset/health/readiness 作最終驗證。
+
 ## D3564 / model-level quota observability boundary
 
 - `#證據基礎` / `#來源品質`：live dashboard 只提供 aggregate Gemini quota error，無法把 `2909` 次 observed calls 與 `2569` 次 errors 對齊到模型；先以同一 `api_usage_events` reset window 分組 `observed_model_calls`、`quota_error` 與 `rate_limited`，不把 provider 回應外推成官方剩餘額度。

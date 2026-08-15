@@ -203,6 +203,8 @@ daily target 只複用同一筆 `quality_review.status` 做可見與 accessible 
 
 `history_panel_quality_helpers` 對 review status filter 採用 recoverable empty-state 規則：非目前且 count 為零的狀態可隱藏，目前狀態即使為零仍保留，並在 filtered view 一律保留 `all` 入口；這只影響導覽呈現，不改 status aggregate 或 historical query。
 
+`history_quality_audit_render` 在 filtered empty response 使用 status-specific empty copy，而非套用 unfiltered 的 complete-report 文案；這避免把「沒有匹配的審核狀態」錯當成 quality gate 已完成的統計。
+
 ## Event-Driven Radar
 
 ```mermaid
