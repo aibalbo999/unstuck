@@ -7,10 +7,13 @@ import json
 
 from google.genai import types
 
+from agent_runtime.model_policy import is_model_circuit_open, record_model_failure, record_model_success
+from agent_runtime.retry_policy import AgentRateLimitError
 from agent_catalog import AGENT_NAMES
 from cache_store import get_cache_json, set_cache_json
 from config import AGENT_STEP_CACHE_ENABLED, AGENT_STEP_CACHE_SECONDS, CONTEXT_DIGEST_MODEL
 from prompt_rules import get_task_system_instruction
+from runtime_events import emit_context_event, emit_context_event_async, make_runtime_event
 
 
 def _context_digest_model_sequence() -> list[str]:
@@ -94,3 +97,42 @@ def _agent_event_kwargs(context: dict, agent_num: int, model_id: str, phase: str
         pipeline_label=context.get("pipeline_label"),
         metadata={"model_id": model_id, "task": "context_digest"},
     )
+
+
+def _is_context_digest_model_circuit_open(context: dict, model_id: str) -> bool:
+    return is_model_circuit_open(context, model_id)
+
+
+def _record_context_digest_success(context: dict, model_id: str) -> None:
+    record_model_success(context, model_id)
+
+
+def _mark_context_digest_quota_failure(context: dict, model_id: str, exc: BaseException) -> None:
+    circuit_error = AgentRateLimitError(
+        str(exc)[:240],
+        retry_wait_seconds=1.0,
+        key_cooldown_seconds=1.0,
+    )
+    circuit_error.all_keys_exhausted = True
+    record_model_failure(context, model_id, circuit_error)
+
+
+def _context_digest_circuit_event(context: dict, agent_num: int, model_id: str) -> dict:
+    event = _agent_event_kwargs(
+        context,
+        agent_num,
+        model_id,
+        "model_circuit_open",
+        f"Context digest 模型 {model_id} 暫時熔斷，改用 deterministic fallback。",
+        level="warning",
+    )
+    event["metadata"] = {**event["metadata"], "circuit_scope": "job_model"}
+    return event
+
+
+def _emit_context_digest_circuit_open(context: dict, agent_num: int, model_id: str, progress_callback=None) -> None:
+    emit_context_event(context, make_runtime_event("status", **_context_digest_circuit_event(context, agent_num, model_id)), progress_callback)
+
+
+async def _emit_context_digest_circuit_open_async(context: dict, agent_num: int, model_id: str, progress_callback=None) -> None:
+    await emit_context_event_async(context, make_runtime_event("status", **_context_digest_circuit_event(context, agent_num, model_id)), progress_callback)

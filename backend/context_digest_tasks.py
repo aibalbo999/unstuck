@@ -6,7 +6,6 @@ import json
 
 from context_digest_payload import (
     _build_context_digest_prompt,
-    _ensure_digest_payload_shape,
     _fallback_context_digest_payload,
     _normalize_digest_text,
 )
@@ -14,9 +13,14 @@ from context_digest_runtime import (
     _agent_event_kwargs,
     _build_digest_generation_config,
     _context_digest_cache_key,
+    _emit_context_digest_circuit_open,
+    _emit_context_digest_circuit_open_async,
     _context_digest_model_sequence,
     _digest_input_hash,
     _get_cached_context_digest,
+    _is_context_digest_model_circuit_open,
+    _mark_context_digest_quota_failure,
+    _record_context_digest_success,
     _store_cached_context_digest,
 )
 from llm_client import (
@@ -69,6 +73,9 @@ def ensure_context_digest(agent_num: int, context: dict, rotator: KeyRotator, pr
     prompt = _build_context_digest_prompt(agent_num, context)
     for model_id in models:
         persistent_cache_key = _context_digest_cache_key(agent_num, input_hash, model_id, context)
+        if _is_context_digest_model_circuit_open(context, model_id):
+            _emit_context_digest_circuit_open(context, agent_num, model_id, progress_callback)
+            continue
         try:
             emit_context_event(
                 context,
@@ -90,6 +97,7 @@ def ensure_context_digest(agent_num: int, context: dict, rotator: KeyRotator, pr
             digests[agent_num] = digest
             digest_hash_map[cache_key] = digest
             _store_cached_context_digest(persistent_cache_key, digest)
+            _record_context_digest_success(context, model_id)
             emit_log(f"  🧾 Agent {agent_num} 前序提煉摘要完成。")
             emit_context_event(
                 context,
@@ -125,6 +133,7 @@ def ensure_context_digest(agent_num: int, context: dict, rotator: KeyRotator, pr
                 )
                 continue
             if is_quota_or_rate_error(str(exc)):
+                _mark_context_digest_quota_failure(context, model_id, exc)
                 message = f"提煉 Agent 遇到配額限制，改用 fallback 摘要：{describe_quota_or_rate_error(exc)[:120]}"
                 emit_log(f"  ⏭️  {message}")
                 event = _agent_event_kwargs(context, agent_num, model_id, "context_digest_fallback", message, level="warning")
@@ -175,6 +184,9 @@ async def ensure_context_digest_async(agent_num: int, context: dict, rotator: Ke
     prompt = _build_context_digest_prompt(agent_num, context)
     for model_id in models:
         persistent_cache_key = _context_digest_cache_key(agent_num, input_hash, model_id, context)
+        if _is_context_digest_model_circuit_open(context, model_id):
+            await _emit_context_digest_circuit_open_async(context, agent_num, model_id, progress_callback)
+            continue
         try:
             await emit_context_event_async(
                 context,
@@ -196,6 +208,7 @@ async def ensure_context_digest_async(agent_num: int, context: dict, rotator: Ke
             digests[agent_num] = digest
             digest_hash_map[cache_key] = digest
             _store_cached_context_digest(persistent_cache_key, digest)
+            _record_context_digest_success(context, model_id)
             emit_log(f"  🧾 Agent {agent_num} 前序提煉摘要完成。")
             await emit_context_event_async(
                 context,
@@ -231,6 +244,7 @@ async def ensure_context_digest_async(agent_num: int, context: dict, rotator: Ke
                 )
                 continue
             if is_quota_or_rate_error(str(exc)):
+                _mark_context_digest_quota_failure(context, model_id, exc)
                 message = f"提煉 Agent 遇到配額限制，改用 fallback 摘要：{describe_quota_or_rate_error(exc)[:120]}"
                 emit_log(f"  ⏭️  {message}")
                 event = _agent_event_kwargs(context, agent_num, model_id, "context_digest_fallback", message, level="warning")

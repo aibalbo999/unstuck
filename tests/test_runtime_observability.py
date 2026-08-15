@@ -4696,6 +4696,88 @@ def test_context_digest_hash_cache_reuses_successful_digest(monkeypatch):
     assert context["_digest_hash_map"]
 
 
+def test_context_digest_skips_open_model_circuit_for_sync_and_async(monkeypatch):
+    calls = {"sync": 0, "async": 0, "sync_key": 0, "async_key": 0}
+
+    class FakeDigestRotator:
+        def get_key(self, *_args, **_kwargs):
+            calls["sync_key"] += 1
+            return "fake-key"
+
+        async def async_get_key(self, *_args, **_kwargs):
+            calls["async_key"] += 1
+            return "fake-key"
+
+    def fake_generate(*_args, **_kwargs):
+        calls["sync"] += 1
+        return type("Response", (), {"text": "{}"})()
+
+    async def fake_generate_async(*_args, **_kwargs):
+        calls["async"] += 1
+        return type("Response", (), {"text": "{}"})()
+
+    monkeypatch.setattr(context_digest_tasks, "_generate_context_digest_content", fake_generate)
+    monkeypatch.setattr(context_digest_tasks, "_generate_context_digest_content_async", fake_generate_async)
+    monkeypatch.setattr(context_digest_tasks, "response_text", lambda response: response.text)
+    monkeypatch.setattr(context_digest_tasks, "_context_digest_model_sequence", lambda: ["gemma-4-31b-it"])
+    monkeypatch.setattr(context_digest_tasks, "_get_cached_context_digest", lambda _cache_key: None)
+
+    def build_context():
+        return {
+            "pipeline_id": "v1",
+            "analyses": {1: "商業模式", 2: "財務分析"},
+            "structured_outputs": {},
+            "agent_positions": {4: 4},
+            "agent_total": 10,
+            "_llm_model_circuits": {
+                "gemma-4-31b-it": {
+                    "failures": 16,
+                    "opened_until": 4_000_000_000.0,
+                    "last_error": "quota exhausted",
+                }
+            },
+        }
+
+    sync_context = build_context()
+    context_digest_tasks.ensure_context_digest(4, sync_context, FakeDigestRotator())
+
+    async_context = build_context()
+    import asyncio
+
+    asyncio.run(context_digest_tasks.ensure_context_digest_async(4, async_context, FakeDigestRotator()))
+
+    assert calls == {"sync": 0, "async": 0, "sync_key": 0, "async_key": 0}
+    assert '"digest_type": "deterministic_fallback"' in sync_context["context_digests"][4]
+    assert '"digest_type": "deterministic_fallback"' in async_context["context_digests"][4]
+
+
+def test_context_digest_quota_failure_opens_job_model_circuit(monkeypatch):
+    class FakeDigestRotator:
+        def get_key(self, *_args, **_kwargs):
+            return "fake-key"
+
+    def fake_generate(*_args, **_kwargs):
+        raise RuntimeError("429 Too Many Requests: quota exhausted")
+
+    monkeypatch.setattr(context_digest_tasks, "_generate_context_digest_content", fake_generate)
+    monkeypatch.setattr(context_digest_tasks, "_context_digest_model_sequence", lambda: ["gemma-4-31b-it"])
+    monkeypatch.setattr(context_digest_tasks, "_get_cached_context_digest", lambda _cache_key: None)
+
+    context = {
+        "pipeline_id": "v1",
+        "analyses": {1: "商業模式"},
+        "structured_outputs": {},
+        "agent_positions": {4: 4},
+        "agent_total": 10,
+    }
+
+    context_digest_tasks.ensure_context_digest(4, context, FakeDigestRotator())
+
+    circuit = context["_llm_model_circuits"]["gemma-4-31b-it"]
+    assert circuit["failures"] == 1
+    assert circuit["opened_until"] > 0
+
+
 def test_context_digest_runtime_helpers_scope_hash_cache_key_and_event_metadata():
     runtime_path = ROOT / "backend" / "context_digest_runtime.py"
     assert runtime_path.exists()

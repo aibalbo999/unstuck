@@ -8303,6 +8303,28 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 - D3376-D3387 adjacent regression：`60 passed, 3740 deselected in 423.61s`。
 - completion gate：import boundary `503 passed in 11.00s`；HCS/文件契約 `135 passed in 3.50s`；`py_compile` exit 0；`git diff --check` exit 0；trailing-whitespace 無命中；runtime doctor exit 0，canonical operational DB 為 `backend/cache/operational.sqlite3`、report index 為 `backend/cache/stock_agent_cache.sqlite3`，Redis 為 `redis://localhost:6379/0`；parser/detector 行數維持 `349/189`。
 
+### 完成後維護 / D3510 / #拆解問題 #問對問題 #差距分析 #變數分析 #偏誤降低 #決策樹 #目的 #效用 #證據基礎 #來源品質 #可驗證性
+
+本次使用：新版 Worker `51862` 執行 f28 v4 report 已完成，event ledger 顯示 Agent 23 完成 `gemma-4-31b-it` 的 16-key quota sweep 後切換 fallback；同一 job 的後續 Agent 24 只呼叫 fallback。接著觀察新版 a4d9 v2 retry，發現 Agent 14 的 primary quota sweep 後，Agent 21 的前序 context digest 仍準備呼叫 gemma；這是獨立 direct caller 沒有讀取 job model circuit 的邊界。
+
+核心判斷
+
+1. context digest 與主 Agent 呼叫共用同一 job 的 model circuit，不能因為是摘要任務就重新送出已熔斷模型。
+2. sync/async direct caller 在送出 key/provider request 前都要檢查 circuit；open 時使用既有 deterministic fallback，保留摘要格式契約。
+3. context digest 自身遇到 quota failure 時要回寫 job-model circuit；成功時清除該模型的舊 circuit，不把狀態擴散到其他 job。
+
+落地修改
+
+1. `backend/context_digest_tasks.py` 導入既有 model policy，加入 sync/async open guard、success clear 與 quota failure circuit marker。
+2. `tests/test_runtime_observability.py` 新增 open circuit 不得呼叫 key/provider，以及 quota failure 會開啟 circuit 的 regression。
+3. 保留 D3509 graph state round-trip；context digest 的 circuit mutation 由 Agent node delta 一併回寫 checkpoint。
+
+驗證方式
+
+- D3510 context-digest/runtime regression：`133 passed`；workflow/model policy regression：`68 passed`；graph/checkpoint regression：`22 passed`。
+- live f28 canonical DB：job `done`，Agent 23 `gemma` 16 calls/errors、15 retries，Agent 23 fallback 1 次；Agent 24 只出現 `gemini-3.6-flash` call。
+- live a4d9 仍在新版 Worker 中執行，觀察到修正前的 Agent 21 context-digest request，未把該舊事件誤算成修正後失敗；source fix 已由 sync/async regression 鎖定。
+
 ### 完成後維護 / D3509 / #拆解問題 #問對問題 #差距分析 #變數分析 #偏誤降低 #決策樹 #目的 #效用 #證據基礎 #來源品質 #可驗證性
 
 本次使用：live `bcad...` 的事件與 stage summary 顯示 Agent 2 對 `gemma-4-31b-it` 有 17 次 call、16 次 quota error、15 次 retry，完成 primary key sweep 後 fallback；Agent 3 卻再次產生 24 次 primary call、24 次 quota error。這證明 D3505 的 circuit policy 在單一 legacy context 內有效，但沒有跨 LangGraph node checkpoint 傳遞。
