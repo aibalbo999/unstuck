@@ -2139,6 +2139,12 @@
 
 ## 三習慣綜合優化
 
+## D3530：報告品質稽核原因進入 watchlist 人工核對入口
+
+- 本輪依 #拆解問題、#差距分析、#偏誤降低、#證據基礎、#可驗證性，先用前端 RED 鎖定 audit item 的 `detail`、`title`、`reason_codes` 在 UI 遺失的缺口。
+- production helper 以既有 `escapeHtml` 將白話 detail 放入 `title` tooltip、以 audit title 組合 `aria-label`，並保留 `data-quality-reason-codes`；可見文字仍是唯讀的「查看 ticker pipeline」。
+- 不新增 rerun、queue、artifact 或 index 寫入行為；helper cache-buster 更新為 `20260816-quality-audit-provenance-ui`。歷史缺證據項目仍維持人工查看 artifact/freshness，不從 HTML 摘要重建 gate payload。
+
 綜合視角：
 
 - `#可驗證性`：每個模式的報告模板與決策用途必須有測試與文件可查。

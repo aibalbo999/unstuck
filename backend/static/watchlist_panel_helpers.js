@@ -33,7 +33,14 @@
         if (excludedSnapshots > 0) auditParts.push(`${excludedSnapshots} 份 snapshot 無法驗證`);
         const auditText = audit.status === 'unavailable' ? ' · 全量報告品質：暫時無法讀取' : auditParts.length ? ` · 全量報告品質：${auditParts.join('；')}` : '';
         const auditItems = Array.isArray(audit.items) ? audit.items.filter(item => item && item.filename) : [];
-        const auditButtons = auditItems.map(item => `<button class="watchlist-quality-report-button" type="button" data-quality-report="${escapeHtml(item.filename)}" data-quality-report-ticker="${escapeHtml(item.ticker || '報告')}" data-quality-report-pipeline="${escapeHtml(item.pipeline_id || 'v1')}">查看 ${escapeHtml(item.ticker || '報告')} ${escapeHtml(item.pipeline_id || 'v1')}</button>`).join('');
+        const auditButtons = auditItems.map(item => {
+            const ticker = item.ticker || '報告';
+            const pipeline = item.pipeline_id || 'v1';
+            const title = item.title || '品質缺口';
+            const detail = item.detail || title;
+            const reasonCodes = Array.isArray(item.reason_codes) ? item.reason_codes.join(',') : '';
+            return `<button class="watchlist-quality-report-button" type="button" data-quality-report="${escapeHtml(item.filename)}" data-quality-report-ticker="${escapeHtml(ticker)}" data-quality-report-pipeline="${escapeHtml(pipeline)}" data-quality-reason-codes="${escapeHtml(reasonCodes)}" title="${escapeHtml(detail)}" aria-label="${escapeHtml(`人工核對 ${ticker} ${pipeline}：${title}`)}">查看 ${escapeHtml(ticker)} ${escapeHtml(pipeline)}</button>`;
+        }).join('');
         const auditControls = auditButtons ? `<div class="watchlist-quality-audit-actions">${auditButtons}</div>` : '';
         if (top && top.type !== 'monitor' && total > 0) {
             const secondary = Number(queue.secondary_count || 0), source = window.StockAgentDailyQueueContext?.sourceLabel?.(top.source) || top.source || 'queue';

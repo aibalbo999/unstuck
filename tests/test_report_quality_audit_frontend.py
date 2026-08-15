@@ -104,6 +104,36 @@ process.stdout.write(JSON.stringify({ board }));
     assert "onOpenReport" in panel
 
 
+def test_watchlist_quality_report_targets_expose_human_reason_and_reason_codes():
+    helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
+    script = """
+global.window = {};
+require(__HELPER_PATH__);
+const payload = {
+  decision_queue: { summary: { total_actionable: 0 }, items: [{ type: 'monitor' }] },
+  report_quality_audit: {
+    quality_metadata_missing_reports: 1,
+    items: [{
+      ticker: '1623.TW',
+      filename: '1623_v2.html',
+      pipeline_id: 'v2',
+      title: '刷新後品質證據缺口',
+      detail: '資料快照曾在報告後刷新，採用前需人工查看 artifact 與 freshness。',
+      reason_codes: ['quality_metadata_missing', 'quality_metadata_after_refresh']
+    }]
+  }
+};
+const board = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], payload, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ board }));
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert 'title="資料快照曾在報告後刷新，採用前需人工查看 artifact 與 freshness。"' in payload["board"]
+    assert 'aria-label="人工核對 1623.TW v2：刷新後品質證據缺口"' in payload["board"]
+    assert 'data-quality-reason-codes="quality_metadata_missing,quality_metadata_after_refresh"' in payload["board"]
+
+
 def test_quality_report_button_opens_the_audited_report_through_existing_callback():
     helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
     panel_path = STATIC_DIR / "watchlist_panel.js"

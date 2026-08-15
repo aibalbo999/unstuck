@@ -5919,7 +5919,7 @@ def test_candidate_next_actions_assets_use_shared_cache_buster():
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
 
     assert "/static/style.css?v=20260815-quality-audit-traceability" in index_html
-    assert "/static/watchlist_panel_helpers.js?v=20260815-quality-audit-traceability" in index_html
+    assert "/static/watchlist_panel_helpers.js?v=20260816-quality-audit-provenance-ui" in index_html
     assert "/static/watchlist_panel.js?v=20260815-quality-audit-traceability" in index_html
     assert "/static/operator_dashboard_actions.js?v=20260711-candidate-next-actions-v3" in index_html
     assert "/static/operator_summary_panel.js?v=20260711-candidate-next-actions-v3" in index_html

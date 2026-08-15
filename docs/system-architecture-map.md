@@ -200,6 +200,7 @@ flowchart TD
 - 品質 metadata repair 若看到 `refreshed_from_report` 且三個 gate 缺失，標示 `quality_metadata_after_refresh` 的 provenance；這只是風險分類，不代表可以從 HTML 摘要重建完整 gate payload，也不自動修復歷史 artifact。
 - `report_quality_audit.items[]` 必須保留 repair item 的 `detail` 與 `reason_codes`，避免 serializer 只留下 title 而切斷品質判定證據鏈。
 - watchlist board 的品質缺口 CTA 只呼叫既有 `openReport(filename, ticker, pipeline)` preview path；它不進 daily decision queue、不呼叫 rerun API，也不寫入 artifact/index。相關 JS/CSS 使用獨立 cache-buster。
+- watchlist board 的品質缺口 CTA 需將 audit item 的白話 `detail` 放入 tooltip、`title` 放入稽核標題的無障礙 `aria-label`，並以 `data-quality-reason-codes` 保留可追蹤 reason code；這些欄位只供人工核對，不改變唯讀 preview 行為。
 - watchlist board 將已知 `quality_metadata_coverage_basis=verified_snapshot_reports` 映射為「已驗證快照覆蓋」，避免把 coverage 百分比誤讀成全索引分母；未知或缺失 basis 維持相容的泛稱。
 - 品質 repair 的 metadata 缺口判定放在 `report_quality_metadata_repair.py`；`report_quality_repair_items.py` 只保留相容匯出與其他 gate builders，避免新增 domain rule 使共用 helper 超過 import-boundary 責任上限。
 - 新報告索引欄位才放 `report_index`；不要把任務狀態塞進 report index。

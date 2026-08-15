@@ -11947,3 +11947,8 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 - D3388 post-fix training matrix：`480 cases / leaks=0 / valid_misses=0`。
 - explicit target price：`[205.0]`；financial `time to price`：`[]`；existing training/employee controls：`[]`。
 - D3376-D3388 adjacent regression：`65 passed, 3740 deselected in 450.64s`。
+
+### 完成後維護 / D3530 / #拆解問題 #差距分析 #偏誤降低 #證據基礎 #可驗證性
+
+- RED 測試先驗證品質稽核 CTA 沒有呈現 audit item 的白話 `detail`、`title` 與 `reason_codes`；GREEN 實作只在 watchlist helper 加上 `title`、`aria-label` 與 `data-quality-reason-codes`。
+- 保留既有 report preview callback 與唯讀邊界，reason code 不會被當作可執行 action；helper cache-buster 更新為 `20260816-quality-audit-provenance-ui`。
