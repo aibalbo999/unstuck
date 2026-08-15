@@ -239,6 +239,48 @@ def test_indexed_report_quality_audit_exposes_snapshot_refresh_provenance(monkey
     assert payload["items"][0]["reason_codes"] == ["quality_metadata_missing", "quality_metadata_after_refresh"]
 
 
+def test_historical_indexed_report_quality_audit_includes_every_indexed_version(monkeypatch, tmp_path):
+    import report_quality_audit as audit
+
+    calls = []
+    monkeypatch.setattr(
+        audit,
+        "collect_all_report_pages",
+        lambda list_reports, **kwargs: calls.append((list_reports, kwargs)) or {
+            "reports": [{"ticker": "1623.TW", "filename": "1623_v1.html", "pipeline_id": "v1"}]
+        },
+    )
+    monkeypatch.setattr(audit, "storage_for_existing_output_dir", lambda *_args: object())
+    monkeypatch.setattr(
+        audit,
+        "load_storage_item",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            content=json.dumps(
+                {
+                    "snapshot_hash": "hash",
+                    "report_conformance": {"status": "passed"},
+                    "evidence_exit_gate": {"verdict": "approved"},
+                    "content_credibility": {"status": "passed"},
+                }
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        audit,
+        "verify_data_snapshot_integrity",
+        lambda _snapshot: {"valid": True, "expected_hash": "hash", "errors": []},
+    )
+
+    payload = audit.build_historical_indexed_report_quality_audit(str(tmp_path), item_limit=0)
+
+    assert calls[0][1]["include_versions"] is True
+    assert payload["scope"] == "all_historical_indexed_reports"
+    assert payload["selection_basis"] == "all_indexed_versions"
+    assert payload["audited_reports"] == 1
+    assert payload["quality_metadata_coverage_pct"] == 100.0
+    assert payload["items"] == []
+
+
 def test_collect_all_report_pages_follows_index_pagination():
     from report_history_pagination import collect_all_report_pages
 

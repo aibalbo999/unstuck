@@ -2199,6 +2199,12 @@
 - 新增 `selection_basis=latest_per_ticker_pipeline`，並讓 watchlist 顯示「全量報告品質（每 ticker/pipeline 最新一筆）」；保留 `scope=all_indexed_reports` 相容值，但不再讓名稱暗示掃描所有歷史 artifact。
 - RED→GREEN 鎖定 audit envelope、前端 label、docs contract 與 helper cache-buster；不擴大稽核成本，也不改 daily action queue 或 artifact 寫入邊界。
 
+## D3540：提供明確的歷史版本品質稽核入口
+
+- live filesystem 盤點顯示 1330 個 indexed snapshot versions 中有 143 個品質 metadata 缺口；daily dashboard 的 160 筆 latest-per-ticker/pipeline scope 會隱藏這段歷史差距。
+- 新增 `GET /api/watchlist/report-quality-audit/historical`，固定以 `include_versions=True`、`scope=all_historical_indexed_reports`、`selection_basis=all_indexed_versions` 掃描歷史索引；`item_limit=0` 可只取 coverage counts。
+- 歷史入口維持 read-only，不進 daily decision queue、不修復 artifact、不 enqueue rerun、不寫 report index；RED→GREEN 鎖定 builder、route、OpenAPI、文件與 mutation boundary。
+
 綜合視角：
 
 - `#可驗證性`：每個模式的報告模板與決策用途必須有測試與文件可查。

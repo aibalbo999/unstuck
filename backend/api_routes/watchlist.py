@@ -18,7 +18,11 @@ from free_mode_contract import build_free_mode_contract
 from notification_delivery_audit import get_delivery_audit_summary
 from portfolio_risk import analyze_portfolio_csv
 import report_history_service
-from report_quality_audit import build_indexed_report_quality_audit, build_unavailable_report_quality_audit
+from report_quality_audit import (
+    build_historical_indexed_report_quality_audit,
+    build_indexed_report_quality_audit,
+    build_unavailable_report_quality_audit,
+)
 from symbol_tools import parse_watchlist_import, suggest_symbols
 import watchlist_service
 
@@ -56,6 +60,17 @@ def _build_quality_audit_or_unavailable(output_dir: str) -> dict:
     except Exception:
         LOGGER.exception("Report quality audit is unavailable; keeping daily dashboard available")
         return build_unavailable_report_quality_audit()
+
+
+def _build_historical_quality_audit_or_unavailable(output_dir: str, item_limit: int) -> dict:
+    try:
+        return build_historical_indexed_report_quality_audit(output_dir, page_size=100, item_limit=item_limit)
+    except Exception:
+        LOGGER.exception("Historical report quality audit is unavailable")
+        return build_unavailable_report_quality_audit(
+            scope="all_historical_indexed_reports",
+            selection_basis="all_indexed_versions",
+        )
 
 
 @dataclass(frozen=True)
@@ -166,6 +181,16 @@ def create_watchlist_router(deps: WatchlistRouteDeps) -> APIRouter:
             free_mode=build_free_mode_contract(),
             ops=ops,
             quality_audit=quality_audit_reports,
+        )
+
+    @router.get("/report-quality-audit/historical")
+    async def get_historical_report_quality_audit(
+        item_limit: int = Query(25, ge=0, le=500),
+    ):
+        return await asyncio.to_thread(
+            _build_historical_quality_audit_or_unavailable,
+            deps.get_output_dir(),
+            item_limit,
         )
 
     @router.post("/portfolio/risk")

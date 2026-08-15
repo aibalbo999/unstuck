@@ -12004,3 +12004,9 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 - 以 filesystem `1330` 份 snapshot 對 live audit `160` rows 的差距確認 `all_indexed_reports` 不是 historical versions 全掃，而是最新 ticker/pipeline 索引列。
 - RED→GREEN 把 `selection_basis=latest_per_ticker_pipeline` 加入 API 與工作台 label，保留相容 `scope` 但補足讀者範圍；cache-buster 同步更新，避免舊 helper 隱藏限制句。
 - 不把 coverage 數字外推成所有 artifact 品質、不新增昂貴 historical scan；docs、frontend、audit payload 與 static asset contract 一起驗證。
+
+### 完成後維護 / D3540 / #拆解問題 #差距分析 #偏誤降低 #證據基礎 #受眾 #語意含義 #可驗證性
+
+- live historical audit 量化為 1330 個 indexed versions、143 個品質 metadata 缺口、89.25% verified snapshot coverage；確認缺口不能只靠 daily 最新列觀察。
+- RED→GREEN 新增 `build_historical_indexed_report_quality_audit()` 與 `/api/watchlist/report-quality-audit/historical`，以明確 `all_indexed_versions` selection basis 和 `item_limit=0` summary mode 保持操作範圍可讀。
+- route test 證明歷史查核不呼叫 mutation authorization；保留 read-only artifact/index/rerun 邊界，並同步 API、operator、architecture、OpenAPI 契約。

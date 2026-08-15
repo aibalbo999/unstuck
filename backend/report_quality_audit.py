@@ -33,6 +33,33 @@ def build_indexed_report_quality_audit(output_dir: str, *, page_size: int = 100,
     return build_report_quality_audit(reports, scope="all_indexed_reports", item_limit=item_limit)
 
 
+def build_historical_indexed_report_quality_audit(
+    output_dir: str,
+    *,
+    page_size: int = 100,
+    item_limit: int = 25,
+) -> dict[str, Any]:
+    rows = collect_all_report_pages(
+        list_indexed_report_quality_rows,
+        page_size=page_size,
+        q="",
+        pipeline="all",
+        recommendation="all",
+        data_trust="all",
+        include_versions=True,
+        output_dir=output_dir,
+        sync_metadata=False,
+    )
+    storage = storage_for_existing_output_dir(output_dir, None)
+    reports = [_report_from_index_row(row, storage) for row in rows.get("reports", [])]
+    return build_report_quality_audit(
+        reports,
+        scope="all_historical_indexed_reports",
+        selection_basis="all_indexed_versions",
+        item_limit=item_limit,
+    )
+
+
 def list_indexed_report_quality_rows(
     *,
     page: int,
@@ -123,9 +150,13 @@ def build_report_quality_audit(
     }
 
 
-def build_unavailable_report_quality_audit(*, scope: str = "all_indexed_reports") -> dict[str, Any]:
+def build_unavailable_report_quality_audit(
+    *,
+    scope: str = "all_indexed_reports",
+    selection_basis: str | None = None,
+) -> dict[str, Any]:
     return {
-        **build_report_quality_audit([], scope=scope),
+        **build_report_quality_audit([], scope=scope, selection_basis=selection_basis),
         "status": "unavailable",
         "error_code": "quality_audit_unavailable",
     }

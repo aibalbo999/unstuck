@@ -127,6 +127,44 @@ def test_watchlist_daily_dashboard_keeps_action_surface_when_quality_audit_is_un
     assert payload["decision_queue"]["summary"]["total_actionable"] == 0
 
 
+def test_historical_report_quality_audit_route_is_read_only_and_explicit(monkeypatch, tmp_path):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    import api_routes.watchlist as watchlist_routes
+    from api_routes.watchlist import WatchlistRouteDeps, create_watchlist_router
+
+    calls = []
+    monkeypatch.setattr(
+        watchlist_routes,
+        "_build_historical_quality_audit_or_unavailable",
+        lambda output_dir, item_limit: calls.append((output_dir, item_limit)) or {
+            "scope": "all_historical_indexed_reports",
+            "selection_basis": "all_indexed_versions",
+            "audited_reports": 1330,
+            "quality_metadata_missing_reports": 143,
+            "items": [],
+        },
+    )
+
+    app = FastAPI()
+    app.include_router(create_watchlist_router(WatchlistRouteDeps(
+        get_output_dir=lambda: str(tmp_path),
+        get_task_queue=lambda: None,
+        run_stock_analysis_job=lambda *_args: "task-id",
+        create_job=lambda *_args: "job-id",
+        find_active_job=lambda *_args: {},
+        require_mutation_authorized=lambda _request: (_ for _ in ()).throw(AssertionError("mutation auth called")),
+    )))
+
+    response = TestClient(app).get("/api/watchlist/report-quality-audit/historical", params={"item_limit": 0})
+
+    assert response.status_code == 200
+    assert response.json()["selection_basis"] == "all_indexed_versions"
+    assert response.json()["quality_metadata_missing_reports"] == 143
+    assert calls == [(str(tmp_path), 0)]
+
+
 def test_daily_decision_dashboard_prioritizes_reruns_watchlist_and_free_mode():
     reports = {
         "reports": [

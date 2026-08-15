@@ -61,6 +61,9 @@ def test_report_quality_docs_cover_snapshot_integrity_contract():
         assert "items_returned" in document
         assert "items_truncated" in document
         assert "selection_basis" in document
+        assert "all_historical_indexed_reports" in document
+        assert "all_indexed_versions" in document
+        assert "/api/watchlist/report-quality-audit/historical" in document
         assert "Report quality metadata repair accepts mapping-safe top-level report envelopes" in document
         assert "not_recorded" in document
         assert "unknown" in document
@@ -145,6 +148,7 @@ def test_openapi_contract_covers_runtime_surface_and_mutation_security():
         "/api/watchlist/symbols": {"get"},
         "/api/watchlist/import": {"post"},
         "/api/watchlist/daily-dashboard": {"get"},
+        "/api/watchlist/report-quality-audit/historical": {"get"},
         "/api/watchlist/portfolio/risk": {"post"},
         "/api/watchlist/run": {"post"},
         "/api/watchlist/{ticker}": {"delete"},

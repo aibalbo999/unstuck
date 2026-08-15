@@ -14,6 +14,7 @@ curl http://127.0.0.1:8080/api/observability/active-jobs
 curl http://127.0.0.1:8080/api/observability/api-quotas
 curl 'http://127.0.0.1:8080/api/observability/model-routes?telemetry_limit=5000'
 curl http://127.0.0.1:8080/api/watchlist
+curl 'http://127.0.0.1:8080/api/watchlist/report-quality-audit/historical?item_limit=0'
 curl http://127.0.0.1:8080/api/stocks/2330.TW/snapshot
 ```
 
@@ -29,6 +30,8 @@ Report rows include:
 The read-only `report_quality_audit.items[]` payload exposes `missing_quality_fields` beside `detail` and `reason_codes`. The audit envelope also exposes `items_returned` and `items_truncated`, because the full audit may cap item details for the UI while retaining the complete missing count. This is the exact list of absent quality gates for manual review; consumers must not reconstruct gate payloads from HTML or Markdown text or treat a truncated item list as the full set.
 
 `report_quality_audit.selection_basis = latest_per_ticker_pipeline` means the `all_indexed_reports` scope audits the latest indexed row for each ticker/pipeline pair, not every historical artifact version. Use this field with `audited_reports` when describing coverage.
+
+`GET /api/watchlist/report-quality-audit/historical` is a separate read-only audit for every indexed report version. Its envelope uses `scope=all_historical_indexed_reports` and `selection_basis=all_indexed_versions`; it is intentionally excluded from the daily decision queue. Use `item_limit=0` when only the historical coverage counts are needed. This endpoint does not repair artifacts, enqueue reruns, or write the report index.
 
 Report quality metadata repair accepts mapping-safe top-level report envelopes and nested gate mappings before checking `snapshot_integrity`, `report_conformance`, `evidence_exit_gate`, or `content_credibility`; read-only mapping wrappers must not interrupt the audit.
 
