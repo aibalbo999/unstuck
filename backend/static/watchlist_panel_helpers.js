@@ -30,6 +30,8 @@
         const audit = daily?.report_quality_audit || {}, missingQuality = Number(audit.quality_metadata_missing_reports || 0), excludedSnapshots = Number(audit.snapshot_invalid_reports || 0) + Number(audit.snapshot_unverified_reports || 0), coverage = audit.quality_metadata_coverage_pct, coverageLabel = audit.quality_metadata_coverage_basis === 'verified_snapshot_reports' ? '已驗證快照覆蓋' : '覆蓋';
         const missingFieldLabels = [['report_conformance', '報告一致性'], ['evidence_exit_gate', '證據關卡'], ['content_credibility', '內容可信度']];
         const missingFieldSummary = missingFieldLabels.map(([key, label]) => { const count = Number(audit.missing_quality_field_counts?.[key] || 0); return Number.isFinite(count) && count > 0 ? `${label} ${Math.floor(count)}` : ''; }).filter(Boolean).join('、');
+        const reviewLabels = [['pending', '待人工核對'], ['approved_with_gap', '已核准保留缺口'], ['rejected', '退回處理'], ['deferred', '已暫緩']];
+        const reviewSummary = reviewLabels.map(([key, label]) => { const count = Number(audit.quality_review_by_status?.[key] || 0); return Number.isFinite(count) && count > 0 ? `${label} ${Math.floor(count)}` : ''; }).filter(Boolean).join('、');
         const provenanceLabels = [['after_refresh', '刷新後缺口'], ['no_refresh_provenance', '未標記刷新來源']];
         const provenanceSummary = provenanceLabels.map(([key, label]) => { const count = Number(audit.quality_metadata_missing_by_provenance?.[key] || 0); return Number.isFinite(count) && count > 0 ? `${label} ${Math.floor(count)}` : ''; }).filter(Boolean).join('、');
         const artifactSummary = [['present', 'artifact 摘要可查'], ['not_found', 'artifact 無 gate 摘要'], ['unavailable', 'artifact 無法讀取']].map(([key, label]) => { const count = Number(audit.artifact_quality_summary_by_status?.[key] || 0); return Number.isFinite(count) && count > 0 ? `${label} ${Math.floor(count)} 份` : ''; }).filter(Boolean).join('、');
@@ -43,7 +45,7 @@
         const auditScopeLabel = audit.selection_basis === 'latest_per_ticker_pipeline' ? '全量報告品質（每 ticker/pipeline 最新一筆）' : '全量報告品質';
         const auditParts = [];
         const truncationNote = audit.items_truncated === true && missingQuality > returnedItems && `（目前顯示 ${returnedItems} 份，另有 ${missingQuality - returnedItems} 份未展開）`;
-        if (missingQuality > 0) auditParts.push(`${missingQuality} 份待人工核對${truncationNote || ''}${missingFieldSummary ? `；缺口：${missingFieldSummary}` : ''}${missingPipelineSummary ? `；模式缺口：${missingPipelineSummary}` : ''}${provenanceSummary ? `；來源：${provenanceSummary}` : ''}${artifactSummary ? `；${artifactSummary}` : ''}${artifactFieldSummary ? `；artifact 欄位可查：${artifactFieldSummary}` : ''}${coverage == null ? '' : `（${coverageLabel} ${coverage}%）`}`);
+        if (missingQuality > 0) auditParts.push(`${missingQuality} 份待人工核對${truncationNote || ''}${missingFieldSummary ? `；缺口：${missingFieldSummary}` : ''}${missingPipelineSummary ? `；模式缺口：${missingPipelineSummary}` : ''}${reviewSummary ? `；審核狀態：${reviewSummary}` : ''}${provenanceSummary ? `；來源：${provenanceSummary}` : ''}${artifactSummary ? `；${artifactSummary}` : ''}${artifactFieldSummary ? `；artifact 欄位可查：${artifactFieldSummary}` : ''}${coverage == null ? '' : `（${coverageLabel} ${coverage}%）`}`);
         if (excludedSnapshots > 0) auditParts.push(`${excludedSnapshots} 份 snapshot 無法驗證`);
         const auditText = audit.status === 'unavailable' ? ` · ${auditScopeLabel}：暫時無法讀取` : auditParts.length ? ` · ${auditScopeLabel}：${auditParts.join('；')}` : '';
         const auditButtons = auditItems.map(item => {

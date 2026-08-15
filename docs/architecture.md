@@ -191,6 +191,8 @@ The daily decision dashboard (`GET /api/watchlist/daily-dashboard`) consumes rec
 
 同一 envelope 的 `quality_metadata_by_pipeline` 會保留每個模式的 verified 分母與 coverage，daily board 只顯示有缺口的模式；歷史稽核摘要會把有缺口的模式轉成唯讀快速篩選鈕，沿用 history workspace 的 `pipeline` filter、重設頁碼與 preview 後重新載入，不新增另一套查詢或 action。需要深入時仍可使用 `q`/`pipeline` filtered historical audit。
 
+同一 envelope 的 `quality_review_by_status` 只統計缺 metadata 報告的當前 revision-scoped review state，並在每個 pipeline 重複；`pending` 是沒有 review event 的明確狀態，不是 gate pass/fail。這個摘要只讀取 review ledger，不寫 artifact/index、不 enqueue rerun，也不改每日決策 queue。
+
 ## Event-Driven Radar
 
 ```mermaid

@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-16
+- D3565：live historical audit 有 `143` 個 verified snapshot 的 quality metadata 缺口；canonical `operational.sqlite3` 的 `report_quality_review_events` 目前沒有事件，因此這些缺口實際都是 `pending`。原 audit envelope 只有 gate/provenance/pipeline aggregate，操作員無法從每日或歷史入口辨識人工核對進度。新增 read-only `quality_review_by_status`，只統計 missing-metadata rows，並在每個 pipeline 重複；UI 顯示待人工核對、已核准保留缺口、退回處理、已暫緩。沒有改 review mutation、artifact/index、rerun 或 queue。
+- D3565 驗證收斂：先以 audit、pipeline、daily/historical renderer 與文件契約取得 RED，再完成 backend/UI；品質跨層 suite `216 passed`，scoped suite、Node syntax、Python compile、`git diff --check` 均通過。重啟 live runtime 後 historical `audited_reports=1330`、missing `143`、pending `143`，daily missing `2`、pending `2`，health/readiness 與新版 asset 均 `200`。
 - D3564：live dashboard 的 Gemini ledger 有 `2909` 次 observed calls、`2569` 次 quota/rate-limit errors，且 `gemma-4-31b-it` 占 `2293` 次呼叫；原 API/UI 只有 aggregate error count，無法直接定位模型集中度。新增 read-only `observed_model_quota_errors`，與既有 `observed_model_calls` 同一 reset window 對齊，成功呼叫但零錯誤的模型補 `0`；UI 顯示每模型呼叫數、錯誤數與本機錯誤率。不改 routing、circuit、key/model disable 或官方 quota policy，不輸出 key identity。
 - D3564 驗證收斂：先以 backend/UI RED 鎖定 quota event 分組、零錯誤模型與模型錯誤率，再完成 scoped `869 passed`、audit import regression `80 passed`、Node syntax、`git diff --check`；全量 pytest 可正常收集並在人工停止前完成 `953 passed, 4 skipped, 75 subtests passed`，停在歷史 `price_parser.py` 長批次，非 failure。live 重啟後只驗證匿名 model aggregate 與資產/health/readiness，不執行 provider smoke 或 mutation。
 - D3563：D3562 只保護 stale failed queue，維護面板的報告索引、任務紀錄與來源健康紀錄按鈕仍會直接呼叫 `write=true`。新增 `previewReportIndex()`、`previewAnalysisHistory()`、`previewProviderSla()` 與共用 `maintenance_action_helpers.js`，四個清理動作統一先 dry-run、再以既有確認視窗核准；取消、零候選或確認器不可用都不寫入。維持 API、CLI 與後端刪除規則不變。

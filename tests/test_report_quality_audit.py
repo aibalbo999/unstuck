@@ -62,6 +62,12 @@ def test_report_quality_audit_counts_verified_reports_with_missing_quality_metad
             "after_refresh": 0,
             "no_refresh_provenance": 1,
         },
+        "quality_review_by_status": {
+            "pending": 1,
+            "approved_with_gap": 0,
+            "rejected": 0,
+            "deferred": 0,
+        },
         "artifact_quality_summary_by_status": {
             "present": 0,
             "not_found": 0,
@@ -88,6 +94,12 @@ def test_report_quality_audit_counts_verified_reports_with_missing_quality_metad
                 "quality_metadata_missing_by_provenance": {
                     "after_refresh": 0,
                     "no_refresh_provenance": 1,
+                },
+                "quality_review_by_status": {
+                    "pending": 1,
+                    "approved_with_gap": 0,
+                    "rejected": 0,
+                    "deferred": 0,
                 },
                 "quality_metadata_coverage_pct": 50.0,
                 "quality_metadata_coverage_basis": "verified_snapshot_reports",
@@ -222,6 +234,54 @@ def test_report_quality_audit_counts_missing_gates_independently():
     }
 
 
+def test_report_quality_audit_counts_review_status_only_for_missing_metadata():
+    from report_quality_audit import build_report_quality_audit
+
+    payload = build_report_quality_audit(
+        [
+            {
+                "pipeline_id": "v1",
+                "snapshot_integrity": {"status": "verified"},
+                "report_conformance": {},
+                "evidence_exit_gate": {},
+                "content_credibility": {},
+                "quality_review": {"status": "approved_with_gap"},
+            },
+            {
+                "pipeline_id": "v1",
+                "snapshot_integrity": {"status": "verified"},
+                "report_conformance": {},
+                "evidence_exit_gate": {},
+                "content_credibility": {},
+                "quality_review": {"status": "deferred"},
+            },
+            {
+                "pipeline_id": "v2",
+                "snapshot_integrity": {"status": "verified"},
+                "report_conformance": {"status": "passed"},
+                "evidence_exit_gate": {"verdict": "approved"},
+                "content_credibility": {"status": "passed"},
+                "quality_review": {"status": "rejected"},
+            },
+        ],
+        scope="all_historical_indexed_reports",
+        selection_basis="all_indexed_versions",
+    )
+
+    assert payload["quality_review_by_status"] == {
+        "pending": 0,
+        "approved_with_gap": 1,
+        "rejected": 0,
+        "deferred": 1,
+    }
+    assert payload["quality_metadata_by_pipeline"]["v1"]["quality_review_by_status"] == {
+        "pending": 0,
+        "approved_with_gap": 1,
+        "rejected": 0,
+        "deferred": 1,
+    }
+
+
 def test_report_quality_audit_groups_coverage_by_pipeline():
     from report_quality_audit import build_report_quality_audit
 
@@ -263,6 +323,12 @@ def test_report_quality_audit_groups_coverage_by_pipeline():
                     "after_refresh": 0,
                     "no_refresh_provenance": 1,
                 },
+                "quality_review_by_status": {
+                    "pending": 1,
+                    "approved_with_gap": 0,
+                    "rejected": 0,
+                    "deferred": 0,
+                },
                 "quality_metadata_coverage_pct": 0.0,
             "quality_metadata_coverage_basis": "verified_snapshot_reports",
         },
@@ -281,6 +347,12 @@ def test_report_quality_audit_groups_coverage_by_pipeline():
                 "quality_metadata_missing_by_provenance": {
                     "after_refresh": 0,
                     "no_refresh_provenance": 0,
+                },
+                "quality_review_by_status": {
+                    "pending": 0,
+                    "approved_with_gap": 0,
+                    "rejected": 0,
+                    "deferred": 0,
                 },
                 "quality_metadata_coverage_pct": 100.0,
             "quality_metadata_coverage_basis": "verified_snapshot_reports",

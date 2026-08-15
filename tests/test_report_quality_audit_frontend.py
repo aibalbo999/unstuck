@@ -20,6 +20,7 @@ const payload = {
     quality_metadata_missing_reports: 2,
     quality_metadata_coverage_pct: 98.75,
     quality_metadata_coverage_basis: 'verified_snapshot_reports',
+    quality_review_by_status: { pending: 2, approved_with_gap: 1, rejected: 0, deferred: 0 },
     artifact_quality_summary_by_status: { present: 2, not_found: 0, unavailable: 0 },
     artifact_quality_summary_by_field: { report_conformance: 2, evidence_exit_gate: 2, content_credibility: 0 }
   }
@@ -35,6 +36,7 @@ process.stdout.write(JSON.stringify({ board }));
     assert "已驗證快照覆蓋 98.75%" in payload["board"]
     assert "artifact 摘要可查 2 份" in payload["board"]
     assert "artifact 欄位可查：報告一致性 2、證據關卡 2、內容可信度 0" in payload["board"]
+    assert "審核狀態：待人工核對 2、已核准保留缺口 1" in payload["board"]
 
 
 def test_historical_quality_audit_renders_revision_scoped_review_controls():
@@ -47,6 +49,7 @@ require(__RENDERER_PATH__);
 const html = window.StockAgentHistoricalQualityAuditRenderer.render({
   audited_reports: 1,
   quality_metadata_missing_reports: 1,
+  quality_review_by_status: { pending: 1, approved_with_gap: 0, rejected: 0, deferred: 0 },
   items: [{
     ticker: '1623.TW',
     filename: '1623_v1.html',
@@ -64,6 +67,7 @@ process.stdout.write(html);
     assert 'data-quality-review-decision="rejected"' in result.stdout
     assert 'data-quality-review-decision="deferred"' in result.stdout
     assert 'data-quality-review-revision="rev-current"' in result.stdout
+    assert '審核狀態：待人工核對 1' in result.stdout
 
 
 def test_historical_quality_audit_renders_revision_review_timeline():

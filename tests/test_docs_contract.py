@@ -60,6 +60,7 @@ def test_report_quality_docs_cover_snapshot_integrity_contract():
         assert "missing_quality_fields" in document
         assert "missing_quality_field_counts" in document
         assert "quality_metadata_missing_by_provenance" in document
+        assert "quality_review_by_status" in document
         assert "quality_metadata_by_pipeline" in document
         assert "items_returned" in document
         assert "items_truncated" in document

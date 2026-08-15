@@ -11,6 +11,7 @@ from report_quality_repair_items import quality_metadata_repair_item
 SCHEMA_VERSION = "report_quality_audit.v1"
 QUALITY_METADATA_FIELDS = ("report_conformance", "evidence_exit_gate", "content_credibility")
 QUALITY_METADATA_PROVENANCE = ("after_refresh", "no_refresh_provenance")
+QUALITY_REVIEW_STATUSES = ("pending", "approved_with_gap", "rejected", "deferred")
 ARTIFACT_QUALITY_SUMMARY_STATUSES = ("present", "not_found", "unavailable")
 
 
@@ -34,6 +35,7 @@ def build_report_quality_audit(
     missing_items = []
     missing_quality_field_counts = {field: 0 for field in QUALITY_METADATA_FIELDS}
     missing_quality_by_provenance = {provenance: 0 for provenance in QUALITY_METADATA_PROVENANCE}
+    quality_review_by_status = {status: 0 for status in QUALITY_REVIEW_STATUSES}
     artifact_quality_summary_by_status = {status: 0 for status in ARTIFACT_QUALITY_SUMMARY_STATUSES}
     artifact_quality_summary_by_field = {field: 0 for field in QUALITY_METADATA_FIELDS}
     pipeline_quality_stats: dict[str, dict[str, Any]] = {}
@@ -59,6 +61,9 @@ def build_report_quality_audit(
             pipeline_stats["quality_metadata_complete_reports"] += 1
             continue
         pipeline_stats["quality_metadata_missing_reports"] += 1
+        review_status = _quality_review_status(report)
+        quality_review_by_status[review_status] += 1
+        pipeline_stats["quality_review_by_status"][review_status] += 1
         for field in safe_text_list(item.get("missing_quality_fields")):
             if field in missing_quality_field_counts:
                 missing_quality_field_counts[field] += 1
@@ -99,6 +104,7 @@ def build_report_quality_audit(
         "quality_metadata_missing_reports": missing_count,
         "missing_quality_field_counts": missing_quality_field_counts,
         "quality_metadata_missing_by_provenance": missing_quality_by_provenance,
+        "quality_review_by_status": quality_review_by_status,
         "artifact_quality_summary_by_status": artifact_quality_summary_by_status,
         "artifact_quality_summary_by_field": artifact_quality_summary_by_field,
         "quality_metadata_by_pipeline": quality_metadata_by_pipeline,
@@ -179,6 +185,7 @@ def _new_quality_stats() -> dict[str, Any]:
         "quality_metadata_missing_reports": 0,
         "missing_quality_field_counts": {field: 0 for field in QUALITY_METADATA_FIELDS},
         "quality_metadata_missing_by_provenance": {provenance: 0 for provenance in QUALITY_METADATA_PROVENANCE},
+        "quality_review_by_status": {status: 0 for status in QUALITY_REVIEW_STATUSES},
     }
 
 
@@ -201,10 +208,17 @@ def _quality_metadata_provenance(item: dict[str, Any]) -> str:
     return "after_refresh" if "quality_metadata_after_refresh" in safe_text_list(item.get("reason_codes")) else "no_refresh_provenance"
 
 
+def _quality_review_status(report: dict[str, Any]) -> str:
+    review = safe_mapping_dict(report.get("quality_review")) or {}
+    status = safe_text(review.get("status")).strip().lower()
+    return status if status in QUALITY_REVIEW_STATUSES else "pending"
+
+
 __all__ = [
     "ARTIFACT_QUALITY_SUMMARY_STATUSES",
     "QUALITY_METADATA_FIELDS",
     "QUALITY_METADATA_PROVENANCE",
+    "QUALITY_REVIEW_STATUSES",
     "SCHEMA_VERSION",
     "_audit_item",
     "_quality_metadata_provenance",

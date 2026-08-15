@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3565 / revision-scoped quality review progress
+
+- `#證據基礎` / `#差距分析`：live historical audit 的 `143` 個缺 metadata row 全部沒有 current review event；若只顯示缺口數，無法區分待核對與已留下人工決策的報告。新增 `quality_review_by_status`，以 canonical review ledger 的 current revision state 作為唯讀 aggregate。
+- `#語意含義` / `#受眾`：只對 missing-metadata rows 計數，`pending` 代表沒有當前 revision event，不代表品質 gate 通過或失敗；daily 與 historical 都顯示四種白話狀態，pipeline summary 保留同一分組，避免把完整報告或分頁 slice 混入審核分母。
+- `#責任` / `#倫理判斷`：backend 負責 safe status normalization，frontend 只呈現 aggregate；不將 `approved_with_gap` 轉成完整、不寫回 artifact/index、不建立 rerun/repair/queue action，也不改既有 review POST 邊界。
+- `#可驗證性` / `#限制條件`：TDD 先鎖定 missing-only、pipeline map 與兩個 UI 入口，再以品質跨層 suite、文件契約、Node syntax、Python compile、live historical/daily response、health/readiness 與 asset `200` 驗證；本批保持 read-only。
+
 ## D3564 / model-level quota observability boundary
 
 - `#證據基礎` / `#來源品質`：live dashboard 只提供 aggregate Gemini quota error，無法把 `2909` 次 observed calls 與 `2569` 次 errors 對齊到模型；先以同一 `api_usage_events` reset window 分組 `observed_model_calls`、`quota_error` 與 `rate_limited`，不把 provider 回應外推成官方剩餘額度。

@@ -19,6 +19,7 @@
             const count = Number(audit.quality_metadata_missing_by_provenance?.[key] || 0);
             return Number.isFinite(count) && count > 0 ? `${label} ${Math.floor(count)}` : '';
         }).filter(Boolean).join('、');
+        const reviewLabels = [['pending', '待人工核對'], ['approved_with_gap', '已核准保留缺口'], ['rejected', '退回處理'], ['deferred', '已暫緩']]; const reviewSummary = reviewLabels.map(([key, label]) => { const count = Number(audit.quality_review_by_status?.[key] || 0); return Number.isFinite(count) && count > 0 ? `${label} ${Math.floor(count)}` : ''; }).filter(Boolean).join('、');
         const artifactEvidenceSummary = [['present', 'artifact 摘要可查'], ['not_found', 'artifact 無 gate 摘要'], ['unavailable', 'artifact 無法讀取']].map(([key, label]) => { const count = Number(audit.artifact_quality_summary_by_status?.[key] || 0); return Number.isFinite(count) && count > 0 ? `${label} ${Math.floor(count)} 份` : ''; }).filter(Boolean).join('、');
         const artifactFieldStats = audit.artifact_quality_summary_by_field && typeof audit.artifact_quality_summary_by_field === 'object' && !Array.isArray(audit.artifact_quality_summary_by_field) ? audit.artifact_quality_summary_by_field : null;
         const artifactFieldSummary = artifactFieldStats ? fieldLabels.map(([key, label]) => { const count = Number(artifactFieldStats[key] || 0); return Number.isFinite(count) && count >= 0 ? `${label} ${Math.floor(count)}` : ''; }).filter(Boolean).join('、') : '';
@@ -67,7 +68,7 @@
             audit.items_has_next === true ? '<button class="history-quality-audit-page" type="button" data-quality-audit-page="next" aria-label="查看下一批品質缺口">下一批</button>' : ''
         ].filter(Boolean).join('');
         const auditDetails = missing > 0
-            ? `<span>${Math.floor(missing)} 份待人工核對${truncation}</span><em>${fieldSummary ? `缺口：${e(fieldSummary)}` : ''}${pipelineSummary ? `；模式缺口：${e(pipelineSummary)}` : ''}${provenanceSummary ? `；來源：${e(provenanceSummary)}` : ''}</em>${artifactEvidenceSummary ? `<em>${e(artifactEvidenceSummary)}</em>` : ''}${artifactFieldSummary ? `<em>artifact 欄位可查：${e(artifactFieldSummary)}</em>` : ''}${basisSummary ? `<em>${e(basisSummary)}</em>` : ''}`
+            ? `<span>${Math.floor(missing)} 份待人工核對${truncation}</span><em>${fieldSummary ? `缺口：${e(fieldSummary)}` : ''}${pipelineSummary ? `；模式缺口：${e(pipelineSummary)}` : ''}${reviewSummary ? `；審核狀態：${e(reviewSummary)}` : ''}${provenanceSummary ? `；來源：${e(provenanceSummary)}` : ''}</em>${artifactEvidenceSummary ? `<em>${e(artifactEvidenceSummary)}</em>` : ''}${artifactFieldSummary ? `<em>artifact 欄位可查：${e(artifactFieldSummary)}</em>` : ''}${basisSummary ? `<em>${e(basisSummary)}</em>` : ''}`
             : `<span>符合條件的 ${complete} 份已驗證 snapshot 沒有品質 metadata 缺口</span>${basisSummary ? `<em>${e(basisSummary)}</em>` : ''}`;
         const targets = (Array.isArray(audit.items) ? audit.items : []).filter(item => item && item.filename).map(item => {
             const ticker = item.ticker || '報告';
