@@ -13,7 +13,7 @@ from typing import Literal
 
 from analysis_job_service import RQ_ABANDONED_JOB_REASON, analysis_task_id, task_queue_has_task
 from decision_tracking_scheduler import run_decision_tracking_scheduler
-from job_store import create_job, find_active_job, list_active_jobs, mark_jobs_abandoned
+from job_store import append_event, create_job, find_active_job, list_active_jobs, mark_jobs_abandoned, update_job
 from runtime_dependencies import RuntimeSettings, WorkerRuntime, create_worker_runtime
 from runtime_events import emit_log
 from storage_inventory import ensure_runtime_storage
@@ -24,7 +24,9 @@ from worker_rq_reconciliation import (
     coerce_datetime as _coerce_datetime,
     pid_exists as _pid_exists,
     rq_active_job_ids as _rq_active_job_ids,
+    rq_job_states as _rq_job_states,
     rq_live_started_job_ids as _rq_live_started_job_ids,
+    rq_reconciliation_job_lists as _rq_reconciliation_job_lists,
     rq_worker_appears_live as _rq_worker_appears_live,
     rq_worker_current_job_id as _rq_worker_current_job_id,
     rq_worker_heartbeat_is_fresh as _rq_worker_heartbeat_is_fresh,
@@ -86,17 +88,20 @@ def reconcile_abandoned_rq_jobs(runtime: WorkerRuntime) -> int:
         return 0
 
     try:
-        rq_job_ids = _rq_active_job_ids(rq_queues)
+        rq_states = _rq_job_states(rq_queues)
     except Exception as exc:
         emit_log(f"queue reconciliation skipped: could not inspect RQ registries: {exc}")
         return 0
 
-    abandoned_job_ids = [
-        str(job.get("job_id") or "")
-        for job in list_active_jobs()
-        if not _sqlite_job_has_active_rq_job(job, rq_job_ids)
-    ]
-    abandoned_job_ids = [job_id for job_id in abandoned_job_ids if job_id]
+    abandoned_job_ids, retrying_job_ids = _rq_reconciliation_job_lists(rq_states, list_active_jobs())
+
+    if retrying_job_ids:
+        reason = "Redis/RQ 已排入重試佇列，等待 Worker 接續。"
+        for job_id in retrying_job_ids:
+            update_job(job_id, "waiting_retry", error=reason)
+            append_event(job_id, {"type": "status", "phase": "queue_reconciled", "level": "info", "message": reason})
+        emit_log(f"queue reconciliation marked {len(retrying_job_ids)} queued retry job(s) as waiting_retry.")
+
     if not abandoned_job_ids:
         return 0
 
@@ -104,8 +109,6 @@ def reconcile_abandoned_rq_jobs(runtime: WorkerRuntime) -> int:
     if count:
         emit_log(f"queue reconciliation marked {count} abandoned SQLite job(s).")
     return count
-
-
 def find_queue_backed_active_job(task_queue, ticker: str, pipeline_id: str = "v1") -> dict:
     job = find_active_job(ticker, pipeline_id)
     if not job:
@@ -115,18 +118,6 @@ def find_queue_backed_active_job(task_queue, ticker: str, pipeline_id: str = "v1
         return job
     mark_jobs_abandoned([job["job_id"]], RQ_ABANDONED_JOB_REASON)
     return {}
-
-
-def _sqlite_job_has_active_rq_job(job: dict, rq_job_ids: set[str]) -> bool:
-    job_id = str(job.get("job_id") or "")
-    if not job_id:
-        return False
-    pipeline_id = str(job.get("pipeline_id") or "")
-    if pipeline_id.startswith("rerun:"):
-        return f"report-rerun:{job_id}" in rq_job_ids
-    return f"analysis:{job_id}" in rq_job_ids
-
-
 async def run_scheduler_process(runtime: WorkerRuntime) -> None:
     if runtime.task_queue is None:
         raise RuntimeError("Scheduler runtime must provide a task queue.")

@@ -109,8 +109,11 @@ def test_reconcile_abandoned_rq_jobs_marks_only_sqlite_jobs_missing_from_rq(monk
     monkeypatch.setattr(worker_main, "list_active_jobs", lambda: active_jobs)
     monkeypatch.setattr(
         worker_main,
-        "_rq_active_job_ids",
-        lambda _queue: {"analysis:analysis-present", "report-rerun:rerun-present"},
+        "_rq_job_states",
+        lambda _queue: {
+            "analysis:analysis-present": "started",
+            "report-rerun:rerun-present": "queued",
+        },
     )
 
     def fake_mark_jobs_abandoned(job_ids, reason):
@@ -126,6 +129,35 @@ def test_reconcile_abandoned_rq_jobs_marks_only_sqlite_jobs_missing_from_rq(monk
     assert calls[0][0] == ["missing"]
     assert "Redis/RQ" in calls[0][1]
     assert any("abandoned" in str(call) and "1" in str(call) for call in calls)
+
+
+def test_reconcile_abandoned_rq_jobs_marks_queued_retry_as_waiting_retry(monkeypatch):
+    calls = []
+    runtime = FakeWorkerRuntime(calls)
+    runtime.task_queue.queue = object()
+    active_jobs = [
+        {"job_id": "retrying", "pipeline_id": "rerun:full_report", "status": "running"},
+    ]
+
+    monkeypatch.setattr(worker_main, "list_active_jobs", lambda: active_jobs)
+    monkeypatch.setattr(
+        worker_main,
+        "_rq_job_states",
+        lambda _queues: {"report-rerun:retrying": "queued"},
+    )
+    monkeypatch.setattr(worker_main, "mark_jobs_abandoned", lambda *_args: 0)
+    monkeypatch.setattr(
+        worker_main,
+        "update_job",
+        lambda *args, **kwargs: calls.append(("update", args, kwargs)),
+    )
+    monkeypatch.setattr(worker_main, "append_event", lambda *args: calls.append(("event", args)))
+    monkeypatch.setattr(worker_main, "emit_log", calls.append)
+
+    assert worker_main.reconcile_abandoned_rq_jobs(runtime) == 0
+    update = next(call for call in calls if call[0] == "update")
+    assert update[1][:2] == ("retrying", "waiting_retry")
+    assert update[2]["error"] == "Redis/RQ 已排入重試佇列，等待 Worker 接續。"
 
 
 def test_rq_active_job_ids_keeps_only_started_jobs_claimed_by_live_workers(monkeypatch):

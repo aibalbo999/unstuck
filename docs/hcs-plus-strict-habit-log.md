@@ -8325,6 +8325,28 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 - live canonical DB direct audit：`active=33 (queued=31, running=2)`，stuck result 只含 1 筆 running。
 - 未修改 job status、RQ payload、queue depth 或報告品質 gate。
 
+### 完成後維護 / D3508 / #拆解問題 #問對問題 #差距分析 #變數分析 #偏誤降低 #決策樹 #目的 #效用 #證據基礎 #來源品質 #可驗證性
+
+本次使用：新 Worker 啟動後以所有 configured queues 檢查，發現 `a4d9...`、`c998...` 的 RQ job 狀態分別為 queued/scheduled retry，但 SQLite 仍是 `running`；這會讓操作員誤以為 Agent 正在執行，也讓 stuck warning 失去狀態語意。
+
+核心判斷
+
+1. RQ queued、deferred、scheduled 是等待重試，不是目前執行；SQLite `running` 必須校正為 `waiting_retry`。
+2. RQ started/current claim 保留 `running`；沒有任何 RQ claim 才走既有 abandoned reconciliation。
+3. 校正只改 active job 的狀態與可追蹤事件，不刪除 RQ retry、不改報告內容或 retry 次數。
+
+落地修改
+
+1. `backend/worker_rq_reconciliation.py` 新增跨 queue 的 `rq_job_states()`，保留 queued/started/deferred/scheduled 狀態。
+2. `backend/worker_main.py` 啟動 reconciliation 將 SQLite running retry 校正為 `waiting_retry`，並寫入 `queue_reconciled` event。
+3. `tests/test_worker_main.py` 鎖住 queued retry 的 waiting state 與既有 abandoned 邊界。
+
+驗證方式
+
+- worker reconciliation full regression：`33 passed`；import boundary：`503 passed`；HCS/文件契約：`135 passed`；worker entrypoint `266` 行。
+- live RQ evidence：`c998` 在 controlled cold stop 後進入 scheduled retry，剩餘 retry 次數由 RQ 保留。
+- 未刪除 queued/scheduled job，也未停止 API。
+
 ### 完成後維護 / D3506 / #拆解問題 #問對問題 #差距分析 #偏誤降低 #決策樹 #效用 #證據基礎 #比較組 #介入研究 #可驗證性 #來源品質
 
 本次使用：live Redis/RQ 檢查發現 `SimpleWorker` 有 current job `report-rerun:365f...` 且 worker live，但 `StartedJobRegistry` 暫時為空；SQLite 另有未被 live worker claim 的舊 `running` job `a4d9...`，操作佇列因此多報一筆執行中工作。
@@ -8343,7 +8365,7 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 驗證方式
 
 - worker reconciliation focused regression：`4 passed, 28 deselected`；import boundary：`503 passed`。
-- live Redis/RQ audit：保留 `report-rerun:365f...`，排除無 live claim 的 `a4d9...`。
+- live Redis/RQ audit：`a4d9...`、`c998...` 分別在 queued/scheduled retry，並由新 reconciliation 校正為 `waiting_retry`；RQ retry payload 與次數保留。
 - 未改 queue payload、job status 或跨 job 的報告處理流程。
 
 ### 完成後維護 / D3505 / #拆解問題 #問對問題 #差距分析 #偏誤降低 #決策樹 #效用 #證據基礎 #比較組 #介入研究 #可驗證性 #來源品質
