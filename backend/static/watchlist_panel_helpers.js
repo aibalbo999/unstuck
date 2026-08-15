@@ -50,7 +50,11 @@
             const detail = item.detail || title;
             const reasonCodes = Array.isArray(item.reason_codes) ? item.reason_codes.join(',') : '';
             const missingQualityFields = Array.isArray(item.missing_quality_fields) ? item.missing_quality_fields.join(',') : '';
-            return `<button class="watchlist-quality-report-button" type="button" data-quality-report="${escapeHtml(item.filename)}" data-quality-report-ticker="${escapeHtml(ticker)}" data-quality-report-pipeline="${escapeHtml(pipeline)}" data-quality-reason-codes="${escapeHtml(reasonCodes)}" data-quality-missing-fields="${escapeHtml(missingQualityFields)}" title="${escapeHtml(detail)}" aria-label="${escapeHtml(`人工核對 ${ticker} ${pipeline}：${title}`)}">查看 ${escapeHtml(ticker)} ${escapeHtml(pipeline)}</button>`;
+            const artifactFields = item.artifact_quality_summary?.status === 'present' && Array.isArray(item.artifact_quality_summary.fields) ? item.artifact_quality_summary.fields : [];
+            const artifactSummary = artifactFields.length ? `artifact 摘要可查：${artifactFields.map(field => missingFieldLabels.find(([key]) => key === field)?.[1] || field).filter(Boolean).join('、')}` : '';
+            const targetDetail = [detail, artifactSummary].filter(Boolean).join('；');
+            const targetAriaLabel = [`人工核對 ${ticker} ${pipeline}：${title}`, artifactSummary].filter(Boolean).join('；');
+            return `<button class="watchlist-quality-report-button" type="button" data-quality-report="${escapeHtml(item.filename)}" data-quality-report-ticker="${escapeHtml(ticker)}" data-quality-report-pipeline="${escapeHtml(pipeline)}" data-quality-reason-codes="${escapeHtml(reasonCodes)}" data-quality-missing-fields="${escapeHtml(missingQualityFields)}" data-quality-artifact-fields="${escapeHtml(artifactFields.join(','))}" title="${escapeHtml(targetDetail)}" aria-label="${escapeHtml(targetAriaLabel)}"><span>查看 ${escapeHtml(ticker)} ${escapeHtml(pipeline)}</span>${artifactSummary ? `<small>${escapeHtml(artifactSummary)}</small>` : ''}</button>`;
         }).join('');
         const historicalAuditButton = audit.selection_basis === 'latest_per_ticker_pipeline' && missingQuality > 0
             ? '<button class="watchlist-quality-history-button" type="button" data-quality-history-audit>查看歷史版本稽核</button>'

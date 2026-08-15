@@ -35,6 +35,8 @@
 }
 .watchlist-quality-audit-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
 .watchlist-quality-report-button, .watchlist-quality-history-button { min-height: 32px; border: 1px solid rgba(251, 191, 36, 0.3); border-radius: 7px; background: rgba(120, 53, 15, 0.18); color: #fde68a; cursor: pointer; font-size: 0.72rem; font-weight: 900; padding: 5px 9px; }
+.watchlist-quality-report-button { display: grid; gap: 1px; text-align: left; overflow-wrap: anywhere; }
+.watchlist-quality-report-button small { color: var(--text-secondary); font-size: 0.66rem; font-weight: 700; }
 .watchlist-quality-report-button:hover, .watchlist-quality-report-button:focus-visible, .watchlist-quality-history-button:hover, .watchlist-quality-history-button:focus-visible { border-color: rgba(251, 191, 36, 0.6); background: rgba(120, 53, 15, 0.3); outline: none; }
 .watchlist-daily-board span,
 .watchlist-daily-board em { color: var(--text-secondary); font-size: 0.72rem; font-style: normal; font-weight: 850; }

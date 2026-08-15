@@ -2,6 +2,14 @@
 
 更新時間：2026-08-16
 
+## D3554 / daily 與 historical artifact evidence context 一致
+
+- `#受眾` / `#溝通設計`：live daily dashboard 的 2 筆品質缺口已帶 `artifact_quality_summary`，但「今日工作台」target 原本只顯示 missing gate/provenance；同一筆報告在不同入口看到的 evidence context 不一致。
+- `#系統動力學` / `#責任`：watchlist helper 沿用既有 `artifact_quality_summary.status=present` 與白名單 fields，加入可見次要文字、`title`、`aria-label` 及 `data-quality-artifact-fields`；不複製 backend 判定、不新增 API/queue/rerun/mutation。
+- `#可驗證性`：先補 watchlist fixture 取得 RED，再完成 target markup、CSS 與兩個 cache-buster；watchlist frontend focused suite GREEN，helper 83 行仍低於 95 行責任護欄。
+
+本批暫定決策：讓 daily/historical 人工核對入口共享同一 evidence context，不把 artifact 摘要視為 structured gate 通過，也不改 daily queue 排序。
+
 ## D3553 / artifact 摘要與 structured gate 邊界
 
 - `#來源品質` / `#證據基礎`：live historical audit 的 143 筆缺 metadata row，其 Markdown 都保留 `Evidence gate`、`Report conformance` 與品質 gate 狀態文字；這是可查的 artifact evidence，不等同 snapshot 已有 structured gate。
