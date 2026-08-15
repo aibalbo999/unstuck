@@ -201,6 +201,8 @@ daily target 只複用同一筆 `quality_review.status` 做可見與 accessible 
 
 歷史 review control 由 `history_quality_audit` 保留一個 page-level submission lock；成功 mutation 後重新載入目前範圍，失敗則經 notification center 呈現並解除 lock。這只降低瀏覽器連點造成的重複請求，不取代 server 的 mutation token、revision fingerprint 或 append-only ledger 約束。
 
+在 review note 通過空值檢查後，前端還會要求操作員確認要把決策寫入目前 revision；取消時不呼叫 mutation endpoint。這是防止誤觸的 UX gate，不是授權邊界；server 仍以 mutation token、current revision、decision 與 note 驗證作為唯一寫入依據。
+
 `history_panel_quality_helpers` 對 review status filter 採用 recoverable empty-state 規則：非目前且 count 為零的狀態可隱藏，目前狀態即使為零仍保留，並在 filtered view 一律保留 `all` 入口；這只影響導覽呈現，不改 status aggregate 或 historical query。
 
 `history_quality_audit_render` 在 filtered empty response 使用 status-specific empty copy，而非套用 unfiltered 的 complete-report 文案；這避免把「沒有匹配的審核狀態」錯當成 quality gate 已完成的統計。

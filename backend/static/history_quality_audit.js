@@ -76,6 +76,9 @@
                         ? window.prompt(`${label}：請留下核對理由`, '')
                         : '';
                     if (!String(note || '').trim()) return;
+                    if (typeof window.confirm === 'function' && !window.confirm(
+                        `${label}：將以此理由寫入目前報告版本的人工審核紀錄。\n\n${String(note).trim()}\n\n確定儲存嗎？`
+                    )) return;
                     reviewSubmissionInFlight = true;
                     reviewButton.disabled = true;
                     reviewButton.setAttribute?.('aria-busy', 'true');

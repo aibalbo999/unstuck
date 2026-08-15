@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3575 / explicit review write confirmation
+
+- `#倫理判斷` / `#責任`：人工 review 是 append-only 寫入；填完理由不等於操作員已確認要留下決策。新增最後確認，取消時不進入 mutation call，也不把取消誤報成失敗或已儲存。
+- `#受眾` / `#溝通設計`：確認訊息同時顯示決策、目前版本與 note，讓操作員在不可逆的 ledger append 前再次核對意圖；成功、失敗與取消三者保持不同語意。
+- `#限制條件` / `#偏誤降低`：前端確認只是 UX safety gate，不取代 server mutation token、current revision、decision/note validation；不改 artifact/index、queue、rerun 或品質 gate。
+- `#可驗證性` / `#來源品質`：先以 `confirm=false` 取得 `savedCount=1` RED，再 GREEN `16 passed`；live 只做 historical/daily GET、health/readiness、asset 與 review ledger count 核對，本批不執行 review mutation。
+
 ## D3565 / revision-scoped quality review progress
 
 - `#證據基礎` / `#差距分析`：live historical audit 的 `143` 個缺 metadata row 全部沒有 current review event；若只顯示缺口數，無法區分待核對與已留下人工決策的報告。新增 `quality_review_by_status`，以 canonical review ledger 的 current revision state 作為唯讀 aggregate。

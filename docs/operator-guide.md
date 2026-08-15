@@ -117,6 +117,8 @@ filtered view 沒有結果時，摘要會寫「目前沒有符合〈狀態〉的
 
 按下「核准保留缺口／退回處理／暫緩」後，該按鈕會暫時鎖定並顯示忙碌狀態；同一筆 review 在回應完成前不會重複送出。成功會顯示「人工審核已儲存」，失敗會顯示錯誤且恢復按鈕，操作員可在確認 revision 後重試。這不代表品質 gate 被自動修復，真正決策仍以 canonical review ledger 為準。
 
+輸入核對理由後，畫面會再次確認是否要把目前決策寫入這個報告版本。選擇取消不會送出請求，也不會新增 review ledger event；選擇確認後仍須通過 server 的 mutation token 與 revision 檢查。
+
 歷史摘要的「人工審核進度：已決策／總缺口」只計算目前 response 範圍內的缺 metadata 報告；切換 pipeline 或 review status 後，分母也會跟著範圍改變，不是全庫永久累計值。
 
 今日工作台的全量報告品質摘要也使用同一個進度算法，但它的範圍是每個 ticker/pipeline 最新一筆；它提供工作量提示與歷史稽核入口，不會把品質 coverage 自動塞進今日決策 queue。

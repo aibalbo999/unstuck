@@ -197,6 +197,55 @@ def test_historical_quality_audit_prevents_duplicate_review_submission_and_confi
     assert "aria-busy" not in payload["attrs"]
 
 
+def test_historical_quality_audit_does_not_save_when_review_confirmation_is_cancelled():
+    module_path = STATIC_DIR / "history_quality_audit.js"
+    script = """
+(async () => {
+  global.window = {
+    prompt: () => '取消前不應寫入。',
+    confirm: () => false,
+    StockAgentHistoricalQualityAuditRenderer: { render: () => '' }
+  };
+  require(__MODULE_PATH__);
+  let clickHandler;
+  let savedCount = 0;
+  const reviewButton = {
+    disabled: false,
+    dataset: {
+      qualityReviewDecision: 'approved_with_gap', qualityReviewFilename: '1623_v1.html', qualityReviewTicker: '1623.TW',
+      qualityReviewPipeline: 'v1', qualityReviewRevision: 'rev-current'
+    },
+    setAttribute: () => {},
+    removeAttribute: () => {}
+  };
+  const element = {
+    hidden: true,
+    innerHTML: '',
+    setAttribute: () => {},
+    removeAttribute: () => {},
+    addEventListener: (type, handler) => { if (type === 'click') clickHandler = handler; }
+  };
+  const audit = window.StockAgentHistoricalQualityAudit.create({
+    apiClient: {
+      fetchHistoricalReportQualityAudit: async () => ({ audited_reports: 1, quality_metadata_missing_reports: 1, items: [] }),
+      saveHistoricalReportQualityReview: async () => { savedCount += 1; return { success: true }; }
+    },
+    ui: { escapeHtml: value => String(value ?? '') },
+    element
+  });
+  audit.bindEvents();
+  await audit.load({ includeVersions: true, query: '', pipelineFilter: 'all' });
+  clickHandler({ target: { closest: selector => selector === '[data-quality-review-decision]' ? reviewButton : null } });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  process.stdout.write(JSON.stringify({ savedCount }));
+})();
+""".replace("__MODULE_PATH__", json.dumps(str(module_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert payload["savedCount"] == 0
+
+
 def test_historical_quality_audit_reenables_review_after_save_failure():
     module_path = STATIC_DIR / "history_quality_audit.js"
     script = """
