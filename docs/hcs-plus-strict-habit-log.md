@@ -16,7 +16,7 @@
 - `#差距分析` / `#最佳化`：live historical audit 首次約 `7.13s`、warm 約 `1.87–2.03s`，daily 約 `2.34s`；相同 read-only request 反覆讀取未變更的 report snapshot 與 Markdown。
 - `#限制條件` / `#系統動力學`：新增最多 8 筆、15 秒 TTL 的 process row cache；key 同時含 scope、output_dir、filter 與 indexed row fingerprint，避免不同 storage root 或 report version 誤用同一結果。
 - `#責任` / `#來源品質`：cache 只重用已由 canonical report index fingerprint 證明未變更的 derived rows；`updated_at`、`file_mtime`、stored hash 變化會重新讀取，不跨重啟、不寫入任何 operational state。
-- `#可驗證性`：先以重複呼叫取得 RED，再 GREEN；回歸測試特別鎖定不同 temporary storage root 不可碰撞，後續以 live cold/warm latency 驗收。
+- `#可驗證性`：先以重複呼叫取得 RED，再 GREEN；回歸測試特別鎖定不同 temporary storage root 不可碰撞。重啟正式 runtime 後，historical summary 首次 `2.284s`、同一 process 暖讀 `0.122s/0.122s`，daily dashboard `1.810s/1.765s`；所有請求 `200`，historical `audited_reports=1330`、`quality_metadata_missing_reports=143` 維持一致。
 
 本批暫定決策：優先降低重複 read cost，但不以永久 cache 或無 fingerprint TTL 掩蓋新的品質 evidence。
 
