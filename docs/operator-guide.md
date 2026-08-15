@@ -1,5 +1,9 @@
 # Operator Guide
 
+## Model Route Observations
+
+The LLM/API maintenance panel reads `model_route_budget.v1` through `/api/observability/model-routes` and labels latency, retry, and quality-gate warnings separately. `slow_route` is shown for maintenance triage but is not a daily rerun instruction; use the report's `data_trust`, `decision_freshness`, and `今日工作台` before rerunning one report.
+
 ## Start The App
 
 Use the macOS launcher for normal local operation:

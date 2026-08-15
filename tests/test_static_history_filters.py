@@ -558,6 +558,8 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "/api/observability/provider-sla" in api_client_js
     assert "/api/observability/active-jobs" in api_client_js
     assert "/api/observability/api-quotas" in api_client_extensions_js
+    assert "/api/observability/model-routes" in api_client_extensions_js
+    assert "fetchModelRouteBudget" in api_client_extensions_js
     assert "/api/reports/compare" in api_client_extensions_js
     assert "決策狀態" in report_compare_renderers_js
     assert "reportDecisionStatusLabel(left)" in report_compare_renderers_js
@@ -4180,6 +4182,7 @@ const apiClient = {
   fetchProviderSla: options => { calls.push(`fetch:sla:${options.windowValue}:${options.limit}`); return Promise.resolve({ kind: 'sla' }); },
   fetchActiveJobs: options => { calls.push(`fetch:jobs:${options.limit}:${options.eventLimit}`); return Promise.resolve({ kind: 'jobs' }); },
   fetchApiQuotas: () => { calls.push('fetch:quota'); return Promise.resolve({ kind: 'quota' }); },
+  fetchModelRouteBudget: () => { calls.push('fetch:model-routes'); return Promise.resolve({ kind: 'model-routes' }); },
   fetchPerformanceStats: () => { calls.push('fetch:perf'); return Promise.resolve({ kind: 'perf' }); }
 };
 const ui = { escapeHtml: value => String(value ?? ''), pipelineModeLabel: value => `模式 ${value}` };
@@ -4229,6 +4232,7 @@ const loadPanel = async config => {
     assert "fetch:jobs:5:40" in payload["calls"]
     assert "render:sla:sla" in payload["calls"]
     assert "render:jobs:jobs" in payload["calls"]
+    assert "fetch:model-routes" in payload["calls"]
     assert "render:quota:quota" in payload["calls"]
     assert "render:perf:perf" in payload["calls"]
     assert any("LLM/API 本機觀測讀取失敗" in item for item in payload["calls"])
@@ -4280,6 +4284,37 @@ process.stdout.write(JSON.stringify({ summary, html }));
     assert "決策狀態" in payload["html"]
     assert "需重跑 → 有效" in payload["html"]
     assert "報告差異不等於市場因果" in payload["html"]
+
+
+def test_api_quota_panel_projects_model_route_warnings():
+    panel_path = STATIC_DIR / "api_quota_panel.js"
+    script = """
+global.window = {};
+require(__PANEL_PATH__);
+const summaryEl = { textContent: '' };
+const listEl = { innerHTML: '' };
+window.StockAgentApiQuotaPanel.render({
+  services: [{ service: 'Gemini / Google AI', configured: true, usage: {} }],
+  model_route_budget: {
+    summary: { sample_size: 12, warning_count: 3 },
+    warnings: [
+      { id: 'slow_route', route: 'v4/gemma-4-31b-it', message: 'p95_latency_ms=181619' },
+      { id: 'retry_storm', route: 'v2/gemini-2.5-pro', message: 'retry_count=8' },
+      { id: 'quality_gate_failures', route: 'v3/gemini-3.5-flash', message: 'quality_gate_failures=1' }
+    ]
+  }
+}, { summaryEl, listEl, escapeHtml: value => String(value ?? '') });
+process.stdout.write(JSON.stringify({ summary: summaryEl.textContent, html: listEl.innerHTML }));
+""".replace("__PANEL_PATH__", json.dumps(str(panel_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "3 個路由警示" in payload["summary"]
+    assert "路由延遲偏高" in payload["html"]
+    assert "模型重試過多" in payload["html"]
+    assert "品質檢查失敗" in payload["html"]
+    assert "v4/gemma-4-31b-it" in payload["html"]
+    assert "維運觀測" in payload["html"]
 
 
 def test_report_compare_decision_status_uses_report_quality_policy():

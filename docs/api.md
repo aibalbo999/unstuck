@@ -5,11 +5,14 @@ FastAPI exposes the machine-readable contract at `/openapi.json`; mutating opera
 
 ## Read Endpoints
 
+`GET /api/observability/model-routes` returns the `model_route_budget.v1` telemetry section used by the operator panel. It reports `slow_route`, `retry_storm`, and `quality_gate_failures`; `slow_route` is maintenance evidence and remains outside the daily decision queue.
+
 ```bash
 curl http://127.0.0.1:8080/api/reports
 curl http://127.0.0.1:8080/api/observability/provider-sla
 curl http://127.0.0.1:8080/api/observability/active-jobs
 curl http://127.0.0.1:8080/api/observability/api-quotas
+curl 'http://127.0.0.1:8080/api/observability/model-routes?telemetry_limit=5000'
 curl http://127.0.0.1:8080/api/watchlist
 curl http://127.0.0.1:8080/api/stocks/2330.TW/snapshot
 ```

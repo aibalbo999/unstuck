@@ -91,7 +91,7 @@ Every LangGraph node is wrapped by a thin telemetry adapter. On success or failu
 
 The worker writes telemetry to `analysis_node_telemetry` and also emits non-breaking SSE events with `type=telemetry`. Existing frontends can ignore the new event type. Operators can read the stable schema from `GET /api/analysis-jobs/{job_id}/telemetry`.
 
-The ops dashboard summarizes the same telemetry into `model_route_budget.v1`. Routes are grouped by `pipeline_id/model`, cache hits are excluded from billable token totals, and estimated USD cost stays `null` until a verified price table exists. Retry storms, slow p95 routes, and quality-gate failures become operator warnings instead of hidden latency or cost drift.
+The ops dashboard summarizes the same telemetry into `model_route_budget.v1`, and `GET /api/observability/model-routes` exposes that section without requiring the full dashboard payload. Routes are grouped by `pipeline_id/model`, cache hits are excluded from billable token totals, and estimated USD cost stays `null` until a verified price table exists. Retry storms, slow p95 routes, and quality-gate failures become operator warnings instead of hidden latency or cost drift. The operator panel shows those warnings for maintenance triage; `slow_route` remains excluded from the daily decision queue because latency alone does not establish a report rerun need.
 
 ## Security Boundary
 

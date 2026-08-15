@@ -45,6 +45,12 @@
         if (errors) return { tone: 'warning', label: '有錯誤' };
         return { tone: service.configured ? 'ok' : 'warning', label: service.configured ? '已設定' : '未設定' };
     }
+    const routeWarningCopy = { slow_route: { tone: 'warning', label: '路由延遲偏高' }, retry_storm: { tone: 'critical', label: '模型重試過多' }, quality_gate_failures: { tone: 'critical', label: '品質檢查失敗' } };
+    function routeWarnings(payload) { return Array.isArray(payload?.model_route_budget?.warnings) ? payload.model_route_budget.warnings.filter(item => item && typeof item === 'object').slice(0, 20) : []; }
+    function routeWarningMarkup(warning, escapeHtml) {
+        const copy = routeWarningCopy[String(warning.id)] || { tone: 'warning', label: '模型路由警示' };
+        return `<span class="provider-sla-chip provider-sla-insight is-${copy.tone}"><span class="provider-sla-insight-top"><strong>${escapeHtml(copy.label)}</strong><em>維運觀測</em></span><span class="provider-sla-detail">路由：${escapeHtml(warning.route || 'unknown')}</span><span class="provider-sla-meta">${escapeHtml(warning.message || '尚無詳細訊息')}</span><span class="provider-sla-detail">單份報告是否重跑，請以資料可信度與今日工作台判斷。</span></span>`;
+    }
 
     function render(payload, options) {
         const summaryEl = options.summaryEl;
@@ -53,12 +59,15 @@
         if (!summaryEl || !listEl) return;
 
         const services = payload?.services || [];
+        const warnings = routeWarnings(payload);
         const configured = services.filter(service => service.configured).length;
         const errors = services.reduce((sum, service) => sum + quotaErrorCount(service), 0);
         summaryEl.textContent = 'LLM/API 本機觀測尚無資料';
-        if (errors) summaryEl.textContent = `LLM/API 本機觀測需留意：${errors} 次錯誤，${configured}/${services.length} 組服務已設定`;
+        if (errors && warnings.length) summaryEl.textContent = `LLM/API 本機觀測需留意：${errors} 次錯誤、${warnings.length} 個路由警示，${configured}/${services.length} 組服務已設定`;
+        else if (warnings.length) summaryEl.textContent = `LLM/API 本機觀測需留意：${warnings.length} 個路由警示，${configured}/${services.length} 組服務已設定`;
+        else if (errors) summaryEl.textContent = `LLM/API 本機觀測需留意：${errors} 次錯誤，${configured}/${services.length} 組服務已設定`;
         else if (services.length) summaryEl.textContent = `LLM/API 本機觀測：${configured}/${services.length} 組服務已設定`;
-        listEl.innerHTML = services.length
+        const serviceMarkup = services.length
             ? services.map(service => {
                 const usage = usageLabel(service.usage || {});
                 const notes = Array.isArray(service.notes) ? service.notes.slice(0, 2).join('；') : '';
@@ -75,7 +84,9 @@
                     </span>
                 `;
             }).join('')
-            : '<span class="provider-sla-chip is-warning">尚無 LLM/API 本機觀測資料</span>';
+            : '';
+        const routeMarkup = warnings.map(warning => routeWarningMarkup(warning, escapeHtml)).join('');
+        listEl.innerHTML = serviceMarkup + routeMarkup || '<span class="provider-sla-chip is-warning">尚無 LLM/API 本機觀測資料</span>';
     }
 
     window.StockAgentApiQuotaPanel = { render };

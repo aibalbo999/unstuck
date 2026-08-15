@@ -4085,6 +4085,28 @@ def test_api_quota_observability_api(monkeypatch):
     assert response.json()["services"][0]["service"] == "Gemini / Google AI"
 
 
+def test_model_route_budget_observability_api(monkeypatch):
+    calls = []
+
+    async def fake_model_route_payload(telemetry_limit=5000):
+        calls.append(telemetry_limit)
+        return {
+            "schema_version": "model_route_budget.v1",
+            "summary": {"sample_size": 2, "warning_count": 1},
+            "warnings": [{"id": "slow_route", "route": "v4/gemma-4-31b-it"}],
+        }
+
+    monkeypatch.setattr(api_observability_service, "build_model_route_budget_payload", fake_model_route_payload)
+
+    client = TestClient(api.app)
+    response = client.get("/api/observability/model-routes?telemetry_limit=42")
+
+    assert response.status_code == 200
+    assert response.json()["schema_version"] == "model_route_budget.v1"
+    assert response.json()["warnings"][0]["route"] == "v4/gemma-4-31b-it"
+    assert calls == [42]
+
+
 def test_api_usage_ledger_records_llm_job_events(monkeypatch, tmp_path):
     db_path = tmp_path / "jobs.sqlite3"
     monkeypatch.setattr(job_store, "TASK_DB_PATH", str(db_path))

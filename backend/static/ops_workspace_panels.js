@@ -81,7 +81,19 @@
                 summaryEl: elements.apiQuotaSummary,
                 listEl: elements.apiQuotaList,
                 refreshEl: elements.apiQuotaRefresh,
-                fetchPayload: () => apiClient.fetchApiQuotas(),
+                fetchPayload: async () => {
+                    const [quota, routes] = await Promise.allSettled([
+                        apiClient.fetchApiQuotas(),
+                        apiClient.fetchModelRouteBudget()
+                    ]);
+                    if (quota.status !== 'fulfilled') throw quota.reason;
+                    return {
+                        ...(quota.value || {}),
+                        model_route_budget: routes.status === 'fulfilled'
+                            ? routes.value
+                            : { observability_unavailable: true, warnings: [] }
+                    };
+                },
                 renderPayload: payload => window.StockAgentApiQuotaPanel.render(payload, {
                     summaryEl: elements.apiQuotaSummary,
                     listEl: elements.apiQuotaList,

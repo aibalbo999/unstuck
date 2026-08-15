@@ -2,6 +2,16 @@
 
 更新時間：2026-08-15
 
+## D3518 / 模型路由維運可見性
+
+- `#差距分析`：live dashboard 已產生 3 條 `slow_route`，但 `model_route_warning` 的操作入口指向只渲染 quota service 的 panel；操作人員無法從 deep link 看到 route、p95 或 warning id。
+- `#可驗證性`：目前三條 live slow route 都是 0 failures、0 retries；`slow_route` 也由既有 policy 排除於 daily decision queue，因此問題是可見性，不是需要立即改 routing 或重跑策略。
+- `#語意含義` / `#受眾`：面板把 `slow_route`、`retry_storm`、`quality_gate_failures` 分別標成延遲、重試與品質檢查警示；每筆都保留 route/message，並提醒單份報告重跑要回看 `data_trust`、`decision_freshness` 與 `今日工作台`。
+- `#反饋迴路` / `#組織結構`：新增窄責任 `/api/observability/model-routes`，loader 以 `Promise.allSettled` 隔離 route observer 與 quota observer；route 失敗不會遮住 quota，daily queue suppression policy 維持不變。
+- `#可執行性`：先以 endpoint、panel render、workspace loader contract 取得 RED，再完成 GREEN；後續以 OpenAPI、static、observability、live endpoint 與 served UI 驗證。
+
+本批暫定決策：不改 model route、retry threshold 或 daily queue `slow_route` suppression；只補 route warning 的維運顯示與證據邊界。
+
 ## D3517 / API quota 本機觀測語意
 
 - `#偏誤辨識`：live quota payload 的錯誤數是本機 `api_usage_events` 週期統計，不是 provider 全域健康或剩餘額度；舊 UI 仍以「LLM/API 健康」命名，會放大證據範圍。

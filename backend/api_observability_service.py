@@ -13,6 +13,7 @@ from data_trust_constants import CORE_DATA_SOURCES
 from free_mode_contract import build_free_mode_contract
 from job_observability import build_active_jobs_snapshot, build_ops_dashboard_snapshot
 from mapping_fields import safe_mapping_dict, safe_mapping_items, safe_text, safe_text_list
+from model_route_budget import build_model_route_budget
 from notification_delivery_audit import get_delivery_audit_summary
 from notification_delivery_audit_context import safe_dict, safe_int
 from notification_delivery_observability import (
@@ -43,6 +44,20 @@ async def build_api_quota_payload(summary_fetcher: Callable[[int], list[dict]]) 
         return await asyncio.to_thread(_build_api_quota_payload, summary_fetcher)
     except Exception:
         return {"services": []}
+
+
+async def build_model_route_budget_payload(telemetry_limit: int = 5000) -> dict:
+    snapshot = await asyncio.to_thread(
+        _ops_dashboard_snapshot_or_empty,
+        telemetry_limit=telemetry_limit,
+    )
+    payload = _payload_dict(snapshot.get("model_route_budget")) if isinstance(snapshot, dict) else {}
+    if payload:
+        return payload
+    empty = build_model_route_budget([])
+    if isinstance(snapshot, dict) and snapshot.get("observability_unavailable"):
+        empty["observability_unavailable"] = True
+    return empty
 
 
 async def build_prometheus_metrics(

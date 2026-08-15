@@ -46,6 +46,14 @@ def create_observability_router(deps: ObservabilityRouteDeps) -> APIRouter:
             deps.get_provider_sla_summary
         )
 
+    @router.get("/model-routes")
+    async def model_routes(
+        telemetry_limit: int = Query(5000, ge=1, le=50000),
+    ):
+        return await api_observability_service.build_model_route_budget_payload(
+            telemetry_limit=telemetry_limit,
+        )
+
     @router.get("/dashboard")
     async def dashboard(
         provider_limit: int = Query(100, ge=1, le=1000),

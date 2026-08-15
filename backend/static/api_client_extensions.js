@@ -2,6 +2,10 @@
     const jsonRequest = window.StockAgentApiClient.requestJson;
 
     async function fetchApiQuotas() { return jsonRequest('/api/observability/api-quotas'); }
+    async function fetchModelRouteBudget({ telemetryLimit = 5000 } = {}) {
+        const params = new URLSearchParams({ telemetry_limit: String(telemetryLimit) });
+        return jsonRequest(`/api/observability/model-routes?${params.toString()}`);
+    }
     async function fetchPerformanceStats() { return jsonRequest('/api/performance/stats'); }
     async function fetchStockSnapshot(ticker) {
         return jsonRequest(`/api/stocks/${encodeURIComponent(String(ticker || '').trim())}/snapshot`);
@@ -73,5 +77,5 @@
         });
     }
 
-    Object.assign(window.StockAgentApiClient, { fetchApiQuotas, fetchPerformanceStats, fetchStockSnapshot, compareReports, fetchWatchlist, fetchDailyDecisionDashboard, fetchSymbolSuggestions, importWatchlistText, analyzePortfolioRisk, saveWatchlistItem, deleteWatchlistItem, runWatchlist, fetchMarketScreener, runMarketScreener, fetchDecisionTracking, saveDecisionTrackingItem, deleteDecisionTrackingItem, refreshDecisionTracking });
+    Object.assign(window.StockAgentApiClient, { fetchApiQuotas, fetchModelRouteBudget, fetchPerformanceStats, fetchStockSnapshot, compareReports, fetchWatchlist, fetchDailyDecisionDashboard, fetchSymbolSuggestions, importWatchlistText, analyzePortfolioRisk, saveWatchlistItem, deleteWatchlistItem, runWatchlist, fetchMarketScreener, runMarketScreener, fetchDecisionTracking, saveDecisionTrackingItem, deleteDecisionTrackingItem, refreshDecisionTracking });
 })();
