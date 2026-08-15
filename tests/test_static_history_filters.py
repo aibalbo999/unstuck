@@ -6830,6 +6830,8 @@ def test_provider_sla_copy_distinguishes_core_and_enrichment_critical_sources():
     assert "CORE_ANALYSIS_SOURCES" in provider_sla_helpers_js
     assert "sourceIsCore" in provider_sla_helpers_js
     assert "核心資料可能影響分析" in provider_sla_helpers_js
+    assert "系統來源提醒" in provider_sla_helpers_js
+    assert "報告資料可信度與今日工作台" in provider_sla_helpers_js
     assert "補充資料不穩" in provider_sla_helpers_js
     assert "核心分析仍可進行" in provider_sla_helpers_js
 
@@ -6870,8 +6872,10 @@ process.stdout.write(JSON.stringify({
 
     assert payload["marketLevel"] == "critical"
     assert payload["marketState"] == "核心資料可能影響分析"
-    assert "可能需要稍後重跑" in payload["marketInsight"]
-    assert "核心資料可能影響分析" in payload["summary"]
+    assert "系統來源提醒" in payload["marketInsight"]
+    assert "單份報告是否需要重跑" in payload["marketInsight"]
+    assert "以報告資料可信度與今日工作台為準" in payload["summary"]
+    assert "可能需要稍後重跑" not in payload["marketInsight"]
     assert "global_market_context" in payload["visibleSources"]
     assert payload["globalState"] == "無檢查樣本"
     assert "尚未建立檢查樣本" in payload["globalInsight"]

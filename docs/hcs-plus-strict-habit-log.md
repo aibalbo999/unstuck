@@ -2,6 +2,16 @@
 
 更新時間：2026-08-15
 
+## D3516 / 系統告警與報告可用性分層
+
+- `#拆解問題`：將 provider SLA 的 system-window aggregation、單份報告 `data_trust`/`decision_freshness` 與 daily decision queue 分成三個判斷層，不再把 dashboard `critical` 直接等同於報告必須重跑。
+- `#差距分析`：live provider dashboard 是 `critical + core`，但 live daily dashboard 的 20 份抽樣報告為 `monitor`、無 rerun/repair；缺口位於前端語意，不是 provider aggregation 或 report repair predicate。
+- `#偏誤降低`：核心 SLA 文案改為「期間性的系統來源提醒」，明確要求以報告資料可信度與 `今日工作台` 決定單份報告動作；保留 critical 等級，避免因文案修正而掩蓋真實供應商事故。
+- `#受眾` / `#語意含義` / `#組織結構`：先說明告警時間範圍，再指出報告級判斷入口，最後保留既有核心/補充來源分流，讓非工程操作人員能按證據層級行動。
+- `#可驗證性`：`test_provider_sla_helpers_group_rows_and_copy_without_panel` 鎖住核心告警新文案與舊誤導語句不再出現；provider SLA/static adjacent regression `10 passed`，`node --check` 通過。
+
+本批暫定決策：不降級 FMP stable quote 的 system-level `critical`，不自動把 report readiness 從另一個 API 偷接進 provider panel；先修正語意邊界，保留既有 report repair queue 作為單份報告的真實動作來源。
+
 本文件是 `docs/hcs-plus-optimization-state.md` 的嚴格單項輪巡附件。先前已完成四大類批次式優化；本次開始把每個 HCS 單項思考習慣獨立落地、獨立驗證，避免「類別完成」掩蓋單項盲點。
 
 ## 專案狀態

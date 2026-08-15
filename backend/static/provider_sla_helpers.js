@@ -124,7 +124,7 @@
         if (!providers.length) return `正式分析流程 · ${windowLabel} · 尚未建立全系統來源紀錄`;
         if (rows.length && rows.every(row => !row.attempts)) return `正式分析流程 · ${windowLabel} · 尚無檢查樣本，請查看 24 小時或全部紀錄`;
         const coreCritical = rows.filter(row => row.level === 'critical' && sourceIsCore(row.source)).length, enrichmentCritical = rows.filter(row => row.level === 'critical' && !sourceIsCore(row.source)).length, warning = rows.filter(row => row.level === 'warning').length;
-        if (coreCritical) return `正式分析流程 · ${windowLabel} · ${coreCritical} 類核心資料可能影響分析，建議稍後重試`;
+        if (coreCritical) return `正式分析流程 · ${windowLabel} · ${coreCritical} 類核心資料曾不穩；是否需要重跑請以報告資料可信度與今日工作台為準`;
         if (enrichmentCritical) return `正式分析流程 · ${windowLabel} · ${enrichmentCritical} 類補充資料不穩，核心分析仍可進行；需要完整題材或同業資料時再重試`;
         if (warning) return `正式分析流程 · ${windowLabel} · ${warning} 類資料近期不穩，分析時會使用有效快取或備援來源`;
         return `正式分析流程 · ${windowLabel} · 資料抓取穩定，可放心分析`;
@@ -134,7 +134,7 @@
         if (!row.attempts && row.expectedContext) return '尚未建立檢查樣本；下一次新分析或重新抓取後會更新。';
         if (!row.attempts) return '這段時間還沒有用到這類資料。';
         if (row.level === 'ok' && Number(row.healthyCount || 0) > 0 && !Number(row.totalRecords || 0)) return `${sourceImpact(row.source)}；本次沒有新增可用記錄，但來源回應正常或空結果可接受。`;
-        if (row.level === 'critical' && sourceIsCore(row.source)) return `${sourceImpact(row.source)}，這次分析可能需要稍後重跑。`;
+        if (row.level === 'critical' && sourceIsCore(row.source)) return `${sourceImpact(row.source)}；這是期間性的系統來源提醒，單份報告是否需要重跑請以報告資料可信度與今日工作台為準。`;
         if (row.level === 'critical') return `${sourceImpact(row.source)}；核心分析仍可進行，需要完整補充脈絡時再稍後重試。`;
         if (row.level === 'warning') return `${sourceImpact(row.source)}；近期偶有失敗，分析時會先使用仍有效的快取，必要時嘗試備援來源。`;
         return `${sourceImpact(row.source)}，最近抓取順利。`;
