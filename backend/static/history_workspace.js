@@ -7,7 +7,7 @@
         const historyLimit = 20;
         let historyReports = new Map(), previewReport = null, trackedTickers = new Set();
         let trackingCompact = false, previewCompactMode = false;
-        let loadVersion = 0;
+        let loadVersion = 0, trackingSnapshotRequestVersion = 0, lastHistoryScopeKey = null;
         const {
             historyFilters,
             historyPanel,
@@ -36,14 +36,14 @@
             if (label) label.textContent = trackingCompact ? '展開追蹤表' : '精簡追蹤表';
             if (density) density.setAttribute('aria-pressed', String(trackingCompact));
         }
-        function mergeTrackingReports(trackingPayload) {
-            (trackingPayload?.items || []).flatMap(item => [item.latest_report, ...(item.latest_reports || [])])
-                .forEach(report => { if (report?.filename) historyReports.set(report.filename, report); });
-        }
+        function mergeTrackingReports(trackingPayload) { (trackingPayload?.items || []).flatMap(item => [item.latest_report, ...(item.latest_reports || [])]).forEach(report => { if (report?.filename) historyReports.set(report.filename, report); }); }
+        function historyScopeKey(values) { return JSON.stringify([String(values?.query || '').trim(), String(values?.pipelineFilter || 'all').trim() || 'all', String(values?.recommendationFilter || 'all').trim() || 'all', String(values?.dataTrustFilter || 'all').trim() || 'all', values?.includeVersions === true]); }
+        function hideTrackingSnapshot() { trackingSnapshotRequestVersion += 1; if (elements.decisionTrackingStockSnapshotPanel) elements.decisionTrackingStockSnapshotPanel.hidden = true; if (!previewReport) elements.historyWorkspace?.classList.remove('has-preview'); }
         async function loadHistory() {
             const requestVersion = ++loadVersion;
             try {
                 const values = historyFilters.values();
+                const scopeKey = historyScopeKey(values); if (scopeKey !== lastHistoryScopeKey) { lastHistoryScopeKey = scopeKey; historyPage = 1; hideReportPreview(); }
                 qualityAudit.load(values);
                 const trackingPayload = await decisionTrackingPanel.load();
                 const { query, pipelineFilter, recommendationFilter, dataTrustFilter, includeVersions } = values;
@@ -62,9 +62,7 @@
                 historyReports = new Map(reports.map(report => [report.filename, report]));
                 mergeTrackingReports(trackingPayload);
                 historyPanel.renderReports(reports, previewReport && previewReport.filename);
-                if (!reports.length || (previewReport && !historyReports.has(previewReport.filename))) {
-                    hideReportPreview();
-                }
+                if (!reports.length || (previewReport && !historyReports.has(previewReport.filename))) hideReportPreview();
                 historyPage = historyPanel.renderPagination(pagination);
             } catch (err) {
                 console.error('Failed to load history', err);
@@ -87,13 +85,14 @@
             previewReport = null;
             reportPreviewPanel.hide();
             historyPanel.clearSelection();
+            hideTrackingSnapshot();
             if (previewCompactMode) setTrackingCompact(false);
         }
-        async function openTrackingSnapshot(ticker) { if (!ticker) return; hideReportPreview(); elements.historyWorkspace?.classList.add('has-preview'); await trackingSnapshotPanel.load(ticker); elements.decisionTrackingStockSnapshotPanel?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+        async function openTrackingSnapshot(ticker) { if (!ticker) return; hideReportPreview(); const requestVersion = trackingSnapshotRequestVersion; elements.historyWorkspace?.classList.add('has-preview'); await trackingSnapshotPanel.load(ticker); if (requestVersion !== trackingSnapshotRequestVersion) { hideTrackingSnapshot(); return; } elements.decisionTrackingStockSnapshotPanel?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
         function showReportPreview(filename) {
             const report = historyReports.get(filename);
             if (!report) return;
-            if (elements.decisionTrackingStockSnapshotPanel) elements.decisionTrackingStockSnapshotPanel.hidden = true;
+            hideTrackingSnapshot();
             previewReport = report;
             setTrackingCompact(true, true);
             if (reportPreviewPanel.show(report)) historyPanel.select(filename);
@@ -123,7 +122,6 @@
                     openReport(previewReport.filename, previewReport.ticker, previewReport.pipeline_id || 'v1');
                 });
             }
-
             [
                 [elements.previewRefreshDataBtn, actions.refreshPreviewDataSnapshot],
                 [elements.previewRerunFinalBtn, () => actions.rerunPreviewReport('final_recommendation')],

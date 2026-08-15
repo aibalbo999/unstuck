@@ -193,6 +193,189 @@ def test_history_workspace_ignores_stale_report_list_response():
     assert payload["renderedQuery"] == "new"
 
 
+def test_history_workspace_clears_transient_preview_and_snapshot_on_scope_change():
+    module_path = STATIC_DIR / "history_workspace.js"
+    script = """
+(async () => {
+  const classes = new Set();
+  const workspaceEl = { classList: {
+    add: value => classes.add(value),
+    remove: value => classes.delete(value),
+    toggle: (value, enabled) => enabled ? classes.add(value) : classes.delete(value),
+    contains: value => classes.has(value)
+  }};
+  const snapshotRoot = { hidden: false };
+  const historyFilters = {
+    state: { query: 'old', pipelineFilter: 'all', recommendationFilter: 'all', dataTrustFilter: 'all', includeVersions: false },
+    values() { return this.state; },
+    bind: () => {}
+  };
+  global.window = {
+    StockAgentHistoricalQualityAudit: { create: () => ({ load: () => {}, bindEvents: () => {}, resetReviewStatus: () => {} }) },
+    StockAgentHistoryWorkspacePanels: {
+      create: () => ({
+        historyFilters,
+        historyPanel: {
+          renderReports: () => {}, renderPagination: () => 1, setTrackingCompact: () => {},
+          bindEvents: () => {}, clearSelection: () => {}
+        },
+        reportPreviewPanel: { hide: () => {}, show: () => false },
+        reportComparePanel: { bindEvents: () => {} },
+        trackingSnapshotPanel: { bindEvents: () => {}, load: async () => {} },
+        decisionTrackingPanel: { load: async () => ({ items: [] }) }
+      })
+    },
+    StockAgentHistoryWorkspaceActions: { create: () => ({}) }
+  };
+  const workspace = require(__MODULE_PATH__);
+  const instance = window.StockAgentHistoryWorkspace.create({
+    apiClient: { fetchReports: async () => ({ reports: [{ filename: 'current.html' }], pagination: { page: 1, total_pages: 1, total: 1, has_prev: false, has_next: false } }) },
+    ui: {},
+    elements: {
+      historyWorkspace: workspaceEl,
+      historyIncludeVersions: { checked: false },
+      decisionTrackingStockSnapshotPanel: snapshotRoot
+    },
+    openReport: () => {}
+  });
+  await instance.loadHistory();
+  workspaceEl.classList.add('has-preview');
+  snapshotRoot.hidden = false;
+  historyFilters.state = { ...historyFilters.state, query: 'new' };
+  await instance.loadHistory();
+  process.stdout.write(JSON.stringify({ hidden: snapshotRoot.hidden, hasPreview: workspaceEl.classList.contains('has-preview') }));
+})();
+""".replace("__MODULE_PATH__", json.dumps(str(module_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert payload == {"hidden": True, "hasPreview": False}
+
+
+def test_history_workspace_ignores_snapshot_response_after_scope_change():
+    module_path = STATIC_DIR / "history_workspace.js"
+    script = """
+(async () => {
+  const classes = new Set();
+  const workspaceEl = { classList: {
+    add: value => classes.add(value),
+    remove: value => classes.delete(value),
+    toggle: (value, enabled) => enabled ? classes.add(value) : classes.delete(value),
+    contains: value => classes.has(value)
+  }};
+  const snapshotRoot = { hidden: true, scrollIntoView: () => {} };
+  const historyFilters = {
+    state: { query: '', pipelineFilter: 'all', recommendationFilter: 'all', dataTrustFilter: 'all', includeVersions: false },
+    values() { return this.state; },
+    bind: () => {}
+  };
+  let resolveSnapshot;
+  global.window = {
+    StockAgentHistoricalQualityAudit: { create: () => ({ load: () => {}, bindEvents: () => {}, resetReviewStatus: () => {} }) },
+    StockAgentHistoryWorkspacePanels: {
+      create: () => ({
+        historyFilters,
+        historyPanel: {
+          renderReports: () => {}, renderPagination: () => 1, setTrackingCompact: () => {},
+          bindEvents: handlers => { global.openSnapshot = handlers.onOpenSnapshot; },
+          clearSelection: () => {}
+        },
+        reportPreviewPanel: { hide: () => {}, show: () => false },
+        reportComparePanel: { bindEvents: () => {} },
+        trackingSnapshotPanel: {
+          bindEvents: () => {},
+          load: async () => { await new Promise(resolve => { resolveSnapshot = resolve; }); snapshotRoot.hidden = false; }
+        },
+        decisionTrackingPanel: { load: async () => ({ items: [] }) }
+      })
+    },
+    StockAgentHistoryWorkspaceActions: { create: () => ({}) }
+  };
+  const workspace = require(__MODULE_PATH__);
+  const instance = window.StockAgentHistoryWorkspace.create({
+    apiClient: { fetchReports: async () => ({ reports: [{ filename: 'current.html' }], pagination: { page: 1, total_pages: 1, total: 1, has_prev: false, has_next: false } }) },
+    ui: {},
+    elements: { historyWorkspace: workspaceEl, historyIncludeVersions: { checked: false }, decisionTrackingStockSnapshotPanel: snapshotRoot },
+    openReport: () => {}
+  });
+  instance.bindEvents();
+  const pending = global.openSnapshot('2330.TW');
+  await Promise.resolve();
+  historyFilters.state = { ...historyFilters.state, query: 'new' };
+  await instance.loadHistory();
+  resolveSnapshot();
+  await pending;
+  process.stdout.write(JSON.stringify({ hidden: snapshotRoot.hidden, hasPreview: workspaceEl.classList.contains('has-preview') }));
+})();
+""".replace("__MODULE_PATH__", json.dumps(str(module_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert payload == {"hidden": True, "hasPreview": False}
+
+
+def test_history_workspace_keeps_report_preview_when_snapshot_response_is_stale():
+    module_path = STATIC_DIR / "history_workspace.js"
+    script = """
+(async () => {
+  const classes = new Set();
+  const workspaceEl = { classList: {
+    add: value => classes.add(value),
+    remove: value => classes.delete(value),
+    toggle: (value, enabled) => enabled ? classes.add(value) : classes.delete(value),
+    contains: value => classes.has(value)
+  }};
+  const snapshotRoot = { hidden: true, scrollIntoView: () => {} };
+  const historyFilters = {
+    state: { query: '', pipelineFilter: 'all', recommendationFilter: 'all', dataTrustFilter: 'all', includeVersions: false },
+    values() { return this.state; },
+    bind: () => {}
+  };
+  let resolveSnapshot;
+  global.window = {
+    StockAgentHistoricalQualityAudit: { create: () => ({ load: () => {}, bindEvents: () => {}, resetReviewStatus: () => {} }) },
+    StockAgentHistoryWorkspacePanels: {
+      create: () => ({
+        historyFilters,
+        historyPanel: {
+          renderReports: () => {}, renderPagination: () => 1, setTrackingCompact: () => {},
+          bindEvents: handlers => { global.openSnapshot = handlers.onOpenSnapshot; global.selectReport = handlers.onSelect; },
+          clearSelection: () => {}, select: () => {}
+        },
+        reportPreviewPanel: { hide: () => {}, show: () => { workspaceEl.classList.add('has-preview'); return true; } },
+        reportComparePanel: { bindEvents: () => {} },
+        trackingSnapshotPanel: {
+          bindEvents: () => {},
+          load: async () => { await new Promise(resolve => { resolveSnapshot = resolve; }); snapshotRoot.hidden = false; }
+        },
+        decisionTrackingPanel: { load: async () => ({ items: [] }) }
+      })
+    },
+    StockAgentHistoryWorkspaceActions: { create: () => ({}) }
+  };
+  const workspace = require(__MODULE_PATH__);
+  const instance = window.StockAgentHistoryWorkspace.create({
+    apiClient: { fetchReports: async () => ({ reports: [{ filename: 'current.html', ticker: '2330.TW' }], pagination: { page: 1, total_pages: 1, total: 1, has_prev: false, has_next: false } }) },
+    ui: {},
+    elements: { historyWorkspace: workspaceEl, historyIncludeVersions: { checked: false }, decisionTrackingStockSnapshotPanel: snapshotRoot },
+    openReport: () => {}
+  });
+  await instance.loadHistory();
+  instance.bindEvents();
+  const pending = global.openSnapshot('2330.TW');
+  await Promise.resolve();
+  global.selectReport('current.html');
+  resolveSnapshot();
+  await pending;
+  process.stdout.write(JSON.stringify({ hidden: snapshotRoot.hidden, hasPreview: workspaceEl.classList.contains('has-preview'), preview: Boolean(instance.getPreviewReport()) }));
+})();
+""".replace("__MODULE_PATH__", json.dumps(str(module_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert payload == {"hidden": True, "hasPreview": True, "preview": True}
+
+
 def test_history_filters_persist_and_restore_entire_scope_with_navigation_override():
     module_path = STATIC_DIR / "history_filters.js"
     script = """
@@ -313,6 +496,6 @@ def test_historical_audit_navigation_wiring_uses_cache_busters_and_existing_scop
     assert "/static/watchlist_panel_helpers.js?v=20260816-scoped-quality-review-navigation" in index_html
     assert "/static/watchlist_panel.js?v=20260816-scoped-quality-review-navigation" in index_html
     assert "/static/history_filters.js?v=20260816-history-scope-persistence" in index_html
-    assert "/static/history_workspace.js?v=20260816-scoped-quality-review-navigation" in index_html
+    assert "/static/history_workspace.js?v=20260816-scope-transient-state-guard" in index_html
     assert "/static/app.js?v=20260816-scoped-quality-review-navigation" in index_html
     assert "/static/styles/watchlist.css?v=20260816-scoped-quality-review-navigation" in style_css

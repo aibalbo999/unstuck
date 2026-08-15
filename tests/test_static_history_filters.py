@@ -7208,6 +7208,9 @@ def test_decision_tracking_controls_and_target_statuses_are_wired():
     assert "data-tracking-snapshot" in history_panel_renderers_js
     assert "onOpenSnapshot" in history_panel_js
     assert "trackingSnapshotPanel" in history_workspace_js
+    assert "historyScopeKey" in history_workspace_js
+    assert "trackingSnapshotRequestVersion" in history_workspace_js
+    assert "hideTrackingSnapshot" in history_workspace_js
     assert "StockAgentHistoryWorkspaceActions" in history_workspace_js
     assert "StockAgentStockSnapshotPanel.create" in history_workspace_panels_js
     assert "tracking-report-card" in history_panel_renderers_js
@@ -7217,7 +7220,7 @@ def test_decision_tracking_controls_and_target_statuses_are_wired():
     assert "/static/history_workspace_actions.js" in index_html
     assert index_html.index("/static/history_workspace_panels.js") < index_html.index("/static/history_workspace_actions.js")
     assert index_html.index("/static/history_workspace_actions.js") < index_html.index("/static/history_workspace.js")
-    assert "/static/history_workspace.js?v=20260816-scoped-quality-review-navigation" in index_html
+    assert "/static/history_workspace.js?v=20260816-scope-transient-state-guard" in index_html
     assert "mergeTrackingReports" in history_workspace_js
     assert "trackingPayload" in history_workspace_js
     assert "item.latest_reports" in history_workspace_js

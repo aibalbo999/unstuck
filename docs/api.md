@@ -57,6 +57,8 @@ The history quality filter state stores only the normalized `reviewStatus` and `
 
 The surrounding history workspace applies the same tab-scoped persistence to its visible scope: search query, pipeline, recommendation, data-trust, and `include_versions`. A daily scoped navigation uses `history_filters.setValues()` to overwrite that scope with its filename/pipeline and `include_versions=true`; it does not leave the previous search or pipeline in the background request.
 
+The restored history scope does not persist page number, report preview, or decision-tracking stock snapshot content. The workspace resets those transient states to page 1 and hides the preview/snapshot when the scope changes; an in-flight snapshot response is ignored if it belongs to an older scope. This keeps session persistence limited to filters and prevents stale report content from being presented beside a new list.
+
 The response keeps `quality_review_by_status` keys even when a selected status has count `0`; clients should keep the current status and an `all` navigation entry visible so an empty filtered result remains recoverable.
 
 The history UI derives its visible review progress from this map: `approved_with_gap + rejected + deferred` is the decided count, and the sum of all four statuses is the missing-quality denominator for the current response scope. Complete reports are never included in that progress denominator.

@@ -207,6 +207,8 @@ daily quality target 的人工核對導引只傳 filename/pipeline scope 到 his
 
 `history_filters` 將 normalized search query、pipeline、recommendation、data-trust 與 `includeVersions` 保存在目前 tab 的 `sessionStorage`；`history_quality_audit` 另保存 normalized `reviewStatus` 與 `missingField`。兩者都不保存報告內容，history workspace 的 daily scoped navigation 以 `setValues()` 覆蓋主 scope、以 `resetReviewStatus()` 清除 quality scope，因此導航範圍優先於舊的整體 filter state。
 
+History workspace 會以主 scope 的 normalized fingerprint 管理瞬時 UI：scope 改變時頁碼回到 1、report preview 與 decision-tracking stock snapshot 一起隱藏並移除 `has-preview`。snapshot load 以 request version 防止舊 scope 的晚到 response 重新顯示內容；這不把報告內容放進 session，也不改 snapshot module 的 API、artifact/index、review ledger、rerun 或 daily queue 責任。
+
 在 review note 通過空值檢查後，前端還會要求操作員確認要把決策寫入目前 revision；取消時不呼叫 mutation endpoint。這是防止誤觸的 UX gate，不是授權邊界；server 仍以 mutation token、current revision、decision 與 note 驗證作為唯一寫入依據。
 
 Review item 會把 current `report_quality_revision` 以短版文字呈現，完整值保留在 title/aria context；這補足人工核對時的版本辨識，但不讓 client-rendered revision 成為信任來源。server 仍重新計算並驗證 revision fingerprint。

@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3582 / transient history state guard
+
+- `#系統圖像` / `#差距分析`：session 恢復的是查詢 scope，不是報告內容；頁碼、preview 與追蹤 snapshot 若沒有明確生命週期，篩選切換後可能把上一個 ticker 留在新列表旁。
+- `#限制條件` / `#偏誤降低`：把頁碼、preview、snapshot 視為 transient state；scope fingerprint 改變時清除它們，並以 snapshot request version 擋住晚到的舊 response，不擴大 session storage。
+- `#責任` / `#制定策略`：`history_workspace` 統一負責 scope 變更的 UI reset；snapshot module 仍只負責載入與 render，backend/API、artifact/index、review ledger、rerun 與 daily queue 不變。
+- `#可驗證性` / `#來源品質`：以 scope change RED→GREEN、in-flight snapshot response regression、cache-buster、Node syntax、跨層測試與後續 live read-only checks 驗證；不執行 review mutation。
+
 ## D3581 / whole history scope persistence
 
 - `#系統圖像` / `#差距分析`：quality filter 已能恢復，但主搜尋與 pipeline 仍回到預設；history list、audit summary 與 API request 可能不是同一個 scope。
