@@ -88,6 +88,9 @@ async def refresh_report_data_snapshot(
         "snapshot_refreshed_at": refresh_generated_at,
         "deterministic_fallbacks": previous_snapshot.get("deterministic_fallbacks", []),
         "report_lint": previous_snapshot.get("report_lint", {}),
+        "evidence_exit_gate": previous_snapshot.get("evidence_exit_gate", {}),
+        "content_credibility": previous_snapshot.get("content_credibility", {}),
+        "report_conformance": previous_snapshot.get("report_conformance", {}),
         "refreshed_from_report": filename,
         "refresh_stale_sources": stale_sources,
     }

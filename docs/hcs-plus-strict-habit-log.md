@@ -2,6 +2,15 @@
 
 更新時間：2026-08-16
 
+## D3527 / 資料刷新不得抹除報告品質證據
+
+- `#拆解問題` / `#差距分析`：live HTML 已有 Evidence gate 與 Report conformance 顯示，刷新後 data snapshot 卻只剩 report lint；缺口位於 refresh persistence boundary，不是 renderer 沒有計算 gate。
+- `#來源品質` / `#責任`：HTML、Markdown 與 data snapshot 的寫入時間線確認是 15:32/15:47 產生報告，15:48 refresh 重建 snapshot；修正放在 canonical `build_data_snapshot()` 與 `refresh_report_data_snapshot()`，不在 audit 層補假資料。
+- `#偏誤降低` / `#語意含義`：refresh 只更新資料可信度與 freshness/rerun，不應把原報告品質 gate 變成空物件；若需要重新分析，仍由 `decision_freshness` / repair queue 呈現，不把舊 gate 當成新分析。
+- `#可驗證性`：先新增 refresh metadata regression 取得 RED，再補 `evidence_exit_gate` schema 欄位與三 gate context preservation；GREEN 為 refresh `1`、data-trust `182`、renderer/quality `45`、preview/API `164`、artifact/storage/import `551` passed，並重啟 live runtime。
+
+本批暫定決策：修復未來 refresh 的 metadata preservation，不自動重跑或回寫目前兩份已遺失原始 gate 的歷史 snapshot；歷史修復仍需人工核准。
+
 ## D3526 / 品質 coverage 分母明確化
 
 - `#語意含義` / `#偏誤降低`：live audit 的 `quality_metadata_coverage_basis=verified_snapshot_reports` 不應在 UI 被簡化成無分母的「覆蓋 98.75%」；改顯示「已驗證快照覆蓋 98.75%」，避免 snapshot 被排除時誤判全索引品質。

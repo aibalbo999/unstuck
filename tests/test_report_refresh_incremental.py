@@ -537,6 +537,10 @@ def test_report_refresh_accepts_mapping_safe_refreshed_data_payload(tmp_path):
             {"source": "recent_catalysts", "provider": "news", "status": "success", "record_count": 1, "fetched_at": fresh_time},
         ],
         "data_trust": {"status": "fresh", "critical_failures": [], "stale_sources": []},
+        "report_lint": {"status": "warning", "blocking_issues": [], "warnings": [{"id": "lint_warning"}]},
+        "evidence_exit_gate": {"verdict": "approved", "failed_count": 0},
+        "content_credibility": {"status": "passed", "warnings": []},
+        "report_conformance": {"status": "passed", "blocking_issues": []},
     }
     storage.save_report(
         keys.data_key,
@@ -588,3 +592,7 @@ def test_report_refresh_accepts_mapping_safe_refreshed_data_payload(tmp_path):
     assert result["refreshed_data"]["current_price"] == 101
     assert saved_snapshot["data"]["current_price"] == 101
     assert saved_snapshot["data_trust"]["status"] == "fresh"
+    assert saved_snapshot["report_lint"] == previous_snapshot["report_lint"]
+    assert saved_snapshot["evidence_exit_gate"] == previous_snapshot["evidence_exit_gate"]
+    assert saved_snapshot["content_credibility"] == previous_snapshot["content_credibility"]
+    assert saved_snapshot["report_conformance"] == previous_snapshot["report_conformance"]

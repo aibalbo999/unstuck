@@ -143,6 +143,7 @@ def build_data_snapshot(
         "data_source_notes": sanitize_for_snapshot(dict.get(data, "data_source_notes", [])),
         "deterministic_fallbacks": sanitize_for_snapshot(dict.get(context, "deterministic_fallbacks", [])),
         "report_lint": sanitize_for_snapshot(dict.get(context, "report_lint", {})),
+        "evidence_exit_gate": sanitize_for_snapshot(dict.get(context, "evidence_exit_gate", {})),
         "content_credibility": sanitize_for_snapshot(dict.get(context, "content_credibility", {})),
         "report_conformance": sanitize_for_snapshot(dict.get(context, "report_conformance", {})),
         "rerun_context": sanitize_rerun_context(context),
