@@ -8303,6 +8303,28 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 - D3376-D3387 adjacent regression：`60 passed, 3740 deselected in 423.61s`。
 - completion gate：import boundary `503 passed in 11.00s`；HCS/文件契約 `135 passed in 3.50s`；`py_compile` exit 0；`git diff --check` exit 0；trailing-whitespace 無命中；runtime doctor exit 0，canonical operational DB 為 `backend/cache/operational.sqlite3`、report index 為 `backend/cache/stock_agent_cache.sqlite3`，Redis 為 `redis://localhost:6379/0`；parser/detector 行數維持 `349/189`。
 
+### 完成後維護 / D3509 / #拆解問題 #問對問題 #差距分析 #變數分析 #偏誤降低 #決策樹 #目的 #效用 #證據基礎 #來源品質 #可驗證性
+
+本次使用：live `bcad...` 的事件與 stage summary 顯示 Agent 2 對 `gemma-4-31b-it` 有 17 次 call、16 次 quota error、15 次 retry，完成 primary key sweep 後 fallback；Agent 3 卻再次產生 24 次 primary call、24 次 quota error。這證明 D3505 的 circuit policy 在單一 legacy context 內有效，但沒有跨 LangGraph node checkpoint 傳遞。
+
+核心判斷
+
+1. model circuit 是同一份 job 的跨 Agent 運行狀態，不能只放在每次 node 重建的暫存 context。
+2. graph state 必須保存可序列化的 model id、failure count、opened-until 與最後錯誤摘要，讓下一個 Agent 讀到同一 circuit。
+3. 只同步同一 job 的 graph state，不把 circuit 擴散到其他 job，也不改第一輪完整 key sweep 或 fallback policy。
+
+落地修改
+
+1. `backend/workflow_state.py` 新增 checkpoint-safe `llm_model_circuits` state，使用既有 `merge_dicts` reducer。
+2. `backend/workflow_context.py` 在 graph/context round-trip 轉換 `MODEL_CIRCUITS_KEY`，保留舊 checkpoint 缺欄位時的空集合預設。
+3. `backend/workflow_services.py` 初始化 circuit state，並讓每個 Agent node delta 回寫最新 circuit；新增單次 round-trip 與兩個連續 Agent 的 regression。
+
+驗證方式
+
+- D3509 adapter/cross-agent regression：`13 passed`。
+- RED 先重現：未接 graph state 時 round-trip test 取得 `KeyError: _llm_model_circuits`；接入後 GREEN。
+- live 原始證據保留於 `bcad...` job event：Agent 2 與 Agent 3 的 primary quota call 次數顯示跨 node state 遺失；本次修正尚未宣稱已由新 Worker runtime 載入。
+
 ### 完成後維護 / D3507 / #拆解問題 #問對問題 #差距分析 #偏誤降低 #決策樹 #目的 #效用 #描述統計 #證據基礎 #來源品質 #可驗證性
 
 本次使用：live `/api/observability/dashboard` 回傳 `active_count=33`、`running=2`、`queued=31`，但 `stuck_jobs` 前 20 筆全是長時間 queued backlog；以 canonical `operational.sqlite3` 重算後，真正未更新超過 15 分鐘的 running job 只有 1 筆。這是卡住警示的分類邊界錯誤，不是 queue backlog 本身的品質失敗。

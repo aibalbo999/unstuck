@@ -137,6 +137,7 @@ def initialize_graph_state(data: dict[str, Any], *, pipeline_id: str) -> AgentGr
     )
     graph_state["analyses"] = {}
     graph_state["structured_outputs"] = {}
+    graph_state["llm_model_circuits"] = {}
     graph_state["blocking_issues"] = []
     graph_state["repair_attempt_counts"] = {}
     graph_state["agent_quality_retry_counts"] = {}
@@ -205,6 +206,7 @@ async def run_agent_node_adapter(agent_num: int, state: AgentGraphState, service
     )
     if isinstance(token_usage, dict):
         delta["llm_token_usage"] = {str(completed_agent_num): copy_json(token_usage)}
+    delta["llm_model_circuits"] = copy_json(context.get("_llm_model_circuits") or {})
     if report is not None:
         delta["agent_reports"] = {str(completed_agent_num): report.model_dump(mode="json")}
         if report.risk_flags:

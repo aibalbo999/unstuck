@@ -1,6 +1,7 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-15
+- D3509：live `bcad...` 報告事件顯示 Agent 2 在 `gemma-4-31b-it` 完成 16 key quota sweep 並 fallback 後，Agent 3 又重新呼叫同一 primary model；根因是 D3505 的 model circuit 只存在 legacy context，LangGraph 每個 node 重建 context 時遺失。將 `llm_model_circuits` 納入 checkpoint-safe graph state、context round-trip 與每個 Agent delta，跨 Agent 共享同一 job 的熔斷狀態；adapter/cross-agent regression `13 passed`。
 - D3508：新 Worker 啟動後以所有 configured queues 觀察到 `a4d9...`、`c998...` 的 RQ 狀態是 queued/scheduled retry，但 SQLite 仍為 `running`；新增跨 queue `rq_job_states()` 與 reconciliation 校正，將 active running retry 轉為 `waiting_retry`，保留 RQ retry 與事件軌跡。worker lifecycle `33 passed`、import boundary `503 passed`、HCS/docs `135 passed`，entrypoint 維持 `266` 行。
 - D3507：live `/api/observability/dashboard` 將 31 筆正常 queued backlog 一起列入 `stuck_jobs`，把 queue 等待誤報成執行卡住；同一 canonical DB 重新計算後，真正長時間未更新的 running job 只有 1 筆。stuck query 現在只看 `running` 與 `waiting_retry`，queued 壓力改由 RQ `depth`/`oldest_queued_seconds` 呈現；observability regression `1 passed`、job-store adjacent `10 passed`，未改 active job 或 queue lifecycle。
 - D3506：live Redis/RQ 顯示 `SimpleWorker` 有 current job `report-rerun:365f...` 且 worker 仍存活，但 `StartedJobRegistry` 暫時為空；後續以所有 configured queues 複核，`a4d9...` 與 `c998...` 其實仍在 `analysis.normal` 等待 retry，問題是 SQLite 狀態仍寫成 `running`，不是 RQ claim 遺失。修正 RQ reconciliation：只要 worker live 且有 current job，就保留該 claim，即使 registry 尚未同步；死 worker、deferred/scheduled 與無 current job 仍不算 active。worker reconciliation focused `4 passed`、import boundary `503 passed`；D3508 接續校正 queued retry 狀態。

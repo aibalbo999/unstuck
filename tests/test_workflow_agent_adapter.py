@@ -27,7 +27,11 @@ from validators import (
     validate_prompt_leakage,
 )
 from prompt_loader import load_agent_prompt_config
-from workflow_graph import create_default_workflow_services, legacy_context_from_graph
+from workflow_graph import (
+    create_default_workflow_services,
+    graph_delta_from_legacy_context,
+    legacy_context_from_graph,
+)
 import workflow_services  # noqa: E402
 from workflow_services import initialize_graph_state
 from workflow_state import agent_state_to_graph
@@ -62,6 +66,24 @@ def test_legacy_context_from_graph_rebuilds_runtime_only_objects():
     assert context["structured_outputs"][1] == {"score": 7}
     assert context["agent_state"].ticker == "2330.TW"
     assert "rag_index" not in state
+
+
+def test_model_circuit_state_survives_legacy_context_round_trip():
+    services = create_default_workflow_services(rotator=FakeRotator(), progress_callback=None)
+    state = state_with_analysis("1", "previous")
+    state["llm_model_circuits"] = {
+        "gemma-4-31b-it": {
+            "failures": 16,
+            "opened_until": 4_000_000_000.0,
+            "last_error": "quota exhausted",
+        }
+    }
+
+    context = legacy_context_from_graph(state, services)
+    delta = graph_delta_from_legacy_context(context)
+
+    assert context["_llm_model_circuits"]["gemma-4-31b-it"]["failures"] == 16
+    assert delta["llm_model_circuits"] == state["llm_model_circuits"]
 
 
 def test_initialize_graph_state_sets_versioned_prompt_cache_key():
@@ -138,6 +160,11 @@ def test_agent_node_rebuilds_legacy_context_and_returns_isolated_delta(monkeypat
         context.setdefault("analyses", {})[agent_num] = f"agent-{agent_num}"
         context.setdefault("agent_quality_retry_counts", {})[agent_num] = 1
         context.setdefault("blocking_issues", []).append(f"agent-{agent_num} warning")
+        context.setdefault("_llm_model_circuits", {})["gemma-4-31b-it"] = {
+            "failures": 16,
+            "opened_until": 4_000_000_000.0,
+            "last_error": "quota exhausted",
+        }
         return agent_num, f"agent-{agent_num}"
 
     monkeypatch.setattr("workflow_services.run_agent_with_quality_gates_async", fake_run)
@@ -153,9 +180,37 @@ def test_agent_node_rebuilds_legacy_context_and_returns_isolated_delta(monkeypat
     assert result["analyses"] == {"2": "agent-2"}
     assert result["structured_outputs"] == {"2": {"score": 8}}
     assert result["agent_quality_retry_counts"] == {"2": 1}
+    assert result["llm_model_circuits"]["gemma-4-31b-it"]["failures"] == 16
     assert set(result["agent_reports"]) == {"2"}
     assert result["agent_reports"]["2"]["markdown"] == "agent-2"
     assert result["blocking_issues"] == ["agent-2 warning"]
+
+
+def test_model_circuit_state_is_visible_to_next_agent_node(monkeypatch):
+    seen_open = []
+
+    async def fake_run(agent_num, data, context, rotator, progress_callback=None):
+        circuits = context.setdefault("_llm_model_circuits", {})
+        seen_open.append(bool(circuits.get("gemma-4-31b-it", {}).get("opened_until")))
+        if agent_num == 1:
+            circuits["gemma-4-31b-it"] = {
+                "failures": 16,
+                "opened_until": 4_000_000_000.0,
+                "last_error": "quota exhausted",
+            }
+        context.setdefault("analyses", {})[agent_num] = f"agent-{agent_num}"
+        return agent_num, f"agent-{agent_num}"
+
+    monkeypatch.setattr("workflow_services.run_agent_with_quality_gates_async", fake_run)
+    services = create_default_workflow_services(rotator=FakeRotator(), progress_callback=None)
+    state = state_with_analysis("1", "previous")
+
+    first_delta = asyncio.run(services.run_agent(1, state))
+    next_state = copy.deepcopy(state)
+    next_state.update(first_delta)
+    asyncio.run(services.run_agent(2, next_state))
+
+    assert seen_open == [False, True]
 
 
 def test_analysis_pipeline_runner_invokes_langgraph_and_preserves_result_contract(monkeypatch):

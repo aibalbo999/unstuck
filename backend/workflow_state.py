@@ -75,6 +75,7 @@ class AgentGraphState(TypedDict, total=False):
     context_digests: Annotated[dict[str, str], merge_dicts]
     rag_context: Annotated[dict[str, str], merge_dicts]
     llm_token_usage: Annotated[dict[str, dict[str, int]], merge_dicts]
+    llm_model_circuits: Annotated[dict[str, dict[str, Any]], merge_dicts]
     rag_status: dict[str, Any]
     blocking_issues: Annotated[list[str], append_unique]
     audit_repair_log: Annotated[list[str], append_unique]

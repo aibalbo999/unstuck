@@ -6,6 +6,7 @@ import time
 from typing import Any
 
 from agent_runtime.cancellation import attach_cancel_check
+from agent_runtime.model_policy import MODEL_CIRCUITS_KEY
 from analysis_types import AnalysisContext
 from company_display import company_display_name
 from pipeline_modes import get_pipeline_definition, normalize_pipeline_id
@@ -31,6 +32,7 @@ def legacy_context_from_graph(state: AgentGraphState, services: Any) -> Analysis
         "context_digests": _legacy_agent_mapping(state.get("context_digests") or {}),
         "rag_context": _legacy_agent_mapping(state.get("rag_context") or {}),
         "llm_token_usage": _legacy_agent_mapping(state.get("llm_token_usage") or {}),
+        MODEL_CIRCUITS_KEY: copy_json(state.get("llm_model_circuits") or {}),
         "rag_status": copy_json(state.get("rag_status") or {}),
         "blocking_issues": list(state.get("blocking_issues") or []),
         "audit_repair_log": list(state.get("audit_repair_log") or []),
@@ -75,6 +77,7 @@ def graph_delta_from_legacy_context(context: AnalysisContext) -> dict[str, Any]:
         "context_digests": graph_agent_mapping(context.get("context_digests") or {}),
         "rag_context": graph_agent_mapping(context.get("rag_context") or {}),
         "llm_token_usage": graph_agent_mapping(context.get("llm_token_usage") or {}),
+        "llm_model_circuits": copy_json(context.get(MODEL_CIRCUITS_KEY) or {}),
         "rag_status": copy_json(context.get("rag_status") or {}),
         "blocking_issues": list(context.get("blocking_issues") or []),
         "audit_repair_log": list(context.get("audit_repair_log") or []),
