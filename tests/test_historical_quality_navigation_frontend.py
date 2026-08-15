@@ -193,6 +193,57 @@ def test_history_workspace_ignores_stale_report_list_response():
     assert payload["renderedQuery"] == "new"
 
 
+def test_history_filters_persist_and_restore_entire_scope_with_navigation_override():
+    module_path = STATIC_DIR / "history_filters.js"
+    script = """
+global.window = {};
+const storage = {};
+window.sessionStorage = {
+  getItem: key => Object.prototype.hasOwnProperty.call(storage, key) ? storage[key] : null,
+  setItem: (key, value) => { storage[key] = String(value); },
+  removeItem: key => { delete storage[key]; }
+};
+require(__MODULE_PATH__);
+function makeElement(value = '', checked = false) {
+  return { value, checked, addEventListener: () => {} };
+}
+function makeFilters() {
+  const elements = {
+    searchEl: makeElement(),
+    pipelineEl: makeElement('all'),
+    recommendationEl: makeElement('all'),
+    dataTrustEl: makeElement('all'),
+    includeVersionsEl: makeElement('', false)
+  };
+  return { elements, filters: window.StockAgentHistoryFilters.create(elements) };
+}
+const first = makeFilters();
+first.filters.setValues({ query: '1623.TW', pipelineFilter: 'v2', recommendationFilter: '買入', dataTrustFilter: 'fresh', includeVersions: true });
+const restored = makeFilters();
+const restoredValues = restored.filters.values();
+restored.filters.setValues({ query: '2330.TW', pipelineFilter: 'v3', recommendationFilter: 'all', dataTrustFilter: 'all', includeVersions: true });
+const overridden = makeFilters().filters.values();
+process.stdout.write(JSON.stringify({ restoredValues, overridden }));
+""".replace("__MODULE_PATH__", json.dumps(str(module_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert payload["restoredValues"] == {
+        "query": "1623.TW",
+        "pipelineFilter": "v2",
+        "recommendationFilter": "買入",
+        "dataTrustFilter": "fresh",
+        "includeVersions": True,
+    }
+    assert payload["overridden"] == {
+        "query": "2330.TW",
+        "pipelineFilter": "v3",
+        "recommendationFilter": "all",
+        "dataTrustFilter": "all",
+        "includeVersions": True,
+    }
+
+
 def test_history_workspace_applies_scoped_quality_review_navigation():
     module_path = STATIC_DIR / "history_workspace.js"
     script = """
@@ -261,7 +312,7 @@ def test_historical_audit_navigation_wiring_uses_cache_busters_and_existing_scop
     assert "StockAgentOpenHistoricalQualityAudit" in app_js
     assert "/static/watchlist_panel_helpers.js?v=20260816-scoped-quality-review-navigation" in index_html
     assert "/static/watchlist_panel.js?v=20260816-scoped-quality-review-navigation" in index_html
-    assert "/static/history_filters.js?v=20260816-scoped-quality-review-navigation" in index_html
+    assert "/static/history_filters.js?v=20260816-history-scope-persistence" in index_html
     assert "/static/history_workspace.js?v=20260816-scoped-quality-review-navigation" in index_html
     assert "/static/app.js?v=20260816-scoped-quality-review-navigation" in index_html
     assert "/static/styles/watchlist.css?v=20260816-scoped-quality-review-navigation" in style_css

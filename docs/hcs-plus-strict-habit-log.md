@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3581 / whole history scope persistence
+
+- `#系統圖像` / `#差距分析`：quality filter 已能恢復，但主搜尋與 pipeline 仍回到預設；history list、audit summary 與 API request 可能不是同一個 scope。
+- `#組成` / `#溝通設計`：由 `history_filters` 集中保存搜尋、pipeline、建議、資料狀態與 include-versions，quality filter 維持自己的模組責任；refresh 後兩層一起恢復可見 scope。
+- `#責任` / `#制定策略`：daily scoped navigation 透過既有 `setValues()` 覆蓋主 scope，quality module 的 reset 清除 quality scope；不在 app、watchlist 或 backend 重複保存狀態。
+- `#可驗證性` / `#來源品質`：以整體 scope restore/override RED→GREEN、enum normalization、cache-buster、Node syntax、跨層測試、live asset/API/health/readiness 驗證；本批不執行 review mutation。
+
 ## D3580 / quality filter persistence boundary
 
 - `#差距分析` / `#問對問題`：quality filter 是否要持久化不能只問「能不能留住」；browser refresh 需要恢復同一稽核範圍，daily scoped navigation 則必須清掉舊條件。

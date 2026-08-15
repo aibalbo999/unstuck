@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-16
+- D3581：D3580 只恢復 quality filter，browser refresh 後主搜尋/pipeline 與報告列表又回到預設，造成列表 scope 與 audit scope 不一致。新增 `history_filters` 的 tab-scoped persistence，保存搜尋、pipeline、建議、資料狀態與 `include_versions`；daily scoped navigation 仍用 `setValues()` 覆蓋 filename/pipeline，與 quality reset 一起清除 stale scope。
+- D3581 驗證收斂：先取得整體 scope restore/override RED，再 GREEN `history_filters` persistence test；跨層 suite `970 passed`，Node syntax、`history_filters.js` 36 行 size guard、文件契約與 `git diff --check` 通過。live 新 asset `200` 且含 `stock-agent.history.filters.v1`，combined API 維持 `143` 筆、`0%`，health/readiness `200`，review ledger `0`。下一個待觀察缺口是 session 恢復後 history page、preview 與 decision-tracking snapshot 的視覺狀態是否仍一致。
 - D3580：D3579 的 quality filter 只存在 `history_quality_audit` module memory，browser refresh 後會回到 `all`；新增 tab-scoped `sessionStorage`，只保存白名單 `reviewStatus`/`missingField` enum，重建 module 後恢復同一稽核範圍。既有 `resetReviewStatus()` 同步清除 storage，daily filename/pipeline scoped navigation 仍能避免 stale filter 汙染新範圍；不保存報告內容、不改 API、review ledger、artifact/index、rerun 或 daily queue。
 - D3580 驗證收斂：先取得 reload persistence RED，再 GREEN storage restore/reset test；跨層 suite `969 passed`，Node syntax、行數護欄、文件契約與 `git diff --check` 通過。live 新版 audit asset `200` 且含 `sessionStorage`，combined API 維持 `143` 筆、`0%`，health/readiness `200`，review ledger `0`；未改動 server/API。下一個待觀察缺口是瀏覽器重新整理後主搜尋/pipeline 與 quality filter 的整體 scope 是否需要一致持久化。
 - D3579：D3578 同時允許 `review_status` 與 `missing_field`，但 renderer 優先顯示審核範圍，操作員看不到第二個限制。新增 combined-scope summary，明示「審核範圍」與「缺口範圍」，並讓雙重篩選的空集合文案同時包含兩個條件；backend 維持 AND、GET-only 與既有 coverage/pagination，不改 review ledger、artifact/index、rerun 或 daily queue。
