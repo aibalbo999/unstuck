@@ -8303,6 +8303,31 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 - D3376-D3387 adjacent regression：`60 passed, 3740 deselected in 423.61s`。
 - completion gate：import boundary `503 passed in 11.00s`；HCS/文件契約 `135 passed in 3.50s`；`py_compile` exit 0；`git diff --check` exit 0；trailing-whitespace 無命中；runtime doctor exit 0，canonical operational DB 為 `backend/cache/operational.sqlite3`、report index 為 `backend/cache/stock_agent_cache.sqlite3`，Redis 為 `redis://localhost:6379/0`；parser/detector 行數維持 `349/189`。
 
+### 完成後維護 / D3515 / #拆解問題 #問對問題 #差距分析 #變數分析 #偏誤降低 #決策樹 #目的 #效用 #證據基礎 #來源品質 #可驗證性
+
+本次使用：live canonical `analysis_events` 顯示三個 Gemini route 持續產生 429 quota error；錯誤內容是專案/模型目前 quota，沒有可辨識的 `RequestsPerDay` 明細，因此既有 key+model RPD disable 只標記少量 key，無法阻止跨 job 重複輪詢 16 個 key。Redis/RQ 是目前正式 runtime 的共享邊界。
+
+核心判斷
+
+1. generic project/model quota 不應被誤當成單一 API key RPD；但同一模型的所有 key 都失敗時，繼續輪換只會增加 provider 壓力與報告延遲。
+2. circuit 必須只對受影響模型生效，不能把 429 或 5xx 轉成所有模型停用；5xx 維持既有 retry 與 job-local circuit。
+3. 跨 job 狀態必須放在 Redis TTL，KeyRotator 送出 provider request 前先檢查，Redis key 只保存模型 hash 與 TTL，不保存 secret 或原始模型名。
+
+落地修改
+
+1. `backend/shared_runtime_guards.py` 與 local fallback 新增 model circuit wait/open/check；`backend/llm_rate_limits.py` 新增 `ModelCircuitOpenError` 與 shared model circuit API。
+2. `backend/agent_runtime/model_policy.py` 只有 `AgentRateLimitError.all_keys_exhausted` 才發布跨 job circuit；`retry_policy.py` 將 open circuit 轉為 fast-fail quota error，保留既有 fallback。
+3. 新增 Redis hash/TTL、KeyRotator provider-request boundary、quota-only publication 與 error conversion regression。
+
+驗證方式
+
+- RED：新增 circuit 測試初始因缺少 model circuit API 與錯誤類別而無法收集。
+- GREEN：shared guard、KeyRotator、model policy focused regression `32 passed`。
+- live pre-fix evidence：canonical `analysis_events` 500 筆 recent error 中，gemma 304 筆、gemini preview 154 筆、gemini 3.6 33 筆為 quota；Redis 只有 1 個 `rpd-disabled` key，不能把 generic project quota 當作 RPD。
+- post-fix gate：Worker 重啟後 `/healthz` 與 `/readyz` 通過；synthetic quota exhaustion 走正式 `record_model_failure -> publish_shared_model_circuit -> KeyRotator.get_key` 路徑，第二個 job 收到 `ModelCircuitOpenError` 且 provider request 未建立，其他模型仍可取 key，Redis synthetic key 已清除。
+
+狀態：完成
+
 ### 完成後維護 / D3514 / #拆解問題 #問對問題 #差距分析 #變數分析 #偏誤降低 #決策樹 #目的 #效用 #證據基礎 #來源品質 #可驗證性
 
 本次使用：live `/api/observability/dashboard` 的 `6ccedf...` 顯示 SQLite `waiting_retry` 且超過 900 秒，但同一 task identity `analysis:6ccedf...` 仍在 RQ `watchlist` queue，RQ status 為 `queued`。根因是 dashboard stuck query 只讀 canonical SQLite，沒有使用同一 API request 已取得的 queue state。

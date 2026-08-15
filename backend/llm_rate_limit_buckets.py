@@ -63,4 +63,19 @@ class TokenBucket:
         self.updated_at = max(self.updated_at, time.monotonic() + max(seconds, 0.0))
 
 
-__all__ = ["TokenBucket"]
+def build_key_status(keys: list[str], rpm_buckets: dict) -> dict:
+    now = time.monotonic()
+    status = {}
+    for index, key in enumerate(keys):
+        key_name = f"Key-{index + 1}"
+        status[key_name] = {}
+        for (bucket_key, model), bucket in rpm_buckets.items():
+            if bucket_key == key:
+                status[key_name][model] = {
+                    "rpm_tokens": round(bucket.tokens, 2),
+                    "available_in_seconds": round(max(bucket.updated_at - now, 0.0), 2),
+                }
+    return status
+
+
+__all__ = ["TokenBucket", "build_key_status"]

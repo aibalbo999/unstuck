@@ -18,6 +18,7 @@ class LocalFixedWindowRateLimiter:
         self._windows: dict[tuple[str, str, int], dict[str, float]] = {}
         self._cooldowns: dict[tuple[str, str], float] = {}
         self._rpd_disabled_until: dict[tuple[str, str], float] = {}
+        self._model_circuits: dict[str, float] = {}
 
     def reserve(
         self,
@@ -78,6 +79,34 @@ class LocalFixedWindowRateLimiter:
                 self._rpd_disabled_until.pop(identity, None)
                 return 0.0
             return disabled_until - base_now
+
+    def open_model_circuit(
+        self,
+        model: str,
+        *,
+        cooldown_seconds: float | None = None,
+        opened_until: float | None = None,
+    ) -> float:
+        target = float(opened_until or 0.0)
+        if target <= time.time():
+            target = time.time() + max(float(cooldown_seconds or 900.0), 1.0)
+        identity = guard_hash(model)
+        with self._lock:
+            self._model_circuits[identity] = max(self._model_circuits.get(identity, 0.0), target)
+        return max(target - time.time(), 0.0)
+
+    def model_circuit_wait(self, model: str) -> float:
+        identity = guard_hash(model)
+        now = time.time()
+        with self._lock:
+            opened_until = self._model_circuits.get(identity, 0.0)
+            if opened_until <= now:
+                self._model_circuits.pop(identity, None)
+                return 0.0
+            return opened_until - now
+
+    def is_model_circuit_open(self, model: str) -> bool:
+        return self.model_circuit_wait(model) > 0.0
 
 
 class LocalProviderCircuitStore:

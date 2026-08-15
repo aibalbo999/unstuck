@@ -17,7 +17,7 @@ from llm_client import (
     is_requests_per_day_error,
     retry_delay_seconds,
 )
-from llm_rate_limits import AllKeysRpdDisabledError
+from llm_rate_limits import AllKeysRpdDisabledError, ModelCircuitOpenError
 from runtime_events import emit_context_event, emit_log, make_runtime_event
 
 from .retry_error_classification import (
@@ -188,16 +188,31 @@ def _key_error_metadata(exc: Exception | None) -> dict:
 
 def _raise_agent_call_error(exc: Exception, api_key: Optional[str], model_id: str, rotator: KeyRotator, quota_default: float):
     error_msg = str(exc)
+    if isinstance(exc, ModelCircuitOpenError):
+        key_slot, key_count = _key_slot(api_key, rotator)
+        rate_error = AgentRateLimitError(
+            f"模型 {exc.model} 的 quota circuit 已開啟，暫停送出 provider request",
+            max(float(exc.retry_wait_seconds), 1.0),
+            max(float(exc.retry_wait_seconds), 1.0),
+            key_slot=key_slot,
+            key_count=key_count,
+        )
+        rate_error.all_keys_exhausted = True
+        rate_error.parallel_circuit_open = True
+        raise rate_error from exc
+
     if isinstance(exc, AllKeysRpdDisabledError):
         key_slot, key_count = _key_slot(api_key, rotator)
         retry_wait = max(float(exc.retry_wait_seconds), 1.0)
-        raise AgentRateLimitError(
+        rate_error = AgentRateLimitError(
             f"每日請求額度（RPD）：模型 {exc.model} 的所有 key 暫停至 Pacific Time 下一個午夜",
             retry_wait,
             retry_wait,
             key_slot=key_slot,
             key_count=key_count,
-        ) from exc
+        )
+        rate_error.all_keys_exhausted = True
+        raise rate_error from exc
 
     if is_auth_error(error_msg):
         key_slot, key_count = _key_slot(api_key, rotator)

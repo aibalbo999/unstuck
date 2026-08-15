@@ -136,6 +136,9 @@ def make_model_retry_stop(
 
 
 def shared_model_circuit_open(rotator: Any, model_id: str) -> bool:
+    shared_checker = getattr(rotator, "is_shared_model_circuit_open", None)
+    if callable(shared_checker) and shared_checker(model_id):
+        return True
     checker = getattr(rotator, "is_model_circuit_open", None)
     return bool(checker(model_id)) if callable(checker) else False
 
@@ -144,11 +147,20 @@ def model_circuit_open_for_job(context: dict, rotator: Any, model_id: str) -> bo
     return is_model_circuit_open(context, model_id) or shared_model_circuit_open(rotator, model_id)
 
 
-def publish_shared_model_circuit(rotator: Any, model_id: str, circuit_state: dict) -> None:
+def publish_shared_model_circuit(
+    rotator: Any,
+    model_id: str,
+    circuit_state: dict,
+    *,
+    quota_exhausted: bool = False,
+) -> None:
     opener = getattr(rotator, "open_model_circuit", None)
     opened_until = float(circuit_state.get("opened_until") or 0.0)
     if callable(opener) and opened_until > 0.0:
         opener(model_id, opened_until=opened_until)
+    shared_opener = getattr(rotator, "open_shared_model_circuit", None)
+    if quota_exhausted and callable(shared_opener) and opened_until > 0.0:
+        shared_opener(model_id, opened_until=opened_until)
 
 
 def make_model_retry_stop_for_rotator(policy: ModelAttemptPolicy, rotator: Any, model_id: str):

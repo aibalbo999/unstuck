@@ -7,7 +7,7 @@ import time
 from datetime import datetime
 from typing import Any
 
-from config import REDIS_URL, TASK_QUEUE_BACKEND
+from config import LLM_MODEL_CIRCUIT_COOLDOWN_SECONDS, REDIS_URL, TASK_QUEUE_BACKEND
 from shared_runtime_guard_utils import guard_hash, seconds_until_next_pacific_midnight
 from shared_runtime_local_guards import LocalFixedWindowRateLimiter, LocalProviderCircuitStore
 
@@ -148,8 +148,52 @@ class RedisFixedWindowRateLimiter:
             self._client = None
             return self._fallback.rpd_disabled_wait(api_key, model, now=now)
 
+    def open_model_circuit(
+        self,
+        model: str,
+        *,
+        cooldown_seconds: float | None = None,
+        opened_until: float | None = None,
+    ) -> float:
+        now = time.time()
+        target = float(opened_until or 0.0)
+        if target <= now:
+            target = now + max(
+                float(cooldown_seconds if cooldown_seconds is not None else LLM_MODEL_CIRCUIT_COOLDOWN_SECONDS or 1),
+                1.0,
+            )
+        wait_seconds = max(target - now, 0.0)
+        if self._client is None:
+            return self._fallback.open_model_circuit(model, opened_until=target)
+        try:
+            key = self._model_circuit_key(model)
+            ttl_ms = max(int(wait_seconds * 1000), 1)
+            existing_ttl_ms = int(self._client.pttl(key) or -1)
+            if existing_ttl_ms < ttl_ms:
+                self._client.set(key, "1", px=ttl_ms)
+            return max(wait_seconds, float(existing_ttl_ms) / 1000.0 if existing_ttl_ms > ttl_ms else 0.0)
+        except Exception:
+            self._client = None
+            return self._fallback.open_model_circuit(model, opened_until=target)
+
+    def model_circuit_wait(self, model: str) -> float:
+        if self._client is None:
+            return self._fallback.model_circuit_wait(model)
+        try:
+            ttl_ms = int(self._client.pttl(self._model_circuit_key(model)) or -1)
+            return max(float(ttl_ms) / 1000.0, 0.0) if ttl_ms > 0 else 0.0
+        except Exception:
+            self._client = None
+            return self._fallback.model_circuit_wait(model)
+
+    def is_model_circuit_open(self, model: str) -> bool:
+        return self.model_circuit_wait(model) > 0.0
+
     def _rpd_key(self, api_key: str, model: str) -> str:
         return f"{self._namespace}:llm:{guard_hash(model)}:{guard_hash(api_key)}:rpd-disabled"
+
+    def _model_circuit_key(self, model: str) -> str:
+        return f"{self._namespace}:llm:model-circuit:{guard_hash(model)}"
 
 
 class RedisProviderCircuitStore:

@@ -137,7 +137,7 @@ def run_single_agent(
         except AgentRetryableError as exc:
             last_error = str(exc)
             circuit_state = record_model_failure(context, model_id, exc)
-            publish_shared_model_circuit(rotator, model_id, circuit_state)
+            publish_shared_model_circuit(rotator, model_id, circuit_state, quota_exhausted=bool(getattr(exc, "all_keys_exhausted", False)))
             message = f"{model_id} 多次重試後仍失敗：{last_error[:120]}"
             emit_log(f"    ❌ {message}")
             emit_sync_model_event(
@@ -250,7 +250,7 @@ async def run_single_agent_async(
         except AgentRetryableError as exc:
             last_error = str(exc)
             circuit_state = record_model_failure(context, model_id, exc)
-            publish_shared_model_circuit(rotator, model_id, circuit_state)
+            publish_shared_model_circuit(rotator, model_id, circuit_state, quota_exhausted=bool(getattr(exc, "all_keys_exhausted", False)))
             message = f"{model_id} 多次重試後仍失敗：{last_error[:120]}"
             emit_log(f"    ❌ {message}")
             await emit_async_model_event(

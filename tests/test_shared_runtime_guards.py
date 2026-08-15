@@ -1,4 +1,5 @@
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -78,6 +79,30 @@ def test_redis_rpd_disable_preserves_local_fallback_when_redis_fails():
     assert limiter.rpd_disabled_wait("key-one", "gemini-test", now=now) == 2 * 60 * 60
 
 
+def test_redis_model_circuit_is_model_scoped_and_secret_safe():
+    class FakeRedis:
+        def __init__(self):
+            self.ttls = {}
+
+        def set(self, key, value, px=None):
+            self.ttls[key] = px
+
+        def pttl(self, key):
+            return self.ttls.get(key, -2)
+
+    redis_client = FakeRedis()
+    limiter = RedisFixedWindowRateLimiter(redis_client, namespace="test")
+    opened_until = time.time() + 120
+
+    limiter.open_model_circuit("gemini-test", opened_until=opened_until)
+
+    key = next(iter(redis_client.ttls))
+    assert "gemini-test" not in key
+    assert redis_client.ttls[key] > 0
+    assert limiter.is_model_circuit_open("gemini-test") is True
+    assert limiter.is_model_circuit_open("gemini-other") is False
+
+
 def test_local_rpd_disable_is_key_and_model_scoped():
     limiter = RedisFixedWindowRateLimiter(None, namespace="test")
     now = datetime(2026, 7, 13, 23, 0, tzinfo=ZoneInfo("America/Los_Angeles"))
@@ -137,6 +162,39 @@ def test_key_rotator_skips_rpd_disabled_key_for_that_model(monkeypatch):
 
     assert rotator.get_key("gemini-test") == "key-two"
     assert rotator.get_key("gemini-other") == "key-one"
+
+
+def test_key_rotator_fast_fails_when_shared_model_circuit_is_open(monkeypatch):
+    class FakeLimiter:
+        enabled = True
+
+        def __init__(self):
+            self.open_models = set()
+            self.reserve_calls = 0
+
+        def open_model_circuit(self, model, **_kwargs):
+            self.open_models.add(model)
+
+        def model_circuit_wait(self, model):
+            return 60 if model in self.open_models else 0
+
+        def is_model_circuit_open(self, model):
+            return self.model_circuit_wait(model) > 0
+
+        def reserve(self, *_args, **_kwargs):
+            self.reserve_calls += 1
+            return 0
+
+    limiter = FakeLimiter()
+    monkeypatch.setattr(llm_rate_limits, "create_shared_llm_limiter", lambda: limiter)
+    first_job = llm_rate_limits.KeyRotator(["key-one"])
+    second_job = llm_rate_limits.KeyRotator(["key-one"])
+
+    first_job.open_shared_model_circuit("gemini-test", cooldown_seconds=60)
+
+    with pytest.raises(llm_rate_limits.ModelCircuitOpenError):
+        second_job.get_key("gemini-test")
+    assert limiter.reserve_calls == 0
 
 
 def test_key_rotator_raises_when_all_keys_rpd_disabled(monkeypatch):

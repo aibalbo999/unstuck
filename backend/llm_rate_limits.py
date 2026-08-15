@@ -7,8 +7,8 @@ import threading
 import time
 
 from config import API_KEY_SETUP_MESSAGE, RPM_LIMITS, TPM_LIMITS
-from llm_rate_limit_buckets import TokenBucket
-from llm_model_circuits import ModelCircuitStore
+from llm_rate_limit_buckets import TokenBucket, build_key_status
+from llm_model_circuits import ModelCircuitOpenError, ModelCircuitStore, is_shared_model_circuit_open, open_shared_model_circuit, shared_model_circuit_wait
 from llm_provider_routes import provider_for_model
 from runtime_events import emit_log
 from shared_runtime_guards import LocalFixedWindowRateLimiter, create_shared_llm_limiter
@@ -95,6 +95,9 @@ class KeyRotator:
         return float(limiter.rpd_disabled_wait(key, model) or 0.0)
 
     def _available_candidate_key_positions(self, model: str) -> tuple[str, list[str], list[tuple[int, str]]]:
+        shared_circuit_wait = shared_model_circuit_wait(self._shared_limiter, model)
+        if shared_circuit_wait > 0:
+            raise ModelCircuitOpenError(model, shared_circuit_wait)
         provider, keys, candidates = self._candidate_key_positions(model)
         available = []
         disabled_waits = []
@@ -203,9 +206,21 @@ class KeyRotator:
         """Publish a model circuit to other agents sharing this job rotator."""
         self._model_circuits.open(model, cooldown_seconds=cooldown_seconds, opened_until=opened_until)
 
+    def open_shared_model_circuit(
+        self,
+        model: str,
+        *,
+        cooldown_seconds: float | None = None,
+        opened_until: float | None = None,
+    ) -> None:
+        open_shared_model_circuit(self._shared_limiter, model, cooldown_seconds=cooldown_seconds, opened_until=opened_until)
+
     def is_model_circuit_open(self, model: str) -> bool:
         """Return whether a peer has opened this model circuit in this job."""
         return self._model_circuits.is_open(model)
+
+    def is_shared_model_circuit_open(self, model: str) -> bool:
+        return is_shared_model_circuit_open(self._shared_limiter, model)
 
     def disable_rpd_until_reset(self, key: str, model: str) -> float:
         """Disable a key/model pair until the next Pacific Time daily reset."""
@@ -215,20 +230,7 @@ class KeyRotator:
         return float(limiter.disable_rpd_until_reset(key, model) or 0.0)
 
     def get_status(self) -> dict:
-        now = time.monotonic()
-        status = {}
-        for i, key in enumerate(self.keys):
-            key_name = f"Key-{i+1}"
-            status[key_name] = {}
-            for (bucket_key, model), bucket in self._rpm_buckets.items():
-                if bucket_key != key:
-                    continue
-                available_in = max(bucket.updated_at - now, 0.0)
-                status[key_name][model] = {
-                    "rpm_tokens": round(bucket.tokens, 2),
-                    "available_in_seconds": round(available_in, 2),
-                }
-        return status
+        return build_key_status(self.keys, self._rpm_buckets)
 
 
 def estimate_text_tokens(text: str, response_budget: int = 0) -> int:

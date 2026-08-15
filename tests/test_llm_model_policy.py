@@ -11,6 +11,7 @@ from agent_runtime.model_policy import (  # noqa: E402
     is_model_circuit_open,
     make_model_retry_stop,
     model_attempt_policy,
+    publish_shared_model_circuit,
     record_model_failure,
     should_stop_retry,
     timeout_for_model_call,
@@ -24,7 +25,7 @@ from agent_runtime.retry_policy import (  # noqa: E402
     _agent_error_category,
     _raise_agent_call_error,
 )
-from llm_rate_limits import AllKeysRpdDisabledError  # noqa: E402
+from llm_rate_limits import AllKeysRpdDisabledError, ModelCircuitOpenError  # noqa: E402
 from settings.models import is_large_context_model  # noqa: E402
 
 
@@ -97,6 +98,52 @@ def test_parallel_peer_circuit_stops_current_quota_retry_immediately():
     assert stop(_retry_state(1, error)) is True
     assert error.all_keys_exhausted is True
     assert error.parallel_circuit_open is True
+
+
+def test_shared_model_circuit_publishes_only_after_quota_exhaustion():
+    class FakeRotator:
+        def __init__(self):
+            self.local = []
+            self.shared = []
+
+        def open_model_circuit(self, model, *, opened_until):
+            self.local.append((model, opened_until))
+
+        def open_shared_model_circuit(self, model, *, opened_until):
+            self.shared.append((model, opened_until))
+
+    quota_rotator = FakeRotator()
+    publish_shared_model_circuit(
+        quota_rotator,
+        "gemma-4-31b-it",
+        {"opened_until": time.time() + 60},
+        quota_exhausted=True,
+    )
+    assert quota_rotator.shared
+
+    server_rotator = FakeRotator()
+    publish_shared_model_circuit(server_rotator, "gemini-3.6-flash", {"opened_until": time.time() + 60})
+    assert server_rotator.shared == []
+
+
+def test_model_circuit_open_error_becomes_fast_fail_rate_limit():
+    class FakeRotator:
+        keys = ["key-a", "key-b"]
+
+    try:
+        _raise_agent_call_error(
+            ModelCircuitOpenError("gemma-4-31b-it", 1800),
+            None,
+            "gemma-4-31b-it",
+            FakeRotator(),
+            1,
+        )
+    except AgentRateLimitError as exc:
+        assert exc.all_keys_exhausted is True
+        assert exc.parallel_circuit_open is True
+        assert exc.retry_wait_seconds == 1800
+    else:
+        raise AssertionError("open model circuit should become AgentRateLimitError")
 
 
 def test_quota_attempt_ceiling_marks_circuit_when_key_slots_repeat():
