@@ -73,8 +73,15 @@
             const title = item.title || '品質缺口';
             const detail = item.detail || title;
             const reasonCodes = Array.isArray(item.reason_codes) ? item.reason_codes.join(',') : '';
+            const missingFields = Array.isArray(item.missing_quality_fields) ? item.missing_quality_fields : [];
+            const missingFieldText = missingFields.map(field => fieldLabels.find(([key]) => key === field)?.[1] || field).filter(Boolean).join('、');
+            const provenance = item.quality_metadata_provenance === 'after_refresh' || reasonCodes.includes('quality_metadata_after_refresh')
+                ? '刷新後'
+                : item.quality_metadata_provenance === 'no_refresh_provenance' ? '未標記刷新來源' : '';
+            const targetContext = [missingFieldText ? `缺少${missingFieldText}` : '', provenance ? `來源：${provenance}` : ''].filter(Boolean).join('；');
+            const targetDetail = targetContext ? `${title}；品質缺口：${targetContext}` : title;
             const targetLabel = reportDate ? `${ticker} ${pipeline} · ${reportDate}` : `${ticker} ${pipeline}`;
-            return `<button class="history-quality-audit-target" type="button" data-quality-audit-report="${e(item.filename)}" data-quality-audit-ticker="${e(ticker)}" data-quality-audit-pipeline="${e(pipeline)}" data-quality-reason-codes="${e(reasonCodes)}" title="${e(detail)}" aria-label="${e(`人工核對 ${targetLabel}：${title}`)}">查看 ${e(targetLabel)}</button>`;
+            return `<button class="history-quality-audit-target" type="button" data-quality-audit-report="${e(item.filename)}" data-quality-audit-ticker="${e(ticker)}" data-quality-audit-pipeline="${e(pipeline)}" data-quality-reason-codes="${e(reasonCodes)}" title="${e(`${detail}${targetContext ? `；${targetContext}` : ''}`)}" aria-label="${e(`人工核對 ${targetLabel}：${targetDetail}`)}"><span>查看 ${e(targetLabel)}</span>${targetContext ? `<small>${e(targetContext)}</small>` : ''}</button>`;
         }).join('');
         return `<div class="history-quality-audit" role="status"><div class="history-quality-audit-header"><strong>歷史版本品質稽核</strong><span>範圍：${Math.floor(audited)} 份</span></div><div class="history-quality-audit-summary">${auditDetails}</div>${pipelineActions ? `<div class="history-quality-audit-filter-actions" aria-label="按模式查看品質缺口">${pipelineActions}</div>` : ''}${pageControls ? `<div class="history-quality-audit-pagination" aria-label="品質缺口分頁">${pageControls}</div>` : ''}${targets ? `<div class="history-quality-audit-actions">${targets}</div>` : ''}</div>`;
     }

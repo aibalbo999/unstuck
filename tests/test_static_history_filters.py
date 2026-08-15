@@ -5921,7 +5921,7 @@ def test_candidate_next_actions_assets_use_shared_cache_buster():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
 
-    assert "/static/style.css?v=20260815-quality-audit-traceability" in index_html
+    assert "/static/style.css?v=20260816-historical-quality-target-context" in index_html
     assert "/static/watchlist_panel_helpers.js?v=20260816-historical-quality-navigation" in index_html
     assert "/static/watchlist_panel.js?v=20260816-historical-quality-navigation" in index_html
     assert "/static/maintenance_panel_helpers.js?v=20260816-queue-failure-age-classification" in index_html
@@ -7693,7 +7693,7 @@ def test_decision_tracking_dense_layout_uses_workspace_efficiently():
     history_panel_renderers_js = (STATIC_DIR / "history_panel_renderers.js").read_text(encoding="utf-8")
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
 
-    assert "style.css?v=20260815-quality-audit-traceability" in index_html
+    assert "style.css?v=20260816-historical-quality-target-context" in index_html
     assert "/static/provider_sla_panel.js?v=20260708-provider-waterfall-health" in index_html
     assert "/static/ops_workspace.js?v=20260708-provider-group-health" in index_html
     assert "/static/history_panel.js?v=20260708-tracking-action-notes" in index_html
@@ -7712,8 +7712,8 @@ def test_decision_tracking_dense_layout_uses_workspace_efficiently():
     assert "history_list.css?v=20260628-glass-dark" in style_css
     assert "history_list_controls.css?v=20260816-historical-quality-audit" in style_css
     assert style_css.index("history_list.css?v=20260628-glass-dark") < style_css.index("history_list_controls.css?v=20260816-historical-quality-audit")
-    assert style_css.index("history_list_controls.css?v=20260816-historical-quality-audit") < style_css.index("history_quality_audit.css?v=20260816-historical-quality-pagination")
-    assert style_css.index("history_quality_audit.css?v=20260816-historical-quality-pagination") < style_css.index("decision_tracking.css?v=20260708-tracking-action-notes")
+    assert style_css.index("history_list_controls.css?v=20260816-historical-quality-audit") < style_css.index("history_quality_audit.css?v=20260816-historical-quality-target-context")
+    assert style_css.index("history_quality_audit.css?v=20260816-historical-quality-target-context") < style_css.index("decision_tracking.css?v=20260708-tracking-action-notes")
     assert "decision_tracking.css?v=20260708-tracking-action-notes" in style_css
     assert "history_shell.css?v=20260707-operator-human-factors" in style_css
     assert "history_shell_tabs.css?v=20260711-home-workspaces" in style_css
@@ -7745,7 +7745,7 @@ def test_home_commercial_tab_is_a_restart_safe_product_launchpad():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     entry_css = (STATIC_DIR / "commercial" / "styles" / "home_entry.css").read_text(encoding="utf-8")
 
-    assert "style.css?v=20260815-quality-audit-traceability" in index_html
+    assert "style.css?v=20260816-historical-quality-target-context" in index_html
     assert "/static/commercial/styles/home_entry.css?v=20260711-simple" in index_html
     assert 'id="home-panel-commercial"' in index_html
     assert 'class="commercial-entry-launchpad"' in index_html

@@ -2,6 +2,14 @@
 
 更新時間：2026-08-16
 
+## D3552 / 歷史品質 target 的可見缺口 context
+
+- `#受眾` / `#溝通設計`：live historical audit 的 143 筆 target 已能分批讀取，但每個按鈕原本只寫 ticker/mode；missing gate 與刷新 provenance 只在 tooltip，鍵盤或手機人工核對仍不夠可辨識。
+- `#偏誤降低` / `#責任`：renderer 將 `missing_quality_fields` 映射成「報告一致性／證據關卡／內容可信度」，並將 `quality_metadata_provenance` 顯示為「刷新後」或「未標記刷新來源」；完整 context 同步進入 `title` 與 `aria-label`，不改 audit 統計、分頁、報告開啟 callback 或 read-only 邊界。
+- `#可驗證性`：先新增 target fixture 取得 RED，再完成 renderer/CSS 與 cache-buster；前端 target summary test GREEN，renderer 90 行仍低於 100 行責任護欄。
+
+本批暫定決策：降低逐筆人工核對的辨識成本，不把可見 context 解讀成 gate 已通過，不自動修復或擴大 historical audit scope。
+
 ## D3551 / 歷史品質缺口批次核對
 
 - `#差距分析` / `#受眾`：live historical audit 有 `143` 筆缺口，但回應與畫面原本只列前 `5` 筆；即使選定 pipeline，人工仍無法沿既有頁面走完其餘 target。

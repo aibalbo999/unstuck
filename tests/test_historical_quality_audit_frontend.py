@@ -47,7 +47,9 @@ const audit = {
       report_date: '2026-08-15 15:47',
       title: '刷新後品質證據缺口',
       detail: '資料快照曾在報告後刷新，採用前需人工查看。',
-      reason_codes: ['quality_metadata_missing', 'quality_metadata_after_refresh']
+      reason_codes: ['quality_metadata_missing', 'quality_metadata_after_refresh'],
+      missing_quality_fields: ['report_conformance', 'evidence_exit_gate', 'content_credibility'],
+      quality_metadata_provenance: 'after_refresh'
     },
     {
       ticker: '3017.TW',
@@ -55,7 +57,9 @@ const audit = {
       pipeline_id: 'v1',
       title: '刷新後品質證據缺口',
       detail: '資料快照曾在報告後刷新，採用前需人工查看。',
-      reason_codes: ['quality_metadata_missing', 'quality_metadata_after_refresh']
+      reason_codes: ['quality_metadata_missing', 'quality_metadata_after_refresh'],
+      missing_quality_fields: ['report_conformance'],
+      quality_metadata_provenance: 'after_refresh'
     }
   ]
 };
@@ -79,6 +83,9 @@ process.stdout.write(JSON.stringify({ html }));
     assert 'data-quality-audit-report="1623_TW_v2.html"' in payload["html"]
     assert 'data-quality-reason-codes="quality_metadata_missing,quality_metadata_after_refresh"' in payload["html"]
     assert "查看 1623.TW v2 · 2026-08-15 15:47" in payload["html"]
+    assert "缺少報告一致性、證據關卡、內容可信度" in payload["html"]
+    assert "來源：刷新後" in payload["html"]
+    assert "品質缺口：缺少報告一致性、證據關卡、內容可信度；來源：刷新後" in payload["html"]
 
 
 def test_history_quality_audit_module_filters_requests_and_reuses_open_report_callback():
@@ -293,7 +300,7 @@ def test_history_workspace_wires_historical_quality_audit_without_daily_queue_si
 
     assert 'id="history-quality-audit"' in index_html
     assert "/static/history_panel_quality_helpers.js?v=20260816-historical-quality-basis" in index_html
-    assert "/static/history_quality_audit_render.js?v=20260816-historical-quality-pagination" in index_html
+    assert "/static/history_quality_audit_render.js?v=20260816-historical-quality-target-context" in index_html
     assert "/static/history_quality_audit.js?v=20260816-historical-quality-pagination" in index_html
     assert index_html.index("/static/history_quality_audit_render.js") < index_html.index("/static/history_quality_audit.js")
     assert len((STATIC_DIR / "history_panel_quality_helpers.js").read_text(encoding="utf-8").splitlines()) < 120
