@@ -2370,6 +2370,61 @@ def test_ops_dashboard_treats_enrichment_provider_critical_as_warning(monkeypatc
     assert payload["providers"]["alerts"][0]["impact"] == "enrichment"
 
 
+def test_ops_dashboard_preserves_core_alert_and_exposes_healthy_source_fallback(monkeypatch):
+    monkeypatch.setattr(
+        api_observability_service,
+        "build_ops_dashboard_snapshot",
+        lambda **_kwargs: {
+            "jobs": {"active_count": 0},
+            "job_latency": {},
+            "stuck_jobs": {"count": 0, "jobs": []},
+            "node_telemetry": {},
+        },
+    )
+    monkeypatch.setattr(
+        api_observability_service,
+        "snapshot_task_queue",
+        lambda _task_queue: {"backend": "rq", "available": True, "depth": 0, "registries": {"failed": 0}},
+    )
+
+    async def fake_provider_payload(*_args, **_kwargs):
+        return {
+            "selected_window": "last_24h",
+            "providers": [
+                {"source": "market_data", "provider": "yfinance", "last_status": "success", "total_records": 12},
+                {"source": "market_data", "provider": "FMP stable quote", "last_status": "unavailable", "total_records": 0},
+            ],
+            "alerts": [
+                {
+                    "source": "market_data",
+                    "provider": "FMP stable quote",
+                    "alert_level": "critical",
+                    "alert_message": "FMP stable quote last_24h資料取得率偏低",
+                }
+            ],
+        }
+
+    async def fake_api_quota_payload(_summary_fetcher):
+        return {"services": []}
+
+    monkeypatch.setattr(api_observability_service, "build_provider_sla_payload", fake_provider_payload)
+    monkeypatch.setattr(api_observability_service, "build_api_quota_payload", fake_api_quota_payload)
+
+    payload = asyncio.run(
+        api_observability_service.build_ops_dashboard_payload(
+            lambda _limit: [],
+            lambda _limit: [],
+            task_queue=object(),
+        )
+    )
+
+    assert payload["status"] == "critical"
+    assert payload["providers"]["core_critical_count"] == 1
+    assert payload["providers"]["enrichment_critical_count"] == 0
+    assert payload["providers"]["alerts"][0]["impact"] == "core"
+    assert payload["providers"]["alerts"][0]["current_source_has_healthy_entry"] is True
+
+
 def test_ops_dashboard_payload_exposes_model_route_budget(monkeypatch):
     monkeypatch.setattr(
         api_observability_service,
@@ -4133,6 +4188,39 @@ def test_provider_sla_dashboard_alert_payload_ignores_mapping_get_failures():
     assert payload["provider"] == "yfinance"
     assert payload["alert_level"] == "critical"
     assert payload["windows"]["last_24h"]["attempts"] == 4
+
+
+def test_provider_sla_dashboard_alert_exposes_healthy_source_fallback():
+    payload = provider_sla_observability.dashboard_provider_alert_payload(
+        {
+            "source": "market_data",
+            "provider": "FMP stable quote",
+            "alert_level": "critical",
+            "alert_message": "FMP stable quote unavailable",
+            "success_rate": 0.0,
+            "last_status": "unavailable",
+            "alert_basis": "last_24h",
+            "selected_window": "last_24h",
+        },
+        core_sources={"market_data"},
+        current_source_health={"market_data": True},
+    )
+
+    assert payload["impact"] == "core"
+    assert payload["current_source_has_healthy_entry"] is True
+
+
+def test_provider_sla_source_health_requires_usable_records():
+    assert provider_sla_observability.source_health_from_provider_rows(
+        [
+            {"source": "market_data", "last_status": "unavailable", "total_records": 0},
+            {"source": "market_data", "last_status": "success", "total_records": 12},
+            {"source": "recent_catalysts", "last_status": "degraded_enrichment", "total_records": 0},
+        ]
+    ) == {
+        "market_data": True,
+        "recent_catalysts": True,
+    }
 
 
 def test_ops_dashboard_legacy_alias(monkeypatch):

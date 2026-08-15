@@ -11963,3 +11963,9 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 
 - 抽樣 live failed registry 的 10 筆 job，確認皆為 6 月 28 日 `test_rq_sys_config.run_job` timeout/abandoned；以 RQ `failure_ttl=7 天` 作為過期比較組。
 - RED 先鎖定 job `ended_at`/`created_at` 的 recent/stale 分類、stale-only 不觸發 ops warning、三組 Prometheus metrics 與前端「過期失敗殘留」文案；GREEN 後保留總量證據但降低過期殘留對事故警示的干擾。
+
+### 完成後維護 / D3533 / #拆解問題 #差距分析 #偏誤降低 #證據基礎 #受眾 #語意含義 #可驗證性
+
+- `market_data` 的 FMP stable quote 雖是非主要 fallback，健康的 yfinance 不能抹掉 FMP provider 在 system window 的實際失敗；既有 D3516「不降級 system-level critical」決策繼續有效。
+- dashboard 改以同一選定視窗的 provider rows 判定 usable evidence：有健康資料時只新增 `current_source_has_healthy_entry=true`，不改 `impact=core`、`status=critical` 或核心告警計數；這避免「備援覆蓋」與「provider 恢復」兩個語意混在一起。
+- focused runtime observability regression 通過 8 tests；新增文件契約要求保留 system-level critical 與 fallback coverage 欄位，報告動作仍回到 `data_trust`/`今日工作台`。

@@ -2157,6 +2157,12 @@
 - 沿用 RQ `failure_ttl=7 天` 作為門檻；snapshot 讀取 failed registry 的 job IDs，再用 job `ended_at`（缺失時用 `created_at`）分類，保留 `failed` 總數並新增 `failed_recent`、`failed_stale`。只有 recent failed 觸發 ops `warning`，stale 仍顯示為需人工清理的殘留。
 - Prometheus 同步輸出 total/attention/stale 三種 metric，maintenance panel 顯示近期與過期分布；不讀取 job args、不自動修改 Redis。
 
+## D3533：揭露健康備援但保留 provider system-level critical
+
+- live `/api/observability/provider-sla?window=last_24h` 顯示 `market_data / yfinance` 55/55 成功、8634 筆，`FMP stable quote` 7/7 unavailable、0 筆；程式角色也確認 FMP 是 `primary_source_provider=False` 的 quote fallback。
+- 既有 D3516 決策要求保留 provider SLA 的 system-level `critical`，因此不把健康備援偷換成報告已恢復或自動降級；新增 `source_health_from_provider_rows()`，在 dashboard alert 上揭露 `current_source_has_healthy_entry=true`，讓操作人員同時看到事故與目前覆蓋證據。
+- RED→GREEN 鎖定共用 alert payload、source-level usable-record 判定與完整 ops dashboard：healthy fallback 不改變 `core_critical_count`/`status`，但保留可讀的 fallback coverage；無健康證據時維持原本保守核心判定。報告級重跑仍由 `data_trust` 與 `今日工作台` 決定。
+
 綜合視角：
 
 - `#可驗證性`：每個模式的報告模板與決策用途必須有測試與文件可查。

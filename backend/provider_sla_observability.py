@@ -121,9 +121,35 @@ def alerts_from_providers(providers: list[dict]) -> list[dict]:
     return alerts
 
 
-def dashboard_provider_alert_payload(alert: dict, *, core_sources: set[str]) -> dict:
+def source_health_from_provider_rows(providers: Any) -> dict[str, bool]:
+    """Summarize whether each source has usable evidence in the selected window."""
+    health: dict[str, bool] = {}
+    for item in provider_rows_or_empty(providers):
+        source = safe_text(_field(item, "source")).strip()
+        if not source:
+            continue
+        status = safe_text(_field(item, "last_status")).strip()
+        total_records = safe_int(_field(item, "total_records"))
+        healthy = status in {"success", "skipped_fresh_cache"} and total_records > 0
+        healthy = healthy or status == "degraded_enrichment"
+        health[source] = health.get(source, False) or healthy
+    return health
+
+
+def dashboard_provider_alert_payload(
+    alert: dict,
+    *,
+    core_sources: set[str],
+    current_source_health: dict[str, bool] | None = None,
+) -> dict:
     source = safe_text(_field(alert, "source")).strip()
-    return {
+    source_has_healthy_entry = False
+    if current_source_health is not None:
+        try:
+            source_has_healthy_entry = current_source_health.get(source) is True
+        except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
+            source_has_healthy_entry = False
+    payload = {
         "source": source,
         "provider": safe_text(_field(alert, "provider")).strip(),
         "alert_level": safe_text(_field(alert, "alert_level")).strip(),
@@ -135,6 +161,9 @@ def dashboard_provider_alert_payload(alert: dict, *, core_sources: set[str]) -> 
         "windows": normalize_provider_sla_windows(_field(alert, "windows")),
         "impact": "core" if source in core_sources else "enrichment",
     }
+    if source_has_healthy_entry:
+        payload["current_source_has_healthy_entry"] = True
+    return payload
 
 
 def _optional_text(value: Any) -> str | None:

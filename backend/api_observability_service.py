@@ -28,6 +28,7 @@ from provider_sla_observability import (
     dashboard_provider_alert_payload,
     normalize_sla_window,
     provider_rows_or_empty,
+    source_health_from_provider_rows,
 )
 from queue_dashboard_payload import (
     failed_queue_attention_count,
@@ -175,7 +176,11 @@ async def build_ops_dashboard_payload(
     providers = _payload_dict(providers) or {"selected_window": "last_24h", "alerts": []}
     api_quotas = _payload_dict(api_quotas) or {"services": []}
     api_quotas["services"] = provider_rows_or_empty(api_quotas.get("services"))
-    alerts = [_with_provider_alert_impact(alert) for alert in provider_rows_or_empty(providers.get("alerts"))]
+    source_health = source_health_from_provider_rows(providers.get("providers"))
+    alerts = [
+        _with_provider_alert_impact(alert, current_source_health=source_health)
+        for alert in provider_rows_or_empty(providers.get("alerts"))
+    ]
     notification_delivery_summary = notification_delivery_dashboard_summary(notification_delivery)
     status = _dashboard_status(
         jobs=jobs,
@@ -246,8 +251,12 @@ def _dashboard_status(
     return "ok"
 
 
-def _with_provider_alert_impact(alert: dict) -> dict:
-    return dashboard_provider_alert_payload(alert, core_sources=CORE_PROVIDER_ALERT_SOURCES)
+def _with_provider_alert_impact(alert: dict, *, current_source_health: dict[str, bool] | None = None) -> dict:
+    return dashboard_provider_alert_payload(
+        alert,
+        core_sources=CORE_PROVIDER_ALERT_SOURCES,
+        current_source_health=current_source_health,
+    )
 
 def _provider_alert_counts(alerts: list[dict]) -> dict:
     critical = [alert for alert in alerts if alert.get("alert_level") == "critical"]
