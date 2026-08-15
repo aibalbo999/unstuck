@@ -10,6 +10,7 @@ from free_notification_plan import build_daily_notification_plan
 from mapping_fields import safe_dict_list, safe_mapping_dict, safe_text, safe_text_list
 from outcome_calibration import build_outcome_calibration
 from provider_impact import build_provider_impact_ledger
+from report_quality_audit import build_report_quality_audit
 from report_quality_repair_queue import build_report_quality_repair_queue
 
 
@@ -21,6 +22,8 @@ def build_daily_decision_dashboard(
     performance: dict[str, Any],
     free_mode: dict[str, Any],
     ops: dict[str, Any] | None = None,
+    quality_audit: dict[str, Any] | None = None,
+    quality_audit_reports: dict[str, Any] | list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Return the operator's next-best-action dashboard."""
     reports_payload = safe_mapping_dict(reports) or {}
@@ -38,6 +41,14 @@ def build_daily_decision_dashboard(
         "violations": free_mode_violations,
     }
     report_rows = safe_dict_list(reports_payload.get("reports"))
+    if quality_audit is not None:
+        report_quality_audit = safe_mapping_dict(quality_audit) or {}
+    else:
+        audit_scope = "all_indexed_reports" if quality_audit_reports is not None else "daily_report_sample"
+        report_quality_audit = build_report_quality_audit(
+            quality_audit_reports if quality_audit_reports is not None else report_rows,
+            scope=audit_scope,
+        )
     watch_items = safe_dict_list(watchlist_payload.get("items"))
     screener_items = safe_dict_list(screener_payload.get("items"))
     repair_queue = build_report_quality_repair_queue(report_rows, limit=5)
@@ -90,6 +101,7 @@ def build_daily_decision_dashboard(
         "performance": safe_mapping_dict(performance_payload.get("summary")) or {},
         "outcome_calibration": outcome_calibration,
         "provider_impact_ledger": provider_impact_ledger,
+        "report_quality_audit": report_quality_audit,
         "top_candidates": candidates,
         "rerun_reports": rerun_report_items,
         "repair_queue": repair_queue,

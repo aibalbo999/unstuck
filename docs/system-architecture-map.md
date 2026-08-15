@@ -83,6 +83,9 @@ flowchart LR
     WatchlistRoute --> WatchlistSvc["watchlist_service"]
     WatchlistSvc --> WatchlistStore["watchlist_store"]
     WatchlistSvc --> Queue
+    WatchlistRoute --> QualityAudit["report_quality_audit"]
+    QualityAudit --> ReportIndex
+    QualityAudit --> Artifacts
 
     ReportHistory --> ArtifactLocator["report_artifacts.ReportArtifactLocator"]
     ReportHistory --> ReportIndex["report_index"]
@@ -190,6 +193,8 @@ flowchart TD
 - 新持久狀態若屬 operational state，優先放 `TASK_DB_PATH` 管轄的 store Module。
 - Notification delivery 的成功、失敗與重試稽核屬 operational state，走 `notification_delivery_audit`，不要寫進 report index。
 - Provider SLA dashboard payload shaping 與 window/alert projection 放 `provider_sla_observability`，`api_observability_service` 只負責聚合維運 API payload。
+- `/api/watchlist/daily-dashboard` 的近期報告列表仍是 20 份 action scope；`report_quality_audit.v1` 另以 read-only 方式 audit 全部 latest-per-ticker/pipeline index rows，不把完整度觀測轉成每日 action。
+- `report_quality_audit` 使用 `report_index.query_report_metadata(..., row_mapper=...)`、`report_history_storage.load_storage_item()` 與 `verify_data_snapshot_integrity()`；不讀 preview/decision-tracking rendering，不回寫 artifact 或 report index。audit 失敗時由 route 降級為 `unavailable`，不遮蔽每日工作台。
 - 新報告索引欄位才放 `report_index`；不要把任務狀態塞進 report index。
 - 新 report artifact 行為走 `report_artifacts` / storage helper；不要新增另一套 path guessing。
 - 新外部資料來源走 `data_fetch` / provider audit；不要在 UI route 裡直接呼叫 provider。

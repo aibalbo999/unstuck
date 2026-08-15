@@ -197,7 +197,6 @@ def sync_report_metadata(output_dir: Optional[str] = None) -> None:
                 [(out_dir, filename) for filename in stale],
             )
 
-
 def query_report_metadata(
     page: int,
     limit: int,
@@ -208,6 +207,7 @@ def query_report_metadata(
     include_versions: bool = False,
     output_dir: Optional[str] = None,
     sync_metadata: bool = True,
+    row_mapper=None,
 ) -> tuple[list[dict], int]:
     out_dir = output_dir_key(output_dir)
     if sync_metadata: sync_report_metadata(out_dir)
@@ -256,4 +256,4 @@ def query_report_metadata(
             total = conn.execute(f"SELECT COUNT(*) {latest_sql}", params).fetchone()[0]
             rows_sql = f"SELECT * {latest_sql} ORDER BY {order_sql} LIMIT ? OFFSET ?"
         rows = conn.execute(rows_sql, [*params, limit, offset]).fetchall()
-    return [row_to_report(row) for row in rows], int(total)
+    return [(row_mapper(row) if row_mapper else row_to_report(row)) for row in rows], int(total)

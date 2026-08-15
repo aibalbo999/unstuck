@@ -2,6 +2,17 @@
 
 更新時間：2026-08-15
 
+## D3522 / 全量品質覆蓋與每日 action scope 分離
+
+- `#拆解問題` / `#差距分析`：近期 20 份報告是可執行的每日工作範圍，不等於 report index 的全部最新 row；live 全量為 160 份，若只看 sample 會漏掉歷史品質 metadata 缺口。
+- `#變數分析` / `#偏誤降低`：action sample 保持原本 rerun/repair predicate；full audit 是只讀 coverage，逐一從 raw index row 透過 storage helper 載入 snapshot，不把歷史缺口誤升級成今日 action，也不把無法讀取誤報成零缺口。
+- `#來源品質` / `#可驗證性`：audit 以 `report_index.query_report_metadata(..., row_mapper=...)`、`load_storage_item()` 與 `verify_data_snapshot_integrity()` 為證據來源；不讀 preview rendering、不回寫 artifact/index。live 結果為 160/160 verified、158/160 complete、2 份 `1623.TW` v1/v2 missing、coverage `98.75%`。
+- `#受眾` / `#溝通設計`：工作台只增加「全量報告品質：2 份待人工核對（覆蓋 98.75%）」提示；audit unavailable 時顯示「暫時無法讀取」，保留原每日工作台與通知邏輯。
+- `#最佳化` / `#責任`：由 full `list_reports` audit 約 4 秒改成 raw-index/lightweight path；本次 live 重啟測得 `1.86–2.05` 秒。route 只讀且失敗隔離，歷史兩份修復仍由人工決定，不自動重跑。
+- `#可驗證性`：RED→GREEN audit/dashboard `39 passed`、static/HTTP `152 passed`、report-history/index boundary `3 passed`；live `/healthz=ok`、`/readyz=ready`。
+
+本批暫定決策：將「完整度觀測」與「今日可執行工作」拆成不同 scope；先揭露 coverage 與人工核對項目，暫不擴張成全量自動修復。
+
 ## D3521 / 品質 metadata 缺失可見性
 
 - `#拆解問題` / `#差距分析`：全量 history audit 顯示 `1623.TW` v1/v2 的報告產物與 verified snapshot 都存在，但三個 persisted quality gate 是空物件；原 queue 沒有對應的 repair action。

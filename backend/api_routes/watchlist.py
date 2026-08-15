@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -17,8 +18,12 @@ from free_mode_contract import build_free_mode_contract
 from notification_delivery_audit import get_delivery_audit_summary
 from portfolio_risk import analyze_portfolio_csv
 import report_history_service
+from report_quality_audit import build_indexed_report_quality_audit, build_unavailable_report_quality_audit
 from symbol_tools import parse_watchlist_import, suggest_symbols
 import watchlist_service
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 def _screener_status_message(result: dict) -> str:
@@ -43,6 +48,14 @@ def _renderable_screener_result(result: dict) -> dict:
         "scan_success": False,
         "message": str(result.get("message") or _screener_status_message(result)),
     }
+
+
+def _build_quality_audit_or_unavailable(output_dir: str) -> dict:
+    try:
+        return build_indexed_report_quality_audit(output_dir, page_size=100)
+    except Exception:
+        LOGGER.exception("Report quality audit is unavailable; keeping daily dashboard available")
+        return build_unavailable_report_quality_audit()
 
 
 @dataclass(frozen=True)
@@ -124,7 +137,7 @@ def create_watchlist_router(deps: WatchlistRouteDeps) -> APIRouter:
     @router.get("/daily-dashboard")
     async def get_daily_decision_dashboard():
         output_dir = deps.get_output_dir()
-        reports, watchlist, screener, performance, ops, notification_delivery = await asyncio.gather(
+        reports, quality_audit_reports, watchlist, screener, performance, ops, notification_delivery = await asyncio.gather(
             asyncio.to_thread(
                 report_history_service.list_reports,
                 page=1,
@@ -137,6 +150,7 @@ def create_watchlist_router(deps: WatchlistRouteDeps) -> APIRouter:
                 output_dir=output_dir,
                 report_cache={},
             ),
+            asyncio.to_thread(_build_quality_audit_or_unavailable, output_dir),
             asyncio.to_thread(watchlist_service.list_watchlist_with_report_alerts, output_dir, sync_metadata=False),
             asyncio.to_thread(market_screener.list_auto_screener_watchlist, output_dir, limit=20, offset=0, sync_metadata=False),
             asyncio.to_thread(decision_tracking_service.compute_tracking_performance_stats, output_dir),
@@ -151,6 +165,7 @@ def create_watchlist_router(deps: WatchlistRouteDeps) -> APIRouter:
             performance=performance,
             free_mode=build_free_mode_contract(),
             ops=ops,
+            quality_audit=quality_audit_reports,
         )
 
     @router.post("/portfolio/risk")

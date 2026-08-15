@@ -27,16 +27,19 @@
 
     function watchlistDailyBoard(items, daily, escapeHtml) {
         const queue = daily?.decision_queue || {}, queueItems = Array.isArray(queue.items) ? queue.items : [], top = queueItems[0], total = Number(queue.summary?.total_actionable || 0);
+        const audit = daily?.report_quality_audit || {}, missingQuality = Number(audit.quality_metadata_missing_reports || 0), coverage = audit.quality_metadata_coverage_pct;
+        const auditText = audit.status === 'unavailable' ? ' · 全量報告品質：暫時無法讀取' : missingQuality > 0 ? ` · 全量報告品質：${missingQuality} 份待人工核對${coverage == null ? '' : `（覆蓋 ${coverage}%）`}` : '';
         if (top && top.type !== 'monitor' && total > 0) {
             const secondary = Number(queue.secondary_count || 0), source = window.StockAgentDailyQueueContext?.sourceLabel?.(top.source) || top.source || 'queue';
             const attentionContext = window.StockAgentDailyQueueContext?.attentionContextText?.(top);
             const contextText = attentionContext ? ` · ${escapeHtml(attentionContext)}` : '';
-            return `<div class="watchlist-daily-board"><strong>今日工作台</strong><span>需處理 ${escapeHtml(String(total))} 件 · 次要待辦 ${escapeHtml(String(secondary))}</span><em>最高優先：${escapeHtml(top.title || '今日待處理')} · 來源：${escapeHtml(source)} · priority_score ${escapeHtml(String(top.priority_score ?? ''))}${contextText}</em></div>`;
+            return `<div class="watchlist-daily-board"><strong>今日工作台</strong><span>需處理 ${escapeHtml(String(total))} 件 · 次要待辦 ${escapeHtml(String(secondary))}${escapeHtml(auditText)}</span><em>最高優先：${escapeHtml(top.title || '今日待處理')} · 來源：${escapeHtml(source)} · priority_score ${escapeHtml(String(top.priority_score ?? ''))}${contextText}</em></div>`;
         }
         const enabled = items.filter(item => item.enabled !== false);
         const needs = enabled.filter(item => ['high', 'medium'].includes(item.decision_priority));
         const next = needs.slice(0, 3).map(item => item.ticker).join('、') || '無急件';
-        return `<div class="watchlist-daily-board"><strong>今日工作台</strong><span>需處理 ${escapeHtml(String(needs.length))} 檔</span><em>${escapeHtml(next)}</em></div>`;
+        const detail = auditText ? auditText.slice(3) : next;
+        return `<div class="watchlist-daily-board"><strong>今日工作台</strong><span>需處理 ${escapeHtml(String(needs.length))} 檔${escapeHtml(auditText)}</span><em>${escapeHtml(detail)}</em></div>`;
     }
 
     function renderSuggestions(elements, payload, escapeHtml) {

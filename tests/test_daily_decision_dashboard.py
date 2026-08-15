@@ -75,11 +75,56 @@ def test_watchlist_daily_dashboard_route(monkeypatch, tmp_path):
     payload = response.json()
     assert payload["summary"]["reports_needing_rerun"] == 1
     assert payload["summary"]["watchlist_high_priority"] == 1
+    assert payload["report_quality_audit"]["scope"] == "all_indexed_reports"
     assert payload["performance"]["hit_rate_pct"] == 50
     assert any(item["type"] == "model_route_warning" for item in payload["decision_queue"]["items"])
     delivery_item = next(item for item in payload["decision_queue"]["items"] if item["type"] == "fix_notification_delivery")
     assert delivery_item["failed_count"] == 2
     assert delivery_item["suppress_notification"] is True
+
+
+def test_watchlist_daily_dashboard_keeps_action_surface_when_quality_audit_is_unavailable(monkeypatch, tmp_path):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    import api_routes.watchlist as watchlist_routes
+    from api_routes.watchlist import WatchlistRouteDeps, create_watchlist_router
+
+    monkeypatch.setattr(watchlist_routes.report_history_service, "list_reports", lambda **_kwargs: {"reports": []})
+    monkeypatch.setattr(watchlist_routes, "_build_quality_audit_or_unavailable", lambda _output_dir: {
+        "schema_version": "report_quality_audit.v1",
+        "scope": "all_indexed_reports",
+        "audited_reports": 0,
+        "verified_snapshot_reports": 0,
+        "quality_metadata_complete_reports": 0,
+        "quality_metadata_missing_reports": 0,
+        "quality_metadata_coverage_pct": None,
+        "items": [],
+        "status": "unavailable",
+        "error_code": "quality_audit_unavailable",
+    })
+    monkeypatch.setattr(watchlist_routes.watchlist_service, "list_watchlist_with_report_alerts", lambda _output_dir, **_kwargs: {"items": []})
+    monkeypatch.setattr(watchlist_routes.market_screener, "list_auto_screener_watchlist", lambda _output_dir, **_kwargs: {"items": []})
+    monkeypatch.setattr(watchlist_routes.decision_tracking_service, "compute_tracking_performance_stats", lambda _output_dir: {"summary": {}})
+    monkeypatch.setattr(watchlist_routes.job_observability, "build_ops_dashboard_snapshot", lambda **_kwargs: {})
+    monkeypatch.setattr(watchlist_routes, "get_delivery_audit_summary", lambda: {})
+
+    app = FastAPI()
+    app.include_router(create_watchlist_router(WatchlistRouteDeps(
+        get_output_dir=lambda: str(tmp_path),
+        get_task_queue=lambda: None,
+        run_stock_analysis_job=lambda *_args: "task-id",
+        create_job=lambda *_args: "job-id",
+        find_active_job=lambda *_args: {},
+        require_mutation_authorized=lambda _request: None,
+    )))
+
+    response = TestClient(app).get("/api/watchlist/daily-dashboard")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["report_quality_audit"]["status"] == "unavailable"
+    assert payload["decision_queue"]["summary"]["total_actionable"] == 0
 
 
 def test_daily_decision_dashboard_prioritizes_reruns_watchlist_and_free_mode():
@@ -172,6 +217,34 @@ def test_daily_decision_dashboard_keeps_monitor_only_notifications_quiet():
     assert dashboard["actions"][0]["type"] == "monitor"
     assert dashboard["notification_plan"]["status"] == "quiet"
     assert dashboard["notification_plan"]["messages"] == []
+
+
+def test_daily_decision_dashboard_keeps_full_quality_audit_separate_from_sample_actions():
+    dashboard = build_daily_decision_dashboard(
+        reports={"reports": []},
+        quality_audit_reports={
+            "reports": [
+                {
+                    "ticker": "1623.TW",
+                    "filename": "1623_v1.html",
+                    "pipeline_id": "v1",
+                    "snapshot_integrity": {"status": "verified"},
+                    "report_conformance": {},
+                    "evidence_exit_gate": {},
+                    "content_credibility": {},
+                }
+            ]
+        },
+        watchlist={"items": []},
+        screener={"items": []},
+        performance={"summary": {}, "details": []},
+        free_mode={"enabled": True, "can_run_without_paid_keys": True, "violations": []},
+    )
+
+    assert dashboard["summary"]["sampled_reports"] == 0
+    assert dashboard["report_quality_audit"]["scope"] == "all_indexed_reports"
+    assert dashboard["report_quality_audit"]["quality_metadata_missing_reports"] == 1
+    assert dashboard["decision_queue"]["summary"]["total_actionable"] == 0
 
 
 def test_daily_decision_dashboard_returns_full_rerun_report_list():
