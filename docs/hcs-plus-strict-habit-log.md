@@ -8303,6 +8303,34 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 - D3376-D3387 adjacent regression：`60 passed, 3740 deselected in 423.61s`。
 - completion gate：import boundary `503 passed in 11.00s`；HCS/文件契約 `135 passed in 3.50s`；`py_compile` exit 0；`git diff --check` exit 0；trailing-whitespace 無命中；runtime doctor exit 0，canonical operational DB 為 `backend/cache/operational.sqlite3`、report index 為 `backend/cache/stock_agent_cache.sqlite3`，Redis 為 `redis://localhost:6379/0`；parser/detector 行數維持 `349/189`。
 
+### 完成後維護 / D3472 / #拆解問題 #差距分析 #偏誤降低 #比較組 #證據基礎 #可驗證性 #來源品質
+
+本次使用：在 D3471 後重新掃描 `renew + certification/renewal/recertification/attendance/validation` 的排列候選；前四個選定 residual roots 各為完整 `100 leaks / 48 valid-misses`，以 certification renewal recertification validation attendance、course control、financial time-to 與 explicit target price 作為比較組。
+
+核心判斷
+
+1. `time to renew recertification renewal attendance validation certification`、`time to renew recertification renewal validation attendance certification`、`time to renew recertification attendance renewal validation certification` 與 `time to renew recertification attendance validation renewal certification` 都是 recertification renewal attendance validation certification lifecycle KPI；其數值不應進入股票 target-price candidates。
+2. 四個選定 roots 各為完整 `100 leaks / 48 valid-misses`；五入口 final matrix 各為 480 cases、detector 為 400 cases，所有入口與 union 均為 `0 leaks / 0 valid-misses`。
+3. post-fix selected roots 均為 `0/0`；下一輪代表性 residual 為 `planning metric time to renew certification renewal recertification validation attendance forecast 12 個`，只回傳 `[12.0]`，因此不把 financial `time to price` 或明確 `target price` 語意外推。
+
+落地修改
+
+1. 五個報告品質入口新增 renew recertification renewal attendance validation certification lifecycle regression；parser、calibration、credibility、structured output 覆蓋 480 組語料，detector 依既有 path boundary 覆蓋 400 組語料。
+2. `backend/price_parser.py` 共享 time-to branch 加入四個 roots 及 value stripping guard，由五個既有 consumer 共用，維持 parser/detector `349/189` 行及 runtime/storage 邊界。
+
+優化說明
+
+1. 五入口 RED 為 `5 failed, 4220 deselected in 32.25s`；shared guard GREEN 為 `5 passed, 4220 deselected in 22.89s`，沒有新增 consumer-specific cleanup。
+2. D3472 post-fix matrix 為 parser、calibration、credibility、structured output 各 `480 cases / 0 leaks / 0 valid-misses`，detector `400 cases / 0 leaks / 0 valid-misses`；explicit target price `[205.0]`、financial `time to price`、existing `time to complete course`、D3471 guarded root 與 D3470 guarded root controls 均為 `[]`。
+3. D3471-D3472 adjacent regression 通過 `10 passed, 4215 deselected in 44.92s`；下一批 residual 保留為比較組，避免一次擴大 guard 範圍。
+
+驗證方式
+
+- `$(./scripts/project_python.sh) -m pytest tests/test_price_parser.py tests/test_recommendation_calibration.py tests/test_content_credibility_inputs.py tests/test_structured_output_parser.py tests/test_report_target_price_detection.py -q -k 'renew_recertification_renewal_attendance_validation_certification'`：RED `5 failed, 4220 deselected in 32.25s`；GREEN `5 passed, 4220 deselected in 22.89s`。
+- D3472 post-fix matrix：四入口各 `480 cases / leaks=0 / valid_misses=0`；detector `400 cases / leaks=0 / valid_misses=0`；union `leaks=0 / valid_misses=0`。
+- D3471-D3472 adjacent regression：`10 passed, 4215 deselected in 44.92s`。
+- controls：explicit target price `[205.0]`；financial `time to price`、existing `time to complete course`、D3471 guarded root 與 D3470 guarded root 均為 `[]`；next residual `planning metric time to renew certification renewal recertification validation attendance forecast 12 個` 為 `[12.0]`。
+
 ### 完成後維護 / D3471 / #拆解問題 #差距分析 #偏誤降低 #比較組 #證據基礎 #可驗證性 #來源品質
 
 本次使用：在 D3470 後重新掃描 `renew + certification/renewal/recertification/attendance/validation` 的排列候選；前四個選定 residual roots 各為完整 `100 leaks / 48 valid-misses`，以 recertification renewal attendance validation certification、course control、financial time-to 與 explicit target price 作為比較組。
