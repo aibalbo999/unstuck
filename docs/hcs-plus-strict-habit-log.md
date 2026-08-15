@@ -7,6 +7,7 @@
 - `#拆解問題` / `#差距分析` / `#責任`：live RQ `stock-analysis` 有 10 筆 2026-06-28 failed jobs；observability 能分類 stale，但原維護面板沒有可執行入口，且 stale-only chip 的 tone 仍是 `is-ok`。
 - `#倫理判斷` / `#限制條件`：不讓 worker 自動刪除、不自動重試、不把未知時間當 stale；新增 service 只在 `write=true` 且 mutation token 邊界內刪除可由 `ended_at`/`created_at` 證明超過門檻的 RQ job，dry-run 與近期/無法分類的 job 都保留。
 - `#可驗證性` / `#受眾`：unit、API route、frontend wiring 與 OpenAPI 契約共同鎖定 dry-run、delete flag、button/action、stale warning tone；live 執行只做唯讀 dry-run，避免直接清掉現場 queue evidence。
+- 驗證收斂：CLI 與 API `write=false` 皆回報 `failed_jobs_scanned=10`、`stale_failed_jobs=10`、`deleted_jobs=0`、`errors=0`；重啟後 health/readiness 為 `200`，OpenAPI 帶 `MutationToken`，三個新資產為 `200`，review ledger 仍為 `0`。
 
 本批暫定決策：提供可追溯的人工清理入口，但不把歷史 failed registry 的 housekeeping 變成自動副作用；待操作人員明確執行 maintenance action 後，再以 live count 驗證刪除結果。
 
