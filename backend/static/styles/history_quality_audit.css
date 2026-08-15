@@ -12,6 +12,12 @@
 .history-quality-audit-page { min-height: 40px; border: 1px solid rgba(148, 163, 184, 0.38); border-radius: 8px; background: rgba(71, 85, 105, 0.16); color: var(--text-secondary); padding: 7px 10px; font: inherit; font-size: 0.76rem; font-weight: 800; cursor: pointer; }
 .history-quality-audit-page:hover, .history-quality-audit-page:focus-visible { border-color: var(--accent); color: var(--text-primary); outline: none; box-shadow: 0 0 0 3px var(--accent-glow); }
 .history-quality-audit-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.history-quality-audit-target-row { display: grid; gap: 5px; min-width: min(100%, 260px); }
+.history-quality-audit-review { display: grid; gap: 5px; padding-left: 8px; border-left: 2px solid rgba(148, 163, 184, 0.32); color: var(--text-secondary); font-size: 0.72rem; }
+.history-quality-audit-review small { overflow-wrap: anywhere; }
+.history-quality-audit-review-actions { display: flex; flex-wrap: wrap; gap: 5px; }
+.history-quality-audit-review button { min-height: 32px; border: 1px solid rgba(148, 163, 184, 0.34); border-radius: 6px; background: rgba(71, 85, 105, 0.14); color: var(--text-secondary); padding: 5px 8px; font: inherit; font-size: 0.7rem; cursor: pointer; }
+.history-quality-audit-review button:hover, .history-quality-audit-review button:focus-visible { border-color: var(--accent); color: var(--text-primary); outline: none; box-shadow: 0 0 0 3px var(--accent-glow); }
 .history-quality-audit-target { min-height: 44px; display: grid; gap: 2px; text-align: left; border: 1px solid rgba(245, 158, 11, 0.45); border-radius: 8px; background: rgba(180, 83, 9, 0.14); color: #fde68a; padding: 8px 10px; font: inherit; font-size: 0.78rem; font-weight: 800; cursor: pointer; overflow-wrap: anywhere; }
 .history-quality-audit-target small { color: var(--text-secondary); font-size: 0.7rem; font-weight: 600; }
 .history-quality-audit-target:hover, .history-quality-audit-target:focus-visible { border-color: var(--accent); color: var(--text-primary); outline: none; box-shadow: 0 0 0 3px var(--accent-glow); }

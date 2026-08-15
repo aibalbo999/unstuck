@@ -37,6 +37,83 @@ process.stdout.write(JSON.stringify({ board }));
     assert "artifact 欄位可查：報告一致性 2、證據關卡 2、內容可信度 0" in payload["board"]
 
 
+def test_historical_quality_audit_renders_revision_scoped_review_controls():
+    helper_path = STATIC_DIR / "history_panel_quality_helpers.js"
+    renderer_path = STATIC_DIR / "history_quality_audit_render.js"
+    script = """
+global.window = {};
+require(__HELPER_PATH__);
+require(__RENDERER_PATH__);
+const html = window.StockAgentHistoricalQualityAuditRenderer.render({
+  audited_reports: 1,
+  quality_metadata_missing_reports: 1,
+  items: [{
+    ticker: '1623.TW',
+    filename: '1623_v1.html',
+    pipeline_id: 'v1',
+    report_quality_revision: 'rev-current',
+    missing_quality_fields: ['content_credibility'],
+    quality_review: { status: 'pending', decision_label: '待人工核對', event_count: 0 }
+  }]
+}, value => String(value ?? ''));
+process.stdout.write(html);
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path))).replace("__RENDERER_PATH__", json.dumps(str(renderer_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+
+    assert 'data-quality-review-decision="approved_with_gap"' in result.stdout
+    assert 'data-quality-review-decision="rejected"' in result.stdout
+    assert 'data-quality-review-decision="deferred"' in result.stdout
+    assert 'data-quality-review-revision="rev-current"' in result.stdout
+
+
+def test_historical_quality_audit_saves_review_with_visible_revision():
+    module_path = STATIC_DIR / "history_quality_audit.js"
+    script = """
+(async () => {
+  global.window = { prompt: () => '已核對 artifact，保留缺口。', StockAgentHistoricalQualityAuditRenderer: { render: () => '' } };
+  require(__MODULE_PATH__);
+  let clickHandler;
+  let saved;
+  let fetchCount = 0;
+  const element = {
+    hidden: true,
+    innerHTML: '',
+    setAttribute: () => {},
+    removeAttribute: () => {},
+    addEventListener: (type, handler) => { if (type === 'click') clickHandler = handler; }
+  };
+  const audit = window.StockAgentHistoricalQualityAudit.create({
+    apiClient: {
+      fetchHistoricalReportQualityAudit: async () => { fetchCount += 1; return { audited_reports: 1, quality_metadata_missing_reports: 1, items: [] }; },
+      saveHistoricalReportQualityReview: async value => { saved = value; return { success: true }; }
+    },
+    ui: { escapeHtml: value => String(value ?? '') },
+    element
+  });
+  audit.bindEvents();
+  await audit.load({ includeVersions: true, query: '', pipelineFilter: 'all' });
+  clickHandler({ target: { closest: selector => selector === '[data-quality-review-decision]' ? { dataset: {
+    qualityReviewDecision: 'approved_with_gap', qualityReviewFilename: '1623_v1.html', qualityReviewTicker: '1623.TW',
+    qualityReviewPipeline: 'v1', qualityReviewRevision: 'rev-current'
+  } } : null } });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  process.stdout.write(JSON.stringify({ saved, fetchCount }));
+})();
+""".replace("__MODULE_PATH__", json.dumps(str(module_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert payload["saved"] == {
+        "filename": "1623_v1.html",
+        "ticker": "1623.TW",
+        "pipeline_id": "v1",
+        "report_quality_revision": "rev-current",
+        "decision": "approved_with_gap",
+        "note": "已核對 artifact，保留缺口。"
+    }
+    assert payload["fetchCount"] == 2
+
+
 def test_watchlist_board_discloses_truncated_quality_audit_items():
     helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
     script = """

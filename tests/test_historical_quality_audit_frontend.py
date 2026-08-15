@@ -305,9 +305,9 @@ def test_history_workspace_wires_historical_quality_audit_without_daily_queue_si
     workspace = (STATIC_DIR / "history_workspace.js").read_text(encoding="utf-8")
 
     assert 'id="history-quality-audit"' in index_html
-    assert "/static/history_panel_quality_helpers.js?v=20260816-historical-quality-basis" in index_html
-    assert "/static/history_quality_audit_render.js?v=20260816-historical-quality-artifact-field-aggregate" in index_html
-    assert "/static/history_quality_audit.js?v=20260816-historical-quality-pagination" in index_html
+    assert "/static/history_panel_quality_helpers.js?v=20260816-historical-quality-review-ledger" in index_html
+    assert "/static/history_quality_audit_render.js?v=20260816-historical-quality-review-ledger" in index_html
+    assert "/static/history_quality_audit.js?v=20260816-historical-quality-review-ledger" in index_html
     assert index_html.index("/static/history_quality_audit_render.js") < index_html.index("/static/history_quality_audit.js")
     assert len((STATIC_DIR / "history_panel_quality_helpers.js").read_text(encoding="utf-8").splitlines()) < 120
     assert len((STATIC_DIR / "history_quality_audit_render.js").read_text(encoding="utf-8").splitlines()) < 100

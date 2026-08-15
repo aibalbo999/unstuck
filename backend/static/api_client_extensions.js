@@ -22,6 +22,13 @@
         const params = new URLSearchParams({ item_limit: String(itemLimit), item_offset: String(itemOffset), q: query || '', pipeline: pipeline || 'all' });
         return jsonRequest(`/api/watchlist/report-quality-audit/historical?${params.toString()}`);
     }
+    async function saveHistoricalReportQualityReview(review) {
+        return jsonRequest('/api/watchlist/report-quality-audit/review', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(review || {})
+        });
+    }
     async function fetchSymbolSuggestions(q, limit = 10) { const params = new URLSearchParams({ q: q || '', limit: String(limit) }); return jsonRequest(`/api/watchlist/symbols?${params.toString()}`); }
     async function importWatchlistText(text) { return jsonRequest('/api/watchlist/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: text || '' }) }); }
     async function analyzePortfolioRisk(csv, thesisHealth = {}) { return jsonRequest('/api/watchlist/portfolio/risk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ csv, thesis_health: thesisHealth || {} }) }); }
@@ -81,5 +88,5 @@
         });
     }
 
-    Object.assign(window.StockAgentApiClient, { fetchApiQuotas, fetchModelRouteBudget, fetchPerformanceStats, fetchStockSnapshot, compareReports, fetchWatchlist, fetchDailyDecisionDashboard, fetchHistoricalReportQualityAudit, fetchSymbolSuggestions, importWatchlistText, analyzePortfolioRisk, saveWatchlistItem, deleteWatchlistItem, runWatchlist, fetchMarketScreener, runMarketScreener, fetchDecisionTracking, saveDecisionTrackingItem, deleteDecisionTrackingItem, refreshDecisionTracking });
+    Object.assign(window.StockAgentApiClient, { fetchApiQuotas, fetchModelRouteBudget, fetchPerformanceStats, fetchStockSnapshot, compareReports, fetchWatchlist, fetchDailyDecisionDashboard, fetchHistoricalReportQualityAudit, saveHistoricalReportQualityReview, fetchSymbolSuggestions, importWatchlistText, analyzePortfolioRisk, saveWatchlistItem, deleteWatchlistItem, runWatchlist, fetchMarketScreener, runMarketScreener, fetchDecisionTracking, saveDecisionTrackingItem, deleteDecisionTrackingItem, refreshDecisionTracking });
 })();

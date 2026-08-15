@@ -2,6 +2,15 @@
 
 更新時間：2026-08-16
 
+## D3558 / revision-scoped manual quality review
+
+- `#差距分析` / `#證據基礎`：artifact marker 能指出可查文字，但不能回答人工核對是否已完成；若只用 filename，報告刷新後舊結論可能誤套到新 artifact。
+- `#偏誤降低` / `#責任`：新增 `report_quality_revision`，以 indexed row 的 output_dir、filename、pipeline、mtime 與 stored hashes 綁定事件；`approved_with_gap` 明確表示保留品質缺口，不能轉成 gate pass 或 coverage complete。
+- `#倫理判斷` / `#來源品質`：review ledger 只追加決策、note、reviewer label 與 artifact summary snapshot，位於 `operational.sqlite3`；不覆蓋歷史 artifact、不從 Markdown 重建 structured gate。
+- `#可驗證性` / `#受眾`：API 以 mutation token 保護，stale revision 回 `409`，UI 顯示待核對/已核准保留缺口/退回/暫緩並要求理由；回應固定列出三個副作用皆為 false。
+
+本批暫定決策：先建立可回溯的人工決策閉環，不自動把人工決策寫回報告品質欄位；後續若要做 metadata repair，必須另立 evidence patch 規格與二次核准。
+
 ## D3557 / report quality audit read cost
 
 - `#差距分析` / `#最佳化`：live historical audit 首次約 `7.13s`、warm 約 `1.87–2.03s`，daily 約 `2.34s`；相同 read-only request 反覆讀取未變更的 report snapshot 與 Markdown。

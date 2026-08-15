@@ -23,6 +23,10 @@ from report_quality_audit import (
     build_indexed_report_quality_audit,
     build_unavailable_report_quality_audit,
 )
+from report_quality_review_workflow import get_indexed_report_quality_review_target
+from report_quality_review_store import SCHEMA_VERSION as REPORT_QUALITY_REVIEW_SCHEMA_VERSION, record_review
+from report_index_parsing import is_safe_report_filename
+from mapping_fields import safe_mapping_dict, safe_text
 from symbol_tools import parse_watchlist_import, suggest_symbols
 import watchlist_service
 
@@ -211,6 +215,73 @@ def create_watchlist_router(deps: WatchlistRouteDeps) -> APIRouter:
             q,
             pipeline,
         )
+
+    @router.get("/report-quality-audit/review")
+    async def get_report_quality_review(
+        filename: str = Query("", max_length=240),
+        pipeline: str = Query("v1", max_length=24),
+    ):
+        if not is_safe_report_filename(filename, ".html"):
+            raise HTTPException(status_code=400, detail="Invalid filename")
+        target = await asyncio.to_thread(
+            get_indexed_report_quality_review_target,
+            deps.get_output_dir(),
+            filename=filename,
+            pipeline_id=pipeline,
+        )
+        if target is None:
+            raise HTTPException(status_code=404, detail="Quality review target not found")
+        return {"schema_version": REPORT_QUALITY_REVIEW_SCHEMA_VERSION, "target": target}
+
+    @router.post("/report-quality-audit/review")
+    async def save_report_quality_review(request: Request):
+        deps.require_mutation_authorized(request)
+        payload = safe_mapping_dict(await request.json()) or {}
+        filename = safe_text(payload.get("filename")).strip()
+        pipeline = safe_text(payload.get("pipeline_id")).strip() or "v1"
+        provided_revision = safe_text(payload.get("report_quality_revision")).strip()
+        if not is_safe_report_filename(filename, ".html"):
+            raise HTTPException(status_code=400, detail="Invalid filename")
+        if not provided_revision:
+            raise HTTPException(status_code=400, detail="report_quality_revision is required")
+        target = await asyncio.to_thread(
+            get_indexed_report_quality_review_target,
+            deps.get_output_dir(),
+            filename=filename,
+            pipeline_id=pipeline,
+        )
+        if target is None:
+            raise HTTPException(status_code=404, detail="Quality review target not found")
+        expected_revision = safe_text(target.get("report_quality_revision")).strip()
+        if provided_revision != expected_revision:
+            raise HTTPException(status_code=409, detail="Report quality revision is stale; reload the audit target")
+        try:
+            review = await asyncio.to_thread(
+                record_review,
+                output_dir=deps.get_output_dir(),
+                filename=filename,
+                ticker=safe_text(target.get("ticker")).strip(),
+                pipeline_id=pipeline,
+                report_quality_revision=expected_revision,
+                missing_quality_fields=target.get("missing_quality_fields") or [],
+                artifact_quality_summary=safe_mapping_dict(target.get("artifact_quality_summary")) or {},
+                decision=safe_text(payload.get("decision")).strip(),
+                note=safe_text(payload.get("note") or payload.get("reviewer_notes")),
+                reviewer_label=safe_text(payload.get("reviewer_label")).strip() or "local_operator",
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {
+            "schema_version": REPORT_QUALITY_REVIEW_SCHEMA_VERSION,
+            "success": True,
+            "target": {**target, "quality_review": review},
+            "review": review,
+            "effects": {
+                "artifact_written": False,
+                "report_index_written": False,
+                "rerun_enqueued": False,
+            },
+        }
 
     @router.post("/portfolio/risk")
     async def analyze_portfolio_risk(request: Request):

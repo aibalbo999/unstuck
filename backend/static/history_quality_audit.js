@@ -5,6 +5,7 @@
         const element = options.element;
         const openReport = options.openReport || (() => {});
         const onSelectPipeline = options.onSelectPipeline || (() => {});
+        const notify = options.notify || { error: () => {} };
         const itemLimit = 5;
         let loadVersion = 0, itemOffset = 0, filterKey = '', currentValues = null, lastAudit = null;
 
@@ -61,6 +62,26 @@
                     const offset = Number.isFinite(currentOffset) && currentOffset >= 0 ? currentOffset : itemOffset;
                     itemOffset = pageButton.dataset.qualityAuditPage === 'next' ? offset + pageSize : Math.max(0, offset - pageSize);
                     return load(currentValues);
+                }
+                const reviewButton = event.target.closest('[data-quality-review-decision]');
+                if (reviewButton?.dataset?.qualityReviewDecision) {
+                    const saveReview = apiClient?.saveHistoricalReportQualityReview;
+                    if (typeof saveReview !== 'function') return;
+                    const decision = reviewButton.dataset.qualityReviewDecision;
+                    const label = { approved_with_gap: '核准保留缺口', rejected: '退回處理', deferred: '暫緩' }[decision] || decision;
+                    const note = typeof window.prompt === 'function'
+                        ? window.prompt(`${label}：請留下核對理由`, '')
+                        : '';
+                    if (!String(note || '').trim()) return;
+                    Promise.resolve(saveReview({
+                        filename: reviewButton.dataset.qualityReviewFilename,
+                        ticker: reviewButton.dataset.qualityReviewTicker,
+                        pipeline_id: reviewButton.dataset.qualityReviewPipeline || 'v1',
+                        report_quality_revision: reviewButton.dataset.qualityReviewRevision,
+                        decision,
+                        note: String(note).trim()
+                    })).then(() => load(currentValues)).catch(error => notify.error(error?.message || '人工審核未儲存'));
+                    return;
                 }
                 const pipelineButton = event.target.closest('[data-quality-audit-pipeline]');
                 if (pipelineButton?.dataset?.qualityAuditPipeline && !pipelineButton?.dataset?.qualityAuditReport) {

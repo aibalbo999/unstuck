@@ -58,10 +58,22 @@
         }
         return label ? `<span class="tracking-action-note is-${tone}" title="${escapeHtml(detail)}">${escapeHtml(label)}</span>` : '';
     }
+    function renderQualityReview(item, targetLabel, escapeHtml) {
+        const e = escapeHtml || (value => String(value ?? ''));
+        const review = item.quality_review && typeof item.quality_review === 'object' ? item.quality_review : {};
+        const status = String(review.status || 'pending').trim() || 'pending';
+        const label = String(review.decision_label || (status === 'pending' ? '待人工核對' : status)).trim();
+        const note = String(review.note || '').trim();
+        const summary = status === 'pending' ? '人工審核：待核對' : `人工審核：${label}${review.event_count > 1 ? `（第 ${Math.floor(Number(review.event_count))} 次）` : ''}`;
+        const revision = String(item.report_quality_revision || review.report_quality_revision || '').trim();
+        const actions = revision ? [['approved_with_gap', '核准保留缺口'], ['rejected', '退回處理'], ['deferred', '暫緩']].map(([decision, text]) => `<button class="history-quality-audit-review" type="button" data-quality-review-decision="${decision}" data-quality-review-filename="${e(item.filename)}" data-quality-review-ticker="${e(item.ticker || '')}" data-quality-review-pipeline="${e(item.pipeline_id || 'v1')}" data-quality-review-revision="${e(revision)}" aria-label="${e(`${text}：${targetLabel}`)}">${text}</button>`).join('') : '';
+        return `<div class="history-quality-audit-review" title="${e(note ? `${summary}：${note}` : summary)}"><small>${e(summary)}</small>${actions ? `<div class="history-quality-audit-review-actions" aria-label="${e(`更新人工審核：${targetLabel}`)}">${actions}</div>` : ''}</div>`;
+    }
 
     window.StockAgentHistoryPanelQualityHelpers = {
         hasRefreshableDataTrustIssue,
         reportActionBadge,
-        trackingActionNote
+        trackingActionNote,
+        renderQualityReview
     };
 })();

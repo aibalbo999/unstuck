@@ -22,7 +22,7 @@
             notify,
             onTrackedTickersChange: tickers => { trackedTickers = tickers; }
         });
-        const qualityAudit = window.StockAgentHistoricalQualityAudit.create({ apiClient, ui, element: elements.historyQualityAudit, openReport, onSelectPipeline: pipeline => {
+        const qualityAudit = window.StockAgentHistoricalQualityAudit.create({ apiClient, ui, notify, element: elements.historyQualityAudit, openReport, onSelectPipeline: pipeline => {
             if (!elements.historyPipelineFilter) return;
             elements.historyPipelineFilter.value = pipeline;
             historyPage = 1;

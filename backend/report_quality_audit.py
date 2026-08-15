@@ -60,6 +60,8 @@ def build_indexed_report_quality_audit(output_dir: str, *, page_size: int = 100,
         storage,
         cache_namespace=f"latest_per_ticker_pipeline:{output_dir}",
     )
+    from report_quality_review_workflow import attach_quality_reviews
+    attach_quality_reviews(reports, output_dir)
     return build_report_quality_audit(reports, scope="all_indexed_reports", item_limit=item_limit, item_offset=item_offset)
 
 
@@ -91,6 +93,8 @@ def build_historical_indexed_report_quality_audit(
             f"historical:{output_dir}:{safe_text(q).strip().lower()}:{safe_text(pipeline).strip().lower()}"
         ),
     )
+    from report_quality_review_workflow import attach_quality_reviews
+    attach_quality_reviews(reports, output_dir)
     return build_report_quality_audit(
         reports,
         scope="all_historical_indexed_reports",
@@ -266,6 +270,13 @@ def _audit_item(report: dict[str, Any], item: dict[str, Any]) -> dict[str, Any]:
         "priority_score": safe_int(item.get("priority_score"), default=0),
         "blocks_auto_rerun": bool(item.get("blocks_auto_rerun")),
     }
+    revision = safe_text(report.get("report_quality_revision")).strip()
+    if revision:
+        payload["report_quality_revision"] = revision
+    quality_review = safe_mapping_dict(report.get("quality_review"))
+    if quality_review is not None:
+        from report_quality_review_workflow import serialize_quality_review
+        payload["quality_review"] = serialize_quality_review(quality_review, revision)
     artifact_summary = safe_mapping_dict(report.get("artifact_quality_summary"))
     if artifact_summary is not None:
         payload["artifact_quality_summary"] = {
@@ -277,9 +288,11 @@ def _audit_item(report: dict[str, Any], item: dict[str, Any]) -> dict[str, Any]:
 
 
 def _indexed_quality_reports(rows: list[dict[str, Any]], storage: Any) -> list[dict[str, Any]]:
+    from report_quality_review_workflow import report_quality_revision
     reports = []
     for row in rows:
         report = _report_from_index_row(row, storage)
+        report["report_quality_revision"] = report_quality_revision(row)
         if quality_metadata_repair_item(report) is not None:
             report["artifact_quality_summary"] = _read_artifact_quality_summary(storage, report.get("filename"))
         reports.append(report)

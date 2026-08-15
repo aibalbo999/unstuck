@@ -55,6 +55,8 @@ Report quality metadata repair accepts mapping-safe top-level report envelopes a
 
 The quality metadata completeness check recognizes only contract states: `report_conformance` and `content_credibility` use `passed`, `warning`, or blocking states, while `evidence_exit_gate` uses `approved`, `caution`, or `rejected`. Placeholder values such as `not_recorded`, `unknown`, and `N/A` remain missing metadata.
 
+Historical quality targets expose `report_quality_revision` and a revision-scoped `quality_review` state. `GET /api/watchlist/report-quality-audit/review?filename=...&pipeline=v1` reads one current target. `POST /api/watchlist/report-quality-audit/review` requires the current revision, a mutation token, one decision from `approved_with_gap`, `rejected`, or `deferred`, and a non-empty note. The append-only ledger is stored in `operational.sqlite3` as `report_quality_review_events`; `approved_with_gap` means an operator accepted the report while retaining the metadata gap, not that any quality gate passed. A changed report-index/artifact fingerprint makes the old review inapplicable and returns `409` until the operator reviews the new revision. The endpoint never writes artifacts, report index rows, or rerun jobs.
+
 Report preview reading boundaries include snapshot integrity mismatch details when `snapshot_integrity.status = invalid`, so operators see the concrete hash evidence before opening the full report.
 
 Report preview reading boundaries derive a `snapshot_hash mismatch` detail from invalid snapshot integrity hashes when `hash` and `expected_hash` disagree but `errors` is missing, so preview notices keep hash evidence visible.
