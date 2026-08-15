@@ -69,6 +69,7 @@ process.stdout.write(html);
     assert 'data-quality-review-decision="deferred"' in result.stdout
     assert 'data-quality-review-revision="rev-current"' in result.stdout
     assert '審核狀態：待人工核對 1' in result.stdout
+    assert 'data-quality-audit-review-status="pending"' in result.stdout
 
 
 def test_historical_quality_audit_renders_revision_review_timeline():

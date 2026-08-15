@@ -75,11 +75,23 @@
         const actions = revision ? [['approved_with_gap', '核准保留缺口'], ['rejected', '退回處理'], ['deferred', '暫緩']].map(([decision, text]) => `<button class="history-quality-audit-review" type="button" data-quality-review-decision="${decision}" data-quality-review-filename="${e(item.filename)}" data-quality-review-ticker="${e(item.ticker || '')}" data-quality-review-pipeline="${e(item.pipeline_id || 'v1')}" data-quality-review-revision="${e(revision)}" aria-label="${e(`${text}：${targetLabel}`)}">${text}</button>`).join('') : '';
         return `<div class="history-quality-audit-review" title="${e(note ? `${summary}：${note}` : summary)}"><small>${e(summary)}</small>${historyHtml}${actions ? `<div class="history-quality-audit-review-actions" aria-label="${e(`更新人工審核：${targetLabel}`)}">${actions}</div>` : ''}</div>`;
     }
+    function renderQualityReviewStatusFilters(audit, escapeHtml) {
+        const e = escapeHtml || (value => String(value ?? ''));
+        const current = String(audit?.review_status_filter || 'all').trim().toLowerCase() || 'all';
+        const labels = [['all', '全部審核狀態'], ['pending', '待人工核對'], ['approved_with_gap', '已核准保留缺口'], ['rejected', '退回處理'], ['deferred', '已暫緩']];
+        const buttons = labels.map(([key, label]) => {
+            const count = Number(audit?.quality_review_by_status?.[key] || 0);
+            if (key === 'all' ? current === 'all' : !Number.isFinite(count) || count <= 0) return '';
+            return `<button class="history-quality-audit-filter" type="button" data-quality-audit-review-status="${e(key)}"${current === key ? ' aria-pressed="true"' : ''}>${e(label)}${key === 'all' ? '' : `（${Math.floor(count)}）`}</button>`;
+        }).filter(Boolean).join('');
+        return buttons ? `<div class="history-quality-audit-filter-actions" aria-label="按審核狀態查看品質缺口">${buttons}</div>` : '';
+    }
 
     window.StockAgentHistoryPanelQualityHelpers = {
         hasRefreshableDataTrustIssue,
         reportActionBadge,
         trackingActionNote,
-        renderQualityReview
+        renderQualityReview,
+        renderQualityReviewStatusFilters
     };
 })();

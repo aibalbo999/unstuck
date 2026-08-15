@@ -195,6 +195,8 @@ The daily decision dashboard (`GET /api/watchlist/daily-dashboard`) consumes rec
 
 daily target 只複用同一筆 `quality_review.status` 做可見與 accessible context，不複製 review mutation 或 ledger 寫入；歷史 workspace 仍是 review action 的唯一 UI owner。
 
+歷史 audit 的 `review_status` filter 在 attach current revision review 後才縮小 rows，再由同一套 coverage/pagination builder 產生 envelope；因此 filtered response 的 `audited_reports`、分母與 `items[]` 都有一致範圍，且仍維持 GET-only。
+
 ## Event-Driven Radar
 
 ```mermaid

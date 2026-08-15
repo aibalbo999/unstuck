@@ -7,10 +7,10 @@
         const onSelectPipeline = options.onSelectPipeline || (() => {});
         const notify = options.notify || { error: () => {} };
         const itemLimit = 5;
-        let loadVersion = 0, itemOffset = 0, filterKey = '', currentValues = null, lastAudit = null;
+        let loadVersion = 0, itemOffset = 0, reviewStatus = 'all', filterKey = '', currentValues = null, lastAudit = null;
 
         function auditFilterKey(values) {
-            return JSON.stringify([values?.includeVersions, values?.query || '', values?.pipelineFilter || 'all']);
+            return JSON.stringify([values?.includeVersions, values?.query || '', values?.pipelineFilter || 'all', reviewStatus]);
         }
 
         function render(audit) {
@@ -46,7 +46,9 @@
             }
             render({ status: 'loading' });
             try {
-                const audit = await fetchAudit({ itemLimit, itemOffset, query: values.query, pipeline: values.pipelineFilter });
+                const request = { itemLimit, itemOffset, query: values.query, pipeline: values.pipelineFilter };
+                if (reviewStatus !== 'all') request.reviewStatus = reviewStatus;
+                const audit = await fetchAudit(request);
                 if (requestVersion === loadVersion) { lastAudit = audit; render(audit); }
             } catch (_error) {
                 if (requestVersion === loadVersion) render({ status: 'unavailable' });
@@ -82,6 +84,12 @@
                         note: String(note).trim()
                     })).then(() => load(currentValues)).catch(error => notify.error(error?.message || '人工審核未儲存'));
                     return;
+                }
+                const reviewStatusButton = event.target.closest('[data-quality-audit-review-status]');
+                if (reviewStatusButton?.dataset?.qualityAuditReviewStatus) {
+                    reviewStatus = reviewStatusButton.dataset.qualityAuditReviewStatus || 'all';
+                    itemOffset = 0;
+                    return load(currentValues);
                 }
                 const pipelineButton = event.target.closest('[data-quality-audit-pipeline]');
                 if (pipelineButton?.dataset?.qualityAuditPipeline && !pipelineButton?.dataset?.qualityAuditReport) {

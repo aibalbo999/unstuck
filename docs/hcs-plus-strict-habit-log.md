@@ -21,6 +21,13 @@
 - `#責任` / `#倫理判斷`：daily helper 只讀取並呈現 item state，歷史 workspace 仍是 review action 的唯一 owner；本批不新增 daily mutation、不改 revision、note、token 或 ledger。
 - `#可驗證性` / `#來源品質`：approved-with-gap fixture 先得到 `1 failed, 12 passed`，修正後跨層 `951 passed`，並驗證專屬 cache-buster、資產 `200`、live pending item 與 review ledger count `0`。
 
+## D3568 / historical review-status filter
+
+- `#最佳化` / `#差距分析`：歷史版本有 `143` 個 pending 缺口，之後若逐筆留下 review event，單靠 pipeline/page 仍要翻過其他狀態；新增 `review_status` read-only filter，讓人工核對可以直接聚焦 pending 或某種已決策狀態。
+- `#分析層次` / `#語意含義`：filter 在 attach current revision review 後套用，`review_status_filter` 明確回傳，filtered `audited_reports`、coverage denominator、missing counts 與 items 都只描述選定狀態，不把篩選結果誤讀成全庫總數。
+- `#責任` / `#倫理判斷`：API/client/history module 只傳 GET query；review ledger、revision、artifact/index、rerun、queue 與 mutation token 邊界不變，status quick filter 不另造寫入入口。
+- `#可驗證性` / `#來源品質`：backend/route/renderer/module RED 後 targeted `5 passed`、跨層 `953 passed`；同步鎖定 status button、cache-buster、pipeline/page regression，待重啟後以 live pending/approved filter 做範圍核對。
+
 ## D3564 / model-level quota observability boundary
 
 - `#證據基礎` / `#來源品質`：live dashboard 只提供 aggregate Gemini quota error，無法把 `2909` 次 observed calls 與 `2569` 次 errors 對齊到模型；先以同一 `api_usage_events` reset window 分組 `observed_model_calls`、`quota_error` 與 `rate_limited`，不把 provider 回應外推成官方剩餘額度。

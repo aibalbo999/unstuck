@@ -178,6 +178,50 @@ def test_history_quality_audit_pipeline_shortcut_delegates_filter_selection():
     assert payload["selected"] == "v2"
 
 
+def test_history_quality_audit_review_status_shortcut_reloads_status_filter():
+    helper_path = STATIC_DIR / "history_panel_quality_helpers.js"
+    renderer_path = STATIC_DIR / "history_quality_audit_render.js"
+    module_path = STATIC_DIR / "history_quality_audit.js"
+    script = """
+(async () => {
+  global.window = {};
+  require(__HELPER_PATH__);
+  require(__RENDERER_PATH__);
+  require(__MODULE_PATH__);
+  let clickHandler;
+  const captured = [];
+  const element = {
+    hidden: true,
+    innerHTML: '',
+    setAttribute: () => {},
+    removeAttribute: () => {},
+    addEventListener: (type, handler) => { if (type === 'click') clickHandler = handler; }
+  };
+  const audit = window.StockAgentHistoricalQualityAudit.create({
+    apiClient: {
+      fetchHistoricalReportQualityAudit: async params => {
+        captured.push(params);
+        return { audited_reports: 1, quality_metadata_missing_reports: 1, quality_review_by_status: { pending: 0, approved_with_gap: 1, rejected: 0, deferred: 0 }, review_status_filter: params.reviewStatus || 'all', items: [] };
+      }
+    },
+    ui: { escapeHtml: value => String(value ?? '') },
+    element
+  });
+  audit.bindEvents();
+  await audit.load({ includeVersions: true, query: '', pipelineFilter: 'all' });
+  await clickHandler({ target: { closest: selector => selector === '[data-quality-audit-review-status]' ? { dataset: { qualityAuditReviewStatus: 'approved_with_gap' } } : null } });
+  process.stdout.write(JSON.stringify({ captured }));
+})();
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path))).replace("__RENDERER_PATH__", json.dumps(str(renderer_path))).replace("__MODULE_PATH__", json.dumps(str(module_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert payload["captured"] == [
+        {"itemLimit": 5, "itemOffset": 0, "query": "", "pipeline": "all"},
+        {"itemLimit": 5, "itemOffset": 0, "query": "", "pipeline": "all", "reviewStatus": "approved_with_gap"},
+    ]
+
+
 def test_history_quality_audit_pages_manual_review_targets_in_batches():
     helper_path = STATIC_DIR / "history_panel_quality_helpers.js"
     renderer_path = STATIC_DIR / "history_quality_audit_render.js"
@@ -307,9 +351,10 @@ def test_history_workspace_wires_historical_quality_audit_without_daily_queue_si
     workspace = (STATIC_DIR / "history_workspace.js").read_text(encoding="utf-8")
 
     assert 'id="history-quality-audit"' in index_html
-    assert "/static/history_panel_quality_helpers.js?v=20260816-historical-quality-review-history" in index_html
-    assert "/static/history_quality_audit_render.js?v=20260816-quality-gap-status-semantics" in index_html
-    assert "/static/history_quality_audit.js?v=20260816-historical-quality-review-history" in index_html
+    assert "/static/api_client_extensions.js?v=20260816-quality-review-status-filter" in index_html
+    assert "/static/history_panel_quality_helpers.js?v=20260816-quality-review-status-filter" in index_html
+    assert "/static/history_quality_audit_render.js?v=20260816-quality-review-status-filter" in index_html
+    assert "/static/history_quality_audit.js?v=20260816-quality-review-status-filter" in index_html
     assert index_html.index("/static/history_quality_audit_render.js") < index_html.index("/static/history_quality_audit.js")
     assert len((STATIC_DIR / "history_panel_quality_helpers.js").read_text(encoding="utf-8").splitlines()) < 120
     assert len((STATIC_DIR / "history_quality_audit_render.js").read_text(encoding="utf-8").splitlines()) < 100

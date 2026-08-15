@@ -71,6 +71,7 @@ def _build_historical_quality_audit_or_unavailable(
     item_offset: int,
     q: str,
     pipeline: str,
+    review_status: str,
 ) -> dict:
     try:
         return build_historical_indexed_report_quality_audit(
@@ -80,6 +81,7 @@ def _build_historical_quality_audit_or_unavailable(
             item_offset=item_offset,
             q=q,
             pipeline=pipeline,
+            review_status=review_status,
         )
     except Exception:
         LOGGER.exception("Historical report quality audit is unavailable")
@@ -205,6 +207,7 @@ def create_watchlist_router(deps: WatchlistRouteDeps) -> APIRouter:
         item_offset: int = Query(0, ge=0, le=100000),
         q: str = Query("", max_length=80),
         pipeline: str = Query("all", max_length=24),
+        review_status: str = Query("all", pattern="^(all|pending|approved_with_gap|rejected|deferred)$"),
     ):
         return await asyncio.to_thread(
             _build_historical_quality_audit_or_unavailable,
@@ -213,6 +216,7 @@ def create_watchlist_router(deps: WatchlistRouteDeps) -> APIRouter:
             item_offset,
             q,
             pipeline,
+            review_status,
         )
 
     register_report_quality_review_routes(

@@ -20,8 +20,10 @@ from report_quality_audit_payload import (
     ARTIFACT_QUALITY_SUMMARY_STATUSES,
     QUALITY_METADATA_FIELDS,
     QUALITY_METADATA_PROVENANCE,
+    QUALITY_REVIEW_STATUSES,
     SCHEMA_VERSION,
     _audit_item,
+    _quality_review_status,
     build_report_quality_audit,
     build_unavailable_report_quality_audit,
 )
@@ -78,6 +80,7 @@ def build_historical_indexed_report_quality_audit(
     item_offset: int = 0,
     q: str = "",
     pipeline: str = "all",
+    review_status: str = "all",
 ) -> dict[str, Any]:
     rows = collect_all_report_pages(
         list_indexed_report_quality_rows,
@@ -100,13 +103,22 @@ def build_historical_indexed_report_quality_audit(
     )
     from report_quality_review_workflow import attach_quality_reviews
     attach_quality_reviews(reports, output_dir)
-    return build_report_quality_audit(
+    review_status_filter = _normalize_review_status_filter(review_status)
+    if review_status_filter != "all":
+        reports = [
+            report
+            for report in reports
+            if quality_metadata_repair_item(report) is not None and _quality_review_status(report) == review_status_filter
+        ]
+    payload = build_report_quality_audit(
         reports,
         scope="all_historical_indexed_reports",
         selection_basis="all_indexed_versions",
         item_limit=item_limit,
         item_offset=item_offset,
     )
+    payload["review_status_filter"] = review_status_filter
+    return payload
 
 
 def list_indexed_report_quality_rows(
@@ -270,3 +282,8 @@ def _snapshot_integrity(snapshot: dict[str, Any]) -> dict[str, Any]:
         "valid": bool(integrity.get("valid")),
         "errors": [safe_text(error) for error in integrity.get("errors", []) if safe_text(error)],
     }
+
+
+def _normalize_review_status_filter(value: Any) -> str:
+    normalized = safe_text(value).strip().lower()
+    return normalized if normalized in QUALITY_REVIEW_STATUSES else "all"
