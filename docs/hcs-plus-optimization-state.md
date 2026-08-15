@@ -2145,6 +2145,12 @@
 - production helper 以既有 `escapeHtml` 將白話 detail 放入 `title` tooltip、以 audit title 組合 `aria-label`，並保留 `data-quality-reason-codes`；可見文字仍是唯讀的「查看 ticker pipeline」。
 - 不新增 rerun、queue、artifact 或 index 寫入行為；helper cache-buster 更新為 `20260816-quality-audit-provenance-ui`。歷史缺證據項目仍維持人工查看 artifact/freshness，不從 HTML 摘要重建 gate payload。
 
+## D3531：把 RQ failed registry 變成可行動的維運訊號
+
+- live runtime 觀察到 `stock-analysis` 有 10 筆 failed registry；原 payload 有數字，但 Prometheus 沒有 failed-job metric，維運面板也只呈現儲存與通知狀態。
+- 新增共用 `failed_queue_count`：ops dashboard 在 queue 可用但存在 failed jobs 時標為 `warning`，Prometheus 輸出總佇列與 named queue 的 `stock_agent_queue_failed_jobs`，maintenance panel 顯示「分析佇列有 N 筆失敗任務」及失敗/排隊數。
+- 只增加觀測與人工提示，不自動清除或重試；新增的 frontend helper 維持 100 行責任上限，並以 cache-buster 避免舊瀏覽器資源誤用。
+
 綜合視角：
 
 - `#可驗證性`：每個模式的報告模板與決策用途必須有測試與文件可查。

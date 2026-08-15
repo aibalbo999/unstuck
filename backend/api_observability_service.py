@@ -29,7 +29,7 @@ from provider_sla_observability import (
     normalize_sla_window,
     provider_rows_or_empty,
 )
-from queue_dashboard_payload import normalize_ops_queue_payload
+from queue_dashboard_payload import failed_queue_count, normalize_ops_queue_payload
 from queue_observability import snapshot_task_queue
 
 
@@ -98,9 +98,14 @@ async def build_prometheus_metrics(
         "# HELP stock_agent_queue_depth Number of queued jobs.",
         "# TYPE stock_agent_queue_depth gauge",
         f"stock_agent_queue_depth{_labels(queue=queue_name)} {_metric_int(queue.get('depth'))}",
+        "# HELP stock_agent_queue_failed_jobs Number of jobs in the failed registry.",
+        "# TYPE stock_agent_queue_failed_jobs gauge",
+        f"stock_agent_queue_failed_jobs{_labels(queue=queue_name)} {failed_queue_count(queue)}",
     ])
     for name, details in safe_mapping_items(_payload_dict(queue.get("queues"))):
-        lines.append(f"stock_agent_queue_depth{_labels(queue=name)} {_metric_int(_payload_dict(details).get('depth'))}")
+        detail = _payload_dict(details)
+        lines.append(f"stock_agent_queue_depth{_labels(queue=name)} {_metric_int(detail.get('depth'))}")
+        lines.append(f"stock_agent_queue_failed_jobs{_labels(queue=name)} {failed_queue_count(detail)}")
 
     lines.extend(notification_delivery_prometheus_lines(notification_delivery, _labels))
     lines.append("")
@@ -215,6 +220,8 @@ def _dashboard_status(
         for alert in provider_alerts
     ):
         return "critical"
+    if failed_queue_count(queue) > 0:
+        return "warning"
     if _metric_bool(jobs.get("observability_unavailable")):
         return "warning"
     if _stuck_job_count(jobs.get("stuck_jobs")) > 0:

@@ -275,6 +275,33 @@ def test_prometheus_metrics_endpoint_exports_provider_sla_and_queue(monkeypatch)
     assert 'stock_agent_notification_delivery_health{state="warning"} 1' in body
 
 
+def test_prometheus_metrics_exports_failed_queue_registry(monkeypatch):
+    class FakeRedis:
+        def ping(self):
+            return True
+
+    class FakeRegistry:
+        def __init__(self, count):
+            self.count = count
+
+    class FakeRqQueue:
+        name = "stock-analysis"
+        count = 0
+        started_job_registry = FakeRegistry(0)
+        deferred_job_registry = FakeRegistry(0)
+        failed_job_registry = FakeRegistry(3)
+        scheduled_job_registry = FakeRegistry(0)
+
+    monkeypatch.setattr(api, "get_provider_sla_summary", lambda limit=100: [])
+    monkeypatch.setattr(api_observability_service, "get_delivery_audit_summary", lambda: {})
+    monkeypatch.setattr(api, "analysis_task_queue", SimpleNamespace(queue=FakeRqQueue(), redis=FakeRedis()))
+
+    response = TestClient(api.app).get("/metrics")
+
+    assert response.status_code == 200
+    assert 'stock_agent_queue_failed_jobs{queue="stock-analysis"} 3' in response.text
+
+
 def test_prometheus_provider_labels_ignore_truthiness_failures(monkeypatch):
     class BrokenTruthLabel:
         def __init__(self, value):
@@ -2184,6 +2211,30 @@ def test_queue_observability_reports_per_queue_depths_for_tiered_rq():
     }
 
 
+def test_queue_dashboard_payload_counts_failed_jobs_across_named_queues():
+    payload = queue_dashboard_payload.normalize_ops_queue_payload({
+        "backend": "rq",
+        "available": True,
+        "queue_name": "stock-analysis,watchlist",
+        "depth": 0,
+        "queues": {
+            "stock-analysis": {"depth": 0, "registries": {"failed": 10}},
+            "watchlist": {"depth": 0, "registries": {"failed": 2}},
+        },
+    })
+
+    assert queue_dashboard_payload.failed_queue_count(payload) == 12
+
+
+def test_ops_dashboard_warns_when_failed_queue_registry_is_present():
+    assert api_observability_service._dashboard_status(
+        jobs={"stuck_jobs": {"count": 0}},
+        queue={"available": True, "registries": {"failed": 2}},
+        provider_alerts=[],
+        notification_delivery={},
+    ) == "warning"
+
+
 def test_ops_dashboard_api(monkeypatch):
     async def fake_dashboard_payload(*_args, **_kwargs):
         return {"status": "ok", "jobs": {"active_count": 0}, "queue": {"available": True}}
@@ -2825,7 +2876,7 @@ def test_ops_dashboard_named_queue_detail_fields_use_safe_output_conversion(monk
         )
     )
 
-    assert payload["status"] == "ok"
+    assert payload["status"] == "warning"
     assert payload["queue"]["queues"]["maintenance"] == {
         "depth": 0,
         "registries": {"started": 0, "failed": 3},

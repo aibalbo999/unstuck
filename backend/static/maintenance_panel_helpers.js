@@ -14,15 +14,33 @@
         const orphanEvents = Number(history.orphan_events || 0);
         return { orphanRows, staleJobs, orphanEvents, warnings: orphanRows + staleJobs + orphanEvents };
     }
-    function summaryText(summary, delivery) {
+    function queueStats(queue) {
+        const failed = Number((queue?.registries || {}).failed), depth = Number(queue?.depth);
+        return { available: queue?.available !== false, depth: Number.isFinite(depth) && depth >= 0 ? depth : 0, failed: Number.isFinite(failed) && failed >= 0 ? failed : 0 };
+    }
+    function queueAttention(queue) {
+        if (!queue) return '';
+        const stats = queueStats(queue);
+        return !stats.available ? '分析佇列無法使用' : stats.failed > 0 ? `分析佇列有 ${stats.failed} 筆失敗任務` : '';
+    }
+    function summaryText(summary, delivery, queue) {
         const counts = maintenanceCounts(summary);
+        const queueWarning = queueAttention(queue);
         if (notificationDelivery().isWarning?.(delivery)) {
-            return `健康摘要：通知通道異常，${counts.warnings ? `${counts.warnings} 筆可清理資料` : '本機儲存狀態正常'}`;
+            return `健康摘要：通知通道異常${queueWarning ? `；${queueWarning}` : ''}，${counts.warnings ? `${counts.warnings} 筆可清理資料` : '本機儲存狀態正常'}`;
         }
+        if (queueWarning) return `健康摘要：${queueWarning}，${counts.warnings ? `${counts.warnings} 筆可清理資料` : '本機儲存狀態正常'}`;
         if (counts.warnings) return `健康摘要：${counts.warnings} 筆可清理資料，正式分析不受影響`;
         return '健康摘要：本機儲存狀態正常';
     }
-    function storageChips(summary, delivery, escapeHtml) {
+    function queueChip(queue, escapeHtml) {
+        if (!queue) return '';
+        const stats = queueStats(queue);
+        const tone = stats.available && stats.failed === 0 ? 'is-ok' : 'is-warning';
+        const status = stats.available ? '可用' : '無法使用';
+        return `<span class="provider-sla-chip maintenance-chip ${tone}">分析佇列 <strong>${escapeHtml(status)}</strong><em>失敗 ${escapeHtml(String(stats.failed))} · 排隊 ${escapeHtml(String(stats.depth))}</em></span>`;
+    }
+    function storageChips(summary, delivery, escapeHtml, queue) {
         const counts = maintenanceCounts(summary);
         return `
             <span class="provider-sla-chip maintenance-chip ${counts.orphanRows ? 'is-warning' : 'is-ok'}">
@@ -37,10 +55,13 @@
                 來源健康紀錄 <strong>${escapeHtml(tableCount(summary, 'provider_sla_events'))}</strong>
                 <em>依保留天數清理</em>
             </span>
+            ${queueChip(queue, escapeHtml)}
             ${notificationDelivery().chip?.(delivery, escapeHtml) || ''}
         `;
     }
-    function defaultResultText(delivery) {
+    function defaultResultText(delivery, queue) {
+        const queueWarning = queueAttention(queue);
+        if (queueWarning) return `${queueWarning}；請檢查失敗任務，不會自動清除或重試。`;
         return notificationDelivery().isWarning?.(delivery)
             ? '通知通道有失敗或重試耗盡項目；請檢查外部 webhook 或憑證，再重跑 sender。'
             : '健康摘要已更新；需要時再展開清理過舊任務、孤兒索引與來源健康事件。';
@@ -59,15 +80,17 @@
         const escapeHtml = options.escapeHtml || (value => String(value ?? ''));
         const summary = payload?.summary || {};
         const delivery = payload?.notification_delivery || null;
+        const queue = payload?.queue || null;
         if (!summaryEl || !listEl) return;
-        summaryEl.textContent = summaryText(summary, delivery);
-        listEl.innerHTML = storageChips(summary, delivery, escapeHtml);
-        if (resultEl && !resultEl.textContent) resultEl.textContent = defaultResultText(delivery);
+        summaryEl.textContent = summaryText(summary, delivery, queue);
+        listEl.innerHTML = storageChips(summary, delivery, escapeHtml, queue);
+        if (resultEl && !resultEl.textContent) resultEl.textContent = defaultResultText(delivery, queue);
     }
     window.StockAgentMaintenancePanelHelpers = {
         actionMessage,
         defaultResultText,
         maintenanceCounts,
+        queueAttention,
         render,
         storageChips,
         summaryText,

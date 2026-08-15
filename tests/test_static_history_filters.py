@@ -5558,6 +5558,7 @@ def test_operator_workbench_surfaces_actionable_daily_workflow():
     assert "hasRefreshableDataTrustIssue" in operator_summary_quality_helpers_js
     assert "建議刷新資料" in operator_summary_quality_helpers_js
     assert "證據抽查未通過" in report_quality_gate_policy_js
+    assert "payload.queue = opsPayload.queue" in maintenance_js
     assert "證據抽查未通過" not in report_quality_policy_js
     assert "operatorActionItems" in operator_summary_helpers_js
     assert "setShift" in operator_summary_js
@@ -5921,6 +5922,8 @@ def test_candidate_next_actions_assets_use_shared_cache_buster():
     assert "/static/style.css?v=20260815-quality-audit-traceability" in index_html
     assert "/static/watchlist_panel_helpers.js?v=20260816-quality-audit-provenance-ui" in index_html
     assert "/static/watchlist_panel.js?v=20260815-quality-audit-traceability" in index_html
+    assert "/static/maintenance_panel_helpers.js?v=20260816-queue-failure-observability" in index_html
+    assert "/static/maintenance_panel.js?v=20260816-queue-failure-observability" in index_html
     assert "/static/operator_dashboard_actions.js?v=20260711-candidate-next-actions-v3" in index_html
     assert "/static/operator_summary_panel.js?v=20260711-candidate-next-actions-v3" in index_html
     assert "/static/app_panels.js?v=20260711-candidate-next-actions-v3" in index_html
@@ -6619,6 +6622,34 @@ process.stdout.write(JSON.stringify({
     assert "通知通道" in payload["chips"]
     assert "通知通道有失敗或重試耗盡項目" in payload["result"]
     assert payload["action"] == "已清理任務 2 筆、事件 3 筆"
+
+
+def test_maintenance_panel_helpers_surface_failed_analysis_queue():
+    maintenance_helpers_path = STATIC_DIR / "maintenance_panel_helpers.js"
+    script = """
+global.window = {};
+require(__MAINTENANCE_HELPERS_PATH__);
+const helpers = window.StockAgentMaintenancePanelHelpers;
+const summary = { cache_db: { tables: {} }, task_db: { tables: {} } };
+const queue = {
+  available: true,
+  depth: 0,
+  queue_name: 'stock-analysis',
+  registries: { failed: 10 }
+};
+process.stdout.write(JSON.stringify({
+  text: helpers.summaryText(summary, {}, queue),
+  chips: helpers.storageChips(summary, {}, value => String(value ?? ''), queue),
+  result: helpers.defaultResultText({}, queue)
+}));
+""".replace("__MAINTENANCE_HELPERS_PATH__", json.dumps(str(maintenance_helpers_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "分析佇列有 10 筆失敗任務" in payload["text"]
+    assert "分析佇列" in payload["chips"]
+    assert "失敗 10" in payload["chips"]
+    assert "請檢查失敗任務" in payload["result"]
 
 
 def test_market_screener_frontend_tab_is_wired():

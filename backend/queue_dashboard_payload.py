@@ -25,6 +25,17 @@ def normalize_ops_queue_payload(queue: Any) -> dict[str, Any]:
     return payload
 
 
+def failed_queue_count(queue: Any) -> int:
+    source = _payload_dict(queue)
+    registries = _payload_dict(source.get("registries"))
+    if "failed" in registries:
+        return _safe_int(registries.get("failed"))
+    return sum(
+        _safe_int(_payload_dict(_payload_dict(details).get("registries")).get("failed"))
+        for _, details in safe_mapping_items(_payload_dict(source.get("queues")))
+    )
+
+
 def _copy_queue_supplemental_fields(payload: dict[str, Any], source: dict[str, Any]) -> None:
     if "registries" in source:
         payload["registries"] = _registry_counts(source.get("registries"))

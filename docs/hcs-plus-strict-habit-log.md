@@ -11952,3 +11952,9 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 
 - RED 測試先驗證品質稽核 CTA 沒有呈現 audit item 的白話 `detail`、`title` 與 `reason_codes`；GREEN 實作只在 watchlist helper 加上 `title`、`aria-label` 與 `data-quality-reason-codes`。
 - 保留既有 report preview callback 與唯讀邊界，reason code 不會被當作可執行 action；helper cache-buster 更新為 `20260816-quality-audit-provenance-ui`。
+
+### 完成後維護 / D3531 / #拆解問題 #差距分析 #偏誤降低 #證據基礎 #可驗證性 #來源品質
+
+- 以 live RQ snapshot 的 `stock-analysis failed=10` 作為問題證據，確認既有 queue depth/registry payload 未形成 metric、ops status 或維運 UI 的一致訊號。
+- 先以 RED 鎖定 failed registry metric、named queue aggregate、ops warning 與 maintenance copy，再以 GREEN 實作共用 `failed_queue_count` 和 `stock_agent_queue_failed_jobs`；不觸發清除、重試或資料寫入。
+- safe-output regression 校正為：有效的 `failed=3` 即使伴隨 malformed named fields，也必須保留 `warning`，避免安全轉換掩蓋真實失敗工作。

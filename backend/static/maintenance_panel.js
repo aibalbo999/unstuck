@@ -30,6 +30,7 @@
                     return {};
                 }) : {};
                 payload.notification_delivery = opsPayload.notification_delivery;
+                payload.queue = opsPayload.queue;
                 render(payload, options);
             } catch (err) {
                 console.error('Failed to load maintenance summary', err);
