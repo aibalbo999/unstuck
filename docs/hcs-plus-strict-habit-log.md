@@ -8303,6 +8303,27 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 - D3376-D3387 adjacent regression：`60 passed, 3740 deselected in 423.61s`。
 - completion gate：import boundary `503 passed in 11.00s`；HCS/文件契約 `135 passed in 3.50s`；`py_compile` exit 0；`git diff --check` exit 0；trailing-whitespace 無命中；runtime doctor exit 0，canonical operational DB 為 `backend/cache/operational.sqlite3`、report index 為 `backend/cache/stock_agent_cache.sqlite3`，Redis 為 `redis://localhost:6379/0`；parser/detector 行數維持 `349/189`。
 
+### 完成後維護 / D3504 / #拆解問題 #問對問題 #差距分析 #偏誤降低 #決策樹 #效用 #證據基礎 #比較組 #介入研究 #可驗證性 #來源品質
+
+本次使用：live dashboard 的 3017 v1/v2 repair item 只顯示泛化 report-conformance summary；對照 data snapshot 的 `blocking_issues[].details`，實際原因是「持有」建議與 12 個月目標報酬 39.1%/64.0% 矛盾。這是可觀測的操作資訊損失，不是品質門檻本身判定錯誤。
+
+核心判斷
+
+1. 人工審核 action、priority `960` 與 `blocks_auto_rerun=true` 必須保留，因為內容矛盾仍需人工判斷。
+2. queue detail 應優先呈現 blocking issue 的具體細節，泛化 summary/message 只在沒有細節時 fallback。
+3. 修正範圍限於共用 gate summary，避免複製一套 conformance-specific formatter 或放寬自動重跑政策。
+
+落地修改
+
+1. `backend/report_quality_repair_items.py` 的共用 `_summary` 優先讀取 `blocking_issues[].details`。
+2. `tests/test_report_quality_repair_queue.py` 鎖住 report conformance 仍人工審核但 detail 具體化。
+3. `tests/test_daily_decision_dashboard.py` 鎖住操作員 action 直接收到 blocking detail。
+
+驗證方式
+
+- queue/dashboard regression：`75 passed`。
+- 3017 v1 snapshot：detail 由「報告未符合輸出契約，需修正後再採用。」變為完整「建議/報酬矛盾」訊息，action 仍為 `manual_review`。
+
 ### 完成後維護 / D3503 / #拆解問題 #問對問題 #差距分析 #偏誤降低 #決策樹 #效用 #證據基礎 #比較組 #介入研究 #可驗證性 #來源品質
 
 本次使用：live artifact scan 顯示 1334 份 data snapshot 中有 21 份 `final_audit` blocked；最近 dashboard sample 20 份有 13 份需修復、8 份 blocked。主要阻斷細節是 Agent 輸出失敗，但 repair queue 原本一律導向人工審核並阻擋自動重跑，與 final audit 的「重新執行本 Agent」修復指示不一致。

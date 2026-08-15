@@ -344,6 +344,31 @@ def test_report_conformance_non_retryable_final_audit_stays_manual_review():
     assert item["reason_codes"] == ["report_conformance_blocked"]
 
 
+def test_report_conformance_manual_review_exposes_blocking_issue_detail():
+    from report_quality_repair_queue import build_report_quality_repair_queue
+
+    detail = "建議/報酬矛盾：建議為「持有」但 12 個月目標價 NT$4500 相對現價 NT$3235 隱含 39.1% 報酬。"
+    queue = build_report_quality_repair_queue(
+        [
+            {
+                "ticker": "3017.TW",
+                "filename": "3017_v1.html",
+                "pipeline_id": "v1",
+                "report_conformance": {
+                    "status": "blocked",
+                    "summary": "報告未符合輸出契約，需修正後再採用。",
+                    "blocking_issues": [{"id": "final_audit", "details": [detail]}],
+                },
+            }
+        ]
+    )
+
+    item = queue["items"][0]
+    assert item["recommended_action"] == "manual_review"
+    assert item["blocks_auto_rerun"] is True
+    assert item["detail"] == detail
+
+
 def test_provider_critical_still_precedes_agent_retry_recommendation():
     from report_quality_repair_queue import build_report_quality_repair_queue
 

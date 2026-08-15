@@ -537,6 +537,33 @@ def test_daily_decision_dashboard_routes_failed_final_audit_to_full_rerun():
     assert dashboard["actions"][0]["filename"] == "2367_v2_failed_agent.html"
 
 
+def test_daily_decision_dashboard_exposes_report_conformance_blocking_detail():
+    detail = "建議/報酬矛盾：建議為「持有」但 12 個月目標價 NT$4500 相對現價 NT$3235 隱含 39.1% 報酬。"
+    dashboard = build_daily_decision_dashboard(
+        reports={
+            "reports": [
+                {
+                    "ticker": "3017.TW",
+                    "filename": "3017_v1_blocked.html",
+                    "pipeline_id": "v1",
+                    "report_conformance": {
+                        "status": "blocked",
+                        "summary": "報告未符合輸出契約，需修正後再採用。",
+                        "blocking_issues": [{"id": "final_audit", "details": [detail]}],
+                    },
+                }
+            ]
+        },
+        watchlist={"items": []},
+        screener={"items": []},
+        performance={"summary": {}, "details": []},
+        free_mode={"enabled": True, "can_run_without_paid_keys": True, "violations": []},
+    )
+
+    assert dashboard["actions"][0]["type"] == "manual_review"
+    assert dashboard["actions"][0]["detail"] == detail
+
+
 def test_daily_decision_dashboard_rerun_bucket_uses_full_repair_coverage_not_display_limit():
     reports = [
         {

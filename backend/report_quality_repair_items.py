@@ -159,12 +159,9 @@ def _safe_bool(value: Any) -> bool:
 
 def _summary(payload: dict[str, Any], fallback: str) -> str:
     summary = safe_text(_field(payload, "summary")).strip()
-    if summary:
-        return summary
     message = safe_text(_field(payload, "message")).strip()
-    if message:
-        return message
-    return fallback
+    detail = next((detail for issue in safe_dict_list(_field(payload, "blocking_issues")) for detail in safe_text_list(_field(issue, "details")) if detail), "")
+    return detail or summary or message or fallback
 
 
 def _first_text(*values: Any, fallback: str) -> str:
