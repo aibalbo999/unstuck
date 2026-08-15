@@ -5926,7 +5926,7 @@ def test_candidate_next_actions_assets_use_shared_cache_buster():
     assert "/static/maintenance_panel.js?v=20260816-queue-failure-observability" in index_html
     assert "/static/operator_dashboard_actions.js?v=20260711-candidate-next-actions-v3" in index_html
     assert "/static/operator_summary_panel.js?v=20260711-candidate-next-actions-v3" in index_html
-    assert "/static/app_panels.js?v=20260711-candidate-next-actions-v3" in index_html
+    assert "/static/app_panels.js?v=20260816-historical-quality-audit" in index_html
     assert "/static/styles/operator_summary.css?v=20260711-candidate-next-actions-v3" in style_css
 
 
@@ -7102,7 +7102,7 @@ def test_decision_tracking_controls_and_target_statuses_are_wired():
     assert "/static/history_workspace_actions.js" in index_html
     assert index_html.index("/static/history_workspace_panels.js") < index_html.index("/static/history_workspace_actions.js")
     assert index_html.index("/static/history_workspace_actions.js") < index_html.index("/static/history_workspace.js")
-    assert "/static/history_workspace.js?v=20260705-tracking-snapshot" in index_html
+    assert "/static/history_workspace.js?v=20260816-historical-quality-audit" in index_html
     assert "mergeTrackingReports" in history_workspace_js
     assert "trackingPayload" in history_workspace_js
     assert "item.latest_reports" in history_workspace_js
@@ -7708,9 +7708,10 @@ def test_decision_tracking_dense_layout_uses_workspace_efficiently():
     assert style_css.index("preview_panel.css?v=20260627-mode-aware-preview") < style_css.index("preview_panel_actions.css?v=20260709-preview-panel-actions")
     assert style_css.index("preview_panel_actions.css?v=20260709-preview-panel-actions") < style_css.index("report_compare.css?v=20260628-glass-dark")
     assert "history_list.css?v=20260628-glass-dark" in style_css
-    assert "history_list_controls.css?v=20260709-history-list-controls" in style_css
-    assert style_css.index("history_list.css?v=20260628-glass-dark") < style_css.index("history_list_controls.css?v=20260709-history-list-controls")
-    assert style_css.index("history_list_controls.css?v=20260709-history-list-controls") < style_css.index("decision_tracking.css?v=20260708-tracking-action-notes")
+    assert "history_list_controls.css?v=20260816-historical-quality-audit" in style_css
+    assert style_css.index("history_list.css?v=20260628-glass-dark") < style_css.index("history_list_controls.css?v=20260816-historical-quality-audit")
+    assert style_css.index("history_list_controls.css?v=20260816-historical-quality-audit") < style_css.index("history_quality_audit.css?v=20260816-historical-quality-audit")
+    assert style_css.index("history_quality_audit.css?v=20260816-historical-quality-audit") < style_css.index("decision_tracking.css?v=20260708-tracking-action-notes")
     assert "decision_tracking.css?v=20260708-tracking-action-notes" in style_css
     assert "history_shell.css?v=20260707-operator-human-factors" in style_css
     assert "history_shell_tabs.css?v=20260711-home-workspaces" in style_css

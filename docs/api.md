@@ -39,6 +39,8 @@ The read-only `report_quality_audit.items[]` payload exposes `missing_quality_fi
 
 `GET /api/watchlist/report-quality-audit/historical` is a separate read-only audit for every indexed report version. Its envelope uses `scope=all_historical_indexed_reports` and `selection_basis=all_indexed_versions`; it is intentionally excluded from the daily decision queue. Optional `q` and `pipeline` filters reuse the report-history search contract and limit the audited version set; `audited_reports` then means all indexed versions matching those filters. Use `item_limit=0` when only the filtered coverage counts are needed. This endpoint does not repair artifacts, enqueue reruns, or write the report index.
 
+When the history workspace has `顯示舊版報告` enabled, it calls the same endpoint with the current search and pipeline filters. The resulting read-only summary and up to five report targets are shown above the existing history list; opening a target reuses the normal report preview callback and does not create a daily queue action.
+
 Report quality metadata repair accepts mapping-safe top-level report envelopes and nested gate mappings before checking `snapshot_integrity`, `report_conformance`, `evidence_exit_gate`, or `content_credibility`; read-only mapping wrappers must not interrupt the audit.
 
 The quality metadata completeness check recognizes only contract states: `report_conformance` and `content_credibility` use `passed`, `warning`, or blocking states, while `evidence_exit_gate` uses `approved`, `caution`, or `rejected`. Placeholder values such as `not_recorded`, `unknown`, and `N/A` remain missing metadata.

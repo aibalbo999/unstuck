@@ -13,6 +13,7 @@ def test_report_quality_audit_counts_verified_reports_with_missing_quality_metad
                 {
                     "ticker": "1623.TW",
                     "filename": "1623_v1.html",
+                    "report_date": "",
                     "pipeline_id": "v1",
                     "snapshot_integrity": {"status": "verified"},
                     "report_conformance": {},
@@ -90,6 +91,7 @@ def test_report_quality_audit_counts_verified_reports_with_missing_quality_metad
             {
                 "ticker": "1623.TW",
                 "filename": "1623_v1.html",
+                "report_date": "",
                 "pipeline_id": "v1",
                 "title": "品質證據未記錄",
                 "detail": "報告未記錄 report_conformance、evidence_exit_gate、content_credibility 品質證據，採用前需人工查看。",

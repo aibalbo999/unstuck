@@ -1,0 +1,10 @@
+.history-quality-audit-shell[hidden] { display: none; }
+.history-quality-audit { display: grid; gap: 8px; margin: 12px 0 14px; padding: 12px 0 2px; border-top: 1px solid var(--glass-border); }
+.history-quality-audit-header, .history-quality-audit-summary { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.history-quality-audit-header strong { color: var(--text-primary); font-size: 0.9rem; }
+.history-quality-audit-header span, .history-quality-audit-summary span, .history-quality-audit-summary em { color: var(--text-secondary); font-size: 0.78rem; font-style: normal; }
+.history-quality-audit-summary { justify-content: flex-start; gap: 6px; }
+.history-quality-audit-summary em { overflow-wrap: anywhere; }
+.history-quality-audit-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.history-quality-audit-target { min-height: 44px; border: 1px solid rgba(245, 158, 11, 0.45); border-radius: 8px; background: rgba(180, 83, 9, 0.14); color: #fde68a; padding: 8px 10px; font: inherit; font-size: 0.78rem; font-weight: 800; cursor: pointer; overflow-wrap: anywhere; }
+.history-quality-audit-target:hover, .history-quality-audit-target:focus-visible { border-color: var(--accent); color: var(--text-primary); outline: none; box-shadow: 0 0 0 3px var(--accent-glow); }

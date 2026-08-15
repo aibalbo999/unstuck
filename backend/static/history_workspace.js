@@ -7,6 +7,7 @@
         const historyLimit = 20;
         let historyReports = new Map(), previewReport = null, trackedTickers = new Set();
         let trackingCompact = false, previewCompactMode = false;
+        const qualityAudit = window.StockAgentHistoricalQualityAudit.create({ apiClient, ui, element: elements.historyQualityAudit, openReport });
 
         const {
             historyFilters,
@@ -37,7 +38,9 @@
         async function loadHistory() {
             try {
                 const trackingPayload = await decisionTrackingPanel.load();
-                const { query, pipelineFilter, recommendationFilter, dataTrustFilter, includeVersions } = historyFilters.values();
+                const values = historyFilters.values();
+                const { query, pipelineFilter, recommendationFilter, dataTrustFilter, includeVersions } = values;
+                qualityAudit.load(values);
                 const data = await apiClient.fetchReports({
                     page: historyPage,
                     limit: historyLimit,
@@ -92,6 +95,7 @@
         });
         function bindEvents() {
             historyPanel.bindEvents({ onDelete: actions.deleteReport, onSelect: showReportPreview, onToggleTracking: actions.toggleDecisionTracking, onOpenSnapshot: openTrackingSnapshot });
+            qualityAudit.bindEvents();
             trackingSnapshotPanel.bindEvents();
             if (elements.previewOpenReportBtn) {
                 elements.previewOpenReportBtn.addEventListener('click', () => {
@@ -145,6 +149,7 @@
             bindEvents,
             hideReportPreview,
             loadHistory,
+            loadQualityAudit: qualityAudit.load,
             getPreviewReport: () => previewReport
         };
     }

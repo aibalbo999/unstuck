@@ -59,9 +59,54 @@
         return label ? `<span class="tracking-action-note is-${tone}" title="${escapeHtml(detail)}">${escapeHtml(label)}</span>` : '';
     }
 
+    function renderHistoricalQualityAudit(audit, escapeHtml) {
+        const e = escapeHtml || (value => String(value ?? ''));
+        if (!audit || audit.status === 'unavailable') {
+            return '<div class="history-quality-audit" role="status"><div class="history-quality-audit-header"><strong>歷史版本品質稽核</strong><span>暫時無法讀取</span></div></div>';
+        }
+        if (audit.status === 'loading') {
+            return '<div class="history-quality-audit" role="status"><div class="history-quality-audit-header"><strong>歷史版本品質稽核</strong><span>載入中</span></div></div>';
+        }
+        const missing = Number(audit.quality_metadata_missing_reports || 0);
+        const audited = Number(audit.audited_reports || 0);
+        const fieldLabels = [['report_conformance', '報告一致性'], ['evidence_exit_gate', '證據關卡'], ['content_credibility', '內容可信度']];
+        const fieldSummary = fieldLabels.map(([key, label]) => {
+            const count = Number(audit.missing_quality_field_counts?.[key] || 0);
+            return Number.isFinite(count) && count > 0 ? `${label} ${Math.floor(count)}` : '';
+        }).filter(Boolean).join('、');
+        const provenanceLabels = [['after_refresh', '刷新後缺口'], ['no_refresh_provenance', '未標記刷新來源']];
+        const provenanceSummary = provenanceLabels.map(([key, label]) => {
+            const count = Number(audit.quality_metadata_missing_by_provenance?.[key] || 0);
+            return Number.isFinite(count) && count > 0 ? `${label} ${Math.floor(count)}` : '';
+        }).filter(Boolean).join('、');
+        const pipelineQuality = audit.quality_metadata_by_pipeline && typeof audit.quality_metadata_by_pipeline === 'object' && !Array.isArray(audit.quality_metadata_by_pipeline) ? audit.quality_metadata_by_pipeline : {};
+        const pipelineSummary = Object.entries(pipelineQuality).map(([pipeline, summary]) => {
+            const count = Number(summary?.quality_metadata_missing_reports || 0);
+            return Number.isFinite(count) && count > 0 ? `${pipeline} ${Math.floor(count)}` : '';
+        }).filter(Boolean).join('、');
+        const returnedValue = Number(audit.items_returned);
+        const returned = Number.isFinite(returnedValue) && returnedValue >= 0 ? Math.floor(returnedValue) : Array.isArray(audit.items) ? audit.items.length : 0;
+        const truncation = audit.items_truncated === true && missing > returned ? `（目前顯示 ${returned} 份，另有 ${missing - returned} 份未展開）` : '';
+        const auditDetails = missing > 0
+            ? `<span>${Math.floor(missing)} 份待人工核對${truncation}</span><em>${fieldSummary ? `缺口：${e(fieldSummary)}` : ''}${pipelineSummary ? `；模式缺口：${e(pipelineSummary)}` : ''}${provenanceSummary ? `；來源：${e(provenanceSummary)}` : ''}</em>`
+            : `<span>符合條件的 ${Math.floor(audited)} 份歷史版本沒有品質 metadata 缺口</span>`;
+        const targets = (Array.isArray(audit.items) ? audit.items : []).filter(item => item && item.filename).map(item => {
+            const ticker = item.ticker || '報告';
+            const pipeline = item.pipeline_id || 'v1';
+            const reportDate = String(item.report_date || '').trim();
+            const title = item.title || '品質缺口';
+            const detail = item.detail || title;
+            const reasonCodes = Array.isArray(item.reason_codes) ? item.reason_codes.join(',') : '';
+            const targetLabel = reportDate ? `${ticker} ${pipeline} · ${reportDate}` : `${ticker} ${pipeline}`;
+            return `<button class="history-quality-audit-target" type="button" data-quality-audit-report="${e(item.filename)}" data-quality-audit-ticker="${e(ticker)}" data-quality-audit-pipeline="${e(pipeline)}" data-quality-reason-codes="${e(reasonCodes)}" title="${e(detail)}" aria-label="${e(`人工核對 ${targetLabel}：${title}`)}">查看 ${e(targetLabel)}</button>`;
+        }).join('');
+        return `<div class="history-quality-audit" role="status"><div class="history-quality-audit-header"><strong>歷史版本品質稽核</strong><span>範圍：${Math.floor(audited)} 份</span></div><div class="history-quality-audit-summary">${auditDetails}</div>${targets ? `<div class="history-quality-audit-actions">${targets}</div>` : ''}</div>`;
+    }
+
     window.StockAgentHistoryPanelQualityHelpers = {
         hasRefreshableDataTrustIssue,
         reportActionBadge,
-        trackingActionNote
+        trackingActionNote,
+        renderHistoricalQualityAudit
     };
 })();

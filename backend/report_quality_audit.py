@@ -196,6 +196,7 @@ def _audit_item(report: dict[str, Any], item: dict[str, Any]) -> dict[str, Any]:
     return {
         "ticker": safe_text(report.get("ticker")).strip(),
         "filename": safe_text(report.get("filename") or report.get("report_filename")).strip(),
+        "report_date": safe_text(report.get("report_date")).strip(),
         "pipeline_id": safe_text(report.get("pipeline_id")).strip() or "v1",
         "title": safe_text(item.get("title")).strip(),
         "detail": safe_text(item.get("detail")).strip(),
@@ -263,6 +264,7 @@ def _report_from_index_row(row: dict[str, Any], storage: Any) -> dict[str, Any]:
     return {
         "ticker": safe_text(row.get("ticker")).strip(),
         "filename": filename,
+        "report_date": safe_text(row.get("report_date") or row.get("date")).strip(),
         "pipeline_id": safe_text(row.get("pipeline_id")).strip() or "v1",
         "snapshot_integrity": integrity,
         "refreshed_from_report": safe_text(snapshot.get("refreshed_from_report")).strip(),

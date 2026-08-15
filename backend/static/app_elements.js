@@ -31,6 +31,7 @@
             historyRecommendationFilter: byId(doc, 'history-recommendation-filter'),
             historyDataTrustFilter: byId(doc, 'history-data-trust-filter'),
             historyIncludeVersions: byId(doc, 'history-include-versions'),
+            historyQualityAudit: byId(doc, 'history-quality-audit'),
             historyPagination: byId(doc, 'history-pagination'),
             historyPrev: byId(doc, 'history-prev'),
             historyNext: byId(doc, 'history-next'),

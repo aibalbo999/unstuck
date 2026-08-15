@@ -18,6 +18,10 @@
 
     async function fetchWatchlist() { return jsonRequest('/api/watchlist'); }
     async function fetchDailyDecisionDashboard() { return jsonRequest('/api/watchlist/daily-dashboard'); }
+    async function fetchHistoricalReportQualityAudit({ itemLimit = 5, query = '', pipeline = 'all' } = {}) {
+        const params = new URLSearchParams({ item_limit: String(itemLimit), q: query || '', pipeline: pipeline || 'all' });
+        return jsonRequest(`/api/watchlist/report-quality-audit/historical?${params.toString()}`);
+    }
     async function fetchSymbolSuggestions(q, limit = 10) { const params = new URLSearchParams({ q: q || '', limit: String(limit) }); return jsonRequest(`/api/watchlist/symbols?${params.toString()}`); }
     async function importWatchlistText(text) { return jsonRequest('/api/watchlist/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: text || '' }) }); }
     async function analyzePortfolioRisk(csv, thesisHealth = {}) { return jsonRequest('/api/watchlist/portfolio/risk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ csv, thesis_health: thesisHealth || {} }) }); }
@@ -77,5 +81,5 @@
         });
     }
 
-    Object.assign(window.StockAgentApiClient, { fetchApiQuotas, fetchModelRouteBudget, fetchPerformanceStats, fetchStockSnapshot, compareReports, fetchWatchlist, fetchDailyDecisionDashboard, fetchSymbolSuggestions, importWatchlistText, analyzePortfolioRisk, saveWatchlistItem, deleteWatchlistItem, runWatchlist, fetchMarketScreener, runMarketScreener, fetchDecisionTracking, saveDecisionTrackingItem, deleteDecisionTrackingItem, refreshDecisionTracking });
+    Object.assign(window.StockAgentApiClient, { fetchApiQuotas, fetchModelRouteBudget, fetchPerformanceStats, fetchStockSnapshot, compareReports, fetchWatchlist, fetchDailyDecisionDashboard, fetchHistoricalReportQualityAudit, fetchSymbolSuggestions, importWatchlistText, analyzePortfolioRisk, saveWatchlistItem, deleteWatchlistItem, runWatchlist, fetchMarketScreener, runMarketScreener, fetchDecisionTracking, saveDecisionTrackingItem, deleteDecisionTrackingItem, refreshDecisionTracking });
 })();

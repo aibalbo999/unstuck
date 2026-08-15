@@ -2,6 +2,16 @@
 
 更新時間：2026-08-16
 
+## D3545 / 歷史品質稽核進入操作閉環
+
+- `#受眾` / `#差距分析`：API 已有 1330 份 historical coverage 與 143 個缺口，但歷史頁沒有入口；操作員若不使用 curl，無法在既有報告流程中定位缺口。
+- `#溝通設計` / `#語意含義`：勾選「顯示舊版報告」後，頁面顯示與當前搜尋/模式篩選一致的「歷史版本品質稽核」，白話呈現缺 gate、來源與模式分布，最多列五個人工核對 target。
+- `#最佳化` / `#責任`：新增 `history_quality_audit.js` 專責載入/降級/CTA delegation；背景載入不阻塞歷史列表，CTA 沿用 `openReport()`，不新增第二套報告路徑。
+- `#責任` / `#倫理判斷`：維持 historical audit read-only，不加入 daily queue、不自動修復、不從 HTML/Markdown 重建 gate、不寫 artifact/index、不 enqueue rerun。
+- `#可驗證性`：helper/module wiring、asset cache-buster、CSS/JS size boundary 與 static regression 必須一起通過，之後以重啟 runtime 與實際歷史頁互動確認 endpoint/filter/CTA。
+
+本批暫定決策：先讓歷史品質 evidence 在既有報告頁可被查證，再保留批次修復為另一個需明確核准與 audit trail 的工作流。
+
 ## D3544 / 品質缺口 provenance 聚合
 
 - `#來源品質` / `#證據基礎`：live historical audit 的 143 筆缺口全部是 `quality_metadata_after_refresh`，且現行 refresh service 已有 gate preservation；因此不能把歷史 evidence gap 誤寫成目前 refresh regression。

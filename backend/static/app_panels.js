@@ -77,6 +77,7 @@
                 historyRecommendationFilter: elements.historyRecommendationFilter,
                 historyDataTrustFilter: elements.historyDataTrustFilter,
                 historyIncludeVersions: elements.historyIncludeVersions,
+                historyQualityAudit: elements.historyQualityAudit,
                 historyPagination: elements.historyPagination,
                 historyPrev: elements.historyPrev,
                 historyNext: elements.historyNext,
