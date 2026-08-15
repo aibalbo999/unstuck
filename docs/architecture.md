@@ -201,6 +201,8 @@ daily target 只複用同一筆 `quality_review.status` 做可見與 accessible 
 
 歷史 review control 由 `history_quality_audit` 保留一個 page-level submission lock；成功 mutation 後重新載入目前範圍，失敗則經 notification center 呈現並解除 lock。這只降低瀏覽器連點造成的重複請求，不取代 server 的 mutation token、revision fingerprint 或 append-only ledger 約束。
 
+`history_panel_quality_helpers` 對 review status filter 採用 recoverable empty-state 規則：非目前且 count 為零的狀態可隱藏，目前狀態即使為零仍保留，並在 filtered view 一律保留 `all` 入口；這只影響導覽呈現，不改 status aggregate 或 historical query。
+
 ## Event-Driven Radar
 
 ```mermaid

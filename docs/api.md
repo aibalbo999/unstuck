@@ -51,6 +51,8 @@ Repeated read-only quality audits may reuse an in-process row derivation cache f
 
 The same historical endpoint accepts read-only `review_status=all|pending|approved_with_gap|rejected|deferred`. A selected status filters the audited version set before coverage and item pagination, and the response records the applied value in `review_status_filter`; this helps operators revisit one review state without implying that other states were audited in that response. It does not write the review ledger.
 
+The response keeps `quality_review_by_status` keys even when a selected status has count `0`; clients should keep the current status and an `all` navigation entry visible so an empty filtered result remains recoverable.
+
 When `review_status` is not `all`, `quality_metadata_coverage_pct`, `audited_reports`, and pagination counts describe only the selected review-status set. Consumers must not present the filtered coverage percentage as whole-library quality; the history UI labels the selected scope as `審核範圍` and reserves `品質 metadata 完整度` for the unfiltered response.
 
 The daily watchlist board reuses the same `artifact_quality_summary` item evidence when it renders report-quality targets. It may expose the marker fields through `data-quality-artifact-fields` and human-readable target context, but this remains a read-only manual-review hint and does not alter the daily decision queue.

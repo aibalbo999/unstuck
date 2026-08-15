@@ -81,7 +81,7 @@
         const labels = [['all', '全部審核狀態'], ['pending', '待人工核對'], ['approved_with_gap', '已核准保留缺口'], ['rejected', '退回處理'], ['deferred', '已暫緩']];
         const buttons = labels.map(([key, label]) => {
             const count = Number(audit?.quality_review_by_status?.[key] || 0);
-            if (key === 'all' ? current === 'all' : !Number.isFinite(count) || count <= 0) return '';
+            if (key === 'all' ? current === 'all' : current !== key && (!Number.isFinite(count) || count <= 0)) return '';
             return `<button class="history-quality-audit-filter" type="button" data-quality-audit-review-status="${e(key)}"${current === key ? ' aria-pressed="true"' : ''}>${e(label)}${key === 'all' ? '' : `（${Math.floor(count)}）`}</button>`;
         }).filter(Boolean).join('');
         return buttons ? `<div class="history-quality-audit-filter-actions" aria-label="按審核狀態查看品質缺口">${buttons}</div>` : '';
