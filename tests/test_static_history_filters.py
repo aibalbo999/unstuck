@@ -612,6 +612,7 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "/api/maintenance/storage-summary" in api_client_js
     assert "/api/maintenance/cleanup-failed-queue" in api_client_js
     assert "cleanupFailedQueue" in api_client_js
+    assert "previewFailedQueue" in api_client_js
     assert "/api/observability/dashboard" in api_client_js
     assert "mutation: true" in api_client_js
     assert "fetchOpsDashboard" in api_client_js
@@ -624,6 +625,9 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "maintenance-clean-provider-sla" in maintenance_js
     assert "maintenance-clean-failed-queue" in maintenance_js
     assert "cleanupFailedQueue" in maintenance_js
+    assert "previewFailedQueue" in maintenance_js
+    assert "notify.confirm" in maintenance_js
+    assert "清理前先確認" in maintenance_js
     assert "maintenance-clean-failed-queue" in index_html
     assert "notification_delivery" in maintenance_js
     assert "retry_exhausted_count" in maintenance_notification_js
@@ -699,6 +703,65 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "apiClient.requestJson" in report_rerun_js
     assert "fetchActiveJobs" in operator_summary_js
     assert "fetchApiQuotas" in operator_summary_js
+
+
+def test_maintenance_failed_queue_cleanup_requires_preview_confirmation():
+    maintenance_panel_path = STATIC_DIR / "maintenance_panel.js"
+    script = """
+global.window = {
+  StockAgentMaintenancePanelHelpers: {
+    render: () => {},
+    actionMessage: () => '已完成'
+  }
+};
+global.document = { addEventListener: () => {} };
+require(__MAINTENANCE_PANEL_PATH__);
+const button = () => ({
+  listeners: {},
+  disabled: false,
+  setAttribute() { this.disabled = true; },
+  removeAttribute() { this.disabled = false; },
+  addEventListener(name, handler) { this.listeners[name] = handler; }
+});
+const failedQueue = button();
+const resultEl = { textContent: '' };
+let previews = 0;
+let writes = 0;
+let approved = false;
+const apiClient = {
+  fetchMaintenanceSummary: async () => ({ summary: {} }),
+  previewFailedQueue: async () => { previews += 1; return { result: { stale_failed_jobs: 2 } }; },
+  cleanupFailedQueue: async () => { writes += 1; return { result: { deleted_jobs: 2 } }; }
+};
+window.StockAgentMaintenancePanel.bind({
+  apiClient,
+  summaryEl: { textContent: '' },
+  listEl: { innerHTML: '' },
+  resultEl,
+  refreshEl: button(),
+  actionButtons: { failedQueue },
+  notify: { confirm: async () => approved }
+});
+(async () => {
+  await Promise.resolve();
+  await failedQueue.listeners.click();
+  const cancelled = { previews, writes, message: resultEl.textContent };
+  approved = true;
+  await failedQueue.listeners.click();
+  process.stdout.write(JSON.stringify({ cancelled, previews, writes, message: resultEl.textContent }));
+})();
+""".replace("__MAINTENANCE_PANEL_PATH__", json.dumps(str(maintenance_panel_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert payload["cancelled"] == {
+        "previews": 1,
+        "writes": 0,
+        "message": "已取消清理過期失敗任務",
+    }
+    assert payload["previews"] == 2
+    assert payload["writes"] == 1
+    assert payload["message"] == "已完成"
 
 
 def test_stock_snapshot_panel_is_wired_for_consumer_stock_page():
@@ -5929,8 +5992,8 @@ def test_candidate_next_actions_assets_use_shared_cache_buster():
     assert "/static/style.css?v=20260816-historical-quality-target-context" in index_html
     assert "/static/watchlist_panel_helpers.js?v=20260816-historical-quality-artifact-field-aggregate" in index_html
     assert "/static/watchlist_panel.js?v=20260816-historical-quality-navigation" in index_html
-    assert "/static/maintenance_panel_helpers.js?v=20260816-stale-failed-queue-maintenance" in index_html
-    assert "/static/maintenance_panel.js?v=20260816-stale-failed-queue-maintenance" in index_html
+    assert "/static/maintenance_panel_helpers.js?v=20260816-stale-failed-queue-confirmation" in index_html
+    assert "/static/maintenance_panel.js?v=20260816-stale-failed-queue-confirmation" in index_html
     assert "/static/operator_dashboard_actions.js?v=20260711-candidate-next-actions-v3" in index_html
     assert "/static/operator_summary_panel.js?v=20260711-candidate-next-actions-v3" in index_html
     assert "/static/app_panels.js?v=20260816-historical-quality-audit" in index_html

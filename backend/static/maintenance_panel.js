@@ -47,8 +47,8 @@
                 setButtonsDisabled(allButtons, true);
                 if (resultEl) resultEl.textContent = '維護中...';
                 const payload = await runner();
-                if (resultEl) resultEl.textContent = helpers.actionMessage(action, payload);
-                await loadSummary();
+                if (payload && resultEl) resultEl.textContent = helpers.actionMessage(action, payload);
+                if (payload) await loadSummary();
             } catch (err) {
                 console.error('Maintenance action failed', err);
                 if (resultEl) resultEl.textContent = '維護失敗，請稍後重試';
@@ -64,7 +64,12 @@
             ['providerSla', 'provider-sla', 'cleanupProviderSla'],
             ['failedQueue', 'failed-queue', 'cleanupFailedQueue']
         ].forEach(([key, action, method]) => {
-            actionButtons[key]?.addEventListener('click', () => runAction(action, apiClient[method]));
+            if (action === 'failed-queue') actionButtons[key]?.addEventListener('click', () => runAction(action, async () => {
+                const preview = await apiClient.previewFailedQueue(), count = Number(preview?.result?.stale_failed_jobs || 0), notify = options.notify || window.StockAgentNotify || window.StockAgentNotificationCenter?.create?.();
+                if (!(count > 0)) { if (resultEl) resultEl.textContent = '沒有可清理的過期失敗任務'; return null; }
+                if (!notify?.confirm || !(await notify.confirm(`清理前先確認：將刪除 ${count} 筆過期失敗任務。`, { title: '清理過期失敗任務', confirmLabel: '刪除', danger: true }))) { if (resultEl) resultEl.textContent = '已取消清理過期失敗任務'; return null; }
+                return apiClient.cleanupFailedQueue();
+            })); else actionButtons[key]?.addEventListener('click', () => runAction(action, apiClient[method]));
         });
         loadSummary();
     }

@@ -35,6 +35,10 @@
         const params = new URLSearchParams({ write: 'true', stale_after_seconds: String(staleAfterSeconds) });
         return requestJson(`/api/maintenance/cleanup-failed-queue?${params.toString()}`, { method: 'POST' });
     }
+    async function previewFailedQueue({ staleAfterSeconds = 7 * 24 * 60 * 60 } = {}) {
+        const params = new URLSearchParams({ write: 'false', stale_after_seconds: String(staleAfterSeconds) });
+        return requestJson(`/api/maintenance/cleanup-failed-queue?${params.toString()}`, { method: 'POST' });
+    }
     async function fetchReports({ page, limit, query, pipeline, recommendation, dataTrust, includeVersions }) {
         const params = new URLSearchParams({
             page: String(page),
@@ -63,6 +67,7 @@
         cleanupAnalysisHistory,
         cleanupProviderSla,
         cleanupFailedQueue,
+        previewFailedQueue,
         fetchReports,
         refreshReportDataSnapshot,
         deleteReport

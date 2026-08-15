@@ -2,6 +2,15 @@
 
 更新時間：2026-08-16
 
+## D3562 / stale failed queue confirmation gate
+
+- `#偏誤降低` / `#責任`：原維護按鈕直接進入 `write=true`，操作員可能未先核對候選數；UI 改成先呼叫 `previewFailedQueue()`，只把 API 回傳的 `stale_failed_jobs` 作為確認內容，取消、零候選或沒有共用確認器時都不寫入。
+- `#受眾` / `#溝通設計`：確認訊息白話呈現「清理前先確認」與將刪除筆數，沿用既有 danger dialog，不另造一套互動或把 dry-run 結果誤寫成已刪除。
+- `#倫理判斷` / `#限制條件`：本批不執行 live destructive cleanup；仍保留 mutation token、dry-run 預設與 age evidence guard，UI 核准只是進入既有寫入邊界，不改後端刪除規則。
+- `#可驗證性`：Node 行為測試實際跑取消與核准兩條路徑，確認 preview 次數、write 次數與訊息；完整 scoped suite `829 passed`，live dry-run 為 `10/10/0/0`（scanned/stale/deleted/errors），health/readiness 與新版資產均 `200`。
+
+本批暫定決策：把 queue housekeeping 的人工核准放在寫入 API 前，並維持所有現場 queue evidence 不被本次驗證移除。
+
 ## D3561 / explicit stale failed queue maintenance
 
 - `#拆解問題` / `#差距分析` / `#責任`：live RQ `stock-analysis` 有 10 筆 2026-06-28 failed jobs；observability 能分類 stale，但原維護面板沒有可執行入口，且 stale-only chip 的 tone 仍是 `is-ok`。
