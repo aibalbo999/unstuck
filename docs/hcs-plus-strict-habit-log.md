@@ -2,6 +2,15 @@
 
 更新時間：2026-08-16
 
+## D3556 / artifact evidence field coverage
+
+- `#差距分析` / `#來源品質`：live historical `143` 筆缺口全部是 `status=present`，但 field marker 只有 `report_conformance=143`、`evidence_exit_gate=143`，`content_credibility=0`；status-only 摘要會隱藏部分 evidence。
+- `#語意含義` / `#偏誤降低`：新增 `artifact_quality_summary_by_field`，以 pagination 前的全量 missing row 為分母，保留三個品質欄位的 marker count，UI 明確顯示零值；`present` 仍不是 structured gate pass。
+- `#受眾` / `#責任`：daily 與 historical 共用欄位摘要，操作員可以直接判斷哪些 artifact evidence 可查，卻不會被引導成自動修復、採用或 rerun。
+- `#可驗證性`：先以 field-count、pagination、daily/historical renderer fixture 取得 RED，再完成 backend/UI GREEN；更新 static field aggregate cache-buster。
+
+本批暫定決策：把 artifact marker 的可用性拆成狀態與欄位兩層；欄位為零是明確 evidence gap，不由 UI 推導 gate 結論或產生 action。
+
 ## D3555 / artifact evidence availability aggregate
 
 - `#差距分析` / `#受眾`：daily/historical audit 逐筆 target 已有 `artifact_quality_summary`，但 envelope 只回傳分頁 items；若只看前 5 筆，操作員無法知道全部 missing-metadata rows 的 artifact evidence 可用性。

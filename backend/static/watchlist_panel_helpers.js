@@ -33,6 +33,8 @@
         const provenanceLabels = [['after_refresh', '刷新後缺口'], ['no_refresh_provenance', '未標記刷新來源']];
         const provenanceSummary = provenanceLabels.map(([key, label]) => { const count = Number(audit.quality_metadata_missing_by_provenance?.[key] || 0); return Number.isFinite(count) && count > 0 ? `${label} ${Math.floor(count)}` : ''; }).filter(Boolean).join('、');
         const artifactSummary = [['present', 'artifact 摘要可查'], ['not_found', 'artifact 無 gate 摘要'], ['unavailable', 'artifact 無法讀取']].map(([key, label]) => { const count = Number(audit.artifact_quality_summary_by_status?.[key] || 0); return Number.isFinite(count) && count > 0 ? `${label} ${Math.floor(count)} 份` : ''; }).filter(Boolean).join('、');
+        const artifactFieldStats = audit.artifact_quality_summary_by_field && typeof audit.artifact_quality_summary_by_field === 'object' && !Array.isArray(audit.artifact_quality_summary_by_field) ? audit.artifact_quality_summary_by_field : null;
+        const artifactFieldSummary = artifactFieldStats ? missingFieldLabels.map(([key, label]) => { const count = Number(artifactFieldStats[key] || 0); return Number.isFinite(count) && count >= 0 ? `${label} ${Math.floor(count)}` : ''; }).filter(Boolean).join('、') : '';
         const pipelineQuality = audit.quality_metadata_by_pipeline && typeof audit.quality_metadata_by_pipeline === 'object' && !Array.isArray(audit.quality_metadata_by_pipeline) ? audit.quality_metadata_by_pipeline : {};
         const missingPipelineSummary = Object.entries(pipelineQuality).map(([pipeline, summary]) => { const count = Number(summary?.quality_metadata_missing_reports || 0); return Number.isFinite(count) && count > 0 ? `${pipeline} ${Math.floor(count)}` : ''; }).filter(Boolean).join('、');
         const auditItems = Array.isArray(audit.items) ? audit.items.filter(item => item && item.filename) : [];
@@ -41,7 +43,7 @@
         const auditScopeLabel = audit.selection_basis === 'latest_per_ticker_pipeline' ? '全量報告品質（每 ticker/pipeline 最新一筆）' : '全量報告品質';
         const auditParts = [];
         const truncationNote = audit.items_truncated === true && missingQuality > returnedItems && `（目前顯示 ${returnedItems} 份，另有 ${missingQuality - returnedItems} 份未展開）`;
-        if (missingQuality > 0) auditParts.push(`${missingQuality} 份待人工核對${truncationNote || ''}${missingFieldSummary ? `；缺口：${missingFieldSummary}` : ''}${missingPipelineSummary ? `；模式缺口：${missingPipelineSummary}` : ''}${provenanceSummary ? `；來源：${provenanceSummary}` : ''}${artifactSummary ? `；${artifactSummary}` : ''}${coverage == null ? '' : `（${coverageLabel} ${coverage}%）`}`);
+        if (missingQuality > 0) auditParts.push(`${missingQuality} 份待人工核對${truncationNote || ''}${missingFieldSummary ? `；缺口：${missingFieldSummary}` : ''}${missingPipelineSummary ? `；模式缺口：${missingPipelineSummary}` : ''}${provenanceSummary ? `；來源：${provenanceSummary}` : ''}${artifactSummary ? `；${artifactSummary}` : ''}${artifactFieldSummary ? `；artifact 欄位可查：${artifactFieldSummary}` : ''}${coverage == null ? '' : `（${coverageLabel} ${coverage}%）`}`);
         if (excludedSnapshots > 0) auditParts.push(`${excludedSnapshots} 份 snapshot 無法驗證`);
         const auditText = audit.status === 'unavailable' ? ` · ${auditScopeLabel}：暫時無法讀取` : auditParts.length ? ` · ${auditScopeLabel}：${auditParts.join('；')}` : '';
         const auditButtons = auditItems.map(item => {

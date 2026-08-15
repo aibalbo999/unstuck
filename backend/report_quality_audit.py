@@ -138,6 +138,7 @@ def build_report_quality_audit(
     missing_quality_field_counts = {field: 0 for field in QUALITY_METADATA_FIELDS}
     missing_quality_by_provenance = {provenance: 0 for provenance in QUALITY_METADATA_PROVENANCE}
     artifact_quality_summary_by_status = {status: 0 for status in ARTIFACT_QUALITY_SUMMARY_STATUSES}
+    artifact_quality_summary_by_field = {field: 0 for field in QUALITY_METADATA_FIELDS}
     pipeline_quality_stats: dict[str, dict[str, Any]] = {}
     for report in rows:
         pipeline_id = safe_text(report.get("pipeline_id")).strip() or "v1"
@@ -173,6 +174,10 @@ def build_report_quality_audit(
         artifact_status = safe_text(artifact_summary.get("status")).strip().lower()
         if artifact_status in artifact_quality_summary_by_status:
             artifact_quality_summary_by_status[artifact_status] += 1
+        artifact_fields = set(safe_text_list(artifact_summary.get("fields")))
+        for field in QUALITY_METADATA_FIELDS:
+            if field in artifact_fields:
+                artifact_quality_summary_by_field[field] += 1
         missing_items.append(_audit_item(report, item))
 
     missing_count = len(missing_items)
@@ -199,6 +204,7 @@ def build_report_quality_audit(
         "missing_quality_field_counts": missing_quality_field_counts,
         "quality_metadata_missing_by_provenance": missing_quality_by_provenance,
         "artifact_quality_summary_by_status": artifact_quality_summary_by_status,
+        "artifact_quality_summary_by_field": artifact_quality_summary_by_field,
         "quality_metadata_by_pipeline": quality_metadata_by_pipeline,
         "quality_metadata_coverage_pct": coverage,
         "quality_metadata_coverage_basis": "verified_snapshot_reports",

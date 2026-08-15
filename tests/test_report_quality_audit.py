@@ -67,6 +67,11 @@ def test_report_quality_audit_counts_verified_reports_with_missing_quality_metad
             "not_found": 0,
             "unavailable": 0,
         },
+        "artifact_quality_summary_by_field": {
+            "report_conformance": 0,
+            "evidence_exit_gate": 0,
+            "content_credibility": 0,
+        },
         "quality_metadata_by_pipeline": {
             "v1": {
                 "audited_reports": 3,
@@ -521,6 +526,54 @@ def test_indexed_report_quality_audit_exposes_artifact_quality_summary_without_r
         "present": 1,
         "not_found": 0,
         "unavailable": 0,
+    }
+    assert payload["artifact_quality_summary_by_field"] == {
+        "report_conformance": 1,
+        "evidence_exit_gate": 1,
+        "content_credibility": 0,
+    }
+
+
+def test_report_quality_audit_artifact_field_summary_counts_all_missing_rows_before_item_pagination():
+    from report_quality_audit import build_report_quality_audit
+
+    payload = build_report_quality_audit(
+        [
+            {
+                "ticker": "1623.TW",
+                "filename": "1623_v1.html",
+                "snapshot_integrity": {"status": "verified"},
+                "report_conformance": {},
+                "evidence_exit_gate": {},
+                "content_credibility": {},
+                "artifact_quality_summary": {"status": "present", "fields": ["report_conformance"]},
+            },
+            {
+                "ticker": "2330.TW",
+                "filename": "2330_v1.html",
+                "snapshot_integrity": {"status": "verified"},
+                "report_conformance": {},
+                "evidence_exit_gate": {},
+                "content_credibility": {},
+                "artifact_quality_summary": {"status": "not_found", "fields": []},
+            },
+        ],
+        scope="all_historical_indexed_reports",
+        selection_basis="all_indexed_versions",
+        item_limit=1,
+    )
+
+    assert payload["items_returned"] == 1
+    assert payload["items_total"] == 2
+    assert payload["artifact_quality_summary_by_status"] == {
+        "present": 1,
+        "not_found": 1,
+        "unavailable": 0,
+    }
+    assert payload["artifact_quality_summary_by_field"] == {
+        "report_conformance": 1,
+        "evidence_exit_gate": 0,
+        "content_credibility": 0,
     }
 
 

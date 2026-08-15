@@ -29,6 +29,7 @@ const audit = {
   },
   quality_metadata_missing_by_provenance: { after_refresh: 143, no_refresh_provenance: 0 },
   artifact_quality_summary_by_status: { present: 1, not_found: 0, unavailable: 0 },
+  artifact_quality_summary_by_field: { report_conformance: 1, evidence_exit_gate: 1, content_credibility: 0 },
   quality_metadata_by_pipeline: {
     v1: { quality_metadata_missing_reports: 36 },
     v2: { quality_metadata_missing_reports: 36 }
@@ -90,6 +91,7 @@ process.stdout.write(JSON.stringify({ html }));
     assert "品質缺口：缺少報告一致性、證據關卡、內容可信度；來源：刷新後" in payload["html"]
     assert "artifact 摘要可查：報告一致性、證據關卡" in payload["html"]
     assert "artifact 摘要可查 1 份" in payload["html"]
+    assert "artifact 欄位可查：報告一致性 1、證據關卡 1、內容可信度 0" in payload["html"]
 
 
 def test_history_quality_audit_module_filters_requests_and_reuses_open_report_callback():
@@ -304,7 +306,7 @@ def test_history_workspace_wires_historical_quality_audit_without_daily_queue_si
 
     assert 'id="history-quality-audit"' in index_html
     assert "/static/history_panel_quality_helpers.js?v=20260816-historical-quality-basis" in index_html
-    assert "/static/history_quality_audit_render.js?v=20260816-historical-quality-artifact-aggregate" in index_html
+    assert "/static/history_quality_audit_render.js?v=20260816-historical-quality-artifact-field-aggregate" in index_html
     assert "/static/history_quality_audit.js?v=20260816-historical-quality-pagination" in index_html
     assert index_html.index("/static/history_quality_audit_render.js") < index_html.index("/static/history_quality_audit.js")
     assert len((STATIC_DIR / "history_panel_quality_helpers.js").read_text(encoding="utf-8").splitlines()) < 120

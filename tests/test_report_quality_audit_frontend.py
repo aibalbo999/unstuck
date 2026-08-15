@@ -20,7 +20,8 @@ const payload = {
     quality_metadata_missing_reports: 2,
     quality_metadata_coverage_pct: 98.75,
     quality_metadata_coverage_basis: 'verified_snapshot_reports',
-    artifact_quality_summary_by_status: { present: 2, not_found: 0, unavailable: 0 }
+    artifact_quality_summary_by_status: { present: 2, not_found: 0, unavailable: 0 },
+    artifact_quality_summary_by_field: { report_conformance: 2, evidence_exit_gate: 2, content_credibility: 0 }
   }
 };
 const board = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], payload, value => String(value ?? ''));
@@ -33,6 +34,7 @@ process.stdout.write(JSON.stringify({ board }));
     assert "2 份待人工核對" in payload["board"]
     assert "已驗證快照覆蓋 98.75%" in payload["board"]
     assert "artifact 摘要可查 2 份" in payload["board"]
+    assert "artifact 欄位可查：報告一致性 2、證據關卡 2、內容可信度 0" in payload["board"]
 
 
 def test_watchlist_board_discloses_truncated_quality_audit_items():

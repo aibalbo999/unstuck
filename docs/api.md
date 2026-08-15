@@ -35,6 +35,8 @@ The read-only `report_quality_audit.items[]` payload exposes `missing_quality_fi
 
 `artifact_quality_summary_by_status` counts the artifact marker evidence for all missing-metadata rows before `items[]` pagination: `present`, `not_found`, and `unavailable`. `present` means Markdown/HTML contains visible gate summary markers for manual review only; it is not a structured gate pass, and zero counts do not prove that an artifact is absent when the row has no readable artifact summary.
 
+`artifact_quality_summary_by_field` counts visible marker evidence by quality field across the same full missing-metadata set: `report_conformance`, `evidence_exit_gate`, and `content_credibility`. The field counts may be lower than `present`; this difference is intentional and makes partial artifact evidence explicit instead of implying all three gates are available.
+
 `quality_metadata_by_pipeline` repeats the same audit counts per `pipeline_id`, including its own `verified_snapshot_reports`, `quality_metadata_coverage_pct`, `quality_metadata_coverage_basis`, and missing-gate counts. This makes a full historical response sufficient for pipeline prioritization without issuing one request per mode.
 
 `report_quality_audit.selection_basis = latest_per_ticker_pipeline` means the `all_indexed_reports` scope audits the latest indexed row for each ticker/pipeline pair, not every historical artifact version. Use this field with `audited_reports` when describing coverage.
