@@ -2,6 +2,16 @@
 
 更新時間：2026-08-15
 
+## D3519 / Mode D 交易計畫可信度
+
+- `#拆解問題` / `#差距分析`：live `2465.TW` 的 v4 `preview` 已有交易方向、進場區間、1–2 週目標與停損，但通用 recommendation metadata 是 `N/A`；品質 gate 因此只說略過方向一致性檢查。
+- `#語意含義` / `#受眾`：v4 是短線交易計畫，不是長線 3/6/12 個月投資建議；不把 `Neutral` 強行改成長線「持有」，也不把 1–2 週目標寫進長期目標欄位。
+- `#偏誤降低`：新增 `trade_setup_alignment`，Long/Short 分別核對目標與停損相對現價的方向；Neutral 保留中性，只要求價格輸入可解析。缺少價格時 warning，方向矛盾時 blocking。
+- `#組織結構`：上一批 route payload 讓 observability service 超過既有 import-boundary 行數護欄；將 helper 抽到 `backend/model_route_observability.py`，保留 API service 的相容匯出與既有測試 monkeypatch 入口。
+- `#可驗證性`：新增完整交易計畫、Long 方向矛盾與不可解析價格 RED→GREEN 測試；一般 v1–v3 recommendation alignment 保持原路徑。報告品質相關 `200 passed`、storage/artifact/lint/reading `80 passed`、runtime observability `136 passed`、HCS/docs/import `638 passed`。
+
+本批暫定決策：只補 Mode D 的品質證據與方向護欄，不改 report index 共用欄位、不污染 3/6/12 個月目標、不改 v4 preview 顯示邏輯。
+
 ## D3518 / 模型路由維運可見性
 
 - `#差距分析`：live dashboard 已產生 3 條 `slow_route`，但 `model_route_warning` 的操作入口指向只渲染 quota service 的 panel；操作人員無法從 deep link 看到 route、p95 或 warning id。

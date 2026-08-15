@@ -11,6 +11,7 @@ from .content_credibility_alignment import evaluate_recommendation_target_alignm
 from .content_credibility_data_confidence import evaluate_data_confidence_target_guardrail
 from .content_credibility_evidence_confidence import evaluate_confidence_evidence_alignment
 from .content_credibility_evidence_matrix import evaluate_evidence_matrix_coverage
+from .content_credibility_trade_setup import evaluate_trade_setup_alignment
 from .content_credibility_inputs import (
     confidence_score as recommendation_confidence_score,
     first_price,
@@ -34,6 +35,8 @@ def evaluate_content_credibility(context: dict, snapshot: dict | None = None, ma
     data = _as_dict(snapshot.get("data")) or _as_dict(context.get("data"))
     parsed = _as_dict(context.get("parsed"))
     recommendation = _as_dict(parsed.get("recommendation"))
+    trade_setup = _as_dict(parsed.get("trade_setup"))
+    pipeline_id = safe_text(context.get("pipeline_id") or snapshot.get("pipeline")).strip().lower()
     data_trust = normalize_data_trust(snapshot.get("data_trust") or data.get("data_trust"))
     current_price = first_price(data.get("current_price"))
     recommendation_label = normalize_recommendation_label(first_value_by_key_fragment(recommendation, "建議"))
@@ -46,12 +49,18 @@ def evaluate_content_credibility(context: dict, snapshot: dict | None = None, ma
     warnings: list[dict] = []
     checks: list[dict] = []
 
-    alignment = evaluate_recommendation_target_alignment(
-        recommendation_present=bool(recommendation),
-        recommendation_label=recommendation_label,
-        current_price=current_price,
-        main_target=main_target,
-    )
+    if pipeline_id == "v4":
+        alignment = evaluate_trade_setup_alignment(
+            trade_setup=trade_setup,
+            current_price=current_price,
+        )
+    else:
+        alignment = evaluate_recommendation_target_alignment(
+            recommendation_present=bool(recommendation),
+            recommendation_label=recommendation_label,
+            current_price=current_price,
+            main_target=main_target,
+        )
     blocking.extend(alignment["blocking_issues"])
     warnings.extend(alignment["warnings"])
     checks.extend(alignment["checks"])

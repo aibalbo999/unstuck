@@ -112,6 +112,29 @@ def test_content_credibility_warns_when_final_recommendation_lacks_evidence_matr
     assert any(issue["id"] == "missing_final_recommendation_evidence" for issue in result["warnings"])
 
 
+def test_content_credibility_uses_trade_setup_alignment_for_mode_d():
+    from reporting.content_credibility import evaluate_content_credibility
+
+    context = _base_context(recommendation="N/A", target_12m="N/A")
+    context["pipeline_id"] = "v4"
+    context["parsed"]["recommendation"] = {}
+    context["parsed"]["trade_setup"] = {
+        "trade_direction": "Neutral",
+        "entry_zone": "等待回測 NT$90-95",
+        "target_price": "NT$105-106.5",
+        "stop_loss": "跌破 NT$73.4",
+        "core_catalyst": "營收創高與 AI 算力需求。",
+        "risk_level": "High",
+    }
+
+    result = evaluate_content_credibility(context, _base_snapshot(context))
+
+    assert result["status"] == "passed"
+    alignment = next(check for check in result["checks"] if check["id"] == "trade_setup_alignment")
+    assert alignment["status"] == "passed"
+    assert "略過方向一致性檢查" not in alignment["message"]
+
+
 def test_content_credibility_accepts_tuple_evidence_matrix_rows():
     from reporting.content_credibility import evaluate_content_credibility
 
