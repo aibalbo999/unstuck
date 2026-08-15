@@ -45,7 +45,7 @@
         const auditScopeLabel = audit.selection_basis === 'latest_per_ticker_pipeline' ? '全量報告品質（每 ticker/pipeline 最新一筆）' : '全量報告品質';
         const auditParts = [];
         const truncationNote = audit.items_truncated === true && missingQuality > returnedItems && `（目前顯示 ${returnedItems} 份，另有 ${missingQuality - returnedItems} 份未展開）`;
-        if (missingQuality > 0) auditParts.push(`${missingQuality} 份待人工核對${truncationNote || ''}${missingFieldSummary ? `；缺口：${missingFieldSummary}` : ''}${missingPipelineSummary ? `；模式缺口：${missingPipelineSummary}` : ''}${reviewSummary ? `；審核狀態：${reviewSummary}` : ''}${provenanceSummary ? `；來源：${provenanceSummary}` : ''}${artifactSummary ? `；${artifactSummary}` : ''}${artifactFieldSummary ? `；artifact 欄位可查：${artifactFieldSummary}` : ''}${coverage == null ? '' : `（${coverageLabel} ${coverage}%）`}`);
+        if (missingQuality > 0) auditParts.push(`${missingQuality} 份品質 metadata 缺口${truncationNote || ''}${missingFieldSummary ? `；缺口：${missingFieldSummary}` : ''}${missingPipelineSummary ? `；模式缺口：${missingPipelineSummary}` : ''}${reviewSummary ? `；審核狀態：${reviewSummary}` : ''}${provenanceSummary ? `；來源：${provenanceSummary}` : ''}${artifactSummary ? `；${artifactSummary}` : ''}${artifactFieldSummary ? `；artifact 欄位可查：${artifactFieldSummary}` : ''}${coverage == null ? '' : `（${coverageLabel} ${coverage}%）`}`);
         if (excludedSnapshots > 0) auditParts.push(`${excludedSnapshots} 份 snapshot 無法驗證`);
         const auditText = audit.status === 'unavailable' ? ` · ${auditScopeLabel}：暫時無法讀取` : auditParts.length ? ` · ${auditScopeLabel}：${auditParts.join('；')}` : '';
         const auditButtons = auditItems.map(item => {

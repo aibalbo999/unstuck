@@ -68,7 +68,7 @@
             audit.items_has_next === true ? '<button class="history-quality-audit-page" type="button" data-quality-audit-page="next" aria-label="查看下一批品質缺口">下一批</button>' : ''
         ].filter(Boolean).join('');
         const auditDetails = missing > 0
-            ? `<span>${Math.floor(missing)} 份待人工核對${truncation}</span><em>${fieldSummary ? `缺口：${e(fieldSummary)}` : ''}${pipelineSummary ? `；模式缺口：${e(pipelineSummary)}` : ''}${reviewSummary ? `；審核狀態：${e(reviewSummary)}` : ''}${provenanceSummary ? `；來源：${e(provenanceSummary)}` : ''}</em>${artifactEvidenceSummary ? `<em>${e(artifactEvidenceSummary)}</em>` : ''}${artifactFieldSummary ? `<em>artifact 欄位可查：${e(artifactFieldSummary)}</em>` : ''}${basisSummary ? `<em>${e(basisSummary)}</em>` : ''}`
+            ? `<span>${Math.floor(missing)} 份品質 metadata 缺口${truncation}</span><em>${fieldSummary ? `缺口：${e(fieldSummary)}` : ''}${pipelineSummary ? `；模式缺口：${e(pipelineSummary)}` : ''}${reviewSummary ? `；審核狀態：${e(reviewSummary)}` : ''}${provenanceSummary ? `；來源：${e(provenanceSummary)}` : ''}</em>${artifactEvidenceSummary ? `<em>${e(artifactEvidenceSummary)}</em>` : ''}${artifactFieldSummary ? `<em>artifact 欄位可查：${e(artifactFieldSummary)}</em>` : ''}${basisSummary ? `<em>${e(basisSummary)}</em>` : ''}`
             : `<span>符合條件的 ${complete} 份已驗證 snapshot 沒有品質 metadata 缺口</span>${basisSummary ? `<em>${e(basisSummary)}</em>` : ''}`;
         const targets = (Array.isArray(audit.items) ? audit.items : []).filter(item => item && item.filename).map(item => {
             const ticker = item.ticker || '報告';

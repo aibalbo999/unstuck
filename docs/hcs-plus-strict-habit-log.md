@@ -7,6 +7,13 @@
 - `#責任` / `#倫理判斷`：backend 負責 safe status normalization，frontend 只呈現 aggregate；不將 `approved_with_gap` 轉成完整、不寫回 artifact/index、不建立 rerun/repair/queue action，也不改既有 review POST 邊界。
 - `#可驗證性` / `#限制條件`：TDD 先鎖定 missing-only、pipeline map 與兩個 UI 入口，再以品質跨層 suite、文件契約、Node syntax、Python compile、live historical/daily response、health/readiness 與 asset `200` 驗證；本批保持 read-only。
 
+## D3566 / quality gap versus review actionability
+
+- `#語意含義` / `#偏誤辨識`：`quality_metadata_missing_reports` 是 evidence gap 總數，不等於仍待人工核對；D3565 新增的 status map 已能辨識決策進度，UI 若繼續寫「待人工核對」會把 `approved_with_gap`、`rejected`、`deferred` 混成 pending。
+- `#受眾` / `#溝通設計`：daily 與 historical summary 改成「品質 metadata 缺口」總數，並保留「審核狀態：待人工核對／已核准保留缺口／退回處理／已暫緩」的獨立摘要；操作員可同時看到資料缺口與目前處理狀態。
+- `#責任` / `#倫理判斷`：只修改前端呈現與 cache-buster，不由 UI 猜測或改寫 review state，不把已核准缺口誤呈現為完成品質 gate，也不新增任何 artifact/index、rerun、queue 或 mutation 副作用。
+- `#可驗證性` / `#來源品質`：以不一致 fixture 先得到 `4 failed`，修正後跨層 `951 passed`；同步驗證 cache-buster、Node syntax、Python compile、diff check 與 live audit map，確認數據沒有被文字修正影響。
+
 ## D3564 / model-level quota observability boundary
 
 - `#證據基礎` / `#來源品質`：live dashboard 只提供 aggregate Gemini quota error，無法把 `2909` 次 observed calls 與 `2569` 次 errors 對齊到模型；先以同一 `api_usage_events` reset window 分組 `observed_model_calls`、`quota_error` 與 `rate_limited`，不把 provider 回應外推成官方剩餘額度。

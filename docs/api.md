@@ -43,7 +43,7 @@ Repeated read-only quality audits may reuse an in-process row derivation cache f
 
 `quality_metadata_by_pipeline` repeats the same audit counts per `pipeline_id`, including its own `verified_snapshot_reports`, `quality_metadata_coverage_pct`, `quality_metadata_coverage_basis`, and missing-gate counts. This makes a full historical response sufficient for pipeline prioritization without issuing one request per mode.
 
-`quality_review_by_status` counts the current revision-scoped review state for missing-metadata reports only: `pending`, `approved_with_gap`, `rejected`, and `deferred`. The same map is included under each pipeline summary. A pending count means no current review event exists; it does not mean the report passed or failed a quality gate.
+`quality_review_by_status` counts the current revision-scoped review state for missing-metadata reports only: `pending`, `approved_with_gap`, `rejected`, and `deferred`. The same map is included under each pipeline summary. A pending count means no current review event exists; it does not mean the report passed or failed a quality gate. UI summaries use `quality_metadata_missing_reports` for the total evidence gap and this map for review progress; a decided gap must not be labeled as still pending manual review.
 
 `report_quality_audit.selection_basis = latest_per_ticker_pipeline` means the `all_indexed_reports` scope audits the latest indexed row for each ticker/pipeline pair, not every historical artifact version. Use this field with `audited_reports` when describing coverage.
 

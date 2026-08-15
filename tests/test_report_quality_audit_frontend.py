@@ -17,7 +17,7 @@ const payload = {
   report_quality_audit: {
     scope: 'all_indexed_reports',
     audited_reports: 160,
-    quality_metadata_missing_reports: 2,
+    quality_metadata_missing_reports: 3,
     quality_metadata_coverage_pct: 98.75,
     quality_metadata_coverage_basis: 'verified_snapshot_reports',
     quality_review_by_status: { pending: 2, approved_with_gap: 1, rejected: 0, deferred: 0 },
@@ -32,7 +32,8 @@ process.stdout.write(JSON.stringify({ board }));
     payload = json.loads(result.stdout)
 
     assert "全量報告品質" in payload["board"]
-    assert "2 份待人工核對" in payload["board"]
+    assert "3 份品質 metadata 缺口" in payload["board"]
+    assert "待人工核對 2" in payload["board"]
     assert "已驗證快照覆蓋 98.75%" in payload["board"]
     assert "artifact 摘要可查 2 份" in payload["board"]
     assert "artifact 欄位可查：報告一致性 2、證據關卡 2、內容可信度 0" in payload["board"]
@@ -161,7 +162,7 @@ process.stdout.write(JSON.stringify({ board }));
     result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
     payload = json.loads(result.stdout)
 
-    assert "8 份待人工核對（目前顯示 2 份，另有 6 份未展開）" in payload["board"]
+    assert "8 份品質 metadata 缺口（目前顯示 2 份，另有 6 份未展開）" in payload["board"]
 
 
 def test_watchlist_board_labels_latest_per_ticker_pipeline_quality_scope():
@@ -183,7 +184,7 @@ process.stdout.write(JSON.stringify({ board }));
     result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
     payload = json.loads(result.stdout)
 
-    assert "全量報告品質（每 ticker/pipeline 最新一筆）：1 份待人工核對" in payload["board"]
+    assert "全量報告品質（每 ticker/pipeline 最新一筆）：1 份品質 metadata 缺口" in payload["board"]
 
 
 def test_watchlist_board_surfaces_missing_quality_field_counts():
@@ -256,7 +257,7 @@ process.stdout.write(JSON.stringify({ board }));
     payload = json.loads(result.stdout)
 
     assert "全量報告品質：暫時無法讀取" in payload["board"]
-    assert "0 份待人工核對" not in payload["board"]
+    assert "0 份品質 metadata 缺口" not in payload["board"]
 
 
 def test_watchlist_board_surfaces_snapshots_excluded_from_quality_coverage():
