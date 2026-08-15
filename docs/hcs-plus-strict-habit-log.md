@@ -8303,6 +8303,27 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 - D3376-D3387 adjacent regression：`60 passed, 3740 deselected in 423.61s`。
 - completion gate：import boundary `503 passed in 11.00s`；HCS/文件契約 `135 passed in 3.50s`；`py_compile` exit 0；`git diff --check` exit 0；trailing-whitespace 無命中；runtime doctor exit 0，canonical operational DB 為 `backend/cache/operational.sqlite3`、report index 為 `backend/cache/stock_agent_cache.sqlite3`，Redis 為 `redis://localhost:6379/0`；parser/detector 行數維持 `349/189`。
 
+### 完成後維護 / D3506 / #拆解問題 #問對問題 #差距分析 #偏誤降低 #決策樹 #效用 #證據基礎 #比較組 #介入研究 #可驗證性 #來源品質
+
+本次使用：live Redis/RQ 檢查發現 `SimpleWorker` 有 current job `report-rerun:365f...` 且 worker live，但 `StartedJobRegistry` 暫時為空；SQLite 另有未被 live worker claim 的舊 `running` job `a4d9...`，操作佇列因此多報一筆執行中工作。
+
+核心判斷
+
+1. live worker 的 current job claim 優先於尚未同步的 StartedJobRegistry，否則 reconciliation 可能把真正執行中的報告誤判為 abandoned。
+2. 只接受 live worker 且有 current job 的 claim；死 worker、無 current job、deferred/scheduled job 不得被當成 active execution。
+3. 本次只修正 RQ 存活辨識與測試，不改 job status、佇列內容或報告品質政策。
+
+落地修改
+
+1. `backend/worker_rq_reconciliation.py` 在 registry 空集合時仍檢查 live worker current job，保留其 RQ claim。
+2. `tests/test_worker_main.py` 新增 registry 未同步但 live worker 有 current job 的回歸案例。
+
+驗證方式
+
+- worker reconciliation focused regression：`4 passed, 28 deselected`；import boundary：`503 passed`。
+- live Redis/RQ audit：保留 `report-rerun:365f...`，排除無 live claim 的 `a4d9...`。
+- 未改 queue payload、job status 或跨 job 的報告處理流程。
+
 ### 完成後維護 / D3505 / #拆解問題 #問對問題 #差距分析 #偏誤降低 #決策樹 #效用 #證據基礎 #比較組 #介入研究 #可驗證性 #來源品質
 
 本次使用：live Worker trace 觀察到同一份重跑的 `gemma-4-31b-it` 對 16 個 key 逐一回覆 429，完成整輪 key rotation 後才切換 `gemini-3.6-flash`。既有 model circuit threshold 為 2，後續 Agent 仍可能重複 primary quota sweep，形成可避免的延遲與錯誤噪音。
@@ -8321,7 +8342,7 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 
 驗證方式
 
-- model-policy focused regression：`8 passed`；architecture quota/circuit regression：`3 passed`。
+- model-policy focused regression：`17 passed`；architecture quota/circuit regression：`3 passed`。
 - 第一個 Agent calls：primary 4 次後 fallback；第二個 Agent：只呼叫 fallback 1 次。
 - 未修改 key rotation 的第一輪完整嘗試邊界，也未把 model circuit 擴成全域 key/model 停用。
 

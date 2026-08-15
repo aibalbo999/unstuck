@@ -163,6 +163,37 @@ def test_rq_active_job_ids_keeps_only_started_jobs_claimed_by_live_workers(monke
     assert worker_main._rq_active_job_ids([queue]) == {"analysis:live"}
 
 
+def test_rq_active_job_ids_keeps_live_worker_current_job_without_started_registry(monkeypatch):
+    import rq
+    import rq.registry
+
+    queue = SimpleNamespace(job_ids=[], connection=object())
+
+    class EmptyRegistry:
+        def __init__(self, *, queue):
+            self.queue = queue
+
+        def get_job_ids(self):
+            return []
+
+    class LiveWorker:
+        pid = os.getpid()
+
+        @staticmethod
+        def all(*, connection=None):
+            return [LiveWorker()]
+
+        def get_current_job_id(self):
+            return "report-rerun:live"
+
+    monkeypatch.setattr(rq.registry, "DeferredJobRegistry", EmptyRegistry)
+    monkeypatch.setattr(rq.registry, "ScheduledJobRegistry", EmptyRegistry)
+    monkeypatch.setattr(rq.registry, "StartedJobRegistry", EmptyRegistry)
+    monkeypatch.setattr(rq, "Worker", LiveWorker)
+
+    assert worker_main._rq_active_job_ids([queue]) == {"report-rerun:live"}
+
+
 def test_rq_active_job_ids_excludes_dead_local_worker_even_with_fresh_heartbeat(monkeypatch):
     import rq
     import rq.registry

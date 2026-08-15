@@ -28,8 +28,6 @@ def rq_active_job_ids(rq_queues) -> set[str]:
 
 
 def rq_live_started_job_ids(rq_queue, started_job_ids: set[str]) -> set[str]:
-    if not started_job_ids:
-        return set()
     try:
         from rq import Worker
 
@@ -40,7 +38,9 @@ def rq_live_started_job_ids(rq_queue, started_job_ids: set[str]) -> set[str]:
     live_job_ids: set[str] = set()
     for worker in workers:
         current_job_id = rq_worker_current_job_id(worker)
-        if current_job_id in started_job_ids and rq_worker_appears_live(worker):
+        # SimpleWorker can expose a live current job before StartedJobRegistry
+        # has replicated it; the worker claim is the stronger local signal.
+        if current_job_id and rq_worker_appears_live(worker):
             live_job_ids.add(current_job_id)
     return live_job_ids
 
