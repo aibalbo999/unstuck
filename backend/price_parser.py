@@ -185,7 +185,7 @@ RISK_REWARD_RATIO_PATTERN = re.compile(
     rf"\s*(?:target|目標|ratio)?\s*{TARGET_NUMBER_PATTERN}\s*(?::|：|比)\s*{TARGET_NUMBER_PATTERN}",
     flags=re.IGNORECASE,
 )
-NEGATIVE_TARGET_PRICE_TOKEN_PATTERN = re.compile(
+QUALITY_SERVICE_TIME_TO_METRIC_PATTERN = re.compile(rf"(?:{QUALITY_SERVICE_TIME_TO_METRIC_PATTERN.pattern}|time\s+to\s+(?:renew\s+certification\s+renewal\s+recertification\s+attendance\s+validation|renew\s+certification\s+attendance\s+renewal\s+recertification\s+validation|renew\s+certification\s+recertification\s+renewal\s+attendance\s+validation|renew\s+certification\s+recertification\s+attendance\s+renewal\s+validation))", re.IGNORECASE); QUALITY_SERVICE_TIME_TO_METRIC_VALUE_PATTERN = re.compile(rf"(?:{QUALITY_SERVICE_TIME_TO_METRIC_VALUE_PATTERN.pattern}|time\s+to\s+(?:renew\s+certification\s+renewal\s+recertification\s+attendance\s+validation|renew\s+certification\s+attendance\s+renewal\s+recertification\s+validation|renew\s+certification\s+recertification\s+renewal\s+attendance\s+validation|renew\s+certification\s+recertification\s+attendance\s+renewal\s+validation)\s+(?:target|forecast|actual|baseline|current)\s*{TARGET_NUMBER_PATTERN})", re.IGNORECASE); NEGATIVE_TARGET_PRICE_TOKEN_PATTERN = re.compile(
     rf"(?:NT\$?|NTD|TWD|US\$|USD|HK\$|\$|新台幣|臺幣|台幣)?\s*[\-−－–—]\s*{TARGET_NUMBER_PATTERN}(?:\s*(?:元|塊))?",
     flags=re.IGNORECASE,
 )
