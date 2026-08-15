@@ -12611,6 +12611,45 @@ def test_parse_price_targets_from_text_ignores_time_to_renew_attendance_certific
     }
 
 
+def test_parse_price_targets_from_text_ignores_time_to_renew_attendance_validation_recertification_renewal_certification_lifecycle_only_values():
+    from itertools import product
+
+    roots = (
+        "time to renew attendance validation recertification renewal certification",
+        "time to renew attendance validation renewal recertification certification",
+        "time to renew attendance validation renewal certification recertification",
+        "time to renew attendance validation certification renewal recertification",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate", "score")
+    combinations = tuple(product(roots, phases, states, prefixes))
+    targets = {
+        (
+            "TimeToRenewAttendanceValidationRecertificationRenewalCertificationLifecycle"
+            f"{root.title().replace(' ', '')}{phase.title()}{state.title()}{prefix.title()}情境"
+        ): f"{phase} {prefix} {root} {state} 12 個"
+        for root, phase, state, prefix in combinations
+    }
+    text = "[目標股價]\n" + "".join(
+        f"{label}：{raw}\n" for label, raw in targets.items()
+    ) + "[/目標股價]"
+
+    assert parse_price_targets_from_text(text, current_price=100) == {}
+
+    valid_targets = {
+        label.replace("情境", "有效情境"): f"target price NT$160 with {raw}"
+        for label, raw in targets.items()
+    }
+    valid_text = "[目標股價]\n" + "".join(
+        f"{label}：{raw}\n" for label, raw in valid_targets.items()
+    ) + "[/目標股價]"
+
+    assert parse_price_targets_from_text(valid_text, current_price=100) == {
+        label: 160.0 for label in valid_targets
+    }
+
+
 def test_parse_price_targets_from_text_ignores_time_to_renew_attendance_renewal_recertification_certification_validation_lifecycle_only_values():
     from itertools import product
 
