@@ -538,6 +538,10 @@
                                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16v-5"/><path d="M12 16V8"/><path d="M16 16v-3"/></svg>
                                     <span>清理來源健康紀錄</span>
                                 </button>
+                                <button id="maintenance-clean-failed-queue" class="maintenance-button" type="button">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+                                    <span>清理過期失敗任務</span>
+                                </button>
                             </div>
                             <p id="maintenance-result" class="maintenance-result"></p>
                         </details>
@@ -612,7 +616,7 @@
     <script src="/static/ui_helpers.js?v=20260711-pipeline-fallback"></script>
     <script src="/static/pipeline_mode_catalog.js?v=20260711-pipeline-fallback"></script>
     <script src="/static/api_request.js?v=20260709-api-request"></script>
-    <script src="/static/api_client.js?v=20260608-api-quota-watchlist"></script>
+    <script src="/static/api_client.js?v=20260816-stale-failed-queue-maintenance"></script>
     <script src="/static/api_client_extensions.js?v=20260816-historical-quality-review-history"></script>
     <script src="/static/provider_sla_helpers.js?v=20260709-provider-sla-helpers"></script>
     <script src="/static/provider_sla_panel.js?v=20260708-provider-waterfall-health"></script>
@@ -652,8 +656,8 @@
     <script src="/static/ops_workspace_panels.js?v=20260709-ops-panels"></script>
     <script src="/static/ops_workspace.js?v=20260708-provider-group-health"></script>
     <script src="/static/maintenance_notification_delivery.js?v=20260709-notification-delivery"></script>
-    <script src="/static/maintenance_panel_helpers.js?v=20260816-queue-failure-age-classification"></script>
-    <script src="/static/maintenance_panel.js?v=20260816-queue-failure-observability"></script>
+    <script src="/static/maintenance_panel_helpers.js?v=20260816-stale-failed-queue-maintenance"></script>
+    <script src="/static/maintenance_panel.js?v=20260816-stale-failed-queue-maintenance"></script>
     <script src="/static/home_tabs.js?v=20260711-home-workspaces"></script>
     <script src="/static/report_rerun_stream.js?v=20260709-report-rerun-stream"></script>
     <script src="/static/report_rerun.js?v=20260608-full-report"></script>

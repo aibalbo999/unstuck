@@ -14,6 +14,7 @@ from fastapi import APIRouter, Query, Request
 class MaintenanceRouteDeps:
     require_mutation_authorized: Callable[[Request], None]
     build_storage_summary: Callable[[], dict]
+    cleanup_failed_queue: Callable[..., dict]
     cleanup_report_index_orphans: Callable[..., dict]
     cleanup_provider_sla_events: Callable[..., dict]
     cleanup_analysis_history: Callable[..., dict]
@@ -28,6 +29,20 @@ def create_maintenance_router(deps: MaintenanceRouteDeps) -> APIRouter:
         deps.require_mutation_authorized(request)
         summary = await asyncio.to_thread(deps.build_storage_summary)
         return {"success": True, "summary": summary}
+
+    @router.post("/cleanup-failed-queue")
+    async def cleanup_failed_queue(
+        request: Request,
+        stale_after_seconds: int = Query(7 * 24 * 60 * 60, ge=60, le=3650 * 24 * 60 * 60),
+        write: bool = Query(False),
+    ):
+        deps.require_mutation_authorized(request)
+        result = await asyncio.to_thread(
+            deps.cleanup_failed_queue,
+            stale_after_seconds=stale_after_seconds,
+            write=write,
+        )
+        return _maintenance_result(result)
 
     @router.post("/cleanup-report-index")
     async def cleanup_report_index(request: Request, write: bool = Query(False)):

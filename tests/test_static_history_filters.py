@@ -610,6 +610,8 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "count >= 10" in performance_panel_js
     assert "recent-backtest" in performance_panel_js
     assert "/api/maintenance/storage-summary" in api_client_js
+    assert "/api/maintenance/cleanup-failed-queue" in api_client_js
+    assert "cleanupFailedQueue" in api_client_js
     assert "/api/observability/dashboard" in api_client_js
     assert "mutation: true" in api_client_js
     assert "fetchOpsDashboard" in api_client_js
@@ -620,6 +622,9 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "StockAgentMaintenancePanelHelpers" in maintenance_helpers_js
     assert "StockAgentMaintenanceNotificationDelivery" in maintenance_notification_js
     assert "maintenance-clean-provider-sla" in maintenance_js
+    assert "maintenance-clean-failed-queue" in maintenance_js
+    assert "cleanupFailedQueue" in maintenance_js
+    assert "maintenance-clean-failed-queue" in index_html
     assert "notification_delivery" in maintenance_js
     assert "retry_exhausted_count" in maintenance_notification_js
     assert "channel_counts" in maintenance_notification_js
@@ -5924,8 +5929,8 @@ def test_candidate_next_actions_assets_use_shared_cache_buster():
     assert "/static/style.css?v=20260816-historical-quality-target-context" in index_html
     assert "/static/watchlist_panel_helpers.js?v=20260816-historical-quality-artifact-field-aggregate" in index_html
     assert "/static/watchlist_panel.js?v=20260816-historical-quality-navigation" in index_html
-    assert "/static/maintenance_panel_helpers.js?v=20260816-queue-failure-age-classification" in index_html
-    assert "/static/maintenance_panel.js?v=20260816-queue-failure-observability" in index_html
+    assert "/static/maintenance_panel_helpers.js?v=20260816-stale-failed-queue-maintenance" in index_html
+    assert "/static/maintenance_panel.js?v=20260816-stale-failed-queue-maintenance" in index_html
     assert "/static/operator_dashboard_actions.js?v=20260711-candidate-next-actions-v3" in index_html
     assert "/static/operator_summary_panel.js?v=20260711-candidate-next-actions-v3" in index_html
     assert "/static/app_panels.js?v=20260816-historical-quality-audit" in index_html
@@ -6610,7 +6615,8 @@ process.stdout.write(JSON.stringify({
   text: helpers.summaryText(summary, delivery),
   chips: helpers.storageChips(summary, delivery, value => String(value ?? '')),
   result: helpers.defaultResultText(delivery),
-  action: helpers.actionMessage('analysis-history', { result: { deleted_jobs: 2, deleted_events: 3 } })
+  action: helpers.actionMessage('analysis-history', { result: { deleted_jobs: 2, deleted_events: 3 } }),
+  queueAction: helpers.actionMessage('failed-queue', { result: { deleted_jobs: 4 } })
 }));
 """.replace("__MAINTENANCE_HELPERS_PATH__", json.dumps(str(maintenance_helpers_path))).replace("__MAINTENANCE_NOTIFICATION_PATH__", json.dumps(str(maintenance_notification_path)))
     result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
@@ -6624,6 +6630,7 @@ process.stdout.write(JSON.stringify({
     assert "通知通道" in payload["chips"]
     assert "通知通道有失敗或重試耗盡項目" in payload["result"]
     assert payload["action"] == "已清理任務 2 筆、事件 3 筆"
+    assert payload["queueAction"] == "已清理過期失敗任務 4 筆"
 
 
 def test_maintenance_panel_helpers_surface_failed_analysis_queue():
@@ -6652,6 +6659,7 @@ process.stdout.write(JSON.stringify({
 
     assert "分析佇列有 10 筆過期失敗殘留" in payload["text"]
     assert "分析佇列" in payload["chips"]
+    assert "is-warning" in payload["chips"]
     assert "失敗 10" in payload["chips"]
     assert "過期 10" in payload["chips"]
     assert "人工清理" in payload["result"]
@@ -7104,7 +7112,7 @@ def test_decision_tracking_controls_and_target_statuses_are_wired():
     assert "/static/history_workspace_actions.js" in index_html
     assert index_html.index("/static/history_workspace_panels.js") < index_html.index("/static/history_workspace_actions.js")
     assert index_html.index("/static/history_workspace_actions.js") < index_html.index("/static/history_workspace.js")
-    assert "/static/history_workspace.js?v=20260816-historical-quality-pipeline-filter" in index_html
+    assert "/static/history_workspace.js?v=20260816-historical-quality-review-history" in index_html
     assert "mergeTrackingReports" in history_workspace_js
     assert "trackingPayload" in history_workspace_js
     assert "item.latest_reports" in history_workspace_js
@@ -7712,8 +7720,8 @@ def test_decision_tracking_dense_layout_uses_workspace_efficiently():
     assert "history_list.css?v=20260628-glass-dark" in style_css
     assert "history_list_controls.css?v=20260816-historical-quality-audit" in style_css
     assert style_css.index("history_list.css?v=20260628-glass-dark") < style_css.index("history_list_controls.css?v=20260816-historical-quality-audit")
-    assert style_css.index("history_list_controls.css?v=20260816-historical-quality-audit") < style_css.index("history_quality_audit.css?v=20260816-historical-quality-target-context")
-    assert style_css.index("history_quality_audit.css?v=20260816-historical-quality-target-context") < style_css.index("decision_tracking.css?v=20260708-tracking-action-notes")
+    assert style_css.index("history_list_controls.css?v=20260816-historical-quality-audit") < style_css.index("history_quality_audit.css?v=20260816-historical-quality-review-history")
+    assert style_css.index("history_quality_audit.css?v=20260816-historical-quality-review-history") < style_css.index("decision_tracking.css?v=20260708-tracking-action-notes")
     assert "decision_tracking.css?v=20260708-tracking-action-notes" in style_css
     assert "history_shell.css?v=20260707-operator-human-factors" in style_css
     assert "history_shell_tabs.css?v=20260711-home-workspaces" in style_css

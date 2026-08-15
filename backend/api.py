@@ -69,6 +69,7 @@ from pipeline_modes import (
 )
 from provider_sla import get_provider_sla_alerts, get_provider_sla_summary
 from provider_sla_maintenance import cleanup_provider_sla_events
+from queue_maintenance import cleanup_stale_failed_jobs
 from report_rerun_jobs import run_report_rerun_job
 from report_index_maintenance import cleanup_report_index_orphans
 from reporting import ReportRenderer
@@ -78,7 +79,6 @@ from runtime_health import build_health_payload, build_readiness_payload
 from settings import validate_runtime_settings
 from storage_inventory import build_storage_summary, ensure_runtime_storage
 from task_queue import create_api_task_queue
-
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(line_buffering=True)
 if hasattr(sys.stderr, "reconfigure"):
@@ -244,6 +244,7 @@ def create_app() -> FastAPI:
     app.include_router(create_maintenance_router(MaintenanceRouteDeps(
         require_mutation_authorized=require_mutation_authorized,
         build_storage_summary=build_storage_summary,
+        cleanup_failed_queue=lambda **kwargs: cleanup_stale_failed_jobs(analysis_task_queue, **kwargs),
         cleanup_report_index_orphans=cleanup_report_index_orphans,
         cleanup_provider_sla_events=cleanup_provider_sla_events,
         cleanup_analysis_history=cleanup_analysis_history,
@@ -275,5 +276,4 @@ def create_app() -> FastAPI:
     )))
     install_openapi_contract(app, mutation_header_name=MUTATION_HEADER_NAME)
     return app
-
 app = create_app()

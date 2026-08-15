@@ -12,9 +12,11 @@ from database_maintenance import run_sqlite_maintenance
 from job_store_maintenance import cleanup_analysis_history
 from market_calendar_store import update_market_calendars
 from provider_sla_maintenance import cleanup_provider_sla_events
+from queue_maintenance import cleanup_stale_failed_jobs
 from report_index_maintenance import cleanup_report_index_orphans
 from snapshot_maintenance import verify_snapshots
 from storage_inventory import build_storage_summary, clear_runtime_storage
+from task_queue import create_task_queue
 
 
 def main() -> int:
@@ -34,6 +36,9 @@ def main() -> int:
     snapshot_parser.add_argument("--write", action="store_true")
     sla_parser = subparsers.add_parser("cleanup-provider-sla")
     sla_parser.add_argument("--retention-days", type=int, default=None)
+    failed_queue_parser = subparsers.add_parser("cleanup-failed-queue")
+    failed_queue_parser.add_argument("--stale-after-seconds", type=int, default=7 * 24 * 60 * 60)
+    failed_queue_parser.add_argument("--write", action="store_true")
     report_index_parser = subparsers.add_parser("cleanup-report-index")
     report_index_parser.add_argument("--cache-db-path", default=None)
     report_index_parser.add_argument("--write", action="store_true")
@@ -86,6 +91,20 @@ def main() -> int:
         return 0
     if args.command == "cleanup-provider-sla":
         result = cleanup_provider_sla_events(retention_days=args.retention_days)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
+    if args.command == "cleanup-failed-queue":
+        task_queue = create_task_queue()
+        try:
+            result = cleanup_stale_failed_jobs(
+                task_queue,
+                stale_after_seconds=args.stale_after_seconds,
+                write=args.write,
+            )
+        finally:
+            close = getattr(task_queue, "close", None)
+            if callable(close):
+                close()
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
     if args.command == "cleanup-report-index":

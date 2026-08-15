@@ -2575,7 +2575,15 @@ curl -X POST -H "X-Mutation-Token: $TOKEN" \
 
 curl -X POST -H "X-Mutation-Token: $TOKEN" \
   "http://127.0.0.1:8080/api/maintenance/cleanup-analysis-history?retention_days=30&write=true"
+
+curl -X POST -H "X-Mutation-Token: $TOKEN" \
+  "http://127.0.0.1:8080/api/maintenance/cleanup-failed-queue?stale_after_seconds=604800"
+
+curl -X POST -H "X-Mutation-Token: $TOKEN" \
+  "http://127.0.0.1:8080/api/maintenance/cleanup-failed-queue?stale_after_seconds=604800&write=true"
 ```
+
+`cleanup-failed-queue` 預設只回報可由 `ended_at` 或 `created_at` 證明已過期的 RQ failed jobs；只有明確傳 `write=true` 才會刪除 stale job 與其資料，近期或無法判定年齡的失敗任務會保留。
 
 SQLite backup/checkpoint/vacuum maintenance is also dry-run by default:
 

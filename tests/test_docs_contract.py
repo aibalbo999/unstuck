@@ -159,6 +159,7 @@ def test_openapi_contract_covers_runtime_surface_and_mutation_security():
         "/api/watchlist/run": {"post"},
         "/api/watchlist/{ticker}": {"delete"},
         "/api/maintenance/storage-summary": {"get"},
+        "/api/maintenance/cleanup-failed-queue": {"post"},
         "/api/maintenance/sqlite-maintenance": {"post"},
         "/api/observability/dashboard": {"get"},
         "/api/observability/model-routes": {"get"},

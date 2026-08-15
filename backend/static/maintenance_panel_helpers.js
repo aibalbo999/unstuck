@@ -1,7 +1,5 @@
 (function () {
-    function notificationDelivery() {
-        return window.StockAgentMaintenanceNotificationDelivery || {};
-    }
+    function notificationDelivery() { return window.StockAgentMaintenanceNotificationDelivery || {}; }
     function tableCount(summary, tableName) {
         const value = summary?.task_db?.tables?.[tableName] ?? summary?.cache_db?.tables?.[tableName];
         return value === null || value === undefined ? '未建立' : String(value);
@@ -38,7 +36,7 @@
     function queueChip(queue, escapeHtml) {
         if (!queue) return '';
         const stats = queueStats(queue);
-        const tone = stats.available && stats.recent === 0 ? 'is-ok' : 'is-warning';
+        const tone = stats.available && stats.recent === 0 && stats.stale === 0 ? 'is-ok' : 'is-warning';
         const status = stats.available ? '可用' : '無法使用';
         return `<span class="provider-sla-chip maintenance-chip ${tone}">分析佇列 <strong>${escapeHtml(status)}</strong><em>失敗 ${escapeHtml(String(stats.failed))} · 近期 ${escapeHtml(String(stats.recent))} · 過期 ${escapeHtml(String(stats.stale))} · 排隊 ${escapeHtml(String(stats.depth))}</em></span>`;
     }
@@ -73,6 +71,7 @@
         if (action === 'report-index') return `已清理報告索引 ${result.deleted_rows || 0} 列`;
         if (action === 'analysis-history') return `已清理任務 ${result.deleted_jobs || 0} 筆、事件 ${result.deleted_events || 0} 筆`;
         if (action === 'provider-sla') return `已清理來源健康事件 ${result.deleted || 0} 筆`;
+        if (action === 'failed-queue') return `已清理過期失敗任務 ${result.deleted_jobs || 0} 筆`;
         return '維護完成';
     }
     function render(payload, options) {

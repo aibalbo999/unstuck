@@ -61,7 +61,8 @@
         [
             ['reportIndex', 'report-index', 'cleanupReportIndex'],
             ['analysisHistory', 'analysis-history', 'cleanupAnalysisHistory'],
-            ['providerSla', 'provider-sla', 'cleanupProviderSla']
+            ['providerSla', 'provider-sla', 'cleanupProviderSla'],
+            ['failedQueue', 'failed-queue', 'cleanupFailedQueue']
         ].forEach(([key, action, method]) => {
             actionButtons[key]?.addEventListener('click', () => runAction(action, apiClient[method]));
         });
@@ -83,7 +84,8 @@
             actionButtons: {
                 reportIndex: document.getElementById('maintenance-clean-report-index'),
                 analysisHistory: document.getElementById('maintenance-clean-analysis-history'),
-                providerSla: document.getElementById('maintenance-clean-provider-sla')
+                providerSla: document.getElementById('maintenance-clean-provider-sla'),
+                failedQueue: document.getElementById('maintenance-clean-failed-queue')
             }
         });
     });

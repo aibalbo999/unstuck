@@ -4585,6 +4585,39 @@ def test_maintenance_cleanup_api_defaults_to_dry_run(monkeypatch, mutation_heade
     assert job_store.get_job(job_id)["status"] == "done"
 
 
+def test_maintenance_api_exposes_stale_failed_queue_cleanup(monkeypatch, mutation_headers):
+    calls = []
+    fake_queue = object()
+
+    def fake_cleanup(task_queue, *, stale_after_seconds, write):
+        calls.append((task_queue, stale_after_seconds, write))
+        return {
+            "dry_run": not write,
+            "stale_after_seconds": stale_after_seconds,
+            "deleted_jobs": 0,
+            "stale_failed_jobs": 2,
+        }
+
+    monkeypatch.setattr(api, "analysis_task_queue", fake_queue)
+    monkeypatch.setattr(api, "cleanup_stale_failed_jobs", fake_cleanup)
+
+    client = TestClient(api.app)
+    response = client.post(
+        "/api/maintenance/cleanup-failed-queue",
+        params={"stale_after_seconds": 3600},
+        headers=mutation_headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["result"] == {
+        "dry_run": True,
+        "stale_after_seconds": 3600,
+        "deleted_jobs": 0,
+        "stale_failed_jobs": 2,
+    }
+    assert calls == [(fake_queue, 3600, False)]
+
+
 def test_api_uses_lifespan_and_router_modules():
     source = (ROOT / "backend" / "api.py").read_text(encoding="utf-8")
 

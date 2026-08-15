@@ -1,6 +1,5 @@
 (function () {
     const jsonRequest = window.StockAgentApiClient.requestJson;
-
     async function fetchApiQuotas() { return jsonRequest('/api/observability/api-quotas'); }
     async function fetchModelRouteBudget({ telemetryLimit = 5000 } = {}) {
         const params = new URLSearchParams({ telemetry_limit: String(telemetryLimit) });
@@ -10,12 +9,10 @@
     async function fetchStockSnapshot(ticker) {
         return jsonRequest(`/api/stocks/${encodeURIComponent(String(ticker || '').trim())}/snapshot`);
     }
-
     async function compareReports(left, right) {
         const params = new URLSearchParams({ left, right });
         return jsonRequest(`/api/reports/compare?${params.toString()}`);
     }
-
     async function fetchWatchlist() { return jsonRequest('/api/watchlist'); }
     async function fetchDailyDecisionDashboard() { return jsonRequest('/api/watchlist/daily-dashboard'); }
     async function fetchHistoricalReportQualityAudit({ itemLimit = 5, itemOffset = 0, query = '', pipeline = 'all' } = {}) {
