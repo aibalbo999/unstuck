@@ -14,6 +14,13 @@
 - `#責任` / `#倫理判斷`：只修改前端呈現與 cache-buster，不由 UI 猜測或改寫 review state，不把已核准缺口誤呈現為完成品質 gate，也不新增任何 artifact/index、rerun、queue 或 mutation 副作用。
 - `#可驗證性` / `#來源品質`：以不一致 fixture 先得到 `4 failed`，修正後跨層 `951 passed`；同步驗證 cache-buster、Node syntax、Python compile、diff check 與 live audit map，確認數據沒有被文字修正影響。
 
+## D3567 / daily target review context
+
+- `#差距分析` / `#受眾`：daily payload 的兩個 missing-quality target 都有 `quality_review.status` 與 revision，但工作台按鈕只顯示 artifact marker；操作員知道有 evidence，卻不知道這一筆是否已核准保留缺口或仍待核對。
+- `#溝通設計` / `#語意含義`：target 的可見小字、title、aria label 同步顯示「審核狀態：待人工核對／已核准保留缺口／退回處理／已暫緩」，並保留 artifact evidence；不把 status context 寫成 gate 結論。
+- `#責任` / `#倫理判斷`：daily helper 只讀取並呈現 item state，歷史 workspace 仍是 review action 的唯一 owner；本批不新增 daily mutation、不改 revision、note、token 或 ledger。
+- `#可驗證性` / `#來源品質`：approved-with-gap fixture 先得到 `1 failed, 12 passed`，修正後跨層 `951 passed`，並驗證專屬 cache-buster、資產 `200`、live pending item 與 review ledger count `0`。
+
 ## D3564 / model-level quota observability boundary
 
 - `#證據基礎` / `#來源品質`：live dashboard 只提供 aggregate Gemini quota error，無法把 `2909` 次 observed calls 與 `2569` 次 errors 對齊到模型；先以同一 `api_usage_events` reset window 分組 `observed_model_calls`、`quota_error` 與 `rate_limited`，不把 provider 回應外推成官方剩餘額度。

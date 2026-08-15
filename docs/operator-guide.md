@@ -97,6 +97,8 @@ The read-only report quality audit exposes `missing_quality_fields` on each affe
 
 `quality_review_by_status` 會把缺 metadata 報告的目前 revision-scoped 審核狀態分成「待人工核對、已核准保留缺口、退回處理、已暫緩」；它只統計缺口報告，不把完整報告算進審核分母。工作台與歷史稽核會把總缺口寫成「品質 metadata 缺口」，再另外顯示各審核狀態，避免把已決策或已暫緩的報告誤標成待人工核對。`pending` 代表尚無當前版本的 review event，不代表品質 gate 已通過或失敗。
 
+今日工作台的每個品質 target 也會在按鈕文字、title 與 aria label 顯示該筆目前審核狀態；這只是方便辨識的唯讀 evidence，真正留下決策與理由仍要到歷史稽核的 review 控制完成。
+
 歷史稽核摘要中的「只看 vN 缺口」按鈕是既有模式篩選的快速入口；稽核明細以 `item_offset`/`item_limit` 分批，並用 `items_has_prev`/`items_has_next` 決定「上一批／下一批」。它只改變歷史列表與稽核的讀取範圍，會重設頁碼並關閉目前 preview；它不代表品質已修復，也不會建立重跑、修復或每日待辦。
 
 `selection_basis=latest_per_ticker_pipeline` means「全量報告品質」是每個 ticker/pipeline 的最新索引列，不是磁碟上每個歷史 artifact 版本；回報 coverage 時要一起說明這個範圍。

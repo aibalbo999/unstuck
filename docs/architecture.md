@@ -193,6 +193,8 @@ The daily decision dashboard (`GET /api/watchlist/daily-dashboard`) consumes rec
 
 同一 envelope 的 `quality_review_by_status` 只統計缺 metadata 報告的當前 revision-scoped review state，並在每個 pipeline 重複；`pending` 是沒有 review event 的明確狀態，不是 gate pass/fail。前端將 `quality_metadata_missing_reports` 與 review state 分開呈現，避免把 `approved_with_gap`、`rejected` 或 `deferred` 誤報成待人工核對。這個摘要只讀取 review ledger，不寫 artifact/index、不 enqueue rerun，也不改每日決策 queue。
 
+daily target 只複用同一筆 `quality_review.status` 做可見與 accessible context，不複製 review mutation 或 ledger 寫入；歷史 workspace 仍是 review action 的唯一 UI owner。
+
 ## Event-Driven Radar
 
 ```mermaid
