@@ -52,10 +52,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const opsWorkspace = appPanels.opsWorkspace;
     const marketScreenerPanel = appPanels.marketScreenerPanel;
     const loadHistory = appPanels.loadHistory;
-    window.StockAgentOpenHistoricalQualityAudit = () => {
+    window.StockAgentOpenHistoricalQualityAudit = scope => {
         switchView('home-view');
         document.getElementById('home-tab-analysis')?.click?.();
-        appPanels.historyWorkspace.openHistoricalQualityAudit?.();
+        appPanels.historyWorkspace.openHistoricalQualityAudit?.(scope);
     };
     appPanels.bindPanelEvents();
     window.StockAgentReportActions.bindDownloads({ htmlBtn: downloadHtmlBtn, mdBtn: downloadMdBtn, dataBtn: downloadDataBtn, getFilename: () => currentReportFilename });

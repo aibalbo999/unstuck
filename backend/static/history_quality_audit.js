@@ -113,7 +113,12 @@
             });
         }
 
-        return { bindEvents, load, render };
+        function resetReviewStatus() {
+            reviewStatus = 'all';
+            itemOffset = 0;
+        }
+
+        return { bindEvents, load, render, resetReviewStatus };
     }
 
     window.StockAgentHistoricalQualityAudit = { create };

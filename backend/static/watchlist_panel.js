@@ -63,6 +63,14 @@
                     if (deleteButton) { actions.remove(deleteButton.dataset.watchlistDelete, deleteButton.dataset.watchlistPipeline || 'all'); return; }
                     const historicalAuditButton = event.target.closest('[data-quality-history-audit]');
                     if (historicalAuditButton) { window.StockAgentOpenHistoricalQualityAudit?.(); return; }
+                    const scopedHistoricalAuditButton = event.target.closest('[data-quality-history-audit-target]');
+                    if (scopedHistoricalAuditButton) {
+                        window.StockAgentOpenHistoricalQualityAudit?.({
+                            query: scopedHistoricalAuditButton.dataset.qualityHistoryQuery || '',
+                            pipeline: scopedHistoricalAuditButton.dataset.qualityHistoryPipeline || 'all'
+                        });
+                        return;
+                    }
                     const qualityReportButton = event.target.closest('[data-quality-report]');
                     if (qualityReportButton) { onOpenReport(qualityReportButton.dataset.qualityReport, qualityReportButton.dataset.qualityReportTicker || '報告', qualityReportButton.dataset.qualityReportPipeline || 'v1'); return; }
                     const snapshotButton = event.target.closest('[data-watchlist-snapshot]');

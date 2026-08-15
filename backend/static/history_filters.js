@@ -17,6 +17,13 @@
                 includeVersions: includeVersionsEl ? includeVersionsEl.checked : false
             };
         }
+        function setValues(next = {}) {
+            if (searchEl && next.query !== undefined) searchEl.value = String(next.query ?? '');
+            if (pipelineEl && next.pipelineFilter !== undefined) pipelineEl.value = String(next.pipelineFilter || 'all');
+            if (recommendationEl && next.recommendationFilter !== undefined) recommendationEl.value = String(next.recommendationFilter || 'all');
+            if (dataTrustEl && next.dataTrustFilter !== undefined) dataTrustEl.value = String(next.dataTrustFilter || 'all');
+            if (includeVersionsEl && next.includeVersions !== undefined) includeVersionsEl.checked = Boolean(next.includeVersions);
+        }
 
         function bind(handlers) {
             const onSearch = handlers.onSearch || function () {};
@@ -35,7 +42,7 @@
             });
         }
 
-        return { values, bind };
+        return { values, bind, setValues };
     }
 
     window.StockAgentHistoryFilters = { create };

@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3577 / scoped daily-to-history review navigation
+
+- `#差距分析` / `#受眾`：daily 最新品質 target 已知道 filename、ticker、pipeline 與 pending 狀態，但原入口只開 preview 或泛用 history audit；操作員必須重新搜尋歷史缺口，且可能誤留在其他 review status filter。
+- `#最佳化` / `#溝通設計`：新增「前往人工核對」，以 filename/pipeline 直接縮小 GET audit/list 範圍；workspace 同時重設 recommendation/data-trust/review-status、頁碼與 preview，讓入口語意就是「核對這一筆」。
+- `#責任` / `#倫理判斷`：watchlist 只負責傳導 scope，history filter/workspace 負責套用查詢與狀態；不把導覽升格為 review mutation，不建立 queue、rerun 或 artifact/index 副作用。
+- `#可驗證性` / `#限制條件`：先以三層 RED 鎖定 target markup、panel delegation、scope query 與 stale status reset，再驗證 cache-buster、live exact filename query、health/readiness 與 ledger；本批不執行 review mutation。
+
 ## D3576 / current revision visibility
 
 - `#證據基礎` / `#來源品質`：live historical item 帶有 current `report_quality_revision`，但原 review control 沒有把它呈現給操作員；只看 ticker/模式/日期不足以核對 stale revision 風險。

@@ -70,12 +70,14 @@
                 console.error('Failed to load history', err);
             }
         }
-        async function openHistoricalQualityAudit() {
-            const includeVersions = elements.historyIncludeVersions;
-            if (!includeVersions) return;
-            if (!includeVersions.checked) {
-                includeVersions.checked = true;
-                await loadHistory();
+        async function openHistoricalQualityAudit(scope = {}) {
+            const includeVersions = elements.historyIncludeVersions; if (!includeVersions) return;
+            const query = String(scope?.query || '').trim(), pipeline = String(scope?.pipeline || 'all').trim() || 'all';
+            if (query || pipeline !== 'all') {
+                qualityAudit.resetReviewStatus?.();
+                historyFilters.setValues?.({ query, pipelineFilter: pipeline, recommendationFilter: 'all', dataTrustFilter: 'all', includeVersions: true });
+                includeVersions.checked = true; historyPage = 1; hideReportPreview(); await loadHistory();
+            } else if (!includeVersions.checked) { includeVersions.checked = true; await loadHistory();
             } else {
                 await qualityAudit.load(historyFilters.values());
             }

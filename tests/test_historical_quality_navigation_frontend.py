@@ -34,6 +34,39 @@ process.stdout.write(JSON.stringify({ html }));
     assert "查看歷史版本稽核" in payload["html"]
 
 
+def test_daily_quality_target_offers_scoped_human_review_navigation():
+    helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
+    script = """
+global.window = {};
+require(__HELPER_PATH__);
+const html = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], {
+  report_quality_audit: {
+    selection_basis: 'latest_per_ticker_pipeline',
+    audited_reports: 1,
+    quality_metadata_missing_reports: 1,
+    items_returned: 1,
+    items: [{
+      ticker: '1623.TW',
+      filename: '1623_TW_v2_report_20260815_154718.html',
+      pipeline_id: 'v2',
+      title: '刷新後品質證據缺口',
+      detail: '請人工查看 artifact。',
+      quality_review: { status: 'pending' }
+    }]
+  },
+  decision_queue: { items: [], summary: { total_actionable: 0 } }
+}, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ html }));
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert 'data-quality-history-audit-target' in payload["html"]
+    assert 'data-quality-history-query="1623_TW_v2_report_20260815_154718.html"' in payload["html"]
+    assert 'data-quality-history-pipeline="v2"' in payload["html"]
+    assert "前往人工核對" in payload["html"]
+
+
 def test_watchlist_panel_delegates_historical_audit_navigation():
     module_path = STATIC_DIR / "watchlist_panel.js"
     script = """
@@ -65,12 +98,48 @@ process.stdout.write(JSON.stringify({ opened }));
     assert payload["opened"] == 1
 
 
+def test_watchlist_panel_delegates_scoped_historical_audit_navigation():
+    module_path = STATIC_DIR / "watchlist_panel.js"
+    script = """
+global.window = {
+  StockAgentWatchlistPanelHelpers: {
+    itemPayload: () => ({}),
+    renderSuggestions: () => {},
+    resetForm: () => {},
+    slotLabel: () => '',
+    priorityLabel: () => '',
+    reportButton: () => ''
+  },
+  StockAgentWatchlistPanelActions: { create: () => ({}) },
+  StockAgentWatchlistTriggerForm: { renderItem: () => '' }
+};
+require(__MODULE_PATH__);
+let handler;
+let opened;
+const listEl = { addEventListener: (type, callback) => { if (type === 'click') handler = callback; } };
+const panel = window.StockAgentWatchlistPanel.create({ elements: { listEl } });
+window.StockAgentOpenHistoricalQualityAudit = scope => { opened = scope; };
+panel.bindEvents();
+handler({ target: { closest: selector => selector === '[data-quality-history-audit-target]' ? { dataset: {
+  qualityHistoryQuery: '1623_TW_v2_report_20260815_154718.html', qualityHistoryPipeline: 'v2'
+} } : null } });
+process.stdout.write(JSON.stringify({ opened }));
+""".replace("__MODULE_PATH__", json.dumps(str(module_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert payload["opened"] == {
+        "query": "1623_TW_v2_report_20260815_154718.html",
+        "pipeline": "v2"
+    }
+
+
 def test_history_workspace_ignores_stale_report_list_response():
     module_path = STATIC_DIR / "history_workspace.js"
     script = """
 (async () => {
   global.window = {
-    StockAgentHistoricalQualityAudit: { create: () => ({ load: () => {}, bindEvents: () => {} }) },
+    StockAgentHistoricalQualityAudit: { create: () => ({ load: () => {}, bindEvents: () => {}, resetReviewStatus: () => { global.reviewReset = (global.reviewReset || 0) + 1; } }) },
     StockAgentHistoryWorkspacePanels: {
       create: () => ({
         historyFilters: {
@@ -124,6 +193,60 @@ def test_history_workspace_ignores_stale_report_list_response():
     assert payload["renderedQuery"] == "new"
 
 
+def test_history_workspace_applies_scoped_quality_review_navigation():
+    module_path = STATIC_DIR / "history_workspace.js"
+    script = """
+(async () => {
+  global.window = {
+    StockAgentHistoricalQualityAudit: { create: () => ({ load: () => {}, bindEvents: () => {}, resetReviewStatus: () => { global.reviewReset = (global.reviewReset || 0) + 1; } }) },
+    StockAgentHistoryWorkspacePanels: {
+      create: () => ({
+        historyFilters: {
+          state: { query: '', pipelineFilter: 'all', recommendationFilter: 'all', dataTrustFilter: 'all', includeVersions: false },
+          values() { return this.state; },
+          setValues(next) { this.state = { ...this.state, ...next }; global.scope = next; },
+          bind: () => {}
+        },
+        historyPanel: {
+          renderReports: () => {}, renderPagination: () => 1, setTrackingCompact: () => {},
+          bindEvents: () => {}, clearSelection: () => {}
+        },
+        reportPreviewPanel: { hide: () => {}, show: () => false },
+        reportComparePanel: { bindEvents: () => {} },
+        trackingSnapshotPanel: { bindEvents: () => {}, load: async () => {} },
+        decisionTrackingPanel: { load: async () => ({ items: [] }) }
+      })
+    },
+    StockAgentHistoryWorkspaceActions: { create: () => ({}) }
+  };
+  let captured;
+  const workspace = require(__MODULE_PATH__);
+  const instance = window.StockAgentHistoryWorkspace.create({
+    apiClient: { fetchReports: async params => { captured = params; return { reports: [], pagination: { page: 1, total_pages: 1, total: 0, has_prev: false, has_next: false } }; } },
+    ui: {},
+    elements: { historyIncludeVersions: { checked: false } },
+    openReport: () => {}
+  });
+  await instance.openHistoricalQualityAudit({ query: '1623_TW_v2_report_20260815_154718.html', pipeline: 'v2' });
+  process.stdout.write(JSON.stringify({ scope: global.scope, captured, reviewReset: global.reviewReset || 0 }));
+})();
+""".replace("__MODULE_PATH__", json.dumps(str(module_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert payload["scope"] == {
+        "query": "1623_TW_v2_report_20260815_154718.html",
+        "pipelineFilter": "v2",
+        "recommendationFilter": "all",
+        "dataTrustFilter": "all",
+        "includeVersions": True
+    }
+    assert payload["captured"]["query"] == "1623_TW_v2_report_20260815_154718.html"
+    assert payload["captured"]["pipeline"] == "v2"
+    assert payload["captured"]["includeVersions"] is True
+    assert payload["reviewReset"] == 1
+
+
 def test_historical_audit_navigation_wiring_uses_cache_busters_and_existing_scope():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
@@ -136,7 +259,9 @@ def test_historical_audit_navigation_wiring_uses_cache_busters_and_existing_scop
     assert "StockAgentOpenHistoricalQualityAudit" in watchlist_panel
     assert "openHistoricalQualityAudit" in history_workspace
     assert "StockAgentOpenHistoricalQualityAudit" in app_js
-    assert "/static/watchlist_panel_helpers.js?v=20260816-quality-review-progress-summary" in index_html
-    assert "/static/watchlist_panel.js?v=20260816-historical-quality-navigation" in index_html
-    assert "/static/history_workspace.js?v=20260816-historical-quality-review-history" in index_html
-    assert "/static/styles/watchlist.css?v=20260816-historical-quality-artifact-summary" in style_css
+    assert "/static/watchlist_panel_helpers.js?v=20260816-scoped-quality-review-navigation" in index_html
+    assert "/static/watchlist_panel.js?v=20260816-scoped-quality-review-navigation" in index_html
+    assert "/static/history_filters.js?v=20260816-scoped-quality-review-navigation" in index_html
+    assert "/static/history_workspace.js?v=20260816-scoped-quality-review-navigation" in index_html
+    assert "/static/app.js?v=20260816-scoped-quality-review-navigation" in index_html
+    assert "/static/styles/watchlist.css?v=20260816-scoped-quality-review-navigation" in style_css

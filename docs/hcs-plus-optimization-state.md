@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-16
+- D3577：daily 最新品質 target 原本只能開報告 preview，或進入未帶範圍的歷史稽核；操作員要在 `143` 個歷史缺口中重新搜尋同一檔案。新增 filename/pipeline scoped review navigation，並在 workspace 重設 recommendation、data-trust、review-status、頁碼與 preview，沿用既有 GET audit/list，不新增 queue、rerun、artifact/index 或 review mutation。
+- D3577 驗證收斂：先取得 target markup、panel delegation、workspace filter 套用與 stale review-status RED，再 GREEN targeted navigation suite `240 passed`；完整跨層 suite `962 passed`，Node syntax、行數護欄與 `git diff --check` 通過。live daily renderer 產生 scoped target；filename/pipeline query 的 historical audit 與 report list 都縮小為 `1` 筆，七個新版 JS/CSS assets `200`，health/readiness 正常，daily pending `2`、queue 仍為既有 1 筆 screener action、review ledger `0`。
 - D3576：live historical audit item 已帶 64 字元 `report_quality_revision`，但 review context 只顯示 ticker、模式與日期；操作員無法在畫面快速核對目前 revision。新增短版版本識別碼，完整值保留在 `title`/`aria-label`，不改 API payload、mutation token、server revision validation、ledger、artifact/index、queue 或 rerun。
 - D3576 驗證收斂：先取得 revision context RED，再 GREEN targeted `99 passed`；跨層 suite `959 passed`、Node syntax、`git diff --check` 通過。live 實際 revision 產出的 renderer HTML 同時含短版 visible、完整 `aria-label` 與 `title`，helper asset `200`，historical/daily 維持 `1330/143/89.25%` 與 `160/2/98.75%`，review ledger `0`，decision queue 仍為既有 1 筆 screener action。
 - D3575：review decision 在填寫理由後原本會直接 POST，缺少最後一次「確認寫入目前報告版本」的操作門檻；新增 browser confirmation，取消時在 submission lock 與 API call 前返回，不建立 review event。這只改善誤觸風險，不改 server mutation token、revision、decision/note validation、append-only ledger、artifact/index、queue 或 rerun。

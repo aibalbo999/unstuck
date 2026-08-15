@@ -217,6 +217,7 @@ flowchart TD
 - `report_quality_audit.quality_metadata_by_pipeline` 以 `pipeline_id` 分組保留 verified 分母、coverage basis 與缺 gate counts，讓一次 historical response 可完成模式優先級判斷；詳細明細仍用 `q`/`pipeline` targeted audit，且不做 side effect。
 - watchlist board 的品質缺口 CTA 只呼叫既有 `openReport(filename, ticker, pipeline)` preview path；它不進 daily decision queue、不呼叫 rerun API，也不寫入 artifact/index。相關 JS/CSS 使用獨立 cache-buster。
 - watchlist board 的品質缺口 CTA 需將 audit item 的白話 `detail` 放入 tooltip、`title` 放入稽核標題的無障礙 `aria-label`，並以 `data-quality-reason-codes` 與 `data-quality-artifact-fields` 保留可追蹤 evidence context；這些欄位只供人工核對，不改變唯讀 preview 行為。
+- watchlist board 的每筆品質 target 可將 filename/pipeline 傳給 history workspace 的 scoped review navigation；workspace 會重設 recommendation/data-trust/review-status filter、頁碼與 preview 後沿用既有 GET audit/list，不建立 review mutation、queue action 或 rerun。
 - watchlist board 將已知 `quality_metadata_coverage_basis=verified_snapshot_reports` 映射為「已驗證快照覆蓋」，避免把 coverage 百分比誤讀成全索引分母；未知或缺失 basis 維持相容的泛稱。
 - 品質 repair 的 metadata 缺口判定放在 `report_quality_metadata_repair.py`；helper 先做 top-level 與 nested gate 的 mapping-safe normalization，`report_quality_repair_items.py` 只保留相容匯出與其他 gate builders，避免新增 domain rule 使共用 helper 超過 import-boundary 責任上限。
 - 新報告索引欄位才放 `report_index`；不要把任務狀態塞進 report index。
