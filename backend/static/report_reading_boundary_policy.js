@@ -1,10 +1,13 @@
 (function () {
     const labels = { pending: '品質 gate 尚未記錄', warning: '品質 gate 有警示', blocked: '品質 gate 未通過', passed: '已通過已知檢查' };
     const details = { pending: '品質 gate 尚未完整記錄；先核對來源與限制，勿直接採用報告結論。', warning: '品質 gate 有警示；先核對來源、快照與證據，再引用報告結論。', blocked: '品質 gate 未通過；先處理品質警示，暫勿直接採用報告結論。', passed: '已通過已知檢查，但不代表投資語意一定正確或未來結果有保證。' };
-    const genericSnapshotErrors = new Set(['資料快照完整性未通過，不能直接引用報告結論。']);
-    const qualityKeys = ['report_conformance', 'evidence_exit_gate', 'content_credibility'];
-    const recorded = (report, key) => Object.prototype.hasOwnProperty.call(report || {}, key)
-        && report[key] && typeof report[key] === 'object';
+    const genericSnapshotErrors = new Set(['資料快照完整性未通過，不能直接引用報告結論。']); const qualityKeys = ['report_conformance', 'evidence_exit_gate', 'content_credibility'];
+    const recorded = (report, key) => {
+        const value = report?.[key];
+        if (!value || typeof value !== 'object') return false;
+        const signal = key === 'evidence_exit_gate' ? value.verdict : value.status;
+        return String(signal || '').trim() !== '';
+    };
     const safeText = value => {
         try {
             return String(value ?? '').trim();
@@ -52,6 +55,5 @@
         const integrityDetail = snapshotIntegrityInvalid(snapshot) ? snapshotIntegrityDetail(snapshot) : '';
         return { state, label: labels[state], detail: `${details[state]} ${integrityDetail}`.trim() };
     }
-
     window.StockAgentReportReadingBoundaryPolicy = { reportReadingBoundary };
 })();

@@ -1,7 +1,16 @@
 (function () {
+    const recorded = (report, key) => {
+        const value = report?.[key];
+        if (!value || typeof value !== 'object') return false;
+        const signal = key === 'evidence_exit_gate' ? value.verdict : value.status;
+        return String(signal || '').trim() !== '';
+    };
+
     function reportQualityGateAction(report, helpers = {}) {
         const conformance = report?.report_conformance || {};
         const gate = report?.evidence_exit_gate || {};
+        const qualityKeys = ['report_conformance', 'evidence_exit_gate', 'content_credibility'];
+        const persistedSnapshotVerified = report?.snapshot_integrity?.status === 'verified';
         const reportConformanceStatus = helpers.reportConformanceStatus
             || (item => String(item?.report_conformance?.status || ''));
         const evidenceExitGateVerdict = helpers.evidenceExitGateVerdict
@@ -9,6 +18,9 @@
         const status = reportConformanceStatus(report);
         const verdict = evidenceExitGateVerdict(report);
 
+        if (persistedSnapshotVerified && !qualityKeys.every(key => recorded(report, key))) {
+            return { label: '品質證據未記錄', tone: 'critical', detail: '報告缺少完整品質 gate 紀錄，採用前需人工查看。' };
+        }
         if (status === 'blocked') {
             return { label: '報告符合性未通過', tone: 'critical', detail: conformance.summary || '報告未符合輸出契約，暫勿直接採用。' };
         }

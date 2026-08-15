@@ -63,14 +63,14 @@
     }
     function requiresDataTrustAction(report) {
         return dataTrustStatus(report) === 'error'
+            || Boolean(reportQualityGateAction(report))
             || ['blocked', 'warning'].includes(reportConformanceStatus(report))
             || evidenceExitGateNeedsAction(report)
             || hasRefreshableDataTrustIssue(report)
             || reportNeedsRerun(report)
             || hasSourceError(report);
     }
-    const sourceNoticeReports = reports => (reports || []).filter(hasProviderSlaOnlyPartial);
-    window.StockAgentReportQualityPolicy = {
+    const sourceNoticeReports = reports => (reports || []).filter(hasProviderSlaOnlyPartial); window.StockAgentReportQualityPolicy = {
         dataTrustStatus, dataTrustProviderSlaOnlyPartial, decisionFreshnessStatusLabel,
         evidenceExitGateVerdict, hasProviderSlaOnlyPartial, hasRefreshableDataTrustIssue,
         reportConformanceStatus, reportDecisionStatusLabel, reportHasFreshData, reportNeedsDataRefresh, reportReadingBoundary,

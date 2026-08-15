@@ -40,6 +40,38 @@ process.stdout.write(JSON.stringify(reports.map(report => ({ name: report.name, 
     assert "不代表投資語意一定正確" in payload[3]["boundary"]["detail"]
 
 
+def test_report_quality_policy_treats_empty_gate_objects_as_missing_metadata():
+    gate_path = STATIC_DIR / "report_quality_gate_policy.js"
+    policy_path = STATIC_DIR / "report_quality_policy.js"
+    boundary_path = STATIC_DIR / "report_reading_boundary_policy.js"
+    script = """
+global.window = {};
+require(__GATE_PATH__);
+require(__POLICY_PATH__);
+require(__BOUNDARY_PATH__);
+const report = {
+  filename: '1623_v1.html',
+  data_trust: { status: 'partial' },
+  snapshot_integrity: { status: 'verified' },
+  report_conformance: {},
+  evidence_exit_gate: {},
+  content_credibility: {}
+};
+const action = window.StockAgentReportQualityPolicy.reportRecommendedAction(report);
+const gate = window.StockAgentReportQualityGatePolicy.reportQualityGateAction(report);
+const boundary = window.StockAgentReportReadingBoundaryPolicy.reportReadingBoundary(report);
+process.stdout.write(JSON.stringify({ action, gate, boundary }));
+""".replace("__GATE_PATH__", json.dumps(str(gate_path))).replace("__POLICY_PATH__", json.dumps(str(policy_path))).replace("__BOUNDARY_PATH__", json.dumps(str(boundary_path)))
+
+    payload = json.loads(_node(script))
+
+    assert payload["action"] == {"type": "manual_review", "filename": "1623_v1.html"}
+    assert payload["gate"]["label"] == "品質證據未記錄"
+    assert payload["gate"]["tone"] == "critical"
+    assert payload["boundary"]["state"] == "pending"
+    assert payload["boundary"]["label"] == "品質 gate 尚未記錄"
+
+
 def test_report_reading_boundary_downgrades_unverified_and_blocks_invalid_snapshots():
     boundary_path = STATIC_DIR / "report_reading_boundary_policy.js"
     script = """

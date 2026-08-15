@@ -31,6 +31,30 @@ def content_credibility_repair_item(report: dict[str, Any]) -> dict[str, Any] | 
     return _gate_repair_item(report, "content_credibility", "status", CONTENT_CREDIBILITY_RULES)
 
 
+def quality_metadata_repair_item(report: dict[str, Any]) -> dict[str, Any] | None:
+    snapshot_integrity = _dict(_field(report, "snapshot_integrity"))
+    if _status(_field(snapshot_integrity, "status")) != "verified":
+        return None
+    missing = [
+        gate_key
+        for gate_key in ("report_conformance", "evidence_exit_gate", "content_credibility")
+        if not _quality_gate_recorded(_field(report, gate_key))
+    ]
+    if not missing:
+        return None
+    detail = f"報告未記錄 {'、'.join(missing)} 品質證據，採用前需人工查看。"
+    return _item(
+        severity="blocked",
+        priority=820,
+        action="manual_review",
+        label="人工審核",
+        title="品質證據未記錄",
+        detail=detail,
+        reason_codes=["quality_metadata_missing"],
+        blocks_auto_rerun=True,
+    )
+
+
 def report_conformance_repair_item(report: dict[str, Any]) -> dict[str, Any] | None:
     gate = _dict(_field(report, "report_conformance"))
     retry_detail = _final_audit_retry_detail(gate)
@@ -148,6 +172,11 @@ def _field(mapping: dict[str, Any], key: str, default: Any = None) -> Any:
 
 def _status(value: Any) -> str:
     return safe_text(value).strip().lower()
+
+
+def _quality_gate_recorded(value: Any) -> bool:
+    gate = _dict(value)
+    return bool(_status(_field(gate, "status")) or _status(_field(gate, "verdict")))
 
 
 def _safe_bool(value: Any) -> bool:

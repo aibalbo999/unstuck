@@ -74,6 +74,31 @@ def test_report_quality_repair_items_project_blocked_content_credibility():
     }
 
 
+def test_report_quality_repair_items_project_missing_quality_metadata():
+    assert importlib.util.find_spec("report_quality_repair_items") is not None
+    helpers = importlib.import_module("report_quality_repair_items")
+
+    item = helpers.quality_metadata_repair_item(
+        {
+            "content_credibility": {},
+            "report_conformance": {},
+            "evidence_exit_gate": {},
+            "snapshot_integrity": {"status": "verified"},
+        }
+    )
+
+    assert item == {
+        "severity": "blocked",
+        "priority_score": 820,
+        "recommended_action": "manual_review",
+        "action_label": "人工審核",
+        "title": "品質證據未記錄",
+        "detail": "報告未記錄 report_conformance、evidence_exit_gate、content_credibility 品質證據，採用前需人工查看。",
+        "reason_codes": ["quality_metadata_missing"],
+        "blocks_auto_rerun": True,
+    }
+
+
 def test_repair_queue_prioritizes_content_credibility_blocked_before_stale_snapshot():
     from report_quality_repair_queue import build_report_quality_repair_queue
 

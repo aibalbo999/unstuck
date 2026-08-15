@@ -12,6 +12,7 @@ from report_quality_repair_items import (
     data_trust_repair_item,
     decision_freshness_repair_item,
     evidence_exit_gate_repair_item,
+    quality_metadata_repair_item,
     report_conformance_repair_item,
 )
 
@@ -51,6 +52,7 @@ def _report_rows(reports: dict[str, Any] | list[dict[str, Any]]) -> list[dict[st
 def _repair_item(report: dict[str, Any]) -> dict[str, Any] | None:
     candidates = [
         snapshot_integrity_repair_item(_field(report, "snapshot_integrity")),
+        quality_metadata_repair_item(report),
         content_credibility_repair_item(report),
         report_conformance_repair_item(report),
         evidence_exit_gate_repair_item(report),

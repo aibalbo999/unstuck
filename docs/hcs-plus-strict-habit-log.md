@@ -2,6 +2,16 @@
 
 更新時間：2026-08-15
 
+## D3521 / 品質 metadata 缺失可見性
+
+- `#拆解問題` / `#差距分析`：全量 history audit 顯示 `1623.TW` v1/v2 的報告產物與 verified snapshot 都存在，但三個 persisted quality gate 是空物件；原 queue 沒有對應的 repair action。
+- `#語意含義` / `#受眾`：空物件不是「通過」，也不能直接說成報告失敗；前端改為「品質證據未記錄／先人工查看」，讓歷史卡片與 preview 的讀取邊界一致。
+- `#偏誤降低` / `#可驗證性`：backend 只在 `snapshot_integrity.status=verified` 且 `report_conformance`、`evidence_exit_gate`、`content_credibility` 缺有效 status/verdict 時建立 priority 820 的 blocked `manual_review`；未驗證 snapshot 仍由原 integrity repair item 處理，避免 synthetic row 行為漂移。
+- `#責任` / `#制定策略`：不自動重跑、不回寫 HTML/Markdown/snapshot/index；每日工作台仍是近期 20 份 v4 抽樣，歷史缺口透過 history/preview 與 production queue helper 呈現，不擴張抽樣範圍冒充全量結論。
+- `#可驗證性`：RED→GREEN 完成空 gate queue、前端 action/boundary、static/history/preview/queue `190 passed`，dashboard/queue/provider/API `190 passed`，並通過 JS syntax、Python compile、diff check。
+
+本批暫定決策：先讓「沒有品質證據」成為明確、不可自動採用的人工審核訊號；是否要另做全量歷史修復工作，保留為下一批需人工核准的 scope。
+
 ## D3520 / 歷史 v4 品質 gate 相容性
 
 - `#拆解問題` / `#差距分析`：live 最近 20 份 v4 history row 都是部署前 snapshot，仍帶 `recommendation_target_alignment` 舊 check；但 preview 已能讀出交易方向、目標與停損，造成新舊報告的品質證據不一致。
