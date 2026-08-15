@@ -2211,6 +2211,12 @@
 - 新增 `missing_quality_field_counts`，只從 verified snapshot 的 repair item `missing_quality_fields` 聚合 `report_conformance`、`evidence_exit_gate`、`content_credibility`；invalid/unverified row 不進統計。
 - watchlist daily board 顯示 gate 分布，並以 cache-buster 更新 helper；保留 read-only、無 rerun/repair side effect，文件與 tests 同步鎖定。
 
+## D3542：支援歷史品質稽核的 targeted filters
+
+- repeated live probe 顯示全歷史 audit 約 1.85 秒，每次都讀取 1330 個 snapshot；固定全庫掃描不利於只核對單一 ticker/pipeline。
+- historical endpoint 新增既有 report-history 語意的 `q`、`pipeline` filters，仍固定 `include_versions=True`、`selection_basis=all_indexed_versions`；篩選後 `audited_reports` 明示為符合條件的完整版本集合。
+- 不引入可能產生 stale coverage 的快取；保留 read-only、無 artifact/index/rerun side effect，並以 builder/route/docs regression 鎖定 query 傳遞。
+
 綜合視角：
 
 - `#可驗證性`：每個模式的報告模板與決策用途必須有測試與文件可查。

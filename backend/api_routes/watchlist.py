@@ -62,9 +62,20 @@ def _build_quality_audit_or_unavailable(output_dir: str) -> dict:
         return build_unavailable_report_quality_audit()
 
 
-def _build_historical_quality_audit_or_unavailable(output_dir: str, item_limit: int) -> dict:
+def _build_historical_quality_audit_or_unavailable(
+    output_dir: str,
+    item_limit: int,
+    q: str,
+    pipeline: str,
+) -> dict:
     try:
-        return build_historical_indexed_report_quality_audit(output_dir, page_size=100, item_limit=item_limit)
+        return build_historical_indexed_report_quality_audit(
+            output_dir,
+            page_size=100,
+            item_limit=item_limit,
+            q=q,
+            pipeline=pipeline,
+        )
     except Exception:
         LOGGER.exception("Historical report quality audit is unavailable")
         return build_unavailable_report_quality_audit(
@@ -186,11 +197,15 @@ def create_watchlist_router(deps: WatchlistRouteDeps) -> APIRouter:
     @router.get("/report-quality-audit/historical")
     async def get_historical_report_quality_audit(
         item_limit: int = Query(25, ge=0, le=500),
+        q: str = Query("", max_length=80),
+        pipeline: str = Query("all", max_length=24),
     ):
         return await asyncio.to_thread(
             _build_historical_quality_audit_or_unavailable,
             deps.get_output_dir(),
             item_limit,
+            q,
+            pipeline,
         )
 
     @router.post("/portfolio/risk")

@@ -39,12 +39,14 @@ def build_historical_indexed_report_quality_audit(
     *,
     page_size: int = 100,
     item_limit: int = 25,
+    q: str = "",
+    pipeline: str = "all",
 ) -> dict[str, Any]:
     rows = collect_all_report_pages(
         list_indexed_report_quality_rows,
         page_size=page_size,
-        q="",
-        pipeline="all",
+        q=q,
+        pipeline=pipeline,
         recommendation="all",
         data_trust="all",
         include_versions=True,

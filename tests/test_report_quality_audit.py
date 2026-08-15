@@ -312,9 +312,16 @@ def test_historical_indexed_report_quality_audit_includes_every_indexed_version(
         lambda _snapshot: {"valid": True, "expected_hash": "hash", "errors": []},
     )
 
-    payload = audit.build_historical_indexed_report_quality_audit(str(tmp_path), item_limit=0)
+    payload = audit.build_historical_indexed_report_quality_audit(
+        str(tmp_path),
+        item_limit=0,
+        q="1623.TW",
+        pipeline="v2",
+    )
 
     assert calls[0][1]["include_versions"] is True
+    assert calls[0][1]["q"] == "1623.TW"
+    assert calls[0][1]["pipeline"] == "v2"
     assert payload["scope"] == "all_historical_indexed_reports"
     assert payload["selection_basis"] == "all_indexed_versions"
     assert payload["audited_reports"] == 1

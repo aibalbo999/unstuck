@@ -33,7 +33,7 @@ The read-only `report_quality_audit.items[]` payload exposes `missing_quality_fi
 
 `report_quality_audit.selection_basis = latest_per_ticker_pipeline` means the `all_indexed_reports` scope audits the latest indexed row for each ticker/pipeline pair, not every historical artifact version. Use this field with `audited_reports` when describing coverage.
 
-`GET /api/watchlist/report-quality-audit/historical` is a separate read-only audit for every indexed report version. Its envelope uses `scope=all_historical_indexed_reports` and `selection_basis=all_indexed_versions`; it is intentionally excluded from the daily decision queue. Use `item_limit=0` when only the historical coverage counts are needed. This endpoint does not repair artifacts, enqueue reruns, or write the report index.
+`GET /api/watchlist/report-quality-audit/historical` is a separate read-only audit for every indexed report version. Its envelope uses `scope=all_historical_indexed_reports` and `selection_basis=all_indexed_versions`; it is intentionally excluded from the daily decision queue. Optional `q` and `pipeline` filters reuse the report-history search contract and limit the audited version set; `audited_reports` then means all indexed versions matching those filters. Use `item_limit=0` when only the filtered coverage counts are needed. This endpoint does not repair artifacts, enqueue reruns, or write the report index.
 
 Report quality metadata repair accepts mapping-safe top-level report envelopes and nested gate mappings before checking `snapshot_integrity`, `report_conformance`, `evidence_exit_gate`, or `content_credibility`; read-only mapping wrappers must not interrupt the audit.
 

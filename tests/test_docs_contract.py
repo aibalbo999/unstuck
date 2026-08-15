@@ -65,6 +65,7 @@ def test_report_quality_docs_cover_snapshot_integrity_contract():
         assert "all_historical_indexed_reports" in document
         assert "all_indexed_versions" in document
         assert "/api/watchlist/report-quality-audit/historical" in document
+        assert "q` and `pipeline`" in document or "q` 與 `pipeline`" in document
         assert "Report quality metadata repair accepts mapping-safe top-level report envelopes" in document
         assert "not_recorded" in document
         assert "unknown" in document

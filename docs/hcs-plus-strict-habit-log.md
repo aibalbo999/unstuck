@@ -12016,3 +12016,9 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 - 以 live 143 筆 historical 缺口確認總數不足以判斷人工順序；field distribution 必須與 verified snapshot 分母同一個 evidence boundary。
 - RED→GREEN 新增 `missing_quality_field_counts`，三個 gate 各自計數；前端以白話 label 顯示，未知欄位不被渲染成任意文字。
 - 完成 API/operator/architecture/docs contract、Node syntax、focused regression；不把欄位統計轉成 daily queue、rerun 或 repair。
+
+### 完成後維護 / D3542 / #拆解問題 #差距分析 #偏誤降低 #證據基礎 #受眾 #語意含義 #可驗證性
+
+- repeated live probe 量得 historical audit 約 1.85 秒；以 filtered audit 降低 targeted review 成本，不用未驗證的 TTL cache 掩蓋新 snapshot。
+- RED→GREEN 鎖定 `q`/`pipeline` 從 FastAPI route 傳到 `query_report_metadata`，並保持 `include_versions=True` 與 `all_indexed_versions` 語意。
+- 文件補充 filtered `audited_reports` 的分母意義；builder/route compile 與 focused tests 通過，仍無 mutation authorization 或寫入副作用。
