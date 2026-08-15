@@ -166,7 +166,7 @@ QUALITY_SERVICE_TIME_TO_METRIC_PATTERN = re.compile(rf"(?:{QUALITY_SERVICE_TIME_
     rf"|(?:出貨|shipments?|銷量)\s*(?:目標|target)?\s*{TARGET_NUMBER_PATTERN}\s*(?:萬台|台|units?)?",
     flags=re.IGNORECASE,
 )
-NON_PRICE_TARGET_METRIC_PATTERN = re.compile(
+QUALITY_SERVICE_TIME_TO_METRIC_PATTERN = re.compile(rf"(?:{QUALITY_SERVICE_TIME_TO_METRIC_PATTERN.pattern}|time\s+to\s+(?:renew\s+recertification\s+validation\s+attendance\s+renewal\s+certification|renew\s+attendance\s+certification\s+renewal\s+recertification\s+validation|renew\s+validation\s+renewal\s+attendance\s+certification\s+recertification|renew\s+validation\s+attendance\s+certification\s+renewal\s+recertification))", re.IGNORECASE); QUALITY_SERVICE_TIME_TO_METRIC_VALUE_PATTERN = re.compile(rf"(?:{QUALITY_SERVICE_TIME_TO_METRIC_VALUE_PATTERN.pattern}|time\s+to\s+(?:renew\s+recertification\s+validation\s+attendance\s+renewal\s+certification|renew\s+attendance\s+certification\s+renewal\s+recertification\s+validation|renew\s+validation\s+renewal\s+attendance\s+certification\s+recertification|renew\s+validation\s+attendance\s+certification\s+renewal\s+recertification)\s+(?:target|forecast|actual|baseline|current)\s*{TARGET_NUMBER_PATTERN})", re.IGNORECASE); NON_PRICE_TARGET_METRIC_PATTERN = re.compile(
     r"(?:目標|target)\s*(?:報酬率|報酬|上行|下行|機率|概率|信心|分數|排名|名次|return|upside|downside|probability|confidence|score|rank|ranking)"
     r"|(?:報酬率|報酬|上行|下行|機率|概率|信心|分數|排名|名次|return|upside|downside|probability|confidence|score|rank|ranking)\s*(?:目標|target)?",
     flags=re.IGNORECASE,
