@@ -418,6 +418,78 @@ def test_history_quality_audit_missing_field_shortcut_reloads_field_filter():
     ]
 
 
+def test_history_quality_audit_persists_filters_across_reload_and_reset_clears_them():
+    helper_path = STATIC_DIR / "history_panel_quality_helpers.js"
+    renderer_path = STATIC_DIR / "history_quality_audit_render.js"
+    module_path = STATIC_DIR / "history_quality_audit.js"
+    script = """
+(async () => {
+  global.window = {};
+  const storage = {};
+  window.sessionStorage = {
+    getItem: key => Object.prototype.hasOwnProperty.call(storage, key) ? storage[key] : null,
+    setItem: (key, value) => { storage[key] = String(value); },
+    removeItem: key => { delete storage[key]; }
+  };
+  require(__HELPER_PATH__);
+  require(__RENDERER_PATH__);
+  require(__MODULE_PATH__);
+  const captured = [];
+  const makeElement = () => ({
+    hidden: true,
+    innerHTML: '',
+    setAttribute: () => {},
+    removeAttribute: () => {},
+    addEventListener: (type, handler) => { if (type === 'click') elementHandler = handler; }
+  });
+  let elementHandler;
+  const apiClient = {
+    fetchHistoricalReportQualityAudit: async params => {
+      captured.push(params);
+      return {
+        audited_reports: 1,
+        quality_metadata_missing_reports: 1,
+        missing_quality_field_counts: { report_conformance: 1, evidence_exit_gate: 1, content_credibility: 1 },
+        quality_review_by_status: { pending: 1, approved_with_gap: 0, rejected: 0, deferred: 0 },
+        review_status_filter: params.reviewStatus || 'all',
+        missing_quality_field_filter: params.missingField || 'all',
+        items: []
+      };
+    }
+  };
+  const first = window.StockAgentHistoricalQualityAudit.create({ apiClient, ui: { escapeHtml: value => String(value ?? '') }, element: makeElement() });
+  first.bindEvents();
+  await first.load({ includeVersions: true, query: '', pipelineFilter: 'all' });
+  await elementHandler({ target: { closest: selector => selector === '[data-quality-audit-missing-field]' ? { dataset: { qualityAuditMissingField: 'content_credibility' } } : null } });
+  await elementHandler({ target: { closest: selector => selector === '[data-quality-audit-review-status]' ? { dataset: { qualityAuditReviewStatus: 'pending' } } : null } });
+
+  const second = window.StockAgentHistoricalQualityAudit.create({ apiClient, ui: { escapeHtml: value => String(value ?? '') }, element: makeElement() });
+  await second.load({ includeVersions: true, query: '', pipelineFilter: 'all' });
+  first.resetReviewStatus();
+  const third = window.StockAgentHistoricalQualityAudit.create({ apiClient, ui: { escapeHtml: value => String(value ?? '') }, element: makeElement() });
+  await third.load({ includeVersions: true, query: '', pipelineFilter: 'all' });
+  process.stdout.write(JSON.stringify({ captured }));
+})();
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path))).replace("__RENDERER_PATH__", json.dumps(str(renderer_path))).replace("__MODULE_PATH__", json.dumps(str(module_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert payload["captured"][3] == {
+        "itemLimit": 5,
+        "itemOffset": 0,
+        "query": "",
+        "pipeline": "all",
+        "reviewStatus": "pending",
+        "missingField": "content_credibility",
+    }
+    assert payload["captured"][4] == {
+        "itemLimit": 5,
+        "itemOffset": 0,
+        "query": "",
+        "pipeline": "all",
+    }
+
+
 def test_history_quality_audit_pages_manual_review_targets_in_batches():
     helper_path = STATIC_DIR / "history_panel_quality_helpers.js"
     renderer_path = STATIC_DIR / "history_quality_audit_render.js"
@@ -550,11 +622,12 @@ def test_history_workspace_wires_historical_quality_audit_without_daily_queue_si
     assert "/static/api_client_extensions.js?v=20260816-quality-review-field-filter" in index_html
     assert "/static/history_panel_quality_helpers.js?v=20260816-quality-review-field-filter" in index_html
     assert "/static/history_quality_audit_render.js?v=20260816-quality-review-combined-scope" in index_html
-    assert "/static/history_quality_audit.js?v=20260816-quality-review-field-filter" in index_html
+    assert "/static/history_quality_audit.js?v=20260816-quality-review-filter-persistence" in index_html
     assert index_html.index("/static/history_quality_audit_render.js") < index_html.index("/static/history_quality_audit.js")
     assert len((STATIC_DIR / "history_panel_quality_helpers.js").read_text(encoding="utf-8").splitlines()) < 120
     assert len((STATIC_DIR / "history_quality_audit_render.js").read_text(encoding="utf-8").splitlines()) < 100
     assert "fetchHistoricalReportQualityAudit" in api_client
+    assert "sessionStorage" in (STATIC_DIR / "history_quality_audit.js").read_text(encoding="utf-8")
     assert "historyQualityAudit" in app_elements
     assert "historyQualityAudit" in app_panels
     assert "qualityAudit.load(values)" in workspace

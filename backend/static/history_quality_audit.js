@@ -7,7 +7,30 @@
         const onSelectPipeline = options.onSelectPipeline || (() => {});
         const notify = options.notify || { error: () => {} };
         const itemLimit = 5;
-        let loadVersion = 0, itemOffset = 0, reviewStatus = 'all', missingField = 'all', filterKey = '', currentValues = null, lastAudit = null, reviewSubmissionInFlight = false;
+        const filterStorageKey = 'stock-agent.history-quality-audit.filters.v1';
+        const reviewStatuses = ['all', 'pending', 'approved_with_gap', 'rejected', 'deferred'];
+        const missingFields = ['all', 'report_conformance', 'evidence_exit_gate', 'content_credibility'];
+        function readPersistedFilters() {
+            try {
+                const raw = window.sessionStorage?.getItem(filterStorageKey);
+                const parsed = raw ? JSON.parse(raw) : {};
+                return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+            } catch (_error) {
+                return {};
+            }
+        }
+        function normalizeFilter(value, allowed) {
+            const normalized = String(value || '').trim().toLowerCase();
+            return allowed.includes(normalized) ? normalized : 'all';
+        }
+        function persistFilters() {
+            try { window.sessionStorage?.setItem(filterStorageKey, JSON.stringify({ reviewStatus, missingField })); } catch (_error) { }
+        }
+        function clearPersistedFilters() {
+            try { window.sessionStorage?.removeItem(filterStorageKey); } catch (_error) { }
+        }
+        const persistedFilters = readPersistedFilters();
+        let loadVersion = 0, itemOffset = 0, reviewStatus = normalizeFilter(persistedFilters.reviewStatus, reviewStatuses), missingField = normalizeFilter(persistedFilters.missingField, missingFields), filterKey = '', currentValues = null, lastAudit = null, reviewSubmissionInFlight = false;
 
         function auditFilterKey(values) {
             return JSON.stringify([values?.includeVersions, values?.query || '', values?.pipelineFilter || 'all', reviewStatus, missingField]);
@@ -99,13 +122,15 @@
                 }
                 const reviewStatusButton = event.target.closest('[data-quality-audit-review-status]');
                 if (reviewStatusButton?.dataset?.qualityAuditReviewStatus) {
-                    reviewStatus = reviewStatusButton.dataset.qualityAuditReviewStatus || 'all';
+                    reviewStatus = normalizeFilter(reviewStatusButton.dataset.qualityAuditReviewStatus, reviewStatuses);
+                    persistFilters();
                     itemOffset = 0;
                     return load(currentValues);
                 }
                 const missingFieldButton = event.target.closest('[data-quality-audit-missing-field]');
                 if (missingFieldButton?.dataset?.qualityAuditMissingField) {
-                    missingField = missingFieldButton.dataset.qualityAuditMissingField || 'all';
+                    missingField = normalizeFilter(missingFieldButton.dataset.qualityAuditMissingField, missingFields);
+                    persistFilters();
                     itemOffset = 0;
                     return load(currentValues);
                 }
@@ -123,6 +148,7 @@
         function resetReviewStatus() {
             reviewStatus = 'all';
             missingField = 'all';
+            clearPersistedFilters();
             itemOffset = 0;
         }
 

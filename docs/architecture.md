@@ -205,6 +205,8 @@ daily quality target 的人工核對導引只傳 filename/pipeline scope 到 his
 
 歷史 review control 由 `history_quality_audit` 保留一個 page-level submission lock；成功 mutation 後重新載入目前範圍，失敗則經 notification center 呈現並解除 lock。這只降低瀏覽器連點造成的重複請求，不取代 server 的 mutation token、revision fingerprint 或 append-only ledger 約束。
 
+`history_quality_audit` 只將 normalized `reviewStatus` 與 `missingField` 保存在目前 tab 的 `sessionStorage`，用於 browser refresh 後恢復稽核範圍；它不保存報告內容，且 `resetReviewStatus()` 會清除 storage。daily scoped navigation 使用同一 reset boundary，因此導航範圍優先於舊的 quality filter。
+
 在 review note 通過空值檢查後，前端還會要求操作員確認要把決策寫入目前 revision；取消時不呼叫 mutation endpoint。這是防止誤觸的 UX gate，不是授權邊界；server 仍以 mutation token、current revision、decision 與 note 驗證作為唯一寫入依據。
 
 Review item 會把 current `report_quality_revision` 以短版文字呈現，完整值保留在 title/aria context；這補足人工核對時的版本辨識，但不讓 client-rendered revision 成為信任來源。server 仍重新計算並驗證 revision fingerprint。

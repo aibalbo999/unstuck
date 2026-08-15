@@ -53,6 +53,8 @@ The same historical endpoint accepts read-only `review_status=all|pending|approv
 
 It also accepts read-only `missing_field=all|report_conformance|evidence_exit_gate|content_credibility`. A selected field keeps only verified reports whose `missing_quality_fields` contains that gate, then applies any selected `review_status`; the response records the normalized value in `missing_quality_field_filter`, and `audited_reports`, coverage, and pagination counts describe only that field-scoped set. The history UI labels this as `缺口範圍` and keeps an `all` navigation entry, including when the selected field has zero rows. When both filters are selected, both scope labels remain visible and the backend applies them as an intersection. This filter is GET-only and does not repair artifacts, write the review ledger, enqueue reruns, or alter the daily queue.
 
+The history quality filter state stores only the normalized `reviewStatus` and `missingField` enums in tab-scoped browser `sessionStorage`, so a refresh in the same tab can restore the visible audit scope without storing report content or identifiers. Scoped daily-to-history navigation calls the existing reset boundary and clears those values before loading its filename/pipeline scope.
+
 The response keeps `quality_review_by_status` keys even when a selected status has count `0`; clients should keep the current status and an `all` navigation entry visible so an empty filtered result remains recoverable.
 
 The history UI derives its visible review progress from this map: `approved_with_gap + rejected + deferred` is the decided count, and the sum of all four statuses is the missing-quality denominator for the current response scope. Complete reports are never included in that progress denominator.

@@ -111,6 +111,8 @@ The read-only report quality audit exposes `missing_quality_fields` on each affe
 
 使用 review status 或缺口欄位篩選時，先讀摘要中的「審核範圍」或「缺口範圍」再解讀數字；篩選後若顯示 `0%`，它只代表目前集合的 coverage，不是全庫品質降為零。只有兩種篩選都為 `all` 時，摘要才使用「品質 metadata 完整度」作為未篩選範圍的 coverage 文案。
 
+歷史稽核的審核狀態與缺口欄位只保存兩個篩選值在目前瀏覽器分頁的 session；重新整理同一分頁會恢復可見範圍，但不保存報告內容。從今日工作台進入特定檔案的「前往人工核對」會清除舊的 quality filter，再套用 filename/pipeline 範圍，避免把上一個報告的條件帶進來。
+
 某個狀態完成最後一筆核對後，畫面仍會保留該狀態的 `（0）` 按鈕與「全部審核狀態」入口；這代表目前篩選已無結果，不是稽核面板失效，直接切回全部即可繼續其他狀態。
 
 filtered view 沒有結果時，摘要會寫「目前沒有符合〈狀態〉的品質 metadata 缺口」；不要把它讀成「0 份完整報告」或全庫 coverage 為零。

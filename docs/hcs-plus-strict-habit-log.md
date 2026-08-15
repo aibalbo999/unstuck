@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3580 / quality filter persistence boundary
+
+- `#差距分析` / `#問對問題`：quality filter 是否要持久化不能只問「能不能留住」；browser refresh 需要恢復同一稽核範圍，daily scoped navigation 則必須清掉舊條件。
+- `#限制條件` / `#偏誤降低`：只保存兩個白名單 enum 到 tab-scoped `sessionStorage`，不保存報告內容、搜尋字串或 revision；storage 失敗時維持既有 in-memory 行為。
+- `#責任` / `#系統圖像`：`history_quality_audit` 擁有 filter state 與 reset boundary，workspace scoped navigation 只呼叫 reset，不自行複製 storage 邏輯；backend 仍是唯一 query 範圍來源。
+- `#可驗證性` / `#來源品質`：以 reload restore/reset RED→GREEN、enum normalization、cache-buster、Node syntax、跨層測試、live asset/API/health/readiness 與 ledger count 驗證；本批不執行 review mutation。
+
 ## D3579 / combined audit scope semantics
 
 - `#偏誤辨識` / `#語意含義`：live response 同時帶有 review status 與 missing field，但原 renderer 只顯示前者；這會把交集數字誤讀成單一篩選結果。
