@@ -8303,6 +8303,34 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 - D3376-D3387 adjacent regression：`60 passed, 3740 deselected in 423.61s`。
 - completion gate：import boundary `503 passed in 11.00s`；HCS/文件契約 `135 passed in 3.50s`；`py_compile` exit 0；`git diff --check` exit 0；trailing-whitespace 無命中；runtime doctor exit 0，canonical operational DB 為 `backend/cache/operational.sqlite3`、report index 為 `backend/cache/stock_agent_cache.sqlite3`，Redis 為 `redis://localhost:6379/0`；parser/detector 行數維持 `349/189`。
 
+### 完成後維護 / D3494 / #拆解問題 #差距分析 #偏誤降低 #比較組 #證據基礎 #可驗證性 #來源品質
+
+本次使用：在 D3493 後重新掃描 `renew + attendance/validation/recertification/renewal/certification` 的 120 種排列；唯一未收斂 residual root 是 validation certification renewal recertification attendance lifecycle KPI，以 existing course guard、D3493 root 與 explicit target price 作為比較組。
+
+核心判斷
+
+1. `time to renew validation certification renewal recertification attendance` 是 validation certification renewal recertification attendance lifecycle KPI；其數值不應進入股票 target-price candidates。
+2. 單一 root 以五入口同構矩陣驗證後，parser、calibration、credibility、structured output 各為 120 cases，detector 為 100 cases，union 為 220 cases，所有入口與 union 均為 `0 leaks / 0 valid-misses`。
+3. 本批將 D3472、D3473、D3474、D3475、D3476、D3477、D3478、D3479、D3480、D3481、D3482、D3483、D3484、D3485、D3486、D3487、D3488、D3489、D3490、D3491、D3492、D3493 與 D3494 root 一起保留在累積 shared pattern/value stripping assignment；post-fix 120 permutations `residual_count=0`。
+
+落地修改
+
+1. 五個報告品質入口新增最後一個 validation certification renewal recertification attendance lifecycle regression；parser、calibration、credibility、structured output 覆蓋 120 組語料，detector 依既有 path boundary 覆蓋 100 組語料。
+2. `backend/price_parser.py` 共享 time-to branch 加入本批 root，並保留 D3472-D3493 roots 的累積 pattern/value stripping guard，由五個既有 consumer 共用，維持 parser/detector `349/189` 行及 runtime/storage 邊界。
+
+優化說明
+
+1. 五入口 RED 為 `5 failed, 4330 deselected in 14.68s`；shared guard GREEN 為 `5 passed, 4330 deselected in 6.87s`。
+2. D3494 post-fix matrix 為 parser、calibration、credibility、structured output 各 `120 cases / leaks=0 / valid_misses=0`，detector `100 cases / leaks=0 / valid_misses=0`，union `220 cases / leaks=0 / valid_misses=0`；explicit target price `[205.0]`、existing course、D3493 root 與 D3494 root controls 均為 `[]`。
+3. D3493-D3494 adjacent regression 通過 `10 passed, 4325 deselected in 30.23s`；post-fix residual scan 已無剩餘 root。
+
+驗證方式
+
+- `$(./scripts/project_python.sh) -m pytest tests/test_price_parser.py tests/test_recommendation_calibration.py tests/test_content_credibility_inputs.py tests/test_structured_output_parser.py tests/test_report_target_price_detection.py -q -k 'validation_certification_renewal_recertification_attendance'`：RED `5 failed, 4330 deselected in 14.68s`；GREEN `5 passed, 4330 deselected in 6.87s`。
+- D3494 post-fix matrix：四入口各 `120 cases / leaks=0 / valid_misses=0`；detector `100 cases / leaks=0 / valid_misses=0`；union `220 cases / leaks=0 / valid_misses=0`。
+- D3493-D3494 adjacent regression：`10 passed, 4325 deselected in 30.23s`。
+- controls：explicit target price `[205.0]`；existing course、D3493 root 與 D3494 root 均為 `[]`；post-fix residual scan `120 permutations / residual_count=0`。
+
 ### 完成後維護 / D3493 / #拆解問題 #差距分析 #偏誤降低 #比較組 #證據基礎 #可驗證性 #來源品質
 
 本次使用：在 D3492 後重新掃描 `renew + attendance/validation/recertification/renewal/certification` 的 120 種排列；前四個未收斂 residual roots 都是 validation certification attendance/renewal recertification lifecycle KPI 誤判組，以 existing course guard、D3490-D3492 cumulative roots 與 explicit target price 作為比較組。
