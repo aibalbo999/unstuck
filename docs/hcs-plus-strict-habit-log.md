@@ -8303,6 +8303,34 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 - D3376-D3387 adjacent regression：`60 passed, 3740 deselected in 423.61s`。
 - completion gate：import boundary `503 passed in 11.00s`；HCS/文件契約 `135 passed in 3.50s`；`py_compile` exit 0；`git diff --check` exit 0；trailing-whitespace 無命中；runtime doctor exit 0，canonical operational DB 為 `backend/cache/operational.sqlite3`、report index 為 `backend/cache/stock_agent_cache.sqlite3`，Redis 為 `redis://localhost:6379/0`；parser/detector 行數維持 `349/189`。
 
+### 完成後維護 / D3501 / #拆解問題 #差距分析 #偏誤降低 #比較組 #證據基礎 #來源品質
+
+本次使用：D3500 後 live scan 顯示八組動詞 × lifecycle 五詞排列仍有 `592` 個 residual；先以候選 generic regex 做 960/960 離線 permutation proof，再以五入口廣域 RED/GREEN 與 controls 驗證共享 guard 的安全邊界。
+
+核心判斷
+
+1. 這批 residual 不是新的商業語義，而是同一個 service/lifecycle KPI 的詞序排列；逐 root 累積 pattern 已造成 maintenance cost，應改成受限 permutation guard。
+2. 新 guard 只有在 time-to 動詞後出現 validation、recertification、attendance、renewal、certification 五個詞各一次，且接著是 target/forecast/actual/baseline/current state 時才生效；因此不把 financial `time to price`、existing `time to complete course` 或明確 `target price` 當成 service KPI。
+3. 五個入口各驗證 960 roots，union 為 4800 cases，所有入口與 union 均為 `0 leaks / 0 valid-misses`；post-fix residual scan 為 `960 candidates / residual_count=0`。
+
+落地修改
+
+1. `backend/price_parser.py` 新增共享 `QUALITY_SERVICE_TIME_TO_METRIC_PERMUTATION_PATTERN` 與 value pattern；parser early-return 與 value stripping 都使用它。
+2. `backend/report_target_price_detection.py` 匯入並共用 permutation/value guard，讓 explicit detector 與 parser 使用相同語義邊界；維持 parser/detector `349/189` 行契約。
+3. 五個報告品質入口新增全 lifecycle permutation regression，涵蓋 8 verbs × 120 permutations，並保留有效 target price 與既有非財務 controls。
+
+優化說明
+
+1. generic guard 前 RED 為 `5 failed, 4365 deselected in 58.79s`；shared guard GREEN 為 `5 passed, 4365 deselected in 47.17s`。
+2. generic matrix：parser、calibration、credibility、structured output、detector 各 `960 cases / leaks=0 / valid_misses=0`；union `4800 cases / leaks=0 / valid_misses=0`。
+3. controls：financial `time to price=[]`；existing `time to complete course=[]`；explicit target price `[205.0]`；post-fix residual `960 candidates / residual_count=0`。
+
+驗證方式
+
+- `$(./scripts/project_python.sh) -m pytest tests/test_price_parser.py tests/test_recommendation_calibration.py tests/test_content_credibility_inputs.py tests/test_structured_output_parser.py tests/test_report_target_price_detection.py -q -k 'all_lifecycle_time_to_metric_permutations'`：RED `5 failed, 4365 deselected in 58.79s`；GREEN `5 passed, 4365 deselected in 47.17s`。
+- generic matrix：五入口各 960 cases，union 4800 cases，所有 leaks 與 valid-misses 均為 0。
+- candidate scan：`960 candidates / residual_count=0`；financial `time to price=[]`；existing `time to complete course=[]`；explicit target price `[205.0]`。
+
 ### 完成後維護 / D3500 / #拆解問題 #差距分析 #偏誤降低 #比較組 #證據基礎 #可驗證性 #來源品質
 
 本次使用：在 D3499 後以八組動詞各掃描 validation、recertification、attendance、renewal、certification 五詞的 120 種排列；前四個未收斂 residual roots 都是 issue attendance recertification validation lifecycle KPI，以 D3499 root、D3498 root、D3497 root、D3496 root 與 explicit target price 作為比較組。

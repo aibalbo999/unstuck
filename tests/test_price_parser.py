@@ -13528,6 +13528,28 @@ def test_extract_target_price_numbers_ignores_time_to_renew_attendance_certifica
         ) == [205.0]
 
 
+def test_extract_target_price_numbers_ignores_all_lifecycle_time_to_metric_permutations():
+    from itertools import permutations
+
+    verbs = ("renew", "issue", "verify", "schedule", "complete", "attend", "validate", "certify")
+    words = ("validation", "recertification", "attendance", "renewal", "certification")
+
+    roots = tuple(
+        f"time to {verb} {' '.join(permutation)}"
+        for verb in verbs
+        for permutation in permutations(words)
+    )
+    for root in roots:
+        target = f"planning metric {root} target 12 個"
+        assert _extract_target_price_numbers(target) == []
+        assert _extract_target_price_numbers(
+            f"target price NT$205 with {target}"
+        ) == [205.0]
+
+    assert _extract_target_price_numbers("time to price target 12 個") == []
+    assert _extract_target_price_numbers("time to complete course target 12 個") == []
+
+
 def test_extract_target_price_numbers_ignores_time_to_issue_attendance_recertification_validation_renewal_certification_lifecycle_metric_values():
     from itertools import product
 

@@ -2687,6 +2687,46 @@ def test_time_to_renew_attendance_certification_renewal_validation_recertificati
         assert calibrated["recommendation_calibration"]["target_12m"] == 160.0
 
 
+def test_all_lifecycle_time_to_metric_permutations_do_not_trigger_calibration():
+    from itertools import permutations
+
+    from recommendation_calibration import calibrate_recommendation_summary
+
+    verbs = ("renew", "issue", "verify", "schedule", "complete", "attend", "validate", "certify")
+    words = ("validation", "recertification", "attendance", "renewal", "certification")
+    roots = tuple(
+        f"time to {verb} {' '.join(permutation)}"
+        for verb in verbs
+        for permutation in permutations(words)
+    )
+
+    for root in roots:
+        target_12m = f"planning metric {root} target 12 個"
+        calibrated = calibrate_recommendation_summary(
+            {
+                "recommendation": "買入",
+                "current_price": "100",
+                "target_12m": target_12m,
+                "confidence": "7/10",
+            },
+            data_trust={"status": "fresh"},
+        )
+        assert calibrated["recommendation"] == "買入"
+        assert "recommendation_calibration" not in calibrated
+
+        valid = calibrate_recommendation_summary(
+            {
+                "recommendation": "持有",
+                "current_price": "100",
+                "target_12m": f"target price NT$160 with {target_12m}",
+                "confidence": "7/10",
+            },
+            data_trust={"status": "fresh"},
+        )
+        assert valid["recommendation"] == "買入"
+        assert valid["recommendation_calibration"]["target_12m"] == 160.0
+
+
 def test_time_to_issue_attendance_recertification_validation_renewal_certification_lifecycle_metric_target_12m_does_not_trigger_calibration():
     from itertools import product
 

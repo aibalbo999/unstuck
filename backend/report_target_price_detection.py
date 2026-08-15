@@ -18,7 +18,7 @@ from price_parser import (
     RISK_REWARD_RATIO_PATTERN,
     TARGET_PRICE_ADJUSTMENT_DELTA_PATTERN as _ADJUSTMENT_DELTA_PATTERN,
     TARGET_PRICE_PRE_MARKER_ADJUSTMENT_DELTA_PATTERN as _PRE_MARKER_ADJUSTMENT_DELTA_PATTERN,
-    TARGET_PRICE_REVISION_TO_PATTERN as _REVISION_TO_PATTERN, QUALITY_SERVICE_TIME_TO_METRIC_PATTERN, QUALITY_SERVICE_TIME_TO_METRIC_VALUE_PATTERN,
+    TARGET_PRICE_REVISION_TO_PATTERN as _REVISION_TO_PATTERN, QUALITY_SERVICE_TIME_TO_METRIC_PATTERN, QUALITY_SERVICE_TIME_TO_METRIC_VALUE_PATTERN, QUALITY_SERVICE_TIME_TO_METRIC_PERMUTATION_PATTERN, QUALITY_SERVICE_TIME_TO_METRIC_PERMUTATION_VALUE_PATTERN,
 )
 
 _PRICE_NUMBER_PATTERN = r"\d[\d,]*(?:\.\d+)?(?:[eE][-+]?\d+)?"
@@ -101,7 +101,7 @@ def _is_explicit_price(value: Any, path: tuple[str, ...]) -> bool:
     if _has_insufficient_marker(text):
         return False
     normalized = _normalized_number_text(text)
-    if _HORIZON_ONLY_RE.match(normalized) or (QUALITY_SERVICE_TIME_TO_METRIC_PATTERN.search(normalized) and not _PRICE_SPECIFIC_TARGET_RE.search(normalized)):
+    if _HORIZON_ONLY_RE.match(normalized) or ((QUALITY_SERVICE_TIME_TO_METRIC_PATTERN.search(normalized) or QUALITY_SERVICE_TIME_TO_METRIC_PERMUTATION_PATTERN.search(normalized)) and not _PRICE_SPECIFIC_TARGET_RE.search(normalized)):
         return False
     if _PEOPLE_COMPLIANCE_ACKNOWLEDGMENT_TARGET_VALUE_RE.search(normalized) and not _PRICE_SPECIFIC_TARGET_RE.search(normalized):
         return False
@@ -143,7 +143,7 @@ def _strip_non_price_tokens(text: str) -> str:
     without_multiples = _MULTIPLE_TOKEN_RE.sub("", without_percent)
     without_ratios = RISK_REWARD_RATIO_PATTERN.sub("", without_multiples)
     without_people_compliance_acknowledgment = _PEOPLE_COMPLIANCE_ACKNOWLEDGMENT_TARGET_VALUE_RE.sub("", without_ratios)
-    return _NON_PRICE_METRIC_VALUE_RE.sub("", NON_PRICE_TARGET_METRIC_VALUE_PATTERN.sub("", QUALITY_SERVICE_TIME_TO_METRIC_VALUE_PATTERN.sub("", without_people_compliance_acknowledgment)))
+    return _NON_PRICE_METRIC_VALUE_RE.sub("", NON_PRICE_TARGET_METRIC_VALUE_PATTERN.sub("", QUALITY_SERVICE_TIME_TO_METRIC_PERMUTATION_VALUE_PATTERN.sub("", QUALITY_SERVICE_TIME_TO_METRIC_VALUE_PATTERN.sub("", without_people_compliance_acknowledgment))))
 
 
 def _target_price_context(text: str) -> str:

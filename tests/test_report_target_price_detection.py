@@ -7820,6 +7820,36 @@ def test_report_target_price_detection_ignores_time_to_renew_attendance_certific
     )
 
 
+def test_report_target_price_detection_ignores_all_lifecycle_time_to_metric_permutations():
+    from itertools import permutations
+
+    from report_target_price_detection import detect_explicit_target_price_fields
+
+    verbs = ("renew", "issue", "verify", "schedule", "complete", "attend", "validate", "certify")
+    words = ("validation", "recertification", "attendance", "renewal", "certification")
+    roots = tuple(
+        f"time to {verb} {' '.join(permutation)}"
+        for verb in verbs
+        for permutation in permutations(words)
+    )
+    targets = {
+        f"all_lifecycle_time_to_metric_{index}_target_price": f"planning metric {root} target 12 個"
+        for index, root in enumerate(roots)
+    }
+    valid_cases = {
+        f"price_with_{field_name}": f"target price NT$160 with {raw}"
+        for field_name, raw in targets.items()
+    }
+
+    fields = detect_explicit_target_price_fields(
+        {"parsed": {"recommendation": {**targets, **valid_cases}}}
+    )
+
+    assert fields == sorted(
+        f"parsed.recommendation.{field_name}" for field_name in valid_cases
+    )
+
+
 def test_report_target_price_detection_ignores_time_to_issue_attendance_recertification_validation_renewal_certification_lifecycle_metric_values():
     from itertools import product
 

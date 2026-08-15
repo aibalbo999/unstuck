@@ -12611,6 +12611,39 @@ def test_parse_price_targets_from_text_ignores_time_to_renew_attendance_certific
     }
 
 
+def test_parse_price_targets_from_text_ignores_all_lifecycle_time_to_metric_permutations():
+    from itertools import permutations
+
+    verbs = ("renew", "issue", "verify", "schedule", "complete", "attend", "validate", "certify")
+    words = ("validation", "recertification", "attendance", "renewal", "certification")
+    roots = tuple(
+        f"time to {verb} {' '.join(permutation)}"
+        for verb in verbs
+        for permutation in permutations(words)
+    )
+    targets = {
+        f"AllLifecycleTimeToMetric{index}情境": f"planning metric {root} target 12 個"
+        for index, root in enumerate(roots)
+    }
+    text = "[目標股價]\n" + "".join(
+        f"{label}：{raw}\n" for label, raw in targets.items()
+    ) + "[/目標股價]"
+
+    assert parse_price_targets_from_text(text, current_price=100) == {}
+
+    valid_targets = {
+        label.replace("情境", "有效情境"): f"target price NT$160 with {raw}"
+        for label, raw in targets.items()
+    }
+    valid_text = "[目標股價]\n" + "".join(
+        f"{label}：{raw}\n" for label, raw in valid_targets.items()
+    ) + "[/目標股價]"
+
+    assert parse_price_targets_from_text(valid_text, current_price=100) == {
+        label: 160.0 for label in valid_targets
+    }
+
+
 def test_parse_price_targets_from_text_ignores_time_to_issue_attendance_recertification_validation_renewal_certification_lifecycle_only_values():
     from itertools import product
 

@@ -321,14 +321,14 @@ def extract_target_price_numbers(text: str) -> list[float]:
     """Extract prices from target-price wording without treating horizon labels as prices."""
     normalized_text = unicodedata.normalize("NFKC", str(text or ""))
     cleaned = re.sub(PERCENT_NUMBER_PATTERN, "", normalized_text)
-    if HORIZON_ONLY_PATTERN.match(cleaned) or (QUALITY_SERVICE_TIME_TO_METRIC_PATTERN.search(cleaned) and not PRICE_SPECIFIC_TARGET_MARKER_PATTERN.search(cleaned)):
+    if HORIZON_ONLY_PATTERN.match(cleaned) or ((QUALITY_SERVICE_TIME_TO_METRIC_PATTERN.search(cleaned) or QUALITY_SERVICE_TIME_TO_METRIC_PERMUTATION_PATTERN.search(cleaned)) and not PRICE_SPECIFIC_TARGET_MARKER_PATTERN.search(cleaned)):
         return []
     cleaned = RISK_REWARD_RATIO_PATTERN.sub("", cleaned)
     if NON_PRICE_METRIC_TARGET_PATTERN.search(cleaned) and not PRICE_SPECIFIC_TARGET_MARKER_PATTERN.search(cleaned):
         return []
     if NON_PRICE_TARGET_METRIC_PATTERN.search(cleaned) and not PRICE_SPECIFIC_TARGET_MARKER_PATTERN.search(cleaned):
         return []
-    cleaned = PEOPLE_COMPLIANCE_ACKNOWLEDGMENT_TARGET_VALUE_PATTERN.sub("", NON_PRICE_METRIC_VALUE_PATTERN.sub("", QUALITY_SERVICE_TIME_TO_METRIC_VALUE_PATTERN.sub("", cleaned)))
+    cleaned = PEOPLE_COMPLIANCE_ACKNOWLEDGMENT_TARGET_VALUE_PATTERN.sub("", NON_PRICE_METRIC_VALUE_PATTERN.sub("", QUALITY_SERVICE_TIME_TO_METRIC_PERMUTATION_VALUE_PATTERN.sub("", QUALITY_SERVICE_TIME_TO_METRIC_VALUE_PATTERN.sub("", cleaned))))
     preferred_context = _long_term_target_context(cleaned)
     price_marker_matches, marker_matches = list(PRICE_SPECIFIC_TARGET_MARKER_PATTERN.finditer(cleaned)), list(TARGET_PRICE_MARKER_PATTERN.finditer(cleaned))
     if preferred_context:
@@ -346,4 +346,4 @@ def extract_target_price_numbers(text: str) -> list[float]:
     elif TARGET_PRICE_ADJUSTMENT_DELTA_PATTERN.search(context) or TARGET_PRICE_PRE_MARKER_ADJUSTMENT_DELTA_PATTERN.search(cleaned):
         return []
     context, cleaned = _remove_negative_price_tokens(context), _remove_negative_price_tokens(cleaned); return [price for price in (extract_price_numbers(context) or extract_price_numbers(cleaned)) if price > 0]
-_parse_price_number, _extract_price_numbers, _extract_target_price_numbers = parse_price_number, extract_price_numbers, extract_target_price_numbers
+QUALITY_SERVICE_TIME_TO_METRIC_PERMUTATION_PATTERN = re.compile(rf"time\s+to\s+(?:renew|issue|verify|schedule|complete|attend|validate|certify)\s+(?=(?:validation|recertification|attendance|renewal|certification)(?:\s+(?:validation|recertification|attendance|renewal|certification)){{4}}\s+(?:target|forecast|actual|baseline|current)\b)(?=(?:(?:validation|recertification|attendance|renewal|certification)\s+){{0,4}}validation\b)(?=(?:(?:validation|recertification|attendance|renewal|certification)\s+){{0,4}}recertification\b)(?=(?:(?:validation|recertification|attendance|renewal|certification)\s+){{0,4}}attendance\b)(?=(?:(?:validation|recertification|attendance|renewal|certification)\s+){{0,4}}renewal\b)(?=(?:(?:validation|recertification|attendance|renewal|certification)\s+){{0,4}}certification\b)(?:validation|recertification|attendance|renewal|certification)(?:\s+(?:validation|recertification|attendance|renewal|certification)){{4}}", re.IGNORECASE); QUALITY_SERVICE_TIME_TO_METRIC_PERMUTATION_VALUE_PATTERN = re.compile(rf"{QUALITY_SERVICE_TIME_TO_METRIC_PERMUTATION_PATTERN.pattern}\s+(?:target|forecast|actual|baseline|current)\s*{TARGET_NUMBER_PATTERN}", re.IGNORECASE); _parse_price_number, _extract_price_numbers, _extract_target_price_numbers = parse_price_number, extract_price_numbers, extract_target_price_numbers

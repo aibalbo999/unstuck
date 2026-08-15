@@ -10327,6 +10327,38 @@ def test_target_price_candidates_ignore_time_to_renew_attendance_certification_r
     ]
 
 
+def test_target_price_candidates_ignore_all_lifecycle_time_to_metric_permutations():
+    from itertools import permutations
+
+    verbs = ("renew", "issue", "verify", "schedule", "complete", "attend", "validate", "certify")
+    words = ("validation", "recertification", "attendance", "renewal", "certification")
+    roots = tuple(
+        f"time to {verb} {' '.join(permutation)}"
+        for verb in verbs
+        for permutation in permutations(words)
+    )
+    targets = {
+        f"AllLifecycleTimeToMetric{index}情境": f"planning metric {root} target 12 個"
+        for index, root in enumerate(roots)
+    }
+    valid_cases = {
+        label.replace("情境", "有效情境"): f"target price NT$160 with {raw}"
+        for label, raw in targets.items()
+    }
+
+    candidates = target_price_candidates({"price_targets": {**targets, **valid_cases}})
+
+    assert candidates == [
+        {
+            "source": f"price_targets.{label}",
+            "label": label,
+            "price": 160.0,
+            "raw": raw,
+        }
+        for label, raw in valid_cases.items()
+    ]
+
+
 def test_target_price_candidates_ignore_time_to_issue_attendance_recertification_validation_renewal_certification_lifecycle_metric_values():
     from itertools import product
 
