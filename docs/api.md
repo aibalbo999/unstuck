@@ -77,6 +77,8 @@ Historical quality targets expose `report_quality_revision` and a revision-scope
 
 Before the history UI calls this write endpoint, it asks the operator to confirm the selected decision and note. Cancelling that browser confirmation sends no request and creates no ledger event; the confirmation is only a UX safety gate, while the server-side mutation token, current revision, decision validation, and required note remain authoritative.
 
+Each historical quality-review item exposes its current `report_quality_revision` to the review controls. The UI shows a shortened version identifier for scanning and keeps the full identifier in accessible/title context, so an operator can match the reviewed report version without treating the client display as authorization.
+
 The history UI serializes review submissions per page: the selected decision button is disabled and marked busy until the mutation and read-only reload finish, duplicate clicks do not create extra ledger events, and success or failure is shown through the existing notification center. This is a client-side interaction guard; revision validation and mutation authorization remain server-owned.
 
 Report preview reading boundaries include snapshot integrity mismatch details when `snapshot_integrity.status = invalid`, so operators see the concrete hash evidence before opening the full report.

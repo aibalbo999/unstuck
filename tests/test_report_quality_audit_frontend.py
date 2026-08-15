@@ -56,7 +56,7 @@ const html = window.StockAgentHistoricalQualityAuditRenderer.render({
     ticker: '1623.TW',
     filename: '1623_v1.html',
     pipeline_id: 'v1',
-    report_quality_revision: 'rev-current',
+    report_quality_revision: '1234567890abcdef1234567890abcdef',
     missing_quality_fields: ['content_credibility'],
     quality_review: { status: 'pending', decision_label: '待人工核對', event_count: 0 }
   }]
@@ -68,7 +68,9 @@ process.stdout.write(html);
     assert 'data-quality-review-decision="approved_with_gap"' in result.stdout
     assert 'data-quality-review-decision="rejected"' in result.stdout
     assert 'data-quality-review-decision="deferred"' in result.stdout
-    assert 'data-quality-review-revision="rev-current"' in result.stdout
+    assert 'data-quality-review-revision="1234567890abcdef1234567890abcdef"' in result.stdout
+    assert '目前版本識別碼：1234567890ab...' in result.stdout
+    assert 'aria-label="目前報告版本識別碼：1234567890abcdef1234567890abcdef"' in result.stdout
     assert '審核狀態：待人工核對 1' in result.stdout
     assert 'data-quality-audit-review-status="pending"' in result.stdout
 

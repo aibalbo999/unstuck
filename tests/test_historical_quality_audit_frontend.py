@@ -424,7 +424,7 @@ def test_history_workspace_wires_historical_quality_audit_without_daily_queue_si
 
     assert 'id="history-quality-audit"' in index_html
     assert "/static/api_client_extensions.js?v=20260816-quality-review-status-filter" in index_html
-    assert "/static/history_panel_quality_helpers.js?v=20260816-quality-review-status-empty-state" in index_html
+    assert "/static/history_panel_quality_helpers.js?v=20260816-quality-review-revision-context" in index_html
     assert "/static/history_quality_audit_render.js?v=20260816-quality-review-progress-summary" in index_html
     assert "/static/history_quality_audit.js?v=20260816-quality-review-submit-confirmation" in index_html
     assert index_html.index("/static/history_quality_audit_render.js") < index_html.index("/static/history_quality_audit.js")

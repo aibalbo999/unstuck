@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-16
+- D3576：live historical audit item 已帶 64 字元 `report_quality_revision`，但 review context 只顯示 ticker、模式與日期；操作員無法在畫面快速核對目前 revision。新增短版版本識別碼，完整值保留在 `title`/`aria-label`，不改 API payload、mutation token、server revision validation、ledger、artifact/index、queue 或 rerun。
+- D3576 驗證收斂：先取得 revision context RED，再 GREEN targeted `99 passed`；跨層 suite `959 passed`、Node syntax、`git diff --check` 通過。live 實際 revision 產出的 renderer HTML 同時含短版 visible、完整 `aria-label` 與 `title`，helper asset `200`，historical/daily 維持 `1330/143/89.25%` 與 `160/2/98.75%`，review ledger `0`，decision queue 仍為既有 1 筆 screener action。
 - D3575：review decision 在填寫理由後原本會直接 POST，缺少最後一次「確認寫入目前報告版本」的操作門檻；新增 browser confirmation，取消時在 submission lock 與 API call 前返回，不建立 review event。這只改善誤觸風險，不改 server mutation token、revision、decision/note validation、append-only ledger、artifact/index、queue 或 rerun。
 - D3575 驗證收斂：先取得取消確認 RED（`savedCount=1`），再 GREEN `16 passed`；跨層 suite `959 passed`，Node syntax、`git diff --check` 通過。live readonly historical `all/pending` 維持 `1330/143/89.25%` 與 `143/143/0%`，daily 維持 `2` 個 pending 缺口、`98.75%` coverage，canonical review ledger count `0`；新版 index/JS、`/healthz`、`/readyz` 均 `200`，daily decision queue 仍為既有 1 筆 screener action。
 - D3565：live historical audit 有 `143` 個 verified snapshot 的 quality metadata 缺口；canonical `operational.sqlite3` 的 `report_quality_review_events` 目前沒有事件，因此這些缺口實際都是 `pending`。原 audit envelope 只有 gate/provenance/pipeline aggregate，操作員無法從每日或歷史入口辨識人工核對進度。新增 read-only `quality_review_by_status`，只統計 missing-metadata rows，並在每個 pipeline 重複；UI 顯示待人工核對、已核准保留缺口、退回處理、已暫緩。沒有改 review mutation、artifact/index、rerun 或 queue。

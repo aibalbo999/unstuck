@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3576 / current revision visibility
+
+- `#證據基礎` / `#來源品質`：live historical item 帶有 current `report_quality_revision`，但原 review control 沒有把它呈現給操作員；只看 ticker/模式/日期不足以核對 stale revision 風險。
+- `#受眾` / `#溝通設計`：新增短版版本識別碼供掃讀，完整 revision 放在 title 與 aria context；不把長 hash 堆進主要操作文字，也不讓技術值遮住決策按鈕。
+- `#責任` / `#倫理判斷`：版本提示只改善人工辨識，不成為 client authorization；server 仍負責 fingerprint、mutation token、current revision 與 append-only ledger。
+- `#可驗證性` / `#限制條件`：先以長 revision fixture 鎖定短版與完整 accessible value，再驗證前端、cache-buster、live asset/readonly scope/ledger；本批不執行 review mutation。
+
 ## D3575 / explicit review write confirmation
 
 - `#倫理判斷` / `#責任`：人工 review 是 append-only 寫入；填完理由不等於操作員已確認要留下決策。新增最後確認，取消時不進入 mutation call，也不把取消誤報成失敗或已儲存。
