@@ -2,6 +2,15 @@
 
 更新時間：2026-08-16
 
+## D3528 / 刷新 provenance 的品質缺口語意
+
+- `#來源品質` / `#證據基礎`：job event 與 checkpoint 沒有可安全重建的三個 structured gate；snapshot 的 `refreshed_from_report` 與 artifact 內摘要只能證明曾刷新與曾渲染摘要，不能推測完整 gate payload。
+- `#語意含義` / `#受眾`：將 repair title 從泛稱「品質證據未記錄」細分為「刷新後品質證據缺口」，並加上 `quality_metadata_after_refresh`，讓操作員先查 artifact/freshness，不把缺口錯判成生成器未執行品質檢查。
+- `#責任` / `#偏誤降低`：維持 priority `820`、人工審核、阻擋自動重跑；不以 HTML 摘要反推 content credibility 或 evidence 詳情，也不自動回寫歷史 snapshot。
+- `#可驗證性`：repair helper 與 indexed audit integration RED→GREEN，品質 audit/repair `52 passed`。
+
+本批暫定決策：先改善 evidence provenance 的辨識與溝通；歷史 gate 若要恢復，必須另建具明確輸入/輸出與 audit trail 的人工核准 workflow。
+
 ## D3527 / 資料刷新不得抹除報告品質證據
 
 - `#拆解問題` / `#差距分析`：live HTML 已有 Evidence gate 與 Report conformance 顯示，刷新後 data snapshot 卻只剩 report lint；缺口位於 refresh persistence boundary，不是 renderer 沒有計算 gate。

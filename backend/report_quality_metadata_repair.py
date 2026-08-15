@@ -18,14 +18,26 @@ def quality_metadata_repair_item(report: dict[str, Any]) -> dict[str, Any] | Non
     ]
     if not missing:
         return None
+    refreshed_from_report = safe_text(dict.get(report, "refreshed_from_report")).strip()
+    if refreshed_from_report:
+        title = "刷新後品質證據缺口"
+        detail = (
+            f"資料快照曾在報告後刷新（{refreshed_from_report}），但未保留 {'、'.join(missing)} 品質證據；"
+            "採用前需人工查看 artifact 與 freshness。"
+        )
+        reason_codes = ["quality_metadata_missing", "quality_metadata_after_refresh"]
+    else:
+        title = "品質證據未記錄"
+        detail = f"報告未記錄 {'、'.join(missing)} 品質證據，採用前需人工查看。"
+        reason_codes = ["quality_metadata_missing"]
     return {
         "severity": "blocked",
         "priority_score": 820,
         "recommended_action": "manual_review",
         "action_label": "人工審核",
-        "title": "品質證據未記錄",
-        "detail": f"報告未記錄 {'、'.join(missing)} 品質證據，採用前需人工查看。",
-        "reason_codes": ["quality_metadata_missing"],
+        "title": title,
+        "detail": detail,
+        "reason_codes": reason_codes,
         "blocks_auto_rerun": True,
     }
 

@@ -161,6 +161,8 @@ def _report_from_index_row(row: dict[str, Any], storage: Any) -> dict[str, Any]:
         "filename": filename,
         "pipeline_id": safe_text(row.get("pipeline_id")).strip() or "v1",
         "snapshot_integrity": integrity,
+        "refreshed_from_report": safe_text(snapshot.get("refreshed_from_report")).strip(),
+        "snapshot_refreshed_at": safe_text(snapshot.get("snapshot_refreshed_at")).strip(),
         "report_conformance": snapshot.get("report_conformance", {}),
         "evidence_exit_gate": snapshot.get("evidence_exit_gate", {}),
         "content_credibility": snapshot.get("content_credibility", {}),

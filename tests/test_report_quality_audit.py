@@ -142,6 +142,44 @@ def test_indexed_report_quality_audit_isolates_one_snapshot_load_failure(monkeyp
     assert payload["quality_metadata_complete_reports"] == 1
 
 
+def test_indexed_report_quality_audit_exposes_snapshot_refresh_provenance(monkeypatch, tmp_path):
+    import report_quality_audit as audit
+
+    monkeypatch.setattr(
+        audit,
+        "collect_all_report_pages",
+        lambda *_args, **_kwargs: {
+            "reports": [{"ticker": "1623.TW", "filename": "1623_v1.html", "pipeline_id": "v1"}]
+        },
+    )
+    monkeypatch.setattr(audit, "storage_for_existing_output_dir", lambda *_args: object())
+    monkeypatch.setattr(
+        audit,
+        "load_storage_item",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            content=json.dumps(
+                {
+                    "snapshot_hash": "hash",
+                    "refreshed_from_report": "1623_v1.html",
+                    "snapshot_refreshed_at": "2026-08-15T07:48:23+00:00",
+                    "report_conformance": {},
+                    "evidence_exit_gate": {},
+                    "content_credibility": {},
+                }
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        audit,
+        "verify_data_snapshot_integrity",
+        lambda _snapshot: {"valid": True, "expected_hash": "hash", "errors": []},
+    )
+
+    payload = audit.build_indexed_report_quality_audit(str(tmp_path))
+
+    assert payload["items"][0]["title"] == "刷新後品質證據缺口"
+
+
 def test_collect_all_report_pages_follows_index_pagination():
     from report_history_pagination import collect_all_report_pages
 

@@ -99,6 +99,25 @@ def test_report_quality_repair_items_project_missing_quality_metadata():
     }
 
 
+def test_report_quality_repair_items_identify_quality_gap_after_snapshot_refresh():
+    from report_quality_repair_items import quality_metadata_repair_item
+
+    item = quality_metadata_repair_item(
+        {
+            "content_credibility": {},
+            "report_conformance": {},
+            "evidence_exit_gate": {},
+            "snapshot_integrity": {"status": "verified"},
+            "refreshed_from_report": "1623_TW_v1_report_20260815_153238.html",
+            "snapshot_refreshed_at": "2026-08-15T07:48:23+00:00",
+        }
+    )
+
+    assert item["title"] == "刷新後品質證據缺口"
+    assert "資料快照曾在報告後刷新" in item["detail"]
+    assert item["reason_codes"] == ["quality_metadata_missing", "quality_metadata_after_refresh"]
+
+
 def test_quality_metadata_repair_item_is_owned_by_dedicated_module():
     assert importlib.util.find_spec("report_quality_metadata_repair") is not None
     helpers = importlib.import_module("report_quality_repair_items")
