@@ -8303,6 +8303,34 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 - D3376-D3387 adjacent regression：`60 passed, 3740 deselected in 423.61s`。
 - completion gate：import boundary `503 passed in 11.00s`；HCS/文件契約 `135 passed in 3.50s`；`py_compile` exit 0；`git diff --check` exit 0；trailing-whitespace 無命中；runtime doctor exit 0，canonical operational DB 為 `backend/cache/operational.sqlite3`、report index 為 `backend/cache/stock_agent_cache.sqlite3`，Redis 為 `redis://localhost:6379/0`；parser/detector 行數維持 `349/189`。
 
+### 完成後維護 / D3442 / #拆解問題 #差距分析 #偏誤降低 #比較組 #證據基礎 #可驗證性 #來源品質
+
+本次使用：在 D3441 後重新掃描 renewal attendance recertification certification validation、certification recertification validation attendance renewal、recertification attendance renewal validation certification、certification validation renewal recertification attendance 與其他四個 variants，選擇 verify renewal attendance recertification certification validation、renew certification recertification validation attendance renewal、complete recertification attendance renewal validation certification 及 issue certification validation renewal recertification attendance；以 post-fix `time to attend renewal recertification certification attendance validation`、既有 course control、financial time-to 與 explicit target price 作為比較組。
+
+核心判斷
+
+1. `time to verify renewal attendance recertification certification validation`、`time to renew certification recertification validation attendance renewal`、`time to complete recertification attendance renewal validation certification` 與 `time to issue certification validation renewal recertification attendance` 是 renewal/recertification lifecycle KPI；其數值不應進入股票 target-price candidates。
+2. fresh residual candidate scan 對八組候選各測 120 cases；本輪選定前四個完整缺口 roots，跨五入口聯集為 `480 cases / 400 leaks / 480 valid-misses`，不把不同入口對同一案例的命中重複加總。
+3. post-fix 重掃顯示本輪四組各為 `0 leaks / 0 valid-misses`；後四組各為 `100/48`，下一輪優先驗證 `time to attend renewal recertification certification attendance validation`。
+
+落地修改
+
+1. 五個報告品質入口新增 renewal attendance recertification certification validation lifecycle regression；parser、calibration、credibility、structured output 覆蓋 480 組語料，detector 依既有 path boundary 覆蓋 400 組語料。
+2. `backend/price_parser.py` 共享 time-to branch 加入四個 renewal attendance recertification certification validation roots，維持 parser/detector `349/189` 行及 runtime/storage 邊界。
+
+優化說明
+
+1. 五入口 RED 為 `5 failed, 4070 deselected in 35.44s`；shared-pattern GREEN 為 `5 passed, 4070 deselected in 33.29s`，沒有新增 consumer-specific cleanup。
+2. D3442 post-fix renewal attendance recertification certification validation matrix 為 `480 cases / leaks=0 / valid_misses=0`；explicit target price `[205.0]`、financial `time to price`、existing `time to complete course` 與 newly guarded renewal attendance recertification certification validation controls 均為 `[]`。
+3. D3441-D3442 adjacent regression 通過 `10 passed, 4065 deselected in 65.79s`。
+
+驗證方式
+
+- `$(scripts/project_python.sh) -m pytest tests/test_price_parser.py tests/test_recommendation_calibration.py tests/test_content_credibility_inputs.py tests/test_structured_output_parser.py tests/test_report_target_price_detection.py -q -k 'time_to_verify_renewal_attendance_recertification_certification_validation_lifecycle'`：RED `5 failed, 4070 deselected in 35.44s`；GREEN `5 passed, 4070 deselected in 33.29s`。
+- D3442 post-fix renewal attendance recertification certification validation matrix：`480 cases / leaks=0 / valid_misses=0`。
+- controls：explicit target price `[205.0]`；financial `time to price`、existing `time to complete course`、newly guarded `time to verify renewal attendance recertification certification validation` 均為 `[]`；next residual `time to attend renewal recertification certification attendance validation target 12 個` 為 `[12.0]`。
+- D3441-D3442 adjacent regression：`10 passed, 4065 deselected in 65.79s`。
+
 ### 完成後維護 / D3441 / #拆解問題 #差距分析 #偏誤降低 #比較組 #證據基礎 #可驗證性 #來源品質
 
 本次使用：在 D3440 後重新掃描 recertification renewal certification validation attendance、certification recertification validation renewal attendance、attendance renewal certification validation recertification、validation attendance recertification renewal certification 與其他四個 variants，選擇 attend recertification renewal certification validation attendance、schedule certification recertification validation renewal attendance、complete attendance renewal certification validation recertification 及 issue validation attendance recertification renewal certification；以 post-fix `time to verify renewal attendance recertification certification validation`、既有 course control、financial time-to 與 explicit target price 作為比較組。
