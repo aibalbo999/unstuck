@@ -87,7 +87,7 @@
                     listEl: elements.apiQuotaList,
                     escapeHtml: ui.escapeHtml
                 }),
-                failureMessage: 'LLM 健康讀取失敗',
+                failureMessage: 'LLM/API 本機觀測讀取失敗',
                 errorLabel: 'API quotas'
             });
         }

@@ -11,8 +11,8 @@
         const services = payload?.services || [];
         const configured = services.filter(service => service.configured);
         const health = quotaHealth(services);
-        if (health.errors) return { tone: 'warning', value: 'LLM 健康警示', detail: `${health.errors} 次額度/來源錯誤` };
-        return { tone: 'ok', value: 'LLM 本機觀測正常', detail: `${configured.length} 個服務可用` };
+        if (health.errors) return { tone: 'warning', value: 'LLM/API 本機觀測需留意', detail: `本機用量 ledger 觀測到 ${health.errors} 次額度/來源錯誤` };
+        return { tone: 'ok', value: 'LLM/API 本機觀測正常', detail: `${configured.length} 個服務可用` };
     }
     const qualityHelpers = () => window.StockAgentOperatorSummaryQualityHelpers || {};
     const reportNeedsRerun = report => Boolean(qualityHelpers().reportNeedsRerun?.(report));
@@ -67,7 +67,7 @@
         const watchNeeds = (watchlistPayload?.items || []).filter(item => item.enabled !== false && ['high', 'medium'].includes(item.decision_priority));
         if (watchNeeds.length) items.push({ action: 'run-watchlist', label: '建立/更新報告', title: `${watchNeeds.length} 檔 watchlist 待建立/更新報告`, detail: watchlistActionDetail(watchNeeds) });
         const quotaErrors = quotaHealth(quotaPayload?.services).errors;
-        if (quotaErrors) items.push({ action: 'open-ops', label: '系統維護', title: 'LLM 健康需留意', detail: `${quotaErrors} 次額度/來源錯誤` });
+        if (quotaErrors) items.push({ action: 'open-ops', label: '系統維護', title: 'LLM/API 本機觀測需留意', detail: `本機用量 ledger 觀測到 ${quotaErrors} 次額度/來源錯誤` });
         const active = Number(jobsPayload?.active_count || 0);
         if (!items.length && active) items.push({ action: 'open-ops', label: '查看任務', title: `${active} 個任務進行中`, detail: '查看進度與近期事件' });
         if (!items.length) items.push({ action: 'monitor', label: '查看狀態', title: '目前沒有急件', detail: '可展開健康摘要查看細節' });

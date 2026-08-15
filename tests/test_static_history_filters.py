@@ -620,11 +620,14 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "retry_exhausted_count" in maintenance_notification_js
     assert "channel_counts" in maintenance_notification_js
     assert "failure_reason_counts" in maintenance_notification_js
-    assert "LLM 健康" in index_html
-    assert "刷新 LLM 健康" in index_html
-    assert "LLM 健康讀取失敗" in ops_workspace_panels_js
-    assert "LLM/API 健康" in api_quota_panel_js
-    assert "LLM 健康" in operator_summary_helpers_js
+    assert "LLM/API 本機觀測" in index_html
+    assert "刷新 LLM/API 本機觀測" in index_html
+    assert "LLM 健康" not in index_html
+    assert "LLM/API 本機觀測讀取失敗" in ops_workspace_panels_js
+    assert "LLM/API 本機觀測" in api_quota_panel_js
+    assert "LLM/API 本機觀測" in operator_summary_helpers_js
+    assert "LLM/API 健康" not in api_quota_panel_js
+    assert "LLM 健康" not in operator_summary_helpers_js
     assert "llm_error_counts" in active_jobs_js
     assert "token_estimate" not in active_jobs_js
     assert "估算 token" not in active_jobs_js
@@ -4228,7 +4231,7 @@ const loadPanel = async config => {
     assert "render:jobs:jobs" in payload["calls"]
     assert "render:quota:quota" in payload["calls"]
     assert "render:perf:perf" in payload["calls"]
-    assert any("LLM 健康讀取失敗" in item for item in payload["calls"])
+    assert any("LLM/API 本機觀測讀取失敗" in item for item in payload["calls"])
 
 
 def test_report_compare_renderers_build_summary_and_result_without_panel():
@@ -6166,7 +6169,8 @@ process.stdout.write(JSON.stringify({
 
     assert payload["providerOnly"]["value"] == "1 份來源提醒"
     assert "無需刷新/重跑" in payload["providerOnly"]["detail"]
-    assert payload["quotaWarning"]["value"] == "LLM 健康警示"
+    assert payload["quotaWarning"]["value"] == "LLM/API 本機觀測需留意"
+    assert "本機用量 ledger" in payload["quotaWarning"]["detail"]
     assert payload["rerun"]["value"] == "1 份需重跑"
     assert payload["actions"][0]["action"] == "refresh-report"
     assert payload["actions"][0]["filename"] == "2330_v1.html"
@@ -6800,10 +6804,12 @@ def test_operator_signals_avoid_misleading_health_and_tracking_copy():
     assert "row.level === 'ok' && !row.attempts" in provider_sla_helpers_js
     assert "quotaHealth" in api_quota_js
     assert "quotaHealth" in operator_summary_helpers_js
-    assert "LLM/API 健康警示" in api_quota_js
+    assert "LLM/API 本機觀測需留意" in api_quota_js
+    assert "LLM/API 健康警示" not in api_quota_js
     assert "LLM/API 本機觀測：" in api_quota_js
     assert "LLM/API 健康：" not in api_quota_js
-    assert "LLM 本機觀測正常" in operator_summary_helpers_js
+    assert "LLM/API 本機觀測正常" in operator_summary_helpers_js
+    assert "LLM/API 本機觀測需留意" in operator_summary_helpers_js
     assert "LLM 健康正常" not in operator_summary_helpers_js
     assert "is-${quotaHealth(service).tone}" in api_quota_js
     assert "awaitingTrackingPrice" in history_panel_helpers_js

@@ -2,6 +2,15 @@
 
 更新時間：2026-08-15
 
+## D3517 / API quota 本機觀測語意
+
+- `#偏誤辨識`：live quota payload 的錯誤數是本機 `api_usage_events` 週期統計，不是 provider 全域健康或剩餘額度；舊 UI 仍以「LLM/API 健康」命名，會放大證據範圍。
+- `#偏誤降低`：成功、warning、空資料與讀取失敗四種路徑統一使用 `LLM/API 本機觀測`，保留 warning tone、錯誤數、設定服務數與 refresh 行為。
+- `#語意含義` / `#受眾`：warning 改為「本機觀測需留意」，讓操作人員知道要查 reset time、provider response 與報告 `data_trust`，而不是把 warning 當作 provider 全域結論。
+- `#可驗證性`：static contract RED→GREEN `3 passed`；`node --check` 通過；相關 static 檔案沒有殘留 `LLM 健康` 或 `LLM/API 健康` 顯示詞。
+
+本批暫定決策：只修正證據範圍與文案，不清除既有 `api_usage_events`、不降低 quota warning、不改 model circuit 或 provider retry policy。
+
 ## D3516 / 系統告警與報告可用性分層
 
 - `#拆解問題`：將 provider SLA 的 system-window aggregation、單份報告 `data_trust`/`decision_freshness` 與 daily decision queue 分成三個判斷層，不再把 dashboard `critical` 直接等同於報告必須重跑。

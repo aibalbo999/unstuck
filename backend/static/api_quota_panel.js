@@ -55,8 +55,8 @@
         const services = payload?.services || [];
         const configured = services.filter(service => service.configured).length;
         const errors = services.reduce((sum, service) => sum + quotaErrorCount(service), 0);
-        summaryEl.textContent = 'LLM/API 健康狀態尚無資料';
-        if (errors) summaryEl.textContent = `LLM/API 健康警示：${errors} 次錯誤，${configured}/${services.length} 組服務已設定`;
+        summaryEl.textContent = 'LLM/API 本機觀測尚無資料';
+        if (errors) summaryEl.textContent = `LLM/API 本機觀測需留意：${errors} 次錯誤，${configured}/${services.length} 組服務已設定`;
         else if (services.length) summaryEl.textContent = `LLM/API 本機觀測：${configured}/${services.length} 組服務已設定`;
         listEl.innerHTML = services.length
             ? services.map(service => {
@@ -75,7 +75,7 @@
                     </span>
                 `;
             }).join('')
-            : '<span class="provider-sla-chip is-warning">尚無 LLM/API 健康資料</span>';
+            : '<span class="provider-sla-chip is-warning">尚無 LLM/API 本機觀測資料</span>';
     }
 
     window.StockAgentApiQuotaPanel = { render };
