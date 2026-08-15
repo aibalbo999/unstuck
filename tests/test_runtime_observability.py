@@ -2420,6 +2420,8 @@ def test_ops_dashboard_preserves_core_alert_and_exposes_healthy_source_fallback(
 
     assert payload["status"] == "critical"
     assert payload["providers"]["core_critical_count"] == 1
+    assert payload["providers"]["core_critical_covered_count"] == 1
+    assert payload["providers"]["core_critical_uncovered_count"] == 0
     assert payload["providers"]["enrichment_critical_count"] == 0
     assert payload["providers"]["alerts"][0]["impact"] == "core"
     assert payload["providers"]["alerts"][0]["current_source_has_healthy_entry"] is True

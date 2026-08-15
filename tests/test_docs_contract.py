@@ -699,6 +699,8 @@ def test_runtime_docs_cover_notification_delivery_audit_store():
         "Ops dashboard provider alert text and window fields use string- and dict-safe conversion before payload output",
         "Provider SLA dashboard alert payload fields use dict-native field reads before impact classification",
         "current_source_has_healthy_entry=true",
+        "core_critical_covered_count",
+        "core_critical_uncovered_count",
         "Notification delivery observability summaries use dict-safe conversion before rendering dashboard and Prometheus maps",
         "Notification delivery observability fields use dict-native field reads before attention, dashboard, and Prometheus rendering",
         "Notification delivery observability counts use integer-safe conversion before rendering dashboard and Prometheus gauges",

@@ -2163,6 +2163,12 @@
 - 既有 D3516 決策要求保留 provider SLA 的 system-level `critical`，因此不把健康備援偷換成報告已恢復或自動降級；新增 `source_health_from_provider_rows()`，在 dashboard alert 上揭露 `current_source_has_healthy_entry=true`，讓操作人員同時看到事故與目前覆蓋證據。
 - RED→GREEN 鎖定共用 alert payload、source-level usable-record 判定與完整 ops dashboard：healthy fallback 不改變 `core_critical_count`/`status`，但保留可讀的 fallback coverage；無健康證據時維持原本保守核心判定。報告級重跑仍由 `data_trust` 與 `今日工作台` 決定。
 
+## D3534：把核心告警的備援覆蓋率提升到 summary 層
+
+- live dashboard 的 FMP alert 已能提供 `current_source_has_healthy_entry=true`，但操作人員仍需展開 alerts 才能知道核心 critical 是否有備援覆蓋。
+- 新增 `core_critical_covered_count` 與 `core_critical_uncovered_count`；只改善 summary 掃讀，不改 `status`、`impact` 或 report-level rerun predicate。
+- RED→GREEN 補上完整 dashboard count regression 與 API/docs contract；covered 是同視窗 provider evidence，不等於所有歷史報告 ready。
+
 綜合視角：
 
 - `#可驗證性`：每個模式的報告模板與決策用途必須有測試與文件可查。

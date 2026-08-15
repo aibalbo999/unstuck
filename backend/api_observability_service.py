@@ -265,12 +265,15 @@ def _provider_alert_counts(alerts: list[dict]) -> dict:
     enrichment = [alert for alert in alerts if alert.get("impact") != "core"]
     core_critical = [alert for alert in core if alert.get("alert_level") == "critical"]
     enrichment_critical = [alert for alert in enrichment if alert.get("alert_level") == "critical"]
+    core_critical_covered = [alert for alert in core_critical if alert.get("current_source_has_healthy_entry") is True]
     return {
         "alert_count": len(alerts),
         "critical_count": len(critical),
         "warning_count": len(warning),
         "core_alert_count": len(core),
         "core_critical_count": len(core_critical),
+        "core_critical_covered_count": len(core_critical_covered),
+        "core_critical_uncovered_count": len(core_critical) - len(core_critical_covered),
         "enrichment_alert_count": len(enrichment),
         "enrichment_critical_count": len(enrichment_critical),
     }

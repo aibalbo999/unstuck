@@ -1374,6 +1374,8 @@ Provider SLA dashboard alert payload fields use dict-native field reads before i
 
 When a core source has usable provider evidence in the same selected window, the ops dashboard preserves the system-level `critical` impact and exposes `current_source_has_healthy_entry=true`; this is fallback coverage evidence, not a report-level readiness or rerun decision.
 
+The provider summary also exposes `core_critical_covered_count` and `core_critical_uncovered_count`, so operators can scan fallback coverage without changing the system-level status.
+
 Notification delivery observability summaries use dict-safe conversion before rendering dashboard and Prometheus maps, so malformed summary or count-map truthiness cannot interrupt external delivery health metrics.
 
 Notification delivery observability fields use dict-native field reads before attention, dashboard, and Prometheus rendering, so malformed summary accessors cannot interrupt notification health visibility or erase failed, retry-exhausted, channel, and reason evidence.

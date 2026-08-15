@@ -11969,3 +11969,8 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 - `market_data` 的 FMP stable quote 雖是非主要 fallback，健康的 yfinance 不能抹掉 FMP provider 在 system window 的實際失敗；既有 D3516「不降級 system-level critical」決策繼續有效。
 - dashboard 改以同一選定視窗的 provider rows 判定 usable evidence：有健康資料時只新增 `current_source_has_healthy_entry=true`，不改 `impact=core`、`status=critical` 或核心告警計數；這避免「備援覆蓋」與「provider 恢復」兩個語意混在一起。
 - focused runtime observability regression 通過 8 tests；新增文件契約要求保留 system-level critical 與 fallback coverage 欄位，報告動作仍回到 `data_trust`/`今日工作台`。
+
+### 完成後維護 / D3534 / #拆解問題 #差距分析 #偏誤降低 #證據基礎 #受眾 #可驗證性
+
+- 把核心 provider critical 拆成 covered/uncovered summary count，讓操作人員不用逐筆展開 alert 才知道是否已有同 source 的健康資料。
+- count 只讀取已判定的 `current_source_has_healthy_entry`，不重算、不改 system-level `critical`，也不越界到單份報告 rerun；新增 runtime 與 docs contract assertions。
