@@ -7820,6 +7820,42 @@ def test_report_target_price_detection_ignores_time_to_renew_attendance_certific
     )
 
 
+def test_report_target_price_detection_ignores_time_to_renew_validation_attendance_recertification_renewal_certification_lifecycle_metric_values():
+    from itertools import product
+
+    from report_target_price_detection import detect_explicit_target_price_fields
+
+    roots = (
+        "time to renew validation attendance recertification renewal certification",
+        "time to renew validation attendance renewal recertification certification",
+        "time to renew validation recertification certification renewal attendance",
+        "time to renew validation renewal attendance recertification certification",
+    )
+    phases = ("planning", "execution", "review", "retrospective")
+    states = ("target", "forecast", "actual", "baseline", "current")
+    prefixes = ("metric", "count", "total", "volume", "rate")
+    combinations = tuple(product(roots, phases, states, prefixes))
+    targets = {
+        (
+            "time_to_renew_validation_attendance_recertification_renewal_certification_"
+            f"{root.replace(' ', '_')}_{phase}_{state}_{prefix}_target_price"
+        ): f"{phase} {prefix} {root} {state} 12 個"
+        for root, phase, state, prefix in combinations
+    }
+    valid_cases = {
+        f"price_with_{field_name}": f"target price NT$160 with {raw}"
+        for field_name, raw in targets.items()
+    }
+
+    fields = detect_explicit_target_price_fields(
+        {"parsed": {"recommendation": {**targets, **valid_cases}}}
+    )
+
+    assert fields == sorted(
+        f"parsed.recommendation.{field_name}" for field_name in valid_cases
+    )
+
+
 def test_report_target_price_detection_ignores_time_to_renew_validation_recertification_attendance_renewal_certification_lifecycle_metric_values():
     from itertools import product
 
