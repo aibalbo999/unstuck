@@ -11998,3 +11998,9 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 - `非空文字` 不是品質 gate 結果；先用 contract allowlist 區分「已記錄但 warning/blocked」與「placeholder/未知值」，避免 coverage 產生假綠燈。
 - RED 以 `not_recorded`、`unknown`、`N/A` 三種 placeholder 鎖定三 gate 缺失，再用 `warning`、`caution`、`blocked` 比較組確認合法非通過狀態仍算已記錄。
 - GREEN 同時覆蓋 repair helper 與 full audit；保留既有 priority、reason code、live artifact 不寫入與 daily action queue 邊界。
+
+### 完成後維護 / D3539 / #拆解問題 #差距分析 #偏誤降低 #證據基礎 #受眾 #語意含義 #可驗證性
+
+- 以 filesystem `1330` 份 snapshot 對 live audit `160` rows 的差距確認 `all_indexed_reports` 不是 historical versions 全掃，而是最新 ticker/pipeline 索引列。
+- RED→GREEN 把 `selection_basis=latest_per_ticker_pipeline` 加入 API 與工作台 label，保留相容 `scope` 但補足讀者範圍；cache-buster 同步更新，避免舊 helper 隱藏限制句。
+- 不把 coverage 數字外推成所有 artifact 品質、不新增昂貴 historical scan；docs、frontend、audit payload 與 static asset contract 一起驗證。

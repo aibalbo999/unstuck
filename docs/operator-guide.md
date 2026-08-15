@@ -89,6 +89,8 @@ Use `core_critical_covered_count` and `core_critical_uncovered_count` for a quic
 
 The read-only report quality audit exposes `missing_quality_fields` on each affected item plus `items_returned` and `items_truncated` on the envelope. When `items_truncated=true`, the dashboard is showing only the returned detail rows; use the report history search for the remaining items. These fields are exact audit evidence, not a reconstructed quality result, and do not enqueue a rerun or repair.
 
+`selection_basis=latest_per_ticker_pipeline` means「全量報告品質」是每個 ticker/pipeline 的最新索引列，不是磁碟上每個歷史 artifact 版本；回報 coverage 時要一起說明這個範圍。
+
 Report quality metadata repair accepts mapping-safe top-level report envelopes and nested gate mappings; a read-only mapping wrapper is treated as the same payload shape as a normal report dictionary and must not interrupt audit classification.
 
 品質完整度不是「欄位有文字就算完成」：`report_conformance`/`content_credibility` 必須是 `passed`、`warning` 或阻斷狀態，`evidence_exit_gate` 必須是 `approved`、`caution` 或 `rejected`；`not_recorded`、`unknown`、`N/A` 仍會列為缺 metadata。

@@ -45,6 +45,7 @@ def test_report_quality_audit_counts_verified_reports_with_missing_quality_metad
     assert payload == {
         "schema_version": "report_quality_audit.v1",
         "scope": "all_indexed_reports",
+        "selection_basis": "latest_per_ticker_pipeline",
         "audited_reports": 3,
         "verified_snapshot_reports": 2,
         "snapshot_invalid_reports": 1,
@@ -127,6 +128,7 @@ def test_report_quality_audit_does_not_count_placeholder_gate_states_as_complete
 
     assert payload["quality_metadata_complete_reports"] == 0
     assert payload["quality_metadata_missing_reports"] == 1
+    assert payload["selection_basis"] == "latest_per_ticker_pipeline"
     assert payload["items"][0]["missing_quality_fields"] == [
         "report_conformance",
         "evidence_exit_gate",

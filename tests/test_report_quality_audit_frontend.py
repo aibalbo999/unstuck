@@ -56,6 +56,28 @@ process.stdout.write(JSON.stringify({ board }));
     assert "8 份待人工核對（目前顯示 2 份，另有 6 份未展開）" in payload["board"]
 
 
+def test_watchlist_board_labels_latest_per_ticker_pipeline_quality_scope():
+    helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
+    script = """
+global.window = {};
+require(__HELPER_PATH__);
+const payload = {
+  decision_queue: { summary: { total_actionable: 0 }, items: [{ type: 'monitor' }] },
+  report_quality_audit: {
+    selection_basis: 'latest_per_ticker_pipeline',
+    quality_metadata_missing_reports: 1,
+    items: []
+  }
+};
+const board = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], payload, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ board }));
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "全量報告品質（每 ticker/pipeline 最新一筆）：1 份待人工核對" in payload["board"]
+
+
 def test_watchlist_board_does_not_treat_unavailable_quality_audit_as_zero_gaps():
     helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
     script = """

@@ -60,6 +60,7 @@ def test_report_quality_docs_cover_snapshot_integrity_contract():
         assert "missing_quality_fields" in document
         assert "items_returned" in document
         assert "items_truncated" in document
+        assert "selection_basis" in document
         assert "Report quality metadata repair accepts mapping-safe top-level report envelopes" in document
         assert "not_recorded" in document
         assert "unknown" in document

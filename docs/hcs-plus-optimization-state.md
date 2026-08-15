@@ -2193,6 +2193,12 @@
 - 新增 gate-specific allowlist：`report_conformance`/`content_credibility` 接受 passed、warning、blocked 等已知結果，`evidence_exit_gate` 接受 approved、caution、rejected；placeholder 或未知值維持缺 metadata。
 - RED→GREEN 同時鎖定 helper 與 full audit：非通過但有記錄的結果不被誤報缺失，未記錄 placeholder 不被誤報完整；不改現有 live 兩筆 1623.TW 缺口與唯讀邊界。
 
+## D3539：明示品質稽核是 latest-per-ticker/pipeline scope
+
+- live filesystem 有 1330 份 `.data.json` artifact，但 `/api/watchlist/daily-dashboard` 的品質稽核回報 160 份；程式實際使用 `include_versions=False`，只取每個 ticker/pipeline 最新索引列。
+- 新增 `selection_basis=latest_per_ticker_pipeline`，並讓 watchlist 顯示「全量報告品質（每 ticker/pipeline 最新一筆）」；保留 `scope=all_indexed_reports` 相容值，但不再讓名稱暗示掃描所有歷史 artifact。
+- RED→GREEN 鎖定 audit envelope、前端 label、docs contract 與 helper cache-buster；不擴大稽核成本，也不改 daily action queue 或 artifact 寫入邊界。
+
 綜合視角：
 
 - `#可驗證性`：每個模式的報告模板與決策用途必須有測試與文件可查。

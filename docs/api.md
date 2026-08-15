@@ -28,6 +28,8 @@ Report rows include:
 
 The read-only `report_quality_audit.items[]` payload exposes `missing_quality_fields` beside `detail` and `reason_codes`. The audit envelope also exposes `items_returned` and `items_truncated`, because the full audit may cap item details for the UI while retaining the complete missing count. This is the exact list of absent quality gates for manual review; consumers must not reconstruct gate payloads from HTML or Markdown text or treat a truncated item list as the full set.
 
+`report_quality_audit.selection_basis = latest_per_ticker_pipeline` means the `all_indexed_reports` scope audits the latest indexed row for each ticker/pipeline pair, not every historical artifact version. Use this field with `audited_reports` when describing coverage.
+
 Report quality metadata repair accepts mapping-safe top-level report envelopes and nested gate mappings before checking `snapshot_integrity`, `report_conformance`, `evidence_exit_gate`, or `content_credibility`; read-only mapping wrappers must not interrupt the audit.
 
 The quality metadata completeness check recognizes only contract states: `report_conformance` and `content_credibility` use `passed`, `warning`, or blocking states, while `evidence_exit_gate` uses `approved`, `caution`, or `rejected`. Placeholder values such as `not_recorded`, `unknown`, and `N/A` remain missing metadata.

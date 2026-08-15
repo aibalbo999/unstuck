@@ -31,11 +31,12 @@
         const auditItems = Array.isArray(audit.items) ? audit.items.filter(item => item && item.filename) : [];
         const returnedItemsValue = Number(audit.items_returned);
         const returnedItems = Number.isFinite(returnedItemsValue) && returnedItemsValue >= 0 ? Math.floor(returnedItemsValue) : auditItems.length;
+        const auditScopeLabel = audit.selection_basis === 'latest_per_ticker_pipeline' ? '全量報告品質（每 ticker/pipeline 最新一筆）' : '全量報告品質';
         const auditParts = [];
         const truncationNote = audit.items_truncated === true && missingQuality > returnedItems && `（目前顯示 ${returnedItems} 份，另有 ${missingQuality - returnedItems} 份未展開）`;
         if (missingQuality > 0) auditParts.push(`${missingQuality} 份待人工核對${truncationNote || ''}${coverage == null ? '' : `（${coverageLabel} ${coverage}%）`}`);
         if (excludedSnapshots > 0) auditParts.push(`${excludedSnapshots} 份 snapshot 無法驗證`);
-        const auditText = audit.status === 'unavailable' ? ' · 全量報告品質：暫時無法讀取' : auditParts.length ? ` · 全量報告品質：${auditParts.join('；')}` : '';
+        const auditText = audit.status === 'unavailable' ? ` · ${auditScopeLabel}：暫時無法讀取` : auditParts.length ? ` · ${auditScopeLabel}：${auditParts.join('；')}` : '';
         const auditButtons = auditItems.map(item => {
             const ticker = item.ticker || '報告';
             const pipeline = item.pipeline_id || 'v1';

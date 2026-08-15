@@ -73,8 +73,13 @@ def build_report_quality_audit(
     *,
     scope: str = "daily_report_sample",
     item_limit: int = 5,
+    selection_basis: str | None = None,
 ) -> dict[str, Any]:
     rows = _report_rows(reports)
+    scope_text = safe_text(scope).strip() or "daily_report_sample"
+    selection_basis_text = safe_text(selection_basis).strip() or (
+        "latest_per_ticker_pipeline" if scope_text == "all_indexed_reports" else "caller_supplied_rows"
+    )
     verified_snapshot_reports = 0
     invalid_snapshot_reports = 0
     unverified_snapshot_reports = 0
@@ -102,7 +107,8 @@ def build_report_quality_audit(
     returned_items = missing_items[:item_limit_value]
     return {
         "schema_version": SCHEMA_VERSION,
-        "scope": safe_text(scope).strip() or "daily_report_sample",
+        "scope": scope_text,
+        "selection_basis": selection_basis_text,
         "audited_reports": len(rows),
         "verified_snapshot_reports": verified_snapshot_reports,
         "snapshot_invalid_reports": invalid_snapshot_reports,
