@@ -509,6 +509,8 @@ process.stdout.write(JSON.stringify({ board }));
     assert 'data-quality-missing-fields="report_conformance,evidence_exit_gate,content_credibility"' in payload["board"]
     assert 'data-quality-artifact-fields="report_conformance,evidence_exit_gate"' in payload["board"]
     assert 'data-quality-evidence-detail=' in payload["board"]
+    assert '<small class="watchlist-quality-review-status">審核狀態：已核准保留缺口</small>' in payload["board"]
+    assert '<small class="watchlist-quality-evidence-context">結構化缺口：報告一致性、證據關卡、內容可信度；來源：刷新後；artifact 摘要可查：報告一致性、證據關卡</small>' in payload["board"]
     assert '<small class="quality-evidence-warning">artifact 摘要僅供人工核對，不代表 gate 已通過</small>' in payload["board"]
     assert 'data-quality-artifact-fields="report_conformance,evidence_exit_gate"' in payload["board"]
     assert "審核狀態：已核准保留缺口" in payload["board"]

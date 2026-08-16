@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3589 / daily target evidence hierarchy
+
+- `#受眾` / `#差距分析`：live daily target 的 status、evidence context 與 artifact limitation 原本共用一個小字區塊，觸控操作員必須靠分號拆解，無法快速辨識目前審核狀態與不可推導的 evidence。
+- `#溝通設計` / `#語意含義`：target 依序呈現「審核狀態」→「結構化缺口／來源／artifact」→「artifact 摘要僅供人工核對，不代表 gate 已通過」，三段各有 class 與視覺層級；完整 detail 仍留在 title/aria/data context。
+- `#責任` / `#倫理判斷`：只改 watchlist renderer 與 CSS presentation，沒有把 artifact marker 轉成 gate verdict，也沒有改 filename/pipeline navigation、review mutation、ledger、artifact/index、rerun 或 queue。
+- `#可驗證性` / `#限制條件`：先取得 `2 failed, 25 passed` RED，再 GREEN `27 passed` targeted 與 `398 passed` 跨層 suite；以行數、Node syntax、cache-buster、live target dimensions、desktop/mobile overflow、aria、asset 與 console 驗證，保留三入口共用 renderer 作下一個觀察點。
+
 ## D3588 / daily quality summary parity
 
 - `#受眾` / `#差距分析`：live 今日工作台的 quality audit summary 在手機上是一段長文字，雖然沒有水平溢出，操作員仍需自行拆解 scope、缺口、審核與 artifact evidence；history 已有的 scan order 應延伸到 daily。

@@ -37,7 +37,7 @@
 .watchlist-daily-quality-summary { display: grid; gap: 4px; min-width: 0; } .watchlist-daily-quality-scope { color: var(--accent) !important; font-size: 0.76rem; font-weight: 900; } .watchlist-daily-quality-item { color: var(--text-secondary); font-size: 0.72rem; font-style: normal; font-weight: 800; overflow-wrap: anywhere; }
 .watchlist-quality-report-target { display: grid; gap: 4px; min-width: min(100%, 220px); }
 .watchlist-quality-report-button, .watchlist-quality-history-button, .watchlist-quality-review-button { min-height: 32px; border: 1px solid rgba(251, 191, 36, 0.3); border-radius: 7px; background: rgba(120, 53, 15, 0.18); color: #fde68a; cursor: pointer; font-size: 0.72rem; font-weight: 900; padding: 5px 9px; }
-.watchlist-quality-report-button { display: grid; gap: 1px; text-align: left; overflow-wrap: anywhere; }
+.watchlist-quality-report-button { display: grid; gap: 1px; text-align: left; overflow-wrap: anywhere; } .watchlist-quality-report-button .watchlist-quality-review-status { color: var(--text-primary); font-weight: 900; } .watchlist-quality-report-button .watchlist-quality-evidence-context { color: var(--text-secondary); } .watchlist-quality-report-button .quality-evidence-warning { color: #fcd34d; font-weight: 900; }
 .watchlist-quality-report-button small { color: var(--text-secondary); font-size: 0.66rem; font-weight: 700; }
 .watchlist-quality-report-button:hover, .watchlist-quality-report-button:focus-visible, .watchlist-quality-history-button:hover, .watchlist-quality-history-button:focus-visible, .watchlist-quality-review-button:hover, .watchlist-quality-review-button:focus-visible { border-color: rgba(251, 191, 36, 0.6); background: rgba(120, 53, 15, 0.3); outline: none; }
 .watchlist-daily-board span,

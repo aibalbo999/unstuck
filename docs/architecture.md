@@ -203,6 +203,8 @@ daily target 只複用同一筆 `quality_review.status` 做可見與 accessible 
 
 `watchlistDailyBoard()` 將 `report_quality_audit` 的既有欄位投影成 scope-first 的 daily quality summary；每個 summary item 仍只來自同一個 read-only envelope，`auditText` 保留給 unavailable/legacy fallback。responsive CSS 只改閱讀順序與換行，不建立新的 coverage、review 或 queue state。
 
+daily quality target 將 `quality_review.status`、`evidence.targetContext` 與 `evidence.targetWarning` 分別映射到 status、evidence context 與 warning small elements；它們共享同一個 title/aria/detail context，但不共享 gate 判定。這保持 watchlist 的呈現責任窄於 history review action owner。
+
 daily quality target 的人工核對導引只傳 filename/pipeline scope 到 history workspace；history filter 負責套用 `q`/`pipeline` 與 `include_versions=true`，workspace 重設頁碼、preview 及既有 recommendation/data-trust/review-status 篩選後沿用 GET audit/list。這個跨工作區導引不新增 queue action、artifact/index 寫入或 review mutation。
 
 歷史 audit 的 `review_status` filter 在 attach current revision review 後才縮小 rows，再由同一套 coverage/pagination builder 產生 envelope；因此 filtered response 的 `audited_reports`、分母與 `items[]` 都有一致範圍，且仍維持 GET-only。

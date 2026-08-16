@@ -135,6 +135,8 @@ filtered view 沒有結果時，摘要會寫「目前沒有符合〈狀態〉的
 
 今日工作台的全量品質摘要會先顯示目前 scope，再分行列出缺口總數、缺 gate、模式、審核狀態、人工進度、來源、artifact 摘要與 coverage；這些是同一個 daily dashboard response 的閱讀投影，不代表新增的全庫判定。手機窄版會將各項堆疊排列，target 本身仍另顯示該報告的審核狀態、結構化缺口、artifact marker 與「artifact 摘要僅供人工核對，不代表 gate 已通過」。
 
+品質 target 內的資訊順序是「審核狀態」→「結構化缺口、刷新來源與 artifact 摘要」→「artifact 摘要僅供人工核對，不代表 gate 已通過」。這只是閱讀層級；完整說明仍以 title、aria label 與同一報告的歷史稽核為準，不會把 artifact marker 當成 gate 結果。
+
 按下「核准保留缺口／退回處理／暫緩」後，該按鈕會暫時鎖定並顯示忙碌狀態；同一筆 review 在回應完成前不會重複送出。成功會顯示「人工審核已儲存」，失敗會顯示錯誤且恢復按鈕，操作員可在確認 revision 後重試。這不代表品質 gate 被自動修復，真正決策仍以 canonical review ledger 為準。
 
 輸入核對理由後，畫面會再次確認是否要把目前決策寫入這個報告版本。選擇取消不會送出請求，也不會新增 review ledger event；選擇確認後仍須通過 server 的 mutation token 與 revision 檢查。
