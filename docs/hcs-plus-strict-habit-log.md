@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3587 / filter-scope-first audit summary
+
+- `#受眾` / `#偏誤辨識`：combined filter 的數字若先出現、active scope 後出現，操作員可能把 subset coverage 或缺口數讀成全庫結論；scope 必須靠近摘要起點。
+- `#溝通設計` / `#語意含義`：history renderer 將「審核範圍／缺口範圍」各自以醒目摘要項呈現，欄位、模式、審核狀態、進度與來源拆成獨立項；mobile `<=600px` 使用單欄 grid，desktop 保持可利用橫向空間。
+- `#責任` / `#倫理判斷`：這是 read-only UI projection，只重排既有 audit envelope，不重算 coverage、不改分母、不寫 review ledger，也不把 artifact marker 變成 gate verdict。
+- `#可驗證性` / `#限制條件`：先取得 `2 failed, 152 passed` RED，再 GREEN targeted `154 passed`；以行數、Node syntax、cache-buster、live combined scope、desktop/mobile overflow 與 console 驗證，保留 daily/history parity 作下一個觀察點。
+
 ## D3586 / visible artifact limitation and accessible target context
 
 - `#受眾` / `#差距分析`：D3585 的 artifact limitation 雖存在於 detail、title 或 data attribute，觸控操作員與螢幕閱讀器使用者未必會看到；品質缺口需要在 target 本身可掃讀，不能只依賴 hover。

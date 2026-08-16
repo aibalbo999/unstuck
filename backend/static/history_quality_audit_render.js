@@ -38,7 +38,8 @@
         const coverage = Number.isFinite(coverageValue) && coverageValue >= 0 && coverageValue <= 100
             ? Math.round(coverageValue * 100) / 100
             : null;
-        const scopeSummary = [reviewFilter !== 'all' ? `審核範圍：${reviewFilterLabel}` : '', missingFieldFilter !== 'all' ? `缺口範圍：${missingFieldFilterLabel}` : ''].filter(Boolean).join('；');
+        const scopeItems = [reviewFilter !== 'all' ? `審核範圍：${reviewFilterLabel}` : '', missingFieldFilter !== 'all' ? `缺口範圍：${missingFieldFilterLabel}` : ''].filter(Boolean);
+        const scopeSummary = scopeItems.join('；');
         const filteredEmptyLabel = [reviewFilter !== 'all' ? reviewFilterLabel : '', missingFieldFilter !== 'all' ? missingFieldFilterLabel : ''].filter(Boolean).join('；');
         const coverageSummary = scopeSummary || (coverage != null && audit.quality_metadata_coverage_basis === 'verified_snapshot_reports' ? `品質 metadata 完整度：${coverage}%（分母：已驗證快照）` : '');
         const invalidSnapshots = Number(audit.snapshot_invalid_reports || 0);
@@ -48,7 +49,7 @@
         const snapshotSummary = invalidCount + unverifiedCount > 0
             ? `snapshot 無法驗證 ${invalidCount + unverifiedCount} 份（invalid ${invalidCount}、未驗證 ${unverifiedCount}）`
             : '';
-        const basisSummary = [coverageSummary, snapshotSummary].filter(Boolean).join('；');
+        const basisSummary = [scopeSummary ? '' : coverageSummary, snapshotSummary].filter(Boolean).join('；');
         const verifiedValue = Number(audit.verified_snapshot_reports);
         const verified = Number.isFinite(verifiedValue) && verifiedValue >= 0 ? Math.floor(verifiedValue) : Math.max(0, Math.floor(audited - invalidCount - unverifiedCount));
         const completeValue = Number(audit.quality_metadata_complete_reports);
@@ -67,7 +68,10 @@
             audit.items_has_prev === true ? '<button class="history-quality-audit-page" type="button" data-quality-audit-page="prev" aria-label="查看上一批品質缺口">上一批</button>' : '',
             audit.items_has_next === true ? '<button class="history-quality-audit-page" type="button" data-quality-audit-page="next" aria-label="查看下一批品質缺口">下一批</button>' : ''
         ].filter(Boolean).join('');
-        const auditDetails = missing > 0 ? `<span>${Math.floor(missing)} 份品質 metadata 缺口${truncation}</span><em>${fieldSummary ? `缺口：${e(fieldSummary)}` : ''}${pipelineSummary ? `；模式缺口：${e(pipelineSummary)}` : ''}${reviewSummary ? `；審核狀態：${e(reviewSummary)}` : ''}${reviewProgressSummary ? `；${e(reviewProgressSummary)}` : ''}${provenanceSummary ? `；來源：${e(provenanceSummary)}` : ''}</em>${artifactEvidenceSummary ? `<em>${e(artifactEvidenceSummary)}</em>` : ''}${artifactFieldSummary ? `<em>artifact 欄位可查：${e(artifactFieldSummary)}</em>` : ''}${basisSummary ? `<em>${e(basisSummary)}</em>` : ''}` : filteredEmptyLabel ? `<span>目前沒有符合「${e(filteredEmptyLabel)}」的品質 metadata 缺口</span>${basisSummary ? `<em>${e(basisSummary)}</em>` : ''}` : `<span>符合條件的 ${complete} 份已驗證 snapshot 沒有品質 metadata 缺口</span>${basisSummary ? `<em>${e(basisSummary)}</em>` : ''}`;
+        const summaryItems = [fieldSummary ? `缺口：${fieldSummary}` : '', pipelineSummary ? `模式缺口：${pipelineSummary}` : '', reviewSummary ? `審核狀態：${reviewSummary}` : '', reviewProgressSummary, provenanceSummary ? `來源：${provenanceSummary}` : ''].filter(Boolean);
+        const auditDetails = missing > 0
+            ? `<span>${Math.floor(missing)} 份品質 metadata 缺口${truncation}</span>${scopeItems.map(scope => `<em class="history-quality-audit-summary-scope">${e(scope)}</em>`).join('')}${summaryItems.map(item => `<em class="history-quality-audit-summary-item">${e(item)}</em>`).join('')}${artifactEvidenceSummary ? `<em>${e(artifactEvidenceSummary)}</em>` : ''}${artifactFieldSummary ? `<em>${e(`artifact 欄位可查：${artifactFieldSummary}`)}</em>` : ''}${basisSummary ? `<em>${e(basisSummary)}</em>` : ''}`
+            : filteredEmptyLabel ? `<span>目前沒有符合「${e(filteredEmptyLabel)}」的品質 metadata 缺口</span>${basisSummary ? `<em>${e(basisSummary)}</em>` : ''}` : `<span>符合條件的 ${complete} 份已驗證 snapshot 沒有品質 metadata 缺口</span>${basisSummary ? `<em>${e(basisSummary)}</em>` : ''}`;
         const targets = (Array.isArray(audit.items) ? audit.items : []).filter(item => item && item.filename).map(item => {
             const ticker = item.ticker || '報告';
             const pipeline = item.pipeline_id || 'v1';

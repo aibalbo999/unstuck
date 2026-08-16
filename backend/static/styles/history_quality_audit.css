@@ -5,6 +5,9 @@
 .history-quality-audit-header span, .history-quality-audit-summary span, .history-quality-audit-summary em { color: var(--text-secondary); font-size: 0.78rem; font-style: normal; }
 .history-quality-audit-summary { justify-content: flex-start; gap: 6px; }
 .history-quality-audit-summary em { overflow-wrap: anywhere; }
+.history-quality-audit-summary-scope { flex: 1 1 100%; color: var(--accent) !important; font-weight: 800; }
+.history-quality-audit-summary-item { min-width: min(100%, 240px); }
+@media (max-width: 600px) { .history-quality-audit-summary { display: grid; gap: 4px; } .history-quality-audit-summary > * { min-width: 0; } .history-quality-audit-summary-item { width: 100%; } }
 .history-quality-audit-filter-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .history-quality-audit-filter { min-height: 40px; border: 1px solid rgba(34, 211, 238, 0.38); border-radius: 8px; background: rgba(8, 145, 178, 0.12); color: #a5f3fc; padding: 7px 10px; font: inherit; font-size: 0.76rem; font-weight: 800; cursor: pointer; overflow-wrap: anywhere; }
 .history-quality-audit-filter:hover, .history-quality-audit-filter:focus-visible { border-color: var(--accent); color: var(--text-primary); outline: none; box-shadow: 0 0 0 3px var(--accent-glow); }

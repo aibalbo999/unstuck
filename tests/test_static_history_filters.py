@@ -7828,8 +7828,8 @@ def test_decision_tracking_dense_layout_uses_workspace_efficiently():
     assert "history_list.css?v=20260816-clickable-quality-evidence" in style_css
     assert "history_list_controls.css?v=20260816-historical-quality-audit" in style_css
     assert style_css.index("history_list.css?v=20260816-clickable-quality-evidence") < style_css.index("history_list_controls.css?v=20260816-historical-quality-audit")
-    assert style_css.index("history_list_controls.css?v=20260816-historical-quality-audit") < style_css.index("history_quality_audit.css?v=20260816-historical-quality-review-history")
-    assert style_css.index("history_quality_audit.css?v=20260816-historical-quality-review-history") < style_css.index("decision_tracking.css?v=20260708-tracking-action-notes")
+    assert style_css.index("history_list_controls.css?v=20260816-historical-quality-audit") < style_css.index("history_quality_audit.css?v=20260816-filter-scope-readable-summary")
+    assert style_css.index("history_quality_audit.css?v=20260816-filter-scope-readable-summary") < style_css.index("decision_tracking.css?v=20260708-tracking-action-notes")
     assert "decision_tracking.css?v=20260708-tracking-action-notes" in style_css
     assert "history_shell.css?v=20260707-operator-human-factors" in style_css
     assert "history_shell_tabs.css?v=20260711-home-workspaces" in style_css

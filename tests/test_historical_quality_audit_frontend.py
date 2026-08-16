@@ -97,6 +97,7 @@ process.stdout.write(JSON.stringify({ html }));
     assert "artifact 摘要可查：報告一致性、證據關卡" in payload["html"]
     assert "artifact 摘要可查 1 份" in payload["html"]
     assert "artifact 欄位可查：報告一致性 1、證據關卡 1、內容可信度 0" in payload["html"]
+    assert payload["html"].count('class="history-quality-audit-summary-item"') == 5
 
 
 def test_history_quality_audit_renders_missing_field_scope_and_filters():
@@ -177,6 +178,8 @@ process.stdout.write(JSON.stringify({ html }));
 
     assert "審核範圍：待人工核對" in payload["html"]
     assert "缺口範圍：內容可信度" in payload["html"]
+    assert payload["html"].index('class="history-quality-audit-summary-scope"') < payload["html"].index('class="history-quality-audit-summary-item"')
+    assert payload["html"].count('class="history-quality-audit-summary-item"') == 3
 
 
 def test_history_quality_audit_module_filters_requests_and_reuses_open_report_callback():
