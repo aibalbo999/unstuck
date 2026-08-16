@@ -14,8 +14,11 @@ from recommendation_calibration import calibrate_recommendation_summary
 from recommendation_labels import normalize_recommendation_label
 from report_index_parsing import normalize_report_display_date, parse_recommendation_summary
 from report_index_repair import recommendation_needs_rebuild
+from report_history_storage import storage_for_existing_output_dir
 from report_paths import report_storage_candidates_for_filename
 from report_preview import build_report_preview, extract_trade_setup
+from report_quality_evidence import read_artifact_quality_summary
+from report_quality_metadata_repair import quality_metadata_repair_item
 from reporting.content_credibility import evaluate_content_credibility
 
 
@@ -185,6 +188,25 @@ def _markdown_text(row) -> str:
         return ""
 
 
+def _snapshot_text(row, key: str) -> str:
+    value = _read_snapshot(row).get(key)
+    return str(value or "").strip()
+
+
+def _quality_evidence(row, report: dict) -> dict:
+    item = quality_metadata_repair_item(report)
+    if item is None:
+        return {}
+    storage = storage_for_existing_output_dir(str(row["output_dir"]), None)
+    return {
+        "missing_quality_fields": item["missing_quality_fields"],
+        "quality_metadata_provenance": "after_refresh" if "quality_metadata_after_refresh" in item["reason_codes"] else "no_refresh_provenance",
+        "refreshed_from_report": report.get("refreshed_from_report", ""),
+        "snapshot_refreshed_at": report.get("snapshot_refreshed_at", ""),
+        "artifact_quality_summary": read_artifact_quality_summary(storage, report.get("filename")),
+    }
+
+
 def row_to_report(row) -> dict:
     try:
         data_trust = normalize_data_trust(json.loads(row["data_trust_json"]))
@@ -222,7 +244,7 @@ def row_to_report(row) -> dict:
         snapshot_path=_snapshot_path(row),
     )
 
-    return {
+    report = {
         "filename": row["filename"],
         "ticker": row["ticker"],
         "company_name": _company_name(row),
@@ -253,3 +275,10 @@ def row_to_report(row) -> dict:
         "markdown_hash": row["markdown_hash"] if "markdown_hash" in row.keys() else "",
         "data_file_hash": row["data_file_hash"] if "data_file_hash" in row.keys() else "",
     }
+    report["refreshed_from_report"] = _snapshot_text(row, "refreshed_from_report")
+    report["snapshot_refreshed_at"] = _snapshot_text(row, "snapshot_refreshed_at")
+    report.update(_quality_evidence(row, report))
+    if not report.get("missing_quality_fields"):
+        report.pop("refreshed_from_report", None)
+        report.pop("snapshot_refreshed_at", None)
+    return report

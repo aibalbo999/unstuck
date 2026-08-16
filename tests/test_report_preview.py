@@ -20,7 +20,7 @@ import report_history_service  # noqa: E402
 import report_rerun_rendering  # noqa: E402
 import report_rerun_service  # noqa: E402
 from data_fetch import FetchResult  # noqa: E402
-from data_trust_snapshot import build_data_snapshot, verify_data_snapshot_integrity  # noqa: E402
+from data_trust_snapshot import build_data_snapshot, set_snapshot_integrity, verify_data_snapshot_integrity  # noqa: E402
 from reporting import ReportBundle  # noqa: E402
 from reporting.html_renderer import generate_html_report  # noqa: E402
 from report_persistence import report_bundle_keys_for_filename  # noqa: E402
@@ -818,6 +818,43 @@ def test_get_reports_rebuilds_empty_legacy_decision_tracking(tmp_path, monkeypat
     assert tracking["status"] == "tracked"
     assert tracking["latest_price"] == 309.5
     assert tracking["return_pct"] == 0.0
+
+
+def test_get_reports_exposes_structured_quality_gap_and_artifact_evidence(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
+    filename = "2449_v2_report_20260606_010000.html"
+    write_report_pair(tmp_path, filename, "持有")
+    write_data_snapshot(tmp_path, filename, "fresh")
+    snapshot_path = tmp_path / filename.replace(".html", ".data.json")
+    snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    snapshot.update({
+        "report_conformance": {},
+        "evidence_exit_gate": {},
+        "content_credibility": {},
+        "refreshed_from_report": "2449_v1_report_20260605_010000.html",
+        "snapshot_refreshed_at": "2026-06-06T01:05:00+00:00",
+    })
+    snapshot_path.write_text(json.dumps(set_snapshot_integrity(snapshot), ensure_ascii=False), encoding="utf-8")
+    (tmp_path / filename.replace(".html", ".md")).write_text(
+        "- **Report conformance:** warning\n- **Evidence gate:** approved\n",
+        encoding="utf-8",
+    )
+
+    report = list_reports_for_test(tmp_path, pipeline="v2")["reports"][0]
+
+    assert report["missing_quality_fields"] == [
+        "report_conformance",
+        "evidence_exit_gate",
+        "content_credibility",
+    ]
+    assert report["quality_metadata_provenance"] == "after_refresh"
+    assert report["refreshed_from_report"] == "2449_v1_report_20260605_010000.html"
+    assert report["artifact_quality_summary"] == {
+        "status": "present",
+        "source": "markdown",
+        "fields": ["report_conformance", "evidence_exit_gate"],
+    }
 
 
 def test_get_reports_repairs_bad_recommendation_from_partitioned_markdown(tmp_path, monkeypatch):

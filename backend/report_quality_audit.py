@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
 from collections import OrderedDict
 from hashlib import sha256
 from threading import RLock
@@ -16,6 +15,7 @@ from report_history_pagination import collect_all_report_pages
 from report_history_storage import load_storage_item, storage_for_existing_output_dir
 from report_index import query_report_metadata
 from report_quality_repair_items import quality_metadata_repair_item
+from report_quality_evidence import read_artifact_quality_summary
 from report_quality_audit_payload import (
     ARTIFACT_QUALITY_SUMMARY_STATUSES,
     QUALITY_METADATA_FIELDS,
@@ -33,20 +33,6 @@ REPORT_QUALITY_ROWS_CACHE_TTL_SECONDS = 15.0
 REPORT_QUALITY_ROWS_CACHE_MAX_ENTRIES = 8
 _REPORT_QUALITY_ROWS_CACHE: OrderedDict[tuple[str, str], tuple[float, list[dict[str, Any]]]] = OrderedDict()
 _REPORT_QUALITY_ROWS_CACHE_LOCK = RLock()
-ARTIFACT_QUALITY_MARKERS = {
-    "report_conformance": (
-        re.compile(r"(?im)^\s*-\s*\*\*Report conformance:\*\*\s*\S+"),
-        re.compile(r"(?is)<[^>]*>\s*Report conformance[:：]\s*[^<\n]+"),
-    ),
-    "evidence_exit_gate": (
-        re.compile(r"(?im)^\s*-\s*\*\*Evidence gate:\*\*\s*\S+"),
-        re.compile(r"(?is)<[^>]*>\s*Evidence gate[:：]\s*[^<\n]+"),
-    ),
-    "content_credibility": (
-        re.compile(r"(?im)^\s*-\s*\*\*Content credibility:\*\*\s*\S+"),
-        re.compile(r"(?is)<[^>]*>\s*Content credibility[:：]\s*[^<\n]+"),
-    ),
-}
 
 
 def build_indexed_report_quality_audit(output_dir: str, *, page_size: int = 100, item_limit: int = 5, item_offset: int = 0) -> dict[str, Any]:
@@ -220,28 +206,7 @@ def _indexed_rows_fingerprint(rows: list[dict[str, Any]]) -> str:
 
 
 def _read_artifact_quality_summary(storage: Any, filename: Any) -> dict[str, Any]:
-    source = ""
-    for kind in ("md", "html"):
-        try:
-            item = load_storage_item(storage, safe_text(filename).strip(), kind=kind)
-        except Exception:
-            continue
-        if item is None:
-            continue
-        source = "markdown" if kind == "md" else kind
-        try:
-            content = item.content
-            text = content.decode("utf-8") if isinstance(content, bytes) else safe_text(content)
-        except Exception:
-            continue
-        fields = [
-            field
-            for field in QUALITY_METADATA_FIELDS
-            if any(pattern.search(text) for pattern in ARTIFACT_QUALITY_MARKERS[field])
-        ]
-        if fields:
-            return {"status": "present", "source": source, "fields": fields}
-    return {"status": "not_found" if source else "unavailable", "source": source, "fields": []}
+    return read_artifact_quality_summary(storage, filename, load_item=load_storage_item)
 
 
 def _raw_row(row: Any) -> dict[str, Any]:

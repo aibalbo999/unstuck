@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3584 / preview evidence boundary
+
+- `#證據基礎` / `#系統圖像`：同一 verified snapshot 的 structured gate map 可缺失，而 artifact 仍有 marker；report list/preview 若只顯示 generic badge，操作員無法知道兩層 evidence 的差異。
+- `#責任` / `#限制條件`：以 `report_quality_evidence` 共用 read-only lookup 給 audit 與 report row；preview policy 只標示缺口與 artifact 可查，不從 marker 重建 gate，也不改 artifact/index、review ledger、rerun 或 queue。
+- `#偏誤辨識` / `#溝通設計`：badge/detail 明確寫「結構化品質缺口」與「artifact 摘要僅供人工核對，不代表 gate 已通過」，和 history/daily target 使用同一語意。
+- `#可驗證性` / `#來源品質`：以 RED→GREEN、既有 audit storage seam 回歸、preview/static suites、live `/api/reports`、browser tooltip/console、coverage 與 ledger count 驗證；未執行 review mutation。
+
 ## D3583 / structured metadata versus artifact evidence
 
 - `#證據基礎` / `#語意含義`：live `143` 筆缺口的 `missing_quality_fields` 是結構化 snapshot metadata 未記錄；同一筆可另有 artifact 摘要，後者只是人工核對 evidence，不代表 gate 已通過。

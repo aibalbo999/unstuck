@@ -72,6 +72,32 @@ process.stdout.write(JSON.stringify({ action, gate, boundary }));
     assert payload["boundary"]["label"] == "品質 gate 尚未記錄"
 
 
+def test_report_quality_gate_exposes_structured_gap_and_artifact_evidence_boundary():
+    gate_path = STATIC_DIR / "report_quality_gate_policy.js"
+    script = """
+global.window = {};
+require(__GATE_PATH__);
+const report = {
+  snapshot_integrity: { status: 'verified' },
+  missing_quality_fields: ['report_conformance', 'evidence_exit_gate', 'content_credibility'],
+  quality_metadata_provenance: 'after_refresh',
+  artifact_quality_summary: {
+    status: 'present',
+    source: 'markdown',
+    fields: ['report_conformance', 'evidence_exit_gate']
+  }
+};
+process.stdout.write(JSON.stringify(window.StockAgentReportQualityGatePolicy.reportQualityGateAction(report)));
+""".replace("__GATE_PATH__", json.dumps(str(gate_path)))
+
+    payload = json.loads(_node(script))
+
+    assert payload["label"] == "結構化品質缺口"
+    assert "結構化品質 metadata：報告一致性、證據關卡、內容可信度" in payload["detail"]
+    assert "artifact 摘要可查：報告一致性、證據關卡" in payload["detail"]
+    assert "不代表 gate 已通過" in payload["detail"]
+
+
 def test_report_reading_boundary_downgrades_unverified_and_blocks_invalid_snapshots():
     boundary_path = STATIC_DIR / "report_reading_boundary_policy.js"
     script = """
