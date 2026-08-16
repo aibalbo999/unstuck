@@ -27,7 +27,14 @@
 
     function reportQualityBadge(report, escapeHtml) {
         const action = qualityPolicy().reportQualityGateAction?.(report);
-        return action ? `<span class="history-action-badge is-${action.tone}" title="${escapeHtml(action.detail)}">${escapeHtml(action.label)}</span>` : '';
+        if (!action) return '';
+        const evidence = window.StockAgentReportQualityEvidence?.context?.(report);
+        const canOpenAudit = action.label === '結構化品質缺口' && evidence?.hasStructuredGap && report?.filename;
+        const attrs = canOpenAudit
+            ? ` type="button" data-quality-history-audit-target data-quality-history-query="${escapeHtml(report.filename)}" data-quality-history-pipeline="${escapeHtml(report.pipeline_id || 'v1')}" data-quality-evidence-detail="${escapeHtml(action.detail)}" aria-label="${escapeHtml(`前往 ${report.ticker || '報告'} ${report.pipeline_id || 'v1'} 的歷史品質稽核`)}"`
+            : '';
+        const tag = canOpenAudit ? 'button' : 'span';
+        return `<${tag} class="history-action-badge is-${action.tone}${canOpenAudit ? ' is-clickable' : ''}"${attrs} title="${escapeHtml(action.detail)}">${escapeHtml(action.label)}</${tag}>`;
     }
 
     function reportReadingNotice(report, escapeHtml) {

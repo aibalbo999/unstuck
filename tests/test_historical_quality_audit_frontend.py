@@ -8,10 +8,12 @@ STATIC_DIR = ROOT / "backend" / "static"
 
 
 def test_history_quality_helper_renders_read_only_historical_audit_summary_and_targets():
+    evidence_path = STATIC_DIR / "report_quality_evidence_helpers.js"
     helper_path = STATIC_DIR / "history_panel_quality_helpers.js"
     renderer_path = STATIC_DIR / "history_quality_audit_render.js"
     script = """
 global.window = {};
+require(__EVIDENCE_PATH__);
 require(__HELPER_PATH__);
 require(__RENDERER_PATH__);
 const audit = {
@@ -69,7 +71,7 @@ const audit = {
 };
 const html = window.StockAgentHistoricalQualityAuditRenderer.render(audit, value => String(value ?? ''));
 process.stdout.write(JSON.stringify({ html }));
-""".replace("__HELPER_PATH__", json.dumps(str(helper_path))).replace("__RENDERER_PATH__", json.dumps(str(renderer_path)))
+""".replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path))).replace("__HELPER_PATH__", json.dumps(str(helper_path))).replace("__RENDERER_PATH__", json.dumps(str(renderer_path)))
     result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
     payload = json.loads(result.stdout)
 
@@ -621,7 +623,7 @@ def test_history_workspace_wires_historical_quality_audit_without_daily_queue_si
     assert 'id="history-quality-audit"' in index_html
     assert "/static/api_client_extensions.js?v=20260816-quality-review-field-filter" in index_html
     assert "/static/history_panel_quality_helpers.js?v=20260816-quality-review-field-filter" in index_html
-    assert "/static/history_quality_audit_render.js?v=20260816-quality-evidence-boundary" in index_html
+    assert "/static/history_quality_audit_render.js?v=20260816-shared-quality-evidence" in index_html
     assert "/static/history_quality_audit.js?v=20260816-quality-review-filter-persistence" in index_html
     assert index_html.index("/static/history_quality_audit_render.js") < index_html.index("/static/history_quality_audit.js")
     assert len((STATIC_DIR / "history_panel_quality_helpers.js").read_text(encoding="utf-8").splitlines()) < 120

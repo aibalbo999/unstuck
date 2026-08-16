@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3585 / shared clickable evidence guidance
+
+- `#拆解問題` / `#系統圖像`：preview、history、watchlist 都展示同一份品質缺口，但原本各自組字串，容易讓操作員在不同入口看到不同 provenance 或 artifact 限制。
+- `#組成` / `#語意含義`：新增 `report_quality_evidence_helpers.js` 作為共同語意層；preview badge、history target 與 watchlist target 共用相同的 structured metadata、刷新來源、artifact marker 與人工核對限制。
+- `#形塑行為` / `#溝通設計`：verified snapshot 的「結構化品質缺口」badge 變成可點擊導引，沿用既有 filename/pipeline scoped history audit；操作員能從正在查看的報告回到同一證據範圍，而不是自行重搜全庫。
+- `#責任` / `#可驗證性`：click handler 只呼叫既有唯讀 `StockAgentOpenHistoricalQualityAudit`，不新增 review mutation；以 RED→GREEN、helper load order、browser target contract、live scope 與 console 驗證。
+
 ## D3584 / preview evidence boundary
 
 - `#證據基礎` / `#系統圖像`：同一 verified snapshot 的 structured gate map 可缺失，而 artifact 仍有 marker；report list/preview 若只顯示 generic badge，操作員無法知道兩層 evidence 的差異。

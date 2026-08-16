@@ -6031,7 +6031,7 @@ def test_candidate_next_actions_assets_use_shared_cache_buster():
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
 
     assert "/static/style.css?v=20260816-historical-quality-target-context" in index_html
-    assert "/static/watchlist_panel_helpers.js?v=20260816-quality-evidence-boundary" in index_html
+    assert "/static/watchlist_panel_helpers.js?v=20260816-shared-quality-evidence" in index_html
     assert "/static/watchlist_panel.js?v=20260816-scoped-quality-review-navigation" in index_html
     assert "/static/maintenance_action_helpers.js?v=20260816-maintenance-confirmation" in index_html
     assert "/static/maintenance_panel_helpers.js?v=20260816-maintenance-confirmation" in index_html
@@ -7814,9 +7814,9 @@ def test_decision_tracking_dense_layout_uses_workspace_efficiently():
     assert "/static/ops_workspace.js?v=20260708-provider-group-health" in index_html
     assert "/static/history_panel.js?v=20260708-tracking-action-notes" in index_html
     assert "/static/decision_tracking_panel.js?v=20260708-tracking-action-notes" in index_html
-    assert "/static/report_preview_helpers.js?v=20260709-report-preview-helpers" in index_html
+    assert "/static/report_preview_helpers.js?v=20260816-shared-quality-evidence" in index_html
     assert "/static/report_preview_tracking_helpers.js?v=20260709-report-preview-tracking-helpers" in index_html
-    assert "/static/report_preview_panel.js?v=20260709-report-preview-helpers" in index_html
+    assert "/static/report_preview_panel.js?v=20260816-clickable-quality-evidence" in index_html
     assert "provider_sla.css?v=20260628-glass-dark" in style_css
     assert "provider_sla_controls.css?v=20260709-provider-sla-controls" in style_css
     assert style_css.index("provider_sla.css?v=20260628-glass-dark") < style_css.index("provider_sla_controls.css?v=20260709-provider-sla-controls")
@@ -7825,9 +7825,9 @@ def test_decision_tracking_dense_layout_uses_workspace_efficiently():
     assert "preview_panel_actions.css?v=20260709-preview-panel-actions" in style_css
     assert style_css.index("preview_panel.css?v=20260627-mode-aware-preview") < style_css.index("preview_panel_actions.css?v=20260709-preview-panel-actions")
     assert style_css.index("preview_panel_actions.css?v=20260709-preview-panel-actions") < style_css.index("report_compare.css?v=20260628-glass-dark")
-    assert "history_list.css?v=20260628-glass-dark" in style_css
+    assert "history_list.css?v=20260816-clickable-quality-evidence" in style_css
     assert "history_list_controls.css?v=20260816-historical-quality-audit" in style_css
-    assert style_css.index("history_list.css?v=20260628-glass-dark") < style_css.index("history_list_controls.css?v=20260816-historical-quality-audit")
+    assert style_css.index("history_list.css?v=20260816-clickable-quality-evidence") < style_css.index("history_list_controls.css?v=20260816-historical-quality-audit")
     assert style_css.index("history_list_controls.css?v=20260816-historical-quality-audit") < style_css.index("history_quality_audit.css?v=20260816-historical-quality-review-history")
     assert style_css.index("history_quality_audit.css?v=20260816-historical-quality-review-history") < style_css.index("decision_tracking.css?v=20260708-tracking-action-notes")
     assert "decision_tracking.css?v=20260708-tracking-action-notes" in style_css

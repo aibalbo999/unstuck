@@ -16,6 +16,21 @@
         elements.trackingGap = elements.trackingGap || doc?.getElementById('preview-tracking-gap');
         elements.trackingSummary = elements.trackingSummary || doc?.getElementById('preview-tracking-summary');
         elements.temporalMemoryRoot = elements.temporalMemoryRoot || doc?.getElementById('preview-temporal-memory');
+        let qualityEvidenceNavigationBound = false;
+
+        function bindQualityEvidenceNavigation() {
+            if (qualityEvidenceNavigationBound || !elements.mode?.addEventListener) return;
+            elements.mode.addEventListener('click', event => {
+                const target = event.target?.closest?.('[data-quality-history-audit-target]');
+                if (!target) return;
+                window.StockAgentOpenHistoricalQualityAudit?.({
+                    query: target.dataset?.qualityHistoryQuery || '',
+                    pipeline: target.dataset?.qualityHistoryPipeline || 'all'
+                });
+            });
+            qualityEvidenceNavigationBound = true;
+        }
+        bindQualityEvidenceNavigation();
 
         function setPreviewOpen(open) {
             if (elements.workspace) elements.workspace.classList.toggle('has-preview', open);

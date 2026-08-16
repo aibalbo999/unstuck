@@ -148,6 +148,8 @@
     background: rgba(185, 28, 28, 0.18);
 }
 .history-action-badge { min-height: 24px; display: inline-flex; align-items: center; border-radius: 8px; border: 1px solid rgba(148, 163, 184, 0.22); padding: 3px 8px; font-size: 0.72rem; font-weight: 900; line-height: 1; white-space: nowrap; }
+.history-action-badge.is-clickable { cursor: pointer; font: inherit; font-size: 0.72rem; }
+.history-action-badge.is-clickable:hover, .history-action-badge.is-clickable:focus-visible { filter: brightness(1.15); }
 .history-action-badge.is-ok { color: #bbf7d0; border-color: rgba(34, 197, 94, 0.42); background: rgba(22, 163, 74, 0.16); }
 .history-action-badge.is-warning { color: #fde68a; border-color: rgba(245, 158, 11, 0.5); background: rgba(180, 83, 9, 0.2); }
 .history-action-badge.is-critical { color: #fca5a5; border-color: rgba(239, 68, 68, 0.5); background: rgba(185, 28, 28, 0.18); }

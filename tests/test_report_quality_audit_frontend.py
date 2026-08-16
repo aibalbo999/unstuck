@@ -468,9 +468,11 @@ process.stdout.write(JSON.stringify({ board }));
 
 
 def test_watchlist_quality_report_targets_expose_human_reason_and_reason_codes():
+    evidence_path = STATIC_DIR / "report_quality_evidence_helpers.js"
     helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
     script = """
 global.window = {};
+require(__EVIDENCE_PATH__);
 require(__HELPER_PATH__);
 const payload = {
   decision_queue: { summary: { total_actionable: 0 }, items: [{ type: 'monitor' }] },
@@ -491,15 +493,16 @@ const payload = {
 };
 const board = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], payload, value => String(value ?? ''));
 process.stdout.write(JSON.stringify({ board }));
-""".replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+""".replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path))).replace("__HELPER_PATH__", json.dumps(str(helper_path)))
     result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
     payload = json.loads(result.stdout)
 
-    assert 'title="資料快照曾在報告後刷新，採用前需人工查看 artifact 與 freshness。；審核狀態：已核准保留缺口；結構化缺口：報告一致性、證據關卡、內容可信度；artifact 摘要可查：報告一致性、證據關卡"' in payload["board"]
-    assert 'aria-label="人工核對 1623.TW v2：刷新後品質證據缺口；審核狀態：已核准保留缺口；結構化缺口：報告一致性、證據關卡、內容可信度；artifact 摘要可查：報告一致性、證據關卡"' in payload["board"]
+    assert 'title="資料快照曾在報告後刷新，採用前需人工查看 artifact 與 freshness。；審核狀態：已核准保留缺口；結構化缺口：報告一致性、證據關卡、內容可信度；來源：刷新後；artifact 摘要可查：報告一致性、證據關卡"' in payload["board"]
+    assert 'aria-label="人工核對 1623.TW v2：刷新後品質證據缺口；審核狀態：已核准保留缺口；結構化缺口：報告一致性、證據關卡、內容可信度；來源：刷新後；artifact 摘要可查：報告一致性、證據關卡"' in payload["board"]
     assert 'data-quality-reason-codes="quality_metadata_missing,quality_metadata_after_refresh"' in payload["board"]
     assert 'data-quality-missing-fields="report_conformance,evidence_exit_gate,content_credibility"' in payload["board"]
     assert 'data-quality-artifact-fields="report_conformance,evidence_exit_gate"' in payload["board"]
+    assert 'data-quality-evidence-detail=' in payload["board"]
     assert 'data-quality-artifact-fields="report_conformance,evidence_exit_gate"' in payload["board"]
     assert "審核狀態：已核准保留缺口" in payload["board"]
     assert "artifact 摘要可查：報告一致性、證據關卡" in payload["board"]

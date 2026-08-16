@@ -187,6 +187,8 @@ The daily decision dashboard (`GET /api/watchlist/daily-dashboard`) consumes rec
 
 `report_index_rows.row_to_report()` 只在 verified snapshot 有 structured quality metadata 缺口時，沿用同一個 read-only artifact evidence lookup 將 `missing_quality_fields`、provenance 與 `artifact_quality_summary` 附加到 report preview row；preview gate policy 只消費這些 evidence context，不改 gate predicate。完整 row 不附帶 gap-only fields，且這條路徑不寫 artifact/index、review ledger、rerun 或 queue。
 
+前端的 `report_quality_evidence_helpers.js` 是 preview、history audit 與 daily watchlist target 的共同 evidence context；它只負責欄位標籤、provenance、artifact marker 與 limitation 的一致表達。preview 的 structured-gap badge 透過既有 `StockAgentOpenHistoricalQualityAudit` 以 filename/pipeline 導航到同一個 read-only audit scope，不能繞過 review mutation boundary。
+
 品質 audit 對相同 report-index fingerprint 使用最多 15 秒的 bounded process cache，避免 daily/history 反覆重讀未變更的 snapshot 與 Markdown；fingerprint 或 TTL 失效時重新讀取，cache 不跨重啟、不產生任何 side effect。
 
 同一 envelope 的 `quality_metadata_missing_by_provenance` 會把缺 metadata 的報告分成 `after_refresh` 與 `no_refresh_provenance`；後者只表示沒有 `refreshed_from_report` attribution，不能推論「從未刷新」。audit item 會保留 provenance、刷新來源檔名與 `snapshot_refreshed_at`，但不從 HTML/Markdown 重建 gate payload。

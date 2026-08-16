@@ -33,6 +33,8 @@ The read-only `report_quality_audit.items[]` payload exposes `missing_quality_fi
 
 For verified report rows with missing structured quality metadata, `/api/reports` may also expose `missing_quality_fields`, `quality_metadata_provenance`, `refreshed_from_report`, `snapshot_refreshed_at`, and `artifact_quality_summary`. These fields are read-only evidence context for the preview badge. `artifact_quality_summary` reuses the same marker lookup as the quality audit; it is not a reconstructed gate payload or automatic approval. Complete rows do not need these gap-only fields.
 
+The frontend uses the same evidence context for report preview, daily targets, and historical targets. A verified row with a structured gap may expose a clickable preview badge that opens the existing filename/pipeline-scoped historical audit; this is navigation only and does not write review events, repair artifacts, enqueue reruns, or change the report index.
+
 `missing_quality_field_counts` groups the missing-report count by `report_conformance`, `evidence_exit_gate`, and `content_credibility`. It counts only verified snapshots and is a summary of missing evidence, not a pass/fail result or an instruction to rerun.
 
 `quality_metadata_missing_by_provenance` groups missing metadata reports into `after_refresh` and `no_refresh_provenance`. The latter means the snapshot has no `refreshed_from_report` attribution; it does not prove that the snapshot was never refreshed. Each returned item repeats this as `quality_metadata_provenance` and includes `refreshed_from_report` and `snapshot_refreshed_at` when available.

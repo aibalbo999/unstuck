@@ -73,9 +73,11 @@ process.stdout.write(JSON.stringify({ action, gate, boundary }));
 
 
 def test_report_quality_gate_exposes_structured_gap_and_artifact_evidence_boundary():
+    evidence_path = STATIC_DIR / "report_quality_evidence_helpers.js"
     gate_path = STATIC_DIR / "report_quality_gate_policy.js"
     script = """
 global.window = {};
+require(__EVIDENCE_PATH__);
 require(__GATE_PATH__);
 const report = {
   snapshot_integrity: { status: 'verified' },
@@ -88,7 +90,7 @@ const report = {
   }
 };
 process.stdout.write(JSON.stringify(window.StockAgentReportQualityGatePolicy.reportQualityGateAction(report)));
-""".replace("__GATE_PATH__", json.dumps(str(gate_path)))
+""".replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path))).replace("__GATE_PATH__", json.dumps(str(gate_path)))
 
     payload = json.loads(_node(script))
 
