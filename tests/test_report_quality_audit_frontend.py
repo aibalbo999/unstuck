@@ -495,8 +495,8 @@ process.stdout.write(JSON.stringify({ board }));
     result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
     payload = json.loads(result.stdout)
 
-    assert 'title="資料快照曾在報告後刷新，採用前需人工查看 artifact 與 freshness。；審核狀態：已核准保留缺口；artifact 摘要可查：報告一致性、證據關卡"' in payload["board"]
-    assert 'aria-label="人工核對 1623.TW v2：刷新後品質證據缺口；審核狀態：已核准保留缺口；artifact 摘要可查：報告一致性、證據關卡"' in payload["board"]
+    assert 'title="資料快照曾在報告後刷新，採用前需人工查看 artifact 與 freshness。；審核狀態：已核准保留缺口；結構化缺口：報告一致性、證據關卡、內容可信度；artifact 摘要可查：報告一致性、證據關卡"' in payload["board"]
+    assert 'aria-label="人工核對 1623.TW v2：刷新後品質證據缺口；審核狀態：已核准保留缺口；結構化缺口：報告一致性、證據關卡、內容可信度；artifact 摘要可查：報告一致性、證據關卡"' in payload["board"]
     assert 'data-quality-reason-codes="quality_metadata_missing,quality_metadata_after_refresh"' in payload["board"]
     assert 'data-quality-missing-fields="report_conformance,evidence_exit_gate,content_credibility"' in payload["board"]
     assert 'data-quality-artifact-fields="report_conformance,evidence_exit_gate"' in payload["board"]

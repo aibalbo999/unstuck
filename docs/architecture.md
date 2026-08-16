@@ -203,6 +203,8 @@ daily quality target 的人工核對導引只傳 filename/pipeline scope 到 his
 
 前端對 `review_status_filter != all` 或 `missing_quality_field_filter != all` 的 envelope 呈現「審核範圍：<狀態>」與／或「缺口範圍：<欄位>」，兩者同時存在時不隱藏任一個，並隱藏一般全庫 coverage 文案；這是避免篩選集合被誤讀的呈現責任，不改 backend 計算、review ledger、artifact/index 或任何 queue/rerun 副作用。
 
+Quality audit target 另外分開呈現 `missing_quality_fields` 與 `artifact_quality_summary.fields`：前者是 verified snapshot 缺少的結構化 metadata，後者是 artifact 中可供人工核對的 marker evidence。前端不得用後者補寫或推導 gate 狀態；兩層在 daily/history renderer 分別標為「結構化缺口」與「artifact 摘要可查」。
+
 歷史 review control 由 `history_quality_audit` 保留一個 page-level submission lock；成功 mutation 後重新載入目前範圍，失敗則經 notification center 呈現並解除 lock。這只降低瀏覽器連點造成的重複請求，不取代 server 的 mutation token、revision fingerprint 或 append-only ledger 約束。
 
 `history_filters` 將 normalized search query、pipeline、recommendation、data-trust 與 `includeVersions` 保存在目前 tab 的 `sessionStorage`；`history_quality_audit` 另保存 normalized `reviewStatus` 與 `missingField`。兩者都不保存報告內容，history workspace 的 daily scoped navigation 以 `setValues()` 覆蓋主 scope、以 `resetReviewStatus()` 清除 quality scope，因此導航範圍優先於舊的整體 filter state。

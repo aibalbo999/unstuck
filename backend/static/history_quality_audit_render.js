@@ -84,7 +84,7 @@
                 ? (Array.isArray(item.artifact_quality_summary.fields) ? item.artifact_quality_summary.fields : [])
                     .map(field => fieldLabels.find(([key]) => key === field)?.[1] || field).filter(Boolean).join('、')
                 : '';
-            const targetContext = [missingFieldText ? `缺少${missingFieldText}` : '', provenance ? `來源：${provenance}` : '', artifactSummary ? `artifact 摘要可查：${artifactSummary}` : ''].filter(Boolean).join('；');
+            const targetContext = [missingFieldText ? `結構化缺口：${missingFieldText}` : '', provenance ? `來源：${provenance}` : '', artifactSummary ? `artifact 摘要可查：${artifactSummary}` : ''].filter(Boolean).join('；');
             const targetDetail = targetContext ? `${title}；品質缺口：${targetContext}` : title;
             const targetLabel = reportDate ? `${ticker} ${pipeline} · ${reportDate}` : `${ticker} ${pipeline}`;
             const reviewHtml = window.StockAgentHistoryPanelQualityHelpers?.renderQualityReview?.(item, targetLabel, e) || '';

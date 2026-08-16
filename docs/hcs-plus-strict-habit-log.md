@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3583 / structured metadata versus artifact evidence
+
+- `#證據基礎` / `#語意含義`：live `143` 筆缺口的 `missing_quality_fields` 是結構化 snapshot metadata 未記錄；同一筆可另有 artifact 摘要，後者只是人工核對 evidence，不代表 gate 已通過。
+- `#偏誤辨識` / `#溝通設計`：daily/history target 原本只並列「缺少」與「artifact 可查」，操作員可能把兩個層次合併解讀；改以「結構化缺口」與「artifact 摘要可查」明確分層。
+- `#責任` / `#倫理判斷`：renderer 只呈現 API envelope 已有的兩種 evidence，不在前端重建 gate 或自動核准；review mutation、artifact/index、rerun 與 daily queue 邊界維持不變。
+- `#可驗證性` / `#來源品質`：以 daily/history target RED→GREEN、cache-buster、Node syntax、size guard、跨層 tests、live payload 與 review ledger count 驗證；不執行 review mutation。
+
 ## D3582 / transient history state guard
 
 - `#系統圖像` / `#差距分析`：session 恢復的是查詢 scope，不是報告內容；頁碼、preview 與追蹤 snapshot 若沒有明確生命週期，篩選切換後可能把上一個 ticker 留在新列表旁。
