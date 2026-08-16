@@ -1,6 +1,7 @@
 (function () {
     const fieldLabels = { report_conformance: '報告一致性', evidence_exit_gate: '證據關卡', content_credibility: '內容可信度' };
     const limitation = 'artifact 摘要僅供人工核對，不代表 gate 已通過；採用前需人工查看。';
+    const targetWarning = 'artifact 摘要僅供人工核對，不代表 gate 已通過';
     const labels = fields => (Array.isArray(fields) ? fields : []).map(field => fieldLabels[field] || field).filter(Boolean).join('、');
     function context(report) {
         const missingFields = Array.isArray(report?.missing_quality_fields) ? report.missing_quality_fields.filter(Boolean) : [];
@@ -13,7 +14,7 @@
         const targetProvenance = provenanceText.replace('缺口', '');
         const targetContext = [missingFieldText ? `結構化缺口：${missingFieldText}` : '', targetProvenance, artifact.status ? artifactText : ''].filter(Boolean).join('；');
         const summary = [missingFieldText ? `結構化品質 metadata：${missingFieldText}` : '', provenanceText, artifactText].filter(Boolean).join('；');
-        return { hasStructuredGap: missingFields.length > 0, missingFields, missingFieldText, artifactFields, artifactFieldText, artifactText, provenanceText, targetContext, summary, detail: missingFields.length ? `${summary}；${limitation}` : summary, limitation };
+        return { hasStructuredGap: missingFields.length > 0, missingFields, missingFieldText, artifactFields, artifactFieldText, artifactText, provenanceText, targetContext, summary, detail: missingFields.length ? `${summary}；${limitation}` : summary, limitation, targetWarning: missingFields.length ? targetWarning : '' };
     }
     window.StockAgentReportQualityEvidence = { context, fieldLabels, limitation };
 })();

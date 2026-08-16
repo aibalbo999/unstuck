@@ -111,9 +111,9 @@ The read-only report quality audit exposes `missing_quality_fields` on each affe
 
 使用 review status 或缺口欄位篩選時，先讀摘要中的「審核範圍」或「缺口範圍」再解讀數字；篩選後若顯示 `0%`，它只代表目前集合的 coverage，不是全庫品質降為零。只有兩種篩選都為 `all` 時，摘要才使用「品質 metadata 完整度」作為未篩選範圍的 coverage 文案。
 
-品質 target 的「結構化缺口」代表 verified snapshot 沒有保存該 quality metadata；「artifact 摘要可查」代表報告檔案仍有可供人工查看的 marker。後者不能當成 gate 已通過，也不會自動解除人工審核或重跑限制；請把兩段 evidence 分開核對。
+品質 target 的「結構化缺口」代表 verified snapshot 沒有保存該 quality metadata；「artifact 摘要可查」代表報告檔案仍有可供人工查看的 marker。target 會直接顯示「artifact 摘要僅供人工核對，不代表 gate 已通過」，並在輔助技術的 aria label 重複這個限制。後者不能當成 gate 已通過，也不會自動解除人工審核或重跑限制；請把兩段 evidence 分開核對。
 
-報告 preview 若顯示「結構化品質缺口」，代表 verified snapshot 沒有保存列出的 structured quality metadata；tooltip 中的「artifact 摘要可查」只是報告檔案可供人工查看的 marker，不代表 gate 已通過。請依同一報告的歷史品質稽核與 freshness 一起核對，不要只因 artifact 有文字摘要就直接採用。
+報告 preview 若顯示「結構化品質缺口」，代表 verified snapshot 沒有保存列出的 structured quality metadata；badge 的 detail 與 aria label 會說明「artifact 摘要僅供人工核對，不代表 gate 已通過」，這只是報告檔案可供人工查看的 marker，不代表 gate 已通過。請依同一報告的歷史品質稽核與 freshness 一起核對，不要只因 artifact 有文字摘要就直接採用。
 
 這個 preview badge 可直接點擊，會帶著目前報告檔名與模式開啟同一範圍的歷史品質稽核；它只是查詢導引，不會自動核准、退回、修復 artifact 或建立重跑。進入稽核後仍須以該報告版本的 evidence 與 freshness 做人工判讀。
 
@@ -127,7 +127,7 @@ The read-only report quality audit exposes `missing_quality_fields` on each affe
 
 filtered view 沒有結果時，摘要會寫「目前沒有符合〈狀態〉的品質 metadata 缺口」；不要把它讀成「0 份完整報告」或全庫 coverage 為零。
 
-追蹤工作台若發現最新每股票/模式版本有品質缺口，按「查看歷史版本稽核」即可切到分析工作台並開啟「顯示舊版報告」；這只是查詢導引，不會建立今日待辦或重跑。歷史報告頁會用目前的搜尋代號與報告類型同步顯示同一範圍的品質稽核摘要；摘要會標示「品質 metadata 完整度」的分母是已驗證 snapshot，若有 invalid 或未驗證 snapshot 會另外警示，避免把排除資料當成完整證據。稽核區每批列 5 個可直接查看的報告 target，每個 target 同時顯示缺少的 gate、刷新 provenance，以及 artifact 是否仍有可見 gate 摘要；artifact 摘要只供人工核對，不能當成 structured gate 已恢復。可用「上一批／下一批」繼續人工核對，沿用既有報告 preview，不會把歷史缺口加入「今日待處理」。快速切換搜尋或報告類型時，報告列表與稽核摘要都只採用最後一次篩選的結果。
+追蹤工作台若發現最新每股票/模式版本有品質缺口，按「查看歷史版本稽核」即可切到分析工作台並開啟「顯示舊版報告」；這只是查詢導引，不會建立今日待辦或重跑。歷史報告頁會用目前的搜尋代號與報告類型同步顯示同一範圍的品質稽核摘要；摘要會標示「品質 metadata 完整度」的分母是已驗證 snapshot，若有 invalid 或未驗證 snapshot 會另外警示，避免把排除資料當成完整證據。稽核區每批列 5 個可直接查看的報告 target，每個 target 同時顯示缺少的 gate、刷新 provenance，以及 artifact 是否仍有可見 gate 摘要；target 另以可見警示明示「artifact 摘要僅供人工核對，不代表 gate 已通過」，不能把 artifact 摘要當成 structured gate 已恢復。可用「上一批／下一批」繼續人工核對，沿用既有報告 preview，不會把歷史缺口加入「今日待處理」。快速切換搜尋或報告類型時，報告列表與稽核摘要都只採用最後一次篩選的結果。
 
 今日工作台的每筆品質 target 另有「前往人工核對」入口，會用該報告檔名與模式直接縮小歷史稽核範圍，並自動開啟「顯示舊版報告」。它會清除可能殘留的推薦、資料信任與審核狀態篩選，避免 target 被舊篩選藏起來；這仍只是唯讀導引，不會直接留下 review 決策。
 

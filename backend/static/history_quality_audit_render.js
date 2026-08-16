@@ -78,10 +78,13 @@
             const evidence = window.StockAgentReportQualityEvidence?.context?.(item) || {};
             const targetContext = evidence.targetContext || '';
             const evidenceDetail = evidence.detail || targetContext;
+            const targetWarning = evidence.targetWarning || '';
             const targetDetail = targetContext ? `${title}；品質缺口：${targetContext}` : title;
+            const targetAriaLabel = [targetDetail, targetWarning].filter(Boolean).join('；');
+            const warningHtml = targetWarning ? `<small class="quality-evidence-warning">${e(targetWarning)}</small>` : '';
             const targetLabel = reportDate ? `${ticker} ${pipeline} · ${reportDate}` : `${ticker} ${pipeline}`;
             const reviewHtml = window.StockAgentHistoryPanelQualityHelpers?.renderQualityReview?.(item, targetLabel, e) || '';
-            return `<div class="history-quality-audit-target-row"><button class="history-quality-audit-target" type="button" data-quality-audit-report="${e(item.filename)}" data-quality-audit-ticker="${e(ticker)}" data-quality-audit-pipeline="${e(pipeline)}" data-quality-reason-codes="${e(reasonCodes)}" data-quality-evidence-detail="${e(evidenceDetail)}" title="${e(`${detail}${targetContext ? `；${targetContext}` : ''}`)}" aria-label="${e(`人工核對 ${targetLabel}：${targetDetail}`)}"><span>查看 ${e(targetLabel)}</span>${targetContext ? `<small>${e(targetContext)}</small>` : ''}</button>${reviewHtml}</div>`;
+            return `<div class="history-quality-audit-target-row"><button class="history-quality-audit-target" type="button" data-quality-audit-report="${e(item.filename)}" data-quality-audit-ticker="${e(ticker)}" data-quality-audit-pipeline="${e(pipeline)}" data-quality-reason-codes="${e(reasonCodes)}" data-quality-evidence-detail="${e(evidenceDetail)}" title="${e(`${detail}${targetContext ? `；${targetContext}` : ''}`)}" aria-label="${e(`人工核對 ${targetLabel}：${targetAriaLabel}`)}"><span>查看 ${e(targetLabel)}</span>${targetContext ? `<small>${e(targetContext)}</small>` : ''}${warningHtml}</button>${reviewHtml}</div>`;
         }).join('');
         return `<div class="history-quality-audit" role="status"><div class="history-quality-audit-header"><strong>歷史版本品質稽核</strong><span>範圍：${Math.floor(audited)} 份</span></div><div class="history-quality-audit-summary">${auditDetails}</div>${pipelineActions ? `<div class="history-quality-audit-filter-actions" aria-label="按模式查看品質缺口">${pipelineActions}</div>` : ''}${missingFieldFilterActions}${reviewFilterActions}${pageControls ? `<div class="history-quality-audit-pagination" aria-label="品質缺口分頁">${pageControls}</div>` : ''}${targets ? `<div class="history-quality-audit-actions">${targets}</div>` : ''}</div>`;
     }

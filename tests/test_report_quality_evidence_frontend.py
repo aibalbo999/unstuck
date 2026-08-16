@@ -16,12 +16,12 @@ def test_shared_quality_evidence_helper_loads_before_all_consumers():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     helper = "/static/report_quality_evidence_helpers.js"
     assert (STATIC_DIR / "report_quality_evidence_helpers.js").exists()
-    assert helper in index_html
+    assert f"{helper}?v=20260816-visible-evidence-warning" in index_html
     assert "/static/report_quality_gate_policy.js?v=20260816-shared-quality-evidence" in index_html
-    assert "/static/report_preview_helpers.js?v=20260816-shared-quality-evidence" in index_html
+    assert "/static/report_preview_helpers.js?v=20260816-visible-evidence-warning" in index_html
     assert "/static/report_preview_panel.js?v=20260816-clickable-quality-evidence" in index_html
-    assert "/static/history_quality_audit_render.js?v=20260816-shared-quality-evidence" in index_html
-    assert "/static/watchlist_panel_helpers.js?v=20260816-shared-quality-evidence" in index_html
+    assert "/static/history_quality_audit_render.js?v=20260816-visible-evidence-warning" in index_html
+    assert "/static/watchlist_panel_helpers.js?v=20260816-visible-evidence-warning" in index_html
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
     assert "/static/styles/history_list.css?v=20260816-clickable-quality-evidence" in style_css
     assert index_html.index(helper) < index_html.index("/static/report_quality_gate_policy.js")
@@ -76,9 +76,11 @@ process.stdout.write(JSON.stringify({ badge, history, completeEvidence }));
     assert 'data-quality-history-audit-target' in payload["badge"]
     assert 'data-quality-history-query="1623_TW_v2_report_20260815_154718.html"' in payload["badge"]
     assert 'artifact 摘要僅供人工核對，不代表 gate 已通過' in payload["badge"]
+    assert 'aria-label="前往 1623.TW v2 的歷史品質稽核：' in payload["badge"]
     assert '結構化品質 metadata：' not in payload["completeEvidence"]["detail"]
     assert '結構化品質 metadata：報告一致性、證據關卡、內容可信度' in payload["history"]
     assert 'artifact 摘要僅供人工核對，不代表 gate 已通過' in payload["history"]
+    assert '<small class="quality-evidence-warning">artifact 摘要僅供人工核對，不代表 gate 已通過</small>' in payload["history"]
     assert 'data-quality-evidence-detail=' in payload["history"]
 
 
