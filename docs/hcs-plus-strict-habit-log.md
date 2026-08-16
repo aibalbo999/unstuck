@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3588 / daily quality summary parity
+
+- `#受眾` / `#差距分析`：live 今日工作台的 quality audit summary 在手機上是一段長文字，雖然沒有水平溢出，操作員仍需自行拆解 scope、缺口、審核與 artifact evidence；history 已有的 scan order 應延伸到 daily。
+- `#溝通設計` / `#語意含義`：daily board 先顯示「全量報告品質」scope，再以獨立項呈現缺口總數、缺 gate、模式、審核狀態、人工進度、來源、artifact 與 coverage；target 仍保留可見 warning 與 aria detail。
+- `#責任` / `#倫理判斷`：只改前端 projection 與 responsive layout，`auditText` 仍保留作 unavailable/legacy fallback；不改 audit API、coverage 分母、review ledger、artifact/index、rerun 或 daily decision queue。
+- `#可驗證性` / `#限制條件`：先取得 `2 failed, 25 passed` RED，再 GREEN `27 passed` targeted suite；以行數、Node syntax、cache-buster、live dashboard、desktop/mobile overflow、warning/aria 與 console 驗證，保留 target 內文密度作下一個觀察點。
+
 ## D3587 / filter-scope-first audit summary
 
 - `#受眾` / `#偏誤辨識`：combined filter 的數字若先出現、active scope 後出現，操作員可能把 subset coverage 或缺口數讀成全庫結論；scope 必須靠近摘要起點。

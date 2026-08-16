@@ -43,11 +43,11 @@
         const returnedItemsValue = Number(audit.items_returned);
         const returnedItems = Number.isFinite(returnedItemsValue) && returnedItemsValue >= 0 ? Math.floor(returnedItemsValue) : auditItems.length;
         const auditScopeLabel = audit.selection_basis === 'latest_per_ticker_pipeline' ? '全量報告品質（每 ticker/pipeline 最新一筆）' : '全量報告品質';
-        const auditParts = [];
+        const auditParts = [], auditSummaryItems = [];
         const truncationNote = audit.items_truncated === true && missingQuality > returnedItems && `（目前顯示 ${returnedItems} 份，另有 ${missingQuality - returnedItems} 份未展開）`;
-        if (missingQuality > 0) auditParts.push(`${missingQuality} 份品質 metadata 缺口${truncationNote || ''}${missingFieldSummary ? `；缺口：${missingFieldSummary}` : ''}${missingPipelineSummary ? `；模式缺口：${missingPipelineSummary}` : ''}${reviewSummary ? `；審核狀態：${reviewSummary}` : ''}${reviewProgressSummary ? `；${reviewProgressSummary}` : ''}${provenanceSummary ? `；來源：${provenanceSummary}` : ''}${artifactSummary ? `；${artifactSummary}` : ''}${artifactFieldSummary ? `；artifact 欄位可查：${artifactFieldSummary}` : ''}${coverage == null ? '' : `（${coverageLabel} ${coverage}%）`}`);
-        if (excludedSnapshots > 0) auditParts.push(`${excludedSnapshots} 份 snapshot 無法驗證`);
-        const auditText = audit.status === 'unavailable' ? ` · ${auditScopeLabel}：暫時無法讀取` : auditParts.length ? ` · ${auditScopeLabel}：${auditParts.join('；')}` : '';
+        if (missingQuality > 0) { const summaryParts = [`${missingQuality} 份品質 metadata 缺口${truncationNote || ''}`, missingFieldSummary ? `缺口：${missingFieldSummary}` : '', missingPipelineSummary ? `模式缺口：${missingPipelineSummary}` : '', reviewSummary ? `審核狀態：${reviewSummary}` : '', reviewProgressSummary, provenanceSummary ? `來源：${provenanceSummary}` : '', artifactSummary, artifactFieldSummary ? `artifact 欄位可查：${artifactFieldSummary}` : '', coverage == null ? '' : `（${coverageLabel} ${coverage}%）`].filter(Boolean); auditParts.push(summaryParts.join('；')); auditSummaryItems.push(...summaryParts); }
+        if (excludedSnapshots > 0) { const item = `${excludedSnapshots} 份 snapshot 無法驗證`; auditParts.push(item); auditSummaryItems.push(item); }
+        const auditText = audit.status === 'unavailable' ? ` · ${auditScopeLabel}：暫時無法讀取` : auditParts.length ? ` · ${auditScopeLabel}：${auditParts.join('；')}` : '', auditSummaryHtml = auditSummaryItems.length ? `<div class="watchlist-daily-quality-summary"><strong class="watchlist-daily-quality-scope">${escapeHtml(auditScopeLabel)}</strong>${auditSummaryItems.map(item => `<em class="watchlist-daily-quality-item">${escapeHtml(item)}</em>`).join('')}</div>` : '';
         const auditButtons = auditItems.map(item => {
             const ticker = item.ticker || '報告';
             const pipeline = item.pipeline_id || 'v1';
@@ -77,13 +77,13 @@
             const secondary = Number(queue.secondary_count || 0), source = window.StockAgentDailyQueueContext?.sourceLabel?.(top.source) || top.source || 'queue';
             const attentionContext = window.StockAgentDailyQueueContext?.attentionContextText?.(top);
             const contextText = attentionContext ? ` · ${escapeHtml(attentionContext)}` : '';
-            return `<div class="watchlist-daily-board"><strong>今日工作台</strong><span>需處理 ${escapeHtml(String(total))} 件 · 次要待辦 ${escapeHtml(String(secondary))}${escapeHtml(auditText)}</span><em>最高優先：${escapeHtml(top.title || '今日待處理')} · 來源：${escapeHtml(source)} · priority_score ${escapeHtml(String(top.priority_score ?? ''))}${contextText}</em>${auditControls}</div>`;
+            return `<div class="watchlist-daily-board"><strong>今日工作台</strong><span>需處理 ${escapeHtml(String(total))} 件 · 次要待辦 ${escapeHtml(String(secondary))}</span>${auditSummaryHtml || (auditText ? `<span>${escapeHtml(auditText)}</span>` : '')}<em>最高優先：${escapeHtml(top.title || '今日待處理')} · 來源：${escapeHtml(source)} · priority_score ${escapeHtml(String(top.priority_score ?? ''))}${contextText}</em>${auditControls}</div>`;
         }
         const enabled = items.filter(item => item.enabled !== false);
         const needs = enabled.filter(item => ['high', 'medium'].includes(item.decision_priority));
         const next = needs.slice(0, 3).map(item => item.ticker).join('、') || '無急件';
         const detail = auditText ? auditText.slice(3) : next;
-        return `<div class="watchlist-daily-board"><strong>今日工作台</strong><span>需處理 ${escapeHtml(String(needs.length))} 檔${escapeHtml(auditText)}</span><em>${escapeHtml(detail)}</em>${auditControls}</div>`;
+        return `<div class="watchlist-daily-board"><strong>今日工作台</strong><span>需處理 ${escapeHtml(String(needs.length))} 檔</span>${auditSummaryHtml || `<em>${escapeHtml(detail)}</em>`}${auditControls}</div>`;
     }
 
     function renderSuggestions(elements, payload, escapeHtml) {

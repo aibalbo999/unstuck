@@ -498,4 +498,4 @@ def test_historical_audit_navigation_wiring_uses_cache_busters_and_existing_scop
     assert "/static/history_filters.js?v=20260816-history-scope-persistence" in index_html
     assert "/static/history_workspace.js?v=20260816-scope-transient-state-guard" in index_html
     assert "/static/app.js?v=20260816-scoped-quality-review-navigation" in index_html
-    assert "/static/styles/watchlist.css?v=20260816-scoped-quality-review-navigation" in style_css
+    assert "/static/styles/watchlist.css?v=20260816-daily-quality-summary" in style_css

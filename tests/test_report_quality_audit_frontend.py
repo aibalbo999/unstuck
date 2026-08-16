@@ -39,6 +39,10 @@ process.stdout.write(JSON.stringify({ board }));
     assert "artifact 欄位可查：報告一致性 2、證據關卡 2、內容可信度 0" in payload["board"]
     assert "審核狀態：待人工核對 2、已核准保留缺口 1" in payload["board"]
     assert "人工審核進度：1/3" in payload["board"]
+    assert 'class="watchlist-daily-quality-summary"' in payload["board"]
+    assert 'class="watchlist-daily-quality-scope">全量報告品質</strong>' in payload["board"]
+    assert payload["board"].index('class="watchlist-daily-quality-scope"') < payload["board"].index('class="watchlist-daily-quality-item"')
+    assert payload["board"].count('class="watchlist-daily-quality-item"') == 6
 
 
 def test_historical_quality_audit_renders_revision_scoped_review_controls():
@@ -339,7 +343,8 @@ process.stdout.write(JSON.stringify({ board }));
     result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
     payload = json.loads(result.stdout)
 
-    assert "全量報告品質（每 ticker/pipeline 最新一筆）：1 份品質 metadata 缺口" in payload["board"]
+    assert 'class="watchlist-daily-quality-scope">全量報告品質（每 ticker/pipeline 最新一筆）</strong>' in payload["board"]
+    assert "1 份品質 metadata 缺口" in payload["board"]
 
 
 def test_watchlist_board_surfaces_missing_quality_field_counts():
@@ -369,7 +374,8 @@ process.stdout.write(JSON.stringify({ board }));
     result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
     payload = json.loads(result.stdout)
 
-    assert "缺口：報告一致性 2、證據關卡 1、內容可信度 2；模式缺口：v1 1、v2 1" in payload["board"]
+    assert "缺口：報告一致性 2、證據關卡 1、內容可信度 2" in payload["board"]
+    assert "模式缺口：v1 1、v2 1" in payload["board"]
 
 
 def test_watchlist_board_surfaces_quality_metadata_provenance_counts():
