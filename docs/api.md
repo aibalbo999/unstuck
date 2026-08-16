@@ -69,7 +69,7 @@ The response keeps `quality_review_by_status` keys even when a selected status h
 
 The history UI derives its visible review progress from this map: `approved_with_gap + rejected + deferred` is the decided count, and the sum of all four statuses is the missing-quality denominator for the current response scope. Complete reports are never included in that progress denominator.
 
-The daily watchlist board uses the same derivation for its latest-per-ticker/pipeline audit summary, so the two read-only entry points expose the same review workload semantics while remaining separate from `decision_queue` actions.
+The daily watchlist board uses the same derivation for its latest-per-ticker/pipeline audit summary, so the two read-only entry points expose the same review workload semantics while remaining separate from `decision_queue` actions. The frontend evidence helper also exposes `renderTargetContext({ reviewStatus, evidenceContext, warning }, escapeHtml, classNames)`, returning the ordered plain `text` and escaped `html` projection used by history and watchlist targets. `classNames` only supports consumer presentation compatibility; it does not change the underlying evidence text or create a gate verdict.
 
 When `review_status` or `missing_field` is not `all`, `quality_metadata_coverage_pct`, `audited_reports`, and pagination counts describe only the selected scope. Consumers must not present the filtered coverage percentage as whole-library quality; the history UI labels the selected scope as `審核範圍` or `缺口範圍` and reserves `品質 metadata 完整度` for the unfiltered response.
 

@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3590 / shared target-context renderer
+
+- `#拆解問題` / `#組成`：preview 的 detail 與 history/watchlist 的 target HTML 都需要同一份 evidence 語意，但不應把 badge 與 target 的不同容器硬合併；抽出 `renderTargetContext()` 只統一三段文字順序與小字 projection，保留 consumer 的容器與既有 class map。
+- `#溝通設計` / `#語意含義`：renderer 的 `text` 用於 title/aria 等完整脈絡，`html` 依序輸出 review status、evidence context、artifact warning；watchlist 保留既有 class，history 使用共用 class，避免以 artifact marker 生成 gate verdict。
+- `#責任` / `#限制條件`：只讀取既有 item 的 `quality_review` 與 `report_quality_evidence` context，不寫 review ledger、不改 API、artifact/index、rerun 或 daily queue；fallback 保留在 consumer 內，單獨載入 renderer 的測試與 legacy 呼叫仍可工作。
+- `#可驗證性` / `#偏誤降低`：先取得 `2 failed, 1 passed` RED，再 GREEN 核心前端 `35 passed`、跨入口 `398 passed`、Node syntax、size guard、文件契約與 diff check；live `/healthz`/`/readyz`、asset `200`、daily `160/2/98.75%`、scoped history `1/1/0%`，並以兩入口的 DOM 順序、aria/title/data context、390px/1440px overflow 與 console 完成驗證。
+
 ## D3589 / daily target evidence hierarchy
 
 - `#受眾` / `#差距分析`：live daily target 的 status、evidence context 與 artifact limitation 原本共用一個小字區塊，觸控操作員必須靠分號拆解，無法快速辨識目前審核狀態與不可推導的 evidence。

@@ -16,7 +16,7 @@ def test_shared_quality_evidence_helper_loads_before_all_consumers():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     helper = "/static/report_quality_evidence_helpers.js"
     assert (STATIC_DIR / "report_quality_evidence_helpers.js").exists()
-    assert f"{helper}?v=20260816-visible-evidence-warning" in index_html
+    assert f"{helper}?v=20260816-shared-target-context" in index_html
     assert "/static/report_quality_gate_policy.js?v=20260816-shared-quality-evidence" in index_html
     assert "/static/report_preview_helpers.js?v=20260816-visible-evidence-warning" in index_html
     assert "/static/report_preview_panel.js?v=20260816-clickable-quality-evidence" in index_html
@@ -58,6 +58,11 @@ const report = {
 const escapeHtml = value => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const badge = window.StockAgentReportPreviewHelpers.reportQualityBadge(report, escapeHtml);
 const completeEvidence = window.StockAgentReportQualityEvidence.context({ artifact_quality_summary: { status: 'present', fields: ['report_conformance'] } });
+const targetContext = window.StockAgentReportQualityEvidence.renderTargetContext({
+  reviewStatus: '審核狀態：待人工核對',
+  evidenceContext: '結構化缺口：內容可信度；來源：刷新後',
+  warning: 'artifact 摘要僅供人工核對，不代表 gate 已通過'
+}, escapeHtml);
 const history = window.StockAgentHistoricalQualityAuditRenderer.render({
   audited_reports: 1,
   quality_metadata_missing_reports: 1,
@@ -65,9 +70,9 @@ const history = window.StockAgentHistoricalQualityAuditRenderer.render({
   quality_metadata_coverage_basis: 'verified_snapshot_reports',
   missing_quality_field_counts: { report_conformance: 1, evidence_exit_gate: 1, content_credibility: 1 },
   quality_review_by_status: { pending: 1, approved_with_gap: 0, rejected: 0, deferred: 0 },
-  items: [{ ...report, title: '刷新後品質證據缺口', detail: '資料快照曾在報告後刷新，採用前需人工查看。', reason_codes: ['quality_metadata_after_refresh'] }]
+  items: [{ ...report, title: '刷新後品質證據缺口', detail: '資料快照曾在報告後刷新，採用前需人工查看。', reason_codes: ['quality_metadata_after_refresh'], quality_review: { status: 'pending' } }]
 }, escapeHtml);
-process.stdout.write(JSON.stringify({ badge, history, completeEvidence }));
+process.stdout.write(JSON.stringify({ badge, history, completeEvidence, targetContext }));
 """.replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path))).replace("__GATE_PATH__", json.dumps(str(gate_path))).replace("__POLICY_PATH__", json.dumps(str(policy_path))).replace("__PREVIEW_PATH__", json.dumps(str(preview_path))).replace("__HISTORY_HELPER_PATH__", json.dumps(str(history_helper_path))).replace("__HISTORY_RENDERER_PATH__", json.dumps(str(history_renderer_path)))
 
     payload = json.loads(_node(script))
@@ -79,9 +84,14 @@ process.stdout.write(JSON.stringify({ badge, history, completeEvidence }));
     assert 'aria-label="前往 1623.TW v2 的歷史品質稽核：' in payload["badge"]
     assert '結構化品質 metadata：' not in payload["completeEvidence"]["detail"]
     assert '結構化品質 metadata：報告一致性、證據關卡、內容可信度' in payload["history"]
+    assert '<small class="quality-evidence-review-status">審核狀態：待人工核對</small>' in payload["history"]
     assert 'artifact 摘要僅供人工核對，不代表 gate 已通過' in payload["history"]
     assert '<small class="quality-evidence-warning">artifact 摘要僅供人工核對，不代表 gate 已通過</small>' in payload["history"]
     assert 'data-quality-evidence-detail=' in payload["history"]
+    assert payload["targetContext"]["text"] == '審核狀態：待人工核對；結構化缺口：內容可信度；來源：刷新後；artifact 摘要僅供人工核對，不代表 gate 已通過'
+    assert '<small class="quality-evidence-review-status">審核狀態：待人工核對</small>' in payload["targetContext"]["html"]
+    assert '<small class="quality-evidence-context">結構化缺口：內容可信度；來源：刷新後</small>' in payload["targetContext"]["html"]
+    assert '<small class="quality-evidence-warning">artifact 摘要僅供人工核對，不代表 gate 已通過</small>' in payload["targetContext"]["html"]
 
 
 def test_clicking_preview_quality_gap_opens_scoped_historical_audit():

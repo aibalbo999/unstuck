@@ -16,5 +16,10 @@
         const summary = [missingFieldText ? `結構化品質 metadata：${missingFieldText}` : '', provenanceText, artifactText].filter(Boolean).join('；');
         return { hasStructuredGap: missingFields.length > 0, missingFields, missingFieldText, artifactFields, artifactFieldText, artifactText, provenanceText, targetContext, summary, detail: missingFields.length ? `${summary}；${limitation}` : summary, limitation, targetWarning: missingFields.length ? targetWarning : '' };
     }
-    window.StockAgentReportQualityEvidence = { context, fieldLabels, limitation };
+    function renderTargetContext(values, escapeHtml, classNames) {
+        const e = escapeHtml || (value => String(value ?? '')), classes = { reviewStatus: 'quality-evidence-review-status', evidenceContext: 'quality-evidence-context', warning: 'quality-evidence-warning', ...(classNames || {}) };
+        const parts = [['reviewStatus', values?.reviewStatus], ['evidenceContext', values?.evidenceContext], ['warning', values?.warning]].map(([key, value]) => [key, String(value || '').trim()]).filter(([, value]) => value);
+        return { text: parts.map(([, value]) => value).join('；'), html: parts.map(([key, value]) => `<small class="${classes[key]}">${e(value)}</small>`).join('') };
+    }
+    window.StockAgentReportQualityEvidence = { context, fieldLabels, limitation, renderTargetContext };
 })();
