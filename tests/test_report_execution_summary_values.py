@@ -18,6 +18,7 @@ def test_execution_summary_values_build_deterministic_runtime_payload():
             "data": {"data_trust": {"status": "fresh"}},
             "final_audit": {"status": "passed"},
             "evidence_exit_gate": {"verdict": "approved", "summary": "抽樣通過。"},
+            "content_credibility": {"status": "warning", "summary": "目標價時序需人工確認。"},
             "report_conformance": {"status": "passed", "summary": "符合輸出契約。"},
             "report_lint": {"status": "clean"},
             "prompt_version": "runtime v4",
@@ -35,6 +36,8 @@ def test_execution_summary_values_build_deterministic_runtime_payload():
     assert values["final_audit"] == "passed"
     assert values["evidence_gate"] == "approved"
     assert values["evidence_summary"] == "抽樣通過。"
+    assert values["content_credibility"] == "warning"
+    assert values["content_credibility_summary"] == "目標價時序需人工確認。"
     assert values["report_conformance"] == "passed"
     assert values["conformance_summary"] == "符合輸出契約。"
     assert values["report_lint"] == "clean"

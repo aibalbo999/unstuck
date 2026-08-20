@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-20
+- D3611：live current 缺口的 artifact summary 只辨識 `Report conformance` 與 `Evidence gate`，但 renderer 的 execution summary 沒有獨立輸出 `content_credibility`，舊報告的閱讀提示 `內容一致性` 也未被 marker parser 辨識。新增 shared execution summary 的 `Content credibility` status/summary，以及新舊 Markdown/HTML marker recognition；只補 artifact evidence 可追溯性，不把 artifact 摘要當成 persisted gate。
+- D3611 驗證完成：artifact marker RED→GREEN `71 passed`，跨層 quality/document 回歸 `431 passed`；runtime reload 後 daily/current historical 均為 `158` audited、`2` metadata missing、`98.73%`，兩筆 current item 的 artifact evidence 均完整列出三個 quality fields，repair queue `0`，health/readiness/doctor 通過。未改 snapshot、artifact、index、review ledger、rerun 或 queue。
 - D3610：D3609 後對照 final-audit 與 content-credibility 責任，發現 3/6/12 個月目標價時序規則只在 final-audit 留下字串；content gate 只看主要目標價方向，歷史/API 缺 raw final-audit 時缺少同一 trace。新增 horizon evaluator，重用既有 sequence rule，方向性時序異常為 `horizon_target_sequence_conflict` warning，不取代 final-audit critical。
 - D3610 驗證完成：新增買入目標價倒退的 RED→GREEN integration；跨層 quality 回歸為 `319 passed`，live module smoke 產生 `horizon_target_sequence_conflict` warning；daily audit `158/2/98.73%`、current historical `158/2/98.73%`，repair queue `0`，health/readiness/doctor 通過。未改 snapshot、artifact、index、review ledger、rerun 或 daily queue。
 - D3609：D3608 後重新核對 evidence-confidence 分支，發現 `not_recorded`（含 `NaN` 正規化）與高信心 `9/10` 會直接 passed，和「證據未記錄不能支撐高信心」的品質語意矛盾。新增 `high_confidence_unrecorded_evidence` warning；不把缺失證據升級成 rejected，低/未知信心維持原非阻斷行為。

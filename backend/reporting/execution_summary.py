@@ -20,12 +20,15 @@ def build_execution_summary_markdown(context: AnalysisContext, *, model_routes: 
         f"- **資料可信度:** {values['data_trust']}（{values['data_trust_raw']}）",
         f"- **Final audit:** {values['final_audit']}",
         f"- **Evidence gate:** {values['evidence_gate']}",
+        f"- **Content credibility:** {values['content_credibility']}",
         f"- **Report conformance:** {values['report_conformance']}",
         f"- **Report lint:** {values['report_lint']}",
         f"- **Prompt / Model:** {values['prompt_version']} / {values['model_id']}",
     ]
     if values["evidence_summary"]:
         lines.append(f"- **證據抽查摘要:** {values['evidence_summary']}")
+    if values["content_credibility_summary"]:
+        lines.append(f"- **內容可信度摘要:** {values['content_credibility_summary']}")
     if values["conformance_summary"]:
         lines.append(f"- **符合性摘要:** {values['conformance_summary']}")
     return "\n".join(lines)
@@ -47,6 +50,7 @@ def build_execution_summary_html(context: AnalysisContext, *, model_routes: str 
         ("資料可信度", f"{values['data_trust']}（{values['data_trust_raw']}）"),
         ("Final audit", values["final_audit"]),
         ("Evidence gate", values["evidence_gate"]),
+        ("Content credibility", values["content_credibility"]),
         ("Report conformance", values["report_conformance"]),
         ("Report lint", values["report_lint"]),
         ("Prompt / Model", f"{values['prompt_version']} / {values['model_id']}"),

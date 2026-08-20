@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3611 / preserve content-credibility evidence in artifacts
+
+- `#差距分析` / `#責任`：snapshot/API 已有 `content_credibility`，但 execution summary 沒有獨立 marker；`read_artifact_quality_summary()` 因此把現有報告的內容可信度證據漏掉，人工核對只能看到其他兩個 gate。
+- `#組成` / `#可驗證性`：新增 shared `Content credibility` status/summary 到 Markdown/HTML，並以 read-only marker parser 相容既有 `內容一致性` reading-notice 行；不由 artifact text 重建或改寫 persisted gate。
+- `#偏誤降低` / `#來源品質`：先取得三個 RED，再 GREEN artifact/renderer `71 passed`、跨層 quality/document `431 passed`；runtime reload 後 daily/current historical 維持 `158/2/98.73%`，兩筆 current artifact summary 都辨識三個 quality fields，repair queue `0`、health/readiness/doctor 通過。缺 metadata 分母未被 artifact marker 假裝清除，保留 snapshot、artifact、review、rerun、queue mutation boundary。
+
 ## D3610 / retain horizon-sequence evidence in credibility output
 
 - `#差距分析` / `#責任`：final-audit 已有 3/6/12 個月時序規則，但 content credibility 沒有自己的 trace；raw final-audit 缺失時，歷史/API projection 只剩主要目標價方向，可能漏掉中期目標倒退。

@@ -13,7 +13,12 @@ QUALITY_METADATA_FIELDS = ("report_conformance", "evidence_exit_gate", "content_
 ARTIFACT_QUALITY_MARKERS = {
     "report_conformance": (re.compile(r"(?im)^\s*-\s*\*\*Report conformance:\*\*\s*\S+"), re.compile(r"(?is)<[^>]*>\s*Report conformance[:：]\s*[^<\n]+")),
     "evidence_exit_gate": (re.compile(r"(?im)^\s*-\s*\*\*Evidence gate:\*\*\s*\S+"), re.compile(r"(?is)<[^>]*>\s*Evidence gate[:：]\s*[^<\n]+")),
-    "content_credibility": (re.compile(r"(?im)^\s*-\s*\*\*Content credibility:\*\*\s*\S+"), re.compile(r"(?is)<[^>]*>\s*Content credibility[:：]\s*[^<\n]+")),
+    "content_credibility": (
+        re.compile(r"(?im)^\s*-\s*\*\*Content credibility:\*\*\s*\S+"),
+        re.compile(r"(?im)^\s*-\s*\*\*內容一致性:\*\*\s*\S+"),
+        re.compile(r"(?is)<[^>]*>\s*Content credibility[:：]\s*[^<\n]+"),
+        re.compile(r"(?is)<[^>]*>\s*內容一致性[:：]\s*[^<\n]+"),
+    ),
 }
 
 

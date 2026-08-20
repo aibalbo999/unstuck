@@ -145,6 +145,10 @@ def test_html_and_markdown_include_data_trust_and_source_audit():
         "status": "warning",
         "summary": "報告符合輸出契約，但仍需人工注意警示。",
     }
+    context["content_credibility"] = {
+        "status": "warning",
+        "summary": "目標價時序需人工確認。",
+    }
 
     html = report_gen.generate_html_report(context)
     markdown = report_gen.generate_markdown_report(context)
@@ -166,6 +170,7 @@ def test_html_and_markdown_include_data_trust_and_source_audit():
     assert "Agent 執行序列" in html
     assert "Final audit：passed" in html
     assert "Evidence gate：caution" in html
+    assert "Content credibility：warning" in html
     assert "Report conformance：warning" in html
     assert "## 本報告資料可信度" in markdown
     assert "## 報告使用範圍與判讀限制" in markdown
@@ -181,6 +186,7 @@ def test_html_and_markdown_include_data_trust_and_source_audit():
     assert "**Agent 執行序列:** Agent 1 → Agent 2 → Agent 3" in markdown
     assert "**Final audit:** passed" in markdown
     assert "**Evidence gate:** caution" in markdown
+    assert "**Content credibility:** warning" in markdown
     assert "**Report conformance:** warning" in markdown
     assert "| 股價與市值 | 市場資料 | yfinance | 成功 |" in markdown
     assert "| 市場資料 | yfinance | 成功 |" in markdown

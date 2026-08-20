@@ -50,6 +50,7 @@ def build_execution_summary_values(context: AnalysisContext, *, model_routes: st
     agent_sequence = _agent_sequence(context, pipeline_def)
     final_audit = _as_dict(dict.get(context, "final_audit"))
     evidence_gate = _as_dict(dict.get(context, "evidence_exit_gate"))
+    content_credibility = _as_dict(dict.get(context, "content_credibility"))
     report_conformance = _as_dict(dict.get(context, "report_conformance"))
     report_lint = _as_dict(dict.get(context, "report_lint"))
     data_trust = normalize_data_trust(dict.get(data, "data_trust"))
@@ -66,6 +67,8 @@ def build_execution_summary_values(context: AnalysisContext, *, model_routes: st
         "final_audit": _status(dict.get(final_audit, "status"), "not_recorded"),
         "evidence_gate": _status(dict.get(evidence_gate, "verdict"), "not_recorded"),
         "evidence_summary": _status(dict.get(evidence_gate, "summary"), ""),
+        "content_credibility": _status(dict.get(content_credibility, "status"), "not_recorded"),
+        "content_credibility_summary": _status(dict.get(content_credibility, "summary"), ""),
         "report_conformance": _status(dict.get(report_conformance, "status"), "not_recorded"),
         "conformance_summary": _status(dict.get(report_conformance, "summary"), ""),
         "report_lint": _status(dict.get(report_lint, "status"), "not_recorded"),
