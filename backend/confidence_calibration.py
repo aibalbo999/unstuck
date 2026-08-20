@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any, Optional
 
 from confidence_score_parser import parse_confidence_score_text
@@ -15,6 +16,11 @@ TRUST_CONFIDENCE_CAPS = {
     "unknown": 6,
     "error": 5,
 }
+
+_CONFIDENCE_WARNING_PATTERN = re.compile(
+    r"Agent\s+(\d+)\s+在\s+data_trust\s*=\s*([A-Za-z_]+)\s+時給出高信心\s*[（(]([^）)]+)[）)]，"
+    r"建議信心上限\s*([0-9]+(?:\.[0-9]+)?)/10"
+)
 
 
 def confidence_score(value: Any) -> Optional[float]:
@@ -36,6 +42,21 @@ def confidence_value(recommendation: dict) -> str:
 
 def confidence_cap_for_trust(status: str) -> int:
     return TRUST_CONFIDENCE_CAPS.get(str(status or "unknown"), TRUST_CONFIDENCE_CAPS["unknown"])
+
+
+def confidence_downgrade_warning(agent_num: int, calibration: dict) -> str:
+    if calibration.get("status") != "needs_downgrade":
+        return ""
+    return (
+        f"Agent {agent_num} 在 data_trust={calibration.get('data_trust_status', 'unknown')} 時給出高信心"
+        f"（{calibration.get('raw_confidence', 'N/A')}），建議信心上限 {calibration.get('max_recommended_confidence')}/10，"
+        "報告需明確揭露資料限制。"
+    )
+
+
+def confidence_warning_key(value: Any) -> tuple | None:
+    match = _CONFIDENCE_WARNING_PATTERN.search(str(value or ""))
+    return ("confidence_downgrade", *match.groups()) if match else None
 
 
 def build_confidence_calibration(

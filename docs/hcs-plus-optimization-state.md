@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-21
+- D3647：live `2308.TW v2` 的 final-audit warning 同一個信心校準事件以兩種句尾文字重複出現，讓 `content_credibility` 的人工核對細節重複。新增 shared confidence warning formatter，讓 structured-output 與 final-audit 使用同一格式；read-only projection 只對可辨識的 confidence downgrade fingerprint 去重，保留 `report_conformance` 原始細節與其他不同警示。
+- D3647 驗證：新增來源層與既有 conformance projection RED→GREEN regression；content credibility/projection/prompt-data-trust `55 passed`、audit rules `71 passed + 75 subtests`、完整 import-boundary `504 passed`，compile 與 `git diff --check` 通過。runtime reload 後 `2308.TW v2` 的 `final_audit_warning.details.warnings` 從兩筆同義文字收斂為一筆，未寫 snapshot、artifact、index、review、rerun 或 queue。
 - D3646：live `8070.TW v4` 的停損原文為「48.0 TWD（跌破 8/18 法人起漲發動點…）」；日期 regex 只清除帶「日／號」的日期，裸 `8/18` 被當成價格候選，讓 Long 被誤標 `ambiguous_trade_setup_price_inputs`。新增裸月日 normalization，保留 `48.0` 並移除日期 token；不改方向政策、artifact、snapshot、index、review、rerun 或 queue。
 - D3646 驗證：先以裸月日 live-shaped fixture 取得 RED，再 GREEN；content-credibility/projection/input focused `909 passed`，selected quality/queue/docs/import regression `1031 passed`，Python compile、`git diff --check` 與 97 行 import-boundary 限制通過。正式 runtime reload 後 `healthz=ok`、`readyz=ready`；live `8070.TW v4` 的 `trade_setup_alignment` 回復 `passed` 且 `stop_loss=48.0`，全量 `ambiguous_trade_setup_price_inputs` 由 `60` 降至 `59`，未寫 snapshot、artifact、index、review、rerun 或 queue。
 - D3645：live v4 的 `Neutral` 交易計畫有欄位同時寫入多個情境價格，例如「站穩 18.65 後反彈至 20.59」或下／上行雙目標；原本 `first_price()` 只取第一個數字，仍輸出 passed，會讓單一數值看起來像完整驗證。現在保留 `target_price_candidates`／`stop_loss_candidates`，對多個非區間價格輸出 `ambiguous_trade_setup_price_inputs` warning；明確兩端價格區間與 Neutral 中性政策不變，不改 snapshot、artifact、index、review、rerun 或 queue。

@@ -319,6 +319,21 @@ def test_content_credibility_reconciles_final_audit_warning_from_stored_conforma
     assert issue["details"]["warnings"] == ["高信心需揭露資料限制"]
 
 
+def test_final_audit_alignment_deduplicates_semantically_equivalent_confidence_warnings():
+    from reporting.content_credibility_final_audit import evaluate_final_audit_alignment
+
+    first = "Agent 16 在 data_trust=fresh 時給出高信心（7/10），建議信心上限 6/10，報告需明確揭露資料限制。"
+    equivalent = "Agent 16 在 data_trust=fresh 時給出高信心（7/10），建議信心上限 6/10，需於報告中明確說明資料限制。"
+    result = evaluate_final_audit_alignment({
+        "status": "warning",
+        "critical": [],
+        "warnings": [first, equivalent, "另一個需要人工確認的警示。"],
+    })
+
+    issue = result["warnings"][0]
+    assert issue["details"]["warnings"] == [first, "另一個需要人工確認的警示。"]
+
+
 def test_content_credibility_keeps_passed_when_stored_conformance_final_audit_passes():
     from reporting.content_credibility import evaluate_content_credibility
 

@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from confidence_calibration import build_confidence_calibration, confidence_score, has_unresolved_cross_source_conflict
+from confidence_calibration import (
+    build_confidence_calibration,
+    confidence_downgrade_warning,
+    confidence_score,
+    has_unresolved_cross_source_conflict,
+)
 
 
 def price_targets_have_unit_error(targets: dict, current_price) -> bool:
@@ -25,14 +30,9 @@ def warn_high_confidence_with_low_trust(agent_num: int, structured: dict, contex
         has_unresolved_cross_source_conflict(context.get("data", {}) if isinstance(context.get("data"), dict) else {}),
     )
     context["confidence_calibration"] = calibration
-    if calibration.get("status") != "needs_downgrade":
-        return
-    status = calibration.get("data_trust_status", "unknown")
-    confidence = calibration.get("raw_confidence", "N/A")
-    cap = calibration.get("max_recommended_confidence")
-    context.setdefault("structured_quality_warnings", []).append(
-        f"Agent {agent_num} 在 data_trust={status} 時給出高信心（{confidence}），建議信心上限 {cap}/10，需於報告中明確說明資料限制。"
-    )
+    warning = confidence_downgrade_warning(agent_num, calibration)
+    if warning:
+        context.setdefault("structured_quality_warnings", []).append(warning)
 
 
 _confidence_score = confidence_score

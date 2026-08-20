@@ -121,6 +121,8 @@ If `evidence_exit_gate` is `not_recorded` (including normalized placeholder valu
 
 Content credibility also reuses the shared confidence calibration policy used by final-audit. When `data_trust` or unresolved cross-source conflict lowers the recommended confidence cap and the parsed recommendation exceeds that cap, it records `confidence_exceeds_data_trust_cap` with the raw score, effective score, cap, and calibration reasons. This is warning-level projection only; the shared calibration policy remains authoritative and non-downgraded scores are not escalated.
 
+Final-audit and structured-output confidence downgrade warnings use one shared message formatter, so the same calibration event is not emitted twice merely because it crossed two internal boundaries. When historical/API projection reads older conformance details with equivalent confidence-warning wording, it deduplicates only the stable agent/trust/raw-confidence/cap fingerprint for display; raw `report_conformance` details remain unchanged.
+
 When the recommendation confidence cannot be parsed, the `confidence_data_trust_calibration` check reports `status=unavailable` rather than `passed`, with a message that the cap check could not be completed. This does not create a warning or block the overall `content_credibility` result; it prevents an incomplete calibration from being presented as a successful check.
 
 Trade-setup price extraction removes explicit calendar dates and period expressions before parsing the first price. Period ranges such as `1-2週`, `1至2週`, and `1 to 2 weeks` therefore cannot be mistaken for a target or stop price; the actual price later in the same text remains eligible for the existing parser.

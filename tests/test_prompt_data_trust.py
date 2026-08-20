@@ -703,6 +703,39 @@ def test_final_audit_warns_on_high_confidence_with_low_trust():
     assert any("建議信心上限 7/10" in warning for warning in audit["warnings"])
 
 
+def test_final_audit_deduplicates_structured_confidence_warning():
+    from structured_output_warnings import warn_high_confidence_with_low_trust
+
+    context = {
+        "pipeline_id": "v1",
+        "agent_sequence": [7],
+        "data": {
+            "current_price": 100,
+            "data_trust": {"status": "partial"},
+        },
+        "analyses": {7: "正式最終投資建議段落。"},
+        "structured_outputs": {7: _recommendation_payload("8.5/10")},
+        "parsed": {
+            "moat_scores": {
+                "品牌影響力": 5,
+                "網路效應": 5,
+                "轉換成本": 5,
+                "成本優勢": 5,
+                "專利技術": 5,
+                "整體護城河": 5,
+            },
+            "price_targets": {"熊市情境": 80, "基本情境": 100, "牛市情境": 120},
+            "recommendation": _recommendation_payload("8.5/10")["recommendation"],
+        },
+    }
+    warn_high_confidence_with_low_trust(7, context["parsed"], context)
+
+    audit = final_audit.run_final_report_audit(context, append_section=False)
+    warnings = [warning for warning in audit["warnings"] if "data_trust=partial" in warning]
+
+    assert len(warnings) == 1
+
+
 def test_final_audit_warns_when_final_decision_omits_available_global_context():
     context = {
         "pipeline_id": "v1",

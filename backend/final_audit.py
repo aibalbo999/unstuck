@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from analysis_types import AnalysisContext, AuditResult
 from agent_catalog import AGENT_NAMES
-from confidence_calibration import build_confidence_calibration, has_unresolved_cross_source_conflict
+from confidence_calibration import (
+    build_confidence_calibration,
+    confidence_downgrade_warning,
+    has_unresolved_cross_source_conflict,
+)
 from final_audit_context_coverage import missing_final_context_labels
 from final_audit_dcf import dcf_conflict_warnings
 from final_audit_helpers import (
@@ -153,11 +157,7 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
             circuit_ever_opened,
             has_unresolved_cross_source_conflict(data),
         )
-        if confidence_calibration.get("status") == "needs_downgrade":
-            data_trust_status = confidence_calibration.get("data_trust_status", "unknown")
-            raw_confidence = confidence_calibration.get("raw_confidence", "N/A")
-            cap = confidence_calibration.get("max_recommended_confidence")
-            _add_unique_issue(warnings, f"Agent {recommendation_agent} 在 data_trust={data_trust_status} 時給出高信心（{raw_confidence}），建議信心上限 {cap}/10，報告需明確揭露資料限制。")
+        _add_unique_issue(warnings, confidence_downgrade_warning(recommendation_agent, confidence_calibration))
 
         target_12m = _extract_first_price(_recommendation_value(recommendation, "12個月"))
         if valuation_agent is not None and target_12m is not None and all(key in numeric_targets for key in REQUIRED_PRICE_TARGETS):

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from confidence_calibration import confidence_warning_key
 from mapping_fields import safe_dict_list, safe_mapping_dict, safe_text, safe_text_list
 from .text_tokens import is_missing_text_token
 
@@ -35,7 +36,7 @@ def final_audit_from_conformance(report_conformance: Any) -> dict:
         if safe_text(step.get("id")).strip().lower() != "final_audit":
             continue
         status = _status(step.get("status"))
-        details = safe_text_list(step.get("details"))
+        details = _unique_final_audit_texts(step.get("details"))
         if not details:
             message = safe_text(step.get("message")).strip()
             if message:
@@ -108,8 +109,8 @@ def evaluate_final_audit_alignment(final_audit: Any) -> dict:
         }
 
     status = _status(audit.get("status"))
-    critical = safe_text_list(audit.get("critical"))
-    warnings = safe_text_list(audit.get("warnings"))
+    critical = _unique_final_audit_texts(audit.get("critical"))
+    warnings = _unique_final_audit_texts(audit.get("warnings"))
     details = {"status": status, "critical": critical, "warnings": warnings}
 
     if critical or status in BLOCKING_FINAL_AUDIT_STATUSES:
@@ -141,6 +142,17 @@ def evaluate_final_audit_alignment(final_audit: Any) -> dict:
         "warnings": [],
         "checks": [_check("final_audit_alignment", "passed", "最終稽核未留下未解決問題。", details)],
     }
+
+
+def _unique_final_audit_texts(values: Any) -> list[str]:
+    unique = []
+    seen = set()
+    for value in safe_text_list(values):
+        key = confidence_warning_key(value) or ("text", value)
+        if key not in seen:
+            unique.append(value)
+            seen.add(key)
+    return unique
 
 
 __all__ = [

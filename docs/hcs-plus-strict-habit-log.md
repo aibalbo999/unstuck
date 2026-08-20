@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3647 / deduplicate confidence calibration warnings without erasing source evidence
+
+- `#差距分析` / `#責任`：live `2308.TW v2` 的 final-audit warning 有兩句不同句尾但相同 agent、data trust、confidence 與 cap；根因是 structured-output warning 與 final-audit 各自組字串，且只做精確字串去重。
+- `#最小變更` / `#偏誤降低`：新增 shared formatter 與 confidence-warning fingerprint；新報告在來源層只產生一筆，既有報告在 read-only credibility projection 只合併這個可辨識家族，保留 raw `report_conformance` 與非同義警示。
+- `#可驗證性`：RED→GREEN 後 content/projection/prompt `55 passed`、audit `71 passed + 75 subtests`、import-boundary `504 passed`，compile/diff check 通過；runtime `2308.TW v2` projection 細節收斂為一筆，未寫 snapshot、artifact、index、review、rerun 或 queue。
+
 ## D3646 / remove bare month-day tokens from trade prices
 
 - `#差距分析` / `#來源品質`：live `8070.TW v4` 的停損數值 `48.0` 後接括號日期 `8/18`；既有完整日期／帶單位日期清理沒有涵蓋裸月日，造成日期拆成兩個價格候選。
