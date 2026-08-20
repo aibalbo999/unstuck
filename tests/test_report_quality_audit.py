@@ -63,6 +63,13 @@ def test_report_quality_audit_counts_verified_reports_with_missing_quality_metad
             "after_refresh": 0,
             "no_refresh_provenance": 1,
         },
+        "quality_metadata_missing_by_rerun_execution": {
+            "full_rerun_required": 0,
+            "partial_rerun_available": 0,
+            "partial_rerun_review_required": 0,
+            "partial_rerun_unavailable": 0,
+            "not_evaluated": 1,
+        },
         "quality_metadata_missing_by_version_status": {
             "current": 0,
             "historical": 0,
@@ -101,6 +108,13 @@ def test_report_quality_audit_counts_verified_reports_with_missing_quality_metad
                     "before_refresh": 0,
                     "after_refresh": 0,
                     "no_refresh_provenance": 1,
+                },
+                "quality_metadata_missing_by_rerun_execution": {
+                    "full_rerun_required": 0,
+                    "partial_rerun_available": 0,
+                    "partial_rerun_review_required": 0,
+                    "partial_rerun_unavailable": 0,
+                    "not_evaluated": 1,
                 },
                 "quality_review_by_status": {
                     "pending": 1,
@@ -332,6 +346,13 @@ def test_report_quality_audit_groups_coverage_by_pipeline():
                     "after_refresh": 0,
                     "no_refresh_provenance": 1,
                 },
+            "quality_metadata_missing_by_rerun_execution": {
+                "full_rerun_required": 0,
+                "partial_rerun_available": 0,
+                "partial_rerun_review_required": 0,
+                "partial_rerun_unavailable": 0,
+                "not_evaluated": 1,
+            },
                 "quality_review_by_status": {
                     "pending": 1,
                     "approved_with_gap": 0,
@@ -357,6 +378,13 @@ def test_report_quality_audit_groups_coverage_by_pipeline():
                     "before_refresh": 0,
                     "after_refresh": 0,
                     "no_refresh_provenance": 0,
+                },
+                "quality_metadata_missing_by_rerun_execution": {
+                    "full_rerun_required": 0,
+                    "partial_rerun_available": 0,
+                    "partial_rerun_review_required": 0,
+                    "partial_rerun_unavailable": 0,
+                    "not_evaluated": 0,
                 },
                 "quality_review_by_status": {
                     "pending": 0,
@@ -527,6 +555,46 @@ def test_report_quality_audit_classifies_pre_refresh_quality_gaps_separately():
         "quality_metadata_missing",
         "quality_metadata_before_refresh",
     ]
+
+
+def test_report_quality_audit_groups_missing_metadata_by_rerun_execution_strategy():
+    from report_quality_audit import build_report_quality_audit
+
+    base = {
+        "snapshot_integrity": {"status": "verified"},
+        "report_conformance": {},
+        "evidence_exit_gate": {},
+        "content_credibility": {},
+        "refreshed_from_report": "report.html",
+    }
+    payload = build_report_quality_audit(
+        [
+            {**base, "ticker": "1000.TW", "filename": "full.html", "decision_validity_status": "needs_rerun"},
+            {
+                **base,
+                "ticker": "1001.TW",
+                "filename": "partial.html",
+                "rerun_context": {"analyses": {"agent": "ok"}, "structured_outputs": {"agent": "ok"}, "parsed": {"recommendation": {}}},
+            },
+            {
+                **base,
+                "ticker": "1002.TW",
+                "filename": "review.html",
+                "rerun_context": {"analyses": {"agent": "ok"}},
+            },
+        ],
+        scope="all_historical_indexed_reports",
+        selection_basis="all_indexed_versions",
+        item_limit=0,
+    )
+
+    assert payload["quality_metadata_missing_by_rerun_execution"] == {
+        "full_rerun_required": 1,
+        "partial_rerun_available": 1,
+        "partial_rerun_review_required": 1,
+        "partial_rerun_unavailable": 0,
+        "not_evaluated": 0,
+    }
 
 
 def test_report_quality_audit_does_not_count_placeholder_gate_states_as_complete():

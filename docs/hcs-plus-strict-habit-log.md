@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3624 / summarize read-only rerun execution strategy
+
+- `#差距分析` / `#效用`：live historical audit 的 `115` 筆 structured quality 缺口全部要求完整重跑，其中 `86` 筆只有 artifact fallback、`29` 筆沒有局部上下文；原本只在 item detail 顯示，工作台無法先做策略排序。
+- `#責任` / `#語意含義`：新增 `quality_metadata_missing_by_rerun_execution`，只聚合 verified snapshot 的缺口 item，沿用 repair predicate 的四種 `rerun_execution_status`，另以 `not_evaluated` 保留 provenance 不足的缺口；history/watchlist 顯示白話策略，但不 enqueue、改 freshness 或把 artifact fallback 當成授權。
+- `#可驗證性` / `#證據基礎`：backend、history、watchlist 先 RED 再 GREEN `3 passed`；再補跑完整 quality/audit/conformance、storage/history、import/docs/HCS、frontend HTTP、live API/asset/doctor 與 post-push sanity，保留 current/historical scope 與既有 after-refresh 分類。
+
 ## D3623 / keep pre-refresh provenance classification consistent across surfaces
 
 - `#差距分析` / `#偏誤辨識`：D3622 已產生 `quality_metadata_before_refresh`，但 audit aggregator、`/api/reports` row mapper、preview/history helper 與 watchlist summary 仍只理解 after/no-refresh；同一份證據會被 backend 統計成 `no_refresh_provenance`，前端則沒有白話來源。

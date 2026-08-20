@@ -62,6 +62,7 @@ def test_report_quality_docs_cover_snapshot_integrity_contract():
         assert "quality_metadata_missing_by_provenance" in document
         assert "before_refresh" in document
         assert "刷新前已有缺口" in document
+        assert "quality_metadata_missing_by_rerun_execution" in document
         assert "quality_review_by_status" in document
         assert "quality_metadata_by_pipeline" in document
         assert "items_returned" in document

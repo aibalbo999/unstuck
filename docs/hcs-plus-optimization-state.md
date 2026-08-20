@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-20
+- D3624：live historical audit 顯示 `115` 筆缺三個 structured quality gate，全部 `full_rerun_required`，但其中 `86` 筆有 artifact fallback、`29` 筆沒有 snapshot/ artifact 局部上下文；原摘要只顯示逐筆 detail，操作員無法先按重跑策略排序。新增 `quality_metadata_missing_by_rerun_execution` 聚合，history/watchlist 以「完整重跑／局部重跑可用／局部重跑需確認／無可用局部重跑／重跑策略未判定」呈現；只讀取既有 repair predicate，未知 provenance 進 `not_evaluated`，不改 freshness、coverage、rerun 或 queue。
+- D3624 驗證：新增 backend、history、watchlist RED→GREEN；後續補跑完整 quality/audit/conformance、history/storage、import/docs/HCS、frontend HTTP、cache-buster、doctor 與 live audit，確認 current/historical scope 與既有 1623 after-refresh 分類不變。
 - D3623：檢查 D3622 新增的 `quality_metadata_before_refresh` 後，發現 audit payload 與兩個 UI summary 仍只認 `after_refresh`／`no_refresh_provenance`，會把「刷新前已有缺口」錯分成未標記來源。現在共用 provenance classifier 統一輸出 `before_refresh`、`after_refresh`、`no_refresh_provenance`，並同步 `/api/reports`、歷史 audit、watchlist、preview evidence 的白話呈現；不改 gate 結果、coverage 分母或 read-only mutation boundary。
 - D3623 驗證：先取得五個跨層 RED，再 GREEN；quality/audit/repair/preview/frontend/history/navigation `257 passed`，後續補跑 import/docs/HCS、content/conformance、storage/history、frontend HTTP、compile/diff 與 live API，確認舊 snapshot 仍維持原分類、新 provenance 不被錯歸類。
 - D3622：追查 live indexed quality audit 唯一殘留的 `1623.TW` v1/v2，確認目前 snapshot、artifact 與 refresh service 都保留既有品質欄位，但舊 snapshot 沒有「刷新前是否已有缺口」的 provenance，不能把 `after_refresh` 當成刷新造成缺失。現在 data-only refresh 在寫入 snapshot 前保存 optional `quality_metadata_refresh_provenance`，記下三個 gate 的 contract state 與刷新前缺口；repair queue 只有在目前缺口被刷新前清單覆蓋時才標 `quality_metadata_before_refresh`，否則維持中性的 `quality_metadata_after_refresh`。不重建 gate、不改既有 snapshot、不自動 rerun、不改 coverage 分母。

@@ -17,6 +17,13 @@ QUALITY_METADATA_FIELDS = ("report_conformance", "evidence_exit_gate", "content_
 QUALITY_REVIEW_STATUSES = ("pending", "approved_with_gap", "rejected", "deferred")
 ARTIFACT_QUALITY_SUMMARY_STATUSES = ("present", "not_found", "unavailable")
 REPORT_VERSION_STATUSES = ("current", "historical", "unknown")
+QUALITY_METADATA_RERUN_EXECUTION_STATUSES = (
+    "full_rerun_required",
+    "partial_rerun_available",
+    "partial_rerun_review_required",
+    "partial_rerun_unavailable",
+    "not_evaluated",
+)
 
 
 def build_report_quality_audit(
@@ -39,6 +46,9 @@ def build_report_quality_audit(
     missing_items = []
     missing_quality_field_counts = {field: 0 for field in QUALITY_METADATA_FIELDS}
     missing_quality_by_provenance = {provenance: 0 for provenance in QUALITY_METADATA_PROVENANCE}
+    missing_quality_by_rerun_execution = {
+        status: 0 for status in QUALITY_METADATA_RERUN_EXECUTION_STATUSES
+    }
     missing_quality_by_version_status = {status: 0 for status in REPORT_VERSION_STATUSES}
     quality_review_by_status = {status: 0 for status in QUALITY_REVIEW_STATUSES}
     artifact_quality_summary_by_status = {status: 0 for status in ARTIFACT_QUALITY_SUMMARY_STATUSES}
@@ -66,6 +76,14 @@ def build_report_quality_audit(
             pipeline_stats["quality_metadata_complete_reports"] += 1
             continue
         pipeline_stats["quality_metadata_missing_reports"] += 1
+        rerun_execution_status = safe_text(item.get("rerun_execution_status")).strip().lower()
+        rerun_execution_bucket = (
+            rerun_execution_status
+            if rerun_execution_status in missing_quality_by_rerun_execution
+            else "not_evaluated"
+        )
+        missing_quality_by_rerun_execution[rerun_execution_bucket] += 1
+        pipeline_stats["quality_metadata_missing_by_rerun_execution"][rerun_execution_bucket] += 1
         review_status = _quality_review_status(report)
         quality_review_by_status[review_status] += 1
         pipeline_stats["quality_review_by_status"][review_status] += 1
@@ -111,6 +129,7 @@ def build_report_quality_audit(
         "quality_metadata_missing_reports": missing_count,
         "missing_quality_field_counts": missing_quality_field_counts,
         "quality_metadata_missing_by_provenance": missing_quality_by_provenance,
+        "quality_metadata_missing_by_rerun_execution": missing_quality_by_rerun_execution,
         "quality_metadata_missing_by_version_status": missing_quality_by_version_status,
         "quality_review_by_status": quality_review_by_status,
         "artifact_quality_summary_by_status": artifact_quality_summary_by_status,
@@ -204,6 +223,9 @@ def _new_quality_stats() -> dict[str, Any]:
         "quality_metadata_missing_reports": 0,
         "missing_quality_field_counts": {field: 0 for field in QUALITY_METADATA_FIELDS},
         "quality_metadata_missing_by_provenance": {provenance: 0 for provenance in QUALITY_METADATA_PROVENANCE},
+        "quality_metadata_missing_by_rerun_execution": {
+            status: 0 for status in QUALITY_METADATA_RERUN_EXECUTION_STATUSES
+        },
         "quality_review_by_status": {status: 0 for status in QUALITY_REVIEW_STATUSES},
     }
 
@@ -242,6 +264,7 @@ __all__ = [
     "ARTIFACT_QUALITY_SUMMARY_STATUSES",
     "QUALITY_METADATA_FIELDS",
     "QUALITY_METADATA_PROVENANCE",
+    "QUALITY_METADATA_RERUN_EXECUTION_STATUSES",
     "QUALITY_REVIEW_STATUSES",
     "REPORT_VERSION_STATUSES",
     "SCHEMA_VERSION",

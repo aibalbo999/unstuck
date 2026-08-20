@@ -427,6 +427,33 @@ process.stdout.write(JSON.stringify({ board }));
     assert "來源：刷新前已有缺口 1、有刷新歸因 1" in payload["board"]
 
 
+def test_watchlist_board_surfaces_quality_rerun_execution_counts():
+    helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
+    script = """
+global.window = {};
+require(__HELPER_PATH__);
+const payload = {
+  decision_queue: { summary: { total_actionable: 0 }, items: [{ type: 'monitor' }] },
+  report_quality_audit: {
+    quality_metadata_missing_reports: 4,
+    quality_metadata_missing_by_rerun_execution: {
+      full_rerun_required: 2,
+      partial_rerun_available: 1,
+      partial_rerun_review_required: 0,
+      partial_rerun_unavailable: 0,
+      not_evaluated: 1
+    }
+  }
+};
+const board = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], payload, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ board }));
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "重跑策略：完整重跑 2、局部重跑可用 1、重跑策略未判定 1" in payload["board"]
+
+
 def test_watchlist_board_does_not_treat_unavailable_quality_audit_as_zero_gaps():
     helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
     script = """
