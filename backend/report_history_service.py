@@ -237,7 +237,7 @@ def download_report_file(filename: str, output_dir: str, kind: str, storage: Rep
     if content_storage is None:
         return missing_report_response(kind)
     reading_notice_context = None
-    if kind == "html":
+    if kind in {"html", "md"}:
         reading_notice_context = report_quality_notice_context(filename, output_dir, content_storage, repository)
     return download_report_response(
         filename,

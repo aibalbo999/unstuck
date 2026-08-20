@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-21
+- D3659：live 3324 v4 的 HTML 已顯示 current quality warning，但 `/download/md` 的「品質 gate 狀態」仍是 persisted「已通過已知檢查」；這讓 HTML、Markdown 兩個人工閱讀入口產生不同品質語意。現在 HTML/Markdown download 共用 current quality notice context，Markdown 只在 response time 替換閱讀提示，data download、實體 Markdown、HTML、snapshot、index、review、rerun、repair 與 queue 不回寫。
+- D3659 驗證：先以 Markdown storage regression 重現漂移再 GREEN，storage `48 passed`；current Markdown response 顯示品質警示，原始 Markdown 與 data snapshot 保持 persisted 值。
 - D3658：D3657 已修正完整 HTML 頂部閱讀提示，但同一份 HTML 的 execution summary 仍可能保留 persisted `approved/passed`，造成頁面內部與頂部提示互相矛盾。現在 response-time view repair 會在已有 current quality projection 時同步更新 `Evidence gate`、`Content credibility`、`Report conformance` 三個摘要欄位與 aria label，保留 `Final audit`、`Report lint` 等未投影欄位的 persisted 值；不回寫 HTML、Markdown、data snapshot、index、review、rerun、repair 或 queue。
 - D3658 驗證：storage regression 先重現 execution summary drift 再 GREEN `1 passed`，整組 storage `47 passed`；live 3324 v4 頂部提示為 warning，execution summary 為 `caution/warning/warning`，`/download/data` 仍保留 `passed/passed/approved`，health/readiness/doctor canonical paths 通過。
 - D3657：live `3324_TWO_v4_report_20260820_211303.html` 的 history row 已顯示 current `warning`，但直接開啟 `/api/report/{filename}` 的 persisted HTML 閱讀提示仍是「已通過已知檢查」；這是列表 projection 與完整報告入口的品質語意漂移。新增 view-time quality notice lookup：以 report index current row 的 `report_conformance`、`evidence_exit_gate`、`content_credibility` overlay 到瀏覽/HTML download 的閱讀提示，不改寫 HTML、Markdown、data snapshot、index、review、rerun、repair 或 queue；snapshot integrity invalid 仍優先阻擋。

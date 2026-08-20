@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3659 / align Markdown download with current quality projection
+
+- `#差距分析` / `#媒介`：HTML 與報告列表已顯示 current quality warning，但 Markdown download 仍輸出 artifact 內的「已通過已知檢查」；操作員若以 Markdown 進行離線核對會得到相反判讀。
+- `#最小變更` / `#責任`：HTML/Markdown 共同查詢 `report_quality_notice_context`，Markdown 只替換 response-time reading notice；data download 不取得 projection，實體檔案與 snapshot 維持原值。
+- `#可驗證性` / `#來源品質`：Markdown regression 先 RED 再 GREEN；storage suite `48 passed`，驗證 response warning、raw Markdown unchanged、raw data unchanged。
+
 ## D3658 / align execution summary with current quality gate projection
 
 - `#差距分析` / `#一致性`：D3657 讓完整 HTML 頂部閱讀提示使用 current gate，但頁面下方 execution summary 仍顯示 artifact 內的 `approved/passed`；同一個報告入口因此同時傳達兩套品質結果。

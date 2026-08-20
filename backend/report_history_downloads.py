@@ -74,9 +74,12 @@ def download_report_response(
         item = load_storage_item(storage, filename, kind="md")
         if item is None:
             return missing_report_response("md")
+        context = reading_notice_context
+        if context is None:
+            context = invalid_snapshot_notice_context(storage, filename)
         markdown = repair_report_markdown_for_download(
             item.content.decode("utf-8"),
-            reading_notice_context=invalid_snapshot_notice_context(storage, filename),
+            reading_notice_context=context,
         )
         return Response(
             content=markdown.encode("utf-8"),

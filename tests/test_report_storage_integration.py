@@ -416,6 +416,65 @@ def test_get_report_file_projects_current_quality_notice_without_rewriting_stora
     assert json.loads(storage.get_report(data_snapshot_filename_for_report(filename)).content) == snapshot
 
 
+def test_download_markdown_projects_current_quality_notice_without_rewriting_storage():
+    storage = InMemoryStorage()
+    filename = "3324_TWO_v4_report_20260820_211303.html"
+    markdown = """# 3324 report
+
+## 報告使用範圍與判讀限制
+
+- **品質 gate 狀態:** 已通過已知檢查
+- **資料可信度:** 資料新鮮（fresh）
+
+## 報告摘要
+
+persisted markdown body
+"""
+    storage.save_report(
+        filename[:-5] + ".md",
+        markdown.encode("utf-8"),
+        content_type="text/markdown",
+    )
+    snapshot = {
+        "ticker": "3324.TWO",
+        "data_trust": {"status": "fresh"},
+        "evidence_exit_gate": {"verdict": "approved"},
+        "content_credibility": {"status": "passed"},
+        "report_conformance": {"status": "passed"},
+    }
+    data_filename = data_snapshot_filename_for_report(filename)
+    storage.save_report(
+        data_filename,
+        json.dumps(snapshot, ensure_ascii=False).encode("utf-8"),
+        content_type="application/json",
+    )
+
+    class CurrentQualityRepository:
+        def query(self, query):
+            return ([{
+                "filename": filename,
+                "evidence_exit_gate": {"verdict": "caution"},
+                "content_credibility": {"status": "warning"},
+                "report_conformance": {"status": "warning"},
+            }], 1)
+
+    response = download_report_file(
+        filename,
+        "/missing-output-dir",
+        "md",
+        storage=storage,
+        repository=CurrentQualityRepository(),
+    )
+    body = response.body.decode("utf-8")
+
+    assert response.status_code == 200
+    assert "品質 gate 有警示" in body
+    assert "已通過已知檢查" not in body
+    assert "persisted markdown body" in body
+    assert storage.get_report(filename[:-5] + ".md").content.decode("utf-8") == markdown
+    assert json.loads(storage.get_report(data_filename).content) == snapshot
+
+
 def test_report_history_download_helper_builds_secure_html_response():
     response = secure_html_response("<h1>safe</h1>", status_code=202, headers={"X-Report": "ok"})
 
