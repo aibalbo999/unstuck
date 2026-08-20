@@ -3135,6 +3135,12 @@ def test_data_snapshot_build_uses_dict_native_context_and_data_reads():
                 "report_lint": {"status": "passed"},
                 "content_credibility": {"status": "passed"},
                 "report_conformance": {"status": "passed"},
+                "final_audit": {
+                    "status": "needs_attention",
+                    "critical": ["缺少 Agent 輸出：7"],
+                    "warnings": [],
+                    "corrections": [],
+                },
                 "data": BrokenGetDict(
                     {
                         "data_schema_version": DATA_SCHEMA_VERSION,
@@ -3171,6 +3177,12 @@ def test_data_snapshot_build_uses_dict_native_context_and_data_reads():
     assert snapshot["report_lint"] == {"status": "passed"}
     assert snapshot["content_credibility"] == {"status": "passed"}
     assert snapshot["report_conformance"] == {"status": "passed"}
+    assert snapshot["final_audit"] == {
+        "status": "needs_attention",
+        "critical": ["缺少 Agent 輸出：7"],
+        "warnings": [],
+        "corrections": [],
+    }
     assert snapshot["rerun_context"]["analyses"] == {"16": "final recommendation"}
     assert snapshot["rerun_context"]["pipeline_label"] == "完整分析"
     assert snapshot["data_confidence_score"] == 90

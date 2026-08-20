@@ -91,6 +91,7 @@ async def refresh_report_data_snapshot(
         "evidence_exit_gate": previous_snapshot.get("evidence_exit_gate", {}),
         "content_credibility": previous_snapshot.get("content_credibility", {}),
         "report_conformance": previous_snapshot.get("report_conformance", {}),
+        "final_audit": previous_snapshot.get("final_audit", {}),
         "refreshed_from_report": filename,
         "refresh_stale_sources": stale_sources,
     }

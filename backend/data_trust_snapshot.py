@@ -146,6 +146,7 @@ def build_data_snapshot(
         "evidence_exit_gate": sanitize_for_snapshot(dict.get(context, "evidence_exit_gate", {})),
         "content_credibility": sanitize_for_snapshot(dict.get(context, "content_credibility", {})),
         "report_conformance": sanitize_for_snapshot(dict.get(context, "report_conformance", {})),
+        "final_audit": sanitize_for_snapshot(dict.get(context, "final_audit", {})),
         "rerun_context": sanitize_rerun_context(context),
         "data": sanitize_for_snapshot(data),
     }

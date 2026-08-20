@@ -541,6 +541,7 @@ def test_report_refresh_accepts_mapping_safe_refreshed_data_payload(tmp_path):
         "evidence_exit_gate": {"verdict": "approved", "failed_count": 0},
         "content_credibility": {"status": "passed", "warnings": []},
         "report_conformance": {"status": "passed", "blocking_issues": []},
+        "final_audit": {"status": "passed", "critical": [], "warnings": [], "corrections": []},
     }
     storage.save_report(
         keys.data_key,
@@ -596,3 +597,4 @@ def test_report_refresh_accepts_mapping_safe_refreshed_data_payload(tmp_path):
     assert saved_snapshot["evidence_exit_gate"] == previous_snapshot["evidence_exit_gate"]
     assert saved_snapshot["content_credibility"] == previous_snapshot["content_credibility"]
     assert saved_snapshot["report_conformance"] == previous_snapshot["report_conformance"]
+    assert saved_snapshot["final_audit"] == previous_snapshot["final_audit"]

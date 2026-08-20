@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3595 / final-audit snapshot persistence
+
+- `#證據基礎` / `#系統圖像`：D3594 的 live evidence 顯示歷史 projection 可從 conformance 對齊，但新 renderer 的 data snapshot 仍沒有 raw `final_audit`，refresh service 也沒有明確帶回欄位，下一次刷新可能失去 audit trace。
+- `#責任` / `#限制條件`：snapshot 只新增 sanitized optional `final_audit`，不把它列入 legacy required keys；refresh 只沿用既有 audit，不重跑、不改 provider、不回寫 index/review/queue，也不回填既有舊檔案。
+- `#可驗證性` / `#偏誤降低`：renderer/snapshot/refresh RED `3 failed` 後 GREEN `3 passed`；data-trust/refresh `194 passed`、content/quality/repair `88 passed`、snapshot integrity smoke `true`，正式 runtime health/readiness 與 daily/historical scope 均通過。舊 snapshot 仍由 D3594 projection 覆蓋語意落差。
+
 ## D3594 / historical final-audit reconciliation
 
 - `#偏誤辨識` / `#來源品質`：D3593 只修正新 renderer；live `1216` 份既有 snapshot 沒有 raw `final_audit`，但 `report_conformance` 已保留 final-audit step，造成 `21` 筆 `passed credibility` 與 warning/blocked final audit 的語意矛盾。

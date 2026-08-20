@@ -373,6 +373,7 @@ def test_report_renderer_attaches_content_credibility_to_snapshot_and_metadata(m
 
     assert bundle.metadata["content_credibility"]["status"] == "blocked"
     assert bundle.data_snapshot["content_credibility"]["status"] == "blocked"
+    assert bundle.data_snapshot["final_audit"]["status"] == "passed"
     assert "Content credibility：blocked" in bundle.html
     assert "**Content credibility:** blocked" in bundle.markdown
 

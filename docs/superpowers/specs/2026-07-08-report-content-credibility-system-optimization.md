@@ -148,6 +148,7 @@
 - `backend/reporting/renderer.py`：在 evidence gate 後、conformance 前計算 `content_credibility`，並放入 context、snapshot、metadata。
 - `backend/reporting/content_credibility_final_audit.py`：將 final audit 的未解決 critical/warning 轉成可追蹤的內容可信度 check；若歷史 snapshot 沒有 raw `final_audit`，可讀取同一 snapshot 的 conformance final-audit step 做 reconciliation；不重複寫入 audit 或修改 repair side effect。
 - `backend/report_index_rows.py`、`backend/report_quality_audit.py`：歷史/API projection 不得讓已記錄的 `content_credibility=passed` 覆蓋同一 snapshot 已記錄的 final-audit warning/blocked evidence；只在讀取結果合併可追蹤 issue，不回寫 artifact/index。
+- `backend/data_trust_snapshot.py`、`backend/report_refresh_service.py`：snapshot 保存 sanitized `final_audit` trace，資料快照刷新沿用既有 audit；欄位為 optional，不改 legacy required keys 或 integrity/coverage 分母。
 - `backend/reporting/conformance.py`：decision tree 新增 `content_credibility` step；blocked 時整份報告 blocked。
 - `backend/reporting/execution_summary.py`：可在摘要中顯示 `Content credibility` 狀態；若怕 golden snapshot 震盪，可第二步再做。
 
@@ -188,6 +189,7 @@ $(scripts/project_python.sh) -m pytest \
 6. 聚焦測試通過；不得宣稱投資結果正確，只能宣稱已知內容可信度契約未回退。
 7. final audit critical、warning 與 corrections 的分級行為有獨立回歸測試，且不改動 provider、artifact/index 或 review side effect。
 8. 舊 snapshot 的 conformance final-audit warning/blocked 不會在 API 或 quality audit projection 中被已記錄的 `content_credibility=passed` 隱藏；缺少 content metadata 仍保留原本的 coverage 缺口語意。
+9. 新 renderer 的 snapshot 會保存 sanitized `final_audit`，只刷新資料時仍保留相同 audit；legacy snapshot 沒有此欄位時仍可正常讀取，且不改 provider、artifact/index、review ledger、rerun 或 queue side effect。
 
 ## 下一步
 
