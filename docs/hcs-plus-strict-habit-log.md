@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3594 / historical final-audit reconciliation
+
+- `#偏誤辨識` / `#來源品質`：D3593 只修正新 renderer；live `1216` 份既有 snapshot 沒有 raw `final_audit`，但 `report_conformance` 已保留 final-audit step，造成 `21` 筆 `passed credibility` 與 warning/blocked final audit 的語意矛盾。
+- `#責任` / `#語意含義`：新增共享 projection，只有在已記錄的 `content_credibility` 與同一 snapshot 的 conformance final-audit evidence 矛盾時升級讀取結果；缺少 content metadata 仍維持缺口，不把 artifact 摘要或 conformance step 回寫成新 gate payload。
+- `#可驗證性` / `#偏誤降低`：RED `2 failed` 後 GREEN `38 passed`、相鄰 `240 passed`；local `1216` rows 的 passed/non-passed mismatch 為 `0`，API `/api/reports` 可見 `warning/final_audit_warning`，daily/historical scope、runtime health/readiness 通過。raw final-audit persistence 未在本批擴張，列為後續獨立決策。
+
 ## D3593 / final-audit credibility alignment
 
 - `#證據基礎` / `#差距分析`：規格把 `final_audit` 列為內容可信度輸入，但現行 evaluator 只讀 parsed target、data trust、evidence gate 與 matrix；live 舊報告也顯示 final audit 可能有重大矛盾，因此不能只依 conformance 另一個 step 代替內容可信度 trace。

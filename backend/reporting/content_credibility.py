@@ -11,7 +11,7 @@ from .content_credibility_alignment import evaluate_recommendation_target_alignm
 from .content_credibility_data_confidence import evaluate_data_confidence_target_guardrail
 from .content_credibility_evidence_confidence import evaluate_confidence_evidence_alignment
 from .content_credibility_evidence_matrix import evaluate_evidence_matrix_coverage
-from .content_credibility_final_audit import evaluate_final_audit_alignment
+from .content_credibility_final_audit import evaluate_final_audit_alignment, final_audit_from_conformance
 from .content_credibility_trade_setup import evaluate_trade_setup_alignment
 from .content_credibility_inputs import (
     confidence_score as recommendation_confidence_score,
@@ -45,7 +45,7 @@ def evaluate_content_credibility(context: dict, snapshot: dict | None = None, ma
     evidence_gate = _evidence_exit_gate(context, snapshot)
     evidence_verdict = safe_text(evidence_gate.get("verdict")).strip() or "not_recorded"
     confidence_score = recommendation_confidence_score(recommendation)
-    final_audit = _as_dict(context.get("final_audit")) or _as_dict(snapshot.get("final_audit"))
+    final_audit = _as_dict(context.get("final_audit")) or _as_dict(snapshot.get("final_audit")) or final_audit_from_conformance(snapshot.get("report_conformance"))
 
     blocking: list[dict] = []
     warnings: list[dict] = []

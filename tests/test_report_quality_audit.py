@@ -515,6 +515,42 @@ def test_indexed_report_quality_audit_isolates_one_snapshot_load_failure(monkeyp
     assert payload["quality_metadata_complete_reports"] == 1
 
 
+def test_indexed_quality_projection_does_not_keep_passed_credibility_when_final_audit_is_blocked(monkeypatch):
+    import report_quality_audit as audit
+
+    snapshot = {
+        "snapshot_hash": "hash",
+        "pipeline": "v1",
+        "report_conformance": {
+            "decision_tree": [
+                {
+                    "id": "final_audit",
+                    "status": "blocked",
+                    "message": "最終稽核存在 critical 問題。",
+                    "details": ["缺少 Agent 輸出：7"],
+                }
+            ]
+        },
+        "content_credibility": {"status": "passed", "blocking_issues": [], "warnings": [], "checks": []},
+    }
+    monkeypatch.setattr(
+        audit,
+        "load_storage_item",
+        lambda *_args, **_kwargs: SimpleNamespace(content=json.dumps(snapshot)),
+    )
+
+    report = audit._report_from_index_row(
+        {"filename": "stale.html", "ticker": "2330.TW", "pipeline_id": "v1"},
+        object(),
+    )
+
+    assert report["content_credibility"]["status"] == "blocked"
+    assert any(
+        issue["id"] == "final_audit_critical"
+        for issue in report["content_credibility"]["blocking_issues"]
+    )
+
+
 def test_indexed_report_quality_audit_exposes_snapshot_refresh_provenance(monkeypatch, tmp_path):
     import report_quality_audit as audit
 

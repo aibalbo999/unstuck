@@ -20,6 +20,7 @@ from report_preview import build_report_preview, extract_trade_setup
 from report_quality_evidence import read_artifact_quality_summary
 from report_quality_metadata_repair import quality_metadata_repair_item
 from reporting.content_credibility import evaluate_content_credibility
+from reporting.content_credibility_final_audit import align_content_credibility_with_final_audit
 
 
 def _row_file_path(row, *, kind: str) -> str:
@@ -156,6 +157,13 @@ def _content_credibility(row, *, pipeline_id: str, markdown_text: str, snapshot:
     snapshot = snapshot if isinstance(snapshot, dict) else _read_snapshot(row)
     credibility = snapshot.get("content_credibility") if isinstance(snapshot, dict) else {}
     credibility = credibility if isinstance(credibility, dict) else {}
+    final_audit_or_conformance = {}
+    if isinstance(snapshot, dict):
+        final_audit_or_conformance = snapshot.get("final_audit") or snapshot.get("report_conformance", {})
+    credibility = align_content_credibility_with_final_audit(
+        credibility,
+        final_audit_or_conformance,
+    )
     if pipeline_id != "v4":
         return credibility
 

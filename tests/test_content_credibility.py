@@ -154,6 +154,70 @@ def test_content_credibility_does_not_escalate_final_audit_corrections_alone():
     assert not any(issue["id"].startswith("final_audit_") for issue in result["blocking_issues"] + result["warnings"])
 
 
+def test_content_credibility_reconciles_final_audit_from_stored_conformance():
+    from reporting.content_credibility import evaluate_content_credibility
+
+    context = _base_context(recommendation="持有", target_12m="NT$105", confidence="6/10")
+    context.pop("final_audit")
+    snapshot = _base_snapshot(context)
+    snapshot["report_conformance"] = {
+        "decision_tree": [
+            {
+                "id": "final_audit",
+                "status": "blocked",
+                "message": "最終稽核存在 critical 問題。",
+                "details": ["缺少 Agent 輸出：7"],
+            }
+        ]
+    }
+
+    result = evaluate_content_credibility(context, snapshot)
+
+    assert result["status"] == "blocked"
+    issue = next(issue for issue in result["blocking_issues"] if issue["id"] == "final_audit_critical")
+    assert issue["details"]["critical"] == ["缺少 Agent 輸出：7"]
+
+
+def test_content_credibility_reconciles_final_audit_warning_from_stored_conformance():
+    from reporting.content_credibility import evaluate_content_credibility
+
+    context = _base_context(recommendation="持有", target_12m="NT$105", confidence="6/10")
+    context.pop("final_audit")
+    snapshot = _base_snapshot(context)
+    snapshot["report_conformance"] = {
+        "decision_tree": [
+            {
+                "id": "final_audit",
+                "status": "warning",
+                "message": "最終稽核有警示需揭露。",
+                "details": ["高信心需揭露資料限制"],
+            }
+        ]
+    }
+
+    result = evaluate_content_credibility(context, snapshot)
+
+    assert result["status"] == "warning"
+    issue = next(issue for issue in result["warnings"] if issue["id"] == "final_audit_warning")
+    assert issue["details"]["warnings"] == ["高信心需揭露資料限制"]
+
+
+def test_content_credibility_keeps_passed_when_stored_conformance_final_audit_passes():
+    from reporting.content_credibility import evaluate_content_credibility
+
+    context = _base_context(recommendation="持有", target_12m="NT$105", confidence="6/10")
+    context.pop("final_audit")
+    snapshot = _base_snapshot(context)
+    snapshot["report_conformance"] = {
+        "decision_tree": [{"id": "final_audit", "status": "passed", "message": "最終稽核通過。"}]
+    }
+
+    result = evaluate_content_credibility(context, snapshot)
+
+    assert result["status"] == "passed"
+    assert not any(issue["id"].startswith("final_audit_") for issue in result["blocking_issues"] + result["warnings"])
+
+
 def test_content_credibility_warns_when_final_recommendation_lacks_evidence_matrix_coverage():
     from reporting.content_credibility import evaluate_content_credibility
 

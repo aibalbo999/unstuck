@@ -16,6 +16,7 @@ from report_history_storage import load_storage_item, storage_for_existing_outpu
 from report_index import query_report_metadata
 from report_quality_repair_items import quality_metadata_repair_item
 from report_quality_evidence import read_artifact_quality_summary
+from reporting.content_credibility_final_audit import align_content_credibility_with_final_audit
 from report_quality_audit_payload import (
     ARTIFACT_QUALITY_SUMMARY_STATUSES,
     QUALITY_METADATA_FIELDS,
@@ -237,7 +238,10 @@ def _report_from_index_row(row: dict[str, Any], storage: Any) -> dict[str, Any]:
         "snapshot_refreshed_at": safe_text(snapshot.get("snapshot_refreshed_at")).strip(),
         "report_conformance": snapshot.get("report_conformance", {}),
         "evidence_exit_gate": snapshot.get("evidence_exit_gate", {}),
-        "content_credibility": snapshot.get("content_credibility", {}),
+        "content_credibility": align_content_credibility_with_final_audit(
+            snapshot.get("content_credibility", {}),
+            snapshot.get("final_audit") or snapshot.get("report_conformance", {}),
+        ),
     }
 
 
