@@ -164,9 +164,11 @@ def test_report_quality_audit_counts_verified_reports_with_missing_quality_metad
                     "refreshed_from_report": "",
                     "snapshot_refreshed_at": "",
                     "recommended_action": "manual_review",
-                "priority_score": 820,
-                "blocks_auto_rerun": True,
-            }
+                    "severity": "blocked",
+                    "action_label": "人工審核",
+                    "priority_score": 820,
+                    "blocks_auto_rerun": True,
+                }
         ],
     }
 

@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-21
+- D3644：live daily dashboard 的品質稽核 action 有 `priority_score=820`、`blocks_auto_rerun=true`，但進入 `decision_queue.items` 後 `severity` 與 `action_label` 變成 `null`；根因是 `report_quality_audit_payload._audit_item()` 在 audit 明細邊界丟掉 repair item 的操作 metadata。現在 audit envelope 保留 `severity=blocked`、`action_label=人工審核`，queue 可直接消費，不需解析 detail 文字；不改優先級、排序、review、rerun、artifact、index 或 queue mutation。
+- D3644 驗證：先以 live-shaped audit payload 取得 RED，再 GREEN；report-quality audit、daily queue、dashboard focused `3 passed`，文件/API/架構契約同步更新；runtime reload 與 live daily response 核對待本輪收斂後封存。
 - D3643：live `2308.TW v4` 的目標摘要是「1-2週目標價看近期高點壓力位1950.0 TWD」，但 `content_credibility.trade_setup_alignment` 曾把期間範圍開頭的 `1` 誤當成目標價，造成錯誤的 passed 檢查。`content_credibility_inputs.first_price()` 現在先移除「1-2週」這類數字期間範圍，再交給既有價格 parser，保留真正的 `1950.0`。
 - D3643 驗證：先以 `first_price()` 與 trade-setup live-shaped fixture 取得 RED，再 GREEN；content credibility、projection、target detection 相關回歸 `1765 passed`。runtime reload 後真實 `2308.TW v4` 的 `trade_setup_alignment.details.target_price=1950.0`，`/healthz=ok`、`/readyz=ready`；未回寫 snapshot、artifact、index、review、rerun 或 queue。
 - D3642：live `/api/reports` 的 `165` 份最新報告中，`144` 份的 `confidence_data_trust_calibration` check 外層標成 `passed`，但內層 calibration 明確是 `status=unavailable`、`raw_confidence=N/A`；這會把「無法完成校準」誤讀成「校準通過」。現在 unavailable 分支輸出同樣的 `status=unavailable` 與精確訊息，且 current projection 對同一 check id 優先於舊 persisted check，避免 API 同時列出相反狀態；不新增 warning/blocker、不改 confidence cap 或整體 content-credibility policy。

@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3644 / preserve quality-audit action semantics across queue boundaries
+
+- `#差距分析` / `#責任`：live 品質稽核 action 的優先級與阻斷旗標仍在，但 audit item 到 daily queue 的 payload 邊界遺失 `severity`、`action_label`；直接消費 queue 的人只能從 detail 猜「阻斷／人工審核」。
+- `#溝通設計` / `#偏誤降低`：讓 `report_quality_audit.items[]` 直接保留 repair item 的 `severity=blocked` 與 `action_label=人工審核`，與既有 `operator_action` 導覽 metadata 並存；不把 artifact marker、detail 文案或 priority 推論成 gate 結果。
+- `#可驗證性` / `#最小變更`：先取得 RED，再 GREEN `3 passed`；只修正 read-only payload shaping，未改 queue 排序、review、rerun、artifact、index 或 persisted quality state。
+
 ## D3643 / prevent period ranges from becoming trade prices
 
 - `#差距分析` / `#來源品質`：live `2308.TW v4` 的「1-2週目標價」被 `first_price()` 讀成 `1.0`，讓 trade-setup credibility check 看似 passed 卻檢查了錯誤目標。這是內容可信度的語意錯位，不是文案格式問題。

@@ -194,6 +194,8 @@ def _audit_item(report: dict[str, Any], item: dict[str, Any]) -> dict[str, Any]:
         "refreshed_from_report": safe_text(report.get("refreshed_from_report")).strip(),
         "snapshot_refreshed_at": safe_text(report.get("snapshot_refreshed_at")).strip(),
         "recommended_action": safe_text(item.get("recommended_action")).strip(),
+        "severity": safe_text(item.get("severity")).strip(),
+        "action_label": safe_text(item.get("action_label")).strip(),
         "priority_score": safe_int(item.get("priority_score"), default=0),
         "blocks_auto_rerun": bool(item.get("blocks_auto_rerun")),
     }

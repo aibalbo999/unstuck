@@ -19,11 +19,12 @@ def operator_action_context(action: Mapping[str, Any]) -> dict[str, str]:
     action_type = _action_type(action)
     source = source_key(_field(action, "source"))
     default_action, default_label = _default_operator_action(action, source, action_type)
+    explicit_operator_label = _first_text(action, "operator_action_label", "operatorActionLabel")
+    if not explicit_operator_label and not _quality_audit_action_with_filename(source, action_type, action):
+        explicit_operator_label = _first_text(action, "action_label")
     return {
         "operator_action": _first_text(action, "operator_action", "operatorAction") or default_action,
-        "operator_action_label": _first_text(
-            action, "operator_action_label", "operatorActionLabel", "action_label"
-        ) or default_label,
+        "operator_action_label": explicit_operator_label or default_label,
     }
 
 
@@ -66,6 +67,14 @@ def _source_type_default_allowed(action: Mapping[str, Any], source: str, action_
         source == "report_quality_audit"
         and action_type == "manual_review"
         and not _first_text(action, "filename", "report_filename")
+    )
+
+
+def _quality_audit_action_with_filename(source: str, action_type: str, action: Mapping[str, Any]) -> bool:
+    return (
+        source == "report_quality_audit"
+        and action_type == "manual_review"
+        and bool(_first_text(action, "filename", "report_filename"))
     )
 
 

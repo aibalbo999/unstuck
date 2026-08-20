@@ -685,6 +685,8 @@ def test_daily_decision_queue_surfaces_complete_quality_audit_gaps_without_dupli
                 "detail": "完整稽核明細需要人工確認。",
                 "recommended_action": "manual_review",
                 "priority_score": 820,
+                "severity": "blocked",
+                "action_label": "人工審核",
                 "blocks_auto_rerun": True,
             },
         ],
@@ -698,6 +700,8 @@ def test_daily_decision_queue_surfaces_complete_quality_audit_gaps_without_dupli
     assert queue["summary"]["sources"] == {"report_repair": 1, "report_quality_audit": 1}
     assert queue["items"][0]["source"] == "report_quality_audit"
     assert queue["items"][0]["filename"] == "1623_gap.html"
+    assert queue["items"][0]["severity"] == "blocked"
+    assert queue["items"][0]["action_label"] == "人工審核"
     assert queue["items"][0]["blocks_auto_rerun"] is True
     assert queue["items"][0]["operator_action"] == "quality-audit-review"
     assert queue["items"][0]["operator_action_label"] == "前往人工核對"
