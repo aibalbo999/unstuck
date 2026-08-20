@@ -26,6 +26,7 @@ from report_quality_metadata_repair import (
 from reporting.content_credibility import evaluate_content_credibility
 from reporting.content_credibility_final_audit import align_content_credibility_with_final_audit
 from reporting.content_credibility_projection import merge_content_credibility_results, project_content_credibility
+from reporting.evidence_exit_gate_projection import evidence_exit_gate_projection_metadata, project_evidence_exit_gate
 
 
 def _row_file_path(row, *, kind: str) -> str:
@@ -274,6 +275,8 @@ def row_to_report(row) -> dict:
 
     pipeline_id = row["pipeline_id"] or "v1"
     markdown_text = _markdown_text(row)
+    stored_evidence_exit_gate = _evidence_exit_gate(row, snapshot=snapshot)
+    projected_evidence_exit_gate = project_evidence_exit_gate(snapshot, markdown_text)
     stored_content_credibility = snapshot.get("content_credibility") if isinstance(snapshot.get("content_credibility"), dict) else {}
     stored_content_credibility = align_content_credibility_with_final_audit(
         stored_content_credibility,
@@ -302,7 +305,7 @@ def row_to_report(row) -> dict:
         "decision_tracking": decision_tracking,
         "decision_freshness": decision_freshness,
         "temporal_memory": _temporal_memory(row, snapshot=snapshot),
-        "evidence_exit_gate": _evidence_exit_gate(row, snapshot=snapshot),
+        "evidence_exit_gate": projected_evidence_exit_gate or stored_evidence_exit_gate,
         "report_conformance": _report_conformance(row, snapshot=snapshot),
         "content_credibility": _content_credibility(
             row,
@@ -331,9 +334,13 @@ def row_to_report(row) -> dict:
             "source": "snapshot.rerun_context",
             "persisted_status": str(stored_content_credibility.get("status") or "").strip().lower(),
         }
+    if projected_evidence_exit_gate is not None:
+        report["evidence_exit_gate_projection"] = evidence_exit_gate_projection_metadata(
+            projected_evidence_exit_gate, stored_evidence_exit_gate
+        )
     report["refreshed_from_report"] = _snapshot_text(row, "refreshed_from_report", snapshot=snapshot)
     report["snapshot_refreshed_at"] = _snapshot_text(row, "snapshot_refreshed_at", snapshot=snapshot)
-    report.update(_quality_evidence(row, report))
+    report.update(_quality_evidence(row, {**report, "evidence_exit_gate": stored_evidence_exit_gate}))
     if not report.get("missing_quality_fields"):
         report.pop("refreshed_from_report", None)
         report.pop("snapshot_refreshed_at", None)

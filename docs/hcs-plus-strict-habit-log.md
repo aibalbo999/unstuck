@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3652 / project current evidence without rewriting history
+
+- `#差距分析` / `#責任`：D3651 的程式規則已正確，但既有 `/api/reports` 仍直接顯示 persisted 舊 evidence gate；若只看 API，操作員會看不到 current parser 對舊 artifact 的修正。
+- `#可驗證性` / `#偏誤降低`：新增 read-only evidence projection，row primary gate 使用 current markdown + snapshot evaluation，`evidence_exit_gate_projection` 明示 current/persisted 差異；download data、snapshot hash、artifact、review、rerun、repair、queue 不變。
+- `#語意含義` / `#最小變更`：`missing_quality_fields` 與 indexed quality audit 仍以 persisted gate 計算，避免把 projection 當成 metadata 已補齊；RED→GREEN projection/e2e、preview/quality/audit、import/docs/HCS 回歸通過。
+
 ## D3651 / keep provider, field, and scenario semantics separate
 
 - `#拆解問題` / `#偏誤辨識`：165 份 latest-per-ticker/pipeline 重掃顯示，FactSet/券商參考值、Forward PE、派生 EPS growth、情境表價格與 ticker identifier 仍可能共享同一個 broad label matcher；structured target 字串也同時包含 canonical target 與「52 週／突破位」敘述。

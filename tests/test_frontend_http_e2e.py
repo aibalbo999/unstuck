@@ -302,8 +302,46 @@ def test_report_history_exposes_evidence_exit_gate_for_operator_actions(tmp_path
     report = response.json()["reports"][0]
     assert report["filename"] == filename
     assert report["data_trust"]["status"] == "fresh"
-    assert report["evidence_exit_gate"]["verdict"] == "rejected"
-    assert report["evidence_exit_gate"]["failed_count"] == 2
+    assert report["evidence_exit_gate"]["verdict"] == "caution"
+    assert report["evidence_exit_gate_projection"] == {
+        "status": "projected",
+        "source": "markdown+snapshot.current_rules",
+        "persisted_verdict": "rejected",
+    }
+    persisted = client.get(f"/api/report/{filename}/download/data").json()
+    assert persisted["evidence_exit_gate"]["verdict"] == "rejected"
+    assert persisted["evidence_exit_gate"]["failed_count"] == 2
+
+
+def test_report_history_projects_current_evidence_without_rewriting_snapshot(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.sqlite3"))
+    filename = "2449_v2_report_20260606_035000.html"
+    _write_report_pair(tmp_path, filename)
+    markdown_path = tmp_path / filename.replace(".html", ".md")
+    markdown_path.write_text("- 信心: 0.85\n", encoding="utf-8")
+    _write_snapshot(
+        tmp_path,
+        filename,
+        "fresh",
+        evidence_exit_gate={"verdict": "approved", "failed_count": 0, "sampled_count": 1},
+    )
+    snapshot_path = tmp_path / filename.replace(".html", ".data.json")
+    snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    snapshot["data"]["dupont_identity_note"] = 0.891
+    snapshot_path.write_text(json.dumps(snapshot, ensure_ascii=False), encoding="utf-8")
+    report_index.upsert_report_metadata(filename, output_dir=str(tmp_path))
+
+    client = TestClient(api.app)
+    response = client.get("/api/reports", params={"limit": 20})
+
+    assert response.status_code == 200
+    report = response.json()["reports"][0]
+    assert report["evidence_exit_gate"]["verdict"] == "caution"
+    assert report["evidence_exit_gate"]["unverifiable_count"] == 1
+    assert report["evidence_exit_gate_projection"]["status"] == "projected"
+    persisted = client.get(f"/api/report/{filename}/download/data").json()
+    assert persisted["evidence_exit_gate"]["verdict"] == "approved"
 
 
 def test_report_history_exposes_report_conformance_for_operator_actions(tmp_path, monkeypatch):

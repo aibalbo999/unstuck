@@ -213,6 +213,8 @@ Report evidence exit gate numeric checks use semantic snapshot paths only: ISO t
 
 Provider and field semantics are also part of the evidence boundary: FactSet/券商研究 references cannot be compared with generic DCF or another provider's values; Forward PE, EPS-derived growth, net margin, scenario/risk prices, and ticker identifiers use separate paths. A structured target string contributes only its canonical first value after removing a leading horizon such as `52 週`; later breakout/support references are not silently treated as the same field. A remaining `mismatch` therefore means a comparable canonical value differs and requires review, while absent provider/field evidence remains `unverifiable`.
 
+在報告列表/歷史 row 中，`evidence_exit_gate` 可能是 current read-only projection；請同時查看 `evidence_exit_gate_projection.persisted_verdict` 判斷原始 snapshot 的 gate。`/api/report/{filename}/download/data` 仍是原始 snapshot，projection 不代表資料已回寫，也不會改變品質稽核的 metadata coverage 或自動重跑判定。
+
 Report conformance quality gate issue lists use sequence-safe conversion before decision-tree evaluation, so tuple blocking or warning rows from lint, final audit, or content credibility gates cannot be ignored.
 
 Report conformance visible artifact and gate status text fields use safe text fallback before decision-tree evaluation, so malformed HTML, Markdown, template heading, lint, audit, evidence, content, or data-trust status values cannot interrupt report quality classification.
