@@ -79,6 +79,8 @@ def current_quality_notice_context(
         if value:
             context[key] = value
             projected = True
+    if projected:
+        context["_current_quality_projection"] = True
     return context if projected else None
 
 

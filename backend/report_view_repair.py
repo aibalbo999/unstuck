@@ -24,6 +24,11 @@ REPORT_READING_NOTICE_RE = re.compile(
     r'<section\b(?=[^>]*\breport-reading-notice\b)[\s\S]*?</section>',
     re.IGNORECASE,
 )
+EXECUTION_SUMMARY_ITEM_RE = re.compile(
+    r'<div class="execution-summary-item(?P<attrs>[^>]*)>\s*'
+    r'<span>(?P<label>[^<]*)</span>\s*<strong>[^<]*</strong>\s*</div>',
+    re.IGNORECASE,
+)
 MARKDOWN_READING_NOTICE_RE = re.compile(
     r"^## 報告使用範圍與判讀限制\s*\n[\s\S]*?(?=^## |\Z)",
     re.MULTILINE,
@@ -90,9 +95,46 @@ def repair_report_reading_notice(html: str, context: dict | None = None) -> str:
     return f"{notice}\n{html}"
 
 
+def repair_report_execution_summary_quality(html: str, context: dict | None = None) -> str:
+    """Overlay current quality gate values onto the view-only execution summary."""
+    if not isinstance(context, dict) or context.get("_current_quality_projection") is not True:
+        return html
+    evidence = context.get("evidence_exit_gate") if isinstance(context.get("evidence_exit_gate"), dict) else {}
+    content = context.get("content_credibility") if isinstance(context.get("content_credibility"), dict) else {}
+    conformance = context.get("report_conformance") if isinstance(context.get("report_conformance"), dict) else {}
+    values = {
+        "Evidence gate": str(evidence.get("verdict") or "").strip(),
+        "Content credibility": str(content.get("status") or "").strip(),
+        "Report conformance": str(conformance.get("status") or "").strip(),
+    }
+    if not any(values.values()):
+        return html
+
+    def replace(match: re.Match) -> str:
+        label = re.sub(r"\s+", " ", match.group("label") or "").strip()
+        value = values.get(label)
+        if not value:
+            return match.group(0)
+        attrs = match.group("attrs") or ""
+        aria = escape(f"{label}：{value}")
+        if re.search(r'\baria-label="[^"]*"', attrs, re.IGNORECASE):
+            attrs = re.sub(r'\baria-label="[^"]*"', f'aria-label="{aria}"', attrs, count=1, flags=re.IGNORECASE)
+        else:
+            attrs = f'{attrs} aria-label="{aria}"'
+        if "data-quality-source=" not in attrs:
+            attrs = f'{attrs} data-quality-source="current-projection"'
+        return (
+            f'<div class="execution-summary-item{attrs}>'
+            f'<span>{escape(label)}</span><strong>{escape(value)}</strong></div>'
+        )
+
+    return EXECUTION_SUMMARY_ITEM_RE.sub(replace, html)
+
+
 def repair_report_html_for_view(html: str, reading_notice_context: dict | None = None) -> str:
     repaired = normalize_ticker_autolinks(str(html or ""))
     repaired = repair_report_reading_notice(repaired, reading_notice_context)
+    repaired = repair_report_execution_summary_quality(repaired, reading_notice_context)
     return repair_sidebar_navigation(repaired)
 
 

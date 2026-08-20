@@ -356,6 +356,11 @@ def test_get_report_file_projects_current_quality_notice_without_rewriting_stora
         <section class="report-reading-notice report-reading-notice-passed">
             <span class="report-reading-notice-status">已通過已知檢查</span>
         </section>
+        <div class="execution-summary-card">
+            <div class="execution-summary-item" aria-label="Evidence gate：approved"><span>Evidence gate</span><strong>approved</strong></div>
+            <div class="execution-summary-item" aria-label="Content credibility：passed"><span>Content credibility</span><strong>passed</strong></div>
+            <div class="execution-summary-item" aria-label="Report conformance：passed"><span>Report conformance</span><strong>passed</strong></div>
+        </div>
         <p>persisted report body</p>
         </body></html>
         """.encode("utf-8"),
@@ -399,8 +404,15 @@ def test_get_report_file_projects_current_quality_notice_without_rewriting_stora
     assert "證據抽查</span><strong>需人工確認" in body
     assert "內容一致性</span><strong>有警示" in body
     assert "輸出契約</span><strong>有警示" in body
+    assert 'aria-label="Evidence gate：caution"' in body
+    assert "<span>Evidence gate</span><strong>caution</strong>" in body
+    assert 'aria-label="Content credibility：warning"' in body
+    assert "<span>Content credibility</span><strong>warning</strong>" in body
+    assert 'aria-label="Report conformance：warning"' in body
+    assert "<span>Report conformance</span><strong>warning</strong>" in body
     assert "report-reading-notice-passed" not in body
     assert "report-reading-notice-passed" in storage.get_report(filename).content.decode("utf-8")
+    assert 'aria-label="Evidence gate：approved"' in storage.get_report(filename).content.decode("utf-8")
     assert json.loads(storage.get_report(data_snapshot_filename_for_report(filename)).content) == snapshot
 
 

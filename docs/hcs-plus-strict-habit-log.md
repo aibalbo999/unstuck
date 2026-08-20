@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3658 / align execution summary with current quality gate projection
+
+- `#差距分析` / `#一致性`：D3657 讓完整 HTML 頂部閱讀提示使用 current gate，但頁面下方 execution summary 仍顯示 artifact 內的 `approved/passed`；同一個報告入口因此同時傳達兩套品質結果。
+- `#最小變更` / `#責任`：只在 response-time current projection context 存在時，覆蓋 Evidence gate、Content credibility、Report conformance 的可見值與 aria label，並加上 `data-quality-source=current-projection`；Final audit、Report lint 與原始資料仍保持 persisted，實體 artifact 不改寫。
+- `#可驗證性` / `#來源品質`：storage regression 先 RED 再 GREEN；`1 passed`、storage `47 passed`，live execution summary 與 `/download/data` 分別驗證 current view 與 persisted snapshot。
+
 ## D3657 / align full report HTML reading notice with current quality projection
 
 - `#差距分析` / `#受眾`：live history row 已把 3324 v4 的 current evidence/content 警示呈現出來，但操作人員點開完整 HTML 仍看到 persisted「已通過已知檢查」；列表與完整報告是同一個閱讀流程，不能讓入口各自使用不同品質狀態。
