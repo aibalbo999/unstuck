@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3620 / short-circuit target scanning for sufficient data confidence
+
+- `#差距分析` / `#偏誤辨識`：profile 顯示歷史 row 與 quality audit 每筆都做 target-price 遞迴與大型 regex 掃描，但這份資料只在 score 低於 `EXPLICIT_TARGET_PRICE_MIN_SCORE=60` 時參與 blocking；高信心報告因此付出不影響結果的成本。
+- `#責任` / `#效用`：先計算 data-confidence score，只有低信心分支才呼叫 `detect_explicit_target_price_fields()`；高信心的 passed/non-fresh warning 與低信心的 detected fields、阻斷細節完全保留，沒有把品質投影改成寫入或自動重跑。
+- `#可驗證性` / `#證據基礎`：新增 monkeypatch regression 先 RED 再 GREEN；focused data-confidence `5 passed`、content core `34 passed`、target detector `856 passed`、quality/audit/conformance `194 passed`、history/storage `167 passed`、import boundary `503 passed`、docs/HCS `136 passed`、frontend HTTP `6 passed`，compile/diff check 通過。canonical profile 顯示 history 100 rows `2.575s -> 1.292s`、indexed quality audit 165 rows `1.646s -> 0.479s`；runtime reload 後 health/readiness、port 與 doctor 通過，live daily `165/165/2/98.79%`、repair detail 保持具體 evidence warning，沒有 snapshot、artifact、index、review、rerun、repair 或 queue mutation。
+
 ## D3619 / preserve concrete warning detail in repair queue
 
 - `#差距分析` / `#偏誤辨識`：live 唯一 `action_required` 是 `2603.TW v4` 的 evidence caution；content credibility 已保存 `warnings[]`，但 repair item `_summary()` 只讀 `blocking_issues`、summary、message，操作員只能看到泛稱「內容可信度需確認」。

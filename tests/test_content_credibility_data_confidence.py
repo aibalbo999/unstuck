@@ -26,6 +26,23 @@ def test_data_confidence_guardrail_blocks_explicit_target_when_score_is_low():
     assert result["blocking_issues"][0]["details"]["data_confidence_score"] == 45.0
 
 
+def test_data_confidence_guardrail_skips_target_scan_when_score_is_sufficient(monkeypatch):
+    import reporting.content_credibility_data_confidence as guardrail
+
+    def fail_target_scan(_context):
+        raise AssertionError("target scan should not run for sufficient data confidence")
+
+    monkeypatch.setattr(guardrail, "detect_explicit_target_price_fields", fail_target_scan)
+
+    result = guardrail.evaluate_data_confidence_target_guardrail(
+        {"parsed": {"recommendation": {"12個月": "NT$120"}}},
+        {"status": "partial", "score": 80},
+    )
+
+    assert result["blocking_issues"] == []
+    assert result["warnings"][0]["id"] == "non_fresh_data_trust"
+
+
 def test_data_confidence_guardrail_warns_for_non_fresh_data_without_explicit_targets():
     context = {"parsed": {"recommendation": {"建議": "持有"}}}
     data_trust = {"status": "partial", "score": 80}

@@ -39,9 +39,14 @@ def evaluate_data_confidence_target_guardrail(context: dict, data_trust: dict) -
     blocking: list[dict] = []
     warnings: list[dict] = []
     checks: list[dict] = []
-    explicit_target_fields = detect_explicit_target_price_fields(context)
     score = data_confidence_score(data_trust)
     trust_status = _data_trust_status(data_trust.get("status"))
+    # Target scanning only affects the low-confidence blocking branch.
+    explicit_target_fields = (
+        detect_explicit_target_price_fields(context)
+        if score < EXPLICIT_TARGET_PRICE_MIN_SCORE
+        else []
+    )
 
     if explicit_target_fields and score < EXPLICIT_TARGET_PRICE_MIN_SCORE:
         details = {
