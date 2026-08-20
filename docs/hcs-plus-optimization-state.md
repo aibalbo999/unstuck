@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-20
+- D3614：live 與 matrix builder 對照後發現 evidence coverage 只驗證 `最終投資建議`，即使 parsed context 已有 `price_targets` 或 `moat_scores`，估值／護城河 row 缺失或 failed 仍可顯示沒有 warning。現在依實際存在的 structured conclusion 條件式要求三種 claim，各自產生 `missing_*_evidence` 或 `unusable_*_evidence` warning；不補不存在的 mode-D 長線輸入，也不把 warning 升成 blocker。
+- D3614 驗證完成：估值缺 row 與護城河 failed row 先 RED，再 GREEN focused content `32 passed`、跨層 quality/document `496 passed`；live smoke 完整 rows 全 passed、缺估值產生 `missing_valuation_evidence`、failed moat 產生 `unusable_moat_evidence`；daily audit `165/2/98.79%`、current 缺口 2 且 artifact 三 fields 齊全、repair action `0`，health/readiness/doctor 通過。本輪只讀取與投影品質狀態，未主動寫入 snapshot、review ledger、repair 或 rerun。
 - D3613：對照既有 final-audit 的三情境範圍警示，發現 content credibility 只檢查主要目標方向與情境排序，未把可解析的 12 個月目標價與熊市 `* 0.7`／牛市 `* 1.3` 可解釋邊界投影出來；新增 `recommendation_target_outside_scenario_range` read-only warning，缺少任一必要值就略過，不改 final-audit、scenario-order blocker、repair 或 rerun 責任。
 - D3613 驗證完成：先以整合 RED，再 GREEN evaluator/credibility `28 passed`；跨層 quality/document 回歸 `494 passed`，compile、diff check 通過；live smoke 對 NT$200 vs 三情境 80/120/140 產生 bounds `56.0..182.0` 的 warning，daily audit `162/2/98.77%`、current 缺口仍為 2 且 artifact 三 fields 齊全、repair action `0`，health/readiness/doctor 通過。runtime reload 時既有 watchlist job 由啟動流程接續，audit 分母由 160 變 162，未將該背景工作變化歸因於本 patch；本輪未主動寫入 snapshot、review ledger、repair 或 rerun。
 - D3612：重新檢查 evidence matrix coverage，發現只要存在 `claim=最終投資建議` 就會 passed，無視 row 的 `status=failed/unknown` 或空 `basis`。新增 usable status + basis guard，產生 `unusable_final_recommendation_evidence` warning；不取代 evidence_exit_gate 的數字抽查責任。

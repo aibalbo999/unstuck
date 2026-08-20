@@ -53,6 +53,7 @@ def _base_snapshot(context, *, evidence_verdict="approved", evidence_matrix=None
         "data_confidence_score": data["data_trust"].get("score", 90),
         "evidence_exit_gate": {"verdict": evidence_verdict, "failed_count": 0},
         "evidence_matrix": evidence_matrix if evidence_matrix is not None else [
+            {"claim": "估值結論", "basis": "熊市情境: NT$80；基本情境: NT$120；牛市情境: NT$140", "status": "success"},
             {"claim": "最終投資建議", "basis": "建議: 買入；12個月: NT$130", "status": "success"}
         ],
     }
@@ -355,6 +356,7 @@ def test_content_credibility_accepts_tuple_evidence_matrix_rows():
 
     context = _base_context(recommendation="持有", target_12m="NT$105", confidence="6/10")
     evidence_matrix = (
+        {"claim": "估值結論", "basis": "熊市情境: NT$80；基本情境: NT$120；牛市情境: NT$140", "status": "success"},
         {"claim": "最終投資建議", "basis": "建議: 持有；12個月: NT$105", "status": "success"},
     )
 
@@ -369,6 +371,7 @@ def test_content_credibility_accepts_mapping_safe_evidence_matrix_rows():
 
     context = _base_context(recommendation="持有", target_12m="NT$105", confidence="6/10")
     evidence_matrix = (
+        MappingProxyType({"claim": "估值結論", "basis": "熊市情境: NT$80；基本情境: NT$120；牛市情境: NT$140", "status": "success"}),
         MappingProxyType({"claim": "最終投資建議", "basis": "建議: 持有；12個月: NT$105", "status": "success"}),
     )
 

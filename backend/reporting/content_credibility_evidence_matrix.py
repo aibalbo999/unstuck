@@ -62,30 +62,57 @@ def evaluate_evidence_matrix_coverage(
     warnings: list[dict] = []
     checks: list[dict] = []
 
+    parsed = _as_dict(context.get("parsed"))
+    requirements: list[tuple[str, str, str, str, str]] = []
     if recommendation_present:
-        claim = "最終投資建議"
+        requirements.append((
+            "最終投資建議",
+            "missing_final_recommendation_evidence",
+            "unusable_final_recommendation_evidence",
+            "最終投資建議缺少 evidence matrix 覆蓋。",
+            "最終投資建議的 evidence matrix 列沒有可用證據狀態或依據，需要人工確認。",
+        ))
+    if _as_dict(parsed.get("price_targets")):
+        requirements.append((
+            "估值結論",
+            "missing_valuation_evidence",
+            "unusable_valuation_evidence",
+            "估值結論缺少 evidence matrix 覆蓋。",
+            "估值結論的 evidence matrix 列沒有可用證據狀態或依據，需要人工確認。",
+        ))
+    if _as_dict(parsed.get("moat_scores")):
+        requirements.append((
+            "護城河評分",
+            "missing_moat_evidence",
+            "unusable_moat_evidence",
+            "護城河評分缺少 evidence matrix 覆蓋。",
+            "護城河評分的 evidence matrix 列沒有可用證據狀態或依據，需要人工確認。",
+        ))
+
+    for claim, missing_id, unusable_id, missing_message, unusable_message in requirements:
         row = _evidence_claim_row(rows, claim)
         if row is None:
-            issue = _issue(
-                "missing_final_recommendation_evidence",
-                "最終投資建議缺少 evidence matrix 覆蓋。",
-                {"required_claim": claim},
-            )
+            issue = _issue(missing_id, missing_message, {"required_claim": claim})
         else:
             status = safe_text(row.get("status")).strip().lower() or "unknown"
             basis = safe_text(row.get("basis")).strip()
             basis_present = bool(basis) and not is_missing_text_token(basis)
             if status in _USABLE_EVIDENCE_STATUSES and basis_present:
-                checks.append(_check("evidence_matrix_coverage", "passed", "最終投資建議已有可用 evidence matrix 覆蓋。"))
-                return {"blocking_issues": blocking, "warnings": warnings, "checks": checks}
+                checks.append(_check(
+                    "evidence_matrix_coverage",
+                    "passed",
+                    f"{claim}已有可用 evidence matrix 覆蓋。",
+                ))
+                continue
             issue = _issue(
-                "unusable_final_recommendation_evidence",
-                "最終投資建議的 evidence matrix 列沒有可用證據狀態或依據，需要人工確認。",
+                unusable_id,
+                unusable_message,
                 {"required_claim": claim, "status": status, "basis_present": basis_present},
             )
         warnings.append(issue)
         checks.append(_check("evidence_matrix_coverage", "warning", issue["message"], issue["details"]))
-    else:
-        checks.append(_check("evidence_matrix_coverage", "passed", "最終投資建議已有 evidence matrix 覆蓋。"))
+
+    if not requirements:
+        checks.append(_check("evidence_matrix_coverage", "passed", "沒有需要檢查的結論 evidence matrix 覆蓋。"))
 
     return {"blocking_issues": blocking, "warnings": warnings, "checks": checks}

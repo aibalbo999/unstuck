@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3614 / require evidence for every existing structured conclusion
+
+- `#偏誤辨識` / `#證據基礎`：evidence matrix builder 已建立 `估值結論` 與 `護城河評分`，但 content credibility 只檢查 `最終投資建議`；缺 row 或 failed row 會被錯誤當成沒有問題。
+- `#拆解問題` / `#責任`：依 parsed `recommendation`、`price_targets`、`moat_scores` 條件式建立 coverage requirements；每個 row 都要求 usable status 與非空 basis，缺少結論時不創造要求，issue 分別保留 `missing_*_evidence`／`unusable_*_evidence`，仍由 evidence_exit_gate 負責數字抽查。
+- `#可驗證性` / `#偏誤降低`：先取得兩個 RED，再 GREEN focused content `32 passed`、跨層 quality/document `496 passed`；live 完整/缺估值/failed moat 三種 smoke 均符合預期，daily `165/2/98.79%`、current artifact 三 fields、repair action `0`、health/readiness/doctor 通過，保留 read-only mutation boundary。
+
 ## D3613 / surface recommendation targets outside scenario range
 
 - `#偏誤辨識` / `#證據基礎`：final-audit 已用三情境範圍檢查 12 個月目標價，但歷史/API content credibility trace 沒有這個 warning；只通過主要目標方向與情境排序，仍可能把遠離估值帶的結論顯示成沒有可信度警示。
