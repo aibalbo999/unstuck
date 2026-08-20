@@ -13,6 +13,10 @@ _KV_RE = re.compile(
 )
 _TABLE_CELL_RE = re.compile(r"\|\s*(?P<label>[^|\n]{1,30})\s*\|\s*[~約]?(?:NT\$|\$)?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>%|x|X|倍|億|B|M|T|元|TWD)?\s*\|")
 _NUMBER_IN_STRING_RE = re.compile(r"-?\d[\d,]*(?:\.\d+)?")
+_EPS_VALUE_RE = re.compile(
+    r"(?:EPS|每股盈餘)[^\d\n]{0,24}?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>%|x|X|倍|億|B|M|T|元|TWD)?",
+    re.IGNORECASE,
+)
 _FIELD_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
     (("股價", "現價", "currentprice", "current_price"), ("current_price", "regularmarketprice", "stock_price", "share_price")),
     (("p/e", "pe", "本益比"), ("pe_ratio", "trailingpe", "forwardpe", "price_earnings")),
@@ -38,7 +42,7 @@ def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
             continue
         for match in list(_KV_RE.finditer(line)) + list(_TABLE_CELL_RE.finditer(line)):
             label = _clean_label(match.group("label"))
-            number = _clean_number(match.group("num"))
+            number, unit = _claim_value(match, label, line)
             if not label or number is None or not _valid_claim_number(number):
                 continue
             key = (label, round(number, 6), line_number)
@@ -49,11 +53,32 @@ def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
                 "id": len(claims) + 1,
                 "label": label,
                 "reported_value": number,
-                "unit": (match.group("unit") or "").strip(),
+                "unit": unit,
                 "line_number": line_number,
                 "raw_text": line[:160],
             })
     return claims
+
+
+def _claim_value(match: re.Match[str], label: str, line: str) -> tuple[float | None, str]:
+    """Prefer the value tied to an explicit EPS phrase over a leading date."""
+    default_number = _clean_number(match.group("num"))
+    default_unit = (match.group("unit") or "").strip()
+    if not _label_has_eps_hint(label):
+        return default_number, default_unit
+
+    suffix = line[match.end("label") + 1 :]
+    eps_match = _EPS_VALUE_RE.search(suffix)
+    if not eps_match:
+        return default_number, default_unit
+    number = _clean_number(eps_match.group("num"))
+    unit = (eps_match.group("unit") or "").strip()
+    return (number if number is not None else default_number), (unit or default_unit)
+
+
+def _label_has_eps_hint(label: str) -> bool:
+    normalized = _normalize_match_text(label)
+    return any(_normalize_match_text(marker) in normalized for marker in ("eps", "每股盈餘"))
 
 
 def evaluate_report_evidence(

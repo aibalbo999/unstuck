@@ -79,6 +79,25 @@ def test_evidence_exit_gate_requires_label_relevance_for_numeric_matches():
     assert result["sampled_claims"][0]["matched_path"] == "data.current_price"
 
 
+def test_evidence_exit_gate_uses_eps_value_when_claim_starts_with_a_date():
+    from evidence_exit_gate import extract_numeric_claims
+
+    markdown = "- **Factset EPS 下修預警**：7 月底曾有機構將 EPS 下修至 26 元，目標價設於 234.5 TWD。"
+
+    claims = extract_numeric_claims(markdown)
+
+    assert claims == [
+        {
+            "id": 1,
+            "label": "Factset EPS 下修預警",
+            "reported_value": 26.0,
+            "unit": "元",
+            "line_number": 1,
+            "raw_text": markdown,
+        }
+    ]
+
+
 def test_report_renderer_attaches_evidence_exit_gate_to_snapshot_and_metadata(monkeypatch):
     import asyncio
     import reporting.renderer as renderer_module

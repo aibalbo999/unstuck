@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3637 / keep EPS evidence claims semantically aligned
+
+- `#差距分析` / `#來源品質`：live `2603.TW v4` 的證據抽查把「7 月底」的日期數字當成 `Factset EPS 下修預警` 的 claim value `7`，人工看到的 mismatch 因而不是原文真正的 EPS `26`。
+- `#拆解問題` / `#偏誤降低`：只對 label 已明確指向 EPS／每股盈餘的 claim，從 EPS 語句取相連數值；一般 key-value claim 維持原 parser，避免把日期 token 或其他欄位普遍改寫。
+- `#倫理判斷` / `#最小變更`：修正證據呈現的忠實度，不把 `26` 與快照 EPS `16.32` 的真實差異改成通過；不回寫既有 snapshot、artifact、index、review、rerun 或 queue。
+- `#可驗證性`：RED→GREEN 後 evidence/credibility/repair/audit/review `141 passed`；重載 runtime 的 health/readiness、canonical paths、RQ 與 daily `165/2/98.79%` 通過，既有 persisted gate 維持原值。
+
 ## D3636 / make quality-audit queue actions self-describing
 
 - `#差距分析` / `#受眾`：live `decision_queue.items` 的品質稽核 action 只有 source/type/report identity，notification message/outbox 才有 CTA 與 target metadata；直接消費 queue 的下游仍要自行推導人工核對入口，可能與通知或工作台漂移。
