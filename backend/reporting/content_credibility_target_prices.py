@@ -105,9 +105,21 @@ def target_price_candidates(parsed: dict) -> list[dict]:
     return candidates
 
 
+def scenario_target_candidates(parsed: dict) -> list[dict]:
+    """Extract canonical bear/base/bull targets without inventing missing values."""
+    price_targets = _as_dict(parsed.get("price_targets"))
+    candidates: list[dict] = []
+    for label in ("熊市情境", "基本情境", "牛市情境"):
+        if label not in price_targets:
+            continue
+        raw = price_targets.get(label)
+        candidates.append({"label": label, "price": _target_price(raw), "raw": raw})
+    return candidates
+
+
 def main_target_price(parsed: dict) -> dict | None:
     candidates = target_price_candidates(parsed)
     return candidates[0] if candidates else None
 
 
-__all__ = ("main_target_price", "target_price_candidates")
+__all__ = ("main_target_price", "scenario_target_candidates", "target_price_candidates")

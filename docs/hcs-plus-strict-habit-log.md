@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3607 / validate long-term scenario target ordering
+
+- `#偏誤辨識` / `#差距分析`：單一主要目標價方向通過，不代表熊／基本／牛情境帶自洽；目前 evaluator 原本完全沒有檢查這個既有 parsed input。
+- `#拆解問題` / `#責任`：沿用既有 target-price parser，新增 canonical scenario candidate 與 pairwise order evaluator；倒置 pair 產生 `scenario_target_order_conflict` blocked，不可解析值產生 `unparseable_scenario_target` warning，缺值不自行補推，v4 不受長線情境規則干擾。
+- `#可驗證性` / `#來源品質`：三個情境案例先取得 RED，再 GREEN `21 passed`；跨層 quality/conformance lane `315 passed`，live daily/current historical `157/2/98.73%`、v4 skip semantics、health/readiness/doctor 均通過，維持 read-only gate 與既有 mutation boundary。
+
 ## D3606 / hydrate only the selected version scope
 
 - `#最佳化` / `#變數分析`：D3605 的版本篩選已正確改變結果範圍，但 code path 仍先讀全量 snapshot/artifact；current-only live cold request 約 `2.2s`，主要成本在讀取而不是版本分類。

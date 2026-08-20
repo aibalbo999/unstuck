@@ -78,6 +78,55 @@ def test_content_credibility_uses_target_range_midpoint_after_percent_preface():
     assert not any(issue["id"] == "buy_target_below_current_price" for issue in result["blocking_issues"])
 
 
+def test_content_credibility_blocks_when_scenario_targets_are_inverted():
+    from reporting.content_credibility import evaluate_content_credibility
+
+    context = _base_context(recommendation="買入", target_12m="NT$130")
+    context["parsed"]["price_targets"] = {
+        "熊市情境": 150,
+        "基本情境": 120,
+        "牛市情境": 90,
+    }
+
+    result = evaluate_content_credibility(context, _base_snapshot(context))
+
+    assert result["status"] == "blocked"
+    issue = next(issue for issue in result["blocking_issues"] if issue["id"] == "scenario_target_order_conflict")
+    assert issue["details"]["targets"] == {"熊市情境": 150.0, "基本情境": 120.0, "牛市情境": 90.0}
+
+
+def test_content_credibility_warns_when_scenario_target_cannot_be_parsed():
+    from reporting.content_credibility import evaluate_content_credibility
+
+    context = _base_context(recommendation="持有", target_12m="NT$105")
+    context["parsed"]["price_targets"] = {
+        "熊市情境": "尚待估值",
+        "基本情境": "NT$120",
+        "牛市情境": "NT$140",
+    }
+
+    result = evaluate_content_credibility(context, _base_snapshot(context))
+
+    assert result["status"] == "warning"
+    issue = next(issue for issue in result["warnings"] if issue["id"] == "unparseable_scenario_target")
+    assert issue["details"]["label"] == "熊市情境"
+
+
+def test_content_credibility_compares_outer_scenarios_when_base_target_is_missing():
+    from reporting.content_credibility import evaluate_content_credibility
+
+    context = _base_context(recommendation="持有", target_12m="NT$105")
+    context["parsed"]["price_targets"] = {
+        "熊市情境": 150,
+        "牛市情境": 90,
+    }
+
+    result = evaluate_content_credibility(context, _base_snapshot(context))
+
+    assert result["status"] == "blocked"
+    assert any(issue["id"] == "scenario_target_order_conflict" for issue in result["blocking_issues"])
+
+
 def test_content_credibility_blocks_explicit_targets_when_data_confidence_is_low():
     from reporting.content_credibility import evaluate_content_credibility
 
