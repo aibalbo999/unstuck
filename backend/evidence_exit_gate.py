@@ -22,20 +22,28 @@ _TABLE_CELL_RE = re.compile(
 _NUMBER_IN_STRING_RE = re.compile(r"-?\d[\d,]*(?:\.\d+)?")
 _DATE_PREFIX_RE = re.compile(r"^\s*[（(]")
 _RANGE_PREFIX_RE = re.compile(r"^\s*-\s*\d")
+_HORIZON_PREFIX_RE = re.compile(r"^\s*\d+(?:\s*[-–—~～至到]\s*\d+)?\s*(?:週|周|weeks?|個月|月|年|years?|天|日|days?)", re.IGNORECASE)
 _EPS_VALUE_RE = re.compile(
     rf"(?:EPS|每股盈餘)[^\d\n]{{0,24}}?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>{_NUMERIC_UNIT_PATTERN})?(?![\dA-Za-z.])",
     re.IGNORECASE,
 )
-_NON_CLAIM_SUFFIX_RE = re.compile(r"^\s*(?:[A-Za-z]|週|周|個月|月|年|天|日)")
-_NON_CLAIM_LABEL_MARKERS = ("code", "duration", "error", "hash", "pipeline", "prompt", "provider", "recordcount", "抓取", "資料日期", "時間", "程式碼", "版本", "錯誤", "耗時", "雜湊")
-_SNAPSHOT_METADATA_PATH_MARKERS = ("cache_generated_at_epoch", "conclusion_generated_at", "content_hash", "data_snapshot_hash", "duration_ms", "evidence_exit_gate", "fetched_at", "final_audit", "generated_at", "hash", "record_count", "reproducibility_packet", "report_conformance", "report_lint", "snapshot_hash", "snapshot_refreshed_at", "source_audit", "target_ticker")
+_NON_CLAIM_SUFFIX_RE = re.compile(r"^\s*(?:[A-Za-z\u4e00-\u9fff]|週|周|個月|月|年|天|日)")
+_NON_CLAIM_LABEL_MARKERS = ("code", "duration", "error", "hash", "pipeline", "prompt", "provider", "recordcount", "twse", "tradingview", "抓取", "資料日期", "時間", "程式碼", "版本", "錯誤", "耗時", "雜湊")
+_SNAPSHOT_METADATA_PATH_MARKERS = ("cache_generated_at_epoch", "conclusion_generated_at", "conclusion_guardrails", "content_hash", "data_snapshot_hash", "duration_ms", "evidence_exit_gate", "fetched_at", "final_audit", "generated_at", "hash", "record_count", "reproducibility_packet", "report_conformance", "report_lint", "snapshot_hash", "snapshot_refreshed_at", "source_audit", "target_ticker")
 _CONFIDENCE_METADATA_PATH_MARKERS = ("content_credibility", "data_confidence", "max_recommended_confidence", "min_data_confidence", "confidence_data_trust", "report_conformance")
 _NORMALIZED_NON_CLAIM_LABEL_MARKERS = tuple(_normalize_match_text(marker) for marker in _NON_CLAIM_LABEL_MARKERS)
 _NORMALIZED_SNAPSHOT_METADATA_PATH_MARKERS = tuple(_normalize_match_text(marker) for marker in _SNAPSHOT_METADATA_PATH_MARKERS)
 _NORMALIZED_CONFIDENCE_METADATA_PATH_MARKERS = tuple(_normalize_match_text(marker) for marker in _CONFIDENCE_METADATA_PATH_MARKERS)
+_NORMALIZED_CANONICAL_STRING_PATH_MARKERS = tuple(_normalize_match_text(marker) for marker in ("target_price", "analyst_target", "current_price", "forward_eps", "trailing_eps"))
+_NORMALIZED_RESEARCH_CONTEXT_MARKERS = tuple(_normalize_match_text(marker) for marker in ("券商研究", "市場研究", "券商給予"))
 _FIELD_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
     (("信心", "confidence"), ("confidence", "confidence_score", "agent_confidence")),
     (("股價", "現價", "currentprice", "current_price"), ("current_price", "regularmarketprice", "stock_price", "share_price")),
+    (("forwardpe", "forward pe"), ("forward_pe", "forwardpe", "forward_eps")),
+    (("epsimpliedrevenuegrowth", "impliedrevenuegrowth"), ("forward_eps_implied_revenue_growth_pct", "implied_revenue_growth_pct")),
+    (("淨利率", "profitmargin", "profit_margin"), ("profit_margin", "profit_margin_raw")),
+    (("熊市", "基本", "牛市", "情境"), ("price_target", "price_targets", "target_price", "scenario", "scenarios")),
+    (("風險", "支撐", "壓力", "關卡"), ("risk_price",)),
     (("p/e", "pe", "本益比"), ("pe_ratio", "trailingpe", "forwardpe", "price_earnings")),
     (("營收", "收入", "revenue", "sales"), ("revenue", "monthly_revenue", "sales")),
     (("淨利", "netincome", "net_income"), ("net_income", "netincome")),
@@ -47,7 +55,6 @@ _FIELD_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
     (("下行", "downside"), ("downside", "downside_pct")),
     (("情境", "scenario", "目標價", "targetprice"), ("price_target", "price_targets", "target_price", "scenario", "scenarios", "valuation", "dcf")),
 )
-
 
 def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
     """Extract labelled numeric claims from rendered Markdown."""
@@ -201,7 +208,14 @@ def flatten_snapshot_numbers(snapshot: Any) -> list[dict[str, Any]]:
                 values.append({"path": path, "value": float(value)})
             return
         if isinstance(value, str):
-            for match in _NUMBER_IN_STRING_RE.finditer(value):
+            matches = list(_NUMBER_IN_STRING_RE.finditer(value))
+            path_text = _normalize_match_text(path)
+            if any(marker in path_text for marker in _NORMALIZED_CANONICAL_STRING_PATH_MARKERS):
+                if _normalize_match_text("target_price") in path_text:
+                    value = _HORIZON_PREFIX_RE.sub(" ", value, count=1)
+                    matches = list(_NUMBER_IN_STRING_RE.finditer(value))
+                matches = matches[:1]
+            for match in matches:
                 number = _clean_number(match.group(0))
                 if number is not None and _valid_claim_number(number):
                     values.append({"path": path, "value": number})
@@ -279,6 +293,13 @@ def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
     label = _normalize_match_text(raw_label)
     if not label:
         return ()
+    raw_text = _normalize_match_text(claim.get("raw_text"))
+    if "factset" in raw_text:
+        return ("factset",)
+    if any(marker in raw_text for marker in _NORMALIZED_RESEARCH_CONTEXT_MARKERS):
+        return ("broker_research",)
+    if any(marker in raw_text for marker in ("熊市", "牛市")):
+        return ("stop_loss", "support", "resistance", "risk_price", "price_target", "price_targets", "target_price", "scenario", "scenarios")
     for label_markers, path_markers in _FIELD_HINTS:
         if any(_label_matches_marker(raw_label, label, marker) for marker in label_markers):
             return path_markers

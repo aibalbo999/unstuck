@@ -129,6 +129,71 @@ def test_evidence_gate_does_not_match_confidence_to_unrelated_snapshot_numbers()
     assert result["unverifiable_count"] == 1
 
 
+def test_evidence_gate_does_not_compare_factset_claims_to_other_provider_values():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    markdown = """
+- 研究摘要：目標價：234.5元（Factset預估值）。
+- Factset EPS 下修預警: 26 元（機構下修值）。
+"""
+    snapshot = {
+        "data": {
+            "trailing_eps": 22.85,
+            "quant_metrics": {"dcf_intrinsic_value": 156.45},
+        },
+        "rerun_context": {
+            "structured_outputs": {
+                "24": {"target_price": "265.0 TWD（突破 249.0 TWD）"},
+            },
+        },
+    }
+
+    result = evaluate_report_evidence(markdown, snapshot, sample_ratio=1.0)
+
+    assert result["failed_count"] == 0
+    assert result["unverifiable_count"] == 2
+    assert all(item["status"] == "unverifiable" for item in result["sampled_claims"])
+
+
+def test_evidence_gate_uses_canonical_value_for_structured_target_text():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    markdown = "- 目標價: 249.0 TWD"
+    snapshot = {
+        "rerun_context": {
+            "structured_outputs": {
+                "24": {"target_price": "265.0 TWD（突破 249.0 TWD）"},
+            },
+        },
+    }
+
+    result = evaluate_report_evidence(markdown, snapshot, sample_ratio=1.0)
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "mismatch"
+    assert claim["matched_value"] == 265.0
+    assert result["failed_count"] == 1
+
+
+def test_evidence_gate_skips_horizon_prefix_in_structured_target_text():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    markdown = "- 目標價: 298.5 TWD"
+    snapshot = {
+        "rerun_context": {
+            "structured_outputs": {
+                "24": {"target_price": "52 週高點與心理壓力位 298.5 - 310.0 TWD"},
+            },
+        },
+    }
+
+    result = evaluate_report_evidence(markdown, snapshot, sample_ratio=1.0)
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "verified"
+    assert claim["matched_value"] == 298.5
+
+
 def test_evidence_claims_ignore_iso_timestamp_hour_tokens():
     from evidence_exit_gate import extract_numeric_claims
 
@@ -164,6 +229,58 @@ def test_evidence_claims_ignore_dates_na_cells_and_range_prefixes():
     claims = extract_numeric_claims(markdown)
 
     assert not any(claim["reported_value"] in {1.0, 5.0, 2026.0} for claim in claims)
+
+
+def test_evidence_gate_uses_specific_financial_field_hints_before_broad_labels():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    markdown = """
+- Forward PE: 37.2535
+- `forward_eps_implied_revenue_growth_pct`: 262.715%
+- 淨利率: 26.0%
+"""
+    snapshot = {
+        "data": {
+            "pe_ratio": "126.6x",
+            "net_income_ttm": 26.0,
+            "profit_margin": "28.4%",
+            "revenue_growth": "42.0%",
+        },
+    }
+
+    result = evaluate_report_evidence(markdown, snapshot, sample_ratio=1.0)
+
+    claims = {claim["label"]: claim for claim in result["sampled_claims"]}
+    assert claims["Forward PE"]["status"] == "unverifiable"
+    assert claims["epsimpliedrevenuegrowthpct"]["status"] == "unverifiable"
+    assert claims["淨利率"]["status"] == "mismatch"
+    assert claims["淨利率"]["matched_path"] == "data.profit_margin"
+
+
+def test_evidence_gate_prefers_scenario_price_over_pe_text_in_table_rows():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    markdown = "| **熊市** | 專案延遲，P/E 降至 10x 以下 | NT$178 |"
+    snapshot = {
+        "data": {"pe_ratio_raw": 13.627188},
+        "rerun_context": {"parsed": {"price_targets": {"bear": 178.0}}},
+    }
+
+    result = evaluate_report_evidence(markdown, snapshot, sample_ratio=1.0)
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "verified"
+    assert claim["matched_path"] == "rerun_context.parsed.price_targets.bear"
+
+
+def test_evidence_claims_ignore_ticker_identifier_followed_by_text():
+    from evidence_exit_gate import extract_numeric_claims
+
+    markdown = "一頁式摘要：1623.TW；催化劑為「1623股價和圖表 — TWSE:1623 - TradingView」。"
+
+    claims = extract_numeric_claims(markdown)
+
+    assert not any(claim["reported_value"] == 1623.0 for claim in claims)
 
 
 def test_report_renderer_attaches_evidence_exit_gate_to_snapshot_and_metadata(monkeypatch):

@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3651 / keep provider, field, and scenario semantics separate
+
+- `#拆解問題` / `#偏誤辨識`：165 份 latest-per-ticker/pipeline 重掃顯示，FactSet/券商參考值、Forward PE、派生 EPS growth、情境表價格與 ticker identifier 仍可能共享同一個 broad label matcher；structured target 字串也同時包含 canonical target 與「52 週／突破位」敘述。
+- `#來源品質` / `#語意含義`：provider-context claim 只尋找同 provider path；Forward PE、EPS growth、淨利率、scenario、risk 各自使用專屬 path hints，`conclusion_guardrails` 與 identifier metadata 不作證據；structured target 先移除 horizon prefix，再只取 canonical 首值。
+- `#可驗證性` / `#責任`：無對應 provider/field path 就是 `unverifiable`，不因最近數字而 mismatch；全量 current-code rescan 保留 3 個可解釋的 PE/淨利率 mismatch 作人工核對，`39/125/1` verdict 與 `115/780/3` claim counts 均有 scope，未改任何 persisted state。
+
 ## D3650 / keep evidence matching semantic and fail closed
 
 - `#拆解問題` / `#偏誤辨識`：live reports 的 `T07/T13`、資料日期、`N/A` source cells 與 `1-2週` range prefix 都是技術/格式 token，不是投資數字；confidence claim 則曾被全 snapshot 最近值補配，形成看似有證據的錯誤 mismatch。
