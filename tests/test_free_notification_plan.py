@@ -1721,6 +1721,10 @@ def test_notification_plan_routes_quality_audit_manual_review_to_targeted_human_
     assert quality_message["operator_action_label"] == "前往人工核對"
     assert quality_message["filename"] == "1623_TW_v2_report_20260815_154718.html"
     assert quality_message["pipeline_id"] == "v2"
+    assert quality_message["target_panel"] == "history-quality-audit"
+    assert quality_message["target_tab"] == "analysis"
+    assert plan["delivery_outbox"][0]["target_panel"] == "history-quality-audit"
+    assert plan["delivery_outbox"][0]["target_tab"] == "analysis"
     assert repair_message["operator_action"] == "view-report"
     assert repair_message["operator_action_label"] == "查看報告"
 

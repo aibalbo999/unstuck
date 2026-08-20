@@ -153,6 +153,8 @@ process.stdout.write(JSON.stringify(items));
     assert quality_item["label"] == "前往人工核對"
     assert quality_item["filename"] == "1623_TW_v2_report_20260815_154718.html"
     assert quality_item["pipeline"] == "v2"
+    assert quality_item["targetPanel"] == "history-quality-audit"
+    assert quality_item["targetTab"] == "analysis"
     assert repair_item["action"] == "view-report"
     assert repair_item["label"] == "查看報告"
     assert refresh_item["action"] == "refresh-report"
@@ -552,7 +554,7 @@ def test_historical_audit_navigation_wiring_uses_cache_busters_and_existing_scop
     assert "/static/watchlist_panel.js?v=20260816-scoped-quality-review-navigation" in index_html
     assert "/static/history_filters.js?v=20260816-history-scope-persistence" in index_html
     assert "/static/history_workspace.js?v=20260816-scope-transient-state-guard" in index_html
-    assert "/static/operator_dashboard_actions.js?v=20260821-quality-audit-action" in index_html
+    assert "/static/operator_dashboard_actions.js?v=20260821-quality-audit-target-metadata" in index_html
     assert "/static/operator_summary_panel.js?v=20260821-quality-audit-action" in index_html
     assert "/static/app.js?v=20260821-quality-audit-action" in index_html
     assert "/static/styles/watchlist.css?v=20260816-daily-quality-target-context" in style_css

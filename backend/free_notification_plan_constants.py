@@ -72,3 +72,7 @@ TARGET_PANEL_BY_TYPE = {
     "review_candidate": "market-screener-panel",
     "run_watchlist": "watchlist-panel",
 }
+
+TARGET_PANEL_BY_SOURCE_AND_TYPE = {
+    ("report_quality_audit", "manual_review"): "history-quality-audit",
+}

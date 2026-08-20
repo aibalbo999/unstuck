@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-21
+- D3635：D3634 已讓 notification message/outbox 的品質稽核 CTA 一致，但 live payload 的 `target_panel/target_tab` 仍是 type-only fallback `active-jobs-panel/ops`；只依 target metadata 導覽的下游仍會落到維運面板。現在對 `report_quality_audit` + `manual_review` 且有 filename 的 action 預設 `history-quality-audit/analysis`，並同步 operator dashboard action model；明確傳入 target 仍優先，其他 action 不變。
+- D3635 驗證：先以 notification payload 與 frontend action model RED，再 GREEN；通知、delivery、daily queue/dashboard、歷史導覽 `319 passed`，Node syntax/diff check 通過；runtime reload 後需確認 live queue、message、outbox 三者 target metadata 一致，未寫 review、artifact、index、rerun 或 queue state。
 - D3634：live dashboard 已經將品質稽核 action 導到 history，但同一份 `notification_plan` / `delivery_outbox` 仍以 type-only default 輸出 `view-report`，造成工作台與本機/外部通知的 CTA 不一致。新增 source+type default：只有 `report_quality_audit` + `manual_review` 且有 filename 才輸出 `quality-audit-review` / `前往人工核對`；上游明確自訂 CTA 仍優先，`report_repair` 不變。
 - D3634 驗證：先以 notification plan RED 鎖定跨入口漂移，再 GREEN；free notification plan + delivery audit `148 passed`，daily queue/dashboard quality notification focused `32 passed`，live runtime reload 後需確認 notification message/outbox 與 dashboard 同步；未寫 review、artifact、index、rerun 或 queue state。
 - D3633：D3631 已將完整 latest quality audit gap 放進唯讀 decision queue，但 operator summary 仍把 `source=report_quality_audit` 的 `manual_review` 映射成「查看報告」，操作員看到缺口後還要自行切換 history、重新輸入 filename/pipeline。現在只對帶 filename 的 quality-audit manual review 映射「前往人工核對」，沿用既有 `StockAgentOpenHistoricalQualityAudit({query, pipeline})`，一般 report-repair manual review 與其他 action 維持原行為；app 導覽回傳 Promise，讓按鈕 loading 狀態涵蓋實際 audit 載入。

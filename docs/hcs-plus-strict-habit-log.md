@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3635 / align quality-audit target metadata with the history entry point
+
+- `#差距分析` / `#受眾`：D3634 只同步 notification 的 CTA 文字與 action id；live message/outbox 仍帶 `active-jobs-panel/ops`，只依 target metadata 導覽的通知消費者會落到錯誤面板。
+- `#拆解問題` / `#責任`：沿用現有 DOM contract `#history-quality-audit` 與 `#home-tab-analysis`，以 source+type default 輸出 `history-quality-audit/analysis`；上游明確 target panel/tab 仍 authoritative，frontend action model 也共享同一判斷。
+- `#偏誤降低` / `#可驗證性`：只修正 navigation metadata，不改 quality scope、CTA custom override、review ledger、snapshot、artifact、index、rerun 或 queue state；一般 repair/provider/watchlist target 維持原值。
+- `#可驗證性`：notification、delivery、daily queue/dashboard、historical navigation `319 passed`；Node syntax 與 `git diff --check` 通過，待 runtime reload 後以同一 daily response 核對 queue/message/outbox。
+
 ## D3634 / keep notification CTAs aligned with quality-audit workbench
 
 - `#差距分析` / `#受眾`：live daily dashboard 的品質稽核 action 已能從 operator summary 進 targeted history，但同一 action 在 `notification_plan.messages` 與 `delivery_outbox` 仍由 type-only `manual_review` default 變成「查看報告」，本機/外部通知因此失去人工核對範圍。

@@ -17,6 +17,7 @@ from free_notification_plan_constants import (
     NUMERIC_MESSAGE_CONTEXT_KEYS,
     OPERATOR_ACTION_BY_SOURCE_AND_TYPE,
     OPERATOR_ACTION_BY_TYPE,
+    TARGET_PANEL_BY_SOURCE_AND_TYPE,
     TARGET_PANEL_BY_TYPE,
     TEXT_MESSAGE_CONTEXT_KEYS,
 )
@@ -240,13 +241,18 @@ def _operator_cta_context(action: dict[str, Any]) -> dict[str, str]:
 
 
 def _target_context(action: dict[str, Any]) -> dict[str, str]:
-    panel = _first_text(action, "target_panel", "targetPanel") or TARGET_PANEL_BY_TYPE.get(_action_type(action)) or "active-jobs-panel"
+    action_type = _action_type(action)
+    source = source_key(_field(action, "source"))
+    panel = _first_text(action, "target_panel", "targetPanel") or TARGET_PANEL_BY_SOURCE_AND_TYPE.get(
+        (source, action_type),
+        TARGET_PANEL_BY_TYPE.get(action_type),
+    ) or "active-jobs-panel"
     tab = _first_text(action, "target_tab", "targetTab") or _target_tab_for_panel(panel)
     return {"target_panel": panel, "target_tab": tab}
 
 
 def _target_tab_for_panel(panel: str) -> str:
-    return {"watchlist-panel": "tracking", "market-screener-panel": "screener"}.get(panel, "ops")
+    return {"watchlist-panel": "tracking", "market-screener-panel": "screener", "history-quality-audit": "analysis"}.get(panel, "ops")
 
 
 def _source_counts(actions: list[dict[str, Any]]) -> dict[str, int]:

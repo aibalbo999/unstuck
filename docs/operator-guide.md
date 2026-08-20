@@ -155,7 +155,7 @@ filtered view 沒有結果時，摘要會寫「目前沒有符合〈狀態〉的
 
 歷史摘要的「人工審核進度：已決策／總缺口」只計算目前 response 範圍內的缺 metadata 報告；切換 pipeline 或 review status 後，分母也會跟著範圍改變，不是全庫永久累計值。
 
-今日工作台的全量報告品質摘要也使用同一個進度算法，但它的範圍是每個 ticker/pipeline 最新一筆；完整且未截斷的 latest 缺口會以「品質稽核」人工核對 action 顯示在今日決策 queue，與 repair sample 重疊時以 repair action 為準。操作員工作台的這類 action 會以 filename/pipeline 直接開啟同一份 targeted historical audit；一般 report repair 的 manual review 仍開啟報告。partial、不可用或 historical 稽核明細不進今日 queue；這些都是唯讀導引，不會自動核准、重跑或寫入品質狀態。
+今日工作台的全量報告品質摘要也使用同一個進度算法，但它的範圍是每個 ticker/pipeline 最新一筆；完整且未截斷的 latest 缺口會以「品質稽核」人工核對 action 顯示在今日決策 queue，與 repair sample 重疊時以 repair action 為準。操作員工作台的這類 action 會以 filename/pipeline 直接開啟同一份 targeted historical audit；通知 message/outbox 同時帶出 `target_panel=history-quality-audit`、`target_tab=analysis`，供只依 target metadata 導覽的下游使用；一般 report repair 的 manual review 仍開啟報告。partial、不可用或 historical 稽核明細不進今日 queue；這些都是唯讀導引，不會自動核准、重跑或寫入品質狀態。
 
 Report quality metadata repair accepts mapping-safe top-level report envelopes and nested gate mappings; a read-only mapping wrapper is treated as the same payload shape as a normal report dictionary and must not interrupt audit classification.
 
