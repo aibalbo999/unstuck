@@ -51,15 +51,8 @@ def evaluate_content_credibility(context: dict, snapshot: dict | None = None, ma
     confidence_score = recommendation_confidence_score(recommendation)
     final_audit = _as_dict(context.get("final_audit")) or _as_dict(snapshot.get("final_audit")) or final_audit_from_conformance(snapshot.get("report_conformance"))
 
-    blocking: list[dict] = []
-    warnings: list[dict] = []
-    checks: list[dict] = []
-
     if pipeline_id == "v4":
-        alignment = evaluate_trade_setup_alignment(
-            trade_setup=trade_setup,
-            current_price=current_price,
-        )
+        alignment = evaluate_trade_setup_alignment(trade_setup=trade_setup, current_price=current_price)
     else:
         alignment = evaluate_recommendation_target_alignment(
             recommendation_present=bool(recommendation),
@@ -67,57 +60,24 @@ def evaluate_content_credibility(context: dict, snapshot: dict | None = None, ma
             current_price=current_price,
             main_target=main_target,
         )
-    blocking.extend(alignment["blocking_issues"])
-    warnings.extend(alignment["warnings"])
-    checks.extend(alignment["checks"])
-
-    scenario_alignment = evaluate_scenario_target_order(parsed)
-    blocking.extend(scenario_alignment["blocking_issues"])
-    warnings.extend(scenario_alignment["warnings"])
-    checks.extend(scenario_alignment["checks"])
-
-    scenario_range = evaluate_recommendation_target_scenario_range(parsed)
-    blocking.extend(scenario_range["blocking_issues"])
-    warnings.extend(scenario_range["warnings"])
-    checks.extend(scenario_range["checks"])
-
-    horizon_alignment = evaluate_horizon_target_sequence(parsed)
-    blocking.extend(horizon_alignment["blocking_issues"])
-    warnings.extend(horizon_alignment["warnings"])
-    checks.extend(horizon_alignment["checks"])
-
-    final_audit_alignment = evaluate_final_audit_alignment(final_audit)
-    blocking.extend(final_audit_alignment["blocking_issues"])
-    warnings.extend(final_audit_alignment["warnings"])
-    checks.extend(final_audit_alignment["checks"])
-
-    data_confidence = evaluate_data_confidence_target_guardrail(context, data_trust)
-    blocking.extend(data_confidence["blocking_issues"])
-    warnings.extend(data_confidence["warnings"])
-    checks.extend(data_confidence["checks"])
-
-    confidence_calibration = evaluate_confidence_data_trust_calibration(
-        context=context,
-        recommendation=recommendation,
-        data_trust=data_trust,
-    )
-    blocking.extend(confidence_calibration["blocking_issues"])
-    warnings.extend(confidence_calibration["warnings"])
-    checks.extend(confidence_calibration["checks"])
-
-    evidence_confidence = evaluate_confidence_evidence_alignment(evidence_verdict, confidence_score)
-    blocking.extend(evidence_confidence["blocking_issues"])
-    warnings.extend(evidence_confidence["warnings"])
-    checks.extend(evidence_confidence["checks"])
-
-    matrix_coverage = evaluate_evidence_matrix_coverage(
-        context=context,
-        snapshot=snapshot,
-        recommendation_present=bool(recommendation),
-    )
-    blocking.extend(matrix_coverage["blocking_issues"])
-    warnings.extend(matrix_coverage["warnings"])
-    checks.extend(matrix_coverage["checks"])
+    results = [
+        alignment,
+        evaluate_scenario_target_order(parsed),
+        evaluate_recommendation_target_scenario_range(parsed),
+        evaluate_horizon_target_sequence(parsed),
+        evaluate_final_audit_alignment(final_audit),
+        evaluate_data_confidence_target_guardrail(context, data_trust),
+        evaluate_confidence_data_trust_calibration(
+            context=context, recommendation=recommendation, data_trust=data_trust
+        ),
+        evaluate_confidence_evidence_alignment(evidence_verdict, confidence_score),
+        evaluate_evidence_matrix_coverage(
+            context=context, snapshot=snapshot, recommendation_present=bool(recommendation)
+        ),
+    ]
+    blocking = [issue for result in results for issue in result["blocking_issues"]]
+    warnings = [issue for result in results for issue in result["warnings"]]
+    checks = [check for result in results for check in result["checks"]]
 
     if blocking:
         status = "blocked"

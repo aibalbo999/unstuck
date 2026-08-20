@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3617 / restore module responsibility boundaries
+
+- `#差距分析` / `#系統圖像`：import-boundary regression 讓長模組責任重新浮現：parser 把 pattern ownership 與演算法混在一起，evidence matrix 把 shape-safe construction 與 policy 混在一起，quality audit 則同時負責 orchestration 與 snapshot/artifact hydration。
+- `#組成` / `#責任`：新增 `price_parser_patterns`、`content_credibility_evidence_matrix_support`、`report_quality_audit_rows` 三個內部 ownership module；保留 facade、audit envelope 與既有 callable injection，讓 monkeypatch、storage path、read-only audit 與 gate責任不漂移。
+- `#可驗證性` / `#偏誤降低`：先以 import boundary RED 驗證結構債，再 GREEN；`503 passed`、price parser `851 passed`、content credibility inputs `870 passed`、quality/document `392 passed`、frontend HTTP `6 passed`、architecture/docs/HCS `138 passed`，compile/diff check 通過。大型組合回歸已通過 `1746` 個案例後因既有 regex 成本中止，保留 residual risk，不將部分結果寫成完整通過；runtime `healthz=ok`、`readyz=ready`，daily/historical `165/165/2/98.79%`、`1217/1217/115/90.55%`，100 筆 report rows 中 73 筆 projection。repair action 1 是既有 warning，本輪沒有 snapshot、artifact、index、review、rerun 或 queue mutation。
+
 ## D3616 / project current credibility rules without replacing saved evidence
 
 - `#偏誤辨識` / `#證據基礎`：歷史/API row 只對齊 persisted content gate 與 final-audit，未使用 snapshot 內已保存的 `rerun_context.parsed`；新 deterministic 規則因此可能只在新 renderer 生效，歷史報告看不到相同檢查。

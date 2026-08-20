@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-20
+- D3617：import-boundary audit 顯示幾個長模組已超過既定責任範圍；將 price-parser regex 常數移到 `price_parser_patterns`、evidence matrix 的 shape-safe helper 移到 `content_credibility_evidence_matrix_support`，並將 report-quality 的 snapshot/artifact row hydration 移到 `report_quality_audit_rows`。content credibility aggregation 與 alignment 僅做等價收斂，不改 gate、projection、artifact、index、review、rerun 或 queue 行為。
+- D3617 驗證完成：import boundary `503 passed`、price parser `851 passed`、content credibility inputs `870 passed`、quality/document lane `392 passed`、frontend HTTP `6 passed`、architecture/docs/HCS `138 passed`，compile 與 diff check 通過。目標價／結構化輸出／建議校準組合回歸已通過 `1746` 個案例後，因既有 `report_target_price_detection.py:146` regex 長案例成本過高而中止，未宣稱整組完整通過；此 residual risk 與本輪只移動 pattern 常數的變更分開保留。runtime reload 後 `healthz=ok`、`readyz=ready`、doctor canonical paths 通過；live daily `165/165/2/98.79%`、historical `1217/1217/115/90.55%`，報告列表前 `100` 筆中 `73` 筆 projection，repair queue 的 `action_required=1` 為既有 warning。本輪未寫 snapshot、artifact、index、review、rerun 或 queue。
 - D3616：歷史/API report row 只沿用 persisted `content_credibility`，即使 snapshot 有 `rerun_context.parsed`，也不會套用現行 deterministic checks；新增 read-only `content_credibility_projection`，以 `snapshot.rerun_context` 為來源，對已記錄 gate 合併新 blocker/warning，保留舊 findings，缺 gate 只標 `available`，不把投影當成 metadata coverage。
 - D3616 驗證完成：projection RED→GREEN；內容可信度、歷史稽核、報告列表、修復佇列、文件契約跨層 `386 passed`，compile、`git diff --check` 通過；runtime live 第一頁 `100` 筆中 `73` 筆有 projection，逐一比對這 73 筆的 persisted/current issue ids 無差異，daily audit `165/2/98.79%`、historical `1217/115/90.55%`，health/readiness/doctor 通過。daily sample 的 `repair_actions=1` 是既有 `2603.TW v4` persisted `non_approved_evidence_gate` warning，非本輪新增寫入；本輪未寫 snapshot、artifact、index、review ledger、repair、rerun 或 queue。
 - D3615：final-audit 已用 shared `build_confidence_calibration()` 判定 data-trust／cross-source conflict 下的信心上限，但 content credibility 只留下泛化的 `non_fresh_data_trust`，歷史/API projection 看不到超限原因。新增 `confidence_exceeds_data_trust_cap` read-only warning，重用相同 cap、raw/effective score 與 reasons；不另造政策，不升級 calibrated/aligned/unavailable。
@@ -1181,7 +1183,7 @@
 
 - 統計範圍：`tests/` 與 `backend/` 中的 `.py`、`.json`、`.j2`、`.md`、`.html`、`.js` 來源檔。
 - 排除範圍：`backend/output/`、`__pycache__`、`.pytest_cache` 等生成或快取產物。
-- 測試檔案數：30。
+- 測試檔案數：32。
 - 後端檔案數：26。
 - 信賴區間：最低可觀測樣本；它能證明契約詞依賴面不小，但不能代表所有 runtime 輸出母體。
 - 相關性提醒：相關不等於可替換。檔案含「投資建議」可能是在排除舊 UI 語氣，也可能是 parser/prompt 契約。

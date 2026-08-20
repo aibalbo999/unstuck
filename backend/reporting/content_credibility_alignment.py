@@ -1,14 +1,8 @@
 """Recommendation and target-price alignment checks for content credibility."""
-
 from __future__ import annotations
-
 from typing import Any
-
 from recommendation_labels import CANONICAL_RECOMMENDATIONS
-
 from .content_credibility_inputs import upside_pct
-
-
 BUY_TARGET_MIN_UPSIDE_PCT = 0.0
 BEARISH_TARGET_MAX_UPSIDE_PCT = 10.0
 HOLD_EXTREME_MOVE_PCT = 30.0

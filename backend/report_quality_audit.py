@@ -1,8 +1,6 @@
 """Summarize report quality metadata coverage without changing report artifacts."""
-
 from __future__ import annotations
 
-import json
 from collections import OrderedDict
 from hashlib import sha256
 from threading import RLock
@@ -11,15 +9,16 @@ from typing import Any
 
 from data_trust_snapshot import verify_data_snapshot_integrity
 from mapping_fields import safe_text, safe_text_list
-from pipeline_modes import get_pipeline_definition, get_structured_agent_num
 from report_history_pagination import collect_all_report_pages
 from report_history_storage import load_storage_item, storage_for_existing_output_dir
 from report_index import query_report_metadata
 from report_quality_repair_items import quality_metadata_repair_item
 from report_quality_evidence import read_artifact_quality_summary
-from report_rerun_context import parse_agent_sections_from_markdown
-from reporting.content_credibility_final_audit import align_content_credibility_with_final_audit
-from reporting.content_credibility_projection import merge_content_credibility_results, project_content_credibility
+from report_quality_audit_rows import (
+    hydrate_report_from_index_row as _hydrate_report_from_index_row,
+    read_artifact_rerun_context_status as _read_artifact_rerun_context_status_impl,
+    snapshot_integrity as _snapshot_integrity_impl,
+)
 from report_quality_audit_payload import (
     ARTIFACT_QUALITY_SUMMARY_STATUSES,
     QUALITY_METADATA_FIELDS,
@@ -33,13 +32,10 @@ from report_quality_audit_payload import (
     build_unavailable_report_quality_audit,
 )
 
-
 REPORT_QUALITY_ROWS_CACHE_TTL_SECONDS = 15.0
 REPORT_QUALITY_ROWS_CACHE_MAX_ENTRIES = 8
 _REPORT_QUALITY_ROWS_CACHE: OrderedDict[tuple[str, str], tuple[float, list[dict[str, Any]]]] = OrderedDict()
 _REPORT_QUALITY_ROWS_CACHE_LOCK = RLock()
-
-
 def build_indexed_report_quality_audit(output_dir: str, *, page_size: int = 100, item_limit: int = 5, item_offset: int = 0) -> dict[str, Any]:
     rows = collect_all_report_pages(
         list_indexed_report_quality_rows,
@@ -315,28 +311,12 @@ def _read_artifact_rerun_context_status(
     *,
     load_item=load_storage_item,
 ) -> str:
-    if not storage or not safe_text(filename).strip():
-        return "unavailable"
-    try:
-        item = load_item(storage, safe_text(filename).strip(), kind="md")
-    except Exception:
-        return "unavailable"
-    if item is None:
-        return "unavailable"
-    try:
-        raw_content = item.content
-        markdown = raw_content.decode("utf-8", errors="replace") if isinstance(raw_content, bytes) else safe_text(raw_content)
-        sections = parse_agent_sections_from_markdown(markdown)
-        pipeline = get_pipeline_definition(safe_text(pipeline_id).strip() or "v1")
-        final_agent = get_structured_agent_num("recommendation", pipeline["id"])
-        if final_agent is None:
-            return "unavailable"
-        required_agents = [agent for agent in pipeline["agents"] if agent < final_agent]
-        if all(agent in sections for agent in required_agents):
-            return "present"
-        return "partial" if sections else "missing"
-    except Exception:
-        return "unavailable"
+    return _read_artifact_rerun_context_status_impl(
+        storage,
+        filename,
+        pipeline_id,
+        load_item=load_item,
+    )
 
 
 def _raw_row(row: Any) -> dict[str, Any]:
@@ -344,76 +324,19 @@ def _raw_row(row: Any) -> dict[str, Any]:
 
 
 def _report_from_index_row(row: dict[str, Any], storage: Any) -> dict[str, Any]:
-    filename = safe_text(row.get("filename")).strip()
-    snapshot = {}
-    try:
-        item = load_storage_item(storage, filename, kind="data") if storage and filename else None
-    except Exception:
-        item = None
-    if item is not None:
-        try:
-            snapshot = json.loads(item.content)
-        except Exception:
-            snapshot = {}
-    snapshot = snapshot if isinstance(snapshot, dict) else {}
-    integrity = _snapshot_integrity(snapshot)
-    stored_content_credibility = align_content_credibility_with_final_audit(
-        snapshot.get("content_credibility", {}),
-        snapshot.get("final_audit") or snapshot.get("report_conformance", {}),
+    return _hydrate_report_from_index_row(
+        row,
+        storage,
+        load_item=load_storage_item,
+        verify_snapshot_integrity=verify_data_snapshot_integrity,
     )
-    projected_content_credibility = project_content_credibility(snapshot)
-    has_recorded_content_credibility = safe_text(stored_content_credibility.get("status")).strip().lower() in {
-        "passed", "warning", "blocked", "failed", "rejected",
-    }
-    return {
-        "ticker": safe_text(row.get("ticker")).strip(),
-        "filename": filename,
-        "report_date": safe_text(row.get("report_date") or row.get("date")).strip(),
-        "pipeline_id": safe_text(row.get("pipeline_id")).strip() or "v1",
-        "snapshot_integrity": integrity,
-        "refreshed_from_report": safe_text(snapshot.get("refreshed_from_report")).strip(),
-        "snapshot_refreshed_at": safe_text(snapshot.get("snapshot_refreshed_at")).strip(),
-        "refreshed_without_analysis_rerun": bool(snapshot.get("refreshed_without_analysis_rerun")),
-        "decision_validity_status": safe_text(snapshot.get("decision_validity_status")).strip(),
-        "rerun_context": snapshot.get("rerun_context", {}),
-        "report_conformance": snapshot.get("report_conformance", {}),
-        "evidence_exit_gate": snapshot.get("evidence_exit_gate", {}),
-        "content_credibility": (
-            merge_content_credibility_results(stored_content_credibility, projected_content_credibility)
-            if projected_content_credibility is not None and has_recorded_content_credibility
-            else stored_content_credibility
-        ),
-        "content_credibility_projection": (
-            {
-                "status": "projected" if has_recorded_content_credibility else "available",
-                "source": "snapshot.rerun_context",
-                "persisted_status": safe_text(stored_content_credibility.get("status")).strip().lower(),
-            }
-            if projected_content_credibility is not None
-            else {
-                "status": "unavailable",
-                "source": "snapshot.rerun_context",
-                "persisted_status": safe_text(stored_content_credibility.get("status")).strip().lower(),
-            }
-        ),
-    }
 
 
 def _snapshot_integrity(snapshot: dict[str, Any]) -> dict[str, Any]:
-    if not snapshot:
-        return {"status": "unverified", "valid": None, "errors": ["snapshot unavailable"]}
-    try:
-        integrity = verify_data_snapshot_integrity(snapshot)
-    except Exception:
-        return {"status": "unverified", "valid": None, "errors": ["snapshot integrity check failed"]}
-    expected_hash = safe_text(integrity.get("expected_hash")).strip()
-    if not expected_hash:
-        return {"status": "unverified", "valid": None, "errors": ["snapshot_hash missing"]}
-    return {
-        "status": "verified" if integrity.get("valid") else "invalid",
-        "valid": bool(integrity.get("valid")),
-        "errors": [safe_text(error) for error in integrity.get("errors", []) if safe_text(error)],
-    }
+    return _snapshot_integrity_impl(
+        snapshot,
+        verify_snapshot_integrity=verify_data_snapshot_integrity,
+    )
 
 
 def _normalize_review_status_filter(value: Any) -> str:
