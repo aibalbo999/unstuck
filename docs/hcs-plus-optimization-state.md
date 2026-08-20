@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-20
+- D3598：本輪初始 live historical quality audit 觀測 `1228` 份 verified snapshot，其中 `115` 份缺少三個 quality gate，且都有 `refreshed_from_report`；抽查發現資料刷新流程雖保留 gate map，卻沒有把原報告的 `evidence_matrix` 傳入 `build_data_snapshot()`，刷新後會靜默寫成空陣列。現在由 refresh context 明確帶回既有 matrix，snapshot builder 在收到 explicit matrix 時保留它；沒有 explicit matrix 的一般新報告仍走既有 builder。
+- D3598 驗證收斂：先以 refresh regression 取得 `1 failed`，再 GREEN；refresh/diff `14 passed`、content credibility evidence `8 passed`、report data-trust matrix `30 passed`、snapshot/data-trust `39 passed`。正式 runtime reload 後 `healthz=ok`、`readyz=ready`，live historical read-only audit 為 `1225` 份 verified versions、coverage `90.61%`、缺口 `115`，範圍與缺口語意維持一致。
 - D3597：D3596 暴露出 `extract_target_price_numbers()` 在大量內容可信度語料上反覆掃描巨大非價格 regex；明確的 `time-to` 數量指標、`target price` 直接值與「queue items reached N」句型不需要進入完整 fallback。新增保守的 read-only fast path，只有能辨識非價格或字串開頭的明確目標價時短路，其餘語料維持原 parser。
 - D3597 驗證收斂：新增三個「不得觸碰大型 pattern」RED→GREEN regression；完整 inputs matrix `870 passed in 220.14s`，同一命令前一版為 `870 passed in 578.52s`，約減少 `62%`。品質/preview `218 passed`、refresh/data-trust/evidence `211 passed`、文件/架構契約 `138 passed`，diff check/compile 通過；正式 runtime 重啟後 `healthz=ok`、`readyz=ready`，live 2603 報告 `content_credibility.status=passed`。
 - D3596：live v4 交易計畫的目標價／停損文字會把日期或週期數字放在真正價格前，例如「2026 年 7 月 31 日價格點 204.0」、「52 週高點 31.3」；共用 `first_price()` 因此可能把年份、月份或週數誤當價格。現在只在內容可信度輸入邊界移除明確日曆／週期 token，再交給既有價格 parser，不改 snapshot、index、gate、方向語意或任何 mutation。
@@ -1143,7 +1145,7 @@
 
 - 統計範圍：`tests/` 與 `backend/` 中的 `.py`、`.json`、`.j2`、`.md`、`.html`、`.js` 來源檔。
 - 排除範圍：`backend/output/`、`__pycache__`、`.pytest_cache` 等生成或快取產物。
-- 測試檔案數：29。
+- 測試檔案數：30。
 - 後端檔案數：26。
 - 信賴區間：最低可觀測樣本；它能證明契約詞依賴面不小，但不能代表所有 runtime 輸出母體。
 - 相關性提醒：相關不等於可替換。檔案含「投資建議」可能是在排除舊 UI 語氣，也可能是 parser/prompt 契約。

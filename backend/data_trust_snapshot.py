@@ -96,12 +96,15 @@ def build_data_snapshot(
         if existing_data_trust_map is not None
         else build_data_trust(data)
     )
-    try:
-        from reporting.evidence_matrix import build_evidence_matrix_rows
+    if "evidence_matrix" in context:
+        evidence_matrix = dict.get(context, "evidence_matrix")
+    else:
+        try:
+            from reporting.evidence_matrix import build_evidence_matrix_rows
 
-        evidence_matrix = build_evidence_matrix_rows(context)
-    except Exception:
-        evidence_matrix = []
+            evidence_matrix = build_evidence_matrix_rows(context)
+        except Exception:
+            evidence_matrix = []
     snapshot_generated_at = generated_at or utc_now_iso()
     confidence_controls = build_data_confidence_controls(context, data_trust)
     snapshot = {

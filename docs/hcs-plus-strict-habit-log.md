@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3598 / preserve evidence matrix through data refresh
+
+- `#拆解問題` / `#證據基礎`：本輪初始 historical audit 觀測 `1228` 份 verified snapshot、`115` 份三 gate 缺口，且 `after_refresh=115`；抽查 1623 v2 的 data snapshot、HTML/Markdown 與 refresh code，確認 artifact 有舊版 conformance/evidence 摘要，但 snapshot 的 `evidence_matrix` 在 refresh 後被重建成 `[]`。
+- `#偏誤降低` / `#責任`：不把既有 artifact marker 重建成 gate，也不在 refresh 時重新宣稱分析通過；只讓 `report_refresh_service` 將原 snapshot 的 `evidence_matrix` 帶入 `build_data_snapshot()`，並讓 builder 對 explicit matrix 做 sanitized preservation，維持原有新報告 matrix builder fallback。
+- `#可驗證性` / `#來源品質`：先新增保存行為測試取得 `1 failed`，再 GREEN；refresh/diff `14 passed`、content credibility evidence `8 passed`、report data-trust matrix `30 passed`、snapshot/data-trust `39 passed`。正式 runtime reload 後 `healthz=ok`、`readyz=ready`；live historical read-only audit 為 `1225` 份 verified versions、coverage `90.61%`、缺口 `115`，沒有新增 artifact/index/review/queue mutation。
+
 ## D3597 / credibility price-parser fast paths
 
 - `#最佳化` / `#變數分析`：D3596 後完整 `870` case matrix 雖能通過，但同一輪 durations 顯示 service-queue 語料最高 `39.21s`，`time-to` 語料也重複進入大型 `NON_PRICE_METRIC_*` regex；瓶頸是輸入形狀與 fallback 分流，不是測試數量本身。
