@@ -161,6 +161,16 @@ def test_content_credibility_blocks_high_confidence_when_evidence_is_rejected():
     assert any(issue["id"] == "high_confidence_rejected_evidence" for issue in result["blocking_issues"])
 
 
+def test_content_credibility_warns_high_confidence_when_evidence_is_unrecorded():
+    from reporting.content_credibility import evaluate_content_credibility
+
+    context = _base_context(recommendation="持有", target_12m="NT$105", confidence="9/10")
+    result = evaluate_content_credibility(context, _base_snapshot(context, evidence_verdict="NaN"))
+
+    assert result["status"] == "warning"
+    assert any(issue["id"] == "high_confidence_unrecorded_evidence" for issue in result["warnings"])
+
+
 def test_content_credibility_blocks_when_final_audit_has_critical_issue():
     from reporting.content_credibility import evaluate_content_credibility
 

@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3609 / do not overstate confidence without evidence
+
+- `#偏誤辨識` / `#證據基礎`：`not_recorded` 被當成「不矛盾」而 passed，會讓高信心結論繞過 evidence gate 缺口；`NaN` 只是輸入正規化，不是證據通過。
+- `#語意含義` / `#責任`：新增 `high_confidence_unrecorded_evidence` warning，只在 confidence `>=8/10` 時升級；保留 rejected + high confidence 的 blocked，並不把未記錄證據假裝成 rejected。
+- `#可驗證性` / `#來源品質`：先取得 evidence-confidence RED，再 GREEN `4 passed`；跨層 quality/conformance `318 passed`，live warning smoke、daily/current historical `157/2/98.73%`、repair queue `0`、decision queue `2`、health/readiness/doctor 均通過，維持既有 mutation boundary。
+
 ## D3608 / do not pass unknown recommendation directions
 
 - `#偏誤辨識` / `#合理性`：alignment 只有「買入／偏空／持有」分支；未知 label 有現價與目標價時會直接穿過所有分支，形成「未檢查」卻顯示 passed 的錯誤綠燈。

@@ -48,6 +48,15 @@ def evaluate_confidence_evidence_alignment(evidence_verdict: Any, confidence_sco
         )
         blocking.append(issue)
         checks.append(_check("confidence_evidence_alignment", "blocked", issue["message"], details))
+    elif evidence_verdict == "not_recorded" and confidence_score is not None and confidence_score >= HIGH_CONFIDENCE_MIN_SCORE:
+        details = {"evidence_verdict": evidence_verdict, "confidence_score": confidence_score}
+        issue = _issue(
+            "high_confidence_unrecorded_evidence",
+            "證據抽查尚未記錄，但最終結論仍給出高信心。",
+            details,
+        )
+        warnings.append(issue)
+        checks.append(_check("confidence_evidence_alignment", "warning", issue["message"], details))
     elif evidence_verdict not in {"approved", "not_recorded"}:
         details = {"evidence_verdict": evidence_verdict, "confidence_score": confidence_score}
         warnings.append(_issue("non_approved_evidence_gate", "證據抽查未完全通過，內容可信度需人工確認。", details))

@@ -33,9 +33,9 @@ def test_evidence_confidence_treats_string_empty_tokens_as_not_recorded():
     result = evaluate_confidence_evidence_alignment("NaN", 9.0)
 
     assert result["blocking_issues"] == []
-    assert result["warnings"] == []
-    assert result["checks"][0]["status"] == "passed"
-    assert result["checks"][0]["details"] == {"evidence_verdict": "not_recorded"}
+    assert result["warnings"][0]["id"] == "high_confidence_unrecorded_evidence"
+    assert result["checks"][0]["status"] == "warning"
+    assert result["checks"][0]["details"] == {"evidence_verdict": "not_recorded", "confidence_score": 9.0}
 
 
 def test_evidence_confidence_passes_approved_and_not_recorded_gates():
