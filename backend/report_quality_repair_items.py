@@ -162,7 +162,8 @@ def _summary(payload: dict[str, Any], fallback: str) -> str:
     summary = safe_text(_field(payload, "summary")).strip()
     message = safe_text(_field(payload, "message")).strip()
     detail = next((detail for issue in safe_dict_list(_field(payload, "blocking_issues")) for detail in safe_text_list(_field(issue, "details")) if detail), "")
-    return detail or summary or message or fallback
+    warning = next((safe_text(_field(issue, "message")).strip() for issue in safe_dict_list(_field(payload, "warnings")) if safe_text(_field(issue, "message")).strip()), "")
+    return detail or warning or summary or message or fallback
 
 
 def _first_text(*values: Any, fallback: str) -> str:

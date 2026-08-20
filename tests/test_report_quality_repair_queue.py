@@ -74,6 +74,29 @@ def test_report_quality_repair_items_project_blocked_content_credibility():
     }
 
 
+def test_report_quality_repair_items_project_warning_detail_from_content_warning():
+    from report_quality_repair_items import content_credibility_repair_item
+
+    item = content_credibility_repair_item(
+        {
+            "content_credibility": {
+                "status": "warning",
+                "summary": "報告關鍵結論未見阻斷矛盾，但仍有可信度警示。",
+                "warnings": [
+                    {
+                        "id": "non_approved_evidence_gate",
+                        "message": "證據抽查未完全通過，內容可信度需人工確認。",
+                    }
+                ],
+            }
+        }
+    )
+
+    assert item["detail"] == "證據抽查未完全通過，內容可信度需人工確認。"
+    assert item["reason_codes"] == ["content_credibility_warning"]
+    assert item["blocks_auto_rerun"] is False
+
+
 def test_report_quality_repair_items_project_missing_quality_metadata():
     assert importlib.util.find_spec("report_quality_repair_items") is not None
     helpers = importlib.import_module("report_quality_repair_items")

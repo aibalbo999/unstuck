@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3619 / preserve concrete warning detail in repair queue
+
+- `#差距分析` / `#偏誤辨識`：live 唯一 `action_required` 是 `2603.TW v4` 的 evidence caution；content credibility 已保存 `warnings[]`，但 repair item `_summary()` 只讀 `blocking_issues`、summary、message，操作員只能看到泛稱「內容可信度需確認」。
+- `#語意含義` / `#受眾` / `#責任`：warning gate 在沒有 blocking detail 時取第一個 warning message，讓人工直接看到「證據抽查未完全通過，內容可信度需人工確認。」；blocking detail 仍優先，severity、priority、reason code、rerun/queue 邊界完全不變。
+- `#可驗證性` / `#證據基礎`：新增 regression 先 RED 再 GREEN；repair queue `51 passed`、quality/audit/dashboard/review `118 passed`、完整 quality `325 passed in 5.02s`、import boundary `503 passed in 12.86s`、architecture/docs/HCS `138 passed in 3.69s`、frontend HTTP `6 passed in 3.16s`，compile/diff 通過。runtime reload 後 live 2603 detail、health/readiness/doctor 均符合預期，未寫 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3618 / remove report target detection regex hot path
 
 - `#差距分析` / `#偏誤辨識`：D3617 的 pattern ownership split 後，target detector 仍在每個候選欄位呼叫約 145k 字元的 non-price metric substitution；valid direct target 也沒有利用已證明的字串邊界，造成大型組合回歸成本過高。
