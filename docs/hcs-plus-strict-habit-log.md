@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3616 / project current credibility rules without replacing saved evidence
+
+- `#偏誤辨識` / `#證據基礎`：歷史/API row 只對齊 persisted content gate 與 final-audit，未使用 snapshot 內已保存的 `rerun_context.parsed`；新 deterministic 規則因此可能只在新 renderer 生效，歷史報告看不到相同檢查。
+- `#責任` / `#語意含義`：新增 `content_credibility_projection` helper；只有 parsed/data/pipeline context 完整時唯讀評估，已記錄 gate 以 issue-level merge 保留舊 findings，缺 gate 維持 metadata missing，`available` 不等於 passed，也不建立任何 repair/rerun/queue side effect。
+- `#可驗證性` / `#偏誤降低`：projection、report history、quality audit 與 docs RED→GREEN；跨層 `386 passed`，compile/diff check 通過；live 第一頁 `100` 筆有 `73` 筆 projection，persisted/current issue ids `0` 筆差異，daily `165` audited/`2` metadata missing/`98.79%`、historical `1217`/`115`/`90.55%`，health/readiness/doctor 通過。daily sample 的 1 筆 repair 是既有 2603 v4 evidence warning，本輪未寫 snapshot、artifact、index、review、rerun 或 queue。
+
 ## D3615 / surface confidence caps from shared calibration
 
 - `#偏誤辨識` / `#證據基礎`：final-audit 已判定 `data_trust=partial/stale/unknown` 或跨來源衝突會降低信心上限，但 content credibility 只顯示 non-fresh，沒有指出 recommendation 的 raw/effective confidence 已超過 cap。

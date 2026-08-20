@@ -21,6 +21,7 @@ from report_quality_evidence import read_artifact_quality_summary
 from report_quality_metadata_repair import quality_metadata_repair_item
 from reporting.content_credibility import evaluate_content_credibility
 from reporting.content_credibility_final_audit import align_content_credibility_with_final_audit
+from reporting.content_credibility_projection import merge_content_credibility_results, project_content_credibility
 
 
 def _row_file_path(row, *, kind: str) -> str:
@@ -164,6 +165,9 @@ def _content_credibility(row, *, pipeline_id: str, markdown_text: str, snapshot:
         credibility,
         final_audit_or_conformance,
     )
+    projected = project_content_credibility(snapshot)
+    if projected is not None and _recorded_content_credibility(credibility):
+        return merge_content_credibility_results(credibility, projected)
     if pipeline_id != "v4":
         return credibility
 
@@ -174,6 +178,8 @@ def _content_credibility(row, *, pipeline_id: str, markdown_text: str, snapshot:
     trade_setup = extract_trade_setup(snapshot, markdown_text)
     if not trade_setup:
         return credibility
+    if not _recorded_content_credibility(credibility):
+        return credibility
 
     data = safe_mapping_dict(snapshot.get("data")) or {}
     context = {
@@ -182,7 +188,12 @@ def _content_credibility(row, *, pipeline_id: str, markdown_text: str, snapshot:
         "parsed": {"trade_setup": trade_setup},
         "evidence_exit_gate": safe_mapping_dict(snapshot.get("evidence_exit_gate")) or {},
     }
-    return evaluate_content_credibility(context, snapshot, markdown=markdown_text)
+    projected = evaluate_content_credibility(context, snapshot, markdown=markdown_text)
+    return merge_content_credibility_results(credibility, projected) if _recorded_content_credibility(credibility) else projected
+
+
+def _recorded_content_credibility(credibility: dict) -> bool:
+    return str(credibility.get("status") or "").strip().lower() in {"passed", "warning", "blocked", "failed", "rejected"}
 
 
 def _markdown_text(row) -> str:
@@ -244,6 +255,13 @@ def row_to_report(row) -> dict:
 
     pipeline_id = row["pipeline_id"] or "v1"
     markdown_text = _markdown_text(row)
+    snapshot = _read_snapshot(row)
+    stored_content_credibility = snapshot.get("content_credibility") if isinstance(snapshot.get("content_credibility"), dict) else {}
+    stored_content_credibility = align_content_credibility_with_final_audit(
+        stored_content_credibility,
+        snapshot.get("final_audit") or snapshot.get("report_conformance", {}),
+    )
+    projected_content_credibility = project_content_credibility(snapshot)
     preview = build_report_preview(
         pipeline_id,
         row["ticker"],
@@ -271,6 +289,7 @@ def row_to_report(row) -> dict:
             row,
             pipeline_id=pipeline_id,
             markdown_text=markdown_text,
+            snapshot=snapshot,
         ),
         "snapshot_integrity": _snapshot_integrity(row),
         "data_snapshot_filename": row["data_snapshot_filename"] if "data_snapshot_filename" in row.keys() else "",
@@ -283,6 +302,12 @@ def row_to_report(row) -> dict:
         "markdown_hash": row["markdown_hash"] if "markdown_hash" in row.keys() else "",
         "data_file_hash": row["data_file_hash"] if "data_file_hash" in row.keys() else "",
     }
+    if projected_content_credibility is not None:
+        report["content_credibility_projection"] = {
+            "status": "projected" if _recorded_content_credibility(stored_content_credibility) else "available",
+            "source": "snapshot.rerun_context",
+            "persisted_status": str(stored_content_credibility.get("status") or "").strip().lower(),
+        }
     report["refreshed_from_report"] = _snapshot_text(row, "refreshed_from_report")
     report["snapshot_refreshed_at"] = _snapshot_text(row, "snapshot_refreshed_at")
     report.update(_quality_evidence(row, report))

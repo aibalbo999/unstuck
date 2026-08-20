@@ -613,6 +613,63 @@ def test_indexed_quality_projection_does_not_keep_passed_credibility_when_final_
     )
 
 
+def test_indexed_quality_projection_rechecks_saved_parsed_context_without_filling_missing_gate(monkeypatch):
+    import report_quality_audit as audit
+
+    snapshot = {
+        "snapshot_hash": "hash",
+        "pipeline": "v1",
+        "data": {
+            "current_price": 100.0,
+            "data_trust": {"status": "fresh", "score": 90, "critical_failures": [], "stale_sources": [], "notes": []},
+        },
+        "evidence_exit_gate": {"verdict": "approved", "failed_count": 0},
+        "evidence_matrix": [
+            {"claim": "估值結論", "basis": "熊市 80；基本 120；牛市 140", "status": "success"},
+            {"claim": "最終投資建議", "basis": "建議 買入；12 個月 90", "status": "success"},
+        ],
+        "rerun_context": {
+            "pipeline_id": "v1",
+            "parsed": {
+                "recommendation": {"建議": "買入", "12個月": "NT$90", "信心": "7/10"},
+                "price_targets": {"熊市情境": 80, "基本情境": 120, "牛市情境": 140},
+            },
+        },
+        "content_credibility": {"status": "passed", "blocking_issues": [], "warnings": [], "checks": []},
+    }
+    monkeypatch.setattr(
+        audit,
+        "load_storage_item",
+        lambda *_args, **_kwargs: SimpleNamespace(content=json.dumps(snapshot)),
+    )
+
+    report = audit._report_from_index_row(
+        {"filename": "current.html", "ticker": "2330.TW", "pipeline_id": "v1"},
+        object(),
+    )
+
+    assert report["content_credibility"]["status"] == "blocked"
+    assert report["content_credibility_projection"] == {
+        "status": "projected",
+        "source": "snapshot.rerun_context",
+        "persisted_status": "passed",
+    }
+
+    snapshot["content_credibility"] = {}
+    monkeypatch.setattr(
+        audit,
+        "load_storage_item",
+        lambda *_args, **_kwargs: SimpleNamespace(content=json.dumps(snapshot)),
+    )
+    report = audit._report_from_index_row(
+        {"filename": "missing.html", "ticker": "2330.TW", "pipeline_id": "v1"},
+        object(),
+    )
+
+    assert report["content_credibility"] == {}
+    assert report["content_credibility_projection"]["status"] == "available"
+
+
 def test_indexed_report_quality_audit_exposes_snapshot_refresh_provenance(monkeypatch, tmp_path):
     import report_quality_audit as audit
 

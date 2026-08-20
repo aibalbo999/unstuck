@@ -19,6 +19,7 @@ from report_quality_repair_items import quality_metadata_repair_item
 from report_quality_evidence import read_artifact_quality_summary
 from report_rerun_context import parse_agent_sections_from_markdown
 from reporting.content_credibility_final_audit import align_content_credibility_with_final_audit
+from reporting.content_credibility_projection import merge_content_credibility_results, project_content_credibility
 from report_quality_audit_payload import (
     ARTIFACT_QUALITY_SUMMARY_STATUSES,
     QUALITY_METADATA_FIELDS,
@@ -356,6 +357,14 @@ def _report_from_index_row(row: dict[str, Any], storage: Any) -> dict[str, Any]:
             snapshot = {}
     snapshot = snapshot if isinstance(snapshot, dict) else {}
     integrity = _snapshot_integrity(snapshot)
+    stored_content_credibility = align_content_credibility_with_final_audit(
+        snapshot.get("content_credibility", {}),
+        snapshot.get("final_audit") or snapshot.get("report_conformance", {}),
+    )
+    projected_content_credibility = project_content_credibility(snapshot)
+    has_recorded_content_credibility = safe_text(stored_content_credibility.get("status")).strip().lower() in {
+        "passed", "warning", "blocked", "failed", "rejected",
+    }
     return {
         "ticker": safe_text(row.get("ticker")).strip(),
         "filename": filename,
@@ -369,9 +378,23 @@ def _report_from_index_row(row: dict[str, Any], storage: Any) -> dict[str, Any]:
         "rerun_context": snapshot.get("rerun_context", {}),
         "report_conformance": snapshot.get("report_conformance", {}),
         "evidence_exit_gate": snapshot.get("evidence_exit_gate", {}),
-        "content_credibility": align_content_credibility_with_final_audit(
-            snapshot.get("content_credibility", {}),
-            snapshot.get("final_audit") or snapshot.get("report_conformance", {}),
+        "content_credibility": (
+            merge_content_credibility_results(stored_content_credibility, projected_content_credibility)
+            if projected_content_credibility is not None and has_recorded_content_credibility
+            else stored_content_credibility
+        ),
+        "content_credibility_projection": (
+            {
+                "status": "projected" if has_recorded_content_credibility else "available",
+                "source": "snapshot.rerun_context",
+                "persisted_status": safe_text(stored_content_credibility.get("status")).strip().lower(),
+            }
+            if projected_content_credibility is not None
+            else {
+                "status": "unavailable",
+                "source": "snapshot.rerun_context",
+                "persisted_status": safe_text(stored_content_credibility.get("status")).strip().lower(),
+            }
         ),
     }
 

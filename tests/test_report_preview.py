@@ -365,6 +365,42 @@ def test_mode_d_history_upgrades_legacy_content_credibility_from_trade_plan(tmp_
     }
 
 
+def test_report_history_projects_current_credibility_from_saved_parsed_context(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
+    filename = "2330_v1_report_20260708_020000.html"
+    (tmp_path / filename).write_text("<html></html>", encoding="utf-8")
+    (tmp_path / filename.replace(".html", ".md")).write_text("歷史報告。", encoding="utf-8")
+    snapshot = {
+        "ticker": "2330.TW",
+        "pipeline": "v1",
+        "data": {
+            "ticker": "2330.TW",
+            "current_price": 100.0,
+            "data_trust": {"status": "fresh", "score": 90, "critical_failures": [], "stale_sources": [], "notes": []},
+            "source_audit": [],
+        },
+        "data_trust": {"status": "fresh", "score": 90, "critical_failures": [], "stale_sources": [], "notes": []},
+        "evidence_exit_gate": {"verdict": "approved", "failed_count": 0},
+        "evidence_matrix": [
+            {"claim": "估值結論", "basis": "熊市 80；基本 120；牛市 140", "status": "success"},
+            {"claim": "最終投資建議", "basis": "建議 買入；12 個月 90", "status": "success"},
+        ],
+        "rerun_context": {
+            "pipeline_id": "v1",
+            "parsed": {"recommendation": {"建議": "買入", "12個月": "NT$90", "信心": "7/10"}},
+        },
+        "content_credibility": {"status": "passed", "blocking_issues": [], "warnings": [], "checks": []},
+    }
+    (tmp_path / filename.replace(".html", ".data.json")).write_text(json.dumps(snapshot, ensure_ascii=False), encoding="utf-8")
+    report_index.upsert_report_metadata(filename, output_dir=str(tmp_path))
+
+    report = list_reports_for_test(tmp_path, pipeline="v1")["reports"][0]
+
+    assert report["content_credibility"]["status"] == "blocked"
+    assert report["content_credibility_projection"]["source"] == "snapshot.rerun_context"
+
+
 def test_rendered_report_surfaces_catalysts_with_watchlist_buttons():
     html = generate_html_report({
         "ticker": "2449.TW",
