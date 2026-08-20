@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3657 / align full report HTML reading notice with current quality projection
+
+- `#差距分析` / `#受眾`：live history row 已把 3324 v4 的 current evidence/content 警示呈現出來，但操作人員點開完整 HTML 仍看到 persisted「已通過已知檢查」；列表與完整報告是同一個閱讀流程，不能讓入口各自使用不同品質狀態。
+- `#最小變更` / `#責任`：新增 `report_history_quality_notice` lookup，在 view-time 讀取同一份 report index current row，將三個 current quality gate overlay 到 HTML reading notice；實體 HTML、Markdown、data snapshot、index 與 queue 維持原值，snapshot integrity invalid 仍優先使用阻擋提示。
+- `#可驗證性` / `#來源品質`：storage RED→GREEN；`tests/test_report_storage_integration.py` `47 passed`、history/preview `119 passed`、import boundary `504 passed`；runtime reload 後 3324 v4 與 1623 v1/v2 完整 HTML 均為 warning，data download 仍為原始 persisted 值。
+
 ## D3656 / align composite conformance with current evidence and content gates
 
 - `#差距分析` / `#偏誤辨識`：165 份 current row 中 106 份的 evidence/content 已有 warning 或 blocked，但 persisted `report_conformance` 仍是 passed；單看 composite status 會掩蓋 current quality warning。

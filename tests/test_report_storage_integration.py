@@ -346,6 +346,64 @@ def test_get_report_file_reads_storage_and_repairs_html():
     assert 'href="https://tw.stock.yahoo.com/quote/2308.TW"' in response.body.decode("utf-8")
 
 
+def test_get_report_file_projects_current_quality_notice_without_rewriting_storage():
+    storage = InMemoryStorage()
+    filename = "3324_TWO_v4_report_20260820_211303.html"
+    storage.save_report(
+        filename,
+        """
+        <html><body>
+        <section class="report-reading-notice report-reading-notice-passed">
+            <span class="report-reading-notice-status">已通過已知檢查</span>
+        </section>
+        <p>persisted report body</p>
+        </body></html>
+        """.encode("utf-8"),
+        content_type="text/html",
+    )
+    snapshot = {
+        "ticker": "3324.TWO",
+        "data_trust": {"status": "fresh"},
+        "data": {"data_trust": {"status": "fresh"}},
+        "evidence_exit_gate": {"verdict": "approved"},
+        "content_credibility": {"status": "passed"},
+        "report_conformance": {"status": "passed"},
+    }
+    storage.save_report(
+        data_snapshot_filename_for_report(filename),
+        json.dumps(snapshot, ensure_ascii=False).encode("utf-8"),
+        content_type="application/json",
+    )
+
+    class CurrentQualityRepository:
+        def query(self, query):
+            return ([{
+                "filename": filename,
+                "evidence_exit_gate": {"verdict": "caution"},
+                "content_credibility": {"status": "warning"},
+                "report_conformance": {"status": "warning"},
+            }], 1)
+
+    response = get_report_file(
+        filename,
+        "/missing-output-dir",
+        storage=storage,
+        repository=CurrentQualityRepository(),
+    )
+    body = response.body.decode("utf-8")
+
+    assert response.status_code == 200
+    assert "persisted report body" in body
+    assert "report-reading-notice-warning" in body
+    assert "品質 gate 有警示" in body
+    assert "證據抽查</span><strong>需人工確認" in body
+    assert "內容一致性</span><strong>有警示" in body
+    assert "輸出契約</span><strong>有警示" in body
+    assert "report-reading-notice-passed" not in body
+    assert "report-reading-notice-passed" in storage.get_report(filename).content.decode("utf-8")
+    assert json.loads(storage.get_report(data_snapshot_filename_for_report(filename)).content) == snapshot
+
+
 def test_report_history_download_helper_builds_secure_html_response():
     response = secure_html_response("<h1>safe</h1>", status_code=202, headers={"X-Report": "ok"})
 

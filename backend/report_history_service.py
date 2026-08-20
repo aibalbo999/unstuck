@@ -16,6 +16,7 @@ from report_history_downloads import (
     report_file_response,
     secure_html_response,
 )
+from report_history_quality_notice import report_quality_notice_context
 from report_history_query import normalize_report_list_filters
 from report_history_storage_keys import (
     basename_for_storage_key as _basename_for_storage_key,
@@ -215,19 +216,32 @@ def delete_report_files(
     return {"success": True, "deleted": deleted}
 
 
-def get_report_file(filename: str, output_dir: str, storage: ReportStorage | None = None):
+def get_report_file(filename: str, output_dir: str, storage: ReportStorage | None = None, repository: ReportRepository = DEFAULT_REPORT_REPOSITORY):
     if not is_safe_report_filename(filename, ".html"):
         return secure_html_response("<h1>Invalid filename</h1>", status_code=400)
     content_storage = storage_for_existing_output_dir(output_dir, storage)
     if content_storage is None:
         return missing_report_response("html")
-    return report_file_response(filename, content_storage)
+    reading_notice_context = report_quality_notice_context(filename, output_dir, content_storage, repository)
+    return report_file_response(
+        filename,
+        content_storage,
+        reading_notice_context=reading_notice_context,
+    )
 
 
-def download_report_file(filename: str, output_dir: str, kind: str, storage: ReportStorage | None = None):
+def download_report_file(filename: str, output_dir: str, kind: str, storage: ReportStorage | None = None, repository: ReportRepository = DEFAULT_REPORT_REPOSITORY):
     if not is_safe_report_filename(filename, ".html"):
         return secure_html_response("<h1>Invalid filename</h1>", status_code=400)
     content_storage = storage_for_existing_output_dir(output_dir, storage)
     if content_storage is None:
         return missing_report_response(kind)
-    return download_report_response(filename, kind, content_storage)
+    reading_notice_context = None
+    if kind == "html":
+        reading_notice_context = report_quality_notice_context(filename, output_dir, content_storage, repository)
+    return download_report_response(
+        filename,
+        kind,
+        content_storage,
+        reading_notice_context=reading_notice_context,
+    )

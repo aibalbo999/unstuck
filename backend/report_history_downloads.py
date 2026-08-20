@@ -34,26 +34,37 @@ def missing_report_response(kind: str = "html") -> HTMLResponse:
     raise ValueError(f"Unknown report download kind: {kind}")
 
 
-def report_file_response(filename: str, storage: ReportStorage) -> HTMLResponse:
+def report_file_response(
+    filename: str,
+    storage: ReportStorage,
+    *,
+    reading_notice_context: dict | None = None,
+) -> HTMLResponse:
     item = load_storage_item(storage, filename, kind="html")
     if item is None:
         return missing_report_response("html")
-    html = repair_report_html_for_view(
-        item.content.decode("utf-8"),
-        reading_notice_context=invalid_snapshot_notice_context(storage, filename),
-    )
+    context = reading_notice_context
+    if context is None:
+        context = invalid_snapshot_notice_context(storage, filename)
+    html = repair_report_html_for_view(item.content.decode("utf-8"), reading_notice_context=context)
     return secure_html_response(html)
 
 
-def download_report_response(filename: str, kind: str, storage: ReportStorage):
+def download_report_response(
+    filename: str,
+    kind: str,
+    storage: ReportStorage,
+    *,
+    reading_notice_context: dict | None = None,
+):
     if kind == "html":
         item = load_storage_item(storage, filename, kind="html")
         if item is None:
             return missing_report_response("html")
-        html = repair_report_html_for_view(
-            item.content.decode("utf-8"),
-            reading_notice_context=invalid_snapshot_notice_context(storage, filename),
-        )
+        context = reading_notice_context
+        if context is None:
+            context = invalid_snapshot_notice_context(storage, filename)
+        html = repair_report_html_for_view(item.content.decode("utf-8"), reading_notice_context=context)
         return secure_html_response(
             html,
             headers={"Content-Disposition": f"attachment; filename={filename}"},

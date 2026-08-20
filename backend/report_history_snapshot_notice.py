@@ -53,6 +53,35 @@ def invalid_snapshot_notice_context(storage: ReportStorage, filename: str) -> di
     )
 
 
+def current_quality_notice_context(
+    storage: ReportStorage,
+    filename: str,
+    report: Any,
+) -> dict | None:
+    """Overlay current row quality gates onto a view-only snapshot context."""
+    report_map = safe_mapping_dict(report) or {}
+    if not report_map:
+        return None
+    item = load_storage_item(storage, filename, kind="data")
+    if item is None:
+        return None
+    try:
+        snapshot = json.loads(item.content.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError):
+        return None
+    if not isinstance(snapshot, dict):
+        return None
+
+    context = dict(snapshot)
+    projected = False
+    for key in ("report_conformance", "evidence_exit_gate", "content_credibility"):
+        value = safe_mapping_dict(report_map.get(key))
+        if value:
+            context[key] = value
+            projected = True
+    return context if projected else None
+
+
 def recorded_snapshot_integrity_notice_context(snapshot: dict[str, Any]) -> dict | None:
     integrity = recorded_snapshot_integrity(snapshot)
     if integrity is None:
