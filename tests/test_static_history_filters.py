@@ -5282,6 +5282,57 @@ process.stdout.write(JSON.stringify({
     assert payload["suppressedText"] == "policy says current"
 
 
+def test_report_preview_disables_final_rerun_when_freshness_requires_full_rerun():
+    report_quality_policy_path = STATIC_DIR / "report_quality_policy.js"
+    report_preview_helpers_path = STATIC_DIR / "report_preview_helpers.js"
+    report_preview_tracking_helpers_path = STATIC_DIR / "report_preview_tracking_helpers.js"
+    report_preview_rerun_helpers_path = STATIC_DIR / "report_preview_rerun_helpers.js"
+    report_preview_path = STATIC_DIR / "report_preview_panel.js"
+    script = """
+global.window = {};
+require(__REPORT_QUALITY_POLICY_PATH__);
+require(__REPORT_PREVIEW_HELPERS_PATH__);
+require(__REPORT_PREVIEW_TRACKING_HELPERS_PATH__);
+require(__REPORT_PREVIEW_RERUN_HELPERS_PATH__);
+require(__REPORT_PREVIEW_PATH__);
+const el = () => ({ hidden: false, textContent: '', innerHTML: '', className: '', classList: { toggle() {} }, querySelector: () => null });
+const button = () => ({ hidden: false, disabled: false, querySelector: () => ({ textContent: '' }) });
+const rerunFinalBtn = button();
+const rerunFullBtn = button();
+const elements = {
+  workspace: el(), root: el(), mode: el(), title: el(), decisionRow: el(), targets: el(), summary: el(), staleNotice: el(),
+  rerunFinalBtn, rerunFullBtn
+};
+const panel = window.StockAgentReportPreviewPanel.create({
+  elements,
+  escapeHtml: value => String(value ?? ''),
+  renderPipelineModeBadge: () => '',
+  renderDataTrustBadge: () => '',
+  pipelineMeta: () => ({ shortLabel: '價值投資派' }),
+  normalizeRecommendation: value => String(value ?? ''),
+  recommendationTone: () => ''
+});
+panel.show({
+  ticker: '1623', filename: '1623_v2.html', pipeline_id: 'v2', recommendation: { recommendation: '持有' },
+  analysis_text_stale: true,
+  decision_freshness: { requires_rerun: true, requires_rerun_reason: '資料快照已刷新' }
+});
+process.stdout.write(JSON.stringify({
+  finalDisabled: rerunFinalBtn.disabled,
+  fullDisabled: rerunFullBtn.disabled,
+  staleHidden: elements.staleNotice.hidden,
+  staleText: elements.staleNotice.textContent
+}));
+""".replace("__REPORT_QUALITY_POLICY_PATH__", json.dumps(str(report_quality_policy_path))).replace("__REPORT_PREVIEW_HELPERS_PATH__", json.dumps(str(report_preview_helpers_path))).replace("__REPORT_PREVIEW_TRACKING_HELPERS_PATH__", json.dumps(str(report_preview_tracking_helpers_path))).replace("__REPORT_PREVIEW_RERUN_HELPERS_PATH__", json.dumps(str(report_preview_rerun_helpers_path))).replace("__REPORT_PREVIEW_PATH__", json.dumps(str(report_preview_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert payload["finalDisabled"] is True
+    assert payload["fullDisabled"] is False
+    assert payload["staleHidden"] is False
+    assert "完整重跑" in payload["staleText"]
+
+
 def test_report_preview_helpers_render_quality_and_legacy_preview():
     report_quality_gate_policy_path = STATIC_DIR / "report_quality_gate_policy.js"
     report_quality_policy_path = STATIC_DIR / "report_quality_policy.js"
@@ -7816,7 +7867,7 @@ def test_decision_tracking_dense_layout_uses_workspace_efficiently():
     assert "/static/decision_tracking_panel.js?v=20260708-tracking-action-notes" in index_html
     assert "/static/report_preview_helpers.js?v=20260820-shared-evidence-detail" in index_html
     assert "/static/report_preview_tracking_helpers.js?v=20260709-report-preview-tracking-helpers" in index_html
-    assert "/static/report_preview_panel.js?v=20260816-clickable-quality-evidence" in index_html
+    assert "/static/report_preview_panel.js?v=20260820-rerun-execution" in index_html
     assert "provider_sla.css?v=20260628-glass-dark" in style_css
     assert "provider_sla_controls.css?v=20260709-provider-sla-controls" in style_css
     assert style_css.index("provider_sla.css?v=20260628-glass-dark") < style_css.index("provider_sla_controls.css?v=20260709-provider-sla-controls")

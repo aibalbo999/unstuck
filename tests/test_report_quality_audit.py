@@ -652,7 +652,9 @@ def test_indexed_report_quality_audit_exposes_markdown_rerun_fallback(monkeypatc
 
     assert item["rerun_context_status"] == "artifact_fallback_available"
     assert item["artifact_rerun_context_status"] == "present"
-    assert "可嘗試只重跑最終建議" in item["detail"]
+    assert item["rerun_execution_status"] == "full_rerun_required"
+    assert "目前資料 freshness 仍要求完整重跑" in item["detail"]
+    assert "可嘗試只重跑最終建議" not in item["detail"]
     assert "rerun_context_missing" not in item["reason_codes"]
 
 

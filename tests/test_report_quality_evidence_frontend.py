@@ -16,10 +16,10 @@ def test_shared_quality_evidence_helper_loads_before_all_consumers():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     helper = "/static/report_quality_evidence_helpers.js"
     assert (STATIC_DIR / "report_quality_evidence_helpers.js").exists()
-    assert f"{helper}?v=20260820-rerun-context" in index_html
+    assert f"{helper}?v=20260820-rerun-execution" in index_html
     assert "/static/report_quality_gate_policy.js?v=20260816-shared-quality-evidence" in index_html
     assert "/static/report_preview_helpers.js?v=20260820-shared-evidence-detail" in index_html
-    assert "/static/report_preview_panel.js?v=20260816-clickable-quality-evidence" in index_html
+    assert "/static/report_preview_panel.js?v=20260820-rerun-execution" in index_html
     assert "/static/history_quality_audit_render.js?v=20260820-refresh-attribution" in index_html
     assert "/static/watchlist_panel_helpers.js?v=20260820-refresh-attribution" in index_html
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
@@ -122,6 +122,7 @@ require(__EVIDENCE_PATH__);
 const evidence = window.StockAgentReportQualityEvidence.context({
   missing_quality_fields: ['report_conformance', 'evidence_exit_gate', 'content_credibility'],
   rerun_context_status: 'artifact_fallback_available',
+  rerun_execution_status: 'full_rerun_required',
   snapshot_rerun_context_status: 'missing',
   artifact_rerun_context_status: 'present',
   artifact_quality_summary: { status: 'present', fields: ['report_conformance', 'evidence_exit_gate'] }
@@ -135,11 +136,15 @@ process.stdout.write(JSON.stringify({ evidence, target }));
 
     payload = json.loads(_node(script))
 
-    expected = "局部重跑上下文：artifact 有完整前序段落，可嘗試局部重跑"
-    assert payload["evidence"]["rerunContextText"] == expected
-    assert expected in payload["evidence"]["targetContext"]
-    assert expected in payload["target"]["text"]
-    assert "gate 已通過" not in payload["evidence"]["rerunContextText"]
+    expected_context = "局部重跑上下文：artifact 有完整前序段落（只代表上下文可查）"
+    expected_execution = "重跑策略：目前資料 freshness 要求完整重跑"
+    assert payload["evidence"]["rerunContextText"] == expected_context
+    assert payload["evidence"]["rerunExecutionText"] == expected_execution
+    assert expected_context in payload["evidence"]["targetContext"]
+    assert expected_execution in payload["evidence"]["targetContext"]
+    assert expected_execution in payload["target"]["text"]
+    assert "可嘗試局部重跑" not in payload["target"]["text"]
+    assert "gate 已通過" not in payload["evidence"]["rerunExecutionText"]
     assert "artifact 摘要僅供人工核對，不代表 gate 已通過" in payload["target"]["text"]
 
 

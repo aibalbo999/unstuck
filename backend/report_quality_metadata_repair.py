@@ -62,6 +62,8 @@ def quality_metadata_repair_item(report: Mapping[str, Any]) -> dict[str, Any] | 
         item["snapshot_rerun_context_status"] = _rerun_context_status(report_payload)
         if artifact_rerun_context_status:
             item["artifact_rerun_context_status"] = artifact_rerun_context_status
+        rerun_execution_status = _rerun_execution_status(report_payload, rerun_context_status)
+        item["rerun_execution_status"] = rerun_execution_status
         if rerun_context_status == "missing":
             item["detail"] += "目前沒有可供局部重跑的原始分析上下文；若資料標記需重跑，應安排完整重跑後再採用。"
             if (
@@ -70,7 +72,10 @@ def quality_metadata_repair_item(report: Mapping[str, Any]) -> dict[str, Any] | 
             ):
                 item["reason_codes"].append("rerun_context_missing")
         elif rerun_context_status == "artifact_fallback_available":
-            item["detail"] += "snapshot 未保存可供局部重跑的原始分析上下文，但 Markdown artifact 已找到完整前序 Agent 段落；可嘗試只重跑最終建議，仍需先核對 artifact 與 freshness。"
+            if rerun_execution_status == "full_rerun_required":
+                item["detail"] += "snapshot 未保存可供局部重跑的原始分析上下文，但 Markdown artifact 已找到完整前序 Agent 段落；目前資料 freshness 仍要求完整重跑，不能以此上下文取代完整分析。"
+            else:
+                item["detail"] += "snapshot 未保存可供局部重跑的原始分析上下文，但 Markdown artifact 已找到完整前序 Agent 段落；可嘗試只重跑最終建議，仍需先核對 artifact 與 freshness。"
         elif rerun_context_status == "partial":
             item["detail"] += "目前只有部分原始分析上下文；局部重跑前需先確認前序 Agent 輸入是否完整。"
     return item
@@ -94,3 +99,22 @@ def _rerun_context_status(report: Mapping[str, Any]) -> str:
     if available_fields > 0:
         return "partial"
     return "missing"
+
+
+def _rerun_execution_status(report: Mapping[str, Any], rerun_context_status: str) -> str:
+    report_payload = safe_mapping_dict(report) or {}
+    decision_status = safe_text(dict.get(report_payload, "decision_validity_status")).strip().lower()
+    if _safe_bool(dict.get(report_payload, "refreshed_without_analysis_rerun")) or decision_status == "needs_rerun":
+        return "full_rerun_required"
+    if rerun_context_status in {"present", "artifact_fallback_available"}:
+        return "partial_rerun_available"
+    if rerun_context_status == "partial":
+        return "partial_rerun_review_required"
+    return "partial_rerun_unavailable"
+
+
+def _safe_bool(value: Any) -> bool:
+    try:
+        return bool(value)
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
+        return False

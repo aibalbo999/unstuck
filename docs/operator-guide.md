@@ -111,7 +111,7 @@ The read-only report quality audit exposes `missing_quality_fields` on each affe
 
 使用 review status 或缺口欄位篩選時，先讀摘要中的「審核範圍」或「缺口範圍」再解讀數字；篩選後若顯示 `0%`，它只代表目前集合的 coverage，不是全庫品質降為零。只有兩種篩選都為 `all` 時，摘要才使用「品質 metadata 完整度」作為未篩選範圍的 coverage 文案。
 
-品質 target 的「結構化缺口」代表 verified snapshot 沒有保存該 quality metadata；「artifact 摘要可查」代表報告檔案仍有可供人工查看的 marker。target 會直接顯示「artifact 摘要僅供人工核對，不代表 gate 已通過」，並在輔助技術的 aria label 重複這個限制。後者不能當成 gate 已通過，也不會自動解除人工審核或重跑限制；請把兩段 evidence 分開核對。
+品質 target 的「結構化缺口」代表 verified snapshot 沒有保存該 quality metadata；「artifact 摘要可查」代表報告檔案仍有可供人工查看的 marker。target 會直接顯示「artifact 摘要僅供人工核對，不代表 gate 已通過」，並在輔助技術的 aria label 重複這個限制。後者不能當成 gate 已通過，也不會自動解除人工審核或重跑限制；請把兩段 evidence 分開核對。若另看到 `artifact_fallback_available`，它只表示 artifact 有完整前序上下文；要以 `rerun_execution_status` 判斷實際策略。`full_rerun_required` 代表 freshness 仍要求完整重跑，preview 會停用「重跑報告結論」並保留「完整重跑」入口。
 
 報告 preview 若顯示「結構化品質缺口」，代表 verified snapshot 沒有保存列出的 structured quality metadata；badge 的 detail、title、aria label 與 `data-quality-evidence-detail` 優先取自共用 `report_quality_evidence.context(report)`，並說明「artifact 摘要僅供人工核對，不代表 gate 已通過」。這只是報告檔案可供人工查看的 marker，不代表 gate 已通過。請依同一報告的歷史品質稽核與 freshness 一起核對，不要只因 artifact 有文字摘要就直接採用。
 
@@ -135,7 +135,7 @@ filtered view 沒有結果時，摘要會寫「目前沒有符合〈狀態〉的
 
 今日工作台的全量品質摘要會先顯示目前 scope，再分行列出缺口總數、缺 gate、模式、審核狀態、人工進度、來源、artifact 摘要與 coverage；這些是同一個 daily dashboard response 的閱讀投影，不代表新增的全庫判定。手機窄版會將各項堆疊排列，target 本身仍另顯示該報告的審核狀態、結構化缺口、artifact marker 與「artifact 摘要僅供人工核對，不代表 gate 已通過」。
 
-品質 target 內的資訊順序是由共用 `report_quality_evidence_helpers.js` 的 `renderTargetContext()` 固定為「審核狀態」→「結構化缺口、刷新來源與 artifact 摘要」→「artifact 摘要僅供人工核對，不代表 gate 已通過」。history 與 watchlist 共用同一份文字順序；watchlist 可保留自己的 CSS class，但不改變語意。這只是閱讀層級；完整說明仍以 title、aria label 與同一報告的歷史稽核為準，不會把 artifact marker 當成 gate 結果。
+品質 target 內的資訊順序是由共用 `report_quality_evidence_helpers.js` 的 `renderTargetContext()` 固定為「審核狀態」→「結構化缺口、刷新來源、artifact 摘要與 rerun strategy」→「artifact 摘要僅供人工核對，不代表 gate 已通過」。history 與 watchlist 共用同一份文字順序；watchlist 可保留自己的 CSS class，但不改變語意。這只是閱讀層級；完整說明仍以 title、aria label 與同一報告的歷史稽核為準，不會把 artifact marker 當成 gate 結果。
 
 按下「核准保留缺口／退回處理／暫緩」後，該按鈕會暫時鎖定並顯示忙碌狀態；同一筆 review 在回應完成前不會重複送出。成功會顯示「人工審核已儲存」，失敗會顯示錯誤且恢復按鈕，操作員可在確認 revision 後重試。這不代表品質 gate 被自動修復，真正決策仍以 canonical review ledger 為準。
 

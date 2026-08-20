@@ -45,6 +45,12 @@
 
             elements.mode.innerHTML = `${options.renderPipelineModeBadge(pipelineId)}${options.renderDataTrustBadge(report.data_trust)}${helpers.reportQualityBadge(report, options.escapeHtml)}<span class="preview-date">${options.escapeHtml(report.date || '')}</span>`;
             rerunHelpers.configureRerunButtons(elements, pipelineId, options.pipelineMeta);
+            const finalRerunBlocked = qualityPolicy().reportNeedsRerun?.(report) === true;
+            if (elements.rerunFinalBtn) {
+                elements.rerunFinalBtn.disabled = finalRerunBlocked;
+                elements.rerunFinalBtn.title = finalRerunBlocked ? '目前資料 freshness 要求完整重跑，不能只重跑報告結論。' : '';
+                elements.rerunFinalBtn.setAttribute?.('aria-disabled', String(finalRerunBlocked));
+            }
             elements.title.textContent = preview.title || `${report.ticker} 報告建議`;
             if (elements.readingNotice) {
                 const boundary = qualityPolicy().reportReadingBoundary?.(report);

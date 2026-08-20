@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3603 / separate context availability from rerun execution strategy
+
+- `#拆解問題` / `#來源品質`：live item 同時具備 `artifact_rerun_context_status=present` 與 freshness `needs_rerun`；但 `report_rerun_service` 對這種 snapshot 明確回 `409` 要求完整重跑，原本把 context availability 寫成「可嘗試只重跑」會讓操作員走到必然失敗的 final-agent 路徑。
+- `#決策樹` / `#責任`：保留 `rerun_context_status` 描述上下文是否可查，新增 `rerun_execution_status` 描述實際策略；`full_rerun_required` 優先於 artifact fallback。preview 停用 final-agent button、保留完整重跑；API、gate、review、queue 與 mutation boundary 不變。
+- `#溝通設計` / `#可驗證性`：共用 evidence context 把「上下文可查」與「重跑策略」分開顯示，stale notice 補上「請使用完整重跑」。核心 audit `78 passed`、preview `109 passed`、frontend quality/history `145 passed`；本批跨層品質/預覽 `332 passed`、HTTP E2E `41 passed`、文件/HCS `135 passed`、視覺 `2 passed`，live daily item、cache-busted assets、Chromium 1440px/390px 與 console 均完成核對，待 commit/push 後做 remote 一致性驗證。
+
 ## D3602 / surface rerun-context availability in shared quality evidence
 
 - `#受眾` / `#語意含義`：live daily audit 已正確區分 `snapshot_rerun_context_status=missing` 與 `artifact_rerun_context_status=present`，但 daily、history、preview 共用 helper 只顯示 artifact 摘要，操作人員無法直接知道可嘗試既有局部重跑 fallback。

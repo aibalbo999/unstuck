@@ -11,10 +11,8 @@
     const reportNeedsRerun = report => Boolean(report?.analysis_text_stale || report?.decision_freshness?.requires_rerun || report?.requires_rerun);
     const reportRerunMessage = report => {
         const freshness = report?.decision_freshness || {};
-        return freshness.message
-            || freshness.requires_rerun_reason
-            || report?.analysis_text_stale_message
-            || '資料快照已刷新，投資結論需要完整重跑。';
+        const message = freshness.message || freshness.requires_rerun_reason || report?.analysis_text_stale_message || '資料快照已刷新，投資結論需要完整重跑。';
+        return /完整重跑/.test(message) ? message : `${message} 請使用完整重跑。`;
     };
     function decisionFreshnessStatusLabel(freshness) {
         if (!freshness) return 'N/A';
