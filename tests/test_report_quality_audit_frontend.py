@@ -19,6 +19,14 @@ const payload = {
     scope: 'all_indexed_reports',
     audited_reports: 160,
     quality_metadata_missing_reports: 3,
+    repair_sample_overlap: {
+      status: 'complete',
+      audit_gap_reports: 3,
+      audit_gap_items_returned: 3,
+      repair_sampled_reports: 20,
+      audit_gap_reports_in_repair_sample: 0,
+      audit_gap_reports_outside_repair_sample: 3
+    },
     quality_metadata_coverage_pct: 98.75,
     quality_metadata_coverage_basis: 'verified_snapshot_reports',
     quality_review_by_status: { pending: 2, approved_with_gap: 1, rejected: 0, deferred: 0 },
@@ -48,10 +56,45 @@ process.stdout.write(JSON.stringify({ board }));
     assert "上下文：原始上下文完整 1、artifact 前序可查 1、無可用局部上下文 1" in payload["board"]
     assert "模式上下文：v1 artifact 前序可查 1、v2 artifact 前序可查 1" in payload["board"]
     assert "修復 queue 範圍：取樣 20 份報告" in payload["board"]
+    assert "品質缺口與 repair sample：0/3 在 sample；3 份不在 sample" in payload["board"]
     assert 'class="watchlist-daily-quality-summary"' in payload["board"]
     assert 'class="watchlist-daily-quality-scope">全量報告品質</strong>' in payload["board"]
     assert payload["board"].index('class="watchlist-daily-quality-scope"') < payload["board"].index('class="watchlist-daily-quality-item"')
-    assert payload["board"].count('class="watchlist-daily-quality-item"') == 10
+    assert payload["board"].count('class="watchlist-daily-quality-item"') == 11
+
+
+def test_watchlist_board_does_not_infer_unreturned_quality_gap_sample_overlap():
+    helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
+    script = """
+global.window = {};
+require(__HELPER_PATH__);
+const payload = {
+  decision_queue: { summary: { total_actionable: 0 }, items: [{ type: 'monitor' }] },
+  repair_queue: { summary: { sampled_reports: 20 } },
+  report_quality_audit: {
+    scope: 'all_indexed_reports',
+    quality_metadata_missing_reports: 115,
+    items_returned: 5,
+    items_truncated: true,
+    repair_sample_overlap: {
+      status: 'partial',
+      audit_gap_reports: 115,
+      audit_gap_items_returned: 5,
+      repair_sampled_reports: 20,
+      audit_gap_reports_in_repair_sample: 1
+    },
+    quality_metadata_coverage_pct: 90.59,
+    quality_metadata_coverage_basis: 'verified_snapshot_reports'
+  }
+};
+const board = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], payload, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ board }));
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "品質缺口與 repair sample：只載入 5/115 份缺口，未展開部分無法判定" in payload["board"]
+    assert "1/115 在 sample" not in payload["board"]
 
 
 def test_historical_quality_audit_renders_revision_scoped_review_controls():

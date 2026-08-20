@@ -7,7 +7,7 @@ from typing import Any
 
 from daily_decision_queue import build_daily_decision_queue
 from free_notification_plan import build_daily_notification_plan
-from mapping_fields import safe_dict_list, safe_mapping_dict, safe_text, safe_text_list
+from mapping_fields import safe_dict_list, safe_int, safe_mapping_dict, safe_text, safe_text_list
 from outcome_calibration import build_outcome_calibration
 from provider_impact import build_provider_impact_ledger
 from report_quality_audit import build_report_quality_audit
@@ -82,6 +82,10 @@ def build_daily_decision_dashboard(
         provider_impact_ledger=provider_impact_ledger,
         ops=ops or {},
     )
+    report_quality_audit["repair_sample_overlap"] = _repair_sample_overlap(
+        report_quality_audit,
+        report_rows,
+    )
     actions = list(decision_queue.get("items") or [])
     status = "action_required" if actions and actions[0]["type"] != "monitor" else "ok"
     dashboard = {
@@ -122,6 +126,46 @@ def _report_needs_rerun(report: dict[str, Any]) -> bool:
             report.get("analysis_text_stale"),
         )
     )
+
+
+def _repair_sample_overlap(
+    quality_audit: dict[str, Any],
+    report_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    if safe_text(quality_audit.get("status")).strip().lower() == "unavailable":
+        return {"status": "unavailable"}
+    scope = safe_text(quality_audit.get("scope")).strip()
+    if scope != "all_indexed_reports":
+        return {"status": "not_comparable"}
+    audit_items = safe_dict_list(quality_audit.get("items"))
+    audit_gap_reports = max(0, safe_int(quality_audit.get("quality_metadata_missing_reports"), default=0))
+    audit_gap_items_returned = len(audit_items)
+    sample_keys = {
+        key for report in report_rows
+        if (key := _report_identity_key(report)) is not None
+    }
+    audit_gap_keys = {
+        key for item in audit_items
+        if (key := _report_identity_key(item)) is not None
+    }
+    overlap = len(sample_keys & audit_gap_keys)
+    truncated = quality_audit.get("items_truncated") is True or audit_gap_items_returned < audit_gap_reports
+    result: dict[str, Any] = {
+        "status": "partial" if truncated else "complete",
+        "audit_gap_reports": audit_gap_reports,
+        "audit_gap_items_returned": audit_gap_items_returned,
+        "repair_sampled_reports": len(report_rows),
+        "audit_gap_reports_in_repair_sample": overlap,
+    }
+    if not truncated:
+        result["audit_gap_reports_outside_repair_sample"] = max(0, audit_gap_reports - overlap)
+    return result
+
+
+def _report_identity_key(report: dict[str, Any]) -> tuple[str, str] | None:
+    filename = safe_text(report.get("filename") or report.get("report_filename")).strip()
+    pipeline_id = safe_text(report.get("pipeline_id")).strip() or "v1"
+    return (filename, pipeline_id) if filename else None
 
 
 def _report_key(report: dict[str, Any]) -> str:

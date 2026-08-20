@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3629 / expose exact quality-gap overlap with the repair sample
+
+- `#差距分析` / `#語意含義`：live daily audit 的 `2` 個 current gap 與 repair queue 的 `20` 筆 input sample 沒有交集；queue action 的 `2603.TW` warning 不是那兩個 metadata gap。只有 sample size 提示仍不足以回答「缺口是否已在 sample」。
+- `#偏誤降低` / `#責任`：新增 `report_quality_audit.repair_sample_overlap`；完整 audit items 依 filename/pipeline 回報 exact in/out，`partial` 明確不推論未展開 items。這是 read-only scope calibration，不把 gap 自動加入 queue、不改 priority、rerun 或 mutation。
+- `#可驗證性` / `#證據基礎`：backend RED→GREEN；dashboard/quality/history frontend `320 passed`、docs/HCS `135 passed`、import boundary `503 passed`、compile/diff check 通過；runtime reload、health/readiness/doctor、live scope/overlap 與新 cache-busted asset 均核對完成，未寫 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3628 / keep manual review revisions stable across index refreshes
 
 - `#批判` / `#偏誤降低`：連續四次 live 讀取同一份 `1623.TW` v2 report revision 一致，但追查 index writer 後確認 `updated_at` 是 upsert time，`file_mtime` 是 filesystem refresh signal；把兩者當版本欄位會將 metadata refresh 誤判成內容變更。

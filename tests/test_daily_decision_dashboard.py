@@ -124,6 +124,7 @@ def test_watchlist_daily_dashboard_keeps_action_surface_when_quality_audit_is_un
     assert response.status_code == 200
     payload = response.json()
     assert payload["report_quality_audit"]["status"] == "unavailable"
+    assert payload["report_quality_audit"]["repair_sample_overlap"]["status"] == "unavailable"
     assert payload["decision_queue"]["summary"]["total_actionable"] == 0
 
 
@@ -286,6 +287,41 @@ def test_daily_decision_dashboard_keeps_full_quality_audit_separate_from_sample_
     assert dashboard["report_quality_audit"]["scope"] == "all_indexed_reports"
     assert dashboard["report_quality_audit"]["quality_metadata_missing_reports"] == 1
     assert dashboard["decision_queue"]["summary"]["total_actionable"] == 0
+
+
+def test_daily_dashboard_reports_quality_gap_overlap_with_repair_sample():
+    dashboard = build_daily_decision_dashboard(
+        reports={
+            "reports": [
+                {"ticker": "2330.TW", "filename": "2330_v1.html", "pipeline_id": "v1"},
+                {"ticker": "2454.TW", "filename": "2454_v1.html", "pipeline_id": "v1"},
+            ]
+        },
+        quality_audit={
+            "scope": "all_indexed_reports",
+            "selection_basis": "latest_per_ticker_pipeline",
+            "quality_metadata_missing_reports": 2,
+            "items_returned": 2,
+            "items_truncated": False,
+            "items": [
+                {"filename": "1623_v1.html", "pipeline_id": "v1"},
+                {"filename": "1623_v2.html", "pipeline_id": "v2"},
+            ],
+        },
+        watchlist={"items": []},
+        screener={"items": []},
+        performance={"summary": {}},
+        free_mode={"enabled": True, "can_run_without_paid_keys": True, "violations": []},
+    )
+
+    assert dashboard["report_quality_audit"]["repair_sample_overlap"] == {
+        "status": "complete",
+        "audit_gap_reports": 2,
+        "audit_gap_items_returned": 2,
+        "repair_sampled_reports": 2,
+        "audit_gap_reports_in_repair_sample": 0,
+        "audit_gap_reports_outside_repair_sample": 2,
+    }
 
 
 def test_daily_decision_dashboard_returns_full_rerun_report_list():
