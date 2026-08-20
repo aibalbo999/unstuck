@@ -131,10 +131,15 @@ def _summary(tracking: dict) -> str:
     return "；".join(parts) or "已建立決策追蹤。"
 
 
-def build_decision_tracking(recommendation: dict, data_snapshot_path: str = "") -> dict:
+def build_decision_tracking(
+    recommendation: dict,
+    data_snapshot_path: str = "",
+    *,
+    snapshot: dict | None = None,
+) -> dict:
     """Build a compact decision-performance snapshot for list/report APIs."""
     recommendation = recommendation if isinstance(recommendation, dict) else {}
-    snapshot = _read_snapshot(data_snapshot_path)
+    snapshot = snapshot if isinstance(snapshot, dict) else _read_snapshot(data_snapshot_path)
     initial_price = parse_optional_price(recommendation.get("current_price"))
     latest_price = _snapshot_current_price(snapshot)
     if latest_price is None:
@@ -177,9 +182,14 @@ def build_decision_tracking(recommendation: dict, data_snapshot_path: str = "") 
     return tracking
 
 
-def build_decision_freshness(data_snapshot_path: str = "", report_generated_at: str = "") -> dict:
+def build_decision_freshness(
+    data_snapshot_path: str = "",
+    report_generated_at: str = "",
+    *,
+    snapshot: dict | None = None,
+) -> dict:
     """Describe whether the investment conclusion matches the current data snapshot."""
-    snapshot = _read_snapshot(data_snapshot_path)
+    snapshot = snapshot if isinstance(snapshot, dict) else _read_snapshot(data_snapshot_path)
     if not snapshot:
         return {
             "status": "unknown",

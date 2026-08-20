@@ -121,3 +121,42 @@ def test_report_row_surfaces_temporal_memory_from_snapshot(tmp_path):
     report = report_index_rows.row_to_report(row)
 
     assert report["temporal_memory"]["reflection_prompt"] == "上一季檢討"
+
+
+def test_report_row_reuses_snapshot_context_for_read_only_hydration(monkeypatch, tmp_path):
+    import report_index_rows
+
+    snapshot = tmp_path / "sample.data.json"
+    snapshot.write_text(json.dumps({"data": {"current_price": 180}}, ensure_ascii=False), encoding="utf-8")
+
+    class Row(dict):
+        def keys(self):
+            return super().keys()
+
+    row = Row({
+        "filename": "2308_report_20260620_090000.html",
+        "ticker": "2308.TW",
+        "company_name": "台達電",
+        "report_date": "2026-06-20 09:00",
+        "timestamp": 1781926800,
+        "pipeline_id": "v1",
+        "recommendation_json": "{}",
+        "data_trust_json": "{}",
+        "data_snapshot_filename": "sample.data.json",
+        "output_dir": str(tmp_path),
+        "analysis_text_stale": 0,
+        "analysis_text_stale_message": "",
+    })
+    calls = 0
+    original_read_snapshot = report_index_rows._read_snapshot
+
+    def count_read_snapshot(value):
+        nonlocal calls
+        calls += 1
+        return original_read_snapshot(value)
+
+    monkeypatch.setattr(report_index_rows, "_read_snapshot", count_read_snapshot)
+
+    report_index_rows.row_to_report(row)
+
+    assert calls == 1

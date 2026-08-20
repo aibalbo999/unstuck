@@ -231,10 +231,11 @@ def build_report_preview(
     *,
     markdown_text: str = "",
     snapshot_path: str = "",
+    snapshot: dict | None = None,
 ) -> dict:
     """Return a compact preview model that matches the report mode semantics."""
     recommendation = recommendation if isinstance(recommendation, dict) else {}
-    snapshot = _read_snapshot(snapshot_path)
+    snapshot = snapshot if isinstance(snapshot, dict) else _read_snapshot(snapshot_path)
     if pipeline_id == "v4":
         return _swing_trade_preview(ticker, recommendation, markdown_text, snapshot)
     if pipeline_id == "v3":

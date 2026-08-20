@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from typing import Any
 
 from data_trust import normalize_data_trust, unknown_data_trust
 from data_trust_snapshot import verify_data_snapshot_integrity
@@ -64,8 +65,8 @@ def _read_snapshot(row) -> dict:
     return snapshot if isinstance(snapshot, dict) else {}
 
 
-def _snapshot_integrity(row) -> dict:
-    snapshot = _read_snapshot(row)
+def _snapshot_integrity(row, *, snapshot: dict | None = None) -> dict:
+    snapshot = snapshot if isinstance(snapshot, dict) else _read_snapshot(row)
     if not snapshot:
         return {
             "status": "unverified",
@@ -95,7 +96,7 @@ def _snapshot_integrity(row) -> dict:
     }
 
 
-def _company_name(row) -> str:
+def _company_name(row, *, snapshot: dict | None = None) -> str:
     try:
         ticker = str(row["ticker"] or "")
         stored = str(row["company_name"] or "").strip()
@@ -104,7 +105,7 @@ def _company_name(row) -> str:
         stored = ""
     if stored and stored != ticker:
         return stored
-    snapshot = _read_snapshot(row)
+    snapshot = snapshot if isinstance(snapshot, dict) else _read_snapshot(row)
     data = snapshot.get("data") if isinstance(snapshot.get("data"), dict) else {}
     for source in (snapshot, data):
         candidate = str(source.get("company_name") or source.get("raw_company_name") or "").strip()
@@ -123,8 +124,8 @@ def _report_date(row) -> str:
     return normalize_report_display_date(parsed_date, snapshot_path=_snapshot_path(row), timestamp=timestamp)
 
 
-def _decision_tracking(row, recommendation: dict) -> dict:
-    return build_decision_tracking(recommendation, _snapshot_path(row))
+def _decision_tracking(row, recommendation: dict, *, snapshot: dict | None = None) -> dict:
+    return build_decision_tracking(recommendation, _snapshot_path(row), snapshot=snapshot)
 
 
 def _normalize_recommendation_summary(recommendation: dict) -> dict:
@@ -135,26 +136,36 @@ def _normalize_recommendation_summary(recommendation: dict) -> dict:
     return normalized
 
 
-def _temporal_memory(row) -> dict:
-    snapshot = _read_snapshot(row)
+def _temporal_memory(row, *, snapshot: dict | None = None) -> dict:
+    snapshot = snapshot if isinstance(snapshot, dict) else _read_snapshot(row)
     data = snapshot.get("data") if isinstance(snapshot.get("data"), dict) else {}
     memory = data.get("temporal_memory") if isinstance(data.get("temporal_memory"), dict) else {}
     return memory
 
 
-def _evidence_exit_gate(row) -> dict:
-    snapshot = _read_snapshot(row)
+def _evidence_exit_gate(row, *, snapshot: dict | None = None) -> dict:
+    snapshot = snapshot if isinstance(snapshot, dict) else _read_snapshot(row)
     gate = snapshot.get("evidence_exit_gate") if isinstance(snapshot, dict) else {}
     return gate if isinstance(gate, dict) else {}
 
 
-def _report_conformance(row) -> dict:
-    snapshot = _read_snapshot(row)
+def _report_conformance(row, *, snapshot: dict | None = None) -> dict:
+    snapshot = snapshot if isinstance(snapshot, dict) else _read_snapshot(row)
     conformance = snapshot.get("report_conformance") if isinstance(snapshot, dict) else {}
     return conformance if isinstance(conformance, dict) else {}
 
 
-def _content_credibility(row, *, pipeline_id: str, markdown_text: str, snapshot: dict | None = None) -> dict:
+_UNSET = object()
+
+
+def _content_credibility(
+    row,
+    *,
+    pipeline_id: str,
+    markdown_text: str,
+    snapshot: dict | None = None,
+    projected: Any = _UNSET,
+) -> dict:
     snapshot = snapshot if isinstance(snapshot, dict) else _read_snapshot(row)
     credibility = snapshot.get("content_credibility") if isinstance(snapshot, dict) else {}
     credibility = credibility if isinstance(credibility, dict) else {}
@@ -165,7 +176,8 @@ def _content_credibility(row, *, pipeline_id: str, markdown_text: str, snapshot:
         credibility,
         final_audit_or_conformance,
     )
-    projected = project_content_credibility(snapshot)
+    if projected is _UNSET:
+        projected = project_content_credibility(snapshot)
     if projected is not None and _recorded_content_credibility(credibility):
         return merge_content_credibility_results(credibility, projected)
     if pipeline_id != "v4":
@@ -207,8 +219,9 @@ def _markdown_text(row) -> str:
         return ""
 
 
-def _snapshot_text(row, key: str) -> str:
-    value = _read_snapshot(row).get(key)
+def _snapshot_text(row, key: str, *, snapshot: dict | None = None) -> str:
+    snapshot = snapshot if isinstance(snapshot, dict) else _read_snapshot(row)
+    value = snapshot.get(key)
     return str(value or "").strip()
 
 
@@ -246,16 +259,18 @@ def row_to_report(row) -> dict:
         pipeline_id=row["pipeline_id"] if "pipeline_id" in row.keys() else "",
     )
     recommendation = _normalize_recommendation_summary(recommendation)
-    decision_tracking = _decision_tracking(row, recommendation)
+    snapshot_path = _snapshot_path(row)
+    snapshot = _read_snapshot(row)
+    decision_tracking = _decision_tracking(row, recommendation, snapshot=snapshot)
     report_date = _report_date(row)
     decision_freshness = build_decision_freshness(
-        _snapshot_path(row),
+        snapshot_path,
         report_generated_at=report_date,
+        snapshot=snapshot,
     )
 
     pipeline_id = row["pipeline_id"] or "v1"
     markdown_text = _markdown_text(row)
-    snapshot = _read_snapshot(row)
     stored_content_credibility = snapshot.get("content_credibility") if isinstance(snapshot.get("content_credibility"), dict) else {}
     stored_content_credibility = align_content_credibility_with_final_audit(
         stored_content_credibility,
@@ -267,13 +282,14 @@ def row_to_report(row) -> dict:
         row["ticker"],
         recommendation,
         markdown_text=markdown_text,
-        snapshot_path=_snapshot_path(row),
+        snapshot_path=snapshot_path,
+        snapshot=snapshot,
     )
 
     report = {
         "filename": row["filename"],
         "ticker": row["ticker"],
-        "company_name": _company_name(row),
+        "company_name": _company_name(row, snapshot=snapshot),
         "date": report_date,
         "timestamp": row["timestamp"],
         "pipeline_id": pipeline_id,
@@ -282,16 +298,17 @@ def row_to_report(row) -> dict:
         "preview": preview,
         "decision_tracking": decision_tracking,
         "decision_freshness": decision_freshness,
-        "temporal_memory": _temporal_memory(row),
-        "evidence_exit_gate": _evidence_exit_gate(row),
-        "report_conformance": _report_conformance(row),
+        "temporal_memory": _temporal_memory(row, snapshot=snapshot),
+        "evidence_exit_gate": _evidence_exit_gate(row, snapshot=snapshot),
+        "report_conformance": _report_conformance(row, snapshot=snapshot),
         "content_credibility": _content_credibility(
             row,
             pipeline_id=pipeline_id,
             markdown_text=markdown_text,
             snapshot=snapshot,
+            projected=projected_content_credibility,
         ),
-        "snapshot_integrity": _snapshot_integrity(row),
+        "snapshot_integrity": _snapshot_integrity(row, snapshot=snapshot),
         "data_snapshot_filename": row["data_snapshot_filename"] if "data_snapshot_filename" in row.keys() else "",
         "data_trust": data_trust,
         "data_trust_status": row["data_trust_status"] if "data_trust_status" in row.keys() else data_trust.get("status", "unknown"),
@@ -308,8 +325,8 @@ def row_to_report(row) -> dict:
             "source": "snapshot.rerun_context",
             "persisted_status": str(stored_content_credibility.get("status") or "").strip().lower(),
         }
-    report["refreshed_from_report"] = _snapshot_text(row, "refreshed_from_report")
-    report["snapshot_refreshed_at"] = _snapshot_text(row, "snapshot_refreshed_at")
+    report["refreshed_from_report"] = _snapshot_text(row, "refreshed_from_report", snapshot=snapshot)
+    report["snapshot_refreshed_at"] = _snapshot_text(row, "snapshot_refreshed_at", snapshot=snapshot)
     report.update(_quality_evidence(row, report))
     if not report.get("missing_quality_fields"):
         report.pop("refreshed_from_report", None)

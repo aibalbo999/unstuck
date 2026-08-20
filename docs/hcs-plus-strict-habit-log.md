@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3621 / reuse one snapshot context during report-row hydration
+
+- `#差距分析` / `#偏誤辨識`：profile 證實 `row_to_report()` 對同一份 snapshot 重複讀取 7 次，100 筆列表 row 共 700 次；projection 也在 row mapper 與 `_content_credibility()` 重複計算，這是 read-only API hydration 的固定成本，不是資料品質差異。
+- `#責任` / `#組成`：由 row mapper 建立一次 snapshot context，明確傳入 decision tracking、freshness、preview、company/memory/gate/integrity/text helpers，並用 sentinel 區分「尚未計算」與「已計算為 None」的 projection；不引入全域快取，也不改 storage、artifact、index、review、rerun、repair 或 queue ownership。
+- `#可驗證性` / `#效用`：snapshot reuse regression 先 RED（`calls=7`）再 GREEN（`calls=1`）；tracking/temporal `12 passed`、history/storage/preview `167 passed`、quality/credibility `118 passed`、補充跨層 `69 passed`、import boundary `503 passed`、docs/HCS `136 passed`、frontend HTTP `6 passed`、target detector `856 passed`，compile/diff check 通過。canonical profile 由 `1.256s` 降至 `0.484s`，snapshot reads `700 -> 100`、projection calls `200 -> 100`；runtime reload 後 health/readiness、port 與 doctor 通過，live reports/historical/daily 約 `1.14s/0.50s/1.17s`，daily `165/165/2/98.79%`、repair detail 保持具體 evidence warning，沒有 snapshot、artifact、index、review、rerun、repair 或 queue mutation。
+
 ## D3620 / short-circuit target scanning for sufficient data confidence
 
 - `#差距分析` / `#偏誤辨識`：profile 顯示歷史 row 與 quality audit 每筆都做 target-price 遞迴與大型 regex 掃描，但這份資料只在 score 低於 `EXPLICIT_TARGET_PRICE_MIN_SCORE=60` 時參與 blocking；高信心報告因此付出不影響結果的成本。
