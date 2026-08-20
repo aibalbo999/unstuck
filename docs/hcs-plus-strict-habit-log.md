@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3602 / surface rerun-context availability in shared quality evidence
+
+- `#受眾` / `#語意含義`：live daily audit 已正確區分 `snapshot_rerun_context_status=missing` 與 `artifact_rerun_context_status=present`，但 daily、history、preview 共用 helper 只顯示 artifact 摘要，操作人員無法直接知道可嘗試既有局部重跑 fallback。
+- `#溝通設計` / `#責任`：共用 `report_quality_evidence.context()` 對 `present|partial|missing|artifact_fallback_available` 產生白話 rerun-context 文案；`artifact_fallback_available` 明示「可嘗試」而非保證，並保留「artifact 不代表 gate 已通過」與人工核對警示，不改 `recommended_action`、`blocks_auto_rerun` 或 queue/review mutation boundary。
+- `#可驗證性` / `#來源品質`：先以 1 個前端 RED 回歸鎖定缺少 `rerunContextText`，再 GREEN；品質跨層 suite `85 passed`、helper `node --check`、`git diff --check`、live asset cache-bust、daily API 與 runtime doctor 均通過。下一步仍需完成 commit/push 後的遠端一致性驗證。
+
 ## D3601 / distinguish snapshot context loss from Markdown fallback
 
 - `#偏誤辨識` / `#來源品質`：D3600 的 `rerun_context_status=missing` 只看 snapshot；全量 artifact scan 顯示 `115/115` 缺口都有 Markdown 且前序 Agent sections 完整，若不再分層會把可用 fallback 誤報成必須完整重跑。

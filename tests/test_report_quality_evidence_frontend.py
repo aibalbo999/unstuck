@@ -16,7 +16,7 @@ def test_shared_quality_evidence_helper_loads_before_all_consumers():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     helper = "/static/report_quality_evidence_helpers.js"
     assert (STATIC_DIR / "report_quality_evidence_helpers.js").exists()
-    assert f"{helper}?v=20260820-refresh-attribution" in index_html
+    assert f"{helper}?v=20260820-rerun-context" in index_html
     assert "/static/report_quality_gate_policy.js?v=20260816-shared-quality-evidence" in index_html
     assert "/static/report_preview_helpers.js?v=20260820-shared-evidence-detail" in index_html
     assert "/static/report_preview_panel.js?v=20260816-clickable-quality-evidence" in index_html
@@ -112,6 +112,35 @@ process.stdout.write(JSON.stringify(evidence));
     assert evidence["provenanceText"] == "來源：有刷新歸因"
     assert "來源：有刷新歸因" in evidence["detail"]
     assert "來源：刷新後缺口" not in evidence["detail"]
+
+
+def test_shared_quality_evidence_surfaces_rerun_context_status_without_approving_gate():
+    evidence_path = STATIC_DIR / "report_quality_evidence_helpers.js"
+    script = """
+global.window = {};
+require(__EVIDENCE_PATH__);
+const evidence = window.StockAgentReportQualityEvidence.context({
+  missing_quality_fields: ['report_conformance', 'evidence_exit_gate', 'content_credibility'],
+  rerun_context_status: 'artifact_fallback_available',
+  snapshot_rerun_context_status: 'missing',
+  artifact_rerun_context_status: 'present',
+  artifact_quality_summary: { status: 'present', fields: ['report_conformance', 'evidence_exit_gate'] }
+});
+const target = window.StockAgentReportQualityEvidence.renderTargetContext({
+  evidenceContext: evidence.targetContext,
+  warning: evidence.targetWarning
+}, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ evidence, target }));
+""".replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path)))
+
+    payload = json.loads(_node(script))
+
+    expected = "局部重跑上下文：artifact 有完整前序段落，可嘗試局部重跑"
+    assert payload["evidence"]["rerunContextText"] == expected
+    assert expected in payload["evidence"]["targetContext"]
+    assert expected in payload["target"]["text"]
+    assert "gate 已通過" not in payload["evidence"]["rerunContextText"]
+    assert "artifact 摘要僅供人工核對，不代表 gate 已通過" in payload["target"]["text"]
 
 
 def test_preview_quality_badge_uses_shared_evidence_detail_over_policy_copy():
