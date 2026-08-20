@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-21
+- D3655：全量 latest-per-ticker/pipeline `165` 份掃描發現 `1623.TW` v1/v2 的 `content_credibility` 是空 mapping，但 index recommendation、data trust、Markdown 與 evidence gate 都可讀；根因是 legacy snapshot 缺少 `rerun_context.parsed`。新增 recommendation-context read-only projection，將標準化 recommendation 映射回 evaluator 所需的中文欄位，只補 history row 的 deterministic content status/check；不回寫 snapshot，quality audit 的 persisted metadata coverage 維持缺口。
+- D3655 驗證：先以 1623 live-shaped row 重現空 content projection，再 GREEN；projection unit `6 passed`、legacy history API `2 passed`，全量掃描由 `2` 筆 null content 收斂為可解讀的 recommendation-context projection，未改 artifact、index、review、rerun、repair 或 queue。
 - D3654：live legacy v1-v3 snapshot 的 `rerun_context.parsed` 可能是空 mapping，完整內容可信度無法重算，但 persisted `confidence_evidence_alignment` 仍會顯示舊 `approved`。新增 evidence-only partial projection：只刷新 current gate 對應的 evidence-confidence check；v4 仍先完成既有 trade-plan fallback，再合併 partial evidence result，避免以 partial projection 取代完整內容檢查。
 - D3654 驗證：先以 3653 v1-v3 live-shaped payload 重現 stale inner check，再 GREEN；content/report-quality/conformance/preview `1198 passed`、history E2E `8 passed`、import boundary `504 passed`、`report_index_rows.py` `349` 行，未回寫 snapshot、artifact、index、review、rerun、repair 或 queue。
 - D3653：D3652 已讓 report list/history 顯示 current evidence gate，但內容可信度 projection 仍可能從 persisted snapshot 讀到舊 `approved`，形成 gate=`caution/rejected`、content=`passed` 的交叉矛盾。現在 row 會建立唯讀 `content_projection_snapshot`，只把 current evidence projection 注入內容可信度評估；原始 snapshot、download data、integrity、persisted quality metadata 與 audit coverage 維持不變。

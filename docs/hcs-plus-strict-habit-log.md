@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3655 / recover legacy content evidence from normalized recommendation context
+
+- `#差距分析` / `#來源品質`：全量 165 份 latest scope 中，1623 v1/v2 的 snapshot 沒有 `content_credibility` 與 parsed context，但 index recommendation、data trust、Markdown、evidence gate 都存在；不能把空 mapping 解讀成內容已通過，也不能因 legacy 缺口放棄可讀的 deterministic evidence。
+- `#語意含義` / `#最小變更`：新增 recommendation-context projection，將 normalized `recommendation`、`confidence`、3/6/12 月目標映射回 evaluator aliases；以 `snapshot.recommendation_context` 標示來源，保持 persisted quality audit 與 download data 原值。
+- `#可驗證性` / `#責任`：1623 live-shaped RED→GREEN；projection unit `6 passed`、history API `2 passed`，projection 結果含 warning 與 evidence check，不自動升級為 passed。
+
 ## D3654 / keep partial evidence projection from replacing full content checks
 
 - `#差距分析` / `#偏誤辨識`：部分 legacy v1-v3 snapshot 只有空的 `rerun_context.parsed`，不能完整重算 content credibility；若直接把 evidence-only result 當完整 projection，v4 trade-plan fallback 會被提前跳過。

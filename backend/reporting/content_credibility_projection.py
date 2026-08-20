@@ -88,10 +88,13 @@ def project_content_credibility_with_current_evidence(
     recorded: Any,
     *,
     evidence_projection: Any,
+    recommendation: Any = None,
 ) -> dict[str, Any] | None:
     """Merge the current evidence check even when full parsed context is unavailable."""
     projection_snapshot = dict(snapshot, evidence_exit_gate=evidence_projection) if evidence_projection is not None else snapshot
     projected = project_content_credibility(projection_snapshot)
+    if projected is None:
+        projected = _project_from_index_recommendation(projection_snapshot, recommendation)
     if evidence_projection is None:
         return projected
     alignment = project_evidence_confidence_alignment(projection_snapshot, recorded)
@@ -100,6 +103,43 @@ def project_content_credibility_with_current_evidence(
     if projected:
         return merge_content_credibility_results(projected, alignment)
     return {**alignment, "_projection_scope": "evidence_confidence"}
+
+
+def _project_from_index_recommendation(snapshot: Any, recommendation: Any) -> dict[str, Any] | None:
+    """Project legacy reports from the normalized index recommendation when parsed context is absent."""
+    snapshot_map = safe_mapping_dict(snapshot) or {}
+    recommendation_map = safe_mapping_dict(recommendation) or {}
+    pipeline_id = safe_text(snapshot_map.get("pipeline")).strip().lower()
+    if pipeline_id == "v4" or not recommendation_map or not snapshot_map.get("data"):
+        return None
+    label = safe_text(recommendation_map.get("recommendation")).strip()
+    if not label or label.upper() in {"N/A", "NA", "UNKNOWN"}:
+        return None
+
+    parsed_recommendation = {"建議": label}
+    aliases = {
+        "confidence": "信心",
+        "target_3m": "3個月",
+        "target_6m": "6個月",
+        "target_12m": "12個月",
+    }
+    for source, target in aliases.items():
+        value = recommendation_map.get(source)
+        if value not in (None, "", "N/A"):
+            parsed_recommendation[target] = value
+
+    context = {
+        "pipeline_id": pipeline_id,
+        "data": safe_mapping_dict(snapshot_map.get("data")) or {},
+        "parsed": {"recommendation": parsed_recommendation},
+        "evidence_exit_gate": safe_mapping_dict(snapshot_map.get("evidence_exit_gate")) or {},
+        "final_audit": safe_mapping_dict(snapshot_map.get("final_audit")) or {},
+    }
+    try:
+        projected = evaluate_content_credibility(context, snapshot_map)
+    except Exception:
+        return None
+    return {**projected, "_projection_scope": "recommendation_context"}
 
 
 def merge_content_credibility_results(recorded: Any, projected: Any) -> dict[str, Any]:
@@ -116,7 +156,7 @@ def merge_content_credibility_results(recorded: Any, projected: Any) -> dict[str
         {
             key: value
             for key, value in projected_map.items()
-            if key not in {"blocking_issues", "warnings", "checks", "status", "summary"}
+            if key not in {"blocking_issues", "warnings", "checks", "status", "summary", "_projection_scope"}
         }
     )
     result["blocking_issues"] = _merge_issues(recorded_map.get("blocking_issues"), projected_map.get("blocking_issues"))

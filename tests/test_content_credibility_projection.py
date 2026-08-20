@@ -132,3 +132,31 @@ def test_evidence_projection_refreshes_legacy_check_without_parsed_context():
     assert result["status"] == "warning"
     assert result["checks"][0]["status"] == "warning"
     assert result["checks"][0]["details"]["evidence_verdict"] == "caution"
+
+
+def test_legacy_projection_uses_normalized_index_recommendation():
+    from reporting.content_credibility_projection import project_content_credibility_with_current_evidence
+
+    snapshot = _snapshot(stored={})
+    snapshot["rerun_context"] = {}
+    snapshot["evidence_exit_gate"] = {"verdict": "caution", "failed_count": 0}
+    recommendation = {
+        "recommendation": "持有",
+        "current_price": "NT$209.00",
+        "target_3m": "NT$174.5 - NT$209.0",
+        "target_6m": "NT$209.0 - NT$254.0",
+        "target_12m": "NT$254.0 - NT$327.0",
+        "confidence": "6/10",
+    }
+
+    result = project_content_credibility_with_current_evidence(
+        snapshot,
+        {},
+        evidence_projection=snapshot["evidence_exit_gate"],
+        recommendation=recommendation,
+    )
+
+    assert result["_projection_scope"] == "recommendation_context"
+    assert result["status"] == "warning"
+    check = next(item for item in result["checks"] if item["id"] == "confidence_evidence_alignment")
+    assert check["details"]["evidence_verdict"] == "caution"

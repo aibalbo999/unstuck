@@ -186,7 +186,7 @@ def _content_credibility(
     if projected is not None and _recorded_content_credibility(credibility):
         return merge_content_credibility_results(credibility, projected)
     if pipeline_id != "v4":
-        return merge_content_credibility_results(credibility, evidence_only_projection) if evidence_only_projection and _recorded_content_credibility(credibility) else credibility
+        return {key: value for key, value in projected.items() if key != "_projection_scope"} if projected is not None else (merge_content_credibility_results(credibility, evidence_only_projection) if evidence_only_projection and _recorded_content_credibility(credibility) else credibility)
 
     checks = credibility.get("checks") if isinstance(credibility.get("checks"), list) else []
     if any(isinstance(check, dict) and check.get("id") == "trade_setup_alignment" for check in checks):
@@ -284,7 +284,7 @@ def row_to_report(row) -> dict:
         stored_content_credibility,
         snapshot.get("final_audit") or snapshot.get("report_conformance", {}),
     )
-    projected_content_credibility = project_content_credibility_with_current_evidence(snapshot, stored_content_credibility, evidence_projection=projected_evidence_exit_gate)
+    projected_content_credibility = project_content_credibility_with_current_evidence(snapshot, stored_content_credibility, evidence_projection=projected_evidence_exit_gate, recommendation=recommendation)
     preview = build_report_preview(
         pipeline_id,
         row["ticker"],
@@ -333,7 +333,7 @@ def row_to_report(row) -> dict:
     if projected_content_credibility is not None:
         report["content_credibility_projection"] = {
             "status": "projected" if _recorded_content_credibility(stored_content_credibility) else "available",
-            "source": "snapshot.current_evidence" if projected_content_credibility.get("_projection_scope") == "evidence_confidence" else "snapshot.rerun_context",
+            "source": "snapshot.current_evidence" if projected_content_credibility.get("_projection_scope") == "evidence_confidence" else "snapshot.recommendation_context" if projected_content_credibility.get("_projection_scope") == "recommendation_context" else "snapshot.rerun_context",
             "persisted_status": str(stored_content_credibility.get("status") or "").strip().lower(),
         }
     if projected_evidence_exit_gate is not None:

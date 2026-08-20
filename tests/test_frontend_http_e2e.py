@@ -375,6 +375,29 @@ def test_report_history_uses_current_evidence_for_content_projection(tmp_path, m
     assert check["details"]["evidence_verdict"] == "caution"
 
 
+def test_report_history_projects_legacy_content_from_index_recommendation(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.sqlite3"))
+    filename = "2449_v2_report_20260606_037000.html"
+    _write_report_pair(tmp_path, filename, "持有")
+    _write_snapshot(tmp_path, filename, "fresh")
+    snapshot_path = tmp_path / filename.replace(".html", ".data.json")
+    snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    snapshot["data"]["current_price"] = 309.5
+    snapshot_path.write_text(json.dumps(snapshot, ensure_ascii=False), encoding="utf-8")
+    report_index.upsert_report_metadata(filename, output_dir=str(tmp_path))
+
+    client = TestClient(api.app)
+    report = client.get("/api/reports", params={"limit": 20}).json()["reports"][0]
+
+    assert report["content_credibility"]["status"] == "warning"
+    assert report["content_credibility_projection"]["source"] == "snapshot.recommendation_context"
+    check = next(item for item in report["content_credibility"]["checks"] if item["id"] == "confidence_evidence_alignment")
+    assert check["details"]["evidence_verdict"] == "caution"
+    persisted = client.get(f"/api/report/{filename}/download/data").json()
+    assert "content_credibility" not in persisted
+
+
 def test_report_history_exposes_report_conformance_for_operator_actions(tmp_path, monkeypatch):
     monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
     monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.sqlite3"))
