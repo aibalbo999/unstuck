@@ -161,6 +161,11 @@ def build_data_snapshot(
         "rerun_context": sanitize_rerun_context(context),
         "data": sanitize_for_snapshot(data),
     }
+    quality_metadata_refresh_provenance = dict.get(context, "quality_metadata_refresh_provenance", {})
+    if quality_metadata_refresh_provenance:
+        snapshot["quality_metadata_refresh_provenance"] = sanitize_for_snapshot(
+            quality_metadata_refresh_provenance
+        )
     return apply_snapshot_size_governance(snapshot, max_bytes=max_bytes)
 
 

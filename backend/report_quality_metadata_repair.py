@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from mapping_fields import safe_mapping_dict, safe_text
+from mapping_fields import safe_mapping_dict, safe_text, safe_text_list
 
 
 RECORDED_GATE_STATES: dict[str, tuple[str, frozenset[str]]] = {
@@ -28,14 +28,28 @@ def quality_metadata_repair_item(report: Mapping[str, Any]) -> dict[str, Any] | 
     if not missing:
         return None
     refreshed_from_report = safe_text(dict.get(report_payload, "refreshed_from_report")).strip()
+    refresh_provenance = safe_mapping_dict(
+        dict.get(report_payload, "quality_metadata_refresh_provenance", {})
+    )
+    before_missing_fields = set(
+        safe_text_list(dict.get(refresh_provenance or {}, "missing_fields"))
+    )
     if refreshed_from_report:
-        title = "刷新後品質證據缺口"
-        detail = (
-            f"資料快照曾在報告後刷新（{refreshed_from_report}），目前未記錄 {'、'.join(missing)} 品質證據；"
-            "刷新歸因存在，但無法由目前 metadata 判定缺口是否由刷新造成；"
-            "採用前需人工查看 artifact 與 freshness。"
-        )
-        reason_codes = ["quality_metadata_missing", "quality_metadata_after_refresh"]
+        if refresh_provenance is not None and set(missing).issubset(before_missing_fields):
+            title = "刷新前已有品質證據缺口"
+            detail = (
+                f"資料快照曾在報告後刷新（{refreshed_from_report}），刷新前快照已確認缺少 {'、'.join(missing)} 品質證據；"
+                "資料刷新保留既有品質 gate，沒有重新執行品質檢查；採用前需安排完整重跑並人工查看 artifact 與 freshness。"
+            )
+            reason_codes = ["quality_metadata_missing", "quality_metadata_before_refresh"]
+        else:
+            title = "刷新後品質證據缺口"
+            detail = (
+                f"資料快照曾在報告後刷新（{refreshed_from_report}），目前未記錄 {'、'.join(missing)} 品質證據；"
+                "刷新歸因存在，但無法由目前 metadata 判定缺口是否由刷新造成；"
+                "採用前需人工查看 artifact 與 freshness。"
+            )
+            reason_codes = ["quality_metadata_missing", "quality_metadata_after_refresh"]
     else:
         title = "品質證據未記錄"
         detail = f"報告未記錄 {'、'.join(missing)} 品質證據，採用前需人工查看。"
@@ -51,6 +65,8 @@ def quality_metadata_repair_item(report: Mapping[str, Any]) -> dict[str, Any] | 
         "reason_codes": reason_codes,
         "blocks_auto_rerun": True,
     }
+    if refresh_provenance:
+        item["quality_metadata_refresh_provenance"] = refresh_provenance
     if refreshed_from_report:
         rerun_context_status = _rerun_context_status(report_payload)
         artifact_rerun_context_status = safe_text(

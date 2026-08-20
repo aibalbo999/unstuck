@@ -19,6 +19,7 @@ from report_artifacts import MissingReportArtifact, ReportArtifactLocator
 from report_history_storage import storage_for_existing_output_dir
 from report_index import is_safe_report_filename, upsert_report_metadata
 from report_persistence import DATA_SNAPSHOT_CONTENT_TYPE
+from report_quality_refresh_provenance import build_quality_metadata_refresh_provenance
 from mapping_fields import safe_mapping_dict
 from storage.report_storage import ReportStorage
 
@@ -94,6 +95,7 @@ async def refresh_report_data_snapshot(
         "content_credibility": previous_snapshot.get("content_credibility", {}),
         "report_conformance": previous_snapshot.get("report_conformance", {}),
         "final_audit": previous_snapshot.get("final_audit", {}),
+        "quality_metadata_refresh_provenance": build_quality_metadata_refresh_provenance(previous_snapshot),
         "refreshed_from_report": filename,
         "refresh_stale_sources": stale_sources,
     }

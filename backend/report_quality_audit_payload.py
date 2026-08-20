@@ -156,6 +156,9 @@ def _audit_item(report: dict[str, Any], item: dict[str, Any]) -> dict[str, Any]:
         "priority_score": safe_int(item.get("priority_score"), default=0),
         "blocks_auto_rerun": bool(item.get("blocks_auto_rerun")),
     }
+    refresh_provenance = safe_mapping_dict(report.get("quality_metadata_refresh_provenance"))
+    if refresh_provenance:
+        payload["quality_metadata_refresh_provenance"] = refresh_provenance
     rerun_context_status = safe_text(item.get("rerun_context_status")).strip()
     if rerun_context_status:
         payload["rerun_context_status"] = rerun_context_status

@@ -609,3 +609,13 @@ def test_report_refresh_accepts_mapping_safe_refreshed_data_payload(tmp_path):
     assert saved_snapshot["content_credibility"] == previous_snapshot["content_credibility"]
     assert saved_snapshot["report_conformance"] == previous_snapshot["report_conformance"]
     assert saved_snapshot["final_audit"] == previous_snapshot["final_audit"]
+    assert saved_snapshot["quality_metadata_refresh_provenance"] == {
+        "schema_version": 1,
+        "source": "previous_snapshot_before_refresh",
+        "recorded_fields": {
+            "report_conformance": "passed",
+            "evidence_exit_gate": "approved",
+            "content_credibility": "passed",
+        },
+        "missing_fields": [],
+    }

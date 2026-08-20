@@ -319,6 +319,9 @@ def row_to_report(row) -> dict:
         "markdown_hash": row["markdown_hash"] if "markdown_hash" in row.keys() else "",
         "data_file_hash": row["data_file_hash"] if "data_file_hash" in row.keys() else "",
     }
+    quality_refresh_provenance = snapshot.get("quality_metadata_refresh_provenance")
+    if isinstance(quality_refresh_provenance, dict) and quality_refresh_provenance:
+        report["quality_metadata_refresh_provenance"] = quality_refresh_provenance
     if projected_content_credibility is not None:
         report["content_credibility_projection"] = {
             "status": "projected" if _recorded_content_credibility(stored_content_credibility) else "available",

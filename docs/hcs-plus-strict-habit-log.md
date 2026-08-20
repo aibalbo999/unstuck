@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3622 / record pre-refresh quality evidence provenance
+
+- `#差距分析` / `#偏誤辨識`：live indexed audit 的 `1623.TW` v1/v2 都有 `refreshed_from_report`，但舊 snapshot 沒有刷新前 gate 狀態；將 `after_refresh` 直接解讀成「刷新造成缺失」會把時間關係誤當成因果。
+- `#責任` / `#語意含義`：data-only refresh 在寫入 snapshot 前保存 optional `quality_metadata_refresh_provenance`，只記錄三個 gate contract 的 `recorded_fields` 與 `missing_fields`。repair 只有在目前缺口被刷新前清單覆蓋時使用「刷新前已有品質證據缺口」與 `quality_metadata_before_refresh`，否則維持既有中性 after-refresh 分類；不從 artifact 重建 gate、不改 audit 分母、不觸發 rerun。
+- `#可驗證性` / `#證據基礎`：先以 refresh integration、snapshot preservation、repair before/after classification 與 indexed audit serialization 取得 RED，再 GREEN；後續補跑 quality/audit/conformance、history/storage、import boundary、docs/HCS、frontend HTTP、compile/diff 與 live read-only probe。舊 1623 snapshot 不被回寫，預期仍維持中性分類。
+
 ## D3621 / reuse one snapshot context during report-row hydration
 
 - `#差距分析` / `#偏誤辨識`：profile 證實 `row_to_report()` 對同一份 snapshot 重複讀取 7 次，100 筆列表 row 共 700 次；projection 也在 row mapper 與 `_content_credibility()` 重複計算，這是 read-only API hydration 的固定成本，不是資料品質差異。

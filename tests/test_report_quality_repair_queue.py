@@ -191,6 +191,34 @@ def test_report_quality_repair_items_identify_quality_gap_after_snapshot_refresh
     assert item["reason_codes"] == ["quality_metadata_missing", "quality_metadata_after_refresh"]
 
 
+def test_report_quality_repair_items_use_refresh_provenance_when_gap_predates_refresh():
+    from report_quality_repair_items import quality_metadata_repair_item
+
+    item = quality_metadata_repair_item(
+        {
+            "content_credibility": {},
+            "report_conformance": {},
+            "evidence_exit_gate": {},
+            "snapshot_integrity": {"status": "verified"},
+            "refreshed_from_report": "1623_TW_v1_report_20260815_153238.html",
+            "quality_metadata_refresh_provenance": {
+                "schema_version": 1,
+                "source": "previous_snapshot_before_refresh",
+                "recorded_fields": {},
+                "missing_fields": [
+                    "report_conformance",
+                    "evidence_exit_gate",
+                    "content_credibility",
+                ],
+            },
+        }
+    )
+
+    assert item["title"] == "刷新前已有品質證據缺口"
+    assert "刷新前快照已確認缺少" in item["detail"]
+    assert item["reason_codes"] == ["quality_metadata_missing", "quality_metadata_before_refresh"]
+
+
 def test_report_quality_repair_items_explain_missing_rerun_context_after_refresh():
     from report_quality_repair_items import quality_metadata_repair_item
 
