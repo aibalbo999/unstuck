@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-21
+- D3642：live `/api/reports` 的 `165` 份最新報告中，`144` 份的 `confidence_data_trust_calibration` check 外層標成 `passed`，但內層 calibration 明確是 `status=unavailable`、`raw_confidence=N/A`；這會把「無法完成校準」誤讀成「校準通過」。現在 unavailable 分支輸出同樣的 `status=unavailable` 與精確訊息，且 current projection 對同一 check id 優先於舊 persisted check，避免 API 同時列出相反狀態；不新增 warning/blocker、不改 confidence cap 或整體 content-credibility policy。
+- D3642 驗證：先以 live-shaped unparseable confidence 與同 id merge 建立兩個 RED，再 GREEN；content credibility/conformance/projection `41 passed`，文件契約與架構說明同步更新；runtime reload 後重新核對報告全集的 unavailable check 不再被標成 passed 或重複，並保留無 confidence 報告不自動升級的原行為。
 - D3641：live daily queue 的 `model_route_warning` 只有 source/type/route/warning_id，notification message/outbox 卻已有 `open-ops`、`查看路由` 與 `api-quota-panel/ops`；直接消費 queue 的工作台必須自行推導入口。現在 queue route-warning projection 重用 `operator_action_contract.navigation_context()`，不改 warning suppression、priority、route policy 或任何 state mutation。
 - D3641 驗證：先以 live-shaped provider quota warning 建立 RED，再 GREEN；daily queue/dashboard/free notification `231 passed`，完整 selected regression `1159 passed`，Python compile、`git diff --check` 通過。runtime reload 後維運頁顯示 `6` 筆 Provider 配額告警；live queue、notification message、delivery outbox 的可見 route warnings 均保留 `open-ops`、`查看路由`、`api-quota-panel`、`ops` 四個 navigation fields，未改 warning policy 或 state。
 - D3640：完整 import-boundary suite 暴露 `daily_decision_queue.py` 已達 257 行，queue orchestration 同時承擔到期回測、重跑報告與日期解析。新增 `daily_decision_report_actions.py` 承接純 report follow-up payload shaping，主 queue 降至 165 行，保留既有排序、dedupe、skip key 與 action contract。

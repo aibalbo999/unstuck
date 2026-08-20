@@ -59,7 +59,7 @@ def merge_content_credibility_results(recorded: Any, projected: Any) -> dict[str
     )
     result["blocking_issues"] = _merge_issues(recorded_map.get("blocking_issues"), projected_map.get("blocking_issues"))
     result["warnings"] = _merge_issues(recorded_map.get("warnings"), projected_map.get("warnings"))
-    result["checks"] = _merge_issues(projected_map.get("checks"), recorded_map.get("checks"))
+    result["checks"] = _merge_checks(projected_map.get("checks"), recorded_map.get("checks"))
     recorded_status = safe_text(recorded_map.get("status")).strip().lower()
     projected_status = safe_text(projected_map.get("status")).strip().lower()
     status = max((recorded_status, projected_status), key=lambda value: _STATUS_RANK.get(value, 0))
@@ -81,6 +81,26 @@ def _merge_issues(*values: Any) -> list[dict[str, Any]]:
                 continue
             merged.append(issue)
             known.add(key)
+    return merged
+
+
+def _merge_checks(projected: Any, recorded: Any) -> list[dict[str, Any]]:
+    """Prefer the current projection when it reports the same deterministic check id."""
+    merged: list[dict[str, Any]] = []
+    known_ids: set[str] = set()
+    known_unidentified: set[tuple[str, str]] = set()
+    for check in (*safe_dict_list(projected), *safe_dict_list(recorded)):
+        check_id = safe_text(check.get("id")).strip()
+        if check_id:
+            if check_id in known_ids:
+                continue
+            known_ids.add(check_id)
+        else:
+            key = (check_id, safe_text(check.get("message")))
+            if key in known_unidentified:
+                continue
+            known_unidentified.add(key)
+        merged.append(check)
     return merged
 
 

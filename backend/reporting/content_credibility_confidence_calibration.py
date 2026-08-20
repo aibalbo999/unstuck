@@ -77,13 +77,15 @@ def evaluate_confidence_data_trust_calibration(
         }
 
     if calibration.get("status") == "unavailable":
-        message = "未解析到信心分數，略過資料可信度上限檢查。"
+        message = "未解析到信心分數，無法完成資料可信度上限檢查。"
+        check_status = "unavailable"
     else:
         message = "報告信心未超過目前資料可信度上限。"
+        check_status = "passed"
     return {
         "blocking_issues": [],
         "warnings": [],
-        "checks": [_check("confidence_data_trust_calibration", "passed", message, details)],
+        "checks": [_check("confidence_data_trust_calibration", check_status, message, details)],
     }
 
 

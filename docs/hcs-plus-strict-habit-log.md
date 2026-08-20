@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3642 / expose unavailable confidence calibration without changing gate policy
+
+- `#拆解問題` / `#偏誤辨識`：live `/api/reports` 顯示 `144/165` 份最新報告的 confidence calibration check 是外層 `passed`、內層 `status=unavailable`；缺少信心分數的報告因此留下了過度樂觀的 check status，projection merge 另會把舊 persisted passed check 重複帶出。
+- `#語意含義` / `#可驗證性`：unavailable 分支改輸出 `status=unavailable` 與「無法完成資料可信度上限檢查」，current projection 對同一 check id 優先且去除重複；仍維持無 warning、無 blocker、整體 content-credibility status 與 shared confidence policy 不變。
+- `#偏誤降低` / `#責任`：這是 evidence status 的忠實呈現，不把不可評估升級成投資阻斷，也不把 `data_trust`、confidence cap、report artifact、index 或 queue state 改寫。
+- `#可驗證性`：先取得兩個 RED，再 GREEN；content credibility/conformance/projection `41 passed`，文件契約、runtime reload 與全量報告 API probe 待本輪收斂後封存。
+
 ## D3641 / align route-warning navigation across queue and notifications
 
 - `#差距分析` / `#受眾`：live `decision_queue.items` 的 route warning 只有 route/warning id，notification message/outbox 已有 CTA；只讀 queue consumer 無法可靠開啟相同的 model-route panel。

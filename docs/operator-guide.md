@@ -217,7 +217,7 @@ Report content credibility evidence matrix row maps use mapping-safe conversion 
 
 Report content credibility quality gate inputs use mapping-safe conversion before contradiction checks, so read-only context or snapshot wrappers cannot hide recommendation, price, target, evidence, or data-trust blockers.
 
-Report content credibility recommendation and gate text fields use safe text fallback before contradiction checks, so malformed recommendation keys, target values, confidence values, evidence verdicts, or data-trust statuses cannot interrupt content-credibility classification.
+Report content credibility recommendation and gate text fields use safe text fallback before contradiction checks, so malformed recommendation keys, target values, confidence values, evidence verdicts, or data-trust statuses cannot interrupt content-credibility classification. When confidence cannot be parsed, `confidence_data_trust_calibration` reports that calibration is unavailable rather than passed; this does not automatically block the report or create a new warning.
 
 Report renderer lint repair result fields use dict-native field reads before structured-key scrubbing, so malformed lint result or issue accessors cannot interrupt automatic repair for structured JSON key leaks.
 

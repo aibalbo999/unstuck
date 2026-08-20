@@ -117,6 +117,8 @@ If `evidence_exit_gate` is `not_recorded` (including normalized placeholder valu
 
 Content credibility also reuses the shared confidence calibration policy used by final-audit. When `data_trust` or unresolved cross-source conflict lowers the recommended confidence cap and the parsed recommendation exceeds that cap, it records `confidence_exceeds_data_trust_cap` with the raw score, effective score, cap, and calibration reasons. This is warning-level projection only; the shared calibration policy remains authoritative and non-downgraded scores are not escalated.
 
+When the recommendation confidence cannot be parsed, the `confidence_data_trust_calibration` check reports `status=unavailable` rather than `passed`, with a message that the cap check could not be completed. This does not create a warning or block the overall `content_credibility` result; it prevents an incomplete calibration from being presented as a successful check.
+
 For directional recommendations (`買入`, `避免`, or `放空`) with at least two parseable 3/6/12-month targets, content credibility also projects the existing forward target-sequence rule as `horizon_target_sequence_conflict` warning evidence. It does not replace the final-audit critical contract; it keeps the same deterministic sequence rule visible when a historical/API projection lacks raw final-audit details.
 
 Rendered Markdown and HTML execution summaries expose `Content credibility` as an explicit quality marker. The read-only artifact evidence summary also recognizes the existing `內容一致性` reading-notice line, so historical reports can expose content-credibility evidence without reconstructing or treating artifact text as persisted gate metadata.

@@ -64,4 +64,5 @@ def test_confidence_calibration_skips_unparseable_confidence():
     )
 
     assert result["warnings"] == []
-    assert "略過" in result["checks"][0]["message"]
+    assert "無法完成" in result["checks"][0]["message"]
+    assert result["checks"][0]["status"] == "unavailable"

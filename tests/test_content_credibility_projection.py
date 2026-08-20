@@ -73,6 +73,36 @@ def test_projection_merge_keeps_recorded_warning_when_current_projection_passes(
     assert result["checks"][0]["id"] == "current_check"
 
 
+def test_projection_merge_prefers_current_check_for_same_id():
+    from reporting.content_credibility_projection import merge_content_credibility_results
+
+    result = merge_content_credibility_results(
+        {
+            "status": "passed",
+            "checks": [{
+                "id": "confidence_data_trust_calibration",
+                "status": "passed",
+                "message": "舊的校準通過訊息",
+            }],
+        },
+        {
+            "status": "passed",
+            "checks": [{
+                "id": "confidence_data_trust_calibration",
+                "status": "unavailable",
+                "message": "目前無法完成校準",
+            }],
+        },
+    )
+
+    checks = [check for check in result["checks"] if check["id"] == "confidence_data_trust_calibration"]
+    assert checks == [{
+        "id": "confidence_data_trust_calibration",
+        "status": "unavailable",
+        "message": "目前無法完成校準",
+    }]
+
+
 def test_projection_requires_parsed_context():
     from reporting.content_credibility_projection import project_content_credibility
 
