@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from mapping_fields import safe_text
@@ -11,6 +12,24 @@ from price_parser import extract_price_numbers
 from .content_credibility_confidence import confidence_score as _confidence_score
 from .content_credibility_target_prices import main_target_price, target_price_candidates
 from .text_tokens import is_missing_text_token
+
+
+_CALENDAR_DATE_PATTERN = re.compile(
+    r"(?:19|20)\d{2}\s*(?:年\s*\d{1,2}\s*月\s*\d{1,2}\s*[日號]?|[-/.]\s*\d{1,2}\s*[-/.]\s*\d{1,2})"
+    r"|\d{1,2}\s*[-~～]\s*\d{1,2}\s*月\s*\d{0,2}\s*[日號]?"
+    r"|\d{1,2}\s*月\s*\d{1,2}\s*[日號]"
+    r"|\d{1,2}\s*[-/.]\s*\d{1,2}\s*[日號]"
+)
+_PERIOD_NUMBER_PATTERN = re.compile(
+    r"(?<![\d.,])(?:\d+(?:[.．]\d+)?)\s*(?:週|周|個月|月|年|天|日|weeks?|months?|years?|days?)(?![A-Za-z])",
+    flags=re.IGNORECASE,
+)
+
+
+def _strip_temporal_numeric_tokens(text: str) -> str:
+    """Keep calendar/period labels from being mistaken for prices."""
+    cleaned = _CALENDAR_DATE_PATTERN.sub(" ", text)
+    return _PERIOD_NUMBER_PATTERN.sub(" ", cleaned)
 
 
 def _input_text(value: Any) -> str:
@@ -33,7 +52,7 @@ def first_price(value: Any) -> float | None:
     if isinstance(value, (int, float)):
         return float(value)
     try:
-        prices = extract_price_numbers(_input_text(value))
+        prices = extract_price_numbers(_strip_temporal_numeric_tokens(_input_text(value)))
     except (TypeError, ValueError):
         return None
     price = float(prices[0]) if prices else None

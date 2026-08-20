@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-20
+- D3596：live v4 交易計畫的目標價／停損文字會把日期或週期數字放在真正價格前，例如「2026 年 7 月 31 日價格點 204.0」、「52 週高點 31.3」；共用 `first_price()` 因此可能把年份、月份或週數誤當價格。現在只在內容可信度輸入邊界移除明確日曆／週期 token，再交給既有價格 parser，不改 snapshot、index、gate、方向語意或任何 mutation。
+- D3596 驗證收斂：先以三個核心案例取得 RED，補充月日格式後 GREEN `4 passed`；內容可信度/品質/repair `92 passed`、preview/reading `126 passed`、refresh/data-trust `196 passed`、alignment/evidence `15 passed`、import boundary `3 passed`。正式 runtime smoke 通過，live 2603/2324/2375 的停損值分別為 `204.0/36.0/85.0`；大型 inputs 解析矩陣曾執行至 `837 passed` 後因約 26 分鐘成本中止，保留為 residual risk。
 - D3595：D3594 已修正歷史/API 讀取語意，但新 snapshot 仍沒有 raw `final_audit` trace，且資料刷新 context 也沒有 preservation contract。`data_trust_snapshot.build_data_snapshot()` 現在保存 sanitized optional `final_audit`，`report_refresh_service.refresh_report_data_snapshot()` 會沿用上一份 audit；不改 snapshot required keys、schema version、integrity hash、coverage 分母或任何 mutation side effect。
 - D3595 驗證收斂：先取得 renderer、snapshot builder、refresh preservation 三個 RED，再 GREEN `3 passed`；data-trust/refresh `194 passed`、content/quality/repair `88 passed`，snapshot smoke 的 `final_audit` 與 integrity 均正確。正式 runtime 重啟後 `/healthz`、`/readyz` 通過，daily/historical 仍為 `160/2/98.75%` 與 `1216/115/90.54%`。既有舊 snapshot 不回填，仍由 D3594 read-only reconciliation 提供歷史語意。
 - D3594：live `1216` 份 snapshot 都沒有 raw `final_audit`，其中 `21` 份的 `report_conformance.decision_tree.final_audit` 已是 warning/blocked，但歷史/API projection 仍可能保留 `content_credibility=passed`。新增共享 `final_audit_from_conformance()` 與 `align_content_credibility_with_final_audit()`，讓 evaluator、report index 與 quality audit 以同一份既有 conformance evidence 做 read-only 對齊；只升級矛盾的呈現結果，不回寫 snapshot、artifact/index、review ledger、rerun 或 queue。

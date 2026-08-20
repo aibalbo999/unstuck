@@ -16,6 +16,18 @@ def test_first_price_rejects_non_finite_numeric_tokens():
     assert first_price(float("-inf")) is None
 
 
+def test_first_price_ignores_calendar_date_before_price():
+    assert first_price("跌破 2026 年 7 月 31 日價格點 204.0 TWD") == 204.0
+
+
+def test_first_price_ignores_month_day_before_price():
+    assert first_price("收盤價跌破 7 月 31 日關鍵支撐位 36.0 TWD") == 36.0
+
+
+def test_first_price_ignores_period_before_price():
+    assert first_price("突破並站穩 52 週高點 31.3 TWD") == 31.3
+
+
 def test_target_price_candidates_drop_non_finite_numeric_prices():
     candidates = target_price_candidates(
         {

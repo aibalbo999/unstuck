@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3596 / temporal token contamination in credibility price parsing
+
+- `#證據基礎` / `#偏誤辨識`：掃描 `1216` 份 snapshot、其中 `1073` 份 v4 parsed trade setup 後，發現 target/stop 字串確實含有日期或週期數字；live 例子包括 `2026 年 7 月 31 日價格點 204.0`、`7 月 31 日關鍵支撐位 36.0` 與 `2026 年 4 月關鍵支撐位 85.0`。舊 `first_price()` 會取到 `2026.0` 或 `7.0`，進而把交易計畫誤判成方向矛盾。
+- `#責任` / `#語意含義`：在 `content_credibility_inputs.first_price()` 的輸入邊界先移除明確日曆日期與週期 token，再使用既有 `extract_price_numbers()`；只修正數值抽取，不改 target/stop 欄位語意、trade direction policy、snapshot/index、artifact、review、rerun 或 queue。
+- `#可驗證性` / `#偏誤降低`：三個核心案例先取得 RED，補充月日格式後 GREEN `4 passed`；內容可信度/品質/repair `92 passed`、preview/reading `126 passed`、refresh/data-trust `196 passed`、alignment/evidence `15 passed`、import boundary `3 passed`。重啟正式 runtime 後 `/healthz`、`/readyz` 通過，live 2603/2324/2375 停損值為 `204.0/36.0/85.0`。大型 inputs 解析矩陣跑到 `837 passed`、約 26 分鐘後中止，未宣稱完整通過，列為 residual risk。
+
 ## D3595 / final-audit snapshot persistence
 
 - `#證據基礎` / `#系統圖像`：D3594 的 live evidence 顯示歷史 projection 可從 conformance 對齊，但新 renderer 的 data snapshot 仍沒有 raw `final_audit`，refresh service 也沒有明確帶回欄位，下一次刷新可能失去 audit trace。

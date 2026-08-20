@@ -54,6 +54,22 @@ def test_trade_setup_alignment_blocks_long_target_or_stop_in_wrong_direction():
     assert all(check["status"] == "blocked" for check in result["checks"])
 
 
+def test_trade_setup_alignment_uses_price_after_calendar_date_for_stop_loss():
+    from reporting.content_credibility_trade_setup import evaluate_trade_setup_alignment
+
+    result = evaluate_trade_setup_alignment(
+        trade_setup=_trade_setup(
+            target_price="NT$230",
+            stop_loss="跌破 2026 年 7 月 31 日價格點 204.0 TWD",
+        ),
+        current_price=210.0,
+    )
+
+    assert result["blocking_issues"] == []
+    assert result["warnings"] == []
+    assert result["checks"][0]["details"]["stop_loss"] == 204.0
+
+
 def test_trade_setup_alignment_warns_when_prices_cannot_be_parsed():
     from reporting.content_credibility_trade_setup import evaluate_trade_setup_alignment
 
