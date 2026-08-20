@@ -73,6 +73,32 @@ def test_report_reading_notice_explains_that_passed_checks_are_not_an_investment
     assert "不代表投資語意一定正確" in markdown
 
 
+def test_report_reading_notice_surfaces_stale_analysis_in_html_and_markdown():
+    from reporting.reading_notice import build_report_reading_notice_html, build_report_reading_notice_markdown
+
+    reason = "資料快照已刷新，但 HTML/Markdown 分析本文未重新執行；投資結論仍以原報告生成時間為準。"
+    context = _context(
+        evidence_exit_gate={"verdict": "approved"},
+        content_credibility={"status": "passed"},
+        report_conformance={"status": "passed"},
+        decision_freshness={
+            "status": "needs_rerun",
+            "requires_rerun": True,
+            "requires_rerun_reason": reason,
+        },
+    )
+
+    html = build_report_reading_notice_html(context)
+    markdown = build_report_reading_notice_markdown(context)
+
+    assert "分析新鮮度" in html
+    assert "需完整重跑" in html
+    assert reason in html
+    assert "分析新鮮度" in markdown
+    assert "需完整重跑" in markdown
+    assert reason in markdown
+
+
 def test_report_reading_notice_blocks_false_valid_snapshot_integrity():
     from reporting.reading_notice import build_report_reading_notice_html, build_report_reading_notice_markdown
 

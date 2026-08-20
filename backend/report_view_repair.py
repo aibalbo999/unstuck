@@ -10,6 +10,7 @@ from report_execution_summary_view_repair import (
     repair_report_markdown_execution_summary_quality,
 )
 from reporting.reading_notice import build_report_reading_notice_html, build_report_reading_notice_markdown
+from reporting.reading_notice_freshness import is_recorded as freshness_is_recorded
 from ticker_links import quote_url_from_autolink_href
 
 
@@ -84,7 +85,11 @@ def repair_report_reading_notice(html: str, context: dict | None = None) -> str:
     if not context:
         return html
     notice = build_report_reading_notice_html(context).strip()
-    if "report-reading-notice-blocked" not in notice and "report-reading-notice-warning" not in notice:
+    if (
+        "report-reading-notice-blocked" not in notice
+        and "report-reading-notice-warning" not in notice
+        and not freshness_is_recorded(context)
+    ):
         return html
     if REPORT_READING_NOTICE_RE.search(html):
         return REPORT_READING_NOTICE_RE.sub(notice, html, count=1)

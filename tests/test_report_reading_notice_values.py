@@ -64,6 +64,43 @@ def test_reading_notice_values_warn_for_partial_gate_records():
     assert ("證據抽查", "未記錄") in values["checks"]
 
 
+def test_reading_notice_values_surfaces_stale_analysis_even_when_data_is_fresh():
+    reason = "資料快照已刷新，但 HTML/Markdown 分析本文未重新執行；投資結論仍以原報告生成時間為準。"
+
+    values = build_report_reading_notice_values(
+        _context(
+            evidence_exit_gate={"verdict": "approved"},
+            content_credibility={"status": "passed"},
+            report_conformance={"status": "passed"},
+            data_trust={"status": "fresh"},
+            analysis_text_stale=True,
+            decision_freshness={
+                "status": "needs_rerun",
+                "requires_rerun": True,
+                "requires_rerun_reason": reason,
+            },
+        )
+    )
+
+    assert values["state"] == "warning"
+    assert ("分析新鮮度", "需完整重跑") in values["checks"]
+    assert reason in values["state_note"]
+
+
+def test_reading_notice_values_labels_current_analysis_freshness():
+    values = build_report_reading_notice_values(
+        _context(
+            evidence_exit_gate={"verdict": "approved"},
+            content_credibility={"status": "passed"},
+            report_conformance={"status": "passed"},
+            decision_freshness={"status": "current", "requires_rerun": False},
+        )
+    )
+
+    assert values["state"] == "passed"
+    assert ("分析新鮮度", "目前一致") in values["checks"]
+
+
 def test_reading_notice_values_drop_non_finite_gate_status_text():
     values = build_report_reading_notice_values(
         _context(

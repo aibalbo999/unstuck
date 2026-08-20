@@ -15,6 +15,7 @@ from .snapshot_integrity_notice import (
     snapshot_integrity_label,
     snapshot_integrity_verified,
 )
+from . import reading_notice_freshness as freshness
 from .text_tokens import is_missing_text_token
 
 
@@ -59,6 +60,7 @@ def _quality_state(context: dict, trust: dict) -> str:
     evidence = _gate(context, "evidence_exit_gate")
     content = _gate(context, "content_credibility")
     integrity = snapshot_integrity(context)
+    freshness_values = freshness.decision_freshness(context)
     conformance_status = _status(dict.get(conformance, "status"))
     evidence_status = _status(dict.get(evidence, "verdict"))
     content_status = _status(dict.get(content, "status"))
@@ -69,6 +71,11 @@ def _quality_state(context: dict, trust: dict) -> str:
         return "blocked"
     if evidence_status in {"blocked", "failed", "rejected"} or content_status in {"blocked", "failed", "rejected"}:
         return "blocked"
+    if freshness.is_recorded(context) and (
+        freshness.requires_rerun(freshness_values)
+        or _status(dict.get(freshness_values, "status"), "unknown").lower() != "current"
+    ):
+        return "warning"
 
     quality_gate_keys = ("report_conformance", "evidence_exit_gate", "content_credibility")
     has_quality_gate = any(_gate_recorded(context, key) for key in quality_gate_keys)
@@ -128,6 +135,8 @@ def build_report_reading_notice_values(context: dict) -> dict[str, Any]:
     content = _gate(context, "content_credibility")
     conformance = _gate(context, "report_conformance")
     integrity = snapshot_integrity(context)
+    freshness_values = freshness.decision_freshness(context)
+    freshness_recorded = freshness.is_recorded(context)
     state = _quality_state(context, trust)
     state_note = _STATE_NOTES[state]
     integrity_detail = snapshot_integrity_detail(integrity)
@@ -135,12 +144,21 @@ def build_report_reading_notice_values(context: dict) -> dict[str, Any]:
         state_note = f"{state_note} {integrity_detail}"
     elif state == "warning" and integrity and not snapshot_integrity_verified(integrity) and integrity_detail:
         state_note = f"{state_note} {integrity_detail}"
+    if freshness_recorded and freshness.requires_rerun(freshness_values):
+        freshness_detail = freshness.reason(freshness_values, context) or "資料快照與投資結論不同步，請使用完整重跑。"
+        state_note = f"{state_note} {freshness_detail}"
+    elif freshness_recorded and _status(dict.get(freshness_values, "status"), "unknown").lower() != "current":
+        state_note = f"{state_note} 目前無法確認投資結論是否對應最新資料。"
     checks = [
         ("資料可信度", trust_status_label(_status(dict.get(trust, "status"), "unknown"))),
+    ]
+    if freshness_recorded:
+        checks.append(("分析新鮮度", freshness.label(freshness_values)))
+    checks.extend([
         ("證據抽查", _evidence_label(_status(dict.get(evidence, "verdict"), "not_recorded"))),
         ("內容一致性", _content_label(_status(dict.get(content, "status"), "not_recorded"))),
         ("輸出契約", _conformance_label(_status(dict.get(conformance, "status"), "not_recorded"))),
-    ]
+    ])
     if integrity:
         checks.append(("資料快照完整性", snapshot_integrity_label(integrity)))
     return {

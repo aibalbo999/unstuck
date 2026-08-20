@@ -79,6 +79,14 @@ def current_quality_notice_context(
         if value:
             context[key] = value
             projected = True
+    freshness = safe_mapping_dict(report_map.get("decision_freshness"))
+    if freshness is not None:
+        context["decision_freshness"] = freshness
+        projected = True
+    for key in ("analysis_text_stale", "analysis_text_stale_message"):
+        if key in report_map:
+            context[key] = report_map[key]
+            projected = True
     if projected:
         context["_current_quality_projection"] = True
     return context if projected else None

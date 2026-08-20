@@ -496,6 +496,137 @@ persisted markdown body
     assert json.loads(storage.get_report(data_filename).content) == snapshot
 
 
+def test_report_history_projects_current_decision_freshness_notice_without_rewriting_storage():
+    storage = InMemoryStorage()
+    filename = "3653_TW_v3_report_20260815_202129.html"
+    md_key = filename[:-5] + ".md"
+    html = """
+    <html><body>
+    <section class="report-reading-notice report-reading-notice-passed">
+        <span class="report-reading-notice-status">已通過已知檢查</span>
+    </section>
+    <p>persisted report body</p>
+    </body></html>
+    """
+    markdown = """# 3653 report
+
+## 報告使用範圍與判讀限制
+
+- **品質 gate 狀態:** 已通過已知檢查
+
+persisted markdown body
+"""
+    storage.save_report(filename, html.encode("utf-8"), content_type="text/html")
+    storage.save_report(md_key, markdown.encode("utf-8"), content_type="text/markdown")
+    snapshot = {
+        "ticker": "3653.TW",
+        "data_trust": {"status": "fresh"},
+        "evidence_exit_gate": {"verdict": "approved"},
+        "content_credibility": {"status": "passed"},
+        "report_conformance": {"status": "passed"},
+    }
+    data_key = data_snapshot_filename_for_report(filename)
+    storage.save_report(
+        data_key,
+        json.dumps(snapshot, ensure_ascii=False).encode("utf-8"),
+        content_type="application/json",
+    )
+    reason = "資料快照已刷新，但 HTML/Markdown 分析本文未重新執行；投資結論仍以原報告生成時間為準。"
+
+    class CurrentQualityRepository:
+        def query(self, query):
+            return ([{
+                "filename": filename,
+                "evidence_exit_gate": {"verdict": "approved"},
+                "content_credibility": {"status": "passed"},
+                "report_conformance": {"status": "passed"},
+                "analysis_text_stale": True,
+                "analysis_text_stale_message": reason,
+                "decision_freshness": {
+                    "status": "needs_rerun",
+                    "requires_rerun": True,
+                    "requires_rerun_reason": reason,
+                    "message": reason,
+                },
+            }], 1)
+
+    html_response = get_report_file(
+        filename,
+        "/missing-output-dir",
+        storage=storage,
+        repository=CurrentQualityRepository(),
+    )
+    md_response = download_report_file(
+        filename,
+        "/missing-output-dir",
+        "md",
+        storage=storage,
+        repository=CurrentQualityRepository(),
+    )
+    html_body = html_response.body.decode("utf-8")
+    md_body = md_response.body.decode("utf-8")
+
+    assert "分析新鮮度</span><strong>需完整重跑" in html_body
+    assert reason in html_body
+    assert "分析新鮮度" in md_body
+    assert "需完整重跑" in md_body
+    assert reason in md_body
+    assert "已通過已知檢查" in storage.get_report(filename).content.decode("utf-8")
+    assert "已通過已知檢查" in storage.get_report(md_key).content.decode("utf-8")
+    assert json.loads(storage.get_report(data_key).content) == snapshot
+
+
+def test_report_history_injects_current_freshness_notice_into_legacy_html_without_notice():
+    storage = InMemoryStorage()
+    filename = "6282_TW_v4_report_20260820_211400.html"
+    storage.save_report(
+        filename,
+        "<html><body><p>legacy report without a reading notice</p></body></html>".encode("utf-8"),
+        content_type="text/html",
+    )
+    snapshot = {
+        "ticker": "6282.TW",
+        "data_trust": {"status": "fresh"},
+        "data": {"data_trust": {"status": "fresh"}},
+        "evidence_exit_gate": {"verdict": "approved"},
+        "content_credibility": {"status": "passed"},
+        "report_conformance": {"status": "passed"},
+    }
+    data_key = data_snapshot_filename_for_report(filename)
+    storage.save_report(
+        data_key,
+        json.dumps(snapshot, ensure_ascii=False).encode("utf-8"),
+        content_type="application/json",
+    )
+
+    class CurrentQualityRepository:
+        def query(self, query):
+            return ([{
+                "filename": filename,
+                "evidence_exit_gate": {"verdict": "approved"},
+                "content_credibility": {"status": "passed"},
+                "report_conformance": {"status": "passed"},
+                "decision_freshness": {"status": "current", "requires_rerun": False},
+                "analysis_text_stale": False,
+                "analysis_text_stale_message": "",
+            }], 1)
+
+    response = get_report_file(
+        filename,
+        "/missing-output-dir",
+        storage=storage,
+        repository=CurrentQualityRepository(),
+    )
+    body = response.body.decode("utf-8")
+
+    assert "legacy report without a reading notice" in body
+    assert "分析新鮮度</span><strong>目前一致" in body
+    assert "已通過已知檢查" in body
+    assert "report-reading-notice-passed" in body
+    assert "report-reading-notice" not in storage.get_report(filename).content.decode("utf-8")
+    assert json.loads(storage.get_report(data_key).content) == snapshot
+
+
 def test_download_markdown_replaces_stale_warning_when_current_quality_passes():
     storage = InMemoryStorage()
     filename = "6282_TW_v4_report_20260820_211400.html"

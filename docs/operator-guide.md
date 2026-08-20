@@ -209,6 +209,8 @@ Report conformance quality gate inputs use dict-native field reads before decisi
 
 HTML execution summary 的 Evidence gate、Content credibility、Report conformance status 與 evidence note，以及 Markdown execution summary 的三個 status/摘要，在有 current projection 時會一起使用 response-time quality gate；若沒有 current projection，則保留 persisted artifact。這是閱讀層的投影，不會改變 `/api/report/{filename}/download/data` 的原始 snapshot。
 
+HTML/Markdown 的報告使用提示也會在有 current report row 時投影「分析新鮮度」：`目前一致` 代表結論 freshness 判定為 current；`需完整重跑` 代表資料快照已更新但分析本文仍是舊結論，提示中的原因以 current `decision_freshness`/`analysis_text_stale` 為準。這個提示與資料可信度的 `fresh` 是兩個不同判斷，不能因資料新鮮就跳過完整重跑；它只改 response-time 閱讀層，不回寫 artifact、data snapshot、index、review、rerun、repair 或 queue。
+
 Report conformance quality gate inputs accept mapping-safe wrappers before decision-tree evaluation, so read-only report lint, final audit, evidence, content credibility, context, or snapshot payloads cannot hide blocker or warning evidence.
 
 Report evidence exit gate numeric checks use semantic snapshot paths only: ISO timestamp fragments, hashes, source-audit metadata, `N/A` cells, and range prefixes are not investment claims; claims without a matching semantic path are recorded as `unverifiable` and do not borrow the nearest unrelated snapshot number. `failed_count` counts only real `mismatch` results, while `unverifiable_count` remains visible and keeps the verdict at least `caution` when no comparable evidence exists.

@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3662 / surface stale analysis in report reading notices
+
+- `#差距分析` / `#內容可信度`：live report row 可同時是 `data_trust=fresh` 與 `decision_freshness=needs_rerun`；原本 HTML/Markdown 閱讀提示只呈現資料新鮮，沒有把「分析本文未重跑」放進使用前限制，容易把新資料誤讀成新結論。
+- `#最小變更` / `#責任`：current report row 的 freshness 與 stale-analysis 欄位以 view-time projection 注入共同 reading notice；新增「分析新鮮度」檢查，需重跑時顯示完整重跑與現行原因，原始 artifact、data snapshot、index、review、rerun、repair 與 queue 不變。
+- `#可驗證性` / `#來源品質`：values、HTML/Markdown notice 與 history storage regression 先 RED 再 GREEN；storage/notice `77 passed`、import/docs `573 passed`；live `165` 份 indexed reports 的 HTML/Markdown `330` 個 response 為 `143 current / 22 stale`、錯誤 `0`，runtime `healthz=ok`、`readyz=ready`、queue depth `0`。
+
 ## D3661 / align execution summary explanations across HTML and Markdown
 
 - `#差距分析` / `#語意含義`：current gate status 已更新後，HTML execution note 與 Markdown 的 gate/摘要仍沿用 persisted explanation；操作員會看到 warning 卻讀到「抽樣數字均可」的相反理由。
