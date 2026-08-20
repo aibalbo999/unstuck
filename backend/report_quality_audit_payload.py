@@ -153,6 +153,10 @@ def _audit_item(report: dict[str, Any], item: dict[str, Any]) -> dict[str, Any]:
     rerun_context_status = safe_text(item.get("rerun_context_status")).strip()
     if rerun_context_status:
         payload["rerun_context_status"] = rerun_context_status
+    for field in ("snapshot_rerun_context_status", "artifact_rerun_context_status"):
+        value = safe_text(item.get(field)).strip()
+        if value:
+            payload[field] = value
     revision = safe_text(report.get("report_quality_revision")).strip()
     if revision:
         payload["report_quality_revision"] = revision

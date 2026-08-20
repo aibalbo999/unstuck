@@ -11,11 +11,13 @@ from typing import Any
 
 from data_trust_snapshot import verify_data_snapshot_integrity
 from mapping_fields import safe_text, safe_text_list
+from pipeline_modes import get_pipeline_definition, get_structured_agent_num
 from report_history_pagination import collect_all_report_pages
 from report_history_storage import load_storage_item, storage_for_existing_output_dir
 from report_index import query_report_metadata
 from report_quality_repair_items import quality_metadata_repair_item
 from report_quality_evidence import read_artifact_quality_summary
+from report_rerun_context import parse_agent_sections_from_markdown
 from reporting.content_credibility_final_audit import align_content_credibility_with_final_audit
 from report_quality_audit_payload import (
     ARTIFACT_QUALITY_SUMMARY_STATUSES,
@@ -159,7 +161,25 @@ def _indexed_quality_reports(rows: list[dict[str, Any]], storage: Any) -> list[d
         report = _report_from_index_row(row, storage)
         report["report_quality_revision"] = report_quality_revision(row)
         if quality_metadata_repair_item(report) is not None:
-            report["artifact_quality_summary"] = _read_artifact_quality_summary(storage, report.get("filename"))
+            artifact_cache: dict[tuple[str, str], Any] = {}
+
+            def cached_load_item(_storage: Any, filename: Any, *, kind: str):
+                cache_key = (safe_text(filename).strip(), kind)
+                if cache_key not in artifact_cache:
+                    artifact_cache[cache_key] = load_storage_item(_storage, filename, kind=kind)
+                return artifact_cache[cache_key]
+
+            report["artifact_quality_summary"] = _read_artifact_quality_summary(
+                storage,
+                report.get("filename"),
+                load_item=cached_load_item,
+            )
+            report["artifact_rerun_context_status"] = _read_artifact_rerun_context_status(
+                storage,
+                report.get("filename"),
+                report.get("pipeline_id"),
+                load_item=cached_load_item,
+            )
         reports.append(report)
     return reports
 
@@ -206,8 +226,39 @@ def _indexed_rows_fingerprint(rows: list[dict[str, Any]]) -> str:
     return digest.hexdigest()
 
 
-def _read_artifact_quality_summary(storage: Any, filename: Any) -> dict[str, Any]:
-    return read_artifact_quality_summary(storage, filename, load_item=load_storage_item)
+def _read_artifact_quality_summary(storage: Any, filename: Any, *, load_item=load_storage_item) -> dict[str, Any]:
+    return read_artifact_quality_summary(storage, filename, load_item=load_item)
+
+
+def _read_artifact_rerun_context_status(
+    storage: Any,
+    filename: Any,
+    pipeline_id: Any,
+    *,
+    load_item=load_storage_item,
+) -> str:
+    if not storage or not safe_text(filename).strip():
+        return "unavailable"
+    try:
+        item = load_item(storage, safe_text(filename).strip(), kind="md")
+    except Exception:
+        return "unavailable"
+    if item is None:
+        return "unavailable"
+    try:
+        raw_content = item.content
+        markdown = raw_content.decode("utf-8", errors="replace") if isinstance(raw_content, bytes) else safe_text(raw_content)
+        sections = parse_agent_sections_from_markdown(markdown)
+        pipeline = get_pipeline_definition(safe_text(pipeline_id).strip() or "v1")
+        final_agent = get_structured_agent_num("recommendation", pipeline["id"])
+        if final_agent is None:
+            return "unavailable"
+        required_agents = [agent for agent in pipeline["agents"] if agent < final_agent]
+        if all(agent in sections for agent in required_agents):
+            return "present"
+        return "partial" if sections else "missing"
+    except Exception:
+        return "unavailable"
 
 
 def _raw_row(row: Any) -> dict[str, Any]:

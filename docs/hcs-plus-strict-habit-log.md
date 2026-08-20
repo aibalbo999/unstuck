@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3601 / distinguish snapshot context loss from Markdown fallback
+
+- `#偏誤辨識` / `#來源品質`：D3600 的 `rerun_context_status=missing` 只看 snapshot；全量 artifact scan 顯示 `115/115` 缺口都有 Markdown 且前序 Agent sections 完整，若不再分層會把可用 fallback 誤報成必須完整重跑。
+- `#詮釋框架` / `#溝通設計`：audit item 新增 `snapshot_rerun_context_status`、`artifact_rerun_context_status`，aggregate `artifact_fallback_available` 明示可嘗試既有 final-agent partial rerun；detail 不再宣稱「一定不能局部重跑」，仍要求核對 artifact/freshness，並維持 manual review/auto-rerun boundary。
+- `#最佳化` / `#可驗證性`：quality audit `22 passed`、repair/review `56 passed`、frontend quality `6 passed`、import boundary `5 passed`、文件契約 `138 passed`；同一 Markdown 的兩次讀取合併為單次 cache lookup。正式 runtime reload 後 health/readiness/doctor 通過，live first item 確認 aggregate `artifact_fallback_available`；最後一次 canonical audit 為 `1220` verified versions、coverage `90.57%`、缺口 `115`，沒有新增 mutation。
+
 ## D3600 / expose rerun-context availability in quality audit
 
 - `#拆解問題` / `#證據基礎`：對 live `115` 筆三 gate 缺口做 context inventory，`analyses`、`structured_outputs`、`parsed`、`evidence_matrix` 全部為空，且 `needs_rerun=115`、`refreshed_without_analysis_rerun=115`；既有「人工查看」detail 沒有說明局部重跑不可用。

@@ -599,6 +599,63 @@ def test_indexed_report_quality_audit_exposes_snapshot_refresh_provenance(monkey
     ]
 
 
+def test_indexed_report_quality_audit_exposes_markdown_rerun_fallback(monkeypatch, tmp_path):
+    import report_quality_audit as audit
+    from pipeline_modes import get_pipeline_definition, get_structured_agent_num
+
+    pipeline_id = "v2"
+    final_agent = get_structured_agent_num("recommendation", pipeline_id)
+    required_agents = [agent for agent in get_pipeline_definition(pipeline_id)["agents"] if agent < final_agent]
+    markdown = "\n\n".join(
+        f"## {agent}. 前序段落 (Agent {agent})\n既有分析內容。"
+        for agent in required_agents
+    )
+
+    monkeypatch.setattr(
+        audit,
+        "collect_all_report_pages",
+        lambda *_args, **_kwargs: {
+            "reports": [{"ticker": "1623.TW", "filename": "1623_v2.html", "pipeline_id": pipeline_id}]
+        },
+    )
+    monkeypatch.setattr(audit, "storage_for_existing_output_dir", lambda *_args: object())
+
+    def load_item(_storage, _filename, *, kind):
+        if kind == "data":
+            return SimpleNamespace(
+                content=json.dumps(
+                    {
+                        "snapshot_hash": "hash",
+                        "pipeline": pipeline_id,
+                        "refreshed_from_report": "1623_v2.html",
+                        "refreshed_without_analysis_rerun": True,
+                        "decision_validity_status": "needs_rerun",
+                        "rerun_context": {},
+                        "report_conformance": {},
+                        "evidence_exit_gate": {},
+                        "content_credibility": {},
+                    }
+                )
+            )
+        assert kind == "md"
+        return SimpleNamespace(content=markdown.encode("utf-8"))
+
+    monkeypatch.setattr(audit, "load_storage_item", load_item)
+    monkeypatch.setattr(
+        audit,
+        "verify_data_snapshot_integrity",
+        lambda _snapshot: {"valid": True, "expected_hash": "hash", "errors": []},
+    )
+
+    payload = audit.build_indexed_report_quality_audit(str(tmp_path))
+    item = payload["items"][0]
+
+    assert item["rerun_context_status"] == "artifact_fallback_available"
+    assert item["artifact_rerun_context_status"] == "present"
+    assert "可嘗試只重跑最終建議" in item["detail"]
+    assert "rerun_context_missing" not in item["reason_codes"]
+
+
 def test_indexed_report_quality_audit_exposes_artifact_quality_summary_without_reconstructing_gates(monkeypatch, tmp_path):
     import report_quality_audit as audit
 

@@ -203,6 +203,7 @@ flowchart TD
 - `report_quality_audit.artifact_quality_summary_by_field` 同樣在 item pagination 前按 `report_conformance`、`evidence_exit_gate`、`content_credibility` 統計 marker；field count 保留零值，避免 `present` 被誤讀成三個品質欄位都可查。
 - repeated quality audit 只在相同 `output_dir/scope/filter/index-row fingerprint` 下使用 15 秒 bounded process cache；`updated_at`、`file_mtime` 或 stored hash 變化即重新讀 artifact，cache 不取代 canonical report index/storage。
 - `report_quality_audit` 只負責 indexed-row/storage orchestration，audit envelope/statistics 放 `report_quality_audit_payload`；revision review API 由 `api_routes/report_quality_review` 註冊，並由 watchlist route 注入 target/record callable，避免跨 route owner 直接耦合。
+- quality audit 可唯讀解析 Markdown 的既有 Agent headings 只為判斷 partial-rerun fallback availability；這不是 gate reconstruction、不是 artifact repair，也不改 review ledger、rerun queue 或 report index。
 - 歷史 quality gap 的人工核准走 `backend/report_quality_review_store.py`，把 `report_quality_revision` 綁在 indexed row/artifact fingerprint，事件 append-only 寫入 canonical `operational.sqlite3` 的 `report_quality_review_events`；`approved_with_gap` 只代表「核對後保留缺口」，不代表 structured gate 通過，revision 變更時必須重新審核。
 - `POST /api/watchlist/report-quality-audit/review` 必須經 mutation token，且只留下 decision/note audit event；它明確回報 `artifact_written=false`、`report_index_written=false`、`rerun_enqueued=false`，不得從 HTML/Markdown 重建 gate 或自動修復歷史報告。
 - historical audit item 的 `quality_review_history` 只讀取同一 filename/pipeline/revision 最近 20 筆 append-only 事件，按 event id 倒序呈現；舊 revision 事件不會進入目前報告的 review timeline。

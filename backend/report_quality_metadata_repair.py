@@ -53,7 +53,15 @@ def quality_metadata_repair_item(report: Mapping[str, Any]) -> dict[str, Any] | 
     }
     if refreshed_from_report:
         rerun_context_status = _rerun_context_status(report_payload)
+        artifact_rerun_context_status = safe_text(
+            dict.get(report_payload, "artifact_rerun_context_status")
+        ).strip().lower()
+        if rerun_context_status in {"missing", "partial"} and artifact_rerun_context_status == "present":
+            rerun_context_status = "artifact_fallback_available"
         item["rerun_context_status"] = rerun_context_status
+        item["snapshot_rerun_context_status"] = _rerun_context_status(report_payload)
+        if artifact_rerun_context_status:
+            item["artifact_rerun_context_status"] = artifact_rerun_context_status
         if rerun_context_status == "missing":
             item["detail"] += "目前沒有可供局部重跑的原始分析上下文；若資料標記需重跑，應安排完整重跑後再採用。"
             if (
@@ -61,6 +69,8 @@ def quality_metadata_repair_item(report: Mapping[str, Any]) -> dict[str, Any] | 
                 or safe_text(dict.get(report_payload, "decision_validity_status")).strip().lower() == "needs_rerun"
             ):
                 item["reason_codes"].append("rerun_context_missing")
+        elif rerun_context_status == "artifact_fallback_available":
+            item["detail"] += "snapshot 未保存可供局部重跑的原始分析上下文，但 Markdown artifact 已找到完整前序 Agent 段落；可嘗試只重跑最終建議，仍需先核對 artifact 與 freshness。"
         elif rerun_context_status == "partial":
             item["detail"] += "目前只有部分原始分析上下文；局部重跑前需先確認前序 Agent 輸入是否完整。"
     return item
