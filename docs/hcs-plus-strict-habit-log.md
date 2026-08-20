@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3631 / surface complete latest audit gaps in the read-only decision queue
+
+- `#差距分析` / `#責任`：live daily audit 的 current gap 有完整明細與人工核對資訊，但既有 queue 只顯示 repair sample，讓 audit coverage 與 next-action surface 斷開。
+- `#偏誤降低` / `#可驗證性`：只接受 `all_indexed_reports`、`latest_per_ticker_pipeline`、未截斷且明細數等於缺口數的 audit envelope；與 repair sample 依 filename/pipeline 去重，partial、unavailable、historical 不推論 action。
+- `#最小變更` / `#副作用`：沿用既有 repair payload、manual-review CTA 與 rerun blocking metadata；queue item 只供 dashboard/notification presentation，不 enqueue、不寫 review、artifact、index 或 repair state。
+
 ## D3630 / skip unused current-quality projection during indexed audit
 
 - `#最佳化` / `#責任`：profile 顯示 historical audit 每筆 row 都會執行 current-rule content projection，但 audit 只需要 persisted gate metadata、snapshot integrity 與 artifact/context evidence；若 persisted content gate 缺失，projection 也不會被採用。

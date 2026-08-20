@@ -261,7 +261,7 @@ def test_daily_decision_dashboard_keeps_monitor_only_notifications_quiet():
     assert dashboard["notification_plan"]["messages"] == []
 
 
-def test_daily_decision_dashboard_keeps_full_quality_audit_separate_from_sample_actions():
+def test_daily_decision_dashboard_keeps_full_quality_audit_separate_from_repair_sample_actions():
     dashboard = build_daily_decision_dashboard(
         reports={"reports": []},
         quality_audit_reports={
@@ -286,7 +286,49 @@ def test_daily_decision_dashboard_keeps_full_quality_audit_separate_from_sample_
     assert dashboard["summary"]["sampled_reports"] == 0
     assert dashboard["report_quality_audit"]["scope"] == "all_indexed_reports"
     assert dashboard["report_quality_audit"]["quality_metadata_missing_reports"] == 1
-    assert dashboard["decision_queue"]["summary"]["total_actionable"] == 0
+    assert dashboard["decision_queue"]["summary"]["sources"] == {"report_quality_audit": 1}
+    assert dashboard["actions"][0]["source"] == "report_quality_audit"
+    assert dashboard["actions"][0]["type"] == "manual_review"
+
+
+def test_daily_dashboard_surfaces_complete_latest_quality_audit_gaps_but_not_partial_items():
+    audit = {
+        "scope": "all_indexed_reports",
+        "selection_basis": "latest_per_ticker_pipeline",
+        "quality_metadata_missing_reports": 1,
+        "items_returned": 1,
+        "items_truncated": False,
+        "items": [
+            {
+                "ticker": "1623.TW",
+                "filename": "1623_v1.html",
+                "pipeline_id": "v1",
+                "title": "品質 metadata 缺口",
+                "detail": "需要人工確認。",
+                "recommended_action": "manual_review",
+                "priority_score": 820,
+                "blocks_auto_rerun": True,
+            }
+        ],
+    }
+    common = {
+        "reports": {"reports": []},
+        "watchlist": {"items": []},
+        "screener": {"items": []},
+        "performance": {"summary": {}, "details": []},
+        "free_mode": {"enabled": True, "can_run_without_paid_keys": True, "violations": []},
+    }
+
+    dashboard = build_daily_decision_dashboard(**common, quality_audit=audit)
+    assert dashboard["decision_queue"]["summary"]["sources"] == {"report_quality_audit": 1}
+    assert dashboard["actions"][0]["source"] == "report_quality_audit"
+    assert dashboard["actions"][0]["type"] == "manual_review"
+
+    partial = build_daily_decision_dashboard(
+        **common,
+        quality_audit={**audit, "quality_metadata_missing_reports": 2, "items_truncated": True},
+    )
+    assert "report_quality_audit" not in partial["decision_queue"]["summary"]["sources"]
 
 
 def test_daily_dashboard_reports_quality_gap_overlap_with_repair_sample():

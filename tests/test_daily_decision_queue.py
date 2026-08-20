@@ -652,6 +652,56 @@ def test_daily_decision_queue_orders_repairs_backtests_reruns_and_route_warnings
     assert queue["items"][2]["horizon_months"] == 3
 
 
+def test_daily_decision_queue_surfaces_complete_quality_audit_gaps_without_duplicate_repairs():
+    queue = build_daily_decision_queue(
+        reports=[],
+        repair_items=[
+            {
+                "ticker": "2330.TW",
+                "filename": "2330_gap.html",
+                "pipeline_id": "v2",
+                "title": "內容可信度未通過",
+                "detail": "repair sample 已承接這份報告。",
+                "recommended_action": "manual_review",
+                "priority_score": 780,
+            }
+        ],
+        quality_audit_items=[
+            {
+                "ticker": "2330.TW",
+                "filename": "2330_gap.html",
+                "pipeline_id": "v2",
+                "title": "品質 metadata 缺口",
+                "detail": "不應與 repair sample 重複顯示。",
+                "recommended_action": "manual_review",
+                "priority_score": 820,
+                "blocks_auto_rerun": True,
+            },
+            {
+                "ticker": "1623.TW",
+                "filename": "1623_gap.html",
+                "pipeline_id": "v1",
+                "title": "品質 metadata 缺口",
+                "detail": "完整稽核明細需要人工確認。",
+                "recommended_action": "manual_review",
+                "priority_score": 820,
+                "blocks_auto_rerun": True,
+            },
+        ],
+        rerun_reports=[],
+        high_priority_watchlist=[],
+        candidates=[],
+        performance={"summary": {}, "details": []},
+        free_mode={"enabled": True, "can_run_without_paid_keys": True, "violations": []},
+    )
+
+    assert queue["summary"]["sources"] == {"report_repair": 1, "report_quality_audit": 1}
+    assert queue["items"][0]["source"] == "report_quality_audit"
+    assert queue["items"][0]["filename"] == "1623_gap.html"
+    assert queue["items"][0]["blocks_auto_rerun"] is True
+    assert [item["filename"] for item in queue["items"]].count("2330_gap.html") == 1
+
+
 def test_daily_decision_queue_free_mode_violations_use_string_safe_list():
     class Violation:
         def __str__(self):

@@ -1,7 +1,7 @@
 (function () {
     const uniqueValues = (contexts, getter) => [...new Set(contexts.map(getter).filter(Boolean))].slice(0, 3);
     const rowContext = row => row?.context || {};
-    const sourceLabels = { report_repair: '報告修復', provider_impact: '資料來源', notification_delivery: '通知通道', backtest_due: '決策回測', rerun_report: '報告重跑', model_route_budget: '模型路由', watchlist: '追蹤清單', screener: '候選清單', free_mode: '免費模式', monitor: '監控' };
+    const sourceLabels = { report_repair: '報告修復', report_quality_audit: '品質稽核', provider_impact: '資料來源', notification_delivery: '通知通道', backtest_due: '決策回測', rerun_report: '報告重跑', model_route_budget: '模型路由', watchlist: '追蹤清單', screener: '候選清單', free_mode: '免費模式', monitor: '監控' };
     const sourceKey = source => String(source ?? '').trim();
     const sourceLabel = source => sourceLabels[sourceKey(source)] || sourceKey(source);
     const sourceText = source => sourceLabels[sourceKey(source)] ? `${sourceLabel(source)} (${sourceKey(source)})` : sourceKey(source);

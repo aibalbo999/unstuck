@@ -21,6 +21,7 @@ def build_daily_decision_queue(
     *,
     reports: list[dict[str, Any]],
     repair_items: list[dict[str, Any]],
+    quality_audit_items: list[dict[str, Any]] | None = None,
     rerun_reports: list[dict[str, Any]],
     high_priority_watchlist: list[dict[str, Any]],
     candidates: list[dict[str, Any]],
@@ -34,20 +35,31 @@ def build_daily_decision_queue(
     """Return one sorted queue across report, tracking, provider, and ops signals."""
     repair_actions = [_repair_action_payload(item) for item in safe_dict_list(repair_items)]
     repair_keys = {report_key(item) for item in repair_actions if report_key(item)}
+    quality_audit_actions = [_repair_action_payload(item, source="report_quality_audit")
+        for item in safe_dict_list(quality_audit_items)
+        if report_key(item) not in repair_keys
+    ]
     blocking_repair_keys = {
         report_key(item)
         for item in repair_actions
         if report_key(item) and _field(item, "type") != "rerun_report"
     }
+    blocking_quality_audit_keys = {report_key(item)
+        for item in quality_audit_actions
+        if report_key(item) and _field(item, "type") != "rerun_report"
+    }
+    report_action_keys = repair_keys | {report_key(item) for item in quality_audit_actions if report_key(item)}
+    blocking_report_action_keys = blocking_repair_keys | blocking_quality_audit_keys
     ops_payload = safe_mapping_dict(ops) or {}
     provider_ledger = safe_mapping_dict(provider_impact_ledger) or {}
     items = []
     items.extend(_free_mode_items(free_mode))
     items.extend(repair_actions)
-    items.extend(provider_impact_items(provider_ledger, skip_keys=repair_keys))
+    items.extend(quality_audit_actions)
+    items.extend(provider_impact_items(provider_ledger, skip_keys=report_action_keys))
     items.extend(notification_delivery_items(ops_payload))
-    items.extend(_backtest_due_items(reports, performance, as_of=as_of or date.today(), skip_keys=blocking_repair_keys))
-    items.extend(_rerun_items(rerun_reports, skip_keys=repair_keys))
+    items.extend(_backtest_due_items(reports, performance, as_of=as_of or date.today(), skip_keys=blocking_report_action_keys))
+    items.extend(_rerun_items(rerun_reports, skip_keys=report_action_keys))
     items.extend(route_warning_items(ops_payload))
     items.extend(_watchlist_items(high_priority_watchlist))
     items.extend(_candidate_items(candidates))
@@ -153,7 +165,7 @@ def _candidate_items(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
     }]
 
 
-def _repair_action_payload(item: dict[str, Any]) -> dict[str, Any]:
+def _repair_action_payload(item: dict[str, Any], *, source: str = "report_repair") -> dict[str, Any]:
     recommended = safe_text(_field(item, "recommended_action")).strip() or "manual_review"
     action_type = {
         "rerun_analysis": "rerun_report",
@@ -166,7 +178,7 @@ def _repair_action_payload(item: dict[str, Any]) -> dict[str, Any]:
     filename = safe_text(_field(item, "filename")).strip() or safe_text(_field(item, "report_filename")).strip() or None
     title = safe_text(_field(item, "title")).strip() or "報告需處理"
     return {
-        "source": "report_repair",
+        "source": source,
         "type": action_type,
         "priority_score": _int(_field(item, "priority_score")) or 700,
         "title": f"{ticker} {pipeline_id} {title}",

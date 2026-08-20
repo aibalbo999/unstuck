@@ -10,6 +10,7 @@ from typing import Any, Mapping
 
 SOURCE_LABELS = MappingProxyType({
     "report_repair": "報告修復",
+    "report_quality_audit": "品質稽核",
     "provider_impact": "資料來源",
     "notification_delivery": "通知通道",
     "backtest_due": "決策回測",

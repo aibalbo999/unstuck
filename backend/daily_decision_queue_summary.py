@@ -8,7 +8,7 @@ from daily_decision_source_labels import source_labels, source_texts
 from mapping_fields import mapping_field as _field, safe_int
 
 SOURCE_ORDER = {source: index for index, source in enumerate((
-    "free_mode", "report_repair", "provider_impact", "notification_delivery", "backtest_due",
+    "free_mode", "report_repair", "report_quality_audit", "provider_impact", "notification_delivery", "backtest_due",
     "rerun_report", "model_route_budget", "watchlist", "screener", "monitor",
 ))}
 

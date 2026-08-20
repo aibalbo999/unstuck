@@ -74,6 +74,7 @@ def build_daily_decision_dashboard(
     decision_queue = build_daily_decision_queue(
         reports=report_rows,
         repair_items=repair_coverage_items,
+        quality_audit_items=_quality_audit_queue_items(report_quality_audit),
         rerun_reports=rerun_reports,
         high_priority_watchlist=high_priority_watchlist,
         candidates=candidates,
@@ -114,6 +115,25 @@ def build_daily_decision_dashboard(
     }
     dashboard["notification_plan"] = build_daily_notification_plan(dashboard)
     return dashboard
+
+
+def _quality_audit_queue_items(quality_audit: dict[str, Any]) -> list[dict[str, Any]]:
+    if safe_text(quality_audit.get("status")).strip().lower() == "unavailable":
+        return []
+    if safe_text(quality_audit.get("scope")).strip() != "all_indexed_reports":
+        return []
+    if safe_text(quality_audit.get("selection_basis")).strip() != "latest_per_ticker_pipeline":
+        return []
+    missing_count = max(0, safe_int(quality_audit.get("quality_metadata_missing_reports"), default=0))
+    items = safe_dict_list(quality_audit.get("items"))
+    if missing_count <= 0 or quality_audit.get("items_truncated") is True or len(items) != missing_count:
+        return []
+    returned_count = safe_int(quality_audit.get("items_returned"), default=len(items))
+    if returned_count != missing_count:
+        return []
+    if sum(1 for item in items if _report_identity_key(item) is not None) != missing_count:
+        return []
+    return items
 
 
 def _report_needs_rerun(report: dict[str, Any]) -> bool:
