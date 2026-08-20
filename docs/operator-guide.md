@@ -93,6 +93,8 @@ The read-only report quality audit exposes `missing_quality_fields` on each affe
 
 `quality_metadata_missing_by_rerun_execution` 會把缺口再按唯讀重跑策略分組：完整重跑、可嘗試局部重跑、局部重跑需先確認、沒有可用局部上下文，或「重跑策略未判定」。最後一項表示 provenance 不足，不等於局部重跑不可用。這只是人工排序資訊；只要 freshness 要求完整重跑，就不能因 artifact 有前序段落而改成局部重跑。
 
+`quality_metadata_missing_by_rerun_context` 會再顯示上下文準備度：原始上下文完整、原始上下文部分可用、artifact 前序可查、無可用局部上下文，或上下文未判定。它回答「人工核對或安排工作前，有多少可讀材料」，不回答「可以不可以局部重跑」；請以 `quality_metadata_missing_by_rerun_execution` 的 `full_rerun_required` 為實際策略依據。
+
 `quality_metadata_missing_by_provenance` 會把缺口分成 `before_refresh`、`after_refresh` 與 `no_refresh_provenance`。`before_refresh` 表示刷新前快照已記錄目前缺少的 gate；`after_refresh` 只表示 snapshot 有 `refreshed_from_report` 刷新歸因，不代表可以證明刷新造成缺失；`no_refresh_provenance` 只表示沒有可用分類，也不代表可以證明它從未刷新。明細會附 `quality_metadata_provenance`、`refreshed_from_report` 與 `snapshot_refreshed_at`，供人工核對 artifact/freshness；畫面分別顯示為「刷新前已有缺口」、「有刷新歸因」與「未標記刷新來源」。
 
 若明細另有 `quality_metadata_refresh_provenance`，請先看 `missing_fields`：它記錄資料快照在刷新前已缺少哪些品質 gate。當目前缺口落在這份清單內，repair 會標示「刷新前已有品質證據缺口」；這能改善責任判讀，但仍不是 gate 結果，也不會自動重跑。沒有這個 optional 欄位的舊 snapshot 維持「刷新後品質證據缺口」的中性語意。

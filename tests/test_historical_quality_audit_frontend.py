@@ -30,6 +30,7 @@ const audit = {
     content_credibility: 143
   },
   quality_metadata_missing_by_provenance: { after_refresh: 143, no_refresh_provenance: 0 },
+  quality_metadata_missing_by_rerun_context: { present: 0, partial: 0, artifact_fallback_available: 86, missing: 57, not_evaluated: 0 },
   quality_metadata_missing_by_version_status: { current: 2, historical: 141, unknown: 0 },
   report_version_status_filter: 'all',
   quality_review_by_status: { pending: 143, approved_with_gap: 0, rejected: 0, deferred: 0 },
@@ -87,6 +88,7 @@ process.stdout.write(JSON.stringify({ html }));
     assert "只看目前版本缺口（2）" in payload["html"]
     assert "審核狀態：待人工核對 143" in payload["html"]
     assert "人工審核進度：0/143" in payload["html"]
+    assert "上下文：artifact 前序可查 86、無可用局部上下文 57" in payload["html"]
     assert "模式缺口：v1 36、v2 36" in payload["html"]
     assert "另有 141 份未展開" in payload["html"]
     assert "品質 metadata 完整度：89.25%（分母：已驗證快照）" in payload["html"]
@@ -104,7 +106,7 @@ process.stdout.write(JSON.stringify({ html }));
     assert "artifact 摘要可查 1 份" in payload["html"]
     assert "artifact 欄位可查：報告一致性 1、證據關卡 1、內容可信度 0" in payload["html"]
     assert "版本：歷史版本（非目前最新）" in payload["html"]
-    assert payload["html"].count('class="history-quality-audit-summary-item"') == 6
+    assert payload["html"].count('class="history-quality-audit-summary-item"') == 7
 
 
 def test_history_quality_audit_renders_missing_field_scope_and_filters():
@@ -771,7 +773,7 @@ def test_history_workspace_wires_historical_quality_audit_without_daily_queue_si
     assert 'id="history-quality-audit"' in index_html
     assert "/static/api_client_extensions.js?v=20260820-quality-version-filter" in index_html
     assert "/static/history_panel_quality_helpers.js?v=20260820-quality-version-filter" in index_html
-    assert "/static/history_quality_audit_render.js?v=20260820-rerun-strategy-summary" in index_html
+    assert "/static/history_quality_audit_render.js?v=20260820-rerun-context-summary" in index_html
     assert "/static/history_quality_audit.js?v=20260820-quality-version-filter" in index_html
     assert index_html.index("/static/history_quality_audit_render.js") < index_html.index("/static/history_quality_audit.js")
     assert len((STATIC_DIR / "history_panel_quality_helpers.js").read_text(encoding="utf-8").splitlines()) < 120

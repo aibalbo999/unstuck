@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3625 / summarize read-only rerun context readiness
+
+- `#差距分析` / `#效用`：live historical audit 的 `115` 筆缺口雖然全部要求完整重跑，但只有 `86` 筆有 artifact fallback，`29` 筆沒有局部上下文；D3624 的 execution summary 無法直接回答人工準備材料的分布。
+- `#責任` / `#語意含義`：新增 `quality_metadata_missing_by_rerun_context`，把 context availability 與 execution strategy 分開；`artifact_fallback_available` 只描述可讀前序 Agent sections，不升格為局部重跑授權，`not_evaluated` 只表示沒有可信 status。
+- `#可驗證性` / `#證據基礎`：backend、history、watchlist 先 RED，再 GREEN `66 passed`；後續以 docs contract、full quality/frontend/storage/runtime、live audit 與 cache-buster probe 驗證，未寫 snapshot、artifact、index、review、rerun 或 queue。
+
 ## D3624 / summarize read-only rerun execution strategy
 
 - `#差距分析` / `#效用`：live historical audit 的 `115` 筆 structured quality 缺口全部要求完整重跑，其中 `86` 筆只有 artifact fallback、`29` 筆沒有局部上下文；原本只在 item detail 顯示，工作台無法先做策略排序。

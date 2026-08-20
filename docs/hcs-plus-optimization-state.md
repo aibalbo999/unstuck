@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-20
+- D3625：live historical audit 的 `115` 筆缺口全部 `full_rerun_required`，但 `rerun_context_status` 分布為 `artifact_fallback_available=86`、`missing=29`；D3624 只在摘要呈現 execution strategy，操作員仍需展開 item 才知道可讀上下文準備度。新增 `quality_metadata_missing_by_rerun_context`，在 API、pipeline stats、history/watchlist 摘要同步呈現；`artifact_fallback_available` 只表示 artifact 有前序段落，不改完整重跑權威、不 enqueue、不改 freshness/review/queue。
+- D3625 驗證：backend 與兩個前端摘要先 RED，再 GREEN `66 passed`；新增 docs/HCS/cache-buster 契約後補跑完整 quality、frontend、storage/runtime、import/docs 與 live read-only probe，確認 daily/historical scope、coverage、execution strategy 與既有 1623 after-refresh 分類不變。
 - D3624：live historical audit 顯示 `115` 筆缺三個 structured quality gate，全部 `full_rerun_required`，但其中 `86` 筆有 artifact fallback、`29` 筆沒有 snapshot/ artifact 局部上下文；原摘要只顯示逐筆 detail，操作員無法先按重跑策略排序。新增 `quality_metadata_missing_by_rerun_execution` 聚合，history/watchlist 以「完整重跑／局部重跑可用／局部重跑需確認／無可用局部重跑／重跑策略未判定」呈現；只讀取既有 repair predicate，未知 provenance 進 `not_evaluated`，不改 freshness、coverage、rerun 或 queue。
 - D3624 驗證：新增 backend、history、watchlist RED→GREEN；後續補跑完整 quality/audit/conformance、history/storage、import/docs/HCS、frontend HTTP、cache-buster、doctor 與 live audit，確認 current/historical scope 與既有 1623 after-refresh 分類不變。
 - D3623：檢查 D3622 新增的 `quality_metadata_before_refresh` 後，發現 audit payload 與兩個 UI summary 仍只認 `after_refresh`／`no_refresh_provenance`，會把「刷新前已有缺口」錯分成未標記來源。現在共用 provenance classifier 統一輸出 `before_refresh`、`after_refresh`、`no_refresh_provenance`，並同步 `/api/reports`、歷史 audit、watchlist、preview evidence 的白話呈現；不改 gate 結果、coverage 分母或 read-only mutation boundary。

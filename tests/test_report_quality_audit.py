@@ -70,6 +70,13 @@ def test_report_quality_audit_counts_verified_reports_with_missing_quality_metad
             "partial_rerun_unavailable": 0,
             "not_evaluated": 1,
         },
+        "quality_metadata_missing_by_rerun_context": {
+            "present": 0,
+            "partial": 0,
+            "artifact_fallback_available": 0,
+            "missing": 0,
+            "not_evaluated": 1,
+        },
         "quality_metadata_missing_by_version_status": {
             "current": 0,
             "historical": 0,
@@ -114,6 +121,13 @@ def test_report_quality_audit_counts_verified_reports_with_missing_quality_metad
                     "partial_rerun_available": 0,
                     "partial_rerun_review_required": 0,
                     "partial_rerun_unavailable": 0,
+                    "not_evaluated": 1,
+                },
+                "quality_metadata_missing_by_rerun_context": {
+                    "present": 0,
+                    "partial": 0,
+                    "artifact_fallback_available": 0,
+                    "missing": 0,
                     "not_evaluated": 1,
                 },
                 "quality_review_by_status": {
@@ -353,6 +367,13 @@ def test_report_quality_audit_groups_coverage_by_pipeline():
                 "partial_rerun_unavailable": 0,
                 "not_evaluated": 1,
             },
+            "quality_metadata_missing_by_rerun_context": {
+                "present": 0,
+                "partial": 0,
+                "artifact_fallback_available": 0,
+                "missing": 0,
+                "not_evaluated": 1,
+            },
                 "quality_review_by_status": {
                     "pending": 1,
                     "approved_with_gap": 0,
@@ -384,6 +405,13 @@ def test_report_quality_audit_groups_coverage_by_pipeline():
                     "partial_rerun_available": 0,
                     "partial_rerun_review_required": 0,
                     "partial_rerun_unavailable": 0,
+                    "not_evaluated": 0,
+                },
+                "quality_metadata_missing_by_rerun_context": {
+                    "present": 0,
+                    "partial": 0,
+                    "artifact_fallback_available": 0,
+                    "missing": 0,
                     "not_evaluated": 0,
                 },
                 "quality_review_by_status": {
@@ -593,6 +621,13 @@ def test_report_quality_audit_groups_missing_metadata_by_rerun_execution_strateg
         "partial_rerun_available": 1,
         "partial_rerun_review_required": 1,
         "partial_rerun_unavailable": 0,
+        "not_evaluated": 0,
+    }
+    assert payload["quality_metadata_missing_by_rerun_context"] == {
+        "present": 1,
+        "partial": 1,
+        "artifact_fallback_available": 0,
+        "missing": 1,
         "not_evaluated": 0,
     }
 
