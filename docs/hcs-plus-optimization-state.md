@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-20
+- D3599：延續 D3598 的 refresh audit，發現資料刷新不只會丟失 `evidence_matrix`，也會把 snapshot 的 `rerun_context`（既有 Agent analyses、structured outputs、parsed recommendation 與 pipeline metadata）重建成空值；`report_rerun_service` 在沒有 Markdown 時因此無法只重跑最終建議。現在 refresh 帶回原 nested context，`sanitize_rerun_context()` 在沒有新的 top-level 分析輸入時採用它並照舊 sanitized；正常新分析 context 仍優先使用 top-level 欄位。
+- D3599 驗證收斂：refresh regression 先取得 `1 failed` 再 GREEN；refresh/diff `14 passed`、完整 data-trust `182 passed`、局部 rerun `5 passed`、import boundary `16 passed`、文件契約 `138 passed`。正式 runtime reload 後 `healthz=ok`、`readyz=ready`；最後一次 live historical read-only audit 為 `1223` 份 verified versions、coverage `90.6%`、缺口 `115`，queue stale failed `10` 維持原狀。
 - D3598：本輪初始 live historical quality audit 觀測 `1228` 份 verified snapshot，其中 `115` 份缺少三個 quality gate，且都有 `refreshed_from_report`；抽查發現資料刷新流程雖保留 gate map，卻沒有把原報告的 `evidence_matrix` 傳入 `build_data_snapshot()`，刷新後會靜默寫成空陣列。現在由 refresh context 明確帶回既有 matrix，snapshot builder 在收到 explicit matrix 時保留它；沒有 explicit matrix 的一般新報告仍走既有 builder。
 - D3598 驗證收斂：先以 refresh regression 取得 `1 failed`，再 GREEN；refresh/diff `14 passed`、content credibility evidence `8 passed`、report data-trust matrix `30 passed`、snapshot/data-trust `39 passed`。正式 runtime reload 後 `healthz=ok`、`readyz=ready`，live historical read-only audit 為 `1225` 份 verified versions、coverage `90.61%`、缺口 `115`，範圍與缺口語意維持一致。
 - D3597：D3596 暴露出 `extract_target_price_numbers()` 在大量內容可信度語料上反覆掃描巨大非價格 regex；明確的 `time-to` 數量指標、`target price` 直接值與「queue items reached N」句型不需要進入完整 fallback。新增保守的 read-only fast path，只有能辨識非價格或字串開頭的明確目標價時短路，其餘語料維持原 parser。

@@ -48,11 +48,19 @@ def _first_text(*values: Any, default: str = "") -> str:
 
 
 def sanitize_rerun_context(context: dict) -> dict:
-    if not isinstance(context, dict):
+    context_map = safe_mapping_dict(context)
+    if context_map is None:
         return {"analyses": {}, "structured_outputs": {}, "parsed": {}}
 
+    rerun_context = safe_mapping_dict(dict.get(context_map, "rerun_context", {})) or {}
+
+    def _context_value(key: str, default: Any = None) -> Any:
+        if key in context_map:
+            return dict.get(context_map, key)
+        return dict.get(rerun_context, key, default)
+
     analyses = {}
-    raw_analyses = dict.get(context, "analyses", {})
+    raw_analyses = _context_value("analyses", {})
     if isinstance(raw_analyses, dict):
         for agent_num, text in raw_analyses.items():
             if text is None:
@@ -64,11 +72,11 @@ def sanitize_rerun_context(context: dict) -> dict:
 
     return sanitize_for_snapshot({
         "analyses": analyses,
-        "structured_outputs": dict.get(context, "structured_outputs", {}),
-        "parsed": dict.get(context, "parsed", {}),
-        "pipeline_id": dict.get(context, "pipeline_id"),
-        "pipeline_label": dict.get(context, "pipeline_label"),
-        "agent_sequence": dict.get(context, "agent_sequence"),
+        "structured_outputs": _context_value("structured_outputs", {}),
+        "parsed": _context_value("parsed", {}),
+        "pipeline_id": _context_value("pipeline_id"),
+        "pipeline_label": _context_value("pipeline_label"),
+        "agent_sequence": _context_value("agent_sequence"),
     })
 
 

@@ -85,6 +85,7 @@ async def refresh_report_data_snapshot(
         "pipeline_id": previous_snapshot.get("pipeline"),
         "data": refreshed_data,
         "evidence_matrix": previous_snapshot.get("evidence_matrix", []),
+        "rerun_context": previous_snapshot.get("rerun_context", {}),
         "conclusion_generated_at": previous_snapshot.get("conclusion_generated_at") or previous_snapshot.get("generated_at"),
         "snapshot_refreshed_at": refresh_generated_at,
         "deterministic_fallbacks": previous_snapshot.get("deterministic_fallbacks", []),

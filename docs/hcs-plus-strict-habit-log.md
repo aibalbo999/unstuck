@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3599 / preserve rerun context through data refresh
+
+- `#拆解問題` / `#責任`：refresh context 原本只帶 data、quality gate 與 `evidence_matrix`，沒有帶回 snapshot 的 nested `rerun_context`；`build_data_snapshot()` 依 top-level 空輸入重建後，既有 Agent analyses、structured outputs、parsed recommendation 與 pipeline metadata 會消失，Markdown fallback 可能掩蓋此缺口。
+- `#偏誤降低` / `#來源品質`：refresh 現在只保留原 nested context 並交給既有 sanitizer；`sanitize_rerun_context()` 只有在 caller 沒有 top-level 同名欄位時才 fallback 到 nested context，避免把新分析 context 覆蓋成舊資料。不重新跑模型、不改 quality gate、artifact/index、review 或 queue。
+- `#可驗證性` / `#證據基礎`：先新增 refresh preservation assertion 取得 `1 failed`，再 GREEN；refresh/diff `14 passed`、完整 data-trust `182 passed`、局部 rerun `5 passed`、import boundary `16 passed`、文件契約 `138 passed`。正式 runtime reload 後 `healthz=ok`、`readyz=ready`；最後一次 live historical audit 為 `1223` 份 verified versions、coverage `90.6%`、缺口 `115`，沒有新增 artifact/index/review/queue mutation。
+
 ## D3598 / preserve evidence matrix through data refresh
 
 - `#拆解問題` / `#證據基礎`：本輪初始 historical audit 觀測 `1228` 份 verified snapshot、`115` 份三 gate 缺口，且 `after_refresh=115`；抽查 1623 v2 的 data snapshot、HTML/Markdown 與 refresh code，確認 artifact 有舊版 conformance/evidence 摘要，但 snapshot 的 `evidence_matrix` 在 refresh 後被重建成 `[]`。

@@ -540,6 +540,14 @@ def test_report_refresh_accepts_mapping_safe_refreshed_data_payload(tmp_path):
         "report_lint": {"status": "warning", "blocking_issues": [], "warnings": [{"id": "lint_warning"}]},
         "evidence_exit_gate": {"verdict": "approved", "failed_count": 0},
         "evidence_matrix": [{"claim": "最終投資建議", "source": "snapshot", "status": "approved"}],
+        "rerun_context": {
+            "analyses": {"11": "既有總經分析"},
+            "structured_outputs": {"14": {"price_targets": {"基本情境": 273}}},
+            "parsed": {"recommendation": {"建議": "持有"}},
+            "pipeline_id": "v2",
+            "pipeline_label": "模式 B",
+            "agent_sequence": [11, 12, 13, 14, 15, 16],
+        },
         "content_credibility": {"status": "passed", "warnings": []},
         "report_conformance": {"status": "passed", "blocking_issues": []},
         "final_audit": {"status": "passed", "critical": [], "warnings": [], "corrections": []},
@@ -597,6 +605,7 @@ def test_report_refresh_accepts_mapping_safe_refreshed_data_payload(tmp_path):
     assert saved_snapshot["report_lint"] == previous_snapshot["report_lint"]
     assert saved_snapshot["evidence_exit_gate"] == previous_snapshot["evidence_exit_gate"]
     assert saved_snapshot["evidence_matrix"] == previous_snapshot["evidence_matrix"]
+    assert saved_snapshot["rerun_context"] == previous_snapshot["rerun_context"]
     assert saved_snapshot["content_credibility"] == previous_snapshot["content_credibility"]
     assert saved_snapshot["report_conformance"] == previous_snapshot["report_conformance"]
     assert saved_snapshot["final_audit"] == previous_snapshot["final_audit"]
