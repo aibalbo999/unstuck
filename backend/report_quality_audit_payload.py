@@ -237,6 +237,7 @@ __all__ = [
     "QUALITY_METADATA_FIELDS",
     "QUALITY_METADATA_PROVENANCE",
     "QUALITY_REVIEW_STATUSES",
+    "REPORT_VERSION_STATUSES",
     "SCHEMA_VERSION",
     "_audit_item",
     "_quality_metadata_provenance",

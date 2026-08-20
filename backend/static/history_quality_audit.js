@@ -10,6 +10,7 @@
         const filterStorageKey = 'stock-agent.history-quality-audit.filters.v1';
         const reviewStatuses = ['all', 'pending', 'approved_with_gap', 'rejected', 'deferred'];
         const missingFields = ['all', 'report_conformance', 'evidence_exit_gate', 'content_credibility'];
+        const versionStatuses = ['all', 'current', 'historical', 'unknown'];
         function readPersistedFilters() {
             try {
                 const raw = window.sessionStorage?.getItem(filterStorageKey);
@@ -24,16 +25,16 @@
             return allowed.includes(normalized) ? normalized : 'all';
         }
         function persistFilters() {
-            try { window.sessionStorage?.setItem(filterStorageKey, JSON.stringify({ reviewStatus, missingField })); } catch (_error) { }
+            try { window.sessionStorage?.setItem(filterStorageKey, JSON.stringify({ reviewStatus, missingField, versionStatus })); } catch (_error) { }
         }
         function clearPersistedFilters() {
             try { window.sessionStorage?.removeItem(filterStorageKey); } catch (_error) { }
         }
         const persistedFilters = readPersistedFilters();
-        let loadVersion = 0, itemOffset = 0, reviewStatus = normalizeFilter(persistedFilters.reviewStatus, reviewStatuses), missingField = normalizeFilter(persistedFilters.missingField, missingFields), filterKey = '', currentValues = null, lastAudit = null, reviewSubmissionInFlight = false;
+        let loadVersion = 0, itemOffset = 0, reviewStatus = normalizeFilter(persistedFilters.reviewStatus, reviewStatuses), missingField = normalizeFilter(persistedFilters.missingField, missingFields), versionStatus = normalizeFilter(persistedFilters.versionStatus, versionStatuses), filterKey = '', currentValues = null, lastAudit = null, reviewSubmissionInFlight = false;
 
         function auditFilterKey(values) {
-            return JSON.stringify([values?.includeVersions, values?.query || '', values?.pipelineFilter || 'all', reviewStatus, missingField]);
+            return JSON.stringify([values?.includeVersions, values?.query || '', values?.pipelineFilter || 'all', reviewStatus, missingField, versionStatus]);
         }
 
         function render(audit) {
@@ -72,6 +73,7 @@
                 const request = { itemLimit, itemOffset, query: values.query, pipeline: values.pipelineFilter };
                 if (reviewStatus !== 'all') request.reviewStatus = reviewStatus;
                 if (missingField !== 'all') request.missingField = missingField;
+                if (versionStatus !== 'all') request.versionStatus = versionStatus;
                 const audit = await fetchAudit(request);
                 if (requestVersion === loadVersion) { lastAudit = audit; render(audit); }
             } catch (_error) {
@@ -134,6 +136,13 @@
                     itemOffset = 0;
                     return load(currentValues);
                 }
+                const versionStatusButton = event.target.closest('[data-quality-audit-version-status]');
+                if (versionStatusButton?.dataset?.qualityAuditVersionStatus) {
+                    versionStatus = normalizeFilter(versionStatusButton.dataset.qualityAuditVersionStatus, versionStatuses);
+                    persistFilters();
+                    itemOffset = 0;
+                    return load(currentValues);
+                }
                 const pipelineButton = event.target.closest('[data-quality-audit-pipeline]');
                 if (pipelineButton?.dataset?.qualityAuditPipeline && !pipelineButton?.dataset?.qualityAuditReport) {
                     onSelectPipeline(pipelineButton.dataset.qualityAuditPipeline || 'all');
@@ -148,6 +157,7 @@
         function resetReviewStatus() {
             reviewStatus = 'all';
             missingField = 'all';
+            versionStatus = 'all';
             clearPersistedFilters();
             itemOffset = 0;
         }

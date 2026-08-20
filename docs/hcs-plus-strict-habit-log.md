@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3605 / focus current-version quality gaps without changing coverage semantics
+
+- `#差距分析` / `#詮釋框架`：live historical `115` 筆缺口中只有 `2` 筆屬目前 ticker/pipeline 最新版本；只有摘要標記仍不足以讓人工核對快速聚焦目前風險。
+- `#溝通設計` / `#責任`：新增 `version_status=current|historical|unknown` GET filter、`report_version_status_filter` 回應欄位與 history 按鈕；版本範圍保留完整報告分母，review/missing-field 仍是後續 gap-only intersection，避免 coverage 被意外改寫。
+- `#可驗證性` / `#來源品質`：backend、route、history renderer/module 與 static contract 先取得 RED，再 GREEN；後續完成完整 quality/history、HTTP、runtime、browser 與 remote push 核對。
+
 ## D3604 / distinguish current and historical quality gaps
 
 - `#差距分析` / `#情境脈絡`：live historical audit 有 `115` 筆缺口，但 daily latest scope 只有 `2` 筆；沒有版本標記時，`90.52%` historical coverage 會被誤讀成目前報告仍同樣缺 gate。

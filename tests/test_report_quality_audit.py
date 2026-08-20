@@ -1050,6 +1050,53 @@ def test_historical_indexed_report_quality_audit_combines_review_and_missing_fie
     assert [item["filename"] for item in payload["items"]] == ["1623_v1.html"]
 
 
+def test_historical_indexed_report_quality_audit_filters_report_version_status(monkeypatch, tmp_path):
+    import report_quality_audit as audit
+
+    historical_rows = [
+        {"ticker": "1623.TW", "filename": "1623_current.html", "pipeline_id": "v2"},
+        {"ticker": "1623.TW", "filename": "1623_old.html", "pipeline_id": "v2"},
+        {"ticker": "1623.TW", "filename": "1623_current_complete.html", "pipeline_id": "v1"},
+    ]
+    latest_rows = [
+        {"ticker": "1623.TW", "filename": "1623_current.html", "pipeline_id": "v2"},
+        {"ticker": "1623.TW", "filename": "1623_current_complete.html", "pipeline_id": "v1"},
+    ]
+    reports = [
+        {
+            **row,
+            "snapshot_integrity": {"status": "verified"},
+            "report_conformance": {},
+            "evidence_exit_gate": {},
+            "content_credibility": {},
+        }
+        for row in historical_rows
+    ]
+    reports[2].update(
+        {
+            "report_conformance": {"status": "passed"},
+            "evidence_exit_gate": {"verdict": "approved"},
+            "content_credibility": {"status": "passed"},
+        }
+    )
+
+    def collect(_list_reports, **kwargs):
+        return {"reports": historical_rows if kwargs["include_versions"] else latest_rows}
+
+    monkeypatch.setattr(audit, "collect_all_report_pages", collect)
+    monkeypatch.setattr(audit, "storage_for_existing_output_dir", lambda *_args: None)
+    monkeypatch.setattr(audit, "_cached_indexed_quality_reports", lambda *_args, **_kwargs: reports)
+
+    payload = audit.build_historical_indexed_report_quality_audit(
+        str(tmp_path), item_limit=5, version_status="current"
+    )
+
+    assert payload["report_version_status_filter"] == "current"
+    assert payload["audited_reports"] == 2
+    assert payload["quality_metadata_missing_by_version_status"] == {"current": 1, "historical": 0, "unknown": 0}
+    assert [item["filename"] for item in payload["items"]] == ["1623_current.html"]
+
+
 def test_collect_all_report_pages_follows_index_pagination():
     from report_history_pagination import collect_all_report_pages
 

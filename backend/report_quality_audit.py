@@ -24,6 +24,7 @@ from report_quality_audit_payload import (
     QUALITY_METADATA_FIELDS,
     QUALITY_METADATA_PROVENANCE,
     QUALITY_REVIEW_STATUSES,
+    REPORT_VERSION_STATUSES,
     SCHEMA_VERSION,
     _audit_item,
     _quality_review_status,
@@ -72,6 +73,7 @@ def build_historical_indexed_report_quality_audit(
     pipeline: str = "all",
     review_status: str = "all",
     missing_field: str = "all",
+    version_status: str = "all",
 ) -> dict[str, Any]:
     rows = collect_all_report_pages(
         list_indexed_report_quality_rows,
@@ -108,6 +110,13 @@ def build_historical_indexed_report_quality_audit(
     attach_quality_reviews(reports, output_dir)
     review_status_filter = _normalize_review_status_filter(review_status)
     missing_quality_field_filter = _normalize_quality_field_filter(missing_field)
+    version_status_filter = _normalize_version_status_filter(version_status)
+    if version_status_filter != "all":
+        reports = [
+            report
+            for report in reports
+            if safe_text(report.get("report_version_status")).strip().lower() == version_status_filter
+        ]
     if review_status_filter != "all" or missing_quality_field_filter != "all":
         filtered_reports = []
         for report in reports:
@@ -129,6 +138,7 @@ def build_historical_indexed_report_quality_audit(
     )
     payload["review_status_filter"] = review_status_filter
     payload["missing_quality_field_filter"] = missing_quality_field_filter
+    payload["report_version_status_filter"] = version_status_filter
     return payload
 
 
@@ -267,6 +277,11 @@ def _annotate_report_version_status(
 def _report_identity(ticker: Any, pipeline_id: Any) -> tuple[str, str]:
     ticker_text = safe_text(ticker).strip().lower()
     return ticker_text.split(".", 1)[0], safe_text(pipeline_id).strip().lower() or "v1"
+
+
+def _normalize_version_status_filter(value: Any) -> str:
+    normalized = safe_text(value).strip().lower()
+    return normalized if normalized in REPORT_VERSION_STATUSES else "all"
 
 
 def _read_artifact_quality_summary(storage: Any, filename: Any, *, load_item=load_storage_item) -> dict[str, Any]:

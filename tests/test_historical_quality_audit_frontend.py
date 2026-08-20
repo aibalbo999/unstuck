@@ -31,6 +31,7 @@ const audit = {
   },
   quality_metadata_missing_by_provenance: { after_refresh: 143, no_refresh_provenance: 0 },
   quality_metadata_missing_by_version_status: { current: 2, historical: 141, unknown: 0 },
+  report_version_status_filter: 'all',
   quality_review_by_status: { pending: 143, approved_with_gap: 0, rejected: 0, deferred: 0 },
   artifact_quality_summary_by_status: { present: 1, not_found: 0, unavailable: 0 },
   artifact_quality_summary_by_field: { report_conformance: 1, evidence_exit_gate: 1, content_credibility: 0 },
@@ -82,6 +83,8 @@ process.stdout.write(JSON.stringify({ html }));
     assert "缺口：報告一致性 143、證據關卡 143、內容可信度 143" in payload["html"]
     assert "來源：有刷新歸因 143" in payload["html"]
     assert "版本：目前版本缺口 2、歷史版本缺口 141" in payload["html"]
+    assert 'data-quality-audit-version-status="current"' in payload["html"]
+    assert "只看目前版本缺口（2）" in payload["html"]
     assert "審核狀態：待人工核對 143" in payload["html"]
     assert "人工審核進度：0/143" in payload["html"]
     assert "模式缺口：v1 36、v2 36" in payload["html"]
@@ -427,6 +430,83 @@ def test_history_quality_audit_missing_field_shortcut_reloads_field_filter():
     ]
 
 
+def test_history_quality_audit_version_shortcut_reloads_version_filter():
+    helper_path = STATIC_DIR / "history_panel_quality_helpers.js"
+    renderer_path = STATIC_DIR / "history_quality_audit_render.js"
+    module_path = STATIC_DIR / "history_quality_audit.js"
+    script = """
+(async () => {
+  global.window = {};
+  require(__HELPER_PATH__);
+  require(__RENDERER_PATH__);
+  require(__MODULE_PATH__);
+  let clickHandler;
+  const captured = [];
+  const element = {
+    hidden: true,
+    innerHTML: '',
+    setAttribute: () => {},
+    removeAttribute: () => {},
+    addEventListener: (type, handler) => { if (type === 'click') clickHandler = handler; }
+  };
+  const audit = window.StockAgentHistoricalQualityAudit.create({
+    apiClient: { fetchHistoricalReportQualityAudit: async params => { captured.push(params); return { audited_reports: 1, quality_metadata_missing_reports: 1, items: [] }; } },
+    ui: { escapeHtml: value => String(value ?? '') },
+    element
+  });
+  audit.bindEvents();
+  await audit.load({ includeVersions: true, query: '', pipelineFilter: 'all' });
+  await clickHandler({ target: { closest: selector => selector === '[data-quality-audit-version-status]' ? { dataset: { qualityAuditVersionStatus: 'historical' } } : null } });
+  process.stdout.write(JSON.stringify({ captured }));
+})();
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path))).replace("__RENDERER_PATH__", json.dumps(str(renderer_path))).replace("__MODULE_PATH__", json.dumps(str(module_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert payload["captured"] == [
+        {"itemLimit": 5, "itemOffset": 0, "query": "", "pipeline": "all"},
+        {"itemLimit": 5, "itemOffset": 0, "query": "", "pipeline": "all", "versionStatus": "historical"},
+    ]
+
+
+def test_history_quality_audit_restores_persisted_version_filter():
+    helper_path = STATIC_DIR / "history_panel_quality_helpers.js"
+    renderer_path = STATIC_DIR / "history_quality_audit_render.js"
+    module_path = STATIC_DIR / "history_quality_audit.js"
+    script = """
+(async () => {
+  global.window = {};
+  window.sessionStorage = {
+    getItem: () => JSON.stringify({ versionStatus: 'historical' }),
+    setItem: () => {},
+    removeItem: () => {}
+  };
+  require(__HELPER_PATH__);
+  require(__RENDERER_PATH__);
+  require(__MODULE_PATH__);
+  const captured = [];
+  const element = { hidden: true, innerHTML: '', setAttribute: () => {}, removeAttribute: () => {}, addEventListener: () => {} };
+  const audit = window.StockAgentHistoricalQualityAudit.create({
+    apiClient: { fetchHistoricalReportQualityAudit: async params => { captured.push(params); return { audited_reports: 1, quality_metadata_missing_reports: 1, items: [] }; } },
+    ui: { escapeHtml: value => String(value ?? '') },
+    element
+  });
+  await audit.load({ includeVersions: true, query: '', pipelineFilter: 'all' });
+  process.stdout.write(JSON.stringify({ captured }));
+})();
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path))).replace("__RENDERER_PATH__", json.dumps(str(renderer_path))).replace("__MODULE_PATH__", json.dumps(str(module_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert payload["captured"] == [{
+        "itemLimit": 5,
+        "itemOffset": 0,
+        "query": "",
+        "pipeline": "all",
+        "versionStatus": "historical",
+    }]
+
+
 def test_history_quality_audit_persists_filters_across_reload_and_reset_clears_them():
     helper_path = STATIC_DIR / "history_panel_quality_helpers.js"
     renderer_path = STATIC_DIR / "history_quality_audit_render.js"
@@ -628,10 +708,10 @@ def test_history_workspace_wires_historical_quality_audit_without_daily_queue_si
     workspace = (STATIC_DIR / "history_workspace.js").read_text(encoding="utf-8")
 
     assert 'id="history-quality-audit"' in index_html
-    assert "/static/api_client_extensions.js?v=20260816-quality-review-field-filter" in index_html
-    assert "/static/history_panel_quality_helpers.js?v=20260816-quality-review-field-filter" in index_html
-    assert "/static/history_quality_audit_render.js?v=20260820-report-version-status" in index_html
-    assert "/static/history_quality_audit.js?v=20260816-quality-review-filter-persistence" in index_html
+    assert "/static/api_client_extensions.js?v=20260820-quality-version-filter" in index_html
+    assert "/static/history_panel_quality_helpers.js?v=20260820-quality-version-filter" in index_html
+    assert "/static/history_quality_audit_render.js?v=20260820-quality-version-filter" in index_html
+    assert "/static/history_quality_audit.js?v=20260820-quality-version-filter" in index_html
     assert index_html.index("/static/history_quality_audit_render.js") < index_html.index("/static/history_quality_audit.js")
     assert len((STATIC_DIR / "history_panel_quality_helpers.js").read_text(encoding="utf-8").splitlines()) < 120
     assert len((STATIC_DIR / "history_quality_audit_render.js").read_text(encoding="utf-8").splitlines()) < 100

@@ -99,6 +99,13 @@
         }).filter(Boolean).join('');
         return buttons ? `<div class="history-quality-audit-filter-actions" aria-label="按品質欄位查看缺口">${buttons}</div>` : '';
     }
+    function renderQualityVersionStatusFilters(audit, escapeHtml) {
+        const e = escapeHtml || (value => String(value ?? ''));
+        const current = String(audit?.report_version_status_filter || 'all').trim().toLowerCase() || 'all';
+        const labels = [['all', '全部版本'], ['current', '目前版本'], ['historical', '歷史版本'], ['unknown', '版本未判定']];
+        const buttons = labels.map(([key, label]) => { const count = Number(audit?.quality_metadata_missing_by_version_status?.[key] || 0); if (key === 'all' ? current === 'all' : current !== key && (!Number.isFinite(count) || count <= 0)) return ''; return `<button class="history-quality-audit-filter" type="button" data-quality-audit-version-status="${e(key)}"${current === key ? ' aria-pressed="true"' : ''}>${e(key === 'all' ? label : `只看${label}缺口`)}${key === 'all' ? '' : `（${Math.floor(count)}）`}</button>`; }).filter(Boolean).join('');
+        return buttons ? `<div class="history-quality-audit-filter-actions" aria-label="按報告版本查看品質缺口">${buttons}</div>` : '';
+    }
 
     window.StockAgentHistoryPanelQualityHelpers = {
         hasRefreshableDataTrustIssue,
@@ -106,6 +113,7 @@
         trackingActionNote,
         renderQualityReview,
         renderQualityReviewStatusFilters,
-        renderQualityMissingFieldFilters
+        renderQualityMissingFieldFilters,
+        renderQualityVersionStatusFilters
     };
 })();

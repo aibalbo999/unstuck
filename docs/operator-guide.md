@@ -109,6 +109,8 @@ The read-only report quality audit exposes `missing_quality_fields` on each affe
 
 歷史稽核也可用 `review_status=pending|approved_with_gap|rejected|deferred` 只看某一種目前 revision 審核狀態；回應的 `review_status_filter` 會標示套用的範圍，篩選後的 coverage 與分頁數字只代表該狀態，不代表其他狀態不存在。這仍是 GET-only 查詢，不會寫入 review ledger。
 
+若要先聚焦版本新舊，可用 `version_status=current|historical|unknown`；回應的 `report_version_status_filter` 會標示目前範圍。這個版本範圍會保留該版本集合中的完整報告作為 coverage 分母，只有再選審核狀態或缺口欄位時才縮成相應的品質缺口集合。歷史頁的「目前版本／歷史版本／版本未判定」按鈕只改 GET 查詢範圍，不會加入今日待辦、寫入 review 或建立重跑。
+
 歷史稽核摘要也提供「只看報告一致性缺口／只看證據關卡缺口／只看內容可信度缺口」的欄位快捷入口。欄位篩選後的 `audited_reports`、coverage 與明細只代表該欄位缺口集合，畫面會標示「缺口範圍」；即使結果是 `0`，仍保留目前欄位與「全部缺口欄位」入口，方便切回完整稽核。若同時選了審核狀態與缺口欄位，畫面會同時顯示兩個範圍，結果是兩者交集。這是唯讀 GET 篩選，不代表 gate 已修復，也不會寫 review、建立重跑或加入今日待辦。
 
 使用 review status 或缺口欄位篩選時，先讀摘要中的「審核範圍」或「缺口範圍」再解讀數字；篩選後若顯示 `0%`，它只代表目前集合的 coverage，不是全庫品質降為零。只有兩種篩選都為 `all` 時，摘要才使用「品質 metadata 完整度」作為未篩選範圍的 coverage 文案。
@@ -119,7 +121,7 @@ The read-only report quality audit exposes `missing_quality_fields` on each affe
 
 這個 preview badge 可直接點擊，會帶著目前報告檔名與模式開啟同一範圍的歷史品質稽核；它只是查詢導引，不會自動核准、退回、修復 artifact 或建立重跑。進入稽核後仍須以該報告版本的 evidence 與 freshness 做人工判讀。
 
-歷史稽核的審核狀態與缺口欄位只保存兩個篩選值在目前瀏覽器分頁的 session；重新整理同一分頁會恢復可見範圍，但不保存報告內容。從今日工作台進入特定檔案的「前往人工核對」會清除舊的 quality filter，再套用 filename/pipeline 範圍，避免把上一個報告的條件帶進來。
+歷史稽核的審核狀態、缺口欄位與版本狀態只保存三個篩選值在目前瀏覽器分頁的 session；重新整理同一分頁會恢復可見範圍，但不保存報告內容。從今日工作台進入特定檔案的「前往人工核對」會清除舊的 quality filter，再套用 filename/pipeline 範圍，避免把上一個報告的條件帶進來。
 
 當同時使用審核狀態與缺口欄位篩選時，歷史稽核摘要會先顯示「審核範圍／缺口範圍」，再分行列出缺口欄位、模式、審核狀態、人工進度與來源；這些只是目前 GET response 的閱讀提示，不是全庫品質結論。手機窄版會將各摘要項改為單欄排列，先讀醒目的範圍再解讀數字。
 
