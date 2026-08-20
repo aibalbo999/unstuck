@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-20
+- D3626：D3625 已把總體 context readiness 放進摘要，但 live per-pipeline map 顯示 `v1/v2/v3` 缺口有 artifact fallback、`v4` 的 `29` 筆全部缺局部上下文；history/watchlist 原本只顯示模式缺口數，無法直接安排模式級準備。現在摘要增加「模式上下文」，沿用同一份 `quality_metadata_by_pipeline.quality_metadata_missing_by_rerun_context`，不改 audit 分母、execution strategy、freshness、review 或 queue。
+- D3626 驗證：先補 watchlist/history RED，再 GREEN；cache-buster、static module size、frontend/quality/contracts、live pipeline summary 與 runtime health/readiness 均待本輪收斂後封存。
 - D3625：live historical audit 的 `115` 筆缺口全部 `full_rerun_required`，但 `rerun_context_status` 分布為 `artifact_fallback_available=86`、`missing=29`；D3624 只在摘要呈現 execution strategy，操作員仍需展開 item 才知道可讀上下文準備度。新增 `quality_metadata_missing_by_rerun_context`，在 API、pipeline stats、history/watchlist 摘要同步呈現；`artifact_fallback_available` 只表示 artifact 有前序段落，不改完整重跑權威、不 enqueue、不改 freshness/review/queue。
 - D3625 驗證：backend 與兩個前端摘要先 RED，再 GREEN `66 passed`；新增 docs/HCS/cache-buster 契約後補跑完整 quality、frontend、storage/runtime、import/docs 與 live read-only probe，確認 daily/historical scope、coverage、execution strategy 與既有 1623 after-refresh 分類不變。
 - D3624：live historical audit 顯示 `115` 筆缺三個 structured quality gate，全部 `full_rerun_required`，但其中 `86` 筆有 artifact fallback、`29` 筆沒有 snapshot/ artifact 局部上下文；原摘要只顯示逐筆 detail，操作員無法先按重跑策略排序。新增 `quality_metadata_missing_by_rerun_execution` 聚合，history/watchlist 以「完整重跑／局部重跑可用／局部重跑需確認／無可用局部重跑／重跑策略未判定」呈現；只讀取既有 repair predicate，未知 provenance 進 `not_evaluated`，不改 freshness、coverage、rerun 或 queue。

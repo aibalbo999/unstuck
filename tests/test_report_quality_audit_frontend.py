@@ -23,7 +23,11 @@ const payload = {
     quality_review_by_status: { pending: 2, approved_with_gap: 1, rejected: 0, deferred: 0 },
     artifact_quality_summary_by_status: { present: 2, not_found: 0, unavailable: 0 },
     artifact_quality_summary_by_field: { report_conformance: 2, evidence_exit_gate: 2, content_credibility: 0 },
-    quality_metadata_missing_by_rerun_context: { present: 1, partial: 0, artifact_fallback_available: 1, missing: 1, not_evaluated: 0 }
+    quality_metadata_missing_by_rerun_context: { present: 1, partial: 0, artifact_fallback_available: 1, missing: 1, not_evaluated: 0 },
+    quality_metadata_by_pipeline: {
+      v1: { quality_metadata_missing_reports: 1, quality_metadata_missing_by_rerun_context: { present: 0, partial: 0, artifact_fallback_available: 1, missing: 0, not_evaluated: 0 } },
+      v2: { quality_metadata_missing_reports: 1, quality_metadata_missing_by_rerun_context: { present: 0, partial: 0, artifact_fallback_available: 1, missing: 0, not_evaluated: 0 } }
+    }
   }
 };
 const board = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], payload, value => String(value ?? ''));
@@ -41,10 +45,11 @@ process.stdout.write(JSON.stringify({ board }));
     assert "審核狀態：待人工核對 2、已核准保留缺口 1" in payload["board"]
     assert "人工審核進度：1/3" in payload["board"]
     assert "上下文：原始上下文完整 1、artifact 前序可查 1、無可用局部上下文 1" in payload["board"]
+    assert "模式上下文：v1 artifact 前序可查 1、v2 artifact 前序可查 1" in payload["board"]
     assert 'class="watchlist-daily-quality-summary"' in payload["board"]
     assert 'class="watchlist-daily-quality-scope">全量報告品質</strong>' in payload["board"]
     assert payload["board"].index('class="watchlist-daily-quality-scope"') < payload["board"].index('class="watchlist-daily-quality-item"')
-    assert payload["board"].count('class="watchlist-daily-quality-item"') == 7
+    assert payload["board"].count('class="watchlist-daily-quality-item"') == 9
 
 
 def test_historical_quality_audit_renders_revision_scoped_review_controls():

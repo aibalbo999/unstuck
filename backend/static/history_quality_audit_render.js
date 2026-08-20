@@ -30,6 +30,7 @@
             const count = Number(summary?.quality_metadata_missing_reports || 0);
             return Number.isFinite(count) && count > 0 ? `${pipeline} ${Math.floor(count)}` : '';
         }).filter(Boolean).join('、');
+        const pipelineContextSummary = Object.entries(pipelineQuality).map(([pipeline, summary]) => { const context = rerunContextLabels.map(([key, label]) => { const count = Number(summary?.quality_metadata_missing_by_rerun_context?.[key] || 0); return Number.isFinite(count) && count > 0 ? `${label} ${Math.floor(count)}` : ''; }).filter(Boolean).join('、'); return context ? `${pipeline} ${context}` : ''; }).filter(Boolean).join('、');
         const pipelineActions = Object.entries(pipelineQuality).map(([pipeline, summary]) => {
             const count = Number(summary?.quality_metadata_missing_reports || 0);
             return Number.isFinite(count) && count > 0
@@ -70,7 +71,7 @@
             audit.items_has_prev === true ? '<button class="history-quality-audit-page" type="button" data-quality-audit-page="prev" aria-label="查看上一批品質缺口">上一批</button>' : '',
             audit.items_has_next === true ? '<button class="history-quality-audit-page" type="button" data-quality-audit-page="next" aria-label="查看下一批品質缺口">下一批</button>' : ''
         ].filter(Boolean).join('');
-        const summaryItems = [fieldSummary ? `缺口：${fieldSummary}` : '', pipelineSummary ? `模式缺口：${pipelineSummary}` : '', versionSummary ? `版本：${versionSummary}` : '', reviewSummary ? `審核狀態：${reviewSummary}` : '', reviewProgressSummary, provenanceSummary ? `來源：${provenanceSummary}` : '', rerunExecutionSummary ? `重跑策略：${rerunExecutionSummary}` : '', rerunContextSummary ? `上下文：${rerunContextSummary}` : ''].filter(Boolean);
+        const summaryItems = [fieldSummary ? `缺口：${fieldSummary}` : '', pipelineSummary ? `模式缺口：${pipelineSummary}` : '', pipelineContextSummary ? `模式上下文：${pipelineContextSummary}` : '', versionSummary ? `版本：${versionSummary}` : '', reviewSummary ? `審核狀態：${reviewSummary}` : '', reviewProgressSummary, provenanceSummary ? `來源：${provenanceSummary}` : '', rerunExecutionSummary ? `重跑策略：${rerunExecutionSummary}` : '', rerunContextSummary ? `上下文：${rerunContextSummary}` : ''].filter(Boolean);
         const auditDetails = missing > 0
             ? `<span>${Math.floor(missing)} 份品質 metadata 缺口${truncation}</span>${scopeItems.map(scope => `<em class="history-quality-audit-summary-scope">${e(scope)}</em>`).join('')}${summaryItems.map(item => `<em class="history-quality-audit-summary-item">${e(item)}</em>`).join('')}${artifactEvidenceSummary ? `<em>${e(artifactEvidenceSummary)}</em>` : ''}${artifactFieldSummary ? `<em>${e(`artifact 欄位可查：${artifactFieldSummary}`)}</em>` : ''}${basisSummary ? `<em>${e(basisSummary)}</em>` : ''}`
             : filteredEmptyLabel ? `<span>目前沒有符合「${e(filteredEmptyLabel)}」的品質 metadata 缺口</span>${basisSummary ? `<em>${e(basisSummary)}</em>` : ''}` : `<span>符合條件的 ${complete} 份已驗證 snapshot 沒有品質 metadata 缺口</span>${basisSummary ? `<em>${e(basisSummary)}</em>` : ''}`;

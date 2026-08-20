@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3626 / surface per-pipeline context readiness
+
+- `#分析層次` / `#差距分析`：live context aggregate 顯示 v4 的 `29` 筆全部 `missing`，v1/v2/v3 則有 artifact fallback；只看總量會遮住模式級準備差異。
+- `#溝通設計` / `#受眾`：history/watchlist 在既有「模式缺口」旁增加「模式上下文」，沿用 per-pipeline API map；它只改善工作排序，不把 artifact 前序段落寫成局部重跑授權。
+- `#可驗證性` / `#責任`：新增 UI RED→GREEN 與 cache-buster 契約，預計補跑完整前端、quality、docs/import、runtime 與 live pipeline probe；不寫 snapshot、artifact、index、review、rerun 或 queue。
+
 ## D3625 / summarize read-only rerun context readiness
 
 - `#差距分析` / `#效用`：live historical audit 的 `115` 筆缺口雖然全部要求完整重跑，但只有 `86` 筆有 artifact fallback，`29` 筆沒有局部上下文；D3624 的 execution summary 無法直接回答人工準備材料的分布。
