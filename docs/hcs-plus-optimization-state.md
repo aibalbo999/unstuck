@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-21
+- D3634：live dashboard 已經將品質稽核 action 導到 history，但同一份 `notification_plan` / `delivery_outbox` 仍以 type-only default 輸出 `view-report`，造成工作台與本機/外部通知的 CTA 不一致。新增 source+type default：只有 `report_quality_audit` + `manual_review` 且有 filename 才輸出 `quality-audit-review` / `前往人工核對`；上游明確自訂 CTA 仍優先，`report_repair` 不變。
+- D3634 驗證：先以 notification plan RED 鎖定跨入口漂移，再 GREEN；free notification plan + delivery audit `148 passed`，daily queue/dashboard quality notification focused `32 passed`，live runtime reload 後需確認 notification message/outbox 與 dashboard 同步；未寫 review、artifact、index、rerun 或 queue state。
 - D3633：D3631 已將完整 latest quality audit gap 放進唯讀 decision queue，但 operator summary 仍把 `source=report_quality_audit` 的 `manual_review` 映射成「查看報告」，操作員看到缺口後還要自行切換 history、重新輸入 filename/pipeline。現在只對帶 filename 的 quality-audit manual review 映射「前往人工核對」，沿用既有 `StockAgentOpenHistoricalQualityAudit({query, pipeline})`，一般 report-repair manual review 與其他 action 維持原行為；app 導覽回傳 Promise，讓按鈕 loading 狀態涵蓋實際 audit 載入。
 - D3633 驗證：先以 dashboard mapping 與 operator click delegation RED，再 GREEN；historical quality navigation、report evidence、audit frontend、static history contracts `180 passed`，Node syntax、`git diff --check` 通過。更新架構圖與 operator guide，未改 API、quality predicate、review mutation、artifact/index、rerun 或 queue state。
 - D3632：全套回歸暴露兩個非本輪 queue 變更的 residual：5 年價格 fixture 在資料最後日期早於系統日期時被當成「今天」切窗，且 renderer 在 8f53dc81 後已有意義變更但 golden hash 未同步。`extract_price_history_ranges()` 現在以最新可用價格日期作 as-of 上限，golden fixture 以目前 renderer 輸出重新校準，保留 required markers。

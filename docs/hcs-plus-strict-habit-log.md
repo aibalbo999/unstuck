@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3634 / keep notification CTAs aligned with quality-audit workbench
+
+- `#差距分析` / `#受眾`：live daily dashboard 的品質稽核 action 已能從 operator summary 進 targeted history，但同一 action 在 `notification_plan.messages` 與 `delivery_outbox` 仍由 type-only `manual_review` default 變成「查看報告」，本機/外部通知因此失去人工核對範圍。
+- `#拆解問題` / `#責任`：在 notification plan 的 default CTA 增加 `(source, type)` 優先查找；只有 `report_quality_audit` + `manual_review` 且帶 filename 才用 `quality-audit-review` / `前往人工核對`，上游明確自訂 `operator_action` 仍維持 authoritative，`report_repair` 維持 `view-report`。
+- `#偏誤降低` / `#可驗證性`：保留原有 filename、pipeline、dedupe、delivery audit 與 read-only quality scope，不因通知 CTA 自動核准、重跑、寫 review、artifact、index 或 queue state；RED→GREEN notification plan、delivery audit、queue/dashboard focused regression 通過。
+- `#可驗證性`：free notification plan + delivery audit `148 passed`，daily queue/dashboard quality notification focused `32 passed`；runtime reload 後以 canonical dashboard response 核對 message/outbox action 與 workbench action 一致。
+
 ## D3633 / route quality-audit queue actions into targeted human review
 
 - `#差距分析` / `#受眾`：D3631 已讓完整 latest quality audit gap 出現在今日 decision queue，但 operator summary 仍把它當成一般 `manual_review`，只開啟報告；操作員還要自行切換 history 並重建 filename/pipeline 範圍。

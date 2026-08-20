@@ -1689,6 +1689,42 @@ def test_notification_plan_adds_operator_cta_metadata():
     assert repair_message["operator_action_label"] == "查看報告"
 
 
+def test_notification_plan_routes_quality_audit_manual_review_to_targeted_human_review():
+    plan = build_daily_notification_plan(
+        {
+            "decision_queue": {
+                "items": [
+                    {
+                        "source": "report_quality_audit",
+                        "type": "manual_review",
+                        "title": "1623.TW v2 品質證據缺口",
+                        "detail": "請人工核對。",
+                        "filename": "1623_TW_v2_report_20260815_154718.html",
+                        "pipeline_id": "v2",
+                    },
+                    {
+                        "source": "report_repair",
+                        "type": "manual_review",
+                        "title": "2603.TW v4 內容可信度需確認",
+                        "detail": "請人工審核。",
+                        "filename": "2603_TW_v4_report.html",
+                        "pipeline_id": "v4",
+                    },
+                ]
+            }
+        },
+        env={},
+    )
+
+    quality_message, repair_message = plan["messages"]
+    assert quality_message["operator_action"] == "quality-audit-review"
+    assert quality_message["operator_action_label"] == "前往人工核對"
+    assert quality_message["filename"] == "1623_TW_v2_report_20260815_154718.html"
+    assert quality_message["pipeline_id"] == "v2"
+    assert repair_message["operator_action"] == "view-report"
+    assert repair_message["operator_action_label"] == "查看報告"
+
+
 def test_notification_plan_preserves_operator_cta_when_truthiness_fails():
     class BrokenTruthCta:
         def __bool__(self):

@@ -15,6 +15,7 @@ from free_notification_plan_constants import (
     DELIVERY_CONTEXT_KEYS,
     MESSAGE_CONTEXT_KEYS,
     NUMERIC_MESSAGE_CONTEXT_KEYS,
+    OPERATOR_ACTION_BY_SOURCE_AND_TYPE,
     OPERATOR_ACTION_BY_TYPE,
     TARGET_PANEL_BY_TYPE,
     TEXT_MESSAGE_CONTEXT_KEYS,
@@ -226,7 +227,12 @@ def _message_context(action: dict[str, Any]) -> dict[str, Any]:
 
 
 def _operator_cta_context(action: dict[str, Any]) -> dict[str, str]:
-    default_action, default_label = OPERATOR_ACTION_BY_TYPE.get(_action_type(action), ("open-ops", "查看狀態"))
+    action_type = _action_type(action)
+    source = source_key(_field(action, "source"))
+    default_action, default_label = OPERATOR_ACTION_BY_SOURCE_AND_TYPE.get(
+        (source, action_type),
+        OPERATOR_ACTION_BY_TYPE.get(action_type, ("open-ops", "查看狀態")),
+    )
     return {
         "operator_action": _first_text(action, "operator_action", "operatorAction") or default_action,
         "operator_action_label": _first_text(action, "operator_action_label", "operatorActionLabel", "action_label") or default_label,

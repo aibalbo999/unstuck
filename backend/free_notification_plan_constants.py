@@ -59,6 +59,10 @@ OPERATOR_ACTION_BY_TYPE = {
     "monitor": ("monitor", "查看狀態"),
 }
 
+OPERATOR_ACTION_BY_SOURCE_AND_TYPE = {
+    ("report_quality_audit", "manual_review"): ("quality-audit-review", "前往人工核對"),
+}
+
 TARGET_PANEL_BY_TYPE = {
     "wait_provider_recovery": "provider-sla-panel",
     "monitor_provider": "provider-sla-panel",
