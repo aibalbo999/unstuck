@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3623 / keep pre-refresh provenance classification consistent across surfaces
+
+- `#差距分析` / `#偏誤辨識`：D3622 已產生 `quality_metadata_before_refresh`，但 audit aggregator、`/api/reports` row mapper、preview/history helper 與 watchlist summary 仍只理解 after/no-refresh；同一份證據會被 backend 統計成 `no_refresh_provenance`，前端則沒有白話來源。
+- `#責任` / `#語意含義`：新增共用 reason-code classifier，統一輸出 `before_refresh`、`after_refresh`、`no_refresh_provenance`；before 只有在 pre-refresh trace 覆蓋目前缺口時成立，after 仍是中性刷新歸因，no-refresh 仍不代表從未刷新。所有呈現只讀，不改 gate、coverage、review、rerun 或 queue。
+- `#可驗證性` / `#證據基礎`：五個入口先 RED 再 GREEN；quality/audit/repair/preview/frontend/history/navigation `257 passed`，並補跑完整 contracts、runtime path、live audit 與 post-push probe，確認舊 snapshot 與新 provenance 的語意分流。
+
 ## D3622 / record pre-refresh quality evidence provenance
 
 - `#差距分析` / `#偏誤辨識`：live indexed audit 的 `1623.TW` v1/v2 都有 `refreshed_from_report`，但舊 snapshot 沒有刷新前 gate 狀態；將 `after_refresh` 直接解讀成「刷新造成缺失」會把時間關係誤當成因果。

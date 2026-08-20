@@ -5,12 +5,15 @@ from __future__ import annotations
 from typing import Any
 
 from mapping_fields import safe_dict_list, safe_int, safe_mapping_dict, safe_text, safe_text_list
+from report_quality_metadata_repair import (
+    QUALITY_METADATA_PROVENANCE,
+    quality_metadata_provenance_from_reason_codes,
+)
 from report_quality_repair_items import quality_metadata_repair_item
 
 
 SCHEMA_VERSION = "report_quality_audit.v1"
 QUALITY_METADATA_FIELDS = ("report_conformance", "evidence_exit_gate", "content_credibility")
-QUALITY_METADATA_PROVENANCE = ("after_refresh", "no_refresh_provenance")
 QUALITY_REVIEW_STATUSES = ("pending", "approved_with_gap", "rejected", "deferred")
 ARTIFACT_QUALITY_SUMMARY_STATUSES = ("present", "not_found", "unavailable")
 REPORT_VERSION_STATUSES = ("current", "historical", "unknown")
@@ -221,7 +224,7 @@ def _report_rows(reports: dict[str, Any] | list[dict[str, Any]]) -> list[dict[st
 
 
 def _quality_metadata_provenance(item: dict[str, Any]) -> str:
-    return "after_refresh" if "quality_metadata_after_refresh" in safe_text_list(item.get("reason_codes")) else "no_refresh_provenance"
+    return quality_metadata_provenance_from_reason_codes(item.get("reason_codes"))
 
 
 def _quality_review_status(report: dict[str, Any]) -> str:

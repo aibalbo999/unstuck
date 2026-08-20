@@ -193,7 +193,7 @@ The daily decision dashboard (`GET /api/watchlist/daily-dashboard`) consumes rec
 
 品質 audit 對相同 report-index fingerprint 使用最多 15 秒的 bounded process cache，避免 daily/history 反覆重讀未變更的 snapshot 與 Markdown；fingerprint 或 TTL 失效時重新讀取，cache 不跨重啟、不產生任何 side effect。
 
-同一 envelope 的 `quality_metadata_missing_by_provenance` 會把缺 metadata 的報告分成 `after_refresh` 與 `no_refresh_provenance`；`after_refresh` 只表示有 `refreshed_from_report` attribution，不能推論刷新造成缺失；後者只表示沒有 attribution，也不能推論「從未刷新」。audit item 會保留 provenance、刷新來源檔名與 `snapshot_refreshed_at`，但不從 HTML/Markdown 重建 gate payload；前端以「有刷新歸因」呈現這個中性語意。
+同一 envelope 的 `quality_metadata_missing_by_provenance` 會把缺 metadata 的報告分成 `before_refresh`、`after_refresh` 與 `no_refresh_provenance`；`before_refresh` 只在 pre-refresh trace 已列出目前缺口時成立，`after_refresh` 只表示有 `refreshed_from_report` attribution，不能推論刷新造成缺失；後者只表示沒有可用分類，也不能推論「從未刷新」。audit item 會保留 provenance、刷新來源檔名與 `snapshot_refreshed_at`，但不從 HTML/Markdown 重建 gate payload；前端以「刷新前已有缺口」、「有刷新歸因」或「未標記刷新來源」呈現。
 
 資料快照在 data-only refresh 前可保存 optional `quality_metadata_refresh_provenance`：`recorded_fields` 是刷新前已符合 gate contract 的狀態，`missing_fields` 是刷新前已缺的 gate。這個 trace 只改善後續 repair 的責任分類；它不重建 gate、不替 artifact 補證據、不改 coverage 分母，也不觸發 rerun。舊 snapshot 沒有這個欄位時，仍使用中性的 `quality_metadata_after_refresh`。
 

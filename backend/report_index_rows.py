@@ -19,7 +19,10 @@ from report_history_storage import storage_for_existing_output_dir
 from report_paths import report_storage_candidates_for_filename
 from report_preview import build_report_preview, extract_trade_setup
 from report_quality_evidence import read_artifact_quality_summary
-from report_quality_metadata_repair import quality_metadata_repair_item
+from report_quality_metadata_repair import (
+    quality_metadata_provenance_from_reason_codes,
+    quality_metadata_repair_item,
+)
 from reporting.content_credibility import evaluate_content_credibility
 from reporting.content_credibility_final_audit import align_content_credibility_with_final_audit
 from reporting.content_credibility_projection import merge_content_credibility_results, project_content_credibility
@@ -232,7 +235,7 @@ def _quality_evidence(row, report: dict) -> dict:
     storage = storage_for_existing_output_dir(str(row["output_dir"]), None)
     return {
         "missing_quality_fields": item["missing_quality_fields"],
-        "quality_metadata_provenance": "after_refresh" if "quality_metadata_after_refresh" in item["reason_codes"] else "no_refresh_provenance",
+        "quality_metadata_provenance": quality_metadata_provenance_from_reason_codes(item["reason_codes"]),
         "refreshed_from_report": report.get("refreshed_from_report", ""),
         "snapshot_refreshed_at": report.get("snapshot_refreshed_at", ""),
         "artifact_quality_summary": read_artifact_quality_summary(storage, report.get("filename")),

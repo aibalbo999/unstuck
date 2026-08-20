@@ -493,7 +493,7 @@ def test_historical_audit_navigation_wiring_uses_cache_busters_and_existing_scop
     assert "StockAgentOpenHistoricalQualityAudit" in watchlist_panel
     assert "openHistoricalQualityAudit" in history_workspace
     assert "StockAgentOpenHistoricalQualityAudit" in app_js
-    assert "/static/watchlist_panel_helpers.js?v=20260820-refresh-attribution" in index_html
+    assert "/static/watchlist_panel_helpers.js?v=20260820-pre-refresh-provenance" in index_html
     assert "/static/watchlist_panel.js?v=20260816-scoped-quality-review-navigation" in index_html
     assert "/static/history_filters.js?v=20260816-history-scope-persistence" in index_html
     assert "/static/history_workspace.js?v=20260816-scope-transient-state-guard" in index_html

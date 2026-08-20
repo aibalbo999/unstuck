@@ -13,6 +13,7 @@ RECORDED_GATE_STATES: dict[str, tuple[str, frozenset[str]]] = {
     "evidence_exit_gate": ("verdict", frozenset({"approved", "caution", "rejected"})),
     "content_credibility": ("status", frozenset({"passed", "warning", "blocked", "failed", "rejected"})),
 }
+QUALITY_METADATA_PROVENANCE = ("before_refresh", "after_refresh", "no_refresh_provenance")
 
 
 def quality_metadata_repair_item(report: Mapping[str, Any]) -> dict[str, Any] | None:
@@ -97,6 +98,15 @@ def quality_metadata_repair_item(report: Mapping[str, Any]) -> dict[str, Any] | 
     return item
 
 
+def quality_metadata_provenance_from_reason_codes(reason_codes: Any) -> str:
+    codes = set(safe_text_list(reason_codes))
+    if "quality_metadata_before_refresh" in codes:
+        return "before_refresh"
+    if "quality_metadata_after_refresh" in codes:
+        return "after_refresh"
+    return "no_refresh_provenance"
+
+
 def _quality_gate_recorded(gate_key: str, value: Any) -> bool:
     gate = safe_mapping_dict(value) or {}
     field_name, allowed_states = RECORDED_GATE_STATES[gate_key]
@@ -134,3 +144,11 @@ def _safe_bool(value: Any) -> bool:
         return bool(value)
     except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
         return False
+
+
+__all__ = [
+    "QUALITY_METADATA_PROVENANCE",
+    "RECORDED_GATE_STATES",
+    "quality_metadata_provenance_from_reason_codes",
+    "quality_metadata_repair_item",
+]

@@ -135,6 +135,39 @@ process.stdout.write(JSON.stringify({ html }));
     assert 'data-quality-audit-missing-field="all"' in payload["html"]
 
 
+def test_history_quality_audit_renders_pre_refresh_provenance():
+    evidence_path = STATIC_DIR / "report_quality_evidence_helpers.js"
+    renderer_path = STATIC_DIR / "history_quality_audit_render.js"
+    script = """
+global.window = {};
+require(__EVIDENCE_PATH__);
+require(__RENDERER_PATH__);
+const html = window.StockAgentHistoricalQualityAuditRenderer.render({
+  audited_reports: 1,
+  quality_metadata_missing_reports: 1,
+  quality_metadata_missing_by_provenance: { before_refresh: 1, after_refresh: 0, no_refresh_provenance: 0 },
+  missing_quality_field_counts: { report_conformance: 1, evidence_exit_gate: 0, content_credibility: 0 },
+  quality_review_by_status: { pending: 1, approved_with_gap: 0, rejected: 0, deferred: 0 },
+  items: [{
+    ticker: '1623.TW',
+    filename: '1623_v1.html',
+    pipeline_id: 'v1',
+    title: '刷新前已有品質證據缺口',
+    detail: '刷新前快照已確認缺少報告一致性品質證據。',
+    missing_quality_fields: ['report_conformance'],
+    reason_codes: ['quality_metadata_missing', 'quality_metadata_before_refresh'],
+    quality_metadata_provenance: 'before_refresh'
+  }]
+}, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ html }));
+""".replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path))).replace("__RENDERER_PATH__", json.dumps(str(renderer_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "來源：刷新前已有缺口 1" in payload["html"]
+    assert "來源：刷新前已有缺口" in payload["html"]
+
+
 def test_history_quality_audit_filtered_missing_field_empty_state_keeps_scope_semantics():
     helper_path = STATIC_DIR / "history_panel_quality_helpers.js"
     renderer_path = STATIC_DIR / "history_quality_audit_render.js"
@@ -710,7 +743,7 @@ def test_history_workspace_wires_historical_quality_audit_without_daily_queue_si
     assert 'id="history-quality-audit"' in index_html
     assert "/static/api_client_extensions.js?v=20260820-quality-version-filter" in index_html
     assert "/static/history_panel_quality_helpers.js?v=20260820-quality-version-filter" in index_html
-    assert "/static/history_quality_audit_render.js?v=20260820-quality-version-filter" in index_html
+    assert "/static/history_quality_audit_render.js?v=20260820-pre-refresh-provenance" in index_html
     assert "/static/history_quality_audit.js?v=20260820-quality-version-filter" in index_html
     assert index_html.index("/static/history_quality_audit_render.js") < index_html.index("/static/history_quality_audit.js")
     assert len((STATIC_DIR / "history_panel_quality_helpers.js").read_text(encoding="utf-8").splitlines()) < 120

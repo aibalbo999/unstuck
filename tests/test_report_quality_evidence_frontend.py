@@ -16,12 +16,12 @@ def test_shared_quality_evidence_helper_loads_before_all_consumers():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     helper = "/static/report_quality_evidence_helpers.js"
     assert (STATIC_DIR / "report_quality_evidence_helpers.js").exists()
-    assert f"{helper}?v=20260820-report-version-status" in index_html
+    assert f"{helper}?v=20260820-pre-refresh-provenance" in index_html
     assert "/static/report_quality_gate_policy.js?v=20260816-shared-quality-evidence" in index_html
     assert "/static/report_preview_helpers.js?v=20260820-shared-evidence-detail" in index_html
     assert "/static/report_preview_panel.js?v=20260820-rerun-execution" in index_html
-    assert "/static/history_quality_audit_render.js?v=20260820-quality-version-filter" in index_html
-    assert "/static/watchlist_panel_helpers.js?v=20260820-refresh-attribution" in index_html
+    assert "/static/history_quality_audit_render.js?v=20260820-pre-refresh-provenance" in index_html
+    assert "/static/watchlist_panel_helpers.js?v=20260820-pre-refresh-provenance" in index_html
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
     assert "/static/styles/history_list.css?v=20260816-clickable-quality-evidence" in style_css
     assert index_html.index(helper) < index_html.index("/static/report_quality_gate_policy.js")
@@ -112,6 +112,30 @@ process.stdout.write(JSON.stringify(evidence));
     assert evidence["provenanceText"] == "來源：有刷新歸因"
     assert "來源：有刷新歸因" in evidence["detail"]
     assert "來源：刷新後缺口" not in evidence["detail"]
+
+
+def test_shared_quality_evidence_labels_gap_that_predates_refresh():
+    evidence_path = STATIC_DIR / "report_quality_evidence_helpers.js"
+    script = """
+global.window = {};
+require(__EVIDENCE_PATH__);
+const evidence = window.StockAgentReportQualityEvidence.context({
+  missing_quality_fields: ['content_credibility'],
+  quality_metadata_provenance: 'before_refresh',
+  reason_codes: ['quality_metadata_missing', 'quality_metadata_before_refresh'],
+  quality_metadata_refresh_provenance: {
+    source: 'previous_snapshot_before_refresh',
+    missing_fields: ['content_credibility']
+  }
+});
+process.stdout.write(JSON.stringify(evidence));
+""".replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path)))
+
+    evidence = json.loads(_node(script))
+
+    assert evidence["provenanceText"] == "來源：刷新前已有缺口"
+    assert "來源：刷新前已有缺口" in evidence["detail"]
+    assert "來源：刷新前已有缺口" in evidence["targetContext"]
 
 
 def test_shared_quality_evidence_labels_historical_version_status():

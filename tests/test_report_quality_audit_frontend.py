@@ -402,6 +402,31 @@ process.stdout.write(JSON.stringify({ board }));
     assert "來源：有刷新歸因 2、未標記刷新來源 1" in payload["board"]
 
 
+def test_watchlist_board_surfaces_pre_refresh_quality_provenance_counts():
+    helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
+    script = """
+global.window = {};
+require(__HELPER_PATH__);
+const payload = {
+  decision_queue: { summary: { total_actionable: 0 }, items: [{ type: 'monitor' }] },
+  report_quality_audit: {
+    quality_metadata_missing_reports: 2,
+    quality_metadata_missing_by_provenance: {
+      before_refresh: 1,
+      after_refresh: 1,
+      no_refresh_provenance: 0
+    }
+  }
+};
+const board = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], payload, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ board }));
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "來源：刷新前已有缺口 1、有刷新歸因 1" in payload["board"]
+
+
 def test_watchlist_board_does_not_treat_unavailable_quality_audit_as_zero_gaps():
     helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
     script = """

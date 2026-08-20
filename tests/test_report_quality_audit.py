@@ -59,6 +59,7 @@ def test_report_quality_audit_counts_verified_reports_with_missing_quality_metad
             "content_credibility": 1,
         },
         "quality_metadata_missing_by_provenance": {
+            "before_refresh": 0,
             "after_refresh": 0,
             "no_refresh_provenance": 1,
         },
@@ -97,6 +98,7 @@ def test_report_quality_audit_counts_verified_reports_with_missing_quality_metad
                     "content_credibility": 1,
                 },
                 "quality_metadata_missing_by_provenance": {
+                    "before_refresh": 0,
                     "after_refresh": 0,
                     "no_refresh_provenance": 1,
                 },
@@ -326,6 +328,7 @@ def test_report_quality_audit_groups_coverage_by_pipeline():
                     "content_credibility": 1,
                 },
                 "quality_metadata_missing_by_provenance": {
+                    "before_refresh": 0,
                     "after_refresh": 0,
                     "no_refresh_provenance": 1,
                 },
@@ -351,6 +354,7 @@ def test_report_quality_audit_groups_coverage_by_pipeline():
                     "content_credibility": 0,
                 },
                 "quality_metadata_missing_by_provenance": {
+                    "before_refresh": 0,
                     "after_refresh": 0,
                     "no_refresh_provenance": 0,
                 },
@@ -453,10 +457,12 @@ def test_report_quality_audit_groups_missing_metadata_by_refresh_provenance():
     )
 
     assert payload["quality_metadata_missing_by_provenance"] == {
+        "before_refresh": 0,
         "after_refresh": 1,
         "no_refresh_provenance": 1,
     }
     assert payload["quality_metadata_by_pipeline"]["v1"]["quality_metadata_missing_by_provenance"] == {
+        "before_refresh": 0,
         "after_refresh": 1,
         "no_refresh_provenance": 0,
     }
@@ -483,6 +489,44 @@ def test_report_quality_audit_groups_missing_metadata_by_refresh_provenance():
     assert payload["items"][0]["rerun_context_status"] == "missing"
     assert payload["items"][0]["refreshed_from_report"] == "1623_v1.html"
     assert payload["items"][0]["snapshot_refreshed_at"] == "2026-08-15T07:48:23+00:00"
+
+
+def test_report_quality_audit_classifies_pre_refresh_quality_gaps_separately():
+    from report_quality_audit import build_report_quality_audit
+
+    payload = build_report_quality_audit(
+        [
+            {
+                "ticker": "1623.TW",
+                "filename": "1623_v1.html",
+                "pipeline_id": "v1",
+                "snapshot_integrity": {"status": "verified"},
+                "refreshed_from_report": "1623_v1.html",
+                "quality_metadata_refresh_provenance": {
+                    "schema_version": 1,
+                    "source": "previous_snapshot_before_refresh",
+                    "recorded_fields": {},
+                    "missing_fields": ["report_conformance", "evidence_exit_gate"],
+                },
+                "report_conformance": {},
+                "evidence_exit_gate": {},
+                "content_credibility": {"status": "passed"},
+            }
+        ],
+        scope="all_historical_indexed_reports",
+        selection_basis="all_indexed_versions",
+    )
+
+    assert payload["quality_metadata_missing_by_provenance"] == {
+        "before_refresh": 1,
+        "after_refresh": 0,
+        "no_refresh_provenance": 0,
+    }
+    assert payload["items"][0]["quality_metadata_provenance"] == "before_refresh"
+    assert payload["items"][0]["reason_codes"] == [
+        "quality_metadata_missing",
+        "quality_metadata_before_refresh",
+    ]
 
 
 def test_report_quality_audit_does_not_count_placeholder_gate_states_as_complete():
