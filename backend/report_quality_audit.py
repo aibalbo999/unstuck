@@ -236,6 +236,9 @@ def _report_from_index_row(row: dict[str, Any], storage: Any) -> dict[str, Any]:
         "snapshot_integrity": integrity,
         "refreshed_from_report": safe_text(snapshot.get("refreshed_from_report")).strip(),
         "snapshot_refreshed_at": safe_text(snapshot.get("snapshot_refreshed_at")).strip(),
+        "refreshed_without_analysis_rerun": bool(snapshot.get("refreshed_without_analysis_rerun")),
+        "decision_validity_status": safe_text(snapshot.get("decision_validity_status")).strip(),
+        "rerun_context": snapshot.get("rerun_context", {}),
         "report_conformance": snapshot.get("report_conformance", {}),
         "evidence_exit_gate": snapshot.get("evidence_exit_gate", {}),
         "content_credibility": align_content_credibility_with_final_audit(

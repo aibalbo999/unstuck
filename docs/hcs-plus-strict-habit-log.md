@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3600 / expose rerun-context availability in quality audit
+
+- `#拆解問題` / `#證據基礎`：對 live `115` 筆三 gate 缺口做 context inventory，`analyses`、`structured_outputs`、`parsed`、`evidence_matrix` 全部為空，且 `needs_rerun=115`、`refreshed_without_analysis_rerun=115`；既有「人工查看」detail 沒有說明局部重跑不可用。
+- `#溝通設計` / `#責任`：quality repair item 與 historical audit item 新增 `rerun_context_status`，缺少原始上下文且確實需重跑時追加 `rerun_context_missing`；detail 明示安排完整重跑。`recommended_action=manual_review`、`blocks_auto_rerun=true`、artifact/gate/review/queue boundary 不變。
+- `#可驗證性` / `#來源品質`：先取得 audit projection RED，再 GREEN；repair queue `50 passed`、quality audit/review `27 passed`、frontend quality `6 passed`、import boundary `5 passed`、文件契約 `138 passed`。正式 runtime reload 後 health/readiness/doctor 通過，live first item 確認 `rerun_context_status=missing` 與 `rerun_context_missing`；最後一次 canonical audit 為 `1221` verified versions、coverage `90.58%`、缺口 `115`，沒有新增 artifact/index/review/queue mutation。
+
 ## D3599 / preserve rerun context through data refresh
 
 - `#拆解問題` / `#責任`：refresh context 原本只帶 data、quality gate 與 `evidence_matrix`，沒有帶回 snapshot 的 nested `rerun_context`；`build_data_snapshot()` 依 top-level 空輸入重建後，既有 Agent analyses、structured outputs、parsed recommendation 與 pipeline metadata 會消失，Markdown fallback 可能掩蓋此缺口。

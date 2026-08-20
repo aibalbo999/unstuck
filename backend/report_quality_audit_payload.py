@@ -150,6 +150,9 @@ def _audit_item(report: dict[str, Any], item: dict[str, Any]) -> dict[str, Any]:
         "priority_score": safe_int(item.get("priority_score"), default=0),
         "blocks_auto_rerun": bool(item.get("blocks_auto_rerun")),
     }
+    rerun_context_status = safe_text(item.get("rerun_context_status")).strip()
+    if rerun_context_status:
+        payload["rerun_context_status"] = rerun_context_status
     revision = safe_text(report.get("report_quality_revision")).strip()
     if revision:
         payload["report_quality_revision"] = revision

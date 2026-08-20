@@ -419,6 +419,7 @@ def test_report_quality_audit_groups_missing_metadata_by_refresh_provenance():
         selection_basis="all_indexed_versions",
     )
     assert payload["items"][0]["quality_metadata_provenance"] == "after_refresh"
+    assert payload["items"][0]["rerun_context_status"] == "missing"
     assert payload["items"][0]["refreshed_from_report"] == "1623_v1.html"
     assert payload["items"][0]["snapshot_refreshed_at"] == "2026-08-15T07:48:23+00:00"
 
@@ -571,6 +572,9 @@ def test_indexed_report_quality_audit_exposes_snapshot_refresh_provenance(monkey
                     "snapshot_hash": "hash",
                     "refreshed_from_report": "1623_v1.html",
                     "snapshot_refreshed_at": "2026-08-15T07:48:23+00:00",
+                    "refreshed_without_analysis_rerun": True,
+                    "decision_validity_status": "needs_rerun",
+                    "rerun_context": {},
                     "report_conformance": {},
                     "evidence_exit_gate": {},
                     "content_credibility": {},
@@ -587,7 +591,12 @@ def test_indexed_report_quality_audit_exposes_snapshot_refresh_provenance(monkey
     payload = audit.build_indexed_report_quality_audit(str(tmp_path))
 
     assert payload["items"][0]["title"] == "刷新後品質證據缺口"
-    assert payload["items"][0]["reason_codes"] == ["quality_metadata_missing", "quality_metadata_after_refresh"]
+    assert payload["items"][0]["rerun_context_status"] == "missing"
+    assert payload["items"][0]["reason_codes"] == [
+        "quality_metadata_missing",
+        "quality_metadata_after_refresh",
+        "rerun_context_missing",
+    ]
 
 
 def test_indexed_report_quality_audit_exposes_artifact_quality_summary_without_reconstructing_gates(monkeypatch, tmp_path):

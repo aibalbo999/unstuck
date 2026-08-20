@@ -168,6 +168,28 @@ def test_report_quality_repair_items_identify_quality_gap_after_snapshot_refresh
     assert item["reason_codes"] == ["quality_metadata_missing", "quality_metadata_after_refresh"]
 
 
+def test_report_quality_repair_items_explain_missing_rerun_context_after_refresh():
+    from report_quality_repair_items import quality_metadata_repair_item
+
+    item = quality_metadata_repair_item(
+        {
+            "content_credibility": {},
+            "report_conformance": {},
+            "evidence_exit_gate": {},
+            "snapshot_integrity": {"status": "verified"},
+            "refreshed_from_report": "1623_TW_v1_report_20260815_153238.html",
+            "refreshed_without_analysis_rerun": True,
+            "decision_validity_status": "needs_rerun",
+            "rerun_context": {},
+        }
+    )
+
+    assert item["rerun_context_status"] == "missing"
+    assert "沒有可供局部重跑的原始分析上下文" in item["detail"]
+    assert "完整重跑" in item["detail"]
+    assert item["reason_codes"][-1] == "rerun_context_missing"
+
+
 def test_quality_metadata_repair_item_is_owned_by_dedicated_module():
     assert importlib.util.find_spec("report_quality_metadata_repair") is not None
     helpers = importlib.import_module("report_quality_repair_items")
