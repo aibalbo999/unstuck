@@ -14,10 +14,12 @@ SCHEMA_VERSION = "model_route_budget.v1"
 def build_model_route_budget(
     rows: list[dict[str, Any]],
     *,
+    provider_error_rows: list[dict[str, Any]] | None = None,
     slow_route_p95_ms: int = 60_000,
     retry_storm_threshold: int = 6,
 ) -> dict[str, Any]:
     telemetry = [row for row in rows or [] if isinstance(row, dict)]
+    provider_errors = [row for row in provider_error_rows or [] if isinstance(row, dict)]
     routes = defaultdict(_blank_bucket)
     models = defaultdict(_blank_bucket)
     for row in telemetry:
@@ -25,6 +27,11 @@ def build_model_route_budget(
         route_key = f"{_pipeline(row)}/{model}"
         for bucket in (routes[route_key], models[model]):
             _add_row(bucket, row)
+    for row in provider_errors:
+        model = _model(row)
+        route_key = f"{_pipeline(row)}/{model}"
+        for bucket in (routes[route_key], models[model]):
+            _add_provider_error(bucket, row)
     finalized_routes = {key: _finalize_bucket(bucket) for key, bucket in sorted(routes.items())}
     finalized_models = {key: _finalize_bucket(bucket) for key, bucket in sorted(models.items())}
     warnings = _warnings(finalized_routes, slow_route_p95_ms=slow_route_p95_ms, retry_storm_threshold=retry_storm_threshold)
@@ -32,6 +39,8 @@ def build_model_route_budget(
         "schema_version": SCHEMA_VERSION,
         "summary": {
             "sample_size": len(telemetry),
+            "provider_error_sample_size": len(provider_errors),
+            "provider_error_scope": "recent_api_usage_events",
             "route_count": len(finalized_routes),
             "model_count": len(finalized_models),
             "warning_count": len(warnings),
@@ -55,6 +64,8 @@ def _blank_bucket() -> dict[str, Any]:
         "billable_output_tokens": 0,
         "cache_hit_count": 0,
         "quality_gate_failures": 0,
+        "provider_error_count": 0,
+        "provider_quota_error_count": 0,
         "latencies": [],
     }
 
@@ -80,6 +91,12 @@ def _add_row(bucket: dict[str, Any], row: dict[str, Any]) -> None:
         bucket["latencies"].append(latency)
 
 
+def _add_provider_error(bucket: dict[str, Any], row: dict[str, Any]) -> None:
+    bucket["provider_error_count"] += 1
+    if str(row.get("status") or "").lower() in {"quota_error", "rate_limited"}:
+        bucket["provider_quota_error_count"] += 1
+
+
 def _finalize_bucket(bucket: dict[str, Any]) -> dict[str, Any]:
     calls = int(bucket["calls"])
     input_tokens = int(bucket["input_tokens"])
@@ -100,6 +117,8 @@ def _finalize_bucket(bucket: dict[str, Any]) -> dict[str, Any]:
         "billable_total_tokens": billable_input + billable_output,
         "cache_hit_count": int(bucket["cache_hit_count"]),
         "quality_gate_failures": int(bucket["quality_gate_failures"]),
+        "provider_error_count": int(bucket["provider_error_count"]),
+        "provider_quota_error_count": int(bucket["provider_quota_error_count"]),
         "avg_latency_ms": round(mean(latencies), 1) if latencies else None,
         "p95_latency_ms": _nearest_rank_percentile(latencies, 95) if latencies else None,
         "estimated_cost_usd": None,
@@ -115,6 +134,17 @@ def _warnings(routes: dict[str, dict[str, Any]], *, slow_route_p95_ms: int, retr
             warnings.append(_warning("slow_route", route, f"{route} p95_latency_ms={stats['p95_latency_ms']}"))
         if int(stats.get("quality_gate_failures") or 0) > 0:
             warnings.append(_warning("quality_gate_failures", route, f"{route} quality_gate_failures={stats['quality_gate_failures']}"))
+        provider_error_count = int(stats.get("provider_error_count") or 0)
+        provider_quota_error_count = int(stats.get("provider_quota_error_count") or 0)
+        if provider_error_count > 0:
+            warning_id = "provider_quota_errors" if provider_quota_error_count > 0 else "provider_errors"
+            warnings.append(
+                _warning(
+                    warning_id,
+                    route,
+                    f"{route} provider_error_count={provider_error_count} provider_quota_error_count={provider_quota_error_count}",
+                )
+            )
     return warnings
 
 

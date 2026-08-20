@@ -656,7 +656,7 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "LLM/API 本機觀測" in api_quota_panel_js
     assert "observed_model_quota_errors" in api_quota_panel_js
     assert "模型" in api_quota_panel_js
-    assert "api_quota_panel.js?v=20260816-model-quota-breakdown" in index_html
+    assert "api_quota_panel.js?v=20260821-provider-route-errors" in index_html
     assert "LLM/API 本機觀測" in operator_summary_helpers_js
     assert "LLM/API 健康" not in api_quota_panel_js
     assert "LLM 健康" not in operator_summary_helpers_js
@@ -4407,11 +4407,12 @@ window.StockAgentApiQuotaPanel.render({
     observed_model_quota_errors: { 'gemma-4-31b-it': 72, 'gemini-3.6-flash': 1 }
   } }],
   model_route_budget: {
-    summary: { sample_size: 12, warning_count: 3 },
+    summary: { sample_size: 12, warning_count: 4 },
     warnings: [
       { id: 'slow_route', route: 'v4/gemma-4-31b-it', message: 'p95_latency_ms=181619' },
       { id: 'retry_storm', route: 'v2/gemini-2.5-pro', message: 'retry_count=8' },
-      { id: 'quality_gate_failures', route: 'v3/gemini-3.5-flash', message: 'quality_gate_failures=1' }
+      { id: 'quality_gate_failures', route: 'v3/gemini-3.5-flash', message: 'quality_gate_failures=1' },
+      { id: 'provider_quota_errors', route: 'v4/gemma-4-31b-it', message: 'provider_error_count=2' }
     ]
   }
 }, { summaryEl, listEl, escapeHtml: value => String(value ?? '') });
@@ -4420,10 +4421,11 @@ process.stdout.write(JSON.stringify({ summary: summaryEl.textContent, html: list
     result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
     payload = json.loads(result.stdout)
 
-    assert "3 個路由警示" in payload["summary"]
+    assert "4 個路由警示" in payload["summary"]
     assert "路由延遲偏高" in payload["html"]
     assert "模型重試過多" in payload["html"]
     assert "品質檢查失敗" in payload["html"]
+    assert "Provider 配額錯誤" in payload["html"]
     assert "v4/gemma-4-31b-it" in payload["html"]
     assert "模型 gemma-4-31b-it 80 次" in payload["html"]
     assert "額度錯誤 72 次" in payload["html"]

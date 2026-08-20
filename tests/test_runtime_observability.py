@@ -2135,6 +2135,65 @@ def test_ops_dashboard_summarizes_latency_stuck_jobs_and_node_telemetry(monkeypa
     assert "secret-should-hide" not in str(payload)
 
 
+def test_ops_dashboard_separates_provider_errors_from_node_failures(monkeypatch, tmp_path):
+    db_path = tmp_path / "jobs.sqlite3"
+    monkeypatch.setattr(job_store, "TASK_DB_PATH", str(db_path))
+    monkeypatch.setattr(job_observability, "TASK_DB_PATH", str(db_path))
+    job_store.reset_job_store_for_tests()
+
+    job_id = job_store.create_job("2603.TW", "v4")
+    job_store.record_node_telemetry(
+        {
+            "job_id": job_id,
+            "ticker": "2603.TW",
+            "pipeline_id": "v4",
+            "node_name": "agent_23",
+            "model": "gemma-4-31b-it",
+            "latency_ms": 2_000,
+            "status": "success",
+        }
+    )
+
+    from api_usage_store import record_api_usage
+
+    record_api_usage(
+        service="Gemini / Google AI",
+        provider="google_ai",
+        operation="llm_model_error",
+        model_id="gemma-4-31b-it",
+        status="quota_error",
+        units=0,
+        metadata={"job_id": job_id, "key_slot": "key-01", "message": "quota exhausted"},
+        db_path=db_path,
+    )
+    record_api_usage(
+        service="Gemini / Google AI",
+        provider="google_ai",
+        operation="llm_model_error",
+        model_id="gemma-4-31b-it",
+        status="error",
+        units=0,
+        metadata={"job_id": job_id, "key_slot": "key-02", "message": "provider failed"},
+        db_path=db_path,
+    )
+
+    payload = job_observability.build_ops_dashboard_snapshot(db_path=str(db_path))
+
+    route = payload["model_route_budget"]["routes"]["v4/gemma-4-31b-it"]
+    assert route["calls"] == 1
+    assert route["failures"] == 0
+    assert route["provider_error_count"] == 2
+    assert route["provider_quota_error_count"] == 1
+    assert payload["model_route_budget"]["summary"]["provider_error_sample_size"] == 2
+    assert any(
+        warning["id"] == "provider_quota_errors"
+        and warning["route"] == "v4/gemma-4-31b-it"
+        for warning in payload["model_route_budget"]["warnings"]
+    )
+    assert "key-01" not in str(payload)
+    assert "key-02" not in str(payload)
+
+
 def test_ops_dashboard_excludes_queue_backed_waiting_retry_from_stuck_jobs(monkeypatch, tmp_path):
     db_path = tmp_path / "jobs.sqlite3"
     monkeypatch.setattr(job_store, "TASK_DB_PATH", str(db_path))

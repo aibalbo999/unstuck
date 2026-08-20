@@ -48,7 +48,7 @@
         if (errors) return { tone: 'warning', label: '有錯誤' };
         return { tone: service.configured ? 'ok' : 'warning', label: service.configured ? '已設定' : '未設定' };
     }
-    const routeWarningCopy = { slow_route: { tone: 'warning', label: '路由延遲偏高' }, retry_storm: { tone: 'critical', label: '模型重試過多' }, quality_gate_failures: { tone: 'critical', label: '品質檢查失敗' } };
+    const routeWarningCopy = { slow_route: { tone: 'warning', label: '路由延遲偏高' }, retry_storm: { tone: 'critical', label: '模型重試過多' }, quality_gate_failures: { tone: 'critical', label: '品質檢查失敗' }, provider_quota_errors: { tone: 'critical', label: 'Provider 配額錯誤' }, provider_errors: { tone: 'critical', label: 'Provider 錯誤' } };
     function routeWarnings(payload) { return Array.isArray(payload?.model_route_budget?.warnings) ? payload.model_route_budget.warnings.filter(item => item && typeof item === 'object').slice(0, 20) : []; }
     function routeWarningMarkup(warning, escapeHtml) {
         const copy = routeWarningCopy[String(warning.id)] || { tone: 'warning', label: '模型路由警示' };

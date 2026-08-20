@@ -103,3 +103,34 @@ def test_model_route_budget_groups_by_model_without_pipeline_loss():
     assert set(budget["routes"]) == {"v1/model-a", "v2/model-a"}
     assert budget["models"]["model-a"]["calls"] == 2
     assert budget["models"]["model-a"]["p95_latency_ms"] == 2_000
+
+
+def test_model_route_budget_separates_provider_errors_from_node_failures():
+    from model_route_budget import build_model_route_budget
+
+    budget = build_model_route_budget(
+        [
+            {
+                "pipeline_id": "v4",
+                "node_name": "agent_23",
+                "model": "gemma-4-31b-it",
+                "latency_ms": 2_000,
+                "status": "success",
+            }
+        ],
+        provider_error_rows=[
+            {"pipeline_id": "v4", "model": "gemma-4-31b-it", "status": "quota_error"},
+            {"pipeline_id": "v4", "model": "gemma-4-31b-it", "status": "error"},
+        ],
+    )
+
+    route = budget["routes"]["v4/gemma-4-31b-it"]
+    assert route["calls"] == 1
+    assert route["failures"] == 0
+    assert route["failure_rate"] == 0.0
+    assert route["provider_error_count"] == 2
+    assert route["provider_quota_error_count"] == 1
+    assert budget["summary"]["provider_error_sample_size"] == 2
+    warning = next(item for item in budget["warnings"] if item["route"] == "v4/gemma-4-31b-it")
+    assert warning["id"] == "provider_quota_errors"
+    assert "provider_error_count=2" in warning["message"]

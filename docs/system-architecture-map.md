@@ -102,6 +102,7 @@ flowchart LR
     JobStore --> OpDB
     WatchlistStore --> OpDB
     OpsRoute --> OpDB
+    OpsRoute --> RouteBudget["model_route_budget<br/>node telemetry + provider ledger sample"]
     NotificationAudit["notification_delivery_audit"] --> OpDB
 ```
 
@@ -181,6 +182,7 @@ flowchart TD
 | 報告 snapshot 最新價 | `backend/output/**/<filename>.data.json` | `backend/output/<filename>.data.json` 固定路徑假設 |
 | 分析任務進度 | `operational.sqlite3` -> `analysis_jobs`, `analysis_events` | RQ registry alone |
 | Provider 健康度 | `operational.sqlite3` -> `provider_sla_*` | 外部 provider billing/dashboard |
+| LLM 路由維運觀測 | `operational.sqlite3` -> `analysis_node_telemetry` + `api_usage_events` | 將 fallback 後的節點成功當成 provider 沒有錯誤 |
 | Notification delivery 結果 | `operational.sqlite3` -> `notification_delivery_audit` | `stock_agent_cache.sqlite3` 或外部 channel dashboard |
 | Watchlist 狀態 | `operational.sqlite3` -> `watchlist_*` | legacy JSON path |
 | 報告列表/搜尋 | `stock_agent_cache.sqlite3` -> `reports` | filesystem scan alone |
@@ -194,6 +196,7 @@ flowchart TD
 - Notification delivery 的成功、失敗與重試稽核屬 operational state，走 `notification_delivery_audit`，不要寫進 report index。
 - Provider SLA dashboard 的 window/metric normalization 留在 `provider_sla_observability`，alert/source-health projection 放 `provider_sla_dashboard_payload`，shape-safe queue/stuck helpers 放 `api_observability_payload_helpers`；`api_observability_service` 只負責聚合維運 API payload。
 - Provider SLA dashboard 保留核心來源的 system-level `critical`；若同一 source 在選定視窗有可用 provider，alert 另標記 `current_source_has_healthy_entry=true`，並以 `core_critical_covered_count`/`core_critical_uncovered_count` 提供快速掃讀，讓操作人員看見備援覆蓋，但不把它誤當成單份報告已可重跑或已恢復。
+- `model_route_budget.v1` 的 `failures`/`failure_rate` 只代表 `analysis_node_telemetry` 的節點結果；同一個 route 另以 `provider_error_count`、`provider_quota_error_count` 與 `provider_error_scope=recent_api_usage_events` 呈現 bounded ledger sample。provider error 透過 `api_usage_events.metadata_json.job_id` 回填 `analysis_jobs.pipeline_id`，只供唯讀維運警示，不改 model route、circuit、queue、rerun 或 report state。
 - RQ queue observability 必須同時保留 per-queue registry counts；`failed_queue_count` 是總量，`failed_queue_attention_count` 依 `failure_ttl` 的 7 天門檻判定近期需處理量，供 ops status、Prometheus 與維運面板共用，不自動清除或重試 failed jobs。
 - stale failed queue 的清理走 `queue_maintenance.cleanup_stale_failed_jobs`，由 `POST /api/maintenance/cleanup-failed-queue`、維護面板與 `scripts/maintenance.sh cleanup-failed-queue` 共用；預設 dry-run，只有 mutation token 加明確 `write=true` 才刪除能由 `ended_at`/`created_at` 證明已過期的 job，近期或無法判定年齡的 job 保留。
 - 維護面板四個清理按鈕共用 `maintenance_action_helpers.js` 的 preview-confirmation gate；報告索引、任務紀錄、來源健康紀錄與 stale queue 都先用 `write=false` 取得候選數，取消、零候選或確認器不可用時不呼叫 `write=true`。

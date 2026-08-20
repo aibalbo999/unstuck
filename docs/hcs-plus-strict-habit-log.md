@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3639 / separate provider errors from node failures in route observability
+
+- `#拆解問題` / `#證據基礎`：live `model_route_budget` 的 `failures=0` 只代表節點 telemetry；同一 `api_usage_events` ledger 已有 provider quota/error，fallback 成功使路由摘要低估風險。先以 `job_id -> analysis_jobs.pipeline_id` 對回 route，不把 provider attempt 直接算成節點 failure。
+- `#偏誤降低` / `#語意含義`：新增 bounded `recent_api_usage_events` sample 與 `provider_error_count`/`provider_quota_error_count`，warning 使用 `provider_quota_errors` 或 `provider_errors`；保留 reset-window API quota aggregate 與 route node metrics 的不同統計範圍，UI 以專用 Provider 文案呈現。
+- `#責任` / `#最小變更`：provider ledger reader 抽成 `job_ops_dashboard_provider_errors`，只回傳 pipeline/model/status；不輸出 key slot、message、secret，不改 model route、Redis circuit、queue、report、rerun 或任何 persisted state。
+- `#可驗證性`：RED→GREEN 後 model/runtime `150 passed`、static history `139 passed`、docs contract `69 passed`；Python/Node compile、dashboard import-boundary gate 與 `git diff --check` 通過，runtime health/readiness/doctor 及 in-app 維運頁 live smoke 通過。完整 import-boundary suite 仍有上一批 `daily_decision_queue.py` 的既有 257 行門檻失敗，本輪未觸碰該檔案。
+
 ## D3638 / keep report-repair navigation consistent across queue and notifications
 
 - `#差距分析` / `#受眾`：live `report_repair` queue item 已有 filename，但沒有 CTA/target metadata；notification message/outbox 卻已有 `view-report`、`人工審核`、`active-jobs-panel/ops`，直接消費 queue 的入口會與通知漂移。

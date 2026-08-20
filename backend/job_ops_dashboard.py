@@ -12,6 +12,7 @@ from analysis_job_queue_state import task_queue_job_state
 from config import TASK_DB_PATH
 from job_store import ACTIVE_JOB_STATUSES
 from job_ops_dashboard_metrics import job_latency_summary, node_telemetry_summary, prompt_budget_summary
+from job_ops_dashboard_provider_errors import provider_error_rows as _provider_error_rows
 from model_route_budget import build_model_route_budget
 from security_sanitizer import sanitize_error_message
 
@@ -41,6 +42,7 @@ def build_ops_dashboard_snapshot(
             active_counts = _active_job_counts(conn)
             stuck_jobs = _stuck_job_rows(conn, current_time, safe_stuck_after, task_queue=task_queue)
             telemetry_rows = _telemetry_rows(conn, safe_telemetry_limit)
+            provider_error_rows = _provider_error_rows(conn, safe_telemetry_limit)
     except sqlite3.Error as exc:
         payload = _empty_ops_dashboard(db_exists=True, stuck_after_seconds=safe_stuck_after)
         payload["error"] = sanitize_error_message(exc)
@@ -61,7 +63,10 @@ def build_ops_dashboard_snapshot(
         },
         "node_telemetry": node_telemetry_summary(telemetry_rows),
         "prompt_budget": prompt_budget_summary(telemetry_rows),
-        "model_route_budget": build_model_route_budget(telemetry_rows),
+        "model_route_budget": build_model_route_budget(
+            telemetry_rows,
+            provider_error_rows=provider_error_rows,
+        ),
     }
 
 
@@ -123,7 +128,6 @@ def _job_latency_rows(conn: sqlite3.Connection, limit: int) -> list[dict]:
         (limit,),
     ).fetchall()
     return [dict(row) for row in rows]
-
 def _active_job_counts(conn: sqlite3.Connection) -> Counter:
     rows = conn.execute(
         f"""
