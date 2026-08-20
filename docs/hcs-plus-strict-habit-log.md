@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3610 / retain horizon-sequence evidence in credibility output
+
+- `#差距分析` / `#責任`：final-audit 已有 3/6/12 個月時序規則，但 content credibility 沒有自己的 trace；raw final-audit 缺失時，歷史/API projection 只剩主要目標價方向，可能漏掉中期目標倒退。
+- `#組成` / `#來源品質`：新增 `content_credibility_horizons`，重用 `forward_consistency_checker.check_target_price_sequence()`；只對至少兩個可解析且具方向性的 horizon 產生 `horizon_target_sequence_conflict` warning，不重建缺值、不改 final-audit critical 或 queue 行為。
+- `#可驗證性` / `#偏誤降低`：先取得 integration RED，再 GREEN；跨層 quality 回歸 `319 passed`，live smoke 產生 `horizon_target_sequence_conflict` warning；daily 與 current historical 分別以 `all_indexed_reports/latest_per_ticker_pipeline`、`all_historical_indexed_reports/all_indexed_versions` 驗證為 `158/2/98.73%`，repair queue `0`，health/readiness/doctor 通過，維持 read-only mutation boundary。
+
 ## D3609 / do not overstate confidence without evidence
 
 - `#偏誤辨識` / `#證據基礎`：`not_recorded` 被當成「不矛盾」而 passed，會讓高信心結論繞過 evidence gate 缺口；`NaN` 只是輸入正規化，不是證據通過。

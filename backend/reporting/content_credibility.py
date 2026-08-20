@@ -12,6 +12,7 @@ from .content_credibility_data_confidence import evaluate_data_confidence_target
 from .content_credibility_evidence_confidence import evaluate_confidence_evidence_alignment
 from .content_credibility_evidence_matrix import evaluate_evidence_matrix_coverage
 from .content_credibility_final_audit import evaluate_final_audit_alignment, final_audit_from_conformance
+from .content_credibility_horizons import evaluate_horizon_target_sequence
 from .content_credibility_scenarios import evaluate_scenario_target_order
 from .content_credibility_trade_setup import evaluate_trade_setup_alignment
 from .content_credibility_inputs import (
@@ -72,6 +73,11 @@ def evaluate_content_credibility(context: dict, snapshot: dict | None = None, ma
     blocking.extend(scenario_alignment["blocking_issues"])
     warnings.extend(scenario_alignment["warnings"])
     checks.extend(scenario_alignment["checks"])
+
+    horizon_alignment = evaluate_horizon_target_sequence(parsed)
+    blocking.extend(horizon_alignment["blocking_issues"])
+    warnings.extend(horizon_alignment["warnings"])
+    checks.extend(horizon_alignment["checks"])
 
     final_audit_alignment = evaluate_final_audit_alignment(final_audit)
     blocking.extend(final_audit_alignment["blocking_issues"])

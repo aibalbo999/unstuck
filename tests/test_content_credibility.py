@@ -88,6 +88,20 @@ def test_content_credibility_uses_target_range_midpoint_after_percent_preface():
     assert not any(issue["id"] == "buy_target_below_current_price" for issue in result["blocking_issues"])
 
 
+def test_content_credibility_warns_when_horizon_targets_reverse_for_buy():
+    from reporting.content_credibility import evaluate_content_credibility
+
+    context = _base_context(recommendation="買入", target_12m="NT$130")
+    context["parsed"]["recommendation"]["3個月"] = "NT$150"
+    context["parsed"]["recommendation"]["6個月"] = "NT$100"
+
+    result = evaluate_content_credibility(context, _base_snapshot(context))
+
+    assert result["status"] == "warning"
+    issue = next(issue for issue in result["warnings"] if issue["id"] == "horizon_target_sequence_conflict")
+    assert issue["details"]["recommendation"] == "買入"
+
+
 def test_content_credibility_blocks_when_scenario_targets_are_inverted():
     from reporting.content_credibility import evaluate_content_credibility
 

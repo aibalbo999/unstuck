@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-20
+- D3610：D3609 後對照 final-audit 與 content-credibility 責任，發現 3/6/12 個月目標價時序規則只在 final-audit 留下字串；content gate 只看主要目標價方向，歷史/API 缺 raw final-audit 時缺少同一 trace。新增 horizon evaluator，重用既有 sequence rule，方向性時序異常為 `horizon_target_sequence_conflict` warning，不取代 final-audit critical。
+- D3610 驗證完成：新增買入目標價倒退的 RED→GREEN integration；跨層 quality 回歸為 `319 passed`，live module smoke 產生 `horizon_target_sequence_conflict` warning；daily audit `158/2/98.73%`、current historical `158/2/98.73%`，repair queue `0`，health/readiness/doctor 通過。未改 snapshot、artifact、index、review ledger、rerun 或 daily queue。
 - D3609：D3608 後重新核對 evidence-confidence 分支，發現 `not_recorded`（含 `NaN` 正規化）與高信心 `9/10` 會直接 passed，和「證據未記錄不能支撐高信心」的品質語意矛盾。新增 `high_confidence_unrecorded_evidence` warning；不把缺失證據升級成 rejected，低/未知信心維持原非阻斷行為。
 - D3609 驗證完成：evidence-confidence RED→GREEN `4 passed`，跨層 quality/conformance `318 passed`；live module smoke 為 `warning/high_confidence_unrecorded_evidence`，daily/current historical `157/2/98.73%`，repair queue `0`，decision queue `2`（watchlist 待分析與 screener 候選），health/readiness/doctor 通過。未改 snapshot、artifact、index、review ledger、rerun 或 daily queue。
 - D3608：D3607 後重新檢查 alignment 分支，發現 recommendation map 有值但 normalized label 為未知字串時，沒有任何 branch 會落入 warning，反而回傳 passed。新增共用 canonical label guard：`unrecognized_recommendation_label` 為 warning，方向比較略過；final-audit 仍維持 structural blocked 責任。
