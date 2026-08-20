@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3641 / align route-warning navigation across queue and notifications
+
+- `#差距分析` / `#受眾`：live `decision_queue.items` 的 route warning 只有 route/warning id，notification message/outbox 已有 CTA；只讀 queue consumer 無法可靠開啟相同的 model-route panel。
+- `#責任` / `#溝通設計`：`daily_decision_route_warnings` 重用 `operator_action_contract.navigation_context()`；provider quota、provider error、retry 與 quality route warnings 都輸出 `open-ops`、`查看路由`、`api-quota-panel`、`ops`，明確自訂 metadata 仍 authoritative。
+- `#偏誤降低` / `#最小變更`：只補 navigation metadata，不改 `NON_ACTIONABLE_WARNING_IDS`、warning priority、model route、queue ordering、notification suppression 或 report/rerun state。
+- `#可驗證性`：RED→GREEN 後 daily queue/dashboard/free notification `231 passed`，selected regression `1159 passed`，compile/diff check 通過；runtime reload 後維運頁顯示 `6` 筆 Provider 配額告警，live queue/message/delivery outbox 的可見 route warnings 四個 navigation fields 完全一致。
+
 ## D3640 / split report follow-up shaping from daily queue orchestration
 
 - `#差距分析` / `#組成`：完整 import-boundary gate 顯示 `daily_decision_queue.py` 已達 257 行；它同時收集跨來源 action、排序 queue，並處理到期回測、重跑報告與日期解析，讓報告規則變更會擴大 queue owner 的耦合面。

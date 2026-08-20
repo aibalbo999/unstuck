@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-21
+- D3641：live daily queue 的 `model_route_warning` 只有 source/type/route/warning_id，notification message/outbox 卻已有 `open-ops`、`查看路由` 與 `api-quota-panel/ops`；直接消費 queue 的工作台必須自行推導入口。現在 queue route-warning projection 重用 `operator_action_contract.navigation_context()`，不改 warning suppression、priority、route policy 或任何 state mutation。
+- D3641 驗證：先以 live-shaped provider quota warning 建立 RED，再 GREEN；daily queue/dashboard/free notification `231 passed`，完整 selected regression `1159 passed`，Python compile、`git diff --check` 通過。runtime reload 後維運頁顯示 `6` 筆 Provider 配額告警；live queue、notification message、delivery outbox 的可見 route warnings 均保留 `open-ops`、`查看路由`、`api-quota-panel`、`ops` 四個 navigation fields，未改 warning policy 或 state。
 - D3640：完整 import-boundary suite 暴露 `daily_decision_queue.py` 已達 257 行，queue orchestration 同時承擔到期回測、重跑報告與日期解析。新增 `daily_decision_report_actions.py` 承接純 report follow-up payload shaping，主 queue 降至 165 行，保留既有排序、dedupe、skip key 與 action contract。
 - D3640 驗證：先以 import-boundary contract 取得 RED，再 GREEN；完整 import-boundary `504 passed`，daily queue/dashboard/free notification lane `231 passed`，Python compile、`git diff --check` 通過；helper 為 111 行、無新增 runtime state 或 queue/report/index mutation，live health/readiness 維持通過。
 - D3639：live `model_route_budget` 只看 `analysis_node_telemetry` 時，`v4/gemma-4-31b-it` 顯示 `failures=0`，但同一 operational ledger 已有大量 provider quota/error；fallback 成功會遮住 provider attempt 風險。新增 bounded `api_usage_events` provider-error sample，route/model 另輸出 `provider_error_count`、`provider_quota_error_count` 與專用 warning，保留 `failures` 的節點語意，不改 model route、Redis circuit、queue 或報告狀態。

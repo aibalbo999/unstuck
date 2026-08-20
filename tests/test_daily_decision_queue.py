@@ -1593,6 +1593,33 @@ def test_daily_decision_queue_excludes_latency_but_preserves_retry_route_warning
     ]
 
 
+def test_daily_decision_queue_route_warnings_include_navigation_metadata():
+    queue = build_daily_decision_queue(
+        reports=[],
+        repair_items=[],
+        rerun_reports=[],
+        high_priority_watchlist=[],
+        candidates=[],
+        performance={"summary": {}, "details": []},
+        free_mode={"enabled": True, "can_run_without_paid_keys": True, "violations": []},
+        ops={
+            "model_route_budget": {
+                "warnings": [{
+                    "id": "provider_quota_errors",
+                    "route": "v4/gemma-4-31b-it",
+                    "message": "provider_error_count=7 provider_quota_error_count=6",
+                }]
+            }
+        },
+    )
+
+    item = queue["items"][0]
+    assert item["operator_action"] == "open-ops"
+    assert item["operator_action_label"] == "查看路由"
+    assert item["target_panel"] == "api-quota-panel"
+    assert item["target_tab"] == "ops"
+
+
 def test_daily_decision_queue_route_warnings_accept_mapping_payloads():
     queue = build_daily_decision_queue(
         reports=[],

@@ -6,6 +6,7 @@ from typing import Any
 
 from mapping_fields import mapping_field as _field
 from mapping_fields import safe_dict_list, safe_mapping_dict, safe_text
+from operator_action_contract import navigation_context
 
 
 NON_ACTIONABLE_WARNING_IDS = frozenset({"slow_route"})
@@ -25,7 +26,7 @@ def _warning_payload(warning: dict[str, Any]) -> dict[str, Any]:
     priority = {"quality_gate_failures": 820, "retry_storm": 650, "slow_route": 610}.get(warning_id, 600)
     route = safe_text(_field(warning, "route")).strip() or "unknown"
     detail = safe_text(_field(warning, "message")).strip() or warning_id
-    return {
+    payload = {
         "source": "model_route_budget",
         "type": "model_route_warning",
         "priority_score": priority,
@@ -34,6 +35,8 @@ def _warning_payload(warning: dict[str, Any]) -> dict[str, Any]:
         "route": route,
         "warning_id": warning_id,
     }
+    payload.update(navigation_context(payload))
+    return payload
 
 
 def _warning_id(warning: dict[str, Any]) -> str:
