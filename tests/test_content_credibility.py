@@ -202,6 +202,23 @@ def test_content_credibility_warns_high_confidence_when_evidence_is_unrecorded()
     assert any(issue["id"] == "high_confidence_unrecorded_evidence" for issue in result["warnings"])
 
 
+def test_content_credibility_warns_when_confidence_exceeds_data_trust_cap():
+    from reporting.content_credibility import evaluate_content_credibility
+
+    context = _base_context(
+        recommendation="持有",
+        target_12m="NT$105",
+        confidence="9/10",
+        trust={"status": "partial", "score": 72, "critical_failures": [], "stale_sources": [], "notes": []},
+    )
+    result = evaluate_content_credibility(context, _base_snapshot(context))
+
+    assert result["status"] == "warning"
+    issue = next(issue for issue in result["warnings"] if issue["id"] == "confidence_exceeds_data_trust_cap")
+    assert issue["details"]["data_trust_status"] == "partial"
+    assert issue["details"]["max_recommended_confidence"] == 7
+
+
 def test_content_credibility_blocks_when_final_audit_has_critical_issue():
     from reporting.content_credibility import evaluate_content_credibility
 

@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3615 / surface confidence caps from shared calibration
+
+- `#偏誤辨識` / `#證據基礎`：final-audit 已判定 `data_trust=partial/stale/unknown` 或跨來源衝突會降低信心上限，但 content credibility 只顯示 non-fresh，沒有指出 recommendation 的 raw/effective confidence 已超過 cap。
+- `#責任` / `#語意含義`：重用 `build_confidence_calibration()` 與既有 conflict predicate；只有 `needs_downgrade` 產生 `confidence_exceeds_data_trust_cap` warning，保留 cap、分數與 reasons，`calibrated/aligned/unavailable` 維持非警示。
+- `#可驗證性` / `#偏誤降低`：先取得 integration RED，再 GREEN focused content/calibration `37 passed`、跨層 quality/document `500 passed`；live `partial + 9/10` 產生 cap `7/10` warning，daily `165/2/98.79%`、current artifact 三 fields、repair action `0`、health/readiness/doctor 通過，保留 read-only mutation boundary。
+
 ## D3614 / require evidence for every existing structured conclusion
 
 - `#偏誤辨識` / `#證據基礎`：evidence matrix builder 已建立 `估值結論` 與 `護城河評分`，但 content credibility 只檢查 `最終投資建議`；缺 row 或 failed row 會被錯誤當成沒有問題。

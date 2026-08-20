@@ -8,6 +8,7 @@ from data_trust_scoring import normalize_data_trust
 from mapping_fields import safe_mapping_dict, safe_text
 from recommendation_labels import normalize_recommendation_label
 from .content_credibility_alignment import evaluate_recommendation_target_alignment
+from .content_credibility_confidence_calibration import evaluate_confidence_data_trust_calibration
 from .content_credibility_data_confidence import evaluate_data_confidence_target_guardrail
 from .content_credibility_evidence_confidence import evaluate_confidence_evidence_alignment
 from .content_credibility_evidence_matrix import evaluate_evidence_matrix_coverage
@@ -94,6 +95,15 @@ def evaluate_content_credibility(context: dict, snapshot: dict | None = None, ma
     blocking.extend(data_confidence["blocking_issues"])
     warnings.extend(data_confidence["warnings"])
     checks.extend(data_confidence["checks"])
+
+    confidence_calibration = evaluate_confidence_data_trust_calibration(
+        context=context,
+        recommendation=recommendation,
+        data_trust=data_trust,
+    )
+    blocking.extend(confidence_calibration["blocking_issues"])
+    warnings.extend(confidence_calibration["warnings"])
+    checks.extend(confidence_calibration["checks"])
 
     evidence_confidence = evaluate_confidence_evidence_alignment(evidence_verdict, confidence_score)
     blocking.extend(evidence_confidence["blocking_issues"])
