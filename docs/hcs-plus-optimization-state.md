@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-21
+- D3640：完整 import-boundary suite 暴露 `daily_decision_queue.py` 已達 257 行，queue orchestration 同時承擔到期回測、重跑報告與日期解析。新增 `daily_decision_report_actions.py` 承接純 report follow-up payload shaping，主 queue 降至 165 行，保留既有排序、dedupe、skip key 與 action contract。
+- D3640 驗證：先以 import-boundary contract 取得 RED，再 GREEN；完整 import-boundary `504 passed`，daily queue/dashboard/free notification lane `231 passed`，Python compile、`git diff --check` 通過；helper 為 111 行、無新增 runtime state 或 queue/report/index mutation，live health/readiness 維持通過。
 - D3639：live `model_route_budget` 只看 `analysis_node_telemetry` 時，`v4/gemma-4-31b-it` 顯示 `failures=0`，但同一 operational ledger 已有大量 provider quota/error；fallback 成功會遮住 provider attempt 風險。新增 bounded `api_usage_events` provider-error sample，route/model 另輸出 `provider_error_count`、`provider_quota_error_count` 與專用 warning，保留 `failures` 的節點語意，不改 model route、Redis circuit、queue 或報告狀態。
 - D3639 驗證：provider budget、dashboard pipeline join、前端 warning 先 RED 再 GREEN；model/runtime `150 passed`、static history `139 passed`、docs contract `69 passed`，Python/Node compile、import-boundary dashboard gate 與 `git diff --check` 通過。runtime reload 後 `/healthz=ok`、`/readyz=ready`、canonical doctor paths 通過；live route `v4/gemma-4-31b-it` 保留 `failures=0` 並顯示 provider error warning，API quota reset-window `168` 次維持原值，stale failed queue `10` 筆未被清理。
 - D3638：live `2603.TW v4` 的 `report_repair` queue item 有 filename，但 `operator_action`、`operator_action_label`、`target_panel`、`target_tab` 是空值；同一 action 的 notification message/outbox 已是 `view-report`、`人工審核`、`active-jobs-panel/ops`，直接消費 queue 的工作台或整合端因此無法重建相同下一步。現在所有帶 filename 的 repair payload 都沿用 `operator_action_contract`，quality-audit 的 targeted history 特例與明確自訂 metadata 不變。

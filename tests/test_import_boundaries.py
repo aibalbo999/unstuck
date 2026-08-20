@@ -1972,6 +1972,20 @@ def test_daily_decision_provider_items_are_split_from_queue():
     assert len(report_keys.read_text(encoding="utf-8").splitlines()) < 40
 
 
+def test_daily_decision_report_actions_are_split_from_queue():
+    queue = BACKEND / "daily_decision_queue.py"
+    actions = BACKEND / "daily_decision_report_actions.py"
+    queue_text = queue.read_text(encoding="utf-8")
+
+    assert actions.exists()
+    assert "from daily_decision_report_actions import" in queue_text
+    assert "def _backtest_due_items" not in queue_text
+    assert "def _rerun_items" not in queue_text
+    assert "def _report_date" not in queue_text
+    assert len(queue_text.splitlines()) < 250
+    assert len(actions.read_text(encoding="utf-8").splitlines()) < 140
+
+
 def test_free_notification_identity_helpers_are_split_from_plan():
     plan = BACKEND / "free_notification_plan.py"
     identity = BACKEND / "free_notification_identity.py"

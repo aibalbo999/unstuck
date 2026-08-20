@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3640 / split report follow-up shaping from daily queue orchestration
+
+- `#差距分析` / `#組成`：完整 import-boundary gate 顯示 `daily_decision_queue.py` 已達 257 行；它同時收集跨來源 action、排序 queue，並處理到期回測、重跑報告與日期解析，讓報告規則變更會擴大 queue owner 的耦合面。
+- `#責任` / `#最佳化`：新增 `daily_decision_report_actions`，只承接 `backtest_due`、`rerun_report` 與 report-date parsing；queue 保留 orchestration、skip key、排序與 `queue_response`，不改 public `daily_decision_queue.v1` payload。
+- `#可驗證性` / `#研究複製`：import-boundary RED→GREEN；完整 import-boundary `504 passed`，queue/dashboard/free notification `231 passed`，queue `165` 行、helper `111` 行，compile/diff check 通過；runtime/readiness 與既有 stale queue 狀態未被寫入。
+
 ## D3639 / separate provider errors from node failures in route observability
 
 - `#拆解問題` / `#證據基礎`：live `model_route_budget` 的 `failures=0` 只代表節點 telemetry；同一 `api_usage_events` ledger 已有 provider quota/error，fallback 成功使路由摘要低估風險。先以 `job_id -> analysis_jobs.pipeline_id` 對回 route，不把 provider attempt 直接算成節點 failure。
