@@ -15,14 +15,12 @@ from free_notification_plan_constants import (
     DELIVERY_CONTEXT_KEYS,
     MESSAGE_CONTEXT_KEYS,
     NUMERIC_MESSAGE_CONTEXT_KEYS,
-    OPERATOR_ACTION_BY_SOURCE_AND_TYPE,
-    OPERATOR_ACTION_BY_TYPE,
-    TARGET_PANEL_BY_SOURCE_AND_TYPE,
-    TARGET_PANEL_BY_TYPE,
     TEXT_MESSAGE_CONTEXT_KEYS,
 )
 from free_notification_suppression import explicit_bool, suppress_notification_action
 from mapping_fields import mapping_field as _field, safe_dict_list, safe_int, safe_mapping_dict, safe_text, safe_text_list
+from operator_action_contract import operator_action_context as _operator_cta_context
+from operator_action_contract import target_context as _target_context
 SCHEMA_VERSION = "notification_plan.v1"
 
 
@@ -225,34 +223,6 @@ def _message_context(action: dict[str, Any]) -> dict[str, Any]:
     context["target_panel"] = target["target_panel"]
     context["target_tab"] = target["target_tab"]
     return context
-
-
-def _operator_cta_context(action: dict[str, Any]) -> dict[str, str]:
-    action_type = _action_type(action)
-    source = source_key(_field(action, "source"))
-    default_action, default_label = OPERATOR_ACTION_BY_SOURCE_AND_TYPE.get(
-        (source, action_type),
-        OPERATOR_ACTION_BY_TYPE.get(action_type, ("open-ops", "查看狀態")),
-    )
-    return {
-        "operator_action": _first_text(action, "operator_action", "operatorAction") or default_action,
-        "operator_action_label": _first_text(action, "operator_action_label", "operatorActionLabel", "action_label") or default_label,
-    }
-
-
-def _target_context(action: dict[str, Any]) -> dict[str, str]:
-    action_type = _action_type(action)
-    source = source_key(_field(action, "source"))
-    panel = _first_text(action, "target_panel", "targetPanel") or TARGET_PANEL_BY_SOURCE_AND_TYPE.get(
-        (source, action_type),
-        TARGET_PANEL_BY_TYPE.get(action_type),
-    ) or "active-jobs-panel"
-    tab = _first_text(action, "target_tab", "targetTab") or _target_tab_for_panel(panel)
-    return {"target_panel": panel, "target_tab": tab}
-
-
-def _target_tab_for_panel(panel: str) -> str:
-    return {"watchlist-panel": "tracking", "market-screener-panel": "screener", "history-quality-audit": "analysis"}.get(panel, "ops")
 
 
 def _source_counts(actions: list[dict[str, Any]]) -> dict[str, int]:

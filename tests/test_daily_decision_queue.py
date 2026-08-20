@@ -699,7 +699,43 @@ def test_daily_decision_queue_surfaces_complete_quality_audit_gaps_without_dupli
     assert queue["items"][0]["source"] == "report_quality_audit"
     assert queue["items"][0]["filename"] == "1623_gap.html"
     assert queue["items"][0]["blocks_auto_rerun"] is True
+    assert queue["items"][0]["operator_action"] == "quality-audit-review"
+    assert queue["items"][0]["operator_action_label"] == "前往人工核對"
+    assert queue["items"][0]["target_panel"] == "history-quality-audit"
+    assert queue["items"][0]["target_tab"] == "analysis"
     assert [item["filename"] for item in queue["items"]].count("2330_gap.html") == 1
+
+
+def test_daily_decision_queue_preserves_explicit_quality_audit_navigation_metadata():
+    queue = build_daily_decision_queue(
+        reports=[],
+        repair_items=[],
+        quality_audit_items=[
+            {
+                "ticker": "1623.TW",
+                "filename": "1623_custom.html",
+                "pipeline_id": "v2",
+                "title": "品質 metadata 缺口",
+                "detail": "由上游指定人工核對入口。",
+                "recommended_action": "manual_review",
+                "operator_action": "custom-quality-review",
+                "operator_action_label": "查看自訂稽核",
+                "target_panel": "custom-quality-panel",
+                "target_tab": "custom",
+            }
+        ],
+        rerun_reports=[],
+        high_priority_watchlist=[],
+        candidates=[],
+        performance={"summary": {}, "details": []},
+        free_mode={"enabled": True, "can_run_without_paid_keys": True, "violations": []},
+    )
+
+    item = queue["items"][0]
+    assert item["operator_action"] == "custom-quality-review"
+    assert item["operator_action_label"] == "查看自訂稽核"
+    assert item["target_panel"] == "custom-quality-panel"
+    assert item["target_tab"] == "custom"
 
 
 def test_daily_decision_queue_free_mode_violations_use_string_safe_list():

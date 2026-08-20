@@ -13,6 +13,7 @@ from daily_decision_route_warnings import route_warning_items
 from decision_backtest import BACKTEST_HORIZONS, add_calendar_months
 from mapping_fields import mapping_field as _field
 from mapping_fields import safe_dict_list, safe_int, safe_mapping_dict, safe_text, safe_text_list
+from operator_action_contract import navigation_context
 
 SCHEMA_VERSION = "daily_decision_queue.v1"
 
@@ -177,7 +178,7 @@ def _repair_action_payload(item: dict[str, Any], *, source: str = "report_repair
     pipeline_id = safe_text(_field(item, "pipeline_id")).strip() or "v1"
     filename = safe_text(_field(item, "filename")).strip() or safe_text(_field(item, "report_filename")).strip() or None
     title = safe_text(_field(item, "title")).strip() or "報告需處理"
-    return {
+    action_payload = {
         "source": source,
         "type": action_type,
         "priority_score": _int(_field(item, "priority_score")) or 700,
@@ -193,6 +194,13 @@ def _repair_action_payload(item: dict[str, Any], *, source: str = "report_repair
         "blocks_auto_rerun": _bool(_field(item, "blocks_auto_rerun")),
         "reason_codes": safe_text_list(_field(item, "reason_codes")),
     }
+    for key in ("operator_action", "operator_action_label", "target_panel", "target_tab"):
+        value = safe_text(_field(item, key)).strip()
+        if value:
+            action_payload[key] = value
+    if source == "report_quality_audit" and filename:
+        action_payload.update(navigation_context(action_payload))
+    return action_payload
 
 
 def _rerun_report_payload(report: dict[str, Any]) -> dict[str, Any]:

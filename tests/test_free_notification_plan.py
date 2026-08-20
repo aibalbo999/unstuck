@@ -1729,6 +1729,30 @@ def test_notification_plan_routes_quality_audit_manual_review_to_targeted_human_
     assert repair_message["operator_action_label"] == "查看報告"
 
 
+def test_notification_plan_does_not_target_history_without_quality_report_identity():
+    plan = build_daily_notification_plan(
+        {
+            "decision_queue": {
+                "items": [
+                    {
+                        "source": "report_quality_audit",
+                        "type": "manual_review",
+                        "title": "品質稽核缺少報告識別",
+                        "detail": "不可建立 targeted history 範圍。",
+                    }
+                ]
+            }
+        },
+        env={},
+    )
+
+    message = plan["messages"][0]
+    assert message["operator_action"] == "view-report"
+    assert message["operator_action_label"] == "查看報告"
+    assert message["target_panel"] == "active-jobs-panel"
+    assert message["target_tab"] == "ops"
+
+
 def test_notification_plan_preserves_operator_cta_when_truthiness_fails():
     class BrokenTruthCta:
         def __bool__(self):

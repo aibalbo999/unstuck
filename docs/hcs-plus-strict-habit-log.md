@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3636 / make quality-audit queue actions self-describing
+
+- `#差距分析` / `#受眾`：live `decision_queue.items` 的品質稽核 action 只有 source/type/report identity，notification message/outbox 才有 CTA 與 target metadata；直接消費 queue 的下游仍要自行推導人工核對入口，可能與通知或工作台漂移。
+- `#拆解問題` / `#責任`：新增共享 `operator_action_contract`，帶 filename 的 `report_quality_audit` + `manual_review` queue item 與 notification plan 都從同一組 source/type default 產生四個 metadata；queue 原有排序、dedupe、coverage 與其他來源維持不變。
+- `#偏誤降低` / `#可驗證性`：明確傳入的 operator action/label/panel/tab 仍 authoritative；缺 filename 不套 targeted history default；只補 read-only 導覽 metadata，不核准 review、不重跑、不寫 snapshot、artifact、index 或 queue state。
+- `#可驗證性`：RED→GREEN queue、notification、delivery、dashboard `308 passed`，history/static/docs `220 passed`，Node/Python compile 與 `git diff --check` 通過；runtime reload 後同一 daily response 顯示 queue/message/outbox 的 CTA、target panel/tab 一致，daily quality scope 為 `165` audited、`2` missing、`98.79%` coverage；browser desktop/mobile smoke 通過，390px 無水平溢出且 console 無錯誤。
+
 ## D3635 / align quality-audit target metadata with the history entry point
 
 - `#差距分析` / `#受眾`：D3634 只同步 notification 的 CTA 文字與 action id；live message/outbox 仍帶 `active-jobs-panel/ops`，只依 target metadata 導覽的通知消費者會落到錯誤面板。
