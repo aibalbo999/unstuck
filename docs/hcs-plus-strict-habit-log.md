@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3660 / make Markdown quality notice replacement state-symmetric
+
+- `#差距分析` / `#偏誤降低`：Markdown repair 只有在新 notice 是 warning/blocked 時才替換，current passed 或 pending 會讓舊 warning 留在 response；這是狀態轉換方向不對稱，不是單一報告內容問題。
+- `#最小變更` / `#可驗證性`：移除 severity-specific early return；只要有有效 notice context，既有 Markdown notice 就完整替換，缺少 notice 時也補上。raw Markdown、data snapshot、HTML、index 與 queue 不變。
+- `#來源品質` / `#研究複製`：raw latest scope 對照發現 `107` 份 mismatch；反向 current-passed fixture 先 RED 再 GREEN，Markdown targeted `14 passed`、storage `49 passed`、reading notice `23 passed`。
+
 ## D3659 / align Markdown download with current quality projection
 
 - `#差距分析` / `#媒介`：HTML 與報告列表已顯示 current quality warning，但 Markdown download 仍輸出 artifact 內的「已通過已知檢查」；操作員若以 Markdown 進行離線核對會得到相反判讀。

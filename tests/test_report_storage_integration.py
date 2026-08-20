@@ -475,6 +475,60 @@ persisted markdown body
     assert json.loads(storage.get_report(data_filename).content) == snapshot
 
 
+def test_download_markdown_replaces_stale_warning_when_current_quality_passes():
+    storage = InMemoryStorage()
+    filename = "6282_TW_v4_report_20260820_211400.html"
+    markdown = """# 6282 report
+
+## 報告使用範圍與判讀限制
+
+- **品質 gate 狀態:** 品質 gate 有警示
+- **資料可信度:** 資料新鮮（fresh）
+
+persisted markdown body
+"""
+    md_key = filename[:-5] + ".md"
+    storage.save_report(md_key, markdown.encode("utf-8"), content_type="text/markdown")
+    snapshot = {
+        "ticker": "6282.TW",
+        "data_trust": {"status": "fresh"},
+        "data": {"data_trust": {"status": "fresh"}},
+        "evidence_exit_gate": {"verdict": "caution"},
+        "content_credibility": {"status": "warning"},
+        "report_conformance": {"status": "warning"},
+    }
+    data_key = data_snapshot_filename_for_report(filename)
+    storage.save_report(
+        data_key,
+        json.dumps(snapshot, ensure_ascii=False).encode("utf-8"),
+        content_type="application/json",
+    )
+
+    class CurrentQualityRepository:
+        def query(self, query):
+            return ([{
+                "filename": filename,
+                "evidence_exit_gate": {"verdict": "approved"},
+                "content_credibility": {"status": "passed"},
+                "report_conformance": {"status": "passed"},
+            }], 1)
+
+    response = download_report_file(
+        filename,
+        "/missing-output-dir",
+        "md",
+        storage=storage,
+        repository=CurrentQualityRepository(),
+    )
+    body = response.body.decode("utf-8")
+
+    assert response.status_code == 200
+    assert "已通過已知檢查" in body
+    assert "品質 gate 有警示" not in body
+    assert storage.get_report(md_key).content.decode("utf-8") == markdown
+    assert json.loads(storage.get_report(data_key).content) == snapshot
+
+
 def test_report_history_download_helper_builds_secure_html_response():
     response = secure_html_response("<h1>safe</h1>", status_code=202, headers={"X-Report": "ok"})
 

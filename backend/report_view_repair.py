@@ -143,8 +143,6 @@ def repair_report_markdown_for_download(markdown: str, reading_notice_context: d
     if not reading_notice_context:
         return text
     notice = build_report_reading_notice_markdown(reading_notice_context).strip()
-    if "品質 gate 未通過" not in notice and "品質 gate 有警示" not in notice:
-        return text
     if MARKDOWN_READING_NOTICE_RE.search(text):
         return MARKDOWN_READING_NOTICE_RE.sub(f"{notice}\n\n", text, count=1)
     return f"{notice}\n\n{text}"
