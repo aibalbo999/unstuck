@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3593 / final-audit credibility alignment
+
+- `#證據基礎` / `#差距分析`：規格把 `final_audit` 列為內容可信度輸入，但現行 evaluator 只讀 parsed target、data trust、evidence gate 與 matrix；live 舊報告也顯示 final audit 可能有重大矛盾，因此不能只依 conformance 另一個 step 代替內容可信度 trace。
+- `#責任` / `#語意含義`：新增專用 read-only projection，critical/阻斷狀態會讓 `content_credibility` blocked，warning/其他非通過狀態為 warning，corrections 只代表修正紀錄不升級；不重複寫 final audit、不改 renderer side effect 或 review/queue 邊界。
+- `#可驗證性` / `#偏誤降低`：先取得兩個 final-audit RED，再 GREEN `3 passed` 新增行為、`122 passed` 相關品質/conformance lane 與 `583 passed` 本批跨層 suite；runtime smoke、daily `160/2/98.75%`、historical browser `1216/115/90.54%`、1440px/390px overflow 與 console 均收斂。大型 inputs 解析集仍未完成，保留為獨立 residual risk。
+
 ## D3592 / refresh attribution semantics
 
 - `#證據基礎` / `#偏誤辨識`：live 缺口的 `refreshed_from_report` 只證明 snapshot 有刷新歸因；refresh service 會保留既有品質 maps，因此「未保留」不能演繹成 refresh 造成遺失。

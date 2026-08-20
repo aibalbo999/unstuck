@@ -25,6 +25,10 @@
 - `snapshot`: `data.current_price`、`data.data_trust`、`evidence_matrix`、`evidence_exit_gate`、`report_lint`。
 - `markdown`: 用於必要時輔助偵測報告可見結論，但初版不依賴 LLM 或語意摘要。
 
+`final_audit.critical` 或阻斷狀態屬於未解決的重大內容風險，必須讓
+`content_credibility` 為 `blocked`；只有 `warnings` 或非通過但無 critical 的狀態降為
+`warning`。`corrections` 只是已記錄的修正，不單獨升級內容可信度。
+
 核心輸出：
 
 - `status`: `passed` / `warning` / `blocked`
@@ -41,6 +45,7 @@
 4. **證據矩陣覆蓋**：最終建議、估值結論、目標價、護城河或催化劑若存在，應能在 `evidence_matrix` 找到來源、狀態與限制。
 5. **模式契約一致性**：`v4` 使用 trade setup 檢查進場區間、目標、停損方向；`v1/v2/v3` 使用 recommendation 與 price targets 檢查長短期結論。
 6. **資料限制不可被結論覆蓋**：若資料來源 stale/partial/error，報告仍可保留，但 `content_credibility.status` 至少為 warning；若同時有明確目標價且資料信心低於門檻，升為 blocked。
+7. **最終稽核未解問題**：`final_audit` 的 critical 或阻斷狀態不得在內容可信度檢查中被忽略；一般 warning 要求人工確認，但單純 corrections 不得造成誤阻斷。
 
 ## HCS Plus 第 1 輪第一批
 
@@ -141,6 +146,7 @@
 修改：
 
 - `backend/reporting/renderer.py`：在 evidence gate 後、conformance 前計算 `content_credibility`，並放入 context、snapshot、metadata。
+- `backend/reporting/content_credibility_final_audit.py`：將 final audit 的未解決 critical/warning 轉成可追蹤的內容可信度 check；不重複寫入 audit 或修改 repair side effect。
 - `backend/reporting/conformance.py`：decision tree 新增 `content_credibility` step；blocked 時整份報告 blocked。
 - `backend/reporting/execution_summary.py`：可在摘要中顯示 `Content credibility` 狀態；若怕 golden snapshot 震盪，可第二步再做。
 
@@ -179,6 +185,7 @@ $(scripts/project_python.sh) -m pytest \
 4. data trust 不佳時，高信心或明確目標價會被降級或阻擋。
 5. 缺少關鍵 evidence coverage 時，報告至少 warning，並留下可追溯 issue。
 6. 聚焦測試通過；不得宣稱投資結果正確，只能宣稱已知內容可信度契約未回退。
+7. final audit critical、warning 與 corrections 的分級行為有獨立回歸測試，且不改動 provider、artifact/index 或 review side effect。
 
 ## 下一步
 

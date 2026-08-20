@@ -102,6 +102,58 @@ def test_content_credibility_blocks_high_confidence_when_evidence_is_rejected():
     assert any(issue["id"] == "high_confidence_rejected_evidence" for issue in result["blocking_issues"])
 
 
+def test_content_credibility_blocks_when_final_audit_has_critical_issue():
+    from reporting.content_credibility import evaluate_content_credibility
+
+    context = _base_context(recommendation="持有", target_12m="NT$105", confidence="6/10")
+    context["final_audit"] = {
+        "status": "needs_attention",
+        "critical": ["缺少 Agent 輸出：7"],
+        "warnings": [],
+        "corrections": [],
+    }
+
+    result = evaluate_content_credibility(context, _base_snapshot(context))
+
+    assert result["status"] == "blocked"
+    issue = next(issue for issue in result["blocking_issues"] if issue["id"] == "final_audit_critical")
+    assert issue["details"]["critical"] == ["缺少 Agent 輸出：7"]
+
+
+def test_content_credibility_warns_when_final_audit_has_warning_but_no_critical_issue():
+    from reporting.content_credibility import evaluate_content_credibility
+
+    context = _base_context(recommendation="持有", target_12m="NT$105", confidence="6/10")
+    context["final_audit"] = {
+        "status": "needs_attention",
+        "critical": [],
+        "warnings": ["最終建議未說明國際新聞脈絡"],
+        "corrections": [],
+    }
+
+    result = evaluate_content_credibility(context, _base_snapshot(context))
+
+    assert result["status"] == "warning"
+    assert any(issue["id"] == "final_audit_warning" for issue in result["warnings"])
+
+
+def test_content_credibility_does_not_escalate_final_audit_corrections_alone():
+    from reporting.content_credibility import evaluate_content_credibility
+
+    context = _base_context(recommendation="持有", target_12m="NT$105", confidence="6/10")
+    context["final_audit"] = {
+        "status": "passed",
+        "critical": [],
+        "warnings": [],
+        "corrections": ["已修正格式化價格"],
+    }
+
+    result = evaluate_content_credibility(context, _base_snapshot(context))
+
+    assert result["status"] == "passed"
+    assert not any(issue["id"].startswith("final_audit_") for issue in result["blocking_issues"] + result["warnings"])
+
+
 def test_content_credibility_warns_when_final_recommendation_lacks_evidence_matrix_coverage():
     from reporting.content_credibility import evaluate_content_credibility
 
