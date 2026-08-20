@@ -706,6 +706,34 @@ def test_daily_decision_queue_surfaces_complete_quality_audit_gaps_without_dupli
     assert [item["filename"] for item in queue["items"]].count("2330_gap.html") == 1
 
 
+def test_daily_decision_queue_adds_navigation_metadata_to_report_repairs():
+    queue = build_daily_decision_queue(
+        reports=[],
+        repair_items=[
+            {
+                "ticker": "2603.TW",
+                "filename": "2603_v4.html",
+                "pipeline_id": "v4",
+                "title": "內容可信度需確認",
+                "detail": "請人工核對報告。",
+                "recommended_action": "manual_review",
+                "action_label": "人工審核",
+            }
+        ],
+        rerun_reports=[],
+        high_priority_watchlist=[],
+        candidates=[],
+        performance={"summary": {}, "details": []},
+        free_mode={"enabled": True, "can_run_without_paid_keys": True, "violations": []},
+    )
+
+    item = queue["items"][0]
+    assert item["operator_action"] == "view-report"
+    assert item["operator_action_label"] == "人工審核"
+    assert item["target_panel"] == "active-jobs-panel"
+    assert item["target_tab"] == "ops"
+
+
 def test_daily_decision_queue_preserves_explicit_quality_audit_navigation_metadata():
     queue = build_daily_decision_queue(
         reports=[],

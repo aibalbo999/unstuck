@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3638 / keep report-repair navigation consistent across queue and notifications
+
+- `#差距分析` / `#受眾`：live `report_repair` queue item 已有 filename，但沒有 CTA/target metadata；notification message/outbox 卻已有 `view-report`、`人工審核`、`active-jobs-panel/ops`，直接消費 queue 的入口會與通知漂移。
+- `#拆解問題` / `#責任`：把帶 filename 的 repair payload 送入既有 `operator_action_contract`；保留 `report_quality_audit` 有 identity 才能進 targeted history 的限制，明確自訂 action/label/panel/tab 仍 authoritative。
+- `#最小變更` / `#副作用`：只補 read-only navigation metadata，不改 repair priority、reason、blocks_auto_rerun、review、artifact、index、rerun 或 repair state；沒有 filename 的 quality action 不猜導覽。
+- `#可驗證性`：先取得 RED，再 GREEN 通過 queue/notification/delivery/dashboard `309 passed`；runtime reload 後 queue/message/outbox 四個欄位一致，health/readiness、canonical paths 與 RQ 通過。
+
 ## D3637 / keep EPS evidence claims semantically aligned
 
 - `#差距分析` / `#來源品質`：live `2603.TW v4` 的證據抽查把「7 月底」的日期數字當成 `Factset EPS 下修預警` 的 claim value `7`，人工看到的 mismatch 因而不是原文真正的 EPS `26`。

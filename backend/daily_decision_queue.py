@@ -198,7 +198,7 @@ def _repair_action_payload(item: dict[str, Any], *, source: str = "report_repair
         value = safe_text(_field(item, key)).strip()
         if value:
             action_payload[key] = value
-    if source == "report_quality_audit" and filename:
+    if filename:
         action_payload.update(navigation_context(action_payload))
     return action_payload
 
