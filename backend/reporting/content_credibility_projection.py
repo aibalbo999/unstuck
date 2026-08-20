@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
+from data_validation_values import safe_float
 from mapping_fields import safe_dict_list, safe_mapping_dict, safe_text
 
 from .content_credibility import evaluate_content_credibility
+from .content_credibility_evidence_confidence import evaluate_confidence_evidence_alignment
+from .content_credibility_inputs import confidence_score as recommendation_confidence_score
 
 
 _STATUS_RANK = {"passed": 1, "warning": 2, "blocked": 3, "failed": 3, "rejected": 3}
@@ -38,6 +41,65 @@ def project_content_credibility(snapshot: Any) -> dict[str, Any] | None:
     except Exception:
         # Historical audit is read-only; malformed legacy context must not make it unavailable.
         return None
+
+
+def project_evidence_confidence_alignment(snapshot: Any, recorded: Any) -> dict[str, Any] | None:
+    """Refresh the evidence-confidence check when full parsed context is absent."""
+    snapshot_map = safe_mapping_dict(snapshot) or {}
+    recorded_map = safe_mapping_dict(recorded) or {}
+    evidence_gate = safe_mapping_dict(snapshot_map.get("evidence_exit_gate")) or {}
+    if not evidence_gate or not recorded_map:
+        return None
+
+    confidence = None
+    for check in safe_dict_list(recorded_map.get("checks")):
+        if safe_text(check.get("id")).strip() != "confidence_evidence_alignment":
+            continue
+        details = safe_mapping_dict(check.get("details")) or {}
+        confidence = safe_float(details.get("confidence_score"))
+        if confidence is not None:
+            break
+    if confidence is None:
+        rerun_context = safe_mapping_dict(snapshot_map.get("rerun_context")) or {}
+        parsed = safe_mapping_dict(rerun_context.get("parsed")) or {}
+        recommendation = safe_mapping_dict(parsed.get("recommendation")) or {}
+        confidence = recommendation_confidence_score(recommendation)
+
+    alignment = evaluate_confidence_evidence_alignment(evidence_gate.get("verdict"), confidence)
+    blocking = alignment["blocking_issues"]
+    warnings = alignment["warnings"]
+    status = "blocked" if blocking else "warning" if warnings else "passed"
+    summary = {
+        "blocked": "報告關鍵結論與資料或證據存在阻斷矛盾。",
+        "warning": "報告關鍵結論未見阻斷矛盾，但仍有可信度警示。",
+        "passed": "報告關鍵結論通過內容可信度檢查。",
+    }[status]
+    return {
+        "status": status,
+        "summary": summary,
+        "blocking_issues": blocking,
+        "warnings": warnings,
+        "checks": alignment["checks"],
+    }
+
+
+def project_content_credibility_with_current_evidence(
+    snapshot: Any,
+    recorded: Any,
+    *,
+    evidence_projection: Any,
+) -> dict[str, Any] | None:
+    """Merge the current evidence check even when full parsed context is unavailable."""
+    projection_snapshot = dict(snapshot, evidence_exit_gate=evidence_projection) if evidence_projection is not None else snapshot
+    projected = project_content_credibility(projection_snapshot)
+    if evidence_projection is None:
+        return projected
+    alignment = project_evidence_confidence_alignment(projection_snapshot, recorded)
+    if not alignment:
+        return projected
+    if projected:
+        return merge_content_credibility_results(projected, alignment)
+    return {**alignment, "_projection_scope": "evidence_confidence"}
 
 
 def merge_content_credibility_results(recorded: Any, projected: Any) -> dict[str, Any]:
@@ -104,4 +166,9 @@ def _merge_checks(projected: Any, recorded: Any) -> list[dict[str, Any]]:
     return merged
 
 
-__all__ = ["merge_content_credibility_results", "project_content_credibility"]
+__all__ = [
+    "merge_content_credibility_results",
+    "project_content_credibility",
+    "project_content_credibility_with_current_evidence",
+    "project_evidence_confidence_alignment",
+]

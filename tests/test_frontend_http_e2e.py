@@ -361,7 +361,7 @@ def test_report_history_uses_current_evidence_for_content_projection(tmp_path, m
         "content_credibility": {"status": "passed", "blocking_issues": [], "warnings": [], "checks": []},
         "rerun_context": {
             "pipeline_id": "v1",
-            "parsed": {"recommendation": {"建議": "買入", "信心": "9/10"}},
+            "parsed": {},
         },
     }
     (tmp_path / filename.replace(".html", ".data.json")).write_text(json.dumps(snapshot, ensure_ascii=False), encoding="utf-8")

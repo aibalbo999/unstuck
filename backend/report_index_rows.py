@@ -25,7 +25,7 @@ from report_quality_metadata_repair import (
 )
 from reporting.content_credibility import evaluate_content_credibility
 from reporting.content_credibility_final_audit import align_content_credibility_with_final_audit
-from reporting.content_credibility_projection import merge_content_credibility_results, project_content_credibility
+from reporting.content_credibility_projection import merge_content_credibility_results, project_content_credibility_with_current_evidence
 from reporting.evidence_exit_gate_projection import evidence_exit_gate_projection_metadata, project_evidence_exit_gate
 
 
@@ -180,20 +180,21 @@ def _content_credibility(
         credibility,
         final_audit_or_conformance,
     )
+    evidence_only_projection, projected = (projected, None) if isinstance(projected, dict) and projected.get("_projection_scope") == "evidence_confidence" else (None, projected)
     if projected is _UNSET:
         projected = project_content_credibility(snapshot)
     if projected is not None and _recorded_content_credibility(credibility):
         return merge_content_credibility_results(credibility, projected)
     if pipeline_id != "v4":
-        return credibility
+        return merge_content_credibility_results(credibility, evidence_only_projection) if evidence_only_projection and _recorded_content_credibility(credibility) else credibility
 
     checks = credibility.get("checks") if isinstance(credibility.get("checks"), list) else []
     if any(isinstance(check, dict) and check.get("id") == "trade_setup_alignment" for check in checks):
-        return credibility
+        return merge_content_credibility_results(credibility, evidence_only_projection) if evidence_only_projection and _recorded_content_credibility(credibility) else credibility
 
     trade_setup = extract_trade_setup(snapshot, markdown_text)
     if not trade_setup:
-        return credibility
+        return merge_content_credibility_results(credibility, evidence_only_projection) if evidence_only_projection and _recorded_content_credibility(credibility) else credibility
     if not _recorded_content_credibility(credibility):
         return credibility
 
@@ -205,7 +206,9 @@ def _content_credibility(
         "evidence_exit_gate": safe_mapping_dict(snapshot.get("evidence_exit_gate")) or {},
     }
     projected = evaluate_content_credibility(context, snapshot, markdown=markdown_text)
-    return merge_content_credibility_results(credibility, projected) if _recorded_content_credibility(credibility) else projected
+    if not _recorded_content_credibility(credibility):
+        return projected
+    return merge_content_credibility_results(evidence_only_projection, projected) if evidence_only_projection else merge_content_credibility_results(credibility, projected)
 
 
 def _recorded_content_credibility(credibility: dict) -> bool:
@@ -272,7 +275,6 @@ def row_to_report(row) -> dict:
         report_generated_at=report_date,
         snapshot=snapshot,
     )
-
     pipeline_id = row["pipeline_id"] or "v1"
     markdown_text = _markdown_text(row)
     stored_evidence_exit_gate = _evidence_exit_gate(row, snapshot=snapshot)
@@ -282,8 +284,7 @@ def row_to_report(row) -> dict:
         stored_content_credibility,
         snapshot.get("final_audit") or snapshot.get("report_conformance", {}),
     )
-    content_projection_snapshot = dict(snapshot, evidence_exit_gate=projected_evidence_exit_gate) if projected_evidence_exit_gate is not None else snapshot
-    projected_content_credibility = project_content_credibility(content_projection_snapshot)
+    projected_content_credibility = project_content_credibility_with_current_evidence(snapshot, stored_content_credibility, evidence_projection=projected_evidence_exit_gate)
     preview = build_report_preview(
         pipeline_id,
         row["ticker"],
@@ -312,7 +313,7 @@ def row_to_report(row) -> dict:
             row,
             pipeline_id=pipeline_id,
             markdown_text=markdown_text,
-            snapshot=content_projection_snapshot,
+            snapshot=dict(snapshot, evidence_exit_gate=projected_evidence_exit_gate) if projected_evidence_exit_gate is not None else snapshot,
             projected=projected_content_credibility,
         ),
         "snapshot_integrity": _snapshot_integrity(row, snapshot=snapshot),
@@ -332,7 +333,7 @@ def row_to_report(row) -> dict:
     if projected_content_credibility is not None:
         report["content_credibility_projection"] = {
             "status": "projected" if _recorded_content_credibility(stored_content_credibility) else "available",
-            "source": "snapshot.rerun_context",
+            "source": "snapshot.current_evidence" if projected_content_credibility.get("_projection_scope") == "evidence_confidence" else "snapshot.rerun_context",
             "persisted_status": str(stored_content_credibility.get("status") or "").strip().lower(),
         }
     if projected_evidence_exit_gate is not None:

@@ -110,3 +110,25 @@ def test_projection_requires_parsed_context():
     snapshot["rerun_context"] = {}
 
     assert project_content_credibility(snapshot) is None
+
+
+def test_evidence_projection_refreshes_legacy_check_without_parsed_context():
+    from reporting.content_credibility_projection import project_evidence_confidence_alignment
+
+    snapshot = _snapshot(stored={"status": "passed"})
+    snapshot["rerun_context"] = {}
+    snapshot["evidence_exit_gate"] = {"verdict": "caution", "failed_count": 0}
+    recorded = {
+        "status": "passed",
+        "checks": [{
+            "id": "confidence_evidence_alignment",
+            "status": "passed",
+            "details": {"evidence_verdict": "approved"},
+        }],
+    }
+
+    result = project_evidence_confidence_alignment(snapshot, recorded)
+
+    assert result["status"] == "warning"
+    assert result["checks"][0]["status"] == "warning"
+    assert result["checks"][0]["details"]["evidence_verdict"] == "caution"

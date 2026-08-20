@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-21
+- D3654：live legacy v1-v3 snapshot 的 `rerun_context.parsed` 可能是空 mapping，完整內容可信度無法重算，但 persisted `confidence_evidence_alignment` 仍會顯示舊 `approved`。新增 evidence-only partial projection：只刷新 current gate 對應的 evidence-confidence check；v4 仍先完成既有 trade-plan fallback，再合併 partial evidence result，避免以 partial projection 取代完整內容檢查。
+- D3654 驗證：先以 3653 v1-v3 live-shaped payload 重現 stale inner check，再 GREEN；content/report-quality/conformance/preview `1198 passed`、history E2E `8 passed`、import boundary `504 passed`、`report_index_rows.py` `349` 行，未回寫 snapshot、artifact、index、review、rerun、repair 或 queue。
 - D3653：D3652 已讓 report list/history 顯示 current evidence gate，但內容可信度 projection 仍可能從 persisted snapshot 讀到舊 `approved`，形成 gate=`caution/rejected`、content=`passed` 的交叉矛盾。現在 row 會建立唯讀 `content_projection_snapshot`，只把 current evidence projection 注入內容可信度評估；原始 snapshot、download data、integrity、persisted quality metadata 與 audit coverage 維持不變。
 - D3653 驗證：先以 history API regression 重現 stale evidence/content `RED`，再 GREEN；projection/e2e `10 passed`、content/report-quality/conformance/preview `1197 passed`、import/lint/data-trust `578 passed`，未回寫 artifact、snapshot、index、review、rerun、repair 或 queue。
 - D3652：D3651 推送後 live `/api/reports` 仍會從既有 snapshot 讀出 D3650 前的 evidence gate（例如舊 `T13`/metadata false matches），因為既有 artifact/index 不應被自動重寫。新增 `reporting.evidence_exit_gate_projection`：report list/history row 以目前 evidence parser 對 markdown + snapshot 做唯讀重算，primary `evidence_exit_gate` 顯示 current result，另以 `evidence_exit_gate_projection` 標示 `projected` 與 persisted verdict；download data、snapshot hash、artifact 與 review/queue state 維持原值。

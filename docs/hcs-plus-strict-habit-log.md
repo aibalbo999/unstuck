@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3654 / keep partial evidence projection from replacing full content checks
+
+- `#差距分析` / `#偏誤辨識`：部分 legacy v1-v3 snapshot 只有空的 `rerun_context.parsed`，不能完整重算 content credibility；若直接把 evidence-only result 當完整 projection，v4 trade-plan fallback 會被提前跳過。
+- `#最小變更` / `#語意含義`：partial projection 以 `_projection_scope=evidence_confidence` 標示，先讓原有 v4 fallback 完成，再合併 current evidence-confidence check；其他 persisted check、snapshot 與 download data 不變。
+- `#可驗證性` / `#責任`：3653 legacy payload RED→GREEN；content/report-quality/conformance/preview `1198 passed`、history E2E `8 passed`、import boundary `504 passed`，module `349` 行。
+
 ## D3653 / keep evidence and content projections on one current context
 
 - `#差距分析` / `#偏誤辨識`：D3652 的 evidence gate 已使用 current markdown/snapshot parser，但 content credibility 仍可能讀到 persisted `approved`，讓 API 同時呈現 evidence=`caution/rejected` 與 content=`passed`。
