@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-21
+- D3648：live `3711.TW v4` 的公司身分稽核把同業「日月光」（2311）誤算成未標示同業的主體，因為它是目標正式名稱「日月光投控」中的合法子字串；`count_unqualified_alias()` 現在只跳過落在 `allowed_aliases` 已核准目標別名 span 內的同業子字串，獨立未標示提及仍維持污染阻擋。
+- D3648 驗證：先以 3711 artifact 重現污染，再以 target-name embedded alias regression 取得 GREEN；`test_audit_rules` 為 `72 passed + 75 subtests`，content credibility/projection/import-boundary 為 `535 passed`，compile 與 `git diff --check` 通過。未改 snapshot、artifact、index、review、rerun 或 queue。
 - D3647：live `2308.TW v2` 的 final-audit warning 同一個信心校準事件以兩種句尾文字重複出現，讓 `content_credibility` 的人工核對細節重複。新增 shared confidence warning formatter，讓 structured-output 與 final-audit 使用同一格式；read-only projection 只對可辨識的 confidence downgrade fingerprint 去重，保留 `report_conformance` 原始細節與其他不同警示。
 - D3647 驗證：新增來源層與既有 conformance projection RED→GREEN regression；content credibility/projection/prompt-data-trust `55 passed`、audit rules `71 passed + 75 subtests`、完整 import-boundary `504 passed`，compile 與 `git diff --check` 通過。runtime reload 後 `2308.TW v2` 的 `final_audit_warning.details.warnings` 從兩筆同義文字收斂為一筆，未寫 snapshot、artifact、index、review、rerun 或 queue。
 - D3646：live `8070.TW v4` 的停損原文為「48.0 TWD（跌破 8/18 法人起漲發動點…）」；日期 regex 只清除帶「日／號」的日期，裸 `8/18` 被當成價格候選，讓 Long 被誤標 `ambiguous_trade_setup_price_inputs`。新增裸月日 normalization，保留 `48.0` 並移除日期 token；不改方向政策、artifact、snapshot、index、review、rerun 或 queue。

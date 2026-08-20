@@ -1504,6 +1504,24 @@ class AuditRuleTests(unittest.TestCase):
 
         self.assert_has_issue(issues, "同業「大亞」在未標示為同業")
 
+    def test_peer_alias_embedded_in_allowed_target_name_is_not_contamination(self):
+        data = base_data()
+        data["ticker"] = "3711.TW"
+        data["company_identity"] = {
+            "ticker": "3711.TW",
+            "stock_id": "3711",
+            "official_name": "日月光投控",
+            "allowed_aliases": ["日月光投控", "3711.TW"],
+            "same_industry_peers": [{"stock_id": "2311", "stock_name": "日月光"}],
+        }
+
+        issues = ar.validate_company_identity(
+            "日月光投控（3711.TW）近期營運穩健。日月光投控的籌碼仍需觀察。",
+            data,
+        )
+
+        self.assertEqual(issues, [])
+
     def test_audit_reflection_tries_fallback_model_after_primary_quota_error(self):
         calls = []
 

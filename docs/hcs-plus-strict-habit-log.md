@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3648 / protect approved target-name substrings from peer contamination
+
+- `#差距分析` / `#來源品質`：live `3711.TW v4` 的阻擋訊息是同業「日月光」出現 9 次，但 artifact 的目標正式名稱是「日月光投控」；逐次核對文字後確認是正式目標名稱內的合法子字串，不是模型把同業套成目標公司。
+- `#拆解問題` / `#偏誤辨識`：`count_unqualified_alias()` 新增 `protected_aliases` span 過濾，只保護完整落在 `allowed_aliases` 內的同業名稱匹配；保留 `大亞` 未標示同業的既有污染測試，避免把合法 target alias 修正擴張成全面忽略同業名稱。
+- `#可驗證性` / `#最小變更`：3711 真實 artifact RED→GREEN；`test_audit_rules` `72 passed + 75 subtests`、content credibility/projection/import-boundary `535 passed`，compile/diff check 通過，未修改任何 persisted report 或 queue state。
+
 ## D3647 / deduplicate confidence calibration warnings without erasing source evidence
 
 - `#差距分析` / `#責任`：live `2308.TW v2` 的 final-audit warning 有兩句不同句尾但相同 agent、data trust、confidence 與 cap；根因是 structured-output warning 與 final-audit 各自組字串，且只做精確字串去重。

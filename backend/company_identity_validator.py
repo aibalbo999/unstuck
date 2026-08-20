@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 
 
-def count_unqualified_alias(text: str, alias: str, peer_code=None) -> int:
+def count_unqualified_alias(text: str, alias: str, peer_code=None, protected_aliases=()) -> int:
     """Count suspicious alias mentions that are not clearly marked as peer comparisons."""
     if not text or not alias:
         return 0
@@ -26,8 +26,16 @@ def count_unqualified_alias(text: str, alias: str, peer_code=None) -> int:
         "Peers",
         "同業比較",
     ]
+    protected_spans = [
+        (match.start(), match.end())
+        for protected_alias in protected_aliases
+        if protected_alias
+        for match in re.finditer(re.escape(protected_alias), text, flags=re.IGNORECASE)
+    ]
 
     for match in re.finditer(re.escape(alias), text, flags=re.IGNORECASE):
+        if any(start <= match.start() and match.end() <= end for start, end in protected_spans):
+            continue
         window = text[max(0, match.start() - 30): min(len(text), match.end() + 30)]
         if peer_tokens and any(token in window for token in peer_tokens):
             continue
@@ -77,7 +85,12 @@ def validate_company_identity(text: str, data: dict) -> list[str]:
             continue
         if len(peer_name) < 2:
             continue
-        unqualified_count = count_unqualified_alias(text, peer_name, peer_code=peer_code)
+        unqualified_count = count_unqualified_alias(
+            text,
+            peer_name,
+            peer_code=peer_code,
+            protected_aliases=allowed_aliases,
+        )
         threshold = 2 if peer_name in forbidden_aliases else 4
         if unqualified_count >= threshold:
             issues.append(f"公司身分污染：同業「{peer_name}」在未標示為同業的脈絡中出現 {unqualified_count} 次。")
