@@ -70,6 +70,38 @@ def test_trade_setup_alignment_uses_price_after_calendar_date_for_stop_loss():
     assert result["checks"][0]["details"]["stop_loss"] == 204.0
 
 
+def test_trade_setup_alignment_ignores_bare_month_day_before_stop_loss_price():
+    from reporting.content_credibility_trade_setup import evaluate_trade_setup_alignment
+
+    result = evaluate_trade_setup_alignment(
+        trade_setup=_trade_setup(
+            target_price="NT$55",
+            stop_loss="跌破 8/18 法人起漲發動點支撐型態失效 48.0 TWD",
+        ),
+        current_price=51.0,
+    )
+
+    assert result["blocking_issues"] == []
+    assert result["warnings"] == []
+    assert result["checks"][0]["details"]["stop_loss"] == 48.0
+
+
+def test_trade_setup_alignment_keeps_non_date_slash_price_fragment_visible():
+    from reporting.content_credibility_trade_setup import evaluate_trade_setup_alignment
+
+    result = evaluate_trade_setup_alignment(
+        trade_setup=_trade_setup(
+            target_price="NT$55",
+            stop_loss="1/2 TWD",
+        ),
+        current_price=51.0,
+    )
+
+    assert result["blocking_issues"] == []
+    assert result["warnings"][0]["id"] == "ambiguous_trade_setup_price_inputs"
+    assert result["checks"][0]["details"]["stop_loss_candidates"] == [1.0, 2.0]
+
+
 def test_trade_setup_alignment_ignores_period_range_before_target_price():
     from reporting.content_credibility_trade_setup import evaluate_trade_setup_alignment
 

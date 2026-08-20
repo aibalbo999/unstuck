@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3646 / remove bare month-day tokens from trade prices
+
+- `#差距分析` / `#來源品質`：live `8070.TW v4` 的停損數值 `48.0` 後接括號日期 `8/18`；既有完整日期／帶單位日期清理沒有涵蓋裸月日，造成日期拆成兩個價格候選。
+- `#拆解問題` / `#最小變更`：在 `content_credibility_inputs` 的 read-only normalization 增加合法月份 1-12、日期 1-31 的裸 `M/D` 清理；保留真正價格，並以明確的 `1/2 TWD` 非日期字串測試避免過度清理。
+- `#可驗證性` / `#責任`：RED→GREEN 後 content-credibility/projection/input `909 passed`、selected quality/queue/docs/import `1031 passed`，compile/diff check 與 97 行 import-boundary 通過；runtime reload 後 `8070.TW v4` 由誤標 warning 回復 passed，全量 ambiguous warning `60 -> 59`。未寫 snapshot、artifact、index、review、rerun 或 queue。
+
 ## D3645 / surface ambiguous multi-scenario trade prices
 
 - `#差距分析` / `#偏誤辨識`：live v4 的 `Neutral` 交易計畫可能在 target 或 stop-loss 欄位放入多個情境價位；`first_price()` 只取第一個數字，造成 check 以單一值呈現但沒有提醒原文其實是條件分支。

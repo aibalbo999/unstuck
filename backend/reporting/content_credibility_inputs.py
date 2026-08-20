@@ -20,6 +20,10 @@ _CALENDAR_DATE_PATTERN = re.compile(
     r"|\d{1,2}\s*月\s*\d{1,2}\s*[日號]"
     r"|\d{1,2}\s*[-/.]\s*\d{1,2}\s*[日號]"
 )
+_BARE_MONTH_DAY_PATTERN = re.compile(
+    r"(?<![\d.])(?:1[0-2]|0?[1-9])\s*/\s*(?:[12]\d|3[01]|0?[1-9])"
+    r"(?!\s*(?:[/.]\d|[A-Za-z]))"
+)
 _PERIOD_NUMBER_PATTERN = re.compile(
     r"(?<![\d.,])"
     r"(?:\d+(?:[.．]\d+)?"
@@ -37,6 +41,7 @@ _PRICE_RANGE_PATTERN = re.compile(
 def _strip_temporal_numeric_tokens(text: str) -> str:
     """Keep calendar/period labels from being mistaken for prices."""
     cleaned = _CALENDAR_DATE_PATTERN.sub(" ", text)
+    cleaned = _BARE_MONTH_DAY_PATTERN.sub(" ", cleaned)
     return _PERIOD_NUMBER_PATTERN.sub(" ", cleaned)
 
 
@@ -87,13 +92,6 @@ def upside_pct(target_price: float, current_price: float) -> float:
     return (target_price - current_price) / current_price * 100
 
 
-__all__ = (
-    "confidence_score",
-    "first_price",
-    "first_value_by_key_fragment",
-    "has_explicit_price_range",
-    "main_target_price",
-    "price_candidates",
-    "target_price_candidates",
-    "upside_pct",
-)
+__all__ = ("confidence_score", "first_price", "first_value_by_key_fragment",
+           "has_explicit_price_range", "main_target_price", "price_candidates",
+           "target_price_candidates", "upside_pct")
