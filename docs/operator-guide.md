@@ -113,7 +113,7 @@ The read-only report quality audit exposes `missing_quality_fields` on each affe
 
 品質 target 的「結構化缺口」代表 verified snapshot 沒有保存該 quality metadata；「artifact 摘要可查」代表報告檔案仍有可供人工查看的 marker。target 會直接顯示「artifact 摘要僅供人工核對，不代表 gate 已通過」，並在輔助技術的 aria label 重複這個限制。後者不能當成 gate 已通過，也不會自動解除人工審核或重跑限制；請把兩段 evidence 分開核對。
 
-報告 preview 若顯示「結構化品質缺口」，代表 verified snapshot 沒有保存列出的 structured quality metadata；badge 的 detail 與 aria label 會說明「artifact 摘要僅供人工核對，不代表 gate 已通過」，這只是報告檔案可供人工查看的 marker，不代表 gate 已通過。請依同一報告的歷史品質稽核與 freshness 一起核對，不要只因 artifact 有文字摘要就直接採用。
+報告 preview 若顯示「結構化品質缺口」，代表 verified snapshot 沒有保存列出的 structured quality metadata；badge 的 detail、title、aria label 與 `data-quality-evidence-detail` 優先取自共用 `report_quality_evidence.context(report)`，並說明「artifact 摘要僅供人工核對，不代表 gate 已通過」。這只是報告檔案可供人工查看的 marker，不代表 gate 已通過。請依同一報告的歷史品質稽核與 freshness 一起核對，不要只因 artifact 有文字摘要就直接採用。
 
 這個 preview badge 可直接點擊，會帶著目前報告檔名與模式開啟同一範圍的歷史品質稽核；它只是查詢導引，不會自動核准、退回、修復 artifact 或建立重跑。進入稽核後仍須以該報告版本的 evidence 與 freshness 做人工判讀。
 

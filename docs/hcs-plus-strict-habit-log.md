@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3591 / preview badge evidence-detail source
+
+- `#來源品質` / `#差距分析`：preview badge 的 policy detail 與 history/watchlist 共用 evidence context 目前是兩個取值入口；policy wording 一旦先更新，preview 的 title/aria/data context 可能偏離同一報告的人工核對脈絡。
+- `#責任` / `#語意含義`：preview 保留 compact inline badge 與既有 filename/pipeline 導覽，僅將 `report_quality_evidence.context(report).detail` 設為優先來源；不把 target `<small>` renderer 套用至 badge，也不把 artifact marker 轉成 gate verdict。
+- `#可驗證性` / `#偏誤降低`：新增 policy-detail drift RED→GREEN regression，`1 failed` → focused `4 passed`；跨層 suite `399 passed`，Node syntax、文件契約與 diff check 通過。live health/readiness、preview asset、daily `160/2/98.75%` 與 browser scoped navigation、390px/1440px overflow、console 均收斂；更新 preview asset cache-buster。
+
 ## D3590 / shared target-context renderer
 
 - `#拆解問題` / `#組成`：preview 的 detail 與 history/watchlist 的 target HTML 都需要同一份 evidence 語意，但不應把 badge 與 target 的不同容器硬合併；抽出 `renderTargetContext()` 只統一三段文字順序與小字 projection，保留 consumer 的容器與既有 class map。

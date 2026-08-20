@@ -7814,7 +7814,7 @@ def test_decision_tracking_dense_layout_uses_workspace_efficiently():
     assert "/static/ops_workspace.js?v=20260708-provider-group-health" in index_html
     assert "/static/history_panel.js?v=20260708-tracking-action-notes" in index_html
     assert "/static/decision_tracking_panel.js?v=20260708-tracking-action-notes" in index_html
-    assert "/static/report_preview_helpers.js?v=20260816-visible-evidence-warning" in index_html
+    assert "/static/report_preview_helpers.js?v=20260820-shared-evidence-detail" in index_html
     assert "/static/report_preview_tracking_helpers.js?v=20260709-report-preview-tracking-helpers" in index_html
     assert "/static/report_preview_panel.js?v=20260816-clickable-quality-evidence" in index_html
     assert "provider_sla.css?v=20260628-glass-dark" in style_css

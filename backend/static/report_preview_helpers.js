@@ -29,12 +29,13 @@
         const action = qualityPolicy().reportQualityGateAction?.(report);
         if (!action) return '';
         const evidence = window.StockAgentReportQualityEvidence?.context?.(report);
+        const detail = evidence?.detail || action.detail;
         const canOpenAudit = action.label === '結構化品質缺口' && evidence?.hasStructuredGap && report?.filename;
         const attrs = canOpenAudit
-            ? ` type="button" data-quality-history-audit-target data-quality-history-query="${escapeHtml(report.filename)}" data-quality-history-pipeline="${escapeHtml(report.pipeline_id || 'v1')}" data-quality-evidence-detail="${escapeHtml(action.detail)}" aria-label="${escapeHtml(`前往 ${report.ticker || '報告'} ${report.pipeline_id || 'v1'} 的歷史品質稽核：${action.detail}`)}"`
+            ? ` type="button" data-quality-history-audit-target data-quality-history-query="${escapeHtml(report.filename)}" data-quality-history-pipeline="${escapeHtml(report.pipeline_id || 'v1')}" data-quality-evidence-detail="${escapeHtml(detail)}" aria-label="${escapeHtml(`前往 ${report.ticker || '報告'} ${report.pipeline_id || 'v1'} 的歷史品質稽核：${detail}`)}"`
             : '';
         const tag = canOpenAudit ? 'button' : 'span';
-        return `<${tag} class="history-action-badge is-${action.tone}${canOpenAudit ? ' is-clickable' : ''}"${attrs} title="${escapeHtml(action.detail)}">${escapeHtml(action.label)}</${tag}>`;
+        return `<${tag} class="history-action-badge is-${action.tone}${canOpenAudit ? ' is-clickable' : ''}"${attrs} title="${escapeHtml(detail)}">${escapeHtml(action.label)}</${tag}>`;
     }
 
     function reportReadingNotice(report, escapeHtml) {

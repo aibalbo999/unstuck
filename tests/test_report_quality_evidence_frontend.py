@@ -18,7 +18,7 @@ def test_shared_quality_evidence_helper_loads_before_all_consumers():
     assert (STATIC_DIR / "report_quality_evidence_helpers.js").exists()
     assert f"{helper}?v=20260816-shared-target-context" in index_html
     assert "/static/report_quality_gate_policy.js?v=20260816-shared-quality-evidence" in index_html
-    assert "/static/report_preview_helpers.js?v=20260816-visible-evidence-warning" in index_html
+    assert "/static/report_preview_helpers.js?v=20260820-shared-evidence-detail" in index_html
     assert "/static/report_preview_panel.js?v=20260816-clickable-quality-evidence" in index_html
     assert "/static/history_quality_audit_render.js?v=20260816-visible-evidence-warning" in index_html
     assert "/static/watchlist_panel_helpers.js?v=20260816-visible-evidence-warning" in index_html
@@ -92,6 +92,34 @@ process.stdout.write(JSON.stringify({ badge, history, completeEvidence, targetCo
     assert '<small class="quality-evidence-review-status">審核狀態：待人工核對</small>' in payload["targetContext"]["html"]
     assert '<small class="quality-evidence-context">結構化缺口：內容可信度；來源：刷新後</small>' in payload["targetContext"]["html"]
     assert '<small class="quality-evidence-warning">artifact 摘要僅供人工核對，不代表 gate 已通過</small>' in payload["targetContext"]["html"]
+
+
+def test_preview_quality_badge_uses_shared_evidence_detail_over_policy_copy():
+    evidence_path = STATIC_DIR / "report_quality_evidence_helpers.js"
+    preview_path = STATIC_DIR / "report_preview_helpers.js"
+    script = """
+global.window = {};
+require(__EVIDENCE_PATH__);
+window.StockAgentReportQualityPolicy = {
+  reportQualityGateAction: () => ({ label: '結構化品質缺口', tone: 'critical', detail: '舊的 policy detail' })
+};
+require(__PREVIEW_PATH__);
+const report = {
+  filename: '1623_TW_v2_report_20260815_154718.html',
+  ticker: '1623.TW',
+  pipeline_id: 'v2',
+  missing_quality_fields: ['content_credibility'],
+  artifact_quality_summary: { status: 'present', fields: ['content_credibility'] }
+};
+const escapeHtml = value => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+process.stdout.write(window.StockAgentReportPreviewHelpers.reportQualityBadge(report, escapeHtml));
+""".replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path))).replace("__PREVIEW_PATH__", json.dumps(str(preview_path)))
+
+    badge = _node(script)
+
+    assert '舊的 policy detail' not in badge
+    assert '結構化品質 metadata：內容可信度' in badge
+    assert 'artifact 摘要可查：內容可信度' in badge
 
 
 def test_clicking_preview_quality_gap_opens_scoped_historical_audit():
