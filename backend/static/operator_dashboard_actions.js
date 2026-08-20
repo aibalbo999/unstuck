@@ -24,6 +24,17 @@
         return `${label} ${Math.floor(sampledReports)} 份`;
     }
 
+    function fullAuditFreshnessText(payload) {
+        const audit = payload?.report_quality_audit || {};
+        const freshness = audit.decision_freshness_summary || {};
+        const auditedReports = Number(freshness.audited_reports);
+        const currentReports = Number(freshness.current_reports);
+        const needsRerunReports = Number(freshness.needs_rerun_reports);
+        const unknownReports = Number(freshness.unknown_reports);
+        if (audit.scope !== 'all_indexed_reports' || audit.selection_basis !== 'latest_per_ticker_pipeline' || !Number.isFinite(auditedReports) || auditedReports < 0 || !Number.isFinite(currentReports) || currentReports < 0 || !Number.isFinite(needsRerunReports) || needsRerunReports < 0 || !Number.isFinite(unknownReports) || unknownReports < 0 || currentReports + needsRerunReports + unknownReports !== auditedReports) return '';
+        return `全量分析新鮮度：需完整重跑 ${Math.floor(needsRerunReports)} / ${Math.floor(auditedReports)} 份${unknownReports > 0 ? `、無法判定 ${Math.floor(unknownReports)}` : ''}`;
+    }
+
     function dashboardText(payload) {
         const queue = payload?.decision_queue || {};
         const summary = queue.summary || payload?.summary || {};
@@ -32,14 +43,16 @@
         const secondary = Number(queue.secondary_count || 0);
         const old = payload?.summary || {};
         const reportScope = reportScopeText(old);
+        const fullFreshness = fullAuditFreshnessText(payload);
         const reportScopeDetail = reportScope ? ` · 報告：${reportScope}` : '';
-        if (total) return { tone: 'warning', value: `${total} 件待處理`, detail: `顯示 ${shown} / 次要待辦 ${secondary}${reportScopeDetail}` };
+        const fullFreshnessDetail = fullFreshness ? ` · ${fullFreshness}` : '';
+        if (total) return { tone: 'warning', value: `${total} 件待處理`, detail: `顯示 ${shown} / 次要待辦 ${secondary}${reportScopeDetail}${fullFreshnessDetail}` };
         const repairs = Number(old.report_repairs_required || 0);
         const reruns = Number(old.reports_needing_rerun || 0);
         const watchHigh = Number(old.watchlist_high_priority || 0);
-        if (repairs || reruns || watchHigh) return { tone: 'warning', value: `${repairs + reruns + watchHigh} 件待處理`, detail: `${reportScope ? `報告：${reportScope}；` : ''}修復 ${repairs} / 重跑 ${reruns} / watchlist ${watchHigh}` };
+        if (repairs || reruns || watchHigh) return { tone: 'warning', value: `${repairs + reruns + watchHigh} 件待處理`, detail: `${reportScope ? `報告：${reportScope}；` : ''}修復 ${repairs} / 重跑 ${reruns} / watchlist ${watchHigh}${fullFreshnessDetail}` };
         if (payload?.free_mode?.can_run_without_paid_keys === false) return { tone: 'warning', value: '免費模式需處理', detail: 'provider 有付費依賴缺口' };
-        return { tone: 'ok', value: '今日節奏正常', detail: `${reportScope ? `報告：${reportScope}；` : ''}${Number(old.top_candidate_count || 0)} 個候選` };
+        return { tone: 'ok', value: '今日節奏正常', detail: `${reportScope ? `報告：${reportScope}；` : ''}${Number(old.top_candidate_count || 0)} 個候選${fullFreshnessDetail}` };
     }
 
     function mappedDashboardAction(item) {

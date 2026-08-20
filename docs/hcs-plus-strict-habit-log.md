@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3664 / expose full latest freshness without changing quality coverage
+
+- `#差距分析` / `#可驗證性`：live full latest scope 是 `165` 份、`143 current / 22 needs_rerun`，但 daily action sample 只有近期 `20` 份且全 current；單看 `summary.reports_needing_rerun=0` 不能代表全量分析已新鮮。
+- `#最小變更` / `#責任`：新增 `report_freshness_summary`，只在 indexed latest quality audit envelope 附加 scope-bound `decision_freshness_summary`；watchlist/operator 以獨立文字顯示全量 stale count，quality metadata coverage、repair queue、review、rerun 與 persisted state 不互相替代。
+- `#來源品質` / `#偏誤降低` / `#可驗證性`：freshness count 必須滿足 `current + needs_rerun + unknown = audited`，scope 與 selection basis 不符就不顯示；RED→GREEN 後目標回歸 `815 passed`，live API 為 `165 audited / 143 current / 22 needs_rerun / 0 unknown`，health/readiness、queue depth `0`、canonical paths 與兩個 cache-buster assets 均通過。
+
 ## D3663 / label the report-count scope in the daily dashboard
 
 - `#差距分析` / `#可驗證性`：live dashboard 的 `reports_needing_rerun=0` 與 `report_repairs_required=16` 是近期 20 份 report sample；同一 response 又有 165 份 full latest-per-ticker/pipeline quality audit，沒有 scope label 時容易把 sample count 誤讀成全量結論。

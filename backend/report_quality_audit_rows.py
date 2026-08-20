@@ -6,6 +6,7 @@ import json
 from typing import Any, Callable
 
 from mapping_fields import safe_text
+from decision_tracking import build_decision_freshness
 from pipeline_modes import get_pipeline_definition, get_structured_agent_num
 from report_rerun_context import parse_agent_sections_from_markdown
 from reporting.content_credibility_final_audit import align_content_credibility_with_final_audit
@@ -39,6 +40,10 @@ def hydrate_report_from_index_row(
         "snapshot_integrity": integrity,
         "refreshed_from_report": safe_text(snapshot.get("refreshed_from_report")).strip(),
         "snapshot_refreshed_at": safe_text(snapshot.get("snapshot_refreshed_at")).strip(),
+        "decision_freshness": build_decision_freshness(
+            report_generated_at=safe_text(row.get("report_date") or row.get("date")).strip(),
+            snapshot=snapshot,
+        ),
         "quality_metadata_refresh_provenance": snapshot.get("quality_metadata_refresh_provenance", {}),
         "refreshed_without_analysis_rerun": bool(snapshot.get("refreshed_without_analysis_rerun")),
         "decision_validity_status": safe_text(snapshot.get("decision_validity_status")).strip(),

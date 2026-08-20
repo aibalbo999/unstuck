@@ -97,6 +97,39 @@ process.stdout.write(JSON.stringify({ board }));
     assert "1/115 在 sample" not in payload["board"]
 
 
+def test_watchlist_board_surfaces_full_freshness_summary_separately_from_quality_gap():
+    helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
+    script = """
+global.window = {};
+require(__HELPER_PATH__);
+const payload = {
+  decision_queue: { summary: { total_actionable: 0 }, items: [{ type: 'monitor' }] },
+  repair_queue: { summary: { sampled_reports: 20 } },
+  report_quality_audit: {
+    scope: 'all_indexed_reports',
+    selection_basis: 'latest_per_ticker_pipeline',
+    audited_reports: 165,
+    quality_metadata_missing_reports: 2,
+    decision_freshness_summary: {
+      scope: 'all_indexed_reports',
+      selection_basis: 'latest_per_ticker_pipeline',
+      audited_reports: 165,
+      current_reports: 143,
+      needs_rerun_reports: 22,
+      unknown_reports: 0
+    },
+    items: []
+  }
+};
+const board = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], payload, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ board }));
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "分析新鮮度：目前一致 143、需完整重跑 22" in payload["board"]
+
+
 def test_historical_quality_audit_renders_revision_scoped_review_controls():
     helper_path = STATIC_DIR / "history_panel_quality_helpers.js"
     renderer_path = STATIC_DIR / "history_quality_audit_render.js"

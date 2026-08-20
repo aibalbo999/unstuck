@@ -30,6 +30,39 @@ process.stdout.write(JSON.stringify(text));
     assert payload["detail"] == "報告：近期報告取樣 20 份；修復 2 / 重跑 0 / watchlist 0"
 
 
+def test_operator_dashboard_text_labels_full_freshness_summary():
+    module_path = STATIC_DIR / "operator_dashboard_actions.js"
+    script = """
+global.window = {};
+require(__MODULE_PATH__);
+const payload = {
+  summary: {
+    report_scope: { scope: 'daily_report_sample', label: '近期報告取樣', sampled_reports: 20 },
+    report_repairs_required: 2,
+    reports_needing_rerun: 0,
+    watchlist_high_priority: 0
+  },
+  report_quality_audit: {
+    scope: 'all_indexed_reports',
+    selection_basis: 'latest_per_ticker_pipeline',
+    decision_freshness_summary: {
+      audited_reports: 165,
+      current_reports: 143,
+      needs_rerun_reports: 22,
+      unknown_reports: 0
+    }
+  },
+  decision_queue: { summary: { total_actionable: 0 }, items: [] }
+};
+const text = window.StockAgentOperatorDashboardActions.dashboardText(payload);
+process.stdout.write(JSON.stringify(text));
+""".replace("__MODULE_PATH__", json.dumps(str(module_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "全量分析新鮮度：需完整重跑 22 / 165 份" in payload["detail"]
+
+
 def test_daily_quality_board_offers_historical_audit_navigation_for_latest_scope():
     helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
     script = """
@@ -573,11 +606,11 @@ def test_historical_audit_navigation_wiring_uses_cache_busters_and_existing_scop
     assert "StockAgentOpenHistoricalQualityAudit" in watchlist_panel
     assert "openHistoricalQualityAudit" in history_workspace
     assert "StockAgentOpenHistoricalQualityAudit" in app_js
-    assert "/static/watchlist_panel_helpers.js?v=20260821-repair-sample-overlap" in index_html
+    assert "/static/watchlist_panel_helpers.js?v=20260821-full-freshness-summary" in index_html
     assert "/static/watchlist_panel.js?v=20260816-scoped-quality-review-navigation" in index_html
     assert "/static/history_filters.js?v=20260816-history-scope-persistence" in index_html
     assert "/static/history_workspace.js?v=20260816-scope-transient-state-guard" in index_html
-    assert "/static/operator_dashboard_actions.js?v=20260821-report-scope" in index_html
+    assert "/static/operator_dashboard_actions.js?v=20260821-full-freshness-summary" in index_html
     assert "/static/operator_summary_panel.js?v=20260821-quality-audit-action" in index_html
     assert "/static/app.js?v=20260821-quality-audit-action" in index_html
     assert "/static/styles/watchlist.css?v=20260816-daily-quality-target-context" in style_css

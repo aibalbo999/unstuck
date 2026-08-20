@@ -14,6 +14,7 @@ from report_history_storage import load_storage_item, storage_for_existing_outpu
 from report_index import query_report_metadata
 from report_quality_repair_items import quality_metadata_repair_item
 from report_quality_evidence import read_artifact_quality_summary
+from report_freshness_summary import attach_full_report_freshness_summary
 from report_quality_audit_rows import (
     hydrate_report_from_index_row as _hydrate_report_from_index_row,
     read_artifact_rerun_context_status as _read_artifact_rerun_context_status_impl,
@@ -31,7 +32,6 @@ from report_quality_audit_payload import (
     build_report_quality_audit,
     build_unavailable_report_quality_audit,
 )
-
 REPORT_QUALITY_ROWS_CACHE_TTL_SECONDS = 15.0
 REPORT_QUALITY_ROWS_CACHE_MAX_ENTRIES = 8
 _REPORT_QUALITY_ROWS_CACHE: OrderedDict[tuple[str, str], tuple[float, list[dict[str, Any]]]] = OrderedDict()
@@ -57,7 +57,7 @@ def build_indexed_report_quality_audit(output_dir: str, *, page_size: int = 100,
     _annotate_report_version_status(reports, _latest_report_filenames(rows.get("reports", [])))
     from report_quality_review_workflow import attach_quality_reviews
     attach_quality_reviews(reports, output_dir)
-    return build_report_quality_audit(reports, scope="all_indexed_reports", item_limit=item_limit, item_offset=item_offset)
+    return attach_full_report_freshness_summary(build_report_quality_audit(reports, scope="all_indexed_reports", item_limit=item_limit, item_offset=item_offset), reports)
 
 
 def build_historical_indexed_report_quality_audit(

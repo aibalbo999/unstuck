@@ -184,6 +184,30 @@ def test_report_quality_audit_marks_sample_scope_when_full_index_is_not_availabl
     assert payload["items"] == []
 
 
+def test_report_freshness_summary_keeps_full_scope_separate_from_quality_metadata():
+    from report_freshness_summary import build_report_freshness_summary
+
+    payload = build_report_freshness_summary(
+        [
+            {"decision_freshness": {"status": "current", "requires_rerun": False}},
+            {"decision_freshness": {"status": "needs_rerun", "requires_rerun": True}},
+            {"decision_freshness": {"status": "unknown", "requires_rerun": False}},
+        ],
+        scope="all_indexed_reports",
+        selection_basis="latest_per_ticker_pipeline",
+    )
+
+    assert payload == {
+        "schema_version": "report_freshness_summary.v1",
+        "scope": "all_indexed_reports",
+        "selection_basis": "latest_per_ticker_pipeline",
+        "audited_reports": 3,
+        "current_reports": 1,
+        "needs_rerun_reports": 1,
+        "unknown_reports": 1,
+    }
+
+
 def test_report_quality_audit_exposes_item_truncation_metadata():
     from report_quality_audit import build_report_quality_audit
 
@@ -929,6 +953,15 @@ def test_indexed_report_quality_audit_exposes_snapshot_refresh_provenance(monkey
 
     payload = audit.build_indexed_report_quality_audit(str(tmp_path))
 
+    assert payload["decision_freshness_summary"] == {
+        "schema_version": "report_freshness_summary.v1",
+        "scope": "all_indexed_reports",
+        "selection_basis": "latest_per_ticker_pipeline",
+        "audited_reports": 1,
+        "current_reports": 0,
+        "needs_rerun_reports": 1,
+        "unknown_reports": 0,
+    }
     assert payload["items"][0]["title"] == "刷新前已有品質證據缺口"
     assert payload["items"][0]["rerun_context_status"] == "missing"
     assert payload["items"][0]["reason_codes"] == [
