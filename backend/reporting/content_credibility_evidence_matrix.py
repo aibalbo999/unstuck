@@ -5,6 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from mapping_fields import safe_mapping_dict, safe_sequence_items, safe_text
+from .text_tokens import is_missing_text_token
+
+
+_USABLE_EVIDENCE_STATUSES = frozenset({"success", "skipped_fresh_cache", "degraded_enrichment"})
 
 
 def _as_dict(value: Any) -> dict:
@@ -36,12 +40,12 @@ def _evidence_matrix_rows(context: dict, snapshot: dict) -> list:
         return []
 
 
-def _has_evidence_claim(rows: list, claim: str) -> bool:
+def _evidence_claim_row(rows: list, claim: str) -> dict | None:
     for row in rows:
         row_map = _as_dict(row)
         if safe_text(row_map.get("claim")).strip() == claim:
-            return True
-    return False
+            return row_map
+    return None
 
 
 def evaluate_evidence_matrix_coverage(
@@ -58,12 +62,27 @@ def evaluate_evidence_matrix_coverage(
     warnings: list[dict] = []
     checks: list[dict] = []
 
-    if recommendation_present and not _has_evidence_claim(rows, "最終投資建議"):
-        issue = _issue(
-            "missing_final_recommendation_evidence",
-            "最終投資建議缺少 evidence matrix 覆蓋。",
-            {"required_claim": "最終投資建議"},
-        )
+    if recommendation_present:
+        claim = "最終投資建議"
+        row = _evidence_claim_row(rows, claim)
+        if row is None:
+            issue = _issue(
+                "missing_final_recommendation_evidence",
+                "最終投資建議缺少 evidence matrix 覆蓋。",
+                {"required_claim": claim},
+            )
+        else:
+            status = safe_text(row.get("status")).strip().lower() or "unknown"
+            basis = safe_text(row.get("basis")).strip()
+            basis_present = bool(basis) and not is_missing_text_token(basis)
+            if status in _USABLE_EVIDENCE_STATUSES and basis_present:
+                checks.append(_check("evidence_matrix_coverage", "passed", "最終投資建議已有可用 evidence matrix 覆蓋。"))
+                return {"blocking_issues": blocking, "warnings": warnings, "checks": checks}
+            issue = _issue(
+                "unusable_final_recommendation_evidence",
+                "最終投資建議的 evidence matrix 列沒有可用證據狀態或依據，需要人工確認。",
+                {"required_claim": claim, "status": status, "basis_present": basis_present},
+            )
         warnings.append(issue)
         checks.append(_check("evidence_matrix_coverage", "warning", issue["message"], issue["details"]))
     else:

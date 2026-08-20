@@ -39,6 +39,43 @@ def test_evidence_matrix_coverage_accepts_tuple_and_mapping_safe_rows():
     assert result["checks"][0]["status"] == "passed"
 
 
+def test_evidence_matrix_coverage_warns_when_final_claim_evidence_is_failed():
+    result = evaluate_evidence_matrix_coverage(
+        context={},
+        snapshot={
+            "evidence_matrix": (
+                {"claim": "最終投資建議", "basis": "建議: 持有", "status": "failed"},
+            ),
+        },
+        recommendation_present=True,
+    )
+
+    assert result["blocking_issues"] == []
+    assert result["warnings"][0]["id"] == "unusable_final_recommendation_evidence"
+    assert result["warnings"][0]["details"] == {
+        "required_claim": "最終投資建議",
+        "status": "failed",
+        "basis_present": True,
+    }
+    assert result["checks"][0]["status"] == "warning"
+
+
+def test_evidence_matrix_coverage_warns_when_final_claim_basis_is_missing():
+    result = evaluate_evidence_matrix_coverage(
+        context={},
+        snapshot={
+            "evidence_matrix": (
+                {"claim": "最終投資建議", "basis": "", "status": "success"},
+            ),
+        },
+        recommendation_present=True,
+    )
+
+    assert result["warnings"][0]["id"] == "unusable_final_recommendation_evidence"
+    assert result["warnings"][0]["details"]["basis_present"] is False
+    assert result["warnings"][0]["details"]["status"] == "success"
+
+
 def test_evidence_matrix_coverage_passes_without_recommendation():
     result = evaluate_evidence_matrix_coverage(
         context={},

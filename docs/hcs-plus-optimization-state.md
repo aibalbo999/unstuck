@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-20
+- D3612：重新檢查 evidence matrix coverage，發現只要存在 `claim=最終投資建議` 就會 passed，無視 row 的 `status=failed/unknown` 或空 `basis`。新增 usable status + basis guard，產生 `unusable_final_recommendation_evidence` warning；不取代 evidence_exit_gate 的數字抽查責任。
+- D3612 驗證完成：failed evidence 與空 basis 先 RED，再 GREEN `29 passed`；跨層 quality/document 回歸 `490 passed`，live smoke 對兩種不可用 row 均產生 `unusable_final_recommendation_evidence` warning；daily audit `159/2/98.74%`，current 兩筆 artifact summary 均列三個 quality fields，repair queue `0`，health/readiness/doctor 通過。未改 snapshot、artifact、index、review ledger、rerun 或 queue。
 - D3611：live current 缺口的 artifact summary 只辨識 `Report conformance` 與 `Evidence gate`，但 renderer 的 execution summary 沒有獨立輸出 `content_credibility`，舊報告的閱讀提示 `內容一致性` 也未被 marker parser 辨識。新增 shared execution summary 的 `Content credibility` status/summary，以及新舊 Markdown/HTML marker recognition；只補 artifact evidence 可追溯性，不把 artifact 摘要當成 persisted gate。
 - D3611 驗證完成：artifact marker RED→GREEN `71 passed`，跨層 quality/document 回歸 `431 passed`；runtime reload 後 daily/current historical 均為 `158` audited、`2` metadata missing、`98.73%`，兩筆 current item 的 artifact evidence 均完整列出三個 quality fields，repair queue `0`，health/readiness/doctor 通過。未改 snapshot、artifact、index、review ledger、rerun 或 queue。
 - D3610：D3609 後對照 final-audit 與 content-credibility 責任，發現 3/6/12 個月目標價時序規則只在 final-audit 留下字串；content gate 只看主要目標價方向，歷史/API 缺 raw final-audit 時缺少同一 trace。新增 horizon evaluator，重用既有 sequence rule，方向性時序異常為 `horizon_target_sequence_conflict` warning，不取代 final-audit critical。

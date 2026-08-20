@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3612 / reject empty or failed recommendation evidence rows
+
+- `#偏誤辨識` / `#證據基礎`：`claim=最終投資建議` 的存在被錯當成 evidence coverage；failed/unknown row 或空 basis 仍能回傳 passed，會讓人工看到錯誤綠燈。
+- `#責任` / `#語意含義`：只在 content credibility matrix gate 要求 usable status `success`、`skipped_fresh_cache`、`degraded_enrichment` 與非空 basis；不把 matrix warning 升級成 evidence_exit_gate rejected，維持兩者責任分離。
+- `#可驗證性` / `#偏誤降低`：failed evidence 與 empty basis 先 RED，再 GREEN `29 passed`；跨層 quality/document `490 passed`，live smoke 兩種不可用 row 都產生 `unusable_final_recommendation_evidence` warning，daily `159/2/98.74%`、current artifact 三 fields、repair queue `0`、health/readiness/doctor 通過，保留既有 mutation boundary。
+
 ## D3611 / preserve content-credibility evidence in artifacts
 
 - `#差距分析` / `#責任`：snapshot/API 已有 `content_credibility`，但 execution summary 沒有獨立 marker；`read_artifact_quality_summary()` 因此把現有報告的內容可信度證據漏掉，人工核對只能看到其他兩個 gate。
