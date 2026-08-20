@@ -282,7 +282,8 @@ def row_to_report(row) -> dict:
         stored_content_credibility,
         snapshot.get("final_audit") or snapshot.get("report_conformance", {}),
     )
-    projected_content_credibility = project_content_credibility(snapshot)
+    content_projection_snapshot = dict(snapshot, evidence_exit_gate=projected_evidence_exit_gate) if projected_evidence_exit_gate is not None else snapshot
+    projected_content_credibility = project_content_credibility(content_projection_snapshot)
     preview = build_report_preview(
         pipeline_id,
         row["ticker"],
@@ -311,7 +312,7 @@ def row_to_report(row) -> dict:
             row,
             pipeline_id=pipeline_id,
             markdown_text=markdown_text,
-            snapshot=snapshot,
+            snapshot=content_projection_snapshot,
             projected=projected_content_credibility,
         ),
         "snapshot_integrity": _snapshot_integrity(row, snapshot=snapshot),

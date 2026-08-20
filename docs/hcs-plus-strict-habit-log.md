@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3653 / keep evidence and content projections on one current context
+
+- `#差距分析` / `#偏誤辨識`：D3652 的 evidence gate 已使用 current markdown/snapshot parser，但 content credibility 仍可能讀到 persisted `approved`，讓 API 同時呈現 evidence=`caution/rejected` 與 content=`passed`。
+- `#最小變更` / `#語意含義`：建立 shallow `content_projection_snapshot`，只替換投影用的 `evidence_exit_gate`；原始 snapshot 與 download/quality/audit state 不變，v4 trade-plan fallback 也沿用同一 current gate。
+- `#可驗證性` / `#責任`：history API regression RED→GREEN；projection/e2e `10 passed`、content/report-quality/conformance/preview `1197 passed`、import/lint/data-trust `578 passed`，保留 persisted gate 與 current projection 的可追溯差異。
+
 ## D3652 / project current evidence without rewriting history
 
 - `#差距分析` / `#責任`：D3651 的程式規則已正確，但既有 `/api/reports` 仍直接顯示 persisted 舊 evidence gate；若只看 API，操作員會看不到 current parser 對舊 artifact 的修正。

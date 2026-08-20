@@ -344,6 +344,37 @@ def test_report_history_projects_current_evidence_without_rewriting_snapshot(tmp
     assert persisted["evidence_exit_gate"]["verdict"] == "approved"
 
 
+def test_report_history_uses_current_evidence_for_content_projection(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.sqlite3"))
+    filename = "2449_v1_report_20260606_036000.html"
+    _write_report_pair(tmp_path, filename)
+    (tmp_path / filename.replace(".html", ".md")).write_text("- 信心: 0.85\n", encoding="utf-8")
+    snapshot = {
+        "pipeline": "v1",
+        "data": {
+            "current_price": 309.5,
+            "dupont_identity_note": 0.891,
+            "data_trust": {"status": "fresh", "score": 90, "critical_failures": [], "stale_sources": [], "notes": []},
+        },
+        "evidence_exit_gate": {"verdict": "approved", "failed_count": 0, "sampled_count": 1},
+        "content_credibility": {"status": "passed", "blocking_issues": [], "warnings": [], "checks": []},
+        "rerun_context": {
+            "pipeline_id": "v1",
+            "parsed": {"recommendation": {"建議": "買入", "信心": "9/10"}},
+        },
+    }
+    (tmp_path / filename.replace(".html", ".data.json")).write_text(json.dumps(snapshot, ensure_ascii=False), encoding="utf-8")
+    report_index.upsert_report_metadata(filename, output_dir=str(tmp_path))
+
+    report = TestClient(api.app).get("/api/reports", params={"limit": 20}).json()["reports"][0]
+
+    assert report["evidence_exit_gate"]["verdict"] == "caution"
+    check = next(item for item in report["content_credibility"]["checks"] if item["id"] == "confidence_evidence_alignment")
+    assert check["status"] == "warning"
+    assert check["details"]["evidence_verdict"] == "caution"
+
+
 def test_report_history_exposes_report_conformance_for_operator_actions(tmp_path, monkeypatch):
     monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
     monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.sqlite3"))
