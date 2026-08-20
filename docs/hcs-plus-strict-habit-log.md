@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3608 / do not pass unknown recommendation directions
+
+- `#偏誤辨識` / `#合理性`：alignment 只有「買入／偏空／持有」分支；未知 label 有現價與目標價時會直接穿過所有分支，形成「未檢查」卻顯示 passed 的錯誤綠燈。
+- `#責任` / `#語意含義`：沿用 `CANONICAL_RECOMMENDATIONS`，content credibility 只記錄 `unrecognized_recommendation_label` warning 並停止方向比較；final-audit 仍獨立負責允許值 structural block，不把兩個 gate 合併。
+- `#可驗證性` / `#來源品質`：先取得 alignment RED，再 GREEN focused content `27 passed`、跨層 quality/conformance `317 passed`；live unknown-label smoke、daily/current historical `157/2/98.73%`、queue、health/readiness/doctor 均通過，維持 read-only 與 mutation boundary。
+
 ## D3607 / validate long-term scenario target ordering
 
 - `#偏誤辨識` / `#差距分析`：單一主要目標價方向通過，不代表熊／基本／牛情境帶自洽；目前 evaluator 原本完全沒有檢查這個既有 parsed input。

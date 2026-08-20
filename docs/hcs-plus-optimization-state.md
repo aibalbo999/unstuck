@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-20
+- D3608：D3607 後重新檢查 alignment 分支，發現 recommendation map 有值但 normalized label 為未知字串時，沒有任何 branch 會落入 warning，反而回傳 passed。新增共用 canonical label guard：`unrecognized_recommendation_label` 為 warning，方向比較略過；final-audit 仍維持 structural blocked 責任。
+- D3608 驗證完成：新增 alignment 與 evaluator integration RED→GREEN，focused content `27 passed`、跨層 quality/conformance `317 passed`；live unknown-label smoke 為 `warning/unrecognized_recommendation_label`，daily/current historical `157/2/98.73%`，repair queue `0`、decision queue `1`，health/readiness/doctor 通過。未改 snapshot、artifact、index、review ledger、rerun 或 daily queue。
 - D3607：live daily quality audit 與 `repair_queue=0` 已確認是獨立責任邊界；下一個內容可信度缺口是 evaluator 只檢查主要目標價，未檢查已存在的熊／基本／牛情境帶。新增 deterministic scenario order gate：已解析的倒置 pair 為 blocked，明確存在但不可解析為 warning，缺少情境鍵不猜值，v4 無長線情境仍走 trade setup。
 - D3607 驗證完成：新增情境倒置、不可解析與缺基本情境的 RED→GREEN regression，focused quality/conformance lane `315 passed`；live daily/current historical 均為 `157/2/98.73%`，v4 snapshot 明確略過長線情境檢查，health/readiness/doctor 通過。未改 snapshot、artifact、index、review ledger、rerun 或 daily queue。
 - D3606：D3605 的 `version_status=current` 仍在 artifact hydration 後才過濾，冷啟動約 `2.2s`；將同一份 latest-per-ticker/pipeline 判定提前套在 index rows，current scope 只讀 `157` rows，保留完整報告分母與既有 review/missing-field intersection。

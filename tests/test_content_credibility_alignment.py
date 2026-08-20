@@ -48,6 +48,19 @@ def test_alignment_warns_when_inputs_are_missing_but_recommendation_exists():
     assert result["checks"][0]["status"] == "warning"
 
 
+def test_alignment_warns_when_recommendation_label_is_not_recognized():
+    result = evaluate_recommendation_target_alignment(
+        recommendation_present=True,
+        recommendation_label="未定",
+        current_price=100.0,
+        main_target={"price": 120.0, "source": "recommendation.12個月"},
+    )
+
+    assert result["blocking_issues"] == []
+    assert result["warnings"][0]["id"] == "unrecognized_recommendation_label"
+    assert result["checks"][0]["status"] == "warning"
+
+
 def test_alignment_passes_when_no_recommendation_or_target_is_recorded():
     result = evaluate_recommendation_target_alignment(
         recommendation_present=False,

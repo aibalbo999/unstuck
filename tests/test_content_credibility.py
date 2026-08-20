@@ -68,6 +68,16 @@ def test_content_credibility_blocks_buy_when_main_target_is_below_current_price(
     assert any(issue["id"] == "buy_target_below_current_price" for issue in result["blocking_issues"])
 
 
+def test_content_credibility_warns_for_unrecognized_recommendation_label():
+    from reporting.content_credibility import evaluate_content_credibility
+
+    context = _base_context(recommendation="未定", target_12m="NT$130")
+    result = evaluate_content_credibility(context, _base_snapshot(context))
+
+    assert result["status"] == "warning"
+    assert any(issue["id"] == "unrecognized_recommendation_label" for issue in result["warnings"])
+
+
 def test_content_credibility_uses_target_range_midpoint_after_percent_preface():
     from reporting.content_credibility import evaluate_content_credibility
 

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from recommendation_labels import CANONICAL_RECOMMENDATIONS
+
 from .content_credibility_inputs import upside_pct
 
 
@@ -37,6 +39,23 @@ def evaluate_recommendation_target_alignment(
     blocking: list[dict] = []
     warnings: list[dict] = []
     checks: list[dict] = []
+
+    if recommendation_present and recommendation_label not in CANONICAL_RECOMMENDATIONS:
+        details = {
+            "recommendation": recommendation_label,
+            "current_price": current_price,
+            "target_price": main_target.get("price") if main_target else None,
+            "target_source": main_target.get("source") if main_target else None,
+            "allowed_recommendations": list(CANONICAL_RECOMMENDATIONS),
+        }
+        issue = _issue(
+            "unrecognized_recommendation_label",
+            "最終建議不是可辨識的投資方向，無法完成方向一致性檢查。",
+            details,
+        )
+        warnings.append(issue)
+        checks.append(_check("recommendation_target_alignment", "warning", issue["message"], details))
+        return {"blocking_issues": blocking, "warnings": warnings, "checks": checks}
 
     if current_price and main_target:
         target_price = float(main_target["price"])
