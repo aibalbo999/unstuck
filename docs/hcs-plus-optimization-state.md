@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-20
+- D3613：對照既有 final-audit 的三情境範圍警示，發現 content credibility 只檢查主要目標方向與情境排序，未把可解析的 12 個月目標價與熊市 `* 0.7`／牛市 `* 1.3` 可解釋邊界投影出來；新增 `recommendation_target_outside_scenario_range` read-only warning，缺少任一必要值就略過，不改 final-audit、scenario-order blocker、repair 或 rerun 責任。
+- D3613 驗證完成：先以整合 RED，再 GREEN evaluator/credibility `28 passed`；跨層 quality/document 回歸 `494 passed`，compile、diff check 通過；live smoke 對 NT$200 vs 三情境 80/120/140 產生 bounds `56.0..182.0` 的 warning，daily audit `162/2/98.77%`、current 缺口仍為 2 且 artifact 三 fields 齊全、repair action `0`，health/readiness/doctor 通過。runtime reload 時既有 watchlist job 由啟動流程接續，audit 分母由 160 變 162，未將該背景工作變化歸因於本 patch；本輪未主動寫入 snapshot、review ledger、repair 或 rerun。
 - D3612：重新檢查 evidence matrix coverage，發現只要存在 `claim=最終投資建議` 就會 passed，無視 row 的 `status=failed/unknown` 或空 `basis`。新增 usable status + basis guard，產生 `unusable_final_recommendation_evidence` warning；不取代 evidence_exit_gate 的數字抽查責任。
 - D3612 驗證完成：failed evidence 與空 basis 先 RED，再 GREEN `29 passed`；跨層 quality/document 回歸 `490 passed`，live smoke 對兩種不可用 row 均產生 `unusable_final_recommendation_evidence` warning；daily audit `159/2/98.74%`，current 兩筆 artifact summary 均列三個 quality fields，repair queue `0`，health/readiness/doctor 通過。未改 snapshot、artifact、index、review ledger、rerun 或 queue。
 - D3611：live current 缺口的 artifact summary 只辨識 `Report conformance` 與 `Evidence gate`，但 renderer 的 execution summary 沒有獨立輸出 `content_credibility`，舊報告的閱讀提示 `內容一致性` 也未被 marker parser 辨識。新增 shared execution summary 的 `Content credibility` status/summary，以及新舊 Markdown/HTML marker recognition；只補 artifact evidence 可追溯性，不把 artifact 摘要當成 persisted gate。

@@ -14,6 +14,7 @@ from .content_credibility_evidence_matrix import evaluate_evidence_matrix_covera
 from .content_credibility_final_audit import evaluate_final_audit_alignment, final_audit_from_conformance
 from .content_credibility_horizons import evaluate_horizon_target_sequence
 from .content_credibility_scenarios import evaluate_scenario_target_order
+from .content_credibility_scenario_range import evaluate_recommendation_target_scenario_range
 from .content_credibility_trade_setup import evaluate_trade_setup_alignment
 from .content_credibility_inputs import (
     confidence_score as recommendation_confidence_score,
@@ -73,6 +74,11 @@ def evaluate_content_credibility(context: dict, snapshot: dict | None = None, ma
     blocking.extend(scenario_alignment["blocking_issues"])
     warnings.extend(scenario_alignment["warnings"])
     checks.extend(scenario_alignment["checks"])
+
+    scenario_range = evaluate_recommendation_target_scenario_range(parsed)
+    blocking.extend(scenario_range["blocking_issues"])
+    warnings.extend(scenario_range["warnings"])
+    checks.extend(scenario_range["checks"])
 
     horizon_alignment = evaluate_horizon_target_sequence(parsed)
     blocking.extend(horizon_alignment["blocking_issues"])

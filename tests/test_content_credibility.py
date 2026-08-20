@@ -151,6 +151,22 @@ def test_content_credibility_compares_outer_scenarios_when_base_target_is_missin
     assert any(issue["id"] == "scenario_target_order_conflict" for issue in result["blocking_issues"])
 
 
+def test_content_credibility_warns_when_12m_target_exceeds_scenario_range():
+    from reporting.content_credibility import evaluate_content_credibility
+
+    context = _base_context(recommendation="買入", target_12m="NT$200")
+    result = evaluate_content_credibility(context, _base_snapshot(context))
+
+    assert result["status"] == "warning"
+    issue = next(
+        issue for issue in result["warnings"]
+        if issue["id"] == "recommendation_target_outside_scenario_range"
+    )
+    assert issue["details"]["target_12m"] == 200.0
+    assert issue["details"]["allowed_lower_bound"] == 56.0
+    assert issue["details"]["allowed_upper_bound"] == 182.0
+
+
 def test_content_credibility_blocks_explicit_targets_when_data_confidence_is_low():
     from reporting.content_credibility import evaluate_content_credibility
 

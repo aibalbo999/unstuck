@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3613 / surface recommendation targets outside scenario range
+
+- `#偏誤辨識` / `#證據基礎`：final-audit 已用三情境範圍檢查 12 個月目標價，但歷史/API content credibility trace 沒有這個 warning；只通過主要目標方向與情境排序，仍可能把遠離估值帶的結論顯示成沒有可信度警示。
+- `#拆解問題` / `#責任`：重用既有 target-price parser 與 canonical bear/base/bull candidates，只有 12 個月與三情境都可解析才計算 `bear * 0.7` 到 `bull * 1.3`；超出產生 `recommendation_target_outside_scenario_range` warning，缺值略過，不把 read-only projection 變成 final-audit blocker 或 rerun/repair side effect。
+- `#可驗證性` / `#偏誤降低`：先取得 integration RED，再 GREEN `28 passed`；跨層 quality/document `494 passed`，live smoke 確認 NT$200 超過 `56.0..182.0` 時產生 warning，daily `162/2/98.77%`、current artifact 三 fields、repair action `0`、health/readiness/doctor 通過。runtime reload 接續一筆既有 watchlist job，使 audit 分母由 160 變 162，保留為環境背景，不歸因於本次 patch。
+
 ## D3612 / reject empty or failed recommendation evidence rows
 
 - `#偏誤辨識` / `#證據基礎`：`claim=最終投資建議` 的存在被錯當成 evidence coverage；failed/unknown row 或空 basis 仍能回傳 passed，會讓人工看到錯誤綠燈。
