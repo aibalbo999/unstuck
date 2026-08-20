@@ -1079,13 +1079,20 @@ def test_historical_indexed_report_quality_audit_filters_report_version_status(m
             "content_credibility": {"status": "passed"},
         }
     )
+    loaded_rows = []
 
     def collect(_list_reports, **kwargs):
         return {"reports": historical_rows if kwargs["include_versions"] else latest_rows}
 
     monkeypatch.setattr(audit, "collect_all_report_pages", collect)
     monkeypatch.setattr(audit, "storage_for_existing_output_dir", lambda *_args: None)
-    monkeypatch.setattr(audit, "_cached_indexed_quality_reports", lambda *_args, **_kwargs: reports)
+
+    def cached(rows, *_args, **_kwargs):
+        loaded_rows.append([row["filename"] for row in rows])
+        filenames = {row["filename"] for row in rows}
+        return [report for report in reports if report["filename"] in filenames]
+
+    monkeypatch.setattr(audit, "_cached_indexed_quality_reports", cached)
 
     payload = audit.build_historical_indexed_report_quality_audit(
         str(tmp_path), item_limit=5, version_status="current"
@@ -1095,6 +1102,7 @@ def test_historical_indexed_report_quality_audit_filters_report_version_status(m
     assert payload["audited_reports"] == 2
     assert payload["quality_metadata_missing_by_version_status"] == {"current": 1, "historical": 0, "unknown": 0}
     assert [item["filename"] for item in payload["items"]] == ["1623_current.html"]
+    assert loaded_rows == [["1623_current.html", "1623_current_complete.html"]]
 
 
 def test_collect_all_report_pages_follows_index_pagination():

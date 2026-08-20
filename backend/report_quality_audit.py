@@ -97,26 +97,34 @@ def build_historical_indexed_report_quality_audit(
         output_dir=output_dir,
         sync_metadata=False,
     )
+    version_status_filter = _normalize_version_status_filter(version_status)
+    latest_filenames = _latest_report_filenames(latest_rows.get("reports", []))
+    indexed_rows = rows.get("reports", [])
+    if version_status_filter != "all":
+        indexed_rows = [
+            row
+            for row in indexed_rows
+            if _indexed_report_version_status(
+                row.get("ticker"),
+                row.get("pipeline_id"),
+                row.get("filename") or row.get("report_filename"),
+                latest_filenames,
+            )
+            == version_status_filter
+        ]
     storage = storage_for_existing_output_dir(output_dir, None)
     reports = _cached_indexed_quality_reports(
-        rows.get("reports", []),
+        indexed_rows,
         storage,
         cache_namespace=(
-            f"historical:{output_dir}:{safe_text(q).strip().lower()}:{safe_text(pipeline).strip().lower()}"
+            f"historical:{output_dir}:{safe_text(q).strip().lower()}:{safe_text(pipeline).strip().lower()}:{version_status_filter}"
         ),
     )
-    _annotate_report_version_status(reports, _latest_report_filenames(latest_rows.get("reports", [])))
+    _annotate_report_version_status(reports, latest_filenames)
     from report_quality_review_workflow import attach_quality_reviews
     attach_quality_reviews(reports, output_dir)
     review_status_filter = _normalize_review_status_filter(review_status)
     missing_quality_field_filter = _normalize_quality_field_filter(missing_field)
-    version_status_filter = _normalize_version_status_filter(version_status)
-    if version_status_filter != "all":
-        reports = [
-            report
-            for report in reports
-            if safe_text(report.get("report_version_status")).strip().lower() == version_status_filter
-        ]
     if review_status_filter != "all" or missing_quality_field_filter != "all":
         filtered_reports = []
         for report in reports:
@@ -262,16 +270,27 @@ def _annotate_report_version_status(
     latest_filenames: dict[tuple[str, str], str],
 ) -> None:
     for report in reports:
-        identity = _report_identity(report.get("ticker"), report.get("pipeline_id"))
-        filename = safe_text(report.get("filename") or report.get("report_filename")).strip()
-        latest_filename = latest_filenames.get(identity)
-        if latest_filename and filename == latest_filename:
-            status = "current"
-        elif latest_filename and filename:
-            status = "historical"
-        else:
-            status = "unknown"
-        report["report_version_status"] = status
+        report["report_version_status"] = _indexed_report_version_status(
+            report.get("ticker"),
+            report.get("pipeline_id"),
+            report.get("filename") or report.get("report_filename"),
+            latest_filenames,
+        )
+
+
+def _indexed_report_version_status(
+    ticker: Any,
+    pipeline_id: Any,
+    filename: Any,
+    latest_filenames: dict[tuple[str, str], str],
+) -> str:
+    latest_filename = latest_filenames.get(_report_identity(ticker, pipeline_id))
+    filename_text = safe_text(filename).strip()
+    if latest_filename and filename_text == latest_filename:
+        return "current"
+    if latest_filename and filename_text:
+        return "historical"
+    return "unknown"
 
 
 def _report_identity(ticker: Any, pipeline_id: Any) -> tuple[str, str]:

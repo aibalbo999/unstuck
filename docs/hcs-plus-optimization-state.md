@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-20
+- D3606：D3605 的 `version_status=current` 仍在 artifact hydration 後才過濾，冷啟動約 `2.2s`；將同一份 latest-per-ticker/pipeline 判定提前套在 index rows，current scope 只讀 `157` rows，保留完整報告分母與既有 review/missing-field intersection。
+- D3606 驗證完成：新增 loader-scope regression 先 RED 再 GREEN；live `current` cold `519ms`、warm `186ms`，仍為 `157/2/98.73%`，HTTP/quality/history/docs/HCS/browser/runtime 邊界核對完成，沒有新增 artifact、review、rerun、queue 或 index mutation。
 - D3605：live historical 缺口為 `115` 筆，其中目前版本 `2`、歷史版本 `113`；D3604 雖已標記版本語意，但人工核對仍需從總清單手動辨識。新增 GET-only `version_status=all|current|historical|unknown` 篩選與 history UI 入口，先縮小版本 scope，再保留完整報告分母，review/missing-field 仍維持既有 gap-only intersection。
 - D3605 驗證完成：以 `#差距分析`、`#詮釋框架`、`#溝通設計` 聚焦「目前版本缺口」操作路徑；backend/route/frontend 先 RED 再 GREEN，full quality/history `133 passed`、HTTP E2E `41 passed`、docs/HCS `135 passed`，live current/historical/unknown、invalid enum、browser desktop/mobile 均核對完成，維持 daily queue、artifact、review ledger、rerun 與 report index mutation boundary。
 - D3604：重新對照 live historical `115` 筆缺口與 latest-per-ticker/pipeline scope，確認舊版缺口和目前版本缺口沒有被 API/UI 分開呈現；新增 `report_version_status` 與 `quality_metadata_missing_by_version_status`，history target 明示目前/歷史版本，避免把歷史 coverage 直接當成目前報告不可採用。

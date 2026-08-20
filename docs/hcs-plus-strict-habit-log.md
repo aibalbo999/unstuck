@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3606 / hydrate only the selected version scope
+
+- `#最佳化` / `#變數分析`：D3605 的版本篩選已正確改變結果範圍，但 code path 仍先讀全量 snapshot/artifact；current-only live cold request 約 `2.2s`，主要成本在讀取而不是版本分類。
+- `#拆解問題` / `#責任`：把 latest-per-ticker/pipeline 判定抽成共用 index-row helper，先縮小 rows，再交給既有 cache/storage hydration；完整報告仍保留在 current scope 分母，review/missing-field 才是缺口集合篩選。
+- `#可驗證性` / `#來源品質`：loader-scope regression 先取得 RED，再 GREEN；live current `519ms/186ms`、scope 數字、runtime health/ready 與既有跨層測試共同核對，未改 mutation boundary。
+
 ## D3605 / focus current-version quality gaps without changing coverage semantics
 
 - `#差距分析` / `#詮釋框架`：live historical `115` 筆缺口中只有 `2` 筆屬目前 ticker/pipeline 最新版本；只有摘要標記仍不足以讓人工核對快速聚焦目前風險。
