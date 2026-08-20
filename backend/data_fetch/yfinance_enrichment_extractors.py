@@ -22,7 +22,8 @@ def extract_price_history_ranges(stock) -> dict:
         if hist is None or hist.empty or "Close" not in hist:
             return {}
         frame = hist[["Close"]].dropna()
-        today = datetime.now().date()
+        latest_data_date = max(index.date() for index in frame.index)
+        today = min(datetime.now().date(), latest_data_date)
         frame = frame[[index.date() <= today for index in frame.index]]
         if frame.empty:
             return {}

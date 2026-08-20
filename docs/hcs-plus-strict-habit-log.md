@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3632 / make temporal price ranges follow the latest available data date
+
+- `#差距分析` / `#來源品質`：fixture 的最新價格資料日是 2026-07-01，但 extractor 以執行日 2026-08-21 切 5 年窗口，排除 2021-07-01 並把 return 從 142.0% 算成 72.86%。
+- `#偏誤降低` / `#可驗證性`：以 `min(now, latest_data_date)` 作價格 history as-of，避免延遲或歷史資料被當成今天；同步校準 8f53dc81 後已變更 renderer 的 golden hash，保留 required markers。
+- `#最小變更` / `#副作用`：只修正時間窗口與 stale golden fixture，不回寫報告 artifact、report index、review 或 runtime state；focused data-fetch/golden `22 passed`。
+
 ## D3631 / surface complete latest audit gaps in the read-only decision queue
 
 - `#差距分析` / `#責任`：live daily audit 的 current gap 有完整明細與人工核對資訊，但既有 queue 只顯示 repair sample，讓 audit coverage 與 next-action surface 斷開。

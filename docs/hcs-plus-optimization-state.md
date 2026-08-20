@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-21
+- D3632：全套回歸暴露兩個非本輪 queue 變更的 residual：5 年價格 fixture 在資料最後日期早於系統日期時被當成「今天」切窗，且 renderer 在 8f53dc81 後已有意義變更但 golden hash 未同步。`extract_price_history_ranges()` 現在以最新可用價格日期作 as-of 上限，golden fixture 以目前 renderer 輸出重新校準，保留 required markers。
+- D3632 驗證：data-fetch/golden focused `22 passed`，5 年 fixture 回復 `2021-07-01` 起始與 `142.0%` return；`test_2330_v1_markdown_report_matches_golden_snapshot` 通過，未改報告 gate、audit、index 或 runtime state。
 - D3631：live daily quality audit 的 `2` 個 current gap（priority `820`、`blocks_auto_rerun=true`）未進 decision queue，操作員只能在 audit 明細看見，造成 coverage 與 next-action surface 斷裂。新增完整 latest audit item 的唯讀 `report_quality_audit` queue source；只有 `items_truncated=false` 且明細數完整覆蓋 `quality_metadata_missing_reports` 才投影，repair sample 依 filename 優先去重，partial/unavailable/historical 不進 queue。
 - D3631 驗證：先以 queue/dashboard RED 鎖定漏項與 partial 防誤報，再 GREEN 通過 daily queue/dashboard/static `160` tests；live `healthz=ok`、`readyz=ready`、canonical report index/operational DB 與 RQ runtime 通過，daily `165` audited / `2` missing / `2` complete items，queue 以 `report_quality_audit` priority `820` 排在 `report_repair` `780` 前，notification queue context 同步；全套 pytest 為 `8126 passed / 2 unrelated fixture-golden failures / 6 skipped`，未 enqueue rerun、寫 review/artifact/index/repair state。
 - D3630：profile 顯示 historical quality audit 對每筆 row 都執行 current-rule `content_credibility` projection，但 audit envelope 只使用 persisted gate metadata、snapshot integrity 與 artifact/context evidence；缺少 persisted content gate 時 projection 也不會被採用。新增 hydration 的 `project_current_quality` 邊界：一般 report-history row 維持 projection，indexed quality audit 關閉 projection，coverage、missing gap、review、artifact 與 queue 語意不變。
