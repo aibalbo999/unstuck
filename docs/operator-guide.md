@@ -209,6 +209,8 @@ Report conformance quality gate inputs use dict-native field reads before decisi
 
 Report conformance quality gate inputs accept mapping-safe wrappers before decision-tree evaluation, so read-only report lint, final audit, evidence, content credibility, context, or snapshot payloads cannot hide blocker or warning evidence.
 
+Report evidence exit gate numeric checks use semantic snapshot paths only: ISO timestamp fragments, hashes, source-audit metadata, `N/A` cells, and range prefixes are not investment claims; claims without a matching semantic path are recorded as `unverifiable` and do not borrow the nearest unrelated snapshot number. `failed_count` counts only real `mismatch` results, while `unverifiable_count` remains visible and keeps the verdict at least `caution` when no comparable evidence exists.
+
 Report conformance quality gate issue lists use sequence-safe conversion before decision-tree evaluation, so tuple blocking or warning rows from lint, final audit, or content credibility gates cannot be ignored.
 
 Report conformance visible artifact and gate status text fields use safe text fallback before decision-tree evaluation, so malformed HTML, Markdown, template heading, lint, audit, evidence, content, or data-trust status values cannot interrupt report quality classification.

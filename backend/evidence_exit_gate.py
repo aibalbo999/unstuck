@@ -8,6 +8,10 @@ from random import Random
 from typing import Any
 
 
+def _normalize_match_text(value: Any) -> str:
+    return re.sub(r"[^0-9a-zA-Z_\u4e00-\u9fff]+", "", str(value or "").lower())
+
+
 _NUMERIC_UNIT_PATTERN = r"(?:TWD|%|x|X|倍|億|元|B|M|T)"
 _KV_RE = re.compile(
     rf"(?P<label>[\u4e00-\u9fffA-Za-z][^:\n：|]{{0,30}})[:：]\s*[~約]?(?:NT\$|\$)?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>{_NUMERIC_UNIT_PATTERN})?(?![\dA-Za-z.])"
@@ -16,12 +20,21 @@ _TABLE_CELL_RE = re.compile(
     rf"\|\s*(?P<label>[^|\n]{{1,30}})\s*\|\s*[~約]?(?:NT\$|\$)?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>{_NUMERIC_UNIT_PATTERN})?(?![\dA-Za-z.])\s*\|"
 )
 _NUMBER_IN_STRING_RE = re.compile(r"-?\d[\d,]*(?:\.\d+)?")
+_DATE_PREFIX_RE = re.compile(r"^\s*[（(]")
+_RANGE_PREFIX_RE = re.compile(r"^\s*-\s*\d")
 _EPS_VALUE_RE = re.compile(
     rf"(?:EPS|每股盈餘)[^\d\n]{{0,24}}?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>{_NUMERIC_UNIT_PATTERN})?(?![\dA-Za-z.])",
     re.IGNORECASE,
 )
 _NON_CLAIM_SUFFIX_RE = re.compile(r"^\s*(?:[A-Za-z]|週|周|個月|月|年|天|日)")
+_NON_CLAIM_LABEL_MARKERS = ("code", "duration", "error", "hash", "pipeline", "prompt", "provider", "recordcount", "抓取", "資料日期", "時間", "程式碼", "版本", "錯誤", "耗時", "雜湊")
+_SNAPSHOT_METADATA_PATH_MARKERS = ("cache_generated_at_epoch", "conclusion_generated_at", "content_hash", "data_snapshot_hash", "duration_ms", "evidence_exit_gate", "fetched_at", "final_audit", "generated_at", "hash", "record_count", "reproducibility_packet", "report_conformance", "report_lint", "snapshot_hash", "snapshot_refreshed_at", "source_audit", "target_ticker")
+_CONFIDENCE_METADATA_PATH_MARKERS = ("content_credibility", "data_confidence", "max_recommended_confidence", "min_data_confidence", "confidence_data_trust", "report_conformance")
+_NORMALIZED_NON_CLAIM_LABEL_MARKERS = tuple(_normalize_match_text(marker) for marker in _NON_CLAIM_LABEL_MARKERS)
+_NORMALIZED_SNAPSHOT_METADATA_PATH_MARKERS = tuple(_normalize_match_text(marker) for marker in _SNAPSHOT_METADATA_PATH_MARKERS)
+_NORMALIZED_CONFIDENCE_METADATA_PATH_MARKERS = tuple(_normalize_match_text(marker) for marker in _CONFIDENCE_METADATA_PATH_MARKERS)
 _FIELD_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
+    (("信心", "confidence"), ("confidence", "confidence_score", "agent_confidence")),
     (("股價", "現價", "currentprice", "current_price"), ("current_price", "regularmarketprice", "stock_price", "share_price")),
     (("p/e", "pe", "本益比"), ("pe_ratio", "trailingpe", "forwardpe", "price_earnings")),
     (("營收", "收入", "revenue", "sales"), ("revenue", "monthly_revenue", "sales")),
@@ -29,6 +42,10 @@ _FIELD_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
     (("fcf", "自由現金流", "freecashflow", "free_cash_flow"), ("fcf", "free_cash_flow", "freecashflow")),
     (("市值", "marketcap", "market_cap"), ("market_cap", "marketcap")),
     (("eps", "每股盈餘"), ("eps", "earnings_per_share")),
+    (("護城河", "moat"), ("moat", "moat_score", "moat_scores")),
+    (("營業利益率", "operatingmargin", "operating_margin"), ("operating_margin", "operatingincome", "operating_income")),
+    (("下行", "downside"), ("downside", "downside_pct")),
+    (("情境", "scenario", "目標價", "targetprice"), ("price_target", "price_targets", "target_price", "scenario", "scenarios", "valuation", "dcf")),
 )
 
 
@@ -45,12 +62,24 @@ def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
         if in_code or not line or line.startswith("#"):
             continue
         for match in list(_KV_RE.finditer(line)) + list(_TABLE_CELL_RE.finditer(line)):
+            if _is_non_claim_match(line, match):
+                continue
             label = _clean_label(match.group("label"))
             number, unit = _claim_value(match, label, line)
             if not label or number is None or not _valid_claim_number(number):
                 continue
             default_number = _clean_number(match.group("num"))
             if number == default_number and _NON_CLAIM_SUFFIX_RE.match(line[match.end():]):
+                continue
+            if number == default_number and _RANGE_PREFIX_RE.match(line[match.end():]):
+                continue
+            if (
+                number == default_number
+                and not match.group("unit")
+                and default_number is not None
+                and 1900 <= default_number <= 2100
+                and _DATE_PREFIX_RE.match(line[match.end():])
+            ):
                 continue
             key = (label, round(number, 6), line_number)
             if key in seen:
@@ -101,23 +130,34 @@ def evaluate_report_evidence(
     """Sample report numeric claims and verify them against snapshot values."""
     claims = extract_numeric_claims(markdown)
     sample = sample_numeric_claims(claims, sample_ratio=sample_ratio, min_sample=min_sample, max_sample=max_sample, seed=seed)
-    snapshot_values = flatten_snapshot_numbers(snapshot)
+    snapshot_values = [
+        item for item in flatten_snapshot_numbers(snapshot)
+        if _is_eligible_snapshot_value(item)
+    ]
     checked = [_check_claim(claim, snapshot_values, tolerance_pct=tolerance_pct) for claim in sample]
-    failed_count = sum(1 for item in checked if item["status"] != "verified")
+    failed_count = sum(1 for item in checked if item["status"] == "mismatch")
+    unverifiable_count = sum(1 for item in checked if item["status"] == "unverifiable")
     if not checked:
         verdict = "caution"
         summary = "報告中未抽取到足夠可核驗數字。"
     else:
-        failure_rate = failed_count / len(checked)
-        if failed_count == 0:
+        comparable = [item for item in checked if item["status"] in {"verified", "mismatch"}]
+        if not comparable:
+            verdict = "caution"
+            summary = "抽樣數字缺少可對應的資料快照路徑，需人工確認。"
+        elif failed_count == 0 and unverifiable_count == 0:
             verdict = "approved"
             summary = "抽樣數字均可在資料快照中找到對應值。"
-        elif failure_rate >= 0.5:
-            verdict = "rejected"
-            summary = "超過半數抽樣數字無法對上資料快照。"
         else:
-            verdict = "caution"
-            summary = "部分抽樣數字無法對上資料快照，需人工確認。"
+            failure_rate = failed_count / len(comparable)
+            if failure_rate >= 0.5:
+                verdict = "rejected"
+                summary = "超過半數可比對抽樣數字無法對上資料快照。"
+            else:
+                verdict = "caution"
+                summary = "部分抽樣數字無法對上資料快照，需人工確認。"
+            if unverifiable_count:
+                summary += "另有數字缺少同語意資料路徑。"
     return {
         "schema_version": 1,
         "verdict": verdict,
@@ -125,6 +165,7 @@ def evaluate_report_evidence(
         "claim_count": len(claims),
         "sampled_count": len(checked),
         "failed_count": failed_count,
+        "unverifiable_count": unverifiable_count,
         "tolerance_pct": tolerance_pct,
         "sampled_claims": checked,
     }
@@ -179,9 +220,12 @@ def flatten_snapshot_numbers(snapshot: Any) -> list[dict[str, Any]]:
 
 def _check_claim(claim: dict[str, Any], snapshot_values: list[dict[str, Any]], *, tolerance_pct: float) -> dict[str, Any]:
     reported = float(claim.get("reported_value") or 0)
+    path_markers = _path_markers_for_claim(claim)
     candidate_values = _relevant_snapshot_values(claim, snapshot_values)
     best = _best_match(reported, candidate_values)
-    if best and best["diff_pct"] <= tolerance_pct:
+    if not path_markers or not candidate_values:
+        status = "unverifiable"
+    elif best and best["diff_pct"] <= tolerance_pct:
         status = "verified"
     else:
         status = "mismatch"
@@ -197,22 +241,55 @@ def _check_claim(claim: dict[str, Any], snapshot_values: list[dict[str, Any]], *
 def _relevant_snapshot_values(claim: dict[str, Any], snapshot_values: list[dict[str, Any]]) -> list[dict[str, Any]]:
     path_markers = _path_markers_for_claim(claim)
     if not path_markers:
-        return snapshot_values
+        return []
     relevant = [
         item for item in snapshot_values
         if any(_normalize_match_text(marker) in _normalize_match_text(item.get("path")) for marker in path_markers)
     ]
-    return relevant or snapshot_values
+    return relevant
+
+
+def _is_non_claim_match(line: str, match: re.Match[str]) -> bool:
+    timestamp = re.search(r"\d{4}-\d{2}-\d{2}T\d{1,2}:\d{2}:\d{2}", line)
+    if timestamp and timestamp.start() <= match.start("label") <= timestamp.end():
+        return True
+
+    label = _normalize_match_text(match.group("label"))
+    if any(marker in label for marker in _NORMALIZED_NON_CLAIM_LABEL_MARKERS):
+        return True
+
+    number_start = match.start("num")
+    if number_start <= 0 or line[number_start - 1] != "T":
+        return False
+    suffix = line[match.end("num") :]
+    return bool(re.match(r":\d{2}(?::\d{2})?(?:[.,+\-Z]|$)", suffix))
+
+
+def _is_eligible_snapshot_value(item: dict[str, Any]) -> bool:
+    path = _normalize_match_text(item.get("path"))
+    if any(marker in path for marker in _NORMALIZED_SNAPSHOT_METADATA_PATH_MARKERS):
+        return False
+    if any(marker in path for marker in _NORMALIZED_CONFIDENCE_METADATA_PATH_MARKERS):
+        return False
+    return True
 
 
 def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
-    label = _normalize_match_text(claim.get("label"))
+    raw_label = str(claim.get("label") or "").lower()
+    label = _normalize_match_text(raw_label)
     if not label:
         return ()
     for label_markers, path_markers in _FIELD_HINTS:
-        if any(_normalize_match_text(marker) in label for marker in label_markers):
+        if any(_label_matches_marker(raw_label, label, marker) for marker in label_markers):
             return path_markers
     return ()
+
+
+def _label_matches_marker(raw_label: str, normalized_label: str, marker: str) -> bool:
+    normalized_marker = _normalize_match_text(marker)
+    if normalized_marker == "pe":
+        return bool(re.search(r"(?<![a-z0-9])p\s*/?\s*e(?![a-z0-9])", raw_label))
+    return normalized_marker in normalized_label
 
 
 def _best_match(reported: float, snapshot_values: list[dict[str, Any]]) -> dict[str, Any] | None:
@@ -235,6 +312,8 @@ def _clean_label(value: str) -> str:
         return ""
     if re.fullmatch(r"\d{4}|Q[1-4]|\d+", label):
         return ""
+    if _normalize_match_text(label) in {"na", "none", "null", "unknown"}:
+        return ""
     return label[:40]
 
 
@@ -243,10 +322,6 @@ def _clean_number(value: str) -> float | None:
         return float(str(value).replace(",", "").strip())
     except (TypeError, ValueError):
         return None
-
-
-def _normalize_match_text(value: Any) -> str:
-    return re.sub(r"[^0-9a-zA-Z_\u4e00-\u9fff]+", "", str(value or "").lower())
 
 
 def _valid_claim_number(value: float) -> bool:

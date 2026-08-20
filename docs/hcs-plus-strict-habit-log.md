@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3650 / keep evidence matching semantic and fail closed
+
+- `#拆解問題` / `#偏誤辨識`：live reports 的 `T07/T13`、資料日期、`N/A` source cells 與 `1-2週` range prefix 都是技術/格式 token，不是投資數字；confidence claim 則曾被全 snapshot 最近值補配，形成看似有證據的錯誤 mismatch。
+- `#來源品質` / `#語意含義`：新增 confidence、moat、operating-margin、scenario path hints，排除 source audit、timestamp、hash、quality metadata 等 snapshot metadata；known semantic claims 只查對應路徑，unknown/no-candidate claim 改記 `unverifiable`，不再把任意數字當成支持證據。
+- `#可驗證性` / `#責任`：`failed_count` 只計 `mismatch`，另保留 `unverifiable_count` 並將無可比對樣本降為 `caution`；RED→GREEN 後 focused evidence/conformance/content `53 passed`，live 2026-08-20 artifact rescan 為 `2 approved / 3 caution`、`3 verified / 0 mismatch / 4 unverifiable`，compile/diff check 通過，沒有 persisted state 或 queue mutation。
+
 ## D3649 / keep evidence claims away from periods and identifiers
 
 - `#差距分析` / `#來源品質`：live `3706.TW v4` 的「近期催化劑：52U 液冷機櫃」被 evidence parser 當成 52，且長 label 把它錯配到自由現金流快照 4.14；同一類問題也會把 `5a357...` commit hash 前綴當成數字。

@@ -112,6 +112,60 @@ def test_evidence_claims_ignore_period_and_alphanumeric_identifier_numbers():
     assert not any(claim["reported_value"] in {5.0, 52.0} for claim in claims)
 
 
+def test_evidence_gate_does_not_match_confidence_to_unrelated_snapshot_numbers():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    markdown = "- **估值風險:** 嚴重度：high；信心：0.85。"
+    snapshot = {"data": {"dupont_identity_note": 0.891}}
+
+    result = evaluate_report_evidence(markdown, snapshot, sample_ratio=1.0)
+
+    claim = result["sampled_claims"][0]
+    assert claim["label"] == "high；信心"
+    assert claim["status"] == "unverifiable"
+    assert claim["matched_path"] == ""
+    assert claim["matched_value"] is None
+    assert result["failed_count"] == 0
+    assert result["unverifiable_count"] == 1
+
+
+def test_evidence_claims_ignore_iso_timestamp_hour_tokens():
+    from evidence_exit_gate import extract_numeric_claims
+
+    markdown = (
+        "- **市場資料時間:** 2026-08-20T13:13:09.248089+00:00\n"
+        "| 來源 | 抓取時間 |\n"
+        "| 市場資料 | 2026-08-20T07:32:43.231417+00:00 |"
+    )
+
+    claims = extract_numeric_claims(markdown)
+
+    assert not any(claim["label"].startswith("T") for claim in claims)
+    assert not any(claim["reported_value"] in {7.0, 13.0} for claim in claims)
+
+
+def test_evidence_claims_do_not_treat_operating_margin_year_as_a_value():
+    from evidence_exit_gate import extract_numeric_claims
+
+    claims = extract_numeric_claims("- Operating Margin: 2022 (6.4%) -> 2025 (15.3%).")
+
+    assert claims == []
+
+
+def test_evidence_claims_ignore_dates_na_cells_and_range_prefixes():
+    from evidence_exit_gate import extract_numeric_claims
+
+    markdown = (
+        "引用 `twse_margin_short_sales` 資料（資料日期：2026-08-20）：\n"
+        "- **1-2週目標價:** 1-2週目標價看近期高點壓力位1950.0 TWD\n"
+        "| 近期催化劑 | Free news waterfall | 成功 | N/A | N/A | 5 |"
+    )
+
+    claims = extract_numeric_claims(markdown)
+
+    assert not any(claim["reported_value"] in {1.0, 5.0, 2026.0} for claim in claims)
+
+
 def test_report_renderer_attaches_evidence_exit_gate_to_snapshot_and_metadata(monkeypatch):
     import asyncio
     import reporting.renderer as renderer_module
