@@ -56,6 +56,7 @@ def build_indexed_report_quality_audit(output_dir: str, *, page_size: int = 100,
         storage,
         cache_namespace=f"latest_per_ticker_pipeline:{output_dir}",
     )
+    _annotate_report_version_status(reports, _latest_report_filenames(rows.get("reports", [])))
     from report_quality_review_workflow import attach_quality_reviews
     attach_quality_reviews(reports, output_dir)
     return build_report_quality_audit(reports, scope="all_indexed_reports", item_limit=item_limit, item_offset=item_offset)
@@ -83,6 +84,17 @@ def build_historical_indexed_report_quality_audit(
         output_dir=output_dir,
         sync_metadata=False,
     )
+    latest_rows = collect_all_report_pages(
+        list_indexed_report_quality_rows,
+        page_size=page_size,
+        q="",
+        pipeline="all",
+        recommendation="all",
+        data_trust="all",
+        include_versions=False,
+        output_dir=output_dir,
+        sync_metadata=False,
+    )
     storage = storage_for_existing_output_dir(output_dir, None)
     reports = _cached_indexed_quality_reports(
         rows.get("reports", []),
@@ -91,6 +103,7 @@ def build_historical_indexed_report_quality_audit(
             f"historical:{output_dir}:{safe_text(q).strip().lower()}:{safe_text(pipeline).strip().lower()}"
         ),
     )
+    _annotate_report_version_status(reports, _latest_report_filenames(latest_rows.get("reports", [])))
     from report_quality_review_workflow import attach_quality_reviews
     attach_quality_reviews(reports, output_dir)
     review_status_filter = _normalize_review_status_filter(review_status)
@@ -224,6 +237,36 @@ def _indexed_rows_fingerprint(rows: list[dict[str, Any]]) -> str:
         digest.update("\x1f".join(safe_text(row.get(field)) for field in fields).encode("utf-8"))
         digest.update(b"\x1e")
     return digest.hexdigest()
+
+
+def _latest_report_filenames(rows: list[dict[str, Any]]) -> dict[tuple[str, str], str]:
+    return {
+        _report_identity(row.get("ticker"), row.get("pipeline_id")): safe_text(row.get("filename")).strip()
+        for row in rows
+        if safe_text(row.get("filename")).strip()
+    }
+
+
+def _annotate_report_version_status(
+    reports: list[dict[str, Any]],
+    latest_filenames: dict[tuple[str, str], str],
+) -> None:
+    for report in reports:
+        identity = _report_identity(report.get("ticker"), report.get("pipeline_id"))
+        filename = safe_text(report.get("filename") or report.get("report_filename")).strip()
+        latest_filename = latest_filenames.get(identity)
+        if latest_filename and filename == latest_filename:
+            status = "current"
+        elif latest_filename and filename:
+            status = "historical"
+        else:
+            status = "unknown"
+        report["report_version_status"] = status
+
+
+def _report_identity(ticker: Any, pipeline_id: Any) -> tuple[str, str]:
+    ticker_text = safe_text(ticker).strip().lower()
+    return ticker_text.split(".", 1)[0], safe_text(pipeline_id).strip().lower() or "v1"
 
 
 def _read_artifact_quality_summary(storage: Any, filename: Any, *, load_item=load_storage_item) -> dict[str, Any]:

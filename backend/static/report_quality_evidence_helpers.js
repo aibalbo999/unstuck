@@ -14,6 +14,7 @@
         partial_rerun_review_required: '重跑策略：需先確認前序上下文完整性',
         partial_rerun_unavailable: '重跑策略：目前沒有可用的局部重跑上下文'
     };
+    const reportVersionLabels = { current: '版本：目前版本（ticker/pipeline 最新）', historical: '版本：歷史版本（非目前最新）', unknown: '版本：新舊未判定' };
     const labels = fields => (Array.isArray(fields) ? fields : []).map(field => fieldLabels[field] || field).filter(Boolean).join('、');
     function context(report) {
         const missingFields = Array.isArray(report?.missing_quality_fields) ? report.missing_quality_fields.filter(Boolean) : [];
@@ -28,9 +29,11 @@
         const rerunContextText = rerunContextLabels[rerunContextStatus] || '';
         const rerunExecutionStatus = String(report?.rerun_execution_status || '').trim().toLowerCase();
         const rerunExecutionText = rerunExecutionLabels[rerunExecutionStatus] || '';
-        const targetContext = [missingFieldText ? `結構化缺口：${missingFieldText}` : '', targetProvenance, artifact.status ? artifactText : '', rerunContextText, rerunExecutionText].filter(Boolean).join('；');
-        const summary = [missingFieldText ? `結構化品質 metadata：${missingFieldText}` : '', provenanceText, artifactText, rerunContextText, rerunExecutionText].filter(Boolean).join('；');
-        return { hasStructuredGap: missingFields.length > 0, missingFields, missingFieldText, artifactFields, artifactFieldText, artifactText, provenanceText, rerunContextStatus, rerunContextText, rerunExecutionStatus, rerunExecutionText, targetContext, summary, detail: missingFields.length ? `${summary}；${limitation}` : summary, limitation, targetWarning: missingFields.length ? targetWarning : '' };
+        const reportVersionStatus = String(report?.report_version_status || '').trim().toLowerCase();
+        const reportVersionText = reportVersionLabels[reportVersionStatus] || '';
+        const targetContext = [missingFieldText ? `結構化缺口：${missingFieldText}` : '', targetProvenance, artifact.status ? artifactText : '', reportVersionText, rerunContextText, rerunExecutionText].filter(Boolean).join('；');
+        const summary = [missingFieldText ? `結構化品質 metadata：${missingFieldText}` : '', provenanceText, artifactText, reportVersionText, rerunContextText, rerunExecutionText].filter(Boolean).join('；');
+        return { hasStructuredGap: missingFields.length > 0, missingFields, missingFieldText, artifactFields, artifactFieldText, artifactText, provenanceText, reportVersionStatus, reportVersionText, rerunContextStatus, rerunContextText, rerunExecutionStatus, rerunExecutionText, targetContext, summary, detail: missingFields.length ? `${summary}；${limitation}` : summary, limitation, targetWarning: missingFields.length ? targetWarning : '' };
     }
     function renderTargetContext(values, escapeHtml, classNames) {
         const e = escapeHtml || (value => String(value ?? '')), classes = { reviewStatus: 'quality-evidence-review-status', evidenceContext: 'quality-evidence-context', warning: 'quality-evidence-warning', ...(classNames || {}) };

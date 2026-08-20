@@ -103,6 +103,8 @@ The read-only report quality audit exposes `missing_quality_fields` on each affe
 
 `selection_basis=latest_per_ticker_pipeline` means「全量報告品質」是每個 ticker/pipeline 的最新索引列，不是磁碟上每個歷史 artifact 版本；回報 coverage 時要一起說明這個範圍。
 
+品質缺口摘要另會按版本顯示「目前版本缺口／歷史版本缺口／版本未判定」。target 的「目前版本（ticker/pipeline 最新）」代表這筆是目前索引列；「歷史版本（非目前最新）」只代表舊 artifact 仍有 metadata 缺口，不可直接當成目前報告已失效。歷史稽核的 coverage 與人工審核進度應先搭配版本分布解讀，再決定是否開啟目前版本或舊版報告。
+
 若要檢查歷史版本，不要把它和每日待辦混在一起：使用 `GET /api/watchlist/report-quality-audit/historical`。這個唯讀入口的 `scope=all_historical_indexed_reports`、`selection_basis=all_indexed_versions` 會掃描索引版本；可用既有 `q` 與 `pipeline` 篩選 ticker/模式，篩選後的 `audited_reports` 是符合條件的全部版本。只想看數字時加上 `item_limit=0`。它不會自動修復 artifact、不會 enqueue rerun，也不會寫入 report index。
 
 歷史稽核也可用 `review_status=pending|approved_with_gap|rejected|deferred` 只看某一種目前 revision 審核狀態；回應的 `review_status_filter` 會標示套用的範圍，篩選後的 coverage 與分頁數字只代表該狀態，不代表其他狀態不存在。這仍是 GET-only 查詢，不會寫入 review ledger。

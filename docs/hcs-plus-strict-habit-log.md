@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3604 / distinguish current and historical quality gaps
+
+- `#差距分析` / `#情境脈絡`：live historical audit 有 `115` 筆缺口，但 daily latest scope 只有 `2` 筆；沒有版本標記時，`90.52%` historical coverage 會被誤讀成目前報告仍同樣缺 gate。
+- `#溝通設計` / `#責任`：indexed audit 依 report index 的 latest-per-ticker/pipeline 結果附 `report_version_status=current|historical|unknown`，envelope 增加 `quality_metadata_missing_by_version_status`，history target 顯示版本新舊；只改善讀取脈絡，不新增 review、rerun、queue 或 artifact mutation。
+- `#可驗證性` / `#來源品質`：先以 backend、shared evidence、history renderer RED 鎖定版本狀態缺失，再 GREEN；full quality/history suite、live current-vs-historical scope、browser 1440/390 均已核對，remote push 於本批最後完成。
+
 ## D3603 / separate context availability from rerun execution strategy
 
 - `#拆解問題` / `#來源品質`：live item 同時具備 `artifact_rerun_context_status=present` 與 freshness `needs_rerun`；但 `report_rerun_service` 對這種 snapshot 明確回 `409` 要求完整重跑，原本把 context availability 寫成「可嘗試只重跑」會讓操作員走到必然失敗的 final-agent 路徑。

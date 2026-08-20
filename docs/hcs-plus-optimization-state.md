@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-20
+- D3604：重新對照 live historical `115` 筆缺口與 latest-per-ticker/pipeline scope，確認舊版缺口和目前版本缺口沒有被 API/UI 分開呈現；新增 `report_version_status` 與 `quality_metadata_missing_by_version_status`，history target 明示目前/歷史版本，避免把歷史 coverage 直接當成目前報告不可採用。
+- D3604 驗證完成：先以 backend、shared evidence、history renderer 三個 RED 鎖定版本語意，再補 index-based annotation；quality/history/frontend/docs/HTTP suites 全部通過，live scope 與 1440px/390px browser 均核對完成，維持 GET-only、review/rerun/queue/artifact boundary。
 - D3603：重新核對 live item 與實際 `report_rerun_service` 後，發現 `artifact_fallback_available` 只代表 Markdown 有完整前序 Agent 段落；當 snapshot 同時是 `needs_rerun` 時，service 會拒絕 final-agent partial rerun 並要求完整重跑。新增 `rerun_execution_status`，將 context availability 與實際 rerun strategy 分離；`full_rerun_required` 優先，避免 UI 引導到必然失敗的局部重跑。
 - D3603 驗證收斂：先取得後端、共用 evidence、preview 三個 RED，再 GREEN；quality audit/repair/review `78 passed`、report preview `109 passed`、quality/history frontend `145 passed`，本批跨層品質/預覽 `332 passed`、HTTP E2E `41 passed`、文件/HCS `135 passed`、視覺 `2 passed`。live daily item 已確認 `artifact_fallback_available` + `full_rerun_required`，preview final button 在 freshness stale 時 disabled、完整重跑仍可用；1440px/390px Chromium 無水平溢出、無 console error，已完成 remote push 前驗證。
 - D3602：live daily audit 已提供 `artifact_fallback_available`，但 daily/history/preview 共用 evidence helper 只呈現 artifact 摘要，沒有把局部重跑上下文 availability 傳給操作人員。新增四種 rerun-context 白話映射；其中 artifact fallback 只寫「可嘗試局部重跑」，並保留人工核對、gate 未通過、`manual_review`、`blocks_auto_rerun` 與 queue/review mutation boundary。

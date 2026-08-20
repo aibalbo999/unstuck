@@ -62,6 +62,11 @@ def test_report_quality_audit_counts_verified_reports_with_missing_quality_metad
             "after_refresh": 0,
             "no_refresh_provenance": 1,
         },
+        "quality_metadata_missing_by_version_status": {
+            "current": 0,
+            "historical": 0,
+            "unknown": 1,
+        },
         "quality_review_by_status": {
             "pending": 1,
             "approved_with_gap": 0,
@@ -125,6 +130,7 @@ def test_report_quality_audit_counts_verified_reports_with_missing_quality_metad
                     "missing_quality_fields": ["report_conformance", "evidence_exit_gate", "content_credibility"],
                     "reason_codes": ["quality_metadata_missing"],
                     "quality_metadata_provenance": "no_refresh_provenance",
+                    "report_version_status": "unknown",
                     "refreshed_from_report": "",
                     "snapshot_refreshed_at": "",
                     "recommended_action": "manual_review",
@@ -358,6 +364,61 @@ def test_report_quality_audit_groups_coverage_by_pipeline():
             "quality_metadata_coverage_basis": "verified_snapshot_reports",
         },
     }
+
+
+def test_report_quality_audit_surfaces_current_and_historical_version_status():
+    from report_quality_audit import build_report_quality_audit
+
+    payload = build_report_quality_audit(
+        [
+            {
+                "ticker": "1623.TW",
+                "filename": "1623_current.html",
+                "pipeline_id": "v2",
+                "report_version_status": "current",
+                "snapshot_integrity": {"status": "verified"},
+                "report_conformance": {},
+                "evidence_exit_gate": {},
+                "content_credibility": {},
+            },
+            {
+                "ticker": "1623.TW",
+                "filename": "1623_old.html",
+                "pipeline_id": "v2",
+                "report_version_status": "historical",
+                "snapshot_integrity": {"status": "verified"},
+                "report_conformance": {},
+                "evidence_exit_gate": {},
+                "content_credibility": {},
+            },
+        ],
+        scope="all_historical_indexed_reports",
+        selection_basis="all_indexed_versions",
+    )
+
+    assert payload["quality_metadata_missing_by_version_status"] == {
+        "current": 1,
+        "historical": 1,
+        "unknown": 0,
+    }
+    assert [item["report_version_status"] for item in payload["items"]] == ["current", "historical"]
+
+
+def test_indexed_quality_annotation_uses_ticker_pipeline_latest_filename():
+    from report_quality_audit import _annotate_report_version_status
+
+    reports = [
+        {"ticker": "1623.TW", "pipeline_id": "v2", "filename": "old.html"},
+        {"ticker": "1623", "pipeline_id": "v2", "filename": "new.html"},
+        {"ticker": "1623.TW", "pipeline_id": "v1", "filename": "v1.html"},
+    ]
+
+    _annotate_report_version_status(
+        reports,
+        {("1623", "v2"): "new.html", ("1623", "v1"): "v1.html"},
+    )
+
+    assert [report["report_version_status"] for report in reports] == ["historical", "current", "current"]
 
 
 def test_report_quality_audit_groups_missing_metadata_by_refresh_provenance():

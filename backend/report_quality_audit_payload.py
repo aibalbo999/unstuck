@@ -13,6 +13,7 @@ QUALITY_METADATA_FIELDS = ("report_conformance", "evidence_exit_gate", "content_
 QUALITY_METADATA_PROVENANCE = ("after_refresh", "no_refresh_provenance")
 QUALITY_REVIEW_STATUSES = ("pending", "approved_with_gap", "rejected", "deferred")
 ARTIFACT_QUALITY_SUMMARY_STATUSES = ("present", "not_found", "unavailable")
+REPORT_VERSION_STATUSES = ("current", "historical", "unknown")
 
 
 def build_report_quality_audit(
@@ -35,6 +36,7 @@ def build_report_quality_audit(
     missing_items = []
     missing_quality_field_counts = {field: 0 for field in QUALITY_METADATA_FIELDS}
     missing_quality_by_provenance = {provenance: 0 for provenance in QUALITY_METADATA_PROVENANCE}
+    missing_quality_by_version_status = {status: 0 for status in REPORT_VERSION_STATUSES}
     quality_review_by_status = {status: 0 for status in QUALITY_REVIEW_STATUSES}
     artifact_quality_summary_by_status = {status: 0 for status in ARTIFACT_QUALITY_SUMMARY_STATUSES}
     artifact_quality_summary_by_field = {field: 0 for field in QUALITY_METADATA_FIELDS}
@@ -70,6 +72,8 @@ def build_report_quality_audit(
                 pipeline_stats["missing_quality_field_counts"][field] += 1
         provenance = _quality_metadata_provenance(item)
         missing_quality_by_provenance[provenance] += 1
+        version_status = _report_version_status(report)
+        missing_quality_by_version_status[version_status] += 1
         pipeline_stats["quality_metadata_missing_by_provenance"][provenance] += 1
         artifact_summary = safe_mapping_dict(report.get("artifact_quality_summary")) or {}
         artifact_status = safe_text(artifact_summary.get("status")).strip().lower()
@@ -104,6 +108,7 @@ def build_report_quality_audit(
         "quality_metadata_missing_reports": missing_count,
         "missing_quality_field_counts": missing_quality_field_counts,
         "quality_metadata_missing_by_provenance": missing_quality_by_provenance,
+        "quality_metadata_missing_by_version_status": missing_quality_by_version_status,
         "quality_review_by_status": quality_review_by_status,
         "artifact_quality_summary_by_status": artifact_quality_summary_by_status,
         "artifact_quality_summary_by_field": artifact_quality_summary_by_field,
@@ -144,6 +149,7 @@ def _audit_item(report: dict[str, Any], item: dict[str, Any]) -> dict[str, Any]:
         "missing_quality_fields": safe_text_list(item.get("missing_quality_fields")),
         "reason_codes": safe_text_list(item.get("reason_codes")),
         "quality_metadata_provenance": _quality_metadata_provenance(item),
+        "report_version_status": _report_version_status(report),
         "refreshed_from_report": safe_text(report.get("refreshed_from_report")).strip(),
         "snapshot_refreshed_at": safe_text(report.get("snapshot_refreshed_at")).strip(),
         "recommended_action": safe_text(item.get("recommended_action")).strip(),
@@ -219,6 +225,11 @@ def _quality_review_status(report: dict[str, Any]) -> str:
     review = safe_mapping_dict(report.get("quality_review")) or {}
     status = safe_text(review.get("status")).strip().lower()
     return status if status in QUALITY_REVIEW_STATUSES else "pending"
+
+
+def _report_version_status(report: dict[str, Any]) -> str:
+    status = safe_text(report.get("report_version_status")).strip().lower()
+    return status if status in REPORT_VERSION_STATUSES else "unknown"
 
 
 __all__ = [
