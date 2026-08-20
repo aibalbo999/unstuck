@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-21
+- D3656：全量 165 份掃描發現 106 份 current evidence/content 已是 warning 或 blocked，但 row 仍直接顯示 persisted `report_conformance=passed`；這是 composite gate 的歷史 projection 漂移，不是單一 evidence parser 問題。新增 `report_conformance_projection`：唯讀更新 decision-tree 的 evidence/content steps、重算 current composite status，並保留 persisted status、quality audit coverage 與原始 snapshot。
+- D3656 驗證：先以 3324 live row 重現 conformance=`passed`、current evidence/content=`caution/warning`，再 GREEN；content/report-quality/conformance/preview `1201 passed`、前端/HTTP/文件回歸 `149 passed`、import boundary `504 passed`，未回寫 artifact、snapshot、index、review、rerun、repair 或 queue。
 - D3655：全量 latest-per-ticker/pipeline `165` 份掃描發現 `1623.TW` v1/v2 的 `content_credibility` 是空 mapping，但 index recommendation、data trust、Markdown 與 evidence gate 都可讀；根因是 legacy snapshot 缺少 `rerun_context.parsed`。新增 recommendation-context read-only projection，將標準化 recommendation 映射回 evaluator 所需的中文欄位，只補 history row 的 deterministic content status/check；不回寫 snapshot，quality audit 的 persisted metadata coverage 維持缺口。
 - D3655 驗證：先以 1623 live-shaped row 重現空 content projection，再 GREEN；projection unit `6 passed`、legacy history API `2 passed`，全量掃描由 `2` 筆 null content 收斂為可解讀的 recommendation-context projection，未改 artifact、index、review、rerun、repair 或 queue。
 - D3654：live legacy v1-v3 snapshot 的 `rerun_context.parsed` 可能是空 mapping，完整內容可信度無法重算，但 persisted `confidence_evidence_alignment` 仍會顯示舊 `approved`。新增 evidence-only partial projection：只刷新 current gate 對應的 evidence-confidence check；v4 仍先完成既有 trade-plan fallback，再合併 partial evidence result，避免以 partial projection 取代完整內容檢查。

@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3656 / align composite conformance with current evidence and content gates
+
+- `#差距分析` / `#偏誤辨識`：165 份 current row 中 106 份的 evidence/content 已有 warning 或 blocked，但 persisted `report_conformance` 仍是 passed；單看 composite status 會掩蓋 current quality warning。
+- `#決策樹` / `#最小變更`：新增 read-only conformance projection，更新 evidence/content decision-tree steps 與 composite status；persisted conformance、review、quality coverage、snapshot 與 queue 不變，另提供 `report_conformance_projection.persisted_status`。
+- `#可驗證性` / `#責任`：3324 live-shaped RED→GREEN；projection unit `2 passed`，接續跑完整 content/report-quality/conformance、HTTP、docs 與 import boundary 回歸。
+
 ## D3655 / recover legacy content evidence from normalized recommendation context
 
 - `#差距分析` / `#來源品質`：全量 165 份 latest scope 中，1623 v1/v2 的 snapshot 沒有 `content_credibility` 與 parsed context，但 index recommendation、data trust、Markdown、evidence gate 都存在；不能把空 mapping 解讀成內容已通過，也不能因 legacy 缺口放棄可讀的 deterministic evidence。

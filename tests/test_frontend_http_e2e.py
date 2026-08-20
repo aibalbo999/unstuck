@@ -392,6 +392,8 @@ def test_report_history_projects_legacy_content_from_index_recommendation(tmp_pa
 
     assert report["content_credibility"]["status"] == "warning"
     assert report["content_credibility_projection"]["source"] == "snapshot.recommendation_context"
+    assert report["report_conformance"]["status"] == "warning"
+    assert report["report_conformance_projection"]["persisted_status"] == ""
     check = next(item for item in report["content_credibility"]["checks"] if item["id"] == "confidence_evidence_alignment")
     assert check["details"]["evidence_verdict"] == "caution"
     persisted = client.get(f"/api/report/{filename}/download/data").json()

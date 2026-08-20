@@ -27,6 +27,7 @@ from reporting.content_credibility import evaluate_content_credibility
 from reporting.content_credibility_final_audit import align_content_credibility_with_final_audit
 from reporting.content_credibility_projection import merge_content_credibility_results, project_content_credibility_with_current_evidence
 from reporting.evidence_exit_gate_projection import evidence_exit_gate_projection_metadata, project_evidence_exit_gate
+from reporting.report_conformance_projection import project_report_conformance, report_conformance_projection_metadata
 
 
 def _row_file_path(row, *, kind: str) -> str:
@@ -187,11 +188,9 @@ def _content_credibility(
         return merge_content_credibility_results(credibility, projected)
     if pipeline_id != "v4":
         return {key: value for key, value in projected.items() if key != "_projection_scope"} if projected is not None else (merge_content_credibility_results(credibility, evidence_only_projection) if evidence_only_projection and _recorded_content_credibility(credibility) else credibility)
-
     checks = credibility.get("checks") if isinstance(credibility.get("checks"), list) else []
     if any(isinstance(check, dict) and check.get("id") == "trade_setup_alignment" for check in checks):
         return merge_content_credibility_results(credibility, evidence_only_projection) if evidence_only_projection and _recorded_content_credibility(credibility) else credibility
-
     trade_setup = extract_trade_setup(snapshot, markdown_text)
     if not trade_setup:
         return merge_content_credibility_results(credibility, evidence_only_projection) if evidence_only_projection and _recorded_content_credibility(credibility) else credibility
@@ -308,7 +307,7 @@ def row_to_report(row) -> dict:
         "decision_freshness": decision_freshness,
         "temporal_memory": _temporal_memory(row, snapshot=snapshot),
         "evidence_exit_gate": projected_evidence_exit_gate or stored_evidence_exit_gate,
-        "report_conformance": _report_conformance(row, snapshot=snapshot),
+        "report_conformance": project_report_conformance(_report_conformance(row, snapshot=snapshot), projected_evidence_exit_gate, projected_content_credibility),
         "content_credibility": _content_credibility(
             row,
             pipeline_id=pipeline_id,
@@ -340,9 +339,10 @@ def row_to_report(row) -> dict:
         report["evidence_exit_gate_projection"] = evidence_exit_gate_projection_metadata(
             projected_evidence_exit_gate, stored_evidence_exit_gate
         )
+    report.update({"report_conformance_projection": projection_metadata} if (projection_metadata := report_conformance_projection_metadata(_report_conformance(row, snapshot=snapshot), report.get("report_conformance"))) else {})
     report["refreshed_from_report"] = _snapshot_text(row, "refreshed_from_report", snapshot=snapshot)
     report["snapshot_refreshed_at"] = _snapshot_text(row, "snapshot_refreshed_at", snapshot=snapshot)
-    report.update(_quality_evidence(row, {**report, "evidence_exit_gate": stored_evidence_exit_gate}))
+    report.update(_quality_evidence(row, {**report, "report_conformance": _report_conformance(row, snapshot=snapshot), "evidence_exit_gate": stored_evidence_exit_gate}))
     if not report.get("missing_quality_fields"):
         report.pop("refreshed_from_report", None)
         report.pop("snapshot_refreshed_at", None)
