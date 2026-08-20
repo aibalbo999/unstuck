@@ -234,6 +234,7 @@ TARGET_CONTEXT_SEGMENT_SEPARATOR_PATTERN = re.compile(r"[;；\n]|(?<!\d)[,，]|[
 QUALITY_SERVICE_TIME_TO_METRIC_FAST_VALUE_PATTERN = re.compile(
     r"\b(?:mean\s+)?time\s+to\b[\s\S]*?"
     r"\b(?:target|forecast|actual|baseline|current)\s+"
+    r"(?:(?:個|件|項|人|台|次|筆|戶|家|名|units?|items?|records?|patients?)\s+)?"
     r"\d[\d,，]*(?:[.．]\d+)?\s*"
     r"(?:個|件|項|人|台|次|筆|戶|家|名|units?|items?|records?|patients?)"
     r"(?=\s|$|[,，;；])",

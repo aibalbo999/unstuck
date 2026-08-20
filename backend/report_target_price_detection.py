@@ -8,18 +8,8 @@ import unicodedata
 from typing import Any
 
 from mapping_fields import safe_mapping_dict, safe_mapping_items, safe_sequence_items, safe_text
-from price_parser import (
-    HORIZON_ONLY_PATTERN as _HORIZON_ONLY_RE,
-    NON_PRICE_METRIC_TARGET_PATTERN as _NON_PRICE_METRIC_TARGET_RE,
-    NON_PRICE_METRIC_VALUE_PATTERN as _NON_PRICE_METRIC_VALUE_RE,
-    NON_PRICE_TARGET_METRIC_PATTERN,
-    NON_PRICE_TARGET_METRIC_VALUE_PATTERN,
-    PEOPLE_COMPLIANCE_ACKNOWLEDGMENT_TARGET_VALUE_PATTERN as _PEOPLE_COMPLIANCE_ACKNOWLEDGMENT_TARGET_VALUE_RE,
-    RISK_REWARD_RATIO_PATTERN,
-    TARGET_PRICE_ADJUSTMENT_DELTA_PATTERN as _ADJUSTMENT_DELTA_PATTERN,
-    TARGET_PRICE_PRE_MARKER_ADJUSTMENT_DELTA_PATTERN as _PRE_MARKER_ADJUSTMENT_DELTA_PATTERN,
-    TARGET_PRICE_REVISION_TO_PATTERN as _REVISION_TO_PATTERN, QUALITY_SERVICE_TIME_TO_METRIC_PATTERN, QUALITY_SERVICE_TIME_TO_METRIC_VALUE_PATTERN, QUALITY_SERVICE_TIME_TO_METRIC_PERMUTATION_PATTERN, QUALITY_SERVICE_TIME_TO_METRIC_PERMUTATION_VALUE_PATTERN, QUALITY_SERVICE_QUEUE_METRIC_PATTERN, QUALITY_SERVICE_QUEUE_METRIC_VALUE_PATTERN,
-)
+from price_parser import HORIZON_ONLY_PATTERN as _HORIZON_ONLY_RE, NON_PRICE_METRIC_TARGET_PATTERN as _NON_PRICE_METRIC_TARGET_RE, NON_PRICE_METRIC_VALUE_PATTERN as _NON_PRICE_METRIC_VALUE_RE, NON_PRICE_TARGET_METRIC_PATTERN, NON_PRICE_TARGET_METRIC_VALUE_PATTERN, PEOPLE_COMPLIANCE_ACKNOWLEDGMENT_TARGET_VALUE_PATTERN as _PEOPLE_COMPLIANCE_ACKNOWLEDGMENT_TARGET_VALUE_RE, RISK_REWARD_RATIO_PATTERN, TARGET_PRICE_ADJUSTMENT_DELTA_PATTERN as _ADJUSTMENT_DELTA_PATTERN, TARGET_PRICE_PRE_MARKER_ADJUSTMENT_DELTA_PATTERN as _PRE_MARKER_ADJUSTMENT_DELTA_PATTERN, TARGET_PRICE_REVISION_TO_PATTERN as _REVISION_TO_PATTERN, QUALITY_SERVICE_TIME_TO_METRIC_VALUE_PATTERN, QUALITY_SERVICE_TIME_TO_METRIC_PERMUTATION_VALUE_PATTERN, QUALITY_SERVICE_QUEUE_METRIC_VALUE_PATTERN
+from report_target_price_detection_fast_paths import has_fast_direct_target as _has_fast_direct_target, has_fast_non_price_target as _has_fast_non_price_target
 
 _PRICE_NUMBER_PATTERN = r"\d[\d,]*(?:\.\d+)?(?:[eE][-+]?\d+)?"
 _PRICE_NUMBER_RE = re.compile(_PRICE_NUMBER_PATTERN)
@@ -101,13 +91,18 @@ def _is_explicit_price(value: Any, path: tuple[str, ...]) -> bool:
     if _has_insufficient_marker(text):
         return False
     normalized = _normalized_number_text(text)
-    if _HORIZON_ONLY_RE.match(normalized) or ((QUALITY_SERVICE_TIME_TO_METRIC_PATTERN.search(normalized) or QUALITY_SERVICE_TIME_TO_METRIC_PERMUTATION_PATTERN.search(normalized) or QUALITY_SERVICE_QUEUE_METRIC_PATTERN.search(normalized)) and not _PRICE_SPECIFIC_TARGET_RE.search(normalized)):
+    has_price_specific_target = bool(_PRICE_SPECIFIC_TARGET_RE.search(normalized))
+    if _HORIZON_ONLY_RE.match(normalized):
         return False
-    if _PEOPLE_COMPLIANCE_ACKNOWLEDGMENT_TARGET_VALUE_RE.search(normalized) and not _PRICE_SPECIFIC_TARGET_RE.search(normalized):
+    if _has_fast_non_price_target(normalized, has_price_specific_target):
+        return False
+    if _has_fast_direct_target(normalized, has_price_specific_target):
+        return True
+    if _PEOPLE_COMPLIANCE_ACKNOWLEDGMENT_TARGET_VALUE_RE.search(normalized) and not has_price_specific_target:
         return False
     if _is_non_price_metric_target(normalized):
         return False
-    if NON_PRICE_TARGET_METRIC_PATTERN.search(normalized) and not _PRICE_SPECIFIC_TARGET_RE.search(normalized):
+    if NON_PRICE_TARGET_METRIC_PATTERN.search(normalized) and not has_price_specific_target:
         return False
     stripped_normalized = _strip_non_price_tokens(normalized)
     full_revision_tail = _revision_target_tail(stripped_normalized)

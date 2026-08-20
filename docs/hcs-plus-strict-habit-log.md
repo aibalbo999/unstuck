@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3618 / remove report target detection regex hot path
+
+- `#差距分析` / `#偏誤辨識`：D3617 的 pattern ownership split 後，target detector 仍在每個候選欄位呼叫約 145k 字元的 non-price metric substitution；valid direct target 也沒有利用已證明的字串邊界，造成大型組合回歸成本過高。
+- `#責任` / `#效用`：新增 `report_target_price_detection_fast_paths`，只負責 read-only cheap prefilters；time-to／queue metric 先用小 regex 排除，字串開頭的 direct currency target 先判定，commodity/input 前置語境、range/multi-target 和其餘語料保留既有 fallback。`price_parser_patterns` 只補足 `target 項 12 個` 等 fast-path permutation，不改價格抽取政策。
+- `#可驗證性` / `#證據基礎`：先以 monkeypatch large pattern 取得 RED，再 GREEN；完整 target detector `856 passed in 12.26s`、price parser `851 passed in 211.42s`、quality `324 passed in 4.46s`、import boundary `503 passed in 11.46s`、frontend HTTP `6 passed in 2.79s`、architecture/docs/HCS `138 passed in 3.68s`，compile/diff check 通過。runtime reload 與 live health/readiness/doctor 驗證完成後再封存；本輪沒有 snapshot、artifact、index、review、rerun、repair 或 queue mutation。
+
 ## D3617 / restore module responsibility boundaries
 
 - `#差距分析` / `#系統圖像`：import-boundary regression 讓長模組責任重新浮現：parser 把 pattern ownership 與演算法混在一起，evidence matrix 把 shape-safe construction 與 policy 混在一起，quality audit 則同時負責 orchestration 與 snapshot/artifact hydration。

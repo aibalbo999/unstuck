@@ -39122,6 +39122,42 @@ def test_report_target_price_detection_ignores_time_to_workflow_extension_metric
     )
 
 
+def test_report_target_price_detection_fast_paths_time_to_metrics_before_large_pattern(monkeypatch):
+    import report_target_price_detection
+
+    class _UnexpectedLargePatternUse:
+        def sub(self, _replacement, _text):
+            raise AssertionError("large non-price pattern should be bypassed")
+
+    monkeypatch.setattr(
+        report_target_price_detection,
+        "_NON_PRICE_METRIC_VALUE_RE",
+        _UnexpectedLargePatternUse(),
+    )
+
+    fields = report_target_price_detection.detect_explicit_target_price_fields(
+        {
+            "parsed": {
+                "recommendation": {
+                    "time_to_metric_target_price": "planning metric time to coordinate target 12 個",
+                    "price_with_time_to_metric_target_price": (
+                        "target price NT$160 with planning metric time to coordinate target 12 個"
+                    ),
+                    "queue_metric_target_price": "review queue items target 12",
+                    "price_with_queue_metric_target_price": (
+                        "target price NT$160 with review queue items target 12"
+                    ),
+                }
+            }
+        }
+    )
+
+    assert fields == [
+        "parsed.recommendation.price_with_queue_metric_target_price",
+        "parsed.recommendation.price_with_time_to_metric_target_price",
+    ]
+
+
 def test_report_target_price_detection_ignores_time_to_payment_operations_metric_values():
     from itertools import product
 
