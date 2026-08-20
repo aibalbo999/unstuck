@@ -6,7 +6,7 @@ from typing import Any
 
 from mapping_fields import safe_mapping_dict, safe_text
 
-from .content_credibility_inputs import first_price
+from .content_credibility_inputs import first_price, has_explicit_price_range, price_candidates
 
 
 _VALID_DIRECTIONS = {"Long", "Short", "Neutral"}
@@ -34,6 +34,8 @@ def evaluate_trade_setup_alignment(
     """Check that a mode-D target and stop-loss agree with its trade direction."""
     setup = safe_mapping_dict(trade_setup) or {}
     direction = safe_text(setup.get("trade_direction")).strip() or "Neutral"
+    target_price_candidates = price_candidates(setup.get("target_price"))
+    stop_loss_candidates = price_candidates(setup.get("stop_loss"))
     target_price = first_price(setup.get("target_price"))
     stop_loss = first_price(setup.get("stop_loss"))
     details = {
@@ -42,6 +44,13 @@ def evaluate_trade_setup_alignment(
         "target_price": target_price,
         "stop_loss": stop_loss,
     }
+    ambiguous_fields = []
+    if len(target_price_candidates) > 1 and not has_explicit_price_range(setup.get("target_price")):
+        details["target_price_candidates"] = target_price_candidates
+        ambiguous_fields.append("target_price")
+    if len(stop_loss_candidates) > 1 and not has_explicit_price_range(setup.get("stop_loss")):
+        details["stop_loss_candidates"] = stop_loss_candidates
+        ambiguous_fields.append("stop_loss")
     blocking: list[dict] = []
     warnings: list[dict] = []
     checks: list[dict] = []
@@ -61,6 +70,14 @@ def evaluate_trade_setup_alignment(
         warnings.append(issue)
         checks.append(_check("trade_setup_alignment", "warning", issue["message"], details))
         return {"blocking_issues": blocking, "warnings": warnings, "checks": checks}
+
+    if ambiguous_fields:
+        issue = _issue(
+            "ambiguous_trade_setup_price_inputs",
+            "交易計畫的目標或停損包含多個情境價格，無法用單一數值代表，需人工核對。",
+            {**details, "ambiguous_fields": ambiguous_fields},
+        )
+        warnings.append(issue)
 
     if direction == "Long":
         rules = (
@@ -83,7 +100,13 @@ def evaluate_trade_setup_alignment(
         checks.append(_check("trade_setup_alignment", "blocked", message, details))
 
     if not blocking:
-        checks.append(_check("trade_setup_alignment", "passed", "交易方向、目標與停損未見明顯矛盾。", details))
+        status = "warning" if warnings else "passed"
+        message = (
+            "交易方向未見阻斷矛盾，但目標或停損包含多個情境價格，需人工核對。"
+            if warnings
+            else "交易方向、目標與停損未見明顯矛盾。"
+        )
+        checks.append(_check("trade_setup_alignment", status, message, details))
 
     return {"blocking_issues": blocking, "warnings": warnings, "checks": checks}
 

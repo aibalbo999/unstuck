@@ -87,6 +87,42 @@ def test_trade_setup_alignment_ignores_period_range_before_target_price():
     assert result["checks"][0]["details"]["target_price"] == 1950.0
 
 
+def test_trade_setup_alignment_warns_for_multiple_scenario_prices():
+    from reporting.content_credibility_trade_setup import evaluate_trade_setup_alignment
+
+    result = evaluate_trade_setup_alignment(
+        trade_setup=_trade_setup(
+            target_price="若能站穩 18.65 TWD，可觀察反彈至 20.59 TWD",
+            stop_loss="收盤價跌破 17.6 TWD",
+            trade_direction="Neutral",
+        ),
+        current_price=18.95,
+    )
+
+    assert result["blocking_issues"] == []
+    assert result["warnings"][0]["id"] == "ambiguous_trade_setup_price_inputs"
+    assert result["warnings"][0]["details"]["ambiguous_fields"] == ["target_price"]
+    assert result["checks"][0]["status"] == "warning"
+    assert result["checks"][0]["details"]["target_price_candidates"] == [18.65, 20.59]
+
+
+def test_trade_setup_alignment_keeps_explicit_price_range_non_ambiguous():
+    from reporting.content_credibility_trade_setup import evaluate_trade_setup_alignment
+
+    result = evaluate_trade_setup_alignment(
+        trade_setup=_trade_setup(
+            target_price="NT$100-160",
+            stop_loss="NT$90",
+            trade_direction="Neutral",
+        ),
+        current_price=120.0,
+    )
+
+    assert result["blocking_issues"] == []
+    assert result["warnings"] == []
+    assert result["checks"][0]["status"] == "passed"
+
+
 def test_trade_setup_alignment_warns_when_prices_cannot_be_parsed():
     from reporting.content_credibility_trade_setup import evaluate_trade_setup_alignment
 

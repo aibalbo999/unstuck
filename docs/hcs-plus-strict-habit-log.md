@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3645 / surface ambiguous multi-scenario trade prices
+
+- `#差距分析` / `#偏誤辨識`：live v4 的 `Neutral` 交易計畫可能在 target 或 stop-loss 欄位放入多個情境價位；`first_price()` 只取第一個數字，造成 check 以單一值呈現但沒有提醒原文其實是條件分支。
+- `#拆解問題` / `#語意含義`：新增 `price_candidates()` 與明確價格區間辨識；多個非區間價格產生 `ambiguous_trade_setup_price_inputs` warning 並保留候選值，明確兩端區間不警示，且不把 Neutral 改成 Long/Short 或 blocker。
+- `#可驗證性` / `#最小變更`：先以 live-shaped 多情境 target 取得 RED，再 GREEN；content-credibility/projection/input `908 passed`、price-parser/recommendation/target-detection `2601 passed`、selected quality/queue/docs/import `1031 passed`，compile/diff check 與正式 runtime reload 通過，live 三筆 v4 報告確實輸出候選值與 warning。只改 read-only credibility evaluation，不寫 snapshot、artifact、index、review、rerun 或 queue。
+
 ## D3644 / preserve quality-audit action semantics across queue boundaries
 
 - `#差距分析` / `#責任`：live 品質稽核 action 的優先級與阻斷旗標仍在，但 audit item 到 daily queue 的 payload 邊界遺失 `severity`、`action_label`；直接消費 queue 的人只能從 detail 猜「阻斷／人工審核」。

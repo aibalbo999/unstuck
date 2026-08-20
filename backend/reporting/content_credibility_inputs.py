@@ -27,6 +27,11 @@ _PERIOD_NUMBER_PATTERN = re.compile(
     r"\s*(?:週|周|個月|月|年|天|日|weeks?|months?|years?|days?)(?![A-Za-z])",
     flags=re.IGNORECASE,
 )
+_PRICE_RANGE_PATTERN = re.compile(
+    r"(?<![\d.,])\d+(?:[.,]\d+)?\s*(?:[-–—－−~～〜至到]|\bto\b)\s*"
+    r"\d+(?:[.,]\d+)?(?![A-Za-z])",
+    flags=re.IGNORECASE,
+)
 
 
 def _strip_temporal_numeric_tokens(text: str) -> str:
@@ -50,16 +55,26 @@ def first_value_by_key_fragment(values: dict, fragment: str) -> Any:
 
 
 def first_price(value: Any) -> float | None:
+    prices = price_candidates(value)
+    return prices[0] if prices else None
+
+
+def price_candidates(value: Any) -> list[float]:
+    """Extract finite prices after removing calendar and horizon tokens."""
     if isinstance(value, bool) or value is None or is_non_finite_number(value):
-        return None
+        return []
     if isinstance(value, (int, float)):
-        return float(value)
+        return [float(value)]
     try:
         prices = extract_price_numbers(_strip_temporal_numeric_tokens(_input_text(value)))
     except (TypeError, ValueError):
-        return None
-    price = float(prices[0]) if prices else None
-    return None if is_non_finite_number(price) else price
+        return []
+    return [float(price) for price in prices if not is_non_finite_number(price)]
+
+
+def has_explicit_price_range(value: Any) -> bool:
+    """Return whether the input contains a deliberate two-endpoint price range."""
+    return bool(_PRICE_RANGE_PATTERN.search(_strip_temporal_numeric_tokens(_input_text(value))))
 
 
 def confidence_score(recommendation: dict) -> float | None:
@@ -72,5 +87,13 @@ def upside_pct(target_price: float, current_price: float) -> float:
     return (target_price - current_price) / current_price * 100
 
 
-__all__ = ("confidence_score", "first_price", "first_value_by_key_fragment", "main_target_price",
-           "target_price_candidates", "upside_pct")
+__all__ = (
+    "confidence_score",
+    "first_price",
+    "first_value_by_key_fragment",
+    "has_explicit_price_range",
+    "main_target_price",
+    "price_candidates",
+    "target_price_candidates",
+    "upside_pct",
+)
