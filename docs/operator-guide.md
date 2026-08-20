@@ -207,6 +207,8 @@ Ops dashboard provider alert text and window fields use string- and dict-safe co
 
 Report conformance quality gate inputs use dict-native field reads before decision-tree evaluation, so malformed report lint, final audit, evidence exit gate, or content credibility accessors cannot interrupt report quality classification or erase valid blocking and warning evidence.
 
+HTML execution summary 的 Evidence gate、Content credibility、Report conformance status 與 evidence note，以及 Markdown execution summary 的三個 status/摘要，在有 current projection 時會一起使用 response-time quality gate；若沒有 current projection，則保留 persisted artifact。這是閱讀層的投影，不會改變 `/api/report/{filename}/download/data` 的原始 snapshot。
+
 Report conformance quality gate inputs accept mapping-safe wrappers before decision-tree evaluation, so read-only report lint, final audit, evidence, content credibility, context, or snapshot payloads cannot hide blocker or warning evidence.
 
 Report evidence exit gate numeric checks use semantic snapshot paths only: ISO timestamp fragments, hashes, source-audit metadata, `N/A` cells, and range prefixes are not investment claims; claims without a matching semantic path are recorded as `unverifiable` and do not borrow the nearest unrelated snapshot number. `failed_count` counts only real `mismatch` results, while `unverifiable_count` remains visible and keeps the verdict at least `caution` when no comparable evidence exists.

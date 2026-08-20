@@ -360,6 +360,7 @@ def test_get_report_file_projects_current_quality_notice_without_rewriting_stora
             <div class="execution-summary-item" aria-label="Evidence gate：approved"><span>Evidence gate</span><strong>approved</strong></div>
             <div class="execution-summary-item" aria-label="Content credibility：passed"><span>Content credibility</span><strong>passed</strong></div>
             <div class="execution-summary-item" aria-label="Report conformance：passed"><span>Report conformance</span><strong>passed</strong></div>
+            <div class="execution-summary-note">persisted evidence summary</div>
         </div>
         <p>persisted report body</p>
         </body></html>
@@ -384,9 +385,9 @@ def test_get_report_file_projects_current_quality_notice_without_rewriting_stora
         def query(self, query):
             return ([{
                 "filename": filename,
-                "evidence_exit_gate": {"verdict": "caution"},
-                "content_credibility": {"status": "warning"},
-                "report_conformance": {"status": "warning"},
+                "evidence_exit_gate": {"verdict": "caution", "summary": "current evidence summary"},
+                "content_credibility": {"status": "warning", "summary": "current content summary"},
+                "report_conformance": {"status": "warning", "summary": "current conformance summary"},
             }], 1)
 
     response = get_report_file(
@@ -410,9 +411,11 @@ def test_get_report_file_projects_current_quality_notice_without_rewriting_stora
     assert "<span>Content credibility</span><strong>warning</strong>" in body
     assert 'aria-label="Report conformance：warning"' in body
     assert "<span>Report conformance</span><strong>warning</strong>" in body
+    assert '<div class="execution-summary-note" data-quality-source="current-projection">current evidence summary</div>' in body
     assert "report-reading-notice-passed" not in body
     assert "report-reading-notice-passed" in storage.get_report(filename).content.decode("utf-8")
     assert 'aria-label="Evidence gate：approved"' in storage.get_report(filename).content.decode("utf-8")
+    assert "persisted evidence summary" in storage.get_report(filename).content.decode("utf-8")
     assert json.loads(storage.get_report(data_snapshot_filename_for_report(filename)).content) == snapshot
 
 
@@ -425,6 +428,15 @@ def test_download_markdown_projects_current_quality_notice_without_rewriting_sto
 
 - **品質 gate 狀態:** 已通過已知檢查
 - **資料可信度:** 資料新鮮（fresh）
+
+## 執行邏輯與模型檢查
+
+- **Evidence gate:** approved
+- **Content credibility:** passed
+- **Report conformance:** passed
+- **證據抽查摘要:** persisted evidence summary
+- **內容可信度摘要:** persisted content summary
+- **符合性摘要:** persisted conformance summary
 
 ## 報告摘要
 
@@ -453,9 +465,9 @@ persisted markdown body
         def query(self, query):
             return ([{
                 "filename": filename,
-                "evidence_exit_gate": {"verdict": "caution"},
-                "content_credibility": {"status": "warning"},
-                "report_conformance": {"status": "warning"},
+                "evidence_exit_gate": {"verdict": "caution", "summary": "current evidence summary"},
+                "content_credibility": {"status": "warning", "summary": "current content summary"},
+                "report_conformance": {"status": "warning", "summary": "current conformance summary"},
             }], 1)
 
     response = download_report_file(
@@ -470,6 +482,15 @@ persisted markdown body
     assert response.status_code == 200
     assert "品質 gate 有警示" in body
     assert "已通過已知檢查" not in body
+    assert "- **Evidence gate:** caution" in body
+    assert "- **Content credibility:** warning" in body
+    assert "- **Report conformance:** warning" in body
+    assert "- **證據抽查摘要:** current evidence summary" in body
+    assert "- **內容可信度摘要:** current content summary" in body
+    assert "- **符合性摘要:** current conformance summary" in body
+    assert "persisted evidence summary" not in body
+    assert "persisted content summary" not in body
+    assert "persisted conformance summary" not in body
     assert "persisted markdown body" in body
     assert storage.get_report(filename[:-5] + ".md").content.decode("utf-8") == markdown
     assert json.loads(storage.get_report(data_filename).content) == snapshot

@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3661 / align execution summary explanations across HTML and Markdown
+
+- `#差距分析` / `#語意含義`：current gate status 已更新後，HTML execution note 與 Markdown 的 gate/摘要仍沿用 persisted explanation；操作員會看到 warning 卻讀到「抽樣數字均可」的相反理由。
+- `#最小變更` / `#組成`：新增 focused execution-summary view repair helper，同步 HTML 三個 status 與 evidence note、Markdown 三個 status 與三個摘要；只在 current projection context 生效，Final audit、Report lint 與 raw data 維持既有來源。
+- `#可驗證性` / `#來源品質`：HTML note/Markdown summary 先 RED 再 GREEN；storage `49 passed`、preview `121 passed`、execution/data-trust `70 passed`、HTTP `9 passed`、import boundary `504 passed`、docs/HCS `135 passed`。
+
 ## D3660 / make Markdown quality notice replacement state-symmetric
 
 - `#差距分析` / `#偏誤降低`：Markdown repair 只有在新 notice 是 warning/blocked 時才替換，current passed 或 pending 會讓舊 warning 留在 response；這是狀態轉換方向不對稱，不是單一報告內容問題。

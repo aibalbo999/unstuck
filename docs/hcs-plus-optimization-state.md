@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-21
+- D3661：live 3324 v4 的頂部 notice、三個 execution summary status 已是 current `caution/warning/warning`，但 HTML `execution-summary-note` 仍是 persisted「抽樣數字均可在資料快照中找到對應值」，Markdown execution summary 的 status 與三個摘要也仍是舊值；同一份報告因此同時呈現 current gate 與 persisted explanation。新增 view-time execution summary overlay：同步 HTML status、evidence note 與 Markdown status/摘要，並標示 HTML current projection；不回寫 HTML、Markdown、data snapshot、index、review、rerun、repair 或 queue。
+- D3661 驗證：先以 HTML note 與 Markdown execution summary RED，再 GREEN；storage `49 passed`、preview `121 passed`、execution/data-trust `70 passed`、HTTP `9 passed`、import boundary `504 passed`、docs/HCS `135 passed`，raw artifact/data snapshot 維持不變。
 - D3660：全量 latest scope 的 raw Markdown 有 `107` 份品質 notice 與 current projection 不同（`104` 份 persisted passed/current warning、`2` 份 persisted blocked/current warning、`1` 份 persisted warning/current blocked）；D3659 已處理 warning/block response，但 Markdown repair 對 current passed/pending 不會替換。現在只要 response 有可用 notice context，就對 Markdown 的既有 notice 做完整 state replacement，涵蓋 passed、warning、blocked、pending；不回寫 raw artifact 或 snapshot。
 - D3660 驗證：先以 current passed、persisted warning 的反向 fixture RED，再 GREEN；Markdown targeted `14 passed`、storage `49 passed`、reading notice `23 passed`，raw Markdown/data snapshot 維持不變。
 - D3659：live 3324 v4 的 HTML 已顯示 current quality warning，但 `/download/md` 的「品質 gate 狀態」仍是 persisted「已通過已知檢查」；這讓 HTML、Markdown 兩個人工閱讀入口產生不同品質語意。現在 HTML/Markdown download 共用 current quality notice context，Markdown 只在 response time 替換閱讀提示，data download、實體 Markdown、HTML、snapshot、index、review、rerun、repair 與 queue 不回寫。
