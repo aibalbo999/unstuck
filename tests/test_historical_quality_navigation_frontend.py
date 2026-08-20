@@ -134,6 +134,61 @@ process.stdout.write(JSON.stringify({ opened }));
     }
 
 
+def test_operator_dashboard_maps_quality_audit_to_scoped_human_review():
+    module_path = STATIC_DIR / "operator_dashboard_actions.js"
+    script = """
+global.window = { StockAgentDailyQueueContext: { sourceLabel: source => source } };
+require(__MODULE_PATH__);
+const items = window.StockAgentOperatorDashboardActions.dashboardActionItems({ decision_queue: { items: [
+  { type: 'manual_review', source: 'report_quality_audit', filename: '1623_TW_v2_report_20260815_154718.html', ticker: '1623.TW', pipeline_id: 'v2' },
+  { type: 'manual_review', source: 'report_repair', filename: 'broken.html', ticker: '2330.TW', pipeline_id: 'v1' },
+  { type: 'refresh_data_snapshot', source: 'report_quality_audit', filename: 'refresh.html', ticker: '2603.TW', pipeline_id: 'v4' }
+] } });
+process.stdout.write(JSON.stringify(items));
+""".replace("__MODULE_PATH__", json.dumps(str(module_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    quality_item, repair_item, refresh_item = json.loads(result.stdout)
+
+    assert quality_item["action"] == "quality-audit-review"
+    assert quality_item["label"] == "前往人工核對"
+    assert quality_item["filename"] == "1623_TW_v2_report_20260815_154718.html"
+    assert quality_item["pipeline"] == "v2"
+    assert repair_item["action"] == "view-report"
+    assert repair_item["label"] == "查看報告"
+    assert refresh_item["action"] == "refresh-report"
+    assert refresh_item["label"] == "刷新資料"
+
+
+def test_operator_summary_delegates_quality_audit_to_scoped_historical_review():
+    module_path = STATIC_DIR / "operator_summary_panel.js"
+    script = """
+global.window = {
+  StockAgentOperatorDashboardActions: { actionableActionCount: () => 0, candidateActionModel: item => item, dashboardActionItems: () => [], dashboardText: () => ({ tone: 'ok', value: '', detail: '' }) },
+  StockAgentOperatorSummaryHelpers: {}
+};
+let handler;
+const actionList = { addEventListener: (type, callback) => { if (type === 'click') handler = callback; } };
+global.document = { getElementById: id => id === 'operator-action-list' ? actionList : null, querySelectorAll: () => [] };
+require(__MODULE_PATH__);
+let opened;
+window.StockAgentOpenHistoricalQualityAudit = scope => { opened = scope; return Promise.resolve(); };
+const button = { dataset: { operatorAction: 'quality-audit-review', filename: '1623_TW_v2_report_20260815_154718.html', ticker: '1623.TW', pipeline: 'v2' }, textContent: '前往人工核對', disabled: false };
+(async () => {
+  window.StockAgentOperatorSummaryPanel.create({ apiClient: {}, ui: { escapeHtml: value => String(value ?? '') } });
+  await handler({ target: { closest: selector => selector === '[data-operator-action]' ? button : null } });
+  process.stdout.write(JSON.stringify({ opened, disabled: button.disabled, text: button.textContent }));
+})();
+""".replace("__MODULE_PATH__", json.dumps(str(module_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert payload == {
+        "opened": {"query": "1623_TW_v2_report_20260815_154718.html", "pipeline": "v2"},
+        "disabled": False,
+        "text": "前往人工核對"
+    }
+
+
 def test_history_workspace_ignores_stale_report_list_response():
     module_path = STATIC_DIR / "history_workspace.js"
     script = """
@@ -497,5 +552,7 @@ def test_historical_audit_navigation_wiring_uses_cache_busters_and_existing_scop
     assert "/static/watchlist_panel.js?v=20260816-scoped-quality-review-navigation" in index_html
     assert "/static/history_filters.js?v=20260816-history-scope-persistence" in index_html
     assert "/static/history_workspace.js?v=20260816-scope-transient-state-guard" in index_html
-    assert "/static/app.js?v=20260816-scoped-quality-review-navigation" in index_html
+    assert "/static/operator_dashboard_actions.js?v=20260821-quality-audit-action" in index_html
+    assert "/static/operator_summary_panel.js?v=20260821-quality-audit-action" in index_html
+    assert "/static/app.js?v=20260821-quality-audit-action" in index_html
     assert "/static/styles/watchlist.css?v=20260816-daily-quality-target-context" in style_css

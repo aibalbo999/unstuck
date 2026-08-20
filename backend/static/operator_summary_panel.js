@@ -70,6 +70,7 @@
             button.textContent = action === 'run-watchlist' ? '排程中' : '處理中';
             try {
                 if (action === 'view-report' && filename && window.openReport) window.openReport(filename, button.dataset.ticker || '報告', button.dataset.pipeline || 'v1');
+                else if (action === 'quality-audit-review' && filename) await window.StockAgentOpenHistoricalQualityAudit?.({ query: filename, pipeline: button.dataset.pipeline || 'all' });
                 else if (action === 'refresh-report' && filename) { await apiClient.refreshReportDataSnapshot(filename); await load(); }
                 else if (action === 'rerun-report' && filename) { await rerunReport(filename); button.textContent = '已排程'; await load(); }
                 else if (action === 'rerun-all-reports' && filenames.length) { for (const item of filenames) await rerunReport(item); button.textContent = '已排程'; await load(); }

@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3633 / route quality-audit queue actions into targeted human review
+
+- `#差距分析` / `#受眾`：D3631 已讓完整 latest quality audit gap 出現在今日 decision queue，但 operator summary 仍把它當成一般 `manual_review`，只開啟報告；操作員還要自行切換 history 並重建 filename/pipeline 範圍。
+- `#拆解問題` / `#責任`：沿用 watchlist、report preview 已使用的 `StockAgentOpenHistoricalQualityAudit({ query, pipeline })`，只在 `type=manual_review`、`source=report_quality_audit` 且 filename 存在時映射專用 action；一般 report repair 與非人工核對 action 不變。app wrapper 回傳既有 workspace Promise，讓工作台按鈕的 busy state 覆蓋載入。
+- `#偏誤降低` / `#倫理判斷`：這是 targeted read-only navigation，不把 artifact marker 當成 gate pass，不自動核准 review、不 enqueue rerun，也不寫 snapshot、artifact、index、review 或 queue state；partial/unavailable/historical scope 仍不會進 daily queue。
+- `#可驗證性`：先取得 dashboard mapping 與 operator delegation RED，再 GREEN；跨 history/quality evidence/static contracts `180 passed`，Node syntax 與 `git diff --check` 通過；補上 architecture/operator guide contract。
+
 ## D3632 / make temporal price ranges follow the latest available data date
 
 - `#差距分析` / `#來源品質`：fixture 的最新價格資料日是 2026-07-01，但 extractor 以執行日 2026-08-21 切 5 年窗口，排除 2021-07-01 並把 return 從 142.0% 算成 72.86%。

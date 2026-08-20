@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.StockAgentOpenHistoricalQualityAudit = scope => {
         switchView('home-view');
         document.getElementById('home-tab-analysis')?.click?.();
-        appPanels.historyWorkspace.openHistoricalQualityAudit?.(scope);
+        return appPanels.historyWorkspace.openHistoricalQualityAudit?.(scope);
     };
     appPanels.bindPanelEvents();
     window.StockAgentReportActions.bindDownloads({ htmlBtn: downloadHtmlBtn, mdBtn: downloadMdBtn, dataBtn: downloadDataBtn, getFilename: () => currentReportFilename });

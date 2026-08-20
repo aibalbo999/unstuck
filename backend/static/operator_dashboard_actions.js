@@ -2,6 +2,7 @@
     const queueItems = payload => Array.isArray(payload?.decision_queue?.items) ? payload.decision_queue.items : [];
     const sampleTickers = items => { const samples = [...new Set((items || []).map(item => item?.ticker).filter(Boolean))].slice(0, 3).join('、'); return samples ? `例如 ${samples}` : ''; };
     const dashboardActionMap = { rerun_report: ['rerun-report', '完整重跑'], run_watchlist: ['run-watchlist', '建立/更新報告'], refresh_data_snapshot: ['refresh-report', '刷新資料'], manual_review: ['view-report', '查看報告'], wait_provider_recovery: ['open-ops', '查看來源'], backtest_due: ['open-ops', '查看回測'], model_route_warning: ['open-ops', '查看路由'], fix_notification_delivery: ['open-ops', '查看通知通道'], monitor_provider: ['open-ops', '查看來源'], fix_free_mode: ['open-ops', '修免費模式'], review_candidate: ['candidate-snapshot', '查看股票快照'], monitor: ['monitor', '查看狀態'] };
+    const mappedAction = item => item?.type === 'manual_review' && item?.source === 'report_quality_audit' && item?.filename ? ['quality-audit-review', '前往人工核對'] : (dashboardActionMap[item?.type] || ['open-ops', '查看狀態']);
     const targetPanelForAction = item => item?.target_panel || ({ wait_provider_recovery: 'provider-sla-panel', monitor_provider: 'provider-sla-panel', backtest_due: 'performance-panel', model_route_warning: 'api-quota-panel', fix_notification_delivery: 'maintenance-panel', fix_free_mode: 'provider-sla-panel', run_watchlist: 'watchlist-panel' }[item?.type] || 'active-jobs-panel');
     const targetTabForPanel = panel => panel === 'watchlist-panel' ? 'tracking' : (panel === 'market-screener-panel' ? 'screener' : 'ops');
     const attentionContextText = item => window.StockAgentDailyQueueContext?.attentionContextText?.(item) || '';
@@ -31,7 +32,7 @@
     }
 
     function mappedDashboardAction(item) {
-        const mapped = dashboardActionMap[item?.type] || ['open-ops', '查看狀態'];
+        const mapped = mappedAction(item);
         const panel = targetPanelForAction(item);
         if (item?.type === 'review_candidate') {
             const candidate = candidateActionModel(item);

@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-21
+- D3633：D3631 已將完整 latest quality audit gap 放進唯讀 decision queue，但 operator summary 仍把 `source=report_quality_audit` 的 `manual_review` 映射成「查看報告」，操作員看到缺口後還要自行切換 history、重新輸入 filename/pipeline。現在只對帶 filename 的 quality-audit manual review 映射「前往人工核對」，沿用既有 `StockAgentOpenHistoricalQualityAudit({query, pipeline})`，一般 report-repair manual review 與其他 action 維持原行為；app 導覽回傳 Promise，讓按鈕 loading 狀態涵蓋實際 audit 載入。
+- D3633 驗證：先以 dashboard mapping 與 operator click delegation RED，再 GREEN；historical quality navigation、report evidence、audit frontend、static history contracts `180 passed`，Node syntax、`git diff --check` 通過。更新架構圖與 operator guide，未改 API、quality predicate、review mutation、artifact/index、rerun 或 queue state。
 - D3632：全套回歸暴露兩個非本輪 queue 變更的 residual：5 年價格 fixture 在資料最後日期早於系統日期時被當成「今天」切窗，且 renderer 在 8f53dc81 後已有意義變更但 golden hash 未同步。`extract_price_history_ranges()` 現在以最新可用價格日期作 as-of 上限，golden fixture 以目前 renderer 輸出重新校準，保留 required markers。
 - D3632 驗證：data-fetch/golden focused `22 passed`，5 年 fixture 回復 `2021-07-01` 起始與 `142.0%` return；`test_2330_v1_markdown_report_matches_golden_snapshot` 通過，未改報告 gate、audit、index 或 runtime state。
 - D3631：live daily quality audit 的 `2` 個 current gap（priority `820`、`blocks_auto_rerun=true`）未進 decision queue，操作員只能在 audit 明細看見，造成 coverage 與 next-action surface 斷裂。新增完整 latest audit item 的唯讀 `report_quality_audit` queue source；只有 `items_truncated=false` 且明細數完整覆蓋 `quality_metadata_missing_reports` 才投影，repair sample 依 filename 優先去重，partial/unavailable/historical 不進 queue。
