@@ -219,6 +219,8 @@ Report content credibility quality gate inputs use mapping-safe conversion befor
 
 Report content credibility recommendation and gate text fields use safe text fallback before contradiction checks, so malformed recommendation keys, target values, confidence values, evidence verdicts, or data-trust statuses cannot interrupt content-credibility classification. When confidence cannot be parsed, `confidence_data_trust_calibration` reports that calibration is unavailable rather than passed; this does not automatically block the report or create a new warning.
 
+Trade-setup price parsing removes explicit calendar dates and period expressions, including ranges such as `1-2週`, before selecting the first price. This keeps a time horizon from being shown as the target or stop price in content-credibility details.
+
 Report renderer lint repair result fields use dict-native field reads before structured-key scrubbing, so malformed lint result or issue accessors cannot interrupt automatic repair for structured JSON key leaks.
 
 Report execution summary quality gate fields use dict-native field reads before report rendering, so malformed final audit, evidence gate, report conformance, or report lint accessors cannot interrupt HTML/Markdown execution summary output or erase valid quality status evidence.

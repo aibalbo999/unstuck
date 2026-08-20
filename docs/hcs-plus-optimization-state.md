@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-21
+- D3643：live `2308.TW v4` 的目標摘要是「1-2週目標價看近期高點壓力位1950.0 TWD」，但 `content_credibility.trade_setup_alignment` 曾把期間範圍開頭的 `1` 誤當成目標價，造成錯誤的 passed 檢查。`content_credibility_inputs.first_price()` 現在先移除「1-2週」這類數字期間範圍，再交給既有價格 parser，保留真正的 `1950.0`。
+- D3643 驗證：先以 `first_price()` 與 trade-setup live-shaped fixture 取得 RED，再 GREEN；content credibility、projection、target detection 相關回歸 `1765 passed`。runtime reload 後真實 `2308.TW v4` 的 `trade_setup_alignment.details.target_price=1950.0`，`/healthz=ok`、`/readyz=ready`；未回寫 snapshot、artifact、index、review、rerun 或 queue。
 - D3642：live `/api/reports` 的 `165` 份最新報告中，`144` 份的 `confidence_data_trust_calibration` check 外層標成 `passed`，但內層 calibration 明確是 `status=unavailable`、`raw_confidence=N/A`；這會把「無法完成校準」誤讀成「校準通過」。現在 unavailable 分支輸出同樣的 `status=unavailable` 與精確訊息，且 current projection 對同一 check id 優先於舊 persisted check，避免 API 同時列出相反狀態；不新增 warning/blocker、不改 confidence cap 或整體 content-credibility policy。
 - D3642 驗證：先以 live-shaped unparseable confidence 與同 id merge 建立兩個 RED，再 GREEN；content credibility/conformance/projection `41 passed`，文件契約與架構說明同步更新；runtime reload 後重新核對報告全集的 unavailable check 不再被標成 passed 或重複，並保留無 confidence 報告不自動升級的原行為。
 - D3641：live daily queue 的 `model_route_warning` 只有 source/type/route/warning_id，notification message/outbox 卻已有 `open-ops`、`查看路由` 與 `api-quota-panel/ops`；直接消費 queue 的工作台必須自行推導入口。現在 queue route-warning projection 重用 `operator_action_contract.navigation_context()`，不改 warning suppression、priority、route policy 或任何 state mutation。

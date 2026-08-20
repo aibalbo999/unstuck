@@ -119,6 +119,8 @@ Content credibility also reuses the shared confidence calibration policy used by
 
 When the recommendation confidence cannot be parsed, the `confidence_data_trust_calibration` check reports `status=unavailable` rather than `passed`, with a message that the cap check could not be completed. This does not create a warning or block the overall `content_credibility` result; it prevents an incomplete calibration from being presented as a successful check.
 
+Trade-setup price extraction removes explicit calendar dates and period expressions before parsing the first price. Period ranges such as `1-2週`, `1至2週`, and `1 to 2 weeks` therefore cannot be mistaken for a target or stop price; the actual price later in the same text remains eligible for the existing parser.
+
 For directional recommendations (`買入`, `避免`, or `放空`) with at least two parseable 3/6/12-month targets, content credibility also projects the existing forward target-sequence rule as `horizon_target_sequence_conflict` warning evidence. It does not replace the final-audit critical contract; it keeps the same deterministic sequence rule visible when a historical/API projection lacks raw final-audit details.
 
 Rendered Markdown and HTML execution summaries expose `Content credibility` as an explicit quality marker. The read-only artifact evidence summary also recognizes the existing `內容一致性` reading-notice line, so historical reports can expose content-credibility evidence without reconstructing or treating artifact text as persisted gate metadata.

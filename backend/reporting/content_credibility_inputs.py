@@ -21,7 +21,10 @@ _CALENDAR_DATE_PATTERN = re.compile(
     r"|\d{1,2}\s*[-/.]\s*\d{1,2}\s*[日號]"
 )
 _PERIOD_NUMBER_PATTERN = re.compile(
-    r"(?<![\d.,])(?:\d+(?:[.．]\d+)?)\s*(?:週|周|個月|月|年|天|日|weeks?|months?|years?|days?)(?![A-Za-z])",
+    r"(?<![\d.,])"
+    r"(?:\d+(?:[.．]\d+)?"
+    r"(?:\s*(?:[-–—~～至到]|\bto\b)\s*\d+(?:[.．]\d+)?)?)"
+    r"\s*(?:週|周|個月|月|年|天|日|weeks?|months?|years?|days?)(?![A-Za-z])",
     flags=re.IGNORECASE,
 )
 

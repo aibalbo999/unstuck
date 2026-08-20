@@ -28,6 +28,10 @@ def test_first_price_ignores_period_before_price():
     assert first_price("突破並站穩 52 週高點 31.3 TWD") == 31.3
 
 
+def test_first_price_ignores_period_range_before_price():
+    assert first_price("1-2週目標價看近期高點壓力位1950.0 TWD") == 1950.0
+
+
 def test_target_price_candidates_drop_non_finite_numeric_prices():
     candidates = target_price_candidates(
         {

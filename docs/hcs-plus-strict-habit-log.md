@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3643 / prevent period ranges from becoming trade prices
+
+- `#差距分析` / `#來源品質`：live `2308.TW v4` 的「1-2週目標價」被 `first_price()` 讀成 `1.0`，讓 trade-setup credibility check 看似 passed 卻檢查了錯誤目標。這是內容可信度的語意錯位，不是文案格式問題。
+- `#拆解問題` / `#偏誤降低`：只在 input normalization 階段移除帶有週、月、年、日單位的單值或範圍數字，讓 `1-2週`、`1至2週`、`1 to 2 weeks` 不進價格 parser；既有單一價格、日期清理與 downstream price rules 維持不變。
+- `#可驗證性` / `#責任`：先取得兩個 RED，再 GREEN；相關 content credibility/target detection 回歸 `1765 passed`，runtime 真實 `2308.TW v4` 目標值為 `1950.0`，只修正 read-only 解析，不寫 snapshot、artifact、index、review、rerun 或 queue。
+
 ## D3642 / expose unavailable confidence calibration without changing gate policy
 
 - `#拆解問題` / `#偏誤辨識`：live `/api/reports` 顯示 `144/165` 份最新報告的 confidence calibration check 是外層 `passed`、內層 `status=unavailable`；缺少信心分數的報告因此留下了過度樂觀的 check status，projection merge 另會把舊 persisted passed check 重複帶出。

@@ -70,6 +70,23 @@ def test_trade_setup_alignment_uses_price_after_calendar_date_for_stop_loss():
     assert result["checks"][0]["details"]["stop_loss"] == 204.0
 
 
+def test_trade_setup_alignment_ignores_period_range_before_target_price():
+    from reporting.content_credibility_trade_setup import evaluate_trade_setup_alignment
+
+    result = evaluate_trade_setup_alignment(
+        trade_setup=_trade_setup(
+            target_price="1-2週目標價看近期高點壓力位1950.0 TWD",
+            stop_loss="有效跌破支撐位1640.0 TWD",
+            trade_direction="Neutral",
+        ),
+        current_price=1745.0,
+    )
+
+    assert result["blocking_issues"] == []
+    assert result["warnings"] == []
+    assert result["checks"][0]["details"]["target_price"] == 1950.0
+
+
 def test_trade_setup_alignment_warns_when_prices_cannot_be_parsed():
     from reporting.content_credibility_trade_setup import evaluate_trade_setup_alignment
 
