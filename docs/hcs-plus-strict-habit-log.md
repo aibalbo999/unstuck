@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3663 / label the report-count scope in the daily dashboard
+
+- `#差距分析` / `#可驗證性`：live dashboard 的 `reports_needing_rerun=0` 與 `report_repairs_required=16` 是近期 20 份 report sample；同一 response 又有 165 份 full latest-per-ticker/pipeline quality audit，沒有 scope label 時容易把 sample count 誤讀成全量結論。
+- `#最小變更` / `#責任`：保留既有 summary count 與 queue 行為，新增 `summary.report_scope` 宣告 `daily_report_sample` 和 sample size；operator summary 只增加範圍文字，不改 freshness predicate、audit、artifact、snapshot、index、review 或 rerun。
+- `#可驗證性` / `#來源品質`：先以 backend/frontend scope fixture RED 再 GREEN；dashboard/frontend/audit/docs `278 passed`；live scope `20`、full audit `165`、audit gap `2` 全在 sample 外，health/readiness/queue 均正常。
+
 ## D3662 / surface stale analysis in report reading notices
 
 - `#差距分析` / `#內容可信度`：live report row 可同時是 `data_trust=fresh` 與 `decision_freshness=needs_rerun`；原本 HTML/Markdown 閱讀提示只呈現資料新鮮，沒有把「分析本文未重跑」放進使用前限制，容易把新資料誤讀成新結論。

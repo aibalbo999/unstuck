@@ -128,6 +128,31 @@ def test_watchlist_daily_dashboard_keeps_action_surface_when_quality_audit_is_un
     assert payload["decision_queue"]["summary"]["total_actionable"] == 0
 
 
+def test_daily_decision_dashboard_scopes_report_counts_to_recent_sample():
+    dashboard = build_daily_decision_dashboard(
+        reports={
+            "reports": [
+                {"ticker": "2330.TW", "filename": "2330_v1.html"},
+                {
+                    "ticker": "2308.TW",
+                    "filename": "2308_v1.html",
+                    "decision_freshness": {"requires_rerun": True},
+                },
+            ]
+        },
+        watchlist={"items": []},
+        screener={"items": []},
+        performance={"summary": {}, "details": []},
+        free_mode={"enabled": True, "can_run_without_paid_keys": True, "violations": []},
+    )
+
+    assert dashboard["summary"]["report_scope"] == {
+        "scope": "daily_report_sample",
+        "label": "近期報告取樣",
+        "sampled_reports": 2,
+    }
+
+
 def test_historical_report_quality_audit_route_is_read_only_and_explicit(monkeypatch, tmp_path):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient

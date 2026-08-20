@@ -93,6 +93,11 @@ def build_daily_decision_dashboard(
         "status": status,
         "summary": {
             "sampled_reports": len(report_rows),
+            "report_scope": {
+                "scope": "daily_report_sample",
+                "label": "近期報告取樣",
+                "sampled_reports": len(report_rows),
+            },
             "reports_needing_rerun": len(rerun_reports),
             "report_repairs_required": int((repair_queue.get("summary") or {}).get("action_required") or 0),
             "watchlist_high_priority": len(high_priority_watchlist),

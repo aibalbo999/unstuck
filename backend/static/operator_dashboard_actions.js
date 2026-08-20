@@ -16,20 +16,30 @@
         reason: String(item?.candidate_reason || item?.reason || item?.detail || '市場掃描候選').trim(),
     });
 
+    function reportScopeText(summary) {
+        const scope = summary?.report_scope || {};
+        const sampledReports = Number(scope.sampled_reports);
+        if (scope.scope !== 'daily_report_sample' || !Number.isFinite(sampledReports) || sampledReports < 0) return '';
+        const label = String(scope.label || '近期報告取樣').trim() || '近期報告取樣';
+        return `${label} ${Math.floor(sampledReports)} 份`;
+    }
+
     function dashboardText(payload) {
         const queue = payload?.decision_queue || {};
         const summary = queue.summary || payload?.summary || {};
         const total = Number(summary.total_actionable || 0);
         const shown = Number(summary.displayed_count || queueItems(payload).length || 0);
         const secondary = Number(queue.secondary_count || 0);
-        if (total) return { tone: 'warning', value: `${total} 件待處理`, detail: `顯示 ${shown} / 次要待辦 ${secondary}` };
         const old = payload?.summary || {};
+        const reportScope = reportScopeText(old);
+        const reportScopeDetail = reportScope ? ` · 報告：${reportScope}` : '';
+        if (total) return { tone: 'warning', value: `${total} 件待處理`, detail: `顯示 ${shown} / 次要待辦 ${secondary}${reportScopeDetail}` };
         const repairs = Number(old.report_repairs_required || 0);
         const reruns = Number(old.reports_needing_rerun || 0);
         const watchHigh = Number(old.watchlist_high_priority || 0);
-        if (repairs || reruns || watchHigh) return { tone: 'warning', value: `${repairs + reruns + watchHigh} 件待處理`, detail: `修復 ${repairs} / 重跑 ${reruns} / watchlist ${watchHigh}` };
+        if (repairs || reruns || watchHigh) return { tone: 'warning', value: `${repairs + reruns + watchHigh} 件待處理`, detail: `${reportScope ? `報告：${reportScope}；` : ''}修復 ${repairs} / 重跑 ${reruns} / watchlist ${watchHigh}` };
         if (payload?.free_mode?.can_run_without_paid_keys === false) return { tone: 'warning', value: '免費模式需處理', detail: 'provider 有付費依賴缺口' };
-        return { tone: 'ok', value: '今日節奏正常', detail: `${Number(old.top_candidate_count || 0)} 個候選` };
+        return { tone: 'ok', value: '今日節奏正常', detail: `${reportScope ? `報告：${reportScope}；` : ''}${Number(old.top_candidate_count || 0)} 個候選` };
     }
 
     function mappedDashboardAction(item) {
