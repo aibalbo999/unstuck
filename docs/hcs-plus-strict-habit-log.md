@@ -1,5 +1,10 @@
 # HCS Plus Strict Habit Log
 
+## D3628 / keep manual review revisions stable across index refreshes
+
+- `#批判` / `#偏誤降低`：連續四次 live 讀取同一份 `1623.TW` v2 report revision 一致，但追查 index writer 後確認 `updated_at` 是 upsert time，`file_mtime` 是 filesystem refresh signal；把兩者當版本欄位會將 metadata refresh 誤判成內容變更。
+- `#責任` / `#可驗證性`：`report_quality_revision()` 現在只使用 report identity 與 data snapshot/HTML/Markdown/data-file hashes；內容 hash 改變仍切換 revision，audit cache 的 index fingerprint 維持原責任。revision stability regression 先 RED 再 GREEN `35 passed`，未寫 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3627 / make quality audit and repair queue scopes explicit
 
 - `#差距分析` / `#語意含義`：live daily response 同時有 latest-per-ticker/pipeline quality audit `165` 筆與 repair queue sample `20` 筆；不標範圍時，操作員可能把 quality gap 數誤讀成 queue 已涵蓋數。

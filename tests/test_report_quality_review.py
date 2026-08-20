@@ -1,6 +1,27 @@
 import importlib
 
 
+def test_report_quality_revision_ignores_index_write_and_filesystem_mtime_changes():
+    from report_quality_review_workflow import report_quality_revision
+
+    stable_row = {
+        "output_dir": "/reports",
+        "filename": "1623_TW_v1_report.html",
+        "pipeline_id": "v1",
+        "updated_at": 100.0,
+        "file_mtime": 200.0,
+        "data_snapshot_hash": "data-hash",
+        "html_hash": "html-hash",
+        "markdown_hash": "markdown-hash",
+        "data_file_hash": "data-file-hash",
+    }
+    reindexed_row = {**stable_row, "updated_at": 300.0, "file_mtime": 400.0}
+    changed_content_row = {**stable_row, "html_hash": "new-html-hash"}
+
+    assert report_quality_revision(stable_row) == report_quality_revision(reindexed_row)
+    assert report_quality_revision(stable_row) != report_quality_revision(changed_content_row)
+
+
 def test_report_quality_review_store_keeps_append_only_revision_scoped_history(tmp_path, monkeypatch):
     review_store = importlib.import_module("report_quality_review_store")
     monkeypatch.setattr(review_store, "QUALITY_REVIEW_DB_PATH", str(tmp_path / "operational.sqlite3"))

@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-20
+- D3628：追查人工品質核對 revision 的 live 穩定性，連續四次讀取同一份 `1623.TW` v2 報告結果一致；進一步確認 `report_index.upsert_report_metadata()` 每次寫入都更新 `updated_at`，而 `file_mtime` 也可能只是檔案 touch 的 refresh signal。原 revision 將這兩個非內容欄位混入 fingerprint，會讓內容未變的 review 被不必要地失效。現在 revision 只綁定 output/filename/pipeline identity 與 data snapshot、HTML、Markdown、data file hashes；內容 hash 改變仍會要求新 review。audit cache 的 index fingerprint 不改，仍可偵測 metadata refresh。
+- D3628 驗證：先以 revision stability regression RED，再 GREEN；report quality review/audit `35 passed`。補充文件契約與完整 quality、runtime reload、live repeat revision probe、health/readiness/doctor、commit/push 後 remote sanity；未寫 snapshot、artifact、index、review、rerun、repair 或 queue。
 - D3627：live daily dashboard 證實 `report_quality_audit` 審計 `165` 筆 latest rows，但 `repair_queue.summary.sampled_reports=20`；兩者都是正確 scope，卻在工作台並列時容易被誤讀成 queue 已涵蓋全部品質缺口。新增唯讀「修復 queue 範圍：取樣 N 份報告」提示與 API/架構說明，不改 audit 分母、repair selection、decision queue 或任何 mutation。
 - D3627 驗證：watchlist scope RED→GREEN，static module size、frontend、quality、contracts、storage、live scope probe 與 runtime health/readiness 完成後封存。
 - D3626：D3625 已把總體 context readiness 放進摘要，但 live per-pipeline map 顯示 `v1/v2/v3` 缺口有 artifact fallback、`v4` 的 `29` 筆全部缺局部上下文；history/watchlist 原本只顯示模式缺口數，無法直接安排模式級準備。現在摘要增加「模式上下文」，沿用同一份 `quality_metadata_by_pipeline.quality_metadata_missing_by_rerun_context`，不改 audit 分母、execution strategy、freshness、review 或 queue。

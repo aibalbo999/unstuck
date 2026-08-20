@@ -14,7 +14,8 @@ from report_quality_review_store import list_review_history, pending_review
 def report_quality_revision(row: dict[str, Any]) -> str:
     digest = sha256()
     for field in (
-        "output_dir", "filename", "pipeline_id", "updated_at", "file_mtime",
+        # Index write time and filesystem mtime are refresh signals, not report versions.
+        "output_dir", "filename", "pipeline_id",
         "data_snapshot_hash", "html_hash", "markdown_hash", "data_file_hash",
     ):
         digest.update(safe_text(row.get(field)).encode("utf-8"))
