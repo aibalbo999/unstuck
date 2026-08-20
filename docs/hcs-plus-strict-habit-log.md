@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3630 / skip unused current-quality projection during indexed audit
+
+- `#最佳化` / `#責任`：profile 顯示 historical audit 每筆 row 都會執行 current-rule content projection，但 audit 只需要 persisted gate metadata、snapshot integrity 與 artifact/context evidence；若 persisted content gate 缺失，projection 也不會被採用。
+- `#拆解問題` / `#可驗證性`：新增 `project_current_quality` hydration boundary；一般 report-history row 保持 projection，indexed quality audit 關閉 projection，並以 RED→GREEN 測試防止兩條責任邊界互相污染。
+- `#來源品質` / `#偏誤降低`：historical profile 約由 `3.48s` 降至 `2.64s`，projection calls `1107 -> 0`；audit scope/coverage/missing counts 不變，未寫 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3629 / expose exact quality-gap overlap with the repair sample
 
 - `#差距分析` / `#語意含義`：live daily audit 的 `2` 個 current gap 與 repair queue 的 `20` 筆 input sample 沒有交集；queue action 的 `2603.TW` warning 不是那兩個 metadata gap。只有 sample size 提示仍不足以回答「缺口是否已在 sample」。

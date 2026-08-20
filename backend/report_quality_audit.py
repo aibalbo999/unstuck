@@ -186,7 +186,7 @@ def _indexed_quality_reports(rows: list[dict[str, Any]], storage: Any) -> list[d
     from report_quality_review_workflow import report_quality_revision
     reports = []
     for row in rows:
-        report = _report_from_index_row(row, storage)
+        report = _report_from_index_row(row, storage, project_current_quality=False)
         report["report_quality_revision"] = report_quality_revision(row)
         if quality_metadata_repair_item(report) is not None:
             artifact_cache: dict[tuple[str, str], Any] = {}
@@ -323,12 +323,12 @@ def _raw_row(row: Any) -> dict[str, Any]:
     return {key: row[key] for key in row.keys()}
 
 
-def _report_from_index_row(row: dict[str, Any], storage: Any) -> dict[str, Any]:
+def _report_from_index_row(row: dict[str, Any], storage: Any, *, project_current_quality: bool = True) -> dict[str, Any]:
     return _hydrate_report_from_index_row(
         row,
         storage,
-        load_item=load_storage_item,
-        verify_snapshot_integrity=verify_data_snapshot_integrity,
+        load_item=load_storage_item, verify_snapshot_integrity=verify_data_snapshot_integrity,
+        project_current_quality=project_current_quality,
     )
 
 

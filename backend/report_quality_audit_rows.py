@@ -18,6 +18,7 @@ def hydrate_report_from_index_row(
     *,
     load_item: Callable[..., Any],
     verify_snapshot_integrity: Callable[[dict[str, Any]], dict[str, Any]],
+    project_current_quality: bool = True,
 ) -> dict[str, Any]:
     filename = safe_text(row.get("filename")).strip()
     snapshot = _load_snapshot(storage, filename, load_item)
@@ -26,10 +27,10 @@ def hydrate_report_from_index_row(
         snapshot.get("content_credibility", {}),
         snapshot.get("final_audit") or snapshot.get("report_conformance", {}),
     )
-    projected = project_content_credibility(snapshot)
     recorded = safe_text(stored.get("status")).strip().lower() in {
         "passed", "warning", "blocked", "failed", "rejected",
     }
+    projected = project_content_credibility(snapshot) if project_current_quality and recorded else None
     return {
         "ticker": safe_text(row.get("ticker")).strip(),
         "filename": filename,
@@ -117,7 +118,7 @@ def _load_snapshot(storage: Any, filename: str, load_item: Callable[..., Any]) -
 
 def _projection_metadata(projected: dict[str, Any] | None, stored: dict[str, Any], recorded: bool) -> dict[str, str]:
     return {
-        "status": ("projected" if recorded else "available") if projected else "unavailable",
+        "status": "projected" if projected else ("unavailable" if recorded else "available"),
         "source": "snapshot.rerun_context",
         "persisted_status": safe_text(stored.get("status")).strip().lower(),
     }

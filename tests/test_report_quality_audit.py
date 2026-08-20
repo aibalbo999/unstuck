@@ -817,6 +817,68 @@ def test_indexed_quality_projection_rechecks_saved_parsed_context_without_fillin
     assert report["content_credibility_projection"]["status"] == "available"
 
 
+def test_indexed_quality_audit_skips_projection_without_persisted_content_gate(monkeypatch):
+    import report_quality_audit as audit
+    import report_quality_audit_rows as audit_rows
+
+    snapshot = {
+        "snapshot_hash": "hash",
+        "pipeline": "v1",
+        "data": {"current_price": 100.0},
+        "rerun_context": {
+            "pipeline_id": "v1",
+            "parsed": {"recommendation": {"建議": "買入"}},
+        },
+        "content_credibility": {},
+    }
+    monkeypatch.setattr(
+        audit,
+        "load_storage_item",
+        lambda *_args, **_kwargs: SimpleNamespace(content=json.dumps(snapshot)),
+    )
+
+    def fail_projection(_snapshot):
+        raise AssertionError("missing persisted content gate must not trigger projection")
+
+    monkeypatch.setattr(audit_rows, "project_content_credibility", fail_projection)
+
+    report = audit._report_from_index_row(
+        {"filename": "missing-content-gate.html", "ticker": "2330.TW", "pipeline_id": "v1"},
+        object(),
+    )
+
+    assert report["content_credibility"] == {}
+    assert report["content_credibility_projection"]["status"] == "available"
+
+
+def test_indexed_quality_audit_does_not_project_current_content_credibility(monkeypatch):
+    import report_quality_audit as audit
+    import report_quality_audit_rows as audit_rows
+
+    snapshot = {
+        "snapshot_hash": "hash",
+        "pipeline": "v1",
+        "content_credibility": {"status": "passed"},
+    }
+    monkeypatch.setattr(
+        audit,
+        "load_storage_item",
+        lambda *_args, **_kwargs: SimpleNamespace(content=json.dumps(snapshot)),
+    )
+
+    def fail_projection(_snapshot):
+        raise AssertionError("quality audit does not consume current content projection")
+
+    monkeypatch.setattr(audit_rows, "project_content_credibility", fail_projection)
+
+    reports = audit._indexed_quality_reports(
+        [{"filename": "current.html", "ticker": "2330.TW", "pipeline_id": "v1"}],
+        object(),
+    )
+
+    assert reports[0]["content_credibility"] == {"status": "passed"}
+
+
 def test_indexed_report_quality_audit_exposes_snapshot_refresh_provenance(monkeypatch, tmp_path):
     import report_quality_audit as audit
 
