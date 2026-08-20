@@ -16,12 +16,12 @@ def test_shared_quality_evidence_helper_loads_before_all_consumers():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     helper = "/static/report_quality_evidence_helpers.js"
     assert (STATIC_DIR / "report_quality_evidence_helpers.js").exists()
-    assert f"{helper}?v=20260816-shared-target-context" in index_html
+    assert f"{helper}?v=20260820-refresh-attribution" in index_html
     assert "/static/report_quality_gate_policy.js?v=20260816-shared-quality-evidence" in index_html
     assert "/static/report_preview_helpers.js?v=20260820-shared-evidence-detail" in index_html
     assert "/static/report_preview_panel.js?v=20260816-clickable-quality-evidence" in index_html
-    assert "/static/history_quality_audit_render.js?v=20260816-visible-evidence-warning" in index_html
-    assert "/static/watchlist_panel_helpers.js?v=20260816-visible-evidence-warning" in index_html
+    assert "/static/history_quality_audit_render.js?v=20260820-refresh-attribution" in index_html
+    assert "/static/watchlist_panel_helpers.js?v=20260820-refresh-attribution" in index_html
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
     assert "/static/styles/history_list.css?v=20260816-clickable-quality-evidence" in style_css
     assert index_html.index(helper) < index_html.index("/static/report_quality_gate_policy.js")
@@ -92,6 +92,26 @@ process.stdout.write(JSON.stringify({ badge, history, completeEvidence, targetCo
     assert '<small class="quality-evidence-review-status">審核狀態：待人工核對</small>' in payload["targetContext"]["html"]
     assert '<small class="quality-evidence-context">結構化缺口：內容可信度；來源：刷新後</small>' in payload["targetContext"]["html"]
     assert '<small class="quality-evidence-warning">artifact 摘要僅供人工核對，不代表 gate 已通過</small>' in payload["targetContext"]["html"]
+
+
+def test_shared_quality_evidence_labels_refresh_attribution_without_claiming_causality():
+    evidence_path = STATIC_DIR / "report_quality_evidence_helpers.js"
+    script = """
+global.window = {};
+require(__EVIDENCE_PATH__);
+const evidence = window.StockAgentReportQualityEvidence.context({
+  missing_quality_fields: ['content_credibility'],
+  quality_metadata_provenance: 'after_refresh',
+  artifact_quality_summary: { status: 'present', fields: ['content_credibility'] }
+});
+process.stdout.write(JSON.stringify(evidence));
+""".replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path)))
+
+    evidence = json.loads(_node(script))
+
+    assert evidence["provenanceText"] == "來源：有刷新歸因"
+    assert "來源：有刷新歸因" in evidence["detail"]
+    assert "來源：刷新後缺口" not in evidence["detail"]
 
 
 def test_preview_quality_badge_uses_shared_evidence_detail_over_policy_copy():

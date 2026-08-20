@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3592 / refresh attribution semantics
+
+- `#證據基礎` / `#偏誤辨識`：live 缺口的 `refreshed_from_report` 只證明 snapshot 有刷新歸因；refresh service 會保留既有品質 maps，因此「未保留」不能演繹成 refresh 造成遺失。
+- `#語意含義` / `#責任`：repair detail 改用「目前未記錄」並明示無法由現有 metadata 判定成因；helper、history、watchlist 將 `after_refresh` 顯示為「有刷新歸因」。不改 internal enum、gate predicate、artifact 重建或 review/queue side effect。
+- `#可驗證性` / `#偏誤降低`：backend/frontend RED `2 failed` 後，focused quality suite `255 passed`、跨層 suite `461 passed`；live health/readiness、三個 asset、daily/history scope 均收斂。browser 以 390px/1440px 驗證 history/watchlist target 無水平溢出，兩入口可見「有刷新歸因」、舊文案不存在且 console 無錯誤；detail 保留「無法由 metadata 判定缺口是否由刷新造成」的限制。三個品質 asset 使用 `20260820-refresh-attribution` cache-buster。
+
 ## D3591 / preview badge evidence-detail source
 
 - `#來源品質` / `#差距分析`：preview badge 的 policy detail 與 history/watchlist 共用 evidence context 目前是兩個取值入口；policy wording 一旦先更新，preview 的 title/aria/data context 可能偏離同一報告的人工核對脈絡。

@@ -164,6 +164,7 @@ def test_report_quality_repair_items_identify_quality_gap_after_snapshot_refresh
 
     assert item["title"] == "刷新後品質證據缺口"
     assert "資料快照曾在報告後刷新" in item["detail"]
+    assert "刷新歸因存在，但無法由目前 metadata 判定缺口是否由刷新造成" in item["detail"]
     assert item["reason_codes"] == ["quality_metadata_missing", "quality_metadata_after_refresh"]
 
 

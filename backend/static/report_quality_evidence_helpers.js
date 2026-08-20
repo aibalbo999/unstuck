@@ -10,7 +10,7 @@
         const missingFieldText = labels(missingFields), artifactFieldText = labels(artifactFields);
         const artifactText = artifact.status === 'present' && artifactFieldText ? `artifact 摘要可查：${artifactFieldText}` : artifact.status === 'not_found' ? 'artifact 未找到可查摘要' : artifact.status === 'unavailable' ? 'artifact 無法讀取' : 'artifact 摘要未記錄';
         const reasonCodes = Array.isArray(report?.reason_codes) ? report.reason_codes : [];
-        const provenanceText = report?.quality_metadata_provenance === 'after_refresh' || reasonCodes.includes('quality_metadata_after_refresh') ? '來源：刷新後缺口' : report?.quality_metadata_provenance === 'no_refresh_provenance' ? '來源：未標記刷新來源' : '';
+        const provenanceText = report?.quality_metadata_provenance === 'after_refresh' || reasonCodes.includes('quality_metadata_after_refresh') ? '來源：有刷新歸因' : report?.quality_metadata_provenance === 'no_refresh_provenance' ? '來源：未標記刷新來源' : '';
         const targetProvenance = provenanceText.replace('缺口', '');
         const targetContext = [missingFieldText ? `結構化缺口：${missingFieldText}` : '', targetProvenance, artifact.status ? artifactText : ''].filter(Boolean).join('；');
         const summary = [missingFieldText ? `結構化品質 metadata：${missingFieldText}` : '', provenanceText, artifactText].filter(Boolean).join('；');

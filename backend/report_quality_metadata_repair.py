@@ -31,7 +31,8 @@ def quality_metadata_repair_item(report: Mapping[str, Any]) -> dict[str, Any] | 
     if refreshed_from_report:
         title = "刷新後品質證據缺口"
         detail = (
-            f"資料快照曾在報告後刷新（{refreshed_from_report}），但未保留 {'、'.join(missing)} 品質證據；"
+            f"資料快照曾在報告後刷新（{refreshed_from_report}），目前未記錄 {'、'.join(missing)} 品質證據；"
+            "刷新歸因存在，但無法由目前 metadata 判定缺口是否由刷新造成；"
             "採用前需人工查看 artifact 與 freshness。"
         )
         reason_codes = ["quality_metadata_missing", "quality_metadata_after_refresh"]

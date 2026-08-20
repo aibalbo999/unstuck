@@ -37,7 +37,7 @@ The frontend uses the same evidence context for report preview, daily targets, a
 
 `missing_quality_field_counts` groups the missing-report count by `report_conformance`, `evidence_exit_gate`, and `content_credibility`. It counts only verified snapshots and is a summary of missing evidence, not a pass/fail result or an instruction to rerun.
 
-`quality_metadata_missing_by_provenance` groups missing metadata reports into `after_refresh` and `no_refresh_provenance`. The latter means the snapshot has no `refreshed_from_report` attribution; it does not prove that the snapshot was never refreshed. Each returned item repeats this as `quality_metadata_provenance` and includes `refreshed_from_report` and `snapshot_refreshed_at` when available.
+`quality_metadata_missing_by_provenance` groups missing metadata reports into `after_refresh` and `no_refresh_provenance`. `after_refresh` means that the snapshot has a `refreshed_from_report` attribution; it does not prove that refresh caused the metadata gap. `no_refresh_provenance` means the snapshot has no `refreshed_from_report` attribution; it does not prove that the snapshot was never refreshed. Each returned item repeats this as `quality_metadata_provenance` and includes `refreshed_from_report` and `snapshot_refreshed_at` when available. The UI labels `after_refresh` as `有刷新歸因` for the same reason.
 
 `artifact_quality_summary_by_status` counts the artifact marker evidence for all missing-metadata rows before `items[]` pagination: `present`, `not_found`, and `unavailable`. `present` means Markdown/HTML contains visible gate summary markers for manual review only; it is not a structured gate pass, and zero counts do not prove that an artifact is absent when the row has no readable artifact summary.
 

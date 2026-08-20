@@ -14,7 +14,7 @@
             const count = Number(audit.missing_quality_field_counts?.[key] || 0);
             return Number.isFinite(count) && count > 0 ? `${label} ${Math.floor(count)}` : '';
         }).filter(Boolean).join('、');
-        const provenanceLabels = [['after_refresh', '刷新後缺口'], ['no_refresh_provenance', '未標記刷新來源']];
+        const provenanceLabels = [['after_refresh', '有刷新歸因'], ['no_refresh_provenance', '未標記刷新來源']];
         const provenanceSummary = provenanceLabels.map(([key, label]) => {
             const count = Number(audit.quality_metadata_missing_by_provenance?.[key] || 0);
             return Number.isFinite(count) && count > 0 ? `${label} ${Math.floor(count)}` : '';
