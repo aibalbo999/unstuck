@@ -262,6 +262,75 @@ def _long_term_target_context(text: str) -> str | None:
         if TARGET_PRICE_MARKER_PATTERN.search(segment):
             return _target_marker_context(segment.strip())
     return None
+
+
+QUALITY_SERVICE_TIME_TO_METRIC_FAST_VALUE_PATTERN = re.compile(
+    r"\b(?:mean\s+)?time\s+to\b[\s\S]*?"
+    r"\b(?:target|forecast|actual|baseline|current)\s+"
+    r"\d[\d,，]*(?:[.．]\d+)?\s*"
+    r"(?:個|件|項|人|台|次|筆|戶|家|名|units?|items?|records?|patients?)"
+    r"(?=\s|$|[,，;；])",
+    flags=re.IGNORECASE,
+)
+QUALITY_SERVICE_QUEUE_METRIC_FAST_VALUE_PATTERN = re.compile(
+    r"\b(?:queue\s+(?:items?|reviews?)|work\s+queue)\s+"
+    r"(?:reached|processed|completed|closed|handled|resolved|fulfilled)\s+"
+    r"\d[\d,，]*(?:[.．]\d+)?(?:[eE][-+]?\d+)?"
+    r"(?=\s|$|[,，;；])",
+    flags=re.IGNORECASE,
+)
+
+_EXPLICIT_TARGET_PRICE_SEGMENT_SEPARATOR_PATTERN = re.compile(r"\bwith\b|[,，;；\n]", re.IGNORECASE)
+_EXPLICIT_TARGET_PRICE_RANGE_PATTERN = re.compile(
+    r"\d\s*(?:元|塊)?\s*(?:-|–|—|－|−|~|～|〜|至|到|\bto\b|\band\b|與|和)\s*"
+    r"(?:(?:NT\$?|NTD|TWD|US\$|USD|HK\$|\$|新台幣|臺幣|台幣)\s*)?\d",
+    re.IGNORECASE,
+)
+_EXPLICIT_TARGET_PRICE_DIRECT_PREFIX_PATTERN = re.compile(
+    r"^(?:目標價|目標股價|合理價值|合理股價|合理價|price\s+target|target(?:\s+price)?)"
+    r"\s*(?:(?:is|at|around|about|approximately|為|約|介於|落在|between)\s*)?",
+    re.IGNORECASE,
+)
+_EXPLICIT_TARGET_PRICE_CURRENCY_OR_UNIT_PATTERN = re.compile(
+    r"(?<![A-Za-z])(?:NT\$?|NTD|TWD|US\$|USD|HK\$|\$)(?![A-Za-z])|(?:新台幣|臺幣|台幣|元|塊)",
+    re.IGNORECASE,
+)
+
+
+def _fast_explicit_target_price_values(text: str) -> list[float] | None:
+    """Read an unambiguous target value before expensive metric filters."""
+    for marker in reversed(tuple(PRICE_SPECIFIC_TARGET_MARKER_PATTERN.finditer(text))):
+        if text[:marker.start()].strip():
+            continue
+        segment = _EXPLICIT_TARGET_PRICE_SEGMENT_SEPARATOR_PATTERN.split(text[marker.start():], maxsplit=1)[0]
+        if (
+            TARGET_PRICE_ADJUSTMENT_DELTA_PATTERN.search(segment)
+            or TARGET_PRICE_PRE_MARKER_ADJUSTMENT_DELTA_PATTERN.search(text)
+            or TARGET_PRICE_REVISION_TO_PATTERN.search(text)
+        ):
+            continue
+        prefix_match = _EXPLICIT_TARGET_PRICE_DIRECT_PREFIX_PATTERN.match(segment)
+        if not prefix_match:
+            continue
+        remainder = segment[prefix_match.end():].lstrip()
+        if re.match(r"[A-Za-z]", remainder) and not re.match(
+            r"(?:NT\$?|NTD|TWD|US\$|USD|HK\$|\$)(?![A-Za-z])", remainder, re.IGNORECASE
+        ):
+            continue
+        if not (
+            _EXPLICIT_TARGET_PRICE_CURRENCY_OR_UNIT_PATTERN.search(segment)
+            or _EXPLICIT_TARGET_PRICE_RANGE_PATTERN.search(segment)
+        ):
+            continue
+        prices = extract_price_numbers(segment)
+        if not prices:
+            continue
+        if _EXPLICIT_TARGET_PRICE_RANGE_PATTERN.search(segment):
+            return prices[:2]
+        return prices[:1]
+    return None
+
+
 def extract_price_numbers(text: str) -> list[float]:
     """Extract currency-like prices while preserving thousands separators."""
     scientific, thousands_separator, decimal_separator, range_separator = r"(?:[eE][-+]?\d+)?", r"[,，]", r"[.．]", r"(?:-|–|—|－|−|~|～|〜|至|到|\bto\b)"
@@ -321,12 +390,25 @@ def extract_target_price_numbers(text: str) -> list[float]:
     """Extract prices from target-price wording without treating horizon labels as prices."""
     normalized_text = unicodedata.normalize("NFKC", str(text or ""))
     cleaned = re.sub(PERCENT_NUMBER_PATTERN, "", normalized_text)
-    if HORIZON_ONLY_PATTERN.match(cleaned) or ((QUALITY_SERVICE_TIME_TO_METRIC_PATTERN.search(cleaned) or QUALITY_SERVICE_TIME_TO_METRIC_PERMUTATION_PATTERN.search(cleaned) or QUALITY_SERVICE_QUEUE_METRIC_PATTERN.search(cleaned)) and not PRICE_SPECIFIC_TARGET_MARKER_PATTERN.search(cleaned)):
+    if HORIZON_ONLY_PATTERN.match(cleaned):
         return []
+    explicit_target_prices = _fast_explicit_target_price_values(cleaned)
+    if explicit_target_prices is not None:
+        return [price for price in explicit_target_prices if price > 0]
+    has_price_specific_marker = PRICE_SPECIFIC_TARGET_MARKER_PATTERN.search(cleaned)
+    if not has_price_specific_marker:
+        if QUALITY_SERVICE_TIME_TO_METRIC_FAST_VALUE_PATTERN.search(cleaned):
+            return []
+        if QUALITY_SERVICE_QUEUE_METRIC_FAST_VALUE_PATTERN.search(cleaned):
+            return []
+        if QUALITY_SERVICE_TIME_TO_METRIC_PATTERN.search(cleaned) or QUALITY_SERVICE_TIME_TO_METRIC_PERMUTATION_PATTERN.search(cleaned) or QUALITY_SERVICE_QUEUE_METRIC_PATTERN.search(cleaned):
+            return []
     cleaned = RISK_REWARD_RATIO_PATTERN.sub("", cleaned)
-    if NON_PRICE_METRIC_TARGET_PATTERN.search(cleaned) and not PRICE_SPECIFIC_TARGET_MARKER_PATTERN.search(cleaned):
+    if NON_PRICE_TARGET_METRIC_PATTERN.search(cleaned) and not has_price_specific_marker:
         return []
-    if NON_PRICE_TARGET_METRIC_PATTERN.search(cleaned) and not PRICE_SPECIFIC_TARGET_MARKER_PATTERN.search(cleaned):
+    if NON_PRICE_TARGET_METRIC_VALUE_PATTERN.search(cleaned) and not has_price_specific_marker:
+        return []
+    if NON_PRICE_METRIC_TARGET_PATTERN.search(cleaned) and not has_price_specific_marker:
         return []
     cleaned = PEOPLE_COMPLIANCE_ACKNOWLEDGMENT_TARGET_VALUE_PATTERN.sub("", NON_PRICE_METRIC_VALUE_PATTERN.sub("", QUALITY_SERVICE_QUEUE_METRIC_VALUE_PATTERN.sub("", QUALITY_SERVICE_TIME_TO_METRIC_PERMUTATION_VALUE_PATTERN.sub("", QUALITY_SERVICE_TIME_TO_METRIC_VALUE_PATTERN.sub("", cleaned)))))
     preferred_context = _long_term_target_context(cleaned)

@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3597 / credibility price-parser fast paths
+
+- `#最佳化` / `#變數分析`：D3596 後完整 `870` case matrix 雖能通過，但同一輪 durations 顯示 service-queue 語料最高 `39.21s`，`time-to` 語料也重複進入大型 `NON_PRICE_METRIC_*` regex；瓶頸是輸入形狀與 fallback 分流，不是測試數量本身。
+- `#偏誤降低` / `#責任`：新增三個保守 fast path：帶數量單位的 `time-to` 指標直接判為非價格、字串開頭且有明確貨幣／單位或區間的 `target price` 直接讀取、`queue items reached N` 直接判為非價格。商品原料價格、估值倍數、目標價調整／修正版與帶前置上下文的 marker 都排除在 fast path 外，繼續走既有完整 parser；不改 report artifact/index、snapshot、gate 或 queue。
+- `#可驗證性` / `#來源品質`：先以三個 monkeypatch RED 鎖住「不得觸碰大型 pattern」，再 GREEN；完整 inputs `870 passed in 220.14s`，相同命令前一版 `578.52s`，約減少 `62%`。品質/preview `218 passed`、refresh/data-trust/evidence `211 passed`、文件/架構契約 `138 passed`，diff check/compile 通過；正式 runtime reload 後 `healthz=ok`、`readyz=ready`，live 2603 報告 `content_credibility.status=passed`。
+
 ## D3596 / temporal token contamination in credibility price parsing
 
 - `#證據基礎` / `#偏誤辨識`：掃描 `1216` 份 snapshot、其中 `1073` 份 v4 parsed trade setup 後，發現 target/stop 字串確實含有日期或週期數字；live 例子包括 `2026 年 7 月 31 日價格點 204.0`、`7 月 31 日關鍵支撐位 36.0` 與 `2026 年 4 月關鍵支撐位 85.0`。舊 `first_price()` 會取到 `2026.0` 或 `7.0`，進而把交易計畫誤判成方向矛盾。

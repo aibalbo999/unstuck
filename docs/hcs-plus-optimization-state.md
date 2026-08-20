@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-20
+- D3597：D3596 暴露出 `extract_target_price_numbers()` 在大量內容可信度語料上反覆掃描巨大非價格 regex；明確的 `time-to` 數量指標、`target price` 直接值與「queue items reached N」句型不需要進入完整 fallback。新增保守的 read-only fast path，只有能辨識非價格或字串開頭的明確目標價時短路，其餘語料維持原 parser。
+- D3597 驗證收斂：新增三個「不得觸碰大型 pattern」RED→GREEN regression；完整 inputs matrix `870 passed in 220.14s`，同一命令前一版為 `870 passed in 578.52s`，約減少 `62%`。品質/preview `218 passed`、refresh/data-trust/evidence `211 passed`、文件/架構契約 `138 passed`，diff check/compile 通過；正式 runtime 重啟後 `healthz=ok`、`readyz=ready`，live 2603 報告 `content_credibility.status=passed`。
 - D3596：live v4 交易計畫的目標價／停損文字會把日期或週期數字放在真正價格前，例如「2026 年 7 月 31 日價格點 204.0」、「52 週高點 31.3」；共用 `first_price()` 因此可能把年份、月份或週數誤當價格。現在只在內容可信度輸入邊界移除明確日曆／週期 token，再交給既有價格 parser，不改 snapshot、index、gate、方向語意或任何 mutation。
 - D3596 驗證收斂：先以三個核心案例取得 RED，補充月日格式後新增核心案例 GREEN `4 passed`（focused command 共 `5 passed`，含既有非有限數案例）；內容可信度/品質/repair `92 passed`、preview/reading `126 passed`、refresh/data-trust `196 passed`、alignment/evidence `15 passed`、import boundary `3 passed`。正式 runtime smoke 通過，live 2603/2324/2375 的停損值分別為 `204.0/36.0/85.0`；大型 inputs 解析矩陣曾執行至 `837 passed` 後因約 26 分鐘成本中止，保留為 residual risk。
 - D3595：D3594 已修正歷史/API 讀取語意，但新 snapshot 仍沒有 raw `final_audit` trace，且資料刷新 context 也沒有 preservation contract。`data_trust_snapshot.build_data_snapshot()` 現在保存 sanitized optional `final_audit`，`report_refresh_service.refresh_report_data_snapshot()` 會沿用上一份 audit；不改 snapshot required keys、schema version、integrity hash、coverage 分母或任何 mutation side effect。

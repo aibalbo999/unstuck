@@ -20857,3 +20857,59 @@ def test_extract_target_price_numbers_ignores_compliance_documentation_evidence_
         assert _extract_target_price_numbers(f"target price NT$160 with {target}") == [
             160.0
         ]
+
+
+def test_target_price_numbers_fast_rejects_time_to_metrics_before_large_patterns(monkeypatch):
+    import price_parser
+
+    class _UnexpectedLargePatternUse:
+        def search(self, _text):
+            raise AssertionError("large time-to patterns should be bypassed")
+
+    monkeypatch.setattr(price_parser, "QUALITY_SERVICE_TIME_TO_METRIC_PATTERN", _UnexpectedLargePatternUse())
+    monkeypatch.setattr(price_parser, "QUALITY_SERVICE_TIME_TO_METRIC_PERMUTATION_PATTERN", _UnexpectedLargePatternUse())
+
+    assert _extract_target_price_numbers("planning metric time to create form target 12 個") == []
+
+
+def test_target_price_numbers_fast_reads_explicit_price_before_large_patterns(monkeypatch):
+    import price_parser
+
+    class _UnexpectedLargePatternUse:
+        def search(self, _text):
+            raise AssertionError("large time-to patterns should be bypassed")
+
+        def sub(self, _replacement, _text):
+            raise AssertionError("large non-price patterns should be bypassed")
+
+    for name in (
+        "QUALITY_SERVICE_TIME_TO_METRIC_PATTERN",
+        "QUALITY_SERVICE_TIME_TO_METRIC_PERMUTATION_PATTERN",
+        "NON_PRICE_METRIC_TARGET_PATTERN",
+        "NON_PRICE_TARGET_METRIC_PATTERN",
+        "NON_PRICE_METRIC_VALUE_PATTERN",
+    ):
+        monkeypatch.setattr(price_parser, name, _UnexpectedLargePatternUse())
+
+    assert _extract_target_price_numbers(
+        "target price NT$160 with time to create form target 12 個"
+    ) == [160.0]
+
+
+def test_target_price_numbers_fast_rejects_reached_queue_metrics_before_large_patterns(monkeypatch):
+    import price_parser
+
+    class _UnexpectedLargePatternUse:
+        def search(self, _text):
+            raise AssertionError("large queue patterns should be bypassed")
+
+    for name in (
+        "QUALITY_SERVICE_TIME_TO_METRIC_PATTERN",
+        "QUALITY_SERVICE_TIME_TO_METRIC_PERMUTATION_PATTERN",
+        "NON_PRICE_TARGET_METRIC_PATTERN",
+        "NON_PRICE_TARGET_METRIC_VALUE_PATTERN",
+        "NON_PRICE_METRIC_TARGET_PATTERN",
+    ):
+        monkeypatch.setattr(price_parser, name, _UnexpectedLargePatternUse())
+
+    assert _extract_target_price_numbers("review control certificate queue items reached 160 in Q4") == []
