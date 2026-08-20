@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3627 / make quality audit and repair queue scopes explicit
+
+- `#差距分析` / `#語意含義`：live daily response 同時有 latest-per-ticker/pipeline quality audit `165` 筆與 repair queue sample `20` 筆；不標範圍時，操作員可能把 quality gap 數誤讀成 queue 已涵蓋數。
+- `#責任` / `#偏誤降低`：watchlist 只新增「修復 queue 範圍：取樣 N 份報告」的 presentation note，保留 quality audit 不進 daily queue 的責任邊界，不改 repair selection 或建立 action。
+- `#可驗證性` / `#證據基礎`：以 scope fixture RED→GREEN，並補跑 static size、完整 quality/frontend、contracts、storage、runtime 與 live scope probe；未寫 snapshot、artifact、index、review、rerun 或 queue。
+
 ## D3626 / surface per-pipeline context readiness
 
 - `#分析層次` / `#差距分析`：live context aggregate 顯示 v4 的 `29` 筆全部 `missing`，v1/v2/v3 則有 artifact fallback；只看總量會遮住模式級準備差異。

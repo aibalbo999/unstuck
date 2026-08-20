@@ -14,6 +14,7 @@ global.window = {};
 require(__HELPER_PATH__);
 const payload = {
   decision_queue: { summary: { total_actionable: 0 }, items: [{ type: 'monitor' }] },
+  repair_queue: { summary: { sampled_reports: 20 } },
   report_quality_audit: {
     scope: 'all_indexed_reports',
     audited_reports: 160,
@@ -46,10 +47,11 @@ process.stdout.write(JSON.stringify({ board }));
     assert "人工審核進度：1/3" in payload["board"]
     assert "上下文：原始上下文完整 1、artifact 前序可查 1、無可用局部上下文 1" in payload["board"]
     assert "模式上下文：v1 artifact 前序可查 1、v2 artifact 前序可查 1" in payload["board"]
+    assert "修復 queue 範圍：取樣 20 份報告" in payload["board"]
     assert 'class="watchlist-daily-quality-summary"' in payload["board"]
     assert 'class="watchlist-daily-quality-scope">全量報告品質</strong>' in payload["board"]
     assert payload["board"].index('class="watchlist-daily-quality-scope"') < payload["board"].index('class="watchlist-daily-quality-item"')
-    assert payload["board"].count('class="watchlist-daily-quality-item"') == 9
+    assert payload["board"].count('class="watchlist-daily-quality-item"') == 10
 
 
 def test_historical_quality_audit_renders_revision_scoped_review_controls():

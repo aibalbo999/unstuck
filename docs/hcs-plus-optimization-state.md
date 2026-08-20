@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-20
+- D3627：live daily dashboard 證實 `report_quality_audit` 審計 `165` 筆 latest rows，但 `repair_queue.summary.sampled_reports=20`；兩者都是正確 scope，卻在工作台並列時容易被誤讀成 queue 已涵蓋全部品質缺口。新增唯讀「修復 queue 範圍：取樣 N 份報告」提示與 API/架構說明，不改 audit 分母、repair selection、decision queue 或任何 mutation。
+- D3627 驗證：watchlist scope RED→GREEN，static module size、frontend、quality、contracts、storage、live scope probe 與 runtime health/readiness 完成後封存。
 - D3626：D3625 已把總體 context readiness 放進摘要，但 live per-pipeline map 顯示 `v1/v2/v3` 缺口有 artifact fallback、`v4` 的 `29` 筆全部缺局部上下文；history/watchlist 原本只顯示模式缺口數，無法直接安排模式級準備。現在摘要增加「模式上下文」，沿用同一份 `quality_metadata_by_pipeline.quality_metadata_missing_by_rerun_context`，不改 audit 分母、execution strategy、freshness、review 或 queue。
 - D3626 驗證：先補 watchlist/history RED，再 GREEN；cache-buster、static module size、frontend/quality/contracts、live pipeline summary 與 runtime health/readiness 均待本輪收斂後封存。
 - D3625：live historical audit 的 `115` 筆缺口全部 `full_rerun_required`，但 `rerun_context_status` 分布為 `artifact_fallback_available=86`、`missing=29`；D3624 只在摘要呈現 execution strategy，操作員仍需展開 item 才知道可讀上下文準備度。新增 `quality_metadata_missing_by_rerun_context`，在 API、pipeline stats、history/watchlist 摘要同步呈現；`artifact_fallback_available` 只表示 artifact 有前序段落，不改完整重跑權威、不 enqueue、不改 freshness/review/queue。
