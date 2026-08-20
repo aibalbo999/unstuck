@@ -98,6 +98,20 @@ def test_evidence_exit_gate_uses_eps_value_when_claim_starts_with_a_date():
     ]
 
 
+def test_evidence_claims_ignore_period_and_alphanumeric_identifier_numbers():
+    from evidence_exit_gate import extract_numeric_claims
+
+    markdown = (
+        "- **事件摘要:** 目標價：109.0 TWD（52週高點壓力位）。"
+        "近期催化劑：52U液冷機櫃；程式碼狀態：5a35737a。"
+    )
+
+    claims = extract_numeric_claims(markdown)
+
+    assert any(claim["reported_value"] == 109.0 and claim["unit"] == "TWD" for claim in claims)
+    assert not any(claim["reported_value"] in {5.0, 52.0} for claim in claims)
+
+
 def test_report_renderer_attaches_evidence_exit_gate_to_snapshot_and_metadata(monkeypatch):
     import asyncio
     import reporting.renderer as renderer_module

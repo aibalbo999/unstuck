@@ -8,15 +8,19 @@ from random import Random
 from typing import Any
 
 
+_NUMERIC_UNIT_PATTERN = r"(?:TWD|%|x|X|倍|億|元|B|M|T)"
 _KV_RE = re.compile(
-    r"(?P<label>[\u4e00-\u9fffA-Za-z][^:\n：|]{0,30})[:：]\s*[~約]?(?:NT\$|\$)?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>%|x|X|倍|億|B|M|T|元|TWD)?"
+    rf"(?P<label>[\u4e00-\u9fffA-Za-z][^:\n：|]{{0,30}})[:：]\s*[~約]?(?:NT\$|\$)?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>{_NUMERIC_UNIT_PATTERN})?(?![\dA-Za-z.])"
 )
-_TABLE_CELL_RE = re.compile(r"\|\s*(?P<label>[^|\n]{1,30})\s*\|\s*[~約]?(?:NT\$|\$)?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>%|x|X|倍|億|B|M|T|元|TWD)?\s*\|")
+_TABLE_CELL_RE = re.compile(
+    rf"\|\s*(?P<label>[^|\n]{{1,30}})\s*\|\s*[~約]?(?:NT\$|\$)?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>{_NUMERIC_UNIT_PATTERN})?(?![\dA-Za-z.])\s*\|"
+)
 _NUMBER_IN_STRING_RE = re.compile(r"-?\d[\d,]*(?:\.\d+)?")
 _EPS_VALUE_RE = re.compile(
-    r"(?:EPS|每股盈餘)[^\d\n]{0,24}?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>%|x|X|倍|億|B|M|T|元|TWD)?",
+    rf"(?:EPS|每股盈餘)[^\d\n]{{0,24}}?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>{_NUMERIC_UNIT_PATTERN})?(?![\dA-Za-z.])",
     re.IGNORECASE,
 )
+_NON_CLAIM_SUFFIX_RE = re.compile(r"^\s*(?:[A-Za-z]|週|周|個月|月|年|天|日)")
 _FIELD_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
     (("股價", "現價", "currentprice", "current_price"), ("current_price", "regularmarketprice", "stock_price", "share_price")),
     (("p/e", "pe", "本益比"), ("pe_ratio", "trailingpe", "forwardpe", "price_earnings")),
@@ -44,6 +48,9 @@ def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
             label = _clean_label(match.group("label"))
             number, unit = _claim_value(match, label, line)
             if not label or number is None or not _valid_claim_number(number):
+                continue
+            default_number = _clean_number(match.group("num"))
+            if number == default_number and _NON_CLAIM_SUFFIX_RE.match(line[match.end():]):
                 continue
             key = (label, round(number, 6), line_number)
             if key in seen:

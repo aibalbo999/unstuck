@@ -1,6 +1,8 @@
 # HCS Plus Optimization State
 
 更新時間：2026-08-21
+- D3649：live `3706.TW v4` 的 evidence exit gate 將事件摘要中的 `52U` 產品型號抽成 52，並因 `_KV_RE` 的長 label 跨過「TTM 自由現金流」語境而錯配到 `data.fcf_history[1]=4.14`；數字 claim regex 現在要求英數/小數邊界、完整優先解析 `TWD`，並排除數字後接週/月/年/日等期間標籤。這只收斂 claim parser，不放寬 mismatch 判定。
+- D3649 驗證：先以 3706 真實 Markdown 重現 `52 -> 4.14` mismatch，再 GREEN；artifact 重算由 `caution / failed_count=1` 變為 `approved / failed_count=0`，保留目標價 `109.0 TWD`。evidence/conformance/content `49 passed`、audit/docs/HCS `207 passed + 75 subtests`，compile、import/lint/data-trust 回歸與 `git diff --check` 通過。未改 snapshot、artifact、index、review、rerun 或 queue。
 - D3648：live `3711.TW v4` 的公司身分稽核把同業「日月光」（2311）誤算成未標示同業的主體，因為它是目標正式名稱「日月光投控」中的合法子字串；`count_unqualified_alias()` 現在只跳過落在 `allowed_aliases` 已核准目標別名 span 內的同業子字串，獨立未標示提及仍維持污染阻擋。
 - D3648 驗證：先以 3711 artifact 重現污染，再以 target-name embedded alias regression 取得 GREEN；`test_audit_rules` 為 `72 passed + 75 subtests`，content credibility/projection/import-boundary 為 `535 passed`，compile 與 `git diff --check` 通過。未改 snapshot、artifact、index、review、rerun 或 queue。
 - D3647：live `2308.TW v2` 的 final-audit warning 同一個信心校準事件以兩種句尾文字重複出現，讓 `content_credibility` 的人工核對細節重複。新增 shared confidence warning formatter，讓 structured-output 與 final-audit 使用同一格式；read-only projection 只對可辨識的 confidence downgrade fingerprint 去重，保留 `report_conformance` 原始細節與其他不同警示。

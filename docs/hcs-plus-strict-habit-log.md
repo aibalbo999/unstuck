@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3649 / keep evidence claims away from periods and identifiers
+
+- `#差距分析` / `#來源品質`：live `3706.TW v4` 的「近期催化劑：52U 液冷機櫃」被 evidence parser 當成 52，且長 label 把它錯配到自由現金流快照 4.14；同一類問題也會把 `5a357...` commit hash 前綴當成數字。
+- `#拆解問題` / `#偏誤辨識`：numeric claim regex 改為長單位優先（`TWD` 不再被截成 `T`），要求數字後不得接英數/小數前綴，並排除週、月、年、天、日的期間後綴；EPS 明確語境的日期前綴仍由既有 EPS value override 保留。
+- `#可驗證性` / `#最小變更`：真實 3706 artifact RED→GREEN，`caution / failed_count=1` 收斂為 `approved / failed_count=0`；`109.0 TWD` 保留，evidence/conformance/content `49 passed`、audit/docs/HCS `207 passed + 75 subtests`，未修改 persisted gate 或 queue state。
+
 ## D3648 / protect approved target-name substrings from peer contamination
 
 - `#差距分析` / `#來源品質`：live `3711.TW v4` 的阻擋訊息是同業「日月光」出現 9 次，但 artifact 的目標正式名稱是「日月光投控」；逐次核對文字後確認是正式目標名稱內的合法子字串，不是模型把同業套成目標公司。
