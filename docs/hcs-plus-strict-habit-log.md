@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3766 / classify derived downside metrics without canonical scalar
+
+- `#拆解問題` / `#差距分析` / `#來源品質`：fresh full artifact audit 找到 11 筆 `潛在下行空間` 百分比 claim；這是由現價／目標價推導的 derived metric，snapshot 沒有 canonical `downside_pct` scalar，原本只得到泛化 `no_matching_snapshot_path`。
+- `#偏誤辨識` / `#偏誤降低` / `#最小變更`：只對 exact normalized label `潛在下行空間`／`potentialdownside` 在沒有 candidate 時輸出既有 `derived_metric_not_canonical`；不自行重算、不借 `current_price`／`target_price` 路徑，也保留有 `data.downside_pct` 時的正常 verified/mismatch 行為。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED（derived-downside fixture `1 failed`、canonical field control passed），再 GREEN；focused `2 passed`、完整 evidence `188 passed`、跨層回歸 `1860 passed`，full artifact `164/2515` 為 `1637 verified / 739 unverifiable / 139 mismatch`，`derived_metric_not_canonical=13`、`no_matching_snapshot_path=123`。正式 reload 後 `1623_TW_v2_report_20260815_154718.html` 與 `2308_TW_v1_report_20260815_161733.html` 的 HTML/Markdown/data、health/ready 均 `200`，兩筆 downside claims 均為 `unverifiable`／`derived_metric_not_canonical`／空 matched path；doctor、diff guards 通過，push 待完成。
+
 ## D3765 / route currency-prefixed legacy recommendation horizons
 
 - `#拆解問題` / `#差距分析` / `#責任`：residual audit 找到四筆 legacy recommendation table claim 以 `NT$209.0；6個月`、`NT$254.0；12個月` 等格式出現；它們沒有 persisted parsed/structured context 或 canonical target path，但前綴金額使既有 legacy horizon regex 沒有命中。

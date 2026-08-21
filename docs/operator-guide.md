@@ -255,7 +255,7 @@ compact `最終投資建議` row 的 `避免；3個月`、`6個月`、`12個月`
 
 目標價的 evidence mapping 只把 exact `目標價`／`target price` 當作一般 target label；像 `航空運輸業，目標價` 這種「分類＋目標價」描述性 label 不會因同一行出現估值文字就借用 DCF 或 bear intrinsic value，而只允許同一 snapshot 的 canonical structured target path。若 snapshot 沒有該 path，請依 `no_matching_snapshot_path` 進行人工確認；熊市／基本／牛市或 DCF claim 必須保留自己的情境／估值語意。
 
-數字抽取會保留千分位整數，即使數值後面直接接下一句，例如 `1,177,000. Borrowed short sale today: 21,000.` 不會被截成 `1,177`。`券資比` 這類由融券／融資餘額計算出的衍生比例，若 snapshot 只有兩個組成數值而沒有 canonical ratio scalar，會維持 `unverifiable`／`derived_metric_not_canonical`；不要把它誤當成融資餘額或自行推導成已核驗證據。
+數字抽取會保留千分位整數，即使數值後面直接接下一句，例如 `1,177,000. Borrowed short sale today: 21,000.` 不會被截成 `1,177`。`券資比` 與 `潛在下行空間` 這類衍生指標，若 snapshot 沒有 canonical ratio／`downside_pct` scalar，會維持 `unverifiable`／`derived_metric_not_canonical`；不要把輸入欄位當成比例或百分比的來源，也不要自行重算成已核驗證據。若 snapshot 明確提供 `data.downside_pct`，才依一般 matched/mismatch 規則判定。
 
 若 evidence projection 同時看到 `decision_validity_status=needs_rerun` 或 `refreshed_without_analysis_rerun=true`，gate 會附上 `freshness_context`，非 `approved` 的內容可信度警示也會附上 `evidence_freshness_context`。這只說明「快照較新、分析本文待重跑」的操作上下文；`mismatch`、`rejected` 與其他人工確認邊界仍然有效，不要因為有這個欄位而把報告視為已核准。
 

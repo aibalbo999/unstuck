@@ -627,6 +627,37 @@ def test_evidence_gate_classifies_currency_prefixed_legacy_horizons():
     assert reasons["NT$254.0；12個月"] == "legacy_conclusion_without_snapshot_path"
 
 
+def test_evidence_gate_classifies_derived_downside_without_canonical_scalar():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 潛在下行空間：-16.5%",
+        {"data": {"current_price": 100, "target_price": 83.5}},
+        sample_ratio=1.0,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "unverifiable"
+    assert claim["verification_reason_code"] == "derived_metric_not_canonical"
+    assert claim["matched_path"] == ""
+    assert result["unverifiable_reason_counts"] == {"derived_metric_not_canonical": 1}
+
+
+def test_evidence_gate_preserves_canonical_downside_mapping():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 潛在下行空間：-16.5%",
+        {"data": {"downside_pct": -16.5}},
+        sample_ratio=1.0,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "verified"
+    assert claim["verification_reason_code"] == "matched_snapshot_value"
+    assert claim["matched_path"] == "data.downside_pct"
+
+
 def test_evidence_gate_keeps_compact_horizons_as_missing_when_context_exists():
     from evidence_exit_gate import evaluate_report_evidence
 
