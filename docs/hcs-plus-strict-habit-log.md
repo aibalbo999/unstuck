@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3746 / map compact 5-day net-buy evidence without horizon fallback
+
+- `#拆解問題` / `#差距分析`：full artifact audit 找到 `1810.TW/v4` 的 `5-day: 4,504.85k (Net Buy)` 被 KV regex 截成 label `day`，而 canonical snapshot 有同值且唯一語意的 `last_5_trading_days_net_buy_thousand_shares`。
+- `#偏誤辨識` / `#偏誤降低` / `#來源品質`：只接受 `day` parser artifact、raw `5-day:` 與 `Net Buy` 三個條件；`10-day`、daily total、30-day total 與只有同值的其他欄位不跨欄位核驗。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED，再 GREEN；focused `2 passed`、完整 evidence `155 passed`、品質 `1153 passed`、import/docs `640 passed`、`py_compile`、`git diff --check`、line guard `349` 通過，full artifact `2513 claims: 1621 verified / 755 unverifiable / 137 mismatch`，`missing_semantic_path=123`。正式 reload 後 live API target verified 到 `data.institutional_trading.last_5_trading_days_net_buy_thousand_shares=4504.85`，Markdown/data `200/200`、health/ready `200/200`、queue depth `0`；整份報告仍為 `caution`，本批未改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3745 / parse external Previous chip balances without false claims
 
 - `#拆解問題` / `#差距分析`：full artifact audit 找到 `2027.TW/v4` 的 English margin/short balance 行，在 unit 括號後的外置 `Previous:` 被 KV regex 吞成 `thousand shares). Previous=26` 假 claim；真正 `26,504`／`375` 沒有進入 evidence sample。
