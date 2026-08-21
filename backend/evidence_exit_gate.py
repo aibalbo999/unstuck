@@ -95,7 +95,7 @@ def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
                 "unit": unit,
                 "line_number": line_number,
                 "raw_text": line[:160],
-                **({"context_text": "\n".join(lines[max(0, line_number - 3):line_number - 1])} if line_number > 1 else {}),
+                **({"series_context_text": "\n".join(lines[max(0, line_number - 20):line_number - 1])} if re.fullmatch(r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}", label, re.IGNORECASE) else {"context_text": "\n".join(lines[max(0, line_number - 3):line_number - 1])} if line_number > 1 else {}),
             })
     return claims
 def _claim_value(match: re.Match[str], label: str, line: str) -> tuple[float | None, str]:
@@ -223,7 +223,7 @@ def flatten_snapshot_numbers(snapshot: Any) -> list[dict[str, Any]]:
                 if path.endswith("global_market_context.items") and isinstance(item, dict) and (symbol := _normalize_match_text(item.get("symbol") or item.get("label"))):
                     for key, child in item.items(): walk(child, f"{path}[{symbol}].{key}")
                     continue
-                walk(item, f"{path}[{index}]")
+                walk(item, f"{path}[{item.get('date')}]" if path.endswith("daily_total_net_buy_last_10") and isinstance(item, dict) and item.get("date") else f"{path}[{index}]")
     walk(snapshot, "")
     return values
 def _check_claim(claim: dict[str, Any], snapshot_values: list[dict[str, Any]], *, tolerance_pct: float) -> dict[str, Any]:
@@ -238,7 +238,7 @@ def _check_claim(claim: dict[str, Any], snapshot_values: list[dict[str, Any]], *
     else:
         status = "mismatch"
     return {
-        **{key: value for key, value in claim.items() if key != "context_text"},
+        **{key: value for key, value in claim.items() if key not in {"context_text", "series_context_text"}},
         "status": status,
         "matched_path": best.get("path") if best else "",
         "matched_value": best.get("value") if best else None,
@@ -279,9 +279,10 @@ def _is_eligible_snapshot_value(item: dict[str, Any]) -> bool:
 
 
 def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
-    claim_text = str(claim.get("raw_text") or ""); raw_label = str(claim.get("label") or "").lower()
+    claim_text = str(claim.get("raw_text") or ""); raw_label = str(claim.get("label") or "").lower(); series_context = str(claim.get("series_context_text") or "")
     label = _normalize_match_text(raw_label)
     if not label: return ()
+    if (date_match := re.fullmatch(r"(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})", raw_label.strip(), re.IGNORECASE)) and any(_normalize_match_text(marker) in _normalize_match_text(series_context) for marker in ("daily_total_net_buy_last_10", "Last 10 trading days daily total net buy")) and (year_match := re.search(r"(20\d{2})\s*[-/年.]\s*\d{1,2}\s*[-/月.]\s*\d{1,2}", series_context)): return (f"institutional_trading.daily_total_net_buy_last_10[{year_match.group(1)}-{(('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec').index(date_match.group(1).title()) + 1):02d}-{int(date_match.group(2)):02d}].net_buy_thousand_shares",)
     raw_text = _normalize_match_text(claim.get("raw_text"))
     if "factset" in raw_text:
         return ("factset",)
@@ -344,6 +345,5 @@ def _clean_number(value: str) -> float | None:
         return float(str(value).replace(",", "").strip())
     except (TypeError, ValueError):
         return None
-
 def _valid_claim_number(value: float) -> bool:
     return math.isfinite(value) and abs(value) < 1e15

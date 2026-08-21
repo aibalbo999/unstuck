@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3702 / bind daily institutional values to exact dates
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`1402.TW/v4` 的 daily institutional section 明示 `Last 10 trading days daily total net buy`，每筆 `Aug NN` 都對應 snapshot 的 date/value object；原 evidence gate 沒保留日期 identity。
+- `#最小變更` / `#責任`：只對具備序列標題、年份與月份日期 label 的 claim 建立 exact `daily_total_net_buy_last_10[YYYY-MM-DD].net_buy_thousand_shares` path；不把同值跨日期配對，也不替 standalone month-day claim 猜來源。
+- `#偏誤降低` / `#可驗證性`：RED→GREEN fixture 覆蓋正確日期、錯日期 mismatch 與無上下文 unverifiable；正式 reload 後 API 直接重驗 `1402_TW_v4_report_job_521d42345300.html` 為 `34 claims / 6 sampled / 0 unverifiable / approved`，日期列均命中 date-specific path。
+- `#可驗證性` / `#責任`：evidence gate `78 passed`、品質/evidence/conformance `1061 passed`、import boundary `504 passed`、HCS/docs `136 passed`，line guard `evidence_exit_gate.py=349`；既有四捨五入 tolerance、人工信心/衍生評分邊界與原始資料均保留，healthz/readyz、canonical paths 與 RQ failed_recent `0` 通過。
+
 ## D3701 / exclude institutional lookback metadata from scalar claims
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`6141.TW/v4` 的 `` `institutional_trading`: 30-day lookback, latest date ... `` 中 `30` 只表示資料回溯期間；它不是淨買超、持股或任何 snapshot scalar。

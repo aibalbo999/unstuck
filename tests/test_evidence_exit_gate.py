@@ -1030,6 +1030,83 @@ def test_evidence_gate_binds_dated_extremum_inside_pressure_sentence():
     assert result["sampled_claims"][0]["matched_path"] == "data.price_history[2026-05-29].prices[0]"
 
 
+def test_evidence_gate_binds_daily_institutional_value_to_its_date():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* Latest Date: 2026-08-20.\n"
+        "* Last 10 trading days daily total net buy (thousand shares):\n"
+        "  * Aug 13: -6,574",
+        {
+            "data": {
+                "institutional_trading": {
+                    "daily_total_net_buy_last_10": [
+                        {"date": "2026-08-13", "net_buy_thousand_shares": -6574.44},
+                        {"date": "2026-08-14", "net_buy_thousand_shares": -915.46},
+                    ]
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["sampled_claims"][0]["status"] == "verified"
+    assert result["sampled_claims"][0]["matched_path"] == (
+        "data.institutional_trading.daily_total_net_buy_last_10[2026-08-13].net_buy_thousand_shares"
+    )
+
+
+def test_evidence_gate_keeps_daily_institutional_date_mismatch_on_its_date():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* Latest Date: 2026-08-20.\n"
+        "* Last 10 trading days daily total net buy (thousand shares):\n"
+        "  * Aug 13: -915",
+        {
+            "data": {
+                "institutional_trading": {
+                    "daily_total_net_buy_last_10": [
+                        {"date": "2026-08-13", "net_buy_thousand_shares": -6574.44},
+                        {"date": "2026-08-14", "net_buy_thousand_shares": -915.46},
+                    ]
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "rejected"
+    assert claim["status"] == "mismatch"
+    assert claim["matched_path"].endswith("[2026-08-13].net_buy_thousand_shares")
+
+
+def test_evidence_gate_does_not_guess_standalone_month_day_as_daily_institutional_value():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* Aug 13: -6,574",
+        {
+            "data": {
+                "institutional_trading": {
+                    "daily_total_net_buy_last_10": [
+                        {"date": "2026-08-13", "net_buy_thousand_shares": -6574.44}
+                    ]
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "caution"
+    assert result["sampled_claims"][0]["status"] == "unverifiable"
+
+
 def test_evidence_gate_does_not_bind_dated_news_extremum_to_close_history():
     from evidence_exit_gate import evaluate_report_evidence
 
