@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3688 / map the exact natural-language five-day net-buy label
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：報告會寫 `Last 5 trading days net buy`，但既有 evidence gate 只接受明示的 `last_5_trading_days_net_buy_thousand_shares` path；`9921.TW/v4` 的 `12,467.35k` 與 `2885.TW/v4` 的 `7,068.03 (thousand shares)` 因而被保守地留在 unverifiable，雖然 snapshot 有唯一同語意欄位。
+- `#最小變更` / `#責任`：只把 normalized label `last5tradingdaysnetbuy` 映射到 `institutional_trading.last_5_trading_days_net_buy_thousand_shares`；`Daily total net buy`、30 日 `total_net_buy` 與明示 field path 仍各自走原規則，不使用最近數字或跨序列 fallback。
+- `#偏誤降低` / `#可驗證性`：新增自然語言正例與每日淨買進反例；live 直接以 Markdown+snapshot 重驗兩份 historical v4，五日淨買進為 verified，daily label 仍 unverifiable。宏觀報告舊日期值、FOMO/論文健康度與缺乏 canonical path 的派生 claim 沒有被這次規則放寬。
+- `#可驗證性` / `#責任`：evidence gate `46 passed`、品質/evidence/conformance `1029 passed`、import boundary `504 passed`、HCS/docs `136 passed`，line guard `evidence_exit_gate.py=349`。正式 reload 後 current latest scope 維持 `165` 份 evidence `119/42/4`、content `70/87/8`、conformance `66/88/11`；healthz/readyz、doctor canonical paths、RQ queue depth `0` 通過，未寫入 artifact、snapshot、index、review、rerun、repair 或 queue。
+
 ## D3687 / exclude derived trade-plan health metadata from evidence claims
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`交易計畫健康度: 6/10` 是報告自身的衍生品質分數，沒有 canonical data snapshot path；把它當來源數字只會增加人工核對 warning，不能證明資料事實。

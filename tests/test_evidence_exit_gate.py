@@ -858,6 +858,50 @@ def test_evidence_gate_matches_explicit_institutional_last_5_net_buy_path():
     assert result["sampled_claims"][0]["matched_path"] == "data.institutional_trading.last_5_trading_days_net_buy_thousand_shares"
 
 
+def test_evidence_gate_matches_labelled_institutional_last_5_net_buy_path():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- Last 5 trading days net buy: 12,467.35k.",
+        {
+            "data": {
+                "institutional_trading": {
+                    "total_net_buy_thousand_shares": 12467.35,
+                    "last_5_trading_days_net_buy_thousand_shares": 12467.35,
+                    "daily_total_net_buy_last_10": [{"net_buy_thousand_shares": 12467.35}],
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["unverifiable_count"] == 0
+    assert result["sampled_claims"][0]["matched_path"] == "data.institutional_trading.last_5_trading_days_net_buy_thousand_shares"
+
+
+def test_evidence_gate_does_not_promote_daily_net_buy_to_last_5_field():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- Daily total net buy: 12,467.35k.",
+        {
+            "data": {
+                "institutional_trading": {
+                    "last_5_trading_days_net_buy_thousand_shares": 12.0,
+                    "daily_total_net_buy_last_10": [{"net_buy_thousand_shares": 12467.35}],
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["sampled_claims"][0]["status"] == "unverifiable"
+    assert result["sampled_claims"][0]["matched_path"] == ""
+
+
 def test_evidence_gate_uses_specific_financial_field_hints_before_broad_labels():
     from evidence_exit_gate import evaluate_report_evidence
 
