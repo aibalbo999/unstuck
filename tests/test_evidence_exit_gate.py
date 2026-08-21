@@ -2368,6 +2368,73 @@ def test_evidence_gate_maps_month_high_pressure_to_month_maximum():
     assert result["sampled_claims"][0]["matched_path"] == "data.price_history[month=2026-06].high"
 
 
+def test_evidence_gate_maps_unique_yearless_month_high_support_to_month_maximum():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* **近期支撐：** 367.41 TWD（6 月份高點轉支撐）。",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2026-05-29", "2026-06-30", "2026-07-31"],
+                    "prices": [266.26, 367.41, 263.0],
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "approved"
+    assert claim["status"] == "verified"
+    assert claim["matched_path"] == "data.price_history[month=2026-06].high"
+
+
+def test_evidence_gate_does_not_infer_yearless_month_high_across_years():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* **近期支撐：** 367.41 TWD（6 月份高點轉支撐）。",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2025-06-30", "2026-06-30"],
+                    "prices": [367.41, 350.0],
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "unverifiable"
+    assert claim["matched_path"] == ""
+
+
+def test_evidence_gate_does_not_bind_yearless_month_high_to_news():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* **近期支撐：** 367.41 TWD（6 月份高點，來源：`market_catalysts`）。",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2026-06-30"],
+                    "prices": [367.41],
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "unverifiable"
+    assert claim["matched_path"] == ""
+
+
 def test_evidence_gate_maps_unique_yearless_month_end_support_to_price_history():
     from evidence_exit_gate import evaluate_report_evidence
 

@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3754 / infer a yearless month extremum only from a unique snapshot year
+
+- `#拆解問題` / `#差距分析`：full artifact audit 找到 `6213.TW/v4` 的 `367.41 TWD（6 月份高點轉支撐）`，snapshot 的 2026-06 canonical month-high 同值，但 claim 省略年份使既有 matcher 落到 `no_matching_snapshot_path`。
+- `#偏誤辨識` / `#偏誤降低` / `#來源品質`：無年份只接受帶 `M 月`／`M 月份` 的月份語意，且 snapshot 該月份年份唯一、數值直接位於月份語意前、沒有新聞／催化劑；報價前的數字、跨年份與新聞 claim 不映射，明寫年份仍沿用 exact month path。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED，再 GREEN；focused `3 passed`、完整 evidence `175 passed`、品質/evidence/conformance `1173 passed`、line guard `349` 通過，full artifact `2515 claims: 1634 verified / 743 unverifiable / 138 mismatch`，`no_matching_snapshot_path=138`。正式 reload 後 live 6213 target verified 到 `data.price_history[month=2026-06].high`，Markdown/data/health/ready 均 HTTP `200`，current quality 為 evidence `135/26/3`、content `99/57/8`、conformance `80/74/10`，本批未改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3753 / map compact institutional total only with category context
 
 - `#拆解問題` / `#差距分析`：full artifact audit 找到 `2885.TW/v4` 的 Institutional Trading 區段在 `Foreign`、`Investment Trust` 後列出 bare `Total: 48,055.45`；snapshot 有唯一 `data.institutional_trading.total_net_buy_thousand_shares=48,055.45`，但 parser 沒有把 compact label 綁到總額欄位。
