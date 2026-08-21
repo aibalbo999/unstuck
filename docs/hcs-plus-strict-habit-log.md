@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3692 / map explicit institutional natural-language labels
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`2885.TW/v4` 的 `Dealer: 22,401.41` 與 `6505.TW/v4` 的 `Total Net Buy (30 days): 118,065.81k` 都有 snapshot canonical source，但原 parser 只接受明示 field path 或五日淨買進 label。
+- `#最小變更` / `#責任`：新增 exact `Dealer`／`自營商` → `institutional_trading.net_buy_thousand_shares_by_category.dealer`，以及 `Total Net Buy (30 days)` → `institutional_trading.total_net_buy_thousand_shares`；Dealer 對 total path 的反例保持 unverifiable，不做跨欄位 fallback。
+- `#偏誤降低` / `#可驗證性`：RED→GREEN 三個 fixture 鎖定兩個正例與一個跨欄位反例；正式 reload 後兩筆 live claim 均 verified，既有 6 個 mismatch、confidence/情境/派生 claim 的人工覆核邊界不變。
+- `#可驗證性` / `#責任`：evidence gate `56 passed`、品質/evidence/conformance `1039 passed`、import boundary `504 passed`、HCS/docs `136 passed`，line guard `evidence_exit_gate.py=349`。正式 reload 後 live `165` 份為 evidence `133/28/4`、claims `429 verified / 145 unverifiable / 6 mismatch`、content `79/78/8`、conformance `74/80/11`；healthz/readyz、doctor canonical paths、RQ queue depth `0` 通過，未寫入 artifact、snapshot、index、review、rerun、repair 或 queue。
+
 ## D3691 / use adjacent margin context for latest-balance evidence
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：live `2359.TW/v4` 的「融資餘額變化」在前一行，「最新餘額：9,626 張」在下一行；snapshot 同時有 `data.chip_data.twse_margin_short_sales.margin_balance=9626`，但 claim raw line 沒有保留前文，原規則只能回報 unverifiable。
