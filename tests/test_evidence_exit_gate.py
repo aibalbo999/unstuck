@@ -544,6 +544,37 @@ def test_evidence_gate_matches_previous_chip_balances_by_local_context():
     ]
 
 
+def test_evidence_gate_binds_explicit_price_history_claims_to_reported_date():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    snapshot = {
+        "data": {
+            "price_history": {
+                "dates": ["2026-05-29", "2026-06-30"],
+                "prices": [104.76, 107.15],
+            },
+        },
+    }
+    verified = evaluate_report_evidence(
+        "- **近期月度高點**: 107.15 TWD (2026年6月30日收盤價，AgentState view.normalized_financials.price_history.prices)。",
+        snapshot,
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+    wrong_date = evaluate_report_evidence(
+        "- **近期月度高點**: 107.15 TWD (2026-05-29，AgentState view.normalized_financials.price_history.prices)。",
+        snapshot,
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert verified["verdict"] == "approved"
+    assert verified["sampled_claims"][0]["matched_path"] == "data.price_history[2026-06-30].prices[1]"
+    assert wrong_date["verdict"] == "rejected"
+    assert wrong_date["sampled_claims"][0]["status"] == "mismatch"
+    assert wrong_date["sampled_claims"][0]["matched_path"] == "data.price_history[2026-05-29].prices[0]"
+
+
 def test_evidence_gate_uses_specific_financial_field_hints_before_broad_labels():
     from evidence_exit_gate import evaluate_report_evidence
 

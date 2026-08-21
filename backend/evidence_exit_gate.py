@@ -114,11 +114,9 @@ def _claim_value(match: re.Match[str], label: str, line: str) -> tuple[float | N
     unit = (eps_match.group("unit") or "").strip()
     return (number if number is not None else default_number), (unit or default_unit)
 
-
 def _label_has_eps_hint(label: str) -> bool:
     normalized = _normalize_match_text(label)
     return any(_normalize_match_text(marker) in normalized for marker in ("eps", "每股盈餘"))
-
 
 def evaluate_report_evidence(
     markdown: str,
@@ -173,7 +171,6 @@ def evaluate_report_evidence(
         "sampled_claims": checked,
     }
 
-
 def sample_numeric_claims(
     claims: list[dict[str, Any]],
     *,
@@ -190,7 +187,6 @@ def sample_numeric_claims(
         return list(claims)
     sampled = Random(seed).sample(claims, sample_size)
     return sorted(sampled, key=lambda item: int(item.get("line_number") or 0))
-
 
 def flatten_snapshot_numbers(snapshot: Any) -> list[dict[str, Any]]:
     """Collect numeric values from a sanitized snapshot."""
@@ -217,6 +213,9 @@ def flatten_snapshot_numbers(snapshot: Any) -> list[dict[str, Any]]:
                     values.append({"path": path, "value": number})
             return
         if isinstance(value, dict):
+            if path.endswith("price_history") and {"dates", "prices"} <= value.keys():
+                values.extend({"path": f"{path}[{str(date)[:10]}].prices[{index}]", "value": float(price)} for index, (date, price) in enumerate(zip(value["dates"], value["prices"])) if isinstance(price, (int, float)) and not isinstance(price, bool))
+                return
             for key, item in value.items():
                 walk(item, f"{path}.{key}" if path else str(key))
             return
@@ -296,6 +295,7 @@ def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
         return ("broker_research",)
     if ("1000lots" in raw_text and "concentration" in label) or ("50lots" in raw_text and "retail" in label): return ("major_holders_gt_1000_lots_pct",) if "concentration" in label else ("retail_holders_lt_50_lots_pct",)
     if label == "previous" and ("marginbalance" in raw_text or "shortbalance" in raw_text): return ("margin_previous_balance",) if "marginbalance" in raw_text else ("short_previous_balance",)
+    if "price_history" in raw_text and (history_date := re.search(r"(20\d{2})\s*[-/年.]\s*(\d{1,2})\s*[-/月.]\s*(\d{1,2})", str(claim.get("raw_text") or ""))): return (f"price_history[{history_date.group(1)}-{int(history_date.group(2)):02d}-{int(history_date.group(3)):02d}]",)
     if label in ("週高點", "週低點", "壓力位", "支撐位") and str(claim.get("unit") or "").lower() in ("twd", "元") and (week_match := next((match for match in re.finditer(r"(?:(?:52\s*週|52週)\s*(?P<after>高|低)點\s*[:：為=]?\s*(?:NT\$|\$)?(?P<after_num>-?\d[\d,]*(?:\.\d+)?)|(?P<before_num>-?\d[\d,]*(?:\.\d+)?)\s*(?:TWD|元)?\s*[*_`]*\s*[（(]?\s*(?:52\s*週|52週)\s*(?P<before>高|低)點)", str(claim.get("raw_text") or ""), re.IGNORECASE) if _clean_number(match.group("after_num") or match.group("before_num")) == float(claim.get("reported_value") or 0)), None)): return ("week_52_high",) if (week_match.group("after") or week_match.group("before")) == "高" else ("week_52_low",)
     if (source_match := re.search(r"(-?\d[\d,]*(?:\.\d+)?)\s*(?:TWD|元)?\s*[（(]?\s*`?(?:data\.)?(market_data\.week_52_(?:high|low)_twd)", str(claim.get("raw_text") or ""), re.IGNORECASE)) and _clean_number(source_match.group(1)) == float(claim.get("reported_value") or 0): return ("week_52_high",) if "week_52_high_twd" in raw_text else ("week_52_low",)
     if any(marker in raw_text for marker in ("熊市", "牛市")):
