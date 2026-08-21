@@ -388,6 +388,16 @@ def test_evidence_claims_ignore_calendar_date_tokens_after_labeled_colons():
     assert not any(claim["reported_value"] == 2026.0 for claim in claims)
 
 
+def test_evidence_claims_do_not_treat_daily_trend_dates_as_scalar_values():
+    from evidence_exit_gate import extract_numeric_claims
+
+    claims = extract_numeric_claims(
+        "- 近 10 日每日趨勢：7/21 (-1115), 7/22 (-3339.73), 7/23 (679.58), 7/24 (-1899.03)。"
+    )
+
+    assert claims == []
+
+
 def test_evidence_claims_keep_bare_years_and_currency_values():
     from evidence_exit_gate import extract_numeric_claims
 

@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3697 / exclude daily-trend date tokens from scalar evidence claims
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`近 10 日每日趨勢` 是一行日期／數值序列，generic KV parser 卻把 `7/21` 的月份 `7` 當成 label value，造成一筆假性的 unverifiable claim。
+- `#最小變更` / `#責任`：只把 exact sequence labels `近 10 日每日趨勢`、`daily trend` 加入 non-claim markers；不把 `daily_total_net_buy_last_10` 的部分文字重述當成完整 series verification，也不影響其他 scalar institutional claims。
+- `#偏誤降低` / `#可驗證性`：RED→GREEN fixture 確認日期 token 不再生成 claim；live `6226.TW/v4` 不再出現這筆 sampled claim，report 仍保留其他品質警示，沒有被錯誤升級。
+- `#可驗證性` / `#責任`：evidence gate `69 passed`、品質/evidence/conformance `1052 passed`、import boundary `504 passed`、HCS/docs `136 passed`，line guard `evidence_exit_gate.py=349`。正式 reload 後 live `165` 份為 evidence `135/24/6`、claims `434 verified / 138 unverifiable / 8 mismatch`、content `80/77/8`、conformance `75/77/13`；healthz/readyz、doctor canonical paths、RQ queue depth `0` 與 failed_recent `0` 通過，未寫入 artifact、snapshot、index、review、rerun、repair 或 queue。
+
 ## D3696 / convert borrowed-return raw shares to report lots
 
 - `#拆解問題` / `#差距分析` / `#來源品質`：`6226.TW/v4` 報告寫 `當日借券還券：0 張`，但 TWSE TWT93U provider 解析出的 `borrowed_short_return_today` 是 raw shares；直接 path mapping 會把不同單位當成同一數字。
