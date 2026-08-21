@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3733 / map explicit 52-week extremes for numbered pressure labels
+
+- `#拆解問題` / `#差距分析`：full artifact audit 找到 `6426.TW/v4` 的 `波段壓力二：294.0 TWD（52 週最高價）` 已有 `data.week_52_high=294.0`，但固定 label 清單漏掉編號／階段式壓力語意，造成可核驗 claim 落到 `no_matching_snapshot_path`。
+- `#偏誤辨識` / `#偏誤降低` / `#來源品質`：只在 raw claim 同時有壓力／支撐語意、明示 52 週最高／最低與 TWD／元數值，且數值與對應 snapshot field 一致時建立 `week_52_high`／`week_52_low` path；沒有 52 週 marker 的一般或編號式 label 不借用週高低點來源，仍保留 `unverifiable`。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED，再 GREEN；focused `5 passed`、完整 evidence `127 passed`、品質 `1125 passed`、import/docs `640 passed`、`py_compile`、`git diff --check` 與 line guard `349` 通過。full artifact 為 `2510 claims: 1602 verified / 774 unverifiable / 134 mismatch`，reason `no_matching_snapshot_path=143`；正式 reload 後 live API 直接驗證目標 claim 為 `verified → data.week_52_high=294.0`，health/ready、doctor 與 queue 通過，current quality 維持 evidence `135/26/3`、content `99/57/8`、conformance `80/74/10`，未改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3732 / classify compact legacy horizons without inventing target evidence
 
 - `#拆解問題` / `#差距分析`：full artifact audit 找到 legacy v1/v2/v3 的 compact `最終投資建議` row；`避免／持有／放空；3個月`、`6個月`、`12個月` 缺少 persisted parsed／structured context，原本卻與一般 semantic mapping 缺口混在一起。
