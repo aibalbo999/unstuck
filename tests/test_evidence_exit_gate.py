@@ -247,6 +247,14 @@ def test_evidence_claims_ignore_period_and_alphanumeric_identifier_numbers():
     assert not any(claim["reported_value"] in {5.0, 52.0} for claim in claims)
 
 
+def test_evidence_claims_ignore_derived_trade_plan_health_score():
+    from evidence_exit_gate import extract_numeric_claims
+
+    claims = extract_numeric_claims("- **交易計畫健康度:** 6/10")
+
+    assert claims == []
+
+
 def test_evidence_gate_does_not_match_confidence_to_unrelated_snapshot_numbers():
     from evidence_exit_gate import evaluate_report_evidence
 

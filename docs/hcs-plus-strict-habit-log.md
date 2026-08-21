@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3687 / exclude derived trade-plan health metadata from evidence claims
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`交易計畫健康度: 6/10` 是報告自身的衍生品質分數，沒有 canonical data snapshot path；把它當來源數字只會增加人工核對 warning，不能證明資料事實。
+- `#最小變更` / `#責任`：只加入 `交易計畫健康度` non-claim marker，保留 confidence 的既有 unverifiable boundary，並讓 content credibility/calibration 繼續負責 confidence 可信度，不把 metadata 排除延伸到一般交易價格。
+- `#偏誤降低` / `#可驗證性`：新增 derived health score fixture；完整 live reload 後 evidence approved 增加、rejected/blocked 真實問題維持，3653/6282/2308/1623 的 mismatch 仍可見。
+- `#可驗證性` / `#責任`：evidence gate `44 passed`、品質/evidence/conformance `1027 passed`、import boundary `504 passed`、HCS/docs `135 passed`，line guard `evidence_exit_gate.py=349`。正式 reload 後 live `165` 份 evidence `119/42/4`、claims `411 verified / 163 unverifiable / 6 mismatch`，content `70/87/8`、conformance `66/88/11`；healthz/readyz、doctor canonical paths、RQ queue depth `0` 通過，未寫入 artifact、snapshot、index、review、rerun、repair 或 queue。
+
 ## D3686 / map profitability fields and reject short-date prefixes
 
 - `#拆解問題` / `#差距分析` / `#來源品質`：live caution claim 中 `毛利率`、`殖利率` 分別可在 `data.gross_margin`、`data.dividend_yield` 找到 canonical 值；另一筆 `8/19 融資餘額` 把日期前綴 `8` 當成數字，形成 false mismatch。
