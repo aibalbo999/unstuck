@@ -318,7 +318,7 @@ def test_evidence_gate_does_not_bind_news_support_or_pressure_to_risk_price():
     assert result["verdict"] == "caution"
     assert result["unverifiable_count"] == 2
     assert all(claim["status"] == "unverifiable" for claim in result["sampled_claims"])
-    assert all(claim["verification_reason_code"] == "missing_semantic_path" for claim in result["sampled_claims"])
+    assert all(claim["verification_reason_code"] == "news_source_not_canonical" for claim in result["sampled_claims"])
 
 
 def test_evidence_gate_reports_missing_semantic_path_for_unknown_numeric_labels():

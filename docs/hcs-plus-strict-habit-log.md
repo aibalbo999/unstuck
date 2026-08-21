@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3716 / explain non-canonical news evidence
+
+- `#拆解問題` / `#差距分析` / `#來源品質`：D3715 的 source guard 已正確保留新聞價格人工確認，但 `missing_semantic_path` 無法告訴操作員這是來源邊界而非欄位遺漏。
+- `#偏誤辨識` / `#可驗證性` / `#表達`：新增 `news_source_not_canonical` reason code；只在新聞／催化劑價格沒有 canonical path 時使用，52 週高低點與 River Chart 的 verified path 不受影響。
+- `#責任`：RED→GREEN focused evidence `102 passed`、品質/evidence/conformance `1085 passed`、import `504 passed`、line guard `349`、py_compile 通過。live reason 分布為 `no_matching_snapshot_path=69`、`missing_semantic_path=49`、`news_source_not_canonical=2`，verdict 與 queue 不變，未修改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3715 / keep news prices out of canonical risk fields
 
 - `#拆解問題` / `#差距分析` / `#來源品質`：`8438.TW/v4` 的 `55.8 TWD` 與 `2491.TW/v4` 的 `31.75 TWD` 都明示來自新聞／`market_catalysts`，不能因 snapshot 恰有同值就證明它們是 canonical `risk_price`。
