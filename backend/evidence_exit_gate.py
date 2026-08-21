@@ -214,6 +214,7 @@ def flatten_snapshot_numbers(snapshot: Any) -> list[dict[str, Any]]:
         if isinstance(value, dict):
             if path.endswith("price_history") and {"dates", "prices"} <= value.keys():
                 values.extend({"path": f"{path}[{str(date)[:10]}].prices[{index}]", "value": float(price)} for index, (date, price) in enumerate(zip(value["dates"], value["prices"])) if isinstance(price, (int, float)) and not isinstance(price, bool))
+                values.extend({"path": f"{path}[month={month}].{kind}", "value": (min if kind == "low" else max)(float(price) for date, price in zip(value["dates"], value["prices"]) if str(date)[:7] == month and isinstance(price, (int, float)) and not isinstance(price, bool))} for month in {str(date)[:7] for date in value["dates"]} for kind in ("low", "high"))
                 return
             for key, item in value.items():
                 walk(item, f"{path}.{key}" if path else str(key))
@@ -268,7 +269,6 @@ def _is_non_claim_match(line: str, match: re.Match[str]) -> bool:
     suffix = line[match.end("num") :]
     return bool(re.match(r":\d{2}(?::\d{2})?(?:[.,+\-Z]|$)", suffix))
 
-
 def _is_eligible_snapshot_value(item: dict[str, Any]) -> bool:
     path = _normalize_match_text(item.get("path"))
     if any(marker in path for marker in _NORMALIZED_SNAPSHOT_METADATA_PATH_MARKERS):
@@ -276,7 +276,6 @@ def _is_eligible_snapshot_value(item: dict[str, Any]) -> bool:
     if any(marker in path for marker in _NORMALIZED_CONFIDENCE_METADATA_PATH_MARKERS):
         return False
     return True
-
 
 def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
     claim_text = str(claim.get("raw_text") or ""); raw_label = str(claim.get("label") or "").lower(); series_context = str(claim.get("series_context_text") or "")
@@ -295,6 +294,7 @@ def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
     history_date = re.search(r"(20\d{2})\s*[-/年.]\s*(\d{1,2})\s*[-/月.]\s*(\d{1,2})", claim_text); has_price_label = any(_normalize_match_text(marker) in label for marker in ("高點", "低點", "收盤", "支撐", "壓力", "股價", "價格", "close", "high", "low")); has_close_marker = any(_normalize_match_text(marker) in _normalize_match_text(claim_text) for marker in ("收盤", "close", "closing")); has_price_unit = bool(re.search(r"(?:NT\$|\$|TWD|元)", claim_text, re.IGNORECASE)); has_inline_extremum = bool(re.search(r"20\d{2}\s*[-/年.]\s*\d{1,2}\s*[-/月.]\s*\d{1,2}\s*(?:高點|低點|high|low)", claim_text, re.IGNORECASE)); has_dated_extremum = (any(_normalize_match_text(marker) in label for marker in ("高點", "低點")) or (has_price_label and has_inline_extremum)) and not any(_normalize_match_text(marker) in label for marker in ("52週", "52week")); has_news_source = any(marker in raw_text for marker in ("market_catalysts", "catalyst", "新聞", "news"))
     if history_date and ("price_history" in raw_text or (has_price_label and has_close_marker and has_price_unit) or (has_dated_extremum and not has_news_source)):
         return (f"price_history[{history_date.group(1)}-{int(history_date.group(2)):02d}-{int(history_date.group(3)):02d}]",)
+    if (month_extremum := re.search(r"(20\d{2})\s*(?:[-/年.]\s*)?(\d{1,2})\s*(?:月|月份)?[^\n]{0,16}(低點|高點)", claim_text, re.IGNORECASE)) and any(_normalize_match_text(marker) in label for marker in ("支撐", "壓力", "高點", "低點")) and not has_news_source: return (f"price_history[month={month_extremum.group(1)}-{int(month_extremum.group(2)):02d}].{'low' if month_extremum.group(3) == '低點' else 'high'}",)
     if label == "totalnetbuythousandshares" and "total_net_buy_thousand_shares" in raw_text: return ("institutional_trading.total_net_buy_thousand_shares",)
     if "last_5_trading_days_net_buy_thousand_shares" in raw_text or label == "last5tradingdaysnetbuy": return ("institutional_trading.last_5_trading_days_net_buy_thousand_shares",)
     if label in ("週高點", "週低點", "壓力位", "支撐位", "近期壓力", "關鍵壓力位") and str(claim.get("unit") or "").lower() in ("twd", "元") and (week_match := next((match for match in re.finditer(r"(?:(?:52\s*週|52週)\s*(?P<after>最高|最低|高|低)(?:點|價)?\s*[:：為=]?\s*(?:NT\$|\$)?(?P<after_num>-?\d[\d,]*(?:\.\d+)?)|(?P<before_num>-?\d[\d,]*(?:\.\d+)?)\s*(?:TWD|元)?\s*[*_`]*\s*[（(]?\s*[。．]?\s*(?:此為|為|是)?\s*(?:52\s*週|52週)\s*(?P<before>最高|最低|高|低)(?:點|價)?)", str(claim.get("raw_text") or ""), re.IGNORECASE) if _clean_number(match.group("after_num") or match.group("before_num")) == float(claim.get("reported_value") or 0)), None)): return ("week_52_high",) if (week_match.group("after") or week_match.group("before")) in ("高", "最高") else ("week_52_low",)

@@ -1192,6 +1192,71 @@ def test_evidence_gate_does_not_treat_plain_key_pressure_as_week_high():
     assert result["sampled_claims"][0]["matched_path"] != "data.week_52_high"
 
 
+def test_evidence_gate_maps_month_low_support_to_month_minimum():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* **強勁支撐：** 292.5 元（2026 年 7 月之近期低點）。",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2026-07-01", "2026-07-31", "2026-08-21"],
+                    "prices": [300.0, 292.5, 461.5],
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["sampled_claims"][0]["matched_path"] == "data.price_history[month=2026-07].low"
+
+
+def test_evidence_gate_keeps_month_low_value_mismatch_on_month_extremum():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* **強勁支撐：** 300.0 元（2026 年 7 月之近期低點）。",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2026-07-01", "2026-07-31"],
+                    "prices": [300.0, 292.5],
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "rejected"
+    assert claim["status"] == "mismatch"
+    assert claim["matched_path"] == "data.price_history[month=2026-07].low"
+
+
+def test_evidence_gate_maps_month_high_pressure_to_month_maximum():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* **近期壓力：** 40.15 TWD（2026-06 盤中高點區域）。",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2026-06-01", "2026-06-30"],
+                    "prices": [38.0, 40.15],
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["sampled_claims"][0]["matched_path"] == "data.price_history[month=2026-06].high"
+
+
 def test_evidence_gate_does_not_bind_dated_news_pressure_to_close_history():
     from evidence_exit_gate import evaluate_report_evidence
 

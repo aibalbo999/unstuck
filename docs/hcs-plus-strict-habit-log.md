@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3704 / bind month-level support and pressure to price-history extrema
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`7711.TW/v4` 的 292.5 是 2026 年 7 月月內低點，`2491.TW/v4` 的 40.15 是 2026 年 6 月月內高點；snapshot 只保存逐日 `price_history`，原 parser 沒有月份極值的 canonical marker。
+- `#最小變更` / `#責任`：flatten 時保留既有逐日 paths，另以 `month=YYYY-MM` 建立同月 `low`／`high` synthetic paths；只有 claim 明示年月且帶支撐／壓力／高點／低點語意時才映射，不以同月份任意數字猜測。
+- `#偏誤降低` / `#可驗證性`：RED→GREEN fixture 覆蓋月低支撐正例、月低數值 mismatch、月高壓力正例；逐日日期、52 週、新聞壓力與錯月份反例維持保守邊界。
+- `#可驗證性` / `#責任`：evidence gate `84 passed`、品質/evidence/conformance `1067 passed`、import boundary `504 passed`、HCS/docs `136 passed`、line guard `evidence_exit_gate.py=349`；正式 reload 後 `7711.TW/v4` 為 `16 claims / 3 sampled / 0 unverifiable / approved` 且月低 target verified，`2491.TW/v4` 的月高 target verified 但整份維持 `1 unverifiable / caution`；healthz/readyz、canonical storage、queue depth `0` 與 failed_recent `0` 通過，未寫入 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3703 / map explicit 52-week-high pressure variants
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`6715.TW/v4` 與 `2903.TW/v4` 都把壓力位明確說成 52 週最高價，但 label 分別是 `關鍵壓力`／`關鍵壓力位`，原規則未能穩定綁定 `data.week_52_high`。
