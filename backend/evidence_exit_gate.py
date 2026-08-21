@@ -8,7 +8,6 @@ from random import Random
 from typing import Any
 def _normalize_match_text(value: Any) -> str:
     return re.sub(r"[^0-9a-zA-Z_\u4e00-\u9fff]+", "", str(value or "").lower())
-
 _NUMERIC_UNIT_PATTERN = r"(?:TWD|%|x|X|倍|億|元|B|M|K|k|T)"
 _KV_RE = re.compile(
     rf"(?P<label>[\u4e00-\u9fffA-Za-z][^:\n：|]{{0,30}})[:：]\s*[~約]?(?:NT\$|\$)?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>{_NUMERIC_UNIT_PATTERN})?(?:[.．](?=\s*(?:[)）]|$)))?(?![\dA-Za-z.])"
@@ -105,7 +104,6 @@ def _claim_value(match: re.Match[str], label: str, line: str) -> tuple[float | N
     default_unit = (match.group("unit") or "").strip()
     if not _label_has_eps_hint(label):
         return default_number, default_unit
-
     suffix = line[match.end("label") + 1 :]
     eps_match = _EPS_VALUE_RE.search(suffix)
     if not eps_match:
@@ -170,7 +168,6 @@ def evaluate_report_evidence(
         "tolerance_pct": tolerance_pct,
         "sampled_claims": checked,
     }
-
 def sample_numeric_claims(
     claims: list[dict[str, Any]],
     *,
@@ -185,7 +182,12 @@ def sample_numeric_claims(
     sample_size = min(max_sample, len(claims), sample_size)
     if sample_size >= len(claims):
         return list(claims)
-    sampled = Random(seed).sample(claims, sample_size)
+    priority = [item for item in claims if re.search(r"`[A-Za-z_][A-Za-z0-9_.]*`", str(item.get("raw_text") or "")) or any(marker in _normalize_match_text(item.get("label")) for marker in ("pettm", "forwardpe", "本益比"))]
+    if len(priority) >= sample_size:
+        sampled = Random(seed).sample(priority, sample_size)
+    else:
+        others = [item for item in claims if item not in priority]
+        sampled = priority + Random(seed).sample(others, sample_size - len(priority))
     return sorted(sampled, key=lambda item: int(item.get("line_number") or 0))
 
 def flatten_snapshot_numbers(snapshot: Any) -> list[dict[str, Any]]:
@@ -222,7 +224,6 @@ def flatten_snapshot_numbers(snapshot: Any) -> list[dict[str, Any]]:
         if isinstance(value, list):
             for index, item in enumerate(value):
                 walk(item, f"{path}[{index}]")
-
     walk(snapshot, "")
     return values
 def _check_claim(claim: dict[str, Any], snapshot_values: list[dict[str, Any]], *, tolerance_pct: float) -> dict[str, Any]:
@@ -243,8 +244,6 @@ def _check_claim(claim: dict[str, Any], snapshot_values: list[dict[str, Any]], *
         "matched_value": best.get("value") if best else None,
         "diff_pct": round(best.get("diff_pct", 0.0), 4) if best else None,
     }
-
-
 def _relevant_snapshot_values(claim: dict[str, Any], snapshot_values: list[dict[str, Any]]) -> list[dict[str, Any]]:
     path_markers = _path_markers_for_claim(claim)
     if not path_markers:

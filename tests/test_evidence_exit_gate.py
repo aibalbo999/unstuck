@@ -31,6 +31,22 @@ def test_evidence_exit_gate_extracts_and_approves_snapshot_backed_numbers():
     assert all(item["status"] == "verified" for item in result["sampled_claims"])
 
 
+def test_sample_numeric_claims_prioritizes_explicit_valuation_fields():
+    from evidence_exit_gate import sample_numeric_claims
+
+    claims = [
+        {"id": index, "label": "一般敘述", "reported_value": float(index), "line_number": index, "raw_text": f"一般敘述: {index}"}
+        for index in range(1, 31)
+    ] + [
+        {"id": 100, "label": "PE TTM", "reported_value": 135.1239, "line_number": 100, "raw_text": "PE TTM: 135.1239"},
+        {"id": 101, "label": "Forward PE", "reported_value": 37.2535, "line_number": 101, "raw_text": "Forward PE: 37.2535"},
+    ]
+
+    sampled = sample_numeric_claims(claims, sample_ratio=0.0, min_sample=2, max_sample=2)
+
+    assert [item["id"] for item in sampled] == [100, 101]
+
+
 def test_evidence_exit_gate_rejects_when_sampled_numbers_are_not_in_snapshot():
     from evidence_exit_gate import evaluate_report_evidence
 
