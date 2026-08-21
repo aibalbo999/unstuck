@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3725 / expose verified evidence sample counts
+
+- `#拆解問題` / `#差距分析`：live non-approved evidence warning 已有 sampled、failed、unverifiable，但沒有直接揭露其中多少 claim 已 status=`verified`；操作員容易把「抽樣量」誤讀成「已核對量」。
+- `#偏誤辨識` / `#偏誤降低` / `#可驗證性`：新增 `verified_count` 與 `evidence_verified_count`，只計算同一份 read-only gate 的 verified sampled claims；不改抽樣、tolerance、verdict、semantic path 或任何 persisted state，29 個 non-approved warning 全數保留 caution／rejected 邊界。
+- `#來源品質` / `#責任`：先取得 RED，再以最小變更 GREEN；focused `2 passed`、完整品質/evidence/conformance `1105 passed`、import `504 passed`、docs `136 passed`、line guard `349`、`py_compile`、`git diff --check` 通過。reload 後 `3653.TW/v4` 為 `19/3/2/0/1`（claims/sampled/verified/failed/unverifiable），全量 content `99/57/8`、conformance `80/74/10`、evidence `135/26/3`；healthz/readyz、queue depth `0`、failed_recent `0` 通過，未改動 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3724 / keep numeric table value cells out of evidence labels
 
 - `#拆解問題` / `#差距分析`：live `3653.TW/v1` 的 `NT$464 億 | 18%` 不是一個名為 `NT$464 億` 的欄位；原 regex 跨 table cell 配對，將上一格數值當成下一格 label。

@@ -33,6 +33,20 @@ def test_evidence_exit_gate_extracts_and_approves_snapshot_backed_numbers():
     assert all(item["candidate_count"] >= 1 for item in result["sampled_claims"])
 
 
+def test_evidence_gate_reports_verified_sample_count():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 股價: NT$100.0\n- 未知評分: 0.85",
+        {"data": {"current_price": 100.0, "other_value": 0.85}},
+        sample_ratio=1.0,
+        min_sample=2,
+    )
+
+    assert result["verified_count"] == 1
+    assert result["unverifiable_count"] == 1
+
+
 def test_evidence_gate_accepts_markdown_emphasis_between_label_and_value():
     from evidence_exit_gate import evaluate_report_evidence
 

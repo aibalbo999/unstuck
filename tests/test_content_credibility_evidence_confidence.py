@@ -36,6 +36,7 @@ def test_evidence_confidence_exposes_compact_gate_diagnostics_for_non_approved_g
         {
             "claim_count": 12,
             "sampled_count": 3,
+            "verified_count": 1,
             "failed_count": 0,
             "unverifiable_count": 2,
             "unverifiable_reason_counts": {"no_matching_snapshot_path": 2},
@@ -46,6 +47,7 @@ def test_evidence_confidence_exposes_compact_gate_diagnostics_for_non_approved_g
     details = result["warnings"][0]["details"]
     assert details["evidence_claim_count"] == 12
     assert details["evidence_sampled_count"] == 3
+    assert details["evidence_verified_count"] == 1
     assert details["evidence_failed_count"] == 0
     assert details["evidence_unverifiable_count"] == 2
     assert details["evidence_unverifiable_reason_counts"] == {"no_matching_snapshot_path": 2}

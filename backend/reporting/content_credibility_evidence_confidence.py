@@ -34,7 +34,7 @@ def _check(check_id: str, status: str, message: str, details: dict | None = None
 
 def _evidence_details(base: dict, evidence_details: Any) -> dict:
     gate = safe_mapping_dict(evidence_details) or {}
-    return {**base, **{f"evidence_{key}": gate[key] for key in ("claim_count", "sampled_count", "failed_count", "unverifiable_count", "unverifiable_reason_counts") if key in gate}}
+    return {**base, **{f"evidence_{key}": gate[key] for key in ("claim_count", "sampled_count", "verified_count", "failed_count", "unverifiable_count", "unverifiable_reason_counts") if key in gate}}
 
 
 def evaluate_confidence_evidence_alignment(evidence_verdict: Any, confidence_score: float | None, evidence_details: Any = None) -> dict:
