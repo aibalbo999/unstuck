@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3683 / rebuild legacy recommendation coverage from canonical source audit
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：legacy snapshot 的 `rerun_context.parsed` 缺失且 `evidence_matrix=[]`；normalized index recommendation 雖可形成 projection context，`evidence_matrix_rows()` 卻因空 persisted key 提前返回，讓 21 份 history row 被標成 `missing_final_recommendation_evidence`，即使 canonical `data + source_audit` 有成功來源。
+- `#最小變更` / `#責任`：只在 `_project_from_index_recommendation()` 的 read-only projection clone 移除空矩陣，讓既有 builder 從同一 snapshot 的 `data + source_audit` 重建最終建議列；非空 persisted matrix 維持原語意，正式 evaluator、snapshot、artifact、index、review、rerun、repair 與 queue 不變。
+- `#偏誤降低` / `#來源品質`：不把「能重建 evidence row」解讀成報告已通過；若 canonical source audit 不可用，重建列仍會是 unusable warning，既有 final-audit critical、evidence mismatch 與 rejected gate 不降級。
+- `#可驗證性` / `#責任`：先以空矩陣 + 成功 source audit 取得 RED，再 GREEN；projection/evidence `14 passed`、content/audit/conformance `69 passed`、import boundary `504 passed`、`git diff --check` 與 compile 通過。正式 reload 後 live 165 份 `evidence_matrix_coverage` 全數 passed，missing/unusable final recommendation evidence `0`；conformance `48 passed / 109 warning / 8 blocked`、content `50/107/8`、evidence `68 approved / 96 caution / 1 rejected`，`3653.TW/v3` 仍 blocked/rejected。historical `1222` 份、coverage `90.59%`、filtered `3653.TW/v3` current latest blocked/rejected；healthz/readyz、doctor canonical paths、RQ queue depth `0` 通過，未寫入 artifact、snapshot、index、review、rerun、repair 或 queue。
+
 ## D3682 / separate historical coverage from current latest projection
 
 - `#拆解問題` / `#差距分析` / `#受眾`：historical audit 的 persisted metadata coverage 與目前規則重驗不是同一個 evidence layer；live `3653.TW/v3` 同篩選有 5 個 indexed versions，但原頁沒有 latest current mismatch/blocked 可見性。

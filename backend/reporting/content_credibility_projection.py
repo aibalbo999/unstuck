@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from data_validation_values import safe_float
-from mapping_fields import safe_dict_list, safe_mapping_dict, safe_text
+from mapping_fields import safe_dict_list, safe_mapping_dict, safe_sequence_items, safe_text
 
 from .content_credibility import evaluate_content_credibility
 from .content_credibility_evidence_confidence import evaluate_confidence_evidence_alignment
@@ -135,8 +135,13 @@ def _project_from_index_recommendation(snapshot: Any, recommendation: Any) -> di
         "evidence_exit_gate": safe_mapping_dict(snapshot_map.get("evidence_exit_gate")) or {},
         "final_audit": safe_mapping_dict(snapshot_map.get("final_audit")) or {},
     }
+    # Legacy snapshots may contain an empty matrix even though their canonical
+    # source audit still has enough data to build the current recommendation row.
+    projection_snapshot = dict(snapshot_map)
+    if not safe_sequence_items(projection_snapshot.get("evidence_matrix")):
+        projection_snapshot.pop("evidence_matrix", None)
     try:
-        projected = evaluate_content_credibility(context, snapshot_map)
+        projected = evaluate_content_credibility(context, projection_snapshot)
     except Exception:
         return None
     return {**projected, "_projection_scope": "recommendation_context"}

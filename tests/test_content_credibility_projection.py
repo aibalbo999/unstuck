@@ -160,3 +160,34 @@ def test_legacy_projection_uses_normalized_index_recommendation():
     assert result["status"] == "warning"
     check = next(item for item in result["checks"] if item["id"] == "confidence_evidence_alignment")
     assert check["details"]["evidence_verdict"] == "caution"
+
+
+def test_legacy_projection_rebuilds_empty_matrix_from_canonical_source_audit():
+    from reporting.content_credibility_projection import project_content_credibility_with_current_evidence
+
+    snapshot = _snapshot(stored={})
+    snapshot["rerun_context"] = {}
+    snapshot["evidence_matrix"] = []
+    snapshot["data"]["source_audit"] = [{
+        "source": "market_data",
+        "status": "success",
+        "provider": "fixture",
+        "record_count": 1,
+    }]
+
+    result = project_content_credibility_with_current_evidence(
+        snapshot,
+        {},
+        evidence_projection=snapshot["evidence_exit_gate"],
+        recommendation={
+            "recommendation": "持有",
+            "current_price": "NT$100.00",
+            "target_12m": "NT$110.00",
+            "confidence": "6/10",
+        },
+    )
+
+    assert result["_projection_scope"] == "recommendation_context"
+    assert not any(issue["id"] == "missing_final_recommendation_evidence" for issue in result["warnings"])
+    coverage_check = next(check for check in result["checks"] if check["id"] == "evidence_matrix_coverage")
+    assert coverage_check["status"] == "passed"
