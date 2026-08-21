@@ -947,6 +947,26 @@ def test_evidence_gate_matches_52_week_high_after_short_sentence_connector():
     assert result["sampled_claims"][0]["matched_path"] == "data.week_52_high"
 
 
+def test_evidence_gate_matches_week_target_to_v4_trade_setup_target():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **1-2週目標:** 47.45 TWD（52週高點壓力位）",
+        {
+            "rerun_context": {
+                "structured_outputs": {"24": {"target_price": "47.45 TWD（52週高點壓力位）"}},
+                "parsed": {"trade_setup": {"target_price": "47.45 TWD（52週高點壓力位）"}},
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["sampled_claims"][0]["status"] == "verified"
+    assert result["sampled_claims"][0]["matched_path"] == "rerun_context.structured_outputs.24.target_price"
+
+
 def test_evidence_gate_uses_specific_financial_field_hints_before_broad_labels():
     from evidence_exit_gate import evaluate_report_evidence
 

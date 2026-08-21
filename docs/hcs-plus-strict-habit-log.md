@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3690 / map v4 weekly targets to their explicit trade-setup path
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：live current scope 的 9 筆 `週目標` 全是 v4，報告值與 `rerun_context.structured_outputs.24.target_price`、`rerun_context.parsed.trade_setup.target_price` 一對一相符；原本 parser 沒有 `週目標` hint，只能回報 unverifiable。
+- `#最小變更` / `#責任`：只新增 `週目標` → `parsed.trade_setup.target_price` / `structured_outputs.24.target_price` path；不把期間或情境文字泛化成 target，不消費 `content_credibility.checks[*].details.target_price` 這類重述欄位。
+- `#偏誤降低` / `#可驗證性`：新增 v4 target path fixture；live 逐一重驗 9 筆，全部 verified。3 個月/6 個月/12 個月目標、熊/基本/牛市情境、信心與護城河分數仍保留人工確認，既有 6 個真實 mismatch 不變。
+- `#可驗證性` / `#責任`：evidence gate `50 passed`、品質/evidence/conformance `1033 passed`、import boundary `504 passed`、HCS/docs `136 passed`，line guard `evidence_exit_gate.py=349`。正式 reload 後 live `165` 份為 evidence `131/30/4`、claims `426 verified / 148 unverifiable / 6 mismatch`、content `79/78/8`、conformance `74/80/11`；healthz/readyz、doctor canonical paths、RQ queue depth `0` 通過，未寫入 artifact、snapshot、index、review、rerun、repair 或 queue。
+
 ## D3689 / bind current-price and 52-week-high labels to canonical fields
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`8422.TW/v4` 的 `當前價位` 有 `market_data.current_price_twd` 明示來源；`2357.TW/v4` 與 `2834.TW/v4` 的壓力位分別寫明 `52 週最高價`，數值又與 snapshot 的 `current_price`/`week_52_high` 一致，但 label/path parser 原本將它們留在 unverifiable。
