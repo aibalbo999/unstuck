@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3710 / bind PE River Chart to dedicated multiples path
+
+- `#拆解問題` / `#問對問題` / `#語意含義`：`3653.TW/v3` 的 River Chart 分位數是獨立 valuation source，不能因數值看起來像 P/E 就直接借用 `data.pe_ratio`。
+- `#最小變更` / `#偏誤降低` / `#責任`：新增 `river chart -> pe_river_chart.multiples` 專用 hint，置於泛用 P/E hint 前；snapshot 無專用欄位或只有 generic P/E 時仍維持人工確認。
+- `#可驗證性` / `#來源品質`：RED→GREEN 覆蓋專用 snapshot 正例與 generic P/E 同值反例；focused evidence `95 passed`、品質/evidence/conformance `1078 passed`、import `504 passed`、HCS/docs `136 passed`、line guard `349`、py_compile 通過。正式 reload 後 162 份為 evidence `133 approved / 25 caution / 4 rejected`，558 筆 sampled claim 為 `425 verified / 122 unverifiable / 11 mismatch`，`missing_semantic_path` 降至 `51`；3653 v3 的 32.5x 命中 `data.pe_river_chart.multiples[0]`，真實 PE mismatch、信心與目標價人工確認仍保留。healthz/readyz 為 `ready`，watchlist 既有任務持續由 worker 處理且 `failed_recent=0`；沒有清除、重試或刪除 queue。
+
 ## D3709 / exclude cutoff metadata clock minutes
 
 - `#拆解問題` / `#問對問題` / `#語意含義`：`market_data (截至 2026-08-19 07:50)` 的分鐘 `50` 被誤認為 scalar claim，造成資料 metadata 與投資數字混淆。

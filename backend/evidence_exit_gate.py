@@ -40,7 +40,7 @@ _FIELD_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
     (("epsimpliedrevenuegrowth", "impliedrevenuegrowth"), ("forward_eps_implied_revenue_growth_pct", "implied_revenue_growth_pct")), (("incomegrowthlatestannual", "latest annual net income growth"), ("latest_annual_net_income_growth",)),
     (("淨利率", "profitmargin", "profit_margin"), ("profit_margin", "profit_margin_raw")),
     (("熊市", "基本", "牛市", "情境"), ("price_target", "price_targets", "target_price", "scenario", "scenarios")), (("週目標", "weektarget"), ("parsed.trade_setup.target_price", "structured_outputs.24.target_price")),
-    (("風險", "支撐", "壓力", "關卡"), ("risk_price",)), (("weekhigh", "52 week high"), ("week_52_high",)), (("weeklow", "52 week low"), ("week_52_low",)),
+    (("風險", "支撐", "壓力", "關卡"), ("risk_price",)), (("river chart", "pe_river_chart"), ("pe_river_chart.multiples",)), (("weekhigh", "52 week high"), ("week_52_high",)), (("weeklow", "52 week low"), ("week_52_low",)),
     (("p/e", "pe", "本益比"), ("pe_ratio", "trailingpe", "forwardpe", "price_earnings")), (("p/b", "pb", "本益比淨值比", "pricebook", "price_to_book"), ("pb_ratio", "pb", "price_to_book")), (("roe", "股東權益報酬率", "權益報酬率"), ("roe", "roe_pct", "return_on_equity")), (("beta", "貝他"), ("beta",)),
     (("毛利率", "grossmargin", "gross_margin"), ("gross_margin", "gross_margin_raw")), (("殖利率", "dividendyield", "dividend_yield"), ("dividend_yield", "dividend_yield_raw")), (("營收", "收入", "revenue", "sales"), ("revenue", "monthly_revenue", "sales")),
     (("淨利", "netincome", "net_income"), ("net_income", "netincome")),

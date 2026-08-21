@@ -343,6 +343,38 @@ def test_evidence_gate_does_not_compare_factset_claims_to_other_provider_values(
     assert result["unverifiable_reason_counts"] == {"no_matching_snapshot_path": 2}
 
 
+def test_evidence_gate_matches_pe_river_chart_multiple_to_canonical_snapshot_path():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **PE River Chart (5-year quantiles):** 32.5x, 46.6x, 64.3x, 76.9x",
+        {"data": {"pe_river_chart": {"multiples": [32.5, 46.6, 64.3, 76.9]}}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "approved"
+    assert claim["status"] == "verified"
+    assert claim["matched_path"] == "data.pe_river_chart.multiples[0]"
+
+
+def test_evidence_gate_does_not_match_pe_river_chart_to_generic_pe_snapshot_value():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **PE River Chart (5-year quantiles):** 32.5x",
+        {"data": {"pe_ratio": 32.5}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "unverifiable"
+    assert claim["matched_path"] == ""
+    assert claim["verification_reason_code"] == "no_matching_snapshot_path"
+
+
 def test_evidence_gate_uses_canonical_value_for_structured_target_text():
     from evidence_exit_gate import evaluate_report_evidence
 
