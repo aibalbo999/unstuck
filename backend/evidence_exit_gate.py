@@ -266,10 +266,10 @@ def _is_non_claim_match(line: str, match: re.Match[str]) -> bool:
     timestamp = re.search(r"\d{4}-\d{2}-\d{2}T\d{1,2}:\d{2}:\d{2}", line)
     if (timestamp and timestamp.start() <= match.start("label") <= timestamp.end()) or re.search(r"`institutional_trading`\s*[:：]\s*\d+\s*-\s*day\s+lookback\b", line, re.IGNORECASE):
         return True
-    label = _normalize_match_text(match.group("label"))
+    label = _normalize_match_text(match.group("label")); number_start = match.start("num")
     if any(marker in label for marker in _NORMALIZED_NON_CLAIM_LABEL_MARKERS):
         return True
-    number_start = match.start("num")
+    if re.search(r"\d{1,2}:\s*$", line[:number_start]) and any(marker in label for marker in ("marketdata", "截至", "資料日期", "資料時間", "抓取時間")): return True
     if number_start <= 0 or line[number_start - 1] != "T":
         return False
     suffix = line[match.end("num") :]

@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3709 / exclude cutoff metadata clock minutes
+
+- `#拆解問題` / `#問對問題` / `#語意含義`：`market_data (截至 2026-08-19 07:50)` 的分鐘 `50` 被誤認為 scalar claim，造成資料 metadata 與投資數字混淆。
+- `#最小變更` / `#偏誤降低` / `#責任`：只在 metadata label、數字前緊接 `HH:` 且符合資料時間語意時略過分鐘 match；不把所有時間或一般 `HH:MM` 文字一律當非 claim，不改 canonical matching。
+- `#可驗證性` / `#來源品質`：RED→GREEN 覆蓋 plain cutoff clock fixture，既有 ISO timestamp、日期範圍與數值 evidence 回歸保持通過；focused evidence `93 passed`、line guard `349`、py_compile 通過。
+
 ## D3708 / exclude month-day range prefixes from scalar claims
 
 - `#拆解問題` / `#問對問題` / `#語意含義`：`3037.TW/v4` 的法人敘述以 `08/17 - 08/18` 開頭，generic KV parser 把第一個 `08` 當成法人數字；這是日期前綴誤抽取，不是缺少法人 canonical path 的資料問題。

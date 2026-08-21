@@ -397,6 +397,14 @@ def test_evidence_claims_ignore_iso_timestamp_hour_tokens():
     assert not any(claim["reported_value"] in {7.0, 13.0} for claim in claims)
 
 
+def test_evidence_claims_ignore_plain_clock_minutes_in_cutoff_metadata():
+    from evidence_exit_gate import extract_numeric_claims
+
+    claims = extract_numeric_claims("* market_data (截至 2026-08-19 07:50)")
+
+    assert claims == []
+
+
 def test_evidence_claims_do_not_treat_operating_margin_year_as_a_value():
     from evidence_exit_gate import extract_numeric_claims
 
