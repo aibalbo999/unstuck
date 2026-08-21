@@ -1334,6 +1334,33 @@ def test_evidence_gate_matches_reordered_borrowed_short_return_label():
     assert claim["matched_path"] == "data.chip_data.twse_margin_short_sales.borrowed_short_return_today"
 
 
+def test_evidence_gate_matches_exact_chinese_borrowed_short_aliases():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 借券餘額：286000 張。\n- 當日借券賣出：40000 張。",
+        {
+            "data": {
+                "chip_data": {
+                    "twse_margin_short_sales": {
+                        "borrowed_short_sale_balance": 286000,
+                        "borrowed_short_sale_today": 40000,
+                    },
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=2,
+    )
+
+    assert result["verdict"] == "approved"
+    assert all(claim["status"] == "verified" for claim in result["sampled_claims"])
+    assert [claim["matched_path"] for claim in result["sampled_claims"]] == [
+        "data.chip_data.twse_margin_short_sales.borrowed_short_sale_balance",
+        "data.chip_data.twse_margin_short_sales.borrowed_short_sale_today",
+    ]
+
+
 def test_evidence_gate_matches_compact_return_after_borrowed_short_sale():
     from evidence_exit_gate import evaluate_report_evidence
 

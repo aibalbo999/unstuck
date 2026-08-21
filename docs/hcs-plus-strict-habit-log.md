@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3743 / map exact Chinese borrowed-short fields without ratio fallback
+
+- `#拆解問題` / `#差距分析`：full artifact audit 找到 `6226.TW/v4` 的 `借券餘額：286000 張`、`當日借券賣出：40000 張` 都有唯一 canonical snapshot field，但中文 label 沒有命中既有 English hint。
+- `#偏誤辨識` / `#偏誤降低` / `#來源品質`：只新增兩個 exact aliases，分別映射 borrowed short sale balance／today；不把 `借券還券`、`券資比`、`Total` 或其他 component value 互相借用，既有 shares-to-lots 邊界保留。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED，再 GREEN；focused `1 passed`、完整 evidence `150 passed`、品質 `1148 passed` 通過，full artifact `2512 claims: 1617 verified / 758 unverifiable / 137 mismatch`，`missing_semantic_path=126`。正式 reload 後 live API 的兩筆目標 claim 都 verified、Markdown/data `200/200`，health/ready `200/200`、active jobs `0`，current quality 為 conformance `80/74/10`、content `99/57/8`、evidence `134/27/3`，未改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3742 / map exact price-sales evidence without EPS collision
 
 - `#拆解問題` / `#差距分析`：full artifact audit 找到 `3653.TW/v3` 的 `PS: 31.18` 與 canonical `data.ps_ratio=34.65`，但 `PS`／`P/S`／`Price/Sales` 沒有 semantic path；短標籤又容易與 `EPS` 產生邊界碰撞。
