@@ -433,6 +433,16 @@ def test_evidence_claims_ignore_calendar_date_tokens_after_labeled_colons():
     assert not any(claim["reported_value"] == 2026.0 for claim in claims)
 
 
+def test_evidence_claims_ignore_month_day_range_after_labeled_colon():
+    from evidence_exit_gate import extract_numeric_claims
+
+    claims = extract_numeric_claims(
+        "- 法人加速卡位: 08/17 - 08/18 兩日內，法人合計掃貨逾 3 萬張。"
+    )
+
+    assert claims == []
+
+
 def test_evidence_claims_do_not_treat_daily_trend_dates_as_scalar_values():
     from evidence_exit_gate import extract_numeric_claims
 

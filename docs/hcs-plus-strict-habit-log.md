@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3708 / exclude month-day range prefixes from scalar claims
+
+- `#拆解問題` / `#問對問題` / `#語意含義`：`3037.TW/v4` 的法人敘述以 `08/17 - 08/18` 開頭，generic KV parser 把第一個 `08` 當成法人數字；這是日期前綴誤抽取，不是缺少法人 canonical path 的資料問題。
+- `#最小變更` / `#偏誤降低` / `#責任`：只擴充既有 `_SHORT_DATE_SUFFIX_RE`，在 label 後接月日且後續為範圍 dash、文字或行尾時略過該 match；不建立 aggregate 推測、不借用每日資料、不改其他 unit 或 semantic mapping。
+- `#可驗證性` / `#來源品質`：RED→GREEN 覆蓋 `08/17 - 08/18` 反例與既有日期/價格測試；focused evidence `92 passed`、line guard `349`、py_compile 通過，3037 live Markdown+snapshot 不再產生 `8` claim。
+
 ## D3707 / explain evidence gate unverifiable reasons
 
 - `#拆解問題` / `#問對問題` / `#語意含義`：全量 current evidence 仍有大量人工確認 claim，但單一 `unverifiable` 狀態無法直接分辨「沒有安全語意路徑」與「有語意但 snapshot 沒有對應資料」，降低修復優先順序的可判讀性。

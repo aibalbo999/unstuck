@@ -15,7 +15,7 @@ _TABLE_CELL_RE = re.compile(
 )
 _SECONDARY_EVIDENCE_RE = re.compile(rf"(?:及|與|以及|,|，)\s*[*_`]*\s*(?:NT\$|\$)?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>{_NUMERIC_UNIT_PATTERN})?\s*[^。\n]{{0,45}}(?:price_history|\d{{1,2}}\s*月份?\s*(?:收盤|收盤平台)|\d{{1,2}}\s*月\s*(?:底|末)(?:低點|高點))[^。\n]{{0,20}}", re.IGNORECASE)
 _NUMBER_IN_STRING_RE = re.compile(r"-?\d[\d,]*(?:\.\d+)?")
-_DATE_PREFIX_RE = re.compile(r"^\s*(?:[（(]|[/.-]\s*\d{1,2}\s*[/.-]\s*\d{1,2}\b)"); _SHORT_DATE_SUFFIX_RE = re.compile(r"^[/.-]\s*\d{1,2}\b(?=\s*(?:[A-Za-z\u4e00-\u9fff，,；;。]))")
+_DATE_PREFIX_RE = re.compile(r"^\s*(?:[（(]|[/.-]\s*\d{1,2}\s*[/.-]\s*\d{1,2}\b)"); _SHORT_DATE_SUFFIX_RE = re.compile(r"^[/.-]\s*\d{1,2}\b(?=\s*(?:[A-Za-z\u4e00-\u9fff，,；;。]|[-–—]|$))")
 _RANGE_PREFIX_RE = re.compile(r"^\s*-\s*\d")
 _HORIZON_PREFIX_RE = re.compile(r"^\s*\d+(?:\s*[-–—~～至到]\s*\d+)?\s*(?:週|周|weeks?|個月|月|年|years?|天|日|days?)", re.IGNORECASE)
 _EPS_VALUE_RE = re.compile(
