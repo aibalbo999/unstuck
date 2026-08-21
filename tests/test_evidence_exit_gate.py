@@ -612,6 +612,21 @@ def test_evidence_gate_classifies_compact_legacy_recommendation_horizons():
     assert result["verdict"] == "caution"
 
 
+def test_evidence_gate_classifies_currency_prefixed_legacy_horizons():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "| 最終投資建議 | 建議: 持有；3個月: NT$174.5 - NT$209.0；6個月: NT$209.0 - NT$254.0；12個月: NT$254.0 - NT$327.0；信心: 6/10 |",
+        {"rerun_context": {"parsed": {}, "structured_outputs": {}}},
+        sample_ratio=1.0,
+        min_sample=2,
+    )
+
+    reasons = {claim["label"]: claim["verification_reason_code"] for claim in result["sampled_claims"]}
+    assert reasons["NT$209.0；6個月"] == "legacy_conclusion_without_snapshot_path"
+    assert reasons["NT$254.0；12個月"] == "legacy_conclusion_without_snapshot_path"
+
+
 def test_evidence_gate_keeps_compact_horizons_as_missing_when_context_exists():
     from evidence_exit_gate import evaluate_report_evidence
 

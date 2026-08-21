@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3765 / route currency-prefixed legacy recommendation horizons
+
+- `#拆解問題` / `#差距分析` / `#責任`：residual audit 找到四筆 legacy recommendation table claim 以 `NT$209.0；6個月`、`NT$254.0；12個月` 等格式出現；它們沒有 persisted parsed/structured context 或 canonical target path，但前綴金額使既有 legacy horizon regex 沒有命中。
+- `#偏誤辨識` / `#偏誤降低` / `#限制條件`：只在 normalized label 符合幣別前綴數值＋3/6/12 個月，且 raw row 明示 `最終投資建議` 時輸出 `legacy_conclusion_without_snapshot_path`；不借 `analyst_target`、另一個 horizon 或 content metadata，parsed context 存在時仍是 `missing_semantic_path`。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED（1 failed、185 deselected，另有一次編譯括號錯誤已定位修正），再 GREEN；focused `3 passed`、完整 evidence `186 passed`、跨層回歸 `1858 passed`，full artifact `164/2515` 為 `1637 verified / 739 unverifiable / 139 mismatch`，`legacy_conclusion_without_snapshot_path=207`、`missing_semantic_path=8`。正式 reload 後 `1623_TW_v2_report_20260815_154718.html` 與 `3324_TWO_v3_report_20260815_183525.html` 的 HTML/Markdown/data、health/ready 均 `200`；四個 currency-prefixed horizon claims 均為 `unverifiable`／`legacy_conclusion_without_snapshot_path`／空 matched path。doctor、diff guards 與 push 通過。
+
 ## D3764 / classify derived margin-short ratios for operators
 
 - `#拆解問題` / `#差距分析` / `#來源品質`：residual audit 找到 `6226.TW/v4` 的 `券資比 1.25%` 與 `0052.TW/v4` 的 `券資比 0.75%`；snapshot 只有融資／融券餘額，沒有 canonical ratio scalar，原本泛化為 `missing_semantic_path`。
