@@ -496,6 +496,84 @@ def test_evidence_gate_does_not_cross_match_global_market_symbols():
     assert claim["matched_path"] == "data.global_market_context.items[qqq].change_5d_pct"
 
 
+def test_evidence_gate_matches_named_global_market_latest_values():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        """
+- Taiwan Weighted Index: 44933.7383.
+- USD/TWD: 31.855.
+- WTI Crude Oil: 85.7.
+""",
+        {
+            "data": {
+                "global_market_context": {
+                    "items": [
+                        {"symbol": "^TWII", "latest": 44933.7383},
+                        {"symbol": "TWD=X", "latest": 31.855},
+                        {"symbol": "CL=F", "latest": 85.7},
+                    ],
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=3,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["unverifiable_count"] == 0
+    assert [claim["matched_path"] for claim in result["sampled_claims"]] == [
+        "data.global_market_context.items[twii].latest",
+        "data.global_market_context.items[twdx].latest",
+        "data.global_market_context.items[clf].latest",
+    ]
+
+
+def test_evidence_gate_keeps_named_global_market_latest_mismatch_visible():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- Taiwan Weighted Index: 45811.0117.",
+        {
+            "data": {
+                "global_market_context": {
+                    "items": [
+                        {"symbol": "^TWII", "latest": 44933.7383},
+                        {"symbol": "EWT", "latest": 45811.0117},
+                    ],
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "mismatch"
+    assert claim["matched_path"] == "data.global_market_context.items[twii].latest"
+
+
+def test_evidence_gate_does_not_promote_bare_global_market_alias():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- WTI: 85.7.",
+        {
+            "data": {
+                "global_market_context": {
+                    "items": [{"symbol": "CL=F", "latest": 85.7}],
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "unverifiable"
+    assert claim["matched_path"] == ""
+
+
 def test_evidence_gate_matches_explicit_tdcc_concentration_labels():
     from evidence_exit_gate import evaluate_report_evidence
 

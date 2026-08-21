@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3695 / map named global-market latest values by symbol
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`Taiwan Weighted Index`、`USD/TWD`、`WTI Crude Oil` 都是 global market snapshot 的明確 label，但原 parser 沒有把 latest value 與 `^TWII`、`TWD=X`、`CL=F` 的 symbol identity 綁定，舊報告數字因此無法區分「可驗證」與「已漂移」。
+- `#最小變更` / `#責任`：只新增三個 exact label mapping 到 `global_market_context.items[twii/twdx/clf].latest`，保留 `WTI` bare alias 不自動推測；snapshot 的 symbol path 仍由既有 flatten logic 提供。
+- `#偏誤降低` / `#可驗證性`：RED→GREEN 三個 fixture 覆蓋同值 verified、同 symbol 錯值 mismatch、EWT 同值不可交叉命中，以及 bare WTI 反例；live `USD/TWD` 在 tolerance 內 verified，Taiwan Index/WTI 舊值轉為 mismatch，既有人工審核邊界保留。
+- `#可驗證性` / `#責任`：evidence gate `65 passed`、品質/evidence/conformance `1048 passed`、import boundary `504 passed`、HCS/docs `136 passed`，line guard `evidence_exit_gate.py=349`。正式 reload 後 live `165` 份為 evidence `135/24/6`、claims `433 verified / 139 unverifiable / 8 mismatch`、content `80/77/8`、conformance `75/77/13`；healthz/readyz、doctor canonical paths、RQ queue depth `0` 與 failed_recent `0` 通過，未寫入 artifact、snapshot、index、review、rerun、repair 或 queue。
+
 ## D3694 / map paired English 52-week-low evidence
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`2885.TW/v4` 的 `52-week high: 72.3 / low: 31.7476` 被拆成 `week high` 與 bare `low`；snapshot 有 `data.week_52_low=31.747572`，但單獨 `low` 沒有足夠語意保證。
