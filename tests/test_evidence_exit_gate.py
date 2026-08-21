@@ -412,6 +412,45 @@ def test_evidence_gate_does_not_match_operating_cash_flow_to_free_cash_flow():
     assert claim["verification_reason_code"] == "no_matching_snapshot_path"
 
 
+def test_evidence_gate_matches_pe_river_band_to_its_multiple_specific_snapshot_path():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 43.2x (中高分位帶)：29.38 TWD",
+        {
+            "data": {
+                "pe_river_chart": {
+                    "bands": {"43.2x": [None, 10.96, -9.07, 42.52, 29.38]},
+                    "multiples": [18.9, 33.9, 43.2, 67.1],
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+    claim = result["sampled_claims"][0]
+
+    assert result["verdict"] == "approved"
+    assert claim["status"] == "verified"
+    assert claim["matched_path"] == "data.pe_river_chart.bands.43.2x[4]"
+
+
+def test_evidence_gate_does_not_match_pe_river_band_to_multiples_or_generic_pe():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 43.2x (中高分位帶)：29.38 TWD",
+        {"data": {"pe_river_chart": {"multiples": [29.38]}, "pe_ratio": 29.38}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+    claim = result["sampled_claims"][0]
+
+    assert claim["status"] == "unverifiable"
+    assert claim["matched_path"] == ""
+    assert claim["verification_reason_code"] == "no_matching_snapshot_path"
+
+
 def test_evidence_gate_uses_canonical_value_for_structured_target_text():
     from evidence_exit_gate import evaluate_report_evidence
 

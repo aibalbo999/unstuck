@@ -225,6 +225,8 @@ KV claim 的 label 後若立即接 `8/17 - 8/18`、`8-17` 這類月日範圍，�
 
 `PE River Chart` 的分位數 claim 只可對應 `data.pe_river_chart.multiples`，不可與一般 `data.pe_ratio` 互借；若 snapshot 沒有該專用欄位，仍維持 `unverifiable`，不以數值相同作為來源證明。
 
+PE River Chart 的 band claim 也必須保留倍數身份；例如 `43.2x（中高分位帶）` 只可對應 `data.pe_river_chart.bands.43.2x` 下的數值，不可跨到其他 band、`multiples` 或一般 P/E 值。
+
 `Operating Cash Flow` claim 只可對應 `data.operating_cash_flow`；`Free Cash Flow` 是不同語意，不能因 B 單位或數值相同而互相核驗。快照若只有 `operating_cash_flow_raw`，沒有可讀的同單位欄位，仍需人工確認。
 
 Provider and field semantics are also part of the evidence boundary: FactSet/券商研究 references cannot be compared with generic DCF or another provider's values; Forward PE, EPS-derived growth, net margin, scenario/risk prices, and ticker identifiers use separate paths. A structured target string contributes only its canonical first value after removing a leading horizon such as `52 週`; later breakout/support references are not silently treated as the same field. A remaining `mismatch` therefore means a comparable canonical value differs and requires review, while absent provider/field evidence remains `unverifiable`.

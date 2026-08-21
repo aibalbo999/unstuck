@@ -252,6 +252,7 @@ flowchart TD
 - `evidence_exit_gate.extract_numeric_claims()` 對 KV label 後接的月日範圍（例如 `08/17 - 08/18`）採 conservative non-claim guard，避免日期前綴被當成 scalar；這不放寬有單位數值或 canonical field 的核驗，也不改 snapshot/artifact。
 - `evidence_exit_gate._is_non_claim_match()` 對資料截止／抓取 metadata 的 `HH:MM` 分鐘 token 採同樣 conservative guard，只有 label 具有時間 metadata 語意且數字前緊接小時冒號時排除，避免時間欄位污染 evidence sample。
 - `evidence_exit_gate` 對 `River Chart` claim 使用專用 `pe_river_chart.multiples` path hint，放在泛用 P/E hint 之前；這保留一般 P/E、River Chart 與其他 valuation fields 的來源邊界，不做最近數字 fallback。
+- River Chart band claim 會從 raw text 保留倍數身份，例如 `43.2x（中高分位帶）` 映射到 `pe_river_chart.bands.43.2x`；不以整個 bands、multiples 或 generic P/E 的最近數字替代。
 - `evidence_exit_gate` 對 `Operating Cash Flow` 使用專用 `operating_cash_flow` path hint，與 `Free Cash Flow` 分開；只有同語意 snapshot path 可核驗，不因 B 單位或數值相同跨欄位配對。
 - `evidence_exit_gate.extract_numeric_claims()` 對明確標示 EPS／每股盈餘的 claim，優先取與 EPS 語句相連的數值，避免「7 月底」等日期 token 被記成 EPS；一般 label 的既有 key-value 取值不變。修正抽取邊界不會把 `26` 對快照現有 EPS 值的真實 mismatch 降成通過，仍由 evidence gate 保留 `caution` 供人工核對。
 - `content_credibility_inputs.first_price()` 先移除明確日曆日期與週期數字（包含 `8/18`、完整日期，以及 `1-2週`、`1至2週`、`1 to 2 weeks` 這類期間範圍），再呼叫既有價格 parser，避免交易計畫的日期／週期 token 污染目標價或停損價；同一 input boundary 另保留 `price_candidates()`，讓 mode-D 對多個非區間情境價格產生 read-only `ambiguous_trade_setup_price_inputs` warning 與候選值，明確兩端價格區間則維持合法。Neutral 政策、snapshot、index、artifact、gate persistence 或 queue 不因此改寫。

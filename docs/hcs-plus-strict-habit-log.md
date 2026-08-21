@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3712 / bind PE River band to multiple-specific path
+
+- `#拆解問題` / `#問對問題` / `#語意含義`：`2367.TW/v2` 的 `43.2x（中高分位帶）：29.38 TWD` 是特定倍數下的 band value，不是任意 P/E 或 River Chart multiples 值；若只按數值找最近 band，可能跨 band 誤配。
+- `#最小變更` / `#偏誤降低` / `#責任`：從 raw claim 保留 `43.2x` 身份，建立 `pe_river_chart.bands.43.2x` path marker；multiples、其他 band 與 generic P/E 同值均維持不可互借。
+- `#可驗證性` / `#來源品質`：RED→GREEN 覆蓋 exact band 正例與 multiples/generic P/E 反例；focused evidence `99 passed`、品質/evidence/conformance `1082 passed`、import `504 passed`、HCS/docs `136 passed`、line guard `349`、py_compile 通過。正式 reload 後 target 命中 `data.pe_river_chart.bands.43.2x[4]`，diff `0.0%`、`verified`；全量 164 份為 evidence `134 approved / 26 caution / 4 rejected`，`missing_semantic_path=50`，其他 mismatch 與人工確認邊界保留。
+
 ## D3711 / bind Operating Cash Flow to dedicated field
 
 - `#拆解問題` / `#問對問題` / `#語意含義`：`1623.TW/v3` 的 `Operating Cash Flow: -0.1898B` 是營業現金流，不是 `Free Cash Flow`；snapshot 同時提供兩個不同欄位，不能因數值或 B 單位相似而跨欄位核驗。
