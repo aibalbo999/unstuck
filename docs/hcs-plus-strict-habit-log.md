@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3758 / classify explicitly unavailable short-balance evidence
+
+- `#拆解問題` / `#差距分析` / `#來源品質`：full artifact audit 的唯一窄 residual 是 `6141.TW/v4` `Short Balance: 0 (or null/not provided as a significant number)`；snapshot 的 `short_balance` 真實為 `None`，所以「沒有 candidate」代表來源不可用，不是數字 0 或錯誤 path。
+- `#偏誤辨識` / `#偏誤降低` / `#限制條件`：只在 `short_balance` marker、原文明示 null／N/A／not provided／unavailable、且 canonical candidate 為空時輸出 `snapshot_field_unavailable`；一般 short balance 仍照既有 exact path verified，margin／borrowed-short／其他籌碼欄位不借用。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED，再 GREEN；focused `2 passed`、完整 evidence `178 passed`、HCS/docs/import `639 passed`，line guard `349`、`py_compile`、`git diff --check` 通過。full artifact `164/2515` 維持 `1634 verified / 743 unverifiable / 138 mismatch`，`no_matching_snapshot_path` `135→134` 並新增 `snapshot_field_unavailable=1`；本批不改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3757 / surface evidence reason counts in current-quality views
 
 - `#拆解問題` / `#差距分析` / `#受眾`：current-quality summary 只有「證據關卡需注意幾份」，但 persisted gate 已有 `unverifiable_reason_counts`；watchlist target 也只顯示 conformance reason，操作員無法快速分流數值 mismatch 與研究來源邊界。

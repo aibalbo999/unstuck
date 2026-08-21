@@ -135,6 +135,7 @@ def test_evidence_gate_accepts_markdown_emphasis_between_label_and_value():
 
     assert result["verdict"] == "approved"
     assert result["unverifiable_count"] == 0
+    assert all(item["status"] == "verified" for item in result["sampled_claims"])
     assert all(claim["status"] == "verified" for claim in result["sampled_claims"])
 
 
@@ -1380,6 +1381,31 @@ def test_evidence_gate_matches_margin_flow_and_borrowed_short_balance():
     assert result["verdict"] == "approved"
     assert result["unverifiable_count"] == 0
     assert all(item["status"] == "verified" for item in result["sampled_claims"])
+
+
+def test_evidence_gate_classifies_explicitly_unavailable_short_balance():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- Short Balance: 0 (or null/not provided as a significant number).",
+        {
+            "data": {
+                "chip_data": {
+                    "twse_margin_short_sales": {
+                        "short_balance": None,
+                    }
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "unverifiable"
+    assert claim["verification_reason_code"] == "snapshot_field_unavailable"
+    assert claim["candidate_count"] == 0
+    assert result["unverifiable_reason_counts"] == {"snapshot_field_unavailable": 1}
 
 
 def test_evidence_gate_preserves_comma_grouped_integer_before_sentence_punctuation():
