@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3736 / map compact English last-5 institutional net-buy labels
+
+- `#拆解問題` / `#差距分析`：full artifact audit 找到 `6505.TW/v4` 的 `Last 5 days Net Buy: 22,514.34k` 與 snapshot 的 `institutional_trading.last_5_trading_days_net_buy_thousand_shares=22514.34` 一致，但 normalized label `last5daysnetbuy` 沒有命中既有 alias。
+- `#偏誤辨識` / `#偏誤降低` / `#來源品質`：只新增 compact English alias 到專用 5-day institutional path；即使與 `total_net_buy_thousand_shares` 同值也不跨欄位核驗，缺少專用 field、daily value 或其他 institutional category 仍保留人工確認。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED，再 GREEN；focused `5 passed`、完整 evidence `133 passed`、品質 `1131 passed`、import/docs `640 passed`、`py_compile`、`git diff --check` 與 line guard `349` 通過，full artifact 為 `2510 claims: 1605 verified / 771 unverifiable / 134 mismatch`，reason `missing_semantic_path=139`；正式 reload 後 live API 直接驗證目標 claim 為 `verified → data.institutional_trading.last_5_trading_days_net_buy_thousand_shares=22514.34`，整份報告維持 `caution`，current quality 為 evidence `135/26/3`、content `99/57/8`、conformance `80/74/10`，health/ready `ok/ready`、doctor canonical paths 與 queue depth `0`、failed_recent `0`、failed_stale `10` 通過，未改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3735 / map explicit monthly close evidence for prior-high labels
 
 - `#拆解問題` / `#差距分析`：full artifact audit 找到 `6278.TW/v4` 的 `波段前高：214.85 TWD（2026 年 5 月收盤價）` 與 `price_history` 的 2026-05 月末值一致，但 month-end matcher 漏掉 `前高` label，造成 canonical claim 落到 `missing_semantic_path`。

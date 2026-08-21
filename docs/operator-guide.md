@@ -227,6 +227,8 @@ KV claim 的 label 後若立即接 `8/17 - 8/18`、`8-17` 這類月日範圍，�
 
 編號式、階段式或防線標籤（例如 `波段壓力二`、`支撐二`、`長期防線`）只有在同一 claim 明寫 `52 週最高價`／`52 週最低價`，且數值與 `data.week_52_high`／`data.week_52_low` 一致時，才會核驗到週高低點來源。沒有 52 週高低點文字的編號壓力／支撐／防線，仍顯示為 `unverifiable`，請人工確認，不要依標籤自行推定來源。
 
+英文 `Last 5 days Net Buy` 只可核對 `data.institutional_trading.last_5_trading_days_net_buy_thousand_shares`；即使數值剛好等於 30 天 `total_net_buy_thousand_shares`，也不能跨欄位借用。snapshot 沒有專用 5 日欄位時，請保留 `unverifiable`。
+
 資料截止／抓取 metadata 中的 `HH:MM` 分鐘 token（例如 `2026-08-19 07:50`）也不是投資 claim；只有在 label 明示資料時間語意時排除，避免把分鐘數誤認為數值欄位，其他時間以外的 scalar claim 不受影響。
 
 `PE River Chart` 的分位數 claim 只可對應 `data.pe_river_chart.multiples`，不可與一般 `data.pe_ratio` 互借；若 snapshot 沒有該專用欄位，仍維持 `unverifiable`，不以數值相同作為來源證明。

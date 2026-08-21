@@ -2189,6 +2189,48 @@ def test_evidence_gate_matches_labelled_institutional_last_5_net_buy_path():
     assert result["sampled_claims"][0]["matched_path"] == "data.institutional_trading.last_5_trading_days_net_buy_thousand_shares"
 
 
+def test_evidence_gate_matches_compact_last_5_days_net_buy_alias():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* Last 5 days Net Buy: 22,514.34k.",
+        {
+            "data": {
+                "institutional_trading": {
+                    "last_5_trading_days_net_buy_thousand_shares": 22514.34,
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "approved"
+    assert claim["status"] == "verified"
+    assert claim["matched_path"] == "data.institutional_trading.last_5_trading_days_net_buy_thousand_shares"
+
+
+def test_evidence_gate_does_not_verify_last_5_days_alias_from_total_only():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* Last 5 days Net Buy: 22,514.34k.",
+        {
+            "data": {
+                "institutional_trading": {
+                    "total_net_buy_thousand_shares": 22514.34,
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["sampled_claims"][0]["status"] == "unverifiable"
+    assert result["sampled_claims"][0]["matched_path"] != "data.institutional_trading.total_net_buy_thousand_shares"
+
+
 def test_evidence_gate_matches_dealer_label_to_category_path():
     from evidence_exit_gate import evaluate_report_evidence
 
