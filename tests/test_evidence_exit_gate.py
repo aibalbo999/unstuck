@@ -1110,6 +1110,37 @@ def test_evidence_gate_does_not_cross_match_english_week_high_to_week_low():
     assert result["sampled_claims"][0]["matched_path"] == ""
 
 
+def test_evidence_gate_matches_paired_english_week_low_to_canonical_field():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 52-week high: 72.3 / low: 31.7476.",
+        {"data": {"week_52_high": 72.3, "week_52_low": 31.747572}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "approved"
+    claims = {claim["label"]: claim for claim in result["sampled_claims"]}
+    assert claims["week high"]["matched_path"] == "data.week_52_high"
+    assert claims["low"]["status"] == "verified"
+    assert claims["low"]["matched_path"] == "data.week_52_low"
+
+
+def test_evidence_gate_keeps_bare_low_label_unverifiable():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- low: 31.7476.",
+        {"data": {"week_52_low": 31.747572}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["sampled_claims"][0]["status"] == "unverifiable"
+    assert result["sampled_claims"][0]["matched_path"] == ""
+
+
 def test_evidence_gate_matches_latest_annual_net_income_growth_path():
     from evidence_exit_gate import evaluate_report_evidence
 

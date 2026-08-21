@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3694 / map paired English 52-week-low evidence
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`2885.TW/v4` 的 `52-week high: 72.3 / low: 31.7476` 被拆成 `week high` 與 bare `low`；snapshot 有 `data.week_52_low=31.747572`，但單獨 `low` 沒有足夠語意保證。
+- `#最小變更` / `#責任`：只在同一 raw claim 明示 `52-week high ... / low ...` 時把 `low` 綁到 `data.week_52_low`；獨立 `low` fixture 保持 unverifiable，不使用最近數字或其他低點欄位 fallback。
+- `#偏誤降低` / `#可驗證性`：RED→GREEN 兩個 fixture 鎖定 paired 正例與 bare-label 反例；live reload 後 `2885.TW/v4` low verified，matched path 正確，既有 6 個 mismatch、confidence/情境/派生 claim 的人工覆核邊界不變。`6226` 借券還券因 raw shares 對報告張數的單位差異仍保留人工確認。
+- `#可驗證性` / `#責任`：evidence gate `62 passed`、品質/evidence/conformance `1045 passed`、import boundary `504 passed`、HCS/docs `136 passed`，line guard `evidence_exit_gate.py=349`。正式 reload 後 live `165` 份為 evidence `135/26/4`、claims `432 verified / 142 unverifiable / 6 mismatch`、content `80/77/8`、conformance `75/79/11`；healthz/readyz、doctor canonical paths、RQ queue depth `0` 與 failed_recent `0` 通過，未寫入 artifact、snapshot、index、review、rerun、repair 或 queue。
+
 ## D3693 / map English weekly-high and annual-growth labels
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`4989.TW/v4` 的 `52 Week High: 125.0` 有 `data.week_52_high`，`2308.TW/v1` 的 `Net Income Growth (Latest Annual): 70.6%` 有 `data.latest_annual_net_income_growth`；原 parser 沒有對應英文 label hint。

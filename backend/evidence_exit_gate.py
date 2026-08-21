@@ -281,8 +281,7 @@ def _is_eligible_snapshot_value(item: dict[str, Any]) -> bool:
 def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
     claim_text = str(claim.get("raw_text") or ""); raw_label = str(claim.get("label") or "").lower()
     label = _normalize_match_text(raw_label)
-    if not label:
-        return ()
+    if not label: return ()
     raw_text = _normalize_match_text(claim.get("raw_text"))
     if "factset" in raw_text:
         return ("factset",)
@@ -299,6 +298,7 @@ def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
     if "last_5_trading_days_net_buy_thousand_shares" in raw_text or label == "last5tradingdaysnetbuy": return ("institutional_trading.last_5_trading_days_net_buy_thousand_shares",)
     if label in ("週高點", "週低點", "壓力位", "支撐位", "近期壓力", "關鍵壓力位") and str(claim.get("unit") or "").lower() in ("twd", "元") and (week_match := next((match for match in re.finditer(r"(?:(?:52\s*週|52週)\s*(?P<after>最高|最低|高|低)(?:點|價)?\s*[:：為=]?\s*(?:NT\$|\$)?(?P<after_num>-?\d[\d,]*(?:\.\d+)?)|(?P<before_num>-?\d[\d,]*(?:\.\d+)?)\s*(?:TWD|元)?\s*[*_`]*\s*[（(]?\s*[。．]?\s*(?:此為|為|是)?\s*(?:52\s*週|52週)\s*(?P<before>最高|最低|高|低)(?:點|價)?)", str(claim.get("raw_text") or ""), re.IGNORECASE) if _clean_number(match.group("after_num") or match.group("before_num")) == float(claim.get("reported_value") or 0)), None)): return ("week_52_high",) if (week_match.group("after") or week_match.group("before")) in ("高", "最高") else ("week_52_low",)
     if (source_match := re.search(r"(-?\d[\d,]*(?:\.\d+)?)\s*(?:TWD|元)?\s*[（(]?\s*`?(?:data\.)?(market_data\.week_52_(?:high|low)_twd)", str(claim.get("raw_text") or ""), re.IGNORECASE)) and _clean_number(source_match.group(1)) == float(claim.get("reported_value") or 0): return ("week_52_high",) if "week_52_high_twd" in raw_text else ("week_52_low",)
+    if label == "low" and re.search(r"52\s*[- ]?week\s+high\s*[:：].*[/,]\s*low\s*[:：]", claim_text, re.IGNORECASE): return ("week_52_low",)
     if label == "最新餘額": return ("margin_balance",) if ("融資餘額" in raw_text or "marginbalance" in raw_text or "融資餘額" in _normalize_match_text(claim.get("context_text"))) else ("short_balance",) if ("融券餘額" in raw_text or "shortbalance" in raw_text or "融券餘額" in _normalize_match_text(claim.get("context_text"))) else ()
     if any(marker in raw_text for marker in ("熊市", "牛市")): return ("stop_loss", "support", "resistance", "risk_price", "price_target", "price_targets", "target_price", "scenario", "scenarios")
     for label_markers, path_markers in _FIELD_HINTS:
