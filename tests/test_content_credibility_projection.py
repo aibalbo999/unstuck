@@ -92,6 +92,30 @@ def test_projection_merge_drops_resolved_trade_setup_warning():
     assert result["warnings"] == []
 
 
+def test_projection_merge_drops_stale_evidence_alignment_issue_when_current_gate_is_approved():
+    from reporting.content_credibility_projection import merge_content_credibility_results
+
+    result = merge_content_credibility_results(
+        {
+            "status": "warning",
+            "warnings": [{"id": "non_approved_evidence_gate", "message": "舊的 evidence warning"}],
+            "checks": [{"id": "confidence_evidence_alignment", "status": "warning"}],
+        },
+        {
+            "status": "passed",
+            "warnings": [],
+            "checks": [{
+                "id": "confidence_evidence_alignment",
+                "status": "passed",
+                "details": {"evidence_verdict": "approved"},
+            }],
+        },
+    )
+
+    assert result["status"] == "passed"
+    assert result["warnings"] == []
+
+
 def test_projection_merge_prefers_current_issue_details_over_stale_recorded_details():
     from reporting.content_credibility_projection import merge_content_credibility_results
 

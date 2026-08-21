@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from mapping_fields import safe_text
+from mapping_fields import safe_mapping_dict, safe_text
 from .text_tokens import is_missing_text_token
 
 
@@ -32,7 +32,12 @@ def _check(check_id: str, status: str, message: str, details: dict | None = None
     return result
 
 
-def evaluate_confidence_evidence_alignment(evidence_verdict: Any, confidence_score: float | None) -> dict:
+def _evidence_details(base: dict, evidence_details: Any) -> dict:
+    gate = safe_mapping_dict(evidence_details) or {}
+    return {**base, **{f"evidence_{key}": gate[key] for key in ("claim_count", "sampled_count", "failed_count", "unverifiable_count", "unverifiable_reason_counts") if key in gate}}
+
+
+def evaluate_confidence_evidence_alignment(evidence_verdict: Any, confidence_score: float | None, evidence_details: Any = None) -> dict:
     """Evaluate whether stated confidence is compatible with evidence-gate status."""
     evidence_verdict = _normalized_evidence_verdict(evidence_verdict)
     blocking: list[dict] = []
@@ -40,7 +45,7 @@ def evaluate_confidence_evidence_alignment(evidence_verdict: Any, confidence_sco
     checks: list[dict] = []
 
     if evidence_verdict == "rejected" and confidence_score is not None and confidence_score >= HIGH_CONFIDENCE_MIN_SCORE:
-        details = {"evidence_verdict": evidence_verdict, "confidence_score": confidence_score}
+        details = _evidence_details({"evidence_verdict": evidence_verdict, "confidence_score": confidence_score}, evidence_details)
         issue = _issue(
             "high_confidence_rejected_evidence",
             "證據抽查 rejected，但最終結論仍給出高信心。",
@@ -49,7 +54,7 @@ def evaluate_confidence_evidence_alignment(evidence_verdict: Any, confidence_sco
         blocking.append(issue)
         checks.append(_check("confidence_evidence_alignment", "blocked", issue["message"], details))
     elif evidence_verdict == "not_recorded" and confidence_score is not None and confidence_score >= HIGH_CONFIDENCE_MIN_SCORE:
-        details = {"evidence_verdict": evidence_verdict, "confidence_score": confidence_score}
+        details = _evidence_details({"evidence_verdict": evidence_verdict, "confidence_score": confidence_score}, evidence_details)
         issue = _issue(
             "high_confidence_unrecorded_evidence",
             "證據抽查尚未記錄，但最終結論仍給出高信心。",
@@ -58,7 +63,7 @@ def evaluate_confidence_evidence_alignment(evidence_verdict: Any, confidence_sco
         warnings.append(issue)
         checks.append(_check("confidence_evidence_alignment", "warning", issue["message"], details))
     elif evidence_verdict not in {"approved", "not_recorded"}:
-        details = {"evidence_verdict": evidence_verdict, "confidence_score": confidence_score}
+        details = _evidence_details({"evidence_verdict": evidence_verdict, "confidence_score": confidence_score}, evidence_details)
         warnings.append(_issue("non_approved_evidence_gate", "證據抽查未完全通過，內容可信度需人工確認。", details))
         checks.append(_check("confidence_evidence_alignment", "warning", "證據抽查未完全通過。", details))
     else:

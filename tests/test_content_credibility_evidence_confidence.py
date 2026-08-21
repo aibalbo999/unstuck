@@ -29,6 +29,29 @@ def test_evidence_confidence_warns_for_non_approved_gate():
     assert result["checks"][0]["status"] == "warning"
 
 
+def test_evidence_confidence_exposes_compact_gate_diagnostics_for_non_approved_gate():
+    result = evaluate_confidence_evidence_alignment(
+        "caution",
+        6.0,
+        {
+            "claim_count": 12,
+            "sampled_count": 3,
+            "failed_count": 0,
+            "unverifiable_count": 2,
+            "unverifiable_reason_counts": {"no_matching_snapshot_path": 2},
+            "sampled_claims": [{"raw_text": "不要把明細帶進 warning"}],
+        },
+    )
+
+    details = result["warnings"][0]["details"]
+    assert details["evidence_claim_count"] == 12
+    assert details["evidence_sampled_count"] == 3
+    assert details["evidence_failed_count"] == 0
+    assert details["evidence_unverifiable_count"] == 2
+    assert details["evidence_unverifiable_reason_counts"] == {"no_matching_snapshot_path": 2}
+    assert "sampled_claims" not in details
+
+
 def test_evidence_confidence_treats_string_empty_tokens_as_not_recorded():
     result = evaluate_confidence_evidence_alignment("NaN", 9.0)
 

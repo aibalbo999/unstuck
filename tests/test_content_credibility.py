@@ -192,6 +192,26 @@ def test_content_credibility_blocks_high_confidence_when_evidence_is_rejected():
     assert any(issue["id"] == "high_confidence_rejected_evidence" for issue in result["blocking_issues"])
 
 
+def test_content_credibility_carries_evidence_reason_summary_into_non_approved_warning():
+    from reporting.content_credibility import evaluate_content_credibility
+
+    context = _base_context(recommendation="持有", target_12m="NT$105", confidence="6/10")
+    snapshot = _base_snapshot(context, evidence_verdict="caution")
+    snapshot["evidence_exit_gate"].update(
+        claim_count=12,
+        sampled_count=3,
+        failed_count=0,
+        unverifiable_count=2,
+        unverifiable_reason_counts={"no_matching_snapshot_path": 2},
+    )
+
+    result = evaluate_content_credibility(context, snapshot)
+
+    issue = next(issue for issue in result["warnings"] if issue["id"] == "non_approved_evidence_gate")
+    assert issue["details"]["evidence_unverifiable_reason_counts"] == {"no_matching_snapshot_path": 2}
+    assert issue["details"]["evidence_failed_count"] == 0
+
+
 def test_content_credibility_warns_high_confidence_when_evidence_is_unrecorded():
     from reporting.content_credibility import evaluate_content_credibility
 

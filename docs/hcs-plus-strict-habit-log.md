@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3723 / align evidence credibility warnings with current read-only gates
+
+- `#拆解問題` / `#差距分析`：current evidence projection 已是 `approved`，但 recorded content credibility 仍可能殘留 `non_approved_evidence_gate`；問題在 merge 的 stale issue 邊界，而不是 evidence gate 本身失敗。
+- `#來源品質` / `#可驗證性` / `#偏誤降低`：warning 只加入 compact claim counts 與 unverifiable reason counts，不複製 sampled claim 原文；只有 current alignment passed 且 evidence approved 才 suppress 三個 evidence-alignment issue，caution／rejected 不被隱藏。
+- `#責任`：RED→GREEN focused content `6 passed`、projection `10 passed`、完整品質/evidence/conformance `1103 passed`、import `504 passed`、docs `136 passed`、`py_compile`、`git diff --check` 通過。reload 後 live 全量 `164` 份為 content `99/57/8`、conformance `80/74/10`、evidence `135/26/3`；`non_approved_evidence_gate` `36→29`，`1102.TW/v4` 的 approved projection 不再帶 stale issue，remaining caution 保留摘要。healthz/readyz `ok/ready`、queue depth `0`、failed_recent `0`，未修改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3722 / explain legacy conclusions without persisted canonical context
 
 - `#拆解問題` / `#差距分析` / `#來源品質`：live `v1/v2/v3` legacy snapshot 的短／中／長期目標與長期潛力數字仍存在 Markdown，但 `rerun_context.parsed`、`structured_outputs` 都是空值；它們不是可以借用同值數字的 canonical evidence，也不應和一般 mapping 缺口混在一起。

@@ -70,7 +70,7 @@ def evaluate_content_credibility(context: dict, snapshot: dict | None = None, ma
         evaluate_confidence_data_trust_calibration(
             context=context, recommendation=recommendation, data_trust=data_trust
         ),
-        evaluate_confidence_evidence_alignment(evidence_verdict, confidence_score),
+        evaluate_confidence_evidence_alignment(evidence_verdict, confidence_score, evidence_gate),
         evaluate_evidence_matrix_coverage(
             context=context, snapshot=snapshot, recommendation_present=bool(recommendation)
         ),

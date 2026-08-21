@@ -29,6 +29,7 @@ _TRADE_SETUP_ISSUE_IDS = frozenset(
         "short_stop_not_above_current_price",
     }
 )
+_EVIDENCE_ALIGNMENT_ISSUE_IDS = frozenset({"high_confidence_rejected_evidence", "high_confidence_unrecorded_evidence", "non_approved_evidence_gate"})
 
 
 def project_content_credibility(snapshot: Any) -> dict[str, Any] | None:
@@ -76,7 +77,7 @@ def project_evidence_confidence_alignment(snapshot: Any, recorded: Any) -> dict[
         recommendation = safe_mapping_dict(parsed.get("recommendation")) or {}
         confidence = recommendation_confidence_score(recommendation)
 
-    alignment = evaluate_confidence_evidence_alignment(evidence_gate.get("verdict"), confidence)
+    alignment = evaluate_confidence_evidence_alignment(evidence_gate.get("verdict"), confidence, evidence_gate)
     blocking = alignment["blocking_issues"]
     warnings = alignment["warnings"]
     status = "blocked" if blocking else "warning" if warnings else "passed"
@@ -200,13 +201,21 @@ def merge_content_credibility_results(recorded: Any, projected: Any) -> dict[str
 
 
 def _resolved_trade_setup_issue_ids(projected: dict[str, Any]) -> frozenset[str]:
+    resolved: set[str] = set()
     for check in safe_dict_list(projected.get("checks")):
         if (
             safe_text(check.get("id")).strip() == "trade_setup_alignment"
             and safe_text(check.get("status")).strip().lower() == "passed"
         ):
-            return _TRADE_SETUP_ISSUE_IDS
-    return frozenset()
+            resolved.update(_TRADE_SETUP_ISSUE_IDS)
+        details = safe_mapping_dict(check.get("details")) or {}
+        if (
+            safe_text(check.get("id")).strip() == "confidence_evidence_alignment"
+            and safe_text(check.get("status")).strip().lower() == "passed"
+            and safe_text(details.get("evidence_verdict")).strip().lower() == "approved"
+        ):
+            resolved.update(_EVIDENCE_ALIGNMENT_ISSUE_IDS)
+    return frozenset(resolved)
 
 
 def _merge_issues(*values: Any, suppressed_ids: frozenset[str] = frozenset()) -> list[dict[str, Any]]:
