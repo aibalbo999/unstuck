@@ -309,7 +309,7 @@ def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
     if label == "low" and re.search(r"52\s*[- ]?week\s+high\s*[:：].*[/,]\s*low\s*[:：]", claim_text, re.IGNORECASE): return ("week_52_low",)
     if label == "最新餘額": return ("margin_balance",) if ("融資餘額" in raw_text or "marginbalance" in raw_text or "融資餘額" in _normalize_match_text(claim.get("context_text"))) else ("short_balance",) if ("融券餘額" in raw_text or "shortbalance" in raw_text or "融券餘額" in _normalize_match_text(claim.get("context_text"))) else ()
     if ((label == "x中高分位帶" and (band_match := re.search(r"(?P<multiple>\d[\d,]*(?:\.\d+)?)\s*x", str(claim.get("raw_text") or ""), re.IGNORECASE))) or (label in ("關鍵壓力", "關鍵壓力位") and str(claim.get("unit") or "").lower() in ("twd", "元") and any(marker in raw_text for marker in ("52週最高價", "week52high")))): return (f"pe_river_chart.bands.{band_match.group('multiple')}x",) if label == "x中高分位帶" else ("week_52_high",)
-    if any(marker in raw_text for marker in ("熊市", "牛市")): return ("stop_loss", "support", "resistance", "risk_price", "price_target", "price_targets", "target_price", "scenario", "scenarios")
+    if (has_news_source and has_price_unit and any(_normalize_match_text(marker) in label for marker in ("支撐", "壓力", "關卡", "風險"))) or any(marker in raw_text for marker in ("熊市", "牛市")): return () if (has_news_source and has_price_unit and any(_normalize_match_text(marker) in label for marker in ("支撐", "壓力", "關卡", "風險"))) else ("stop_loss", "support", "resistance", "risk_price", "price_target", "price_targets", "target_price", "scenario", "scenarios")
     for label_markers, path_markers in _FIELD_HINTS:
         if any(_label_matches_marker(raw_label, label, marker) for marker in label_markers):
             return path_markers

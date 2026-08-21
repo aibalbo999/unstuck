@@ -304,6 +304,23 @@ def test_evidence_gate_does_not_match_confidence_to_unrelated_snapshot_numbers()
     assert result["unverifiable_reason_counts"] == {"no_matching_snapshot_path": 1}
 
 
+def test_evidence_gate_does_not_bind_news_support_or_pressure_to_risk_price():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 近期壓力: 55.8 TWD（根據 `market_catalysts` 新聞）\n"
+        "- 近期支撐: 31.75 TWD（參考 `recent_catalysts` 提及價位）",
+        {"data": {"risk_price": 55.8, "price_history": {"dates": ["2026-07-30"], "prices": [31.75]}}},
+        sample_ratio=1.0,
+        min_sample=2,
+    )
+
+    assert result["verdict"] == "caution"
+    assert result["unverifiable_count"] == 2
+    assert all(claim["status"] == "unverifiable" for claim in result["sampled_claims"])
+    assert all(claim["verification_reason_code"] == "missing_semantic_path" for claim in result["sampled_claims"])
+
+
 def test_evidence_gate_reports_missing_semantic_path_for_unknown_numeric_labels():
     from evidence_exit_gate import evaluate_report_evidence
 

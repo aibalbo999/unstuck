@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3715 / keep news prices out of canonical risk fields
+
+- `#拆解問題` / `#差距分析` / `#來源品質`：`8438.TW/v4` 的 `55.8 TWD` 與 `2491.TW/v4` 的 `31.75 TWD` 都明示來自新聞／`market_catalysts`，不能因 snapshot 恰有同值就證明它們是 canonical `risk_price`。
+- `#偏誤辨識` / `#偏誤降低` / `#可驗證性`：RED regression 複現「新聞支撐／壓力值被 risk_price verified」；新增只針對新聞來源與支撐／壓力／關卡／風險語意的 source guard，52 週高低點與 River Chart 專用 mapping 保留。
+- `#責任`：RED→GREEN focused evidence `102 passed`、品質/evidence/conformance `1085 passed`、import `504 passed`、line guard `349`、py_compile 通過。正式 reload 後全量 `135 approved / 25 caution / 4 rejected`，sampled `433 verified / 120 unverifiable / 11 mismatch`；三筆 v4 新聞價格均維持 `unverifiable`，未修改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3714 / exclude compact month-day metadata claims
 
 - `#拆解問題` / `#差距分析` / `#來源品質`：live `1102.TW/v4` 的 `08/17法說會後` 被誤判成 `8.0`，污染「核心催化劑」的 evidence sample；這是日期 metadata，不是投資數值。

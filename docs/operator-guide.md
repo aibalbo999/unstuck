@@ -221,6 +221,8 @@ Report evidence exit gate numeric checks use semantic snapshot paths only: ISO t
 
 KV claim 的 label 後若立即接 `8/17 - 8/18`、`8-17` 這類月日範圍，日期 token 會被排除，不會被誤當成法人數量、價格或其他 scalar claim；`08/17法說會後` 這種日期後直接接中文／英文文字的 compact token 也會排除。日期後真正帶單位的數值仍需依既有 semantic path 規則核驗；第三位數字仍會阻止日期判定。
 
+支撐／壓力／關卡／風險價格若明示來自新聞、`market_catalysts` 或 `recent_catalysts`，evidence gate 會保留為人工確認，不因同值出現在 `data.risk_price` 或 `price_history` 就判定為 verified；明示 52 週高低點或 River Chart band 的專用來源仍依各自 semantic path 核驗。
+
 資料截止／抓取 metadata 中的 `HH:MM` 分鐘 token（例如 `2026-08-19 07:50`）也不是投資 claim；只有在 label 明示資料時間語意時排除，避免把分鐘數誤認為數值欄位，其他時間以外的 scalar claim 不受影響。
 
 `PE River Chart` 的分位數 claim 只可對應 `data.pe_river_chart.multiples`，不可與一般 `data.pe_ratio` 互借；若 snapshot 沒有該專用欄位，仍維持 `unverifiable`，不以數值相同作為來源證明。
