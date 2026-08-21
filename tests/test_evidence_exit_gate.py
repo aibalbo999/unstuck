@@ -591,6 +591,50 @@ def test_evidence_gate_binds_explicit_price_history_claims_to_reported_date():
     assert wrong_date["sampled_claims"][0]["matched_path"] == "data.price_history[2026-05-29].prices[0]"
 
 
+def test_evidence_gate_binds_dated_price_claim_without_field_marker():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **近期高點壓力**：659.0 元（2026 年 6 月 30 日收盤價）。",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2026-05-29", "2026-06-30"],
+                    "prices": [587.97, 659.0],
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["sampled_claims"][0]["status"] == "verified"
+    assert result["sampled_claims"][0]["matched_path"] == "data.price_history[2026-06-30].prices[1]"
+
+
+def test_evidence_gate_does_not_bind_dated_news_pressure_to_close_history():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **近期壓力**：55.8 TWD（根據 2026-07-30 `market_catalysts` 新聞）。",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2026-07-30"],
+                    "prices": [53.7],
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "caution"
+    assert result["sampled_claims"][0]["status"] == "unverifiable"
+    assert result["sampled_claims"][0]["matched_path"] == ""
+
+
 def test_evidence_gate_matches_explicit_institutional_total_net_buy_path():
     from evidence_exit_gate import evaluate_report_evidence
 
