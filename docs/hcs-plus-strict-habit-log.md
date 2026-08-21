@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3745 / parse external Previous chip balances without false claims
+
+- `#拆解問題` / `#差距分析`：full artifact audit 找到 `2027.TW/v4` 的 English margin/short balance 行，在 unit 括號後的外置 `Previous:` 被 KV regex 吞成 `thousand shares). Previous=26` 假 claim；真正 `26,504`／`375` 沒有進入 evidence sample。
+- `#偏誤辨識` / `#偏誤降低` / `#來源品質`：只接受 `Margin|Short balance`、主值、括號單位與外置 `Previous` 的完整句型；誤判 label 含括號且以 `Previous` 結尾時略過。前值只走既有 local-context `margin_previous_balance`／`short_previous_balance`，不以同值或鄰近欄位 fallback。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED，再 GREEN；focused `2 passed`、完整 evidence `153 passed`、品質 `1151 passed`、`py_compile`、`git diff --check`、line guard `349` 通過，full artifact `2513 claims: 1620 verified / 756 unverifiable / 137 mismatch`，`missing_semantic_path=124`。正式 reload 後 live API target previous claims verified 到 `data.chip_data.twse_margin_short_sales.margin_previous_balance=26504`／`short_previous_balance=375`，Markdown/data `200/200`、health/ready `200/200`、queue depth `0`；整份目標報告仍保留 `caution` 與其他 claim 的人工確認，本批未改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3744 / map historical high-percentile PE band without generic fallback
 
 - `#拆解問題` / `#差距分析`：full artifact audit 找到 `2367.TW/v2` 的 `67.1x (歷史高分位帶)：45.63 TWD` 與 `data.pe_river_chart.bands.67.1x[4]=45.63` 一致，但既有 matcher 只涵蓋 `中高分位帶`。

@@ -12,7 +12,7 @@ _KV_RE = re.compile(
 )
 _TABLE_CELL_RE = re.compile(
     rf"\|\s*(?P<label>[^|\n]{{1,30}})\s*\|\s*[*_`]*\s*(?:[~約])?(?:NT\$|\$)?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>{_NUMERIC_UNIT_PATTERN})?(?:[.．](?=\s*\|))?(?![\dA-Za-z.])\s*\|"
-); _TABLE_VALUE_LABEL_RE = re.compile(rf"^\s*(?:NT\$|\$)?\s*-?\d[\d,]*(?:\.\d+)?\s*(?:{_NUMERIC_UNIT_PATTERN}|billion[_ ]?twd|million[_ ]?twd|thousand[_ ]?twd)\s*$", re.IGNORECASE)
+); _TABLE_VALUE_LABEL_RE = re.compile(rf"^\s*(?:NT\$|\$)?\s*-?\d[\d,]*(?:\.\d+)?\s*(?:{_NUMERIC_UNIT_PATTERN}|billion[_ ]?twd|million[_ ]?twd|thousand[_ ]?twd)\s*$", re.IGNORECASE); _CHIP_EXTERNAL_PREVIOUS_RE = re.compile(r"(?:Margin|Short)\s+balance\s*:\s*-?\d[\d,]*(?:\.\d+)?\s*\([^)]*\)\s*\.?\s*Previous\s*:\s*(?P<num>-?\d[\d,]*(?:\.\d+)?)", re.IGNORECASE)
 _SECONDARY_EVIDENCE_RE = re.compile(rf"(?:及|與|以及|,|，|/)\s*[*_`]*\s*(?:NT\$|\$)?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>{_NUMERIC_UNIT_PATTERN})?\s*[^。\n]{{0,45}}(?:price_history|market_data|\d{{1,2}}\s*月份?\s*(?:收盤|收盤平台)|\d{{1,2}}\s*月\s*(?:底|末)(?:低點|高點|收盤(?:平台|價)?))[^。\n]{{0,20}}", re.IGNORECASE)
 _NUMBER_IN_STRING_RE = re.compile(r"-?\d[\d,]*(?:\.\d+)?")
 _DATE_PREFIX_RE = re.compile(r"^\s*(?:[（(]|[/.-]\s*\d{1,2}\s*[/.-]\s*\d{1,2}\b)"); _SHORT_DATE_SUFFIX_RE = re.compile(r"^[/.-]\s*\d{1,2}(?!\d)(?=\s*(?:[A-Za-z\u4e00-\u9fff，,；;。]|[-–—]|$))")
@@ -104,6 +104,8 @@ def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
                         continue
                     seen.add(secondary_key); secondary_text = secondary.group(0).strip()
                     claims.append({"id": len(claims) + 1, "label": secondary_label, "reported_value": secondary_number, "unit": (secondary.group("unit") or "").strip(), "line_number": line_number, "raw_text": f"{label}: {secondary_text}"[:160], "secondary_context_text": line})
+        if (previous := _CHIP_EXTERNAL_PREVIOUS_RE.search(line)) and (number := _clean_number(previous.group("num"))) is not None and (key := ("Previous", round(number, 6), line_number)) not in seen:
+            seen.add(key); claims.append({"id": len(claims) + 1, "label": "Previous", "reported_value": number, "unit": "", "line_number": line_number, "raw_text": line[:160]})
     return claims
 def _claim_value(match: re.Match[str], label: str, line: str) -> tuple[float | None, str]:
     """Prefer the value tied to an explicit EPS phrase over a leading date."""
@@ -143,13 +145,11 @@ def evaluate_report_evidence(
     failed_count = sum(1 for item in checked if item["status"] == "mismatch")
     verified_count = sum(1 for item in checked if item["status"] == "verified"); unverifiable_count = sum(1 for item in checked if item["status"] == "unverifiable"); unverifiable_reason_counts = {reason: sum(1 for item in checked if item["status"] == "unverifiable" and item["verification_reason_code"] == reason) for reason in {item["verification_reason_code"] for item in checked if item["status"] == "unverifiable"}}
     if not checked:
-        verdict = "caution"
-        summary = "報告中未抽取到足夠可核驗數字。"
+        verdict = "caution"; summary = "報告中未抽取到足夠可核驗數字。"
     else:
         comparable = [item for item in checked if item["status"] in {"verified", "mismatch"}]
         if not comparable:
-            verdict = "caution"
-            summary = "抽樣數字缺少可對應的資料快照路徑，需人工確認。"
+            verdict = "caution"; summary = "抽樣數字缺少可對應的資料快照路徑，需人工確認。"
         elif failed_count == 0 and unverifiable_count == 0:
             verdict = "approved"
             summary = "抽樣數字均可在資料快照中找到對應值。"
@@ -267,7 +267,7 @@ def _is_non_claim_match(line: str, match: re.Match[str]) -> bool:
     if (timestamp and timestamp.start() <= match.start("label") <= timestamp.end()) or re.search(r"`institutional_trading`\s*[:：]\s*\d+\s*-\s*day\s+lookback\b", line, re.IGNORECASE) or (match.re is _TABLE_CELL_RE and _TABLE_VALUE_LABEL_RE.fullmatch(match.group("label"))):
         return True
     label = _normalize_match_text(match.group("label")); number_start = match.start("num")
-    if any(marker in label for marker in _NORMALIZED_NON_CLAIM_LABEL_MARKERS):
+    if any(marker in label for marker in _NORMALIZED_NON_CLAIM_LABEL_MARKERS) or re.search(r"[()（）].*(?:previous|前值)\s*$", match.group("label"), re.IGNORECASE):
         return True
     if re.search(r"\d{1,2}:\s*$", line[:number_start]) and any(marker in label for marker in ("marketdata", "截至", "資料日期", "資料時間", "抓取時間")): return True
     if number_start <= 0 or line[number_start - 1] != "T":

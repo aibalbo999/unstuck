@@ -1705,6 +1705,50 @@ def test_evidence_gate_matches_previous_chip_balances_by_local_context():
     ]
 
 
+def test_evidence_gate_extracts_external_previous_chip_balance_without_false_claim():
+    from evidence_exit_gate import evaluate_report_evidence, extract_numeric_claims
+
+    markdown = "\n".join(
+        [
+            "- Margin balance: 26,331 (thousand shares). Previous: 26,504. (Slight decrease).",
+            "- Short balance: 382 (thousand shares). Previous: 375. (Slight increase).",
+        ]
+    )
+    claims = extract_numeric_claims(markdown)
+    result = evaluate_report_evidence(
+        markdown,
+        {
+            "data": {
+                "chip_data": {
+                    "twse_margin_short_sales": {
+                        "margin_balance": 26331,
+                        "margin_previous_balance": 26504,
+                        "short_balance": 382,
+                        "short_previous_balance": 375,
+                    }
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert [(claim["label"], claim["reported_value"]) for claim in claims] == [
+        ("Margin balance", 26331.0),
+        ("Previous", 26504.0),
+        ("Short balance", 382.0),
+        ("Previous", 375.0),
+    ]
+    assert result["verdict"] == "approved"
+    assert result["unverifiable_count"] == 0
+    assert [item["matched_path"] for item in result["sampled_claims"]] == [
+        "data.chip_data.twse_margin_short_sales.margin_balance",
+        "data.chip_data.twse_margin_short_sales.margin_previous_balance",
+        "data.chip_data.twse_margin_short_sales.short_balance",
+        "data.chip_data.twse_margin_short_sales.short_previous_balance",
+    ]
+
+
 def test_evidence_gate_binds_explicit_price_history_claims_to_reported_date():
     from evidence_exit_gate import evaluate_report_evidence
 
