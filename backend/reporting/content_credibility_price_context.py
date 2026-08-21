@@ -19,6 +19,11 @@ _PREFIXED_REFERENCE_PRICE_PATTERN = re.compile(
     rf"{_CONTEXT_MARKER}\s*\d+(?:[.,]\d+)?\s*(?:NT\$|\$|TWD|元)",
     flags=re.IGNORECASE,
 )
+_VALUATION_MULTIPLE_PATTERN = re.compile(
+    r"(?<![\d.,])\d+(?:[.,]\d+)?\s*(?:x|倍)\s*"
+    r"(?=(?:PE|P/E|本益比|估值|valuation|band|河流|分位|倍數)(?![A-Za-z0-9_]))",
+    flags=re.IGNORECASE,
+)
 _CONTEXTUAL_RANGE_PATTERN = re.compile(
     r"(?<![\d.,])\d+(?:[.,]\d+)?\s*(?:NT\$|\$|TWD|元)?\s*(?:至|到)\s*"
     r"(?:52\s*週\s*(?:高點|低點|最高(?:價|點)?|最低(?:價|點)?)|52\s*week\s*"
@@ -46,4 +51,13 @@ def has_contextual_price_range(text: str) -> bool:
     return bool(_CONTEXTUAL_RANGE_PATTERN.search(text))
 
 
-__all__ = ("has_contextual_price_range", "strip_contextual_reference_prices")
+def strip_non_price_metric_tokens(text: str) -> str:
+    """Remove valuation multiples only when their metric context is explicit."""
+    return _VALUATION_MULTIPLE_PATTERN.sub(" ", text)
+
+
+__all__ = (
+    "has_contextual_price_range",
+    "strip_contextual_reference_prices",
+    "strip_non_price_metric_tokens",
+)

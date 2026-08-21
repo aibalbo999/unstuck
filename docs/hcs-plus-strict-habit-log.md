@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3720 / keep valuation multiples out of trade price candidates
+
+- `#拆解問題` / `#差距分析`：`8438.TW/v4` 的 `28.2x PE band` 與 `18x PE band` 是估值倍數，不是交易目標／支撐價格；原 `price_candidates()` 會把它們混進 `[60.35, 50.0, 38.52]` 的真實上下行情境。
+- `#偏誤辨識` / `#偏誤降低` / `#可驗證性`：新增 exact valuation-context guard，只在數字後接 `x/倍` 且後方明示 `PE`、`P/E`、本益比、估值或 band 時移除；沒有明示估值語境的 `28.2x` 反例保留，避免變成廣泛 `x` token suppression。
+- `#責任`：RED→GREEN focused input/trade `2 passed`、完整品質/evidence/conformance `1096 passed`、import `504 passed`、docs `136 passed`、`py_compile`、line guard `349`、input helper `99` 通過；source dry-run 與 live projection 都將 8438 候選由 `[60.35, 28.2, 50.0, 38.52, 18.0]` 收斂為 `[60.35, 50.0, 38.52]`，真實多情境 warning 保留。live current quality 為 `164` 份，content `92/64/8`、conformance `80/73/11`、evidence `135/25/4`；healthz/readyz、canonical runtime paths、queue depth `0`、failed_recent `0` 通過。不修改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3719 / exclude percentage tokens and refresh stale issue details
 
 - `#拆解問題` / `#差距分析`：`8039.TW/v4` 的 `回檔逾 10%` 是停損幅度，不是價格；原 parser 會產生 `stop_loss_candidates=[227.0, 10.0]`。即使 current check 已修正，recorded-first merge 還會把舊診斷帶回 API。

@@ -10,7 +10,7 @@ from numeric_safety import is_non_finite_number
 from price_parser import extract_price_numbers
 
 from .content_credibility_confidence import confidence_score as _confidence_score
-from .content_credibility_price_context import has_contextual_price_range, strip_contextual_reference_prices
+from .content_credibility_price_context import has_contextual_price_range, strip_contextual_reference_prices, strip_non_price_metric_tokens
 from .content_credibility_target_prices import main_target_price, target_price_candidates
 from .text_tokens import is_missing_text_token
 
@@ -73,7 +73,7 @@ def price_candidates(value: Any) -> list[float]:
     if isinstance(value, (int, float)):
         return [float(value)]
     try:
-        text = strip_contextual_reference_prices(_input_text(value))
+        text = strip_non_price_metric_tokens(strip_contextual_reference_prices(_input_text(value)))
         prices = extract_price_numbers(_strip_temporal_numeric_tokens(text))
     except (TypeError, ValueError):
         return []

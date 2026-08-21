@@ -163,7 +163,7 @@ Report quality metadata repair accepts mapping-safe top-level report envelopes a
 
 品質完整度不是「欄位有文字就算完成」：`report_conformance`/`content_credibility` 必須是 `passed`、`warning` 或阻斷狀態，`evidence_exit_gate` 必須是 `approved`、`caution` 或 `rejected`；`not_recorded`、`unknown`、`N/A` 仍會列為缺 metadata。
 
-模式 D 的交易計畫若在目標價或停損欄位放入多個非區間情境價格，品質檢查會顯示「需人工核對」警示，並在 check details 保留 `target_price_candidates` 或 `stop_loss_candidates`；這不是自動否定 Neutral。百分比調整（例如 `回檔逾 10%`、`-4.5％`）不是價格，不會進入候選清單；同一 issue 若有 persisted 舊診斷，current projection 的 details 會優先呈現目前解析結果。明確由區間分隔符連接的兩端價格（包含 `121.0 TWD 至 130.5 TWD`、`419.15 TWD 至 52 週高點 460.0 TWD` 這類格式）會視為單一區間；括號內明示為高低點、壓力或支撐的參考價（例如 `46.6 TWD（挑戰 52 週高點 46.63 TWD）`）也不會被當成第二個情境。人工核對時應回到報告原文，確認每個獨立情境的觸發條件、目標與停損是否成組。
+模式 D 的交易計畫若在目標價或停損欄位放入多個非區間情境價格，品質檢查會顯示「需人工核對」警示，並在 check details 保留 `target_price_candidates` 或 `stop_loss_candidates`；這不是自動否定 Neutral。百分比調整（例如 `回檔逾 10%`、`-4.5％`）不是價格，不會進入候選清單；明示 `28.2x PE band`、`18x PE band` 的估值倍數也不是價格，但沒有 PE/本益比/估值語境的 `x/倍` 不會一律刪除。同一 issue 若有 persisted 舊診斷，current projection 的 details 會優先呈現目前解析結果。明確由區間分隔符連接的兩端價格（包含 `121.0 TWD 至 130.5 TWD`、`419.15 TWD 至 52 週高點 460.0 TWD` 這類格式）會視為單一區間；括號內明示為高低點、壓力或支撐的參考價（例如 `46.6 TWD（挑戰 52 週高點 46.63 TWD）`）也不會被當成第二個情境。人工核對時應回到報告原文，確認每個獨立情境的觸發條件、目標與停損是否成組。
 
 When a Worker restarts, RQ queued, deferred, or scheduled retry jobs are reconciled to SQLite status `waiting_retry`; only a live started/current claim remains `running`.
 

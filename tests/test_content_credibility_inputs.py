@@ -46,6 +46,14 @@ def test_price_candidates_ignore_percentage_adjustment_before_stop_price():
     assert price_candidates("跌破關鍵支撐位 227.0 TWD 或突破後回檔逾 10%（對應近期高波動 ATR 估算）") == [227.0]
 
 
+def test_price_candidates_ignore_valuation_multiple_context():
+    assert price_candidates(
+        "目標價為 60.35 TWD（對應 28.2x PE band）；支撐 50.0 TWD，跌破後下探 38.52 TWD（對應 18x PE band）"
+    ) == [60.35, 50.0, 38.52]
+    assert price_candidates("目標欄位 28.2x 未標示估值語境") == [28.2]
+    assert price_candidates("估值倍數 28.2x估值倍數") == []
+
+
 def test_target_price_candidates_drop_non_finite_numeric_prices():
     candidates = target_price_candidates(
         {

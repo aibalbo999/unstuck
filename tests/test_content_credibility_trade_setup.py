@@ -223,6 +223,23 @@ def test_trade_setup_alignment_ignores_percentage_adjustment_as_stop_price():
     assert result["checks"][0]["details"]["stop_loss"] == 227.0
 
 
+def test_trade_setup_alignment_ignores_pe_band_multiple_as_target_price():
+    from reporting.content_credibility_trade_setup import evaluate_trade_setup_alignment
+
+    result = evaluate_trade_setup_alignment(
+        trade_setup=_trade_setup(
+            target_price="若向上突破，目標價為 60.35 TWD（對應 28.2x PE band）；若向下趨勢延續，短期支撐位於 50.0 TWD，跌破後可能下探 38.52 TWD（對應 18x PE band）",
+            stop_loss="跌破 52.0 TWD 關鍵支撐",
+            trade_direction="Neutral",
+        ),
+        current_price=53.7,
+    )
+
+    assert result["blocking_issues"] == []
+    assert result["warnings"][0]["id"] == "ambiguous_trade_setup_price_inputs"
+    assert result["warnings"][0]["details"]["target_price_candidates"] == [60.35, 50.0, 38.52]
+
+
 def test_trade_setup_alignment_warns_when_prices_cannot_be_parsed():
     from reporting.content_credibility_trade_setup import evaluate_trade_setup_alignment
 
