@@ -507,6 +507,43 @@ def test_evidence_gate_matches_explicit_week_52_labels_without_cross_number_leak
     assert all(claim["status"] == "unverifiable" for claim in false_positive["sampled_claims"])
 
 
+def test_evidence_gate_matches_previous_chip_balances_by_local_context():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        """
+- Margin Balance: 12,654 (Previous: 13,826) -> Decreasing.
+- **Margin Balance:** 23,822 (Previous: 26,402). Trend: Decreasing.
+- **Short Balance:** 673 (Previous: 525). Trend: Slight increase.
+""",
+        {
+            "data": {
+                "chip_data": {
+                    "twse_margin_short_sales": {
+                        "margin_balance": 12654,
+                        "margin_balance_alt": 23822,
+                        "short_balance": 673,
+                        "margin_previous_balance": 13826,
+                        "margin_previous_balance_alt": 26402,
+                        "short_previous_balance": 525,
+                    },
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=3,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["unverifiable_count"] == 0
+    assert [item["matched_path"] for item in result["sampled_claims"]] == [
+        "data.chip_data.twse_margin_short_sales.margin_balance",
+        "data.chip_data.twse_margin_short_sales.margin_previous_balance",
+        "data.chip_data.twse_margin_short_sales.margin_previous_balance_alt",
+        "data.chip_data.twse_margin_short_sales.short_previous_balance",
+    ]
+
+
 def test_evidence_gate_uses_specific_financial_field_hints_before_broad_labels():
     from evidence_exit_gate import evaluate_report_evidence
 
