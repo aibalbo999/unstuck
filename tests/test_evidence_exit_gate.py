@@ -274,6 +274,88 @@ def test_evidence_gate_matches_stop_loss_claims_to_structured_output():
     assert result["sampled_claims"][0]["matched_path"] == "rerun_context.structured_outputs.24.stop_loss"
 
 
+def test_evidence_gate_matches_chip_distribution_and_margin_claims():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    markdown = """
+- Major holders (>1,000 lots): 56.95%.
+- Retail holders (<50 lots): 20.33%.
+- Margin Balance: 1,412.
+- Short Balance: 183.
+"""
+    snapshot = {
+        "data": {
+            "chip_data": {
+                "tdcc_shareholder_distribution": {
+                    "major_holders_gt_1000_lots_pct": 56.95,
+                    "retail_holders_lt_50_lots_pct": 20.33,
+                },
+                "twse_margin_short_sales": {
+                    "margin_balance": 1412,
+                    "short_balance": 183,
+                },
+            },
+        },
+    }
+
+    result = evaluate_report_evidence(markdown, snapshot, sample_ratio=1.0, min_sample=4)
+
+    assert result["verdict"] == "approved"
+    assert result["unverifiable_count"] == 0
+    assert all(item["status"] == "verified" for item in result["sampled_claims"])
+
+
+def test_evidence_gate_keeps_k_suffix_with_canonical_thousand_unit():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- Margin balance (2026-07-29): 5,290K, slightly down.",
+        {
+            "data": {
+                "chip_data": {
+                    "twse_margin_short_sales": {"margin_balance": 5290},
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["unverifiable_count"] == 0
+    assert result["sampled_claims"][0]["reported_value"] == 5290.0
+    assert result["sampled_claims"][0]["unit"] == "K"
+
+
+def test_evidence_gate_matches_margin_flow_and_borrowed_short_balance():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    markdown = """
+- Margin Purchase: 229 / Margin Sale: 327.
+- Short Purchase: 67 / Short Sale: 15.
+- Borrowed Short Sale Balance: 12,491,496 shares.
+"""
+    snapshot = {
+        "data": {
+            "chip_data": {
+                "twse_margin_short_sales": {
+                    "margin_purchase": 229,
+                    "margin_sale": 327,
+                    "short_purchase": 67,
+                    "short_sale": 15,
+                    "borrowed_short_sale_balance": 12491496,
+                },
+            },
+        },
+    }
+
+    result = evaluate_report_evidence(markdown, snapshot, sample_ratio=1.0, min_sample=5)
+
+    assert result["verdict"] == "approved"
+    assert result["unverifiable_count"] == 0
+    assert all(item["status"] == "verified" for item in result["sampled_claims"])
+
+
 def test_evidence_gate_uses_specific_financial_field_hints_before_broad_labels():
     from evidence_exit_gate import evaluate_report_evidence
 
