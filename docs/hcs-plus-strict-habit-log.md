@@ -5,7 +5,7 @@
 - `#拆解問題` / `#差距分析` / `#語意含義`：報告 Markdown 廣泛使用 `**label:** value`；parser 未消費 emphasis token 時，`3017.TW/v4` 的 current claim count 會是 `0`，把格式漏讀誤判成沒有證據，而 P/B、ROE、Beta 又已有明確 snapshot 欄位可核驗。
 - `#最小變更` / `#責任`：`_KV_RE` 與 `_TABLE_CELL_RE` 只允許 separator 後的 `*_\`` token；field hints 只補 `pb_ratio`、`roe`、`beta` 的既有 canonical paths。錯值仍走 mismatch/rejected，不以最近數字或跨語意欄位補證據。
 - `#偏誤降低` / `#來源品質`：新增 Markdown emphasis 正確值與錯值 fixtures，確認 3017 v4 的三筆抽樣全數 verified；保留 `3653.TW/v3` rejected/blocked 反例，沒有把不可核驗或真正矛盾降級成 approved。
-- `#可驗證性` / `#責任`：evidence gate `41 passed`、品質/evidence/conformance `1023 passed`、import boundary `504 passed`、HCS/docs `135 passed`，line guard `evidence_exit_gate.py=349`。正式 reload 後 current quality `165` 份為 evidence `59/102/4`、content `30/127/8`、conformance `26/128/11`；3017 v4 `10 claims / 3 sampled / 3 verified / 0 unverifiable / approved`，仍有交易價格情境歧義 warning。healthz/readyz、doctor canonical paths、RQ queue depth `0` 通過，未寫入 artifact、snapshot、index、review、rerun、repair 或 queue。
+- `#可驗證性` / `#責任`：evidence gate `41 passed`、品質/evidence/conformance `1024 passed`、import boundary `504 passed`、HCS/docs `135 passed`，line guard `evidence_exit_gate.py=349`。正式 reload 後 current quality `165` 份為 evidence `59/102/4`、content `30/127/8`、conformance `26/128/11`；3017 v4 `10 claims / 3 sampled / 3 verified / 0 unverifiable / approved`，仍有交易價格情境歧義 warning。healthz/readyz、doctor canonical paths、RQ queue depth `0` 通過，未寫入 artifact、snapshot、index、review、rerun、repair 或 queue。
 
 ## D3684 / preserve symbol identity for global market evidence
 
