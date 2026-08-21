@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3707 / explain evidence gate unverifiable reasons
+
+- `#拆解問題` / `#問對問題` / `#語意含義`：全量 current evidence 仍有大量人工確認 claim，但單一 `unverifiable` 狀態無法直接分辨「沒有安全語意路徑」與「有語意但 snapshot 沒有對應資料」，降低修復優先順序的可判讀性。
+- `#最小變更` / `#偏誤降低` / `#責任`：只在 read-only sampled claim 增加 `verification_reason_code`、`candidate_count`，並在 gate 摘要增加 `unverifiable_reason_counts`；不改 semantic matching、tolerance、抽樣、verdict 或 persisted state。
+- `#可驗證性` / `#來源品質`：RED→GREEN 覆蓋 verified、mismatch、missing semantic path 與 no matching snapshot path；focused evidence gate `91 passed`、`evidence_exit_gate.py=349`、`py_compile` 通過。操作手冊與架構圖同步寫明衍生評分、新聞價格、跨 provider 值仍不得借用最近數字。
+
 ## D3706 / split secondary source-anchored price claims
 
 - `#拆解問題` / `#問對問題` / `#語意含義`：同一個 `近期支撐` 行可能同時寫心理關卡、新聞價格與歷史收盤平台；只抽第一個數字會遮住可驗證來源，也可能讓整行被錯誤視為單一證據。

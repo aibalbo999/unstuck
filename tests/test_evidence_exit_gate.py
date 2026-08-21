@@ -29,6 +29,8 @@ def test_evidence_exit_gate_extracts_and_approves_snapshot_backed_numbers():
     assert result["sampled_count"] >= 3
     assert result["failed_count"] == 0
     assert all(item["status"] == "verified" for item in result["sampled_claims"])
+    assert all(item["verification_reason_code"] == "matched_snapshot_value" for item in result["sampled_claims"])
+    assert all(item["candidate_count"] >= 1 for item in result["sampled_claims"])
 
 
 def test_evidence_gate_accepts_markdown_emphasis_between_label_and_value():
@@ -189,6 +191,12 @@ def test_evidence_exit_gate_rejects_when_sampled_numbers_are_not_in_snapshot():
     assert result["verdict"] == "rejected"
     assert result["failed_count"] == 2
     assert any(item["status"] == "mismatch" and item["reported_value"] == 999.0 for item in result["sampled_claims"])
+    assert all(
+        item["verification_reason_code"] == "snapshot_value_mismatch"
+        for item in result["sampled_claims"]
+        if item["status"] == "mismatch"
+    )
+    assert result["unverifiable_reason_counts"] == {}
 
 
 def test_evidence_exit_gate_requires_label_relevance_for_numeric_matches():
@@ -291,6 +299,20 @@ def test_evidence_gate_does_not_match_confidence_to_unrelated_snapshot_numbers()
     assert claim["matched_value"] is None
     assert result["failed_count"] == 0
     assert result["unverifiable_count"] == 1
+    assert claim["verification_reason_code"] == "no_matching_snapshot_path"
+    assert claim["candidate_count"] == 0
+    assert result["unverifiable_reason_counts"] == {"no_matching_snapshot_path": 1}
+
+
+def test_evidence_gate_reports_missing_semantic_path_for_unknown_numeric_labels():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence("- 未知評分: 0.85", {"data": {"other_value": 0.85}}, sample_ratio=1.0)
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "unverifiable"
+    assert claim["verification_reason_code"] == "missing_semantic_path"
+    assert result["unverifiable_reason_counts"] == {"missing_semantic_path": 1}
 
 
 def test_evidence_gate_does_not_compare_factset_claims_to_other_provider_values():
@@ -317,6 +339,8 @@ def test_evidence_gate_does_not_compare_factset_claims_to_other_provider_values(
     assert result["failed_count"] == 0
     assert result["unverifiable_count"] == 2
     assert all(item["status"] == "unverifiable" for item in result["sampled_claims"])
+    assert all(item["verification_reason_code"] == "no_matching_snapshot_path" for item in result["sampled_claims"])
+    assert result["unverifiable_reason_counts"] == {"no_matching_snapshot_path": 2}
 
 
 def test_evidence_gate_uses_canonical_value_for_structured_target_text():

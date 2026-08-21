@@ -141,7 +141,7 @@ def evaluate_report_evidence(
     sample = sample_numeric_claims(claims, sample_ratio=sample_ratio, min_sample=min_sample, max_sample=max_sample, seed=seed)
     checked = [_check_claim(claim, snapshot_values, tolerance_pct=tolerance_pct) for claim in sample]
     failed_count = sum(1 for item in checked if item["status"] == "mismatch")
-    unverifiable_count = sum(1 for item in checked if item["status"] == "unverifiable")
+    unverifiable_count = sum(1 for item in checked if item["status"] == "unverifiable"); unverifiable_reason_counts = {reason: sum(1 for item in checked if item["status"] == "unverifiable" and item["verification_reason_code"] == reason) for reason in {item["verification_reason_code"] for item in checked if item["status"] == "unverifiable"}}
     if not checked:
         verdict = "caution"
         summary = "報告中未抽取到足夠可核驗數字。"
@@ -170,7 +170,7 @@ def evaluate_report_evidence(
         "claim_count": len(claims),
         "sampled_count": len(checked),
         "failed_count": failed_count,
-        "unverifiable_count": unverifiable_count,
+        "unverifiable_count": unverifiable_count, "unverifiable_reason_counts": unverifiable_reason_counts,
         "tolerance_pct": tolerance_pct,
         "sampled_claims": checked,
     }
@@ -249,7 +249,7 @@ def _check_claim(claim: dict[str, Any], snapshot_values: list[dict[str, Any]], *
         status = "mismatch"
     return {
         **{key: value for key, value in claim.items() if key not in {"context_text", "series_context_text", "_price_history_months"}},
-        "status": status,
+        "status": status, "verification_reason_code": "missing_semantic_path" if not path_markers else "no_matching_snapshot_path" if not candidate_values else "matched_snapshot_value" if best and best["diff_pct"] <= tolerance_pct else "snapshot_value_mismatch", "candidate_count": len(candidate_values),
         "matched_path": best.get("path") if best else "",
         "matched_value": best.get("value") if best else None,
         "diff_pct": round(best.get("diff_pct", 0.0), 4) if best else None,
