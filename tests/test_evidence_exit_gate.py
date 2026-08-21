@@ -1695,6 +1695,36 @@ def test_evidence_gate_does_not_infer_numbered_swing_pressure_without_week_marke
     assert claim["matched_path"] != "data.week_52_high"
 
 
+def test_evidence_gate_maps_long_term_defense_line_to_week_low():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* **長期防線：** 19.15 TWD（52 週最低價）。",
+        {"data": {"week_52_high": 51.9, "week_52_low": 19.15}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "approved"
+    assert claim["status"] == "verified"
+    assert claim["matched_path"] == "data.week_52_low"
+
+
+def test_evidence_gate_does_not_infer_defense_line_without_week_marker():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* **長期防線：** 19.15 TWD（長期支撐區）。",
+        {"data": {"week_52_low": 19.15}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["matched_path"] != "data.week_52_low"
+
+
 def test_evidence_gate_does_not_treat_plain_key_pressure_as_week_high():
     from evidence_exit_gate import evaluate_report_evidence
 

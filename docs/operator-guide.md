@@ -225,7 +225,7 @@ KV claim 的 label 後若立即接 `8/17 - 8/18`、`8-17` 這類月日範圍，�
 
 支撐／壓力／關卡／風險價格若明示來自新聞、`market_catalysts` 或 `recent_catalysts`，evidence gate 會保留為人工確認，並以 `verification_reason_code=news_source_not_canonical` 說明來源邊界；不因同值出現在 `data.risk_price` 或 `price_history` 就判定為 verified。明示 52 週高低點或 River Chart band 的專用來源仍依各自 semantic path 核驗。
 
-編號式或階段式標籤（例如 `波段壓力二`、`支撐二`）只有在同一 claim 明寫 `52 週最高價`／`52 週最低價`，且數值與 `data.week_52_high`／`data.week_52_low` 一致時，才會核驗到週高低點來源。沒有 52 週高低點文字的編號壓力／支撐，仍顯示為 `unverifiable`，請人工確認，不要依標籤自行推定來源。
+編號式、階段式或防線標籤（例如 `波段壓力二`、`支撐二`、`長期防線`）只有在同一 claim 明寫 `52 週最高價`／`52 週最低價`，且數值與 `data.week_52_high`／`data.week_52_low` 一致時，才會核驗到週高低點來源。沒有 52 週高低點文字的編號壓力／支撐／防線，仍顯示為 `unverifiable`，請人工確認，不要依標籤自行推定來源。
 
 資料截止／抓取 metadata 中的 `HH:MM` 分鐘 token（例如 `2026-08-19 07:50`）也不是投資 claim；只有在 label 明示資料時間語意時排除，避免把分鐘數誤認為數值欄位，其他時間以外的 scalar claim 不受影響。
 
