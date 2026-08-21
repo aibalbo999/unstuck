@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3686 / map profitability fields and reject short-date prefixes
+
+- `#拆解問題` / `#差距分析` / `#來源品質`：live caution claim 中 `毛利率`、`殖利率` 分別可在 `data.gross_margin`、`data.dividend_yield` 找到 canonical 值；另一筆 `8/19 融資餘額` 把日期前綴 `8` 當成數字，形成 false mismatch。
+- `#最小變更` / `#責任`：只補 `gross_margin`、`gross_margin_raw`、`dividend_yield`、`dividend_yield_raw` hints，加入 `張` 單位，並在月日後接中文、英文或標點時跳過 date prefix；不把 confidence、交易計畫健康度、護城河評分或情境數字映射到任意 snapshot 值。
+- `#偏誤降低` / `#可驗證性`：新增正確毛利率／殖利率與 `8/19` 日期 fixture；`3008.TW/v4` false mismatch 消失，`3653.TW/v3` 與其他 4 個真實 mismatch/rejected 保留。
+- `#可驗證性` / `#責任`：evidence gate `43 passed`、品質/evidence/conformance `1026 passed`、import boundary `504 passed`、HCS/docs `135 passed`，line guard `evidence_exit_gate.py=349`。正式 reload 後 live `165` 份 evidence `90/71/4`、claims `382 verified / 197 unverifiable / 5 mismatch`，content `53/104/8`、conformance `49/105/11`；healthz/readyz、doctor canonical paths、RQ queue depth `0` 通過，未寫入 artifact、snapshot、index、review、rerun、repair 或 queue。
+
 ## D3685 / parse emphasized Markdown evidence against canonical fields
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：報告 Markdown 廣泛使用 `**label:** value`；parser 未消費 emphasis token 時，`3017.TW/v4` 的 current claim count 會是 `0`，把格式漏讀誤判成沒有證據，而 P/B、ROE、Beta 又已有明確 snapshot 欄位可核驗。

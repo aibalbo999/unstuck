@@ -100,6 +100,56 @@ def test_evidence_gate_matches_common_valuation_snapshot_fields():
     ]
 
 
+def test_evidence_gate_matches_profitability_and_yield_snapshot_fields():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **毛利率:** 28.9%\n- **殖利率:** 0.58%",
+        {
+            "data": {
+                "gross_margin": "28.9%",
+                "dividend_yield": "0.58%",
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=2,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["unverifiable_count"] == 0
+    assert [item["matched_path"] for item in result["sampled_claims"]] == [
+        "data.gross_margin",
+        "data.dividend_yield",
+    ]
+
+
+def test_evidence_gate_ignores_month_day_prefix_before_margin_balance():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **融資餘額變化:** 8/19；**融資餘額:** 2,752 張。",
+        {
+            "data": {
+                "chip_data": {
+                    "twse_margin_short_sales": {
+                        "margin_previous_balance": 2639,
+                        "margin_balance": 2752,
+                    },
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["sampled_count"] == 1
+    assert result["sampled_claims"][0]["reported_value"] == 2752.0
+    assert result["sampled_claims"][0]["matched_path"] == (
+        "data.chip_data.twse_margin_short_sales.margin_balance"
+    )
+
+
 def test_sample_numeric_claims_prioritizes_explicit_valuation_fields():
     from evidence_exit_gate import sample_numeric_claims
 
