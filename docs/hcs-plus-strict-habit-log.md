@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3748 / map indexed global-market changes by symbol and horizon
+
+- `#拆解問題` / `#差距分析`：full artifact audit 找到 `2337.TW/v4` 的 SMH 1d/5d change claims 被截成 `rketcontext[11].change1/5dpct`，而 snapshot 有 `items[smh].change_1d_pct=-2.2808`、`change_5d_pct=-1.0943`。
+- `#偏誤辨識` / `#偏誤降低` / `#來源品質`：只保存此類截斷 label 的完整原行，要求 indexed path 與附近 `(SMH)` 同時存在；以 claim label 的 1d/5d token 選對欄位，禁止 5d 借用 1d、SMH 借用 QQQ、或無 symbol 時泛配。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED，再 GREEN；focused `2 passed`、完整 evidence `160 passed`、品質 `1158 passed`、line guard `349` 通過，full artifact `2513 claims: 1623 verified / 752 unverifiable / 138 mismatch`，`missing_semantic_path=120`。正式 reload 後 live API 兩筆 target 均 verified 到 `data.global_market_context.items[smh].change_1d_pct`／`change_5d_pct`，Markdown/data/health/ready `200/200/200/200`，整份報告仍保留 `caution` 與人工確認，本批未改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3747 / map current quote evidence and surface stale snapshot mismatch
 
 - `#拆解問題` / `#差距分析`：full artifact audit 找到 `2308.TW/v2` 的 `當前報價：1,885.0 TWD` 沒有 current-price semantic path；snapshot canonical `data.current_price=1,750.0`，兩者相差 `7.1618%`。

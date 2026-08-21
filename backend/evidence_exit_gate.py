@@ -94,7 +94,7 @@ def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
                 "reported_value": number,
                 "unit": unit,
                 "line_number": line_number,
-                "raw_text": line[:160],
+                "raw_text": line if "rketcontext[" in label and "change" in label else line[:160],
                 **({"series_context_text": "\n".join(lines[max(0, line_number - 20):line_number - 1])} if re.fullmatch(r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}", label, re.IGNORECASE) else {"context_text": "\n".join(lines[max(0, line_number - 3):line_number - 1])} if line_number > 1 else {}),
             })
             if any(_normalize_match_text(marker) in _normalize_match_text(label) for marker in ("支撐", "壓力", "高點", "低點", "週高低")):
@@ -286,12 +286,12 @@ def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
     if not label: return ()
     if (date_match := re.fullmatch(r"(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})", raw_label.strip(), re.IGNORECASE)) and any(_normalize_match_text(marker) in _normalize_match_text(series_context) for marker in ("daily_total_net_buy_last_10", "Last 10 trading days daily total net buy")) and (year_match := re.search(r"(20\d{2})\s*[-/年.]\s*\d{1,2}\s*[-/月.]\s*\d{1,2}", series_context)): return (f"institutional_trading.daily_total_net_buy_last_10[{year_match.group(1)}-{(('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec').index(date_match.group(1).title()) + 1):02d}-{int(date_match.group(2)):02d}].net_buy_thousand_shares",)
     raw_text = _normalize_match_text(claim.get("raw_text"))
-    if "factset" in raw_text:
-        return ("factset",)
+    if "factset" in raw_text: return ("factset",)
     if any(marker in raw_text for marker in _NORMALIZED_RESEARCH_CONTEXT_MARKERS):
         return ("broker_research",)
-    if (global_match := re.search(r"(?<![A-Za-z0-9])(\^?[A-Z][A-Z0-9^=.-]*)\s*[,：:]\s*change[_ ]?5d[_ ]?pct", claim_text, re.IGNORECASE)) and "change_5d_pct" in raw_text:
-        return (f"global_market_context.items[{_normalize_match_text(global_match.group(1))}].change_5d_pct",)
+    indexed_match = re.search(r"global[_ ]?market[_ ]?context\[(?P<index>\d+)\]\.change[_ ]?(?P<days>[15])d[_ ]?pct", claim_text, re.IGNORECASE); indexed_label = re.search(r"\[(?P<index>\d+)\].*?change[_ ]?(?P<days>[15])d[_ ]?pct", raw_label, re.IGNORECASE); symbol_matches = list(re.finditer(r"\(([A-Z][A-Z0-9^=.-]{1,9})\)", claim_text[:indexed_match.start()])) if indexed_match else []
+    if indexed_match and indexed_label and symbol_matches: return (f"global_market_context.items[{_normalize_match_text(symbol_matches[-1].group(1))}].change_{indexed_label.group('days')}d_pct",)
+    if (global_match := re.search(r"(?<![A-Za-z0-9])(\^?[A-Z][A-Z0-9^=.-]*)\s*[,：:]\s*change[_ ]?5d[_ ]?pct", claim_text, re.IGNORECASE)) and "change_5d_pct" in raw_text: return (f"global_market_context.items[{_normalize_match_text(global_match.group(1))}].change_5d_pct",)
     if ("1000lots" in raw_text and "concentration" in label) or ("50lots" in raw_text and "retail" in label): return ("major_holders_gt_1000_lots_pct",) if "concentration" in label else ("retail_holders_lt_50_lots_pct",)
     if (label == "previous" and ("marginbalance" in raw_text or "shortbalance" in raw_text)) or (label == "return" and "borrowedshortsale" in raw_text and "return" in raw_text): return ("margin_previous_balance",) if label == "previous" and "marginbalance" in raw_text else ("short_previous_balance",) if label == "previous" else ("chip_data.twse_margin_short_sales.borrowed_short_return_today",)
     history_date = re.search(r"(20\d{2})\s*[-/年.]\s*(\d{1,2})\s*[-/月.]\s*(\d{1,2})", claim_text); has_price_label = any(_normalize_match_text(marker) in label for marker in ("高點", "低點", "收盤", "支撐", "壓力", "底部", "股價", "價格", "close", "high", "low")); has_close_marker = any(_normalize_match_text(marker) in _normalize_match_text(claim_text) for marker in ("收盤", "close", "closing")); has_price_unit = bool(re.search(r"(?:NT\$|\$|TWD|元)", claim_text, re.IGNORECASE)); has_inline_extremum = bool(re.search(r"20\d{2}\s*[-/年.]\s*\d{1,2}\s*[-/月.]\s*\d{1,2}\s*(?:高點|低點|high|low)", claim_text, re.IGNORECASE)); has_dated_extremum = (any(_normalize_match_text(marker) in label for marker in ("高點", "低點")) or (has_price_label and has_inline_extremum)) and not any(_normalize_match_text(marker) in label for marker in ("52週", "52week")); has_news_source = any(marker in raw_text for marker in ("market_catalysts", "catalyst", "新聞", "news"))

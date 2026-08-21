@@ -1095,6 +1095,46 @@ def test_evidence_gate_does_not_cross_match_global_market_symbols():
     assert claim["matched_path"] == "data.global_market_context.items[qqq].change_5d_pct"
 
 
+def test_evidence_gate_matches_indexed_global_market_change_paths_by_symbol():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- VanEck Semiconductor ETF (SMH) (`global_market_context[11].change_1d_pct`: -2.2808%, `global_market_context[11].change_5d_pct`: -1.0943%).",
+        {
+            "data": {
+                "global_market_context": {
+                    "items": [{"symbol": "SMH", "change_1d_pct": -2.2808, "change_5d_pct": -1.0943}],
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=2,
+    )
+
+    assert result["verdict"] == "approved"
+    assert [claim["status"] for claim in result["sampled_claims"]] == ["verified", "verified"]
+    assert [claim["matched_path"] for claim in result["sampled_claims"]] == [
+        "data.global_market_context.items[smh].change_1d_pct",
+        "data.global_market_context.items[smh].change_5d_pct",
+    ]
+
+
+def test_evidence_gate_does_not_cross_match_indexed_change_to_other_symbol():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- VanEck Semiconductor ETF (SMH) (`global_market_context[11].change_1d_pct`: -2.2808%).",
+        {"data": {"global_market_context": {"items": [{"symbol": "QQQ", "change_1d_pct": -2.2808}]}}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "unverifiable"
+    assert claim["verification_reason_code"] == "no_matching_snapshot_path"
+    assert claim["matched_path"] == ""
+
+
 def test_evidence_gate_matches_named_global_market_latest_values():
     from evidence_exit_gate import evaluate_report_evidence
 
