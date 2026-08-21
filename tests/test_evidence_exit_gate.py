@@ -225,6 +225,37 @@ def test_evidence_gate_matches_us_cpi_yoy_macro_indicator():
     assert claim["matched_path"] == "data.macro_indicators.indicators.us_cpi_yoy.value"
 
 
+def test_evidence_gate_matches_exact_price_label_to_current_price():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- *Price:* 209.0 TWD.",
+        {"data": {"current_price": 209.0}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "verified"
+    assert claim["matched_path"] == "data.current_price"
+
+
+def test_evidence_gate_does_not_map_price_target_to_current_price():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- *Price Target:* 209.0 TWD.",
+        {"data": {"current_price": 209.0}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "unverifiable"
+    assert claim["verification_reason_code"] == "missing_semantic_path"
+    assert claim["matched_path"] == ""
+
+
 def test_evidence_gate_keeps_ps_mismatch_on_ps_path_and_eps_on_eps_path():
     from evidence_exit_gate import evaluate_report_evidence
 

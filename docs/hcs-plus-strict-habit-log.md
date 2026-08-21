@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3761 / map exact standalone `Price` without hiding stale values
+
+- `#拆解問題` / `#差距分析` / `#證據基礎`：full artifact audit 找到 `1623.TW/v1` 的 `Price: 209.0 TWD`，snapshot 有 `data.current_price=201.0`；原本沒有 exact English `Price` path，造成 `missing_semantic_path`，無法把內容過期問題交給人工核對。
+- `#偏誤辨識` / `#偏誤降低` / `#限制條件`：只對 standalone exact `Price` 映射 current-price path；`Price Target` 以 exact label boundary 排除，不把目標價借成現價，也不把 mismatch 放寬成 verified。這只做 read-only evidence mapping，不寫 snapshot、artifact、index、review、rerun、repair 或 queue。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED（1 failed、1 passed），再 GREEN；focused `2 passed`、完整 evidence `182 passed`，full artifact `164/2515` 為 `1636 verified / 740 unverifiable / 139 mismatch`，`missing_semantic_path=114`、`snapshot_value_mismatch=139`。正式 reload 後 `1623_TW_v1_report_20260815_153238.html` 的 HTML/Markdown/data 與 health/ready 均 HTTP `200`，live claim 維持 `Price=209.0 TWD` 對 `data.current_price=201.0` 的 `snapshot_value_mismatch`，doctor、import/docs/diff guards 通過；待完成本批 push。
+
 ## D3760 / map `vs Sale Today` to the borrowed-short sale path
 
 - `#拆解問題` / `#差距分析` / `#來源品質`：full artifact audit 找到 `9921.TW/v4` 的 `Borrowed Short Return Today: 463k vs Sale Today: 156k`；`vs Sale Today` 的 156k 與 snapshot `borrowed_short_sale_today=156000` 同值，但原本沒有專用 label/path mapping。
