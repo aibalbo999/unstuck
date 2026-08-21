@@ -225,6 +225,8 @@ Report evidence exit gate numeric checks use semantic snapshot paths only: ISO t
 
 宏觀 claim 也遵守同一路徑原則：`US CPI YoY` 只有在 `data.macro_indicators.indicators.us_cpi_yoy.value` 存在時才算 verified；即使 `^TNX` 或其他全球／宏觀節點有相同數字，也不能借值通過。
 
+國際市場敘述若同句明示 `S&P 500`、台股加權指數與 `Change 1d`，第一個變動值才會核對 `data.global_market_context.items[spy].change_1d_pct`；不會因數值相同就改用 `^TWII` 或其他 symbol。缺少 SPY 的 canonical field 時，請保留 `unverifiable`。
+
 英文市場摘要的 standalone `Price` 只可核對 `data.current_price`；matcher 是 exact label，因此 `Price Target` 不會被當成現價。若報告的 `Price` 與 canonical current price 不同，請解讀為 `snapshot_value_mismatch` 並人工核對報告新鮮度／來源，不要把它當成缺少 semantic path，也不會自動改寫 snapshot 或報告。
 
 護城河與模型評分欄位（`品牌影響力`、`網路效應`、`轉換成本`、`成本優勢`、`專利技術`、`FOMO 評分`、`聰明錢派發評分`、`Score`、`評分`）若沒有 canonical snapshot path，會顯示 `analysis_metadata_not_evidence` 並維持 `unverifiable`。這表示它是報告中的分析 metadata，不是可由資料快照獨立核對的 evidence；不要因為數字看起來像分數就借用財務或行情欄位。

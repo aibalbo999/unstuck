@@ -161,6 +161,8 @@ An exact standalone English `Price` label with a reported currency value maps to
 
 Analysis rubric labels such as `品牌影響力`、`網路效應`、`轉換成本`、`成本優勢`、`專利技術`、`FOMO 評分`、`聰明錢派發評分`、`Score` and exact `評分` are classified as `analysis_metadata_not_evidence` when no canonical snapshot path exists. They remain `unverifiable`; the gate does not borrow financial or market values merely because the score is numeric.
 
+When the same international-market narrative explicitly names `S&P 500`, `台股加權指數`, and `Change 1d`, the first reported change maps to `data.global_market_context.items[spy].change_1d_pct`. This narrow parser boundary does not use the Taiwan index or another symbol as a fallback; if the SPY field is absent, the claim remains `unverifiable`.
+
 When a parseable 12-month recommendation target and all three canonical scenario targets are present, content credibility also projects the existing final-audit range check: the recommendation target should stay between `bear * 0.7` and `bull * 1.3`. A target outside that explainable range records `recommendation_target_outside_scenario_range` as a warning with the target, bounds, and scenario values. This is read-only warning evidence for historical/API projections; it does not replace final-audit, scenario-order blocking, or create a rerun/repair action.
 
 When a report has a recommendation field but its normalized label is outside `買入|持有|避免|放空`, content credibility records `unrecognized_recommendation_label` as a warning because directional alignment cannot be evaluated. Final-audit remains responsible for the separate structural contract and may still block the report.

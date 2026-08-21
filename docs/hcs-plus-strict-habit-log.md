@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3763 / bind narrative S&P 500 change to the SPY path
+
+- `#拆解問題` / `#差距分析` / `#證據基礎`：residual audit 找到 `2887.TW/v4` 的 `S&P 500 與台股加權指數近期震盪（Change 1d: -1.03% ~ -1.09%）`，原本因 KV label 截斷而是 `missing_semantic_path`；snapshot 有 `SPY.change_1d_pct=-1.0331` 與 `^TWII.change_1d_pct=-1.0965`，必須保留 symbol identity。
+- `#偏誤辨識` / `#偏誤降低` / `#限制條件`：只有同句同時出現 S&P 500、台股加權指數與 Change 1d 才映射第一個值到 `data.global_market_context.items[spy].change_1d_pct`；沒有 SPY field 或只有台股數值時不借用其他 symbol。
+- `#可驗證性` / `#抽樣` / `#描述統計`：先取得 RED（2 failed、183 deselected），再 GREEN；focused `2 passed`、完整 evidence `185 passed`、跨層回歸 `1822 passed`，full artifact `164/2515` 為 `1637 verified / 739 unverifiable / 139 mismatch`，`missing_semantic_path=14`。正式 reload 後 `2887_TW_v4_report_job_8afe44a2d4e6.html` 的 HTML/Markdown/data 與 health/ready 均 HTTP `200`，live `Change 1d` verified 到 SPY path，doctor、diff guards 通過；待完成本批 push。
+
 ## D3762 / separate analysis scores from snapshot evidence
 
 - `#拆解問題` / `#差距分析` / `#受眾`：residual audit 找到 99 筆 exact analysis-rubric labels（品牌、網路效應、轉換成本、成本優勢、專利技術、FOMO、聰明錢派發與 Score），它們是報告中的分析分數，但沒有 canonical snapshot candidate，操作員目前只能看到泛化的 `missing_semantic_path`。

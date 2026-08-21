@@ -1226,6 +1226,52 @@ def test_evidence_gate_does_not_cross_match_indexed_change_to_other_symbol():
     assert claim["matched_path"] == ""
 
 
+def test_evidence_gate_matches_s_and_p_500_narrative_change_to_spy():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 國際金融環境：S&P 500 與台股加權指數近期震盪（Change 1d: -1.03% ~ -1.09%）。",
+        {
+            "data": {
+                "global_market_context": {
+                    "items": [
+                        {"symbol": "SPY", "change_1d_pct": -1.0331},
+                        {"symbol": "^TWII", "change_1d_pct": -1.0965},
+                    ]
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "verified"
+    assert claim["matched_path"] == "data.global_market_context.items[spy].change_1d_pct"
+
+
+def test_evidence_gate_does_not_cross_match_s_and_p_500_change_to_taiwan_index():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 國際金融環境：S&P 500 與台股加權指數近期震盪（Change 1d: -1.03%）。",
+        {
+            "data": {
+                "global_market_context": {
+                    "items": [{"symbol": "^TWII", "change_1d_pct": -1.03}]
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "unverifiable"
+    assert claim["verification_reason_code"] == "no_matching_snapshot_path"
+    assert claim["matched_path"] == ""
+
+
 def test_evidence_gate_matches_named_global_market_latest_values():
     from evidence_exit_gate import evaluate_report_evidence
 
