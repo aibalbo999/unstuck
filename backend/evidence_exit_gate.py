@@ -17,7 +17,7 @@ _SECONDARY_EVIDENCE_RE = re.compile(rf"(?:及|與|以及|,|，)\s*[*_`]*\s*(?:NT
 _NUMBER_IN_STRING_RE = re.compile(r"-?\d[\d,]*(?:\.\d+)?")
 _DATE_PREFIX_RE = re.compile(r"^\s*(?:[（(]|[/.-]\s*\d{1,2}\s*[/.-]\s*\d{1,2}\b)"); _SHORT_DATE_SUFFIX_RE = re.compile(r"^[/.-]\s*\d{1,2}(?!\d)(?=\s*(?:[A-Za-z\u4e00-\u9fff，,；;。]|[-–—]|$))")
 _RANGE_PREFIX_RE = re.compile(r"^\s*-\s*\d")
-_HORIZON_PREFIX_RE = re.compile(r"^\s*\d+(?:\s*[-–—~～至到]\s*\d+)?\s*(?:週|周|weeks?|個月|月|年|years?|天|日|days?)", re.IGNORECASE)
+_HORIZON_PREFIX_RE = re.compile(r"^\s*(?:近\s*)?\d+(?:\s*[-–—~～至到]\s*\d+)?\s*(?:週|周|weeks?|個月|月|年|years?|天|日|days?)", re.IGNORECASE)
 _EPS_VALUE_RE = re.compile(
     rf"(?:EPS|每股盈餘)[^\d\n]{{0,24}}?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>{_NUMERIC_UNIT_PATTERN})?(?![\dA-Za-z.])",
     re.IGNORECASE,
@@ -312,7 +312,7 @@ def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
     if (has_news_source and has_price_unit and any(_normalize_match_text(marker) in label for marker in ("支撐", "壓力", "關卡", "風險"))) or any(marker in raw_text for marker in ("熊市", "牛市")): return () if (has_news_source and has_price_unit and any(_normalize_match_text(marker) in label for marker in ("支撐", "壓力", "關卡", "風險"))) else ("stop_loss", "support", "resistance", "risk_price", "price_target", "price_targets", "target_price", "scenario", "scenarios")
     for label_markers, path_markers in _FIELD_HINTS:
         if any(_label_matches_marker(raw_label, label, marker) for marker in label_markers):
-            return path_markers
+            return ("structured_outputs.24.target_price", "parsed.trade_setup.target_price") if any(_normalize_match_text(marker) in label for marker in ("目標價", "targetprice")) and label not in ("目標價", "targetprice") else ("price_target", "price_targets", "target_price", "scenario", "scenarios") if label in ("目標價", "targetprice") else path_markers
     return ()
 def _label_matches_marker(raw_label: str, normalized_label: str, marker: str) -> bool:
     normalized_marker = _normalize_match_text(marker)

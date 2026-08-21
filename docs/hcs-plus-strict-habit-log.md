@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3728 / keep descriptive targets on canonical structured evidence
+
+- `#拆解問題` / `#差距分析`：`2618.TW/v4` 的 `航空運輸業，目標價：43.75元` 被 generic target hint 帶入 DCF bear `32.04`，同時 structured target 的 `近 1-2 週` 前綴可能先產生數字 `1`。
+- `#偏誤辨識` / `#偏誤降低` / `#來源品質`：描述性 target label 只映射到同 snapshot 的 structured target path，不繼承 `valuation`／`dcf`；`近` 開頭的 horizon prefix 先排除，讓 `43.75` 與 `45.65` 保留為 canonical target values。exact target、FactSet、scenario／DCF 與無 source path 的人工確認邊界保留。
+- `#可驗證性` / `#描述統計` / `#責任`：RED→GREEN target focused `7 passed`、完整 evidence `114 passed`、品質/evidence/conformance `1111 passed`、import `504 passed`、docs `136 passed`、line guard `349`、`py_compile`、`git diff --check` 通過。live current `164` 份為 content `99/57/8`、conformance `80/74/10`、evidence `135/26/3`；full artifact 為 `1593 verified / 780 unverifiable / 136 mismatch`，`2618.TW/v4` 43.75 命中 `rerun_context.structured_outputs.24.target_price`；healthz/readyz `ok/ready`、queue depth `0`、failed_recent `0`、failed_stale `10`，未改動 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3727 / keep later monthly extremum from rebinding prior support
 
 - `#拆解問題` / `#差距分析`：`2344.TW/v4` 的同句支撐價 `179.5` 與後面的 `130.0（2026-07 低點）` 被月份極值 regex 共用同一 path；前值不是該日期的價位，卻被判成 mismatch。
