@@ -1561,6 +1561,25 @@ def test_evidence_gate_keeps_month_low_value_mismatch_on_month_extremum():
     assert claim["matched_path"] == "data.price_history[month=2026-07].low"
 
 
+def test_evidence_gate_does_not_bind_later_month_extremum_to_prior_support():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **近期支撐**：179.5 TWD（前述區間上緣）以及 130.0 TWD（2026-07 低點，資料來源：`price_history`）。",
+        {"data": {"price_history": {"dates": ["2026-07-31"], "prices": [130.0]}}},
+        sample_ratio=1.0,
+        min_sample=2,
+    )
+
+    claims = result["sampled_claims"]
+    assert claims[0]["reported_value"] == 179.5
+    assert claims[0]["status"] == "unverifiable"
+    assert claims[0]["matched_path"] == ""
+    assert claims[1]["reported_value"] == 130.0
+    assert claims[1]["status"] == "verified"
+    assert claims[1]["matched_path"] == "data.price_history[month=2026-07].low"
+
+
 def test_evidence_gate_maps_month_high_pressure_to_month_maximum():
     from evidence_exit_gate import evaluate_report_evidence
 

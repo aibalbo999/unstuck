@@ -231,6 +231,8 @@ KV claim 的 label 後若立即接 `8/17 - 8/18`、`8-17` 這類月日範圍，�
 
 Evidence parser 會保留 `3個月目標`、`6個月`、`12個月` 這類數字 horizon，不再把 label 截成沒有時間語意的 `個月`。`資料信心分數`、`信心分數` 等 quality metadata 仍不當作 source evidence；若沒有可核驗的 canonical evidence path，reason 會是 `confidence_metadata_not_evidence`，狀態仍是 `unverifiable`／`caution`，不會借用其他數字。
 
+支撐／壓力句若同時列出前一個情境價與後面的月份高低點，只有緊鄰該日期的價位可以綁定 `price_history[month=YYYY-MM].low|high`。前一個價位若沒有自己的 canonical path，會保留 `unverifiable`；請不要把它和後面的月份低點／高點視為同一個證據。這是語意對應的保護，不會放寬 tolerance，也不會把真實 mismatch 改成通過。
+
 PE River Chart 的 band claim 也必須保留倍數身份；例如 `43.2x（中高分位帶）` 只可對應 `data.pe_river_chart.bands.43.2x` 下的數值，不可跨到其他 band、`multiples` 或一般 P/E 值。若同一 claim 以 `P/E 河流圖`、`59.6x 區間／位階` 與 `1,379.14 TWD` 這類格式同時表達 band 對應價格，evidence gate 會限定在 `data.pe_river_chart.bands` 集合內核對，允許報告與 snapshot 的 band 倍數標示有小幅版本差異，但不會回退到 `data.pe_ratio`；沒有 band series 時仍是 `unverifiable`。
 
 `Operating Cash Flow` claim 只可對應 `data.operating_cash_flow`；`Free Cash Flow` 是不同語意，不能因 B 單位或數值相同而互相核驗。快照若只有 `operating_cash_flow_raw`，沒有可讀的同單位欄位，仍需人工確認。

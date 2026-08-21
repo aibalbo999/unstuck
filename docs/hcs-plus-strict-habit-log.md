@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3727 / keep later monthly extremum from rebinding prior support
+
+- `#拆解問題` / `#差距分析`：`2344.TW/v4` 的同句支撐價 `179.5` 與後面的 `130.0（2026-07 低點）` 被月份極值 regex 共用同一 path；前值不是該日期的價位，卻被判成 mismatch。
+- `#偏誤辨識` / `#偏誤降低` / `#來源品質`：月份低點／高點只在 reported value 與日期前最近數字一致時建立 `price_history[month=YYYY-MM].low|high`；前一個情境價保持 `unverifiable`，不以同值、近鄰文字或另一個 claim 借證據，month-end、逐日、新聞與真實 mismatch 邊界保留。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED，再 GREEN；focused `4 passed`、完整 evidence `112 passed`、品質/evidence/conformance `1109 passed`、import `504 passed`、docs `136 passed`、line guard `349`、`py_compile`、`git diff --check` 通過。live current `164` 份分布為 content `99/57/8`、conformance `80/74/10`、evidence `135/26/3`；full artifact 為 `1592 verified / 780 unverifiable / 137 mismatch`，`2344.TW/v4` 的 179.5 為 `unverifiable`／空 matched path；healthz/readyz `ok/ready`、queue depth `0`、failed_recent `0`、failed_stale `10`，未改動 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3726 / preserve numeric horizons and classify confidence metadata
 
 - `#拆解問題` / `#差距分析`：全量 artifact audit 發現同一個 regex 邊界同時造成 `個月目標` 截斷與 `資料信心分數` 被錯放入一般 evidence missing-path 統計；前者損失語意，後者混淆資料可信度 metadata 與來源證據。
