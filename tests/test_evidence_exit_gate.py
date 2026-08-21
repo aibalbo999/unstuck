@@ -31,6 +31,75 @@ def test_evidence_exit_gate_extracts_and_approves_snapshot_backed_numbers():
     assert all(item["status"] == "verified" for item in result["sampled_claims"])
 
 
+def test_evidence_gate_accepts_markdown_emphasis_between_label_and_value():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        """
+- **股價:** NT$100.00
+- **P/E:** 20.0x
+- **淨利率:** 25.0%
+""",
+        {
+            "data": {
+                "current_price": 100.0,
+                "pe_ratio": "20.0x",
+                "profit_margin": "25.0%",
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=3,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["unverifiable_count"] == 0
+    assert all(claim["status"] == "verified" for claim in result["sampled_claims"])
+
+
+def test_evidence_gate_keeps_markdown_emphasis_mismatch_visible():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **股價:** NT$99.00",
+        {"data": {"current_price": 100.0}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "rejected"
+    assert result["failed_count"] == 1
+    assert result["sampled_claims"][0]["status"] == "mismatch"
+
+
+def test_evidence_gate_matches_common_valuation_snapshot_fields():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        """
+- **P/B:** 21.23x
+- **ROE:** 66.8%
+- **Beta:** 0.65
+""",
+        {
+            "data": {
+                "pb_ratio": "21.23x",
+                "roe": "66.8%",
+                "beta": 0.65,
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=3,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["unverifiable_count"] == 0
+    assert [item["matched_path"] for item in result["sampled_claims"]] == [
+        "data.pb_ratio",
+        "data.roe",
+        "data.beta",
+    ]
+
+
 def test_sample_numeric_claims_prioritizes_explicit_valuation_fields():
     from evidence_exit_gate import sample_numeric_claims
 
@@ -603,7 +672,9 @@ def test_evidence_gate_matches_previous_chip_balances_by_local_context():
     assert [item["matched_path"] for item in result["sampled_claims"]] == [
         "data.chip_data.twse_margin_short_sales.margin_balance",
         "data.chip_data.twse_margin_short_sales.margin_previous_balance",
+        "data.chip_data.twse_margin_short_sales.margin_balance_alt",
         "data.chip_data.twse_margin_short_sales.margin_previous_balance_alt",
+        "data.chip_data.twse_margin_short_sales.short_balance",
         "data.chip_data.twse_margin_short_sales.short_previous_balance",
     ]
 
