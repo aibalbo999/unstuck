@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3700 / bind dated extremum inside a mixed pressure sentence
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`2455.TW/v4` 把 `2026-05-29 高點` 與 `52 週高點` 放在同一個「近期壓力位」句子；第一個值是有日期的歷史極值，第二個值是另一個 canonical field，原本兩者都因 label 不夠具體而無法完整核驗。
+- `#最小變更` / `#責任`：只在 claim text 中偵測日期緊接 `高點`／`低點` 的 inline extremum，產生 exact `price_history[YYYY-MM-DD]` marker；排除 52 週 label，並在 `market_catalysts`／新聞語境下保留人工確認，不改 raw report、snapshot 或 persisted gate。
+- `#偏誤降低` / `#可驗證性`：RED→GREEN fixture 覆蓋 2455-like mixed pressure 正例與 dated-news pressure 反例；live `2455.TW/v4` target claim verified，matched path 為 `data.price_history[2026-05-29].prices[8]`，`8438.TW/v4` 的 55.8 新聞價格仍為 unverifiable。
+- `#可驗證性` / `#責任`：evidence gate `74 passed`、品質/evidence/conformance `1057 passed`、import boundary `504 passed`、HCS/docs `136 passed`，line guard `evidence_exit_gate.py=349`；healthz/readyz、doctor canonical paths 與 RQ failed_recent `0` 通過。其餘 content credibility、交易計畫多情境目標與人工核對邊界保留，未寫入 artifact、snapshot、index、review、rerun、repair 或 queue。
+
 ## D3699 / exclude catalyst-group period tokens from scalar claims
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`3055.TW/v4` 的 `Recent catalysts: 5-day jump ...` 是新聞群組標題，不是單一資料欄位；generic KV parser 卻先抓到 `5`，讓 evidence sample 多出一筆無 canonical path 的 unverifiable claim。

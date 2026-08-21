@@ -997,6 +997,51 @@ def test_evidence_gate_binds_dated_high_point_without_close_phrase():
     assert wrong_date["sampled_claims"][0]["matched_path"] == "data.price_history[2026-07-24].prices[1]"
 
 
+def test_evidence_gate_binds_dated_extremum_inside_pressure_sentence():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **近期壓力位**：419.15 TWD（2026-05-29 高點）以及 460.0 TWD（`market_data.week_52_high_twd`）。",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2026-05-29", "2026-07-31"],
+                    "prices": [419.15, 292.0],
+                },
+                "week_52_high": 460.0,
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["sampled_claims"][0]["status"] == "verified"
+    assert result["sampled_claims"][0]["matched_path"] == "data.price_history[2026-05-29].prices[0]"
+
+
+def test_evidence_gate_does_not_bind_dated_news_extremum_to_close_history():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **近期壓力位**：55.8 TWD（2026-07-30 高點，根據 `market_catalysts` 新聞）。",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2026-07-30"],
+                    "prices": [53.7],
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "caution"
+    assert result["sampled_claims"][0]["status"] == "unverifiable"
+    assert result["sampled_claims"][0]["matched_path"] == ""
+
+
 def test_evidence_gate_does_not_bind_dated_news_high_point_to_close_history():
     from evidence_exit_gate import evaluate_report_evidence
 
