@@ -231,6 +231,8 @@ KV claim 的 label 後若立即接 `8/17 - 8/18`、`8-17` 這類月日範圍，�
 
 30 天法人交易區段的 `Foreign`／`外資` 與 `Investment Trust`／`投信`，只可分別核對 `data.institutional_trading.net_buy_thousand_shares_by_category.foreign`／`investment_trust`。單獨的 `Total` 標籤不能沿用總額欄位；沒有明確 canonical 30 天總額語意時，請保留 `unverifiable`。
 
+借券還券 claim 只有在明寫 `Borrowed Short Return Today`／`Today's borrowed short return`，或同一行的 compact `return` 明確接在 `borrowed short sale` 後面時，才可核對 `data.chip_data.twse_margin_short_sales.borrowed_short_return_today`。不能把 `borrowed_short_sale_today` 當還券量；`vs Sale Today` 目前仍請保留 `unverifiable`。
+
 資料截止／抓取 metadata 中的 `HH:MM` 分鐘 token（例如 `2026-08-19 07:50`）也不是投資 claim；只有在 label 明示資料時間語意時排除，避免把分鐘數誤認為數值欄位，其他時間以外的 scalar claim 不受影響。
 
 `PE River Chart` 的分位數 claim 只可對應 `data.pe_river_chart.multiples`，不可與一般 `data.pe_ratio` 互借；若 snapshot 沒有該專用欄位，仍維持 `unverifiable`，不以數值相同作為來源證明。

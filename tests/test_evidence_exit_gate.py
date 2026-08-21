@@ -1147,6 +1147,79 @@ def test_evidence_gate_preserves_comma_grouped_integer_before_sentence_punctuati
     assert [claim["reported_value"] for claim in result["sampled_claims"]] == [1177000.0, 21000.0]
 
 
+def test_evidence_gate_matches_reordered_borrowed_short_return_label():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- Today's borrowed short return: 525,000.",
+        {
+            "data": {
+                "chip_data": {
+                    "twse_margin_short_sales": {
+                        "borrowed_short_return_today": 525000,
+                    },
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "approved"
+    assert claim["status"] == "verified"
+    assert claim["matched_path"] == "data.chip_data.twse_margin_short_sales.borrowed_short_return_today"
+
+
+def test_evidence_gate_matches_compact_return_after_borrowed_short_sale():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- Today's borrowed short sale: 4,199,000; return: 2,844,160.",
+        {
+            "data": {
+                "chip_data": {
+                    "twse_margin_short_sales": {
+                        "borrowed_short_sale_today": 4199000,
+                        "borrowed_short_return_today": 2844160,
+                    },
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=2,
+    )
+
+    claims = result["sampled_claims"]
+    assert result["verdict"] == "approved"
+    assert all(claim["status"] == "verified" for claim in claims)
+    assert claims[1]["label"] == "return"
+    assert claims[1]["matched_path"] == "data.chip_data.twse_margin_short_sales.borrowed_short_return_today"
+
+
+def test_evidence_gate_does_not_cross_match_borrowed_return_to_sale_path():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- Today's borrowed short return: 525,000.",
+        {
+            "data": {
+                "chip_data": {
+                    "twse_margin_short_sales": {
+                        "borrowed_short_sale_today": 525000,
+                    },
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "unverifiable"
+    assert claim["matched_path"] == ""
+
+
 def test_evidence_gate_keeps_margin_short_ratio_unverifiable_without_canonical_scalar():
     from evidence_exit_gate import evaluate_report_evidence
 

@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3738 / map borrowed-short-return wording without sale fallback
+
+- `#拆解問題` / `#差距分析`：full artifact audit 找到 `2885.TW/v4` 的 `Today's borrowed short return: 525,000` 與 `2891.TW/v4` 的 `return: 2,844,160` 都能對到 snapshot 的 `borrowed_short_return_today`，但既有 hint 只涵蓋另一種詞序；`9921.TW/v4` 的 `vs Sale Today` 則沒有足夠語意可直接當還券量。
+- `#偏誤辨識` / `#偏誤降低` / `#來源品質`：新增 explicit `Today's borrowed short return` alias，並只在同一 borrowed-short-sale claim 中把 compact `return` 對到 `chip_data.twse_margin_short_sales.borrowed_short_return_today`；禁止跨到 `borrowed_short_sale_today`，`vs Sale Today` 保留人工確認。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED，再 GREEN；focused `3 passed`、完整 evidence `138 passed`、品質 `1136 passed`、import/docs、`py_compile` 與 line guard `349` 通過，full artifact 為 `2510 claims: 1610 verified / 766 unverifiable / 134 mismatch`，reason `missing_semantic_path=134`；正式 reload 後 live API 驗證兩個 borrowed-return claim，`vs Sale Today` 仍 `unverifiable`，current quality 為 evidence `135/26/3`、content `99/57/8`、conformance `80/74/10`，health/ready `ok/ready`、doctor canonical paths 與 queue depth `0`、failed_recent `0`、failed_stale `10` 通過，未改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3737 / map exact institutional category labels without total fallback
 
 - `#拆解問題` / `#差距分析`：full artifact audit 找到 `2885.TW/v4` 的 `Foreign: 22,509.2`、`Investment Trust: 3,144.84` 與 snapshot category fields 一致，但兩個 exact label 沒有 semantic path；同一段的 `Total: 48,055.45` 沒有足夠語意，不應直接借用總額欄位。
