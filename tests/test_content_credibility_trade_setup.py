@@ -155,6 +155,24 @@ def test_trade_setup_alignment_keeps_explicit_price_range_non_ambiguous():
     assert result["checks"][0]["status"] == "passed"
 
 
+def test_trade_setup_alignment_keeps_unit_annotated_price_range_non_ambiguous():
+    from reporting.content_credibility_trade_setup import evaluate_trade_setup_alignment
+
+    result = evaluate_trade_setup_alignment(
+        trade_setup=_trade_setup(
+            target_price="反彈目標 121.0 TWD 至 130.5 TWD 壓力位",
+            stop_loss="115.0 TWD",
+            trade_direction="Neutral",
+        ),
+        current_price=116.5,
+    )
+
+    assert result["blocking_issues"] == []
+    assert result["warnings"] == []
+    assert result["checks"][0]["status"] == "passed"
+    assert result["checks"][0]["details"]["target_price"] == 121.0
+
+
 def test_trade_setup_alignment_warns_when_prices_cannot_be_parsed():
     from reporting.content_credibility_trade_setup import evaluate_trade_setup_alignment
 

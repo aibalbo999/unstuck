@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3717 / recognize unit-annotated explicit price ranges
+
+- `#拆解問題` / `#差距分析`：`反彈目標 121.0 TWD 至 130.5 TWD` 的兩個數字由 `至` 明確連成價格區間，不應與多個獨立情境價混為一談。
+- `#偏誤辨識` / `#偏誤降低` / `#可驗證性`：RED 重現幣別單位讓區間 regex 漏判；新增兩端附近的 `NT$`、`$`、`TWD`、`元` 支援，並保留非區間多候選 warning，避免以寬鬆 parsing 放過真正歧義。
+- `#責任`：RED→GREEN focused trade-setup/projection `13 passed`、品質/evidence/conformance `1087 passed`、import `504 passed`、docs `136 passed`、line guard `349`、py_compile 通過。正式 reload 後 live `ambiguous_trade_setup_price_inputs` 由 `64` 降為 `51`，`2303.TW/v4` 的 stale warning 已移除；content 為 `79 passed / 77 warning / 8 blocked`、evidence 為 `135 approved / 25 caution / 4 rejected`。未修改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3716 / explain non-canonical news evidence
 
 - `#拆解問題` / `#差距分析` / `#來源品質`：D3715 的 source guard 已正確保留新聞價格人工確認，但 `missing_semantic_path` 無法告訴操作員這是來源邊界而非欄位遺漏。

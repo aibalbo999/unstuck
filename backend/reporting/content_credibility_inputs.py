@@ -32,7 +32,8 @@ _PERIOD_NUMBER_PATTERN = re.compile(
     flags=re.IGNORECASE,
 )
 _PRICE_RANGE_PATTERN = re.compile(
-    r"(?<![\d.,])\d+(?:[.,]\d+)?\s*(?:[-–—－−~～〜至到]|\bto\b)\s*"
+    r"(?<![\d.,])\d+(?:[.,]\d+)?\s*(?:(?:NT\$|\$|TWD|元)\s*)?"
+    r"(?:[-–—－−~～〜至到]|\bto\b)\s*(?:(?:NT\$|\$|TWD|元)\s*)?"
     r"\d+(?:[.,]\d+)?(?![A-Za-z])",
     flags=re.IGNORECASE,
 )

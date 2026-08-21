@@ -73,6 +73,25 @@ def test_projection_merge_keeps_recorded_warning_when_current_projection_passes(
     assert result["checks"][0]["id"] == "current_check"
 
 
+def test_projection_merge_drops_resolved_trade_setup_warning():
+    from reporting.content_credibility_projection import merge_content_credibility_results
+
+    result = merge_content_credibility_results(
+        {
+            "status": "warning",
+            "warnings": [{"id": "ambiguous_trade_setup_price_inputs"}],
+        },
+        {
+            "status": "passed",
+            "warnings": [],
+            "checks": [{"id": "trade_setup_alignment", "status": "passed"}],
+        },
+    )
+
+    assert result["status"] == "passed"
+    assert result["warnings"] == []
+
+
 def test_projection_merge_prefers_current_check_for_same_id():
     from reporting.content_credibility_projection import merge_content_credibility_results
 

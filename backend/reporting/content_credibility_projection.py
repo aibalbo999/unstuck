@@ -18,6 +18,17 @@ _STATUS_SUMMARIES = {
     "warning": "報告關鍵結論未見阻斷矛盾，但仍有可信度警示。",
     "blocked": "報告關鍵結論與資料或證據存在阻斷矛盾。",
 }
+_TRADE_SETUP_ISSUE_IDS = frozenset(
+    {
+        "invalid_trade_direction",
+        "missing_trade_setup_price_inputs",
+        "ambiguous_trade_setup_price_inputs",
+        "long_target_not_above_current_price",
+        "long_stop_not_below_current_price",
+        "short_target_not_below_current_price",
+        "short_stop_not_above_current_price",
+    }
+)
 
 
 def project_content_credibility(snapshot: Any) -> dict[str, Any] | None:
@@ -156,6 +167,7 @@ def merge_content_credibility_results(recorded: Any, projected: Any) -> dict[str
     if not recorded_map:
         return projected_map
 
+    resolved_issue_ids = _resolved_trade_setup_issue_ids(projected_map)
     result = dict(recorded_map)
     result.update(
         {
@@ -164,24 +176,47 @@ def merge_content_credibility_results(recorded: Any, projected: Any) -> dict[str
             if key not in {"blocking_issues", "warnings", "checks", "status", "summary", "_projection_scope"}
         }
     )
-    result["blocking_issues"] = _merge_issues(recorded_map.get("blocking_issues"), projected_map.get("blocking_issues"))
-    result["warnings"] = _merge_issues(recorded_map.get("warnings"), projected_map.get("warnings"))
+    result["blocking_issues"] = _merge_issues(
+        recorded_map.get("blocking_issues"),
+        projected_map.get("blocking_issues"),
+        suppressed_ids=resolved_issue_ids,
+    )
+    result["warnings"] = _merge_issues(
+        recorded_map.get("warnings"),
+        projected_map.get("warnings"),
+        suppressed_ids=resolved_issue_ids,
+    )
     result["checks"] = _merge_checks(projected_map.get("checks"), recorded_map.get("checks"))
     recorded_status = safe_text(recorded_map.get("status")).strip().lower()
     projected_status = safe_text(projected_map.get("status")).strip().lower()
-    status = max((recorded_status, projected_status), key=lambda value: _STATUS_RANK.get(value, 0))
+    if resolved_issue_ids and not result["blocking_issues"] and not result["warnings"]:
+        status = projected_status
+    else:
+        status = max((recorded_status, projected_status), key=lambda value: _STATUS_RANK.get(value, 0))
     if status:
         result["status"] = status
         result["summary"] = _STATUS_SUMMARIES.get(status, safe_text(projected_map.get("summary")).strip())
     return result
 
 
-def _merge_issues(*values: Any) -> list[dict[str, Any]]:
+def _resolved_trade_setup_issue_ids(projected: dict[str, Any]) -> frozenset[str]:
+    for check in safe_dict_list(projected.get("checks")):
+        if (
+            safe_text(check.get("id")).strip() == "trade_setup_alignment"
+            and safe_text(check.get("status")).strip().lower() == "passed"
+        ):
+            return _TRADE_SETUP_ISSUE_IDS
+    return frozenset()
+
+
+def _merge_issues(*values: Any, suppressed_ids: frozenset[str] = frozenset()) -> list[dict[str, Any]]:
     merged: list[dict[str, Any]] = []
     known: set[tuple[str, str]] = set()
     for value in values:
         for issue in safe_dict_list(value):
             issue_id = safe_text(issue.get("id"))
+            if issue_id in suppressed_ids:
+                continue
             message = safe_text(issue.get("message"))
             key = (issue_id, message)
             if key in known:
