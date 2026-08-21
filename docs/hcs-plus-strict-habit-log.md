@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3741 / map exact US 10Y and VIX global-market evidence labels
+
+- `#拆解問題` / `#差距分析`：full artifact audit 找到 `US 10Y Yield`、`US 10Y Treasury Yield` 與 `VIX` 都有 snapshot 的 `tnx.latest`／`vix.latest`，但 exact label 沒有 path；`US CPI YoY` 沒有同語意 canonical node，不能借用 TNX 或其他市場數值。
+- `#偏誤辨識` / `#偏誤降低` / `#來源品質`：只新增 exact US 10Y／VIX alias；錯值仍回到各自指定 path 判 `mismatch`，US 10Y 不跨配 VIX、VIX 不跨配 TNX，CPI 維持 `missing_semantic_path`。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED，再 GREEN；focused `3 passed`、完整 evidence `147 passed`、品質 `1145 passed`、line guard `349` 通過，full artifact `2512 claims: 1615 verified / 761 unverifiable / 136 mismatch`，`missing_semantic_path` 降至 `129`。正式 reload 後 live API 重驗 `3324.TWO` verified、`6282.TW` 兩筆 mismatch、CPI unverifiable，health/ready `200/200`、active jobs `0`，current quality `164` 份為 conformance `80/74/10`、content `99/57/8`、evidence `134/27/3`，未改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3740 / split composite 52-week high-low evidence claims
 
 - `#拆解問題` / `#差距分析`：full artifact audit 找到 `6226.TW/v4` 的 `52 週高低：28.95 / 6.25 (market_data)` 只抽出第一個數值，第二個低點未進 evidence gate；canonical snapshot 同時有 `data.week_52_high` 與 `data.week_52_low`。

@@ -1052,6 +1052,77 @@ def test_evidence_gate_matches_named_global_market_latest_values():
     ]
 
 
+def test_evidence_gate_matches_us10y_and_vix_global_market_aliases():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- US 10Y Yield: 4.696%\n- US 10Y Treasury Yield: 4.696%\n- VIX: 15.77",
+        {
+            "data": {
+                "global_market_context": {
+                    "items": [
+                        {"symbol": "^TNX", "latest": 4.696},
+                        {"symbol": "^VIX", "latest": 15.77},
+                    ],
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=3,
+    )
+
+    assert result["verdict"] == "approved"
+    assert [claim["matched_path"] for claim in result["sampled_claims"]] == [
+        "data.global_market_context.items[tnx].latest",
+        "data.global_market_context.items[tnx].latest",
+        "data.global_market_context.items[vix].latest",
+    ]
+
+
+def test_evidence_gate_keeps_us10y_and_vix_paths_from_cross_matching():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- US 10Y Yield: 15.77%\n- VIX: 4.696",
+        {
+            "data": {
+                "global_market_context": {
+                    "items": [
+                        {"symbol": "^TNX", "latest": 4.696},
+                        {"symbol": "^VIX", "latest": 15.77},
+                    ],
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=2,
+    )
+
+    assert result["verdict"] == "rejected"
+    assert [claim["matched_path"] for claim in result["sampled_claims"]] == [
+        "data.global_market_context.items[tnx].latest",
+        "data.global_market_context.items[vix].latest",
+    ]
+    assert all(claim["status"] == "mismatch" for claim in result["sampled_claims"])
+
+
+def test_evidence_gate_keeps_us_cpi_unverifiable_without_canonical_market_node():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- US CPI YoY: 3.3039%",
+        {"data": {"global_market_context": {"items": [{"symbol": "^TNX", "latest": 3.3039}]}}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "caution"
+    assert claim["status"] == "unverifiable"
+    assert claim["matched_path"] == ""
+    assert claim["verification_reason_code"] == "missing_semantic_path"
+
+
 def test_evidence_gate_keeps_named_global_market_latest_mismatch_visible():
     from evidence_exit_gate import evaluate_report_evidence
 
