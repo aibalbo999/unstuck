@@ -182,6 +182,42 @@ def test_evidence_gate_matches_common_valuation_snapshot_fields():
     ]
 
 
+def test_evidence_gate_matches_exact_price_sales_aliases():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- PS: 1.07\n- P/S: 1.07\n- Price/Sales: 1.07",
+        {"data": {"ps_ratio": 1.07}},
+        sample_ratio=1.0,
+        min_sample=3,
+    )
+
+    assert result["verdict"] == "approved"
+    assert [claim["matched_path"] for claim in result["sampled_claims"]] == [
+        "data.ps_ratio",
+        "data.ps_ratio",
+        "data.ps_ratio",
+    ]
+
+
+def test_evidence_gate_keeps_ps_mismatch_on_ps_path_and_eps_on_eps_path():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- PS: 31.18\n- EPS: 2.50",
+        {"data": {"ps_ratio": 34.65, "eps": 2.50}},
+        sample_ratio=1.0,
+        min_sample=2,
+    )
+
+    assert result["verdict"] == "rejected"
+    assert [claim["status"] for claim in result["sampled_claims"]] == ["mismatch", "verified"]
+    assert [claim["matched_path"] for claim in result["sampled_claims"]] == [
+        "data.ps_ratio",
+        "data.eps",
+    ]
+
+
 def test_evidence_gate_matches_profitability_and_yield_snapshot_fields():
     from evidence_exit_gate import evaluate_report_evidence
 

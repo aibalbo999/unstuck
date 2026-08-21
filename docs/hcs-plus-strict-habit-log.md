@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3742 / map exact price-sales evidence without EPS collision
+
+- `#拆解問題` / `#差距分析`：full artifact audit 找到 `3653.TW/v3` 的 `PS: 31.18` 與 canonical `data.ps_ratio=34.65`，但 `PS`／`P/S`／`Price/Sales` 沒有 semantic path；短標籤又容易與 `EPS` 產生邊界碰撞。
+- `#偏誤辨識` / `#偏誤降低` / `#來源品質`：只新增 exact price-sales aliases 與 `P/S` 邊界 matcher；`EPS` 維持 `data.eps`，缺少 `ps_ratio` 或數值不一致不借用 PE／EPS／其他 valuation field。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED，再 GREEN；focused `2 passed`、完整 evidence `149 passed`、品質 `1147 passed`、line guard `348` 通過，full artifact `2512 claims: 1615 verified / 760 unverifiable / 137 mismatch`，`missing_semantic_path=128`。正式 reload 後 live API 的 `PS:31.18` 命中 `data.ps_ratio=34.65` 並保留 mismatch，health/ready `200/200`、active jobs `0`，current quality 為 conformance `80/74/10`、content `99/57/8`、evidence `134/27/3`，未改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3741 / map exact US 10Y and VIX global-market evidence labels
 
 - `#拆解問題` / `#差距分析`：full artifact audit 找到 `US 10Y Yield`、`US 10Y Treasury Yield` 與 `VIX` 都有 snapshot 的 `tnx.latest`／`vix.latest`，但 exact label 沒有 path；`US CPI YoY` 沒有同語意 canonical node，不能借用 TNX 或其他市場數值。

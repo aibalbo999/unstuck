@@ -41,7 +41,7 @@ _FIELD_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
     (("淨利率", "profitmargin", "profit_margin"), ("profit_margin", "profit_margin_raw")),
     (("熊市", "基本", "牛市", "情境"), ("price_target", "price_targets", "target_price", "scenario", "scenarios")), (("週目標", "weektarget"), ("parsed.trade_setup.target_price", "structured_outputs.24.target_price")),
     (("風險", "支撐", "壓力", "關卡"), ("risk_price",)), (("river chart", "pe_river_chart"), ("pe_river_chart.multiples",)), (("weekhigh", "52 week high"), ("week_52_high",)), (("weeklow", "52 week low"), ("week_52_low",)),
-    (("p/e", "pe", "本益比"), ("pe_ratio", "trailingpe", "forwardpe", "price_earnings")), (("p/b", "pb", "本益比淨值比", "pricebook", "price_to_book"), ("pb_ratio", "pb", "price_to_book")), (("roe", "股東權益報酬率", "權益報酬率"), ("roe", "roe_pct", "return_on_equity")), (("beta", "貝他"), ("beta",)),
+    (("p/e", "pe", "本益比"), ("pe_ratio", "trailingpe", "forwardpe", "price_earnings")), (("ps", "p/s", "price/sales", "price to sales"), ("ps_ratio", "price_sales_ratio", "price_to_sales")), (("p/b", "pb", "本益比淨值比", "pricebook", "price_to_book"), ("pb_ratio", "pb", "price_to_book")), (("roe", "股東權益報酬率", "權益報酬率"), ("roe", "roe_pct", "return_on_equity")), (("beta", "貝他"), ("beta",)),
     (("毛利率", "grossmargin", "gross_margin"), ("gross_margin", "gross_margin_raw")), (("殖利率", "dividendyield", "dividend_yield"), ("dividend_yield", "dividend_yield_raw")), (("營收", "收入", "revenue", "sales"), ("revenue", "monthly_revenue", "sales")),
     (("淨利", "netincome", "net_income"), ("net_income", "netincome")),
     (("operating cash flow", "operating_cash_flow", "營業現金流"), ("operating_cash_flow",)), (("fcf", "自由現金流", "freecashflow", "free_cash_flow"), ("fcf", "free_cash_flow", "freecashflow")),
@@ -316,8 +316,7 @@ def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
     return ()
 def _label_matches_marker(raw_label: str, normalized_label: str, marker: str) -> bool:
     normalized_marker = _normalize_match_text(marker)
-    if normalized_marker == "pe":
-        return bool(re.search(r"(?<![a-z0-9])p\s*/?\s*e(?![a-z0-9])", raw_label))
+    if normalized_marker in ("pe", "ps"): return bool(re.search(rf"(?<![a-z0-9])p\s*/?\s*{normalized_marker[-1]}(?![a-z0-9])", raw_label, re.IGNORECASE))
     return normalized_marker in normalized_label
 def _best_match(reported: float, snapshot_values: list[dict[str, Any]]) -> dict[str, Any] | None:
     best: dict[str, Any] | None = None
