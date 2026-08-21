@@ -54,10 +54,9 @@ _FIELD_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
 )
 def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
     """Extract labelled numeric claims from rendered Markdown."""
-    claims: list[dict[str, Any]] = []
-    seen: set[tuple[str, float, int]] = set()
+    claims: list[dict[str, Any]] = []; seen: set[tuple[str, float, int]] = set()
     in_code = False
-    for line_number, raw_line in enumerate(str(markdown or "").splitlines(), start=1):
+    for line_number, raw_line in enumerate((lines := str(markdown or "").splitlines()), start=1):
         line = raw_line.strip()
         if line.startswith("```"):
             in_code = not in_code
@@ -96,6 +95,7 @@ def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
                 "unit": unit,
                 "line_number": line_number,
                 "raw_text": line[:160],
+                **({"context_text": "\n".join(lines[max(0, line_number - 3):line_number - 1])} if line_number > 1 else {}),
             })
     return claims
 def _claim_value(match: re.Match[str], label: str, line: str) -> tuple[float | None, str]:
@@ -238,7 +238,7 @@ def _check_claim(claim: dict[str, Any], snapshot_values: list[dict[str, Any]], *
     else:
         status = "mismatch"
     return {
-        **claim,
+        **{key: value for key, value in claim.items() if key != "context_text"},
         "status": status,
         "matched_path": best.get("path") if best else "",
         "matched_value": best.get("value") if best else None,
@@ -299,8 +299,8 @@ def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
     if "last_5_trading_days_net_buy_thousand_shares" in raw_text or label == "last5tradingdaysnetbuy": return ("institutional_trading.last_5_trading_days_net_buy_thousand_shares",)
     if label in ("週高點", "週低點", "壓力位", "支撐位", "近期壓力", "關鍵壓力位") and str(claim.get("unit") or "").lower() in ("twd", "元") and (week_match := next((match for match in re.finditer(r"(?:(?:52\s*週|52週)\s*(?P<after>最高|最低|高|低)(?:點|價)?\s*[:：為=]?\s*(?:NT\$|\$)?(?P<after_num>-?\d[\d,]*(?:\.\d+)?)|(?P<before_num>-?\d[\d,]*(?:\.\d+)?)\s*(?:TWD|元)?\s*[*_`]*\s*[（(]?\s*[。．]?\s*(?:此為|為|是)?\s*(?:52\s*週|52週)\s*(?P<before>最高|最低|高|低)(?:點|價)?)", str(claim.get("raw_text") or ""), re.IGNORECASE) if _clean_number(match.group("after_num") or match.group("before_num")) == float(claim.get("reported_value") or 0)), None)): return ("week_52_high",) if (week_match.group("after") or week_match.group("before")) in ("高", "最高") else ("week_52_low",)
     if (source_match := re.search(r"(-?\d[\d,]*(?:\.\d+)?)\s*(?:TWD|元)?\s*[（(]?\s*`?(?:data\.)?(market_data\.week_52_(?:high|low)_twd)", str(claim.get("raw_text") or ""), re.IGNORECASE)) and _clean_number(source_match.group(1)) == float(claim.get("reported_value") or 0): return ("week_52_high",) if "week_52_high_twd" in raw_text else ("week_52_low",)
-    if any(marker in raw_text for marker in ("熊市", "牛市")):
-        return ("stop_loss", "support", "resistance", "risk_price", "price_target", "price_targets", "target_price", "scenario", "scenarios")
+    if label == "最新餘額": return ("margin_balance",) if ("融資餘額" in raw_text or "marginbalance" in raw_text or "融資餘額" in _normalize_match_text(claim.get("context_text"))) else ("short_balance",) if ("融券餘額" in raw_text or "shortbalance" in raw_text or "融券餘額" in _normalize_match_text(claim.get("context_text"))) else ()
+    if any(marker in raw_text for marker in ("熊市", "牛市")): return ("stop_loss", "support", "resistance", "risk_price", "price_target", "price_targets", "target_price", "scenario", "scenarios")
     for label_markers, path_markers in _FIELD_HINTS:
         if any(_label_matches_marker(raw_label, label, marker) for marker in label_markers):
             return path_markers

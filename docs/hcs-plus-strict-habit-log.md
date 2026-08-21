@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3691 / use adjacent margin context for latest-balance evidence
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：live `2359.TW/v4` 的「融資餘額變化」在前一行，「最新餘額：9,626 張」在下一行；snapshot 同時有 `data.chip_data.twse_margin_short_sales.margin_balance=9626`，但 claim raw line 沒有保留前文，原規則只能回報 unverifiable。
+- `#最小變更` / `#責任`：extractor 只保存最多兩行的局部 context，不改對外 `raw_text`；evidence gate 只在 exact label `最新餘額` 且相鄰 context 明示融資／融券時回指 `margin_balance`／`short_balance`，無上下文反例維持 unverifiable。
+- `#偏誤降低` / `#可驗證性`：先以同一行與跨一行 fixture RED，再 GREEN；live 全量重驗 `2359.TW/v4` verified，matched path 為 `data.chip_data.twse_margin_short_sales.margin_balance`。既有 6 個 mismatch、confidence/情境/派生 claim 的人工覆核邊界不變。
+- `#可驗證性` / `#責任`：evidence gate `53 passed`、品質/evidence/conformance `1036 passed`、import boundary `504 passed`、HCS/docs `136 passed`，line guard `evidence_exit_gate.py=349`。正式 reload 後 live `165` 份為 evidence `132/29/4`、claims `427 verified / 147 unverifiable / 6 mismatch`、content `79/78/8`、conformance `74/80/11`；healthz/readyz、doctor canonical paths、RQ queue depth `0` 通過，未寫入 artifact、snapshot、index、review、rerun、repair 或 queue。
+
 ## D3690 / map v4 weekly targets to their explicit trade-setup path
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：live current scope 的 9 筆 `週目標` 全是 v4，報告值與 `rerun_context.structured_outputs.24.target_price`、`rerun_context.parsed.trade_setup.target_price` 一對一相符；原本 parser 沒有 `週目標` hint，只能回報 unverifiable。

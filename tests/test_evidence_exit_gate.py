@@ -902,6 +902,80 @@ def test_evidence_gate_does_not_promote_daily_net_buy_to_last_5_field():
     assert result["sampled_claims"][0]["matched_path"] == ""
 
 
+def test_evidence_gate_matches_latest_balance_in_margin_context():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 融資餘額變化：**最新餘額：** 9,626 張（較前一交易日 10,915 張減少 1,289 張）。",
+        {
+            "data": {
+                "chip_data": {
+                    "twse_margin_short_sales": {
+                        "margin_balance": 9626,
+                        "margin_previous_balance": 10915,
+                        "short_balance": 489,
+                    }
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["sampled_claims"][0]["status"] == "verified"
+    assert result["sampled_claims"][0]["matched_path"] == "data.chip_data.twse_margin_short_sales.margin_balance"
+    assert "context_text" not in result["sampled_claims"][0]
+
+
+def test_evidence_gate_uses_adjacent_margin_heading_for_latest_balance():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 融資餘額變化（至 2026-08-19）：\n  - **最新餘額：** 9,626 張（較前一交易日 10,915 張減少 1,289 張）。",
+        {
+            "data": {
+                "chip_data": {
+                    "twse_margin_short_sales": {
+                        "margin_balance": 9626,
+                        "margin_previous_balance": 10915,
+                    }
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["sampled_claims"][0]["status"] == "verified"
+    assert result["sampled_claims"][0]["matched_path"] == "data.chip_data.twse_margin_short_sales.margin_balance"
+
+
+def test_evidence_gate_keeps_unqualified_latest_balance_unverifiable():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **最新餘額：** 9,626 張。",
+        {
+            "data": {
+                "chip_data": {
+                    "twse_margin_short_sales": {
+                        "margin_balance": 9626,
+                        "short_balance": 9626,
+                    }
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "caution"
+    assert result["sampled_claims"][0]["status"] == "unverifiable"
+    assert result["sampled_claims"][0]["matched_path"] == ""
+
+
 def test_evidence_gate_matches_explicit_current_price_snapshot_path():
     from evidence_exit_gate import evaluate_report_evidence
 
