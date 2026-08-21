@@ -21,6 +21,7 @@ from data_trust_snapshot_integrity import (
 )
 from data_trust_snapshot_sanitizer import sanitize_for_snapshot, snapshot_text
 from data_trust_scoring import build_data_trust, normalize_data_trust, unknown_data_trust
+from financial_cross_checks import build_financial_cross_checks
 from mapping_fields import (
     safe_text,
     safe_mapping_dict,
@@ -147,6 +148,7 @@ def build_data_snapshot(
         "data_confidence_score": confidence_controls["data_confidence_score"],
         "data_confidence_status": confidence_controls["data_confidence_status"],
         "conclusion_guardrails": sanitize_for_snapshot(confidence_controls["conclusion_guardrails"]),
+        "financial_cross_checks": sanitize_for_snapshot(build_financial_cross_checks(data)),
         "reproducibility_packet": sanitize_for_snapshot(
             build_reproducibility_packet(context, data_trust, snapshot_generated_at)
         ),

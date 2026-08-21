@@ -2856,6 +2856,28 @@ def test_data_snapshot_sanitizes_sensitive_keys():
     assert data_trust.validate_data_snapshot(tampered)["valid"] is False
 
 
+def test_data_snapshot_persists_deterministic_financial_cross_checks():
+    snapshot = data_trust.build_data_snapshot(
+        {
+            "ticker": "CHECK",
+            "pipeline_id": "v1",
+            "data": {
+                "ticker": "CHECK",
+                "shares_raw": 1_000_000_000,
+                "forward_eps": 5.0,
+                "profit_margin_raw": 0.1,
+                "revenue_ttm_raw": 100_000_000_000,
+                "source_audit": [],
+                "data_trust": data_trust.unknown_data_trust(),
+            },
+        }
+    )
+
+    assert snapshot["financial_cross_checks"]["forward_eps_implied_revenue_billion_twd"] == 50
+    assert snapshot["financial_cross_checks"]["forward_eps_implied_revenue_growth_pct"] == -50
+    assert data_trust.verify_data_snapshot_integrity(snapshot)["valid"] is True
+
+
 def test_data_snapshot_integrity_hash_metadata_does_not_depend_on_truthiness():
     snapshot = data_trust.build_data_snapshot(
         {

@@ -11,7 +11,8 @@ from functools import lru_cache
 from jinja2 import ChainableUndefined, Environment
 
 from config import CATALYST_LOOKBACK_DAYS
-from financial_tools import build_financial_tool_context, raw_twd_to_billion_twd, safe_float
+from financial_cross_checks import build_financial_cross_checks
+from financial_tools import build_financial_tool_context, raw_twd_to_billion_twd
 from prompt_builder_helpers import (
     _agent_context,
     _compact_list,
@@ -57,26 +58,6 @@ def _get_compiled_prompt_template(template: str):
 
 def format_data_for_prompt(data: dict, *, compact: bool = False) -> str:
     """Format financial data as clean JSON to avoid unit drift and prompt overload."""
-    shares = safe_float(dict.get(data, "shares_raw"))
-    forward_eps = safe_float(dict.get(data, "forward_eps"))
-    profit_margin_raw = safe_float(dict.get(data, "profit_margin_raw"))
-    revenue_ttm_raw = safe_float(dict.get(data, "revenue_ttm_raw"))
-
-    implied_forward_net_income_b = None
-    implied_forward_revenue_b = None
-    implied_forward_revenue_growth_pct = None
-    if shares and forward_eps:
-        implied_forward_net_income_twd = shares * forward_eps
-        implied_forward_net_income_b = raw_twd_to_billion_twd(implied_forward_net_income_twd)
-        if profit_margin_raw and profit_margin_raw > 0:
-            implied_forward_revenue_twd = implied_forward_net_income_twd / profit_margin_raw
-            implied_forward_revenue_b = raw_twd_to_billion_twd(implied_forward_revenue_twd)
-            if revenue_ttm_raw and revenue_ttm_raw > 0:
-                implied_forward_revenue_growth_pct = round(
-                    (implied_forward_revenue_twd / revenue_ttm_raw - 1) * 100,
-                    4,
-                )
-
     total_debt_b = raw_twd_to_billion_twd(dict.get(data, "total_debt_raw"))
     total_cash_b = raw_twd_to_billion_twd(dict.get(data, "total_cash_raw"))
     net_debt_b = None
@@ -171,13 +152,7 @@ def format_data_for_prompt(data: dict, *, compact: bool = False) -> str:
         "local_valuation_context": {
             "pe_river_chart": _compact_pe_river(raw_pe_river_chart := dict.get(data, "pe_river_chart")) if compact else (raw_pe_river_chart if isinstance(raw_pe_river_chart := dict.get(data, "pe_river_chart"), dict) else {}),
         },
-        "cross_checks": {
-            "forward_eps_implied_net_income_billion_twd": implied_forward_net_income_b,
-            "forward_eps_implied_revenue_billion_twd": implied_forward_revenue_b,
-            "forward_eps_implied_revenue_growth_pct": implied_forward_revenue_growth_pct,
-            "dupont_identity_note": dict.get(data, "dupont_identity_note") or dict.get(data, "equity_multiplier_note"),
-            "wacc_capital_structure_note": dict.get(data, "wacc_capital_structure_note"),
-        },
+        "cross_checks": build_financial_cross_checks(data),
         "data_quality_notes": _compact_list(dict.get(data, "data_source_notes", []), 5) if compact else _safe_iterable_prefix(dict.get(data, "data_source_notes", [])),
         "recent_monthly_revenue_text": _compact_list(dict.get(data, "recent_monthly_revenue", []), 4) if compact else _safe_iterable_prefix(dict.get(data, "recent_monthly_revenue", [])),
         "deterministic_financial_tool_results": build_financial_tool_context(data),
