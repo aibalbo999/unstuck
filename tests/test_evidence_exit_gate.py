@@ -1738,6 +1738,74 @@ def test_evidence_gate_maps_unique_yearless_month_end_support_to_price_history()
     assert result["sampled_claims"][0]["matched_path"] == "data.price_history[month-end=2026-07]"
 
 
+def test_evidence_gate_maps_month_end_close_support_to_price_history():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* **近期支撐：** 33.0 TWD（7 月底收盤價）。",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2026-06-30", "2026-07-31"],
+                    "prices": [35.0, 33.0],
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "approved"
+    assert claim["status"] == "verified"
+    assert claim["matched_path"] == "data.price_history[month-end=2026-07]"
+
+
+def test_evidence_gate_maps_explicit_year_month_end_close_pressure():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* **近期壓力一**：267.0 TWD（2026 年 5 月底收盤價）。",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2026-05-29", "2026-06-30"],
+                    "prices": [267.0, 281.0],
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "approved"
+    assert claim["matched_path"] == "data.price_history[month-end=2026-05]"
+
+
+def test_evidence_gate_does_not_treat_month_end_platform_as_close_evidence():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* **第二支撐：** 13.0 TWD（6 月底的平台位置）。",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2026-06-30"],
+                    "prices": [13.0],
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "caution"
+    assert claim["status"] == "unverifiable"
+    assert claim["matched_path"] == ""
+
+
 def test_evidence_gate_keeps_yearless_month_end_ambiguous_across_years():
     from evidence_exit_gate import evaluate_report_evidence
 
@@ -1828,6 +1896,31 @@ def test_evidence_gate_splits_secondary_price_history_support_value():
     assert claims[1]["label"] == "近期支撐（次要價位）"
     assert claims[1]["status"] == "verified"
     assert claims[1]["matched_path"] == "data.price_history[month-end=2026-07]"
+
+
+def test_evidence_gate_splits_two_month_end_close_support_values():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* **近期支撐**：3998.48 TWD（7 月底收盤價）與 4251.17 TWD（6 月底收盤價）。",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2026-06-30", "2026-07-31", "2026-08-20"],
+                    "prices": [4251.17, 3998.48, 4100.0],
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claims = result["sampled_claims"]
+    assert result["claim_count"] == 2
+    assert result["verdict"] == "approved"
+    assert [claim["status"] for claim in claims] == ["verified", "verified"]
+    assert claims[0]["matched_path"] == "data.price_history[month-end=2026-07]"
+    assert claims[1]["matched_path"] == "data.price_history[month-end=2026-06]"
 
 
 def test_evidence_gate_splits_news_and_month_end_support_values_by_context():

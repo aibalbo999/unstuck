@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3731 / map explicit month-end closing prices without widening evidence
+
+- `#拆解問題` / `#差距分析`：full artifact audit 找到 `7 月底收盤價`、`2026 年 5 月底收盤價` 等 claim 已有 canonical `price_history` 月末節點，卻被當成沒有 matching path；同時要保留 `月底的平台位置` 與非明示收盤語意的人工確認邊界。
+- `#偏誤辨識` / `#偏誤降低` / `#來源品質`：只在支撐／壓力／高低點語意、明示 `月底收盤價`／`月末收盤價`、唯一月份節點與相鄰數值一致時映射 `data.price_history[month-end=YYYY-MM]`；第二個月底收盤值獨立抽取，新聞／催化劑、未明示收盤、平台位置、年份歧義與真實 mismatch 不借用 path。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED，再 GREEN；focused `4 passed`、完整 evidence `122 passed`、品質/evidence/conformance `1120 passed`、import/docs、`py_compile`、`git diff --check` 與 line guard `349` 通過。full artifact 為 `2510 claims: 1601 verified / 775 unverifiable / 134 mismatch`，reason `no_matching_snapshot_path=144`；live current `164` 份為 evidence `135/26/3`、content `99/57/8`、conformance `80/74/10`，health/ready、doctor、queue `0` 通過，未改動 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3730 / expose stale-analysis context without weakening evidence verdicts
 
 - `#拆解問題` / `#差距分析`：live `6282.TW/v4` 的 2 個 evidence mismatch 與 `decision_freshness=needs_rerun` 同時成立；這是快照更新後舊結論未重跑，不是 tolerance 或 semantic mapping 誤判。先以 response-time projection 的真實 row 取得 RED，保留 `rejected` 與 mismatch。
