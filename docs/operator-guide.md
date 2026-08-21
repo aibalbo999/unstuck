@@ -243,7 +243,7 @@ compact `最終投資建議` row 的 `避免；3個月`、`6個月`、`12個月`
 
 支撐／壓力句若同時列出前一個情境價與後面的月份高低點，只有緊鄰該日期的價位可以綁定 `price_history[month=YYYY-MM].low|high`。前一個價位若沒有自己的 canonical path，會保留 `unverifiable`；請不要把它和後面的月份低點／高點視為同一個證據。這是語意對應的保護，不會放寬 tolerance，也不會把真實 mismatch 改成通過。
 
-若支撐／壓力價明確寫成 `月底收盤價` 或 `月末收盤價`，且 snapshot 只有一個可辨識的該月份月末節點，evidence gate 會對應 `data.price_history[month-end=YYYY-MM]`；同一句明確列出的第二個月底收盤價也會獨立核對。`月底的平台位置`、沒有明示收盤語意的月底價、新聞／催化劑價格，以及年份或月份無法唯一對應的句子，仍是 `unverifiable`，不要用近似數字或相鄰 claim 代替來源證明。
+若支撐／壓力／前高價明確寫成 `月底收盤價`、`月末收盤價` 或指定月份的 `收盤價`，且 snapshot 只有一個可辨識的該月份月末節點，evidence gate 會對應 `data.price_history[month-end=YYYY-MM]`；同一句明確列出的第二個月底收盤價也會獨立核對。`月底的平台位置`、沒有明示收盤語意的月底價、新聞／催化劑價格，以及年份或月份無法唯一對應的句子，仍是 `unverifiable`，不要用近似數字或相鄰 claim 代替來源證明。
 
 PE River Chart 的 band claim 也必須保留倍數身份；例如 `43.2x（中高分位帶）` 只可對應 `data.pe_river_chart.bands.43.2x` 下的數值，不可跨到其他 band、`multiples` 或一般 P/E 值。若同一 claim 以 `P/E 河流圖`、`59.6x 區間／位階` 與 `1,379.14 TWD` 這類格式同時表達 band 對應價格，evidence gate 會限定在 `data.pe_river_chart.bands` 集合內核對，允許報告與 snapshot 的 band 倍數標示有小幅版本差異，但不會回退到 `data.pe_ratio`；沒有 band series 時仍是 `unverifiable`。
 

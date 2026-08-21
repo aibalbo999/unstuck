@@ -1888,6 +1888,50 @@ def test_evidence_gate_maps_explicit_year_month_end_close_pressure():
     assert claim["matched_path"] == "data.price_history[month-end=2026-05]"
 
 
+def test_evidence_gate_maps_explicit_month_end_close_for_prior_high_label():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* **波段前高：** 214.85 TWD（2026 年 5 月收盤價）。",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2026-04-30", "2026-05-29", "2026-06-30"],
+                    "prices": [163.33, 214.85, 207.07],
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "approved"
+    assert claim["status"] == "verified"
+    assert claim["matched_path"] == "data.price_history[month-end=2026-05]"
+
+
+def test_evidence_gate_does_not_infer_prior_high_without_close_marker():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* **波段前高：** 214.85 TWD（2026 年 5 月平台位置）。",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2026-05-29"],
+                    "prices": [214.85],
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["matched_path"] != "data.price_history[month-end=2026-05]"
+
+
 def test_evidence_gate_does_not_treat_month_end_platform_as_close_evidence():
     from evidence_exit_gate import evaluate_report_evidence
 

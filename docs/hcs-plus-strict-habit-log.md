@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3735 / map explicit monthly close evidence for prior-high labels
+
+- `#拆解問題` / `#差距分析`：full artifact audit 找到 `6278.TW/v4` 的 `波段前高：214.85 TWD（2026 年 5 月收盤價）` 與 `price_history` 的 2026-05 月末值一致，但 month-end matcher 漏掉 `前高` label，造成 canonical claim 落到 `missing_semantic_path`。
+- `#偏誤辨識` / `#偏誤降低` / `#來源品質`：只在 raw claim 明示指定月份 `收盤價`／月底收盤語意、label 含 `前高`、月份年份唯一、相鄰數值一致且非新聞來源時建立 `data.price_history[month-end=YYYY-MM]` path；`平台位置`、非收盤語意、月份歧義與真實 mismatch 不借用月末值。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED，再 GREEN；focused `11 passed`、完整 evidence `131 passed`、品質 `1129 passed`、import/docs `640 passed`，full artifact 為 `2510 claims: 1604 verified / 772 unverifiable / 134 mismatch`，reason `missing_semantic_path=140`；正式 reload 後 live API 直接驗證目標 claim 為 `verified → data.price_history[month-end=2026-05]=214.85`，current quality 維持 evidence `135/26/3`、content `99/57/8`、conformance `80/74/10`，health/ready、doctor 與 queue 通過，未改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3734 / map explicit 52-week low evidence for defense-line labels
 
 - `#拆解問題` / `#差距分析`：full artifact audit 找到 `8422.TW/v4` 的 `長期防線：19.15 TWD（52 週最低價）` 已有 `data.week_52_low=19.15`，但 label 不在既有支撐／壓力集合，造成 canonical claim 落到 `missing_semantic_path`。
