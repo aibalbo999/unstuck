@@ -604,8 +604,25 @@ def test_evidence_gate_does_not_compare_factset_claims_to_other_provider_values(
     assert result["failed_count"] == 0
     assert result["unverifiable_count"] == 2
     assert all(item["status"] == "unverifiable" for item in result["sampled_claims"])
-    assert all(item["verification_reason_code"] == "no_matching_snapshot_path" for item in result["sampled_claims"])
-    assert result["unverifiable_reason_counts"] == {"no_matching_snapshot_path": 2}
+    assert all(item["verification_reason_code"] == "research_source_not_canonical" for item in result["sampled_claims"])
+    assert result["unverifiable_reason_counts"] == {"research_source_not_canonical": 2}
+
+
+def test_evidence_gate_classifies_market_research_target_as_non_canonical():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "研究分類：金融租賃服務。目標價：130元（參考市場研究觀點）。",
+        {"data": {"current_price": 130.0, "target_price": 130.0}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "caution"
+    assert claim["status"] == "unverifiable"
+    assert claim["verification_reason_code"] == "research_source_not_canonical"
+    assert claim["matched_path"] == ""
 
 
 def test_evidence_gate_does_not_bind_descriptive_target_label_to_dcf_value():

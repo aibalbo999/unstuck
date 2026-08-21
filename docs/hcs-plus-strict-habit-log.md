@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3756 / classify research-source evidence boundaries
+
+- `#拆解問題` / `#差距分析`：full artifact audit 找到 `5871.TW/v4` 的 `目標價：130元（Factset預估值）` 與 `7795.TW/v4` 的 `目標價：605元（參考市場研究觀點）`；兩者沒有同路徑 canonical snapshot，但原本只顯示 `no_matching_snapshot_path`，不利於判斷是欄位缺漏還是研究來源限制。
+- `#偏誤辨識` / `#偏誤降低` / `#來源品質`：新增 `research_source_not_canonical` read-only reason；FactSet／券商研究／市場研究仍不可核驗，不借用 current price、DCF、EPS、其他 provider 或同值欄位，verdict 與 evidence status 不變。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED，再 GREEN；focused `2 passed`、完整 evidence `177 passed`、品質/evidence/conformance `998 passed`、line guard `349`、`py_compile`、`git diff --check` 通過。full artifact `164 reports / 2515 claims` 為 `1634 verified / 743 unverifiable / 138 mismatch`，reason 為 `confidence_metadata_not_evidence=283`、`legacy_conclusion_without_snapshot_path=203`、`missing_semantic_path=117`、`no_matching_snapshot_path=135`、`news_source_not_canonical=3`、`research_source_not_canonical=2`、`snapshot_value_mismatch=138`。正式 reload 後兩筆 research target 均維持 `unverifiable`／空 path並分類為 `research_source_not_canonical`；本批不改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3755 / classify Chinese catalyst prices as non-canonical news evidence
 
 - `#拆解問題` / `#差距分析`：full artifact audit 找到 `6226.TW/v4` 的 `近期低點/支撐參考：15.1（2026-06-25 催化劑提到之價格）`；中文「催化劑」且省略幣別時，既有 generic `risk_price` fallback 可能在 snapshot 同值時誤判為 verified。
