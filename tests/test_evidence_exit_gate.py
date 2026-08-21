@@ -412,6 +412,62 @@ def test_evidence_gate_reports_missing_semantic_path_for_unknown_numeric_labels(
     assert result["unverifiable_reason_counts"] == {"missing_semantic_path": 1}
 
 
+def test_evidence_gate_maps_composite_52_week_high_low_to_distinct_snapshot_fields():
+    from evidence_exit_gate import evaluate_report_evidence, extract_numeric_claims
+
+    markdown = "- 52 週高低：28.95 / 6.25 (market_data)"
+    snapshot = {"data": {"week_52_high": 28.95, "week_52_low": 6.25}}
+
+    claims = extract_numeric_claims(markdown)
+    result = evaluate_report_evidence(markdown, snapshot, sample_ratio=1.0, min_sample=2)
+
+    assert [claim["reported_value"] for claim in claims] == [28.95, 6.25]
+    assert result["verdict"] == "approved"
+    assert [item["matched_path"] for item in result["sampled_claims"]] == [
+        "data.week_52_high",
+        "data.week_52_low",
+    ]
+    assert all(item["status"] == "verified" for item in result["sampled_claims"])
+
+
+def test_evidence_gate_does_not_infer_week_52_fields_from_generic_high_low_pair():
+    from evidence_exit_gate import evaluate_report_evidence, extract_numeric_claims
+
+    markdown = "- 高低：28.95 / 6.25"
+    snapshot = {"data": {"week_52_high": 28.95, "week_52_low": 6.25}}
+
+    claims = extract_numeric_claims(markdown)
+    result = evaluate_report_evidence(markdown, snapshot, sample_ratio=1.0)
+
+    assert [claim["reported_value"] for claim in claims] == [28.95]
+    assert result["verdict"] == "caution"
+    assert result["sampled_claims"][0]["verification_reason_code"] == "missing_semantic_path"
+
+
+def test_evidence_claims_do_not_split_slash_price_pairs_for_other_labels():
+    from evidence_exit_gate import extract_numeric_claims
+
+    claims = extract_numeric_claims("- 支撐：31.75 TWD / 22.95 TWD (market_data)")
+
+    assert [claim["reported_value"] for claim in claims] == [31.75]
+
+
+def test_evidence_gate_keeps_composite_52_week_low_mismatch_on_low_path():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 52 週高低：28.95 / 7.25 (market_data)",
+        {"data": {"week_52_high": 28.95, "week_52_low": 6.25}},
+        sample_ratio=1.0,
+        min_sample=2,
+    )
+
+    assert result["verdict"] == "rejected"
+    assert result["sampled_claims"][0]["status"] == "verified"
+    assert result["sampled_claims"][1]["status"] == "mismatch"
+    assert result["sampled_claims"][1]["matched_path"] == "data.week_52_low"
+
+
 def test_evidence_gate_explains_legacy_conclusion_without_persisted_snapshot_context():
     from evidence_exit_gate import evaluate_report_evidence
 

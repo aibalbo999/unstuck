@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3740 / split composite 52-week high-low evidence claims
+
+- `#拆解問題` / `#差距分析`：full artifact audit 找到 `6226.TW/v4` 的 `52 週高低：28.95 / 6.25 (market_data)` 只抽出第一個數值，第二個低點未進 evidence gate；canonical snapshot 同時有 `data.week_52_high` 與 `data.week_52_low`。
+- `#偏誤辨識` / `#偏誤降低` / `#來源品質`：只在 `週高低` label、slash-separated pair 與同句 `market_data` 同時成立時拆出 secondary claim；generic `高低` 不推論 52 週欄位，第一／第二數值各自綁定 high／low，缺欄位或 mismatch 不 fallback。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED，再 GREEN；focused `4 passed`、完整 evidence `144 passed`、品質 `1142 passed`、line guard `349` 通過，full artifact `2512 claims: 1614 verified / 764 unverifiable / 134 mismatch`，`missing_semantic_path` 降至 `132`，複合 residual `0`。正式 reload 後 live API Markdown/data HTTP `200/200`，兩筆目標 claim verified 到 `data.week_52_high`／`data.week_52_low`，current quality `164` 份為 conformance `80/74/10`、content `99/57/8`、evidence `134/27/3`，health/ready `200/200`、active jobs `0`，未改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3739 / map explicit dated close for bottom-boundary labels
 
 - `#拆解問題` / `#差距分析`：full artifact audit 找到 `2301.TW/v4` 的 `強勁底部分界：207.09 TWD（2026-07-31 收盤價）` 與 `price_history` 同日值一致，但 label 沒有進既有 dated-price semantic path。
