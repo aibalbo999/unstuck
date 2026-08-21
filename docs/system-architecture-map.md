@@ -249,7 +249,7 @@ flowchart TD
 - `execution_summary` 必須在 Markdown/HTML 顯示獨立 `Content credibility` marker；`report_quality_evidence` 同時辨識新 marker 與既有閱讀提示的 `內容一致性` 行，僅作 artifact evidence 摘要，不回推 snapshot gate、review、rerun 或 queue 狀態。
 - `content_credibility_evidence_matrix` 依 parsed context 條件式要求 `最終投資建議`、`估值結論`、`護城河評分` 的 evidence row；每個存在的結論都要求 row status 為 `success`、`skipped_fresh_cache` 或 `degraded_enrichment` 且有非空 basis，缺 row 或不可用 row 分別產生對應的 `missing_*_evidence`／`unusable_*_evidence` warning。缺少該 parsed 結論不補 row，數字抽查仍由 `evidence_exit_gate` 負責。
 - `evidence_exit_gate` 的 sampled claim 保留 `verification_reason_code`、`candidate_count` 與 `unverifiable_reason_counts`，區分缺少 semantic path、缺少同路徑 snapshot、真實 mismatch 與 verified；這些是 read-only observability，不改 verdict、抽樣數量、snapshot、artifact 或 queue。
-- `evidence_exit_gate.extract_numeric_claims()` 對 KV label 後接的月日範圍（例如 `08/17 - 08/18`）採 conservative non-claim guard，避免日期前綴被當成 scalar；這不放寬有單位數值或 canonical field 的核驗，也不改 snapshot/artifact。
+- `evidence_exit_gate.extract_numeric_claims()` 對 KV label 後接的月日範圍（例如 `08/17 - 08/18`）及直接接中文／英文文字的 compact token（例如 `08/17法說會後`）採 conservative non-claim guard，避免日期前綴被當成 scalar；以第三位數字禁止條件保留真正數值邊界，不放寬有單位數值或 canonical field 的核驗，也不改 snapshot/artifact。
 - `evidence_exit_gate._is_non_claim_match()` 對資料截止／抓取 metadata 的 `HH:MM` 分鐘 token 採同樣 conservative guard，只有 label 具有時間 metadata 語意且數字前緊接小時冒號時排除，避免時間欄位污染 evidence sample。
 - `evidence_exit_gate` 對 `River Chart` claim 使用專用 `pe_river_chart.multiples` path hint，放在泛用 P/E hint 之前；這保留一般 P/E、River Chart 與其他 valuation fields 的來源邊界，不做最近數字 fallback。
 - River Chart band claim 會從 raw text 保留倍數身份，例如 `43.2x（中高分位帶）` 映射到 `pe_river_chart.bands.43.2x`；不以整個 bands、multiples 或 generic P/E 的最近數字替代。

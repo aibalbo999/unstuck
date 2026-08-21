@@ -559,6 +559,16 @@ def test_evidence_claims_ignore_month_day_range_after_labeled_colon():
     assert claims == []
 
 
+def test_evidence_claims_ignore_month_day_followed_immediately_by_chinese_text():
+    from evidence_exit_gate import extract_numeric_claims
+
+    claims = extract_numeric_claims(
+        "- 核心催化劑: 08/17法說會後外資連續5日大幅買超。"
+    )
+
+    assert claims == []
+
+
 def test_evidence_claims_do_not_treat_daily_trend_dates_as_scalar_values():
     from evidence_exit_gate import extract_numeric_claims
 

@@ -219,7 +219,7 @@ Report evidence exit gate numeric checks use semantic snapshot paths only: ISO t
 
 每筆 sampled claim 另提供 `verification_reason_code` 與 `candidate_count`：`matched_snapshot_value` 代表同語意快照值在 tolerance 內，`snapshot_value_mismatch` 代表已有可比對候選但數值不一致，`missing_semantic_path` 代表 claim 沒有安全的 canonical 語意路徑，`no_matching_snapshot_path` 代表有語意路徑但快照沒有對應欄位。`unverifiable_reason_counts` 只統計後兩種人工確認原因，不改變 `failed_count`、verdict 或既有人工確認邊界；不可用的衍生分數、新聞價格與跨 provider 數值仍不得借用最近數字。
 
-KV claim 的 label 後若立即接 `8/17 - 8/18`、`8-17` 這類月日範圍，日期 token 會被排除，不會被誤當成法人數量、價格或其他 scalar claim；日期後真正帶單位的數值仍需依既有 semantic path 規則核驗。
+KV claim 的 label 後若立即接 `8/17 - 8/18`、`8-17` 這類月日範圍，日期 token 會被排除，不會被誤當成法人數量、價格或其他 scalar claim；`08/17法說會後` 這種日期後直接接中文／英文文字的 compact token 也會排除。日期後真正帶單位的數值仍需依既有 semantic path 規則核驗；第三位數字仍會阻止日期判定。
 
 資料截止／抓取 metadata 中的 `HH:MM` 分鐘 token（例如 `2026-08-19 07:50`）也不是投資 claim；只有在 label 明示資料時間語意時排除，避免把分鐘數誤認為數值欄位，其他時間以外的 scalar claim 不受影響。
 

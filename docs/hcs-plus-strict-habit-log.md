@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3714 / exclude compact month-day metadata claims
+
+- `#拆解問題` / `#差距分析` / `#來源品質`：live `1102.TW/v4` 的 `08/17法說會後` 被誤判成 `8.0`，污染「核心催化劑」的 evidence sample；這是日期 metadata，不是投資數值。
+- `#偏誤辨識` / `#偏誤降低` / `#可驗證性`：補上月日 token 緊接中文文字的 RED regression，並以 `(?!\d)` 保留第三位數字防線；`08/17 - 08/18`、完整日期、真正帶單位的值仍維持原解析邊界。
+- `#責任`：RED→GREEN focused evidence `101 passed`、品質/evidence/conformance `1084 passed`、import `504 passed`、line guard `349`、py_compile 通過。正式 reload 後 `1102.TW/v4` 為 `approved`；全量 evidence 為 `135 approved / 25 caution / 4 rejected`、`433 verified / 120 unverifiable / 11 mismatch`，未修改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3713 / preserve semantic boundary for same-value candidates
 
 - `#拆解問題` / `#差距分析` / `#來源品質`：live `no_matching_snapshot_path=71` 中，數值相同的候選多落在歷史價格、新聞/URL、日期 metadata、SLA 或已渲染分析文字；數值相同不等於同一 claim source。
