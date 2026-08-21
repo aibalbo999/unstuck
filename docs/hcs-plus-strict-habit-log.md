@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3722 / explain legacy conclusions without persisted canonical context
+
+- `#拆解問題` / `#差距分析` / `#來源品質`：live `v1/v2/v3` legacy snapshot 的短／中／長期目標與長期潛力數字仍存在 Markdown，但 `rerun_context.parsed`、`structured_outputs` 都是空值；它們不是可以借用同值數字的 canonical evidence，也不應和一般 mapping 缺口混在一起。
+- `#偏誤辨識` / `#偏誤降低` / `#可驗證性`：新增 `legacy_conclusion_without_snapshot_path`，只在明確結論 label、空 legacy context 且沒有 canonical path 時使用；status 仍為 `unverifiable`，不讀 persisted `content_credibility`／`report_conformance` 當來源，不改 verdict、抽樣、snapshot、artifact 或 queue。parsed context 存在的反例仍維持 `missing_semantic_path`。
+- `#責任`：先取得 RED 再 GREEN；focused evidence `106 passed`、品質/evidence/conformance `1100 passed`、import `504 passed`、docs `136 passed`、line guard `349`、`py_compile` 通過。正式 reload 後全量 `164` 份 quality 為 content `92/64/8`、conformance `80/74/10`、evidence `135/26/3`；read-only 全量 projection reason 為 `legacy_conclusion_without_snapshot_path=28`、`missing_semantic_path=21`、`news_source_not_canonical=2`、`no_matching_snapshot_path=69`。healthz/readyz `ok/ready`、queue depth `0`、failed_recent `0`，未修改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3721 / bind legacy River Chart band prices to valuation bands
 
 - `#來源品質` / `#語意含義` / `#可驗證性`：`2308.TW/v2` 的 `P/E 河流圖 2025 年最高位階（59.6x 區間）：1,379.14 TWD` 是 River Chart band 對應價格，不是 generic `pe_ratio`；snapshot 的 `59.8x` band 價格 `1,383.77` 在既有 1% tolerance 內。

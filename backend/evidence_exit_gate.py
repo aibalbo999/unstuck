@@ -137,7 +137,7 @@ def evaluate_report_evidence(
         if _is_eligible_snapshot_value(item)
     ]
     price_history_months = tuple(sorted({match.group(1) for item in snapshot_values if (match := re.search(r"price_history\[(20\d{2}-\d{2})-\d{2}\]", str(item.get("path") or "")))}))
-    claims = [{**claim, "_price_history_months": price_history_months} for claim in extract_numeric_claims(markdown)]
+    claims = [{**claim, "_price_history_months": price_history_months, "_legacy_conclusion_context_missing": isinstance(snapshot.get("rerun_context"), dict) and not snapshot["rerun_context"].get("parsed") and not snapshot["rerun_context"].get("structured_outputs") and any(_normalize_match_text(marker) in _normalize_match_text(claim.get("label")) for marker in ("短期目標", "中期目標", "長期目標", "個月目標", "長期潛力"))} for claim in extract_numeric_claims(markdown)]
     sample = sample_numeric_claims(claims, sample_ratio=sample_ratio, min_sample=min_sample, max_sample=max_sample, seed=seed)
     checked = [_check_claim(claim, snapshot_values, tolerance_pct=tolerance_pct) for claim in sample]
     failed_count = sum(1 for item in checked if item["status"] == "mismatch")
@@ -238,7 +238,7 @@ def flatten_snapshot_numbers(snapshot: Any) -> list[dict[str, Any]]:
     return values
 def _check_claim(claim: dict[str, Any], snapshot_values: list[dict[str, Any]], *, tolerance_pct: float) -> dict[str, Any]:
     reported = float(claim.get("reported_value") or 0)
-    path_markers = _path_markers_for_claim(claim); raw_claim_text = str(claim.get("raw_text") or ""); news_boundary = bool(re.search(r"(?:market[_ ]?catalysts?|recent[_ ]?catalysts?|新聞|news)", raw_claim_text, re.IGNORECASE) and re.search(r"(?:NT\$|\$|TWD|元)", raw_claim_text, re.IGNORECASE) and any(_normalize_match_text(marker) in _normalize_match_text(claim.get("label")) for marker in ("支撐", "壓力", "關卡", "風險")))
+    path_markers = _path_markers_for_claim(claim); raw_claim_text = str(claim.get("raw_text") or ""); news_boundary = bool(re.search(r"(?:market[_ ]?catalysts?|recent[_ ]?catalysts?|新聞|news)", raw_claim_text, re.IGNORECASE) and re.search(r"(?:NT\$|\$|TWD|元)", raw_claim_text, re.IGNORECASE) and any(_normalize_match_text(marker) in _normalize_match_text(claim.get("label")) for marker in ("支撐", "壓力", "關卡", "風險"))); legacy_conclusion_boundary = bool(claim.get("_legacy_conclusion_context_missing"))
     candidate_values = _relevant_snapshot_values(claim, snapshot_values)
     best = _best_match(reported, candidate_values)
     if not path_markers or not candidate_values:
@@ -248,8 +248,8 @@ def _check_claim(claim: dict[str, Any], snapshot_values: list[dict[str, Any]], *
     else:
         status = "mismatch"
     return {
-        **{key: value for key, value in claim.items() if key not in {"context_text", "series_context_text", "_price_history_months"}},
-        "status": status, "verification_reason_code": "news_source_not_canonical" if news_boundary and not path_markers else "missing_semantic_path" if not path_markers else "no_matching_snapshot_path" if not candidate_values else "matched_snapshot_value" if best and best["diff_pct"] <= tolerance_pct else "snapshot_value_mismatch", "candidate_count": len(candidate_values),
+        **{key: value for key, value in claim.items() if key not in {"context_text", "series_context_text", "_price_history_months", "_legacy_conclusion_context_missing"}},
+        "status": status, "verification_reason_code": "news_source_not_canonical" if news_boundary and not path_markers else "legacy_conclusion_without_snapshot_path" if legacy_conclusion_boundary and not path_markers else "missing_semantic_path" if not path_markers else "no_matching_snapshot_path" if not candidate_values else "matched_snapshot_value" if best and best["diff_pct"] <= tolerance_pct else "snapshot_value_mismatch", "candidate_count": len(candidate_values),
         "matched_path": best.get("path") if best else "",
         "matched_value": best.get("value") if best else None,
         "diff_pct": round(best.get("diff_pct", 0.0), 4) if best else None,

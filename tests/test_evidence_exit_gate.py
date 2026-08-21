@@ -332,6 +332,37 @@ def test_evidence_gate_reports_missing_semantic_path_for_unknown_numeric_labels(
     assert result["unverifiable_reason_counts"] == {"missing_semantic_path": 1}
 
 
+def test_evidence_gate_explains_legacy_conclusion_without_persisted_snapshot_context():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 長期目標（12個月）: NT$2255",
+        {"data": {"current_price": 100}, "rerun_context": {"parsed": {}, "structured_outputs": {}}},
+        sample_ratio=1.0,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "caution"
+    assert claim["status"] == "unverifiable"
+    assert claim["verification_reason_code"] == "legacy_conclusion_without_snapshot_path"
+    assert "_legacy_conclusion_context_missing" not in claim
+    assert result["unverifiable_reason_counts"] == {"legacy_conclusion_without_snapshot_path": 1}
+
+
+def test_evidence_gate_keeps_conclusion_without_mapping_as_missing_semantic_path_when_context_exists():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 長期目標（12個月）: NT$2255",
+        {"data": {"current_price": 100}, "rerun_context": {"parsed": {"recommendation": {}}, "structured_outputs": {}}},
+        sample_ratio=1.0,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "unverifiable"
+    assert claim["verification_reason_code"] == "missing_semantic_path"
+
+
 def test_evidence_gate_does_not_compare_factset_claims_to_other_provider_values():
     from evidence_exit_gate import evaluate_report_evidence
 
