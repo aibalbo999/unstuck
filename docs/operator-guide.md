@@ -227,6 +227,8 @@ KV claim 的 label 後若立即接 `8/17 - 8/18`、`8-17` 這類月日範圍，�
 
 編號式、階段式或防線標籤（例如 `波段壓力二`、`支撐二`、`長期防線`）只有在同一 claim 明寫 `52 週最高價`／`52 週最低價`，且數值與 `data.week_52_high`／`data.week_52_low` 一致時，才會核驗到週高低點來源。沒有 52 週高低點文字的編號壓力／支撐／防線，仍顯示為 `unverifiable`，請人工確認，不要依標籤自行推定來源。
 
+像 `強勁底部分界` 這類底部標籤，只有同一 claim 明寫 `收盤價`／`close`、TWD／元、明確日期，且數值與 `data.price_history[YYYY-MM-DD]` 相鄰節點一致時才可核驗。`平台位置`、沒有收盤語意、新聞／催化劑或數值不一致時，請保留 `unverifiable`／`mismatch`，不要只依「底部」兩字推定來源。
+
 英文 `Last 5 days Net Buy` 只可核對 `data.institutional_trading.last_5_trading_days_net_buy_thousand_shares`；即使數值剛好等於 30 天 `total_net_buy_thousand_shares`，也不能跨欄位借用。snapshot 沒有專用 5 日欄位時，請保留 `unverifiable`。
 
 30 天法人交易區段的 `Foreign`／`外資` 與 `Investment Trust`／`投信`，只可分別核對 `data.institutional_trading.net_buy_thousand_shares_by_category.foreign`／`investment_trust`。單獨的 `Total` 標籤不能沿用總額欄位；沒有明確 canonical 30 天總額語意時，請保留 `unverifiable`。

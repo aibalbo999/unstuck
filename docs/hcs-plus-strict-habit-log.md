@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3739 / map explicit dated close for bottom-boundary labels
+
+- `#拆解問題` / `#差距分析`：full artifact audit 找到 `2301.TW/v4` 的 `強勁底部分界：207.09 TWD（2026-07-31 收盤價）` 與 `price_history` 同日值一致，但 label 沒有進既有 dated-price semantic path。
+- `#偏誤辨識` / `#偏誤降低` / `#來源品質`：只把 `底部` label 在同時有明確日期、收盤／close、TWD／元且相鄰數值一致時接到 `price_history[YYYY-MM-DD]`；`平台位置`、無收盤語意、新聞／催化劑與 mismatch 不借用價格節點。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED，再 GREEN；focused `2 passed`、完整 evidence `140 passed`、品質 `1138 passed`、import/docs、`py_compile` 與 line guard `349` 通過，full artifact 為 `2510 claims: 1611 verified / 765 unverifiable / 134 mismatch`，reason `missing_semantic_path=133`；正式 reload 後 live API 驗證 `2301.TW/v4` 目標 claim，current quality 為 evidence `135/26/3`、content `99/57/8`、conformance `80/74/10`，health/ready `ok/ready`、doctor canonical paths 與 queue depth `0`、failed_recent `0`、failed_stale `10` 通過，未改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3738 / map borrowed-short-return wording without sale fallback
 
 - `#拆解問題` / `#差距分析`：full artifact audit 找到 `2885.TW/v4` 的 `Today's borrowed short return: 525,000` 與 `2891.TW/v4` 的 `return: 2,844,160` 都能對到 snapshot 的 `borrowed_short_return_today`，但既有 hint 只涵蓋另一種詞序；`9921.TW/v4` 的 `vs Sale Today` 則沒有足夠語意可直接當還券量。

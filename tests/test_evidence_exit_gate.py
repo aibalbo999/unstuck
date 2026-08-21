@@ -1984,6 +1984,51 @@ def test_evidence_gate_maps_explicit_month_end_close_for_prior_high_label():
     assert claim["matched_path"] == "data.price_history[month-end=2026-05]"
 
 
+def test_evidence_gate_maps_explicit_close_for_bottom_boundary_label():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 強勁底部分界：207.09 TWD（2026-07-31 收盤價）。",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2026-06-30", "2026-07-31", "2026-08-19"],
+                    "prices": [219.97, 207.09, 273.5],
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "approved"
+    assert claim["status"] == "verified"
+    assert claim["matched_path"] == "data.price_history[2026-07-31].prices[1]"
+
+
+def test_evidence_gate_does_not_infer_bottom_boundary_from_platform_wording():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 強勁底部分界：207.09 TWD（2026-07-31 平台位置）。",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2026-07-31"],
+                    "prices": [207.09],
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "unverifiable"
+    assert claim["matched_path"] == ""
+
+
 def test_evidence_gate_does_not_infer_prior_high_without_close_marker():
     from evidence_exit_gate import evaluate_report_evidence
 
