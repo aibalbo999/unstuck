@@ -221,6 +221,8 @@ Provider and field semantics are also part of the evidence boundary: FactSet/券
 Indexed latest quality audit 另有 `decision_freshness_summary`，會在「全量報告品質」工作台摘要顯示目前一致、需完整重跑與無法判定的數量。它和 `summary.report_scope` 的近期 action sample 是不同分母，也不代表 quality metadata 已完整或系統已排程重跑；要安排工作仍以報告 row 的 freshness 與 `decision_queue.items` 為準。
 若同一 response 有 `decision_freshness_items`，工作台只顯示有限的待重跑報告導覽 sample；請以 `items_total` 判讀全量數字，以 `items_returned/items_limit/items_truncated` 判讀畫面實際展開範圍。點擊 target 只會開啟既有歷史報告檢視，不會自動加入 queue 或觸發重跑。
 
+工作台背景載入 `GET /api/watchlist/current-quality-summary` 後，會把它併入同一批 latest-per-ticker/pipeline 報告的目前規則唯讀投影；它不是已保存 metadata coverage。`report_conformance_by_status` 是整體目前品質分布；`content_credibility_by_status` 與 `evidence_exit_gate_by_verdict` 是另外兩個 gate 分布，各自都以 `audited_reports` 為分母。畫面只展開最多 5 筆非 passed 目標，請用 `items_total`、`items_returned`、`items_limit`、`items_truncated` 解讀完整數字與可見範圍；點擊只進入既有歷史核對，不會自動建立 queue、review 或 rerun。摘要讀取失敗時，既有 daily 工作台仍可使用。
+
 Report conformance quality gate issue lists use sequence-safe conversion before decision-tree evaluation, so tuple blocking or warning rows from lint, final audit, or content credibility gates cannot be ignored.
 
 Report conformance visible artifact and gate status text fields use safe text fallback before decision-tree evaluation, so malformed HTML, Markdown, template heading, lint, audit, evidence, content, or data-trust status values cannot interrupt report quality classification.

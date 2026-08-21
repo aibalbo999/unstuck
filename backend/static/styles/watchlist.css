@@ -33,7 +33,7 @@
     padding: 10px 12px;
     background: rgba(0, 212, 255, 0.07);
 }
-.watchlist-quality-audit-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; } .watchlist-quality-freshness-targets { display: grid; gap: 4px; flex: 1 1 100%; min-width: min(100%, 260px); } .watchlist-quality-freshness-targets strong { color: var(--accent); font-size: 0.74rem; }
+.watchlist-quality-audit-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; } .watchlist-quality-freshness-targets, .watchlist-quality-current-targets { display: grid; gap: 4px; flex: 1 1 100%; min-width: min(100%, 260px); } .watchlist-quality-freshness-targets strong, .watchlist-quality-current-targets strong { color: var(--accent); font-size: 0.74rem; }
 .watchlist-daily-quality-summary { display: grid; gap: 4px; min-width: 0; } .watchlist-daily-quality-scope { color: var(--accent) !important; font-size: 0.76rem; font-weight: 900; } .watchlist-daily-quality-item { color: var(--text-secondary); font-size: 0.72rem; font-style: normal; font-weight: 800; overflow-wrap: anywhere; }
 .watchlist-quality-report-target { display: grid; gap: 4px; min-width: min(100%, 220px); }
 .watchlist-quality-report-button, .watchlist-quality-history-button, .watchlist-quality-review-button { min-height: 32px; border: 1px solid rgba(251, 191, 36, 0.3); border-radius: 7px; background: rgba(120, 53, 15, 0.18); color: #fde68a; cursor: pointer; font-size: 0.72rem; font-weight: 900; padding: 5px 9px; }

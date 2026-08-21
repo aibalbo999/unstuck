@@ -128,6 +128,41 @@ def test_watchlist_daily_dashboard_keeps_action_surface_when_quality_audit_is_un
     assert payload["decision_queue"]["summary"]["total_actionable"] == 0
 
 
+def test_current_quality_summary_route_is_separate_from_daily_dashboard(monkeypatch, tmp_path):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    import api_routes.watchlist as watchlist_routes
+    from api_routes.watchlist import WatchlistRouteDeps, create_watchlist_router
+
+    monkeypatch.setattr(watchlist_routes, "_build_current_quality_summary_or_unavailable", lambda _output_dir: {
+        "schema_version": "report_current_quality_summary.v1",
+        "scope": "all_indexed_reports",
+        "selection_basis": "latest_per_ticker_pipeline",
+        "audited_reports": 165,
+        "report_conformance_by_status": {"passed": 29, "warning": 127, "blocked": 9, "unknown": 0},
+        "items_total": 136,
+        "items_returned": 5,
+        "items_limit": 5,
+        "items_truncated": True,
+        "items": [],
+    })
+    app = FastAPI()
+    app.include_router(create_watchlist_router(WatchlistRouteDeps(
+        get_output_dir=lambda: str(tmp_path),
+        get_task_queue=lambda: None,
+        run_stock_analysis_job=lambda *_args: "task-id",
+        create_job=lambda *_args: "job-id",
+        find_active_job=lambda *_args: {},
+        require_mutation_authorized=lambda _request: None,
+    )))
+
+    response = TestClient(app).get("/api/watchlist/current-quality-summary")
+
+    assert response.status_code == 200
+    assert response.json()["audited_reports"] == 165
+
+
 def test_daily_decision_dashboard_scopes_report_counts_to_recent_sample():
     dashboard = build_daily_decision_dashboard(
         reports={

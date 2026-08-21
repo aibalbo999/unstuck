@@ -8,10 +8,13 @@
         const setDailyPayload = options.setDailyPayload || (() => {});
         const setSummary = options.setSummary || (() => {});
         const renderList = options.renderList || (() => {});
+        const setCurrentQualitySummary = options.setCurrentQualitySummary || (() => {});
         const onRunQueued = options.onRunQueued || (() => {});
         const escapeHtml = options.escapeHtml || ((value) => String(value ?? ''));
+        let loadGeneration = 0;
 
         async function load() {
+            const generation = ++loadGeneration;
             try {
                 if (elements.refreshBtn) elements.refreshBtn.disabled = true;
                 const [watchlistResult, dailyResult] = await Promise.allSettled([
@@ -22,6 +25,11 @@
                 setPayload(watchlistResult.value);
                 setDailyPayload(dailyResult.status === 'fulfilled' ? dailyResult.value : null);
                 renderList();
+                if (dailyResult.status === 'fulfilled' && apiClient.fetchCurrentQualitySummary) {
+                    apiClient.fetchCurrentQualitySummary().then(summary => {
+                        if (generation === loadGeneration) setCurrentQualitySummary(summary);
+                    }).catch(err => console.warn('Failed to load current report quality summary', err));
+                }
             } catch (err) {
                 console.error('Failed to load watchlist', err);
                 setSummary('追蹤清單讀取失敗');

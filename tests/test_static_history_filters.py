@@ -3787,7 +3787,7 @@ global.window = {
     resetForm: () => { calls.reset += 1; }
   }
 };
-const calls = { reset: 0, render: 0, queued: null, deleted: null, saved: null, imported: null, suggestions: null, summaries: [] };
+const calls = { reset: 0, render: 0, queued: null, deleted: null, saved: null, imported: null, suggestions: null, currentQuality: 0, summaries: [] };
 require(__WATCHLIST_ACTIONS_PATH__);
 let currentPayload = { items: [], schedules: {} };
 let currentDaily = null;
@@ -3804,6 +3804,7 @@ const actions = window.StockAgentWatchlistPanelActions.create({
   apiClient: {
     fetchWatchlist: async () => ({ items: [{ ticker: '2330.TW' }], schedules: {} }),
     fetchDailyDecisionDashboard: async () => ({ decision_queue: { summary: { total_actionable: 1 } } }),
+    fetchCurrentQualitySummary: async () => { calls.currentQuality += 1; return { schema_version: 'report_current_quality_summary.v1', audited_reports: 165 }; },
     saveWatchlistItem: async item => { calls.saved = item; return { items: [{ ticker: item.ticker, pipeline: item.pipeline }], schedules: {} }; },
     fetchSymbolSuggestions: async query => { calls.suggestions = query; return { items: [{ ticker: '2330.TW', name: '台積電' }] }; },
     importWatchlistText: async text => { calls.imported = text; return { imported_count: 1, watchlist: { items: [{ ticker: '2317.TW' }], schedules: {} } }; },
@@ -3814,17 +3815,20 @@ const actions = window.StockAgentWatchlistPanelActions.create({
   getPayload: () => currentPayload,
   setPayload: payload => { currentPayload = payload; },
   setDailyPayload: payload => { currentDaily = payload; },
+  setCurrentQualitySummary: summary => { currentDaily = { ...currentDaily, report_quality_audit: { ...(currentDaily?.report_quality_audit || {}), current_quality_summary: summary } }; },
   setSummary: message => calls.summaries.push(message),
   renderList: () => { calls.render += 1; },
   onRunQueued: result => { calls.queued = result; }
 });
 async function main() {
   await actions.load();
+  await new Promise(resolve => setImmediate(resolve));
   await actions.save();
   await actions.loadSuggestions();
   await actions.importItems();
   await actions.runAll();
   await actions.remove('2330.TW', 'v2');
+  await new Promise(resolve => setImmediate(resolve));
   process.stdout.write(JSON.stringify({ calls, currentPayload, currentDaily, elements }));
 }
 main();
@@ -3843,6 +3847,8 @@ main();
     assert "已排入 1 檔，略過 1 檔" in payload["calls"]["summaries"]
     assert payload["currentPayload"]["items"][0]["ticker"] == "2330.TW"
     assert payload["currentDaily"]["decision_queue"]["summary"]["total_actionable"] == 1
+    assert payload["calls"]["currentQuality"] >= 1
+    assert payload["currentDaily"]["report_quality_audit"]["current_quality_summary"]["audited_reports"] == 165
     assert payload["elements"]["suggestionList"]["innerHTML"] == '<option value="2330.TW">台積電</option>'
     assert payload["elements"]["importText"]["value"] == ""
     assert payload["elements"]["refreshBtn"]["disabled"] is False
@@ -6086,7 +6092,8 @@ def test_candidate_next_actions_assets_use_shared_cache_buster():
 
     assert "/static/style.css?v=20260816-historical-quality-target-context" in index_html
     assert "/static/watchlist_freshness_helpers.js?v=20260821-freshness-targets" in index_html
-    assert "/static/watchlist_panel_helpers.js?v=20260821-freshness-targets" in index_html
+    assert "/static/watchlist_current_quality_helpers.js?v=20260821-current-quality" in index_html
+    assert "/static/watchlist_panel_helpers.js?v=20260821-current-quality" in index_html
     assert "/static/watchlist_panel.js?v=20260816-scoped-quality-review-navigation" in index_html
     assert "/static/maintenance_action_helpers.js?v=20260816-maintenance-confirmation" in index_html
     assert "/static/maintenance_panel_helpers.js?v=20260816-maintenance-confirmation" in index_html

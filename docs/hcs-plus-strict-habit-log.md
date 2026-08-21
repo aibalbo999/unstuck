@@ -12853,3 +12853,10 @@ C. 先做資料可信度或 provider contract 的程式碼改善
 - live pipeline probe 找到 v1/v2/v3 高缺口與 v4 低缺口的集中差異；不把全歷史 coverage 當成所有模式同質。
 - RED→GREEN 新增 `quality_metadata_by_pipeline` 與前端「模式缺口」摘要；每個分組保留 verified denominator/basis，避免分組百分比失去語意。
 - 完成 docs contract、Node syntax、focused regression；詳細查核仍走 q/pipeline read-only filter，不新增 queue、rerun 或 repair side effect。
+### 完成後維護 / D3666 / #拆解問題 #差距分析 #最小變更 #受眾 #溝通設計 #來源品質 #偏誤降低 #可驗證性 #語意含義 #責任
+
+- live `/api/reports` full latest scope 是 165 份，current quality gate 分布與 persisted metadata coverage/freshness 是不同 evidence layer；若只顯示近期 20 份，操作人員無法知道全量 warning/blocked 風險。
+- 新增 `backend/report_current_quality_summary.py`，以既有 report-history current-rule projection 為唯一來源，分開統計 conformance/content/evidence 三組分布，並限制 5 筆 non-passed targets；不把 UI sample 當成全量分母。
+- daily dashboard 保持快速回應；watchlist 在首屏完成後背景呼叫獨立 `GET /api/watchlist/current-quality-summary`，再用獨立 helper 呈現「目前品質」與 history CTA。summary/target 都驗證 schema、scope、selection basis、分母與 bounded counts，legacy payload 沒有新欄位時維持既有畫面。
+- current target 只呼叫既有 `StockAgentOpenHistoricalQualityAudit` 導覽，沒有 queue、review、artifact、index 或 rerun side effect；API/operator/architecture/system map 同步記錄這個邊界。
+- focused tests `94 passed`；第一次 full concurrent projection 曾使 dashboard 約 18 秒，改成背景載入後需驗證 fast daily response、current endpoint `165` 分母、30 秒 TTL 與 browser/Node rendering，再跑完整 scoped regression。

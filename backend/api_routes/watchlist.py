@@ -24,6 +24,10 @@ from report_quality_audit import (
     build_indexed_report_quality_audit,
     build_unavailable_report_quality_audit,
 )
+from report_current_quality_summary import (
+    build_indexed_current_quality_summary,
+    build_unavailable_current_quality_summary,
+)
 from report_quality_review_workflow import get_indexed_report_quality_review_target
 from report_quality_review_store import record_review
 from symbol_tools import parse_watchlist_import, suggest_symbols
@@ -63,6 +67,14 @@ def _build_quality_audit_or_unavailable(output_dir: str) -> dict:
     except Exception:
         LOGGER.exception("Report quality audit is unavailable; keeping daily dashboard available")
         return build_unavailable_report_quality_audit()
+
+
+def _build_current_quality_summary_or_unavailable(output_dir: str) -> dict:
+    try:
+        return build_indexed_current_quality_summary(output_dir, page_size=100)
+    except Exception:
+        LOGGER.exception("Current report quality summary is unavailable")
+        return build_unavailable_current_quality_summary()
 
 
 def _build_historical_quality_audit_or_unavailable(
@@ -207,6 +219,10 @@ def create_watchlist_router(deps: WatchlistRouteDeps) -> APIRouter:
             ops=ops,
             quality_audit=quality_audit_reports,
         )
+
+    @router.get("/current-quality-summary")
+    async def get_current_quality_summary():
+        return await asyncio.to_thread(_build_current_quality_summary_or_unavailable, deps.get_output_dir())
 
     @router.get("/report-quality-audit/historical")
     async def get_historical_report_quality_audit(

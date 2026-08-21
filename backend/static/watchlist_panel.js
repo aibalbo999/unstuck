@@ -44,6 +44,10 @@
             onRunQueued: options.onRunQueued || (() => {}),
             renderList,
             setDailyPayload: nextPayload => { dailyPayload = nextPayload; },
+            setCurrentQualitySummary: summary => {
+                dailyPayload = { ...dailyPayload, report_quality_audit: { ...(dailyPayload?.report_quality_audit || {}), current_quality_summary: summary } };
+                renderList();
+            },
             setPayload,
             setSummary
         });

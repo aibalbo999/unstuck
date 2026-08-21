@@ -22,7 +22,8 @@ def test_shared_quality_evidence_helper_loads_before_all_consumers():
     assert "/static/report_preview_panel.js?v=20260820-rerun-execution" in index_html
     assert "/static/history_quality_audit_render.js?v=20260820-per-pipeline-context-summary" in index_html
     assert "/static/watchlist_freshness_helpers.js?v=20260821-freshness-targets" in index_html
-    assert "/static/watchlist_panel_helpers.js?v=20260821-freshness-targets" in index_html
+    assert "/static/watchlist_current_quality_helpers.js?v=20260821-current-quality" in index_html
+    assert "/static/watchlist_panel_helpers.js?v=20260821-current-quality" in index_html
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
     assert "/static/styles/history_list.css?v=20260816-clickable-quality-evidence" in style_css
     assert index_html.index(helper) < index_html.index("/static/report_quality_gate_policy.js")

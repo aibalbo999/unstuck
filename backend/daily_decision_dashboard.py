@@ -23,6 +23,7 @@ def build_daily_decision_dashboard(
     free_mode: dict[str, Any],
     ops: dict[str, Any] | None = None,
     quality_audit: dict[str, Any] | None = None,
+    current_quality_summary: dict[str, Any] | None = None,
     quality_audit_reports: dict[str, Any] | list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Return the operator's next-best-action dashboard."""
@@ -49,6 +50,8 @@ def build_daily_decision_dashboard(
             quality_audit_reports if quality_audit_reports is not None else report_rows,
             scope=audit_scope,
         )
+    if current_quality_summary is not None:
+        report_quality_audit["current_quality_summary"] = safe_mapping_dict(current_quality_summary) or {}
     watch_items = safe_dict_list(watchlist_payload.get("items"))
     screener_items = safe_dict_list(screener_payload.get("items"))
     repair_queue = build_report_quality_repair_queue(report_rows, limit=5)

@@ -15,6 +15,7 @@
     }
     async function fetchWatchlist() { return jsonRequest('/api/watchlist'); }
     async function fetchDailyDecisionDashboard() { return jsonRequest('/api/watchlist/daily-dashboard'); }
+    async function fetchCurrentQualitySummary() { return jsonRequest('/api/watchlist/current-quality-summary'); }
     async function fetchHistoricalReportQualityAudit({ itemLimit = 5, itemOffset = 0, query = '', pipeline = 'all', reviewStatus = 'all', missingField = 'all', versionStatus = 'all' } = {}) {
         const params = new URLSearchParams({ item_limit: String(itemLimit), item_offset: String(itemOffset), q: query || '', pipeline: pipeline || 'all', review_status: reviewStatus || 'all', missing_field: missingField || 'all', version_status: versionStatus || 'all' });
         return jsonRequest(`/api/watchlist/report-quality-audit/historical?${params.toString()}`);
@@ -84,6 +85,5 @@
             body: JSON.stringify(Array.isArray(tickers) ? { tickers } : {})
         });
     }
-
-    Object.assign(window.StockAgentApiClient, { fetchApiQuotas, fetchModelRouteBudget, fetchPerformanceStats, fetchStockSnapshot, compareReports, fetchWatchlist, fetchDailyDecisionDashboard, fetchHistoricalReportQualityAudit, saveHistoricalReportQualityReview, fetchSymbolSuggestions, importWatchlistText, analyzePortfolioRisk, saveWatchlistItem, deleteWatchlistItem, runWatchlist, fetchMarketScreener, runMarketScreener, fetchDecisionTracking, saveDecisionTrackingItem, deleteDecisionTrackingItem, refreshDecisionTracking });
+    Object.assign(window.StockAgentApiClient, { fetchApiQuotas, fetchModelRouteBudget, fetchPerformanceStats, fetchStockSnapshot, compareReports, fetchWatchlist, fetchDailyDecisionDashboard, fetchCurrentQualitySummary, fetchHistoricalReportQualityAudit, saveHistoricalReportQualityReview, fetchSymbolSuggestions, importWatchlistText, analyzePortfolioRisk, saveWatchlistItem, deleteWatchlistItem, runWatchlist, fetchMarketScreener, runMarketScreener, fetchDecisionTracking, saveDecisionTrackingItem, deleteDecisionTrackingItem, refreshDecisionTracking });
 })();
