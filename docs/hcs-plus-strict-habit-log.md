@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3713 / preserve semantic boundary for same-value candidates
+
+- `#拆解問題` / `#差距分析` / `#來源品質`：live `no_matching_snapshot_path=71` 中，數值相同的候選多落在歷史價格、新聞/URL、日期 metadata、SLA 或已渲染分析文字；數值相同不等於同一 claim source。
+- `#偏誤辨識` / `#偏誤降低` / `#可驗證性`：新增 `熊市情境` 對 `price_history_ranges` 的反例測試，確保情境目標沒有 canonical target path 時仍是 `unverifiable`，不因最近數字而通過。
+- `#責任`：RED→GREEN focused evidence `100 passed`、品質/evidence/conformance `1083 passed`、line guard `349`、py_compile 通過；本輪只增加 regression evidence，不改 verdict、snapshot、artifact、index、review 或 queue。
+
 ## D3712 / bind PE River band to multiple-specific path
 
 - `#拆解問題` / `#問對問題` / `#語意含義`：`2367.TW/v2` 的 `43.2x（中高分位帶）：29.38 TWD` 是特定倍數下的 band value，不是任意 P/E 或 River Chart multiples 值；若只按數值找最近 band，可能跨 band 誤配。

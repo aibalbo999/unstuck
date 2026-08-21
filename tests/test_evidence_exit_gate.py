@@ -1991,6 +1991,23 @@ def test_evidence_gate_verifies_implied_growth_from_snapshot_cross_checks():
     assert claim["matched_path"] == "financial_cross_checks.forward_eps_implied_revenue_growth_pct"
 
 
+def test_evidence_gate_does_not_borrow_price_history_for_scenario_target():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 熊市情境: NT$820",
+        {"data": {"price_history_ranges": {"ranges": {"1m": {"prices": [820.0]}}}}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+    claim = result["sampled_claims"][0]
+
+    assert claim["status"] == "unverifiable"
+    assert claim["matched_path"] == ""
+    assert claim["verification_reason_code"] == "no_matching_snapshot_path"
+    assert claim["candidate_count"] == 0
+
+
 def test_evidence_gate_prefers_scenario_price_over_pe_text_in_table_rows():
     from evidence_exit_gate import evaluate_report_evidence
 
