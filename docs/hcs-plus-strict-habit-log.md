@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3747 / map current quote evidence and surface stale snapshot mismatch
+
+- `#拆解問題` / `#差距分析`：full artifact audit 找到 `2308.TW/v2` 的 `當前報價：1,885.0 TWD` 沒有 current-price semantic path；snapshot canonical `data.current_price=1,750.0`，兩者相差 `7.1618%`。
+- `#偏誤辨識` / `#偏誤降低` / `#來源品質`：只新增 exact `當前報價` alias；一致值可 verified，不一致值必須保留 `snapshot_value_mismatch`，無 `current_price` 時不借用 `current_ratio`、其他 ticker 或 content metadata。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED，再 GREEN；focused `3 passed`、完整 evidence `158 passed`、品質 `1156 passed`、line guard `349` 通過，full artifact `2513 claims: 1621 verified / 754 unverifiable / 138 mismatch`，`missing_semantic_path=122`。正式 reload 後 live API target 命中 `data.current_price=1750.0` 並判定 mismatch，Markdown/data/health/ready `200/200/200/200`，整份報告維持 `rejected`，本批未改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3746 / map compact 5-day net-buy evidence without horizon fallback
 
 - `#拆解問題` / `#差距分析`：full artifact audit 找到 `1810.TW/v4` 的 `5-day: 4,504.85k (Net Buy)` 被 KV regex 截成 label `day`，而 canonical snapshot 有同值且唯一語意的 `last_5_trading_days_net_buy_thousand_shares`。

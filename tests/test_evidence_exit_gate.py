@@ -2872,6 +2872,54 @@ def test_evidence_gate_matches_explicit_current_price_snapshot_path():
     assert result["sampled_claims"][0]["matched_path"] == "data.current_price"
 
 
+def test_evidence_gate_matches_current_quote_alias_to_current_price():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **當前報價：** 85.5 TWD。",
+        {"data": {"current_price": 85.5}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["sampled_claims"][0]["status"] == "verified"
+    assert result["sampled_claims"][0]["matched_path"] == "data.current_price"
+
+
+def test_evidence_gate_surfaces_current_quote_snapshot_mismatch():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **當前報價：** 1885.0 TWD。",
+        {"data": {"current_price": 1750.0}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "rejected"
+    assert claim["status"] == "mismatch"
+    assert claim["verification_reason_code"] == "snapshot_value_mismatch"
+    assert claim["matched_path"] == "data.current_price"
+
+
+def test_evidence_gate_does_not_cross_match_current_quote_to_other_numeric_fields():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **當前報價：** 85.5 TWD。",
+        {"data": {"current_ratio": 85.5}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "unverifiable"
+    assert claim["verification_reason_code"] == "no_matching_snapshot_path"
+    assert claim["matched_path"] == ""
+
+
 def test_evidence_gate_matches_52_week_high_price_label_to_canonical_field():
     from evidence_exit_gate import evaluate_report_evidence
 
