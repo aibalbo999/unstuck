@@ -101,7 +101,6 @@ def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
                 "raw_text": line[:160],
             })
     return claims
-
 def _claim_value(match: re.Match[str], label: str, line: str) -> tuple[float | None, str]:
     """Prefer the value tied to an explicit EPS phrase over a leading date."""
     default_number = _clean_number(match.group("num"))
@@ -297,6 +296,7 @@ def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
         return ("factset",)
     if any(marker in raw_text for marker in _NORMALIZED_RESEARCH_CONTEXT_MARKERS):
         return ("broker_research",)
+    if ("1000lots" in raw_text and "concentration" in label) or ("50lots" in raw_text and "retail" in label): return ("major_holders_gt_1000_lots_pct",) if "concentration" in label else ("retail_holders_lt_50_lots_pct",)
     if (source_match := re.search(r"(-?\d[\d,]*(?:\.\d+)?)\s*(?:TWD|元)?\s*[（(]?\s*`?(market_data\.week_52_(?:high|low)_twd)", str(claim.get("raw_text") or ""), re.IGNORECASE)) and _clean_number(source_match.group(1)) == float(claim.get("reported_value") or 0): return ("week_52_high",) if "week_52_high_twd" in raw_text else ("week_52_low",)
     if any(marker in raw_text for marker in ("熊市", "牛市")):
         return ("stop_loss", "support", "resistance", "risk_price", "price_target", "price_targets", "target_price", "scenario", "scenarios")

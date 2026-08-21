@@ -305,6 +305,36 @@ def test_evidence_gate_matches_chip_distribution_and_margin_claims():
     assert all(item["status"] == "verified" for item in result["sampled_claims"])
 
 
+def test_evidence_gate_matches_explicit_tdcc_concentration_labels():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        """
+- Concentration: 72.78% (>1000 lots).
+- Retail: 14.85% (<50 lots).
+""",
+        {
+            "data": {
+                "chip_data": {
+                    "tdcc_shareholder_distribution": {
+                        "major_holders_gt_1000_lots_pct": 72.78,
+                        "retail_holders_lt_50_lots_pct": 14.85,
+                    },
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=2,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["unverifiable_count"] == 0
+    assert [item["matched_path"] for item in result["sampled_claims"]] == [
+        "data.chip_data.tdcc_shareholder_distribution.major_holders_gt_1000_lots_pct",
+        "data.chip_data.tdcc_shareholder_distribution.retail_holders_lt_50_lots_pct",
+    ]
+
+
 def test_evidence_gate_keeps_k_suffix_with_canonical_thousand_unit():
     from evidence_exit_gate import evaluate_report_evidence
 
