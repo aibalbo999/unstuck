@@ -1081,6 +1081,64 @@ def test_evidence_gate_matches_52_week_high_after_short_sentence_connector():
     assert result["sampled_claims"][0]["matched_path"] == "data.week_52_high"
 
 
+def test_evidence_gate_matches_english_week_high_label_to_canonical_field():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 52 Week High: 125.0",
+        {"data": {"week_52_high": 125.0, "week_52_low": 80.0}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["sampled_claims"][0]["status"] == "verified"
+    assert result["sampled_claims"][0]["matched_path"] == "data.week_52_high"
+
+
+def test_evidence_gate_does_not_cross_match_english_week_high_to_week_low():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 52 Week High: 125.0",
+        {"data": {"week_52_low": 125.0}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["sampled_claims"][0]["status"] == "unverifiable"
+    assert result["sampled_claims"][0]["matched_path"] == ""
+
+
+def test_evidence_gate_matches_latest_annual_net_income_growth_path():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- Net Income Growth (Latest Annual): 70.6%.",
+        {"data": {"earnings_growth": 70.6, "latest_annual_net_income_growth": 70.6}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["sampled_claims"][0]["status"] == "verified"
+    assert result["sampled_claims"][0]["matched_path"] == "data.latest_annual_net_income_growth"
+
+
+def test_evidence_gate_does_not_use_generic_earnings_growth_for_latest_annual_label():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- Net Income Growth (Latest Annual): 70.6%.",
+        {"data": {"earnings_growth": 70.6}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["sampled_claims"][0]["status"] == "unverifiable"
+    assert result["sampled_claims"][0]["matched_path"] == ""
+
+
 def test_evidence_gate_matches_week_target_to_v4_trade_setup_target():
     from evidence_exit_gate import evaluate_report_evidence
 

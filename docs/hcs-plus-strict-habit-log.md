@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3693 / map English weekly-high and annual-growth labels
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`4989.TW/v4` 的 `52 Week High: 125.0` 有 `data.week_52_high`，`2308.TW/v1` 的 `Net Income Growth (Latest Annual): 70.6%` 有 `data.latest_annual_net_income_growth`；原 parser 沒有對應英文 label hint。
+- `#最小變更` / `#責任`：新增 `weekhigh/weeklow` → `week_52_high/week_52_low`，以及 `incomegrowthlatestannual` → `latest_annual_net_income_growth`；不把 Week High 對到 Week Low，也不把 generic `earnings_growth` 當成年度淨利成長證據。
+- `#偏誤降低` / `#可驗證性`：RED→GREEN 四個 fixture 鎖定兩個正例與兩個跨欄位反例；正式 reload 後兩筆 live claim 均 verified，既有 6 個 mismatch、confidence/情境/派生 claim 的人工覆核邊界不變。
+- `#可驗證性` / `#責任`：evidence gate `60 passed`、品質/evidence/conformance `1043 passed`、import boundary `504 passed`、HCS/docs `136 passed`，line guard `evidence_exit_gate.py=349`。正式 reload 後 live `165` 份為 evidence `134/27/4`、claims `431 verified / 143 unverifiable / 6 mismatch`、content `79/78/8`、conformance `74/80/11`；healthz/readyz、doctor canonical paths、RQ queue depth `0` 通過，未寫入 artifact、snapshot、index、review、rerun、repair 或 queue。
+
 ## D3692 / map explicit institutional natural-language labels
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`2885.TW/v4` 的 `Dealer: 22,401.41` 與 `6505.TW/v4` 的 `Total Net Buy (30 days): 118,065.81k` 都有 snapshot canonical source，但原 parser 只接受明示 field path 或五日淨買進 label。
