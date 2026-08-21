@@ -237,7 +237,7 @@ KV claim 的 label 後若立即接 `8/17 - 8/18`、`8-17` 這類月日範圍，�
 
 30 天法人交易區段的 `Foreign`／`外資` 與 `Investment Trust`／`投信`，只可分別核對 `data.institutional_trading.net_buy_thousand_shares_by_category.foreign`／`investment_trust`。`Total` 只有在前兩行同時列出這兩個法人分類時，才可核對 `data.institutional_trading.total_net_buy_thousand_shares`；單獨的 `Total` 沒有上下文時仍保留 `unverifiable`，不要只因數值相同就借用總額欄位。
 
-借券還券 claim 只有在明寫 `Borrowed Short Return Today`／`Today's borrowed short return`，或同一行的 compact `return` 明確接在 `borrowed short sale` 後面時，才可核對 `data.chip_data.twse_margin_short_sales.borrowed_short_return_today`。不能把 `borrowed_short_sale_today` 當還券量；`vs Sale Today` 目前仍請保留 `unverifiable`。
+借券 claim 必須沿用自己的 path：明寫 `Borrowed Short Return Today`／`Today's borrowed short return`，或同一行的 compact `return` 明確接在 `borrowed short sale` 後面，才可核對 `data.chip_data.twse_margin_short_sales.borrowed_short_return_today`；精確的 `vs Sale Today` label 才可核對 `borrowed_short_sale_today`，且報告 `k` 會對 raw shares 做千股換算。不能把 sale path 當還券量，也不能把 return path 借給 `vs Sale Today`。
 
 資料截止／抓取 metadata 中的 `HH:MM` 分鐘 token（例如 `2026-08-19 07:50`）也不是投資 claim；只有在 label 明示資料時間語意時排除，避免把分鐘數誤認為數值欄位，其他時間以外的 scalar claim 不受影響。
 

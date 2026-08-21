@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3760 / map `vs Sale Today` to the borrowed-short sale path
+
+- `#拆解問題` / `#差距分析` / `#來源品質`：full artifact audit 找到 `9921.TW/v4` 的 `Borrowed Short Return Today: 463k vs Sale Today: 156k`；`vs Sale Today` 的 156k 與 snapshot `borrowed_short_sale_today=156000` 同值，但原本沒有專用 label/path mapping。
+- `#偏誤辨識` / `#偏誤降低` / `#限制條件`：只對精確 `vs Sale Today` 建立 `borrowed_short_sale_today` + `shares_to_thousands`；只有 unit=`k` 才換算 raw shares。return claim 仍只能走 `borrowed_short_return_today`，不做最近數字或跨 path fallback。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED，再 GREEN；focused `1 passed`、完整 evidence `180 passed`，full artifact `164/2515` 為 `1636 verified / 741 unverifiable / 138 mismatch`，`missing_semantic_path=115`，其餘 reason 不變；正式 reload 後 health/ready `200/200`、8080 `127.0.0.1`，目標 HTML/Markdown/data 均 HTTP `200`，Markdown 保留 463k/156k claim、data 的兩個 TWSE 借券欄位為 463000/156000；本批不改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3759 / map FRED US CPI evidence to its canonical macro path
 
 - `#拆解問題` / `#差距分析` / `#來源品質`：full artifact audit 的唯一窄可修 residual 是 `6282.TW/v1` 的 `US CPI YoY: 3.3039%`；snapshot 的 FRED `data.macro_indicators.indicators.us_cpi_yoy.value` 同值存在，原本因沒有 macro field hint 而是 `missing_semantic_path`。

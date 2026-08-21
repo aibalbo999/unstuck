@@ -1557,6 +1557,31 @@ def test_evidence_gate_does_not_cross_match_borrowed_return_to_sale_path():
     assert claim["matched_path"] == ""
 
 
+def test_evidence_gate_matches_borrowed_short_sale_after_vs_label_in_thousands():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- Borrowed Short Return Today: 463k vs Sale Today: 156k (Net return/covering).",
+        {
+            "data": {
+                "chip_data": {
+                    "twse_margin_short_sales": {
+                        "borrowed_short_sale_today": 156000,
+                    },
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["label"] == "vs Sale Today"
+    assert claim["status"] == "verified"
+    assert claim["matched_path"] == "data.chip_data.twse_margin_short_sales.borrowed_short_sale_today"
+    assert claim["matched_value"] == 156.0
+
+
 def test_evidence_gate_keeps_margin_short_ratio_unverifiable_without_canonical_scalar():
     from evidence_exit_gate import evaluate_report_evidence
 
