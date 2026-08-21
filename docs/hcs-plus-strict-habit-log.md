@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3753 / map compact institutional total only with category context
+
+- `#拆解問題` / `#差距分析`：full artifact audit 找到 `2885.TW/v4` 的 Institutional Trading 區段在 `Foreign`、`Investment Trust` 後列出 bare `Total: 48,055.45`；snapshot 有唯一 `data.institutional_trading.total_net_buy_thousand_shares=48,055.45`，但 parser 沒有把 compact label 綁到總額欄位。
+- `#偏誤辨識` / `#偏誤降低` / `#來源品質`：只接受 `Total` 前兩行同時含 `Foreign` 與 `Investment Trust` 的上下文，孤立 `Total`、一般同值欄位與分類 claim 不借用總額 path；既有 Foreign／Investment Trust 仍只核對各自 category fields。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED，再 GREEN；focused `2 passed`、完整 evidence `172 passed`、品質/evidence/conformance `1170 passed`、import/docs `640 passed`、line guard `349` 通過，full artifact `2515 claims: 1633 verified / 744 unverifiable / 138 mismatch`，`missing_semantic_path=117`。正式 reload 後 live 2885 target verified 到 `data.institutional_trading.total_net_buy_thousand_shares`，Markdown/data/health/ready 均 HTTP `200`，current quality 為 evidence `135/26/3`、content `99/57/8`、conformance `80/74/10`，本批未改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3752 / separate historical support from later news values
 
 - `#拆解問題` / `#差距分析`：full artifact audit 找到 `6141.TW/v4` 的 `關鍵支撐位：30.1 TWD。此為 2026-07-31 之近期低點。此外，2026-07-22 新聞提及之漲停價 42.35 TWD`；30.1 與 canonical `data.price_history[2026-07-31].prices[10]` 一致，但同一行後段新聞 value 使原 parser 無法分離兩個語意。

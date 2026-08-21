@@ -143,7 +143,7 @@ A numbered, phase-style, or defense-line label such as `波段壓力二` or `長
 
 An English `Last 5 days Net Buy` label maps only to `data.institutional_trading.last_5_trading_days_net_buy_thousand_shares` when that canonical field exists and the reported `k` value agrees. It does not borrow `total_net_buy_thousand_shares` merely because the number is equal; if the dedicated 5-day field is absent, the claim remains `unverifiable`.
 
-Within the 30-day institutional trading section, exact `Foreign`/`外資` and `Investment Trust`/`投信` labels map only to their matching `data.institutional_trading.net_buy_thousand_shares_by_category.foreign|investment_trust` paths when the values agree. A generic `Total` label does not inherit the total-net-buy path; it remains `unverifiable` unless the report explicitly names the canonical 30-day total field.
+Within the 30-day institutional trading section, exact `Foreign`/`外資` and `Investment Trust`/`投信` labels map only to their matching `data.institutional_trading.net_buy_thousand_shares_by_category.foreign|investment_trust` paths when the values agree. A bare `Total` label maps to `data.institutional_trading.total_net_buy_thousand_shares` only when the preceding claim context contains both category labels; an isolated `Total` remains `unverifiable` instead of borrowing a same-valued field.
 
 Borrowed-short-return claims map to `data.chip_data.twse_margin_short_sales.borrowed_short_return_today` only for explicit `Borrowed Short Return Today`/`Today's borrowed short return` wording, or a compact `return` that appears in the same claim as `borrowed short sale`. The parser does not reuse `borrowed_short_sale_today`; a residual `vs Sale Today` value remains `unverifiable` until its own semantic source is explicit.
 

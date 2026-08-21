@@ -2925,6 +2925,45 @@ def test_evidence_gate_does_not_cross_match_foreign_or_investment_trust_to_total
     assert all(claim["matched_path"] == "" for claim in result["sampled_claims"])
 
 
+def test_evidence_gate_matches_compact_total_after_institutional_categories():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        """*   Dealer: 22401.41
+*   Foreign: 22509.2
+*   Investment Trust: 3144.84
+*   Total: 48055.45
+""",
+        {
+            "data": {
+                "institutional_trading": {
+                    "total_net_buy_thousand_shares": 48055.45,
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=4,
+    )
+
+    total_claim = next(claim for claim in result["sampled_claims"] if claim["label"] == "Total")
+    assert total_claim["status"] == "verified"
+    assert total_claim["matched_path"] == "data.institutional_trading.total_net_buy_thousand_shares"
+
+
+def test_evidence_gate_does_not_promote_bare_total_without_institutional_categories():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- Total: 48055.45",
+        {"data": {"institutional_trading": {"total_net_buy_thousand_shares": 48055.45}}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["sampled_claims"][0]["status"] == "unverifiable"
+    assert result["sampled_claims"][0]["matched_path"] == ""
+
+
 def test_evidence_gate_matches_total_net_buy_30_day_label_to_total_path():
     from evidence_exit_gate import evaluate_report_evidence
 
