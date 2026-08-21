@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 from reporting.content_credibility_evidence_confidence import evaluate_confidence_evidence_alignment  # noqa: E402
-from reporting.content_credibility_inputs import confidence_score, first_price, target_price_candidates  # noqa: E402
+from reporting.content_credibility_inputs import confidence_score, first_price, price_candidates, target_price_candidates  # noqa: E402
 
 
 def test_first_price_rejects_non_finite_numeric_tokens():
@@ -30,6 +30,16 @@ def test_first_price_ignores_period_before_price():
 
 def test_first_price_ignores_period_range_before_price():
     assert first_price("1-2週目標價看近期高點壓力位1950.0 TWD") == 1950.0
+
+
+def test_price_candidates_ignore_parenthesized_context_reference_price():
+    assert price_candidates("46.6 TWD（挑戰 52 週高點 46.63 TWD 壓力位）") == [46.6]
+    assert price_candidates("跌破 25.00 TWD（以 52 週低點 24.80 TWD 與支撐位為防守點）") == [25.0]
+    assert price_candidates("77.0 TWD（跌破 6 月區間支撐 77.4 TWD 則型態失效）") == [77.0]
+
+
+def test_price_candidates_keep_real_scenario_after_context_reference_price():
+    assert price_candidates("100 TWD（若突破 110 TWD 52 週高點後可上看 120 TWD）") == [100.0, 120.0]
 
 
 def test_target_price_candidates_drop_non_finite_numeric_prices():

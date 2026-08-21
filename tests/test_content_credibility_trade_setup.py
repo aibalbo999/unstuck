@@ -173,6 +173,39 @@ def test_trade_setup_alignment_keeps_unit_annotated_price_range_non_ambiguous():
     assert result["checks"][0]["details"]["target_price"] == 121.0
 
 
+def test_trade_setup_alignment_ignores_parenthesized_context_reference_price():
+    from reporting.content_credibility_trade_setup import evaluate_trade_setup_alignment
+
+    result = evaluate_trade_setup_alignment(
+        trade_setup=_trade_setup(
+            target_price="46.6 TWD（挑戰 52 週高點 46.63 TWD 壓力位）",
+            stop_loss="收盤價跌破 6 月底關鍵支撐位 40.64 TWD",
+            trade_direction="Long",
+        ),
+        current_price=44.8,
+    )
+
+    assert result["blocking_issues"] == []
+    assert result["warnings"] == []
+    assert result["checks"][0]["details"]["target_price"] == 46.6
+
+
+def test_trade_setup_alignment_keeps_contextual_52_week_price_range_non_ambiguous():
+    from reporting.content_credibility_trade_setup import evaluate_trade_setup_alignment
+
+    result = evaluate_trade_setup_alignment(
+        trade_setup=_trade_setup(
+            target_price="近期壓力位 419.15 TWD 至 52 週高點 460.0 TWD",
+            stop_loss="292.0 TWD",
+            trade_direction="Neutral",
+        ),
+        current_price=364.0,
+    )
+
+    assert result["blocking_issues"] == []
+    assert result["warnings"] == []
+
+
 def test_trade_setup_alignment_warns_when_prices_cannot_be_parsed():
     from reporting.content_credibility_trade_setup import evaluate_trade_setup_alignment
 

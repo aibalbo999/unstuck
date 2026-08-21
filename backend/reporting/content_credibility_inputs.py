@@ -10,6 +10,7 @@ from numeric_safety import is_non_finite_number
 from price_parser import extract_price_numbers
 
 from .content_credibility_confidence import confidence_score as _confidence_score
+from .content_credibility_price_context import has_contextual_price_range, strip_contextual_reference_prices
 from .content_credibility_target_prices import main_target_price, target_price_candidates
 from .text_tokens import is_missing_text_token
 
@@ -72,7 +73,8 @@ def price_candidates(value: Any) -> list[float]:
     if isinstance(value, (int, float)):
         return [float(value)]
     try:
-        prices = extract_price_numbers(_strip_temporal_numeric_tokens(_input_text(value)))
+        text = strip_contextual_reference_prices(_input_text(value))
+        prices = extract_price_numbers(_strip_temporal_numeric_tokens(text))
     except (TypeError, ValueError):
         return []
     return [float(price) for price in prices if not is_non_finite_number(price)]
@@ -80,7 +82,7 @@ def price_candidates(value: Any) -> list[float]:
 
 def has_explicit_price_range(value: Any) -> bool:
     """Return whether the input contains a deliberate two-endpoint price range."""
-    return bool(_PRICE_RANGE_PATTERN.search(_strip_temporal_numeric_tokens(_input_text(value))))
+    return bool(_PRICE_RANGE_PATTERN.search(_strip_temporal_numeric_tokens(_input_text(value))) or has_contextual_price_range(_input_text(value)))
 
 
 def confidence_score(recommendation: dict) -> float | None:
@@ -91,7 +93,6 @@ def upside_pct(target_price: float, current_price: float) -> float:
     if current_price <= 0:
         return 0.0
     return (target_price - current_price) / current_price * 100
-
 
 __all__ = ("confidence_score", "first_price", "first_value_by_key_fragment",
            "has_explicit_price_range", "main_target_price", "price_candidates",

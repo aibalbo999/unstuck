@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3718 / separate contextual reference prices from trade scenarios
+
+- `#拆解問題` / `#差距分析`：`46.6 TWD（挑戰 52 週高點 46.63 TWD 壓力位）` 的 46.63 是參考高點，不是第二個目標；`419.15 TWD 至 52 週高點 460.0 TWD` 則是明示兩端區間，兩者都不應被同一個多情境 warning 誤處理。
+- `#偏誤辨識` / `#偏誤降低` / `#可驗證性`：新增獨立 price-context helper，只在括號內且明示高低點／壓力支撐時移除參考價，並以 52 週標籤辨識 contextual range；真正的「上看 120」、無括號上下行雙價與其他候選仍保留。
+- `#責任`：RED→GREEN focused context/trade `4 passed`、內容可信度輸入／trade/projection `102 passed`、品質/evidence/conformance `1091 passed`、import `504 passed`、evidence `102 passed`、input helper `99`、line guard `349`、py_compile 通過。live ambiguous `51→37`，content `92/64/8`、conformance `80/73/11`、evidence `135/25/4`；未修改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3717 / recognize unit-annotated explicit price ranges
 
 - `#拆解問題` / `#差距分析`：`反彈目標 121.0 TWD 至 130.5 TWD` 的兩個數字由 `至` 明確連成價格區間，不應與多個獨立情境價混為一談。
