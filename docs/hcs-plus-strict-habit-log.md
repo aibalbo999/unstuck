@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3730 / expose stale-analysis context without weakening evidence verdicts
+
+- `#拆解問題` / `#差距分析`：live `6282.TW/v4` 的 2 個 evidence mismatch 與 `decision_freshness=needs_rerun` 同時成立；這是快照更新後舊結論未重跑，不是 tolerance 或 semantic mapping 誤判。先以 response-time projection 的真實 row 取得 RED，保留 `rejected` 與 mismatch。
+- `#偏誤辨識` / `#偏誤降低` / `#來源品質`：沿用 `build_decision_freshness()` 只在 `requires_rerun` 時加 `freshness_context`；content warning 只複製狀態、結論／快照時間與原因，不帶 sampled claim raw text。current、approved 與無 stale marker 的 gate 不新增上下文。
+- `#可驗證性` / `#描述統計` / `#責任`：RED→GREEN focused `136 passed`、品質 `1116 passed`、import/docs `640 passed`、full artifact `1594/781/134`，live current `164` 份為 evidence `135/26/3`、content `99/57/8`、conformance `80/74/10`，需重跑 `27` 份；health/ready、doctor、queue `0` 通過，未改動 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3729 / preserve comma-grouped integers and ratio source boundaries
 
 - `#拆解問題` / `#差距分析`：full artifact audit 找到兩個不同的 false mismatch：`2027.TW/v4` 的句末千分位值 `1,177,000.` 被 KV regex 回退成 `1,177`；`6226.TW/v4` 的 `券資比` label 同時含有 `融券餘額`／`融資餘額`，被 generic balance hint 綁到 `margin_previous_balance=2367`。

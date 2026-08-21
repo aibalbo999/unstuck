@@ -47,6 +47,32 @@ def test_evidence_gate_reports_verified_sample_count():
     assert result["unverifiable_count"] == 1
 
 
+def test_evidence_projection_exposes_stale_analysis_context_without_changing_verdict():
+    from reporting.evidence_exit_gate_projection import project_evidence_exit_gate
+
+    result = project_evidence_exit_gate(
+        {
+            "data": {"current_price": 100.0},
+            "conclusion_generated_at": "2026-08-20T13:14:01+00:00",
+            "snapshot_refreshed_at": "2026-08-21T07:59:30+00:00",
+            "decision_validity_status": "needs_rerun",
+            "refreshed_without_analysis_rerun": True,
+            "requires_rerun_reason": "資料快照已刷新，但分析本文尚未重跑。",
+        },
+        "- 股價: NT$99.00",
+    )
+
+    assert result["verdict"] == "rejected"
+    assert result["failed_count"] == 1
+    assert result["freshness_context"] == {
+        "status": "needs_rerun",
+        "requires_rerun": True,
+        "conclusion_generated_at": "2026-08-20T13:14:01+00:00",
+        "snapshot_refreshed_at": "2026-08-21T07:59:30+00:00",
+        "requires_rerun_reason": "資料快照已刷新，但分析本文尚未重跑。",
+    }
+
+
 def test_evidence_claim_preserves_numeric_horizon_in_label():
     from evidence_exit_gate import extract_numeric_claims
 

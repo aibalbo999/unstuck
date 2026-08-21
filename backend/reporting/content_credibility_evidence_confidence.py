@@ -31,11 +31,13 @@ def _check(check_id: str, status: str, message: str, details: dict | None = None
         result["details"] = details
     return result
 
-
 def _evidence_details(base: dict, evidence_details: Any) -> dict:
     gate = safe_mapping_dict(evidence_details) or {}
-    return {**base, **{f"evidence_{key}": gate[key] for key in ("claim_count", "sampled_count", "verified_count", "failed_count", "unverifiable_count", "unverifiable_reason_counts") if key in gate}}
-
+    details = {**base, **{f"evidence_{key}": gate[key] for key in ("claim_count", "sampled_count", "verified_count", "failed_count", "unverifiable_count", "unverifiable_reason_counts") if key in gate}}
+    freshness = safe_mapping_dict(gate.get("freshness_context")) or {}
+    if freshness.get("requires_rerun") is True or safe_text(freshness.get("status")).strip().lower() == "needs_rerun":
+        details["evidence_freshness_context"] = {key: freshness[key] for key in ("status", "requires_rerun", "conclusion_generated_at", "snapshot_refreshed_at", "requires_rerun_reason") if key in freshness}
+    return details
 
 def evaluate_confidence_evidence_alignment(evidence_verdict: Any, confidence_score: float | None, evidence_details: Any = None) -> dict:
     """Evaluate whether stated confidence is compatible with evidence-gate status."""

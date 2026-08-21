@@ -235,6 +235,8 @@ Evidence parser 會保留 `3個月目標`、`6個月`、`12個月` 這類數字 
 
 數字抽取會保留千分位整數，即使數值後面直接接下一句，例如 `1,177,000. Borrowed short sale today: 21,000.` 不會被截成 `1,177`。`券資比` 這類由融券／融資餘額計算出的衍生比例，若 snapshot 只有兩個組成數值而沒有 canonical ratio scalar，會維持 `unverifiable`／`missing_semantic_path`；不要把它誤當成融資餘額或自行推導成已核驗證據。
 
+若 evidence projection 同時看到 `decision_validity_status=needs_rerun` 或 `refreshed_without_analysis_rerun=true`，gate 會附上 `freshness_context`，非 `approved` 的內容可信度警示也會附上 `evidence_freshness_context`。這只說明「快照較新、分析本文待重跑」的操作上下文；`mismatch`、`rejected` 與其他人工確認邊界仍然有效，不要因為有這個欄位而把報告視為已核准。
+
 支撐／壓力句若同時列出前一個情境價與後面的月份高低點，只有緊鄰該日期的價位可以綁定 `price_history[month=YYYY-MM].low|high`。前一個價位若沒有自己的 canonical path，會保留 `unverifiable`；請不要把它和後面的月份低點／高點視為同一個證據。這是語意對應的保護，不會放寬 tolerance，也不會把真實 mismatch 改成通過。
 
 PE River Chart 的 band claim 也必須保留倍數身份；例如 `43.2x（中高分位帶）` 只可對應 `data.pe_river_chart.bands.43.2x` 下的數值，不可跨到其他 band、`multiples` 或一般 P/E 值。若同一 claim 以 `P/E 河流圖`、`59.6x 區間／位階` 與 `1,379.14 TWD` 這類格式同時表達 band 對應價格，evidence gate 會限定在 `data.pe_river_chart.bands` 集合內核對，允許報告與 snapshot 的 band 倍數標示有小幅版本差異，但不會回退到 `data.pe_ratio`；沒有 band series 時仍是 `unverifiable`。

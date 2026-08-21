@@ -54,6 +54,33 @@ def test_evidence_confidence_exposes_compact_gate_diagnostics_for_non_approved_g
     assert "sampled_claims" not in details
 
 
+def test_evidence_confidence_exposes_compact_stale_analysis_context():
+    result = evaluate_confidence_evidence_alignment(
+        "rejected",
+        6.0,
+        {
+            "freshness_context": {
+                "status": "needs_rerun",
+                "requires_rerun": True,
+                "conclusion_generated_at": "2026-08-20T13:14:01+00:00",
+                "snapshot_refreshed_at": "2026-08-21T07:59:30+00:00",
+                "requires_rerun_reason": "資料快照已刷新，但分析本文尚未重跑。",
+                "sampled_claims": [{"raw_text": "不要帶出本文"}],
+            },
+        },
+    )
+
+    details = result["warnings"][0]["details"]
+    assert details["evidence_freshness_context"] == {
+        "status": "needs_rerun",
+        "requires_rerun": True,
+        "conclusion_generated_at": "2026-08-20T13:14:01+00:00",
+        "snapshot_refreshed_at": "2026-08-21T07:59:30+00:00",
+        "requires_rerun_reason": "資料快照已刷新，但分析本文尚未重跑。",
+    }
+    assert "sampled_claims" not in details["evidence_freshness_context"]
+
+
 def test_evidence_confidence_treats_string_empty_tokens_as_not_recorded():
     result = evaluate_confidence_evidence_alignment("NaN", 9.0)
 

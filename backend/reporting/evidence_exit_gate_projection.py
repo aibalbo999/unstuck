@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from decision_tracking import build_decision_freshness
 from evidence_exit_gate import evaluate_report_evidence
 from mapping_fields import safe_mapping_dict, safe_text
 
@@ -15,7 +16,15 @@ def project_evidence_exit_gate(snapshot: Any, markdown: Any) -> dict[str, Any] |
     if not snapshot_map or not markdown_text.strip():
         return None
     try:
-        return evaluate_report_evidence(markdown_text, snapshot_map)
+        projected = evaluate_report_evidence(markdown_text, snapshot_map)
+        freshness = build_decision_freshness(snapshot=snapshot_map)
+        if freshness.get("requires_rerun"):
+            projected["freshness_context"] = {
+                key: freshness[key]
+                for key in ("status", "requires_rerun", "conclusion_generated_at", "snapshot_refreshed_at", "requires_rerun_reason")
+                if key in freshness
+            }
+        return projected
     except Exception:
         # Historical rows are read-only; malformed legacy content stays available.
         return None
