@@ -740,6 +740,46 @@ def test_evidence_gate_matches_pe_river_band_to_its_multiple_specific_snapshot_p
     assert claim["matched_path"] == "data.pe_river_chart.bands.43.2x[4]"
 
 
+def test_evidence_gate_matches_historical_high_percentile_band_to_specific_snapshot_path():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 67.1x (歷史高分位帶)：45.63 TWD",
+        {
+            "data": {
+                "pe_ratio": 45.63,
+                "pe_river_chart": {
+                    "bands": {"67.1x": [None, 12.0, 24.0, 36.0, 45.63]},
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "approved"
+    assert claim["status"] == "verified"
+    assert claim["matched_path"] == "data.pe_river_chart.bands.67.1x[4]"
+
+
+def test_evidence_gate_does_not_match_historical_high_percentile_band_to_generic_pe():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 67.1x (歷史高分位帶)：45.63 TWD",
+        {"data": {"pe_ratio": 45.63}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "caution"
+    assert claim["status"] == "unverifiable"
+    assert claim["matched_path"] == ""
+    assert claim["verification_reason_code"] == "no_matching_snapshot_path"
+
+
 def test_evidence_gate_does_not_match_pe_river_band_to_multiples_or_generic_pe():
     from evidence_exit_gate import evaluate_report_evidence
 

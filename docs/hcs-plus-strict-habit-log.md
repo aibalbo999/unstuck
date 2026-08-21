@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3744 / map historical high-percentile PE band without generic fallback
+
+- `#拆解問題` / `#差距分析`：full artifact audit 找到 `2367.TW/v2` 的 `67.1x (歷史高分位帶)：45.63 TWD` 與 `data.pe_river_chart.bands.67.1x[4]=45.63` 一致，但既有 matcher 只涵蓋 `中高分位帶`。
+- `#偏誤辨識` / `#偏誤降低` / `#來源品質`：只在 exact `x歷史高分位帶` 且 raw text 明示倍率時映射 band-specific path；沒有該 band 不借用 `pe_ratio`、`multiples` 或其他價格值，generic fallback 反例保留 `unverifiable`。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED，再 GREEN；focused `2 passed`、完整 evidence `152 passed`、品質 `1150 passed`、line guard `349` 通過，full artifact `2512 claims: 1618 verified / 757 unverifiable / 137 mismatch`，`missing_semantic_path=125`。正式 reload 後 live API 的目標 claim verified 到 `data.pe_river_chart.bands.67.1x[4]`、Markdown/data `200/200`，health/ready `200/200`、active jobs `0`，current quality 為 conformance `80/74/10`、content `99/57/8`、evidence `134/27/3`，未改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3743 / map exact Chinese borrowed-short fields without ratio fallback
 
 - `#拆解問題` / `#差距分析`：full artifact audit 找到 `6226.TW/v4` 的 `借券餘額：286000 張`、`當日借券賣出：40000 張` 都有唯一 canonical snapshot field，但中文 label 沒有命中既有 English hint。
