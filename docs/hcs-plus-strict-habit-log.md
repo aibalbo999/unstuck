@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3755 / classify Chinese catalyst prices as non-canonical news evidence
+
+- `#拆解問題` / `#差距分析`：full artifact audit 找到 `6226.TW/v4` 的 `近期低點/支撐參考：15.1（2026-06-25 催化劑提到之價格）`；中文「催化劑」且省略幣別時，既有 generic `risk_price` fallback 可能在 snapshot 同值時誤判為 verified。
+- `#偏誤辨識` / `#偏誤降低` / `#來源品質`：將 `催化劑` 與 `新聞`／`market_catalysts` 使用相同來源邊界，不要求 TWD／元才阻擋；即使同值、同日或存在 `data.risk_price`，也不借用 `price_history` 或 generic risk path。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED，再 GREEN；focused `6 passed`、完整 evidence `176 passed`、品質/evidence/conformance `998 passed`、import/docs `640 passed`、line guard `349`、`py_compile`、`git diff --check` 通過。full artifact `164 reports / 2515 claims` 為 `1634 verified / 743 unverifiable / 138 mismatch`，reason 為 `confidence_metadata_not_evidence=283`、`legacy_conclusion_without_snapshot_path=203`、`missing_semantic_path=117`、`no_matching_snapshot_path=137`、`news_source_not_canonical=3`、`snapshot_value_mismatch=138`。正式 reload 後 live 6226 target 維持 `unverifiable`／空 path 並分類為 `news_source_not_canonical`，Markdown/data/health/ready 均 HTTP `200`；current projection 為 conformance `80 passed / 74 warning / 10 blocked`、content `99 passed / 57 warning / 8 blocked`、evidence `135 approved / 26 caution / 3 rejected`；本批不改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3754 / infer a yearless month extremum only from a unique snapshot year
 
 - `#拆解問題` / `#差距分析`：full artifact audit 找到 `6213.TW/v4` 的 `367.41 TWD（6 月份高點轉支撐）`，snapshot 的 2026-06 canonical month-high 同值，但 claim 省略年份使既有 matcher 落到 `no_matching_snapshot_path`。

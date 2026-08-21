@@ -139,6 +139,8 @@ For a support, pressure, or prior-high claim that explicitly says `月底收盤�
 
 A bottom-boundary label such as `強勁底部分界` may use the dated `price_history[YYYY-MM-DD]` path when the same claim includes an explicit close marker (`收盤價`/`close`), a TWD/元 price, and an unambiguous date whose adjacent value agrees. `平台位置`, an unqualified bottom label, news/catalyst wording, and mismatched values remain `unverifiable` or `mismatch`; the parser does not infer a bottom price from the label alone.
 
+Chinese `催化劑` wording is treated as a news-source boundary for dated support or low-point prices. Even when the date and value happen to equal a `price_history` node, the claim remains `unverifiable` with `news_source_not_canonical`; the gate does not promote a catalyst-mentioned price into canonical market-history evidence.
+
 A numbered, phase-style, or defense-line label such as `波段壓力二` or `長期防線` may use the `data.week_52_high` or `data.week_52_low` semantic path only when the same claim explicitly names `52 週最高價`/`52 週最低價` (or the equivalent high/low wording) and the reported TWD/元 value agrees with that field. A generic numbered pressure/support/defense label without the explicit 52-week marker remains `unverifiable`; the parser does not infer a week-extreme source from the label alone.
 
 An English `Last 5 days Net Buy` label maps only to `data.institutional_trading.last_5_trading_days_net_buy_thousand_shares` when that canonical field exists and the reported `k` value agrees. It does not borrow `total_net_buy_thousand_shares` merely because the number is equal; if the dedicated 5-day field is absent, the claim remains `unverifiable`.

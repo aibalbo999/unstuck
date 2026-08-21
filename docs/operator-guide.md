@@ -223,7 +223,7 @@ Report evidence exit gate numeric checks use semantic snapshot paths only: ISO t
 
 KV claim 的 label 後若立即接 `8/17 - 8/18`、`8-17` 這類月日範圍，日期 token 會被排除，不會被誤當成法人數量、價格或其他 scalar claim；`08/17法說會後` 這種日期後直接接中文／英文文字的 compact token 也會排除。日期後真正帶單位的數值仍需依既有 semantic path 規則核驗；第三位數字仍會阻止日期判定。
 
-支撐／壓力／關卡／風險價格若明示來自新聞、`market_catalysts` 或 `recent_catalysts`，evidence gate 會保留為人工確認，並以 `verification_reason_code=news_source_not_canonical` 說明來源邊界；不因同值出現在 `data.risk_price` 或 `price_history` 就判定為 verified。明示 52 週高低點或 River Chart band 的專用來源仍依各自 semantic path 核驗。
+支撐／壓力／關卡／風險價格若明示來自新聞、`market_catalysts`、`recent_catalysts` 或中文「催化劑」，evidence gate 會保留為人工確認，並以 `verification_reason_code=news_source_not_canonical` 說明來源邊界；即使省略 TWD／元，或同值出現在 `data.risk_price`、`price_history`，也不判定為 verified。明示 52 週高低點或 River Chart band 的專用來源仍依各自 semantic path 核驗。
 
 編號式、階段式或防線標籤（例如 `波段壓力二`、`支撐二`、`長期防線`）只有在同一 claim 明寫 `52 週最高價`／`52 週最低價`，且數值與 `data.week_52_high`／`data.week_52_low` 一致時，才會核驗到週高低點來源。沒有 52 週高低點文字的編號壓力／支撐／防線，仍顯示為 `unverifiable`，請人工確認，不要依標籤自行推定來源。
 

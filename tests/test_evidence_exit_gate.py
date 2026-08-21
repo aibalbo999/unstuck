@@ -1921,6 +1921,23 @@ def test_evidence_gate_does_not_bind_news_support_to_price_history():
     assert result["sampled_claims"][0]["matched_path"] == ""
 
 
+def test_evidence_gate_does_not_bind_dated_catalyst_low_point_to_close_history():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 近期低點/支撐參考：15.1（2026-06-25 催化劑提到之價格）。",
+        {"data": {"risk_price": 15.1, "price_history": {"dates": ["2026-06-25"], "prices": [15.1]}}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "caution"
+    assert claim["status"] == "unverifiable"
+    assert claim["verification_reason_code"] == "news_source_not_canonical"
+    assert claim["matched_path"] == ""
+
+
 def test_evidence_gate_binds_month_end_support_to_exact_price_history_point():
     from evidence_exit_gate import evaluate_report_evidence
 
