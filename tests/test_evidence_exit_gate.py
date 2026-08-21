@@ -1698,7 +1698,7 @@ def test_evidence_gate_keeps_margin_short_ratio_unverifiable_without_canonical_s
 
     claim = result["sampled_claims"][0]
     assert claim["status"] == "unverifiable"
-    assert claim["verification_reason_code"] == "missing_semantic_path"
+    assert claim["verification_reason_code"] == "derived_metric_not_canonical"
     assert claim["matched_path"] == ""
 
 

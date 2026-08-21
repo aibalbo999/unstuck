@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3764 / classify derived margin-short ratios for operators
+
+- `#拆解問題` / `#差距分析` / `#來源品質`：residual audit 找到 `6226.TW/v4` 的 `券資比 1.25%` 與 `0052.TW/v4` 的 `券資比 0.75%`；snapshot 只有融資／融券餘額，沒有 canonical ratio scalar，原本泛化為 `missing_semantic_path`。
+- `#偏誤辨識` / `#偏誤降低` / `#溝通設計`：新增 exact `derived_metric_not_canonical` reason，仍維持 `unverifiable`，不自行推導、不把 component balance 當 ratio；shared quality helper 顯示「衍生指標沒有 canonical 欄位」，並以新 cache-buster 讓 history/watchlist 載入最新文字。
+- `#可驗證性` / `#責任`：先取得 RED（backend 1 failed、frontend 1 failed），再 GREEN；backend focused `1 passed`、完整 evidence `185 passed`、frontend `10 passed`、跨層回歸 `1857 passed`，full artifact `164/2515` 為 `1637 verified / 739 unverifiable / 139 mismatch`，`derived_metric_not_canonical=2`、`missing_semantic_path=12`。正式 reload 後兩份 ratio artifact HTML/Markdown/data 均 HTTP `200`，live reason 正確，shared helper/cache-buster、current-quality summary、health/ready、doctor、diff guards 通過；待完成本批 push。
+
 ## D3763 / bind narrative S&P 500 change to the SPY path
 
 - `#拆解問題` / `#差距分析` / `#證據基礎`：residual audit 找到 `2887.TW/v4` 的 `S&P 500 與台股加權指數近期震盪（Change 1d: -1.03% ~ -1.09%）`，原本因 KV label 截斷而是 `missing_semantic_path`；snapshot 有 `SPY.change_1d_pct=-1.0331` 與 `^TWII.change_1d_pct=-1.0965`，必須保留 symbol identity。
