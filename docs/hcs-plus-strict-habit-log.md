@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3684 / preserve symbol identity for global market evidence
+
+- `#拆解問題` / `#差距分析` / `#偏誤辨識`：`global_market_context.items` 同時保存 SPY、QQQ、VIX、利率與其他 proxy；原 evidence path 只有 list index，報告的 `QQQ, change_5d_pct` 沒有 symbol-specific path，只能被標為 unverifiable。
+- `#最小變更` / `#責任`：只對 `global_market_context.items` 的 mapping path 加入 normalized `symbol`，並只接受 raw claim 同時含明示 symbol 與 `change_5d_pct`；沒有 symbol、metric 不同或資料缺失時維持人工核對，不使用同值 fallback。
+- `#來源品質` / `#偏誤降低`：加入 SPY/QQQ 交叉同值反例，確認 QQQ claim 不會命中 SPY；真正 mismatch、其他 unverifiable、final-audit critical 與 rejected evidence gate 不降級。
+- `#可驗證性` / `#責任`：先取得 QQQ claim RED，再 GREEN；evidence gate `38 passed`，品質/evidence/conformance `135 passed`，import boundary `504 passed`，HCS/docs `135 passed`，line guard `evidence_exit_gate.py=349`。正式 reload 後 evidence `69 approved / 95 caution / 1 rejected`、claims `181 verified / 150 unverifiable / 2 mismatch`；conformance `49 passed / 108 warning / 8 blocked`、content `51/106/8`，evidence matrix coverage `165/165 passed`。healthz/readyz、doctor canonical paths、RQ queue depth `0` 通過，未寫入 artifact、snapshot、index、review、rerun、repair 或 queue。
+
 ## D3683 / rebuild legacy recommendation coverage from canonical source audit
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：legacy snapshot 的 `rerun_context.parsed` 缺失且 `evidence_matrix=[]`；normalized index recommendation 雖可形成 projection context，`evidence_matrix_rows()` 卻因空 persisted key 提前返回，讓 21 份 history row 被標成 `missing_final_recommendation_evidence`，即使 canonical `data + source_audit` 有成功來源。

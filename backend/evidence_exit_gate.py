@@ -110,11 +110,9 @@ def _claim_value(match: re.Match[str], label: str, line: str) -> tuple[float | N
     number = _clean_number(eps_match.group("num"))
     unit = (eps_match.group("unit") or "").strip()
     return (number if number is not None else default_number), (unit or default_unit)
-
 def _label_has_eps_hint(label: str) -> bool:
     normalized = _normalize_match_text(label)
     return any(_normalize_match_text(marker) in normalized for marker in ("eps", "每股盈餘"))
-
 def evaluate_report_evidence(
     markdown: str,
     snapshot: dict[str, Any],
@@ -188,7 +186,6 @@ def sample_numeric_claims(
         others = [item for item in claims if item not in priority]
         sampled = priority + Random(seed).sample(others, sample_size - len(priority))
     return sorted(sampled, key=lambda item: int(item.get("line_number") or 0))
-
 def flatten_snapshot_numbers(snapshot: Any) -> list[dict[str, Any]]:
     """Collect numeric values from a sanitized snapshot."""
     values: list[dict[str, Any]] = []
@@ -222,6 +219,9 @@ def flatten_snapshot_numbers(snapshot: Any) -> list[dict[str, Any]]:
             return
         if isinstance(value, list):
             for index, item in enumerate(value):
+                if path.endswith("global_market_context.items") and isinstance(item, dict) and (symbol := _normalize_match_text(item.get("symbol") or item.get("label"))):
+                    for key, child in item.items(): walk(child, f"{path}[{symbol}].{key}")
+                    continue
                 walk(item, f"{path}[{index}]")
     walk(snapshot, "")
     return values
@@ -252,8 +252,6 @@ def _relevant_snapshot_values(claim: dict[str, Any], snapshot_values: list[dict[
         if any(_normalize_match_text(marker) in _normalize_match_text(item.get("path")) for marker in path_markers)
     ]
     return relevant
-
-
 def _is_non_claim_match(line: str, match: re.Match[str]) -> bool:
     timestamp = re.search(r"\d{4}-\d{2}-\d{2}T\d{1,2}:\d{2}:\d{2}", line)
     if timestamp and timestamp.start() <= match.start("label") <= timestamp.end():
@@ -289,6 +287,8 @@ def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
         return ("factset",)
     if any(marker in raw_text for marker in _NORMALIZED_RESEARCH_CONTEXT_MARKERS):
         return ("broker_research",)
+    if (global_match := re.search(r"(?<![A-Za-z0-9])(\^?[A-Z][A-Z0-9^=.-]*)\s*[,：:]\s*change[_ ]?5d[_ ]?pct", claim_text, re.IGNORECASE)) and "change_5d_pct" in raw_text:
+        return (f"global_market_context.items[{_normalize_match_text(global_match.group(1))}].change_5d_pct",)
     if ("1000lots" in raw_text and "concentration" in label) or ("50lots" in raw_text and "retail" in label): return ("major_holders_gt_1000_lots_pct",) if "concentration" in label else ("retail_holders_lt_50_lots_pct",)
     if label == "previous" and ("marginbalance" in raw_text or "shortbalance" in raw_text): return ("margin_previous_balance",) if "marginbalance" in raw_text else ("short_previous_balance",)
     history_date = re.search(r"(20\d{2})\s*[-/年.]\s*(\d{1,2})\s*[-/月.]\s*(\d{1,2})", claim_text); has_price_label = any(_normalize_match_text(marker) in label for marker in ("高點", "低點", "收盤", "支撐", "壓力", "股價", "價格", "close", "high", "low")); has_close_marker = any(_normalize_match_text(marker) in _normalize_match_text(claim_text) for marker in ("收盤", "close", "closing")); has_price_unit = bool(re.search(r"(?:NT\$|\$|TWD|元)", claim_text, re.IGNORECASE))

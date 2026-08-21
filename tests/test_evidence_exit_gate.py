@@ -321,6 +321,54 @@ def test_evidence_gate_matches_chip_distribution_and_margin_claims():
     assert all(item["status"] == "verified" for item in result["sampled_claims"])
 
 
+def test_evidence_gate_matches_symbol_specific_global_market_context_change():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 國際風險（QQQ, change_5d_pct: -2.18%）",
+        {
+            "data": {
+                "global_market_context": {
+                    "items": [
+                        {"symbol": "SPY", "change_5d_pct": -1.13},
+                        {"symbol": "QQQ", "change_5d_pct": -2.1842},
+                    ],
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "verified"
+    assert claim["matched_path"] == "data.global_market_context.items[qqq].change_5d_pct"
+
+
+def test_evidence_gate_does_not_cross_match_global_market_symbols():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 國際風險（QQQ, change_5d_pct: -2.18%）",
+        {
+            "data": {
+                "global_market_context": {
+                    "items": [
+                        {"symbol": "SPY", "change_5d_pct": -2.1842},
+                        {"symbol": "QQQ", "change_5d_pct": -1.13},
+                    ],
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "mismatch"
+    assert claim["matched_path"] == "data.global_market_context.items[qqq].change_5d_pct"
+
+
 def test_evidence_gate_matches_explicit_tdcc_concentration_labels():
     from evidence_exit_gate import evaluate_report_evidence
 
