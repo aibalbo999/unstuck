@@ -8,7 +8,7 @@ def _normalize_match_text(value: Any) -> str:
     return re.sub(r"[^0-9a-zA-Z_\u4e00-\u9fff]+", "", str(value or "").lower())
 _NUMERIC_UNIT_PATTERN = r"(?:TWD|%|x|X|倍|億|元|張|B|M|K|k|T)"
 _KV_RE = re.compile(
-    rf"(?P<label>[\u4e00-\u9fffA-Za-z][^:\n：|]{{0,30}})[:：]\s*[*_`]*\s*(?:[~約])?(?:NT\$|\$)?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>{_NUMERIC_UNIT_PATTERN})?(?:[.．](?=\s*(?:[)）]|$)))?(?![\dA-Za-z.])"
+    rf"(?P<label>[\u4e00-\u9fffA-Za-z][^:\n：|]{{0,30}})[:：]\s*[*_`]*\s*(?:[~約])?(?:NT\$|\$)?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>{_NUMERIC_UNIT_PATTERN})?(?:[.．](?=\s*(?:[)）]|$)))?(?![\dA-Za-z]|[.．](?!\s*(?:[)）]|$|\s+[A-Za-z\u4e00-\u9fff])))"
 )
 _TABLE_CELL_RE = re.compile(
     rf"\|\s*(?P<label>[^|\n]{{1,30}})\s*\|\s*[*_`]*\s*(?:[~約])?(?:NT\$|\$)?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>{_NUMERIC_UNIT_PATTERN})?(?:[.．](?=\s*\|))?(?![\dA-Za-z.])\s*\|"
@@ -23,7 +23,7 @@ _EPS_VALUE_RE = re.compile(
     re.IGNORECASE,
 )
 _NON_CLAIM_SUFFIX_RE = re.compile(r"^\s*(?:[A-Za-z\u4e00-\u9fff]|週|周|個月|月|年|天|日)")
-_NON_CLAIM_LABEL_MARKERS = ("code", "duration", "error", "hash", "pipeline", "prompt", "provider", "recordcount", "twse", "tradingview", "交易計畫健康度", "近 10 日每日趨勢", "daily trend", "Recent catalysts", "近期催化劑", "抓取", "資料日期", "時間", "程式碼", "版本", "錯誤", "耗時", "雜湊")
+_NON_CLAIM_LABEL_MARKERS = ("code", "duration", "error", "hash", "pipeline", "prompt", "provider", "recordcount", "twse", "tradingview", "交易計畫健康度", "核心論點", "數據/證據", "近 10 日每日趨勢", "daily trend", "Recent catalysts", "近期催化劑", "抓取", "資料日期", "時間", "程式碼", "版本", "錯誤", "耗時", "雜湊")
 _SNAPSHOT_METADATA_PATH_MARKERS = ("cache_generated_at_epoch", "conclusion_generated_at", "conclusion_guardrails", "content_hash", "data_snapshot_hash", "duration_ms", "evidence_exit_gate", "fetched_at", "final_audit", "generated_at", "hash", "record_count", "reproducibility_packet", "report_conformance", "report_lint", "snapshot_hash", "snapshot_refreshed_at", "source_audit", "target_ticker")
 _CONFIDENCE_METADATA_PATH_MARKERS = ("content_credibility", "data_confidence", "max_recommended_confidence", "min_data_confidence", "confidence_data_trust", "report_conformance")
 _NORMALIZED_NON_CLAIM_LABEL_MARKERS = tuple(_normalize_match_text(marker) for marker in _NON_CLAIM_LABEL_MARKERS)
@@ -309,7 +309,7 @@ def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
     if label == "low" and re.search(r"52\s*[- ]?week\s+high\s*[:：].*[/,]\s*low\s*[:：]", claim_text, re.IGNORECASE): return ("week_52_low",)
     if label == "最新餘額": return ("margin_balance",) if ("融資餘額" in raw_text or "marginbalance" in raw_text or "融資餘額" in _normalize_match_text(claim.get("context_text"))) else ("short_balance",) if ("融券餘額" in raw_text or "shortbalance" in raw_text or "融券餘額" in _normalize_match_text(claim.get("context_text"))) else ()
     if ((("riverchart" in raw_text or "河流圖" in raw_text) and str(claim.get("unit") or "").lower() in ("twd", "元") and re.search(r"\d[\d,]*(?:\.\d+)?\s*x\s*(?:區間|位階|band)", claim_text, re.IGNORECASE)) or (label == "x中高分位帶" and (band_match := re.search(r"(?P<multiple>\d[\d,]*(?:\.\d+)?)\s*x", str(claim.get("raw_text") or ""), re.IGNORECASE))) or (label in ("關鍵壓力", "關鍵壓力位") and str(claim.get("unit") or "").lower() in ("twd", "元") and any(marker in raw_text for marker in ("52週最高價", "week52high")))): return ("pe_river_chart.bands",) if ("riverchart" in raw_text or "河流圖" in raw_text) else (f"pe_river_chart.bands.{band_match.group('multiple')}x",) if label == "x中高分位帶" else ("week_52_high",)
-    if (has_news_source and has_price_unit and any(_normalize_match_text(marker) in label for marker in ("支撐", "壓力", "關卡", "風險"))) or any(marker in raw_text for marker in ("熊市", "牛市")): return () if (has_news_source and has_price_unit and any(_normalize_match_text(marker) in label for marker in ("支撐", "壓力", "關卡", "風險"))) else ("stop_loss", "support", "resistance", "risk_price", "price_target", "price_targets", "target_price", "scenario", "scenarios")
+    if any(_normalize_match_text(marker) in label for marker in ("券資比", "margin short ratio", "short margin ratio")) or (has_news_source and has_price_unit and any(_normalize_match_text(marker) in label for marker in ("支撐", "壓力", "關卡", "風險"))) or any(marker in raw_text for marker in ("熊市", "牛市")): return () if any(_normalize_match_text(marker) in label for marker in ("券資比", "margin short ratio", "short margin ratio")) or (has_news_source and has_price_unit and any(_normalize_match_text(marker) in label for marker in ("支撐", "壓力", "關卡", "風險"))) else ("stop_loss", "support", "resistance", "risk_price", "price_target", "price_targets", "target_price", "scenario", "scenarios")
     for label_markers, path_markers in _FIELD_HINTS:
         if any(_label_matches_marker(raw_label, label, marker) for marker in label_markers):
             return ("structured_outputs.24.target_price", "parsed.trade_setup.target_price") if any(_normalize_match_text(marker) in label for marker in ("目標價", "targetprice")) and label not in ("目標價", "targetprice") else ("price_target", "price_targets", "target_price", "scenario", "scenarios") if label in ("目標價", "targetprice") else path_markers

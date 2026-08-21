@@ -233,6 +233,8 @@ Evidence parser 會保留 `3個月目標`、`6個月`、`12個月` 這類數字 
 
 目標價的 evidence mapping 只把 exact `目標價`／`target price` 當作一般 target label；像 `航空運輸業，目標價` 這種「分類＋目標價」描述性 label 不會因同一行出現估值文字就借用 DCF 或 bear intrinsic value，而只允許同一 snapshot 的 canonical structured target path。若 snapshot 沒有該 path，請依 `no_matching_snapshot_path` 進行人工確認；熊市／基本／牛市或 DCF claim 必須保留自己的情境／估值語意。
 
+數字抽取會保留千分位整數，即使數值後面直接接下一句，例如 `1,177,000. Borrowed short sale today: 21,000.` 不會被截成 `1,177`。`券資比` 這類由融券／融資餘額計算出的衍生比例，若 snapshot 只有兩個組成數值而沒有 canonical ratio scalar，會維持 `unverifiable`／`missing_semantic_path`；不要把它誤當成融資餘額或自行推導成已核驗證據。
+
 支撐／壓力句若同時列出前一個情境價與後面的月份高低點，只有緊鄰該日期的價位可以綁定 `price_history[month=YYYY-MM].low|high`。前一個價位若沒有自己的 canonical path，會保留 `unverifiable`；請不要把它和後面的月份低點／高點視為同一個證據。這是語意對應的保護，不會放寬 tolerance，也不會把真實 mismatch 改成通過。
 
 PE River Chart 的 band claim 也必須保留倍數身份；例如 `43.2x（中高分位帶）` 只可對應 `data.pe_river_chart.bands.43.2x` 下的數值，不可跨到其他 band、`multiples` 或一般 P/E 值。若同一 claim 以 `P/E 河流圖`、`59.6x 區間／位階` 與 `1,379.14 TWD` 這類格式同時表達 band 對應價格，evidence gate 會限定在 `data.pe_river_chart.bands` 集合內核對，允許報告與 snapshot 的 band 倍數標示有小幅版本差異，但不會回退到 `data.pe_ratio`；沒有 band series 時仍是 `unverifiable`。

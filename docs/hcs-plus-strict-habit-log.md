@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3729 / preserve comma-grouped integers and ratio source boundaries
+
+- `#拆解問題` / `#差距分析`：full artifact audit 找到兩個不同的 false mismatch：`2027.TW/v4` 的句末千分位值 `1,177,000.` 被 KV regex 回退成 `1,177`；`6226.TW/v4` 的 `券資比` label 同時含有 `融券餘額`／`融資餘額`，被 generic balance hint 綁到 `margin_previous_balance=2367`。
+- `#偏誤辨識` / `#偏誤降低` / `#來源品質`：句點後只有在有空白且接下一句文字時才允許完整千分位 claim，避免 `1623.TW` ticker 被放寬；券資比／margin-short ratio 沒有 canonical ratio scalar 時明確返回空 semantic path，不用兩個 component balances 自行推導 verified，也不改既有真 mismatch。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED，再 GREEN；focused `4 passed`、完整 evidence `117 passed`、品質/evidence/conformance `1114 passed`、import `504 passed`、docs `136 passed`、line guard `349`、`py_compile`、`git diff --check` 通過。full artifact 為 `1594 verified / 781 unverifiable / 134 mismatch`，reason `missing_semantic_path=198`；`2027.TW/v4` 已 verified、`6226.TW/v4` 維持 unverifiable。正式 reload 後 current `164` 份為 content `99/57/8`、conformance `80/74/10`、evidence `135/26/3`；healthz/readyz、queue depth `0`、failed_recent `0` 通過，未改動 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3728 / keep descriptive targets on canonical structured evidence
 
 - `#拆解問題` / `#差距分析`：`2618.TW/v4` 的 `航空運輸業，目標價：43.75元` 被 generic target hint 帶入 DCF bear `32.04`，同時 structured target 的 `近 1-2 週` 前綴可能先產生數字 `1`。

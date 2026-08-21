@@ -1051,6 +1051,56 @@ def test_evidence_gate_matches_margin_flow_and_borrowed_short_balance():
     assert all(item["status"] == "verified" for item in result["sampled_claims"])
 
 
+def test_evidence_gate_preserves_comma_grouped_integer_before_sentence_punctuation():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- Borrowed short return today: 1,177,000. Borrowed short sale today: 21,000.",
+        {
+            "data": {
+                "chip_data": {
+                    "twse_margin_short_sales": {
+                        "borrowed_short_return_today": 1177000,
+                        "borrowed_short_sale_today": 21000,
+                    },
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=2,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["unverifiable_count"] == 0
+    assert result["failed_count"] == 0
+    assert [claim["reported_value"] for claim in result["sampled_claims"]] == [1177000.0, 21000.0]
+
+
+def test_evidence_gate_keeps_margin_short_ratio_unverifiable_without_canonical_scalar():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **券資比 (融券餘額 / 融資餘額)：** 1.25% (34張 / 2713張)。",
+        {
+            "data": {
+                "chip_data": {
+                    "twse_margin_short_sales": {
+                        "short_balance": 34,
+                        "margin_balance": 2713,
+                    },
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "unverifiable"
+    assert claim["verification_reason_code"] == "missing_semantic_path"
+    assert claim["matched_path"] == ""
+
+
 def test_evidence_gate_converts_borrowed_short_return_shares_to_lots():
     from evidence_exit_gate import evaluate_report_evidence
 
@@ -2266,6 +2316,17 @@ def test_evidence_claims_ignore_ticker_identifier_followed_by_text():
     claims = extract_numeric_claims(markdown)
 
     assert not any(claim["reported_value"] == 1623.0 for claim in claims)
+
+
+def test_evidence_claims_ignore_numbered_narrative_headings():
+    from evidence_exit_gate import extract_numeric_claims
+
+    claims = extract_numeric_claims(
+        "- **🐂 做多核心論點：** 1. AI 伺服器需求升溫。\n"
+        "- **數據/證據：** 1. 市場資料仍需人工確認。"
+    )
+
+    assert not any(claim["reported_value"] == 1.0 for claim in claims)
 
 
 def test_report_renderer_attaches_evidence_exit_gate_to_snapshot_and_metadata(monkeypatch):
