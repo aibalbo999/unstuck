@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3698 / bind dated high-point evidence to price history
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`6226.TW/v4` 的「近期高點：22.05 (2026-06-30)」是日期和值的明確歷史極值，但沒有 `收盤價`、單位或欄位路徑，原 matcher 無法把它連到 `data.price_history`。
+- `#最小變更` / `#責任`：只對有日期的高／低點 label 產生 exact `price_history[YYYY-MM-DD]` marker；排除 `52 週` 與 `market_catalysts`／新聞來源，保留同值錯日期的 mismatch，不使用最近數字 fallback。
+- `#偏誤降低` / `#可驗證性`：RED→GREEN fixture 覆蓋日期正確、同值錯日期與新聞高點反例；正式 live `6226.TW/v4` target claim verified，matched path 為 `data.price_history[2026-06-30].prices[10]`，同報告既有交易計畫多情境價格警示仍保留。
+- `#可驗證性` / `#責任`：evidence gate `72 passed`、品質/evidence/conformance `1054 passed`、import boundary `504 passed`、HCS/docs `136 passed`，line guard `evidence_exit_gate.py=349`。正式 reload 後 target filtered current summary `1 audited / 1 approved`；full current summary `165` 份為 evidence `135/24/6`、content `79/78/8`、conformance `74/78/13`；healthz/readyz、doctor canonical paths、RQ queue depth `0` 與 failed_recent `0` 通過，未寫入 artifact、snapshot、index、review、rerun、repair 或 queue。
+
 ## D3697 / exclude daily-trend date tokens from scalar evidence claims
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`近 10 日每日趨勢` 是一行日期／數值序列，generic KV parser 卻把 `7/21` 的月份 `7` 當成 label value，造成一筆假性的 unverifiable claim。
