@@ -2255,6 +2255,54 @@ def test_evidence_gate_matches_dealer_label_to_category_path():
     assert result["sampled_claims"][0]["matched_path"] == "data.institutional_trading.net_buy_thousand_shares_by_category.dealer"
 
 
+def test_evidence_gate_matches_foreign_and_investment_trust_labels_to_category_paths():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- Foreign: 22,509.2\n- Investment Trust: 3,144.84",
+        {
+            "data": {
+                "institutional_trading": {
+                    "net_buy_thousand_shares_by_category": {
+                        "foreign": 22509.2,
+                        "investment_trust": 3144.84,
+                        "dealer": 22401.41,
+                    }
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=2,
+    )
+
+    assert result["verdict"] == "approved"
+    assert [claim["status"] for claim in result["sampled_claims"]] == ["verified", "verified"]
+    assert [claim["matched_path"] for claim in result["sampled_claims"]] == [
+        "data.institutional_trading.net_buy_thousand_shares_by_category.foreign",
+        "data.institutional_trading.net_buy_thousand_shares_by_category.investment_trust",
+    ]
+
+
+def test_evidence_gate_does_not_cross_match_foreign_or_investment_trust_to_total_path():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- Foreign: 22,509.2\n- Investment Trust: 3,144.84",
+        {
+            "data": {
+                "institutional_trading": {
+                    "total_net_buy_thousand_shares": 22509.2,
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=2,
+    )
+
+    assert all(claim["status"] == "unverifiable" for claim in result["sampled_claims"])
+    assert all(claim["matched_path"] == "" for claim in result["sampled_claims"])
+
+
 def test_evidence_gate_matches_total_net_buy_30_day_label_to_total_path():
     from evidence_exit_gate import evaluate_report_evidence
 

@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3737 / map exact institutional category labels without total fallback
+
+- `#拆解問題` / `#差距分析`：full artifact audit 找到 `2885.TW/v4` 的 `Foreign: 22,509.2`、`Investment Trust: 3,144.84` 與 snapshot category fields 一致，但兩個 exact label 沒有 semantic path；同一段的 `Total: 48,055.45` 沒有足夠語意，不應直接借用總額欄位。
+- `#偏誤辨識` / `#偏誤降低` / `#來源品質`：只新增 `Foreign`／`外資` 與 `Investment Trust`／`投信` 到各自 `net_buy_thousand_shares_by_category` path；generic `Total` 保留 `missing_semantic_path`，不因數值接近或相等跨 category/total source。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED，再 GREEN；focused `2 passed`、完整 evidence `135 passed`、品質 `1133 passed`、import/docs、`py_compile` 與 line guard `349` 通過，full artifact 為 `2510 claims: 1608 verified / 768 unverifiable / 134 mismatch`，reason `missing_semantic_path=136`；正式 reload 後 live API 驗證兩個 category claim，`Total` 仍 `unverifiable`，current quality 為 evidence `135/26/3`、content `99/57/8`、conformance `80/74/10`，health/ready `ok/ready`、doctor canonical paths 與 queue depth `0`、failed_recent `0`、failed_stale `10` 通過，未改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3736 / map compact English last-5 institutional net-buy labels
 
 - `#拆解問題` / `#差距分析`：full artifact audit 找到 `6505.TW/v4` 的 `Last 5 days Net Buy: 22,514.34k` 與 snapshot 的 `institutional_trading.last_5_trading_days_net_buy_thousand_shares=22514.34` 一致，但 normalized label `last5daysnetbuy` 沒有命中既有 alias。

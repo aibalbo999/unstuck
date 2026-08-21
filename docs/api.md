@@ -141,6 +141,8 @@ A numbered, phase-style, or defense-line label such as `波段壓力二` or `長
 
 An English `Last 5 days Net Buy` label maps only to `data.institutional_trading.last_5_trading_days_net_buy_thousand_shares` when that canonical field exists and the reported `k` value agrees. It does not borrow `total_net_buy_thousand_shares` merely because the number is equal; if the dedicated 5-day field is absent, the claim remains `unverifiable`.
 
+Within the 30-day institutional trading section, exact `Foreign`/`外資` and `Investment Trust`/`投信` labels map only to their matching `data.institutional_trading.net_buy_thousand_shares_by_category.foreign|investment_trust` paths when the values agree. A generic `Total` label does not inherit the total-net-buy path; it remains `unverifiable` unless the report explicitly names the canonical 30-day total field.
+
 When a parseable 12-month recommendation target and all three canonical scenario targets are present, content credibility also projects the existing final-audit range check: the recommendation target should stay between `bear * 0.7` and `bull * 1.3`. A target outside that explainable range records `recommendation_target_outside_scenario_range` as a warning with the target, bounds, and scenario values. This is read-only warning evidence for historical/API projections; it does not replace final-audit, scenario-order blocking, or create a rerun/repair action.
 
 When a report has a recommendation field but its normalized label is outside `買入|持有|避免|放空`, content credibility records `unrecognized_recommendation_label` as a warning because directional alignment cannot be evaluated. Final-audit remains responsible for the separate structural contract and may still block the report.
