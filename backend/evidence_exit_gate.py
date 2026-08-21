@@ -255,7 +255,7 @@ def _relevant_snapshot_values(claim: dict[str, Any], snapshot_values: list[dict[
 
 def _is_non_claim_match(line: str, match: re.Match[str]) -> bool:
     timestamp = re.search(r"\d{4}-\d{2}-\d{2}T\d{1,2}:\d{2}:\d{2}", line)
-    if timestamp and timestamp.start() <= match.start("label") <= timestamp.end():
+    if (timestamp and timestamp.start() <= match.start("label") <= timestamp.end()) or re.search(r"`institutional_trading`\s*[:：]\s*\d+\s*-\s*day\s+lookback\b", line, re.IGNORECASE):
         return True
 
     label = _normalize_match_text(match.group("label"))

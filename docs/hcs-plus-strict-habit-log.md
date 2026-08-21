@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3701 / exclude institutional lookback metadata from scalar claims
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`6141.TW/v4` 的 `` `institutional_trading`: 30-day lookback, latest date ... `` 中 `30` 只表示資料回溯期間；它不是淨買超、持股或任何 snapshot scalar。
+- `#最小變更` / `#責任`：只在 backtick `institutional_trading` 後接 `N-day lookback` 的完整句型排除數字；未加入廣泛的 `institutional_trading` label marker，保留真正帶值的 institutional trading claim。
+- `#偏誤降低` / `#可驗證性`：RED→GREEN fixture 同時驗證 metadata 不產生 claim、`institutional_trading: 30.0k` 仍可抽取；live `6141.TW/v4` 收斂為 `15 claims / 3 sampled / 0 unverifiable / approved`。
+- `#可驗證性` / `#責任`：evidence gate `75 passed`、品質/evidence/conformance `1058 passed`、import boundary `504 passed`、HCS/docs `136 passed`，line guard `evidence_exit_gate.py=349`；healthz/readyz、canonical paths 與 RQ failed_recent `0` 通過。未寫入 artifact、snapshot、index、review、rerun、repair 或 queue。
+
 ## D3700 / bind dated extremum inside a mixed pressure sentence
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`2455.TW/v4` 把 `2026-05-29 高點` 與 `52 週高點` 放在同一個「近期壓力位」句子；第一個值是有日期的歷史極值，第二個值是另一個 canonical field，原本兩者都因 label 不夠具體而無法完整核驗。

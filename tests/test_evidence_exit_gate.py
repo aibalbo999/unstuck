@@ -266,6 +266,16 @@ def test_evidence_claims_ignore_catalyst_group_period_tokens():
     assert claims == []
 
 
+def test_evidence_claims_ignore_institutional_trading_lookback_metadata():
+    from evidence_exit_gate import extract_numeric_claims
+
+    assert extract_numeric_claims(
+        "*   `institutional_trading`: 30-day lookback, latest date 2026-08-20."
+    ) == []
+    actual_value = extract_numeric_claims("- `institutional_trading`: 30.0k")
+    assert actual_value[0]["reported_value"] == 30.0
+
+
 def test_evidence_gate_does_not_match_confidence_to_unrelated_snapshot_numbers():
     from evidence_exit_gate import evaluate_report_evidence
 
