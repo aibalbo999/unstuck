@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3689 / bind current-price and 52-week-high labels to canonical fields
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`8422.TW/v4` 的 `當前價位` 有 `market_data.current_price_twd` 明示來源；`2357.TW/v4` 與 `2834.TW/v4` 的壓力位分別寫明 `52 週最高價`，數值又與 snapshot 的 `current_price`/`week_52_high` 一致，但 label/path parser 原本將它們留在 unverifiable。
+- `#最小變更` / `#責任`：新增 `當前價位` current-price hint，並擴充 52 週 pattern 支援 `最高價`、`此為 52 週最高價` 等固定短句；只有在報告 claim 數字等於對應 snapshot field 時才回傳 canonical path，普通 `market_data`、歷史高點與多數字句子不套用。
+- `#偏誤降低` / `#可驗證性`：新增 current-price、52-week-high 與 sentence-connector fixtures；live 三份報告均 verified，既有 cross-number/date leakage、真實 mismatch、confidence/情境人工審核邊界維持。
+- `#可驗證性` / `#責任`：evidence gate `49 passed`、品質/evidence/conformance `1032 passed`、import boundary `504 passed`、HCS/docs `136 passed`，line guard `evidence_exit_gate.py=349`。正式 reload 後 live `165` 份為 evidence `122/39/4`、claims `417 verified / 157 unverifiable / 6 mismatch`、content `73/84/8`、conformance `69/85/11`；healthz/readyz、doctor canonical paths、RQ queue depth `0` 通過，未寫入 artifact、snapshot、index、review、rerun、repair 或 queue。
+
 ## D3688 / map the exact natural-language five-day net-buy label
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：報告會寫 `Last 5 trading days net buy`，但既有 evidence gate 只接受明示的 `last_5_trading_days_net_buy_thousand_shares` path；`9921.TW/v4` 的 `12,467.35k` 與 `2885.TW/v4` 的 `7,068.03 (thousand shares)` 因而被保守地留在 unverifiable，雖然 snapshot 有唯一同語意欄位。

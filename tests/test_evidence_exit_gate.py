@@ -902,6 +902,51 @@ def test_evidence_gate_does_not_promote_daily_net_buy_to_last_5_field():
     assert result["sampled_claims"][0]["matched_path"] == ""
 
 
+def test_evidence_gate_matches_explicit_current_price_snapshot_path():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **當前價位：** 26.7 TWD（參考資料：`market_data.current_price_twd`）",
+        {"data": {"current_price": 26.7}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["sampled_claims"][0]["status"] == "verified"
+    assert result["sampled_claims"][0]["matched_path"] == "data.current_price"
+
+
+def test_evidence_gate_matches_52_week_high_price_label_to_canonical_field():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **近期壓力：** 1025.0 TWD（52 週最高價，來源：`market_data`）。",
+        {"data": {"week_52_high": 1025.0, "current_price": 910.0}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["sampled_claims"][0]["status"] == "verified"
+    assert result["sampled_claims"][0]["matched_path"] == "data.week_52_high"
+
+
+def test_evidence_gate_matches_52_week_high_after_short_sentence_connector():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **關鍵壓力位**：**18.25 TWD**。此為 52 週最高價（`market_data`），目前價格 18.1 TWD。",
+        {"data": {"week_52_high": 18.25, "current_price": 18.1}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["sampled_claims"][0]["status"] == "verified"
+    assert result["sampled_claims"][0]["matched_path"] == "data.week_52_high"
+
+
 def test_evidence_gate_uses_specific_financial_field_hints_before_broad_labels():
     from evidence_exit_gate import evaluate_report_evidence
 
