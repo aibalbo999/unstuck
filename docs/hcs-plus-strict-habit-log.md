@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3749 / extract complete three-month price series without guessing year
+
+- `#拆解問題` / `#差距分析`：full artifact audit 找到 `2618.TW/v4` 的 `觀察近三個月價格（6/30: 42.78, 7/31: 43.3, 8/21: 42.6）` 只被抽出第一筆，`7/31` 與 `8/21` 漏出 evidence gate；canonical snapshot 同時提供三個 exact daily `price_history` points。
+- `#偏誤辨識` / `#偏誤降低` / `#來源品質`：只對明示「觀察近三個月價格」的同一行補抽後續 date/value pairs；要求前文年份與 snapshot 該月份年份都唯一且一致，`2025/2026` 月份歧義保留 `missing_semantic_path`，不以月份或數值相近猜測。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED，再 GREEN；focused `2 passed`、完整 evidence `162 passed`、品質 `1160 passed`、line guard `348` 通過，full artifact `2515 claims: 1626 verified / 751 unverifiable / 138 mismatch`，`missing_semantic_path=119`。正式 reload 後 live API 三筆 target 均 verified 到 `data.price_history[2026-06-30].prices[9]`、`[2026-07-31].prices[10]`、`[2026-08-21].prices[11]`，Markdown/data/health/ready 均 HTTP `200`，current quality 維持 evidence `134/27/3`、content `99/57/8`、conformance `80/74/10`，本批未改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3748 / map indexed global-market changes by symbol and horizon
 
 - `#拆解問題` / `#差距分析`：full artifact audit 找到 `2337.TW/v4` 的 SMH 1d/5d change claims 被截成 `rketcontext[11].change1/5dpct`，而 snapshot 有 `items[smh].change_1d_pct=-2.2808`、`change_5d_pct=-1.0943`。

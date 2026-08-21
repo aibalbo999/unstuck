@@ -1820,6 +1820,48 @@ def test_evidence_gate_binds_explicit_price_history_claims_to_reported_date():
     assert wrong_date["sampled_claims"][0]["matched_path"] == "data.price_history[2026-05-29].prices[0]"
 
 
+def test_evidence_gate_extracts_all_values_from_three_month_price_series():
+    from evidence_exit_gate import evaluate_report_evidence, extract_numeric_claims
+
+    markdown = "\n".join(
+        [
+            "- Based on `price_history`, 2026 年 6 月 reached 42.78.",
+            "- 觀察近三個月價格（6/30: 42.78, 7/31: 43.3, 8/21: 42.6）。",
+        ]
+    )
+    snapshot = {"data": {"price_history": {"dates": ["2026-06-30", "2026-07-31", "2026-08-21"], "prices": [42.78, 43.3, 42.6]}}}
+    claims = extract_numeric_claims(markdown)
+    result = evaluate_report_evidence(markdown, snapshot, sample_ratio=1.0, min_sample=1)
+
+    assert [claim["label"] for claim in claims] == ["觀察近三個月價格（6/30", "7/31", "8/21"]
+    assert result["verdict"] == "approved"
+    assert [claim["status"] for claim in result["sampled_claims"]] == ["verified", "verified", "verified"]
+    assert [claim["matched_path"] for claim in result["sampled_claims"]] == [
+        "data.price_history[2026-06-30].prices[0]",
+        "data.price_history[2026-07-31].prices[1]",
+        "data.price_history[2026-08-21].prices[2]",
+    ]
+
+
+def test_evidence_gate_does_not_guess_year_for_three_month_price_series():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    markdown = "\n".join(
+        [
+            "- Based on `price_history`, 2026 年 6 月 reached 42.78.",
+            "- 觀察近三個月價格（6/30: 42.78, 7/31: 43.3, 8/21: 42.6）。",
+        ]
+    )
+    snapshot = {"data": {"price_history": {"dates": ["2025-06-30", "2026-06-30", "2026-07-31", "2026-08-21"], "prices": [40.0, 42.78, 43.3, 42.6]}}}
+    result = evaluate_report_evidence(markdown, snapshot, sample_ratio=1.0, min_sample=1)
+
+    claim = result["sampled_claims"][0]
+    assert claim["label"] == "觀察近三個月價格（6/30"
+    assert claim["status"] == "unverifiable"
+    assert claim["verification_reason_code"] == "missing_semantic_path"
+    assert claim["matched_path"] == ""
+
+
 def test_evidence_gate_binds_dated_price_claim_without_field_marker():
     from evidence_exit_gate import evaluate_report_evidence
 

@@ -13,6 +13,7 @@ _KV_RE = re.compile(
 _TABLE_CELL_RE = re.compile(
     rf"\|\s*(?P<label>[^|\n]{{1,30}})\s*\|\s*[*_`]*\s*(?:[~約])?(?:NT\$|\$)?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>{_NUMERIC_UNIT_PATTERN})?(?:[.．](?=\s*\|))?(?![\dA-Za-z.])\s*\|"
 ); _TABLE_VALUE_LABEL_RE = re.compile(rf"^\s*(?:NT\$|\$)?\s*-?\d[\d,]*(?:\.\d+)?\s*(?:{_NUMERIC_UNIT_PATTERN}|billion[_ ]?twd|million[_ ]?twd|thousand[_ ]?twd)\s*$", re.IGNORECASE); _CHIP_EXTERNAL_PREVIOUS_RE = re.compile(r"(?:Margin|Short)\s+balance\s*:\s*-?\d[\d,]*(?:\.\d+)?\s*\([^)]*\)\s*\.?\s*Previous\s*:\s*(?P<num>-?\d[\d,]*(?:\.\d+)?)", re.IGNORECASE)
+_DATE_SERIES_RE = re.compile(r"(?P<month>\d{1,2})/(?P<day>\d{1,2})\s*[:：]\s*(?P<num>-?\d[\d,]*(?:\.\d+)?)")
 _SECONDARY_EVIDENCE_RE = re.compile(rf"(?:及|與|以及|,|，|/)\s*[*_`]*\s*(?:NT\$|\$)?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>{_NUMERIC_UNIT_PATTERN})?\s*[^。\n]{{0,45}}(?:price_history|market_data|\d{{1,2}}\s*月份?\s*(?:收盤|收盤平台)|\d{{1,2}}\s*月\s*(?:底|末)(?:低點|高點|收盤(?:平台|價)?))[^。\n]{{0,20}}", re.IGNORECASE)
 _NUMBER_IN_STRING_RE = re.compile(r"-?\d[\d,]*(?:\.\d+)?")
 _DATE_PREFIX_RE = re.compile(r"^\s*(?:[（(]|[/.-]\s*\d{1,2}\s*[/.-]\s*\d{1,2}\b)"); _SHORT_DATE_SUFFIX_RE = re.compile(r"^[/.-]\s*\d{1,2}(?!\d)(?=\s*(?:[A-Za-z\u4e00-\u9fff，,；;。]|[-–—]|$))")
@@ -61,29 +62,21 @@ def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
         if line.startswith("```"):
             in_code = not in_code
             continue
-        if in_code or not line or line.startswith("#"):
-            continue
+        if in_code or not line or line.startswith("#"): continue
+        series_matches = list(_DATE_SERIES_RE.finditer(line)) if "觀察近三個月價格" in line else []
         for match in list(_KV_RE.finditer(line)) + list(_TABLE_CELL_RE.finditer(line)):
             if _is_non_claim_match(line, match):
                 continue
             label = _clean_label(match.group("label")); horizon_prefix = re.search(r"(?P<horizon>\d+)\s*[*_`]*$", line[:match.start("label")]); label = f"{horizon_prefix.group('horizon')}{label}" if horizon_prefix and label.startswith(("個月", "月")) else label
             number, unit = _claim_value(match, label, line)
-            if not label or number is None or not _valid_claim_number(number):
-                continue
+            if not label or number is None or not _valid_claim_number(number): continue
             default_number = _clean_number(match.group("num"))
             if number == default_number and _NON_CLAIM_SUFFIX_RE.match(line[match.end():]):
                 continue
             if number == default_number and _RANGE_PREFIX_RE.match(line[match.end():]):
                 continue
             if number == default_number and _SHORT_DATE_SUFFIX_RE.match(line[match.end():]): continue
-            if (
-                number == default_number
-                and not match.group("unit")
-                and default_number is not None
-                and 1900 <= default_number <= 2100
-                and _DATE_PREFIX_RE.match(line[match.end():])
-            ):
-                continue
+            if number == default_number and not match.group("unit") and default_number is not None and 1900 <= default_number <= 2100 and _DATE_PREFIX_RE.match(line[match.end():]): continue
             key = (label, round(number, 6), line_number)
             if key in seen:
                 continue
@@ -94,7 +87,7 @@ def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
                 "reported_value": number,
                 "unit": unit,
                 "line_number": line_number,
-                "raw_text": line if "rketcontext[" in label and "change" in label else line[:160],
+                "raw_text": line if ("rketcontext[" in label and "change" in label) or "觀察近三個月價格" in line else line[:160],
                 **({"series_context_text": "\n".join(lines[max(0, line_number - 20):line_number - 1])} if re.fullmatch(r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}", label, re.IGNORECASE) else {"context_text": "\n".join(lines[max(0, line_number - 3):line_number - 1])} if line_number > 1 else {}),
             })
             if any(_normalize_match_text(marker) in _normalize_match_text(label) for marker in ("支撐", "壓力", "高點", "低點", "週高低")):
@@ -104,6 +97,10 @@ def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
                         continue
                     seen.add(secondary_key); secondary_text = secondary.group(0).strip()
                     claims.append({"id": len(claims) + 1, "label": secondary_label, "reported_value": secondary_number, "unit": (secondary.group("unit") or "").strip(), "line_number": line_number, "raw_text": f"{label}: {secondary_text}"[:160], "secondary_context_text": line})
+        for series_match in series_matches[1:]:
+            series_label = f"{series_match.group('month')}/{series_match.group('day')}"; series_number = _clean_number(series_match.group("num")); series_key = (series_label, round(series_number, 6), line_number) if series_number is not None else None
+            if series_number is None or not _valid_claim_number(series_number) or series_key in seen: continue
+            seen.add(series_key); claims.append({"id": len(claims) + 1, "label": series_label, "reported_value": series_number, "unit": "", "line_number": line_number, "raw_text": line, "context_text": "\n".join(lines[max(0, line_number - 3):line_number - 1]) if line_number > 1 else ""})
         if (previous := _CHIP_EXTERNAL_PREVIOUS_RE.search(line)) and (number := _clean_number(previous.group("num"))) is not None and (key := ("Previous", round(number, 6), line_number)) not in seen:
             seen.add(key); claims.append({"id": len(claims) + 1, "label": "Previous", "reported_value": number, "unit": "", "line_number": line_number, "raw_text": line[:160]})
     return claims
@@ -294,6 +291,8 @@ def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
     if (global_match := re.search(r"(?<![A-Za-z0-9])(\^?[A-Z][A-Z0-9^=.-]*)\s*[,：:]\s*change[_ ]?5d[_ ]?pct", claim_text, re.IGNORECASE)) and "change_5d_pct" in raw_text: return (f"global_market_context.items[{_normalize_match_text(global_match.group(1))}].change_5d_pct",)
     if ("1000lots" in raw_text and "concentration" in label) or ("50lots" in raw_text and "retail" in label): return ("major_holders_gt_1000_lots_pct",) if "concentration" in label else ("retail_holders_lt_50_lots_pct",)
     if (label == "previous" and ("marginbalance" in raw_text or "shortbalance" in raw_text)) or (label == "return" and "borrowedshortsale" in raw_text and "return" in raw_text): return ("margin_previous_balance",) if label == "previous" and "marginbalance" in raw_text else ("short_previous_balance",) if label == "previous" else ("chip_data.twse_margin_short_sales.borrowed_short_return_today",)
+    date_series_match = re.search(r"(?P<month>\d{1,2})/(?P<day>\d{1,2})", raw_label); date_series_context = str(claim.get("context_text") or ""); context_years = set(re.findall(r"(20\d{2})\s*年", date_series_context)); month = int(date_series_match.group("month")) if date_series_match else 0; candidate_years = {month_name[:4] for month_name in claim.get("_price_history_months") or () if int(month_name[5:7]) == month}
+    if "觀察近三個月價格" in claim_text and date_series_match and len(context_years) == len(candidate_years) == 1 and context_years == candidate_years: return (f"price_history[{next(iter(context_years))}-{month:02d}-{int(date_series_match.group('day')):02d}]",)
     history_date = re.search(r"(20\d{2})\s*[-/年.]\s*(\d{1,2})\s*[-/月.]\s*(\d{1,2})", claim_text); has_price_label = any(_normalize_match_text(marker) in label for marker in ("高點", "低點", "收盤", "支撐", "壓力", "底部", "股價", "價格", "close", "high", "low")); has_close_marker = any(_normalize_match_text(marker) in _normalize_match_text(claim_text) for marker in ("收盤", "close", "closing")); has_price_unit = bool(re.search(r"(?:NT\$|\$|TWD|元)", claim_text, re.IGNORECASE)); has_inline_extremum = bool(re.search(r"20\d{2}\s*[-/年.]\s*\d{1,2}\s*[-/月.]\s*\d{1,2}\s*(?:高點|低點|high|low)", claim_text, re.IGNORECASE)); has_dated_extremum = (any(_normalize_match_text(marker) in label for marker in ("高點", "低點")) or (has_price_label and has_inline_extremum)) and not any(_normalize_match_text(marker) in label for marker in ("52週", "52week")); has_news_source = any(marker in raw_text for marker in ("market_catalysts", "catalyst", "新聞", "news"))
     if history_date and ("price_history" in raw_text or (has_price_label and has_close_marker and has_price_unit) or (has_dated_extremum and not has_news_source)):
         return (f"price_history[{history_date.group(1)}-{int(history_date.group(2)):02d}-{int(history_date.group(3)):02d}]",)
