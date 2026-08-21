@@ -34,7 +34,7 @@ _NORMALIZED_RESEARCH_CONTEXT_MARKERS = tuple(_normalize_match_text(marker) for m
 _FIELD_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
     (("信心", "confidence"), ("confidence", "confidence_score", "agent_confidence")),
     (("停損", "止損", "stoploss", "stop_loss"), ("stop_loss", "stoploss", "risk_price")),
-    (("大戶", "major holders", "major_holders"), ("major_holders", "major_holders_gt_1000_lots_pct")), (("散戶", "retail holders", "retail_holders"), ("retail_holders", "retail_holders_lt_50_lots_pct")), (("融資餘額", "margin balance", "margin_balance"), ("margin_balance", "margin_previous_balance")), (("融券餘額", "short balance", "short_balance"), ("short_balance", "short_previous_balance")), (("融資買進", "margin purchase", "margin_purchase"), ("margin_purchase",)), (("融資賣出", "margin sale", "margin_sale"), ("margin_sale",)), (("融券買進", "short purchase", "short_purchase"), ("short_purchase",)), (("融券賣出", "short sale", "short_sale"), ("short_sale",)), (("借券賣出餘額", "borrowed short sale balance", "borrowed_short_sale_balance"), ("borrowed_short_sale_balance",)), (("Dealer", "自營商"), ("institutional_trading.net_buy_thousand_shares_by_category.dealer",)), (("Total Net Buy (30 days)", "totalnetbuy30days"), ("institutional_trading.total_net_buy_thousand_shares",)), (("Taiwan Weighted Index",), ("global_market_context.items[twii].latest",)), (("USD/TWD",), ("global_market_context.items[twdx].latest",)), (("WTI Crude Oil", "WTI Crude Oil Futures"), ("global_market_context.items[clf].latest",)), (("杜邦", "dupont"), ("dupont_identity_note",)),
+    (("大戶", "major holders", "major_holders"), ("major_holders", "major_holders_gt_1000_lots_pct")), (("散戶", "retail holders", "retail_holders"), ("retail_holders", "retail_holders_lt_50_lots_pct")), (("融資餘額", "margin balance", "margin_balance"), ("margin_balance", "margin_previous_balance")), (("融券餘額", "short balance", "short_balance"), ("short_balance", "short_previous_balance")), (("融資買進", "margin purchase", "margin_purchase"), ("margin_purchase",)), (("融資賣出", "margin sale", "margin_sale"), ("margin_sale",)), (("融券買進", "short purchase", "short_purchase"), ("short_purchase",)), (("融券賣出", "short sale", "short_sale"), ("short_sale",)), (("借券賣出餘額", "borrowed short sale balance", "borrowed_short_sale_balance"), ("borrowed_short_sale_balance",)), (("當日借券還券", "borrowed short return today"), ("borrowed_short_return_today", "shares_to_lots")), (("Dealer", "自營商"), ("institutional_trading.net_buy_thousand_shares_by_category.dealer",)), (("Total Net Buy (30 days)", "totalnetbuy30days"), ("institutional_trading.total_net_buy_thousand_shares",)), (("Taiwan Weighted Index",), ("global_market_context.items[twii].latest",)), (("USD/TWD",), ("global_market_context.items[twdx].latest",)), (("WTI Crude Oil", "WTI Crude Oil Futures"), ("global_market_context.items[clf].latest",)), (("杜邦", "dupont"), ("dupont_identity_note",)),
     (("股價", "現價", "當前價格", "當前價位", "currentprice", "current_price"), ("current_price", "regularmarketprice", "stock_price", "share_price")),
     (("forwardpe", "forward pe"), ("forward_pe", "forwardpe", "forward_eps")),
     (("epsimpliedrevenuegrowth", "impliedrevenuegrowth"), ("forward_eps_implied_revenue_growth_pct", "implied_revenue_growth_pct")), (("incomegrowthlatestannual", "latest annual net income growth"), ("latest_annual_net_income_growth",)),
@@ -246,13 +246,13 @@ def _check_claim(claim: dict[str, Any], snapshot_values: list[dict[str, Any]], *
     }
 def _relevant_snapshot_values(claim: dict[str, Any], snapshot_values: list[dict[str, Any]]) -> list[dict[str, Any]]:
     path_markers = _path_markers_for_claim(claim)
-    if not path_markers:
-        return []
-    relevant = [
-        item for item in snapshot_values
+    if not path_markers: return []
+    return [
+        ({**item, "value": float(item["value"]) / 1000} if "shares_to_lots" in path_markers and _normalize_match_text(claim.get("unit")) == "張" and "borrowed_short_return_today" in _normalize_match_text(item.get("path")) else item)
+        for item in snapshot_values
         if any(_normalize_match_text(marker) in _normalize_match_text(item.get("path")) for marker in path_markers)
     ]
-    return relevant
+
 def _is_non_claim_match(line: str, match: re.Match[str]) -> bool:
     timestamp = re.search(r"\d{4}-\d{2}-\d{2}T\d{1,2}:\d{2}:\d{2}", line)
     if timestamp and timestamp.start() <= match.start("label") <= timestamp.end():

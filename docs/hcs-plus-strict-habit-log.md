@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3696 / convert borrowed-return raw shares to report lots
+
+- `#拆解問題` / `#差距分析` / `#來源品質`：`6226.TW/v4` 報告寫 `當日借券還券：0 張`，但 TWSE TWT93U provider 解析出的 `borrowed_short_return_today` 是 raw shares；直接 path mapping 會把不同單位當成同一數字。
+- `#最小變更` / `#責任`：只對 exact `當日借券還券` 且 claim unit 為 `張` 啟用 `raw shares / 1000` 的 view-time candidate conversion；不改 snapshot schema、不影響 `borrowed_short_sale_balance` 的既有 shares claim，也不把其他借券欄位泛化。
+- `#偏誤降低` / `#可驗證性`：RED→GREEN 三個 fixture 鎖定 40 張→40,000 shares、錯單位 40,000 張必須 mismatch、0 張可驗證；live target verified，但同報告另一筆近 10 日趨勢仍 unverifiable，整份 report 沒有被升級。
+- `#可驗證性` / `#責任`：evidence gate `68 passed`、品質/evidence/conformance `1051 passed`、import boundary `504 passed`、HCS/docs `136 passed`，line guard `evidence_exit_gate.py=349`。正式 reload 後 live `165` 份為 evidence `135/24/6`、claims `434 verified / 138 unverifiable / 8 mismatch`、content `80/77/8`、conformance `75/77/13`；healthz/readyz、doctor canonical paths、RQ queue depth `0` 與 failed_recent `0` 通過，未寫入 artifact、snapshot、index、review、rerun、repair 或 queue。
+
 ## D3695 / map named global-market latest values by symbol
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`Taiwan Weighted Index`、`USD/TWD`、`WTI Crude Oil` 都是 global market snapshot 的明確 label，但原 parser 沒有把 latest value 與 `^TWII`、`TWD=X`、`CL=F` 的 symbol identity 綁定，舊報告數字因此無法區分「可驗證」與「已漂移」。

@@ -655,6 +655,76 @@ def test_evidence_gate_matches_margin_flow_and_borrowed_short_balance():
     assert all(item["status"] == "verified" for item in result["sampled_claims"])
 
 
+def test_evidence_gate_converts_borrowed_short_return_shares_to_lots():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 當日借券還券：40 張。",
+        {
+            "data": {
+                "chip_data": {
+                    "twse_margin_short_sales": {
+                        "borrowed_short_return_today": 40000,
+                    },
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "approved"
+    assert claim["status"] == "verified"
+    assert claim["matched_path"] == "data.chip_data.twse_margin_short_sales.borrowed_short_return_today"
+    assert claim["matched_value"] == 40.0
+
+
+def test_evidence_gate_does_not_compare_borrowed_return_raw_shares_as_lots():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 當日借券還券：40000 張。",
+        {
+            "data": {
+                "chip_data": {
+                    "twse_margin_short_sales": {
+                        "borrowed_short_return_today": 40000,
+                    },
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "mismatch"
+    assert claim["matched_path"] == "data.chip_data.twse_margin_short_sales.borrowed_short_return_today"
+    assert claim["matched_value"] == 40.0
+
+
+def test_evidence_gate_verifies_zero_borrowed_return_after_unit_conversion():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 當日借券還券：0 張。",
+        {
+            "data": {
+                "chip_data": {
+                    "twse_margin_short_sales": {
+                        "borrowed_short_return_today": 0,
+                    },
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["sampled_claims"][0]["status"] == "verified"
+
+
 def test_evidence_gate_matches_historical_dupont_margin_to_dupont_note():
     from evidence_exit_gate import evaluate_report_evidence
 
