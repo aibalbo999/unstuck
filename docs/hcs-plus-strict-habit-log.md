@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3759 / map FRED US CPI evidence to its canonical macro path
+
+- `#拆解問題` / `#差距分析` / `#來源品質`：full artifact audit 的唯一窄可修 residual 是 `6282.TW/v1` 的 `US CPI YoY: 3.3039%`；snapshot 的 FRED `data.macro_indicators.indicators.us_cpi_yoy.value` 同值存在，原本因沒有 macro field hint 而是 `missing_semantic_path`。
+- `#偏誤辨識` / `#偏誤降低` / `#限制條件`：只接受 `US CPI YoY`／`CPI YoY`／`美國 CPI 年增率` 到 exact `us_cpi_yoy.value`；同值的 `^TNX`、全球市場節點、其他宏觀欄位與 `summary_text` 不借用，缺 path 仍 `no_matching_snapshot_path`／`unverifiable`。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED，再 GREEN；CPI positive/boundary focused `2 passed`、完整 evidence `179 passed`，full artifact `164/2515` 為 `1635 verified / 742 unverifiable / 138 mismatch`，`missing_semantic_path=116`，其餘 reason 不變；正式 reload 後 health/ready `200/200`、8080 `127.0.0.1`，目標 HTML/Markdown/data 均 HTTP `200`，HTML 保留 `Evidence gate: caution` 與 CPI claim、data macro status `success`；本批不改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3758 / classify explicitly unavailable short-balance evidence
 
 - `#拆解問題` / `#差距分析` / `#來源品質`：full artifact audit 的唯一窄 residual 是 `6141.TW/v4` `Short Balance: 0 (or null/not provided as a significant number)`；snapshot 的 `short_balance` 真實為 `None`，所以「沒有 candidate」代表來源不可用，不是數字 0 或錯誤 path。

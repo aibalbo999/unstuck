@@ -201,6 +201,30 @@ def test_evidence_gate_matches_exact_price_sales_aliases():
     ]
 
 
+def test_evidence_gate_matches_us_cpi_yoy_macro_indicator():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **US CPI YoY:** 3.3039% (2026-07-01).",
+        {
+            "data": {
+                "macro_indicators": {
+                    "indicators": {
+                        "us_cpi_yoy": {"value": 3.3039},
+                    },
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "verified"
+    assert claim["verification_reason_code"] == "matched_snapshot_value"
+    assert claim["matched_path"] == "data.macro_indicators.indicators.us_cpi_yoy.value"
+
+
 def test_evidence_gate_keeps_ps_mismatch_on_ps_path_and_eps_on_eps_path():
     from evidence_exit_gate import evaluate_report_evidence
 
@@ -1240,7 +1264,7 @@ def test_evidence_gate_keeps_us10y_and_vix_paths_from_cross_matching():
     assert all(claim["status"] == "mismatch" for claim in result["sampled_claims"])
 
 
-def test_evidence_gate_keeps_us_cpi_unverifiable_without_canonical_market_node():
+def test_evidence_gate_keeps_us_cpi_unverifiable_without_canonical_macro_node():
     from evidence_exit_gate import evaluate_report_evidence
 
     result = evaluate_report_evidence(
@@ -1254,7 +1278,7 @@ def test_evidence_gate_keeps_us_cpi_unverifiable_without_canonical_market_node()
     assert result["verdict"] == "caution"
     assert claim["status"] == "unverifiable"
     assert claim["matched_path"] == ""
-    assert claim["verification_reason_code"] == "missing_semantic_path"
+    assert claim["verification_reason_code"] == "no_matching_snapshot_path"
 
 
 def test_evidence_gate_keeps_named_global_market_latest_mismatch_visible():

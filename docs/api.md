@@ -147,6 +147,8 @@ Chinese `催化劑` wording is treated as a news-source boundary for dated suppo
 
 目前 `short_balance` claim 若已有 canonical field marker，但原文明示 `null`、`N/A`、`not provided` 或不可用，且 snapshot 該欄位沒有數值，evidence gate 會以 `snapshot_field_unavailable` 分類並維持 `unverifiable`；這只改善人工分流，不把缺值當成零，也不借用同一 snapshot 的其他籌碼欄位。
 
+`US CPI YoY`、`CPI YoY` 或 `美國 CPI 年增率` 只在同一 snapshot 存在 `data.macro_indicators.indicators.us_cpi_yoy.value` 時核驗；同值的全球市場節點、FRED `summary_text` 或其他宏觀欄位不能替代該 path，缺少該欄位時仍是 `no_matching_snapshot_path`／`unverifiable`。
+
 A numbered, phase-style, or defense-line label such as `波段壓力二` or `長期防線` may use the `data.week_52_high` or `data.week_52_low` semantic path only when the same claim explicitly names `52 週最高價`/`52 週最低價` (or the equivalent high/low wording) and the reported TWD/元 value agrees with that field. A generic numbered pressure/support/defense label without the explicit 52-week marker remains `unverifiable`; the parser does not infer a week-extreme source from the label alone.
 
 An English `Last 5 days Net Buy` label maps only to `data.institutional_trading.last_5_trading_days_net_buy_thousand_shares` when that canonical field exists and the reported `k` value agrees. It does not borrow `total_net_buy_thousand_shares` merely because the number is equal; if the dedicated 5-day field is absent, the claim remains `unverifiable`.
