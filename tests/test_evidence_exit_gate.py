@@ -375,6 +375,43 @@ def test_evidence_gate_does_not_match_pe_river_chart_to_generic_pe_snapshot_valu
     assert claim["verification_reason_code"] == "no_matching_snapshot_path"
 
 
+def test_evidence_gate_matches_operating_cash_flow_to_dedicated_snapshot_field():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- Operating Cash Flow: -0.1898B.",
+        {
+            "data": {
+                "operating_cash_flow": "NT$-1.90億 (-0.19B)",
+                "free_cash_flow": "NT$-1.40億 (-0.14B)",
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+    claim = result["sampled_claims"][0]
+
+    assert result["verdict"] == "approved"
+    assert claim["status"] == "verified"
+    assert claim["matched_path"] == "data.operating_cash_flow"
+
+
+def test_evidence_gate_does_not_match_operating_cash_flow_to_free_cash_flow():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- Operating Cash Flow: -0.1898B.",
+        {"data": {"free_cash_flow": "NT$-1.90億 (-0.19B)"}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+    claim = result["sampled_claims"][0]
+
+    assert claim["status"] == "unverifiable"
+    assert claim["matched_path"] == ""
+    assert claim["verification_reason_code"] == "no_matching_snapshot_path"
+
+
 def test_evidence_gate_uses_canonical_value_for_structured_target_text():
     from evidence_exit_gate import evaluate_report_evidence
 

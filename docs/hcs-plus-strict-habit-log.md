@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3711 / bind Operating Cash Flow to dedicated field
+
+- `#拆解問題` / `#問對問題` / `#語意含義`：`1623.TW/v3` 的 `Operating Cash Flow: -0.1898B` 是營業現金流，不是 `Free Cash Flow`；snapshot 同時提供兩個不同欄位，不能因數值或 B 單位相似而跨欄位核驗。
+- `#最小變更` / `#偏誤降低` / `#責任`：新增 `operating cash flow -> operating_cash_flow` exact hint，放在 FCF hint 前；只有同語意 path 可用，raw-only 或只有 FCF 時不自動借用。
+- `#可驗證性` / `#來源品質`：RED→GREEN 覆蓋 dedicated snapshot 正例與 FCF 反例；focused evidence `97 passed`、品質/evidence/conformance `1080 passed`、import `504 passed`、line guard `349`、py_compile 通過。正式 reload 後 target claim 命中 `data.operating_cash_flow`，diff `0.1054%`、`verified`；全量 163 份為 evidence `134 approved / 25 caution / 4 rejected`，`missing_semantic_path=50`，既有 mismatch、衍生分數與人工確認邊界保留。
+
 ## D3710 / bind PE River Chart to dedicated multiples path
 
 - `#拆解問題` / `#問對問題` / `#語意含義`：`3653.TW/v3` 的 River Chart 分位數是獨立 valuation source，不能因數值看起來像 P/E 就直接借用 `data.pe_ratio`。

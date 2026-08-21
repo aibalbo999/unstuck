@@ -44,7 +44,7 @@ _FIELD_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
     (("p/e", "pe", "本益比"), ("pe_ratio", "trailingpe", "forwardpe", "price_earnings")), (("p/b", "pb", "本益比淨值比", "pricebook", "price_to_book"), ("pb_ratio", "pb", "price_to_book")), (("roe", "股東權益報酬率", "權益報酬率"), ("roe", "roe_pct", "return_on_equity")), (("beta", "貝他"), ("beta",)),
     (("毛利率", "grossmargin", "gross_margin"), ("gross_margin", "gross_margin_raw")), (("殖利率", "dividendyield", "dividend_yield"), ("dividend_yield", "dividend_yield_raw")), (("營收", "收入", "revenue", "sales"), ("revenue", "monthly_revenue", "sales")),
     (("淨利", "netincome", "net_income"), ("net_income", "netincome")),
-    (("fcf", "自由現金流", "freecashflow", "free_cash_flow"), ("fcf", "free_cash_flow", "freecashflow")),
+    (("operating cash flow", "operating_cash_flow", "營業現金流"), ("operating_cash_flow",)), (("fcf", "自由現金流", "freecashflow", "free_cash_flow"), ("fcf", "free_cash_flow", "freecashflow")),
     (("市值", "marketcap", "market_cap"), ("market_cap", "marketcap")),
     (("eps", "每股盈餘"), ("eps", "earnings_per_share")),
     (("護城河", "moat"), ("moat", "moat_score", "moat_scores")),
