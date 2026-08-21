@@ -462,6 +462,51 @@ def test_evidence_gate_matches_current_price_and_prefixed_week_52_source_paths()
     ]
 
 
+def test_evidence_gate_matches_explicit_week_52_labels_without_cross_number_leakage():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    high_low = evaluate_report_evidence(
+        """
+- 52 週高點：2,585.0 TWD；52 週低點：619.0 TWD。
+""",
+        {"data": {"week_52_high": 2585.0, "week_52_low": 619.0}},
+        sample_ratio=1.0,
+        min_sample=2,
+    )
+
+    pressure_support = evaluate_report_evidence(
+        """
+- **壓力位：21.6 TWD**（52 週高點）。
+- **支撐位：17.6 TWD**（52 週低點）。
+""",
+        {"data": {"week_52_high": 21.6, "week_52_low": 17.6}},
+        sample_ratio=1.0,
+        min_sample=2,
+    )
+
+    false_positive = evaluate_report_evidence(
+        """
+- 近期高點壓力：659.0 元（2026 年 6 月 30 日收盤價），上方 52 週高點為 796.0 元。
+- 防軋空停損點 (Stop-loss level)：55.0 TWD（參考 52 週高點 70.8 TWD）。
+""",
+        {"data": {"week_52_high": 796.0}},
+        sample_ratio=1.0,
+        min_sample=2,
+    )
+
+    assert high_low["verdict"] == "approved"
+    assert pressure_support["verdict"] == "approved"
+    assert [claim["matched_path"] for claim in high_low["sampled_claims"]] == [
+        "data.week_52_high",
+        "data.week_52_low",
+    ]
+    assert [claim["matched_path"] for claim in pressure_support["sampled_claims"]] == [
+        "data.week_52_high",
+        "data.week_52_low",
+    ]
+    assert all(claim["status"] == "unverifiable" for claim in false_positive["sampled_claims"])
+
+
 def test_evidence_gate_uses_specific_financial_field_hints_before_broad_labels():
     from evidence_exit_gate import evaluate_report_evidence
 
