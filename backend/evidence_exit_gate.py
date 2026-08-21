@@ -38,6 +38,7 @@ _NORMALIZED_CANONICAL_STRING_PATH_MARKERS = tuple(_normalize_match_text(marker) 
 _NORMALIZED_RESEARCH_CONTEXT_MARKERS = tuple(_normalize_match_text(marker) for marker in ("券商研究", "市場研究", "券商給予"))
 _FIELD_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
     (("信心", "confidence"), ("confidence", "confidence_score", "agent_confidence")),
+    (("停損", "止損", "stoploss", "stop_loss"), ("stop_loss", "stoploss", "risk_price")),
     (("股價", "現價", "currentprice", "current_price"), ("current_price", "regularmarketprice", "stock_price", "share_price")),
     (("forwardpe", "forward pe"), ("forward_pe", "forwardpe", "forward_eps")),
     (("epsimpliedrevenuegrowth", "impliedrevenuegrowth"), ("forward_eps_implied_revenue_growth_pct", "implied_revenue_growth_pct")),
@@ -55,7 +56,6 @@ _FIELD_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
     (("下行", "downside"), ("downside", "downside_pct")),
     (("情境", "scenario", "目標價", "targetprice"), ("price_target", "price_targets", "target_price", "scenario", "scenarios", "valuation", "dcf")),
 )
-
 def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
     """Extract labelled numeric claims from rendered Markdown."""
     claims: list[dict[str, Any]] = []

@@ -253,6 +253,27 @@ def test_evidence_claims_keep_bare_years_and_currency_values():
     assert [claim["reported_value"] for claim in claims] == [2026.0, 2026.0]
 
 
+def test_evidence_gate_matches_stop_loss_claims_to_structured_output():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **停損點：21.75 TWD**（有效跌破關鍵支撐位）",
+        {
+            "rerun_context": {
+                "structured_outputs": {
+                    "24": {"stop_loss": "21.75 TWD"},
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["unverifiable_count"] == 0
+    assert result["sampled_claims"][0]["matched_path"] == "rerun_context.structured_outputs.24.stop_loss"
+
+
 def test_evidence_gate_uses_specific_financial_field_hints_before_broad_labels():
     from evidence_exit_gate import evaluate_report_evidence
 
