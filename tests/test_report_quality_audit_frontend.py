@@ -99,8 +99,10 @@ process.stdout.write(JSON.stringify({ board }));
 
 def test_watchlist_board_surfaces_full_freshness_summary_separately_from_quality_gap():
     helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
+    freshness_helper_path = STATIC_DIR / "watchlist_freshness_helpers.js"
     script = """
 global.window = {};
+require(__FRESHNESS_HELPER_PATH__);
 require(__HELPER_PATH__);
 const payload = {
   decision_queue: { summary: { total_actionable: 0 }, items: [{ type: 'monitor' }] },
@@ -123,11 +125,59 @@ const payload = {
 };
 const board = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], payload, value => String(value ?? ''));
 process.stdout.write(JSON.stringify({ board }));
-""".replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+""".replace("__FRESHNESS_HELPER_PATH__", json.dumps(str(freshness_helper_path))).replace("__HELPER_PATH__", json.dumps(str(helper_path)))
     result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
     payload = json.loads(result.stdout)
 
     assert "分析新鮮度：目前一致 143、需完整重跑 22" in payload["board"]
+
+
+def test_watchlist_board_surfaces_bounded_freshness_targets_with_history_navigation():
+    helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
+    freshness_helper_path = STATIC_DIR / "watchlist_freshness_helpers.js"
+    script = """
+global.window = {};
+require(__FRESHNESS_HELPER_PATH__);
+require(__HELPER_PATH__);
+const payload = {
+  decision_queue: { summary: { total_actionable: 0 }, items: [{ type: 'monitor' }] },
+  repair_queue: { summary: { sampled_reports: 20 } },
+  report_quality_audit: {
+    scope: 'all_indexed_reports',
+    selection_basis: 'latest_per_ticker_pipeline',
+    decision_freshness_summary: {
+      schema_version: 'report_freshness_summary.v1',
+      scope: 'all_indexed_reports',
+      selection_basis: 'latest_per_ticker_pipeline',
+      audited_reports: 165,
+      current_reports: 143,
+      needs_rerun_reports: 22,
+      unknown_reports: 0
+    },
+    decision_freshness_items: {
+      schema_version: 'report_freshness_items.v1',
+      scope: 'all_indexed_reports',
+      selection_basis: 'latest_per_ticker_pipeline',
+      audited_reports: 165,
+      needs_rerun_reports: 22,
+      items_limit: 5,
+      items_total: 22,
+      items_returned: 1,
+      items_truncated: true,
+      items: [{ ticker: '3653.TW', pipeline_id: 'v3', filename: '3653_v3.html', reason: '資料快照已刷新，但分析本文未重跑。' }]
+    }
+  }
+};
+const board = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], payload, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ board }));
+""".replace("__FRESHNESS_HELPER_PATH__", json.dumps(str(freshness_helper_path))).replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "待重跑報告（顯示 1/22）" in payload["board"]
+    assert 'data-quality-history-audit-target' in payload["board"]
+    assert 'data-quality-history-query="3653_v3.html"' in payload["board"]
+    assert "資料快照已刷新，但分析本文未重跑。" in payload["board"]
 
 
 def test_historical_quality_audit_renders_revision_scoped_review_controls():

@@ -208,6 +208,26 @@ def test_report_freshness_summary_keeps_full_scope_separate_from_quality_metadat
     }
 
 
+def test_report_freshness_items_keep_full_count_separate_from_bounded_navigation_sample():
+    from report_freshness_summary import build_report_freshness_items
+
+    payload = build_report_freshness_items([
+        {"ticker": f"{index}.TW", "pipeline_id": "v1", "filename": f"{index}.html", "decision_freshness": {"status": "needs_rerun", "requires_rerun": True}}
+        for index in range(7)
+    ])
+
+    assert payload["schema_version"] == "report_freshness_items.v1"
+    assert payload["scope"] == "all_indexed_reports"
+    assert payload["selection_basis"] == "latest_per_ticker_pipeline"
+    assert payload["audited_reports"] == 7
+    assert payload["needs_rerun_reports"] == 7
+    assert payload["items_limit"] == 5
+    assert payload["items_total"] == 7
+    assert payload["items_returned"] == 5
+    assert payload["items_truncated"] is True
+    assert [item["filename"] for item in payload["items"]] == [f"{index}.html" for index in range(5)]
+
+
 def test_report_quality_audit_exposes_item_truncation_metadata():
     from report_quality_audit import build_report_quality_audit
 
@@ -962,6 +982,17 @@ def test_indexed_report_quality_audit_exposes_snapshot_refresh_provenance(monkey
         "needs_rerun_reports": 1,
         "unknown_reports": 0,
     }
+    freshness_items = payload["decision_freshness_items"]
+    assert freshness_items["schema_version"] == "report_freshness_items.v1"
+    assert freshness_items["scope"] == "all_indexed_reports"
+    assert freshness_items["selection_basis"] == "latest_per_ticker_pipeline"
+    assert freshness_items["audited_reports"] == 1
+    assert freshness_items["needs_rerun_reports"] == 1
+    assert freshness_items["items_returned"] == 1
+    assert freshness_items["items_truncated"] is False
+    assert freshness_items["items"][0]["filename"] == "1623_v1.html"
+    assert freshness_items["items"][0]["ticker"] == "1623.TW"
+    assert freshness_items["items"][0]["pipeline_id"] == "v1"
     assert payload["items"][0]["title"] == "刷新前已有品質證據缺口"
     assert payload["items"][0]["rerun_context_status"] == "missing"
     assert payload["items"][0]["reason_codes"] == [

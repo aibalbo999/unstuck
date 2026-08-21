@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3665 / make full freshness findings directly navigable
+
+- `#差距分析` / `#受眾`：D3664 已顯示全量 `22` 份 stale，但 aggregate 不能告訴操作員要開哪一份；daily queue 保持近期 20 份 sample，不應把 full audit 的唯讀證據誤轉成自動工作。
+- `#最小變更` / `#溝通設計`：新增 `decision_freshness_items.v1`，固定 bounded sample 上限 5，回傳 `items_total/items_returned/items_limit/items_truncated`；Watchlist target 沿用既有 history navigation，沒有新的 mutation path。
+- `#來源品質` / `#偏誤降低` / `#可驗證性`：summary 與 items 各自驗證 scope/selection basis 與分母一致；RED→GREEN 後 `825 passed`，live `165/143/22/0`、`5/22 truncated`、board target 與 health/readiness/queue/doctor 均通過。
+
 ## D3664 / expose full latest freshness without changing quality coverage
 
 - `#差距分析` / `#可驗證性`：live full latest scope 是 `165` 份、`143 current / 22 needs_rerun`，但 daily action sample 只有近期 `20` 份且全 current；單看 `summary.reports_needing_rerun=0` 不能代表全量分析已新鮮。

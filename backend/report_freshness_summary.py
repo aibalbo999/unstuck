@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from mapping_fields import safe_dict_list, safe_mapping_dict, safe_text
+from mapping_fields import safe_dict_list, safe_int, safe_mapping_dict, safe_text
 
 
 SCHEMA_VERSION = "report_freshness_summary.v1"
+ITEMS_SCHEMA_VERSION = "report_freshness_items.v1"
+FRESHNESS_ITEM_LIMIT = 5
 
 
 def build_report_freshness_summary(
@@ -25,15 +27,7 @@ def build_report_freshness_summary(
     for report in rows:
         freshness = safe_mapping_dict(report.get("decision_freshness")) or {}
         status = safe_text(freshness.get("status") or report.get("decision_validity_status")).strip().lower()
-        requires_rerun = any(
-            _safe_bool(value)
-            for value in (
-                freshness.get("requires_rerun"),
-                report.get("requires_rerun"),
-                report.get("analysis_text_stale"),
-                report.get("refreshed_without_analysis_rerun"),
-            )
-        )
+        requires_rerun = _requires_rerun(report, freshness)
         if requires_rerun or status == "needs_rerun":
             counts["needs_rerun_reports"] += 1
         elif status == "current":
@@ -50,12 +44,47 @@ def build_report_freshness_summary(
 
 
 def attach_full_report_freshness_summary(payload: dict[str, Any], reports: Any) -> dict[str, Any]:
+    rows = _report_rows(reports)
     payload["decision_freshness_summary"] = build_report_freshness_summary(
-        reports,
+        rows,
+        scope="all_indexed_reports",
+        selection_basis="latest_per_ticker_pipeline",
+    )
+    payload["decision_freshness_items"] = build_report_freshness_items(
+        rows,
         scope="all_indexed_reports",
         selection_basis="latest_per_ticker_pipeline",
     )
     return payload
+
+
+def build_report_freshness_items(
+    reports: dict[str, Any] | list[dict[str, Any]],
+    *,
+    scope: str = "all_indexed_reports",
+    selection_basis: str = "latest_per_ticker_pipeline",
+    item_limit: int = FRESHNESS_ITEM_LIMIT,
+) -> dict[str, Any]:
+    rows = _report_rows(reports)
+    stale_rows = []
+    for report in rows:
+        freshness = safe_mapping_dict(report.get("decision_freshness")) or {}
+        if _requires_rerun(report, freshness):
+            stale_rows.append(_freshness_item(report, freshness))
+    limit = max(0, safe_int(item_limit, default=FRESHNESS_ITEM_LIMIT))
+    returned = stale_rows[:limit]
+    return {
+        "schema_version": ITEMS_SCHEMA_VERSION,
+        "scope": safe_text(scope).strip() or "all_indexed_reports",
+        "selection_basis": safe_text(selection_basis).strip() or "latest_per_ticker_pipeline",
+        "audited_reports": len(rows),
+        "needs_rerun_reports": len(stale_rows),
+        "items_limit": limit,
+        "items_total": len(stale_rows),
+        "items_returned": len(returned),
+        "items_truncated": len(returned) < len(stale_rows),
+        "items": returned,
+    }
 
 
 def _report_rows(reports: dict[str, Any] | list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -72,4 +101,35 @@ def _safe_bool(value: Any) -> bool:
     return safe_text(value).strip().lower() in {"true", "1", "yes", "y", "on"}
 
 
-__all__ = ["attach_full_report_freshness_summary", "build_report_freshness_summary"]
+def _requires_rerun(report: dict[str, Any], freshness: dict[str, Any]) -> bool:
+    return any(
+        _safe_bool(value)
+        for value in (
+            freshness.get("requires_rerun"),
+            report.get("requires_rerun"),
+            report.get("analysis_text_stale"),
+            report.get("refreshed_without_analysis_rerun"),
+        )
+    ) or safe_text(freshness.get("status")).strip().lower() == "needs_rerun"
+
+
+def _freshness_item(report: dict[str, Any], freshness: dict[str, Any]) -> dict[str, Any]:
+    data_trust = safe_mapping_dict(report.get("data_trust")) or {}
+    return {
+        "ticker": safe_text(report.get("ticker")).strip(),
+        "pipeline_id": safe_text(report.get("pipeline_id")).strip() or "v1",
+        "filename": safe_text(report.get("filename") or report.get("report_filename")).strip(),
+        "report_date": safe_text(report.get("report_date") or report.get("date")).strip(),
+        "snapshot_refreshed_at": safe_text(freshness.get("snapshot_refreshed_at") or report.get("snapshot_refreshed_at")).strip(),
+        "data_trust_status": safe_text(data_trust.get("status") or report.get("data_trust_status")).strip().lower(),
+        "reason": safe_text(freshness.get("requires_rerun_reason") or freshness.get("message")).strip(),
+    }
+
+
+__all__ = [
+    "FRESHNESS_ITEM_LIMIT",
+    "ITEMS_SCHEMA_VERSION",
+    "attach_full_report_freshness_summary",
+    "build_report_freshness_items",
+    "build_report_freshness_summary",
+]

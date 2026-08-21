@@ -177,6 +177,8 @@ Daily report quality uses the full latest-per-ticker/pipeline audit for coverage
 
 The same latest audit carries `decision_freshness_summary` so full-scope stale conclusions remain visible even when the daily action sample is current. It is intentionally a separate freshness projection from persisted quality metadata coverage; the summary is display evidence only and does not expand the daily repair queue or enqueue a rerun.
 
+For operator navigation, the audit can also carry `decision_freshness_items`: a bounded read-only sample with explicit `items_total`, `items_returned`, `items_limit`, and `items_truncated`. The sample links to the existing history target and never substitutes its denominator for the full freshness count or mutates queue/rerun state.
+
 The indexed quality-audit hydration path does not run the current-rule `content_credibility` projection because the audit envelope consumes persisted gate metadata and coverage only. Ordinary report-history hydration keeps the projection for current warning/blocker visibility, so this optimization changes audit cost without changing report-list semantics or quality coverage.
 
 獨立的 `GET /api/watchlist/report-quality-audit/historical` 會以 `scope=all_historical_indexed_reports`、`selection_basis=all_indexed_versions` 讀取符合 `q`/`pipeline` 篩選的索引版本品質 coverage；它維持 read-only，不進每日 decision queue，也不寫入 artifact、report index 或 rerun 任務。
