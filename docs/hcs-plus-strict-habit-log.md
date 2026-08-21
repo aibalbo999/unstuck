@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3682 / separate historical coverage from current latest projection
+
+- `#拆解問題` / `#差距分析` / `#受眾`：historical audit 的 persisted metadata coverage 與目前規則重驗不是同一個 evidence layer；live `3653.TW/v3` 同篩選有 5 個 indexed versions，但原頁沒有 latest current mismatch/blocked 可見性。
+- `#最小變更` / `#責任`：新增 `build_filtered_indexed_current_quality_summary()`，沿用 current report-history projection，明示 `historical_filter_current_latest`、`latest_per_ticker_pipeline`、同一 `q`/`pipeline` filters 與獨立 `audited_reports` 分母；歷史 route 使用 `item_limit=0`，不重複 target、不改 persisted coverage。
+- `#來源品質` / `#偏誤降低` / `#語意含義`：前端以獨立 helper 顯示「目前版本品質（只看最新版本）」，不把 current status 當成歷史 gate 已修復，也不由 Markdown 重建缺 gate。
+- `#可驗證性` / `#責任`：focused backend/current/audit/frontend/daily `85 passed`；正式 reload 後 filtered historical `5 versions / 20.0% persisted coverage`，current latest `1 report / conformance blocked=1 / content blocked=1 / evidence rejected=1`，healthz/readyz `200`、doctor canonical paths/queue 正常，未寫 artifact、index、review、rerun、repair 或 queue。
+
 ## D3665 / make full freshness findings directly navigable
 
 - `#差距分析` / `#受眾`：D3664 已顯示全量 `22` 份 stale，但 aggregate 不能告訴操作員要開哪一份；daily queue 保持近期 20 份 sample，不應把 full audit 的唯讀證據誤轉成自動工作。

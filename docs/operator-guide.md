@@ -113,6 +113,8 @@ The read-only report quality audit exposes `missing_quality_fields`, `severity`,
 
 若要檢查歷史版本，不要把它和每日待辦混在一起：使用 `GET /api/watchlist/report-quality-audit/historical`。這個唯讀入口的 `scope=all_historical_indexed_reports`、`selection_basis=all_indexed_versions` 會掃描索引版本；可用既有 `q` 與 `pipeline` 篩選 ticker/模式，篩選後的 `audited_reports` 是符合條件的全部版本。只想看數字時加上 `item_limit=0`。它不會自動修復 artifact、不會 enqueue rerun，也不會寫入 report index。
 
+歷史稽核回應中的 `current_quality_summary` 是另一個目前規則投影：`scope=historical_filter_current_latest` 只看相同 `q`/`pipeline` 篩選下每個 ticker/mode 的最新版本，並用自己的 `audited_reports` 分母呈現目前一致性、內容可信度與證據關卡。它不會改寫歷史 metadata coverage，也不會把缺 gate 補成通過；看到 persisted coverage 與 current summary 不同時，代表兩個時間/語意層次不同，應分開判讀。
+
 歷史稽核也可用 `review_status=pending|approved_with_gap|rejected|deferred` 只看某一種目前 revision 審核狀態；回應的 `review_status_filter` 會標示套用的範圍，篩選後的 coverage 與分頁數字只代表該狀態，不代表其他狀態不存在。這仍是 GET-only 查詢，不會寫入 review ledger。
 
 若要先聚焦版本新舊，可用 `version_status=current|historical|unknown`；回應的 `report_version_status_filter` 會標示目前範圍。這個版本範圍會保留該版本集合中的完整報告作為 coverage 分母，只有再選審核狀態或缺口欄位時才縮成相應的品質缺口集合。歷史頁的「目前版本／歷史版本／版本未判定」按鈕只改 GET 查詢範圍，不會加入今日待辦、寫入 review 或建立重跑。

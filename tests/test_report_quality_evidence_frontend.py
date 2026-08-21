@@ -21,6 +21,7 @@ def test_shared_quality_evidence_helper_loads_before_all_consumers():
     assert "/static/report_preview_helpers.js?v=20260820-shared-evidence-detail" in index_html
     assert "/static/report_preview_panel.js?v=20260820-rerun-execution" in index_html
     assert "/static/history_quality_audit_render.js?v=20260820-per-pipeline-context-summary" in index_html
+    assert "/static/history_current_quality_helpers.js?v=20260821-history-current-quality" in index_html
     assert "/static/watchlist_freshness_helpers.js?v=20260821-freshness-targets" in index_html
     assert "/static/watchlist_current_quality_helpers.js?v=20260821-current-quality" in index_html
     assert "/static/watchlist_panel_helpers.js?v=20260821-current-quality" in index_html
@@ -30,6 +31,7 @@ def test_shared_quality_evidence_helper_loads_before_all_consumers():
     assert index_html.index(helper) < index_html.index("/static/watchlist_panel_helpers.js")
     assert index_html.index("/static/watchlist_freshness_helpers.js") < index_html.index("/static/watchlist_panel_helpers.js")
     assert index_html.index(helper) < index_html.index("/static/report_preview_helpers.js")
+    assert index_html.index("/static/history_current_quality_helpers.js") < index_html.index("/static/history_quality_audit_render.js")
     assert len((STATIC_DIR / "report_quality_evidence_helpers.js").read_text(encoding="utf-8").splitlines()) < 45
 
 
@@ -271,3 +273,43 @@ process.stdout.write(JSON.stringify({ opened }));
         "query": "1623_TW_v2_report_20260815_154718.html",
         "pipeline": "v2",
     }
+
+
+def test_historical_quality_audit_surfaces_current_quality_projection_separately():
+    helper_path = STATIC_DIR / "history_current_quality_helpers.js"
+    renderer_path = STATIC_DIR / "history_quality_audit_render.js"
+    script = """
+global.window = {};
+require(__HELPER_PATH__);
+require(__RENDERER_PATH__);
+const html = window.StockAgentHistoricalQualityAuditRenderer.render({
+  audited_reports: 1,
+  quality_metadata_missing_reports: 0,
+  quality_metadata_complete_reports: 1,
+  verified_snapshot_reports: 1,
+  quality_metadata_coverage_pct: 100,
+  quality_metadata_coverage_basis: 'verified_snapshot_reports',
+  current_quality_summary: {
+    schema_version: 'report_current_quality_summary.v1',
+    scope: 'historical_filter_current_latest',
+    selection_basis: 'latest_per_ticker_pipeline',
+    filters: { q: '2330.TW', pipeline: 'v2' },
+    audited_reports: 1,
+    report_conformance_by_status: { passed: 0, warning: 1, blocked: 0, unknown: 0 },
+    content_credibility_by_status: { passed: 1, warning: 0, blocked: 0, unknown: 0 },
+    evidence_exit_gate_by_verdict: { approved: 0, caution: 1, rejected: 0, unknown: 0 },
+    non_passed_reports: 1,
+    items_total: 1,
+    items_returned: 0,
+    items: []
+  },
+  items: []
+}, value => String(value ?? ''));
+process.stdout.write(html);
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path))).replace("__RENDERER_PATH__", json.dumps(str(renderer_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+
+    assert "目前版本品質（查詢：2330.TW；模式：v2；只看最新版本）" in result.stdout
+    assert "一致性 符合 0、警示 1" in result.stdout
+    assert "證據關卡需注意 1" in result.stdout
+    assert "1 份品質 metadata 缺口" not in result.stdout

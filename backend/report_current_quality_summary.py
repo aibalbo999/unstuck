@@ -17,7 +17,7 @@ CURRENT_QUALITY_CACHE_TTL_SECONDS = 30.0
 CONFORMANCE_STATUSES = ("passed", "warning", "blocked", "unknown")
 CONTENT_STATUSES = ("passed", "warning", "blocked", "unknown")
 EVIDENCE_VERDICTS = ("approved", "caution", "rejected", "unknown")
-_SUMMARY_CACHE: dict[tuple[str, int, int], tuple[float, dict[str, Any]]] = {}
+_SUMMARY_CACHE: dict[tuple[str, int, int, str, str], tuple[float, dict[str, Any]]] = {}
 _SUMMARY_CACHE_LOCK = RLock()
 
 
@@ -53,6 +53,61 @@ def build_indexed_current_quality_summary(
     with _SUMMARY_CACHE_LOCK:
         _SUMMARY_CACHE[cache_key] = (monotonic(), summary)
         if len(_SUMMARY_CACHE) > 4:
+            oldest_key = min(_SUMMARY_CACHE, key=lambda key: _SUMMARY_CACHE[key][0])
+            _SUMMARY_CACHE.pop(oldest_key, None)
+    return summary
+
+
+def build_filtered_indexed_current_quality_summary(
+    output_dir: str,
+    *,
+    page_size: int = 100,
+    q: str = "",
+    pipeline: str = "all",
+    item_limit: int = 0,
+) -> dict[str, Any]:
+    """Build the current-quality view for a historical-audit filter.
+
+    This deliberately keeps the latest-version selection and current-rule
+    projection separate from the historical persisted-metadata audit.
+    """
+    normalized_page_size = max(1, int(page_size))
+    normalized_query = safe_text(q).strip()
+    normalized_pipeline = safe_text(pipeline).strip().lower() or "all"
+    normalized_item_limit = max(0, safe_int(item_limit, default=0))
+    cache_key = (
+        str(output_dir),
+        normalized_page_size,
+        normalized_item_limit,
+        normalized_query,
+        normalized_pipeline,
+    )
+    now = monotonic()
+    with _SUMMARY_CACHE_LOCK:
+        cached = _SUMMARY_CACHE.get(cache_key)
+        if cached is not None and now - cached[0] < CURRENT_QUALITY_CACHE_TTL_SECONDS:
+            return cached[1]
+    rows = collect_all_report_pages(
+        _list_current_quality_rows,
+        page_size=normalized_page_size,
+        q=normalized_query,
+        pipeline=normalized_pipeline,
+        recommendation="all",
+        data_trust="all",
+        include_versions=False,
+        output_dir=output_dir,
+        sync_metadata=False,
+    )
+    summary = build_current_quality_summary(
+        rows.get("reports", []),
+        scope="historical_filter_current_latest",
+        selection_basis="latest_per_ticker_pipeline",
+        item_limit=normalized_item_limit,
+    )
+    summary["filters"] = {"q": normalized_query, "pipeline": normalized_pipeline}
+    with _SUMMARY_CACHE_LOCK:
+        _SUMMARY_CACHE[cache_key] = (monotonic(), summary)
+        if len(_SUMMARY_CACHE) > 8:
             oldest_key = min(_SUMMARY_CACHE, key=lambda key: _SUMMARY_CACHE[key][0])
             _SUMMARY_CACHE.pop(oldest_key, None)
     return summary
@@ -188,6 +243,7 @@ __all__ = [
     "EVIDENCE_VERDICTS",
     "SCHEMA_VERSION",
     "build_current_quality_summary",
+    "build_filtered_indexed_current_quality_summary",
     "build_indexed_current_quality_summary",
     "build_unavailable_current_quality_summary",
 ]

@@ -57,3 +57,35 @@ def test_current_quality_summary_treats_missing_gate_status_as_unknown():
     assert payload["evidence_exit_gate_by_verdict"] == {"approved": 0, "caution": 0, "rejected": 0, "unknown": 1}
     assert payload["items_total"] == 1
     assert payload["items"][0]["report_conformance_status"] == "unknown"
+
+
+def test_filtered_indexed_current_quality_summary_has_explicit_latest_scope(monkeypatch, tmp_path):
+    import report_current_quality_summary as current_quality
+
+    monkeypatch.setattr(
+        current_quality,
+        "collect_all_report_pages",
+        lambda _list_reports, **kwargs: {
+            "reports": [{
+                "ticker": "2330.TW",
+                "pipeline_id": "v2",
+                "filename": "2330.html",
+                "report_conformance": {"status": "warning"},
+                "content_credibility": {"status": "warning"},
+                "evidence_exit_gate": {"verdict": "caution"},
+            }],
+            "pagination": {"total": 1},
+        },
+    )
+
+    payload = current_quality.build_filtered_indexed_current_quality_summary(
+        str(tmp_path), q="2330.TW", pipeline="v2", item_limit=0
+    )
+
+    assert payload["schema_version"] == "report_current_quality_summary.v1"
+    assert payload["scope"] == "historical_filter_current_latest"
+    assert payload["selection_basis"] == "latest_per_ticker_pipeline"
+    assert payload["filters"] == {"q": "2330.TW", "pipeline": "v2"}
+    assert payload["audited_reports"] == 1
+    assert payload["non_passed_reports"] == 1
+    assert payload["items_returned"] == 0

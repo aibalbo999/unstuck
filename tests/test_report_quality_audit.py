@@ -1299,6 +1299,16 @@ def test_historical_indexed_report_quality_audit_includes_every_indexed_version(
         "verify_data_snapshot_integrity",
         lambda _snapshot: {"valid": True, "expected_hash": "hash", "errors": []},
     )
+    monkeypatch.setattr(
+        audit,
+        "build_filtered_indexed_current_quality_summary",
+        lambda *_args, **_kwargs: {
+            "schema_version": "report_current_quality_summary.v1",
+            "scope": "historical_filter_current_latest",
+            "selection_basis": "latest_per_ticker_pipeline",
+            "audited_reports": 1,
+        },
+    )
 
     payload = audit.build_historical_indexed_report_quality_audit(
         str(tmp_path),
@@ -1314,6 +1324,7 @@ def test_historical_indexed_report_quality_audit_includes_every_indexed_version(
     assert payload["selection_basis"] == "all_indexed_versions"
     assert payload["audited_reports"] == 1
     assert payload["quality_metadata_coverage_pct"] == 100.0
+    assert payload["current_quality_summary"]["scope"] == "historical_filter_current_latest"
     assert payload["items"] == []
 
 

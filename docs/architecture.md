@@ -185,6 +185,8 @@ The indexed quality-audit hydration path does not run the current-rule `content_
 
 獨立的 `GET /api/watchlist/report-quality-audit/historical` 會以 `scope=all_historical_indexed_reports`、`selection_basis=all_indexed_versions` 讀取符合 `q`/`pipeline` 篩選的索引版本品質 coverage；它維持 read-only，不進每日 decision queue，也不寫入 artifact、report index 或 rerun 任務。
 
+歷史 endpoint 同時可附帶 `current_quality_summary`，但這是刻意分開的 `scope=historical_filter_current_latest` / `selection_basis=latest_per_ticker_pipeline` current-rule projection：只統計同一 `q`/`pipeline` 篩選下的 latest rows，並以自己的 `audited_reports` 分母呈現目前 conformance、content credibility 與 evidence verdict。它不補齊 persisted gate、不改 historical coverage，也沒有 artifact、review、index、queue 或 rerun side effect。
+
 歷史品質缺口的人工決策另走 `report_quality_review_store`：它使用 canonical `operational.sqlite3` 的 append-only `report_quality_review_events`，以報告 identity 與 report/artifact content hashes 綁定 `report_quality_revision`；index `updated_at` 與 filesystem mtime 只是 refresh signals，不是版本欄位。`approved_with_gap`、`rejected`、`deferred` 只記錄操作人員對目前 evidence 的決策與理由；revision 改變時舊決策不會套用。audit item 可讀取同一 revision 最近 20 筆事件，讓操作人員回看事件編號、時間、操作人與理由，但不混入舊 revision。mutation endpoint 不回寫 artifact、quality gate、report index，也不 enqueue rerun。
 
 歷史頁勾選「顯示舊版報告」後，前端以目前搜尋與 pipeline 篩選呼叫同一 historical endpoint；追蹤工作台在 latest-per-ticker/pipeline audit 有品質缺口時提供唯讀 shortcut，只切換工作區並開啟既有 checkbox，不建立 action。`history_quality_audit` 只負責摘要、五筆一批的 report preview target 與 `item_offset` 分頁，並在背景載入，不阻塞既有歷史報告列表；每筆 target 顯示缺少的 gate 與品質 provenance，並同步提供 accessible title/aria context。摘要明示 `verified_snapshot_reports` 分母，並在 invalid/unverified snapshot 存在時顯示排除警示；history workspace 會固定每次 load 的 filter snapshot，並以 generation 同時保護稽核與報告列表，避免快速切換時舊回應覆蓋新範圍。

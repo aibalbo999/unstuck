@@ -32,6 +32,7 @@ from report_quality_audit_payload import (
     build_report_quality_audit,
     build_unavailable_report_quality_audit,
 )
+from report_current_quality_summary import build_filtered_indexed_current_quality_summary
 REPORT_QUALITY_ROWS_CACHE_TTL_SECONDS = 15.0
 REPORT_QUALITY_ROWS_CACHE_MAX_ENTRIES = 8
 _REPORT_QUALITY_ROWS_CACHE: OrderedDict[tuple[str, str], tuple[float, list[dict[str, Any]]]] = OrderedDict()
@@ -141,9 +142,7 @@ def build_historical_indexed_report_quality_audit(
         item_limit=item_limit,
         item_offset=item_offset,
     )
-    payload["review_status_filter"] = review_status_filter
-    payload["missing_quality_field_filter"] = missing_quality_field_filter
-    payload["report_version_status_filter"] = version_status_filter
+    payload.update({"review_status_filter": review_status_filter, "missing_quality_field_filter": missing_quality_field_filter, "report_version_status_filter": version_status_filter, "current_quality_summary": build_filtered_indexed_current_quality_summary(output_dir, page_size=page_size, q=q, pipeline=pipeline, item_limit=0)})
     return payload
 
 
