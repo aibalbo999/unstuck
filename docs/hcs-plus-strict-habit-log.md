@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3750 / map dated latest-price evidence to exact history point
+
+- `#拆解問題` / `#差距分析`：full artifact audit 找到 `6226.TW/v4` 的 `最新價格 (2026-07-24): 18.8 元` 與 `data.price_history[2026-07-24].prices[11]=18.8` 一致，但 parser 沒有把完整日期 latest-price label 綁到 snapshot。
+- `#偏誤辨識` / `#偏誤降低` / `#來源品質`：只接受完整日期與元／TWD 單位，建立 exact daily path；日期缺失時即使 `current_price` 同值也維持 `no_matching_snapshot_path`，不把當前價當作歷史日期證據。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED，再 GREEN；focused `2 passed`、完整 evidence `164 passed`、品質 `1162 passed`、line guard `349` 通過，full artifact `2515 claims: 1627 verified / 750 unverifiable / 138 mismatch`，`missing_semantic_path=118`。正式 reload 後 live API target verified 到 `data.price_history[2026-07-24].prices[11]`，Markdown/data/health/ready 均 HTTP `200`，current quality 為 evidence `135/26/3`、content `99/57/8`、conformance `80/74/10`，本批未改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3749 / extract complete three-month price series without guessing year
 
 - `#拆解問題` / `#差距分析`：full artifact audit 找到 `2618.TW/v4` 的 `觀察近三個月價格（6/30: 42.78, 7/31: 43.3, 8/21: 42.6）` 只被抽出第一筆，`7/31` 與 `8/21` 漏出 evidence gate；canonical snapshot 同時提供三個 exact daily `price_history` points。

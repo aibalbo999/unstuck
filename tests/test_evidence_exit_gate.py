@@ -1862,6 +1862,36 @@ def test_evidence_gate_does_not_guess_year_for_three_month_price_series():
     assert claim["matched_path"] == ""
 
 
+def test_evidence_gate_binds_dated_latest_price_to_exact_price_history_point():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 最新價格 (2026-07-24): 18.8 元。",
+        {"data": {"current_price": 18.8, "price_history": {"dates": ["2026-07-24"], "prices": [18.8]}}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["sampled_claims"][0]["status"] == "verified"
+    assert result["sampled_claims"][0]["matched_path"] == "data.price_history[2026-07-24].prices[0]"
+
+
+def test_evidence_gate_does_not_fallback_dated_latest_price_to_current_price():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 最新價格 (2026-07-24): 18.8 元。",
+        {"data": {"current_price": 18.8, "price_history": {"dates": ["2026-07-23"], "prices": [18.8]}}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["sampled_claims"][0]["status"] == "unverifiable"
+    assert result["sampled_claims"][0]["verification_reason_code"] == "no_matching_snapshot_path"
+    assert result["sampled_claims"][0]["matched_path"] == ""
+
+
 def test_evidence_gate_binds_dated_price_claim_without_field_marker():
     from evidence_exit_gate import evaluate_report_evidence
 
