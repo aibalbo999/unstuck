@@ -255,6 +255,17 @@ def test_evidence_claims_ignore_derived_trade_plan_health_score():
     assert claims == []
 
 
+def test_evidence_claims_ignore_catalyst_group_period_tokens():
+    from evidence_exit_gate import extract_numeric_claims
+
+    claims = extract_numeric_claims(
+        "- Recent catalysts: 5-day jump of 32.16% (around 07-08), but revenue fell 84.05%.\n"
+        "- 近期催化劑：5 日漲幅 33.87%，事件日期為 2026-06-25。"
+    )
+
+    assert claims == []
+
+
 def test_evidence_gate_does_not_match_confidence_to_unrelated_snapshot_numbers():
     from evidence_exit_gate import evaluate_report_evidence
 

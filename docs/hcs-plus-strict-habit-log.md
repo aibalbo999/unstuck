@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3699 / exclude catalyst-group period tokens from scalar claims
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`3055.TW/v4` 的 `Recent catalysts: 5-day jump ...` 是新聞群組標題，不是單一資料欄位；generic KV parser 卻先抓到 `5`，讓 evidence sample 多出一筆無 canonical path 的 unverifiable claim。
+- `#最小變更` / `#責任`：只將完整 `Recent catalysts`／`近期催化劑` labels 加入 non-claim markers；`data.recent_catalysts` 仍是新聞陣列，32.16%／84.05% 不使用最近數字或跨來源 fallback。
+- `#偏誤降低` / `#可驗證性`：RED→GREEN fixture 同時覆蓋英文與中文的 5-day／5 日期間 token；live `3055.TW/v4` 收斂為 `16 claims / 3 sampled / 0 unverifiable / approved`，其餘資料信心與 dated pressure/support 維持人工確認。
+- `#可驗證性` / `#責任`：focused evidence `73 passed`、品質/evidence/conformance `1055 passed`、import boundary `504 passed`、HCS/docs `136 passed`，line guard `evidence_exit_gate.py=349`；正式 reload 後 target filtered current summary `1 audited / 1 approved`，full current summary `165` 份為 evidence `136/23/6`、content `76/81/8`、conformance `71/81/13`；healthz/readyz、doctor canonical paths 與 RQ failed_recent `0` 通過，未寫入本輪程式修正以外的 artifact、snapshot、index、review、rerun、repair 或 queue。
+
 ## D3698 / bind dated high-point evidence to price history
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`6226.TW/v4` 的「近期高點：22.05 (2026-06-30)」是日期和值的明確歷史極值，但沒有 `收盤價`、單位或欄位路徑，原 matcher 無法把它連到 `data.price_history`。
