@@ -1892,6 +1892,63 @@ def test_evidence_gate_does_not_fallback_dated_latest_price_to_current_price():
     assert result["sampled_claims"][0]["matched_path"] == ""
 
 
+def test_evidence_gate_binds_dated_support_to_exact_price_history_point():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 支撐位：36.0 TWD（2026-07-31 價格基準）。",
+        {"data": {"price_history": {"dates": ["2026-07-31"], "prices": [36.0]}}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["sampled_claims"][0]["status"] == "verified"
+    assert result["sampled_claims"][0]["matched_path"] == "data.price_history[2026-07-31].prices[0]"
+
+
+def test_evidence_gate_does_not_bind_news_support_to_price_history():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 近期支撐：15.1 元（2026-06-25 催化劑提到之價格）。",
+        {"data": {"price_history": {"dates": ["2026-06-25"], "prices": [15.1]}}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["sampled_claims"][0]["status"] == "unverifiable"
+    assert result["sampled_claims"][0]["matched_path"] == ""
+
+
+def test_evidence_gate_binds_month_end_support_to_exact_price_history_point():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 近期支撐：33.0 TWD（2026/07/31 月底價）。",
+        {"data": {"price_history": {"dates": ["2026-07-31"], "prices": [33.0]}}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["sampled_claims"][0]["matched_path"] == "data.price_history[2026-07-31].prices[0]"
+
+
+def test_evidence_gate_does_not_bind_later_historical_price_to_support_claim():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 支撐位：100.5 元（TWD/股）構成近期重要心理及技術支撐位。此外，歷史價格中 2026 年 2 月 26 日的 110.0 元亦可視為下方支撐。",
+        {"data": {"price_history": {"dates": ["2026-02-26"], "prices": [110.0]}}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["sampled_claims"][0]["status"] == "unverifiable"
+    assert result["sampled_claims"][0]["matched_path"] == ""
+
+
 def test_evidence_gate_binds_dated_price_claim_without_field_marker():
     from evidence_exit_gate import evaluate_report_evidence
 

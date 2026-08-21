@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3751 / map dated support and pressure evidence without later-text binding
+
+- `#拆解問題` / `#差距分析`：full artifact audit 找到 `1102.TW/v4` 的 `35.63`／`33.00`、`2324.TW/v4` 的 `36.0`、`2031.TW/v4` 的 `37.9` 都能對到 exact daily `price_history`，但支撐／壓力 label 沒有 semantic path。
+- `#偏誤辨識` / `#偏誤降低` / `#來源品質`：只接受支撐／壓力、完整日期、價格單位與明示價格／月底價／高低點／收盤語意，並要求日期緊接在 claim 數值的單位括號後；中文 `催化劑`、新聞來源與後文另述的歷史價格不映射，避免同值或鄰近日期借證據。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED，再 GREEN；focused `7 passed`、完整 evidence `168 passed`、品質 `1166 passed`、line guard `349` 通過，full artifact `2515 claims: 1631 verified / 746 unverifiable / 138 mismatch`，`missing_semantic_path=118`。正式 reload 後 1102、2324、2031 target 全部 verified，Markdown/data/health/ready 均 HTTP `200`，current quality 為 evidence `135/26/3`、content `99/57/8`、conformance `80/74/10`，本批未改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3750 / map dated latest-price evidence to exact history point
 
 - `#拆解問題` / `#差距分析`：full artifact audit 找到 `6226.TW/v4` 的 `最新價格 (2026-07-24): 18.8 元` 與 `data.price_history[2026-07-24].prices[11]=18.8` 一致，但 parser 沒有把完整日期 latest-price label 綁到 snapshot。
