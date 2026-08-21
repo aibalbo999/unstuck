@@ -227,6 +227,8 @@ Report evidence exit gate numeric checks use semantic snapshot paths only: ISO t
 
 英文市場摘要的 standalone `Price` 只可核對 `data.current_price`；matcher 是 exact label，因此 `Price Target` 不會被當成現價。若報告的 `Price` 與 canonical current price 不同，請解讀為 `snapshot_value_mismatch` 並人工核對報告新鮮度／來源，不要把它當成缺少 semantic path，也不會自動改寫 snapshot 或報告。
 
+護城河與模型評分欄位（`品牌影響力`、`網路效應`、`轉換成本`、`成本優勢`、`專利技術`、`FOMO 評分`、`聰明錢派發評分`、`Score`、`評分`）若沒有 canonical snapshot path，會顯示 `analysis_metadata_not_evidence` 並維持 `unverifiable`。這表示它是報告中的分析 metadata，不是可由資料快照獨立核對的 evidence；不要因為數字看起來像分數就借用財務或行情欄位。
+
 KV claim 的 label 後若立即接 `8/17 - 8/18`、`8-17` 這類月日範圍，日期 token 會被排除，不會被誤當成法人數量、價格或其他 scalar claim；`08/17法說會後` 這種日期後直接接中文／英文文字的 compact token 也會排除。日期後真正帶單位的數值仍需依既有 semantic path 規則核驗；第三位數字仍會阻止日期判定。
 
 支撐／壓力／關卡／風險價格若明示來自新聞、`market_catalysts`、`recent_catalysts` 或中文「催化劑」，evidence gate 會保留為人工確認，並以 `verification_reason_code=news_source_not_canonical` 說明來源邊界；即使省略 TWD／元，或同值出現在 `data.risk_price`、`price_history`，也不判定為 verified。明示 52 週高低點或 River Chart band 的專用來源仍依各自 semantic path 核驗。

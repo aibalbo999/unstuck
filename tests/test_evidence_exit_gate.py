@@ -113,6 +113,24 @@ def test_evidence_gate_explains_confidence_metadata_boundary():
     assert result["unverifiable_reason_counts"] == {"confidence_metadata_not_evidence": 1}
 
 
+def test_evidence_gate_explains_analysis_score_metadata_boundary():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 品牌影響力: 3.0\n- FOMO 評分: 4.0",
+        {"data": {}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["unverifiable_count"] == 2
+    assert all(
+        claim["verification_reason_code"] == "analysis_metadata_not_evidence"
+        for claim in result["sampled_claims"]
+    )
+    assert result["unverifiable_reason_counts"] == {"analysis_metadata_not_evidence": 2}
+
+
 def test_evidence_gate_accepts_markdown_emphasis_between_label_and_value():
     from evidence_exit_gate import evaluate_report_evidence
 

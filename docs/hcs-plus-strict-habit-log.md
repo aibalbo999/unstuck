@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3762 / separate analysis scores from snapshot evidence
+
+- `#拆解問題` / `#差距分析` / `#受眾`：residual audit 找到 99 筆 exact analysis-rubric labels（品牌、網路效應、轉換成本、成本優勢、專利技術、FOMO、聰明錢派發與 Score），它們是報告中的分析分數，但沒有 canonical snapshot candidate，操作員目前只能看到泛化的 `missing_semantic_path`。
+- `#偏誤辨識` / `#偏誤降低` / `#來源品質`：新增 exact label-only `analysis_metadata_not_evidence` reason；不把數字分數借成財務／行情 evidence，不改 `unverifiable`、verdict、snapshot、artifact、index、review、rerun、repair 或 queue。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED（1 failed、182 deselected），再 GREEN；focused `1 passed`、完整 evidence `183 passed`、跨層回歸 `1820 passed`，full artifact `164/2515` 維持 `1636 verified / 740 unverifiable / 139 mismatch`，`analysis_metadata_not_evidence=99`、`missing_semantic_path=15`。正式 reload 後 `1623_TW_v1_report_20260815_153238.html` 的 HTML/Markdown/data 與 health/ready 均 HTTP `200`；live 品牌評分為 `analysis_metadata_not_evidence`、Price mismatch 仍可見，doctor、diff guards 通過；待完成本批 push。
+
 ## D3761 / map exact standalone `Price` without hiding stale values
 
 - `#拆解問題` / `#差距分析` / `#證據基礎`：full artifact audit 找到 `1623.TW/v1` 的 `Price: 209.0 TWD`，snapshot 有 `data.current_price=201.0`；原本沒有 exact English `Price` path，造成 `missing_semantic_path`，無法把內容過期問題交給人工核對。
