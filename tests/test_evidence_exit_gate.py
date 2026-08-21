@@ -441,6 +441,27 @@ def test_evidence_gate_does_not_apply_later_week_52_source_to_prior_claim():
     assert result["sampled_claims"][0]["status"] == "unverifiable"
 
 
+def test_evidence_gate_matches_current_price_and_prefixed_week_52_source_paths():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        """
+- **當前價格**：85.5 元（`market_data.current_price_twd`）。
+- **52週高點**：112.3 TWD（data.market_data.week_52_high_twd）。
+""",
+        {"data": {"current_price": 85.5, "week_52_high": 112.3}},
+        sample_ratio=1.0,
+        min_sample=2,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["unverifiable_count"] == 0
+    assert [item["matched_path"] for item in result["sampled_claims"]] == [
+        "data.current_price",
+        "data.week_52_high",
+    ]
+
+
 def test_evidence_gate_uses_specific_financial_field_hints_before_broad_labels():
     from evidence_exit_gate import evaluate_report_evidence
 
