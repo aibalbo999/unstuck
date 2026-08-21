@@ -1,6 +1,5 @@
 """Deterministic sampled evidence checks for rendered reports."""
 from __future__ import annotations
-
 import math
 import re
 from random import Random
@@ -14,6 +13,7 @@ _KV_RE = re.compile(
 _TABLE_CELL_RE = re.compile(
     rf"\|\s*(?P<label>[^|\n]{{1,30}})\s*\|\s*[*_`]*\s*(?:[~約])?(?:NT\$|\$)?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>{_NUMERIC_UNIT_PATTERN})?(?:[.．](?=\s*\|))?(?![\dA-Za-z.])\s*\|"
 )
+_SECONDARY_EVIDENCE_RE = re.compile(rf"(?:及|與|以及|,|，)\s*[*_`]*\s*(?:NT\$|\$)?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>{_NUMERIC_UNIT_PATTERN})?\s*[^。\n]{{0,45}}(?:price_history|\d{{1,2}}\s*月份?\s*(?:收盤|收盤平台)|\d{{1,2}}\s*月\s*(?:底|末)(?:低點|高點))[^。\n]{{0,20}}", re.IGNORECASE)
 _NUMBER_IN_STRING_RE = re.compile(r"-?\d[\d,]*(?:\.\d+)?")
 _DATE_PREFIX_RE = re.compile(r"^\s*(?:[（(]|[/.-]\s*\d{1,2}\s*[/.-]\s*\d{1,2}\b)"); _SHORT_DATE_SUFFIX_RE = re.compile(r"^[/.-]\s*\d{1,2}\b(?=\s*(?:[A-Za-z\u4e00-\u9fff，,；;。]))")
 _RANGE_PREFIX_RE = re.compile(r"^\s*-\s*\d")
@@ -97,6 +97,13 @@ def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
                 "raw_text": line[:160],
                 **({"series_context_text": "\n".join(lines[max(0, line_number - 20):line_number - 1])} if re.fullmatch(r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}", label, re.IGNORECASE) else {"context_text": "\n".join(lines[max(0, line_number - 3):line_number - 1])} if line_number > 1 else {}),
             })
+            if any(_normalize_match_text(marker) in _normalize_match_text(label) for marker in ("支撐", "壓力", "高點", "低點")):
+                for secondary in _SECONDARY_EVIDENCE_RE.finditer(line[match.end():]):
+                    secondary_number = _clean_number(secondary.group("num")); secondary_label = f"{label}（次要價位）"
+                    if secondary_number is None or not _valid_claim_number(secondary_number) or (secondary_key := (secondary_label, round(secondary_number, 6), line_number)) in seen:
+                        continue
+                    seen.add(secondary_key); secondary_text = secondary.group(0).strip()
+                    claims.append({"id": len(claims) + 1, "label": secondary_label, "reported_value": secondary_number, "unit": (secondary.group("unit") or "").strip(), "line_number": line_number, "raw_text": f"{label}: {secondary_text}"[:160]})
     return claims
 def _claim_value(match: re.Match[str], label: str, line: str) -> tuple[float | None, str]:
     """Prefer the value tied to an explicit EPS phrase over a leading date."""
@@ -191,7 +198,6 @@ def sample_numeric_claims(
 def flatten_snapshot_numbers(snapshot: Any) -> list[dict[str, Any]]:
     """Collect numeric values from a sanitized snapshot."""
     values: list[dict[str, Any]] = []
-
     def walk(value: Any, path: str) -> None:
         if isinstance(value, bool) or value is None:
             return
@@ -268,7 +274,6 @@ def _is_non_claim_match(line: str, match: re.Match[str]) -> bool:
         return False
     suffix = line[match.end("num") :]
     return bool(re.match(r":\d{2}(?::\d{2})?(?:[.,+\-Z]|$)", suffix))
-
 def _is_eligible_snapshot_value(item: dict[str, Any]) -> bool:
     path = _normalize_match_text(item.get("path"))
     if any(marker in path for marker in _NORMALIZED_SNAPSHOT_METADATA_PATH_MARKERS):
@@ -276,7 +281,6 @@ def _is_eligible_snapshot_value(item: dict[str, Any]) -> bool:
     if any(marker in path for marker in _NORMALIZED_CONFIDENCE_METADATA_PATH_MARKERS):
         return False
     return True
-
 def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
     claim_text = str(claim.get("raw_text") or ""); raw_label = str(claim.get("label") or "").lower(); series_context = str(claim.get("series_context_text") or "")
     label = _normalize_match_text(raw_label)
@@ -294,9 +298,9 @@ def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
     history_date = re.search(r"(20\d{2})\s*[-/年.]\s*(\d{1,2})\s*[-/月.]\s*(\d{1,2})", claim_text); has_price_label = any(_normalize_match_text(marker) in label for marker in ("高點", "低點", "收盤", "支撐", "壓力", "股價", "價格", "close", "high", "low")); has_close_marker = any(_normalize_match_text(marker) in _normalize_match_text(claim_text) for marker in ("收盤", "close", "closing")); has_price_unit = bool(re.search(r"(?:NT\$|\$|TWD|元)", claim_text, re.IGNORECASE)); has_inline_extremum = bool(re.search(r"20\d{2}\s*[-/年.]\s*\d{1,2}\s*[-/月.]\s*\d{1,2}\s*(?:高點|低點|high|low)", claim_text, re.IGNORECASE)); has_dated_extremum = (any(_normalize_match_text(marker) in label for marker in ("高點", "低點")) or (has_price_label and has_inline_extremum)) and not any(_normalize_match_text(marker) in label for marker in ("52週", "52week")); has_news_source = any(marker in raw_text for marker in ("market_catalysts", "catalyst", "新聞", "news"))
     if history_date and ("price_history" in raw_text or (has_price_label and has_close_marker and has_price_unit) or (has_dated_extremum and not has_news_source)):
         return (f"price_history[{history_date.group(1)}-{int(history_date.group(2)):02d}-{int(history_date.group(3)):02d}]",)
-    if (month_end := re.search(r"(?:(20\d{2})\s*(?:[-/年.]\s*)?)?(\d{1,2})\s*(?:月|月份)\s*(?:底|末)[^\n]{0,12}(低點|高點)", claim_text, re.IGNORECASE)) and any(_normalize_match_text(marker) in label for marker in ("支撐", "壓力", "高點", "低點")) and not has_news_source:
-        month = int(month_end.group(2)); candidates = {month_name for month_name in claim.get("_price_history_months") or () if int(month_name[5:7]) == month}; year = month_end.group(1) or (next(iter({month_name[:4] for month_name in candidates})) if len({month_name[:4] for month_name in candidates}) == 1 else "")
-        if year and f"{year}-{month:02d}" in candidates: return (f"price_history[month-end={year}-{month:02d}]",)
+    if (month_end := re.search(r"(?:(20\d{2})\s*(?:[-/年.]\s*)?)?(\d{1,2})\s*(?:(?:月份?|月)\s*收盤(?:平台|價)?|(?:月|月份)\s*(?:底|末)[^\n]{0,12}(?:低點|高點))", claim_text, re.IGNORECASE)) and any(_normalize_match_text(marker) in label for marker in ("支撐", "壓力", "高點", "低點")) and not has_news_source:
+        month = int(month_end.group(2)); candidates = {month_name for month_name in claim.get("_price_history_months") or () if int(month_name[5:7]) == month}; year = month_end.group(1) or (next(iter({month_name[:4] for month_name in candidates})) if len({month_name[:4] for month_name in candidates}) == 1 else ""); previous_numbers = list(_NUMBER_IN_STRING_RE.finditer(claim_text[:month_end.start()]))
+        if previous_numbers and _clean_number(previous_numbers[-1].group()) == float(claim.get("reported_value") or 0) and year and f"{year}-{month:02d}" in candidates: return (f"price_history[month-end={year}-{month:02d}]",)
     if (month_extremum := re.search(r"(20\d{2})\s*(?:[-/年.]\s*)?(\d{1,2})\s*(?:月|月份)?[^\n]{0,16}(低點|高點)", claim_text, re.IGNORECASE)) and any(_normalize_match_text(marker) in label for marker in ("支撐", "壓力", "高點", "低點")) and not has_news_source: return (f"price_history[month={month_extremum.group(1)}-{int(month_extremum.group(2)):02d}].{'low' if month_extremum.group(3) == '低點' else 'high'}",)
     if label == "totalnetbuythousandshares" and "total_net_buy_thousand_shares" in raw_text: return ("institutional_trading.total_net_buy_thousand_shares",)
     if "last_5_trading_days_net_buy_thousand_shares" in raw_text or label == "last5tradingdaysnetbuy": return ("institutional_trading.last_5_trading_days_net_buy_thousand_shares",)
@@ -310,13 +314,11 @@ def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
         if any(_label_matches_marker(raw_label, label, marker) for marker in label_markers):
             return path_markers
     return ()
-
 def _label_matches_marker(raw_label: str, normalized_label: str, marker: str) -> bool:
     normalized_marker = _normalize_match_text(marker)
     if normalized_marker == "pe":
         return bool(re.search(r"(?<![a-z0-9])p\s*/?\s*e(?![a-z0-9])", raw_label))
     return normalized_marker in normalized_label
-
 def _best_match(reported: float, snapshot_values: list[dict[str, Any]]) -> dict[str, Any] | None:
     best: dict[str, Any] | None = None
     for item in snapshot_values:
@@ -328,7 +330,6 @@ def _best_match(reported: float, snapshot_values: list[dict[str, Any]]) -> dict[
         if best is None or diff_pct < best["diff_pct"]:
             best = {"path": item["path"], "value": candidate, "diff_pct": diff_pct}
     return best
-
 def _clean_label(value: str) -> str:
     label = re.sub(r"^[\-\*\s|]+", "", str(value or ""))
     label = re.sub(r"[\*_`]+", "", label).strip()
@@ -339,7 +340,6 @@ def _clean_label(value: str) -> str:
     if _normalize_match_text(label) in {"na", "none", "null", "unknown"}:
         return ""
     return label[:40]
-
 def _clean_number(value: str) -> float | None:
     try:
         return float(str(value).replace(",", "").strip())

@@ -1343,6 +1343,59 @@ def test_evidence_gate_does_not_bind_month_end_news_to_price_history():
     assert result["sampled_claims"][0]["status"] == "unverifiable"
 
 
+def test_evidence_gate_splits_secondary_price_history_support_value():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* **近期支撐：** 5000.0 TWD（整數心理關卡）及 3445.0 TWD（7 月份收盤平台，資料來源：`price_history`）。",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2026-06-30", "2026-07-31", "2026-08-21"],
+                    "prices": [3408.83, 3445.0, 5395.0],
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claims = result["sampled_claims"]
+    assert result["claim_count"] == 2
+    assert result["verdict"] == "caution"
+    assert claims[0]["reported_value"] == 5000.0
+    assert claims[0]["status"] == "unverifiable"
+    assert claims[1]["label"] == "近期支撐（次要價位）"
+    assert claims[1]["status"] == "verified"
+    assert claims[1]["matched_path"] == "data.price_history[month-end=2026-07]"
+
+
+def test_evidence_gate_splits_news_and_month_end_support_values_by_context():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* **近期支撐**：31.75 TWD（參考 `recent_catalysts` 提及價位）及 22.95 TWD（7 月底低點）。",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2026-07-31", "2026-08-20"],
+                    "prices": [22.95, 36.6],
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claims = result["sampled_claims"]
+    assert result["claim_count"] == 2
+    assert claims[0]["reported_value"] == 31.75
+    assert claims[0]["status"] == "unverifiable"
+    assert claims[1]["reported_value"] == 22.95
+    assert claims[1]["status"] == "verified"
+    assert claims[1]["matched_path"] == "data.price_history[month-end=2026-07]"
+
+
 def test_evidence_gate_does_not_bind_dated_news_pressure_to_close_history():
     from evidence_exit_gate import evaluate_report_evidence
 

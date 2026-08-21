@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3706 / split secondary source-anchored price claims
+
+- `#拆解問題` / `#問對問題` / `#語意含義`：同一個 `近期支撐` 行可能同時寫心理關卡、新聞價格與歷史收盤平台；只抽第一個數字會遮住可驗證來源，也可能讓整行被錯誤視為單一證據。
+- `#最小變更` / `#偏誤降低` / `#責任`：只對支撐／壓力／高點／低點 label 且第二筆數字後有 `price_history`、月份收盤或月底高低點錨點時建立「次要價位」claim；month-end matcher 要求月份標記前最近數字等於該 claim，第一筆與新聞上下文不跨配。
+- `#可驗證性` / `#來源品質`：RED→GREEN fixture 覆蓋 `3653` 兩筆支撐、`2491` 新聞價＋月底低點；dry-run 全量 162 份只增加 `3653`／`2491` 各 1 個 claim，整體 evidence 分布不變，`3653` 次要價位 verified。
+- `#可驗證性` / `#責任`：evidence gate `90 passed`、品質/evidence/conformance `1073 passed`、import boundary `504 passed`、HCS/docs `136 passed`、line guard `evidence_exit_gate.py=349`；正式 reload 後 `3653.TW/v4` 為 `19 claims / 3 sampled / 1 unverifiable / caution`，3445 次要價位 verified、5000 第一筆保留人工確認；`2491.TW/v4` 為 `18 claims / 3 sampled / 1 unverifiable / caution`，新聞價未交叉配對；healthz/readyz、queue depth `0` 與 failed_recent `0` 通過，未寫入 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3705 / bind unique yearless month-end support to price history
 
 - `#問對問題` / `#拆解問題` / `#語意含義`：`3406.TW/v4` 的 `7 月底低點` 是「月底資料點」而非泛稱月內最低價；要先確認 snapshot 是否只有一個可推定年份，不能用報告生成時間直接補年。
