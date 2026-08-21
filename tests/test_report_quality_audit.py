@@ -863,6 +863,41 @@ def test_indexed_quality_projection_rechecks_saved_parsed_context_without_fillin
     assert report["content_credibility_projection"]["status"] == "available"
 
 
+def test_indexed_quality_projection_rechecks_saved_evidence_gate_without_mutating_snapshot(monkeypatch):
+    import report_quality_audit as audit
+
+    snapshot = {
+        "snapshot_hash": "hash",
+        "pipeline": "v1",
+        "data": {"current_price": 100.0},
+        "evidence_exit_gate": {"verdict": "approved", "failed_count": 0},
+        "content_credibility": {"status": "passed"},
+    }
+    original_snapshot = json.loads(json.dumps(snapshot))
+    markdown = "- 股價: NT$90.0"
+
+    def load_item(_storage, _filename, *, kind):
+        if kind == "data":
+            return SimpleNamespace(content=json.dumps(snapshot))
+        assert kind == "md"
+        return SimpleNamespace(content=markdown)
+
+    monkeypatch.setattr(audit, "load_storage_item", load_item)
+
+    report = audit._report_from_index_row(
+        {"filename": "stale.html", "ticker": "2330.TW", "pipeline_id": "v1"},
+        object(),
+    )
+
+    assert report["evidence_exit_gate"]["verdict"] == "rejected"
+    assert report["evidence_exit_gate_projection"] == {
+        "status": "projected",
+        "source": "markdown+snapshot.current_rules",
+        "persisted_verdict": "approved",
+    }
+    assert snapshot == original_snapshot
+
+
 def test_indexed_quality_audit_skips_projection_without_persisted_content_gate(monkeypatch):
     import report_quality_audit as audit
     import report_quality_audit_rows as audit_rows
@@ -897,6 +932,36 @@ def test_indexed_quality_audit_skips_projection_without_persisted_content_gate(m
     assert report["content_credibility_projection"]["status"] == "available"
 
 
+def test_indexed_quality_audit_skips_evidence_projection_without_persisted_gate(monkeypatch):
+    import report_quality_audit as audit
+    import report_quality_audit_rows as audit_rows
+
+    snapshot = {
+        "snapshot_hash": "hash",
+        "pipeline": "v1",
+        "data": {"current_price": 100.0},
+        "content_credibility": {"status": "passed"},
+    }
+    monkeypatch.setattr(
+        audit,
+        "load_storage_item",
+        lambda *_args, **_kwargs: SimpleNamespace(content=json.dumps(snapshot)),
+    )
+
+    def fail_projection(*_args):
+        raise AssertionError("missing persisted evidence gate must not trigger projection")
+
+    monkeypatch.setattr(audit_rows, "project_evidence_exit_gate", fail_projection)
+
+    report = audit._report_from_index_row(
+        {"filename": "missing-evidence-gate.html", "ticker": "2330.TW", "pipeline_id": "v1"},
+        object(),
+    )
+
+    assert report["evidence_exit_gate"] == {}
+    assert "evidence_exit_gate_projection" not in report
+
+
 def test_indexed_quality_audit_does_not_project_current_content_credibility(monkeypatch):
     import report_quality_audit as audit
     import report_quality_audit_rows as audit_rows
@@ -904,6 +969,7 @@ def test_indexed_quality_audit_does_not_project_current_content_credibility(monk
     snapshot = {
         "snapshot_hash": "hash",
         "pipeline": "v1",
+        "evidence_exit_gate": {"verdict": "approved"},
         "content_credibility": {"status": "passed"},
     }
     monkeypatch.setattr(
@@ -917,12 +983,18 @@ def test_indexed_quality_audit_does_not_project_current_content_credibility(monk
 
     monkeypatch.setattr(audit_rows, "project_content_credibility", fail_projection)
 
+    def fail_evidence_projection(*_args):
+        raise AssertionError("quality audit does not consume current evidence projection")
+
+    monkeypatch.setattr(audit_rows, "project_evidence_exit_gate", fail_evidence_projection)
+
     reports = audit._indexed_quality_reports(
         [{"filename": "current.html", "ticker": "2330.TW", "pipeline_id": "v1"}],
         object(),
     )
 
     assert reports[0]["content_credibility"] == {"status": "passed"}
+    assert reports[0]["evidence_exit_gate"] == {"verdict": "approved"}
 
 
 def test_indexed_report_quality_audit_exposes_snapshot_refresh_provenance(monkeypatch, tmp_path):

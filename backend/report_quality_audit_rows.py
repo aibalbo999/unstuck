@@ -5,12 +5,13 @@ from __future__ import annotations
 import json
 from typing import Any, Callable
 
-from mapping_fields import safe_text
+from mapping_fields import safe_mapping_dict, safe_text
 from decision_tracking import build_decision_freshness
 from pipeline_modes import get_pipeline_definition, get_structured_agent_num
 from report_rerun_context import parse_agent_sections_from_markdown
 from reporting.content_credibility_final_audit import align_content_credibility_with_final_audit
 from reporting.content_credibility_projection import merge_content_credibility_results, project_content_credibility
+from reporting.evidence_exit_gate_projection import evidence_exit_gate_projection_metadata, project_evidence_exit_gate
 
 
 def hydrate_report_from_index_row(
@@ -28,10 +29,20 @@ def hydrate_report_from_index_row(
         snapshot.get("content_credibility", {}),
         snapshot.get("final_audit") or snapshot.get("report_conformance", {}),
     )
+    stored_evidence = safe_mapping_dict(snapshot.get("evidence_exit_gate")) or {}
+    recorded_evidence = safe_text(stored_evidence.get("verdict")).strip().lower() in {
+        "approved", "caution", "rejected",
+    }
     recorded = safe_text(stored.get("status")).strip().lower() in {
         "passed", "warning", "blocked", "failed", "rejected",
     }
     projected = project_content_credibility(snapshot) if project_current_quality and recorded else None
+    projected_evidence = None
+    if project_current_quality and recorded_evidence:
+        projected_evidence = project_evidence_exit_gate(
+            snapshot,
+            _load_markdown(storage, filename, load_item),
+        )
     return {
         "ticker": safe_text(row.get("ticker")).strip(),
         "filename": filename,
@@ -49,9 +60,19 @@ def hydrate_report_from_index_row(
         "decision_validity_status": safe_text(snapshot.get("decision_validity_status")).strip(),
         "rerun_context": snapshot.get("rerun_context", {}),
         "report_conformance": snapshot.get("report_conformance", {}),
-        "evidence_exit_gate": snapshot.get("evidence_exit_gate", {}),
+        "evidence_exit_gate": projected_evidence or stored_evidence,
         "content_credibility": merge_content_credibility_results(stored, projected) if projected and recorded else stored,
         "content_credibility_projection": _projection_metadata(projected, stored, recorded),
+        **(
+            {
+                "evidence_exit_gate_projection": evidence_exit_gate_projection_metadata(
+                    projected_evidence,
+                    stored_evidence,
+                )
+            }
+            if projected_evidence is not None
+            else {}
+        ),
     }
 
 
@@ -119,6 +140,20 @@ def _load_snapshot(storage: Any, filename: str, load_item: Callable[..., Any]) -
     except Exception:
         return {}
     return snapshot if isinstance(snapshot, dict) else {}
+
+
+def _load_markdown(storage: Any, filename: str, load_item: Callable[..., Any]) -> str:
+    try:
+        item = load_item(storage, filename, kind="md") if storage and filename else None
+    except Exception:
+        item = None
+    if item is None:
+        return ""
+    try:
+        raw_content = item.content
+        return raw_content.decode("utf-8", errors="replace") if isinstance(raw_content, bytes) else safe_text(raw_content)
+    except Exception:
+        return ""
 
 
 def _projection_metadata(projected: dict[str, Any] | None, stored: dict[str, Any], recorded: bool) -> dict[str, str]:
