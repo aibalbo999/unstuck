@@ -66,7 +66,7 @@ def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
         for match in list(_KV_RE.finditer(line)) + list(_TABLE_CELL_RE.finditer(line)):
             if _is_non_claim_match(line, match):
                 continue
-            label = _clean_label(match.group("label"))
+            label = _clean_label(match.group("label")); horizon_prefix = re.search(r"(?P<horizon>\d+)\s*[*_`]*$", line[:match.start("label")]); label = f"{horizon_prefix.group('horizon')}{label}" if horizon_prefix and label.startswith(("個月", "月")) else label
             number, unit = _claim_value(match, label, line)
             if not label or number is None or not _valid_claim_number(number):
                 continue
@@ -249,7 +249,7 @@ def _check_claim(claim: dict[str, Any], snapshot_values: list[dict[str, Any]], *
         status = "mismatch"
     return {
         **{key: value for key, value in claim.items() if key not in {"context_text", "series_context_text", "_price_history_months", "_legacy_conclusion_context_missing"}},
-        "status": status, "verification_reason_code": "news_source_not_canonical" if news_boundary and not path_markers else "legacy_conclusion_without_snapshot_path" if legacy_conclusion_boundary and not path_markers else "missing_semantic_path" if not path_markers else "no_matching_snapshot_path" if not candidate_values else "matched_snapshot_value" if best and best["diff_pct"] <= tolerance_pct else "snapshot_value_mismatch", "candidate_count": len(candidate_values),
+        "status": status, "verification_reason_code": "news_source_not_canonical" if news_boundary and not path_markers else "legacy_conclusion_without_snapshot_path" if legacy_conclusion_boundary and not path_markers else "confidence_metadata_not_evidence" if not candidate_values and any(_normalize_match_text(marker) in _normalize_match_text(claim.get("label")) for marker in ("信心", "confidence")) else "missing_semantic_path" if not path_markers else "no_matching_snapshot_path" if not candidate_values else "matched_snapshot_value" if best and best["diff_pct"] <= tolerance_pct else "snapshot_value_mismatch", "candidate_count": len(candidate_values),
         "matched_path": best.get("path") if best else "",
         "matched_value": best.get("value") if best else None,
         "diff_pct": round(best.get("diff_pct", 0.0), 4) if best else None,

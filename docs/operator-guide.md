@@ -229,6 +229,8 @@ KV claim 的 label 後若立即接 `8/17 - 8/18`、`8-17` 這類月日範圍，�
 
 `PE River Chart` 的分位數 claim 只可對應 `data.pe_river_chart.multiples`，不可與一般 `data.pe_ratio` 互借；若 snapshot 沒有該專用欄位，仍維持 `unverifiable`，不以數值相同作為來源證明。
 
+Evidence parser 會保留 `3個月目標`、`6個月`、`12個月` 這類數字 horizon，不再把 label 截成沒有時間語意的 `個月`。`資料信心分數`、`信心分數` 等 quality metadata 仍不當作 source evidence；若沒有可核驗的 canonical evidence path，reason 會是 `confidence_metadata_not_evidence`，狀態仍是 `unverifiable`／`caution`，不會借用其他數字。
+
 PE River Chart 的 band claim 也必須保留倍數身份；例如 `43.2x（中高分位帶）` 只可對應 `data.pe_river_chart.bands.43.2x` 下的數值，不可跨到其他 band、`multiples` 或一般 P/E 值。若同一 claim 以 `P/E 河流圖`、`59.6x 區間／位階` 與 `1,379.14 TWD` 這類格式同時表達 band 對應價格，evidence gate 會限定在 `data.pe_river_chart.bands` 集合內核對，允許報告與 snapshot 的 band 倍數標示有小幅版本差異，但不會回退到 `data.pe_ratio`；沒有 band series 時仍是 `unverifiable`。
 
 `Operating Cash Flow` claim 只可對應 `data.operating_cash_flow`；`Free Cash Flow` 是不同語意，不能因 B 單位或數值相同而互相核驗。快照若只有 `operating_cash_flow_raw`，沒有可讀的同單位欄位，仍需人工確認。

@@ -47,6 +47,46 @@ def test_evidence_gate_reports_verified_sample_count():
     assert result["unverifiable_count"] == 1
 
 
+def test_evidence_claim_preserves_numeric_horizon_in_label():
+    from evidence_exit_gate import extract_numeric_claims
+
+    claims = extract_numeric_claims(
+        "- **3個月目標:** NT$4127\n- **6個月目標:** NT$3641"
+    )
+
+    assert [claim["label"] for claim in claims] == ["3個月目標", "6個月目標"]
+
+
+def test_evidence_claim_preserves_horizon_in_compact_recommendation_row():
+    from evidence_exit_gate import extract_numeric_claims
+
+    claims = extract_numeric_claims(
+        "| 最終投資建議 | 建議: 避免；3個月: NT$4127；6個月: NT$3641；12個月: NT$3156；信心: 5/10 |"
+    )
+
+    assert [claim["label"] for claim in claims] == [
+        "避免；3個月",
+        "6個月",
+        "12個月",
+        "信心",
+    ]
+
+
+def test_evidence_gate_explains_confidence_metadata_boundary():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **資料信心分數:** 91/100",
+        {"data": {"data_confidence_score": 91}},
+        sample_ratio=1.0,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "unverifiable"
+    assert claim["verification_reason_code"] == "confidence_metadata_not_evidence"
+    assert result["unverifiable_reason_counts"] == {"confidence_metadata_not_evidence": 1}
+
+
 def test_evidence_gate_accepts_markdown_emphasis_between_label_and_value():
     from evidence_exit_gate import evaluate_report_evidence
 
@@ -313,9 +353,9 @@ def test_evidence_gate_does_not_match_confidence_to_unrelated_snapshot_numbers()
     assert claim["matched_value"] is None
     assert result["failed_count"] == 0
     assert result["unverifiable_count"] == 1
-    assert claim["verification_reason_code"] == "no_matching_snapshot_path"
+    assert claim["verification_reason_code"] == "confidence_metadata_not_evidence"
     assert claim["candidate_count"] == 0
-    assert result["unverifiable_reason_counts"] == {"no_matching_snapshot_path": 1}
+    assert result["unverifiable_reason_counts"] == {"confidence_metadata_not_evidence": 1}
 
 
 def test_evidence_gate_does_not_bind_news_support_or_pressure_to_risk_price():

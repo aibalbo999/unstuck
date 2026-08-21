@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3726 / preserve numeric horizons and classify confidence metadata
+
+- `#拆解問題` / `#差距分析`：全量 artifact audit 發現同一個 regex 邊界同時造成 `個月目標` 截斷與 `資料信心分數` 被錯放入一般 evidence missing-path 統計；前者損失語意，後者混淆資料可信度 metadata 與來源證據。
+- `#偏誤辨識` / `#偏誤降低` / `#來源品質`：保留 `3/6/12個月` 的完整 label，並將 confidence claim 的來源邊界標成 `confidence_metadata_not_evidence`；不把 legacy target、FactSet／新聞或 DCF 同值數字互相借用，數值 mismatch 與 `unverifiable` verdict 邊界不變。
+- `#可驗證性` / `#描述統計` / `#責任`：RED→GREEN focused `5 passed`、品質/evidence/conformance `1108 passed`、import `504 passed`、docs `136 passed`、line guard `349`、`py_compile`、`git diff --check` 通過。live current 164 份的 sampled reason 為 `no_matching=39`、`confidence_metadata=30`、`legacy=29`、`missing=16`、`news=2`；full artifact ratio=1.0 為 `1592 verified / 779 unverifiable / 138 mismatch`，`個月` 殘片 `0`，health/ready `ok/ready`、queue `0`、failed_recent `0`，未改動 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3725 / expose verified evidence sample counts
 
 - `#拆解問題` / `#差距分析`：live non-approved evidence warning 已有 sampled、failed、unverifiable，但沒有直接揭露其中多少 claim 已 status=`verified`；操作員容易把「抽樣量」誤讀成「已核對量」。
