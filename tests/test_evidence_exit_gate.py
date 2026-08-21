@@ -429,6 +429,51 @@ def test_evidence_gate_explains_legacy_conclusion_without_persisted_snapshot_con
     assert result["unverifiable_reason_counts"] == {"legacy_conclusion_without_snapshot_path": 1}
 
 
+def test_evidence_gate_classifies_compact_legacy_recommendation_horizons():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "| 最終投資建議 | 建議: 避免；3個月: NT$4127；6個月: NT$3641；12個月: NT$3156；信心: 5/10 |",
+        {"data": {"current_price": 100}, "rerun_context": {"parsed": {}, "structured_outputs": {}}},
+        sample_ratio=1.0,
+    )
+
+    reasons = {claim["label"]: claim["verification_reason_code"] for claim in result["sampled_claims"]}
+    assert reasons["避免；3個月"] == "legacy_conclusion_without_snapshot_path"
+    assert reasons["6個月"] == "legacy_conclusion_without_snapshot_path"
+    assert reasons["12個月"] == "legacy_conclusion_without_snapshot_path"
+    assert reasons["信心"] == "confidence_metadata_not_evidence"
+    assert result["verdict"] == "caution"
+
+
+def test_evidence_gate_keeps_compact_horizons_as_missing_when_context_exists():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "| 最終投資建議 | 建議: 避免；3個月: NT$4127；6個月: NT$3641；12個月: NT$3156；信心: 5/10 |",
+        {"data": {"current_price": 100}, "rerun_context": {"parsed": {"recommendation": {}}, "structured_outputs": {}}},
+        sample_ratio=1.0,
+    )
+
+    reasons = {claim["label"]: claim["verification_reason_code"] for claim in result["sampled_claims"]}
+    assert reasons["避免；3個月"] == "missing_semantic_path"
+    assert reasons["6個月"] == "missing_semantic_path"
+    assert reasons["12個月"] == "missing_semantic_path"
+
+
+def test_evidence_gate_does_not_classify_non_recommendation_horizon_as_legacy():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 近6個月營收增幅: 12%",
+        {"data": {"current_price": 100}, "rerun_context": {"parsed": {}, "structured_outputs": {}}},
+        sample_ratio=1.0,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["verification_reason_code"] != "legacy_conclusion_without_snapshot_path"
+
+
 def test_evidence_gate_keeps_conclusion_without_mapping_as_missing_semantic_path_when_context_exists():
     from evidence_exit_gate import evaluate_report_evidence
 

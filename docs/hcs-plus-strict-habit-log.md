@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3732 / classify compact legacy horizons without inventing target evidence
+
+- `#拆解問題` / `#差距分析`：full artifact audit 找到 legacy v1/v2/v3 的 compact `最終投資建議` row；`避免／持有／放空；3個月`、`6個月`、`12個月` 缺少 persisted parsed／structured context，原本卻與一般 semantic mapping 缺口混在一起。
+- `#偏誤辨識` / `#偏誤降低` / `#來源品質`：只有 raw text 明示 `最終投資建議`、horizon label 為 3/6/12 個月且 context 全空時改用 `legacy_conclusion_without_snapshot_path`；有 context 仍是 `missing_semantic_path`，一般營收月份、`analyst_target`、content metadata 與其他 horizon 不借證據，status／verdict 不變。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED，再 GREEN；focused `5 passed`、完整 evidence `125 passed`、品質 `1123 passed`、import/docs、`py_compile`、`git diff --check` 與 line guard `349` 通過。full artifact 為 `2510 claims: 1601 verified / 775 unverifiable / 134 mismatch`，reason `missing_semantic_path=142`、`legacy_conclusion_without_snapshot_path=203`；live historical API 已驗證 `3653.TW/v3`、`3324.TWO/v2`、`6282.TW/v2`，current summary 維持 evidence `135/26/3`、content `99/57/8`、conformance `80/74/10`，health/ready、doctor、queue `0` 通過，未改動 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3731 / map explicit month-end closing prices without widening evidence
 
 - `#拆解問題` / `#差距分析`：full artifact audit 找到 `7 月底收盤價`、`2026 年 5 月底收盤價` 等 claim 已有 canonical `price_history` 月末節點，卻被當成沒有 matching path；同時要保留 `月底的平台位置` 與非明示收盤語意的人工確認邊界。

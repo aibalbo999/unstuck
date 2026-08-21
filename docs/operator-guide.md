@@ -231,6 +231,8 @@ KV claim 的 label 後若立即接 `8/17 - 8/18`、`8-17` 這類月日範圍，�
 
 Evidence parser 會保留 `3個月目標`、`6個月`、`12個月` 這類數字 horizon，不再把 label 截成沒有時間語意的 `個月`。`資料信心分數`、`信心分數` 等 quality metadata 仍不當作 source evidence；若沒有可核驗的 canonical evidence path，reason 會是 `confidence_metadata_not_evidence`，狀態仍是 `unverifiable`／`caution`，不會借用其他數字。
 
+compact `最終投資建議` row 的 `避免；3個月`、`6個月`、`12個月` 若來自沒有 persisted `rerun_context.parsed`／`structured_outputs` 的 legacy snapshot，且沒有 canonical target path，請以 `legacy_conclusion_without_snapshot_path` 分流；這只表示「舊結論缺少可重建上下文」，仍須人工確認。若 snapshot 有 parsed 或 structured context，仍用 `missing_semantic_path`；一般營收或其他非投資建議的月份 label 不套用 legacy reason。不要把 `content_credibility`、`report_conformance`、`analyst_target` 或另一個 horizon 的數值當成來源證明。
+
 目標價的 evidence mapping 只把 exact `目標價`／`target price` 當作一般 target label；像 `航空運輸業，目標價` 這種「分類＋目標價」描述性 label 不會因同一行出現估值文字就借用 DCF 或 bear intrinsic value，而只允許同一 snapshot 的 canonical structured target path。若 snapshot 沒有該 path，請依 `no_matching_snapshot_path` 進行人工確認；熊市／基本／牛市或 DCF claim 必須保留自己的情境／估值語意。
 
 數字抽取會保留千分位整數，即使數值後面直接接下一句，例如 `1,177,000. Borrowed short sale today: 21,000.` 不會被截成 `1,177`。`券資比` 這類由融券／融資餘額計算出的衍生比例，若 snapshot 只有兩個組成數值而沒有 canonical ratio scalar，會維持 `unverifiable`／`missing_semantic_path`；不要把它誤當成融資餘額或自行推導成已核驗證據。

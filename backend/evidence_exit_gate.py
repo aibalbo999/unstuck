@@ -137,7 +137,7 @@ def evaluate_report_evidence(
         if _is_eligible_snapshot_value(item)
     ]
     price_history_months = tuple(sorted({match.group(1) for item in snapshot_values if (match := re.search(r"price_history\[(20\d{2}-\d{2})-\d{2}\]", str(item.get("path") or "")))}))
-    claims = [{**claim, "_price_history_months": price_history_months, "_legacy_conclusion_context_missing": isinstance(snapshot.get("rerun_context"), dict) and not snapshot["rerun_context"].get("parsed") and not snapshot["rerun_context"].get("structured_outputs") and any(_normalize_match_text(marker) in _normalize_match_text(claim.get("label")) for marker in ("短期目標", "中期目標", "長期目標", "個月目標", "長期潛力"))} for claim in extract_numeric_claims(markdown)]
+    claims = [{**claim, "_price_history_months": price_history_months, "_legacy_conclusion_context_missing": isinstance(snapshot.get("rerun_context"), dict) and not snapshot["rerun_context"].get("parsed") and not snapshot["rerun_context"].get("structured_outputs") and (any(_normalize_match_text(marker) in _normalize_match_text(claim.get("label")) for marker in ("短期目標", "中期目標", "長期目標", "個月目標", "長期潛力")) or (re.fullmatch(r"(?:(?:買入|持有|避免|放空|觀望)[；;:：]\s*)?(?:3|6|12)\s*個月", str(claim.get("label") or "").strip()) and "最終投資建議" in _normalize_match_text(claim.get("raw_text"))))} for claim in extract_numeric_claims(markdown)]
     sample = sample_numeric_claims(claims, sample_ratio=sample_ratio, min_sample=min_sample, max_sample=max_sample, seed=seed)
     checked = [_check_claim(claim, snapshot_values, tolerance_pct=tolerance_pct) for claim in sample]
     failed_count = sum(1 for item in checked if item["status"] == "mismatch")
