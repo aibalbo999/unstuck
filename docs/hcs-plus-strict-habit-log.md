@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3705 / bind unique yearless month-end support to price history
+
+- `#問對問題` / `#拆解問題` / `#語意含義`：`3406.TW/v4` 的 `7 月底低點` 是「月底資料點」而非泛稱月內最低價；要先確認 snapshot 是否只有一個可推定年份，不能用報告生成時間直接補年。
+- `#最小變更` / `#限制條件` / `#責任`：flatten 新增 `price_history[month-end=YYYY-MM]`，claim 只在明示月底／月末、支撐／壓力／高點／低點，且該月份年份唯一時映射；原逐日與 `month=YYYY-MM` 極值 paths 不改，新聞來源與跨年份歧義拒絕自動映射。
+- `#偏誤降低` / `#演繹` / `#可驗證性`：RED→GREEN fixture 覆蓋唯一年份正例、跨年份歧義、exact-path mismatch 與月底新聞反例；以 `3406` snapshot dry-run 證實 481.0 命中 `data.price_history[month-end=2026-07]`，其他 161 份報告 verdict 不變。
+- `#可驗證性` / `#責任`：evidence gate `88 passed`、品質/evidence/conformance `1071 passed`、import boundary `504 passed`、HCS/docs `136 passed`、line guard `evidence_exit_gate.py=349`；正式 reload 後 `3406.TW/v4` 為 `10 claims / 3 sampled / 0 unverifiable / approved`，month-end target verified；`8438.TW/v4` 的新聞壓力仍為 caution，全量 evidence 為 `132/23/7`，healthz/readyz、queue depth `0` 與 failed_recent `0` 通過，未寫入 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3704 / bind month-level support and pressure to price-history extrema
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`7711.TW/v4` 的 292.5 是 2026 年 7 月月內低點，`2491.TW/v4` 的 40.15 是 2026 年 6 月月內高點；snapshot 只保存逐日 `price_history`，原 parser 沒有月份極值的 canonical marker。

@@ -125,12 +125,13 @@ def evaluate_report_evidence(
     seed: int = 17,
 ) -> dict[str, Any]:
     """Sample report numeric claims and verify them against snapshot values."""
-    claims = extract_numeric_claims(markdown)
-    sample = sample_numeric_claims(claims, sample_ratio=sample_ratio, min_sample=min_sample, max_sample=max_sample, seed=seed)
     snapshot_values = [
         item for item in flatten_snapshot_numbers(snapshot)
         if _is_eligible_snapshot_value(item)
     ]
+    price_history_months = tuple(sorted({match.group(1) for item in snapshot_values if (match := re.search(r"price_history\[(20\d{2}-\d{2})-\d{2}\]", str(item.get("path") or "")))}))
+    claims = [{**claim, "_price_history_months": price_history_months} for claim in extract_numeric_claims(markdown)]
+    sample = sample_numeric_claims(claims, sample_ratio=sample_ratio, min_sample=min_sample, max_sample=max_sample, seed=seed)
     checked = [_check_claim(claim, snapshot_values, tolerance_pct=tolerance_pct) for claim in sample]
     failed_count = sum(1 for item in checked if item["status"] == "mismatch")
     unverifiable_count = sum(1 for item in checked if item["status"] == "unverifiable")
@@ -213,8 +214,10 @@ def flatten_snapshot_numbers(snapshot: Any) -> list[dict[str, Any]]:
             return
         if isinstance(value, dict):
             if path.endswith("price_history") and {"dates", "prices"} <= value.keys():
-                values.extend({"path": f"{path}[{str(date)[:10]}].prices[{index}]", "value": float(price)} for index, (date, price) in enumerate(zip(value["dates"], value["prices"])) if isinstance(price, (int, float)) and not isinstance(price, bool))
-                values.extend({"path": f"{path}[month={month}].{kind}", "value": (min if kind == "low" else max)(float(price) for date, price in zip(value["dates"], value["prices"]) if str(date)[:7] == month and isinstance(price, (int, float)) and not isinstance(price, bool))} for month in {str(date)[:7] for date in value["dates"]} for kind in ("low", "high"))
+                points = [(index, str(date)[:10], float(price)) for index, (date, price) in enumerate(zip(value["dates"], value["prices"])) if isinstance(price, (int, float)) and not isinstance(price, bool)]
+                values.extend({"path": f"{path}[{date}].prices[{index}]", "value": price} for index, date, price in points)
+                values.extend({"path": f"{path}[month-end={month}]", "value": next(price for _, date, price in reversed(points) if date[:7] == month)} for month in {date[:7] for _, date, _ in points})
+                values.extend({"path": f"{path}[month={month}].{kind}", "value": (min if kind == "low" else max)(price for _, date, price in points if date[:7] == month)} for month in {date[:7] for _, date, _ in points} for kind in ("low", "high"))
                 return
             for key, item in value.items():
                 walk(item, f"{path}.{key}" if path else str(key))
@@ -239,7 +242,7 @@ def _check_claim(claim: dict[str, Any], snapshot_values: list[dict[str, Any]], *
     else:
         status = "mismatch"
     return {
-        **{key: value for key, value in claim.items() if key not in {"context_text", "series_context_text"}},
+        **{key: value for key, value in claim.items() if key not in {"context_text", "series_context_text", "_price_history_months"}},
         "status": status,
         "matched_path": best.get("path") if best else "",
         "matched_value": best.get("value") if best else None,
@@ -253,16 +256,13 @@ def _relevant_snapshot_values(claim: dict[str, Any], snapshot_values: list[dict[
         for item in snapshot_values
         if any(_normalize_match_text(marker) in _normalize_match_text(item.get("path")) for marker in path_markers)
     ]
-
 def _is_non_claim_match(line: str, match: re.Match[str]) -> bool:
     timestamp = re.search(r"\d{4}-\d{2}-\d{2}T\d{1,2}:\d{2}:\d{2}", line)
     if (timestamp and timestamp.start() <= match.start("label") <= timestamp.end()) or re.search(r"`institutional_trading`\s*[:：]\s*\d+\s*-\s*day\s+lookback\b", line, re.IGNORECASE):
         return True
-
     label = _normalize_match_text(match.group("label"))
     if any(marker in label for marker in _NORMALIZED_NON_CLAIM_LABEL_MARKERS):
         return True
-
     number_start = match.start("num")
     if number_start <= 0 or line[number_start - 1] != "T":
         return False
@@ -294,6 +294,9 @@ def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
     history_date = re.search(r"(20\d{2})\s*[-/年.]\s*(\d{1,2})\s*[-/月.]\s*(\d{1,2})", claim_text); has_price_label = any(_normalize_match_text(marker) in label for marker in ("高點", "低點", "收盤", "支撐", "壓力", "股價", "價格", "close", "high", "low")); has_close_marker = any(_normalize_match_text(marker) in _normalize_match_text(claim_text) for marker in ("收盤", "close", "closing")); has_price_unit = bool(re.search(r"(?:NT\$|\$|TWD|元)", claim_text, re.IGNORECASE)); has_inline_extremum = bool(re.search(r"20\d{2}\s*[-/年.]\s*\d{1,2}\s*[-/月.]\s*\d{1,2}\s*(?:高點|低點|high|low)", claim_text, re.IGNORECASE)); has_dated_extremum = (any(_normalize_match_text(marker) in label for marker in ("高點", "低點")) or (has_price_label and has_inline_extremum)) and not any(_normalize_match_text(marker) in label for marker in ("52週", "52week")); has_news_source = any(marker in raw_text for marker in ("market_catalysts", "catalyst", "新聞", "news"))
     if history_date and ("price_history" in raw_text or (has_price_label and has_close_marker and has_price_unit) or (has_dated_extremum and not has_news_source)):
         return (f"price_history[{history_date.group(1)}-{int(history_date.group(2)):02d}-{int(history_date.group(3)):02d}]",)
+    if (month_end := re.search(r"(?:(20\d{2})\s*(?:[-/年.]\s*)?)?(\d{1,2})\s*(?:月|月份)\s*(?:底|末)[^\n]{0,12}(低點|高點)", claim_text, re.IGNORECASE)) and any(_normalize_match_text(marker) in label for marker in ("支撐", "壓力", "高點", "低點")) and not has_news_source:
+        month = int(month_end.group(2)); candidates = {month_name for month_name in claim.get("_price_history_months") or () if int(month_name[5:7]) == month}; year = month_end.group(1) or (next(iter({month_name[:4] for month_name in candidates})) if len({month_name[:4] for month_name in candidates}) == 1 else "")
+        if year and f"{year}-{month:02d}" in candidates: return (f"price_history[month-end={year}-{month:02d}]",)
     if (month_extremum := re.search(r"(20\d{2})\s*(?:[-/年.]\s*)?(\d{1,2})\s*(?:月|月份)?[^\n]{0,16}(低點|高點)", claim_text, re.IGNORECASE)) and any(_normalize_match_text(marker) in label for marker in ("支撐", "壓力", "高點", "低點")) and not has_news_source: return (f"price_history[month={month_extremum.group(1)}-{int(month_extremum.group(2)):02d}].{'low' if month_extremum.group(3) == '低點' else 'high'}",)
     if label == "totalnetbuythousandshares" and "total_net_buy_thousand_shares" in raw_text: return ("institutional_trading.total_net_buy_thousand_shares",)
     if "last_5_trading_days_net_buy_thousand_shares" in raw_text or label == "last5tradingdaysnetbuy": return ("institutional_trading.last_5_trading_days_net_buy_thousand_shares",)
@@ -308,13 +311,11 @@ def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
             return path_markers
     return ()
 
-
 def _label_matches_marker(raw_label: str, normalized_label: str, marker: str) -> bool:
     normalized_marker = _normalize_match_text(marker)
     if normalized_marker == "pe":
         return bool(re.search(r"(?<![a-z0-9])p\s*/?\s*e(?![a-z0-9])", raw_label))
     return normalized_marker in normalized_label
-
 
 def _best_match(reported: float, snapshot_values: list[dict[str, Any]]) -> dict[str, Any] | None:
     best: dict[str, Any] | None = None
@@ -327,7 +328,6 @@ def _best_match(reported: float, snapshot_values: list[dict[str, Any]]) -> dict[
         if best is None or diff_pct < best["diff_pct"]:
             best = {"path": item["path"], "value": candidate, "diff_pct": diff_pct}
     return best
-
 
 def _clean_label(value: str) -> str:
     label = re.sub(r"^[\-\*\s|]+", "", str(value or ""))

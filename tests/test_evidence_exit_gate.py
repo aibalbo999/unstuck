@@ -1257,6 +1257,92 @@ def test_evidence_gate_maps_month_high_pressure_to_month_maximum():
     assert result["sampled_claims"][0]["matched_path"] == "data.price_history[month=2026-06].high"
 
 
+def test_evidence_gate_maps_unique_yearless_month_end_support_to_price_history():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* **強勁支撐：** 481.0 元（7 月底低點）。",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2026-06-30", "2026-07-31", "2026-08-20"],
+                    "prices": [659.0, 481.0, 650.0],
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["sampled_claims"][0]["matched_path"] == "data.price_history[month-end=2026-07]"
+
+
+def test_evidence_gate_keeps_yearless_month_end_ambiguous_across_years():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* **強勁支撐：** 481.0 元（7 月底低點）。",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2025-07-31", "2026-07-31"],
+                    "prices": [320.0, 481.0],
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "caution"
+    assert result["sampled_claims"][0]["status"] == "unverifiable"
+
+
+def test_evidence_gate_keeps_month_end_value_mismatch_on_exact_path():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* **強勁支撐：** 500.0 元（7 月底低點）。",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2026-06-30", "2026-07-31"],
+                    "prices": [659.0, 481.0],
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "rejected"
+    assert claim["status"] == "mismatch"
+    assert claim["matched_path"] == "data.price_history[month-end=2026-07]"
+
+
+def test_evidence_gate_does_not_bind_month_end_news_to_price_history():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* **強勁支撐：** 481.0 元（7 月底低點，根據 `market_catalysts` 新聞）。",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2026-07-31"],
+                    "prices": [481.0],
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "caution"
+    assert result["sampled_claims"][0]["status"] == "unverifiable"
+
+
 def test_evidence_gate_does_not_bind_dated_news_pressure_to_close_history():
     from evidence_exit_gate import evaluate_report_evidence
 
