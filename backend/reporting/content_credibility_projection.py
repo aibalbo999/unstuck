@@ -177,13 +177,13 @@ def merge_content_credibility_results(recorded: Any, projected: Any) -> dict[str
         }
     )
     result["blocking_issues"] = _merge_issues(
-        recorded_map.get("blocking_issues"),
         projected_map.get("blocking_issues"),
+        recorded_map.get("blocking_issues"),
         suppressed_ids=resolved_issue_ids,
     )
     result["warnings"] = _merge_issues(
-        recorded_map.get("warnings"),
         projected_map.get("warnings"),
+        recorded_map.get("warnings"),
         suppressed_ids=resolved_issue_ids,
     )
     result["checks"] = _merge_checks(projected_map.get("checks"), recorded_map.get("checks"))

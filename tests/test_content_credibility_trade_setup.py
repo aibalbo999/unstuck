@@ -206,6 +206,23 @@ def test_trade_setup_alignment_keeps_contextual_52_week_price_range_non_ambiguou
     assert result["warnings"] == []
 
 
+def test_trade_setup_alignment_ignores_percentage_adjustment_as_stop_price():
+    from reporting.content_credibility_trade_setup import evaluate_trade_setup_alignment
+
+    result = evaluate_trade_setup_alignment(
+        trade_setup=_trade_setup(
+            target_price="上方壓力位 306.0 TWD",
+            stop_loss="收盤價跌破關鍵支撐位 227.0 TWD 或突破後回檔逾 10%（對應近期高波動 ATR 估算）",
+            trade_direction="Neutral",
+        ),
+        current_price=282.0,
+    )
+
+    assert result["blocking_issues"] == []
+    assert result["warnings"] == []
+    assert result["checks"][0]["details"]["stop_loss"] == 227.0
+
+
 def test_trade_setup_alignment_warns_when_prices_cannot_be_parsed():
     from reporting.content_credibility_trade_setup import evaluate_trade_setup_alignment
 

@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3719 / exclude percentage tokens and refresh stale issue details
+
+- `#拆解問題` / `#差距分析`：`8039.TW/v4` 的 `回檔逾 10%` 是停損幅度，不是價格；原 parser 會產生 `stop_loss_candidates=[227.0, 10.0]`。即使 current check 已修正，recorded-first merge 還會把舊診斷帶回 API。
+- `#偏誤辨識` / `#偏誤降低` / `#可驗證性`：增加 signed decimal/scientific percentage token guard；同一 issue id 合併時改由 current projection 優先，recorded issue 僅補 current 沒有的項目。真正多層停損、target 上下行條件與其他非區間候選不放寬。
+- `#責任`：RED→GREEN 品質/evidence/conformance `1094 passed`、import `504 passed`、docs `136 passed`、line guard `349`、input helper `99`、py_compile 通過；live ambiguous 維持 `37`，但 `percent_as_stop_candidate=0`，8039 warning/check details 已無 `10.0`。content `92/64/8`、conformance `80/73/11`、evidence `135/25/4`，healthz/readyz、queue depth `0`、failed_recent `0` 通過；未修改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3718 / separate contextual reference prices from trade scenarios
 
 - `#拆解問題` / `#差距分析`：`46.6 TWD（挑戰 52 週高點 46.63 TWD 壓力位）` 的 46.63 是參考高點，不是第二個目標；`419.15 TWD 至 52 週高點 460.0 TWD` 則是明示兩端區間，兩者都不應被同一個多情境 warning 誤處理。

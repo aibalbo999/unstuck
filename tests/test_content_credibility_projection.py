@@ -92,6 +92,28 @@ def test_projection_merge_drops_resolved_trade_setup_warning():
     assert result["warnings"] == []
 
 
+def test_projection_merge_prefers_current_issue_details_over_stale_recorded_details():
+    from reporting.content_credibility_projection import merge_content_credibility_results
+
+    issue = {
+        "id": "ambiguous_trade_setup_price_inputs",
+        "message": "交易計畫的目標或停損包含多個情境價格，無法用單一數值代表，需人工核對。",
+    }
+    result = merge_content_credibility_results(
+        {
+            "status": "warning",
+            "warnings": [{**issue, "details": {"stop_loss_candidates": [227.0, 10.0]}}],
+        },
+        {
+            "status": "warning",
+            "warnings": [{**issue, "details": {"target_price_candidates": [306.0, 227.0]}}],
+            "checks": [{"id": "trade_setup_alignment", "status": "warning"}],
+        },
+    )
+
+    assert result["warnings"] == [{**issue, "details": {"target_price_candidates": [306.0, 227.0]}}]
+
+
 def test_projection_merge_prefers_current_check_for_same_id():
     from reporting.content_credibility_projection import merge_content_credibility_results
 

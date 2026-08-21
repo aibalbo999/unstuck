@@ -44,7 +44,7 @@ def _strip_temporal_numeric_tokens(text: str) -> str:
     """Keep calendar/period labels from being mistaken for prices."""
     cleaned = _CALENDAR_DATE_PATTERN.sub(" ", text)
     cleaned = _BARE_MONTH_DAY_PATTERN.sub(" ", cleaned)
-    return _PERIOD_NUMBER_PATTERN.sub(" ", cleaned)
+    return _PERIOD_NUMBER_PATTERN.sub(" ", re.sub(r"[+\-＋－−]?\s*\d+(?:[.．]\d+)?(?:[eE][-+]?\d+)?\s*[%％]", " ", cleaned))
 
 
 def _input_text(value: Any) -> str:

@@ -42,6 +42,10 @@ def test_price_candidates_keep_real_scenario_after_context_reference_price():
     assert price_candidates("100 TWD（若突破 110 TWD 52 週高點後可上看 120 TWD）") == [100.0, 120.0]
 
 
+def test_price_candidates_ignore_percentage_adjustment_before_stop_price():
+    assert price_candidates("跌破關鍵支撐位 227.0 TWD 或突破後回檔逾 10%（對應近期高波動 ATR 估算）") == [227.0]
+
+
 def test_target_price_candidates_drop_non_finite_numeric_prices():
     candidates = target_price_candidates(
         {
