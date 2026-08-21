@@ -38,7 +38,7 @@ _NORMALIZED_RESEARCH_CONTEXT_MARKERS = tuple(_normalize_match_text(marker) for m
 _FIELD_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
     (("信心", "confidence"), ("confidence", "confidence_score", "agent_confidence")),
     (("停損", "止損", "stoploss", "stop_loss"), ("stop_loss", "stoploss", "risk_price")),
-    (("大戶", "major holders", "major_holders"), ("major_holders", "major_holders_gt_1000_lots_pct")), (("散戶", "retail holders", "retail_holders"), ("retail_holders", "retail_holders_lt_50_lots_pct")), (("融資餘額", "margin balance", "margin_balance"), ("margin_balance", "margin_previous_balance")), (("融券餘額", "short balance", "short_balance"), ("short_balance", "short_previous_balance")), (("融資買進", "margin purchase", "margin_purchase"), ("margin_purchase",)), (("融資賣出", "margin sale", "margin_sale"), ("margin_sale",)), (("融券買進", "short purchase", "short_purchase"), ("short_purchase",)), (("融券賣出", "short sale", "short_sale"), ("short_sale",)), (("借券賣出餘額", "borrowed short sale balance", "borrowed_short_sale_balance"), ("borrowed_short_sale_balance",)),
+    (("大戶", "major holders", "major_holders"), ("major_holders", "major_holders_gt_1000_lots_pct")), (("散戶", "retail holders", "retail_holders"), ("retail_holders", "retail_holders_lt_50_lots_pct")), (("融資餘額", "margin balance", "margin_balance"), ("margin_balance", "margin_previous_balance")), (("融券餘額", "short balance", "short_balance"), ("short_balance", "short_previous_balance")), (("融資買進", "margin purchase", "margin_purchase"), ("margin_purchase",)), (("融資賣出", "margin sale", "margin_sale"), ("margin_sale",)), (("融券買進", "short purchase", "short_purchase"), ("short_purchase",)), (("融券賣出", "short sale", "short_sale"), ("short_sale",)), (("借券賣出餘額", "borrowed short sale balance", "borrowed_short_sale_balance"), ("borrowed_short_sale_balance",)), (("杜邦", "dupont"), ("dupont_identity_note",)),
     (("股價", "現價", "currentprice", "current_price"), ("current_price", "regularmarketprice", "stock_price", "share_price")),
     (("forwardpe", "forward pe"), ("forward_pe", "forwardpe", "forward_eps")),
     (("epsimpliedrevenuegrowth", "impliedrevenuegrowth"), ("forward_eps_implied_revenue_growth_pct", "implied_revenue_growth_pct")),
@@ -101,7 +101,6 @@ def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
                 "raw_text": line[:160],
             })
     return claims
-
 
 def _claim_value(match: re.Match[str], label: str, line: str) -> tuple[float | None, str]:
     """Prefer the value tied to an explicit EPS phrase over a leading date."""
@@ -298,6 +297,7 @@ def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
         return ("factset",)
     if any(marker in raw_text for marker in _NORMALIZED_RESEARCH_CONTEXT_MARKERS):
         return ("broker_research",)
+    if (source_match := re.search(r"(-?\d[\d,]*(?:\.\d+)?)\s*(?:TWD|元)?\s*[（(]?\s*`?(market_data\.week_52_(?:high|low)_twd)", str(claim.get("raw_text") or ""), re.IGNORECASE)) and _clean_number(source_match.group(1)) == float(claim.get("reported_value") or 0): return ("week_52_high",) if "week_52_high_twd" in raw_text else ("week_52_low",)
     if any(marker in raw_text for marker in ("熊市", "牛市")):
         return ("stop_loss", "support", "resistance", "risk_price", "price_target", "price_targets", "target_price", "scenario", "scenarios")
     for label_markers, path_markers in _FIELD_HINTS:

@@ -356,6 +356,61 @@ def test_evidence_gate_matches_margin_flow_and_borrowed_short_balance():
     assert all(item["status"] == "verified" for item in result["sampled_claims"])
 
 
+def test_evidence_gate_matches_historical_dupont_margin_to_dupont_note():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **依據與說明**：`history` 顯示其 ROE 23.1% 高度由 **26.0% 的高淨利率** 驅動（杜邦恒等式：26.0% × 0.725x × 1.225x）。",
+        {
+            "data": {
+                "profit_margin": "28.4%",
+                "dupont_identity_note": "淨利率 26.0% × 資產周轉率 0.725x × 權益乘數 1.225x = ROE 23.1%",
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["unverifiable_count"] == 0
+    assert result["sampled_claims"][0]["matched_path"] == "data.dupont_identity_note"
+
+
+def test_evidence_gate_matches_explicit_week_52_price_source_paths():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        """
+- **壓力位**：41.4706 TWD（`market_data.week_52_high_twd`）。
+- **支撐位**：22.6961 TWD（`market_data.week_52_low_twd`）。
+""",
+        {"data": {"week_52_high": 41.47059, "week_52_low": 22.696077}},
+        sample_ratio=1.0,
+        min_sample=2,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["unverifiable_count"] == 0
+    assert [item["matched_path"] for item in result["sampled_claims"]] == [
+        "data.week_52_high",
+        "data.week_52_low",
+    ]
+
+
+def test_evidence_gate_does_not_apply_later_week_52_source_to_prior_claim():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **近期壓力位**：419.15 TWD（2026-05-29 高點）以及 460.0 TWD（`market_data.week_52_high_twd`）。",
+        {"data": {"week_52_high": 460.0}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "caution"
+    assert result["sampled_claims"][0]["status"] == "unverifiable"
+
+
 def test_evidence_gate_uses_specific_financial_field_hints_before_broad_labels():
     from evidence_exit_gate import evaluate_report_evidence
 
