@@ -231,6 +231,28 @@ def test_evidence_claims_ignore_dates_na_cells_and_range_prefixes():
     assert not any(claim["reported_value"] in {1.0, 5.0, 2026.0} for claim in claims)
 
 
+def test_evidence_claims_ignore_calendar_date_tokens_after_labeled_colons():
+    from evidence_exit_gate import extract_numeric_claims
+
+    markdown = (
+        "- 近期支撐: 2026/07/31 的低點 2306.32 TWD\n"
+        "- 近期壓力位: 2026-06-30 收盤價 1010.0 TWD\n"
+        "| 報告日期 | 2026.08.20 |"
+    )
+
+    claims = extract_numeric_claims(markdown)
+
+    assert not any(claim["reported_value"] == 2026.0 for claim in claims)
+
+
+def test_evidence_claims_keep_bare_years_and_currency_values():
+    from evidence_exit_gate import extract_numeric_claims
+
+    claims = extract_numeric_claims("- 財測年度: 2026\n- 股價: 2026 TWD")
+
+    assert [claim["reported_value"] for claim in claims] == [2026.0, 2026.0]
+
+
 def test_evidence_gate_uses_specific_financial_field_hints_before_broad_labels():
     from evidence_exit_gate import evaluate_report_evidence
 

@@ -20,7 +20,7 @@ _TABLE_CELL_RE = re.compile(
     rf"\|\s*(?P<label>[^|\n]{{1,30}})\s*\|\s*[~約]?(?:NT\$|\$)?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>{_NUMERIC_UNIT_PATTERN})?(?![\dA-Za-z.])\s*\|"
 )
 _NUMBER_IN_STRING_RE = re.compile(r"-?\d[\d,]*(?:\.\d+)?")
-_DATE_PREFIX_RE = re.compile(r"^\s*[（(]")
+_DATE_PREFIX_RE = re.compile(r"^\s*(?:[（(]|[/.-]\s*\d{1,2}\s*[/.-]\s*\d{1,2}\b)")
 _RANGE_PREFIX_RE = re.compile(r"^\s*-\s*\d")
 _HORIZON_PREFIX_RE = re.compile(r"^\s*\d+(?:\s*[-–—~～至到]\s*\d+)?\s*(?:週|周|weeks?|個月|月|年|years?|天|日|days?)", re.IGNORECASE)
 _EPS_VALUE_RE = re.compile(
