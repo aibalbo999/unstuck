@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3721 / bind legacy River Chart band prices to valuation bands
+
+- `#來源品質` / `#語意含義` / `#可驗證性`：`2308.TW/v2` 的 `P/E 河流圖 2025 年最高位階（59.6x 區間）：1,379.14 TWD` 是 River Chart band 對應價格，不是 generic `pe_ratio`；snapshot 的 `59.8x` band 價格 `1,383.77` 在既有 1% tolerance 內。
+- `#偏誤辨識` / `#偏誤降低`：RED 重現 generic P/E 同值會把 claim 誤判 approved；新增只針對 `P/E 河流圖` + `x` 區間／位階／band + 價格單位的 `pe_river_chart.bands` path，沒有 band series 仍 `unverifiable`，既有精確倍數 band 與 generic PE 反例保留。
+- `#責任`：RED→GREEN focused evidence `104 passed`、完整品質/evidence/conformance `1098 passed`、import `504 passed`、docs `136 passed`、`py_compile`、line guard `349` 通過；live `2308.TW/v2` River Chart claim verified，但整份報告仍因其他缺少語意路徑維持 caution。全量 evidence `135/26/3`、conformance `80/74/10`、content `92/64/8`；healthz/readyz、canonical runtime paths、queue depth `0`、failed_recent `0` 通過。不修改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3720 / keep valuation multiples out of trade price candidates
 
 - `#拆解問題` / `#差距分析`：`8438.TW/v4` 的 `28.2x PE band` 與 `18x PE band` 是估值倍數，不是交易目標／支撐價格；原 `price_candidates()` 會把它們混進 `[60.35, 50.0, 38.52]` 的真實上下行情境。

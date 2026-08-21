@@ -468,6 +468,46 @@ def test_evidence_gate_does_not_match_pe_river_band_to_multiples_or_generic_pe()
     assert claim["verification_reason_code"] == "no_matching_snapshot_path"
 
 
+def test_evidence_gate_matches_river_chart_band_price_to_band_values():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **P/E 河流圖 2025 年最高位階（59.6x 區間）：** 1,379.14 TWD",
+        {
+            "data": {
+                "pe_ratio": 1379.14,
+                "pe_river_chart": {
+                    "bands": {"59.8x": [752.28, 768.43, 810.89, 1383.77]},
+                },
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+    claim = result["sampled_claims"][0]
+
+    assert result["verdict"] == "approved"
+    assert claim["status"] == "verified"
+    assert claim["matched_path"] == "data.pe_river_chart.bands.59.8x[3]"
+
+
+def test_evidence_gate_does_not_match_river_chart_band_price_to_generic_pe():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **P/E 河流圖 2025 年最高位階（59.6x 區間）：** 1,379.14 TWD",
+        {"data": {"pe_ratio": 1379.14}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+    claim = result["sampled_claims"][0]
+
+    assert result["verdict"] == "caution"
+    assert claim["status"] == "unverifiable"
+    assert claim["matched_path"] == ""
+    assert claim["verification_reason_code"] == "no_matching_snapshot_path"
+
+
 def test_evidence_gate_uses_canonical_value_for_structured_target_text():
     from evidence_exit_gate import evaluate_report_evidence
 
