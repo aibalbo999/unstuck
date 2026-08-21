@@ -1151,6 +1151,47 @@ def test_evidence_gate_does_not_bind_dated_news_high_point_to_close_history():
     assert result["sampled_claims"][0]["matched_path"] == ""
 
 
+def test_evidence_gate_maps_explicit_key_pressure_to_week_high():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* **關鍵壓力：** 569.0 TWD (52 週最高價，`market_data`)。",
+        {"data": {"week_52_high": 569.0}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["sampled_claims"][0]["matched_path"] == "data.week_52_high"
+
+
+def test_evidence_gate_maps_key_pressure_point_week_high_variant():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* **關鍵壓力位：24.5 TWD**。此為 `market_data` 紀錄之 52 週最高價（Week 52 High）。",
+        {"data": {"week_52_high": 24.5}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["sampled_claims"][0]["matched_path"] == "data.week_52_high"
+
+
+def test_evidence_gate_does_not_treat_plain_key_pressure_as_week_high():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* **關鍵壓力位：24.5 TWD**。短線壓力區需人工確認。",
+        {"data": {"week_52_high": 24.5}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["sampled_claims"][0]["matched_path"] != "data.week_52_high"
+
+
 def test_evidence_gate_does_not_bind_dated_news_pressure_to_close_history():
     from evidence_exit_gate import evaluate_report_evidence
 

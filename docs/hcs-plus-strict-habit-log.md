@@ -1,5 +1,12 @@
 # HCS Plus Strict Habit Log
 
+## D3703 / map explicit 52-week-high pressure variants
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`6715.TW/v4` 與 `2903.TW/v4` 都把壓力位明確說成 52 週最高價，但 label 分別是 `關鍵壓力`／`關鍵壓力位`，原規則未能穩定綁定 `data.week_52_high`。
+- `#最小變更` / `#責任`：只對兩個 exact labels 且 raw text 明示 `52週最高價` 或 `Week 52 High` 時回傳 `week_52_high`；plain pressure 沒有 52 週語境時不套用。
+- `#偏誤降低` / `#可驗證性`：RED→GREEN fixture 覆蓋 6715-like、2903-like 正例與 plain-pressure 反例；正式 reload 後 `6715` 為 `14 claims / 3 sampled / 0 unverifiable / approved`、`2903` 為 `13 claims / 3 sampled / 0 unverifiable / approved`，兩筆均命中 `data.week_52_high`。
+- `#可驗證性` / `#責任`：evidence gate `81 passed`、品質/evidence/conformance `1064 passed`、import boundary `504 passed`、HCS/docs `136 passed`，line guard `evidence_exit_gate.py=349`；既有 mismatch、新聞價格、人工信心/衍生評分邊界均保留，healthz/readyz、canonical paths 與 RQ failed_recent `0` 通過。
+
 ## D3702 / bind daily institutional values to exact dates
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`1402.TW/v4` 的 daily institutional section 明示 `Last 10 trading days daily total net buy`，每筆 `Aug NN` 都對應 snapshot 的 date/value object；原 evidence gate 沒保留日期 identity。
