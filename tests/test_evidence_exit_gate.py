@@ -1949,6 +1949,36 @@ def test_evidence_gate_does_not_bind_later_historical_price_to_support_claim():
     assert result["sampled_claims"][0]["matched_path"] == ""
 
 
+def test_evidence_gate_binds_historical_support_before_later_news_value():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 關鍵支撐位：30.1 TWD（2026-07-31 之近期低點）。此外，2026-07-22 新聞提及之漲停價 42.35 TWD 可視為短期心理支撐。",
+        {"data": {"price_history": {"dates": ["2026-07-31"], "prices": [30.1]}}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["sampled_claims"][0]["status"] == "verified"
+    assert result["sampled_claims"][0]["matched_path"] == "data.price_history[2026-07-31].prices[0]"
+
+
+def test_evidence_gate_binds_support_when_date_follows_explicit_this_is_phrase():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 關鍵支撐位：30.1 TWD。此為 2026-07-31 之近期低點。此外，2026-07-22 新聞提及之漲停價 42.35 TWD 可視為短期心理支撐。",
+        {"data": {"price_history": {"dates": ["2026-07-31"], "prices": [30.1]}}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["sampled_claims"][0]["status"] == "verified"
+    assert result["sampled_claims"][0]["matched_path"] == "data.price_history[2026-07-31].prices[0]"
+
+
 def test_evidence_gate_binds_dated_price_claim_without_field_marker():
     from evidence_exit_gate import evaluate_report_evidence
 

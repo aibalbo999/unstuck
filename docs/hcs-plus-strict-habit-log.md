@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3752 / separate historical support from later news values
+
+- `#拆解問題` / `#差距分析`：full artifact audit 找到 `6141.TW/v4` 的 `關鍵支撐位：30.1 TWD。此為 2026-07-31 之近期低點。此外，2026-07-22 新聞提及之漲停價 42.35 TWD`；30.1 與 canonical `data.price_history[2026-07-31].prices[10]` 一致，但同一行後段新聞 value 使原 parser 無法分離兩個語意。
+- `#偏誤辨識` / `#偏誤降低` / `#來源品質`：只在完整日期前後有括號或 `此為` 明示 claim 關聯、且日期到句段邊界沒有新聞／催化劑語意時映射 exact daily path；後續新聞 value、直接催化劑句與後文另述歷史價不綁定，避免把同一行的新聞數字借給歷史支撐位。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED，再 GREEN；focused D3752 tests `2 passed`、完整 evidence `170 passed`、品質/evidence/conformance `1168 passed`、line guard `349` 通過，full artifact `2515 claims: 1632 verified / 745 unverifiable / 138 mismatch`，`news_source_not_canonical=2`。正式 reload 後 live 6141 target verified 到 `data.price_history[2026-07-31].prices[10]`，Markdown/data/health/ready 均 HTTP `200`，current quality 為 evidence `135/26/3`、content `99/57/8`、conformance `80/74/10`，本批未改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3751 / map dated support and pressure evidence without later-text binding
 
 - `#拆解問題` / `#差距分析`：full artifact audit 找到 `1102.TW/v4` 的 `35.63`／`33.00`、`2324.TW/v4` 的 `36.0`、`2031.TW/v4` 的 `37.9` 都能對到 exact daily `price_history`，但支撐／壓力 label 沒有 semantic path。
