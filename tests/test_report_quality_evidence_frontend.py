@@ -16,14 +16,14 @@ def test_shared_quality_evidence_helper_loads_before_all_consumers():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     helper = "/static/report_quality_evidence_helpers.js"
     assert (STATIC_DIR / "report_quality_evidence_helpers.js").exists()
-    assert f"{helper}?v=20260820-pre-refresh-provenance" in index_html
+    assert f"{helper}?v=20260822-evidence-reason-summary" in index_html
     assert "/static/report_quality_gate_policy.js?v=20260816-shared-quality-evidence" in index_html
     assert "/static/report_preview_helpers.js?v=20260820-shared-evidence-detail" in index_html
     assert "/static/report_preview_panel.js?v=20260820-rerun-execution" in index_html
     assert "/static/history_quality_audit_render.js?v=20260820-per-pipeline-context-summary" in index_html
-    assert "/static/history_current_quality_helpers.js?v=20260821-history-current-quality" in index_html
+    assert "/static/history_current_quality_helpers.js?v=20260822-evidence-reason-summary" in index_html
     assert "/static/watchlist_freshness_helpers.js?v=20260821-freshness-targets" in index_html
-    assert "/static/watchlist_current_quality_helpers.js?v=20260821-current-quality" in index_html
+    assert "/static/watchlist_current_quality_helpers.js?v=20260822-evidence-reason-summary" in index_html
     assert "/static/watchlist_panel_helpers.js?v=20260821-current-quality" in index_html
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
     assert "/static/styles/history_list.css?v=20260816-clickable-quality-evidence" in style_css
@@ -117,6 +117,26 @@ process.stdout.write(JSON.stringify(evidence));
     assert evidence["provenanceText"] == "來源：有刷新歸因"
     assert "來源：有刷新歸因" in evidence["detail"]
     assert "來源：刷新後缺口" not in evidence["detail"]
+
+
+def test_shared_quality_evidence_formats_unverifiable_reason_counts_for_operators():
+    evidence_path = STATIC_DIR / "report_quality_evidence_helpers.js"
+    script = """
+global.window = {};
+require(__EVIDENCE_PATH__);
+process.stdout.write(JSON.stringify({
+  summary: window.StockAgentReportQualityEvidence.formatUnverifiableReasonSummary({
+    snapshot_value_mismatch: 3,
+    research_source_not_canonical: 2,
+    unknown_reason: 1,
+    no_matching_snapshot_path: 0
+  })
+}));
+""".replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path)))
+
+    payload = json.loads(_node(script))
+
+    assert payload["summary"] == "證據未驗證原因：快照數值不一致 3、研究來源非 canonical 2、unknown_reason 1"
 
 
 def test_shared_quality_evidence_labels_gap_that_predates_refresh():
@@ -276,10 +296,12 @@ process.stdout.write(JSON.stringify({ opened }));
 
 
 def test_historical_quality_audit_surfaces_current_quality_projection_separately():
+    evidence_path = STATIC_DIR / "report_quality_evidence_helpers.js"
     helper_path = STATIC_DIR / "history_current_quality_helpers.js"
     renderer_path = STATIC_DIR / "history_quality_audit_render.js"
     script = """
 global.window = {};
+require(__EVIDENCE_PATH__);
 require(__HELPER_PATH__);
 require(__RENDERER_PATH__);
 const html = window.StockAgentHistoricalQualityAuditRenderer.render({
@@ -298,6 +320,8 @@ const html = window.StockAgentHistoricalQualityAuditRenderer.render({
     report_conformance_by_status: { passed: 0, warning: 1, blocked: 0, unknown: 0 },
     content_credibility_by_status: { passed: 1, warning: 0, blocked: 0, unknown: 0 },
     evidence_exit_gate_by_verdict: { approved: 0, caution: 1, rejected: 0, unknown: 0 },
+    evidence_failed_count: 3,
+    evidence_unverifiable_reason_counts: { research_source_not_canonical: 2 },
     non_passed_reports: 1,
     items_total: 1,
     items_returned: 0,
@@ -306,10 +330,12 @@ const html = window.StockAgentHistoricalQualityAuditRenderer.render({
   items: []
 }, value => String(value ?? ''));
 process.stdout.write(html);
-""".replace("__HELPER_PATH__", json.dumps(str(helper_path))).replace("__RENDERER_PATH__", json.dumps(str(renderer_path)))
+""".replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path))).replace("__HELPER_PATH__", json.dumps(str(helper_path))).replace("__RENDERER_PATH__", json.dumps(str(renderer_path)))
     result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
 
     assert "目前版本品質（查詢：2330.TW；模式：v2；只看最新版本）" in result.stdout
     assert "一致性 符合 0、警示 1" in result.stdout
     assert "證據關卡需注意 1" in result.stdout
+    assert "證據數值不一致 3" in result.stdout
+    assert "證據未驗證原因：研究來源非 canonical 2" in result.stdout
     assert "1 份品質 metadata 缺口" not in result.stdout

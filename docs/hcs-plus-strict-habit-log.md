@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3757 / surface evidence reason counts in current-quality views
+
+- `#拆解問題` / `#差距分析` / `#受眾`：current-quality summary 只有「證據關卡需注意幾份」，但 persisted gate 已有 `unverifiable_reason_counts`；watchlist target 也只顯示 conformance reason，操作員無法快速分流數值 mismatch 與研究來源邊界。
+- `#來源品質` / `#語意含義` / `#溝通設計`：後端只讀彙總同一 current scope 的既有 reason counts，單筆 target 保留自己的 counts；共用 helper 用固定中文標籤、數量排序與未知 code 原樣保留，兩個入口維持相同語意。
+- `#可驗證性` / `#描述統計` / `#責任`：先用新增 backend/frontend tests 取得 RED，再 GREEN；focused `35 passed`、完整 evidence `177 passed`、品質/evidence/conformance `998 passed`、import/current-quality/frontend `539 passed`、HCS/docs/static `274 passed`，helper line guard `44`、evidence gate line guard `349`、Node syntax／`py_compile`／`git diff --check` 通過。full artifact `164/2515` 維持 `1634 verified / 743 unverifiable / 138 mismatch`；reload 後 live health/ready `200`、8080 `127.0.0.1`、current summary `164` 份、`evidence_failed_count=10` 與 aggregate reason counts 正常，三個 helper cache-buster HTTP `200`。這輪不改 verdict/status、sampled claim、snapshot、artifact、index、review、rerun、repair 或 queue；full artifact 與 current persisted/sample scope 仍分開解讀。
+
 ## D3756 / classify research-source evidence boundaries
 
 - `#拆解問題` / `#差距分析`：full artifact audit 找到 `5871.TW/v4` 的 `目標價：130元（Factset預估值）` 與 `7795.TW/v4` 的 `目標價：605元（參考市場研究觀點）`；兩者沒有同路徑 canonical snapshot，但原本只顯示 `no_matching_snapshot_path`，不利於判斷是欄位缺漏還是研究來源限制。

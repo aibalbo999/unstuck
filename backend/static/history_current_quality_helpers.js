@@ -28,7 +28,10 @@
         const conformance = ['passed', 'warning', 'blocked', 'unknown'].map(key => `${statusLabels[key]} ${Math.floor(Number(data.conformance[key]))}`).join('、');
         const contentAttention = Math.floor(Number(data.content.warning)) + Math.floor(Number(data.content.blocked));
         const evidenceAttention = Math.floor(Number(data.evidence.caution)) + Math.floor(Number(data.evidence.rejected));
-        return `<em class="history-quality-audit-current-summary">${e(scope)}：${e(`一致性 ${conformance}；內容可信度需注意 ${contentAttention}；證據關卡需注意 ${evidenceAttention}；非通過 ${data.nonPassed}`)}</em>`;
+        const failedCount = Number(summary.evidence_failed_count), evidenceFailureSummary = Number.isFinite(failedCount) && failedCount > 0 ? `證據數值不一致 ${Math.floor(failedCount)}` : '';
+        const evidenceReasonSummary = window.StockAgentReportQualityEvidence?.formatUnverifiableReasonSummary?.(summary.evidence_unverifiable_reason_counts) || '';
+        const evidenceDetail = [evidenceFailureSummary, evidenceReasonSummary].filter(Boolean).join('；');
+        return `<em class="history-quality-audit-current-summary">${e(scope)}：${e(`一致性 ${conformance}；內容可信度需注意 ${contentAttention}；證據關卡需注意 ${evidenceAttention}；非通過 ${data.nonPassed}${evidenceDetail ? `；${evidenceDetail}` : ''}`)}</em>`;
     }
 
     window.StockAgentHistoricalCurrentQualityHelpers = { render, validated };

@@ -115,6 +115,8 @@ The read-only report quality audit exposes `missing_quality_fields`, `severity`,
 
 歷史稽核回應中的 `current_quality_summary` 是另一個目前規則投影：`scope=historical_filter_current_latest` 只看相同 `q`/`pipeline` 篩選下每個 ticker/mode 的最新版本，並用自己的 `audited_reports` 分母呈現目前一致性、內容可信度與證據關卡。它不會改寫歷史 metadata coverage，也不會把缺 gate 補成通過；看到 persisted coverage 與 current summary 不同時，代表兩個時間/語意層次不同，應分開判讀。
 
+current-quality summary 另提供 `evidence_failed_count` 與 `evidence_unverifiable_reason_counts`：前者彙總同一批 evidence gate 的數值 mismatch，後者彙總未驗證原因；每個 target 也保留該報告的 counts。畫面會用白話標籤顯示「證據數值不一致」「研究來源非 canonical」等，未知的新 reason code 則原樣保留。這只改善人工分流，不代表 gate 通過，也不會把 sampled claim、跨 provider 數值或任何 review/rerun/repair/queue 狀態寫回系統。
+
 歷史稽核也可用 `review_status=pending|approved_with_gap|rejected|deferred` 只看某一種目前 revision 審核狀態；回應的 `review_status_filter` 會標示套用的範圍，篩選後的 coverage 與分頁數字只代表該狀態，不代表其他狀態不存在。這仍是 GET-only 查詢，不會寫入 review ledger。
 
 若要先聚焦版本新舊，可用 `version_status=current|historical|unknown`；回應的 `report_version_status_filter` 會標示目前範圍。這個版本範圍會保留該版本集合中的完整報告作為 coverage 分母，只有再選審核狀態或缺口欄位時才縮成相應的品質缺口集合。歷史頁的「目前版本／歷史版本／版本未判定」按鈕只改 GET 查詢範圍，不會加入今日待辦、寫入 review 或建立重跑。

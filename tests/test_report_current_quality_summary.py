@@ -10,7 +10,10 @@ def test_current_quality_summary_keeps_gate_distributions_separate_and_bounds_ta
                 "filename": "2330.html",
                 "report_conformance": {"status": "warning", "warnings": [{"message": "需要人工注意"}]},
                 "content_credibility": {"status": "warning"},
-                "evidence_exit_gate": {"verdict": "caution"},
+                "evidence_exit_gate": {
+                    "verdict": "caution",
+                    "unverifiable_reason_counts": {"no_matching_snapshot_path": 2},
+                },
             },
             {
                 "ticker": "2454.TW",
@@ -18,7 +21,11 @@ def test_current_quality_summary_keeps_gate_distributions_separate_and_bounds_ta
                 "filename": "2454.html",
                 "report_conformance": {"status": "blocked", "blocking_issues": [{"message": "證據矛盾"}]},
                 "content_credibility": {"status": "blocked"},
-                "evidence_exit_gate": {"verdict": "rejected"},
+                "evidence_exit_gate": {
+                    "verdict": "rejected",
+                    "failed_count": 1,
+                    "unverifiable_reason_counts": {"missing_semantic_path": 1},
+                },
             },
             {
                 "ticker": "2308.TW",
@@ -39,11 +46,18 @@ def test_current_quality_summary_keeps_gate_distributions_separate_and_bounds_ta
     assert payload["report_conformance_by_status"] == {"passed": 1, "warning": 1, "blocked": 1, "unknown": 0}
     assert payload["content_credibility_by_status"] == {"passed": 1, "warning": 1, "blocked": 1, "unknown": 0}
     assert payload["evidence_exit_gate_by_verdict"] == {"approved": 1, "caution": 1, "rejected": 1, "unknown": 0}
+    assert payload["evidence_unverifiable_reason_counts"] == {
+        "no_matching_snapshot_path": 2,
+        "missing_semantic_path": 1,
+    }
+    assert payload["evidence_failed_count"] == 1
     assert payload["non_passed_reports"] == 2
     assert payload["items_returned"] == 1
     assert payload["items_truncated"] is True
     assert payload["items"][0]["filename"] == "2454.html"
     assert payload["items"][0]["reason"] == "證據矛盾"
+    assert payload["items"][0]["evidence_failed_count"] == 1
+    assert payload["items"][0]["evidence_unverifiable_reason_counts"] == {"missing_semantic_path": 1}
 
 
 def test_current_quality_summary_treats_missing_gate_status_as_unknown():

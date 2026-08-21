@@ -128,6 +128,8 @@ def build_current_quality_summary(
     conformance = {status: 0 for status in CONFORMANCE_STATUSES}
     content = {status: 0 for status in CONTENT_STATUSES}
     evidence = {verdict: 0 for verdict in EVIDENCE_VERDICTS}
+    evidence_failed_count = 0
+    evidence_reason_counts: dict[str, int] = {}
     non_passed = []
     for report in rows:
         conformance_status = _conformance_status(report.get("report_conformance"))
@@ -136,6 +138,9 @@ def build_current_quality_summary(
         conformance[conformance_status] += 1
         content[content_status] += 1
         evidence[evidence_verdict] += 1
+        evidence_failed_count += _evidence_failed_count(report.get("evidence_exit_gate"))
+        for reason, count in _evidence_reason_counts(report.get("evidence_exit_gate")).items():
+            evidence_reason_counts[reason] = evidence_reason_counts.get(reason, 0) + count
         if conformance_status != "passed":
             non_passed.append(_current_quality_item(report, conformance_status, content_status, evidence_verdict))
 
@@ -150,6 +155,8 @@ def build_current_quality_summary(
         "report_conformance_by_status": conformance,
         "content_credibility_by_status": content,
         "evidence_exit_gate_by_verdict": evidence,
+        "evidence_failed_count": evidence_failed_count,
+        "evidence_unverifiable_reason_counts": evidence_reason_counts,
         "non_passed_reports": len(non_passed),
         "items_limit": limit,
         "items_total": len(non_passed),
@@ -203,6 +210,22 @@ def _evidence_verdict(value: Any) -> str:
     return verdict if verdict in {"approved", "caution", "rejected"} else "unknown"
 
 
+def _evidence_reason_counts(value: Any) -> dict[str, int]:
+    gate = safe_mapping_dict(value) or {}
+    raw_counts = safe_mapping_dict(gate.get("unverifiable_reason_counts")) or {}
+    return {
+        reason: count
+        for raw_reason, raw_count in raw_counts.items()
+        if (reason := safe_text(raw_reason).strip())
+        and (count := safe_int(raw_count, default=0)) > 0
+    }
+
+
+def _evidence_failed_count(value: Any) -> int:
+    gate = safe_mapping_dict(value) or {}
+    return max(0, safe_int(gate.get("failed_count"), default=0))
+
+
 def _current_quality_item(
     report: dict[str, Any],
     conformance_status: str,
@@ -210,6 +233,8 @@ def _current_quality_item(
     evidence_verdict: str,
 ) -> dict[str, Any]:
     conformance = safe_mapping_dict(report.get("report_conformance")) or {}
+    evidence_failed_count = _evidence_failed_count(report.get("evidence_exit_gate"))
+    evidence_reason_counts = _evidence_reason_counts(report.get("evidence_exit_gate"))
     issues = safe_dict_list(conformance.get("blocking_issues")) + safe_dict_list(conformance.get("warnings"))
     reason = next(
         (
@@ -227,6 +252,8 @@ def _current_quality_item(
         "report_conformance_status": conformance_status,
         "content_credibility_status": content_status,
         "evidence_exit_gate_verdict": evidence_verdict,
+        "evidence_failed_count": evidence_failed_count,
+        "evidence_unverifiable_reason_counts": evidence_reason_counts,
         "reason": reason,
     }
 

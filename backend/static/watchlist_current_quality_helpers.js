@@ -17,7 +17,10 @@
         const conformance = ['passed', 'warning', 'blocked', 'unknown'].map(key => `${statusLabels[key]} ${Math.floor(Number(data.conformance[key]))}`).join('、');
         const contentWarnings = Math.floor(Number(data.content.warning)), contentBlocked = Math.floor(Number(data.content.blocked));
         const evidenceAttention = Math.floor(Number(data.evidence.caution)) + Math.floor(Number(data.evidence.rejected));
-        return `目前品質：${conformance}；內容可信度警示 ${contentWarnings}、阻斷 ${contentBlocked}；證據關卡需注意 ${evidenceAttention}`;
+        const failedCount = Number(data.summary.evidence_failed_count), evidenceFailureSummary = Number.isFinite(failedCount) && failedCount > 0 ? `證據數值不一致 ${Math.floor(failedCount)}` : '';
+        const evidenceReasonSummary = window.StockAgentReportQualityEvidence?.formatUnverifiableReasonSummary?.(data.summary.evidence_unverifiable_reason_counts) || '';
+        const evidenceDetail = [evidenceFailureSummary, evidenceReasonSummary].filter(Boolean).join('；');
+        return `目前品質：${conformance}；內容可信度警示 ${contentWarnings}、阻斷 ${contentBlocked}；證據關卡需注意 ${evidenceAttention}${evidenceDetail ? `；${evidenceDetail}` : ''}`;
     }
 
     function targets(audit, escapeHtml) {
@@ -25,8 +28,8 @@
         if (!data || !data.returned) return '';
         const label = data.summary.items_truncated ? `目前品質待查看（顯示 ${data.returned}/${data.total}）` : `目前品質待查看（${data.total}）`;
         const buttons = data.items.map(item => {
-            const ticker = e(item.ticker || '報告'), pipeline = e(item.pipeline_id || 'v1'), filename = e(item.filename || ''), status = e(statusLabels[item.report_conformance_status] || '無法判定'), content = e(statusLabels[item.content_credibility_status] || '無法判定'), evidence = e(evidenceLabels[item.evidence_exit_gate_verdict] || '無法判定'), reason = e(item.reason || '目前品質狀態需要人工查看。');
-            return filename ? `<button class="watchlist-quality-history-button" type="button" data-quality-history-audit-target data-quality-history-query="${filename}" data-quality-history-pipeline="${pipeline}" aria-label="查看 ${ticker} ${pipeline} 的目前品質"><span>查看 ${ticker} ${pipeline}</span><small>一致性：${status}；內容：${content}；證據：${evidence}；${reason}</small></button>` : '';
+            const ticker = e(item.ticker || '報告'), pipeline = e(item.pipeline_id || 'v1'), filename = e(item.filename || ''), status = e(statusLabels[item.report_conformance_status] || '無法判定'), content = e(statusLabels[item.content_credibility_status] || '無法判定'), evidence = e(evidenceLabels[item.evidence_exit_gate_verdict] || '無法判定'), reason = item.reason || '目前品質狀態需要人工查看。', failedCount = Number(item.evidence_failed_count), evidenceFailureSummary = Number.isFinite(failedCount) && failedCount > 0 ? `證據數值不一致 ${Math.floor(failedCount)}` : '', evidenceReasonSummary = window.StockAgentReportQualityEvidence?.formatUnverifiableReasonSummary?.(item.evidence_unverifiable_reason_counts) || '', reasonText = [reason, evidenceFailureSummary, evidenceReasonSummary].filter(Boolean).map(e).join('；');
+            return filename ? `<button class="watchlist-quality-history-button" type="button" data-quality-history-audit-target data-quality-history-query="${filename}" data-quality-history-pipeline="${pipeline}" aria-label="查看 ${ticker} ${pipeline} 的目前品質"><span>查看 ${ticker} ${pipeline}</span><small>一致性：${status}；內容：${content}；證據：${evidence}；${reasonText}</small></button>` : '';
         }).filter(Boolean).join('');
         return buttons ? `<div class="watchlist-quality-current-targets"><strong>${e(label)}</strong><div class="watchlist-quality-audit-actions">${buttons}</div></div>` : '';
     }

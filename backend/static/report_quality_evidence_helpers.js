@@ -15,7 +15,7 @@
         partial_rerun_unavailable: '重跑策略：目前沒有可用的局部重跑上下文'
     };
     const reportVersionLabels = { current: '版本：目前版本（ticker/pipeline 最新）', historical: '版本：歷史版本（非目前最新）', unknown: '版本：新舊未判定' };
-    const labels = fields => (Array.isArray(fields) ? fields : []).map(field => fieldLabels[field] || field).filter(Boolean).join('、');
+    const verificationReasonLabels = { confidence_metadata_not_evidence: '信心欄位不是證據', legacy_conclusion_without_snapshot_path: '舊結論缺少快照路徑', missing_semantic_path: '缺少語意路徑', no_matching_snapshot_path: '找不到同路徑快照', news_source_not_canonical: '新聞來源非 canonical', research_source_not_canonical: '研究來源非 canonical', snapshot_value_mismatch: '快照數值不一致' }, labels = fields => (Array.isArray(fields) ? fields : []).map(field => fieldLabels[field] || field).filter(Boolean).join('、');
     function context(report) {
         const missingFields = Array.isArray(report?.missing_quality_fields) ? report.missing_quality_fields.filter(Boolean) : [];
         const artifact = report?.artifact_quality_summary && typeof report.artifact_quality_summary === 'object' ? report.artifact_quality_summary : {};
@@ -39,6 +39,6 @@
         const e = escapeHtml || (value => String(value ?? '')), classes = { reviewStatus: 'quality-evidence-review-status', evidenceContext: 'quality-evidence-context', warning: 'quality-evidence-warning', ...(classNames || {}) };
         const parts = [['reviewStatus', values?.reviewStatus], ['evidenceContext', values?.evidenceContext], ['warning', values?.warning]].map(([key, value]) => [key, String(value || '').trim()]).filter(([, value]) => value);
         return { text: parts.map(([, value]) => value).join('；'), html: parts.map(([key, value]) => `<small class="${classes[key]}">${e(value)}</small>`).join('') };
-    }
-    window.StockAgentReportQualityEvidence = { context, fieldLabels, limitation, renderTargetContext };
+    } function formatUnverifiableReasonSummary(counts) { const entries = counts && typeof counts === 'object' && !Array.isArray(counts) ? Object.entries(counts).map(([key, value]) => [String(key || '').trim(), Number(value)]).filter(([key, value]) => key && Number.isFinite(value) && value > 0).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])) : []; return entries.length ? `證據未驗證原因：${entries.map(([key, value]) => `${verificationReasonLabels[key] || key} ${Math.floor(value)}`).join('、')}` : ''; }
+    window.StockAgentReportQualityEvidence = { context, fieldLabels, limitation, renderTargetContext, formatUnverifiableReasonSummary };
 })();
