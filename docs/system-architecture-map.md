@@ -255,6 +255,7 @@ flowchart TD
 - `evidence_exit_gate._check_claim()` 對上述無 canonical path 的新聞價格輸出 `verification_reason_code=news_source_not_canonical`，把來源邊界與一般 `missing_semantic_path` 分開；它只改 read-only diagnostics，不改 verdict、抽樣、snapshot、artifact 或 queue。
 - `evidence_exit_gate._check_claim()` 對 legacy 的短／中／長期目標與長期潛力 claim，在 `rerun_context.parsed`、`structured_outputs` 都是空值且沒有 canonical path 時輸出 `verification_reason_code=legacy_conclusion_without_snapshot_path`；它只改善人工分流，仍保留 `unverifiable`／`caution`，不把 persisted content-credibility 或 conformance metadata 當成來源，也不改 verdict、snapshot、artifact 或 queue。
 - `evidence_exit_gate._is_non_claim_match()` 對資料截止／抓取 metadata 的 `HH:MM` 分鐘 token 採同樣 conservative guard，只有 label 具有時間 metadata 語意且數字前緊接小時冒號時排除，避免時間欄位污染 evidence sample。
+- `evidence_exit_gate._is_non_claim_match()` 對 table 中已含數字與貨幣／單位的 value cell（例如 `NT$464 億 | 18%`）採窄範圍 non-claim guard，避免前一格數值被當成下一格 label；正常 `營收 | NT$464 億` 仍保留，這是 read-only extraction boundary，不改 snapshot、artifact、index、review、rerun 或 queue。
 - `evidence_exit_gate` 對 `River Chart` claim 使用專用 `pe_river_chart.multiples` path hint，放在泛用 P/E hint 之前；這保留一般 P/E、River Chart 與其他 valuation fields 的來源邊界，不做最近數字 fallback。
 - River Chart band claim 會從 raw text 保留倍數身份，例如 `43.2x（中高分位帶）` 映射到 `pe_river_chart.bands.43.2x`；不以整個 bands、multiples 或 generic P/E 的最近數字替代。
 - `P/E 河流圖` 同時帶 `x` 區間／位階與價格單位的 legacy band-price claim（例如 `59.6x 區間：1,379.14 TWD`）限定對應 `pe_river_chart.bands` 集合，容許報告與 snapshot 的 band 倍數標示有小幅版本差異，但不回退到 `pe_ratio`；沒有 band series 仍維持 `unverifiable`。標準的 `x中高分位帶` 格式仍保留精確倍數 path。

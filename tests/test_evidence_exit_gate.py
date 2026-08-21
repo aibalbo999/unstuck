@@ -637,6 +637,29 @@ def test_evidence_claims_ignore_calendar_date_tokens_after_labeled_colons():
     assert not any(claim["reported_value"] == 2026.0 for claim in claims)
 
 
+def test_evidence_claims_ignore_numeric_currency_table_cells_as_labels():
+    from evidence_exit_gate import extract_numeric_claims
+
+    claims = extract_numeric_claims(
+        "| 情境 | 說明 | 營收規模 | 成長率 |\n"
+        "|---|---|---|---|\n"
+        "| **基本** | AI 伺服器維持穩定增長，液冷冷板滲透率達 30%，車用業務穩健。 | NT$464 億 | 18% |"
+    )
+
+    assert not any(claim["label"] == "NT$464 億" for claim in claims)
+    value_cell_claims = extract_numeric_claims("| 營收 | NT$464 億 |")
+    assert value_cell_claims == [
+        {
+            "id": 1,
+            "label": "營收",
+            "reported_value": 464.0,
+            "unit": "億",
+            "line_number": 1,
+            "raw_text": "| 營收 | NT$464 億 |",
+        }
+    ]
+
+
 def test_evidence_claims_ignore_month_day_range_after_labeled_colon():
     from evidence_exit_gate import extract_numeric_claims
 

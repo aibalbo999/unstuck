@@ -12,7 +12,7 @@ _KV_RE = re.compile(
 )
 _TABLE_CELL_RE = re.compile(
     rf"\|\s*(?P<label>[^|\n]{{1,30}})\s*\|\s*[*_`]*\s*(?:[~約])?(?:NT\$|\$)?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>{_NUMERIC_UNIT_PATTERN})?(?:[.．](?=\s*\|))?(?![\dA-Za-z.])\s*\|"
-)
+); _TABLE_VALUE_LABEL_RE = re.compile(rf"^\s*(?:NT\$|\$)?\s*-?\d[\d,]*(?:\.\d+)?\s*(?:{_NUMERIC_UNIT_PATTERN}|billion[_ ]?twd|million[_ ]?twd|thousand[_ ]?twd)\s*$", re.IGNORECASE)
 _SECONDARY_EVIDENCE_RE = re.compile(rf"(?:及|與|以及|,|，)\s*[*_`]*\s*(?:NT\$|\$)?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>{_NUMERIC_UNIT_PATTERN})?\s*[^。\n]{{0,45}}(?:price_history|\d{{1,2}}\s*月份?\s*(?:收盤|收盤平台)|\d{{1,2}}\s*月\s*(?:底|末)(?:低點|高點))[^。\n]{{0,20}}", re.IGNORECASE)
 _NUMBER_IN_STRING_RE = re.compile(r"-?\d[\d,]*(?:\.\d+)?")
 _DATE_PREFIX_RE = re.compile(r"^\s*(?:[（(]|[/.-]\s*\d{1,2}\s*[/.-]\s*\d{1,2}\b)"); _SHORT_DATE_SUFFIX_RE = re.compile(r"^[/.-]\s*\d{1,2}(?!\d)(?=\s*(?:[A-Za-z\u4e00-\u9fff，,；;。]|[-–—]|$))")
@@ -264,7 +264,7 @@ def _relevant_snapshot_values(claim: dict[str, Any], snapshot_values: list[dict[
     ]
 def _is_non_claim_match(line: str, match: re.Match[str]) -> bool:
     timestamp = re.search(r"\d{4}-\d{2}-\d{2}T\d{1,2}:\d{2}:\d{2}", line)
-    if (timestamp and timestamp.start() <= match.start("label") <= timestamp.end()) or re.search(r"`institutional_trading`\s*[:：]\s*\d+\s*-\s*day\s+lookback\b", line, re.IGNORECASE):
+    if (timestamp and timestamp.start() <= match.start("label") <= timestamp.end()) or re.search(r"`institutional_trading`\s*[:：]\s*\d+\s*-\s*day\s+lookback\b", line, re.IGNORECASE) or (match.re is _TABLE_CELL_RE and _TABLE_VALUE_LABEL_RE.fullmatch(match.group("label"))):
         return True
     label = _normalize_match_text(match.group("label")); number_start = match.start("num")
     if any(marker in label for marker in _NORMALIZED_NON_CLAIM_LABEL_MARKERS):

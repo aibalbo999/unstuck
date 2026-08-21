@@ -217,6 +217,8 @@ Report conformance quality gate inputs accept mapping-safe wrappers before decis
 
 Report evidence exit gate numeric checks use semantic snapshot paths only: ISO timestamp fragments, hashes, source-audit metadata, `N/A` cells, and range prefixes are not investment claims; claims without a matching semantic path are recorded as `unverifiable` and do not borrow the nearest unrelated snapshot number. `failed_count` counts only real `mismatch` results, while `unverifiable_count` remains visible and keeps the verdict at least `caution` when no comparable evidence exists.
 
+表格抽查也會忽略「前一格本身已是數字＋貨幣／單位」卻被誤讀成下一格 label 的情況，例如 `NT$464 億 | 18%`；但 `營收 | NT$464 億` 仍會正常抽取並沿用 `revenue` semantic path。這只修正 rendered Markdown 的 value-cell 邊界，不改 snapshot、抽樣、tolerance、verdict 或 persisted quality metadata。
+
 每筆 sampled claim 另提供 `verification_reason_code` 與 `candidate_count`：`matched_snapshot_value` 代表同語意快照值在 tolerance 內，`snapshot_value_mismatch` 代表已有可比對候選但數值不一致，`missing_semantic_path` 代表 claim 沒有安全的 canonical 語意路徑，`no_matching_snapshot_path` 代表有語意路徑但快照沒有對應欄位，`legacy_conclusion_without_snapshot_path` 代表 legacy 結論／目標 claim 缺少 persisted `rerun_context.parsed` 與 `structured_outputs`，不能安全重建 canonical path。這個新 reason 仍是 `unverifiable`、不改 `failed_count` 或 verdict；不可用的衍生分數、新聞價格與跨 provider 數值仍不得借用最近數字。
 
 KV claim 的 label 後若立即接 `8/17 - 8/18`、`8-17` 這類月日範圍，日期 token 會被排除，不會被誤當成法人數量、價格或其他 scalar claim；`08/17法說會後` 這種日期後直接接中文／英文文字的 compact token 也會排除。日期後真正帶單位的數值仍需依既有 semantic path 規則核驗；第三位數字仍會阻止日期判定。

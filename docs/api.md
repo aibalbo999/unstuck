@@ -123,6 +123,8 @@ Trade setup price parsing removes explicit calendar tokens before evaluating tho
 
 Evidence claims that explicitly combine a `P/E River Chart` label, an `x` band/位階 marker, and a price unit use the `data.pe_river_chart.bands` semantic path rather than generic `data.pe_ratio`. This covers legacy wording such as `59.6x 區間：1,379.14 TWD`; when the snapshot has no River Chart band series, the claim remains `unverifiable` and does not borrow a numerically equal generic P/E value.
 
+Table evidence extraction ignores a table value cell that already contains its own numeric currency/unit token when that cell would otherwise be parsed as the next row's label (for example, `NT$464 億 | 18%`). A normal semantic pair such as `營收 | NT$464 億` remains claimable; this is a narrow parser guard and does not alter snapshot values, tolerance, sampling policy, verdicts, or persisted artifacts.
+
 When a parseable 12-month recommendation target and all three canonical scenario targets are present, content credibility also projects the existing final-audit range check: the recommendation target should stay between `bear * 0.7` and `bull * 1.3`. A target outside that explainable range records `recommendation_target_outside_scenario_range` as a warning with the target, bounds, and scenario values. This is read-only warning evidence for historical/API projections; it does not replace final-audit, scenario-order blocking, or create a rerun/repair action.
 
 When a report has a recommendation field but its normalized label is outside `買入|持有|避免|放空`, content credibility records `unrecognized_recommendation_label` as a warning because directional alignment cannot be evaluated. Final-audit remains responsible for the separate structural contract and may still block the report.

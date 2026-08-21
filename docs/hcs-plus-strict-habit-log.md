@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3724 / keep numeric table value cells out of evidence labels
+
+- `#拆解問題` / `#差距分析`：live `3653.TW/v1` 的 `NT$464 億 | 18%` 不是一個名為 `NT$464 億` 的欄位；原 regex 跨 table cell 配對，將上一格數值當成下一格 label。
+- `#偏誤辨識` / `#偏誤降低` / `#可驗證性`：只排除 label 本身已含數字＋貨幣／單位的 table value-cell；正常 `營收 | NT$464 億` 仍可核驗，legacy target、FOMO、新聞價格與真實 mismatch 不放寬。
+- `#來源品質` / `#責任`：RED→GREEN focused `1 passed`、完整品質/evidence/conformance `1104 passed`、import `504 passed`、`py_compile`、`git diff --check`、line guard `349` 通過。reload 後 164 份分布維持 content `99/57/8`、conformance `80/74/10`、evidence `135/26/3`；`missing_semantic_path 21→16` 僅反映移除假 table claim，queue depth `0`、failed_recent `0`，未修改 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3723 / align evidence credibility warnings with current read-only gates
 
 - `#拆解問題` / `#差距分析`：current evidence projection 已是 `approved`，但 recorded content credibility 仍可能殘留 `non_approved_evidence_gate`；問題在 merge 的 stale issue 邊界，而不是 evidence gate 本身失敗。
