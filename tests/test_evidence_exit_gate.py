@@ -658,6 +658,36 @@ def test_evidence_gate_preserves_canonical_downside_mapping():
     assert claim["matched_path"] == "data.downside_pct"
 
 
+def test_evidence_gate_classifies_stop_loss_without_canonical_risk_control():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 防軋空停損點 (Stop-loss level)：1120 TWD",
+        {"data": {"current_price": 1000}},
+        sample_ratio=1.0,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "unverifiable"
+    assert claim["verification_reason_code"] == "risk_control_not_canonical"
+    assert claim["matched_path"] == ""
+
+
+def test_evidence_gate_preserves_canonical_stop_loss_mapping():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 價格停損條件：NT$1120",
+        {"data": {"risk_price": 1120}},
+        sample_ratio=1.0,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "verified"
+    assert claim["verification_reason_code"] == "matched_snapshot_value"
+    assert claim["matched_path"] == "data.risk_price"
+
+
 def test_evidence_gate_keeps_compact_horizons_as_missing_when_context_exists():
     from evidence_exit_gate import evaluate_report_evidence
 

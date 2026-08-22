@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3767 / classify stop-loss controls without canonical risk field
+
+- `#拆解問題` / `#差距分析` / `#來源品質`：fresh residual audit 找到 13 筆 `防軋空停損點`／`價格停損條件`；它們有 stop-loss semantic marker，但 snapshot 沒有 canonical `risk_price`／stop-loss scalar，原本泛化為 `no_matching_snapshot_path`。
+- `#偏誤辨識` / `#偏誤降低` / `#溝通設計`：新增 exact normalized label 的 `risk_control_not_canonical` reason；不把停損價借成 current price、壓力位或其他同值欄位，shared helper 顯示白話「風險控制沒有 canonical 欄位」。若有 `data.risk_price`，仍保留一般 matched/mismatch 判定。
+- `#可驗證性` / `#描述統計` / `#責任`：先取得 RED（stop-loss fixture `1 failed`、canonical field control passed），再 GREEN；backend focused `2 passed`、shared helper `10 passed`、完整 evidence `190 passed`、跨層回歸 `1862 passed`，full artifact `164/2515` 為 `1637 verified / 739 unverifiable / 139 mismatch`，`risk_control_not_canonical=13`、`no_matching_snapshot_path=110`。正式 reload 後 `2308_TW_v3_report_20260815_164400.html`、`3324_TWO_v3_report_20260815_183525.html`、`6282_TW_v3_report_20260815_195444.html` 的 HTML/Markdown/data、health/ready 均 `200`；stop-loss claims 均為 `unverifiable`／`risk_control_not_canonical`／空 matched path，helper/cache-buster `200`；doctor、diff guards 通過，push 待完成。
+
 ## D3766 / classify derived downside metrics without canonical scalar
 
 - `#拆解問題` / `#差距分析` / `#來源品質`：fresh full artifact audit 找到 11 筆 `潛在下行空間` 百分比 claim；這是由現價／目標價推導的 derived metric，snapshot 沒有 canonical `downside_pct` scalar，原本只得到泛化 `no_matching_snapshot_path`。
