@@ -474,6 +474,18 @@ def test_evidence_claims_ignore_institutional_trading_lookback_metadata():
     assert actual_value[0]["reported_value"] == 30.0
 
 
+def test_evidence_claims_ignore_provider_error_codes_and_duration_tokens():
+    from evidence_exit_gate import extract_numeric_claims
+
+    claims = extract_numeric_claims(
+        "- deterministic fallback（模型修復暫不可用：429）\n"
+        "- **Bear Case:** 30-day cumulative net selling remains elevated.\n"
+        "- target price: 429 TWD"
+    )
+
+    assert [(claim["label"], claim["reported_value"]) for claim in claims] == [("target price", 429.0)]
+
+
 def test_evidence_gate_does_not_match_confidence_to_unrelated_snapshot_numbers():
     from evidence_exit_gate import evaluate_report_evidence
 
@@ -509,6 +521,23 @@ def test_evidence_gate_does_not_bind_news_support_or_pressure_to_risk_price():
     assert result["unverifiable_count"] == 2
     assert all(claim["status"] == "unverifiable" for claim in result["sampled_claims"])
     assert all(claim["verification_reason_code"] == "news_source_not_canonical" for claim in result["sampled_claims"])
+
+
+def test_evidence_gate_classifies_intraday_bulletin_support_as_news_source():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 近期支撐：227.0 TWD（參考 2026/07/22 盤中速報大漲點位）。",
+        {"data": {"current_price": 282.0, "target_price_candidates": [306.0, 227.0], "risk_price": 227.0}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "unverifiable"
+    assert claim["verification_reason_code"] == "news_source_not_canonical"
+    assert claim["matched_path"] == ""
+    assert claim["candidate_count"] == 0
 
 
 def test_evidence_gate_reports_missing_semantic_path_for_unknown_numeric_labels():

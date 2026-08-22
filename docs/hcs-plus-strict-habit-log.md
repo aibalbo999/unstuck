@@ -1,5 +1,17 @@
 # HCS Plus Strict Habit Log
 
+## D3770 / classify intraday bulletin prices as news-source evidence
+
+- `#拆解問題` / `#差距分析` / `#來源品質`：fresh residual audit 找到 `8039.TW/v4` 的盤中速報支撐價；snapshot 同時有 target candidates 與 `risk_price` 同值，但沒有盤中來源的 canonical path。
+- `#偏誤辨識` / `#偏誤降低` / `#最小變更`：只把 `盤中速報` 納入既有 news-source boundary，輸出 `news_source_not_canonical`；不借用 target candidates、current price 或 risk price，也保留日期價格／52 週／River Chart 的既有專用 mapping。
+- `#可驗證性` / `#可逆性` / `#責任`：先以同值 target/risk snapshot 取得 RED，再完成 reason mapping、反例 fixture 與文件；backend focused `194 passed`、跨層回歸 `2181 passed`，full artifact `164/2509` 維持 `1637 verified / 733 unverifiable / 139 mismatch`，`news_source_not_canonical=4` 且 `no_matching_snapshot_path=9`。正式 reload 後 8039 HTML/Markdown/data 與 health/ready 均 `200`，helper、doctor、diff guards 與 push 通過。本批只改 read-only diagnostics，不寫 snapshot、artifact、index、review、rerun、repair 或 queue。
+
+## D3769 / exclude provider error codes and duration tokens from evidence claims
+
+- `#拆解問題` / `#差距分析` / `#來源品質`：fresh residual audit 找到 5 筆 fallback `429` 與 1 筆 `30-day` 被抽成 claim；前者是 provider error code，後者是期間文字，兩者都不應進入 numeric evidence。
+- `#偏誤辨識` / `#偏誤降低` / `#最小變更`：在既有 `_is_non_claim_match()` 加入窄範圍 guard，只排除 fallback／error／不可用後的 4xx/5xx 與 duration suffix；`target price: 429 TWD` control 仍保留真正目標價，避免廣泛用數字值刪除規則。
+- `#可驗證性` / `#可逆性` / `#責任`：先取得 parser RED，再完成 GREEN；backend focused `193 passed`、跨層回歸 `2179 passed`，full artifact `164/2509` 維持 `1637 verified / 733 unverifiable / 139 mismatch`，移除 6 個 provider/duration non-claims。正式 runtime reload、doctor、diff guards 與 push 通過。本批只改 read-only extraction boundary，不寫 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3768 / classify scenario targets without canonical scalar
 
 - `#拆解問題` / `#差距分析` / `#來源品質`：fresh full artifact audit 找到 98 筆熊／基／牛情境 claim；它們有 scenario semantic marker，但 snapshot 沒有可回溯的 canonical scenario scalar，原本只顯示 `no_matching_snapshot_path`。
