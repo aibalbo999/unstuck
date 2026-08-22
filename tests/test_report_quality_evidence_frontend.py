@@ -16,7 +16,7 @@ def test_shared_quality_evidence_helper_loads_before_all_consumers():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     helper = "/static/report_quality_evidence_helpers.js"
     assert (STATIC_DIR / "report_quality_evidence_helpers.js").exists()
-    assert f"{helper}?v=20260822-scenario-projection-reason" in index_html
+    assert f"{helper}?v=20260822-unavailable-field-reason" in index_html
     assert "/static/report_quality_gate_policy.js?v=20260816-shared-quality-evidence" in index_html
     assert "/static/report_preview_helpers.js?v=20260820-shared-evidence-detail" in index_html
     assert "/static/report_preview_panel.js?v=20260820-rerun-execution" in index_html
@@ -154,6 +154,19 @@ process.stdout.write(window.StockAgentReportQualityEvidence.formatUnverifiableRe
 """.replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path)))
 
     assert _node(script) == "證據未驗證原因：分析欄位不是證據 3"
+
+
+def test_shared_quality_evidence_labels_unavailable_snapshot_field_reason():
+    evidence_path = STATIC_DIR / "report_quality_evidence_helpers.js"
+    script = """
+global.window = {};
+require(__EVIDENCE_PATH__);
+process.stdout.write(window.StockAgentReportQualityEvidence.formatUnverifiableReasonSummary({
+  snapshot_field_unavailable: 1
+}));
+""".replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path)))
+
+    assert _node(script) == "證據未驗證原因：快照欄位不可用 1"
 
 
 def test_shared_quality_evidence_labels_gap_that_predates_refresh():

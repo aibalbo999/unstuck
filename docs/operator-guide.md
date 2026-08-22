@@ -223,6 +223,8 @@ Report evidence exit gate numeric checks use semantic snapshot paths only: ISO t
 
 每筆 sampled claim 另提供 `verification_reason_code` 與 `candidate_count`：`matched_snapshot_value` 代表同語意快照值在 tolerance 內，`snapshot_value_mismatch` 代表已有可比對候選但數值不一致，`missing_semantic_path` 代表 claim 沒有安全的 canonical 語意路徑，`no_matching_snapshot_path` 代表有語意路徑但快照沒有對應欄位，`legacy_conclusion_without_snapshot_path` 代表 legacy 結論／目標 claim 缺少 persisted `rerun_context.parsed` 與 `structured_outputs`，`research_source_not_canonical` 代表 FactSet／券商研究／市場研究來源沒有同路徑 canonical snapshot，`snapshot_field_unavailable` 代表原文明示 null／N/A／未提供而 canonical snapshot field 沒有數值。這些 reason 都是 `unverifiable`、不改 `failed_count` 或 verdict；不可用的衍生分數、新聞價格、跨 provider 數值與 null 欄位都不得借用最近數字或當成零。
 
+畫面會把 `snapshot_field_unavailable` 顯示成「快照欄位不可用」；這表示來源沒有可核驗值，不表示數字是零，也不表示 parser 漏掉資料。
+
 熊市／基本／牛市情境標籤（包含 `熊/基/牛情境`），以及表格第一欄明示 `熊市`、`基本` 或 `牛市` 的情境目標，若沒有 canonical 情境 scalar，會顯示 `scenario_target_not_canonical` 並維持 `unverifiable`。不要用 `content_credibility`、DCF intrinsic value、現價或其他目標價補值；只有同一路徑的 canonical 情境欄位才依一般 matched/mismatch 規則核對。
 
 5 年成長情境表若第一欄是 `保守`、`悲觀`、`中性`、`基準` 或 `樂觀`，且附近文字是情境預測、年營收或 CAGR（或數值單位是 `億`），沒有 canonical 預測路徑時會顯示 `analysis_metadata_not_evidence` 並維持 `unverifiable`。不要把現況營收、分析師目標價或另一個情境數字借來當成預測證據。

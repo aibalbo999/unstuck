@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3775 / label unavailable canonical snapshot fields
+
+- `#拆解問題` / `#差距分析` / `#來源品質`：唯一 `snapshot_field_unavailable` 是 `6141.TW/v4` 的 `Short Balance: 0 (or null/not provided...)`；snapshot 的 `short_balance` 是 `None`，backend 已正確維持 `unverifiable`，不把來源缺值當零。
+- `#偏誤辨識` / `#偏誤降低` / `#溝通設計`：只補 shared helper 的 operator label「快照欄位不可用」與 cache-buster，不改既有 reason、candidate、verdict 或任何資料來源邊界。
+- `#可驗證性` / `#可逆性` / `#責任`：full artifact 與 backend gate 不變；frontend focused、live helper、Node syntax、diff guards 與 push 待完成。本批只改 read-only presentation，不寫 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3774 / classify unbacked growth-scenario revenue projections
 
 - `#拆解問題` / `#差距分析` / `#來源品質`：fresh residual audit 的最後 3 筆 `missing_semantic_path` 是 `3653.TW/v1` 的 `保守 NT$357 億`，以及 `2367.TW/v1` 的 `保守 NT$185 億`、`樂觀 NT$265 億`；它們位於 5 年後年營收情境表，不是現況 revenue 或 scenario target。
