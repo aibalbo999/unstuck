@@ -688,6 +688,39 @@ def test_evidence_gate_preserves_canonical_stop_loss_mapping():
     assert claim["matched_path"] == "data.risk_price"
 
 
+def test_evidence_gate_classifies_scenario_targets_without_canonical_scalar():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 熊市情境：80 TWD\n- 基本情境：100 TWD\n- 牛市情境：120 TWD\n- 熊/基/牛情境：100 TWD",
+        {"data": {"current_price": 100}, "content_credibility": {"checks": {"target_price": 100}}},
+        sample_ratio=1.0,
+    )
+
+    claims = result["sampled_claims"]
+    assert len(claims) == 4
+    assert {claim["label"] for claim in claims} == {"熊市情境", "基本情境", "牛市情境", "熊/基/牛情境"}
+    assert {claim["status"] for claim in claims} == {"unverifiable"}
+    assert {claim["verification_reason_code"] for claim in claims} == {"scenario_target_not_canonical"}
+    assert {claim["matched_path"] for claim in claims} == {""}
+    assert result["unverifiable_reason_counts"] == {"scenario_target_not_canonical": 4}
+
+
+def test_evidence_gate_preserves_canonical_scenario_target_mapping():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 基本情境：100 TWD",
+        {"data": {"price_targets": {"基本情境": 100}}},
+        sample_ratio=1.0,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "verified"
+    assert claim["verification_reason_code"] == "matched_snapshot_value"
+    assert claim["matched_path"] == "data.price_targets.基本情境"
+
+
 def test_evidence_gate_keeps_compact_horizons_as_missing_when_context_exists():
     from evidence_exit_gate import evaluate_report_evidence
 
@@ -3702,7 +3735,7 @@ def test_evidence_gate_does_not_borrow_price_history_for_scenario_target():
 
     assert claim["status"] == "unverifiable"
     assert claim["matched_path"] == ""
-    assert claim["verification_reason_code"] == "no_matching_snapshot_path"
+    assert claim["verification_reason_code"] == "scenario_target_not_canonical"
     assert claim["candidate_count"] == 0
 
 

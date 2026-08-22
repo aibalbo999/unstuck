@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3768 / classify scenario targets without canonical scalar
+
+- `#拆解問題` / `#差距分析` / `#來源品質`：fresh full artifact audit 找到 98 筆熊／基／牛情境 claim；它們有 scenario semantic marker，但 snapshot 沒有可回溯的 canonical scenario scalar，原本只顯示 `no_matching_snapshot_path`。
+- `#偏誤辨識` / `#偏誤降低` / `#最小變更`：只對 exact normalized `熊市情境`、`基本情境`、`牛市情境`、`熊基牛情境` 輸出 `scenario_target_not_canonical`；不借用 `content_credibility`、DCF intrinsic value、current price 或其他 target path，且保留有 canonical `price_targets` 情境欄位時的正常核驗。
+- `#可驗證性` / `#可逆性` / `#責任`：先以無 canonical scenario snapshot fixture 取得 RED，再加入 reason mapping、shared helper/cache-buster 與 canonical control；backend focused `192 passed`、shared helper `10 passed`、跨層回歸 `2179 passed`，full artifact `164/2515` 維持 `1637 verified / 739 unverifiable / 139 mismatch`，新增 `scenario_target_not_canonical=98` 且 `no_matching_snapshot_path=12`。正式 reload 後目標 artifact 的 HTML/Markdown/data 與 health/ready 均 `200`，helper、doctor、diff guards 與 push 通過。本批只改 read-only diagnostics，不寫 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3767 / classify stop-loss controls without canonical risk field
 
 - `#拆解問題` / `#差距分析` / `#來源品質`：fresh residual audit 找到 13 筆 `防軋空停損點`／`價格停損條件`；它們有 stop-loss semantic marker，但 snapshot 沒有 canonical `risk_price`／stop-loss scalar，原本泛化為 `no_matching_snapshot_path`。
