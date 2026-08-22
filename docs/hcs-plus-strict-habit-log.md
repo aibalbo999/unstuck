@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3771 / classify narrative technical levels without canonical scalar
+
+- `#拆解問題` / `#差距分析` / `#來源品質`：fresh residual audit 找到 `心理關卡`、`第二支撐`、`關鍵支撐區` 三筆敘事技術價位；它們有價格語意，但 snapshot 沒有可回溯的 canonical technical-level／`risk_price` scalar。
+- `#偏誤辨識` / `#偏誤降低` / `#最小變更`：只對 exact normalized labels 輸出 `technical_level_not_canonical`；不借用 current price、target candidates 或附近 history，且保留 `data.risk_price` canonical control 的正常核驗。
+- `#可驗證性` / `#可逆性` / `#責任`：先以三個 no-candidate fixture 取得 RED，再加入 reason mapping、shared helper/cache-buster、canonical control 與文件；backend focused `196 passed`、shared helper `10 passed`、跨層回歸 `2183 passed`，full artifact `164/2509` 維持 `1637 verified / 733 unverifiable / 139 mismatch`，新增 `technical_level_not_canonical=3` 且 `no_matching_snapshot_path=6`。正式 reload 後三個目標 artifact 的 HTML/Markdown/data 與 health/ready 均 `200`，helper、doctor、diff guards 與 push 通過。本批只改 read-only diagnostics，不寫 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3770 / classify intraday bulletin prices as news-source evidence
 
 - `#拆解問題` / `#差距分析` / `#來源品質`：fresh residual audit 找到 `8039.TW/v4` 的盤中速報支撐價；snapshot 同時有 target candidates 與 `risk_price` 同值，但沒有盤中來源的 canonical path。

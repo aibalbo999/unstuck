@@ -16,7 +16,7 @@ def test_shared_quality_evidence_helper_loads_before_all_consumers():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     helper = "/static/report_quality_evidence_helpers.js"
     assert (STATIC_DIR / "report_quality_evidence_helpers.js").exists()
-    assert f"{helper}?v=20260822-scenario-target-reason" in index_html
+    assert f"{helper}?v=20260822-technical-level-reason" in index_html
     assert "/static/report_quality_gate_policy.js?v=20260816-shared-quality-evidence" in index_html
     assert "/static/report_preview_helpers.js?v=20260820-shared-evidence-detail" in index_html
     assert "/static/report_preview_panel.js?v=20260820-rerun-execution" in index_html
@@ -130,6 +130,7 @@ process.stdout.write(JSON.stringify({
     derived_metric_not_canonical: 4,
     risk_control_not_canonical: 2,
     scenario_target_not_canonical: 2,
+    technical_level_not_canonical: 2,
     research_source_not_canonical: 2,
     unknown_reason: 1,
     no_matching_snapshot_path: 0
@@ -139,7 +140,7 @@ process.stdout.write(JSON.stringify({
 
     payload = json.loads(_node(script))
 
-    assert payload["summary"] == "證據未驗證原因：衍生指標沒有 canonical 欄位 4、快照數值不一致 3、研究來源非 canonical 2、風險控制沒有 canonical 欄位 2、情境目標沒有 canonical 欄位 2、unknown_reason 1"
+    assert payload["summary"] == "證據未驗證原因：衍生指標沒有 canonical 欄位 4、快照數值不一致 3、研究來源非 canonical 2、風險控制沒有 canonical 欄位 2、情境目標沒有 canonical 欄位 2、技術價位沒有 canonical 欄位 2、unknown_reason 1"
 
 
 def test_shared_quality_evidence_labels_gap_that_predates_refresh():

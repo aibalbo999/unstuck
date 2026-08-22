@@ -225,6 +225,8 @@ Report evidence exit gate numeric checks use semantic snapshot paths only: ISO t
 
 熊市／基本／牛市情境標籤（包含 `熊/基/牛情境`）若沒有 canonical 情境 scalar，會顯示 `scenario_target_not_canonical` 並維持 `unverifiable`。不要用 `content_credibility`、DCF intrinsic value、現價或其他目標價補值；只有同一路徑的 canonical 情境欄位才依一般 matched/mismatch 規則核對。
 
+`心理關卡`、`第二支撐`、`關鍵支撐區` 這類敘事技術價位若沒有 canonical 技術價位／`risk_price` scalar，會顯示 `technical_level_not_canonical` 並維持 `unverifiable`。不要借用現價、target candidates 或附近歷史數字；若有 `risk_price`，才依一般 matched/mismatch 規則核對。
+
 宏觀 claim 也遵守同一路徑原則：`US CPI YoY` 只有在 `data.macro_indicators.indicators.us_cpi_yoy.value` 存在時才算 verified；即使 `^TNX` 或其他全球／宏觀節點有相同數字，也不能借值通過。
 
 國際市場敘述若同句明示 `S&P 500`、台股加權指數與 `Change 1d`，第一個變動值才會核對 `data.global_market_context.items[spy].change_1d_pct`；不會因數值相同就改用 `^TWII` 或其他 symbol。缺少 SPY 的 canonical field 時，請保留 `unverifiable`。

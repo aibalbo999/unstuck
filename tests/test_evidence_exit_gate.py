@@ -717,6 +717,37 @@ def test_evidence_gate_preserves_canonical_stop_loss_mapping():
     assert claim["matched_path"] == "data.risk_price"
 
 
+def test_evidence_gate_classifies_narrative_technical_levels_without_canonical_scalar():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 心理關卡：300 TWD\n- 第二支撐：13 TWD\n- 關鍵支撐區：502 TWD",
+        {"data": {"current_price": 100}, "content_credibility": {"checks": {"target_price": 300}}},
+        sample_ratio=1.0,
+    )
+
+    claims = result["sampled_claims"]
+    assert {claim["label"] for claim in claims} == {"心理關卡", "第二支撐", "關鍵支撐區"}
+    assert {claim["status"] for claim in claims} == {"unverifiable"}
+    assert {claim["verification_reason_code"] for claim in claims} == {"technical_level_not_canonical"}
+    assert {claim["matched_path"] for claim in claims} == {""}
+
+
+def test_evidence_gate_preserves_canonical_technical_level_mapping():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 心理關卡：300 TWD",
+        {"data": {"risk_price": 300}},
+        sample_ratio=1.0,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "verified"
+    assert claim["verification_reason_code"] == "matched_snapshot_value"
+    assert claim["matched_path"] == "data.risk_price"
+
+
 def test_evidence_gate_classifies_scenario_targets_without_canonical_scalar():
     from evidence_exit_gate import evaluate_report_evidence
 
