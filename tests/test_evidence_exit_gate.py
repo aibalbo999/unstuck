@@ -748,6 +748,48 @@ def test_evidence_gate_preserves_canonical_technical_level_mapping():
     assert claim["matched_path"] == "data.risk_price"
 
 
+def test_evidence_gate_classifies_generic_support_levels_without_canonical_scalar():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 近期支撐：179.5 TWD（前述區間上緣）\n- 支撐位：100.5 元（近期技術支撐位）",
+        {"data": {"current_price": 100}},
+        sample_ratio=1.0,
+    )
+
+    assert {claim["verification_reason_code"] for claim in result["sampled_claims"]} == {"technical_level_not_canonical"}
+    assert {claim["matched_path"] for claim in result["sampled_claims"]} == {""}
+
+
+def test_evidence_gate_classifies_explicit_agent_score_context_as_analysis_metadata():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 多頭護城河說明（Agent 3 評分：6）",
+        {"data": {"current_price": 100}},
+        sample_ratio=1.0,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "unverifiable"
+    assert claim["verification_reason_code"] == "analysis_metadata_not_evidence"
+    assert claim["matched_path"] == ""
+
+
+def test_evidence_gate_keeps_long_agent_score_label_context_after_raw_text_truncation():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- " + "長敘述優勢" * 30 + "（Agent 3 評分：6）",
+        {"data": {"current_price": 100}},
+        sample_ratio=1.0,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["verification_reason_code"] == "analysis_metadata_not_evidence"
+    assert claim["status"] == "unverifiable"
+
+
 def test_evidence_gate_classifies_scenario_targets_without_canonical_scalar():
     from evidence_exit_gate import evaluate_report_evidence
 

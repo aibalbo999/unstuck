@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3772 / refine generic support and explicit agent-score boundaries
+
+- `#拆解問題` / `#差距分析` / `#來源品質`：fresh residual audit 找到兩筆一般 `近期支撐`、一筆 `支撐位` 與兩筆 `Agent 3 評分` 長敘述 claim；它們分別缺 canonical technical level，或是分析 metadata label 被敘述文字包住。
+- `#偏誤辨識` / `#偏誤降低` / `#最小變更`：擴充 exact normalized technical-level set 至 `近期支撐`／`支撐位`，並只對 explicit `Agent 3 評分`／`Agent 3 score` context 使用既有 `analysis_metadata_not_evidence`；不改正常 `risk_price`、price-history 或 canonical analysis path。
+- `#可驗證性` / `#可逆性` / `#責任`：先取得 generic-level／long-label RED，再完成 reason mapping、shared helper、canonical controls 與文件；backend focused `199 passed`、shared helper `10 passed`、跨層回歸 `2186 passed`，full artifact `164/2509` 維持 `1637 verified / 733 unverifiable / 139 mismatch`，`analysis_metadata_not_evidence=101`、`technical_level_not_canonical=6` 且 `no_matching_snapshot_path=1`。正式 reload 後 6282、2344、3653 目標 artifact 與 health/ready 均 `200`，3653 次要月末價仍 verified；helper、doctor、diff guards 與 push 通過。本批只改 read-only diagnostics，不寫 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3771 / classify narrative technical levels without canonical scalar
 
 - `#拆解問題` / `#差距分析` / `#來源品質`：fresh residual audit 找到 `心理關卡`、`第二支撐`、`關鍵支撐區` 三筆敘事技術價位；它們有價格語意，但 snapshot 沒有可回溯的 canonical technical-level／`risk_price` scalar。
