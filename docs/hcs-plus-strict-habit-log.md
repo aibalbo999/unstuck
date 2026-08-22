@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3773 / classify unbacked scenario table targets
+
+- `#拆解問題` / `#差距分析` / `#來源品質`：fresh residual audit 找到 `1623.TW/v2` 的熊市情境 table target；表格有 `熊市` context 與 NT$178，但沒有 canonical parsed/structured target path，原本落在唯一 `no_matching_snapshot_path`。
+- `#偏誤辨識` / `#偏誤降低` / `#最小變更`：只對 table first-cell `熊市`／`基本`／`牛市` context 分流 `scenario_target_not_canonical`；不借用 DCF、current price、quality metadata 或其他 target path，並保留 canonical `rerun_context.parsed.price_targets.bear` control。
+- `#可驗證性` / `#可逆性` / `#責任`：先取得 no-canonical table RED，再完成 context boundary、canonical control 與文件；focused evidence `200 passed`、跨層回歸 `2187 passed`、full artifact `164/2509` 為 `1637 verified / 733 unverifiable / 139 mismatch`，`scenario_target_not_canonical=100`、`missing_semantic_path=3`、`no_matching_snapshot_path=0`；正式 runtime 的 HTML/Markdown/data、health/ready、helper 均 `200`，live claim 為 `unverifiable`／`scenario_target_not_canonical`／空 matched path，doctor、py_compile、line guard `349`、diff check 通過，commit/push 待完成。本批只改 read-only diagnostics，不寫 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3772 / refine generic support and explicit agent-score boundaries
 
 - `#拆解問題` / `#差距分析` / `#來源品質`：fresh residual audit 找到兩筆一般 `近期支撐`、一筆 `支撐位` 與兩筆 `Agent 3 評分` 長敘述 claim；它們分別缺 canonical technical level，或是分析 metadata label 被敘述文字包住。

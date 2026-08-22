@@ -790,6 +790,21 @@ def test_evidence_gate_keeps_long_agent_score_label_context_after_raw_text_trunc
     assert claim["status"] == "unverifiable"
 
 
+def test_evidence_gate_classifies_unbacked_scenario_table_target():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "| **熊市** | 專案交付持續遞延，營運資金積壓 | NT$178 |",
+        {"data": {"current_price": 100}},
+        sample_ratio=1.0,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "unverifiable"
+    assert claim["verification_reason_code"] == "scenario_target_not_canonical"
+    assert claim["matched_path"] == ""
+
+
 def test_evidence_gate_classifies_scenario_targets_without_canonical_scalar():
     from evidence_exit_gate import evaluate_report_evidence
 
