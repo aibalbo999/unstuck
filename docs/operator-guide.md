@@ -225,6 +225,8 @@ Report evidence exit gate numeric checks use semantic snapshot paths only: ISO t
 
 熊市／基本／牛市情境標籤（包含 `熊/基/牛情境`），以及表格第一欄明示 `熊市`、`基本` 或 `牛市` 的情境目標，若沒有 canonical 情境 scalar，會顯示 `scenario_target_not_canonical` 並維持 `unverifiable`。不要用 `content_credibility`、DCF intrinsic value、現價或其他目標價補值；只有同一路徑的 canonical 情境欄位才依一般 matched/mismatch 規則核對。
 
+5 年成長情境表若第一欄是 `保守`、`悲觀`、`中性`、`基準` 或 `樂觀`，且附近文字是情境預測、年營收或 CAGR（或數值單位是 `億`），沒有 canonical 預測路徑時會顯示 `analysis_metadata_not_evidence` 並維持 `unverifiable`。不要把現況營收、分析師目標價或另一個情境數字借來當成預測證據。
+
 `心理關卡`、`第二支撐`、`關鍵支撐區`、`近期支撐`、`支撐位` 這類敘事技術價位若沒有 canonical 技術價位／`risk_price` scalar，會顯示 `technical_level_not_canonical` 並維持 `unverifiable`。不要借用現價、target candidates 或附近歷史數字；若有 `risk_price`，才依一般 matched/mismatch 規則核對。句內明示 `Agent 3 評分` 的長敘述則歸為 `analysis_metadata_not_evidence`，不因 label 前面有敘述文字而漏掉分析 metadata 邊界。
 
 宏觀 claim 也遵守同一路徑原則：`US CPI YoY` 只有在 `data.macro_indicators.indicators.us_cpi_yoy.value` 存在時才算 verified；即使 `^TNX` 或其他全球／宏觀節點有相同數字，也不能借值通過。

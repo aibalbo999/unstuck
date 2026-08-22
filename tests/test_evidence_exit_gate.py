@@ -805,6 +805,26 @@ def test_evidence_gate_classifies_unbacked_scenario_table_target():
     assert claim["matched_path"] == ""
 
 
+def test_evidence_gate_classifies_unbacked_scenario_projection_revenue():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "## 五、成長情境預測（5年）\n"
+        "| 情境 | 核心假設 | 5年後年營收 (2030) | CAGR |\n"
+        "| :--- | :--- | ---: | ---: |\n"
+        "| **保守** | AI 需求放緩 | NT$357 億 | 12% |\n"
+        "| **樂觀** | 液冷全面導入 | NT$697 億 | 28% |",
+        {"data": {"current_price": 100}},
+        sample_ratio=1.0,
+    )
+
+    claims = result["sampled_claims"]
+    assert {claim["reported_value"] for claim in claims} == {357.0, 697.0}
+    assert {claim["status"] for claim in claims} == {"unverifiable"}
+    assert {claim["verification_reason_code"] for claim in claims} == {"analysis_metadata_not_evidence"}
+    assert {claim["matched_path"] for claim in claims} == {""}
+
+
 def test_evidence_gate_classifies_scenario_targets_without_canonical_scalar():
     from evidence_exit_gate import evaluate_report_evidence
 

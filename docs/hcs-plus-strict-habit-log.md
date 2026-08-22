@@ -1,10 +1,16 @@
 # HCS Plus Strict Habit Log
 
+## D3774 / classify unbacked growth-scenario revenue projections
+
+- `#拆解問題` / `#差距分析` / `#來源品質`：fresh residual audit 的最後 3 筆 `missing_semantic_path` 是 `3653.TW/v1` 的 `保守 NT$357 億`，以及 `2367.TW/v1` 的 `保守 NT$185 億`、`樂觀 NT$265 億`；它們位於 5 年後年營收情境表，不是現況 revenue 或 scenario target。
+- `#偏誤辨識` / `#偏誤降低` / `#最小變更`：只在 table first-cell 為 `保守`／`悲觀`／`中性`／`基準`／`樂觀`，且 context 明示情境預測、年營收或 CAGR 時輸出既有 `analysis_metadata_not_evidence`；不借用現況營收、分析師目標價或另一個情境值，有 candidate 時仍走一般核驗。
+- `#可驗證性` / `#可逆性` / `#責任`：先取得 3 筆 residual RED，再完成 reason boundary、shared helper 白話標籤、canonical control 與文件；backend focused `201 passed`、shared frontend `11 passed`、跨層回歸 `2189 passed`，full artifact `164/2509` 為 `1637 verified / 733 unverifiable / 139 mismatch`，`analysis_metadata_not_evidence=104`、`missing_semantic_path=0`、`scenario_target_not_canonical=100`；正式 runtime 的兩份目標 artifact HTML/Markdown/data、health/ready、helper 均 `200`，三筆 live claim 均為 `unverifiable`／`analysis_metadata_not_evidence`／空 matched path，doctor、py_compile、Node syntax、line guard `349`、helper `44`、diff guards 通過，commit/push 待完成。本批只改 read-only diagnostics，不寫 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3773 / classify unbacked scenario table targets
 
 - `#拆解問題` / `#差距分析` / `#來源品質`：fresh residual audit 找到 `1623.TW/v2` 的熊市情境 table target；表格有 `熊市` context 與 NT$178，但沒有 canonical parsed/structured target path，原本落在唯一 `no_matching_snapshot_path`。
 - `#偏誤辨識` / `#偏誤降低` / `#最小變更`：只對 table first-cell `熊市`／`基本`／`牛市` context 分流 `scenario_target_not_canonical`；不借用 DCF、current price、quality metadata 或其他 target path，並保留 canonical `rerun_context.parsed.price_targets.bear` control。
-- `#可驗證性` / `#可逆性` / `#責任`：先取得 no-canonical table RED，再完成 context boundary、canonical control 與文件；focused evidence `200 passed`、跨層回歸 `2187 passed`、full artifact `164/2509` 為 `1637 verified / 733 unverifiable / 139 mismatch`，`scenario_target_not_canonical=100`、`missing_semantic_path=3`、`no_matching_snapshot_path=0`；正式 runtime 的 HTML/Markdown/data、health/ready、helper 均 `200`，live claim 為 `unverifiable`／`scenario_target_not_canonical`／空 matched path，doctor、py_compile、line guard `349`、diff check 通過，commit/push 待完成。本批只改 read-only diagnostics，不寫 snapshot、artifact、index、review、rerun、repair 或 queue。
+- `#可驗證性` / `#可逆性` / `#責任`：先取得 no-canonical table RED，再完成 context boundary、canonical control 與文件；focused evidence `200 passed`、跨層回歸 `2187 passed`、full artifact `164/2509` 為 `1637 verified / 733 unverifiable / 139 mismatch`，`scenario_target_not_canonical=100`、`missing_semantic_path=3`、`no_matching_snapshot_path=0`；正式 runtime 的 HTML/Markdown/data、health/ready、helper 均 `200`，live claim 為 `unverifiable`／`scenario_target_not_canonical`／空 matched path，doctor、py_compile、line guard `349`、diff check、commit/push `83160ba8` 通過。本批只改 read-only diagnostics，不寫 snapshot、artifact、index、review、rerun、repair 或 queue。
 
 ## D3772 / refine generic support and explicit agent-score boundaries
 
