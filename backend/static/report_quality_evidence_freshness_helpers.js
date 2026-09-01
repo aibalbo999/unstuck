@@ -9,13 +9,15 @@
             : [];
     }
 
-    function formatUnverifiableReasonFreshnessSummary(groups) {
+    function formatUnverifiableReasonFreshnessSummary(groups, reports) {
         const entries = groups && typeof groups === 'object' && !Array.isArray(groups)
             ? Object.entries(groups).map(([key, value]) => [String(key || '').trim().toLowerCase(), value]).filter(([key, value]) => freshnessLabels[key] && value && typeof value === 'object' && !Array.isArray(value)).sort((a, b) => (freshnessOrder[a[0]] ?? 9) - (freshnessOrder[b[0]] ?? 9))
             : [];
         const parts = entries.map(([key, counts]) => {
             const reasons = reasonEntries(counts);
-            return reasons.length ? `${freshnessLabels[key]}（${reasons.map(([reason, count]) => `${reasonLabels[reason] || reason} ${Math.floor(count)}`).join('、')}）` : '';
+            const reportCount = Number(reports?.[key]);
+            const reportSummary = Number.isFinite(reportCount) && reportCount >= 0 ? `；涉及 ${Math.floor(reportCount)} 份報告` : '';
+            return reasons.length ? `${freshnessLabels[key]}（${reasons.map(([reason, count]) => `${reasonLabels[reason] || reason} ${Math.floor(count)}`).join('、')}${reportSummary}）` : '';
         }).filter(Boolean);
         return parts.length ? `證據未驗證版本：${parts.join('、')}` : '';
     }

@@ -73,6 +73,11 @@ def test_current_quality_summary_keeps_gate_distributions_separate_and_bounds_ta
         "needs_rerun": {"missing_semantic_path": 1},
         "unknown": {"no_matching_snapshot_path": 2},
     }
+    assert payload["evidence_unverifiable_reports_by_freshness"] == {
+        "current": 0,
+        "needs_rerun": 1,
+        "unknown": 1,
+    }
     assert payload["evidence_mismatch_claims_by_freshness"] == {
         "current": 0,
         "needs_rerun": 1,
