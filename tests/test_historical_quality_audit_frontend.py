@@ -161,6 +161,32 @@ process.stdout.write(JSON.stringify({ html }));
     assert "目前顯示第 3-4 份，共 4 份" not in payload["html"]
 
 
+def test_history_current_quality_rejects_items_above_total():
+    helper_path = STATIC_DIR / "history_current_quality_helpers.js"
+    script = """
+global.window = {};
+require(__HELPER_PATH__);
+const result = window.StockAgentHistoricalCurrentQualityHelpers.validated({
+  schema_version: 'report_current_quality_summary.v1',
+  scope: 'historical_filter_current_latest',
+  selection_basis: 'latest_per_ticker_pipeline',
+  audited_reports: 1,
+  non_passed_reports: 0,
+  items_total: 0,
+  items_returned: 1,
+  report_conformance_by_status: { passed: 1, warning: 0, blocked: 0, unknown: 0 },
+  content_credibility_by_status: { passed: 1, warning: 0, blocked: 0, unknown: 0 },
+  evidence_exit_gate_by_verdict: { approved: 1, caution: 0, rejected: 0, unknown: 0 },
+  items: [{ ticker: 'BAD', pipeline_id: 'v1', filename: 'bad.html' }]
+});
+process.stdout.write(JSON.stringify({ valid: Boolean(result) }));
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert payload["valid"] is False
+
+
 def test_history_quality_audit_renders_missing_field_scope_and_filters():
     helper_path = STATIC_DIR / "history_panel_quality_helpers.js"
     renderer_path = STATIC_DIR / "history_quality_audit_render.js"

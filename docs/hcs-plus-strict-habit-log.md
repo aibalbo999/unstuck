@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3813 / reject invalid historical current-quality item counts
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：watchlist validator 已拒絕 `returned > total`，但 history current-quality validator 沒有；矛盾 target list 可能通過摘要 projection。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以 `total=0 / returned=1 / items.length=1` 取得 RED，補上 `returned <= total`；保留既有 watchlist regression，避免兩個 current-quality 入口再次分叉。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新 history helper cache-buster 與 API/operator/architecture 說明；focused regression `304 passed`，official live historical `current_quality_summary` 為 `0/85` 且 `items.length=0`、validator 正常，static assets `200`、health/ready `200/200`、doctor canonical paths 正常。本批不改 API count、quality gate、queue、snapshot、artifact、index、review 或 rerun state。
+
 ## D3812 / prioritize history scope warnings over page ranges
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：歷史稽核 renderer 在有 `items_offset` 時優先輸出頁碼範圍，若同頁 `items_returned > items_limit`，操作員看不到 bounded scope contradiction。
