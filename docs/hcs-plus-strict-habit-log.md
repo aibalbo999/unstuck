@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3803 / make notification-repair queue targets explicit
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：全 action type contract table 對照 backend、notification/outbox 與 operator UI 後，發現 `fix_notification_delivery` 的 queue item 沒有 `target_panel`，但 frontend 會依 type 推導 `maintenance-panel`；這是 API/UI target drift，不是 notification 發送問題。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先在既有 notification-delivery health fixture 加入 `maintenance-panel / ops` assertion 取得 RED，再只在 queue item producer 補明確 target；保留 `suppress_notification=true`，避免故障通道自我通知。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：API 與 operator UI 現在共享可讀的「查看通知通道」維護入口；focused test `1 passed`、scoped regression `1113 passed`、正式 reload 後 module/live smoke 與 health/ready/doctor 通過，文件檢查與 push 完成後收斂本批。
+
 ## D3802 / align candidate notification CTA with the operator workbench
 
 - `#拆解問題` / `#語意含義` / `#差距分析`：live queue/notification 交叉表的首屏五筆一致，但 `review_candidate` 的 backend shared table 仍輸出 `open-ops / 查看候選`，frontend candidate mapping 與既有設計契約已輸出 `candidate-snapshot / 查看股票快照`；target `market-screener-panel / screener` 本身沒有漂移。

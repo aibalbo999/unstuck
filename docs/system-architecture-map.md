@@ -202,6 +202,7 @@ flowchart TD
 - `daily_decision_queue` 只負責跨來源收集與排序；到期回測、重跑報告與報告日期解析由 `daily_decision_report_actions` 承接，兩者都只做純 payload shaping，不 enqueue、不寫 report/index/review state。
 - `daily_decision_route_warnings` 的 `model_route_warning` item 使用 `operator_action_contract.navigation_context()` 輸出 `open-ops`、`查看路由`、`api-quota-panel`、`ops`；queue、notification message 與 delivery outbox 對同一 route warning 應保留相同 CTA/target metadata，明確自訂值仍優先。
 - `review_candidate` 的 shared operator contract 輸出 `candidate-snapshot`、`查看股票快照`、`market-screener-panel`、`screener`；notification message 與 delivery outbox 必須沿用這組 metadata，避免候選通知退回舊的 `open-ops`、`查看候選` generic CTA。operator summary 仍保留候選專用的快照、追蹤、選擇分析模式三個按鈕，因為它們由既有 candidate callbacks 處理。
+- `fix_notification_delivery` 是 queue-only repair action，必須直接帶出 `open-ops`、`查看通知通道`、`maintenance-panel`、`ops`；它仍以 `suppress_notification=true` 排除 notification message/outbox，但 queue API 與 operator UI 不應各自猜測維護面板 target。
 - RQ queue observability 必須同時保留 per-queue registry counts；`failed_queue_count` 是總量，`failed_queue_attention_count` 依 `failure_ttl` 的 7 天門檻判定近期需處理量，供 ops status、Prometheus 與維運面板共用，不自動清除或重試 failed jobs。
 - stale failed queue 的清理走 `queue_maintenance.cleanup_stale_failed_jobs`，由 `POST /api/maintenance/cleanup-failed-queue`、維護面板與 `scripts/maintenance.sh cleanup-failed-queue` 共用；預設 dry-run，只有 mutation token 加明確 `write=true` 才刪除能由 `ended_at`/`created_at` 證明已過期的 job，近期或無法判定年齡的 job 保留。
 - 維護面板四個清理按鈕共用 `maintenance_action_helpers.js` 的 preview-confirmation gate；報告索引、任務紀錄、來源健康紀錄與 stale queue 都先用 `write=false` 取得候選數，取消、零候選或確認器不可用時不呼叫 `write=true`。

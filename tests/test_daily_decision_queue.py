@@ -2968,6 +2968,8 @@ def test_daily_decision_queue_surfaces_notification_delivery_health():
     assert queue["items"][0]["attention_contexts"][0]["context"]["target_panel"] == "provider-sla-panel"
     assert "reason=timeout 2, auth 1" in queue["items"][0]["detail"]
     assert queue["items"][0]["suppress_notification"] is True
+    assert queue["items"][0]["target_panel"] == "maintenance-panel"
+    assert queue["items"][0]["target_tab"] == "ops"
     assert queue["summary"]["sources"]["notification_delivery"] == 1
 
 

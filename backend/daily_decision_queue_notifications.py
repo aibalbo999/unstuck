@@ -52,6 +52,7 @@ def notification_delivery_items(ops: dict[str, Any]) -> list[dict[str, Any]]:
         "attention_contexts": _safe_contexts(attention_contexts),
         "operator_action": "open-ops",
         "operator_action_label": "查看通知通道",
+        "target_panel": "maintenance-panel",
         "target_tab": "ops",
         "suppress_notification": True,
     }]
