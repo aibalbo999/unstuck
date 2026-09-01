@@ -6,6 +6,7 @@ from typing import Any
 
 from mapping_fields import safe_dict_list, safe_mapping_dict, safe_text, safe_text_list
 from report_quality_metadata_repair import quality_metadata_repair_item
+from report_quality_retry_actions import content_final_audit_retry_detail, final_audit_retry_detail
 
 GateRule = tuple[str, int, str, str, str, str, list[str], bool]
 
@@ -20,8 +21,6 @@ REPORT_CONFORMANCE_RULES: dict[str, GateRule] = {
     "warning": ("warning", 740, "manual_review", "人工審核", "報告符合性需確認", "報告符合主要契約，但仍需人工確認。", ["report_conformance_warning"], False),
 }
 
-FINAL_AUDIT_RETRY_MARKERS = ("輸出為失敗訊息", "缺少 Agent 輸出", "仍含佔位文字")
-
 EVIDENCE_EXIT_GATE_RULES: dict[str, GateRule] = {
     "rejected": ("blocked", 940, "manual_review", "人工審核", "證據抽查未通過", "報告數字未能對上資料快照。", ["evidence_exit_gate_rejected"], True),
     "caution": ("warning", 720, "manual_review", "人工審核", "數字證據需核對", "部分報告數字需人工確認。", ["evidence_exit_gate_caution"], False),
@@ -29,7 +28,8 @@ EVIDENCE_EXIT_GATE_RULES: dict[str, GateRule] = {
 
 
 def content_credibility_repair_item(report: dict[str, Any]) -> dict[str, Any] | None:
-    return _gate_repair_item(report, "content_credibility", "status", CONTENT_CREDIBILITY_RULES)
+    retry_detail = content_final_audit_retry_detail(_field(report, "content_credibility"))
+    return _item(severity="blocked", priority=840, action="rerun_analysis", label="完整重跑", title="Agent 輸出失敗，建議重跑", detail=retry_detail, reason_codes=["final_audit_agent_retry"]) if retry_detail else _gate_repair_item(report, "content_credibility", "status", CONTENT_CREDIBILITY_RULES)
 
 
 def report_conformance_repair_item(report: dict[str, Any]) -> dict[str, Any] | None:
@@ -184,4 +184,4 @@ def _has_stale_source(trust: dict[str, Any], codes: list[str]) -> bool:
 
 
 def _final_audit_retry_detail(gate: dict[str, Any]) -> str | None:
-    return next((detail for issue in safe_dict_list(_field(gate, "blocking_issues")) if _status(_field(issue, "id")) == "final_audit" for detail in (safe_text_list(_field(issue, "details")) or [safe_text(_field(issue, "details")).strip()]) if any(marker in detail for marker in FINAL_AUDIT_RETRY_MARKERS)), None)
+    return final_audit_retry_detail(gate)

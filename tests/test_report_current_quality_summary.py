@@ -239,6 +239,36 @@ def test_current_quality_item_exposes_rerun_action_for_retryable_final_audit():
     assert payload["items"][0]["quality_action"]["reason_codes"] == ["final_audit_agent_retry"]
 
 
+def test_current_quality_item_exposes_rerun_action_for_content_final_audit_failure():
+    payload = build_current_quality_summary(
+        [{
+            "ticker": "2367.TW",
+            "filename": "2367_v2.html",
+            "pipeline_id": "v2",
+            "report_conformance": {"status": "passed"},
+            "content_credibility": {
+                "status": "blocked",
+                "blocking_issues": [{
+                    "id": "final_audit_critical",
+                    "details": {"critical": ["缺少 Agent 輸出：7"]},
+                }],
+            },
+            "evidence_exit_gate": {"verdict": "approved"},
+        }],
+        scope="all_indexed_reports",
+    )
+
+    assert payload["quality_gate_action_counts"] == {"rerun_analysis": 1}
+    assert payload["items"][0]["quality_action"] == {
+        "recommended_action": "rerun_analysis",
+        "action_label": "完整重跑",
+        "title": "Agent 輸出失敗，建議重跑",
+        "detail": "缺少 Agent 輸出：7",
+        "reason_codes": ["final_audit_agent_retry"],
+        "blocks_auto_rerun": False,
+    }
+
+
 def test_filtered_indexed_current_quality_summary_has_explicit_latest_scope(monkeypatch, tmp_path):
     import report_current_quality_summary as current_quality
 

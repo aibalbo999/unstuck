@@ -97,6 +97,73 @@ def test_report_quality_repair_items_project_warning_detail_from_content_warning
     assert item["blocks_auto_rerun"] is False
 
 
+def test_content_credibility_agent_failure_recommends_rerun_without_blocking_auto_rerun():
+    from report_quality_repair_items import content_credibility_repair_item
+
+    item = content_credibility_repair_item(
+        {
+            "content_credibility": {
+                "status": "blocked",
+                "blocking_issues": [
+                    {
+                        "id": "final_audit_critical",
+                        "details": {"critical": ["技術動能分析師 輸出為失敗訊息，不能產生正式報告。"]},
+                    }
+                ],
+            }
+        }
+    )
+
+    assert item["recommended_action"] == "rerun_analysis"
+    assert item["action_label"] == "完整重跑"
+    assert item["priority_score"] == 840
+    assert item["reason_codes"] == ["final_audit_agent_retry"]
+    assert item["blocks_auto_rerun"] is False
+
+
+def test_content_credibility_mixed_blockers_stays_manual_review():
+    from report_quality_repair_items import content_credibility_repair_item
+
+    item = content_credibility_repair_item(
+        {
+            "content_credibility": {
+                "status": "blocked",
+                "blocking_issues": [
+                    {
+                        "id": "final_audit_critical",
+                        "details": {"critical": ["缺少 Agent 輸出：7"]},
+                    },
+                    {"id": "explicit_target_price_low_data_confidence", "message": "目標價資料信心不足。"},
+                ],
+            }
+        }
+    )
+
+    assert item["recommended_action"] == "manual_review"
+    assert item["blocks_auto_rerun"] is True
+    assert item["reason_codes"] == ["content_credibility_blocked"]
+
+
+def test_content_credibility_non_retryable_final_audit_stays_manual_review():
+    from report_quality_repair_items import content_credibility_repair_item
+
+    item = content_credibility_repair_item(
+        {
+            "content_credibility": {
+                "status": "blocked",
+                "blocking_issues": [{
+                    "id": "final_audit_critical",
+                    "details": {"critical": ["主力籌碼分析師：公司身分污染。"]},
+                }],
+            }
+        }
+    )
+
+    assert item["recommended_action"] == "manual_review"
+    assert item["blocks_auto_rerun"] is True
+    assert item["reason_codes"] == ["content_credibility_blocked"]
+
+
 def test_report_quality_repair_items_project_missing_quality_metadata():
     assert importlib.util.find_spec("report_quality_repair_items") is not None
     helpers = importlib.import_module("report_quality_repair_items")
@@ -488,6 +555,35 @@ def test_report_conformance_agent_failure_recommends_rerun_without_blocking_auto
     assert item["reason_codes"] == ["final_audit_agent_retry"]
     assert item["blocks_auto_rerun"] is False
     assert "輸出為失敗訊息" in item["detail"]
+
+
+def test_repair_queue_routes_content_credibility_agent_failure_to_full_rerun():
+    from report_quality_repair_queue import build_report_quality_repair_queue
+
+    queue = build_report_quality_repair_queue(
+        [
+            {
+                "ticker": "2367.TW",
+                "filename": "2367_v2_failed_agent.html",
+                "pipeline_id": "v2",
+                "report_conformance": {"status": "passed"},
+                "content_credibility": {
+                    "status": "blocked",
+                    "blocking_issues": [
+                        {
+                            "id": "final_audit_critical",
+                            "details": {"critical": ["技術動能分析師 輸出為失敗訊息，不能產生正式報告。"]},
+                        }
+                    ],
+                },
+            }
+        ]
+    )
+
+    item = queue["items"][0]
+    assert item["recommended_action"] == "rerun_analysis"
+    assert item["action_label"] == "完整重跑"
+    assert item["blocks_auto_rerun"] is False
 
 
 def test_report_conformance_non_retryable_final_audit_stays_manual_review():
