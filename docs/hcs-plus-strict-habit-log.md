@@ -1,5 +1,17 @@
 # HCS Plus Strict Habit Log
 
+## D3799 / isolate evidence claim semantics from the gate
+
+- `#拆解問題` / `#證據基礎` / `#責任`：import-boundary RED 明確指出 `evidence_exit_gate.py` 同時承擔 claim extraction、非 claim 過濾、semantic path mapping 與 numeric matching；這些都是純邏輯，與 sampling/verdict orchestration 不同責任。
+- `#偏誤降低` / `#最小變更` / `#語意含義`：將 claim parser、path hint、best-match 與 numeric normalization 收斂到 `evidence_exit_gate_claims.py`，主 gate 只保留 sampling、snapshot flatten、candidate check 與 verdict；public import 與 canonical evidence 邊界不變。
+- `#可驗證性` / `#可逆性` / `#受眾`：主模組 `426→202` 行、helper `346` 行；evidence gate `215 passed`、evidence + import-boundary `719 passed`，`py_compile`、`git diff --check` 通過。本批只改模組責任邊界，不改 verdict、tolerance、snapshot、artifact、index、review、rerun、repair 或 queue。
+
+## D3798 / isolate current-quality item projections
+
+- `#拆解問題` / `#證據基礎` / `#責任`：import-boundary RED 指出 `report_current_quality_summary.py` 把 status normalization、evidence residual accounting、blocker projection 與 item shaping 堆在 index/cache orchestration 旁，增加跨層修改風險。
+- `#偏誤降低` / `#最小變更` / `#語意含義`：新增 `report_current_quality_item_helpers.py` 承接純 projection helper，主模組保留 report page collection、cache、aggregate 與既有 public builder；透過原有品質與 audit 測試守住 payload contract。
+- `#可驗證性` / `#可逆性` / `#受眾`：主模組 `442→289` 行、helper `174` 行；quality summary/audit/dashboard/frontend targeted regression `107 passed`，後續 import-boundary 全套為 `719 passed`，不改 current scope、quality predicate、freshness、queue 或 mutation。
+
 ## D3797 / keep monitor fallback outside displayed work counts
 
 - `#拆解問題` / `#語意含義` / `#證據基礎`：live queue 與既有 empty-state 測試交叉核對後，確認 `items` 的 UI 佔位與 `summary.displayed_count` 的工作分母不一致；空 queue 目前是 `monitor` 一項但 actionable 為零。
