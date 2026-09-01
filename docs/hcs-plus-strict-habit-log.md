@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3788 / align current-quality item order with repair priority
+
+- `#拆解問題` / `#差距分析` / `#效用`：全量 current-quality `85` 筆原本只依 gate 嚴重度與檔名排序；同為 blocked 時，priority `840` 的可重跑 Agent failure 可能排在 priority `1000` 的內容矛盾前，操作員首屏順序與既有 repair queue 不一致。
+- `#決策樹` / `#責任` / `#可驗證性`：改用「品質嚴重度 →既有 quality action priority →檔名」的 deterministic key，新增 `items_sort_basis=quality_attention_then_action_priority_then_filename`；只改 read-only current projection 的排序，不改 gate status、action、截斷上限或任何 mutation，legacy frontend 仍可忽略新欄位。
+- `#證據基礎` / `#表達` / `#可逆性`：新增排序比較組測試；current/repair/audit `100 passed`、完整品質跨層 `1412 passed in 222.04s`、frontend/history/filter/HCS `261 passed`，Node syntax、`py_compile`、`git diff --check` 通過。正式 reload 後 live `165` 份、`85` 筆品質項目、API `items_sort_basis` 正確且顯示 `5/85`；首屏先列低資料信心目標價與建議／報酬矛盾，healthz/readyz `ok/ready`、三個 action 資產 HTTP `200`，doctor canonical paths 正確。本批不寫 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3787 / surface canonical quality action reasons in operator UI
 
 - `#受眾` / `#語意含義` / `#溝通設計`：live current-quality API 已有 `quality_action.title/detail`，但 watchlist 項目原本只顯示「建議處理：人工審核／完整重跑」，evidence rejected 或 conformance fallback 的操作員仍要進歷史查核才能知道原因。
