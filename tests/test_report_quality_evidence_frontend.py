@@ -16,12 +16,15 @@ def test_shared_quality_evidence_helper_loads_before_all_consumers():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     helper = "/static/report_quality_evidence_helpers.js"
     action_scope_helper = "/static/report_quality_action_scope_helpers.js"
+    queue_scope_helper = "/static/report_quality_queue_scope_helpers.js"
     freshness_helper = "/static/report_quality_evidence_freshness_helpers.js"
     assert (STATIC_DIR / "report_quality_evidence_helpers.js").exists()
     assert (STATIC_DIR / "report_quality_action_scope_helpers.js").exists()
+    assert (STATIC_DIR / "report_quality_queue_scope_helpers.js").exists()
     assert (STATIC_DIR / "report_quality_evidence_freshness_helpers.js").exists()
     assert f"{helper}?v=20260902-quality-action-detail" in index_html
     assert f"{action_scope_helper}?v=20260902-quality-action-scope-by-freshness" in index_html
+    assert f"{queue_scope_helper}?v=20260902-repair-queue-scope" in index_html
     assert f"{freshness_helper}?v=20260902-evidence-freshness" in index_html
     assert "/static/report_quality_gate_policy.js?v=20260816-shared-quality-evidence" in index_html
     assert "/static/report_preview_helpers.js?v=20260820-shared-evidence-detail" in index_html
@@ -30,11 +33,13 @@ def test_shared_quality_evidence_helper_loads_before_all_consumers():
     assert "/static/history_current_quality_helpers.js?v=20260902-quality-action-detail" in index_html
     assert "/static/watchlist_freshness_helpers.js?v=20260821-freshness-targets" in index_html
     assert "/static/watchlist_current_quality_helpers.js?v=20260902-quality-action-detail" in index_html
-    assert "/static/watchlist_panel_helpers.js?v=20260902-queue-secondary-summary" in index_html
+    assert "/static/watchlist_panel_helpers.js?v=20260902-repair-queue-scope" in index_html
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
     assert "/static/styles/history_list.css?v=20260816-clickable-quality-evidence" in style_css
     assert index_html.index(helper) < index_html.index("/static/report_quality_gate_policy.js")
     assert index_html.index(action_scope_helper) < index_html.index("/static/report_quality_gate_policy.js")
+    assert index_html.index(queue_scope_helper) < index_html.index("/static/operator_dashboard_actions.js")
+    assert index_html.index(queue_scope_helper) < index_html.index("/static/watchlist_panel_helpers.js")
     assert index_html.index(freshness_helper) < index_html.index("/static/report_quality_gate_policy.js")
     assert index_html.index(helper) < index_html.index("/static/watchlist_panel_helpers.js")
     assert index_html.index("/static/watchlist_freshness_helpers.js") < index_html.index("/static/watchlist_panel_helpers.js")
@@ -42,6 +47,7 @@ def test_shared_quality_evidence_helper_loads_before_all_consumers():
     assert index_html.index(action_scope_helper) < index_html.index("/static/report_preview_helpers.js")
     assert index_html.index("/static/history_current_quality_helpers.js") < index_html.index("/static/history_quality_audit_render.js")
     assert len((STATIC_DIR / "report_quality_evidence_helpers.js").read_text(encoding="utf-8").splitlines()) < 45
+    assert len((STATIC_DIR / "report_quality_queue_scope_helpers.js").read_text(encoding="utf-8").splitlines()) < 60
 
 
 def test_preview_and_history_share_clickable_quality_evidence_context():

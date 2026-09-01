@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3807 / share bounded repair queue scope across operator entries
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：同一份 live daily payload 在 operator dashboard 已顯示 repair target `5 / 9`，watchlist「今日工作台」卻只顯示取樣 `20` 份；兩個操作入口對可見範圍的語意不一致。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先用真實形狀 fixture 取得 watchlist RED，再新增 `report_quality_queue_scope_helpers.js`，以同一個 fail-closed formatter 驗證非負整數、`returned <= required/limit` 與截斷旗標；更新 index load order/cache-buster，保留 legacy/矛盾資料的舊文案與既有 queue/mutation。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：API、operator guide、architecture map 明示 dashboard 與 watchlist 共用範圍規則；focused frontend/static/docs `275 passed`，official live formatter 兩入口均為 `5 / 9`，三個 static asset `200`，health/ready `200/200`、doctor canonical paths 正常。
+
 ## D3806 / surface bounded repair queue scope in operator dashboard
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：API 已有 repair queue 的 bounded metadata，但 operator dashboard 只讀總數與 action 分布；操作員看得到 5 筆 target，卻無法知道 sample 內完整 actionable count 是 9。

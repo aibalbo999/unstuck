@@ -6094,12 +6094,12 @@ def test_candidate_next_actions_assets_use_shared_cache_buster():
     assert "/static/watchlist_freshness_helpers.js?v=20260821-freshness-targets" in index_html
     assert "/static/watchlist_current_quality_helpers.js?v=20260902-quality-action-detail" in index_html
     assert "/static/report_quality_evidence_freshness_helpers.js?v=20260902-evidence-freshness" in index_html
-    assert "/static/watchlist_panel_helpers.js?v=20260902-queue-secondary-summary" in index_html
+    assert "/static/watchlist_panel_helpers.js?v=20260902-repair-queue-scope" in index_html
     assert "/static/watchlist_panel.js?v=20260816-scoped-quality-review-navigation" in index_html
     assert "/static/maintenance_action_helpers.js?v=20260816-maintenance-confirmation" in index_html
     assert "/static/maintenance_panel_helpers.js?v=20260816-maintenance-confirmation" in index_html
     assert "/static/maintenance_panel.js?v=20260816-maintenance-confirmation" in index_html
-    assert "/static/operator_dashboard_actions.js?v=20260902-queue-secondary-summary" in index_html
+    assert "/static/operator_dashboard_actions.js?v=20260902-repair-queue-scope" in index_html
     assert "/static/operator_summary_panel.js?v=20260902-report-sample-scope" in index_html
     assert "/static/app_panels.js?v=20260816-historical-quality-audit" in index_html
     assert "/static/styles/operator_summary.css?v=20260711-candidate-next-actions-v3" in style_css
@@ -6108,16 +6108,21 @@ def test_candidate_next_actions_assets_use_shared_cache_buster():
 def test_daily_workbench_renders_notification_attention_contexts():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     daily_context_path = STATIC_DIR / "daily_decision_queue_context.js"
+    queue_scope_path = STATIC_DIR / "report_quality_queue_scope_helpers.js"
     operator_actions_path = STATIC_DIR / "operator_dashboard_actions.js"
     watchlist_helpers_path = STATIC_DIR / "watchlist_panel_helpers.js"
 
     assert "/static/daily_decision_queue_context.js" in index_html
+    assert "/static/report_quality_queue_scope_helpers.js" in index_html
     assert index_html.index("/static/daily_decision_queue_context.js") < index_html.index("/static/operator_dashboard_actions.js")
+    assert index_html.index("/static/report_quality_queue_scope_helpers.js") < index_html.index("/static/operator_dashboard_actions.js")
+    assert index_html.index("/static/report_quality_queue_scope_helpers.js") < index_html.index("/static/watchlist_panel_helpers.js")
     assert index_html.index("/static/daily_decision_queue_context.js") < index_html.index("/static/watchlist_panel_helpers.js")
 
     script = """
 global.window = {};
 require(__DAILY_CONTEXT_PATH__);
+require(__QUEUE_SCOPE_PATH__);
 require(__OPERATOR_ACTIONS_PATH__);
 require(__WATCHLIST_HELPERS_PATH__);
 const payload = {
@@ -6149,7 +6154,7 @@ const payload = {
 const actions = window.StockAgentOperatorDashboardActions.dashboardActionItems(payload);
 const board = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], payload, value => String(value ?? ''));
 process.stdout.write(JSON.stringify({ detail: actions[0].detail, board }));
-""".replace("__DAILY_CONTEXT_PATH__", json.dumps(str(daily_context_path))).replace("__OPERATOR_ACTIONS_PATH__", json.dumps(str(operator_actions_path))).replace("__WATCHLIST_HELPERS_PATH__", json.dumps(str(watchlist_helpers_path)))
+""".replace("__DAILY_CONTEXT_PATH__", json.dumps(str(daily_context_path))).replace("__QUEUE_SCOPE_PATH__", json.dumps(str(queue_scope_path))).replace("__OPERATOR_ACTIONS_PATH__", json.dumps(str(operator_actions_path))).replace("__WATCHLIST_HELPERS_PATH__", json.dumps(str(watchlist_helpers_path)))
     result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
     payload = json.loads(result.stdout)
 
@@ -8162,6 +8167,7 @@ def test_frontend_static_modules_are_sized():
         "operator_summary_panel.js": 105,
         "operator_summary_quality_helpers.js": 95,
         "operator_summary_helpers.js": 90,
+        "report_quality_queue_scope_helpers.js": 60,
         "operator_dashboard_actions.js": 90,
         "decision_tracking_panel.js": 125,
         "decision_tracking_helpers.js": 80,

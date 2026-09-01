@@ -81,8 +81,10 @@ process.stdout.write(JSON.stringify(text));
 
 def test_operator_dashboard_text_includes_bounded_repair_queue_scope():
     module_path = STATIC_DIR / "operator_dashboard_actions.js"
+    scope_path = STATIC_DIR / "report_quality_queue_scope_helpers.js"
     script = """
 global.window = {};
+require(__SCOPE_PATH__);
 require(__MODULE_PATH__);
 const payload = {
   summary: {
@@ -97,7 +99,7 @@ const payload = {
 };
 const text = window.StockAgentOperatorDashboardActions.dashboardText(payload);
 process.stdout.write(JSON.stringify(text));
-""".replace("__MODULE_PATH__", json.dumps(str(module_path)))
+""".replace("__SCOPE_PATH__", json.dumps(str(scope_path))).replace("__MODULE_PATH__", json.dumps(str(module_path)))
     result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
     payload = json.loads(result.stdout)
 
@@ -106,8 +108,10 @@ process.stdout.write(JSON.stringify(text));
 
 def test_operator_dashboard_text_ignores_inconsistent_repair_queue_scope():
     module_path = STATIC_DIR / "operator_dashboard_actions.js"
+    scope_path = STATIC_DIR / "report_quality_queue_scope_helpers.js"
     script = """
 global.window = {};
+require(__SCOPE_PATH__);
 require(__MODULE_PATH__);
 const payload = {
   summary: {
@@ -122,7 +126,7 @@ const payload = {
 };
 const text = window.StockAgentOperatorDashboardActions.dashboardText(payload);
 process.stdout.write(JSON.stringify(text));
-""".replace("__MODULE_PATH__", json.dumps(str(module_path)))
+""".replace("__SCOPE_PATH__", json.dumps(str(scope_path))).replace("__MODULE_PATH__", json.dumps(str(module_path)))
     result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
     payload = json.loads(result.stdout)
 
@@ -865,11 +869,11 @@ def test_historical_audit_navigation_wiring_uses_cache_busters_and_existing_scop
     assert "/static/watchlist_freshness_helpers.js?v=20260821-freshness-targets" in index_html
     assert "/static/watchlist_current_quality_helpers.js?v=20260902-quality-action-detail" in index_html
     assert "/static/report_quality_evidence_freshness_helpers.js?v=20260902-evidence-freshness" in index_html
-    assert "/static/watchlist_panel_helpers.js?v=20260902-queue-secondary-summary" in index_html
+    assert "/static/watchlist_panel_helpers.js?v=20260902-repair-queue-scope" in index_html
     assert "/static/watchlist_panel.js?v=20260816-scoped-quality-review-navigation" in index_html
     assert "/static/history_filters.js?v=20260816-history-scope-persistence" in index_html
     assert "/static/history_workspace.js?v=20260816-scope-transient-state-guard" in index_html
-    assert "/static/operator_dashboard_actions.js?v=20260902-queue-secondary-summary" in index_html
+    assert "/static/operator_dashboard_actions.js?v=20260902-repair-queue-scope" in index_html
     assert "/static/operator_summary_panel.js?v=20260902-report-sample-scope" in index_html
     assert "/static/app.js?v=20260821-quality-audit-action" in index_html
     assert "/static/styles/watchlist.css?v=20260816-daily-quality-target-context" in style_css

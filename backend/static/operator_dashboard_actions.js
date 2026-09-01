@@ -33,8 +33,7 @@
         return `全量分析新鮮度：需完整重跑 ${Math.floor(needsRerunReports)} / ${Math.floor(auditedReports)} 份${unknownReports > 0 ? `、無法判定 ${Math.floor(unknownReports)}` : ''}`;
     }
     function reportRepairScopeText(payload) {
-        const summary = payload?.repair_queue?.summary || {}; const required = summary.action_required, limit = summary.items_limit, returned = summary.items_returned; const valid = [required, limit, returned].every(value => Number.isInteger(value) && value >= 0) && returned <= required && returned <= limit && typeof summary.items_truncated === 'boolean' && summary.items_truncated === (returned < required);
-        return valid && returned < required ? `修復 queue：顯示 ${returned} / 共 ${required}` : '';
+        return window.StockAgentReportQualityQueueScope?.boundedRepairQueueScope?.(payload?.repair_queue?.summary) || '';
     }
     function dashboardText(payload) {
         const queue = payload?.decision_queue || {};

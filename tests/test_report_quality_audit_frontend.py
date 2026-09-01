@@ -63,6 +63,32 @@ process.stdout.write(JSON.stringify({ board }));
     assert payload["board"].count('class="watchlist-daily-quality-item"') == 11
 
 
+def test_watchlist_board_surfaces_bounded_repair_queue_scope():
+    helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
+    scope_path = STATIC_DIR / "report_quality_queue_scope_helpers.js"
+    script = """
+global.window = {};
+require(__SCOPE_PATH__);
+require(__HELPER_PATH__);
+const payload = {
+  decision_queue: { summary: { total_actionable: 0 }, items: [{ type: 'monitor' }] },
+  repair_queue: {
+    summary: { sampled_reports: 20, action_required: 9, items_limit: 5, items_returned: 5, items_truncated: true }
+  },
+  report_quality_audit: {
+    scope: 'all_indexed_reports',
+    quality_metadata_missing_reports: 1
+  }
+};
+const board = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], payload, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ board }));
+""".replace("__SCOPE_PATH__", json.dumps(str(scope_path))).replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "修復 queue：顯示 5 / 共 9" in payload["board"]
+
+
 def test_watchlist_board_does_not_infer_unreturned_quality_gap_sample_overlap():
     helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
     script = """
