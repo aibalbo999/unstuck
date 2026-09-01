@@ -167,6 +167,8 @@ complete overlap 還必須符合「sample 內 + sample 外 = 全部品質缺口�
 
 complete overlap 也必須返回全部缺口項目（`returned = gap`）；宣稱 complete 卻缺少項目時會省略 exact split，避免把部分比較當成全量。
 
+歷史版本品質稽核的報告、缺口、審核、版本、artifact、snapshot 與分頁計數也只接受有限非負整數；fractional 或 malformed 值不會被截斷成假數字，核心範圍不完整時會顯示「資料需確認」。
+
 按下「核准保留缺口／退回處理／暫緩」後，該按鈕會暫時鎖定並顯示忙碌狀態；同一筆 review 在回應完成前不會重複送出。成功會顯示「人工審核已儲存」，失敗會顯示錯誤且恢復按鈕，操作員可在確認 revision 後重試。這不代表品質 gate 被自動修復，真正決策仍以 canonical review ledger 為準。
 
 輸入核對理由後，畫面會再次確認是否要把目前決策寫入這個報告版本。選擇取消不會送出請求，也不會新增 review ledger event；選擇確認後仍須通過 server 的 mutation token 與 revision 檢查。

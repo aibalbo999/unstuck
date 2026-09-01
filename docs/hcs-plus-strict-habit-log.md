@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3821 / reject fractional historical audit counts
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：歷史稽核仍把 fractional/malformed count floor 成整數，會把 `2.5` 缺口與 `1.5` snapshot/error count 變成可採信的報告數。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先以完整 fractional/malformed RED 鎖定所有摘要類別，再加入有限非負整數 validator；不借用其他欄位補造 invalid 核心範圍，legacy 缺欄位才沿用既有 fallback。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新 history renderer cache-buster、API/operator/architecture 說明與 regression；focused/full regression `314 passed`，新 asset `200`，live historical audit `1175/59/5/59/truncated=true` 正常保留，synthetic fractional/malformed counts 被抑制，health/ready `200/200`、doctor canonical paths 正常。本批不改 audit、quality gate、queue、snapshot、artifact、index、review 或 rerun state。
+
 ## D3820 / require complete overlap item coverage
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`status=complete` 只看 split counts 仍不夠；`gap=2`、`returned=1` 會把部分 item comparison 當成 exact split。

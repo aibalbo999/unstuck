@@ -135,6 +135,55 @@ process.stdout.write(JSON.stringify({ html }));
     assert "2 份品質 metadata 缺口（目前顯示 2 份，另有 0 份未展開）" not in payload["html"]
 
 
+def test_history_quality_audit_does_not_floor_fractional_or_malformed_counts():
+    renderer_path = STATIC_DIR / "history_quality_audit_render.js"
+    script = """
+global.window = {};
+require(__RENDERER_PATH__);
+const html = window.StockAgentHistoricalQualityAuditRenderer.render({
+  audited_reports: 10.5,
+  quality_metadata_missing_reports: 2.5,
+  verified_snapshot_reports: 9.5,
+  quality_metadata_complete_reports: 7.5,
+  snapshot_invalid_reports: 1.5,
+  snapshot_unverified_reports: 0.5,
+  missing_quality_field_counts: { report_conformance: 1.5, evidence_exit_gate: Infinity, content_credibility: 0.5 },
+  quality_metadata_missing_by_provenance: { before_refresh: 1.5 },
+  quality_metadata_missing_by_rerun_execution: { full_rerun_required: 1.5 },
+  quality_metadata_missing_by_rerun_context: { missing: 1.5 },
+  quality_review_by_status: { pending: 1.5 },
+  quality_metadata_missing_by_version_status: { current: 1.5 },
+  artifact_quality_summary_by_status: { present: 1.5 },
+  artifact_quality_summary_by_field: { report_conformance: 1.5 },
+  quality_metadata_by_pipeline: { v1: { quality_metadata_missing_reports: 1.5 } },
+  items_total: 2.5,
+  items_returned: 1.5,
+  items_limit: 1.5,
+  items_truncated: true,
+  items: []
+}, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ html }));
+""".replace("__RENDERER_PATH__", json.dumps(str(renderer_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "範圍：10 份" not in payload["html"]
+    assert "範圍：資料需確認" in payload["html"]
+    assert "品質 metadata 範圍資料需確認" in payload["html"]
+    assert "snapshot 無法驗證" not in payload["html"]
+    assert "2 份品質 metadata 缺口" not in payload["html"]
+    assert "報告一致性 1" not in payload["html"]
+    assert "模式缺口：v1 1" not in payload["html"]
+    assert "版本：目前版本缺口 1" not in payload["html"]
+    assert "審核狀態：待人工核對 1" not in payload["html"]
+    assert "來源：刷新前已有缺口 1" not in payload["html"]
+    assert "重跑策略：完整重跑 1" not in payload["html"]
+    assert "上下文：無可用局部上下文 1" not in payload["html"]
+    assert "artifact 摘要可查 1 份" not in payload["html"]
+    assert "1.5" not in payload["html"]
+    assert "2.5" not in payload["html"]
+
+
 def test_history_quality_audit_prioritizes_scope_warning_over_page_range():
     scope_path = STATIC_DIR / "report_quality_queue_scope_helpers.js"
     renderer_path = STATIC_DIR / "history_quality_audit_render.js"
@@ -878,7 +927,7 @@ def test_history_workspace_wires_historical_quality_audit_without_daily_queue_si
     assert "/static/api_client_extensions.js?v=20260821-current-quality-summary" in index_html
     assert "/static/watchlist_panel_actions.js?v=20260821-current-quality-background" in index_html
     assert "/static/history_panel_quality_helpers.js?v=20260820-quality-version-filter" in index_html
-    assert "/static/history_quality_audit_render.js?v=20260902-bounded-page" in index_html
+    assert "/static/history_quality_audit_render.js?v=20260902-integer-counts" in index_html
     assert "/static/history_quality_audit.js?v=20260820-quality-version-filter" in index_html
     assert index_html.index("/static/history_quality_audit_render.js") < index_html.index("/static/history_quality_audit.js")
     assert len((STATIC_DIR / "history_panel_quality_helpers.js").read_text(encoding="utf-8").splitlines()) < 120

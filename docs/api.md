@@ -43,6 +43,8 @@ The watchlist repair sample label applies the same finite non-negative integer c
 
 The read-only `repair_sample_overlap` label applies that contract to `audit_gap_reports`, `audit_gap_reports_in_repair_sample`, `audit_gap_reports_outside_repair_sample`, and `audit_gap_items_returned`; if any displayed overlap count is malformed or fractional, the overlap sentence is omitted instead of flooring a partial statistic.
 
+The historical quality audit renderer applies the same finite non-negative integer contract to audit, gap, provenance, rerun, review, version, artifact, snapshot, pipeline, and bounded item counts; malformed or fractional values are omitted, and invalid core scope counts show `資料需確認` instead of being floored into a report count.
+
 For `status=complete`, the watchlist overlap label also requires `audit_gap_reports_in_repair_sample + audit_gap_reports_outside_repair_sample` to equal `audit_gap_reports`; contradictory integer counts are omitted rather than presented as an exact split.
 
 The same `status=complete` label requires `audit_gap_items_returned` to equal `audit_gap_reports`; a supposedly complete envelope with missing gap items is omitted rather than treated as a full comparison.
