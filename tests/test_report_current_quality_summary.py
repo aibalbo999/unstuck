@@ -98,6 +98,11 @@ def test_current_quality_summary_keeps_gate_distributions_separate_and_bounds_ta
         "needs_rerun": 1,
         "unknown": 0,
     }
+    assert payload["quality_gate_action_counts_by_freshness"] == {
+        "current": {},
+        "needs_rerun": {"manual_review": 1},
+        "unknown": {"manual_review": 1},
+    }
     assert payload["items"][0]["content_credibility_blocker_ids"] == [
         "explicit_target_price_low_data_confidence",
     ]

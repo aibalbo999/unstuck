@@ -21,7 +21,7 @@ def test_shared_quality_evidence_helper_loads_before_all_consumers():
     assert (STATIC_DIR / "report_quality_action_scope_helpers.js").exists()
     assert (STATIC_DIR / "report_quality_evidence_freshness_helpers.js").exists()
     assert f"{helper}?v=20260902-quality-action-detail" in index_html
-    assert f"{action_scope_helper}?v=20260902-quality-action-scope" in index_html
+    assert f"{action_scope_helper}?v=20260902-quality-action-scope-by-freshness" in index_html
     assert f"{freshness_helper}?v=20260902-evidence-freshness" in index_html
     assert "/static/report_quality_gate_policy.js?v=20260816-shared-quality-evidence" in index_html
     assert "/static/report_preview_helpers.js?v=20260820-shared-evidence-detail" in index_html
@@ -316,11 +316,28 @@ require(__EVIDENCE_PATH__);
 require(__ACTION_SCOPE_PATH__);
 process.stdout.write(window.StockAgentReportQualityActionScope.formatQualityActionProjectionSummary(
   { manual_review: 2, rerun_analysis: 1 },
+  { basis: 'quality_gate_repair_item_per_report', is_daily_queue: false },
+  { current: { manual_review: 2 }, needs_rerun: { rerun_analysis: 1 }, unknown: {} }
+));
+""".replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path))).replace("__ACTION_SCOPE_PATH__", json.dumps(str(action_scope_path)))
+
+    assert _node(script) == "品質處理建議（唯讀品質投影，不等同今日待辦）：人工審核 2、完整重跑 1；按資料新鮮度：本文目前版本：人工審核 2；資料已更新、本文需完整重跑：完整重跑 1"
+
+
+def test_shared_quality_evidence_labels_legacy_action_projection_without_freshness_map():
+    evidence_path = STATIC_DIR / "report_quality_evidence_helpers.js"
+    action_scope_path = STATIC_DIR / "report_quality_action_scope_helpers.js"
+    script = """
+global.window = {};
+require(__EVIDENCE_PATH__);
+require(__ACTION_SCOPE_PATH__);
+process.stdout.write(window.StockAgentReportQualityActionScope.formatQualityActionProjectionSummary(
+  { manual_review: 2 },
   { basis: 'quality_gate_repair_item_per_report', is_daily_queue: false }
 ));
 """.replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path))).replace("__ACTION_SCOPE_PATH__", json.dumps(str(action_scope_path)))
 
-    assert _node(script) == "品質處理建議（唯讀品質投影，不等同今日待辦）：人工審核 2、完整重跑 1"
+    assert _node(script) == "品質處理建議（唯讀品質投影，不等同今日待辦）：人工審核 2"
 
 
 def test_shared_quality_evidence_labels_unavailable_snapshot_field_reason():
@@ -528,6 +545,7 @@ const html = window.StockAgentHistoricalQualityAuditRenderer.render({
     content_credibility_blocker_counts: { final_audit_critical: 1 },
     content_credibility_blocker_reports_by_freshness: { needs_rerun: 1, current: 0, unknown: 0 },
     quality_gate_action_counts: { manual_review: 1 },
+    quality_gate_action_counts_by_freshness: { current: {}, needs_rerun: { manual_review: 1 }, unknown: {} },
     quality_gate_action_scope: { basis: 'quality_gate_repair_item_per_report', is_daily_queue: false },
     non_passed_reports: 1,
     items_total: 1,
@@ -547,6 +565,6 @@ process.stdout.write(html);
     assert "證據未驗證原因：研究來源非 canonical 2" in result.stdout
     assert "證據未驗證版本：資料已更新、本文需完整重跑（研究來源非 canonical 2）" in result.stdout
     assert "品質阻斷來源：報告一致性：最終稽核 1；內容可信度：最終稽核重大問題 1" in result.stdout
-    assert "品質處理建議（唯讀品質投影，不等同今日待辦）：人工審核 1" in result.stdout
+    assert "品質處理建議（唯讀品質投影，不等同今日待辦）：人工審核 1；按資料新鮮度：資料已更新、本文需完整重跑：人工審核 1" in result.stdout
     assert "內容阻斷版本：資料已更新、本文需完整重跑 1 份" in result.stdout
     assert "1 份品質 metadata 缺口" not in result.stdout

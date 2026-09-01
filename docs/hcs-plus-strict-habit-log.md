@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3800 / partition quality actions by conclusion freshness
+
+- `#拆解問題` / `#證據基礎` / `#差距分析`：live latest scope 的 `quality_gate_action_counts` 只有 `manual_review=81`、`rerun_analysis=4`，但同一批報告已有 `current=137`、`needs_rerun=28`；canonical row 交叉表確認 action 應可分成 manual review `55/26` 與 rerun `3/1`，缺口在分母可讀性，不在 action predicate。
+- `#偏誤降低` / `#最小變更` / `#責任`：新增 `quality_gate_action_counts_by_freshness`，沿用同一份 `report_freshness_bucket()` 與 `quality_gate_repair_item()`，前端只在收到 optional map 時追加「按資料新鮮度」；不把全量品質投影誤當 daily queue，也不改 picker、review、rerun 或 repair state。
+- `#受眾` / `#溝通設計` / `#可驗證性` / `#可逆性`：後端契約、watchlist/history 顯示與 legacy fallback 均有測試；`788 passed`，live API 確認 nested action 加總等於全量 `81/4`，freshness `137/28/0`，UI formatter 顯示 current `55/3` 與 needs-rerun `26/1`；health/ready、static cache-buster、doctor canonical paths 均通過。
+
 ## D3799 / isolate evidence claim semantics from the gate
 
 - `#拆解問題` / `#證據基礎` / `#責任`：import-boundary RED 明確指出 `evidence_exit_gate.py` 同時承擔 claim extraction、非 claim 過濾、semantic path mapping 與 numeric matching；這些都是純邏輯，與 sampling/verdict orchestration 不同責任。

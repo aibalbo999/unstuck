@@ -157,6 +157,9 @@ def build_current_quality_summary(
     conformance_blocker_counts: dict[str, int] = {}
     content_blocker_counts: dict[str, int] = {}
     quality_gate_action_counts: dict[str, int] = {}
+    quality_gate_action_counts_by_freshness = {
+        bucket: {} for bucket in EVIDENCE_MISMATCH_FRESHNESS_BUCKETS
+    }
     content_blocker_reports_by_freshness = {bucket: 0 for bucket in EVIDENCE_MISMATCH_FRESHNESS_BUCKETS}
     evidence_mismatch_claims_by_freshness = {bucket: 0 for bucket in EVIDENCE_MISMATCH_FRESHNESS_BUCKETS}
     evidence_mismatch_reports_by_freshness = {bucket: 0 for bucket in EVIDENCE_MISMATCH_FRESHNESS_BUCKETS}
@@ -192,11 +195,13 @@ def build_current_quality_summary(
         for blocker_id in content_blocker_ids:
             content_blocker_counts[blocker_id] = content_blocker_counts.get(blocker_id, 0) + 1
         if content_blocker_ids:
-            content_blocker_reports_by_freshness[report_freshness_bucket(report)] += 1
+            content_blocker_reports_by_freshness[freshness_bucket] += 1
         quality_action = quality_gate_repair_item(report)
         if quality_action:
             action_name = safe_text(quality_action.get("recommended_action")).strip() or "unknown"
             quality_gate_action_counts[action_name] = quality_gate_action_counts.get(action_name, 0) + 1
+            freshness_action_counts = quality_gate_action_counts_by_freshness[freshness_bucket]
+            freshness_action_counts[action_name] = freshness_action_counts.get(action_name, 0) + 1
         if (
             conformance_status != "passed"
             or content_status != "passed"
@@ -233,6 +238,10 @@ def build_current_quality_summary(
         "content_credibility_blocker_counts": dict(sorted(content_blocker_counts.items())),
         "content_credibility_blocker_reports_by_freshness": content_blocker_reports_by_freshness,
         "quality_gate_action_counts": dict(sorted(quality_gate_action_counts.items())),
+        "quality_gate_action_counts_by_freshness": {
+            bucket: dict(sorted(counts.items()))
+            for bucket, counts in quality_gate_action_counts_by_freshness.items()
+        },
         "quality_gate_action_scope": {
             "scope": scope_text,
             "selection_basis": selection_basis_text,
