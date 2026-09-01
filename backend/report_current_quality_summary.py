@@ -132,6 +132,8 @@ def build_current_quality_summary(
     evidence = {verdict: 0 for verdict in EVIDENCE_VERDICTS}
     evidence_failed_count = 0
     evidence_reason_counts: dict[str, int] = {}
+    conformance_blocker_counts: dict[str, int] = {}
+    content_blocker_counts: dict[str, int] = {}
     evidence_mismatch_claims_by_freshness = {bucket: 0 for bucket in EVIDENCE_MISMATCH_FRESHNESS_BUCKETS}
     evidence_mismatch_reports_by_freshness = {bucket: 0 for bucket in EVIDENCE_MISMATCH_FRESHNESS_BUCKETS}
     non_passed = []
@@ -150,6 +152,10 @@ def build_current_quality_summary(
             evidence_mismatch_reports_by_freshness[freshness_bucket] += 1
         for reason, count in _evidence_reason_counts(report.get("evidence_exit_gate")).items():
             evidence_reason_counts[reason] = evidence_reason_counts.get(reason, 0) + count
+        for blocker_id in _blocker_ids(report.get("report_conformance"), include_decision_tree=True):
+            conformance_blocker_counts[blocker_id] = conformance_blocker_counts.get(blocker_id, 0) + 1
+        for blocker_id in _blocker_ids(report.get("content_credibility")):
+            content_blocker_counts[blocker_id] = content_blocker_counts.get(blocker_id, 0) + 1
         if conformance_status != "passed":
             non_passed.append(_current_quality_item(report, conformance_status, content_status, evidence_verdict))
 
@@ -168,6 +174,8 @@ def build_current_quality_summary(
         "evidence_mismatch_claims_by_freshness": evidence_mismatch_claims_by_freshness,
         "evidence_mismatch_reports_by_freshness": evidence_mismatch_reports_by_freshness,
         "evidence_unverifiable_reason_counts": evidence_reason_counts,
+        "report_conformance_blocker_counts": dict(sorted(conformance_blocker_counts.items())),
+        "content_credibility_blocker_counts": dict(sorted(content_blocker_counts.items())),
         "non_passed_reports": len(non_passed),
         "items_limit": limit,
         "items_total": len(non_passed),
@@ -235,6 +243,27 @@ def _evidence_reason_counts(value: Any) -> dict[str, int]:
 def _evidence_failed_count(value: Any) -> int:
     gate = safe_mapping_dict(value) or {}
     return max(0, safe_int(gate.get("failed_count"), default=0))
+
+
+def _blocker_ids(value: Any, *, include_decision_tree: bool = False) -> set[str]:
+    gate = safe_mapping_dict(value) or {}
+    blocker_ids = {
+        safe_text(issue.get("id")).strip() or "unknown"
+        for issue in safe_dict_list(gate.get("blocking_issues"))
+    }
+    if include_decision_tree:
+        blocker_ids.update(
+            safe_text(step.get("id")).strip() or "unknown"
+            for step in safe_dict_list(gate.get("decision_tree"))
+            if safe_text(step.get("status")).strip().lower() in {"blocked", "failed", "rejected"}
+        )
+    elif not blocker_ids:
+        blocker_ids.update(
+            safe_text(check.get("id")).strip() or "unknown"
+            for check in safe_dict_list(gate.get("checks"))
+            if safe_text(check.get("status")).strip().lower() in {"blocked", "failed", "rejected"}
+        )
+    return blocker_ids
 
 
 def _current_quality_item(

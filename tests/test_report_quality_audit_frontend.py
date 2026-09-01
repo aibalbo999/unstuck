@@ -207,6 +207,8 @@ const payload = {
       evidence_exit_gate_by_verdict: { approved: 39, caution: 125, rejected: 1, unknown: 0 },
       evidence_failed_count: 138,
       evidence_unverifiable_reason_counts: { research_source_not_canonical: 2 },
+      report_conformance_blocker_counts: { final_audit: 9 },
+      content_credibility_blocker_counts: { final_audit_critical: 8 },
       evidence_mismatch_claims_by_freshness: { needs_rerun: 138, current: 0, unknown: 0 },
       evidence_mismatch_reports_by_freshness: { needs_rerun: 1, current: 0, unknown: 0 },
       non_passed_reports: 136,
@@ -225,6 +227,7 @@ process.stdout.write(JSON.stringify({ board: window.StockAgentWatchlistPanelHelp
     payload = json.loads(result.stdout)
 
     assert "目前品質：符合 29、警示 127、阻斷 9、無法判定 0" in payload["board"]
+    assert "品質阻斷來源：報告一致性：最終稽核 9；內容可信度：最終稽核重大問題 8" in payload["board"]
     assert "證據數值不一致 138；數值不一致分布：資料已更新、本文需完整重跑 138 筆／1 份；證據未驗證原因：研究來源非 canonical 2" in payload["board"]
     assert "數值不一致分布：資料已更新、本文需完整重跑 138 筆／1 份" in payload["board"]
     assert "目前品質待查看（顯示 1/136）" in payload["board"]

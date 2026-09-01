@@ -6092,7 +6092,7 @@ def test_candidate_next_actions_assets_use_shared_cache_buster():
 
     assert "/static/style.css?v=20260816-historical-quality-target-context" in index_html
     assert "/static/watchlist_freshness_helpers.js?v=20260821-freshness-targets" in index_html
-    assert "/static/watchlist_current_quality_helpers.js?v=20260901-mismatch-freshness" in index_html
+    assert "/static/watchlist_current_quality_helpers.js?v=20260901-quality-blockers" in index_html
     assert "/static/watchlist_panel_helpers.js?v=20260821-current-quality" in index_html
     assert "/static/watchlist_panel.js?v=20260816-scoped-quality-review-navigation" in index_html
     assert "/static/maintenance_action_helpers.js?v=20260816-maintenance-confirmation" in index_html

@@ -19,8 +19,25 @@ def test_current_quality_summary_keeps_gate_distributions_separate_and_bounds_ta
                 "ticker": "2454.TW",
                 "pipeline_id": "v2",
                 "filename": "2454.html",
-                "report_conformance": {"status": "blocked", "blocking_issues": [{"message": "證據矛盾"}]},
-                "content_credibility": {"status": "blocked"},
+                "report_conformance": {
+                    "status": "blocked",
+                    "decision_tree": [
+                        {"id": "final_audit", "status": "blocked"},
+                        {"id": "report_lint", "status": "warning"},
+                    ],
+                    "blocking_issues": [
+                        {"id": "final_audit", "message": "證據矛盾"},
+                        {"id": "final_audit", "message": "重複的證據矛盾"},
+                    ],
+                },
+                "content_credibility": {
+                    "status": "blocked",
+                    "blocking_issues": [
+                        {"id": "explicit_target_price_low_data_confidence"},
+                        {"id": "explicit_target_price_low_data_confidence"},
+                    ],
+                    "checks": [{"id": "trade_setup_alignment", "status": "warning"}],
+                },
                 "decision_freshness": {"status": "needs_rerun", "requires_rerun": True},
                 "evidence_exit_gate": {
                     "verdict": "rejected",
@@ -62,6 +79,10 @@ def test_current_quality_summary_keeps_gate_distributions_separate_and_bounds_ta
         "unknown": 0,
     }
     assert payload["evidence_failed_count"] == 1
+    assert payload["report_conformance_blocker_counts"] == {"final_audit": 1}
+    assert payload["content_credibility_blocker_counts"] == {
+        "explicit_target_price_low_data_confidence": 1,
+    }
     assert payload["non_passed_reports"] == 2
     assert payload["items_returned"] == 1
     assert payload["items_truncated"] is True
@@ -83,6 +104,24 @@ def test_current_quality_summary_treats_missing_gate_status_as_unknown():
     assert payload["evidence_exit_gate_by_verdict"] == {"approved": 0, "caution": 0, "rejected": 0, "unknown": 1}
     assert payload["items_total"] == 1
     assert payload["items"][0]["report_conformance_status"] == "unknown"
+
+
+def test_current_quality_summary_uses_blocked_check_when_content_issue_ids_are_missing():
+    payload = build_current_quality_summary(
+        [{
+            "ticker": "2330.TW",
+            "filename": "2330.html",
+            "report_conformance": {"status": "passed"},
+            "content_credibility": {
+                "status": "blocked",
+                "checks": [{"id": "blocked_check", "status": "blocked"}],
+            },
+            "evidence_exit_gate": {"verdict": "approved"},
+        }],
+        scope="all_indexed_reports",
+    )
+
+    assert payload["content_credibility_blocker_counts"] == {"blocked_check": 1}
 
 
 def test_filtered_indexed_current_quality_summary_has_explicit_latest_scope(monkeypatch, tmp_path):
