@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3785 / expose the shared quality action and canonical action detail
+
+- `#拆解問題` / `#差距分析` / `#受眾`：live current-quality 有 `165` 份報告、`85` 份非通過項目；原本 item 能顯示 blocker ID、原文與 freshness，卻沒有把既有 repair queue 的下一步動作帶到同一筆報告，操作員仍需跨頁判斷先人工核對或完整重跑。
+- `#證據基礎` / `#偏誤降低` / `#責任`：新增唯讀 `quality_action` 與 aggregate `quality_gate_action_counts`，由共用 `quality_gate_repair_item()` 依既有三個品質 gate 優先級產生；`details.critical` 有 canonical 原文時，action detail 優先採用該原文，避免泛用 summary 蓋掉可核對證據。前端只顯示「建議處理」，`blocks_auto_rerun` 為真時明示「暫停自動重跑」，不自動觸發任何 action。
+- `#可驗證性` / `#可逆性` / `#溝通設計`：先取得 action 與 canonical detail RED，再 GREEN；聚焦 repair/current/UI 回歸 `100 passed`，跨層品質回歸 `1406 passed in 223.07s`，Node syntax、`py_compile`、`git diff --check` 通過。正式 reload 後 live `quality_gate_action_counts=manual_review 85`，`0056.TW/v4` 與 `1623.TW/v3` action detail 均等於 canonical blocker 原文，healthz/readyz `ok/ready`、queue depth `0`、failed_recent `0`，三個 `20260902-quality-action` 資產 HTTP `200`。本批只改 read-only summary/UI diagnostics 與共用規則，不寫 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3784 / include every quality attention signal in item selection
 
 - `#拆解問題` / `#差距分析` / `#責任`：current-quality aggregate 同時提供 conformance、content credibility 與 evidence 分布，但原本 `items` 只在 conformance 非 `passed` 時建立；若 current projection 只有 content blocker，aggregate 與「待查看」清單會不一致。
