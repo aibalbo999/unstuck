@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3805 / expose bounded report repair queue scope
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：live daily dashboard 的 repair sample 有 `action_required=9`，但 `items[]` 只回傳上限 5 筆；原 payload 沒有明示這是截斷結果，操作員可能把可見卡片數誤讀成完整修復數。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先新增 limit=1 與完整 fit 兩個 RED 測試，再讓同一 normalized limit 同時驅動 slicing 與 `items_limit/items_returned/items_truncated`；不改 action priority、report quality gate、daily queue 或 mutation。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：API、operator guide、architecture map 明示 `action_required` 是 sample 全量、`items[]` 是 bounded target list；repair queue + daily dashboard `98 passed`，official reload/live audit 確認 `9/5/truncated=true`，daily queue `23/5/18`、notification `5/5`、current-quality `165/85` 維持不變。
+
 ## D3804 / stabilize queue identity and notification artifact aliases
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：反例將 queue rank 拆成 priority/source 主排序、同分 identity tie-breaker 與 notification artifact identity 三層；確認同分 item 會受 iterator 順序影響，且 filename aliases 可能讓同一通知指向兩個檔案。

@@ -24,12 +24,16 @@ def build_report_quality_repair_queue(reports: dict[str, Any] | list[dict[str, A
     items = [_repair_item(report) for report in report_rows]
     actionable = [item for item in items if item is not None]
     actionable.sort(key=lambda item: (-int(item["priority_score"]), str(item.get("ticker") or ""), str(item.get("filename") or "")))
-    limited = actionable[: max(0, safe_int(limit, default=5))]
+    normalized_limit = max(0, safe_int(limit, default=5))
+    limited = actionable[:normalized_limit]
     return {
         "schema_version": SCHEMA_VERSION,
         "summary": {
             "sampled_reports": len(report_rows),
             "action_required": len(actionable),
+            "items_limit": normalized_limit,
+            "items_returned": len(limited),
+            "items_truncated": len(limited) < len(actionable),
             "blocked": sum(1 for item in actionable if item["severity"] == "blocked"),
             "warning": sum(1 for item in actionable if item["severity"] == "warning"),
             "notice": sum(1 for item in actionable if item["severity"] == "notice"),

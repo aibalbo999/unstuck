@@ -350,6 +350,49 @@ def test_repair_queue_prioritizes_content_credibility_blocked_before_stale_snaps
     assert queue["items"][1]["recommended_action"] == "refresh_data_snapshot"
 
 
+def test_repair_queue_exposes_bounded_result_scope():
+    from report_quality_repair_queue import build_report_quality_repair_queue
+
+    queue = build_report_quality_repair_queue(
+        [
+            {
+                "ticker": "2330.TW",
+                "filename": "2330_blocked.html",
+                "content_credibility": {"status": "blocked", "summary": "需要人工審核。"},
+            },
+            {
+                "ticker": "2308.TW",
+                "filename": "2308_stale.html",
+                "data_trust": {"status": "stale", "stale_sources": ["market_price"]},
+            },
+        ],
+        limit=1,
+    )
+
+    assert queue["summary"]["action_required"] == 2
+    assert queue["summary"]["items_limit"] == 1
+    assert queue["summary"]["items_returned"] == 1
+    assert queue["summary"]["items_truncated"] is True
+
+
+def test_repair_queue_reports_complete_bounded_result_scope_when_all_items_fit():
+    from report_quality_repair_queue import build_report_quality_repair_queue
+
+    queue = build_report_quality_repair_queue(
+        [{
+            "ticker": "2330.TW",
+            "filename": "2330_blocked.html",
+            "content_credibility": {"status": "blocked", "summary": "需要人工審核。"},
+        }],
+        limit=5,
+    )
+
+    assert queue["summary"]["action_required"] == 1
+    assert queue["summary"]["items_limit"] == 5
+    assert queue["summary"]["items_returned"] == 1
+    assert queue["summary"]["items_truncated"] is False
+
+
 def test_repair_queue_accepts_mapping_reports_envelope():
     from report_quality_repair_queue import build_report_quality_repair_queue
 
