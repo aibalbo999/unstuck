@@ -327,7 +327,7 @@ const html = window.StockAgentHistoricalQualityAuditRenderer.render({
   audited_reports: 5,
   quality_metadata_missing_reports: 3,
   quality_metadata_by_pipeline: {
-    v1: { quality_metadata_missing_reports: 1 },
+    v1: { quality_metadata_missing_reports: 1, quality_metadata_missing_by_rerun_context: { artifact_fallback_available: 1 } },
     v2: { quality_metadata_missing_reports: 1 }
   },
   items: []
@@ -339,6 +339,7 @@ process.stdout.write(JSON.stringify({ html }));
 
     assert "3 份品質 metadata 缺口" in payload["html"]
     assert "模式缺口：" not in payload["html"]
+    assert "模式上下文：" not in payload["html"]
 
 
 def test_history_quality_audit_does_not_floor_fractional_or_malformed_counts():
@@ -1221,7 +1222,7 @@ def test_history_workspace_wires_historical_quality_audit_without_daily_queue_si
     assert "/static/api_client_extensions.js?v=20260821-current-quality-summary" in index_html
     assert "/static/watchlist_panel_actions.js?v=20260821-current-quality-background" in index_html
     assert "/static/history_panel_quality_helpers.js?v=20260902-integer-review-counts" in index_html
-    assert "/static/history_quality_audit_render.js?v=20260902-offset-scope-bounds" in index_html
+    assert "/static/history_quality_audit_render.js?v=20260902-pipeline-scope-bounds" in index_html
     assert "/static/history_quality_audit.js?v=20260820-quality-version-filter" in index_html
     assert index_html.index("/static/history_quality_audit_render.js") < index_html.index("/static/history_quality_audit.js")
     assert len((STATIC_DIR / "history_panel_quality_helpers.js").read_text(encoding="utf-8").splitlines()) < 120

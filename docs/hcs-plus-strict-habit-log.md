@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3835 / suppress context outside valid pipeline scope
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：pipeline missing partition 失效時，renderer 原本仍可能顯示同一 partial map 的「模式上下文」，讓局部準備度被誤讀成完整模式結論。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以 `missing=3`、pipeline `1+1` 並附 context entry 取得 RED；讓 history/watchlist 共用同一 pipeline scope validity，scope 失效時同時隱藏模式 gap/context，正常 partition 與 legacy context fallback 保持既有行為。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新兩個 renderer cache-buster 與契約，focused context suppression `2 passed`，完整 history/report-quality/static/docs regression `330 passed`，Node syntax、line guard 與 `git diff --check` 通過；live daily `2=1+1`、historical `59=15+15+14+15`、bounded `59/5/5/truncated=true` 正常，audit-scope/watchlist/history assets `200` 且與本地一致，health/ready、official launcher/worker/8080 與 doctor canonical paths 正常。本批不改 audit count、quality gate、queue、snapshot、artifact、index、review 或 rerun state。
+
 ## D3834 / enforce pipeline missing scope
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：watchlist/history 逐欄顯示 pipeline 缺口，但沒有確認各 entry 是否完整分割 top-level 缺口；部分 map 會被誤讀成全量模式分布。

@@ -78,7 +78,7 @@ const payload = {
   report_quality_audit: {
     quality_metadata_missing_reports: 3,
     quality_metadata_by_pipeline: {
-      v1: { quality_metadata_missing_reports: 1 },
+      v1: { quality_metadata_missing_reports: 1, quality_metadata_missing_by_rerun_context: { artifact_fallback_available: 1 } },
       v2: { quality_metadata_missing_reports: 1 }
     }
   }
@@ -91,6 +91,7 @@ process.stdout.write(JSON.stringify({ board }));
 
     assert "3 份品質 metadata 缺口" in payload["board"]
     assert "模式缺口：" not in payload["board"]
+    assert "模式上下文：" not in payload["board"]
 
 
 def test_watchlist_board_surfaces_bounded_repair_queue_scope():
@@ -611,7 +612,7 @@ process.stdout.write(JSON.stringify({ board }));
     assert "artifact 無 gate 摘要 2 份" in payload["board"]
     assert "artifact 欄位可查：證據關卡 0、內容可信度 2" in payload["board"]
     assert "模式缺口：v1 1" not in payload["board"]
-    assert "模式上下文：v1 原始上下文完整 2" in payload["board"]
+    assert "模式上下文：" not in payload["board"]
     assert "範圍資料需確認" in payload["board"]
     assert "目前顯示 1 份，另有 1 份未展開" not in payload["board"]
 
