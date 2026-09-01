@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3818 / reject fractional repair overlap counts
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：repair sample overlap 只檢查 finite，會把 fractional gap/in/out 數字 `floor` 成看似精確的 sample 統計。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以 `2.5`、`1.5` overlap fixture 取得 RED，讓既有 formatter 對 malformed/fractional 回傳 `null`，四個 overlap count 任一無效即 fail closed，不借用或推算其他欄位。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新 watchlist cache-buster、API/operator/architecture 說明與 regression；focused/full regression `311 passed`，新 asset `200`，live overlap 為 `complete / gap 2 / sample內 0 / sample外 2 / returned 2`，正常摘要保留、synthetic fractional overlap 被抑制，health/ready `200/200`、doctor canonical paths 正常。本批不改 audit、repair sample、queue、snapshot、artifact、index、review 或 rerun state。
+
 ## D3817 / bound repair sample size labels
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：品質 count 已拒絕 fractional audit totals，但 repair sample label 仍將 `20.5` floor 成 `20`，操作員會收到看似精確的取樣範圍。

@@ -496,6 +496,35 @@ process.stdout.write(JSON.stringify({ board }));
     assert "20.5" not in payload["board"]
 
 
+def test_watchlist_board_does_not_floor_fractional_repair_sample_overlap_counts():
+    helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
+    script = """
+global.window = {};
+require(__HELPER_PATH__);
+const board = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], {
+  decision_queue: { summary: { total_actionable: 0 }, items: [{ type: 'monitor' }] },
+  report_quality_audit: {
+    quality_metadata_missing_reports: 2,
+    repair_sample_overlap: {
+      status: 'complete',
+      audit_gap_reports: 2.5,
+      audit_gap_reports_in_repair_sample: 1.5,
+      audit_gap_reports_outside_repair_sample: 1,
+      audit_gap_items_returned: 2
+    },
+    items: []
+  }
+}, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ board }));
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "品質缺口與 repair sample：" not in payload["board"]
+    assert "2.5" not in payload["board"]
+    assert "1.5" not in payload["board"]
+
+
 def test_watchlist_board_does_not_trust_freshness_items_limit():
     helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
     freshness_helper_path = STATIC_DIR / "watchlist_freshness_helpers.js"
