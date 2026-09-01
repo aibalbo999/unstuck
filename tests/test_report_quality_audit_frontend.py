@@ -217,7 +217,7 @@ const payload = {
       items_total: 136,
       items_returned: 1,
       items_truncated: true,
-      items: [{ ticker: '2454.TW', pipeline_id: 'v2', filename: '2454_v2.html', report_conformance_status: 'blocked', content_credibility_status: 'blocked', evidence_exit_gate_verdict: 'rejected', evidence_failed_count: 138, evidence_mismatch_freshness_status: 'needs_rerun', reason: '證據矛盾' }]
+      items: [{ ticker: '2454.TW', pipeline_id: 'v2', filename: '2454_v2.html', report_conformance_status: 'blocked', content_credibility_status: 'blocked', content_credibility_blocker_ids: ['final_audit_critical'], content_credibility_freshness_status: 'needs_rerun', evidence_exit_gate_verdict: 'rejected', evidence_failed_count: 138, evidence_mismatch_freshness_status: 'needs_rerun', reason: '證據矛盾' }]
     }
   }
 };
@@ -234,6 +234,7 @@ process.stdout.write(JSON.stringify({ board: window.StockAgentWatchlistPanelHelp
     assert "數值不一致分布：資料已更新、本文需完整重跑 138 筆／1 份" in payload["board"]
     assert "目前品質待查看（顯示 1/136）" in payload["board"]
     assert 'data-quality-history-query="2454_v2.html"' in payload["board"]
+    assert "內容阻斷：最終稽核重大問題；內容阻斷版本：資料已更新、本文需完整重跑" in payload["board"]
     assert "一致性：阻斷；內容：阻斷；證據：拒絕；證據矛盾；證據數值不一致 138；數值不一致來源：資料已更新、本文需完整重跑 138 筆" in payload["board"]
 
 

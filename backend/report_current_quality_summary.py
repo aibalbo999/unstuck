@@ -280,6 +280,7 @@ def _current_quality_item(
     conformance = safe_mapping_dict(report.get("report_conformance")) or {}
     evidence_failed_count = _evidence_failed_count(report.get("evidence_exit_gate"))
     evidence_reason_counts = _evidence_reason_counts(report.get("evidence_exit_gate"))
+    content_blocker_ids = sorted(_blocker_ids(report.get("content_credibility")))
     issues = safe_dict_list(conformance.get("blocking_issues")) + safe_dict_list(conformance.get("warnings"))
     reason = next(
         (
@@ -299,10 +300,13 @@ def _current_quality_item(
         "evidence_exit_gate_verdict": evidence_verdict,
         "evidence_failed_count": evidence_failed_count,
         "evidence_unverifiable_reason_counts": evidence_reason_counts,
+        "content_credibility_blocker_ids": content_blocker_ids,
         "reason": reason,
     }
     if evidence_failed_count:
         payload["evidence_mismatch_freshness_status"] = report_freshness_bucket(report)
+    if content_blocker_ids:
+        payload["content_credibility_freshness_status"] = report_freshness_bucket(report)
     return payload
 
 
