@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3789 / separate daily repair and freshness rerun scopes
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：live daily dashboard 的近期取樣 `20` 份顯示 `reports_needing_rerun=0`，但 repair queue 有 `2` 筆 `rerun_analysis`；前者是 freshness predicate，後者是 report repair predicate，原 operator text 會造成範圍誤讀。
+- `#證據基礎` / `#責任` / `#最小變更`：summary 新增 `reports_needing_freshness_rerun`、`report_repair_action_counts` 與 `report_repair_rerun_required`；operator text 只在新欄位存在時顯示「報告修復：...；freshness需完整重跑...」，舊 payload 仍沿用原文。新增 cache-buster `20260902-report-repair-scope`；只做 read-only projection，不觸發 rerun、寫入 queue 或改變既有 freshness predicate。
+- `#可驗證性` / `#可逆性` / `#受眾`：backend focused `106 passed`、frontend/history/filter `156 passed`，Node syntax、`py_compile`、`git diff --check` 與 static module guard `87 < 90` 通過。官方 reload 後 live summary 為 `report_repair_action_counts={manual_review:7, rerun_analysis:2}`、`report_repair_rerun_required=2`、`reports_needing_freshness_rerun=0`，全量分析新鮮度另為 `28 / 165`；dashboard text 已分開呈現，healthz/readyz `ok/ready`、asset HTTP `200`、doctor canonical paths 正確。
+
 ## D3788 / align current-quality item order with repair priority
 
 - `#拆解問題` / `#差距分析` / `#效用`：全量 current-quality `85` 筆原本只依 gate 嚴重度與檔名排序；同為 blocked 時，priority `840` 的可重跑 Agent failure 可能排在 priority `1000` 的內容矛盾前，操作員首屏順序與既有 repair queue 不一致。
