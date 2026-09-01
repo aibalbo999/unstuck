@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3790 / keep data trust card separate from daily queue summary
+
+- `#拆解問題` / `#語意含義` / `#受眾`：operator summary 的元素標籤是「近期資料信任」，但 panel 原本以 daily queue summary 覆蓋它；live queue 的 `23 件待處理` 因而會被誤讀成資料信任狀態，混淆 queue、資料信任與報告品質的分母。
+- `#責任` / `#最小變更` / `#溝通設計`：恢復 data trust card 只消費 `helpers.trustText(reportsValue)`，daily dashboard summary 保留給值班 warning 計數與 action list；新增 `20260902-data-trust-card-scope` cache-buster，避免瀏覽器使用舊 panel。只改 read-only UI routing，不改 API、品質 predicate 或任何 mutation。
+- `#可驗證性` / `#可逆性` / `#證據基礎`：先以 DOM-shaped RED 重現 queue 覆蓋 data trust，再 GREEN；frontend/history/filter `157 passed`、dashboard/queue/repair/current-quality `230 passed`，Node syntax、`py_compile`、`git diff --check` 通過。官方 reload 後 live DOM 顯示 `近期資料正常 / 8 份近期報告`，action list 仍有「今日待處理」與 queue action，panel asset HTTP `200`，healthz/readyz `ok/ready`，doctor canonical paths 正確。
+
 ## D3789 / separate daily repair and freshness rerun scopes
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：live daily dashboard 的近期取樣 `20` 份顯示 `reports_needing_rerun=0`，但 repair queue 有 `2` 筆 `rerun_analysis`；前者是 freshness predicate，後者是 report repair predicate，原 operator text 會造成範圍誤讀。
