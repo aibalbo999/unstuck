@@ -139,7 +139,7 @@ def build_current_quality_summary(
     content_blocker_reports_by_freshness = {bucket: 0 for bucket in EVIDENCE_MISMATCH_FRESHNESS_BUCKETS}
     evidence_mismatch_claims_by_freshness = {bucket: 0 for bucket in EVIDENCE_MISMATCH_FRESHNESS_BUCKETS}
     evidence_mismatch_reports_by_freshness = {bucket: 0 for bucket in EVIDENCE_MISMATCH_FRESHNESS_BUCKETS}
-    non_passed = []
+    non_passed: list[tuple[tuple[int, int, str], dict[str, Any]]] = []
     for report in rows:
         conformance_status = _conformance_status(report.get("report_conformance"))
         content_status = _content_status(report.get("content_credibility"))
@@ -171,19 +171,18 @@ def build_current_quality_summary(
             or content_status != "passed"
             or evidence_verdict != "approved"
         ):
-            non_passed.append(
-                _current_quality_item(
-                    report,
-                    conformance_status,
-                    content_status,
-                    evidence_verdict,
-                    quality_action=quality_action,
-                )
+            item = _current_quality_item(
+                report,
+                conformance_status,
+                content_status,
+                evidence_verdict,
+                quality_action=quality_action,
             )
+            non_passed.append((_quality_attention_sort_key(item, quality_action), item))
 
-    non_passed.sort(key=lambda item: (_quality_attention_rank(item), item["filename"]))
+    non_passed.sort(key=lambda entry: entry[0])
     limit = max(0, safe_int(item_limit, default=CURRENT_QUALITY_ITEM_LIMIT))
-    items = non_passed[:limit]
+    items = [item for _, item in non_passed[:limit]]
     return {
         "schema_version": SCHEMA_VERSION,
         "scope": scope_text,
@@ -205,6 +204,7 @@ def build_current_quality_summary(
         "items_total": len(non_passed),
         "items_returned": len(items),
         "items_truncated": len(items) < len(non_passed),
+        "items_sort_basis": "quality_attention_then_action_priority_then_filename",
         "items": items,
     }
 
@@ -371,6 +371,14 @@ def _quality_attention_rank(item: dict[str, Any]) -> int:
         _status_rank(item.get("content_credibility_status", "unknown")),
         evidence_rank,
     )
+
+
+def _quality_attention_sort_key(
+    item: dict[str, Any],
+    quality_action: dict[str, Any] | None,
+) -> tuple[int, int, str]:
+    priority = safe_int((quality_action or {}).get("priority_score"), default=0)
+    return (_quality_attention_rank(item), -priority, item["filename"])
 
 
 __all__ = [

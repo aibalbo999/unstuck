@@ -102,6 +102,58 @@ def test_current_quality_summary_keeps_gate_distributions_separate_and_bounds_ta
     assert payload["items"][0]["evidence_mismatch_freshness_status"] == "needs_rerun"
 
 
+def test_current_quality_items_follow_action_priority_within_attention_level():
+    payload = build_current_quality_summary(
+        [
+            {
+                "ticker": "2330.TW",
+                "filename": "z-content-manual.html",
+                "pipeline_id": "v1",
+                "report_conformance": {"status": "passed"},
+                "content_credibility": {"status": "blocked", "summary": "目標價與建議矛盾。"},
+                "evidence_exit_gate": {"verdict": "approved"},
+            },
+            {
+                "ticker": "2367.TW",
+                "filename": "a-agent-rerun.html",
+                "pipeline_id": "v2",
+                "report_conformance": {"status": "passed"},
+                "content_credibility": {
+                    "status": "blocked",
+                    "blocking_issues": [{
+                        "id": "final_audit_critical",
+                        "details": {"critical": ["缺少 Agent 輸出：7"]},
+                    }],
+                },
+                "evidence_exit_gate": {"verdict": "approved"},
+            },
+            {
+                "ticker": "3017.TW",
+                "filename": "b-conformance-manual.html",
+                "pipeline_id": "v1",
+                "report_conformance": {
+                    "status": "blocked",
+                    "blocking_issues": [{
+                        "id": "final_audit",
+                        "details": ["主力籌碼分析師：公司身分污染。"],
+                    }],
+                },
+                "content_credibility": {"status": "passed"},
+                "evidence_exit_gate": {"verdict": "approved"},
+            },
+        ],
+        scope="all_indexed_reports",
+        item_limit=3,
+    )
+
+    assert payload["items_sort_basis"] == "quality_attention_then_action_priority_then_filename"
+    assert [item["filename"] for item in payload["items"]] == [
+        "z-content-manual.html",
+        "b-conformance-manual.html",
+        "a-agent-rerun.html",
+    ]
+
+
 def test_current_quality_summary_treats_missing_gate_status_as_unknown():
     payload = build_current_quality_summary(
         [{"ticker": "2330.TW", "filename": "2330.html", "pipeline_id": "v1"}],
