@@ -110,6 +110,31 @@ process.stdout.write(JSON.stringify({ html }));
     assert payload["html"].count('class="history-quality-audit-summary-item"') == 8
 
 
+def test_history_quality_audit_does_not_trust_items_limit_when_rendering_scope():
+    scope_path = STATIC_DIR / "report_quality_queue_scope_helpers.js"
+    renderer_path = STATIC_DIR / "history_quality_audit_render.js"
+    script = """
+global.window = {};
+require(__SCOPE_PATH__);
+require(__RENDERER_PATH__);
+const html = window.StockAgentHistoricalQualityAuditRenderer.render({
+  audited_reports: 2,
+  quality_metadata_missing_reports: 2,
+  items_total: 2,
+  items_returned: 2,
+  items_limit: 1,
+  items_truncated: false,
+  items: [{ ticker: 'AAA', filename: 'aaa.html' }, { ticker: 'BBB', filename: 'bbb.html' }]
+}, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ html }));
+""".replace("__SCOPE_PATH__", json.dumps(str(scope_path))).replace("__RENDERER_PATH__", json.dumps(str(renderer_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "目前顯示 2/2；範圍資料需確認" in payload["html"]
+    assert "2 份品質 metadata 缺口（目前顯示 2 份，另有 0 份未展開）" not in payload["html"]
+
+
 def test_history_quality_audit_renders_missing_field_scope_and_filters():
     helper_path = STATIC_DIR / "history_panel_quality_helpers.js"
     renderer_path = STATIC_DIR / "history_quality_audit_render.js"
@@ -775,7 +800,7 @@ def test_history_workspace_wires_historical_quality_audit_without_daily_queue_si
     assert "/static/api_client_extensions.js?v=20260821-current-quality-summary" in index_html
     assert "/static/watchlist_panel_actions.js?v=20260821-current-quality-background" in index_html
     assert "/static/history_panel_quality_helpers.js?v=20260820-quality-version-filter" in index_html
-    assert "/static/history_quality_audit_render.js?v=20260820-per-pipeline-context-summary" in index_html
+    assert "/static/history_quality_audit_render.js?v=20260902-bounded-items" in index_html
     assert "/static/history_quality_audit.js?v=20260820-quality-version-filter" in index_html
     assert index_html.index("/static/history_quality_audit_render.js") < index_html.index("/static/history_quality_audit.js")
     assert len((STATIC_DIR / "history_panel_quality_helpers.js").read_text(encoding="utf-8").splitlines()) < 120

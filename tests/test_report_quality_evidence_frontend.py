@@ -29,7 +29,7 @@ def test_shared_quality_evidence_helper_loads_before_all_consumers():
     assert "/static/report_quality_gate_policy.js?v=20260816-shared-quality-evidence" in index_html
     assert "/static/report_preview_helpers.js?v=20260820-shared-evidence-detail" in index_html
     assert "/static/report_preview_panel.js?v=20260820-rerun-execution" in index_html
-    assert "/static/history_quality_audit_render.js?v=20260820-per-pipeline-context-summary" in index_html
+    assert "/static/history_quality_audit_render.js?v=20260902-bounded-items" in index_html
     assert "/static/history_current_quality_helpers.js?v=20260902-quality-action-detail" in index_html
     assert "/static/watchlist_freshness_helpers.js?v=20260902-bounded-items" in index_html
     assert "/static/watchlist_current_quality_helpers.js?v=20260902-bounded-items" in index_html

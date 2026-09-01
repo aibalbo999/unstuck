@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3810 / enforce bounded history audit scope labels
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：歷史品質稽核 renderer 的未展開文案只看 `items_truncated` 與 `quality_metadata_missing_reports`，沒有檢查 `items_returned <= items_limit`；矛盾 payload 會被誤當成完整明細。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先用 `items_limit=1 / items_returned=2 / items_total=2 / items_truncated=false` 取得 RED，再共用 bounded consistency contract；只在 bounded 欄位可比對且矛盾時顯示「範圍資料需確認」，保留 target 導覽與 legacy fallback。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步更新 history renderer cache-buster、API/operator/architecture 說明與前端契約測試；focused history/report-quality/static/docs regression `300 passed`，official live historical `5/59` 且 `limit=5/truncated=true/hasNext=true`，static assets `200`、health/ready `200/200`、doctor canonical paths 正常。本批不改 API count、quality gate、queue、snapshot、artifact、index、review 或 rerun state。
+
 ## D3809 / enforce bounded item limits in quality target labels
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：current-quality 與 freshness 的 label 沒有檢查 `items_returned <= items_limit`；即使 returned 等於 total，只要超過 limit 仍可能被寫成完整清單。

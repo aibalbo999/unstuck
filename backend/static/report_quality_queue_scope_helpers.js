@@ -1,10 +1,18 @@
 (function () {
+    function boundedItemsConsistent(total, returned, truncated, limit) {
+        const hasLimit = limit !== undefined && limit !== null;
+        return [total, returned].every(number => Number.isInteger(number) && number >= 0)
+            && returned <= total
+            && typeof truncated === 'boolean'
+            && truncated === (returned < total)
+            && (!hasLimit || (Number.isInteger(limit) && limit >= 0 && returned <= limit));
+    }
+
     function boundedItemsLabel(label, total, returned, truncated, limit) {
         const prefix = String(label || '').trim();
         const valid = prefix && [total, returned].every(number => Number.isInteger(number) && number >= 0) && returned <= total;
         if (!valid) return '';
-        const hasLimit = limit !== undefined && limit !== null;
-        const consistent = typeof truncated === 'boolean' && truncated === (returned < total) && (!hasLimit || Number.isInteger(limit) && limit >= 0 && returned <= limit);
+        const consistent = boundedItemsConsistent(total, returned, truncated, limit);
         return consistent ? (returned < total ? `${prefix}（顯示 ${returned}/${total}）` : `${prefix}（${total}）`) : `${prefix}（顯示 ${returned}/${total}；範圍資料需確認）`;
     }
 
@@ -15,5 +23,5 @@
         return valid && returned < required ? `修復 queue：顯示 ${returned} / 共 ${required}` : '';
     }
 
-    window.StockAgentReportQualityQueueScope = { boundedItemsLabel, boundedRepairQueueScope };
+    window.StockAgentReportQualityQueueScope = { boundedItemsConsistent, boundedItemsLabel, boundedRepairQueueScope };
 })();

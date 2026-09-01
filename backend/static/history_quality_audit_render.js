@@ -64,10 +64,8 @@
         const itemOffset = Number.isFinite(offsetValue) && offsetValue >= 0 ? Math.floor(offsetValue) : 0;
         const totalValue = Number(audit.items_total);
         const itemTotal = Number.isFinite(totalValue) && totalValue >= 0 ? Math.floor(totalValue) : missing;
-        const pageEnd = Math.min(itemTotal, itemOffset + returned);
-        const truncation = itemOffset > 0 && returned > 0
-            ? `（目前顯示第 ${itemOffset + 1}-${pageEnd} 份，共 ${itemTotal} 份）`
-            : audit.items_truncated === true && missing > returned ? `（目前顯示 ${returned} 份，另有 ${missing - returned} 份未展開）` : '';
+        const pageEnd = Math.min(itemTotal, itemOffset + returned); const hasBoundedScopeFields = audit.items_total !== undefined && audit.items_total !== null && audit.items_returned !== undefined && audit.items_returned !== null; const itemLimit = audit.items_limit === undefined || audit.items_limit === null ? undefined : Number(audit.items_limit); const boundedScopeConsistent = window.StockAgentReportQualityQueueScope?.boundedItemsConsistent; const boundedScopeNeedsConfirmation = hasBoundedScopeFields && typeof boundedScopeConsistent === 'function' && !boundedScopeConsistent(itemTotal, returned, audit.items_truncated, itemLimit);
+        const truncation = itemOffset > 0 && returned > 0 ? `（目前顯示第 ${itemOffset + 1}-${pageEnd} 份，共 ${itemTotal} 份）` : boundedScopeNeedsConfirmation ? `（目前顯示 ${returned}/${itemTotal}；範圍資料需確認）` : audit.items_truncated === true && missing > returned ? `（目前顯示 ${returned} 份，另有 ${missing - returned} 份未展開）` : '';
         const pageControls = [
             audit.items_has_prev === true ? '<button class="history-quality-audit-page" type="button" data-quality-audit-page="prev" aria-label="查看上一批品質缺口">上一批</button>' : '',
             audit.items_has_next === true ? '<button class="history-quality-audit-page" type="button" data-quality-audit-page="next" aria-label="查看下一批品質缺口">下一批</button>' : ''
