@@ -133,6 +133,37 @@ def test_current_quality_summary_uses_blocked_check_when_content_issue_ids_are_m
     assert payload["content_credibility_blocker_counts"] == {"blocked_check": 1}
 
 
+def test_current_quality_item_exposes_deduplicated_canonical_content_blocker_messages():
+    payload = build_current_quality_summary(
+        [{
+            "ticker": "2330.TW",
+            "filename": "2330.html",
+            "report_conformance": {"status": "blocked", "blocking_issues": [{"message": "需要人工查看"}]},
+            "content_credibility": {
+                "status": "blocked",
+                "blocking_issues": [
+                    {
+                        "id": "final_audit_critical",
+                        "message": "最終稽核仍有重大問題。",
+                        "details": {"critical": ["Agent 7 輸出失敗。", "Agent 7 輸出失敗。"]},
+                    },
+                    {
+                        "id": "long_target_not_above_current_price",
+                        "message": "偏多交易的目標價未高於目前股價。",
+                    },
+                ],
+            },
+            "evidence_exit_gate": {"verdict": "approved"},
+        }],
+        scope="all_indexed_reports",
+    )
+
+    assert payload["items"][0]["content_credibility_blocker_messages"] == [
+        "Agent 7 輸出失敗。",
+        "偏多交易的目標價未高於目前股價。",
+    ]
+
+
 def test_filtered_indexed_current_quality_summary_has_explicit_latest_scope(monkeypatch, tmp_path):
     import report_current_quality_summary as current_quality
 

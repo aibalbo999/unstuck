@@ -6,7 +6,7 @@ from threading import RLock
 from time import monotonic
 from typing import Any
 
-from mapping_fields import safe_dict_list, safe_int, safe_mapping_dict, safe_text
+from mapping_fields import safe_dict_list, safe_int, safe_mapping_dict, safe_text, safe_text_list
 from report_history_pagination import collect_all_report_pages
 from report_index import query_report_metadata
 from report_freshness_summary import report_freshness_bucket
@@ -271,6 +271,21 @@ def _blocker_ids(value: Any, *, include_decision_tree: bool = False) -> set[str]
     return blocker_ids
 
 
+def _blocker_messages(value: Any) -> list[str]:
+    gate = safe_mapping_dict(value) or {}
+    messages: list[str] = []
+    seen: set[str] = set()
+    for issue in safe_dict_list(gate.get("blocking_issues")):
+        details = safe_mapping_dict(issue.get("details")) or {}
+        candidates = safe_text_list(details.get("critical")) or [safe_text(issue.get("message"))]
+        for candidate in candidates:
+            message = safe_text(candidate).strip()
+            if message and message not in seen:
+                messages.append(message)
+                seen.add(message)
+    return messages
+
+
 def _current_quality_item(
     report: dict[str, Any],
     conformance_status: str,
@@ -281,6 +296,7 @@ def _current_quality_item(
     evidence_failed_count = _evidence_failed_count(report.get("evidence_exit_gate"))
     evidence_reason_counts = _evidence_reason_counts(report.get("evidence_exit_gate"))
     content_blocker_ids = sorted(_blocker_ids(report.get("content_credibility")))
+    content_blocker_messages = _blocker_messages(report.get("content_credibility"))
     issues = safe_dict_list(conformance.get("blocking_issues")) + safe_dict_list(conformance.get("warnings"))
     reason = next(
         (
@@ -301,6 +317,7 @@ def _current_quality_item(
         "evidence_failed_count": evidence_failed_count,
         "evidence_unverifiable_reason_counts": evidence_reason_counts,
         "content_credibility_blocker_ids": content_blocker_ids,
+        "content_credibility_blocker_messages": content_blocker_messages,
         "reason": reason,
     }
     if evidence_failed_count:
