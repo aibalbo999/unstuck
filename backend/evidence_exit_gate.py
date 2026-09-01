@@ -32,7 +32,7 @@ _NORMALIZED_SNAPSHOT_METADATA_PATH_MARKERS = tuple(_normalize_match_text(marker)
 _NORMALIZED_CONFIDENCE_METADATA_PATH_MARKERS = tuple(_normalize_match_text(marker) for marker in _CONFIDENCE_METADATA_PATH_MARKERS)
 _NORMALIZED_CANONICAL_STRING_PATH_MARKERS = tuple(_normalize_match_text(marker) for marker in ("target_price", "analyst_target", "current_price", "forward_eps", "trailing_eps"))
 _NORMALIZED_RESEARCH_CONTEXT_MARKERS = tuple(_normalize_match_text(marker) for marker in ("券商研究", "市場研究", "券商給予"))
-_SCENARIO_TARGET_LABELS = frozenset(("熊市情境", "基本情境", "牛市情境", "熊基牛情境")); _TECHNICAL_LEVEL_LABELS = frozenset(("心理關卡", "第二支撐", "關鍵支撐區", "近期支撐", "支撐位"))
+_SCENARIO_TARGET_LABELS = frozenset(("熊市情境", "基本情境", "牛市情境", "熊基牛情境")); _TECHNICAL_LEVEL_LABELS = frozenset(("心理關卡", "第二支撐", "關鍵支撐區", "近期支撐", "近期壓力", "支撐位"))
 _RECOMMENDATION_HORIZON_PATHS = {
     "短期目標3個月": "短期目標（3個月）",
     "中期目標6個月": "中期目標（6個月）",

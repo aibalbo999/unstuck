@@ -2993,6 +2993,22 @@ def test_evidence_gate_does_not_treat_plain_key_pressure_as_week_high():
     assert result["sampled_claims"][0]["matched_path"] != "data.week_52_high"
 
 
+def test_evidence_gate_classifies_generic_pressure_without_canonical_scalar():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* **近期壓力：** 34.0 TWD（心理關卡與目前最高價）。",
+        {"data": {"week_52_high": 34.0}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "unverifiable"
+    assert claim["verification_reason_code"] == "technical_level_not_canonical"
+    assert claim["matched_path"] == ""
+
+
 def test_evidence_gate_maps_month_low_support_to_month_minimum():
     from evidence_exit_gate import evaluate_report_evidence
 
