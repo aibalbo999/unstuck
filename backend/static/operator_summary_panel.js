@@ -23,7 +23,7 @@
         function parseFilenames(button) { try { const parsed = JSON.parse(button.dataset.filenames || '[]'); return Array.isArray(parsed) ? parsed.filter(Boolean) : []; } catch (err) { return []; } }
         async function rerunReport(filename) { return apiClient.requestJson(`/api/report/${encodeURIComponent(filename)}/rerun?scope=full_report`, { method: 'POST' }); }
         async function load() {
-            const [jobs, quotas, reports, watchlist, dailyDashboard] = await Promise.allSettled([apiClient.fetchActiveJobs({ limit: 3, eventLimit: 20 }), apiClient.fetchApiQuotas(), apiClient.fetchReports({ page: 1, limit: 8, includeVersions: false }), apiClient.fetchWatchlist(), apiClient.fetchDailyDecisionDashboard()]);
+            const [jobs, quotas, reports, watchlist, dailyDashboard] = await Promise.allSettled([apiClient.fetchActiveJobs({ limit: 3, eventLimit: 20 }), apiClient.fetchApiQuotas(), apiClient.fetchReports({ page: 1, limit: 20, includeVersions: false }), apiClient.fetchWatchlist(), apiClient.fetchDailyDecisionDashboard()]);
             const jobsValue = jobs.status === 'fulfilled' ? jobs.value : null;
             const quotasValue = quotas.status === 'fulfilled' ? quotas.value : null;
             const reportsValue = reports.status === 'fulfilled' ? reports.value : null;

@@ -358,6 +358,51 @@ const apiClient = {
     assert "顯示 5 / 共 23 件快速操作" in action_list
 
 
+def test_operator_summary_uses_daily_report_sample_for_data_trust_denominator():
+    module_path = STATIC_DIR / "operator_summary_panel.js"
+    script = """
+global.window = {
+  StockAgentOperatorDashboardActions: {
+    actionableActionCount: () => 0,
+    candidateActionModel: item => item,
+    dashboardActionItems: () => [],
+    dashboardText: () => ({ tone: 'ok', value: '今日節奏正常', detail: '' })
+  },
+  StockAgentOperatorSummaryHelpers: {
+    activeJobText: () => ({ tone: 'ok', value: '', detail: '' }),
+    quotaText: () => ({ tone: 'ok', value: '', detail: '' }),
+    trustText: () => ({ tone: 'ok', value: '近期資料正常', detail: '20 份近期報告' }),
+    rerunText: () => ({ tone: 'ok', value: '', detail: '' }),
+    operatorActionItems: () => []
+  }
+};
+const elements = {};
+const makeElement = () => {
+  const strong = { textContent: '' }, em = { textContent: '' };
+  return { className: '', innerHTML: '', strong, em, querySelector: selector => selector === 'strong' ? strong : em, addEventListener: () => {} };
+};
+for (const id of ['operator-active-jobs', 'operator-data-trust', 'operator-api-quota', 'operator-rerun', 'operator-action-list']) elements[id] = makeElement();
+global.document = { getElementById: id => elements[id] || null, querySelectorAll: () => [] };
+require(__MODULE_PATH__);
+let reportRequest;
+const apiClient = {
+  fetchActiveJobs: async () => ({ active_count: 0, jobs: [] }),
+  fetchApiQuotas: async () => ({ services: [] }),
+  fetchReports: async params => { reportRequest = params; return { reports: [] }; },
+  fetchWatchlist: async () => ({ items: [] }),
+  fetchDailyDecisionDashboard: async () => ({ decision_queue: { summary: { total_actionable: 0 }, items: [] } })
+};
+(async () => {
+  await window.StockAgentOperatorSummaryPanel.create({ apiClient, ui: { escapeHtml: value => String(value ?? '') } }).load();
+  process.stdout.write(JSON.stringify(reportRequest));
+})();
+""".replace("__MODULE_PATH__", json.dumps(str(module_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    report_request = json.loads(result.stdout)
+
+    assert report_request == {"page": 1, "limit": 20, "includeVersions": False}
+
+
 def test_operator_summary_delegates_quality_audit_to_scoped_historical_review():
     module_path = STATIC_DIR / "operator_summary_panel.js"
     script = """
@@ -754,6 +799,6 @@ def test_historical_audit_navigation_wiring_uses_cache_busters_and_existing_scop
     assert "/static/history_filters.js?v=20260816-history-scope-persistence" in index_html
     assert "/static/history_workspace.js?v=20260816-scope-transient-state-guard" in index_html
     assert "/static/operator_dashboard_actions.js?v=20260902-report-repair-scope" in index_html
-    assert "/static/operator_summary_panel.js?v=20260902-queue-total-scope" in index_html
+    assert "/static/operator_summary_panel.js?v=20260902-report-sample-scope" in index_html
     assert "/static/app.js?v=20260821-quality-audit-action" in index_html
     assert "/static/styles/watchlist.css?v=20260816-daily-quality-target-context" in style_css
