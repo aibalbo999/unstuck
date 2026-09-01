@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3781 / separate content blockers by conclusion freshness
+
+- `#拆解問題` / `#差距分析` / `#情境脈絡`：live `13` 份 content blocker 中，`5` 份屬目前版本、`8` 份屬資料刷新後尚未完整重跑；只顯示 `blocked=13` 會把本文當下矛盾與舊結論待重跑混為一談。
+- `#偏誤降低` / `#最小變更` / `#溝通設計`：新增 read-only `content_credibility_blocker_reports_by_freshness`，以每份報告為單位依 `current`／`needs_rerun`／`unknown` 分組；shared formatter 在 watchlist/history 顯示「內容阻斷版本」，不調整 blocker、status、verdict 或把 stale 報告誤標成通過。
+- `#可驗證性` / `#責任`：先取得 freshness fixture RED，再 GREEN；聚焦回歸 `195 passed`、跨層品質回歸 `1399 passed`，Node syntax、`py_compile`、`git diff --check` 通過。正式 reload 後 `healthz=ok`、`readyz=ready`、queue depth `0`、三個新版資產 `200`，live map 為 `current=5`、`needs_rerun=8`、`unknown=0`。本批仍只改 read-only summary/UI diagnostics，不寫 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3780 / expose quality blocker responsibility in aggregate
 
 - `#拆解問題` / `#差距分析` / `#溝通設計`：live current quality 已有 `165` 份報告的 conformance/content/evidence 狀態，但摘要只給 blocked/warning 數量；`final_audit`、`content_credibility`、`evidence_exit_gate` 與低資料信心目標價等阻斷原因無法在 watchlist/history 一眼辨識，操作人員仍需逐份展開。
