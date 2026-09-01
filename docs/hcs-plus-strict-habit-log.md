@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3793 / split unverifiable evidence reasons by conclusion freshness
+
+- `#拆解問題` / `#證據基礎` / `#情境脈絡`：live current-quality 的全量 `evidence_unverifiable_reason_counts` 只有原因總數，無法回答 residual 是目前本文問題還是資料刷新後等待重跑；逐筆檢查定位到 `3324.TWO/v1`「潛在下行空間 -18.2%」，其本文是舊結論，刷新後 snapshot 沒有同語意 canonical 欄位。
+- `#偏誤降低` / `#責任` / `#最小變更`：新增 `evidence_unverifiable_reason_counts_by_freshness` 與 item 的 `evidence_unverifiable_freshness_status`，watchlist/history 共用新 helper 顯示 freshness 與原因；不借用 `current_price`、情境目標、evidence gate artifact 或相同數值代算，該 residual 仍是 `unverifiable`，legacy payload 缺欄位維持相容。
+- `#受眾` / `#溝通設計` / `#可驗證性` / `#可逆性`：先取得 nested summary RED，再 GREEN；focused `408 passed`、evidence/content/quality cross-layer `513 passed`，Node syntax、`py_compile`、`git diff --check` 通過。正式 reload 後 live `165` 份、`85` 份非通過、evidence `134/28/3`；不可驗證按 freshness 為 current `technical_level_not_canonical=1、analysis_metadata_not_evidence=5`、needs_rerun `112` 筆、unknown `0`，healthz/readyz `ok/ready`、新 helper `200`、doctor canonical paths 正確。本批只改 read-only projection/UI，不寫 snapshot、artifact、index、review、rerun、repair 或 queue state。
+
 ## D3792 / align data trust and daily report sample denominators
 
 - `#拆解問題` / `#證據基礎` / `#語意含義`：D3791 live probe 顯示 data trust card 使用 8 份 `/api/reports` 樣本，但 daily dashboard 的 `report_scope.sampled_reports` 是 20；「資料新鮮 X / 抽樣 Y」與「近期報告取樣」不是同一個分母，容易造成品質信任誤讀。
