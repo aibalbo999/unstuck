@@ -314,6 +314,50 @@ const apiClient = {
     assert "今日待處理" in payload["actionList"]
 
 
+def test_operator_summary_shows_total_queue_count_when_items_are_truncated():
+    module_path = STATIC_DIR / "operator_summary_panel.js"
+    script = """
+global.window = {
+  StockAgentOperatorDashboardActions: {
+    actionableActionCount: items => items.length,
+    candidateActionModel: item => item,
+    dashboardActionItems: () => Array.from({ length: 5 }, (_, index) => ({ action: 'open-ops', label: '查看狀態', title: `待處理 ${index + 1}`, detail: '' })),
+    dashboardText: () => ({ tone: 'warning', value: '23 件待處理', detail: '顯示 5 / 次要待辦 18' })
+  },
+  StockAgentOperatorSummaryHelpers: {
+    activeJobText: () => ({ tone: 'ok', value: '無進行中任務', detail: '' }),
+    quotaText: () => ({ tone: 'ok', value: 'API 正常', detail: '' }),
+    trustText: () => ({ tone: 'ok', value: '近期資料正常', detail: '' }),
+    rerunText: () => ({ tone: 'ok', value: '無立即重跑', detail: '' }),
+    operatorActionItems: () => []
+  }
+};
+const elements = {};
+const makeElement = () => {
+  const strong = { textContent: '' }, em = { textContent: '' };
+  return { className: '', innerHTML: '', strong, em, querySelector: selector => selector === 'strong' ? strong : em, addEventListener: () => {} };
+};
+for (const id of ['operator-active-jobs', 'operator-data-trust', 'operator-api-quota', 'operator-rerun', 'operator-action-list']) elements[id] = makeElement();
+global.document = { getElementById: id => elements[id] || null, querySelectorAll: () => [] };
+require(__MODULE_PATH__);
+const apiClient = {
+  fetchActiveJobs: async () => ({ active_count: 0, jobs: [] }),
+  fetchApiQuotas: async () => ({ services: [] }),
+  fetchReports: async () => ({ reports: [{ ticker: '2330.TW' }] }),
+  fetchWatchlist: async () => ({ items: [] }),
+  fetchDailyDecisionDashboard: async () => ({ decision_queue: { summary: { total_actionable: 23, displayed_count: 5 }, items: [] } })
+};
+(async () => {
+  await window.StockAgentOperatorSummaryPanel.create({ apiClient, ui: { escapeHtml: value => String(value ?? '') } }).load();
+  process.stdout.write(JSON.stringify(elements['operator-action-list'].innerHTML));
+})();
+""".replace("__MODULE_PATH__", json.dumps(str(module_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    action_list = json.loads(result.stdout)
+
+    assert "顯示 5 / 共 23 件快速操作" in action_list
+
+
 def test_operator_summary_delegates_quality_audit_to_scoped_historical_review():
     module_path = STATIC_DIR / "operator_summary_panel.js"
     script = """
@@ -710,6 +754,6 @@ def test_historical_audit_navigation_wiring_uses_cache_busters_and_existing_scop
     assert "/static/history_filters.js?v=20260816-history-scope-persistence" in index_html
     assert "/static/history_workspace.js?v=20260816-scope-transient-state-guard" in index_html
     assert "/static/operator_dashboard_actions.js?v=20260902-report-repair-scope" in index_html
-    assert "/static/operator_summary_panel.js?v=20260902-data-trust-card-scope" in index_html
+    assert "/static/operator_summary_panel.js?v=20260902-queue-total-scope" in index_html
     assert "/static/app.js?v=20260821-quality-audit-action" in index_html
     assert "/static/styles/watchlist.css?v=20260816-daily-quality-target-context" in style_css

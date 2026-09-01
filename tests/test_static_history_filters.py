@@ -6099,7 +6099,7 @@ def test_candidate_next_actions_assets_use_shared_cache_buster():
     assert "/static/maintenance_panel_helpers.js?v=20260816-maintenance-confirmation" in index_html
     assert "/static/maintenance_panel.js?v=20260816-maintenance-confirmation" in index_html
     assert "/static/operator_dashboard_actions.js?v=20260902-report-repair-scope" in index_html
-    assert "/static/operator_summary_panel.js?v=20260902-data-trust-card-scope" in index_html
+    assert "/static/operator_summary_panel.js?v=20260902-queue-total-scope" in index_html
     assert "/static/app_panels.js?v=20260816-historical-quality-audit" in index_html
     assert "/static/styles/operator_summary.css?v=20260711-candidate-next-actions-v3" in style_css
 
