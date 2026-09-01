@@ -38,7 +38,7 @@ const payload = {
     quality_metadata_by_pipeline: {
       v1: { quality_metadata_missing_reports: 1, quality_metadata_missing_by_rerun_context: { present: 0, partial: 0, artifact_fallback_available: 1, missing: 0, not_evaluated: 0 } },
       v2: { quality_metadata_missing_reports: 1, quality_metadata_missing_by_rerun_context: { present: 0, partial: 0, artifact_fallback_available: 1, missing: 0, not_evaluated: 0 } },
-      v3: { quality_metadata_missing_reports: 1 }
+      v3: { quality_metadata_missing_reports: 1, quality_metadata_missing_by_rerun_context: { artifact_fallback_available: 1 } }
     }
   }
 };
@@ -91,6 +91,34 @@ process.stdout.write(JSON.stringify({ board }));
 
     assert "3 份品質 metadata 缺口" in payload["board"]
     assert "模式缺口：" not in payload["board"]
+    assert "模式上下文：" not in payload["board"]
+
+
+def test_watchlist_board_hides_inconsistent_pipeline_context_scope():
+    helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
+    scope_path = STATIC_DIR / "report_quality_audit_scope_helpers.js"
+    script = """
+global.window = {};
+require(__SCOPE_PATH__);
+require(__HELPER_PATH__);
+const payload = {
+  decision_queue: { summary: { total_actionable: 0 }, items: [{ type: 'monitor' }] },
+  report_quality_audit: {
+    quality_metadata_missing_reports: 2,
+    quality_metadata_by_pipeline: {
+      v1: { quality_metadata_missing_reports: 1, quality_metadata_missing_by_rerun_context: { present: 2 } },
+      v2: { quality_metadata_missing_reports: 1, quality_metadata_missing_by_rerun_context: { present: 1 } }
+    }
+  }
+};
+const board = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], payload, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ board }));
+""".replace("__SCOPE_PATH__", json.dumps(str(scope_path))).replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "2 份品質 metadata 缺口" in payload["board"]
+    assert "模式缺口：v1 1、v2 1" in payload["board"]
     assert "模式上下文：" not in payload["board"]
 
 
