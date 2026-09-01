@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3829 / enforce historical snapshot scope decomposition
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：歷史 renderer 只驗證 gap、verified、audited 與 complete 關係，`verified=10、invalid=1、unverified=0、audited=10` 仍會同時顯示完整度與 snapshot 異常。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以 snapshot decomposition contradiction 取得 RED；只有三個 snapshot scope 欄位都明確提供時要求 `verified + invalid + unverified = audited`，不對 legacy 缺欄位補算 0，矛盾時顯示「資料需確認」。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新 renderer cache-buster 與測試契約，live daily `165/165/0/0`、historical `1175/1175/0/0` 均符合分解；focused `3 passed`、完整 history/report-quality/static/docs regression `324 passed`，Node syntax、line guard 與 `git diff --check` 通過；renderer asset `200` 且與本地一致，health/ready `200/ready`、official launcher/worker/8080 與 doctor canonical paths 正常。本批不改 audit count、quality gate、queue、snapshot、artifact、index、review 或 rerun state。
+
 ## D3828 / enforce historical complete scope bounds
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：歷史 renderer 已檢查 `missing <= verified <= audited`，但 `complete=9、missing=0、verified=10` 仍會被顯示為 9 份完整，沒有反映 verified scope 的分解矛盾。
