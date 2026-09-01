@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3826 / enforce historical audit core scope bounds
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：歷史品質稽核 renderer 只檢查 `missing` 與 `audited` 的型別，沒有檢查 `quality_metadata_missing_reports <= audited_reports`；矛盾 payload 會顯示超出稽核範圍的缺口數。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先以 `audited=2 / missing=3` 取得 RED，再加入核心範圍不變量；不借用其他欄位修正數字，矛盾時 fail closed 顯示「品質 metadata 範圍資料需確認」，正常 legacy fallback 與 pagination 不變。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新 renderer cache-buster、API/operator/architecture 說明與 regression；focused `3 passed`、完整 history/report-quality/static/docs regression `321 passed`，Node syntax 與 `git diff --check` 通過；official renderer asset `200` 且與本地一致，live daily `165/2/2`、current-quality `165/85/5/85`、historical `1175/59/5/59/truncated=true`，兩個 live core scope 均通過 `missing <= audited`，health/ready `200/ready`、official launcher 與 doctor canonical paths 正常。本批不改 audit count、quality gate、queue、snapshot、artifact、index、review 或 rerun state。
+
 ## D3825 / validate watchlist quality detail scope
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：watchlist board 重複渲染的品質 detail 分布與 bounded scope 沒沿用 strict count contract；fractional values 會被 floor，review 進度還可能用部分有效欄位形成錯誤分母。

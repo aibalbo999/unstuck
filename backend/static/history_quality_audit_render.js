@@ -10,7 +10,7 @@
         }
         const missing = nonNegativeInteger(audit.quality_metadata_missing_reports);
         const audited = nonNegativeInteger(audit.audited_reports);
-        const coreCountsValid = missing !== null && audited !== null;
+        const coreCountsValid = missing !== null && audited !== null && missing <= audited;
         const fieldLabels = [['report_conformance', '報告一致性'], ['evidence_exit_gate', '證據關卡'], ['content_credibility', '內容可信度']];
         const fieldSummary = fieldLabels.map(([key, label]) => {
             const count = nonNegativeInteger(audit.missing_quality_field_counts?.[key]);

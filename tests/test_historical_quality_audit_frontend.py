@@ -135,6 +135,30 @@ process.stdout.write(JSON.stringify({ html }));
     assert "2 份品質 metadata 缺口（目前顯示 2 份，另有 0 份未展開）" not in payload["html"]
 
 
+def test_history_quality_audit_rejects_missing_count_above_audited_scope():
+    renderer_path = STATIC_DIR / "history_quality_audit_render.js"
+    script = """
+global.window = {};
+require(__RENDERER_PATH__);
+const html = window.StockAgentHistoricalQualityAuditRenderer.render({
+  audited_reports: 2,
+  quality_metadata_missing_reports: 3,
+  items_total: 3,
+  items_returned: 0,
+  items_limit: 5,
+  items_truncated: true,
+  items: []
+}, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ html }));
+""".replace("__RENDERER_PATH__", json.dumps(str(renderer_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "範圍：2 份" in payload["html"]
+    assert "品質 metadata 範圍資料需確認" in payload["html"]
+    assert "3 份品質 metadata 缺口" not in payload["html"]
+
+
 def test_history_quality_audit_does_not_floor_fractional_or_malformed_counts():
     renderer_path = STATIC_DIR / "history_quality_audit_render.js"
     script = """
@@ -182,6 +206,36 @@ process.stdout.write(JSON.stringify({ html }));
     assert "artifact 摘要可查 1 份" not in payload["html"]
     assert "1.5" not in payload["html"]
     assert "2.5" not in payload["html"]
+
+
+def test_history_current_quality_rejects_malformed_evidence_distribution():
+    helper_path = STATIC_DIR / "history_current_quality_helpers.js"
+    script = """
+global.window = {};
+require(__HELPER_PATH__);
+const summary = {
+  schema_version: 'report_current_quality_summary.v1',
+  scope: 'historical_filter_current_latest',
+  selection_basis: 'latest_per_ticker_pipeline',
+  audited_reports: 1,
+  non_passed_reports: 0,
+  items_total: 0,
+  items_returned: 0,
+  report_conformance_by_status: { passed: 1, warning: 0, blocked: 0, unknown: 0 },
+  content_credibility_by_status: { passed: 1, warning: 0, blocked: 0, unknown: 0 },
+  evidence_exit_gate_by_verdict: { approved: 1.5, caution: -0.5, rejected: 0, unknown: 0 },
+  items: []
+};
+process.stdout.write(JSON.stringify({
+  validated: window.StockAgentHistoricalCurrentQualityHelpers.validated(summary),
+  html: window.StockAgentHistoricalCurrentQualityHelpers.render(summary, value => String(value ?? ''))
+}));
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert payload["validated"] is None
+    assert payload["html"] == ""
 
 
 def test_history_quality_review_does_not_floor_fractional_event_or_filter_counts():
@@ -985,7 +1039,7 @@ def test_history_workspace_wires_historical_quality_audit_without_daily_queue_si
     assert "/static/api_client_extensions.js?v=20260821-current-quality-summary" in index_html
     assert "/static/watchlist_panel_actions.js?v=20260821-current-quality-background" in index_html
     assert "/static/history_panel_quality_helpers.js?v=20260902-integer-review-counts" in index_html
-    assert "/static/history_quality_audit_render.js?v=20260902-integer-counts" in index_html
+    assert "/static/history_quality_audit_render.js?v=20260902-scope-count-bounds" in index_html
     assert "/static/history_quality_audit.js?v=20260820-quality-version-filter" in index_html
     assert index_html.index("/static/history_quality_audit_render.js") < index_html.index("/static/history_quality_audit.js")
     assert len((STATIC_DIR / "history_panel_quality_helpers.js").read_text(encoding="utf-8").splitlines()) < 120

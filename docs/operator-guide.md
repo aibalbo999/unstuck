@@ -173,7 +173,7 @@ complete overlap 還必須符合「sample 內 + sample 外 = 全部品質缺口�
 
 complete overlap 也必須返回全部缺口項目（`returned = gap`）；宣稱 complete 卻缺少項目時會省略 exact split，避免把部分比較當成全量。
 
-歷史版本品質稽核的報告、缺口、審核、版本、artifact、snapshot 與分頁計數也只接受有限非負整數；fractional 或 malformed 值不會被截斷成假數字，核心範圍不完整時會顯示「資料需確認」。
+歷史版本品質稽核的報告、缺口、審核、版本、artifact、snapshot 與分頁計數也只接受有限非負整數；fractional 或 malformed 值不會被截斷成假數字，且缺口數不得超過稽核總數。核心範圍不完整或彼此矛盾時會顯示「資料需確認」。
 
 歷史品質審核紀錄的次數與事件編號，以及待人工核對／缺口欄位／版本篩選器的數字也遵守同一邊界；無效值不會顯示成第幾次或錯誤分母，當前篩選仍保留並標示「資料需確認」。
 
