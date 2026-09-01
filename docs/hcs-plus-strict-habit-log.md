@@ -4,7 +4,7 @@
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：D3826 收緊 `missing <= audited` 後，歷史 renderer 仍未檢查 optional `verified_snapshot_reports`；`audited=10、verified=1、missing=2` 會顯示超過已驗證快照分母的缺口。
 - `#證據基礎` / `#偏誤降低` / `#最小變更`：以 `missing=2 / verified=1 / audited=10` 取得 RED，明確存在的 verified count 要求 `missing <= verified <= audited`；欄位缺失不自行補算，維持既有 legacy fallback。
-- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新 renderer cache-buster 與測試契約，live daily `165/165/2`、historical `1175/1175/59` 均符合新不變量；focused `3 passed`、完整 history/report-quality/static/docs regression `322 passed`，Node syntax、line guard 與 `git diff --check` 通過；post-push runtime/asset 驗證待完成。本批不改 audit count、quality gate、queue、snapshot、artifact、index、review 或 rerun state。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新 renderer cache-buster 與測試契約，live daily `165/165/2`、historical `1175/1175/59` 均符合新不變量；focused `3 passed`、完整 history/report-quality/static/docs regression `322 passed`，Node syntax、line guard 與 `git diff --check` 通過；post-push renderer asset `200` 且與本地一致，health/ready `200/ready`、official launcher/worker/8080 與 doctor canonical paths 正常。本批不改 audit count、quality gate、queue、snapshot、artifact、index、review 或 rerun state。
 
 ## D3826 / enforce historical audit core scope bounds
 
