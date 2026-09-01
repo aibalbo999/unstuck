@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3819 / enforce repair overlap split invariant
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：整數 count 不代表 exact split 合法；`in_sample=3`、`gap=2`、`outside=0` 仍可被渲染成 `3/2`。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先取得 arithmetic contradiction RED，再要求 complete overlap 的 in/out 加總等於 gap；不延伸到 partial 未展開資料、不推算缺少欄位。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新 watchlist cache-buster、API/operator/architecture 說明與 regression；focused/full regression `312 passed`，新 asset `200`，live overlap `complete / 0/2 sample內 / 2 sample外 / returned 2` 正常保留，synthetic `3/2` 被抑制，health/ready `200/200`、doctor canonical paths 正常。本批不改 audit、repair sample、queue、snapshot、artifact、index、review 或 rerun state。
+
 ## D3818 / reject fractional repair overlap counts
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：repair sample overlap 只檢查 finite，會把 fractional gap/in/out 數字 `floor` 成看似精確的 sample 統計。

@@ -163,6 +163,8 @@ watchlist 的 repair queue 取樣範圍也只顯示有限的非負整數；小�
 
 品質缺口與 repair sample 的交叉摘要也要求所有顯示計數都是有限非負整數；任一欄是小數或格式錯誤時，整段 overlap 說明會省略，不把部分統計向下取整後當成精確結果。
 
+complete overlap 還必須符合「sample 內 + sample 外 = 全部品質缺口」；整數欄位彼此矛盾時會省略交叉摘要，避免顯示不可能的分配。
+
 按下「核准保留缺口／退回處理／暫緩」後，該按鈕會暫時鎖定並顯示忙碌狀態；同一筆 review 在回應完成前不會重複送出。成功會顯示「人工審核已儲存」，失敗會顯示錯誤且恢復按鈕，操作員可在確認 revision 後重試。這不代表品質 gate 被自動修復，真正決策仍以 canonical review ledger 為準。
 
 輸入核對理由後，畫面會再次確認是否要把目前決策寫入這個報告版本。選擇取消不會送出請求，也不會新增 review ledger event；選擇確認後仍須通過 server 的 mutation token 與 revision 檢查。
