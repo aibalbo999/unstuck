@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3791 / expose total actionable queue count without inflating rendered items
+
+- `#拆解問題` / `#受眾` / `#語意含義`：live `decision_queue.summary` 是 `total_actionable=23`、`displayed_count=5`、`secondary_count=18`，但 operator summary 標頭只顯示「5 件快速操作」；首屏 top-5 與總待辦的分母沒有在同一處說清楚。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：`operator_summary_panel.js` 新增 queue count guard，只有 `total_actionable`、`displayed_count` 是整數，且 `displayed_count` 等於實際 rendered actionable count、`total_actionable` 大於顯示數時，才輸出「顯示 5 / 共 23 件快速操作」；缺 summary、legacy payload 或計數不一致時回到實際 rendered count，沒有自行猜測總量或改 queue payload。
+- `#可驗證性` / `#可逆性` / `#責任`：先取得 header RED，再 GREEN；frontend/history/filter `158 passed`、dashboard/queue/repair/current-quality `230 passed`，Node syntax、`git diff --check` 通過。正式 JS + live API/DOM 取得 `header_matches_queue=true`、queue `23/5/18`、data trust card 未顯示 queue summary，current quality `165/85`；cache-buster 更新為 `20260902-queue-total-scope`。本批只改 read-only operator 呈現，不寫 snapshot、artifact、index、review、rerun、repair 或 queue state。
+
 ## D3790 / keep data trust card separate from daily queue summary
 
 - `#拆解問題` / `#語意含義` / `#受眾`：operator summary 的元素標籤是「近期資料信任」，但 panel 原本以 daily queue summary 覆蓋它；live queue 的 `23 件待處理` 因而會被誤讀成資料信任狀態，混淆 queue、資料信任與報告品質的分母。
