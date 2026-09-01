@@ -344,6 +344,17 @@ def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
     if (label == "previous" and ("marginbalance" in raw_text or "shortbalance" in raw_text)) or (label == "shortpreviousbalance" and "short_previous_balance" in raw_text) or (label == "marginpreviousbalance" and "margin_previous_balance" in raw_text) or (label == "return" and "borrowedshortsale" in raw_text and "return" in raw_text): return ("margin_previous_balance",) if (label == "previous" and "marginbalance" in raw_text) or label == "marginpreviousbalance" else ("short_previous_balance",) if (label == "previous" and "shortbalance" in raw_text) or label == "shortpreviousbalance" else ("chip_data.twse_margin_short_sales.borrowed_short_return_today",)
     if (recommendation_path := _RECOMMENDATION_HORIZON_PATHS.get(label)) and not claim.get("_legacy_conclusion_context_missing"):
         return (f"rerun_context.parsed.recommendation.{recommendation_path}",)
+    if any(_normalize_match_text(marker) in label for marker in ("支撐", "壓力")) and str(claim.get("unit") or "").lower() in ("twd", "元"):
+        close_date = re.search(r"(?<!\d)(?P<month>\d{1,2})/(?P<day>\d{1,2})\s*(?:收盤(?:價)?|close(?:ing)?)", claim_text, re.IGNORECASE)
+        candidate_years = {
+            month_name[:4]
+            for month_name in claim.get("_price_history_months") or ()
+            if int(month_name[5:7]) == int(close_date.group("month"))
+        } if close_date else set()
+        previous_numbers = list(_NUMBER_IN_STRING_RE.finditer(claim_text[:close_date.start()])) if close_date else []
+        has_news_source = any(marker in _normalize_match_text(claim_text) for marker in ("market_catalysts", "catalyst", "新聞", "催化劑", "盤中速報", "news"))
+        if close_date and len(candidate_years) == 1 and previous_numbers and _clean_number(previous_numbers[-1].group()) == float(claim.get("reported_value") or 0) and not has_news_source:
+            return (f"price_history[{next(iter(candidate_years))}-{int(close_date.group('month')):02d}-{int(close_date.group('day')):02d}]",)
     date_series_match = re.search(r"(?P<month>\d{1,2})/(?P<day>\d{1,2})", raw_label); date_series_context = str(claim.get("context_text") or ""); context_years = set(re.findall(r"(20\d{2})\s*年", date_series_context)); month = int(date_series_match.group("month")) if date_series_match else 0; candidate_years = {month_name[:4] for month_name in claim.get("_price_history_months") or () if int(month_name[5:7]) == month}
     if "觀察近三個月價格" in claim_text and date_series_match and len(context_years) == len(candidate_years) == 1 and context_years == candidate_years: return (f"price_history[{next(iter(context_years))}-{month:02d}-{int(date_series_match.group('day')):02d}]",)
     if (dated_latest_price := re.fullmatch(r"最新價格\s*[（(]\s*(20\d{2})[-/](\d{1,2})[-/](\d{1,2})\s*[)）]", raw_label.strip())) and re.search(r"(?:NT\$|\$|TWD|元)", claim_text, re.IGNORECASE): return (f"price_history[{dated_latest_price.group(1)}-{int(dated_latest_price.group(2)):02d}-{int(dated_latest_price.group(3)):02d}]",)

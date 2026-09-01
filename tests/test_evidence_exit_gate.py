@@ -2834,6 +2834,72 @@ def test_evidence_gate_maps_dated_pressure_labeled_as_week_high_to_week_high():
     assert claim["matched_path"] == "data.week_52_high"
 
 
+def test_evidence_gate_maps_yearless_close_support_to_unique_price_history_date():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* **近期支撐：** 31.6 TWD（8/31 收盤價，初步支撐）；22.05 TWD（前波頸線位置，強支撐）。",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2026-07-31", "2026-08-31"],
+                    "prices": [9.5, 31.6],
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "verified"
+    assert claim["matched_path"] == "data.price_history[2026-08-31].prices[1]"
+
+
+def test_evidence_gate_does_not_guess_year_for_ambiguous_yearless_close_support():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* **近期支撐：** 31.6 TWD（8/31 收盤價，初步支撐）。",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2025-08-31", "2026-08-31"],
+                    "prices": [31.6, 31.6],
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "unverifiable"
+    assert claim["matched_path"] == ""
+
+
+def test_evidence_gate_does_not_bind_yearless_close_support_from_news():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* **近期支撐：** 31.6 TWD（8/31 收盤價，新聞速報）。",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2026-08-31"],
+                    "prices": [31.6],
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "unverifiable"
+    assert claim["matched_path"] == ""
+
+
 def test_evidence_gate_ignores_normalized_financials_examples_in_data_limitations():
     from evidence_exit_gate import extract_numeric_claims
 
