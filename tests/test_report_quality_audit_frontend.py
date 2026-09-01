@@ -477,6 +477,47 @@ process.stdout.write(JSON.stringify({ board }));
     assert "目前品質：" not in payload["board"]
 
 
+def test_watchlist_current_quality_does_not_floor_fractional_evidence_failed_counts():
+    evidence_path = STATIC_DIR / "report_quality_evidence_helpers.js"
+    current_quality_helper_path = STATIC_DIR / "watchlist_current_quality_helpers.js"
+    script = """
+global.window = {};
+require(__EVIDENCE_PATH__);
+require(__CURRENT_QUALITY_HELPER_PATH__);
+const audit = {
+  current_quality_summary: {
+    schema_version: 'report_current_quality_summary.v1',
+    scope: 'all_indexed_reports',
+    selection_basis: 'latest_per_ticker_pipeline',
+    audited_reports: 1,
+    non_passed_reports: 1,
+    items_total: 1,
+    items_returned: 1,
+    report_conformance_by_status: { passed: 0, warning: 1, blocked: 0, unknown: 0 },
+    content_credibility_by_status: { passed: 1, warning: 0, blocked: 0, unknown: 0 },
+    evidence_exit_gate_by_verdict: { approved: 0, caution: 1, rejected: 0, unknown: 0 },
+    evidence_failed_count: 1.5,
+    items: [{
+      ticker: 'BAD', pipeline_id: 'v1', filename: 'bad.html',
+      report_conformance_status: 'warning', content_credibility_status: 'passed',
+      evidence_exit_gate_verdict: 'caution', evidence_failed_count: 1.5
+    }]
+  }
+};
+const helper = window.StockAgentWatchlistCurrentQualityHelpers;
+process.stdout.write(JSON.stringify({
+  summary: helper.summary(audit),
+  targets: helper.targets(audit, value => String(value ?? ''))
+}));
+""".replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path))).replace("__CURRENT_QUALITY_HELPER_PATH__", json.dumps(str(current_quality_helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "目前品質：" in payload["summary"]
+    assert "證據數值不一致" not in payload["summary"]
+    assert "證據數值不一致" not in payload["targets"]
+
+
 def test_watchlist_board_does_not_floor_fractional_repair_sample_size():
     helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
     script = """

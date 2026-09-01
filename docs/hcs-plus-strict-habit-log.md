@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3824 / reject fractional watchlist evidence failures
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：watchlist current-quality summary 與 bounded target 的 `evidence_failed_count` 仍直接 floor，會讓 valid payload 的 `1.5` 變成看似精確的 mismatch `1`。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：用上一個 commit `ed0cd159` 的 baseline replay 重現錯誤，再以有限正整數 validator 收斂 summary/target 兩個直接顯示點；無效欄位逐項省略，不影響同一 payload 的其他合法 projection。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新 watchlist helper cache-buster、operator/architecture 說明並沿用既有 API contract；focused/cache-buster tests `4 passed`，完整 history/report-quality/static/docs regression `318 passed`，Node syntax 與 `git diff --check` 通過；official live asset `200` 且與本地一致，current-quality `165`、target `5/85`、第一筆 count `0`，health/ready `200/ready`、official launcher 與 doctor canonical paths 正常。本批不改 evidence gate、audit、quality gate、queue、snapshot、artifact、index、review 或 rerun state。
+
 ## D3823 / reject fractional shared summary counts
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：共用 evidence、freshness、blocker、action 與 history current-quality 摘要仍會把 fractional/malformed counts floor 成原因、mismatch、處理建議或 evidence failure 數，讓 read-only diagnostics 看起來像合法整數。

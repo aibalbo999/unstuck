@@ -32,7 +32,7 @@ def test_shared_quality_evidence_helper_loads_before_all_consumers():
     assert "/static/history_quality_audit_render.js?v=20260902-integer-counts" in index_html
     assert "/static/history_current_quality_helpers.js?v=20260902-integer-summary-counts" in index_html
     assert "/static/watchlist_freshness_helpers.js?v=20260902-integer-quality-counts" in index_html
-    assert "/static/watchlist_current_quality_helpers.js?v=20260902-integer-quality-counts" in index_html
+    assert "/static/watchlist_current_quality_helpers.js?v=20260902-integer-summary-counts" in index_html
     assert "/static/watchlist_panel_helpers.js?v=20260902-quality-overlap-complete" in index_html
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
     assert "/static/styles/history_list.css?v=20260816-clickable-quality-evidence" in style_css
