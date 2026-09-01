@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3783 / expose canonical content blocker details per report
+
+- `#拆解問題` / `#差距分析` / `#溝通設計`：live `13` 份 content blocker 中有 `12` 份是 `final_audit_critical`；只顯示 blocker ID 仍無法回答是哪個 agent 失敗、哪個結論矛盾或哪個資料信心門檻被觸發，操作員難以在「先重跑」與「先人工確認」間分流。
+- `#證據基礎` / `#責任` / `#最小變更`：current-quality item 新增 `content_credibility_blocker_messages`；若 blocking issue details 有 canonical `critical` 原文，優先取其去重結果，否則退回 issue message。shared helper 只做訊息去重與分隔，watchlist 顯示「內容阻斷原因」並沿用既有 escape；缺少新欄位的舊 payload 仍可渲染，不改 blocker、status、verdict、snapshot 或 rerun 行為。
+- `#可驗證性` / `#可逆性`：先取得 backend/helper/watchlist RED，再 GREEN；聚焦回歸 `198 passed`、跨層品質回歸 `1402 passed`，Node syntax、`py_compile`、`git diff --check` 通過。正式 reload 後 live `0056.TW`、`1623.TW`、`2367.TW` item 已回傳 canonical 原因，無 blocker 的 `2308.TW` 保持空清單；`healthz=ok`、`readyz=ready`、queue depth `0`、failed_recent `0`，三個 detail 資產 `200`。本批只改 read-only summary/UI diagnostics，不寫 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3782 / carry content blocker context into each report item
 
 - `#拆解問題` / `#差距分析` / `#溝通設計`：live current summary 的 aggregate 已能看出 content blocker `13` 份及 freshness `current=5`／`needs_rerun=8`，但 item 只顯示 conformance reason，操作員仍不能在待查看清單直接知道單份報告的 content blocker ID 與是否先重跑。
