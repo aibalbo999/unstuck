@@ -1,9 +1,10 @@
 (function () {
-    function boundedItemsLabel(label, total, returned, truncated) {
+    function boundedItemsLabel(label, total, returned, truncated, limit) {
         const prefix = String(label || '').trim();
         const valid = prefix && [total, returned].every(number => Number.isInteger(number) && number >= 0) && returned <= total;
         if (!valid) return '';
-        const consistent = typeof truncated === 'boolean' && truncated === (returned < total);
+        const hasLimit = limit !== undefined && limit !== null;
+        const consistent = typeof truncated === 'boolean' && truncated === (returned < total) && (!hasLimit || Number.isInteger(limit) && limit >= 0 && returned <= limit);
         return consistent ? (returned < total ? `${prefix}（顯示 ${returned}/${total}）` : `${prefix}（${total}）`) : `${prefix}（顯示 ${returned}/${total}；範圍資料需確認）`;
     }
 

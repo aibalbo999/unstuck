@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3809 / enforce bounded item limits in quality target labels
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：current-quality 與 freshness 的 label 沒有檢查 `items_returned <= items_limit`；即使 returned 等於 total，只要超過 limit 仍可能被寫成完整清單。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先以 `limit=1 / returned=2 / total=2` 兩個反例取得 RED，再將 limit 納入 shared consistency；正常 payload 維持既有 label，矛盾資料改顯示「範圍資料需確認」並保留 target 導覽。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：API、operator guide、architecture map 同步說明 limit 邊界；audit frontend `27 passed`、focused `279 passed`，live freshness `5/28`、current-quality `5/85`，static assets `200`、health/ready `200/200`、doctor canonical paths 正常。
+
 ## D3808 / guard current-quality and freshness bounded labels
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`current-quality` 與 freshness 的 target list 在 `returned < total` 且 `items_truncated=false` 時仍顯示完整 total，會把部分 navigation sample 誤報成全量。
