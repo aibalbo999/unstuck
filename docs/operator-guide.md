@@ -115,7 +115,7 @@ The read-only report quality audit exposes `missing_quality_fields`, `severity`,
 
 歷史稽核回應中的 `current_quality_summary` 是另一個目前規則投影：`scope=historical_filter_current_latest` 只看相同 `q`/`pipeline` 篩選下每個 ticker/mode 的最新版本，並用自己的 `audited_reports` 分母呈現目前一致性、內容可信度與證據關卡。它不會改寫歷史 metadata coverage，也不會把缺 gate 補成通過；看到 persisted coverage 與 current summary 不同時，代表兩個時間/語意層次不同，應分開判讀。
 
-current-quality summary 另提供 `evidence_failed_count` 與 `evidence_unverifiable_reason_counts`：前者彙總同一批 evidence gate 的數值 mismatch，後者彙總未驗證原因；每個 target 也保留該報告的 counts。畫面會用白話標籤顯示「證據數值不一致」「研究來源非 canonical」等，未知的新 reason code 則原樣保留。這只改善人工分流，不代表 gate 通過，也不會把 sampled claim、跨 provider 數值或任何 review/rerun/repair/queue 狀態寫回系統。
+current-quality summary 另提供 `evidence_failed_count` 與 `evidence_unverifiable_reason_counts`：前者彙總同一批 evidence gate 的數值 mismatch，後者彙總未驗證原因；每個 target 也保留該報告的 counts。`evidence_mismatch_claims_by_freshness` 是 mismatch claim 數，`evidence_mismatch_reports_by_freshness` 是受影響報告數，兩者都按 `current`、`needs_rerun`、`unknown` 分組；target 的 `evidence_mismatch_freshness_status` 只在有真實 mismatch 時出現。畫面會用白話標籤顯示「證據數值不一致」「資料已更新、本文需完整重跑」「研究來源非 canonical」等，代表分流上下文，不代表 mismatch 可以忽略或 gate 已通過。這只改善人工分流，不會把 sampled claim、跨 provider 數值或任何 review/rerun/repair/queue 狀態寫回系統。
 
 歷史稽核也可用 `review_status=pending|approved_with_gap|rejected|deferred` 只看某一種目前 revision 審核狀態；回應的 `review_status_filter` 會標示套用的範圍，篩選後的 coverage 與分頁數字只代表該狀態，不代表其他狀態不存在。這仍是 GET-only 查詢，不會寫入 review ledger。
 

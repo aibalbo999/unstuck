@@ -21,6 +21,7 @@ def test_current_quality_summary_keeps_gate_distributions_separate_and_bounds_ta
                 "filename": "2454.html",
                 "report_conformance": {"status": "blocked", "blocking_issues": [{"message": "證據矛盾"}]},
                 "content_credibility": {"status": "blocked"},
+                "decision_freshness": {"status": "needs_rerun", "requires_rerun": True},
                 "evidence_exit_gate": {
                     "verdict": "rejected",
                     "failed_count": 1,
@@ -50,6 +51,16 @@ def test_current_quality_summary_keeps_gate_distributions_separate_and_bounds_ta
         "no_matching_snapshot_path": 2,
         "missing_semantic_path": 1,
     }
+    assert payload["evidence_mismatch_claims_by_freshness"] == {
+        "current": 0,
+        "needs_rerun": 1,
+        "unknown": 0,
+    }
+    assert payload["evidence_mismatch_reports_by_freshness"] == {
+        "current": 0,
+        "needs_rerun": 1,
+        "unknown": 0,
+    }
     assert payload["evidence_failed_count"] == 1
     assert payload["non_passed_reports"] == 2
     assert payload["items_returned"] == 1
@@ -58,6 +69,7 @@ def test_current_quality_summary_keeps_gate_distributions_separate_and_bounds_ta
     assert payload["items"][0]["reason"] == "證據矛盾"
     assert payload["items"][0]["evidence_failed_count"] == 1
     assert payload["items"][0]["evidence_unverifiable_reason_counts"] == {"missing_semantic_path": 1}
+    assert payload["items"][0]["evidence_mismatch_freshness_status"] == "needs_rerun"
 
 
 def test_current_quality_summary_treats_missing_gate_status_as_unknown():

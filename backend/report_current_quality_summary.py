@@ -9,6 +9,7 @@ from typing import Any
 from mapping_fields import safe_dict_list, safe_int, safe_mapping_dict, safe_text
 from report_history_pagination import collect_all_report_pages
 from report_index import query_report_metadata
+from report_freshness_summary import report_freshness_bucket
 
 
 SCHEMA_VERSION = "report_current_quality_summary.v1"
@@ -17,6 +18,7 @@ CURRENT_QUALITY_CACHE_TTL_SECONDS = 30.0
 CONFORMANCE_STATUSES = ("passed", "warning", "blocked", "unknown")
 CONTENT_STATUSES = ("passed", "warning", "blocked", "unknown")
 EVIDENCE_VERDICTS = ("approved", "caution", "rejected", "unknown")
+EVIDENCE_MISMATCH_FRESHNESS_BUCKETS = ("current", "needs_rerun", "unknown")
 _SUMMARY_CACHE: dict[tuple[str, int, int, str, str], tuple[float, dict[str, Any]]] = {}
 _SUMMARY_CACHE_LOCK = RLock()
 
@@ -130,6 +132,8 @@ def build_current_quality_summary(
     evidence = {verdict: 0 for verdict in EVIDENCE_VERDICTS}
     evidence_failed_count = 0
     evidence_reason_counts: dict[str, int] = {}
+    evidence_mismatch_claims_by_freshness = {bucket: 0 for bucket in EVIDENCE_MISMATCH_FRESHNESS_BUCKETS}
+    evidence_mismatch_reports_by_freshness = {bucket: 0 for bucket in EVIDENCE_MISMATCH_FRESHNESS_BUCKETS}
     non_passed = []
     for report in rows:
         conformance_status = _conformance_status(report.get("report_conformance"))
@@ -138,7 +142,12 @@ def build_current_quality_summary(
         conformance[conformance_status] += 1
         content[content_status] += 1
         evidence[evidence_verdict] += 1
-        evidence_failed_count += _evidence_failed_count(report.get("evidence_exit_gate"))
+        report_failed_count = _evidence_failed_count(report.get("evidence_exit_gate"))
+        evidence_failed_count += report_failed_count
+        if report_failed_count:
+            freshness_bucket = report_freshness_bucket(report)
+            evidence_mismatch_claims_by_freshness[freshness_bucket] += report_failed_count
+            evidence_mismatch_reports_by_freshness[freshness_bucket] += 1
         for reason, count in _evidence_reason_counts(report.get("evidence_exit_gate")).items():
             evidence_reason_counts[reason] = evidence_reason_counts.get(reason, 0) + count
         if conformance_status != "passed":
@@ -156,6 +165,8 @@ def build_current_quality_summary(
         "content_credibility_by_status": content,
         "evidence_exit_gate_by_verdict": evidence,
         "evidence_failed_count": evidence_failed_count,
+        "evidence_mismatch_claims_by_freshness": evidence_mismatch_claims_by_freshness,
+        "evidence_mismatch_reports_by_freshness": evidence_mismatch_reports_by_freshness,
         "evidence_unverifiable_reason_counts": evidence_reason_counts,
         "non_passed_reports": len(non_passed),
         "items_limit": limit,
@@ -244,7 +255,7 @@ def _current_quality_item(
         ),
         "目前品質狀態需要人工查看。",
     )
-    return {
+    payload = {
         "ticker": safe_text(report.get("ticker")).strip(),
         "pipeline_id": safe_text(report.get("pipeline_id")).strip() or "v1",
         "filename": safe_text(report.get("filename") or report.get("report_filename")).strip(),
@@ -256,6 +267,9 @@ def _current_quality_item(
         "evidence_unverifiable_reason_counts": evidence_reason_counts,
         "reason": reason,
     }
+    if evidence_failed_count:
+        payload["evidence_mismatch_freshness_status"] = report_freshness_bucket(report)
+    return payload
 
 
 def _status_rank(status: str) -> int:
@@ -268,6 +282,7 @@ __all__ = [
     "CURRENT_QUALITY_ITEM_LIMIT",
     "CURRENT_QUALITY_CACHE_TTL_SECONDS",
     "EVIDENCE_VERDICTS",
+    "EVIDENCE_MISMATCH_FRESHNESS_BUCKETS",
     "SCHEMA_VERSION",
     "build_current_quality_summary",
     "build_filtered_indexed_current_quality_summary",

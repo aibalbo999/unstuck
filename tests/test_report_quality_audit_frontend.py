@@ -207,12 +207,14 @@ const payload = {
       evidence_exit_gate_by_verdict: { approved: 39, caution: 125, rejected: 1, unknown: 0 },
       evidence_failed_count: 138,
       evidence_unverifiable_reason_counts: { research_source_not_canonical: 2 },
+      evidence_mismatch_claims_by_freshness: { needs_rerun: 138, current: 0, unknown: 0 },
+      evidence_mismatch_reports_by_freshness: { needs_rerun: 1, current: 0, unknown: 0 },
       non_passed_reports: 136,
       items_limit: 5,
       items_total: 136,
       items_returned: 1,
       items_truncated: true,
-      items: [{ ticker: '2454.TW', pipeline_id: 'v2', filename: '2454_v2.html', report_conformance_status: 'blocked', content_credibility_status: 'blocked', evidence_exit_gate_verdict: 'rejected', evidence_failed_count: 138, reason: '證據矛盾' }]
+      items: [{ ticker: '2454.TW', pipeline_id: 'v2', filename: '2454_v2.html', report_conformance_status: 'blocked', content_credibility_status: 'blocked', evidence_exit_gate_verdict: 'rejected', evidence_failed_count: 138, evidence_mismatch_freshness_status: 'needs_rerun', reason: '證據矛盾' }]
     }
   }
 };
@@ -223,10 +225,11 @@ process.stdout.write(JSON.stringify({ board: window.StockAgentWatchlistPanelHelp
     payload = json.loads(result.stdout)
 
     assert "目前品質：符合 29、警示 127、阻斷 9、無法判定 0" in payload["board"]
-    assert "證據數值不一致 138；證據未驗證原因：研究來源非 canonical 2" in payload["board"]
+    assert "證據數值不一致 138；數值不一致分布：資料已更新、本文需完整重跑 138 筆／1 份；證據未驗證原因：研究來源非 canonical 2" in payload["board"]
+    assert "數值不一致分布：資料已更新、本文需完整重跑 138 筆／1 份" in payload["board"]
     assert "目前品質待查看（顯示 1/136）" in payload["board"]
     assert 'data-quality-history-query="2454_v2.html"' in payload["board"]
-    assert "一致性：阻斷；內容：阻斷；證據：拒絕；證據矛盾；證據數值不一致 138" in payload["board"]
+    assert "一致性：阻斷；內容：阻斷；證據：拒絕；證據矛盾；證據數值不一致 138；數值不一致來源：資料已更新、本文需完整重跑 138 筆" in payload["board"]
 
 
 def test_historical_quality_audit_renders_revision_scoped_review_controls():

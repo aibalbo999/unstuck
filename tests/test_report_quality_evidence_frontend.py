@@ -16,14 +16,14 @@ def test_shared_quality_evidence_helper_loads_before_all_consumers():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     helper = "/static/report_quality_evidence_helpers.js"
     assert (STATIC_DIR / "report_quality_evidence_helpers.js").exists()
-    assert f"{helper}?v=20260822-unavailable-field-reason" in index_html
+    assert f"{helper}?v=20260901-mismatch-freshness" in index_html
     assert "/static/report_quality_gate_policy.js?v=20260816-shared-quality-evidence" in index_html
     assert "/static/report_preview_helpers.js?v=20260820-shared-evidence-detail" in index_html
     assert "/static/report_preview_panel.js?v=20260820-rerun-execution" in index_html
     assert "/static/history_quality_audit_render.js?v=20260820-per-pipeline-context-summary" in index_html
-    assert "/static/history_current_quality_helpers.js?v=20260822-evidence-reason-summary" in index_html
+    assert "/static/history_current_quality_helpers.js?v=20260901-mismatch-freshness" in index_html
     assert "/static/watchlist_freshness_helpers.js?v=20260821-freshness-targets" in index_html
-    assert "/static/watchlist_current_quality_helpers.js?v=20260822-evidence-reason-summary" in index_html
+    assert "/static/watchlist_current_quality_helpers.js?v=20260901-mismatch-freshness" in index_html
     assert "/static/watchlist_panel_helpers.js?v=20260821-current-quality" in index_html
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
     assert "/static/styles/history_list.css?v=20260816-clickable-quality-evidence" in style_css
@@ -141,6 +141,20 @@ process.stdout.write(JSON.stringify({
     payload = json.loads(_node(script))
 
     assert payload["summary"] == "證據未驗證原因：衍生指標沒有 canonical 欄位 4、快照數值不一致 3、研究來源非 canonical 2、風險控制沒有 canonical 欄位 2、情境目標沒有 canonical 欄位 2、技術價位沒有 canonical 欄位 2、unknown_reason 1"
+
+
+def test_shared_quality_evidence_formats_mismatch_freshness_distribution():
+    evidence_path = STATIC_DIR / "report_quality_evidence_helpers.js"
+    script = """
+global.window = {};
+require(__EVIDENCE_PATH__);
+process.stdout.write(window.StockAgentReportQualityEvidence.formatEvidenceMismatchFreshnessSummary(
+  { needs_rerun: 12, current: 1, unknown: 0 },
+  { needs_rerun: 8, current: 1, unknown: 0 }
+));
+""".replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path)))
+
+    assert _node(script) == "數值不一致分布：資料已更新、本文需完整重跑 12 筆／8 份、本文目前版本 1 筆／1 份"
 
 
 def test_shared_quality_evidence_labels_analysis_metadata_reason():

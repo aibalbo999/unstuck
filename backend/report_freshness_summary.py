@@ -10,6 +10,7 @@ from mapping_fields import safe_dict_list, safe_int, safe_mapping_dict, safe_tex
 SCHEMA_VERSION = "report_freshness_summary.v1"
 ITEMS_SCHEMA_VERSION = "report_freshness_items.v1"
 FRESHNESS_ITEM_LIMIT = 5
+FRESHNESS_BUCKETS = ("current", "needs_rerun", "unknown")
 
 
 def build_report_freshness_summary(
@@ -25,15 +26,7 @@ def build_report_freshness_summary(
     )
     counts = {"current_reports": 0, "needs_rerun_reports": 0, "unknown_reports": 0}
     for report in rows:
-        freshness = safe_mapping_dict(report.get("decision_freshness")) or {}
-        status = safe_text(freshness.get("status") or report.get("decision_validity_status")).strip().lower()
-        requires_rerun = _requires_rerun(report, freshness)
-        if requires_rerun or status == "needs_rerun":
-            counts["needs_rerun_reports"] += 1
-        elif status == "current":
-            counts["current_reports"] += 1
-        else:
-            counts["unknown_reports"] += 1
+        counts[f"{report_freshness_bucket(report)}_reports"] += 1
     return {
         "schema_version": SCHEMA_VERSION,
         "scope": scope_text,
@@ -69,7 +62,7 @@ def build_report_freshness_items(
     stale_rows = []
     for report in rows:
         freshness = safe_mapping_dict(report.get("decision_freshness")) or {}
-        if _requires_rerun(report, freshness):
+        if report_freshness_bucket(report) == "needs_rerun":
             stale_rows.append(_freshness_item(report, freshness))
     limit = max(0, safe_int(item_limit, default=FRESHNESS_ITEM_LIMIT))
     returned = stale_rows[:limit]
@@ -113,6 +106,17 @@ def _requires_rerun(report: dict[str, Any], freshness: dict[str, Any]) -> bool:
     ) or safe_text(freshness.get("status")).strip().lower() == "needs_rerun"
 
 
+def report_freshness_bucket(report: dict[str, Any]) -> str:
+    """Return the same freshness bucket used by all read-only summaries."""
+    freshness = safe_mapping_dict(report.get("decision_freshness")) or {}
+    status = safe_text(freshness.get("status") or report.get("decision_validity_status")).strip().lower()
+    if _requires_rerun(report, freshness):
+        return "needs_rerun"
+    if status == "current":
+        return "current"
+    return "unknown"
+
+
 def _freshness_item(report: dict[str, Any], freshness: dict[str, Any]) -> dict[str, Any]:
     data_trust = safe_mapping_dict(report.get("data_trust")) or {}
     return {
@@ -127,9 +131,11 @@ def _freshness_item(report: dict[str, Any], freshness: dict[str, Any]) -> dict[s
 
 
 __all__ = [
+    "FRESHNESS_BUCKETS",
     "FRESHNESS_ITEM_LIMIT",
     "ITEMS_SCHEMA_VERSION",
     "attach_full_report_freshness_summary",
     "build_report_freshness_items",
     "build_report_freshness_summary",
+    "report_freshness_bucket",
 ]

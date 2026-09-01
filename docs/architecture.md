@@ -181,6 +181,8 @@ For operator navigation, the audit can also carry `decision_freshness_items`: a 
 
 `GET /api/watchlist/current-quality-summary` uses `report_current_quality_summary.py` and reuses the ordinary report-history current-rule projection. The watchlist requests it after the fast daily dashboard response, keeps conformance, content-credibility, and evidence-verdict distributions separate from persisted metadata coverage and freshness, and exposes only a bounded non-passed target sample. A short read-only TTL prevents repeated polling from re-evaluating unchanged rows; history-navigation targets do not mutate artifacts, reviews, indexes, queues, or rerun state.
 
+The same current-quality summary keeps evidence mismatches traceable to conclusion freshness: `evidence_mismatch_claims_by_freshness` counts failed sampled claims and `evidence_mismatch_reports_by_freshness` counts affected reports under `current`, `needs_rerun`, or `unknown`. Each bounded target with a real mismatch carries `evidence_mismatch_freshness_status`. The shared browser helper renders this context without changing evidence verdicts or creating any side effect.
+
 The indexed quality-audit hydration path does not run the current-rule `content_credibility` projection because the audit envelope consumes persisted gate metadata and coverage only. Ordinary report-history hydration keeps the projection for current warning/blocker visibility, so this optimization changes audit cost without changing report-list semantics or quality coverage.
 
 獨立的 `GET /api/watchlist/report-quality-audit/historical` 會以 `scope=all_historical_indexed_reports`、`selection_basis=all_indexed_versions` 讀取符合 `q`/`pipeline` 篩選的索引版本品質 coverage；它維持 read-only，不進每日 decision queue，也不寫入 artifact、report index 或 rerun 任務。

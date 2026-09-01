@@ -29,8 +29,9 @@
         const contentAttention = Math.floor(Number(data.content.warning)) + Math.floor(Number(data.content.blocked));
         const evidenceAttention = Math.floor(Number(data.evidence.caution)) + Math.floor(Number(data.evidence.rejected));
         const failedCount = Number(summary.evidence_failed_count), evidenceFailureSummary = Number.isFinite(failedCount) && failedCount > 0 ? `證據數值不一致 ${Math.floor(failedCount)}` : '';
+        const evidenceMismatchFreshnessSummary = window.StockAgentReportQualityEvidence?.formatEvidenceMismatchFreshnessSummary?.(summary.evidence_mismatch_claims_by_freshness, summary.evidence_mismatch_reports_by_freshness) || '';
         const evidenceReasonSummary = window.StockAgentReportQualityEvidence?.formatUnverifiableReasonSummary?.(summary.evidence_unverifiable_reason_counts) || '';
-        const evidenceDetail = [evidenceFailureSummary, evidenceReasonSummary].filter(Boolean).join('；');
+        const evidenceDetail = [evidenceFailureSummary, evidenceMismatchFreshnessSummary, evidenceReasonSummary].filter(Boolean).join('；');
         return `<em class="history-quality-audit-current-summary">${e(scope)}：${e(`一致性 ${conformance}；內容可信度需注意 ${contentAttention}；證據關卡需注意 ${evidenceAttention}；非通過 ${data.nonPassed}${evidenceDetail ? `；${evidenceDetail}` : ''}`)}</em>`;
     }
 
