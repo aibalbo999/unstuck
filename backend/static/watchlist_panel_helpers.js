@@ -73,7 +73,7 @@
             : '';
         const freshnessTargetsHtml = window.StockAgentWatchlistFreshnessHelpers?.targets?.(audit, escapeHtml) || ''; const currentQualityTargetsHtml = window.StockAgentWatchlistCurrentQualityHelpers?.targets?.(audit, escapeHtml) || ''; const auditControls = freshnessTargetsHtml || currentQualityTargetsHtml || historicalAuditButton || auditButtons ? `<div class="watchlist-quality-audit-actions">${currentQualityTargetsHtml}${freshnessTargetsHtml}${historicalAuditButton}${auditButtons}</div>` : '';
         if (top && top.type !== 'monitor' && total > 0) {
-            const secondary = Number(queue.secondary_count || 0), source = window.StockAgentDailyQueueContext?.sourceLabel?.(top.source) || top.source || 'queue';
+            const secondary = Number(queue.summary?.secondary_count ?? queue.secondary_count ?? 0), source = window.StockAgentDailyQueueContext?.sourceLabel?.(top.source) || top.source || 'queue';
             const attentionContext = window.StockAgentDailyQueueContext?.attentionContextText?.(top);
             const contextText = attentionContext ? ` · ${escapeHtml(attentionContext)}` : '';
             return `<div class="watchlist-daily-board"><strong>今日工作台</strong><span>需處理 ${escapeHtml(String(total))} 件 · 次要待辦 ${escapeHtml(String(secondary))}</span>${auditSummaryHtml || (auditText ? `<span>${escapeHtml(auditText)}</span>` : '')}<em>最高優先：${escapeHtml(top.title || '今日待處理')} · 來源：${escapeHtml(source)} · priority_score ${escapeHtml(String(top.priority_score ?? ''))}${contextText}</em>${auditControls}</div>`;

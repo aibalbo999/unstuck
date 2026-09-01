@@ -127,11 +127,12 @@ def _decision_queue_context(queue: dict[str, Any]) -> dict[str, Any]:
     raw_sources = _field(summary, "sources")
     sources = safe_mapping_dict(raw_sources) or {}
     source_counts = normalize_source_counts(sources)
+    summary_secondary = _field(summary, "secondary_count")
     return {
         "source": "decision_queue",
         "total_actionable": _int(_field(summary, "total_actionable")),
         "displayed_count": _int(_field(summary, "displayed_count")),
-        "secondary_count": _int(_field(queue, "secondary_count")),
+        "secondary_count": _int(summary_secondary if summary_secondary is not None else _field(queue, "secondary_count")),
         "top_priority_score": _int(_field(summary, "top_priority_score")),
         "sources": source_counts,
         "source_labels": source_labels(source_counts) | source_display_overrides(source_counts, _field(summary, "source_labels")),

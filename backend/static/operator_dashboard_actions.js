@@ -37,7 +37,7 @@
         const summary = queue.summary || payload?.summary || {};
         const total = Number(summary.total_actionable || 0);
         const shown = Number(summary.displayed_count || queueItems(payload).length || 0);
-        const secondary = Number(queue.secondary_count || 0);
+        const secondary = Number(summary.secondary_count ?? queue.secondary_count ?? 0);
         const old = payload?.summary || {};
         const reportScope = reportScopeText(old);
         const fullFreshness = fullAuditFreshnessText(payload);

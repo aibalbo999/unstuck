@@ -848,6 +848,7 @@ def test_daily_decision_queue_display_limit_does_not_depend_on_truthiness():
 
     assert queue["summary"]["total_actionable"] == 3
     assert queue["summary"]["displayed_count"] == 2
+    assert queue["summary"]["secondary_count"] == 1
     assert queue["secondary_count"] == 1
     assert [item["type"] for item in queue["items"]] == ["manual_review", "run_watchlist"]
 
@@ -3812,4 +3813,5 @@ def test_daily_decision_queue_monitor_fallback_is_not_counted_as_actionable():
     assert queue["summary"]["total_actionable"] == 0
     assert queue["summary"]["displayed_count"] == 0
     assert queue["summary"]["top_priority_score"] == 0
+    assert queue["summary"]["secondary_count"] == 0
     assert queue["secondary_count"] == 0

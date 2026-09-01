@@ -68,7 +68,7 @@ const payload = {
     report_repair_action_counts: { manual_review: 7, rerun_analysis: 2 },
     reports_needing_freshness_rerun: 0
   },
-  decision_queue: { summary: { total_actionable: 3, displayed_count: 2 }, secondary_count: 1, items: [] }
+  decision_queue: { summary: { total_actionable: 3, displayed_count: 2, secondary_count: 4 }, secondary_count: 1, items: [] }
 };
 const text = window.StockAgentOperatorDashboardActions.dashboardText(payload);
 process.stdout.write(JSON.stringify(text));
@@ -76,7 +76,7 @@ process.stdout.write(JSON.stringify(text));
     result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
     payload = json.loads(result.stdout)
 
-    assert payload["detail"] == "顯示 2 / 次要待辦 1 · 報告：近期報告取樣 20 份 · 報告修復：人工審核 7、完整重跑 2；freshness需完整重跑 0"
+    assert payload["detail"] == "顯示 2 / 次要待辦 4 · 報告：近期報告取樣 20 份 · 報告修復：人工審核 7、完整重跑 2；freshness需完整重跑 0"
 
 
 def test_operator_dashboard_text_labels_full_freshness_summary():
@@ -137,6 +137,26 @@ process.stdout.write(JSON.stringify({ html }));
 
     assert 'data-quality-history-audit' in payload["html"]
     assert "查看歷史版本稽核" in payload["html"]
+
+
+def test_daily_quality_board_prefers_canonical_summary_secondary_count():
+    helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
+    script = """
+global.window = {};
+require(__HELPER_PATH__);
+const html = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], {
+  decision_queue: {
+    summary: { total_actionable: 1, secondary_count: 4 },
+    secondary_count: 1,
+    items: [{ type: 'manual_review', title: '需要人工核對', priority_score: 700, source: 'report_repair' }]
+  }
+}, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ html }));
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "需處理 1 件 · 次要待辦 4" in payload["html"]
 
 
 def test_daily_quality_target_offers_scoped_human_review_navigation():
@@ -795,11 +815,11 @@ def test_historical_audit_navigation_wiring_uses_cache_busters_and_existing_scop
     assert "/static/watchlist_freshness_helpers.js?v=20260821-freshness-targets" in index_html
     assert "/static/watchlist_current_quality_helpers.js?v=20260902-quality-action-detail" in index_html
     assert "/static/report_quality_evidence_freshness_helpers.js?v=20260902-evidence-freshness" in index_html
-    assert "/static/watchlist_panel_helpers.js?v=20260821-current-quality" in index_html
+    assert "/static/watchlist_panel_helpers.js?v=20260902-queue-secondary-summary" in index_html
     assert "/static/watchlist_panel.js?v=20260816-scoped-quality-review-navigation" in index_html
     assert "/static/history_filters.js?v=20260816-history-scope-persistence" in index_html
     assert "/static/history_workspace.js?v=20260816-scope-transient-state-guard" in index_html
-    assert "/static/operator_dashboard_actions.js?v=20260902-report-repair-scope" in index_html
+    assert "/static/operator_dashboard_actions.js?v=20260902-queue-secondary-summary" in index_html
     assert "/static/operator_summary_panel.js?v=20260902-report-sample-scope" in index_html
     assert "/static/app.js?v=20260821-quality-audit-action" in index_html
     assert "/static/styles/watchlist.css?v=20260816-daily-quality-target-context" in style_css

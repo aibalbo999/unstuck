@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3801 / make queue secondary count canonical across consumers
+
+- `#拆解問題` / `#責任` / `#語意含義`：live queue 將 `secondary_count` 放在 response 頂層，但 API/架構/操作指南以 `decision_queue.summary` 描述三個 queue count；notification plan 讀頂層，造成同一 queue 契約跨層級分裂。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：`queue_response()` 以同一 actionable/rendered slice 新增 `summary.secondary_count`，保留頂層 alias；notification、operator summary、watchlist 優先讀 summary，legacy payload 才 fallback，monitor placeholder 仍不計入。
+- `#受眾` / `#可驗證性` / `#可逆性`：先以 queue、notification、operator summary、watchlist fixtures 取得 RED，再 GREEN；live `23` 件 queue、首屏 `5` 件、次要 `18` 件與 notification context 一致，未改排序、action 或任何 mutation state。
+
 ## D3800 / partition quality actions by conclusion freshness
 
 - `#拆解問題` / `#證據基礎` / `#差距分析`：live latest scope 的 `quality_gate_action_counts` 只有 `manual_review=81`、`rerun_analysis=4`，但同一批報告已有 `current=137`、`needs_rerun=28`；canonical row 交叉表確認 action 應可分成 manual review `55/26` 與 rerun `3/1`，缺口在分母可讀性，不在 action predicate。

@@ -2128,7 +2128,7 @@ The daily dashboard's backward-compatible `summary.reports_needing_rerun` and `s
 
 The operator summary's `今日待處理` header renders `顯示 X / 共 Y 件快速操作` when `decision_queue.summary` provides a valid total and displayed count matching the rendered actionable items. This distinguishes the visible top-five list from secondary work; legacy or inconsistent payloads fall back to the number of rendered actionable items.
 
-When no work exists, `decision_queue.items` may still contain the `monitor` compatibility item, but `summary.displayed_count=0` and `secondary_count=0`; the placeholder is not a quick action, pending item, or notification.
+When no work exists, `decision_queue.items` may still contain the `monitor` compatibility item, but `summary.displayed_count=0` and canonical `summary.secondary_count=0`; the placeholder is not a quick action, pending item, or notification. The top-level `decision_queue.secondary_count` is retained as a legacy alias, and consumers prefer the summary value when both are present.
 
 The operator summary's data trust card uses the same 20-report recent sample as the daily dashboard's `report_scope.sampled_reports`, so its `資料新鮮 X / 抽樣 Y` denominator can be compared directly with the daily report sample.
 

@@ -246,6 +246,7 @@ def test_notification_plan_prefers_decision_queue_contract_over_legacy_actions()
                 "summary": {
                     "total_actionable": 4,
                     "displayed_count": 1,
+                    "secondary_count": 2,
                     "top_priority_score": 1000,
                     "sources": {"report_repair": 1, "watchlist": 3},
                     "source_labels": {"report_repair": "人工修復", "watchlist": "人工清單"},
@@ -283,7 +284,7 @@ def test_notification_plan_prefers_decision_queue_contract_over_legacy_actions()
         "source": "decision_queue",
         "total_actionable": 4,
         "displayed_count": 1,
-        "secondary_count": 3,
+        "secondary_count": 2,
         "top_priority_score": 1000,
         "sources": {"report_repair": 1, "watchlist": 3},
         "source_labels": {"report_repair": "人工修復", "watchlist": "人工清單"},

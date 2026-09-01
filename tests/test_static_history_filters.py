@@ -6094,12 +6094,12 @@ def test_candidate_next_actions_assets_use_shared_cache_buster():
     assert "/static/watchlist_freshness_helpers.js?v=20260821-freshness-targets" in index_html
     assert "/static/watchlist_current_quality_helpers.js?v=20260902-quality-action-detail" in index_html
     assert "/static/report_quality_evidence_freshness_helpers.js?v=20260902-evidence-freshness" in index_html
-    assert "/static/watchlist_panel_helpers.js?v=20260821-current-quality" in index_html
+    assert "/static/watchlist_panel_helpers.js?v=20260902-queue-secondary-summary" in index_html
     assert "/static/watchlist_panel.js?v=20260816-scoped-quality-review-navigation" in index_html
     assert "/static/maintenance_action_helpers.js?v=20260816-maintenance-confirmation" in index_html
     assert "/static/maintenance_panel_helpers.js?v=20260816-maintenance-confirmation" in index_html
     assert "/static/maintenance_panel.js?v=20260816-maintenance-confirmation" in index_html
-    assert "/static/operator_dashboard_actions.js?v=20260902-report-repair-scope" in index_html
+    assert "/static/operator_dashboard_actions.js?v=20260902-queue-secondary-summary" in index_html
     assert "/static/operator_summary_panel.js?v=20260902-report-sample-scope" in index_html
     assert "/static/app_panels.js?v=20260816-historical-quality-audit" in index_html
     assert "/static/styles/operator_summary.css?v=20260711-candidate-next-actions-v3" in style_css
