@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3787 / surface canonical quality action reasons in operator UI
+
+- `#受眾` / `#語意含義` / `#溝通設計`：live current-quality API 已有 `quality_action.title/detail`，但 watchlist 項目原本只顯示「建議處理：人工審核／完整重跑」，evidence rejected 或 conformance fallback 的操作員仍要進歷史查核才能知道原因。
+- `#來源品質` / `#責任` / `#最小變更`：擴充既有 shared `formatQualityAction()`，有 title/detail 時附上「處理原因」與 canonical detail；沒有新欄位的 legacy payload 維持舊輸出，未改 action 判定、priority、blocks_auto_rerun 或任何 mutation。cache-buster 升為 `20260902-quality-action-detail`。
+- `#可驗證性` / `#可逆性` / `#表達`：frontend/history/filter regression `194 passed in 9.13s`，Node syntax、44 行 helper guard、`git diff --check` 通過。官方 reload 後三個新資產 HTTP `200`，live board render `contains_detail=true` 且包含 Agent failure canonical detail；summary 維持 `165` 份、`85` 筆品質項目、`manual_review=81`、`rerun_analysis=4`，healthz/readyz `ok/ready`、doctor canonical paths 正確。本批只改善 read-only operator presentation。
+
 ## D3786 / reconcile retryable content blockers with freshness actions
 
 - `#拆解問題` / `#差距分析` / `#證據基礎`：live current-quality 的 `0056.TW/v4`、`2367.TW/v2/v3` 顯示 `final_audit_critical` Agent 輸出失敗；原本 content gate 的 priority `1000` 會蓋過既有 conformance retry marker，讓完整重跑案例錯誤顯示人工審核。`1623.TW/v3` 同時有低資料信心目標價，不能沿用這個分流。
