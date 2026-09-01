@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3812 / prioritize history scope warnings over page ranges
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：歷史稽核 renderer 在有 `items_offset` 時優先輸出頁碼範圍，若同頁 `items_returned > items_limit`，操作員看不到 bounded scope contradiction。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先用 `offset=2 / returned=2 / total=4 / limit=1 / truncated=true` 取得 RED，再將既有 shared consistency warning 放到 page-range 分支前；正常 pagination 仍維持原文案。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新 history renderer cache-buster、前端契約與 API/operator/architecture 說明；focused regression `302 passed`，official live historical page 1/2 為 `5/59`、`limit=5`、`truncated=true`，page 2 正常顯示第 6-10 份且 warning count `0`，static assets `200`、health/ready `200/200`、doctor canonical paths 正常。本批不改 API count、quality gate、queue、snapshot、artifact、index、review 或 rerun state。
+
 ## D3811 / align watchlist quality gap scope labels
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：watchlist 主品質摘要的未展開文案只看 `items_truncated` 與缺口總數，沒有驗證 `items_returned <= items_limit`，與歷史稽核及 target label 的 bounded contract 不一致。
