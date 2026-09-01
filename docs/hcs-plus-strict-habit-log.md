@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3777 / close evidence parser and persisted-path residuals
+
+- `#拆解問題` / `#差距分析` / `#證據基礎`：fresh residual audit 顯示剩餘可修正缺口集中在 evidence claim extraction/path mapping，而不是 tolerance 或 verdict；包含千分位後接括號的 `8,207` 被截斷、code-style `short_previous_balance`、無年份的 daily net buy、52 週高點 source forms、支撐區間底、recommendation horizon 與 `normalized_financials` 說明文字。
+- `#偏誤辨識` / `#偏誤降低` / `#最小變更`：只補明示 persisted key、可由唯一 snapshot price-history 年份解析的日期、明示 `week_52_high_twd` source、雙日期 price-history range、推薦期間欄位與 data-limitation non-claim；`FOMO/過熱評分` 維持 `analysis_metadata_not_evidence`。沒有 canonical source 的 `6226.TW/v4`「心理關卡／目前最高價」與「8/31 收盤價」近期支撐仍保留 `unverifiable`，不借用同值的 52 週高點或日期推測。
+- `#可驗證性` / `#可逆性` / `#責任`：RED→GREEN 後 evidence gate `214 passed`、內容可信度 `957 passed`、跨層品質回歸 `1392 passed`，`py_compile` 與 `git diff --check` 通過。正式 runtime `healthz=ok`、`readyz=ready`、doctor canonical paths 通過；live `165` 份為 evidence `134 approved / 28 caution / 3 rejected`，`12` 個 mismatch 全部是 `needs_rerun`，current residual reason 仍明確為 `technical_level_not_canonical=1`、`no_matching_snapshot_path=1`。本批只改 read-only evidence extraction/diagnostics，不調整 tolerance、verdict、snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3776 / attribute evidence mismatches to conclusion freshness
 
 - `#拆解問題` / `#差距分析` / `#證據基礎`：live current scope 的 13 筆 sampled `mismatch` 中，12 筆來自 `needs_rerun`、1 筆來自 current report；只顯示總 mismatch 會掩蓋「快照已更新、本文尚未重跑」與「目前版本仍有數值矛盾」的不同責任路徑。
