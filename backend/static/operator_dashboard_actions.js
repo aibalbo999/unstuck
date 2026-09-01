@@ -15,7 +15,6 @@
         companyName: String(item?.company_name || '').trim(),
         reason: String(item?.candidate_reason || item?.reason || item?.detail || '市場掃描候選').trim(),
     });
-
     function reportScopeText(summary) {
         const scope = summary?.report_scope || {};
         const sampledReports = Number(scope.sampled_reports);
@@ -23,7 +22,6 @@
         const label = String(scope.label || '近期報告取樣').trim() || '近期報告取樣';
         return `${label} ${Math.floor(sampledReports)} 份`;
     }
-
     function fullAuditFreshnessText(payload) {
         const audit = payload?.report_quality_audit || {};
         const freshness = audit.decision_freshness_summary || {};
@@ -34,7 +32,6 @@
         if (audit.scope !== 'all_indexed_reports' || audit.selection_basis !== 'latest_per_ticker_pipeline' || !Number.isFinite(auditedReports) || auditedReports < 0 || !Number.isFinite(currentReports) || currentReports < 0 || !Number.isFinite(needsRerunReports) || needsRerunReports < 0 || !Number.isFinite(unknownReports) || unknownReports < 0 || currentReports + needsRerunReports + unknownReports !== auditedReports) return '';
         return `全量分析新鮮度：需完整重跑 ${Math.floor(needsRerunReports)} / ${Math.floor(auditedReports)} 份${unknownReports > 0 ? `、無法判定 ${Math.floor(unknownReports)}` : ''}`;
     }
-
     function dashboardText(payload) {
         const queue = payload?.decision_queue || {};
         const summary = queue.summary || payload?.summary || {};
@@ -46,11 +43,12 @@
         const fullFreshness = fullAuditFreshnessText(payload);
         const reportScopeDetail = reportScope ? ` · 報告：${reportScope}` : '';
         const fullFreshnessDetail = fullFreshness ? ` · ${fullFreshness}` : '';
-        if (total) return { tone: 'warning', value: `${total} 件待處理`, detail: `顯示 ${shown} / 次要待辦 ${secondary}${reportScopeDetail}${fullFreshnessDetail}` };
-        const repairs = Number(old.report_repairs_required || 0);
-        const reruns = Number(old.reports_needing_rerun || 0);
-        const watchHigh = Number(old.watchlist_high_priority || 0);
-        if (repairs || reruns || watchHigh) return { tone: 'warning', value: `${repairs + reruns + watchHigh} 件待處理`, detail: `${reportScope ? `報告：${reportScope}；` : ''}修復 ${repairs} / 重跑 ${reruns} / watchlist ${watchHigh}${fullFreshnessDetail}` };
+        const repairs = Number(old.report_repairs_required || 0), reruns = Number(old.reports_needing_rerun || 0), freshnessReruns = Number(old.reports_needing_freshness_rerun), watchHigh = Number(old.watchlist_high_priority || 0);
+        const repairActionCounts = old.report_repair_action_counts && typeof old.report_repair_action_counts === 'object' && !Array.isArray(old.report_repair_action_counts) ? Object.entries(old.report_repair_action_counts).map(([key, value]) => [key, Number(value)]).filter(([, value]) => Number.isFinite(value) && value > 0) : [];
+        const reportRepairText = repairActionCounts.length ? `報告修復：${repairActionCounts.map(([key, value]) => `${({ manual_review: '人工審核', rerun_analysis: '完整重跑' }[key] || key)} ${Math.floor(value)}`).join('、')}${Number.isFinite(freshnessReruns) ? `；freshness需完整重跑 ${Math.floor(freshnessReruns)}` : ''}` : '';
+        const reportRepairDetail = reportRepairText ? ` · ${reportRepairText}` : '';
+        if (total) return { tone: 'warning', value: `${total} 件待處理`, detail: `顯示 ${shown} / 次要待辦 ${secondary}${reportScopeDetail}${reportRepairDetail}${fullFreshnessDetail}` };
+        if (repairs || reruns || watchHigh) return { tone: 'warning', value: `${repairs + reruns + watchHigh} 件待處理`, detail: `${reportScope ? `報告：${reportScope}；` : ''}${reportRepairText ? `${reportRepairText} / watchlist ${watchHigh}` : `修復 ${repairs} / 重跑 ${reruns} / watchlist ${watchHigh}`}${fullFreshnessDetail}` };
         if (payload?.free_mode?.can_run_without_paid_keys === false) return { tone: 'warning', value: '免費模式需處理', detail: 'provider 有付費依賴缺口' };
         return { tone: 'ok', value: '今日節奏正常', detail: `${reportScope ? `報告：${reportScope}；` : ''}${Number(old.top_candidate_count || 0)} 個候選${fullFreshnessDetail}` };
     }

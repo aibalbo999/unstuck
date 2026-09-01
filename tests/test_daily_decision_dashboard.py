@@ -694,6 +694,44 @@ def test_daily_decision_dashboard_prioritizes_report_repair_queue_before_watchli
     assert dashboard["actions"][0]["title"] == "2330.TW v2 內容可信度未通過"
 
 
+def test_daily_decision_dashboard_separates_repair_reruns_from_freshness_reruns():
+    dashboard = build_daily_decision_dashboard(
+        reports={
+            "reports": [
+                {
+                    "ticker": "2330.TW",
+                    "filename": "2330_manual.html",
+                    "pipeline_id": "v1",
+                    "content_credibility": {"status": "blocked", "summary": "目標價與建議矛盾。"},
+                },
+                {
+                    "ticker": "2367.TW",
+                    "filename": "2367_retry.html",
+                    "pipeline_id": "v2",
+                    "report_conformance": {"status": "passed"},
+                    "content_credibility": {
+                        "status": "blocked",
+                        "blocking_issues": [{
+                            "id": "final_audit_critical",
+                            "details": {"critical": ["缺少 Agent 輸出：7"]},
+                        }],
+                    },
+                    "evidence_exit_gate": {"verdict": "approved"},
+                },
+            ]
+        },
+        watchlist={"items": []},
+        screener={"items": []},
+        performance={"summary": {}},
+        free_mode={"enabled": True, "can_run_without_paid_keys": True, "violations": []},
+    )
+
+    assert dashboard["summary"]["reports_needing_rerun"] == 0
+    assert dashboard["summary"]["reports_needing_freshness_rerun"] == 0
+    assert dashboard["summary"]["report_repair_rerun_required"] == 1
+    assert dashboard["summary"]["report_repair_action_counts"] == {"manual_review": 1, "rerun_analysis": 1}
+
+
 def test_daily_decision_dashboard_blocks_invalid_snapshot_before_rerun():
     dashboard = build_daily_decision_dashboard(
         reports={

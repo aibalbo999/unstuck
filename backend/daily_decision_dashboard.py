@@ -58,6 +58,7 @@ def build_daily_decision_dashboard(
     repair_items = list(repair_queue.get("items") or [])
     repair_coverage = build_report_quality_repair_queue(report_rows, limit=len(report_rows))
     repair_coverage_items = list(repair_coverage.get("items") or [])
+    repair_action_counts = _repair_action_counts(repair_coverage_items)
     direct_rerun_blocked_keys = _direct_rerun_blocked_keys(repair_coverage_items)
     rerun_reports = [
         report for report in report_rows
@@ -102,7 +103,10 @@ def build_daily_decision_dashboard(
                 "sampled_reports": len(report_rows),
             },
             "reports_needing_rerun": len(rerun_reports),
+            "reports_needing_freshness_rerun": len(rerun_reports),
             "report_repairs_required": int((repair_queue.get("summary") or {}).get("action_required") or 0),
+            "report_repair_action_counts": repair_action_counts,
+            "report_repair_rerun_required": repair_action_counts.get("rerun_analysis", 0),
             "watchlist_high_priority": len(high_priority_watchlist),
             "top_candidate_count": len(candidates),
         },
@@ -215,6 +219,15 @@ def _direct_rerun_blocked_keys(repair_items: list[dict[str, Any]]) -> set[str]:
         for item in repair_items
         if (key := _report_key(item)) and item.get("recommended_action") != "rerun_analysis"
     }
+
+
+def _repair_action_counts(repair_items: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for item in repair_items:
+        action = safe_text(item.get("recommended_action")).strip()
+        if action:
+            counts[action] = counts.get(action, 0) + 1
+    return dict(sorted(counts.items()))
 
 
 def _rerun_reason(report: dict[str, Any]) -> str:
