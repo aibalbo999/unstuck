@@ -1,6 +1,11 @@
 (function () {
     const statusLabels = { passed: '符合', warning: '警示', blocked: '阻斷', unknown: '無法判定' };
 
+    function positiveInteger(value) {
+        const count = Number(value);
+        return Number.isFinite(count) && Number.isInteger(count) && count > 0 ? count : null;
+    }
+
     function validated(summary) {
         const conformance = summary?.report_conformance_by_status || {};
         const content = summary?.content_credibility_by_status || {};
@@ -28,7 +33,7 @@
         const conformance = ['passed', 'warning', 'blocked', 'unknown'].map(key => `${statusLabels[key]} ${Math.floor(Number(data.conformance[key]))}`).join('、');
         const contentAttention = Math.floor(Number(data.content.warning)) + Math.floor(Number(data.content.blocked));
         const evidenceAttention = Math.floor(Number(data.evidence.caution)) + Math.floor(Number(data.evidence.rejected));
-        const failedCount = Number(summary.evidence_failed_count), evidenceFailureSummary = Number.isFinite(failedCount) && failedCount > 0 ? `證據數值不一致 ${Math.floor(failedCount)}` : '';
+        const failedCount = positiveInteger(summary.evidence_failed_count), evidenceFailureSummary = failedCount !== null ? `證據數值不一致 ${failedCount}` : '';
         const evidenceMismatchFreshnessSummary = window.StockAgentReportQualityEvidence?.formatEvidenceMismatchFreshnessSummary?.(summary.evidence_mismatch_claims_by_freshness, summary.evidence_mismatch_reports_by_freshness) || '';
         const evidenceReasonSummary = window.StockAgentReportQualityEvidence?.formatUnverifiableReasonSummary?.(summary.evidence_unverifiable_reason_counts) || '';
         const evidenceReasonFreshnessSummary = window.StockAgentReportQualityEvidence?.formatUnverifiableReasonFreshnessSummary?.(summary.evidence_unverifiable_reason_counts_by_freshness, summary.evidence_unverifiable_reports_by_freshness, summary.evidence_unverifiable_claims_by_freshness) || '';

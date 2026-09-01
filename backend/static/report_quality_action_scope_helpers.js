@@ -3,11 +3,16 @@
     const freshnessLabels = { current: '本文目前版本', needs_rerun: '資料已更新、本文需完整重跑', unknown: 'freshness 未判定' };
     const freshnessOrder = ['current', 'needs_rerun', 'unknown'];
 
+    function positiveInteger(value) {
+        const count = Number(value);
+        return Number.isFinite(count) && Number.isInteger(count) && count > 0 ? count : null;
+    }
+
     function actionEntries(counts) {
         return counts && typeof counts === 'object' && !Array.isArray(counts)
             ? Object.entries(counts)
-                .map(([key, value]) => [String(key || '').trim(), Number(value)])
-                .filter(([key, value]) => key && Number.isFinite(value) && value > 0)
+                .map(([key, value]) => [String(key || '').trim(), positiveInteger(value)])
+                .filter(([key, value]) => key && value !== null)
                 .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
             : [];
     }
@@ -17,7 +22,7 @@
         const parts = freshnessOrder.map(bucket => {
             const entries = actionEntries(countsByFreshness[bucket]);
             return entries.length
-                ? `${freshnessLabels[bucket] || bucket}：${entries.map(([key, value]) => `${actionLabels[key] || key} ${Math.floor(value)}`).join('、')}`
+                ? `${freshnessLabels[bucket] || bucket}：${entries.map(([key, value]) => `${actionLabels[key] || key} ${value}`).join('、')}`
                 : '';
         }).filter(Boolean);
         return parts.length ? `按資料新鮮度：${parts.join('；')}` : '';

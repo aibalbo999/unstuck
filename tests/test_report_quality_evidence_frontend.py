@@ -22,15 +22,15 @@ def test_shared_quality_evidence_helper_loads_before_all_consumers():
     assert (STATIC_DIR / "report_quality_action_scope_helpers.js").exists()
     assert (STATIC_DIR / "report_quality_queue_scope_helpers.js").exists()
     assert (STATIC_DIR / "report_quality_evidence_freshness_helpers.js").exists()
-    assert f"{helper}?v=20260902-quality-action-detail" in index_html
-    assert f"{action_scope_helper}?v=20260902-quality-action-scope-by-freshness" in index_html
+    assert f"{helper}?v=20260902-integer-summary-counts" in index_html
+    assert f"{action_scope_helper}?v=20260902-integer-summary-counts" in index_html
     assert f"{queue_scope_helper}?v=20260902-bounded-items" in index_html
-    assert f"{freshness_helper}?v=20260902-evidence-freshness" in index_html
+    assert f"{freshness_helper}?v=20260902-integer-summary-counts" in index_html
     assert "/static/report_quality_gate_policy.js?v=20260816-shared-quality-evidence" in index_html
     assert "/static/report_preview_helpers.js?v=20260820-shared-evidence-detail" in index_html
     assert "/static/report_preview_panel.js?v=20260820-rerun-execution" in index_html
     assert "/static/history_quality_audit_render.js?v=20260902-integer-counts" in index_html
-    assert "/static/history_current_quality_helpers.js?v=20260902-integer-quality-counts" in index_html
+    assert "/static/history_current_quality_helpers.js?v=20260902-integer-summary-counts" in index_html
     assert "/static/watchlist_freshness_helpers.js?v=20260902-integer-quality-counts" in index_html
     assert "/static/watchlist_current_quality_helpers.js?v=20260902-integer-quality-counts" in index_html
     assert "/static/watchlist_panel_helpers.js?v=20260902-quality-overlap-complete" in index_html
@@ -310,6 +310,54 @@ process.stdout.write(JSON.stringify({
     assert payload == {
         "item": "建議處理：人工審核（暫停自動重跑）；處理原因：證據抽查未通過；報告數字未能對上資料快照。",
         "summary": "品質處理建議：人工審核 2、完整重跑 1",
+    }
+
+
+def test_shared_quality_evidence_does_not_floor_fractional_summary_counts():
+    evidence_path = STATIC_DIR / "report_quality_evidence_helpers.js"
+    freshness_path = STATIC_DIR / "report_quality_evidence_freshness_helpers.js"
+    action_scope_path = STATIC_DIR / "report_quality_action_scope_helpers.js"
+    script = """
+global.window = {};
+require(__EVIDENCE_PATH__);
+require(__FRESHNESS_PATH__);
+require(__ACTION_SCOPE_PATH__);
+const evidence = window.StockAgentReportQualityEvidence;
+process.stdout.write(JSON.stringify({
+  reason: evidence.formatUnverifiableReasonSummary({ snapshot_value_mismatch: 1.5, missing_semantic_path: 2 }),
+  mismatch: evidence.formatEvidenceMismatchFreshnessSummary(
+    { needs_rerun: 1.5, current: 2 },
+    { needs_rerun: 3.5, current: 1 }
+  ),
+  mismatchStatus: evidence.formatEvidenceMismatchFreshness('current', 1.5),
+  blocker: evidence.formatQualityBlockerSummary(
+    { final_audit: 1.5, report_lint: 2 },
+    { content_credibility: Infinity }
+  ),
+  contentBlocker: evidence.formatContentBlockerFreshnessSummary({ current: 1.5, needs_rerun: 2 }),
+  action: evidence.formatQualityActionSummary({ manual_review: 1.5, rerun_analysis: 2 }),
+  actionFreshness: window.StockAgentReportQualityActionScope.formatQualityActionFreshnessSummary({
+    current: { manual_review: 1.5, rerun_analysis: 2 }
+  }),
+  reasonFreshness: evidence.formatUnverifiableReasonFreshnessSummary(
+    { current: { snapshot_value_mismatch: 1.5, missing_semantic_path: 2 }, needs_rerun: {} },
+    { current: 0 },
+    { current: 3.5 }
+  )
+}));
+""".replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path))).replace("__FRESHNESS_PATH__", json.dumps(str(freshness_path))).replace("__ACTION_SCOPE_PATH__", json.dumps(str(action_scope_path)))
+
+    payload = json.loads(_node(script))
+
+    assert payload == {
+        "reason": "證據未驗證原因：缺少語意路徑 2",
+        "mismatch": "數值不一致分布：本文目前版本 2 筆／1 份",
+        "mismatchStatus": "",
+        "blocker": "品質阻斷來源：報告一致性：報告格式檢查 2",
+        "contentBlocker": "內容阻斷版本：資料已更新、本文需完整重跑 2 份",
+        "action": "品質處理建議：完整重跑 2",
+        "actionFreshness": "按資料新鮮度：本文目前版本：完整重跑 2",
+        "reasonFreshness": "證據未驗證版本：本文目前版本（缺少語意路徑 2；涉及 0 份報告）",
     }
 
 

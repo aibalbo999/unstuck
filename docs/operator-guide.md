@@ -119,6 +119,8 @@ current-quality summary 另提供 `evidence_failed_count` 與 `evidence_unverifi
 
 `quality_gate_action_counts` 是 current-quality summary 對每份目前報告套用 `quality_gate_repair_item` 的唯讀投影，不是 daily decision queue 的待辦數；`quality_gate_action_scope.is_daily_queue=false` 時，畫面會標示「品質處理建議（唯讀品質投影，不等同今日待辦）」。daily queue 仍依自己的近期 repair sample、完整 audit gap 與其他來源計算，兩者不可互借分母或把投影當成已排入 queue 的 action。缺少這個 optional scope 欄位的舊 payload 維持一般 action 文案。
 
+共用 evidence、freshness、blocker 與 action 摘要只接受有限非負整數計數；分布項目還必須大於零。小數、無限大、NaN 或其他格式錯誤會逐欄省略，包括 `evidence_failed_count`，不會用 `floor` 變成看似精確的報告數；同一摘要裡其他有效整數仍照常顯示。freshness 的「涉及 N 份報告」允許合法的 `0`，但只在同一 bucket 已有其他有效原因或 claim 時顯示。
+
 歷史稽核也可用 `review_status=pending|approved_with_gap|rejected|deferred` 只看某一種目前 revision 審核狀態；回應的 `review_status_filter` 會標示套用的範圍，篩選後的 coverage 與分頁數字只代表該狀態，不代表其他狀態不存在。這仍是 GET-only 查詢，不會寫入 review ledger。
 
 若要先聚焦版本新舊，可用 `version_status=current|historical|unknown`；回應的 `report_version_status_filter` 會標示目前範圍。這個版本範圍會保留該版本集合中的完整報告作為 coverage 分母，只有再選審核狀態或缺口欄位時才縮成相應的品質缺口集合。歷史頁的「目前版本／歷史版本／版本未判定」按鈕只改 GET 查詢範圍，不會加入今日待辦、寫入 review 或建立重跑。

@@ -3,9 +3,19 @@
     const reasonLabels = { analysis_metadata_not_evidence: '分析欄位不是證據', confidence_metadata_not_evidence: '信心欄位不是證據', legacy_conclusion_without_snapshot_path: '舊結論缺少快照路徑', missing_semantic_path: '缺少語意路徑', no_matching_snapshot_path: '找不到同路徑快照', news_source_not_canonical: '新聞來源非 canonical', research_source_not_canonical: '研究來源非 canonical', derived_metric_not_canonical: '衍生指標沒有 canonical 欄位', risk_control_not_canonical: '風險控制沒有 canonical 欄位', scenario_target_not_canonical: '情境目標沒有 canonical 欄位', technical_level_not_canonical: '技術價位沒有 canonical 欄位', snapshot_field_unavailable: '快照欄位不可用', snapshot_value_mismatch: '快照數值不一致' };
     const freshnessOrder = { needs_rerun: 0, current: 1, unknown: 2 };
 
+    function positiveInteger(value) {
+        const count = Number(value);
+        return Number.isFinite(count) && Number.isInteger(count) && count > 0 ? count : null;
+    }
+
+    function nonNegativeInteger(value) {
+        const count = Number(value);
+        return Number.isFinite(count) && Number.isInteger(count) && count >= 0 ? count : null;
+    }
+
     function reasonEntries(counts) {
         return counts && typeof counts === 'object' && !Array.isArray(counts)
-            ? Object.entries(counts).map(([key, value]) => [String(key || '').trim(), Number(value)]).filter(([key, value]) => key && Number.isFinite(value) && value > 0).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+            ? Object.entries(counts).map(([key, value]) => [String(key || '').trim(), positiveInteger(value)]).filter(([key, value]) => key && value !== null).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
             : [];
     }
 
@@ -15,11 +25,11 @@
             : [];
         const parts = entries.map(([key, counts]) => {
             const reasons = reasonEntries(counts);
-            const claimCount = Number(claims?.[key]);
-            const claimSummary = Number.isFinite(claimCount) && claimCount > 0 ? `不可驗證 claim ${Math.floor(claimCount)}` : '';
-            const reasonSummary = reasons.length ? reasons.map(([reason, count]) => `${reasonLabels[reason] || reason} ${Math.floor(count)}`).join('、') : claimSummary ? '原因未記錄' : '';
-            const reportCount = Number(reports?.[key]);
-            const reportSummary = Number.isFinite(reportCount) && reportCount >= 0 && (reasons.length || claimSummary) ? `涉及 ${Math.floor(reportCount)} 份報告` : '';
+            const claimCount = positiveInteger(claims?.[key]);
+            const claimSummary = claimCount !== null ? `不可驗證 claim ${claimCount}` : '';
+            const reasonSummary = reasons.length ? reasons.map(([reason, count]) => `${reasonLabels[reason] || reason} ${count}`).join('、') : claimSummary ? '原因未記錄' : '';
+            const reportCount = nonNegativeInteger(reports?.[key]);
+            const reportSummary = reportCount !== null && (reasons.length || claimSummary) ? `涉及 ${reportCount} 份報告` : '';
             const summaries = [reasonSummary, claimSummary, reportSummary].filter(Boolean);
             return summaries.length ? `${freshnessLabels[key]}（${summaries.join('；')}）` : '';
         }).filter(Boolean);

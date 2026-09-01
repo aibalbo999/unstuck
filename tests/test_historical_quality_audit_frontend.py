@@ -292,6 +292,34 @@ process.stdout.write(JSON.stringify({ valid: Boolean(result) }));
     assert payload["valid"] is False
 
 
+def test_history_current_quality_does_not_floor_fractional_evidence_failed_count():
+    helper_path = STATIC_DIR / "history_current_quality_helpers.js"
+    script = """
+global.window = {};
+require(__HELPER_PATH__);
+const html = window.StockAgentHistoricalCurrentQualityHelpers.render({
+  schema_version: 'report_current_quality_summary.v1',
+  scope: 'historical_filter_current_latest',
+  selection_basis: 'latest_per_ticker_pipeline',
+  audited_reports: 1,
+  non_passed_reports: 1,
+  items_total: 1,
+  items_returned: 0,
+  report_conformance_by_status: { passed: 0, warning: 1, blocked: 0, unknown: 0 },
+  content_credibility_by_status: { passed: 1, warning: 0, blocked: 0, unknown: 0 },
+  evidence_exit_gate_by_verdict: { approved: 0, caution: 1, rejected: 0, unknown: 0 },
+  evidence_failed_count: 1.5,
+  items: []
+}, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ html }));
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "一致性 符合 0、警示 1" in payload["html"]
+    assert "證據數值不一致" not in payload["html"]
+
+
 def test_history_quality_audit_renders_missing_field_scope_and_filters():
     helper_path = STATIC_DIR / "history_panel_quality_helpers.js"
     renderer_path = STATIC_DIR / "history_quality_audit_render.js"

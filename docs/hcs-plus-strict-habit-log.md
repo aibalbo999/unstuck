@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3823 / reject fractional shared summary counts
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：共用 evidence、freshness、blocker、action 與 history current-quality 摘要仍會把 fractional/malformed counts floor 成原因、mismatch、處理建議或 evidence failure 數，讓 read-only diagnostics 看起來像合法整數。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以 `1.5`、`3.5`、`Infinity` 的跨入口 RED fixture 鎖定問題，所有 positive-entry 改用有限大於零整數，freshness 報告數另接受有限非負整數並保留合法 `0`；無效欄位逐項省略，不補算其他分母。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新四個 summary asset cache-buster、API/operator/architecture 說明與 regression；focused/full regression `317 passed`，Node syntax 與 `git diff --check` 通過，live daily current-quality `165`、historical `1175/59/5/59` 與 current projection `165` 正常，synthetic fractional/malformed counts 被抑制、合法 `0` report count 保留，health/ready `200/200`、doctor canonical paths 正常。本批不改 evidence gate、audit、quality gate、queue、snapshot、artifact、index、review 或 rerun state。
+
 ## D3822 / reject fractional review counters
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：review summary、審核歷史與三類 filter 仍把 fractional/malformed count floor 成合法 ordinal 或分母，會誤導人工核對範圍。
