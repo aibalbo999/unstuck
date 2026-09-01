@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3797 / keep monitor fallback outside displayed work counts
+
+- `#拆解問題` / `#語意含義` / `#證據基礎`：live queue 與既有 empty-state 測試交叉核對後，確認 `items` 的 UI 佔位與 `summary.displayed_count` 的工作分母不一致；空 queue 目前是 `monitor` 一項但 actionable 為零。
+- `#偏誤降低` / `#責任` / `#最小變更`：只將空 queue 的 displayed denominator 歸零，保留 monitor compatibility，不把 queue source、排序或通知規則混入修正；先改測試取得 RED，再修 `backend/daily_decision_queue_summary.py` 取得 GREEN。
+- `#受眾` / `#溝通設計` / `#可驗證性` / `#可逆性`：同步 API、operator guide、architecture contract；queue/dashboard/notification/docs/HCS scoped regression `369 passed`，正式 reload 後 live queue 與 notification context 均為 `23/5/18`，healthz/readyz、daily API、static asset `200`，doctor canonical paths 通過。
+
 ## D3796 / use canonical unverifiable claim counts with explicit missing reasons
 
 - `#拆解問題` / `#證據基礎` / `#責任`：資料契約稽核發現 legacy gate 可能有 `unverifiable_count` 卻沒有 `unverifiable_reason_counts`；只聚合 reason map 會漏掉真實 residual。
