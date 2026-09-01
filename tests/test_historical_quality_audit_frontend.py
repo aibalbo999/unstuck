@@ -10,11 +10,13 @@ STATIC_DIR = ROOT / "backend" / "static"
 def test_history_quality_helper_renders_read_only_historical_audit_summary_and_targets():
     evidence_path = STATIC_DIR / "report_quality_evidence_helpers.js"
     helper_path = STATIC_DIR / "history_panel_quality_helpers.js"
+    scope_path = STATIC_DIR / "report_quality_audit_scope_helpers.js"
     renderer_path = STATIC_DIR / "history_quality_audit_render.js"
     script = """
 global.window = {};
 require(__EVIDENCE_PATH__);
 require(__HELPER_PATH__);
+require(__SCOPE_PATH__);
 require(__RENDERER_PATH__);
 const audit = {
   scope: 'all_historical_indexed_reports',
@@ -38,7 +40,9 @@ const audit = {
   artifact_quality_summary_by_field: { report_conformance: 1, evidence_exit_gate: 1, content_credibility: 0 },
   quality_metadata_by_pipeline: {
     v1: { quality_metadata_missing_reports: 36, quality_metadata_missing_by_rerun_context: { present: 0, partial: 0, artifact_fallback_available: 29, missing: 0, not_evaluated: 0 } },
-    v2: { quality_metadata_missing_reports: 36, quality_metadata_missing_by_rerun_context: { present: 0, partial: 0, artifact_fallback_available: 29, missing: 0, not_evaluated: 0 } }
+    v2: { quality_metadata_missing_reports: 36, quality_metadata_missing_by_rerun_context: { present: 0, partial: 0, artifact_fallback_available: 29, missing: 0, not_evaluated: 0 } },
+    v3: { quality_metadata_missing_reports: 35 },
+    v4: { quality_metadata_missing_reports: 36 }
   },
   items_returned: 2,
   items_offset: 0,
@@ -75,7 +79,7 @@ const audit = {
 };
 const html = window.StockAgentHistoricalQualityAuditRenderer.render(audit, value => String(value ?? ''));
 process.stdout.write(JSON.stringify({ html }));
-""".replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path))).replace("__HELPER_PATH__", json.dumps(str(helper_path))).replace("__RENDERER_PATH__", json.dumps(str(renderer_path)))
+""".replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path))).replace("__HELPER_PATH__", json.dumps(str(helper_path))).replace("__SCOPE_PATH__", json.dumps(str(scope_path))).replace("__RENDERER_PATH__", json.dumps(str(renderer_path)))
     result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
     payload = json.loads(result.stdout)
 
@@ -310,6 +314,31 @@ process.stdout.write(JSON.stringify({ html }));
 
     assert "品質 metadata 範圍資料需確認" in payload["html"]
     assert "第 100-5 份" not in payload["html"]
+
+
+def test_history_quality_audit_hides_inconsistent_pipeline_missing_scope():
+    scope_path = STATIC_DIR / "report_quality_audit_scope_helpers.js"
+    renderer_path = STATIC_DIR / "history_quality_audit_render.js"
+    script = """
+global.window = {};
+require(__SCOPE_PATH__);
+require(__RENDERER_PATH__);
+const html = window.StockAgentHistoricalQualityAuditRenderer.render({
+  audited_reports: 5,
+  quality_metadata_missing_reports: 3,
+  quality_metadata_by_pipeline: {
+    v1: { quality_metadata_missing_reports: 1 },
+    v2: { quality_metadata_missing_reports: 1 }
+  },
+  items: []
+}, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ html }));
+""".replace("__SCOPE_PATH__", json.dumps(str(scope_path))).replace("__RENDERER_PATH__", json.dumps(str(renderer_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "3 份品質 metadata 缺口" in payload["html"]
+    assert "模式缺口：" not in payload["html"]
 
 
 def test_history_quality_audit_does_not_floor_fractional_or_malformed_counts():

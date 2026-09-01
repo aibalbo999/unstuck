@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3834 / enforce pipeline missing scope
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：watchlist/history 逐欄顯示 pipeline 缺口，但沒有確認各 entry 是否完整分割 top-level 缺口；部分 map 會被誤讀成全量模式分布。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以 `missing=3`、pipeline `1+1` 取得 RED；新增共用 audit-scope helper，要求 entry、有限非負整數與加總一致，矛盾時隱藏模式缺口，不改 backend audit payload 或 legacy context fallback。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新正式 asset load order、API/operator/architecture 契約與兩個 Node fixture，focused pipeline scope `3 passed`，完整 history/report-quality/static/docs regression `330 passed`，Node syntax、line guard 與 `git diff --check` 通過；live daily `2=1+1`、historical `59=15+15+14+15`，bounded `59/5/5/truncated=true`，asset `200` 且與本地一致，health/ready、official launcher/worker/8080 與 doctor canonical paths 正常。本批不改 audit count、quality gate、queue、snapshot、artifact、index、review 或 rerun state。
+
 ## D3833 / enforce action freshness projection scope
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：current-quality 的總 action map 與 freshness 分布 map 應是同一份逐報告 projection；原 formatter 未核對逐 action 加總，矛盾 payload 會同時顯示兩套不同數字。

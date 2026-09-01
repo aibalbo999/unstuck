@@ -9,8 +9,10 @@ STATIC_DIR = ROOT / "backend" / "static"
 
 def test_watchlist_board_surfaces_full_quality_audit_without_creating_daily_action():
     helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
+    scope_path = STATIC_DIR / "report_quality_audit_scope_helpers.js"
     script = """
 global.window = {};
+require(__SCOPE_PATH__);
 require(__HELPER_PATH__);
 const payload = {
   decision_queue: { summary: { total_actionable: 0 }, items: [{ type: 'monitor' }] },
@@ -35,13 +37,14 @@ const payload = {
     quality_metadata_missing_by_rerun_context: { present: 1, partial: 0, artifact_fallback_available: 1, missing: 1, not_evaluated: 0 },
     quality_metadata_by_pipeline: {
       v1: { quality_metadata_missing_reports: 1, quality_metadata_missing_by_rerun_context: { present: 0, partial: 0, artifact_fallback_available: 1, missing: 0, not_evaluated: 0 } },
-      v2: { quality_metadata_missing_reports: 1, quality_metadata_missing_by_rerun_context: { present: 0, partial: 0, artifact_fallback_available: 1, missing: 0, not_evaluated: 0 } }
+      v2: { quality_metadata_missing_reports: 1, quality_metadata_missing_by_rerun_context: { present: 0, partial: 0, artifact_fallback_available: 1, missing: 0, not_evaluated: 0 } },
+      v3: { quality_metadata_missing_reports: 1 }
     }
   }
 };
 const board = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], payload, value => String(value ?? ''));
 process.stdout.write(JSON.stringify({ board }));
-""".replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+""".replace("__SCOPE_PATH__", json.dumps(str(scope_path))).replace("__HELPER_PATH__", json.dumps(str(helper_path)))
     result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
     payload = json.loads(result.stdout)
 
@@ -61,6 +64,33 @@ process.stdout.write(JSON.stringify({ board }));
     assert 'class="watchlist-daily-quality-scope">全量報告品質</strong>' in payload["board"]
     assert payload["board"].index('class="watchlist-daily-quality-scope"') < payload["board"].index('class="watchlist-daily-quality-item"')
     assert payload["board"].count('class="watchlist-daily-quality-item"') == 11
+
+
+def test_watchlist_board_hides_inconsistent_pipeline_missing_scope():
+    helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
+    scope_path = STATIC_DIR / "report_quality_audit_scope_helpers.js"
+    script = """
+global.window = {};
+require(__SCOPE_PATH__);
+require(__HELPER_PATH__);
+const payload = {
+  decision_queue: { summary: { total_actionable: 0 }, items: [{ type: 'monitor' }] },
+  report_quality_audit: {
+    quality_metadata_missing_reports: 3,
+    quality_metadata_by_pipeline: {
+      v1: { quality_metadata_missing_reports: 1 },
+      v2: { quality_metadata_missing_reports: 1 }
+    }
+  }
+};
+const board = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], payload, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ board }));
+""".replace("__SCOPE_PATH__", json.dumps(str(scope_path))).replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "3 份品質 metadata 缺口" in payload["board"]
+    assert "模式缺口：" not in payload["board"]
 
 
 def test_watchlist_board_surfaces_bounded_repair_queue_scope():
@@ -1112,8 +1142,10 @@ process.stdout.write(JSON.stringify({ board }));
 
 def test_watchlist_board_surfaces_missing_quality_field_counts():
     helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
+    scope_path = STATIC_DIR / "report_quality_audit_scope_helpers.js"
     script = """
 global.window = {};
+require(__SCOPE_PATH__);
 require(__HELPER_PATH__);
 const payload = {
   decision_queue: { summary: { total_actionable: 0 }, items: [{ type: 'monitor' }] },
@@ -1133,7 +1165,7 @@ const payload = {
 };
 const board = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], payload, value => String(value ?? ''));
 process.stdout.write(JSON.stringify({ board }));
-""".replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+""".replace("__SCOPE_PATH__", json.dumps(str(scope_path))).replace("__HELPER_PATH__", json.dumps(str(helper_path)))
     result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
     payload = json.loads(result.stdout)
 

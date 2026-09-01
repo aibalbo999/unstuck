@@ -99,7 +99,7 @@ The read-only report quality audit exposes `missing_quality_fields`, `severity`,
 
 若明細另有 `quality_metadata_refresh_provenance`，請先看 `missing_fields`：它記錄資料快照在刷新前已缺少哪些品質 gate。當目前缺口落在這份清單內，repair 會標示「刷新前已有品質證據缺口」；這能改善責任判讀，但仍不是 gate 結果，也不會自動重跑。沒有這個 optional 欄位的舊 snapshot 維持「刷新後品質證據缺口」的中性語意。
 
-`quality_metadata_by_pipeline` 會再按 `pipeline_id` 分組，保留各模式自己的 verified 分母、coverage、缺 gate 數、重跑策略與上下文準備度；摘要中的「模式上下文」可直接看出哪個模式只有 artifact 前序可查、哪個模式完全沒有局部上下文，再用 `q`/`pipeline` targeted audit 開啟明細，可以避免把全庫缺口和單一模式混在一起。
+`quality_metadata_by_pipeline` 會再按 `pipeline_id` 分組，保留各模式自己的 verified 分母、coverage、缺 gate 數、重跑策略與上下文準備度；各模式的缺口數應完整加總回全量缺口，若分布缺欄、格式錯誤或加總矛盾，畫面會保留全量缺口但不顯示「模式缺口」。摘要中的「模式上下文」可直接看出哪個模式只有 artifact 前序可查、哪個模式完全沒有局部上下文，再用 `q`/`pipeline` targeted audit 開啟明細，可以避免把全庫缺口和單一模式混在一起。
 
 `quality_review_by_status` 會把缺 metadata 報告的目前 revision-scoped 審核狀態分成「待人工核對、已核准保留缺口、退回處理、已暫緩」；它只統計缺口報告，不把完整報告算進審核分母。工作台與歷史稽核會把總缺口寫成「品質 metadata 缺口」，再另外顯示各審核狀態，避免把已決策或已暫緩的報告誤標成待人工核對。`pending` 代表尚無當前版本的 review event，不代表品質 gate 已通過或失敗。
 

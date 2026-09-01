@@ -16,14 +16,17 @@ def test_shared_quality_evidence_helper_loads_before_all_consumers():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     helper = "/static/report_quality_evidence_helpers.js"
     action_scope_helper = "/static/report_quality_action_scope_helpers.js"
+    audit_scope_helper = "/static/report_quality_audit_scope_helpers.js"
     queue_scope_helper = "/static/report_quality_queue_scope_helpers.js"
     freshness_helper = "/static/report_quality_evidence_freshness_helpers.js"
     assert (STATIC_DIR / "report_quality_evidence_helpers.js").exists()
     assert (STATIC_DIR / "report_quality_action_scope_helpers.js").exists()
+    assert (STATIC_DIR / "report_quality_audit_scope_helpers.js").exists()
     assert (STATIC_DIR / "report_quality_queue_scope_helpers.js").exists()
     assert (STATIC_DIR / "report_quality_evidence_freshness_helpers.js").exists()
     assert f"{helper}?v=20260902-integer-summary-counts" in index_html
     assert f"{action_scope_helper}?v=20260902-action-freshness-scope" in index_html
+    assert f"{audit_scope_helper}?v=20260902-pipeline-missing-scope" in index_html
     assert f"{queue_scope_helper}?v=20260902-bounded-items" in index_html
     assert f"{freshness_helper}?v=20260902-integer-summary-counts" in index_html
     assert "/static/report_quality_gate_policy.js?v=20260816-shared-quality-evidence" in index_html
@@ -38,6 +41,8 @@ def test_shared_quality_evidence_helper_loads_before_all_consumers():
     assert "/static/styles/history_list.css?v=20260816-clickable-quality-evidence" in style_css
     assert index_html.index(helper) < index_html.index("/static/report_quality_gate_policy.js")
     assert index_html.index(action_scope_helper) < index_html.index("/static/report_quality_gate_policy.js")
+    assert index_html.index(audit_scope_helper) < index_html.index("/static/watchlist_panel_helpers.js")
+    assert index_html.index(audit_scope_helper) < index_html.index("/static/history_quality_audit_render.js")
     assert index_html.index(queue_scope_helper) < index_html.index("/static/operator_dashboard_actions.js")
     assert index_html.index(queue_scope_helper) < index_html.index("/static/watchlist_panel_helpers.js")
     assert index_html.index(freshness_helper) < index_html.index("/static/report_quality_gate_policy.js")

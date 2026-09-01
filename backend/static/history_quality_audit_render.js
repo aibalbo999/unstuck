@@ -29,10 +29,7 @@
         const artifactFieldSummary = artifactFieldStats ? fieldLabels.map(([key, label]) => { const count = nonNegativeInteger(artifactFieldStats[key]); return count !== null && count >= 0 ? `${label} ${count}` : ''; }).filter(Boolean).join('、') : '';
         const currentQualitySummary = window.StockAgentHistoricalCurrentQualityHelpers?.render?.(audit.current_quality_summary, e) || '';
         const pipelineQuality = audit.quality_metadata_by_pipeline && typeof audit.quality_metadata_by_pipeline === 'object' && !Array.isArray(audit.quality_metadata_by_pipeline) ? audit.quality_metadata_by_pipeline : {};
-        const pipelineSummary = Object.entries(pipelineQuality).map(([pipeline, summary]) => {
-            const count = nonNegativeInteger(summary?.quality_metadata_missing_reports);
-            return count !== null && count > 0 ? `${pipeline} ${count}` : '';
-        }).filter(Boolean).join('、');
+        const pipelineSummary = window.StockAgentReportQualityAuditScope?.pipelineMissingSummary?.(pipelineQuality, missing) || '';
         const pipelineContextSummary = Object.entries(pipelineQuality).map(([pipeline, summary]) => { const context = rerunContextLabels.map(([key, label]) => { const count = nonNegativeInteger(summary?.quality_metadata_missing_by_rerun_context?.[key]); return count !== null && count > 0 ? `${label} ${count}` : ''; }).filter(Boolean).join('、'); return context ? `${pipeline} ${context}` : ''; }).filter(Boolean).join('、');
         const pipelineActions = Object.entries(pipelineQuality).map(([pipeline, summary]) => {
             const count = nonNegativeInteger(summary?.quality_metadata_missing_reports);
