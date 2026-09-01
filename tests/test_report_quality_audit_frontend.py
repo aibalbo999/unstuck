@@ -713,6 +713,34 @@ process.stdout.write(JSON.stringify({ board }));
     assert "8 份品質 metadata 缺口（目前顯示 2 份，另有 6 份未展開）" in payload["board"]
 
 
+def test_watchlist_board_does_not_trust_quality_items_limit_in_scope_note():
+    scope_path = STATIC_DIR / "report_quality_queue_scope_helpers.js"
+    helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
+    script = """
+global.window = {};
+require(__SCOPE_PATH__);
+require(__HELPER_PATH__);
+const payload = {
+  decision_queue: { summary: { total_actionable: 0 }, items: [{ type: 'monitor' }] },
+  report_quality_audit: {
+    quality_metadata_missing_reports: 2,
+    items_total: 2,
+    items_returned: 2,
+    items_limit: 1,
+    items_truncated: false,
+    items: [{ ticker: 'AAA', filename: 'aaa.html' }, { ticker: 'BBB', filename: 'bbb.html' }]
+  }
+};
+const board = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], payload, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ board }));
+""".replace("__SCOPE_PATH__", json.dumps(str(scope_path))).replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "2 份品質 metadata 缺口（目前顯示 2/2；範圍資料需確認）" in payload["board"]
+    assert "2 份品質 metadata 缺口（目前顯示 2 份，另有 0 份未展開）" not in payload["board"]
+
+
 def test_watchlist_board_labels_latest_per_ticker_pipeline_quality_scope():
     helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
     script = """

@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3811 / align watchlist quality gap scope labels
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：watchlist 主品質摘要的未展開文案只看 `items_truncated` 與缺口總數，沒有驗證 `items_returned <= items_limit`，與歷史稽核及 target label 的 bounded contract 不一致。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先以 `items_limit=1 / items_returned=2 / items_total=2 / items_truncated=false` 取得 RED，再消費 shared `boundedItemsConsistent`；只在可比較的 bounded metadata 矛盾時顯示「範圍資料需確認」，保留 target 導覽與 legacy fallback。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步更新 watchlist helper cache-buster、API/operator/architecture 說明與前端契約測試；focused regression `301 passed`，official live daily `missing=2`、`returned=2/total=2`、`limit=5`、`truncated=false` 且 shared consistency `true`，static assets `200`、health/ready `200/200`、doctor canonical paths 正常。本批不改 API count、quality gate、queue、snapshot、artifact、index、review 或 rerun state。
+
 ## D3810 / enforce bounded history audit scope labels
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：歷史品質稽核 renderer 的未展開文案只看 `items_truncated` 與 `quality_metadata_missing_reports`，沒有檢查 `items_returned <= items_limit`；矛盾 payload 會被誤當成完整明細。
