@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3806 / surface bounded repair queue scope in operator dashboard
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：API 已有 repair queue 的 bounded metadata，但 operator dashboard 只讀總數與 action 分布；操作員看得到 5 筆 target，卻無法知道 sample 內完整 actionable count 是 9。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先新增有效截斷與矛盾 metadata 的 frontend RED tests，再以 fail-closed formatter 驗證非負整數、limit/required 邊界與 `items_truncated` 一致性；完整 fit、legacy 或矛盾資料不猜算，並保留既有 dashboard 文案與所有 queue/mutation 行為。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：API、operator guide、architecture map 明示只有一致的四欄 metadata 才顯示「修復 queue：顯示 N / 共 M」；frontend `23 passed`、跨層 `387 passed`、static history/filter `139 passed`，official live formatter 實測 `5 / 9`，health/ready `200/200`、doctor canonical paths 正常。
+
 ## D3805 / expose bounded report repair queue scope
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：live daily dashboard 的 repair sample 有 `action_required=9`，但 `items[]` 只回傳上限 5 筆；原 payload 沒有明示這是截斷結果，操作員可能把可見卡片數誤讀成完整修復數。

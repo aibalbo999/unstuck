@@ -79,6 +79,56 @@ process.stdout.write(JSON.stringify(text));
     assert payload["detail"] == "顯示 2 / 次要待辦 4 · 報告：近期報告取樣 20 份 · 報告修復：人工審核 7、完整重跑 2；freshness需完整重跑 0"
 
 
+def test_operator_dashboard_text_includes_bounded_repair_queue_scope():
+    module_path = STATIC_DIR / "operator_dashboard_actions.js"
+    script = """
+global.window = {};
+require(__MODULE_PATH__);
+const payload = {
+  summary: {
+    report_repairs_required: 9,
+    report_repair_action_counts: { manual_review: 7, rerun_analysis: 2 },
+    reports_needing_freshness_rerun: 0
+  },
+  repair_queue: {
+    summary: { action_required: 9, items_limit: 5, items_returned: 5, items_truncated: true }
+  },
+  decision_queue: { summary: { total_actionable: 0 }, items: [] }
+};
+const text = window.StockAgentOperatorDashboardActions.dashboardText(payload);
+process.stdout.write(JSON.stringify(text));
+""".replace("__MODULE_PATH__", json.dumps(str(module_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert payload["detail"] == "報告修復：人工審核 7、完整重跑 2；freshness需完整重跑 0 · 修復 queue：顯示 5 / 共 9 / watchlist 0"
+
+
+def test_operator_dashboard_text_ignores_inconsistent_repair_queue_scope():
+    module_path = STATIC_DIR / "operator_dashboard_actions.js"
+    script = """
+global.window = {};
+require(__MODULE_PATH__);
+const payload = {
+  summary: {
+    report_repairs_required: 9,
+    report_repair_action_counts: { manual_review: 7, rerun_analysis: 2 },
+    reports_needing_freshness_rerun: 0
+  },
+  repair_queue: {
+    summary: { action_required: 9, items_limit: 5, items_returned: 2, items_truncated: false }
+  },
+  decision_queue: { summary: { total_actionable: 0 }, items: [] }
+};
+const text = window.StockAgentOperatorDashboardActions.dashboardText(payload);
+process.stdout.write(JSON.stringify(text));
+""".replace("__MODULE_PATH__", json.dumps(str(module_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert payload["detail"] == "報告修復：人工審核 7、完整重跑 2；freshness需完整重跑 0 / watchlist 0"
+
+
 def test_operator_dashboard_text_labels_full_freshness_summary():
     module_path = STATIC_DIR / "operator_dashboard_actions.js"
     script = """

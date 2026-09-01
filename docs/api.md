@@ -2259,7 +2259,7 @@ curl http://127.0.0.1:8080/api/watchlist/daily-dashboard
 
 The daily dashboard keeps `summary.reports_needing_rerun` and `summary.report_repairs_required` backward-compatible, but those two report counts describe the recent dashboard report sample rather than the full indexed universe. `summary.report_scope` makes that boundary explicit with `scope=daily_report_sample`, `label=近期報告取樣`, and `sampled_reports`; use `report_quality_audit` for the full latest-per-ticker/pipeline quality coverage.
 
-`repair_queue.summary.action_required` is the full actionable count for the sampled reports, while `items_returned` is the number of repair targets included in the bounded `items[]` list. Read `items_limit` and `items_truncated` with those fields before claiming the repair queue has been fully displayed.
+`repair_queue.summary.action_required` is the full actionable count for the sampled reports, while `items_returned` is the number of repair targets included in the bounded `items[]` list. Read `items_limit` and `items_truncated` with those fields before claiming the repair queue has been fully displayed. The operator dashboard shows `修復 queue：顯示 N / 共 M` only when all four bounded fields are present and mutually consistent; legacy or contradictory metadata keeps the existing summary wording instead of guessing a scope.
 
 When the daily queue has no work, `decision_queue.items` may contain a UI-compatible `monitor` fallback, but `decision_queue.summary.displayed_count` and `secondary_count` remain `0`; those counts include only real actionable items.
 
