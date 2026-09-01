@@ -7,6 +7,7 @@ from types import MappingProxyType
 import pytest
 
 from daily_decision_queue import build_daily_decision_queue
+from daily_decision_queue_summary import queue_response
 
 
 def test_daily_decision_source_labels_cover_queue_sources_and_are_immutable():
@@ -650,6 +651,58 @@ def test_daily_decision_queue_orders_repairs_backtests_reruns_and_route_warnings
     assert queue["items"][0]["source"] == "report_repair"
     assert queue["items"][1]["route"] == "v2/gemini-2.5-pro"
     assert queue["items"][2]["horizon_months"] == 3
+
+
+def test_daily_decision_queue_tiebreaks_same_route_by_warning_identity():
+    queue = queue_response(
+        [
+            {
+                "source": "model_route_budget",
+                "type": "model_route_warning",
+                "priority_score": 650,
+                "route": "v2/gemini",
+                "warning_id": "z-warning",
+            },
+            {
+                "source": "model_route_budget",
+                "type": "model_route_warning",
+                "priority_score": 650,
+                "route": "v2/gemini",
+                "warning_id": "a-warning",
+            },
+        ],
+        limit=5,
+        schema_version="daily_decision_queue.v1",
+    )
+
+    assert [item["warning_id"] for item in queue["items"]] == ["a-warning", "z-warning"]
+
+
+def test_daily_decision_queue_tiebreaks_same_report_by_pipeline_identity():
+    queue = queue_response(
+        [
+            {
+                "source": "report_repair",
+                "type": "manual_review",
+                "priority_score": 700,
+                "ticker": "NVDA",
+                "filename": "same.html",
+                "pipeline_id": "v2",
+            },
+            {
+                "source": "report_repair",
+                "type": "manual_review",
+                "priority_score": 700,
+                "ticker": "NVDA",
+                "filename": "same.html",
+                "pipeline_id": "v1",
+            },
+        ],
+        limit=5,
+        schema_version="daily_decision_queue.v1",
+    )
+
+    assert [item["pipeline_id"] for item in queue["items"]] == ["v1", "v2"]
 
 
 def test_daily_decision_queue_surfaces_complete_quality_audit_gaps_without_duplicate_repairs():

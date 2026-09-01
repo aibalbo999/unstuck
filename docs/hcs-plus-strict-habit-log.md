@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3804 / stabilize queue identity and notification artifact aliases
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：反例將 queue rank 拆成 priority/source 主排序、同分 identity tie-breaker 與 notification artifact identity 三層；確認同分 item 會受 iterator 順序影響，且 filename aliases 可能讓同一通知指向兩個檔案。
+- `#證據基礎` / `#偏誤降低` / `#可驗證性`：先加入 route warning、same-report pipeline 與 conflicting filename tests 取得 RED，再只改 queue summary sort key 與 notification context normalization；queue/identity/notification/HCS scoped `266 passed`、完整套件 `8444 passed, 6 skipped, 75 subtests passed`，official reload 與 live audit 均 GREEN。
+- `#受眾` / `#溝通設計` / `#責任`：API、operator guide、architecture map 明示 stable rank 與 single artifact identity，避免操作人員因上游順序或 alias 漂移看到不同待辦/報告；live 首屏 5 筆與 notification 對齊，非首屏仍由全量 `secondary_count=18` 邊界與 deterministic sort contract 覆蓋，並保留 suppression 與既有 priority policy。
+
 ## D3803 / make notification-repair queue targets explicit
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：全 action type contract table 對照 backend、notification/outbox 與 operator UI 後，發現 `fix_notification_delivery` 的 queue item 沒有 `target_panel`，但 frontend 會依 type 推導 `maintenance-panel`；這是 API/UI target drift，不是 notification 發送問題。

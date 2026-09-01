@@ -212,8 +212,7 @@ def _message_context(action: dict[str, Any]) -> dict[str, Any]:
     filename = _first_text(action, "filename", "report_filename")
     if filename != "":
         for key in ("filename", "report_filename"):
-            if not isinstance(context.get(key), str) or not context.get(key):
-                context[key] = filename
+            context[key] = filename
     dedupe = dedupe_context(action)
     context["dedupe_key"] = dedupe["dedupe_key"]
     context["message_id"] = dedupe["message_id"]

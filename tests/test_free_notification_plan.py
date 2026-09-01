@@ -1246,6 +1246,35 @@ def test_notification_plan_normalizes_report_filename_aliases():
     assert filename_only_message["report_filename"] == "tsm_repair.html"
 
 
+def test_notification_plan_resolves_conflicting_report_filename_aliases_to_one_identity():
+    plan = build_daily_notification_plan(
+        {
+            "decision_queue": {
+                "items": [
+                    {
+                        "source": "report_repair",
+                        "type": "manual_review",
+                        "title": "NVDA 報告需人工審核",
+                        "detail": "內容可信度未通過。",
+                        "ticker": "NVDA",
+                        "filename": "canonical.html",
+                        "report_filename": "stale.html",
+                        "pipeline_id": "v2",
+                    }
+                ],
+            }
+        },
+        env={},
+    )
+
+    message = plan["messages"][0]
+    outbox = plan["delivery_outbox"][0]
+    assert message["filename"] == "canonical.html"
+    assert message["report_filename"] == "canonical.html"
+    assert outbox["filename"] == "canonical.html"
+    assert outbox["report_filename"] == "canonical.html"
+
+
 def test_notification_plan_normalizes_report_filename_when_truthiness_fails():
     class BrokenTruthFilename:
         def __bool__(self):

@@ -2357,6 +2357,10 @@ Daily decision queue report repair action `severity` fields use string-safe conv
 
 Daily decision queue report repair action `action_label` fields use string-safe conversion before payload output, so malformed CTA label truthiness cannot leak non-string operator action text into queue consumers.
 
+Daily decision queue sorting preserves priority and source precedence, then uses type, report identity, route, pipeline, horizon, and warning identity as deterministic tie-breakers, so equal-priority items do not move when provider collection order changes.
+
+Notification report artifact aliases resolve `filename` and `report_filename` to one selected filename before message and `delivery_outbox` projection, so conflicting legacy aliases cannot send operators to different report artifacts.
+
 For a `review_candidate` queue item, the operator summary keeps the ticker, company name, score, and real screener reason visible, then offers three direct actions: `查看股票快照`, `加入追蹤`, and `選擇分析模式`. Snapshot and watchlist reuse the existing stock snapshot panel methods. Analysis only opens the analysis tab, fills the ticker, selects the current mode, and focuses the controls; it never submits a new analysis automatically.
 
 For the same `review_candidate` action, the notification message and `delivery_outbox` use the primary CTA `candidate-snapshot` / `查看股票快照` and target `market-screener-panel` / `screener`; this keeps the external notification CTA aligned with the operator workbench mapping while preserving the candidate-specific three-action card in the UI.

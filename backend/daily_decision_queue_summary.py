@@ -60,13 +60,17 @@ def _source_counts(items: list[dict[str, Any]]) -> dict[str, int]:
     return counts
 
 
-def _sort_key(item: dict[str, Any]) -> tuple[int, int, str, str]:
+def _sort_key(item: dict[str, Any]) -> tuple[int, int, str, str, str, str, str, str]:
     source = str(_field(item, "source") or "")
     return (
         -_int(_field(item, "priority_score")),
         SOURCE_ORDER.get(source, 8),
+        str(_field(item, "type") or ""),
         str(_field(item, "ticker") or ""),
-        str(_field(item, "filename") or _field(item, "route") or ""),
+        str(_field(item, "filename") or _field(item, "report_filename") or _field(item, "route") or ""),
+        str(_field(item, "pipeline_id") or ""),
+        str(_field(item, "horizon_months") or ""),
+        str(_field(item, "warning_id") or ""),
     )
 
 
