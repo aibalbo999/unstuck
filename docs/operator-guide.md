@@ -117,6 +117,8 @@ The read-only report quality audit exposes `missing_quality_fields`, `severity`,
 
 current-quality summary 另提供 `evidence_failed_count` 與 `evidence_unverifiable_reason_counts`：前者彙總同一批 evidence gate 的數值 mismatch，後者彙總未驗證原因；每個 target 也保留該報告的 counts。`evidence_mismatch_claims_by_freshness` 是 mismatch claim 數，`evidence_mismatch_reports_by_freshness` 是受影響報告數，兩者都按 `current`、`needs_rerun`、`unknown` 分組；target 的 `evidence_mismatch_freshness_status` 只在有真實 mismatch 時出現。`evidence_unverifiable_reason_counts_by_freshness` 則把每個不可驗證原因再按本文 freshness 分組，target 的 `evidence_unverifiable_freshness_status` 只在有 residual 時出現，讓操作員分辨「目前本文需查」與「資料已更新、本文需完整重跑」。畫面會用白話標籤顯示「證據數值不一致」「證據未驗證版本：資料已更新、本文需完整重跑」「研究來源非 canonical」等；這些是分流上下文，不代表 mismatch 或 unverifiable 可以忽略，也不會把 sampled claim、跨 provider 數值或任何 review/rerun/repair/queue 狀態寫回系統。沒有 canonical 欄位的衍生指標、情境目標與舊結論仍維持不可驗證，不能借用相同數值或 gate artifact 代算。
 
+`quality_gate_action_counts` 是 current-quality summary 對每份目前報告套用 `quality_gate_repair_item` 的唯讀投影，不是 daily decision queue 的待辦數；`quality_gate_action_scope.is_daily_queue=false` 時，畫面會標示「品質處理建議（唯讀品質投影，不等同今日待辦）」。daily queue 仍依自己的近期 repair sample、完整 audit gap 與其他來源計算，兩者不可互借分母或把投影當成已排入 queue 的 action。缺少這個 optional scope 欄位的舊 payload 維持一般 action 文案。
+
 歷史稽核也可用 `review_status=pending|approved_with_gap|rejected|deferred` 只看某一種目前 revision 審核狀態；回應的 `review_status_filter` 會標示套用的範圍，篩選後的 coverage 與分頁數字只代表該狀態，不代表其他狀態不存在。這仍是 GET-only 查詢，不會寫入 review ledger。
 
 若要先聚焦版本新舊，可用 `version_status=current|historical|unknown`；回應的 `report_version_status_filter` 會標示目前範圍。這個版本範圍會保留該版本集合中的完整報告作為 coverage 分母，只有再選審核狀態或缺口欄位時才縮成相應的品質缺口集合。歷史頁的「目前版本／歷史版本／版本未判定」按鈕只改 GET 查詢範圍，不會加入今日待辦、寫入 review 或建立重跑。

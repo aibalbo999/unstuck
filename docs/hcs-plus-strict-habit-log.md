@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3794 / label quality action projection separately from daily queue
+
+- `#拆解問題` / `#證據基礎` / `#語意含義`：live current-quality 的 `quality_gate_action_counts` 是全量最新報告的品質 gate 投影（`81` 筆人工審核、`4` 筆完整重跑），不是 daily decision queue；daily queue 目前是 `23` 件總待辦、首屏 `5` 件、次要 `18` 件，來源與分母不同。
+- `#偏誤降低` / `#責任` / `#最小變更`：summary 新增 `quality_gate_action_scope`，明示 basis `quality_gate_repair_item_per_report` 與 `is_daily_queue=false`；新增 shared scope helper，只有明確收到這個 false flag 才顯示「唯讀品質投影，不等同今日待辦」，舊 payload fallback 原文，不改 queue、action picker 或任何 mutation。
+- `#受眾` / `#溝通設計` / `#可驗證性` / `#可逆性`：先取得後端欄位與前端 scope formatter RED，再 GREEN；正式驗證需包含 current-quality、watchlist/history、dashboard/queue、Node syntax、`py_compile`、`git diff --check`、live API/DOM、health/ready、asset 與 doctor canonical paths。本批只改 read-only contract/UI，不把全量品質建議轉成今日待辦。
+
 ## D3793 / split unverifiable evidence reasons by conclusion freshness
 
 - `#拆解問題` / `#證據基礎` / `#情境脈絡`：live current-quality 的全量 `evidence_unverifiable_reason_counts` 只有原因總數，無法回答 residual 是目前本文問題還是資料刷新後等待重跑；逐筆檢查定位到 `3324.TWO/v1`「潛在下行空間 -18.2%」，其本文是舊結論，刷新後 snapshot 沒有同語意 canonical 欄位。
