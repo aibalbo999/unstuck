@@ -113,6 +113,34 @@ def test_current_quality_summary_keeps_gate_distributions_separate_and_bounds_ta
     assert payload["items"][0]["evidence_mismatch_freshness_status"] == "needs_rerun"
 
 
+def test_current_quality_summary_uses_canonical_unverifiable_count_when_reason_map_is_missing():
+    payload = build_current_quality_summary(
+        [{
+            "ticker": "2330.TW",
+            "pipeline_id": "v1",
+            "filename": "2330.html",
+            "decision_freshness": {"status": "current"},
+            "report_conformance": {"status": "passed"},
+            "content_credibility": {"status": "passed"},
+            "evidence_exit_gate": {"verdict": "caution", "unverifiable_count": 2},
+        }],
+        scope="all_indexed_reports",
+    )
+
+    assert payload["evidence_unverifiable_claims_by_freshness"] == {
+        "current": 2,
+        "needs_rerun": 0,
+        "unknown": 0,
+    }
+    assert payload["evidence_unverifiable_reports_by_freshness"] == {
+        "current": 1,
+        "needs_rerun": 0,
+        "unknown": 0,
+    }
+    assert payload["items"][0]["evidence_unverifiable_count"] == 2
+    assert payload["items"][0]["evidence_unverifiable_freshness_status"] == "current"
+
+
 def test_current_quality_items_follow_action_priority_within_attention_level():
     payload = build_current_quality_summary(
         [

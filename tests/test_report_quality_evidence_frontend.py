@@ -177,10 +177,25 @@ process.stdout.write(window.StockAgentReportQualityEvidence.formatUnverifiableRe
   current: { technical_level_not_canonical: 1 },
   needs_rerun: { derived_metric_not_canonical: 2, legacy_conclusion_without_snapshot_path: 1 },
   unknown: {}
-}, { current: 1, needs_rerun: 2, unknown: 0 }));
+}, { current: 1, needs_rerun: 2, unknown: 0 }, { current: 1, needs_rerun: 3, unknown: 0 }));
 """.replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path))).replace("__FRESHNESS_PATH__", json.dumps(str(freshness_path)))
 
-    assert _node(script) == "證據未驗證版本：資料已更新、本文需完整重跑（衍生指標沒有 canonical 欄位 2、舊結論缺少快照路徑 1；涉及 2 份報告）、本文目前版本（技術價位沒有 canonical 欄位 1；涉及 1 份報告）"
+    assert _node(script) == "證據未驗證版本：資料已更新、本文需完整重跑（衍生指標沒有 canonical 欄位 2、舊結論缺少快照路徑 1；不可驗證 claim 3；涉及 2 份報告）、本文目前版本（技術價位沒有 canonical 欄位 1；不可驗證 claim 1；涉及 1 份報告）"
+
+
+def test_shared_quality_evidence_surfaces_unclassified_unverifiable_claims():
+    evidence_path = STATIC_DIR / "report_quality_evidence_freshness_helpers.js"
+    script = """
+global.window = {};
+require(__EVIDENCE_PATH__);
+process.stdout.write(window.StockAgentReportQualityEvidence.formatUnverifiableReasonFreshnessSummary(
+  { current: {}, needs_rerun: {}, unknown: {} },
+  { current: 1, needs_rerun: 0, unknown: 0 },
+  { current: 2, needs_rerun: 0, unknown: 0 }
+));
+""".replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path)))
+
+    assert _node(script) == "證據未驗證版本：本文目前版本（原因未記錄；不可驗證 claim 2；涉及 1 份報告）"
 
 
 def test_shared_quality_evidence_labels_analysis_metadata_reason():

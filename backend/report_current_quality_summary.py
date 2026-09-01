@@ -139,6 +139,9 @@ def build_current_quality_summary(
     evidence_unverifiable_reports_by_freshness = {
         bucket: 0 for bucket in EVIDENCE_MISMATCH_FRESHNESS_BUCKETS
     }
+    evidence_unverifiable_claims_by_freshness = {
+        bucket: 0 for bucket in EVIDENCE_MISMATCH_FRESHNESS_BUCKETS
+    }
     conformance_blocker_counts: dict[str, int] = {}
     content_blocker_counts: dict[str, int] = {}
     quality_gate_action_counts: dict[str, int] = {}
@@ -156,6 +159,10 @@ def build_current_quality_summary(
         freshness_bucket = report_freshness_bucket(report)
         report_failed_count = _evidence_failed_count(report.get("evidence_exit_gate"))
         report_reason_counts = _evidence_reason_counts(report.get("evidence_exit_gate"))
+        report_unverifiable_count = _evidence_unverifiable_count(
+            report.get("evidence_exit_gate"),
+            report_reason_counts,
+        )
         evidence_failed_count += report_failed_count
         if report_failed_count:
             evidence_mismatch_claims_by_freshness[freshness_bucket] += report_failed_count
@@ -164,7 +171,8 @@ def build_current_quality_summary(
             evidence_reason_counts[reason] = evidence_reason_counts.get(reason, 0) + count
             bucket_counts = evidence_reason_counts_by_freshness[freshness_bucket]
             bucket_counts[reason] = bucket_counts.get(reason, 0) + count
-        if report_reason_counts:
+        if report_unverifiable_count:
+            evidence_unverifiable_claims_by_freshness[freshness_bucket] += report_unverifiable_count
             evidence_unverifiable_reports_by_freshness[freshness_bucket] += 1
         for blocker_id in _blocker_ids(report.get("report_conformance"), include_decision_tree=True):
             conformance_blocker_counts[blocker_id] = conformance_blocker_counts.get(blocker_id, 0) + 1
@@ -207,6 +215,7 @@ def build_current_quality_summary(
         "evidence_mismatch_reports_by_freshness": evidence_mismatch_reports_by_freshness,
         "evidence_unverifiable_reason_counts": evidence_reason_counts,
         "evidence_unverifiable_reason_counts_by_freshness": evidence_reason_counts_by_freshness,
+        "evidence_unverifiable_claims_by_freshness": evidence_unverifiable_claims_by_freshness,
         "evidence_unverifiable_reports_by_freshness": evidence_unverifiable_reports_by_freshness,
         "report_conformance_blocker_counts": dict(sorted(conformance_blocker_counts.items())),
         "content_credibility_blocker_counts": dict(sorted(content_blocker_counts.items())),
@@ -283,6 +292,17 @@ def _evidence_reason_counts(value: Any) -> dict[str, int]:
     }
 
 
+def _evidence_unverifiable_count(
+    value: Any,
+    reason_counts: dict[str, int] | None = None,
+) -> int:
+    counts = reason_counts if reason_counts is not None else _evidence_reason_counts(value)
+    reason_total = sum(counts.values())
+    gate = safe_mapping_dict(value) or {}
+    recorded_count = max(0, safe_int(gate.get("unverifiable_count"), default=0))
+    return max(recorded_count, reason_total)
+
+
 def _evidence_failed_count(value: Any) -> int:
     gate = safe_mapping_dict(value) or {}
     return max(0, safe_int(gate.get("failed_count"), default=0))
@@ -335,6 +355,10 @@ def _current_quality_item(
     conformance = safe_mapping_dict(report.get("report_conformance")) or {}
     evidence_failed_count = _evidence_failed_count(report.get("evidence_exit_gate"))
     evidence_reason_counts = _evidence_reason_counts(report.get("evidence_exit_gate"))
+    evidence_unverifiable_count = _evidence_unverifiable_count(
+        report.get("evidence_exit_gate"),
+        evidence_reason_counts,
+    )
     content_blocker_ids = sorted(_blocker_ids(report.get("content_credibility")))
     content_blocker_messages = _blocker_messages(report.get("content_credibility"))
     issues = safe_dict_list(conformance.get("blocking_issues")) + safe_dict_list(conformance.get("warnings"))
@@ -355,6 +379,7 @@ def _current_quality_item(
         "content_credibility_status": content_status,
         "evidence_exit_gate_verdict": evidence_verdict,
         "evidence_failed_count": evidence_failed_count,
+        "evidence_unverifiable_count": evidence_unverifiable_count,
         "evidence_unverifiable_reason_counts": evidence_reason_counts,
         "content_credibility_blocker_ids": content_blocker_ids,
         "content_credibility_blocker_messages": content_blocker_messages,
@@ -371,7 +396,7 @@ def _current_quality_item(
         }
     if evidence_failed_count:
         payload["evidence_mismatch_freshness_status"] = report_freshness_bucket(report)
-    if evidence_reason_counts:
+    if evidence_unverifiable_count:
         payload["evidence_unverifiable_freshness_status"] = report_freshness_bucket(report)
     if content_blocker_ids:
         payload["content_credibility_freshness_status"] = report_freshness_bucket(report)

@@ -9,15 +9,19 @@
             : [];
     }
 
-    function formatUnverifiableReasonFreshnessSummary(groups, reports) {
+    function formatUnverifiableReasonFreshnessSummary(groups, reports, claims) {
         const entries = groups && typeof groups === 'object' && !Array.isArray(groups)
             ? Object.entries(groups).map(([key, value]) => [String(key || '').trim().toLowerCase(), value]).filter(([key, value]) => freshnessLabels[key] && value && typeof value === 'object' && !Array.isArray(value)).sort((a, b) => (freshnessOrder[a[0]] ?? 9) - (freshnessOrder[b[0]] ?? 9))
             : [];
         const parts = entries.map(([key, counts]) => {
             const reasons = reasonEntries(counts);
+            const claimCount = Number(claims?.[key]);
+            const claimSummary = Number.isFinite(claimCount) && claimCount > 0 ? `不可驗證 claim ${Math.floor(claimCount)}` : '';
+            const reasonSummary = reasons.length ? reasons.map(([reason, count]) => `${reasonLabels[reason] || reason} ${Math.floor(count)}`).join('、') : claimSummary ? '原因未記錄' : '';
             const reportCount = Number(reports?.[key]);
-            const reportSummary = Number.isFinite(reportCount) && reportCount >= 0 ? `；涉及 ${Math.floor(reportCount)} 份報告` : '';
-            return reasons.length ? `${freshnessLabels[key]}（${reasons.map(([reason, count]) => `${reasonLabels[reason] || reason} ${Math.floor(count)}`).join('、')}${reportSummary}）` : '';
+            const reportSummary = Number.isFinite(reportCount) && reportCount >= 0 && (reasons.length || claimSummary) ? `涉及 ${Math.floor(reportCount)} 份報告` : '';
+            const summaries = [reasonSummary, claimSummary, reportSummary].filter(Boolean);
+            return summaries.length ? `${freshnessLabels[key]}（${summaries.join('；')}）` : '';
         }).filter(Boolean);
         return parts.length ? `證據未驗證版本：${parts.join('、')}` : '';
     }
