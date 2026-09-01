@@ -187,6 +187,32 @@ process.stdout.write(JSON.stringify({ valid: Boolean(result) }));
     assert payload["valid"] is False
 
 
+def test_history_current_quality_rejects_fractional_counts():
+    helper_path = STATIC_DIR / "history_current_quality_helpers.js"
+    script = """
+global.window = {};
+require(__HELPER_PATH__);
+const result = window.StockAgentHistoricalCurrentQualityHelpers.validated({
+  schema_version: 'report_current_quality_summary.v1',
+  scope: 'historical_filter_current_latest',
+  selection_basis: 'latest_per_ticker_pipeline',
+  audited_reports: 1.5,
+  non_passed_reports: 1.5,
+  items_total: 1.5,
+  items_returned: 0,
+  report_conformance_by_status: { passed: 0.5, warning: 1, blocked: 0, unknown: 0 },
+  content_credibility_by_status: { passed: 0.5, warning: 1, blocked: 0, unknown: 0 },
+  evidence_exit_gate_by_verdict: { approved: 0.5, caution: 1, rejected: 0, unknown: 0 },
+  items: []
+});
+process.stdout.write(JSON.stringify({ valid: Boolean(result) }));
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert payload["valid"] is False
+
+
 def test_history_quality_audit_renders_missing_field_scope_and_filters():
     helper_path = STATIC_DIR / "history_panel_quality_helpers.js"
     renderer_path = STATIC_DIR / "history_quality_audit_render.js"

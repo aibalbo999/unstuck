@@ -2,14 +2,14 @@
     function summaryValues(audit) {
         const summary = audit?.decision_freshness_summary || {};
         const audited = Number(summary.audited_reports), current = Number(summary.current_reports), rerun = Number(summary.needs_rerun_reports), unknown = Number(summary.unknown_reports);
-        if ((summary.schema_version && summary.schema_version !== 'report_freshness_summary.v1') || summary.scope !== 'all_indexed_reports' || summary.selection_basis !== 'latest_per_ticker_pipeline' || ![audited, current, rerun, unknown].every(Number.isFinite) || audited < 0 || current < 0 || rerun < 0 || unknown < 0 || current + rerun + unknown !== audited) return null;
+        if ((summary.schema_version && summary.schema_version !== 'report_freshness_summary.v1') || summary.scope !== 'all_indexed_reports' || summary.selection_basis !== 'latest_per_ticker_pipeline' || ![audited, current, rerun, unknown].every(value => Number.isFinite(value) && Number.isInteger(value) && value >= 0) || current + rerun + unknown !== audited) return null;
         return { audited, current, rerun, unknown, scope: summary.scope, selectionBasis: summary.selection_basis };
     }
 
     function validatedItems(audit) {
         const data = summaryValues(audit), items = audit?.decision_freshness_items || {};
         const total = Number(items.items_total), returned = Number(items.items_returned);
-        if (!data || items.schema_version !== 'report_freshness_items.v1' || items.scope !== data.scope || items.selection_basis !== data.selectionBasis || ![total, returned].every(Number.isFinite) || total !== data.rerun || returned < 0 || returned > total || returned !== (Array.isArray(items.items) ? items.items.length : -1)) return null;
+        if (!data || items.schema_version !== 'report_freshness_items.v1' || items.scope !== data.scope || items.selection_basis !== data.selectionBasis || ![total, returned].every(value => Number.isFinite(value) && Number.isInteger(value) && value >= 0) || total !== data.rerun || returned > total || returned !== (Array.isArray(items.items) ? items.items.length : -1)) return null;
         return { ...data, items, total, returned };
     }
 

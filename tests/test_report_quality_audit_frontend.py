@@ -415,6 +415,68 @@ process.stdout.write(JSON.stringify({ board }));
     assert "Infinity" not in payload["board"]
 
 
+def test_watchlist_board_does_not_render_fractional_freshness_summary():
+    helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
+    freshness_helper_path = STATIC_DIR / "watchlist_freshness_helpers.js"
+    script = """
+global.window = {};
+require(__FRESHNESS_HELPER_PATH__);
+require(__HELPER_PATH__);
+const payload = {
+  decision_queue: { summary: { total_actionable: 0 }, items: [{ type: 'monitor' }] },
+  report_quality_audit: {
+    decision_freshness_summary: {
+      schema_version: 'report_freshness_summary.v1',
+      scope: 'all_indexed_reports',
+      selection_basis: 'latest_per_ticker_pipeline',
+      audited_reports: 1.5,
+      current_reports: 0.5,
+      needs_rerun_reports: 1,
+      unknown_reports: 0
+    }
+  }
+};
+const board = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], payload, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ board }));
+""".replace("__FRESHNESS_HELPER_PATH__", json.dumps(str(freshness_helper_path))).replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "分析新鮮度：" not in payload["board"]
+
+
+def test_watchlist_board_does_not_render_fractional_current_quality_summary():
+    helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
+    current_quality_helper_path = STATIC_DIR / "watchlist_current_quality_helpers.js"
+    script = """
+global.window = {};
+require(__CURRENT_QUALITY_HELPER_PATH__);
+require(__HELPER_PATH__);
+const currentQuality = {
+  schema_version: 'report_current_quality_summary.v1',
+  scope: 'all_indexed_reports',
+  selection_basis: 'latest_per_ticker_pipeline',
+  audited_reports: 1.5,
+  non_passed_reports: 1.5,
+  items_total: 1.5,
+  items_returned: 0,
+  report_conformance_by_status: { passed: 0.5, warning: 1, blocked: 0, unknown: 0 },
+  content_credibility_by_status: { passed: 0.5, warning: 1, blocked: 0, unknown: 0 },
+  evidence_exit_gate_by_verdict: { approved: 0.5, caution: 1, rejected: 0, unknown: 0 },
+  items: []
+};
+const board = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], {
+  decision_queue: { summary: { total_actionable: 0 }, items: [{ type: 'monitor' }] },
+  report_quality_audit: { current_quality_summary: currentQuality }
+}, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ board }));
+""".replace("__CURRENT_QUALITY_HELPER_PATH__", json.dumps(str(current_quality_helper_path))).replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "目前品質：" not in payload["board"]
+
+
 def test_watchlist_board_does_not_trust_freshness_items_limit():
     helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
     freshness_helper_path = STATIC_DIR / "watchlist_freshness_helpers.js"

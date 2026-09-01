@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3816 / reject fractional quality projections
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：watchlist freshness/current-quality 與 history current-quality 只檢查 finite/non-negative，`1.5` 分布可通過 validator，部分文案再 `floor` 成看似正常的整數。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以三個入口的 fractional RED fixture 鎖定問題，將 aggregate、status distribution、bounded totals 改為 finite non-negative integer；不使用 floor 修補，不借用其他欄位。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新三個 asset cache-buster、API/operator/architecture 說明與 regression；focused regression `309 passed`，三個新 asset `200`，live freshness 為 `一致 137 / 需完整重跑 28`、current-quality 為 `165/85` 且回傳 `5` 筆，三個 synthetic fractional scope 全部 suppressed，health/ready `200/200`、doctor canonical paths 正常。本批不改 quality gate、queue、snapshot、artifact、index、review 或 rerun state。
+
 ## D3815 / bound watchlist quality counts
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：history renderer 已有有限非負整數 normalization，但 watchlist 主品質摘要仍把 `2.5`、`1.5` 或 `Infinity` 當成報告／snapshot 數量直接顯示。
