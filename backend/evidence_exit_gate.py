@@ -8,7 +8,7 @@ def _normalize_match_text(value: Any) -> str:
     return re.sub(r"[^0-9a-zA-Z_\u4e00-\u9fff]+", "", str(value or "").lower())
 _NUMERIC_UNIT_PATTERN = r"(?:TWD|%|x|X|倍|億|元|張|B|M|K|k|T)"
 _KV_RE = re.compile(
-    rf"(?P<label>[\u4e00-\u9fffA-Za-z][^:\n：|]{{0,30}})[:：]\s*[*_`]*\s*(?:[~約])?(?:NT\$|\$)?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>{_NUMERIC_UNIT_PATTERN})?(?:[.．](?=\s*(?:[)）]|$)))?(?![\dA-Za-z]|[.．](?!\s*(?:[)）]|$|\s+[A-Za-z\u4e00-\u9fff])))"
+    rf"(?P<label>[\u4e00-\u9fffA-Za-z][^:\n：|]{{0,30}})[:：]\s*[*_`]*\s*(?:[~約])?(?:NT\$|\$)?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>{_NUMERIC_UNIT_PATTERN})?(?:[.．](?=\s*(?:[)）(（]|$)))?(?![\dA-Za-z]|[.．](?!\s*(?:[)）(（]|$|\s+[A-Za-z\u4e00-\u9fff])))"
 )
 _TABLE_CELL_RE = re.compile(
     rf"\|\s*(?P<label>[^|\n]{{1,30}})\s*\|\s*[*_`]*\s*(?:[~約])?(?:NT\$|\$)?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>{_NUMERIC_UNIT_PATTERN})?(?:[.．](?=\s*\|))?(?![\dA-Za-z.])\s*\|"
@@ -24,7 +24,7 @@ _EPS_VALUE_RE = re.compile(
     re.IGNORECASE,
 )
 _NON_CLAIM_SUFFIX_RE = re.compile(r"^\s*(?:[A-Za-z\u4e00-\u9fff]|週|周|個月|月|年|天|日)")
-_NON_CLAIM_LABEL_MARKERS = ("code", "duration", "error", "hash", "pipeline", "prompt", "provider", "recordcount", "twse", "tradingview", "交易計畫健康度", "核心論點", "數據/證據", "近 10 日每日趨勢", "daily trend", "Recent catalysts", "近期催化劑", "抓取", "資料日期", "時間", "程式碼", "版本", "錯誤", "耗時", "雜湊")
+_NON_CLAIM_LABEL_MARKERS = ("code", "duration", "error", "hash", "pipeline", "prompt", "provider", "recordcount", "twse", "tradingview", "normalized financials", "交易計畫健康度", "核心論點", "數據/證據", "近 10 日每日趨勢", "daily trend", "Recent catalysts", "近期催化劑", "抓取", "資料日期", "時間", "程式碼", "版本", "錯誤", "耗時", "雜湊")
 _SNAPSHOT_METADATA_PATH_MARKERS = ("cache_generated_at_epoch", "conclusion_generated_at", "conclusion_guardrails", "content_hash", "data_snapshot_hash", "duration_ms", "evidence_exit_gate", "fetched_at", "final_audit", "generated_at", "hash", "record_count", "reproducibility_packet", "report_conformance", "report_lint", "snapshot_hash", "snapshot_refreshed_at", "source_audit", "target_ticker")
 _CONFIDENCE_METADATA_PATH_MARKERS = ("content_credibility", "data_confidence", "max_recommended_confidence", "min_data_confidence", "confidence_data_trust", "report_conformance")
 _NORMALIZED_NON_CLAIM_LABEL_MARKERS = tuple(_normalize_match_text(marker) for marker in _NON_CLAIM_LABEL_MARKERS)
@@ -33,6 +33,15 @@ _NORMALIZED_CONFIDENCE_METADATA_PATH_MARKERS = tuple(_normalize_match_text(marke
 _NORMALIZED_CANONICAL_STRING_PATH_MARKERS = tuple(_normalize_match_text(marker) for marker in ("target_price", "analyst_target", "current_price", "forward_eps", "trailing_eps"))
 _NORMALIZED_RESEARCH_CONTEXT_MARKERS = tuple(_normalize_match_text(marker) for marker in ("券商研究", "市場研究", "券商給予"))
 _SCENARIO_TARGET_LABELS = frozenset(("熊市情境", "基本情境", "牛市情境", "熊基牛情境")); _TECHNICAL_LEVEL_LABELS = frozenset(("心理關卡", "第二支撐", "關鍵支撐區", "近期支撐", "支撐位"))
+_RECOMMENDATION_HORIZON_PATHS = {
+    "短期目標3個月": "短期目標（3個月）",
+    "中期目標6個月": "中期目標（6個月）",
+    "長期目標12個月": "長期目標（12個月）",
+    "長期潛力5年": "長期潛力（5年）",
+    "3個月目標": "短期目標（3個月）",
+    "6個月目標": "中期目標（6個月）",
+    "12個月目標": "長期目標（12個月）",
+}
 _FIELD_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
     (("信心", "confidence"), ("confidence", "confidence_score", "agent_confidence")),
     (("停損", "止損", "stoploss", "stop_loss"), ("stop_loss", "stoploss", "risk_price")), (("借券餘額",), ("borrowed_short_sale_balance",)), (("當日借券賣出",), ("borrowed_short_sale_today",)), (("vs Sale Today",), ("borrowed_short_sale_today", "shares_to_thousands")),
@@ -235,17 +244,54 @@ def flatten_snapshot_numbers(snapshot: Any) -> list[dict[str, Any]]:
     return values
 def _check_claim(claim: dict[str, Any], snapshot_values: list[dict[str, Any]], *, tolerance_pct: float) -> dict[str, Any]:
     reported = float(claim.get("reported_value") or 0)
-    path_markers = _path_markers_for_claim(claim); raw_claim_text = str(claim.get("raw_text") or ""); news_boundary = bool(re.search(r"(?:market[_ ]?catalysts?|recent[_ ]?catalysts?|新聞|催化劑|盤中速報|news)", raw_claim_text, re.IGNORECASE) and any(_normalize_match_text(marker) in _normalize_match_text(claim.get("label")) for marker in ("支撐", "壓力", "關卡", "風險"))); research_boundary = any(marker in path_markers for marker in ("factset", "broker_research")); unavailable_boundary = "short_balance" in path_markers and bool(re.search(r"\b(?:null|n/?a|not\s+provided|unavailable)\b|未提供|無資料|不可用", raw_claim_text, re.IGNORECASE)); legacy_conclusion_boundary = bool(claim.get("_legacy_conclusion_context_missing")); scenario_projection_boundary = bool(re.search(r"\|\s*[*_`]*\s*(?:保守|悲觀|中性|基準|樂觀)\s*[*_`]*\s*\|", raw_claim_text) and (claim.get("unit") == "億" or re.search(r"(?:情境預測|年營收|CAGR)", f"{claim.get('context_text') or ''}\n{raw_claim_text}", re.IGNORECASE)))
+    path_markers = _path_markers_for_claim(claim)
+    raw_claim_text = str(claim.get("raw_text") or "")
+    normalized_label = _normalize_match_text(claim.get("label"))
+    news_boundary = bool(re.search(r"(?:market[_ ]?catalysts?|recent[_ ]?catalysts?|新聞|催化劑|盤中速報|news)", raw_claim_text, re.IGNORECASE) and any(_normalize_match_text(marker) in normalized_label for marker in ("支撐", "壓力", "關卡", "風險")))
+    research_boundary = any(marker in path_markers for marker in ("factset", "broker_research"))
+    unavailable_boundary = "short_balance" in path_markers and bool(re.search(r"\b(?:null|n/?a|not\s+provided|unavailable)\b|未提供|無資料|不可用", raw_claim_text, re.IGNORECASE))
+    legacy_conclusion_boundary = bool(claim.get("_legacy_conclusion_context_missing"))
+    scenario_projection_boundary = bool(re.search(r"\|\s*[*_`]*\s*(?:保守|悲觀|中性|基準|樂觀)\s*[*_`]*\s*\|", raw_claim_text) and (claim.get("unit") == "億" or re.search(r"(?:情境預測|年營收|CAGR)", f"{claim.get('context_text') or ''}\n{raw_claim_text}", re.IGNORECASE)))
     candidate_values = _relevant_snapshot_values(claim, snapshot_values)
+    if path_markers and path_markers[0].startswith("rerun_context.parsed.recommendation.") and not candidate_values:
+        path_markers = ()
     best = _best_match(reported, candidate_values)
     if not path_markers or not candidate_values: status = "unverifiable"
     elif best and best["diff_pct"] <= tolerance_pct:
         status = "verified"
     else:
         status = "mismatch"
+    if news_boundary and not path_markers:
+        verification_reason_code = "news_source_not_canonical"
+    elif research_boundary and not candidate_values:
+        verification_reason_code = "research_source_not_canonical"
+    elif legacy_conclusion_boundary and not path_markers:
+        verification_reason_code = "legacy_conclusion_without_snapshot_path"
+    elif not candidate_values and any(_normalize_match_text(marker) in normalized_label for marker in ("信心", "confidence")):
+        verification_reason_code = "confidence_metadata_not_evidence"
+    elif not candidate_values and (any(_normalize_match_text(marker) in normalized_label for marker in ("券資比", "margin short ratio", "short margin ratio")) or normalized_label in {"潛在下行空間", "potentialdownside"}):
+        verification_reason_code = "derived_metric_not_canonical"
+    elif not candidate_values and normalized_label in {"防軋空停損點stoplosslevel", "價格停損條件"}:
+        verification_reason_code = "risk_control_not_canonical"
+    elif not candidate_values and (normalized_label in _SCENARIO_TARGET_LABELS or re.search(r"\|\s*[*_`]*\s*(?:熊市|基本|牛市)\s*[*_`]*\s*\|", raw_claim_text)):
+        verification_reason_code = "scenario_target_not_canonical"
+    elif not candidate_values and normalized_label in _TECHNICAL_LEVEL_LABELS:
+        verification_reason_code = "technical_level_not_canonical"
+    elif not candidate_values and (scenario_projection_boundary or normalized_label in {"品牌影響力", "網路效應", "轉換成本", "成本優勢", "專利技術", "fomo評分", "fomo過熱評分", "聰明錢派發評分", "score", "評分"} or any(_normalize_match_text(marker) in normalized_label or _normalize_match_text(marker) in _normalize_match_text(raw_claim_text) for marker in ("Agent 3 評分", "Agent 3 score"))):
+        verification_reason_code = "analysis_metadata_not_evidence"
+    elif unavailable_boundary and not candidate_values:
+        verification_reason_code = "snapshot_field_unavailable"
+    elif not path_markers:
+        verification_reason_code = "missing_semantic_path"
+    elif not candidate_values:
+        verification_reason_code = "no_matching_snapshot_path"
+    elif best and best["diff_pct"] <= tolerance_pct:
+        verification_reason_code = "matched_snapshot_value"
+    else:
+        verification_reason_code = "snapshot_value_mismatch"
     return {
         **{key: value for key, value in claim.items() if key not in {"context_text", "series_context_text", "_price_history_months", "_legacy_conclusion_context_missing"}},
-        "status": status, "verification_reason_code": "news_source_not_canonical" if news_boundary and not path_markers else "research_source_not_canonical" if research_boundary and not candidate_values else "legacy_conclusion_without_snapshot_path" if legacy_conclusion_boundary and not path_markers else "confidence_metadata_not_evidence" if not candidate_values and any(_normalize_match_text(marker) in _normalize_match_text(claim.get("label")) for marker in ("信心", "confidence")) else "derived_metric_not_canonical" if not candidate_values and (any(_normalize_match_text(marker) in _normalize_match_text(claim.get("label")) for marker in ("券資比", "margin short ratio", "short margin ratio")) or _normalize_match_text(claim.get("label")) in {"潛在下行空間", "potentialdownside"}) else "risk_control_not_canonical" if not candidate_values and _normalize_match_text(claim.get("label")) in {"防軋空停損點stoplosslevel", "價格停損條件"} else "scenario_target_not_canonical" if not candidate_values and (_normalize_match_text(claim.get("label")) in _SCENARIO_TARGET_LABELS or re.search(r"\|\s*[*_`]*\s*(?:熊市|基本|牛市)\s*[*_`]*\s*\|", str(claim.get("raw_text") or ""))) else "technical_level_not_canonical" if not candidate_values and _normalize_match_text(claim.get("label")) in _TECHNICAL_LEVEL_LABELS else "analysis_metadata_not_evidence" if not candidate_values and (scenario_projection_boundary or _normalize_match_text(claim.get("label")) in {"品牌影響力", "網路效應", "轉換成本", "成本優勢", "專利技術", "fomo評分", "聰明錢派發評分", "score", "評分"} or any(_normalize_match_text(marker) in _normalize_match_text(claim.get("label")) or _normalize_match_text(marker) in _normalize_match_text(claim.get("raw_text")) for marker in ("Agent 3 評分", "Agent 3 score"))) else "snapshot_field_unavailable" if unavailable_boundary and not candidate_values else "missing_semantic_path" if not path_markers else "no_matching_snapshot_path" if not candidate_values else "matched_snapshot_value" if best and best["diff_pct"] <= tolerance_pct else "snapshot_value_mismatch", "candidate_count": len(candidate_values),
+        "status": status, "verification_reason_code": verification_reason_code, "candidate_count": len(candidate_values),
         "matched_path": best.get("path") if best else "",
         "matched_value": best.get("value") if best else None,
         "diff_pct": round(best.get("diff_pct", 0.0), 4) if best else None,
@@ -260,7 +306,7 @@ def _relevant_snapshot_values(claim: dict[str, Any], snapshot_values: list[dict[
     ]
 def _is_non_claim_match(line: str, match: re.Match[str]) -> bool:
     timestamp = re.search(r"\d{4}-\d{2}-\d{2}T\d{1,2}:\d{2}:\d{2}", line)
-    if (timestamp and timestamp.start() <= match.start("label") <= timestamp.end()) or re.search(r"`institutional_trading`\s*[:：]\s*\d+\s*-\s*day\s+lookback\b", line, re.IGNORECASE) or re.search(r"(?:不可用|unavailable|fallback|error|錯誤)\s*[:：]?\s*(?:4\d{2}|5\d{2})\b", line[max(0, match.start("num") - 80):match.end("num") + 1], re.IGNORECASE) or re.match(r"(?:\s*-\s*(?:day|days|week|weeks|month|months)\b|\s*(?:日|天|週|周|個月|月)\b)", line[match.end("num"):], re.IGNORECASE) or (match.re is _TABLE_CELL_RE and _TABLE_VALUE_LABEL_RE.fullmatch(match.group("label"))):
+    if (timestamp and timestamp.start() <= match.start("label") <= timestamp.end()) or (line[max(0, match.start("label") - 1):match.start("label")] == "_" and re.search(r"`normalized[_ ]financials`", line[max(0, match.start("label") - 40):match.end("label")], re.IGNORECASE)) or re.search(r"`institutional_trading`\s*[:：]\s*\d+\s*-\s*day\s+lookback\b", line, re.IGNORECASE) or re.search(r"(?:不可用|unavailable|fallback|error|錯誤)\s*[:：]?\s*(?:4\d{2}|5\d{2})\b", line[max(0, match.start("num") - 80):match.end("num") + 1], re.IGNORECASE) or re.match(r"(?:\s*-\s*(?:day|days|week|weeks|month|months)\b|\s*(?:日|天|週|周|個月|月)\b)", line[match.end("num"):], re.IGNORECASE) or (match.re is _TABLE_CELL_RE and _TABLE_VALUE_LABEL_RE.fullmatch(match.group("label"))):
         return True
     label = _normalize_match_text(match.group("label")); number_start = match.start("num")
     if any(marker in label for marker in _NORMALIZED_NON_CLAIM_LABEL_MARKERS) or re.search(r"[()（）].*(?:previous|前值)\s*$", match.group("label"), re.IGNORECASE):
@@ -281,7 +327,13 @@ def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
     claim_text = str(claim.get("raw_text") or ""); raw_label = str(claim.get("label") or "").lower(); series_context = str(claim.get("series_context_text") or "")
     label = _normalize_match_text(raw_label)
     if not label: return ()
-    if (date_match := re.fullmatch(r"(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})", raw_label.strip(), re.IGNORECASE)) and any(_normalize_match_text(marker) in _normalize_match_text(series_context) for marker in ("daily_total_net_buy_last_10", "Last 10 trading days daily total net buy")) and (year_match := re.search(r"(20\d{2})\s*[-/年.]\s*\d{1,2}\s*[-/月.]\s*\d{1,2}", series_context)): return (f"institutional_trading.daily_total_net_buy_last_10[{year_match.group(1)}-{(('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec').index(date_match.group(1).title()) + 1):02d}-{int(date_match.group(2)):02d}].net_buy_thousand_shares",)
+    if (date_match := re.fullmatch(r"(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})", raw_label.strip(), re.IGNORECASE)) and any(_normalize_match_text(marker) in _normalize_match_text(series_context) for marker in ("daily_total_net_buy_last_10", "Last 10 trading days daily total net buy", "Last 10 trading days daily net buy", "Daily Net Buy (Last 10 days)")):
+        month_number = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec").index(date_match.group(1).title()) + 1
+        year_match = re.search(r"(20\d{2})\s*[-/年.]\s*\d{1,2}\s*[-/月.]\s*\d{1,2}", series_context)
+        candidate_years = {month_name[:4] for month_name in claim.get("_price_history_months") or () if int(month_name[5:7]) == month_number}
+        year = year_match.group(1) if year_match else next(iter(candidate_years)) if len(candidate_years) == 1 else ""
+        if year:
+            return (f"institutional_trading.daily_total_net_buy_last_10[{year}-{month_number:02d}-{int(date_match.group(2)):02d}].net_buy_thousand_shares",)
     raw_text = _normalize_match_text(claim.get("raw_text"))
     if "factset" in raw_text: return ("factset",)
     if any(marker in raw_text for marker in _NORMALIZED_RESEARCH_CONTEXT_MARKERS) or ("sp500" in raw_text and "台股加權指數" in raw_text and "change1d" in raw_text): return ("broker_research",) if any(marker in raw_text for marker in _NORMALIZED_RESEARCH_CONTEXT_MARKERS) else ("global_market_context.items[spy].change_1d_pct",)
@@ -289,10 +341,22 @@ def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
     if indexed_match and indexed_label and symbol_matches: return (f"global_market_context.items[{_normalize_match_text(symbol_matches[-1].group(1))}].change_{indexed_label.group('days')}d_pct",)
     if (global_match := re.search(r"(?<![A-Za-z0-9])(\^?[A-Z][A-Z0-9^=.-]*)\s*[,：:]\s*change[_ ]?5d[_ ]?pct", claim_text, re.IGNORECASE)) and "change_5d_pct" in raw_text: return (f"global_market_context.items[{_normalize_match_text(global_match.group(1))}].change_5d_pct",)
     if ("1000lots" in raw_text and "concentration" in label) or ("50lots" in raw_text and "retail" in label): return ("major_holders_gt_1000_lots_pct",) if "concentration" in label else ("retail_holders_lt_50_lots_pct",)
-    if (label == "previous" and ("marginbalance" in raw_text or "shortbalance" in raw_text)) or (label == "return" and "borrowedshortsale" in raw_text and "return" in raw_text): return ("margin_previous_balance",) if label == "previous" and "marginbalance" in raw_text else ("short_previous_balance",) if label == "previous" else ("chip_data.twse_margin_short_sales.borrowed_short_return_today",)
+    if (label == "previous" and ("marginbalance" in raw_text or "shortbalance" in raw_text)) or (label == "shortpreviousbalance" and "short_previous_balance" in raw_text) or (label == "marginpreviousbalance" and "margin_previous_balance" in raw_text) or (label == "return" and "borrowedshortsale" in raw_text and "return" in raw_text): return ("margin_previous_balance",) if (label == "previous" and "marginbalance" in raw_text) or label == "marginpreviousbalance" else ("short_previous_balance",) if (label == "previous" and "shortbalance" in raw_text) or label == "shortpreviousbalance" else ("chip_data.twse_margin_short_sales.borrowed_short_return_today",)
+    if (recommendation_path := _RECOMMENDATION_HORIZON_PATHS.get(label)) and not claim.get("_legacy_conclusion_context_missing"):
+        return (f"rerun_context.parsed.recommendation.{recommendation_path}",)
     date_series_match = re.search(r"(?P<month>\d{1,2})/(?P<day>\d{1,2})", raw_label); date_series_context = str(claim.get("context_text") or ""); context_years = set(re.findall(r"(20\d{2})\s*年", date_series_context)); month = int(date_series_match.group("month")) if date_series_match else 0; candidate_years = {month_name[:4] for month_name in claim.get("_price_history_months") or () if int(month_name[5:7]) == month}
     if "觀察近三個月價格" in claim_text and date_series_match and len(context_years) == len(candidate_years) == 1 and context_years == candidate_years: return (f"price_history[{next(iter(context_years))}-{month:02d}-{int(date_series_match.group('day')):02d}]",)
     if (dated_latest_price := re.fullmatch(r"最新價格\s*[（(]\s*(20\d{2})[-/](\d{1,2})[-/](\d{1,2})\s*[)）]", raw_label.strip())) and re.search(r"(?:NT\$|\$|TWD|元)", claim_text, re.IGNORECASE): return (f"price_history[{dated_latest_price.group(1)}-{int(dated_latest_price.group(2)):02d}-{int(dated_latest_price.group(3)):02d}]",)
+    week_high_marker = re.search(r"(?:52\s*週|52週)\s*(?:最高|高點|高價)", claim_text)
+    if week_high_marker and any(_normalize_match_text(marker) in label for marker in ("支撐", "壓力")) and str(claim.get("unit") or "").lower() in ("twd", "元") and "market_data" in raw_text:
+        previous_numbers = list(_NUMBER_IN_STRING_RE.finditer(claim_text[:week_high_marker.start()]))
+        if previous_numbers and _clean_number(previous_numbers[0].group()) == float(claim.get("reported_value") or 0):
+            return ("week_52_high",)
+    range_dates = list(re.finditer(r"20\d{2}[-/]\d{1,2}[-/]\d{1,2}", claim_text))
+    if len(range_dates) >= 2 and any(_normalize_match_text(marker) in label for marker in ("支撐", "壓力")) and str(claim.get("unit") or "").lower() in ("twd", "元") and any(_normalize_match_text(marker) in raw_text for marker in ("橫盤區間", "區間底")):
+        previous_numbers = list(_NUMBER_IN_STRING_RE.finditer(claim_text[:range_dates[0].start()]))
+        if previous_numbers and _clean_number(previous_numbers[-1].group()) == float(claim.get("reported_value") or 0):
+            return tuple(f"price_history[{match.group(0)[:10].replace('/', '-')}]" for match in range_dates[:2])
     if (dated_level := re.search(r"(20\d{2})\s*[-/年.]\s*(\d{1,2})\s*[-/月.]\s*(\d{1,2})", claim_text)) and any(_normalize_match_text(marker) in label for marker in ("支撐", "壓力")) and re.search(r"(?:NT\$|\$|TWD|元)", claim_text, re.IGNORECASE) and any(marker in claim_text for marker in ("價格", "月底價", "前高", "低點", "高點", "收盤")) and not any(marker in re.split(r"[)）\n。；;]", claim_text[dated_level.start():], maxsplit=1)[0] for marker in ("market_catalysts", "catalyst", "新聞", "news", "催化劑")) and (previous_numbers := list(_NUMBER_IN_STRING_RE.finditer(claim_text[:dated_level.start()]))) and (re.fullmatch(r"\s*(?:NT\$|\$|TWD|元)?\s*[（(]\s*", claim_text[previous_numbers[-1].end():dated_level.start()]) or re.search(r"此為\s*$", re.sub(r"[*_`]", "", claim_text[previous_numbers[-1].end():dated_level.start()]))) and _clean_number(previous_numbers[-1].group()) == float(claim.get("reported_value") or 0): return (f"price_history[{dated_level.group(1)}-{int(dated_level.group(2)):02d}-{int(dated_level.group(3)):02d}]",)
     history_date = re.search(r"(20\d{2})\s*[-/年.]\s*(\d{1,2})\s*[-/月.]\s*(\d{1,2})", claim_text); has_price_label = any(_normalize_match_text(marker) in label for marker in ("高點", "低點", "收盤", "支撐", "壓力", "底部", "股價", "價格", "close", "high", "low")); has_close_marker = any(_normalize_match_text(marker) in _normalize_match_text(claim_text) for marker in ("收盤", "close", "closing")); has_price_unit = bool(re.search(r"(?:NT\$|\$|TWD|元)", claim_text, re.IGNORECASE)); has_inline_extremum = bool(re.search(r"20\d{2}\s*[-/年.]\s*\d{1,2}\s*[-/月.]\s*\d{1,2}\s*(?:高點|低點|high|low)", claim_text, re.IGNORECASE)); has_dated_extremum = (any(_normalize_match_text(marker) in label for marker in ("高點", "低點")) or (has_price_label and has_inline_extremum)) and not any(_normalize_match_text(marker) in label for marker in ("52週", "52week")); has_news_source = any(marker in raw_text for marker in ("market_catalysts", "catalyst", "新聞", "催化劑", "盤中速報", "news"))
     if history_date and ("price_history" in raw_text or (has_price_label and has_close_marker and has_price_unit) or (has_dated_extremum and not has_news_source)):
@@ -306,6 +370,8 @@ def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
     if "last_5_trading_days_net_buy_thousand_shares" in raw_text or label in ("last5tradingdaysnetbuy", "last5daysnetbuy"): return ("institutional_trading.last_5_trading_days_net_buy_thousand_shares",)
     if (label in ("週高點", "週低點", "壓力位", "支撐位", "近期壓力", "關鍵壓力位") or any(_normalize_match_text(marker) in label for marker in ("壓力", "支撐", "防線"))) and str(claim.get("unit") or "").lower() in ("twd", "元") and (week_match := next((match for match in re.finditer(r"(?:(?:52\s*週|52週)\s*(?P<after>最高|最低|高|低)(?:點|價)?\s*[:：為=]?\s*(?:NT\$|\$)?(?P<after_num>-?\d[\d,]*(?:\.\d+)?)|(?P<before_num>-?\d[\d,]*(?:\.\d+)?)\s*(?:TWD|元)?\s*[*_`]*\s*[（(]?\s*[。．]?\s*(?:此為|為|是)?\s*(?:52\s*週|52週)\s*(?P<before>最高|最低|高|低)(?:點|價)?)", str(claim.get("raw_text") or ""), re.IGNORECASE) if _clean_number(match.group("after_num") or match.group("before_num")) == float(claim.get("reported_value") or 0)), None)): return ("week_52_high",) if (week_match.group("after") or week_match.group("before")) in ("高", "最高") else ("week_52_low",)
     if (source_match := re.search(r"(-?\d[\d,]*(?:\.\d+)?)\s*(?:TWD|元)?\s*[（(]?\s*`?(?:data\.)?(market_data\.week_52_(?:high|low)_twd)", str(claim.get("raw_text") or ""), re.IGNORECASE)) and _clean_number(source_match.group(1)) == float(claim.get("reported_value") or 0): return ("week_52_high",) if "week_52_high_twd" in raw_text else ("week_52_low",)
+    if (source_after_match := re.search(r"`?(?:(?:data|market_data)\.)?week_52_(?P<kind>high|low)_twd`?\s*[:：=]\s*(?:NT\$|\$|TWD|元)?\s*(?P<num>-?\d[\d,]*(?:\.\d+)?)", str(claim.get("raw_text") or ""), re.IGNORECASE)) and _clean_number(source_after_match.group("num")) == float(claim.get("reported_value") or 0): return ("week_52_high",) if source_after_match.group("kind").lower() == "high" else ("week_52_low",)
+    if (source_parenthesized_match := re.search(r"`?(?:data\.)?(?:market_data\.)?week_52_(?P<kind>high|low)_twd`?\s*[（(]\s*(?:NT\$|\$)?\s*(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?:TWD|元)?\s*[)）]", str(claim.get("raw_text") or ""), re.IGNORECASE)) and _clean_number(source_parenthesized_match.group("num")) == float(claim.get("reported_value") or 0): return ("week_52_high",) if source_parenthesized_match.group("kind").lower() == "high" else ("week_52_low",)
     if (label == "low" and re.search(r"52\s*[- ]?week\s+high\s*[:：].*[/,]\s*low\s*[:：]", claim_text, re.IGNORECASE)) or (label in ("週高低", "週高低次要價位") and "52週高低" in _normalize_match_text(f"{claim.get('raw_text')} {claim.get('secondary_context_text')}")): return ("week_52_low",) if label in ("low", "週高低次要價位") else ("week_52_high",)
     if label == "最新餘額": return ("margin_balance",) if ("融資餘額" in raw_text or "marginbalance" in raw_text or "融資餘額" in _normalize_match_text(claim.get("context_text"))) else ("short_balance",) if ("融券餘額" in raw_text or "shortbalance" in raw_text or "融券餘額" in _normalize_match_text(claim.get("context_text"))) else ()
     if ((("riverchart" in raw_text or "河流圖" in raw_text) and str(claim.get("unit") or "").lower() in ("twd", "元") and re.search(r"\d[\d,]*(?:\.\d+)?\s*x\s*(?:區間|位階|band)", claim_text, re.IGNORECASE)) or (label == "x中高分位帶" and (band_match := re.search(r"(?P<multiple>\d[\d,]*(?:\.\d+)?)\s*x", str(claim.get("raw_text") or ""), re.IGNORECASE))) or (label in ("關鍵壓力", "關鍵壓力位") and str(claim.get("unit") or "").lower() in ("twd", "元") and any(marker in raw_text for marker in ("52週最高價", "week52high")))): return ("pe_river_chart.bands",) if ("riverchart" in raw_text or "河流圖" in raw_text) else (f"pe_river_chart.bands.{band_match.group('multiple')}x",) if label == "x中高分位帶" else ("week_52_high",)

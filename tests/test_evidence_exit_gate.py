@@ -157,6 +157,19 @@ def test_evidence_gate_accepts_markdown_emphasis_between_label_and_value():
     assert all(claim["status"] == "verified" for claim in result["sampled_claims"])
 
 
+def test_evidence_gate_preserves_thousands_before_parenthetical_note():
+    from evidence_exit_gate import extract_numeric_claims
+
+    claims = extract_numeric_claims(
+        "- Margin Purchase: 3,768 / Margin Sale: 2,771. (Net increase in margin)."
+    )
+
+    assert [(claim["label"], claim["reported_value"]) for claim in claims] == [
+        ("Margin Purchase", 3768.0),
+        ("Margin Sale", 2771.0),
+    ]
+
+
 def test_evidence_gate_keeps_markdown_emphasis_mismatch_visible():
     from evidence_exit_gate import evaluate_report_evidence
 
@@ -2719,6 +2732,186 @@ def test_evidence_gate_does_not_infer_defense_line_without_week_marker():
 
     claim = result["sampled_claims"][0]
     assert claim["matched_path"] != "data.week_52_low"
+
+
+def test_evidence_gate_matches_code_style_previous_short_balance_key():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **短期籌碼**：`short_previous_balance`: 1,501。",
+        {
+            "data": {
+                "chip_data": {
+                    "twse_margin_short_sales": {"short_previous_balance": 1501}
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "verified"
+    assert claim["matched_path"] == (
+        "data.chip_data.twse_margin_short_sales.short_previous_balance"
+    )
+
+
+def test_evidence_gate_matches_yearless_daily_net_buy_heading_using_snapshot_year():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **Daily Net Buy (Last 10 days):**\n"
+        "  - Aug 24: -7,632.94k\n"
+        "  - Aug 31: -4,058.72k",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2026-08-29"],
+                    "prices": [100.0],
+                },
+                "institutional_trading": {
+                    "daily_total_net_buy_last_10": [
+                        {"date": "2026-08-24", "net_buy_thousand_shares": -7632.94},
+                        {"date": "2026-08-31", "net_buy_thousand_shares": -4058.72},
+                    ]
+                },
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=2,
+    )
+
+    assert result["verdict"] == "approved"
+    assert [claim["matched_path"] for claim in result["sampled_claims"]] == [
+        "data.institutional_trading.daily_total_net_buy_last_10[2026-08-24].net_buy_thousand_shares",
+        "data.institutional_trading.daily_total_net_buy_last_10[2026-08-31].net_buy_thousand_shares",
+    ]
+
+
+def test_evidence_gate_matches_week_high_key_followed_by_value():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **突破 52 週新高壓力**：當前價格 34.0 TWD 已觸及並站上 52 週高價區間（`week_52_high_twd`: 34.0）。",
+        {"data": {"week_52_high": 34.0}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "verified"
+    assert claim["matched_path"] == "data.week_52_high"
+
+
+def test_evidence_gate_matches_week_high_source_followed_by_parenthesized_value():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **關鍵壓力位：35.1 TWD**。目前價格已接近 `market_data.week_52_high_twd` (35.1 TWD)。",
+        {"data": {"week_52_high": 35.1}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "verified"
+    assert claim["matched_path"] == "data.week_52_high"
+
+
+def test_evidence_gate_maps_dated_pressure_labeled_as_week_high_to_week_high():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **近期壓力**：305.5 TWD（2026-05-25 創下之 52 週高點，來源：`market_data`）。",
+        {"data": {"week_52_high": 305.5}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "verified"
+    assert claim["matched_path"] == "data.week_52_high"
+
+
+def test_evidence_gate_ignores_normalized_financials_examples_in_data_limitations():
+    from evidence_exit_gate import extract_numeric_claims
+
+    claims = extract_numeric_claims(
+        "* **短期均線資料不足：** 由於 `normalized_financials` 僅提供月份端點值與近兩日價格（8/31: 60.0, 9/1: 57.5），無法精確計算均線。"
+    )
+
+    assert claims == []
+
+
+def test_evidence_gate_matches_support_to_both_dates_of_sideways_range_bottom():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **強勁支撐**：29.72 TWD（2026-03-31 至 2026-04-30 之橫盤區間底）。",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2026-03-31", "2026-04-30"],
+                    "prices": [29.72, 29.72],
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "verified"
+    assert claim["matched_path"] == "data.price_history[2026-03-31].prices[0]"
+
+
+def test_evidence_gate_matches_horizon_targets_to_persisted_recommendation_keys():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 短期目標（3個月）：NT$18.5\n"
+        "- 中期目標（6個月）：NT$12.5\n"
+        "- 長期目標（12個月）：NT$6.5\n"
+        "- 長期潛力（5年）：NT$8.0",
+        {
+            "rerun_context": {
+                "parsed": {
+                    "recommendation": {
+                        "短期目標（3個月）": "NT$18.5",
+                        "中期目標（6個月）": "NT$12.5",
+                        "長期目標（12個月）": "NT$6.5",
+                        "長期潛力（5年）": "NT$8.0",
+                    }
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=4,
+    )
+
+    assert result["verdict"] == "approved"
+    assert [claim["matched_path"] for claim in result["sampled_claims"]] == [
+        "rerun_context.parsed.recommendation.短期目標（3個月）",
+        "rerun_context.parsed.recommendation.中期目標（6個月）",
+        "rerun_context.parsed.recommendation.長期目標（12個月）",
+        "rerun_context.parsed.recommendation.長期潛力（5年）",
+    ]
+
+
+def test_evidence_gate_classifies_fomo_overheat_score_as_analysis_metadata():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "**FOMO/過熱評分：7 / 10**",
+        {"data": {}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "unverifiable"
+    assert claim["verification_reason_code"] == "analysis_metadata_not_evidence"
 
 
 def test_evidence_gate_does_not_treat_plain_key_pressure_as_week_high():
