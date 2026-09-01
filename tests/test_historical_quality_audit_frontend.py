@@ -159,6 +159,31 @@ process.stdout.write(JSON.stringify({ html }));
     assert "3 份品質 metadata 缺口" not in payload["html"]
 
 
+def test_history_quality_audit_rejects_missing_count_above_verified_scope():
+    renderer_path = STATIC_DIR / "history_quality_audit_render.js"
+    script = """
+global.window = {};
+require(__RENDERER_PATH__);
+const html = window.StockAgentHistoricalQualityAuditRenderer.render({
+  audited_reports: 10,
+  verified_snapshot_reports: 1,
+  quality_metadata_missing_reports: 2,
+  items_total: 2,
+  items_returned: 0,
+  items_limit: 5,
+  items_truncated: true,
+  items: []
+}, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ html }));
+""".replace("__RENDERER_PATH__", json.dumps(str(renderer_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "範圍：10 份" in payload["html"]
+    assert "品質 metadata 範圍資料需確認" in payload["html"]
+    assert "2 份品質 metadata 缺口" not in payload["html"]
+
+
 def test_history_quality_audit_does_not_floor_fractional_or_malformed_counts():
     renderer_path = STATIC_DIR / "history_quality_audit_render.js"
     script = """
@@ -1039,7 +1064,7 @@ def test_history_workspace_wires_historical_quality_audit_without_daily_queue_si
     assert "/static/api_client_extensions.js?v=20260821-current-quality-summary" in index_html
     assert "/static/watchlist_panel_actions.js?v=20260821-current-quality-background" in index_html
     assert "/static/history_panel_quality_helpers.js?v=20260902-integer-review-counts" in index_html
-    assert "/static/history_quality_audit_render.js?v=20260902-scope-count-bounds" in index_html
+    assert "/static/history_quality_audit_render.js?v=20260902-core-scope-bounds" in index_html
     assert "/static/history_quality_audit.js?v=20260820-quality-version-filter" in index_html
     assert index_html.index("/static/history_quality_audit_render.js") < index_html.index("/static/history_quality_audit.js")
     assert len((STATIC_DIR / "history_panel_quality_helpers.js").read_text(encoding="utf-8").splitlines()) < 120

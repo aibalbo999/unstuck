@@ -9,8 +9,8 @@
             return '<div class="history-quality-audit" role="status"><div class="history-quality-audit-header"><strong>歷史版本品質稽核</strong><span>載入中</span></div></div>';
         }
         const missing = nonNegativeInteger(audit.quality_metadata_missing_reports);
-        const audited = nonNegativeInteger(audit.audited_reports);
-        const coreCountsValid = missing !== null && audited !== null && missing <= audited;
+        const audited = nonNegativeInteger(audit.audited_reports), verifiedValue = nonNegativeInteger(audit.verified_snapshot_reports, null);
+        const coreCountsValid = missing !== null && audited !== null && missing <= audited && (audit.verified_snapshot_reports == null || verifiedValue !== null && missing <= verifiedValue && verifiedValue <= audited);
         const fieldLabels = [['report_conformance', '報告一致性'], ['evidence_exit_gate', '證據關卡'], ['content_credibility', '內容可信度']];
         const fieldSummary = fieldLabels.map(([key, label]) => {
             const count = nonNegativeInteger(audit.missing_quality_field_counts?.[key]);
@@ -55,7 +55,6 @@
             ? `snapshot 無法驗證 ${invalidCount + unverifiedCount} 份（invalid ${invalidCount}、未驗證 ${unverifiedCount}）`
             : '';
         const basisSummary = [scopeSummary ? '' : coverageSummary, snapshotSummary].filter(Boolean).join('；');
-        const verifiedValue = nonNegativeInteger(audit.verified_snapshot_reports, null);
         const verified = verifiedValue !== null ? verifiedValue : audit.verified_snapshot_reports == null && snapshotCountsValid && audited !== null ? Math.max(0, audited - invalidCount - unverifiedCount) : null;
         const completeValue = nonNegativeInteger(audit.quality_metadata_complete_reports, null);
         const complete = completeValue !== null ? completeValue : audit.quality_metadata_complete_reports == null && verified !== null && missing !== null ? Math.max(0, verified - missing) : null;
