@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3832 / enforce historical offset scope
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：歷史 audit 的 page offset 沒有納入 bounded scope；`offset=99、total=5、returned=1` 會形成不可能的「第 100-5 份」頁碼。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以異常 offset fixture 取得 RED，當 total/returned 明確存在時要求 `offset <= total` 且 `offset + returned <= total`，不對缺失 offset 或 legacy 欄位補造頁碼。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新 renderer cache-buster 與測試契約，完整 history/report-quality/static/docs regression `327 passed`，Node syntax、line guard 與 `git diff --check` 通過；live historical page 1 為 `offset=0 / returned=5 / total=59`，scope chain 正常，renderer asset `200` 且與本地一致，health/ready `200/ready`、official launcher/worker/8080 與 doctor canonical paths 正常。本批不改 audit count、quality gate、queue、snapshot、artifact、index、review 或 rerun state。
+
 ## D3831 / enforce historical item-total scope
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：歷史 audit 的主缺口數與 bounded `items_total` 未互相核對；`missing=5、items_total=3、items_returned=3` 會把不完整範圍顯示成 5 份缺口中的完整 3 份。
