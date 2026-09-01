@@ -9,8 +9,8 @@
             return '<div class="history-quality-audit" role="status"><div class="history-quality-audit-header"><strong>歷史版本品質稽核</strong><span>載入中</span></div></div>';
         }
         const missing = nonNegativeInteger(audit.quality_metadata_missing_reports);
-        const audited = nonNegativeInteger(audit.audited_reports), verifiedValue = nonNegativeInteger(audit.verified_snapshot_reports, null);
-        const coreCountsValid = missing !== null && audited !== null && missing <= audited && (audit.verified_snapshot_reports == null || verifiedValue !== null && missing <= verifiedValue && verifiedValue <= audited);
+        const audited = nonNegativeInteger(audit.audited_reports), verifiedValue = nonNegativeInteger(audit.verified_snapshot_reports, null), completeValue = nonNegativeInteger(audit.quality_metadata_complete_reports, null), invalidSnapshotValue = nonNegativeInteger(audit.snapshot_invalid_reports, null), unverifiedSnapshotValue = nonNegativeInteger(audit.snapshot_unverified_reports, null), returnedValue = nonNegativeInteger(audit.items_returned, null), items = Array.isArray(audit.items) ? audit.items : [];
+        const coreCountsValid = missing !== null && audited !== null && missing <= audited && (audit.verified_snapshot_reports == null || verifiedValue !== null && missing <= verifiedValue && verifiedValue <= audited) && (audit.quality_metadata_complete_reports == null || completeValue !== null && completeValue <= audited && (verifiedValue === null || completeValue + missing === verifiedValue)) && (audit.verified_snapshot_reports == null || audit.snapshot_invalid_reports == null || audit.snapshot_unverified_reports == null || invalidSnapshotValue !== null && unverifiedSnapshotValue !== null && verifiedValue + invalidSnapshotValue + unverifiedSnapshotValue === audited) && (audit.items_returned == null || returnedValue !== null && returnedValue === items.length);
         const fieldLabels = [['report_conformance', '報告一致性'], ['evidence_exit_gate', '證據關卡'], ['content_credibility', '內容可信度']];
         const fieldSummary = fieldLabels.map(([key, label]) => {
             const count = nonNegativeInteger(audit.missing_quality_field_counts?.[key]);
@@ -56,9 +56,7 @@
             : '';
         const basisSummary = [scopeSummary ? '' : coverageSummary, snapshotSummary].filter(Boolean).join('；');
         const verified = verifiedValue !== null ? verifiedValue : audit.verified_snapshot_reports == null && snapshotCountsValid && audited !== null ? Math.max(0, audited - invalidCount - unverifiedCount) : null;
-        const completeValue = nonNegativeInteger(audit.quality_metadata_complete_reports, null);
         const complete = completeValue !== null ? completeValue : audit.quality_metadata_complete_reports == null && verified !== null && missing !== null ? Math.max(0, verified - missing) : null;
-        const returnedValue = nonNegativeInteger(audit.items_returned, null);
         const returned = returnedValue !== null ? returnedValue : audit.items_returned == null ? Array.isArray(audit.items) ? audit.items.length : 0 : null;
         const itemOffset = nonNegativeInteger(audit.items_offset);
         const totalValue = nonNegativeInteger(audit.items_total, null);
@@ -75,7 +73,7 @@
             : missing > 0
             ? `<span>${Math.floor(missing)} 份品質 metadata 缺口${truncation}</span>${scopeItems.map(scope => `<em class="history-quality-audit-summary-scope">${e(scope)}</em>`).join('')}${summaryItems.map(item => `<em class="history-quality-audit-summary-item">${e(item)}</em>`).join('')}${artifactEvidenceSummary ? `<em>${e(artifactEvidenceSummary)}</em>` : ''}${artifactFieldSummary ? `<em>${e(`artifact 欄位可查：${artifactFieldSummary}`)}</em>` : ''}${basisSummary ? `<em>${e(basisSummary)}</em>` : ''}${currentQualitySummary}`
             : filteredEmptyLabel ? `<span>目前沒有符合「${e(filteredEmptyLabel)}」的品質 metadata 缺口</span>${basisSummary ? `<em>${e(basisSummary)}</em>` : ''}${currentQualitySummary}` : complete === null ? '<span>snapshot 完整度資料需確認</span>' : `<span>符合條件的 ${complete} 份已驗證 snapshot 沒有品質 metadata 缺口</span>${basisSummary ? `<em>${e(basisSummary)}</em>` : ''}${currentQualitySummary}`;
-        const targets = (Array.isArray(audit.items) ? audit.items : []).filter(item => item && item.filename).map(item => {
+        const targets = items.filter(item => item && item.filename).map(item => {
             const ticker = item.ticker || '報告';
             const pipeline = item.pipeline_id || 'v1';
             const reportDate = String(item.report_date || '').trim();

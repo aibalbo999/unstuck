@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3830 / enforce historical returned-item coverage
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：歷史 audit 的 `items_returned` 與實際 `items[]` 長度未互相核對；`returned=5` 但只返回 2 個 target 時，範圍文字仍會顯示 5。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以 `items_returned=5 / items.length=2` 取得 RED，明確存在的 returned count 要求合法非負整數且等於實際陣列長度；缺欄位才使用既有陣列長度 fallback，不推算缺少的 targets。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新 renderer cache-buster 與測試契約，完整 history/report-quality/static/docs regression `325 passed`，Node syntax、line guard 與 `git diff --check` 通過；live historical `items_returned=5`、`items.length=5`、`items_total=59`，renderer asset `200` 且與本地一致，health/ready `200/ready`、official launcher/worker/8080 與 doctor canonical paths 正常。本批不改 audit count、quality gate、queue、snapshot、artifact、index、review 或 rerun state。
+
 ## D3829 / enforce historical snapshot scope decomposition
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：歷史 renderer 只驗證 gap、verified、audited 與 complete 關係，`verified=10、invalid=1、unverified=0、audited=10` 仍會同時顯示完整度與 snapshot 異常。
