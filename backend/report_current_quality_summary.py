@@ -160,10 +160,14 @@ def build_current_quality_summary(
             content_blocker_counts[blocker_id] = content_blocker_counts.get(blocker_id, 0) + 1
         if content_blocker_ids:
             content_blocker_reports_by_freshness[report_freshness_bucket(report)] += 1
-        if conformance_status != "passed":
+        if (
+            conformance_status != "passed"
+            or content_status != "passed"
+            or evidence_verdict != "approved"
+        ):
             non_passed.append(_current_quality_item(report, conformance_status, content_status, evidence_verdict))
 
-    non_passed.sort(key=lambda item: (_status_rank(item["report_conformance_status"]), item["filename"]))
+    non_passed.sort(key=lambda item: (_quality_attention_rank(item), item["filename"]))
     limit = max(0, safe_int(item_limit, default=CURRENT_QUALITY_ITEM_LIMIT))
     items = non_passed[:limit]
     return {
@@ -329,6 +333,18 @@ def _current_quality_item(
 
 def _status_rank(status: str) -> int:
     return {"blocked": 0, "warning": 1, "unknown": 2, "passed": 3}.get(status, 2)
+
+
+def _quality_attention_rank(item: dict[str, Any]) -> int:
+    evidence_rank = {"rejected": 0, "caution": 1, "unknown": 2, "approved": 3}.get(
+        item.get("evidence_exit_gate_verdict"),
+        2,
+    )
+    return min(
+        _status_rank(item.get("report_conformance_status", "unknown")),
+        _status_rank(item.get("content_credibility_status", "unknown")),
+        evidence_rank,
+    )
 
 
 __all__ = [

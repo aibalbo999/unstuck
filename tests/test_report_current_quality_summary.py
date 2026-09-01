@@ -164,6 +164,30 @@ def test_current_quality_item_exposes_deduplicated_canonical_content_blocker_mes
     ]
 
 
+def test_current_quality_summary_includes_content_attention_when_conformance_passes():
+    payload = build_current_quality_summary(
+        [{
+            "ticker": "2330.TW",
+            "filename": "2330.html",
+            "report_conformance": {"status": "passed"},
+            "content_credibility": {
+                "status": "blocked",
+                "blocking_issues": [{
+                    "id": "final_audit_critical",
+                    "message": "最終稽核仍有重大問題。",
+                    "details": {"critical": ["Agent 7 輸出失敗。"]},
+                }],
+            },
+            "evidence_exit_gate": {"verdict": "approved"},
+        }],
+        scope="all_indexed_reports",
+    )
+
+    assert payload["non_passed_reports"] == 1
+    assert payload["items_total"] == 1
+    assert payload["items"][0]["content_credibility_status"] == "blocked"
+
+
 def test_filtered_indexed_current_quality_summary_has_explicit_latest_scope(monkeypatch, tmp_path):
     import report_current_quality_summary as current_quality
 
