@@ -121,6 +121,8 @@ current-quality summary 另提供 `evidence_failed_count` 與 `evidence_unverifi
 
 共用 evidence、freshness、blocker 與 action 摘要只接受有限非負整數計數；分布項目還必須大於零。小數、無限大、NaN 或其他格式錯誤會逐欄省略，包括 `evidence_failed_count`，不會用 `floor` 變成看似精確的報告數；同一摘要裡其他有效整數仍照常顯示。freshness 的「涉及 N 份報告」允許合法的 `0`，但只在同一 bucket 已有其他有效原因或 claim 時顯示。
 
+watchlist board 的 quality detail 摘要沿用同一邊界：缺口、來源、重跑、上下文、artifact 與 pipeline 分布逐欄省略無效值；審核狀態的四個計數必須全部有效才顯示審核進度。`items_total`、`items_returned` 或 `items_limit` 若明確存在但不是有限非負整數，只顯示「範圍資料需確認」，不把它們截斷後當成畫面完整度。
+
 watchlist summary 與 target 也會對 `evidence_failed_count` 做同一個有限正整數檢查；小數、NaN、Infinity 或其他 malformed mismatch count 只省略該段 evidence label，不影響同一 current-quality payload 的其他合法 status、blocker 或 action projection。
 
 歷史稽核也可用 `review_status=pending|approved_with_gap|rejected|deferred` 只看某一種目前 revision 審核狀態；回應的 `review_status_filter` 會標示套用的範圍，篩選後的 coverage 與分頁數字只代表該狀態，不代表其他狀態不存在。這仍是 GET-only 查詢，不會寫入 review ledger。

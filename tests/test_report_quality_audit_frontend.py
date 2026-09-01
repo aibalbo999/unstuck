@@ -537,6 +537,55 @@ process.stdout.write(JSON.stringify({ board }));
     assert "20.5" not in payload["board"]
 
 
+def test_watchlist_board_does_not_floor_fractional_quality_detail_counts():
+    helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
+    script = """
+global.window = {};
+require(__HELPER_PATH__);
+const board = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], {
+  decision_queue: { summary: { total_actionable: 0 }, items: [{ type: 'monitor' }] },
+  report_quality_audit: {
+    selection_basis: 'latest_per_ticker_pipeline',
+    quality_metadata_missing_reports: 2,
+    items_total: 2.5,
+    items_returned: 1.5,
+    items_truncated: true,
+    missing_quality_field_counts: { report_conformance: 1.5, evidence_exit_gate: 2, content_credibility: Infinity },
+    quality_review_by_status: { pending: 1.5, approved_with_gap: 1, rejected: 0, deferred: 0 },
+    quality_metadata_missing_by_provenance: { before_refresh: 1, after_refresh: 1.5 },
+    quality_metadata_missing_by_rerun_execution: { full_rerun_required: 1.5, partial_rerun_available: 2 },
+    quality_metadata_missing_by_rerun_context: { present: 2, missing: 1.5 },
+    artifact_quality_summary_by_status: { present: 1.5, not_found: 2, unavailable: 0 },
+    artifact_quality_summary_by_field: { report_conformance: 1.5, evidence_exit_gate: 0, content_credibility: 2 },
+    quality_metadata_by_pipeline: {
+      v1: {
+        quality_metadata_missing_reports: 1.5,
+        quality_metadata_missing_by_rerun_context: { present: 2 }
+      }
+    },
+    items: [{ ticker: 'BAD', pipeline_id: 'v1', filename: 'bad.html' }]
+  }
+}, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ board }));
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "缺口：證據關卡 2" in payload["board"]
+    assert "缺口：報告一致性 1" not in payload["board"]
+    assert "審核狀態：" not in payload["board"]
+    assert "來源：刷新前已有缺口 1" in payload["board"]
+    assert "重跑策略：局部重跑可用 2" in payload["board"]
+    assert "上下文：原始上下文完整 2" in payload["board"]
+    assert "artifact 摘要可查 1 份" not in payload["board"]
+    assert "artifact 無 gate 摘要 2 份" in payload["board"]
+    assert "artifact 欄位可查：證據關卡 0、內容可信度 2" in payload["board"]
+    assert "模式缺口：v1 1" not in payload["board"]
+    assert "模式上下文：v1 原始上下文完整 2" in payload["board"]
+    assert "範圍資料需確認" in payload["board"]
+    assert "目前顯示 1 份，另有 1 份未展開" not in payload["board"]
+
+
 def test_watchlist_board_does_not_floor_fractional_repair_sample_overlap_counts():
     helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
     script = """

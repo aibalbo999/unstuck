@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3825 / validate watchlist quality detail scope
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：watchlist board 重複渲染的品質 detail 分布與 bounded scope 沒沿用 strict count contract；fractional values 會被 floor，review 進度還可能用部分有效欄位形成錯誤分母。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以 `7fb43251` baseline replay 重現 field/review/pipeline/scope 四個錯誤，改用 local summary count boundary；分布逐欄忽略 invalid，review 四欄全體有效才顯示，malformed bounded metadata 顯示範圍需確認，不推算未展開數量。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新 watchlist asset cache-buster、operator/architecture 說明與 regression；focused `1 passed`、完整 history/report-quality/static/docs regression `319 passed`，Node syntax 與 `git diff --check` 通過；live daily/current-quality 合併 shape 的 renderer smoke、7 個 asset `200`、health/ready `200/ready`、official launcher 與 doctor canonical paths 正常。本批不改 evidence gate、audit、quality gate、queue、snapshot、artifact、index、review 或 rerun state。
+
 ## D3824 / reject fractional watchlist evidence failures
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：watchlist current-quality summary 與 bounded target 的 `evidence_failed_count` 仍直接 floor，會讓 valid payload 的 `1.5` 變成看似精確的 mismatch `1`。
