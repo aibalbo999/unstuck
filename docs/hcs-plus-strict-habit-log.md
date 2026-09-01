@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3822 / reject fractional review counters
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：review summary、審核歷史與三類 filter 仍把 fractional/malformed count floor 成合法 ordinal 或分母，會誤導人工核對範圍。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以 `event_count=2.5`、`event_id=3.5`、filter `Infinity` 的 RED fixture 鎖定問題，套用有限非負整數 validator；無效當前篩選保留入口並明示資料需確認。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新 helper cache-buster、API/operator/architecture 說明與 regression；focused/full regression `315 passed`，helper/renderer 新 asset `200`，live historical audit `1175/59/5/59/truncated=true` 保留，synthetic fractional review/filter counts 被抑制，health/ready `200/200`、doctor canonical paths 正常。本批不改 review ledger、audit、quality gate、queue、snapshot、artifact、index 或 rerun state。
+
 ## D3821 / reject fractional historical audit counts
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：歷史稽核仍把 fractional/malformed count floor 成整數，會把 `2.5` 缺口與 `1.5` snapshot/error count 變成可採信的報告數。

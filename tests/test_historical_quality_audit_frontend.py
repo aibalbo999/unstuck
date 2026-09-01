@@ -184,6 +184,36 @@ process.stdout.write(JSON.stringify({ html }));
     assert "2.5" not in payload["html"]
 
 
+def test_history_quality_review_does_not_floor_fractional_event_or_filter_counts():
+    helper_path = STATIC_DIR / "history_panel_quality_helpers.js"
+    script = """
+global.window = {};
+require(__HELPER_PATH__);
+const reviewHtml = window.StockAgentHistoryPanelQualityHelpers.renderQualityReview({
+  filename: 'bad.html',
+  ticker: 'BAD',
+  pipeline_id: 'v1',
+  report_quality_revision: 'revision-1234567890',
+  quality_review: { status: 'approved_with_gap', decision_label: '已核准保留缺口', event_count: 2.5 },
+  quality_review_history: [{ event_id: 3.5, reviewed_at: '2026-09-02', reviewer_label: '操作員', decision_label: '已核准保留缺口', note: 'note' }]
+}, 'BAD v1', value => String(value ?? ''));
+const filterHtml = [
+  window.StockAgentHistoryPanelQualityHelpers.renderQualityReviewStatusFilters({ quality_review_by_status: { pending: 1.5, approved_with_gap: Infinity, rejected: 0, deferred: 0 } }, value => String(value ?? '')),
+  window.StockAgentHistoryPanelQualityHelpers.renderQualityMissingFieldFilters({ missing_quality_field_counts: { report_conformance: 1.5, evidence_exit_gate: Infinity, content_credibility: 0 } }, value => String(value ?? '')),
+  window.StockAgentHistoryPanelQualityHelpers.renderQualityVersionStatusFilters({ quality_metadata_missing_by_version_status: { current: 1.5, historical: Infinity, unknown: 0 } }, value => String(value ?? ''))
+].join('');
+process.stdout.write(JSON.stringify({ reviewHtml, filterHtml }));
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "第 2 次" not in payload["reviewHtml"]
+    assert "#3" not in payload["reviewHtml"]
+    assert "1.5" not in payload["filterHtml"]
+    assert "Infinity" not in payload["filterHtml"]
+    assert "（1）" not in payload["filterHtml"]
+
+
 def test_history_quality_audit_prioritizes_scope_warning_over_page_range():
     scope_path = STATIC_DIR / "report_quality_queue_scope_helpers.js"
     renderer_path = STATIC_DIR / "history_quality_audit_render.js"
@@ -926,7 +956,7 @@ def test_history_workspace_wires_historical_quality_audit_without_daily_queue_si
     assert 'id="history-quality-audit"' in index_html
     assert "/static/api_client_extensions.js?v=20260821-current-quality-summary" in index_html
     assert "/static/watchlist_panel_actions.js?v=20260821-current-quality-background" in index_html
-    assert "/static/history_panel_quality_helpers.js?v=20260820-quality-version-filter" in index_html
+    assert "/static/history_panel_quality_helpers.js?v=20260902-integer-review-counts" in index_html
     assert "/static/history_quality_audit_render.js?v=20260902-integer-counts" in index_html
     assert "/static/history_quality_audit.js?v=20260820-quality-version-filter" in index_html
     assert index_html.index("/static/history_quality_audit_render.js") < index_html.index("/static/history_quality_audit.js")

@@ -1,5 +1,5 @@
 (function () {
-    const qualityPolicy = () => window.StockAgentReportQualityPolicy || {};
+    const qualityPolicy = () => window.StockAgentReportQualityPolicy || {}; const nonNegativeInteger = (value, fallback = 0) => { if (value === undefined || value === null) return fallback; const number = Number(value); return Number.isFinite(number) && Number.isInteger(number) && number >= 0 ? number : null; };
     function hasRefreshableDataTrustIssue(report) {
         return Boolean(qualityPolicy().hasRefreshableDataTrustIssue?.(report));
     }
@@ -64,14 +64,15 @@
         const status = String(review.status || 'pending').trim() || 'pending';
         const label = String(review.decision_label || (status === 'pending' ? '待人工核對' : status)).trim();
         const note = String(review.note || '').trim();
-        const summary = status === 'pending' ? '人工審核：待核對' : `人工審核：${label}${review.event_count > 1 ? `（第 ${Math.floor(Number(review.event_count))} 次）` : ''}`;
+        const eventCount = nonNegativeInteger(review.event_count, null);
+        const summary = status === 'pending' ? '人工審核：待核對' : `人工審核：${label}${eventCount !== null && eventCount > 1 ? `（第 ${eventCount} 次）` : ''}`;
         const revision = String(item.report_quality_revision || review.report_quality_revision || '').trim();
         const revisionLabel = revision.length > 12 ? `${revision.slice(0, 12)}...` : revision;
         const revisionHtml = revision ? `<small class="history-quality-audit-review-revision" title="${e(`完整版本識別碼：${revision}`)}" aria-label="${e(`目前報告版本識別碼：${revision}`)}">目前版本識別碼：${e(revisionLabel)}</small>` : '';
         const history = Array.isArray(item.quality_review_history) ? item.quality_review_history : [];
         const historyHtml = history.length ? `<details class="history-quality-audit-review-history"><summary>審核紀錄（${history.length} 次）</summary><ol>${history.map(entry => {
-            const eventId = Number(entry.event_id) > 0 ? `#${Math.floor(Number(entry.event_id))}` : '';
-            const eventLabel = [eventId, entry.reviewed_at, entry.reviewer_label, entry.decision_label].filter(Boolean).join(' · ');
+            const eventId = nonNegativeInteger(entry.event_id, null);
+            const eventLabel = [eventId !== null && eventId > 0 ? `#${eventId}` : '', entry.reviewed_at, entry.reviewer_label, entry.decision_label].filter(Boolean).join(' · ');
             return `<li><span>${e(eventLabel)}</span><small>${e(entry.note || '')}</small></li>`;
         }).join('')}</ol></details>` : '';
         const actions = revision ? [['approved_with_gap', '核准保留缺口'], ['rejected', '退回處理'], ['deferred', '暫緩']].map(([decision, text]) => `<button class="history-quality-audit-review" type="button" data-quality-review-decision="${decision}" data-quality-review-filename="${e(item.filename)}" data-quality-review-ticker="${e(item.ticker || '')}" data-quality-review-pipeline="${e(item.pipeline_id || 'v1')}" data-quality-review-revision="${e(revision)}" aria-label="${e(`${text}：${targetLabel}`)}">${text}</button>`).join('') : '';
@@ -82,9 +83,9 @@
         const current = String(audit?.review_status_filter || 'all').trim().toLowerCase() || 'all';
         const labels = [['all', '全部審核狀態'], ['pending', '待人工核對'], ['approved_with_gap', '已核准保留缺口'], ['rejected', '退回處理'], ['deferred', '已暫緩']];
         const buttons = labels.map(([key, label]) => {
-            const count = Number(audit?.quality_review_by_status?.[key] || 0);
+            const count = nonNegativeInteger(audit?.quality_review_by_status?.[key]);
             if (key === 'all' ? current === 'all' : current !== key && (!Number.isFinite(count) || count <= 0)) return '';
-            return `<button class="history-quality-audit-filter" type="button" data-quality-audit-review-status="${e(key)}"${current === key ? ' aria-pressed="true"' : ''}>${e(label)}${key === 'all' ? '' : `（${Math.floor(count)}）`}</button>`;
+            return `<button class="history-quality-audit-filter" type="button" data-quality-audit-review-status="${e(key)}"${current === key ? ' aria-pressed="true"' : ''}>${e(label)}${key === 'all' ? '' : count === null ? '（資料需確認）' : `（${count}）`}</button>`;
         }).filter(Boolean).join('');
         return buttons ? `<div class="history-quality-audit-filter-actions" aria-label="按審核狀態查看品質缺口">${buttons}</div>` : '';
     }
@@ -93,9 +94,9 @@
         const current = String(audit?.missing_quality_field_filter || 'all').trim().toLowerCase() || 'all';
         const labels = [['all', '全部缺口欄位'], ['report_conformance', '報告一致性'], ['evidence_exit_gate', '證據關卡'], ['content_credibility', '內容可信度']];
         const buttons = labels.map(([key, label]) => {
-            const count = Number(audit?.missing_quality_field_counts?.[key] || 0);
+            const count = nonNegativeInteger(audit?.missing_quality_field_counts?.[key]);
             if (key === 'all' ? current === 'all' : current !== key && (!Number.isFinite(count) || count <= 0)) return '';
-            return `<button class="history-quality-audit-filter" type="button" data-quality-audit-missing-field="${e(key)}"${current === key ? ' aria-pressed="true"' : ''}>${e(key === 'all' ? label : `只看${label}缺口`)}${key === 'all' ? '' : `（${Math.floor(count)}）`}</button>`;
+            return `<button class="history-quality-audit-filter" type="button" data-quality-audit-missing-field="${e(key)}"${current === key ? ' aria-pressed="true"' : ''}>${e(key === 'all' ? label : `只看${label}缺口`)}${key === 'all' ? '' : count === null ? '（資料需確認）' : `（${count}）`}</button>`;
         }).filter(Boolean).join('');
         return buttons ? `<div class="history-quality-audit-filter-actions" aria-label="按品質欄位查看缺口">${buttons}</div>` : '';
     }
@@ -103,10 +104,9 @@
         const e = escapeHtml || (value => String(value ?? ''));
         const current = String(audit?.report_version_status_filter || 'all').trim().toLowerCase() || 'all';
         const labels = [['all', '全部版本'], ['current', '目前版本'], ['historical', '歷史版本'], ['unknown', '版本未判定']];
-        const buttons = labels.map(([key, label]) => { const count = Number(audit?.quality_metadata_missing_by_version_status?.[key] || 0); if (key === 'all' ? current === 'all' : current !== key && (!Number.isFinite(count) || count <= 0)) return ''; return `<button class="history-quality-audit-filter" type="button" data-quality-audit-version-status="${e(key)}"${current === key ? ' aria-pressed="true"' : ''}>${e(key === 'all' ? label : `只看${label}缺口`)}${key === 'all' ? '' : `（${Math.floor(count)}）`}</button>`; }).filter(Boolean).join('');
+        const buttons = labels.map(([key, label]) => { const count = nonNegativeInteger(audit?.quality_metadata_missing_by_version_status?.[key]); if (key === 'all' ? current === 'all' : current !== key && (count === null || count <= 0)) return ''; return `<button class="history-quality-audit-filter" type="button" data-quality-audit-version-status="${e(key)}"${current === key ? ' aria-pressed="true"' : ''}>${e(key === 'all' ? label : `只看${label}缺口`)}${key === 'all' ? '' : count === null ? '（資料需確認）' : `（${count}）`}</button>`; }).filter(Boolean).join('');
         return buttons ? `<div class="history-quality-audit-filter-actions" aria-label="按報告版本查看品質缺口">${buttons}</div>` : '';
     }
-
     window.StockAgentHistoryPanelQualityHelpers = {
         hasRefreshableDataTrustIssue,
         reportActionBadge,
