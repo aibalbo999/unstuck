@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3780 / expose quality blocker responsibility in aggregate
+
+- `#拆解問題` / `#差距分析` / `#溝通設計`：live current quality 已有 `165` 份報告的 conformance/content/evidence 狀態，但摘要只給 blocked/warning 數量；`final_audit`、`content_credibility`、`evidence_exit_gate` 與低資料信心目標價等阻斷原因無法在 watchlist/history 一眼辨識，操作人員仍需逐份展開。
+- `#偏誤降低` / `#最小變更` / `#責任`：新增 read-only `report_conformance_blocker_counts` 與 `content_credibility_blocker_counts`，每份報告對同一 blocker ID 去重；conformance 合併 blocked decision-tree step，content 有 blocking issue 時優先採 issue、沒有 issue 才 fallback 到 blocked check，避免把同一個 final audit 重複計算。watchlist/history 共用白話 formatter，不改 status、verdict 或 evidence 邊界。
+- `#可驗證性` / `#可逆性`：RED→GREEN 後 current-summary/frontend 聚焦回歸 `194 passed`、跨層品質回歸 `1398 passed`，Node syntax、`py_compile`、`git diff --check` 通過。正式 reload 後 healthz/readyz 為 `ok/ready`、三個新版本資產均 `200`；live blocker map 為 conformance `content_credibility=13`、`evidence_exit_gate=3`、`final_audit=12`，content `explicit_target_price_low_data_confidence=1`、`final_audit_critical=12`、`long_target_not_above_current_price=1`。本批只改 read-only aggregate/UI diagnostics，不寫 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3779 / classify the remaining generic pressure residual
 
 - `#拆解問題` / `#差距分析` / `#溝通設計`：yearless close mapping 後，live current summary 的唯一 `no_matching_snapshot_path` 是 `6226.TW/v4`「近期壓力 34.0 TWD（心理關卡與目前最高價）」；它沒有 52 週欄位或 technical-level scalar 的明示證據，卻和既有 generic support residual 屬於同一人工確認類型。
