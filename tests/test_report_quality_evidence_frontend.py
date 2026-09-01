@@ -23,7 +23,7 @@ def test_shared_quality_evidence_helper_loads_before_all_consumers():
     assert (STATIC_DIR / "report_quality_queue_scope_helpers.js").exists()
     assert (STATIC_DIR / "report_quality_evidence_freshness_helpers.js").exists()
     assert f"{helper}?v=20260902-integer-summary-counts" in index_html
-    assert f"{action_scope_helper}?v=20260902-integer-summary-counts" in index_html
+    assert f"{action_scope_helper}?v=20260902-action-freshness-scope" in index_html
     assert f"{queue_scope_helper}?v=20260902-bounded-items" in index_html
     assert f"{freshness_helper}?v=20260902-integer-summary-counts" in index_html
     assert "/static/report_quality_gate_policy.js?v=20260816-shared-quality-evidence" in index_html
@@ -376,6 +376,23 @@ process.stdout.write(window.StockAgentReportQualityActionScope.formatQualityActi
 """.replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path))).replace("__ACTION_SCOPE_PATH__", json.dumps(str(action_scope_path)))
 
     assert _node(script) == "品質處理建議（唯讀品質投影，不等同今日待辦）：人工審核 2、完整重跑 1；按資料新鮮度：本文目前版本：人工審核 2；資料已更新、本文需完整重跑：完整重跑 1"
+
+
+def test_shared_quality_evidence_hides_inconsistent_action_freshness_projection():
+    evidence_path = STATIC_DIR / "report_quality_evidence_helpers.js"
+    action_scope_path = STATIC_DIR / "report_quality_action_scope_helpers.js"
+    script = """
+global.window = {};
+require(__EVIDENCE_PATH__);
+require(__ACTION_SCOPE_PATH__);
+process.stdout.write(window.StockAgentReportQualityActionScope.formatQualityActionProjectionSummary(
+  { manual_review: 1 },
+  { basis: 'quality_gate_repair_item_per_report', is_daily_queue: false },
+  { current: { manual_review: 2 }, needs_rerun: {}, unknown: {} }
+));
+""".replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path))).replace("__ACTION_SCOPE_PATH__", json.dumps(str(action_scope_path)))
+
+    assert _node(script) == "品質處理建議（唯讀品質投影，不等同今日待辦）：人工審核 1"
 
 
 def test_shared_quality_evidence_labels_legacy_action_projection_without_freshness_map():

@@ -17,6 +17,36 @@
             : [];
     }
 
+    function nonNegativeInteger(value) {
+        const count = Number(value);
+        return Number.isFinite(count) && Number.isInteger(count) && count >= 0 ? count : null;
+    }
+
+    function validCountMap(counts) {
+        if (!counts || typeof counts !== 'object' || Array.isArray(counts)) return null;
+        const result = {};
+        for (const [key, value] of Object.entries(counts)) {
+            const normalizedKey = String(key || '').trim(), count = nonNegativeInteger(value);
+            if (!normalizedKey || count === null) return null;
+            result[normalizedKey] = count;
+        }
+        return result;
+    }
+
+    function freshnessCountsConsistent(counts, countsByFreshness) {
+        const total = validCountMap(counts);
+        if (!total || !countsByFreshness || typeof countsByFreshness !== 'object' || Array.isArray(countsByFreshness)) return false;
+        if (Object.keys(countsByFreshness).some(bucket => !freshnessOrder.includes(bucket))) return false;
+        const aggregate = {};
+        for (const bucket of freshnessOrder) {
+            const values = countsByFreshness[bucket] === undefined ? {} : validCountMap(countsByFreshness[bucket]);
+            if (!values) return false;
+            for (const [key, count] of Object.entries(values)) aggregate[key] = (aggregate[key] || 0) + count;
+        }
+        const actionKeys = new Set([...Object.keys(total), ...Object.keys(aggregate)]);
+        return [...actionKeys].every(key => (total[key] || 0) === (aggregate[key] || 0));
+    }
+
     function formatQualityActionFreshnessSummary(countsByFreshness) {
         if (!countsByFreshness || typeof countsByFreshness !== 'object' || Array.isArray(countsByFreshness)) return '';
         const parts = freshnessOrder.map(bucket => {
@@ -34,7 +64,9 @@
         const scopedSummary = summary && value.is_daily_queue === false
             ? summary.replace('品質處理建議：', '品質處理建議（唯讀品質投影，不等同今日待辦）：')
             : summary;
-        const freshnessSummary = formatQualityActionFreshnessSummary(countsByFreshness);
+        const freshnessSummary = freshnessCountsConsistent(counts, countsByFreshness)
+            ? formatQualityActionFreshnessSummary(countsByFreshness)
+            : '';
         return scopedSummary && freshnessSummary ? `${scopedSummary}；${freshnessSummary}` : scopedSummary;
     }
 

@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3833 / enforce action freshness projection scope
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：current-quality 的總 action map 與 freshness 分布 map 應是同一份逐報告 projection；原 formatter 未核對逐 action 加總，矛盾 payload 會同時顯示兩套不同數字。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以總數 `manual_review=1`、freshness `manual_review=2` 取得 RED；新增共用 map validator，要求有限非負整數、已知 freshness bucket 與逐 action 加總一致，矛盾時只保留可信總數，不改 backend projection 或 legacy fallback。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新 action helper cache-buster 與 API/operator/architecture 契約，focused action tests `5 passed`，完整 history/report-quality/static/docs regression `328 passed`，品質摘要/dashboard `85 passed`，Node syntax、Python compile、line guard 與 `git diff --check` 通過；live current-quality `165` 份、非通過 `85`、action `81/4` 且 freshness 加總一致，helper asset `200` 且與本地一致，health/ready、official launcher/worker/8080 與 doctor canonical paths 正常。本批不改 action picker、daily queue、snapshot、artifact、index、review 或 rerun state。
+
 ## D3832 / enforce historical offset scope
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：歷史 audit 的 page offset 沒有納入 bounded scope；`offset=99、total=5、returned=1` 會形成不可能的「第 100-5 份」頁碼。
