@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3779 / classify the remaining generic pressure residual
+
+- `#拆解問題` / `#差距分析` / `#溝通設計`：yearless close mapping 後，live current summary 的唯一 `no_matching_snapshot_path` 是 `6226.TW/v4`「近期壓力 34.0 TWD（心理關卡與目前最高價）」；它沒有 52 週欄位或 technical-level scalar 的明示證據，卻和既有 generic support residual 屬於同一人工確認類型。
+- `#偏誤辨識` / `#偏誤降低` / `#最小變更`：將 exact normalized label `近期壓力` 納入既有 `technical_level_not_canonical` reason；只改診斷分類，維持 `unverifiable`、空 matched path，不把同值 `week_52_high` 或 `current_price` 借來核驗。完整 claim audit 仍保留 confidence、情境、風控與 legacy conclusion 的非證據界線。
+- `#可驗證性` / `#可逆性` / `#責任`：先以 generic pressure RED，再 GREEN；evidence/quality `218 passed`、跨層回歸 `1396 passed`、`py_compile` 與 `git diff --check` 通過。正式 reload 後 live `165` 份 evidence `134 approved / 28 caution / 3 rejected`，`12` 個 mismatch 全部 `needs_rerun`，`technical_level_not_canonical=1`、`no_matching_snapshot_path=0`。本輪仍只改 read-only diagnostics，不改 tolerance、verdict、snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3778 / recover yearless close support from an exact date
 
 - `#拆解問題` / `#差距分析` / `#證據基礎`：D3777 後 current residual 只剩 `6226.TW/v4` 的一筆可疑近期支撐與一筆沒有明示來源的近期壓力；snapshot 明確有 `price_history[2026-08-31] = 31.6`，報告也明確寫成 `8/31 收盤價`。
