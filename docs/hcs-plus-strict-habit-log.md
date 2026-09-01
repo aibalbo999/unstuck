@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3796 / use canonical unverifiable claim counts with explicit missing reasons
+
+- `#拆解問題` / `#證據基礎` / `#責任`：資料契約稽核發現 legacy gate 可能有 `unverifiable_count` 卻沒有 `unverifiable_reason_counts`；只聚合 reason map 會漏掉真實 residual。
+- `#偏誤降低` / `#最小變更` / `#語意含義`：current-quality 以 gate 的 `unverifiable_count` 與可用 reason count 較大值作 `evidence_unverifiable_claims_by_freshness`，同一報告的 `evidence_unverifiable_reports_by_freshness` 只加一次；原因 map 為空時顯示「原因未記錄」，不製造 reason code，也不改 verdict。
+- `#受眾` / `#溝通設計` / `#可驗證性` / `#可逆性`：先用 reasonless fixture 取得 RED，再 GREEN；正式驗證需包含 current-quality、watchlist/history、跨層品質、Node syntax、`py_compile`、`git diff --check`、live API/DOM、health/ready 與 asset。本批只改 read-only residual accounting。
+
 ## D3795 / separate unverifiable evidence claims from affected reports
 
 - `#拆解問題` / `#證據基礎` / `#語意含義`：live current-quality 的不可驗證 residual 以 claim 原因數統計；needs-rerun `112` 是 claim 數，不代表 `112` 份報告，且同一報告可能有多個原因。
