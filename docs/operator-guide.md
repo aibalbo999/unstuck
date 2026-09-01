@@ -155,6 +155,8 @@ filtered view 沒有結果時，摘要會寫「目前沒有符合〈狀態〉的
 
 watchlist 品質摘要只有在 `quality_metadata_coverage_pct` 是 0 到 100 的有限數字時才顯示覆蓋率；越界或無法判定的值會省略，避免把錯誤百分比當成已驗證 coverage。
 
+watchlist 品質摘要的缺口與 snapshot 計數只有在有限的非負整數時才顯示；小數、無限大或其他格式錯誤會省略，避免操作員把錯誤數字當成報告數量。
+
 按下「核准保留缺口／退回處理／暫緩」後，該按鈕會暫時鎖定並顯示忙碌狀態；同一筆 review 在回應完成前不會重複送出。成功會顯示「人工審核已儲存」，失敗會顯示錯誤且恢復按鈕，操作員可在確認 revision 後重試。這不代表品質 gate 被自動修復，真正決策仍以 canonical review ledger 為準。
 
 輸入核對理由後，畫面會再次確認是否要把目前決策寫入這個報告版本。選擇取消不會送出請求，也不會新增 review ledger event；選擇確認後仍須通過 server 的 mutation token 與 revision 檢查。

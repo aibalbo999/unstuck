@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3815 / bound watchlist quality counts
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：history renderer 已有有限非負整數 normalization，但 watchlist 主品質摘要仍把 `2.5`、`1.5` 或 `Infinity` 當成報告／snapshot 數量直接顯示。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先用 fractional/infinite count 取得 RED，再新增 local `nonNegativeInteger()`；正常整數保留，malformed 或 fractional value 省略，不借用其他欄位、不改 API 分母。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新 cache-buster、API/operator/architecture 說明與 regression；需完成 focused regression、Node syntax、live normal-count 與 synthetic suppression 驗證。本批不改 quality gate、queue、snapshot、artifact、index、review 或 rerun state。
+
 ## D3814 / bound watchlist quality coverage percentages
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：history renderer 已拒絕超過 100 的 coverage，但 watchlist 主品質摘要直接拼接 `quality_metadata_coverage_pct`；`120` 會被當成已驗證覆蓋率顯示。

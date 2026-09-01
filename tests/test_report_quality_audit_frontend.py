@@ -389,6 +389,32 @@ process.stdout.write(JSON.stringify({ board }));
     assert "覆蓋 120%" not in payload["board"]
 
 
+def test_watchlist_board_does_not_render_non_integer_quality_counts():
+    helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
+    script = """
+global.window = {};
+require(__HELPER_PATH__);
+const payload = {
+  decision_queue: { summary: { total_actionable: 0 }, items: [{ type: 'monitor' }] },
+  report_quality_audit: {
+    quality_metadata_missing_reports: 2.5,
+    snapshot_invalid_reports: Infinity,
+    snapshot_unverified_reports: 1.5,
+    items: []
+  }
+};
+const board = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], payload, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ board }));
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "品質 metadata 缺口" not in payload["board"]
+    assert "snapshot 無法驗證" not in payload["board"]
+    assert "2.5" not in payload["board"]
+    assert "Infinity" not in payload["board"]
+
+
 def test_watchlist_board_does_not_trust_freshness_items_limit():
     helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
     freshness_helper_path = STATIC_DIR / "watchlist_freshness_helpers.js"
