@@ -1690,6 +1690,39 @@ def test_notification_plan_adds_operator_cta_metadata():
     assert repair_message["operator_action_label"] == "查看報告"
 
 
+def test_notification_plan_aligns_candidate_cta_with_operator_dashboard_contract():
+    plan = build_daily_notification_plan(
+        {
+            "decision_queue": {
+                "items": [
+                    {
+                        "source": "screener",
+                        "type": "review_candidate",
+                        "priority_score": 420,
+                        "title": "2408.TW 南亞科",
+                        "detail": "外資買超且記憶體報價回升",
+                        "ticker": "2408.TW",
+                        "company_name": "南亞科",
+                    }
+                ]
+            }
+        },
+        env={},
+    )
+
+    message = plan["messages"][0]
+    outbox_item = plan["delivery_outbox"][0]
+
+    assert message["operator_action"] == "candidate-snapshot"
+    assert message["operator_action_label"] == "查看股票快照"
+    assert message["target_panel"] == "market-screener-panel"
+    assert message["target_tab"] == "screener"
+    assert outbox_item["operator_action"] == "candidate-snapshot"
+    assert outbox_item["operator_action_label"] == "查看股票快照"
+    assert outbox_item["target_panel"] == "market-screener-panel"
+    assert outbox_item["target_tab"] == "screener"
+
+
 def test_notification_plan_routes_quality_audit_manual_review_to_targeted_human_review():
     plan = build_daily_notification_plan(
         {

@@ -55,7 +55,7 @@ OPERATOR_ACTION_BY_TYPE = {
     "model_route_warning": ("open-ops", "查看路由"),
     "monitor_provider": ("open-ops", "查看來源"),
     "fix_free_mode": ("open-ops", "修免費模式"),
-    "review_candidate": ("open-ops", "查看候選"),
+    "review_candidate": ("candidate-snapshot", "查看股票快照"),
     "monitor": ("monitor", "查看狀態"),
 }
 

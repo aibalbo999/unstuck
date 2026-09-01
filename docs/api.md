@@ -2267,6 +2267,8 @@ The daily dashboard also returns `notification_plan`. Local UI notifications are
 
 `decision_queue.items` report repair actions preserve `blocks_auto_rerun` and `reason_codes` from `report_quality_repair_queue`, so API consumers can distinguish a blocked manual review from a safe rerun/refresh action without re-reading the repair queue payload.
 
+For `review_candidate` actions, the shared operator contract uses `operator_action=candidate-snapshot`, `operator_action_label=查看股票快照`, `target_panel=market-screener-panel`, and `target_tab=screener`; `notification_plan.messages` and `delivery_outbox` preserve these fields so candidate notifications do not fall back to the older generic `open-ops` / `查看候選` CTA.
+
 Daily decision queue display limits use integer-safe conversion before slicing rendered items, so malformed limit truthiness cannot interrupt daily queue assembly or inflate secondary-count calculations.
 
 Daily decision queue integer conversions ignore malformed conversion failures before priority, horizon, display, and summary calculations, so broken numeric payloads fall back instead of interrupting queue assembly.

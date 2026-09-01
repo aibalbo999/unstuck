@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3802 / align candidate notification CTA with the operator workbench
+
+- `#拆解問題` / `#語意含義` / `#差距分析`：live queue/notification 交叉表的首屏五筆一致，但 `review_candidate` 的 backend shared table 仍輸出 `open-ops / 查看候選`，frontend candidate mapping 與既有設計契約已輸出 `candidate-snapshot / 查看股票快照`；target `market-screener-panel / screener` 本身沒有漂移。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先用候選 notification 反例取得 RED，再只改 `OPERATOR_ACTION_BY_TYPE`，不改候選排序、候選 callback 或 target fallback；message 與 `delivery_outbox` 共用同一組 CTA/target assertion。
+- `#受眾` / `#溝通設計` / `#可驗證性` / `#責任`：文件明示外部通知使用與工作台相同的候選主 CTA，保留 UI 的三個候選操作；focused candidate `4 passed`、跨層 regression `1113 passed`、全套 `8441 passed, 6 skipped, 75 subtests passed`，official reload 後 live module smoke、queue cross-check、health/ready 與 doctor 均通過。
+
 ## D3801 / make queue secondary count canonical across consumers
 
 - `#拆解問題` / `#責任` / `#語意含義`：live queue 將 `secondary_count` 放在 response 頂層，但 API/架構/操作指南以 `decision_queue.summary` 描述三個 queue count；notification plan 讀頂層，造成同一 queue 契約跨層級分裂。
