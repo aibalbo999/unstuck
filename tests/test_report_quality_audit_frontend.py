@@ -238,7 +238,7 @@ process.stdout.write(JSON.stringify({ board: window.StockAgentWatchlistPanelHelp
     assert "內容阻斷：最終稽核重大問題；內容阻斷版本：資料已更新、本文需完整重跑" in payload["board"]
     assert "內容阻斷原因：Agent 7 輸出失敗。" in payload["board"]
     assert "品質處理建議：人工審核 1" in payload["board"]
-    assert "建議處理：人工審核（暫停自動重跑）" in payload["board"]
+    assert "建議處理：人工審核（暫停自動重跑）；處理原因：內容可信度未通過；Agent 7 輸出失敗。" in payload["board"]
     assert "一致性：阻斷；內容：阻斷；證據：拒絕；證據矛盾；證據數值不一致 138；數值不一致來源：資料已更新、本文需完整重跑 138 筆" in payload["board"]
 
 

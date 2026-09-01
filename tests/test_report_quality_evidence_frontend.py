@@ -16,14 +16,14 @@ def test_shared_quality_evidence_helper_loads_before_all_consumers():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     helper = "/static/report_quality_evidence_helpers.js"
     assert (STATIC_DIR / "report_quality_evidence_helpers.js").exists()
-    assert f"{helper}?v=20260902-quality-action" in index_html
+    assert f"{helper}?v=20260902-quality-action-detail" in index_html
     assert "/static/report_quality_gate_policy.js?v=20260816-shared-quality-evidence" in index_html
     assert "/static/report_preview_helpers.js?v=20260820-shared-evidence-detail" in index_html
     assert "/static/report_preview_panel.js?v=20260820-rerun-execution" in index_html
     assert "/static/history_quality_audit_render.js?v=20260820-per-pipeline-context-summary" in index_html
-    assert "/static/history_current_quality_helpers.js?v=20260902-quality-action" in index_html
+    assert "/static/history_current_quality_helpers.js?v=20260902-quality-action-detail" in index_html
     assert "/static/watchlist_freshness_helpers.js?v=20260821-freshness-targets" in index_html
-    assert "/static/watchlist_current_quality_helpers.js?v=20260902-quality-action" in index_html
+    assert "/static/watchlist_current_quality_helpers.js?v=20260902-quality-action-detail" in index_html
     assert "/static/watchlist_panel_helpers.js?v=20260821-current-quality" in index_html
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
     assert "/static/styles/history_list.css?v=20260816-clickable-quality-evidence" in style_css
@@ -246,6 +246,8 @@ process.stdout.write(JSON.stringify({
   item: window.StockAgentReportQualityEvidence.formatQualityAction({
     recommended_action: 'manual_review',
     action_label: '人工審核',
+    title: '證據抽查未通過',
+    detail: '報告數字未能對上資料快照。',
     blocks_auto_rerun: true
   }),
   summary: window.StockAgentReportQualityEvidence.formatQualityActionSummary({
@@ -259,7 +261,7 @@ process.stdout.write(JSON.stringify({
     payload = json.loads(_node(script))
 
     assert payload == {
-        "item": "建議處理：人工審核（暫停自動重跑）",
+        "item": "建議處理：人工審核（暫停自動重跑）；處理原因：證據抽查未通過；報告數字未能對上資料快照。",
         "summary": "品質處理建議：人工審核 2、完整重跑 1",
     }
 
