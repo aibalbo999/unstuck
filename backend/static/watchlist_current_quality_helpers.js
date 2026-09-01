@@ -21,7 +21,8 @@
         const evidenceMismatchFreshnessSummary = window.StockAgentReportQualityEvidence?.formatEvidenceMismatchFreshnessSummary?.(data.summary.evidence_mismatch_claims_by_freshness, data.summary.evidence_mismatch_reports_by_freshness) || '';
         const evidenceReasonSummary = window.StockAgentReportQualityEvidence?.formatUnverifiableReasonSummary?.(data.summary.evidence_unverifiable_reason_counts) || '';
         const blockerSummary = window.StockAgentReportQualityEvidence?.formatQualityBlockerSummary?.(data.summary.report_conformance_blocker_counts, data.summary.content_credibility_blocker_counts) || '';
-        const evidenceDetail = [evidenceFailureSummary, evidenceMismatchFreshnessSummary, evidenceReasonSummary, blockerSummary].filter(Boolean).join('；');
+        const contentBlockerFreshnessSummary = window.StockAgentReportQualityEvidence?.formatContentBlockerFreshnessSummary?.(data.summary.content_credibility_blocker_reports_by_freshness) || '';
+        const evidenceDetail = [evidenceFailureSummary, evidenceMismatchFreshnessSummary, evidenceReasonSummary, blockerSummary, contentBlockerFreshnessSummary].filter(Boolean).join('；');
         return `目前品質：${conformance}；內容可信度警示 ${contentWarnings}、阻斷 ${contentBlocked}；證據關卡需注意 ${evidenceAttention}${evidenceDetail ? `；${evidenceDetail}` : ''}`;
     }
 

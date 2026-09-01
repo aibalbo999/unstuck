@@ -83,6 +83,11 @@ def test_current_quality_summary_keeps_gate_distributions_separate_and_bounds_ta
     assert payload["content_credibility_blocker_counts"] == {
         "explicit_target_price_low_data_confidence": 1,
     }
+    assert payload["content_credibility_blocker_reports_by_freshness"] == {
+        "current": 0,
+        "needs_rerun": 1,
+        "unknown": 0,
+    }
     assert payload["non_passed_reports"] == 2
     assert payload["items_returned"] == 1
     assert payload["items_truncated"] is True

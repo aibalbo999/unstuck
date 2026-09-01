@@ -134,6 +134,7 @@ def build_current_quality_summary(
     evidence_reason_counts: dict[str, int] = {}
     conformance_blocker_counts: dict[str, int] = {}
     content_blocker_counts: dict[str, int] = {}
+    content_blocker_reports_by_freshness = {bucket: 0 for bucket in EVIDENCE_MISMATCH_FRESHNESS_BUCKETS}
     evidence_mismatch_claims_by_freshness = {bucket: 0 for bucket in EVIDENCE_MISMATCH_FRESHNESS_BUCKETS}
     evidence_mismatch_reports_by_freshness = {bucket: 0 for bucket in EVIDENCE_MISMATCH_FRESHNESS_BUCKETS}
     non_passed = []
@@ -154,8 +155,11 @@ def build_current_quality_summary(
             evidence_reason_counts[reason] = evidence_reason_counts.get(reason, 0) + count
         for blocker_id in _blocker_ids(report.get("report_conformance"), include_decision_tree=True):
             conformance_blocker_counts[blocker_id] = conformance_blocker_counts.get(blocker_id, 0) + 1
-        for blocker_id in _blocker_ids(report.get("content_credibility")):
+        content_blocker_ids = _blocker_ids(report.get("content_credibility"))
+        for blocker_id in content_blocker_ids:
             content_blocker_counts[blocker_id] = content_blocker_counts.get(blocker_id, 0) + 1
+        if content_blocker_ids:
+            content_blocker_reports_by_freshness[report_freshness_bucket(report)] += 1
         if conformance_status != "passed":
             non_passed.append(_current_quality_item(report, conformance_status, content_status, evidence_verdict))
 
@@ -176,6 +180,7 @@ def build_current_quality_summary(
         "evidence_unverifiable_reason_counts": evidence_reason_counts,
         "report_conformance_blocker_counts": dict(sorted(conformance_blocker_counts.items())),
         "content_credibility_blocker_counts": dict(sorted(content_blocker_counts.items())),
+        "content_credibility_blocker_reports_by_freshness": content_blocker_reports_by_freshness,
         "non_passed_reports": len(non_passed),
         "items_limit": limit,
         "items_total": len(non_passed),
