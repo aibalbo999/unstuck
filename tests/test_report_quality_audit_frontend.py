@@ -184,11 +184,13 @@ def test_watchlist_board_surfaces_current_quality_projection_separately_with_his
     evidence_path = STATIC_DIR / "report_quality_evidence_helpers.js"
     helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
     freshness_helper_path = STATIC_DIR / "watchlist_freshness_helpers.js"
+    action_scope_helper_path = STATIC_DIR / "report_quality_action_scope_helpers.js"
     current_quality_helper_path = STATIC_DIR / "watchlist_current_quality_helpers.js"
     script = """
 global.window = {};
 require(__EVIDENCE_PATH__);
 require(__FRESHNESS_HELPER_PATH__);
+require(__ACTION_SCOPE_HELPER_PATH__);
 require(__CURRENT_QUALITY_HELPER_PATH__);
 require(__HELPER_PATH__);
 const payload = {
@@ -211,6 +213,7 @@ const payload = {
       content_credibility_blocker_counts: { final_audit_critical: 8 },
       content_credibility_blocker_reports_by_freshness: { needs_rerun: 8, current: 5, unknown: 0 },
       quality_gate_action_counts: { manual_review: 1 },
+      quality_gate_action_scope: { basis: 'quality_gate_repair_item_per_report', is_daily_queue: false },
       evidence_mismatch_claims_by_freshness: { needs_rerun: 138, current: 0, unknown: 0 },
       evidence_mismatch_reports_by_freshness: { needs_rerun: 1, current: 0, unknown: 0 },
       non_passed_reports: 136,
@@ -224,7 +227,7 @@ const payload = {
 };
 const board = window.StockAgentPanelHelpers?.watchlistDailyBoard || window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard;
 process.stdout.write(JSON.stringify({ board: window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], payload, value => String(value ?? '')) }));
-""".replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path))).replace("__FRESHNESS_HELPER_PATH__", json.dumps(str(freshness_helper_path))).replace("__CURRENT_QUALITY_HELPER_PATH__", json.dumps(str(current_quality_helper_path))).replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+""".replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path))).replace("__FRESHNESS_HELPER_PATH__", json.dumps(str(freshness_helper_path))).replace("__ACTION_SCOPE_HELPER_PATH__", json.dumps(str(action_scope_helper_path))).replace("__CURRENT_QUALITY_HELPER_PATH__", json.dumps(str(current_quality_helper_path))).replace("__HELPER_PATH__", json.dumps(str(helper_path)))
     result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
     payload = json.loads(result.stdout)
 
@@ -237,7 +240,7 @@ process.stdout.write(JSON.stringify({ board: window.StockAgentWatchlistPanelHelp
     assert 'data-quality-history-query="2454_v2.html"' in payload["board"]
     assert "內容阻斷：最終稽核重大問題；內容阻斷版本：資料已更新、本文需完整重跑" in payload["board"]
     assert "內容阻斷原因：Agent 7 輸出失敗。" in payload["board"]
-    assert "品質處理建議：人工審核 1" in payload["board"]
+    assert "品質處理建議（唯讀品質投影，不等同今日待辦）：人工審核 1" in payload["board"]
     assert "建議處理：人工審核（暫停自動重跑）；處理原因：內容可信度未通過；Agent 7 輸出失敗。" in payload["board"]
     assert "一致性：阻斷；內容：阻斷；證據：拒絕；證據矛盾；證據數值不一致 138；數值不一致來源：資料已更新、本文需完整重跑 138 筆" in payload["board"]
 

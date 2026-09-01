@@ -15,10 +15,13 @@ def _node(script: str) -> str:
 def test_shared_quality_evidence_helper_loads_before_all_consumers():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     helper = "/static/report_quality_evidence_helpers.js"
+    action_scope_helper = "/static/report_quality_action_scope_helpers.js"
     freshness_helper = "/static/report_quality_evidence_freshness_helpers.js"
     assert (STATIC_DIR / "report_quality_evidence_helpers.js").exists()
+    assert (STATIC_DIR / "report_quality_action_scope_helpers.js").exists()
     assert (STATIC_DIR / "report_quality_evidence_freshness_helpers.js").exists()
     assert f"{helper}?v=20260902-quality-action-detail" in index_html
+    assert f"{action_scope_helper}?v=20260902-quality-action-scope" in index_html
     assert f"{freshness_helper}?v=20260902-evidence-freshness" in index_html
     assert "/static/report_quality_gate_policy.js?v=20260816-shared-quality-evidence" in index_html
     assert "/static/report_preview_helpers.js?v=20260820-shared-evidence-detail" in index_html
@@ -31,10 +34,12 @@ def test_shared_quality_evidence_helper_loads_before_all_consumers():
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
     assert "/static/styles/history_list.css?v=20260816-clickable-quality-evidence" in style_css
     assert index_html.index(helper) < index_html.index("/static/report_quality_gate_policy.js")
+    assert index_html.index(action_scope_helper) < index_html.index("/static/report_quality_gate_policy.js")
     assert index_html.index(freshness_helper) < index_html.index("/static/report_quality_gate_policy.js")
     assert index_html.index(helper) < index_html.index("/static/watchlist_panel_helpers.js")
     assert index_html.index("/static/watchlist_freshness_helpers.js") < index_html.index("/static/watchlist_panel_helpers.js")
     assert index_html.index(helper) < index_html.index("/static/report_preview_helpers.js")
+    assert index_html.index(action_scope_helper) < index_html.index("/static/report_preview_helpers.js")
     assert index_html.index("/static/history_current_quality_helpers.js") < index_html.index("/static/history_quality_audit_render.js")
     assert len((STATIC_DIR / "report_quality_evidence_helpers.js").read_text(encoding="utf-8").splitlines()) < 45
 
@@ -287,6 +292,22 @@ process.stdout.write(JSON.stringify({
     }
 
 
+def test_shared_quality_evidence_labels_current_quality_action_projection_scope():
+    evidence_path = STATIC_DIR / "report_quality_evidence_helpers.js"
+    action_scope_path = STATIC_DIR / "report_quality_action_scope_helpers.js"
+    script = """
+global.window = {};
+require(__EVIDENCE_PATH__);
+require(__ACTION_SCOPE_PATH__);
+process.stdout.write(window.StockAgentReportQualityActionScope.formatQualityActionProjectionSummary(
+  { manual_review: 2, rerun_analysis: 1 },
+  { basis: 'quality_gate_repair_item_per_report', is_daily_queue: false }
+));
+""".replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path))).replace("__ACTION_SCOPE_PATH__", json.dumps(str(action_scope_path)))
+
+    assert _node(script) == "品質處理建議（唯讀品質投影，不等同今日待辦）：人工審核 2、完整重跑 1"
+
+
 def test_shared_quality_evidence_labels_unavailable_snapshot_field_reason():
     evidence_path = STATIC_DIR / "report_quality_evidence_helpers.js"
     script = """
@@ -459,12 +480,14 @@ process.stdout.write(JSON.stringify({ opened }));
 def test_historical_quality_audit_surfaces_current_quality_projection_separately():
     evidence_path = STATIC_DIR / "report_quality_evidence_helpers.js"
     freshness_path = STATIC_DIR / "report_quality_evidence_freshness_helpers.js"
+    action_scope_path = STATIC_DIR / "report_quality_action_scope_helpers.js"
     helper_path = STATIC_DIR / "history_current_quality_helpers.js"
     renderer_path = STATIC_DIR / "history_quality_audit_render.js"
     script = """
 global.window = {};
 require(__EVIDENCE_PATH__);
 require(__FRESHNESS_PATH__);
+require(__ACTION_SCOPE_PATH__);
 require(__HELPER_PATH__);
 require(__RENDERER_PATH__);
 const html = window.StockAgentHistoricalQualityAuditRenderer.render({
@@ -490,6 +513,7 @@ const html = window.StockAgentHistoricalQualityAuditRenderer.render({
     content_credibility_blocker_counts: { final_audit_critical: 1 },
     content_credibility_blocker_reports_by_freshness: { needs_rerun: 1, current: 0, unknown: 0 },
     quality_gate_action_counts: { manual_review: 1 },
+    quality_gate_action_scope: { basis: 'quality_gate_repair_item_per_report', is_daily_queue: false },
     non_passed_reports: 1,
     items_total: 1,
     items_returned: 0,
@@ -498,7 +522,7 @@ const html = window.StockAgentHistoricalQualityAuditRenderer.render({
   items: []
 }, value => String(value ?? ''));
 process.stdout.write(html);
-""".replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path))).replace("__FRESHNESS_PATH__", json.dumps(str(freshness_path))).replace("__HELPER_PATH__", json.dumps(str(helper_path))).replace("__RENDERER_PATH__", json.dumps(str(renderer_path)))
+""".replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path))).replace("__FRESHNESS_PATH__", json.dumps(str(freshness_path))).replace("__ACTION_SCOPE_PATH__", json.dumps(str(action_scope_path))).replace("__HELPER_PATH__", json.dumps(str(helper_path))).replace("__RENDERER_PATH__", json.dumps(str(renderer_path)))
     result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
 
     assert "目前版本品質（查詢：2330.TW；模式：v2；只看最新版本）" in result.stdout
@@ -508,6 +532,6 @@ process.stdout.write(html);
     assert "證據未驗證原因：研究來源非 canonical 2" in result.stdout
     assert "證據未驗證版本：資料已更新、本文需完整重跑（研究來源非 canonical 2）" in result.stdout
     assert "品質阻斷來源：報告一致性：最終稽核 1；內容可信度：最終稽核重大問題 1" in result.stdout
-    assert "品質處理建議：人工審核 1" in result.stdout
+    assert "品質處理建議（唯讀品質投影，不等同今日待辦）：人工審核 1" in result.stdout
     assert "內容阻斷版本：資料已更新、本文需完整重跑 1 份" in result.stdout
     assert "1 份品質 metadata 缺口" not in result.stdout

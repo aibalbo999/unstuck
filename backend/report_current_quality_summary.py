@@ -205,6 +205,12 @@ def build_current_quality_summary(
         "content_credibility_blocker_counts": dict(sorted(content_blocker_counts.items())),
         "content_credibility_blocker_reports_by_freshness": content_blocker_reports_by_freshness,
         "quality_gate_action_counts": dict(sorted(quality_gate_action_counts.items())),
+        "quality_gate_action_scope": {
+            "scope": scope_text,
+            "selection_basis": selection_basis_text,
+            "basis": "quality_gate_repair_item_per_report",
+            "is_daily_queue": False,
+        },
         "non_passed_reports": len(non_passed),
         "items_limit": limit,
         "items_total": len(non_passed),

@@ -263,6 +263,12 @@ def test_current_quality_item_exposes_shared_quality_action_for_content_blocker(
     )
 
     assert payload["quality_gate_action_counts"] == {"manual_review": 1}
+    assert payload["quality_gate_action_scope"] == {
+        "scope": "all_indexed_reports",
+        "selection_basis": "latest_per_ticker_pipeline",
+        "basis": "quality_gate_repair_item_per_report",
+        "is_daily_queue": False,
+    }
     assert payload["items"][0]["quality_action"] == {
         "recommended_action": "manual_review",
         "action_label": "人工審核",
