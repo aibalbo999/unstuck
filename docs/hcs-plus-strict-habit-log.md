@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3792 / align data trust and daily report sample denominators
+
+- `#拆解問題` / `#證據基礎` / `#語意含義`：D3791 live probe 顯示 data trust card 使用 8 份 `/api/reports` 樣本，但 daily dashboard 的 `report_scope.sampled_reports` 是 20；「資料新鮮 X / 抽樣 Y」與「近期報告取樣」不是同一個分母，容易造成品質信任誤讀。
+- `#偏誤降低` / `#責任` / `#最小變更`：`operator_summary_panel.js` 將 report request limit 從 8 對齊為 20，沿用同一最新報告範圍與既有 `trustText` predicate；不把 dashboard summary 借作 data trust、不改資料信任規則或任何 mutation，cache-buster 更新為 `20260902-report-sample-scope`。
+- `#可驗證性` / `#可逆性` / `#受眾`：先取得 request limit RED，再 GREEN；frontend/history/filter `294 passed`、dashboard/queue/repair/current-quality `230 passed`，Node syntax、`py_compile`、`git diff --check` 通過。正式 JS + live API/DOM 取得 data trust `資料新鮮 20 / 抽樣 20`、daily sample `20`、queue `23/5/18`、current quality `165/85`；本批只改 read-only sample scope，不寫 snapshot、artifact、index、review、rerun、repair 或 queue state。
+
 ## D3791 / expose total actionable queue count without inflating rendered items
 
 - `#拆解問題` / `#受眾` / `#語意含義`：live `decision_queue.summary` 是 `total_actionable=23`、`displayed_count=5`、`secondary_count=18`，但 operator summary 標頭只顯示「5 件快速操作」；首屏 top-5 與總待辦的分母沒有在同一處說清楚。

@@ -2126,6 +2126,8 @@ The daily dashboard's backward-compatible `summary.reports_needing_rerun` and `s
 
 The operator summary's `今日待處理` header renders `顯示 X / 共 Y 件快速操作` when `decision_queue.summary` provides a valid total and displayed count matching the rendered actionable items. This distinguishes the visible top-five list from secondary work; legacy or inconsistent payloads fall back to the number of rendered actionable items.
 
+The operator summary's data trust card uses the same 20-report recent sample as the daily dashboard's `report_scope.sampled_reports`, so its `資料新鮮 X / 抽樣 Y` denominator can be compared directly with the daily report sample.
+
 The queue orchestration stays in `daily_decision_queue`; pure due-backtest, rerun-report, and report-date shaping lives in `daily_decision_report_actions`, so changing report follow-up rules does not enlarge the cross-source ordering owner. Both modules are read-only payload builders and do not enqueue work or write report/index/review state.
 Route warning queue items also carry the shared `operator_action` / `operator_action_label` and `target_panel` / `target_tab` contract (`open-ops` / `查看路由` / `api-quota-panel` / `ops`), matching notification messages and delivery outbox. This is a navigation hint for maintenance triage, not a report rerun decision.
 
