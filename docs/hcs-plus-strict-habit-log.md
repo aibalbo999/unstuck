@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3778 / recover yearless close support from an exact date
+
+- `#拆解問題` / `#差距分析` / `#證據基礎`：D3777 後 current residual 只剩 `6226.TW/v4` 的一筆可疑近期支撐與一筆沒有明示來源的近期壓力；snapshot 明確有 `price_history[2026-08-31] = 31.6`，報告也明確寫成 `8/31 收盤價`。
+- `#偏誤辨識` / `#偏誤降低` / `#最小變更`：只在 technical support/pressure、收盤語意、月份對應年份唯一、報告值位於日期前且非新聞來源時建立 exact `price_history` path；跨年份歧義與新聞來源維持 `unverifiable`，34.0「心理關卡與目前最高價」不借用 52 週高點。
+- `#可驗證性` / `#可逆性` / `#責任`：先取得 yearless-date RED，再 GREEN；evidence/quality `217 passed`、跨層回歸 `1395 passed`、`py_compile` 與 `git diff --check` 通過。正式 reload 後 6226 的 31.6 對到 `data.price_history[2026-08-31].prices[10]`，live `165` 份 evidence 為 `134 approved / 28 caution / 3 rejected`，mismatch `12` 筆全部 `needs_rerun`，`technical_level_not_canonical` 由 1 降為 0，僅保留 `no_matching_snapshot_path=1`。本輪仍只改 read-only gate/parser，不寫入 quality verdict、snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3777 / close evidence parser and persisted-path residuals
 
 - `#拆解問題` / `#差距分析` / `#證據基礎`：fresh residual audit 顯示剩餘可修正缺口集中在 evidence claim extraction/path mapping，而不是 tolerance 或 verdict；包含千分位後接括號的 `8,207` 被截斷、code-style `short_previous_balance`、無年份的 daily net buy、52 週高點 source forms、支撐區間底、recommendation horizon 與 `normalized_financials` 說明文字。
