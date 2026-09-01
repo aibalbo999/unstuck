@@ -4,7 +4,7 @@
 
 - `#拆解問題` / `#差距分析` / `#證據基礎`：live current scope 的 13 筆 sampled `mismatch` 中，12 筆來自 `needs_rerun`、1 筆來自 current report；只顯示總 mismatch 會掩蓋「快照已更新、本文尚未重跑」與「目前版本仍有數值矛盾」的不同責任路徑。
 - `#偏誤降低` / `#語意含義` / `#最小變更`：抽出共用 `report_freshness_bucket()`，current-quality summary 只統計真正的 `failed_count`，新增 claim-level 與 report-level freshness 分布；target 只在有 mismatch 時附上 `evidence_mismatch_freshness_status`，不把 unverifiable 或 gate verdict 重新分類。
-- `#可驗證性` / `#責任`：RED→GREEN 以 current/needs-rerun/unknown fixture、共用前端 formatter、cache-buster 與 target rendering regression 鎖定契約；backend current/freshness/audit `37 passed`、frontend/history/filter `189 passed`、Node syntax、helper line guard `44`、diff check 通過。本輪只改 read-only diagnostics，不寫 snapshot、artifact、index、review、rerun、repair 或 queue。
+- `#可驗證性` / `#責任`：RED→GREEN 以 current/needs-rerun/unknown fixture、共用前端 formatter、cache-buster 與 target rendering regression 鎖定契約；backend current/freshness/audit `37 passed`、frontend/history/filter `189 passed`、跨層回歸 `2191 passed`、Node syntax、helper line guard `44`、diff check 通過。正式 reload 後 healthz/readyz、helper cache-buster 與 live aggregate assertions 通過，doctor 確認 canonical paths 未漂移；commit `615ec597`，文件記錄 commit/push 待完成。本輪只改 read-only diagnostics，不寫 snapshot、artifact、index、review、rerun、repair 或 queue。
 
 ## D3775 / label unavailable canonical snapshot fields
 
