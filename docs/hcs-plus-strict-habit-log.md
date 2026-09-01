@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3820 / require complete overlap item coverage
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`status=complete` 只看 split counts 仍不夠；`gap=2`、`returned=1` 會把部分 item comparison 當成 exact split。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以 complete-but-missing-items RED 鎖定問題，要求 `returned == gap` 且 in/out 加總等於 gap；不推算 partial scope。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新 watchlist cache-buster、API/operator/architecture 說明與 regression；focused/full regression `313 passed`，新 asset `200`，live normal split `complete / 0/2 sample 內 / 2 sample 外 / returned 2` 保留，synthetic missing-items `0/2` 被抑制，health/ready `200/200`、doctor canonical paths 正常。本批不改 audit、repair sample、queue、snapshot、artifact、index、review 或 rerun state。
+
 ## D3819 / enforce repair overlap split invariant
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：整數 count 不代表 exact split 合法；`in_sample=3`、`gap=2`、`outside=0` 仍可被渲染成 `3/2`。
