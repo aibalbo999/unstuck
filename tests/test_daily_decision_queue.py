@@ -3810,6 +3810,6 @@ def test_daily_decision_queue_monitor_fallback_is_not_counted_as_actionable():
 
     assert queue["items"][0]["type"] == "monitor"
     assert queue["summary"]["total_actionable"] == 0
-    assert queue["summary"]["displayed_count"] == 1
+    assert queue["summary"]["displayed_count"] == 0
     assert queue["summary"]["top_priority_score"] == 0
     assert queue["secondary_count"] == 0

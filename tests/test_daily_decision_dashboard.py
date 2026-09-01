@@ -316,6 +316,7 @@ def test_daily_decision_dashboard_keeps_monitor_only_notifications_quiet():
 
     assert dashboard["status"] == "ok"
     assert dashboard["decision_queue"]["summary"]["total_actionable"] == 0
+    assert dashboard["decision_queue"]["summary"]["displayed_count"] == 0
     assert dashboard["actions"][0]["type"] == "monitor"
     assert dashboard["notification_plan"]["status"] == "quiet"
     assert dashboard["notification_plan"]["messages"] == []

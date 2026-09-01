@@ -23,12 +23,13 @@ def queue_response(
     render_items = actionable or [_monitor_item()]
     display_limit = _int(limit) or 5
     displayed = render_items[: max(1, display_limit)]
+    displayed_count = len(displayed) if actionable else 0
     source_counts = _source_counts(actionable)
     return {
         "schema_version": schema_version,
         "summary": {
             "total_actionable": len(actionable),
-            "displayed_count": len(displayed),
+            "displayed_count": displayed_count,
             "top_priority_score": int(_field(displayed[0], "priority_score") or 0) if displayed else 0,
             "sources": source_counts,
             "source_labels": source_labels(source_counts),
