@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3784 / include every quality attention signal in item selection
+
+- `#拆解問題` / `#差距分析` / `#責任`：current-quality aggregate 同時提供 conformance、content credibility 與 evidence 分布，但原本 `items` 只在 conformance 非 `passed` 時建立；若 current projection 只有 content blocker，aggregate 與「待查看」清單會不一致。
+- `#偏誤降低` / `#最小變更` / `#溝通設計`：item selection 改為 conformance、content 或 evidence 任一未達正常狀態即列入，並以三者最嚴重等級排序；不改三個 status/verdict 值，也不擴張資料寫入或 action queue。現有 `non_passed_reports` envelope 沿用，前端仍可處理舊 payload。
+- `#可驗證性` / `#可逆性`：先取得 content-only RED，再 GREEN；聚焦回歸 `199 passed`、跨層品質回歸 `1403 passed`，Node syntax、`py_compile`、`git diff --check` 通過。正式 reload 後 live `165` 份仍為 `items_total=85`，因現有 content blocker 同時已被 conformance 捕捉；status counts 維持 conformance `80/71/14`、content `93/59/13`、evidence `134/28/3`，`healthz=ok`、`readyz=ready`、queue depth `0`、failed_recent `0`，三個 detail 資產 `200`。本批只修正 read-only item selection，不寫 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3783 / expose canonical content blocker details per report
 
 - `#拆解問題` / `#差距分析` / `#溝通設計`：live `13` 份 content blocker 中有 `12` 份是 `final_audit_critical`；只顯示 blocker ID 仍無法回答是哪個 agent 失敗、哪個結論矛盾或哪個資料信心門檻被觸發，操作員難以在「先重跑」與「先人工確認」間分流。
