@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3786 / reconcile retryable content blockers with freshness actions
+
+- `#拆解問題` / `#差距分析` / `#證據基礎`：live current-quality 的 `0056.TW/v4`、`2367.TW/v2/v3` 顯示 `final_audit_critical` Agent 輸出失敗；原本 content gate 的 priority `1000` 會蓋過既有 conformance retry marker，讓完整重跑案例錯誤顯示人工審核。`1623.TW/v3` 同時有低資料信心目標價，不能沿用這個分流。
+- `#偏誤降低` / `#責任` / `#最小變更`：新增 `report_quality_retry_actions.py` 共用辨識；只有 content blocking issues 全部是 `final_audit_critical` 且每個 canonical critical detail 都含既有 retry marker 時，才回傳 priority `840` 的 `rerun_analysis`、`完整重跑`、`blocks_auto_rerun=false`。混合 blocker、公司身分污染與其他非可重試內容風險仍維持 priority `1000` 人工審核；不改 status、verdict、snapshot、artifact、index 或自動觸發行為。
+- `#可驗證性` / `#可逆性` / `#溝通設計`：新增純可重試、混合阻塞與純非可重試控制測試；focused repair/current `65 passed`、品質跨層 `1410 passed in 222.92s`、import boundary `503 passed` 並保留既有 `evidence_exit_gate.py` 426 行門檻失敗、Node syntax、`py_compile`、`git diff --check` 通過。官方 runtime reload 後 live `165` 份、`85` 筆品質項目為 `manual_review=81`、`rerun_analysis=4`；`0056.TW/v4` 與 `2367.TW/v3` 走完整重跑，`1623.TW/v3` 仍人工審核，healthz/readyz `ok/ready`、queue depth `0`、failed_recent `0`、三個 quality action 資產 HTTP `200`。本批只修正 read-only repair action projection。
+
 ## D3785 / expose the shared quality action and canonical action detail
 
 - `#拆解問題` / `#差距分析` / `#受眾`：live current-quality 有 `165` 份報告、`85` 份非通過項目；原本 item 能顯示 blocker ID、原文與 freshness，卻沒有把既有 repair queue 的下一步動作帶到同一筆報告，操作員仍需跨頁判斷先人工核對或完整重跑。
