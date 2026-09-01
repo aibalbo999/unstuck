@@ -16,14 +16,14 @@ def test_shared_quality_evidence_helper_loads_before_all_consumers():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     helper = "/static/report_quality_evidence_helpers.js"
     assert (STATIC_DIR / "report_quality_evidence_helpers.js").exists()
-    assert f"{helper}?v=20260901-quality-blocker-detail" in index_html
+    assert f"{helper}?v=20260902-quality-action" in index_html
     assert "/static/report_quality_gate_policy.js?v=20260816-shared-quality-evidence" in index_html
     assert "/static/report_preview_helpers.js?v=20260820-shared-evidence-detail" in index_html
     assert "/static/report_preview_panel.js?v=20260820-rerun-execution" in index_html
     assert "/static/history_quality_audit_render.js?v=20260820-per-pipeline-context-summary" in index_html
-    assert "/static/history_current_quality_helpers.js?v=20260901-quality-blocker-detail" in index_html
+    assert "/static/history_current_quality_helpers.js?v=20260902-quality-action" in index_html
     assert "/static/watchlist_freshness_helpers.js?v=20260821-freshness-targets" in index_html
-    assert "/static/watchlist_current_quality_helpers.js?v=20260901-quality-blocker-detail" in index_html
+    assert "/static/watchlist_current_quality_helpers.js?v=20260902-quality-action" in index_html
     assert "/static/watchlist_panel_helpers.js?v=20260821-current-quality" in index_html
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
     assert "/static/styles/history_list.css?v=20260816-clickable-quality-evidence" in style_css
@@ -237,6 +237,33 @@ process.stdout.write(window.StockAgentReportQualityEvidence.formatQualityBlocker
     assert _node(script) == "Agent 7 輸出失敗。；偏多交易的目標價未高於目前股價。"
 
 
+def test_shared_quality_evidence_formats_quality_action_without_inventing_actions():
+    evidence_path = STATIC_DIR / "report_quality_evidence_helpers.js"
+    script = """
+global.window = {};
+require(__EVIDENCE_PATH__);
+process.stdout.write(JSON.stringify({
+  item: window.StockAgentReportQualityEvidence.formatQualityAction({
+    recommended_action: 'manual_review',
+    action_label: '人工審核',
+    blocks_auto_rerun: true
+  }),
+  summary: window.StockAgentReportQualityEvidence.formatQualityActionSummary({
+    manual_review: 2,
+    rerun_analysis: 1,
+    unknown: 0
+  })
+}));
+""".replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path)))
+
+    payload = json.loads(_node(script))
+
+    assert payload == {
+        "item": "建議處理：人工審核（暫停自動重跑）",
+        "summary": "品質處理建議：人工審核 2、完整重跑 1",
+    }
+
+
 def test_shared_quality_evidence_labels_unavailable_snapshot_field_reason():
     evidence_path = STATIC_DIR / "report_quality_evidence_helpers.js"
     script = """
@@ -436,6 +463,7 @@ const html = window.StockAgentHistoricalQualityAuditRenderer.render({
     report_conformance_blocker_counts: { final_audit: 1 },
     content_credibility_blocker_counts: { final_audit_critical: 1 },
     content_credibility_blocker_reports_by_freshness: { needs_rerun: 1, current: 0, unknown: 0 },
+    quality_gate_action_counts: { manual_review: 1 },
     non_passed_reports: 1,
     items_total: 1,
     items_returned: 0,
@@ -453,5 +481,6 @@ process.stdout.write(html);
     assert "證據數值不一致 3" in result.stdout
     assert "證據未驗證原因：研究來源非 canonical 2" in result.stdout
     assert "品質阻斷來源：報告一致性：最終稽核 1；內容可信度：最終稽核重大問題 1" in result.stdout
+    assert "品質處理建議：人工審核 1" in result.stdout
     assert "內容阻斷版本：資料已更新、本文需完整重跑 1 份" in result.stdout
     assert "1 份品質 metadata 缺口" not in result.stdout

@@ -6,14 +6,12 @@ from typing import Any
 
 from mapping_fields import safe_dict_list, safe_int, safe_mapping_dict, safe_text, safe_text_list
 from provider_impact import build_provider_impact
+from report_quality_gate_actions import quality_gate_repair_item
 from report_quality_integrity import snapshot_integrity_repair_item
 from report_quality_repair_items import (
-    content_credibility_repair_item,
     data_trust_repair_item,
     decision_freshness_repair_item,
-    evidence_exit_gate_repair_item,
     quality_metadata_repair_item,
-    report_conformance_repair_item,
 )
 
 
@@ -53,9 +51,7 @@ def _repair_item(report: dict[str, Any]) -> dict[str, Any] | None:
     candidates = [
         snapshot_integrity_repair_item(_field(report, "snapshot_integrity")),
         quality_metadata_repair_item(report),
-        content_credibility_repair_item(report),
-        report_conformance_repair_item(report),
-        evidence_exit_gate_repair_item(report),
+        quality_gate_repair_item(report),
         _provider_sla_item(report),
         data_trust_repair_item(report),
         decision_freshness_repair_item(report),

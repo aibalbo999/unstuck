@@ -162,6 +162,7 @@ def test_current_quality_item_exposes_deduplicated_canonical_content_blocker_mes
         "Agent 7 輸出失敗。",
         "偏多交易的目標價未高於目前股價。",
     ]
+    assert payload["items"][0]["quality_action"]["detail"] == "Agent 7 輸出失敗。"
 
 
 def test_current_quality_summary_includes_content_attention_when_conformance_passes():
@@ -186,6 +187,56 @@ def test_current_quality_summary_includes_content_attention_when_conformance_pas
     assert payload["non_passed_reports"] == 1
     assert payload["items_total"] == 1
     assert payload["items"][0]["content_credibility_status"] == "blocked"
+
+
+def test_current_quality_item_exposes_shared_quality_action_for_content_blocker():
+    payload = build_current_quality_summary(
+        [{
+            "ticker": "2330.TW",
+            "filename": "2330.html",
+            "report_conformance": {"status": "passed"},
+            "content_credibility": {
+                "status": "blocked",
+                "summary": "目標價與資料信心門檻互相矛盾。",
+            },
+            "evidence_exit_gate": {"verdict": "approved"},
+        }],
+        scope="all_indexed_reports",
+    )
+
+    assert payload["quality_gate_action_counts"] == {"manual_review": 1}
+    assert payload["items"][0]["quality_action"] == {
+        "recommended_action": "manual_review",
+        "action_label": "人工審核",
+        "title": "內容可信度未通過",
+        "detail": "目標價與資料信心門檻互相矛盾。",
+        "reason_codes": ["content_credibility_blocked"],
+        "blocks_auto_rerun": True,
+    }
+
+
+def test_current_quality_item_exposes_rerun_action_for_retryable_final_audit():
+    payload = build_current_quality_summary(
+        [{
+            "ticker": "2330.TW",
+            "filename": "2330.html",
+            "report_conformance": {
+                "status": "blocked",
+                "blocking_issues": [{
+                    "id": "final_audit",
+                    "details": ["技術動能分析師 輸出為失敗訊息，不能產生正式報告。"],
+                }],
+            },
+            "content_credibility": {"status": "passed"},
+            "evidence_exit_gate": {"verdict": "approved"},
+        }],
+        scope="all_indexed_reports",
+    )
+
+    assert payload["items"][0]["quality_action"]["recommended_action"] == "rerun_analysis"
+    assert payload["items"][0]["quality_action"]["action_label"] == "完整重跑"
+    assert payload["items"][0]["quality_action"]["blocks_auto_rerun"] is False
+    assert payload["items"][0]["quality_action"]["reason_codes"] == ["final_audit_agent_retry"]
 
 
 def test_filtered_indexed_current_quality_summary_has_explicit_latest_scope(monkeypatch, tmp_path):

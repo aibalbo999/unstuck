@@ -10,6 +10,7 @@ from mapping_fields import safe_dict_list, safe_int, safe_mapping_dict, safe_tex
 from report_history_pagination import collect_all_report_pages
 from report_index import query_report_metadata
 from report_freshness_summary import report_freshness_bucket
+from report_quality_gate_actions import quality_gate_repair_item
 
 
 SCHEMA_VERSION = "report_current_quality_summary.v1"
@@ -134,6 +135,7 @@ def build_current_quality_summary(
     evidence_reason_counts: dict[str, int] = {}
     conformance_blocker_counts: dict[str, int] = {}
     content_blocker_counts: dict[str, int] = {}
+    quality_gate_action_counts: dict[str, int] = {}
     content_blocker_reports_by_freshness = {bucket: 0 for bucket in EVIDENCE_MISMATCH_FRESHNESS_BUCKETS}
     evidence_mismatch_claims_by_freshness = {bucket: 0 for bucket in EVIDENCE_MISMATCH_FRESHNESS_BUCKETS}
     evidence_mismatch_reports_by_freshness = {bucket: 0 for bucket in EVIDENCE_MISMATCH_FRESHNESS_BUCKETS}
@@ -160,12 +162,24 @@ def build_current_quality_summary(
             content_blocker_counts[blocker_id] = content_blocker_counts.get(blocker_id, 0) + 1
         if content_blocker_ids:
             content_blocker_reports_by_freshness[report_freshness_bucket(report)] += 1
+        quality_action = quality_gate_repair_item(report)
+        if quality_action:
+            action_name = safe_text(quality_action.get("recommended_action")).strip() or "unknown"
+            quality_gate_action_counts[action_name] = quality_gate_action_counts.get(action_name, 0) + 1
         if (
             conformance_status != "passed"
             or content_status != "passed"
             or evidence_verdict != "approved"
         ):
-            non_passed.append(_current_quality_item(report, conformance_status, content_status, evidence_verdict))
+            non_passed.append(
+                _current_quality_item(
+                    report,
+                    conformance_status,
+                    content_status,
+                    evidence_verdict,
+                    quality_action=quality_action,
+                )
+            )
 
     non_passed.sort(key=lambda item: (_quality_attention_rank(item), item["filename"]))
     limit = max(0, safe_int(item_limit, default=CURRENT_QUALITY_ITEM_LIMIT))
@@ -185,6 +199,7 @@ def build_current_quality_summary(
         "report_conformance_blocker_counts": dict(sorted(conformance_blocker_counts.items())),
         "content_credibility_blocker_counts": dict(sorted(content_blocker_counts.items())),
         "content_credibility_blocker_reports_by_freshness": content_blocker_reports_by_freshness,
+        "quality_gate_action_counts": dict(sorted(quality_gate_action_counts.items())),
         "non_passed_reports": len(non_passed),
         "items_limit": limit,
         "items_total": len(non_passed),
@@ -295,6 +310,8 @@ def _current_quality_item(
     conformance_status: str,
     content_status: str,
     evidence_verdict: str,
+    *,
+    quality_action: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     conformance = safe_mapping_dict(report.get("report_conformance")) or {}
     evidence_failed_count = _evidence_failed_count(report.get("evidence_exit_gate"))
@@ -324,6 +341,15 @@ def _current_quality_item(
         "content_credibility_blocker_messages": content_blocker_messages,
         "reason": reason,
     }
+    if quality_action:
+        payload["quality_action"] = {
+            "recommended_action": safe_text(quality_action.get("recommended_action")).strip() or "unknown",
+            "action_label": safe_text(quality_action.get("action_label")).strip() or "人工審核",
+            "title": safe_text(quality_action.get("title")).strip() or "品質狀態需要處理",
+            "detail": safe_text(quality_action.get("detail")).strip() or "品質 gate 需要人工確認。",
+            "reason_codes": safe_text_list(quality_action.get("reason_codes")),
+            "blocks_auto_rerun": bool(quality_action.get("blocks_auto_rerun")),
+        }
     if evidence_failed_count:
         payload["evidence_mismatch_freshness_status"] = report_freshness_bucket(report)
     if content_blocker_ids:
