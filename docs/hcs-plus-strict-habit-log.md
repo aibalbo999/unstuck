@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3817 / bound repair sample size labels
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：品質 count 已拒絕 fractional audit totals，但 repair sample label 仍將 `20.5` floor 成 `20`，操作員會收到看似精確的取樣範圍。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先取得 `sampled_reports=20.5` RED，再重用既有 `nonNegativeInteger()`；正常整數保留，fractional/malformed value 省略，不改 queue aggregate 或 item scope。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新 watchlist cache-buster、API/operator/architecture 說明與 regression；focused/full regression `310 passed`，新 asset `200`，live `sampled_reports=20` 正常、synthetic `20.5` 被抑制，health/ready `200/200`、doctor canonical paths 正常。本批不改 repair queue、snapshot、artifact、index、review 或 rerun state。
+
 ## D3816 / reject fractional quality projections
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：watchlist freshness/current-quality 與 history current-quality 只檢查 finite/non-negative，`1.5` 分布可通過 validator，部分文案再 `floor` 成看似正常的整數。
