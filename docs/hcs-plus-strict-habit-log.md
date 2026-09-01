@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3828 / enforce historical complete scope bounds
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：歷史 renderer 已檢查 `missing <= verified <= audited`，但 `complete=9、missing=0、verified=10` 仍會被顯示為 9 份完整，沒有反映 verified scope 的分解矛盾。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以 `complete=9 / missing=0 / verified=10 / audited=10` 取得 RED；明確存在的 complete count 要求合法且 `complete + missing = verified`，verified 缺失時只要求不超過 audited，不自行補造分母。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新 renderer cache-buster 與測試契約，live daily `165/165/163/2`、historical `1175/1175/1116/59` 均符合新不變量；focused `3 passed`、完整 history/report-quality/static/docs regression `323 passed`，Node syntax、line guard 與 `git diff --check` 通過；renderer asset `200` 且與本地一致，health/ready `200/ready`、official launcher/worker/8080 與 doctor canonical paths 正常。本批不改 audit count、quality gate、queue、snapshot、artifact、index、review 或 rerun state。
+
 ## D3827 / enforce historical verified scope bounds
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：D3826 收緊 `missing <= audited` 後，歷史 renderer 仍未檢查 optional `verified_snapshot_reports`；`audited=10、verified=1、missing=2` 會顯示超過已驗證快照分母的缺口。
