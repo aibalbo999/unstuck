@@ -15,8 +15,11 @@ def _node(script: str) -> str:
 def test_shared_quality_evidence_helper_loads_before_all_consumers():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     helper = "/static/report_quality_evidence_helpers.js"
+    freshness_helper = "/static/report_quality_evidence_freshness_helpers.js"
     assert (STATIC_DIR / "report_quality_evidence_helpers.js").exists()
+    assert (STATIC_DIR / "report_quality_evidence_freshness_helpers.js").exists()
     assert f"{helper}?v=20260902-quality-action-detail" in index_html
+    assert f"{freshness_helper}?v=20260902-evidence-freshness" in index_html
     assert "/static/report_quality_gate_policy.js?v=20260816-shared-quality-evidence" in index_html
     assert "/static/report_preview_helpers.js?v=20260820-shared-evidence-detail" in index_html
     assert "/static/report_preview_panel.js?v=20260820-rerun-execution" in index_html
@@ -28,6 +31,7 @@ def test_shared_quality_evidence_helper_loads_before_all_consumers():
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
     assert "/static/styles/history_list.css?v=20260816-clickable-quality-evidence" in style_css
     assert index_html.index(helper) < index_html.index("/static/report_quality_gate_policy.js")
+    assert index_html.index(freshness_helper) < index_html.index("/static/report_quality_gate_policy.js")
     assert index_html.index(helper) < index_html.index("/static/watchlist_panel_helpers.js")
     assert index_html.index("/static/watchlist_freshness_helpers.js") < index_html.index("/static/watchlist_panel_helpers.js")
     assert index_html.index(helper) < index_html.index("/static/report_preview_helpers.js")
@@ -155,6 +159,23 @@ process.stdout.write(window.StockAgentReportQualityEvidence.formatEvidenceMismat
 """.replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path)))
 
     assert _node(script) == "數值不一致分布：資料已更新、本文需完整重跑 12 筆／8 份、本文目前版本 1 筆／1 份"
+
+
+def test_shared_quality_evidence_formats_unverifiable_reason_freshness_distribution():
+    evidence_path = STATIC_DIR / "report_quality_evidence_helpers.js"
+    freshness_path = STATIC_DIR / "report_quality_evidence_freshness_helpers.js"
+    script = """
+global.window = {};
+require(__EVIDENCE_PATH__);
+require(__FRESHNESS_PATH__);
+process.stdout.write(window.StockAgentReportQualityEvidence.formatUnverifiableReasonFreshnessSummary({
+  current: { technical_level_not_canonical: 1 },
+  needs_rerun: { derived_metric_not_canonical: 2, legacy_conclusion_without_snapshot_path: 1 },
+  unknown: {}
+}));
+""".replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path))).replace("__FRESHNESS_PATH__", json.dumps(str(freshness_path)))
+
+    assert _node(script) == "證據未驗證版本：資料已更新、本文需完整重跑（衍生指標沒有 canonical 欄位 2、舊結論缺少快照路徑 1）、本文目前版本（技術價位沒有 canonical 欄位 1）"
 
 
 def test_shared_quality_evidence_labels_analysis_metadata_reason():
@@ -437,11 +458,13 @@ process.stdout.write(JSON.stringify({ opened }));
 
 def test_historical_quality_audit_surfaces_current_quality_projection_separately():
     evidence_path = STATIC_DIR / "report_quality_evidence_helpers.js"
+    freshness_path = STATIC_DIR / "report_quality_evidence_freshness_helpers.js"
     helper_path = STATIC_DIR / "history_current_quality_helpers.js"
     renderer_path = STATIC_DIR / "history_quality_audit_render.js"
     script = """
 global.window = {};
 require(__EVIDENCE_PATH__);
+require(__FRESHNESS_PATH__);
 require(__HELPER_PATH__);
 require(__RENDERER_PATH__);
 const html = window.StockAgentHistoricalQualityAuditRenderer.render({
@@ -462,6 +485,7 @@ const html = window.StockAgentHistoricalQualityAuditRenderer.render({
     evidence_exit_gate_by_verdict: { approved: 0, caution: 1, rejected: 0, unknown: 0 },
     evidence_failed_count: 3,
     evidence_unverifiable_reason_counts: { research_source_not_canonical: 2 },
+    evidence_unverifiable_reason_counts_by_freshness: { needs_rerun: { research_source_not_canonical: 2 }, current: {}, unknown: {} },
     report_conformance_blocker_counts: { final_audit: 1 },
     content_credibility_blocker_counts: { final_audit_critical: 1 },
     content_credibility_blocker_reports_by_freshness: { needs_rerun: 1, current: 0, unknown: 0 },
@@ -474,7 +498,7 @@ const html = window.StockAgentHistoricalQualityAuditRenderer.render({
   items: []
 }, value => String(value ?? ''));
 process.stdout.write(html);
-""".replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path))).replace("__HELPER_PATH__", json.dumps(str(helper_path))).replace("__RENDERER_PATH__", json.dumps(str(renderer_path)))
+""".replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path))).replace("__FRESHNESS_PATH__", json.dumps(str(freshness_path))).replace("__HELPER_PATH__", json.dumps(str(helper_path))).replace("__RENDERER_PATH__", json.dumps(str(renderer_path)))
     result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
 
     assert "目前版本品質（查詢：2330.TW；模式：v2；只看最新版本）" in result.stdout
@@ -482,6 +506,7 @@ process.stdout.write(html);
     assert "證據關卡需注意 1" in result.stdout
     assert "證據數值不一致 3" in result.stdout
     assert "證據未驗證原因：研究來源非 canonical 2" in result.stdout
+    assert "證據未驗證版本：資料已更新、本文需完整重跑（研究來源非 canonical 2）" in result.stdout
     assert "品質阻斷來源：報告一致性：最終稽核 1；內容可信度：最終稽核重大問題 1" in result.stdout
     assert "品質處理建議：人工審核 1" in result.stdout
     assert "內容阻斷版本：資料已更新、本文需完整重跑 1 份" in result.stdout

@@ -31,10 +31,11 @@
         const failedCount = Number(summary.evidence_failed_count), evidenceFailureSummary = Number.isFinite(failedCount) && failedCount > 0 ? `證據數值不一致 ${Math.floor(failedCount)}` : '';
         const evidenceMismatchFreshnessSummary = window.StockAgentReportQualityEvidence?.formatEvidenceMismatchFreshnessSummary?.(summary.evidence_mismatch_claims_by_freshness, summary.evidence_mismatch_reports_by_freshness) || '';
         const evidenceReasonSummary = window.StockAgentReportQualityEvidence?.formatUnverifiableReasonSummary?.(summary.evidence_unverifiable_reason_counts) || '';
+        const evidenceReasonFreshnessSummary = window.StockAgentReportQualityEvidence?.formatUnverifiableReasonFreshnessSummary?.(summary.evidence_unverifiable_reason_counts_by_freshness) || '';
         const blockerSummary = window.StockAgentReportQualityEvidence?.formatQualityBlockerSummary?.(summary.report_conformance_blocker_counts, summary.content_credibility_blocker_counts) || '';
         const contentBlockerFreshnessSummary = window.StockAgentReportQualityEvidence?.formatContentBlockerFreshnessSummary?.(summary.content_credibility_blocker_reports_by_freshness) || '';
         const qualityActionSummary = window.StockAgentReportQualityEvidence?.formatQualityActionSummary?.(summary.quality_gate_action_counts) || '';
-        const evidenceDetail = [evidenceFailureSummary, evidenceMismatchFreshnessSummary, evidenceReasonSummary, blockerSummary, contentBlockerFreshnessSummary, qualityActionSummary].filter(Boolean).join('；');
+        const evidenceDetail = [evidenceFailureSummary, evidenceMismatchFreshnessSummary, evidenceReasonSummary, evidenceReasonFreshnessSummary, blockerSummary, contentBlockerFreshnessSummary, qualityActionSummary].filter(Boolean).join('；');
         return `<em class="history-quality-audit-current-summary">${e(scope)}：${e(`一致性 ${conformance}；內容可信度需注意 ${contentAttention}；證據關卡需注意 ${evidenceAttention}；非通過 ${data.nonPassed}${evidenceDetail ? `；${evidenceDetail}` : ''}`)}</em>`;
     }
 

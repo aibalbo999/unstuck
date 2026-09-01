@@ -68,6 +68,11 @@ def test_current_quality_summary_keeps_gate_distributions_separate_and_bounds_ta
         "no_matching_snapshot_path": 2,
         "missing_semantic_path": 1,
     }
+    assert payload["evidence_unverifiable_reason_counts_by_freshness"] == {
+        "current": {},
+        "needs_rerun": {"missing_semantic_path": 1},
+        "unknown": {"no_matching_snapshot_path": 2},
+    }
     assert payload["evidence_mismatch_claims_by_freshness"] == {
         "current": 0,
         "needs_rerun": 1,
@@ -99,6 +104,7 @@ def test_current_quality_summary_keeps_gate_distributions_separate_and_bounds_ta
     assert payload["items"][0]["reason"] == "證據矛盾"
     assert payload["items"][0]["evidence_failed_count"] == 1
     assert payload["items"][0]["evidence_unverifiable_reason_counts"] == {"missing_semantic_path": 1}
+    assert payload["items"][0]["evidence_unverifiable_freshness_status"] == "needs_rerun"
     assert payload["items"][0]["evidence_mismatch_freshness_status"] == "needs_rerun"
 
 
