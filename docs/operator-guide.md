@@ -153,6 +153,8 @@ filtered view 沒有結果時，摘要會寫「目前沒有符合〈狀態〉的
 
 品質 target 內的資訊順序是由共用 `report_quality_evidence_helpers.js` 的 `renderTargetContext()` 固定為「審核狀態」→「結構化缺口、刷新來源、artifact 摘要與 rerun strategy」→「artifact 摘要僅供人工核對，不代表 gate 已通過」。history 與 watchlist 共用同一份文字順序；watchlist 可保留自己的 CSS class，但不改變語意。這只是閱讀層級；完整說明仍以 title、aria label 與同一報告的歷史稽核為準，不會把 artifact marker 當成 gate 結果。
 
+watchlist 品質摘要只有在 `quality_metadata_coverage_pct` 是 0 到 100 的有限數字時才顯示覆蓋率；越界或無法判定的值會省略，避免把錯誤百分比當成已驗證 coverage。
+
 按下「核准保留缺口／退回處理／暫緩」後，該按鈕會暫時鎖定並顯示忙碌狀態；同一筆 review 在回應完成前不會重複送出。成功會顯示「人工審核已儲存」，失敗會顯示錯誤且恢復按鈕，操作員可在確認 revision 後重試。這不代表品質 gate 被自動修復，真正決策仍以 canonical review ledger 為準。
 
 輸入核對理由後，畫面會再次確認是否要把目前決策寫入這個報告版本。選擇取消不會送出請求，也不會新增 review ledger event；選擇確認後仍須通過 server 的 mutation token 與 revision 檢查。

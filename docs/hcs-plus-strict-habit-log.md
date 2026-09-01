@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3814 / bound watchlist quality coverage percentages
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：history renderer 已拒絕超過 100 的 coverage，但 watchlist 主品質摘要直接拼接 `quality_metadata_coverage_pct`；`120` 會被當成已驗證覆蓋率顯示。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先以 `coverage_pct=120` 取得 RED，再沿用 history 的 finite 0-100 normalization；正常 coverage 保留原數字，越界值省略，不借用其他欄位。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新 watchlist cache-buster、API/operator/architecture 說明與 regression；focused regression `305 passed`，official live `98.79%` 正常、synthetic `120%` 被抑制，static assets `200`、health/ready `200/200`、doctor canonical paths 正常。本批不改 API count、quality gate、queue、snapshot、artifact、index、review 或 rerun state。
+
 ## D3813 / reject invalid historical current-quality item counts
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：watchlist validator 已拒絕 `returned > total`，但 history current-quality validator 沒有；矛盾 target list 可能通過摘要 projection。

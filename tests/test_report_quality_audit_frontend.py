@@ -364,6 +364,31 @@ process.stdout.write(JSON.stringify({ board }));
     assert 'data-quality-history-query="bad.html"' not in payload["board"]
 
 
+def test_watchlist_board_does_not_render_out_of_range_quality_coverage():
+    helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
+    script = """
+global.window = {};
+require(__HELPER_PATH__);
+const payload = {
+  decision_queue: { summary: { total_actionable: 0 }, items: [{ type: 'monitor' }] },
+  report_quality_audit: {
+    scope: 'all_indexed_reports',
+    audited_reports: 2,
+    quality_metadata_missing_reports: 1,
+    quality_metadata_coverage_pct: 120,
+    quality_metadata_coverage_basis: 'verified_snapshot_reports',
+    items: []
+  }
+};
+const board = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], payload, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ board }));
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "覆蓋 120%" not in payload["board"]
+
+
 def test_watchlist_board_does_not_trust_freshness_items_limit():
     helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
     freshness_helper_path = STATIC_DIR / "watchlist_freshness_helpers.js"
