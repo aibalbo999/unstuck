@@ -206,6 +206,86 @@ process.stdout.write(JSON.stringify({ board }));
     assert "資料快照已刷新，但分析本文未重跑。" in payload["board"]
 
 
+def test_watchlist_board_does_not_label_inconsistent_freshness_scope_complete():
+    helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
+    freshness_helper_path = STATIC_DIR / "watchlist_freshness_helpers.js"
+    scope_path = STATIC_DIR / "report_quality_queue_scope_helpers.js"
+    script = """
+global.window = {};
+require(__SCOPE_PATH__);
+require(__FRESHNESS_HELPER_PATH__);
+require(__HELPER_PATH__);
+const payload = {
+  decision_queue: { summary: { total_actionable: 0 }, items: [{ type: 'monitor' }] },
+  report_quality_audit: {
+    decision_freshness_summary: {
+      schema_version: 'report_freshness_summary.v1',
+      scope: 'all_indexed_reports',
+      selection_basis: 'latest_per_ticker_pipeline',
+      audited_reports: 22,
+      current_reports: 0,
+      needs_rerun_reports: 22,
+      unknown_reports: 0
+    },
+    decision_freshness_items: {
+      schema_version: 'report_freshness_items.v1',
+      scope: 'all_indexed_reports',
+      selection_basis: 'latest_per_ticker_pipeline',
+      items_total: 22,
+      items_returned: 1,
+      items_truncated: false,
+      items: [{ ticker: '3653.TW', pipeline_id: 'v3', filename: '3653_v3.html' }]
+    }
+  }
+};
+const board = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], payload, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ board }));
+""".replace("__SCOPE_PATH__", json.dumps(str(scope_path))).replace("__FRESHNESS_HELPER_PATH__", json.dumps(str(freshness_helper_path))).replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "待重跑報告（顯示 1/22；範圍資料需確認）" in payload["board"]
+    assert "待重跑報告（22）" not in payload["board"]
+
+
+def test_watchlist_board_does_not_label_inconsistent_current_quality_scope_complete():
+    helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
+    current_quality_helper_path = STATIC_DIR / "watchlist_current_quality_helpers.js"
+    scope_path = STATIC_DIR / "report_quality_queue_scope_helpers.js"
+    script = """
+global.window = {};
+require(__SCOPE_PATH__);
+require(__CURRENT_QUALITY_HELPER_PATH__);
+require(__HELPER_PATH__);
+const payload = {
+  decision_queue: { summary: { total_actionable: 0 }, items: [{ type: 'monitor' }] },
+  report_quality_audit: {
+    current_quality_summary: {
+      schema_version: 'report_current_quality_summary.v1',
+      scope: 'all_indexed_reports',
+      selection_basis: 'latest_per_ticker_pipeline',
+      audited_reports: 2,
+      report_conformance_by_status: { passed: 0, warning: 2, blocked: 0, unknown: 0 },
+      content_credibility_by_status: { passed: 0, warning: 2, blocked: 0, unknown: 0 },
+      evidence_exit_gate_by_verdict: { approved: 0, caution: 2, rejected: 0, unknown: 0 },
+      non_passed_reports: 2,
+      items_total: 2,
+      items_returned: 1,
+      items_truncated: false,
+      items: [{ ticker: '2330.TW', pipeline_id: 'v4', filename: '2330_v4.html' }]
+    }
+  }
+};
+const board = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], payload, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ board }));
+""".replace("__SCOPE_PATH__", json.dumps(str(scope_path))).replace("__CURRENT_QUALITY_HELPER_PATH__", json.dumps(str(current_quality_helper_path))).replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "目前品質待查看（顯示 1/2；範圍資料需確認）" in payload["board"]
+    assert "目前品質待查看（2）" not in payload["board"]
+
+
 def test_watchlist_board_surfaces_current_quality_projection_separately_with_history_navigation():
     evidence_path = STATIC_DIR / "report_quality_evidence_helpers.js"
     helper_path = STATIC_DIR / "watchlist_panel_helpers.js"

@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3808 / guard current-quality and freshness bounded labels
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`current-quality` 與 freshness 的 target list 在 `returned < total` 且 `items_truncated=false` 時仍顯示完整 total，會把部分 navigation sample 誤報成全量。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先以 `1/22` 與 `1/2` 反例取得 2 個 RED，再由 shared bounded label 驗證 `items_truncated`；正常截斷維持既有 `顯示 returned/total`，矛盾或缺失旗標改顯示「範圍資料需確認」並保留 target 導覽。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：API、operator guide、architecture map 同步說明不把 total 冒充完整清單；audit frontend `25 passed`、focused `277 passed`，live freshness `5/28`、current-quality `5/85`，static assets `200`、health/ready `200/200`、doctor canonical paths 正常。
+
 ## D3807 / share bounded repair queue scope across operator entries
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：同一份 live daily payload 在 operator dashboard 已顯示 repair target `5 / 9`，watchlist「今日工作台」卻只顯示取樣 `20` 份；兩個操作入口對可見範圍的語意不一致。

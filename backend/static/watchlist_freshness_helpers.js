@@ -22,7 +22,7 @@
     function targets(audit, escapeHtml) {
         const data = validatedItems(audit), e = escapeHtml || (value => String(value ?? ''));
         if (!data || !data.returned) return '';
-        const label = data.items.items_truncated ? `待重跑報告（顯示 ${data.returned}/${data.total}）` : `待重跑報告（${data.total}）`;
+        const label = window.StockAgentReportQualityQueueScope?.boundedItemsLabel?.('待重跑報告', data.total, data.returned, data.items.items_truncated) || (data.items.items_truncated === true ? `待重跑報告（顯示 ${data.returned}/${data.total}）` : (data.returned < data.total ? `待重跑報告（顯示 ${data.returned}/${data.total}；範圍資料需確認）` : `待重跑報告（${data.total}）`));
         const buttons = data.items.items.map(item => {
             const ticker = e(item.ticker || '報告'), pipeline = e(item.pipeline_id || 'v1'), filename = e(item.filename || ''), reason = e(item.reason || '資料快照與分析本文不同步');
             return filename ? `<button class="watchlist-quality-history-button" type="button" data-quality-history-audit-target data-quality-history-query="${filename}" data-quality-history-pipeline="${pipeline}" aria-label="查看 ${ticker} ${pipeline} 的待重跑報告"><span>查看 ${ticker} ${pipeline}</span><small>${reason}</small></button>` : '';
