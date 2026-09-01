@@ -25,7 +25,7 @@
             const jobsText = jobsValue ? helpers.activeJobText(jobsValue) : { tone: 'warning', value: '讀取失敗', detail: '' };
             const quotasText = quotasValue ? helpers.quotaText(quotasValue) : { tone: 'warning', value: '讀取失敗', detail: '' };
             const dashboardSummary = dailyDashboard.status === 'fulfilled' ? dashboardActions.dashboardText(dailyDashboard.value) : null;
-            const trust = dashboardSummary || (reportsValue ? helpers.trustText(reportsValue) : { tone: 'warning', value: '讀取失敗', detail: '' });
+            const trust = reportsValue ? helpers.trustText(reportsValue) : { tone: 'warning', value: '讀取失敗', detail: '' };
             const rerun = reportsValue ? helpers.rerunText(reportsValue) : { tone: 'warning', value: '讀取失敗', detail: '' };
             setItem(elements.activeJobs, jobsText.tone, jobsText.value, jobsText.detail);
             setItem(elements.dataTrust, trust.tone, trust.value, trust.detail);
@@ -33,7 +33,7 @@
             setItem(elements.rerun, rerun.tone, rerun.value, rerun.detail);
             const dashboardActionItems = dailyDashboard.status === 'fulfilled' ? dashboardActions.dashboardActionItems(dailyDashboard.value) : [];
             const actions = dashboardActionItems.length ? dashboardActionItems : helpers.operatorActionItems(jobsValue, quotasValue, reportsValue, watchlistValue);
-            const warningCount = [jobsText, quotasText, trust, rerun].filter(item => item.tone === 'warning').length, next = actions[0] || {}, updated = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
+            const warningCount = [jobsText, quotasText, trust, rerun, dashboardSummary].filter(Boolean).filter(item => item.tone === 'warning').length, next = actions[0] || {}, updated = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
             setShift(elements.shift, warningCount ? 'warning' : 'ok', warningCount ? `${warningCount} 類訊號需注意` : '可正常操作', `${updated} · 下一步：${next.label || '查看狀態'} — ${next.title || '目前沒有急件'}`);
             renderActions(actions);
         }

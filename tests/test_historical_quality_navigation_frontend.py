@@ -266,6 +266,54 @@ process.stdout.write(JSON.stringify(items));
     assert refresh_item["label"] == "刷新資料"
 
 
+def test_operator_summary_keeps_data_trust_card_separate_from_daily_queue_summary():
+    module_path = STATIC_DIR / "operator_summary_panel.js"
+    script = """
+global.window = {
+  StockAgentOperatorDashboardActions: {
+    actionableActionCount: () => 0,
+    candidateActionModel: item => item,
+    dashboardActionItems: () => [],
+    dashboardText: () => ({ tone: 'warning', value: '1 件待處理', detail: '報告修復：人工審核 1' })
+  },
+  StockAgentOperatorSummaryHelpers: {
+    activeJobText: () => ({ tone: 'ok', value: '無進行中任務', detail: '' }),
+    quotaText: () => ({ tone: 'ok', value: 'API 正常', detail: '' }),
+    trustText: () => ({ tone: 'warning', value: '資料信任需處理', detail: '資料新鮮 0 / 抽樣 1' }),
+    rerunText: () => ({ tone: 'ok', value: '無立即重跑', detail: '' }),
+    operatorActionItems: () => []
+  }
+};
+const elements = {};
+const makeElement = () => {
+  const strong = { textContent: '' }, em = { textContent: '' };
+  return { className: '', innerHTML: '', strong, em, querySelector: selector => selector === 'strong' ? strong : em, addEventListener: () => {} };
+};
+for (const id of ['operator-active-jobs', 'operator-data-trust', 'operator-api-quota', 'operator-rerun', 'operator-action-list']) elements[id] = makeElement();
+global.document = { getElementById: id => elements[id] || null, querySelectorAll: () => [] };
+require(__MODULE_PATH__);
+const apiClient = {
+  fetchActiveJobs: async () => ({ active_count: 0, jobs: [] }),
+  fetchApiQuotas: async () => ({ services: [] }),
+  fetchReports: async () => ({ reports: [{ ticker: '2330.TW' }] }),
+  fetchWatchlist: async () => ({ items: [] }),
+  fetchDailyDecisionDashboard: async () => ({ decision_queue: { summary: { total_actionable: 1 }, items: [] } })
+};
+(async () => {
+  await window.StockAgentOperatorSummaryPanel.create({ apiClient, ui: { escapeHtml: value => String(value ?? '') } }).load();
+  process.stdout.write(JSON.stringify({
+    dataTrust: [elements['operator-data-trust'].strong.textContent, elements['operator-data-trust'].em.textContent],
+    actionList: elements['operator-action-list'].innerHTML
+  }));
+})();
+""".replace("__MODULE_PATH__", json.dumps(str(module_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert payload["dataTrust"] == ["資料信任需處理", "資料新鮮 0 / 抽樣 1"]
+    assert "今日待處理" in payload["actionList"]
+
+
 def test_operator_summary_delegates_quality_audit_to_scoped_historical_review():
     module_path = STATIC_DIR / "operator_summary_panel.js"
     script = """
@@ -662,6 +710,6 @@ def test_historical_audit_navigation_wiring_uses_cache_busters_and_existing_scop
     assert "/static/history_filters.js?v=20260816-history-scope-persistence" in index_html
     assert "/static/history_workspace.js?v=20260816-scope-transient-state-guard" in index_html
     assert "/static/operator_dashboard_actions.js?v=20260902-report-repair-scope" in index_html
-    assert "/static/operator_summary_panel.js?v=20260821-quality-audit-action" in index_html
+    assert "/static/operator_summary_panel.js?v=20260902-data-trust-card-scope" in index_html
     assert "/static/app.js?v=20260821-quality-audit-action" in index_html
     assert "/static/styles/watchlist.css?v=20260816-daily-quality-target-context" in style_css
