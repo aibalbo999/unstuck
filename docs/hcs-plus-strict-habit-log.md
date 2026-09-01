@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3795 / separate unverifiable evidence claims from affected reports
+
+- `#拆解問題` / `#證據基礎` / `#語意含義`：live current-quality 的不可驗證 residual 以 claim 原因數統計；needs-rerun `112` 是 claim 數，不代表 `112` 份報告，且同一報告可能有多個原因。
+- `#偏誤降低` / `#責任` / `#最小變更`：新增 `evidence_unverifiable_reports_by_freshness`，每份含 residual 的報告在 `current`／`needs_rerun`／`unknown` 各計一次；shared helper 只有收到 optional report map 才附「涉及 N 份報告」，舊 payload 不猜報告數。
+- `#受眾` / `#溝通設計` / `#可驗證性` / `#可逆性`：focused `346 passed`、evidence/content/quality cross-layer `513 passed`，Node syntax、`py_compile`、`git diff --check` 通過；正式 reload 後需核對 live claim/report 分母、health/ready、asset 與 doctor canonical paths。本批只改 read-only diagnostics，不改 evidence verdict、snapshot、artifact、review、rerun、repair 或 queue。
+
 ## D3794 / label quality action projection separately from daily queue
 
 - `#拆解問題` / `#證據基礎` / `#語意含義`：live current-quality 的 `quality_gate_action_counts` 是全量最新報告的品質 gate 投影（`81` 筆人工審核、`4` 筆完整重跑），不是 daily decision queue；daily queue 目前是 `23` 件總待辦、首屏 `5` 件、次要 `18` 件，來源與分母不同。
