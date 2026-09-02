@@ -736,6 +736,8 @@ Browser report-quality actions, reading boundaries, data-trust badges, and decis
 
 The browser quality-action policy also surfaces `snapshot_integrity.status=invalid` or `valid=false` as a critical `manual_review` action, preserving available hash/error detail; this keeps the preview action aligned with the blocked reading boundary and backend report-repair priority without changing snapshot state.
 
+When an invalid snapshot carries the generic blocker plus a specific provider or hash error, the browser action drops the generic text and keeps the specific detail, matching the backend repair queue and reading notice evidence order.
+
 Browser policy normalizes surrounding whitespace and casing before checking quality or snapshot-integrity states, including injected quality-status helpers. Thus ` VERIFIED ` still identifies a verified snapshot for missing-gate detection, while ` INVALID ` remains blocking; no persisted report value is rewritten.
 
 Report conformance quality gate inputs accept mapping-safe wrappers before decision-tree evaluation, so read-only report lint, final audit, evidence, content credibility, context, or snapshot payloads cannot hide blocker or warning evidence.

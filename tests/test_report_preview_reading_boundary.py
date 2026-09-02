@@ -240,10 +240,12 @@ const report = {
 };
 const contradictory = { ...report, snapshot_integrity: { status: 'verified', valid: false } };
 const hashOnly = { ...report, snapshot_integrity: { status: 'invalid', hash: 'actual', expected_hash: 'expected' } };
+const genericHash = { ...report, snapshot_integrity: { status: 'invalid', hash: 'actual', expected_hash: 'expected', errors: ['資料快照完整性未通過，不能直接引用報告結論。'] } };
 process.stdout.write(JSON.stringify({
   gate: window.StockAgentReportQualityGatePolicy.reportQualityGateAction(report),
   contradictoryGate: window.StockAgentReportQualityGatePolicy.reportQualityGateAction(contradictory),
   hashOnlyGate: window.StockAgentReportQualityGatePolicy.reportQualityGateAction(hashOnly),
+  genericHashGate: window.StockAgentReportQualityGatePolicy.reportQualityGateAction(genericHash),
   action: window.StockAgentReportQualityPolicy.reportRecommendedAction(report),
   requiresAction: window.StockAgentReportQualityPolicy.requiresDataTrustAction(report)
 }));
@@ -258,6 +260,7 @@ process.stdout.write(JSON.stringify({
     }
     assert payload["contradictoryGate"]["tone"] == "critical"
     assert payload["hashOnlyGate"]["detail"] == "snapshot_hash mismatch"
+    assert payload["genericHashGate"]["detail"] == "snapshot_hash mismatch"
     assert payload["action"] == {"type": "manual_review", "filename": "invalid-snapshot.html"}
     assert payload["requiresAction"] is True
 

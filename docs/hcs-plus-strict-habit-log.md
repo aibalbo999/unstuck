@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3854 / preserve specific snapshot blocker detail
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：invalid snapshot 已能產生 browser manual review，但 generic blocker 與具體 hash/provider error 同時存在時，action detail 仍可能掩蓋真正證據。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以 generic error + hash mismatch fixture 先取得 `1 failed` RED；沿用後端 repair queue／reading notice 的 precedence，移除 generic text、保留具體 detail，無具體 detail 才 fallback。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：focused `16 passed`，更新 cache-buster、API/operator/architecture contract；只改瀏覽器 read-only evidence detail，不修改 snapshot、artifact、index、review、queue 或 rerun。
+
 ## D3853 / surface invalid snapshot action in browser quality policy
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：後端 repair queue 對 invalid／`valid=false` snapshot 已產生人工審核，但瀏覽器 quality action 未投影此 blocker，preview 可能只有 blocked reading notice 而沒有 action。
