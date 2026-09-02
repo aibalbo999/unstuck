@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi.responses import HTMLResponse, Response
 
 from data_trust import data_snapshot_filename_for_report
+from report_artifact_text import decode_utf8_artifact_text
 from report_history_snapshot_notice import invalid_snapshot_notice_context
 from report_history_storage import load_storage_item
 from report_view_repair import repair_report_html_for_view, repair_report_markdown_for_download
@@ -21,17 +22,6 @@ REPORT_HTML_SECURITY_HEADERS = {
 def invalid_report_content_response(kind: str) -> HTMLResponse:
     label = "報告 Markdown" if kind == "md" else "報告 HTML"
     return secure_html_response(f"<h1>{label} 無法解析</h1>", status_code=400)
-
-
-def decode_report_content(content: object) -> str | None:
-    if isinstance(content, str):
-        return content
-    if not isinstance(content, (bytes, bytearray, memoryview)):
-        return None
-    try:
-        return bytes(content).decode("utf-8")
-    except UnicodeDecodeError:
-        return None
 
 
 def secure_html_response(content: str, *, status_code: int = 200, headers: dict | None = None) -> HTMLResponse:
@@ -62,7 +52,7 @@ def report_file_response(
     context = reading_notice_context
     if context is None:
         context = invalid_snapshot_notice_context(storage, filename)
-    html_content = decode_report_content(item.content)
+    html_content = decode_utf8_artifact_text(item.content)
     if html_content is None:
         return invalid_report_content_response("html")
     html = repair_report_html_for_view(html_content, reading_notice_context=context)
@@ -83,7 +73,7 @@ def download_report_response(
         context = reading_notice_context
         if context is None:
             context = invalid_snapshot_notice_context(storage, filename)
-        html_content = decode_report_content(item.content)
+        html_content = decode_utf8_artifact_text(item.content)
         if html_content is None:
             return invalid_report_content_response("html")
         html = repair_report_html_for_view(html_content, reading_notice_context=context)
@@ -99,7 +89,7 @@ def download_report_response(
         context = reading_notice_context
         if context is None:
             context = invalid_snapshot_notice_context(storage, filename)
-        markdown_content = decode_report_content(item.content)
+        markdown_content = decode_utf8_artifact_text(item.content)
         if markdown_content is None:
             return invalid_report_content_response("md")
         markdown = repair_report_markdown_for_download(markdown_content, reading_notice_context=context)

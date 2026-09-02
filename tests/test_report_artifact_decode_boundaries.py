@@ -141,3 +141,45 @@ def test_report_download_returns_http_error_for_non_utf8_markdown():
 
     assert response.status_code == 400
     assert "Markdown" in response.body.decode("utf-8")
+
+
+def test_quality_audit_does_not_treat_non_utf8_markdown_as_missing_markers():
+    from types import SimpleNamespace
+
+    from report_quality_evidence import read_artifact_quality_summary
+
+    def load_item(_storage, _filename, *, kind):
+        assert kind == "md"
+        return SimpleNamespace(content=b"\xff\xfe not utf-8")
+
+    assert read_artifact_quality_summary(object(), "report.html", load_item=load_item) == {
+        "status": "unavailable",
+        "source": "markdown",
+        "fields": [],
+    }
+
+
+def test_quality_audit_does_not_parse_replacement_text_as_rerun_context():
+    from types import SimpleNamespace
+
+    from report_quality_audit_rows import read_artifact_rerun_context_status
+
+    def load_item(_storage, _filename, *, kind):
+        assert kind == "md"
+        return SimpleNamespace(
+            content=(
+                b"## 1. Agent (Agent 1)\nvalid\n"
+                b"## 2. Agent (Agent 2)\nvalid\n"
+                b"## 3. Agent (Agent 3)\nvalid\n"
+                b"## 4. Agent (Agent 4)\nvalid\n"
+                b"## 5. Agent (Agent 5)\nvalid\n"
+                b"## 6. Agent (Agent 6)\n\xff\xfe not utf-8"
+            )
+        )
+
+    assert read_artifact_rerun_context_status(
+        object(),
+        "report.html",
+        "v1",
+        load_item=load_item,
+    ) == "unavailable"

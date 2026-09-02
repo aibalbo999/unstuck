@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3847 / keep quality-audit artifact evidence strict
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：quality audit 的 Markdown context reader 以 `errors="replace"` 解析不可解碼 bytes，可能把壞檔判成 `present/partial`；artifact marker summary 在 decode 失敗後也把存在但不可讀的檔案回報成 `not_found`，操作員會得到錯誤的 artifact evidence。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先以 invalid UTF-8 Markdown fixture 重現 `not_found` 與 `present` RED，再新增共用 strict UTF-8 decoder；不可解碼 Markdown/HTML 只回 `unavailable`，可讀的另一 artifact 仍可提供 marker evidence，不輸出 replacement text、不借用其他報告值。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新 API/operator/architecture contract；artifact/quality `53 passed`、refresh/storage `89 passed`、品質/前端/文件 `342 passed`、import/runtime `546 passed`、preview `121 passed`，Python compile 與 `git diff --check` 通過；正式 runtime reload 後 `/healthz`、`/readyz` `200/200`，live current-quality `165/85/5/85`、historical `1175/59/59/truncated=false`，59 筆 historical artifact marker 全數 `present`、`unavailable=0`，doctor canonical report index/operational DB、local storage 與 RQ 正常。本批不改報告內容、quality gate、snapshot/index 寫入、review、queue 或 rerun side effect。
+
 ## D3846 / fail closed on malformed report artifact encodings and shapes
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：report index、preview、compare、rerun、download 等 read path 對非 UTF-8 artifact 只要直接 decode 就可能中止整個操作；合法 JSON 陣列或純量也可能在 metadata/rerun path 被當成 object 呼叫 `.get()`，把不可驗證資料誤變成 500。

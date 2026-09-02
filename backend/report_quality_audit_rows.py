@@ -8,6 +8,7 @@ from typing import Any, Callable
 from mapping_fields import safe_mapping_dict, safe_text
 from decision_tracking import build_decision_freshness
 from pipeline_modes import get_pipeline_definition, get_structured_agent_num
+from report_artifact_text import decode_utf8_artifact_text
 from report_rerun_context import parse_agent_sections_from_markdown
 from reporting.content_credibility_final_audit import align_content_credibility_with_final_audit
 from reporting.content_credibility_projection import merge_content_credibility_results, project_content_credibility
@@ -114,7 +115,9 @@ def read_artifact_rerun_context_status(
         return "unavailable"
     try:
         raw_content = item.content
-        markdown = raw_content.decode("utf-8", errors="replace") if isinstance(raw_content, bytes) else safe_text(raw_content)
+        markdown = decode_utf8_artifact_text(raw_content)
+        if markdown is None:
+            return "unavailable"
         sections = parse_agent_sections_from_markdown(markdown)
         pipeline = get_pipeline_definition(safe_text(pipeline_id).strip() or "v1")
         final_agent = get_structured_agent_num("recommendation", pipeline["id"])
@@ -151,7 +154,7 @@ def _load_markdown(storage: Any, filename: str, load_item: Callable[..., Any]) -
         return ""
     try:
         raw_content = item.content
-        return raw_content.decode("utf-8", errors="replace") if isinstance(raw_content, bytes) else safe_text(raw_content)
+        return decode_utf8_artifact_text(raw_content) or ""
     except Exception:
         return ""
 
