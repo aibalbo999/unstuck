@@ -726,6 +726,8 @@ Analysis node telemetry arbitrary object bool fields use conservative fallback b
 
 Report conformance quality gate inputs use dict-native field reads before decision-tree evaluation, so malformed report lint, final audit, evidence exit gate, or content credibility accessors cannot interrupt report quality classification or erase valid blocking and warning evidence.
 
+Report conformance treats a missing or `not_recorded` `final_audit` as a warning with `details=not_recorded`; it never defaults an absent final audit to passed. Explicit critical findings and blocking statuses still take precedence, while historical/API metadata coverage keeps its separate missing-gate semantics.
+
 Report conformance quality gate inputs accept mapping-safe wrappers before decision-tree evaluation, so read-only report lint, final audit, evidence, content credibility, context, or snapshot payloads cannot hide blocker or warning evidence.
 
 Report conformance quality gate issue lists use sequence-safe conversion before decision-tree evaluation, so tuple blocking or warning rows from lint, final audit, or content credibility gates cannot be ignored.

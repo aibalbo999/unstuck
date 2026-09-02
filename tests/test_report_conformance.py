@@ -70,6 +70,27 @@ def test_report_conformance_decision_tree_passes_visible_contracts():
     ]
 
 
+def test_report_conformance_warns_when_final_audit_is_not_recorded():
+    from reporting.conformance import evaluate_report_conformance
+
+    html, markdown = _conforming_artifacts()
+    result = evaluate_report_conformance(
+        html,
+        markdown,
+        context={"data": {"data_trust": {"status": "fresh"}}},
+        snapshot={"data_trust": {"status": "fresh"}},
+        report_lint={"status": "passed", "blocking_issues": [], "warnings": []},
+        evidence_exit_gate={"verdict": "approved", "failed_count": 0},
+        content_credibility={"status": "passed", "blocking_issues": [], "warnings": []},
+    )
+
+    final_audit_step = next(step for step in result["decision_tree"] if step["id"] == "final_audit")
+    assert result["status"] == "warning"
+    assert final_audit_step["status"] == "warning"
+    assert final_audit_step["details"] == "not_recorded"
+    assert any(issue["id"] == "final_audit" for issue in result["warnings"])
+
+
 def test_report_conformance_keeps_quality_gate_mappings_when_accessor_fails():
     from reporting.conformance import evaluate_report_conformance
 

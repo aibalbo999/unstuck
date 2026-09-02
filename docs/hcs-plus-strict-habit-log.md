@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3848 / keep missing final-audit evidence visible
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：產製 conformance 的 final-audit step 對空 payload 使用 `passed` fallback；因此缺少最終稽核證據的輸出仍可能被標成通過，和歷史品質稽核對 `not_recorded` 缺口的語意不一致。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先新增完整可見 artifact、fresh data、approved evidence、passed content 的 missing-final-audit fixture 取得 RED，再只把缺少或 `not_recorded` 的 final audit 收斂為 warning；critical 與 blocked/failed/rejected 仍優先 blocked，沒有從歷史/API projection 借用 metadata。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新 API、operator、architecture contract；conformance/steps `10 passed`、content credibility `28 passed`、report/storage `90 passed`、tracking refresh/artifact/runtime `25 passed`、品質前端/文件 `342 passed`、受影響模組與 import/docs `614 passed`，可選商業頁三 viewport `3 passed`，Python compile、`git diff --check` 通過。全套基線為 `8521 passed, 6 skipped, 75 subtests passed` 並有 3 個失敗；舊 final-audit placeholder 期待與新契約已由 targeted regression 修正，commercial visual timeout 後續獨立重跑通過。正式 reload 後 health/ready `200/200`，current `165/85`、conformance `80/71/14`、evidence `134/28/3`，historical `1175/59` 且 artifact `present=59/unavailable=0`，doctor canonical paths 與 RQ 正常。本批只改 read-only conformance classification，不寫 snapshot、artifact、index、review、queue 或 rerun。
+
 ## D3847 / keep quality-audit artifact evidence strict
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：quality audit 的 Markdown context reader 以 `errors="replace"` 解析不可解碼 bytes，可能把壞檔判成 `present/partial`；artifact marker summary 在 decode 失敗後也把存在但不可讀的檔案回報成 `not_found`，操作員會得到錯誤的 artifact evidence。

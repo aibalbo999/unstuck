@@ -81,7 +81,7 @@ def test_conformance_steps_drop_string_empty_gate_status_tokens():
 
     statuses = {step["id"]: step["status"] for step in result["decision_tree"]}
     assert statuses["report_lint"] == "passed"
-    assert statuses["final_audit"] == "passed"
+    assert statuses["final_audit"] == "warning"
     assert statuses["evidence_exit_gate"] == "warning"
     assert statuses["content_credibility"] == "passed"
 

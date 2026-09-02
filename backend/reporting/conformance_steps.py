@@ -45,7 +45,7 @@ def _report_lint_step(report_lint: dict) -> dict:
 
 def _final_audit_step(context: dict) -> dict:
     final_audit = _as_dict(dict.get(context, "final_audit"))
-    final_status = _text(dict.get(final_audit, "status"), "passed")
+    final_status = _text(dict.get(final_audit, "status"), "not_recorded")
     critical = _as_list(dict.get(final_audit, "critical"))
     audit_warnings = _as_list(dict.get(final_audit, "warnings"))
     if final_status in {"blocked", "failed", "rejected"} or critical:
@@ -53,6 +53,8 @@ def _final_audit_step(context: dict) -> dict:
             step("final_audit", "blocked", "最終稽核存在 critical 問題。", critical or final_status),
             issue_kind="blocking",
         )
+    if not final_audit or final_status == "not_recorded":
+        return step_result(step("final_audit", "warning", "最終稽核未記錄，需人工確認。", final_status), issue_kind="warning")
     if final_status != "passed" or audit_warnings:
         return step_result(
             step("final_audit", "warning", "最終稽核有警示需揭露。", audit_warnings or final_status),
