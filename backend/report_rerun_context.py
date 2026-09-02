@@ -60,8 +60,10 @@ def read_report_snapshot(filename: str, output_dir: str, storage: ReportStorage 
                 snapshot = json.load(f)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="舊報告沒有資料快照，無法局部重跑") from exc
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=400, detail=f"資料快照無法讀取：{exc}") from exc
+    if not isinstance(snapshot, dict):
+        raise HTTPException(status_code=400, detail="資料快照格式不是 JSON 物件")
     if not isinstance(snapshot.get("data"), dict):
         raise HTTPException(status_code=400, detail="資料快照缺少可重跑的 data payload")
     return snapshot
@@ -79,7 +81,7 @@ def read_report_markdown(filename: str, output_dir: str, storage: ReportStorage 
             return f.read()
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="找不到原始 Markdown，無法還原前序 Agent 段落") from exc
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
         raise HTTPException(status_code=400, detail=f"Markdown 無法讀取：{exc}") from exc
 
 

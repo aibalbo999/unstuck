@@ -185,6 +185,6 @@ def read_data_trust_from_snapshot(path: str | Path) -> dict:
         return unknown_data_trust()
     try:
         snapshot = json.loads(path_obj.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return unknown_data_trust()
     return normalize_data_trust(snapshot.get("data_trust") if isinstance(snapshot, dict) else {})

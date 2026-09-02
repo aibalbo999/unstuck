@@ -65,7 +65,7 @@ def _read_snapshot(row) -> dict:
     try:
         with open(path, "r", encoding="utf-8") as handle:
             snapshot = json.load(handle)
-    except (OSError, TypeError, json.JSONDecodeError):
+    except (OSError, UnicodeDecodeError, TypeError, json.JSONDecodeError):
         return {}
     return snapshot if isinstance(snapshot, dict) else {}
 
@@ -221,7 +221,7 @@ def _markdown_text(row) -> str:
     try:
         with open(path, "r", encoding="utf-8") as handle:
             return handle.read()
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return ""
 
 

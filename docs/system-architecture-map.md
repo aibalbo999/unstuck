@@ -174,6 +174,7 @@ flowchart TD
 - 查報告檔請用 `report_history_storage.existing_storage_key()` 或 `load_storage_item()`。
 - 不要直接寫 `Path(output_dir) / filename` 來找 HTML/Markdown/data snapshot。
 - `report_index.data_snapshot_filename` 是檔名，不保證是完整相對路徑。
+- report-facing artifact readers 對非 UTF-8、無法解析的 JSON 與非 object JSON root 必須 fail closed；列表/preview/compare 只能回傳 unavailable/fallback，rerun 與 HTML/Markdown download 必須回傳明確 400，不得以 replacement character 或其他報告的值補出可讀內容。
 - `report_rerun_service` 也必須先用 `storage_for_existing_output_dir()` 取得 storage，再由 `ReportArtifactLocator` 查找來源 HTML；解析出的 storage 要沿用到 snapshot、重跑 context 與輸出 persistence，不能因呼叫端未注入 storage 就退回 `output_dir/filename`。
 - 舊版 `/api/report/{filename}/review` 的 `.review.json` 以 `report_storage_candidates_for_filename(..., kind="review")` 與 nested bundle 同位置保存；讀取保留 flat legacy fallback，report history delete/retention/orphan cleanup 會清理 review key。它不等同於 `operational.sqlite3` 的 revision-bound `report_quality_review_events`。
 

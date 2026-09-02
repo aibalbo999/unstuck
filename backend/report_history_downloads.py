@@ -18,6 +18,22 @@ REPORT_HTML_SECURITY_HEADERS = {
 }
 
 
+def invalid_report_content_response(kind: str) -> HTMLResponse:
+    label = "報告 Markdown" if kind == "md" else "報告 HTML"
+    return secure_html_response(f"<h1>{label} 無法解析</h1>", status_code=400)
+
+
+def decode_report_content(content: object) -> str | None:
+    if isinstance(content, str):
+        return content
+    if not isinstance(content, (bytes, bytearray, memoryview)):
+        return None
+    try:
+        return bytes(content).decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+
+
 def secure_html_response(content: str, *, status_code: int = 200, headers: dict | None = None) -> HTMLResponse:
     response_headers = dict(REPORT_HTML_SECURITY_HEADERS)
     response_headers.update(headers or {})
@@ -46,7 +62,10 @@ def report_file_response(
     context = reading_notice_context
     if context is None:
         context = invalid_snapshot_notice_context(storage, filename)
-    html = repair_report_html_for_view(item.content.decode("utf-8"), reading_notice_context=context)
+    html_content = decode_report_content(item.content)
+    if html_content is None:
+        return invalid_report_content_response("html")
+    html = repair_report_html_for_view(html_content, reading_notice_context=context)
     return secure_html_response(html)
 
 
@@ -64,7 +83,10 @@ def download_report_response(
         context = reading_notice_context
         if context is None:
             context = invalid_snapshot_notice_context(storage, filename)
-        html = repair_report_html_for_view(item.content.decode("utf-8"), reading_notice_context=context)
+        html_content = decode_report_content(item.content)
+        if html_content is None:
+            return invalid_report_content_response("html")
+        html = repair_report_html_for_view(html_content, reading_notice_context=context)
         return secure_html_response(
             html,
             headers={"Content-Disposition": f"attachment; filename={filename}"},
@@ -77,10 +99,10 @@ def download_report_response(
         context = reading_notice_context
         if context is None:
             context = invalid_snapshot_notice_context(storage, filename)
-        markdown = repair_report_markdown_for_download(
-            item.content.decode("utf-8"),
-            reading_notice_context=context,
-        )
+        markdown_content = decode_report_content(item.content)
+        if markdown_content is None:
+            return invalid_report_content_response("md")
+        markdown = repair_report_markdown_for_download(markdown_content, reading_notice_context=context)
         return Response(
             content=markdown.encode("utf-8"),
             media_type=item.metadata.content_type,

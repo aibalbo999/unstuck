@@ -93,7 +93,7 @@ def _snapshot_generated_at(snapshot_path: str) -> str:
     try:
         with open(snapshot_path, "r", encoding="utf-8") as handle:
             snapshot = json.load(handle)
-    except (OSError, TypeError, json.JSONDecodeError):
+    except (OSError, UnicodeDecodeError, TypeError, json.JSONDecodeError):
         return ""
     if not isinstance(snapshot, dict):
         return ""
@@ -141,7 +141,7 @@ def parse_recommendation_summary(
                 continue
             try:
                 markdown_text = md_path.read_text(encoding="utf-8")
-            except OSError:
+            except (OSError, UnicodeDecodeError):
                 continue
             break
         if markdown_text is None:
@@ -241,7 +241,7 @@ def extract_company_name(filename: str, ticker: str, output_dir: str, html_conte
         for html_path in _html_path_candidates(output_dir, filename):
             try:
                 html_content = html_path.read_text(encoding="utf-8")
-            except OSError:
+            except (OSError, UnicodeDecodeError):
                 continue
             break
     match = re.search(r'<div class="sidebar-name">([^<]+)</div>', html_content or "")

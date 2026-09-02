@@ -37,7 +37,7 @@ def _read_snapshot(path: str) -> dict:
     try:
         with open(path, "r", encoding="utf-8") as f:
             snapshot = json.load(f)
-    except (OSError, json.JSONDecodeError):
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return {}
     return snapshot if isinstance(snapshot, dict) else {}
 

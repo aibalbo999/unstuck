@@ -63,7 +63,9 @@ def read_snapshot_report_flags(data_snapshot_path: str) -> dict:
     try:
         with open(data_snapshot_path, "r", encoding="utf-8") as f:
             snapshot = json.load(f)
-    except (OSError, json.JSONDecodeError):
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return {"analysis_text_stale": False, "analysis_text_stale_message": "", "data_snapshot_hash": ""}
+    if not isinstance(snapshot, dict):
         return {"analysis_text_stale": False, "analysis_text_stale_message": "", "data_snapshot_hash": ""}
     return {
         "analysis_text_stale": bool(snapshot.get("refreshed_without_analysis_rerun")),
@@ -78,7 +80,9 @@ def read_snapshot_ticker(data_snapshot_path: str, fallback_ticker: str) -> str:
     try:
         with open(data_snapshot_path, "r", encoding="utf-8") as f:
             snapshot = json.load(f)
-    except (OSError, json.JSONDecodeError):
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return fallback_ticker
+    if not isinstance(snapshot, dict):
         return fallback_ticker
     data = snapshot.get("data") if isinstance(snapshot.get("data"), dict) else {}
     candidates = [

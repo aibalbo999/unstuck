@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3846 / fail closed on malformed report artifact encodings and shapes
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：report index、preview、compare、rerun、download 等 read path 對非 UTF-8 artifact 只要直接 decode 就可能中止整個操作；合法 JSON 陣列或純量也可能在 metadata/rerun path 被當成 object 呼叫 `.get()`，把不可驗證資料誤變成 500。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先以 invalid UTF-8 與 `[]` fixtures 取得 RED，再只在各 reader 邊界加入 decode/root-shape fail-closed；index/preview/compare 回 unavailable/fallback，data trust/freshness 保留 unknown，rerun 與 HTML/Markdown download 回 HTTP 400，不以 replacement character、其他 artifact 或 index 值補內容。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新 API/operator/architecture contract；decode/shape boundary `10 passed`，refresh/storage/artifact `89 passed`、tracking `9 passed`、品質/前端/文件 `342 passed`、import/architecture/docs/runtime `614 passed`、preview/boundary `131 passed`，Python compile 與 `git diff --check` 通過；正式 runtime reload 後 `/healthz`、`/readyz` `200/200`，live current-quality `165/85/5/85`、historical `1175/59/0`，doctor canonical report index/operational DB、local storage 與 RQ 正常。本批不改報告內容、quality gate、snapshot/index 寫入、review、queue 或 rerun side effect。
+
 ## D3845 / derive refresh freshness from the persisted snapshot
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：data-only refresh 已寫入新的 snapshot，卻再以 `output_dir + bundle.data_key` 讀檔計算 freshness；storage abstraction 沒有 filesystem path 時，明確的 `needs_rerun` 會被錯誤降級成 `unknown`。
