@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3865 / normalize decision validity status before safety decisions
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：artifact data 本身沒有 malformed status，但 decision tracking、refresh diff 與 partial rerun guard 對 `decision_validity_status` 使用 exact match，格式漂移會改變安全判斷。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以 ` NEEDS_RERUN ` fixture 取得 decision/refresh `2 failed` 與 rerun `1 failed` RED；加入 shared trim/lowercase status projection，並讓 rerun flag 同樣使用 shared explicit boolean parser。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture contract；新增 fixture 預期 `3 passed`，保持 snapshot、artifact、review、queue 與 rerun state 不變。
+
 ## D3864 / preserve freshness semantics across downstream projections
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：D3863 只修 snapshot-to-index ingestion，但 decision tracking、quality audit hydration、compare 與 repair builders 仍以 raw truthiness 讀取 freshness flags。

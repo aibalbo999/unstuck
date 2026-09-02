@@ -4240,6 +4240,26 @@ def test_final_rerun_rejects_refreshed_snapshot_that_needs_full_analysis(tmp_pat
     assert "完整重跑" in str(exc_info.value.detail)
 
 
+def test_final_rerun_rejects_normalized_legacy_needs_rerun_status(tmp_path):
+    snapshot = {
+        "pipeline": "v2",
+        "data": {},
+        "refreshed_without_analysis_rerun": False,
+        "decision_validity_status": " NEEDS_RERUN ",
+        "requires_rerun_reason": "legacy status needs rerun",
+    }
+
+    with pytest.raises(report_rerun_service.HTTPException) as exc_info:
+        report_rerun_service._build_final_rerun_context(
+            "2449_v2_report_20260606_010000.html",
+            snapshot,
+            str(tmp_path),
+        )
+
+    assert exc_info.value.status_code == 409
+    assert "完整重跑" in str(exc_info.value.detail)
+
+
 def test_parse_agent_sections_from_markdown_supports_final_rerun_context():
     markdown = """# report
 

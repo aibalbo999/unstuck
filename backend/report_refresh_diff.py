@@ -6,6 +6,7 @@ import json
 
 from data_trust import normalize_data_trust
 from mapping_fields import safe_mapping_dict, safe_sequence_items
+from report_freshness_summary import normalize_freshness_status, safe_bool
 
 
 DECISION_RELEVANT_DATA_KEYS = (
@@ -96,8 +97,8 @@ def refresh_requires_analysis_rerun(previous_snapshot: dict, refreshed_snapshot:
     refreshed_snapshot_map = safe_mapping_dict(refreshed_snapshot) or {}
     refresh_diff_map = safe_mapping_dict(refresh_diff) or {}
     if (
-        dict.get(previous_snapshot_map, "refreshed_without_analysis_rerun")
-        or dict.get(previous_snapshot_map, "decision_validity_status") == "needs_rerun"
+        safe_bool(dict.get(previous_snapshot_map, "refreshed_without_analysis_rerun"))
+        or normalize_freshness_status(dict.get(previous_snapshot_map, "decision_validity_status")) == "needs_rerun"
     ):
         return True
     before_data = safe_mapping_dict(dict.get(previous_snapshot_map, "data")) or {}

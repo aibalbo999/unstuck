@@ -6,7 +6,6 @@ import time
 from typing import Any
 
 from fastapi import HTTPException
-
 from agent_runtime import AnalysisRequest
 from agent_runtime.cancellation import attach_cancel_check
 from agent_runtime.quality_gates import run_agent_with_quality_gates_async
@@ -17,6 +16,7 @@ from llm_client import KeyRotator
 from mapping_fields import safe_mapping_dict
 from pipeline_modes import get_pipeline_definition, get_structured_agent_num, normalize_pipeline_id
 from report_artifacts import ReportArtifactLocator
+from report_freshness_summary import normalize_freshness_status, safe_bool
 from report_history_storage import storage_for_existing_output_dir
 from report_index_parsing import is_safe_report_filename, parse_report_filename
 from report_rerun_data import prepare_full_rerun_data, rerun_data_payload
@@ -85,8 +85,8 @@ def _build_final_rerun_context(
     if final_agent is None:
         raise HTTPException(status_code=400, detail="此 pipeline 沒有可重跑的最終建議 Agent")
     if (
-        dict.get(snapshot_map, "refreshed_without_analysis_rerun")
-        or dict.get(snapshot_map, "decision_validity_status") == "needs_rerun"
+        safe_bool(dict.get(snapshot_map, "refreshed_without_analysis_rerun"))
+        or normalize_freshness_status(dict.get(snapshot_map, "decision_validity_status")) == "needs_rerun"
     ):
         reason = str(
             dict.get(snapshot_map, "requires_rerun_reason")

@@ -94,6 +94,10 @@ def safe_bool(value: Any) -> bool:
     return safe_text(value).strip().lower() in {"true", "1", "yes", "y", "on"}
 
 
+def normalize_freshness_status(value: Any, default: str = "") -> str:
+    return safe_text(value).strip().lower() or default
+
+
 def _requires_rerun(report: dict[str, Any], freshness: dict[str, Any]) -> bool:
     return any(
         safe_bool(value)
@@ -109,7 +113,7 @@ def _requires_rerun(report: dict[str, Any], freshness: dict[str, Any]) -> bool:
 def report_freshness_bucket(report: dict[str, Any]) -> str:
     """Return the same freshness bucket used by all read-only summaries."""
     freshness = safe_mapping_dict(report.get("decision_freshness")) or {}
-    status = safe_text(freshness.get("status") or report.get("decision_validity_status")).strip().lower()
+    status = normalize_freshness_status(freshness.get("status") or report.get("decision_validity_status"))
     if _requires_rerun(report, freshness):
         return "needs_rerun"
     if status == "current":
@@ -137,6 +141,7 @@ __all__ = [
     "attach_full_report_freshness_summary",
     "build_report_freshness_items",
     "build_report_freshness_summary",
+    "normalize_freshness_status",
     "report_freshness_bucket",
     "safe_bool",
 ]

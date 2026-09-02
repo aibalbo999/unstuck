@@ -90,3 +90,33 @@ def test_refresh_requires_analysis_rerun_ignores_provider_sla_only_partial_chang
     }
 
     assert refresh_requires_analysis_rerun(previous_snapshot, refreshed_snapshot, refresh_diff) is False
+
+
+def test_refresh_requires_analysis_rerun_recognizes_normalized_legacy_status():
+    previous_snapshot = {
+        "data": {"current_price": 100},
+        "decision_validity_status": " NEEDS_RERUN ",
+        "refreshed_without_analysis_rerun": "false",
+        "data_trust": {"status": "fresh", "critical_failures": [], "stale_sources": [], "reason_codes": []},
+    }
+
+    assert refresh_requires_analysis_rerun(
+        previous_snapshot,
+        {"data": {"current_price": 100}, "data_trust": previous_snapshot["data_trust"]},
+        {"stale_sources": {"removed": [], "added": []}, "critical_failures": {"removed": [], "added": []}},
+    ) is True
+
+
+def test_refresh_requires_analysis_rerun_keeps_legacy_false_flag_false():
+    previous_snapshot = {
+        "data": {"current_price": 100},
+        "decision_validity_status": "current",
+        "refreshed_without_analysis_rerun": "false",
+        "data_trust": {"status": "fresh", "critical_failures": [], "stale_sources": [], "reason_codes": []},
+    }
+
+    assert refresh_requires_analysis_rerun(
+        previous_snapshot,
+        {"data": {"current_price": 100}, "data_trust": previous_snapshot["data_trust"]},
+        {"stale_sources": {"removed": [], "added": []}, "critical_failures": {"removed": [], "added": []}},
+    ) is False

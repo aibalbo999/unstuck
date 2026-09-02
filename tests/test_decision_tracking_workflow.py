@@ -128,6 +128,20 @@ def test_decision_tracking_keeps_legacy_false_freshness_false():
     assert tracking["refreshed_without_analysis_rerun"] is False
 
 
+def test_decision_freshness_normalizes_legacy_status_tokens():
+    freshness = build_decision_freshness(
+        report_generated_at="2026-06-09T00:00:00+00:00",
+        snapshot={
+            "generated_at": "2026-06-09T00:00:00+00:00",
+            "refreshed_without_analysis_rerun": False,
+            "decision_validity_status": " NEEDS_RERUN ",
+        },
+    )
+
+    assert freshness["status"] == "needs_rerun"
+    assert freshness["requires_rerun"] is True
+
+
 def test_decision_tracking_lookup_skips_repeated_metadata_sync(monkeypatch, tmp_path):
     monkeypatch.setattr(decision_tracking_store, "DECISION_TRACKING_DB_PATH", str(tmp_path / "decision_tracking.sqlite3"))
     decision_tracking_store.reset_decision_tracking_store_for_tests()

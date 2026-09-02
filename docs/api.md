@@ -40,6 +40,8 @@ Snapshot ingestion applies the same explicit boolean contract to `refreshed_with
 
 Decision tracking, quality-audit hydration, compare responses, and repair-item classification reuse that same explicit boolean contract for `refreshed_without_analysis_rerun`, `analysis_text_stale`, and `requires_rerun`. A legacy string `false` therefore remains current across downstream read-only projections instead of creating a false warning or rerun action.
 
+Freshness status values are also trimmed and lowercased before decision tracking, refresh policy, or partial-rerun guards compare `decision_validity_status`; values such as ` NEEDS_RERUN ` cannot bypass the full-rerun safety boundary.
+
 Quality-audit artifact evidence follows the same strict boundary: an undecodable Markdown/HTML artifact is `artifact_quality_summary.status=unavailable`, and an undecodable Markdown artifact is `artifact_rerun_context_status=unavailable`; neither is reported as missing markers or partial/present rerun context.
 
 When a snapshot has a non-empty `rerun_context.parsed`, report-history rows perform a read-only current-rule `content_credibility` projection. A recorded gate is merged with that projection so newly detected blockers/warnings are visible while previously recorded findings are retained. The optional `content_credibility_projection` object reports `status=projected|available|unavailable`, `source=snapshot.rerun_context`, and the persisted gate status. `available` means the deterministic check can run but the persisted gate is still missing; it never counts as saved quality metadata, writes the snapshot, repairs the artifact, enqueues a rerun, or changes the queue.

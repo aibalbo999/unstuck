@@ -9,7 +9,7 @@ from typing import Optional
 from confidence_calibration import build_confidence_calibration, has_unresolved_cross_source_conflict
 from price_parser import extract_price_numbers
 from recommendation_labels import normalize_recommendation_label
-from report_freshness_summary import safe_bool
+from report_freshness_summary import normalize_freshness_status, safe_bool
 
 
 def parse_optional_price(value) -> Optional[float]:
@@ -215,7 +215,9 @@ def build_decision_freshness(
         or (data_snapshot_generated_at if stale else "")
         or ""
     )
-    status = str(snapshot.get("decision_validity_status") or ("needs_rerun" if stale else "current"))
+    status = normalize_freshness_status(
+        snapshot.get("decision_validity_status") or ("needs_rerun" if stale else "current")
+    )
     requires_rerun = status == "needs_rerun" or stale
     reason = str(
         snapshot.get("requires_rerun_reason")
