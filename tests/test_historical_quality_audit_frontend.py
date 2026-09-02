@@ -369,6 +369,36 @@ process.stdout.write(JSON.stringify({ html }));
     assert "模式上下文：" not in payload["html"]
 
 
+def test_history_quality_audit_hides_inconsistent_quality_distributions():
+    scope_path = STATIC_DIR / "report_quality_audit_scope_helpers.js"
+    renderer_path = STATIC_DIR / "history_quality_audit_render.js"
+    script = """
+global.window = {};
+require(__SCOPE_PATH__);
+require(__RENDERER_PATH__);
+const html = window.StockAgentHistoricalQualityAuditRenderer.render({
+  audited_reports: 5,
+  quality_metadata_missing_reports: 2,
+  quality_metadata_missing_by_provenance: { before_refresh: 1 },
+  quality_metadata_missing_by_rerun_execution: { full_rerun_required: 3 },
+  quality_metadata_missing_by_rerun_context: { artifact_fallback_available: 1 },
+  quality_review_by_status: { pending: 1, approved_with_gap: 0, rejected: 0, deferred: 0 },
+  quality_metadata_missing_by_version_status: { current: 1 },
+  items: []
+}, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ html }));
+""".replace("__SCOPE_PATH__", json.dumps(str(scope_path))).replace("__RENDERER_PATH__", json.dumps(str(renderer_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "2 份品質 metadata 缺口" in payload["html"]
+    assert "來源：" not in payload["html"]
+    assert "重跑策略：" not in payload["html"]
+    assert "上下文：" not in payload["html"]
+    assert "審核狀態：" not in payload["html"]
+    assert "目前版本缺口" not in payload["html"]
+
+
 def test_history_quality_audit_does_not_floor_fractional_or_malformed_counts():
     renderer_path = STATIC_DIR / "history_quality_audit_render.js"
     script = """
@@ -1249,7 +1279,7 @@ def test_history_workspace_wires_historical_quality_audit_without_daily_queue_si
     assert "/static/api_client_extensions.js?v=20260821-current-quality-summary" in index_html
     assert "/static/watchlist_panel_actions.js?v=20260821-current-quality-background" in index_html
     assert "/static/history_panel_quality_helpers.js?v=20260902-integer-review-counts" in index_html
-    assert "/static/history_quality_audit_render.js?v=20260902-pipeline-context-scope" in index_html
+    assert "/static/history_quality_audit_render.js?v=20260902-distribution-scope" in index_html
     assert "/static/history_quality_audit.js?v=20260820-quality-version-filter" in index_html
     assert index_html.index("/static/history_quality_audit_render.js") < index_html.index("/static/history_quality_audit.js")
     assert len((STATIC_DIR / "history_panel_quality_helpers.js").read_text(encoding="utf-8").splitlines()) < 120

@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3837 / validate top-level quality distributions
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：provenance、重跑策略、context、review 與歷史 version map 都是 missing scope 的一對一分布；逐 bucket 轉數字不足以證明它們能代表全量缺口，partial map 會製造虛假的摘要完整度。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以合法整數、可省略零 bucket、未知 key、fractional 值與 sum mismatch 建立 RED；新增共用 `completeDistribution`，由兩個 renderer 對 ephemeral API payload 移除不可信 optional map，保留全量缺口和其他獨立 evidence，不借用其他欄位補數字。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新三個 asset cache-buster 與 API/operator/architecture contract，focused distribution `2 passed`，完整 history/report-quality/static/docs regression `335 passed`，Node syntax、line guard 與 `git diff --check` 通過；live daily `2=1+1`、historical `59=15+15+14+15`、4/4 context maps、bounded `59/5/5/truncated=true`，三個 assets `200` 且與本地一致，health/ready、official launcher/worker/8080 與 doctor canonical paths 正常。本批不改 audit count、quality gate、queue、snapshot、artifact、index、review 或 rerun state。
+
 ## D3836 / enforce per-pipeline context scope
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：top-level pipeline missing partition 正確時，單一 pipeline 的 context 分布仍可能超過自身 missing 分母，原 UI 會顯示超額模式準備度。

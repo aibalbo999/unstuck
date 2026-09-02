@@ -91,17 +91,17 @@ The read-only report quality audit exposes `missing_quality_fields`, `severity`,
 
 `missing_quality_field_counts` 會把缺口按 `report_conformance`、`evidence_exit_gate`、`content_credibility` 分組，且只以 verified snapshot 計算；它協助排序人工核對，不代表報告通過或應立即重跑。
 
-`quality_metadata_missing_by_rerun_execution` 會把缺口再按唯讀重跑策略分組：完整重跑、可嘗試局部重跑、局部重跑需先確認、沒有可用局部上下文，或「重跑策略未判定」。最後一項表示 provenance 不足，不等於局部重跑不可用。這只是人工排序資訊；只要 freshness 要求完整重跑，就不能因 artifact 有前序段落而改成局部重跑。
+`quality_metadata_missing_by_rerun_execution` 會把缺口再按唯讀重跑策略分組：完整重跑、可嘗試局部重跑、局部重跑需先確認、沒有可用局部上下文，或「重跑策略未判定」。有提供時，這些 bucket 必須完整加總回全量缺口；若格式錯誤或加總矛盾，畫面不顯示這段策略分布。最後一項表示 provenance 不足，不等於局部重跑不可用。這只是人工排序資訊；只要 freshness 要求完整重跑，就不能因 artifact 有前序段落而改成局部重跑。
 
-`quality_metadata_missing_by_rerun_context` 會再顯示上下文準備度：原始上下文完整、原始上下文部分可用、artifact 前序可查、無可用局部上下文，或上下文未判定。它回答「人工核對或安排工作前，有多少可讀材料」，不回答「可以不可以局部重跑」；請以 `quality_metadata_missing_by_rerun_execution` 的 `full_rerun_required` 為實際策略依據。
+`quality_metadata_missing_by_rerun_context` 會再顯示上下文準備度：原始上下文完整、原始上下文部分可用、artifact 前序可查、無可用局部上下文，或上下文未判定。有提供時，這些 bucket 必須完整加總回全量缺口；若格式錯誤或加總矛盾，畫面不顯示這段上下文分布。它回答「人工核對或安排工作前，有多少可讀材料」，不回答「可以不可以局部重跑」；請以 `quality_metadata_missing_by_rerun_execution` 的 `full_rerun_required` 為實際策略依據。
 
 `quality_metadata_missing_by_provenance` 會把缺口分成 `before_refresh`、`after_refresh` 與 `no_refresh_provenance`。`before_refresh` 表示刷新前快照已記錄目前缺少的 gate；`after_refresh` 只表示 snapshot 有 `refreshed_from_report` 刷新歸因，不代表可以證明刷新造成缺失；`no_refresh_provenance` 只表示沒有可用分類，也不代表可以證明它從未刷新。明細會附 `quality_metadata_provenance`、`refreshed_from_report` 與 `snapshot_refreshed_at`，供人工核對 artifact/freshness；畫面分別顯示為「刷新前已有缺口」、「有刷新歸因」與「未標記刷新來源」。
 
 若明細另有 `quality_metadata_refresh_provenance`，請先看 `missing_fields`：它記錄資料快照在刷新前已缺少哪些品質 gate。當目前缺口落在這份清單內，repair 會標示「刷新前已有品質證據缺口」；這能改善責任判讀，但仍不是 gate 結果，也不會自動重跑。沒有這個 optional 欄位的舊 snapshot 維持「刷新後品質證據缺口」的中性語意。
 
-`quality_metadata_by_pipeline` 會再按 `pipeline_id` 分組，保留各模式自己的 verified 分母、coverage、缺 gate 數、重跑策略與上下文準備度；各模式的缺口數應完整加總回全量缺口，且每個模式的 context 分布也要加總回自己的缺口數。若任一分布缺欄、格式錯誤或加總矛盾，畫面會保留全量缺口但不顯示「模式缺口」或「模式上下文」。摘要中的「模式上下文」可直接看出哪個模式只有 artifact 前序可查、哪個模式完全沒有局部上下文，再用 `q`/`pipeline` targeted audit 開啟明細，可以避免把全庫缺口和單一模式混在一起。
+`quality_metadata_by_pipeline` 會再按 `pipeline_id` 分組，保留各模式自己的 verified 分母、coverage、缺 gate 數、重跑策略與上下文準備度；各模式的缺口數應完整加總回全量缺口，且每個模式的 context 分布也要加總回自己的缺口數。若任一分布缺欄、格式錯誤或加總矛盾，畫面會保留全量缺口但不顯示「模式缺口」或「模式上下文」。摘要中的 top-level provenance、重跑策略、上下文與審核／版本分布也採相同加總檢查；矛盾時只保留全量缺口。摘要中的「模式上下文」可直接看出哪個模式只有 artifact 前序可查、哪個模式完全沒有局部上下文，再用 `q`/`pipeline` targeted audit 開啟明細，可以避免把全庫缺口和單一模式混在一起。
 
-`quality_review_by_status` 會把缺 metadata 報告的目前 revision-scoped 審核狀態分成「待人工核對、已核准保留缺口、退回處理、已暫緩」；它只統計缺口報告，不把完整報告算進審核分母。工作台與歷史稽核會把總缺口寫成「品質 metadata 缺口」，再另外顯示各審核狀態，避免把已決策或已暫緩的報告誤標成待人工核對。`pending` 代表尚無當前版本的 review event，不代表品質 gate 已通過或失敗。
+`quality_review_by_status` 會把缺 metadata 報告的目前 revision-scoped 審核狀態分成「待人工核對、已核准保留缺口、退回處理、已暫緩」；有提供時四種狀態必須完整加總回全量缺口，若格式錯誤或加總矛盾，畫面不顯示審核進度。它只統計缺口報告，不把完整報告算進審核分母。工作台與歷史稽核會把總缺口寫成「品質 metadata 缺口」，再另外顯示各審核狀態，避免把已決策或已暫緩的報告誤標成待人工核對。`pending` 代表尚無當前版本的 review event，不代表品質 gate 已通過或失敗。
 
 今日工作台的每個品質 target 也會在按鈕文字、title 與 aria label 顯示該筆目前審核狀態；這只是方便辨識的唯讀 evidence，真正留下決策與理由仍要到歷史稽核的 review 控制完成。
 

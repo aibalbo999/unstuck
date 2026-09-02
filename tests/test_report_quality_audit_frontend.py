@@ -122,6 +122,36 @@ process.stdout.write(JSON.stringify({ board }));
     assert "模式上下文：" not in payload["board"]
 
 
+def test_watchlist_board_hides_inconsistent_quality_distributions():
+    helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
+    scope_path = STATIC_DIR / "report_quality_audit_scope_helpers.js"
+    script = """
+global.window = {};
+require(__SCOPE_PATH__);
+require(__HELPER_PATH__);
+const payload = {
+  decision_queue: { summary: { total_actionable: 0 }, items: [{ type: 'monitor' }] },
+  report_quality_audit: {
+    quality_metadata_missing_reports: 2,
+    quality_metadata_missing_by_provenance: { before_refresh: 1 },
+    quality_metadata_missing_by_rerun_execution: { full_rerun_required: 3 },
+    quality_metadata_missing_by_rerun_context: { artifact_fallback_available: 1 },
+    quality_review_by_status: { pending: 1, approved_with_gap: 0, rejected: 0, deferred: 0 }
+  }
+};
+const board = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], payload, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ board }));
+""".replace("__SCOPE_PATH__", json.dumps(str(scope_path))).replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "2 份品質 metadata 缺口" in payload["board"]
+    assert "來源：" not in payload["board"]
+    assert "重跑策略：" not in payload["board"]
+    assert "上下文：" not in payload["board"]
+    assert "審核狀態：" not in payload["board"]
+
+
 def test_watchlist_board_surfaces_bounded_repair_queue_scope():
     helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
     scope_path = STATIC_DIR / "report_quality_queue_scope_helpers.js"

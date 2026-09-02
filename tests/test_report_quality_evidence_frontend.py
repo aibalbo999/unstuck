@@ -26,17 +26,17 @@ def test_shared_quality_evidence_helper_loads_before_all_consumers():
     assert (STATIC_DIR / "report_quality_evidence_freshness_helpers.js").exists()
     assert f"{helper}?v=20260902-integer-summary-counts" in index_html
     assert f"{action_scope_helper}?v=20260902-action-freshness-scope" in index_html
-    assert f"{audit_scope_helper}?v=20260902-pipeline-context-scope" in index_html
+    assert f"{audit_scope_helper}?v=20260902-distribution-scope" in index_html
     assert f"{queue_scope_helper}?v=20260902-bounded-items" in index_html
     assert f"{freshness_helper}?v=20260902-integer-summary-counts" in index_html
     assert "/static/report_quality_gate_policy.js?v=20260816-shared-quality-evidence" in index_html
     assert "/static/report_preview_helpers.js?v=20260820-shared-evidence-detail" in index_html
     assert "/static/report_preview_panel.js?v=20260820-rerun-execution" in index_html
-    assert "/static/history_quality_audit_render.js?v=20260902-pipeline-context-scope" in index_html
+    assert "/static/history_quality_audit_render.js?v=20260902-distribution-scope" in index_html
     assert "/static/history_current_quality_helpers.js?v=20260902-integer-summary-counts" in index_html
     assert "/static/watchlist_freshness_helpers.js?v=20260902-integer-quality-counts" in index_html
     assert "/static/watchlist_current_quality_helpers.js?v=20260902-integer-summary-counts" in index_html
-    assert "/static/watchlist_panel_helpers.js?v=20260902-pipeline-context-scope" in index_html
+    assert "/static/watchlist_panel_helpers.js?v=20260902-distribution-scope" in index_html
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
     assert "/static/styles/history_list.css?v=20260816-clickable-quality-evidence" in style_css
     assert index_html.index(helper) < index_html.index("/static/report_quality_gate_policy.js")
@@ -398,6 +398,30 @@ process.stdout.write(window.StockAgentReportQualityActionScope.formatQualityActi
 """.replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path))).replace("__ACTION_SCOPE_PATH__", json.dumps(str(action_scope_path)))
 
     assert _node(script) == "品質處理建議（唯讀品質投影，不等同今日待辦）：人工審核 1"
+
+
+def test_shared_quality_audit_scope_validates_complete_distributions():
+    scope_path = STATIC_DIR / "report_quality_audit_scope_helpers.js"
+    script = """
+global.window = {};
+require(__SCOPE_PATH__);
+const valid = window.StockAgentReportQualityAuditScope.completeDistribution;
+process.stdout.write(JSON.stringify({
+  valid: valid({ before_refresh: 1, after_refresh: 1 }, 2, ['before_refresh', 'after_refresh']),
+  zeroOmitted: valid({ before_refresh: 2 }, 2, ['before_refresh', 'after_refresh']),
+  mismatch: valid({ before_refresh: 1 }, 2, ['before_refresh', 'after_refresh']),
+  fractional: valid({ before_refresh: 1.5, after_refresh: 0.5 }, 2, ['before_refresh', 'after_refresh']),
+  unknown: valid({ before_refresh: 2, future: 1 }, 3, ['before_refresh', 'after_refresh'])
+}));
+""".replace("__SCOPE_PATH__", json.dumps(str(scope_path)))
+
+    assert json.loads(_node(script)) == {
+        "valid": True,
+        "zeroOmitted": True,
+        "mismatch": False,
+        "fractional": False,
+        "unknown": False,
+    }
 
 
 def test_shared_quality_evidence_labels_legacy_action_projection_without_freshness_map():
