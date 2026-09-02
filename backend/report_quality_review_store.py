@@ -11,6 +11,7 @@ from typing import Any
 
 from mapping_fields import safe_int, safe_text, safe_text_list
 from report_index_parsing import is_safe_report_filename
+from report_pipeline_identity import resolve_report_pipeline_id
 from runtime_paths import current_runtime_paths
 from storage.sqlite_resource import ThreadLocalSqliteResource
 
@@ -108,6 +109,10 @@ def record_review(
         raise ValueError("reviewer label is too long")
     normalized_fields = _quality_fields(missing_quality_fields)
     normalized_artifact = _artifact_summary(artifact_quality_summary)
+    normalized_pipeline = resolve_report_pipeline_id(
+        normalized_filename,
+        stored_pipeline=pipeline_id,
+    )
     created_at = safe_text(now).strip() or datetime.now(timezone.utc).isoformat()
     output_dir_key = str(Path(output_dir).expanduser().resolve(strict=False))
     with _connect() as conn:
@@ -123,7 +128,7 @@ def record_review(
                 output_dir_key,
                 normalized_filename,
                 safe_text(ticker).strip(),
-                safe_text(pipeline_id).strip() or "v1",
+                normalized_pipeline,
                 normalized_revision,
                 normalized_decision,
                 normalized_reviewer,
@@ -143,7 +148,7 @@ def record_review(
             FROM report_quality_review_events
             WHERE output_dir = ? AND filename = ? AND pipeline_id = ? AND report_quality_revision = ?
             """,
-            (output_dir_key, normalized_filename, safe_text(pipeline_id).strip() or "v1", normalized_revision),
+            (output_dir_key, normalized_filename, normalized_pipeline, normalized_revision),
         ).fetchone()["count"]
     return _row_to_review(row, event_count=event_count)
 
@@ -152,11 +157,7 @@ def list_latest_reviews(
     output_dir: str,
     targets: list[tuple[str, str, str]] | tuple[tuple[str, str, str], ...],
 ) -> dict[tuple[str, str, str], dict[str, Any]]:
-    normalized_targets = {
-        (safe_text(filename).strip(), safe_text(pipeline_id).strip() or "v1", safe_text(revision).strip())
-        for filename, pipeline_id, revision in targets
-        if safe_text(filename).strip() and safe_text(revision).strip()
-    }
+    normalized_targets = _normalized_targets(targets)
     if not normalized_targets:
         return {}
     output_dir_key = str(Path(output_dir).expanduser().resolve(strict=False))
@@ -165,24 +166,21 @@ def list_latest_reviews(
     with _connect() as conn:
         rows = conn.execute(
             f"""
-            SELECT *,
-                   COUNT(*) OVER (
-                       PARTITION BY filename, pipeline_id, report_quality_revision
-                   ) AS event_count,
-                   ROW_NUMBER() OVER (
-                       PARTITION BY filename, pipeline_id, report_quality_revision
-                       ORDER BY event_id DESC
-                   ) AS latest_rank
+            SELECT *
             FROM report_quality_review_events
             WHERE output_dir = ? AND filename IN ({placeholders})
+            ORDER BY event_id DESC
             """,
             (output_dir_key, *filenames),
         ).fetchall()
-    result = {}
+    grouped_rows: dict[tuple[str, str, str], list[sqlite3.Row]] = {}
     for row in rows:
-        key = (safe_text(row["filename"]).strip(), safe_text(row["pipeline_id"]).strip() or "v1", safe_text(row["report_quality_revision"]).strip())
-        if row["latest_rank"] == 1 and key in normalized_targets:
-            result[key] = _row_to_review(row, event_count=row["event_count"])
+        key = _review_row_key(row)
+        if key in normalized_targets:
+            grouped_rows.setdefault(key, []).append(row)
+    result = {}
+    for key, matching_rows in grouped_rows.items():
+        result[key] = _row_to_review(matching_rows[0], event_count=len(matching_rows))
     return result
 
 
@@ -192,11 +190,7 @@ def list_review_history(
     *,
     limit: int = 20,
 ) -> dict[tuple[str, str, str], list[dict[str, Any]]]:
-    normalized_targets = {
-        (safe_text(filename).strip(), safe_text(pipeline_id).strip() or "v1", safe_text(revision).strip())
-        for filename, pipeline_id, revision in targets
-        if safe_text(filename).strip() and safe_text(revision).strip()
-    }
+    normalized_targets = _normalized_targets(targets)
     if not normalized_targets:
         return {}
     try:
@@ -209,34 +203,24 @@ def list_review_history(
     with _connect() as conn:
         rows = conn.execute(
             f"""
-            WITH ranked_reviews AS (
-                SELECT *,
-                       COUNT(*) OVER (
-                           PARTITION BY filename, pipeline_id, report_quality_revision
-                       ) AS event_count,
-                       ROW_NUMBER() OVER (
-                           PARTITION BY filename, pipeline_id, report_quality_revision
-                           ORDER BY event_id DESC
-                       ) AS history_rank
-                FROM report_quality_review_events
-                WHERE output_dir = ? AND filename IN ({placeholders})
-            )
             SELECT *
-            FROM ranked_reviews
-            WHERE history_rank <= ?
+            FROM report_quality_review_events
+            WHERE output_dir = ? AND filename IN ({placeholders})
             ORDER BY event_id DESC
             """,
-            (output_dir_key, *filenames, history_limit),
+            (output_dir_key, *filenames),
         ).fetchall()
     result: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+    grouped_rows: dict[tuple[str, str, str], list[sqlite3.Row]] = {}
     for row in rows:
-        key = (
-            safe_text(row["filename"]).strip(),
-            safe_text(row["pipeline_id"]).strip() or "v1",
-            safe_text(row["report_quality_revision"]).strip(),
-        )
+        key = _review_row_key(row)
         if key in normalized_targets:
-            result.setdefault(key, []).append(_row_to_review(row, event_count=row["event_count"]))
+            grouped_rows.setdefault(key, []).append(row)
+    for key, matching_rows in grouped_rows.items():
+        result[key] = [
+            _row_to_review(row, event_count=len(matching_rows))
+            for row in matching_rows[:history_limit]
+        ]
     return result
 
 
@@ -268,6 +252,34 @@ def _artifact_summary(value: dict[str, Any] | None) -> dict[str, Any]:
         "source": safe_text(payload.get("source")).strip(),
         "fields": _quality_fields(payload.get("fields")),
     }
+
+
+def _normalized_targets(
+    targets: list[tuple[str, str, str]] | tuple[tuple[str, str, str], ...],
+) -> set[tuple[str, str, str]]:
+    normalized = set()
+    for filename, pipeline_id, revision in targets:
+        normalized_filename = safe_text(filename).strip()
+        normalized_revision = safe_text(revision).strip()
+        if not normalized_filename or not normalized_revision:
+            continue
+        normalized.add(
+            (
+                normalized_filename,
+                resolve_report_pipeline_id(normalized_filename, stored_pipeline=pipeline_id),
+                normalized_revision,
+            )
+        )
+    return normalized
+
+
+def _review_row_key(row: sqlite3.Row) -> tuple[str, str, str]:
+    filename = safe_text(row["filename"]).strip()
+    return (
+        filename,
+        resolve_report_pipeline_id(filename, stored_pipeline=row["pipeline_id"]),
+        safe_text(row["report_quality_revision"]).strip(),
+    )
 
 
 def _row_to_review(row: sqlite3.Row, *, event_count: int) -> dict[str, Any]:

@@ -199,6 +199,8 @@ watchlist summary 與 target 也會對 `evidence_failed_count` 做同一個有�
 
 歷史稽核也可用 `review_status=pending|approved_with_gap|rejected|deferred` 只看某一種目前 revision 審核狀態；回應的 `review_status_filter` 會標示套用的範圍，篩選後的 coverage 與分頁數字只代表該狀態，不代表其他狀態不存在。這仍是 GET-only 查詢，不會寫入 review ledger。
 
+開啟特定報告的 review target 時，若沒有提供模式，或模式欄位是 `N/A` 等 placeholder，系統會以檔名中的模式辨識報告；寫入與讀取 review ledger 使用同一套 identity。舊事件即使曾保存 placeholder pipeline，也仍會被歸回正確的檔名／模式／revision，不會因資料格式較舊而顯示成另一個模式的審核狀態。
+
 若要先聚焦版本新舊，可用 `version_status=current|historical|unknown`；回應的 `report_version_status_filter` 會標示目前範圍。這個版本範圍會保留該版本集合中的完整報告作為 coverage 分母，只有再選審核狀態或缺口欄位時才縮成相應的品質缺口集合。歷史頁的「目前版本／歷史版本／版本未判定」按鈕只改 GET 查詢範圍，不會加入今日待辦、寫入 review 或建立重跑。
 
 歷史稽核摘要也提供「只看報告一致性缺口／只看證據關卡缺口／只看內容可信度缺口」的欄位快捷入口。欄位篩選後的 `audited_reports`、coverage 與明細只代表該欄位缺口集合，畫面會標示「缺口範圍」；即使結果是 `0`，仍保留目前欄位與「全部缺口欄位」入口，方便切回完整稽核。若同時選了審核狀態與缺口欄位，畫面會同時顯示兩個範圍，結果是兩者交集。這是唯讀 GET 篩選，不代表 gate 已修復，也不會寫 review、建立重跑或加入今日待辦。

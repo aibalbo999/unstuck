@@ -7,8 +7,10 @@ from typing import Any
 
 import report_quality_audit
 from mapping_fields import safe_int, safe_mapping_dict, safe_text
+from report_pipeline_identity import resolve_report_pipeline_id
 from report_quality_repair_items import quality_metadata_repair_item
 from report_quality_review_store import list_review_history, pending_review
+from reporting.text_tokens import is_missing_text_token
 
 
 def report_quality_revision(row: dict[str, Any]) -> str:
@@ -43,23 +45,19 @@ def serialize_quality_review(review: dict[str, Any], revision: str) -> dict[str,
 def attach_quality_reviews(reports: list[dict[str, Any]], output_dir: str) -> None:
     normalized_output_dir = safe_text(output_dir).strip()
     targets = [
-        (
-            safe_text(report.get("filename")).strip(),
-            safe_text(report.get("pipeline_id")).strip() or "v1",
-            safe_text(report.get("report_quality_revision")).strip(),
-        )
+        target
         for report in reports
+        for target in [_review_target(report)]
+        if target is not None
         if quality_metadata_repair_item(report) is not None and safe_text(report.get("report_quality_revision")).strip()
     ]
     review_history = list_review_history(normalized_output_dir, targets) if normalized_output_dir and targets else {}
     for report in reports:
         if quality_metadata_repair_item(report) is None:
             continue
-        target = (
-            safe_text(report.get("filename")).strip(),
-            safe_text(report.get("pipeline_id")).strip() or "v1",
-            safe_text(report.get("report_quality_revision")).strip(),
-        )
+        target = _review_target(report)
+        if target is None:
+            continue
         history = review_history.get(target, [])
         report["quality_review_history"] = history
         report["quality_review"] = history[0] if history else pending_review(report_quality_revision=target[2])
@@ -73,14 +71,20 @@ def get_indexed_report_quality_review_target(
 ) -> dict[str, Any] | None:
     """Load one current indexed quality-gap target for an explicit review."""
     normalized_filename = safe_text(filename).strip()
-    normalized_pipeline = safe_text(pipeline_id).strip() or "v1"
+    requested_pipeline = safe_text(pipeline_id).strip()
+    normalized_pipeline = resolve_report_pipeline_id(
+        normalized_filename,
+        stored_pipeline=requested_pipeline,
+    )
     if not normalized_filename:
         return None
     rows, _total = report_quality_audit.query_report_metadata(
         page=1,
         limit=1000,
         q=normalized_filename,
-        pipeline=normalized_pipeline,
+        # Placeholder pipeline values cannot be used as an index filter because
+        # the filename is the only remaining identity evidence.
+        pipeline="all" if is_missing_text_token(requested_pipeline) else normalized_pipeline,
         recommendation="all",
         data_trust="all",
         include_versions=True,
@@ -93,7 +97,10 @@ def get_indexed_report_quality_review_target(
             candidate
             for candidate in rows
             if safe_text(candidate.get("filename")).strip() == normalized_filename
-            and (safe_text(candidate.get("pipeline_id")).strip() or "v1") == normalized_pipeline
+            and resolve_report_pipeline_id(
+                normalized_filename,
+                stored_pipeline=candidate.get("pipeline_id"),
+            ) == normalized_pipeline
         ),
         None,
     )
@@ -106,11 +113,25 @@ def get_indexed_report_quality_review_target(
     if item is None:
         return None
     report["artifact_quality_summary"] = report_quality_audit._read_artifact_quality_summary(storage, normalized_filename)
-    target = (normalized_filename, normalized_pipeline, safe_text(report.get("report_quality_revision")).strip())
+    target = _review_target(report)
+    if target is None:
+        return None
     history = list_review_history(output_dir, [target]).get(target, [])
     report["quality_review_history"] = history
     report["quality_review"] = history[0] if history else pending_review(report_quality_revision=target[2])
     return report_quality_audit._audit_item(report, item)
+
+
+def _review_target(report: dict[str, Any]) -> tuple[str, str, str] | None:
+    filename = safe_text(report.get("filename") or report.get("report_filename")).strip()
+    revision = safe_text(report.get("report_quality_revision")).strip()
+    if not filename or not revision:
+        return None
+    return (
+        filename,
+        resolve_report_pipeline_id(filename, stored_pipeline=report.get("pipeline_id")),
+        revision,
+    )
 
 
 __all__ = ["attach_quality_reviews", "get_indexed_report_quality_review_target", "report_quality_revision", "serialize_quality_review"]

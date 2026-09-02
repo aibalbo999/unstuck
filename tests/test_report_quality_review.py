@@ -82,6 +82,98 @@ def test_report_quality_review_store_keeps_append_only_revision_scoped_history(t
     ) == {}
 
 
+def test_report_quality_review_store_resolves_placeholder_pipeline_from_filename(tmp_path, monkeypatch):
+    review_store = importlib.import_module("report_quality_review_store")
+    monkeypatch.setattr(review_store, "QUALITY_REVIEW_DB_PATH", str(tmp_path / "operational.sqlite3"))
+    review_store.reset_report_quality_review_store_for_tests()
+    filename = "2330_TW_v4_report_20260628_000000.html"
+
+    review = review_store.record_review(
+        output_dir=str(tmp_path / "reports"),
+        filename=filename,
+        ticker="2330.TW",
+        pipeline_id="N/A",
+        report_quality_revision="rev-v4",
+        missing_quality_fields=["content_credibility"],
+        artifact_quality_summary={},
+        decision="deferred",
+        note="等待補充證據。",
+    )
+
+    latest = review_store.list_latest_reviews(
+        str(tmp_path / "reports"),
+        [(filename, "v4", "rev-v4")],
+    )
+    assert latest[(filename, "v4", "rev-v4")]["decision"] == "deferred"
+
+
+def test_report_quality_review_store_reads_legacy_placeholder_events_by_canonical_target(tmp_path, monkeypatch):
+    review_store = importlib.import_module("report_quality_review_store")
+    monkeypatch.setattr(review_store, "QUALITY_REVIEW_DB_PATH", str(tmp_path / "operational.sqlite3"))
+    review_store.reset_report_quality_review_store_for_tests()
+    filename = "2330_TW_v4_report_20260628_000000.html"
+    review_store.record_review(
+        output_dir=str(tmp_path / "reports"),
+        filename=filename,
+        ticker="2330.TW",
+        pipeline_id="v4",
+        report_quality_revision="rev-v4",
+        missing_quality_fields=["content_credibility"],
+        artifact_quality_summary={},
+        decision="deferred",
+        note="等待補充證據。",
+    )
+    with review_store._connect() as conn:
+        conn.execute(
+            "UPDATE report_quality_review_events SET pipeline_id = 'N/A' WHERE filename = ?",
+            (filename,),
+        )
+
+    latest = review_store.list_latest_reviews(
+        str(tmp_path / "reports"),
+        [(filename, "v4", "rev-v4")],
+    )
+    assert latest[(filename, "v4", "rev-v4")]["event_count"] == 1
+    assert latest[(filename, "v4", "rev-v4")]["decision"] == "deferred"
+
+
+def test_indexed_report_quality_review_target_uses_filename_for_placeholder_pipeline(tmp_path, monkeypatch):
+    workflow = importlib.import_module("report_quality_review_workflow")
+    filename = "2330_TW_v4_report_20260628_000000.html"
+    seen = {}
+    row = {"filename": filename, "pipeline_id": "N/A"}
+
+    def query_report_metadata(**kwargs):
+        seen["pipeline"] = kwargs["pipeline"]
+        return [row], 1
+
+    def list_history(_output_dir, targets):
+        seen["targets"] = targets
+        return {}
+
+    monkeypatch.setattr(workflow.report_quality_audit, "query_report_metadata", query_report_metadata)
+    monkeypatch.setattr(workflow.report_quality_audit, "storage_for_existing_output_dir", lambda *_args: object())
+    monkeypatch.setattr(
+        workflow.report_quality_audit,
+        "_report_from_index_row",
+        lambda _row, _storage: {"ticker": "2330.TW", "filename": filename, "pipeline_id": "v4"},
+    )
+    monkeypatch.setattr(workflow.report_quality_audit, "_read_artifact_quality_summary", lambda *_args: {})
+    monkeypatch.setattr(workflow, "quality_metadata_repair_item", lambda _report: {"missing_quality_fields": []})
+    monkeypatch.setattr(workflow, "list_review_history", list_history)
+    monkeypatch.setattr(workflow.report_quality_audit, "_audit_item", lambda report, _item: report)
+
+    target = workflow.get_indexed_report_quality_review_target(
+        str(tmp_path / "reports"),
+        filename=filename,
+        pipeline_id="N/A",
+    )
+
+    assert seen["pipeline"] == "all"
+    assert seen["targets"][0][0:2] == (filename, "v4")
+    assert target["pipeline_id"] == "v4"
+
+
 def test_report_quality_review_store_rejects_missing_note_and_unknown_decision(tmp_path, monkeypatch):
     review_store = importlib.import_module("report_quality_review_store")
     monkeypatch.setattr(review_store, "QUALITY_REVIEW_DB_PATH", str(tmp_path / "operational.sqlite3"))
@@ -270,6 +362,57 @@ def test_report_quality_review_api_requires_current_revision_and_records_explici
         "report_index_written": False,
         "rerun_enqueued": False,
     }
+
+
+def test_report_quality_review_api_keeps_omitted_pipeline_unset_for_filename_inference(tmp_path, monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    import api_routes.watchlist as watchlist_routes
+    import report_quality_review_store as review_store
+    from api_routes.watchlist import WatchlistRouteDeps, create_watchlist_router
+
+    monkeypatch.setattr(review_store, "QUALITY_REVIEW_DB_PATH", str(tmp_path / "operational.sqlite3"))
+    review_store.reset_report_quality_review_store_for_tests()
+    target = {
+        "ticker": "2330.TW",
+        "filename": "2330_TW_v4_report_20260628_000000.html",
+        "pipeline_id": "v4",
+        "report_quality_revision": "rev-current",
+        "missing_quality_fields": ["content_credibility"],
+        "artifact_quality_summary": {},
+        "quality_review": review_store.pending_review(report_quality_revision="rev-current"),
+    }
+    seen_pipelines = []
+
+    def get_target(*_args, **kwargs):
+        seen_pipelines.append(kwargs["pipeline_id"])
+        return target
+
+    monkeypatch.setattr(watchlist_routes, "get_indexed_report_quality_review_target", get_target)
+    app = FastAPI()
+    app.include_router(create_watchlist_router(WatchlistRouteDeps(
+        get_output_dir=lambda: str(tmp_path / "reports"),
+        get_task_queue=lambda: None,
+        run_stock_analysis_job=lambda *_args: "job",
+        create_job=lambda *_args: "job",
+        find_active_job=lambda *_args: {},
+        require_mutation_authorized=lambda _request: None,
+    )))
+
+    response = TestClient(app).post(
+        "/api/watchlist/report-quality-audit/review",
+        json={
+            "filename": target["filename"],
+            "report_quality_revision": target["report_quality_revision"],
+            "decision": "deferred",
+            "note": "等待補充證據。",
+        },
+    )
+
+    assert response.status_code == 200
+    assert seen_pipelines == [""]
+    assert response.json()["review"]["decision"] == "deferred"
 
 
 def test_cached_report_rows_reload_operational_review_state_after_a_new_event(tmp_path, monkeypatch):

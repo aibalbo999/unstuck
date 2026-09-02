@@ -24,7 +24,7 @@ def register_report_quality_review_routes(
     @router.get("/report-quality-audit/review")
     async def get_report_quality_review(
         filename: str = Query("", max_length=240),
-        pipeline: str = Query("v1", max_length=24),
+        pipeline: str = Query("", max_length=24),
     ):
         if not is_safe_report_filename(filename, ".html"):
             raise HTTPException(status_code=400, detail="Invalid filename")
@@ -43,7 +43,7 @@ def register_report_quality_review_routes(
         require_mutation_authorized(request)
         payload = safe_mapping_dict(await request.json()) or {}
         filename = safe_text(payload.get("filename")).strip()
-        pipeline = safe_text(payload.get("pipeline_id")).strip() or "v1"
+        pipeline = safe_text(payload.get("pipeline_id")).strip()
         provided_revision = safe_text(payload.get("report_quality_revision")).strip()
         if not is_safe_report_filename(filename, ".html"):
             raise HTTPException(status_code=400, detail="Invalid filename")

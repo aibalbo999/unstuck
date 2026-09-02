@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3902 / preserve report quality review pipeline identity
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：revision-scoped quality review 的 store、workflow 與 route 各自以 raw pipeline 或 `or "v1"` 綁定事件；v4 filename 搭配 `N/A`／omitted pipeline 時，寫入與 target lookup 會使用不同 key，歷史人工核對可能消失或落到錯誤模式。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：新寫入、legacy placeholder event、indexed target lookup 與 API omitted pipeline fixture 先取得 RED；write/read/attach/target 共用 `resolve_report_pipeline_id()`，讀取 legacy event 只在 memory canonicalize，不回寫 ledger，不從另一份報告借用 identity。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：focused review/quality/artifact/import regression `631 passed`（review `11 passed`），docs/architecture/import contract `596 passed`；完整 suite `8626 passed, 6 skipped, 75 subtests passed`。正式 launcher reload 後 health/ready、current-quality、reports、historical audit、v4 targeted review 均 `200`；live current quality `167` 份（content passed/warning/blocked `89/67/11`、evidence approved/caution/rejected `135/29/3`），historical 缺口 `59` 筆，v4 target 由檔名推導為 `v4` 且 review `pending`。本批只修 review identity/read compatibility，不改 report content、quality gate、snapshot、artifact、index、queue 或 rerun state。
+
 ## D3901 / align report-history and audit pipeline identity
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：列表 row、品質稽核 hydration 與 artifact rerun-context status 各自以 raw truthiness／`or "v1"` 選 pipeline；placeholder index/snapshot 會讓 v4 preview、品質 bucket 或 v2 前序 Agent 完整度套錯模式。
