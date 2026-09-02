@@ -19,10 +19,8 @@ from report_history_storage import storage_for_existing_output_dir
 from report_paths import report_storage_candidates_for_filename
 from report_preview import build_report_preview, extract_trade_setup
 from report_quality_evidence import read_artifact_quality_summary
-from report_quality_metadata_repair import (
-    quality_metadata_provenance_from_reason_codes,
-    quality_metadata_repair_item,
-)
+from report_freshness_summary import safe_bool
+from report_quality_metadata_repair import quality_metadata_provenance_from_reason_codes, quality_metadata_repair_item
 from reporting.content_credibility import evaluate_content_credibility
 from reporting.content_credibility_final_audit import align_content_credibility_with_final_audit
 from reporting.content_credibility_projection import merge_content_credibility_results, project_content_credibility_with_current_evidence
@@ -250,6 +248,7 @@ def row_to_report(row) -> dict:
         data_trust = normalize_data_trust(json.loads(row["data_trust_json"]))
     except (KeyError, TypeError, json.JSONDecodeError):
         data_trust = unknown_data_trust()
+    analysis_text_stale = safe_bool(row["analysis_text_stale"]) if "analysis_text_stale" in row.keys() else False
     try:
         recommendation = json.loads(row["recommendation_json"])
     except (TypeError, json.JSONDecodeError):
@@ -261,7 +260,7 @@ def row_to_report(row) -> dict:
     recommendation = calibrate_recommendation_summary(
         recommendation,
         data_trust=data_trust,
-        analysis_text_stale=bool(row["analysis_text_stale"]) if "analysis_text_stale" in row.keys() else False,
+        analysis_text_stale=analysis_text_stale,
         pipeline_id=row["pipeline_id"] if "pipeline_id" in row.keys() else "",
     )
     recommendation = _normalize_recommendation_summary(recommendation)
@@ -319,7 +318,7 @@ def row_to_report(row) -> dict:
         "data_snapshot_filename": row["data_snapshot_filename"] if "data_snapshot_filename" in row.keys() else "",
         "data_trust": data_trust,
         "data_trust_status": data_trust.get("status", "unknown"),
-        "analysis_text_stale": bool(row["analysis_text_stale"]) if "analysis_text_stale" in row.keys() else False,
+        "analysis_text_stale": analysis_text_stale,
         "analysis_text_stale_message": row["analysis_text_stale_message"] if "analysis_text_stale_message" in row.keys() else "",
         "data_snapshot_hash": row["data_snapshot_hash"] if "data_snapshot_hash" in row.keys() else "",
         "html_hash": row["html_hash"] if "html_hash" in row.keys() else "",

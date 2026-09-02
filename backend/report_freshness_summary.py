@@ -86,7 +86,7 @@ def _report_rows(reports: dict[str, Any] | list[dict[str, Any]]) -> list[dict[st
     return safe_dict_list(reports)
 
 
-def _safe_bool(value: Any) -> bool:
+def safe_bool(value: Any) -> bool:
     if isinstance(value, bool):
         return value
     if isinstance(value, (int, float)) and value in (0, 1):
@@ -96,7 +96,7 @@ def _safe_bool(value: Any) -> bool:
 
 def _requires_rerun(report: dict[str, Any], freshness: dict[str, Any]) -> bool:
     return any(
-        _safe_bool(value)
+        safe_bool(value)
         for value in (
             freshness.get("requires_rerun"),
             report.get("requires_rerun"),
@@ -138,4 +138,5 @@ __all__ = [
     "build_report_freshness_items",
     "build_report_freshness_summary",
     "report_freshness_bucket",
+    "safe_bool",
 ]

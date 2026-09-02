@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3862 / parse report-list freshness flags explicitly
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`row_to_report()` 直接對 SQLite `analysis_text_stale` 使用 `bool()`；legacy string `"false"` 會變成 `True`，同時影響 API stale flag 與 recommendation calibration。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以 malformed `analysis_text_stale="false"` fixture 先取得 `1 failed` RED；新增 report-index explicit boolean parser，只接受 bool、0/1 與明確 true token，未知值不合成 stale。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture contract；focused flag `1 passed`、相鄰 preview/refresh `16 passed`，只改 report-list read-only freshness projection，不修改 snapshot、artifact、index 寫入、review、queue 或 rerun state。
+
 ## D3861 / keep report-list data-trust projections canonical
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`row_to_report()` 同時輸出 normalized `data_trust` 與直接取自 SQLite 的 duplicate `data_trust_status`；legacy row 帶空白／大寫時，列表 API 會出現兩個不同 trust truth source。

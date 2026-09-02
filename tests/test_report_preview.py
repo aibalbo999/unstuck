@@ -1161,6 +1161,27 @@ def test_get_reports_normalizes_duplicate_data_trust_status_projection(tmp_path,
     assert report["data_trust_status"] == "fresh"
 
 
+def test_get_reports_parses_legacy_analysis_stale_flag_without_truthiness_leak(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
+    filename = "2449_v2_report_20260606_010000.html"
+    write_report_pair(tmp_path, filename, "持有")
+    write_data_snapshot(tmp_path, filename, "fresh")
+    list_reports_for_test(tmp_path)
+
+    with sqlite3.connect(tmp_path / "cache.db") as connection:
+        connection.execute(
+            "UPDATE reports SET analysis_text_stale = ?, analysis_text_stale_message = ? WHERE filename = ?",
+            ("false", "legacy false flag", filename),
+        )
+
+    result = list_reports_for_test(tmp_path, sync_metadata=False)
+    report = result["reports"][0]
+
+    assert report["analysis_text_stale"] is False
+    assert report["recommendation"]["recommendation_calibration"]["analysis_text_stale"] is False
+
+
 def test_download_data_snapshot_endpoint(tmp_path, monkeypatch):
     monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
     filename = "2449_v2_report_20260606_010000.html"
