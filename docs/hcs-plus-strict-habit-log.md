@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3876 / normalize evidence projection and compare freshness warnings
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：evidence-gate current projection 與 report compare compatibility warning 對 `decision_freshness.requires_rerun` 使用 raw truthiness；legacy `"false"` 會建立假的 stale context／compare warning，造成唯讀入口的 freshness 判斷漂移。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：兩組 legacy-token fixture 先取得 `2 failed` RED；兩個 boundary 共用 `report_freshness_summary.safe_bool`，只讓明確 true token 產生 notice，不從 status 或其他 freshness 欄位借用 rerun 證據。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture contract；focused fixtures `2 passed`、相關回歸 `228 passed`、full suite `8,579 passed, 6 skipped, 75 subtests passed`。本批只修 evidence/compare read-only freshness projection，不改 snapshot、artifact、report index、review、queue 或 rerun state。
+
 ## D3875 / normalize recommendation calibration freshness inputs
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：recommendation calibration 對 `analysis_text_stale` 使用 raw truthiness、對 `data_trust.status` 使用 exact match；legacy `"false"` 會阻擋可升格建議，`" FRESH "` 會把同一份 fresh data 降成 watch，讓 recommendation label 與 freshness audit 不一致。

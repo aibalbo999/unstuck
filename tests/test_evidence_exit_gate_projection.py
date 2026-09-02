@@ -38,3 +38,22 @@ def test_projection_requires_both_snapshot_and_markdown():
 
     assert project_evidence_exit_gate({}, "- 信心: 0.85") is None
     assert project_evidence_exit_gate(_snapshot(), "") is None
+
+
+def test_projection_treats_legacy_false_requires_rerun_as_current(monkeypatch):
+    import reporting.evidence_exit_gate_projection as projection
+
+    monkeypatch.setattr(
+        projection,
+        "evaluate_report_evidence",
+        lambda *_args: {"verdict": "approved"},
+    )
+    monkeypatch.setattr(
+        projection,
+        "build_decision_freshness",
+        lambda **_kwargs: {"status": "current", "requires_rerun": "false"},
+    )
+
+    result = projection.project_evidence_exit_gate(_snapshot(), "- 信心: 0.85")
+
+    assert "freshness_context" not in result

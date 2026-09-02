@@ -7,6 +7,7 @@ from typing import Any
 from decision_tracking import build_decision_freshness
 from evidence_exit_gate import evaluate_report_evidence
 from mapping_fields import safe_mapping_dict, safe_text
+from report_freshness_summary import safe_bool
 
 
 def project_evidence_exit_gate(snapshot: Any, markdown: Any) -> dict[str, Any] | None:
@@ -18,7 +19,7 @@ def project_evidence_exit_gate(snapshot: Any, markdown: Any) -> dict[str, Any] |
     try:
         projected = evaluate_report_evidence(markdown_text, snapshot_map)
         freshness = build_decision_freshness(snapshot=snapshot_map)
-        if freshness.get("requires_rerun"):
+        if safe_bool(freshness.get("requires_rerun")):
             projected["freshness_context"] = {
                 key: freshness[key]
                 for key in ("status", "requires_rerun", "conclusion_generated_at", "snapshot_refreshed_at", "requires_rerun_reason")

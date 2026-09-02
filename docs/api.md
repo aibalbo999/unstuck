@@ -15,6 +15,8 @@ Provider-impact recovery decisions and queue dashboard availability also use sha
 
 Recommendation calibration normalizes `analysis_text_stale` with the shared explicit boolean contract and trims/lowercases `data_trust.status` before automatic label adjustment. Legacy `"false"` no longer blocks a valid upgrade, while `" FRESH "` still qualifies as fresh; the normalized values are retained in the calibration audit payload.
 
+Evidence-gate projection and report comparison warnings also apply shared `safe_bool` to `decision_freshness.requires_rerun`. Legacy `"false"` therefore does not create a stale evidence context or a false compare warning; explicit true tokens remain visible for operator review.
+
 ## Read Endpoints
 
 `GET /api/observability/model-routes` returns the `model_route_budget.v1` telemetry section used by the operator panel. It reports `slow_route`, `retry_storm`, and `quality_gate_failures`; `slow_route` is maintenance evidence and remains outside the daily decision queue.

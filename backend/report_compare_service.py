@@ -202,7 +202,7 @@ def _compatibility(left: dict, right: dict) -> dict:
         })
     for side_name, side in (("left", left), ("right", right)):
         freshness = side.get("decision_freshness") if isinstance(side.get("decision_freshness"), dict) else {}
-        if freshness.get("requires_rerun"):
+        if safe_bool(freshness.get("requires_rerun")):
             label = "左側" if side_name == "left" else "右側"
             warnings.append({
                 "level": "warning",
