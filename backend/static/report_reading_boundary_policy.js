@@ -6,7 +6,8 @@
         const value = report?.[key];
         if (!value || typeof value !== 'object') return false;
         const signal = key === 'evidence_exit_gate' ? value.verdict : value.status;
-        return String(signal || '').trim() !== '';
+        const allowed = key === 'evidence_exit_gate' ? ['approved', 'caution', 'rejected'] : ['passed', 'warning', 'blocked', 'failed', 'rejected'];
+        return allowed.includes(String(signal ?? '').trim().toLowerCase());
     };
     const safeText = value => {
         try {
@@ -41,17 +42,16 @@
         const snapshot = report?.snapshot_integrity || {};
         const blockedStatuses = ['blocked', 'failed', 'rejected'];
         let state = 'warning';
-        if (blockedStatuses.includes(String(conformance.status || ''))
-            || blockedStatuses.includes(String(evidence.verdict || ''))
-            || blockedStatuses.includes(String(content.status || ''))
+        if (blockedStatuses.includes(String(conformance.status ?? '').trim().toLowerCase())
+            || blockedStatuses.includes(String(evidence.verdict ?? '').trim().toLowerCase())
+            || blockedStatuses.includes(String(content.status ?? '').trim().toLowerCase())
             || snapshotIntegrityInvalid(snapshot)) state = 'blocked';
         else if (!qualityKeys.some(key => recorded(report, key))) state = 'pending';
-        else if (qualityKeys.every(key => recorded(report, key))
-            && String(conformance.status || '') === 'passed'
-            && String(evidence.verdict || '') === 'approved'
-            && String(content.status || '') === 'passed'
+        else if (qualityKeys.every(key => recorded(report, key)) && String(conformance.status ?? '').trim().toLowerCase() === 'passed'
+            && String(evidence.verdict ?? '').trim().toLowerCase() === 'approved'
+            && String(content.status ?? '').trim().toLowerCase() === 'passed'
             && String(report?.data_trust?.status || 'unknown') === 'fresh'
-            && (!recorded(report, 'snapshot_integrity') || String(snapshot.status || '') === 'verified')) state = 'passed';
+            && (String(snapshot.status ?? '').trim() === '' || String(snapshot.status ?? '').trim().toLowerCase() === 'verified')) state = 'passed';
         const integrityDetail = snapshotIntegrityInvalid(snapshot) ? snapshotIntegrityDetail(snapshot) : '';
         return { state, label: labels[state], detail: `${details[state]} ${integrityDetail}`.trim() };
     }

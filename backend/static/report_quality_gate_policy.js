@@ -3,7 +3,8 @@
         const value = report?.[key];
         if (!value || typeof value !== 'object') return false;
         const signal = key === 'evidence_exit_gate' ? value.verdict : value.status;
-        return String(signal || '').trim() !== '';
+        const allowed = key === 'evidence_exit_gate' ? ['approved', 'caution', 'rejected'] : ['passed', 'warning', 'blocked', 'failed', 'rejected'];
+        return allowed.includes(String(signal ?? '').trim().toLowerCase());
     };
     const structuredGapAction = report => { const evidence = window.StockAgentReportQualityEvidence?.context?.(report); return evidence?.hasStructuredGap ? { label: '結構化品質缺口', tone: 'critical', detail: evidence.detail } : null; }; function reportQualityGateAction(report, helpers = {}) {
         const conformance = report?.report_conformance || {};
@@ -11,9 +12,9 @@
         const qualityKeys = ['report_conformance', 'evidence_exit_gate', 'content_credibility'];
         const persistedSnapshotVerified = report?.snapshot_integrity?.status === 'verified';
         const reportConformanceStatus = helpers.reportConformanceStatus
-            || (item => String(item?.report_conformance?.status || ''));
+            || (item => String(item?.report_conformance?.status ?? '').trim().toLowerCase());
         const evidenceExitGateVerdict = helpers.evidenceExitGateVerdict
-            || (item => String(item?.evidence_exit_gate?.verdict || ''));
+            || (item => String(item?.evidence_exit_gate?.verdict ?? '').trim().toLowerCase());
         const status = reportConformanceStatus(report);
         const verdict = evidenceExitGateVerdict(report);
         if (persistedSnapshotVerified && !qualityKeys.every(key => recorded(report, key))) {

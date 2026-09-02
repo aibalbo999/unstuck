@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3850 / align browser quality-state recording with backend allowlist
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：後端品質 metadata repair 與 conformance 已拒絕未知狀態，但瀏覽器 `recorded()` 只看非空字串；`future`／`experimental` 可能讓 preview action 與 reading boundary 跳過未記錄提示，大寫 known status 也可能被誤判為非通過。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先加入全未知、部分未知與大寫 known-status fixture，取得 `1 failed` RED；前端改用與後端一致的 known-state allowlist，品質 gate 狀態不分大小寫，snapshot integrity 維持獨立的 `unverified` warning 語意。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新 API、operator、architecture contract；閱讀邊界 `12 passed`，跨層品質／前端／HTTP 回歸 `370 passed`，Node syntax、Python compile、static line guard 與文件檢查完成。未知品質狀態仍導向人工核對，不修改 snapshot、artifact、index、review、queue 或 rerun。
+
 ## D3849 / fail closed on unknown quality-gate statuses
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`report_lint` 與 `content_credibility` 的 step builder 對空 payload、unknown 或 failed/rejected status 沒有完整狀態政策，可能把無法證實的品質結果當成 passed。

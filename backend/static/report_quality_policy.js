@@ -24,8 +24,8 @@
         ? '需重跑'
         : decisionFreshnessStatusLabel(report?.decision_freshness);
     const reportHasFreshData = report => dataTrustStatus(report) === 'fresh';
-    const reportConformanceStatus = report => String(report?.report_conformance?.status || '');
-    const evidenceExitGateVerdict = report => String(report?.evidence_exit_gate?.verdict || '');
+    const reportConformanceStatus = report => String(report?.report_conformance?.status ?? '').trim().toLowerCase();
+    const evidenceExitGateVerdict = report => String(report?.evidence_exit_gate?.verdict ?? '').trim().toLowerCase();
     const reportReadingBoundary = report => window.StockAgentReportReadingBoundaryPolicy?.reportReadingBoundary?.(report) || null;
     const evidenceExitGateNeedsAction = report => ['rejected', 'caution'].includes(evidenceExitGateVerdict(report));
     const reportQualityGateAction = report => window.StockAgentReportQualityGatePolicy?.reportQualityGateAction?.(report, {

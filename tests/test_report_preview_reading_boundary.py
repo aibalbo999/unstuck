@@ -72,6 +72,58 @@ process.stdout.write(JSON.stringify({ action, gate, boundary }));
     assert payload["boundary"]["label"] == "品質 gate 尚未記錄"
 
 
+def test_report_quality_policies_treat_unrecognized_gate_states_as_unrecorded():
+    gate_path = STATIC_DIR / "report_quality_gate_policy.js"
+    policy_path = STATIC_DIR / "report_quality_policy.js"
+    boundary_path = STATIC_DIR / "report_reading_boundary_policy.js"
+    script = """
+global.window = {};
+require(__GATE_PATH__);
+require(__POLICY_PATH__);
+require(__BOUNDARY_PATH__);
+const base = { filename: 'future-status.html', data_trust: { status: 'fresh' }, snapshot_integrity: { status: 'verified' } };
+const reports = [
+  {
+    name: 'all-unknown',
+    ...base,
+    report_conformance: { status: 'future' },
+    evidence_exit_gate: { verdict: 'experimental' },
+    content_credibility: { status: 'legacy' }
+  },
+  {
+    name: 'partial-unknown',
+    ...base,
+    report_conformance: { status: 'future' },
+    evidence_exit_gate: { verdict: 'approved' },
+    content_credibility: { status: 'passed' }
+  },
+  {
+    name: 'uppercase-known',
+    ...base,
+    report_conformance: { status: 'PASSED' },
+    evidence_exit_gate: { verdict: 'APPROVED' },
+    content_credibility: { status: 'PASSED' }
+  }
+];
+process.stdout.write(JSON.stringify(reports.map(report => ({
+  name: report.name,
+  gate: window.StockAgentReportQualityGatePolicy.reportQualityGateAction(report),
+  boundary: window.StockAgentReportReadingBoundaryPolicy.reportReadingBoundary(report)
+}))));
+""".replace("__GATE_PATH__", json.dumps(str(gate_path))).replace("__POLICY_PATH__", json.dumps(str(policy_path))).replace("__BOUNDARY_PATH__", json.dumps(str(boundary_path)))
+
+    payload = json.loads(_node(script))
+
+    all_unknown = payload[0]
+    partial_unknown = payload[1]
+    assert all_unknown["gate"]["label"] == "品質證據未記錄"
+    assert all_unknown["boundary"]["state"] == "pending"
+    assert partial_unknown["gate"]["label"] == "品質證據未記錄"
+    assert partial_unknown["boundary"]["state"] == "warning"
+    assert payload[2]["gate"] is None
+    assert payload[2]["boundary"]["state"] == "passed"
+
+
 def test_report_quality_gate_exposes_structured_gap_and_artifact_evidence_boundary():
     evidence_path = STATIC_DIR / "report_quality_evidence_helpers.js"
     gate_path = STATIC_DIR / "report_quality_gate_policy.js"
