@@ -681,3 +681,29 @@ def test_watchlist_scheduler_runs_daily_screener_once_after_close(monkeypatch):
     assert calls == [("run", "2026-06-20"), ("mark", "2026-06-20")]
     assert any("daily screener" in line and "imported=3" in line for line in logs)
     assert any("warnings=2" in line for line in logs)
+
+
+def test_watchlist_scheduler_does_not_mark_legacy_false_screener_success(monkeypatch):
+    calls = []
+
+    monkeypatch.setattr(watchlist_scheduler.market_screener, "screener_already_ran", lambda run_date: False)
+    monkeypatch.setattr(watchlist_scheduler.market_screener, "mark_screener_ran", lambda run_date: calls.append(("mark", run_date)))
+    monkeypatch.setattr(
+        watchlist_scheduler.market_screener,
+        "run_daily_market_screener",
+        lambda now=None: calls.append(("run", now.date().isoformat())) or {
+            "success": "false",
+            "imported_count": 0,
+            "candidate_count": 0,
+            "warnings": [],
+            "errors": ["provider unavailable"],
+        },
+    )
+
+    result = watchlist_scheduler._run_daily_market_screener(
+        now=datetime(2026, 6, 20, 18, 0, tzinfo=watchlist_service.TAIPEI),
+        emit_log=lambda _message: None,
+    )
+
+    assert result["success"] == "false"
+    assert calls == [("run", "2026-06-20")]

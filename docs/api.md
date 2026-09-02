@@ -15,6 +15,8 @@ The operator dashboard's `prompt_budget` projection applies the same explicit `s
 
 The `/readyz` runtime health builder also applies shared `safe_bool` to storage-check `success` and queue-snapshot `available` values. Legacy "false" therefore keeps the API in `not_ready`/HTTP 503 instead of being accepted through Python string truthiness; storage and queue details remain read-only diagnostics.
 
+The watchlist scheduler applies the same explicit boolean contract to the daily market screener result before persisting its run-date marker. Legacy "false" therefore remains a failed scan and cannot suppress a later retry by being recorded as already completed.
+
 Provider-impact recovery decisions and queue dashboard availability also use shared `safe_bool`; unknown health or availability tokens fail closed instead of becoming healthy or available through generic object truthiness.
 
 Recommendation calibration normalizes `analysis_text_stale` with the shared explicit boolean contract and trims/lowercases `data_trust.status` before automatic label adjustment. Legacy `"false"` no longer blocks a valid upgrade, while `" FRESH "` still qualifies as fresh; the normalized values are retained in the calibration audit payload.

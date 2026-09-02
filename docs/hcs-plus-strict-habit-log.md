@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3891 / fail closed on daily screener success token
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：watchlist scheduler 以 daily screener result 的 raw `success` 決定是否寫入 run-date marker；legacy `"false"` 會讓 failed scan 被視為已完成，抑制後續 retry。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：failed legacy-token fixture 先取得 `1 failed` RED；scheduler gate 改採 shared `report_freshness_summary.safe_bool`，保留 payload/log，不從 candidate、warning 或 error 數量推導成功。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：focused watchlist service/market-screener/import/docs boundary `608 passed`、full suite `8,605 passed, 6 skipped, 75 subtests passed`；official launcher reload 後 health/ready `200/ready`，reports `167` 份、current-quality `167/88/12`、daily sample/repair/rerun `20/11/0`、dashboard `prompt_budget` sample/cache/estimated cached input `5000/0/0`、queue gauge `1`，doctor canonical report index/operational DB 與 `rq`/`redis` 正常。本批只修每日掃描 retry gate，不改 candidates、watchlist、provider、snapshot、artifact、index、review 或 queue state。
+
 ## D3890 / fail closed on readiness boolean tokens
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`runtime_health` 的 storage `success` 與 queue `available` 使用 raw truthiness；legacy `"false"` 會讓不可用依賴被投影成 ready，直接影響 `/readyz` 是否回 HTTP 503。

@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Any
 
 import market_screener
+from report_freshness_summary import safe_bool
 import watchlist_service
 
 
@@ -55,7 +56,7 @@ def _run_daily_market_screener(
     if market_screener.screener_already_ran(run_date):
         return {"success": True, "skipped": [{"reason": "already_ran", "run_date": run_date}]}
     result = market_screener.run_daily_market_screener(now=now)
-    if result.get("success"):
+    if safe_bool(result.get("success")):
         market_screener.mark_screener_ran(run_date)
     emit_log(
         "daily screener："
