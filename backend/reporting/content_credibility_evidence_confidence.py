@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from mapping_fields import safe_mapping_dict, safe_text
+from report_freshness_summary import normalize_freshness_status, safe_bool
 from .text_tokens import is_missing_text_token
 
 
@@ -16,7 +17,6 @@ def _normalized_evidence_verdict(value: Any) -> str:
     if is_missing_text_token(text):
         return "not_recorded"
     return text or "not_recorded"
-
 
 def _issue(issue_id: str, message: str, details: dict | None = None) -> dict:
     issue = {"id": issue_id, "message": message}
@@ -35,8 +35,8 @@ def _evidence_details(base: dict, evidence_details: Any) -> dict:
     gate = safe_mapping_dict(evidence_details) or {}
     details = {**base, **{f"evidence_{key}": gate[key] for key in ("claim_count", "sampled_count", "verified_count", "failed_count", "unverifiable_count", "unverifiable_reason_counts") if key in gate}}
     freshness = safe_mapping_dict(gate.get("freshness_context")) or {}
-    if freshness.get("requires_rerun") is True or safe_text(freshness.get("status")).strip().lower() == "needs_rerun":
-        details["evidence_freshness_context"] = {key: freshness[key] for key in ("status", "requires_rerun", "conclusion_generated_at", "snapshot_refreshed_at", "requires_rerun_reason") if key in freshness}
+    if safe_bool(freshness.get("requires_rerun")) or normalize_freshness_status(freshness.get("status")) == "needs_rerun":
+        details["evidence_freshness_context"] = {key: normalize_freshness_status(freshness[key]) if key == "status" else safe_bool(freshness[key]) if key == "requires_rerun" else freshness[key] for key in ("status", "requires_rerun", "conclusion_generated_at", "snapshot_refreshed_at", "requires_rerun_reason") if key in freshness}
     return details
 
 def evaluate_confidence_evidence_alignment(evidence_verdict: Any, confidence_score: float | None, evidence_details: Any = None) -> dict:

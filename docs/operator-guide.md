@@ -14,6 +14,8 @@ Recommendation calibration 會先用同一套 explicit boolean 規則解讀 `ana
 
 Evidence gate 的 current projection 與報告比較 warning 也會用 shared `safe_bool` 解讀 `decision_freshness.requires_rerun`；舊資料的 `"false"` 不會被誤顯示成 stale evidence context 或比較警告，明確的 true token 仍會保留給操作人員複核。
 
+內容可信度的 evidence/confidence warning 在帶出結論新鮮度脈絡前，也會把 `freshness_context.status` 與 `requires_rerun` 正規化；舊資料的 `"true"` 會顯示成 canonical `true`，狀態的大小寫與前後空白會統一，且仍只帶 compact freshness 欄位，不帶 sampled claim 內容。
+
 ## Model Route Observations
 
 The LLM/API maintenance panel reads `model_route_budget.v1` through `/api/observability/model-routes` and labels latency, retry, quality-gate, and provider-error warnings separately. `failures` / `failure_rate` remain `analysis_node_telemetry` results; `provider_error_count` and `provider_quota_error_count` are a separate bounded recent sample from `api_usage_events`, so a fallback success is not misreported as a failed analysis node. `slow_route` and provider-error warnings are maintenance observations, not daily rerun instructions; use the report's `data_trust`, `decision_freshness`, and `今日工作台` before rerunning one report.

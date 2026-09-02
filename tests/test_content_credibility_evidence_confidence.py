@@ -81,6 +81,19 @@ def test_evidence_confidence_exposes_compact_stale_analysis_context():
     assert "sampled_claims" not in details["evidence_freshness_context"]
 
 
+def test_evidence_confidence_normalizes_legacy_stale_context_flags():
+    result = evaluate_confidence_evidence_alignment(
+        "caution",
+        6.0,
+        {"freshness_context": {"status": " CURRENT ", "requires_rerun": "true"}},
+    )
+
+    assert result["warnings"][0]["details"]["evidence_freshness_context"] == {
+        "status": "current",
+        "requires_rerun": True,
+    }
+
+
 def test_evidence_confidence_treats_string_empty_tokens_as_not_recorded():
     result = evaluate_confidence_evidence_alignment("NaN", 9.0)
 

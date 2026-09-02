@@ -17,6 +17,8 @@ Recommendation calibration normalizes `analysis_text_stale` with the shared expl
 
 Evidence-gate projection and report comparison warnings also apply shared `safe_bool` to `decision_freshness.requires_rerun`. Legacy `"false"` therefore does not create a stale evidence context or a false compare warning; explicit true tokens remain visible for operator review.
 
+Content-credibility evidence/confidence warnings normalize `freshness_context.status` and `requires_rerun` before attaching compact stale-conclusion context. Legacy `"true"` remains visible as canonical `true`, while surrounding status whitespace/casing is normalized; the warning still omits sampled claim text and remains read-only.
+
 ## Read Endpoints
 
 `GET /api/observability/model-routes` returns the `model_route_budget.v1` telemetry section used by the operator panel. It reports `slow_route`, `retry_storm`, and `quality_gate_failures`; `slow_route` is maintenance evidence and remains outside the daily decision queue.

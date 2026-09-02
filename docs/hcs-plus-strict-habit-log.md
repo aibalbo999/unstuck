@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3877 / normalize content-credibility freshness context
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：content-credibility evidence/confidence warning 對 `freshness_context.requires_rerun` 只接受原生 `True`，legacy `"true"` 會漏掉 stale-conclusion context；status 的大小寫與空白也未建立 canonical warning payload。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先以一組 legacy-token fixture 取得 `1 failed` RED；warning detail 共用 `safe_bool`／`normalize_freshness_status()`，只保留 compact freshness metadata，不帶 sampled claim raw text，也不從其他欄位借用 rerun 證據。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture contract；focused fixture `1 passed`、核心內容可信度回歸 `370 passed`、full suite `8,580 passed, 6 skipped, 75 subtests passed`。本批只修 content-credibility read-only warning projection，不改 snapshot、artifact、report index、review、queue 或 rerun state。
+
 ## D3876 / normalize evidence projection and compare freshness warnings
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：evidence-gate current projection 與 report compare compatibility warning 對 `decision_freshness.requires_rerun` 使用 raw truthiness；legacy `"false"` 會建立假的 stale context／compare warning，造成唯讀入口的 freshness 判斷漂移。
