@@ -798,7 +798,7 @@ def test_repair_queue_blocks_false_valid_snapshot_integrity_even_with_verified_s
                 "pipeline_id": "v2",
                 "snapshot_integrity": {
                     "status": "verified",
-                    "valid": False,
+                    "valid": "false",
                     "errors": ["snapshot_hash mismatch"],
                 },
             },

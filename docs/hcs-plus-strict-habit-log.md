@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3881 / normalize snapshot integrity flags across report reading boundaries
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：report index row、歷史 artifact reading、reading notice 與 report repair queue 對 snapshot integrity `valid` 各自使用 raw truthiness 或原生 `False` 比較；legacy `"false"` 會在 `status=verified` 下被當成可用，造成列表、閱讀提示與人工修復判斷不一致。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：四組 legacy-token fixture 先取得 `4 failed` RED；各邊界共用 `report_freshness_summary.safe_bool`，明確 false-like token fail closed，缺值維持 unverified/未記錄，不從 hash、errors 或其他 quality gate 借用 integrity 結論。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture contract；focused `4 passed`、相關報告品質/storage 回歸 `160 passed`、品質/文件/import 回歸 `756 passed`、full suite `8,585 passed, 6 skipped, 75 subtests passed`，live runtime 驗證待收尾。本批只修 report read-only integrity projection，不改 snapshot、artifact、report index、review、queue 或 rerun state。
+
 ## D3880 / fail closed on snapshot integrity verifier flags
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：report-quality audit row 對 verifier `valid` 使用 raw `bool()`；legacy `"false"` 會被投影為 verified/true，直接扭曲 snapshot evidence 與品質摘要。

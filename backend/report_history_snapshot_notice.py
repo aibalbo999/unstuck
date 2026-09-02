@@ -8,6 +8,7 @@ from typing import Any
 from data_trust_snapshot import verify_data_snapshot_integrity
 from mapping_fields import safe_mapping_dict, safe_text, safe_text_list
 from report_history_storage import load_storage_item
+from report_freshness_summary import safe_bool
 from storage.report_storage import ReportStorage
 
 
@@ -37,7 +38,8 @@ def invalid_snapshot_notice_context(storage: ReportStorage, filename: str) -> di
 
     integrity = verify_data_snapshot_integrity(snapshot)
     expected_hash = str(integrity.get("expected_hash") or "").strip()
-    if not expected_hash or integrity.get("valid") is not False:
+    valid = integrity.get("valid")
+    if not expected_hash or valid is None or safe_bool(valid):
         return None
 
     return snapshot_notice_context(
@@ -97,7 +99,8 @@ def recorded_snapshot_integrity_notice_context(snapshot: dict[str, Any]) -> dict
     if integrity is None:
         return None
     status = safe_text(dict.get(integrity, "status")).strip().lower()
-    if status != "invalid" and dict.get(integrity, "valid") is not False:
+    valid = dict.get(integrity, "valid")
+    if status != "invalid" and (valid is None or safe_bool(valid)):
         return None
     return snapshot_notice_context(
         "invalid",
@@ -125,7 +128,8 @@ def recorded_snapshot_integrity(snapshot: dict[str, Any]) -> dict[str, Any] | No
     invalid_candidates = []
     for candidate in candidates:
         status = safe_text(dict.get(candidate, "status")).strip().lower()
-        if status == "invalid" or dict.get(candidate, "valid") is False:
+        valid = dict.get(candidate, "valid")
+        if status == "invalid" or (valid is not None and not safe_bool(valid)):
             invalid_candidates.append(candidate)
     for candidate in invalid_candidates:
         if recorded_snapshot_integrity_specific_errors(candidate):

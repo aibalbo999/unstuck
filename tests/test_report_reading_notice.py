@@ -108,7 +108,7 @@ def test_report_reading_notice_blocks_false_valid_snapshot_integrity():
         report_conformance={"status": "passed"},
         snapshot_integrity={
             "status": "verified",
-            "valid": False,
+            "valid": "false",
             "errors": "snapshot_hash mismatch",
         },
     )

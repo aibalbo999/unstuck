@@ -22,6 +22,8 @@ Provider SLA 警示 payload 與操作台 aggregate 對 `current_source_has_healt
 
 報告品質稽核列在投影 snapshot integrity 時，也會用 shared `safe_bool` 解讀 verifier 的 `valid`；舊資料的 `"false"` 仍會顯示為 invalid，不能因字串 truthiness 被升成 verified。這只修正唯讀 audit projection，不改 hash 驗證邏輯。
 
+報告列表、歷史報告閱讀提示與 repair queue 也共用同一個 snapshot integrity boolean contract；舊資料的 `"false"` 即使搭配 `status=verified` 仍會阻擋報告重用，缺少 `valid` 則維持未驗證，不從 hash、錯誤文字或其他 gate 猜測結果。這只修正唯讀投影，不改快照內容或 hash verifier。
+
 ## Model Route Observations
 
 The LLM/API maintenance panel reads `model_route_budget.v1` through `/api/observability/model-routes` and labels latency, retry, quality-gate, and provider-error warnings separately. `failures` / `failure_rate` remain `analysis_node_telemetry` results; `provider_error_count` and `provider_quota_error_count` are a separate bounded recent sample from `api_usage_events`, so a fallback success is not misreported as a failed analysis node. `slow_route` and provider-error warnings are maintenance observations, not daily rerun instructions; use the report's `data_trust`, `decision_freshness`, and `今日工作台` before rerunning one report.
@@ -998,6 +1000,8 @@ Report reading notice quality gate record detection accepts mapping-safe gate pa
 Report reading notice and quality-action browser policies accept only known quality-gate states as recorded, so future or malformed non-empty status strings cannot suppress a pending-quality boundary or manual-review action; comparisons are case-insensitive, while `snapshot_integrity=unverified` remains a warning.
 
 Report reading notice snapshot integrity checks treat `valid=false` as blocked before HTML and Markdown output, so contradictory snapshot metadata cannot mark a hash mismatch as ready to quote.
+
+Report reading notice snapshot integrity checks also normalize legacy false-like `valid` tokens; a stored `"false"` cannot pass through string truthiness, while missing `valid` remains an unverified record rather than being guessed as a blocker or a pass.
 
 Report reading notice snapshot integrity checks let invalid `data.snapshot_integrity` override a conflicting verified top-level record before HTML and Markdown output, so nested snapshot blockers cannot be hidden by optimistic metadata.
 

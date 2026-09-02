@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from mapping_fields import mapping_field, safe_mapping_dict, safe_text, safe_text_list
+from report_freshness_summary import safe_bool
 
 
 _GENERIC_SNAPSHOT_INTEGRITY_ERRORS = {
@@ -75,7 +76,8 @@ def _unique_texts(values: list[str]) -> list[str]:
 
 def _invalid_integrity(integrity: dict[str, Any]) -> bool:
     status = safe_text(mapping_field(integrity, "status")).strip().lower()
-    if status == "invalid" or mapping_field(integrity, "valid") is False:
+    valid = mapping_field(integrity, "valid")
+    if status == "invalid" or (valid is not None and not safe_bool(valid)):
         return True
     if status:
         return False

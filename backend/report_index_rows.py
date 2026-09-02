@@ -90,9 +90,10 @@ def _snapshot_integrity(row, *, snapshot: dict | None = None) -> dict:
             "errors": ["snapshot_hash missing"],
         }
 
+    valid = safe_bool(integrity.get("valid"))
     return {
-        "status": "verified" if integrity.get("valid") else "invalid",
-        "valid": bool(integrity.get("valid")),
+        "status": "verified" if valid else "invalid",
+        "valid": valid,
         "hash": str(integrity.get("hash") or ""),
         "expected_hash": expected_hash,
         "errors": [str(error) for error in integrity.get("errors", []) if str(error)],

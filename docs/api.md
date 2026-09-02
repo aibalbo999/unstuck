@@ -56,6 +56,8 @@ Report-facing JSON readers treat invalid UTF-8, invalid JSON, and JSON roots tha
 
 Report list rows derive the duplicate top-level `data_trust_status` from the normalized `data_trust` payload. A malformed or stale legacy index column cannot disagree with `data_trust.status` in the API response; if the trust JSON is unavailable, both report-facing trust projections remain `unknown` rather than borrowing the duplicate column.
 
+Report list rows, report history reading notices, and report quality repair projections parse snapshot-integrity `valid` with the same explicit boolean contract: a legacy `false` token remains invalid even when status text says `verified`, while a missing value remains unverified rather than being borrowed from the hash, error text, or another quality gate. This keeps invalid snapshots blocked consistently across API, stored-artifact reading, and operator repair views.
+
 Report list rows parse the legacy `analysis_text_stale` flag with an explicit boolean contract before projecting conclusion freshness or recommendation calibration: real booleans, 0/1 values, and clear true tokens are accepted, while values such as the string `false` remain false instead of being treated as truthy. This keeps data freshness and conclusion freshness from being overstated by malformed index values.
 
 Snapshot ingestion applies the same explicit boolean contract to `refreshed_without_analysis_rerun` before writing report-index metadata. Therefore a legacy snapshot string `false` cannot become an index stale flag and later create a false full-rerun signal.
@@ -283,6 +285,8 @@ Report preview reading boundaries derive a `snapshot_hash mismatch` detail from 
 Report preview reading boundaries prefer hash mismatch details over default generic snapshot integrity errors from the same record, so same-record hash evidence is not hidden by boilerplate blocker text.
 
 Report preview reading boundaries treat `snapshot_integrity.valid=false` as blocked even when status text is non-invalid, so contradictory snapshot metadata cannot mark a hash mismatch as ready to use.
+
+Report reading notice snapshot integrity checks also normalize legacy false-like `valid` tokens before HTML and Markdown output; `"false"` cannot pass through string truthiness, while missing `valid` remains an unverified record instead of being treated as verified or invalid by guesswork.
 
 Report preview reading boundaries remove default generic snapshot integrity blocker text when the same error list contains specific provider or hash details, so preview notices show the actionable failure reason before opening the full report.
 
@@ -1427,6 +1431,8 @@ Report artifact view and download paths treat missing `.data.json` snapshots as 
 
 Report artifact view and download paths honor invalid `snapshot_integrity` recorded inside `.data.json` before returning stored HTML or Markdown, so hashless snapshots that already failed verification cannot leave stale passed notices in reusable artifacts.
 
+Report artifact view and download paths apply the same explicit boolean projection to recorded snapshot-integrity `valid`; legacy `"false"` still replaces a stale passed notice with a blocked notice, and missing `valid` does not invent an integrity failure when no invalid status is recorded.
+
 Report artifact view and download paths also honor invalid `data.snapshot_integrity` recorded inside `.data.json`, so nested snapshot integrity metadata follows the same blocked-notice contract as top-level metadata.
 
 Report artifact view and download paths let any recorded invalid snapshot integrity override a conflicting verified record before returning stored HTML or Markdown, so nested blockers cannot be hidden by a top-level green state.
@@ -1472,6 +1478,8 @@ Report quality repair queue quality gate child maps skip lookup item failures du
 Report quality repair queue snapshot integrity verifier results treat `valid=false` as invalid before action prioritization, so raw verifier payloads still block automatic reuse when a snapshot hash is invalid.
 
 Report quality repair queue snapshot integrity verifier results let `valid=false` override non-invalid status text before action prioritization, so contradictory metadata cannot hide a hash mismatch.
+
+Report quality repair queue snapshot integrity results normalize legacy false-like `valid` tokens before action prioritization; `"false"` remains a blocked manual-review candidate even with `status=verified`, and missing `valid` is not used to invent a blocker.
 
 Report quality repair queue snapshot integrity error details use string-safe conversion before action prioritization, so scalar mismatch details still reach manual-review actions instead of falling back to generic repair text.
 

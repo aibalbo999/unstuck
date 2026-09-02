@@ -6,6 +6,7 @@ from typing import Any
 
 from mapping_fields import safe_mapping_dict, safe_sequence_items, safe_text
 from numeric_safety import is_non_finite_number
+from report_freshness_summary import safe_bool
 
 from .text_tokens import is_missing_text_token
 
@@ -28,7 +29,8 @@ def snapshot_integrity(context: dict) -> dict:
 
 def snapshot_integrity_invalid(integrity: dict) -> bool:
     status = _status(dict.get(integrity, "status")).lower()
-    return status == "invalid" or dict.get(integrity, "valid") is False
+    valid = dict.get(integrity, "valid")
+    return status == "invalid" or (valid is not None and not safe_bool(valid))
 
 
 def snapshot_integrity_verified(integrity: dict) -> bool:

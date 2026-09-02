@@ -783,7 +783,7 @@ def test_get_report_file_replaces_static_notice_when_snapshot_records_invalid_in
                 "ticker": "2308.TW",
                 "snapshot_integrity": {
                     "status": "verified",
-                    "valid": False,
+                    "valid": "false",
                     "errors": ["snapshot verifier rejected stale source bundle"],
                 },
                 "data_trust": {"status": "fresh"},
