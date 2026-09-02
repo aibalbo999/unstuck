@@ -7,6 +7,7 @@ from typing import Any
 from job_observability import build_ops_dashboard_snapshot
 from mapping_fields import safe_mapping_dict
 from model_route_budget import build_model_route_budget
+from report_freshness_summary import safe_bool
 
 
 async def build_model_route_budget_payload(telemetry_limit: int = 5000) -> dict:
@@ -15,7 +16,7 @@ async def build_model_route_budget_payload(telemetry_limit: int = 5000) -> dict:
     if payload:
         return payload
     empty = build_model_route_budget([])
-    if isinstance(snapshot, dict) and snapshot.get("observability_unavailable"):
+    if isinstance(snapshot, dict) and safe_bool(snapshot.get("observability_unavailable")):
         empty["observability_unavailable"] = True
     return empty
 

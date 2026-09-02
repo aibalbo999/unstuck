@@ -3,6 +3,8 @@
 The API is local-first and intended for the bundled UI or trusted local automation.
 FastAPI exposes the machine-readable contract at `/openapi.json`; mutating operations are annotated with the `MutationToken` API-key security scheme using the `X-Mutation-Token` header.
 
+The model-route budget fallback applies shared `safe_bool` to `observability_unavailable`; legacy `"false"` therefore does not manufacture an unavailable warning, while explicit true remains visible in the machine-readable payload.
+
 Data-fetch cache audit stale flags use shared `safe_bool` before cache status and source-audit construction, so legacy "false" does not become a degraded cache source or lower report trust incorrectly. Evidence-matrix limitation summaries use the same conversion, so legacy "true" remains visible as a stale-source limitation without truthiness leakage.
 
 Prompt source-audit summaries, optional-provider refresh planning, and the legacy optional HTTP enrichment path use the same explicit boolean contract for `cache_hit` and `_cache_hit`. Legacy values such as "false" therefore remain cache misses, so prompt evidence stays accurate and fresh optional providers are not skipped by string truthiness.

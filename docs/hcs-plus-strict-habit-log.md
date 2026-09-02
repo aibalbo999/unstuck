@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3893 / normalize model-route observability fallback flag
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：model-route budget 的空 payload fallback 以 raw truthiness 解讀 `observability_unavailable`；legacy `"false"` 會被投影成 unavailable，操作台可能誤報觀測缺口。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：false/true legacy-token fixture 先取得 `1 failed` RED；fallback flag 改採 shared `safe_bool`，保留 explicit true 與既有 payload 形狀，不從 budget、telemetry、provider 或錯誤欄位推導 availability。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：本批只修 read-only model-route observability projection，後續需以 focused model-route、docs、full suite、official launcher 與 live dashboard smoke 驗證，不改 telemetry、provider、snapshot、artifact、index、queue 或 rerun state。
+
 ## D3892 / normalize trigger monitor match tokens
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：trigger event persistence 已用 `safe_bool` 將 legacy `"false"` 記成 unmatched，但 monitor enqueue gate 仍讀原始 event truthiness，可能把同一事件建立成分析 job。

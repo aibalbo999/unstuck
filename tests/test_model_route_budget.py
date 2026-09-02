@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import sys
 from pathlib import Path
 
@@ -164,3 +165,36 @@ def test_model_route_budget_separates_provider_errors_from_node_failures():
     warning = next(item for item in budget["warnings"] if item["route"] == "v4/gemma-4-31b-it")
     assert warning["id"] == "provider_quota_errors"
     assert "provider_error_count=2" in warning["message"]
+
+
+def test_model_route_budget_payload_does_not_promote_legacy_false_unavailable_flag(monkeypatch):
+    import model_route_observability
+
+    async def fake_snapshot(**_kwargs):
+        return {
+            "model_route_budget": {},
+            "observability_unavailable": "false",
+        }
+
+    monkeypatch.setattr(model_route_observability, "_dashboard_snapshot_or_empty", fake_snapshot)
+
+    payload = asyncio.run(model_route_observability.build_model_route_budget_payload())
+
+    assert payload["schema_version"] == "model_route_budget.v1"
+    assert "observability_unavailable" not in payload
+
+
+def test_model_route_budget_payload_preserves_explicit_true_unavailable_flag(monkeypatch):
+    import model_route_observability
+
+    async def fake_snapshot(**_kwargs):
+        return {
+            "model_route_budget": {},
+            "observability_unavailable": "true",
+        }
+
+    monkeypatch.setattr(model_route_observability, "_dashboard_snapshot_or_empty", fake_snapshot)
+
+    payload = asyncio.run(model_route_observability.build_model_route_budget_payload())
+
+    assert payload["observability_unavailable"] is True

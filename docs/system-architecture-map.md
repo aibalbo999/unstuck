@@ -2,6 +2,8 @@
 
 這份文件是維護用的 Runtime Truth Map。`docs/architecture.md` 描述系統設計；本文件描述日常查問題時應該沿著哪條路找 Module、資料庫和輸出檔，避免把 legacy 檔案或相似路徑當成目前系統真相。
 
+模型路由觀測的 fallback 是唯讀 projection：`model_route_observability.py` 以 shared `safe_bool` 解讀 `observability_unavailable`，legacy `"false"` 不得升格成 unavailable；這不會改寫 telemetry、provider、snapshot、artifact、queue 或 rerun state。
+
 ## 目前 Runtime 真相
 
 以下為本機預設設定。若環境變數覆寫，請以 `config` 實際輸出為準。
