@@ -7,6 +7,8 @@ Decision tracking parses snapshot `current_price` first and falls back to `curre
 
 Content-credibility target parsing treats only finite positive numeric values as target prices. Numeric zero or negative scenario targets therefore remain an explicit parse warning instead of passing scenario-order checks as real prices, matching the explicit-target detector's non-positive-value boundary.
 
+Content-credibility current-price parsing applies the same finite-positive boundary to numeric and parsed text values. A zero or negative current price therefore becomes an unavailable alignment input and cannot make a mode-D trade setup appear directionally valid.
+
 The model-route budget fallback applies shared `safe_bool` to `observability_unavailable`; legacy `"false"` therefore does not manufacture an unavailable warning, while explicit true remains visible in the machine-readable payload.
 
 The data-fetch blocking notice uses `data_trust_values.has_value` for core market and financial fields. Placeholder values such as `N/A` and empty history lists therefore cannot bypass the missing-core-data stop, while valid zero values and real core data preserve the existing analysis path.

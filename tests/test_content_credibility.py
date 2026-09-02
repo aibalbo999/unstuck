@@ -420,6 +420,28 @@ def test_content_credibility_uses_trade_setup_alignment_for_mode_d():
     assert "略過方向一致性檢查" not in alignment["message"]
 
 
+def test_content_credibility_warns_when_mode_d_current_price_is_non_positive():
+    from reporting.content_credibility import evaluate_content_credibility
+
+    context = _base_context(recommendation="N/A", target_12m="N/A")
+    context["pipeline_id"] = "v4"
+    context["data"]["current_price"] = 0
+    context["parsed"]["recommendation"] = {}
+    context["parsed"]["trade_setup"] = {
+        "trade_direction": "Neutral",
+        "entry_zone": "等待回測 NT$90-95",
+        "target_price": "NT$105",
+        "stop_loss": "NT$90",
+    }
+
+    result = evaluate_content_credibility(context, _base_snapshot(context))
+
+    assert result["status"] == "warning"
+    check = next(check for check in result["checks"] if check["id"] == "trade_setup_alignment")
+    assert check["status"] == "warning"
+    assert any(issue["id"] == "missing_trade_setup_price_inputs" for issue in result["warnings"])
+
+
 def test_content_credibility_accepts_tuple_evidence_matrix_rows():
     from reporting.content_credibility import evaluate_content_credibility
 

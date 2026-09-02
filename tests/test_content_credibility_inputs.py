@@ -16,6 +16,12 @@ def test_first_price_rejects_non_finite_numeric_tokens():
     assert first_price(float("-inf")) is None
 
 
+def test_first_price_rejects_non_positive_numeric_and_text_tokens():
+    assert first_price(0) is None
+    assert first_price(-1) is None
+    assert first_price("0") is None
+
+
 def test_first_price_ignores_calendar_date_before_price():
     assert first_price("跌破 2026 年 7 月 31 日價格點 204.0 TWD") == 204.0
 

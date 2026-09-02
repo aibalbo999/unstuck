@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3897 / reject non-positive current prices
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`content_credibility_inputs.price_candidates()` 對 numeric `0`／負數與文字解析值沒有正數門檻，v4 Neutral setup 會以 `current_price=0` 通過交易方向檢查。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：current-price `0` fixture 先取得 `1 failed` RED；numeric 與 parsed text 價格只保留有限正數，無效現價轉為 `missing_trade_setup_price_inputs` warning，不從 target、entry 或其他報告文字借值。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：focused content/input/quality regression `920 passed`，完整 suite `8614 passed, 6 skipped, 75 subtests passed`；正式 launcher reload 後 health/ready `200/ready`、current quality `167` 份、reports `167`、model-route `5` 條，doctor 的 canonical report index/operational DB 存在。本批不改 snapshot、artifact、report index、review、queue 或 rerun state。
+
 ## D3896 / reject non-positive numeric scenario targets
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：字串目標價解析已用 `price > 0` 過濾，但 numeric `0`／負數仍被 `content_credibility_target_prices._target_price()` 當成有效價格，可能讓情境順序檢查錯誤通過。

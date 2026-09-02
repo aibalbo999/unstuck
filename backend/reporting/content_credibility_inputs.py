@@ -71,14 +71,14 @@ def price_candidates(value: Any) -> list[float]:
     if isinstance(value, bool) or value is None or is_non_finite_number(value):
         return []
     if isinstance(value, (int, float)):
-        return [float(value)]
+        price = float(value)
+        return [price] if price > 0 else []
     try:
         text = strip_non_price_metric_tokens(strip_contextual_reference_prices(_input_text(value)))
         prices = extract_price_numbers(_strip_temporal_numeric_tokens(text))
     except (TypeError, ValueError):
         return []
-    return [float(price) for price in prices if not is_non_finite_number(price)]
-
+    return [float(price) for price in prices if not is_non_finite_number(price) and price > 0]
 
 def has_explicit_price_range(value: Any) -> bool:
     """Return whether the input contains a deliberate two-endpoint price range."""
