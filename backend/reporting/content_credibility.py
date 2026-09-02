@@ -23,6 +23,7 @@ from .content_credibility_inputs import (
     first_value_by_key_fragment,
     main_target_price,
 )
+from .text_tokens import first_non_missing_text
 
 
 def _as_dict(value: Any) -> dict:
@@ -41,7 +42,7 @@ def evaluate_content_credibility(context: dict, snapshot: dict | None = None, ma
     parsed = _as_dict(context.get("parsed"))
     recommendation = _as_dict(parsed.get("recommendation"))
     trade_setup = _as_dict(parsed.get("trade_setup"))
-    pipeline_id = safe_text(context.get("pipeline_id") or snapshot.get("pipeline")).strip().lower()
+    pipeline_id = first_non_missing_text(context.get("pipeline_id"), snapshot.get("pipeline")).lower()
     data_trust = normalize_data_trust(snapshot.get("data_trust") or data.get("data_trust"))
     current_price = first_price(data.get("current_price"))
     recommendation_label = normalize_recommendation_label(first_value_by_key_fragment(recommendation, "建議"))

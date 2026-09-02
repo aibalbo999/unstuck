@@ -10,6 +10,7 @@ from mapping_fields import safe_dict_list, safe_mapping_dict, safe_sequence_item
 from .content_credibility import evaluate_content_credibility
 from .content_credibility_evidence_confidence import evaluate_confidence_evidence_alignment
 from .content_credibility_inputs import confidence_score as recommendation_confidence_score
+from .text_tokens import first_non_missing_text
 
 
 _STATUS_RANK = {"passed": 1, "warning": 2, "blocked": 3, "failed": 3, "rejected": 3}
@@ -38,7 +39,7 @@ def project_content_credibility(snapshot: Any) -> dict[str, Any] | None:
     rerun_context = safe_mapping_dict(snapshot_map.get("rerun_context")) or {}
     parsed = safe_mapping_dict(rerun_context.get("parsed")) or {}
     data = safe_mapping_dict(snapshot_map.get("data")) or {}
-    pipeline_id = safe_text(rerun_context.get("pipeline_id") or snapshot_map.get("pipeline")).strip().lower()
+    pipeline_id = first_non_missing_text(rerun_context.get("pipeline_id"), snapshot_map.get("pipeline")).lower()
     if not parsed or not data or not pipeline_id:
         return None
 
@@ -121,7 +122,7 @@ def _project_from_index_recommendation(snapshot: Any, recommendation: Any) -> di
     """Project legacy reports from the normalized index recommendation when parsed context is absent."""
     snapshot_map = safe_mapping_dict(snapshot) or {}
     recommendation_map = safe_mapping_dict(recommendation) or {}
-    pipeline_id = safe_text(snapshot_map.get("pipeline")).strip().lower()
+    pipeline_id = first_non_missing_text(snapshot_map.get("pipeline")).lower()
     if pipeline_id == "v4" or not recommendation_map or not snapshot_map.get("data"):
         return None
     label = safe_text(recommendation_map.get("recommendation")).strip()

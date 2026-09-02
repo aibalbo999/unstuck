@@ -33,4 +33,12 @@ def is_missing_text_token(value: Any) -> bool:
     return not text or text.upper() in MISSING_TEXT_TOKENS
 
 
-__all__ = ["is_missing_text_token"]
+def first_non_missing_text(*values: Any) -> str:
+    for value in values:
+        text = safe_text(value).strip()
+        if text and not is_missing_text_token(text):
+            return text
+    return ""
+
+
+__all__ = ["first_non_missing_text", "is_missing_text_token"]

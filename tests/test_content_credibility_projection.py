@@ -177,6 +177,29 @@ def test_projection_requires_parsed_context():
     assert project_content_credibility(snapshot) is None
 
 
+def test_projection_uses_snapshot_pipeline_when_rerun_context_pipeline_is_missing():
+    from reporting.content_credibility_projection import project_content_credibility
+
+    snapshot = _snapshot(stored={})
+    snapshot["pipeline"] = "v4"
+    snapshot["rerun_context"]["pipeline_id"] = "N/A"
+    snapshot["rerun_context"]["parsed"]["recommendation"] = {}
+    snapshot["rerun_context"]["parsed"]["trade_setup"] = {
+        "trade_direction": "Long",
+        "entry_zone": "NT$95-100",
+        "target_price": "NT$95",
+        "stop_loss": "NT$105",
+    }
+
+    result = project_content_credibility(snapshot)
+
+    assert result["status"] == "blocked"
+    assert {issue["id"] for issue in result["blocking_issues"]} == {
+        "long_target_not_above_current_price",
+        "long_stop_not_below_current_price",
+    }
+
+
 def test_evidence_projection_refreshes_legacy_check_without_parsed_context():
     from reporting.content_credibility_projection import project_evidence_confidence_alignment
 

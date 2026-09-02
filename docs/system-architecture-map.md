@@ -10,6 +10,8 @@
 
 內容可信度的 `content_credibility_inputs.price_candidates()` 對 current price 的 numeric 與文字解析也只保留有限正數；非正數會讓 trade-setup alignment 取得 unavailable input，避免 v4 Neutral 交易計畫用零股價錯誤通過。這是 read-only quality projection，不回寫 snapshot 或 report index。
 
+內容可信度的 direct evaluator 與 `content_credibility_projection` 共用 placeholder-aware pipeline selection：先取 `rerun_context/context.pipeline_id` 的有效值，再回退到 snapshot `pipeline`；`N/A`、`NULL` 與空字串不會蓋過可用的 v4 identity，也不會在兩邊都缺失時默認成 v1。這確保歷史 v4 snapshot 不會因 rerun context 欄位漂移而漏掉 trade-setup alignment，仍是 read-only projection。
+
 資料抓取到分析工作的阻擋邊界在 `analysis_job_helpers.py`；核心資料存在性沿用 `data_trust_values.has_value`，因此 placeholder 或空歷史不會被當成核心 evidence。此 gate 只停止缺少可用核心資料的當次工作，不回寫 canonical report index、snapshot 或 artifact。
 
 ## 目前 Runtime 真相

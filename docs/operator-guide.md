@@ -6,6 +6,8 @@
 
 內容可信度檢查對目前股價也只接受有限且大於零的數字；`0` 或負數會被視為缺少可用現價，v4 交易計畫會顯示需要確認，不會讓 Neutral 或其他方向透過無效現價完成一致性檢查。
 
+內容可信度的歷史唯讀投影會先使用 `rerun_context.pipeline_id`，但 `N/A`、`NULL`、空字串等 placeholder 不算有效模式；遇到這些值時會回退到 snapshot 的 `pipeline`。因此 snapshot 明確是 v4 時，即使 rerun context 的模式欄位缺失，仍會執行 v4 交易計畫的方向、目標與停損檢查；兩邊都沒有可用模式時維持不可用，不把未知資料默認成 v1。
+
 模型路由 budget 的 fallback 會用 shared `safe_bool` 解讀 `observability_unavailable`；legacy `"false"` 不會被製造成 unavailable 警示，明確的 true 仍會保留在機器可讀 payload，方便操作人員區分真的觀測不可用與舊格式資料。
 
 資料抓取進入分析前會用 `data_trust_values.has_value` 判斷核心市場／財報欄位是否真的有值；`N/A`、空歷史序列與非有限數字不會被當成可用資料而繞過停止條件，合法的核心資料則維持原本流程。這只決定本次是否繼續分析，不會改寫既有報告或快照。

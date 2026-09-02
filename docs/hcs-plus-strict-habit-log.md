@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3898 / preserve snapshot pipeline identity through placeholders
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：direct evaluator 與 historical projection 以 raw truthiness 選 `pipeline_id`；context／rerun context 的 `N/A` 會蓋過 snapshot `v4`，使 v4 交易計畫跳過方向、目標與停損檢查。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：錯誤 Long target/stop fixture 先取得 direct 與 projection 各 `1 failed` RED；新增共用 `first_non_missing_text()`，有效 context 優先、snapshot fallback，兩邊都缺失時不默認 v1，保留 unavailable 邊界。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：focused content/projection/trade-setup/input regression `932 passed`，完整 suite `8616 passed, 6 skipped, 75 subtests passed`；正式 launcher reload 後 placeholder pipeline probe 為 `blocked` 且抓到兩個 Long blocker，health/ready `200/ready`、current quality `167` 份、reports `167`、model-route `5` 條，doctor 的 canonical report index/operational DB 存在。本批不改 snapshot、artifact、report index、review、queue 或 rerun state。
+
 ## D3897 / reject non-positive current prices
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`content_credibility_inputs.price_candidates()` 對 numeric `0`／負數與文字解析值沒有正數門檻，v4 Neutral setup 會以 `current_price=0` 通過交易方向檢查。

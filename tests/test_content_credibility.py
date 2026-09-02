@@ -442,6 +442,30 @@ def test_content_credibility_warns_when_mode_d_current_price_is_non_positive():
     assert any(issue["id"] == "missing_trade_setup_price_inputs" for issue in result["warnings"])
 
 
+def test_content_credibility_uses_snapshot_pipeline_when_context_pipeline_is_missing():
+    from reporting.content_credibility import evaluate_content_credibility
+
+    context = _base_context(recommendation="N/A", target_12m="N/A")
+    context["pipeline_id"] = "N/A"
+    context["parsed"]["recommendation"] = {}
+    context["parsed"]["trade_setup"] = {
+        "trade_direction": "Long",
+        "entry_zone": "NT$95-100",
+        "target_price": "NT$95",
+        "stop_loss": "NT$105",
+    }
+    snapshot = _base_snapshot(context)
+    snapshot["pipeline"] = "v4"
+
+    result = evaluate_content_credibility(context, snapshot)
+
+    assert result["status"] == "blocked"
+    assert {issue["id"] for issue in result["blocking_issues"]} == {
+        "long_target_not_above_current_price",
+        "long_stop_not_below_current_price",
+    }
+
+
 def test_content_credibility_accepts_tuple_evidence_matrix_rows():
     from reporting.content_credibility import evaluate_content_credibility
 
