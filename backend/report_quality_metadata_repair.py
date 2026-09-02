@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from mapping_fields import safe_mapping_dict, safe_text, safe_text_list
+from report_freshness_summary import safe_bool
 
 
 RECORDED_GATE_STATES: dict[str, tuple[str, frozenset[str]]] = {
@@ -83,10 +84,9 @@ def quality_metadata_repair_item(report: Mapping[str, Any]) -> dict[str, Any] | 
         item["rerun_execution_status"] = rerun_execution_status
         if rerun_context_status == "missing":
             item["detail"] += "目前沒有可供局部重跑的原始分析上下文；若資料標記需重跑，應安排完整重跑後再採用。"
-            if (
-                dict.get(report_payload, "refreshed_without_analysis_rerun")
-                or safe_text(dict.get(report_payload, "decision_validity_status")).strip().lower() == "needs_rerun"
-            ):
+            if safe_bool(dict.get(report_payload, "refreshed_without_analysis_rerun")) or safe_text(
+                dict.get(report_payload, "decision_validity_status")
+            ).strip().lower() == "needs_rerun":
                 item["reason_codes"].append("rerun_context_missing")
         elif rerun_context_status == "artifact_fallback_available":
             if rerun_execution_status == "full_rerun_required":
@@ -130,20 +130,13 @@ def _rerun_context_status(report: Mapping[str, Any]) -> str:
 def _rerun_execution_status(report: Mapping[str, Any], rerun_context_status: str) -> str:
     report_payload = safe_mapping_dict(report) or {}
     decision_status = safe_text(dict.get(report_payload, "decision_validity_status")).strip().lower()
-    if _safe_bool(dict.get(report_payload, "refreshed_without_analysis_rerun")) or decision_status == "needs_rerun":
+    if safe_bool(dict.get(report_payload, "refreshed_without_analysis_rerun")) or decision_status == "needs_rerun":
         return "full_rerun_required"
     if rerun_context_status in {"present", "artifact_fallback_available"}:
         return "partial_rerun_available"
     if rerun_context_status == "partial":
         return "partial_rerun_review_required"
     return "partial_rerun_unavailable"
-
-
-def _safe_bool(value: Any) -> bool:
-    try:
-        return bool(value)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
-        return False
 
 
 __all__ = [

@@ -782,6 +782,28 @@ def test_report_compare_warns_when_compared_conclusion_needs_rerun(tmp_path, mon
     }
 
 
+def test_report_compare_does_not_warn_for_legacy_false_freshness(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    left = "2449_v2_report_20260606_010000.html"
+    right = "2449_v2_report_20260607_010000.html"
+    write_report_pair(tmp_path, left, "持有")
+    write_report_pair(tmp_path, right, "持有")
+    write_data_snapshot(tmp_path, left, "fresh", current_price=100)
+    write_data_snapshot(tmp_path, right, "fresh", current_price=120)
+    right_snapshot_path = tmp_path / right.replace(".html", ".data.json")
+    right_snapshot = json.loads(right_snapshot_path.read_text(encoding="utf-8"))
+    right_snapshot["refreshed_without_analysis_rerun"] = "false"
+    right_snapshot_path.write_text(json.dumps(right_snapshot, ensure_ascii=False), encoding="utf-8")
+
+    response = TestClient(api.app).get("/api/reports/compare", params={"left": left, "right": right})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["compatibility"]["warnings"] == []
+    assert body["right"]["analysis_text_stale"] is False
+    assert body["diff"]["decision_freshness"]["requires_rerun_after"] is False
+
+
 def test_report_compare_api_warns_for_incompatible_reports(tmp_path, monkeypatch):
     monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
     left = "2449_v2_report_20260608_010000.html"

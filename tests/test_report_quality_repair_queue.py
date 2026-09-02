@@ -308,6 +308,38 @@ def test_report_quality_repair_items_explain_missing_rerun_context_after_refresh
     assert item["reason_codes"][-1] == "rerun_context_missing"
 
 
+def test_quality_metadata_repair_does_not_treat_legacy_false_as_full_rerun():
+    from report_quality_metadata_repair import quality_metadata_repair_item
+
+    item = quality_metadata_repair_item(
+        {
+            "content_credibility": {},
+            "report_conformance": {},
+            "evidence_exit_gate": {},
+            "snapshot_integrity": {"status": "verified"},
+            "refreshed_from_report": "1623_TW_v1_report_20260815_153238.html",
+            "refreshed_without_analysis_rerun": "false",
+            "decision_validity_status": "current",
+            "rerun_context": {},
+        }
+    )
+
+    assert item["rerun_execution_status"] == "partial_rerun_unavailable"
+    assert "rerun_context_missing" not in item["reason_codes"]
+
+
+def test_decision_freshness_repair_does_not_treat_legacy_false_as_stale():
+    from report_quality_repair_items import decision_freshness_repair_item
+
+    assert decision_freshness_repair_item(
+        {
+            "decision_freshness": {"requires_rerun": "false", "status": "current"},
+            "requires_rerun": "false",
+            "analysis_text_stale": "false",
+        }
+    ) is None
+
+
 def test_quality_metadata_repair_item_is_owned_by_dedicated_module():
     assert importlib.util.find_spec("report_quality_metadata_repair") is not None
     helpers = importlib.import_module("report_quality_repair_items")

@@ -15,6 +15,7 @@ from recommendation_labels import normalize_recommendation_label
 from report_index import is_safe_report_filename
 from report_index_metadata import build_report_metadata
 from report_paths import report_storage_candidates_for_filename
+from report_freshness_summary import safe_bool
 
 
 def _read_json(path: str) -> dict:
@@ -86,7 +87,7 @@ def _side(metadata: dict) -> dict:
         "data_trust": trust,
         "decision_tracking": metadata.get("decision_tracking") or {},
         "decision_freshness": metadata.get("decision_freshness") or {},
-        "analysis_text_stale": bool(metadata.get("analysis_text_stale")),
+        "analysis_text_stale": safe_bool(metadata.get("analysis_text_stale")),
     }
 
 
@@ -128,8 +129,8 @@ def _diff(left: dict, right: dict) -> dict:
         "decision_freshness": {
             "status_before": left.get("decision_freshness", {}).get("status"),
             "status_after": right.get("decision_freshness", {}).get("status"),
-            "requires_rerun_before": bool(left.get("decision_freshness", {}).get("requires_rerun")),
-            "requires_rerun_after": bool(right.get("decision_freshness", {}).get("requires_rerun")),
+            "requires_rerun_before": safe_bool(left.get("decision_freshness", {}).get("requires_rerun")),
+            "requires_rerun_after": safe_bool(right.get("decision_freshness", {}).get("requires_rerun")),
         },
         "tracking": {
             "return_pct": _numeric_delta(

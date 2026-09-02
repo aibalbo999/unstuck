@@ -3,6 +3,30 @@ import json
 from types import SimpleNamespace
 
 
+def test_quality_audit_row_keeps_legacy_false_freshness_false():
+    from report_quality_audit_rows import hydrate_report_from_index_row
+
+    snapshot = {
+        "snapshot_hash": "hash",
+        "generated_at": "2026-06-09T00:00:00+00:00",
+        "refreshed_without_analysis_rerun": "false",
+    }
+
+    def load_item(_storage, _filename, *, kind):
+        assert kind == "data"
+        return SimpleNamespace(content=json.dumps(snapshot))
+
+    report = hydrate_report_from_index_row(
+        {"ticker": "2449.TW", "filename": "2449_v2.html", "pipeline_id": "v2"},
+        object(),
+        load_item=load_item,
+        verify_snapshot_integrity=lambda _snapshot: {"valid": True, "expected_hash": "hash", "errors": []},
+    )
+
+    assert report["refreshed_without_analysis_rerun"] is False
+    assert report["decision_freshness"]["requires_rerun"] is False
+
+
 def test_report_quality_audit_counts_verified_reports_with_missing_quality_metadata():
     assert importlib.util.find_spec("report_quality_audit") is not None
     from report_quality_audit import build_report_quality_audit

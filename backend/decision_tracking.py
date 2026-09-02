@@ -9,6 +9,7 @@ from typing import Optional
 from confidence_calibration import build_confidence_calibration, has_unresolved_cross_source_conflict
 from price_parser import extract_price_numbers
 from recommendation_labels import normalize_recommendation_label
+from report_freshness_summary import safe_bool
 
 
 def parse_optional_price(value) -> Optional[float]:
@@ -155,7 +156,7 @@ def build_decision_tracking(
         "confidence": str(recommendation.get("confidence") or "N/A"),
         "price_updated_at": _price_updated_at(snapshot),
         "snapshot_refreshed_at": _snapshot_refreshed_at(snapshot),
-        "refreshed_without_analysis_rerun": bool(snapshot.get("refreshed_without_analysis_rerun")),
+        "refreshed_without_analysis_rerun": safe_bool(snapshot.get("refreshed_without_analysis_rerun")),
         "recommendation_calibration": (
             recommendation.get("recommendation_calibration")
             if isinstance(recommendation.get("recommendation_calibration"), dict)
@@ -201,7 +202,7 @@ def build_decision_freshness(
             "message": "尚無資料快照，無法判斷投資結論是否仍對應最新資料。",
         }
 
-    stale = bool(snapshot.get("refreshed_without_analysis_rerun"))
+    stale = safe_bool(snapshot.get("refreshed_without_analysis_rerun"))
     data_snapshot_generated_at = str(snapshot.get("generated_at") or "")
     conclusion_generated_at = str(
         snapshot.get("conclusion_generated_at")

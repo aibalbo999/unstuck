@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3864 / preserve freshness semantics across downstream projections
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：D3863 只修 snapshot-to-index ingestion，但 decision tracking、quality audit hydration、compare 與 repair builders 仍以 raw truthiness 讀取 freshness flags。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以五組 decision/compare/audit/repair malformed string fixture 先取得 `2+1+2 failed` RED；所有受影響 read-only boundary 改用 shared `safe_bool`，並清除 repair detail 的遺留 raw condition。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture contract；新增 fixture `5 passed`，本批只改 freshness projection，不修改 snapshot、artifact、review、queue 或 rerun state。
+
 ## D3863 / normalize snapshot freshness flags before index persistence
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：D3862 只修 row read boundary，但 `report_index_metadata.read_snapshot_report_flags()` 仍把 snapshot 的 `refreshed_without_analysis_rerun="false"` 以 raw truthiness 寫成 stale index flag。

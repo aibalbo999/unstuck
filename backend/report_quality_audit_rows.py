@@ -13,6 +13,7 @@ from report_rerun_context import parse_agent_sections_from_markdown
 from reporting.content_credibility_final_audit import align_content_credibility_with_final_audit
 from reporting.content_credibility_projection import merge_content_credibility_results, project_content_credibility
 from reporting.evidence_exit_gate_projection import evidence_exit_gate_projection_metadata, project_evidence_exit_gate
+from report_freshness_summary import safe_bool
 
 
 def hydrate_report_from_index_row(
@@ -57,7 +58,7 @@ def hydrate_report_from_index_row(
             snapshot=snapshot,
         ),
         "quality_metadata_refresh_provenance": snapshot.get("quality_metadata_refresh_provenance", {}),
-        "refreshed_without_analysis_rerun": bool(snapshot.get("refreshed_without_analysis_rerun")),
+        "refreshed_without_analysis_rerun": safe_bool(snapshot.get("refreshed_without_analysis_rerun")),
         "decision_validity_status": safe_text(snapshot.get("decision_validity_status")).strip(),
         "rerun_context": snapshot.get("rerun_context", {}),
         "report_conformance": snapshot.get("report_conformance", {}),

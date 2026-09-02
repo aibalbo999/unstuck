@@ -7,6 +7,7 @@ from typing import Any
 from mapping_fields import safe_dict_list, safe_mapping_dict, safe_text, safe_text_list
 from report_quality_metadata_repair import quality_metadata_repair_item
 from report_quality_retry_actions import content_final_audit_retry_detail, final_audit_retry_detail
+from report_freshness_summary import safe_bool
 
 GateRule = tuple[str, int, str, str, str, str, list[str], bool]
 
@@ -75,9 +76,9 @@ def data_trust_repair_item(report: dict[str, Any]) -> dict[str, Any] | None:
 def decision_freshness_repair_item(report: dict[str, Any]) -> dict[str, Any] | None:
     freshness = _dict(_field(report, "decision_freshness"))
     if not (
-        _safe_bool(_field(freshness, "requires_rerun"))
-        or _safe_bool(_field(report, "requires_rerun"))
-        or _safe_bool(_field(report, "analysis_text_stale"))
+        safe_bool(_field(freshness, "requires_rerun"))
+        or safe_bool(_field(report, "requires_rerun"))
+        or safe_bool(_field(report, "analysis_text_stale"))
     ):
         return None
     detail = _first_text(
@@ -149,13 +150,6 @@ def _field(mapping: dict[str, Any], key: str, default: Any = None) -> Any:
 
 def _status(value: Any) -> str:
     return safe_text(value).strip().lower()
-
-
-def _safe_bool(value: Any) -> bool:
-    try:
-        return bool(value)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
-        return False
 
 
 def _summary(payload: dict[str, Any], fallback: str) -> str:

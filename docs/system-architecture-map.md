@@ -220,6 +220,7 @@ flowchart TD
 - `report_index_rows.row_to_report()` 的 top-level `data_trust_status` 直接取 normalized `data_trust.status`；legacy index duplicate 欄位不再成為第二個 trust truth source，trust JSON 失效時維持 `unknown`，不猜測或回填其他值。
 - `report_index_rows.row_to_report()` 對 legacy `analysis_text_stale` 使用 explicit boolean token projection，再將同一結果傳給 recommendation calibration 與 API row；`"false"` 不會因 truthiness 變成 stale，未知值不會合成重跑訊號。
 - `report_index_metadata.read_snapshot_report_flags()` 在 snapshot ingestion 階段也使用 shared `safe_bool` 解析 `refreshed_without_analysis_rerun`，先阻止 malformed string flag 污染 SQLite index，再由 row projection 保持同一 freshness 語意。
+- `decision_tracking`、`report_quality_audit_rows`、`report_compare_service` 與 quality repair builders 沿用 shared `safe_bool`；`refreshed_without_analysis_rerun`、`analysis_text_stale`、`requires_rerun` 的 legacy string `false` 不會在下游 read-only projection 重新變成 stale 或 rerun action。
 - 報告預覽的 compact data-trust reason summary 最多保留兩項，但以具體 source error/stale/provider SLA reason 優先於 generic freshness/note reason，同優先級維持原始順序；這是 bounded read-only display，不改 `data_trust.reason_codes`。
 - report-facing data-trust reason labels 以 `reporting.data_trust_summary` 的 canonical wording 為準，browser 與 generated HTML/Markdown 對 `missing_usable_critical_data`、`data_source_notes_present` 等 code 保持同語意；只做 read-only label projection。
 - report compare renderer 對 `diff.data_trust.status_before/status_after` 沿用 shared `dataTrustStatus` 的 trim/lowercase projection；空值保留 `N/A`，不把 compare API 或 persisted report metadata 回寫成正規化後的值。

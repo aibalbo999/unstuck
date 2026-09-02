@@ -15,7 +15,7 @@ import decision_tracking_service  # noqa: E402
 import decision_tracking_store  # noqa: E402
 import report_index  # noqa: E402
 from data_fetch import FetchResult  # noqa: E402
-from decision_tracking import build_decision_tracking  # noqa: E402
+from decision_tracking import build_decision_freshness, build_decision_tracking  # noqa: E402
 
 
 def _write_report(output_dir: Path, filename: str, ticker: str = "2449.TW", price: float = 100.0):
@@ -109,6 +109,23 @@ def test_decision_tracking_compares_latest_price_to_all_targets(tmp_path):
         str(snapshot_path),
     )
     assert above_all["tracking_summary_status"] == "高於12月目標"
+
+
+def test_decision_tracking_keeps_legacy_false_freshness_false():
+    snapshot = {
+        "generated_at": "2026-06-09T00:00:00+00:00",
+        "refreshed_without_analysis_rerun": "false",
+    }
+
+    freshness = build_decision_freshness(
+        report_generated_at="2026-06-09T00:00:00+00:00",
+        snapshot=snapshot,
+    )
+    tracking = build_decision_tracking({}, snapshot=snapshot)
+
+    assert freshness["status"] == "current"
+    assert freshness["requires_rerun"] is False
+    assert tracking["refreshed_without_analysis_rerun"] is False
 
 
 def test_decision_tracking_lookup_skips_repeated_metadata_sync(monkeypatch, tmp_path):
