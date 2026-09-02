@@ -29,6 +29,8 @@ Report-quality audit rows normalize snapshot-integrity verifier `valid` with sha
 
 Decision tracking, final-audit confidence calibration, structured-output warnings, content-credibility confidence checks, and workflow checkpoint validation normalize `circuit_breaker._ever_opened` with the same shared `safe_bool`. Legacy `"false"` therefore does not lower a fresh-data confidence cap or create a false checkpoint history, while explicit true and `status=open` continue to preserve the existing repair signal.
 
+The yfinance snapshot adapter, core-provider success gate, and snapshot assembly normalize `is_valid` with the same shared `safe_bool`. A missing flag keeps the existing valid-by-default behavior, while legacy `"false"` is rejected consistently and can proceed to the existing fallback provider path rather than being treated as a valid snapshot through string truthiness.
+
 ## Read Endpoints
 
 `GET /api/observability/model-routes` returns the `model_route_budget.v1` telemetry section used by the operator panel. It reports `slow_route`, `retry_storm`, and `quality_gate_failures`; `slow_route` is maintenance evidence and remains outside the daily decision queue.

@@ -93,7 +93,7 @@ def _core_provider_succeeded(result: ProviderResult) -> bool:
     if isinstance(result.value, dict) and result.value.get("error"):
         return False
     if isinstance(result.value, dict) and result.value.get("kind") == "yfinance_snapshot":
-        return bool(result.value.get("is_valid"))
+        return safe_bool(result.value.get("is_valid"))
     return bool(result.value)
 
 

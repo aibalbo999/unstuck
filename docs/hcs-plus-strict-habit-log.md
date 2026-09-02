@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3884 / normalize yfinance snapshot validity tokens
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：yfinance snapshot 的 `is_valid` 在 provider adapter、core-provider success gate 與 snapshot assembly 各自使用 raw truthiness；legacy `"false"` 會被當成有效快照，可能跳過 invalid-ticker error，讓不可信資料進入核心組裝。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：三組 legacy-token fixture 先取得 `3 failed` RED；三個 boundary 共用 `report_freshness_summary.safe_bool`，缺值維持 default=True，明確 false token 一致拒絕，不從 provider status 或其他資料欄位借用 validity 結論。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture contract；focused validity `7 passed`、data-fetch/import-boundary 回歸 `577 passed`、full suite `8,594 passed, 6 skipped, 75 subtests passed`；official launcher reload 後 `healthz=200`、`readyz=200`，reports/current-quality/daily-dashboard smoke 均 `200`，live current-quality `167` 份、`88` 份非通過、`12` 份 evidence failed，daily sample `20` 份、`11` 個 repair、`0` 個 rerun，doctor canonical DB/RQ paths 正常。本批只修 yfinance snapshot validity input projection，不改 provider 優先順序、fallback 策略、資料可信度政策、snapshot、artifact、index、review、queue 或 rerun state。
+
 ## D3883 / normalize circuit-breaker history flags across quality boundaries
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：決策追蹤、最終稽核、結構化輸出警示、內容可信度信心校準與 LangGraph state validation 對 `circuit_breaker._ever_opened` 使用 raw truthiness；legacy `"false"` 會誤判曾開啟修復機制，fresh-data 信心上限因此被誤降，checkpoint 也可能留下虛假的開啟紀錄。

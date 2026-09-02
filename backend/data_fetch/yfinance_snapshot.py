@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import time
 
+from report_freshness_summary import safe_bool
+
 from .audit_helpers import _append_source_fetch_audit
 from .market_sources.ticker_resolver import get_market_data_provider
 from .yfinance_error_payload import build_fetch_error_payload
@@ -18,13 +20,14 @@ def fetch_yfinance_snapshot(ticker: str) -> dict:
     ticker = str(ticker or "").strip().upper()
     provider = get_market_data_provider(ticker)
     stock, info, is_valid, resolved_ticker, attempts = provider.resolve_stock(ticker)
+    is_valid = safe_bool(is_valid)
     return {
         "kind": "yfinance_snapshot",
         "original_ticker": ticker,
         "ticker": str(resolved_ticker or ticker).strip().upper() if is_valid else ticker,
         "stock": stock,
         "info": info or {},
-        "is_valid": bool(is_valid),
+        "is_valid": is_valid,
         "resolved_ticker": str(resolved_ticker or ticker).strip().upper(),
         "attempts": list(attempts or []),
         "provider_name": getattr(provider, "name", provider.__class__.__name__),
@@ -40,12 +43,13 @@ class SnapshotMarketDataProvider:
 
     def resolve_stock(self, ticker: str):
         snapshot = self.snapshot
+        is_valid = safe_bool(snapshot.get("is_valid", True))
         return (
             snapshot.get("stock"),
             snapshot.get("info") or {},
-            bool(snapshot.get("is_valid", True)),
+            is_valid,
             str(snapshot.get("resolved_ticker") or snapshot.get("ticker") or ticker).strip().upper(),
-            list(snapshot.get("attempts") or [{"ticker": ticker, "valid": bool(snapshot.get("is_valid", True))}]),
+            list(snapshot.get("attempts") or [{"ticker": ticker, "valid": is_valid}]),
         )
 
 
@@ -59,7 +63,7 @@ def fetch_stock_data_from_snapshot(
 
     snapshot = snapshot or {}
     original_ticker = str(snapshot.get("original_ticker") or snapshot.get("ticker") or "").strip().upper()
-    if not bool(snapshot.get("is_valid", True)):
+    if not safe_bool(snapshot.get("is_valid", True)):
         now = time.time()
         return build_fetch_error_payload(
             original_ticker,

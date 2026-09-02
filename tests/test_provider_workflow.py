@@ -1291,6 +1291,51 @@ def test_workflow_falls_back_from_invalid_yfinance_snapshot_to_fmp(monkeypatch):
     assert ("FMP stable quote", "success") in statuses
 
 
+def test_core_provider_gate_rejects_legacy_false_yfinance_snapshot():
+    result = ProviderResult(
+        source="market_data",
+        provider="yfinance",
+        status="success",
+        value={"kind": "yfinance_snapshot", "is_valid": "false"},
+    )
+
+    assert workflow._core_provider_succeeded(result) is False
+
+
+def test_snapshot_provider_rejects_legacy_false_validity_token():
+    from data_fetch.yfinance_snapshot import SnapshotMarketDataProvider
+
+    provider = SnapshotMarketDataProvider({"is_valid": "false", "resolved_ticker": "9999.TW"})
+
+    _, _, is_valid, _, _ = provider.resolve_stock("9999.TW")
+
+    assert is_valid is False
+
+
+def test_snapshot_assembly_returns_error_for_legacy_false_validity(monkeypatch):
+    import data_fetch.yfinance_core_fetch as core_fetch
+    from data_fetch.yfinance_snapshot import fetch_stock_data_from_snapshot
+
+    monkeypatch.setattr(core_fetch, "fetch_stock_data", lambda *args, **kwargs: {"unexpected": True})
+
+    payload = fetch_stock_data_from_snapshot(
+        {
+            "kind": "yfinance_snapshot",
+            "original_ticker": "9999.TW",
+            "ticker": "9999.TW",
+            "resolved_ticker": "9999.TW",
+            "is_valid": "false",
+            "info": {},
+            "stock": None,
+            "attempts": [],
+            "provider_name": "taiwan_yfinance_finmind",
+        },
+        skip_optional_http=True,
+    )
+
+    assert payload["error"] == "yfinance 無法驗證股票代號：9999.TW"
+
+
 def test_fetch_stock_data_from_invalid_yfinance_snapshot_returns_clean_error():
     from data_fetch.yfinance_snapshot import fetch_stock_data_from_snapshot
 
