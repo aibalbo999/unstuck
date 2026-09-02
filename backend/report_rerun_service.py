@@ -26,7 +26,7 @@ from report_rerun_context import (
     parse_agent_sections_from_markdown,
     read_report_markdown,
     read_report_snapshot,
-    rerun_context_from_snapshot,
+    rerun_context_from_snapshot, source_pipeline_id as _source_pipeline_id,
 )
 from report_rerun_rendering import render_and_save_rerun_report
 from storage.report_storage import ReportStorage
@@ -79,7 +79,7 @@ def _build_final_rerun_context(
 ) -> tuple[dict, dict, int]:
     snapshot_map = safe_mapping_dict(snapshot) or {}
     data = rerun_data_payload(dict.get(snapshot_map, "data"))
-    pipeline_id = normalize_pipeline_id(dict.get(snapshot_map, "pipeline") or parse_report_filename(filename)["pipeline_id"])
+    pipeline_id = _source_pipeline_id(snapshot_map, filename)
     pipeline_def = get_pipeline_definition(pipeline_id)
     final_agent = get_structured_agent_num("recommendation", pipeline_id)
     if final_agent is None:
@@ -212,7 +212,7 @@ async def rerun_report_analysis(
         if source_storage is None or ReportArtifactLocator(source_storage).existing_key(filename, kind="html") is None:
             raise HTTPException(status_code=404, detail="找不到報告")
     snapshot = read_report_snapshot(filename, output_dir, storage=source_storage)
-    source_pipeline_id = normalize_pipeline_id(snapshot.get("pipeline") or parse_report_filename(filename)["pipeline_id"])
+    source_pipeline_id = _source_pipeline_id(snapshot, filename)
     if normalized_scope == "full_report":
         return await _run_full_pipeline_rerun(
             snapshot=snapshot,

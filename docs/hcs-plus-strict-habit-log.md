@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3900 / preserve pipeline identity during reruns
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`report_rerun_service` 以 raw truthiness 選 snapshot `pipeline`；legacy `N/A` 會被 normalize 成 v1，忽略 v2/v4 report filename，完整重跑可能送錯 Agent sequence，final rerun 也可能套錯前序段落契約。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：snapshot placeholder + v2 filename fixture 先取得 `1 failed` RED；將 `source_pipeline_id()` 放入既有 `report_rerun_context` helper，只有 snapshot pipeline 缺失或 placeholder 時回退 filename，沒有借用另一份報告或改寫 snapshot。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：focused rerun/preview/data/import-boundary regression `120 passed`，完整 suite `8619 passed, 6 skipped, 75 subtests passed`；正式 launcher reload 後 health/ready `200/ready`、current quality `167` 份（content passed/warning/blocked `79/76/12`、evidence approved/caution/rejected `135/29/3`）、reports `167`（limit 20 時 `9` pages）、model-route `5` 條／`2` warnings，doctor 確認 canonical report index/operational DB；契約文件已同步記錄 full/final rerun 的有效 pipeline 優先序與 read-only 邊界。
+
 ## D3899 / keep render and conformance pipeline identity aligned
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：renderer 的 request `pipeline_id="N/A"` 會蓋過 context 的有效模式並寫入 snapshot/metadata；conformance 的 context placeholder 也會蓋過 snapshot `v4`，可能用 v1 可見段落規則檢查 v4 產物。

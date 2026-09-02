@@ -14,6 +14,8 @@
 
 `reporting.renderer` 與 `reporting.conformance` 也共用 placeholder-aware pipeline identity：renderer 先取有效 request pipeline，再取 context pipeline，並把結果同時提供給 HTML/Markdown、snapshot 與 metadata；conformance 先取 context，再回退 snapshot。`N/A`、`NULL`、空字串不會讓 v4 產物或其 required-visibility check 漂移成 v1，兩邊都無值時才沿用產製流程的 v1 預設。
 
+`report_rerun_context.source_pipeline_id()` 是 rerun 的 pipeline identity boundary：完整重跑與 final rerun 先取 snapshot 的有效 `pipeline`，snapshot 為 `N/A`、`NULL` 或空字串時才取請求檔名的 pipeline。這個 read-only resolver 讓 v2/v4 filename fallback 維持正確的 Agent sequence，不修改 snapshot、artifact、index 或 queue state。
+
 資料抓取到分析工作的阻擋邊界在 `analysis_job_helpers.py`；核心資料存在性沿用 `data_trust_values.has_value`，因此 placeholder 或空歷史不會被當成核心 evidence。此 gate 只停止缺少可用核心資料的當次工作，不回寫 canonical report index、snapshot 或 artifact。
 
 ## 目前 Runtime 真相

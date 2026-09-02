@@ -1678,6 +1678,10 @@ def test_rerun_report_analysis_full_report_refreshes_data_before_pipeline(tmp_pa
     filename = "2449_v2_report_20260606_010000.html"
     write_report_pair(tmp_path, filename, "持有")
     write_data_snapshot(tmp_path, filename, "stale", current_price=309.5)
+    snapshot_path = tmp_path / filename.replace(".html", ".data.json")
+    snapshot_payload = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    snapshot_payload["pipeline"] = "N/A"
+    snapshot_path.write_text(json.dumps(snapshot_payload), encoding="utf-8")
     refresh_requests = []
     runner_requests = []
     progress_events = []
@@ -4204,6 +4208,39 @@ def test_final_rerun_context_reads_mapping_safe_rerun_context_without_markdown(t
     assert context["analyses"][11] == "Agent 11 analysis"
     assert 15 in context["analyses"]
     assert 14 in context["structured_outputs"]
+
+
+def test_final_rerun_context_uses_filename_pipeline_when_snapshot_pipeline_is_missing(tmp_path):
+    filename = "2449_v2_report_20260606_010000.html"
+    analyses = {
+        str(agent): f"Agent {agent} analysis"
+        for agent in [11, 1, 2, 3, 20, 4, 5, 6, 21, 12, 13, 14, 15]
+    }
+    snapshot = {
+        "snapshot_schema_version": 3,
+        "ticker": "2449.TW",
+        "company_name": "京元電子",
+        "pipeline": "N/A",
+        "generated_at": "2026-06-07T00:00:00+00:00",
+        "data_schema_version": 4,
+        "source_freshness": {},
+        "source_audit": [],
+        "data_trust": {"status": "fresh", "critical_failures": [], "stale_sources": []},
+        "rerun_context": {"analyses": analyses, "structured_outputs": {}},
+        "data": {"data_schema_version": 4, "ticker": "2449.TW", "company_name": "京元電子"},
+    }
+
+    context, pipeline_def, final_agent = report_rerun_service._build_final_rerun_context(
+        filename, snapshot, str(tmp_path)
+    )
+
+    assert pipeline_def["id"] == "v2"
+    assert final_agent == 16
+    assert context["pipeline_id"] == "v2"
+    assert sorted(context["agent_sequence"]) == [11, 12, 13, 14, 15, 16, 20, 21]
+    assert report_rerun_service._source_pipeline_id(
+        {"pipeline": "N/A"}, "2449_v4_report_20260606_010000.html"
+    ) == "v4"
 
 
 def test_final_rerun_rejects_refreshed_snapshot_that_needs_full_analysis(tmp_path):

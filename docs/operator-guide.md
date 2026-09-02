@@ -10,6 +10,8 @@
 
 報告產製與輸出契約也沿用同一個模式選擇邏輯：有效的 request pipeline 優先於 context pipeline，placeholder 不會蓋掉另一個有效值；產製後 snapshot 與 metadata 會記錄選出的模式，conformance 在 context 缺失時會讀 snapshot 模式。這可避免 v4 報告因 request/context 出現 `N/A` 而誤用 v1 的摘要、決策與風控段落規則。
 
+完整重跑與結論重跑也會先讀 snapshot 的有效 `pipeline`；若欄位是 `N/A`、`NULL` 或空字串，才回退到目前要求重跑的報告檔名所帶的模式。這個 fallback 只決定本次 rerun 要使用的 Agent sequence，不會改寫原 snapshot，也不會借用另一份報告的模式；因此 legacy v2/v4 snapshot metadata 不完整時，仍不會誤跑成 v1。
+
 模型路由 budget 的 fallback 會用 shared `safe_bool` 解讀 `observability_unavailable`；legacy `"false"` 不會被製造成 unavailable 警示，明確的 true 仍會保留在機器可讀 payload，方便操作人員區分真的觀測不可用與舊格式資料。
 
 資料抓取進入分析前會用 `data_trust_values.has_value` 判斷核心市場／財報欄位是否真的有值；`N/A`、空歷史序列與非有限數字不會被當成可用資料而繞過停止條件，合法的核心資料則維持原本流程。這只決定本次是否繼續分析，不會改寫既有報告或快照。

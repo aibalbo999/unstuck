@@ -13,6 +13,9 @@ from data_trust import data_snapshot_filename_for_report
 from mapping_fields import safe_mapping_dict, safe_text
 from report_history_storage import existing_storage_key
 from report_index import is_safe_report_filename
+from report_index_parsing import parse_report_filename
+from pipeline_modes import normalize_pipeline_id
+from reporting.text_tokens import first_non_missing_text
 from storage.report_storage import ReportStorage
 
 
@@ -67,6 +70,12 @@ def read_report_snapshot(filename: str, output_dir: str, storage: ReportStorage 
     if not isinstance(snapshot.get("data"), dict):
         raise HTTPException(status_code=400, detail="資料快照缺少可重跑的 data payload")
     return snapshot
+
+
+def source_pipeline_id(snapshot: Any, filename: str) -> str:
+    snapshot_map = safe_mapping_dict(snapshot) or {}
+    filename_pipeline = parse_report_filename(filename)["pipeline_id"]
+    return normalize_pipeline_id(first_non_missing_text(dict.get(snapshot_map, "pipeline"), filename_pipeline))
 
 def read_report_markdown(filename: str, output_dir: str, storage: ReportStorage | None = None) -> str:
     try:
