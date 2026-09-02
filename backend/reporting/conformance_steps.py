@@ -27,17 +27,17 @@ def _text(value: Any, default: str = "") -> str:
 
 
 def _report_lint_step(report_lint: dict) -> dict:
-    lint_status = _text(dict.get(report_lint, "status"), "not_recorded")
+    lint_status = _text(dict.get(report_lint, "status"), "not_recorded").lower()
     lint_blocking = _as_list(dict.get(report_lint, "blocking_issues"))
     lint_warnings = _as_list(dict.get(report_lint, "warnings"))
-    if lint_status == "blocked" or lint_blocking:
+    if lint_status in {"blocked", "failed", "rejected"} or lint_blocking:
         return step_result(
             step("report_lint", "blocked", "報告 lint 發現阻斷問題。", lint_blocking),
             issue_kind="blocking",
         )
-    if lint_status == "warning" or lint_warnings:
+    if lint_status != "passed" or lint_warnings:
         return step_result(
-            step("report_lint", "warning", "報告 lint 有警示。", lint_warnings),
+            step("report_lint", "warning", "報告 lint 未完全通過，需人工確認。", lint_warnings or lint_status),
             issue_kind="warning",
         )
     return step_result(step("report_lint", "passed", "報告 lint 通過。"))
@@ -45,7 +45,7 @@ def _report_lint_step(report_lint: dict) -> dict:
 
 def _final_audit_step(context: dict) -> dict:
     final_audit = _as_dict(dict.get(context, "final_audit"))
-    final_status = _text(dict.get(final_audit, "status"), "not_recorded")
+    final_status = _text(dict.get(final_audit, "status"), "not_recorded").lower()
     critical = _as_list(dict.get(final_audit, "critical"))
     audit_warnings = _as_list(dict.get(final_audit, "warnings"))
     if final_status in {"blocked", "failed", "rejected"} or critical:
@@ -64,7 +64,7 @@ def _final_audit_step(context: dict) -> dict:
 
 
 def _evidence_exit_gate_step(evidence_exit_gate: dict) -> dict:
-    evidence_verdict = _text(dict.get(evidence_exit_gate, "verdict"), "not_recorded")
+    evidence_verdict = _text(dict.get(evidence_exit_gate, "verdict"), "not_recorded").lower()
     evidence_details = {**evidence_exit_gate, "verdict": evidence_verdict}
     if evidence_verdict == "rejected":
         return step_result(
@@ -80,17 +80,17 @@ def _evidence_exit_gate_step(evidence_exit_gate: dict) -> dict:
 
 
 def _content_credibility_step(content_credibility: dict) -> dict:
-    content_status = _text(dict.get(content_credibility, "status"), "not_recorded")
+    content_status = _text(dict.get(content_credibility, "status"), "not_recorded").lower()
     content_blocking = _as_list(dict.get(content_credibility, "blocking_issues"))
     content_warnings = _as_list(dict.get(content_credibility, "warnings"))
-    if content_status == "blocked" or content_blocking:
+    if content_status in {"blocked", "failed", "rejected"} or content_blocking:
         return step_result(
             step("content_credibility", "blocked", "內容可信度檢查發現阻斷矛盾。", content_blocking or content_credibility),
             issue_kind="blocking",
         )
-    if content_status == "warning" or content_warnings:
+    if content_status != "passed" or content_warnings:
         return step_result(
-            step("content_credibility", "warning", "內容可信度檢查有警示。", content_warnings or content_credibility),
+            step("content_credibility", "warning", "內容可信度檢查未完全通過，需人工確認。", content_warnings or content_status),
             issue_kind="warning",
         )
     return step_result(step("content_credibility", "passed", "內容可信度檢查通過。"))

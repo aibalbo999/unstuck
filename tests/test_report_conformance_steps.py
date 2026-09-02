@@ -80,16 +80,70 @@ def test_conformance_steps_drop_string_empty_gate_status_tokens():
     )
 
     statuses = {step["id"]: step["status"] for step in result["decision_tree"]}
-    assert statuses["report_lint"] == "passed"
+    assert statuses["report_lint"] == "warning"
     assert statuses["final_audit"] == "warning"
     assert statuses["evidence_exit_gate"] == "warning"
-    assert statuses["content_credibility"] == "passed"
+    assert statuses["content_credibility"] == "warning"
 
     evidence_step = next(step for step in result["decision_tree"] if step["id"] == "evidence_exit_gate")
     assert evidence_step["details"]["verdict"] == "not_recorded"
     rendered = str(result).lower()
     assert "nan" not in rendered
     assert "infinity" not in rendered
+
+
+def test_conformance_steps_warn_when_quality_gates_are_not_recorded():
+    result = build_conformance_gate_steps(
+        context={
+            "data": {"data_trust": {"status": "fresh"}},
+            "final_audit": {"status": "passed", "critical": [], "warnings": []},
+        },
+        snapshot={"data_trust": {"status": "fresh"}},
+        report_lint={},
+        evidence_exit_gate={"verdict": "approved"},
+        content_credibility={},
+    )
+
+    statuses = {step["id"]: step["status"] for step in result["decision_tree"]}
+    assert statuses["report_lint"] == "warning"
+    assert statuses["content_credibility"] == "warning"
+    assert {issue["id"] for issue in result["warnings"]} == {"report_lint", "content_credibility"}
+
+
+def test_conformance_steps_block_failed_quality_gate_statuses():
+    result = build_conformance_gate_steps(
+        context={
+            "data": {"data_trust": {"status": "fresh"}},
+            "final_audit": {"status": "passed", "critical": [], "warnings": []},
+        },
+        snapshot={"data_trust": {"status": "fresh"}},
+        report_lint={"status": "failed"},
+        evidence_exit_gate={"verdict": "approved"},
+        content_credibility={"status": "rejected"},
+    )
+
+    statuses = {step["id"]: step["status"] for step in result["decision_tree"]}
+    assert statuses["report_lint"] == "blocked"
+    assert statuses["content_credibility"] == "blocked"
+    assert {issue["id"] for issue in result["blocking_issues"]} == {"report_lint", "content_credibility"}
+
+
+def test_conformance_steps_warn_for_unrecognized_quality_gate_statuses():
+    result = build_conformance_gate_steps(
+        context={
+            "data": {"data_trust": {"status": "fresh"}},
+            "final_audit": {"status": "passed", "critical": [], "warnings": []},
+        },
+        snapshot={"data_trust": {"status": "fresh"}},
+        report_lint={"status": "unknown"},
+        evidence_exit_gate={"verdict": "approved"},
+        content_credibility={"status": "unknown"},
+    )
+
+    statuses = {step["id"]: step["status"] for step in result["decision_tree"]}
+    assert statuses["report_lint"] == "warning"
+    assert statuses["content_credibility"] == "warning"
+    assert {issue["id"] for issue in result["warnings"]} == {"report_lint", "content_credibility"}
 
 
 def test_data_trust_conformance_step_drops_string_empty_status_tokens(monkeypatch):

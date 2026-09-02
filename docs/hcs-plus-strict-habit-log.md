@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3849 / fail closed on unknown quality-gate statuses
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`report_lint` 與 `content_credibility` 的 step builder 對空 payload、unknown 或 failed/rejected status 沒有完整狀態政策，可能把無法證實的品質結果當成 passed。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以空 gate、unknown 與 failed/rejected fixture 先取得 `2 failed` RED；改為明確 allowlist，只有 passed 通過，warning/未確認回 warning，failed/rejected/blocked 或 blocker 回 blocked，並保留 case-insensitive status normalization。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新 API、operator、architecture contract；conformance/content/storage `101 passed`、lint/quality audit/repair `105 passed`、import/docs `70 passed`，Python compile、`git diff --check` 通過，`conformance_steps.py` 122 行。正式 reload 後 health/ready `200/200`，current `165/85`、conformance `80/71/14`、content `93/59/13`、evidence `134/28/3`，historical `1175/59` 且 artifact `present=59/unavailable=0`，doctor canonical paths 與 RQ 正常。本批只改 read-only conformance classification，不寫 snapshot、artifact、index、review、queue 或 rerun。
+
 ## D3848 / keep missing final-audit evidence visible
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：產製 conformance 的 final-audit step 對空 payload 使用 `passed` fallback；因此缺少最終稽核證據的輸出仍可能被標成通過，和歷史品質稽核對 `not_recorded` 缺口的語意不一致。

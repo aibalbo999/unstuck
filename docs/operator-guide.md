@@ -239,6 +239,8 @@ Report conformance quality gate inputs use dict-native field reads before decisi
 
 Report conformance treats a missing or `not_recorded` `final_audit` as a warning with `details=not_recorded`; it never defaults an absent final audit to passed. Explicit critical findings and blocking statuses still take precedence. This is the report-generation decision tree; historical/API missing-metadata coverage remains a separate read-only classification.
 
+Report conformance 的 `report_lint` 與 `content_credibility` 只有 `passed` 才能進入通過分支；`warning`、`unknown`、`not_recorded` 與無法辨識的狀態會保留為 warning，`failed`、`rejected`、`blocked` 或明確 blocker 會保留為 blocked。狀態比對不分大小寫，也不會回寫既有 metadata。
+
 HTML execution summary 的 Evidence gate、Content credibility、Report conformance status 與 evidence note，以及 Markdown execution summary 的三個 status/摘要，在有 current projection 時會一起使用 response-time quality gate；若沒有 current projection，則保留 persisted artifact。這是閱讀層的投影，不會改變 `/api/report/{filename}/download/data` 的原始 snapshot。
 
 HTML/Markdown 的報告使用提示也會在有 current report row 時投影「分析新鮮度」：`目前一致` 代表結論 freshness 判定為 current；`需完整重跑` 代表資料快照已更新但分析本文仍是舊結論，提示中的原因以 current `decision_freshness`/`analysis_text_stale` 為準。這個提示與資料可信度的 `fresh` 是兩個不同判斷，不能因資料新鮮就跳過完整重跑；它只改 response-time 閱讀層，不回寫 artifact、data snapshot、index、review、rerun、repair 或 queue。

@@ -728,6 +728,8 @@ Report conformance quality gate inputs use dict-native field reads before decisi
 
 Report conformance treats a missing or `not_recorded` `final_audit` as a warning with `details=not_recorded`; it never defaults an absent final audit to passed. Explicit critical findings and blocking statuses still take precedence, while historical/API metadata coverage keeps its separate missing-gate semantics.
 
+Report conformance quality-gate steps fail closed on status values: only `passed` is a passed `report_lint` or `content_credibility` result; `warning`, `unknown`, `not_recorded`, and other unrecognized values are warnings, while `failed`, `rejected`, `blocked`, or explicit blocker lists are blocking. Status matching is case-insensitive and does not rewrite persisted metadata.
+
 Report conformance quality gate inputs accept mapping-safe wrappers before decision-tree evaluation, so read-only report lint, final audit, evidence, content credibility, context, or snapshot payloads cannot hide blocker or warning evidence.
 
 Report conformance quality gate issue lists use sequence-safe conversion before decision-tree evaluation, so tuple blocking or warning rows from lint, final audit, or content credibility gates cannot be ignored.
