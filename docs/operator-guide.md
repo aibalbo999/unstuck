@@ -269,6 +269,8 @@ Report conformance 的 `report_lint` 與 `content_credibility` 只有 `passed` �
 
 decision tracking、品質稽核、報告比較與 repair action 也沿用同一套明確 boolean 規則處理 `refreshed_without_analysis_rerun`、`analysis_text_stale` 與 `requires_rerun`；舊資料的字串 `false` 會在下游維持「目前一致」，不會誤生人工警示或完整重跑 action。
 
+報告閱讀提示也沿用同一套規則處理 `analysis_text_stale`、`refreshed_without_analysis_rerun` 與 `decision_freshness.requires_rerun`；格式錯誤的數值 `2` 或 `-1` 會維持 false，不會把報告誤升級成「需完整重跑」，但明確的 `needs_rerun` 狀態仍然有效。
+
 `decision_validity_status` 在 decision tracking、刷新 policy 與局部重跑前也會先去除空白並轉成小寫；例如 ` NEEDS_RERUN ` 不會繞過「必須完整重跑」的安全判斷。
 
 瀏覽器品質 action 也會把 `snapshot_integrity.status=invalid` 或 `valid=false` 顯示為「資料快照完整性未通過」的重大人工複核，並保留 hash／error detail；這與 blocked 閱讀邊界及後端 repair queue 對齊，不會自動修改快照或重跑報告。

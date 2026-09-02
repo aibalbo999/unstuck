@@ -101,6 +101,22 @@ def test_reading_notice_values_labels_current_analysis_freshness():
     assert ("分析新鮮度", "目前一致") in values["checks"]
 
 
+def test_reading_notice_values_do_not_treat_malformed_numeric_freshness_as_stale():
+    values = build_report_reading_notice_values(
+        _context(
+            evidence_exit_gate={"verdict": "approved"},
+            content_credibility={"status": "passed"},
+            report_conformance={"status": "passed"},
+            analysis_text_stale=2,
+            refreshed_without_analysis_rerun=-1,
+            decision_freshness={"status": "current", "requires_rerun": 2},
+        )
+    )
+
+    assert values["state"] == "passed"
+    assert ("分析新鮮度", "目前一致") in values["checks"]
+
+
 def test_reading_notice_values_drop_non_finite_gate_status_text():
     values = build_report_reading_notice_values(
         _context(

@@ -6,6 +6,7 @@ from typing import Any
 
 from mapping_fields import safe_mapping_dict, safe_text
 from numeric_safety import is_non_finite_number
+from report_freshness_summary import safe_bool
 
 
 def _status(value: Any, default: str = "") -> str:
@@ -15,16 +16,6 @@ def _status(value: Any, default: str = "") -> str:
     if not text:
         return default
     return " ".join(line.strip() for line in text.splitlines() if line.strip())
-
-
-def _safe_bool(value: Any) -> bool:
-    if isinstance(value, bool):
-        return value
-    if is_non_finite_number(value):
-        return False
-    if isinstance(value, (int, float)):
-        return value != 0
-    return _status(value).lower() in {"1", "true", "yes", "y", "on"}
 
 
 def is_recorded(context: dict) -> bool:
@@ -48,8 +39,8 @@ def decision_freshness(context: dict) -> dict:
         }
 
     stale = (
-        _safe_bool(dict.get(context, "analysis_text_stale"))
-        or _safe_bool(dict.get(context, "refreshed_without_analysis_rerun"))
+        safe_bool(dict.get(context, "analysis_text_stale"))
+        or safe_bool(dict.get(context, "refreshed_without_analysis_rerun"))
         or _status(dict.get(context, "decision_validity_status")).lower() == "needs_rerun"
     )
     if stale:
@@ -74,7 +65,7 @@ def decision_freshness(context: dict) -> dict:
 
 def requires_rerun(freshness: dict) -> bool:
     return (
-        _safe_bool(dict.get(freshness, "requires_rerun"))
+        safe_bool(dict.get(freshness, "requires_rerun"))
         or _status(dict.get(freshness, "status")).lower() == "needs_rerun"
     )
 

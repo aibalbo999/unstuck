@@ -222,6 +222,7 @@ flowchart TD
 - `report_index_metadata.read_snapshot_report_flags()` 在 snapshot ingestion 階段也使用 shared `safe_bool` 解析 `refreshed_without_analysis_rerun`，先阻止 malformed string flag 污染 SQLite index，再由 row projection 保持同一 freshness 語意。
 - `data_trust_snapshot.build_data_snapshot()` 在 snapshot persistence boundary 使用同一個 shared `safe_bool`；上游 context 的 legacy `false` 不會在產製新 snapshot 時被 raw truthiness 轉成 `true`。
 - `decision_tracking`、`report_quality_audit_rows`、`report_compare_service` 與 quality repair builders 沿用 shared `safe_bool`；`refreshed_without_analysis_rerun`、`analysis_text_stale`、`requires_rerun` 的 legacy string `false` 不會在下游 read-only projection 重新變成 stale 或 rerun action。
+- `reporting.reading_notice_freshness` 也必須沿用 shared `safe_bool`；malformed numeric freshness flags 不得以非零 truthiness 變成閱讀提示的 stale/full-rerun warning，明確的 `needs_rerun` status 仍優先。
 - `normalize_freshness_status()` 由 freshness summary module 共用於 decision tracking、refresh diff 與 rerun guard；`decision_validity_status` 的 trim/lowercase projection 不允許 malformed `NEEDS_RERUN` token 繞過 full-rerun safety boundary。
 - 報告預覽的 compact data-trust reason summary 最多保留兩項，但以具體 source error/stale/provider SLA reason 優先於 generic freshness/note reason，同優先級維持原始順序；這是 bounded read-only display，不改 `data_trust.reason_codes`。
 - report-facing data-trust reason labels 以 `reporting.data_trust_summary` 的 canonical wording 為準，browser 與 generated HTML/Markdown 對 `missing_usable_critical_data`、`data_source_notes_present` 等 code 保持同語意；只做 read-only label projection。

@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3867 / normalize report reading notice freshness flags
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：reading notice freshness helper 對數值 flag 使用非零即 true；`2`、`-1` 等 malformed numeric values 會把格式問題誇大成 stale/full-rerun warning，與 shared explicit boolean contract 不一致。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以跨欄位 malformed numeric fixture 先取得 `1 failed` RED；改用 shared `safe_bool`，保留明確 `needs_rerun` status 的語意，並不改任何 persisted state。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture contract；reading notice focused `27 passed`、跨層回歸 `1,091 passed`、full suite `8,553 passed, 6 skipped, 75 subtests passed`，本批只改唯讀 freshness classification，不改 snapshot、artifact、index、review、queue 或 rerun state。
+
 ## D3866 / normalize freshness flags at snapshot write boundary
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：artifact scan 顯示現有 snapshot 都已保存為 canonical bool，但 upstream snapshot builder 仍對輸入 context 使用 raw `bool()`；legacy `"false"` 會在產製新 snapshot 時變成 `True`，重新製造 stale conclusion signal。
