@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3899 / keep render and conformance pipeline identity aligned
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：renderer 的 request `pipeline_id="N/A"` 會蓋過 context 的有效模式並寫入 snapshot/metadata；conformance 的 context placeholder 也會蓋過 snapshot `v4`，可能用 v1 可見段落規則檢查 v4 產物。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：request/context placeholder 與 v4 snapshot／artifact fixture 先取得兩個 `1 failed` RED；renderer 先選有效 request/context identity，conformance 先選有效 context 再回退 snapshot，兩邊無值才沿用產製 v1 預設。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：focused renderer/conformance/content-credibility regression `54 passed`，完整 suite `8618 passed, 6 skipped, 75 subtests passed`；正式 launcher reload 後 health/ready `200/ready`、current quality `167` 份、reports `167`、model-route `5` 條，doctor 的 canonical report index/operational DB 存在。本批不改既有 snapshot、artifact、report index、review、queue 或 rerun state。
+
 ## D3898 / preserve snapshot pipeline identity through placeholders
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：direct evaluator 與 historical projection 以 raw truthiness 選 `pipeline_id`；context／rerun context 的 `N/A` 會蓋過 snapshot `v4`，使 v4 交易計畫跳過方向、目標與停損檢查。

@@ -11,6 +11,7 @@ from .content_credibility import evaluate_content_credibility
 from .html_renderer import generate_html_report_async
 from .lint import ReportLintError, assert_report_lint_passed, scrub_structured_json_key_leaks
 from .markdown_renderer import generate_markdown_report
+from .text_tokens import first_non_missing_text
 from .types import ReportBundle, ReportRequest
 
 
@@ -40,18 +41,21 @@ def _lint_or_repair(html: str, markdown: str) -> tuple[str, str, dict]:
 
 class ReportRenderer:
     async def render_async(self, request: ReportRequest) -> ReportBundle:
-        html = await generate_html_report_async(request.context)
-        markdown = generate_markdown_report(request.context)
+        context = dict(request.context)
+        pipeline_id = first_non_missing_text(request.pipeline_id, context.get("pipeline_id")) or "v1"
+        context["pipeline_id"] = pipeline_id
+        html = await generate_html_report_async(context)
+        markdown = generate_markdown_report(context)
         html, markdown, report_lint = _lint_or_repair(html, markdown)
-        snapshot_context = dict(request.context)
+        snapshot_context = dict(context)
         snapshot_context["report_lint"] = report_lint
         snapshot = build_data_snapshot(
             snapshot_context,
-            pipeline_id=request.pipeline_id or snapshot_context.get("pipeline_id"),
+            pipeline_id=pipeline_id,
             generated_at=request.generated_at,
         )
         evidence_exit_gate = evaluate_report_evidence(markdown, snapshot)
-        final_context = dict(request.context)
+        final_context = dict(context)
         final_context["report_lint"] = report_lint
         final_context["evidence_exit_gate"] = evidence_exit_gate
         content_credibility = evaluate_content_credibility(final_context, snapshot, markdown=markdown)
@@ -63,7 +67,7 @@ class ReportRenderer:
         snapshot_context["report_lint"] = report_lint
         snapshot = build_data_snapshot(
             snapshot_context,
-            pipeline_id=request.pipeline_id or snapshot_context.get("pipeline_id"),
+            pipeline_id=pipeline_id,
             generated_at=request.generated_at,
         )
         report_conformance = evaluate_report_conformance(
@@ -85,7 +89,7 @@ class ReportRenderer:
         snapshot_context["report_lint"] = report_lint
         snapshot = build_data_snapshot(
             snapshot_context,
-            pipeline_id=request.pipeline_id or snapshot_context.get("pipeline_id"),
+            pipeline_id=pipeline_id,
             generated_at=request.generated_at,
         )
         snapshot["evidence_exit_gate"] = evidence_exit_gate
@@ -94,9 +98,9 @@ class ReportRenderer:
         snapshot = set_snapshot_integrity(snapshot)
         metadata = {
             "filename": request.filename,
-            "ticker": request.context.get("ticker"),
-            "company_name": request.context.get("company_name"),
-            "pipeline_id": request.pipeline_id or request.context.get("pipeline_id"),
+            "ticker": context.get("ticker"),
+            "company_name": context.get("company_name"),
+            "pipeline_id": pipeline_id,
             "data_trust": snapshot.get("data_trust", {}),
             "report_lint": report_lint,
             "evidence_exit_gate": evidence_exit_gate,

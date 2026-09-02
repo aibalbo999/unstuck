@@ -9,6 +9,7 @@ from mapping_fields import safe_mapping_dict
 from .conformance_steps import build_conformance_gate_steps
 from .conformance_visibility import missing_visible_markers
 from .mode_templates import get_report_template_profile
+from .text_tokens import first_non_missing_text
 
 
 def _as_dict(value: Any) -> dict:
@@ -47,7 +48,8 @@ def evaluate_report_conformance(
         else dict.get(context, "content_credibility") or dict.get(snapshot, "content_credibility")
     )
     content_credibility = _as_dict(raw_content_credibility)
-    profile = get_report_template_profile(dict.get(context, "pipeline_id") or dict.get(snapshot, "pipeline") or "v1")
+    pipeline_id = first_non_missing_text(dict.get(context, "pipeline_id"), dict.get(snapshot, "pipeline")) or "v1"
+    profile = get_report_template_profile(pipeline_id)
     gate_steps = build_conformance_gate_steps(
         context=context,
         snapshot=snapshot,

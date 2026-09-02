@@ -314,6 +314,47 @@ def test_report_conformance_requires_mode_specific_decision_discipline():
     assert {"id": "decision_discipline", "label": "交易計畫與風控紀律"} in required_visibility["details"]
 
 
+def test_report_conformance_uses_snapshot_pipeline_when_context_pipeline_is_missing():
+    from reporting.conformance import evaluate_report_conformance
+
+    html = """
+    <section>本報告資料可信度</section>
+    <section>執行邏輯與模型檢查</section>
+    <section>報告模板與閱讀路徑</section>
+    <section>事件波段摘要</section>
+    <section>關鍵數據來源對照</section>
+    <section>來源審計</section>
+    <section>極短線交易計畫</section>
+    <section>交易計畫與風控紀律</section>
+    """
+    markdown = """
+## 本報告資料可信度
+## 執行邏輯與模型檢查
+## 報告模板與閱讀路徑
+## 事件波段摘要
+## 關鍵數據來源對照
+## 來源審計
+## 極短線交易計畫
+## 交易計畫與風控紀律
+"""
+
+    result = evaluate_report_conformance(
+        html,
+        markdown,
+        context={
+            "pipeline_id": "N/A",
+            "data": {"data_trust": {"status": "fresh"}},
+            "final_audit": {"status": "passed", "critical": [], "warnings": [], "corrections": []},
+        },
+        snapshot={"pipeline": "v4", "data_trust": {"status": "fresh"}},
+        report_lint={"status": "passed", "blocking_issues": [], "warnings": []},
+        evidence_exit_gate={"verdict": "approved", "failed_count": 0},
+        content_credibility={"status": "passed", "blocking_issues": [], "warnings": []},
+    )
+
+    assert result["status"] == "passed"
+
+
 def test_report_renderer_attaches_conformance_to_snapshot_metadata_and_final_artifacts(monkeypatch):
     import reporting.renderer as renderer_module
     from reporting import ReportRenderer, ReportRequest
@@ -388,3 +429,72 @@ def test_report_renderer_attaches_conformance_to_snapshot_metadata_and_final_art
     assert bundle.data_snapshot["report_conformance"]["status"] == "passed"
     assert "Report conformance：passed" in bundle.html
     assert "**Report conformance:** passed" in bundle.markdown
+
+
+def test_report_renderer_does_not_persist_missing_request_pipeline_over_context(monkeypatch):
+    import reporting.renderer as renderer_module
+    from reporting import ReportRenderer, ReportRequest
+
+    seen_pipeline_ids = []
+
+    async def fake_html(context):
+        seen_pipeline_ids.append(context.get("pipeline_id"))
+        return (
+            "<html><body>"
+            "<section>本報告資料可信度</section>"
+            "<section>執行邏輯與模型檢查</section>"
+            "<section>報告模板與閱讀路徑</section>"
+            "<section>事件波段摘要</section>"
+            "<section>關鍵數據來源對照</section>"
+            "<section>來源審計</section>"
+            "<section>極短線交易計畫</section>"
+            "<section>交易計畫與風控紀律</section>"
+            "<p>股價: NT$100.00</p><p>P/E: 20.0x</p><p>營收: 12.0</p>"
+            "</body></html>"
+        )
+
+    def fake_markdown(context):
+        seen_pipeline_ids.append(context.get("pipeline_id"))
+        return (
+            "# 報告\n\n"
+            "## 本報告資料可信度\n"
+            "## 執行邏輯與模型檢查\n"
+            "## 報告模板與閱讀路徑\n"
+            "## 事件波段摘要\n"
+            "## 關鍵數據來源對照\n"
+            "## 來源審計\n"
+            "## 極短線交易計畫\n"
+            "## 交易計畫與風控紀律\n"
+            "- 股價: NT$100.00\n- P/E: 20.0x\n- 營收: 12.0\n"
+        )
+
+    monkeypatch.setattr(renderer_module, "generate_html_report_async", fake_html)
+    monkeypatch.setattr(renderer_module, "generate_markdown_report", fake_markdown)
+
+    bundle = asyncio.run(
+        ReportRenderer().render_async(
+            ReportRequest(
+                context={
+                    "ticker": "2330.TW",
+                    "company_name": "台積電",
+                    "pipeline_id": "v4",
+                    "data": {
+                        "ticker": "2330.TW",
+                        "data_schema_version": 4,
+                        "current_price": 100.0,
+                        "pe_ratio": "20.0x",
+                        "revenue_history": [10.0, 12.0],
+                        "source_audit": [{"source": "market_data", "status": "success"}],
+                        "data_trust": {"status": "fresh", "critical_failures": [], "stale_sources": [], "notes": []},
+                    },
+                    "final_audit": {"status": "passed", "critical": [], "warnings": [], "corrections": []},
+                },
+                pipeline_id="N/A",
+                filename="2330_TW_v4_report_20260628_000000.html",
+            )
+        )
+    )
+
+    assert set(seen_pipeline_ids) == {"v4"}
+    assert bundle.data_snapshot["pipeline"] == "v4"
+    assert bundle.metadata["pipeline_id"] == "v4"

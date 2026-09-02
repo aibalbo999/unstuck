@@ -12,6 +12,8 @@
 
 內容可信度的 direct evaluator 與 `content_credibility_projection` 共用 placeholder-aware pipeline selection：先取 `rerun_context/context.pipeline_id` 的有效值，再回退到 snapshot `pipeline`；`N/A`、`NULL` 與空字串不會蓋過可用的 v4 identity，也不會在兩邊都缺失時默認成 v1。這確保歷史 v4 snapshot 不會因 rerun context 欄位漂移而漏掉 trade-setup alignment，仍是 read-only projection。
 
+`reporting.renderer` 與 `reporting.conformance` 也共用 placeholder-aware pipeline identity：renderer 先取有效 request pipeline，再取 context pipeline，並把結果同時提供給 HTML/Markdown、snapshot 與 metadata；conformance 先取 context，再回退 snapshot。`N/A`、`NULL`、空字串不會讓 v4 產物或其 required-visibility check 漂移成 v1，兩邊都無值時才沿用產製流程的 v1 預設。
+
 資料抓取到分析工作的阻擋邊界在 `analysis_job_helpers.py`；核心資料存在性沿用 `data_trust_values.has_value`，因此 placeholder 或空歷史不會被當成核心 evidence。此 gate 只停止缺少可用核心資料的當次工作，不回寫 canonical report index、snapshot 或 artifact。
 
 ## 目前 Runtime 真相
