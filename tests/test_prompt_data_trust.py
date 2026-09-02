@@ -665,6 +665,24 @@ def test_structured_output_warns_on_high_confidence_with_low_trust():
     assert "data_trust=stale" in context["structured_quality_warnings"][0]
 
 
+def test_structured_output_keeps_legacy_false_circuit_closed():
+    context = {
+        "data": {"data_trust": {"status": "fresh"}},
+        "analyses": {},
+        "circuit_breaker": {"_ever_opened": "false"},
+    }
+
+    process_agent_response(
+        7,
+        json.dumps(_recommendation_payload("9/10"), ensure_ascii=False),
+        context,
+    )
+
+    assert context.get("structured_quality_warnings", []) == []
+    assert context["confidence_calibration"]["circuit_ever_opened"] is False
+    assert context["confidence_calibration"]["max_recommended_confidence"] == 10
+
+
 def test_final_audit_warns_on_high_confidence_with_low_trust():
     context = {
         "pipeline_id": "v1",
@@ -701,6 +719,38 @@ def test_final_audit_warns_on_high_confidence_with_low_trust():
     assert audit["confidence_calibration"]["status"] == "needs_downgrade"
     assert audit["confidence_calibration"]["max_recommended_confidence"] == 7
     assert any("建議信心上限 7/10" in warning for warning in audit["warnings"])
+
+
+def test_final_audit_keeps_legacy_false_circuit_closed():
+    context = {
+        "pipeline_id": "v1",
+        "agent_sequence": [7],
+        "data": {
+            "current_price": 100,
+            "data_trust": {"status": "fresh"},
+        },
+        "circuit_breaker": {"_ever_opened": "false"},
+        "analyses": {7: "正式最終投資建議段落。"},
+        "structured_outputs": {7: _recommendation_payload("9/10")},
+        "parsed": {
+            "moat_scores": {
+                "品牌影響力": 5,
+                "網路效應": 5,
+                "轉換成本": 5,
+                "成本優勢": 5,
+                "專利技術": 5,
+                "整體護城河": 5,
+            },
+            "price_targets": {"熊市情境": 80, "基本情境": 100, "牛市情境": 120},
+            "recommendation": _recommendation_payload("9/10")["recommendation"],
+        },
+    }
+
+    audit = final_audit.run_final_report_audit(context, append_section=False)
+
+    assert not any("data_trust=fresh" in warning for warning in audit["warnings"])
+    assert audit["confidence_calibration"]["circuit_ever_opened"] is False
+    assert audit["confidence_calibration"]["max_recommended_confidence"] == 10
 
 
 def test_final_audit_deduplicates_structured_confidence_warning():
@@ -809,6 +859,30 @@ def test_decision_tracking_includes_confidence_calibration_from_snapshot(tmp_pat
 
     assert tracking["confidence_calibration"]["status"] == "needs_downgrade"
     assert tracking["confidence_calibration"]["max_recommended_confidence"] == 7
+
+
+def test_decision_tracking_keeps_legacy_false_circuit_closed(tmp_path):
+    snapshot_path = tmp_path / "report.data.json"
+    snapshot_path.write_text(
+        json.dumps(
+            {
+                "data_trust": {"status": "fresh"},
+                "circuit_breaker": {"_ever_opened": "false"},
+                "data": {"current_price": 100},
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    tracking = decision_tracking.build_decision_tracking(
+        {"recommendation": "持有", "confidence": "9/10"},
+        str(snapshot_path),
+    )
+
+    assert tracking["confidence_calibration"]["circuit_ever_opened"] is False
+    assert tracking["confidence_calibration"]["max_recommended_confidence"] == 10
+    assert tracking["confidence_calibration"]["status"] == "aligned"
 
 
 def test_decision_tracking_exposes_snapshot_refresh_time(tmp_path):

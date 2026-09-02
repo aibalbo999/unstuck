@@ -22,6 +22,8 @@ Provider SLA 警示 payload 與操作台 aggregate 對 `current_source_has_healt
 
 報告品質稽核列在投影 snapshot integrity 時，也會用 shared `safe_bool` 解讀 verifier 的 `valid`；舊資料的 `"false"` 仍會顯示為 invalid，不能因字串 truthiness 被升成 verified。這只修正唯讀 audit projection，不改 hash 驗證邏輯。
 
+決策追蹤、最終稽核、結構化輸出警示、內容可信度信心檢查與 workflow checkpoint 也會用同一個 shared `safe_bool` 解讀 `circuit_breaker._ever_opened`。舊資料的 `"false"` 不會誤降 fresh-data 信心上限，也不會在 checkpoint 製造虛假的修復紀錄；明確 true 與 `status=open` 仍保留原本的風險訊號。
+
 報告歷史 pagination 的 `complete` 旗標也共用 explicit boolean 規則；舊資料的 `"true"` 會維持完整集合、`"false"` 會維持不完整，缺少旗標則沿用完整預設，未知 token 會保守降級，不把不完整報告範圍當成全量品質統計。
 
 報告列表、歷史報告閱讀提示與 repair queue 也共用同一個 snapshot integrity boolean contract；舊資料的 `"false"` 即使搭配 `status=verified` 仍會阻擋報告重用，缺少 `valid` 則維持未驗證，不從 hash、錯誤文字或其他 gate 猜測結果。這只修正唯讀投影，不改快照內容或 hash verifier。

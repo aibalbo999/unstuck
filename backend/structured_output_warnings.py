@@ -8,6 +8,7 @@ from confidence_calibration import (
     confidence_score,
     has_unresolved_cross_source_conflict,
 )
+from report_freshness_summary import safe_bool
 
 
 def price_targets_have_unit_error(targets: dict, current_price) -> bool:
@@ -22,7 +23,7 @@ def warn_high_confidence_with_low_trust(agent_num: int, structured: dict, contex
     if agent_num not in {7, 16, 19}:
         return
     trust = context.get("data", {}).get("data_trust", {}) if isinstance(context.get("data"), dict) else {}
-    circuit_ever_opened = bool((context.get("circuit_breaker") or {}).get("_ever_opened", False))
+    circuit_ever_opened = safe_bool((context.get("circuit_breaker") or {}).get("_ever_opened", False))
     calibration = build_confidence_calibration(
         structured.get("recommendation", {}) or {},
         trust,

@@ -98,6 +98,15 @@ def test_initialize_graph_state_sets_versioned_prompt_cache_key():
     assert context["prompt_fingerprint"] == prompt_config["prompt_fingerprint"]
 
 
+def test_validate_graph_state_does_not_reopen_legacy_false_circuit():
+    state = state_with_analysis()
+    state["circuit_breaker"]["_ever_opened"] = "false"
+
+    result = workflow_services.validate_graph_state(state)
+
+    assert "_ever_opened" not in result["circuit_breaker"]
+
+
 def test_runtime_code_identity_marks_dirty_git_worktree(tmp_path, monkeypatch):
     identity_fn = getattr(workflow_services, "runtime_code_identity", None)
     assert callable(identity_fn), "workflow runtime code identity helper is missing"

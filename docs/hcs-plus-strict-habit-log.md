@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3883 / normalize circuit-breaker history flags across quality boundaries
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：決策追蹤、最終稽核、結構化輸出警示、內容可信度信心校準與 LangGraph state validation 對 `circuit_breaker._ever_opened` 使用 raw truthiness；legacy `"false"` 會誤判曾開啟修復機制，fresh-data 信心上限因此被誤降，checkpoint 也可能留下虛假的開啟紀錄。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：五組 legacy-token fixture 先取得 `5 failed` RED；五個 boundary 共用 `report_freshness_summary.safe_bool`，明確 true 與 `status=open` 保持既有語意，不從其他資料可信度或 audit 欄位借用 circuit 結論。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture contract；focused quality/workflow regression `119 passed, 75 subtests passed`、文件/架構/import/runtime 回歸 `645 passed, 1 skipped`、full suite `8,591 passed, 6 skipped, 75 subtests passed`；official launcher reload 後 `healthz=200`、`readyz=200`，reports/current-quality/daily-dashboard smoke 均 `200`，live current-quality `167` 份、daily sample `20` 份且 `11` 個 repair、`0` 個 rerun，doctor canonical DB/RQ paths 正常。本批只修 circuit-breaker boolean projection 與 checkpoint state 延續，不改資料驗證政策、信心校準上限、snapshot、artifact、index、review、queue 或 rerun side effect。
+
 ## D3882 / normalize report-history pagination completion tokens
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`report_history_pagination.collection_is_complete()` 只接受原生 `True`；legacy `"true"` 會把完整的 current-quality/history audit collection 誤判為 incomplete，可能讓完整品質範圍降級為 unavailable。

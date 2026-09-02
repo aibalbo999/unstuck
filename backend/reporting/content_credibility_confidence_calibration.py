@@ -6,6 +6,7 @@ from typing import Any
 
 from confidence_calibration import build_confidence_calibration, has_unresolved_cross_source_conflict
 from mapping_fields import safe_mapping_dict, safe_text
+from report_freshness_summary import safe_bool
 
 
 def _as_dict(value: Any) -> dict:
@@ -45,7 +46,7 @@ def evaluate_confidence_data_trust_calibration(
     """Expose the existing final-audit confidence cap without changing its policy."""
     context = _as_dict(context)
     data = _as_dict(context.get("data"))
-    circuit_ever_opened = bool(_as_dict(context.get("circuit_breaker")).get("_ever_opened", False))
+    circuit_ever_opened = safe_bool(_as_dict(context.get("circuit_breaker")).get("_ever_opened", False))
     has_conflict = has_unresolved_cross_source_conflict(data)
     calibration = build_confidence_calibration(
         _safe_recommendation(recommendation),

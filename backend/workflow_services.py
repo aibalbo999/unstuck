@@ -14,6 +14,7 @@ from llm_client import KeyRotator
 from pipeline_modes import normalize_pipeline_id
 from prompt_loader import load_agent_prompt_config
 from rag_runtime import build_rag_index_async
+from report_freshness_summary import safe_bool
 from runtime_code_identity import runtime_code_identity
 from runtime_events import emit_log
 from state_memory import initialize_agent_state
@@ -148,7 +149,7 @@ def initialize_graph_state(data: dict[str, Any], *, pipeline_id: str) -> AgentGr
 def validate_graph_state(state: AgentGraphState) -> AgentGraphState:
     previous_circuit = state.get("circuit_breaker") or {}
     domain_state = agent_state_from_graph(state)
-    previous_opened = bool(previous_circuit.get("_ever_opened")) or previous_circuit.get("status") == "open"
+    previous_opened = safe_bool(previous_circuit.get("_ever_opened")) or previous_circuit.get("status") == "open"
     validate_state_provider_values(domain_state)
     circuit = domain_state.circuit_breaker.model_dump(mode="json")
     if previous_opened:

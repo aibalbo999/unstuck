@@ -25,6 +25,7 @@ from final_audit_price_targets import REQUIRED_PRICE_TARGETS, price_target_audit
 from final_audit_sections import append_final_audit_section
 from forward_consistency_checker import run_forward_consistency_checks
 from pipeline_modes import get_pipeline_definition, get_structured_agent_num
+from report_freshness_summary import safe_bool
 from report_reproducibility import build_data_confidence_controls
 from runtime_events import emit_log
 from validators import (
@@ -150,7 +151,7 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
             _add_unique_issue(warnings, f"Agent {recommendation_agent} 最終建議未說明可用的{'、'.join(missing_context_labels)}是否影響結論。")
 
         data_trust = data.get("data_trust", {}) if isinstance(data.get("data_trust"), dict) else {}
-        circuit_ever_opened = bool((context.get("circuit_breaker") or {}).get("_ever_opened", False))
+        circuit_ever_opened = safe_bool((context.get("circuit_breaker") or {}).get("_ever_opened", False))
         confidence_calibration = build_confidence_calibration(
             recommendation,
             data_trust,
@@ -187,7 +188,7 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
         for issue in forward_checks.get("warnings", []):
             _add_unique_issue(warnings, issue)
 
-    circuit_ever_opened = bool((context.get("circuit_breaker") or {}).get("_ever_opened", False))
+    circuit_ever_opened = safe_bool((context.get("circuit_breaker") or {}).get("_ever_opened", False))
     confidence_calibration = build_confidence_calibration(
         recommendation,
         data.get("data_trust", {}),

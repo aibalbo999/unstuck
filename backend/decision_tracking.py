@@ -175,7 +175,7 @@ def build_decision_tracking(
     tracking["confidence_calibration"] = build_confidence_calibration(
         recommendation,
         snapshot.get("data_trust") if isinstance(snapshot.get("data_trust"), dict) else {},
-        bool((snapshot.get("circuit_breaker") or {}).get("_ever_opened", False)),
+        safe_bool((snapshot.get("circuit_breaker") or {}).get("_ever_opened", False)),
         has_unresolved_cross_source_conflict(snapshot.get("data") if isinstance(snapshot.get("data"), dict) else snapshot),
     )
     tracking["status"] = _tracking_status(tracking)

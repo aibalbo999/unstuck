@@ -27,6 +27,8 @@ Report-history pagination collectors normalize the `pagination.complete` flag wi
 
 Report-quality audit rows normalize snapshot-integrity verifier `valid` with shared `safe_bool` before projecting `status` and `valid`. Legacy `"false"` therefore remains an invalid snapshot and cannot be promoted to verified evidence by Python truthiness; hash verification itself remains unchanged.
 
+Decision tracking, final-audit confidence calibration, structured-output warnings, content-credibility confidence checks, and workflow checkpoint validation normalize `circuit_breaker._ever_opened` with the same shared `safe_bool`. Legacy `"false"` therefore does not lower a fresh-data confidence cap or create a false checkpoint history, while explicit true and `status=open` continue to preserve the existing repair signal.
+
 ## Read Endpoints
 
 `GET /api/observability/model-routes` returns the `model_route_budget.v1` telemetry section used by the operator panel. It reports `slow_route`, `retry_storm`, and `quality_gate_failures`; `slow_route` is maintenance evidence and remains outside the daily decision queue.

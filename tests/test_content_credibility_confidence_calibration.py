@@ -66,3 +66,20 @@ def test_confidence_calibration_skips_unparseable_confidence():
     assert result["warnings"] == []
     assert "無法完成" in result["checks"][0]["message"]
     assert result["checks"][0]["status"] == "unavailable"
+
+
+def test_confidence_calibration_keeps_legacy_false_circuit_closed():
+    from data_trust_scoring import normalize_data_trust
+    from reporting.content_credibility_confidence_calibration import evaluate_confidence_data_trust_calibration
+
+    context = _context(trust_status="fresh", confidence="9/10")
+    context["circuit_breaker"] = {"_ever_opened": "false"}
+    result = evaluate_confidence_data_trust_calibration(
+        context,
+        context["parsed"]["recommendation"],
+        normalize_data_trust(context["data"]["data_trust"]),
+    )
+
+    assert result["warnings"] == []
+    assert result["checks"][0]["details"]["circuit_ever_opened"] is False
+    assert result["checks"][0]["details"]["max_recommended_confidence"] == 10
