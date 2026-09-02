@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from mapping_fields import safe_dict_list, safe_int, safe_mapping_dict, safe_text, safe_text_list
-from report_freshness_summary import report_freshness_bucket
+from report_freshness_summary import report_freshness_bucket, safe_bool
 
 
 def conformance_status(value: Any) -> str:
@@ -138,7 +138,7 @@ def current_quality_item(
             "title": safe_text(quality_action.get("title")).strip() or "品質狀態需要處理",
             "detail": safe_text(quality_action.get("detail")).strip() or "品質 gate 需要人工確認。",
             "reason_codes": safe_text_list(quality_action.get("reason_codes")),
-            "blocks_auto_rerun": bool(quality_action.get("blocks_auto_rerun")),
+            "blocks_auto_rerun": safe_bool(quality_action.get("blocks_auto_rerun")),
         }
     freshness = report_freshness_bucket(report)
     if failed_count:

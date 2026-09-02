@@ -12,6 +12,7 @@ from outcome_calibration import build_outcome_calibration
 from provider_impact import build_provider_impact_ledger
 from report_quality_audit import build_report_quality_audit
 from report_quality_repair_queue import build_report_quality_repair_queue
+from report_freshness_summary import safe_bool
 
 
 def build_daily_decision_dashboard(
@@ -32,8 +33,8 @@ def build_daily_decision_dashboard(
     screener_payload = safe_mapping_dict(screener) or {}
     performance_payload = safe_mapping_dict(performance) or {}
     free_mode_payload = safe_mapping_dict(free_mode) or {}
-    free_mode_enabled = _safe_bool(free_mode_payload.get("enabled"))
-    free_mode_can_run_without_paid_keys = _safe_bool(free_mode_payload.get("can_run_without_paid_keys"))
+    free_mode_enabled = safe_bool(free_mode_payload.get("enabled"))
+    free_mode_can_run_without_paid_keys = safe_bool(free_mode_payload.get("can_run_without_paid_keys"))
     free_mode_violations = safe_text_list(free_mode_payload.get("violations"))
     free_mode_queue_payload = {
         **free_mode_payload,
@@ -151,7 +152,7 @@ def _quality_audit_queue_items(quality_audit: dict[str, Any]) -> list[dict[str, 
 def _report_needs_rerun(report: dict[str, Any]) -> bool:
     freshness = _decision_freshness(report)
     return any(
-        _safe_bool(value)
+        safe_bool(value)
         for value in (
             freshness.get("requires_rerun"),
             report.get("requires_rerun"),
@@ -309,13 +310,6 @@ def _score_value(value: Any) -> float:
     except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
         return 0.0
     return number if isfinite(number) else 0.0
-
-
-def _safe_bool(value: Any) -> bool:
-    try:
-        return bool(value)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
-        return False
 
 
 __all__ = ["build_daily_decision_dashboard"]

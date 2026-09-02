@@ -7,6 +7,7 @@ import sqlite3
 from typing import Callable
 
 import report_history_service
+from report_freshness_summary import safe_bool
 
 LOGGER = logging.getLogger(__name__)
 PRIORITY_ORDER = {"high": 0, "medium": 1, "normal": 2, "low": 3}
@@ -96,7 +97,7 @@ def priority_for_item(item: dict, latest_report: dict) -> tuple[str, dict]:
     if not latest_report:
         return "medium", {"reason": "missing_report", "message": "尚未產生最新報告。"}
     freshness = latest_report.get("decision_freshness") if isinstance(latest_report.get("decision_freshness"), dict) else {}
-    if freshness.get("requires_rerun"):
+    if safe_bool(freshness.get("requires_rerun")):
         return "high", {"reason": "needs_rerun", "message": freshness.get("message") or "資料已更新，投資結論需重跑。"}
     return "normal", {"reason": "current", "message": "最新報告結論有效。"}
 

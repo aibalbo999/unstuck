@@ -14,6 +14,7 @@ from daily_decision_route_warnings import route_warning_items
 from mapping_fields import mapping_field as _field
 from mapping_fields import safe_dict_list, safe_int, safe_mapping_dict, safe_text, safe_text_list
 from operator_action_contract import navigation_context
+from report_freshness_summary import safe_bool
 
 SCHEMA_VERSION = "daily_decision_queue.v1"
 
@@ -69,7 +70,7 @@ def build_daily_decision_queue(
 
 
 def _free_mode_items(free_mode: dict[str, Any]) -> list[dict[str, Any]]:
-    if _bool(_field(free_mode, "can_run_without_paid_keys", True)):
+    if safe_bool(_field(free_mode, "can_run_without_paid_keys", True)):
         return []
     violations = safe_text_list(_field(free_mode, "violations"))
     return [{
@@ -141,7 +142,7 @@ def _repair_action_payload(item: dict[str, Any], *, source: str = "report_repair
         "severity": safe_text(_field(item, "severity")).strip() or None,
         "recommended_action": recommended,
         "action_label": safe_text(_field(item, "action_label")).strip() or None,
-        "blocks_auto_rerun": _bool(_field(item, "blocks_auto_rerun")),
+        "blocks_auto_rerun": safe_bool(_field(item, "blocks_auto_rerun")),
         "reason_codes": safe_text_list(_field(item, "reason_codes")),
     }
     for key in ("operator_action", "operator_action_label", "target_panel", "target_tab"):
@@ -157,9 +158,4 @@ def _int(value: Any) -> int:
     return safe_int(value)
 
 
-def _bool(value: Any) -> bool:
-    try:
-        return bool(value)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
-        return False
 __all__ = ["SCHEMA_VERSION", "build_daily_decision_queue"]

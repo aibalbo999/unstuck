@@ -486,3 +486,24 @@ def test_indexed_and_filtered_current_quality_summaries_do_not_share_cache(monke
     assert filtered["scope"] == "historical_filter_current_latest"
     assert filtered["filters"] == {"q": "", "pipeline": "all"}
     assert calls["count"] == 2
+
+
+def test_current_quality_item_normalizes_legacy_false_action_block_flag():
+    from report_current_quality_item_helpers import current_quality_item
+
+    payload = current_quality_item(
+        {"ticker": "2330.TW", "pipeline_id": "v1", "filename": "2330.html"},
+        "blocked",
+        "passed",
+        "approved",
+        quality_action={
+            "recommended_action": "manual_review",
+            "action_label": "人工審核",
+            "title": "品質狀態需要處理",
+            "detail": "請先查看品質證據。",
+            "reason_codes": [],
+            "blocks_auto_rerun": "false",
+        },
+    )
+
+    assert payload["quality_action"]["blocks_auto_rerun"] is False

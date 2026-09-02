@@ -1467,3 +1467,21 @@ def test_daily_decision_dashboard_exposes_prioritized_decision_queue():
         "backtest_due",
     ]
     assert any(item["type"] == "model_route_warning" for item in queue["items"])
+
+
+def test_daily_decision_dashboard_normalizes_legacy_false_free_mode_flags():
+    dashboard = build_daily_decision_dashboard(
+        reports={"reports": []},
+        watchlist={"items": []},
+        screener={"items": []},
+        performance={"summary": {}, "details": []},
+        free_mode={
+            "enabled": "false",
+            "can_run_without_paid_keys": "false",
+            "violations": ["provider:openai_paid_key_required"],
+        },
+    )
+
+    assert dashboard["free_mode"]["enabled"] is False
+    assert dashboard["free_mode"]["can_run_without_paid_keys"] is False
+    assert dashboard["actions"][0]["type"] == "fix_free_mode"

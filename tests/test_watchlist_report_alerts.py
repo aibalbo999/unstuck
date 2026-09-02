@@ -55,3 +55,20 @@ def test_watchlist_report_alert_ticker_match_accepts_base_symbol():
     assert ticker_matches({"ticker": "2308.TW"}, "2308") is True
     assert ticker_matches({"ticker": "2308"}, "2308.TW") is True
     assert ticker_matches({"ticker": "2330.TW"}, "2308.TW") is False
+
+
+def test_watchlist_report_alert_does_not_treat_legacy_false_rerun_flag_as_high_priority():
+    from watchlist_report_alerts import priority_for_item
+
+    priority, alert = priority_for_item(
+        {"ticker": "2330.TW", "enabled": True},
+        {
+            "decision_freshness": {
+                "status": "current",
+                "requires_rerun": "false",
+            }
+        },
+    )
+
+    assert priority == "normal"
+    assert alert["reason"] == "current"

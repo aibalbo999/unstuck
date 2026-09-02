@@ -10,6 +10,7 @@ from report_quality_metadata_repair import (
     quality_metadata_provenance_from_reason_codes,
 )
 from report_quality_repair_items import quality_metadata_repair_item
+from report_freshness_summary import safe_bool
 
 
 SCHEMA_VERSION = "report_quality_audit.v1"
@@ -197,7 +198,7 @@ def _audit_item(report: dict[str, Any], item: dict[str, Any]) -> dict[str, Any]:
         "severity": safe_text(item.get("severity")).strip(),
         "action_label": safe_text(item.get("action_label")).strip(),
         "priority_score": safe_int(item.get("priority_score"), default=0),
-        "blocks_auto_rerun": bool(item.get("blocks_auto_rerun")),
+        "blocks_auto_rerun": safe_bool(item.get("blocks_auto_rerun")),
     }
     refresh_provenance = safe_mapping_dict(report.get("quality_metadata_refresh_provenance"))
     if refresh_provenance:

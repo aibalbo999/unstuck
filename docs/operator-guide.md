@@ -271,6 +271,8 @@ decision tracking、品質稽核、報告比較與 repair action 也沿用同一
 
 報告閱讀提示也沿用同一套規則處理 `analysis_text_stale`、`refreshed_without_analysis_rerun` 與 `decision_freshness.requires_rerun`；格式錯誤的數值 `2` 或 `-1` 會維持 false，不會把報告誤升級成「需完整重跑」，但明確的 `needs_rerun` 狀態仍然有效。
 
+current-quality、歷史稽核、provider 影響、decision queue、dashboard 與 watchlist alert 的 action payload 也會用明確 boolean 規則處理 `blocks_auto_rerun`、free mode 與 freshness flag；舊格式字串 `false` 不會被當成 true，因此不會誤阻擋、誤升級或隱藏操作 action。
+
 `decision_validity_status` 在 decision tracking、刷新 policy 與局部重跑前也會先去除空白並轉成小寫；例如 ` NEEDS_RERUN ` 不會繞過「必須完整重跑」的安全判斷。
 
 瀏覽器品質 action 也會把 `snapshot_integrity.status=invalid` 或 `valid=false` 顯示為「資料快照完整性未通過」的重大人工複核，並保留 hash／error detail；這與 blocked 閱讀邊界及後端 repair queue 對齊，不會自動修改快照或重跑報告。

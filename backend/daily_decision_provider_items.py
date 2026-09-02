@@ -7,6 +7,7 @@ from typing import Any
 from daily_decision_report_keys import report_key
 from mapping_fields import mapping_field as _field
 from mapping_fields import safe_dict_list, safe_mapping_dict, safe_text
+from report_freshness_summary import safe_bool
 
 
 def provider_impact_items(ledger: dict[str, Any], *, skip_keys: set[str]) -> list[dict[str, Any]]:
@@ -16,7 +17,7 @@ def provider_impact_items(ledger: dict[str, Any], *, skip_keys: set[str]) -> lis
         if not isinstance(row, dict) or report_key(row) in skip_keys:
             continue
         summary = safe_mapping_dict(_field(row, "summary")) or {}
-        blocks = _bool(_field(summary, "blocks_auto_rerun"))
+        blocks = safe_bool(_field(summary, "blocks_auto_rerun"))
         if not blocks:
             continue
         action = safe_text(_field(summary, "recommended_action")).strip() or "wait_provider_recovery"
@@ -46,13 +47,6 @@ def _provider_detail(row: dict[str, Any], blocks: bool) -> str:
     if blocks:
         return "核心來源不穩，先等待 provider recovery，避免盲目重跑。"
     return "來源有警示但未阻擋核心資料，列為監控。"
-
-
-def _bool(value: Any) -> bool:
-    try:
-        return bool(value)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
-        return False
 
 
 __all__ = ["provider_impact_items"]

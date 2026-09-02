@@ -1650,3 +1650,23 @@ def test_historical_report_quality_audit_rejects_incomplete_latest_page_collecti
 
     assert payload["status"] == "unavailable"
     assert payload["error_code"] == "quality_audit_unavailable"
+
+
+def test_report_quality_audit_item_normalizes_legacy_false_action_block_flag():
+    from report_quality_audit_payload import _audit_item
+
+    payload = _audit_item(
+        {"ticker": "2330.TW", "filename": "2330.html", "report_version_status": "current"},
+        {
+            "title": "品質狀態需要處理",
+            "detail": "請先查看品質證據。",
+            "recommended_action": "manual_review",
+            "severity": "warning",
+            "action_label": "人工審核",
+            "priority_score": 700,
+            "reason_codes": [],
+            "blocks_auto_rerun": "false",
+        },
+    )
+
+    assert payload["blocks_auto_rerun"] is False

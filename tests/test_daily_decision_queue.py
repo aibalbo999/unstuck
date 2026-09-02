@@ -3870,3 +3870,48 @@ def test_daily_decision_queue_monitor_fallback_is_not_counted_as_actionable():
     assert queue["summary"]["top_priority_score"] == 0
     assert queue["summary"]["secondary_count"] == 0
     assert queue["secondary_count"] == 0
+
+
+def test_daily_decision_queue_normalizes_legacy_false_action_block_flag():
+    queue = build_daily_decision_queue(
+        reports=[],
+        repair_items=[],
+        quality_audit_items=[{
+            "ticker": "2330.TW",
+            "filename": "2330_quality.html",
+            "pipeline_id": "v1",
+            "title": "品質狀態需要處理",
+            "detail": "請先查看品質證據。",
+            "recommended_action": "manual_review",
+            "severity": "warning",
+            "action_label": "人工審核",
+            "priority_score": 700,
+            "reason_codes": [],
+            "blocks_auto_rerun": "false",
+        }],
+        rerun_reports=[],
+        high_priority_watchlist=[],
+        candidates=[],
+        performance={"summary": {}, "details": []},
+        free_mode={"enabled": True, "can_run_without_paid_keys": True, "violations": []},
+    )
+
+    assert queue["items"][0]["blocks_auto_rerun"] is False
+
+
+def test_daily_decision_queue_treats_legacy_false_free_mode_flag_as_unavailable():
+    queue = build_daily_decision_queue(
+        reports=[],
+        repair_items=[],
+        rerun_reports=[],
+        high_priority_watchlist=[],
+        candidates=[],
+        performance={"summary": {}, "details": []},
+        free_mode={
+            "enabled": True,
+            "can_run_without_paid_keys": "false",
+            "violations": ["provider:openai_paid_key_required"],
+        },
+    )
+
+    assert queue["summary"]["sources"]["free_mode"] == 1

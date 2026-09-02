@@ -44,6 +44,8 @@ Decision tracking, quality-audit hydration, compare responses, and repair-item c
 
 Report reading notices reuse the same explicit boolean contract for `analysis_text_stale`, `refreshed_without_analysis_rerun`, and `decision_freshness.requires_rerun`. Malformed numeric flags such as `2` or `-1` remain false instead of escalating a report to a stale or full-rerun warning; an explicit `needs_rerun` status remains authoritative.
 
+Current-quality, historical-audit, provider-impact, decision-queue, dashboard, and watchlist-alert payloads also use that explicit boolean contract for `blocks_auto_rerun`, free-mode flags, and freshness rerun flags. Legacy strings such as `false` remain false, so an operator action cannot be falsely blocked, promoted, or hidden by generic truthiness.
+
 Freshness status values are also trimmed and lowercased before decision tracking, refresh policy, or partial-rerun guards compare `decision_validity_status`; values such as ` NEEDS_RERUN ` cannot bypass the full-rerun safety boundary.
 
 Quality-audit artifact evidence follows the same strict boundary: an undecodable Markdown/HTML artifact is `artifact_quality_summary.status=unavailable`, and an undecodable Markdown artifact is `artifact_rerun_context_status=unavailable`; neither is reported as missing markers or partial/present rerun context.

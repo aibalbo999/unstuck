@@ -64,6 +64,22 @@ def test_provider_impact_items_keep_nonblocking_rows_out_of_action_queue():
     assert items == []
 
 
+def test_provider_impact_items_keep_legacy_false_block_flag_nonblocking():
+    from daily_decision_provider_items import provider_impact_items
+
+    items = provider_impact_items({
+        "items": [{
+            "ticker": "2324.TW",
+            "summary": {
+                "recommended_action": "monitor_provider",
+                "blocks_auto_rerun": "false",
+            },
+        }]
+    }, skip_keys=set())
+
+    assert items == []
+
+
 def test_daily_decision_report_key_prefers_artifact_filename_then_ticker_pipeline():
     from daily_decision_report_keys import report_key
 

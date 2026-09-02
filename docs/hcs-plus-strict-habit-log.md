@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3868 / normalize operator action boolean projections
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：current-quality、quality-audit、provider-impact、decision queue、dashboard 與 watchlist alert 的 action boundary 仍用 raw truthiness；legacy `blocks_auto_rerun="false"` 可能變成阻擋，free-mode 或 freshness flag 也可能錯誤隱藏／升級 action。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以七組 legacy false fixture 先取得 `7 failed` RED；各 boundary 改採 shared `safe_bool`，只做唯讀 payload projection，不改任何 persisted state 或 queue side effect。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture contract；focused fixtures `7 passed`、相關模組 `304 passed`、full suite `8,560 passed, 6 skipped, 75 subtests passed`。
+
 ## D3867 / normalize report reading notice freshness flags
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：reading notice freshness helper 對數值 flag 使用非零即 true；`2`、`-1` 等 malformed numeric values 會把格式問題誇大成 stale/full-rerun warning，與 shared explicit boolean contract 不一致。
