@@ -3,6 +3,8 @@
 The API is local-first and intended for the bundled UI or trusted local automation.
 FastAPI exposes the machine-readable contract at `/openapi.json`; mutating operations are annotated with the `MutationToken` API-key security scheme using the `X-Mutation-Token` header.
 
+Decision tracking parses snapshot `current_price` first and falls back to `current_price_fmt` only when the raw value is not parseable. Legacy `N/A` raw values therefore do not hide a valid formatted price, and report tracking calculations remain aligned with the available snapshot evidence.
+
 The model-route budget fallback applies shared `safe_bool` to `observability_unavailable`; legacy `"false"` therefore does not manufacture an unavailable warning, while explicit true remains visible in the machine-readable payload.
 
 The data-fetch blocking notice uses `data_trust_values.has_value` for core market and financial fields. Placeholder values such as `N/A` and empty history lists therefore cannot bypass the missing-core-data stop, while valid zero values and real core data preserve the existing analysis path.

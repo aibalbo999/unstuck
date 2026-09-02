@@ -45,7 +45,11 @@ def _read_snapshot(path: str) -> dict:
 
 def _snapshot_current_price(snapshot: dict) -> Optional[float]:
     data = snapshot.get("data") if isinstance(snapshot.get("data"), dict) else {}
-    return parse_optional_price(data.get("current_price") or data.get("current_price_fmt"))
+    for value in (data.get("current_price"), data.get("current_price_fmt")):
+        parsed = parse_optional_price(value)
+        if parsed is not None:
+            return parsed
+    return None
 
 
 def _price_updated_at(snapshot: dict) -> str:

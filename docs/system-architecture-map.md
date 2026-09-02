@@ -4,6 +4,8 @@
 
 模型路由觀測的 fallback 是唯讀 projection：`model_route_observability.py` 以 shared `safe_bool` 解讀 `observability_unavailable`，legacy `"false"` 不得升格成 unavailable；這不會改寫 telemetry、provider、snapshot、artifact、queue 或 rerun state。
 
+決策追蹤的 snapshot 股價讀取在 `decision_tracking.py`；先解析 raw `current_price`，失敗才解析 `current_price_fmt`，避免 placeholder 遮蔽可用值。這是 report/API read-only projection，不改寫 snapshot 或 report index。
+
 資料抓取到分析工作的阻擋邊界在 `analysis_job_helpers.py`；核心資料存在性沿用 `data_trust_values.has_value`，因此 placeholder 或空歷史不會被當成核心 evidence。此 gate 只停止缺少可用核心資料的當次工作，不回寫 canonical report index、snapshot 或 artifact。
 
 ## 目前 Runtime 真相

@@ -111,6 +111,25 @@ def test_decision_tracking_compares_latest_price_to_all_targets(tmp_path):
     assert above_all["tracking_summary_status"] == "高於12月目標"
 
 
+def test_decision_tracking_falls_back_to_formatted_price_when_snapshot_raw_price_is_placeholder():
+    tracking = build_decision_tracking(
+        {
+            "recommendation": "買入",
+            "current_price": "NT$100",
+            "target_12m": "NT$130",
+        },
+        snapshot={
+            "data": {
+                "current_price": "N/A",
+                "current_price_fmt": "NT$108",
+            }
+        },
+    )
+
+    assert tracking["latest_price"] == 108.0
+    assert tracking["return_pct"] == 8.0
+
+
 def test_decision_tracking_keeps_legacy_false_freshness_false():
     snapshot = {
         "generated_at": "2026-06-09T00:00:00+00:00",

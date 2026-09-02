@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3895 / preserve formatted snapshot price fallback
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：決策追蹤以 `current_price or current_price_fmt` 選值；raw `N/A` 是 truthy，會讓 parser 失敗後漏掉仍可用的 formatted price。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：placeholder/raw + formatted price fixture 先取得 `1 failed` RED；改採逐欄 parse，raw 成功值優先、formatted 值只作 parse fallback，不借用 report text 或 target 推導 latest price。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：本批只修 report/API 的 read-only tracking projection，後續以 decision tracking、preview、compare、incremental refresh、full suite 與 live API 驗證，不改 snapshot、artifact、index、queue 或 rerun state。
+
 ## D3894 / reject missing core-data placeholders before analysis
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：分析工作開始前的 data-fetch blocking gate 以 raw truthiness 判斷核心資料；`N/A`、空 history 或非有限值可能讓錯誤 payload 繼續進入分析。

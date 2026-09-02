@@ -1,5 +1,7 @@
 # Operator Guide
 
+決策追蹤會先解析 snapshot 的 raw `current_price`，只有 raw 值無法解析時才回退到 `current_price_fmt`；因此 legacy `N/A` 不會蓋掉仍可用的格式化股價，報酬與目標比較會依現有 snapshot evidence 計算。
+
 模型路由 budget 的 fallback 會用 shared `safe_bool` 解讀 `observability_unavailable`；legacy `"false"` 不會被製造成 unavailable 警示，明確的 true 仍會保留在機器可讀 payload，方便操作人員區分真的觀測不可用與舊格式資料。
 
 資料抓取進入分析前會用 `data_trust_values.has_value` 判斷核心市場／財報欄位是否真的有值；`N/A`、空歷史序列與非有限數字不會被當成可用資料而繞過停止條件，合法的核心資料則維持原本流程。這只決定本次是否繼續分析，不會改寫既有報告或快照。
