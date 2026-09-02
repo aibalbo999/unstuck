@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 
 from data_trust import data_snapshot_filename_for_report
+from report_paths import report_review_filename_for_report
 from storage.report_storage import ReportStorage
 
 
@@ -29,13 +30,19 @@ def bundle_keys_for_html_key(key: str) -> list[str]:
         key,
         join_storage_key(prefix, markdown),
         join_storage_key(prefix, data_snapshot_filename_for_report(filename)),
+        join_storage_key(prefix, report_review_filename_for_report(filename)),
     ]
 
 
 def html_key_for_related_storage_key(key: str) -> str:
     prefix = dirname_for_storage_key(key)
     filename = basename_for_storage_key(key)
-    html = filename[:-10] + ".html" if filename.endswith(".data.json") else os.path.splitext(filename)[0] + ".html"
+    if filename.endswith(".data.json"):
+        html = filename[:-10] + ".html"
+    elif filename.endswith(".review.json"):
+        html = filename[:-12] + ".html"
+    else:
+        html = os.path.splitext(filename)[0] + ".html"
     return join_storage_key(prefix, html)
 
 

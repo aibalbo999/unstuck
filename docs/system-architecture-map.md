@@ -13,7 +13,7 @@
 | Redis / RQ | `redis://localhost:6379/0` | `backend/task_queue.py` | API 只 enqueue，Worker consume。 |
 | Report index | `backend/cache/stock_agent_cache.sqlite3` | `backend/report_index.py` | `reports` table 是報告列表、搜尋、追蹤卡片的索引。 |
 | Operational state | `backend/cache/operational.sqlite3` | `backend/job_store.py`, `backend/decision_tracking_store.py`, `backend/watchlist_store.py`, `backend/provider_sla.py`, `backend/notification_delivery_audit.py` | 分析任務、SSE events、telemetry、decision tracking、watchlist、provider SLA、notification delivery audit 的主要狀態。 |
-| Report artifacts | `backend/output/**/<ticker>/*.{html,md,data.json}` | `backend/report_history_storage.py`, `backend/report_paths.py`, `storage.report_storage` | 不要手動假設 `backend/output/<filename>`；報告可能在月份和 ticker 子資料夾。 |
+| Report artifacts | `backend/output/**/<ticker>/*.{html,md,data.json,review.json}` | `backend/report_history_storage.py`, `backend/report_paths.py`, `storage.report_storage` | 不要手動假設 `backend/output/<filename>`；報告可能在月份和 ticker 子資料夾。 |
 | Data fetch cache | Redis 或 `CACHE_DB_PATH` | `backend/cache_store.py`, `backend/cache_backends.py` | 依 `CACHE_BACKEND` 切換，目前本機常用 Redis。 |
 | Legacy tracking DB | `backend/cache/decision_tracking.sqlite3` | legacy migration only | 不要用它判斷畫面狀態；目前 canonical 是 `operational.sqlite3`。 |
 
@@ -175,6 +175,7 @@ flowchart TD
 - 不要直接寫 `Path(output_dir) / filename` 來找 HTML/Markdown/data snapshot。
 - `report_index.data_snapshot_filename` 是檔名，不保證是完整相對路徑。
 - `report_rerun_service` 也必須先用 `storage_for_existing_output_dir()` 取得 storage，再由 `ReportArtifactLocator` 查找來源 HTML；解析出的 storage 要沿用到 snapshot、重跑 context 與輸出 persistence，不能因呼叫端未注入 storage 就退回 `output_dir/filename`。
+- 舊版 `/api/report/{filename}/review` 的 `.review.json` 以 `report_storage_candidates_for_filename(..., kind="review")` 與 nested bundle 同位置保存；讀取保留 flat legacy fallback，report history delete/retention/orphan cleanup 會清理 review key。它不等同於 `operational.sqlite3` 的 revision-bound `report_quality_review_events`。
 
 ## 狀態資料歸屬
 

@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3844 / co-locate certification review sidecars with report artifacts
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：legacy certification review 仍以 flat `output_dir/<base>.review.json` 為唯一位置；nested report bundle 的 review 會被讀不到，新寫入也和 HTML/Markdown/data 分離，刪除或 retention 可能留下孤兒 sidecar。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先以 nested read/write fixture 取得 RED，再讓 `report_review_gate` 使用 canonical review candidates，保留 flat legacy fallback；route 注入 runtime storage，bundle delete/expire/orphan cleanup 都納入 review key，遇到 invalid JSON 仍 fail closed，不借用 operational review ledger。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新 API/operator/architecture contract；review gate/storage/cleanup focused `5 passed`，storage/review/artifact integration `81 passed`，品質/前端/文件 `342 passed`，import/architecture/docs `595 passed`，preview `110 passed`，runtime/storage `19 passed`，Python compile 與 `git diff --check` 通過；正式 runtime reload 後 health/ready/reports/current-quality/historical/review `200`，live current `165/85/5`、historical `1175/59`，首筆 review status `pending_review` 且 candidates 正確。本批不改報告內容、quality gate、snapshot、index、operational review ledger、queue 或 rerun state。
+
 ## D3843 / resolve rerun source artifacts through canonical storage
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`report_rerun_service` 在沒有顯式 storage 的直接呼叫路徑只檢查 `output_dir/filename`，沒有沿用 partitioned artifact candidates；nested HTML 存在時仍會回覆「找不到報告」，而且後續 snapshot/重跑層也無法取得同一來源。

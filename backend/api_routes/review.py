@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -10,12 +9,14 @@ from fastapi import APIRouter, HTTPException, Request
 
 from report_index import is_safe_report_filename
 from report_review_gate import get_review_status, write_ai_review_result
+from storage.report_storage import ReportStorage
 
 
 @dataclass(frozen=True)
 class ReviewRouteDeps:
     get_output_dir: Callable[[], str]
     require_mutation_authorized: Callable[[Request], None]
+    get_report_storage: Callable[[], ReportStorage] | None = None
 
 
 def create_review_router(deps: ReviewRouteDeps) -> APIRouter:
@@ -25,7 +26,8 @@ def create_review_router(deps: ReviewRouteDeps) -> APIRouter:
     def get_report_review_status(filename: str):
         if not is_safe_report_filename(filename, ".html"):
             raise HTTPException(status_code=400, detail="Invalid filename")
-        return get_review_status(filename, deps.get_output_dir())
+        storage = deps.get_report_storage() if deps.get_report_storage is not None else None
+        return get_review_status(filename, deps.get_output_dir(), storage=storage)
 
     @router.post("/api/report/{filename}/review")
     async def save_report_review(filename: str, request: Request):
@@ -40,6 +42,7 @@ def create_review_router(deps: ReviewRouteDeps) -> APIRouter:
 
         # In a real setup, this endpoint might trigger an async AI review job
         # For now, it allows an operator/frontend to submit a manual review state
+        storage = deps.get_report_storage() if deps.get_report_storage is not None else None
         return write_ai_review_result(
             filename,
             deps.get_output_dir(),
@@ -48,6 +51,7 @@ def create_review_router(deps: ReviewRouteDeps) -> APIRouter:
             critical_issues=payload.get("critical_issues", []),
             warnings=payload.get("warnings", []),
             review_agents_used=payload.get("review_agents_used", []),
+            storage=storage,
         )
 
     return router

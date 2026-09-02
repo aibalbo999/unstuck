@@ -92,7 +92,7 @@ def cleanup_orphan_markdown_reports(output_dir: str, storage: ReportStorage | No
     deleted = []
     for item in reports:
         key = item.key
-        if not key.endswith((".md", ".data.json")):
+        if not key.endswith((".md", ".data.json", ".review.json")):
             continue
         if _html_key_for_related_storage_key(key) in report_keys:
             continue
@@ -181,7 +181,7 @@ def delete_report_files(
 
     existing_keys = []
     if content_storage is not None:
-        for kind in ("html", "md", "data"):
+        for kind in ("html", "md", "data", "review"):
             key = existing_storage_key(content_storage, filename, kind=kind)
             if key is not None:
                 existing_keys.append(key)

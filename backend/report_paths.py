@@ -32,6 +32,10 @@ def report_markdown_filename_for_report(filename: str) -> str:
     return filename[:-5] + ".md" if filename.endswith(".html") else f"{filename}.md"
 
 
+def report_review_filename_for_report(filename: str) -> str:
+    return filename[:-5] + ".review.json" if filename.endswith(".html") else f"{filename}.review.json"
+
+
 def report_storage_candidates_for_filename(filename: str, *, kind: str = "html") -> list[str]:
     if kind == "html":
         basename = filename
@@ -39,6 +43,8 @@ def report_storage_candidates_for_filename(filename: str, *, kind: str = "html")
         basename = report_markdown_filename_for_report(filename)
     elif kind == "data":
         basename = data_snapshot_filename_for_report(filename)
+    elif kind == "review":
+        basename = report_review_filename_for_report(filename)
     else:
         raise ValueError(f"Unknown report storage kind: {kind}")
     nested = f"{report_storage_prefix_for_filename(filename)}/{basename}"
@@ -47,6 +53,7 @@ def report_storage_candidates_for_filename(filename: str, *, kind: str = "html")
 
 __all__ = [
     "report_markdown_filename_for_report",
+    "report_review_filename_for_report",
     "report_storage_candidates_for_filename",
     "report_storage_key_for_filename",
     "report_storage_prefix_for_filename",

@@ -8,7 +8,12 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
 
-from data_trust import data_snapshot_filename_for_report
+from report_history_storage import load_storage_item, storage_for_existing_output_dir
+from report_paths import report_storage_candidates_for_filename, report_review_filename_for_report
+from storage.report_storage import ReportStorage
+
+
+REVIEW_CONTENT_TYPE = "application/json"
 
 
 class ReviewVerdict(str, Enum):
@@ -29,13 +34,25 @@ REVIEW_VERDICT_LABELS: dict[str, str] = {
 
 
 def _review_data_path(report_filename: str, output_dir: str) -> str:
-    """Return path to the .review.json sidecar file for a report."""
-    base = report_filename.replace(".html", "").replace(".md", "")
-    return os.path.join(output_dir, f"{base}.review.json")
+    """Return the legacy flat path for a .review.json sidecar."""
+    return os.path.join(output_dir, report_review_filename_for_report(report_filename))
 
 
-def load_review_record(report_filename: str, output_dir: str) -> dict:
+def _decode_review_record(content: bytes) -> dict:
+    try:
+        record = json.loads(content.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return {}
+    return record if isinstance(record, dict) else {}
+
+
+def load_review_record(report_filename: str, output_dir: str, storage: ReportStorage | None = None) -> dict:
     """Load existing review record, or return empty dict if not found."""
+    content_storage = storage_for_existing_output_dir(output_dir, storage)
+    if content_storage is not None:
+        item = load_storage_item(content_storage, report_filename, kind="review")
+        if item is not None:
+            return _decode_review_record(item.content)
     path = _review_data_path(report_filename, output_dir)
     if not os.path.exists(path):
         return {}
@@ -43,12 +60,29 @@ def load_review_record(report_filename: str, output_dir: str) -> dict:
         with open(path, "r", encoding="utf-8") as f:
             record = json.load(f)
         return record if isinstance(record, dict) else {}
-    except (OSError, json.JSONDecodeError):
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return {}
 
 
-def save_review_record(report_filename: str, output_dir: str, record: dict) -> bool:
+def save_review_record(
+    report_filename: str,
+    output_dir: str,
+    record: dict,
+    storage: ReportStorage | None = None,
+) -> bool:
     """Save review record to sidecar file."""
+    content_storage = storage_for_existing_output_dir(output_dir, storage)
+    if content_storage is not None:
+        key = report_storage_candidates_for_filename(report_filename, kind="review")[0]
+        try:
+            content_storage.save_report(
+                key,
+                json.dumps(record, ensure_ascii=False, indent=2).encode("utf-8"),
+                content_type=REVIEW_CONTENT_TYPE,
+            )
+            return True
+        except (OSError, ValueError):
+            return False
     path = _review_data_path(report_filename, output_dir)
     try:
         with open(path, "w", encoding="utf-8") as f:
@@ -58,9 +92,9 @@ def save_review_record(report_filename: str, output_dir: str, record: dict) -> b
         return False
 
 
-def get_review_status(report_filename: str, output_dir: str) -> dict:
+def get_review_status(report_filename: str, output_dir: str, storage: ReportStorage | None = None) -> dict:
     """Return current review status for a report."""
-    record = load_review_record(report_filename, output_dir)
+    record = load_review_record(report_filename, output_dir, storage=storage)
     verdict = record.get("verdict", ReviewVerdict.PENDING)
     return {
         "verdict": verdict,
@@ -88,6 +122,7 @@ def write_ai_review_result(
     confidence_adjustment: int = 0,
     raw_agent_outputs: Optional[dict] = None,
     evidence_exit_gate: Optional[dict] = None,
+    storage: ReportStorage | None = None,
 ) -> dict:
     """Write AI review result to sidecar file."""
     now_iso = datetime.now(timezone.utc).isoformat()
@@ -106,7 +141,7 @@ def write_ai_review_result(
     }
     if raw_agent_outputs:
         record["raw_agent_outputs"] = raw_agent_outputs
-    save_review_record(report_filename, output_dir, record)
+    save_review_record(report_filename, output_dir, record, storage=storage)
     return record
 
 
@@ -125,8 +160,19 @@ def determine_verdict(
     return ReviewVerdict.APPROVED
 
 
-def delete_review_record(report_filename: str, output_dir: str) -> bool:
-    """Delete review sidecar when report is deleted."""
+def delete_review_record(
+    report_filename: str,
+    output_dir: str,
+    storage: ReportStorage | None = None,
+) -> bool:
+    """Delete review sidecars when report is deleted."""
+    content_storage = storage_for_existing_output_dir(output_dir, storage)
+    if content_storage is not None:
+        try:
+            for key in report_storage_candidates_for_filename(report_filename, kind="review"):
+                content_storage.delete_report(key)
+        except (OSError, ValueError):
+            return False
     path = _review_data_path(report_filename, output_dir)
     try:
         if os.path.exists(path):

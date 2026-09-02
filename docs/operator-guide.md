@@ -243,6 +243,8 @@ HTML/Markdown 的報告使用提示也會在有 current report row 時投影「�
 
 報告重跑查找來源時會先取得目前 output directory 對應的 canonical storage，再透過 artifact locator 尋找 HTML；因此 `YYYY-MM/TICKER/` nested artifact 與舊 flat artifact 都遵守同一套候選鍵。這個 storage 也會沿用到資料快照讀取與重跑報告寫入，不要以 `output_dir/filename` 手動判斷報告是否存在，也不要用 index 或另一份報告代替來源 artifact。
 
+舊版報告 certification 的 `.review.json` 也會跟著同一份 nested bundle 保存；新結果寫入月份/股票目錄，讀取仍接受舊 flat sidecar，刪除、到期或孤兒清理報告時會一併移除 review sidecar。它和歷史品質稽核使用的 `report_quality_review_events` 是兩套不同責任的 review state，不要互相代替或混算。
+
 Report conformance quality gate inputs accept mapping-safe wrappers before decision-tree evaluation, so read-only report lint, final audit, evidence, content credibility, context, or snapshot payloads cannot hide blocker or warning evidence.
 
 Report evidence exit gate numeric checks use semantic snapshot paths only: ISO timestamp fragments, hashes, source-audit metadata, `N/A` cells, and range prefixes are not investment claims; claims without a matching semantic path are recorded as `unverifiable` and do not borrow the nearest unrelated snapshot number. `failed_count` counts only real `mismatch` results, while `unverifiable_count` remains visible and keeps the verdict at least `caution` when no comparable evidence exists.

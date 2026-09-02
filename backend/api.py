@@ -216,7 +216,7 @@ def create_app() -> FastAPI:
     )))
     app.include_router(create_review_router(ReviewRouteDeps(
         get_output_dir=lambda: OUTPUT_DIR,
-        require_mutation_authorized=require_mutation_authorized,
+        require_mutation_authorized=require_mutation_authorized, get_report_storage=lambda: get_report_storage_for_output_dir(app, OUTPUT_DIR),
     )))
     app.include_router(create_decision_tracking_router(DecisionTrackingRouteDeps(
         get_output_dir=lambda: OUTPUT_DIR,

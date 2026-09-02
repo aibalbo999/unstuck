@@ -1923,15 +1923,19 @@ def test_refresh_data_snapshot_reads_and_updates_partitioned_storage(tmp_path, m
 
 
 def test_delete_report_files_deletes_storage_cache_and_repository(tmp_path):
+    from report_paths import report_storage_candidates_for_filename
+
     storage = InMemoryStorage()
     repository = RecordingRepository()
     lock = RecordingLock()
     filename = "2308_TW_v2_report_20260626_120000.html"
     md_filename = "2308_TW_v2_report_20260626_120000.md"
     data_filename = data_snapshot_filename_for_report(filename)
+    review_filename = report_storage_candidates_for_filename(filename, kind="review")[0]
     storage.save_report(filename, b"<html></html>", content_type="text/html")
     storage.save_report(md_filename, b"# report\n", content_type="text/markdown")
     storage.save_report(data_filename, b"{}", content_type="application/json")
+    storage.save_report(review_filename, b"{}", content_type="application/json")
     report_cache = {"2308.TW": filename, "2330.TW": "other.html"}
 
     result = delete_report_files(
@@ -1943,10 +1947,11 @@ def test_delete_report_files_deletes_storage_cache_and_repository(tmp_path):
         storage=storage,
     )
 
-    assert result == {"success": True, "deleted": [filename, md_filename, data_filename]}
+    assert result == {"success": True, "deleted": [filename, md_filename, data_filename, review_filename]}
     assert storage.exists(filename) is False
     assert storage.exists(md_filename) is False
     assert storage.exists(data_filename) is False
+    assert storage.exists(review_filename) is False
     assert report_cache == {"2330.TW": "other.html"}
     assert lock.entered == 1
     assert repository.deleted == [(filename, str(tmp_path))]
@@ -2036,6 +2041,8 @@ def test_report_routes_use_injected_report_storage_for_read_and_delete(tmp_path)
 
 def test_cleanup_expired_reports_removes_partitioned_report_bundle(tmp_path):
     from report_persistence import persist_report_bundle, report_bundle_keys_for_filename
+    from report_paths import report_storage_candidates_for_filename
+    from report_review_gate import write_ai_review_result
     from storage.report_storage import LocalFileStorage
 
     filename = "2308_TW_v2_report_20260626_120000.html"
@@ -2048,9 +2055,19 @@ def test_cleanup_expired_reports_removes_partitioned_report_bundle(tmp_path):
         storage=storage,
         output_dir=str(tmp_path),
     )
+    write_ai_review_result(
+        filename,
+        str(tmp_path),
+        verdict="approved",
+        review_summary="old review",
+        critical_issues=[],
+        warnings=[],
+        review_agents_used=["test"],
+    )
     keys = report_bundle_keys_for_filename(filename)
+    review_key = report_storage_candidates_for_filename(filename, kind="review")[0]
     old_mtime = time.time() - 3 * 24 * 60 * 60
-    for key in (keys.html_key, keys.md_key, keys.data_key):
+    for key in (keys.html_key, keys.md_key, keys.data_key, review_key):
         os.utime(tmp_path / key, (old_mtime, old_mtime))
 
     deleted = cleanup_expired_reports(
@@ -2063,6 +2080,7 @@ def test_cleanup_expired_reports_removes_partitioned_report_bundle(tmp_path):
     assert storage.get_report(keys.html_key) is None
     assert storage.get_report(keys.md_key) is None
     assert storage.get_report(keys.data_key) is None
+    assert storage.get_report(review_key) is None
 
 
 def test_cleanup_orphan_markdown_reports_removes_partitioned_snapshots(tmp_path):
@@ -2081,6 +2099,21 @@ def test_cleanup_orphan_markdown_reports_removes_partitioned_snapshots(tmp_path)
     assert keys.data_key in deleted
     assert storage.get_report(keys.md_key) is None
     assert storage.get_report(keys.data_key) is None
+
+
+def test_cleanup_orphan_markdown_reports_removes_partitioned_review_sidecar(tmp_path):
+    from report_paths import report_storage_candidates_for_filename
+    from storage.report_storage import LocalFileStorage
+
+    filename = "2308_TW_v2_report_20260626_120000.html"
+    storage = LocalFileStorage(tmp_path)
+    review_key = report_storage_candidates_for_filename(filename, kind="review")[0]
+    storage.save_report(review_key, b'{"verdict":"approved"}', content_type="application/json")
+
+    deleted = cleanup_orphan_markdown_reports(str(tmp_path))
+
+    assert review_key in deleted
+    assert storage.get_report(review_key) is None
 
 
 def test_report_rerun_route_queues_partitioned_storage_report(tmp_path):
