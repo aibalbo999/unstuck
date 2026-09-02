@@ -4,7 +4,7 @@
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：artifact scan 顯示現有 snapshot 都已保存為 canonical bool，但 upstream snapshot builder 仍對輸入 context 使用 raw `bool()`；legacy `"false"` 會在產製新 snapshot 時變成 `True`，重新製造 stale conclusion signal。
 - `#證據基礎` / `#偏誤降低` / `#最小變更`：先以 snapshot-builder legacy token fixture 取得 `1 failed` RED；改用 freshness summary 的 shared `safe_bool`，把 explicit boolean projection 放在 persistence boundary，並保留異常 truthiness fallback 為 `False`。
-- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture contract；snapshot flag focused `3 passed`，本批只修 snapshot write projection，不改現有 artifact、index、review、queue 或 rerun state。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture contract；snapshot flag focused `3 passed`、跨層回歸 `1,022 passed`、full suite `8,552 passed, 6 skipped, 75 subtests passed`；正式 runtime `/healthz`、`/readyz`、`/api/reports` `200/200/200`，本批只修 snapshot write projection，不改現有 artifact、index、review、queue 或 rerun state。
 
 ## D3865 / normalize decision validity status before safety decisions
 
