@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3838 / bound current-quality non-passed scope
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：current-quality 的 gate status 分布各自以 `audited_reports` 為分母，但 union 型 `non_passed_reports` 沒有上限檢查；它不是任一單一 status map 的加總，卻仍必須落在同一 audited scope 內。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以 `audited=1`、`non_passed=2`、`items_total=2` 取得 RED；watchlist/history 兩個 validator 加入 `non_passed <= audited`，保留合法 zero、status 分布與 bounded target，不借用 gate status 推算 union count。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新兩個 current-quality asset cache-buster 與 API/operator/architecture contract，focused scope `2 passed`，完整 history/report-quality/static/docs/current-quality regression `348 passed`，Node syntax、line guard 與 `git diff --check` 通過；live current `165/85/5/85` 且三組 status sum `165`，daily `165/2`、historical `1175/59/5/59`，assets `200` 且與本地一致，health/ready、official launcher/worker/8080 與 doctor canonical paths 正常。本批不改 audit count、quality gate、queue、snapshot、artifact、index、review 或 rerun state。
+
 ## D3837 / validate top-level quality distributions
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：provenance、重跑策略、context、review 與歷史 version map 都是 missing scope 的一對一分布；逐 bucket 轉數字不足以證明它們能代表全量缺口，partial map 會製造虛假的摘要完整度。

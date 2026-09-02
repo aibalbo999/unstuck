@@ -566,6 +566,39 @@ process.stdout.write(JSON.stringify({ board }));
     assert "目前品質：" not in payload["board"]
 
 
+def test_watchlist_board_rejects_current_quality_non_passed_above_audited_scope():
+    helper_path = STATIC_DIR / "watchlist_panel_helpers.js"
+    current_quality_helper_path = STATIC_DIR / "watchlist_current_quality_helpers.js"
+    script = """
+global.window = {};
+require(__CURRENT_QUALITY_HELPER_PATH__);
+require(__HELPER_PATH__);
+const currentQuality = {
+  schema_version: 'report_current_quality_summary.v1',
+  scope: 'all_indexed_reports',
+  selection_basis: 'latest_per_ticker_pipeline',
+  audited_reports: 1,
+  non_passed_reports: 2,
+  items_total: 2,
+  items_returned: 0,
+  report_conformance_by_status: { passed: 1, warning: 0, blocked: 0, unknown: 0 },
+  content_credibility_by_status: { passed: 1, warning: 0, blocked: 0, unknown: 0 },
+  evidence_exit_gate_by_verdict: { approved: 1, caution: 0, rejected: 0, unknown: 0 },
+  items: []
+};
+const board = window.StockAgentWatchlistPanelHelpers.watchlistDailyBoard([], {
+  decision_queue: { summary: { total_actionable: 0 }, items: [{ type: 'monitor' }] },
+  report_quality_audit: { current_quality_summary: currentQuality }
+}, value => String(value ?? ''));
+process.stdout.write(JSON.stringify({ board }));
+""".replace("__CURRENT_QUALITY_HELPER_PATH__", json.dumps(str(current_quality_helper_path))).replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "目前品質：" not in payload["board"]
+    assert "非通過 2" not in payload["board"]
+
+
 def test_watchlist_current_quality_does_not_floor_fractional_evidence_failed_counts():
     evidence_path = STATIC_DIR / "report_quality_evidence_helpers.js"
     current_quality_helper_path = STATIC_DIR / "watchlist_current_quality_helpers.js"
