@@ -4,6 +4,8 @@
 
 Prompt source audit 摘要、可選 provider refresh 計畫與舊版 HTTP enrichment 也沿用同一套 explicit boolean 規則處理 `cache_hit`／`_cache_hit`；舊資料的 "false" 會維持 cache miss，提示證據不會被誤標成命中，必要的近期催化劑與同業搜尋也不會因字串 truthiness 被跳過。
 
+canonical data-fetch service、freshness evaluator、provider execution、enrichment merge 與 exception audit 也在傳遞 `_cache_hit` 時先做同一套 normalization；因此 `FetchResult.cache_hit`、來源審計與資料可信度看到的 cache 狀態不會因 workflow 層次不同而漂移。
+
 ## Model Route Observations
 
 The LLM/API maintenance panel reads `model_route_budget.v1` through `/api/observability/model-routes` and labels latency, retry, quality-gate, and provider-error warnings separately. `failures` / `failure_rate` remain `analysis_node_telemetry` results; `provider_error_count` and `provider_quota_error_count` are a separate bounded recent sample from `api_usage_events`, so a fallback success is not misreported as a failed analysis node. `slow_route` and provider-error warnings are maintenance observations, not daily rerun instructions; use the report's `data_trust`, `decision_freshness`, and `今日工作台` before rerunning one report.

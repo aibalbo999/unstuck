@@ -7,6 +7,7 @@ from contextlib import suppress
 from typing import Awaitable, Callable, Optional
 
 from provider_sla import record_source_audit_entries
+from report_freshness_summary import safe_bool
 
 from .provider_registry import ProviderRegistry
 from .types import FetchRequest, FetchResult, ProviderResult
@@ -79,7 +80,7 @@ class StockDataService:
             source_audit=list(audit_entries),
             data_trust=data.get("data_trust", {}) if isinstance(data.get("data_trust"), dict) else {},
             provider_results=provider_results,
-            cache_hit=bool(data.get("_cache_hit")),
+            cache_hit=safe_bool(data.get("_cache_hit")),
             duration_ms=duration_ms,
             warnings=list(data.get("data_source_notes", []) or []),
         )

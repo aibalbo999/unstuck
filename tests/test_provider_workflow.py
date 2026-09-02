@@ -990,6 +990,17 @@ def test_optional_provider_plan_treats_legacy_false_cache_hit_as_miss(monkeypatc
     assert providers == [provider]
 
 
+def test_stock_data_service_projects_legacy_false_cache_hit_as_miss():
+    async def fetcher(_request):
+        return {"ticker": "AAPL", "_cache_hit": "false", "source_audit": []}
+
+    result = asyncio.run(
+        StockDataService(fetcher=fetcher).fetch_async(FetchRequest.from_ticker("AAPL"))
+    )
+
+    assert result.cache_hit is False
+
+
 def test_workflow_returns_fresh_cache_before_provider_plan(monkeypatch):
     monkeypatch.setattr(data_freshness.time_module, "time", lambda: 200.0)
     monkeypatch.setattr(

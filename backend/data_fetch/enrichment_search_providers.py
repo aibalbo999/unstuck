@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from source_audit import audited_fetch_async
+from report_freshness_summary import safe_bool
 
 from .provider_base import DataProvider, provider_result_from_audited
 from .types import FetchRequest, ProviderResult
@@ -21,7 +22,7 @@ class AlternativeSearchProvider(DataProvider):
         ticker = str(data.get("ticker") or request.ticker).strip().upper()
         company_name = str(data.get("company_name") or ticker).strip()
         identity = data.get("company_identity") if isinstance(data.get("company_identity"), dict) else {}
-        cache_hit = bool(data.get("_cache_hit"))
+        cache_hit = safe_bool(data.get("_cache_hit"))
         result = await audited_fetch_async(
             self.source,
             self.name,
@@ -49,7 +50,7 @@ class AlternativePeerDiscoveryProvider(DataProvider):
         company_name = str(data.get("company_name") or ticker).strip()
         sector = str(data.get("sector") or "")
         industry = str(data.get("industry") or "")
-        cache_hit = bool(data.get("_cache_hit"))
+        cache_hit = safe_bool(data.get("_cache_hit"))
         result = await audited_fetch_async(
             self.source,
             self.name,

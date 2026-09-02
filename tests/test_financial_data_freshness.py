@@ -124,6 +124,27 @@ def test_source_is_stale_requires_usable_records(monkeypatch):
     assert data_freshness.source_is_stale(usable_cached_source, "recent_catalysts", "2330.TW") is False
 
 
+def test_source_is_stale_normalizes_legacy_cache_hit_before_audit_projection(monkeypatch):
+    captured = {}
+
+    def fake_build_source_freshness_entry(*args, **kwargs):
+        captured["cache_hit"] = kwargs["cache_hit"]
+        return {"stale": False}
+
+    monkeypatch.setattr(data_freshness, "build_source_freshness_entry", fake_build_source_freshness_entry)
+
+    assert data_freshness.source_is_stale(
+        {
+            "ticker": "2330.TW",
+            "recent_catalysts": [{"title": "Cached headline"}],
+            "_cache_hit": "false",
+        },
+        "recent_catalysts",
+        "2330.TW",
+    ) is False
+    assert captured["cache_hit"] is False
+
+
 def test_source_freshness_tracks_earnings_call_as_optional_source(monkeypatch):
     monkeypatch.setattr(data_freshness.time_module, "time", lambda: 200.0)
 

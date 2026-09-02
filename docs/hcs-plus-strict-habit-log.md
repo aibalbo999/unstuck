@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3872 / preserve cache-hit semantics across data-fetch boundaries
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：data-fetch freshness、service、workflow、provider audit、enrichment merge 與 exception audit 對 `_cache_hit` 各自使用 raw truthiness；legacy `"false"` 會在 FetchResult、source freshness 與 report-trust evidence 間變成不同 cache 狀態。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：service 與 freshness fixture 先取得 `2 failed` RED；所有 `_cache_hit` 傳遞點沿用 `report_freshness_summary.safe_bool`，並在 workflow boundary 先固定 canonical bool，不借用 stale 或 provider status 推導 cache hit。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture contract；focused fixtures `2 passed`、相關回歸 `659 passed`、full suite `8,571 passed, 6 skipped, 75 subtests passed`。本批只修 data-fetch cache 語意傳遞，不改 snapshot、artifact、index、review、queue 或 rerun state。
+
 ## D3871 / normalize cache-hit refresh decisions across prompt and optional workflows
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：prompt source audit、optional provider refresh plan 與 legacy optional HTTP enrichment 對 `cache_hit`／`_cache_hit` 使用 raw truthiness；legacy `"false"` 會被視為命中，可能污染提示 evidence 或跳過必要的 optional refresh。

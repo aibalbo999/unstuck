@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 
+from report_freshness_summary import safe_bool
 from .types import FetchRequest, ProviderResult
 
 
@@ -28,7 +29,7 @@ async def fetch_provider_results(request: FetchRequest, providers: list, context
                         "provider": getattr(provider, "name", provider.__class__.__name__),
                         "status": "error",
                         "record_count": 0,
-                        "cache_hit": bool((context.get("data") or {}).get("_cache_hit")),
+                        "cache_hit": safe_bool((context.get("data") or {}).get("_cache_hit")),
                         "stale": False,
                         "error_kind": result.__class__.__name__,
                         "message": str(result)[:240],

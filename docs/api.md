@@ -7,6 +7,8 @@ Data-fetch cache audit stale flags use shared `safe_bool` before cache status an
 
 Prompt source-audit summaries, optional-provider refresh planning, and the legacy optional HTTP enrichment path use the same explicit boolean contract for `cache_hit` and `_cache_hit`. Legacy values such as "false" therefore remain cache misses, so prompt evidence stays accurate and fresh optional providers are not skipped by string truthiness.
 
+The canonical data-fetch service, freshness evaluator, workflow provider execution, enrichment merge, and provider exception audits normalize `_cache_hit` with the same contract before exposing `FetchResult.cache_hit` or source-audit metadata. Legacy cache flags therefore cannot change meaning as they move from payload to freshness, provider, or report-trust evidence.
+
 ## Read Endpoints
 
 `GET /api/observability/model-routes` returns the `model_route_budget.v1` telemetry section used by the operator panel. It reports `slow_route`, `retry_storm`, and `quality_gate_failures`; `slow_route` is maintenance evidence and remains outside the daily decision queue.

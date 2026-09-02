@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from source_audit import audited_fetch, audited_fetch_async
+from report_freshness_summary import safe_bool
 
 from .earnings_call_fetcher import FREE_EARNINGS_CALL_PROVIDER_NAME, fetch_free_earnings_call_context
 from .enrichment_search_providers import AlternativePeerDiscoveryProvider, AlternativeSearchProvider
@@ -37,7 +38,7 @@ class FreeNewsWaterfallProvider(DataProvider):
                 "provider": self.name,
                 "status": status,
                 "record_count": len(records),
-                "cache_hit": bool(data.get("_cache_hit")),
+                "cache_hit": safe_bool(data.get("_cache_hit")),
                 "stale": False,
                 "message": "免費新聞 waterfall 已回傳近期催化劑。" if records else "近期沒有命中新聞 waterfall，已視為可接受空結果。",
                 "related_entries": list(client.last_news_audit),
@@ -91,7 +92,7 @@ class FmpNewsProvider(DataProvider):
         context = context or {}
         data = context.get("data", {}) or {}
         ticker = str(context.get("original_ticker") or data.get("ticker") or request.ticker).strip().upper()
-        cache_hit = bool(data.get("_cache_hit"))
+        cache_hit = safe_bool(data.get("_cache_hit"))
         result = await audited_fetch_async(
             self.source,
             self.name,
@@ -135,7 +136,7 @@ class GlobalMarketContextProvider(DataProvider):
 
         context = context or {}
         data = context.get("data", {}) or {}
-        cache_hit = bool(data.get("_cache_hit"))
+        cache_hit = safe_bool(data.get("_cache_hit"))
         result = audited_fetch(
             self.source,
             self.name,
@@ -165,7 +166,7 @@ class InternationalNewsContextProvider(DataProvider):
 
         context = context or {}
         data = context.get("data", {}) or {}
-        cache_hit = bool(data.get("_cache_hit"))
+        cache_hit = safe_bool(data.get("_cache_hit"))
         result = await audited_fetch_async(
             self.source,
             self.name,

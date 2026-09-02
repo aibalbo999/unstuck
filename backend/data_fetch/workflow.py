@@ -6,6 +6,7 @@ import asyncio
 
 from cache_store import get_cache_json
 from data_trust import AUDIT_STATUS_SUCCESS, append_source_audit, finalize_data_trust, source_record_count
+from report_freshness_summary import safe_bool
 from source_audit import audited_fetch_async
 
 from .audit_helpers import _mark_sources_fetched
@@ -46,6 +47,7 @@ async def fetch_payload_async(request: FetchRequest, registry: ProviderRegistry 
         }
 
     data = await _assemble_core_payload_from_result(core_result, request)
+    data["_cache_hit"] = safe_bool(data.get("_cache_hit"))
     _append_core_provider_audits(data, core_audit_entries)
     if not data or "error" in data:
         fallback = fallback_cached_payload(ticker, stale_cached, core_result)
@@ -141,7 +143,7 @@ async def _assemble_core_payload_from_result(core_result: ProviderResult, reques
 async def _run_optional_provider_plan(request: FetchRequest, registry: ProviderRegistry, data: dict) -> dict:
     ticker = request.ticker.strip().upper()
     resolved_ticker = str(data.get("ticker") or ticker).strip().upper()
-    cache_hit = bool(data.get("_cache_hit"))
+    cache_hit = safe_bool(data.get("_cache_hit"))
     providers, refresh_by_source = collect_optional_providers(request, registry, data, resolved_ticker)
     refresh_catalysts = refresh_by_source["recent_catalysts"]
 
@@ -251,7 +253,7 @@ async def _run_missing_core_provider_plan(request: FetchRequest, registry: Provi
             data,
             str(data.get("ticker") or request.ticker).strip().upper(),
             tuple(sorted(set(refreshed_sources))),
-            cache_hit=bool(data.get("_cache_hit")),
+            cache_hit=safe_bool(data.get("_cache_hit")),
         )
     finalize_data_trust(data)
     return data

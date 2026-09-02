@@ -14,6 +14,7 @@ from data_trust import (
     source_record_count,
 )
 from config import SEARCH_CATALYST_MAX_RESULTS, SEARCH_PEER_DISCOVERY_MAX_RESULTS
+from report_freshness_summary import safe_bool
 from .market_sources.common import _dedupe_records, first_number, is_missing_value
 
 from .audit_helpers import _append_source_fetch_audit, _mark_market_data_fetched, _mark_sources_fetched
@@ -132,7 +133,7 @@ def _merge_optional_http_bundle(
                 data,
                 ticker,
                 fetched_at_epoch=refresh_epoch,
-                cache_hit=bool(data.get("_cache_hit")),
+                cache_hit=safe_bool(data.get("_cache_hit")),
             )
             _append_source_fetch_audit(
                 data,
@@ -142,7 +143,7 @@ def _merge_optional_http_bundle(
                 fetched_at_epoch=refresh_epoch,
                 finished_at_epoch=refresh_epoch,
                 record_count=len(updated_fields),
-                cache_hit=bool(data.get("_cache_hit")),
+                cache_hit=safe_bool(data.get("_cache_hit")),
                 stale=False,
                 message="async FMP quote bundle 補齊缺漏市場欄位：" + ", ".join(updated_fields),
             )
@@ -158,7 +159,7 @@ def _merge_optional_http_bundle(
                 ticker,
                 available_sources,
                 fetched_at_epoch=refresh_epoch,
-                cache_hit=bool(data.get("_cache_hit")),
+                cache_hit=safe_bool(data.get("_cache_hit")),
             )
         for source in refreshed_sources:
             count = source_record_count(source, data)
@@ -183,7 +184,7 @@ def _merge_optional_http_bundle(
                 fetched_at_epoch=refresh_epoch,
                 finished_at_epoch=refresh_epoch,
                 record_count=count,
-                cache_hit=bool(data.get("_cache_hit")),
+                cache_hit=safe_bool(data.get("_cache_hit")),
                 stale=count <= 0,
                 error_kind=error_kind,
                 message=message,
