@@ -28,6 +28,26 @@ def test_fresh_hold_with_strong_upside_is_calibrated_to_buy():
     assert calibrated["recommendation_calibration"]["expected_return_pct"] == 35.0
 
 
+def test_recommendation_calibration_normalizes_legacy_freshness_flags():
+    from recommendation_calibration import calibrate_recommendation_summary
+
+    calibrated = calibrate_recommendation_summary(
+        {
+            "recommendation": "持有",
+            "current_price": "NT$100",
+            "target_12m": "NT$135",
+            "confidence": "7/10",
+        },
+        data_trust={"status": " FRESH "},
+        analysis_text_stale="false",
+    )
+
+    assert calibrated["recommendation"] == "買入"
+    assert calibrated["recommendation_calibration"]["status"] == "adjusted"
+    assert calibrated["recommendation_calibration"]["data_trust_status"] == "fresh"
+    assert calibrated["recommendation_calibration"]["analysis_text_stale"] is False
+
+
 def test_scientific_target_range_uses_midpoint_before_calibration():
     from recommendation_calibration import calibrate_recommendation_summary
 

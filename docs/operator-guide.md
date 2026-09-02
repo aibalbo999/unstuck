@@ -10,6 +10,8 @@ model-route budget、node telemetry persistence 與操作台 dashboard 對 `cach
 
 provider impact 的來源恢復判斷與 queue dashboard 的 availability 也沿用 shared `safe_bool`；未知健康／可用性 token 會保守視為 false，不會透過物件 truthiness 把核心來源誤標成健康或 queue 誤標成可用。
 
+Recommendation calibration 會先用同一套 explicit boolean 規則解讀 `analysis_text_stale`，再把 `data_trust.status` 去除前後空白並統一小寫後才決定是否自動升格或降級。舊資料的 `"false"` 不會阻擋資料可信度足夠的升格，`" FRESH "` 也會正確視為 fresh；校準 audit payload 會保留標準化後的兩個值，方便人工核對。
+
 ## Model Route Observations
 
 The LLM/API maintenance panel reads `model_route_budget.v1` through `/api/observability/model-routes` and labels latency, retry, quality-gate, and provider-error warnings separately. `failures` / `failure_rate` remain `analysis_node_telemetry` results; `provider_error_count` and `provider_quota_error_count` are a separate bounded recent sample from `api_usage_events`, so a fallback success is not misreported as a failed analysis node. `slow_route` and provider-error warnings are maintenance observations, not daily rerun instructions; use the report's `data_trust`, `decision_freshness`, and `今日工作台` before rerunning one report.

@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3875 / normalize recommendation calibration freshness inputs
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：recommendation calibration 對 `analysis_text_stale` 使用 raw truthiness、對 `data_trust.status` 使用 exact match；legacy `"false"` 會阻擋可升格建議，`" FRESH "` 會把同一份 fresh data 降成 watch，讓 recommendation label 與 freshness audit 不一致。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先以同一組 legacy-token fixture 取得 `1 failed` RED；入口共用 `report_freshness_summary.safe_bool` 與 `normalize_freshness_status()`，unknown status 維持保守不可自動升格，audit payload 只記錄 normalized values。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture contract；focused fixtures `2 passed`、相關回歸 `1,109 passed, 75 subtests passed`、full suite `8,577 passed, 6 skipped, 75 subtests passed`。本批只修 recommendation read-only calibration projection，不改 snapshot、artifact、report index、review、queue 或 rerun state。
+
 ## D3874 / fail closed on provider impact and queue availability tokens
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：provider impact recovery 與 queue dashboard availability 各自保留 raw truthiness fallback；未知 token 可能把核心 provider 當健康、把 queue 當可用，改變等待恢復與操作台判斷。

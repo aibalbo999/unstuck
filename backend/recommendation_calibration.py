@@ -8,6 +8,7 @@ from typing import Any
 from confidence_score_parser import parse_confidence_score_text
 from price_parser import extract_price_numbers, extract_target_price_numbers
 from recommendation_labels import normalize_recommendation_label
+from report_freshness_summary import normalize_freshness_status, safe_bool
 
 
 BUY_MIN_RETURN_PCT = 10.0
@@ -95,7 +96,7 @@ def calibrate_recommendation_summary(
     recommendation: dict,
     *,
     data_trust: dict | None = None,
-    analysis_text_stale: bool = False,
+    analysis_text_stale: Any = False,
     pipeline_id: str = "",
 ) -> dict:
     """Return a recommendation summary calibrated to target-return evidence.
@@ -112,6 +113,7 @@ def calibrate_recommendation_summary(
     original_label = normalize_recommendation_label(_first_value(calibrated, LABEL_KEYS))
     if original_label == "N/A":
         return calibrated
+    analysis_text_stale = safe_bool(analysis_text_stale)
     if str(pipeline_id or "").lower() == "v3":
         calibrated[label_key] = original_label
         for key in LABEL_KEYS:
@@ -124,7 +126,8 @@ def calibrate_recommendation_summary(
     if current_price is None or current_price <= 0 or target_12m is None:
         return calibrated
 
-    data_trust_status = str((data_trust or {}).get("status") or "unknown")
+    trust_payload = data_trust if isinstance(data_trust, dict) else {}
+    data_trust_status = normalize_freshness_status(trust_payload.get("status"), default="unknown")
     confidence = parse_confidence_score_text(_first_value(calibrated, CONFIDENCE_KEYS))
     expected_return = _expected_return_pct(target_12m, current_price)
     new_label = original_label
@@ -183,7 +186,7 @@ def calibrate_recommendation_summary(
         "target_12m": round(target_12m, 4),
         "data_trust_status": data_trust_status,
         "confidence_score": confidence,
-        "analysis_text_stale": bool(analysis_text_stale),
+        "analysis_text_stale": analysis_text_stale,
         "reasons": reasons,
     }
     calibrated["recommendation_calibration"] = calibration
