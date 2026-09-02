@@ -92,9 +92,10 @@ def snapshot_integrity(
     expected_hash = safe_text(integrity.get("expected_hash")).strip()
     if not expected_hash:
         return {"status": "unverified", "valid": None, "errors": ["snapshot_hash missing"]}
+    valid = safe_bool(integrity.get("valid"))
     return {
-        "status": "verified" if integrity.get("valid") else "invalid",
-        "valid": bool(integrity.get("valid")),
+        "status": "verified" if valid else "invalid",
+        "valid": valid,
         "errors": [safe_text(error) for error in integrity.get("errors", []) if safe_text(error)],
     }
 

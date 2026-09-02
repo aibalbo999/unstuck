@@ -27,6 +27,25 @@ def test_quality_audit_row_keeps_legacy_false_freshness_false():
     assert report["decision_freshness"]["requires_rerun"] is False
 
 
+def test_snapshot_integrity_fail_closes_legacy_false_valid_token():
+    from report_quality_audit_rows import snapshot_integrity
+
+    result = snapshot_integrity(
+        {"snapshot_hash": "hash"},
+        verify_snapshot_integrity=lambda _snapshot: {
+            "valid": "false",
+            "expected_hash": "hash",
+            "errors": ["hash mismatch"],
+        },
+    )
+
+    assert result == {
+        "status": "invalid",
+        "valid": False,
+        "errors": ["hash mismatch"],
+    }
+
+
 def test_report_quality_audit_counts_verified_reports_with_missing_quality_metadata():
     assert importlib.util.find_spec("report_quality_audit") is not None
     from report_quality_audit import build_report_quality_audit

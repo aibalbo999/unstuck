@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3880 / fail closed on snapshot integrity verifier flags
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：report-quality audit row 對 verifier `valid` 使用 raw `bool()`；legacy `"false"` 會被投影為 verified/true，直接扭曲 snapshot evidence 與品質摘要。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先以一組 legacy-token fixture 取得 `1 failed` RED；`status` 與 `valid` 共用 `safe_bool`，unknown fail closed，不從 expected hash、errors 或其他 quality gate 借用 verified 證據。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture contract；focused fixture `1 passed`、相關品質回歸 `164 passed`、full suite `8,584 passed, 6 skipped, 75 subtests passed`。本批只修 report-quality read-only integrity projection，不改 snapshot、artifact、report index、review、queue 或 rerun state。
+
 ## D3879 / normalize daily quality-audit truncation scope
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：daily decision dashboard 的 quality-audit queue item 與 repair sample overlap 對 `items_truncated` 使用 `is True`；legacy `"true"` 會將不完整 audit 誤投影成 complete，改變人工核對範圍與 action navigation。

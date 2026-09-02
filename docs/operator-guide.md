@@ -20,6 +20,8 @@ Provider SLA 警示 payload 與操作台 aggregate 對 `current_source_has_healt
 
 今日工作台在建立品質 audit repair action 與 sample overlap 狀態前，也會用 shared `safe_bool` 解讀 `items_truncated`；舊資料的 `"true"` 會保守維持 partial，不會把未完整回傳的 audit item 當成可導覽的完整缺口。
 
+報告品質稽核列在投影 snapshot integrity 時，也會用 shared `safe_bool` 解讀 verifier 的 `valid`；舊資料的 `"false"` 仍會顯示為 invalid，不能因字串 truthiness 被升成 verified。這只修正唯讀 audit projection，不改 hash 驗證邏輯。
+
 ## Model Route Observations
 
 The LLM/API maintenance panel reads `model_route_budget.v1` through `/api/observability/model-routes` and labels latency, retry, quality-gate, and provider-error warnings separately. `failures` / `failure_rate` remain `analysis_node_telemetry` results; `provider_error_count` and `provider_quota_error_count` are a separate bounded recent sample from `api_usage_events`, so a fallback success is not misreported as a failed analysis node. `slow_route` and provider-error warnings are maintenance observations, not daily rerun instructions; use the report's `data_trust`, `decision_freshness`, and `今日工作台` before rerunning one report.

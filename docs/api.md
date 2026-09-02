@@ -23,6 +23,8 @@ Provider SLA alert payloads and observability aggregates normalize `current_sour
 
 The daily decision dashboard normalizes the quality-audit `items_truncated` flag before publishing repair actions and overlap status. Legacy `"true"` keeps the audit partial and prevents incomplete items from entering the repair queue; only a complete, non-truncated audit can create report-quality navigation actions.
 
+Report-quality audit rows normalize snapshot-integrity verifier `valid` with shared `safe_bool` before projecting `status` and `valid`. Legacy `"false"` therefore remains an invalid snapshot and cannot be promoted to verified evidence by Python truthiness; hash verification itself remains unchanged.
+
 ## Read Endpoints
 
 `GET /api/observability/model-routes` returns the `model_route_budget.v1` telemetry section used by the operator panel. It reports `slow_route`, `retry_storm`, and `quality_gate_failures`; `slow_route` is maintenance evidence and remains outside the daily decision queue.
