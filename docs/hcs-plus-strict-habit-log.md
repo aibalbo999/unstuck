@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3888 / normalize watchlist trigger match tokens
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：watchlist trigger event persistence 對 `matched` 使用 raw truthiness；duplicate event 的 legacy `"false"` 可能把已未命中的事件升成命中，影響去重與後續 enqueue。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：一組 legacy-token fixture 先取得 `1 failed` RED；event write 與 duplicate update gate 共用 `report_freshness_summary.safe_bool`，資料庫整數列回讀不改，不從 pipeline 或 message 猜測 matched。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture contract；watchlist service `22 passed`、watchlist trigger/report-alert 回歸 `35 passed`、full suite `8,603 passed, 6 skipped, 75 subtests passed`；official launcher reload 後 health/ready、reports、current-quality、daily-dashboard、metrics 均 `200`，reports total `167`、current-quality `167/88/12`、daily sample/repair/rerun `20/11/0`，queue gauge `1`，doctor canonical DB、`rq`/`redis` 正常。本批只修 trigger event boolean projection，不改 watchlist trigger、既有事件、provider、snapshot、artifact、index、review、repair 或 rerun state。
+
 ## D3887 / normalize strategy-evaluation hit tokens
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`strategy_evaluator._bool_or_none()` 對 `metrics.hit` 使用 raw truthiness；legacy `"false"` 會優先於 `outcome="hit"` 被誤算成命中，污染 model、watchlist trigger 與 quality-funnel hit rate。

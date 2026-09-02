@@ -594,6 +594,30 @@ def test_watchlist_trigger_monitor_queues_matched_event_once(monkeypatch, tmp_pa
     assert latest["trigger_type"] == "vix_above"
 
 
+def test_watchlist_trigger_store_treats_legacy_false_matched_as_unmatched(monkeypatch, tmp_path):
+    import watchlist_trigger_store
+
+    monkeypatch.setattr(watchlist_service, "WATCHLIST_PATH", tmp_path / "watchlist.json")
+    monkeypatch.setattr(watchlist_service, "WATCHLIST_DB_PATH", str(tmp_path / "watchlist.sqlite3"))
+    watchlist_service.reset_watchlist_store_for_tests()
+    event = {
+        "ticker": "2330.TW",
+        "pipeline": "v1",
+        "trigger_key": "vix_above",
+        "trigger_type": "vix_above",
+        "evaluation_date": "2026-06-20",
+        "matched": False,
+        "message": "not matched",
+    }
+
+    first = watchlist_trigger_store.record_trigger_event(event)
+    second = watchlist_trigger_store.record_trigger_event({**event, "matched": "false"})
+
+    assert first["inserted"] is True
+    assert second["inserted"] is False
+    assert watchlist_trigger_store.latest_event_for_item("2330.TW", "v1")["matched"] is False
+
+
 def test_watchlist_scheduler_runs_trigger_monitor(monkeypatch):
     calls = []
     logs = []

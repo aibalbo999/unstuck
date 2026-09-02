@@ -9,6 +9,7 @@ from pathlib import Path
 
 from config import CACHE_DB_PATH
 from pipeline_modes import normalize_pipeline_run_id
+from report_freshness_summary import safe_bool
 import watchlist_store
 
 
@@ -170,13 +171,14 @@ def record_trigger_event(event: dict) -> dict:
     pipeline = normalize_pipeline_run_id(event.get("pipeline") or "v1")
     trigger_key = str(event.get("trigger_key") or event.get("trigger_type") or "").strip()
     evaluation_date = str(event.get("evaluation_date") or datetime.now(watchlist_store.TAIPEI).date().isoformat())
+    matched = safe_bool(event.get("matched"))
     values = (
         ticker,
         pipeline,
         trigger_key,
         evaluation_date,
         str(event.get("trigger_type") or trigger_key),
-        1 if event.get("matched") else 0,
+        1 if matched else 0,
         normalize_pipeline_run_id(event.get("pipeline_selected") or pipeline),
         str(event.get("message") or "")[:240],
         _json(event.get("metrics") if isinstance(event.get("metrics"), dict) else {}),
@@ -193,7 +195,7 @@ def record_trigger_event(event: dict) -> dict:
             (ticker, pipeline, trigger_key, evaluation_date),
         ).fetchone()
         if existing:
-            if not bool(existing["matched"]) and event.get("matched"):
+            if not bool(existing["matched"]) and matched:
                 conn.execute(
                     """
                     UPDATE watchlist_trigger_events
