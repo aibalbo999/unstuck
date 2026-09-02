@@ -30,6 +30,7 @@ from report_current_quality_summary import (
 )
 from report_quality_review_workflow import get_indexed_report_quality_review_target
 from report_quality_review_store import record_review
+from report_freshness_summary import safe_bool
 from symbol_tools import parse_watchlist_import, suggest_symbols
 import watchlist_service
 
@@ -50,7 +51,7 @@ def _screener_status_message(result: dict) -> str:
 
 
 def _renderable_screener_result(result: dict) -> dict:
-    scan_success = bool(result.get("success", True))
+    scan_success = safe_bool(result.get("success", True))
     if scan_success:
         return {**result, "scan_success": True}
     return {
@@ -296,7 +297,7 @@ def create_watchlist_router(deps: WatchlistRouteDeps) -> APIRouter:
     async def run_market_screener(request: Request):
         deps.require_mutation_authorized(request)
         payload = await request.json()
-        force = bool(payload.get("force")) if isinstance(payload, dict) else False
+        force = safe_bool(payload.get("force")) if isinstance(payload, dict) else False
         result = await asyncio.to_thread(market_screener.run_daily_market_screener, force=force)
         return _renderable_screener_result(result)
 

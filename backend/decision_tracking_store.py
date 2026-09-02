@@ -9,6 +9,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from decision_tracking_migrations import ensure_legacy_sqlite_migrated
+from report_freshness_summary import safe_bool
 from runtime_paths import current_runtime_paths
 from storage.sqlite_resource import ThreadLocalSqliteResource
 
@@ -134,7 +135,7 @@ def upsert_item(payload: dict) -> dict:
     ticker = _normalize_ticker((payload or {}).get("ticker"))
     if not ticker:
         raise ValueError("ticker is required")
-    enabled = bool((payload or {}).get("enabled", True))
+    enabled = safe_bool((payload or {}).get("enabled", True))
     now = _now_iso()
     with _connect() as conn:
         _ensure_legacy_sqlite_migrated(conn)

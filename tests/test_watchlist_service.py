@@ -68,6 +68,17 @@ def test_watchlist_store_item_helpers_normalize_and_round_trip_sqlite_row():
     }
 
 
+def test_watchlist_store_item_helpers_treat_legacy_false_enabled_as_disabled():
+    helpers = importlib.import_module("watchlist_store_items")
+
+    item = helpers.normalize_item(
+        {"ticker": "2330.TW", "enabled": "false"},
+        now_iso_factory=lambda: "2026-06-08T08:00:00+08:00",
+    )
+
+    assert item["enabled"] is False
+
+
 def test_watchlist_schedule_helpers_pick_due_slots_without_store_dependency():
     helpers = importlib.import_module("watchlist_schedule_helpers")
     now = datetime(2026, 6, 8, 8, 31, tzinfo=watchlist_service.TAIPEI)
@@ -347,6 +358,35 @@ def test_watchlist_screener_api_runs_manual_scan(monkeypatch, tmp_path, mutation
     assert response.json()["imported_count"] == 1
     assert response.json()["screen_date"] == "2026-06-26"
     assert response.json()["providers"] == ["TWSE Free API"]
+
+
+def test_watchlist_screener_api_treats_legacy_false_force_as_disabled(monkeypatch, tmp_path, mutation_headers):
+    import market_screener
+
+    calls = []
+    monkeypatch.setattr(watchlist_service, "WATCHLIST_PATH", tmp_path / "watchlist.json")
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path / "output"))
+
+    def fake_run(now=None, force=False):
+        calls.append(force)
+        return {"success": True, "candidates": [], "imported_count": 0, "errors": []}
+
+    monkeypatch.setattr(market_screener, "run_daily_market_screener", fake_run)
+    client = TestClient(api.app)
+
+    response = client.post("/api/watchlist/screener/run", json={"force": "false"}, headers=mutation_headers)
+
+    assert response.status_code == 200
+    assert calls == [False]
+
+
+def test_watchlist_screener_rendering_treats_legacy_false_success_as_failed():
+    from api_routes.watchlist import _renderable_screener_result
+
+    payload = _renderable_screener_result({"success": "false", "candidates": [], "warnings": [], "errors": []})
+
+    assert payload["success"] is True
+    assert payload["scan_success"] is False
 
 
 def test_watchlist_screener_api_accepts_pagination_and_filter_params(monkeypatch, tmp_path, mutation_headers):

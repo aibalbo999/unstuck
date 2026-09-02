@@ -26,6 +26,8 @@ Provider SLA 警示 payload 與操作台 aggregate 對 `current_source_has_healt
 
 yfinance snapshot adapter、核心 provider success gate 與 snapshot assembly 也會用同一個 shared `safe_bool` 解讀 `is_valid`。缺少旗標仍沿用預設有效，舊資料的 `"false"` 則會一致視為無效並進入既有 fallback provider 路徑，不會因字串 truthiness 把無效 snapshot 當成有效資料。
 
+watchlist、decision tracking 與市場掃描的外部 `enabled`／`force`／`success` 旗標也共用同一套 `safe_bool`。舊資料的 `"false"` 會真的停用追蹤項目或 force 動作；失敗掃描即使透過 API 保持可顯示，也會標示 `scan_success=false`，且不會清理既有 Auto-Screener 項目。缺少欄位的既有預設與 SQLite `0/1` 讀回語意不變。
+
 報告歷史 pagination 的 `complete` 旗標也共用 explicit boolean 規則；舊資料的 `"true"` 會維持完整集合、`"false"` 會維持不完整，缺少旗標則沿用完整預設，未知 token 會保守降級，不把不完整報告範圍當成全量品質統計。
 
 報告列表、歷史報告閱讀提示與 repair queue 也共用同一個 snapshot integrity boolean contract；舊資料的 `"false"` 即使搭配 `status=verified` 仍會阻擋報告重用，缺少 `valid` 則維持未驗證，不從 hash、錯誤文字或其他 gate 猜測結果。這只修正唯讀投影，不改快照內容或 hash verifier。

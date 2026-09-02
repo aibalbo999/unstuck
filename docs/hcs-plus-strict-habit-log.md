@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3885 / normalize watchlist and screener boolean inputs
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：watchlist normalization、decision tracking upsert、screener API force/render 與 daily market screener 對 `enabled`／`force`／`success` 使用 raw truthiness；legacy `"false"` 可能改變操作動作、錯誤呈現掃描成功，或在失敗掃描時清理既有自動項目。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：五組 legacy-token contract fixture 先取得 product RED，另修正測試 fixture 的缺少 import；四個 boundary 共用 `report_freshness_summary.safe_bool`，缺值預設與資料庫 `0/1` 投影不變，失敗掃描不進入 prune，不從候選數或其他欄位猜測 success。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture contract；focused legacy-token `6 passed`、watchlist/decision/screener 回歸 `505 passed`、import boundary `505 passed`、full suite `8,599 passed, 6 skipped, 75 subtests passed`；official launcher reload 後 health/ready `200/200`，reports total `167`、current-quality `167` 份且 `88` 份非通過／`12` 筆 evidence mismatch、daily sample `20` 份／repair action `11`／freshness rerun `0`，doctor 確認 canonical DB、`rq`/`redis` 正常。本批只修操作輸入與掃描結果的唯讀/副作用 gate，不改 watchlist 資料內容、provider、snapshot、artifact、report index、review、queue 或 rerun state。
+
 ## D3884 / normalize yfinance snapshot validity tokens
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：yfinance snapshot 的 `is_valid` 在 provider adapter、core-provider success gate 與 snapshot assembly 各自使用 raw truthiness；legacy `"false"` 會被當成有效快照，可能跳過 invalid-ticker error，讓不可信資料進入核心組裝。

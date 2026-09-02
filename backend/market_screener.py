@@ -26,6 +26,7 @@ from market_screener_query import (
     scan_cache_key,
     with_screener_item_metadata,
 )
+from report_freshness_summary import safe_bool
 import watchlist_service
 import watchlist_store
 
@@ -72,12 +73,13 @@ def run_daily_market_screener(
         top_n=top_n,
     )
     imported = import_candidates_to_watchlist(scan.get("candidates") or [])
-    pruned = prune_stale_auto_screener_items(scan.get("candidates") or []) if scan.get("success") else {"pruned": [], "pruned_count": 0}
+    scan_success = safe_bool(scan.get("success"))
+    pruned = prune_stale_auto_screener_items(scan.get("candidates") or []) if scan_success else {"pruned": [], "pruned_count": 0}
     return {
         **scan,
         **imported,
         **pruned,
-        "success": bool(scan.get("success")) and not imported.get("errors"),
+        "success": scan_success and not imported.get("errors"),
         "candidate_count": len(scan.get("candidates") or []),
     }
 

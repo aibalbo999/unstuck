@@ -475,3 +475,30 @@ def test_run_daily_market_screener_scans_and_imports(monkeypatch, tmp_path):
     assert result["imported_count"] == 2
     tickers = {item["ticker"] for item in watchlist_service.list_watchlist()["items"]}
     assert {"2330.TW", "2449.TW"} <= tickers
+
+
+def test_run_daily_market_screener_treats_legacy_false_scan_as_failed(monkeypatch):
+    import market_screener
+    import watchlist_service
+
+    prune_calls = []
+    monkeypatch.setattr(
+        market_screener,
+        "scan_taiwan_market",
+        lambda **kwargs: {"success": "false", "candidates": [], "warnings": [], "errors": []},
+    )
+    monkeypatch.setattr(
+        market_screener,
+        "import_candidates_to_watchlist",
+        lambda candidates: {"imported": [], "imported_count": 0, "errors": []},
+    )
+    monkeypatch.setattr(
+        market_screener,
+        "prune_stale_auto_screener_items",
+        lambda candidates: prune_calls.append(candidates) or {"pruned": [], "pruned_count": 0},
+    )
+
+    result = market_screener.run_daily_market_screener(now=datetime(2026, 6, 26, 18, 5, tzinfo=watchlist_service.TAIPEI))
+
+    assert result["success"] is False
+    assert prune_calls == []

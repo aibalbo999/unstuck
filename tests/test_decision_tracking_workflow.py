@@ -160,6 +160,15 @@ def test_decision_tracking_lookup_skips_repeated_metadata_sync(monkeypatch, tmp_
     assert [call["sync_metadata"] for call in calls] == [True, False]
 
 
+def test_decision_tracking_store_treats_legacy_false_enabled_as_disabled(monkeypatch, tmp_path):
+    monkeypatch.setattr(decision_tracking_store, "DECISION_TRACKING_DB_PATH", str(tmp_path / "decision_tracking.sqlite3"))
+    decision_tracking_store.reset_decision_tracking_store_for_tests()
+
+    result = decision_tracking_store.upsert_item({"ticker": "2449.TW", "enabled": "false"})
+
+    assert result["items"][0]["enabled"] is False
+
+
 def test_cached_decision_tracking_without_target_comparisons_is_rebuilt(tmp_path, monkeypatch):
     monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.sqlite3"))
     filename = "2449_v2_report_20260610_090000.html"

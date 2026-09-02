@@ -8,6 +8,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from pipeline_modes import normalize_pipeline_run_id
+from report_freshness_summary import safe_bool
 
 
 TAIPEI = ZoneInfo("Asia/Taipei")
@@ -70,7 +71,7 @@ def normalize_item(item: dict, *, now_iso_factory=None) -> dict:
     return {
         "ticker": ticker,
         "pipeline": pipeline,
-        "enabled": bool(item.get("enabled", True)),
+        "enabled": safe_bool(item.get("enabled", True)),
         "schedule_slots": normalize_slots(item.get("schedule_slots")),
         "last_run_dates": item.get("last_run_dates") if isinstance(item.get("last_run_dates"), dict) else {},
         "tags": normalize_tags(item.get("tags")),
