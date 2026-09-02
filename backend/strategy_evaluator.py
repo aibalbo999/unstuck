@@ -6,7 +6,8 @@ from statistics import mean
 from typing import Any
 
 from alpha_model_registry import model_for_pipeline
-from mapping_fields import safe_dict_list
+from mapping_fields import safe_dict_list, safe_text
+from report_freshness_summary import safe_bool
 
 
 SCHEMA_VERSION = "strategy_evaluation.v1"
@@ -83,10 +84,14 @@ def _is_hit(metrics: dict[str, Any]) -> bool:
 
 
 def _bool_or_none(value: Any) -> bool | None:
-    try:
-        return bool(value)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
-        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)) and value in (0, 1):
+        return safe_bool(value)
+    normalized = safe_text(value).strip().lower()
+    if normalized in {"true", "1", "yes", "y", "on", "false", "0", "no", "n", "off"}:
+        return safe_bool(value)
+    return None
 
 
 def _dict(value: Any) -> dict[str, Any]:

@@ -142,6 +142,26 @@ def test_strategy_evaluator_hit_flag_truthiness_falls_back_to_outcome():
     assert result["models"]["mode-a-deep-research"]["average_excess_return_pct"] == 1.5
 
 
+def test_strategy_evaluator_treats_legacy_false_hit_as_miss():
+    artifacts = [
+        {
+            "alpha_model_id": "mode-a-deep-research",
+            "metrics": {
+                "hit": "false",
+                "outcome": "hit",
+                "strategy_roi_pct": 4.0,
+                "excess_return_pct": 1.5,
+                "max_drawdown_pct": -2.0,
+            },
+        }
+    ]
+
+    result = evaluate_strategy_artifacts(artifacts)
+
+    assert result["summary"]["total_artifacts"] == 1
+    assert result["models"]["mode-a-deep-research"]["hit_rate_pct"] == 0.0
+
+
 def test_strategy_evaluator_artifact_iterators_preserve_valid_items_before_failures():
     result = evaluate_strategy_artifacts(BrokenStrategyArtifactIterator())
 

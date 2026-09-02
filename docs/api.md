@@ -35,6 +35,8 @@ Watchlist item normalization, decision-tracking upsert, and the market-screener 
 
 Prometheus `_metric_bool` uses the same explicit contract for queue availability, free-mode flags, and observability status. The existing `available`/`unavailable` tokens remain supported, while unknown truthy strings such as `"healthy-ish"` or `"available-ish"` fail closed instead of becoming a healthy or available gauge through Python truthiness.
 
+Strategy-evaluation backtest rows also use an explicit boolean contract for `metrics.hit`. Clear bool, 0/1, and true/false tokens are authoritative; legacy `"false"` therefore remains a miss even when `metrics.outcome` says `hit`. Unrecognized values keep the existing outcome fallback instead of being treated as a hit through generic truthiness.
+
 ## Read Endpoints
 
 `GET /api/observability/model-routes` returns the `model_route_budget.v1` telemetry section used by the operator panel. It reports `slow_route`, `retry_storm`, and `quality_gate_failures`; `slow_route` is maintenance evidence and remains outside the daily decision queue.

@@ -30,6 +30,8 @@ watchlist、decision tracking 與市場掃描的外部 `enabled`／`force`／`su
 
 Prometheus `_metric_bool` 也會用同一套 explicit boolean 規則處理 queue availability、free mode 與 observability 狀態。`available`／`unavailable` 仍維持相容；像 `"healthy-ish"`、`"available-ish"` 這類未知 token 會保守視為 false，不會在 `/metrics` 製造健康或可用 gauge。
 
+策略回測的 `metrics.hit` 也採 explicit boolean 規則；明確 bool、0/1 與 true/false token 會直接決定命中與否，legacy `"false"` 即使搭配 `outcome=hit` 仍計為 miss。無法辨識的物件則沿用既有 `outcome` fallback，不會用 Python truthiness 把資料誤算成命中。
+
 報告歷史 pagination 的 `complete` 旗標也共用 explicit boolean 規則；舊資料的 `"true"` 會維持完整集合、`"false"` 會維持不完整，缺少旗標則沿用完整預設，未知 token 會保守降級，不把不完整報告範圍當成全量品質統計。
 
 報告列表、歷史報告閱讀提示與 repair queue 也共用同一個 snapshot integrity boolean contract；舊資料的 `"false"` 即使搭配 `status=verified` 仍會阻擋報告重用，缺少 `valid` 則維持未驗證，不從 hash、錯誤文字或其他 gate 猜測結果。這只修正唯讀投影，不改快照內容或 hash verifier。

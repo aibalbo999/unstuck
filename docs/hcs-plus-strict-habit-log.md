@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3887 / normalize strategy-evaluation hit tokens
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`strategy_evaluator._bool_or_none()` 對 `metrics.hit` 使用 raw truthiness；legacy `"false"` 會優先於 `outcome="hit"` 被誤算成命中，污染 model、watchlist trigger 與 quality-funnel hit rate。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：一組 legacy-token fixture 先取得 `1 failed` RED；明確 bool、0/1 與 true/false token 共用 shared `safe_bool`，malformed object 仍走既有 outcome fallback，不從 ROI 或其他回測欄位猜測 hit。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture contract；strategy evaluator `8 passed`、outcome/dashboard/backtest 回歸 `66 passed`、full suite `8,602 passed, 6 skipped, 75 subtests passed`；official launcher reload 後 legacy false hit rate `0.0`，health/ready `200/200`，reports total `167`、current-quality `167/88/12`、daily sample/repair/rerun `20/11/0`，doctor canonical DB、`rq`/`redis` 正常。本批只修回測 hit flag projection，不改 backtest、report、snapshot、artifact、index、review、queue 或 rerun state。
+
 ## D3886 / fail closed on Prometheus boolean tokens
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：Prometheus `_metric_bool` 雖有已知 true/false token，未知字串仍退回 raw truthiness；`"healthy-ish"` 或 `"available-ish"` 可能污染 queue、free-mode 與 observability gauge。
