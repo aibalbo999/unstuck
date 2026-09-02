@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import time
 from typing import Any
 
@@ -17,7 +16,8 @@ from final_audit import run_final_report_audit
 from llm_client import KeyRotator
 from mapping_fields import safe_mapping_dict
 from pipeline_modes import get_pipeline_definition, get_structured_agent_num, normalize_pipeline_id
-from report_history_storage import existing_storage_key
+from report_artifacts import ReportArtifactLocator
+from report_history_storage import storage_for_existing_output_dir
 from report_index_parsing import is_safe_report_filename, parse_report_filename
 from report_rerun_data import prepare_full_rerun_data, rerun_data_payload
 from report_rerun_context import (
@@ -188,7 +188,6 @@ async def _run_final_recommendation_rerun(
         storage=storage,
     )
 
-
 async def rerun_report_analysis(
     filename: str,
     *,
@@ -204,13 +203,15 @@ async def rerun_report_analysis(
     normalized_scope = normalize_rerun_scope(scope)
     if not is_safe_report_filename(filename, ".html"):
         raise HTTPException(status_code=400, detail="Invalid filename")
-    report_exists = os.path.exists(os.path.join(output_dir, filename))
-    if storage is not None:
-        report_exists = report_exists or existing_storage_key(storage, filename, kind="html") is not None
-    if not report_exists:
-        raise HTTPException(status_code=404, detail="找不到報告")
-
-    snapshot = read_report_snapshot(filename, output_dir, storage=storage)
+    content_storage = storage_for_existing_output_dir(output_dir, storage)
+    if content_storage is None: raise HTTPException(status_code=404, detail="找不到報告")
+    source_storage = content_storage
+    if ReportArtifactLocator(content_storage).existing_key(filename, kind="html") is None:
+        if storage is not None:
+            source_storage = storage_for_existing_output_dir(output_dir, None)
+        if source_storage is None or ReportArtifactLocator(source_storage).existing_key(filename, kind="html") is None:
+            raise HTTPException(status_code=404, detail="找不到報告")
+    snapshot = read_report_snapshot(filename, output_dir, storage=source_storage)
     source_pipeline_id = normalize_pipeline_id(snapshot.get("pipeline") or parse_report_filename(filename)["pipeline_id"])
     if normalized_scope == "full_report":
         return await _run_full_pipeline_rerun(
@@ -224,7 +225,7 @@ async def rerun_report_analysis(
             refresh_service=refresh_service,
             progress_callback=progress_callback,
             cancel_check=cancel_check,
-            storage=storage,
+            storage=content_storage,
         )
     if normalized_scope == "mode_b":
         return await _run_full_pipeline_rerun(
@@ -237,7 +238,7 @@ async def rerun_report_analysis(
             scope="mode_b",
             progress_callback=progress_callback,
             cancel_check=cancel_check,
-            storage=storage,
+            storage=content_storage,
         )
     return await _run_final_recommendation_rerun(
         filename=filename,
@@ -246,7 +247,7 @@ async def rerun_report_analysis(
         report_renderer=report_renderer,
         progress_callback=progress_callback,
         cancel_check=cancel_check,
-        storage=storage,
+        storage=content_storage,
     )
 
 

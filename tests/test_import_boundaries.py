@@ -1302,6 +1302,15 @@ def test_report_rerun_data_helpers_are_split_from_rerun_service():
     assert len(helper.read_text(encoding="utf-8").splitlines()) < 120
 
 
+def test_report_rerun_source_lookup_uses_canonical_artifact_storage():
+    service = BACKEND / "report_rerun_service.py"
+    service_text = service.read_text(encoding="utf-8")
+
+    assert "from report_artifacts import ReportArtifactLocator" in service_text
+    assert "from report_history_storage import storage_for_existing_output_dir" in service_text
+    assert "os.path.join(output_dir, filename)" not in service_text
+
+
 def test_report_target_price_detection_is_split_from_reproducibility_packet():
     reproducibility = BACKEND / "report_reproducibility.py"
     helper = BACKEND / "report_target_price_detection.py"

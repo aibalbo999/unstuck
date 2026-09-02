@@ -269,6 +269,8 @@ Report refresh refreshed-data payloads accept mapping-safe provider/cache respon
 
 Report rerun refreshed-data payloads accept mapping-safe provider/cache responses before full-pipeline reruns, so read-only refreshed data wrappers reach the pipeline runner with prices, source audit rows, and trust metadata intact.
 
+Report rerun source lookup resolves the configured report storage before checking the source HTML, so direct service calls without an injected storage still find partitioned `backend/output/YYYY-MM/TICKER/` artifacts as well as legacy flat files. The resolved storage is reused for the source data snapshot and rerun output persistence; the service does not infer a source from another report, index row, or Markdown text.
+
 Report rerun existing snapshot data payloads use mapping-safe snapshot normalization before full-pipeline reruns, so read-only source audit and trust wrappers become pipeline-safe mutable data.
 
 Report final-recommendation rerun context data uses mapping-safe snapshot normalization before the final agent runs, so read-only source audit and trust wrappers remain editable for final rerun metadata.

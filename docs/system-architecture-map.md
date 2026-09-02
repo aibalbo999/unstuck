@@ -174,6 +174,7 @@ flowchart TD
 - 查報告檔請用 `report_history_storage.existing_storage_key()` 或 `load_storage_item()`。
 - 不要直接寫 `Path(output_dir) / filename` 來找 HTML/Markdown/data snapshot。
 - `report_index.data_snapshot_filename` 是檔名，不保證是完整相對路徑。
+- `report_rerun_service` 也必須先用 `storage_for_existing_output_dir()` 取得 storage，再由 `ReportArtifactLocator` 查找來源 HTML；解析出的 storage 要沿用到 snapshot、重跑 context 與輸出 persistence，不能因呼叫端未注入 storage 就退回 `output_dir/filename`。
 
 ## 狀態資料歸屬
 

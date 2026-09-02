@@ -2299,6 +2299,64 @@ def test_rerun_report_analysis_reads_partitioned_source_storage(tmp_path, monkey
     assert result["source_filename"] == filename
 
 
+def test_rerun_report_analysis_resolves_partitioned_source_files_without_explicit_storage(tmp_path, monkeypatch):
+    import report_rerun_service
+    from report_persistence import report_bundle_keys_for_filename
+    from storage.report_storage import LocalFileStorage
+
+    filename = "2308_TW_v2_report_20260626_120000.html"
+    source_snapshot = {
+        "snapshot_schema_version": 3,
+        "ticker": "2308.TW",
+        "company_name": "台達電",
+        "pipeline": "v2",
+        "generated_at": "2026-06-26T12:00:00+00:00",
+        "data_schema_version": 4,
+        "source_freshness": {},
+        "source_audit": [],
+        "data_trust": {"status": "fresh", "critical_failures": [], "stale_sources": [], "notes": []},
+        "data": {"ticker": "2308.TW", "company_name": "台達電"},
+    }
+    storage = LocalFileStorage(tmp_path)
+    keys = report_bundle_keys_for_filename(filename)
+    storage.save_report(keys.html_key, b"<html></html>", content_type="text/html")
+    storage.save_report(keys.data_key, json.dumps(source_snapshot).encode("utf-8"), content_type="application/json")
+
+    class FakePipelineRunner:
+        async def run_async(self, request):
+            return SimpleNamespace(context={"ticker": "2308.TW", "data": request.data})
+
+    class FakeReportRenderer:
+        async def render_async(self, request):
+            return ReportBundle(
+                html="<html>rerun</html>",
+                markdown="# rerun",
+                data_snapshot={
+                    "ticker": "2308.TW",
+                    "pipeline": request.pipeline_id,
+                    "data_trust": {"status": "fresh"},
+                    "data": request.context["data"],
+                },
+            )
+
+    monkeypatch.setattr(report_rerun_service, "time", SimpleNamespace(time=lambda: 1.0))
+
+    result = asyncio_run(
+        report_rerun_service.rerun_report_analysis(
+            filename,
+            scope="full_report",
+            output_dir=str(tmp_path),
+            pipeline_runner=FakePipelineRunner(),
+            report_renderer=FakeReportRenderer(),
+        )
+    )
+
+    generated_keys = report_bundle_keys_for_filename(result["filename"])
+    reopened_storage = LocalFileStorage(tmp_path)
+    assert reopened_storage.get_report(generated_keys.html_key) is not None
+    assert result["source_filename"] == filename
+
+
 def asyncio_run(coro):
     import asyncio
 

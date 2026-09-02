@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3843 / resolve rerun source artifacts through canonical storage
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`report_rerun_service` 在沒有顯式 storage 的直接呼叫路徑只檢查 `output_dir/filename`，沒有沿用 partitioned artifact candidates；nested HTML 存在時仍會回覆「找不到報告」，而且後續 snapshot/重跑層也無法取得同一來源。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先以 nested `YYYY-MM/TICKER` source bundle 取得 RED，再由 `storage_for_existing_output_dir()` 與 `ReportArtifactLocator` 統一解析 HTML，將 resolved storage 傳入 snapshot、full/final rerun 與 renderer persistence；保留 legacy flat candidate，不借用 index row 或另一份報告補 artifact。focused regression `1 passed`。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：此修正讓操作員從歷史品質 target 進入重跑時，nested 與 flat artifact 使用同一查找規則；重跑/儲存 `54 passed`、preview `110 passed`、品質/前端/文件 `400 passed`、import-boundary `505 passed`、runtime/storage `19 passed`，Python compile、Node syntax、`git diff --check` 通過；正式 runtime health/ready `200/200`，doctor canonical paths 正常，live current-quality `165/85/5/85`、historical `1175/59`，實際 locator 成功解析 nested HTML/Markdown/data keys。本批不改報告內容、品質 gate、snapshot 資料、index、review、queue 或 rerun state。
+
 ## D3842 / invalidate current-quality cache by index fingerprint
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：current-quality summary 原本只以 30 秒 TTL 判斷 cache；report index 的 `updated_at`、file mtime 或 stored content/data hash 改變後，TTL 內仍可能顯示舊 gate 分布與 bounded target，讓操作員看到資料已更新但結論未同步。
