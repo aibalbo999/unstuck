@@ -1596,6 +1596,13 @@ def test_collect_all_report_pages_follows_index_pagination():
     assert payload["pagination"]["has_next"] is False
     assert payload["pagination"]["complete"] is True
 
+def test_collection_is_complete_accepts_legacy_true_token():
+    from report_history_pagination import collection_is_complete
+
+    assert collection_is_complete({"pagination": {"complete": "true"}}) is True
+    assert collection_is_complete({"pagination": {"complete": "false"}}) is False
+    assert collection_is_complete({"pagination": {}}) is True
+
 
 def test_collect_all_report_pages_marks_missing_page_incomplete():
     from report_history_pagination import collect_all_report_pages

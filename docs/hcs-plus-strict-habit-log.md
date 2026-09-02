@@ -1,10 +1,16 @@
 # HCS Plus Strict Habit Log
 
+## D3882 / normalize report-history pagination completion tokens
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`report_history_pagination.collection_is_complete()` 只接受原生 `True`；legacy `"true"` 會把完整的 current-quality/history audit collection 誤判為 incomplete，可能讓完整品質範圍降級為 unavailable。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：一組 legacy-token fixture 先取得 `1 failed` RED；pagination boundary 共用 `report_freshness_summary.safe_bool`，缺少 `complete` 維持 complete-by-default，`"false"` 仍是 partial，unknown token fail closed，不從回傳列數猜測完整 scope。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture contract；focused `1 passed`、report-quality audit `42 passed`、current-quality/history frontend `98 passed`、文件/import `573 passed`、full suite `8,586 passed, 6 skipped, 75 subtests passed`；official launcher reload 後 `healthz=200`、`readyz=200`，reports/current-quality/daily-dashboard smoke 均 `200`，doctor canonical DB/RQ paths 正常。本批只修 report-history read-only pagination projection，不改 audit count、snapshot、artifact、report index、review、queue 或 rerun state。
+
 ## D3881 / normalize snapshot integrity flags across report reading boundaries
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：report index row、歷史 artifact reading、reading notice 與 report repair queue 對 snapshot integrity `valid` 各自使用 raw truthiness 或原生 `False` 比較；legacy `"false"` 會在 `status=verified` 下被當成可用，造成列表、閱讀提示與人工修復判斷不一致。
 - `#證據基礎` / `#偏誤降低` / `#最小變更`：四組 legacy-token fixture 先取得 `4 failed` RED；各邊界共用 `report_freshness_summary.safe_bool`，明確 false-like token fail closed，缺值維持 unverified/未記錄，不從 hash、errors 或其他 quality gate 借用 integrity 結論。
-- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture contract；focused `4 passed`、相關報告品質/storage 回歸 `160 passed`、品質/文件/import 回歸 `756 passed`、full suite `8,585 passed, 6 skipped, 75 subtests passed`，live runtime 驗證待收尾。本批只修 report read-only integrity projection，不改 snapshot、artifact、report index、review、queue 或 rerun state。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture contract；focused `4 passed`、相關報告品質/storage 回歸 `160 passed`、品質/文件/import 回歸 `756 passed`、full suite `8,585 passed, 6 skipped, 75 subtests passed`；official launcher reload 後 `healthz=200`、`readyz=200`，reports/current-quality/daily-dashboard smoke 均 `200`，doctor canonical DB/RQ paths 正常。本批只修 report read-only integrity projection，不改 snapshot、artifact、report index、review、queue 或 rerun state。
 
 ## D3880 / fail closed on snapshot integrity verifier flags
 

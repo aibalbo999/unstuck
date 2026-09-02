@@ -23,6 +23,8 @@ Provider SLA alert payloads and observability aggregates normalize `current_sour
 
 The daily decision dashboard normalizes the quality-audit `items_truncated` flag before publishing repair actions and overlap status. Legacy `"true"` keeps the audit partial and prevents incomplete items from entering the repair queue; only a complete, non-truncated audit can create report-quality navigation actions.
 
+Report-history pagination collectors normalize the `pagination.complete` flag with the same explicit boolean contract. Legacy `"true"` remains complete, `"false"` remains incomplete, and a missing flag keeps the existing complete-by-default behavior; malformed tokens fail closed instead of allowing an apparently complete quality scope.
+
 Report-quality audit rows normalize snapshot-integrity verifier `valid` with shared `safe_bool` before projecting `status` and `valid`. Legacy `"false"` therefore remains an invalid snapshot and cannot be promoted to verified evidence by Python truthiness; hash verification itself remains unchanged.
 
 ## Read Endpoints

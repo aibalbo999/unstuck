@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from report_freshness_summary import safe_bool
+
 
 def _non_negative_integer(value: Any) -> int | None:
     if isinstance(value, bool):
@@ -23,7 +25,7 @@ def collection_is_complete(payload: Any) -> bool:
     if not isinstance(payload, dict):
         return False
     pagination = payload.get("pagination")
-    return not isinstance(pagination, dict) or pagination.get("complete", True) is True
+    return not isinstance(pagination, dict) or safe_bool(pagination.get("complete", True))
 
 
 def collect_all_report_pages(
