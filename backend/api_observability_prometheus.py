@@ -7,6 +7,7 @@ from typing import Any
 
 from mapping_fields import safe_text
 from notification_delivery_audit_context import safe_float, safe_int
+from report_freshness_summary import safe_bool
 
 
 def _labels(**labels: Any) -> str:
@@ -28,17 +29,12 @@ def _metric_number(value: Any) -> float:
 
 
 def _metric_bool(value: Any) -> bool:
-    if isinstance(value, bool):
-        return value
     normalized = safe_text(value).strip().lower()
-    if normalized in {"1", "true", "yes", "y", "on", "available"}:
+    if normalized == "available":
         return True
-    if normalized in {"", "0", "false", "no", "n", "off", "unavailable"}:
+    if normalized == "unavailable":
         return False
-    try:
-        return bool(value)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
-        return False
+    return safe_bool(value)
 
 
 def _metric_int(value: Any) -> int:

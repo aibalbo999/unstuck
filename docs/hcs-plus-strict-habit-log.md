@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3886 / fail closed on Prometheus boolean tokens
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：Prometheus `_metric_bool` 雖有已知 true/false token，未知字串仍退回 raw truthiness；`"healthy-ish"` 或 `"available-ish"` 可能污染 queue、free-mode 與 observability gauge。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：兩組 metric-token fixture 先取得 `1 failed` RED；未知值改採 shared `safe_bool` fail closed，保留 `available/unavailable` 專用 token，不從 dashboard 狀態或其他欄位猜測健康度。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture contract；runtime observability `152 passed`、telemetry/free-mode 回歸 `9 passed`。本批只修 Prometheus boolean projection，不改 queue state、provider SLA、report、snapshot、artifact、index、review、repair 或 rerun state。
+
 ## D3885 / normalize watchlist and screener boolean inputs
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：watchlist normalization、decision tracking upsert、screener API force/render 與 daily market screener 對 `enabled`／`force`／`success` 使用 raw truthiness；legacy `"false"` 可能改變操作動作、錯誤呈現掃描成功，或在失敗掃描時清理既有自動項目。

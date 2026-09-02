@@ -33,6 +33,8 @@ The yfinance snapshot adapter, core-provider success gate, and snapshot assembly
 
 Watchlist item normalization, decision-tracking upsert, and the market-screener API normalize external `enabled`, `force`, and `success` flags with the same explicit boolean contract. Legacy `"false"` therefore disables an item or force action, and a failed scan remains a failed scan even when it is wrapped in a renderable HTTP response. The daily screener also skips Auto-Screener pruning when the scan is not explicitly successful; missing defaults and SQLite `0/1` row projections remain unchanged.
 
+Prometheus `_metric_bool` uses the same explicit contract for queue availability, free-mode flags, and observability status. The existing `available`/`unavailable` tokens remain supported, while unknown truthy strings such as `"healthy-ish"` or `"available-ish"` fail closed instead of becoming a healthy or available gauge through Python truthiness.
+
 ## Read Endpoints
 
 `GET /api/observability/model-routes` returns the `model_route_budget.v1` telemetry section used by the operator panel. It reports `slow_route`, `retry_storm`, and `quality_gate_failures`; `slow_route` is maintenance evidence and remains outside the daily decision queue.

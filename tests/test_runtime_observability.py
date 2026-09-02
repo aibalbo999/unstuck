@@ -275,6 +275,18 @@ def test_prometheus_metrics_endpoint_exports_provider_sla_and_queue(monkeypatch)
     assert 'stock_agent_notification_delivery_health{state="warning"} 1' in body
 
 
+def test_prometheus_metric_bool_rejects_unknown_truthy_tokens():
+    import api_observability_prometheus
+
+    assert api_observability_prometheus._metric_bool("healthy-ish") is False
+
+
+def test_prometheus_metric_bool_preserves_available_token():
+    import api_observability_prometheus
+
+    assert api_observability_prometheus._metric_bool(" available ") is True
+
+
 def test_prometheus_metrics_exports_failed_queue_registry(monkeypatch):
     class FakeRedis:
         def ping(self):
