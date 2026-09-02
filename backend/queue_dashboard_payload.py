@@ -6,6 +6,7 @@ from typing import Any
 
 from mapping_fields import safe_mapping_dict, safe_mapping_items, safe_text
 from notification_delivery_audit_context import safe_float, safe_int
+from report_freshness_summary import safe_bool
 
 
 def normalize_ops_queue_payload(queue: Any) -> dict[str, Any]:
@@ -13,7 +14,7 @@ def normalize_ops_queue_payload(queue: Any) -> dict[str, Any]:
     backend = safe_text(source.get("backend")).strip() or "unknown"
     payload: dict[str, Any] = {
         "backend": backend,
-        "available": _safe_bool(source.get("available")),
+        "available": safe_bool(source.get("available")),
         "queue_name": safe_text(source.get("queue_name")).strip() or backend,
         "depth": _safe_int(source.get("depth")),
         "queues": {
@@ -110,17 +111,3 @@ def _safe_int(value: Any) -> int:
     if isinstance(value, (bool, bytes, bytearray, memoryview)):
         return 0
     return safe_int(value)
-
-
-def _safe_bool(value: Any) -> bool:
-    if isinstance(value, bool):
-        return value
-    normalized = safe_text(value).strip().lower()
-    if normalized in {"1", "true", "yes", "y", "on", "available"}:
-        return True
-    if normalized in {"", "0", "false", "no", "n", "off", "unavailable"}:
-        return False
-    try:
-        return bool(value)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
-        return False

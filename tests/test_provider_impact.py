@@ -723,6 +723,35 @@ def test_provider_impact_current_fetch_fields_do_not_depend_on_truthiness():
     assert impact["impacts"][0]["current_fetch_healthy"] is False
 
 
+def test_provider_impact_treats_unknown_health_tokens_as_false():
+    from provider_impact import build_provider_impact
+
+    impact = build_provider_impact(
+        {
+            "ticker": "NVDA",
+            "filename": "nvda_report.html",
+            "pipeline_id": "v2",
+            "data_trust": {
+                "reason_codes": ["provider_sla_critical"],
+                "provider_sla_alerts": [
+                    {
+                        "source": "market_data",
+                        "provider": "yfinance",
+                        "alert_level": "critical",
+                        "current_status": "unavailable",
+                        "current_record_count": 0,
+                        "current_source_has_healthy_entry": "healthy-ish",
+                    }
+                ],
+            },
+        }
+    )
+
+    assert impact["summary"]["recommended_action"] == "wait_provider_recovery"
+    assert impact["summary"]["blocks_auto_rerun"] is True
+    assert impact["impacts"][0]["current_fetch_healthy"] is False
+
+
 def test_provider_impact_current_fetch_lookup_scalar_failures_do_not_interrupt_recovery_impact():
     from provider_impact import build_provider_impact
 

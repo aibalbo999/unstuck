@@ -8,6 +8,8 @@ canonical data-fetch service、freshness evaluator、provider execution、enrich
 
 model-route budget、node telemetry persistence 與操作台 dashboard 對 `cache_hit`／`quality_gate_pass` 也採同一套 explicit boolean 規則；舊資料的 "false"／"0" 維持 false，缺少 quality gate 則維持未提供，不會虛增 cache 命中、billable token 或品質失敗警示。
 
+provider impact 的來源恢復判斷與 queue dashboard 的 availability 也沿用 shared `safe_bool`；未知健康／可用性 token 會保守視為 false，不會透過物件 truthiness 把核心來源誤標成健康或 queue 誤標成可用。
+
 ## Model Route Observations
 
 The LLM/API maintenance panel reads `model_route_budget.v1` through `/api/observability/model-routes` and labels latency, retry, quality-gate, and provider-error warnings separately. `failures` / `failure_rate` remain `analysis_node_telemetry` results; `provider_error_count` and `provider_quota_error_count` are a separate bounded recent sample from `api_usage_events`, so a fallback success is not misreported as a failed analysis node. `slow_route` and provider-error warnings are maintenance observations, not daily rerun instructions; use the report's `data_trust`, `decision_freshness`, and `今日工作台` before rerunning one report.

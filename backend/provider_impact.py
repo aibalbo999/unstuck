@@ -6,6 +6,7 @@ from typing import Any
 
 from data_trust_constants import AUDIT_STATUS_SKIPPED_FRESH_CACHE, AUDIT_STATUS_SUCCESS, CORE_DATA_SOURCES
 from mapping_fields import safe_mapping_dict, safe_text
+from report_freshness_summary import safe_bool
 
 
 SCHEMA_VERSION = "provider_impact.v1"
@@ -137,11 +138,11 @@ def _pipeline_id(report: dict[str, Any]) -> str:
 
 
 def _current_fetch_healthy(alert: dict[str, Any]) -> bool:
-    if _safe_bool(_field(alert, "current_source_has_healthy_entry")):
+    if safe_bool(_field(alert, "current_source_has_healthy_entry")):
         return True
     status = _safe_text(_field(alert, "current_status")).strip()
     record_count = _safe_int(_field(alert, "current_record_count"))
-    return status in HEALTHY_STATUSES and record_count > 0 and not _safe_bool(_field(alert, "current_stale"))
+    return status in HEALTHY_STATUSES and record_count > 0 and not safe_bool(_field(alert, "current_stale"))
 
 
 def _max_severity(values: list[str]) -> str:
@@ -187,13 +188,6 @@ def _safe_dict_list(value: Any) -> list[dict[str, Any]]:
         if row is not None:
             rows.append(row)
     return rows
-
-
-def _safe_bool(value: Any) -> bool:
-    try:
-        return bool(value)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
-        return False
 
 
 def _safe_int(value: Any) -> int:

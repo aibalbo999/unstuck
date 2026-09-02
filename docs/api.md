@@ -11,6 +11,8 @@ The canonical data-fetch service, freshness evaluator, workflow provider executi
 
 Model-route budget, node telemetry persistence, and operator dashboard summaries apply the same explicit boolean contract to `cache_hit` and `quality_gate_pass`. Legacy "false"/"0" values remain false, while a missing quality-gate value remains unknown instead of becoming a synthetic failure; cache-hit rates, billable token totals, and quality warnings therefore reflect the recorded telemetry.
 
+Provider-impact recovery decisions and queue dashboard availability also use shared `safe_bool`; unknown health or availability tokens fail closed instead of becoming healthy or available through generic object truthiness.
+
 ## Read Endpoints
 
 `GET /api/observability/model-routes` returns the `model_route_budget.v1` telemetry section used by the operator panel. It reports `slow_route`, `retry_storm`, and `quality_gate_failures`; `slow_route` is maintenance evidence and remains outside the daily decision queue.

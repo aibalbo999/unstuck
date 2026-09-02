@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3874 / fail closed on provider impact and queue availability tokens
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：provider impact recovery 與 queue dashboard availability 各自保留 raw truthiness fallback；未知 token 可能把核心 provider 當健康、把 queue 當可用，改變等待恢復與操作台判斷。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：兩組 malformed-token fixture 先取得 `2 failed` RED；兩個 helper 改採 `report_freshness_summary.safe_bool`，unknown fail closed，不從 status、record count 或其他 queue 欄位借用健康證據。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture contract；focused fixtures `2 passed`、相關回歸 `927 passed`、full suite `8,576 passed, 6 skipped, 75 subtests passed`。本批只修 provider recovery 與 queue availability projection，不改 snapshot、artifact、report index、review、queue state 或 rerun state。
+
 ## D3873 / normalize telemetry boolean projections
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：model-route budget、node telemetry persistence 與 operator dashboard 對 `cache_hit`／`quality_gate_pass` 使用 raw truthiness；legacy `"false"`／`"0"` 會改變 cache rate、billable token 與 quality failure 統計，缺少欄位也可能被混淆。

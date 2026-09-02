@@ -2336,6 +2336,18 @@ def test_queue_dashboard_payload_counts_failed_jobs_across_named_queues():
     assert queue_dashboard_payload.failed_queue_count(payload) == 12
 
 
+def test_queue_dashboard_payload_treats_unknown_availability_token_as_unavailable():
+    payload = queue_dashboard_payload.normalize_ops_queue_payload({
+        "backend": "rq",
+        "available": "available-ish",
+        "queue_name": "stock-analysis",
+        "depth": 0,
+        "queues": {},
+    })
+
+    assert payload["available"] is False
+
+
 def test_ops_dashboard_warns_when_failed_queue_registry_is_present():
     assert api_observability_service._dashboard_status(
         jobs={"stuck_jobs": {"count": 0}},
