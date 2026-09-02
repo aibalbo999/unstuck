@@ -7,6 +7,7 @@ from typing import Any
 from mapping_fields import mapping_field as _field, safe_mapping_dict, safe_text
 from notification_delivery_audit_context import safe_float, safe_int
 from provider_sla_payload_shape import finite_float, normalize_provider_sla_windows
+from report_freshness_summary import safe_bool
 
 
 def alerts_from_providers(providers: list[dict]) -> list[dict]:
@@ -55,7 +56,7 @@ def dashboard_provider_alert_payload(
     source_has_healthy_entry = False
     if current_source_health is not None:
         try:
-            source_has_healthy_entry = current_source_health.get(source) is True
+            source_has_healthy_entry = safe_bool(current_source_health.get(source))
         except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
             source_has_healthy_entry = False
     payload = {

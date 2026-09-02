@@ -4311,6 +4311,31 @@ def test_provider_sla_dashboard_alert_exposes_healthy_source_fallback():
     assert payload["current_source_has_healthy_entry"] is True
 
 
+def test_provider_sla_dashboard_alert_normalizes_legacy_healthy_source_token():
+    payload = provider_sla_observability.dashboard_provider_alert_payload(
+        {
+            "source": "market_data",
+            "provider": "FMP stable quote",
+            "alert_level": "critical",
+            "alert_message": "FMP stable quote unavailable",
+            "last_status": "unavailable",
+        },
+        core_sources={"market_data"},
+        current_source_health={"market_data": "true"},
+    )
+
+    assert payload["current_source_has_healthy_entry"] is True
+
+
+def test_provider_sla_alert_counts_normalize_legacy_healthy_source_token():
+    counts = api_observability_service._provider_alert_counts(
+        [{"alert_level": "critical", "impact": "core", "current_source_has_healthy_entry": "true"}]
+    )
+
+    assert counts["core_critical_covered_count"] == 1
+    assert counts["core_critical_uncovered_count"] == 0
+
+
 def test_provider_sla_source_health_requires_usable_records():
     assert provider_sla_observability.source_health_from_provider_rows(
         [

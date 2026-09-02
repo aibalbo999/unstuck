@@ -31,6 +31,7 @@ from provider_sla_observability import (
     provider_rows_or_empty,
     source_health_from_provider_rows,
 )
+from report_freshness_summary import safe_bool
 from queue_dashboard_payload import (
     failed_queue_attention_count,
     failed_queue_count,
@@ -40,7 +41,6 @@ from queue_dashboard_payload import (
 from queue_observability import snapshot_task_queue
 
 CORE_PROVIDER_ALERT_SOURCES = set(CORE_DATA_SOURCES)
-
 async def build_active_jobs_payload(limit: int = 10, event_limit: int = 80) -> dict:
     return await asyncio.to_thread(build_active_jobs_snapshot, limit, event_limit)
 
@@ -265,7 +265,7 @@ def _provider_alert_counts(alerts: list[dict]) -> dict:
     enrichment = [alert for alert in alerts if alert.get("impact") != "core"]
     core_critical = [alert for alert in core if alert.get("alert_level") == "critical"]
     enrichment_critical = [alert for alert in enrichment if alert.get("alert_level") == "critical"]
-    core_critical_covered = [alert for alert in core_critical if alert.get("current_source_has_healthy_entry") is True]
+    core_critical_covered = [alert for alert in core_critical if safe_bool(alert.get("current_source_has_healthy_entry"))]
     return {
         "alert_count": len(alerts),
         "critical_count": len(critical),

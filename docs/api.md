@@ -19,6 +19,8 @@ Evidence-gate projection and report comparison warnings also apply shared `safe_
 
 Content-credibility evidence/confidence warnings normalize `freshness_context.status` and `requires_rerun` before attaching compact stale-conclusion context. Legacy `"true"` remains visible as canonical `true`, while surrounding status whitespace/casing is normalized; the warning still omits sampled claim text and remains read-only.
 
+Provider SLA alert payloads and observability aggregates normalize `current_source_has_healthy_entry` with shared `safe_bool`. Legacy `"true"` therefore remains visible in the source-health evidence and core-critical covered counts, while unknown tokens do not create health coverage.
+
 ## Read Endpoints
 
 `GET /api/observability/model-routes` returns the `model_route_budget.v1` telemetry section used by the operator panel. It reports `slow_route`, `retry_storm`, and `quality_gate_failures`; `slow_route` is maintenance evidence and remains outside the daily decision queue.

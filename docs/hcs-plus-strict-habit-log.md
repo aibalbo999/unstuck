@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3878 / normalize provider SLA health coverage tokens
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：provider SLA dashboard payload 與 observability aggregate 對 `current_source_has_healthy_entry` 只接受原生 `True`；legacy `"true"` 會漏掉來源健康 evidence 與 core-critical covered count，Provider SLA 與操作台統計因此不一致。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：兩組 legacy-token fixture 先取得 `2 failed` RED；兩個 boundary 共用 `report_freshness_summary.safe_bool`，明確 true 才保留健康覆蓋，unknown token 維持未覆蓋，不從 alert level 或 status 借用健康證據。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture contract；focused fixtures `2 passed`、相關回歸 `98 passed, 270 deselected`、full suite `8,582 passed, 6 skipped, 75 subtests passed`。本批只修 provider-health read-only projection，不改 snapshot、artifact、report index、review、queue 或 rerun state。
+
 ## D3877 / normalize content-credibility freshness context
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：content-credibility evidence/confidence warning 對 `freshness_context.requires_rerun` 只接受原生 `True`，legacy `"true"` 會漏掉 stale-conclusion context；status 的大小寫與空白也未建立 canonical warning payload。
