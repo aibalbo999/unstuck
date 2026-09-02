@@ -2,6 +2,8 @@
 
 資料抓取的 cache audit 會在建立 source audit 與資料可信度前，用明確規則解讀來源新鮮度旗標；舊資料中的 "false" 不會被誤判為降級來源。結論 evidence matrix 也會保留 "true" 的過期來源限制，讓資料卡、結論列與報告正文對同一份來源保持一致。
 
+Prompt source audit 摘要、可選 provider refresh 計畫與舊版 HTTP enrichment 也沿用同一套 explicit boolean 規則處理 `cache_hit`／`_cache_hit`；舊資料的 "false" 會維持 cache miss，提示證據不會被誤標成命中，必要的近期催化劑與同業搜尋也不會因字串 truthiness 被跳過。
+
 ## Model Route Observations
 
 The LLM/API maintenance panel reads `model_route_budget.v1` through `/api/observability/model-routes` and labels latency, retry, quality-gate, and provider-error warnings separately. `failures` / `failure_rate` remain `analysis_node_telemetry` results; `provider_error_count` and `provider_quota_error_count` are a separate bounded recent sample from `api_usage_events`, so a fallback success is not misreported as a failed analysis node. `slow_route` and provider-error warnings are maintenance observations, not daily rerun instructions; use the report's `data_trust`, `decision_freshness`, and `今日工作台` before rerunning one report.

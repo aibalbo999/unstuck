@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from data_freshness import source_is_stale
+from report_freshness_summary import safe_bool
 
 from .audit_helpers import _append_skipped_fresh_cache_audit
 from .types import FetchRequest
@@ -25,7 +26,7 @@ OPTIONAL_WORKFLOW_SOURCES = (
 
 def collect_optional_providers(request: FetchRequest, registry, data: dict, resolved_ticker: str) -> tuple[list, dict[str, bool]]:
     """Return providers to execute and a per-source refresh decision."""
-    cache_hit = bool(data.get("_cache_hit"))
+    cache_hit = safe_bool(data.get("_cache_hit"))
     refresh_by_source = {
         source: (not cache_hit) or source_is_stale(data, source, resolved_ticker)
         for source in OPTIONAL_WORKFLOW_SOURCES

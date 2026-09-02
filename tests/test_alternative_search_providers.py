@@ -486,6 +486,48 @@ def test_legacy_optional_enrichment_merges_alternative_search(monkeypatch):
     }
 
 
+def test_legacy_optional_enrichment_treats_legacy_false_cache_hit_as_miss(monkeypatch):
+    import data_fetch.optional_enrichment as optional_enrichment
+
+    calls = []
+
+    async def alternative_catalysts(*_args, **_kwargs):
+        calls.append("catalysts")
+        return []
+
+    async def alternative_peers(*_args, **_kwargs):
+        calls.append("peers")
+        return []
+
+    async def empty(*_args, **_kwargs):
+        return []
+
+    monkeypatch.setattr(optional_enrichment, "_source_is_stale", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(optional_enrichment, "fetch_alternative_search_catalysts_async", alternative_catalysts)
+    monkeypatch.setattr(optional_enrichment, "fetch_alternative_peer_discovery_async", alternative_peers)
+    monkeypatch.setattr(optional_enrichment, "fetch_fmp_news_catalysts_async", empty)
+    monkeypatch.setattr(optional_enrichment, "cache_financial_payload", lambda *_args, **_kwargs: None)
+
+    result = asyncio.run(
+        optional_enrichment.enrich_optional_http_async(
+            "2330.TW",
+            {
+                "ticker": "2330.TW",
+                "company_name": "台積電",
+                "company_identity": {},
+                "sector": "Technology",
+                "industry": "Semiconductor",
+                "_cache_hit": "false",
+                "source_audit": [],
+                "source_freshness": {},
+            },
+        )
+    )
+
+    assert calls == ["catalysts", "peers"]
+    assert result["source_audit"]
+
+
 def test_optional_http_bundle_excludes_custom_search_json_api(monkeypatch):
     import external_data_clients as clients
 

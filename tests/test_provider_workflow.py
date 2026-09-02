@@ -972,6 +972,24 @@ def test_provider_workflow_skips_fresh_optional_sources(monkeypatch):
     assert ("peer_discovery", "skipped_fresh_cache") in statuses
 
 
+def test_optional_provider_plan_treats_legacy_false_cache_hit_as_miss(monkeypatch):
+    import data_fetch.optional_provider_plan as optional_provider_plan
+
+    monkeypatch.setattr(optional_provider_plan, "source_is_stale", lambda *_args, **_kwargs: False)
+
+    provider = CallableProvider("recent_catalysts", "fake-provider", lambda *_args, **_kwargs: None)
+    registry = ProviderRegistry([provider])
+    providers, refresh_by_source = optional_provider_plan.collect_optional_providers(
+        FetchRequest.from_ticker("AAPL"),
+        registry,
+        {"_cache_hit": "false"},
+        "AAPL",
+    )
+
+    assert refresh_by_source["recent_catalysts"] is True
+    assert providers == [provider]
+
+
 def test_workflow_returns_fresh_cache_before_provider_plan(monkeypatch):
     monkeypatch.setattr(data_freshness.time_module, "time", lambda: 200.0)
     monkeypatch.setattr(

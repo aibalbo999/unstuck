@@ -5,6 +5,8 @@ FastAPI exposes the machine-readable contract at `/openapi.json`; mutating opera
 
 Data-fetch cache audit stale flags use shared `safe_bool` before cache status and source-audit construction, so legacy "false" does not become a degraded cache source or lower report trust incorrectly. Evidence-matrix limitation summaries use the same conversion, so legacy "true" remains visible as a stale-source limitation without truthiness leakage.
 
+Prompt source-audit summaries, optional-provider refresh planning, and the legacy optional HTTP enrichment path use the same explicit boolean contract for `cache_hit` and `_cache_hit`. Legacy values such as "false" therefore remain cache misses, so prompt evidence stays accurate and fresh optional providers are not skipped by string truthiness.
+
 ## Read Endpoints
 
 `GET /api/observability/model-routes` returns the `model_route_budget.v1` telemetry section used by the operator panel. It reports `slow_route`, `retry_storm`, and `quality_gate_failures`; `slow_route` is maintenance evidence and remains outside the daily decision queue.

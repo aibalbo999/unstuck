@@ -225,6 +225,7 @@ flowchart TD
 - `reporting.source_audit` 與 `reporting.evidence_rows` 的 `cache_hit`／`stale` 也沿用 shared `safe_bool`；來源審計表與 key evidence 對 legacy boolean token 保持同一解讀，不讓 `"true"` 因只接受原生 bool 而消失。
 - `data_trust_sla_alerts` 的 current-fetch health 與 `outcome_calibration` 的 decision-freshness projection 沿用同一 shared `safe_bool`；`"false"` 不得透過 raw truthiness 變成 stale、rerun 或錯誤的品質歸因。
 - `data_fetch.audit_policy` 在 cache audit 建立 source status 前、`reporting.evidence_matrix_limitations` 在產生限制文案前都沿用 shared `safe_bool`；legacy `"false"` 不得誤降 trust，legacy `"true"` 不得遺失 stale evidence。
+- `prompt_source_audit`、`data_fetch.optional_provider_plan` 與 `data_fetch.optional_enrichment` 對 prompt source summary 及 optional refresh 的 `cache_hit`／`_cache_hit` 沿用 shared `safe_bool`；legacy `"false"` 維持 cache miss，不得跳過 fresh optional provider 或污染 prompt evidence。
 - `reporting.reading_notice_freshness` 也必須沿用 shared `safe_bool`；malformed numeric freshness flags 不得以非零 truthiness 變成閱讀提示的 stale/full-rerun warning，明確的 `needs_rerun` status 仍優先。
 - current-quality、quality-audit、provider-impact、decision queue、dashboard 與 watchlist alert 的 action projection 也沿用 shared `safe_bool`；`blocks_auto_rerun`、free-mode flags 與 freshness rerun flags 的 legacy `false` 不得改變 operator action 的阻擋、優先級或可見性。
 - `normalize_freshness_status()` 由 freshness summary module 共用於 decision tracking、refresh diff 與 rerun guard；`decision_validity_status` 的 trim/lowercase projection 不允許 malformed `NEEDS_RERUN` token 繞過 full-rerun safety boundary。

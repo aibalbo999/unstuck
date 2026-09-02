@@ -7,6 +7,7 @@ import asyncio
 from data_trust import append_source_audit, finalize_data_trust
 from external_search_providers import fetch_alternative_peer_discovery_async, fetch_alternative_search_catalysts_async
 from .market_sources.http_enrichment import fetch_fmp_news_catalysts_async
+from report_freshness_summary import safe_bool
 from source_audit import audited_fetch_async
 
 from .audit_helpers import _append_skipped_fresh_cache_audit, _source_is_stale
@@ -25,7 +26,7 @@ async def enrich_optional_http_async(ticker: str, data: dict) -> dict:
     sector = str(data.get("sector") or "")
     industry = str(data.get("industry") or "")
 
-    cache_hit = bool(data.get("_cache_hit"))
+    cache_hit = safe_bool(data.get("_cache_hit"))
     refresh_catalysts = (not cache_hit) or _source_is_stale(data, "recent_catalysts", resolved_ticker)
     refresh_peer_discovery = (not cache_hit) or _source_is_stale(data, "peer_discovery", resolved_ticker)
 

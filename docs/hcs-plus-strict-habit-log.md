@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3871 / normalize cache-hit refresh decisions across prompt and optional workflows
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：prompt source audit、optional provider refresh plan 與 legacy optional HTTP enrichment 對 `cache_hit`／`_cache_hit` 使用 raw truthiness；legacy `"false"` 會被視為命中，可能污染提示 evidence 或跳過必要的 optional refresh。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：三組 legacy-token fixture 先取得 `3 failed` RED；三個邊界共用 `report_freshness_summary.safe_bool`，保留 `None` 的未提供語意，不從 source freshness 或其他 audit row 借用 cache 狀態。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture contract；focused fixtures `3 passed`、相關回歸 `751 passed`、full suite `8,569 passed, 6 skipped, 75 subtests passed`。本批只修 prompt/optional refresh 的唯讀或流程判斷，不改 snapshot、artifact、index、review、queue 或 rerun state。
+
 ## D3870 / normalize stale flags before trust and evidence projection
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：data-fetch cache audit 在建立 source audit/trust 前仍用 raw truthiness；`"false"` 會誤變成降級。evidence matrix limitation 只接受原生 bool；`"true"` 會漏掉過期來源限制，造成產製層與報告層的可信度敘述分歧。

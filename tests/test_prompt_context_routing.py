@@ -1325,6 +1325,30 @@ def test_source_audit_summary_uses_safe_prompt_field_conversion():
     assert summary["message"] == ""
 
 
+def test_source_audit_summary_parses_legacy_boolean_tokens():
+    data = {
+        "ticker": "2892.TW",
+        "company_name": "第一金",
+        "recent_catalysts": [{"title": "SENT_CATALYST"}],
+        "source_audit": [
+            {
+                "source": "recent_catalysts",
+                "provider": "legacy",
+                "status": "success",
+                "record_count": 1,
+                "cache_hit": "false",
+                "stale": "true",
+            }
+        ],
+    }
+
+    payload = _payload_from_prompt(format_data_for_prompt(data))
+    summary = payload["source_audit_summary"][0]
+
+    assert summary["cache_hit"] is False
+    assert summary["stale"] is True
+
+
 def test_source_audit_summary_uses_shared_text_safety_for_prompt_fields():
     data = {
         "ticker": "2892.TW",
