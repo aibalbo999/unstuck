@@ -217,6 +217,7 @@ flowchart TD
 - 報告預覽的瀏覽器品質與 snapshot 邊界先對狀態做 trim/lowercase，再套用 allowlist 與阻斷判斷；因此 ` VERIFIED `、` INVALID ` 與注入 helper 的大小寫狀態不會因格式差異失去缺 gate 或 snapshot blocker，且維持 read-only、不回寫 persisted report。
 - 報告預覽的 data-trust action、fresh-data boundary、資料可信度徽章與 decision-freshness label 也共用 trim/lowercase 狀態投影；` FRESH `、` ERROR `、` CURRENT ` 不會因格式差異漏掉通過邊界、人工複核或有效狀態文案。資料新鮮度與結論新鮮度仍是兩個獨立欄位，這只改瀏覽器 read-only projection。
 - 報告預覽的 data-trust `reason_codes` 在 action matching 與 UI reason label 前也共用 trim/lowercase projection；` SOURCE_ERROR:*`、` SOURCE_STALE:*`、` PROVIDER_SLA_CRITICAL ` 不會因格式差異漏掉 manual review、snapshot refresh 或 Provider SLA notice。這只改瀏覽器 read-only projection，不回寫 persisted reason codes。
+- `report_index_rows.row_to_report()` 的 top-level `data_trust_status` 直接取 normalized `data_trust.status`；legacy index duplicate 欄位不再成為第二個 trust truth source，trust JSON 失效時維持 `unknown`，不猜測或回填其他值。
 - 報告預覽的 compact data-trust reason summary 最多保留兩項，但以具體 source error/stale/provider SLA reason 優先於 generic freshness/note reason，同優先級維持原始順序；這是 bounded read-only display，不改 `data_trust.reason_codes`。
 - report-facing data-trust reason labels 以 `reporting.data_trust_summary` 的 canonical wording 為準，browser 與 generated HTML/Markdown 對 `missing_usable_critical_data`、`data_source_notes_present` 等 code 保持同語意；只做 read-only label projection。
 - report compare renderer 對 `diff.data_trust.status_before/status_after` 沿用 shared `dataTrustStatus` 的 trim/lowercase projection；空值保留 `N/A`，不把 compare API 或 persisted report metadata 回寫成正規化後的值。

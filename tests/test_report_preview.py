@@ -1140,6 +1140,27 @@ def test_get_reports_filters_data_trust_status(tmp_path, monkeypatch):
     assert body["reports"][0]["data_trust"]["status"] == "stale"
 
 
+def test_get_reports_normalizes_duplicate_data_trust_status_projection(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
+    filename = "2449_v2_report_20260606_010000.html"
+    write_report_pair(tmp_path, filename, "持有")
+    write_data_snapshot(tmp_path, filename, "fresh")
+    list_reports_for_test(tmp_path)
+
+    with sqlite3.connect(tmp_path / "cache.db") as connection:
+        connection.execute(
+            "UPDATE reports SET data_trust_status = ? WHERE filename = ?",
+            (" FRESH ", filename),
+        )
+
+    result = list_reports_for_test(tmp_path, sync_metadata=False)
+    report = result["reports"][0]
+
+    assert report["data_trust"]["status"] == "fresh"
+    assert report["data_trust_status"] == "fresh"
+
+
 def test_download_data_snapshot_endpoint(tmp_path, monkeypatch):
     monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
     filename = "2449_v2_report_20260606_010000.html"

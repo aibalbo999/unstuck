@@ -25,11 +25,14 @@ The Gemini usage object also exposes `observed_model_calls` and `observed_model_
 Report rows include:
 
 - `data_trust`: data-source quality and freshness.
+- `data_trust_status`: canonical lowercase status projection from `data_trust`; it is not a raw legacy index-column echo.
 - `snapshot_integrity`: whether the current data snapshot still matches its own content hash; `verified` is hash-checked, `unverified` is legacy or missing a hash, and `invalid` must be manually reviewed before reuse.
 - `decision_tracking`: performance since the report recommendation.
 - `decision_freshness`: whether the conclusion still matches the current data snapshot.
 
 Report-facing JSON readers treat invalid UTF-8, invalid JSON, and JSON roots that are not objects as unavailable evidence: list/preview/compare projections use empty or fallback values, while rerun snapshot reads return HTTP 400 instead of guessing fields. HTML/Markdown download endpoints also return HTTP 400 for undecodable content; they never emit replacement characters as if the artifact were readable.
+
+Report list rows derive the duplicate top-level `data_trust_status` from the normalized `data_trust` payload. A malformed or stale legacy index column cannot disagree with `data_trust.status` in the API response; if the trust JSON is unavailable, both report-facing trust projections remain `unknown` rather than borrowing the duplicate column.
 
 Quality-audit artifact evidence follows the same strict boundary: an undecodable Markdown/HTML artifact is `artifact_quality_summary.status=unavailable`, and an undecodable Markdown artifact is `artifact_rerun_context_status=unavailable`; neither is reported as missing markers or partial/present rerun context.
 

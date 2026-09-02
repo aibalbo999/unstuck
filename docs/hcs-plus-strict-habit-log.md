@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3861 / keep report-list data-trust projections canonical
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`row_to_report()` 同時輸出 normalized `data_trust` 與直接取自 SQLite 的 duplicate `data_trust_status`；legacy row 帶空白／大寫時，列表 API 會出現兩個不同 trust truth source。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先以正常 trust JSON 加 malformed duplicate column fixture 取得 `1 failed` RED；top-level projection 改取 normalized trust status，trust JSON invalid 時不借用 duplicate column，保留 `unknown`。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture contract；focused projection `1 passed`、refresh/storage `27 passed`，只改 report-list read-only projection，不修改 snapshot、artifact、index 寫入、review、queue 或 rerun state。
+
 ## D3860 / normalize report-compare data-trust statuses
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：compare renderer 直接把 `diff.data_trust.status_before/status_after` 插入畫面；即使 preview 的 shared policy 已正規化，` ERROR `／` FRESH ` 仍會在比較面板露出格式漂移。
