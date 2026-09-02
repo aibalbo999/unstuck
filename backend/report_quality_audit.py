@@ -9,7 +9,7 @@ from typing import Any
 
 from data_trust_snapshot import verify_data_snapshot_integrity
 from mapping_fields import safe_text, safe_text_list
-from report_history_pagination import collect_all_report_pages
+from report_history_pagination import collection_is_complete, collect_all_report_pages
 from report_history_storage import load_storage_item, storage_for_existing_output_dir
 from report_index import query_report_metadata
 from report_quality_repair_items import quality_metadata_repair_item
@@ -49,6 +49,11 @@ def build_indexed_report_quality_audit(output_dir: str, *, page_size: int = 100,
         output_dir=output_dir,
         sync_metadata=False,
     )
+    if not collection_is_complete(rows):
+        return build_unavailable_report_quality_audit(
+            scope="all_indexed_reports",
+            selection_basis="latest_per_ticker_pipeline",
+        )
     storage = storage_for_existing_output_dir(output_dir, None)
     reports = _cached_indexed_quality_reports(
         rows.get("reports", []),
@@ -84,6 +89,11 @@ def build_historical_indexed_report_quality_audit(
         output_dir=output_dir,
         sync_metadata=False,
     )
+    if not collection_is_complete(rows):
+        return build_unavailable_report_quality_audit(
+            scope="all_historical_indexed_reports",
+            selection_basis="all_indexed_versions",
+        )
     latest_rows = collect_all_report_pages(
         list_indexed_report_quality_rows,
         page_size=page_size,
@@ -95,6 +105,11 @@ def build_historical_indexed_report_quality_audit(
         output_dir=output_dir,
         sync_metadata=False,
     )
+    if not collection_is_complete(latest_rows):
+        return build_unavailable_report_quality_audit(
+            scope="all_historical_indexed_reports",
+            selection_basis="all_indexed_versions",
+        )
     version_status_filter = _normalize_version_status_filter(version_status)
     latest_filenames = _latest_report_filenames(latest_rows.get("reports", []))
     indexed_rows = rows.get("reports", [])

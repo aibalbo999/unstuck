@@ -1551,3 +1551,78 @@ def test_collect_all_report_pages_follows_index_pagination():
     assert calls == [(1, 2), (2, 2)]
     assert [row["filename"] for row in payload["reports"]] == ["one.html", "two.html", "three.html"]
     assert payload["pagination"]["has_next"] is False
+    assert payload["pagination"]["complete"] is True
+
+
+def test_collect_all_report_pages_marks_missing_page_incomplete():
+    from report_history_pagination import collect_all_report_pages
+
+    calls = []
+
+    def fake_list_reports(*, page, limit, **_kwargs):
+        calls.append((page, limit))
+        if page == 1:
+            return {"reports": [{"filename": "one.html"}, {"filename": "two.html"}], "pagination": {"total": 3}}
+        return {"reports": [], "pagination": {"total": 3}}
+
+    payload = collect_all_report_pages(fake_list_reports, page_size=2, q="")
+
+    assert calls == [(1, 2), (2, 2)]
+    assert [row["filename"] for row in payload["reports"]] == ["one.html", "two.html"]
+    assert payload["pagination"]["total"] == 3
+    assert payload["pagination"]["complete"] is False
+
+
+def test_collect_all_report_pages_marks_short_nonfinal_page_incomplete():
+    from report_history_pagination import collect_all_report_pages
+
+    def fake_list_reports(*, page, limit, **_kwargs):
+        if page == 1:
+            return {"reports": [{"filename": "one.html"}, {"filename": "two.html"}], "pagination": {"total": 5}}
+        if page == 2:
+            return {"reports": [{"filename": "three.html"}], "pagination": {"total": 5}}
+        return {"reports": [{"filename": "four.html"}, {"filename": "five.html"}], "pagination": {"total": 5}}
+
+    payload = collect_all_report_pages(fake_list_reports, page_size=2, q="")
+
+    assert payload["pagination"]["complete"] is False
+
+
+def test_indexed_report_quality_audit_rejects_incomplete_page_collection(monkeypatch, tmp_path):
+    import report_quality_audit as audit
+
+    monkeypatch.setattr(
+        audit,
+        "collect_all_report_pages",
+        lambda *_args, **_kwargs: {
+            "reports": [{"ticker": "2330.TW", "pipeline_id": "v1", "filename": "2330.html"}],
+            "pagination": {"total": 2, "complete": False},
+        },
+    )
+
+    payload = audit.build_indexed_report_quality_audit(str(tmp_path))
+
+    assert payload["status"] == "unavailable"
+    assert payload["error_code"] == "quality_audit_unavailable"
+
+
+def test_historical_report_quality_audit_rejects_incomplete_latest_page_collection(monkeypatch, tmp_path):
+    import report_quality_audit as audit
+
+    def collect(_list_reports, **kwargs):
+        if kwargs["include_versions"]:
+            return {
+                "reports": [{"ticker": "2330.TW", "pipeline_id": "v1", "filename": "2330.html"}],
+                "pagination": {"total": 1, "complete": True},
+            }
+        return {
+            "reports": [{"ticker": "2330.TW", "pipeline_id": "v1", "filename": "2330.html"}],
+            "pagination": {"total": 2, "complete": False},
+        }
+
+    monkeypatch.setattr(audit, "collect_all_report_pages", collect)
+
+    payload = audit.build_historical_indexed_report_quality_audit(str(tmp_path))
+
+    assert payload["status"] == "unavailable"
+    assert payload["error_code"] == "quality_audit_unavailable"

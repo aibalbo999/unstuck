@@ -401,3 +401,21 @@ def test_filtered_indexed_current_quality_summary_has_explicit_latest_scope(monk
     assert payload["audited_reports"] == 1
     assert payload["non_passed_reports"] == 1
     assert payload["items_returned"] == 0
+
+
+def test_indexed_current_quality_summary_rejects_incomplete_page_collection(monkeypatch, tmp_path):
+    import report_current_quality_summary as current_quality
+
+    monkeypatch.setattr(
+        current_quality,
+        "collect_all_report_pages",
+        lambda *_args, **_kwargs: {
+            "reports": [{"ticker": "2330.TW", "pipeline_id": "v1", "filename": "2330.html"}],
+            "pagination": {"total": 2, "complete": False},
+        },
+    )
+
+    payload = current_quality.build_indexed_current_quality_summary(str(tmp_path))
+
+    assert payload["status"] == "unavailable"
+    assert payload["error_code"] == "current_quality_summary_unavailable"

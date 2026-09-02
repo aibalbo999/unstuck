@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3841 / fail closed on incomplete full-index pagination
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：current-quality 與 historical quality audit 的 `audited_reports` 依賴全量 index pagination；原 collector 只看第一頁 total，後續 page 缺失或異常時仍交付 partial rows，會讓 undercount 看起來像合法完整 scope。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以 declared total `3` 但第二頁空回，以及 declared total `5`、非最後頁只回一筆取得 RED；collector 新增 `pagination.complete`，核對每頁 list、total、page size、非最後頁長度與最後 rows count，quality callers 只對明確 incomplete 回 unavailable，不猜算缺少資料。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新 API/operator/architecture contract，新增 current-quality、indexed audit、historical latest caller 覆蓋，完整 backend/frontend/history/static/docs regression `392 passed`，Python compile、Node syntax 與 `git diff --check` 通過；live current `165/85/5/85`、historical `1175/59/5`、current projection `165/85`，health/ready、official launcher/worker/8080 與 doctor canonical paths 正常。本批不改 audit count、quality gate、queue、snapshot、artifact、index、review 或 rerun state。
+
 ## D3840 / validate current-quality navigation target shape
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：current-quality aggregate scope 與 bounded target list 是兩層資料；原 validator 只確認 returned 數量，沒有確認 target 真的是 non-passed、具備歷史導覽檔名與可顯示的三個 gate 狀態，會把 passed report 當成待查看項目。

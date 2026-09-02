@@ -7,7 +7,7 @@ from time import monotonic
 from typing import Any
 
 from mapping_fields import safe_dict_list, safe_int, safe_text
-from report_history_pagination import collect_all_report_pages
+from report_history_pagination import collection_is_complete, collect_all_report_pages
 from report_index import query_report_metadata
 from report_freshness_summary import report_freshness_bucket
 from report_current_quality_item_helpers import (
@@ -59,6 +59,8 @@ def build_indexed_current_quality_summary(
         output_dir=output_dir,
         sync_metadata=False,
     )
+    if not collection_is_complete(rows):
+        return build_unavailable_current_quality_summary()
     summary = build_current_quality_summary(
         rows.get("reports", []),
         scope="all_indexed_reports",
@@ -113,6 +115,11 @@ def build_filtered_indexed_current_quality_summary(
         output_dir=output_dir,
         sync_metadata=False,
     )
+    if not collection_is_complete(rows):
+        return build_unavailable_current_quality_summary(
+            scope="historical_filter_current_latest",
+            selection_basis="latest_per_ticker_pipeline",
+        )
     summary = build_current_quality_summary(
         rows.get("reports", []),
         scope="historical_filter_current_latest",
