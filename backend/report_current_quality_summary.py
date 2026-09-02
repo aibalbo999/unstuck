@@ -9,6 +9,7 @@ from typing import Any
 from mapping_fields import safe_dict_list, safe_int, safe_text
 from report_history_pagination import collection_is_complete, collect_all_report_pages
 from report_index import query_report_metadata
+from report_index_fingerprint import report_metadata_fingerprint
 from report_freshness_summary import report_freshness_bucket
 from report_current_quality_item_helpers import (
     blocker_ids as _blocker_ids,
@@ -32,7 +33,7 @@ CONFORMANCE_STATUSES = ("passed", "warning", "blocked", "unknown")
 CONTENT_STATUSES = ("passed", "warning", "blocked", "unknown")
 EVIDENCE_VERDICTS = ("approved", "caution", "rejected", "unknown")
 EVIDENCE_MISMATCH_FRESHNESS_BUCKETS = ("current", "needs_rerun", "unknown")
-_SUMMARY_CACHE: dict[tuple[str, int, int, str, str], tuple[float, dict[str, Any]]] = {}
+_SUMMARY_CACHE: dict[tuple[str, int, int, str, str, str, str], tuple[float, dict[str, Any]]] = {}
 _SUMMARY_CACHE_LOCK = RLock()
 
 
@@ -42,15 +43,34 @@ def build_indexed_current_quality_summary(
     page_size: int = 100,
     item_limit: int = CURRENT_QUALITY_ITEM_LIMIT,
 ) -> dict[str, Any]:
-    cache_key = (str(output_dir), max(1, int(page_size)), max(0, safe_int(item_limit, default=CURRENT_QUALITY_ITEM_LIMIT)))
+    normalized_page_size = max(1, int(page_size))
+    normalized_item_limit = max(0, safe_int(item_limit, default=CURRENT_QUALITY_ITEM_LIMIT))
+    source_fingerprint = report_metadata_fingerprint(
+        pipeline="all",
+        recommendation="all",
+        data_trust="all",
+        include_versions=False,
+        output_dir=output_dir,
+        sync_metadata=False,
+    )
+    cache_key = (
+        str(output_dir),
+        normalized_page_size,
+        normalized_item_limit,
+        "",
+        "all",
+        "all_indexed_reports",
+        source_fingerprint or "",
+    )
     now = monotonic()
-    with _SUMMARY_CACHE_LOCK:
-        cached = _SUMMARY_CACHE.get(cache_key)
-        if cached is not None and now - cached[0] < CURRENT_QUALITY_CACHE_TTL_SECONDS:
-            return cached[1]
+    if source_fingerprint is not None:
+        with _SUMMARY_CACHE_LOCK:
+            cached = _SUMMARY_CACHE.get(cache_key)
+            if cached is not None and now - cached[0] < CURRENT_QUALITY_CACHE_TTL_SECONDS:
+                return cached[1]
     rows = collect_all_report_pages(
         _list_current_quality_rows,
-        page_size=page_size,
+        page_size=normalized_page_size,
         q="",
         pipeline="all",
         recommendation="all",
@@ -65,13 +85,14 @@ def build_indexed_current_quality_summary(
         rows.get("reports", []),
         scope="all_indexed_reports",
         selection_basis="latest_per_ticker_pipeline",
-        item_limit=item_limit,
+        item_limit=normalized_item_limit,
     )
-    with _SUMMARY_CACHE_LOCK:
-        _SUMMARY_CACHE[cache_key] = (monotonic(), summary)
-        if len(_SUMMARY_CACHE) > 4:
-            oldest_key = min(_SUMMARY_CACHE, key=lambda key: _SUMMARY_CACHE[key][0])
-            _SUMMARY_CACHE.pop(oldest_key, None)
+    if source_fingerprint is not None:
+        with _SUMMARY_CACHE_LOCK:
+            _SUMMARY_CACHE[cache_key] = (monotonic(), summary)
+            if len(_SUMMARY_CACHE) > 4:
+                oldest_key = min(_SUMMARY_CACHE, key=lambda key: _SUMMARY_CACHE[key][0])
+                _SUMMARY_CACHE.pop(oldest_key, None)
     return summary
 
 
@@ -92,18 +113,30 @@ def build_filtered_indexed_current_quality_summary(
     normalized_query = safe_text(q).strip()
     normalized_pipeline = safe_text(pipeline).strip().lower() or "all"
     normalized_item_limit = max(0, safe_int(item_limit, default=0))
+    source_fingerprint = report_metadata_fingerprint(
+        q=normalized_query,
+        pipeline=normalized_pipeline,
+        recommendation="all",
+        data_trust="all",
+        include_versions=False,
+        output_dir=output_dir,
+        sync_metadata=False,
+    )
     cache_key = (
         str(output_dir),
         normalized_page_size,
         normalized_item_limit,
         normalized_query,
         normalized_pipeline,
+        "historical_filter_current_latest",
+        source_fingerprint or "",
     )
     now = monotonic()
-    with _SUMMARY_CACHE_LOCK:
-        cached = _SUMMARY_CACHE.get(cache_key)
-        if cached is not None and now - cached[0] < CURRENT_QUALITY_CACHE_TTL_SECONDS:
-            return cached[1]
+    if source_fingerprint is not None:
+        with _SUMMARY_CACHE_LOCK:
+            cached = _SUMMARY_CACHE.get(cache_key)
+            if cached is not None and now - cached[0] < CURRENT_QUALITY_CACHE_TTL_SECONDS:
+                return cached[1]
     rows = collect_all_report_pages(
         _list_current_quality_rows,
         page_size=normalized_page_size,
@@ -127,11 +160,12 @@ def build_filtered_indexed_current_quality_summary(
         item_limit=normalized_item_limit,
     )
     summary["filters"] = {"q": normalized_query, "pipeline": normalized_pipeline}
-    with _SUMMARY_CACHE_LOCK:
-        _SUMMARY_CACHE[cache_key] = (monotonic(), summary)
-        if len(_SUMMARY_CACHE) > 8:
-            oldest_key = min(_SUMMARY_CACHE, key=lambda key: _SUMMARY_CACHE[key][0])
-            _SUMMARY_CACHE.pop(oldest_key, None)
+    if source_fingerprint is not None:
+        with _SUMMARY_CACHE_LOCK:
+            _SUMMARY_CACHE[cache_key] = (monotonic(), summary)
+            if len(_SUMMARY_CACHE) > 8:
+                oldest_key = min(_SUMMARY_CACHE, key=lambda key: _SUMMARY_CACHE[key][0])
+                _SUMMARY_CACHE.pop(oldest_key, None)
     return summary
 
 

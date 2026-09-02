@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3842 / invalidate current-quality cache by index fingerprint
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：current-quality summary 原本只以 30 秒 TTL 判斷 cache；report index 的 `updated_at`、file mtime 或 stored content/data hash 改變後，TTL 內仍可能顯示舊 gate 分布與 bounded target，讓操作員看到資料已更新但結論未同步。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以同一 output scope 先取得 warning summary，再變更 row fingerprint 與 conformance 取得 RED；report index 新增不載入 artifact 的 latest-row fingerprint，current-quality 與 quality audit 共用欄位與 digest，indexed 與 historical-filter scope/filter 另行隔離，fingerprint 改變即 bypass 舊 projection，讀不到 fingerprint 時也不重用 cache。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：新增 current-quality stale-cache、cross-scope isolation 與 SQLite fingerprint regression，focused backend `58 passed`，品質/前端/索引/文件回歸 `400 passed`、import-boundary `504 passed`、runtime/storage `21 passed`，Python compile、Node syntax 與 `git diff --check` 通過；正式 runtime/live current `165/85/5/85`、historical `1175/59` 且 current projection `165/85`，health/ready `200/200`、helper assets `200`、official launcher/worker/8080 與 doctor canonical paths 正常。本批只修 read-only cache invalidation，不改 snapshot、artifact、index 寫入、review、queue 或 rerun state。
+
 ## D3841 / fail closed on incomplete full-index pagination
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：current-quality 與 historical quality audit 的 `audited_reports` 依賴全量 index pagination；原 collector 只看第一頁 total，後續 page 缺失或異常時仍交付 partial rows，會讓 undercount 看起來像合法完整 scope。

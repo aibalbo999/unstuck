@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 import report_index  # noqa: E402
+import report_index_fingerprint  # noqa: E402
 
 
 class _TransientReportIndexConnection:
@@ -97,6 +98,63 @@ def test_report_index_migration_from_empty_db(monkeypatch, tmp_path):
         "data_file_hash",
         "decision_tracking_json",
     }.issubset(_columns(db_path))
+
+
+def test_report_metadata_fingerprint_changes_when_index_row_changes(monkeypatch, tmp_path):
+    db_path = tmp_path / "cache.db"
+    output_dir = str(tmp_path / "reports")
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(db_path))
+
+    with report_index._connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO reports (
+                output_dir, filename, md_filename, ticker, company_name, report_date,
+                timestamp, file_mtime, pipeline_id, recommendation_json,
+                normalized_recommendation, search_text, data_snapshot_filename,
+                data_trust_json, data_trust_status, analysis_text_stale,
+                analysis_text_stale_message, data_snapshot_hash, html_hash,
+                markdown_hash, data_file_hash, decision_tracking_json, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                output_dir,
+                "2330.html",
+                "2330.md",
+                "2330.TW",
+                "台積電",
+                "2026-09-02",
+                1.0,
+                1.0,
+                "v1",
+                "{}",
+                "持有",
+                "2330",
+                "2330.data.json",
+                "{}",
+                "unknown",
+                0,
+                "",
+                "snapshot-1",
+                "html-1",
+                "markdown-1",
+                "data-1",
+                "{}",
+                1.0,
+            ),
+        )
+
+    first = report_index_fingerprint.report_metadata_fingerprint(output_dir=output_dir, sync_metadata=False)
+    with report_index._connect() as conn:
+        conn.execute(
+            "UPDATE reports SET updated_at = ?, data_snapshot_hash = ? WHERE output_dir = ? AND filename = ?",
+            (2.0, "snapshot-2", output_dir, "2330.html"),
+        )
+    second = report_index_fingerprint.report_metadata_fingerprint(output_dir=output_dir, sync_metadata=False)
+
+    assert first is not None
+    assert second is not None
+    assert first != second
 
 
 def test_report_index_connect_continues_after_transient_wal_open_failure(monkeypatch, tmp_path):

@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from collections import OrderedDict
-from hashlib import sha256
 from threading import RLock
 from time import monotonic
 from typing import Any
@@ -12,6 +11,7 @@ from mapping_fields import safe_text, safe_text_list
 from report_history_pagination import collection_is_complete, collect_all_report_pages
 from report_history_storage import load_storage_item, storage_for_existing_output_dir
 from report_index import query_report_metadata
+from report_index_fingerprint import report_rows_fingerprint
 from report_quality_repair_items import quality_metadata_repair_item
 from report_quality_evidence import read_artifact_quality_summary
 from report_freshness_summary import attach_full_report_freshness_summary
@@ -250,22 +250,7 @@ def _cached_indexed_quality_reports(
 
 
 def _indexed_rows_fingerprint(rows: list[dict[str, Any]]) -> str:
-    digest = sha256()
-    fields = (
-        "output_dir",
-        "filename",
-        "pipeline_id",
-        "updated_at",
-        "file_mtime",
-        "data_snapshot_hash",
-        "html_hash",
-        "markdown_hash",
-        "data_file_hash",
-    )
-    for row in rows:
-        digest.update("\x1f".join(safe_text(row.get(field)) for field in fields).encode("utf-8"))
-        digest.update(b"\x1e")
-    return digest.hexdigest()
+    return report_rows_fingerprint(rows)
 
 
 def _latest_report_filenames(rows: list[dict[str, Any]]) -> dict[tuple[str, str], str]:

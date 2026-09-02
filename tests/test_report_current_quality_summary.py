@@ -419,3 +419,70 @@ def test_indexed_current_quality_summary_rejects_incomplete_page_collection(monk
 
     assert payload["status"] == "unavailable"
     assert payload["error_code"] == "current_quality_summary_unavailable"
+
+
+def test_indexed_current_quality_summary_refreshes_after_index_fingerprint_changes(monkeypatch, tmp_path):
+    import report_current_quality_summary as current_quality
+
+    current_quality._SUMMARY_CACHE.clear()
+    rows = [{
+        "output_dir": str(tmp_path),
+        "ticker": "2330.TW",
+        "pipeline_id": "v1",
+        "filename": "2330.html",
+        "updated_at": 1,
+        "report_conformance": {"status": "warning"},
+        "content_credibility": {"status": "passed"},
+        "evidence_exit_gate": {"verdict": "approved"},
+    }]
+    calls = {"count": 0}
+
+    def collect(*_args, **_kwargs):
+        calls["count"] += 1
+        return {"reports": rows, "pagination": {"total": len(rows), "complete": True}}
+
+    monkeypatch.setattr(current_quality, "collect_all_report_pages", collect)
+    monkeypatch.setattr(
+        current_quality,
+        "report_metadata_fingerprint",
+        lambda **_kwargs: str(rows[0]["updated_at"]),
+    )
+
+    first = current_quality.build_indexed_current_quality_summary(str(tmp_path))
+    rows[0]["updated_at"] = 2
+    rows[0]["report_conformance"] = {"status": "blocked"}
+    second = current_quality.build_indexed_current_quality_summary(str(tmp_path))
+
+    assert first["report_conformance_by_status"]["warning"] == 1
+    assert second["report_conformance_by_status"]["blocked"] == 1
+    assert calls["count"] == 2
+
+
+def test_indexed_and_filtered_current_quality_summaries_do_not_share_cache(monkeypatch, tmp_path):
+    import report_current_quality_summary as current_quality
+
+    current_quality._SUMMARY_CACHE.clear()
+    rows = [{
+        "ticker": "2330.TW",
+        "pipeline_id": "v1",
+        "filename": "2330.html",
+        "report_conformance": {"status": "warning"},
+        "content_credibility": {"status": "passed"},
+        "evidence_exit_gate": {"verdict": "approved"},
+    }]
+    calls = {"count": 0}
+
+    def collect(*_args, **_kwargs):
+        calls["count"] += 1
+        return {"reports": rows, "pagination": {"total": len(rows), "complete": True}}
+
+    monkeypatch.setattr(current_quality, "collect_all_report_pages", collect)
+    monkeypatch.setattr(current_quality, "report_metadata_fingerprint", lambda **_kwargs: "same-source")
+
+    indexed = current_quality.build_indexed_current_quality_summary(str(tmp_path))
+    filtered = current_quality.build_filtered_indexed_current_quality_summary(str(tmp_path), item_limit=5)
+
+    assert indexed["scope"] == "all_indexed_reports"
+    assert filtered["scope"] == "historical_filter_current_latest"
+    assert filtered["filters"] == {"q": "", "pipeline": "all"}
+    assert calls["count"] == 2
