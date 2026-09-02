@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3856 / normalize refresh-attribution reason codes
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：歷史品質 evidence helper 直接以原始 `reason_codes.includes()` 判斷刷新前／刷新後歸因，格式漂移會讓畫面缺少責任提示。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以空白／大寫的 `quality_metadata_before_refresh` 與 `quality_metadata_after_refresh` fixture 先取得 `1 failed` RED；helper 只增加 trim/lowercase projection，不改既有 provenance precedence。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：focused `2 passed`，同步 cache-buster 與 API/operator/architecture contract；只改 preview/daily/history 的 read-only evidence display，不修改 snapshot、artifact、index、review、queue 或 rerun。
+
 ## D3855 / normalize report-facing data-trust reason codes
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：品質 action 與 UI reason summary 直接使用原始 `reason_codes`；空白或大寫變體可能漏掉來源異常、來源過期與 Provider SLA 分類。

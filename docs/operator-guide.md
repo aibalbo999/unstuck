@@ -97,6 +97,8 @@ The read-only report quality audit exposes `missing_quality_fields`, `severity`,
 
 `quality_metadata_missing_by_provenance` 會把缺口分成 `before_refresh`、`after_refresh` 與 `no_refresh_provenance`。`before_refresh` 表示刷新前快照已記錄目前缺少的 gate；`after_refresh` 只表示 snapshot 有 `refreshed_from_report` 刷新歸因，不代表可以證明刷新造成缺失；`no_refresh_provenance` 只表示沒有可用分類，也不代表可以證明它從未刷新。明細會附 `quality_metadata_provenance`、`refreshed_from_report` 與 `snapshot_refreshed_at`，供人工核對 artifact/freshness；畫面分別顯示為「刷新前已有缺口」、「有刷新歸因」與「未標記刷新來源」。
 
+瀏覽器 evidence helper 在判斷刷新歸因 reason code 前會去除前後空白並統一大小寫，因此 ` QUALITY_METADATA_BEFORE_REFRESH ` 與 ` QUALITY_METADATA_AFTER_REFRESH ` 仍會顯示正確的來源提示；這只修正閱讀層，不改寫儲存的 reason code。
+
 若明細另有 `quality_metadata_refresh_provenance`，請先看 `missing_fields`：它記錄資料快照在刷新前已缺少哪些品質 gate。當目前缺口落在這份清單內，repair 會標示「刷新前已有品質證據缺口」；這能改善責任判讀，但仍不是 gate 結果，也不會自動重跑。沒有這個 optional 欄位的舊 snapshot 維持「刷新後品質證據缺口」的中性語意。
 
 `quality_metadata_by_pipeline` 會再按 `pipeline_id` 分組，保留各模式自己的 verified 分母、coverage、缺 gate 數、重跑策略與上下文準備度；各模式的缺口數應完整加總回全量缺口，且每個模式的 context 分布也要加總回自己的缺口數。若任一分布缺欄、格式錯誤或加總矛盾，畫面會保留全量缺口但不顯示「模式缺口」或「模式上下文」。摘要中的 top-level provenance、重跑策略、上下文與審核／版本分布也採相同加總檢查；矛盾時只保留全量缺口。摘要中的「模式上下文」可直接看出哪個模式只有 artifact 前序可查、哪個模式完全沒有局部上下文，再用 `q`/`pipeline` targeted audit 開啟明細，可以避免把全庫缺口和單一模式混在一起。

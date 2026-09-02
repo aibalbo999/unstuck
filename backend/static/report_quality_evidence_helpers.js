@@ -22,7 +22,7 @@
         const artifactFields = Array.isArray(artifact.fields) ? artifact.fields.filter(Boolean) : [];
         const missingFieldText = labels(missingFields), artifactFieldText = labels(artifactFields);
         const artifactText = artifact.status === 'present' && artifactFieldText ? `artifact 摘要可查：${artifactFieldText}` : artifact.status === 'not_found' ? 'artifact 未找到可查摘要' : artifact.status === 'unavailable' ? 'artifact 無法讀取' : 'artifact 摘要未記錄';
-        const reasonCodes = Array.isArray(report?.reason_codes) ? report.reason_codes : [];
+        const reasonCodes = Array.isArray(report?.reason_codes) ? report.reason_codes.map(code => String(code || '').trim().toLowerCase()) : [];
         const provenanceText = report?.quality_metadata_provenance === 'before_refresh' || reasonCodes.includes('quality_metadata_before_refresh') ? '來源：刷新前已有缺口' : report?.quality_metadata_provenance === 'after_refresh' || reasonCodes.includes('quality_metadata_after_refresh') ? '來源：有刷新歸因' : report?.quality_metadata_provenance === 'no_refresh_provenance' ? '來源：未標記刷新來源' : '';
         const targetProvenance = provenanceText;
         const rerunContextStatus = String(report?.rerun_context_status || '').trim().toLowerCase();

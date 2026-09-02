@@ -24,7 +24,7 @@ def test_shared_quality_evidence_helper_loads_before_all_consumers():
     assert (STATIC_DIR / "report_quality_audit_scope_helpers.js").exists()
     assert (STATIC_DIR / "report_quality_queue_scope_helpers.js").exists()
     assert (STATIC_DIR / "report_quality_evidence_freshness_helpers.js").exists()
-    assert f"{helper}?v=20260902-integer-summary-counts" in index_html
+    assert f"{helper}?v=20260902-refresh-reason-code-normalization" in index_html
     assert f"{action_scope_helper}?v=20260902-action-freshness-scope" in index_html
     assert f"{audit_scope_helper}?v=20260902-distribution-scope" in index_html
     assert f"{queue_scope_helper}?v=20260902-bounded-items" in index_html
@@ -475,6 +475,30 @@ process.stdout.write(JSON.stringify(evidence));
     assert evidence["provenanceText"] == "來源：刷新前已有缺口"
     assert "來源：刷新前已有缺口" in evidence["detail"]
     assert "來源：刷新前已有缺口" in evidence["targetContext"]
+
+
+def test_shared_quality_evidence_normalizes_refresh_reason_codes():
+    evidence_path = STATIC_DIR / "report_quality_evidence_helpers.js"
+    script = """
+global.window = {};
+require(__EVIDENCE_PATH__);
+const beforeRefresh = window.StockAgentReportQualityEvidence.context({
+  missing_quality_fields: ['content_credibility'],
+  reason_codes: [' QUALITY_METADATA_BEFORE_REFRESH ']
+});
+const afterRefresh = window.StockAgentReportQualityEvidence.context({
+  missing_quality_fields: ['content_credibility'],
+  reason_codes: [' QUALITY_METADATA_AFTER_REFRESH ']
+});
+process.stdout.write(JSON.stringify({
+  before: beforeRefresh.provenanceText,
+  after: afterRefresh.provenanceText
+}));
+""".replace("__EVIDENCE_PATH__", json.dumps(str(evidence_path)))
+
+    payload = json.loads(_node(script))
+
+    assert payload == {"before": "來源：刷新前已有缺口", "after": "來源：有刷新歸因"}
 
 
 def test_shared_quality_evidence_labels_historical_version_status():
