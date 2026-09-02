@@ -2350,6 +2350,27 @@ def test_provider_sla_alert_helper_matches_current_provider_and_health_metadata(
     ]
 
 
+def test_provider_sla_health_helpers_parse_legacy_boolean_text():
+    import data_trust_sla_alerts
+
+    healthy_entry = {
+        "status": "success",
+        "record_count": 12,
+        "stale": "false",
+    }
+    stale_entry = {
+        "status": "success",
+        "record_count": 12,
+        "stale": "true",
+    }
+
+    assert data_trust_sla_alerts.audit_entry_is_healthy(healthy_entry) is True
+    assert data_trust_sla_alerts.audit_entry_is_healthy(stale_entry) is False
+    assert data_trust_sla_alerts.current_fetch_is_healthy(
+        {"current_status": "success", "current_record_count": 12, "current_stale": "false"}
+    ) is True
+
+
 def test_provider_sla_row_mapping_copy_lookup_failures_preserve_downgrade_evidence():
     import data_trust_sla_policy
 

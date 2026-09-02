@@ -11,6 +11,7 @@ from config import (
 )
 from data_trust_constants import AUDIT_STATUS_SKIPPED_FRESH_CACHE, AUDIT_STATUS_SUCCESS
 from mapping_fields import safe_text as _mapping_safe_text
+from report_freshness_summary import safe_bool
 
 
 SLA_WARNING_MIN_ATTEMPTS = PROVIDER_SLA_WARNING_MIN_ATTEMPTS
@@ -189,13 +190,6 @@ def fetch_provider_sla_alerts() -> object:
 
         return get_provider_sla_alerts(limit=100)
     return []
-
-
-def safe_bool(value: object) -> bool:
-    try:
-        return bool(value)
-    except _SAFE_EXCEPTIONS:
-        return False
 
 
 def has_enough_sla_evidence(alert: dict, level: str) -> bool:

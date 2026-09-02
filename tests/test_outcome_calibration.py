@@ -475,6 +475,35 @@ def test_outcome_calibration_decision_freshness_flag_does_not_depend_on_truthine
     assert ledger["quality_groups"]["data_trust_status"]["stale"]["miss_count"] == 1
 
 
+def test_outcome_calibration_parses_legacy_decision_freshness_text():
+    from outcome_calibration import build_outcome_calibration
+
+    ledger = build_outcome_calibration(
+        backtests=[
+            {
+                "report_filename": "2330_legacy.html",
+                "ticker": "2330.TW",
+                "pipeline_id": "v2",
+                "horizon_months": 3,
+                "outcome": "miss",
+                "strategy_roi_pct": -7.25,
+                "reason": "buy_thesis_not_met",
+            }
+        ],
+        reports=[
+            {
+                "filename": "2330_legacy.html",
+                "data_trust": {"status": "fresh", "score": 90},
+                "content_credibility": {"status": "passed"},
+                "report_conformance": {"status": "passed"},
+                "decision_freshness": {"requires_rerun": "false"},
+            }
+        ],
+    )
+
+    assert ledger["details"][0]["quality_signal"]["decision_freshness_status"] == "unknown"
+
+
 def test_outcome_calibration_report_identity_does_not_depend_on_truthiness():
     from outcome_calibration import build_outcome_calibration
 

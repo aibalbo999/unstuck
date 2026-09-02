@@ -101,6 +101,10 @@ The read-only report quality audit exposes `missing_quality_fields`, `severity`,
 
 報告本體的資料可信度摘要也會把具體的來源異常、來源過期與 Provider SLA 原因排在泛用新鮮度／口徑原因前；HTML 最多顯示四項、Markdown 最多八項，同優先級維持原始順序。這只改善報告中的原因可見性，不改資料可信度狀態或原始 reason code。
 
+來源審計表與關鍵數據來源對照在讀取舊報告時，會用同一套明確布林規則解讀 `"true"`、`"false"`、`1`、`0`；因此兩張表不會因 legacy 字串或 Python truthiness 顯示不同的「過期」狀態。無法辨識的值保守視為否，不會自行製造 stale 證據。
+
+Provider SLA 的目前來源健康度與決策回測的結論 freshness 也沿用同一套布林規則；`"false"` 不會被當成真的過期或需重跑訊號。這些是唯讀投影，仍應搭配原始 source audit、data trust 與 decision freshness 判斷，不會回寫報告或觸發重跑。
+
 若明細另有 `quality_metadata_refresh_provenance`，請先看 `missing_fields`：它記錄資料快照在刷新前已缺少哪些品質 gate。當目前缺口落在這份清單內，repair 會標示「刷新前已有品質證據缺口」；這能改善責任判讀，但仍不是 gate 結果，也不會自動重跑。沒有這個 optional 欄位的舊 snapshot 維持「刷新後品質證據缺口」的中性語意。
 
 `quality_metadata_by_pipeline` 會再按 `pipeline_id` 分組，保留各模式自己的 verified 分母、coverage、缺 gate 數、重跑策略與上下文準備度；各模式的缺口數應完整加總回全量缺口，且每個模式的 context 分布也要加總回自己的缺口數。若任一分布缺欄、格式錯誤或加總矛盾，畫面會保留全量缺口但不顯示「模式缺口」或「模式上下文」。摘要中的 top-level provenance、重跑策略、上下文與審核／版本分布也採相同加總檢查；矛盾時只保留全量缺口。摘要中的「模式上下文」可直接看出哪個模式只有 artifact 前序可查、哪個模式完全沒有局部上下文，再用 `q`/`pipeline` targeted audit 開啟明細，可以避免把全庫缺口和單一模式混在一起。

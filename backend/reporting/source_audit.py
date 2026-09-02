@@ -8,6 +8,7 @@ from analysis_types import AnalysisContext
 from data_trust import audit_status_label, source_label
 from mapping_fields import safe_dict_list, safe_int, safe_mapping_dict, safe_text
 from numeric_safety import is_non_finite_number
+from report_freshness_summary import safe_bool
 
 from .evidence import build_key_evidence_html, build_key_evidence_markdown
 from .evidence_matrix import build_evidence_matrix_html, build_evidence_matrix_markdown
@@ -32,10 +33,6 @@ def _safe_duration_ms(value) -> str:
 
 def _safe_record_count(value) -> str:
     return str(safe_int(value))
-
-
-def _safe_bool_flag(value) -> bool:
-    return value if isinstance(value, bool) else False
 
 
 def _source_audit_entries(data: dict) -> list[dict]:
@@ -64,8 +61,8 @@ def build_source_audit_html(data: dict, context: AnalysisContext | None = None) 
         )
         duration_ms = _safe_duration_ms(entry.get("duration_ms"))
         record_count = _safe_record_count(entry.get("record_count"))
-        cache_hit = _safe_bool_flag(entry.get("cache_hit"))
-        stale = _safe_bool_flag(entry.get("stale"))
+        cache_hit = safe_bool(entry.get("cache_hit"))
+        stale = safe_bool(entry.get("stale"))
         rows.append(
             "<tr>"
             f"<td>{escape(source_label(_safe_text(entry.get('source'))))}</td>"
@@ -121,8 +118,8 @@ def build_source_audit_markdown(data: dict, context: AnalysisContext | None = No
         )
         duration_ms = _safe_duration_ms(entry.get("duration_ms"))
         record_count = _safe_record_count(entry.get("record_count"))
-        cache_hit = _safe_bool_flag(entry.get("cache_hit"))
-        stale = _safe_bool_flag(entry.get("stale"))
+        cache_hit = safe_bool(entry.get("cache_hit"))
+        stale = safe_bool(entry.get("stale"))
         lines.append(
             "| "
             f"{_markdown_cell(source_label(_safe_text(entry.get('source'))))} | "

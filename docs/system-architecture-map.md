@@ -222,6 +222,8 @@ flowchart TD
 - `report_index_metadata.read_snapshot_report_flags()` 在 snapshot ingestion 階段也使用 shared `safe_bool` 解析 `refreshed_without_analysis_rerun`，先阻止 malformed string flag 污染 SQLite index，再由 row projection 保持同一 freshness 語意。
 - `data_trust_snapshot.build_data_snapshot()` 在 snapshot persistence boundary 使用同一個 shared `safe_bool`；上游 context 的 legacy `false` 不會在產製新 snapshot 時被 raw truthiness 轉成 `true`。
 - `decision_tracking`、`report_quality_audit_rows`、`report_compare_service` 與 quality repair builders 沿用 shared `safe_bool`；`refreshed_without_analysis_rerun`、`analysis_text_stale`、`requires_rerun` 的 legacy string `false` 不會在下游 read-only projection 重新變成 stale 或 rerun action。
+- `reporting.source_audit` 與 `reporting.evidence_rows` 的 `cache_hit`／`stale` 也沿用 shared `safe_bool`；來源審計表與 key evidence 對 legacy boolean token 保持同一解讀，不讓 `"true"` 因只接受原生 bool 而消失。
+- `data_trust_sla_alerts` 的 current-fetch health 與 `outcome_calibration` 的 decision-freshness projection 沿用同一 shared `safe_bool`；`"false"` 不得透過 raw truthiness 變成 stale、rerun 或錯誤的品質歸因。
 - `reporting.reading_notice_freshness` 也必須沿用 shared `safe_bool`；malformed numeric freshness flags 不得以非零 truthiness 變成閱讀提示的 stale/full-rerun warning，明確的 `needs_rerun` status 仍優先。
 - current-quality、quality-audit、provider-impact、decision queue、dashboard 與 watchlist alert 的 action projection 也沿用 shared `safe_bool`；`blocks_auto_rerun`、free-mode flags 與 freshness rerun flags 的 legacy `false` 不得改變 operator action 的阻擋、優先級或可見性。
 - `normalize_freshness_status()` 由 freshness summary module 共用於 decision tracking、refresh diff 與 rerun guard；`decision_validity_status` 的 trim/lowercase projection 不允許 malformed `NEEDS_RERUN` token 繞過 full-rerun safety boundary。

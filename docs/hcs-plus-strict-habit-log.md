@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3869 / normalize legacy source-audit and calibration booleans
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：來源審計表與 key evidence 對舊 snapshot 的 `"true"` 只當成 false；Provider SLA health 與 outcome calibration 對 `"false"` 使用 raw truthiness，會讓同一份來源在不同入口得到不同 stale/rerun 解讀。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：四組 legacy-token fixture 先取得 `4 failed` RED；來源表、key evidence、Provider SLA 與 calibration 共用 `report_freshness_summary.safe_bool`，未知值保守視為 false，不借用其他欄位補值。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture contract；focused fixtures `4 passed`、相關回歸 `907 passed`，本批只改唯讀 boolean projection，不改 snapshot、artifact、index、review、queue 或 rerun state。
+
 ## D3868 / normalize operator action boolean projections
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：current-quality、quality-audit、provider-impact、decision queue、dashboard 與 watchlist alert 的 action boundary 仍用 raw truthiness；legacy `blocks_auto_rerun="false"` 可能變成阻擋，free-mode 或 freshness flag 也可能錯誤隱藏／升級 action。

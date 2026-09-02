@@ -1295,6 +1295,8 @@ Report key evidence source audit child maps use mapping-safe conversion before H
 
 Report source audit table child maps use mapping-safe conversion before HTML and Markdown output, so malformed source audit row accessors cannot interrupt the source audit table when valid audit rows exist.
 
+Report source-audit and key-evidence boolean fields use shared `safe_bool` conversion before HTML and Markdown output, so legacy `"true"`/`"false"` tokens render consistently across both evidence tables and unknown values do not become stale evidence through Python truthiness.
+
 Report TWSE official availability banner source audit rows use dict-list safe conversion before HTML output, so tuple or read-only official-source audit rows cannot trigger false TWSE/MOPS unavailable warnings.
 
 Report data trust quant metrics child maps use mapping-safe conversion before HTML and Markdown output, so malformed quant metric accessors cannot interrupt data trust cards when valid fallback warning fields exist.
@@ -1494,6 +1496,8 @@ Outcome calibration data trust score fields use float-safe fallback before miss 
 Outcome calibration row collections use list-safe normalization before report matching and miss attribution, so malformed backtest or report collection truthiness cannot interrupt quality-signal learning or erase valid rows.
 
 Outcome calibration decision freshness flags use bool-safe conversion before miss attribution, so malformed rerun flag truthiness cannot interrupt quality-signal learning or misclassify stale report-time evidence.
+
+Provider SLA current-fetch health and outcome calibration decision-freshness projections use the same shared `safe_bool` token rules, so legacy `"false"` does not become a stale/rerun signal and the system health, report evidence, and learning views preserve one boolean meaning.
 
 Outcome calibration matched reports use dict-safe fallback before miss attribution, so malformed matched report truthiness cannot interrupt quality-signal learning or disconnect misses from valid report-time evidence.
 

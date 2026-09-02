@@ -168,6 +168,27 @@ def test_key_evidence_rows_drop_non_finite_string_source_audit_text_fields():
     assert "infinity" not in rendered.lower()
 
 
+def test_key_evidence_rows_parse_legacy_boolean_text_without_truthiness_leak():
+    from reporting.evidence_rows import build_key_evidence_rows
+
+    data = {
+        "current_price": 100,
+        "source_audit": [
+            {
+                "source": "market_data",
+                "provider": "legacy",
+                "status": "success",
+                "record_count": 1,
+                "stale": "true",
+            }
+        ],
+    }
+
+    rows = build_key_evidence_rows(data)
+
+    assert rows[0]["stale"] is True
+
+
 def test_key_evidence_rows_do_not_count_string_tokens_as_evidence_values():
     from reporting.evidence_rows import build_key_evidence_rows
 

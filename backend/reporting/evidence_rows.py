@@ -5,6 +5,7 @@ from __future__ import annotations
 from data_trust import audit_status_label, source_label
 from mapping_fields import safe_dict_list, safe_int, safe_mapping_dict, safe_sequence_items, safe_text
 from numeric_safety import is_non_finite_number
+from report_freshness_summary import safe_bool
 
 from .evidence_definitions import KEY_EVIDENCE_DEFINITIONS
 from .text_tokens import is_missing_text_token
@@ -49,10 +50,6 @@ def _record_count(entry: dict) -> int:
     return max(0, safe_int(entry.get("record_count")))
 
 
-def _safe_bool_flag(value) -> bool:
-    return value if isinstance(value, bool) else False
-
-
 def _source_evidence_entry(data: dict, source: str, keys: tuple[str, ...]) -> dict:
     data = safe_mapping_dict(data) or {}
     entries = _audit_entries_by_source(data).get(source, [])
@@ -82,7 +79,7 @@ def _source_evidence_entry(data: dict, source: str, keys: tuple[str, ...]) -> di
             "status": "success",
             "fetched_at": fetched_at or "N/A",
             "record_count": sum(_record_count(entry) for entry in successful),
-            "stale": all(_safe_bool_flag(entry.get("stale")) for entry in successful),
+            "stale": all(safe_bool(entry.get("stale")) for entry in successful),
         }
     return entries[-1]
 
@@ -105,7 +102,7 @@ def build_key_evidence_rows(data: dict) -> list[dict]:
             "status_label": audit_status_label(status),
             "fetched_at": _safe_text(entry.get("fetched_at")) or "N/A",
             "record_count": _record_count(entry),
-            "stale": _safe_bool_flag(entry.get("stale")),
+            "stale": safe_bool(entry.get("stale")),
         })
     return rows
 

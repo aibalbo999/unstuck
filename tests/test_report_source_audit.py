@@ -102,3 +102,24 @@ def test_source_audit_helper_drops_non_finite_string_text_fields():
     assert "N/A" in rendered
     assert "nan" not in rendered.lower()
     assert "infinity" not in rendered.lower()
+
+
+def test_source_audit_helper_parses_legacy_boolean_text_consistently():
+    data = {
+        "source_audit": [
+            {
+                "source": "market_data",
+                "provider": "legacy",
+                "status": "success",
+                "record_count": 1,
+                "cache_hit": "true",
+                "stale": "false",
+            }
+        ]
+    }
+
+    html = build_source_audit_html(data)
+    markdown = build_source_audit_markdown(data)
+
+    assert "<td>是</td><td>否</td>" in html
+    assert "| 是 | 否 |" in markdown

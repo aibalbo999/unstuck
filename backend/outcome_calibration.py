@@ -6,6 +6,7 @@ from statistics import mean
 from typing import Any
 
 from mapping_fields import safe_dict_list, safe_text
+from report_freshness_summary import safe_bool
 from strategy_evaluator import evaluate_strategy_artifacts
 
 
@@ -77,7 +78,7 @@ def _quality_signal(backtest: dict[str, Any], report: dict[str, Any]) -> dict[st
         "content_credibility_status": _status(_field(content_credibility, "status")) or "not_recorded",
         "report_conformance_status": _status(_field(conformance, "status")) or "not_recorded",
         "decision_freshness_status": _status(_field(freshness, "status"))
-        or ("needs_rerun" if _safe_bool(_field(freshness, "requires_rerun")) else "unknown"),
+        or ("needs_rerun" if safe_bool(_field(freshness, "requires_rerun")) else "unknown"),
     }
 
 
@@ -223,13 +224,6 @@ def _first_number(*values: Any) -> float | None:
         if number is not None:
             return number
     return None
-
-
-def _safe_bool(value: Any) -> bool:
-    try:
-        return bool(value)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
-        return False
 
 
 def _average(rows: list[dict[str, Any]], key: str) -> float:
