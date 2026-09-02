@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3858 / prioritize generated report data-trust reasons
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：browser 摘要已優先顯示具體風險，但 generated HTML/Markdown 的共用 summary 仍按原始順序截斷，直接閱讀報告的原因可見性與 browser 不一致。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以 generic-first reason list 先取得 `1 failed` RED；在 `reporting.data_trust_summary` 加入具體 error/stale/provider SLA 優先序，維持 HTML 四項、Markdown 八項上限與 stable tie order。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：summary `4 passed`、data-trust `65 passed`，同步 API/operator/architecture contract；只改生成報告的 bounded reason visibility，不修改 trust status 或 persisted state。
+
 ## D3857 / prioritize actionable data-trust reasons
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：live 165 份報告中 131 份有超過兩個 reason code，但 UI 只取前兩項；generic freshness/note 會遮住具體 optional-source stale 或 Provider SLA risk。

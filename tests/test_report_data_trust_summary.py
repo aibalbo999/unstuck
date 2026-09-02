@@ -44,6 +44,32 @@ def test_data_trust_summary_uses_unknown_snapshot_fallback_notes():
     assert summary["detail_parts"] == ["原因：未記錄報告資料狀態"]
 
 
+def test_data_trust_summary_prioritizes_specific_reason_labels():
+    from reporting.data_trust_summary import build_data_trust_summary
+
+    summary = build_data_trust_summary({
+        "data_trust": {
+            "status": "fresh",
+            "reason_codes": [
+                "fresh_core_sources",
+                "data_source_notes_present",
+                "optional_source_stale:recent_catalysts",
+                "provider_sla_optional_critical",
+            ],
+        }
+    })
+
+    assert summary["detail_parts"] == [
+        "原因：補充來源過期：近期催化劑、補充來源穩定度提醒、核心資料新鮮、含資料口徑註記"
+    ]
+    assert summary["markdown_reason_labels"] == [
+        "補充來源過期：近期催化劑",
+        "補充來源穩定度提醒",
+        "核心資料新鮮",
+        "含資料口徑註記",
+    ]
+
+
 def test_data_trust_summary_drops_missing_text_tokens_from_reason_labels():
     from reporting.data_trust_summary import build_data_trust_summary
 

@@ -20,6 +20,13 @@ def _markdown_cell(value, default: str = "N/A") -> str:
     return " ".join(line.strip() for line in text.splitlines() if line.strip()) or default
 
 
+_REASON_PRIORITY = {code: rank for rank, code in enumerate("critical_sources_error missing_usable_critical_data source_error optional_source_error provider_sla_critical source_stale optional_source_stale provider_sla_optional_critical provider_sla_core_health_notice provider_sla_warning_note optional_source_degraded optional_source_not_configured".split())}
+
+
+def _reason_base(code: str) -> str:
+    return _safe_text(code).split(":", 1)[0].strip().lower()
+
+
 def _as_notes(value) -> list[str]:
     if isinstance(value, list):
         return [text for item in value if (text := _safe_text(item))]
@@ -30,13 +37,12 @@ def _as_notes(value) -> list[str]:
 
 
 def _reason_label(code: str) -> str:
-    code = _safe_text(code)
-    if not code:
+    raw_code = _safe_text(code)
+    if not raw_code:
         return ""
-    source = ""
-    if ":" in code:
-        code, source = code.split(":", 1)
-        source = _safe_text(source)
+    parts = raw_code.split(":", 1)
+    code = parts[0].strip().lower()
+    source = _safe_text(parts[1]) if len(parts) > 1 else ""
     labels = {
         "fresh_core_sources": "核心資料新鮮",
         "critical_sources_error": "核心來源異常",
@@ -61,7 +67,9 @@ def _reason_label(code: str) -> str:
 
 
 def _reason_labels(trust: dict, limit: int = 4) -> list[str]:
-    return [label for code in (trust.get("reason_codes", []) or [])[:limit] if (label := _reason_label(code))]
+    codes = trust.get("reason_codes", []) or []
+    ordered_codes = [code for _, code in sorted(enumerate(codes), key=lambda item: (_REASON_PRIORITY.get(_reason_base(item[1]), 20), item[0]))]
+    return [label for code in ordered_codes[:limit] if (label := _reason_label(code))]
 
 
 def build_data_trust_summary(data: dict) -> dict:
