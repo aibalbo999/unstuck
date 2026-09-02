@@ -14,6 +14,8 @@ model-route budget、node telemetry persistence 與操作台 dashboard 對 `cach
 
 watchlist scheduler 在寫入每日市場掃描的「已執行日期」前，也會用同一個 `safe_bool` 解讀掃描結果。舊資料的 "false" 不會被記成成功，後續仍可重試；這只保護重試 gate，不改掃描候選、匯入或既有 watchlist 資料。
 
+watchlist trigger monitor 在 enqueue 前也會用同一個 `safe_bool` 解讀 evaluator 的 `matched`。舊資料的 "false" 仍會留下事件稽核紀錄，但會顯示未命中並跳過分析任務，不會因字串 truthiness 產生錯誤 job。
+
 provider impact 的來源恢復判斷與 queue dashboard 的 availability 也沿用 shared `safe_bool`；未知健康／可用性 token 會保守視為 false，不會透過物件 truthiness 把核心來源誤標成健康或 queue 誤標成可用。
 
 Recommendation calibration 會先用同一套 explicit boolean 規則解讀 `analysis_text_stale`，再把 `data_trust.status` 去除前後空白並統一小寫後才決定是否自動升格或降級。舊資料的 `"false"` 不會阻擋資料可信度足夠的升格，`" FRESH "` 也會正確視為 fresh；校準 audit payload 會保留標準化後的兩個值，方便人工核對。

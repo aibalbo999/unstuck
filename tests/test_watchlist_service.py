@@ -594,6 +594,57 @@ def test_watchlist_trigger_monitor_queues_matched_event_once(monkeypatch, tmp_pa
     assert latest["trigger_type"] == "vix_above"
 
 
+def test_watchlist_trigger_monitor_does_not_enqueue_legacy_false_match(monkeypatch, tmp_path):
+    monkeypatch.setattr(watchlist_service, "WATCHLIST_PATH", tmp_path / "watchlist.json")
+    watchlist_service.reset_watchlist_store_for_tests()
+    watchlist_service.upsert_watchlist_item({
+        "ticker": "2308.TW",
+        "pipeline": "v1",
+        "schedule_slots": ["post_market"],
+        "enabled": True,
+        "triggers": [{"type": "daily_screener"}],
+    })
+    queued_jobs = []
+
+    class FakeQueue:
+        def enqueue(self, key, func, job_id, ticker, pipeline):
+            queued_jobs.append((key, job_id, ticker, pipeline))
+
+    monkeypatch.setattr(
+        watchlist_service,
+        "evaluate_watchlist_triggers",
+        lambda item, data, evaluation_date=None: [{
+            "ticker": "2308.TW",
+            "pipeline": "v1",
+            "trigger_key": "daily_screener",
+            "trigger_type": "daily_screener",
+            "evaluation_date": evaluation_date,
+            "matched": "false",
+            "pipeline_selected": "v4",
+            "message": "not matched",
+            "metrics": {},
+        }],
+    )
+    monkeypatch.setattr(watchlist_service.time, "sleep", lambda _seconds: None)
+
+    result = asyncio.run(watchlist_service.monitor_watchlist_triggers(
+        data_service=object(),
+        create_job=lambda ticker, pipeline: f"job-{ticker}-{pipeline}",
+        find_active_job=lambda ticker, pipeline: {},
+        task_queue=FakeQueue(),
+        run_stock_analysis_job=lambda job_id, ticker, pipeline: "ok",
+        now=datetime(2026, 6, 20, 16, 1, tzinfo=watchlist_service.TAIPEI),
+    ))
+
+    assert result["queued"] == []
+    assert result["skipped"] == [{
+        "ticker": "2308.TW",
+        "trigger": "daily_screener",
+        "reason": "not_matched",
+    }]
+    assert queued_jobs == []
+
+
 def test_watchlist_trigger_store_treats_legacy_false_matched_as_unmatched(monkeypatch, tmp_path):
     import watchlist_trigger_store
 

@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3892 / normalize trigger monitor match tokens
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：trigger event persistence 已用 `safe_bool` 將 legacy `"false"` 記成 unmatched，但 monitor enqueue gate 仍讀原始 event truthiness，可能把同一事件建立成分析 job。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：evaluator legacy-token fixture 先取得 `1 failed` RED；persistence 後的 enqueue gate 改採 shared `safe_bool`，事件仍保留供 audit，不從 row、message 或 metrics 借用 matched 結論。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：focused watchlist service/trigger/import/docs boundary `607 passed`、full suite `8,606 passed, 6 skipped, 75 subtests passed`；official launcher reload 後 health/ready `200/ready`，reports `167` 份、current-quality `167/88/12`、daily sample/repair/rerun `20/11/0`、dashboard `prompt_budget` sample/cache/estimated cached input `5000/0/0`、queue gauge `1`，doctor canonical report index/operational DB 與 `rq`/`redis` 正常。本批只修 trigger consumer enqueue gate，不改 event 計算、watchlist、provider、snapshot、artifact、index、review 或 queue state。
+
 ## D3891 / fail closed on daily screener success token
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：watchlist scheduler 以 daily screener result 的 raw `success` 決定是否寫入 run-date marker；legacy `"false"` 會讓 failed scan 被視為已完成，抑制後續 retry。

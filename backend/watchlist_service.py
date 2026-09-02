@@ -8,6 +8,7 @@ from datetime import datetime
 
 from data_fetch import FetchRequest
 from pipeline_modes import normalize_pipeline_run_id
+from report_freshness_summary import safe_bool
 import watchlist_claim_store
 import watchlist_store
 import watchlist_trigger_store
@@ -136,7 +137,7 @@ async def monitor_watchlist_triggers(
             if not recorded.get("inserted"):
                 skipped.append({"ticker": ticker, "trigger": event.get("trigger_type"), "reason": "already_evaluated"})
                 continue
-            if not event.get("matched"):
+            if not safe_bool(event.get("matched")):
                 skipped.append({"ticker": ticker, "trigger": event.get("trigger_type"), "reason": "not_matched"})
                 continue
             selected_pipeline = normalize_pipeline_run_id(event.get("pipeline_selected") or item.get("pipeline") or "v1")

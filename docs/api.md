@@ -17,6 +17,8 @@ The `/readyz` runtime health builder also applies shared `safe_bool` to storage-
 
 The watchlist scheduler applies the same explicit boolean contract to the daily market screener result before persisting its run-date marker. Legacy "false" therefore remains a failed scan and cannot suppress a later retry by being recorded as already completed.
 
+The watchlist trigger monitor applies shared `safe_bool` to evaluator event `matched` before enqueueing analysis. The event store and enqueue gate therefore agree that legacy "false" is unmatched; it is recorded for audit but cannot create a downstream job through string truthiness.
+
 Provider-impact recovery decisions and queue dashboard availability also use shared `safe_bool`; unknown health or availability tokens fail closed instead of becoming healthy or available through generic object truthiness.
 
 Recommendation calibration normalizes `analysis_text_stale` with the shared explicit boolean contract and trims/lowercases `data_trust.status` before automatic label adjustment. Legacy `"false"` no longer blocks a valid upgrade, while `" FRESH "` still qualifies as fresh; the normalized values are retained in the calibration audit payload.
