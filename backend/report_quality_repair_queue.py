@@ -13,6 +13,7 @@ from report_quality_repair_items import (
     decision_freshness_repair_item,
     quality_metadata_repair_item,
 )
+from report_pipeline_identity import resolve_report_pipeline_id
 
 
 SCHEMA_VERSION = "report_quality_repair_queue.v1"
@@ -176,7 +177,11 @@ def _report_filename(report: dict[str, Any]) -> str:
 
 
 def _pipeline_id(report: dict[str, Any]) -> str:
-    return _safe_text(_field(report, "pipeline_id")).strip() or "v1"
+    filename = _report_filename(report)
+    return resolve_report_pipeline_id(
+        filename,
+        stored_pipeline=_field(report, "pipeline_id"),
+    )
 
 
 def _safe_text(value: Any) -> str:

@@ -2305,7 +2305,7 @@ Shared text conversion treats binary values as malformed text input before queue
 
 Shared text conversion treats memory view values as malformed text input before queue, repair, audit, and notification payload projection, so buffer-view payload drift cannot become visible nondeterministic memory-address strings.
 
-Report quality repair queue identity fields use shared text conversion before repair action projection, so malformed ticker, filename, report filename, or pipeline fields cannot bypass the shared boolean, binary, and memory-view text guards.
+Report quality repair queue identity fields use shared text conversion before repair action projection, so malformed ticker, filename, report filename, or pipeline fields cannot bypass the shared boolean, binary, and memory-view text guards. The queue also resolves a placeholder pipeline from the report filename, so a v4 repair target remains labeled and routed as v4 when legacy metadata contains `N/A`.
 
 Provider impact identity fields use shared text conversion before provider recovery projection, so malformed ticker, filename, report filename, or pipeline fields cannot bypass the shared boolean, binary, and memory-view text guards.
 

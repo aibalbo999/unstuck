@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3903 / canonicalize repair queue pipeline identity
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：repair queue item 對 pipeline 仍直接輸出 raw value；v4 報告若帶 `pipeline_id=N/A`，操作員看到的 repair action 會是 placeholder，後續 action routing 也可能落到 v1 fallback。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：v4 blocked-quality fixture 先取得 `1 failed` RED；repair queue output 改用 `resolve_report_pipeline_id()`，有效 stored identity 優先、placeholder 回退 filename，不從其他報告或 quality gate 推測模式。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：focused quality queue/dashboard/provider/audit/import regression `831 passed`（repair queue `61 passed`），docs/architecture/import contract `596 passed`；完整 suite `8627 passed, 6 skipped, 75 subtests passed`。正式 launcher reload 後 health/ready、current-quality、reports、daily dashboard 均 `200`；live current quality `167` 份（content passed/warning/blocked `89/67/11`、evidence approved/caution/rejected `135/29/3`），daily dashboard 取樣 `20` 份、repair action-required `11` 筆、queue 回傳 `5` 筆且 pipeline labels 全為 `v4`，未要求 freshness rerun。本批只修 repair item read-only identity projection，不改 report content、quality gate、snapshot、artifact、index、review、queue 或 rerun state。
+
 ## D3902 / preserve report quality review pipeline identity
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：revision-scoped quality review 的 store、workflow 與 route 各自以 raw pipeline 或 `or "v1"` 綁定事件；v4 filename 搭配 `N/A`／omitted pipeline 時，寫入與 target lookup 會使用不同 key，歷史人工核對可能消失或落到錯誤模式。

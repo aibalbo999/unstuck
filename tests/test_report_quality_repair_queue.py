@@ -258,6 +258,26 @@ def test_report_quality_repair_items_identify_quality_gap_after_snapshot_refresh
     assert item["reason_codes"] == ["quality_metadata_missing", "quality_metadata_after_refresh"]
 
 
+def test_repair_queue_resolves_placeholder_pipeline_from_report_filename():
+    from report_quality_repair_queue import build_report_quality_repair_queue
+
+    queue = build_report_quality_repair_queue(
+        [
+            {
+                "ticker": "2330.TW",
+                "filename": "2330_TW_v4_report_20260628_000000.html",
+                "pipeline_id": "N/A",
+                "content_credibility": {
+                    "status": "blocked",
+                    "summary": "短線交易計畫需要人工核對。",
+                },
+            },
+        ]
+    )
+
+    assert queue["items"][0]["pipeline_id"] == "v4"
+
+
 def test_report_quality_repair_items_use_refresh_provenance_when_gap_predates_refresh():
     from report_quality_repair_items import quality_metadata_repair_item
 
