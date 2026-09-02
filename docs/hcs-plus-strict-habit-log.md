@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3845 / derive refresh freshness from the persisted snapshot
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：data-only refresh 已寫入新的 snapshot，卻再以 `output_dir + bundle.data_key` 讀檔計算 freshness；storage abstraction 沒有 filesystem path 時，明確的 `needs_rerun` 會被錯誤降級成 `unknown`。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先以 InMemoryStorage 的 changed-price fixture 鎖定 `unknown` RED，再讓 `report_refresh_service` 直接消費同一份 `refreshed_snapshot`；不從 path、index 或舊 snapshot 猜 freshness，也不改 refresh diff、保存內容或 rerun side effect。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新 API/operator/architecture contract；target refresh `13 passed`，refresh/storage/artifact regression `89 passed`、tracking workflow `9 passed`、品質/前端/文件 `342 passed`、import/architecture/docs/runtime `546 passed`、preview/boundary `121 passed`，Python compile 與 `git diff --check` 通過；正式 runtime reload 後 health/ready `200/200`，live current `165/85/5`、historical `1175/59`，doctor canonical paths 正常。本批只修 response freshness 的 storage-independent truth。
+
 ## D3844 / co-locate certification review sidecars with report artifacts
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：legacy certification review 仍以 flat `output_dir/<base>.review.json` 為唯一位置；nested report bundle 的 review 會被讀不到，新寫入也和 HTML/Markdown/data 分離，刪除或 retention 可能留下孤兒 sidecar。

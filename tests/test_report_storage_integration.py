@@ -1917,6 +1917,8 @@ def test_refresh_data_snapshot_reads_and_updates_partitioned_storage(tmp_path, m
 
     saved = json.loads(storage.get_report(keys.data_key).content.decode("utf-8"))
     assert body["success"] is True
+    assert body["decision_freshness"]["status"] == "needs_rerun"
+    assert body["decision_freshness"]["requires_rerun"] is True
     assert saved["data_trust"]["status"] == "fresh"
     assert saved["data"]["current_price"] == 110.0
     assert storage.exists(keys.data_key) is True

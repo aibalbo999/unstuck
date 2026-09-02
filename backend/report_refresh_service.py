@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 from copy import deepcopy
 from typing import Any
 
@@ -123,7 +122,7 @@ async def refresh_report_data_snapshot(
         json.dumps(refreshed_snapshot, ensure_ascii=False, indent=2).encode("utf-8"),
         content_type=DATA_SNAPSHOT_CONTENT_TYPE,
     )
-    decision_freshness = build_decision_freshness(os.path.join(output_dir, bundle.data_key))
+    decision_freshness = build_decision_freshness(snapshot=refreshed_snapshot)
     metadata = upsert_report_metadata(
         filename,
         output_dir=output_dir,

@@ -267,6 +267,8 @@ Report refresh source audit timestamps use safe text conversion instead of truth
 
 Report refresh refreshed-data payloads accept mapping-safe provider/cache responses before snapshot rebuild, so read-only data wrappers preserve refreshed prices, source audit rows, and trust metadata instead of being treated as fetch failures.
 
+After a data-only refresh, the response `decision_freshness` is computed from the same refreshed snapshot that was persisted, so `current`/`needs_rerun` remains correct even when the configured report storage is not filesystem-backed; storage paths are not used as a second, weaker source of freshness truth.
+
 Report rerun refreshed-data payloads accept mapping-safe provider/cache responses before full-pipeline reruns, so read-only refreshed data wrappers reach the pipeline runner with prices, source audit rows, and trust metadata intact.
 
 Report rerun source lookup resolves the configured report storage before checking the source HTML, so direct service calls without an injected storage still find partitioned `backend/output/YYYY-MM/TICKER/` artifacts as well as legacy flat files. The resolved storage is reused for the source data snapshot and rerun output persistence; the service does not infer a source from another report, index row, or Markdown text.
