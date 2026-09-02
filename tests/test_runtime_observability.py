@@ -29,6 +29,7 @@ import job_store_maintenance  # noqa: E402
 import notification_delivery_observability as notification_observability  # noqa: E402
 import queue_dashboard_payload  # noqa: E402
 import queue_observability  # noqa: E402
+import runtime_health  # noqa: E402
 import provider_sla  # noqa: E402
 import provider_sla_alert_policy  # noqa: E402
 import provider_sla_observability  # noqa: E402
@@ -4431,6 +4432,35 @@ def test_readyz_returns_503_when_runtime_dependency_fails(monkeypatch):
 
     assert response.status_code == 503
     assert response.json()["status"] == "not_ready"
+
+
+def test_readiness_fails_closed_for_legacy_boolean_tokens():
+    settings = SimpleNamespace(
+        output_dir="/tmp/output",
+        cache_db_path="/tmp/cache.sqlite3",
+        checkpoint_backend="sqlite",
+        checkpoint_path="/tmp/checkpoint.sqlite3",
+    )
+
+    payload = runtime_health.build_readiness_payload(
+        runtime_settings=settings,
+        task_queue=object(),
+        storage_checker=lambda **_kwargs: {
+            "success": "false",
+            "directories": {},
+            "sqlite_paths": {},
+        },
+        queue_snapshotter=lambda _task_queue: {
+            "available": "false",
+            "error": "queue unavailable",
+        },
+    )
+
+    assert payload["status"] == "not_ready"
+    assert {check["name"]: check["status"] for check in payload["checks"]} == {
+        "storage": "fail",
+        "queue": "fail",
+    }
 
 
 def test_api_quota_observability_api(monkeypatch):

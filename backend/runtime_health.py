@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from queue_observability import snapshot_task_queue
+from report_freshness_summary import safe_bool
 from security_sanitizer import sanitize_error_message
 from storage_inventory import ensure_runtime_storage
 
@@ -56,7 +57,7 @@ def _storage_check(runtime_settings: Any, storage_checker: Callable[..., dict]) 
         }
     return {
         "name": "storage",
-        "status": "pass" if result.get("success") else "fail",
+        "status": "pass" if safe_bool(result.get("success")) else "fail",
         "message": "",
         "details": {
             "directories": result.get("directories", {}),
@@ -67,7 +68,7 @@ def _storage_check(runtime_settings: Any, storage_checker: Callable[..., dict]) 
 
 def _queue_check(task_queue: Any, queue_snapshotter: Callable[[Any], dict]) -> dict:
     snapshot = queue_snapshotter(task_queue)
-    if snapshot.get("available"):
+    if safe_bool(snapshot.get("available")):
         return {
             "name": "queue",
             "status": "pass",

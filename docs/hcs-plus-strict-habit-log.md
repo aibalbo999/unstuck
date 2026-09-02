@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3890 / fail closed on readiness boolean tokens
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`runtime_health` 的 storage `success` 與 queue `available` 使用 raw truthiness；legacy `"false"` 會讓不可用依賴被投影成 ready，直接影響 `/readyz` 是否回 HTTP 503。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：同一組 legacy-token fixture 先取得 `1 failed` RED；storage 與 queue readiness boundary 共用 `report_freshness_summary.safe_bool`，保留既有 status、error 與 details，不從其他 health 欄位推導可用性。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：focused runtime observability/import boundary `658 passed`、full suite `8,604 passed, 6 skipped, 75 subtests passed`；official launcher reload 後 health/ready `200/ready`，reports `167` 份、current-quality `167/88/12`、daily sample/repair/rerun `20/11/0`、dashboard `prompt_budget` sample/cache/estimated cached input `5000/0/0`、queue gauge `1`，doctor canonical report index/operational DB 與 `rq`/`redis` 正常。本批只修 `/readyz` read-only projection，不改 storage、queue、provider、snapshot、artifact、index、review、repair 或 rerun state。
+
 ## D3889 / normalize prompt-budget cache-hit tokens
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`job_ops_dashboard_metrics.prompt_budget_summary()` 對 telemetry row 的 `cache_hit` 使用 raw truthiness；legacy `"false"` 會虛增 cache hit 與估算節省 token，使操作台統計和 node telemetry 不一致。

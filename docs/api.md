@@ -13,6 +13,8 @@ Model-route budget, node telemetry persistence, and operator dashboard summaries
 
 The operator dashboard's `prompt_budget` projection applies the same explicit `safe_bool` conversion to telemetry `cache_hit` values and is exposed by `/api/observability/dashboard`, so legacy "false" cannot inflate cache-hit counts or estimated cached input tokens.
 
+The `/readyz` runtime health builder also applies shared `safe_bool` to storage-check `success` and queue-snapshot `available` values. Legacy "false" therefore keeps the API in `not_ready`/HTTP 503 instead of being accepted through Python string truthiness; storage and queue details remain read-only diagnostics.
+
 Provider-impact recovery decisions and queue dashboard availability also use shared `safe_bool`; unknown health or availability tokens fail closed instead of becoming healthy or available through generic object truthiness.
 
 Recommendation calibration normalizes `analysis_text_stale` with the shared explicit boolean contract and trims/lowercases `data_trust.status` before automatic label adjustment. Legacy `"false"` no longer blocks a valid upgrade, while `" FRESH "` still qualifies as fresh; the normalized values are retained in the calibration audit payload.
