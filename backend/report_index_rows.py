@@ -16,6 +16,7 @@ from recommendation_labels import normalize_recommendation_label
 from report_index_parsing import normalize_report_display_date, parse_recommendation_summary
 from report_index_repair import recommendation_needs_rebuild
 from report_history_storage import storage_for_existing_output_dir
+from report_pipeline_identity import resolve_report_pipeline_id
 from report_paths import report_storage_candidates_for_filename
 from report_preview import build_report_preview, extract_trade_setup
 from report_quality_evidence import read_artifact_quality_summary
@@ -26,7 +27,6 @@ from reporting.content_credibility_final_audit import align_content_credibility_
 from reporting.content_credibility_projection import merge_content_credibility_results, project_content_credibility_with_current_evidence
 from reporting.evidence_exit_gate_projection import evidence_exit_gate_projection_metadata, project_evidence_exit_gate
 from reporting.report_conformance_projection import project_report_conformance, report_conformance_projection_metadata
-
 
 def _row_file_path(row, *, kind: str) -> str:
     try:
@@ -245,6 +245,9 @@ def _quality_evidence(row, report: dict) -> dict:
 
 
 def row_to_report(row) -> dict:
+    snapshot_path = _snapshot_path(row)
+    snapshot = _read_snapshot(row)
+    pipeline_id = resolve_report_pipeline_id(row["filename"], stored_pipeline=row["pipeline_id"] if "pipeline_id" in row.keys() else "", snapshot=snapshot)
     try:
         data_trust = normalize_data_trust(json.loads(row["data_trust_json"]))
     except (KeyError, TypeError, json.JSONDecodeError):
@@ -262,11 +265,9 @@ def row_to_report(row) -> dict:
         recommendation,
         data_trust=data_trust,
         analysis_text_stale=analysis_text_stale,
-        pipeline_id=row["pipeline_id"] if "pipeline_id" in row.keys() else "",
+        pipeline_id=pipeline_id,
     )
     recommendation = _normalize_recommendation_summary(recommendation)
-    snapshot_path = _snapshot_path(row)
-    snapshot = _read_snapshot(row)
     decision_tracking = _decision_tracking(row, recommendation, snapshot=snapshot)
     report_date = _report_date(row)
     decision_freshness = build_decision_freshness(
@@ -274,7 +275,6 @@ def row_to_report(row) -> dict:
         report_generated_at=report_date,
         snapshot=snapshot,
     )
-    pipeline_id = row["pipeline_id"] or "v1"
     markdown_text = _markdown_text(row)
     stored_evidence_exit_gate = _evidence_exit_gate(row, snapshot=snapshot)
     projected_evidence_exit_gate = project_evidence_exit_gate(snapshot, markdown_text)

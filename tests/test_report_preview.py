@@ -4239,7 +4239,7 @@ def test_final_rerun_context_uses_filename_pipeline_when_snapshot_pipeline_is_mi
     assert context["pipeline_id"] == "v2"
     assert sorted(context["agent_sequence"]) == [11, 12, 13, 14, 15, 16, 20, 21]
     assert report_rerun_service._source_pipeline_id(
-        {"pipeline": "N/A"}, "2449_v4_report_20260606_010000.html"
+        "2449_v4_report_20260606_010000.html", snapshot={"pipeline": "N/A"}
     ) == "v4"
 
 

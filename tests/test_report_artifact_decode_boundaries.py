@@ -183,3 +183,24 @@ def test_quality_audit_does_not_parse_replacement_text_as_rerun_context():
         "v1",
         load_item=load_item,
     ) == "unavailable"
+
+
+def test_quality_audit_artifact_context_uses_filename_pipeline_when_pipeline_is_placeholder():
+    from types import SimpleNamespace
+
+    from report_quality_audit_rows import read_artifact_rerun_context_status
+
+    def load_item(_storage, _filename, *, kind):
+        assert kind == "md"
+        sections = b"\n".join(
+            f"## {index}. Agent {agent} (Agent {agent})\nvalid".encode("utf-8")
+            for index, agent in enumerate((11, 12, 13, 14, 15), start=1)
+        )
+        return SimpleNamespace(content=sections)
+
+    assert read_artifact_rerun_context_status(
+        object(),
+        "2449_v2_report_20260620_090000.html",
+        "N/A",
+        load_item=load_item,
+    ) == "present"

@@ -12,6 +12,8 @@
 
 完整重跑與結論重跑也會先讀 snapshot 的有效 `pipeline`；若欄位是 `N/A`、`NULL` 或空字串，才回退到目前要求重跑的報告檔名所帶的模式。這個 fallback 只決定本次 rerun 要使用的 Agent sequence，不會改寫原 snapshot，也不會借用另一份報告的模式；因此 legacy v2/v4 snapshot metadata 不完整時，仍不會誤跑成 v1。
 
+報告列表、歷史品質稽核與 artifact 前序段落檢查也共用同一個 pipeline resolver：有效的 index pipeline 優先，其次 snapshot，最後才看檔名；`N/A`、`NULL` 或空字串不會讓 v4 preview／品質分組或 v2 前序 Agent 完整度檢查漂移成 v1。這些都是唯讀投影，不會改寫 snapshot、artifact 或 index。
+
 模型路由 budget 的 fallback 會用 shared `safe_bool` 解讀 `observability_unavailable`；legacy `"false"` 不會被製造成 unavailable 警示，明確的 true 仍會保留在機器可讀 payload，方便操作人員區分真的觀測不可用與舊格式資料。
 
 資料抓取進入分析前會用 `data_trust_values.has_value` 判斷核心市場／財報欄位是否真的有值；`N/A`、空歷史序列與非有限數字不會被當成可用資料而繞過停止條件，合法的核心資料則維持原本流程。這只決定本次是否繼續分析，不會改寫既有報告或快照。

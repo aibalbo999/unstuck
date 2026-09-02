@@ -14,11 +14,12 @@ from config import LLM_API_KEYS_BY_PROVIDER
 from final_audit import run_final_report_audit
 from llm_client import KeyRotator
 from mapping_fields import safe_mapping_dict
-from pipeline_modes import get_pipeline_definition, get_structured_agent_num, normalize_pipeline_id
+from pipeline_modes import get_pipeline_definition, get_structured_agent_num
 from report_artifacts import ReportArtifactLocator
 from report_freshness_summary import normalize_freshness_status, safe_bool
 from report_history_storage import storage_for_existing_output_dir
-from report_index_parsing import is_safe_report_filename, parse_report_filename
+from report_index_parsing import is_safe_report_filename
+from report_pipeline_identity import resolve_report_pipeline_id as _source_pipeline_id
 from report_rerun_data import prepare_full_rerun_data, rerun_data_payload
 from report_rerun_context import (
     RERUN_SCOPE_LABELS,
@@ -26,12 +27,11 @@ from report_rerun_context import (
     parse_agent_sections_from_markdown,
     read_report_markdown,
     read_report_snapshot,
-    rerun_context_from_snapshot, source_pipeline_id as _source_pipeline_id,
+    rerun_context_from_snapshot,
 )
 from report_rerun_rendering import render_and_save_rerun_report
 from storage.report_storage import ReportStorage
 from structured_output_parser import parse_structured_data
-
 
 async def _run_full_pipeline_rerun(
     *,
@@ -79,7 +79,7 @@ def _build_final_rerun_context(
 ) -> tuple[dict, dict, int]:
     snapshot_map = safe_mapping_dict(snapshot) or {}
     data = rerun_data_payload(dict.get(snapshot_map, "data"))
-    pipeline_id = _source_pipeline_id(snapshot_map, filename)
+    pipeline_id = _source_pipeline_id(filename, snapshot=snapshot_map)
     pipeline_def = get_pipeline_definition(pipeline_id)
     final_agent = get_structured_agent_num("recommendation", pipeline_id)
     if final_agent is None:
@@ -212,7 +212,7 @@ async def rerun_report_analysis(
         if source_storage is None or ReportArtifactLocator(source_storage).existing_key(filename, kind="html") is None:
             raise HTTPException(status_code=404, detail="找不到報告")
     snapshot = read_report_snapshot(filename, output_dir, storage=source_storage)
-    source_pipeline_id = _source_pipeline_id(snapshot, filename)
+    source_pipeline_id = _source_pipeline_id(filename, snapshot=snapshot)
     if normalized_scope == "full_report":
         return await _run_full_pipeline_rerun(
             snapshot=snapshot,

@@ -27,6 +27,33 @@ def test_quality_audit_row_keeps_legacy_false_freshness_false():
     assert report["decision_freshness"]["requires_rerun"] is False
 
 
+def test_quality_audit_row_uses_filename_pipeline_when_index_pipeline_is_placeholder():
+    from report_quality_audit_rows import hydrate_report_from_index_row
+
+    snapshot = {
+        "pipeline": "N/A",
+        "data": {"ticker": "2330.TW"},
+    }
+
+    def load_item(_storage, _filename, *, kind):
+        assert kind == "data"
+        return SimpleNamespace(content=json.dumps(snapshot))
+
+    report = hydrate_report_from_index_row(
+        {
+            "ticker": "2330.TW",
+            "filename": "2330_TW_v4_report_20260620_090000.html",
+            "pipeline_id": "N/A",
+        },
+        object(),
+        load_item=load_item,
+        verify_snapshot_integrity=lambda _snapshot: {"valid": True, "expected_hash": "hash", "errors": []},
+        project_current_quality=False,
+    )
+
+    assert report["pipeline_id"] == "v4"
+
+
 def test_snapshot_integrity_fail_closes_legacy_false_valid_token():
     from report_quality_audit_rows import snapshot_integrity
 

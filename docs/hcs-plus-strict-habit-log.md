@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3901 / align report-history and audit pipeline identity
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：列表 row、品質稽核 hydration 與 artifact rerun-context status 各自以 raw truthiness／`or "v1"` 選 pipeline；placeholder index/snapshot 會讓 v4 preview、品質 bucket 或 v2 前序 Agent 完整度套錯模式。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：v4 row、v4 snapshot 與 v2 artifact filename fixture 各先取得 `1 failed` RED；新增共用 `report_pipeline_identity.resolve_report_pipeline_id()`，依 stored/index → snapshot → filename 選有效 identity，不寫回任何來源。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：focused row/audit/artifact/rerun regression `178 passed`，完整 suite `8622 passed, 6 skipped, 75 subtests passed`；正式 launcher reload 後 health/ready `200/ready`、current quality `167` 份（content passed/warning/blocked `79/76/12`、evidence approved/caution/rejected `135/29/3`）、reports `167`（limit 20 時 `9` pages）、model-route `5` 條／`2` warnings，doctor 確認 canonical report index/operational DB；API 與操作手冊同步記錄同一 fallback 邊界。
+
 ## D3900 / preserve pipeline identity during reruns
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`report_rerun_service` 以 raw truthiness 選 snapshot `pipeline`；legacy `N/A` 會被 normalize 成 v1，忽略 v2/v4 report filename，完整重跑可能送錯 Agent sequence，final rerun 也可能套錯前序段落契約。

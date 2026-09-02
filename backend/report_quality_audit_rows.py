@@ -9,6 +9,7 @@ from mapping_fields import safe_mapping_dict, safe_text
 from decision_tracking import build_decision_freshness
 from pipeline_modes import get_pipeline_definition, get_structured_agent_num
 from report_artifact_text import decode_utf8_artifact_text
+from report_pipeline_identity import resolve_report_pipeline_id
 from report_rerun_context import parse_agent_sections_from_markdown
 from reporting.content_credibility_final_audit import align_content_credibility_with_final_audit
 from reporting.content_credibility_projection import merge_content_credibility_results, project_content_credibility
@@ -26,6 +27,11 @@ def hydrate_report_from_index_row(
 ) -> dict[str, Any]:
     filename = safe_text(row.get("filename")).strip()
     snapshot = _load_snapshot(storage, filename, load_item)
+    pipeline_id = resolve_report_pipeline_id(
+        filename,
+        stored_pipeline=row.get("pipeline_id"),
+        snapshot=snapshot,
+    )
     integrity = snapshot_integrity(snapshot, verify_snapshot_integrity=verify_snapshot_integrity)
     stored = align_content_credibility_with_final_audit(
         snapshot.get("content_credibility", {}),
@@ -49,7 +55,7 @@ def hydrate_report_from_index_row(
         "ticker": safe_text(row.get("ticker")).strip(),
         "filename": filename,
         "report_date": safe_text(row.get("report_date") or row.get("date")).strip(),
-        "pipeline_id": safe_text(row.get("pipeline_id")).strip() or "v1",
+        "pipeline_id": pipeline_id,
         "snapshot_integrity": integrity,
         "refreshed_from_report": safe_text(snapshot.get("refreshed_from_report")).strip(),
         "snapshot_refreshed_at": safe_text(snapshot.get("snapshot_refreshed_at")).strip(),
@@ -121,7 +127,12 @@ def read_artifact_rerun_context_status(
         if markdown is None:
             return "unavailable"
         sections = parse_agent_sections_from_markdown(markdown)
-        pipeline = get_pipeline_definition(safe_text(pipeline_id).strip() or "v1")
+        pipeline = get_pipeline_definition(
+            resolve_report_pipeline_id(
+                safe_text(filename).strip(),
+                stored_pipeline=pipeline_id,
+            )
+        )
         final_agent = get_structured_agent_num("recommendation", pipeline["id"])
         if final_agent is None:
             return "unavailable"
