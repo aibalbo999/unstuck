@@ -8,6 +8,7 @@ from data_trust_audit import source_label
 from data_trust_scoring import trust_status_label
 from mapping_fields import safe_mapping_dict, safe_text, safe_text_list
 from numeric_safety import is_non_finite_number
+from report_freshness_summary import safe_bool
 
 from .html_sanitizer import sanitize_report_plain_text
 from .text_tokens import is_missing_text_token
@@ -32,10 +33,6 @@ def _text(value: Any, default: str = "N/A") -> str:
         return default
     text = sanitize_report_plain_text(safe_text(value)).strip()
     return text or default
-
-
-def _safe_bool_flag(value: Any) -> bool:
-    return value if isinstance(value, bool) else False
 
 
 def unique_evidence_texts(values: list[Any]) -> list[str]:
@@ -79,7 +76,7 @@ def evidence_data_limitations(data: dict, trust: dict, rows: list[dict]) -> str:
     stale_source_values = []
     for row in rows:
         row_map = _as_dict(row)
-        if _safe_bool_flag(row_map.get("stale")):
+        if safe_bool(row_map.get("stale")):
             stale_source_values.append(row_map.get("source_label"))
     stale_sources = unique_evidence_texts(stale_source_values)
     if stale_sources:

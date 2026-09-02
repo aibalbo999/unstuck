@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3870 / normalize stale flags before trust and evidence projection
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：data-fetch cache audit 在建立 source audit/trust 前仍用 raw truthiness；`"false"` 會誤變成降級。evidence matrix limitation 只接受原生 bool；`"true"` 會漏掉過期來源限制，造成產製層與報告層的可信度敘述分歧。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：兩組 legacy stale fixture 先取得 `2 failed` RED；cache audit 與 evidence limitation 共用 `report_freshness_summary.safe_bool`，未知值保守為 false，不從 trust status 或其他 row 借用 stale 證據。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture contract；focused fixtures `2 passed`、相關回歸 `866 passed`，本批只修 trust/evidence 的 stale projection，不改 snapshot、artifact、index、review、queue 或 rerun state。
+
 ## D3869 / normalize legacy source-audit and calibration booleans
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：來源審計表與 key evidence 對舊 snapshot 的 `"true"` 只當成 false；Provider SLA health 與 outcome calibration 對 `"false"` 使用 raw truthiness，會讓同一份來源在不同入口得到不同 stale/rerun 解讀。

@@ -3,6 +3,8 @@
 The API is local-first and intended for the bundled UI or trusted local automation.
 FastAPI exposes the machine-readable contract at `/openapi.json`; mutating operations are annotated with the `MutationToken` API-key security scheme using the `X-Mutation-Token` header.
 
+Data-fetch cache audit stale flags use shared `safe_bool` before cache status and source-audit construction, so legacy "false" does not become a degraded cache source or lower report trust incorrectly. Evidence-matrix limitation summaries use the same conversion, so legacy "true" remains visible as a stale-source limitation without truthiness leakage.
+
 ## Read Endpoints
 
 `GET /api/observability/model-routes` returns the `model_route_budget.v1` telemetry section used by the operator panel. It reports `slow_route`, `retry_storm`, and `quality_gate_failures`; `slow_route` is maintenance evidence and remains outside the daily decision queue.

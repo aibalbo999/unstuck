@@ -53,3 +53,23 @@ def test_full_fetch_audit_policy_records_success_and_missing_optional_sources():
     assert entries["monthly_revenue"]["message"] == "非台股或 FinMind 月營收暫無可用資料"
     assert entries["peer_discovery"]["status"] == AUDIT_STATUS_SUCCESS
     assert audited["data_trust"]["status"] in {"fresh", "partial", "error"}
+
+
+def test_cache_audit_policy_parses_legacy_stale_boolean_text():
+    from data_fetch.audit_policy import _append_cache_audit_entries
+
+    audited = _append_cache_audit_entries(
+        {
+            "ticker": "2330.TW",
+            "current_price": 100,
+            "source_freshness": {
+                "market_data": {"stale": "false", "fetched_at_epoch": 100.0},
+            },
+        },
+        "2330.TW",
+        now_epoch=101.0,
+    )
+
+    market_entry = next(row for row in audited["source_audit"] if row["source"] == "market_data")
+    assert market_entry["status"] == AUDIT_STATUS_SKIPPED_FRESH_CACHE
+    assert market_entry["stale"] is False

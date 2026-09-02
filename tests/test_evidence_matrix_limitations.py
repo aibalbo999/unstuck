@@ -75,3 +75,19 @@ def test_evidence_matrix_limitations_helpers_are_truthiness_safe():
     assert limitations.combined_evidence_status(rows, "fresh") == "success"
     assert limitations.latest_evidence_fetched_at(rows) == "2026-07-14T11:00:00+08:00"
     assert limitations.evidence_data_limitations({}, {"status": "fresh"}, rows) == "未記錄額外資料限制。"
+
+
+def test_evidence_matrix_limitations_parses_legacy_stale_boolean_text():
+    limitations = _limitations_module()
+
+    rows = [
+        {
+            "source_label": "年度財報",
+            "status": "success",
+            "stale": "true",
+        }
+    ]
+
+    text = limitations.evidence_data_limitations({}, {"status": "fresh"}, rows)
+
+    assert text == "過期來源：年度財報。"

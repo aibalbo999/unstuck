@@ -10,6 +10,7 @@ from data_trust import (
     AUDIT_STATUS_SUCCESS, AUDIT_STATUS_UNAVAILABLE, append_source_audit, build_source_audit_entry,
     finalize_data_trust, source_record_count,
 )
+from report_freshness_summary import safe_bool
 
 from .constants import CORE_CACHE_SOURCES, SOURCE_FRESHNESS_SOURCES
 
@@ -17,7 +18,7 @@ from .constants import CORE_CACHE_SOURCES, SOURCE_FRESHNESS_SOURCES
 def _source_freshness_stale(data: dict, source: str) -> bool:
     freshness = data.get("source_freshness", {}) if isinstance(data.get("source_freshness"), dict) else {}
     entry = freshness.get(source, {}) if isinstance(freshness.get(source), dict) else {}
-    return bool(entry.get("stale"))
+    return safe_bool(entry.get("stale"))
 
 
 def _append_source_fetch_audit(
@@ -50,7 +51,7 @@ def _append_cache_audit_entries(data: dict, ticker: str, now_epoch: Optional[flo
     freshness = data.get("source_freshness", {}) if isinstance(data.get("source_freshness"), dict) else {}
     for source in SOURCE_FRESHNESS_SOURCES:
         entry = freshness.get(source, {}) if isinstance(freshness.get(source), dict) else {}
-        stale = bool(entry.get("stale"))
+        stale = safe_bool(entry.get("stale"))
         record_count = source_record_count(source, data)
         status = _cache_audit_status(source, stale=stale, record_count=record_count)
         message = _cache_audit_message(stale=stale, record_count=record_count)
