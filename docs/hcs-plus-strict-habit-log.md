@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3860 / normalize report-compare data-trust statuses
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：compare renderer 直接把 `diff.data_trust.status_before/status_after` 插入畫面；即使 preview 的 shared policy 已正規化，` ERROR `／` FRESH ` 仍會在比較面板露出格式漂移。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先以 malformed compare payload 取得 `1 failed` RED；renderer 呼叫既有 `StockAgentReportQualityPolicy.dataTrustStatus` 做 trim/lowercase projection，空值保留 `N/A`，不建立第二套 status policy。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：compare renderer、index cache-buster、API/operator/architecture contract 同步；focused compare `3 passed`，只改 browser read-only display，不修改比較 API、snapshot、artifact、index、review、queue 或 rerun state。
+
 ## D3859 / align canonical data-trust reason labels
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：generated report 與 browser 對兩個 canonical reason code 使用不同白話文字，跨入口閱讀時可能產生不必要的語意分歧。

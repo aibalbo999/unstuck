@@ -257,6 +257,8 @@ Report conformance 的 `report_lint` 與 `content_credibility` 只有 `passed` �
 
 瀏覽器原因標籤沿用報告本體的 canonical 白話文字，例如「缺少可用核心資料」與「含資料口徑註記」，避免 preview、歷史頁與 HTML/Markdown 報告對同一 reason code 使用不同語意。
 
+報告比較面板在顯示 `status_before`／`status_after` 前也沿用資料可信度的 trim/lowercase 正規化；` ERROR ` 與 ` FRESH ` 會穩定顯示為 `error` 與 `fresh`，空值才顯示 `N/A`。這是 compare view 的唯讀呈現邊界，不會改寫比較 API 或報告 metadata。
+
 瀏覽器品質 action 也會把 `snapshot_integrity.status=invalid` 或 `valid=false` 顯示為「資料快照完整性未通過」的重大人工複核，並保留 hash／error detail；這與 blocked 閱讀邊界及後端 repair queue 對齊，不會自動修改快照或重跑報告。
 
 若 snapshot 同時帶有通用阻斷文字與具體 provider／hash 錯誤，瀏覽器 action 會移除通用文字，優先保留具體 detail，讓人工複核看到真正需要處理的證據。

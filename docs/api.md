@@ -744,6 +744,8 @@ The compact browser data-trust reason summary keeps at most two entries but rank
 
 Browser reason labels use the same canonical wording as generated report summaries, including `缺少可用核心資料` and `含資料口徑註記`, so preview/history text does not change meaning across surfaces.
 
+The browser report-compare renderer applies the same trim/lowercase data-trust status projection to `status_before` and `status_after` before display, so malformed values such as ` ERROR ` and ` FRESH ` remain comparable as `error` and `fresh`; empty values remain `N/A`. This is a read-only compare-view boundary and does not rewrite the compare API response or persisted report metadata.
+
 The browser quality-action policy also surfaces `snapshot_integrity.status=invalid` or `valid=false` as a critical `manual_review` action, preserving available hash/error detail; this keeps the preview action aligned with the blocked reading boundary and backend report-repair priority without changing snapshot state.
 
 When an invalid snapshot carries the generic blocker plus a specific provider or hash error, the browser action drops the generic text and keeps the specific detail, matching the backend repair queue and reading notice evidence order.

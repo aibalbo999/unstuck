@@ -4,6 +4,11 @@
         const { compareSummaryLabel, compareWarningMessage, dateOrderLabel, formatDelta, reportDecisionStatusLabel } = helpers;
         const escapeHtml = options.escapeHtml || ((value) => String(value ?? ''));
         const pipelineModeLabel = options.pipelineModeLabel || window.StockAgentUi?.pipelineModeLabel || ((pipelineId) => String(pipelineId || 'v1'));
+        const dataTrustStatusLabel = status => {
+            const rawStatus = String(status ?? '').trim();
+            if (!rawStatus) return 'N/A';
+            return window.StockAgentReportQualityPolicy?.dataTrustStatus?.({ data_trust: { status: rawStatus } }) || rawStatus.toLowerCase();
+        };
 
         function gridCell(label, value) {
             return `<span><strong>${escapeHtml(label)}</strong><em>${escapeHtml(value)}</em></span>`;
@@ -48,7 +53,7 @@
                 ['報告建議變化', `${diff.recommendation?.before || 'N/A'} → ${diff.recommendation?.after || 'N/A'}`],
                 ['當日股價', formatDelta(diff.current_price)],
                 ['3/6/12月目標', `${formatDelta(diff.target_3m)} · ${formatDelta(diff.target_6m)} · ${formatDelta(diff.target_12m)}`],
-                ['資料可信度', `${diff.data_trust?.status_before || 'N/A'} → ${diff.data_trust?.status_after || 'N/A'} · ${formatDelta(diff.data_trust?.score)}`],
+                ['資料可信度', `${dataTrustStatusLabel(diff.data_trust?.status_before)} → ${dataTrustStatusLabel(diff.data_trust?.status_after)} · ${formatDelta(diff.data_trust?.score)}`],
                 ['決策狀態', `${reportDecisionStatusLabel(left)} → ${reportDecisionStatusLabel(right)}`],
                 ['追蹤報酬', formatDelta(diff.tracking?.return_pct)],
                 ['最新股價', formatDelta(diff.tracking?.latest_price)],

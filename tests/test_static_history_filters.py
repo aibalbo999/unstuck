@@ -316,6 +316,7 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert index_html.index("/static/report_navigation_targets.js") < index_html.index("/static/report_navigation.js")
     assert "/static/report_compare_helpers.js" in index_html
     assert "/static/report_compare_renderers.js" in index_html
+    assert "/static/report_compare_renderers.js?v=20260902-data-trust-status-normalization" in index_html
     assert "/static/report_compare_panel.js" in index_html
     assert index_html.index("/static/report_quality_policy.js") < index_html.index("/static/report_compare_helpers.js")
     assert index_html.index("/static/report_compare_helpers.js") < index_html.index("/static/report_compare_renderers.js")
@@ -4397,6 +4398,34 @@ process.stdout.write(JSON.stringify({ summary, html }));
     assert "決策狀態" in payload["html"]
     assert "需重跑 → 有效" in payload["html"]
     assert "報告差異不等於市場因果" in payload["html"]
+
+
+def test_report_compare_renderer_normalizes_data_trust_statuses_before_display():
+    report_quality_policy_path = STATIC_DIR / "report_quality_policy.js"
+    helpers_path = STATIC_DIR / "report_compare_helpers.js"
+    renderers_path = STATIC_DIR / "report_compare_renderers.js"
+    script = """
+global.window = {};
+require(__REPORT_QUALITY_POLICY_PATH__);
+require(__HELPERS_PATH__);
+require(__RENDERERS_PATH__);
+const renderers = window.StockAgentReportCompareRenderers.create({
+  helpers: window.StockAgentReportCompareHelpers,
+  escapeHtml: value => String(value ?? '')
+});
+const html = renderers.resultHtml({
+  left: { ticker: '2330.TW', filename: 'left.html', pipeline_id: 'v1', date: '2026-07-08' },
+  right: { ticker: '2330.TW', filename: 'right.html', pipeline_id: 'v1', date: '2026-07-09' },
+  compatibility: { date_order: 'chronological', warnings: [] },
+  diff: { data_trust: { status_before: ' ERROR ', status_after: ' FRESH ' } }
+});
+process.stdout.write(JSON.stringify({ html }));
+""".replace("__REPORT_QUALITY_POLICY_PATH__", json.dumps(str(report_quality_policy_path))).replace("__HELPERS_PATH__", json.dumps(str(helpers_path))).replace("__RENDERERS_PATH__", json.dumps(str(renderers_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert "error → fresh" in payload["html"]
+    assert " ERROR  →  FRESH " not in payload["html"]
 
 
 def test_api_quota_panel_projects_model_route_warnings():
