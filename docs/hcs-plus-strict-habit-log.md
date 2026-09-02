@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3894 / reject missing core-data placeholders before analysis
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：分析工作開始前的 data-fetch blocking gate 以 raw truthiness 判斷核心資料；`N/A`、空 history 或非有限值可能讓錯誤 payload 繼續進入分析。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：partial trust + error + placeholder fixture 先取得 `1 failed` RED；改採既有 `data_trust_values.has_value`，排除 placeholder、空序列與非有限值，保留合法 0 與實際核心資料，不改 trust payload。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：本批只保護分析前的 read-only stop gate，不回寫 report、snapshot、artifact、index、queue 或 rerun state。
+
 ## D3893 / normalize model-route observability fallback flag
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：model-route budget 的空 payload fallback 以 raw truthiness 解讀 `observability_unavailable`；legacy `"false"` 會被投影成 unavailable，操作台可能誤報觀測缺口。

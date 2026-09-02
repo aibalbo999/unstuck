@@ -4,6 +4,8 @@
 
 模型路由觀測的 fallback 是唯讀 projection：`model_route_observability.py` 以 shared `safe_bool` 解讀 `observability_unavailable`，legacy `"false"` 不得升格成 unavailable；這不會改寫 telemetry、provider、snapshot、artifact、queue 或 rerun state。
 
+資料抓取到分析工作的阻擋邊界在 `analysis_job_helpers.py`；核心資料存在性沿用 `data_trust_values.has_value`，因此 placeholder 或空歷史不會被當成核心 evidence。此 gate 只停止缺少可用核心資料的當次工作，不回寫 canonical report index、snapshot 或 artifact。
+
 ## 目前 Runtime 真相
 
 以下為本機預設設定。若環境變數覆寫，請以 `config` 實際輸出為準。

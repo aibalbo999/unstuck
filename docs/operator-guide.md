@@ -2,6 +2,8 @@
 
 模型路由 budget 的 fallback 會用 shared `safe_bool` 解讀 `observability_unavailable`；legacy `"false"` 不會被製造成 unavailable 警示，明確的 true 仍會保留在機器可讀 payload，方便操作人員區分真的觀測不可用與舊格式資料。
 
+資料抓取進入分析前會用 `data_trust_values.has_value` 判斷核心市場／財報欄位是否真的有值；`N/A`、空歷史序列與非有限數字不會被當成可用資料而繞過停止條件，合法的核心資料則維持原本流程。這只決定本次是否繼續分析，不會改寫既有報告或快照。
+
 資料抓取的 cache audit 會在建立 source audit 與資料可信度前，用明確規則解讀來源新鮮度旗標；舊資料中的 "false" 不會被誤判為降級來源。結論 evidence matrix 也會保留 "true" 的過期來源限制，讓資料卡、結論列與報告正文對同一份來源保持一致。
 
 Prompt source audit 摘要、可選 provider refresh 計畫與舊版 HTTP enrichment 也沿用同一套 explicit boolean 規則處理 `cache_hit`／`_cache_hit`；舊資料的 "false" 會維持 cache miss，提示證據不會被誤標成命中，必要的近期催化劑與同業搜尋也不會因字串 truthiness 被跳過。

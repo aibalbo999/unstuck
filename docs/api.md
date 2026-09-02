@@ -5,6 +5,8 @@ FastAPI exposes the machine-readable contract at `/openapi.json`; mutating opera
 
 The model-route budget fallback applies shared `safe_bool` to `observability_unavailable`; legacy `"false"` therefore does not manufacture an unavailable warning, while explicit true remains visible in the machine-readable payload.
 
+The data-fetch blocking notice uses `data_trust_values.has_value` for core market and financial fields. Placeholder values such as `N/A` and empty history lists therefore cannot bypass the missing-core-data stop, while valid zero values and real core data preserve the existing analysis path.
+
 Data-fetch cache audit stale flags use shared `safe_bool` before cache status and source-audit construction, so legacy "false" does not become a degraded cache source or lower report trust incorrectly. Evidence-matrix limitation summaries use the same conversion, so legacy "true" remains visible as a stale-source limitation without truthiness leakage.
 
 Prompt source-audit summaries, optional-provider refresh planning, and the legacy optional HTTP enrichment path use the same explicit boolean contract for `cache_hit` and `_cache_hit`. Legacy values such as "false" therefore remain cache misses, so prompt evidence stays accurate and fresh optional providers are not skipped by string truthiness.

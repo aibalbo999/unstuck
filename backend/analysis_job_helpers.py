@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 
+from data_trust_values import has_value
+
 
 def stable_report_filename(job_id: str, ticker_upper: str, pipeline_id: str) -> str:
     safe_ticker = str(ticker_upper or "").strip().upper().replace(".", "_") or "UNKNOWN"
@@ -19,11 +21,9 @@ def build_data_fetch_blocking_notice(data_result) -> dict | None:
         else data.get("data_trust", {}) if isinstance(data.get("data_trust"), dict) else {}
     )
     trust_status = str(trust.get("status") or "unknown")
-    has_market_or_financials = bool(
-        data.get("current_price")
-        or data.get("market_cap_raw")
-        or data.get("years")
-        or data.get("revenue_history")
+    has_market_or_financials = any(
+        has_value(data.get(field))
+        for field in ("current_price", "market_cap_raw", "years", "revenue_history")
     )
     if trust_status == "error":
         return {
