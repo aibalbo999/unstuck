@@ -586,6 +586,40 @@ process.stdout.write(JSON.stringify({ valid: Boolean(result) }));
     assert payload["valid"] is False
 
 
+def test_history_current_quality_rejects_unknown_status_or_verdict_key():
+    helper_path = STATIC_DIR / "history_current_quality_helpers.js"
+    script = """
+global.window = {};
+require(__HELPER_PATH__);
+const base = {
+  schema_version: 'report_current_quality_summary.v1',
+  scope: 'historical_filter_current_latest',
+  selection_basis: 'latest_per_ticker_pipeline',
+  audited_reports: 2,
+  non_passed_reports: 0,
+  items_total: 0,
+  items_returned: 0,
+  report_conformance_by_status: { passed: 2, warning: 0, blocked: 0, unknown: 0 },
+  content_credibility_by_status: { passed: 2, warning: 0, blocked: 0, unknown: 0 },
+  evidence_exit_gate_by_verdict: { approved: 2, caution: 0, rejected: 0, unknown: 0 },
+  items: []
+};
+const conformanceUnknown = window.StockAgentHistoricalCurrentQualityHelpers.validated({
+  ...base,
+  report_conformance_by_status: { passed: 1, warning: 0, blocked: 0, unknown: 0, future: 1 }
+});
+const verdictUnknown = window.StockAgentHistoricalCurrentQualityHelpers.validated({
+  ...base,
+  evidence_exit_gate_by_verdict: { approved: 1, caution: 0, rejected: 0, unknown: 0, future: 1 }
+});
+process.stdout.write(JSON.stringify({ conformance: Boolean(conformanceUnknown), verdict: Boolean(verdictUnknown) }));
+""".replace("__HELPER_PATH__", json.dumps(str(helper_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    payload = json.loads(result.stdout)
+
+    assert payload == {"conformance": False, "verdict": False}
+
+
 def test_history_current_quality_rejects_fractional_counts():
     helper_path = STATIC_DIR / "history_current_quality_helpers.js"
     script = """

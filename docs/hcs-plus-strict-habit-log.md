@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3839 / reject unknown current-quality keys
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：status/verdict map 會以 `Object.values()` 計算總和，但 renderer 只顯示已知 labels；未知 key 可能讓總和看似完整，同時讓一部分報告從操作員摘要消失。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以 `future=1` 與既定 bucket 加總到 `audited=2` 取得 RED；兩個 current-quality helper 的 shape validator 現在要求 mapping、既定 keys、有限非負整數，未知 key 直接 fail closed，不把它當成已知狀態或補回其他 bucket。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新兩個 current-quality asset cache-buster 與 API/operator/architecture contract，focused unknown-key `2 passed`，完整 history/report-quality/static/docs/current-quality regression `350 passed`，Node syntax、line guard 與 `git diff --check` 通過；live current `165/85/5/85`、三組 status sum `165`，historical `1175/59/5/59`、current projection `165/85`，assets `200` 且與本地一致，health/ready、official launcher/worker/8080 與 doctor canonical paths 正常。本批不改 audit count、quality gate、queue、snapshot、artifact、index、review 或 rerun state。
+
 ## D3838 / bound current-quality non-passed scope
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：current-quality 的 gate status 分布各自以 `audited_reports` 為分母，但 union 型 `non_passed_reports` 沒有上限檢查；它不是任一單一 status map 的加總，卻仍必須落在同一 audited scope 內。
