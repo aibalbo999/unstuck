@@ -279,6 +279,19 @@ process.stdout.write(window.StockAgentUiDataTrust.dataTrustReasonSummary(trust))
     assert _node(script) == "補充來源過期：近期催化劑、補充來源穩定度提醒"
 
 
+def test_report_facing_data_trust_reason_labels_match_generated_report_wording():
+    ui_data_trust_path = STATIC_DIR / "ui_data_trust.js"
+    script = """
+global.window = {};
+require(__UI_DATA_TRUST_PATH__);
+process.stdout.write(window.StockAgentUiDataTrust.dataTrustReasonSummary({
+  reason_codes: ['missing_usable_critical_data', 'data_source_notes_present']
+}));
+""".replace("__UI_DATA_TRUST_PATH__", json.dumps(str(ui_data_trust_path)))
+
+    assert _node(script) == "缺少可用核心資料、含資料口徑註記"
+
+
 def test_report_quality_actions_surface_invalid_snapshot_integrity_for_manual_review():
     gate_path = STATIC_DIR / "report_quality_gate_policy.js"
     policy_path = STATIC_DIR / "report_quality_policy.js"

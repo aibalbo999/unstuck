@@ -742,6 +742,8 @@ Browser data-trust reason codes also trim and lowercase before matching `source_
 
 The compact browser data-trust reason summary keeps at most two entries but ranks concrete source errors, stale sources, and Provider SLA warnings ahead of generic `fresh_core_sources` or `data_source_notes_present`; equal-priority entries retain their source order. This keeps the summary bounded without hiding the most actionable reason in reports that carry many optional-source notices.
 
+Browser reason labels use the same canonical wording as generated report summaries, including `缺少可用核心資料` and `含資料口徑註記`, so preview/history text does not change meaning across surfaces.
+
 The browser quality-action policy also surfaces `snapshot_integrity.status=invalid` or `valid=false` as a critical `manual_review` action, preserving available hash/error detail; this keeps the preview action aligned with the blocked reading boundary and backend report-repair priority without changing snapshot state.
 
 When an invalid snapshot carries the generic blocker plus a specific provider or hash error, the browser action drops the generic text and keeps the specific detail, matching the backend repair queue and reading notice evidence order.

@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3859 / align canonical data-trust reason labels
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：generated report 與 browser 對兩個 canonical reason code 使用不同白話文字，跨入口閱讀時可能產生不必要的語意分歧。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以 `missing_usable_critical_data`、`data_source_notes_present` label parity fixture 先取得 `1 failed` RED；browser 改採 backend summary wording，保留 reason code 與 bounded priority 不變。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 cache-buster、API/operator/architecture contract；只改 report-facing read-only label projection，不修改 trust status 或 persisted state。
+
 ## D3858 / prioritize generated report data-trust reasons
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：browser 摘要已優先顯示具體風險，但 generated HTML/Markdown 的共用 summary 仍按原始順序截斷，直接閱讀報告的原因可見性與 browser 不一致。
