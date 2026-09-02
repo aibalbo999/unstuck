@@ -734,6 +734,8 @@ The browser-side report-reading boundary and quality-action policy use the same 
 
 Browser report-quality actions, reading boundaries, data-trust badges, and decision-freshness labels trim and lowercase persisted status values before comparison. Thus ` FRESH ` still supports a fresh-data boundary, ` ERROR ` still produces a manual-review action, and ` CURRENT ` still renders as valid; this is read-only presentation normalization and does not rewrite report metadata or merge data freshness with conclusion freshness.
 
+The browser quality-action policy also surfaces `snapshot_integrity.status=invalid` or `valid=false` as a critical `manual_review` action, preserving available hash/error detail; this keeps the preview action aligned with the blocked reading boundary and backend report-repair priority without changing snapshot state.
+
 Browser policy normalizes surrounding whitespace and casing before checking quality or snapshot-integrity states, including injected quality-status helpers. Thus ` VERIFIED ` still identifies a verified snapshot for missing-gate detection, while ` INVALID ` remains blocking; no persisted report value is rewritten.
 
 Report conformance quality gate inputs accept mapping-safe wrappers before decision-tree evaluation, so read-only report lint, final audit, evidence, content credibility, context, or snapshot payloads cannot hide blocker or warning evidence.

@@ -6,7 +6,14 @@
         const allowed = key === 'evidence_exit_gate' ? ['approved', 'caution', 'rejected'] : ['passed', 'warning', 'blocked', 'failed', 'rejected'];
         return allowed.includes(String(signal ?? '').trim().toLowerCase());
     };
-    const structuredGapAction = report => { const evidence = window.StockAgentReportQualityEvidence?.context?.(report); return evidence?.hasStructuredGap ? { label: '結構化品質缺口', tone: 'critical', detail: evidence.detail } : null; }; function reportQualityGateAction(report, helpers = {}) {
+    const snapshotIntegrityAction = report => {
+        const snapshot = report?.snapshot_integrity || {};
+        const status = String(snapshot.status ?? '').trim().toLowerCase();
+        if (status !== 'invalid' && snapshot.valid !== false) return null;
+        const errors = (Array.isArray(snapshot.errors) ? snapshot.errors : [snapshot.errors]).map(value => String(value ?? '').trim()).filter(Boolean);
+        return { label: '資料快照完整性未通過', tone: 'critical', detail: errors.join('；') || (snapshot.hash && snapshot.expected_hash && snapshot.hash !== snapshot.expected_hash ? 'snapshot_hash mismatch' : '資料快照完整性未通過，不能直接引用報告結論。') };
+    };
+    const structuredGapAction = report => { const evidence = window.StockAgentReportQualityEvidence?.context?.(report); return evidence?.hasStructuredGap ? { label: '結構化品質缺口', tone: 'critical', detail: evidence.detail } : null; }; function reportQualityGateAction(report, helpers = {}) { const snapshotAction = snapshotIntegrityAction(report); if (snapshotAction) return snapshotAction;
         const conformance = report?.report_conformance || {};
         const gate = report?.evidence_exit_gate || {};
         const qualityKeys = ['report_conformance', 'evidence_exit_gate', 'content_credibility'];

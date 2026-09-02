@@ -247,6 +247,8 @@ Report conformance 的 `report_lint` 與 `content_credibility` 只有 `passed` �
 
 資料可信度與結論新鮮度的瀏覽器標籤也會先去除前後空白並統一大小寫：` FRESH ` 仍顯示資料新鮮並可進入通過邊界，` ERROR ` 仍會產生人工複核動作，` CURRENT ` 仍顯示目前一致。這只是閱讀層的正規化，不把資料新鮮度當成結論已重跑，也不回寫報告 metadata。
 
+瀏覽器品質 action 也會把 `snapshot_integrity.status=invalid` 或 `valid=false` 顯示為「資料快照完整性未通過」的重大人工複核，並保留 hash／error detail；這與 blocked 閱讀邊界及後端 repair queue 對齊，不會自動修改快照或重跑報告。
+
 HTML execution summary 的 Evidence gate、Content credibility、Report conformance status 與 evidence note，以及 Markdown execution summary 的三個 status/摘要，在有 current projection 時會一起使用 response-time quality gate；若沒有 current projection，則保留 persisted artifact。這是閱讀層的投影，不會改變 `/api/report/{filename}/download/data` 的原始 snapshot。
 
 HTML/Markdown 的報告使用提示也會在有 current report row 時投影「分析新鮮度」：`目前一致` 代表結論 freshness 判定為 current；`需完整重跑` 代表資料快照已更新但分析本文仍是舊結論，提示中的原因以 current `decision_freshness`/`analysis_text_stale` 為準。這個提示與資料可信度的 `fresh` 是兩個不同判斷，不能因資料新鮮就跳過完整重跑；它只改 response-time 閱讀層，不回寫 artifact、data snapshot、index、review、rerun、repair 或 queue。

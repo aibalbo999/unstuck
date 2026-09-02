@@ -223,6 +223,45 @@ process.stdout.write(JSON.stringify({
     assert payload["freshClass"] == "fresh"
 
 
+def test_report_quality_actions_surface_invalid_snapshot_integrity_for_manual_review():
+    gate_path = STATIC_DIR / "report_quality_gate_policy.js"
+    policy_path = STATIC_DIR / "report_quality_policy.js"
+    script = """
+global.window = {};
+require(__GATE_PATH__);
+require(__POLICY_PATH__);
+const report = {
+  filename: 'invalid-snapshot.html',
+  data_trust: { status: 'fresh' },
+  snapshot_integrity: { status: ' INVALID ', errors: ['snapshot_hash mismatch'] },
+  report_conformance: { status: 'passed' },
+  evidence_exit_gate: { verdict: 'approved' },
+  content_credibility: { status: 'passed' }
+};
+const contradictory = { ...report, snapshot_integrity: { status: 'verified', valid: false } };
+const hashOnly = { ...report, snapshot_integrity: { status: 'invalid', hash: 'actual', expected_hash: 'expected' } };
+process.stdout.write(JSON.stringify({
+  gate: window.StockAgentReportQualityGatePolicy.reportQualityGateAction(report),
+  contradictoryGate: window.StockAgentReportQualityGatePolicy.reportQualityGateAction(contradictory),
+  hashOnlyGate: window.StockAgentReportQualityGatePolicy.reportQualityGateAction(hashOnly),
+  action: window.StockAgentReportQualityPolicy.reportRecommendedAction(report),
+  requiresAction: window.StockAgentReportQualityPolicy.requiresDataTrustAction(report)
+}));
+""".replace("__GATE_PATH__", json.dumps(str(gate_path))).replace("__POLICY_PATH__", json.dumps(str(policy_path)))
+
+    payload = json.loads(_node(script))
+
+    assert payload["gate"] == {
+        "label": "資料快照完整性未通過",
+        "tone": "critical",
+        "detail": "snapshot_hash mismatch",
+    }
+    assert payload["contradictoryGate"]["tone"] == "critical"
+    assert payload["hashOnlyGate"]["detail"] == "snapshot_hash mismatch"
+    assert payload["action"] == {"type": "manual_review", "filename": "invalid-snapshot.html"}
+    assert payload["requiresAction"] is True
+
+
 def test_report_quality_gate_exposes_structured_gap_and_artifact_evidence_boundary():
     evidence_path = STATIC_DIR / "report_quality_evidence_helpers.js"
     gate_path = STATIC_DIR / "report_quality_gate_policy.js"

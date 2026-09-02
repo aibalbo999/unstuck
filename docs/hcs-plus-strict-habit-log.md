@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3853 / surface invalid snapshot action in browser quality policy
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：後端 repair queue 對 invalid／`valid=false` snapshot 已產生人工審核，但瀏覽器 quality action 未投影此 blocker，preview 可能只有 blocked reading notice 而沒有 action。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以 ` INVALID ` 與 hash mismatch fixture 先取得 `1 failed` RED；quality gate 先判定 snapshot integrity，保留 error/hash detail，再沿用既有 `reportRecommendedAction` 產生 `manual_review`。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：focused `16 passed`、前端/static/HCS `247 passed`、quality/preview/storage `281 passed`、文件/import `573 passed`，四個 JS syntax、Python compile、行數、`git diff --check` 與正式 runtime health/ready/assets `200` 通過；只改瀏覽器 read-only action projection，不修改 snapshot、artifact、index、review、queue 或 rerun。
+
 ## D3852 / normalize browser data-trust and freshness states
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：D3851 已收斂品質 gate／snapshot 的格式變體，但 report-facing data-trust action、fresh-data boundary、徽章與 decision-freshness label 仍直接比較原始狀態；` ERROR ` 可能漏掉人工複核，` FRESH ` 可能顯示未知，` CURRENT ` 可能露出原始字串。
