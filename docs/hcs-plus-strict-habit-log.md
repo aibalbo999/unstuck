@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3889 / normalize prompt-budget cache-hit tokens
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`job_ops_dashboard_metrics.prompt_budget_summary()` 對 telemetry row 的 `cache_hit` 使用 raw truthiness；legacy `"false"` 會虛增 cache hit 與估算節省 token，使操作台統計和 node telemetry 不一致。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：一組 legacy-token fixture 先取得 `1 failed` RED；prompt-budget boundary 改採 shared `report_freshness_summary.safe_bool`，不從 token 數或 node summary 借用 cache 結論。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture contract；runtime observability／model-route／import boundary `662 passed`、full suite `8,603 passed, 6 skipped, 75 subtests passed`；official launcher reload 後 dashboard `200` 且 `has_prompt_budget=true`（sample `5000`／cache hit `0`／estimated cached input tokens `0`），health/ready、reports、current-quality、daily-dashboard、metrics 均 `200`，doctor canonical DB、`rq`/`redis` 正常。dashboard `status=critical` 是既有核心 provider alert，不是本批 projection 失敗。本批只修 prompt-budget read-only telemetry projection，不改 provider、snapshot、artifact、index、review、queue 或 rerun state。
+
 ## D3888 / normalize watchlist trigger match tokens
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：watchlist trigger event persistence 對 `matched` 使用 raw truthiness；duplicate event 的 legacy `"false"` 可能把已未命中的事件升成命中，影響去重與後續 enqueue。

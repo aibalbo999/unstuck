@@ -8,6 +8,8 @@ canonical data-fetch service、freshness evaluator、provider execution、enrich
 
 model-route budget、node telemetry persistence 與操作台 dashboard 對 `cache_hit`／`quality_gate_pass` 也採同一套 explicit boolean 規則；舊資料的 "false"／"0" 維持 false，缺少 quality gate 則維持未提供，不會虛增 cache 命中、billable token 或品質失敗警示。
 
+操作台的 `prompt_budget` projection 也會用同一個 `safe_bool` 解讀 telemetry 的 `cache_hit`，並由 `/api/observability/dashboard` 回傳；舊資料的 "false" 不會虛增 cache 命中數或估算節省的 input token，與 node telemetry 的統計保持一致。
+
 provider impact 的來源恢復判斷與 queue dashboard 的 availability 也沿用 shared `safe_bool`；未知健康／可用性 token 會保守視為 false，不會透過物件 truthiness 把核心來源誤標成健康或 queue 誤標成可用。
 
 Recommendation calibration 會先用同一套 explicit boolean 規則解讀 `analysis_text_stale`，再把 `data_trust.status` 去除前後空白並統一小寫後才決定是否自動升格或降級。舊資料的 `"false"` 不會阻擋資料可信度足夠的升格，`" FRESH "` 也會正確視為 fresh；校準 audit payload 會保留標準化後的兩個值，方便人工核對。

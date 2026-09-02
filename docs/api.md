@@ -11,6 +11,8 @@ The canonical data-fetch service, freshness evaluator, workflow provider executi
 
 Model-route budget, node telemetry persistence, and operator dashboard summaries apply the same explicit boolean contract to `cache_hit` and `quality_gate_pass`. Legacy "false"/"0" values remain false, while a missing quality-gate value remains unknown instead of becoming a synthetic failure; cache-hit rates, billable token totals, and quality warnings therefore reflect the recorded telemetry.
 
+The operator dashboard's `prompt_budget` projection applies the same explicit `safe_bool` conversion to telemetry `cache_hit` values and is exposed by `/api/observability/dashboard`, so legacy "false" cannot inflate cache-hit counts or estimated cached input tokens.
+
 Provider-impact recovery decisions and queue dashboard availability also use shared `safe_bool`; unknown health or availability tokens fail closed instead of becoming healthy or available through generic object truthiness.
 
 Recommendation calibration normalizes `analysis_text_stale` with the shared explicit boolean contract and trims/lowercases `data_trust.status` before automatic label adjustment. Legacy `"false"` no longer blocks a valid upgrade, while `" FRESH "` still qualifies as fresh; the normalized values are retained in the calibration audit payload.

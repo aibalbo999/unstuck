@@ -2029,7 +2029,7 @@ def test_job_ops_dashboard_metrics_summarize_latency_telemetry_and_prompt_budget
 
 def test_job_ops_dashboard_metrics_parses_legacy_boolean_tokens():
     metrics = importlib.import_module("job_ops_dashboard_metrics")
-    telemetry = metrics.node_telemetry_summary([
+    rows = [
         {
             "node_name": "valuation_agent",
             "model": "gemini-2.5-pro",
@@ -2048,11 +2048,15 @@ def test_job_ops_dashboard_metrics_parses_legacy_boolean_tokens():
             "cache_hit": "true",
             "quality_gate_pass": "1",
         },
-    ])
+    ]
+    telemetry = metrics.node_telemetry_summary(rows)
+    budget = metrics.prompt_budget_summary(rows)
 
     node = telemetry["nodes"]["valuation_agent"]
     assert node["cache_hit_rate"] == 0.5
     assert node["quality_gate_failures"] == 1
+    assert budget["cache_hit_count"] == 1
+    assert budget["estimated_cached_input_tokens"] == 50
 
 
 def test_ops_dashboard_summarizes_latency_stuck_jobs_and_node_telemetry(monkeypatch, tmp_path):
@@ -2547,6 +2551,11 @@ def test_ops_dashboard_payload_exposes_model_route_budget(monkeypatch):
             "job_latency": {},
             "stuck_jobs": {"count": 0, "jobs": []},
             "node_telemetry": {},
+            "prompt_budget": {
+                "schema_version": "prompt_budget.v1",
+                "cache_hit_count": 1,
+                "estimated_cached_input_tokens": 50,
+            },
             "model_route_budget": {
                 "schema_version": "model_route_budget.v1",
                 "warnings": [{"id": "retry_storm", "route": "v2/gemini-2.5-pro"}],
@@ -2576,6 +2585,9 @@ def test_ops_dashboard_payload_exposes_model_route_budget(monkeypatch):
         )
     )
 
+    assert payload["prompt_budget"]["schema_version"] == "prompt_budget.v1"
+    assert payload["prompt_budget"]["cache_hit_count"] == 1
+    assert payload["prompt_budget"]["estimated_cached_input_tokens"] == 50
     assert payload["model_route_budget"]["schema_version"] == "model_route_budget.v1"
     assert payload["model_route_budget"]["warnings"][0]["id"] == "retry_storm"
 

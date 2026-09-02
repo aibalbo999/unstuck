@@ -125,7 +125,6 @@ async def build_prometheus_metrics(
     lines.append("")
     return "\n".join(lines)
 
-
 def _provider_summary_or_empty(summary_fetcher: Callable[[int], list[dict]], provider_limit: int) -> list[dict]:
     try: return summary_fetcher(provider_limit)
     except Exception: return []
@@ -197,6 +196,7 @@ async def build_ops_dashboard_payload(
         "job_latency": _payload_dict(jobs.get("job_latency")),
         "stuck_jobs": _stuck_jobs_payload(jobs.get("stuck_jobs")),
         "node_telemetry": _payload_dict(jobs.get("node_telemetry")),
+        "prompt_budget": _payload_dict(jobs.get("prompt_budget")),
         "model_route_budget": _payload_dict(jobs.get("model_route_budget")),
         "queue": queue,
         "providers": {

@@ -154,7 +154,7 @@ def _add_prompt_budget_row(bucket: dict, row: dict) -> None:
         bucket["tokenized_calls"] += 1
     bucket["input_tokens"] += input_tokens
     bucket["output_tokens"] += output_tokens
-    if row.get("cache_hit"):
+    if safe_bool(row.get("cache_hit")):
         bucket["cache_hit_count"] += 1
         bucket["estimated_cached_input_tokens"] += input_tokens
 
