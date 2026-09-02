@@ -734,6 +734,8 @@ The browser-side report-reading boundary and quality-action policy use the same 
 
 Browser report-quality actions, reading boundaries, data-trust badges, and decision-freshness labels trim and lowercase persisted status values before comparison. Thus ` FRESH ` still supports a fresh-data boundary, ` ERROR ` still produces a manual-review action, and ` CURRENT ` still renders as valid; this is read-only presentation normalization and does not rewrite report metadata or merge data freshness with conclusion freshness.
 
+Browser data-trust reason codes also trim and lowercase before matching `source_error:*`, `source_stale:*`, and `provider_sla_critical`; therefore formatting drift cannot hide a manual-review, refresh, or Provider SLA notice. The UI reason summary applies the same normalization before mapping source labels. This is read-only presentation normalization and does not alter persisted `data_trust.reason_codes`.
+
 The browser quality-action policy also surfaces `snapshot_integrity.status=invalid` or `valid=false` as a critical `manual_review` action, preserving available hash/error detail; this keeps the preview action aligned with the blocked reading boundary and backend report-repair priority without changing snapshot state.
 
 When an invalid snapshot carries the generic blocker plus a specific provider or hash error, the browser action drops the generic text and keeps the specific detail, matching the backend repair queue and reading notice evidence order.

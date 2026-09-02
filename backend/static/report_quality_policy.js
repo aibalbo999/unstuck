@@ -1,7 +1,7 @@
 (function () {
     const dataTrustReasonCodes = report => {
         const codes = report?.data_trust?.reason_codes;
-        return Array.isArray(codes) ? codes.map(code => String(code || '')) : [];
+        return Array.isArray(codes) ? codes.map(code => String(code || '').trim().toLowerCase()) : [];
     };
     const dataTrustStatus = report => String(report?.data_trust?.status ?? 'unknown').trim().toLowerCase() || 'unknown';
     const dataTrustStaleSources = report => {

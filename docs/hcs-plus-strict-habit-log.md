@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3855 / normalize report-facing data-trust reason codes
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：品質 action 與 UI reason summary 直接使用原始 `reason_codes`；空白或大寫變體可能漏掉來源異常、來源過期與 Provider SLA 分類。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以 `SOURCE_ERROR`、`SOURCE_STALE`、`PROVIDER_SLA_CRITICAL` 的空白／大寫 fixture 先取得 `1 failed` RED；修正共用 trim/lowercase projection，保留既有 canonical source label 與 action precedence。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：focused `17 passed`，同步 cache-buster 與 API/operator/architecture contract；只改瀏覽器 read-only matching/display，不修改 snapshot、artifact、index、review、queue 或 rerun。
+
 ## D3854 / preserve specific snapshot blocker detail
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：invalid snapshot 已能產生 browser manual review，但 generic blocker 與具體 hash/provider error 同時存在時，action detail 仍可能掩蓋真正證據。

@@ -223,6 +223,42 @@ process.stdout.write(JSON.stringify({
     assert payload["freshClass"] == "fresh"
 
 
+def test_report_facing_data_trust_reason_codes_normalize_whitespace_and_case():
+    policy_path = STATIC_DIR / "report_quality_policy.js"
+    ui_data_trust_path = STATIC_DIR / "ui_data_trust.js"
+    script = """
+global.window = {};
+require(__POLICY_PATH__);
+require(__UI_DATA_TRUST_PATH__);
+const sourceError = {
+  filename: 'reason-error.html',
+  data_trust: { status: 'fresh', reason_codes: [' SOURCE_ERROR:MARKET_DATA '] }
+};
+const sourceStale = {
+  filename: 'reason-stale.html',
+  data_trust: { status: 'fresh', reason_codes: [' SOURCE_STALE:MARKET_DATA '] }
+};
+const providerSla = {
+  status: ' PARTIAL ',
+  reason_codes: [' PROVIDER_SLA_CRITICAL '],
+  critical_failures: []
+};
+process.stdout.write(JSON.stringify({
+  errorAction: window.StockAgentReportQualityPolicy.reportRecommendedAction(sourceError),
+  staleAction: window.StockAgentReportQualityPolicy.reportRecommendedAction(sourceStale),
+  providerSlaOnly: window.StockAgentReportQualityPolicy.dataTrustProviderSlaOnlyPartial(providerSla),
+  reasonSummary: window.StockAgentUiDataTrust.dataTrustReasonSummary(sourceError.data_trust)
+}));
+""".replace("__POLICY_PATH__", json.dumps(str(policy_path))).replace("__UI_DATA_TRUST_PATH__", json.dumps(str(ui_data_trust_path)))
+
+    payload = json.loads(_node(script))
+
+    assert payload["errorAction"] == {"type": "manual_review", "filename": "reason-error.html"}
+    assert payload["staleAction"] == {"type": "refresh_data_snapshot", "filename": "reason-stale.html"}
+    assert payload["providerSlaOnly"] is True
+    assert payload["reasonSummary"] == "來源異常：市場資料"
+
+
 def test_report_quality_actions_surface_invalid_snapshot_integrity_for_manual_review():
     gate_path = STATIC_DIR / "report_quality_gate_policy.js"
     policy_path = STATIC_DIR / "report_quality_policy.js"
