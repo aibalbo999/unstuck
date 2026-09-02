@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3840 / validate current-quality navigation target shape
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：current-quality aggregate scope 與 bounded target list 是兩層資料；原 validator 只確認 returned 數量，沒有確認 target 真的是 non-passed、具備歷史導覽檔名與可顯示的三個 gate 狀態，會把 passed report 當成待查看項目。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以 `audited=2、non_passed=1、items_total=1` 搭配一筆全 `passed/approved` target 取得 RED，另以缺 filename target 覆蓋不可導覽邊界；watchlist/history validator 現在要求非空 filename、已知 normalized statuses，且至少一個 gate 非 passed，任一筆失效即 fail closed，不從 aggregate map 猜測或補造 target。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：更新兩個 current-quality asset cache-buster 與 API/operator/architecture contract，focused target tests 通過，相關 frontend/history/report-quality/static/docs `342 passed`、backend current-quality `11 passed`，Node syntax 與 `git diff --check` 通過；live current `165/85/5/85` 且第一筆 target 含 filename 與三個 gate status，historical `1175/59`、current projection `165/85` 且 `item_limit=0` 無 target list，assets `200` 且與本地一致，health/ready、official launcher/worker/8080 與 doctor canonical paths 正常。本批不改 audit count、quality gate、queue、snapshot、artifact、index、review 或 rerun state。
+
 ## D3839 / reject unknown current-quality keys
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：status/verdict map 會以 `Object.values()` 計算總和，但 renderer 只顯示已知 labels；未知 key 可能讓總和看似完整，同時讓一部分報告從操作員摘要消失。

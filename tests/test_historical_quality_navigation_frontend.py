@@ -867,7 +867,7 @@ def test_historical_audit_navigation_wiring_uses_cache_busters_and_existing_scop
     assert "openHistoricalQualityAudit" in history_workspace
     assert "StockAgentOpenHistoricalQualityAudit" in app_js
     assert "/static/watchlist_freshness_helpers.js?v=20260902-integer-quality-counts" in index_html
-    assert "/static/watchlist_current_quality_helpers.js?v=20260902-known-status-scope" in index_html
+    assert "/static/watchlist_current_quality_helpers.js?v=20260902-target-item-scope" in index_html
     assert "/static/report_quality_evidence_freshness_helpers.js?v=20260902-integer-summary-counts" in index_html
     assert "/static/watchlist_panel_helpers.js?v=20260902-distribution-scope" in index_html
     assert "/static/watchlist_panel.js?v=20260816-scoped-quality-review-navigation" in index_html
