@@ -263,6 +263,8 @@ Report conformance 的 `report_lint` 與 `content_credibility` 只有 `passed` �
 
 報告列表也會用明確 boolean 規則讀取 legacy `analysis_text_stale`：字串 `false` 不會因 JavaScript/Python truthiness 被當成 stale。這個旗標會同時影響結論 freshness 與 recommendation calibration，因此 malformed 值應保守維持 false，不可把資料格式問題誇大成「本文需重跑」。
 
+同一規則也在 snapshot 進入 report index 前套用到 `refreshed_without_analysis_rerun`；舊 snapshot 的字串 `false` 不會先被寫成 stale，再誤導工作台安排完整重跑。
+
 瀏覽器品質 action 也會把 `snapshot_integrity.status=invalid` 或 `valid=false` 顯示為「資料快照完整性未通過」的重大人工複核，並保留 hash／error detail；這與 blocked 閱讀邊界及後端 repair queue 對齊，不會自動修改快照或重跑報告。
 
 若 snapshot 同時帶有通用阻斷文字與具體 provider／hash 錯誤，瀏覽器 action 會移除通用文字，優先保留具體 detail，讓人工複核看到真正需要處理的證據。

@@ -36,6 +36,8 @@ Report list rows derive the duplicate top-level `data_trust_status` from the nor
 
 Report list rows parse the legacy `analysis_text_stale` flag with an explicit boolean contract before projecting conclusion freshness or recommendation calibration: real booleans, 0/1 values, and clear true tokens are accepted, while values such as the string `false` remain false instead of being treated as truthy. This keeps data freshness and conclusion freshness from being overstated by malformed index values.
 
+Snapshot ingestion applies the same explicit boolean contract to `refreshed_without_analysis_rerun` before writing report-index metadata. Therefore a legacy snapshot string `false` cannot become an index stale flag and later create a false full-rerun signal.
+
 Quality-audit artifact evidence follows the same strict boundary: an undecodable Markdown/HTML artifact is `artifact_quality_summary.status=unavailable`, and an undecodable Markdown artifact is `artifact_rerun_context_status=unavailable`; neither is reported as missing markers or partial/present rerun context.
 
 When a snapshot has a non-empty `rerun_context.parsed`, report-history rows perform a read-only current-rule `content_credibility` projection. A recorded gate is merged with that projection so newly detected blockers/warnings are visible while previously recorded findings are retained. The optional `content_credibility_projection` object reports `status=projected|available|unavailable`, `source=snapshot.rerun_context`, and the persisted gate status. `available` means the deterministic check can run but the persisted gate is still missing; it never counts as saved quality metadata, writes the snapshot, repairs the artifact, enqueues a rerun, or changes the queue.

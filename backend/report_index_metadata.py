@@ -12,6 +12,7 @@ from data_trust import data_snapshot_filename_for_report, normalize_data_trust, 
 from decision_tracking import build_decision_freshness, build_decision_tracking
 from recommendation_calibration import calibrate_recommendation_summary
 from report_paths import report_storage_candidates_for_filename
+from report_freshness_summary import safe_bool
 from report_index_parsing import (
     extract_company_name as _extract_company_name,
     is_safe_report_filename,
@@ -68,7 +69,7 @@ def read_snapshot_report_flags(data_snapshot_path: str) -> dict:
     if not isinstance(snapshot, dict):
         return {"analysis_text_stale": False, "analysis_text_stale_message": "", "data_snapshot_hash": ""}
     return {
-        "analysis_text_stale": bool(snapshot.get("refreshed_without_analysis_rerun")),
+        "analysis_text_stale": safe_bool(snapshot.get("refreshed_without_analysis_rerun")),
         "analysis_text_stale_message": str(snapshot.get("analysis_text_stale_message") or "")[:240],
         "data_snapshot_hash": str(snapshot.get("snapshot_hash") or snapshot.get("content_hash") or ""),
     }

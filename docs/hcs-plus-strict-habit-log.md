@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3863 / normalize snapshot freshness flags before index persistence
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：D3862 只修 row read boundary，但 `report_index_metadata.read_snapshot_report_flags()` 仍把 snapshot 的 `refreshed_without_analysis_rerun="false"` 以 raw truthiness 寫成 stale index flag。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以 snapshot-level malformed flag fixture 先取得 `1 failed` RED；ingestion 改用 shared `safe_bool`，在 index persistence 前完成 bool projection，避免下游再猜原始值。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture contract；snapshot/index/freshness `3 passed`，完整 report/index/freshness `140 passed`、quality/audit/docs/import `637 passed`，只改 read-only freshness projection，不修改 snapshot、artifact、review、queue 或 rerun state。
+
 ## D3862 / parse report-list freshness flags explicitly
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`row_to_report()` 直接對 SQLite `analysis_text_stale` 使用 `bool()`；legacy string `"false"` 會變成 `True`，同時影響 API stale flag 與 recommendation calibration。

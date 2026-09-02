@@ -1182,6 +1182,23 @@ def test_get_reports_parses_legacy_analysis_stale_flag_without_truthiness_leak(t
     assert report["recommendation"]["recommendation_calibration"]["analysis_text_stale"] is False
 
 
+def test_get_reports_parses_snapshot_analysis_stale_flag_without_truthiness_leak(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.db"))
+    filename = "2449_v2_report_20260606_010000.html"
+    write_report_pair(tmp_path, filename, "持有")
+    write_data_snapshot(tmp_path, filename, "fresh")
+    snapshot_path = tmp_path / filename.replace(".html", ".data.json")
+    snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    snapshot["refreshed_without_analysis_rerun"] = "false"
+    snapshot_path.write_text(json.dumps(snapshot), encoding="utf-8")
+
+    result = list_reports_for_test(tmp_path)
+    report = result["reports"][0]
+
+    assert report["analysis_text_stale"] is False
+
+
 def test_download_data_snapshot_endpoint(tmp_path, monkeypatch):
     monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
     filename = "2449_v2_report_20260606_010000.html"
