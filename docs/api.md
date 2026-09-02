@@ -9,6 +9,8 @@ Prompt source-audit summaries, optional-provider refresh planning, and the legac
 
 The canonical data-fetch service, freshness evaluator, workflow provider execution, enrichment merge, and provider exception audits normalize `_cache_hit` with the same contract before exposing `FetchResult.cache_hit` or source-audit metadata. Legacy cache flags therefore cannot change meaning as they move from payload to freshness, provider, or report-trust evidence.
 
+Model-route budget, node telemetry persistence, and operator dashboard summaries apply the same explicit boolean contract to `cache_hit` and `quality_gate_pass`. Legacy "false"/"0" values remain false, while a missing quality-gate value remains unknown instead of becoming a synthetic failure; cache-hit rates, billable token totals, and quality warnings therefore reflect the recorded telemetry.
+
 ## Read Endpoints
 
 `GET /api/observability/model-routes` returns the `model_route_budget.v1` telemetry section used by the operator panel. It reports `slow_route`, `retry_storm`, and `quality_gate_failures`; `slow_route` is maintenance evidence and remains outside the daily decision queue.

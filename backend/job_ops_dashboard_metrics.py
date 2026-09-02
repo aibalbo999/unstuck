@@ -5,6 +5,8 @@ from __future__ import annotations
 import math
 from collections import defaultdict
 
+from report_freshness_summary import safe_bool
+
 
 def job_latency_summary(rows: list[dict]) -> dict:
     durations = sorted(
@@ -101,8 +103,9 @@ def _add_telemetry_row(bucket: dict, row: dict) -> None:
     bucket["retry_count"] += int(row.get("retry_count") or 0)
     bucket["input_tokens"] += int(row.get("input_tokens") or 0)
     bucket["output_tokens"] += int(row.get("output_tokens") or 0)
-    bucket["cache_hits"] += int(bool(row.get("cache_hit")))
-    if row.get("quality_gate_pass") == 0:
+    bucket["cache_hits"] += int(safe_bool(row.get("cache_hit")))
+    quality_gate_pass = row.get("quality_gate_pass")
+    if quality_gate_pass is not None and not safe_bool(quality_gate_pass):
         bucket["quality_gate_failures"] += 1
     latency = row.get("latency_ms")
     if latency is not None:

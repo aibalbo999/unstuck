@@ -49,6 +49,36 @@ def test_model_route_budget_excludes_cache_hits_from_billable_tokens_and_keeps_u
     assert budget["summary"]["estimated_cost_available"] is False
 
 
+def test_model_route_budget_parses_legacy_boolean_tokens_for_cache_and_quality():
+    from model_route_budget import build_model_route_budget
+
+    budget = build_model_route_budget([
+        {
+            "pipeline_id": "v1",
+            "node_name": "valuation_agent",
+            "model": "gemini-2.5-pro",
+            "input_tokens": 1_000,
+            "output_tokens": 250,
+            "cache_hit": "false",
+            "quality_gate_pass": "0",
+        },
+        {
+            "pipeline_id": "v1",
+            "node_name": "valuation_agent",
+            "model": "gemini-2.5-pro",
+            "input_tokens": 500,
+            "output_tokens": 125,
+            "cache_hit": "true",
+            "quality_gate_pass": "1",
+        },
+    ])
+
+    route = budget["routes"]["v1/gemini-2.5-pro"]
+    assert route["cache_hit_count"] == 1
+    assert route["billable_total_tokens"] == 1_250
+    assert route["quality_gate_failures"] == 1
+
+
 def test_model_route_budget_flags_retry_storm_and_slow_routes():
     from model_route_budget import build_model_route_budget
 

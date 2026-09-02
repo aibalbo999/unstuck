@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3873 / normalize telemetry boolean projections
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：model-route budget、node telemetry persistence 與 operator dashboard 對 `cache_hit`／`quality_gate_pass` 使用 raw truthiness；legacy `"false"`／`"0"` 會改變 cache rate、billable token 與 quality failure 統計，缺少欄位也可能被混淆。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：三組 legacy-token fixture 先取得 `3 failed` RED；各 telemetry boundary 共用 `report_freshness_summary.safe_bool`，並以 `None` 保留 quality gate 未提供，不用缺失資料補成通過或失敗。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture contract；focused fixtures `3 passed`、相關回歸 `868 passed`、full suite `8,574 passed, 6 skipped, 75 subtests passed`。本批只修 telemetry read/write projection，不改 snapshot、artifact、report index、review、queue 或 rerun state。
+
 ## D3872 / preserve cache-hit semantics across data-fetch boundaries
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：data-fetch freshness、service、workflow、provider audit、enrichment merge 與 exception audit 對 `_cache_hit` 各自使用 raw truthiness；legacy `"false"` 會在 FetchResult、source freshness 與 report-trust evidence 間變成不同 cache 狀態。

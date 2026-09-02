@@ -7,6 +7,8 @@ from collections import defaultdict
 from statistics import mean
 from typing import Any
 
+from report_freshness_summary import safe_bool
+
 
 SCHEMA_VERSION = "model_route_budget.v1"
 
@@ -73,7 +75,7 @@ def _blank_bucket() -> dict[str, Any]:
 def _add_row(bucket: dict[str, Any], row: dict[str, Any]) -> None:
     input_tokens = _int(row.get("input_tokens"))
     output_tokens = _int(row.get("output_tokens"))
-    cache_hit = bool(row.get("cache_hit"))
+    cache_hit = safe_bool(row.get("cache_hit"))
     bucket["calls"] += 1
     bucket["failures"] += 0 if str(row.get("status") or "").lower() == "success" else 1
     bucket["retry_count"] += _int(row.get("retry_count"))
@@ -84,7 +86,8 @@ def _add_row(bucket: dict[str, Any], row: dict[str, Any]) -> None:
     else:
         bucket["billable_input_tokens"] += input_tokens
         bucket["billable_output_tokens"] += output_tokens
-    if row.get("quality_gate_pass") == 0:
+    quality_gate_pass = row.get("quality_gate_pass")
+    if quality_gate_pass is not None and not safe_bool(quality_gate_pass):
         bucket["quality_gate_failures"] += 1
     latency = _float(row.get("latency_ms"))
     if latency is not None:

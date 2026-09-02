@@ -6,6 +6,7 @@ import time
 from collections.abc import Callable
 from threading import Lock
 
+from report_freshness_summary import safe_bool
 from security_sanitizer import sanitize_error_message
 
 
@@ -21,7 +22,7 @@ def record_node_telemetry(connect: Callable, lock: Lock, payload: dict) -> int:
     finished_at = payload.get("finished_at")
     finished_value = float(finished_at) if finished_at is not None else None
     quality_gate_pass = payload.get("quality_gate_pass")
-    quality_gate_value = None if quality_gate_pass is None else int(bool(quality_gate_pass))
+    quality_gate_value = None if quality_gate_pass is None else int(safe_bool(quality_gate_pass))
     with lock, connect() as conn:
         cursor = conn.execute(
             """
@@ -45,7 +46,7 @@ def record_node_telemetry(connect: Callable, lock: Lock, payload: dict) -> int:
                 int(payload.get("retry_count") or 0),
                 _optional_int(payload.get("input_tokens")),
                 _optional_int(payload.get("output_tokens")),
-                int(bool(payload.get("cache_hit", False))),
+                int(safe_bool(payload.get("cache_hit", False))),
                 quality_gate_value,
                 sanitize_error_message(payload.get("error")),
                 now,
@@ -86,8 +87,8 @@ def _telemetry_row_to_dict(row) -> dict:
         "retry_count": row["retry_count"],
         "input_tokens": row["input_tokens"],
         "output_tokens": row["output_tokens"],
-        "cache_hit": bool(row["cache_hit"]),
-        "quality_gate_pass": None if quality_gate_pass is None else bool(quality_gate_pass),
+        "cache_hit": safe_bool(row["cache_hit"]),
+        "quality_gate_pass": None if quality_gate_pass is None else safe_bool(quality_gate_pass),
         "error": sanitize_error_message(row["error"]),
     }
 

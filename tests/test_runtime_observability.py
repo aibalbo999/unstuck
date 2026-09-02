@@ -2015,6 +2015,34 @@ def test_job_ops_dashboard_metrics_summarize_latency_telemetry_and_prompt_budget
     assert budget["cache_hit_count"] == 1
 
 
+def test_job_ops_dashboard_metrics_parses_legacy_boolean_tokens():
+    metrics = importlib.import_module("job_ops_dashboard_metrics")
+    telemetry = metrics.node_telemetry_summary([
+        {
+            "node_name": "valuation_agent",
+            "model": "gemini-2.5-pro",
+            "status": "success",
+            "input_tokens": 100,
+            "output_tokens": 20,
+            "cache_hit": "false",
+            "quality_gate_pass": "0",
+        },
+        {
+            "node_name": "valuation_agent",
+            "model": "gemini-2.5-pro",
+            "status": "success",
+            "input_tokens": 50,
+            "output_tokens": 10,
+            "cache_hit": "true",
+            "quality_gate_pass": "1",
+        },
+    ])
+
+    node = telemetry["nodes"]["valuation_agent"]
+    assert node["cache_hit_rate"] == 0.5
+    assert node["quality_gate_failures"] == 1
+
+
 def test_ops_dashboard_summarizes_latency_stuck_jobs_and_node_telemetry(monkeypatch, tmp_path):
     db_path = tmp_path / "jobs.sqlite3"
     monkeypatch.setattr(job_store, "TASK_DB_PATH", str(db_path))

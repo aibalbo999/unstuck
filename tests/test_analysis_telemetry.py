@@ -150,3 +150,21 @@ def test_telemetry_store_schema_is_stable_and_api_sanitizes_secret():
     }
     assert body["telemetry"][0]["error"] == "ValueError: API_KEY=[redacted]"
     assert "super-secret-token" not in response.text
+
+
+def test_telemetry_store_parses_legacy_boolean_tokens():
+    job_id = job_store.create_job("2330.TW", "v1")
+    job_store.record_node_telemetry(
+        {
+            "job_id": job_id,
+            "ticker": "2330.TW",
+            "pipeline_id": "v1",
+            "node_name": "valuation_agent",
+            "cache_hit": "false",
+            "quality_gate_pass": "0",
+        }
+    )
+
+    row = job_store.list_node_telemetry(job_id)[0]
+    assert row["cache_hit"] is False
+    assert row["quality_gate_pass"] is False
