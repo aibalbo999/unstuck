@@ -6,6 +6,8 @@
 
 決策追蹤的 snapshot 股價讀取在 `decision_tracking.py`；先解析 raw `current_price`，失敗才解析 `current_price_fmt`，避免 placeholder 遮蔽可用值。這是 report/API read-only projection，不改寫 snapshot 或 report index。
 
+內容可信度的 `content_credibility_target_prices.py` 對 numeric target 只接受有限正數；`0` 或負數會進入不可解析情境目標警示，不會被情境順序 projection 當成有效價格。這與 `report_target_price_detection` 的明確目標價規則保持同一個非正數 evidence boundary。
+
 資料抓取到分析工作的阻擋邊界在 `analysis_job_helpers.py`；核心資料存在性沿用 `data_trust_values.has_value`，因此 placeholder 或空歷史不會被當成核心 evidence。此 gate 只停止缺少可用核心資料的當次工作，不回寫 canonical report index、snapshot 或 artifact。
 
 ## 目前 Runtime 真相

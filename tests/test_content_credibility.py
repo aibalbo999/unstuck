@@ -137,6 +137,23 @@ def test_content_credibility_warns_when_scenario_target_cannot_be_parsed():
     assert issue["details"]["label"] == "熊市情境"
 
 
+def test_content_credibility_warns_for_non_positive_numeric_scenario_target():
+    from reporting.content_credibility import evaluate_content_credibility
+
+    context = _base_context(recommendation="持有", target_12m="NT$105")
+    context["parsed"]["price_targets"] = {
+        "熊市情境": 0,
+        "基本情境": 120,
+        "牛市情境": 140,
+    }
+
+    result = evaluate_content_credibility(context, _base_snapshot(context))
+
+    assert result["status"] == "warning"
+    issue = next(issue for issue in result["warnings"] if issue["id"] == "unparseable_scenario_target")
+    assert issue["details"] == {"label": "熊市情境", "raw": "0"}
+
+
 def test_content_credibility_compares_outer_scenarios_when_base_target_is_missing():
     from reporting.content_credibility import evaluate_content_credibility
 

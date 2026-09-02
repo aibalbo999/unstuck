@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3896 / reject non-positive numeric scenario targets
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：字串目標價解析已用 `price > 0` 過濾，但 numeric `0`／負數仍被 `content_credibility_target_prices._target_price()` 當成有效價格，可能讓情境順序檢查錯誤通過。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：numeric `0` 情境 fixture 先取得 `1 failed` RED；只收納有限正數，非正數轉為 `unparseable_scenario_target`，不借用 current price、其他情境或 report text，並保留字串／區間與明確目標偵測契約。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：focused content-credibility/projection/target/data-trust regression `959 passed`，完整 suite `8612 passed, 6 skipped, 75 subtests passed`；正式 launcher reload 後 health/ready `200/ready`、current quality `167` 份、reports `167`、model-route `5` 條，doctor 的 canonical report index/operational DB 存在。本批不改 snapshot、artifact、report index、review、queue 或 rerun state。
+
 ## D3895 / preserve formatted snapshot price fallback
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：決策追蹤以 `current_price or current_price_fmt` 選值；raw `N/A` 是 truthy，會讓 parser 失敗後漏掉仍可用的 formatted price。

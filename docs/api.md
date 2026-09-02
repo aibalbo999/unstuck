@@ -5,6 +5,8 @@ FastAPI exposes the machine-readable contract at `/openapi.json`; mutating opera
 
 Decision tracking parses snapshot `current_price` first and falls back to `current_price_fmt` only when the raw value is not parseable. Legacy `N/A` raw values therefore do not hide a valid formatted price, and report tracking calculations remain aligned with the available snapshot evidence.
 
+Content-credibility target parsing treats only finite positive numeric values as target prices. Numeric zero or negative scenario targets therefore remain an explicit parse warning instead of passing scenario-order checks as real prices, matching the explicit-target detector's non-positive-value boundary.
+
 The model-route budget fallback applies shared `safe_bool` to `observability_unavailable`; legacy `"false"` therefore does not manufacture an unavailable warning, while explicit true remains visible in the machine-readable payload.
 
 The data-fetch blocking notice uses `data_trust_values.has_value` for core market and financial fields. Placeholder values such as `N/A` and empty history lists therefore cannot bypass the missing-core-data stop, while valid zero values and real core data preserve the existing analysis path.

@@ -64,7 +64,8 @@ def _target_price(value: Any, *, label: str = "") -> float | None:
     if isinstance(value, bool) or value is None or is_non_finite_number(value):
         return None
     if isinstance(value, (int, float)):
-        return float(value)
+        price = float(value)
+        return price if price > 0 else None
     text = _input_text(value)
     if not text:
         return None
