@@ -178,6 +178,51 @@ process.stdout.write(JSON.stringify(action));
     assert action["label"] == "報告符合性需確認"
 
 
+def test_report_facing_data_trust_and_freshness_states_normalize_whitespace_and_case():
+    policy_path = STATIC_DIR / "report_quality_policy.js"
+    boundary_path = STATIC_DIR / "report_reading_boundary_policy.js"
+    ui_data_trust_path = STATIC_DIR / "ui_data_trust.js"
+    script = """
+global.window = {};
+require(__POLICY_PATH__);
+require(__BOUNDARY_PATH__);
+require(__UI_DATA_TRUST_PATH__);
+const errorReport = { filename: 'error.html', data_trust: { status: ' ERROR ' } };
+const freshReport = {
+  filename: 'fresh.html',
+  data_trust: { status: ' FRESH ' },
+  decision_freshness: { status: ' CURRENT ' },
+  snapshot_integrity: { status: ' VERIFIED ' },
+  report_conformance: { status: ' PASSED ' },
+  evidence_exit_gate: { verdict: ' APPROVED ' },
+  content_credibility: { status: ' PASSED ' }
+};
+process.stdout.write(JSON.stringify({
+  errorStatus: window.StockAgentReportQualityPolicy.dataTrustStatus(errorReport),
+  errorAction: window.StockAgentReportQualityPolicy.reportRecommendedAction(errorReport),
+  errorNeedsAction: window.StockAgentReportQualityPolicy.requiresDataTrustAction(errorReport),
+  freshStatus: window.StockAgentReportQualityPolicy.dataTrustStatus(freshReport),
+  freshData: window.StockAgentReportQualityPolicy.reportHasFreshData(freshReport),
+  freshnessLabel: window.StockAgentReportQualityPolicy.decisionFreshnessStatusLabel(freshReport.decision_freshness),
+  boundary: window.StockAgentReportReadingBoundaryPolicy.reportReadingBoundary(freshReport),
+  errorLabel: window.StockAgentUiDataTrust.dataTrustLabel(errorReport.data_trust),
+  freshClass: window.StockAgentUiDataTrust.dataTrustClass(freshReport.data_trust)
+}));
+""".replace("__POLICY_PATH__", json.dumps(str(policy_path))).replace("__BOUNDARY_PATH__", json.dumps(str(boundary_path))).replace("__UI_DATA_TRUST_PATH__", json.dumps(str(ui_data_trust_path)))
+
+    payload = json.loads(_node(script))
+
+    assert payload["errorStatus"] == "error"
+    assert payload["errorAction"] == {"type": "manual_review", "filename": "error.html"}
+    assert payload["errorNeedsAction"] is True
+    assert payload["freshStatus"] == "fresh"
+    assert payload["freshData"] is True
+    assert payload["freshnessLabel"] == "有效"
+    assert payload["boundary"]["state"] == "passed"
+    assert payload["errorLabel"] == "本報告來源異常"
+    assert payload["freshClass"] == "fresh"
+
+
 def test_report_quality_gate_exposes_structured_gap_and_artifact_evidence_boundary():
     evidence_path = STATIC_DIR / "report_quality_evidence_helpers.js"
     gate_path = STATIC_DIR / "report_quality_gate_policy.js"

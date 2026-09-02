@@ -50,7 +50,7 @@
         else if (qualityKeys.every(key => recorded(report, key)) && String(conformance.status ?? '').trim().toLowerCase() === 'passed'
             && String(evidence.verdict ?? '').trim().toLowerCase() === 'approved'
             && String(content.status ?? '').trim().toLowerCase() === 'passed'
-            && String(report?.data_trust?.status || 'unknown') === 'fresh'
+            && String(report?.data_trust?.status || 'unknown').trim().toLowerCase() === 'fresh'
             && (String(snapshot.status ?? '').trim() === '' || String(snapshot.status ?? '').trim().toLowerCase() === 'verified')) state = 'passed';
         const integrityDetail = snapshotIntegrityInvalid(snapshot) ? snapshotIntegrityDetail(snapshot) : '';
         return { state, label: labels[state], detail: `${details[state]} ${integrityDetail}`.trim() };

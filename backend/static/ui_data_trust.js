@@ -4,7 +4,7 @@
         return Boolean(qualityPolicy().dataTrustProviderSlaOnlyPartial?.(trust));
     }
     function dataTrustLabel(trust) {
-        const status = trust && trust.status ? trust.status : 'unknown';
+        const status = String(trust?.status ?? 'unknown').trim().toLowerCase() || 'unknown';
         const labels = {
             fresh: '本報告資料新鮮',
             partial: providerSlaOnlyPartial(trust) ? '本報告來源提醒' : '本報告資料需留意',
@@ -15,7 +15,7 @@
         return labels[status] || labels.unknown;
     }
     function dataTrustClass(trust) {
-        const status = trust && trust.status ? trust.status : 'unknown';
+        const status = String(trust?.status ?? 'unknown').trim().toLowerCase() || 'unknown';
         return ['fresh', 'partial', 'stale', 'error'].includes(status) ? status : 'unknown';
     }
     function dataTrustReasonLabel(code) {

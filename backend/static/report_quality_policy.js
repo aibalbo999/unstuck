@@ -3,7 +3,7 @@
         const codes = report?.data_trust?.reason_codes;
         return Array.isArray(codes) ? codes.map(code => String(code || '')) : [];
     };
-    const dataTrustStatus = report => report?.data_trust?.status || 'unknown';
+    const dataTrustStatus = report => String(report?.data_trust?.status ?? 'unknown').trim().toLowerCase() || 'unknown';
     const dataTrustStaleSources = report => {
         const sources = report?.data_trust?.stale_sources;
         return Array.isArray(sources) ? sources.filter(Boolean) : [];
@@ -16,9 +16,10 @@
     };
     function decisionFreshnessStatusLabel(freshness) {
         if (!freshness) return 'N/A';
-        if (freshness.requires_rerun || freshness.status === 'needs_rerun') return '需重跑';
-        if (freshness.status === 'current') return '有效';
-        return freshness.status || 'N/A';
+        const status = String(freshness.status ?? '').trim().toLowerCase();
+        if (freshness.requires_rerun || status === 'needs_rerun') return '需重跑';
+        if (status === 'current') return '有效';
+        return status || 'N/A';
     }
     const reportDecisionStatusLabel = report => reportNeedsRerun(report)
         ? '需重跑'

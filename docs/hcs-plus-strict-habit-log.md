@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3852 / normalize browser data-trust and freshness states
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：D3851 已收斂品質 gate／snapshot 的格式變體，但 report-facing data-trust action、fresh-data boundary、徽章與 decision-freshness label 仍直接比較原始狀態；` ERROR ` 可能漏掉人工複核，` FRESH ` 可能顯示未知，` CURRENT ` 可能露出原始字串。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：新增 error/fresh/current 的跨層 fixture，先取得 `1 failed` RED；將品質 policy、閱讀邊界與資料可信度 UI 統一為 trim/lowercase projection，保留資料新鮮度與結論新鮮度的獨立語意。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：focused reading-boundary suite `15 passed`、前端/static/HCS `246 passed`、報告全套 `1636 passed, 1 skipped`、refresh/storage/runtime `42 passed`、文件/import `573 passed`；Node syntax、Python compile、`git diff --check`、靜態模組行數與正式 runtime health/ready/assets `200` 通過。此批只改瀏覽器 read-only display/action classification，不回寫 snapshot、artifact、index、review、queue 或 rerun。
+
 ## D3851 / normalize browser quality and snapshot boundary states
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：品質狀態已採 allowlist，但 snapshot `VERIFIED`、` INVALID ` 與注入 helper 的大小寫值仍可能走不同分支，造成缺 gate、snapshot blocker 或 warning 被低估。
