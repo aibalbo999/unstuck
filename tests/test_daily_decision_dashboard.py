@@ -392,6 +392,22 @@ def test_daily_dashboard_surfaces_complete_latest_quality_audit_gaps_but_not_par
     assert "report_quality_audit" not in partial["decision_queue"]["summary"]["sources"]
 
 
+def test_daily_dashboard_normalizes_legacy_audit_truncation_flag():
+    import daily_decision_dashboard as dashboard_module
+
+    audit = {
+        "scope": "all_indexed_reports",
+        "selection_basis": "latest_per_ticker_pipeline",
+        "quality_metadata_missing_reports": 1,
+        "items_returned": 1,
+        "items_truncated": "true",
+        "items": [{"filename": "1623_v1.html", "pipeline_id": "v1"}],
+    }
+
+    assert dashboard_module._quality_audit_queue_items(audit) == []
+    assert dashboard_module._repair_sample_overlap(audit, [])["status"] == "partial"
+
+
 def test_daily_dashboard_reports_quality_gap_overlap_with_repair_sample():
     dashboard = build_daily_decision_dashboard(
         reports={

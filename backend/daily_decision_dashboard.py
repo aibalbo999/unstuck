@@ -139,7 +139,7 @@ def _quality_audit_queue_items(quality_audit: dict[str, Any]) -> list[dict[str, 
         return []
     missing_count = max(0, safe_int(quality_audit.get("quality_metadata_missing_reports"), default=0))
     items = safe_dict_list(quality_audit.get("items"))
-    if missing_count <= 0 or quality_audit.get("items_truncated") is True or len(items) != missing_count:
+    if missing_count <= 0 or safe_bool(quality_audit.get("items_truncated")) or len(items) != missing_count:
         return []
     returned_count = safe_int(quality_audit.get("items_returned"), default=len(items))
     if returned_count != missing_count:
@@ -182,7 +182,7 @@ def _repair_sample_overlap(
         if (key := _report_identity_key(item)) is not None
     }
     overlap = len(sample_keys & audit_gap_keys)
-    truncated = quality_audit.get("items_truncated") is True or audit_gap_items_returned < audit_gap_reports
+    truncated = safe_bool(quality_audit.get("items_truncated")) or audit_gap_items_returned < audit_gap_reports
     result: dict[str, Any] = {
         "status": "partial" if truncated else "complete",
         "audit_gap_reports": audit_gap_reports,

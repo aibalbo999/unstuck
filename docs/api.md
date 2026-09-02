@@ -21,6 +21,8 @@ Content-credibility evidence/confidence warnings normalize `freshness_context.st
 
 Provider SLA alert payloads and observability aggregates normalize `current_source_has_healthy_entry` with shared `safe_bool`. Legacy `"true"` therefore remains visible in the source-health evidence and core-critical covered counts, while unknown tokens do not create health coverage.
 
+The daily decision dashboard normalizes the quality-audit `items_truncated` flag before publishing repair actions and overlap status. Legacy `"true"` keeps the audit partial and prevents incomplete items from entering the repair queue; only a complete, non-truncated audit can create report-quality navigation actions.
+
 ## Read Endpoints
 
 `GET /api/observability/model-routes` returns the `model_route_budget.v1` telemetry section used by the operator panel. It reports `slow_route`, `retry_storm`, and `quality_gate_failures`; `slow_route` is maintenance evidence and remains outside the daily decision queue.

@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3879 / normalize daily quality-audit truncation scope
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：daily decision dashboard 的 quality-audit queue item 與 repair sample overlap 對 `items_truncated` 使用 `is True`；legacy `"true"` 會將不完整 audit 誤投影成 complete，改變人工核對範圍與 action navigation。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先以一組 legacy-token fixture 取得 `1 failed` RED；兩個 scope boundary 共用 `report_freshness_summary.safe_bool`，只保留 complete/non-truncated audit 的 repair item，unknown 不從 item count 推導完整性。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture contract；focused fixture `1 passed`、相關回歸 `615 passed`、full suite `8,583 passed, 6 skipped, 75 subtests passed`。本批只修 daily-dashboard read-only scope projection，不改 snapshot、artifact、report index、review、queue 或 rerun state。
+
 ## D3878 / normalize provider SLA health coverage tokens
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：provider SLA dashboard payload 與 observability aggregate 對 `current_source_has_healthy_entry` 只接受原生 `True`；legacy `"true"` 會漏掉來源健康 evidence 與 core-critical covered count，Provider SLA 與操作台統計因此不一致。
