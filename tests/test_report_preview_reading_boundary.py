@@ -103,6 +103,14 @@ const reports = [
     report_conformance: { status: 'PASSED' },
     evidence_exit_gate: { verdict: 'APPROVED' },
     content_credibility: { status: 'PASSED' }
+  },
+  {
+    name: 'uppercase-verified-missing',
+    ...base,
+    snapshot_integrity: { status: 'VERIFIED' },
+    report_conformance: { status: 'PASSED' },
+    evidence_exit_gate: { verdict: 'APPROVED' },
+    content_credibility: {}
   }
 ];
 process.stdout.write(JSON.stringify(reports.map(report => ({
@@ -122,6 +130,52 @@ process.stdout.write(JSON.stringify(reports.map(report => ({
     assert partial_unknown["boundary"]["state"] == "warning"
     assert payload[2]["gate"] is None
     assert payload[2]["boundary"]["state"] == "passed"
+    assert payload[3]["gate"]["label"] == "品質證據未記錄"
+    assert payload[3]["boundary"]["state"] == "warning"
+
+
+def test_report_reading_boundary_blocks_case_insensitive_invalid_snapshot_status():
+    boundary_path = STATIC_DIR / "report_reading_boundary_policy.js"
+    script = """
+global.window = {};
+require(__BOUNDARY_PATH__);
+const report = {
+  data_trust: { status: 'fresh' },
+  evidence_exit_gate: { verdict: 'approved' },
+  content_credibility: { status: 'passed' },
+  report_conformance: { status: 'passed' },
+  snapshot_integrity: { status: ' INVALID ' }
+};
+process.stdout.write(JSON.stringify(window.StockAgentReportReadingBoundaryPolicy.reportReadingBoundary(report)));
+""".replace("__BOUNDARY_PATH__", json.dumps(str(boundary_path)))
+
+    boundary = json.loads(_node(script))
+
+    assert boundary["state"] == "blocked"
+    assert "品質 gate 未通過" in boundary["label"]
+
+
+def test_report_quality_gate_normalizes_injected_quality_helpers():
+    gate_path = STATIC_DIR / "report_quality_gate_policy.js"
+    script = """
+global.window = {};
+require(__GATE_PATH__);
+const report = {
+  snapshot_integrity: { status: 'verified' },
+  report_conformance: { status: 'warning' },
+  evidence_exit_gate: { verdict: 'caution' },
+  content_credibility: { status: 'passed' }
+};
+const action = window.StockAgentReportQualityGatePolicy.reportQualityGateAction(report, {
+  reportConformanceStatus: () => ' WARNING ',
+  evidenceExitGateVerdict: () => ' CAUTION '
+});
+process.stdout.write(JSON.stringify(action));
+""".replace("__GATE_PATH__", json.dumps(str(gate_path)))
+
+    action = json.loads(_node(script))
+
+    assert action["label"] == "報告符合性需確認"
 
 
 def test_report_quality_gate_exposes_structured_gap_and_artifact_evidence_boundary():

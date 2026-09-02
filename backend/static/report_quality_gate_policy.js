@@ -10,13 +10,13 @@
         const conformance = report?.report_conformance || {};
         const gate = report?.evidence_exit_gate || {};
         const qualityKeys = ['report_conformance', 'evidence_exit_gate', 'content_credibility'];
-        const persistedSnapshotVerified = report?.snapshot_integrity?.status === 'verified';
+        const persistedSnapshotVerified = String(report?.snapshot_integrity?.status ?? '').trim().toLowerCase() === 'verified';
         const reportConformanceStatus = helpers.reportConformanceStatus
             || (item => String(item?.report_conformance?.status ?? '').trim().toLowerCase());
         const evidenceExitGateVerdict = helpers.evidenceExitGateVerdict
             || (item => String(item?.evidence_exit_gate?.verdict ?? '').trim().toLowerCase());
-        const status = reportConformanceStatus(report);
-        const verdict = evidenceExitGateVerdict(report);
+        const status = String(reportConformanceStatus(report) ?? '').trim().toLowerCase();
+        const verdict = String(evidenceExitGateVerdict(report) ?? '').trim().toLowerCase();
         if (persistedSnapshotVerified && !qualityKeys.every(key => recorded(report, key))) {
             return structuredGapAction(report) || { label: '品質證據未記錄', tone: 'critical', detail: '報告缺少完整品質 gate 紀錄，採用前需人工查看。' };
         }

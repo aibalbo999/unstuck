@@ -20,7 +20,7 @@
         const seen = new Set();
         return values.filter(value => !seen.has(value) && seen.add(value));
     };
-    const snapshotIntegrityInvalid = snapshot => String(snapshot?.status || '') === 'invalid'
+    const snapshotIntegrityInvalid = snapshot => String(snapshot?.status ?? '').trim().toLowerCase() === 'invalid'
         || snapshot?.valid === false;
     const hashMismatchDetail = snapshot => {
         const hashValue = safeText(snapshot?.hash);

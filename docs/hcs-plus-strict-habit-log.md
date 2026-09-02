@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3851 / normalize browser quality and snapshot boundary states
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：品質狀態已採 allowlist，但 snapshot `VERIFIED`、` INVALID ` 與注入 helper 的大小寫值仍可能走不同分支，造成缺 gate、snapshot blocker 或 warning 被低估。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先加入大寫 verified 缺 gate、空白 invalid 與大寫 helper fixture，取得 `3 failed` RED；修正為 trim/lowercase 後再套用既有 known-state policy，保留 `unverified` warning 與 invalid blocked 語意。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture 與 cache-buster；閱讀邊界 `14 passed`，品質 backend `269 passed`、前端/static/HCS `245 passed`、品質前端/HTTP `96 passed`、文件/import `573 passed`，未知／格式變體仍導向正確的人工核對或阻斷，不修改 snapshot、artifact、index、review、queue 或 rerun。
+
 ## D3850 / align browser quality-state recording with backend allowlist
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：後端品質 metadata repair 與 conformance 已拒絕未知狀態，但瀏覽器 `recorded()` 只看非空字串；`future`／`experimental` 可能讓 preview action 與 reading boundary 跳過未記錄提示，大寫 known status 也可能被誤判為非通過。

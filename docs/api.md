@@ -732,6 +732,8 @@ Report conformance quality-gate steps fail closed on status values: only `passed
 
 The browser-side report-reading boundary and quality-action policy use the same known-state allowlist for `report_conformance`, `content_credibility`, and `evidence_exit_gate`. A non-empty but unrecognized status is therefore treated as unrecorded: it cannot suppress the missing-quality-evidence action or make the reading boundary appear passed. Snapshot `unverified` remains a warning rather than being treated as an absent snapshot-integrity record.
 
+Browser policy normalizes surrounding whitespace and casing before checking quality or snapshot-integrity states, including injected quality-status helpers. Thus ` VERIFIED ` still identifies a verified snapshot for missing-gate detection, while ` INVALID ` remains blocking; no persisted report value is rewritten.
+
 Report conformance quality gate inputs accept mapping-safe wrappers before decision-tree evaluation, so read-only report lint, final audit, evidence, content credibility, context, or snapshot payloads cannot hide blocker or warning evidence.
 
 Report conformance quality gate issue lists use sequence-safe conversion before decision-tree evaluation, so tuple blocking or warning rows from lint, final audit, or content credibility gates cannot be ignored.
