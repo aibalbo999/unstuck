@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3857 / prioritize actionable data-trust reasons
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：live 165 份報告中 131 份有超過兩個 reason code，但 UI 只取前兩項；generic freshness/note 會遮住具體 optional-source stale 或 Provider SLA risk。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：以 3406.TW 形狀的 reason list 先取得 `1 failed` RED；加入具體 error/stale/provider SLA 優先序，最多兩項且同優先級維持原順序。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：focused `18 passed`，live 131/131 具體風險摘要可見，更新 cache-buster、API/operator/architecture contract；只改 bounded read-only display，不修改 data-trust 或任何 persisted state。
+
 ## D3856 / normalize refresh-attribution reason codes
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：歷史品質 evidence helper 直接以原始 `reason_codes.includes()` 判斷刷新前／刷新後歸因，格式漂移會讓畫面缺少責任提示。

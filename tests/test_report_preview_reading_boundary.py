@@ -259,6 +259,26 @@ process.stdout.write(JSON.stringify({
     assert payload["reasonSummary"] == "來源異常：市場資料"
 
 
+def test_report_facing_data_trust_reason_summary_prioritizes_specific_risks():
+    ui_data_trust_path = STATIC_DIR / "ui_data_trust.js"
+    script = """
+global.window = {};
+require(__UI_DATA_TRUST_PATH__);
+const trust = {
+  status: 'fresh',
+  reason_codes: [
+    'fresh_core_sources',
+    'data_source_notes_present',
+    'optional_source_stale:recent_catalysts',
+    'provider_sla_optional_critical'
+  ]
+};
+process.stdout.write(window.StockAgentUiDataTrust.dataTrustReasonSummary(trust));
+""".replace("__UI_DATA_TRUST_PATH__", json.dumps(str(ui_data_trust_path)))
+
+    assert _node(script) == "補充來源過期：近期催化劑、補充來源穩定度提醒"
+
+
 def test_report_quality_actions_surface_invalid_snapshot_integrity_for_manual_review():
     gate_path = STATIC_DIR / "report_quality_gate_policy.js"
     policy_path = STATIC_DIR / "report_quality_policy.js"

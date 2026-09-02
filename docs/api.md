@@ -738,6 +738,8 @@ Browser report-quality actions, reading boundaries, data-trust badges, and decis
 
 Browser data-trust reason codes also trim and lowercase before matching `source_error:*`, `source_stale:*`, and `provider_sla_critical`; therefore formatting drift cannot hide a manual-review, refresh, or Provider SLA notice. The UI reason summary applies the same normalization before mapping source labels. This is read-only presentation normalization and does not alter persisted `data_trust.reason_codes`.
 
+The compact browser data-trust reason summary keeps at most two entries but ranks concrete source errors, stale sources, and Provider SLA warnings ahead of generic `fresh_core_sources` or `data_source_notes_present`; equal-priority entries retain their source order. This keeps the summary bounded without hiding the most actionable reason in reports that carry many optional-source notices.
+
 The browser quality-action policy also surfaces `snapshot_integrity.status=invalid` or `valid=false` as a critical `manual_review` action, preserving available hash/error detail; this keeps the preview action aligned with the blocked reading boundary and backend report-repair priority without changing snapshot state.
 
 When an invalid snapshot carries the generic blocker plus a specific provider or hash error, the browser action drops the generic text and keeps the specific detail, matching the backend repair queue and reading notice evidence order.
