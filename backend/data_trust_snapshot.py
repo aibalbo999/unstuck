@@ -27,13 +27,7 @@ from mapping_fields import (
     safe_mapping_dict,
 )
 from report_reproducibility import build_data_confidence_controls, build_reproducibility_packet
-
-
-def _safe_bool(value: Any) -> bool:
-    try:
-        return bool(value)
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError, LookupError):
-        return False
+from report_freshness_summary import safe_bool
 
 
 def _safe_text(value: Any) -> str:
@@ -135,7 +129,7 @@ def build_data_snapshot(
         ),
         "requires_rerun_reason": sanitize_for_snapshot(dict.get(context, "requires_rerun_reason", "")),
         "refreshed_from_report": sanitize_for_snapshot(dict.get(context, "refreshed_from_report", "")),
-        "refreshed_without_analysis_rerun": _safe_bool(
+        "refreshed_without_analysis_rerun": safe_bool(
             dict.get(context, "refreshed_without_analysis_rerun")
         ),
         "analysis_text_stale_message": sanitize_for_snapshot(

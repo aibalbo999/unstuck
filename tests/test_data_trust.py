@@ -4087,6 +4087,25 @@ def test_data_snapshot_refresh_flag_lookup_failure_falls_back_to_false():
     assert snapshot["refreshed_without_analysis_rerun"] is False
 
 
+def test_data_snapshot_refresh_flag_normalizes_legacy_false_token():
+    snapshot = data_trust.build_data_snapshot(
+        {
+            "ticker": "REFRESH",
+            "pipeline_id": "v2",
+            "refreshed_without_analysis_rerun": "false",
+            "data": {
+                "data_schema_version": DATA_SCHEMA_VERSION,
+                "ticker": "REFRESH",
+                "source_audit": [],
+                "data_trust": data_trust.unknown_data_trust(),
+            },
+        },
+        generated_at="2026-06-07T00:10:00+00:00",
+    )
+
+    assert snapshot["refreshed_without_analysis_rerun"] is False
+
+
 def test_low_confidence_snapshot_allows_ranges_or_insufficient_data():
     snapshot = data_trust.build_data_snapshot(
         {

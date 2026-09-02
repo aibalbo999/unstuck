@@ -38,6 +38,8 @@ Report list rows parse the legacy `analysis_text_stale` flag with an explicit bo
 
 Snapshot ingestion applies the same explicit boolean contract to `refreshed_without_analysis_rerun` before writing report-index metadata. Therefore a legacy snapshot string `false` cannot become an index stale flag and later create a false full-rerun signal.
 
+Snapshot builders apply that explicit boolean contract before persisting `refreshed_without_analysis_rerun` as well. Therefore a legacy context string `false` cannot be written into a new snapshot as `true` and reappear as a later stale-conclusion signal.
+
 Decision tracking, quality-audit hydration, compare responses, and repair-item classification reuse that same explicit boolean contract for `refreshed_without_analysis_rerun`, `analysis_text_stale`, and `requires_rerun`. A legacy string `false` therefore remains current across downstream read-only projections instead of creating a false warning or rerun action.
 
 Freshness status values are also trimmed and lowercased before decision tracking, refresh policy, or partial-rerun guards compare `decision_validity_status`; values such as ` NEEDS_RERUN ` cannot bypass the full-rerun safety boundary.

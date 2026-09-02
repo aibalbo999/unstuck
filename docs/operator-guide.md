@@ -265,6 +265,8 @@ Report conformance 的 `report_lint` 與 `content_credibility` 只有 `passed` �
 
 同一規則也在 snapshot 進入 report index 前套用到 `refreshed_without_analysis_rerun`；舊 snapshot 的字串 `false` 不會先被寫成 stale，再誤導工作台安排完整重跑。
 
+產製 snapshot 時也會先套用同一規則；若上游 context 帶入舊格式字串 `false`，新 snapshot 仍會保存為布林 `false`，不會重新製造「資料較新、本文待重跑」的錯誤訊號。
+
 decision tracking、品質稽核、報告比較與 repair action 也沿用同一套明確 boolean 規則處理 `refreshed_without_analysis_rerun`、`analysis_text_stale` 與 `requires_rerun`；舊資料的字串 `false` 會在下游維持「目前一致」，不會誤生人工警示或完整重跑 action。
 
 `decision_validity_status` 在 decision tracking、刷新 policy 與局部重跑前也會先去除空白並轉成小寫；例如 ` NEEDS_RERUN ` 不會繞過「必須完整重跑」的安全判斷。

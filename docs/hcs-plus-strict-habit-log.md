@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3866 / normalize freshness flags at snapshot write boundary
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：artifact scan 顯示現有 snapshot 都已保存為 canonical bool，但 upstream snapshot builder 仍對輸入 context 使用 raw `bool()`；legacy `"false"` 會在產製新 snapshot 時變成 `True`，重新製造 stale conclusion signal。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先以 snapshot-builder legacy token fixture 取得 `1 failed` RED；改用 freshness summary 的 shared `safe_bool`，把 explicit boolean projection 放在 persistence boundary，並保留異常 truthiness fallback 為 `False`。
+- `#受眾` / `#溝通設計` / `#責任` / `#可驗證性`：同步 API、operator、architecture contract；snapshot flag focused `3 passed`，本批只修 snapshot write projection，不改現有 artifact、index、review、queue 或 rerun state。
+
 ## D3865 / normalize decision validity status before safety decisions
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：artifact data 本身沒有 malformed status，但 decision tracking、refresh diff 與 partial rerun guard 對 `decision_validity_status` 使用 exact match，格式漂移會改變安全判斷。
