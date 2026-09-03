@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3910 / canonicalize filename-bearing notification identity
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：free-mode notification dedupe 對報告型 action 直接使用 raw `pipeline_id`；同一 v4 filename 的 `N/A` 與 `v4` payload 會被切成兩個 sender idempotency identity。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：一般 manual-review 與 backtest-due fixture 先取得 `2 failed` RED；帶 filename 時改用 `resolve_report_pipeline_id()`，缺 filename 時保留既有 payload fallback，不改 outbox、audit 或 notification send side effect。
+- `#受眾` / `#責任` / `#可驗證性`：focused identity/import regression `509 passed`；dedupe key、message id 與既有 malformed identity fallback 維持可追蹤，報告內容與任務狀態不受本批改寫。
+
 ## D3909 / preserve pipeline identity during data refresh
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：資料刷新流程把 snapshot 的 raw `pipeline` 同時放進 refresh context 與新 snapshot；v4 artifact 遇到 legacy `N/A` 時，刷新後仍保存 placeholder，後續 rerun/context 會失去原始模式身份。

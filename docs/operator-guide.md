@@ -2888,3 +2888,5 @@ Report downside-risk legacy text omits impact for single-character fragments, so
 Report downside-risk legacy text uses severity fallback for invalid metadata, so Agent 21 plain-text risk rows show schema-aligned `warning` instead of arbitrary severity labels outside `warning`, `high`, or `critical`.
 
 Report downside-risk legacy text uses confidence fallback for invalid metadata, so Agent 21 plain-text risk rows show schema-aligned `0.7` instead of arbitrary confidence labels or non-finite values outside 0 to 1.
+
+Report-bearing notification actions use the shared pipeline resolver before composing `dedupe_key` and `message_id`; a valid stored pipeline remains authoritative and legacy `N/A` falls back to the filename, so the same artifact remains idempotent with its canonical `v4` payload. Filename-less actions keep their explicit pipeline fallback.

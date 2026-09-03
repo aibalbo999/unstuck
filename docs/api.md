@@ -2890,6 +2890,8 @@ Report downside-risk legacy text uses severity fallback for invalid metadata, so
 
 Report downside-risk legacy text uses confidence fallback for invalid metadata, so Agent 21 plain-text risk rows show schema-aligned `0.7` instead of arbitrary confidence labels or non-finite values outside 0 to 1.
 
+Notification plan dedupe identity uses the shared pipeline resolver for report-bearing actions: a valid stored pipeline remains authoritative, while legacy `N/A` falls back to the report filename so the same artifact shares one `dedupe_key` and `message_id`; actions without a report filename retain their explicit pipeline fallback.
+
 ## Maintenance Dry Run
 
 Cleanup APIs are dry-run unless `write=true` is explicit:

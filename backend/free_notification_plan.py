@@ -8,7 +8,7 @@ import os
 from typing import Any, Mapping
 
 from daily_decision_source_labels import normalize_source_counts, source_display_overrides, source_key, source_label, source_labels, source_text, source_texts
-from free_notification_identity import dedupe_context, delivery_key, message_delivery_identity
+from free_notification_identity import action_pipeline_identity, dedupe_context, delivery_key, message_delivery_identity
 from free_notification_plan_constants import (
     BOOLEAN_MESSAGE_CONTEXT_KEYS,
     CHANNELS,
@@ -195,6 +195,8 @@ def _message_context(action: dict[str, Any]) -> dict[str, Any]:
                 context[key] = text
             else:
                 context.pop(key, None)
+    if "pipeline_id" in context:
+        context["pipeline_id"] = action_pipeline_identity(action)
     reason_codes = safe_text_list(_field(action, "reason_codes"))
     if reason_codes:
         context["reason_codes"] = reason_codes

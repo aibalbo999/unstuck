@@ -52,6 +52,34 @@ def test_notification_plan_preserves_decision_queue_context():
     assert message["source_text"] == "資料來源 (provider_impact)"
 
 
+def test_notification_plan_canonicalizes_report_pipeline_context_from_filename():
+    plan = build_daily_notification_plan(
+        {
+            "decision_queue": {
+                "items": [
+                    {
+                        "source": "report_repair",
+                        "type": "manual_review",
+                        "title": "2330.TW 報告需人工核對",
+                        "detail": "報告模式需要確認。",
+                        "ticker": "2330.TW",
+                        "filename": "2330_TW_v4_report_20260628_000000.html",
+                        "pipeline_id": "N/A",
+                    }
+                ]
+            }
+        },
+        env={"TELEGRAM_BOT_TOKEN": "token", "TELEGRAM_CHAT_ID": "chat"},
+    )
+
+    message = plan["messages"][0]
+    outbox = plan["delivery_outbox"][0]
+    assert message["pipeline_id"] == "v4"
+    assert outbox["pipeline_id"] == "v4"
+    assert message["dedupe_key"].endswith("|2330_TW_v4_report_20260628_000000.html|v4")
+    assert outbox["dedupe_key"] == message["dedupe_key"]
+
+
 def test_notification_plan_preserves_action_source_display_context():
     plan = build_daily_notification_plan(
         {

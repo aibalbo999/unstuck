@@ -402,6 +402,8 @@ flowchart TD
 - 新 report artifact 行為走 `report_artifacts` / storage helper；不要新增另一套 path guessing。
 - 新外部資料來源走 `data_fetch` / provider audit；不要在 UI route 裡直接呼叫 provider。
 
+Free notification identity uses the shared pipeline resolver for report-bearing actions: valid stored identity remains authoritative and a legacy `N/A` can fall back to the report filename. This keeps `notification_plan.v1` dedupe and message identities stable without rewriting notification outbox/audit state or any report data.
+
 ## 建議的下一步
 
 1. 建立 `backend/runtime_paths.py`，把 canonical DB/path 命名集中，讓 caller 不再直接猜 `backend/cache/*.sqlite3`。

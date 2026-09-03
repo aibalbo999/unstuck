@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from mapping_fields import mapping_field as _field, safe_text
+from report_pipeline_identity import resolve_report_pipeline_id
 
 IDENTITY_ERRORS = (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError)
 
@@ -49,13 +50,13 @@ def _identity_parts_for_action(action: dict[str, Any]) -> list[str]:
         return [
             _first_identity(action, identity_part(_field(action, "ticker"), "report"), "filename", "report_filename"),
             identity_part(_field(action, "horizon_months"), "unknown-horizon"),
-            identity_part(_field(action, "pipeline_id"), "v1"),
+            action_pipeline_identity(action),
         ]
     if _has_identity(action, "filename", "report_filename", "ticker", "pipeline_id"):
         return [
             identity_part(_field(action, "ticker"), "ticker"),
             _first_identity(action, "report", "filename", "report_filename"),
-            identity_part(_field(action, "pipeline_id"), "v1"),
+            action_pipeline_identity(action),
         ]
     if _has_identity(action, "route", "warning_id"):
         return [
@@ -71,6 +72,13 @@ def _has_identity(action: dict[str, Any], *keys: str) -> bool:
 
 def _first_identity(action: dict[str, Any], fallback: Any, *keys: str) -> str:
     return next((text for key in keys if (text := identity_part(_field(action, key), ""))), str(fallback))
+
+
+def action_pipeline_identity(action: dict[str, Any]) -> str:
+    filename = _first_identity(action, "", "filename", "report_filename")
+    if filename:
+        return resolve_report_pipeline_id(filename, stored_pipeline=_field(action, "pipeline_id"))
+    return identity_part(_field(action, "pipeline_id"), "v1")
 
 
 def identity_part(value: Any, fallback: Any) -> str:
@@ -93,4 +101,4 @@ def identity_part(value: Any, fallback: Any) -> str:
     return text.replace("|", "/").strip() or str(fallback)
 
 
-__all__ = ["dedupe_context", "delivery_key", "identity_part", "message_delivery_identity"]
+__all__ = ["action_pipeline_identity", "dedupe_context", "delivery_key", "identity_part", "message_delivery_identity"]
