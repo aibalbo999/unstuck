@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3914 / map recommendation-prefix horizons only with canonical context
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`5314.TWO` v3 的最終建議表用 `放空；3個月` 作為 label，雖然 parsed recommendation 已有同值短期目標，parser 仍回報 `missing_semantic_path`。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：有 context 的精確 fixture 先取得 RED；只新增固定建議詞＋3/6/12 個月的 horizon mapping，無 context 的 legacy report 仍走 legacy conclusion boundary，不借用值。
+- `#受眾` / `#責任` / `#可驗證性`：evidence gate `219 passed`、品質/data-trust focused regression `1678 passed`；完整 suite `8649 passed, 6 skipped, 75 subtests passed`。live claim 對到 canonical parsed path，current missing-path residual `2→1`，mismatch 維持 0。未寫 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3913 / keep confidence metadata out of evidence candidate matching
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`5314.TWO` v3 的 confidence claim 因 `confidence_basis.evidence_items` 含 DCF 數字，被錯配成 snapshot mismatch，將分析 metadata 污染成 evidence failure。

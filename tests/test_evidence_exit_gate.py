@@ -549,6 +549,31 @@ def test_evidence_gate_does_not_match_confidence_to_confidence_basis_evidence_it
     assert claim["matched_path"] == ""
 
 
+def test_evidence_gate_matches_recommendation_prefix_horizon_with_context():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "| 最終投資建議 | 建議: 放空；3個月: NT$22.0 |",
+        {
+            "rerun_context": {
+                "parsed": {
+                    "recommendation": {
+                        "短期目標（3個月）": "NT$22.0",
+                    },
+                },
+                "structured_outputs": {},
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "approved"
+    assert claim["status"] == "verified"
+    assert claim["matched_path"] == "rerun_context.parsed.recommendation.短期目標（3個月）"
+
+
 def test_evidence_gate_does_not_bind_news_support_or_pressure_to_risk_price():
     from evidence_exit_gate import evaluate_report_evidence
 

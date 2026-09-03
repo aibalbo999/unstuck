@@ -72,6 +72,7 @@ _RECOMMENDATION_HORIZON_PATHS = {
     "6個月目標": "中期目標（6個月）",
     "12個月目標": "長期目標（12個月）",
 }
+_RECOMMENDATION_PREFIX_HORIZON_RE = re.compile(r"^(?:買入|買進|持有|避免|放空|觀望)[;；]?(?P<horizon>3|6|12)個月$")
 _FIELD_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
     (("信心", "confidence"), ("confidence", "confidence_score", "agent_confidence")),
     (("停損", "止損", "stoploss", "stop_loss"), ("stop_loss", "stoploss", "risk_price")), (("借券餘額",), ("borrowed_short_sale_balance",)), (("當日借券賣出",), ("borrowed_short_sale_today",)), (("vs Sale Today",), ("borrowed_short_sale_today", "shares_to_thousands")),
@@ -91,7 +92,6 @@ _FIELD_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
     (("下行", "downside"), ("downside", "downside_pct")),
     (("情境", "scenario", "目標價", "targetprice"), ("price_target", "price_targets", "target_price", "scenario", "scenarios", "valuation", "dcf")),
 )
-
 
 def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
     """Extract labelled numeric claims from rendered Markdown."""
@@ -159,7 +159,6 @@ def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
             claims.append({"id": len(claims) + 1, "label": "Previous", "reported_value": number, "unit": "", "line_number": line_number, "raw_text": line[:160]})
     return claims
 
-
 def _is_non_claim_match(line: str, match: re.Match[str]) -> bool:
     timestamp = re.search(r"\d{4}-\d{2}-\d{2}T\d{1,2}:\d{2}:\d{2}", line)
     if (timestamp and timestamp.start() <= match.start("label") <= timestamp.end()) or (line[max(0, match.start("label") - 1):match.start("label")] == "_" and re.search(r"`normalized[_ ]financials`", line[max(0, match.start("label") - 40):match.end("label")], re.IGNORECASE)) or re.search(r"`institutional_trading`\s*[:：]\s*\d+\s*-\s*day\s+lookback\b", line, re.IGNORECASE) or re.search(r"(?:不可用|unavailable|fallback|error|錯誤)\s*[:：]?\s*(?:4\d{2}|5\d{2})\b", line[max(0, match.start("num") - 80):match.end("num") + 1], re.IGNORECASE) or re.match(r"(?:\s*-\s*(?:day|days|week|weeks|month|months)\b|\s*(?:日|天|週|周|個月|月)\b)", line[match.end("num"):], re.IGNORECASE) or (match.re is _TABLE_CELL_RE and _TABLE_VALUE_LABEL_RE.fullmatch(match.group("label"))):
@@ -226,7 +225,10 @@ def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
         return ("major_holders_gt_1000_lots_pct",) if "concentration" in label else ("retail_holders_lt_50_lots_pct",)
     if (label == "previous" and ("marginbalance" in raw_text or "shortbalance" in raw_text)) or (label == "shortpreviousbalance" and "short_previous_balance" in raw_text) or (label == "marginpreviousbalance" and "margin_previous_balance" in raw_text) or (label == "return" and "borrowedshortsale" in raw_text and "return" in raw_text):
         return ("margin_previous_balance",) if (label == "previous" and "marginbalance" in raw_text) or label == "marginpreviousbalance" else ("short_previous_balance",) if (label == "previous" and "shortbalance" in raw_text) or label == "shortpreviousbalance" else ("chip_data.twse_margin_short_sales.borrowed_short_return_today",)
-    if (recommendation_path := _RECOMMENDATION_HORIZON_PATHS.get(label)) and not claim.get("_legacy_conclusion_context_missing"):
+    recommendation_path = _RECOMMENDATION_HORIZON_PATHS.get(label)
+    if not recommendation_path and (prefix_horizon_match := _RECOMMENDATION_PREFIX_HORIZON_RE.fullmatch(label)):
+        recommendation_path = {"3": "短期目標（3個月）", "6": "中期目標（6個月）", "12": "長期目標（12個月）"}[prefix_horizon_match.group("horizon")]
+    if recommendation_path and not claim.get("_legacy_conclusion_context_missing"):
         return (f"rerun_context.parsed.recommendation.{recommendation_path}",)
     if any(_normalize_match_text(marker) in label for marker in ("支撐", "壓力")) and str(claim.get("unit") or "").lower() in ("twd", "元"):
         close_date = re.search(r"(?<!\d)(?P<month>\d{1,2})/(?P<day>\d{1,2})\s*(?:收盤(?:價)?|close(?:ing)?)", claim_text, re.IGNORECASE)
