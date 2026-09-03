@@ -3366,6 +3366,58 @@ def test_evidence_gate_does_not_bind_sp500_index_target_to_daily_change():
     assert claim["matched_path"] == ""
 
 
+def test_evidence_gate_maps_trust_alias_with_full_institutional_context():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* Net Buy (30 days): Foreign: 2296.78k, Dealer: 1195.4k, Trust: -6.92k.",
+        {
+            "data": {
+                "institutional_trading": {
+                    "net_buy_thousand_shares_by_category": {
+                        "foreign": 2296.78,
+                        "dealer": 1195.4,
+                        "investment_trust": -6.92,
+                    }
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=3,
+    )
+
+    trust_claim = next(claim for claim in result["sampled_claims"] if claim["label"] == "Trust")
+    assert result["verdict"] == "approved"
+    assert trust_claim["status"] == "verified"
+    assert trust_claim["matched_path"] == (
+        "data.institutional_trading.net_buy_thousand_shares_by_category.investment_trust"
+    )
+
+
+def test_evidence_gate_does_not_bind_isolated_trust_alias():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* Net Buy (30 days): Trust: -6.92k.",
+        {
+            "data": {
+                "institutional_trading": {
+                    "net_buy_thousand_shares_by_category": {
+                        "investment_trust": -6.92,
+                    }
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "caution"
+    assert claim["status"] == "unverifiable"
+    assert claim["matched_path"] == ""
+
+
 def test_evidence_gate_does_not_bind_dated_news_extremum_to_close_history():
     from evidence_exit_gate import evaluate_report_evidence
 

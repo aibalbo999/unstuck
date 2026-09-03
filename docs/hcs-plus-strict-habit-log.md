@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3926 / map context-bound Trust alias
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：全量 residual `missing_semantic_path` 尚有 115 筆，但日期、情境數字、新聞敘述與沒有 scalar 的資產周轉率等候選不具備安全 canonical path；唯一可由真實 snapshot 證明的短別名是 `2540.TW` 30 日法人分類中的 `Trust`。
+- `#證據基礎` / `#偏誤辨識` / `#偏誤降低`：`Trust: -6.92k` 的同一行同時列出 `Net Buy (30 days)`、`Foreign` 與 `Dealer`，精確對到 `data.institutional_trading.net_buy_thousand_shares_by_category.investment_trust`；只含孤立 `Trust` 或缺少完整分類上下文時維持 `unverifiable`，不借用 Foreign、Dealer 或其他同值欄位。
+- `#最小變更` / `#責任` / `#可驗證性`：RED→GREEN `2 passed`，跨層 evidence/data-trust `300 passed`，核心完整回歸 `8669 passed, 6 skipped, 8 deselected, 75 subtests passed`；全量 projection `1172 reports / 15631 claims / 0 errors`，`matched_snapshot_value` `11877→11878`、`missing_semantic_path` `116→115`。正式 launcher reload 後 `healthz=200`、`readyz=200/ready`、doctor canonical paths 通過，queue `depth=0`／`failed_recent=0`（既有 `failed_stale=10`）；2540.TW 真實 artifact 的 `Trust: -6.92k` verified 到投信 canonical path。不改寫 artifact、snapshot、index、review、rerun、repair 或 queue。
+
 ## D3925 / map Chinese chip aliases and standalone SPY daily change
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：residual claims 的 `近 5 個交易日淨買超 (千股)`、五日上下文中的 `法人合計買超`、`小戶 (持股 < 50 張) 比例` 與 `權益負債比率` 都有專用 snapshot path；standalone `S&P 500: ... (1d)` 也有 SPY daily-change path，但 S&P 500 指數點位目標不是 daily change。
