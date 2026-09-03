@@ -304,6 +304,8 @@ Borrowed-short claims map to their own TWSE paths: explicit `Borrowed Short Retu
 
 An exact standalone English `Price` label with a reported currency value maps to `data.current_price`; the matcher is exact so `Price Target` remains a separate target-price claim and is not mapped to current price. If the canonical current price exists but differs, the evidence result is `snapshot_value_mismatch` rather than `verified`; this is read-only evidence and does not rewrite the report or snapshot.
 
+Liquidity metrics use their own canonical snapshot fields: `流動比率`/`Current Ratio` maps to `data.current_ratio`, and `債務權益比`/`Debt to Equity` maps to `data.debt_to_equity` when the reported value agrees. A disagreement is `snapshot_value_mismatch`; neither metric borrows a same-valued financial or risk field.
+
 Analysis rubric labels such as `品牌影響力`、`網路效應`、`轉換成本`、`成本優勢`、`專利技術`、`FOMO 評分`、`聰明錢派發評分`、`Score` and exact `評分` are classified as `analysis_metadata_not_evidence` when no canonical snapshot path exists. They remain `unverifiable`; the gate does not borrow financial or market values merely because the score is numeric.
 
 When the same international-market narrative explicitly names `S&P 500`, `台股加權指數`, and `Change 1d`, the first reported change maps to `data.global_market_context.items[spy].change_1d_pct`. This narrow parser boundary does not use the Taiwan index or another symbol as a fallback; if the SPY field is absent, the claim remains `unverifiable`.

@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3917 / map liquidity ratios to dedicated snapshot fields
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`3653.TW`／`3324.TWO` v2 的 `流動比率` 與 `債務權益比` 有明確資料欄位，卻因缺少 `_FIELD_HINTS` 被標成 `missing_semantic_path`。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：相等值 fixture 與差異值 fixture 先取得 RED；新增 exact `current_ratio`／`debt_to_equity` mappings，保留同值 verified 與不一致 `snapshot_value_mismatch`，不借用其他財務欄位。
+- `#受眾` / `#責任` / `#可驗證性`：evidence gate `223 passed`；真實 artifact 的 `3324.TWO` 兩欄 verified，`3653.TW` 兩欄改為 mismatch；完整 suite `8653 passed, 6 skipped, 75 subtests passed in 1229.84s`。未寫 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3916 / classify English FOMO scores as analysis metadata
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`3017.TW` v3 的 `FOMO Score: 8/10` 目前是 `missing_semantic_path`；同一 snapshot 的 `data_trust.score` 與 `data_confidence_score` 是資料可信度欄位，不是情緒分數。

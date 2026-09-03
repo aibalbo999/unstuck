@@ -85,7 +85,7 @@ _FIELD_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
     (("毛利率", "grossmargin", "gross_margin"), ("gross_margin", "gross_margin_raw")), (("殖利率", "dividendyield", "dividend_yield"), ("dividend_yield", "dividend_yield_raw")), (("營收", "收入", "revenue", "sales"), ("revenue", "monthly_revenue", "sales")),
     (("淨利", "netincome", "net_income"), ("net_income", "netincome")),
     (("operating cash flow", "operating_cash_flow", "營業現金流"), ("operating_cash_flow",)), (("fcf", "自由現金流", "freecashflow", "free_cash_flow"), ("fcf", "free_cash_flow", "freecashflow")),
-    (("市值", "marketcap", "market_cap"), ("market_cap", "marketcap")),
+    (("市值", "marketcap", "market_cap"), ("market_cap", "marketcap")), (("流動比率", "current ratio", "currentratio"), ("current_ratio",)), (("債務權益比", "debt to equity", "debt-to-equity", "debtequity"), ("debt_to_equity",)),
     (("eps", "每股盈餘"), ("eps", "earnings_per_share")),
     (("護城河", "moat"), ("moat", "moat_score", "moat_scores")),
     (("營業利益率", "operatingmargin", "operating_margin"), ("operating_margin", "operatingincome", "operating_income")),

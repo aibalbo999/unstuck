@@ -163,6 +163,43 @@ def test_evidence_gate_classifies_fomo_score_as_analysis_metadata():
     assert claim["candidate_count"] == 0
 
 
+def test_evidence_gate_maps_liquidity_ratios_to_canonical_snapshot_fields():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 流動比率: 1.84\n- 債務權益比 (Debt to Equity): 63.5%",
+        {"data": {"current_ratio": "1.84", "debt_to_equity": "63.50%"}},
+        sample_ratio=1.0,
+        min_sample=2,
+    )
+
+    assert result["verdict"] == "approved"
+    assert [claim["status"] for claim in result["sampled_claims"]] == ["verified", "verified"]
+    assert [claim["matched_path"] for claim in result["sampled_claims"]] == [
+        "data.current_ratio",
+        "data.debt_to_equity",
+    ]
+
+
+def test_evidence_gate_keeps_liquidity_ratio_mismatch_on_canonical_fields():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 流動比率: 2.42\n- 債務權益比: 0.4%",
+        {"data": {"current_ratio": "2.57", "debt_to_equity": "0.32%"}},
+        sample_ratio=1.0,
+        min_sample=2,
+    )
+
+    assert result["verdict"] == "rejected"
+    assert result["failed_count"] == 2
+    assert {claim["verification_reason_code"] for claim in result["sampled_claims"]} == {"snapshot_value_mismatch"}
+    assert {claim["matched_path"] for claim in result["sampled_claims"]} == {
+        "data.current_ratio",
+        "data.debt_to_equity",
+    }
+
+
 def test_evidence_gate_accepts_markdown_emphasis_between_label_and_value():
     from evidence_exit_gate import evaluate_report_evidence
 

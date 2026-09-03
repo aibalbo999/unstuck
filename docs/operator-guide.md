@@ -2900,3 +2900,5 @@ Confidence scores are treated as analysis metadata. Numbers inside `confidence_b
 Sentiment or heat scores such as `情緒評分` or `FOMO Score` are also analysis metadata. When no dedicated canonical score exists, the operator sees `analysis_metadata_not_evidence` and `unverifiable`; stale `social_sentiment` freshness metadata, `data_trust.score`, and data-confidence scores do not prove the score.
 
 Recommendation-prefix horizons such as `放空；3個月` are verified only when the same report snapshot contains the matching parsed or structured recommendation horizon. Older reports without that canonical context remain unverified for manual review.
+
+Liquidity claims use dedicated evidence paths: `流動比率`/`Current Ratio` uses `data.current_ratio`, while `債務權益比`/`Debt to Equity` uses `data.debt_to_equity`. If the report value differs from the snapshot, the operator sees `snapshot_value_mismatch` and the report remains subject to review.
