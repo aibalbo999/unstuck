@@ -170,7 +170,7 @@ def _check_claim(claim: dict[str, Any], snapshot_values: list[dict[str, Any]], *
         verification_reason_code = "scenario_target_not_canonical"
     elif not candidate_values and normalized_label in _TECHNICAL_LEVEL_LABELS:
         verification_reason_code = "technical_level_not_canonical"
-    elif not candidate_values and (scenario_projection_boundary or normalized_label in {"品牌影響力", "網路效應", "轉換成本", "成本優勢", "專利技術", "fomo評分", "fomo過熱評分", "聰明錢派發評分", "情緒評分", "score", "評分"} or any(_normalize_match_text(marker) in normalized_label or _normalize_match_text(marker) in _normalize_match_text(raw_claim_text) for marker in ("Agent 3 評分", "Agent 3 score"))):
+    elif not candidate_values and (scenario_projection_boundary or normalized_label in {"品牌影響力", "網路效應", "轉換成本", "成本優勢", "專利技術", "fomo評分", "fomo過熱評分", "fomoscore", "聰明錢派發評分", "情緒評分", "score", "評分"} or any(_normalize_match_text(marker) in normalized_label or _normalize_match_text(marker) in _normalize_match_text(raw_claim_text) for marker in ("Agent 3 評分", "Agent 3 score"))):
         verification_reason_code = "analysis_metadata_not_evidence"
     elif unavailable_boundary and not candidate_values:
         verification_reason_code = "snapshot_field_unavailable"

@@ -292,7 +292,7 @@ Week-52 labels may also place Markdown emphasis between the label delimiter and 
 
 Confidence claims are metadata rather than factual snapshot evidence. The gate excludes numeric values under generic `confidence` paths, including `confidence_basis.evidence_items`, so a confidence score cannot borrow a DCF, target, risk, or other same-valued number; without a dedicated factual path it remains `confidence_metadata_not_evidence` and `unverifiable`.
 
-Sentiment or heat scores such as `情緒評分` are analysis outputs, not factual snapshot fields. Without a dedicated canonical score field, the gate reports `analysis_metadata_not_evidence` and keeps the claim `unverifiable`; it does not use `social_sentiment` freshness metadata or other same-valued numbers as evidence.
+Sentiment or heat scores such as `情緒評分` or `FOMO Score` are analysis outputs, not factual snapshot fields. Without a dedicated canonical score field, the gate reports `analysis_metadata_not_evidence` and keeps the claim `unverifiable`; it does not use `social_sentiment` freshness metadata, `data_trust.score`, or other same-valued numbers as evidence.
 
 Recommendation tables may use a normalized label such as `放空；3個月` (or another supported recommendation plus `3/6/12個月`) for a horizon claim. It maps to the corresponding `rerun_context.parsed.recommendation` path only when parsed or structured recommendation context exists and the value matches; legacy context without that source remains unverified.
 

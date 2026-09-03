@@ -147,6 +147,22 @@ def test_evidence_gate_classifies_sentiment_score_as_analysis_metadata():
     assert claim["candidate_count"] == 0
 
 
+def test_evidence_gate_classifies_fomo_score_as_analysis_metadata():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "*   FOMO Score: 8/10.",
+        {"data": {"data_trust": {"score": 91}, "data_confidence_score": 91}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "unverifiable"
+    assert claim["verification_reason_code"] == "analysis_metadata_not_evidence"
+    assert claim["candidate_count"] == 0
+
+
 def test_evidence_gate_accepts_markdown_emphasis_between_label_and_value():
     from evidence_exit_gate import evaluate_report_evidence
 

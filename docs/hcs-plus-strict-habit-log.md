@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3916 / classify English FOMO scores as analysis metadata
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`3017.TW` v3 的 `FOMO Score: 8/10` 目前是 `missing_semantic_path`；同一 snapshot 的 `data_trust.score` 與 `data_confidence_score` 是資料可信度欄位，不是情緒分數。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：精確 fixture 先取得 RED；只把 normalized exact `fomoscore` 納入既有 `analysis_metadata_not_evidence` classification，保留 `unverifiable` 與 zero candidate，不借用同名 score。
+- `#受眾` / `#責任` / `#可驗證性`：evidence gate `221 passed`；完整 suite `8651 passed, 6 skipped, 75 subtests passed`。真實 artifact reason 已改為 `analysis_metadata_not_evidence`；未寫 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3915 / classify sentiment scores as analysis metadata
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：current-quality 唯一 `missing_semantic_path` 來自 `5314.TWO` v3 的 `情緒評分：8 / 10`；snapshot 只有 `social_sentiment` freshness metadata，沒有可核驗的分數欄位。
