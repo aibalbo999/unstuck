@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3918 / map English borrowed-short flow labels to canonical snapshot fields
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：7 個歷史 v4 artifact 的 `Return Today` 明確對應 `borrowed_short_return_today`，但未命中 path；`Borrowed Short Sale Today` 也可能先落到 generic `short_sale`，而 `M` 顯示值與 snapshot raw shares 需要單位轉換。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先用 exact alias、raw-share 與 `M` conversion fixture 取得 RED；新增各自 TWSE field mapping，只有 unit=`M` 才除以 1,000,000，保留 mismatch、`k`、`張` 與 compact `return` 的既有邊界。
+- `#受眾` / `#責任` / `#可驗證性`：focused `4 passed`、evidence gate `227 passed`、import boundary `1 passed`；真實 artifact 的 7 個 Return Today claims 全部 verified，含 `2.88M→2.882`、`8.1M→8.108`。完整 suite `8657 passed, 6 skipped, 75 subtests passed in 1223.06s`；未寫 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3917 / map liquidity ratios to dedicated snapshot fields
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`3653.TW`／`3324.TWO` v2 的 `流動比率` 與 `債務權益比` 有明確資料欄位，卻因缺少 `_FIELD_HINTS` 被標成 `missing_semantic_path`。

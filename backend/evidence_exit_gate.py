@@ -189,11 +189,23 @@ def _check_claim(claim: dict[str, Any], snapshot_values: list[dict[str, Any]], *
         "matched_value": best.get("value") if best else None,
         "diff_pct": round(best.get("diff_pct", 0.0), 4) if best else None,
     }
+def _convert_snapshot_value_for_claim(claim: dict[str, Any], item: dict[str, Any], path_markers: tuple[str, ...]) -> dict[str, Any]:
+    unit = _normalize_match_text(claim.get("unit"))
+    path = _normalize_match_text(item.get("path"))
+    if "shares_to_lots" in path_markers and unit == "張" and "borrowed_short_return_today" in path:
+        return {**item, "value": float(item["value"]) / 1000}
+    if "shares_to_thousands" in path_markers and unit == "k" and "borrowed_short_sale_today" in path:
+        return {**item, "value": float(item["value"]) / 1000}
+    if "shares_to_millions" in path_markers and unit in {"m", "million"} and ("borrowed_short_sale_today" in path or "borrowed_short_return_today" in path):
+        return {**item, "value": float(item["value"]) / 1_000_000}
+    return item
+
+
 def _relevant_snapshot_values(claim: dict[str, Any], snapshot_values: list[dict[str, Any]]) -> list[dict[str, Any]]:
     path_markers = _path_markers_for_claim(claim)
     if not path_markers: return []
     return [
-        ({**item, "value": float(item["value"]) / 1000} if ("shares_to_lots" in path_markers and _normalize_match_text(claim.get("unit")) == "張" and "borrowed_short_return_today" in _normalize_match_text(item.get("path"))) or ("shares_to_thousands" in path_markers and _normalize_match_text(claim.get("unit")) == "k" and "borrowed_short_sale_today" in _normalize_match_text(item.get("path"))) else item)
+        _convert_snapshot_value_for_claim(claim, item, path_markers)
         for item in snapshot_values
         if any(_normalize_match_text(marker) in _normalize_match_text(item.get("path")) for marker in path_markers)
     ]

@@ -2012,6 +2012,109 @@ def test_evidence_gate_matches_compact_return_after_borrowed_short_sale():
     assert claims[1]["matched_path"] == "data.chip_data.twse_margin_short_sales.borrowed_short_return_today"
 
 
+def test_evidence_gate_matches_return_today_alias_to_borrowed_return_field():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- Return Today: 4,463,430.",
+        {
+            "data": {
+                "chip_data": {
+                    "twse_margin_short_sales": {
+                        "borrowed_short_return_today": 4463430,
+                    },
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "approved"
+    assert claim["status"] == "verified"
+    assert claim["matched_path"] == "data.chip_data.twse_margin_short_sales.borrowed_short_return_today"
+
+
+def test_evidence_gate_converts_borrowed_short_flows_from_millions():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- Borrowed Short Sale Today: 2.88M / return: 8.1M.",
+        {
+            "data": {
+                "chip_data": {
+                    "twse_margin_short_sales": {
+                        "borrowed_short_sale_today": 2880000,
+                        "borrowed_short_return_today": 8108000,
+                    },
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=2,
+    )
+
+    claims = result["sampled_claims"]
+    assert result["verdict"] == "approved"
+    assert all(claim["status"] == "verified" for claim in claims)
+    assert [claim["matched_value"] for claim in claims] == [2.88, 8.108]
+    assert [claim["matched_path"] for claim in claims] == [
+        "data.chip_data.twse_margin_short_sales.borrowed_short_sale_today",
+        "data.chip_data.twse_margin_short_sales.borrowed_short_return_today",
+    ]
+
+
+def test_evidence_gate_converts_explicit_borrowed_return_and_sale_from_millions():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- Borrowed Short Return Today: 8.1M.\n- vs Sale Today: 2.88M.",
+        {
+            "data": {
+                "chip_data": {
+                    "twse_margin_short_sales": {
+                        "borrowed_short_sale_today": 2880000,
+                        "borrowed_short_return_today": 8108000,
+                    },
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=2,
+    )
+
+    claims = result["sampled_claims"]
+    assert result["verdict"] == "approved"
+    assert all(claim["status"] == "verified" for claim in claims)
+    assert [claim["matched_value"] for claim in claims] == [8.108, 2.88]
+
+
+def test_evidence_gate_keeps_return_today_mismatch_on_canonical_field():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- Return Today: 4,463,430.",
+        {
+            "data": {
+                "chip_data": {
+                    "twse_margin_short_sales": {
+                        "borrowed_short_return_today": 4000000,
+                    },
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "rejected"
+    assert claim["status"] == "mismatch"
+    assert claim["verification_reason_code"] == "snapshot_value_mismatch"
+    assert claim["matched_path"] == "data.chip_data.twse_margin_short_sales.borrowed_short_return_today"
+
+
 def test_evidence_gate_does_not_cross_match_borrowed_return_to_sale_path():
     from evidence_exit_gate import evaluate_report_evidence
 
