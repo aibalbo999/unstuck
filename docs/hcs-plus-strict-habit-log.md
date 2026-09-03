@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3922 / map equity multiplier claims and exclude note metadata
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：2367.TW、2308.TW、3017.TW artifact 的 `Equity Multiplier`／`權益乘數` 是財務欄位，snapshot 有 `data.equity_multiplier`；`data.equity_multiplier_note` 明示只是口徑差異提示，不是 canonical evidence。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先以中英文正例與 note 同值污染 mismatch fixture 取得 RED；加入 `Equity Multiplier`／`權益乘數` alias，並排除 `equity_multiplier_note`，mismatch 只在專用欄位判定。
+- `#受眾` / `#責任` / `#可驗證性`：RED→GREEN 覆蓋 verified 與 note 污染下的 mismatch；focused `2 passed`，完整 suite `8665 passed, 6 skipped, 75 subtests passed in 1238.75s`，四份真實 artifact claims 全部 verified；正式 runtime reload 後 `healthz=200`、`readyz=200/ready`、doctor canonical paths 與 queue check `pass`／`failed_recent=0` 通過。不改寫 artifact、snapshot、index、review、rerun、repair 或 queue。
+
 ## D3921 / map retail short labels to holder distribution evidence
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：0050.TW、2103.TW、2887.TW artifact 的 `Retail` 都位於 TDCC holder distribution 內容，且 snapshot 有專用 `<50 lots` 散戶比例欄位；這不是現價或 major-holder 數值。

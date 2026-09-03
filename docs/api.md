@@ -9,6 +9,8 @@ The same date-aware rule accepts the exact `Recent Trend (Last 10 days)` heading
 
 An exact `Retail` holder-distribution row is compared with `data.chip_data.tdcc_shareholder_distribution.retail_holders_lt_50_lots_pct`. The mapping is specific to the `<50 lots` retail field and does not borrow major-holder, price, or other same-value evidence.
 
+`Equity Multiplier` and `權益乘數` rows use the dedicated `data.equity_multiplier` value. `data.equity_multiplier_note` is metadata about reporting-basis differences and is excluded from evidence candidates, so a note-only same value cannot hide a mismatch in the canonical field.
+
 Decision tracking parses snapshot `current_price` first and falls back to `current_price_fmt` only when the raw value is not parseable. Legacy `N/A` raw values therefore do not hide a valid formatted price, and report tracking calculations remain aligned with the available snapshot evidence.
 
 Content-credibility target parsing treats only finite positive numeric values as target prices. Numeric zero or negative scenario targets therefore remain an explicit parse warning instead of passing scenario-order checks as real prices, matching the explicit-target detector's non-positive-value boundary.

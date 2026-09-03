@@ -3044,6 +3044,53 @@ def test_evidence_gate_keeps_retail_mismatch_on_holder_distribution_path():
     )
 
 
+def test_evidence_gate_matches_equity_multiplier_without_using_note_text():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* Equity Multiplier: 1.929x\n"
+        "* 權益乘數: 1.929x",
+        {
+            "data": {
+                "equity_multiplier": "1.929x",
+                "equity_multiplier_note": (
+                    "Yahoo ROA -1.9% x 最新期 EM 1.929x = -3.7%，"
+                    "不可解讀為嚴格杜邦恒等式"
+                ),
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=2,
+    )
+
+    assert result["verdict"] == "approved"
+    assert [claim["matched_path"] for claim in result["sampled_claims"]] == [
+        "data.equity_multiplier",
+        "data.equity_multiplier",
+    ]
+
+
+def test_evidence_gate_keeps_equity_multiplier_mismatch_on_canonical_path():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* Equity Multiplier: 2.0x",
+        {
+            "data": {
+                "equity_multiplier": "1.929x",
+                "equity_multiplier_note": "最新期 EM 2.0x 僅供口徑差異提示",
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "rejected"
+    assert claim["status"] == "mismatch"
+    assert claim["matched_path"] == "data.equity_multiplier"
+
+
 def test_evidence_gate_does_not_bind_dated_news_extremum_to_close_history():
     from evidence_exit_gate import evaluate_report_evidence
 
