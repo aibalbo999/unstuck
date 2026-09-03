@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3912 / accept Markdown-formatted week-52 labels without weakening source matching
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`6225.TW` v4 的 `52 週高點` claim 在 label 與 `78.2 TWD` 之間有 Markdown emphasis，且同句有 `market_data` 來源，但 parser 漏掉 canonical path，產生 `missing_semantic_path`。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：精確 artifact-format fixture 先取得 RED；只允許 week-52 matcher 在 label delimiter 後跨過 Markdown emphasis gap，維持 high/low、貨幣單位、reported-value equality 與既有 adjacency/source 邊界。
+- `#受眾` / `#責任` / `#可驗證性`：精確 regression `1 passed`、品質/data-trust focused regression `1676 passed`；真實與 live 的 `6225.TW` artifact 為 `approved`、3/3 verified，current residual 由 `8/5` 降為 `7/4`。完整 suite `8646 passed, 6 skipped`，唯一既有 optional commercial visual `networkidle` timeout，獨立重跑仍在 `375x812` timeout。未寫 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3911 / accept explicit cited week-52 source wording without weakening evidence boundaries
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：current-quality live residual 指向 `2491.TW` v4 artifact；報告已明示 `引用 market_data.week_52_high_twd`／`引用 market_data.week_52_low_twd`，數值也精確對應 canonical snapshot，但 parser 未接受引用詞與 Markdown bold 後的來源間距，錯報 `no_matching_snapshot_path`。

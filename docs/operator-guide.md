@@ -2892,3 +2892,5 @@ Report downside-risk legacy text uses confidence fallback for invalid metadata, 
 Report-bearing notification actions use the shared pipeline resolver before composing `dedupe_key` and `message_id`; a valid stored pipeline remains authoritative and legacy `N/A` falls back to the filename, so the same artifact remains idempotent with its canonical `v4` payload. Filename-less actions keep their explicit pipeline fallback.
 
 Evidence gate source citations for week-52 pressure/support values may use `引用`、`來源` or `source` before the explicit `market_data.week_52_high_twd`/`market_data.week_52_low_twd` path, including Markdown emphasis around the value. The gate still verifies only when the reported value matches the corresponding canonical `data.week_52_high`/`data.week_52_low` snapshot field; generic pressure/support wording and same-valued risk fields remain unverified.
+
+Week-52 high/low labels may contain Markdown emphasis between the label delimiter and value. The gate ignores that presentation-only gap, but continues to require the explicit week-52 meaning, TWD/元 unit, and matching canonical snapshot value.

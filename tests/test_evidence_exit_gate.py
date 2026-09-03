@@ -2093,6 +2093,21 @@ def test_evidence_gate_matches_week_52_source_path_with_citation_wording():
     ]
 
 
+def test_evidence_gate_matches_markdown_formatted_week_52_label_source():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "*   **52 週高點：** 78.2 TWD（`market_data` 提供之歷史阻力）。",
+        {"data": {"week_52_high": 78.2}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["unverifiable_count"] == 0
+    assert result["sampled_claims"][0]["matched_path"] == "data.week_52_high"
+
+
 def test_evidence_gate_does_not_apply_later_week_52_source_to_prior_claim():
     from evidence_exit_gate import evaluate_report_evidence
 
