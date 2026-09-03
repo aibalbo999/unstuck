@@ -2961,6 +2961,101 @@ def test_evidence_gate_matches_recent_trend_heading_using_snapshot_year():
     ]
 
 
+def test_evidence_gate_matches_daily_trend_heading_variant_using_snapshot_year():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* Daily Trend (Last 10 days):\n"
+        "  * Aug 11: -1127.17\n"
+        "  * Aug 19: -534.8",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2026-08-29"],
+                    "prices": [100.0],
+                },
+                "institutional_trading": {
+                    "daily_total_net_buy_last_10": [
+                        {"date": "2026-08-11", "net_buy_thousand_shares": -1127.17},
+                        {"date": "2026-08-19", "net_buy_thousand_shares": -534.8},
+                    ]
+                },
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=2,
+    )
+
+    assert result["verdict"] == "approved"
+    assert [claim["matched_path"] for claim in result["sampled_claims"]] == [
+        "data.institutional_trading.daily_total_net_buy_last_10[2026-08-11].net_buy_thousand_shares",
+        "data.institutional_trading.daily_total_net_buy_last_10[2026-08-19].net_buy_thousand_shares",
+    ]
+
+
+def test_evidence_gate_matches_daily_total_net_buy_heading_variant_using_snapshot_year():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* Last 10 days daily total net buy:\n"
+        "  * Aug 18: -461k\n"
+        "  * Aug 25: -126k",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2026-08-29"],
+                    "prices": [100.0],
+                },
+                "institutional_trading": {
+                    "daily_total_net_buy_last_10": [
+                        {"date": "2026-08-18", "net_buy_thousand_shares": -461.18},
+                        {"date": "2026-08-25", "net_buy_thousand_shares": -126.13},
+                    ]
+                },
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=2,
+    )
+
+    assert result["verdict"] == "approved"
+    assert [claim["matched_path"] for claim in result["sampled_claims"]] == [
+        "data.institutional_trading.daily_total_net_buy_last_10[2026-08-18].net_buy_thousand_shares",
+        "data.institutional_trading.daily_total_net_buy_last_10[2026-08-25].net_buy_thousand_shares",
+    ]
+
+
+def test_evidence_gate_keeps_daily_trend_heading_variant_mismatch_on_its_date():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* Daily Trend (Last 10 days):\n"
+        "  * Aug 11: -1127.17",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2026-08-29"],
+                    "prices": [100.0],
+                },
+                "institutional_trading": {
+                    "daily_total_net_buy_last_10": [
+                        {"date": "2026-08-11", "net_buy_thousand_shares": -1000.0},
+                    ]
+                },
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "rejected"
+    assert claim["status"] == "mismatch"
+    assert claim["matched_path"] == (
+        "data.institutional_trading.daily_total_net_buy_last_10[2026-08-11].net_buy_thousand_shares"
+    )
+
+
 def test_evidence_gate_keeps_recent_trend_mismatch_on_its_date():
     from evidence_exit_gate import evaluate_report_evidence
 

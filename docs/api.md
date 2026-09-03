@@ -7,6 +7,8 @@ Evidence-gate date rows under `Last 10 days daily trend` are mapped only when th
 
 The same date-aware rule accepts the exact `Recent Trend (Last 10 days)` heading used by legacy institutional reports. It does not generalize to unrelated trend prose or infer a year when the snapshot has multiple candidate years.
 
+The same rule also accepts the exact legacy headings `Daily Trend (Last 10 days)` and `Last 10 days daily total net buy`. These are heading variants only: each `Aug NN` row still requires institutional daily-series context and one unambiguous snapshot year before mapping to its dated `daily_total_net_buy_last_10` path.
+
 An exact `Retail` holder-distribution row is compared with `data.chip_data.tdcc_shareholder_distribution.retail_holders_lt_50_lots_pct`. The mapping is specific to the `<50 lots` retail field and does not borrow major-holder, price, or other same-value evidence.
 
 `Equity Multiplier` and `權益乘數` rows use the dedicated `data.equity_multiplier` value. `data.equity_multiplier_note` is metadata about reporting-basis differences and is excluded from evidence candidates, so a note-only same value cannot hide a mismatch in the canonical field.

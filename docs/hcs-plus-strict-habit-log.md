@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3927 / map legacy daily-series heading variants
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`2301.TW` 的 `Daily Trend (Last 10 days)` 與 `2313.TW` 的 `Last 10 days daily total net buy` 都是法人每日淨買超序列，但原 marker 只接受其他語序；日期、數值與 snapshot daily path 已可逐筆對應。
+- `#證據基礎` / `#偏誤辨識` / `#偏誤降低`：只新增兩個 exact heading marker，仍要求 `Aug NN` 位於序列上下文、snapshot 年份唯一，且 mismatch 留在對應日期 path；standalone month-day 與無法判定年份的 rows 不猜測。
+- `#最小變更` / `#責任` / `#可驗證性`：RED→GREEN `3 passed`，跨層 evidence/data-trust `303 passed`，核心完整回歸 `8672 passed, 6 skipped, 8 deselected, 75 subtests passed`；全量 projection `1172 reports / 15631 claims / 0 errors`，`matched_snapshot_value` `11878→11888`、`missing_semantic_path` `115→105`。正式 launcher reload 後 `healthz=200`、`readyz=200/ready`、doctor canonical paths 通過，queue `depth=0`／`failed_recent=0`（既有 `failed_stale=10`）；2301.TW、2313.TW 共 10 筆真實日期 claims verified。不改寫 artifact、snapshot、index、review、rerun、repair 或 queue。
+
 ## D3926 / map context-bound Trust alias
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：全量 residual `missing_semantic_path` 尚有 115 筆，但日期、情境數字、新聞敘述與沒有 scalar 的資產周轉率等候選不具備安全 canonical path；唯一可由真實 snapshot 證明的短別名是 `2540.TW` 30 日法人分類中的 `Trust`。

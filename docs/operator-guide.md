@@ -401,6 +401,8 @@ KV claim 的 label 後若立即接 `8/17 - 8/18`、`8-17` 這類月日範圍，�
 
 舊版報告若使用 exact `Recent Trend (Last 10 days)` 標題，也沿用同一個 institutional daily-series 規則；沒有法人序列語境、年份不唯一或只是一般 trend 敘述時，請保留 `unverifiable`，不要擴大套用。
 
+舊版若使用 `Daily Trend (Last 10 days)` 或 `Last 10 days daily total net buy`，也沿用同一個日期序列規則。每個 `Aug NN` 仍必須有法人每日淨買超上下文與唯一 snapshot 年份，才可核對對應日期的 `daily_total_net_buy_last_10`；單獨日期、一般 trend 敘述或年份不唯一時不得猜測。
+
 持股分布中的 exact `Retail` row 只核對 `data.chip_data.tdcc_shareholder_distribution.retail_holders_lt_50_lots_pct`。它代表 `<50 lots` 散戶比例；數值不一致要保留該 holder path 的 `snapshot_value_mismatch`，不要改用 major holders、現價或其他相同數字。
 
 `Equity Multiplier`／`權益乘數` 只核對 `data.equity_multiplier`。snapshot 裡的 `equity_multiplier_note` 是口徑差異提示，不是 evidence；即使 note 出現相同數字，canonical 欄位不一致仍要顯示 `snapshot_value_mismatch`。
