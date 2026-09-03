@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3911 / accept explicit cited week-52 source wording without weakening evidence boundaries
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：current-quality live residual 指向 `2491.TW` v4 artifact；報告已明示 `引用 market_data.week_52_high_twd`／`引用 market_data.week_52_low_twd`，數值也精確對應 canonical snapshot，但 parser 未接受引用詞與 Markdown bold 後的來源間距，錯報 `no_matching_snapshot_path`。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：精確 source-format fixture 先取得 `1 failed` RED；只在 explicit week-52 source matcher 接受 `引用|來源|source` 與 Markdown emphasis gap，維持 claim value equality、canonical `data.week_52_high|low` mapping 與 generic same-value fallback 禁止。
+- `#受眾` / `#責任` / `#可驗證性`：evidence gate `216 passed`、品質/data-trust focused regression `1675 passed`；真實與 live API 的 `2491.TW` artifact 都是 `approved`、3/3 verified，current residual 由 `9/6` 降為 `8/5`。完整 suite `8645 passed, 6 skipped`，唯一既有 optional commercial visual `networkidle` timeout 獨立重跑為 `3 passed`。未寫 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3910 / canonicalize filename-bearing notification identity
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：free-mode notification dedupe 對報告型 action 直接使用 raw `pipeline_id`；同一 v4 filename 的 `N/A` 與 `v4` payload 會被切成兩個 sender idempotency identity。

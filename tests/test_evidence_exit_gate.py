@@ -2072,6 +2072,27 @@ def test_evidence_gate_matches_explicit_week_52_price_source_paths():
     ]
 
 
+def test_evidence_gate_matches_week_52_source_path_with_citation_wording():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        """
+- **關鍵壓力位**：**56.4 元**（引用 `market_data.week_52_high_twd`），為近期最高壓力點。
+- **關鍵支撐位**：**12.1 元**（引用 `market_data.week_52_low_twd`），為近期最低支撐點。
+""",
+        {"data": {"week_52_high": 56.4, "week_52_low": 12.1}},
+        sample_ratio=1.0,
+        min_sample=2,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["unverifiable_count"] == 0
+    assert [item["matched_path"] for item in result["sampled_claims"]] == [
+        "data.week_52_high",
+        "data.week_52_low",
+    ]
+
+
 def test_evidence_gate_does_not_apply_later_week_52_source_to_prior_claim():
     from evidence_exit_gate import evaluate_report_evidence
 
