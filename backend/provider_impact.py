@@ -7,6 +7,7 @@ from typing import Any
 from data_trust_constants import AUDIT_STATUS_SKIPPED_FRESH_CACHE, AUDIT_STATUS_SUCCESS, CORE_DATA_SOURCES
 from mapping_fields import safe_mapping_dict, safe_text
 from report_freshness_summary import safe_bool
+from report_pipeline_identity import resolve_report_pipeline_id
 
 
 SCHEMA_VERSION = "provider_impact.v1"
@@ -134,7 +135,10 @@ def _report_filename(report: dict[str, Any]) -> str:
 
 
 def _pipeline_id(report: dict[str, Any]) -> str:
-    return _safe_text(_field(report, "pipeline_id")).strip() or "v1"
+    return resolve_report_pipeline_id(
+        _report_filename(report),
+        stored_pipeline=_field(report, "pipeline_id"),
+    )
 
 
 def _current_fetch_healthy(alert: dict[str, Any]) -> bool:

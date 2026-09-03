@@ -13,6 +13,7 @@ from provider_impact import build_provider_impact_ledger
 from report_quality_audit import build_report_quality_audit
 from report_quality_repair_queue import build_report_quality_repair_queue
 from report_freshness_summary import safe_bool
+from report_pipeline_identity import resolve_report_pipeline_id
 
 
 def build_daily_decision_dashboard(
@@ -253,8 +254,11 @@ def _decision_freshness(report: dict[str, Any]) -> dict[str, Any]:
 
 def _rerun_report_payload(report: dict[str, Any]) -> dict[str, Any]:
     ticker = safe_text(report.get("ticker")).strip() or "報告"
-    pipeline_id = safe_text(report.get("pipeline_id")).strip() or "v1"
     filename = _report_filename(report) or None
+    pipeline_id = resolve_report_pipeline_id(
+        filename or "",
+        stored_pipeline=report.get("pipeline_id"),
+    )
     return {
         "type": "rerun_report",
         "title": f"{ticker} {pipeline_id} 結論需重跑",

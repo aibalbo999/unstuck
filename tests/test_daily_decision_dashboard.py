@@ -494,6 +494,33 @@ def test_daily_decision_dashboard_returns_full_rerun_report_list():
     }
 
 
+def test_daily_decision_dashboard_rerun_resolves_placeholder_pipeline_from_filename():
+    dashboard = build_daily_decision_dashboard(
+        reports={
+            "reports": [
+                {
+                    "ticker": "2330.TW",
+                    "filename": "2330_TW_v4_report_20260620_090000.html",
+                    "pipeline_id": "N/A",
+                    "report_conformance": {"status": "passed"},
+                    "content_credibility": {"status": "passed"},
+                    "evidence_exit_gate": {"verdict": "approved"},
+                    "decision_freshness": {
+                        "requires_rerun": True,
+                        "requires_rerun_reason": "資料快照與結論不同步。",
+                    },
+                }
+            ]
+        },
+        watchlist={"items": []},
+        screener={"items": []},
+        performance={"summary": {}},
+        free_mode={"enabled": True, "can_run_without_paid_keys": True, "violations": []},
+    )
+
+    assert dashboard["rerun_reports"][0]["pipeline_id"] == "v4"
+
+
 def test_daily_decision_dashboard_accepts_mapping_decision_freshness_for_rerun_bucket():
     dashboard = build_daily_decision_dashboard(
         reports={

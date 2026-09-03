@@ -6,6 +6,7 @@ from typing import Any
 
 from mapping_fields import safe_dict_list, safe_int, safe_mapping_dict, safe_text, safe_text_list
 from report_freshness_summary import report_freshness_bucket, safe_bool
+from report_pipeline_identity import resolve_report_pipeline_id
 
 
 def conformance_status(value: Any) -> str:
@@ -116,10 +117,14 @@ def current_quality_item(
         ),
         "目前品質狀態需要人工查看。",
     )
+    filename = safe_text(report.get("filename")).strip() or safe_text(report.get("report_filename")).strip()
     payload = {
         "ticker": safe_text(report.get("ticker")).strip(),
-        "pipeline_id": safe_text(report.get("pipeline_id")).strip() or "v1",
-        "filename": safe_text(report.get("filename") or report.get("report_filename")).strip(),
+        "pipeline_id": resolve_report_pipeline_id(
+            filename,
+            stored_pipeline=report.get("pipeline_id"),
+        ),
+        "filename": filename,
         "report_date": safe_text(report.get("date") or report.get("report_date")).strip(),
         "report_conformance_status": conformance,
         "content_credibility_status": content,

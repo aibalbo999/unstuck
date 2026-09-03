@@ -1,6 +1,24 @@
 from report_current_quality_summary import build_current_quality_summary
 
 
+def test_current_quality_item_resolves_placeholder_pipeline_from_filename():
+    payload = build_current_quality_summary(
+        [
+            {
+                "ticker": "2330.TW",
+                "filename": "2330_TW_v4_report_20260620_090000.html",
+                "pipeline_id": "N/A",
+                "report_conformance": {"status": "warning"},
+                "content_credibility": {"status": "passed"},
+                "evidence_exit_gate": {"verdict": "approved"},
+            }
+        ],
+        scope="all_indexed_reports",
+    )
+
+    assert payload["items"][0]["pipeline_id"] == "v4"
+
+
 def test_current_quality_summary_keeps_gate_distributions_separate_and_bounds_targets():
     payload = build_current_quality_summary(
         [

@@ -78,6 +78,32 @@ def test_provider_impact_blocks_auto_rerun_for_core_critical_unhealthy_source():
     assert impact["impacts"][0]["affects_core_data"] is True
 
 
+def test_provider_impact_resolves_placeholder_pipeline_from_filename():
+    from provider_impact import build_provider_impact
+
+    impact = build_provider_impact(
+        {
+            "ticker": "2330.TW",
+            "filename": "2330_TW_v4_report_20260620_090000.html",
+            "pipeline_id": "N/A",
+            "data_trust": {
+                "reason_codes": ["provider_sla_critical"],
+                "provider_sla_alerts": [
+                    {
+                        "source": "market_data",
+                        "provider": "yfinance",
+                        "alert_level": "critical",
+                        "current_status": "unavailable",
+                        "current_record_count": 0,
+                    }
+                ],
+            },
+        }
+    )
+
+    assert impact["pipeline_id"] == "v4"
+
+
 def test_provider_impact_accepts_mapping_report_trust_and_alert_payloads():
     from provider_impact import build_provider_impact
 

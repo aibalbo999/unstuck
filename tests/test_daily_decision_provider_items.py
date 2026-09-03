@@ -46,6 +46,30 @@ def test_provider_impact_items_skip_duplicate_reports_and_preserve_identity():
     }]
 
 
+def test_provider_impact_items_resolve_placeholder_pipeline_from_filename():
+    from daily_decision_provider_items import provider_impact_items
+
+    items = provider_impact_items(
+        {
+            "items": [
+                {
+                    "ticker": "2330.TW",
+                    "filename": "2330_TW_v4_report_20260620_090000.html",
+                    "pipeline_id": "N/A",
+                    "summary": {
+                        "recommended_action": "wait_provider_recovery",
+                        "blocks_auto_rerun": True,
+                    },
+                    "impacts": [{"message": "market_data/yfinance critical"}],
+                }
+            ]
+        },
+        skip_keys=set(),
+    )
+
+    assert items[0]["pipeline_id"] == "v4"
+
+
 def test_provider_impact_items_keep_nonblocking_rows_out_of_action_queue():
     from daily_decision_provider_items import provider_impact_items
 

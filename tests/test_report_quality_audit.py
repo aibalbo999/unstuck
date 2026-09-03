@@ -54,6 +54,48 @@ def test_quality_audit_row_uses_filename_pipeline_when_index_pipeline_is_placeho
     assert report["pipeline_id"] == "v4"
 
 
+def test_report_quality_audit_output_resolves_placeholder_pipeline_from_filename():
+    from report_quality_audit import build_report_quality_audit
+
+    payload = build_report_quality_audit(
+        [
+            {
+                "ticker": "2330.TW",
+                "filename": "2330_TW_v4_report_20260620_090000.html",
+                "pipeline_id": "N/A",
+                "snapshot_integrity": {"status": "verified"},
+                "report_conformance": {},
+                "evidence_exit_gate": {},
+                "content_credibility": {},
+            }
+        ],
+        scope="all_indexed_reports",
+    )
+
+    assert payload["quality_metadata_by_pipeline"]["v4"]["audited_reports"] == 1
+    assert payload["items"][0]["pipeline_id"] == "v4"
+
+
+def test_report_freshness_item_resolves_placeholder_pipeline_from_filename():
+    from report_freshness_summary import build_report_freshness_items
+
+    payload = build_report_freshness_items(
+        [
+            {
+                "ticker": "2330.TW",
+                "filename": "2330_TW_v4_report_20260620_090000.html",
+                "pipeline_id": "N/A",
+                "decision_freshness": {
+                    "requires_rerun": True,
+                    "requires_rerun_reason": "資料快照與結論不同步。",
+                },
+            }
+        ]
+    )
+
+    assert payload["items"][0]["pipeline_id"] == "v4"
+
+
 def test_snapshot_integrity_fail_closes_legacy_false_valid_token():
     from report_quality_audit_rows import snapshot_integrity
 

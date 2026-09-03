@@ -2657,6 +2657,63 @@ def test_daily_decision_queue_preserves_report_filename_alias_for_rerun_action()
     assert queue["items"][0]["filename"] == "nvda_rerun_alias.html"
 
 
+def test_daily_decision_queue_actions_resolve_placeholder_pipeline_from_filename():
+    filename = "2330_TW_v4_report_20260620_090000.html"
+    common = {
+        "ticker": "2330.TW",
+        "filename": filename,
+        "pipeline_id": "N/A",
+    }
+
+    repair_queue = build_daily_decision_queue(
+        reports=[],
+        repair_items=[
+            {
+                **common,
+                "title": "品質缺口",
+                "detail": "需人工核對。",
+                "recommended_action": "manual_review",
+            }
+        ],
+        rerun_reports=[],
+        high_priority_watchlist=[],
+        candidates=[],
+        performance={"summary": {}, "details": []},
+        free_mode={"enabled": True, "can_run_without_paid_keys": True, "violations": []},
+    )
+    rerun_queue = build_daily_decision_queue(
+        reports=[],
+        repair_items=[],
+        rerun_reports=[
+            {
+                **common,
+                "decision_freshness": {
+                    "requires_rerun": True,
+                    "requires_rerun_reason": "資料快照與結論不同步。",
+                },
+            }
+        ],
+        high_priority_watchlist=[],
+        candidates=[],
+        performance={"summary": {}, "details": []},
+        free_mode={"enabled": True, "can_run_without_paid_keys": True, "violations": []},
+    )
+    backtest_queue = build_daily_decision_queue(
+        reports=[{**common, "date": "2025-01-02"}],
+        repair_items=[],
+        rerun_reports=[],
+        high_priority_watchlist=[],
+        candidates=[],
+        performance={"summary": {}, "details": []},
+        free_mode={"enabled": True, "can_run_without_paid_keys": True, "violations": []},
+        as_of=date(2026, 7, 9),
+    )
+
+    assert repair_queue["items"][0]["pipeline_id"] == "v4"
+    assert rerun_queue["items"][0]["pipeline_id"] == "v4"
+    assert backtest_queue["items"][0]["pipeline_id"] == "v4"
+
+
 def test_daily_decision_queue_rerun_reports_do_not_depend_on_truthiness():
     class BrokenRerunReports(list):
         def __bool__(self):

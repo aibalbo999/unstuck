@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from mapping_fields import safe_dict_list, safe_int, safe_mapping_dict, safe_text
+from report_pipeline_identity import resolve_report_pipeline_id
 
 
 SCHEMA_VERSION = "report_freshness_summary.v1"
@@ -123,10 +124,14 @@ def report_freshness_bucket(report: dict[str, Any]) -> str:
 
 def _freshness_item(report: dict[str, Any], freshness: dict[str, Any]) -> dict[str, Any]:
     data_trust = safe_mapping_dict(report.get("data_trust")) or {}
+    filename = safe_text(report.get("filename")).strip() or safe_text(report.get("report_filename")).strip()
     return {
         "ticker": safe_text(report.get("ticker")).strip(),
-        "pipeline_id": safe_text(report.get("pipeline_id")).strip() or "v1",
-        "filename": safe_text(report.get("filename") or report.get("report_filename")).strip(),
+        "pipeline_id": resolve_report_pipeline_id(
+            filename,
+            stored_pipeline=report.get("pipeline_id"),
+        ),
+        "filename": filename,
         "report_date": safe_text(report.get("report_date") or report.get("date")).strip(),
         "snapshot_refreshed_at": safe_text(freshness.get("snapshot_refreshed_at") or report.get("snapshot_refreshed_at")).strip(),
         "data_trust_status": safe_text(data_trust.get("status") or report.get("data_trust_status")).strip().lower(),

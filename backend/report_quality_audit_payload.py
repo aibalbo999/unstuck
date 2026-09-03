@@ -11,6 +11,7 @@ from report_quality_metadata_repair import (
 )
 from report_quality_repair_items import quality_metadata_repair_item
 from report_freshness_summary import safe_bool
+from report_pipeline_identity import resolve_report_pipeline_id
 
 
 SCHEMA_VERSION = "report_quality_audit.v1"
@@ -66,7 +67,10 @@ def build_report_quality_audit(
     artifact_quality_summary_by_field = {field: 0 for field in QUALITY_METADATA_FIELDS}
     pipeline_quality_stats: dict[str, dict[str, Any]] = {}
     for report in rows:
-        pipeline_id = safe_text(report.get("pipeline_id")).strip() or "v1"
+        pipeline_id = resolve_report_pipeline_id(
+            _report_filename(report),
+            stored_pipeline=report.get("pipeline_id"),
+        )
         pipeline_stats = pipeline_quality_stats.setdefault(pipeline_id, _new_quality_stats())
         pipeline_stats["audited_reports"] += 1
         snapshot = safe_mapping_dict(report.get("snapshot_integrity")) or {}
@@ -181,11 +185,15 @@ def build_unavailable_report_quality_audit(
 
 
 def _audit_item(report: dict[str, Any], item: dict[str, Any]) -> dict[str, Any]:
+    filename = _report_filename(report)
     payload = {
         "ticker": safe_text(report.get("ticker")).strip(),
-        "filename": safe_text(report.get("filename") or report.get("report_filename")).strip(),
+        "filename": filename,
         "report_date": safe_text(report.get("report_date")).strip(),
-        "pipeline_id": safe_text(report.get("pipeline_id")).strip() or "v1",
+        "pipeline_id": resolve_report_pipeline_id(
+            filename,
+            stored_pipeline=report.get("pipeline_id"),
+        ),
         "title": safe_text(item.get("title")).strip(),
         "detail": safe_text(item.get("detail")).strip(),
         "missing_quality_fields": safe_text_list(item.get("missing_quality_fields")),
@@ -233,6 +241,10 @@ def _audit_item(report: dict[str, Any], item: dict[str, Any]) -> dict[str, Any]:
             "fields": [field for field in safe_text_list(artifact_summary.get("fields")) if field in QUALITY_METADATA_FIELDS],
         }
     return payload
+
+
+def _report_filename(report: dict[str, Any]) -> str:
+    return safe_text(report.get("filename")).strip() or safe_text(report.get("report_filename")).strip()
 
 
 def _new_quality_stats() -> dict[str, Any]:

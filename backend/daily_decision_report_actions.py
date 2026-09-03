@@ -9,6 +9,7 @@ from daily_decision_report_keys import report_key
 from decision_backtest import BACKTEST_HORIZONS, add_calendar_months
 from mapping_fields import mapping_field as _field
 from mapping_fields import safe_dict_list, safe_int, safe_text
+from report_pipeline_identity import resolve_report_pipeline_id
 
 
 def backtest_due_items(
@@ -46,7 +47,10 @@ def _due_item(row: dict[str, Any]) -> dict[str, Any]:
     horizon = _int(_field(row, "horizon_months")) or 3
     ticker = safe_text(_field(row, "ticker")).strip() or "報告"
     filename = safe_text(_field(row, "report_filename")).strip() or safe_text(_field(row, "filename")).strip() or None
-    pipeline_id = safe_text(_field(row, "pipeline_id")).strip() or "v1"
+    pipeline_id = resolve_report_pipeline_id(
+        filename or "",
+        stored_pipeline=_field(row, "pipeline_id"),
+    )
     return {
         "source": "backtest_due",
         "type": "backtest_due",
@@ -63,8 +67,11 @@ def _due_item(row: dict[str, Any]) -> dict[str, Any]:
 
 def _rerun_report_payload(report: dict[str, Any]) -> dict[str, Any]:
     ticker = safe_text(_field(report, "ticker")).strip() or "報告"
-    pipeline_id = safe_text(_field(report, "pipeline_id")).strip() or "v1"
     filename = safe_text(_field(report, "filename")).strip() or safe_text(_field(report, "report_filename")).strip() or None
+    pipeline_id = resolve_report_pipeline_id(
+        filename or "",
+        stored_pipeline=_field(report, "pipeline_id"),
+    )
     raw_freshness = _field(report, "decision_freshness")
     freshness = raw_freshness if isinstance(raw_freshness, dict) else {}
     detail = next((text for text in (

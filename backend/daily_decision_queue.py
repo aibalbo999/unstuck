@@ -15,6 +15,7 @@ from mapping_fields import mapping_field as _field
 from mapping_fields import safe_dict_list, safe_int, safe_mapping_dict, safe_text, safe_text_list
 from operator_action_contract import navigation_context
 from report_freshness_summary import safe_bool
+from report_pipeline_identity import resolve_report_pipeline_id
 
 SCHEMA_VERSION = "daily_decision_queue.v1"
 
@@ -126,8 +127,11 @@ def _repair_action_payload(item: dict[str, Any], *, source: str = "report_repair
         "manual_review": "manual_review",
     }.get(recommended, "manual_review")
     ticker = safe_text(_field(item, "ticker")).strip() or "報告"
-    pipeline_id = safe_text(_field(item, "pipeline_id")).strip() or "v1"
     filename = safe_text(_field(item, "filename")).strip() or safe_text(_field(item, "report_filename")).strip() or None
+    pipeline_id = resolve_report_pipeline_id(
+        filename or "",
+        stored_pipeline=_field(item, "pipeline_id"),
+    )
     title = safe_text(_field(item, "title")).strip() or "報告需處理"
     action_payload = {
         "source": source,

@@ -8,6 +8,7 @@ from daily_decision_report_keys import report_key
 from mapping_fields import mapping_field as _field
 from mapping_fields import safe_dict_list, safe_mapping_dict, safe_text
 from report_freshness_summary import safe_bool
+from report_pipeline_identity import resolve_report_pipeline_id
 
 
 def provider_impact_items(ledger: dict[str, Any], *, skip_keys: set[str]) -> list[dict[str, Any]]:
@@ -23,7 +24,10 @@ def provider_impact_items(ledger: dict[str, Any], *, skip_keys: set[str]) -> lis
         action = safe_text(_field(summary, "recommended_action")).strip() or "wait_provider_recovery"
         filename = safe_text(_field(row, "filename")).strip() or safe_text(_field(row, "report_filename")).strip() or None
         ticker = safe_text(_field(row, "ticker")).strip()
-        pipeline_id = safe_text(_field(row, "pipeline_id")).strip() or "v1"
+        pipeline_id = resolve_report_pipeline_id(
+            filename or "",
+            stored_pipeline=_field(row, "pipeline_id"),
+        )
         items.append({
             "source": "provider_impact",
             "type": "wait_provider_recovery" if blocks else "monitor_provider",
