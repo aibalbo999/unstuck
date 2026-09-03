@@ -2309,6 +2309,8 @@ Report quality repair queue identity fields use shared text conversion before re
 
 Current-quality, quality-audit, freshness, provider-impact, rerun, backtest, and daily decision action targets use the same pipeline identity resolver. When a report filename identifies v4 but stored metadata is `N/A` or another placeholder, the operator-facing label and navigation remain v4; the resolver does not rewrite the report, snapshot, artifact, review, queue, or rerun state.
 
+Backtest evaluation and persistence also canonicalize the report pipeline before returning or storing a result. Outcome calibration therefore keeps historical performance and quality-miss attribution under the filename's valid pipeline when legacy backtest metadata contains `N/A`; this is an identity correction only and does not recalculate prices, outcomes, or quality verdicts.
+
 Provider impact identity fields use shared text conversion before provider recovery projection, so malformed ticker, filename, report filename, or pipeline fields cannot bypass the shared boolean, binary, and memory-view text guards.
 
 Data trust scoring audit source names use shared text conversion before trust reason-code projection, so malformed source audit keys cannot become synthetic optional-source errors or leak boolean, binary, or memory-view text into report trust metadata.

@@ -78,6 +78,34 @@ def test_backtest_store_upserts_once_and_aggregates(monkeypatch, tmp_path):
     assert decision_tracking_store.backtest_result_exists(row["report_filename"], 3) is True
 
 
+def test_backtest_store_resolves_placeholder_pipeline_from_filename(monkeypatch, tmp_path):
+    import decision_tracking_store
+
+    monkeypatch.setattr(decision_tracking_store, "DECISION_TRACKING_DB_PATH", str(tmp_path / "tracking.sqlite3"))
+    decision_tracking_store.reset_decision_tracking_store_for_tests()
+    row = {
+        "report_filename": "2330_TW_v4_report_20260620_090000.html",
+        "ticker": "2330.TW",
+        "pipeline_id": "N/A",
+        "horizon_months": 3,
+        "generated_date": "2026-06-20",
+        "evaluation_date": "2026-09-20",
+        "initial_price": 100,
+        "actual_price": 95,
+        "target_price": 110,
+        "recommendation": "買入",
+        "market_return_pct": -5,
+        "strategy_roi_pct": -5,
+        "target_error_pct": -13.6364,
+        "outcome": "miss",
+        "reason": "buy_thesis_not_met",
+    }
+
+    decision_tracking_store.upsert_backtest_result(row)
+
+    assert decision_tracking_store.list_backtest_results()[0]["pipeline_id"] == "v4"
+
+
 def test_decision_tracking_store_migrates_legacy_sqlite_to_operational_db(monkeypatch, tmp_path):
     import decision_tracking_store
 
@@ -204,6 +232,40 @@ def test_run_due_backtests_is_idempotent_and_builds_stats(monkeypatch, tmp_path)
     assert stats["summary"]["hit_rate_pct"] == pytest.approx(100)
     assert stats["summary"]["average_strategy_roi_pct"] == pytest.approx(25)
     assert stats["by_horizon"][0]["horizon_months"] == 3
+
+
+def test_run_due_backtests_resolves_placeholder_pipeline_from_filename(monkeypatch, tmp_path):
+    import decision_tracking_service
+    import decision_tracking_store
+
+    monkeypatch.setattr(decision_tracking_store, "DECISION_TRACKING_DB_PATH", str(tmp_path / "tracking.sqlite3"))
+    decision_tracking_store.reset_decision_tracking_store_for_tests()
+    reports = [{
+        "filename": "2330_TW_v4_report_20260620_090000.html",
+        "ticker": "2330.TW",
+        "pipeline_id": "N/A",
+        "date": "2026-06-20 09:00",
+        "recommendation": {"recommendation": "買入", "target_3m": "NT$110"},
+    }]
+    monkeypatch.setattr(
+        decision_tracking_service.report_history_service,
+        "list_reports",
+        lambda **kwargs: {"reports": reports, "pagination": {}},
+    )
+
+    result = decision_tracking_service.run_due_backtests(
+        output_dir=str(tmp_path),
+        as_of=date(2026, 9, 20),
+        price_fetcher=lambda *args: {
+            "initial_price": 100,
+            "initial_price_date": "2026-06-20",
+            "actual_price": 95,
+            "actual_price_date": "2026-09-18",
+        },
+    )
+
+    assert result["evaluated"][0]["pipeline_id"] == "v4"
+    assert decision_tracking_store.list_backtest_results()[0]["pipeline_id"] == "v4"
 
 
 def test_run_due_backtests_uses_timestamp_when_report_date_is_job_id(monkeypatch, tmp_path):

@@ -7,6 +7,7 @@ from typing import Any
 
 from mapping_fields import safe_dict_list, safe_text
 from report_freshness_summary import safe_bool
+from report_pipeline_identity import resolve_report_pipeline_id
 from strategy_evaluator import evaluate_strategy_artifacts
 
 
@@ -53,7 +54,7 @@ def _detail(backtest: dict[str, Any], report: dict[str, Any] | None) -> dict[str
     return {
         "report_filename": _text(_field(backtest, "report_filename")),
         "ticker": _first_text(_field(backtest, "ticker"), _field(signal, "ticker")),
-        "pipeline_id": _first_text(_field(backtest, "pipeline_id"), _field(signal, "pipeline_id"), fallback="v1"),
+        "pipeline_id": _canonical_pipeline_id(backtest, report if isinstance(report, dict) else {}),
         "horizon_months": _text(_field(backtest, "horizon_months")),
         "outcome": _status(_field(backtest, "outcome")) or "miss",
         "strategy_roi_pct": _number(_field(backtest, "strategy_roi_pct")),
@@ -72,7 +73,7 @@ def _quality_signal(backtest: dict[str, Any], report: dict[str, Any]) -> dict[st
     return {
         "report_filename": _first_text(_field(backtest, "report_filename"), _field(report, "filename")),
         "ticker": _first_text(_field(report, "ticker"), _field(backtest, "ticker")),
-        "pipeline_id": _first_text(_field(report, "pipeline_id"), _field(backtest, "pipeline_id"), fallback="v1"),
+        "pipeline_id": _canonical_pipeline_id(backtest, report),
         "data_trust_status": _first_status(_field(data_trust, "status"), _field(report, "data_trust_status"), fallback="unknown"),
         "data_trust_score": _first_number(_field(data_trust, "score"), _field(data_trust, "data_confidence_score")),
         "content_credibility_status": _status(_field(content_credibility, "status")) or "not_recorded",
@@ -80,6 +81,20 @@ def _quality_signal(backtest: dict[str, Any], report: dict[str, Any]) -> dict[st
         "decision_freshness_status": _status(_field(freshness, "status"))
         or ("needs_rerun" if safe_bool(_field(freshness, "requires_rerun")) else "unknown"),
     }
+
+
+def _canonical_pipeline_id(backtest: dict[str, Any], report: dict[str, Any]) -> str:
+    filename = _first_text(
+        _field(backtest, "report_filename"),
+        _field(backtest, "filename"),
+        _field(report, "filename"),
+        _field(report, "report_filename"),
+    )
+    return resolve_report_pipeline_id(
+        filename,
+        stored_pipeline=_field(backtest, "pipeline_id"),
+        snapshot={"pipeline": _field(report, "pipeline_id")},
+    )
 
 
 def _miss_attribution(backtest: dict[str, Any], signal: dict[str, Any]) -> str:

@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3905 / canonicalize backtest outcome pipeline identity
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：回測 evaluation、operational persistence 與 outcome calibration 各自直接採用 `pipeline_id`；legacy backtest `N/A` 會讓 v4 報告在歷史命中率分組與 quality-miss attribution 中失去正確歸屬。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：3 個 fixture 先取得 `3 failed` RED；即時回測、canonical store 與 outcome calibration 共用 `resolve_report_pipeline_id()`，有效 backtest/report identity 優先，placeholder 才回退 filename，不重算價格、outcome 或 gate。
+- `#受眾` / `#責任` / `#可驗證性`：focused backtest/outcome/daily decision/workflow/import regression `715 passed`；本批只修回測 identity read/write boundary，不修改非 identity 的既有結果欄位或 report artifact。
+
 ## D3904 / align report-facing quality and decision pipeline identity
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：品質稽核、current-quality/freshness、provider impact 與 daily decision action projections 各自以 raw `pipeline_id`／`or "v1"` 輸出；v4 filename 遇到 `N/A` 時，同一份報告在操作台不同區塊可能顯示不同模式。

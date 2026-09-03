@@ -155,6 +155,38 @@ def test_outcome_calibration_does_not_overattribute_when_report_metadata_is_miss
     assert ledger["details"][0]["miss_attribution"] == "unknown"
 
 
+def test_outcome_calibration_resolves_placeholder_pipeline_from_report_filename():
+    from outcome_calibration import build_outcome_calibration
+
+    ledger = build_outcome_calibration(
+        backtests=[
+            {
+                "report_filename": "2330_TW_v4_report_20260620_090000.html",
+                "ticker": "2330.TW",
+                "pipeline_id": "N/A",
+                "horizon_months": 3,
+                "outcome": "miss",
+                "strategy_roi_pct": -5.0,
+                "reason": "buy_thesis_not_met",
+            }
+        ],
+        reports=[
+            {
+                "filename": "2330_TW_v4_report_20260620_090000.html",
+                "ticker": "2330.TW",
+                "pipeline_id": "N/A",
+                "data_trust": {"status": "fresh"},
+                "content_credibility": {"status": "passed"},
+                "report_conformance": {"status": "passed"},
+            }
+        ],
+    )
+
+    assert ledger["details"][0]["pipeline_id"] == "v4"
+    assert ledger["details"][0]["quality_signal"]["pipeline_id"] == "v4"
+    assert ledger["by_pipeline"]["v4"]["count"] == 1
+
+
 class BrokenOutcomeBacktestGet(dict):
     BROKEN_KEYS = {
         "report_filename",

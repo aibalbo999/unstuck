@@ -11,6 +11,7 @@ import report_history_service
 from decision_backtest import BACKTEST_HORIZONS, add_calendar_months, evaluate_prediction
 from decision_tracking import parse_optional_price
 from market_price_history import fetch_backtest_prices
+from report_pipeline_identity import resolve_report_pipeline_id
 
 
 def run_due_backtests(
@@ -60,7 +61,10 @@ def run_due_backtests(
                 result = {
                     "report_filename": filename,
                     "ticker": report.get("ticker", ""),
-                    "pipeline_id": report.get("pipeline_id", "v1"),
+                    "pipeline_id": resolve_report_pipeline_id(
+                        filename,
+                        stored_pipeline=report.get("pipeline_id"),
+                    ),
                     "horizon_months": horizon,
                     "generated_date": generated.isoformat(),
                     "evaluation_date": str(prices.get("actual_price_date") or due_date.isoformat()),

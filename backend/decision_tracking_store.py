@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 
 from decision_tracking_migrations import ensure_legacy_sqlite_migrated
 from report_freshness_summary import safe_bool
+from report_pipeline_identity import resolve_report_pipeline_id
 from runtime_paths import current_runtime_paths
 from storage.sqlite_resource import ThreadLocalSqliteResource
 
@@ -182,11 +183,15 @@ def mark_refresh(ticker: str, *, status: str, message: str = "", now: datetime |
 
 
 def upsert_backtest_result(result: dict) -> dict:
+    report_filename = str(result.get("report_filename") or "")
     evaluated_at = str(result.get("evaluated_at") or _now_iso())
     values = (
-        str(result.get("report_filename") or ""),
+        report_filename,
         _normalize_ticker(result.get("ticker")),
-        str(result.get("pipeline_id") or "v1"),
+        resolve_report_pipeline_id(
+            report_filename,
+            stored_pipeline=result.get("pipeline_id"),
+        ),
         int(result.get("horizon_months") or 0),
         str(result.get("generated_date") or ""),
         str(result.get("evaluation_date") or ""),
