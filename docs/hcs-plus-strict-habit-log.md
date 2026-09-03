@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3924 / map revenue-only latest annual growth alias
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：兩個大小寫格式不同的 `Latest annual growth` numeric claims 位於 Revenue section；同一 snapshot 另有 net-income growth，不能用數值相等決定來源。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先用 revenue 正例與淨利同值污染 fixture 取得 RED；exact alias 只對 `data.latest_annual_revenue_growth`，差異時固定在 revenue path 產生 mismatch，不改候選 fallback。
+- `#受眾` / `#責任` / `#可驗證性`：RED→GREEN `2 passed`，evidence gate `240 passed`；真實 `2367.TW` artifact claim `-12.3044%` 對 `-12.3%` 為 verified。全量 summary 的 `matched_snapshot_value` `11778→11780`、`missing_semantic_path` `107→105`；完整 suite 為 `8669 passed, 6 skipped, 1` 個既有 optional Playwright `networkidle` timeout，獨立重跑該案例 `1 passed`，排除 optional visual 後 `8662 passed, 6 skipped, 8 deselected, 75 subtests passed`。正式 launcher reload 後 PID 為 `99030`（API `99060`、Worker `99057`），`/healthz` OK、`/readyz` ready、doctor canonical path checks pass，queue depth `0`、近期失敗 `0`（既有 stale failed `10`）；不改寫 artifact、snapshot、index、review、rerun、repair 或 queue。
+
 ## D3923 / map legacy financial, market, and chip aliases to canonical snapshot paths
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：residual audit 確認 `CAGR (5yr)`、TDCC 持股分布別名、中文目前價格別名、中文借券 flow 別名與 `Margin Previous Balance` 都有明確 canonical snapshot 欄位；`今日借券償還` 的真實 artifact 則暴露報告單位與 raw shares 不一致。

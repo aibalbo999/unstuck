@@ -3189,6 +3189,48 @@ def test_evidence_gate_exposes_borrowed_return_alias_unit_mismatch():
     assert claim["matched_value"] == 38.0
 
 
+def test_evidence_gate_maps_latest_annual_growth_to_revenue_path():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* Latest annual growth: -12.3044% (from `deterministic_financial_tool_results`).",
+        {
+            "data": {
+                "latest_annual_revenue_growth": "-12.3%",
+                "latest_annual_net_income_growth": "-69.8%",
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "approved"
+    assert claim["status"] == "verified"
+    assert claim["matched_path"] == "data.latest_annual_revenue_growth"
+
+
+def test_evidence_gate_keeps_latest_annual_growth_off_net_income_path():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* Latest annual growth: 20.0%",
+        {
+            "data": {
+                "latest_annual_revenue_growth": 13.0,
+                "latest_annual_net_income_growth": 20.0,
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "rejected"
+    assert claim["status"] == "mismatch"
+    assert claim["matched_path"] == "data.latest_annual_revenue_growth"
+
+
 def test_evidence_gate_does_not_bind_dated_news_extremum_to_close_history():
     from evidence_exit_gate import evaluate_report_evidence
 

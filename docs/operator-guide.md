@@ -407,6 +407,8 @@ KV claim 的 label 後若立即接 `8/17 - 8/18`、`8-17` 這類月日範圍，�
 
 歷史 evidence alias 只映射到對應的 canonical snapshot：`CAGR (5yr)` → `data.revenue_cagr_5yr`；`Holders > 1000 lots`／`Holders > 1,000 lots`／`Major > 1000 lots`／`Major > 1,000 lots` → TDCC `major_holders_gt_1000_lots_pct`；`Holders < 50 lots` → TDCC `retail_holders_lt_50_lots_pct`；`目前價格`／`當前市價` → `data.current_price`；`今日借券賣出`／`今日借券償還` → 各自的 TWSE 借券欄位；`Margin Previous Balance` → `margin_previous_balance`。報告若把 raw shares 以張數呈現而數值不一致，請保留 `snapshot_value_mismatch`，不要為了讓 gate 通過而改用其他同值欄位。
 
+`Latest annual growth` 只代表 Revenue section 的 `data.latest_annual_revenue_growth`。即使 `latest_annual_net_income_growth` 恰好同值，也不可借用；數值不一致時仍在 revenue canonical path 顯示 mismatch，欄位缺值時保留不可驗證。
+
 30 天法人交易區段的 `Foreign`／`外資` 與 `Investment Trust`／`投信`，只可分別核對 `data.institutional_trading.net_buy_thousand_shares_by_category.foreign`／`investment_trust`。`Total` 只有在前兩行同時列出這兩個法人分類時，才可核對 `data.institutional_trading.total_net_buy_thousand_shares`；單獨的 `Total` 沒有上下文時仍保留 `unverifiable`，不要只因數值相同就借用總額欄位。
 
 借券 claim 必須沿用自己的 path：`Borrowed Short Sale Today` 只核對 `data.chip_data.twse_margin_short_sales.borrowed_short_sale_today`；`Borrowed Short Return Today`／`Today's borrowed short return`／`Return Today`，或同一行的 compact `return` 明確接在 `borrowed short sale` 後面，才核對 `data.chip_data.twse_margin_short_sales.borrowed_short_return_today`。報告明示 `k`、`張` 或 `M` 時，才依該 claim 的單位把 raw shares 轉成千股、張或百萬股。精確的 `vs Sale Today` label 仍只核對 sale path；不能把 sale path 當還券量，也不能把 return path 借給 `vs Sale Today`。
