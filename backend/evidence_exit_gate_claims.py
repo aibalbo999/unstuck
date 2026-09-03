@@ -203,7 +203,7 @@ def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
     label = _normalize_match_text(raw_label)
     if not label:
         return ()
-    if (date_match := re.fullmatch(r"(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})", raw_label.strip(), re.IGNORECASE)) and any(_normalize_match_text(marker) in _normalize_match_text(series_context) for marker in ("daily_total_net_buy_last_10", "Last 10 trading days daily total net buy", "Last 10 trading days daily net buy", "Daily Net Buy (Last 10 days)", "Last 10 days daily trend")):
+    if (date_match := re.fullmatch(r"(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})", raw_label.strip(), re.IGNORECASE)) and any(_normalize_match_text(marker) in _normalize_match_text(series_context) for marker in ("daily_total_net_buy_last_10", "Last 10 trading days daily total net buy", "Last 10 trading days daily net buy", "Daily Net Buy (Last 10 days)", "Last 10 days daily trend", "Recent Trend (Last 10 days)")):
         month_number = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec").index(date_match.group(1).title()) + 1
         year_match = re.search(r"(20\d{2})\s*[-/年.]\s*\d{1,2}\s*[-/月.]\s*\d{1,2}", series_context)
         candidate_years = {month_name[:4] for month_name in claim.get("_price_history_months") or () if int(month_name[5:7]) == month_number}

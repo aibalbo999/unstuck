@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3920 / map recent trend dates to canonical institutional snapshot paths
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`3406.TW/v4` 舊 artifact 的 institutional section 使用 `Recent Trend (Last 10 days)`，負值 `Aug 20` 與 `Aug 24` 是逐日法人淨買超資料；snapshot 有相同日期的 `net_buy_thousand_shares`。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先以真實 artifact/snapshot 與 dated mismatch fixture 取得 RED；只加入 exact `Recent Trend (Last 10 days)` marker，仍要求序列上下文與唯一 snapshot 年份，mismatch 維持該日期的 canonical path，standalone `Aug NN` 不猜測。
+- `#受眾` / `#責任` / `#可驗證性`：RED→GREEN 覆蓋正確日期、日期 mismatch 與既有 standalone-date boundary；日期序列 focused `9 passed`，完整 suite `8661 passed, 6 skipped, 75 subtests passed in 1205.13s`，正式 runtime reload 後 `healthz=200`、`readyz=200/ready`、doctor canonical paths、queue depth `0` 與 3406.TW 舊 live artifact 的兩筆負值日期 claims 均 verified。不改寫 artifact、snapshot、index、review、rerun、repair 或 queue。
+
 ## D3919 / map daily trend dates to canonical institutional snapshot paths
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`3406.TW/v4` 的 institutional section 使用 `Last 10 days daily trend`，`Aug 20` 與 `Aug 24` 是逐日法人淨買超資料，不是無上下文的月份日期；snapshot 明確保存相同日期的 `net_buy_thousand_shares`。
