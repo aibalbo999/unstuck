@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3923 / map legacy financial, market, and chip aliases to canonical snapshot paths
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：residual audit 確認 `CAGR (5yr)`、TDCC 持股分布別名、中文目前價格別名、中文借券 flow 別名與 `Margin Previous Balance` 都有明確 canonical snapshot 欄位；`今日借券償還` 的真實 artifact 則暴露報告單位與 raw shares 不一致。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先用精確 legacy labels、相等值／差異值與借券 raw-share conversion fixture 取得 RED；只新增 exact aliases，CAGR 固定到 `data.revenue_cagr_5yr`，holder／price／margin／borrowed flow 固定到各自專用 path，不跨欄位借值，也不把 mismatch 改成 verified。
+- `#受眾` / `#責任` / `#可驗證性`：RED→GREEN 覆蓋 3 個 focused regression；evidence focused `254 passed`，完整 suite `8668 passed, 6 skipped, 75 subtests passed in 1209.39s`；11 個真實 artifact claims 為 10 verified、1 mismatch，且全部有正確 canonical path。2059.TW 的 `今日借券償還` mismatch 保留給操作人員處理，避免隱藏單位／資料品質問題。正式 runtime reload 後 `healthz=200`、`readyz=200/ready`、doctor canonical paths 通過，queue `depth=0`／`failed_recent=0`（另有 10 筆既有 `failed_stale`）。本批不改寫 artifact、snapshot、index、review、rerun、repair 或 queue。
+
 ## D3922 / map equity multiplier claims and exclude note metadata
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：2367.TW、2308.TW、3017.TW artifact 的 `Equity Multiplier`／`權益乘數` 是財務欄位，snapshot 有 `data.equity_multiplier`；`data.equity_multiplier_note` 明示只是口徑差異提示，不是 canonical evidence。

@@ -3091,6 +3091,104 @@ def test_evidence_gate_keeps_equity_multiplier_mismatch_on_canonical_path():
     assert claim["matched_path"] == "data.equity_multiplier"
 
 
+def test_evidence_gate_maps_legacy_financial_market_and_chip_aliases_to_canonical_paths():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* CAGR (5yr): 13.0124%\n"
+        "* Holders > 1,000 lots: 35.85%.\n"
+        "* Holders < 50 lots: 23.26%.\n"
+        "* Major > 1,000 lots: 35.85%.\n"
+        "* 目前價格: 635.0 TWD\n"
+        "* 今日借券賣出: 1000 張\n"
+        "* 今日借券償還: 38000 張\n"
+        "* Margin Previous Balance: 1639",
+        {
+            "data": {
+                "revenue_cagr_5yr": 13.0,
+                "current_price": 635.0,
+                "chip_data": {
+                    "tdcc_shareholder_distribution": {
+                        "major_holders_gt_1000_lots_pct": 35.85,
+                        "retail_holders_lt_50_lots_pct": 23.26,
+                    },
+                    "twse_margin_short_sales": {
+                        "borrowed_short_sale_today": 1000,
+                        "borrowed_short_return_today": 38000000,
+                        "margin_previous_balance": 1639,
+                    },
+                },
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=8,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["unverifiable_count"] == 0
+    assert [claim["status"] for claim in result["sampled_claims"]] == [
+        "verified"
+    ] * 8
+    assert [claim["matched_path"] for claim in result["sampled_claims"]] == [
+        "data.revenue_cagr_5yr",
+        "data.chip_data.tdcc_shareholder_distribution.major_holders_gt_1000_lots_pct",
+        "data.chip_data.tdcc_shareholder_distribution.retail_holders_lt_50_lots_pct",
+        "data.chip_data.tdcc_shareholder_distribution.major_holders_gt_1000_lots_pct",
+        "data.current_price",
+        "data.chip_data.twse_margin_short_sales.borrowed_short_sale_today",
+        "data.chip_data.twse_margin_short_sales.borrowed_short_return_today",
+        "data.chip_data.twse_margin_short_sales.margin_previous_balance",
+    ]
+
+
+def test_evidence_gate_keeps_cagr_alias_mismatch_on_revenue_cagr_path():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* CAGR (5yr): 20.0%",
+        {
+            "data": {
+                "revenue_cagr_5yr": 13.0,
+                "latest_annual_revenue_growth": 20.0,
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "rejected"
+    assert claim["status"] == "mismatch"
+    assert claim["matched_path"] == "data.revenue_cagr_5yr"
+
+
+def test_evidence_gate_exposes_borrowed_return_alias_unit_mismatch():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* 今日借券償還: 38000 張",
+        {
+            "data": {
+                "chip_data": {
+                    "twse_margin_short_sales": {
+                        "borrowed_short_return_today": 38000,
+                    }
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "rejected"
+    assert claim["status"] == "mismatch"
+    assert claim["matched_path"] == (
+        "data.chip_data.twse_margin_short_sales.borrowed_short_return_today"
+    )
+    assert claim["matched_value"] == 38.0
+
+
 def test_evidence_gate_does_not_bind_dated_news_extremum_to_close_history():
     from evidence_exit_gate import evaluate_report_evidence
 

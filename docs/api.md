@@ -11,6 +11,8 @@ An exact `Retail` holder-distribution row is compared with `data.chip_data.tdcc_
 
 `Equity Multiplier` and `權益乘數` rows use the dedicated `data.equity_multiplier` value. `data.equity_multiplier_note` is metadata about reporting-basis differences and is excluded from evidence candidates, so a note-only same value cannot hide a mismatch in the canonical field.
 
+Legacy evidence labels are mapped only to their matching canonical fields: `CAGR (5yr)` to `data.revenue_cagr_5yr`; `Holders > 1000 lots`／`Holders > 1,000 lots`／`Major > 1000 lots`／`Major > 1,000 lots` to `data.chip_data.tdcc_shareholder_distribution.major_holders_gt_1000_lots_pct`; `Holders < 50 lots` to `data.chip_data.tdcc_shareholder_distribution.retail_holders_lt_50_lots_pct`; `目前價格`／`當前市價` to `data.current_price`; `今日借券賣出`／`今日借券償還` to their corresponding `twse_margin_short_sales` fields; and `Margin Previous Balance` to `data.chip_data.twse_margin_short_sales.margin_previous_balance`. These aliases do not permit same-value fallback across fields. Borrowed-return values still use the claim's declared unit conversion, so a raw-share／張 mismatch remains visible as `snapshot_value_mismatch`.
+
 Decision tracking parses snapshot `current_price` first and falls back to `current_price_fmt` only when the raw value is not parseable. Legacy `N/A` raw values therefore do not hide a valid formatted price, and report tracking calculations remain aligned with the available snapshot evidence.
 
 Content-credibility target parsing treats only finite positive numeric values as target prices. Numeric zero or negative scenario targets therefore remain an explicit parse warning instead of passing scenario-order checks as real prices, matching the explicit-target detector's non-positive-value boundary.
