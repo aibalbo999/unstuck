@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3915 / classify sentiment scores as analysis metadata
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：current-quality 唯一 `missing_semantic_path` 來自 `5314.TWO` v3 的 `情緒評分：8 / 10`；snapshot 只有 `social_sentiment` freshness metadata，沒有可核驗的分數欄位。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：精確 fixture 先取得 RED；只把 exact `情緒評分` 納入既有 `analysis_metadata_not_evidence` classification，保留 `unverifiable` 與 zero candidate，不將 freshness metadata 或同值數字升格為 evidence。
+- `#受眾` / `#責任` / `#可驗證性`：evidence gate `220 passed`；完整 suite `8650 passed, 6 skipped, 75 subtests passed`。live claim 的 reason 已改為 `analysis_metadata_not_evidence`，current `missing_semantic_path` `1→0`，mismatch 維持 0。未寫 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3914 / map recommendation-prefix horizons only with canonical context
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`5314.TWO` v3 的最終建議表用 `放空；3個月` 作為 label，雖然 parsed recommendation 已有同值短期目標，parser 仍回報 `missing_semantic_path`。

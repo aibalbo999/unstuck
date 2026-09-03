@@ -131,6 +131,22 @@ def test_evidence_gate_explains_analysis_score_metadata_boundary():
     assert result["unverifiable_reason_counts"] == {"analysis_metadata_not_evidence": 2}
 
 
+def test_evidence_gate_classifies_sentiment_score_as_analysis_metadata():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* **情緒評分：8 / 10 (高度過熱)**",
+        {"data": {}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "unverifiable"
+    assert claim["verification_reason_code"] == "analysis_metadata_not_evidence"
+    assert claim["candidate_count"] == 0
+
+
 def test_evidence_gate_accepts_markdown_emphasis_between_label_and_value():
     from evidence_exit_gate import evaluate_report_evidence
 

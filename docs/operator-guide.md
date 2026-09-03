@@ -2897,4 +2897,6 @@ Week-52 high/low labels may contain Markdown emphasis between the label delimite
 
 Confidence scores are treated as analysis metadata. Numbers inside `confidence_basis.evidence_items` are excluded from confidence matching, so the operator sees `confidence_metadata_not_evidence` rather than a false value mismatch when the basis text mentions DCF, targets, risks, or other numbers.
 
+Sentiment or heat scores such as `情緒評分` are also analysis metadata. When no dedicated canonical score exists, the operator sees `analysis_metadata_not_evidence` and `unverifiable`; stale `social_sentiment` freshness metadata does not prove the score.
+
 Recommendation-prefix horizons such as `放空；3個月` are verified only when the same report snapshot contains the matching parsed or structured recommendation horizon. Older reports without that canonical context remain unverified for manual review.
