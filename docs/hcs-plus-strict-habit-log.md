@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3909 / preserve pipeline identity during data refresh
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：資料刷新流程把 snapshot 的 raw `pipeline` 同時放進 refresh context 與新 snapshot；v4 artifact 遇到 legacy `N/A` 時，刷新後仍保存 placeholder，後續 rerun/context 會失去原始模式身份。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：真實 refresh workflow + `InMemoryStorage` fixture 先取得 `1 failed` RED；以 `resolve_report_pipeline_id(filename, snapshot=previous_snapshot)` 統一 context、provisional snapshot 與 final snapshot，不改 fetch、refresh diff 或 quality metadata。
+- `#受眾` / `#責任` / `#可驗證性`：focused refresh/data-trust/row/quality/daily/import regression `593 passed`；完整 suite `8641 passed, 6 skipped, 75 subtests passed`；live health/ready `200/200`，v4 filter `1114` 份、current-quality `167` 份／non-passed `88`、daily sample/repair/rerun `20/11/0`。刷新仍是資料更新，並不代表結論已重跑；本批不改 artifact、review、queue 或 rerun state。
+
 ## D3908 / canonicalize report-index pipeline filtering and latest grouping
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`report_index.query_report_metadata` 的 pipeline filter 與 latest grouping 直接消費 raw `reports.pipeline_id`；legacy v4 filename + `N/A` row 會被指定 v4 查詢漏掉，或和有效 v4 row 分成兩個 ticker/mode 群組。

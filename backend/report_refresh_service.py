@@ -17,6 +17,7 @@ from report_refresh_diff import refresh_data_diff, refresh_requires_analysis_rer
 from report_artifacts import MissingReportArtifact, ReportArtifactLocator
 from report_history_storage import storage_for_existing_output_dir
 from report_index import is_safe_report_filename, upsert_report_metadata
+from report_pipeline_identity import resolve_report_pipeline_id
 from report_persistence import DATA_SNAPSHOT_CONTENT_TYPE
 from report_quality_refresh_provenance import build_quality_metadata_refresh_provenance
 from mapping_fields import safe_mapping_dict
@@ -56,6 +57,7 @@ async def refresh_report_data_snapshot(
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=f"資料快照無法讀取：{exc}") from exc
 
+    pipeline_id = resolve_report_pipeline_id(filename, snapshot=previous_snapshot)
     ticker = str(previous_snapshot.get("ticker") or "").strip().upper()
     if not ticker:
         raise HTTPException(status_code=400, detail="資料快照缺少 ticker")
@@ -82,7 +84,7 @@ async def refresh_report_data_snapshot(
     context = {
         "ticker": refreshed_data.get("ticker") or ticker,
         "company_name": company_display_name(refreshed_data, previous_snapshot.get("company_name") or ticker),
-        "pipeline_id": previous_snapshot.get("pipeline"),
+        "pipeline_id": pipeline_id,
         "data": refreshed_data,
         "evidence_matrix": previous_snapshot.get("evidence_matrix", []),
         "rerun_context": previous_snapshot.get("rerun_context", {}),
@@ -100,7 +102,7 @@ async def refresh_report_data_snapshot(
     }
     provisional_snapshot = build_data_snapshot(
         context,
-        pipeline_id=previous_snapshot.get("pipeline"),
+        pipeline_id=pipeline_id,
         generated_at=refresh_generated_at,
     )
     refresh_diff = refresh_data_diff(previous_snapshot, provisional_snapshot)
@@ -113,7 +115,7 @@ async def refresh_report_data_snapshot(
     })
     refreshed_snapshot = build_data_snapshot(
         context,
-        pipeline_id=previous_snapshot.get("pipeline"),
+        pipeline_id=pipeline_id,
         generated_at=refresh_generated_at,
     )
 

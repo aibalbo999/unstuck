@@ -619,3 +619,53 @@ def test_report_refresh_accepts_mapping_safe_refreshed_data_payload(tmp_path):
         },
         "missing_fields": [],
     }
+
+
+def test_report_refresh_preserves_filename_pipeline_when_snapshot_pipeline_is_placeholder(tmp_path):
+    import report_refresh_service
+
+    filename = "2330_TW_v4_report_20260626_120000.html"
+    keys = report_bundle_keys_for_filename(filename)
+    storage = InMemoryStorage()
+    storage.save_report(keys.html_key, b"<html></html>", content_type="text/html")
+    previous_snapshot = {
+        "ticker": "2330.TW",
+        "company_name": "台積電",
+        "pipeline": "N/A",
+        "data": {"current_price": 100},
+        "source_audit": [],
+        "data_trust": {"status": "fresh", "critical_failures": [], "stale_sources": []},
+    }
+    storage.save_report(
+        keys.data_key,
+        json.dumps(previous_snapshot, ensure_ascii=False).encode("utf-8"),
+        content_type="application/json",
+    )
+
+    class FakeRefreshService:
+        async def fetch_async(self, request):
+            return SimpleNamespace(
+                data={
+                    "data_schema_version": 4,
+                    "ticker": request.ticker,
+                    "company_name": "台積電",
+                    "current_price": 101,
+                    "source_audit": [],
+                    "data_trust": {"status": "fresh", "critical_failures": [], "stale_sources": []},
+                }
+            )
+
+    asyncio.run(
+        report_refresh_service.refresh_report_data_snapshot(
+            filename,
+            output_dir=str(tmp_path),
+            refresh_service=FakeRefreshService(),
+            storage=storage,
+        )
+    )
+
+    saved_content = storage.get_report(keys.data_key)
+    assert saved_content is not None
+    saved_snapshot = json.loads(saved_content.content.decode("utf-8"))
+    assert saved_snapshot["pipeline"] == "v4"
+    assert saved_snapshot["rerun_context"]["pipeline_id"] == "v4"

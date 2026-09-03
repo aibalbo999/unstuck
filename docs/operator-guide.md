@@ -16,6 +16,8 @@
 
 報告歷史的模式篩選與「每個 ticker/mode 最新一筆」分組也使用同一個 resolver，而不是直接採用 SQLite `reports.pipeline_id`。因此 legacy row 即使保存 `N/A`，只要檔名可辨識為 v4，就會出現在 v4 範圍，且不會和同 ticker 的有效 v4 row 被拆成兩組；total 與分頁數字也以這個 canonical scope 計算。這是唯讀相容處理，不會回寫 report index、snapshot 或 artifact。
 
+按「只刷新資料」後，系統會沿用報告檔名可辨識的 pipeline 寫入新 snapshot；舊 snapshot 若是 `N/A`、`NULL` 或空白，v4 不會在 refresh context、比較用 snapshot 或最終 snapshot 中降成 placeholder。這只保留報告身份與資料可追蹤性，沒有重新產生 HTML/Markdown 結論；若資料與原結論不同，仍要依 `needs_rerun`／freshness 提示處理。
+
 模型路由 budget 的 fallback 會用 shared `safe_bool` 解讀 `observability_unavailable`；legacy `"false"` 不會被製造成 unavailable 警示，明確的 true 仍會保留在機器可讀 payload，方便操作人員區分真的觀測不可用與舊格式資料。
 
 資料抓取進入分析前會用 `data_trust_values.has_value` 判斷核心市場／財報欄位是否真的有值；`N/A`、空歷史序列與非有限數字不會被當成可用資料而繞過停止條件，合法的核心資料則維持原本流程。這只決定本次是否繼續分析，不會改寫既有報告或快照。
