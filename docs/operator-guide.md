@@ -401,6 +401,8 @@ KV claim 的 label 後若立即接 `8/17 - 8/18`、`8-17` 這類月日範圍，�
 
 舊版報告若使用 exact `Recent Trend (Last 10 days)` 標題，也沿用同一個 institutional daily-series 規則；沒有法人序列語境、年份不唯一或只是一般 trend 敘述時，請保留 `unverifiable`，不要擴大套用。
 
+持股分布中的 exact `Retail` row 只核對 `data.chip_data.tdcc_shareholder_distribution.retail_holders_lt_50_lots_pct`。它代表 `<50 lots` 散戶比例；數值不一致要保留該 holder path 的 `snapshot_value_mismatch`，不要改用 major holders、現價或其他相同數字。
+
 30 天法人交易區段的 `Foreign`／`外資` 與 `Investment Trust`／`投信`，只可分別核對 `data.institutional_trading.net_buy_thousand_shares_by_category.foreign`／`investment_trust`。`Total` 只有在前兩行同時列出這兩個法人分類時，才可核對 `data.institutional_trading.total_net_buy_thousand_shares`；單獨的 `Total` 沒有上下文時仍保留 `unverifiable`，不要只因數值相同就借用總額欄位。
 
 借券 claim 必須沿用自己的 path：`Borrowed Short Sale Today` 只核對 `data.chip_data.twse_margin_short_sales.borrowed_short_sale_today`；`Borrowed Short Return Today`／`Today's borrowed short return`／`Return Today`，或同一行的 compact `return` 明確接在 `borrowed short sale` 後面，才核對 `data.chip_data.twse_margin_short_sales.borrowed_short_return_today`。報告明示 `k`、`張` 或 `M` 時，才依該 claim 的單位把 raw shares 轉成千股、張或百萬股。精確的 `vs Sale Today` label 仍只核對 sale path；不能把 sale path 當還券量，也不能把 return path 借給 `vs Sale Today`。

@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3921 / map retail short labels to holder distribution evidence
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：0050.TW、2103.TW、2887.TW artifact 的 `Retail` 都位於 TDCC holder distribution 內容，且 snapshot 有專用 `<50 lots` 散戶比例欄位；這不是現價或 major-holder 數值。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先以相等值與差異值 fixture 取得 RED；新增 exact `Retail` → `data.chip_data.tdcc_shareholder_distribution.retail_holders_lt_50_lots_pct` mapping，mismatch 維持同一路徑，不跨 holder 欄位借值。
+- `#受眾` / `#責任` / `#可驗證性`：RED→GREEN 覆蓋 verified 與 mismatch；focused `2 passed`，完整 suite `8663 passed, 6 skipped, 75 subtests passed in 1222.80s`，三份真實 artifact 的 `Retail` claims 全部 verified；正式 runtime reload 後 `healthz=200`、`readyz=200/ready`、doctor canonical paths 與 queue check `pass`／`failed_recent=0` 通過。不改寫 artifact、snapshot、index、review、rerun、repair 或 queue。
+
 ## D3920 / map recent trend dates to canonical institutional snapshot paths
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`3406.TW/v4` 舊 artifact 的 institutional section 使用 `Recent Trend (Last 10 days)`，負值 `Aug 20` 與 `Aug 24` 是逐日法人淨買超資料；snapshot 有相同日期的 `net_buy_thousand_shares`。

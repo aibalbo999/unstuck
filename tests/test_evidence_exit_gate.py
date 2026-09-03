@@ -2992,6 +2992,58 @@ def test_evidence_gate_keeps_recent_trend_mismatch_on_its_date():
     )
 
 
+def test_evidence_gate_matches_retail_short_label_to_holder_distribution():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* Retail: 55.73%",
+        {
+            "data": {
+                "chip_data": {
+                    "tdcc_shareholder_distribution": {
+                        "retail_holders_lt_50_lots_pct": 55.73,
+                    }
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "approved"
+    assert claim["status"] == "verified"
+    assert claim["matched_path"] == (
+        "data.chip_data.tdcc_shareholder_distribution.retail_holders_lt_50_lots_pct"
+    )
+
+
+def test_evidence_gate_keeps_retail_mismatch_on_holder_distribution_path():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* Retail: 55.73%",
+        {
+            "data": {
+                "chip_data": {
+                    "tdcc_shareholder_distribution": {
+                        "retail_holders_lt_50_lots_pct": 50.0,
+                    }
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "rejected"
+    assert claim["status"] == "mismatch"
+    assert claim["matched_path"] == (
+        "data.chip_data.tdcc_shareholder_distribution.retail_holders_lt_50_lots_pct"
+    )
+
+
 def test_evidence_gate_does_not_bind_dated_news_extremum_to_close_history():
     from evidence_exit_gate import evaluate_report_evidence
 

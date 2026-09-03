@@ -7,6 +7,8 @@ Evidence-gate date rows under `Last 10 days daily trend` are mapped only when th
 
 The same date-aware rule accepts the exact `Recent Trend (Last 10 days)` heading used by legacy institutional reports. It does not generalize to unrelated trend prose or infer a year when the snapshot has multiple candidate years.
 
+An exact `Retail` holder-distribution row is compared with `data.chip_data.tdcc_shareholder_distribution.retail_holders_lt_50_lots_pct`. The mapping is specific to the `<50 lots` retail field and does not borrow major-holder, price, or other same-value evidence.
+
 Decision tracking parses snapshot `current_price` first and falls back to `current_price_fmt` only when the raw value is not parseable. Legacy `N/A` raw values therefore do not hide a valid formatted price, and report tracking calculations remain aligned with the available snapshot evidence.
 
 Content-credibility target parsing treats only finite positive numeric values as target prices. Numeric zero or negative scenario targets therefore remain an explicit parse warning instead of passing scenario-order checks as real prices, matching the explicit-target detector's non-positive-value boundary.
