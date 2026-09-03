@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3907 / align repair-sample overlap identity
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：daily dashboard `repair_sample_overlap` 以 `(filename, raw pipeline)` 比對 sample row 與 quality-audit item；v4 filename 一側為 `N/A` 時，sample 內缺口會被錯算到 sample 外。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：overlap fixture 先取得 `1 failed` RED；`_report_identity_key` 改用 filename-aware `resolve_report_pipeline_id()`，只修 read-only overlap 分母。
+- `#受眾` / `#責任` / `#可驗證性`：同一 artifact 的 sample in/out 分割恢復一致，不改 audit、repair、artifact、review、queue 或 rerun state。
+
 ## D3906 / align historical quality-audit version identity
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：historical quality audit 的 latest filename map 與 indexed version annotation 仍以 raw pipeline identity 比對；v4 filename 遇到 legacy `N/A` 時，current/historical version 會被標成 `unknown`。

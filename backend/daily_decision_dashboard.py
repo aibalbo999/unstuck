@@ -198,7 +198,10 @@ def _repair_sample_overlap(
 
 def _report_identity_key(report: dict[str, Any]) -> tuple[str, str] | None:
     filename = safe_text(report.get("filename") or report.get("report_filename")).strip()
-    pipeline_id = safe_text(report.get("pipeline_id")).strip() or "v1"
+    pipeline_id = resolve_report_pipeline_id(
+        filename,
+        stored_pipeline=report.get("pipeline_id"),
+    )
     return (filename, pipeline_id) if filename else None
 
 

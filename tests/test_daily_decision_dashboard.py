@@ -443,6 +443,30 @@ def test_daily_dashboard_reports_quality_gap_overlap_with_repair_sample():
     }
 
 
+def test_daily_dashboard_overlap_resolves_placeholder_pipeline_identity():
+    import daily_decision_dashboard as dashboard_module
+
+    audit = {
+        "scope": "all_indexed_reports",
+        "quality_metadata_missing_reports": 1,
+        "items_returned": 1,
+        "items_truncated": False,
+        "items": [{
+            "filename": "2330_TW_v4_report_20260620_090000.html",
+            "pipeline_id": "v4",
+        }],
+    }
+    reports = [{
+        "filename": "2330_TW_v4_report_20260620_090000.html",
+        "pipeline_id": "N/A",
+    }]
+
+    overlap = dashboard_module._repair_sample_overlap(audit, reports)
+
+    assert overlap["audit_gap_reports_in_repair_sample"] == 1
+    assert overlap["audit_gap_reports_outside_repair_sample"] == 0
+
+
 def test_daily_decision_dashboard_returns_full_rerun_report_list():
     reports = {
         "reports": [

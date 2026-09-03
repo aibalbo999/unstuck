@@ -2313,6 +2313,8 @@ Backtest evaluation and persistence also canonicalize the report pipeline before
 
 Historical quality audit uses the same resolver when it maps the latest filename and labels indexed versions as current or historical. A v4 filename with legacy `N/A` metadata is therefore still classified against the v4 latest report, rather than shown as an unknown version.
 
+The daily dashboard also resolves pipeline identity before comparing the recent repair sample with quality-audit gap items. Matching filename and v4 identity keeps the overlap count and sample-outside count trustworthy when one side still carries legacy `N/A` metadata.
+
 Provider impact identity fields use shared text conversion before provider recovery projection, so malformed ticker, filename, report filename, or pipeline fields cannot bypass the shared boolean, binary, and memory-view text guards.
 
 Data trust scoring audit source names use shared text conversion before trust reason-code projection, so malformed source audit keys cannot become synthetic optional-source errors or leak boolean, binary, or memory-view text into report trust metadata.
