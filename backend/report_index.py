@@ -18,6 +18,7 @@ from report_index_metadata import build_report_metadata, report_index_mtime
 from report_index_migrations import REPORT_INDEX_MIGRATION_KEY, REPORT_INDEX_SCHEMA_VERSION, run_report_index_migrations
 from report_index_repair import stored_recommendation_needs_rebuild
 from report_index_rows import row_to_report
+from report_pipeline_identity import resolve_report_pipeline_id
 from runtime_paths import current_runtime_paths; CACHE_DB_PATH = str(current_runtime_paths().report_index_db)
 _REPORT_INDEX_LOCK = threading.Lock()
 
@@ -214,9 +215,6 @@ def query_report_metadata(
 
     clauses = ["output_dir = ?"]
     params: list[object] = [out_dir]
-    if pipeline != "all":
-        clauses.append("pipeline_id = ?")
-        params.append(pipeline)
     if recommendation != "all":
         clauses.append("normalized_recommendation = ?")
         params.append(recommendation)
@@ -232,28 +230,27 @@ def query_report_metadata(
     offset = max(page - 1, 0) * limit
     order_sql = "report_date DESC, filename DESC, timestamp DESC"
     with _connect() as conn:
-        if include_versions:
-            total = conn.execute(
-                f"SELECT COUNT(*) FROM reports WHERE {where_sql}",
-                params,
-            ).fetchone()[0]
-            rows_sql = f"""
-                SELECT * FROM reports WHERE {where_sql}
-                ORDER BY {order_sql} LIMIT ? OFFSET ?
-            """
-        else:
-            latest_sql = f"""
-                FROM (
-                    SELECT reports.*, ROW_NUMBER() OVER (
-                        PARTITION BY
-                            lower(CASE WHEN instr(ticker, '.') > 0 THEN substr(ticker, 1, instr(ticker, '.') - 1) ELSE ticker END),
-                            pipeline_id ORDER BY {order_sql}
-                    ) AS version_rank
-                    FROM reports WHERE {where_sql}
-                )
-                WHERE version_rank = 1
-            """
-            total = conn.execute(f"SELECT COUNT(*) {latest_sql}", params).fetchone()[0]
-            rows_sql = f"SELECT * {latest_sql} ORDER BY {order_sql} LIMIT ? OFFSET ?"
-        rows = conn.execute(rows_sql, [*params, limit, offset]).fetchall()
+        raw_rows = conn.execute(
+            f"SELECT * FROM reports WHERE {where_sql} ORDER BY {order_sql}",
+            params,
+        ).fetchall()
+    canonical_rows = []
+    for row in raw_rows:
+        row_pipeline = resolve_report_pipeline_id(row["filename"], stored_pipeline=row["pipeline_id"])
+        if pipeline != "all" and row_pipeline != pipeline:
+            continue
+        canonical_rows.append((row, row_pipeline))
+    if not include_versions:
+        seen = set()
+        latest_rows = []
+        for row, row_pipeline in canonical_rows:
+            ticker = str(row["ticker"] or "").split(".", 1)[0].lower()
+            key = (ticker, row_pipeline)
+            if key in seen:
+                continue
+            seen.add(key)
+            latest_rows.append((row, row_pipeline))
+        canonical_rows = latest_rows
+    total = len(canonical_rows)
+    rows = [row for row, _pipeline in canonical_rows[offset : offset + limit]]
     return [(row_mapper(row) if row_mapper else row_to_report(row)) for row in rows], int(total)

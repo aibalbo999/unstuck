@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3908 / canonicalize report-index pipeline filtering and latest grouping
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`report_index.query_report_metadata` 的 pipeline filter 與 latest grouping 直接消費 raw `reports.pipeline_id`；legacy v4 filename + `N/A` row 會被指定 v4 查詢漏掉，或和有效 v4 row 分成兩個 ticker/mode 群組。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：隔離 SQLite 先取得 `1 failed` RED；SQL 保留 output/recommendation/data-trust/search 條件下推，pipeline filter、latest grouping、total 與 pagination 改用 shared `resolve_report_pipeline_id()`，不回寫 legacy index。
+- `#受眾` / `#責任` / `#可驗證性`：focused report-index/history/quality/review/decision/import regression `802 passed`；完整 suite `8639 passed, 6 skipped, 75 subtests passed`，另有 1 個 optional Playwright commercial visual timeout 且單獨重跑可重現；live health/ready `200/200`，v4 filter `1114` 份、current-quality `167` 份、daily sample/repair/rerun `20/11/0`。本批只修報告列表與歷史稽核的唯讀 identity scope，不改 snapshot、artifact、review、queue 或 rerun。
+
 ## D3907 / align repair-sample overlap identity
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：daily dashboard `repair_sample_overlap` 以 `(filename, raw pipeline)` 比對 sample row 與 quality-audit item；v4 filename 一側為 `N/A` 時，sample 內缺口會被錯算到 sample 外。
