@@ -2,6 +2,8 @@
 
 決策追蹤會先解析 snapshot 的 raw `current_price`，只有 raw 值無法解析時才回退到 `current_price_fmt`；因此 legacy `N/A` 不會蓋掉仍可用的格式化股價，報酬與目標比較會依現有 snapshot evidence 計算。
 
+報告中的 52 週技術價位若在同一 claim 以報告數字連接明確的 `week_52_high_twd`／`week_52_low_twd`、`market_data` 或 `financial JSON` source key，evidence gate 會固定核對 `data.week_52_high`／`data.week_52_low`。數值不一致仍顯示 mismatch；一般高低點文字、次要心理價位與沒有專用欄位的數字仍需人工確認，不會因數值相同而借用。
+
 內容可信度檢查只把有限且大於零的數字當成目標價；數字 `0` 或負數的情境目標會保留為「目標價無法解析」警示，不會以真實價格通過熊市／基本／牛市場景順序檢查，和明確目標價偵測器的資料邊界一致。
 
 內容可信度檢查對目前股價也只接受有限且大於零的數字；`0` 或負數會被視為缺少可用現價，v4 交易計畫會顯示需要確認，不會讓 Neutral 或其他方向透過無效現價完成一致性檢查。

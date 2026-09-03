@@ -284,6 +284,8 @@ def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
         return ("week_52_high",) if (week_match.group("after") or week_match.group("before")) in ("高", "最高") else ("week_52_low",)
     if (source_match := re.search(r"(-?\d[\d,]*(?:\.\d+)?)\s*(?:TWD|元)?\s*[*_`]*\s*[（(]?\s*(?:(?:引用|來源|source)\s*[:：]?\s*)?`?(?:data\.)?(market_data\.week_52_(?:high|low)_twd)", str(claim.get("raw_text") or ""), re.IGNORECASE)) and _clean_number(source_match.group(1)) == float(claim.get("reported_value") or 0):
         return ("week_52_high",) if "week_52_high_twd" in raw_text else ("week_52_low",)
+    if (source_before_match := re.search(r"`?(?:(?:data\.)?market_data\.)?week_52_(?P<kind>high|low)_twd`?", claim_text, re.IGNORECASE)) and (previous_numbers := list(_NUMBER_IN_STRING_RE.finditer(claim_text[:source_before_match.start()]))) and _clean_number(previous_numbers[-1].group()) == float(claim.get("reported_value") or 0):
+        return ("week_52_high",) if source_before_match.group("kind").lower() == "high" else ("week_52_low",)
     if (source_after_match := re.search(r"`?(?:(?:data|market_data)\.)?week_52_(?P<kind>high|low)_twd`?\s*[:：=]\s*(?:NT\$|\$|TWD|元)?\s*(?P<num>-?\d[\d,]*(?:\.\d+)?)", str(claim.get("raw_text") or ""), re.IGNORECASE)) and _clean_number(source_after_match.group("num")) == float(claim.get("reported_value") or 0):
         return ("week_52_high",) if source_after_match.group("kind").lower() == "high" else ("week_52_low",)
     if (source_parenthesized_match := re.search(r"`?(?:data\.)?(?:market_data\.)?week_52_(?P<kind>high|low)_twd`?\s*[（(]\s*(?:NT\$|\$)?\s*(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?:TWD|元)?\s*[)）]", str(claim.get("raw_text") or ""), re.IGNORECASE)) and _clean_number(source_parenthesized_match.group("num")) == float(claim.get("reported_value") or 0):
@@ -303,13 +305,11 @@ def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
             return ("structured_outputs.24.target_price", "parsed.trade_setup.target_price") if any(_normalize_match_text(marker) in label for marker in ("目標價", "targetprice")) and label not in ("目標價", "targetprice") else ("price_target", "price_targets", "target_price", "scenario", "scenarios") if label in ("目標價", "targetprice") else path_markers
     return ()
 
-
 def _label_matches_marker(raw_label: str, normalized_label: str, marker: str) -> bool:
     normalized_marker = _normalize_match_text(marker)
     if normalized_marker in ("pe", "ps"):
         return bool(re.search(rf"(?<![a-z0-9])p\s*/?\s*{normalized_marker[-1]}(?![a-z0-9])", raw_label, re.IGNORECASE))
     return normalized_label == "price" if normalized_marker == "price" else normalized_marker in normalized_label
-
 
 def best_match(reported: float, snapshot_values: list[dict[str, Any]]) -> dict[str, Any] | None:
     best: dict[str, Any] | None = None

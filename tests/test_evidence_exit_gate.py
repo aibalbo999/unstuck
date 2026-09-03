@@ -3745,6 +3745,66 @@ def test_evidence_gate_maps_dated_pressure_labeled_as_week_high_to_week_high():
     assert claim["matched_path"] == "data.week_52_high"
 
 
+def test_evidence_gate_matches_week_52_source_key_after_pressure_value_variants():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    cases = (
+        (
+            "- **壓力位**：230.0 TWD（`week_52_high_twd`）。",
+            "week_52_high",
+            230.0,
+            "data.week_52_high",
+        ),
+        (
+            "- **關鍵壓力位：89.9 TWD**。此為 `market_data.week_52_high_twd`，為目前價格上方最顯著的技術壓力。",
+            "week_52_high",
+            89.9,
+            "data.week_52_high",
+        ),
+        (
+            "* **即時壓力：** 273.5 元 (financial JSON: `market_data.week_52_high_twd`) 為當前股價面臨的短期重要壓力位。",
+            "week_52_high",
+            273.5,
+            "data.week_52_high",
+        ),
+        (
+            "- **關鍵支撐位**：27.2 元（`market_data.week_52_low_twd` 之 52 週最低價）。",
+            "week_52_low",
+            27.2,
+            "data.week_52_low",
+        ),
+    )
+
+    for markdown, field, value, expected_path in cases:
+        result = evaluate_report_evidence(
+            markdown,
+            {"data": {field: value}},
+            sample_ratio=1.0,
+            min_sample=1,
+        )
+
+        claim = result["sampled_claims"][0]
+        assert claim["status"] == "verified"
+        assert claim["matched_path"] == expected_path
+
+
+def test_evidence_gate_preserves_week_52_source_key_mismatch_after_pressure_value():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **壓力位**：240.0 TWD（`week_52_high_twd`）。",
+        {"data": {"week_52_high": 230.0}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "rejected"
+    assert claim["status"] == "mismatch"
+    assert claim["verification_reason_code"] == "snapshot_value_mismatch"
+    assert claim["matched_path"] == "data.week_52_high"
+
+
 def test_evidence_gate_maps_yearless_close_support_to_unique_price_history_date():
     from evidence_exit_gate import evaluate_report_evidence
 

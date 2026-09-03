@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3928 / map explicit week-52 source keys after technical values
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：全量 residual projection 的 `no_matching_snapshot_path` 尚有 112 筆，但只有 8 筆可由報告同一 claim 裡的明確 `week_52_high_twd`／`week_52_low_twd` source key 證明；`CAGR`、現金、資產周轉率、一般心理價位與次要數字沒有安全 canonical path，維持人工確認。
+- `#證據基礎` / `#偏誤辨識` / `#偏誤降低`：先用 bare key、`market_data` 中間敘述、`financial JSON` 與 low-key 變體取得 RED；只取 source key 前最近且等於 reported value 的數字，固定到 `data.week_52_high/low`。240 對 230 的同路徑 mismatch 維持 `snapshot_value_mismatch`；沒有 explicit source key 的相鄰心理壓力價不會被誤綁。
+- `#最小變更` / `#責任` / `#可驗證性`：RED→GREEN week-52 focused `9 passed`、跨層 `464 passed`、核心 `8674 passed, 6 skipped, 8 deselected, 75 subtests passed`、import boundary `7 passed`，line guard `349`、`py_compile`／`git diff --check` 通過；全量 `1172 / 15631 / 0 errors` 的 matched `11888→11895`、no-matching `112→104`、mismatch `533→534`。正式 launcher health/ready、doctor 與 queue 通過，API 讀回四份真實 artifact 的 5 個 source claims 全部 verified；不改寫 artifact、snapshot、index、review、rerun、repair 或 queue。
+
 ## D3927 / map legacy daily-series heading variants
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`2301.TW` 的 `Daily Trend (Last 10 days)` 與 `2313.TW` 的 `Last 10 days daily total net buy` 都是法人每日淨買超序列，但原 marker 只接受其他語序；日期、數值與 snapshot daily path 已可逐筆對應。

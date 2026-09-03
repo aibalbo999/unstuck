@@ -9,6 +9,8 @@ The same date-aware rule accepts the exact `Recent Trend (Last 10 days)` heading
 
 The same rule also accepts the exact legacy headings `Daily Trend (Last 10 days)` and `Last 10 days daily total net buy`. These are heading variants only: each `Aug NN` row still requires institutional daily-series context and one unambiguous snapshot year before mapping to its dated `daily_total_net_buy_last_10` path.
 
+Technical claims that place a reported price immediately before an explicit `week_52_high_twd`／`week_52_low_twd` source key, including `market_data.week_52_*_twd` and `financial JSON` citation wording, map only to `data.week_52_high`／`data.week_52_low`. The matcher uses the nearest numeric token before that key in the same claim; a value mismatch remains `snapshot_value_mismatch`. Generic high/low prose, secondary discussion prices, and unrelated same-value fields do not qualify for this mapping.
+
 An exact `Retail` holder-distribution row is compared with `data.chip_data.tdcc_shareholder_distribution.retail_holders_lt_50_lots_pct`. The mapping is specific to the `<50 lots` retail field and does not borrow major-holder, price, or other same-value evidence.
 
 `Equity Multiplier` and `權益乘數` rows use the dedicated `data.equity_multiplier` value. `data.equity_multiplier_note` is metadata about reporting-basis differences and is excluded from evidence candidates, so a note-only same value cannot hide a mismatch in the canonical field.
