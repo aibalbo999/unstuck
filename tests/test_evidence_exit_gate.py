@@ -3231,6 +3231,141 @@ def test_evidence_gate_keeps_latest_annual_growth_off_net_income_path():
     assert claim["matched_path"] == "data.latest_annual_revenue_growth"
 
 
+def test_evidence_gate_maps_chinese_institutional_and_retail_aliases_to_exact_paths():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "\n".join(
+            [
+                "* 近 5 個交易日淨買超 (千股): 3001.8",
+                "* 法人合計買超: 3001.8 張",
+                "* 小戶 (持股 < 50 張) 比例: 16.02%",
+            ]
+        ),
+        {
+            "data": {
+                "institutional_trading": {
+                    "last_5_trading_days_net_buy_thousand_shares": 3001.8,
+                    "total_net_buy_thousand_shares": 3001.8,
+                },
+                "chip_data": {
+                    "tdcc_shareholder_distribution": {
+                        "retail_holders_lt_50_lots_pct": 16.02,
+                        "major_holders_gt_1000_lots_pct": 16.02,
+                    }
+                },
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=3,
+    )
+
+    assert result["verdict"] == "approved"
+    assert [claim["status"] for claim in result["sampled_claims"]] == [
+        "verified",
+        "verified",
+        "verified",
+    ]
+    assert [claim["matched_path"] for claim in result["sampled_claims"]] == [
+        "data.institutional_trading.last_5_trading_days_net_buy_thousand_shares",
+        "data.institutional_trading.last_5_trading_days_net_buy_thousand_shares",
+        "data.chip_data.tdcc_shareholder_distribution.retail_holders_lt_50_lots_pct",
+    ]
+
+
+def test_evidence_gate_maps_equity_debt_ratio_to_debt_to_equity_path():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* 權益負債比率: 0.4% (debt_to_equity_pct)",
+        {
+            "data": {
+                "debt_to_equity": "0.40%",
+                "current_ratio": 0.4,
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "approved"
+    assert claim["status"] == "verified"
+    assert claim["matched_path"] == "data.debt_to_equity"
+
+
+def test_evidence_gate_maps_standalone_sp500_daily_change_to_spy_path():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* S&P 500: -0.2% (1d).",
+        {
+            "data": {
+                "global_market_context": {
+                    "items": [
+                        {"symbol": "SPY", "change_1d_pct": -0.2},
+                        {"symbol": "^TWII", "change_1d_pct": -0.2},
+                    ]
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "approved"
+    assert claim["status"] == "verified"
+    assert claim["matched_path"] == "data.global_market_context.items[spy].change_1d_pct"
+
+
+def test_evidence_gate_does_not_bind_corporate_net_buy_without_five_day_context():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* 法人合計買超: 3001.8 張",
+        {
+            "data": {
+                "institutional_trading": {
+                    "last_5_trading_days_net_buy_thousand_shares": 3001.8,
+                    "total_net_buy_thousand_shares": 3001.8,
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "caution"
+    assert claim["status"] == "unverifiable"
+    assert claim["matched_path"] == ""
+
+
+def test_evidence_gate_does_not_bind_sp500_index_target_to_daily_change():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* S&P 500 target: 6500",
+        {
+            "data": {
+                "global_market_context": {
+                    "items": [
+                        {"symbol": "SPY", "change_1d_pct": -0.2},
+                    ]
+                }
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "caution"
+    assert claim["status"] == "unverifiable"
+    assert claim["matched_path"] == ""
+
+
 def test_evidence_gate_does_not_bind_dated_news_extremum_to_close_history():
     from evidence_exit_gate import evaluate_report_evidence
 

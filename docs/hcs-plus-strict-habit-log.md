@@ -1,5 +1,10 @@
 # HCS Plus Strict Habit Log
 
+## D3925 / map Chinese chip aliases and standalone SPY daily change
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：residual claims 的 `近 5 個交易日淨買超 (千股)`、五日上下文中的 `法人合計買超`、`小戶 (持股 < 50 張) 比例` 與 `權益負債比率` 都有專用 snapshot path；standalone `S&P 500: ... (1d)` 也有 SPY daily-change path，但 S&P 500 指數點位目標不是 daily change。
+- `#證據基礎` / `#偏誤辨識` / `#偏誤降低`：fixture 放入同值的 30-day total、major-holder、current-ratio 與 `^TWII` 欄位；五日法人 alias 固定到 last-5 path，小戶固定到 retail path，S&P 500 只在 exact `1d` percentage context 映射 SPY，沒有五日語境的法人合計買超與指數 target 維持不可驗證。
+- `#最小變更` / `#責任` / `#可驗證性`：RED→GREEN `5 passed`，evidence gate `245 passed`，核心完整回歸 `8667 passed, 6 skipped, 8 deselected, 75 subtests passed`；全量 read-only projection `1172 rows / 15631 claims / 0 errors`，`missing_semantic_path` `121→116`。正式 launcher reload 後 `healthz=200`、`readyz=200/ready`、doctor canonical paths 通過，queue `depth=0`／`failed_recent=0`（既有 `failed_stale=10`）。2491.TW、3653.TW 真實 claims verified；1319.TW `-0.2%` 對 `-0.198%` 綁定 SPY path 但保留 mismatch。不改寫 artifact、snapshot、index、review、rerun、repair 或 queue。
 ## D3924 / map revenue-only latest annual growth alias
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：兩個大小寫格式不同的 `Latest annual growth` numeric claims 位於 Revenue section；同一 snapshot 另有 net-income growth，不能用數值相等決定來源。
