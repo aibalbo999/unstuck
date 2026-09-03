@@ -2894,3 +2894,5 @@ Report-bearing notification actions use the shared pipeline resolver before comp
 Evidence gate source citations for week-52 pressure/support values may use `引用`、`來源` or `source` before the explicit `market_data.week_52_high_twd`/`market_data.week_52_low_twd` path, including Markdown emphasis around the value. The gate still verifies only when the reported value matches the corresponding canonical `data.week_52_high`/`data.week_52_low` snapshot field; generic pressure/support wording and same-valued risk fields remain unverified.
 
 Week-52 high/low labels may contain Markdown emphasis between the label delimiter and value. The gate ignores that presentation-only gap, but continues to require the explicit week-52 meaning, TWD/元 unit, and matching canonical snapshot value.
+
+Confidence scores are treated as analysis metadata. Numbers inside `confidence_basis.evidence_items` are excluded from confidence matching, so the operator sees `confidence_metadata_not_evidence` rather than a false value mismatch when the basis text mentions DCF, targets, risks, or other numbers.

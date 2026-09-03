@@ -54,7 +54,7 @@ _SNAPSHOT_METADATA_PATH_MARKERS = (
     "reproducibility_packet", "report_conformance", "report_lint", "snapshot_hash", "snapshot_refreshed_at", "source_audit", "target_ticker",
 )
 _CONFIDENCE_METADATA_PATH_MARKERS = (
-    "content_credibility", "data_confidence", "max_recommended_confidence", "min_data_confidence", "confidence_data_trust", "report_conformance",
+    "content_credibility", "confidence", "data_confidence", "max_recommended_confidence", "min_data_confidence", "confidence_data_trust", "report_conformance",
 )
 _NORMALIZED_NON_CLAIM_LABEL_MARKERS = tuple(_normalize_match_text(marker) for marker in _NON_CLAIM_LABEL_MARKERS)
 _NORMALIZED_SNAPSHOT_METADATA_PATH_MARKERS = tuple(_normalize_match_text(marker) for marker in _SNAPSHOT_METADATA_PATH_MARKERS)

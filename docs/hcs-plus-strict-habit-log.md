@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3913 / keep confidence metadata out of evidence candidate matching
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`5314.TWO` v3 的 confidence claim 因 `confidence_basis.evidence_items` 含 DCF 數字，被錯配成 snapshot mismatch，將分析 metadata 污染成 evidence failure。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：同形狀 fixture 先取得 RED；generic `confidence` path 改列 metadata exclusion，保持 candidate count 0、不得借用 confidence basis、DCF、target 或其他同值數字。
+- `#受眾` / `#責任` / `#可驗證性`：evidence gate `218 passed`、品質/data-trust focused regression `1677 passed`；真實與 live mismatch `1→0`，`5314.TWO` 仍保留 4 個未驗證 claim。完整 suite `8648 passed, 6 skipped, 75 subtests passed`；未寫 snapshot、artifact、index、review、rerun、repair 或 queue。
+
 ## D3912 / accept Markdown-formatted week-52 labels without weakening source matching
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：`6225.TW` v4 的 `52 週高點` claim 在 label 與 `78.2 TWD` 之間有 Markdown emphasis，且同句有 `market_data` 來源，但 parser 漏掉 canonical path，產生 `missing_semantic_path`。

@@ -290,6 +290,8 @@ An explicit week-52 source citation such as `56.4 元（引用 \`market_data.wee
 
 Week-52 labels may also place Markdown emphasis between the label delimiter and the reported value, for example `**52 週高點：** 78.2 TWD（\`market_data\` ...）`. This formatting is ignored only for the explicit week-52 high/low match; the gate still requires the currency/unit and same-value canonical snapshot field.
 
+Confidence claims are metadata rather than factual snapshot evidence. The gate excludes numeric values under generic `confidence` paths, including `confidence_basis.evidence_items`, so a confidence score cannot borrow a DCF, target, risk, or other same-valued number; without a dedicated factual path it remains `confidence_metadata_not_evidence` and `unverifiable`.
+
 An English `Last 5 days Net Buy` label maps only to `data.institutional_trading.last_5_trading_days_net_buy_thousand_shares` when that canonical field exists and the reported `k` value agrees. It does not borrow `total_net_buy_thousand_shares` merely because the number is equal; if the dedicated 5-day field is absent, the claim remains `unverifiable`.
 
 Within the 30-day institutional trading section, exact `Foreign`/`外資` and `Investment Trust`/`投信` labels map only to their matching `data.institutional_trading.net_buy_thousand_shares_by_category.foreign|investment_trust` paths when the values agree. A bare `Total` label maps to `data.institutional_trading.total_net_buy_thousand_shares` only when the preceding claim context contains both category labels; an isolated `Total` remains `unverifiable` instead of borrowing a same-valued field.

@@ -519,6 +519,36 @@ def test_evidence_gate_does_not_match_confidence_to_unrelated_snapshot_numbers()
     assert result["unverifiable_reason_counts"] == {"confidence_metadata_not_evidence": 1}
 
 
+def test_evidence_gate_does_not_match_confidence_to_confidence_basis_evidence_items():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "| 最終投資建議 | 建議: 放空；信心: 8/10 |",
+        {
+            "rerun_context": {
+                "structured_outputs": {
+                    "19": {
+                        "recommendation": {
+                            "confidence_basis": {
+                                "evidence_items": ["DCF 基準估值 NT$6.55"],
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "caution"
+    assert claim["status"] == "unverifiable"
+    assert claim["verification_reason_code"] == "confidence_metadata_not_evidence"
+    assert claim["candidate_count"] == 0
+    assert claim["matched_path"] == ""
+
+
 def test_evidence_gate_does_not_bind_news_support_or_pressure_to_risk_price():
     from evidence_exit_gate import evaluate_report_evidence
 
