@@ -33,6 +33,7 @@ from report_quality_audit_payload import (
     build_unavailable_report_quality_audit,
 )
 from report_current_quality_summary import build_filtered_indexed_current_quality_summary
+from report_pipeline_identity import resolve_report_pipeline_id
 REPORT_QUALITY_ROWS_CACHE_TTL_SECONDS = 15.0
 REPORT_QUALITY_ROWS_CACHE_MAX_ENTRIES = 8
 _REPORT_QUALITY_ROWS_CACHE: OrderedDict[tuple[str, str], tuple[float, list[dict[str, Any]]]] = OrderedDict()
@@ -255,7 +256,7 @@ def _indexed_rows_fingerprint(rows: list[dict[str, Any]]) -> str:
 
 def _latest_report_filenames(rows: list[dict[str, Any]]) -> dict[tuple[str, str], str]:
     return {
-        _report_identity(row.get("ticker"), row.get("pipeline_id")): safe_text(row.get("filename")).strip()
+        _report_identity(row.get("ticker"), row.get("pipeline_id"), row.get("filename")): safe_text(row.get("filename")).strip()
         for row in rows
         if safe_text(row.get("filename")).strip()
     }
@@ -280,7 +281,7 @@ def _indexed_report_version_status(
     filename: Any,
     latest_filenames: dict[tuple[str, str], str],
 ) -> str:
-    latest_filename = latest_filenames.get(_report_identity(ticker, pipeline_id))
+    latest_filename = latest_filenames.get(_report_identity(ticker, pipeline_id, filename))
     filename_text = safe_text(filename).strip()
     if latest_filename and filename_text == latest_filename:
         return "current"
@@ -289,9 +290,9 @@ def _indexed_report_version_status(
     return "unknown"
 
 
-def _report_identity(ticker: Any, pipeline_id: Any) -> tuple[str, str]:
-    ticker_text = safe_text(ticker).strip().lower()
-    return ticker_text.split(".", 1)[0], safe_text(pipeline_id).strip().lower() or "v1"
+def _report_identity(ticker: Any, pipeline_id: Any, filename: Any = "") -> tuple[str, str]:
+    pipeline_text = resolve_report_pipeline_id(safe_text(filename).strip(), stored_pipeline=pipeline_id).lower()
+    return safe_text(ticker).strip().lower().split(".", 1)[0], pipeline_text
 
 
 def _normalize_version_status_filter(value: Any) -> str:

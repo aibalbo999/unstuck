@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3906 / align historical quality-audit version identity
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：historical quality audit 的 latest filename map 與 indexed version annotation 仍以 raw pipeline identity 比對；v4 filename 遇到 legacy `N/A` 時，current/historical version 會被標成 `unknown`。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：latest-map + legacy-row fixture 先取得 `1 failed` RED；`_latest_report_filenames` 與 `_indexed_report_version_status` 改用 filename-aware `resolve_report_pipeline_id()`，只修 read-only audit classification。
+- `#受眾` / `#責任` / `#可驗證性`：保留 current/historical 分組語意，不改 artifact、quality state、review、queue 或 rerun。
+
 ## D3905 / canonicalize backtest outcome pipeline identity
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：回測 evaluation、operational persistence 與 outcome calibration 各自直接採用 `pipeline_id`；legacy backtest `N/A` 會讓 v4 報告在歷史命中率分組與 quality-miss attribution 中失去正確歸屬。

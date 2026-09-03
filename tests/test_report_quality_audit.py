@@ -639,6 +639,28 @@ def test_indexed_quality_annotation_uses_ticker_pipeline_latest_filename():
     assert [report["report_version_status"] for report in reports] == ["historical", "current", "current"]
 
 
+def test_indexed_quality_annotation_resolves_placeholder_pipeline_for_latest_filename():
+    from report_quality_audit import _annotate_report_version_status, _latest_report_filenames
+
+    latest = _latest_report_filenames([
+        {
+            "ticker": "2330.TW",
+            "pipeline_id": "N/A",
+            "filename": "2330_TW_v4_report_new.html",
+        }
+    ])
+    reports = [{
+        "ticker": "2330.TW",
+        "pipeline_id": "N/A",
+        "filename": "2330_TW_v4_report_old.html",
+    }]
+
+    _annotate_report_version_status(reports, latest)
+
+    assert latest[("2330", "v4")] == "2330_TW_v4_report_new.html"
+    assert reports[0]["report_version_status"] == "historical"
+
+
 def test_report_quality_audit_groups_missing_metadata_by_refresh_provenance():
     from report_quality_audit import build_report_quality_audit
 
