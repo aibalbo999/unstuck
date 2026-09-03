@@ -397,6 +397,8 @@ KV claim 的 label 後若立即接 `8/17 - 8/18`、`8-17` 這類月日範圍，�
 
 英文 `Last 5 days Net Buy` 只可核對 `data.institutional_trading.last_5_trading_days_net_buy_thousand_shares`；即使數值剛好等於 30 天 `total_net_buy_thousand_shares`，也不能跨欄位借用。snapshot 沒有專用 5 日欄位時，請保留 `unverifiable`。
 
+`Last 10 days daily trend` 下的 `Aug NN` 日期列，只有在同一段落明示法人每日淨買超序列，且 snapshot 能唯一判定年份時，才核對 `data.institutional_trading.daily_total_net_buy_last_10[YYYY-MM-DD].net_buy_thousand_shares`。數值不一致要保留該日期的 `snapshot_value_mismatch`；脫離序列上下文的 `Aug NN` 仍是 `unverifiable`，不要依月份日期或相同數值猜測來源。
+
 30 天法人交易區段的 `Foreign`／`外資` 與 `Investment Trust`／`投信`，只可分別核對 `data.institutional_trading.net_buy_thousand_shares_by_category.foreign`／`investment_trust`。`Total` 只有在前兩行同時列出這兩個法人分類時，才可核對 `data.institutional_trading.total_net_buy_thousand_shares`；單獨的 `Total` 沒有上下文時仍保留 `unverifiable`，不要只因數值相同就借用總額欄位。
 
 借券 claim 必須沿用自己的 path：`Borrowed Short Sale Today` 只核對 `data.chip_data.twse_margin_short_sales.borrowed_short_sale_today`；`Borrowed Short Return Today`／`Today's borrowed short return`／`Return Today`，或同一行的 compact `return` 明確接在 `borrowed short sale` 後面，才核對 `data.chip_data.twse_margin_short_sales.borrowed_short_return_today`。報告明示 `k`、`張` 或 `M` 時，才依該 claim 的單位把 raw shares 轉成千股、張或百萬股。精確的 `vs Sale Today` label 仍只核對 sale path；不能把 sale path 當還券量，也不能把 return path 借給 `vs Sale Today`。

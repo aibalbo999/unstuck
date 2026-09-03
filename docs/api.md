@@ -3,6 +3,8 @@
 The API is local-first and intended for the bundled UI or trusted local automation.
 FastAPI exposes the machine-readable contract at `/openapi.json`; mutating operations are annotated with the `MutationToken` API-key security scheme using the `X-Mutation-Token` header.
 
+Evidence-gate date rows under `Last 10 days daily trend` are mapped only when the series context identifies institutional daily net buy data and the snapshot supplies one unambiguous year for the month. They use `data.institutional_trading.daily_total_net_buy_last_10[YYYY-MM-DD].net_buy_thousand_shares`; a value mismatch remains a mismatch on that dated path, while a standalone `Aug NN` row remains unverifiable.
+
 Decision tracking parses snapshot `current_price` first and falls back to `current_price_fmt` only when the raw value is not parseable. Legacy `N/A` raw values therefore do not hide a valid formatted price, and report tracking calculations remain aligned with the available snapshot evidence.
 
 Content-credibility target parsing treats only finite positive numeric values as target prices. Numeric zero or negative scenario targets therefore remain an explicit parse warning instead of passing scenario-order checks as real prices, matching the explicit-target detector's non-positive-value boundary.

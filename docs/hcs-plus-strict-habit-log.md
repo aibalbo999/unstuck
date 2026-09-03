@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3919 / map daily trend dates to canonical institutional snapshot paths
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：`3406.TW/v4` 的 institutional section 使用 `Last 10 days daily trend`，`Aug 20` 與 `Aug 24` 是逐日法人淨買超資料，不是無上下文的月份日期；snapshot 明確保存相同日期的 `net_buy_thousand_shares`。
+- `#證據基礎` / `#偏誤降低` / `#最小變更`：先用真實 artifact/snapshot 與日期 mismatch fixture 取得 RED；只把 exact `Last 10 days daily trend` 加入既有 date-aware series markers，仍要求月份年份可由唯一的 price-history snapshot 推導，且 mismatch 留在該日期的 canonical path。standalone `Aug NN` 不因這次變更獲得推測路徑。
+- `#受眾` / `#責任` / `#可驗證性`：RED→GREEN 覆蓋 `Aug 20`／`Aug 24` 正確日期、`Aug 24` 數值 mismatch 與既有 standalone-date unverifiable；日期序列 focused `7 passed`，完整 suite `8659 passed, 6 skipped, 75 subtests passed in 1232.42s`。正式 launcher reload 後 `healthz=200`、`readyz=200/ready`、doctor canonical paths、queue depth `0` 與 3406.TW live artifact 的兩筆 dated claims verified；不改寫 artifact、snapshot、index、review、rerun、repair 或 queue。
+
 ## D3918 / map English borrowed-short flow labels to canonical snapshot fields
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：7 個歷史 v4 artifact 的 `Return Today` 明確對應 `borrowed_short_return_today`，但未命中 path；`Borrowed Short Sale Today` 也可能先落到 generic `short_sale`，而 `M` 顯示值與 snapshot raw shares 需要單位轉換。

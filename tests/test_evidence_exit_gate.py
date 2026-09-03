@@ -2865,6 +2865,69 @@ def test_evidence_gate_does_not_guess_standalone_month_day_as_daily_institutiona
     assert result["sampled_claims"][0]["status"] == "unverifiable"
 
 
+def test_evidence_gate_matches_daily_trend_heading_using_snapshot_year():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* Last 10 days daily trend:\n"
+        "  * Aug 20: -26.48k\n"
+        "  * Aug 24: -599.3k",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2026-08-29"],
+                    "prices": [100.0],
+                },
+                "institutional_trading": {
+                    "daily_total_net_buy_last_10": [
+                        {"date": "2026-08-20", "net_buy_thousand_shares": -26.48},
+                        {"date": "2026-08-24", "net_buy_thousand_shares": -599.3},
+                    ]
+                },
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=2,
+    )
+
+    assert result["verdict"] == "approved"
+    assert [claim["matched_path"] for claim in result["sampled_claims"]] == [
+        "data.institutional_trading.daily_total_net_buy_last_10[2026-08-20].net_buy_thousand_shares",
+        "data.institutional_trading.daily_total_net_buy_last_10[2026-08-24].net_buy_thousand_shares",
+    ]
+
+
+def test_evidence_gate_keeps_daily_trend_mismatch_on_its_date():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* Last 10 days daily trend:\n"
+        "  * Aug 24: -599.3k",
+        {
+            "data": {
+                "price_history": {
+                    "dates": ["2026-08-29"],
+                    "prices": [100.0],
+                },
+                "institutional_trading": {
+                    "daily_total_net_buy_last_10": [
+                        {"date": "2026-08-24", "net_buy_thousand_shares": -500.0},
+                    ]
+                },
+            }
+        },
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "rejected"
+    assert claim["status"] == "mismatch"
+    assert claim["matched_path"].endswith(
+        "[2026-08-24].net_buy_thousand_shares"
+    )
+
+
 def test_evidence_gate_does_not_bind_dated_news_extremum_to_close_history():
     from evidence_exit_gate import evaluate_report_evidence
 
