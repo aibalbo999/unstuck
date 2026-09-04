@@ -11,6 +11,8 @@ The same rule also accepts the exact legacy headings `Daily Trend (Last 10 days)
 
 Current-context pressure/support claims may map to `data.week_52_high`／`data.week_52_low` when the same claim directly connects the reported TWD value to a 52-week high/low with `目前`, `目前處於`, `目前為`, or `目前價位即為`. The value must be the number immediately owned by that phrase, and a following second number is not bound back to the earlier pressure value. A canonical value mismatch remains `snapshot_value_mismatch`; target, stop-loss, secondary-price, and generic high/low semantics remain outside this mapping.
 
+The exact `波段天花板` label may use the existing technical week-high mapping when the same TWD claim explicitly says `52 週最高價` and cites `market_data`. The label alone is insufficient, and this rule does not generalize to targets, stop-losses, historical highs, or other ceiling prose.
+
 Technical claims that place a reported price immediately before an explicit `week_52_high_twd`／`week_52_low_twd` source key, including `market_data.week_52_*_twd` and `financial JSON` citation wording, map only to `data.week_52_high`／`data.week_52_low`. The matcher uses the nearest numeric token before that key in the same claim; a value mismatch remains `snapshot_value_mismatch`. Generic high/low prose, secondary discussion prices, and unrelated same-value fields do not qualify for this mapping.
 
 An exact `Retail` holder-distribution row is compared with `data.chip_data.tdcc_shareholder_distribution.retail_holders_lt_50_lots_pct`. The mapping is specific to the `<50 lots` retail field and does not borrow major-holder, price, or other same-value evidence.

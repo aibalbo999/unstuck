@@ -3601,6 +3601,37 @@ def test_evidence_gate_maps_numbered_swing_pressure_to_week_high():
     assert claim["matched_path"] == "data.week_52_high"
 
 
+def test_evidence_gate_maps_swing_ceiling_to_week_high():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* **波段天花板：** 73.6 TWD（52 週最高價，`market_data`）。",
+        {"data": {"week_52_high": 73.6}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert result["verdict"] == "approved"
+    assert claim["status"] == "verified"
+    assert claim["matched_path"] == "data.week_52_high"
+
+
+def test_evidence_gate_does_not_infer_swing_ceiling_without_week_marker():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "* **波段天花板：** 73.6 TWD（長期結構性壓力）。",
+        {"data": {"week_52_high": 73.6}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "unverifiable"
+    assert claim["matched_path"] != "data.week_52_high"
+
+
 def test_evidence_gate_does_not_infer_numbered_swing_pressure_without_week_marker():
     from evidence_exit_gate import evaluate_report_evidence
 

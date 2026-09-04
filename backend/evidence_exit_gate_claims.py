@@ -248,7 +248,7 @@ def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
     if (dated_latest_price := re.fullmatch(r"最新價格\s*[（(]\s*(20\d{2})[-/](\d{1,2})[-/](\d{1,2})\s*[)）]", raw_label.strip())) and re.search(r"(?:NT\$|\$|TWD|元)", claim_text, re.IGNORECASE):
         return (f"price_history[{dated_latest_price.group(1)}-{int(dated_latest_price.group(2)):02d}-{int(dated_latest_price.group(3)):02d}]",)
     week_high_marker = re.search(r"(?:52\s*週|52週)\s*(?:最高|高點|高價)", claim_text)
-    if week_high_marker and any(_normalize_match_text(marker) in label for marker in ("支撐", "壓力")) and str(claim.get("unit") or "").lower() in ("twd", "元") and "market_data" in raw_text:
+    if week_high_marker and (any(_normalize_match_text(marker) in label for marker in ("支撐", "壓力")) or label == "波段天花板") and str(claim.get("unit") or "").lower() in ("twd", "元") and "market_data" in raw_text:
         previous_numbers = list(_NUMBER_IN_STRING_RE.finditer(claim_text[:week_high_marker.start()]))
         if previous_numbers and _clean_number(previous_numbers[0].group()) == float(claim.get("reported_value") or 0):
             return ("week_52_high",)

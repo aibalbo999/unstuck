@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3930 / map exact swing-ceiling week-52 evidence
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：residual scan 找到 `2891.TW` 的 `波段天花板` 是唯一具備明示 52 週最高價、`market_data`、TWD 單位與 canonical 同值的 exact-label 候選；「歷史高點」、複合高低點、目標價、停損價與缺貨幣單位的 claim 不納入。
+- `#證據基礎` / `#偏誤辨識` / `#偏誤降低`：先用同句正例與沒有 52 週標記的反例取得 RED；只在 exact `波段天花板` + 52 週最高語意 + `market_data` + TWD/元條件成立時映射 `data.week_52_high`，同值 mismatch 仍不放行。
+- `#最小變更` / `#責任` / `#可驗證性`：RED→GREEN focused `2 passed`、evidence gate `256 passed`、跨層 `549 passed`、核心完整回歸 `8678 passed, 6 skipped, 8 deselected, 75 subtests passed in 1049.77s`；全量 `1172 / 15631 / 0 errors` 的 matched `11898→11899`、missing-semantic `105→104`。正式 launcher `38780`（API `38806`、Worker `38802`）reload 後 health/ready、doctor、queue 通過；`2891.TW` 真實 API artifact 的波段天花板 verified，`2308.TW` 停損與 `3653.TW` 目標價反例維持 unverifiable。不改寫 artifact、snapshot、index、review、rerun、repair 或 queue。
+
 ## D3929 / map current-context week-52 pressure claims
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：全量 residual projection 的 52 週殘餘由 `17` 降為 `13`；只有 4 個壓力位 claim 以 `目前`／`目前處於`／`目前為`／`目前價位即為` 直接表達「目前即為 52 週高點」，target、stop-loss、次要價格與沒有明確綁定的後續數字不納入。
