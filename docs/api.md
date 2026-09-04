@@ -9,6 +9,8 @@ The same date-aware rule accepts the exact `Recent Trend (Last 10 days)` heading
 
 The same rule also accepts the exact legacy headings `Daily Trend (Last 10 days)` and `Last 10 days daily total net buy`. These are heading variants only: each `Aug NN` row still requires institutional daily-series context and one unambiguous snapshot year before mapping to its dated `daily_total_net_buy_last_10` path.
 
+Current-context pressure/support claims may map to `data.week_52_high`／`data.week_52_low` when the same claim directly connects the reported TWD value to a 52-week high/low with `目前`, `目前處於`, `目前為`, or `目前價位即為`. The value must be the number immediately owned by that phrase, and a following second number is not bound back to the earlier pressure value. A canonical value mismatch remains `snapshot_value_mismatch`; target, stop-loss, secondary-price, and generic high/low semantics remain outside this mapping.
+
 Technical claims that place a reported price immediately before an explicit `week_52_high_twd`／`week_52_low_twd` source key, including `market_data.week_52_*_twd` and `financial JSON` citation wording, map only to `data.week_52_high`／`data.week_52_low`. The matcher uses the nearest numeric token before that key in the same claim; a value mismatch remains `snapshot_value_mismatch`. Generic high/low prose, secondary discussion prices, and unrelated same-value fields do not qualify for this mapping.
 
 An exact `Retail` holder-distribution row is compared with `data.chip_data.tdcc_shareholder_distribution.retail_holders_lt_50_lots_pct`. The mapping is specific to the `<50 lots` retail field and does not borrow major-holder, price, or other same-value evidence.

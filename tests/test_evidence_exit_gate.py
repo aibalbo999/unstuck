@@ -3805,6 +3805,60 @@ def test_evidence_gate_preserves_week_52_source_key_mismatch_after_pressure_valu
     assert claim["matched_path"] == "data.week_52_high"
 
 
+def test_evidence_gate_maps_current_context_pressure_to_week_high():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    cases = (
+        (
+            "- 壓力位：3,125.0 TWD（目前處於 52 週高點，上方無近期壓力參考）。",
+            3320.0,
+            "mismatch",
+        ),
+        (
+            "- 壓力位：11,110 TWD（目前 52 週最高價，亦為近期價格頂點）。",
+            11110.0,
+            "verified",
+        ),
+        (
+            "- 壓力位：427.5 TWD（目前價位即為 52 週高點，形成短期強壓力區）。",
+            427.5,
+            "verified",
+        ),
+        (
+            "- 壓力位：124.5 TWD（目前為 52 週最高價，上方無近期參考壓力）。",
+            124.5,
+            "verified",
+        ),
+    )
+
+    for markdown, snapshot_value, expected_status in cases:
+        result = evaluate_report_evidence(
+            markdown,
+            {"data": {"week_52_high": snapshot_value}},
+            sample_ratio=1.0,
+            min_sample=1,
+        )
+
+        claim = result["sampled_claims"][0]
+        assert claim["status"] == expected_status
+        assert claim["matched_path"] == "data.week_52_high"
+
+
+def test_evidence_gate_does_not_bind_pressure_to_later_week_52_number():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- 壓力位：250.0 TWD（目前 52 週高點為 305.5 TWD）。",
+        {"data": {"week_52_high": 305.5}},
+        sample_ratio=1.0,
+        min_sample=1,
+    )
+
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "unverifiable"
+    assert claim["matched_path"] != "data.week_52_high"
+
+
 def test_evidence_gate_maps_yearless_close_support_to_unique_price_history_date():
     from evidence_exit_gate import evaluate_report_evidence
 

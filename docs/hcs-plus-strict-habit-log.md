@@ -1,5 +1,11 @@
 # HCS Plus Strict Habit Log
 
+## D3929 / map current-context week-52 pressure claims
+
+- `#拆解問題` / `#差距分析` / `#語意含義`：全量 residual projection 的 52 週殘餘由 `17` 降為 `13`；只有 4 個壓力位 claim 以 `目前`／`目前處於`／`目前為`／`目前價位即為` 直接表達「目前即為 52 週高點」，target、stop-loss、次要價格與沒有明確綁定的後續數字不納入。
+- `#證據基礎` / `#偏誤辨識` / `#偏誤降低`：以 3 個同值正例、1 個 canonical 高點不符的 mismatch 與「壓力 250、後文 52 週高點 305.5」反例取得 RED；current-context value 才可映射 `data.week_52_high`，後方第二個數字不得回溯綁定，mismatch 仍保留。
+- `#最小變更` / `#責任` / `#可驗證性`：RED→GREEN focused `2 passed`、evidence gate `254 passed`、跨層 `466 passed`、核心完整回歸 `8676 passed, 6 skipped, 8 deselected, 75 subtests passed in 1169.26s`；全量 `1172 / 15631 / 0 errors` 的 matched `11895→11898`、no-matching `104→100`、mismatch `534→535`。正式 launcher `46927`（API `46950`、Worker `46948`）reload 後 health/ready、doctor、queue 通過；四份真實 API artifact 中 3 個 current-context claims verified，`3017.TW` mismatch 保留。不改寫 artifact、snapshot、index、review、rerun、repair 或 queue。
+
 ## D3928 / map explicit week-52 source keys after technical values
 
 - `#拆解問題` / `#差距分析` / `#語意含義`：全量 residual projection 的 `no_matching_snapshot_path` 尚有 112 筆，但只有 8 筆可由報告同一 claim 裡的明確 `week_52_high_twd`／`week_52_low_twd` source key 證明；`CAGR`、現金、資產周轉率、一般心理價位與次要數字沒有安全 canonical path，維持人工確認。
