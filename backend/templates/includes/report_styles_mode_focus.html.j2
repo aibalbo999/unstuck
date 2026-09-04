@@ -1,0 +1,115 @@
+        .mode-focus {
+            --mode-accent: #2563eb;
+            margin: 20px 0 0;
+            padding: 20px 22px;
+            border: 1px solid #d9e1eb;
+            border-left: 4px solid var(--mode-accent);
+            border-radius: 8px;
+            background: #ffffff;
+        }
+
+        .mode-focus-research { --mode-accent: #2563eb; }
+        .mode-focus-trading { --mode-accent: #059669; }
+        .mode-focus-contrarian { --mode-accent: #dc2626; }
+        .mode-focus-event-swing { --mode-accent: #d97706; }
+
+        .mode-focus-header {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .mode-focus-kicker {
+            color: var(--mode-accent);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0;
+        }
+
+        .mode-focus h2 {
+            margin: 0;
+            color: #172033;
+            font-size: 19px;
+            line-height: 1.35;
+        }
+
+        .mode-focus-summary {
+            margin: 10px 0 0;
+            color: #536174;
+            line-height: 1.65;
+        }
+
+        .mode-focus-steps,
+        .mode-focus-points {
+            margin: 14px 0 0;
+            padding-left: 22px;
+            color: #263448;
+            line-height: 1.7;
+        }
+
+        .mode-focus-points { list-style: none; padding-left: 0; }
+        .mode-focus-points li { margin-top: 6px; padding-left: 18px; position: relative; }
+        .mode-focus-points li::before {
+            position: absolute;
+            left: 0;
+            color: var(--mode-accent);
+            content: "•";
+            font-weight: 800;
+        }
+
+        .mode-focus-research-grid,
+        .mode-focus-decision-grid,
+        .mode-focus-risk-grid,
+        .mode-focus-trade-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+            margin: 16px 0 0;
+        }
+
+        .mode-focus-research-grid,
+        .mode-focus-trade-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        .mode-focus-research-grid div,
+        .mode-focus-decision-grid div,
+        .mode-focus-risk-grid div,
+        .mode-focus-trade-grid div {
+            min-width: 0;
+            padding: 12px;
+            border: 1px solid #e3e8ef;
+            border-radius: 6px;
+            background: #f8fafc;
+        }
+
+        .mode-focus dt,
+        .mode-focus-risk-grid span {
+            display: block;
+            color: #657386;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .mode-focus dd,
+        .mode-focus-risk-grid strong {
+            display: block;
+            margin: 5px 0 0;
+            overflow-wrap: anywhere;
+            color: #172033;
+            font-weight: 700;
+        }
+
+        @media (max-width: 720px) {
+            .mode-focus-decision-grid,
+            .mode-focus-research-grid,
+            .mode-focus-risk-grid,
+            .mode-focus-trade-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+
+        @media (max-width: 480px) {
+            .mode-focus { padding: 16px; }
+            .mode-focus-decision-grid,
+            .mode-focus-research-grid,
+            .mode-focus-risk-grid,
+            .mode-focus-trade-grid { grid-template-columns: 1fr; }
+        }

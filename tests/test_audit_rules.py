@@ -1055,7 +1055,10 @@ class AuditRuleTests(unittest.TestCase):
     def test_pipeline_v2_definition_and_prompt_registration(self):
         v2 = pipeline_modes.get_pipeline_definition("v2")
         self.assertEqual(v2["agents"], (11, 12, 13, 20, 14, 15, 21, 16))
-        self.assertEqual(v2["structured_agents"], {"moat": 12, "valuation": 14, "recommendation": 16})
+        self.assertEqual(
+            v2["structured_agents"],
+            {"moat": 12, "valuation": 14, "recommendation": 16, "position_plan": 16},
+        )
         for agent_num in v2["agents"]:
             self.assertIn(agent_num, ar.AGENT_NAMES)
             self.assertIn(agent_num, ar.SYSTEM_PROMPTS)
@@ -1066,7 +1069,7 @@ class AuditRuleTests(unittest.TestCase):
         v3 = pipeline_modes.get_pipeline_definition("v3")
         self.assertEqual(v3["agents"], (17, 18, 20, 21, 19))
         self.assertEqual(v3["groups"], ((17,), (18, 20), (21,), (19,)))
-        self.assertEqual(v3["structured_agents"], {"recommendation": 19})
+        self.assertEqual(v3["structured_agents"], {"recommendation": 19, "short_setup": 19})
         self.assertEqual(pipeline_modes.normalize_pipeline_id("mode_c"), "v3")
         for agent_num in v3["agents"]:
             self.assertIn(agent_num, ar.AGENT_NAMES)
@@ -1373,6 +1376,11 @@ class AuditRuleTests(unittest.TestCase):
         self.assertIn("## 防軋空停損點（Stop-loss level）", text)
         self.assertIn("建議：避免", text)
         self.assertTrue(text.rstrip().endswith("[/投資建議]"))
+        self.assertEqual(
+            context["structured_outputs"][19]["short_setup"]["downside_target"],
+            "資料不足，需重新產生可驗證下行目標",
+        )
+        self.assertNotIn("NT$85", text)
 
     def test_incomplete_structured_outputs_are_rejected_before_report_contract(self):
         self.assertIsNone(normalize_structured_output(3, {

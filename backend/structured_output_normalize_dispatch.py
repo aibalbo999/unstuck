@@ -33,7 +33,9 @@ from structured_output_normalizer_payloads import (
     _coerce_bear_advocate_payload,
     _coerce_downside_risk_rows,
     _coerce_management_sentiment_payload,
+    _coerce_position_plan_payload,
     _coerce_recommendation_payload,
+    _coerce_short_setup_payload,
     _coerce_trade_setup_payload,
 )
 from structured_output_normalizer_text import _plain_jsonish
@@ -69,6 +71,10 @@ def normalize_structured_output(agent_num: int, payload: Any) -> Optional[dict]:
         if agent_num in {7, 16, 19}:
             payload = _coerce_recommendation_payload(payload, default_label="避免" if agent_num == 19 else "持有")
             payload = _normalize_recommendation_payload_aliases(payload)
+        if agent_num == 16:
+            payload = {**payload, "position_plan": _coerce_position_plan_payload(payload.get("position_plan"))}
+        if agent_num == 19:
+            payload = {**payload, "short_setup": _coerce_short_setup_payload(payload.get("short_setup"))}
         if agent_num == 20:
             payload = _coerce_management_sentiment_payload(payload)
         if agent_num == 21:
@@ -181,6 +187,8 @@ def normalize_structured_output(agent_num: int, payload: Any) -> Optional[dict]:
             "entry_zone": _string_field_text(payload.get("entry_zone"), "N/A"),
             "target_price": _string_field_text(payload.get("target_price"), "N/A"),
             "stop_loss": _string_field_text(payload.get("stop_loss"), "N/A"),
+            "support_level": _string_field_text(payload.get("support_level"), "N/A"),
+            "resistance_level": _string_field_text(payload.get("resistance_level"), "N/A"),
             "core_catalyst": _string_field_text(payload.get("core_catalyst"), "N/A"),
             "risk_level": _string_field_text(payload.get("risk_level"), "High"),
         }
@@ -232,13 +240,18 @@ def normalize_structured_output(agent_num: int, payload: Any) -> Optional[dict]:
         if isinstance(confidence_basis, dict):
             normalized_rec["confidence_basis"] = confidence_basis
 
-        return {
+        normalized = {
             "reasoning_steps": reasoning_steps,
             "recommendation": normalized_rec,
             "scenario_triggers": payload.get("scenario_triggers", []),
             "next_catalysts": payload.get("next_catalysts", []),
             "analysis_markdown": _normalized_analysis_markdown(raw_payload, payload),
         }
+        if agent_num == 16:
+            normalized["position_plan"] = _coerce_position_plan_payload(payload.get("position_plan"))
+        if agent_num == 19:
+            normalized["short_setup"] = _coerce_short_setup_payload(payload.get("short_setup"))
+        return normalized
 
     return None
 

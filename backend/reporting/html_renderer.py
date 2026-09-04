@@ -26,6 +26,7 @@ from .html_decision_context import build_decision_context
 from .html_context import collect_next_catalysts, display_text, format_time_str
 from .html_sanitizer import sanitize_report_image_url, sanitize_report_plain_text
 from .mode_templates import build_mode_template_html, get_report_template_profile
+from .mode_focus_context import build_mode_focus_context
 from .reading_notice import build_report_reading_notice_html
 from .sections import build_agent_sections, build_tear_sheet_summary
 from .utils import clean_markdown
@@ -64,6 +65,7 @@ def generate_html_report(context: AnalysisContext) -> str:
 
     chart_context = build_html_chart_context(data, parsed)
     decision_context = build_decision_context(parsed, pipeline_id=pipeline_def["id"])
+    mode_focus = build_mode_focus_context(context, parsed, pipeline_id=pipeline_def["id"])
 
     audit_banner_html = build_audit_banner_html(context)
     report_reading_notice_html = build_report_reading_notice_html(context)

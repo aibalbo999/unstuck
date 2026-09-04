@@ -60,7 +60,7 @@ def build_execution_summary_values(context: AnalysisContext, *, model_routes: st
         "pipeline_label": dict.get(pipeline_def, "label", "N/A"),
         "agent_count": len(agent_sequence),
         "agent_sequence": agent_sequence,
-        "structured_agent_count": len(structured_agents),
+        "structured_agent_count": len(set(structured_agents.values())),
         "model_routes": _status(model_routes or format_model_routes(pipeline_id=dict.get(pipeline_def, "id", "v1"))),
         "data_trust": trust_status_label(str(dict.get(data_trust, "status") or "unknown")),
         "data_trust_raw": str(dict.get(data_trust, "status") or "unknown"),

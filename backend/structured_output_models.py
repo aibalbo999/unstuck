@@ -10,8 +10,11 @@ from structured_output_model_base import AnalysisMarkdownMixin, StructuredModel
 from structured_output_recommendation_outputs import (
     BubbleSniperRecommendationFields,
     BubbleSniperStructuredOutput,
+    PositionPlan,
     RecommendationFields,
     RecommendationStructuredOutput,
+    ShortSetup,
+    TradingDecisionStructuredOutput,
 )
 from structured_output_recommendation_types import Catalyst, ConfidenceBasis, ExecutiveThesisOutput, ScenarioTrigger
 from structured_output_risk_models import (
@@ -45,14 +48,17 @@ __all__ = [
     "ManagementSentimentStructuredOutput",
     "MoatScores",
     "MoatStructuredOutput",
+    "PositionPlan",
     "PriceTargets",
     "PriceTargetStructuredOutput",
     "RecommendationFields",
     "RecommendationStructuredOutput",
+    "ShortSetup",
     "STRUCTURED_AGENT_RESPONSE_SCHEMAS",
     "ScenarioTrigger",
     "StructuredModel",
     "SwingTradeSetup",
+    "TradingDecisionStructuredOutput",
     "ValuationSummary",
     "build_structured_output_instruction",
     "get_structured_response_schema",
@@ -67,7 +73,7 @@ STRUCTURED_AGENT_RESPONSE_SCHEMAS: dict[int, type[StructuredModel]] = {
     7: RecommendationStructuredOutput,
     12: MoatStructuredOutput,
     14: PriceTargetStructuredOutput,
-    16: RecommendationStructuredOutput,
+    16: TradingDecisionStructuredOutput,
     19: BubbleSniperStructuredOutput,
     20: ManagementSentimentStructuredOutput,
     21: BearAdvocateStructuredOutput,

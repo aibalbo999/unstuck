@@ -72,6 +72,8 @@ def test_markdown_decision_section_renders_v4_trade_setup_from_shared_context():
                 "entry_zone": "NT$540-550",
                 "target_price": "NT$500",
                 "stop_loss": "NT$565",
+                "support_level": "NT$510",
+                "resistance_level": "NT$555",
                 "core_catalyst": "需求降溫",
                 "risk_level": "Low",
             })
@@ -86,6 +88,8 @@ def test_markdown_decision_section_renders_v4_trade_setup_from_shared_context():
         "- **進場區間:** NT$540-550",
         "- **1-2週目標:** NT$500",
         "- **嚴格停損:** NT$565",
+        "- **支撐位:** NT$510",
+        "- **壓力位:** NT$555",
         "- **核心催化劑:** 需求降溫",
         "- **短期波動風險:** Low",
     ])

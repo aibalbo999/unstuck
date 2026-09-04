@@ -37,6 +37,13 @@ def _display_value(value, default: str = "N/A") -> str:
     return _display_line(value, default)
 
 
+def _execution_line(value) -> str:
+    text = _display_line(value)
+    if not text or text.upper() in {"N/A", "NA"} or "資料不足" in text:
+        return ""
+    return text
+
+
 def _ordered_recommendation_value(value, default: str = "N/A") -> str:
     text = _display_value(value, default)
     if len(text) < 2 and not text.isdigit():
@@ -64,15 +71,31 @@ def ensure_agent19_required_sections(body: str, structured: dict) -> str:
     blocks = [body] if body else []
     structured = safe_mapping_dict(structured) or {}
     triggers = structured.get("scenario_triggers")
+    short_setup = safe_mapping_dict(structured.get("short_setup")) or {}
 
     if "做空觸發條件（Catalyst for crash）" not in body:
-        crash_lines = _trigger_lines(triggers, {"bearish_downgrade"}, "重新檢查空方假設")
+        entry_trigger = _execution_line(short_setup.get("entry_trigger"))
+        downside_target = _execution_line(short_setup.get("downside_target"))
+        crash_lines = [f"- {entry_trigger}"] if entry_trigger else []
+        if downside_target:
+            crash_lines.append(f"- 下行目標：{downside_target}")
+        if not crash_lines:
+            crash_lines = _trigger_lines(triggers, {"bearish_downgrade"}, "重新檢查空方假設")
         if not crash_lines:
             crash_lines = ["- 模型未提供足夠可量化崩盤催化；應等待財測下修、毛利率壓縮、法人派發擴大或估值均值回歸等可驗證事件。"]
         blocks.append("## 做空觸發條件（Catalyst for crash）\n" + "\n".join(crash_lines))
 
     if "防軋空停損點（Stop-loss level）" not in body:
-        stop_lines = _trigger_lines(triggers, {"neutral_review", "bullish_upgrade"}, "回補或暫停空方假設")
+        cover_stop = _execution_line(short_setup.get("cover_stop"))
+        squeeze_risk = _execution_line(short_setup.get("squeeze_risk"))
+        invalidation = _execution_line(short_setup.get("thesis_invalidation"))
+        stop_lines = [f"- {cover_stop}"] if cover_stop else []
+        if squeeze_risk:
+            stop_lines.append(f"- 軋空風險：{squeeze_risk}")
+        if invalidation:
+            stop_lines.append(f"- 論文失效：{invalidation}")
+        if not stop_lines:
+            stop_lines = _trigger_lines(triggers, {"neutral_review", "bullish_upgrade"}, "回補或暫停空方假設")
         if not stop_lines:
             stop_lines = ["- 模型未提供足夠可量化停損價位；若股價放量突破前高、基本面證據改善或估值重新獲得財務支撐，應回補或暫停空方假設。"]
         blocks.append("## 防軋空停損點（Stop-loss level）\n" + "\n".join(stop_lines))

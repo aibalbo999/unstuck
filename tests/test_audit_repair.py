@@ -216,6 +216,75 @@ def test_recommendation_structured_fallback_preserves_report_contract():
     assert "建議: 持有" in context["analyses"][16]
 
 
+def test_structured_output_missing_requires_mode_native_execution_contracts():
+    v2_context = complete_v2_context()
+    assert audit_repair._structured_output_missing(v2_context, 16) is True
+
+    v2_context["structured_outputs"][16]["position_plan"] = {
+        "action": "等待",
+        "entry_zone": "資料不足",
+    }
+    assert audit_repair._structured_output_missing(v2_context, 16) is True
+
+    v2_context["structured_outputs"][16]["position_plan"] = {
+        "action": "等待",
+        "entry_zone": "突破 NT$320 後回測",
+        "position_size": "0%，等待觸發",
+        "stop_loss": "NT$300",
+        "risk_reward": "2:1",
+        "invalidation_condition": "財測下修",
+    }
+    assert audit_repair._structured_output_missing(v2_context, 16) is False
+
+    v3_context = {
+        "pipeline_id": "v3",
+        "structured_outputs": {
+            19: {
+                "recommendation": {
+                    "建議": "避免",
+                    "短期目標（3個月）": "NT$90",
+                    "中期目標（6個月）": "NT$80",
+                    "長期目標（12個月）": "NT$70",
+                    "長期潛力（5年）": "NT$85",
+                    "信心指數": "6/10",
+                }
+            }
+        },
+    }
+    assert audit_repair._structured_output_missing(v3_context, 19) is True
+
+    v3_context["structured_outputs"][19]["short_setup"] = {
+        "entry_trigger": "跌破 NT$95 且放量",
+    }
+    assert audit_repair._structured_output_missing(v3_context, 19) is True
+
+    v3_context["structured_outputs"][19]["short_setup"] = {
+        "entry_trigger": "跌破 NT$95 且放量",
+        "downside_target": "NT$80",
+        "cover_stop": "站回 NT$105",
+        "squeeze_risk": "融券回補推升波動",
+        "thesis_invalidation": "財測與毛利率同步上修",
+    }
+    assert audit_repair._structured_output_missing(v3_context, 19) is False
+
+    v4_context = {
+        "pipeline_id": "v4",
+        "structured_outputs": {
+            24: {
+                "trade_direction": "Neutral",
+                "entry_zone": "NT$98-102",
+                "target_price": "等待下一個可驗證前高",
+                "stop_loss": "NT$94",
+                "support_level": "NT$96",
+                "resistance_level": "NT$114",
+                "core_catalyst": "下週法說會",
+                "risk_level": "High",
+            }
+        },
+    }
+    assert audit_repair._structured_output_missing(v4_context, 24) is True
+
+
 def test_financial_quality_repair_uses_safe_fallback_when_model_429_unavailable():
     audit_repair.clear_repair_429_circuit(2)
     repair_breaker.clear_repair_429_circuit(2)

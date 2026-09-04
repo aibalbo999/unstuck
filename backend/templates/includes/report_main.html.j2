@@ -1,5 +1,5 @@
 <!-- ─── 主要內容 ─── -->
-<main class="main">
+<main class="main report-mode-{{ mode_template.layout_id }}" data-report-template="{{ mode_template.template_id }}" data-report-layout="{{ mode_template.layout_id }}">
 
     {% if report_cover_image %}
     <section class="report-cover" id="overview">
@@ -73,6 +73,8 @@
 
         {{ mode_template_html|safe }}
 
+        {% include mode_template.focus_template %}
+
         {% if executive_thesis %}
         <div class="executive-thesis">
             <div class="executive-thesis-title">投資核心論點</div>
@@ -108,13 +110,15 @@
     <!-- ─── 內容區 ─── -->
     <div class="content">
 
+        {% for report_section in mode_template.section_manifest %}
+        {% if report_section == "analysis_overlays" %}
         {% include "includes/analysis_overlays.html.j2" %}
-        
+        {% elif report_section == "financial_charts" %}
         <!-- ─── 歷史數據圖表 ─── -->
-        <div class="section">
+        <div class="section" data-report-section="financial_charts">
             <div class="section-header">
                 <div class="section-num">📈</div>
-                <div class="section-title">歷史財務數據總覽</div>
+                <div class="section-title">{{ mode_template.financial_history_heading }}</div>
             </div>
             
             <div class="charts-grid">
@@ -144,7 +148,8 @@
                 </div>
             </div>
         </div>
-        
+        {% elif report_section == "agent_sections" %}
+        <div class="report-agent-sections" data-report-section="agent_sections">
         {% for section in agent_sections %}
         <div class="section" id="section-{{ section.agent_num }}">
             <div class="section-header">
@@ -214,6 +219,9 @@
                 {% endif %}
             </div>
         </div>
+        {% endfor %}
+        </div>
+        {% endif %}
         {% endfor %}
         
         <!-- ─── 參考資料來源 ─── -->

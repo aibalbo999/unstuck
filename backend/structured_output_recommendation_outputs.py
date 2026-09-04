@@ -7,7 +7,7 @@ from typing import Literal
 from pydantic import Field, model_validator
 
 from mapping_fields import safe_mapping_dict
-from structured_output_model_base import StructuredModel
+from structured_output_model_base import _safe_string_text, StructuredModel
 from structured_output_recommendation_mixins import NextCatalystsMixin, ReasoningStepsMixin, _normalize_recommendation_field, _populate_safe_next_catalysts
 from structured_output_recommendation_types import (
     _confidence_basis_fallback,
@@ -18,6 +18,51 @@ from structured_output_recommendation_types import (
     ConfidenceBasis,
     ScenarioTrigger,
 )
+
+
+class PositionPlan(StructuredModel):
+    action: Literal["進場", "續抱", "減碼", "等待"]
+    entry_zone: str = Field(..., min_length=1)
+    position_size: str = Field(..., min_length=1)
+    stop_loss: str = Field(..., min_length=1)
+    risk_reward: str = Field(..., min_length=1)
+    invalidation_condition: str = Field(..., min_length=1)
+
+    @model_validator(mode="before")
+    @classmethod
+    def sanitize_fields(cls, payload):
+        plan = safe_mapping_dict(payload) or {}
+        action = _safe_string_text(plan.get("action"))
+        return {
+            **plan,
+            "action": action if action in {"進場", "續抱", "減碼", "等待"} else "資料不足",
+            "entry_zone": _safe_string_text(plan.get("entry_zone"), "資料不足，等待可驗證進場條件"),
+            "position_size": _safe_string_text(plan.get("position_size"), "資料不足"),
+            "stop_loss": _safe_string_text(plan.get("stop_loss"), "資料不足，暫不建立部位"),
+            "risk_reward": _safe_string_text(plan.get("risk_reward"), "資料不足"),
+            "invalidation_condition": _safe_string_text(plan.get("invalidation_condition"), "資料不足"),
+        }
+
+
+class ShortSetup(StructuredModel):
+    entry_trigger: str = Field(..., min_length=1)
+    downside_target: str = Field(..., min_length=1)
+    cover_stop: str = Field(..., min_length=1)
+    squeeze_risk: str = Field(..., min_length=1)
+    thesis_invalidation: str = Field(..., min_length=1)
+
+    @model_validator(mode="before")
+    @classmethod
+    def sanitize_fields(cls, payload):
+        setup = safe_mapping_dict(payload) or {}
+        return {
+            **setup,
+            "entry_trigger": _safe_string_text(setup.get("entry_trigger"), "資料不足，等待可驗證做空觸發"),
+            "downside_target": _safe_string_text(setup.get("downside_target"), "資料不足"),
+            "cover_stop": _safe_string_text(setup.get("cover_stop"), "資料不足，暫不建立空方部位"),
+            "squeeze_risk": _safe_string_text(setup.get("squeeze_risk"), "資料不足"),
+            "thesis_invalidation": _safe_string_text(setup.get("thesis_invalidation"), "資料不足"),
+        }
 
 
 class RecommendationFields(StructuredModel):
@@ -77,6 +122,28 @@ class RecommendationStructuredOutput(NextCatalystsMixin):
         return root
 
 
+class TradingDecisionStructuredOutput(RecommendationStructuredOutput):
+    position_plan: PositionPlan
+
+    @model_validator(mode="before")
+    @classmethod
+    def populate_position_plan(cls, payload):
+        root = safe_mapping_dict(payload)
+        if root is None:
+            root = _recommendation_root_fallback()
+        if "position_plan" not in root:
+            root = {**root, "position_plan": {}}
+        return root
+
+
+class PositionPlanCompatibility(PositionPlan):
+    action: Literal["進場", "續抱", "減碼", "等待", "資料不足"]
+
+
+class TradingDecisionCompatibilityOutput(TradingDecisionStructuredOutput):
+    position_plan: PositionPlanCompatibility
+
+
 class BubbleSniperRecommendationFields(StructuredModel):
     recommendation: Literal["買入", "持有", "避免", "放空"] = Field(..., alias="建議")
     target_3m: str = Field(..., min_length=1, alias="短期目標（3個月）")
@@ -118,6 +185,7 @@ class BubbleSniperStructuredOutput(ReasoningStepsMixin):
         description="情境觸發器：列出 2-5 個崩盤催化、軋空停損或重新評估條件。",
     )
     next_catalysts: list[Catalyst] = Field(default_factory=list, min_length=1)
+    short_setup: ShortSetup
     analysis_markdown: str = Field(..., min_length=1)
 
     @model_validator(mode="before")
@@ -125,7 +193,7 @@ class BubbleSniperStructuredOutput(ReasoningStepsMixin):
     def populate_next_catalysts_from_scenario_triggers(cls, payload):
         root = safe_mapping_dict(payload)
         if root is None:
-            return _recommendation_root_fallback("避免")
+            return {**_recommendation_root_fallback("避免"), "short_setup": {}}
         if "scenario_triggers" not in root:
             root = {**root, "scenario_triggers": _scenario_triggers_fallback()}
         normalized = _populate_safe_next_catalysts(root)
@@ -136,4 +204,6 @@ class BubbleSniperStructuredOutput(ReasoningStepsMixin):
             normalized_root = {**normalized_root, "recommendation": _recommendation_field_fallback("避免")}
         if "confidence_basis" not in normalized_root:
             normalized_root = {**normalized_root, "confidence_basis": _confidence_basis_fallback()}
+        if "short_setup" not in normalized_root:
+            normalized_root = {**normalized_root, "short_setup": {}}
         return normalized_root

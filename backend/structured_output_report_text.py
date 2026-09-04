@@ -113,6 +113,8 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
             f"- **進場區間：{_trade_plan_field(structured.get('entry_zone'))}**\n"
             f"- **1-2週目標價：{_trade_plan_field(structured.get('target_price'))}**\n"
             f"- **🛑 停損點：{_trade_plan_field(structured.get('stop_loss'))}**\n"
+            f"- **支撐位：{_trade_plan_field(structured.get('support_level'))}**\n"
+            f"- **壓力位：{_trade_plan_field(structured.get('resistance_level'))}**\n"
             f"- **核心催化劑：{_trade_plan_field(structured.get('core_catalyst'))}**\n"
             f"- **短期波動風險：{risk_level}**"
             f"{body_text}"
@@ -162,6 +164,18 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
         if agent_num == 19:
             body = ensure_agent19_required_sections(body, structured)
             return f"{body}{reasoning_text}{basis_text}{trigger_text}{catalyst_text}\n\n{recommendation_block}".strip()
+        if agent_num == 16:
+            plan = safe_mapping_dict(structured.get("position_plan")) or {}
+            position_text = "\n".join([
+                "## 部位執行計畫",
+                f"- 部位動作：{_display_line(plan.get('action'), '等待')}",
+                f"- 進場區間：{_display_line(plan.get('entry_zone'), '資料不足')}",
+                f"- 部位大小：{_display_line(plan.get('position_size'), '0%，等待觸發')}",
+                f"- 停損條件：{_display_line(plan.get('stop_loss'), '資料不足')}",
+                f"- 風險報酬：{_display_line(plan.get('risk_reward'), '資料不足')}",
+                f"- 失效條件：{_display_line(plan.get('invalidation_condition'), '資料不足')}",
+            ])
+            return f"{recommendation_block}{reasoning_text}\n\n{position_text}\n\n{body}{basis_text}{trigger_text}{catalyst_text}".strip()
         return f"{recommendation_block}{reasoning_text}\n\n{body}{basis_text}{trigger_text}{catalyst_text}".strip()
 
     return fallback_text

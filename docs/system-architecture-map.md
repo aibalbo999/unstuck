@@ -16,6 +16,8 @@
 
 `report_pipeline_identity.resolve_report_pipeline_id()` 是報告讀取、品質稽核與 rerun 共用的 pipeline identity boundary：先取有效的 stored/index pipeline，再取 snapshot `pipeline`，最後才取請求檔名的 pipeline；`N/A`、`NULL` 與空字串不會蓋過可用 identity。這個 read-only resolver 讓 v2/v4 filename fallback 維持正確的 preview、quality required-agent 與 rerun Agent sequence，不修改 snapshot、artifact、index 或 queue state。
 
+`reporting.mode_templates` 是模式報告模板 registry：v1/v2/v3/v4 各自宣告 `template_id`、`layout_id`、模式專屬 HTML focus template、段落顯示規則與 Markdown 決策框架。模式 B 的 Agent 16 以 `position_plan` 保存部位動作與風控，模式 C 的 Agent 19 以 `short_setup` 保存空方觸發、回補與軋空風險，模式 D 的 Agent 24 以 `support_level` / `resistance_level` 將支撐壓力與 `target_price` 分離。HTML renderer 透過 profile 載入 `backend/templates/includes/mode_focus/*.html.j2`，Markdown renderer 使用同一份 mode focus context；資料可信度、來源審計、snapshot 與 evidence gate 仍留在共用 renderer/conformance 層，不由模式模板自行判定證據。舊 snapshot 缺少新欄位時只顯示資料不足或舊正文 fallback，不會在讀取時改寫既有 artifact。
+
 資料抓取到分析工作的阻擋邊界在 `analysis_job_helpers.py`；核心資料存在性沿用 `data_trust_values.has_value`，因此 placeholder 或空歷史不會被當成核心 evidence。此 gate 只停止缺少可用核心資料的當次工作，不回寫 canonical report index、snapshot 或 artifact。
 
 ## 目前 Runtime 真相

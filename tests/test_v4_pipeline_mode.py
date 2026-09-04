@@ -22,6 +22,8 @@ TRADE_SETUP = {
     "entry_zone": "NT$168-172",
     "target_price": "NT$188（前高壓力區）",
     "stop_loss": "NT$162（跌破 20 日均線）",
+    "support_level": "NT$168（回測支撐）",
+    "resistance_level": "NT$188（前高壓力）",
     "core_catalyst": "下週法說會可能釋出新產品出貨上修訊號。",
     "risk_level": "Medium",
 }

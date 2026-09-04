@@ -782,3 +782,63 @@ def test_html_report_shows_mode_template_reading_path():
     assert "泡沫證據鏈" in html
     assert "做空觸發條件" in html
     assert "逆勢論文與風控紀律" in html
+
+
+def test_each_pipeline_declares_a_distinct_render_template_and_focus_contract():
+    from reporting.mode_templates import get_report_template_profile
+
+    expected = {
+        "v1": ("mode_a_research", "research", "research.html.j2"),
+        "v2": ("mode_b_trading", "trading", "trading.html.j2"),
+        "v3": ("mode_c_contrarian", "contrarian", "contrarian.html.j2"),
+        "v4": ("mode_d_event_swing", "event-swing", "event-swing.html.j2"),
+    }
+
+    profiles = {pipeline_id: get_report_template_profile(pipeline_id) for pipeline_id in expected}
+
+    assert [profiles[pipeline_id]["template_id"] for pipeline_id in expected] == [
+        "mode_a_research",
+        "mode_b_trading",
+        "mode_c_contrarian",
+        "mode_d_event_swing",
+    ]
+    assert len({profile["layout_id"] for profile in profiles.values()}) == 4
+    for pipeline_id, (template_id, layout_id, focus_template) in expected.items():
+        profile = profiles[pipeline_id]
+        assert profile["template_id"] == template_id
+        assert profile["layout_id"] == layout_id
+        assert profile["focus_template"].endswith(focus_template)
+        assert profile["focus_heading"]
+
+
+def test_markdown_report_renders_mode_specific_focus_frameworks():
+    expectations = {
+        "v1": ("模式 A 模板：研究優先順序", "資料可信度與財務品質"),
+        "v2": ("模式 B 模板：交易決策框架", "進場、續抱、減碼或等待"),
+        "v3": ("模式 C 模板：逆勢檢查框架", "泡沫敘事與財務反證"),
+        "v4": ("模式 D 模板：事件波段執行框架", "進場區間、目標與嚴格停損"),
+    }
+
+    for pipeline_id, (heading, marker) in expectations.items():
+        markdown = report_gen.generate_markdown_report(_context(pipeline_id))
+
+        assert f"## {heading}" in markdown
+        assert marker in markdown
+        assert markdown.index(f"## {heading}") < markdown.index("## 報告模板與閱讀路徑")
+
+
+def test_html_report_loads_the_matching_mode_focus_template():
+    expectations = {
+        "v1": ("mode_a_research", "research", "研究優先順序"),
+        "v2": ("mode_b_trading", "trading", "交易決策框架"),
+        "v3": ("mode_c_contrarian", "contrarian", "逆勢檢查框架"),
+        "v4": ("mode_d_event_swing", "event-swing", "事件波段執行框架"),
+    }
+
+    for pipeline_id, (template_id, layout_id, marker) in expectations.items():
+        html = report_gen.generate_html_report(_context(pipeline_id))
+
+        assert f'data-report-template="{template_id}"' in html
+        assert f'data-report-layout="{layout_id}"' in html
+        assert f'data-template-section="{layout_id}"' in html
+        assert marker in html

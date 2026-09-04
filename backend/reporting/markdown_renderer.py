@@ -15,11 +15,8 @@ from pipeline_modes import get_pipeline_definition
 from .audit_trust import build_audit_markdown, build_data_trust_markdown, build_source_audit_markdown
 from .execution_summary import build_execution_summary_markdown
 from .markdown_decision_context import build_markdown_decision_section
-from .mode_templates import (
-    build_mode_template_markdown,
-    get_report_template_profile,
-    summary_markdown_heading,
-)
+from .mode_templates import build_mode_focus_markdown, build_mode_template_markdown, get_report_template_profile, summary_markdown_heading
+from .mode_focus_context import build_mode_focus_context
 from .reading_notice import build_report_reading_notice_markdown
 from .sections import build_agent_sections, build_tear_sheet_summary
 from .text_tokens import is_missing_text_token
@@ -63,6 +60,7 @@ def generate_markdown_report(context: AnalysisContext) -> str:
     model_route_reference_cell = _markdown_cell(f"AI 分析師論述（{model_route_summary}）")
     pipeline_reference_cell = _markdown_cell(f"Pipeline {pipeline_def['id'].upper()}：{pipeline_def['label']}")
     execution_summary_markdown = build_execution_summary_markdown(context, model_routes=model_route_summary)
+    mode_focus_markdown = build_mode_focus_markdown(mode_template, build_mode_focus_context(context, parsed, pipeline_id=pipeline_def["id"]))
     mode_template_markdown = build_mode_template_markdown(mode_template)
     source_audit_markdown = build_source_audit_markdown(data, context)
     thesis_payload = safe_mapping_dict(context.get("investment_thesis"))
@@ -85,6 +83,8 @@ def generate_markdown_report(context: AnalysisContext) -> str:
 {data_trust_markdown}
 
 {execution_summary_markdown}
+
+{mode_focus_markdown}
 
 {mode_template_markdown}
 

@@ -4,11 +4,7 @@ from __future__ import annotations
 
 from analysis_types import AnalysisContext, AuditResult
 from agent_catalog import AGENT_NAMES
-from confidence_calibration import (
-    build_confidence_calibration,
-    confidence_downgrade_warning,
-    has_unresolved_cross_source_conflict,
-)
+from confidence_calibration import build_confidence_calibration, confidence_downgrade_warning, has_unresolved_cross_source_conflict
 from final_audit_context_coverage import missing_final_context_labels
 from final_audit_dcf import dcf_conflict_warnings
 from final_audit_helpers import (
@@ -20,7 +16,7 @@ from final_audit_helpers import (
     source_note_corrections,
 )
 from final_audit_lint import critical_lint_issues_for_pipeline
-from final_audit_mode_contracts import v3_recommendation_contract_issues, v4_trade_setup_contract_issues
+from final_audit_mode_contracts import mode_execution_contract_issues, v3_recommendation_contract_issues
 from final_audit_price_targets import REQUIRED_PRICE_TARGETS, price_target_audit_issues
 from final_audit_sections import append_final_audit_section
 from forward_consistency_checker import run_forward_consistency_checks
@@ -28,12 +24,7 @@ from pipeline_modes import get_pipeline_definition, get_structured_agent_num
 from report_freshness_summary import safe_bool
 from report_reproducibility import build_data_confidence_controls
 from runtime_events import emit_log
-from validators import (
-    strip_generated_audit_sections,
-    validate_analysis_output,
-    validate_company_identity,
-    validate_prompt_leakage,
-)
+from validators import strip_generated_audit_sections, validate_analysis_output, validate_company_identity, validate_prompt_leakage
 
 
 def run_final_report_audit(context: AnalysisContext, append_section: bool = True) -> AuditResult:
@@ -53,6 +44,8 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
     moat_agent = get_structured_agent_num("moat", context)
     valuation_agent = get_structured_agent_num("valuation", context)
     recommendation_agent = get_structured_agent_num("recommendation", context)
+    position_plan_agent = get_structured_agent_num("position_plan", context)
+    short_setup_agent = get_structured_agent_num("short_setup", context)
     trade_setup_agent = get_structured_agent_num("trade_setup", context)
 
     critical: list[str] = []
@@ -125,11 +118,17 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
         add_agent_repair_issue(moat_agent, f"護城河評分缺少欄位：{', '.join(missing)}")
 
     recommendation = parsed.get("recommendation", {}) or {}
-    trade_setup = parsed.get("trade_setup", {}) or {}
+    mode_contract_issues = mode_execution_contract_issues(
+        parsed,
+        position_plan_agent=position_plan_agent,
+        short_setup_agent=short_setup_agent,
+        trade_setup_agent=trade_setup_agent,
+    )
+    for agent_num, issue in mode_contract_issues:
+        _add_unique_issue(critical, f"Agent {agent_num} {issue}")
+        add_agent_repair_issue(agent_num, issue)
     if trade_setup_agent is not None:
-        for issue in v4_trade_setup_contract_issues(trade_setup):
-            _add_unique_issue(critical, f"Agent {trade_setup_agent} {issue}")
-            add_agent_repair_issue(trade_setup_agent, issue)
+        pass
     elif recommendation_agent is None:
         _add_unique_issue(critical, "此 pipeline 未宣告最終投資建議 Agent。")
     elif not recommendation:

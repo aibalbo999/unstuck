@@ -10,6 +10,7 @@ from .deterministic_fallback_audit import (
     clear_agent_blocking_issues as _clear_agent_blocking_issues,
     record_deterministic_fallback as _record_deterministic_fallback,
 )
+from .deterministic_fallback_mode_contracts import event_swing_fallback, position_plan_fallback, short_setup_fallback
 
 
 def _deterministic_structured_fallback(
@@ -80,25 +81,14 @@ def _deterministic_structured_fallback(
         return True, "已套用 deterministic 護城河 fallback"
 
     if agent_num == 24:
-        structured = {
-            "trade_direction": "Neutral",
-            "entry_zone": "待價格放量突破近期壓力位後回測不破再評估進場",
-            "target_price": "突破後下一個可驗證的前高壓力位",
-            "stop_loss": "進場後若收盤跌破突破位、20 日均線或型態支撐即嚴格停損",
-            "core_catalyst": "未取得可驗證的未來 1-2 週事件，維持觀望直到技術與籌碼同步確認。",
-            "risk_level": "High",
-        }
+        structured = event_swing_fallback()
         structured_outputs[agent_num] = structured
         context["analyses"][agent_num] = structured_output_to_report_text(agent_num, structured, "")
         _clear_agent_blocking_issues(context, agent_num)
         return True, "已套用 deterministic 極短線風控 fallback"
 
     if agent_num == 19:
-        current_price = data.get("current_price") if isinstance(data, dict) else None
-        base_price = float(current_price or 100)
-
-        def _target(multiplier: float) -> str:
-            return f"NT${base_price * multiplier:,.0f}" if current_price else "資料不足，需以最新收盤價折讓估算"
+        unavailable_target = "資料不足，需重新產生可驗證目標"
 
         structured = {
             "reasoning_steps": [
@@ -108,10 +98,10 @@ def _deterministic_structured_fallback(
             ],
             "recommendation": {
                 "建議": "避免",
-                "短期目標（3個月）": _target(0.85),
-                "中期目標（6個月）": _target(0.75),
-                "長期目標（12個月）": _target(0.65),
-                "長期潛力（5年）": _target(0.8),
+                "短期目標（3個月）": unavailable_target,
+                "中期目標（6個月）": unavailable_target,
+                "長期目標（12個月）": unavailable_target,
+                "長期潛力（5年）": unavailable_target,
                 "信心指數": "5/10",
             },
             "scenario_triggers": [
@@ -126,6 +116,7 @@ def _deterministic_structured_fallback(
                     "direction": "neutral_review",
                 },
             ],
+            "short_setup": short_setup_fallback(),
             "analysis_markdown": (
                 "## 保守泡沫狙擊摘要\n\n"
                 "Agent 19 未能提供完整可解析結構化輸出，系統改用保守 fallback。"
@@ -177,6 +168,8 @@ def _deterministic_structured_fallback(
                 "正式使用時應優先搭配資料可信度與來源審計判讀。"
             ),
         }
+        if agent_num == 16:
+            structured["position_plan"] = position_plan_fallback()
         structured_outputs[agent_num] = structured
         context["analyses"][agent_num] = structured_output_to_report_text(agent_num, structured, "")
         _clear_agent_blocking_issues(context, agent_num)

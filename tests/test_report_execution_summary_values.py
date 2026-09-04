@@ -45,6 +45,16 @@ def test_execution_summary_values_build_deterministic_runtime_payload():
     assert values["model_id"] == "gemini-test"
 
 
+def test_execution_summary_counts_unique_structured_agents():
+    from reporting.execution_summary_values import build_execution_summary_values
+
+    v2 = build_execution_summary_values({"pipeline_id": "v2"}, model_routes="primary")
+    v3 = build_execution_summary_values({"pipeline_id": "v3"}, model_routes="primary")
+
+    assert v2["structured_agent_count"] == 3
+    assert v3["structured_agent_count"] == 1
+
+
 def test_execution_summary_values_accept_mapping_safe_quality_gate_child_maps():
     from reporting.execution_summary_values import build_execution_summary_values
 

@@ -1,6 +1,6 @@
 # 前後端模式契約
 
-更新時間：2026-07-11
+更新時間：2026-09-04
 
 本文件是股票研究系統的模式對照基準，用來檢查前端選項、後端 pipeline、報告模板與使用者決策是否一致。若修改 `backend/pipeline_modes.py`、`backend/reporting/mode_templates.py` 或 `backend/static/ui_helpers.js`，必須同步檢查本文件與對應測試。
 
@@ -15,6 +15,32 @@
 - 前端 runtime merge：`backend/static/pipeline_mode_catalog.js`
 - 驗證測試：`tests/test_report_mode_templates.py`、`tests/test_static_history_filters.py`、`tests/test_pipeline_mode_catalog.py`、`tests/test_pipeline_mode_metadata_sync.py`
 - 文件與新整合範例一律使用 canonical pipeline ids：`v1` / `v2` / `v3` / `v4`。`mode_a`、`mode_b` 等 alias 只保留作為後端相容輸入，不應出現在新文件範例。
+
+## 報告模板分流
+
+每個 pipeline 都有獨立的報告模板 profile，不以單一通用模板只替換標題。`backend/reporting/mode_templates.py` 是唯一 profile registry，負責提供 `template_id`、`layout_id`、模式專屬 focus template、摘要/決策標題與優先檢查項目。
+
+| Pipeline | 模板識別 | 模式專屬 focus template | 報告先回答的問題 |
+| --- | --- | --- | --- |
+| `v1` | `mode_a_research` | `backend/templates/includes/mode_focus/research.html.j2` | 長線研究的基本面、估值與資料可信度是否成立。 |
+| `v2` | `mode_b_trading` | `backend/templates/includes/mode_focus/trading.html.j2` | 現在應進場、續抱、減碼或等待，風險報酬是否足夠。 |
+| `v3` | `mode_c_contrarian` | `backend/templates/includes/mode_focus/contrarian.html.j2` | 泡沫敘事是否有財務反證，以及做空與防軋空出口。 |
+| `v4` | `mode_d_event_swing` | `backend/templates/includes/mode_focus/event-swing.html.j2` | 1-2 週事件窗口的進場、目標、停損與催化是否可執行。 |
+
+HTML 報告會在 `<main>` 上保留 `data-report-template` 與 `data-report-layout`，並載入 profile 指定的 focus template；Markdown 報告會輸出同一 profile 的模式專屬決策框架。資料可信度、來源審計、snapshot 與 evidence gate 仍由共用層處理，模板差異不得自行改寫證據判定。
+
+### 模式原生輸出欄位
+
+| Pipeline | 最終 Agent | 原生結構 | 模板必讀欄位 |
+| --- | --- | --- | --- |
+| `v1` | Agent 7 | `recommendation` | 資料可信度、整體護城河、基本情境估值與最終建議。 |
+| `v2` | Agent 16 | `position_plan` | `action`、`entry_zone`、`position_size`、`stop_loss`、`risk_reward`、`invalidation_condition`。 |
+| `v3` | Agent 19 | `short_setup` | `entry_trigger`、`downside_target`、`cover_stop`、`squeeze_risk`、`thesis_invalidation`。 |
+| `v4` | Agent 24 | `trade_setup` | `trade_direction`、`entry_zone`、`target_price`、`stop_loss`、`support_level`、`resistance_level`、`core_catalyst`、`risk_level`。 |
+
+新產出的報告必須通過上述原生欄位的 final audit；normalizer 產生的「資料不足」相容值不能視為完整決策。舊報告不會自動重跑，也不會在查看時重新套用新版 HTML/Markdown 模板；已保存的產物維持產出當時的模板。若要取得新版模式專屬摘要與決策計畫，必須重新產出該報告。相容 fallback 只用於仍由新版 renderer 處理的舊 context，不得借用其他數值填滿欄位。
+
+新增或修改模式模板時，至少執行 `tests/test_report_mode_templates.py`、`tests/test_golden_reports.py`、`tests/test_report_conformance.py` 與 `tests/test_report_style_template_audit.py`，並確認四個 pipeline 的 template id、focus template 與輸出 marker 一一對應。
 
 ## 前後端模式漂移閘門
 

@@ -1,0 +1,17 @@
+<section class="mode-focus mode-focus-contrarian" data-template-section="contrarian" aria-labelledby="mode-focus-title">
+    <div class="mode-focus-header">
+        <span class="mode-focus-kicker">MODE C · CONTRARIAN</span>
+        <h2 id="mode-focus-title">{{ mode_template.focus_heading }}</h2>
+    </div>
+    <p class="mode-focus-summary">{{ mode_template.core_question }}</p>
+    <div class="mode-focus-risk-grid">
+        {% for row in mode_focus.rows %}
+        <div><span>{{ row.label }}</span><strong>{{ row.value }}</strong></div>
+        {% endfor %}
+    </div>
+    <ul class="mode-focus-points">
+        {% for point in mode_template.focus_points %}
+        <li>{{ point }}</li>
+        {% endfor %}
+    </ul>
+</section>

@@ -36,10 +36,14 @@ def test_final_agent_prompts_preserve_risk_and_quality_contracts():
 
     assert "[風險評估]" in agent16
     assert "情境觸發器" in agent16 or "scenario_triggers" in agent16
-    assert "不可給出「買入/持有/避免」" in agent16 or "不可提供「買入」" in agent16
+    assert "position_plan" in agent16
+    assert "action" in agent16
+    assert "invalidation_condition" in agent16
+    assert "不可給出「買入/持有/避免」" not in agent16
 
     assert "做空觸發條件（Catalyst for crash）" in agent19
     assert "防軋空停損點（Stop-loss level）" in agent19
+    assert "short_setup" in agent19
     assert "[投資建議]" in agent19
     assert "no text may appear after [/投資建議]" in agent19 or "不得在 [/投資建議] 後添加任何文字" in agent19
 

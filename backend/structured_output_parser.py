@@ -165,6 +165,8 @@ def parse_structured_data(context: AnalysisContext) -> dict:
         "moat_scores": {},
         "price_targets": {},
         "recommendation": {},
+        "position_plan": {},
+        "short_setup": {},
         "trade_setup": {},
     }
 
@@ -173,6 +175,8 @@ def parse_structured_data(context: AnalysisContext) -> dict:
     moat_agent = get_structured_agent_num("moat", context)
     valuation_agent = get_structured_agent_num("valuation", context)
     recommendation_agent = get_structured_agent_num("recommendation", context)
+    position_plan_agent = get_structured_agent_num("position_plan", context)
+    short_setup_agent = get_structured_agent_num("short_setup", context)
     trade_setup_agent = get_structured_agent_num("trade_setup", context)
     if moat_agent is not None and moat_agent in structured_outputs:
         parsed["moat_scores"] = dict(structured_outputs[moat_agent].get("moat_scores", {}))
@@ -181,6 +185,10 @@ def parse_structured_data(context: AnalysisContext) -> dict:
     if recommendation_agent is not None and recommendation_agent in structured_outputs:
         parsed["recommendation"] = dict(structured_outputs[recommendation_agent].get("recommendation", {}))
         _normalize_parsed_recommendation(parsed["recommendation"])
+    if position_plan_agent is not None and position_plan_agent in structured_outputs:
+        parsed["position_plan"] = dict(structured_outputs[position_plan_agent].get("position_plan", {}))
+    if short_setup_agent is not None and short_setup_agent in structured_outputs:
+        parsed["short_setup"] = dict(structured_outputs[short_setup_agent].get("short_setup", {}))
     if trade_setup_agent is not None and trade_setup_agent in structured_outputs:
         parsed["trade_setup"] = {
             key: structured_outputs[trade_setup_agent].get(key, "")
@@ -189,6 +197,8 @@ def parse_structured_data(context: AnalysisContext) -> dict:
                 "entry_zone",
                 "target_price",
                 "stop_loss",
+                "support_level",
+                "resistance_level",
                 "core_catalyst",
                 "risk_level",
             )

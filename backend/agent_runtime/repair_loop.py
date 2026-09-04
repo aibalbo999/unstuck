@@ -5,7 +5,6 @@ from __future__ import annotations
 from analysis_types import AnalysisContext, StockData
 from agent_catalog import AGENT_NAMES
 from llm_client import KeyRotator
-from pipeline_modes import get_structured_agent_num
 from runtime_events import emit_context_error, emit_context_error_async, emit_log
 from validators import (
     append_quality_warnings,
@@ -29,16 +28,7 @@ from .repair_reflection import (
 )
 from .routing import get_audit_model_sequence, is_agent_execution_failure
 from .single_agent import run_single_agent, run_single_agent_async
-
-
-def _structured_output_missing(context: AnalysisContext, agent_num: int) -> bool:
-    structured_agents = {
-        get_structured_agent_num("moat", context),
-        get_structured_agent_num("valuation", context),
-        get_structured_agent_num("recommendation", context),
-        get_structured_agent_num("trade_setup", context),
-    }
-    return agent_num in structured_agents and agent_num not in (context.get("structured_outputs", {}) or {})
+from .structured_repair_contracts import structured_output_missing as _structured_output_missing
 
 
 def _repair_agent_output(agent_num: int, data: StockData, context: AnalysisContext, rotator: KeyRotator, issues: list[str]) -> tuple[bool, str]:

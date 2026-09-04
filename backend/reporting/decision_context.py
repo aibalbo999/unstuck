@@ -17,8 +17,25 @@ _TRADE_SETUP_KEYS = (
     "entry_zone",
     "target_price",
     "stop_loss",
+    "support_level",
+    "resistance_level",
     "core_catalyst",
     "risk_level",
+)
+_POSITION_PLAN_KEYS = (
+    "action",
+    "entry_zone",
+    "position_size",
+    "stop_loss",
+    "risk_reward",
+    "invalidation_condition",
+)
+_SHORT_SETUP_KEYS = (
+    "entry_trigger",
+    "downside_target",
+    "cover_stop",
+    "squeeze_risk",
+    "thesis_invalidation",
 )
 _TRADE_DIRECTION_LABELS = {
     "Long": "偏多 Long",
@@ -46,13 +63,10 @@ def _clean_optional_text(value: Any) -> str:
     return sanitize_report_plain_text(display_text(value, ""))
 
 
-def _build_trade_setup(parsed: dict[str, Any]) -> dict[str, str]:
-    raw_trade_setup = safe_mapping_dict(parsed.get("trade_setup", {})) or {}
-    trade_setup = {
-        key: _clean_optional_text(raw_trade_setup.get(key, ""))
-        for key in _TRADE_SETUP_KEYS
-    }
-    return {key: value for key, value in trade_setup.items() if value}
+def _build_structured_mapping(parsed: dict[str, Any], field: str, keys: tuple[str, ...]) -> dict[str, str]:
+    raw_values = safe_mapping_dict(parsed.get(field, {})) or {}
+    values = {key: _clean_optional_text(raw_values.get(key, "")) for key in keys}
+    return {key: value for key, value in values.items() if value}
 
 
 def build_decision_context(parsed: dict[str, Any], *, pipeline_id: str) -> dict[str, Any]:
@@ -64,7 +78,9 @@ def build_decision_context(parsed: dict[str, Any], *, pipeline_id: str) -> dict[
     )
     rec_color = get_recommendation_color(rec_text)
     rec_icon = get_recommendation_icon(rec_text)
-    trade_setup = _build_trade_setup(parsed_map)
+    position_plan = _build_structured_mapping(parsed_map, "position_plan", _POSITION_PLAN_KEYS)
+    short_setup = _build_structured_mapping(parsed_map, "short_setup", _SHORT_SETUP_KEYS)
+    trade_setup = _build_structured_mapping(parsed_map, "trade_setup", _TRADE_SETUP_KEYS)
     trade_direction = trade_setup.get("trade_direction", "Neutral")
 
     if pipeline_id == "v4" and trade_setup:
@@ -79,6 +95,8 @@ def build_decision_context(parsed: dict[str, Any], *, pipeline_id: str) -> dict[
         "target_6m": _clean_display_value(_recommendation_value(recommendation, "6個月", "N/A")),
         "target_12m": _clean_display_value(_recommendation_value(recommendation, "12個月", "N/A")),
         "confidence": _clean_display_value(_recommendation_value(recommendation, "信心", "N/A")),
+        "position_plan": position_plan,
+        "short_setup": short_setup,
         "trade_setup": trade_setup,
         "trade_direction": trade_direction,
         "trade_direction_label": _TRADE_DIRECTION_LABELS.get(trade_direction, "中性 Neutral"),
@@ -86,6 +104,8 @@ def build_decision_context(parsed: dict[str, Any], *, pipeline_id: str) -> dict[
         "swing_entry_zone": trade_setup.get("entry_zone", "N/A"),
         "swing_target_price": trade_setup.get("target_price", "N/A"),
         "swing_stop_loss": trade_setup.get("stop_loss", "N/A"),
+        "swing_support_level": trade_setup.get("support_level", "N/A"),
+        "swing_resistance_level": trade_setup.get("resistance_level", "N/A"),
         "swing_risk_level": _RISK_LEVEL_LABELS.get(trade_setup.get("risk_level", "High"), "高"),
     }
 

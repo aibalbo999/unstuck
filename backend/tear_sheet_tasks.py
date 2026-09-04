@@ -15,6 +15,7 @@ from llm_client import (
     is_missing_model_error,
     response_text,
 )
+from pipeline_modes import normalize_pipeline_id
 from prompt_rules import get_task_instruction_lines, get_task_system_instruction
 from runtime_events import emit_context_event, emit_context_event_async, emit_log, make_runtime_event
 from validators import sanitize_model_output, strip_generated_audit_sections
@@ -33,12 +34,16 @@ def _build_tear_sheet_prompt(context: dict) -> str:
         for agent_num, text in sorted(analyses.items())
     )
     payload = {
+        "pipeline_id": context.get("pipeline_id"),
         "ticker": data.get("ticker"),
         "company_name": data.get("company_name"),
         "industry": data.get("industry"),
         "current_price": data.get("current_price"),
         "price_targets": parsed.get("price_targets", {}),
         "recommendation": parsed.get("recommendation", {}),
+        "position_plan": parsed.get("position_plan", {}),
+        "short_setup": parsed.get("short_setup", {}),
+        "trade_setup": parsed.get("trade_setup", {}),
         "recent_catalysts": data.get("recent_catalysts", [])[:3],
         "institutional_trading": data.get("institutional_trading", {}),
         "pe_river_chart": data.get("pe_river_chart", {}),
@@ -84,6 +89,8 @@ def _tear_sheet_event_kwargs(context: dict, model_id: str, phase: str, message: 
 
 
 def ensure_tear_sheet_summary(context: dict, rotator: KeyRotator, progress_callback=None):
+    if normalize_pipeline_id(context.get("pipeline_id")) != "v1":
+        return
     if context.get("tear_sheet_summary") or not isinstance(rotator, KeyRotator):
         return
     prompt = _build_tear_sheet_prompt(context)
@@ -143,6 +150,8 @@ def ensure_tear_sheet_summary(context: dict, rotator: KeyRotator, progress_callb
 
 
 async def ensure_tear_sheet_summary_async(context: dict, rotator: KeyRotator, progress_callback=None):
+    if normalize_pipeline_id(context.get("pipeline_id")) != "v1":
+        return
     if context.get("tear_sheet_summary") or not isinstance(rotator, KeyRotator):
         return
     prompt = _build_tear_sheet_prompt(context)

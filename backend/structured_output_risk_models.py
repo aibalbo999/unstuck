@@ -206,6 +206,8 @@ class SwingTradeSetup(StructuredModel):
     entry_zone: str = Field(..., min_length=1)
     target_price: str = Field(..., min_length=1)
     stop_loss: str = Field(..., min_length=1)
+    support_level: str = Field(..., min_length=1)
+    resistance_level: str = Field(..., min_length=1)
     core_catalyst: str = Field(..., min_length=1)
     risk_level: Literal["High", "Medium", "Low"]
 
@@ -219,6 +221,8 @@ class SwingTradeSetup(StructuredModel):
                 "entry_zone": "N/A",
                 "target_price": "N/A",
                 "stop_loss": "N/A",
+                "support_level": "N/A",
+                "resistance_level": "N/A",
                 "core_catalyst": "N/A",
                 "risk_level": "High",
             }
@@ -233,6 +237,14 @@ class SwingTradeSetup(StructuredModel):
             normalized["target_price"] = _safe_string_text(_safe_mapping_value(setup, "target_price"), "N/A")
         if _safe_mapping_has_key(setup, "stop_loss"):
             normalized["stop_loss"] = _safe_string_text(_safe_mapping_value(setup, "stop_loss"), "N/A")
+        if not _safe_mapping_has_key(setup, "support_level"):
+            normalized["support_level"] = "N/A"
+        else:
+            normalized["support_level"] = _safe_string_text(_safe_mapping_value(setup, "support_level"), "N/A")
+        if not _safe_mapping_has_key(setup, "resistance_level"):
+            normalized["resistance_level"] = "N/A"
+        else:
+            normalized["resistance_level"] = _safe_string_text(_safe_mapping_value(setup, "resistance_level"), "N/A")
         if _safe_mapping_has_key(setup, "core_catalyst"):
             normalized["core_catalyst"] = _safe_string_text(_safe_mapping_value(setup, "core_catalyst"), "N/A")
         if _safe_mapping_has_key(setup, "risk_level"):

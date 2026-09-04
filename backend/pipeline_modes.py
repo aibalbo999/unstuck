@@ -46,7 +46,7 @@ PIPELINE_DEFINITIONS: dict[str, PipelineDefinition] = {
         "hint_text": "請稍候，8 個 AI 分析模組正在整合總經、籌碼與進出場策略...",
         "agents": (11, 12, 13, 20, 14, 15, 21, 16),
         "groups": ((11,), (12, 13, 20), (14, 15), (21,), (16,)),
-        "structured_agents": {"moat": 12, "valuation": 14, "recommendation": 16},
+        "structured_agents": {"moat": 12, "valuation": 14, "recommendation": 16, "position_plan": 16},
         "debate_agents": (),
     },
     "v3": {
@@ -58,7 +58,7 @@ PIPELINE_DEFINITIONS: dict[str, PipelineDefinition] = {
         "hint_text": "請稍候，5 個 AI 逆勢分析模組正在檢驗題材泡沫、財務漏洞與做空觸發條件...",
         "agents": (17, 18, 20, 21, 19),
         "groups": ((17,), (18, 20), (21,), (19,)),
-        "structured_agents": {"recommendation": 19},
+        "structured_agents": {"recommendation": 19, "short_setup": 19},
         "debate_agents": (),
     },
     "v4": {
