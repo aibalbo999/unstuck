@@ -7,6 +7,8 @@ from tenacity import AsyncRetrying, Retrying, retry_if_exception_type
 from analysis_types import AnalysisContext, StockData
 from llm_client import KeyRotator
 from llm_input_capacity import InputCapacityExceededError
+from .single_agent_events import route_rejection_event
+
 from .llm_calls import (
     AgentConfigurationError,
     AgentMissingModelError,
@@ -17,12 +19,11 @@ from .llm_calls import (
     _run_agent_once_async,
 )
 from .cancellation import raise_if_cancelled
+from .deferred import failed_route_result, record_route_failure, unavailable_model
 from .model_policy import (
     make_model_retry_stop_for_rotator,
-    model_circuit_open_for_job,
     model_attempt_policy,
-    publish_shared_model_circuit,
-    record_model_failure,
+    model_key_count,
     record_model_success,
     timeout_for_model_call,
 )
@@ -44,19 +45,17 @@ def run_single_agent(
     rotator: KeyRotator,
     max_retries: int = 3
 ) -> str:
-    """
-    執行單個分析 Agent
-    - 自動選擇可用的 API Key
-    - 超限時自動重試
-    - 錯誤時返回錯誤訊息
-    """
+    """執行單個 Agent，支援模型備援與可恢復的暫時失敗。"""
     try:
         asyncio.get_running_loop()
     except RuntimeError:
         return asyncio.run(run_single_agent_async(agent_num, data, context, rotator, max_retries))
 
     model_sequence = get_runtime_model_sequence(agent_num, context)
+    if not model_sequence:
+        raise AgentConfigurationError(f"Agent {agent_num} 未設定可用模型路由。")
     last_error = ""
+    deferred_routes = []
 
     for model_index, model_id in enumerate(model_sequence):
         raise_if_cancelled(context)
@@ -65,7 +64,13 @@ def run_single_agent(
             emit_log(f"    🔁 {message}")
             emit_sync_model_event(context, agent_num, "model_fallback", "warning", message, model_id, model_index=model_index)
 
-        if model_circuit_open_for_job(context, rotator, model_id) and model_index < len(model_sequence) - 1:
+        try:
+            unavailable = unavailable_model(context, rotator, model_id)
+        except AgentConfigurationError as exc:
+            last_error = str(exc)
+            continue
+        if unavailable:
+            deferred_routes.append(unavailable)
             message = f"模型 {model_id} 暫時熔斷，直接切換備援模型。"
             emit_log(f"    🔁 {message}")
             emit_sync_model_event(context, agent_num, "model_circuit_open", "warning", message, model_id)
@@ -73,7 +78,7 @@ def run_single_agent(
 
         has_fallback = len(model_sequence) > model_index + 1
         timeout_seconds = timeout_for_model_call(model_index, has_fallback)
-        policy = model_attempt_policy(model_index, has_fallback, max_retries, len(getattr(rotator, "keys", []) or []))
+        policy = model_attempt_policy(model_index, has_fallback, max_retries, model_key_count(rotator, model_id))
         try:
             context["_primary_probe_prompt"] = model_index == 0 and has_fallback
             prompt = build_prompt(agent_num, data, context)
@@ -106,11 +111,7 @@ def run_single_agent(
                 raise_if_cancelled(context)
                 with attempt:
                     result = _run_agent_once(
-                        agent_num,
-                        context,
-                        rotator,
-                        model_id,
-                        prompt,
+                        agent_num, context, rotator, model_id, prompt,
                         timeout_seconds=timeout_seconds,
                     )
                     record_model_success(context, model_id)
@@ -122,22 +123,15 @@ def run_single_agent(
                         text=result,
                     )
                     return result
-        except AgentMissingModelError as exc:
+        except (InputCapacityExceededError, AgentMissingModelError, AgentConfigurationError) as exc:
             last_error = str(exc)
-            message = f"模型 {model_id} 不可用，改試下一個備援模型..."
+            phase, message, metadata = route_rejection_event(model_id, exc)
             emit_log(f"    ❌ {message}")
-            emit_sync_model_event(context, agent_num, "model_fallback", "warning", message, model_id, error_kind=exc.__class__.__name__)
-            continue
-        except (InputCapacityExceededError, AgentConfigurationError) as exc:
-            last_error = str(exc)
-            message = f"模型 {model_id} 請求設定不相容，改試下一個備援模型..."
-            emit_log(f"    ❌ {message}")
-            emit_sync_model_event(context, agent_num, "model_config_error", "warning", message, model_id, error_kind=exc.__class__.__name__)
+            emit_sync_model_event(context, agent_num, phase, "warning", message, model_id, **metadata)
             continue
         except AgentRetryableError as exc:
             last_error = str(exc)
-            circuit_state = record_model_failure(context, model_id, exc)
-            publish_shared_model_circuit(rotator, model_id, circuit_state, quota_exhausted=bool(getattr(exc, "all_keys_exhausted", False)))
+            circuit_state = record_route_failure(context, rotator, model_id, exc, deferred_routes)
             message = f"{model_id} 多次重試後仍失敗：{last_error[:120]}"
             emit_log(f"    ❌ {message}")
             emit_sync_model_event(
@@ -153,7 +147,7 @@ def run_single_agent(
             )
             continue
 
-    return f"[Agent {agent_num} 執行失敗：所有模型/Key 或請求設定均失敗，最後錯誤：{last_error[:120]}]"
+    return failed_route_result(agent_num, last_error, deferred_routes)
 
 
 async def run_single_agent_async(
@@ -163,13 +157,12 @@ async def run_single_agent_async(
     rotator: KeyRotator,
     max_retries: int = 3
 ) -> str:
-    """
-    非同步執行單個分析 Agent。
-    - 使用 Google GenAI SDK 的 client.aio 非同步呼叫
-    - quota/rate limit 會快速切換下一組 Key 或下一個模型
-    """
+    """非同步執行單個 Agent，超限時切換 Key 或模型。"""
     model_sequence = get_runtime_model_sequence(agent_num, context)
+    if not model_sequence:
+        raise AgentConfigurationError(f"Agent {agent_num} 未設定可用模型路由。")
     last_error = ""
+    deferred_routes = []
 
     for model_index, model_id in enumerate(model_sequence):
         raise_if_cancelled(context)
@@ -178,7 +171,13 @@ async def run_single_agent_async(
             emit_log(f"    🔁 {message}")
             await emit_async_model_event(context, agent_num, "model_fallback", "warning", message, model_id, model_index=model_index)
 
-        if model_circuit_open_for_job(context, rotator, model_id) and model_index < len(model_sequence) - 1:
+        try:
+            unavailable = unavailable_model(context, rotator, model_id)
+        except AgentConfigurationError as exc:
+            last_error = str(exc)
+            continue
+        if unavailable:
+            deferred_routes.append(unavailable)
             message = f"模型 {model_id} 暫時熔斷，直接切換備援模型。"
             emit_log(f"    🔁 {message}")
             await emit_async_model_event(context, agent_num, "model_circuit_open", "warning", message, model_id)
@@ -186,7 +185,7 @@ async def run_single_agent_async(
 
         has_fallback = len(model_sequence) > model_index + 1
         timeout_seconds = timeout_for_model_call(model_index, has_fallback)
-        policy = model_attempt_policy(model_index, has_fallback, max_retries, len(getattr(rotator, "keys", []) or []))
+        policy = model_attempt_policy(model_index, has_fallback, max_retries, model_key_count(rotator, model_id))
         try:
             context["_primary_probe_prompt"] = model_index == 0 and has_fallback
             prompt = build_prompt(agent_num, data, context)
@@ -219,11 +218,7 @@ async def run_single_agent_async(
                 raise_if_cancelled(context)
                 with attempt:
                     result = await _run_agent_once_async(
-                        agent_num,
-                        context,
-                        rotator,
-                        model_id,
-                        prompt,
+                        agent_num, context, rotator, model_id, prompt,
                         timeout_seconds=timeout_seconds,
                     )
                     record_model_success(context, model_id)
@@ -235,22 +230,15 @@ async def run_single_agent_async(
                         text=result,
                     )
                     return result
-        except AgentMissingModelError as exc:
+        except (InputCapacityExceededError, AgentMissingModelError, AgentConfigurationError) as exc:
             last_error = str(exc)
-            message = f"模型 {model_id} 不可用，改試下一個備援模型..."
+            phase, message, metadata = route_rejection_event(model_id, exc)
             emit_log(f"    ❌ {message}")
-            await emit_async_model_event(context, agent_num, "model_fallback", "warning", message, model_id, error_kind=exc.__class__.__name__)
-            continue
-        except (InputCapacityExceededError, AgentConfigurationError) as exc:
-            last_error = str(exc)
-            message = f"模型 {model_id} 請求設定不相容，改試下一個備援模型..."
-            emit_log(f"    ❌ {message}")
-            await emit_async_model_event(context, agent_num, "model_config_error", "warning", message, model_id, error_kind=exc.__class__.__name__)
+            await emit_async_model_event(context, agent_num, phase, "warning", message, model_id, **metadata)
             continue
         except AgentRetryableError as exc:
             last_error = str(exc)
-            circuit_state = record_model_failure(context, model_id, exc)
-            publish_shared_model_circuit(rotator, model_id, circuit_state, quota_exhausted=bool(getattr(exc, "all_keys_exhausted", False)))
+            circuit_state = record_route_failure(context, rotator, model_id, exc, deferred_routes)
             message = f"{model_id} 多次重試後仍失敗：{last_error[:120]}"
             emit_log(f"    ❌ {message}")
             await emit_async_model_event(
@@ -266,4 +254,4 @@ async def run_single_agent_async(
             )
             continue
 
-    return f"[Agent {agent_num} 執行失敗：所有模型/Key 或請求設定均失敗，最後錯誤：{last_error[:120]}]"
+    return failed_route_result(agent_num, last_error, deferred_routes)

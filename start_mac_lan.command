@@ -3,6 +3,6 @@
 
 set -e
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd -P )"
 export LAN_ACCESS=1
 exec "$DIR/start_mac.command"

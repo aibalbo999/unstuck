@@ -437,16 +437,18 @@ def test_mode_profiles_control_report_sections():
         "agent_sections",
     ]
     assert profiles["v2"]["section_manifest"] == [
+        "market_charts",
         "analysis_overlays",
         "agent_sections",
         "financial_charts",
     ]
     assert profiles["v3"]["section_manifest"] == [
+        "market_charts",
         "analysis_overlays",
         "agent_sections",
         "financial_charts",
     ]
-    assert profiles["v4"]["section_manifest"] == ["agent_sections"]
+    assert profiles["v4"]["section_manifest"] == ["market_charts", "agent_sections"]
 
 
 def test_html_renderer_uses_mode_section_manifest_order():

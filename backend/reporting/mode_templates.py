@@ -57,7 +57,8 @@ _PROFILES: dict[str, dict[str, Any]] = {
         "reading_path": ["先看總經與籌碼", "再看估值區間", "最後決定部位與風控"],
         "show_analysis_overlays": True,
         "show_financial_charts": True,
-        "section_manifest": ["analysis_overlays", "agent_sections", "financial_charts"],
+        "section_manifest": ["market_charts", "analysis_overlays", "agent_sections", "financial_charts"],
+        "market_heading": "交易價格與法人動向",
         "financial_history_heading": "交易背景與財務趨勢",
     },
     "v3": {
@@ -81,7 +82,9 @@ _PROFILES: dict[str, dict[str, Any]] = {
         "reading_path": ["先看泡沫敘事", "再看財務與籌碼反證", "最後看觸發條件與停損"],
         "show_analysis_overlays": True,
         "show_financial_charts": True,
-        "section_manifest": ["analysis_overlays", "agent_sections", "financial_charts"],
+        "section_manifest": ["market_charts", "analysis_overlays", "agent_sections", "financial_charts"],
+        "market_heading": "估值壓力與法人派發",
+        "show_market_pe_river": True,
         "financial_history_heading": "法證財務與估值背景",
     },
     "v4": {
@@ -105,7 +108,8 @@ _PROFILES: dict[str, dict[str, Any]] = {
         "reading_path": ["先看交易方向", "再看進場與停損", "最後核對催化事件是否仍有效"],
         "show_analysis_overlays": False,
         "show_financial_charts": False,
-        "section_manifest": ["agent_sections"],
+        "section_manifest": ["market_charts", "agent_sections"],
+        "market_heading": "短線價格與法人動能",
         "financial_history_heading": "短線市場背景",
     },
 }

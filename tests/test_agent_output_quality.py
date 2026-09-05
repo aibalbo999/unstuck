@@ -31,7 +31,9 @@ def test_final_agent_prompts_preserve_risk_and_quality_contracts():
     agent19 = systems["19"] + "\n" + agents["19"]
 
     assert "[風險評估]" in agent7
-    assert "不可給出「買入/持有/避免」" in agent7 or "不可提供「買入」" in agent7
+    assert "recommendation 選擇「買入」、「持有」、「避免」或「放空」" in agent7
+    assert "不可給出「買入/持有/避免」" not in agent7
+    assert "不得添加未經證據支持的喊單" in agent7
     assert "confidence_basis" in agent7 or "信心" in agent7
 
     assert "[風險評估]" in agent16
@@ -51,9 +53,9 @@ def test_final_agent_prompts_preserve_risk_and_quality_contracts():
 def test_agent_prompt_config_validates_schema_and_exposes_prompt_version(tmp_path):
     config = load_agent_prompt_config()
 
-    assert config["version"] == 2
+    assert config["version"] == 3
     assert len(config["prompt_fingerprint"]) == 64
-    assert config["prompt_version"] == f"agents:v2:{config['prompt_fingerprint'][:16]}"
+    assert config["prompt_version"] == f"agents:v3:{config['prompt_fingerprint'][:16]}"
 
     invalid = tmp_path / "bad_agents.json"
     invalid.write_text(
@@ -134,8 +136,8 @@ def test_prompt_identity_changes_when_same_version_content_changes(tmp_path):
     assert original_config["prompt_version"] != changed_config["prompt_version"]
     assert len(original_config["prompt_fingerprint"]) == 64
     assert len(changed_config["prompt_fingerprint"]) == 64
-    assert original_config["prompt_version"].startswith("agents:v2:")
-    assert changed_config["prompt_version"].startswith("agents:v2:")
+    assert original_config["prompt_version"].startswith(f"agents:v{original['version']}:")
+    assert changed_config["prompt_version"].startswith(f"agents:v{changed['version']}:")
 
 
 def test_prompt_identity_is_canonical_across_description_and_key_order(tmp_path):

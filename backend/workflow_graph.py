@@ -10,6 +10,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import RetryPolicy
 
 from agent_runtime.retry_policy import AgentRateLimitError, AgentServerError, AgentTransientError
+from agent_runtime.deferred import AgentDeferredError
 from pipeline_modes import get_pipeline_definition, normalize_pipeline_id
 from workflow_services import (
     WorkflowServices,
@@ -34,6 +35,8 @@ from workflow_telemetry import with_node_telemetry
 
 
 def is_retryable_workflow_error(exc: Exception) -> bool:
+    if isinstance(exc, AgentDeferredError):
+        return False
     return isinstance(
         exc,
         (

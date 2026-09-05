@@ -20,6 +20,10 @@
 
 資料抓取到分析工作的阻擋邊界在 `analysis_job_helpers.py`；核心資料存在性沿用 `data_trust_values.has_value`，因此 placeholder 或空歷史不會被當成核心 evidence。此 gate 只停止缺少可用核心資料的當次工作，不回寫 canonical report index、snapshot 或 artifact。
 
+Agent 可用性與品質失敗分流：`agent_runtime/deferred.py` 將耗盡的暫時性模型失敗交給 `analysis_job_retry.py`，由 RQ 按實際恢復時間延後；本機 circuit 攔截不重新延長 provider 冷卻。`agent_runtime/quality_drafts.py` 的未通過草稿例外阻止正式發布，不能將草稿當作成功分析。`workflow_quality_drafts.py` 在同一個 checkpointer 的獨立 namespace 保存未驗證原稿，恢復後仍須重新通過品質檢查，不會推進成功節點。
+
+提示資料邊界在 `prompt_evidence.py`：內部 RAG 索引與向量不進入 prompt，checkpoint 與檢索證據保持原樣。`llm_response_diagnostics.py` 保存有界的回應結束原因、阻擋原因、工具呼叫觀察與 usage，不保存 key、工具參數或思考內容；未取得 metadata 時不得猜測空白回應的原因。
+
 ## 目前 Runtime 真相
 
 以下為本機預設設定。若環境變數覆寫，請以 `config` 實際輸出為準。
@@ -38,7 +42,7 @@
 快速確認目前 runtime path：
 
 ```bash
-$(scripts/project_python.sh) scripts/doctor_runtime.py
+"$(scripts/project_python.sh)" scripts/doctor_runtime.py
 ```
 
 ## 啟動與 Process 關聯
@@ -393,6 +397,7 @@ flowchart TD
 - River Chart band claim 會從 raw text 保留倍數身份，例如 `43.2x（中高分位帶）` 映射到 `pe_river_chart.bands.43.2x`；不以整個 bands、multiples 或 generic P/E 的最近數字替代。
 - `P/E 河流圖` 同時帶 `x` 區間／位階與價格單位的 legacy band-price claim（例如 `59.6x 區間：1,379.14 TWD`）限定對應 `pe_river_chart.bands` 集合，容許報告與 snapshot 的 band 倍數標示有小幅版本差異，但不回退到 `pe_ratio`；沒有 band series 仍維持 `unverifiable`。標準的 `x中高分位帶` 格式仍保留精確倍數 path。
 - `evidence_exit_gate` 對 `Operating Cash Flow` 使用專用 `operating_cash_flow` path hint，與 `Free Cash Flow` 分開；只有同語意 snapshot path 可核驗，不因 B 單位或數值相同跨欄位配對。
+- 明確日期的當日高／低點由 `evidence_daily_price_claims` 綁定 `data.daily_market_data.bars[date].high/low`，不借用同日收盤、其他日期或同值欄位；缺資料、多日期歧義及重複日期維持不可驗證，明確收盤／月末／價格基準仍沿用 legacy `price_history`。數字原語由無路由依賴的 `evidence_claim_numbers` 共用，避免循環 import；此為唯讀 evidence projection，不回寫既有 snapshot 或報告。
 - `evidence_exit_gate.extract_numeric_claims()` 對明確標示 EPS／每股盈餘的 claim，優先取與 EPS 語句相連的數值，避免「7 月底」等日期 token 被記成 EPS；一般 label 的既有 key-value 取值不變。修正抽取邊界不會把 `26` 對快照現有 EPS 值的真實 mismatch 降成通過，仍由 evidence gate 保留 `caution` 供人工核對。
 - `content_credibility_inputs.first_price()` 先移除明確日曆日期與週期數字（包含 `8/18`、完整日期，以及 `1-2週`、`1至2週`、`1 to 2 weeks` 這類期間範圍），再呼叫既有價格 parser，避免交易計畫的日期／週期 token 污染目標價或停損價；同一 input boundary 另保留 `price_candidates()`，讓 mode-D 對多個非區間情境價格產生 read-only `ambiguous_trade_setup_price_inputs` warning 與候選值。百分比 token（例如 `10%`、`-4.5％`）在同一邊界先排除，不會成為價格候選；明示 PE/P/E、本益比、估值或 band 的 `28.2x`、`18x` 等 valuation multiple 也只在該語境下排除，沒有 metric context 的 `x/倍` 不廣泛 suppression；`content_credibility_price_context` 只在括號內移除明示高低點／壓力支撐的 reference price，並辨識 `至/到 + 52 週高低點 + 第二端` 的 contextual range；`_PRICE_RANGE_PATTERN` 仍允許 `NT$`、`$`、`TWD`、`元` 出現在兩端價格附近。current projection merge 以同一 issue id 的 current details 優先，避免 stale recorded details 蓋住目前 parser 結果；Neutral 政策、snapshot、index、artifact、gate persistence 或 queue 不因此改寫。
 - `price_parser.extract_target_price_numbers()` 與 `report_target_price_detection` 對明確可判定的非價格 `time-to`／reached-queue 語句與字串開頭的直接目標價採 conservative fast path；商品／估值／修正幅度及含前置上下文的語句仍使用完整 fallback，避免效能優化改變價格語意。

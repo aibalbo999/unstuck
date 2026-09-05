@@ -8,7 +8,7 @@
 2. 執行 runtime doctor：
 
 ```bash
-$(scripts/project_python.sh) scripts/doctor_runtime.py
+"$(scripts/project_python.sh)" scripts/doctor_runtime.py
 ```
 
 3. 看目前 git 狀態，確認哪些變更不是你做的：
@@ -46,7 +46,7 @@ git status -sb
 ## 修改追蹤股價刷新時必跑
 
 ```bash
-$(scripts/project_python.sh) -m pytest \
+"$(scripts/project_python.sh)" tests/run_prompt_boundary_tests.py \
   tests/test_tracking_refresh_workflow.py \
   tests/test_decision_tracking_workflow.py \
   tests/test_report_refresh_incremental.py \
@@ -58,7 +58,7 @@ $(scripts/project_python.sh) -m pytest \
 ## 修改 runtime/storage 時必跑
 
 ```bash
-$(scripts/project_python.sh) -m pytest \
+"$(scripts/project_python.sh)" tests/run_prompt_boundary_tests.py \
   tests/test_runtime_paths.py \
   tests/test_settings_env_loading.py \
   tests/test_storage_inventory.py \
@@ -68,8 +68,10 @@ $(scripts/project_python.sh) -m pytest \
 
 ## 常用查驗
 
+一般測試一律使用 `tests/run_prompt_boundary_tests.py`，隔離 SQLite 並禁止連線正式 Redis／API／模型供應商。不得以裸 `pytest` 驗證正式 checkout；需網路的瀏覽器測試另設臨時資料庫且僅放行測試必要網址。
+
 ```bash
 lsof -nP -iTCP:8080 -sTCP:LISTEN
 pgrep -fl 'start_mac.command|worker_main.py --role all|uvicorn api:app'
-$(scripts/project_python.sh) scripts/doctor_runtime.py --json
+"$(scripts/project_python.sh)" scripts/doctor_runtime.py --json
 ```

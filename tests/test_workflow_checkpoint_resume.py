@@ -2,8 +2,10 @@ import asyncio
 import importlib
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+import rq
 from langgraph.errors import NodeCancelledError
 from langgraph.graph import END, START, StateGraph
 
@@ -249,6 +251,12 @@ def test_analysis_job_passes_stable_thread_id_and_checkpoint_path(monkeypatch, t
 def test_analysis_job_marks_rate_limited_workflow_waiting_retry(monkeypatch, tmp_path):
     updates = []
     events = []
+    saved = []
+    queue_job = SimpleNamespace(
+        id="analysis:job-429", retries_left=1, retry_intervals=[60],
+        save=lambda: saved.append(True),
+    )
+    monkeypatch.setattr(rq, "get_current_job", lambda: queue_job)
 
     class FakeStockDataService:
         async def fetch_async(self, request):
@@ -289,3 +297,6 @@ def test_analysis_job_marks_rate_limited_workflow_waiting_retry(monkeypatch, tmp
     retry_event = events[-1]
     assert retry_event["phase"] == "workflow_retry"
     assert retry_event["thread_id"] == "job-429:v4"
+    assert retry_event["retry_scheduled"] is True
+    assert retry_event["retry_at"] is not None
+    assert saved == [True]

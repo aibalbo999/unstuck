@@ -10,6 +10,7 @@ from decimal import Decimal
 from typing import Any
 
 from agent_state import AgentReport, AgentState
+from prompt_evidence import is_internal_prompt_key, prompt_evidence_copy
 from prompt_loader import load_agent_prompt_config
 from short_term_market_data import build_short_term_market_context
 
@@ -144,7 +145,7 @@ def sync_context_from_state(context: dict[str, Any], state: AgentState) -> dict[
 
 
 def _pick(mapping: dict[str, Any], keys: list[str]) -> dict[str, Any]:
-    return {key: _jsonable(mapping[key]) for key in keys if key in mapping}
+    return {key: mapping[key] for key in keys if key in mapping and not is_internal_prompt_key(key)}
 
 
 def _legacy_agent_key(agent_id: str) -> str | int:
@@ -166,31 +167,35 @@ def state_view_for(role: str | int, state: AgentState) -> dict[str, Any]:
         "circuit_breaker": state.circuit_breaker.model_dump(mode="json"),
     }
     for section, keys in policy.items():
+        if is_internal_prompt_key(section):
+            continue
         if section == "root":
             external_context = _external_context_for_state(state, include_short_term=role_key in {"22", "24"})
             for key in keys:
+                if is_internal_prompt_key(key):
+                    continue
                 if key in external_context:
                     value = external_context[key]
                 else:
                     value = getattr(state, key)
-                view[key] = _jsonable(value)
+                view[key] = value
             continue
         value = getattr(state, section)
         if isinstance(value, dict):
             view[section] = _pick(value, list(keys))
-    return view
+    return _jsonable(prompt_evidence_copy(view))
 
 
 def _external_context_for_state(state: AgentState, *, include_short_term=False) -> dict[str, Any]:
     data = state.normalized_financials if isinstance(state.normalized_financials, dict) else {}
     contexts = {
-        "macro_context": copy.deepcopy(data.get("macro_indicators") or data.get("macro_context") or {}),
-        "chip_context": copy.deepcopy(data.get("chip_data") or {}),
-        "alternative_data": copy.deepcopy(data.get("alternative_data") or {}),
-        "sentiment_context": copy.deepcopy(data.get("sentiment_context") or {}),
-        "sec_edgar": copy.deepcopy(data.get("sec_edgar") or {}),
-        "taiwan_open_data": copy.deepcopy(data.get("taiwan_open_data") or {}),
-        "earnings_call_context": copy.deepcopy(data.get("earnings_call") or {}),
+        "macro_context": data.get("macro_indicators") or data.get("macro_context") or {},
+        "chip_context": data.get("chip_data") or {},
+        "alternative_data": data.get("alternative_data") or {},
+        "sentiment_context": data.get("sentiment_context") or {},
+        "sec_edgar": data.get("sec_edgar") or {},
+        "taiwan_open_data": data.get("taiwan_open_data") or {},
+        "earnings_call_context": data.get("earnings_call") or {},
     }
     if include_short_term:
         contexts["short_term_market_context"] = build_short_term_market_context(data)

@@ -76,3 +76,23 @@ def test_start_mac_children_ignore_terminal_ctrl_c_and_are_cleaned_up_by_parent(
     assert '(trap \'\' INT; exec "$PYTHON_BIN" -u worker_main.py --role all)' in script
     assert '(trap \'\' INT; exec "$PYTHON_BIN" -u -m uvicorn api:app --host "$SERVER_HOST" --port 8080)' in script
     assert script.index('kill "$WORKER_PID"') < script.index('kill "$REDIS_PID"')
+
+
+def test_start_mac_redis_uses_quoted_project_cache_directory():
+    script = (ROOT / "start_mac.command").read_text(encoding="utf-8")
+
+    assert 'mkdir -p "$DIR/backend/cache/redis"' in script
+    assert '--dir "$DIR/backend/cache/redis"' in script
+
+
+def test_launchers_resolve_symlinked_project_to_physical_directory():
+    for filename in ("start_mac.command", "start_mac_lan.command"):
+        script = (ROOT / filename).read_text(encoding="utf-8")
+        assert '&& pwd -P )"' in script
+
+
+def test_start_mac_ensures_redis_after_stopping_old_runtime():
+    script = (ROOT / "start_mac.command").read_text(encoding="utf-8")
+
+    assert script.index("\nstop_existing_project_api\n") < script.index("\nstart_redis_if_needed\n")
+    assert script.index("\nstop_existing_project_workers\n") < script.index("\nstart_redis_if_needed\n")

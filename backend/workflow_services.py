@@ -28,6 +28,7 @@ from workflow_context import (
     legacy_context_from_graph,
 )
 from workflow_quarters import latest_closed_quarter_for_reconciliation
+from workflow_quality_drafts import quality_draft_node
 from workflow_state import (
     AgentGraphState,
     agent_state_from_graph,
@@ -182,13 +183,14 @@ def repair_graph_state(state: AgentGraphState) -> AgentGraphState:
 async def run_agent_node_adapter(agent_num: int, state: AgentGraphState, services: WorkflowServices, rotator: Any) -> dict[str, Any]:
     context = legacy_context_from_graph(state, services)
     before_blocking = list(context.get("blocking_issues", []) or [])
-    completed_agent_num, markdown = await run_agent_with_quality_gates_async(
-        agent_num,
-        context["data"],
-        context,
-        rotator,
-        services.progress_callback,
-    )
+    async with quality_draft_node(agent_num, state, context):
+        completed_agent_num, markdown = await run_agent_with_quality_gates_async(
+            agent_num,
+            context["data"],
+            context,
+            rotator,
+            services.progress_callback,
+        )
     structured_outputs = context.get("structured_outputs", {}) or {}
     structured_output = structured_outputs.get(completed_agent_num, structured_outputs.get(str(completed_agent_num)))
     domain_state = context.get("agent_state")

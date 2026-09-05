@@ -5,6 +5,12 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from evidence_claim_numbers import (
+    NUMBER_IN_STRING_RE as _NUMBER_IN_STRING_RE,
+    clean_number as _clean_number,
+    valid_claim_number as _valid_claim_number,
+)
+from evidence_daily_price_claims import dated_daily_extreme_path
 
 def _normalize_match_text(value: Any) -> str:
     return re.sub(r"[^0-9a-zA-Z_\u4e00-\u9fff]+", "", str(value or "").lower())
@@ -30,7 +36,6 @@ _SECONDARY_EVIDENCE_RE = re.compile(
     rf"(?:及|與|以及|,|，|/)\s*[*_`]*\s*(?:NT\$|\$)?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>{_NUMERIC_UNIT_PATTERN})?\s*[^。\n]{{0,45}}(?:price_history|market_data|\d{{1,2}}\s*月份?\s*(?:收盤|收盤平台)|\d{{1,2}}\s*月\s*(?:底|末)(?:低點|高點|收盤(?:平台|價)?))[^。\n]{{0,20}}",
     re.IGNORECASE,
 )
-_NUMBER_IN_STRING_RE = re.compile(r"-?\d[\d,]*(?:\.\d+)?")
 _DATE_PREFIX_RE = re.compile(r"^\s*(?:[（(]|[/.-]\s*\d{1,2}\s*[/.-]\s*\d{1,2}\b)")
 _SHORT_DATE_SUFFIX_RE = re.compile(r"^[/.-]\s*\d{1,2}(?!\d)(?=\s*(?:[A-Za-z\u4e00-\u9fff，,；;。]|[-–—]|$))")
 _RANGE_PREFIX_RE = re.compile(r"^\s*-\s*\d")
@@ -231,6 +236,9 @@ def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
         recommendation_path = {"3": "短期目標（3個月）", "6": "中期目標（6個月）", "12": "長期目標（12個月）"}[prefix_horizon_match.group("horizon")]
     if recommendation_path and not claim.get("_legacy_conclusion_context_missing"):
         return (f"rerun_context.parsed.recommendation.{recommendation_path}",)
+    daily_extreme_path = dated_daily_extreme_path(claim)
+    if daily_extreme_path is not None:
+        return daily_extreme_path
     if any(_normalize_match_text(marker) in label for marker in ("支撐", "壓力")) and str(claim.get("unit") or "").lower() in ("twd", "元"):
         close_date = re.search(r"(?<!\d)(?P<month>\d{1,2})/(?P<day>\d{1,2})\s*(?:收盤(?:價)?|close(?:ing)?)", claim_text, re.IGNORECASE)
         candidate_years = {month_name[:4] for month_name in claim.get("_price_history_months") or () if int(month_name[5:7]) == int(close_date.group("month"))} if close_date else set()
@@ -334,16 +342,3 @@ def _clean_label(value: str) -> str:
     if _normalize_match_text(label) in {"na", "none", "null", "unknown"}:
         return ""
     return label[:40]
-
-
-def _clean_number(value: str) -> float | None:
-    try:
-        return float(str(value).replace(",", "").strip())
-    except (TypeError, ValueError):
-        return None
-
-
-def _valid_claim_number(value: float) -> bool:
-    import math
-
-    return math.isfinite(value) and abs(value) < 1e15

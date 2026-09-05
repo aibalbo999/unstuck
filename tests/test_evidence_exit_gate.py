@@ -2738,6 +2738,10 @@ def test_evidence_gate_binds_dated_high_point_without_close_phrase():
                     "dates": ["2026-06-30", "2026-07-24"],
                     "prices": [22.05, 18.8],
                 },
+                "daily_market_data": {"bars": [
+                    {"date": "2026-06-30", "high": 22.05},
+                    {"date": "2026-07-24", "high": 19.0},
+                ]},
             },
         },
         sample_ratio=1.0,
@@ -2751,6 +2755,10 @@ def test_evidence_gate_binds_dated_high_point_without_close_phrase():
                     "dates": ["2026-06-30", "2026-07-24"],
                     "prices": [22.05, 18.8],
                 },
+                "daily_market_data": {"bars": [
+                    {"date": "2026-06-30", "high": 22.05},
+                    {"date": "2026-07-24", "high": 19.0},
+                ]},
             },
         },
         sample_ratio=1.0,
@@ -2759,10 +2767,10 @@ def test_evidence_gate_binds_dated_high_point_without_close_phrase():
 
     assert result["verdict"] == "approved"
     assert result["sampled_claims"][0]["status"] == "verified"
-    assert result["sampled_claims"][0]["matched_path"] == "data.price_history[2026-06-30].prices[0]"
+    assert result["sampled_claims"][0]["matched_path"] == "data.daily_market_data.bars[2026-06-30].high"
     assert wrong_date["verdict"] == "rejected"
     assert wrong_date["sampled_claims"][0]["status"] == "mismatch"
-    assert wrong_date["sampled_claims"][0]["matched_path"] == "data.price_history[2026-07-24].prices[1]"
+    assert wrong_date["sampled_claims"][0]["matched_path"] == "data.daily_market_data.bars[2026-07-24].high"
 
 
 def test_evidence_gate_binds_dated_extremum_inside_pressure_sentence():
@@ -2776,6 +2784,7 @@ def test_evidence_gate_binds_dated_extremum_inside_pressure_sentence():
                     "dates": ["2026-05-29", "2026-07-31"],
                     "prices": [419.15, 292.0],
                 },
+                "daily_market_data": {"bars": [{"date": "2026-05-29", "high": 419.15}]},
                 "week_52_high": 460.0,
             },
         },
@@ -2785,7 +2794,7 @@ def test_evidence_gate_binds_dated_extremum_inside_pressure_sentence():
 
     assert result["verdict"] == "approved"
     assert result["sampled_claims"][0]["status"] == "verified"
-    assert result["sampled_claims"][0]["matched_path"] == "data.price_history[2026-05-29].prices[0]"
+    assert result["sampled_claims"][0]["matched_path"] == "data.daily_market_data.bars[2026-05-29].high"
 
 
 def test_evidence_gate_binds_daily_institutional_value_to_its_date():

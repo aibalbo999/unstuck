@@ -6,6 +6,15 @@ import re
 from typing import Optional
 
 from audit_rule_engine import evaluate_configured_audit_rules
+from financial_claim_context import (
+    NUMBER,
+    PERIOD_LABEL,
+    REVENUE_GROWTH,
+    is_actual_claim,
+    revenue_growth_claims,
+    revenue_period as _revenue_period,
+    sentence_span,
+)
 from output_sanitizer import strip_generated_audit_sections
 
 
@@ -92,9 +101,9 @@ def is_cyclical_low_pe_setup(data: dict) -> bool:
 def extract_revenue_mentions(normalized: str) -> list[dict]:
     mentions = []
     pattern = re.compile(
-        r"(?P<label>TTM|LTM|20\d{2}年|最新年度|前一年度)?"
+        rf"(?P<label>{PERIOD_LABEL})?"
         r"營收(?:為|=|:|：|達|約)?(?:NT\$?)?"
-        r"(?P<num>\d+(?:\.\d+)?)(?P<unit>B|億|兆)?",
+        rf"(?P<num>{NUMBER})(?P<unit>B|億|兆)?",
         re.IGNORECASE,
     )
     for match in pattern.finditer(normalized):
@@ -105,8 +114,81 @@ def extract_revenue_mentions(normalized: str) -> list[dict]:
             "label": match.group("label") or "",
             "value_b": value_b,
             "start": match.start(),
+            "end": match.end(),
+            "unit": match.group("unit") or "",
+            "actual": is_actual_claim(normalized, match.start(), match.end()),
         })
     return mentions
+
+
+def _comparable_revenue_pair(mentions: list[dict], claim: re.Match) -> tuple[dict, dict] | None:
+    if len(mentions) < 2:
+        return None
+    first, second = mentions[-2:]
+    if not all(item["actual"] and item["unit"] for item in (first, second)):
+        return None
+    basis, first_period = _revenue_period(first["label"])
+    second_basis, second_period = _revenue_period(second["label"])
+    if basis == "unknown" or basis != second_basis:
+        return None
+    claim_basis, claim_period = _revenue_period(claim.group("label") or "")
+    if claim_basis != "unknown" and claim_basis != basis:
+        return None
+    growth_kind = claim.group("growth_kind")
+    if "月增" in growth_kind and basis != "monthly":
+        return None
+    if "季增" in growth_kind and basis != "quarterly":
+        return None
+    if first_period is not None and second_period is not None:
+        base, current = (first, second) if first_period < second_period else (second, first)
+        expected_interval = {"annual": 1, "monthly": 12, "quarterly": 4, "explicit": 1}[basis]
+        if "月增" in growth_kind or "季增" in growth_kind:
+            expected_interval = 1
+        if abs(second_period - first_period) != expected_interval:
+            return None
+        if claim_period is not None and claim_period != max(first_period, second_period):
+            return None
+        return base, current
+    # Preserve the explicit annual-to-TTM run-rate check, not arbitrary unlabeled amounts.
+    if basis == "annual":
+        for base, current in ((first, second), (second, first)):
+            if current["label"].upper() in {"TTM", "LTM"} and _revenue_period(base["label"])[1] is not None:
+                return base, current
+    return None
+
+
+def _append_revenue_growth_issues(issues: list[str], normalized: str, mentions: list[dict]) -> None:
+    previous_claim_end = 0
+    for claim in revenue_growth_claims(normalized, actual_only=True):
+        # Each claim owns its preceding figures in this paragraph, not another scenario/table.
+        paragraph_break = normalized.rfind("\n\n", 0, claim.start())
+        paragraph_start = paragraph_break + 2 if paragraph_break >= 0 else 0
+        headings = list(re.finditer(r"(?m)^#{1,6}[^\n]*", normalized[:claim.start()]))
+        section_start = headings[-1].end() if headings else 0
+        start = max(previous_claim_end, paragraph_start, section_start)
+        candidates = [item for item in mentions if start <= item["start"] and item["end"] <= claim.start()]
+        left, right = sentence_span(normalized, claim.start(), claim.end())
+        following_claim = REVENUE_GROWTH.search(normalized, claim.end())
+        if following_claim:
+            right = min(right, following_claim.start())
+        local = [item for item in mentions if max(start, left) <= item["start"] and item["end"] <= right]
+        # A leading/interleaved claim owns its same-sentence figures, not an earlier pair.
+        if any(item["start"] >= claim.end() for item in local):
+            candidates = local
+        previous_claim_end = claim.end()
+        pair = _comparable_revenue_pair(candidates, claim)
+        if pair is None:
+            continue
+        base, current = pair
+        if base["value_b"] <= 0:
+            continue
+        expected_growth = (current["value_b"] / base["value_b"] - 1) * 100
+        revenue_growth_claim = float(claim.group("num"))
+        if abs(revenue_growth_claim - expected_growth) > max(10, abs(expected_growth) * 0.35):
+            issues.append(
+                "算術一致性紅線：報告列出的營收基期與 TTM/最新營收推不出所宣稱的營收成長率；"
+                f"依文中數字約為 {expected_growth:.1f}%，不是 {revenue_growth_claim:.1f}%。"
+            )
 
 
 def extract_first_money_billion(pattern: str, normalized: str) -> Optional[float]:
@@ -126,22 +208,12 @@ def extract_first_percent(pattern: str, normalized: str) -> Optional[float]:
 def append_deep_numeric_consistency_issues(issues: list[str], normalized: str):
     """Catch arithmetic contradictions that do not depend on a named rule."""
     revenue_mentions = extract_revenue_mentions(normalized)
-    revenue_growth_claim = extract_first_percent(
-        r"營收(?:年增率|成長率|年增|成長|增長|暴增)(?:高達|達|為|=|:|：|約)?(?P<num>-?\d+(?:\.\d+)?)%",
-        normalized,
-    )
-    if revenue_growth_claim is not None and len(revenue_mentions) >= 2:
-        current = next((item for item in revenue_mentions if item["label"].upper() in {"TTM", "LTM"}), revenue_mentions[-1])
-        base_candidates = [item for item in revenue_mentions if item is not current and item["value_b"] > 0]
-        if base_candidates:
-            base = base_candidates[-1] if current["start"] > base_candidates[-1]["start"] else base_candidates[0]
-            expected_growth = (current["value_b"] / base["value_b"] - 1) * 100
-            if abs(revenue_growth_claim - expected_growth) > max(10, abs(expected_growth) * 0.35):
-                issues.append(
-                    "算術一致性紅線：報告列出的營收基期與 TTM/最新營收推不出所宣稱的營收成長率；"
-                    f"依文中數字約為 {expected_growth:.1f}%，不是 {revenue_growth_claim:.1f}%。"
-                )
+    _append_revenue_growth_issues(issues, normalized, revenue_mentions)
 
+    revenue_mentions = [
+        item for item in revenue_mentions
+        if item["actual"] and _revenue_period(item["label"])[0] not in {"monthly", "quarterly"}
+    ]
     revenue_b = next((item["value_b"] for item in revenue_mentions if item["label"].upper() in {"TTM", "LTM"}), None)
     if revenue_b is None and revenue_mentions:
         revenue_b = revenue_mentions[0]["value_b"]
@@ -184,7 +256,7 @@ def append_deep_numeric_consistency_issues(issues: list[str], normalized: str):
 def validate_analysis_output(agent_num: int, text: str, data: Optional[dict] = None) -> list[str]:
     """檢查模型輸出是否踩到硬性財務邏輯紅線。"""
     issues = []
-    normalized = re.sub(r"\s+", "", strip_generated_audit_sections(text or ""))
+    normalized = re.sub(r"[^\S\n]+", "", strip_generated_audit_sections(text or ""))
     data = data or {}
 
     issues.extend(

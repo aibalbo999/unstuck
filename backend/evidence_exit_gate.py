@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import math
 import re
+from collections import Counter
 from random import Random
 from typing import Any
 
@@ -128,6 +129,15 @@ def flatten_snapshot_numbers(snapshot: Any) -> list[dict[str, Any]]:
                 walk(item, f"{path}.{key}" if path else str(key))
             return
         if isinstance(value, list):
+            if path == "data.daily_market_data.bars":
+                date_counts = Counter(bar["date"] for bar in value if isinstance(bar, dict) and isinstance(bar.get("date"), str))
+                for bar in value:
+                    if not isinstance(bar, dict) or not isinstance(bar.get("date"), str) or date_counts[bar["date"]] != 1:
+                        continue
+                    for kind in ("high", "low"):
+                        number = bar.get(kind)
+                        if isinstance(number, (int, float)) and not isinstance(number, bool) and math.isfinite(number) and number > 0:
+                            values.append({"path": f"{path}[{bar['date']}].{kind}", "value": float(number)})
             for index, item in enumerate(value):
                 if path.endswith("global_market_context.items") and isinstance(item, dict) and (symbol := _normalize_match_text(item.get("symbol") or item.get("label"))):
                     for key, child in item.items(): walk(child, f"{path}[{symbol}].{key}")
@@ -204,6 +214,8 @@ def _convert_snapshot_value_for_claim(claim: dict[str, Any], item: dict[str, Any
 def _relevant_snapshot_values(claim: dict[str, Any], snapshot_values: list[dict[str, Any]]) -> list[dict[str, Any]]:
     path_markers = _path_markers_for_claim(claim)
     if not path_markers: return []
+    if path_markers[0].startswith("data.daily_market_data.bars["):
+        return [item for item in snapshot_values if item.get("path") == path_markers[0]]
     return [
         _convert_snapshot_value_for_claim(claim, item, path_markers)
         for item in snapshot_values

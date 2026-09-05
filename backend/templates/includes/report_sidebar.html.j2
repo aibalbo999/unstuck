@@ -15,6 +15,18 @@
             <span class="nav-num">0</span>
             <span class="nav-label">概覽總覽</span>
         </a>
+        {% if "market_charts" in mode_template.section_manifest %}
+        <a class="nav-item" href="#market-charts">
+            <span class="nav-num">圖</span>
+            <span class="nav-label">價格與法人圖表</span>
+        </a>
+        {% endif %}
+        {% if "financial_charts" in mode_template.section_manifest %}
+        <a class="nav-item" href="#financial-charts">
+            <span class="nav-num">圖</span>
+            <span class="nav-label">財務趨勢圖表</span>
+        </a>
+        {% endif %}
         {% for section in agent_sections %}
         <a class="nav-item" href="#section-{{ section.agent_num }}">
             <span class="nav-num">{{ section.display_num }}</span>

@@ -1,12 +1,11 @@
 # Split from legacy_agent_runner.py. Keep this module logic-only; root compatibility lives in backend/agent_runner.py.
 
 import json
-import copy
 
 from analysis_types import AnalysisContext, StockData
 from agent_catalog import AGENT_NAMES
 from assistant_context import _format_previous
-from config import PRIMARY_PROMPT_CONTEXT_TOTAL_CHAR_BUDGET, PRIMARY_PROMPT_RAG_CONTEXT_CHARS, get_agent_context_budgets
+from config import PRIMARY_PROMPT_CONTEXT_TOTAL_CHAR_BUDGET, get_agent_context_budgets
 from prompt_builder import format_data_for_prompt, render_prompt_template
 from prompt_evidence import prompt_evidence_copy
 from prompt_rules import (
@@ -20,6 +19,7 @@ from structured_output_models import build_structured_output_instruction
 from temporal_memory_service import build_valuation_memory_slice
 
 from .prompt_budget import (
+    bound_agent_rag_context,
     enforce_prompt_token_budget as _enforce_prompt_token_budget,
     get_agent_prompt_token_budget as _base_agent_prompt_token_budget,
 )
@@ -85,7 +85,7 @@ def get_agent_prompt_token_budget(agent_num: int) -> int:
 def data_for_agent_prompt(agent_num: int, data: StockData) -> StockData:
     """Return prompt data with newly added external contexts routed by agent role."""
     agent_id = int(agent_num)
-    prompt_data = copy.deepcopy(data)
+    prompt_data = prompt_evidence_copy(data)
     prompt_data["_prompt_agent_num"] = agent_id
     temporal_memory = prompt_data.get("temporal_memory") if agent_id in {4, 14} else None
     for key, allowed_agents in ROUTED_EXTERNAL_CONTEXT_KEYS.items():
@@ -182,6 +182,7 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
                     else get_agent_context_budgets(agent_num)[0])
     state_budget = max(0, total_budget // 2) if context.get("agent_state") is not None else 0
     state_view_section = build_state_view_section(agent_num, context, max_analysis_chars=state_budget)
+    context = prompt_evidence_copy(context)
     ticker = data["ticker"]
     name = data["company_name"]
     prompt_data = data_for_agent_prompt(agent_num, data)
@@ -191,8 +192,11 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     rag_contexts = raw_rag_context if isinstance(raw_rag_context, dict) else {}
     raw_agent_rag_context = rag_contexts.get(agent_num, "")
     rag_context = "" if raw_agent_rag_context is None else _safe_prompt_text(raw_agent_rag_context)
-    if compact_primary and len(rag_context) > PRIMARY_PROMPT_RAG_CONTEXT_CHARS:
-        rag_context = rag_context[: max(PRIMARY_PROMPT_RAG_CONTEXT_CHARS - 32, 0)].rstrip() + "\n...（RAG 片段截斷）"
+    rag_context = bound_agent_rag_context(
+        rag_context, agent_num, compact=compact_primary,
+        token_budget_func=get_agent_prompt_token_budget,
+    )
+    context["rag_context"] = {agent_num: rag_context}
     identity_guard = build_company_identity_guard(data)
     numeric_tool_instruction = build_numeric_tool_instruction(agent_num)
     enrichment_instruction = build_data_enrichment_instruction(agent_num)

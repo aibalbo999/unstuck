@@ -13,6 +13,7 @@ from analysis_job_helpers import (
 from analysis_job_progress import make_pipeline_progress_callback
 from analysis_job_reports import render_and_persist_report
 from analysis_job_telemetry import make_analysis_job_telemetry_callback
+from analysis_job_retry import build_analysis_retry_event, prepare_analysis_retry
 from data_fetch import FetchRequest, StockDataService
 from job_store import append_event, is_job_cancel_requested, update_job
 from pipeline_modes import (
@@ -246,17 +247,13 @@ async def run_stock_analysis_job_async(
         append_event(job_id, {"type": "error", "message": message})
         return ""
     except AgentRateLimitError as e:
-        message = str(e)
-        update_job(job_id, "waiting_retry", error=message)
+        retry = prepare_analysis_retry(job_id, e)
+        event = build_analysis_retry_event(e, retry)
+        update_job(job_id, "waiting_retry" if retry["retry_scheduled"] else "error", error=event["error"])
         append_event(job_id, {
-            "type": "status",
-            "phase": "workflow_retry",
-            "level": "warning",
-            "message": "LLM API 暫時達到速率限制，任務已保留 LangGraph checkpoint，等待 RQ 延遲重試。",
-            "error": message,
-            "thread_id": current_thread_id,
+            **event,
+            "thread_id": current_thread_id, "pipeline_label": current_pipeline_label,
             "pipeline_id": current_thread_id.rsplit(":", 1)[-1] if current_thread_id else run_id,
-            "pipeline_label": current_pipeline_label,
         })
         raise
     except Exception as e:

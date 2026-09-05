@@ -111,11 +111,13 @@
     <div class="content">
 
         {% for report_section in mode_template.section_manifest %}
-        {% if report_section == "analysis_overlays" %}
+        {% if report_section == "market_charts" %}
+        {% include "includes/market_charts.html.j2" %}
+        {% elif report_section == "analysis_overlays" %}
         {% include "includes/analysis_overlays.html.j2" %}
         {% elif report_section == "financial_charts" %}
         <!-- ─── 歷史數據圖表 ─── -->
-        <div class="section" data-report-section="financial_charts">
+        <div class="section" id="financial-charts" data-report-section="financial_charts">
             <div class="section-header">
                 <div class="section-num">📈</div>
                 <div class="section-title">{{ mode_template.financial_history_heading }}</div>
@@ -181,9 +183,9 @@
             </div>
             <div class="charts-grid">
                 <div class="chart-card full-width">
-                    <div class="chart-title">DCF 三情境估值 vs 當前股價</div>
+                    <div class="chart-title">估值情境與當前股價</div>
                     <div class="chart-canvas-wrapper">
-                        <canvas id="valuationChart"></canvas>
+                        <canvas id="valuationChart" data-empty-message="缺少有效估值情境，無法比較目標價。"></canvas>
                     </div>
                 </div>
                 <div class="chart-card full-width">

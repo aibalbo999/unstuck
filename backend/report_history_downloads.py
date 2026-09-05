@@ -9,6 +9,7 @@ from report_artifact_text import decode_utf8_artifact_text
 from report_history_snapshot_notice import invalid_snapshot_notice_context
 from report_history_storage import load_storage_item
 from report_view_repair import repair_report_html_for_view, repair_report_markdown_for_download
+from reporting.chart_script_policy import trusted_chart_script_sources
 from storage.report_storage import ReportStorage
 
 
@@ -26,6 +27,11 @@ def invalid_report_content_response(kind: str) -> HTMLResponse:
 
 def secure_html_response(content: str, *, status_code: int = 200, headers: dict | None = None) -> HTMLResponse:
     response_headers = dict(REPORT_HTML_SECURITY_HEADERS)
+    chart_sources = trusted_chart_script_sources(content)
+    if chart_sources:
+        response_headers["Content-Security-Policy"] = response_headers["Content-Security-Policy"].replace(
+            "script-src 'none'", chart_sources,
+        )
     response_headers.update(headers or {})
     return HTMLResponse(content, status_code=status_code, media_type="text/html", headers=response_headers)
 

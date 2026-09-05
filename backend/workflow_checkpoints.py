@@ -10,6 +10,7 @@ from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import StateGraph
 
 from workflow_state import AgentGraphState
+from workflow_quality_drafts import checkpoint_draft_scope
 
 
 @asynccontextmanager
@@ -76,7 +77,7 @@ async def execute_persistent_graph(
     checkpoint_backend: str = "sqlite",
     checkpoint_postgres_dsn: str | None = None,
 ) -> AgentGraphState:
-    config = {"configurable": {"thread_id": thread_id}}
+    config = {"configurable": {"thread_id": thread_id, "checkpoint_ns": ""}}
     async with open_checkpointer(
         checkpoint_backend=checkpoint_backend,
         checkpoint_path=checkpoint_path,
@@ -87,7 +88,8 @@ async def execute_persistent_graph(
         if snapshot.values and not snapshot.next:
             return dict(snapshot.values)
         graph_input = None if snapshot.values else initial_state
-        return dict(await graph.ainvoke(graph_input, config=config))
+        with checkpoint_draft_scope(saver, thread_id):
+            return dict(await graph.ainvoke(graph_input, config=config))
 
 
 __all__ = [

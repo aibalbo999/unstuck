@@ -4,6 +4,17 @@ from __future__ import annotations
 
 from analysis_types import AnalysisContext
 from runtime_events import emit_context_event, emit_context_event_async, make_runtime_event
+from llm_input_capacity import InputCapacityExceededError
+from .retry_policy import AgentConfigurationError
+
+
+def route_rejection_event(model_id, error):
+    metadata = {"error_kind": error.__class__.__name__}
+    if isinstance(error, InputCapacityExceededError):
+        return "model_input_capacity", str(error), {**metadata, "input_limit": error.limit, "input_basis": error.basis}
+    if isinstance(error, AgentConfigurationError):
+        return "model_config_error", f"模型 {model_id} 請求設定不相容，改試下一個備援模型...", metadata
+    return "model_fallback", f"模型 {model_id} 不可用，改試下一個備援模型...", metadata
 
 
 def single_agent_event_fields(context: AnalysisContext, agent_num: int, model_id: str, **metadata) -> dict:

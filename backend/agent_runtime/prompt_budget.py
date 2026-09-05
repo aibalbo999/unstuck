@@ -8,9 +8,12 @@ from config import (
     AGENT_MODELS,
     PROMPT_CONTEXT_RESPONSE_TOKEN_BUDGET,
     PROMPT_CONTEXT_SAFETY_MARGIN_TOKENS,
+    PRIMARY_PROMPT_RAG_CONTEXT_CHARS,
+    get_agent_rag_budget,
     get_model_context_token_limit,
 )
 from llm_rate_limits import estimate_text_tokens
+from .rag_prompt_budget import limit_rag_evidence
 
 
 def get_agent_prompt_token_budget(agent_num: int) -> int:
@@ -21,6 +24,21 @@ def get_agent_prompt_token_budget(agent_num: int) -> int:
         return 0
     reserved = max(0, int(PROMPT_CONTEXT_RESPONSE_TOKEN_BUDGET)) + max(0, int(PROMPT_CONTEXT_SAFETY_MARGIN_TOKENS))
     return max(256, int(context_limit) - reserved)
+
+
+def bound_agent_rag_context(
+    text: str, agent_num: int, *, compact: bool = False,
+    token_budget_func: Callable[[int], int] | None = None,
+) -> str:
+    """Use existing retrieval limits and at most one quarter of the input budget."""
+    max_chars, max_chunks = get_agent_rag_budget(agent_num)
+    if compact:
+        max_chars = min(max_chars, PRIMARY_PROMPT_RAG_CONTEXT_CHARS)
+    budget = (token_budget_func or get_agent_prompt_token_budget)(agent_num)
+    return limit_rag_evidence(
+        text, max_chars=max_chars, max_chunks=max_chunks,
+        token_budget=max(1, budget // 4) if budget > 0 else 0,
+    )
 
 
 def enforce_prompt_token_budget(

@@ -1,0 +1,19 @@
+    document.querySelectorAll('.chart-canvas-wrapper canvas').forEach(canvas => {
+        const chart = typeof Chart !== 'undefined' ? Chart.getChart(canvas) : null;
+        const validPoints = chart?.data.datasets.reduce((count, dataset) => count + dataset.data.filter(Number.isFinite).length, 0) || 0;
+        const usable = validPoints > 0 && (chart.config.type !== 'radar' || validPoints >= 3);
+        const title = canvas.closest('.chart-card')?.querySelector('.chart-title')?.textContent || '報告圖表';
+        canvas.setAttribute('role', 'img');
+        canvas.setAttribute('aria-label', title);
+        canvas.dataset.chartState = usable ? 'ready' : typeof Chart === 'undefined' ? 'unavailable' : 'empty';
+        if (usable) return;
+        chart?.destroy();
+        canvas.hidden = true;
+        const message = document.createElement('p');
+        message.className = 'chart-empty-state';
+        message.setAttribute('role', 'status');
+        message.textContent = typeof Chart === 'undefined'
+            ? '圖表程式未載入，請檢查網路連線後重新整理。'
+            : canvas.dataset.emptyMessage || '此圖表缺少有效資料。';
+        canvas.parentElement.appendChild(message);
+    });
