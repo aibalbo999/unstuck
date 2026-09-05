@@ -8,11 +8,12 @@ from .chart_payload import chart_number, chart_number_series, chart_pe_river, ch
 from .chart_values import normalize_moat_scores
 from .html_context import price_target_number
 from .html_sanitizer import sanitize_report_plain_text
+from .market_chart_context import build_market_chart_context
 from .summary_cards import build_metric_cards_html, build_price_target_cards_html
 from .text_tokens import is_missing_text_token
 
 
-def build_html_chart_context(data: dict, parsed: dict) -> dict:
+def build_html_chart_context(data: dict, parsed: dict, *, pipeline_id: str = "v1") -> dict:
     """Build chart-related template fields from sanitized report data."""
     data = safe_mapping_dict(data) or {}
     parsed = safe_mapping_dict(parsed) or {}
@@ -24,6 +25,7 @@ def build_html_chart_context(data: dict, parsed: dict) -> dict:
     price_targets = _price_target_payload(raw_price_targets)
     current_price = chart_number(data.get("current_price", 0))
     pe_river = chart_pe_river(data.get("pe_river_chart", {}))
+    market_context = build_market_chart_context(data, price_range="1m" if pipeline_id == "v4" else "3m")
     pe_river_source = safe_text(pe_river.get("source", "")).strip()
     pe_river_title = (
         "P/E 河流圖（EPS × 預設本益比通道）"
@@ -48,8 +50,10 @@ def build_html_chart_context(data: dict, parsed: dict) -> dict:
         "priceTargets": price_targets,
         "currentPrice": current_price,
         "peRiver": pe_river,
+        "market": market_context["market_chart_data"],
     }
     return {
+        **market_context,
         "moat_scores": moat_scores,
         "moat_labels": moat_labels,
         "moat_values": moat_values,

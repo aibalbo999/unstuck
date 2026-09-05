@@ -15,6 +15,7 @@
             priceTargets: {},
             currentPrice: null,
             peRiver: null,
+            market: normalizeMarketData(null),
         };
     }
 
@@ -82,7 +83,21 @@
             priceTargets: normalizePriceTargets(parsed.priceTargets),
             currentPrice: finiteChartNumber(parsed.currentPrice),
             peRiver: normalizePeRiver(parsed.peRiver),
+            market: normalizeMarketData(parsed.market),
         });
+    }
+
+    function normalizeMarketData(value) {
+        const market = chartObject(value);
+        const price = chartObject(market.price);
+        const daily = chartObject(market.dailyFlow);
+        const category = chartObject(market.categoryFlow);
+        return {
+            price: { dates: chartArray(price.dates), prices: chartNumberSeries(price.prices) },
+            dailyFlow: { dates: chartArray(daily.dates), values: chartNumberSeries(daily.values) },
+            categoryFlow: { labels: chartArray(category.labels), values: chartNumberSeries(category.values) },
+            currency: typeof market.currency === 'string' ? market.currency : 'TWD',
+        };
     }
 
     function readChartPayload() {
@@ -191,9 +206,11 @@
         window.StockAgentReportTraceability.init();
     }
 
-    Chart.defaults.color = '#94a3b8';
-    Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
-    Chart.defaults.font.family = "'Inter', 'Noto Sans TC', sans-serif";
+    if (typeof Chart !== 'undefined') {
+        Chart.defaults.color = '#94a3b8';
+        Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
+        Chart.defaults.font.family = "'Inter', 'Noto Sans TC', sans-serif";
+    }
 
     function filterNulls(labels, data) {
         const filtered = { labels: [], data: [] };

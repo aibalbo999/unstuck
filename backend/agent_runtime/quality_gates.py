@@ -10,6 +10,7 @@ from context_digest_tasks import CONTEXT_DIGEST_TARGET_AGENTS, ensure_context_di
 from llm_client import KeyRotator
 from rag_runtime import ensure_agent_rag_context_async
 from runtime_events import emit_log, emit_status_async
+from workflow_quality_drafts import checkpoint_unvalidated_draft, has_checkpointed_quality_draft, initial_or_checkpointed_draft
 from validators import (
     append_identity_warnings,
     append_quality_warnings,
@@ -20,6 +21,8 @@ from validators import (
     validate_prompt_leakage,
 )
 from .cancellation import raise_if_cancelled
+from .deferred import AgentDeferredError
+from .retry_policy import AgentConfigurationError
 from .quality_retry import retry_after_agent_quality_issues
 from .quality_structured_outputs import try_parse_structured_output as _try_parse_structured_output
 from .routing import get_runtime_model_sequence, is_agent_execution_failure
@@ -33,13 +36,24 @@ async def run_agent_with_quality_gates_async(
     progress_callback=None,
 ) -> tuple[int, str]:
     agent_name = AGENT_NAMES[agent_num]
-    model_id = get_runtime_model_sequence(agent_num, context)[0]
+    models = get_runtime_model_sequence(agent_num, context)
+    if not models:
+        raise AgentConfigurationError(f"Agent {agent_num} 未設定可用模型路由。")
+    model_id = models[0]
     agent_positions = context.get("agent_positions", {}) or {}
     agent_position = agent_positions.get(agent_num, agent_num)
     agent_total = int(context.get("agent_total") or len(context.get("agent_sequence", []) or []) or 7)
     pipeline_id = context.get("pipeline_id")
     pipeline_label = context.get("pipeline_label")
     raise_if_cancelled(context)
+    status_fields = {
+        "current": agent_position,
+        "total": agent_total,
+        "name": agent_name,
+        "agent_num": agent_num,
+        "pipeline_id": pipeline_id,
+        "pipeline_label": pipeline_label,
+    }
 
     emit_log(
         f"{'─'*60}\n"
@@ -53,54 +67,37 @@ async def run_agent_with_quality_gates_async(
         progress_callback,
         f"開始 Agent {agent_num}（{agent_position}/{agent_total}）：{agent_name}（{model_id}）",
         phase="started",
-        current=agent_position,
-        total=agent_total,
-        name=agent_name,
-        agent_num=agent_num,
-        pipeline_id=pipeline_id,
-        pipeline_label=pipeline_label,
+        **status_fields,
     )
     context["structured_outputs"].pop(agent_num, None)
     raise_if_cancelled(context)
-    if agent_num in CONTEXT_DIGEST_TARGET_AGENTS:
+    restored_draft = has_checkpointed_quality_draft()
+    if agent_num in CONTEXT_DIGEST_TARGET_AGENTS and not restored_draft:
         await emit_status_async(
             progress_callback,
             f"Agent {agent_num}（{agent_position}/{agent_total}）正在提煉前序分析摘要...",
             phase="context_digest",
-            current=agent_position,
-            total=agent_total,
-            name=agent_name,
-            agent_num=agent_num,
-            pipeline_id=pipeline_id,
-            pipeline_label=pipeline_label,
+            **status_fields,
         )
-    await ensure_context_digest_async(agent_num, context, rotator, progress_callback=progress_callback)
+    if not restored_draft:
+        await ensure_context_digest_async(agent_num, context, rotator, progress_callback=progress_callback)
+    raise_if_cancelled(context)
+    if not restored_draft:
+        await emit_status_async(
+            progress_callback,
+            f"Agent {agent_num}（{agent_position}/{agent_total}）正在執行 RAG 語意檢索...",
+            phase="rag_retrieval",
+            **status_fields,
+        )
+        await ensure_agent_rag_context_async(agent_num, context, rotator)
     raise_if_cancelled(context)
     await emit_status_async(
         progress_callback,
-        f"Agent {agent_num}（{agent_position}/{agent_total}）正在執行 RAG 語意檢索...",
-        phase="rag_retrieval",
-        current=agent_position,
-        total=agent_total,
-        name=agent_name,
-        agent_num=agent_num,
-        pipeline_id=pipeline_id,
-        pipeline_label=pipeline_label,
+        f"Agent {agent_num} 取回未驗證草稿，重新執行品質檢查。" if restored_draft else f"Agent {agent_num}（{agent_position}/{agent_total}）正在呼叫模型並生成分析...",
+        phase="quality_draft_restored" if restored_draft else "model_call",
+        **status_fields,
     )
-    await ensure_agent_rag_context_async(agent_num, context, rotator)
-    raise_if_cancelled(context)
-    await emit_status_async(
-        progress_callback,
-        f"Agent {agent_num}（{agent_position}/{agent_total}）正在呼叫模型並生成分析...",
-        phase="model_call",
-        current=agent_position,
-        total=agent_total,
-        name=agent_name,
-        agent_num=agent_num,
-        pipeline_id=pipeline_id,
-        pipeline_label=pipeline_label,
-    )
-    result = await run_single_agent_async(agent_num, data, context, rotator)
+    result = await initial_or_checkpointed_draft(agent_num, data, context, rotator, run_single_agent_async)
     raise_if_cancelled(context)
     result = sanitize_model_output(result)
     try:
@@ -112,12 +109,7 @@ async def run_agent_with_quality_gates_async(
                 progress_callback,
                 f"Agent {agent_num} 結構化輸出解析失敗，立即重試（1/1）...",
                 phase="structured_retry",
-                current=agent_position,
-                total=agent_total,
-                name=agent_name,
-                agent_num=agent_num,
-                pipeline_id=pipeline_id,
-                pipeline_label=pipeline_label,
+                **status_fields,
             )
             context.setdefault("structured_outputs", {}).pop(agent_num, None)
             context.setdefault("structured_outputs", {}).pop(str(agent_num), None)
@@ -126,18 +118,15 @@ async def run_agent_with_quality_gates_async(
             raise_if_cancelled(context)
             result = sanitize_model_output(result)
             _retry_ok, result = _try_parse_structured_output(agent_num, result, context)
+    except AgentDeferredError:
+        raise
     except Exception as exc:
         emit_log(f"  ⚠️  Agent {agent_num} 結構化輸出即時驗證失敗，略過同節點重試：{str(exc)[:120]}")
     await emit_status_async(
         progress_callback,
         f"Agent {agent_num}（{agent_position}/{agent_total}）正在執行輸出清洗與品質檢查...",
         phase="quality_gate",
-        current=agent_position,
-        total=agent_total,
-        name=agent_name,
-        agent_num=agent_num,
-        pipeline_id=pipeline_id,
-        pipeline_label=pipeline_label,
+        **status_fields,
     )
 
     if is_agent_execution_failure(result):
@@ -163,12 +152,7 @@ async def run_agent_with_quality_gates_async(
             progress_callback,
             f"Agent {agent_num}（{agent_position}/{agent_total}）身分一致性檢查未通過，正在要求重寫...",
             phase="identity_retry",
-            current=agent_position,
-            total=agent_total,
-            name=agent_name,
-            agent_num=agent_num,
-            pipeline_id=pipeline_id,
-            pipeline_label=pipeline_label,
+            **status_fields,
         )
         emit_log("  🚨 公司身分一致性檢查未通過，退回 Agent 非同步重寫...")
         for issue in identity_issues:
@@ -205,6 +189,8 @@ async def run_agent_with_quality_gates_async(
 
     quality_issues = validate_analysis_output(agent_num, result, data)
     if quality_issues:
+        await checkpoint_unvalidated_draft(agent_num, result, context)
+        context["analyses"][agent_num] = result
         result = await retry_after_agent_quality_issues(
             agent_num,
             data,

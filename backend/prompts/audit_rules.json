@@ -47,20 +47,14 @@
     },
     {
       "id": "high_growth_fcf",
-      "any_regex_groups": [
-        ["營收.{0,30}(?:成長|增加|提升|暴增).{0,12}(?:[5-9]\\d|1\\d\\d)%"],
-        [
-          "FCF.{0,20}(?:轉換率|/淨利).{0,12}(?:1\\d\\d|超過100|>100)%",
-          "自由現金流.{0,20}(?:轉換率|/淨利).{0,12}(?:1\\d\\d|超過100|>100)%"
-        ]
-      ],
+      "semantic_checks": ["high_revenue_growth", "high_fcf_conversion"],
       "not_any_substrings": ["不可持續", "一次性", "異常", "需查核", "質疑", "預收", "營運資金", "資本支出", "CapEx", "遞延"],
       "issue": "FCF 品質紅線：硬體製造業在營收成長超過 50% 時仍有 FCF/淨利 >100%，不可視為常態；需拆解營運資金、預收款與 CapEx，DCF 應使用 normalized FCF。"
     },
     {
       "id": "manufacturing_aggressive_growth",
       "agents": [4, 5, 7, 14, 16, 19],
-      "any_regex_groups": [["營收.{0,30}(?:成長|增加|提升).{0,12}(?:[5-9]\\d|1\\d\\d)%"]],
+      "semantic_checks": ["high_revenue_growth"],
       "not_any_substrings": ["CapEx", "資本支出", "折舊", "產能", "良率", "第二供應商"],
       "issue": "製造業情境紅線：營收成長超過 50% 時，必須同步討論產能、CapEx、折舊、良率與客戶議價風險。"
     },
@@ -68,12 +62,9 @@
       "id": "double_counting_growth",
       "agents": [4, 7, 14, 16, 19],
       "any_regex_groups": [
-        ["(?:ForwardP/E|目標本益比|合理ForwardP/E|給予).{0,20}(?:2[5-9]|[3-9]\\d)(?:\\.\\d+)?x"],
-        [
-          "營收.{0,40}(?:成長|增長|暴增|增加|提升).{0,20}(?:[5-9]\\d|1\\d\\d)%",
-          "ForwardEPS.{0,20}隱含.{0,20}(?:營收需|營收必須|營收要)"
-        ]
+        ["(?:ForwardP/E|目標本益比|合理ForwardP/E|給予)(?:給予|上調至|調整為|估值為|為|達|約|=|:|：)*(?<![\\d.+-])(?:2[5-9]|[3-9]\\d)(?:\\.\\d+)?x"]
       ],
+      "semantic_checks": ["priced_in_growth"],
       "issue": "雙重樂觀紅線：若 Forward EPS/財測已隱含營收暴增，不應再套用高 Forward P/E 重複計價成長；基本情境應使用折讓倍數或 normalized DCF。"
     },
     {
@@ -85,16 +76,14 @@
     },
     {
       "id": "dividend_yield_sustainability",
-      "any_regex_groups": [
-        ["殖利率.{0,20}(?:1[0-9]|[2-9][0-9])%"],
-        ["買入", "吸引", "低估", "優質配息"]
-      ],
+      "semantic_checks": ["high_dividend_buy_claim"],
       "not_any_substrings": ["配息可持續", "FCF coverage", "配息率", "借錢配息", "不可持續", "需查核"],
       "issue": "高殖利率陷阱紅線：殖利率超過 10% 時，若未同步說明配息可持續性（FCF 覆蓋率、配息率上限），不可以高殖利率作為買入主因；高殖利率可能反映股價崩跌而非真實股息吸引力。"
     },
     {
       "id": "goodwill_impairment_blind_spot",
       "all_substrings": ["商譽"],
+      "semantic_checks": ["accounting_goodwill"],
       "any_substring_groups": [["ROE高", "獲利穩健", "淨利率高", "高報酬", "競爭優勢"]],
       "not_any_substrings": ["商譽減損", "商譽佔總資產", "減損風險", "攤銷"],
       "issue": "商譽盲點紅線：若公司有大量商譽（通常來自收購），正面評估獲利或競爭優勢時必須同步說明商譽減損風險及商譽佔總資產比例；忽略商譽減損風險可能導致高估獲利持續性。"

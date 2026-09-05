@@ -1,0 +1,36 @@
+<section class="section" id="market-charts" data-report-section="market_charts">
+    <div class="section-header">
+        <div class="section-title">{{ mode_template.market_heading }}</div>
+    </div>
+    <div class="charts-grid market-charts-grid">
+        <div class="chart-card full-width">
+            <div class="chart-title">{{ market_price_title }}（{{ chart_data.market.currency }}）</div>
+            <div class="chart-canvas-wrapper tall">
+                <canvas id="marketPriceChart" data-empty-message="缺少足夠股價資料，無法繪製趨勢。"></canvas>
+            </div>
+            <p class="chart-source">{{ market_price_period }} · {{ market_price_source }} · 股價沿用來源的還原／調整口徑</p>
+        </div>
+        <div class="chart-card">
+            <div class="chart-title">法人每日買賣超（千股）</div>
+            <div class="chart-canvas-wrapper">
+                <canvas id="institutionalDailyChart" data-empty-message="缺少法人每日買賣超資料。"></canvas>
+            </div>
+            <p class="chart-source">{{ market_flow_period }} · {{ market_flow_source }}</p>
+        </div>
+        <div class="chart-card">
+            <div class="chart-title">三大法人累計買賣超（千股）</div>
+            <div class="chart-canvas-wrapper">
+                <canvas id="institutionalCategoryChart" data-empty-message="缺少法人分類買賣超資料。"></canvas>
+            </div>
+            <p class="chart-source">資料涵蓋期間累計，截至 {{ market_flow_as_of }} · {{ market_flow_source }}</p>
+        </div>
+        {% if mode_template.show_market_pe_river %}
+        <div class="chart-card full-width">
+            <div class="chart-title">{{ pe_river_title }}</div>
+            <div class="chart-canvas-wrapper tall">
+                <canvas id="peRiverChart" data-empty-message="缺少有效 EPS 或本益比通道資料。"></canvas>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</section>

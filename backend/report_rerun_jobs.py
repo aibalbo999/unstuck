@@ -9,6 +9,8 @@ from typing import Any
 from fastapi import HTTPException
 
 from agent_runtime import AnalysisPipelineRunner
+from agent_runtime.retry_policy import AgentRateLimitError
+from analysis_job_retry import build_analysis_retry_event, prepare_analysis_retry
 from config import API_KEY_SETUP_MESSAGE, OUTPUT_DIR, has_api_keys
 from data_trust import sanitize_for_snapshot
 from data_fetch import StockDataService
@@ -234,6 +236,16 @@ async def run_report_rerun_job_async(
             "source_filename": event_source_filename,
         })
         return ""
+    except AgentRateLimitError as exc:
+        retry = prepare_analysis_retry(job_id, exc, task_id=f"report-rerun:{job_id}")
+        event = build_analysis_retry_event(exc, retry, rerun=True)
+        update_job(job_id, "waiting_retry" if retry["retry_scheduled"] else "error", error=event["error"])
+        append_event(job_id, {
+            **event,
+            "rerun_scope": normalized_scope,
+            "source_filename": event_source_filename,
+        })
+        raise
     except Exception as exc:
         message = _error_message(exc, "報告重跑失敗")
         update_job(job_id, "error", error=message)

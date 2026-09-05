@@ -3064,7 +3064,9 @@ def test_report_chart_entrypoint_is_include_only():
 
     assert len(text.splitlines()) < 20
     assert "const CHART_DATA" not in text
-    assert text.count("{% include") == 5
+    assert text.count("{% include") == 7
+    assert '{% include "includes/charts/market.html.j2" %}' in text
+    assert '{% include "includes/charts/status.html.j2" %}' in text
 
 
 def test_report_section_styles_are_split_into_focused_includes():

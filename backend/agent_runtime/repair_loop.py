@@ -28,6 +28,7 @@ from .repair_reflection import (
     generate_audit_reflection_async,
 )
 from .routing import get_audit_model_sequence, is_agent_execution_failure
+from .deferred import AgentDeferredError
 from .single_agent import run_single_agent, run_single_agent_async
 from .structured_repair_contracts import structured_output_missing as _structured_output_missing
 
@@ -116,6 +117,8 @@ def _repair_agent_output(agent_num: int, data: StockData, context: AnalysisConte
         if fallback_ok:
             return adopt_repair_result(agent_num, context, (True, fallback_message))
         return False, "重寫後仍觸發品質紅線：" + "；".join(last_quality_issues[:3])
+    except AgentDeferredError:
+        raise
     except Exception as exc:
         emit_context_error(
             context,
@@ -218,6 +221,8 @@ async def _repair_agent_output_async(agent_num: int, data: StockData, context: A
         if fallback_ok:
             return adopt_repair_result(agent_num, context, (True, fallback_message))
         return False, "重寫後仍觸發品質紅線：" + "；".join(last_quality_issues[:3])
+    except AgentDeferredError:
+        raise
     except Exception as exc:
         await emit_context_error_async(
             context,

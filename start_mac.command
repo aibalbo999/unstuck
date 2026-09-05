@@ -23,10 +23,34 @@ APP_URL="http://$APP_HOST:8080"
 echo "啟動 Wall Street AI 股票分析系統..."
 
 # 切換到腳本所在目錄的 backend 資料夾
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-export TASK_QUEUE_BACKEND="${TASK_QUEUE_BACKEND:-rq}"
-export REDIS_URL="${REDIS_URL:-redis://localhost:6379/0}"
-export TASK_QUEUE_NAME="${TASK_QUEUE_NAME:-stock-analysis}"
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd -P )"
+load_queue_environment() {
+    local key value queue_settings
+    # Read data, never source/eval .env. Explicit parent environment wins.
+    queue_settings="$("$PYTHON_BIN" - "$DIR/backend/.env" <<'PY'
+import os
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+allowed = {"TASK_QUEUE_BACKEND", "REDIS_URL", "TASK_QUEUE_NAME"}
+for raw in path.read_text(encoding="utf-8").splitlines() if path.is_file() else []:
+    key, sep, value = raw.strip().partition("=")
+    key = key.strip()
+    if sep and key in allowed and not os.environ.get(key):
+        value = value.strip().strip('"').strip("'")
+        if value:
+            print(key)
+            print(value)
+PY
+    )" || return 1
+    while IFS= read -r key && IFS= read -r value; do
+        export "$key=$value"
+    done <<< "$queue_settings"
+    export TASK_QUEUE_BACKEND="${TASK_QUEUE_BACKEND:-rq}"
+    export REDIS_URL="${REDIS_URL:-redis://localhost:6379/0}"
+    export TASK_QUEUE_NAME="${TASK_QUEUE_NAME:-stock-analysis}"
+}
 export PYTHONUNBUFFERED="${PYTHONUNBUFFERED:-1}"
 
 SERVER_PID=""
@@ -118,6 +142,7 @@ else
 fi
 
 echo "使用 Python：$PYTHON_BIN"
+load_queue_environment
 "$PYTHON_BIN" "$DIR/scripts/check_runtime.py" --strict
 
 cd "$DIR/backend" || {
@@ -251,9 +276,9 @@ start_redis_if_needed() {
         exit 1
     fi
 
-    mkdir -p "$DIR/backend/cache"
+    mkdir -p "$DIR/backend/cache/redis"
     echo "啟動 Redis：$REDIS_URL"
-    (trap '' INT; exec "$REDIS_SERVER_BIN" --bind 127.0.0.1 --port "$REDIS_PORT" --save "" --appendonly no > "$DIR/backend/cache/redis-start_mac.log" 2>&1) &
+    (trap '' INT; exec "$REDIS_SERVER_BIN" --bind 127.0.0.1 --port "$REDIS_PORT" --dir "$DIR/backend/cache/redis" --save "" --appendonly no > "$DIR/backend/cache/redis-start_mac.log" 2>&1) &
     REDIS_PID=$!
     if ! wait_for_redis; then
         echo "Redis 啟動逾時，請檢查：$DIR/backend/cache/redis-start_mac.log"
@@ -263,15 +288,76 @@ start_redis_if_needed() {
     echo "Redis 已啟動。"
 }
 
-start_redis_if_needed
+project_process_matches() {
+    local pid="$1" role="$2" command owner_cwd
+    case "$pid" in ""|*[!0-9]*|0|1) return 1;; esac
+    [ "$pid" != "$$" ] || return 1
+    command="$(ps -p "$pid" -o command= 2>/dev/null)" || return 1
+    owner_cwd="$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)"
+    [ "$owner_cwd" = "$DIR/backend" ] || return 1
+    case "$role:$command" in
+        api:*" -m uvicorn api:app "*|api:*"/uvicorn api:app "*) return 0;;
+        worker:*" worker_main.py --role all"*|worker:*" worker_main.py --role queue"*|worker:*" worker_main.py --role schedulers"*|worker:*" worker_main.py --role maintenance"*) return 0;;
+        launcher:*"bash $DIR/start_mac.command"|launcher:*"bash $DIR/start_mac_lan.command") return 0;;
+    esac
+    return 1
+}
 
-# 如果 8080 已有舊服務，先停止，避免啟動後立刻因 port 被占用而失敗。
-OLD_PIDS="$(lsof -ti tcp:8080 2>/dev/null || true)"
-if [ -n "$OLD_PIDS" ]; then
-    echo "偵測到 8080 連接埠已有舊服務，正在停止..."
-    kill $OLD_PIDS 2>/dev/null || true
-    sleep 1
-fi
+stop_project_pid() {
+    local pid="$1" role="$2" attempt
+    if ! project_process_matches "$pid" "$role"; then
+        echo "無法確認 PID $pid 屬於本專案 ${role}；保留程序並拒絕啟動。" >&2
+        return 1
+    fi
+    kill -TERM "$pid" 2>/dev/null || return 1
+    for attempt in 1 2 3 4 5 6 7 8 9 10; do
+        if ! kill -0 "$pid" 2>/dev/null; then return 0; fi
+        sleep 0.2
+    done
+    echo "本專案 $role PID $pid 尚未停止；請確認後再啟動。" >&2
+    return 1
+}
+
+stop_existing_project_api() {
+    local pids pid parent launchers="" attempt
+    pids="$(lsof -nP -tiTCP:8080 -sTCP:LISTEN 2>/dev/null || true)"
+    # Validate every listener before stopping any, including dual-stack owners.
+    for pid in $pids; do
+        if ! project_process_matches "$pid" api; then
+            echo "8080 的 PID $pid 不是可確認的本專案 API；保留程序，請先處理連接埠衝突。" >&2
+            return 1
+        fi
+        parent="$(ps -p "$pid" -o ppid= 2>/dev/null | tr -d '[:space:]')"
+        if project_process_matches "$parent" launcher; then launchers="$launchers $parent"; fi
+    done
+    for pid in $pids; do stop_project_pid "$pid" api || return 1; done
+    # The old launcher owns its Redis. Wait for its EXIT cleanup before deciding
+    # whether Redis can be reused; never terminate an unverified parent shell.
+    for parent in $launchers; do
+        for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            if ! kill -0 "$parent" 2>/dev/null; then break; fi
+            sleep 0.5
+        done
+        if kill -0 "$parent" 2>/dev/null; then
+            echo "先前啟動器 PID $parent 尚未完成清理；拒絕啟動，請確認後重試。" >&2
+            return 1
+        fi
+    done
+    return 0
+}
+
+stop_pidfile_worker() {
+    local pid
+    [ -f "$WORKER_PID_FILE" ] || return 0
+    pid="$(cat "$WORKER_PID_FILE" 2>/dev/null || true)"
+    case "$pid" in ""|*[!0-9]*|0|1) echo "Worker PID 檔無效，請先確認：$WORKER_PID_FILE" >&2; return 1;; esac
+    if kill -0 "$pid" 2>/dev/null; then
+        stop_project_pid "$pid" worker || return 1
+    fi
+    rm -f "$WORKER_PID_FILE"
+}
+
+stop_existing_project_api
 
 project_worker_pids() {
     ps -axo pid=,command= | while read -r pid command
@@ -316,16 +402,9 @@ stop_existing_project_workers() {
     done
 }
 
-if [ -f "$WORKER_PID_FILE" ]; then
-    OLD_WORKER_PID="$(cat "$WORKER_PID_FILE" 2>/dev/null || true)"
-    if [ -n "$OLD_WORKER_PID" ] && kill -0 "$OLD_WORKER_PID" 2>/dev/null; then
-        echo "偵測到舊 Worker，正在停止..."
-        kill "$OLD_WORKER_PID" 2>/dev/null || true
-        sleep 1
-    fi
-    rm -f "$WORKER_PID_FILE" 2>/dev/null || true
-fi
+stop_pidfile_worker
 stop_existing_project_workers
+start_redis_if_needed
 
 echo "啟動 Worker..."
 (trap '' INT; exec "$PYTHON_BIN" -u worker_main.py --role all) &

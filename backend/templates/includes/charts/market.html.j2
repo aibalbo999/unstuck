@@ -1,0 +1,56 @@
+    const market = CHART_DATA.market;
+    function marketChartOptions(unit) {
+        return {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${Number.isFinite(ctx.raw) ? ctx.raw.toLocaleString('zh-TW', { maximumFractionDigits: 2 }) : 'N/A'} ${unit}` } },
+            },
+            scales: {
+                x: {
+                    ticks: {
+                        maxTicksLimit: 4, maxRotation: 0, autoSkipPadding: 12,
+                        callback: function(value) {
+                            const label = this.getLabelForValue(value);
+                            return /^\d{4}-\d{2}-\d{2}$/.test(label) ? label.slice(5) : label;
+                        },
+                    },
+                    grid: { display: false },
+                },
+                y: { title: { display: true, text: unit } },
+            },
+        };
+    }
+    const marketPriceCtx = document.getElementById('marketPriceChart')?.getContext('2d');
+    if (marketPriceCtx && market.price.prices.filter(Number.isFinite).length >= 2) {
+        new Chart(marketPriceCtx, {
+            type: 'line',
+            data: {
+                labels: market.price.dates,
+                datasets: [{ label: '股價', data: market.price.prices, borderColor: '#38bdf8', borderWidth: 2, pointRadius: 2, pointHoverRadius: 5, tension: 0, spanGaps: false }],
+            },
+            options: marketChartOptions(market.currency),
+        });
+    }
+    function flowChart(id, labels, values, label, horizontal = false) {
+        const ctx = document.getElementById(id)?.getContext('2d');
+        if (!ctx || !values.some(Number.isFinite)) return;
+        const options = marketChartOptions('千股');
+        options.indexAxis = horizontal ? 'y' : 'x';
+        const valueAxis = horizontal ? 'x' : 'y';
+        options.scales[valueAxis].beginAtZero = true;
+        options.scales[valueAxis].title = { display: true, text: '千股' };
+        if (horizontal) options.scales.y.title = { display: false };
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{ label, data: values, backgroundColor: values.map(value => value === null ? '#64748b' : value < 0 ? '#f87171' : '#34d399'), borderRadius: 3 }],
+            },
+            options,
+        });
+    }
+    flowChart('institutionalDailyChart', market.dailyFlow.dates, market.dailyFlow.values, '每日買賣超');
+    flowChart('institutionalCategoryChart', market.categoryFlow.labels, market.categoryFlow.values, '累計買賣超', true);

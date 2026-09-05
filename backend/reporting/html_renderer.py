@@ -63,7 +63,7 @@ def generate_html_report(context: AnalysisContext) -> str:
     report_subtitle = pipeline_def["report_subtitle"]
     pipeline_label = pipeline_def["label"]
 
-    chart_context = build_html_chart_context(data, parsed)
+    chart_context = build_html_chart_context(data, parsed, pipeline_id=pipeline_def["id"])
     decision_context = build_decision_context(parsed, pipeline_id=pipeline_def["id"])
     mode_focus = build_mode_focus_context(context, parsed, pipeline_id=pipeline_def["id"])
 

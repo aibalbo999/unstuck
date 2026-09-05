@@ -34,7 +34,7 @@
             ...scenarios.map(s => valuationRow(s, targets[s], valuationScenarioColor(s))),
         ].filter(Boolean);
 
-        if (valuationRows.length > 0) {
+        if (scenarios.some(s => Number.isFinite(targets[s]) && targets[s] > 0)) {
             new Chart(valCtx, {
                 type: 'bar',
                 data: {

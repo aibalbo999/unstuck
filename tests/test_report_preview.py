@@ -357,12 +357,16 @@ def test_mode_d_history_upgrades_legacy_content_credibility_from_trade_plan(tmp_
     credibility = result["reports"][0]["content_credibility"]
     assert credibility["status"] == "warning"
     assert credibility["checks"][0]["id"] == "trade_setup_alignment"
-    assert credibility["checks"][0]["details"] == {
+    details = credibility["checks"][0]["details"]
+    assert {key: details[key] for key in ("trade_direction", "current_price", "target_price", "stop_loss")} == {
         "trade_direction": "Long",
         "current_price": 100.0,
         "target_price": 112.0,
         "stop_loss": 94.0,
     }
+    assert details["entry_range"] == [98.0, 100.0]
+    assert details["risk_reward_status"] == "gross_verified_cost_unknown"
+    assert details["net_risk_reward"] is None
 
 
 def test_report_history_projects_current_credibility_from_saved_parsed_context(tmp_path, monkeypatch):

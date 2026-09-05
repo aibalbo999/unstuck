@@ -1,5 +1,9 @@
     {% include "includes/charts/runtime.html.j2" %}
+    if (typeof Chart !== 'undefined') {
     {% include "includes/charts/financial.html.j2" %}
     {% include "includes/charts/moat.html.j2" %}
     {% include "includes/charts/valuation.html.j2" %}
+    {% include "includes/charts/market.html.j2" %}
+    }
+    {% include "includes/charts/status.html.j2" %}
     {% include "includes/charts/navigation.html.j2" %}

@@ -3,6 +3,15 @@ from types import SimpleNamespace
 import sys
 from pathlib import Path
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def legacy_retry_defaults(monkeypatch):
+    # These architecture tests exercise the uncapped legacy retry contract.
+    monkeypatch.setattr("agent_runtime.model_policy.LLM_QUOTA_MAX_ATTEMPTS_PER_MODEL", 0)
+    monkeypatch.setattr("agent_runtime.model_policy.LLM_ROUTE_SERVER_ERROR_MAX_ATTEMPTS", 0)
+
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
