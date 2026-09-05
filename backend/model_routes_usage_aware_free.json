@@ -1,0 +1,74 @@
+{
+  "default_analysis_model": "gemma-4-31b-it",
+  "default_decision_model": "gemini-3.8-flash",
+  "analysis_fallback_models": ["gemini-3-flash-preview", "gemini-3.6-flash"],
+  "context_digest_model": "gemini-3.5-flash-lite",
+  "tear_sheet_model": "gemini-3.5-flash-lite",
+  "audit_model": "gemma-4-31b-it",
+  "audit_fallback_models": ["gemini-3-flash-preview", "gemini-3.6-flash"],
+  "embedding_model": "gemini-embedding-2",
+  "agents": {
+    "7": "gemini-3.8-flash",
+    "16": "gemini-3.8-flash",
+    "19": "gemini-3.8-flash",
+    "24": "gemini-3.8-flash"
+  },
+  "agent_fallbacks": {
+    "2": ["gemini-3.6-flash", "gemini-3-flash-preview"],
+    "4": ["gemini-3.6-flash", "gemini-3-flash-preview"],
+    "6": ["gemini-3.6-flash", "gemini-3-flash-preview"],
+    "12": ["gemini-3.6-flash", "gemini-3-flash-preview"],
+    "14": ["gemini-3.6-flash", "gemini-3-flash-preview"],
+    "18": ["gemini-3.6-flash", "gemini-3-flash-preview"],
+    "20": ["gemini-3.6-flash", "gemini-3-flash-preview"],
+    "22": ["gemini-3.6-flash", "gemini-3-flash-preview"],
+    "7": ["gemini-3-flash-preview", "gemini-3.6-flash"],
+    "16": ["gemini-3.6-flash", "gemini-3-flash-preview"],
+    "19": ["gemini-3-flash-preview", "gemini-3.6-flash"],
+    "24": ["gemini-3.6-flash", "gemini-3-flash-preview"]
+  },
+  "rpm_limits": {
+    "gemma-4-31b-it": 1,
+    "gemini-3.8-flash": 2,
+    "gemini-3-flash-preview": 5,
+    "gemini-3.6-flash": 5,
+    "gemini-3.5-flash-lite": 5,
+    "gemini-embedding-2": 100
+  },
+  "tpm_limits": {
+    "gemma-4-31b-it": 16000,
+    "gemini-3.8-flash": 200000,
+    "gemini-3-flash-preview": 200000,
+    "gemini-3.6-flash": 200000,
+    "gemini-3.5-flash-lite": 200000,
+    "gemini-embedding-2": 24000
+  },
+  "input_token_limits": {
+    "gemma-4-31b-it": 12000,
+    "gemini-3.8-flash": 150000,
+    "gemini-3-flash-preview": 150000,
+    "gemini-3.6-flash": 150000,
+    "gemini-3.5-flash-lite": 64000
+  },
+  "rpd_limits": {
+    "gemma-4-31b-it": 11520,
+    "gemini-3.8-flash": 16,
+    "gemini-3-flash-preview": 16,
+    "gemini-3.6-flash": 16,
+    "gemini-3.5-flash-lite": 400,
+    "gemini-embedding-2": 800
+  },
+  "assumed_provider_rpd": {
+    "gemma-4-31b-it": 14400,
+    "gemini-3.8-flash": 20,
+    "gemini-3-flash-preview": 20,
+    "gemini-3.6-flash": 20,
+    "gemini-3.5-flash-lite": 500,
+    "gemini-embedding-2": 1000
+  },
+  "project_quota_assumption": "user_declared_independent_free_projects",
+  "assumed_project_count": 16,
+  "quota_max_attempts_per_model": 4,
+  "server_error_max_attempts": 2,
+  "limit_basis": "local_operating_budgets_not_provider_entitlements"
+}

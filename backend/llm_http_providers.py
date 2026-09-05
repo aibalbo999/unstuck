@@ -19,6 +19,7 @@ ANTHROPIC_VERSION = "2023-06-01"
 class TextLLMResponse:
     text: str
     usage: dict[str, int] | None = None
+    diagnostics: dict | None = None
 
 
 def generate_openai_content(api_key: str, model_id: str, prompt: str, config) -> TextLLMResponse:

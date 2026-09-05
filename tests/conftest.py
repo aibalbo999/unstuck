@@ -17,12 +17,18 @@ def isolate_provider_sla_db(monkeypatch, tmp_path):
 
 @pytest.fixture(autouse=True)
 def isolate_runtime_task_db(monkeypatch, tmp_path):
+    import config
     import job_observability
     import job_store
     import job_store_maintenance
     import storage_inventory
 
     task_db = str(tmp_path / "analysis_jobs.sqlite3")
+    monkeypatch.setattr(config, "TASK_DB_PATH", task_db)
+    # Settings reload tests can leave consumers holding the old config module.
+    repair_circuit = sys.modules.get("agent_runtime.repair_circuit_breaker")
+    if repair_circuit is not None and repair_circuit.config is not config:
+        monkeypatch.setattr(repair_circuit.config, "TASK_DB_PATH", task_db)
     monkeypatch.setattr(job_store, "TASK_DB_PATH", task_db)
     monkeypatch.setattr(job_observability, "TASK_DB_PATH", task_db)
     monkeypatch.setattr(job_store_maintenance, "TASK_DB_PATH", task_db)

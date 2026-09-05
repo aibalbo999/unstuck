@@ -6,8 +6,13 @@ from datetime import datetime, time as dt_time, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from config import API_KEYS, FMP_API_KEY, RPD_LIMITS
-from api_usage_store import summarize_llm_usage_since, summarize_provider_usage_since
+from config import (
+    API_KEYS, FMP_API_KEY, RPD_LIMITS, RPM_LIMITS, TPM_LIMITS, MODEL_INPUT_TOKEN_LIMITS,
+    AGENT_MODELS, AGENT_FALLBACK_MODELS, CONTEXT_DIGEST_MODEL, TEAR_SHEET_MODEL, MODEL_ROUTES,
+    LLM_QUOTA_MAX_ATTEMPTS_PER_MODEL, LLM_ROUTE_SERVER_ERROR_MAX_ATTEMPTS, LLM_SERVER_ERROR_MAX_ATTEMPTS,
+)
+from llm_daily_budget import DailyBudgetBlockedError, DailyBudgetStore
+from api_usage_store import summarize_llm_daily_usage, summarize_llm_usage_since, summarize_provider_usage_since
 from mapping_fields import safe_mapping_dict, safe_mapping_items, safe_sequence_items, safe_text
 from notification_delivery_audit_context import safe_float, safe_int
 
@@ -15,6 +20,7 @@ from notification_delivery_audit_context import safe_float, safe_int
 TAIPEI = ZoneInfo("Asia/Taipei")
 PACIFIC = ZoneInfo("America/Los_Angeles")
 EST_FIXED = timezone(timedelta(hours=-5), "EST")
+DAILY_BUDGET_STORE = DailyBudgetStore()
 
 
 def _next_reset_at(reset_time: dt_time, tzinfo) -> tuple[datetime, datetime]:
@@ -159,13 +165,34 @@ def build_api_quota_payload(provider_summary_fetcher) -> dict:
         providers = []
 
     gemini_usage = _llm_usage_since(pacific_prev_utc)
+    try:
+        gemini_usage["daily_budget"] = DAILY_BUDGET_STORE.summary(API_KEYS, RPD_LIMITS)
+    except DailyBudgetBlockedError:
+        gemini_usage["daily_budget"] = {"available": False, "reason": "budget_store_unavailable"}
+    for name, timezone_name in (("daily_profile", "Asia/Taipei"), ("quota_day_profile", "America/Los_Angeles")):
+        try:
+            gemini_usage[name] = summarize_llm_daily_usage(timezone_name=timezone_name)
+        except Exception:
+            gemini_usage[name] = {"available": False, "reason": "usage_history_unavailable"}
     fmp_usage = _provider_attempts(providers, {"FMP quote", "FMP stable quote", "FMP news", "FMP news retry"}, fmp_prev_utc)
 
     return {
         "generated_at": _fmt_dt(datetime.now(TAIPEI)),
         "timezone": "Asia/Taipei",
+        "model_policy": {
+            "agents": {str(agent): model for agent, model in AGENT_MODELS.items()},
+            "agent_fallbacks": {str(agent): models for agent, models in AGENT_FALLBACK_MODELS.items()},
+            "context_digest_model": CONTEXT_DIGEST_MODEL, "tear_sheet_model": TEAR_SHEET_MODEL,
+            "rpm_limits": RPM_LIMITS, "tpm_limits": TPM_LIMITS, "input_token_limits": MODEL_INPUT_TOKEN_LIMITS,
+            "provider_limits_verified": False, "limit_basis": "local_operating_budgets_not_provider_entitlements",
+            "rpd_limits": RPD_LIMITS, "rpd_enforcement": "atomic_sqlite_per_key_model_pacific_day",
+            "project_quota_assumption": MODEL_ROUTES.get("project_quota_assumption", "unspecified"),
+            "assumed_project_count": MODEL_ROUTES.get("assumed_project_count"),
+            "quota_max_attempts_per_model": LLM_QUOTA_MAX_ATTEMPTS_PER_MODEL,
+            "server_error_max_attempts": LLM_ROUTE_SERVER_ERROR_MAX_ATTEMPTS or LLM_SERVER_ERROR_MAX_ATTEMPTS,
+        },
         "services": [
-            _quota_row(
+            {**_quota_row(
                 service="Gemini / Google AI",
                 configured=bool(API_KEYS),
                 key_count=len(API_KEYS),
@@ -175,10 +202,12 @@ def build_api_quota_payload(provider_summary_fetcher) -> dict:
                 daily_limit=RPD_LIMITS or None,
                 usage=gemini_usage,
                 notes=[
-                    "Gemini RPD 依 Google project 計算，不是依單支 API key 分開計算。",
-                    "本機用量來自 api_usage_events ledger；實際額度請以 AI Studio / Google Cloud 為準。",
+                    (f"依使用者指定，按 {MODEL_ROUTES.get('assumed_project_count')} 個獨立免費專案規劃；每日預算逐 key/model 執行。"
+                     if MODEL_ROUTES.get("project_quota_assumption") == "user_declared_independent_free_projects"
+                     else "Gemini RPD 依 Google project 計算，不是依單支 API key 分開計算。"),
+                    "本機預算納入已記錄請求；歷史漏記、其他程式用量無法完整扣帳，並非 Google 實際剩餘額度。",
                 ],
-            ),
+            ), "limit_basis": "local_configuration_not_verified_provider_quota"},
             _quota_row(
                 service="Financial Modeling Prep",
                 configured=bool(FMP_API_KEY),

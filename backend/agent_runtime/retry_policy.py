@@ -17,7 +17,9 @@ from llm_client import (
     is_requests_per_day_error,
     retry_delay_seconds,
 )
-from llm_rate_limits import AllKeysRpdDisabledError, ModelCircuitOpenError
+from llm_rate_limits import AllKeysRpdDisabledError, InputCapacityExceededError, ModelCircuitOpenError
+from llm_daily_budget import DailyBudgetBlockedError
+from llm_tool_rate_guard import ToolRequestGuardError
 from runtime_events import emit_context_event, emit_log, make_runtime_event
 
 from .retry_error_classification import (
@@ -63,8 +65,7 @@ class AgentRateLimitError(AgentRetryableError):
         self.key_cooldown_seconds = key_cooldown_seconds
         self.key_slot = key_slot
         self.key_count = key_count
-        self.all_keys_exhausted = False
-        self.parallel_circuit_open = False
+        self.all_keys_exhausted = self.parallel_circuit_open = self.preflight_blocked = False
 
 
 class AgentAuthError(AgentRetryableError):
@@ -187,31 +188,27 @@ def _key_error_metadata(exc: Exception | None) -> dict:
 
 
 def _raise_agent_call_error(exc: Exception, api_key: Optional[str], model_id: str, rotator: KeyRotator, quota_default: float):
+    if isinstance(exc, InputCapacityExceededError):
+        raise exc
+    if isinstance(exc, ToolRequestGuardError):
+        raise AgentConfigurationError(str(exc)) from exc
     error_msg = str(exc)
-    if isinstance(exc, ModelCircuitOpenError):
+    if isinstance(exc, (DailyBudgetBlockedError, ModelCircuitOpenError, AllKeysRpdDisabledError)):
         key_slot, key_count = _key_slot(api_key, rotator)
-        rate_error = AgentRateLimitError(
-            f"模型 {exc.model} 的 quota circuit 已開啟，暫停送出 provider request",
-            max(float(exc.retry_wait_seconds), 1.0),
-            max(float(exc.retry_wait_seconds), 1.0),
-            key_slot=key_slot,
-            key_count=key_count,
-        )
-        rate_error.all_keys_exhausted = True
-        rate_error.parallel_circuit_open = True
-        raise rate_error from exc
-
-    if isinstance(exc, AllKeysRpdDisabledError):
-        key_slot, key_count = _key_slot(api_key, rotator)
+        detail = str(exc)
+        if isinstance(exc, ModelCircuitOpenError):
+            detail = f"模型 {exc.model} 的 quota circuit 已開啟，暫停送出 provider request"
+        elif isinstance(exc, AllKeysRpdDisabledError):
+            detail = f"每日請求額度（RPD）：模型 {exc.model} 的所有 key 暫停至 Pacific Time 下一個午夜"
         retry_wait = max(float(exc.retry_wait_seconds), 1.0)
         rate_error = AgentRateLimitError(
-            f"每日請求額度（RPD）：模型 {exc.model} 的所有 key 暫停至 Pacific Time 下一個午夜",
-            retry_wait,
-            retry_wait,
+            detail, retry_wait, retry_wait,
             key_slot=key_slot,
             key_count=key_count,
         )
         rate_error.all_keys_exhausted = True
+        rate_error.parallel_circuit_open = isinstance(exc, ModelCircuitOpenError)
+        rate_error.preflight_blocked = True
         raise rate_error from exc
 
     if is_auth_error(error_msg):
@@ -243,9 +240,7 @@ def _raise_agent_call_error(exc: Exception, api_key: Optional[str], model_id: st
     if is_missing_model_error(error_msg):
         raise AgentMissingModelError(error_msg) from exc
 
-    # 400 INVALID_ARGUMENT is a permanent schema/API contract error — retrying with
-    # the same config will always produce the same failure. Keep it distinct from
-    # model availability so the UI does not report a usable model as missing.
+    # Permanent request-contract failures must not be reported as a missing model.
     if _is_invalid_argument_error(error_msg):
         raise AgentConfigurationError(f"[schema_error] {error_msg}") from exc
 

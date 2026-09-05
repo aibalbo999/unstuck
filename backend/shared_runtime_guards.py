@@ -10,6 +10,7 @@ from typing import Any
 from config import LLM_MODEL_CIRCUIT_COOLDOWN_SECONDS, REDIS_URL, TASK_QUEUE_BACKEND
 from shared_runtime_guard_utils import guard_hash, seconds_until_next_pacific_midnight
 from shared_runtime_local_guards import LocalFixedWindowRateLimiter, LocalProviderCircuitStore
+from llm_input_capacity import ensure_input_capacity
 
 try:
     import redis
@@ -86,6 +87,7 @@ class RedisFixedWindowRateLimiter:
         tpm_limit: int | float | None = None,
         estimated_tokens: int = 0,
     ) -> float:
+        ensure_input_capacity(model, estimated_tokens, tpm_limit=tpm_limit)
         fallback_limits = {
             "rpm_limit": rpm_limit, "tpm_limit": tpm_limit, "estimated_tokens": estimated_tokens,
         }

@@ -26,6 +26,8 @@ def _load_model_routes() -> dict:
 
 
 MODEL_ROUTES = _load_model_routes()
+LLM_QUOTA_MAX_ATTEMPTS_PER_MODEL = max(0, env_int("LLM_QUOTA_MAX_ATTEMPTS_PER_MODEL", int(MODEL_ROUTES.get("quota_max_attempts_per_model", 0))))
+LLM_ROUTE_SERVER_ERROR_MAX_ATTEMPTS = max(0, env_int("LLM_ROUTE_SERVER_ERROR_MAX_ATTEMPTS", int(MODEL_ROUTES.get("server_error_max_attempts", 0))))
 
 
 def _route_section(section_name: str) -> dict:
@@ -226,6 +228,10 @@ DEFAULT_MODEL_RPM_LIMITS[DEFAULT_DECISION_MODEL] = env_int(
 RPM_LIMITS = _load_model_limits("RPM_LIMITS_JSON", "DEFAULT_RPM_LIMIT", DEFAULT_MODEL_RPM_LIMITS, 5)
 TPM_LIMITS = _load_model_limits("TPM_LIMITS_JSON", "DEFAULT_TPM_LIMIT", ROUTE_TPM_LIMITS, 0)
 RPD_LIMITS = _load_model_limits("RPD_LIMITS_JSON", "DEFAULT_RPD_LIMIT", ROUTE_RPD_LIMITS, 0)
+MODEL_INPUT_TOKEN_LIMITS = _load_model_limits(
+    "MODEL_INPUT_TOKEN_LIMITS_JSON", "DEFAULT_MODEL_INPUT_TOKEN_LIMIT",
+    _route_limit_defaults("input_token_limits"), 0,
+)
 MODEL_CONTEXT_TOKEN_LIMITS = _load_model_limits(
     "MODEL_CONTEXT_TOKEN_LIMITS_JSON",
     "DEFAULT_MODEL_CONTEXT_TOKEN_LIMIT",

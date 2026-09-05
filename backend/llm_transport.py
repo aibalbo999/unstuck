@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import threading
 from contextlib import suppress
 from inspect import isawaitable
@@ -21,6 +22,8 @@ from llm_http_providers import (
 from llm_semantic_cache import get_cached_llm_response, store_llm_response
 from llm_usage import extract_usage
 from llm_provider_routes import split_model_provider
+from llm_response_diagnostics import ResponseDiagnostics, attach_response_diagnostics
+from llm_tool_rate_guard import closing_stream, generation_client
 
 
 def response_text(response) -> str:
@@ -35,6 +38,8 @@ def response_text(response) -> str:
         content = getattr(candidate, "content", None)
         for part in getattr(content, "parts", []) or []:
             saw_candidate_parts = True
+            if getattr(part, "thought", False):
+                continue
             part_text = getattr(part, "text", None)
             if part_text:
                 parts.append(part_text)
@@ -119,7 +124,7 @@ def generate_content(api_key: str, model_id: str, prompt: str, config):
         )
     if provider != "google":
         raise ValueError(f"Unsupported LLM provider: {provider}")
-    client = _get_client(api_key)
+    client = generation_client(api_key, model_id, _get_client, genai.Client, _genai_http_options)
     response = client.models.generate_content(
         model=provider_model,
         contents=sanitize_google_prompt(prompt),
@@ -150,7 +155,7 @@ async def generate_content_async(api_key: str, model_id: str, prompt: str, confi
         )
     if provider != "google":
         raise ValueError(f"Unsupported LLM provider: {provider}")
-    client = _get_client(api_key)
+    client = generation_client(api_key, model_id, _get_client, genai.Client, _genai_http_options)
     response = await client.aio.models.generate_content(
         model=provider_model,
         contents=sanitize_google_prompt(prompt),
@@ -165,27 +170,35 @@ async def generate_content_stream_async(api_key: str, model_id: str, prompt: str
     if provider != "google":
         return await generate_content_async(api_key, model_id, prompt, config)
 
-    client = _get_client(api_key)
+    client = generation_client(api_key, model_id, _get_client, genai.Client, _genai_http_options)
     models = getattr(getattr(client, "aio", None), "models", None)
     stream_call = getattr(models, "generate_content_stream", None)
     if not callable(stream_call):
         return await generate_content_async(api_key, model_id, prompt, config)
 
     chunks: list[str] = []
-    stream = stream_call(
-        model=provider_model,
-        contents=sanitize_google_prompt(prompt),
-        config=sanitize_google_generation_config(config),
-    )
-    if isawaitable(stream):
-        stream = await stream
-    if hasattr(stream, "__aiter__"):
-        async for chunk in stream:
-            await _collect_stream_chunk(chunk, chunks, on_delta)
-    else:
-        for chunk in stream:
-            await _collect_stream_chunk(chunk, chunks, on_delta)
-    return TextLLMResponse("".join(chunks))
+    diagnostics = ResponseDiagnostics(stream=True)
+    try:
+        stream = stream_call(
+            model=provider_model,
+            contents=sanitize_google_prompt(prompt),
+            config=sanitize_google_generation_config(config),
+        )
+        if isawaitable(stream):
+            stream = await stream
+        async with closing_stream(stream):
+            if hasattr(stream, "__aiter__"):
+                async for chunk in stream:
+                    await _collect_stream_chunk(chunk, chunks, on_delta, diagnostics)
+            else:
+                for chunk in stream:
+                    await _collect_stream_chunk(chunk, chunks, on_delta, diagnostics)
+    except (Exception, asyncio.CancelledError) as exc:
+        attach_response_diagnostics(exc, diagnostics)
+        raise
+    diagnostics.data["stream_completed"] = True
+    snapshot = diagnostics.snapshot()
+    return TextLLMResponse("".join(chunks), snapshot["usage"], snapshot)
 
 
 def embed_content(api_key: str, model_id: str, contents, config):
@@ -214,9 +227,11 @@ async def _emit_stream_delta(on_delta, delta: str) -> None:
         await result
 
 
-async def _collect_stream_chunk(chunk, chunks: list[str], on_delta) -> None:
+async def _collect_stream_chunk(chunk, chunks: list[str], on_delta, diagnostics: ResponseDiagnostics) -> None:
+    diagnostics.observe(chunk)
     delta = response_text(chunk)
     if not delta:
         return
     chunks.append(delta)
+    diagnostics.add_text(delta)
     await _emit_stream_delta(on_delta, delta)

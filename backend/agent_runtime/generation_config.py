@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from copy import deepcopy
 from typing import Any, Optional
 
@@ -10,6 +11,7 @@ from google.genai import types
 
 from config import LLM_AGENT_CALL_TIMEOUT_SECONDS
 from google_prompt_safety import sanitize_google_system_instruction
+from llm_input_capacity import estimate_input_tokens
 from llm_client import generate_content, generate_content_async, generate_content_stream_async, response_text
 from structured_output_models import STRUCTURED_AGENT_INSTRUCTIONS, get_structured_response_schema
 
@@ -97,6 +99,15 @@ def build_generation_config(agent_num: int, system_instruction: Optional[str] = 
         return types.GenerateContentConfig(**config_kwargs)
 
 
+def agent_request_budget_options(agent_num: int) -> dict:
+    """Reserve the SDK tool loop's upper bound, including its first request."""
+    config = build_generation_config(agent_num)
+    automatic = getattr(config, "automatic_function_calling", None)
+    if not automatic or automatic.disable:
+        return {}
+    return {"request_units": max(1, int(automatic.maximum_remote_calls or 1))}
+
+
 def _response_text(response) -> str:
     return response_text(response)
 
@@ -110,16 +121,32 @@ def google_safe_agent_system_instruction(agent_num: int, model_id: str) -> str:
 
 def _generate_content(api_key: str, model_id: str, agent_num: int, prompt: str):
     config = build_generation_config(agent_num, google_safe_agent_system_instruction(agent_num, model_id))
+    config = apply_model_generation_policy(config, model_id)
     return generate_content(api_key, model_id, prompt, config)
+
+
+def apply_model_generation_policy(config, model_id: str):
+    if model_id in {"gemini-3.5-flash-lite", "gemini-3.7-flash", "gemini-3.8-flash"}:
+        return config.model_copy(update={"thinking_config": types.ThinkingConfig(thinking_level="low")})
+    return config
+
+
+def estimate_agent_input_tokens(agent_num: int, model_id: str, prompt: str) -> int:
+    config = build_generation_config(agent_num, google_safe_agent_system_instruction(agent_num, model_id))
+    values = config.model_dump(exclude_none=True)
+    input_config = {key: value for key, value in values.items() if key in {"system_instruction", "response_schema", "tools"}}
+    return estimate_input_tokens(prompt + json.dumps(input_config, ensure_ascii=False, default=str))
 
 
 async def _generate_content_async(api_key: str, model_id: str, agent_num: int, prompt: str):
     config = build_generation_config(agent_num, google_safe_agent_system_instruction(agent_num, model_id))
+    config = apply_model_generation_policy(config, model_id)
     return await generate_content_async(api_key, model_id, prompt, config)
 
 
 async def _generate_content_stream_async(api_key: str, model_id: str, agent_num: int, prompt: str, *, on_delta=None):
     config = build_generation_config(agent_num, google_safe_agent_system_instruction(agent_num, model_id))
+    config = apply_model_generation_policy(config, model_id)
     return await generate_content_stream_async(api_key, model_id, prompt, config, on_delta=on_delta)
 
 

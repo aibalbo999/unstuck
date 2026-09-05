@@ -657,7 +657,8 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "LLM/API 本機觀測" in api_quota_panel_js
     assert "observed_model_quota_errors" in api_quota_panel_js
     assert "模型" in api_quota_panel_js
-    assert "api_quota_panel.js?v=20260821-provider-route-errors" in index_html
+    assert "api_quota_panel.js?v=20260905-daily-budget" in index_html
+    assert index_html.index("api_quota_usage_helpers.js") < index_html.index("api_quota_panel.js")
     assert "LLM/API 本機觀測" in operator_summary_helpers_js
     assert "LLM/API 健康" not in api_quota_panel_js
     assert "LLM 健康" not in operator_summary_helpers_js

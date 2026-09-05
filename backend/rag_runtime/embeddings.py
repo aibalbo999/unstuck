@@ -9,13 +9,13 @@ from typing import Optional
 from google.genai import types
 
 from cache_store import get_cache_json, set_cache_json
-from config import EMBEDDING_MODEL, RAG_EMBEDDING_CACHE_SECONDS
+from config import EMBEDDING_MODEL, RAG_EMBEDDING_CACHE_SECONDS, TPM_LIMITS, MODEL_INPUT_TOKEN_LIMITS
+from llm_input_capacity import ensure_input_capacity, estimate_input_tokens
 from llm_client import (
     KeyRotator,
     describe_quota_or_rate_error,
     embed_content,
     embed_content_async,
-    estimate_text_tokens,
     is_missing_model_error,
     is_quota_or_rate_error,
     retry_delay_seconds,
@@ -23,6 +23,23 @@ from llm_client import (
 from runtime_events import classify_runtime_error
 
 from .types import RagChunk
+
+
+def _embedding_batches(texts: list[str]):
+    tpm_limit = TPM_LIMITS.get(EMBEDDING_MODEL, TPM_LIMITS.get("*", 0))
+    input_limit = MODEL_INPUT_TOKEN_LIMITS.get(EMBEDDING_MODEL, MODEL_INPUT_TOKEN_LIMITS.get("*", 0))
+    limits = [value for value in (tpm_limit, input_limit) if value > 0]
+    limit = min(limits) if limits else 0
+    start, tokens = 0, 0
+    for index, text in enumerate(texts):
+        cost = max(1, estimate_input_tokens(text))
+        ensure_input_capacity(EMBEDDING_MODEL, cost, input_limit=input_limit, tpm_limit=tpm_limit)
+        if index > start and limit and tokens + cost > limit:
+            yield start, texts[start:index], tokens
+            start, tokens = index, 0
+        tokens += cost
+    if start < len(texts):
+        yield start, texts[start:], tokens
 
 
 def _extract_embeddings(response) -> list[list[float]]:
@@ -149,20 +166,20 @@ def embed_index_chunks(chunks: list[RagChunk], data: dict, rotator: Optional[Key
         ticker = str(data.get("ticker") or data.get("stock_id") or "")
         config = _embedding_config("RETRIEVAL_DOCUMENT", title=str(data.get("company_name") or data.get("ticker") or "stock"))
         vectors, missing_indices, missing_texts = _split_cached_embeddings(EMBEDDING_MODEL, texts, config, ticker)
-        if missing_texts:
-            estimated_tokens = estimate_text_tokens("\n\n".join(missing_texts))
+        _attach_vectors(chunks, vectors)
+        for start, batch, estimated_tokens in _embedding_batches(missing_texts):
             api_key = rotator.get_key(EMBEDDING_MODEL, estimated_tokens)
-            response = embed_content(api_key, EMBEDDING_MODEL, missing_texts, config)
+            response = embed_content(api_key, EMBEDDING_MODEL, batch, config)
             vectors = _merge_embedding_vectors(
                 vectors,
-                missing_indices,
-                missing_texts,
+                missing_indices[start:start + len(batch)],
+                batch,
                 _extract_embeddings(response),
                 EMBEDDING_MODEL,
                 config,
                 ticker,
             )
-        _attach_vectors(chunks, vectors)
+            _attach_vectors(chunks, vectors)
         return []
     except Exception as exc:
         if is_quota_or_rate_error(str(exc)) and api_key:
@@ -180,20 +197,20 @@ async def embed_index_chunks_async(chunks: list[RagChunk], data: dict, rotator: 
         ticker = str(data.get("ticker") or data.get("stock_id") or "")
         config = _embedding_config("RETRIEVAL_DOCUMENT", title=str(data.get("company_name") or data.get("ticker") or "stock"))
         vectors, missing_indices, missing_texts = _split_cached_embeddings(EMBEDDING_MODEL, texts, config, ticker)
-        if missing_texts:
-            estimated_tokens = estimate_text_tokens("\n\n".join(missing_texts))
+        _attach_vectors(chunks, vectors)
+        for start, batch, estimated_tokens in _embedding_batches(missing_texts):
             api_key = await rotator.async_get_key(EMBEDDING_MODEL, estimated_tokens)
-            response = await embed_content_async(api_key, EMBEDDING_MODEL, missing_texts, config)
+            response = await embed_content_async(api_key, EMBEDDING_MODEL, batch, config)
             vectors = _merge_embedding_vectors(
                 vectors,
-                missing_indices,
-                missing_texts,
+                missing_indices[start:start + len(batch)],
+                batch,
                 _extract_embeddings(response),
                 EMBEDDING_MODEL,
                 config,
                 ticker,
             )
-        _attach_vectors(chunks, vectors)
+            _attach_vectors(chunks, vectors)
         return []
     except Exception as exc:
         if is_quota_or_rate_error(str(exc)) and api_key:
@@ -210,7 +227,7 @@ def embed_query(query: str, rotator: Optional[KeyRotator]) -> tuple[Optional[lis
         cached = _get_cached_embedding(EMBEDDING_MODEL, query, config)
         if cached:
             return cached, []
-        api_key = rotator.get_key(EMBEDDING_MODEL, estimate_text_tokens(query))
+        api_key = rotator.get_key(EMBEDDING_MODEL, estimate_input_tokens(query))
         response = embed_content(api_key, EMBEDDING_MODEL, query, config)
         vectors = _extract_embeddings(response)
         if vectors:
@@ -234,7 +251,7 @@ async def embed_query_async(query: str, rotator: Optional[KeyRotator]) -> tuple[
         cached = _get_cached_embedding(EMBEDDING_MODEL, query, config)
         if cached:
             return cached, []
-        api_key = await rotator.async_get_key(EMBEDDING_MODEL, estimate_text_tokens(query))
+        api_key = await rotator.async_get_key(EMBEDDING_MODEL, estimate_input_tokens(query))
         response = await embed_content_async(api_key, EMBEDDING_MODEL, query, config)
         vectors = _extract_embeddings(response)
         if vectors:

@@ -6,6 +6,9 @@ import re
 
 from llm_client import is_auth_error, is_missing_model_error, is_quota_or_rate_error
 from llm_rate_limits import AllKeysRpdDisabledError
+from llm_input_capacity import InputCapacityExceededError
+from llm_daily_budget import DailyBudgetBlockedError
+from llm_tool_rate_guard import ToolRequestGuardError
 
 
 def _is_server_5xx_error(error_msg: str) -> bool:
@@ -56,6 +59,12 @@ def _key_slot(api_key: str | None, rotator) -> tuple[int | None, int | None]:
 
 
 def _agent_error_category(exc: Exception) -> str:
+    if isinstance(exc, ToolRequestGuardError):
+        return "local_tool_guard"
+    if isinstance(exc, DailyBudgetBlockedError):
+        return "local_daily_budget"
+    if isinstance(exc, InputCapacityExceededError):
+        return "input_capacity"
     error_msg = str(exc)
     if isinstance(exc, AllKeysRpdDisabledError):
         return "quota"

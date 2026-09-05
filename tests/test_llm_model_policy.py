@@ -2,6 +2,14 @@ import sys
 import time
 from pathlib import Path
 from types import SimpleNamespace
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def legacy_retry_defaults(monkeypatch):
+    # Existing tests exercise the uncapped policy independently of local .env.
+    monkeypatch.setattr('agent_runtime.model_policy.LLM_QUOTA_MAX_ATTEMPTS_PER_MODEL', 0)
+    monkeypatch.setattr('agent_runtime.model_policy.LLM_ROUTE_SERVER_ERROR_MAX_ATTEMPTS', 0)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,6 +35,22 @@ from agent_runtime.retry_policy import (  # noqa: E402
 )
 from llm_rate_limits import AllKeysRpdDisabledError, ModelCircuitOpenError  # noqa: E402
 from settings.models import is_large_context_model  # noqa: E402
+
+
+def test_opt_in_quota_cap_switches_without_claiming_every_key_failed(monkeypatch):
+    import agent_runtime.model_policy as policy_module
+    monkeypatch.setattr(policy_module, 'LLM_QUOTA_MAX_ATTEMPTS_PER_MODEL', 4)
+    monkeypatch.setattr(policy_module, 'LLM_ROUTE_SERVER_ERROR_MAX_ATTEMPTS', 2)
+    policy = model_attempt_policy(0, True, 3, 16)
+    assert policy.server_error_attempts == 2
+    stop = make_model_retry_stop(policy, eligible_key_slots=lambda: set(range(1, 17)))
+    for attempt in range(1, 5):
+        error = AgentRateLimitError('429', 1, 60, key_slot=attempt, key_count=16)
+        assert stop(_retry_state(attempt, error)) is (attempt == 4)
+        assert not error.all_keys_exhausted
+    context = {}
+    state = record_model_failure(context, 'm', error)
+    assert not state.get('opened_until')
 
 
 def _retry_state(attempt, exc):
@@ -98,6 +122,15 @@ def test_parallel_peer_circuit_stops_current_quota_retry_immediately():
     assert stop(_retry_state(1, error)) is True
     assert error.all_keys_exhausted is True
     assert error.parallel_circuit_open is True
+
+
+def test_all_keys_already_disabled_stops_before_waiting_for_daily_reset():
+    policy = model_attempt_policy(model_index=1, has_fallback=False, max_retries=3, key_count=16)
+    error = AgentRateLimitError("all keys disabled until daily reset", 18000, 18000)
+    error.all_keys_exhausted = True
+
+    assert should_stop_retry(_retry_state(1, error), policy) is True
+    assert make_model_retry_stop(policy)(_retry_state(1, error)) is True
 
 
 def test_shared_model_circuit_publishes_only_after_quota_exhaustion():
