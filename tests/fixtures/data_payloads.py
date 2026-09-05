@@ -45,6 +45,8 @@ def fresh_audited_payload(
         "dividend_history": {"years": [], "dividends": [], "records": [], "source": "fixture"},
         "event_calendar": {"as_of_date": "2026-06-07", "events": []},
         "price_history_ranges": {"source": "fixture", "ranges": {}},
+        "daily_market_data": {"availability": "unavailable", "bars": []},
+        "technical_indicators": {"availability": "unavailable"},
         "beta": "1.05",
         "industry": "Semiconductors",
         "fetch_date": "2026年06月07日",

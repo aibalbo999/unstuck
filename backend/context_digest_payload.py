@@ -6,6 +6,7 @@ import json
 
 from agent_catalog import AGENT_NAMES
 from assistant_context import _format_previous, _format_structured_outputs_for_context
+from context_dependencies import digest_provenance, upstream_context_inputs
 from json_utils import extract_json_payload
 
 
@@ -35,8 +36,6 @@ def _build_context_digest_prompt(current_agent: int, context: dict) -> str:
         '  "risks_and_counterarguments": ["..."],\n'
         '  "open_data_quality_issues": ["..."]\n'
         "}\n\n"
-        "已解析的結構化輸出：\n"
-        f"{_format_structured_outputs_for_context(context)}\n\n"
         "前序分析精選片段（非全文，請只根據片段與結構化輸出提煉）：\n"
         f"{previous}"
     )
@@ -46,6 +45,7 @@ def _normalize_digest_text(text: str, current_agent: int, context: dict) -> str:
     payload = extract_json_payload(text or "")
     if isinstance(payload, dict):
         payload = _ensure_digest_payload_shape(payload)
+        payload["digest_provenance"] = digest_provenance(current_agent, context)
         return json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True)
     return json.dumps(
         _fallback_context_digest_payload(current_agent, context, reason="提煉 Agent 未回傳可解析 JSON"),
@@ -56,13 +56,15 @@ def _normalize_digest_text(text: str, current_agent: int, context: dict) -> str:
 
 
 def _fallback_context_digest_payload(current_agent: int, context: dict, reason: str) -> dict:
-    completed = sorted(context.get("analyses", {}).keys())
+    inputs = upstream_context_inputs(current_agent, context)
+    completed = list(inputs["analyses"])
     payload = {
         "digest_type": "deterministic_fallback",
         "reason": reason,
         "target_agent": current_agent,
         "completed_agents": completed,
-        "structured_outputs": context.get("structured_outputs", {}),
+        "structured_outputs": inputs["structured_outputs"],
+        "digest_provenance": digest_provenance(current_agent, context),
         "instruction": "提煉摘要不可用時，下一個 Agent 必須優先使用結構化輸出與系統提供的前序精選片段，不應假設已讀全文。",
     }
     return _ensure_digest_payload_shape(payload)

@@ -63,7 +63,7 @@ def test_v4_agents_have_names_prompts_and_model_routes():
 
 def test_swing_trade_setup_is_strictly_validated_and_normalized():
     assert get_structured_response_schema(24) is SwingTradeSetup
-    assert SwingTradeSetup.model_validate(TRADE_SETUP).model_dump() == TRADE_SETUP
+    assert SwingTradeSetup.model_validate(TRADE_SETUP).model_dump() == {**TRADE_SETUP, "transaction_cost": None}
 
     with pytest.raises(ValidationError):
         SwingTradeSetup.model_validate({**TRADE_SETUP, "trade_direction": "Buy"})

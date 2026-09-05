@@ -259,7 +259,7 @@ def test_structured_output_missing_requires_mode_native_execution_contracts():
     assert audit_repair._structured_output_missing(v3_context, 19) is True
 
     v3_context["structured_outputs"][19]["short_setup"] = {
-        "entry_trigger": "跌破 NT$95 且放量",
+        "entry_trigger": "等待跌破 NT$95 且放量後重新評估，暫不放空",
         "downside_target": "NT$80",
         "cover_stop": "站回 NT$105",
         "squeeze_risk": "融券回補推升波動",

@@ -9,13 +9,11 @@
             return moatLabelText(label).includes('整體');
         }
 
-        function moatOverallValue(labels, values, filteredValues) {
+        function moatOverallValue(labels, values) {
             const overallIndex = labels.findIndex(isOverallMoatLabel);
             const explicitOverall = overallIndex >= 0 ? values[overallIndex] : null;
             if (Number.isFinite(explicitOverall)) return explicitOverall;
-            const numericValues = filteredValues.filter(value => Number.isFinite(value));
-            if (!numericValues.length) return null;
-            return (numericValues.reduce((a, b) => a + b, 0) / numericValues.length).toFixed(1);
+            return null; // Missing overall evidence is not the average of available dimensions.
         }
 
         const moatLabels = CHART_DATA.moatLabels.map(moatLabelText);
@@ -89,7 +87,7 @@
 
         const overallEl = document.getElementById('moat-overall-score');
         if (overallEl) {
-            const overall = moatOverallValue(moatLabels, CHART_DATA.moatValues, filteredValues);
+            const overall = moatOverallValue(moatLabels, CHART_DATA.moatValues);
             overallEl.textContent = overall === null ? 'N/A' : String(overall);
         }
     }

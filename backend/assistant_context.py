@@ -7,6 +7,9 @@ import re
 
 from analysis_types import AnalysisContext
 from config import BLIND_CONTEXT_AGENTS, CONTEXT_TOTAL_CHAR_BUDGET, get_agent_context_budgets
+from context_dependencies import fresh_context_digest, upstream_agent_numbers, upstream_context_inputs
+from mapping_fields import safe_mapping_dict, safe_text
+from prompt_evidence import prompt_evidence_copy
 from validators import strip_generated_audit_sections
 
 
@@ -78,22 +81,47 @@ AGENT_CONTEXT_DEPENDENCIES = {
 }
 
 
-def _previous_agent_numbers(current_agent: int) -> list[int]:
+def _previous_agent_numbers(current_agent: int, context: AnalysisContext | None = None) -> list[int]:
     """Return the upstream agents visible to the current agent."""
-    explicit_dependencies = AGENT_CONTEXT_DEPENDENCIES.get(current_agent)
-    if explicit_dependencies is not None:
-        return list(explicit_dependencies)
-    return list(range(1, current_agent))
+    return list(upstream_agent_numbers(current_agent, context))
 
 
-def _format_structured_outputs_for_context(context: AnalysisContext) -> str:
-    structured = context.get("structured_outputs", {}) or {}
+def _format_structured_outputs_for_context(context: AnalysisContext, current_agent: int | None = None, max_chars: int | None = None) -> str:
+    context = safe_mapping_dict(context)
+    context = context if context is not None else {}
+    structured = (
+        upstream_context_inputs(current_agent, context)["structured_outputs"]
+        if current_agent is not None
+        else prompt_evidence_copy(safe_mapping_dict(context.get("structured_outputs")) or {})
+    )
     if not structured:
         return "{}"
-    try:
-        return json.dumps(structured, ensure_ascii=False, indent=2, sort_keys=True)
-    except TypeError:
-        return str(structured)
+    return _bounded_context_json(structured, max_chars)
+
+
+def _bounded_context_json(value: dict, max_chars: int | None) -> str:
+    """Omit whole fields or entries, never cut serialized JSON or numeric evidence."""
+    def encode(payload):
+        return json.dumps(payload, ensure_ascii=False, indent=2, default=safe_text)
+
+    encoded = encode(value)
+    if max_chars is None or len(encoded) <= max_chars:
+        return encoded
+    selected = {"_context_omitted": True}
+    if len(encode(selected)) > max_chars:
+        return "{}"
+    for key, item in value.items():
+        candidate = {**selected, key: item}
+        if len(encode(candidate)) <= max_chars:
+            selected = candidate
+        elif isinstance(item, dict):
+            fields = {}
+            for field, field_value in item.items():
+                candidate = {**selected, key: {**fields, field: field_value}}
+                if len(encode(candidate)) <= max_chars:
+                    fields[field] = field_value
+                    selected = candidate
+    return encode(selected)
 
 
 def _split_context_chunks(text: str) -> list[str]:
@@ -140,7 +168,7 @@ def _select_relevant_context(text: str, current_agent: int, source_agent: int, m
     used = 0
     for _, idx, chunk in scored:
         remaining = max_chars - used
-        if remaining <= 120:
+        if remaining <= 0:
             break
         snippet = _clip_chunk(chunk, min(len(chunk), remaining))
         selected.append((idx, snippet))
@@ -152,7 +180,9 @@ def _select_relevant_context(text: str, current_agent: int, source_agent: int, m
     output = "\n\n".join(snippet for _, snippet in selected).strip()
     omitted = max(len(str(text or "")) - len(output), 0)
     if omitted > 0:
-        output = f"{output}\n\n（系統已依 Agent {current_agent} 任務精選前序片段，約省略 {omitted} 字。）"
+        note = f"\n\n（系統已依 Agent {current_agent} 任務精選前序片段，約省略 {omitted} 字。）"
+        if len(note) < max_chars:
+            output = output[:max_chars - len(note)] + note
     return output
 
 
@@ -166,8 +196,11 @@ def _format_previous(
     if current_agent in BLIND_CONTEXT_AGENTS:
         return "（盲測模式：本 Agent 僅使用原始財務資料、工具結果與自身檢索資料，不引用前序 Agent 分析。）"
 
-    analyses = context.get("analyses", {})
-    if not analyses:
+    context = safe_mapping_dict(context)
+    context = context if context is not None else {}
+    inputs = upstream_context_inputs(current_agent, context)
+    analyses = inputs["analyses"]
+    if not analyses and not inputs["structured_outputs"]:
         return "（無前序分析）"
 
     dynamic_total_budget, per_agent_char_budget = get_agent_context_budgets(current_agent)
@@ -183,33 +216,42 @@ def _format_previous(
         6: "多空辯論",
     }
 
+    max_total_chars = max(0, int(max_total_chars))
+    if max_total_chars < 80:
+        return "（前序 context 預算不足）" if max_total_chars >= 20 else ""
+    # Reserve source slices before admitting digests or structured narratives.
+    source_limit = max_total_chars * 3 // 5 if inputs["structured_outputs"] or include_digest else max_total_chars
+    source_parts = ["【前序分析精選片段（非全文，依下一位 Agent 任務檢索）】"]
+    sources = [(agent, safe_text(analyses[agent])) for agent in _previous_agent_numbers(current_agent, context) if agent in analyses]
+    for index, (agent, text) in enumerate(sources):
+        name = agent_names.get(agent, f"Agent {agent}")
+        header = f"【{name}｜精選片段】\n"
+        remaining = source_limit - len("\n\n".join(source_parts)) - 2
+        per_source = min(per_agent_char_budget, remaining // (len(sources) - index) - len(header))
+        if per_source <= 0:
+            break
+        snippet = _select_relevant_context(text, current_agent, agent, per_source)
+        if snippet:
+            source_parts.append(header + snippet)
+
+    source_text = "\n\n".join(source_parts)
     parts = []
-    digest = (context.get("context_digests", {}) or {}).get(current_agent)
-    if include_digest and digest:
-        parts.append(f"【提煉 Agent 結構化摘要】\n{digest}")
-
-    structured_context = _format_structured_outputs_for_context(context)
-    if structured_context != "{}":
-        parts.append(f"【已解析結構化輸出】\n{structured_context}")
-
-    parts.append("【前序分析精選片段（非全文，依下一位 Agent 任務檢索）】")
-
-    for i in _previous_agent_numbers(current_agent):
-        if i in analyses:
-            name = agent_names.get(i, f"Agent {i}")
-            used_chars = len("\n\n".join(parts))
-            if used_chars >= max_total_chars:
-                parts.append("（前序片段已達系統 context 預算上限，後續 Agent 請以結構化輸出與提煉摘要為準。）")
-                break
-            remaining_budget = max_total_chars - used_chars
-            per_agent_budget = min(per_agent_char_budget, remaining_budget)
-            clean_analysis = _select_relevant_context(
-                str(analyses[i]),
-                current_agent=current_agent,
-                source_agent=i,
-                max_chars=per_agent_budget,
-            )
-            if clean_analysis:
-                parts.append(f"【{name}｜精選片段】\n{clean_analysis}")
-
-    return "\n\n".join(parts) if parts else "（無前序分析）"
+    remaining = max_total_chars - len(source_text) - 2
+    digest = fresh_context_digest(current_agent, context) if include_digest else None
+    raw_digests = safe_mapping_dict(context.get("context_digests")) or {}
+    if include_digest and (current_agent in raw_digests or str(current_agent) in raw_digests):
+        header = "【提煉 Agent 結構化摘要】\n"
+        if digest:
+            digest_budget = max(0, remaining // 2 - len(header) - 2)
+            digest_text = _bounded_context_json(json.loads(digest), digest_budget)
+        else:
+            digest_text = "（摘要版本未驗證或已過期，請使用下列來源。）"
+        if len(header + digest_text) + 2 <= remaining:
+            parts.append(header + digest_text)
+            remaining -= len(parts[-1]) + 2
+    header = "【已解析結構化輸出】\n"
+    if inputs["structured_outputs"] and remaining >= len(header) + 4:
+        structured_context = _format_structured_outputs_for_context(context, current_agent, remaining - len(header) - 2)
+        parts.append(header + structured_context)
+    parts.append(source_text)
+    return "\n\n".join(parts)

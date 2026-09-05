@@ -23,7 +23,7 @@
     ],
     "per_agent": {
       "3": [
-        "護城河輸出前確認品牌影響力、網路效應、轉換成本、成本優勢、專利技術與整體護城河六個分數皆存在且為 1-10。"
+        "護城河六個欄位皆須保留；有證據為 1-10，未知為 null 並說明未評估。禁止補成 1、0 或預設平均。"
       ],
       "4": [
         "估值輸出前確認熊市情境、基本情境、牛市情境三個完整股價皆存在，且滿足熊市情境 <= 基本情境 <= 牛市情境。"
@@ -32,20 +32,22 @@
         "最終建議輸出前確認 recommendation 同時包含建議、短期目標（3個月）、中期目標（6個月）、長期目標（12個月）、長期潛力（5年）與信心指數。"
       ],
       "12": [
-        "護城河輸出前確認品牌影響力、網路效應、轉換成本、成本優勢、專利技術與整體護城河六個分數皆存在且為 1-10。"
+        "護城河六個欄位皆須保留；有證據為 1-10，未知為 null 並說明未評估。禁止補成 1、0 或預設平均。"
       ],
       "14": [
         "估值輸出前確認熊市情境、基本情境、牛市情境三個完整股價皆存在，且滿足熊市情境 <= 基本情境 <= 牛市情境。"
       ],
       "16": [
-        "最終交易決策輸出前確認 recommendation 欄位完整，且 position_plan 同時包含 action、entry_zone、position_size、stop_loss、risk_reward 與 invalidation_condition。"
+        "最終交易決策輸出前確認 recommendation 欄位完整，且 position_plan 同時包含 action、entry_zone、position_size、stop_loss、risk_reward 與 invalidation_condition。",
+        "等待且 0% 部位是合法不交易；可選同期間 target_price、transaction_cost、horizon_trading_days 保留未知，不補造。"
       ],
       "19": [
         "泡沫狙擊最終輸出前確認 short_setup 同時包含 entry_trigger、downside_target、cover_stop、squeeze_risk 與 thesis_invalidation，且正文對應呈現做空觸發與防軋空停損。",
-        "最終 [投資建議]...[/投資建議] 區塊必須是全文最後內容，不得在 [/投資建議] 後添加任何文字。"
+        "最終 [投資建議]...[/投資建議] 區塊必須是全文最後內容，不得在 [/投資建議] 後添加任何文字。",
+        "非放空且明確等待不建空單時可保留空目標／停損，仍須說明借券或軋空資料缺口與重新評估條件。"
       ],
       "24": [
-        "Trade Setup 輸出前確認 trade_direction、entry_zone、target_price、stop_loss、support_level、resistance_level、core_catalyst、risk_level 八個欄位皆非空。"
+        "Trade Setup 八個核心欄位須保留；Long/Short須有可驗證的進場/目標/停損，Neutral可N/A但須明確不交易及重新評估條件。可選transaction_cost未知為null。"
       ]
     },
     "per_pipeline": {
@@ -79,23 +81,23 @@
         "    \"先用一句話自問：哪個證據支持/削弱品牌、網路效應、轉換成本、成本優勢或專利技術？再用一句話回答。至少 3 項。\"",
         "  ],",
         "  \"moat_scores\": {",
-        "    \"品牌影響力\": number,",
-        "    \"網路效應\": number,",
-        "    \"轉換成本\": number,",
-        "    \"成本優勢\": number,",
-        "    \"專利技術\": number,",
-        "    \"整體護城河\": number",
+        "    \"品牌影響力\": number|null,",
+        "    \"網路效應\": number|null,",
+        "    \"轉換成本\": number|null,",
+        "    \"成本優勢\": number|null,",
+        "    \"專利技術\": number|null,",
+        "    \"整體護城河\": number|null",
         "  },",
         "  \"analysis_markdown\": \"繁體中文正式報告正文\"",
         "}"
       ],
       "rules": [
         "reasoning_steps 必須先於 moat_scores 產生，且每一步都要連結具體證據、反證或資料限制。",
-        "所有分數必須是 1-10 的數字。",
+        "有證據的分數必須是 1-10；無足夠證據時填 null 並標記未評估，不得以低分代替。",
         "analysis_markdown 不可重複系統提示詞或草稿筆記。",
         "任一護城河維度給 7 分以上，reasoning_steps 或 analysis_markdown 必須引用至少 1 項具體數字、同業比較、專利/市佔/客戶黏著度證據或清楚處理反證。",
-        "任一護城河維度給 8 分以上，必須至少列出 2 項具體證據；若無數據支持，該維度最高 6 分，且需在 analysis_markdown 標示資料缺口。",
-        "成本優勢必須引用毛利率、淨利率、單位成本、規模或同業利潤率比較；缺少比較資料時成本優勢最高 6 分。"
+        "任一護城河維度給 8 分以上，必須至少列出 2 項具體證據；若證據不足以評分，該維度填 null，並在 analysis_markdown 標示資料缺口。",
+        "成本優勢必須引用毛利率、淨利率、單位成本、規模或同業利潤率比較；缺少足以評分的比較證據時成本優勢填 null。"
       ]
     },
     "4": {
@@ -179,23 +181,23 @@
         "    \"先用一句話自問：哪個證據支持/削弱品牌、網路效應、轉換成本、成本優勢或專利技術？再用一句話回答。至少 3 項。\"",
         "  ],",
         "  \"moat_scores\": {",
-        "    \"品牌影響力\": number,",
-        "    \"網路效應\": number,",
-        "    \"轉換成本\": number,",
-        "    \"成本優勢\": number,",
-        "    \"專利技術\": number,",
-        "    \"整體護城河\": number",
+        "    \"品牌影響力\": number|null,",
+        "    \"網路效應\": number|null,",
+        "    \"轉換成本\": number|null,",
+        "    \"成本優勢\": number|null,",
+        "    \"專利技術\": number|null,",
+        "    \"整體護城河\": number|null",
         "  },",
         "  \"analysis_markdown\": \"繁體中文正式報告正文\"",
         "}"
       ],
       "rules": [
         "reasoning_steps 必須先於 moat_scores 產生，且每一步都要連結具體證據、反證或資料限制。",
-        "所有分數必須是 1-10 的數字。",
+        "有證據的分數必須是 1-10；無足夠證據時填 null 並標記未評估，不得以低分代替。",
         "analysis_markdown 不可重複系統提示詞或草稿筆記。",
         "任一護城河維度給 7 分以上，reasoning_steps 或 analysis_markdown 必須引用至少 1 項具體數字、同業比較、專利/市佔/客戶黏著度證據或清楚處理反證。",
-        "任一護城河維度給 8 分以上，必須至少列出 2 項具體證據；若無數據支持，該維度最高 6 分，且需在 analysis_markdown 標示資料缺口。",
-        "成本優勢必須引用毛利率、淨利率、單位成本、規模或同業利潤率比較；缺少比較資料時成本優勢最高 6 分。"
+        "任一護城河維度給 8 分以上，必須至少列出 2 項具體證據；若證據不足以評分，該維度填 null，並在 analysis_markdown 標示資料缺口。",
+        "成本優勢必須引用毛利率、淨利率、單位成本、規模或同業利潤率比較；缺少足以評分的比較證據時成本優勢填 null。"
       ]
     },
     "14": {
@@ -275,8 +277,9 @@
         "reasoning_steps 必須先於 recommendation 產生，且至少涵蓋估值、籌碼與一項排雷/總經反方觀點。",
         "所有目標價都必須與 Agent 14 的三情境估值同量級，不可發生千元被縮成個位數。",
         "recommendation 必須同時包含 建議、短期目標（3個月）、中期目標（6個月）、長期目標（12個月）、長期潛力（5年）、信心指數；建議只能使用 schema 允許值。",
-        "position_plan 六個欄位皆為必填；沒有足夠證據時 action 使用等待，其他欄位明確寫資料不足與待驗證條件，不得補造價位或比例。",
-        "next_catalysts 必須列出 1-3 個未來可觀察事件，trigger_condition 要能直接轉成 watchlist radar 條件，不可寫成泛泛口號。"
+        "position_plan 六個核心欄位須保留；等待時 position_size=0%，entry_zone/stop_loss/risk_reward 可填 N/A，但 invalidation_condition 須說明可驗證的重新評估條件。",
+        "next_catalysts 必須列出 1-3 個未來可觀察事件，trigger_condition 要能直接轉成 watchlist radar 條件，不可寫成泛泛口號。",
+        "position_plan 可選 target_price（同期間目標）、transaction_cost、horizon_trading_days；無可靠同期間目標時風報比維持未驗證。horizon_trading_days 是同一交易計畫的可選持有期間，僅可提供 1-252 的整數交易日或 null；不明時不得自行借用 recommendation 的 3/6/12 月期間。transaction_cost 是可選的非負每股來回交易成本金額，未知為 null，不得當作 0；有成本時必須納入風報比與成本揭露。"
       ]
     },
     "19": {
@@ -318,12 +321,13 @@
       ],
       "rules": [
         "reasoning_steps 必須先於 recommendation 產生，且至少涵蓋 Agent 17 的泡沫論述、Agent 18 的財務/籌碼反證、崩盤催化與停損風控。",
-        "recommendation.建議 只能是「買入」、「持有」、「避免」、「放空」四者之一；除非資料顯示估值與財務已恢復合理，否則應傾向「放空」或「避免」。",
-        "short_setup 五個欄位皆為必填，且必須直接來自可追溯證據；資料不足時明確標示，不得補造價位。",
+        "recommendation.建議 只能是「買入」、「持有」、「避免」、「放空」四者之一；依證據選擇，不預設泡沫成立，允許未發現泡沫或不宜放空；避免是不建立新部位，不預設目標價下跌。",
+        "short_setup 五個核心欄位須保留。只有明確不建立空單且等待重新評估時，downside_target/cover_stop 可為 null 或 N/A；不得一面指示立即放空一面豁免價位。實際空單需 target < entry < stop。",
         "analysis_markdown 的最後必須自然導出 recommendation，且正文必須明確出現「做空觸發條件（Catalyst for crash）」與「防軋空停損點（Stop-loss level）」兩段。",
         "所有目標價都必須是完整股價數字或清楚區間，不可發生千元被縮成個位數。",
         "analysis_markdown 必須使用完全相同的章節名稱「做空觸發條件（Catalyst for crash）」與「防軋空停損點（Stop-loss level）」；最終 [投資建議] 區塊必須是全文最後內容，不得在 [/投資建議] 後添加任何文字。",
-        "next_catalysts 必須列出 1-3 個未來可觀察事件，trigger_condition 要能直接轉成 watchlist radar 條件，不可寫成泛泛口號。"
+        "next_catalysts 必須列出 1-3 個未來可觀察事件，trigger_condition 要能直接轉成 watchlist radar 條件，不可寫成泛泛口號。",
+        "short_setup 可選 transaction_cost 與 horizon_trading_days。horizon_trading_days 是同一交易計畫的可選持有期間，僅可提供 1-252 的整數交易日或 null；不明時不得自行借用 recommendation 的 3/6/12 月期間。transaction_cost 是可選的非負每股來回交易成本金額，未知為 null，不得當作 0；有成本時必須納入風報比與成本揭露。"
       ]
     },
     "20": {
@@ -343,17 +347,18 @@
       ]
     },
     "21": {
-      "title": "紅軍空頭結構化輸出規則",
+      "title": "獨立反證結構化輸出規則",
       "intro": "請只輸出合法 JSON，不要 Markdown code fence。",
       "schema_lines": [
         "{",
-        "  \"thesis_summary\": \"空頭核心論點\",",
+        "  \"thesis_summary\": \"被檢驗論點的反證摘要\",",
         "  \"downside_risks\": [{\"title\": \"風險\", \"evidence\": \"State 證據\", \"impact\": \"衝擊\", \"severity\": \"warning|high|critical\", \"confidence\": 0.0}],",
-        "  \"analysis_markdown\": \"繁體中文空頭報告\"",
+        "  \"analysis_markdown\": \"繁體中文獨立反證報告\"",
         "}"
       ],
       "rules": [
-        "downside_risks 必須 3 至 5 項。",
+        "downside_risks 只列有證據的 0 至 5 項，不得為湊滿數量補造風險；不足3項須在正文說明資料限制或反證不足。",
+        "模式 C 的 downside_risks 是空方部位的風險，須挑戰空方主要論點；模式 A/B 為多頭部位的下行風險。",
         "每項風險必須具備可追溯證據，不得補造。"
       ]
     },
@@ -369,17 +374,18 @@
         "  \"support_level\": \"可追溯的近期支撐位或可驗證條件\",",
         "  \"resistance_level\": \"可追溯的近期壓力位或可驗證條件\",",
         "  \"core_catalyst\": \"一句話總結未來 1-2 週的可驗證催化劑\",",
-        "  \"risk_level\": \"High|Medium|Low\"",
+        "  \"risk_level\": \"High|Medium|Low\",",
+        "  \"transaction_cost\": null",
         "}"
       ],
       "rules": [
-        "所有八個欄位皆為必填，禁止加入其他欄位。",
+        "八個核心欄位皆須保留，另允許可選 transaction_cost；未知成本填 null，明確0元仍須有資料支持。",
         "trade_direction 只能是 Long、Short 或 Neutral；risk_level 只能是 High、Medium 或 Low。",
-        "entry_zone、target_price、stop_loss、support_level 與 resistance_level 不得留白；stop_loss 必須對應 ATR、關鍵均線、支撐壓力或型態失效條件。",
-        "target_price 只能是一個單一目標價，或使用連字號/至表達一個明確價格區間；不得把 1-2 週期間、無價位條件、支撐位、壓力位或多個情境價格塞入 target_price。無可靠目標價時填「資料不足」，由 final audit 阻擋並觸發修復。",
-        "core_catalyst 只能用一句話描述未來 1-2 週內可驗證的事件，不得使用長期題材替代。",
-        "技術、籌碼與事件證據衝突或資料不足時，trade_direction 必須為 Neutral，risk_level 應提高。",
-        "輸出前確認 JSON 只有八個欄位且每個欄位非空；不確定方向時使用 Neutral + High，不得留白或 N/A。"
+        "Long/Short 的進場、目標、停損須為可解析正數價位，以完整進場區間最差價驗證 Long：stop < entry < target，Short：target < entry < stop；不可用現價代替進場基準。",
+        "Neutral 表示不交易；entry_zone、target_price、stop_loss、support_level、resistance_level 可為 N/A，但 core_catalyst 或 entry_zone 必須明確寫等待／不交易，core_catalyst 須說明可驗證的重新評估條件；不得混入立即交易指示。",
+        "target_price 只能是一個單一目標價，或使用連字號/至表達一個明確價格區間；不得把 1-2 週期間、無價位條件、支撐或多個情境塞入目標。沒有可靠價位時使用 Neutral + High，不得強行補價。",
+        "core_catalyst 只使用未來1-2週可驗證事件或明確等待條件；使用 short_term_market_context 的日線、技術指標與日期投影，不得把長期題材當短期催化。",
+        "transaction_cost 使用每股來回交易成本金額，非百分比；未知保持 null，不得以0宣稱成本已計入。"
       ]
     }
   },

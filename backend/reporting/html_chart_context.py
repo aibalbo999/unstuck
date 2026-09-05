@@ -53,7 +53,7 @@ def build_html_chart_context(data: dict, parsed: dict) -> dict:
         "moat_scores": moat_scores,
         "moat_labels": moat_labels,
         "moat_values": moat_values,
-        "overall_moat": moat_scores.get("整體護城河", 0),
+        "overall_moat": moat_scores.get("整體護城河"),
         "price_targets": price_targets,
         "pe_river": pe_river,
         "pe_river_title": pe_river_title,

@@ -233,6 +233,6 @@ def test_strategy_evaluator_numeric_conversion_failures_do_not_interrupt_compari
     assert result["summary"]["total_artifacts"] == 1
     assert result["summary"]["best_model_id"] == "mode-a-deep-research"
     assert result["models"]["mode-a-deep-research"]["hit_rate_pct"] == 100.0
-    assert result["models"]["mode-a-deep-research"]["average_strategy_roi_pct"] == 0.0
-    assert result["models"]["mode-a-deep-research"]["average_excess_return_pct"] == 0.0
-    assert result["models"]["mode-a-deep-research"]["worst_max_drawdown_pct"] == 0.0
+    assert result["models"]["mode-a-deep-research"]["average_strategy_roi_pct"] is None
+    assert result["models"]["mode-a-deep-research"]["average_excess_return_pct"] is None
+    assert result["models"]["mode-a-deep-research"]["worst_max_drawdown_pct"] is None

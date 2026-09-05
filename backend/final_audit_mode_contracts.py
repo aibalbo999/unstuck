@@ -8,8 +8,11 @@ import unicodedata
 
 from data_trust_values import has_value
 from mapping_fields import safe_text
+from recommendation_labels import normalize_recommendation_label
 from structured_output_normalizer import structured_output_to_report_text
 from validators import strip_generated_audit_sections
+from trade_execution_contract import contains_trade_order, evaluate_trade_execution, neutral_observation_is_explicit, observation_reason_is_explicit, short_observation_is_explicit
+from trade_price_inputs import parse_position_percentage, price_contract_text
 
 
 REQUIRED_TRADE_SETUP_FIELDS = {
@@ -71,7 +74,7 @@ def _recommendation_block_at_tail(text: str) -> bool:
 def _target_price_contract_text(value) -> str:
     text = unicodedata.normalize("NFKC", safe_text(value))
     text = _HORIZON_RANGE_RE.sub("", text)
-    return _PERCENT_RE.sub("", _HORIZON_VALUE_RE.sub("", text))
+    return price_contract_text(_PERCENT_RE.sub("", _HORIZON_VALUE_RE.sub("", text)))
 
 
 def _target_price_contract_numbers(text: str) -> tuple[list[float], bool]:
@@ -114,23 +117,69 @@ def v3_recommendation_contract_issues(
     return issues
 
 
-def v2_position_plan_contract_issues(position_plan: dict) -> list[str]:
+def v2_position_plan_contract_issues(position_plan: dict, *, target_price=None, recommendation=None) -> list[str]:
     issues = []
-    missing = sorted(key for key in REQUIRED_POSITION_PLAN_FIELDS if _execution_value_is_missing(position_plan.get(key)))
+    waiting = position_plan.get("action") == "等待"
+    required = {"action", "position_size", "invalidation_condition"} if waiting else REQUIRED_POSITION_PLAN_FIELDS
+    missing = sorted(key for key in required if (
+        not observation_reason_is_explicit(position_plan.get(key))
+        if waiting and key == "invalidation_condition"
+        else _execution_value_is_missing(position_plan.get(key))
+    ))
     if missing:
         issues.append(f"缺少或資料不足的實戰部位欄位：{', '.join(missing)}")
     if position_plan.get("action") not in {"進場", "續抱", "減碼", "等待"}:
         issues.append(f"position action 不在允許值內：{position_plan.get('action') or '空白'}")
+    if waiting:
+        if contains_trade_order(position_plan.get("entry_zone")):
+            issues.append("等待且零部位的計畫不得同時包含買賣或進場指令。")
+        if parse_position_percentage(position_plan.get("position_size")) != (0.0, 0.0):
+            issues.append("等待時 position_size 必須明確為 0%，不得將未知部位當成零。")
+        return issues
+    label = recommendation.get("建議", recommendation.get("recommendation")) if isinstance(recommendation, dict) else recommendation
+    direction = "Short" if normalize_recommendation_label(label) == "放空" else "Long"
+    execution = evaluate_trade_execution(
+        direction=direction if position_plan.get("action") in {"進場", "續抱", "減碼"} else None,
+        entry_zone=position_plan.get("entry_zone"),
+        target_price=position_plan.get("target_price") or target_price,
+        stop_loss=position_plan.get("stop_loss"), position_size=position_plan.get("position_size"),
+        risk_reward=position_plan.get("risk_reward"), transaction_cost=position_plan.get("transaction_cost"),
+        require_target=False,
+    )
+    issues.extend(issue["message"] for issue in execution["issues"])
     return issues
 
 
-def v3_short_setup_contract_issues(short_setup: dict) -> list[str]:
-    missing = sorted(key for key in REQUIRED_SHORT_SETUP_FIELDS if _execution_value_is_missing(short_setup.get(key)))
-    return [f"缺少或資料不足的逆勢交易欄位：{', '.join(missing)}"] if missing else []
+def v3_short_setup_contract_issues(short_setup: dict, *, recommendation=None) -> list[str]:
+    label = recommendation.get("建議", recommendation.get("recommendation")) if isinstance(recommendation, dict) else recommendation
+    observation = label in {"避免", "持有", "買入"}
+    required = {"entry_trigger", "squeeze_risk", "thesis_invalidation"} if observation else REQUIRED_SHORT_SETUP_FIELDS
+    missing = sorted(key for key in required if (
+        not observation_reason_is_explicit(short_setup.get(key))
+        if observation and key in {"squeeze_risk", "thesis_invalidation"}
+        else _execution_value_is_missing(short_setup.get(key))
+    ))
+    issues = [f"缺少或資料不足的逆勢交易欄位：{', '.join(missing)}"] if missing else []
+    if observation:
+        if not short_observation_is_explicit(short_setup):
+            issues.append("非放空建議必須明確等待或不開倉，entry_trigger 不得混入建立空單的執行指令。")
+        return issues
+    execution = evaluate_trade_execution(
+        direction="Short", entry_zone=short_setup.get("entry_trigger"),
+        target_price=short_setup.get("downside_target"), stop_loss=short_setup.get("cover_stop"),
+        transaction_cost=short_setup.get("transaction_cost"),
+    )
+    return issues + [issue["message"] for issue in execution["issues"]]
 
 
 def v4_trade_setup_contract_issues(trade_setup: dict) -> list[str]:
     issues = []
+    if neutral_observation_is_explicit(trade_setup):
+        return issues
+    if trade_setup.get("trade_direction") == "Neutral" and contains_trade_order(
+        f"{safe_text(trade_setup.get('entry_zone'))} {safe_text(trade_setup.get('core_catalyst'))}"
+    ):
+        issues.append("Neutral 不交易計畫不得同時包含買賣或進場指令。")
     missing = sorted(
         key for key in REQUIRED_TRADE_SETUP_FIELDS if _execution_value_is_missing(trade_setup.get(key))
     )
@@ -156,6 +205,13 @@ def v4_trade_setup_contract_issues(trade_setup: dict) -> list[str]:
         len(target_numbers) == 2 and not _PRICE_RANGE_RE.search(target_text)
     ):
         issues.append("target_price 含多個價位，必須改為單一目標或一個明確價格區間。")
+    if trade_setup.get("trade_direction") in {"Long", "Short"}:
+        execution = evaluate_trade_execution(
+            direction=trade_setup.get("trade_direction"), entry_zone=trade_setup.get("entry_zone"),
+            target_price=trade_setup.get("target_price"), stop_loss=trade_setup.get("stop_loss"),
+            risk_reward=trade_setup.get("risk_reward"), transaction_cost=trade_setup.get("transaction_cost"),
+        )
+        issues.extend(issue["message"] for issue in execution["issues"])
     return issues
 
 
@@ -172,9 +228,10 @@ def mode_execution_contract_issues(
         (short_setup_agent, v3_short_setup_contract_issues, "short_setup"),
         (trade_setup_agent, v4_trade_setup_contract_issues, "trade_setup"),
     )
-    return [
-        (agent_num, issue)
-        for agent_num, checker, field in checks
-        if agent_num is not None
-        for issue in checker(parsed.get(field, {}) or {})
-    ]
+    issues = []
+    for agent_num, checker, field in checks:
+        if agent_num is None:
+            continue
+        kwargs = {"recommendation": parsed.get("recommendation")} if field in {"position_plan", "short_setup"} else {}
+        issues.extend((agent_num, issue) for issue in checker(parsed.get(field, {}) or {}, **kwargs))
+    return issues

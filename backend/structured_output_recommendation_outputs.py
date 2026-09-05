@@ -7,6 +7,7 @@ from typing import Literal
 from pydantic import Field, model_validator
 
 from mapping_fields import safe_mapping_dict
+from trade_price_inputs import optional_execution_text
 from structured_output_model_base import _safe_string_text, StructuredModel
 from structured_output_recommendation_mixins import NextCatalystsMixin, ReasoningStepsMixin, _normalize_recommendation_field, _populate_safe_next_catalysts
 from structured_output_recommendation_types import (
@@ -27,6 +28,9 @@ class PositionPlan(StructuredModel):
     stop_loss: str = Field(..., min_length=1)
     risk_reward: str = Field(..., min_length=1)
     invalidation_condition: str = Field(..., min_length=1)
+    target_price: str | None = Field(default=None, description="與部位計畫同一交易期間的可驗證目標價；未知保留 null，不套用其他期間的投資目標。")
+    transaction_cost: str | None = Field(default=None, description="每股來回交易成本的金額，含手續費、稅及滑價；未知保留 null，明確免費才填 0，不填百分比。")
+    horizon_trading_days: int | None = Field(default=None, strict=True, ge=1, le=252, description="部位計畫與目標價共同適用的交易日數，僅能明確指定 1 到 252 的整數；無法確定為 null。")
 
     @model_validator(mode="before")
     @classmethod
@@ -41,6 +45,9 @@ class PositionPlan(StructuredModel):
             "stop_loss": _safe_string_text(plan.get("stop_loss"), "資料不足，暫不建立部位"),
             "risk_reward": _safe_string_text(plan.get("risk_reward"), "資料不足"),
             "invalidation_condition": _safe_string_text(plan.get("invalidation_condition"), "資料不足"),
+            "target_price": optional_execution_text(plan.get("target_price")),
+            "transaction_cost": optional_execution_text(plan.get("transaction_cost")),
+            "horizon_trading_days": plan.get("horizon_trading_days"),
         }
 
 
@@ -50,6 +57,8 @@ class ShortSetup(StructuredModel):
     cover_stop: str = Field(..., min_length=1)
     squeeze_risk: str = Field(..., min_length=1)
     thesis_invalidation: str = Field(..., min_length=1)
+    transaction_cost: str | None = Field(default=None, description="每股來回空單交易成本金額，含借券、費稅及滑價；未知為 null，明確免費才為 0。")
+    horizon_trading_days: int | None = Field(default=None, strict=True, ge=1, le=252, description="空方交易計畫與目標價共同適用的交易日數，僅能明確指定 1 到 252 的整數；無法確定為 null。")
 
     @model_validator(mode="before")
     @classmethod
@@ -62,6 +71,8 @@ class ShortSetup(StructuredModel):
             "cover_stop": _safe_string_text(setup.get("cover_stop"), "資料不足，暫不建立空方部位"),
             "squeeze_risk": _safe_string_text(setup.get("squeeze_risk"), "資料不足"),
             "thesis_invalidation": _safe_string_text(setup.get("thesis_invalidation"), "資料不足"),
+            "transaction_cost": optional_execution_text(setup.get("transaction_cost")),
+            "horizon_trading_days": setup.get("horizon_trading_days"),
         }
 
 

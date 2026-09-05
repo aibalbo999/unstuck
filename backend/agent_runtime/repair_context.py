@@ -6,6 +6,7 @@ from collections.abc import Iterable
 from typing import Any
 
 from analysis_types import AnalysisContext
+from context_dependencies import invalidate_repair_digests
 
 REPAIR_CONTEXT_KEYS = (
     "_audit_retry_instruction",
@@ -32,6 +33,7 @@ def install_repair_attempt_context(
     model_override[agent_num] = list(model_sequence)
     context["_model_sequence_override"] = model_override
     _pop_structured_output(context, agent_num)
+    invalidate_repair_digests(context, agent_num)
 
 
 def restore_repair_context(context: AnalysisContext, previous: dict[str, object]) -> None:
@@ -53,6 +55,7 @@ def _pop_structured_output(context: AnalysisContext, agent_num: int) -> None:
     structured_outputs = context.setdefault("structured_outputs", {})
     try:
         structured_outputs.pop(agent_num, None)
+        structured_outputs.pop(str(agent_num), None)
     except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
         context["structured_outputs"] = {}
 

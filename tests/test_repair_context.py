@@ -32,7 +32,8 @@ def test_repair_attempt_context_installs_retry_state_and_preserves_existing_over
     assert context["_audit_reflection_instruction"] == "前次退件反思摘要：請改寫估值。"
     assert context["_audit_retry_instruction"] == "請修復 Agent 7 的品質紅線。"
     assert context["_model_sequence_override"] == {3: ["existing-model"], 7: ["audit-model-a", "audit-model-b"]}
-    assert context["structured_outputs"] == {"7": {"legacy": "json"}, 3: {"keep": "json"}}
+    # Both key formats identify the same stale report; preserve only other agents.
+    assert context["structured_outputs"] == {3: {"keep": "json"}}
 
 
 def test_repair_attempt_context_restore_removes_new_keys_and_restores_previous_values():

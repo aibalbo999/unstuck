@@ -7,6 +7,7 @@ import json
 from typing import Annotated, Any, TypedDict, cast
 
 from agent_state import AgentState
+from state_report_risks import reconcile_report_risks
 from rag_runtime import InMemoryRagIndex, RagChunk
 
 
@@ -133,7 +134,7 @@ def agent_state_from_graph(state: AgentGraphState | dict[str, Any]) -> AgentStat
         for key, value in dict(state).items()
         if key in allowed_fields
     }
-    return AgentState.model_validate(domain_payload)
+    return reconcile_report_risks(AgentState.model_validate(domain_payload))
 
 
 def rag_index_to_payload(index: InMemoryRagIndex | None) -> dict[str, Any] | None:

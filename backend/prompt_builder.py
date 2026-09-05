@@ -26,6 +26,7 @@ from prompt_builder_helpers import (
     _safe_iterable_prefix,
 )
 from prompt_context_sections import prompt_global_market_context, prompt_international_news_context
+from short_term_market_data import build_short_term_market_context
 
 PROMPT_DATA_SCHEMA_VERSION = int(os.getenv("PROMPT_DATA_SCHEMA_VERSION", "3"))
 PROMPT_ENV = Environment(
@@ -157,6 +158,9 @@ def format_data_for_prompt(data: dict, *, compact: bool = False) -> str:
         "recent_monthly_revenue_text": _compact_list(dict.get(data, "recent_monthly_revenue", []), 4) if compact else _safe_iterable_prefix(dict.get(data, "recent_monthly_revenue", [])),
         "deterministic_financial_tool_results": build_financial_tool_context(data),
     }
+
+    if dict.get(data, "_prompt_agent_num") in {22, 24}:
+        payload["short_term_market_context"] = build_short_term_market_context(data, compact=compact)
 
     usage_rules = [
         "所有金額欄位均已統一為 billion_twd；不要把「億台幣」或 Billion 互相換算後再混用。",

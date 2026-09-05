@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 
+from context_dependencies import digest_matches_input, reuse_digest_cache
+
 from context_digest_payload import (
     _build_context_digest_prompt,
     _fallback_context_digest_payload,
@@ -55,17 +57,14 @@ def ensure_context_digest(agent_num: int, context: dict, rotator: KeyRotator, pr
     input_hash = _digest_input_hash(agent_num, context)
     digest_hash_map = context.setdefault("_digest_hash_map", {})
     cache_key = (int(agent_num), input_hash)
-    if cache_key in digest_hash_map:
-        digests[agent_num] = digest_hash_map[cache_key]
-        return
-    if agent_num in digests:
+    if reuse_digest_cache(agent_num, input_hash, digests, digest_hash_map):
         return
 
     models = _context_digest_model_sequence()
     for model_id in models:
         persistent_cache_key = _context_digest_cache_key(agent_num, input_hash, model_id, context)
         cached_digest = _get_cached_context_digest(persistent_cache_key)
-        if cached_digest is not None:
+        if digest_matches_input(cached_digest, input_hash):
             digests[agent_num] = cached_digest
             digest_hash_map[cache_key] = cached_digest
             return
@@ -166,17 +165,14 @@ async def ensure_context_digest_async(agent_num: int, context: dict, rotator: Ke
     input_hash = _digest_input_hash(agent_num, context)
     digest_hash_map = context.setdefault("_digest_hash_map", {})
     cache_key = (int(agent_num), input_hash)
-    if cache_key in digest_hash_map:
-        digests[agent_num] = digest_hash_map[cache_key]
-        return
-    if agent_num in digests:
+    if reuse_digest_cache(agent_num, input_hash, digests, digest_hash_map):
         return
 
     models = _context_digest_model_sequence()
     for model_id in models:
         persistent_cache_key = _context_digest_cache_key(agent_num, input_hash, model_id, context)
         cached_digest = _get_cached_context_digest(persistent_cache_key)
-        if cached_digest is not None:
+        if digest_matches_input(cached_digest, input_hash):
             digests[agent_num] = cached_digest
             digest_hash_map[cache_key] = cached_digest
             return

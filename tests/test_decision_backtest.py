@@ -25,9 +25,9 @@ def test_add_calendar_months_clamps_month_end():
         ("買入", 100, 125, 120, 25.0, "hit"),
         ("買進", 100, 90, 120, -10.0, "miss"),
         ("強烈放空", 100, 75, 80, 25.0, "hit"),
-        ("避免", 100, 115, 90, -15.0, "miss"),
-        ("持有", 100, 106, 100, 0.0, "hit"),
-        ("持有", 100, 118, 100, 0.0, "miss"),
+        ("避免", 100, 115, 90, 0.0, "miss"),
+        ("持有", 100, 106, 100, 6.0, "hit"),
+        ("持有", 100, 118, 100, 18.0, "miss"),
     ],
 )
 def test_evaluate_prediction_returns_strategy_roi_and_hit(
@@ -189,9 +189,9 @@ def test_run_due_backtests_is_idempotent_and_builds_stats(monkeypatch, tmp_path)
     monkeypatch.setattr(decision_tracking_store, "DECISION_TRACKING_DB_PATH", str(tmp_path / "tracking.sqlite3"))
     decision_tracking_store.reset_decision_tracking_store_for_tests()
     reports = [{
-        "filename": "2308_v2_report_20260320_150000.html",
+        "filename": "2308_v1_report_20260320_150000.html",
         "ticker": "2308.TW",
-        "pipeline_id": "v2",
+        "pipeline_id": "v1",
         "date": "2026-03-20 15:00",
         "recommendation": {
             "recommendation": "買入",
@@ -264,8 +264,10 @@ def test_run_due_backtests_resolves_placeholder_pipeline_from_filename(monkeypat
         },
     )
 
-    assert result["evaluated"][0]["pipeline_id"] == "v4"
-    assert decision_tracking_store.list_backtest_results()[0]["pipeline_id"] == "v4"
+    # A filename-resolved D report must not fall through to legacy month returns.
+    assert result["evaluated"] == []
+    assert result["skipped"][0]["reason"] == "execution_plan_unavailable"
+    assert decision_tracking_store.list_backtest_results() == []
 
 
 def test_run_due_backtests_uses_timestamp_when_report_date_is_job_id(monkeypatch, tmp_path):

@@ -7,10 +7,10 @@ from typing import Any, Literal
 from pydantic import Field, model_validator
 
 from mapping_fields import safe_mapping_dict, safe_sequence_items
+from moat_assessment import normalize_moat_evidence
 from structured_output_model_base import (
     _ANALYSIS_MARKDOWN_FALLBACK,
     _DCF_SCENARIOS,
-    _MOAT_SCORE_FIELDS,
     _VALUATION_PRIMARY_METHODS,
     _safe_bool,
     _safe_mapping_value,
@@ -23,24 +23,17 @@ from structured_output_model_base import (
 
 
 class MoatScores(StructuredModel):
-    brand_influence: float = Field(..., ge=1, le=10, alias="品牌影響力")
-    network_effect: float = Field(..., ge=1, le=10, alias="網路效應")
-    switching_cost: float = Field(..., ge=1, le=10, alias="轉換成本")
-    cost_advantage: float = Field(..., ge=1, le=10, alias="成本優勢")
-    patent_technology: float = Field(..., ge=1, le=10, alias="專利技術")
-    overall_moat: float = Field(..., ge=1, le=10, alias="整體護城河")
+    brand_influence: float | None = Field(..., ge=1, le=10, alias="品牌影響力")
+    network_effect: float | None = Field(..., ge=1, le=10, alias="網路效應")
+    switching_cost: float | None = Field(..., ge=1, le=10, alias="轉換成本")
+    cost_advantage: float | None = Field(..., ge=1, le=10, alias="成本優勢")
+    patent_technology: float | None = Field(..., ge=1, le=10, alias="專利技術")
+    overall_moat: float | None = Field(..., ge=1, le=10, alias="整體護城河")
 
     @model_validator(mode="before")
     @classmethod
     def sanitize_score_fields(cls, payload):
-        scores = safe_mapping_dict(payload)
-        if scores is None:
-            scores = {}
-        normalized = {**scores}
-        for alias, field_name in _MOAT_SCORE_FIELDS:
-            score = _safe_mapping_value(scores, alias, field_name)
-            normalized[alias] = _safe_number(score, default=1.0, minimum=1, maximum=10)
-        return normalized
+        return normalize_moat_evidence(payload)
 
 
 class MoatStructuredOutput(AnalysisMarkdownMixin):

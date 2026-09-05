@@ -193,6 +193,8 @@ def test_fetch_stock_data_rebuilds_source_audit_on_cache_hit(monkeypatch):
             "dividend_history": {"years": [], "dividends": []},
             "event_calendar": {"as_of_date": "2026-06-07", "events": []},
             "price_history_ranges": {"source": "fixture", "ranges": {}},
+            "daily_market_data": {"availability": "unavailable", "bars": []},
+            "technical_indicators": {"availability": "unavailable"},
             "cache_generated_at_epoch": 100.0,
             "market_data_fetched_at_epoch": 100.0,
             "source_audit": [{"source": "old_run", "status": "success"}],

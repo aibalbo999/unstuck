@@ -11,6 +11,7 @@ from typing import Any
 
 from agent_state import AgentReport, AgentState
 from prompt_loader import load_agent_prompt_config
+from short_term_market_data import build_short_term_market_context
 
 
 STATE_VIEW_POLICY: dict[str, dict[str, list[str] | dict[str, list[str]]]] = {
@@ -49,8 +50,8 @@ STATE_VIEW_POLICY: dict[str, dict[str, list[str] | dict[str, list[str]]]] = {
         "root": ["risk_flags", "validation_issues", "tool_results", "agent_reports", "earnings_call_context", "sec_edgar"],
     },
     "22": {
-        "normalized_financials": ["current_price", "price_history", "technical_indicators"],
-        "root": ["validation_issues", "risk_flags"],
+        "normalized_financials": ["current_price"],
+        "root": ["validation_issues", "risk_flags", "short_term_market_context"],
     },
     "23": {
         "normalized_financials": ["institutional_trading"],
@@ -59,12 +60,10 @@ STATE_VIEW_POLICY: dict[str, dict[str, list[str] | dict[str, list[str]]]] = {
     "24": {
         "normalized_financials": [
             "current_price",
-            "price_history",
-            "technical_indicators",
             "institutional_trading",
             "recent_catalysts",
         ],
-        "root": ["validation_issues", "risk_flags", "agent_reports", "chip_context"],
+        "root": ["validation_issues", "risk_flags", "agent_reports", "chip_context", "short_term_market_context"],
     },
     "valuation": {
         "normalized_financials": ["revenue_history", "net_income_history", "fcf_history", "cash_flow"],
@@ -168,7 +167,7 @@ def state_view_for(role: str | int, state: AgentState) -> dict[str, Any]:
     }
     for section, keys in policy.items():
         if section == "root":
-            external_context = _external_context_for_state(state)
+            external_context = _external_context_for_state(state, include_short_term=role_key in {"22", "24"})
             for key in keys:
                 if key in external_context:
                     value = external_context[key]
@@ -182,9 +181,9 @@ def state_view_for(role: str | int, state: AgentState) -> dict[str, Any]:
     return view
 
 
-def _external_context_for_state(state: AgentState) -> dict[str, Any]:
+def _external_context_for_state(state: AgentState, *, include_short_term=False) -> dict[str, Any]:
     data = state.normalized_financials if isinstance(state.normalized_financials, dict) else {}
-    return {
+    contexts = {
         "macro_context": copy.deepcopy(data.get("macro_indicators") or data.get("macro_context") or {}),
         "chip_context": copy.deepcopy(data.get("chip_data") or {}),
         "alternative_data": copy.deepcopy(data.get("alternative_data") or {}),
@@ -193,6 +192,9 @@ def _external_context_for_state(state: AgentState) -> dict[str, Any]:
         "taiwan_open_data": copy.deepcopy(data.get("taiwan_open_data") or {}),
         "earnings_call_context": copy.deepcopy(data.get("earnings_call") or {}),
     }
+    if include_short_term:
+        contexts["short_term_market_context"] = build_short_term_market_context(data)
+    return contexts
 
 
 def _jsonable(value: Any) -> Any:

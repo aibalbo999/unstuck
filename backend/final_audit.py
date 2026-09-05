@@ -21,6 +21,7 @@ from final_audit_price_targets import REQUIRED_PRICE_TARGETS, price_target_audit
 from final_audit_sections import append_final_audit_section
 from forward_consistency_checker import run_forward_consistency_checks
 from pipeline_modes import get_pipeline_definition, get_structured_agent_num
+from moat_assessment import moat_assessment
 from report_freshness_summary import safe_bool
 from report_reproducibility import build_data_confidence_controls
 from runtime_events import emit_log
@@ -28,13 +29,7 @@ from validators import strip_generated_audit_sections, validate_analysis_output,
 
 
 def run_final_report_audit(context: AnalysisContext, append_section: bool = True) -> AuditResult:
-    """
-    Cross-agent final audit before report rendering.
-
-    The audit is deterministic. It classifies serious issues, asks the pipeline
-    to repair them in a separate pass, and always leaves enough information for
-    the renderer to preserve a report with visible abnormality notes.
-    """
+    """Deterministically audit cross-agent evidence and retain visible repair notes."""
     data = context.get("data", {}) or {}
     analyses = context.get("analyses", {}) or {}
     parsed = context.get("parsed", {}) or {}
@@ -116,6 +111,10 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
         missing = sorted(required_moat - set(moat_scores.keys()))
         _add_unique_issue(critical, f"Agent {moat_agent} 護城河評分缺少欄位：{', '.join(missing)}")
         add_agent_repair_issue(moat_agent, f"護城河評分缺少欄位：{', '.join(missing)}")
+    if moat_agent is not None:
+        unknown = moat_assessment(moat_scores)["unassessed_fields"]
+        if unknown:
+            _add_unique_issue(warnings, f"Agent {moat_agent} 護城河仍有未評估項目：{'、'.join(unknown)}；不得當成低分或已完成評分。")
 
     recommendation = parsed.get("recommendation", {}) or {}
     mode_contract_issues = mode_execution_contract_issues(

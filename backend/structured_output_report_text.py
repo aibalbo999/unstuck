@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from mapping_fields import safe_dict_list, safe_mapping_dict, safe_sequence_items
+from moat_assessment import moat_assessment
+from trade_price_inputs import optional_execution_text
 from structured_output_normalizer_basic import (
     _legacy_body_text,
     _MANAGEMENT_GUIDANCE_TONES,
@@ -42,6 +44,8 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
         if not score_lines:
             score_lines = "護城河指標: N/A"
         reasoning_text = _moat_reasoning_steps_text(structured.get("reasoning_steps"))
+        if moat_assessment(scores)["unassessed_fields"]:
+            reasoning_text += "\n護城河評估狀態：部分或全部項目未評估，缺少證據不代表低分。"
         return f"[護城河評分]\n{score_lines}\n[/護城河評分]{reasoning_text}\n\n{body}".strip()
 
     if agent_num in {4, 14}:
@@ -172,6 +176,8 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
                 f"- 進場區間：{_display_line(plan.get('entry_zone'), '資料不足')}",
                 f"- 部位大小：{_display_line(plan.get('position_size'), '0%，等待觸發')}",
                 f"- 停損條件：{_display_line(plan.get('stop_loss'), '資料不足')}",
+                f"- 同期間目標：{_display_line(optional_execution_text(plan.get('target_price')), '未驗證')}",
+                f"- 每股來回成本：{_display_line(optional_execution_text(plan.get('transaction_cost')), '未估計')}",
                 f"- 風險報酬：{_display_line(plan.get('risk_reward'), '資料不足')}",
                 f"- 失效條件：{_display_line(plan.get('invalidation_condition'), '資料不足')}",
             ])

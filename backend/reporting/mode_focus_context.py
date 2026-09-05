@@ -8,6 +8,7 @@ from typing import Any
 
 from data_trust import normalize_data_trust, trust_status_label
 from mapping_fields import safe_mapping_dict
+from trade_price_inputs import optional_execution_text
 
 from .decision_context import build_decision_context
 from .html_context import display_text
@@ -57,6 +58,8 @@ def build_mode_focus_context(context: dict, parsed: dict, *, pipeline_id: str) -
             _row("進場區間", plan.get("entry_zone")),
             _row("部位大小", plan.get("position_size")),
             _row("停損條件", plan.get("stop_loss")),
+            _row("同期間目標", _text(optional_execution_text(plan.get("target_price")), "未驗證")),
+            _row("每股來回成本", _text(optional_execution_text(plan.get("transaction_cost")), "未估計")),
             _row("風險報酬", plan.get("risk_reward")),
             _row("失效條件", plan.get("invalidation_condition")),
         ]}

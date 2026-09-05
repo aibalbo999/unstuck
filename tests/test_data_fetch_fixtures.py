@@ -788,6 +788,52 @@ def test_yfinance_payload_includes_multi_range_price_history(monkeypatch):
     assert data["price_history_ranges"]["source"] == "yfinance 5y history"
 
 
+def test_daily_provider_evidence_survives_cache_state_and_real_mode_d_prompt(monkeypatch):
+    from datetime import date, timedelta
+    import json
+    from agent_runtime.prompting import build_prompt
+    from state_memory import initialize_agent_state
+
+    _patch_common_fetch_dependencies(monkeypatch)
+    monkeypatch.setattr(financial_data, "DataLoader", EmptyMonthlyRevenueLoader)
+    calls, cached = [], {}
+    future_day = (date.today() + timedelta(days=5)).isoformat()
+    original_resolve = FakeProvider.resolve_stock
+    original_history = FakeStock.history
+    frame = pd.DataFrame(
+        {"Open": [321.9876] * 80, "High": [323.9876] * 80, "Low": [319.9876] * 80,
+         "Close": [321.9876] * 80, "Volume": [123456.0] * 80},
+        index=pd.bdate_range(end=date.today(), periods=80),
+    )
+
+    def history(stock, period="1y"):
+        calls.append(period)
+        return frame if period == "5y" else original_history(stock, period)
+
+    def resolve(provider, ticker):
+        stock, info, valid, resolved, attempts = original_resolve(provider, ticker)
+        stock.calendar = {"Earnings Date": [pd.Timestamp(future_day)]}
+        return stock, info, valid, resolved, attempts
+
+    monkeypatch.setattr(FakeStock, "history", history)
+    monkeypatch.setattr(FakeProvider, "resolve_stock", resolve)
+    monkeypatch.setattr(yfinance_payload, "set_cache_json", lambda key, value, _ttl: cached.update({key: value}))
+    data = financial_data.fetch_stock_data("2330.TW", skip_optional_http=True)
+    assert calls.count("5y") == 1
+    assert data["price_history"]["prices"] == [95.0, 100.0]
+    assert cached["financial_data:2330.TW"]["daily_market_data"]["sample_count"] == 80
+    state = initialize_agent_state(cached["financial_data:2330.TW"])
+    assert state.normalized_financials["technical_indicators"]["sma_60"] == pytest.approx(321.9876)
+    for agent in (22, 24):
+        prompt = build_prompt(agent, data, {"pipeline_id": "v4", "agent_state": state})
+        payload = json.JSONDecoder().raw_decode(prompt.split("【財務資料 JSON】\n", 1)[1])[0]
+        assert "short_term_market_context" in payload
+        market = payload["short_term_market_context"]
+        assert market["daily_market_data"]["bars"][-1]["close"] == pytest.approx(321.9876)
+        assert market["event_calendar"]["events"][0]["date"] == future_day
+        assert market["event_calendar"]["events"][0]["source"] == "yfinance calendar"
+
+
 def test_us_fixture_has_no_monthly_revenue_without_finmind_call(monkeypatch):
     _patch_common_fetch_dependencies(monkeypatch, resolved_ticker="AAPL", country="United States")
     monkeypatch.setattr(financial_data, "DataLoader", ExplodingLoader)

@@ -35,10 +35,14 @@ def structured_output_missing(context: AnalysisContext, agent_num: int) -> bool:
     if any(not structured.get(_NESTED_SECTIONS[kind]) for kind in assigned_kinds & _NESTED_SECTIONS.keys()):
         return True
     if "position_plan" in assigned_kinds:
-        if v2_position_plan_contract_issues(structured.get("position_plan", {}) or {}):
+        if v2_position_plan_contract_issues(
+            structured.get("position_plan", {}) or {}, recommendation=structured.get("recommendation")
+        ):
             return True
     if "short_setup" in assigned_kinds:
-        if v3_short_setup_contract_issues(structured.get("short_setup", {}) or {}):
+        if v3_short_setup_contract_issues(
+            structured.get("short_setup", {}) or {}, recommendation=structured.get("recommendation")
+        ):
             return True
     if "trade_setup" in assigned_kinds and v4_trade_setup_contract_issues(structured):
         return True
