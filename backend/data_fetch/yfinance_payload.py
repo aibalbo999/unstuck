@@ -125,6 +125,8 @@ def build_legacy_payload(ctx: dict) -> dict:
         "total_assets_history": ctx["total_assets_history"],
         "price_history": ctx["price_history"],
         "price_history_ranges": ctx["price_history_ranges"],
+        "daily_market_data": ctx["daily_market_data"],
+        "technical_indicators": ctx["technical_indicators"],
         "dividend_history": ctx["dividend_history"],
         "event_calendar": ctx["event_calendar"],
         "recent_monthly_revenue": ctx["recent_monthly_revenue"],

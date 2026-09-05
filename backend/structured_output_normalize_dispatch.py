@@ -5,10 +5,10 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from mapping_fields import safe_dict_list, safe_mapping_dict, safe_sequence_items, safe_text
+from moat_assessment import moat_assessment, normalize_moat_evidence
 from recommendation_labels import normalize_recommendation_label
 from structured_output_normalizer_basic import (
     _MANAGEMENT_GUIDANCE_TONES,
-    _MOAT_SCORE_ALIASES,
     _PRICE_TARGET_ALIASES,
     _coerce_number,
     _display_line,
@@ -88,22 +88,11 @@ def normalize_structured_output(agent_num: int, payload: Any) -> Optional[dict]:
     if agent_num in {3, 12}:
         raw_scores = safe_mapping_dict(raw_payload.get("moat_scores")) or {}
         reasoning_steps = _coerce_reasoning_steps(payload.get("reasoning_steps"))
-        scores = {}
-        for key, aliases in _MOAT_SCORE_ALIASES.items():
-            score = _coerce_number(_pick_mapping_value(raw_scores, *aliases), 1, 10)
-            if score is not None:
-                scores[key] = score
-        if not scores:
-            validated_scores = safe_mapping_dict(payload.get("moat_scores")) or {}
-            for key, aliases in _MOAT_SCORE_ALIASES.items():
-                score = _coerce_number(_pick_mapping_value(validated_scores, *aliases), 1, 10)
-                if score is not None:
-                    scores[key] = score
-        if not scores:
-            return None
+        scores = normalize_moat_evidence(raw_scores)
         return {
             "reasoning_steps": reasoning_steps,
             "moat_scores": scores,
+            "moat_assessment": moat_assessment(scores),
             "analysis_markdown": _normalized_analysis_markdown(raw_payload, payload),
         }
 
@@ -194,6 +183,8 @@ def normalize_structured_output(agent_num: int, payload: Any) -> Optional[dict]:
         }
         if "analysis_markdown" in raw_payload or "analysis_markdown" in payload:
             trade_setup["analysis_markdown"] = _normalized_analysis_markdown(raw_payload, payload)
+        if "transaction_cost" in raw_payload:
+            trade_setup["transaction_cost"] = payload.get("transaction_cost")
         return trade_setup
 
     if agent_num in {7, 16, 19}:

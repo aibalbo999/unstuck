@@ -6,6 +6,34 @@ from datetime import date, timedelta
 from typing import Any, Callable
 
 
+def fetch_backtest_bars(
+    ticker: str, generated_date: date, evaluation_date: date,
+    *, ticker_factory: Callable[[str], Any] | None = None,
+) -> list[dict]:
+    """Read unadjusted daily OHLC after the report; absent columns stay absent."""
+    if ticker_factory is None:
+        import yfinance as yf
+
+        ticker_factory = yf.Ticker
+    history = ticker_factory(str(ticker)).history(
+        start=(generated_date + timedelta(days=1)).isoformat(),
+        end=(evaluation_date + timedelta(days=1)).isoformat(), auto_adjust=False,
+    )
+    if history is None or history.empty:
+        return []
+    rows = []
+    for index, values in history.iterrows():
+        trading_date = index.date() if hasattr(index, "date") else date.fromisoformat(str(index)[:10])
+        if not generated_date < trading_date <= evaluation_date:
+            continue
+        row = {"date": trading_date.isoformat()}
+        for column in ("Open", "High", "Low", "Close"):
+            if column in history:
+                row[column.lower()] = float(values[column]) if values[column] is not None else None
+        rows.append(row)
+    return rows
+
+
 def fetch_backtest_prices(
     ticker: str,
     generated_date: date,

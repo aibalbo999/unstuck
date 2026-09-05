@@ -6,6 +6,9 @@ from datetime import date, datetime, timedelta
 
 import pandas as pd
 
+from short_term_market_data import daily_market_data_from_frame
+from short_term_technical_indicators import calculate_technical_indicators
+
 from .yfinance_calendar_extractors import (
     append_calendar_event as _append_calendar_event,
     calendar_value as _calendar_value,
@@ -17,13 +20,32 @@ from .yfinance_calendar_extractors import (
 
 
 def extract_price_history_ranges(stock) -> dict:
+    """Compatibility entry point; the core fetcher consumes the complete bundle."""
+    return extract_market_history_bundle(stock)["price_history_ranges"]
+
+
+def extract_market_history_bundle(stock, *, as_of=None) -> dict:
+    """Use the existing 5y history request for both charts and daily evidence."""
+    today = as_of or datetime.now().date()
     try:
         hist = stock.history(period="5y")
+    except Exception:
+        hist = None
+    daily = daily_market_data_from_frame(hist, as_of=today)
+    return {
+        "price_history_ranges": _price_history_ranges_from_frame(hist, as_of=today),
+        "daily_market_data": daily,
+        "technical_indicators": calculate_technical_indicators(daily),
+    }
+
+
+def _price_history_ranges_from_frame(hist, *, as_of: date) -> dict:
+    try:
         if hist is None or hist.empty or "Close" not in hist:
             return {}
         frame = hist[["Close"]].dropna()
         latest_data_date = max(index.date() for index in frame.index)
-        today = min(datetime.now().date(), latest_data_date)
+        today = min(as_of, latest_data_date)
         frame = frame[[index.date() <= today for index in frame.index]]
         if frame.empty:
             return {}

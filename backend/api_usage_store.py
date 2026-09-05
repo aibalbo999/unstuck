@@ -7,7 +7,8 @@ import os
 import sqlite3
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, time as dt_time, timedelta, timezone
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from typing import Any
 
@@ -130,6 +131,28 @@ def _metadata_from_row(row: sqlite3.Row) -> dict:
 
 def _error_like_status(status: str) -> bool:
     return status in {"error", "quota_error", "rate_limited"}
+
+
+def summarize_llm_daily_usage(*, now=None, days=14, timezone_name="Asia/Taipei", db_path=None) -> dict:
+    """Read demand without mutating the ledger or treating missing tokens as zero."""
+    from llm_daily_usage import build_daily_usage_profile
+
+    tz = ZoneInfo(timezone_name)
+    now = now or datetime.now(tz)
+    days = max(1, min(int(days), 90))
+    start_date = now.astimezone(tz).date() - timedelta(days=days)
+    start = datetime.combine(start_date, dt_time(), tzinfo=tz).timestamp()
+    path = Path(db_path) if db_path is not None else _db_path()
+    with sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=3) as conn:
+        conn.row_factory = sqlite3.Row
+        first = conn.execute("SELECT MIN(created_at) FROM api_usage_events WHERE service = 'Gemini / Google AI'").fetchone()[0]
+        rows = conn.execute(
+            "SELECT created_at, operation, status, model_id, units, metadata_json FROM api_usage_events "
+            "WHERE service = 'Gemini / Google AI' AND created_at >= ? AND created_at <= ? "
+            "AND operation IN ('llm_provider_request', 'llm_model_response', 'llm_model_error') ORDER BY created_at, id",
+            (start, now.timestamp()),
+        )
+        return build_daily_usage_profile(rows, now=now, days=days, timezone=timezone_name, ledger_started_at=first)
 
 
 def summarize_llm_usage_since(since_utc: datetime | float | int) -> dict:

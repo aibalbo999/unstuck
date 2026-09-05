@@ -31,12 +31,13 @@ def test_trade_setup_alignment_passes_and_records_directional_evidence():
     assert result["warnings"] == []
     assert result["checks"][0]["id"] == "trade_setup_alignment"
     assert result["checks"][0]["status"] == "passed"
-    assert result["checks"][0]["details"] == {
-        "trade_direction": "Long",
-        "current_price": 170.0,
-        "target_price": 182.0,
-        "stop_loss": 162.0,
-    }
+    details = result["checks"][0]["details"]
+    assert details["trade_direction"] == "Long"
+    assert details["current_price"] == 170.0
+    assert details["target_price"] == 182.0
+    assert details["stop_loss"] == 162.0
+    assert details["entry_range"] == [168.0, 172.0]
+    assert details["worst_case_risk_reward"] == 1
 
 
 def test_trade_setup_alignment_blocks_long_target_or_stop_in_wrong_direction():
@@ -59,6 +60,7 @@ def test_trade_setup_alignment_uses_price_after_calendar_date_for_stop_loss():
 
     result = evaluate_trade_setup_alignment(
         trade_setup=_trade_setup(
+            entry_zone="NT$208-212",
             target_price="NT$230",
             stop_loss="跌破 2026 年 7 月 31 日價格點 204.0 TWD",
         ),
@@ -75,6 +77,7 @@ def test_trade_setup_alignment_ignores_bare_month_day_before_stop_loss_price():
 
     result = evaluate_trade_setup_alignment(
         trade_setup=_trade_setup(
+            entry_zone="NT$50-52",
             target_price="NT$55",
             stop_loss="跌破 8/18 法人起漲發動點支撐型態失效 48.0 TWD",
         ),
@@ -178,6 +181,7 @@ def test_trade_setup_alignment_ignores_parenthesized_context_reference_price():
 
     result = evaluate_trade_setup_alignment(
         trade_setup=_trade_setup(
+            entry_zone="NT$44-45",
             target_price="46.6 TWD（挑戰 52 週高點 46.63 TWD 壓力位）",
             stop_loss="收盤價跌破 6 月底關鍵支撐位 40.64 TWD",
             trade_direction="Long",

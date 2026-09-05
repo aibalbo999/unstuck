@@ -69,10 +69,10 @@ def evaluate_recommendation_target_alignment(
             )
             blocking.append(issue)
             checks.append(_check("recommendation_target_alignment", "blocked", issue["message"], details))
-        elif recommendation_label in {"避免", "放空"} and upside >= BEARISH_TARGET_MAX_UPSIDE_PCT:
+        elif recommendation_label == "放空" and upside >= BEARISH_TARGET_MAX_UPSIDE_PCT:
             issue = _issue(
                 "bearish_recommendation_high_target_price",
-                "偏空或避免結論同時給出顯著高於現價的主要目標價。",
+                "放空結論同時給出顯著高於現價的主要目標價。",
                 details,
             )
             blocking.append(issue)

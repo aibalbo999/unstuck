@@ -6,19 +6,13 @@ import re
 import unicodedata
 
 from analysis_types import AnalysisContext
+from moat_assessment import MOAT_FIELDS, moat_assessment, moat_score, normalize_moat_evidence
 from pipeline_modes import get_structured_agent_num
 from recommendation_labels import normalize_recommendation_label
 from price_parser import HORIZON_ONLY_PATTERN, extract_target_price_numbers
 
 
-DEFAULT_MOAT_SCORES = {
-    "品牌影響力": 6,
-    "網路效應": 4,
-    "轉換成本": 7,
-    "成本優勢": 7,
-    "專利技術": 6,
-    "整體護城河": 6,
-}
+DEFAULT_MOAT_SCORES = dict.fromkeys(MOAT_FIELDS)
 ALLOWED_MOAT_KEYS = set(DEFAULT_MOAT_SCORES)
 PERCENT_NUMBER_PATTERN = r"(?:[+＋\-−－]\s*)?\d+(?:[.．]\d+)?(?:[eE][-+]?\d+)?\s*[%％]"
 RANGE_SEPARATOR_PATTERN = r"(?:-|–|—|－|−|~|～|〜|至|到|\bto\b|\band\b|與|和)"
@@ -41,10 +35,7 @@ def parse_moat_scores_from_text(text: str) -> dict:
         key = re.sub(r"^[\s*・\-]+", "", key).strip()
         if key not in ALLOWED_MOAT_KEYS:
             continue
-        score_match = re.search(r"[\d.]+", val.strip())
-        if not score_match:
-            continue
-        parsed[key] = min(float(score_match.group()), 10)
+        parsed[key] = moat_score(val.strip())
     return parsed
 
 
@@ -203,12 +194,15 @@ def parse_structured_data(context: AnalysisContext) -> dict:
                 "risk_level",
             )
         }
+        if "transaction_cost" in structured_outputs[trade_setup_agent]:
+            parsed["trade_setup"]["transaction_cost"] = structured_outputs[trade_setup_agent]["transaction_cost"]
 
     if moat_agent is not None and not parsed["moat_scores"] and moat_agent in analyses:
         parsed["moat_scores"] = parse_moat_scores_from_text(analyses[moat_agent])
 
-    if moat_agent is not None and not parsed["moat_scores"]:
-        parsed["moat_scores"] = dict(DEFAULT_MOAT_SCORES)
+    if moat_agent is not None:
+        parsed["moat_scores"] = normalize_moat_evidence(parsed["moat_scores"])
+        parsed["moat_assessment"] = moat_assessment(parsed["moat_scores"])
 
     if valuation_agent is not None and not parsed["price_targets"] and valuation_agent in analyses:
         current_price = context.get("data", {}).get("current_price") if isinstance(context.get("data"), dict) else None

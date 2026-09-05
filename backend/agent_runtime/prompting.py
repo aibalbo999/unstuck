@@ -6,11 +6,9 @@ import copy
 from analysis_types import AnalysisContext, StockData
 from agent_catalog import AGENT_NAMES
 from assistant_context import _format_previous
-from config import (
-    PRIMARY_PROMPT_CONTEXT_TOTAL_CHAR_BUDGET,
-    PRIMARY_PROMPT_RAG_CONTEXT_CHARS,
-)
+from config import PRIMARY_PROMPT_CONTEXT_TOTAL_CHAR_BUDGET, PRIMARY_PROMPT_RAG_CONTEXT_CHARS, get_agent_context_budgets
 from prompt_builder import format_data_for_prompt, render_prompt_template
+from prompt_evidence import prompt_evidence_copy
 from prompt_rules import (
     build_agent_rule_block,
     build_final_audit_preflight_rule,
@@ -26,6 +24,7 @@ from .prompt_budget import (
     get_agent_prompt_token_budget as _base_agent_prompt_token_budget,
 )
 from .prompt_config import ANALYSIS_PROMPTS
+from .state_prompt_projection import bound_state_analysis, restrict_state_reports
 from .prompt_safety import (
     _safe_bool_flag,
     _safe_prompt_json_item,
@@ -87,6 +86,7 @@ def data_for_agent_prompt(agent_num: int, data: StockData) -> StockData:
     """Return prompt data with newly added external contexts routed by agent role."""
     agent_id = int(agent_num)
     prompt_data = copy.deepcopy(data)
+    prompt_data["_prompt_agent_num"] = agent_id
     temporal_memory = prompt_data.get("temporal_memory") if agent_id in {4, 14} else None
     for key, allowed_agents in ROUTED_EXTERNAL_CONTEXT_KEYS.items():
         if agent_id not in allowed_agents:
@@ -139,17 +139,21 @@ def build_data_enrichment_instruction(agent_num: int) -> str:
     return build_agent_rule_block("data_enrichment_instructions", agent_num)
 
 
-def build_state_view_section(agent_num: int, context: AnalysisContext) -> str:
+def build_state_view_section(agent_num: int, context: AnalysisContext, *, max_analysis_chars: int | None = None) -> str:
     """Expose the role-specific Blackboard slice as the primary evidence source."""
     state = context.get("agent_state")
     if state is None:
         return ""
 
-    view = _safe_prompt_json_item(state_view_for(agent_num, state))
+    view = _safe_prompt_json_item(prompt_evidence_copy(state_view_for(agent_num, state)))
+    view = restrict_state_reports(view, state, agent_num, context)
+    if max_analysis_chars is None:
+        max_analysis_chars = get_agent_context_budgets(agent_num)[0] // 2
+    view = bound_state_analysis(view, max_analysis_chars)
     return "\n".join(
         [
             "【AgentState view】",
-            "你不再讀取前序摘要作為主要資料來源；請直接引用下列 State path。",
+            "請優先引用 State 原始財務與工具 path；agent_reports 是前序分析，可能省略超額欄位，不能當成原始證據。",
             json.dumps(view, ensure_ascii=False, indent=2, allow_nan=False),
         ]
     )
@@ -173,16 +177,16 @@ def build_temporal_memory_section(agent_num: int, data: StockData) -> str:
 
 def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> str:
     """根據 Agent 編號建立分析提示詞。"""
+    compact_primary = _safe_bool_flag(context.get("_primary_probe_prompt"))
+    total_budget = (PRIMARY_PROMPT_CONTEXT_TOTAL_CHAR_BUDGET if compact_primary
+                    else get_agent_context_budgets(agent_num)[0])
+    state_budget = max(0, total_budget // 2) if context.get("agent_state") is not None else 0
+    state_view_section = build_state_view_section(agent_num, context, max_analysis_chars=state_budget)
     ticker = data["ticker"]
     name = data["company_name"]
-    compact_primary = _safe_bool_flag(context.get("_primary_probe_prompt"))
     prompt_data = data_for_agent_prompt(agent_num, data)
     fin_data = format_data_for_prompt(prompt_data, compact=compact_primary)
-    prev = (
-        _format_previous(context, agent_num, max_total_chars=PRIMARY_PROMPT_CONTEXT_TOTAL_CHAR_BUDGET)
-        if compact_primary
-        else _format_previous(context, agent_num)
-    )
+    prev = _format_previous(context, agent_num, max_total_chars=max(0, total_budget - state_budget))
     raw_rag_context = context.get("rag_context")
     rag_contexts = raw_rag_context if isinstance(raw_rag_context, dict) else {}
     raw_agent_rag_context = rag_contexts.get(agent_num, "")
@@ -195,7 +199,6 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     retry_instruction = _safe_prompt_text(context.get("_identity_retry_instruction", ""))
     audit_retry_instruction = _safe_prompt_text(context.get("_audit_retry_instruction", ""))
     audit_reflection_instruction = _safe_prompt_text(context.get("_audit_reflection_instruction", ""))
-    state_view_section = build_state_view_section(agent_num, context)
     temporal_memory_section = build_temporal_memory_section(agent_num, prompt_data)
     final_audit_preflight_rule = build_final_audit_preflight_rule(agent_num, context.get("pipeline_id", ""))
 

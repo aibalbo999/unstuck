@@ -12,15 +12,12 @@
     }
 
     function limitLabel(limit) {
-        if (!limit) return '依方案';
-        if (typeof limit === 'number') return String(limit);
-        if (typeof limit !== 'object') return String(limit);
-        return Object.entries(limit)
-            .map(([key, value]) => `${key.replaceAll('_', ' ')} ${value}`)
-            .join(' · ');
+        return window.StockAgentApiQuotaUsage?.limitLabel(limit) || '依方案';
     }
 
     function usageLabel(usage) {
+        const daily = window.StockAgentApiQuotaUsage?.usageLabel(usage);
+        if (daily) return daily;
         const parts = [];
         if (Number.isFinite(Number(usage?.observed_calls_since_reset))) {
             parts.push(`LLM ${Number(usage.observed_calls_since_reset)} 次`);
@@ -41,11 +38,12 @@
     function modelUsageLabel(usage) { const errors = usage?.observed_model_quota_errors || {}; return Object.entries(usage?.observed_model_calls || {}).slice(0, 6).map(([model, calls]) => { const count = Number(calls || 0), error = Number(errors[model] || 0), rate = count ? Math.round(error / count * 1000) / 10 : 0; return `${model} ${count} 次${error ? ` · 額度錯誤 ${error} 次 (${rate}%)` : ''}`; }).join('；'); }
     function quotaErrorCount(service) {
         const usage = service?.usage || {};
-        return Number(usage.observed_quota_errors_since_reset || usage.observed_24h_errors || 0);
+        return window.StockAgentApiQuotaUsage?.errorCount(usage) ?? Number(usage.observed_quota_errors_since_reset || usage.observed_24h_errors || 0);
     }
     function quotaHealth(service) {
         const errors = quotaErrorCount(service);
         if (errors) return { tone: 'warning', label: '有錯誤' };
+        if (service.usage?.quota_day_profile?.today?.local_blocks > 0) return { tone: 'warning', label: '有本機攔截' };
         return { tone: service.configured ? 'ok' : 'warning', label: service.configured ? '已設定' : '未設定' };
     }
     const routeWarningCopy = { slow_route: { tone: 'warning', label: '路由延遲偏高' }, retry_storm: { tone: 'critical', label: '模型重試過多' }, quality_gate_failures: { tone: 'critical', label: '品質檢查失敗' }, provider_quota_errors: { tone: 'critical', label: 'Provider 配額錯誤' }, provider_errors: { tone: 'critical', label: 'Provider 錯誤' } };
@@ -73,6 +71,7 @@
         const serviceMarkup = services.length
             ? services.map(service => {
                 const usage = usageLabel(service.usage || {});
+                const budget = window.StockAgentApiQuotaUsage?.budgetLabel(service.usage?.daily_budget) || '';
                 const notes = Array.isArray(service.notes) ? service.notes.slice(0, 2).join('；') : '';
                 return `
                     <span class="provider-sla-chip provider-sla-insight is-${quotaHealth(service).tone}">
@@ -81,8 +80,9 @@
                             <em>${escapeHtml(quotaHealth(service).label)}</em>
                         </span>
                         <span class="provider-sla-detail">重置：${escapeHtml(service.reset_label || 'N/A')}</span>
-                        <span class="provider-sla-meta">台灣時間 ${escapeHtml(formatDateTime(service.next_reset_taipei))} · key ${escapeHtml(service.key_count ?? 0)} · limit ${escapeHtml(limitLabel(service.daily_limit))}</span>
+                        <span class="provider-sla-meta">台灣時間 ${escapeHtml(formatDateTime(service.next_reset_taipei))} · key ${escapeHtml(service.key_count ?? 0)} · ${service.limit_basis ? '每專案本機每日預算' : 'limit'} ${escapeHtml(limitLabel(service.daily_limit))}</span>
                         <span class="provider-sla-meta">${escapeHtml(usage)}</span>
+                        ${budget ? `<span class="provider-sla-meta">${escapeHtml(budget)}</span>` : ''}
                         ${notes ? `<span class="provider-sla-detail">${escapeHtml(notes)}</span>` : ''}
                     </span>
                 `;

@@ -137,6 +137,8 @@ def _coerce_dcf_scenarios(value: Any) -> list[dict[str, float | str]]:
 
 
 def _coerce_moat_payload(value: Any) -> Any:
+    from moat_assessment import normalize_moat_evidence
+
     payload = safe_mapping_dict(value)
     if payload is None:
         return value
@@ -148,13 +150,9 @@ def _coerce_moat_payload(value: Any) -> Any:
     if scores is None:
         return normalized
 
-    normalized_scores = dict(scores)
-    for key, aliases in _MOAT_SCORE_ALIASES.items():
-        score = _coerce_number(_pick_mapping_value(scores, *aliases), 1, 10)
-        normalized_scores[key] = score if score is not None else 1.0
     return {
         **normalized,
-        "moat_scores": normalized_scores,
+        "moat_scores": normalize_moat_evidence(scores),
     }
 
 

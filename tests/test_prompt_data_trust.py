@@ -85,7 +85,8 @@ def test_valuation_prompt_includes_state_view_and_deemphasizes_previous_summary(
 
     assert "AgentState view" in prompt
     assert '"quant_metrics"' in prompt
-    assert "你不再讀取前序摘要" in prompt
+    assert "請優先引用 State 原始財務與工具 path" in prompt
+    assert "不能當成原始證據" in prompt
 
 
 def test_open_circuit_breaker_blocks_valuation_prompt_target_prices():

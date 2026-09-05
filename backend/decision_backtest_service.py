@@ -8,9 +8,11 @@ from typing import Callable
 
 import decision_tracking_store
 import report_history_service
+import trade_backtest_store
 from decision_backtest import BACKTEST_HORIZONS, add_calendar_months, evaluate_prediction
 from decision_tracking import parse_optional_price
-from market_price_history import fetch_backtest_prices
+from market_price_history import fetch_backtest_prices, fetch_backtest_bars
+from mode_trade_backtest import evaluate_report_trades, trade_performance_summary
 from report_pipeline_identity import resolve_report_pipeline_id
 
 
@@ -19,6 +21,7 @@ def run_due_backtests(
     output_dir: str,
     as_of: date | None = None,
     price_fetcher: Callable = fetch_backtest_prices,
+    bar_fetcher: Callable = fetch_backtest_bars,
 ) -> dict:
     evaluation_day = as_of or date.today()
     reports = report_history_service.list_reports(
@@ -40,6 +43,18 @@ def run_due_backtests(
         filename = str(report.get("filename") or "")
         if generated is None:
             skipped.append({"filename": filename, "reason": "invalid_report_date"})
+            continue
+        pipeline_id = resolve_report_pipeline_id(filename, stored_pipeline=report.get("pipeline_id"))
+        if pipeline_id != "v1":
+            try:
+                trades, trade_skips = evaluate_report_trades(
+                    report=report, pipeline_id=pipeline_id, generated=generated, as_of=evaluation_day,
+                    output_dir=output_dir, bar_fetcher=bar_fetcher,
+                )
+                evaluated.extend(trades)
+                skipped.extend(trade_skips)
+            except Exception as exc:
+                errors.append({"filename": filename, "pipeline_id": pipeline_id, "error": str(exc)[:240]})
             continue
         recommendation = report.get("recommendation") if isinstance(report.get("recommendation"), dict) else {}
         for horizon in BACKTEST_HORIZONS:
@@ -107,7 +122,17 @@ def compute_performance_stats() -> dict:
             "hit_rate_pct": round(hits / len(rows) * 100, 2) if rows else 0.0,
             "average_strategy_roi_pct": round(mean(float(row.get("strategy_roi_pct") or 0) for row in rows), 2) if rows else 0.0,
         })
-    return {"summary": summary, "by_horizon": by_horizon, "details": results[:50]}
+    trades = trade_backtest_store.list_results(limit=2000)
+    return {
+        "summary": summary, "by_horizon": by_horizon,
+        "legacy_metric_scope": "calendar_month_predictions",
+        "trade_summary": trade_performance_summary(trades),
+        "trade_by_horizon": {
+            str(horizon): trade_performance_summary([row for row in trades if row.get("horizon_trading_days") == horizon])
+            for horizon in sorted({row["horizon_trading_days"] for row in trades})
+        },
+        "details": sorted([*results, *trades], key=lambda row: str(row.get("evaluation_date") or ""), reverse=True)[:50],
+    }
 
 
 def _report_date(report: dict) -> date | None:

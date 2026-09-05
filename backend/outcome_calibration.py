@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from statistics import mean
 from typing import Any
 
@@ -24,7 +25,8 @@ def build_outcome_calibration(*, backtests: list[dict[str, Any]], reports: list[
         "schema_version": SCHEMA_VERSION,
         "summary": _summary(details),
         "by_pipeline": _group_stats(details, "pipeline_id"),
-        "by_horizon": _group_stats(details, "horizon_months"),
+        "by_horizon": _group_stats([row for row in details if not row["horizon_trading_days"]], "horizon_months"),
+        "by_trading_horizon": _group_stats([row for row in details if row["horizon_trading_days"]], "horizon_trading_days"),
         "quality_groups": {
             "data_trust_status": _quality_group_stats(details, "data_trust_status"),
             "content_credibility_status": _quality_group_stats(details, "content_credibility_status"),
@@ -56,9 +58,13 @@ def _detail(backtest: dict[str, Any], report: dict[str, Any] | None) -> dict[str
         "ticker": _first_text(_field(backtest, "ticker"), _field(signal, "ticker")),
         "pipeline_id": _canonical_pipeline_id(backtest, report if isinstance(report, dict) else {}),
         "horizon_months": _text(_field(backtest, "horizon_months")),
-        "outcome": _status(_field(backtest, "outcome")) or "miss",
+        "horizon_trading_days": _field(backtest, "horizon_trading_days"),
+        "status": _status(_field(backtest, "status")),
+        "outcome": _status(_field(backtest, "outcome")) or None,
         "strategy_roi_pct": _number(_field(backtest, "strategy_roi_pct")),
         "market_return_pct": _number(_field(backtest, "market_return_pct")),
+        "excess_return_pct": _number(_field(backtest, "excess_return_pct")),
+        "max_drawdown_pct": _number(_field(backtest, "max_drawdown_pct")),
         "reason": _text(_field(backtest, "reason")),
         "quality_signal": signal,
         "miss_attribution": attribution,
@@ -98,8 +104,9 @@ def _canonical_pipeline_id(backtest: dict[str, Any], report: dict[str, Any]) -> 
 
 
 def _miss_attribution(backtest: dict[str, Any], signal: dict[str, Any]) -> str:
-    if _status(_field(backtest, "outcome")) != "miss":
-        return "hit"
+    outcome = _status(_field(backtest, "outcome"))
+    if outcome != "miss":
+        return "hit" if outcome == "hit" else "not_evaluated"
     if _field(signal, "data_trust_status") == "unknown" and _field(signal, "content_credibility_status") == "not_recorded":
         return "unknown"
     if str(_field(signal, "data_trust_status") or "") in LOW_TRUST_STATUSES:
@@ -121,11 +128,13 @@ def _miss_attribution(backtest: dict[str, Any], signal: dict[str, Any]) -> str:
 def _summary(details: list[dict[str, Any]]) -> dict[str, Any]:
     total = len(details)
     hits = sum(1 for row in details if row["outcome"] == "hit")
+    misses = sum(1 for row in details if row["outcome"] == "miss")
     return {
         "total_evaluated": total,
         "hit_count": hits,
-        "miss_count": total - hits,
-        "hit_rate_pct": _rate(hits, total),
+        "miss_count": misses,
+        "unscored_count": total - hits - misses,
+        "hit_rate_pct": _rate(hits, hits + misses),
         "average_strategy_roi_pct": _average(details, "strategy_roi_pct"),
         "miss_attribution_counts": _counts(row["miss_attribution"] for row in details if row["outcome"] == "miss"),
         "low_quality_miss_count": sum(
@@ -155,11 +164,13 @@ def _quality_group_stats(details: list[dict[str, Any]], signal_key: str) -> dict
 def _group_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     total = len(rows)
     hits = sum(1 for row in rows if row["outcome"] == "hit")
+    misses = sum(1 for row in rows if row["outcome"] == "miss")
     return {
         "count": total,
         "hit_count": hits,
-        "miss_count": total - hits,
-        "hit_rate_pct": _rate(hits, total),
+        "miss_count": misses,
+        "unscored_count": total - hits - misses,
+        "hit_rate_pct": _rate(hits, hits + misses),
         "average_strategy_roi_pct": _average(rows, "strategy_roi_pct"),
         "content_credibility_warning_count": sum(
             1 for row in rows
@@ -176,7 +187,8 @@ def _strategy_evaluation(details: list[dict[str, Any]]) -> dict[str, Any]:
             "metrics": {
                 "outcome": row["outcome"],
                 "strategy_roi_pct": row["strategy_roi_pct"],
-                "excess_return_pct": row["strategy_roi_pct"],
+                "excess_return_pct": row["excess_return_pct"],
+                "max_drawdown_pct": row["max_drawdown_pct"],
             },
         }
         for row in details
@@ -228,7 +240,8 @@ def _first_status(*values: Any, fallback: str) -> str:
 
 def _number(value: Any) -> float | None:
     try:
-        return float(value)
+        number = float(value)
+        return number if math.isfinite(number) and not isinstance(value, bool) else None
     except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
         return None
 

@@ -43,6 +43,7 @@ from .yfinance_derived import (
     calculate_revenue_cagr,
 )
 from .yfinance_extractors import extract_dividend_history, extract_event_calendar, extract_financial_histories, extract_price_history, extract_price_history_ranges, fetch_monthly_revenue_records
+from .yfinance_enrichment_extractors import extract_market_history_bundle
 from .yfinance_sync_enrichment import fetch_sync_enrichment_bundle
 
 warnings.filterwarnings("ignore", module="yfinance")
@@ -205,9 +206,11 @@ def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_
         # 計算收入 CAGR（5年）
         revenue_cagr = calculate_revenue_cagr(revenue_history)
         
-        # === 近期股價歷史 ===
         price_history = extract_price_history(stock)
-        price_history_ranges = extract_price_history_ranges(stock)
+        market_history = extract_market_history_bundle(stock)
+        price_history_ranges = market_history["price_history_ranges"]
+        daily_market_data = market_history["daily_market_data"]
+        technical_indicators = market_history["technical_indicators"]
         dividend_history = extract_dividend_history(stock)
         event_calendar = extract_event_calendar(stock, info)
             

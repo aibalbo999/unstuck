@@ -568,7 +568,7 @@ def test_moat_output_uses_fallback_for_malformed_score_numbers_before_validation
     })
 
     assert output.moat_scores.brand_influence == 8
-    assert output.moat_scores.network_effect == 1
+    assert output.moat_scores.network_effect is None
     assert output.moat_scores.overall_moat == 7
 
 
@@ -579,12 +579,12 @@ def test_moat_output_uses_fallback_for_malformed_score_container_before_validati
         "analysis_markdown": "護城河正文",
     })
 
-    assert output.moat_scores.brand_influence == 1
-    assert output.moat_scores.network_effect == 1
-    assert output.moat_scores.switching_cost == 1
-    assert output.moat_scores.cost_advantage == 1
-    assert output.moat_scores.patent_technology == 1
-    assert output.moat_scores.overall_moat == 1
+    assert output.moat_scores.brand_influence is None
+    assert output.moat_scores.network_effect is None
+    assert output.moat_scores.switching_cost is None
+    assert output.moat_scores.cost_advantage is None
+    assert output.moat_scores.patent_technology is None
+    assert output.moat_scores.overall_moat is None
 
 
 def test_schema_moat_score_aliases_ignore_non_string_equal_keys_before_validation():
@@ -602,7 +602,7 @@ def test_schema_moat_score_aliases_ignore_non_string_equal_keys_before_validatio
     assert output.switching_cost == 6
     assert output.cost_advantage == 5
     assert output.patent_technology == 4
-    assert output.overall_moat == 1
+    assert output.overall_moat is None
 
 
 def test_moat_output_uses_fallback_for_missing_score_container_before_validation():
@@ -611,12 +611,12 @@ def test_moat_output_uses_fallback_for_missing_score_container_before_validation
         "analysis_markdown": "護城河正文",
     })
 
-    assert output.moat_scores.brand_influence == 1
-    assert output.moat_scores.network_effect == 1
-    assert output.moat_scores.switching_cost == 1
-    assert output.moat_scores.cost_advantage == 1
-    assert output.moat_scores.patent_technology == 1
-    assert output.moat_scores.overall_moat == 1
+    assert output.moat_scores.brand_influence is None
+    assert output.moat_scores.network_effect is None
+    assert output.moat_scores.switching_cost is None
+    assert output.moat_scores.cost_advantage is None
+    assert output.moat_scores.patent_technology is None
+    assert output.moat_scores.overall_moat is None
     assert output.reasoning_steps == ["品牌證據可量化", "技術優勢仍需折價", "整體分數需保留"]
     assert output.analysis_markdown == "護城河正文"
 
@@ -625,12 +625,12 @@ def test_moat_output_uses_fallback_for_malformed_root_before_validation():
     output = MoatStructuredOutput.model_validate(MalformedStructuredText())
 
     assert output.reasoning_steps == ["待補推論步驟", "待補推論步驟", "待補推論步驟"]
-    assert output.moat_scores.brand_influence == 1
-    assert output.moat_scores.network_effect == 1
-    assert output.moat_scores.switching_cost == 1
-    assert output.moat_scores.cost_advantage == 1
-    assert output.moat_scores.patent_technology == 1
-    assert output.moat_scores.overall_moat == 1
+    assert output.moat_scores.brand_influence is None
+    assert output.moat_scores.network_effect is None
+    assert output.moat_scores.switching_cost is None
+    assert output.moat_scores.cost_advantage is None
+    assert output.moat_scores.patent_technology is None
+    assert output.moat_scores.overall_moat is None
     assert output.analysis_markdown == "資料不足"
 
 
@@ -1423,9 +1423,6 @@ def test_bear_advocate_output_uses_fallback_for_malformed_root_before_validation
         (risk.title, risk.evidence, risk.impact, risk.severity, risk.confidence)
         for risk in output.downside_risks
     ] == [
-        ("下行風險", "資料不足", "", "warning", 0.7),
-        ("下行風險", "資料不足", "", "warning", 0.7),
-        ("下行風險", "資料不足", "", "warning", 0.7),
     ]
     assert output.analysis_markdown == "資料不足"
 
@@ -1540,11 +1537,8 @@ def test_bear_advocate_output_uses_fallback_for_malformed_risk_rows_before_valid
     })
 
     assert output.downside_risks[0].title == "毛利率壓力"
-    assert output.downside_risks[1].title == "下行風險"
-    assert output.downside_risks[1].evidence == "資料不足"
-    assert output.downside_risks[1].severity == "warning"
-    assert output.downside_risks[1].confidence == 0.7
-    assert output.downside_risks[2].title == "客戶集中"
+    assert len(output.downside_risks) == 2
+    assert output.downside_risks[1].title == "客戶集中"
 
 
 def test_bear_advocate_output_uses_fallback_for_malformed_risk_collection_before_validation():
@@ -1558,9 +1552,6 @@ def test_bear_advocate_output_uses_fallback_for_malformed_risk_collection_before
         (risk.title, risk.evidence, risk.impact, risk.severity, risk.confidence)
         for risk in output.downside_risks
     ] == [
-        ("下行風險", "資料不足", "", "warning", 0.7),
-        ("下行風險", "資料不足", "", "warning", 0.7),
-        ("下行風險", "資料不足", "", "warning", 0.7),
     ]
     assert output.thesis_summary == "下行風險仍需折價。"
 
@@ -1575,15 +1566,12 @@ def test_bear_advocate_output_uses_fallback_for_missing_downside_risks_before_va
         (risk.title, risk.evidence, risk.impact, risk.severity, risk.confidence)
         for risk in output.downside_risks
     ] == [
-        ("下行風險", "資料不足", "", "warning", 0.7),
-        ("下行風險", "資料不足", "", "warning", 0.7),
-        ("下行風險", "資料不足", "", "warning", 0.7),
     ]
     assert output.thesis_summary == "下行風險仍需折價。"
     assert output.analysis_markdown == "空方正文"
 
 
-def test_bear_advocate_output_pads_short_risk_collection_before_validation():
+def test_bear_advocate_output_keeps_short_risk_collection_without_padding():
     output = BearAdvocateStructuredOutput.model_validate({
         "thesis_summary": "下行風險仍需折價。",
         "downside_risks": [
@@ -1603,8 +1591,6 @@ def test_bear_advocate_output_pads_short_risk_collection_before_validation():
         for risk in output.downside_risks
     ] == [
         ("毛利率壓力", "同業報價下修且庫存去化慢於預期。", "估值倍數下修", "high", 0.8),
-        ("下行風險", "資料不足", "", "warning", 0.7),
-        ("下行風險", "資料不足", "", "warning", 0.7),
     ]
     assert output.thesis_summary == "下行風險仍需折價。"
 
@@ -1696,7 +1682,6 @@ def test_structured_display_models_ignore_non_string_literals_before_validation(
     ] == [
         ("下行風險", "有效證據", "", "warning", 0.8),
         ("有效風險", "資料不足", "有效影響", "high", 0.6),
-        ("下行風險", "資料不足", "", "warning", 0.7),
     ]
     assert trade.trade_direction == "Neutral"
     assert trade.entry_zone == "N/A"
@@ -2519,7 +2504,7 @@ def test_normalize_structured_output_accepts_readonly_mapping_payloads():
 @pytest.mark.parametrize(
     ("agent_num", "expected_key", "expected_value"),
     [
-        (3, "moat_scores", {"整體護城河": 1.0}),
+        (3, "moat_scores", {"整體護城河": None}),
         (4, "price_targets", {"基本情境": 0.0}),
         (7, "recommendation", {"建議": "持有"}),
         (20, "guidance_tone", "資料不足"),
@@ -3806,7 +3791,7 @@ def test_normalize_structured_output_skips_boolean_moat_scores():
 
     assert normalized is not None
     assert normalized["moat_scores"]["品牌影響力"] == 8.0
-    assert "整體護城河" not in normalized["moat_scores"]
+    assert normalized["moat_scores"]["整體護城河"] is None
     report_text = structured_output_to_report_text(3, normalized)
     assert "品牌影響力: 8.0" in report_text
     assert "整體護城河: 1.0" not in report_text
@@ -3832,7 +3817,7 @@ def test_normalize_structured_output_skips_malformed_moat_scores_before_validati
 
     assert normalized is not None
     assert normalized["moat_scores"]["品牌影響力"] == 8.0
-    assert "網路效應" not in normalized["moat_scores"]
+    assert normalized["moat_scores"]["網路效應"] is None
     assert normalized["moat_scores"]["整體護城河"] == 7.0
 
 
@@ -3840,25 +3825,25 @@ def test_normalize_structured_output_missing_moat_scores_use_schema_fallback_bef
     from structured_output_normalizer import normalize_structured_output, structured_output_to_report_text  # noqa: E402
 
     payload = {
-        "reasoning_steps": ["品牌證據待補", "技術證據待補", "整體分數採保守 fallback"],
+        "reasoning_steps": ["品牌證據待補", "技術證據待補", "整體分數未評估"],
         "analysis_markdown": "護城河正文",
     }
 
     normalized = normalize_structured_output(3, payload)
 
     assert normalized is not None
-    assert normalized["reasoning_steps"] == ["品牌證據待補", "技術證據待補", "整體分數採保守 fallback"]
+    assert normalized["reasoning_steps"] == ["品牌證據待補", "技術證據待補", "整體分數未評估"]
     assert normalized["moat_scores"] == {
-        "品牌影響力": 1.0,
-        "網路效應": 1.0,
-        "轉換成本": 1.0,
-        "成本優勢": 1.0,
-        "專利技術": 1.0,
-        "整體護城河": 1.0,
+        "品牌影響力": None,
+        "網路效應": None,
+        "轉換成本": None,
+        "成本優勢": None,
+        "專利技術": None,
+        "整體護城河": None,
     }
     assert normalized["analysis_markdown"] == "護城河正文"
     report_text = structured_output_to_report_text(3, normalized)
-    assert "整體護城河: 1" in report_text
+    assert "整體護城河: N/A" in report_text
 
 
 def test_normalize_structured_output_moat_analysis_markdown_uses_safe_text_before_validation():
@@ -4042,12 +4027,7 @@ def test_normalize_structured_output_nested_display_rows_ignore_non_string_liter
     assert management["highlights"][1]["quote"] == "資料不足"
     assert downside["downside_risks"][0]["title"] == "保留風險"
     assert downside["downside_risks"][0]["evidence"] == "保留證據"
-    assert downside["downside_risks"][1]["title"] == "下行風險"
-    assert downside["downside_risks"][1]["evidence"] == "有效證據"
-    assert downside["downside_risks"][1]["impact"] == ""
-    assert downside["downside_risks"][1]["severity"] == "warning"
-    assert downside["downside_risks"][2]["title"] == "有效風險"
-    assert downside["downside_risks"][2]["evidence"] == "資料不足"
+    assert len(downside["downside_risks"]) == 1
     combined = (
         repr(management)
         + repr(downside)
@@ -4367,11 +4347,7 @@ def test_normalize_structured_output_agent21_uses_safe_text_before_validation():
     assert normalized is not None
     assert normalized["downside_risks"][0]["title"] == "客戶集中"
     assert normalized["downside_risks"][0]["confidence"] == 0.5
-    assert normalized["downside_risks"][1]["title"] == "下行風險"
-    assert normalized["downside_risks"][1]["severity"] == "warning"
-    assert normalized["downside_risks"][1]["confidence"] == 0.8
-    assert normalized["downside_risks"][2]["evidence"] == "資料不足"
-    assert normalized["downside_risks"][2]["confidence"] == 0.6
+    assert len(normalized["downside_risks"]) == 1
 
 
 def test_normalize_structured_output_agent21_malformed_downside_risk_rows_use_fallback_before_validation():
@@ -4405,10 +4381,7 @@ def test_normalize_structured_output_agent21_malformed_downside_risk_rows_use_fa
     assert normalized["downside_risks"][0]["title"] == "毛利率壓力"
     assert normalized["downside_risks"][1]["title"] == "現金流轉弱"
     assert normalized["downside_risks"][1]["confidence"] == 0.4
-    assert normalized["downside_risks"][2]["title"] == "下行風險"
-    assert normalized["downside_risks"][2]["evidence"] == "資料不足"
-    assert normalized["downside_risks"][2]["severity"] == "warning"
-    assert normalized["downside_risks"][2]["confidence"] == 0.7
+    assert len(normalized["downside_risks"]) == 2
 
 
 def test_normalize_structured_output_agent21_missing_downside_risks_use_fallback_before_validation():
@@ -4426,11 +4399,7 @@ def test_normalize_structured_output_agent21_missing_downside_risks_use_fallback
     assert [
         (risk["title"], risk["evidence"], risk["impact"], risk["severity"], risk["confidence"])
         for risk in normalized["downside_risks"]
-    ] == [
-        ("下行風險", "資料不足", "", "warning", 0.7),
-        ("下行風險", "資料不足", "", "warning", 0.7),
-        ("下行風險", "資料不足", "", "warning", 0.7),
-    ]
+    ] == []
     assert normalized["analysis_markdown"] == "空方正文"
 
 
@@ -4451,9 +4420,6 @@ def test_normalize_structured_output_agent21_empty_downside_risks_use_fallback_b
         (risk["title"], risk["evidence"], risk["impact"], risk["severity"], risk["confidence"])
         for risk in normalized["downside_risks"]
     ] == [
-        ("下行風險", "資料不足", "", "warning", 0.7),
-        ("下行風險", "資料不足", "", "warning", 0.7),
-        ("下行風險", "資料不足", "", "warning", 0.7),
     ]
     assert normalized["analysis_markdown"] == "空方正文"
 

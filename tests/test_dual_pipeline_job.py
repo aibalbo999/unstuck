@@ -35,6 +35,12 @@ def test_dual_pipeline_job_runs_v1_then_v2_then_v3(monkeypatch, tmp_path):
     events = []
     updates = []
     pipeline_calls = []
+    memory_calls = []
+
+    def memory_for_mode(ticker, *, pipeline_id=None, **kwargs):
+        memory_calls.append(pipeline_id)
+        # v2 intentionally has no prior record; it must not inherit v1 memory.
+        return {} if pipeline_id == "v2" else {"previous_report": {"pipeline_id": pipeline_id}}
 
     class FakeStockDataService:
         async def fetch_async(self, request):
@@ -51,6 +57,10 @@ def test_dual_pipeline_job_runs_v1_then_v2_then_v3(monkeypatch, tmp_path):
         async def run_async(self, request):
             pipeline_id = request.pipeline_id
             data = request.data
+            if pipeline_id == "v2":
+                assert "temporal_memory" not in data
+            else:
+                assert data["temporal_memory"]["previous_report"]["pipeline_id"] == pipeline_id
             pipeline_calls.append(pipeline_id)
             pipeline_def = pipeline_modes.get_pipeline_definition(pipeline_id)
             if request.progress_callback:
@@ -92,6 +102,7 @@ def test_dual_pipeline_job_runs_v1_then_v2_then_v3(monkeypatch, tmp_path):
     monkeypatch.setattr(analysis_jobs, "OUTPUT_DIR", str(tmp_path))
     monkeypatch.setattr(analysis_jobs, "has_api_keys", lambda: True)
     monkeypatch.setattr(analysis_jobs, "STOCK_DATA_SERVICE", FakeStockDataService())
+    monkeypatch.setattr(analysis_jobs, "build_temporal_memory", memory_for_mode)
     monkeypatch.setattr(analysis_jobs, "PIPELINE_RUNNER", FakePipelineRunner())
     monkeypatch.setattr(analysis_jobs, "REPORT_RENDERER", FakeReportRenderer())
     monkeypatch.setattr(analysis_jobs, "append_event", lambda job_id, payload: events.append(payload))
@@ -100,6 +111,7 @@ def test_dual_pipeline_job_runs_v1_then_v2_then_v3(monkeypatch, tmp_path):
     filename = asyncio.run(analysis_jobs.run_stock_analysis_job_async("job-test", "2449.TW", "both"))
 
     assert pipeline_calls == ["v1", "v2", "v3"]
+    assert memory_calls == ["v1", "v2", "v3"]
     assert filename.startswith("2449_TW_v3_report_")
     assert (tmp_path / report_bundle_keys_for_filename(filename).html_key).exists()
     assert len(list(tmp_path.rglob("2449_TW_*_report_*.html"))) == 3

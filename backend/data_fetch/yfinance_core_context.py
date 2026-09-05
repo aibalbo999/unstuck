@@ -108,6 +108,8 @@ _PAYLOAD_KEYS = (
     "total_assets_history",
     "price_history",
     "price_history_ranges",
+    "daily_market_data",
+    "technical_indicators",
     "dividend_history",
     "event_calendar",
     "recent_monthly_revenue",

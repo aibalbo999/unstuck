@@ -66,21 +66,25 @@ def _group_stats(rows: list[dict[str, Any]], key: str) -> dict[str, dict[str, An
 
 def _stats(rows: list[dict[str, Any]]) -> dict[str, Any]:
     hits = sum(1 for row in rows if row.get("hit"))
+    scored = sum(1 for row in rows if row.get("hit") is not None)
+    drawdowns = _values(rows, "max_drawdown_pct")
     return {
         "count": len(rows),
-        "hit_rate_pct": _round(hits / len(rows) * 100 if rows else 0),
+        "hit_rate_pct": _round(hits / scored * 100) if scored else None,
+        "unscored_count": len(rows) - scored,
         "average_strategy_roi_pct": _average(rows, "strategy_roi_pct"),
         "average_excess_return_pct": _average(rows, "excess_return_pct"),
-        "worst_max_drawdown_pct": _round(min(_values(rows, "max_drawdown_pct"), default=0)),
+        "worst_max_drawdown_pct": _round(min(drawdowns)) if drawdowns else None,
     }
 
 
-def _is_hit(metrics: dict[str, Any]) -> bool:
+def _is_hit(metrics: dict[str, Any]) -> bool | None:
     if "hit" in metrics:
         hit = _bool_or_none(_field(metrics, "hit"))
         if hit is not None:
             return hit
-    return _text(_field(metrics, "outcome")).strip().lower() == "hit"
+    outcome = _text(_field(metrics, "outcome")).strip().lower()
+    return outcome == "hit" if outcome in {"hit", "miss"} else None
 
 
 def _bool_or_none(value: Any) -> bool | None:
@@ -122,15 +126,16 @@ def _values(rows: list[dict[str, Any]], key: str) -> list[float]:
     return [float(row[key]) for row in rows if row.get(key) is not None]
 
 
-def _average(rows: list[dict[str, Any]], key: str) -> float:
+def _average(rows: list[dict[str, Any]], key: str) -> float | None:
     values = _values(rows, key)
-    return _round(mean(values)) if values else 0.0
+    return _round(mean(values)) if values else None
 
 
 def _best_key(groups: dict[str, dict[str, Any]], metric: str) -> str | None:
-    if not groups:
+    available = {key: value for key, value in groups.items() if value.get(metric) is not None}
+    if not available:
         return None
-    return max(groups, key=lambda group_key: float(groups[group_key].get(metric) or 0))
+    return max(available, key=lambda group_key: float(available[group_key][metric]))
 
 
 def _round(value: float) -> float:

@@ -7,6 +7,7 @@ from typing import Any, Literal
 from pydantic import ConfigDict, Field, model_validator
 
 from mapping_fields import safe_mapping_dict, safe_sequence_items
+from trade_price_inputs import optional_execution_text
 from structured_output_model_base import (
     _DOWNSIDE_RISK_SEVERITIES,
     _MANAGEMENT_GUIDANCE_TONES,
@@ -123,45 +124,20 @@ def _safe_downside_risk_fields(risk: dict[str, Any]) -> dict[str, Any]:
 
 def _safe_downside_risks(value: Any) -> Any:
     if not isinstance(value, (list, tuple)):
-        return [
-            {
-                "title": "下行風險",
-                "evidence": "資料不足",
-                "impact": "",
-                "severity": "warning",
-                "confidence": 0.7,
-            }
-            for _ in range(3)
-        ]
+        return []
     risks = []
     items = safe_sequence_items(value)[:5]
     for item in items:
         risk = safe_mapping_dict(item)
         if risk is None:
-            risks.append({
-                "title": "下行風險",
-                "evidence": "資料不足",
-                "impact": "",
-                "severity": "warning",
-                "confidence": 0.7,
-            })
             continue
         risks.append(_safe_downside_risk_fields(risk))
-    if items:
-        while len(risks) < 3:
-            risks.append({
-                "title": "下行風險",
-                "evidence": "資料不足",
-                "impact": "",
-                "severity": "warning",
-                "confidence": 0.7,
-            })
     return risks
 
 
 class BearAdvocateStructuredOutput(AnalysisMarkdownMixin):
     thesis_summary: str = Field(..., min_length=1)
-    downside_risks: list[DownsideRisk] = Field(..., min_length=3, max_length=5)
+    downside_risks: list[DownsideRisk] = Field(..., max_length=5)
     analysis_markdown: str = Field(..., min_length=1)
 
     @model_validator(mode="before")
@@ -171,16 +147,7 @@ class BearAdvocateStructuredOutput(AnalysisMarkdownMixin):
         if root is None:
             return {
                 "thesis_summary": "資料不足",
-                "downside_risks": [
-                    {
-                        "title": "下行風險",
-                        "evidence": "資料不足",
-                        "impact": "",
-                        "severity": "warning",
-                        "confidence": 0.7,
-                    }
-                    for _ in range(3)
-                ],
+                "downside_risks": [],
                 "analysis_markdown": "資料不足",
             }
         normalized = {
@@ -210,6 +177,7 @@ class SwingTradeSetup(StructuredModel):
     resistance_level: str = Field(..., min_length=1)
     core_catalyst: str = Field(..., min_length=1)
     risk_level: Literal["High", "Medium", "Low"]
+    transaction_cost: str | None = Field(default=None, description="每股來回交易成本金額，含費稅與滑價；未知為 null，明確免費才為 0。")
 
     @model_validator(mode="before")
     @classmethod
@@ -227,6 +195,7 @@ class SwingTradeSetup(StructuredModel):
                 "risk_level": "High",
             }
         normalized = {**setup}
+        normalized["transaction_cost"] = optional_execution_text(setup.get("transaction_cost"))
         if _safe_mapping_has_key(setup, "trade_direction"):
             raw_trade_direction = _safe_mapping_value(setup, "trade_direction")
             if not isinstance(raw_trade_direction, str):

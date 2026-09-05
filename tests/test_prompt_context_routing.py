@@ -2955,6 +2955,7 @@ def test_runtime_rules_cover_common_final_audit_failure_modes():
     assert "[/投資建議] 後" in mode_c_text
 
     mode_d_text = "\n".join(structured_rules["24"]["rules"])
-    assert "只有八個欄位" in mode_d_text
+    assert "八個核心欄位" in mode_d_text
+    assert "transaction_cost" in mode_d_text
     assert "單一目標價" in mode_d_text
     assert "Neutral + High" in mode_d_text

@@ -39,12 +39,13 @@ def run_chief_editor_synthesis(context: AnalysisContext) -> dict[str, Any]:
     thesis = _cap_words(thesis, 300)
 
     resolved = []
-    if price_targets and recommendation:
-        resolved.append("估值與最終建議已收斂為以三情境區間約束建議目標。")
-    if context.get("final_audit", {}).get("warnings"):
-        resolved.append("最終稽核警示保留為信心折讓與後續追蹤條件。")
+    audit = context.get("final_audit") or {}
+    for issue in audit.get("critical", []) or []:
+        resolved.append(f"仍待處理的稽核問題：{issue}")
+    for issue in audit.get("warnings", []) or []:
+        resolved.append(f"保留稽核警示，尚未視為解決：{issue}")
     if not resolved:
-        resolved.append("未偵測到需要額外揭露的重大跨 Agent 矛盾。")
+        resolved.append("已記錄的最終稽核未列出未解決問題；此結果不代表所有研究分歧均已消除。" if audit else "最終稽核尚未記錄，無法確認研究分歧的處理狀態。")
 
     lead_sections = []
     for agent_id, report in list(agent_reports.items())[:4]:

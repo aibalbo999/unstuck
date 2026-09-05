@@ -134,7 +134,7 @@ def calibrate_recommendation_summary(
     status = "ok"
     reasons: list[str] = []
 
-    if original_label in {"放空", "避免"} and expected_return > BEARISH_POSITIVE_TARGET_PCT:
+    if original_label == "放空" and expected_return > BEARISH_POSITIVE_TARGET_PCT:
         new_label = "持有"
         status = "adjusted"
         reasons.append(

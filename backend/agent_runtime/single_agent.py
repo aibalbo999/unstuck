@@ -6,7 +6,7 @@ from tenacity import AsyncRetrying, Retrying, retry_if_exception_type
 
 from analysis_types import AnalysisContext, StockData
 from llm_client import KeyRotator
-
+from llm_input_capacity import InputCapacityExceededError
 from .llm_calls import (
     AgentConfigurationError,
     AgentMissingModelError,
@@ -128,7 +128,7 @@ def run_single_agent(
             emit_log(f"    ❌ {message}")
             emit_sync_model_event(context, agent_num, "model_fallback", "warning", message, model_id, error_kind=exc.__class__.__name__)
             continue
-        except AgentConfigurationError as exc:
+        except (InputCapacityExceededError, AgentConfigurationError) as exc:
             last_error = str(exc)
             message = f"模型 {model_id} 請求設定不相容，改試下一個備援模型..."
             emit_log(f"    ❌ {message}")
@@ -241,7 +241,7 @@ async def run_single_agent_async(
             emit_log(f"    ❌ {message}")
             await emit_async_model_event(context, agent_num, "model_fallback", "warning", message, model_id, error_kind=exc.__class__.__name__)
             continue
-        except AgentConfigurationError as exc:
+        except (InputCapacityExceededError, AgentConfigurationError) as exc:
             last_error = str(exc)
             message = f"模型 {model_id} 請求設定不相容，改試下一個備援模型..."
             emit_log(f"    ❌ {message}")

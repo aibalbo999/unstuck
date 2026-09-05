@@ -19,6 +19,7 @@ from .deterministic_fallbacks import _clear_agent_blocking_issues
 from .repair_circuit_breaker import is_repair_429_error, record_repair_429_failure, repair_429_circuit_state
 from .repair_context import capture_repair_context, install_repair_attempt_context, restore_repair_context
 from .repair_quality_fallback import record_quality_fallback
+from .repair_state import adopt_repair_result
 from .repair_attempt_limits import apply_429_fallback, increment_repair_attempt_count, per_job_repair_limit_fallback
 from .repair_reflection import (
     build_audit_reflection_instruction,
@@ -38,7 +39,7 @@ def _repair_agent_output(agent_num: int, data: StockData, context: AnalysisConte
     try:
         limit_result = per_job_repair_limit_fallback(agent_num, data, context, original_analysis, list(issues))
         if limit_result is not None:
-            return limit_result
+            return adopt_repair_result(agent_num, context, limit_result)
         open_state = repair_429_circuit_state(agent_num)
         if open_state.get("open"):
             fallback_ok, fallback_message = apply_429_fallback(
@@ -52,7 +53,7 @@ def _repair_agent_output(agent_num: int, data: StockData, context: AnalysisConte
                 {"circuit": open_state},
             )
             if fallback_ok:
-                return True, f"{fallback_message}（模型修復暫不可用：429 熔斷中）"
+                return adopt_repair_result(agent_num, context, (True, f"{fallback_message}（模型修復暫不可用：429 熔斷中）"))
         current_issues = list(issues)
         last_result = None
         last_quality_issues = []
@@ -89,7 +90,7 @@ def _repair_agent_output(agent_num: int, data: StockData, context: AnalysisConte
                         {"circuit": circuit},
                     )
                     if fallback_ok:
-                        return True, f"{fallback_message}（模型修復暫不可用：429）"
+                        return adopt_repair_result(agent_num, context, (True, f"{fallback_message}（模型修復暫不可用：429）"))
                 return False, result
             prompt_issues = validate_prompt_leakage(result)
             identity_issues = validate_company_identity(result, data)
@@ -106,14 +107,14 @@ def _repair_agent_output(agent_num: int, data: StockData, context: AnalysisConte
                 continue
             context["analyses"][agent_num] = strip_generated_audit_sections(result)
             _clear_agent_blocking_issues(context, agent_num)
-            return True, "已重寫並通過品質檢查"
+            return adopt_repair_result(agent_num, context, (True, "已重寫並通過品質檢查"))
         if last_result:
             context["analyses"][agent_num] = last_result
         fallback_ok, fallback_message = record_quality_fallback(
             agent_num, data, context, original_analysis, current_issues, last_quality_issues, last_result
         )
         if fallback_ok:
-            return True, fallback_message
+            return adopt_repair_result(agent_num, context, (True, fallback_message))
         return False, "重寫後仍觸發品質紅線：" + "；".join(last_quality_issues[:3])
     except Exception as exc:
         emit_context_error(
@@ -140,7 +141,7 @@ async def _repair_agent_output_async(agent_num: int, data: StockData, context: A
     try:
         limit_result = per_job_repair_limit_fallback(agent_num, data, context, original_analysis, list(issues))
         if limit_result is not None:
-            return limit_result
+            return adopt_repair_result(agent_num, context, limit_result)
         open_state = repair_429_circuit_state(agent_num)
         if open_state.get("open"):
             fallback_ok, fallback_message = apply_429_fallback(
@@ -154,7 +155,7 @@ async def _repair_agent_output_async(agent_num: int, data: StockData, context: A
                 {"circuit": open_state},
             )
             if fallback_ok:
-                return True, f"{fallback_message}（模型修復暫不可用：429 熔斷中）"
+                return adopt_repair_result(agent_num, context, (True, f"{fallback_message}（模型修復暫不可用：429 熔斷中）"))
         current_issues = list(issues)
         last_result = None
         last_quality_issues = []
@@ -191,7 +192,7 @@ async def _repair_agent_output_async(agent_num: int, data: StockData, context: A
                         {"circuit": circuit},
                     )
                     if fallback_ok:
-                        return True, f"{fallback_message}（模型修復暫不可用：429）"
+                        return adopt_repair_result(agent_num, context, (True, f"{fallback_message}（模型修復暫不可用：429）"))
                 return False, result
             prompt_issues = validate_prompt_leakage(result)
             identity_issues = validate_company_identity(result, data)
@@ -208,14 +209,14 @@ async def _repair_agent_output_async(agent_num: int, data: StockData, context: A
                 continue
             context["analyses"][agent_num] = strip_generated_audit_sections(result)
             _clear_agent_blocking_issues(context, agent_num)
-            return True, "已重寫並通過品質檢查"
+            return adopt_repair_result(agent_num, context, (True, "已重寫並通過品質檢查"))
         if last_result:
             context["analyses"][agent_num] = last_result
         fallback_ok, fallback_message = record_quality_fallback(
             agent_num, data, context, original_analysis, current_issues, last_quality_issues, last_result
         )
         if fallback_ok:
-            return True, fallback_message
+            return adopt_repair_result(agent_num, context, (True, fallback_message))
         return False, "重寫後仍觸發品質紅線：" + "；".join(last_quality_issues[:3])
     except Exception as exc:
         await emit_context_error_async(

@@ -6,6 +6,7 @@ from typing import Any
 
 from mapping_fields import safe_mapping_dict, safe_sequence_items
 from recommendation_labels import normalize_recommendation_label
+from trade_price_inputs import optional_execution_text
 from structured_output_normalizer_basic import (
     _MANAGEMENT_GUIDANCE_TONES,
     _TRADE_DIRECTIONS,
@@ -20,7 +21,7 @@ from structured_output_normalizer_basic import (
 _POSITION_ACTIONS = {"進場", "續抱", "減碼", "等待"}
 
 
-def _coerce_position_plan_payload(value: Any) -> dict[str, str]:
+def _coerce_position_plan_payload(value: Any) -> dict[str, str | int | None]:
     plan = safe_mapping_dict(value) or {}
     action = _string_field_line(plan.get("action"))
     return {
@@ -30,10 +31,13 @@ def _coerce_position_plan_payload(value: Any) -> dict[str, str]:
         "stop_loss": _string_field_line(plan.get("stop_loss"), "資料不足，暫不建立部位"),
         "risk_reward": _string_field_line(plan.get("risk_reward"), "資料不足"),
         "invalidation_condition": _string_field_line(plan.get("invalidation_condition"), "資料不足"),
+        "target_price": optional_execution_text(plan.get("target_price")),
+        "transaction_cost": optional_execution_text(plan.get("transaction_cost")),
+        "horizon_trading_days": plan.get("horizon_trading_days"),
     }
 
 
-def _coerce_short_setup_payload(value: Any) -> dict[str, str]:
+def _coerce_short_setup_payload(value: Any) -> dict[str, str | int | None]:
     setup = safe_mapping_dict(value) or {}
     return {
         "entry_trigger": _string_field_line(setup.get("entry_trigger"), "資料不足，等待可驗證做空觸發"),
@@ -41,10 +45,12 @@ def _coerce_short_setup_payload(value: Any) -> dict[str, str]:
         "cover_stop": _string_field_line(setup.get("cover_stop"), "資料不足，暫不建立空方部位"),
         "squeeze_risk": _string_field_line(setup.get("squeeze_risk"), "資料不足"),
         "thesis_invalidation": _string_field_line(setup.get("thesis_invalidation"), "資料不足"),
+        "transaction_cost": optional_execution_text(setup.get("transaction_cost")),
+        "horizon_trading_days": setup.get("horizon_trading_days"),
     }
 
 
-def _coerce_downside_risk_rows(value: Any, minimum: int = 3, maximum: int = 5) -> list[dict[str, Any]]:
+def _coerce_downside_risk_rows(value: Any, minimum: int = 0, maximum: int = 5) -> list[dict[str, Any]]:
     if not isinstance(value, (list, tuple)):
         return [
             {
@@ -180,6 +186,7 @@ def _coerce_trade_setup_payload(value: Any) -> Any:
         "stop_loss": _string_field_line(payload.get("stop_loss"), "N/A"),
         "core_catalyst": _string_field_line(payload.get("core_catalyst"), "N/A"),
         "risk_level": risk_level,
+        "transaction_cost": optional_execution_text(payload.get("transaction_cost")),
     }
 
 

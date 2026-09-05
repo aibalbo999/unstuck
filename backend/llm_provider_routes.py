@@ -24,3 +24,12 @@ def split_model_provider(model_id: str) -> tuple[str, str]:
 
 def provider_for_model(model_id: str) -> str:
     return split_model_provider(model_id)[0]
+
+
+def normalize_provider_keys(keys: list[str] | dict[str, list[str]]) -> dict[str, list[str]]:
+    if isinstance(keys, dict):
+        return {
+            str(provider or "").strip().lower(): list(dict.fromkeys(str(key).strip() for key in provider_keys if str(key).strip()))
+            for provider, provider_keys in keys.items()
+        }
+    return {"google": list(dict.fromkeys(str(key).strip() for key in keys if str(key).strip()))}

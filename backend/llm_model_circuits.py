@@ -35,13 +35,16 @@ class ModelCircuitStore:
             self._opened_until[model] = max(float(self._opened_until.get(model) or 0.0), target)
 
     def is_open(self, model: str) -> bool:
+        return self.wait(model) > 0.0
+
+    def wait(self, model: str) -> float:
         now = time.time()
         with self._lock:
             opened_until = float(self._opened_until.get(model) or 0.0)
             if opened_until <= now:
                 self._opened_until.pop(model, None)
-                return False
-            return True
+                return 0.0
+            return opened_until - now
 
 
 def open_shared_model_circuit(limiter, model: str, *, cooldown_seconds=None, opened_until=None) -> None:

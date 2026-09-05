@@ -11,6 +11,8 @@ from config import (
     LLM_MODEL_CIRCUIT_COOLDOWN_SECONDS,
     LLM_MODEL_CIRCUIT_THRESHOLD,
     LLM_SERVER_ERROR_MAX_ATTEMPTS,
+    LLM_QUOTA_MAX_ATTEMPTS_PER_MODEL,
+    LLM_ROUTE_SERVER_ERROR_MAX_ATTEMPTS,
     PRIMARY_LLM_AGENT_CALL_TIMEOUT_SECONDS,
     PRIMARY_MODEL_QUOTA_MAX_ATTEMPTS,
     PRIMARY_MODEL_TRANSIENT_MAX_ATTEMPTS,
@@ -30,6 +32,7 @@ class ModelAttemptPolicy:
     server_error_attempts: int
     key_count: int
     quota_attempt_ceiling: int
+    quota_attempt_cap: int = 0
 
 
 def model_attempt_policy(model_index: int, has_fallback: bool, max_retries: int, key_count: int) -> ModelAttemptPolicy:
@@ -41,18 +44,20 @@ def model_attempt_policy(model_index: int, has_fallback: bool, max_retries: int,
             transient_attempts=max(1, int(PRIMARY_MODEL_TRANSIENT_MAX_ATTEMPTS)),
             quota_attempts=quota_attempts,
             short_response_attempts=max(1, int(max_retries or 1)),
-            server_error_attempts=max(1, int(LLM_SERVER_ERROR_MAX_ATTEMPTS)),
+            server_error_attempts=max(1, int(LLM_ROUTE_SERVER_ERROR_MAX_ATTEMPTS or LLM_SERVER_ERROR_MAX_ATTEMPTS)),
             key_count=key_count,
             quota_attempt_ceiling=max(quota_attempts, key_count * 2),
+            quota_attempt_cap=LLM_QUOTA_MAX_ATTEMPTS_PER_MODEL,
         )
     quota_attempts = max(key_count, int(max_retries or 1))
     return ModelAttemptPolicy(
         transient_attempts=max(1, int(max_retries or 1)),
         quota_attempts=quota_attempts,
         short_response_attempts=max(1, int(max_retries or 1)),
-        server_error_attempts=max(1, int(LLM_SERVER_ERROR_MAX_ATTEMPTS)),
+        server_error_attempts=max(1, int(LLM_ROUTE_SERVER_ERROR_MAX_ATTEMPTS or LLM_SERVER_ERROR_MAX_ATTEMPTS)),
         key_count=key_count,
         quota_attempt_ceiling=max(quota_attempts, key_count * 2),
+        quota_attempt_cap=LLM_QUOTA_MAX_ATTEMPTS_PER_MODEL,
     )
 
 
@@ -60,10 +65,12 @@ def should_stop_retry(retry_state, policy: ModelAttemptPolicy) -> bool:
     """Tenacity stop predicate that treats quota and transient failures differently."""
     attempt = int(getattr(retry_state, "attempt_number", 1) or 1)
     exc = retry_state.outcome.exception() if retry_state.outcome else None
+    if isinstance(exc, AgentRateLimitError) and exc.all_keys_exhausted:
+        return True
     if isinstance(exc, AgentServerError):
         return attempt >= policy.server_error_attempts
     if isinstance(exc, (AgentRateLimitError, AgentAuthError)):
-        return attempt >= policy.quota_attempts
+        return attempt >= min(policy.quota_attempts, policy.quota_attempt_cap or policy.quota_attempts)
     if isinstance(exc, AgentShortResponseError):
         return attempt >= policy.short_response_attempts
     if isinstance(exc, AgentTransientError):
@@ -75,6 +82,7 @@ def make_model_retry_stop(
     policy: ModelAttemptPolicy,
     *,
     shared_circuit_open: Callable[[], bool] | None = None,
+    eligible_key_slots: Callable[[], set[int] | None] | None = None,
 ):
     """Return a stop predicate that counts retry classes independently."""
     counted_attempts: set[int] = set()
@@ -88,6 +96,8 @@ def make_model_retry_stop(
         nonlocal key_failures, server_failures, short_failures, transient_failures
         attempt = int(getattr(retry_state, "attempt_number", 1) or 1)
         exc = retry_state.outcome.exception() if retry_state.outcome else None
+        if isinstance(exc, AgentRateLimitError) and exc.all_keys_exhausted:
+            return True
         if shared_circuit_open is not None and shared_circuit_open():
             if isinstance(exc, AgentRateLimitError):
                 exc.all_keys_exhausted = True
@@ -113,6 +123,14 @@ def make_model_retry_stop(
                 transient_failures += 1
 
         if isinstance(exc, (AgentRateLimitError, AgentAuthError)):
+            # A route-local attempt budget does not establish project exhaustion.
+            if policy.quota_attempt_cap > 0 and key_failures >= policy.quota_attempt_cap:
+                return True
+            eligible = eligible_key_slots() if eligible_key_slots is not None else None
+            if eligible is not None and eligible.issubset(key_slots):
+                if isinstance(exc, AgentRateLimitError):
+                    exc.all_keys_exhausted = True
+                return True
             if policy.key_count > 1 and len(key_slots) >= policy.key_count:
                 if isinstance(exc, AgentRateLimitError):
                     exc.all_keys_exhausted = True
@@ -154,6 +172,8 @@ def publish_shared_model_circuit(
     *,
     quota_exhausted: bool = False,
 ) -> None:
+    if circuit_state.get("preflight_blocked"):
+        return
     opener = getattr(rotator, "open_model_circuit", None)
     opened_until = float(circuit_state.get("opened_until") or 0.0)
     if callable(opener) and opened_until > 0.0:
@@ -167,7 +187,21 @@ def make_model_retry_stop_for_rotator(policy: ModelAttemptPolicy, rotator: Any, 
     return make_model_retry_stop(
         policy,
         shared_circuit_open=lambda: shared_model_circuit_open(rotator, model_id),
+        eligible_key_slots=lambda: eligible_model_key_slots(rotator, model_id),
     )
+
+
+def eligible_model_key_slots(rotator: Any, model_id: str) -> set[int] | None:
+    getter = getattr(rotator, "eligible_key_slots", None)
+    if not callable(getter):
+        return None
+    slots = getter(model_id)
+    return set(slots) if isinstance(slots, (set, frozenset, list, tuple)) else None
+
+
+def model_key_count(rotator: Any, model_id: str) -> int:
+    slots = eligible_model_key_slots(rotator, model_id)
+    return len(slots) if slots is not None else len(getattr(rotator, "keys", []) or [])
 
 
 def timeout_for_model_call(model_index: int, has_fallback: bool) -> float:
@@ -193,6 +227,9 @@ def record_model_success(context: dict, model_id: str) -> None:
 
 
 def record_model_failure(context: dict, model_id: str, exc: BaseException) -> dict:
+    if getattr(exc, "parallel_circuit_open", False) or getattr(exc, "preflight_blocked", False):
+        existing = (context.get(MODEL_CIRCUITS_KEY) or {}).get(model_id) or {}
+        return {**existing, "preflight_blocked": True}
     state = _model_circuit_state(context).setdefault(model_id, {"failures": 0, "opened_until": 0.0, "last_error": ""})
     state["failures"] = int(state.get("failures") or 0) + 1
     state["last_error"] = str(exc)[:240]

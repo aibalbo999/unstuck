@@ -17,6 +17,8 @@ REQUIRED_DATA_SCHEMA_FIELDS = (
     "dividend_history",
     "event_calendar",
     "price_history_ranges",
+    "daily_market_data",
+    "technical_indicators",
 )
 
 SOURCE_FRESHNESS_SOURCES = (

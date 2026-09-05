@@ -1030,6 +1030,8 @@ def test_workflow_returns_fresh_cache_before_provider_plan(monkeypatch):
             "dividend_history": {"years": [], "dividends": []},
             "event_calendar": {"as_of_date": "2026-06-07", "events": []},
             "price_history_ranges": {"source": "fixture", "ranges": {}},
+            "daily_market_data": {"availability": "unavailable", "bars": []},
+            "technical_indicators": {"availability": "unavailable"},
             "cache_generated_at_epoch": 190.0,
             "market_data_fetched_at_epoch": 190.0,
         },
@@ -1087,6 +1089,8 @@ def test_workflow_refetches_when_cached_payload_lacks_dividend_history(monkeypat
                 "dividend_history": {"years": [], "dividends": []},
                 "event_calendar": {"as_of_date": "2026-06-07", "events": []},
                 "price_history_ranges": {"source": "fixture", "ranges": {}},
+                "daily_market_data": {"availability": "unavailable", "bars": []},
+                "technical_indicators": {"availability": "unavailable"},
                 "source_audit": [],
             },
         )
@@ -1126,6 +1130,8 @@ def test_workflow_falls_back_to_stale_cache_when_core_provider_fails(monkeypatch
         "dividend_history": {"years": [], "dividends": []},
         "event_calendar": {"as_of_date": "2026-06-07", "events": []},
         "price_history_ranges": {"source": "fixture", "ranges": {}},
+        "daily_market_data": {"availability": "unavailable", "bars": []},
+        "technical_indicators": {"availability": "unavailable"},
         "cache_generated_at_epoch": 1.0,
         "market_data_fetched_at_epoch": 1.0,
     }

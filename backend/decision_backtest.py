@@ -40,12 +40,16 @@ def evaluate_prediction(
         strategy_roi = market_return
         hit = market_return > 0 and (target is None or actual >= target * 0.9)
         reason = "direction_and_target_met" if hit else "buy_thesis_not_met"
-    elif recommendation in {"避免", "放空"}:
+    elif recommendation == "放空":
         strategy_roi = -market_return
         hit = market_return < 0 and (target is None or actual <= target * 1.1)
         reason = "short_direction_and_target_met" if hit else "short_thesis_not_met"
-    elif recommendation == "持有":
+    elif recommendation == "避免":
         strategy_roi = 0.0
+        hit = market_return < 0
+        reason = "cash_avoided_loss" if hit else "cash_opportunity_cost"
+    elif recommendation == "持有":
+        strategy_roi = market_return
         hit = abs(market_return) <= 10
         reason = "hold_range_respected" if hit else "hold_range_broken"
     else:
@@ -57,6 +61,10 @@ def evaluate_prediction(
         "recommendation": recommendation,
         "market_return_pct": round(market_return, 4),
         "strategy_roi_pct": round(strategy_roi, 4),
+        "position_assumption": {
+            "避免": "cash_no_position_zero_interest", "持有": "existing_long_position",
+            "買入": "long_position", "放空": "short_position",
+        }.get(recommendation, "unsupported"),
         "target_error_pct": round(target_error, 4) if target_error is not None else None,
         "outcome": "hit" if hit else "miss",
         "reason": reason,

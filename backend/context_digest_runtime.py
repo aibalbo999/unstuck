@@ -12,6 +12,7 @@ from agent_runtime.retry_policy import AgentRateLimitError
 from agent_catalog import AGENT_NAMES
 from cache_store import get_cache_json, set_cache_json
 from config import AGENT_STEP_CACHE_ENABLED, AGENT_STEP_CACHE_SECONDS, CONTEXT_DIGEST_MODEL
+from context_dependencies import digest_input_hash
 from prompt_rules import get_task_system_instruction
 from runtime_events import emit_context_event, emit_context_event_async, make_runtime_event
 
@@ -31,23 +32,8 @@ def _build_digest_generation_config():
 
 
 def _digest_input_hash(agent_num: int, context: dict) -> str:
-    """計算 context digest 的輸入 hash，相同輸入只算一次。"""
-
-    analyses = context.get("analyses", {}) or {}
-    relevant_items = []
-    for key, value in analyses.items():
-        try:
-            key_int = int(key)
-        except (TypeError, ValueError):
-            continue
-        if key_int < int(agent_num):
-            relevant_items.append((str(key), value))
-    payload = json.dumps(
-        {key: str(value)[:500] for key, value in sorted(relevant_items)},
-        ensure_ascii=False,
-        sort_keys=True,
-    )
-    return hashlib.md5(payload.encode("utf-8")).hexdigest()
+    """Version the complete dependency-scoped inputs consumed by a digest."""
+    return digest_input_hash(agent_num, context)
 
 
 def _context_digest_cache_key(agent_num: int, input_hash: str, model_id: str, context: dict) -> str:

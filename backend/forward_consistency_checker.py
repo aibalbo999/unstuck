@@ -24,10 +24,6 @@ RECOMMENDATION_RETURN_GATES: dict[str, dict] = {
         "max_expected_return_pct": 30.0,
         "label": "持有建議預期報酬應在 5-30% 範圍",
     },
-    "避免": {
-        "max_expected_return_pct": 10.0,
-        "label": "避免建議不應有超過 10% 的 12 個月預期報酬",
-    },
 }
 
 # 建議方向與目標價的方向一致性
@@ -35,7 +31,7 @@ RECOMMENDATION_DIRECTION: dict[str, str] = {
     "放空": "down",
     "買入": "up",
     "持有": "neutral",
-    "避免": "down",
+    "避免": "neutral",  # No new position; risk can outweigh a positive valuation.
 }
 
 # 12 個月隱含年化報酬率異常上限（超過即觸發警示）
@@ -141,7 +137,7 @@ def check_target_price_sequence(
     """驗證 3m/6m/12m 目標價時序合理性。
 
     買入：預期目標價應大致遞增（允許小幅回撤）。
-    避免/放空：預期目標價應大致遞減（允許小幅回撤）。
+    放空：預期目標價應大致遞減（允許小幅回撤）；避免不預設價格方向。
     """
     issues: list[str] = []
     recommendation = normalize_recommendation_label(recommendation)
@@ -167,9 +163,9 @@ def check_target_price_sequence(
             )
         elif direction == "down" and pct > TARGET_REVERSAL_TOLERANCE_PCT:
             issues.append(
-                f"目標價時序異常：避免建議下 {label_b} 目標 NT${price_b:g} "
+                f"目標價時序異常：放空建議下 {label_b} 目標 NT${price_b:g} "
                 f"比 {label_a} 目標 NT${price_a:g} 高 {abs(pct):.1f}%，"
-                "超過允許幅度，與避免建議方向矛盾。"
+                "超過允許幅度，與放空建議方向矛盾。"
             )
 
     return issues

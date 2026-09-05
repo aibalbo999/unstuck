@@ -24,6 +24,8 @@ class TokenBucket:
         )
 
     def reserve(self, amount: int | float = 1) -> float:
+        if amount > self.capacity:
+            raise ValueError("Token request exceeds bucket capacity")
         amount = min(max(float(amount), 1.0), self.capacity)
         now = time.monotonic()
 
@@ -47,6 +49,8 @@ class TokenBucket:
         return wait
 
     def peek_wait(self, amount: int | float = 1) -> float:
+        if amount > self.capacity:
+            raise ValueError("Token request exceeds bucket capacity")
         amount = min(max(float(amount), 1.0), self.capacity)
         now = time.monotonic()
 

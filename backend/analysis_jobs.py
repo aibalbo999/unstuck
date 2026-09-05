@@ -100,15 +100,6 @@ async def run_stock_analysis_job_async(
             return ""
         if "error" in data:
             append_event(job_id, {"type": "status", "message": f"財務數據獲取有誤：{data['error']}，將繼續分析"})
-        temporal_memory = build_temporal_memory(
-            ticker_upper,
-            output_dir=OUTPUT_DIR,
-            current_price=data.get("current_price"),
-        )
-        if temporal_memory:
-            data["temporal_memory"] = temporal_memory
-            append_event(job_id, {"type": "status", "message": "已載入上一期報告記憶，最終 Agent 將強制反思先前假設。"})
-            
         metrics_snapshot = QuantEngine.compute_all(data)
         data["quant_metrics"] = metrics_snapshot
         if metrics_snapshot.get("fallback_fields"):
@@ -125,6 +116,15 @@ async def run_stock_analysis_job_async(
 
         for sequence_index, current_pipeline_id in enumerate(pipeline_sequence, start=1):
             _raise_if_cancelled(job_id)
+            mode_data = {key: value for key, value in data.items() if key != "temporal_memory"}
+            temporal_memory = build_temporal_memory(
+                ticker_upper, output_dir=OUTPUT_DIR, current_price=data.get("current_price"),
+                pipeline_id=current_pipeline_id,
+            )
+            if temporal_memory:
+                mode_data["temporal_memory"] = temporal_memory
+                append_event(job_id, {"type": "status", "pipeline_id": current_pipeline_id,
+                    "message": "已載入同模式上一期報告記憶，最終 Agent 將反思先前假設。"})
             pipeline_def = get_pipeline_definition(current_pipeline_id)
             current_thread_id = f"{job_id}:{current_pipeline_id}"
             current_pipeline_label = pipeline_def["label"]
@@ -164,7 +164,7 @@ async def run_stock_analysis_job_async(
 
             analysis_result = await PIPELINE_RUNNER.run_async(
                 AnalysisRequest(
-                    data=dict(data),
+                    data=mode_data,
                     progress_callback=progress_callback,
                     pipeline_id=current_pipeline_id,
                     cancel_check=lambda: _raise_if_cancelled(job_id),
@@ -267,8 +267,7 @@ async def run_stock_analysis_job_async(
 
 
 def run_stock_analysis_job(
-    job_id: str,
-    ticker: str,
+    job_id: str, ticker: str,
     pipeline_id: str = "v1",
     force_refresh: bool = False,
 ) -> str:

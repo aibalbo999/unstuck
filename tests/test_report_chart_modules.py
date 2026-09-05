@@ -54,9 +54,10 @@ def test_moat_chart_uses_string_safe_labels_and_explicit_overall_score():
     assert "const moatLabels = CHART_DATA.moatLabels.map(moatLabelText);" in text
     assert ".filter(l => !l.includes('整體'))" not in text
     assert "CHART_DATA.moatLabels[i].includes('整體')" not in text
-    assert "function moatOverallValue(labels, values, filteredValues)" in text
+    assert "function moatOverallValue(labels, values)" in text
     assert "if (Number.isFinite(explicitOverall)) return explicitOverall;" in text
-    assert "if (!numericValues.length) return null;" in text
+    assert "Missing overall evidence is not the average" in text
+    assert "numericValues.reduce" not in text
     assert "overallEl.textContent = overall === null ? 'N/A' : String(overall);" in text
 
 
