@@ -8,7 +8,7 @@
 - [x] 核對圖表及 CSP；現場四模式 QA 副本在 1280／375 寬度、像素、tooltip、缺資料及 CDN 中斷通過；正式 HTTP 新報告另外驗收。
 - [x] 補齊啟動器 owner 驗證與重建腳本歷史保護、防不明回應重送；不實際刪除歷史報告。
 - [x] 修正全套回歸揭露的契約／測試問題，完成隔離全套測試與獨立複審：264 檔，9438 passed／20 skipped／75 subtests passed；另啟用圖表瀏覽器 13 passed、正式路由設定 80 passed。
-- [ ] Scoped commit／push／合併，確認正式服務載入對應程式。
+- [x] Scoped commit／push 並確認正式服務載入對應程式；程式 `c0ffa00f`，受控重啟與狀態保留驗證完成，合併紀錄以 [PR #14](https://github.com/aibalbo999/unstuck/pull/14) 為準。
 - [x] 核對既有重建任務，按四模式驗收正式報告產物與品質狀態；四模式與舊失敗的 2308.TW／C 新任務已完成，警告完整保留。
 
 ## 邊界

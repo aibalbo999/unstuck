@@ -64,7 +64,15 @@ D 的現場抽查揭露「2026-09-04 當日高點 210」原本對到低頻收盤
 
 初次分片發現的模組大小門檻、等待重試 fixture 與日期價格邊界，均完成修正及獨立複審後，才重新匯出上述最終快照；未把失敗那一輪當成通過。
 
-正式受控重啟與遠端發布紀錄於完成後補入。
+### 正式受控重啟與發布
+
+程式提交為 `c0ffa00f`。2026-09-06 01:37（台北），先確認佇列與 started／deferred／scheduled 均為 0，驗證舊 launcher／API／Worker／Redis 的 PID、父程序與實體目錄，再執行 Redis SAVE，正常停止該啟動器的四個程序。透過 `start_mac_lan.command` 啟動新 launcher 24751、Redis 24782、Worker 24784、API 24786；保留 LAN 與 `.env` 指定的 usage-aware 路由設定。
+
+`healthz=ok`、`readyz=ready`、active=0。重啟前後 16 筆 RPD 停用鍵值、歷史失敗工作集合、`.env` 及 D 報告的 snapshot／HTML／Markdown／資料檔雜湊均相同；10 筆歷史 failed 沒有刪除，recent failed 為 0。正式 API 的 D 證據投影改為 `data.daily_market_data.bars[2026-09-04].high=210`、差距 0%，歷史 snapshot 仍保留原始 close208 的稽核紀錄。
+
+重啟後再次直接驗收四模式正式頁面，1280／375 共 8 組通過；各報告 warning／caution 與 4／4／2／1 項不可驗證內容如實保留。比較證據另存於本機 `.gstack/qa/remaining-delivery-20260906/runtime-results.json`。
+
+分支 `codex/remaining-analysis-delivery` 已推送，交付與合併紀錄由 [PR #14](https://github.com/aibalbo999/unstuck/pull/14) 追溯；後續文件補記不更動已驗證的程式內容。
 
 ## 保留限制
 
