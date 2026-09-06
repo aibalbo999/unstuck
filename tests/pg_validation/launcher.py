@@ -13,6 +13,7 @@ import tempfile
 from typing import Any, Callable
 
 from .bundle import build_context
+from .result import BASE_IMAGE, EXPECTED_CASES, MAX_RESULT_SIZE, RESULT_SCHEMA
 
 
 CONTAINER_REJECTION_REASON = "isolated_pg_container_rejected"
@@ -69,6 +70,8 @@ def create_args(run_id: str, image_id: str) -> list[str]:
         "2g",
         "--pids-limit",
         "256",
+        "--env",
+        f"STOCK_AGENT_PG_VALIDATION_IMAGE_ID={image_id}",
         "--tmpfs",
         "/tmp:rw,nosuid,nodev,size=768m,mode=1777",
         "--tmpfs",
@@ -241,15 +244,237 @@ def _identity_matches(info: Any, cid: str, run_id: str) -> bool:
         return False
 
 
-def _valid_result(path: Path) -> bool:
+def _validate_result_payload(
+    payload: Any,
+    *,
+    run_id: str,
+    image_id: str,
+    manifest_sha256: str,
+    allow_final: bool = False,
+) -> bool:
+    """Validate the exact structured result schema before accepting evidence."""
+
+    allowed = {
+        "schema", "run_id", "manifest_sha256", "base_image", "derived_image",
+        "network", "socket", "paths", "status", "collected", "expected",
+        "versions", "phases", "counts", "assertions", "exit_code", "server_stop_status",
+    }
+    if allow_final:
+        allowed.add("cleanup_status")
+    if not isinstance(payload, dict) or set(payload) != allowed:
+        return False
+    if (
+        payload.get("schema") != RESULT_SCHEMA
+        or payload.get("run_id") != run_id
+        or payload.get("manifest_sha256") != manifest_sha256
+        or payload.get("base_image") != BASE_IMAGE
+        or payload.get("derived_image") != image_id
+        or payload.get("network") != "none"
+        or payload.get("socket") != "unix-local-only"
+        or payload.get("paths") != "tmpfs-and-container-layer-only"
+    ):
+        return False
+    versions = payload.get("versions")
+    if (
+        not isinstance(versions, dict)
+        or set(versions) != {"python", "postgres", "psycopg", "libpq"}
+        or any(
+            not isinstance(value, str)
+            or not value
+            or len(value) > 128
+            or not all(character.isalnum() or character in "._+:-" for character in value)
+            for value in versions.values()
+        )
+    ):
+        return False
+    expected = payload.get("expected")
+    collected = payload.get("collected")
+    if expected != sorted(EXPECTED_CASES) or collected != sorted(EXPECTED_CASES):
+        return False
+    if not isinstance(payload.get("phases"), list):
+        return False
+    phase_keys: list[tuple[str, str]] = []
+    for item in payload["phases"]:
+        if not isinstance(item, dict) or set(item) != {"nodeid", "when", "outcome"}:
+            return False
+        if item["nodeid"] not in EXPECTED_CASES or item["when"] not in {"setup", "call", "teardown"}:
+            return False
+        if item["outcome"] != "passed":
+            return False
+        phase_keys.append((item["nodeid"], item["when"]))
+    expected_phase_keys = {
+        (node, phase)
+        for node in EXPECTED_CASES
+        for phase in ("setup", "call", "teardown")
+    }
+    if len(phase_keys) != len(set(phase_keys)) or set(phase_keys) != expected_phase_keys:
+        return False
+    counts = payload.get("counts")
+    if (
+        not isinstance(counts, dict)
+        or set(counts) != {"expected", "collected", "reports", "collection_errors"}
+        or counts != {
+            "expected": len(EXPECTED_CASES),
+            "collected": len(EXPECTED_CASES),
+            "reports": len(EXPECTED_CASES) * 3,
+            "collection_errors": 0,
+        }
+        or len(payload["phases"]) != len(EXPECTED_CASES) * 3
+    ):
+        return False
+    assertions = payload.get("assertions")
+    if assertions != {
+        "native_external_endpoint": "TEST-NET-only",
+        "host_network": "rejected",
+        "sqlite_checkpoint": "absent",
+    }:
+        return False
+    if type(payload.get("exit_code")) is not int or payload["exit_code"] != 0:
+        return False
+    if payload.get("server_stop_status") != "stopped":
+        return False
+    if payload.get("status") != ("passed" if allow_final else "tests_passed"):
+        return False
+    if allow_final and payload.get("cleanup_status") != "removed":
+        return False
+    return True
+
+
+def _read_result(path: Path) -> dict[str, Any] | None:
+    fd = -1
     try:
         info = path.lstat()
-        if not stat.S_ISREG(info.st_mode) or info.st_size > 10 * 1024 * 1024:
-            return False
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_RESULT_SIZE:
+            return None
+        expected = _result_signature(info)
+        fd = os.open(
+            path,
+            os.O_RDONLY
+            | getattr(os, "O_NOFOLLOW", 0)
+            | getattr(os, "O_CLOEXEC", 0),
+        )
+        if _result_signature(os.fstat(fd)) != expected:
+            return None
+        chunks: list[bytes] = []
+        total = 0
+        while True:
+            chunk = os.read(fd, min(64 * 1024, MAX_RESULT_SIZE + 1 - total))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            total += len(chunk)
+            if total > MAX_RESULT_SIZE:
+                return None
+        if _result_signature(os.fstat(fd)) != expected:
+            return None
+        current = path.lstat()
+        if _result_signature(current) != expected:
+            return None
+        payload = json.loads(b"".join(chunks).decode("utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    finally:
+        if fd >= 0:
+            os.close(fd)
+    return payload if isinstance(payload, dict) else None
+
+
+def _result_signature(info: os.stat_result) -> tuple[int, int, int, int, int, int, int]:
+    return (
+        info.st_dev,
+        info.st_ino,
+        info.st_mode,
+        info.st_uid,
+        info.st_size,
+        info.st_mtime_ns,
+        info.st_ctime_ns,
+    )
+
+
+def _write_final_result(path: Path, payload: dict[str, Any], *, status: str, cleanup_status: str) -> bool:
+    final = dict(payload)
+    final["status"] = status
+    final["cleanup_status"] = cleanup_status
+    encoded = (json.dumps(final, sort_keys=True, separators=(",", ":")) + "\n").encode()
+    if len(encoded) > MAX_RESULT_SIZE:
         return False
-    return isinstance(payload, dict)
+    temp: Path | None = None
+    fd = -1
+    try:
+        parent = path.parent
+        parent_info = parent.lstat()
+        if not stat.S_ISDIR(parent_info.st_mode):
+            return False
+        try:
+            destination = path.lstat()
+        except FileNotFoundError:
+            destination_signature = None
+        else:
+            if not stat.S_ISREG(destination.st_mode):
+                return False
+            destination_signature = _result_signature(destination)
+        temp = parent / f".{path.name}.{os.getpid()}.{secrets.token_hex(8)}.tmp"
+        flags = (
+            os.O_WRONLY
+            | os.O_CREAT
+            | os.O_EXCL
+            | getattr(os, "O_NOFOLLOW", 0)
+            | getattr(os, "O_CLOEXEC", 0)
+        )
+        fd = os.open(temp, flags, 0o600)
+        view = memoryview(encoded)
+        while view:
+            written = os.write(fd, view)
+            if written <= 0:
+                return False
+            view = view[written:]
+        os.fsync(fd)
+        os.close(fd)
+        fd = -1
+        try:
+            current = path.lstat()
+        except FileNotFoundError:
+            current_signature = None
+        else:
+            if not stat.S_ISREG(current.st_mode):
+                return False
+            current_signature = _result_signature(current)
+        if current_signature != destination_signature:
+            return False
+        os.replace(temp, path)
+        temp = None
+        dir_fd = os.open(
+            parent,
+            os.O_RDONLY
+            | getattr(os, "O_DIRECTORY", 0)
+            | getattr(os, "O_NOFOLLOW", 0)
+            | getattr(os, "O_CLOEXEC", 0),
+        )
+        try:
+            os.fsync(dir_fd)
+        finally:
+            os.close(dir_fd)
+    except OSError:
+        return False
+    finally:
+        if fd >= 0:
+            os.close(fd)
+        if temp is not None:
+            try:
+                temp.unlink()
+            except FileNotFoundError:
+                pass
+    return True
+
+
+def _valid_result(path: Path, *, run_id: str, image_id: str, manifest_sha256: str) -> bool:
+    payload = _read_result(path)
+    return payload is not None and _validate_result_payload(
+        payload,
+        run_id=run_id,
+        image_id=image_id,
+        manifest_sha256=manifest_sha256,
+    )
 
 
 def _prepare_result_dir(repo: Path, result_dir: Path) -> Path:
@@ -288,6 +513,10 @@ def run_validation(
     cid: str | None = None
     create_attempted = False
     outcome = RUN_FAILED
+    env: dict[str, str] | None = None
+    image_id: str | None = None
+    manifest_sha256: str | None = None
+    staged_result: Path | None = None
     temporary_context: tempfile.TemporaryDirectory[str] | None = None
     try:
         temporary_context = tempfile.TemporaryDirectory(
@@ -299,6 +528,8 @@ def run_validation(
         docker_config.mkdir(mode=0o700)
         env = _docker_env(docker_config)
         build_context(root, context)
+        manifest_payload = json.loads((context / "manifest.json").read_text(encoding="utf-8"))
+        manifest_sha256 = manifest_payload["manifest_sha256"]
         iidfile = workspace / "image.id"
         dockerfile = context / "tests/pg_validation/Dockerfile"
         build_args = [
@@ -343,31 +574,65 @@ def run_validation(
             raise ValueError("isolated_pg_container_exit_invalid") from None
         if container_exit != 0:
             raise ValueError("isolated_pg_validation_failed")
-        result_file = target / "result.json"
+        staged_result = workspace / "container-result.json"
         _call(
             docker,
-            ["docker", "cp", f"{cid}:/results/result.json", str(result_file)],
+            ["docker", "cp", f"{cid}:/results/result.json", str(staged_result)],
             env,
             60,
         )
-        if not _valid_result(result_file):
+        if not _valid_result(
+            staged_result,
+            run_id=run_id,
+            image_id=image_id,
+            manifest_sha256=manifest_sha256,
+        ):
             raise ValueError("isolated_pg_result_invalid")
         outcome = 0
     except (Exception, KeyboardInterrupt):
         outcome = RUN_FAILED
     finally:
-        if cid is not None:
+        cleanup_ok = cid is not None and env is not None
+        if cid is not None and env is not None:
             try:
                 # Revalidate identity immediately before the only destructive call.
                 cleanup_info = _inspect(docker, cid, env)
                 if not _identity_matches(cleanup_info, cid, run_id):
                     outcome = CLEANUP_FAILED
+                    cleanup_ok = False
                 else:
                     _call(docker, ["docker", "rm", "-f", cid], env, 60)
             except (Exception, KeyboardInterrupt):
                 outcome = CLEANUP_FAILED
+                cleanup_ok = False
         elif create_attempted:
             outcome = CLEANUP_FAILED
+            cleanup_ok = False
+        if staged_result is not None and image_id is not None and manifest_sha256 is not None:
+            payload = _read_result(staged_result)
+            source_valid = payload is not None and _validate_result_payload(
+                payload,
+                run_id=run_id,
+                image_id=image_id,
+                manifest_sha256=manifest_sha256,
+                allow_final=False,
+            )
+            if source_valid:
+                if outcome == 0 and cleanup_ok:
+                    if not _write_final_result(
+                        target / "result.json",
+                        payload,
+                        status="passed",
+                        cleanup_status="removed",
+                    ):
+                        outcome = RUN_FAILED
+                elif outcome == CLEANUP_FAILED:
+                    _write_final_result(
+                        target / "result.json",
+                        payload,
+                        status="cleanup_failed",
+                        cleanup_status="failed",
+                    )
         if temporary_context is not None:
             temporary_context.cleanup()
     return outcome
@@ -378,6 +643,7 @@ __all__ = [
     "CONTAINER_REJECTION_REASON",
     "RUN_FAILED",
     "create_args",
+    "_validate_result_payload",
     "run_validation",
     "validate_container",
 ]

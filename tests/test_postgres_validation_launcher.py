@@ -11,7 +11,13 @@ import subprocess
 import pytest
 
 from pg_validation.bundle import allowed_path, build_context
-from pg_validation.launcher import create_args, run_validation, validate_container
+from pg_validation.launcher import (
+    _write_final_result,
+    create_args,
+    run_validation,
+    validate_container,
+)
+from pg_validation.result import BASE_IMAGE, EXPECTED_CASES, RESULT_SCHEMA
 
 
 RUN_ID = "0123456789abcdef"
@@ -142,6 +148,8 @@ def test_create_args_is_the_exact_safe_container_argv():
         "2g",
         "--pids-limit",
         "256",
+        "--env",
+        f"STOCK_AGENT_PG_VALIDATION_IMAGE_ID={IMAGE_ID}",
         "--tmpfs",
         "/tmp:rw,nosuid,nodev,size=768m,mode=1777",
         "--tmpfs",
@@ -465,7 +473,51 @@ class FakeDocker:
             if self.mode == "malformed_result":
                 destination.write_text("not-json")
             else:
-                destination.write_text('{"status":"passed"}\n')
+                build = next(call for call in self.calls if call[1] == "build")
+                context = Path(build[-1])
+                manifest = json.loads((context / "manifest.json").read_text())
+                result = {
+                    "schema": RESULT_SCHEMA,
+                    "run_id": self.run_id,
+                    "manifest_sha256": manifest["manifest_sha256"],
+                    "base_image": BASE_IMAGE,
+                    "derived_image": IMAGE_ID,
+                    "network": "none",
+                    "socket": "unix-local-only",
+                    "paths": "tmpfs-and-container-layer-only",
+                    "versions": {
+                        "python": "3.13.5",
+                        "postgres": "17.11",
+                        "psycopg": "3.3.4",
+                        "libpq": "170011",
+                    },
+                    "status": "tests_passed",
+                    "collected": sorted(EXPECTED_CASES),
+                    "expected": sorted(EXPECTED_CASES),
+                    "phases": [
+                        {"nodeid": node, "when": phase, "outcome": "passed"}
+                        for node in sorted(EXPECTED_CASES)
+                        for phase in ("setup", "call", "teardown")
+                    ],
+                    "counts": {
+                        "expected": len(EXPECTED_CASES),
+                        "collected": len(EXPECTED_CASES),
+                        "reports": len(EXPECTED_CASES) * 3,
+                        "collection_errors": 0,
+                    },
+                    "assertions": {
+                        "native_external_endpoint": "TEST-NET-only",
+                        "host_network": "rejected",
+                        "sqlite_checkpoint": "absent",
+                    },
+                    "exit_code": 0,
+                    "server_stop_status": "stopped",
+                }
+                if self.mode == "duplicate_result":
+                    result["phases"].append(dict(result["phases"][0]))
+                elif self.mode == "missing_phase":
+                    result["phases"].pop()
+                destination.write_text(json.dumps(result) + "\n")
             return subprocess.CompletedProcess(argv, 0, "", "")
         if command == "rm":
             if self.mode == "cleanup_failure":
@@ -496,7 +548,9 @@ def test_run_validation_success_uses_fixed_commands_and_copies_valid_json(tmp_pa
     result_dir = tmp_path / "result"
     fake = FakeDocker()
     assert run_validation(repo, result_dir, docker=fake) == 0
-    assert json.loads((result_dir / "result.json").read_text()) == {"status": "passed"}
+    exported = json.loads((result_dir / "result.json").read_text())
+    assert exported["status"] == "passed"
+    assert exported["cleanup_status"] == "removed"
     _assert_no_start_before_validation(fake)
     _assert_cleanup_is_exact(fake)
     commands = [call[1] for call in fake.calls]
@@ -521,6 +575,8 @@ def test_run_validation_success_uses_fixed_commands_and_copies_valid_json(tmp_pa
         "cleanup_failure",
         "bad_image_id",
         "create_timeout",
+        "duplicate_result",
+        "missing_phase",
     ],
 )
 def test_run_validation_failure_states_are_nonzero_and_cleanup_only_exact_cid(
@@ -531,6 +587,8 @@ def test_run_validation_failure_states_are_nonzero_and_cleanup_only_exact_cid(
     assert run_validation(repo, tmp_path / "result", docker=fake) != 0
     _assert_no_start_before_validation(fake)
     _assert_cleanup_is_exact(fake)
+    if mode in {"missing_result", "malformed_result", "duplicate_result", "missing_phase"}:
+        assert not (tmp_path / "result" / "result.json").exists()
     if mode == "inspect_rejection":
         assert all(call[1] != "start" for call in fake.calls)
 
@@ -614,3 +672,17 @@ def test_run_validation_rejects_unsafe_result_directories_before_docker(tmp_path
     fake = FakeDocker()
     assert run_validation(repo, result, docker=fake) != 0
     assert fake.calls == []
+
+
+def test_final_result_writer_rejects_preexisting_symlink(tmp_path):
+    target = tmp_path / "target.json"
+    target.write_text("keep")
+    result = tmp_path / "result.json"
+    result.symlink_to(target)
+    assert _write_final_result(
+        result,
+        {"schema": "not-used"},
+        status="passed",
+        cleanup_status="removed",
+    ) is False
+    assert target.read_text() == "keep"

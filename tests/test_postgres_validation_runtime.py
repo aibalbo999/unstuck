@@ -13,6 +13,8 @@ import sys
 
 import pytest
 
+from pg_validation.result import BASE_IMAGE, EXPECTED_CASES, RESULT_SCHEMA
+
 
 RUN_ID = "89abcdef01234567"
 ROOT = Path(f"/tmp/pg-validation-{RUN_ID}")
@@ -78,6 +80,49 @@ class FakeSubprocess:
         self.stop_failure = stop_failure
         self.start_failure = start_failure
         self.calls: list[tuple[list[str], dict]] = []
+        self.result_path: Path | None = None
+
+    def _write_result(self):
+        if self.result_path is None:
+            return
+        phases = [
+            {"nodeid": node, "when": phase, "outcome": "passed"}
+            for node in sorted(EXPECTED_CASES)
+            for phase in ("setup", "call", "teardown")
+        ]
+        self.result_path.write_text(json.dumps({
+            "schema": RESULT_SCHEMA,
+            "run_id": RUN_ID,
+            "manifest_sha256": MANIFEST_HASH,
+            "base_image": BASE_IMAGE,
+            "derived_image": "",
+            "network": "none",
+            "socket": "unix-local-only",
+            "paths": "tmpfs-and-container-layer-only",
+            "versions": {
+                "python": "3.13.5",
+                "postgres": "17.11",
+                "psycopg": "3.3.4",
+                "libpq": "170011",
+            },
+            "status": "tests_passed" if not self.pytest_exit else "tests_failed",
+            "collected": sorted(EXPECTED_CASES),
+            "expected": sorted(EXPECTED_CASES),
+            "phases": phases,
+            "counts": {
+                "expected": len(EXPECTED_CASES),
+                "collected": len(EXPECTED_CASES),
+                "reports": len(phases),
+                "collection_errors": 0,
+            },
+            "assertions": {
+                "native_external_endpoint": "TEST-NET-only",
+                "host_network": "rejected",
+                "sqlite_checkpoint": "absent",
+            },
+            "exit_code": self.pytest_exit,
+            "server_stop_status": "pending",
+        }))
 
     def __call__(self, argv, **kwargs):
         command = list(argv)
@@ -91,6 +136,7 @@ class FakeSubprocess:
         if command[-1] == "stop" and self.stop_failure:
             raise subprocess.CalledProcessError(1, command)
         if command[:3] == [sys.executable, "-B", "tests/run_prompt_boundary_tests.py"]:
+            self._write_result()
             if self.pytest_exit:
                 raise subprocess.CalledProcessError(
                     self.pytest_exit, command, output="private stdout", stderr="private stderr"
@@ -124,6 +170,7 @@ def test_entrypoint_runs_fixed_bootstrap_test_and_stop_argv_with_clean_env(
     monkeypatch.setenv("HTTPS_PROXY", "http://proxy")
     monkeypatch.setenv("GOOGLE_API_KEY", "secret")
     fake = FakeSubprocess()
+    fake.result_path = result
 
     assert entrypoint.run(RUN_ID, invoke=fake, manifest_path=manifest, result_path=result) == 0
 
@@ -152,7 +199,7 @@ def test_entrypoint_runs_fixed_bootstrap_test_and_stop_argv_with_clean_env(
         [
             sys.executable, "-B", "tests/run_prompt_boundary_tests.py",
             "tests/test_workflow_postgres_live.py", "-q", "-p", "no:cacheprovider",
-            "--tb=short",
+            "-p", "pg_validation.result", "--tb=short",
         ],
         ["pg_ctl", "-D", str(DATA), "-w", "-t", "30", "stop"],
     ]
@@ -185,9 +232,9 @@ def test_entrypoint_runs_fixed_bootstrap_test_and_stop_argv_with_clean_env(
             },
         },
     }
-    assert json.loads(result.read_text()) == {
-        "status": "passed", "manifest_sha256": MANIFEST_HASH
-    }
+    payload = json.loads(result.read_text())
+    assert payload["status"] == "tests_passed"
+    assert payload["server_stop_status"] == "stopped"
 
 
 @pytest.mark.parametrize("bad", ["", "short", "0123456789ABCDEf", "0" * 17])
@@ -207,12 +254,13 @@ def test_entrypoint_failure_or_stop_failure_can_never_become_success(
     entrypoint = _runtime_module()
     manifest, result = runtime_files
     fake = FakeSubprocess(pytest_exit=pytest_exit, stop_failure=stop_failure)
+    fake.result_path = result
     assert entrypoint.run(
         RUN_ID, invoke=fake, manifest_path=manifest, result_path=result
     ) != 0
     commands = [call[0] for call in fake.calls]
     assert commands[-1] == ["pg_ctl", "-D", str(DATA), "-w", "-t", "30", "stop"]
-    assert json.loads(result.read_text())["status"] == "failed"
+    assert json.loads(result.read_text())["status"] == "tests_failed"
 
 
 def test_entrypoint_start_timeout_still_attempts_exact_bounded_stop(runtime_files):
@@ -226,6 +274,16 @@ def test_entrypoint_start_timeout_still_attempts_exact_bounded_stop(runtime_file
         "pg_ctl", "-D", str(DATA), "-w", "-t", "30", "stop"
     ]
     assert fake.calls[-1][1]["timeout"] == 30
+
+
+def test_entrypoint_stop_status_update_rejects_result_symlink(tmp_path):
+    entrypoint = _runtime_module()
+    target = tmp_path / "target.json"
+    target.write_text("keep")
+    result = tmp_path / "result.json"
+    result.symlink_to(target)
+    assert entrypoint._update_result_stop_status(result, stop_status="stopped") is False
+    assert target.read_text() == "keep"
 
 
 def _write_policy(path: Path, *, run_id: str = RUN_ID, endpoint_mutation=None):

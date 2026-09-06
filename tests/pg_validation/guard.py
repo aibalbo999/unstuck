@@ -239,6 +239,25 @@ def _reject() -> None:
     raise ValueError(REJECTION_REASON)
 
 
+def guard_native_connect(native_connect: Any) -> Any:
+    """Return a fail-closed wrapper for direct libpq ``PGconn.connect``.
+
+    Application code must use the attested psycopg sync/async boundaries
+    above. Direct native connections have no safe way to carry the endpoint
+    identity and are therefore rejected before the supplied callable runs.
+    The live suite calls the native API directly only for its TEST-NET
+    network-isolation negative check inside the disposable container.
+    """
+
+    if not callable(native_connect):
+        _reject()
+
+    def checked_native(*_args: Any, **_kwargs: Any) -> Any:
+        _reject()
+
+    return checked_native
+
+
 def install(
     driver: Any,
     endpoints: Any = (),
@@ -307,6 +326,7 @@ __all__ = [
     "LIVE_POLICY_REJECTION_REASON",
     "POLICY_ENV",
     "RuntimeEvidence",
+    "guard_native_connect",
     "install",
     "install_connection_guard",
     "load_policy",

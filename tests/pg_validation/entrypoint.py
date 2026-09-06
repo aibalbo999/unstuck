@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import re
+import secrets
 import stat
 import subprocess
 import sys
@@ -13,6 +14,7 @@ from typing import Any, Callable
 
 from .guard import POLICY_ENV
 from .policy import Endpoint
+from .result import RESULT_SCHEMA
 
 
 RUN_FAILED = 1
@@ -22,6 +24,9 @@ _HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 _CHILD_ENV = {"PATH", "LANG", "PYTHONPATH", "PYTHONDONTWRITEBYTECODE", "PSYCOPG_IMPL"}
 _MANIFEST_PATH = Path("/opt/validation-manifest.json")
 _RESULT_PATH = Path("/results/result.json")
+_IMAGE_ENV = "STOCK_AGENT_PG_VALIDATION_IMAGE_ID"
+_RUN_ENV = "STOCK_AGENT_PG_VALIDATION_RUN_ID"
+_MANIFEST_ENV = "STOCK_AGENT_PG_VALIDATION_MANIFEST_SHA256"
 
 
 def _paths(run_id: str) -> tuple[Path, Path, Path]:
@@ -89,6 +94,128 @@ def _write_private_log(path: Path, value: Any) -> None:
         os.close(fd)
 
 
+def _write_all(fd: int, data: bytes) -> None:
+    view = memoryview(data)
+    while view:
+        written = os.write(fd, view)
+        if written <= 0:
+            raise OSError("short result write")
+        view = view[written:]
+
+
+def _file_signature(info: os.stat_result) -> tuple[int, int, int, int, int, int, int]:
+    return (
+        info.st_dev,
+        info.st_ino,
+        info.st_mode,
+        info.st_uid,
+        info.st_size,
+        info.st_mtime_ns,
+        info.st_ctime_ns,
+    )
+
+
+def _read_private_json(path: Path, maximum: int) -> tuple[dict[str, Any], tuple[int, ...]]:
+    info = path.lstat()
+    if not stat.S_ISREG(info.st_mode) or info.st_size > maximum:
+        raise OSError("result is not a bounded regular file")
+    expected = _file_signature(info)
+    fd = os.open(
+        path,
+        os.O_RDONLY
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_CLOEXEC", 0),
+    )
+    try:
+        opened = os.fstat(fd)
+        if _file_signature(opened) != expected:
+            raise OSError("result changed before read")
+        chunks: list[bytes] = []
+        total = 0
+        while True:
+            chunk = os.read(fd, min(64 * 1024, maximum + 1 - total))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            total += len(chunk)
+            if total > maximum:
+                raise OSError("result is too large")
+        if _file_signature(os.fstat(fd)) != expected:
+            raise OSError("result changed during read")
+    finally:
+        os.close(fd)
+    payload = json.loads(b"".join(chunks).decode("utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("result is not an object")
+    return payload, expected
+
+
+def _atomic_replace_private(path: Path, encoded: bytes, expected: tuple[int, ...]) -> None:
+    parent = path.parent
+    parent_info = parent.lstat()
+    if not stat.S_ISDIR(parent_info.st_mode):
+        raise OSError("result parent is not a directory")
+    before = path.lstat()
+    if not stat.S_ISREG(before.st_mode) or _file_signature(before) != expected:
+        raise OSError("result changed during update")
+    temp = parent / f".{path.name}.{os.getpid()}.{secrets.token_hex(8)}.tmp"
+    flags = (
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_EXCL
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+    )
+    fd = -1
+    try:
+        fd = os.open(temp, flags, 0o600)
+        _write_all(fd, encoded)
+        os.fsync(fd)
+        os.close(fd)
+        fd = -1
+        current = path.lstat()
+        if _file_signature(current) != expected:
+            raise OSError("result changed during update")
+        os.replace(temp, path)
+        dir_fd = os.open(
+            parent,
+            os.O_RDONLY
+            | getattr(os, "O_DIRECTORY", 0)
+            | getattr(os, "O_NOFOLLOW", 0)
+            | getattr(os, "O_CLOEXEC", 0),
+        )
+        try:
+            os.fsync(dir_fd)
+        finally:
+            os.close(dir_fd)
+    finally:
+        if fd >= 0:
+            os.close(fd)
+        try:
+            temp.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def _update_result_stop_status(path: Path, *, stop_status: str) -> bool:
+    """Bind server shutdown to the structured result without logging data."""
+
+    try:
+        payload, expected = _read_private_json(path, 1024 * 1024)
+        if payload.get("schema") != RESULT_SCHEMA:
+            return False
+        payload["server_stop_status"] = stop_status
+        if stop_status != "stopped":
+            payload["status"] = "tests_failed"
+        encoded = (json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n").encode()
+        if len(encoded) > 1024 * 1024:
+            return False
+        _atomic_replace_private(path, encoded, expected)
+        return True
+    except (OSError, UnicodeError, ValueError, TypeError, json.JSONDecodeError):
+        return False
+
+
 def _manifest_hash(path: Path) -> str:
     payload = json.loads(path.read_text(encoding="utf-8"))
     value = payload.get("manifest_sha256") if isinstance(payload, dict) else None
@@ -130,6 +257,7 @@ def run(
     manifest_hash = ""
     test_stdout: Any = None
     test_stderr: Any = None
+    stop_status = "not_started"
     try:
         root.mkdir(mode=0o700, exist_ok=False)
         socket_dir.mkdir(mode=0o700, exist_ok=False)
@@ -179,12 +307,15 @@ def run(
         )
         child_env = dict(base_env)
         child_env[POLICY_ENV] = str(policy_path)
+        child_env[_RUN_ENV] = run_id
+        child_env[_MANIFEST_ENV] = manifest_hash
+        child_env[_IMAGE_ENV] = os.environ.get(_IMAGE_ENV, "")
         completed = _call(
             invoke,
             [
                 sys.executable, "-B", "tests/run_prompt_boundary_tests.py",
                 "tests/test_workflow_postgres_live.py", "-q", "-p",
-                "no:cacheprovider", "--tb=short",
+                "no:cacheprovider", "-p", "pg_validation.result", "--tb=short",
             ],
             env=child_env,
             timeout=600,
@@ -192,7 +323,11 @@ def run(
         )
         test_stdout = completed.stdout
         test_stderr = completed.stderr
-        passed = True
+        try:
+            payload = json.loads(Path(result_path).read_text(encoding="utf-8"))
+            passed = isinstance(payload, dict) and payload.get("status") == "tests_passed"
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            passed = False
     except subprocess.SubprocessError as exc:
         test_stdout = exc.stdout
         test_stderr = exc.stderr
@@ -207,25 +342,21 @@ def run(
                     env=base_env,
                     timeout=30,
                 )
+                stop_status = "stopped"
             except (OSError, subprocess.SubprocessError):
                 passed = False
+                stop_status = "stop_failed"
+        if _update_result_stop_status(Path(result_path), stop_status=stop_status) is False:
+            passed = False
         if root.is_dir():
             try:
                 _write_private_log(root / "pytest.stdout.log", test_stdout)
                 _write_private_log(root / "pytest.stderr.log", test_stderr)
             except OSError:
                 passed = False
-        if manifest_hash:
-            try:
-                _write_private_json(
-                    Path(result_path),
-                    {
-                        "status": "passed" if passed else "failed",
-                        "manifest_sha256": manifest_hash,
-                    },
-                )
-            except OSError:
-                passed = False
+        # The pytest plugin owns the structured payload.  Never replace it by
+        # a permissive summary: the host launcher validates its allowlist and
+        # identity before accepting or exporting evidence.
     return 0 if passed else RUN_FAILED
 
 

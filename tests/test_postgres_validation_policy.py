@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from pg_validation.guard import install
+from pg_validation.guard import guard_native_connect, install
 from pg_validation.policy import Endpoint
 
 
@@ -241,3 +241,28 @@ def test_stale_alias_uses_latest_reinstalled_policy():
 def test_guard_preserves_stable_reason_for_malformed_endpoint():
     with pytest.raises(ValueError, match="^isolated_pg_identity_invalid$"):
         Endpoint("/tmp/other", "5432", "db_other", "postgres").values()
+
+
+def test_native_guard_rejects_disallowed_endpoint_before_native_call():
+    class FakeNative:
+        calls = []
+
+        @staticmethod
+        def connect(conninfo):
+            FakeNative.calls.append(conninfo)
+            return object()
+
+    class FakePq:
+        PGconn = FakeNative
+
+    class FakeDriver:
+        pq = FakePq
+
+    FakeDriver.pq.PGconn.connect = guard_native_connect(
+        FakeDriver.pq.PGconn.connect
+    )
+    with pytest.raises(ValueError, match="^isolated_pg_connection_rejected$"):
+        FakeDriver.pq.PGconn.connect(
+            b"hostaddr=127.0.0.1 port=5432 dbname=production user=app"
+        )
+    assert FakeNative.calls == []

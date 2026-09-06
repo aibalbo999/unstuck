@@ -47,6 +47,22 @@ from agent_runtime.deferred import AgentDeferredError
 from langgraph.errors import NodeCancelledError
 
 
+def test_pg00_native_external_endpoint_is_unreachable():
+    """Exercise libpq itself only inside the attested network=none container."""
+
+    import time
+
+    started = time.monotonic()
+    conn = psycopg.pq.PGconn.connect(
+        b"hostaddr=192.0.2.1 port=5432 dbname=invalid user=invalid connect_timeout=5"
+    )
+    try:
+        assert conn.status == psycopg.pq.ConnStatus.BAD
+    finally:
+        conn.finish()
+    assert time.monotonic() - started < 10
+
+
 @dataclass(frozen=True, slots=True)
 class PgSetupEvidence:
     owner_endpoint: object
