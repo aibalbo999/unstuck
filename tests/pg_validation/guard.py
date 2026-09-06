@@ -18,6 +18,9 @@ LIVE_POLICY_REJECTION_REASON = "isolated_pg_live_policy_rejected"
 POLICY_ENV = "STOCK_AGENT_PG_VALIDATION_POLICY"
 _RUN_RE = re.compile(r"^[0-9a-f]{16}$")
 _HASH_RE = re.compile(r"^[0-9a-f]{64}$")
+_MANIFEST_PATH = Path("/opt/validation-manifest.json")
+_MAX_POLICY_SIZE = 64 * 1024
+_MAX_MANIFEST_SIZE = 1024 * 1024
 _ENDPOINT_KEYS = {
     "host",
     "port",
@@ -49,6 +52,93 @@ def _policy_reject() -> None:
     raise ValueError(LIVE_POLICY_REJECTION_REASON)
 
 
+def _signature(info: os.stat_result) -> tuple[int, int, int, int, int, int, int]:
+    return (
+        info.st_dev,
+        info.st_ino,
+        info.st_mode,
+        info.st_uid,
+        info.st_size,
+        info.st_mtime_ns,
+        info.st_ctime_ns,
+    )
+
+
+def _read_fd(fd: int, maximum: int) -> bytes:
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = os.read(fd, min(64 * 1024, maximum + 1 - total))
+        if not chunk:
+            return b"".join(chunks)
+        chunks.append(chunk)
+        total += len(chunk)
+        if total > maximum:
+            _policy_reject()
+
+
+def _read_policy_at(root_fd: int, runtime: RuntimeEvidence) -> dict[str, Any]:
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    policy_fd = -1
+    try:
+        policy_fd = os.open("policy.json", flags, dir_fd=root_fd)
+        before = os.fstat(policy_fd)
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or stat.S_IMODE(before.st_mode) != 0o600
+            or before.st_uid != runtime.uid
+            or before.st_size > _MAX_POLICY_SIZE
+        ):
+            _policy_reject()
+        raw = _read_fd(policy_fd, _MAX_POLICY_SIZE)
+        if _signature(os.fstat(policy_fd)) != _signature(before):
+            _policy_reject()
+        payload = json.loads(raw.decode("utf-8"))
+        if not isinstance(payload, dict):
+            _policy_reject()
+        return payload
+    finally:
+        if policy_fd >= 0:
+            os.close(policy_fd)
+
+
+def _read_manifest_hash(
+    manifest_path: Path,
+    *,
+    expected_uid: int,
+) -> str:
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    fd = -1
+    try:
+        before_path = manifest_path.lstat()
+        fd = os.open(manifest_path, flags)
+        before = os.fstat(fd)
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or _signature(before) != _signature(before_path)
+            or stat.S_IMODE(before.st_mode) != 0o444
+            or before.st_uid != expected_uid
+            or before.st_size > _MAX_MANIFEST_SIZE
+        ):
+            _policy_reject()
+        raw = _read_fd(fd, _MAX_MANIFEST_SIZE)
+        after = os.fstat(fd)
+        after_path = manifest_path.lstat()
+        if (
+            _signature(after) != _signature(before)
+            or _signature(after_path) != _signature(before)
+        ):
+            _policy_reject()
+        payload = json.loads(raw.decode("utf-8"))
+        value = payload.get("manifest_sha256") if isinstance(payload, dict) else None
+        if not isinstance(value, str) or not _HASH_RE.fullmatch(value):
+            _policy_reject()
+        return value
+    finally:
+        if fd >= 0:
+            os.close(fd)
+
+
 def _endpoint_from_payload(payload: Any, run_id: str, identity: str) -> Endpoint:
     if not isinstance(payload, dict) or set(payload) != _ENDPOINT_KEYS:
         _policy_reject()
@@ -71,10 +161,13 @@ def load_policy(
     path_value: Any,
     *,
     evidence: RuntimeEvidence | None = None,
+    manifest_path: Path = _MANIFEST_PATH,
 ) -> tuple[Endpoint, Endpoint]:
     """Load an attested, run-scoped container policy without connection probes."""
 
+    test_seam = evidence is not None
     runtime = _runtime_evidence() if evidence is None else evidence
+    root_fd = -1
     try:
         if (
             not isinstance(runtime, RuntimeEvidence)
@@ -91,17 +184,31 @@ def load_policy(
         )
         if match is None:
             _policy_reject()
-        path = Path(path_value)
-        info = path.lstat()
+        requested_manifest = Path(manifest_path)
+        if not test_seam and requested_manifest != _MANIFEST_PATH:
+            _policy_reject()
+        run_id = match.group(1)
+        root = Path(f"/tmp/pg-validation-{run_id}")
+        root_flags = (
+            os.O_RDONLY
+            | getattr(os, "O_DIRECTORY", 0)
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0)
+        )
+        root_fd = os.open(root, root_flags)
+        root_info = os.fstat(root_fd)
         if (
-            not stat.S_ISREG(info.st_mode)
-            or stat.S_IMODE(info.st_mode) != 0o600
-            or info.st_uid != runtime.uid
-            or info.st_size > 64 * 1024
+            not stat.S_ISDIR(root_info.st_mode)
+            or stat.S_IMODE(root_info.st_mode) != 0o700
+            or root_info.st_uid != runtime.uid
         ):
             _policy_reject()
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        run_id = match.group(1)
+        payload = _read_policy_at(root_fd, runtime)
+        expected_manifest_uid = runtime.uid if test_seam else 0
+        manifest_hash = _read_manifest_hash(
+            requested_manifest,
+            expected_uid=expected_manifest_uid,
+        )
         if (
             not isinstance(payload, dict)
             or set(payload) != {"run_id", "manifest_sha256", "endpoints"}
@@ -109,6 +216,7 @@ def load_policy(
             or not _RUN_RE.fullmatch(payload["run_id"])
             or not isinstance(payload.get("manifest_sha256"), str)
             or not _HASH_RE.fullmatch(payload["manifest_sha256"])
+            or payload["manifest_sha256"] != manifest_hash
             or not isinstance(payload.get("endpoints"), dict)
             or set(payload["endpoints"]) != {"owner", "app"}
         ):
@@ -116,10 +224,15 @@ def load_policy(
         owner = _endpoint_from_payload(payload["endpoints"]["owner"], run_id, "owner")
         app = _endpoint_from_payload(payload["endpoints"]["app"], run_id, "app")
         return owner, app
-    except ValueError:
-        raise
-    except (KeyError, OSError, TypeError, UnicodeError, json.JSONDecodeError):
+    except ValueError as exc:
+        if str(exc) == LIVE_POLICY_REJECTION_REASON:
+            raise
         _policy_reject()
+    except (KeyError, OSError, TypeError, UnicodeError):
+        _policy_reject()
+    finally:
+        if root_fd >= 0:
+            os.close(root_fd)
 
 
 def _reject() -> None:

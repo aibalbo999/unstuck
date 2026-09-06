@@ -44,6 +44,12 @@ def test_dockerfile_is_the_exact_pinned_nonroot_runtime_contract():
     assert "COPY . " not in dockerfile
     assert "ADD " not in dockerfile
     assert "PSYCOPG_IMPL=binary" in dockerfile
+    permission_step = (
+        "RUN chmod -R u=rwX,go=rX /work && "
+        "chmod 0444 /opt/validation-manifest.json"
+    )
+    assert permission_step in dockerfile
+    assert dockerfile.index(permission_step) < dockerfile.index("USER 999:999")
     assert "USER 999:999" in dockerfile
     assert dockerfile.rstrip().endswith(
         'ENTRYPOINT ["/opt/pg-test-venv/bin/python", "-B", "-m", '
@@ -97,9 +103,12 @@ class FakeSubprocess:
 def runtime_files(tmp_path):
     manifest = tmp_path / "manifest.json"
     manifest.write_text(json.dumps({"manifest_sha256": MANIFEST_HASH}))
+    manifest.chmod(0o444)
     result = tmp_path / "result.json"
     yield manifest, result
-    if ROOT.exists():
+    if ROOT.is_symlink():
+        ROOT.unlink()
+    elif ROOT.exists():
         import shutil
 
         shutil.rmtree(ROOT)
@@ -127,6 +136,7 @@ def test_entrypoint_runs_fixed_bootstrap_test_and_stop_argv_with_clean_env(
         [
             "pg_ctl", "-D", str(DATA), "-o",
             f"-k {SOCKET} -p 5432 -c listen_addresses=''",
+            "-l", str(ROOT / "postgres.log"),
             "-w", "-t", "60", "start",
         ],
         [
@@ -245,8 +255,13 @@ def _runtime_evidence(guard, *, platform="linux", docker=True, uid=None):
 
 def test_policy_loader_accepts_only_attested_container_policy(runtime_files):
     guard = _guard_module()
+    manifest, _result = runtime_files
     _write_policy(POLICY)
-    endpoints = guard.load_policy(str(POLICY), evidence=_runtime_evidence(guard))
+    endpoints = guard.load_policy(
+        str(POLICY),
+        evidence=_runtime_evidence(guard),
+        manifest_path=manifest,
+    )
     assert [endpoint.user for endpoint in endpoints] == [f"owner_{RUN_ID}", f"app_{RUN_ID}"]
 
 
@@ -256,6 +271,7 @@ def test_policy_loader_accepts_only_attested_container_policy(runtime_files):
 )
 def test_policy_loader_rejects_invalid_runtime_or_policy(case, tmp_path, runtime_files):
     guard = _guard_module()
+    manifest, _result = runtime_files
     evidence = _runtime_evidence(guard)
     path = POLICY
     mutation = None
@@ -272,13 +288,75 @@ def test_policy_loader_rejects_invalid_runtime_or_policy(case, tmp_path, runtime
         run_id = "fedcba9876543210"
     elif case == "endpoint":
         mutation = lambda endpoint: endpoint.update(host="/tmp/other")
-    _write_policy(path if case != "symlink" else POLICY.with_suffix(".real"), run_id=run_id, endpoint_mutation=mutation)
+    _write_policy(
+        path if case != "symlink" else POLICY.with_suffix(".real"),
+        run_id=run_id,
+        endpoint_mutation=mutation,
+    )
     if case == "symlink":
         POLICY.symlink_to(POLICY.with_suffix(".real"))
     if case == "mode":
         POLICY.chmod(0o644)
     with pytest.raises(ValueError, match="^isolated_pg_live_policy_rejected$"):
-        guard.load_policy(str(path), evidence=evidence)
+        guard.load_policy(str(path), evidence=evidence, manifest_path=manifest)
+
+
+def test_policy_loader_rejects_run_root_parent_symlink(tmp_path, runtime_files):
+    guard = _guard_module()
+    manifest, _result = runtime_files
+    target = tmp_path / "redirected-run-root"
+    target.mkdir(mode=0o700)
+    ROOT.symlink_to(target, target_is_directory=True)
+    _write_policy(POLICY)
+    with pytest.raises(ValueError, match="^isolated_pg_live_policy_rejected$"):
+        guard.load_policy(
+            str(POLICY),
+            evidence=_runtime_evidence(guard),
+            manifest_path=manifest,
+        )
+
+
+def test_policy_loader_rejects_policy_hash_mismatching_embedded_manifest(runtime_files):
+    guard = _guard_module()
+    manifest, _result = runtime_files
+    manifest.chmod(0o600)
+    manifest.write_text(json.dumps({"manifest_sha256": "b" * 64}))
+    manifest.chmod(0o444)
+    _write_policy(POLICY)
+    with pytest.raises(ValueError, match="^isolated_pg_live_policy_rejected$"):
+        guard.load_policy(
+            str(POLICY),
+            evidence=_runtime_evidence(guard),
+            manifest_path=manifest,
+        )
+
+
+@pytest.mark.parametrize("case", ["symlink", "directory", "oversize", "writable"])
+def test_policy_loader_rejects_unsafe_embedded_manifest(case, tmp_path, runtime_files):
+    guard = _guard_module()
+    manifest, _result = runtime_files
+    if case == "symlink":
+        target = tmp_path / "manifest-target.json"
+        target.write_text(json.dumps({"manifest_sha256": MANIFEST_HASH}))
+        target.chmod(0o444)
+        manifest.unlink()
+        manifest.symlink_to(target)
+    elif case == "directory":
+        manifest.unlink()
+        manifest.mkdir()
+    elif case == "oversize":
+        manifest.chmod(0o600)
+        manifest.write_bytes(b"x" * (1024 * 1024 + 1))
+        manifest.chmod(0o444)
+    else:
+        manifest.chmod(0o644)
+    _write_policy(POLICY)
+    with pytest.raises(ValueError, match="^isolated_pg_live_policy_rejected$"):
+        guard.load_policy(
+            str(POLICY),
+            evidence=_runtime_evidence(guard),
+            manifest_path=manifest,
+        )
 
 
 def test_runner_installs_default_deny_without_policy_and_uses_policy_only_on_opt_in(monkeypatch):
@@ -288,7 +366,11 @@ def test_runner_installs_default_deny_without_policy_and_uses_policy_only_on_opt
     monkeypatch.delenv("STOCK_AGENT_PG_VALIDATION_POLICY", raising=False)
     monkeypatch.setenv("PGHOST", "production")
     monkeypatch.setattr(runner, "_import_psycopg", lambda: fake_driver)
-    monkeypatch.setattr(runner, "_install_pg_guard", lambda driver, endpoints: calls.append((driver, endpoints)))
+    monkeypatch.setattr(
+        runner,
+        "_install_pg_guard",
+        lambda driver, endpoints: calls.append((driver, endpoints)),
+    )
     assert runner.configure_postgres_boundary() is True
     assert calls == [(fake_driver, ())]
     assert "PGHOST" not in os.environ
@@ -308,7 +390,15 @@ def test_runner_loads_endpoints_only_when_live_policy_is_explicit(monkeypatch):
     calls = []
     monkeypatch.setenv("STOCK_AGENT_PG_VALIDATION_POLICY", str(POLICY))
     monkeypatch.setattr(runner, "_import_psycopg", lambda: fake_driver)
-    monkeypatch.setattr(runner, "_load_pg_policy", lambda path: endpoints if path == str(POLICY) else ())
-    monkeypatch.setattr(runner, "_install_pg_guard", lambda driver, loaded: calls.append((driver, loaded)))
+    monkeypatch.setattr(
+        runner,
+        "_load_pg_policy",
+        lambda path: endpoints if path == str(POLICY) else (),
+    )
+    monkeypatch.setattr(
+        runner,
+        "_install_pg_guard",
+        lambda driver, loaded: calls.append((driver, loaded)),
+    )
     assert runner.configure_postgres_boundary() is True
     assert calls == [(fake_driver, endpoints)]

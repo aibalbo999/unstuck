@@ -8,6 +8,7 @@ COPY backend /work/backend
 COPY tests /work/tests
 COPY prompts /work/prompts
 COPY manifest.json /opt/validation-manifest.json
+RUN chmod -R u=rwX,go=rX /work && chmod 0444 /opt/validation-manifest.json
 RUN install -d -o 999 -g 999 -m 0700 /results
 ENV PATH="/opt/pg-test-venv/bin:${PATH}" PYTHONPATH="/work/tests:/work/backend" PYTHONDONTWRITEBYTECODE=1 PSYCOPG_IMPL=binary
 USER 999:999

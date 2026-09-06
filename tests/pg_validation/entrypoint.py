@@ -151,6 +151,7 @@ def run(
             [
                 "pg_ctl", "-D", str(data_dir), "-o",
                 f"-k {socket_dir} -p 5432 -c listen_addresses=''",
+                "-l", str(root / "postgres.log"),
                 "-w", "-t", "60", "start",
             ],
             env=base_env,
