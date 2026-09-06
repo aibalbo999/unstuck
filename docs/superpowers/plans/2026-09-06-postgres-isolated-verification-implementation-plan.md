@@ -10,7 +10,10 @@
 
 ---
 
-狀態：**書面設計已核准；本計畫尚未執行。** 設計來源：[PG 規格](../specs/2026-09-06-postgres-isolated-verification-design.md)。OOS 規格雖已核准，仍是下一個獨立計畫，不在本計畫偷偷實作。
+狀態（2026-09-07）：**Task 1～8 的實作與離線 contract 已提交；Task 9 文件與
+scoped offline regression 已完成。真實 PostgreSQL image build／live PG-01～08／
+cleanup 尚未完成，不能宣稱本計畫 live 驗收通過。** 設計來源：[PG 規格](../specs/2026-09-06-postgres-isolated-verification-design.md)。
+OOS 規格雖已核准，仍是下一個獨立計畫，不在本計畫偷偷實作。
 
 ## 執行邊界與命令約定
 
@@ -65,7 +68,7 @@ Task 1／2 可由不同 implementer 分工；Task 3 依賴兩者，Task 4～7 �
 
 **Files:** Create `tests/pg_validation/{__init__,policy,guard}.py`、`tests/test_postgres_validation_policy.py`；Modify `tests/run_prompt_boundary_tests.py`。
 
-- [ ] **Step 1：先寫 conninfo 邊界測試。** `Endpoint` 是固定值物件，不接受 URI／kwargs 覆寫 endpoint；錯誤只回穩定原因，不回傳輸入 conninfo。
+- [x] **Step 1：先寫 conninfo 邊界測試。** `Endpoint` 是固定值物件，不接受 URI／kwargs 覆寫 endpoint；錯誤只回穩定原因，不回傳輸入 conninfo。
 
 ```python
 import pytest
@@ -96,8 +99,8 @@ def test_kwargs_cannot_override_conninfo():
         endpoint().validate(endpoint().conninfo(), {"hostaddr": "127.0.0.1"})
 ```
 
-- [ ] **Step 2：跑紅燈。** `python -B tests/run_prompt_boundary_tests.py tests/test_postgres_validation_policy.py -q -p no:cacheprovider --tb=short`；預期新 module 尚未存在造成 collection failure，記錄原因，不能把其他錯誤算本案例紅燈。
-- [ ] **Step 3：新增 `policy.py` 的 conninfo 單元。** 只接受固定、安全 token；本測試環境採同 UID、0700 socket 的 local trust，沒有可外傳的密碼，管理角色只由 fixture 注入。這不是正式 PG 的認證建議。
+- [x] **Step 2：跑紅燈。** `python -B tests/run_prompt_boundary_tests.py tests/test_postgres_validation_policy.py -q -p no:cacheprovider --tb=short`；預期新 module 尚未存在造成 collection failure，記錄原因，不能把其他錯誤算本案例紅燈。
+- [x] **Step 3：新增 `policy.py` 的 conninfo 單元。** 只接受固定、安全 token；本測試環境採同 UID、0700 socket 的 local trust，沒有可外傳的密碼，管理角色只由 fixture 注入。這不是正式 PG 的認證建議。
 
 ```python
 from dataclasses import dataclass
@@ -137,7 +140,7 @@ class Endpoint:
             raise failure
 ```
 
-- [ ] **Step 4：新增 guard 並用 fake driver 驗證同步、非同步、top-level alias 在真正 connect 前遭拒。** `guard.py` 接受已載入的 driver 與本次兩個 Endpoint；沒有 policy 時全部拒絕。不可在 guard 中連線測試可用性。
+- [x] **Step 4：新增 guard 並用 fake driver 驗證同步、非同步、top-level alias 在真正 connect 前遭拒。** `guard.py` 接受已載入的 driver 與本次兩個 Endpoint；沒有 policy 時全部拒絕。不可在 guard 中連線測試可用性。
 
 ```python
 def install(driver, endpoints=()):
@@ -168,7 +171,7 @@ def install(driver, endpoints=()):
 
 Fake driver 測試內容：三個入口使用計數器；沒有 policy／惡意 DSN 時 counter=0；合法 owner／app DSN 各通過一次。另保存 `alias = driver.connect`（安裝 guard 後取得），證明 alias 同樣受限；guard 必須在 pytest／業務 imports 前安裝，不允許先取得原始 alias 再使用。
 
-- [ ] **Step 5：保留 runner 現有 SQLite 與 socket guard，增加明確設定。** 在既有 `os.environ.update` 增加以下內容；live endpoint 載入與插件在 Task 3 定義後接入，預設 PG 保持拒絕。
+- [x] **Step 5：保留 runner 現有 SQLite 與 socket guard，增加明確設定。** 在既有 `os.environ.update` 增加以下內容；live endpoint 載入與插件在 Task 3 定義後接入，預設 PG 保持拒絕。
 
 ```python
 "OUTPUT_DIR": str(root / "output"),
@@ -178,14 +181,14 @@ Fake driver 測試內容：三個入口使用計數器；沒有 policy／惡意 
 
 容器副本不存在 `.env`。主機一般 runner 的非空 disabled DSN 防止 `.env` 回填且所有 PG guard 預設拒絕；不能宣稱主機 Python patch 封鎖任意 native C 呼叫。測試自建 `.env` 的 env-loading 回歸仍要保留，不全域改掉 production loader。
 
-- [ ] **Step 6：跑綠燈與 runtime/storage 回歸。** 命令包含 `tests/test_postgres_validation_policy.py tests/test_runtime_paths.py tests/test_settings_env_loading.py tests/test_storage_inventory.py tests/test_report_artifacts.py`，全部經隔離 runner。預期無失敗；另加入 `PGHOSTADDR`／`PGSERVICE` 不影響固定 DSN 的反例。
-- [ ] **Step 7：局部 commit。** `git add tests/pg_validation/__init__.py tests/pg_validation/policy.py tests/pg_validation/guard.py tests/test_postgres_validation_policy.py tests/run_prompt_boundary_tests.py`；`git commit -m "test: enforce explicit PostgreSQL isolation policy"`。
+- [x] **Step 6：跑綠燈與 runtime/storage 回歸。** 命令包含 `tests/test_postgres_validation_policy.py tests/test_runtime_paths.py tests/test_settings_env_loading.py tests/test_storage_inventory.py tests/test_report_artifacts.py`，全部經隔離 runner。預期無失敗；另加入 `PGHOSTADDR`／`PGSERVICE` 不影響固定 DSN 的反例。
+- [x] **Step 7：局部 commit。** `git add tests/pg_validation/__init__.py tests/pg_validation/policy.py tests/pg_validation/guard.py tests/test_postgres_validation_policy.py tests/run_prompt_boundary_tests.py`；`git commit -m "test: enforce explicit PostgreSQL isolation policy"`。
 
 ### Task 2：白名單 context、Docker 設定與清理狀態機
 
 **Files:** Create `tests/pg_validation/bundle.py`、`tests/pg_validation/launcher.py`、`scripts/run_postgres_validation.py`、`tests/test_postgres_validation_launcher.py`；Modify `tests/pg_validation/policy.py`。
 
-- [ ] **Step 1：先寫純容器設定反例。** 測試參數逐一包含 network=host、privileged、bind mount、anonymous volume、port binding、host PID／IPC、錯 image／run label、缺 CPU／memory／PIDs limit；都必須在 fake `start` 前失敗。
+- [x] **Step 1：先寫純容器設定反例。** 測試參數逐一包含 network=host、privileged、bind mount、anonymous volume、port binding、host PID／IPC、錯 image／run label、缺 CPU／memory／PIDs limit；都必須在 fake `start` 前失敗。
 
 ```python
 def validate_container(info, *, run_id, image_id):
@@ -212,8 +215,8 @@ def validate_container(info, *, run_id, image_id):
         raise ValueError("isolated_pg_container_rejected")
 ```
 
-- [ ] **Step 2：跑紅燈。** `python -B tests/run_prompt_boundary_tests.py tests/test_postgres_validation_launcher.py -q -p no:cacheprovider --tb=short`；預期缺新 validate／launcher 實作，不接觸 Docker。
-- [ ] **Step 3：新增白名單 builder。** 來源由目前工作樹 `git ls-files -z` 的已追蹤／已 staged 路徑取得，不掃正式 output；對每份允許檔案以 `lstat` 拒絕 symlink／非一般檔，再讀 bytes 計 hash 和複製。`bundle.py` 的選取規則如下，產生逐檔 `{path, sha256, size}` manifest，並把該 manifest hash 傳給派生 image label。
+- [x] **Step 2：跑紅燈。** `python -B tests/run_prompt_boundary_tests.py tests/test_postgres_validation_launcher.py -q -p no:cacheprovider --tb=short`；預期缺新 validate／launcher 實作，不接觸 Docker。
+- [x] **Step 3：新增白名單 builder。** 來源由目前工作樹 `git ls-files -z` 的已追蹤／已 staged 路徑取得，不掃正式 output；對每份允許檔案以 `lstat` 拒絕 symlink／非一般檔，再讀 bytes 計 hash 和複製。`bundle.py` 的選取規則如下，產生逐檔 `{path, sha256, size}` manifest，並把該 manifest hash 傳給派生 image label。
 
 ```python
 from pathlib import PurePosixPath
@@ -292,7 +295,7 @@ def build_context(repo: Path, destination: Path) -> dict:
     return manifest
 ```
 
-- [ ] **Step 4：新增 Docker create argv builder。** 對 run ID 用 `[0-9a-f]{16}`，image ID 用 `sha256:[0-9a-f]{64}` 嚴格驗證。`EXPOSE 5432` 不是 binding，不因它而放行 `-P`。
+- [x] **Step 4：新增 Docker create argv builder。** 對 run ID 用 `[0-9a-f]{16}`，image ID 用 `sha256:[0-9a-f]{64}` 嚴格驗證。`EXPOSE 5432` 不是 binding，不因它而放行 `-P`。
 
 ```python
 def create_args(run_id, image_id):
@@ -314,7 +317,7 @@ def create_args(run_id, image_id):
     ]
 ```
 
-- [ ] **Step 5：新增受限 launcher 流程與 fake process 測試。** 公開 `run_validation(repo: Path, result_dir: Path, *, docker=subprocess.run) -> int`，CLI 只有必填 `--result-dir`；result_dir 必須不存在，父目錄不是正式 cache/output，禁止 symlink／repo root。每次用 `secrets.token_hex(8)` 新 run ID，不接受外部 container 名稱、DSN 或任意 Docker flags。
+- [x] **Step 5：新增受限 launcher 流程與 fake process 測試。** 公開 `run_validation(repo: Path, result_dir: Path, *, docker=subprocess.run) -> int`，CLI 只有必填 `--result-dir`；result_dir 必須不存在，父目錄不是正式 cache/output，禁止 symlink／repo root。每次用 `secrets.token_hex(8)` 新 run ID，不接受外部 container 名稱、DSN 或任意 Docker flags。
 
 依序使用以下 argv；`docker` adapter 呼叫固定 `check=True, text=True, capture_output=True`，不得 `shell=True`，每個指令有 timeout。先以唯讀 Docker context inspect 解出本機 Unix socket，拒絕 tcp／ssh／remote daemon；後續明確指定該 host 與本次空 Docker config directory，避免 Docker 自動把主機 proxy／registry 設定帶進 build。build stdout／stderr 只留本次受限準備紀錄，不向 console 輸出環境；image ID 嚴格解析再使用。
 
@@ -337,14 +340,14 @@ cleanup 前再核對 ID 與 run label；不符則回 `cleanup_failed` 並停止�
 
 fake process 測試涵蓋成功、inspect 拒絕、start 失敗、wait timeout、非零 container exit、缺 result、異常 result、KeyboardInterrupt 與 cleanup 失敗；每一例 assert 只傳精確本次 ID，且非成功／未清理狀態不回 0。
 
-- [ ] **Step 6：跑綠燈並提交。** 先兩個新增 offline test files；再 `git diff --check`。局部提交上述 files，commit message：`test: add disposable PostgreSQL container boundary`。此 task 仍不執行 live suite。
+- [x] **Step 6：跑綠燈並提交。** 先兩個新增 offline test files；再 `git diff --check`。局部提交上述 files，commit message：`test: add disposable PostgreSQL container boundary`。此 task 仍不執行 live suite。
 
 ### Task 3：固定 image 與非 root PG bootstrap
 
 **Files:** Create `tests/pg_validation/{Dockerfile,binary.lock,entrypoint.py}`；接入 `guard.py`／runner 的 live policy。
 
-- [ ] **Step 1：新增 image contract 測試。** 斷言固定 base digest、apt versions、`USER 999:999`、binary implementation、無原 repo context、覆蓋官方 entrypoint；entrypoint argv 測試確認 `listen_addresses=''`、0700 socket、readiness timeout，且沒有 host/port publication。
-- [ ] **Step 2：跑紅燈後新增 image 與 binary lock。** 不重新 resolve 正式 lock。
+- [x] **Step 1：新增 image contract 測試。** 斷言固定 base digest、apt versions、`USER 999:999`、binary implementation、無原 repo context、覆蓋官方 entrypoint；entrypoint argv 測試確認 `listen_addresses=''`、0700 socket、readiness timeout，且沒有 host/port publication。
+- [x] **Step 2：跑紅燈後新增 image 與 binary lock。** 不重新 resolve 正式 lock。
 
 ```dockerfile
 FROM --platform=linux/arm64 postgres:17.11-trixie@sha256:413da4542e091471785b7f18f1a2258df134bc6506ab4e1e53725aa8bcfdb650
@@ -370,7 +373,7 @@ psycopg-binary==3.3.4 --hash=sha256:26df2717e59c0473e4465a97dfb1b7afebaa47927787
 
 `backend/requirements.lock` 可能含無適配 wheel 的 transitive package；安裝或 hash 驗證失敗是 preparation failure，不關掉 `--require-hashes`、不改正式 lock、不自動改依賴版本。只有確認必要、固定版本的建置依賴才可局部補 image，並重新記錄派生 image ID。
 
-- [ ] **Step 3：實作 bootstrap 的固定身份與程序。** run ID 由唯一命令列參數取得，驗證 16 hex；使用 `Endpoint` 產生 owner／app 字串，不讀主機環境 DSN。先用白名單環境啟動 child，不沿用 `PG*`、provider keys、proxy／service file。root 的值是 task-specific Path，不改 HOME／CODEX_HOME。
+- [x] **Step 3：實作 bootstrap 的固定身份與程序。** run ID 由唯一命令列參數取得，驗證 16 hex；使用 `Endpoint` 產生 owner／app 字串，不讀主機環境 DSN。先用白名單環境啟動 child，不沿用 `PG*`、provider keys、proxy／service file。root 的值是 task-specific Path，不改 HOME／CODEX_HOME。
 
 ```python
 root = Path(f"/tmp/pg-validation-{run_id}")
@@ -399,7 +402,7 @@ subprocess.run(["pg_ctl", "-D", str(data_dir), "-l", str(root / "postgres.log"),
 
 這裡只建立空 dedicated DB／roles，不先建立 saver tables。Task 4 的 session fixture 才以 owner 首次 `AsyncPostgresSaver.setup()`，保存實際 setup 前後觀測供 PG-01 驗證；其他案例共享已遷移的 dedicated DB，使用唯一 thread identity 避免 test-order 依賴。
 
-- [ ] **Step 4：寫只供本次容器的 policy file，接入 runner。** policy 包含 run ID、owner/app Endpoint、input manifest hash，檔案 0600，位於 `root / "policy.json"`；不含憑證。runner live opt-in 固定環境變數 `STOCK_AGENT_PG_VALIDATION_POLICY`，不接受普通 production DSN。
+- [x] **Step 4：寫只供本次容器的 policy file，接入 runner。** policy 包含 run ID、owner/app Endpoint、input manifest hash，檔案 0600，位於 `root / "policy.json"`；不含憑證。runner live opt-in 固定環境變數 `STOCK_AGENT_PG_VALIDATION_POLICY`，不接受普通 production DSN。
 
 loader 必須驗證 Linux、`/.dockerenv`、精確 `/tmp/pg-validation-<run>/policy.json` 路徑、無 symlink、檔案 uid=目前非 root uid、run ID 一致與固定 endpoint 形狀；不符即 nonzero。這是誤用防護，不是宣稱檔案旗標能取代 Docker inspect。
 
@@ -419,14 +422,14 @@ subprocess.run([
 stdout／stderr 只留容器內本次私有 log，不直接匯出；主機只取插件產生的 structured result。entrypoint 成功／失敗／中斷都在 finally `pg_ctl -D <exact data_dir> -w -t 30 stop`；停止失敗需記錄，不能覆蓋成成功。不可 `--rm` 自動移除後才取結果。
 
 - [ ] **Step 5：完成 unit 綠燈，再首次準備 image。** image build 是核准執行階段才做；這份計畫撰寫時尚未 build。建置後檢查實際 Python 3.13、PG 17.11、套件版本與 `psycopg.pq.__impl__ == 'binary'`，保存實際 libpq 版本。
-- [ ] **Step 6：提交 image／bootstrap／runner scoped changes。** commit message：`test: provision pinned offline PostgreSQL runtime`。若 PG readiness 或 driver 不可用，只回報 preparation failure，不進 PG 成功結論。
+- [x] **Step 6：提交 image／bootstrap／runner scoped changes。** commit message：`test: provision pinned offline PostgreSQL runtime`。若 PG readiness 或 driver 不可用，只回報 preparation failure，不進 PG 成功結論。
 
 ### Task 4：共用 fixtures 與真 PG 讀寫 helper
 
 **Files:** Create `tests/workflow_quality_draft_test_support.py`、`tests/pg_validation/cases.py`、`tests/test_workflow_postgres_live.py`；Modify `tests/test_workflow_quality_draft_resume.py`。
 
-- [ ] **Step 1：先記錄 SQLite 基線。** 跑 `tests/test_workflow_quality_draft_resume.py tests/test_workflow_checkpoint_resume.py tests/test_workflow_quality_draft_cold_imports.py tests/test_repair_dependencies.py`，確認全部從隔離 runner 執行且無失敗。
-- [ ] **Step 2：純搬移共用 fixtures。** 從 `tests/test_workflow_quality_draft_resume.py` 原樣移出 `initial_state`、`quality_runtime`、`builder_for`、`intermediate_quality_runtime` 四個符號與其 imports 到 support file，保留 decorators；不改生成／品質斷言。SQLite 檔仍保留 `execute`、`draft_records`、`main_snapshot` 與全部 test bodies。
+- [x] **Step 1：先記錄 SQLite 基線。** 跑 `tests/test_workflow_quality_draft_resume.py tests/test_workflow_checkpoint_resume.py tests/test_workflow_quality_draft_cold_imports.py tests/test_repair_dependencies.py`，確認全部從隔離 runner 執行且無失敗。
+- [x] **Step 2：純搬移共用 fixtures。** 從 `tests/test_workflow_quality_draft_resume.py` 原樣移出 `initial_state`、`quality_runtime`、`builder_for`、`intermediate_quality_runtime` 四個符號與其 imports 到 support file，保留 decorators；不改生成／品質斷言。SQLite 檔仍保留 `execute`、`draft_records`、`main_snapshot` 與全部 test bodies。
 
 ```python
 from workflow_quality_draft_test_support import (
@@ -436,7 +439,7 @@ from workflow_quality_draft_test_support import (
 
 再次執行 Step 1 同命令，測試收集數與行為須相同，才提交這個純測試重構：`test: share deterministic workflow draft fixtures`。
 
-- [ ] **Step 3：新增真 PG helper，禁止重用 SQLite serializer／SQL。** `PgCase` 的 Endpoint 只來自 runner 已驗證 policy；每個 test 另取 UUID 作 thread prefix，資料留本次 DB 到容器清理，不 truncate 共用或正式表。
+- [x] **Step 3：新增真 PG helper，禁止重用 SQLite serializer／SQL。** `PgCase` 的 Endpoint 只來自 runner 已驗證 policy；每個 test 另取 UUID 作 thread prefix，資料留本次 DB 到容器清理，不 truncate 共用或正式表。
 
 ```python
 import asyncio
@@ -501,7 +504,7 @@ session fixture 先查 `pg_tables` 證明專用 public schema 原本沒有 saver
 
 fixture `pg_case(tmp_path)` 依賴此 session fixture，建 `PgCase(app, owner, tmp_path/'unused.sqlite3', uuid4().hex)`。載入 policy 失敗不可 skip；只有完全沒有 live opt-in 時，PG 測試 module 在 import psycopg 前使用 `pytest.skip('isolated PostgreSQL live suite not enabled', allow_module_level=True)`。禁止 xdist 並行，避免故障權限互相影響。
 
-- [ ] **Step 4：增加前置成功節點 builder。** 在 cases.py 加入以下 builder，只新增 START→prerequisite→agents 邊，agent／publish 使用原 fixture 語意。
+- [x] **Step 4：增加前置成功節點 builder。** 在 cases.py 加入以下 builder，只新增 START→prerequisite→agents 邊，agent／publish 使用原 fixture 語意。
 
 ```python
 def pg_builder(calls, agents=(4,)):
@@ -539,7 +542,7 @@ def pg_builder(calls, agents=(4,)):
 
 PG helper 中 builder 可顯式注入此版本；不改既有 SQLite assertions。
 
-- [ ] **Step 5：新增 PG-01 正向 smoke，先確認沒有偽通過。** `test_pg01_empty_setup_and_reopen_are_idempotent` 使用 session fixture 實際取得的 setup 前後 table 清單與 migration rows，前者為空、後者非空且 version 不重複；同一 endpoint 重開兩次後 migration rows 相同。app 再正常呼叫 `open_postgres_checkpointer()`，`SELECT current_database(), current_user` 必須符合 dedicated DB／非 owner app，`rolsuper=false`，各 saver tables owner≠app。
+- [x] **Step 5：新增 PG-01 正向 smoke，先確認沒有偽通過。** `test_pg01_empty_setup_and_reopen_are_idempotent` 使用 session fixture 實際取得的 setup 前後 table 清單與 migration rows，前者為空、後者非空且 version 不重複；同一 endpoint 重開兩次後 migration rows 相同。app 再正常呼叫 `open_postgres_checkpointer()`，`SELECT current_database(), current_user` 必須符合 dedicated DB／非 owner app，`rolsuper=false`，各 saver tables owner≠app。**case 已加入；live 尚待 policy／image 準備。**
 
 首次 smoke 只驗證 PG-01，不宣稱完整 PG suite 通過；entrypoint 若只收集到 PG-01，整體 result 必須標 `incomplete_suite`。測試 fixture 可以在單一 case 階段執行 debug，但正式交付的 mandatory ID 檢查不移除。
 
@@ -549,7 +552,7 @@ PG helper 中 builder 可顯式注入此版本；不改既有 SQLite assertions�
 
 **Files:** Modify `tests/test_workflow_postgres_live.py`、`tests/pg_validation/cases.py`。
 
-- [ ] **Step 1：寫 PG-02 完整 payload 與版本 roundtrip。** 同 thread、固定 state、同 agent 保存兩個不同正文；每次關閉 saver 後重開。版本保留原生型別，不轉 int。
+- [x] **Step 1：寫 PG-02 完整 payload 與版本 roundtrip。** 同 thread、固定 state、同 agent 保存兩個不同正文；每次關閉 saver 後重開。版本保留原生型別，不轉 int。
 
 ```python
 async def save_draft(case, state, text, *, thread="draft-job"):
@@ -587,7 +590,7 @@ def test_pg02_original_and_intermediate_drafts_roundtrip(pg_case):
     assert not pg_case.sqlite_path.exists()
 ```
 
-- [ ] **Step 2：寫 PG-03／08 的 defer→新 saver→成功→再開。** 參數化 step-cache 關閉／TTL=0，套用現有 110000 字原稿、structured／RAG／digest 與 parse assertions。
+- [x] **Step 2：寫 PG-03／08 的 defer→新 saver→成功→再開。** 參數化 step-cache 關閉／TTL=0，套用現有 110000 字原稿、structured／RAG／digest 與 parse assertions。
 
 ```python
 @pytest.mark.parametrize("cache_enabled,ttl", [(False, 3600), (True, 0), (False, 0)],
@@ -670,7 +673,7 @@ def test_pg03_restored_draft_does_not_refresh_evidence(pg_case, quality_runtime,
     assert any(event.get("phase") == "quality_draft_restored" for event in events)
 ```
 
-- [ ] **Step 3：寫 PG-04 草稿已保存後取消。** 只替換 fixture 模型在 audit retry 的取消事件，不改 saver／graph cancellation。
+- [x] **Step 3：寫 PG-04 草稿已保存後取消。** 只替換 fixture 模型在 audit retry 的取消事件，不改 saver／graph cancellation。
 
 ```python
 def test_pg04_cancel_after_draft_resumes_without_partial_adoption(
@@ -704,7 +707,7 @@ def test_pg04_cancel_after_draft_resumes_without_partial_adoption(
 
 **Files:** Modify `tests/test_workflow_postgres_live.py`。
 
-- [ ] **Step 1：PG-05 用兩 thread 各自 `(4,14)`。** fixture 開 `deferred_agents={4}, wait_for_sibling=True`；為兩份 state 的 `ticker` 使用不同合成 token，生成正文附該 ticker，使錯拿另一 thread 的正文可被偵測。每個 thread 在 deferred 後確認 sibling 14 完成、4 pending；新 saver 恢復後只新增 4，14 不重跑。
+- [x] **Step 1：PG-05 用兩 thread 各自 `(4,14)`。** fixture 開 `deferred_agents={4}, wait_for_sibling=True`；為兩份 state 的 `ticker` 使用不同合成 token，生成正文附該 ticker，使錯拿另一 thread 的正文可被偵測。每個 thread 在 deferred 後確認 sibling 14 完成、4 pending；新 saver 恢復後只新增 4，14 不重跑。
 
 ```python
 def test_pg05_threads_agents_and_completed_sibling_are_isolated(
@@ -738,7 +741,7 @@ def test_pg05_threads_agents_and_completed_sibling_are_isolated(
     assert calls["nodes_returned"].count(4) == 2 and calls["published"] == 2
 ```
 
-- [ ] **Step 2：PG-06a 固定 graph_state，僅真實更改 agent7 的上游 agent4 context。** 沿用 `tests/test_repair_dependencies.py::_context` 作輸入；三次值 old/new/old，生成器把上游值寫入正文、RAG／digest／manifest。assert 生成兩次、namespace 有兩個、第三次恢復第一份 evidence；不修改同 thread 的 `initial_state` 冒充失效。
+- [x] **Step 2：PG-06a 固定 graph_state，僅真實更改 agent7 的上游 agent4 context。** 沿用 `tests/test_repair_dependencies.py::_context` 作輸入；三次值 old/new/old，生成器把上游值寫入正文、RAG／digest／manifest。assert 生成兩次、namespace 有兩個、第三次恢復第一份 evidence；不修改同 thread 的 `initial_state` 冒充失效。
 
 ```python
 def test_pg06_draft_restoration_tracks_upstream_fingerprint(pg_case):
@@ -773,7 +776,7 @@ def test_pg06_draft_restoration_tracks_upstream_fingerprint(pg_case):
     assert len({row.config["configurable"]["checkpoint_ns"] for row in pg_case.drafts()}) == 2
 ```
 
-- [ ] **Step 3：PG-06b 保留真 RepairRound／replacement reducer。** 以現有 `tests/test_repair_dependencies.py::test_deferred_final_audit_resumes_only_uncommitted_round_in_real_graph` 為精確來源，保留 `complete`、`audit`、state、previous node、visits 與 prior 斷言；新增 PG 版本時，不匯入／使用 MemorySaver。將一次 compile 的 execute 區塊替換為下面真正關閉再重開 saver 的內容，其他模型／audit fixture 不變。
+- [x] **Step 3：PG-06b 保留真 RepairRound／replacement reducer。** 以現有 `tests/test_repair_dependencies.py::test_deferred_final_audit_resumes_only_uncommitted_round_in_real_graph` 為精確來源，保留 `complete`、`audit`、state、previous node、visits 與 prior 斷言；新增 PG 版本時，不匯入／使用 MemorySaver。將一次 compile 的 execute 區塊替換為下面真正關閉再重開 saver 的內容，其他模型／audit fixture 不變。
 
 ```python
 config = {"configurable": {"thread_id": pg_case.thread("repair-deferred"), "checkpoint_ns": ""}}
@@ -802,7 +805,7 @@ async with open_postgres_checkpointer(pg_case.app_endpoint.conninfo()) as saver:
 
 **Files:** Modify `tests/pg_validation/cases.py`、`tests/test_workflow_postgres_live.py`。
 
-- [ ] **Step 1：寫精準 fault barrier。** 只在目標 thread／quality_draft namespace／指定正文時撤權；wrapper 必須呼叫真 `AsyncPostgresSaver.aput`，不能自己 raise 模擬 exception。將 `aput` 與 `aput_writes` 透過同 event-loop 的 `asyncio.Lock` 序列化這個案例，避免 graph 的非目標背景寫入撞到短暫撤權；這個 lock 只在故障測試 fixture，不修改 production。
+- [x] **Step 1：寫精準 fault barrier。** 只在目標 thread／quality_draft namespace／指定正文時撤權；wrapper 必須呼叫真 `AsyncPostgresSaver.aput`，不能自己 raise 模擬 exception。將 `aput` 與 `aput_writes` 透過同 event-loop 的 `asyncio.Lock` 序列化這個案例，避免 graph 的非目標背景寫入撞到短暫撤權；這個 lock 只在故障測試 fixture，不修改 production。
 
 ```python
 def deny_draft_write(monkeypatch, case, *, target_thread, matches):
@@ -848,7 +851,7 @@ def deny_draft_write(monkeypatch, case, *, target_thread, matches):
 
 在 `case.permissions(False)` 後，用 app 連線驗證 `has_table_privilege(current_user, 'checkpoints', 'INSERT')=false`，且 `SELECT` 權限仍在；角色不是 owner／superuser 的前置檢查不可省略。管理角色只能操作本次 schema。finally 恢復權限失敗時測試失敗，不吞掉。
 
-- [ ] **Step 2：寫原稿首次保存拒寫。** 先在**另一 thread** 用 `save_draft` 建可讀 baseline；不能在目標 namespace 預放原稿，否則生成器會恢復它而不嘗試寫新原稿。
+- [x] **Step 2：寫原稿首次保存拒寫。** 先在**另一 thread** 用 `save_draft` 建可讀 baseline；不能在目標 namespace 預放原稿，否則生成器會恢復它而不嘗試寫新原稿。
 
 ```python
 def test_pg07_original_draft_permission_denied_fails_closed(pg_case, quality_runtime, monkeypatch):
@@ -871,7 +874,7 @@ def test_pg07_original_draft_permission_denied_fails_closed(pg_case, quality_run
     assert pg_case.snapshot(calls, builder=pg_builder(calls)).next == ("agent_4",)
 ```
 
-- [ ] **Step 3：寫中間修復稿拒寫，structured／identity 兩路徑均覆蓋。** `intermediate_quality_runtime` 會在中間稿保存前先做一次 validation，不能錯寫成 `validated == []`。
+- [x] **Step 3：寫中間修復稿拒寫，structured／identity 兩路徑均覆蓋。** `intermediate_quality_runtime` 會在中間稿保存前先做一次 validation，不能錯寫成 `validated == []`。
 
 ```python
 def test_pg07_intermediate_draft_permission_denied_preserves_original(
@@ -910,7 +913,7 @@ def test_pg07_intermediate_draft_permission_denied_preserves_original(
 
 **Files:** Modify `tests/pg_validation/{cases,entrypoint,launcher}.py`、`tests/test_workflow_postgres_live.py`、offline policy/launcher tests。
 
-- [ ] **Step 1：增加只在隔離容器內執行的 native 反例。** 直接 `psycopg.pq.PGconn.connect` 對 `hostaddr=192.0.2.1 port=5432 dbname=invalid user=invalid connect_timeout=5`；預期 bad connection 且有界結束。這是保留給文件的 TEST-NET 位址，不指向正式 endpoint。一般 Python socket 仍應直接拒絕；wrapper 對其他 socket／hostaddr／service 的反例在 native 呼叫之前拒絕。
+- [x] **Step 1：增加只在隔離容器內執行的 native 反例。** 直接 `psycopg.pq.PGconn.connect` 對 `hostaddr=192.0.2.1 port=5432 dbname=invalid user=invalid connect_timeout=5`；預期 bad connection 且有界結束。這是保留給文件的 TEST-NET 位址，不指向正式 endpoint。一般 Python socket 仍應直接拒絕；wrapper 對其他 socket／hostaddr／service 的反例在 native 呼叫之前拒絕。
 
 ```python
 def test_pg00_native_external_endpoint_is_unreachable():
@@ -928,7 +931,7 @@ def test_pg00_native_external_endpoint_is_unreachable():
 
 不得在主機 runner 執行此 native 測試；PG module 沒有合法 live policy 時先 skip／拒絕，容器 inspect 未通過不 start。另用 monkeypatch fake native counter 測 wrapper 呼叫前拒絕，不依賴 native API 自帶網路拒絕能力。
 
-- [ ] **Step 2：加入 60 秒單案例 timeout 與 mandatory case registry。** 以 Linux 主執行緒 `signal.setitimer` fixture 包住整個 test，finally 清除 timer；所有 async 等待仍加有界 timeout，容器 watchdog 最多 10 分鐘。registry 固定如下，不從本次 collected set 自我生成；禁止 `-k`／skip 留下成功標記。
+- [x] **Step 2：加入 60 秒單案例 timeout 與 mandatory case registry。** 以 Linux 主執行緒 `signal.setitimer` fixture 包住整個 test，finally 清除 timer；所有 async 等待仍加有界 timeout，容器 watchdog 最多 10 分鐘。registry 固定如下，不從本次 collected set 自我生成；禁止 `-k`／skip 留下成功標記。
 
 ```python
 EXPECTED_CASES = {
@@ -954,7 +957,7 @@ EXPECTED_CASES = {
 
 所有 node ID 再加固定檔名 `tests/test_workflow_postgres_live.py::` 比對。若新增必要 case，先更新明確 registry 與對應規格對照並重跑全部，不能讓未知 case 被靜默忽略。
 
-- [ ] **Step 3：新增 pytest plugin 的 structured-only result。** 收集 collection node IDs 與 setup/call/teardown outcome；test exception 只輸出 class name／SQLSTATE，不寫 traceback、conninfo、locals、provider key 或 raw PG log。session finish 驗證 collected exactly matches 本次批准 registry、每個 phase 完成、沒有 fail/skip/xfail／xpass、沒有 collection errors，再可標 `tests_passed`。實作結果判定純函式：
+- [x] **Step 3：新增 pytest plugin 的 structured-only result。** 收集 collection node IDs 與 setup/call/teardown outcome；test exception 只輸出 class name／SQLSTATE，不寫 traceback、conninfo、locals、provider key 或 raw PG log。session finish 驗證 collected exactly matches 本次批准 registry、每個 phase 完成、沒有 fail/skip/xfail／xpass、沒有 collection errors，再可標 `tests_passed`。實作結果判定純函式：
 
 ```python
 def accepted_result(expected, collected, reports, *, exit_code):
@@ -973,7 +976,7 @@ def accepted_result(expected, collected, reports, *, exit_code):
 
 插件僅 live 模式啟用，不改一般 suite 的 skip 語意。用 offline 單元測試涵蓋 zero collected、少一個參數案例、任一 skip／xfail、teardown failure、duplicate report、collection error 與缺 result；每種必須回失敗。mandatory registry 是固定 test names＋明確 parameter IDs，不從當次已收集到的 cases 自我生成。
 
-- [ ] **Step 4：entrypoint 寫 `/results/result.json`，主機匯出後再合併 cleanup。** JSON 限定欄位：schema、run ID、source manifest hash、base／derived image identity、實際版本、case IDs／phases／counts、network/socket/path assertions、exit code、server stop status。只有主機在精確 container cleanup 成功後才可產生 final `passed`；測試通過但 cleanup_failed 必須非零。
+- [x] **Step 4：entrypoint 寫 `/results/result.json`，主機匯出後再合併 cleanup。** JSON 限定欄位：schema、run ID、source manifest hash、base／derived image identity、實際版本、case IDs／phases／counts、network/socket/path assertions、exit code、server stop status。只有主機在精確 container cleanup 成功後才可產生 final `passed`；測試通過但 cleanup_failed 必須非零。
 
 PGData、socket、SQLite 位於 tmpfs，容器停止即不可作持久 evidence；因此 `/results` 使用本次 container writable layer 而非 tmpfs，停止後 `docker cp` 只取 `result.json`。取回前驗證它是一般檔且有大小上限 1 MiB；主機解析 JSON 確認 run ID／image／manifest 一致、已知 schema／欄位，否則不當驗收證據。不匯出 PG log 或整個 `/tmp`／PGData。
 
@@ -983,7 +986,9 @@ PGData、socket、SQLite 位於 tmpfs，容器停止即不可作持久 evidence�
 
 **Files:** Create `docs/postgres-isolated-verification.md`、`docs/postgres-isolated-verification-delivery-2026-09-06.md`；Modify `docs/system-architecture-map.md`、PG spec／本計畫的實際完成 checkbox。
 
-- [ ] **Step 1：全量 scoped offline 回歸。**
+- [x] **Step 1：全量 scoped offline 回歸。** 實際結果：`231 passed, 2 warnings in
+  8.47s`；另跑 PG result/runtime/offline collection：`36 passed, 1 skipped in
+  0.97s`。skip 是沒有 live policy，不能算 live pass。
 
 ```sh
 "/Volumes/X10 Pro Mac/stock-agent/.venv/bin/python" -B tests/run_prompt_boundary_tests.py \
@@ -1007,9 +1012,16 @@ PGData、socket、SQLite 位於 tmpfs，容器停止即不可作持久 evidence�
 若上述精確目錄已存在，CLI 必須拒絕覆寫，人工選新的 task-specific 名稱；不刪舊結果換取通過。驗收預期：mandatory PG cases 全部通過、0 skip、禁止連線反例成立、PG stopped、container removed、無 anonymous volume、正式設定未改。派生 image 留作 cache，列出精確 ID 與用途。
 
 - [ ] **Step 3：主 agent 親自逐項查證。** 對照規格 PG-01～08 與隔離章；核對完整 case registry、class／SQLSTATE、cold reopen、原稿／中稿 payload、namespace／thread、取消／defer、真依賴失效及 cleanup。不能只看 exit code。可要求獨立 code review，但規格 coverage 自我檢核不委派。
-- [ ] **Step 4：寫操作文件。** 說明 CLI 的唯一輸入、Docker build 與 offline validation 分開、固定 image／hash、non-root local-only trust 的限制、如何讀 result、skip 不算 live pass、cleanup_failed 如何只處理已驗證的精確 ID。不得把這個測試容器拿來承接正式 checkpoint。
-- [ ] **Step 5：寫交付紀錄。** 填本次實際 command、commit／dirty、input manifest hash、base／derived image、Python／PG／psycopg／libpq versions、案例對照／counts、隔離 inspect 與 cleanup；明示未改 `.env`／正式 `.venv`、未切換 SQLite、未 push／merge／restart／rebuild。OOS 本批尚未實作，不把它列為已完成。
-- [ ] **Step 6：文件格式檢查與 scoped commit。** `git diff --check`；確認 staged paths 只有已驗證本批 files。commit message：`docs: record isolated PostgreSQL verification evidence`。最後 `git status --short --branch`，保留無關 dirty files、不自動合併／push。
+- [x] **Step 4：寫操作文件。** 已新增 `docs/postgres-isolated-verification.md`，分開
+  Docker build／offline validation，並記錄 fixed identity、non-root local-only trust、
+  result schema、skip 與 cleanup_failed 語意。
+- [x] **Step 5：寫交付紀錄。** 已新增本次實際 command／counts、commit／dirty、live
+  preparation limitation 與 unavailable image／runtime 欄位；明示未改 `.env`／正式
+  `.venv`、未切換 production SQLite adapter、未 push／merge／restart／rebuild，OOS
+  尚未實作。
+- [x] **Step 6：文件格式檢查與 scoped commit。** 文件與架構圖／spec／plan 狀態均已
+  scoped 更新；提交前後執行 `git diff --check`，commit message：
+  `docs: record isolated PostgreSQL verification evidence`。
 
 ## 規格覆蓋自我檢核（計畫層級，不是測試結果）
 

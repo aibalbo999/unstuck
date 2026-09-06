@@ -51,6 +51,23 @@ Agent 可用性與品質失敗分流：`agent_runtime/deferred.py` 將耗盡的�
 | Data fetch cache | Redis 或 `CACHE_DB_PATH` | `backend/cache_store.py`, `backend/cache_backends.py` | 依 `CACHE_BACKEND` 切換，目前本機常用 Redis。 |
 | Legacy tracking DB | `backend/cache/decision_tracking.sqlite3` | legacy migration only | 不要用它判斷畫面狀態；目前 canonical 是 `operational.sqlite3`。 |
 
+## PostgreSQL 隔離驗證邊界
+
+PostgreSQL checkpoint／quality-draft 的驗證不是目前 production runtime truth。
+它只由 `scripts/run_postgres_validation.py` 建立一次性 `linux/arm64` 容器，
+使用 `network=none`、容器內 Unix socket、`USER 999:999`、tmpfs PG data，並由
+`tests/pg_validation/{policy,guard,launcher,entrypoint,result}.py` 驗證 endpoint
+identity、非 root、mount／network／resource bounds、固定 17-case registry 與
+精確 container cleanup。主機只接受與本次 manifest／image／run ID 一致的 structured
+result；cleanup 失敗是 `cleanup_failed`，不可投影成 passed。
+
+這條驗證路徑不讀 `.env`、正式 `.venv`、`backend/cache/*.sqlite3`、Redis 或
+`backend/output`，也不切換 `LANGGRAPH_CHECKPOINT_BACKEND`。一般 runner 沒有
+live policy 時只保留 PostgreSQL module-level skip；skip 不等於 live pass。固定
+image／derived image、Python／PG／psycopg／libpq 版本與實際 migration／checkpoint
+結果，只有在容器建置及完整 live run 後才是可引用證據；本批離線 contract 回歸
+不能取代 PostgreSQL live 驗收。OOS 是另一條獨立驗證批次。
+
 快速確認目前 runtime path：
 
 ```bash

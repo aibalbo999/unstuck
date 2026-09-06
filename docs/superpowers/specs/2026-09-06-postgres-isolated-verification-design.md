@@ -2,7 +2,10 @@
 
 日期：2026-09-06。基準程式：`fec17737`。
 
-狀態：**使用者已於 2026-09-06 核准本書面規格；[實作計畫](../plans/2026-09-06-postgres-isolated-verification-implementation-plan.md) 已建立，尚未開始實作或 live PostgreSQL 驗證。**
+狀態（2026-09-07）：**使用者已於 2026-09-06 核准本書面規格；實作程式與離線
+contract 回歸已完成，live PostgreSQL 尚未執行。** 目前的離線證據與準備限制見
+[操作手冊](../../postgres-isolated-verification.md) 與
+[交付紀錄](../../postgres-isolated-verification-delivery-2026-09-06.md)。
 
 ## 1. 目的與批次邊界
 
@@ -106,5 +109,5 @@ PG-07 使用 fixture barrier／spy 辨識 `checkpoint_unvalidated_draft()` 的�
 - [x] 規格已自我檢核範圍、錯誤處理、隔離與驗收語意。
 - [x] 使用者檢視並核准本書面規格（2026-09-06）。
 - [x] 建立獨立實作計畫。
-- [ ] 執行實作計畫。
+- [x] 執行實作計畫的程式、隔離邊界、structured result 與離線 contract 回歸。
 - [ ] 真實 PostgreSQL 驗收與清理完成。
