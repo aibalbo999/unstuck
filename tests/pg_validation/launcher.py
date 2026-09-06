@@ -13,10 +13,17 @@ import tempfile
 from typing import Any, Callable
 
 from .bundle import build_context
-from .result import BASE_IMAGE, EXPECTED_CASES, MAX_RESULT_SIZE, RESULT_SCHEMA
+from .result import (
+    BASE_IMAGE,
+    EXPECTED_CASES,
+    MAX_RESULT_SIZE,
+    RESULT_SCHEMA,
+    valid_runtime_versions,
+)
 
 
 CONTAINER_REJECTION_REASON = "isolated_pg_container_rejected"
+FAILURE_SCHEMA = "stock-agent.pg-validation.failure.v1"
 RUN_FAILED = 1
 CLEANUP_FAILED = 2
 _RUN_RE = re.compile(r"^[0-9a-f]{16}$")
@@ -32,10 +39,76 @@ _EXPECTED_TMPFS = {
         "rw,nosuid,nodev,size=768m,uid=999,gid=999,mode=0700"
     ),
 }
+_FAILURE_STAGES = {
+    "prepare", "build", "create", "inspect", "start", "wait", "result", "cleanup",
+}
+_CLEANUP_STATUSES = {"not_attempted", "removed", "failed"}
+_EVIDENCE_TYPES = {"none", "structured_result"}
 
 
 def _container_reject() -> None:
     raise ValueError(CONTAINER_REJECTION_REASON)
+
+
+def validate_failure(payload: Any) -> bool:
+    """Validate the host-created, allowlisted failure envelope."""
+
+    if not isinstance(payload, dict) or set(payload) != {
+        "schema", "run_id", "stage", "reason", "manifest_sha256", "image_id",
+        "container_id", "exit_code", "cleanup_status", "evidence",
+    }:
+        return False
+    run_id = payload["run_id"]
+    if not isinstance(run_id, str) or not _RUN_RE.fullmatch(run_id):
+        return False
+    if payload["schema"] != FAILURE_SCHEMA or payload["stage"] not in _FAILURE_STAGES:
+        return False
+    if (
+        not isinstance(payload["reason"], str)
+        or not re.fullmatch(r"isolated_pg_[a-z0-9_]+", payload["reason"])
+    ):
+        return False
+    manifest = payload["manifest_sha256"]
+    if manifest is not None and (
+        not isinstance(manifest, str) or not re.fullmatch(r"[0-9a-f]{64}", manifest)
+    ):
+        return False
+    image = payload["image_id"]
+    if image is not None and (not isinstance(image, str) or not _IMAGE_RE.fullmatch(image)):
+        return False
+    container = payload["container_id"]
+    if container is not None and (not isinstance(container, str) or not _CID_RE.fullmatch(container)):
+        return False
+    exit_code = payload["exit_code"]
+    if exit_code is not None and (type(exit_code) is not int or not -255 <= exit_code <= 255):
+        return False
+    return payload["cleanup_status"] in _CLEANUP_STATUSES and payload["evidence"] in _EVIDENCE_TYPES
+
+
+def _write_failure(path: Path, payload: dict[str, Any]) -> None:
+    if not validate_failure(payload):
+        raise ValueError("isolated_pg_failure_invalid")
+    encoded = (json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n").encode()
+    if len(encoded) > 16 * 1024:
+        raise ValueError("isolated_pg_failure_too_large")
+    flags = (
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_EXCL
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+    )
+    fd = os.open(path, flags, 0o600)
+    try:
+        view = memoryview(encoded)
+        while view:
+            written = os.write(fd, view)
+            if written <= 0:
+                raise OSError("short failure write")
+            view = view[written:]
+        os.fsync(fd)
+    finally:
+        os.close(fd)
 
 
 def create_args(run_id: str, image_id: str) -> list[str]:
@@ -277,14 +350,7 @@ def _validate_result_payload(
     versions = payload.get("versions")
     if (
         not isinstance(versions, dict)
-        or set(versions) != {"python", "postgres", "psycopg", "libpq"}
-        or any(
-            not isinstance(value, str)
-            or not value
-            or len(value) > 128
-            or not all(character.isalnum() or character in "._+:-" for character in value)
-            for value in versions.values()
-        )
+        or not valid_runtime_versions(versions)
     ):
         return False
     expected = payload.get("expected")
@@ -518,6 +584,11 @@ def run_validation(
     manifest_sha256: str | None = None
     staged_result: Path | None = None
     temporary_context: tempfile.TemporaryDirectory[str] | None = None
+    stage = "prepare"
+    failure_stage = "prepare"
+    failure_reason = "isolated_pg_validation_failed"
+    failure_exit_code: int | None = None
+    failure_evidence = "none"
     try:
         temporary_context = tempfile.TemporaryDirectory(
             prefix=f"stock-agent-pg-{run_id}-"
@@ -527,6 +598,7 @@ def run_validation(
         docker_config = workspace / "docker-config"
         docker_config.mkdir(mode=0o700)
         env = _docker_env(docker_config)
+        stage = "build"
         build_context(root, context)
         manifest_payload = json.loads((context / "manifest.json").read_text(encoding="utf-8"))
         manifest_sha256 = manifest_payload["manifest_sha256"]
@@ -547,6 +619,7 @@ def run_validation(
         ]
         _call(docker, build_args, env, 15 * 60)
         image_id = _read_image_id(iidfile)
+        stage = "create"
         cidfile = workspace / "container.id"
         create_command = create_args(run_id, image_id)
         create_command[2:2] = ["--cidfile", str(cidfile)]
@@ -564,47 +637,76 @@ def run_validation(
         cid = stdout_cid or file_cid
         if cid is None:
             raise ValueError("isolated_pg_container_identity_invalid")
+        stage = "inspect"
         info = _inspect(docker, cid, env)
         validate_container(info, run_id, image_id)
+        stage = "start"
         _call(docker, ["docker", "start", cid], env, 60)
+        stage = "wait"
         waited = _call(docker, ["docker", "wait", cid], env, 10 * 60)
         try:
             container_exit = int(waited.stdout.strip())
         except (AttributeError, TypeError, ValueError):
             raise ValueError("isolated_pg_container_exit_invalid") from None
         if container_exit != 0:
-            raise ValueError("isolated_pg_validation_failed")
+            failure_exit_code = container_exit
+            failure_reason = "isolated_pg_container_nonzero"
+        stage = "result"
         staged_result = workspace / "container-result.json"
-        _call(
-            docker,
-            ["docker", "cp", f"{cid}:/results/result.json", str(staged_result)],
-            env,
-            60,
-        )
-        if not _valid_result(
+        try:
+            _call(
+                docker,
+                ["docker", "cp", f"{cid}:/results/result.json", str(staged_result)],
+                env,
+                60,
+            )
+            if _read_result(staged_result) is not None:
+                failure_evidence = "structured_result"
+        except (Exception, KeyboardInterrupt):
+            staged_result = None
+        if container_exit != 0:
+            raise ValueError("isolated_pg_container_nonzero")
+        if staged_result is None or not _valid_result(
             staged_result,
             run_id=run_id,
             image_id=image_id,
             manifest_sha256=manifest_sha256,
         ):
+            failure_reason = "isolated_pg_result_invalid"
             raise ValueError("isolated_pg_result_invalid")
         outcome = 0
-    except (Exception, KeyboardInterrupt):
+    except KeyboardInterrupt:
         outcome = RUN_FAILED
+        failure_stage = stage
+        failure_reason = "isolated_pg_interrupted"
+    except subprocess.TimeoutExpired:
+        outcome = RUN_FAILED
+        failure_stage = stage
+        failure_reason = "isolated_pg_timeout"
+    except Exception:
+        outcome = RUN_FAILED
+        failure_stage = stage
+        if failure_reason == "isolated_pg_validation_failed":
+            failure_reason = f"isolated_pg_{stage}_failed"
     finally:
         cleanup_ok = cid is not None and env is not None
         if cid is not None and env is not None:
+            stage = "cleanup"
             try:
                 # Revalidate identity immediately before the only destructive call.
                 cleanup_info = _inspect(docker, cid, env)
                 if not _identity_matches(cleanup_info, cid, run_id):
                     outcome = CLEANUP_FAILED
                     cleanup_ok = False
+                    failure_stage = "cleanup"
+                    failure_reason = "isolated_pg_cleanup_identity_mismatch"
                 else:
                     _call(docker, ["docker", "rm", "-f", cid], env, 60)
             except (Exception, KeyboardInterrupt):
                 outcome = CLEANUP_FAILED
                 cleanup_ok = False
+                failure_stage = "cleanup"
+                failure_reason = "isolated_pg_cleanup_failed"
         elif create_attempted:
             outcome = CLEANUP_FAILED
             cleanup_ok = False
@@ -633,6 +735,26 @@ def run_validation(
                         status="cleanup_failed",
                         cleanup_status="failed",
                     )
+        if outcome != 0:
+            cleanup_status = "removed" if cid is not None and cleanup_ok else (
+                "failed" if cid is not None else "not_attempted"
+            )
+            failure_payload = {
+                "schema": FAILURE_SCHEMA,
+                "run_id": run_id,
+                "stage": failure_stage if failure_stage in _FAILURE_STAGES else "result",
+                "reason": failure_reason,
+                "manifest_sha256": manifest_sha256,
+                "image_id": image_id,
+                "container_id": cid,
+                "exit_code": failure_exit_code,
+                "cleanup_status": cleanup_status,
+                "evidence": failure_evidence,
+            }
+            try:
+                _write_failure(target / "failure.json", failure_payload)
+            except (OSError, TypeError, ValueError):
+                pass
         if temporary_context is not None:
             temporary_context.cleanup()
     return outcome
@@ -641,9 +763,12 @@ def run_validation(
 __all__ = [
     "CLEANUP_FAILED",
     "CONTAINER_REJECTION_REASON",
+    "FAILURE_SCHEMA",
     "RUN_FAILED",
     "create_args",
     "_validate_result_payload",
+    "_write_failure",
     "run_validation",
+    "validate_failure",
     "validate_container",
 ]

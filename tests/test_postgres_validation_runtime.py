@@ -104,6 +104,8 @@ class FakeSubprocess:
                 "postgres": "17.11",
                 "psycopg": "3.3.4",
                 "libpq": "170011",
+                "saver": "3.1.0",
+                "psycopg_impl": "binary",
             },
             "status": "tests_passed" if not self.pytest_exit else "tests_failed",
             "collected": sorted(EXPECTED_CASES),

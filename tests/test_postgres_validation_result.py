@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from pg_validation.result import EXPECTED_CASES, accepted_result
+from pg_validation.result import EXPECTED_CASES, accepted_result, valid_runtime_versions
 
 
 def _reports(*, outcome="passed", wasxfail=None):
@@ -101,3 +101,25 @@ def test_result_plugin_writer_rejects_preexisting_symlink(tmp_path: Path):
     with pytest.raises(OSError):
         _write_result(result, {"status": "tests_passed"})
     assert target.read_text() == "keep"
+
+
+def test_runtime_versions_require_saver_version_and_binary_psycopg():
+    valid = {
+        "python": "3.13.5",
+        "postgres": "17.11",
+        "psycopg": "3.3.4",
+        "libpq": "170011",
+        "saver": "3.1.0",
+        "psycopg_impl": "binary",
+    }
+    assert valid_runtime_versions(valid)
+
+    for mutation in (
+        lambda value: value.pop("saver"),
+        lambda value: value.pop("psycopg_impl"),
+        lambda value: value.update(psycopg_impl="python"),
+        lambda value: value.update(saver=""),
+    ):
+        candidate = dict(valid)
+        mutation(candidate)
+        assert not valid_runtime_versions(candidate)

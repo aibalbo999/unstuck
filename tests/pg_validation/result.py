@@ -10,6 +10,7 @@ output streams never cross this boundary.
 from __future__ import annotations
 
 import json
+from importlib.metadata import version as distribution_version
 import os
 from pathlib import Path
 import platform
@@ -52,6 +53,22 @@ CASE_NAMES = (
 # This is intentionally a literal registry.  Never derive it from collected
 # items: a selector, skip, or collection bug must be visible as incomplete.
 EXPECTED_CASES = frozenset(CASE_PREFIX + name for name in CASE_NAMES)
+
+
+def valid_runtime_versions(versions: Any) -> bool:
+    """Accept only the runtime identity required by the live contract."""
+
+    if not isinstance(versions, dict) or set(versions) != {
+        "python", "postgres", "psycopg", "libpq", "saver", "psycopg_impl",
+    }:
+        return False
+    return all(
+        isinstance(value, str)
+        and bool(value)
+        and len(value) <= 128
+        and _VERSION_RE.fullmatch(value) is not None
+        for value in versions.values()
+    ) and versions["psycopg_impl"] == "binary"
 
 
 def accepted_result(
@@ -151,8 +168,10 @@ def _runtime_versions() -> dict[str, str] | None:
             "postgres": postgres,
             "psycopg": psycopg.__version__,
             "libpq": str(psycopg.pq.version()),
+            "saver": distribution_version("langgraph-checkpoint-postgres"),
+            "psycopg_impl": str(getattr(psycopg.pq, "__impl__", "")),
         }
-        if not all(isinstance(value, str) and _VERSION_RE.fullmatch(value) for value in versions.values()):
+        if not valid_runtime_versions(versions):
             return None
         return versions
     except (KeyError, OSError, RuntimeError, TypeError, ValueError, AttributeError):
@@ -313,4 +332,5 @@ __all__ = [
     "RESULT_SCHEMA",
     "ResultPlugin",
     "accepted_result",
+    "valid_runtime_versions",
 ]

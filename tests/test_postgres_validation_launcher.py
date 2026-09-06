@@ -12,9 +12,12 @@ import pytest
 
 from pg_validation.bundle import allowed_path, build_context
 from pg_validation.launcher import (
+    FAILURE_SCHEMA,
     _write_final_result,
+    _write_failure,
     create_args,
     run_validation,
+    validate_failure,
     validate_container,
 )
 from pg_validation.result import BASE_IMAGE, EXPECTED_CASES, RESULT_SCHEMA
@@ -490,8 +493,10 @@ class FakeDocker:
                         "postgres": "17.11",
                         "psycopg": "3.3.4",
                         "libpq": "170011",
+                        "saver": "3.1.0",
+                        "psycopg_impl": "binary",
                     },
-                    "status": "tests_passed",
+                    "status": "tests_failed" if self.mode == "container_nonzero" else "tests_passed",
                     "collected": sorted(EXPECTED_CASES),
                     "expected": sorted(EXPECTED_CASES),
                     "phases": [
@@ -510,7 +515,7 @@ class FakeDocker:
                         "host_network": "rejected",
                         "sqlite_checkpoint": "absent",
                     },
-                    "exit_code": 0,
+                    "exit_code": 7 if self.mode == "container_nonzero" else 0,
                     "server_stop_status": "stopped",
                 }
                 if self.mode == "duplicate_result":
@@ -589,6 +594,19 @@ def test_run_validation_failure_states_are_nonzero_and_cleanup_only_exact_cid(
     _assert_cleanup_is_exact(fake)
     if mode in {"missing_result", "malformed_result", "duplicate_result", "missing_phase"}:
         assert not (tmp_path / "result" / "result.json").exists()
+    failure_path = tmp_path / "result" / "failure.json"
+    assert failure_path.exists()
+    failure = json.loads(failure_path.read_text())
+    assert validate_failure(failure)
+    assert failure["schema"] == FAILURE_SCHEMA
+    assert failure["reason"].startswith("isolated_pg_")
+    if mode == "wait_timeout":
+        assert failure["stage"] == "wait"
+    if mode == "container_nonzero":
+        assert failure["stage"] == "result"
+        assert failure["exit_code"] == 7
+        assert failure["evidence"] == "structured_result"
+        assert any(call[1] == "cp" for call in fake.calls)
     if mode == "inspect_rejection":
         assert all(call[1] != "start" for call in fake.calls)
 
@@ -685,4 +703,28 @@ def test_final_result_writer_rejects_preexisting_symlink(tmp_path):
         status="passed",
         cleanup_status="removed",
     ) is False
+    assert target.read_text() == "keep"
+
+
+def test_failure_writer_is_bounded_and_rejects_preexisting_symlink(tmp_path):
+    target = tmp_path / "target.json"
+    target.write_text("keep")
+    failure = tmp_path / "failure.json"
+    failure.symlink_to(target)
+    with pytest.raises(OSError):
+        _write_failure(
+            failure,
+            {
+                "schema": FAILURE_SCHEMA,
+                "run_id": RUN_ID,
+                "stage": "build",
+                "reason": "isolated_pg_build_failed",
+                "image_id": None,
+                "manifest_sha256": None,
+                "container_id": None,
+                "exit_code": None,
+                "cleanup_status": "not_attempted",
+                "evidence": "none",
+            },
+        )
     assert target.read_text() == "keep"
