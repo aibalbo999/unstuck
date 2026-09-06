@@ -121,6 +121,8 @@ def validate_container(info: Any, run_id: str, image_id: str) -> None:
             and _empty(host["Devices"])
             and _empty(host["DeviceRequests"])
             and _empty(host["CapAdd"])
+            and host["CapDrop"] == ["ALL"]
+            and host["SecurityOpt"] == ["no-new-privileges:true"]
             and host["Memory"] == 2 * 1024**3
             and host["NanoCpus"] == 2 * 10**9
             and host["PidsLimit"] == 256
@@ -190,6 +192,24 @@ def _read_image_id(iidfile: Path) -> str:
     if not _IMAGE_RE.fullmatch(raw):
         raise ValueError("isolated_pg_image_identity_invalid")
     return raw
+
+
+def _parse_cid(raw: Any) -> str | None:
+    if not isinstance(raw, str):
+        return None
+    if raw.endswith("\n"):
+        raw = raw[:-1]
+    return raw if _CID_RE.fullmatch(raw) else None
+
+
+def _read_cidfile(cidfile: Path) -> str | None:
+    try:
+        info = cidfile.lstat()
+        if not stat.S_ISREG(info.st_mode) or info.st_size > 128:
+            return None
+        return _parse_cid(cidfile.read_text(encoding="ascii"))
+    except (OSError, UnicodeError):
+        return None
 
 
 def _inspect(
@@ -266,7 +286,7 @@ def run_validation(
 
     run_id = secrets.token_hex(8)
     cid: str | None = None
-    identity_seen = False
+    create_attempted = False
     outcome = RUN_FAILED
     temporary_context: tempfile.TemporaryDirectory[str] | None = None
     try:
@@ -296,16 +316,24 @@ def run_validation(
         ]
         _call(docker, build_args, env, 15 * 60)
         image_id = _read_image_id(iidfile)
-        created = _call(docker, create_args(run_id, image_id), env, 60)
-        raw_candidate = created.stdout
-        if raw_candidate.endswith("\n"):
-            raw_candidate = raw_candidate[:-1]
-        candidate = raw_candidate
-        if not _CID_RE.fullmatch(candidate):
+        cidfile = workspace / "container.id"
+        create_command = create_args(run_id, image_id)
+        create_command[2:2] = ["--cidfile", str(cidfile)]
+        create_attempted = True
+        try:
+            created = _call(docker, create_command, env, 60)
+        except (Exception, KeyboardInterrupt):
+            cid = _read_cidfile(cidfile)
+            raise
+        stdout_cid = _parse_cid(created.stdout)
+        file_cid = _read_cidfile(cidfile)
+        if stdout_cid is not None and file_cid is not None and stdout_cid != file_cid:
+            cid = file_cid
             raise ValueError("isolated_pg_container_identity_invalid")
-        cid = candidate
+        cid = stdout_cid or file_cid
+        if cid is None:
+            raise ValueError("isolated_pg_container_identity_invalid")
         info = _inspect(docker, cid, env)
-        identity_seen = _identity_matches(info, cid, run_id)
         validate_container(info, run_id, image_id)
         _call(docker, ["docker", "start", cid], env, 60)
         waited = _call(docker, ["docker", "wait", cid], env, 10 * 60)
@@ -328,7 +356,7 @@ def run_validation(
     except (Exception, KeyboardInterrupt):
         outcome = RUN_FAILED
     finally:
-        if cid is not None and identity_seen:
+        if cid is not None:
             try:
                 # Revalidate identity immediately before the only destructive call.
                 cleanup_info = _inspect(docker, cid, env)
@@ -338,7 +366,7 @@ def run_validation(
                     _call(docker, ["docker", "rm", "-f", cid], env, 60)
             except (Exception, KeyboardInterrupt):
                 outcome = CLEANUP_FAILED
-        elif cid is not None:
+        elif create_attempted:
             outcome = CLEANUP_FAILED
         if temporary_context is not None:
             temporary_context.cleanup()

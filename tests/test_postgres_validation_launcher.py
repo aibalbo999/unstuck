@@ -47,6 +47,8 @@ def _container_info() -> dict:
             "Devices": [],
             "DeviceRequests": [],
             "CapAdd": None,
+            "CapDrop": ["ALL"],
+            "SecurityOpt": ["no-new-privileges:true"],
             "Memory": 2 * 1024**3,
             "NanoCpus": 2 * 10**9,
             "PidsLimit": 256,
@@ -86,6 +88,14 @@ def _container_info() -> dict:
             DeviceRequests=[{"Driver": "", "Count": -1, "Capabilities": [["gpu"]]}]
         ),
         lambda info: info["HostConfig"].update(CapAdd=["SYS_ADMIN"]),
+        lambda info: info["HostConfig"].pop("CapDrop"),
+        lambda info: info["HostConfig"].update(CapDrop=None),
+        lambda info: info["HostConfig"].update(CapDrop=["ALL", "NET_ADMIN"]),
+        lambda info: info["HostConfig"].pop("SecurityOpt"),
+        lambda info: info["HostConfig"].update(SecurityOpt=None),
+        lambda info: info["HostConfig"].update(
+            SecurityOpt=["no-new-privileges:true", "seccomp=unconfined"]
+        ),
         lambda info: info["HostConfig"]["Tmpfs"].update({"/extra": "rw"}),
         lambda info: info["HostConfig"]["Tmpfs"].update({"/tmp": "rw"}),
         lambda info: info["Mounts"].append(
@@ -282,7 +292,11 @@ def test_build_context_fails_closed_when_source_is_replaced_during_open(
 
     def racing_open(path, flags, *args, **kwargs):
         nonlocal replaced
-        if not replaced and os.fspath(path) == os.fspath(victim):
+        name = os.fspath(path)
+        opening_leaf = name == os.fspath(victim) or (
+            name == "api.py" and "dir_fd" in kwargs
+        )
+        if not replaced and opening_leaf:
             replaced = True
             old = victim.with_suffix(".old")
             victim.rename(old)
@@ -346,6 +360,35 @@ def test_build_context_detects_same_size_rewrite_with_restored_mtime(
         build_context(repo, tmp_path / "context")
 
 
+def test_build_context_rejects_parent_replaced_by_external_symlink_during_open(
+    tmp_path, monkeypatch
+):
+    from pg_validation import bundle
+
+    repo = _mini_repo(tmp_path)
+    victim = repo / "backend/api.py"
+    external_parent = tmp_path / "moved-outside-repo"
+    monkeypatch.setattr(bundle, "_index_paths", lambda _repo: ["backend/api.py"])
+    real_open = bundle.os.open
+    swapped = False
+
+    def racing_open(path, flags, *args, **kwargs):
+        nonlocal swapped
+        name = os.fspath(path)
+        opening_parent = name == "backend" and "dir_fd" in kwargs
+        opening_old_leaf = name == os.fspath(victim)
+        if not swapped and (opening_parent or opening_old_leaf):
+            swapped = True
+            victim.parent.rename(external_parent)
+            victim.parent.symlink_to(external_parent, target_is_directory=True)
+        return real_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(bundle.os, "open", racing_open)
+    with pytest.raises(ValueError, match="^isolated_pg_bundle_rejected$"):
+        build_context(repo, tmp_path / "context")
+    assert swapped is True
+
+
 @pytest.mark.parametrize("bad_destination", ["existing", "inside", "repo"])
 def test_build_context_requires_a_new_destination_outside_repo(tmp_path, bad_destination):
     repo = _mini_repo(tmp_path)
@@ -388,7 +431,13 @@ class FakeDocker:
             self.run_id = label.rsplit("=", 1)[1]
             return subprocess.CompletedProcess(argv, 0, "", "")
         if command == "create":
-            cid_text = f" {CID} \n" if self.mode == "bad_cid" else CID + "\n"
+            if "--cidfile" in argv and self.mode != "unrecoverable_create":
+                cidfile = Path(argv[argv.index("--cidfile") + 1])
+                cidfile.write_text(CID + "\n")
+            if self.mode == "create_timeout":
+                raise subprocess.TimeoutExpired(argv, kwargs["timeout"])
+            malformed = self.mode in {"bad_cid", "unrecoverable_create"}
+            cid_text = f" {CID} \n" if malformed else CID + "\n"
             return subprocess.CompletedProcess(argv, 0, cid_text, "")
         if command == "inspect":
             info = _container_info()
@@ -471,7 +520,7 @@ def test_run_validation_success_uses_fixed_commands_and_copies_valid_json(tmp_pa
         "keyboard_interrupt",
         "cleanup_failure",
         "bad_image_id",
-        "bad_cid",
+        "create_timeout",
     ],
 )
 def test_run_validation_failure_states_are_nonzero_and_cleanup_only_exact_cid(
@@ -484,6 +533,47 @@ def test_run_validation_failure_states_are_nonzero_and_cleanup_only_exact_cid(
     _assert_cleanup_is_exact(fake)
     if mode == "inspect_rejection":
         assert all(call[1] != "start" for call in fake.calls)
+
+
+def test_run_validation_recovers_malformed_create_stdout_from_controlled_cidfile(
+    tmp_path,
+):
+    repo = _launcher_repo(tmp_path)
+    fake = FakeDocker("bad_cid")
+    assert run_validation(repo, tmp_path / "result", docker=fake) == 0
+    _assert_cleanup_is_exact(fake)
+    create = next(call for call in fake.calls if call[1] == "create")
+    cidfile_index = create.index("--cidfile")
+    assert cidfile_index > create.index("create")
+    assert cidfile_index < create.index(IMAGE_ID)
+
+
+def test_create_timeout_after_creation_recovers_cid_and_cleans_without_scanning(
+    tmp_path,
+):
+    repo = _launcher_repo(tmp_path)
+    fake = FakeDocker("create_timeout")
+    assert run_validation(repo, tmp_path / "result", docker=fake) == 1
+    _assert_cleanup_is_exact(fake)
+    assert [call for call in fake.calls if call[1] == "inspect"] == [
+        ["docker", "inspect", CID]
+    ]
+    assert [call for call in fake.calls if call[1] == "rm"] == [
+        ["docker", "rm", "-f", CID]
+    ]
+    assert all(call[1] != "start" for call in fake.calls)
+
+
+def test_unrecoverable_create_identity_returns_cleanup_failed_without_scanning(
+    tmp_path,
+):
+    repo = _launcher_repo(tmp_path)
+    fake = FakeDocker("unrecoverable_create")
+    assert run_validation(repo, tmp_path / "result", docker=fake) == 2
+    commands = [call[1] for call in fake.calls]
+    assert "inspect" not in commands
+    assert "rm" not in commands
+    assert "ps" not in commands
 
 
 def test_run_validation_does_not_delete_when_cleanup_identity_label_mismatches(tmp_path):

@@ -59,36 +59,68 @@ def _signature(info: os.stat_result) -> tuple[int, int, int, int, int, int]:
     )
 
 
-def _read_verified(source: Path, repo: Path) -> bytes:
-    try:
-        resolved = source.resolve(strict=True)
-        resolved.relative_to(repo)
-        before = source.lstat()
-    except (OSError, RuntimeError, ValueError):
-        _reject()
-    if resolved != source or not stat.S_ISREG(before.st_mode):
+def _read_verified(repo_fd: int, name: str) -> bytes:
+    path = PurePosixPath(name)
+    if not allowed_path(name) or not path.parts:
         _reject()
 
-    flags = os.O_RDONLY
-    flags |= getattr(os, "O_CLOEXEC", 0)
-    flags |= getattr(os, "O_NOFOLLOW", 0)
-    fd = -1
+    common_flags = getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | common_flags
+    file_flags = os.O_RDONLY | common_flags
+    current_fd = repo_fd
+    opened_directories: list[int] = []
+    directory_chain: list[tuple[int, str, int, tuple[int, int, int, int, int, int]]] = []
+    file_fd = -1
     try:
-        fd = os.open(source, flags)
-        opened = os.fstat(fd)
+        for part in path.parts[:-1]:
+            before_directory = os.stat(
+                part, dir_fd=current_fd, follow_symlinks=False
+            )
+            if not stat.S_ISDIR(before_directory.st_mode):
+                _reject()
+            child_fd = os.open(part, directory_flags, dir_fd=current_fd)
+            opened_directories.append(child_fd)
+            opened_directory = os.fstat(child_fd)
+            if (
+                not stat.S_ISDIR(opened_directory.st_mode)
+                or _signature(before_directory) != _signature(opened_directory)
+            ):
+                _reject()
+            directory_chain.append(
+                (current_fd, part, child_fd, _signature(before_directory))
+            )
+            current_fd = child_fd
+
+        leaf = path.parts[-1]
+        before = os.stat(leaf, dir_fd=current_fd, follow_symlinks=False)
+        if not stat.S_ISREG(before.st_mode):
+            _reject()
+        file_fd = os.open(leaf, file_flags, dir_fd=current_fd)
+        opened = os.fstat(file_fd)
         if not stat.S_ISREG(opened.st_mode) or _signature(before) != _signature(opened):
             _reject()
         chunks: list[bytes] = []
         while True:
-            chunk = os.read(fd, 1024 * 1024)
+            chunk = os.read(file_fd, 1024 * 1024)
             if not chunk:
                 break
             chunks.append(chunk)
-        after_open = os.fstat(fd)
-        after_path = source.lstat()
+        after_open = os.fstat(file_fd)
+        after_path = os.stat(leaf, dir_fd=current_fd, follow_symlinks=False)
         expected = _signature(before)
         if _signature(after_open) != expected or _signature(after_path) != expected:
             _reject()
+        for parent_fd, part, child_fd, directory_signature in reversed(
+            directory_chain
+        ):
+            after_directory = os.stat(
+                part, dir_fd=parent_fd, follow_symlinks=False
+            )
+            if (
+                _signature(os.fstat(child_fd)) != directory_signature
+                or _signature(after_directory) != directory_signature
+            ):
+                _reject()
         data = b"".join(chunks)
         if len(data) != before.st_size:
             _reject()
@@ -98,8 +130,10 @@ def _read_verified(source: Path, repo: Path) -> bytes:
     except OSError:
         _reject()
     finally:
-        if fd >= 0:
-            os.close(fd)
+        if file_fd >= 0:
+            os.close(file_fd)
+        for directory_fd in reversed(opened_directories):
+            os.close(directory_fd)
 
 
 def _write_exclusive(path: Path, data: bytes) -> None:
@@ -173,13 +207,27 @@ def build_context(repo: Path, destination: Path) -> dict[str, Any]:
         _reject()
 
     created = False
+    repo_fd = -1
     try:
         target.mkdir(mode=0o700, exist_ok=False)
         created = True
+        root_before = root.lstat()
+        root_flags = (
+            os.O_RDONLY
+            | getattr(os, "O_DIRECTORY", 0)
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0)
+        )
+        repo_fd = os.open(root, root_flags)
+        root_opened = os.fstat(repo_fd)
+        if (
+            not stat.S_ISDIR(root_opened.st_mode)
+            or _signature(root_before) != _signature(root_opened)
+        ):
+            _reject()
         entries: list[dict[str, str | int]] = []
         for name in _index_paths(root):
-            source = root.joinpath(*PurePosixPath(name).parts)
-            data = _read_verified(source, root)
+            data = _read_verified(repo_fd, name)
             output = target.joinpath(*PurePosixPath(name).parts)
             output.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
             _write_exclusive(output, data)
@@ -201,11 +249,19 @@ def build_context(repo: Path, destination: Path) -> dict[str, Any]:
             json.dumps(manifest, sort_keys=True, separators=(",", ":")) + "\n"
         ).encode("utf-8")
         _write_exclusive(target / "manifest.json", manifest_bytes)
+        if (
+            _signature(os.fstat(repo_fd)) != _signature(root_before)
+            or _signature(root.lstat()) != _signature(root_before)
+        ):
+            _reject()
         return manifest
     except Exception:
         if created:
             shutil.rmtree(target, ignore_errors=True)
         raise
+    finally:
+        if repo_fd >= 0:
+            os.close(repo_fd)
 
 
 __all__ = ["DENIED", "EXACT", "allowed_path", "build_context"]
