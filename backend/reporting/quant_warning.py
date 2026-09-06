@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from html import escape
+from quant_metric_contract import quant_unavailability_message
 
 from mapping_fields import safe_mapping_dict, safe_sequence_items, safe_text
 from numeric_safety import is_non_finite_number
@@ -47,10 +48,11 @@ def _warning_message(data: dict) -> str:
 
 
 def build_quant_warning_html(data: dict) -> str:
+    contract_warning = quant_unavailability_message(_quant_metrics(data))
     fallback_fields = _fallback_fields(data)
-    if not fallback_fields:
+    if not fallback_fields and not contract_warning:
         return ""
-    warning_msg = _warning_message(data)
+    warning_msg = contract_warning or _warning_message(data)
     if warning_msg:
         msg = escape(warning_msg)
     else:
@@ -60,10 +62,11 @@ def build_quant_warning_html(data: dict) -> str:
 
 
 def build_quant_warning_markdown(data: dict) -> str:
+    contract_warning = quant_unavailability_message(_quant_metrics(data))
     fallback_fields = _fallback_fields(data)
-    if not fallback_fields:
+    if not fallback_fields and not contract_warning:
         return ""
-    warning_msg = _warning_message(data)
+    warning_msg = contract_warning or _warning_message(data)
     if warning_msg:
         msg = _markdown_cell(warning_msg, "")
     else:

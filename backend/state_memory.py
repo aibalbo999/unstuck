@@ -182,7 +182,10 @@ def state_view_for(role: str | int, state: AgentState) -> dict[str, Any]:
             continue
         value = getattr(state, section)
         if isinstance(value, dict):
-            view[section] = _pick(value, list(keys))
+            selected_keys = list(keys)
+            if section == "quant_metrics":
+                selected_keys.extend(("contract_version", "metric_status", "input_provenance", "calculation_methods", "assumptions"))
+            view[section] = _pick(value, selected_keys)
     return _jsonable(prompt_evidence_copy(view))
 
 

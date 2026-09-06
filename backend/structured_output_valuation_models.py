@@ -117,6 +117,9 @@ class ValuationSummary(StructuredModel):
 
 class DcfScenarioOutput(StructuredModel):
     scenario: Literal["bear", "base", "bull"]
+    method: str = "fcf_dcf"
+    unit: str = "twd_per_share"
+    source_ref: str | None = None
     revenue_growth_bias_pct: float
     margin_bias_pct: float
     wacc_pct: float = Field(..., gt=0)
@@ -138,6 +141,9 @@ class DcfScenarioOutput(StructuredModel):
         return {
             **scenario,
             "scenario": scenario_name if scenario_name in _DCF_SCENARIOS else "base",
+            "method": _safe_string_text(_safe_mapping_value(scenario, "method"), "fcf_dcf"),
+            "unit": _safe_string_text(_safe_mapping_value(scenario, "unit"), "twd_per_share"),
+            "source_ref": _safe_string_text(_safe_mapping_value(scenario, "source_ref")) or None,
             "revenue_growth_bias_pct": _safe_number(_safe_mapping_value(scenario, "revenue_growth_bias_pct")),
             "margin_bias_pct": _safe_number(_safe_mapping_value(scenario, "margin_bias_pct")),
             "wacc_pct": _safe_number(_safe_mapping_value(scenario, "wacc_pct"), default=1.0, minimum=0.01),

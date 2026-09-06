@@ -11,6 +11,8 @@ from evidence_claim_numbers import (
     valid_claim_number as _valid_claim_number,
 )
 from evidence_daily_price_claims import dated_daily_extreme_path
+from evidence_technical_claims import technical_sma_path
+from evidence_recommendation_claims import recommendation_horizon_path
 
 def _normalize_match_text(value: Any) -> str:
     return re.sub(r"[^0-9a-zA-Z_\u4e00-\u9fff]+", "", str(value or "").lower())
@@ -68,16 +70,6 @@ _NORMALIZED_CANONICAL_STRING_PATH_MARKERS = tuple(_normalize_match_text(marker) 
 _NORMALIZED_RESEARCH_CONTEXT_MARKERS = tuple(_normalize_match_text(marker) for marker in ("券商研究", "市場研究", "券商給予"))
 _SCENARIO_TARGET_LABELS = frozenset(("熊市情境", "基本情境", "牛市情境", "熊基牛情境"))
 _TECHNICAL_LEVEL_LABELS = frozenset(("心理關卡", "第二支撐", "關鍵支撐區", "近期支撐", "近期壓力", "支撐位"))
-_RECOMMENDATION_HORIZON_PATHS = {
-    "短期目標3個月": "短期目標（3個月）",
-    "中期目標6個月": "中期目標（6個月）",
-    "長期目標12個月": "長期目標（12個月）",
-    "長期潛力5年": "長期潛力（5年）",
-    "3個月目標": "短期目標（3個月）",
-    "6個月目標": "中期目標（6個月）",
-    "12個月目標": "長期目標（12個月）",
-}
-_RECOMMENDATION_PREFIX_HORIZON_RE = re.compile(r"^(?:買入|買進|持有|避免|放空|觀望)[;；]?(?P<horizon>3|6|12)個月$")
 _FIELD_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
     (("信心", "confidence"), ("confidence", "confidence_score", "agent_confidence")),
     (("停損", "止損", "stoploss", "stop_loss"), ("stop_loss", "stoploss", "risk_price")), (("借券餘額",), ("borrowed_short_sale_balance",)), (("當日借券賣出", "今日借券賣出", "borrowed short sale today", "borrowed_short_sale_today"), ("borrowed_short_sale_today", "shares_to_millions")), (("vs Sale Today",), ("borrowed_short_sale_today", "shares_to_thousands", "shares_to_millions")),
@@ -141,6 +133,7 @@ def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
                 "unit": unit,
                 "line_number": line_number,
                 "raw_text": line if ("rketcontext[" in label and "change" in label) or "觀察近三個月價格" in line else line[:160],
+                **({"technical_context_text": line} if re.search(r"SMA|EMA|均線|移動平均線", line, re.I) else {}),
                 **({"series_context_text": "\n".join(lines[max(0, line_number - 20):line_number - 1])} if re.fullmatch(r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}", label, re.IGNORECASE) else {"context_text": "\n".join(lines[max(0, line_number - 3):line_number - 1])} if line_number > 1 else {}),
             })
             if any(_normalize_match_text(marker) in _normalize_match_text(label) for marker in ("支撐", "壓力", "高點", "低點", "週高低")):
@@ -231,11 +224,12 @@ def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
         return ("major_holders_gt_1000_lots_pct",) if "concentration" in label else ("retail_holders_lt_50_lots_pct",)
     if (label == "previous" and ("marginbalance" in raw_text or "shortbalance" in raw_text)) or (label == "shortpreviousbalance" and "short_previous_balance" in raw_text) or (label == "marginpreviousbalance" and "margin_previous_balance" in raw_text) or (label == "return" and "borrowedshortsale" in raw_text and "return" in raw_text):
         return ("margin_previous_balance",) if (label == "previous" and "marginbalance" in raw_text) or label == "marginpreviousbalance" else ("short_previous_balance",) if (label == "previous" and "shortbalance" in raw_text) or label == "shortpreviousbalance" else ("chip_data.twse_margin_short_sales.borrowed_short_return_today", "shares_to_millions")
-    recommendation_path = _RECOMMENDATION_HORIZON_PATHS.get(label)
-    if not recommendation_path and (prefix_horizon_match := _RECOMMENDATION_PREFIX_HORIZON_RE.fullmatch(label)):
-        recommendation_path = {"3": "短期目標（3個月）", "6": "中期目標（6個月）", "12": "長期目標（12個月）"}[prefix_horizon_match.group("horizon")]
-    if recommendation_path and not claim.get("_legacy_conclusion_context_missing"):
-        return (f"rerun_context.parsed.recommendation.{recommendation_path}",)
+    recommendation_path = recommendation_horizon_path(claim, label)
+    if recommendation_path is not None:
+        return recommendation_path
+    sma_path = technical_sma_path(claim)
+    if sma_path is not None:
+        return sma_path
     daily_extreme_path = dated_daily_extreme_path(claim)
     if daily_extreme_path is not None:
         return daily_extreme_path

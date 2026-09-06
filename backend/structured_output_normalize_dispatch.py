@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any, Optional
+import copy
 
 from mapping_fields import safe_dict_list, safe_mapping_dict, safe_sequence_items, safe_text
 from moat_assessment import moat_assessment, normalize_moat_evidence
@@ -81,6 +82,11 @@ def normalize_structured_output(agent_num: int, payload: Any) -> Optional[dict]:
             payload = _coerce_bear_advocate_payload(payload)
         if agent_num == 24:
             payload = _coerce_trade_setup_payload(payload)
+    # Keep malformed evidence assertions for the pure validator; dropping them
+    # during schema coercion would hide fabricated references as missing coverage.
+    market_assessment = copy.deepcopy(raw_payload.get("market_context_assessment")) if agent_num in {7, 16, 19} else None
+    if agent_num in {7, 16, 19} and isinstance(payload, dict):
+        payload = {**payload, "market_context_assessment": None}
     payload = validated_structured_payload(agent_num, payload)
     if payload is None:
         return None
@@ -232,6 +238,7 @@ def normalize_structured_output(agent_num: int, payload: Any) -> Optional[dict]:
             normalized_rec["confidence_basis"] = confidence_basis
 
         normalized = {
+            "market_context_assessment": market_assessment,
             "reasoning_steps": reasoning_steps,
             "recommendation": normalized_rec,
             "scenario_triggers": payload.get("scenario_triggers", []),

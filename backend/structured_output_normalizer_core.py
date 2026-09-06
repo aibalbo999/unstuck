@@ -126,6 +126,8 @@ def _coerce_dcf_scenarios(value: Any) -> list[dict[str, float | str]]:
         intrinsic_value = _coerce_number(row.get("intrinsic_value"), 0, None)
         scenarios.append({
             "scenario": scenario,
+            **{field: _display_line(row.get(field)) or default for field, default in
+               (("method", "fcf_dcf"), ("unit", "twd_per_share"), ("source_ref", None))},
             "revenue_growth_bias_pct": revenue_growth_bias if revenue_growth_bias is not None else 0.0,
             "margin_bias_pct": margin_bias if margin_bias is not None else 0.0,
             "wacc_pct": wacc if wacc is not None else 1.0,

@@ -13,11 +13,13 @@ def test_quant_engine_emits_three_ordered_dcf_scenarios():
 
     result = QuantEngine.compute_all({
         "current_price": 90,
-        "shares_outstanding": 100,
-        "total_equity": 1_000,
-        "total_debt": 200,
+        "shares_raw": 100_000_000,
+        "market_cap_raw": 10_000_000_000,
+        "total_debt_raw": 2_000_000_000,
+        "total_cash_raw": 0,
+        "free_cash_flow_raw": 1_000_000_000,
         "tax_rate": 0.2,
-        "free_cash_flows": [100, 110, 121, 133.1, 146.41],
+        "revenue_history": [100, 110],
     })
 
     scenarios = result["dcf_scenarios"]
@@ -62,17 +64,17 @@ def test_dcf_audit_compares_matching_scenario_prices():
     from final_audit_dcf import dcf_conflict_warnings
 
     analyses = {4: "## DCF 情境\n[目標股價]\n熊市情境: NT$80\n基本情境: NT$100\n牛市情境: NT$120\n[/目標股價]"}
-    data = {
-        "quant_metrics": {
-            "dcf_scenarios": {
-                "bear": {"intrinsic_value": 80},
-                "base": {"intrinsic_value": 100},
-                "bull": {"intrinsic_value": 200},
-            }
-        }
-    }
+    from quant_engine import QuantEngine
+    quant = QuantEngine.compute_all({"market_cap_raw": 1e10, "total_debt_raw": 0,
+        "total_cash_raw": 0, "shares_raw": 1e8, "free_cash_flow_raw": 1e9})
+    prices = {"bear": 80, "base": 100, "bull": 200}
+    for name, price in prices.items():
+        quant["dcf_scenarios"][name]["intrinsic_value"] = price
+    data = {"quant_metrics": quant}
+    structured = {4: {"dcf_scenarios": [{"scenario": name, "intrinsic_value": price}
+        for name, price in (("bear", 80), ("base", 100), ("bull", 120))]}}
 
-    warnings = dcf_conflict_warnings(analyses, data)
+    warnings = dcf_conflict_warnings(analyses, data, structured)
 
     assert len(warnings) == 1
     assert "牛市情境" in warnings[0]

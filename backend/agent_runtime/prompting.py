@@ -17,11 +17,12 @@ from prompt_rules import (
 from state_memory import state_view_for
 from structured_output_models import build_structured_output_instruction
 from temporal_memory_service import build_valuation_memory_slice
+from market_context_manifest import CONTRACT_VERSION, FINAL_AGENTS, build_source_blocks, record_prompt_manifest
 
 from .prompt_budget import (
     bound_agent_rag_context,
     enforce_prompt_token_budget as _enforce_prompt_token_budget,
-    get_agent_prompt_token_budget as _base_agent_prompt_token_budget,
+    get_agent_prompt_token_budget,
 )
 from .prompt_config import ANALYSIS_PROMPTS
 from .state_prompt_projection import bound_state_analysis, restrict_state_reports
@@ -76,10 +77,6 @@ AGENT_HISTORY_YEARS = {
     23: 3,
     24: 3,
 }
-
-
-def get_agent_prompt_token_budget(agent_num: int) -> int:
-    return _base_agent_prompt_token_budget(agent_num)
 
 
 def data_for_agent_prompt(agent_num: int, data: StockData) -> StockData:
@@ -177,6 +174,8 @@ def build_temporal_memory_section(agent_num: int, data: StockData) -> str:
 
 def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> str:
     """根據 Agent 編號建立分析提示詞。"""
+    source_context = context
+    market_contract = agent_num in FINAL_AGENTS and context.get("market_context_contract_version") == CONTRACT_VERSION
     compact_primary = _safe_bool_flag(context.get("_primary_probe_prompt"))
     total_budget = (PRIMARY_PROMPT_CONTEXT_TOTAL_CHAR_BUDGET if compact_primary
                     else get_agent_context_budgets(agent_num)[0])
@@ -186,6 +185,10 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     ticker = data["ticker"]
     name = data["company_name"]
     prompt_data = data_for_agent_prompt(agent_num, data)
+    source_blocks = build_source_blocks(data, agent_num=agent_num, compact=compact_primary) if market_contract else []
+    if market_contract:
+        prompt_data.pop("global_market_context", None)
+        prompt_data.pop("international_news_context", None)
     fin_data = format_data_for_prompt(prompt_data, compact=compact_primary)
     prev = _format_previous(context, agent_num, max_total_chars=max(0, total_budget - state_budget))
     raw_rag_context = context.get("rag_context")
@@ -232,6 +235,7 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     structured_instruction = build_structured_output_instruction(agent_num)
     prompt_parts = [
         analysis_prompt,
+        "\n".join(block["text"] for block in source_blocks),
         forensic_warning,   # v2 Agent 14 財務排雷品質警示
         state_view_section,
         rag_context,
@@ -247,12 +251,9 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
         final_audit_preflight_rule,
         OUTPUT_CLEANLINESS_RULE,
     ]
-    return _enforce_prompt_token_budget(
+    final_prompt = _enforce_prompt_token_budget(
         "\n\n".join(part for part in prompt_parts if part),
         agent_num,
         token_budget_func=get_agent_prompt_token_budget,
     )
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 核心 Agent 執行函數
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    return record_prompt_manifest(source_context, data, agent_num, final_prompt, source_blocks)

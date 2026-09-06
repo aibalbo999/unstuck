@@ -47,8 +47,8 @@ def _deterministic_structured_fallback(
             },
             "valuation_summary": {
                 "primary_method": "blended",
-                "uses_market_value_wacc": True,
-                "uses_normalized_fcf": True,
+                "uses_market_value_wacc": False,
+                "uses_normalized_fcf": False,
                 "double_counting_check": "採用折讓情境與保守倍數，不把已隱含高成長的 Forward EPS 再套高倍數。",
             },
             "analysis_markdown": (

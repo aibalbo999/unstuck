@@ -28,6 +28,7 @@ from .model_policy import (
     timeout_for_model_call,
 )
 from .prompting import build_prompt
+from market_context_manifest import adopt_market_context_result, market_output_attempt
 from .routing import get_runtime_model_sequence
 from .step_cache import (
     build_agent_step_cache_key,
@@ -35,6 +36,7 @@ from .step_cache import (
     record_agent_step_cache_miss,
     restore_cached_agent_step,
     store_cached_agent_step,
+    cached_market_context_matches,
 )
 from .single_agent_events import emit_async_model_event, emit_sync_model_event
 from runtime_events import emit_log
@@ -86,7 +88,7 @@ def run_single_agent(
             context.pop("_primary_probe_prompt", None)
         cache_key = build_agent_step_cache_key(agent_num, data, context, model_id, prompt)
         cached_step = get_cached_agent_step(cache_key)
-        if cached_step is not None:
+        if cached_step is not None and cached_market_context_matches(context, agent_num, cached_step, prompt):
             emit_sync_model_event(
                 context,
                 agent_num,
@@ -109,12 +111,13 @@ def run_single_agent(
         try:
             for attempt in retryer:
                 raise_if_cancelled(context)
-                with attempt:
+                with attempt, market_output_attempt(context, agent_num):
                     result = _run_agent_once(
                         agent_num, context, rotator, model_id, prompt,
                         timeout_seconds=timeout_seconds,
                     )
                     record_model_success(context, model_id)
+                    result = adopt_market_context_result(context, agent_num, data, prompt, result)
                     store_cached_agent_step(
                         cache_key,
                         agent_num=agent_num,
@@ -193,7 +196,7 @@ async def run_single_agent_async(
             context.pop("_primary_probe_prompt", None)
         cache_key = build_agent_step_cache_key(agent_num, data, context, model_id, prompt)
         cached_step = get_cached_agent_step(cache_key)
-        if cached_step is not None:
+        if cached_step is not None and cached_market_context_matches(context, agent_num, cached_step, prompt):
             await emit_async_model_event(
                 context,
                 agent_num,
@@ -216,12 +219,13 @@ async def run_single_agent_async(
         try:
             async for attempt in retryer:
                 raise_if_cancelled(context)
-                with attempt:
+                with attempt, market_output_attempt(context, agent_num):
                     result = await _run_agent_once_async(
                         agent_num, context, rotator, model_id, prompt,
                         timeout_seconds=timeout_seconds,
                     )
                     record_model_success(context, model_id)
+                    result = adopt_market_context_result(context, agent_num, data, prompt, result)
                     store_cached_agent_step(
                         cache_key,
                         agent_num=agent_num,

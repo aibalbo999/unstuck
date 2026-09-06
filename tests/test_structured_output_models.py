@@ -3562,6 +3562,7 @@ def test_normalize_structured_output_numeric_fields_ignore_non_primitive_number_
             "margin_bias_pct": 1.5,
             "wacc_pct": 1.0,
             "intrinsic_value": 120.0,
+            "method": "fcf_dcf", "unit": "twd_per_share", "source_ref": None,
         }
     ]
 
@@ -3759,6 +3760,7 @@ def test_normalize_structured_output_dcf_scenarios_use_safe_number_fallback_befo
             "margin_bias_pct": 1.0,
             "wacc_pct": 9.5,
             "intrinsic_value": 120.0,
+            "method": "fcf_dcf", "unit": "twd_per_share", "source_ref": None,
         },
         {
             "scenario": "bull",
@@ -3766,6 +3768,7 @@ def test_normalize_structured_output_dcf_scenarios_use_safe_number_fallback_befo
             "margin_bias_pct": 3.0,
             "wacc_pct": 8.5,
             "intrinsic_value": 150.0,
+            "method": "fcf_dcf", "unit": "twd_per_share", "source_ref": None,
         }
     ]
     assert normalized["price_targets"]["基本情境"] == 120.0

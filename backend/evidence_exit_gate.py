@@ -6,6 +6,7 @@ import re
 from collections import Counter
 from random import Random
 from typing import Any
+from evidence_technical_claims import technical_snapshot_values, valid_technical_date
 
 from evidence_exit_gate_claims import (
     _HORIZON_PREFIX_RE,
@@ -40,6 +41,10 @@ def evaluate_report_evidence(
     ]
     price_history_months = tuple(sorted({match.group(1) for item in snapshot_values if (match := re.search(r"price_history\[(20\d{2}-\d{2})-\d{2}\]", str(item.get("path") or "")))}))
     claims = [{**claim, "_price_history_months": price_history_months, "_legacy_conclusion_context_missing": isinstance(snapshot.get("rerun_context"), dict) and not snapshot["rerun_context"].get("parsed") and not snapshot["rerun_context"].get("structured_outputs") and (any(_normalize_match_text(marker) in _normalize_match_text(claim.get("label")) for marker in ("短期目標", "中期目標", "長期目標", "個月目標", "長期潛力")) or re.search(r"(?:(?:買入|持有|避免|放空|觀望)?(?:3|6|12)個月|(?:nt|twd|元)\d+(?:3|6|12)個月)", _normalize_match_text(claim.get("label"))) and "最終投資建議" in _normalize_match_text(claim.get("raw_text")))} for claim in extract_numeric_claims(markdown)]
+    data = snapshot.get("data")
+    technical = data.get("technical_indicators") if isinstance(data, dict) else None
+    technical = technical if isinstance(technical, dict) else {}
+    claims = [{**claim, "_technical_as_of": valid_technical_date(technical.get("as_of"))} for claim in claims]
     sample = sample_numeric_claims(claims, sample_ratio=sample_ratio, min_sample=min_sample, max_sample=max_sample, seed=seed)
     checked = [_check_claim(claim, snapshot_values, tolerance_pct=tolerance_pct) for claim in sample]
     failed_count = sum(1 for item in checked if item["status"] == "mismatch")
@@ -119,6 +124,12 @@ def flatten_snapshot_numbers(snapshot: Any) -> list[dict[str, Any]]:
                     values.append({"path": path, "value": number})
             return
         if isinstance(value, dict):
+            if path == "data.technical_indicators":
+                values.extend(technical_snapshot_values(value))
+                for key, item in value.items():
+                    if not re.fullmatch(r"sma_\d+", key):
+                        walk(item, f"{path}.{key}")
+                return
             if path.endswith("price_history") and {"dates", "prices"} <= value.keys():
                 points = [(index, str(date)[:10], float(price)) for index, (date, price) in enumerate(zip(value["dates"], value["prices"])) if isinstance(price, (int, float)) and not isinstance(price, bool)]
                 values.extend({"path": f"{path}[{date}].prices[{index}]", "value": price} for index, date, price in points)
@@ -180,7 +191,7 @@ def _check_claim(claim: dict[str, Any], snapshot_values: list[dict[str, Any]], *
         verification_reason_code = "scenario_target_not_canonical"
     elif not candidate_values and normalized_label in _TECHNICAL_LEVEL_LABELS:
         verification_reason_code = "technical_level_not_canonical"
-    elif not candidate_values and (scenario_projection_boundary or normalized_label in {"品牌影響力", "網路效應", "轉換成本", "成本優勢", "專利技術", "fomo評分", "fomo過熱評分", "fomoscore", "聰明錢派發評分", "情緒評分", "score", "評分"} or any(_normalize_match_text(marker) in normalized_label or _normalize_match_text(marker) in _normalize_match_text(raw_claim_text) for marker in ("Agent 3 評分", "Agent 3 score"))):
+    elif not candidate_values and (scenario_projection_boundary or normalized_label in {"品牌影響力", "網路效應", "轉換成本", "成本優勢", "專利技術", "fomo評分", "fomo過熱評分", "fomoscore", "聰明錢派發評分", "情緒評分", "情緒過熱評分", "過熱評分", "score", "評分"} or any(_normalize_match_text(marker) in normalized_label or _normalize_match_text(marker) in _normalize_match_text(raw_claim_text) for marker in ("Agent 3 評分", "Agent 3 score"))):
         verification_reason_code = "analysis_metadata_not_evidence"
     elif unavailable_boundary and not candidate_values:
         verification_reason_code = "snapshot_field_unavailable"
@@ -193,7 +204,7 @@ def _check_claim(claim: dict[str, Any], snapshot_values: list[dict[str, Any]], *
     else:
         verification_reason_code = "snapshot_value_mismatch"
     return {
-        **{key: value for key, value in claim.items() if key not in {"context_text", "series_context_text", "_price_history_months", "_legacy_conclusion_context_missing"}},
+        **{key: value for key, value in claim.items() if key not in {"context_text", "series_context_text", "technical_context_text", "_price_history_months", "_legacy_conclusion_context_missing", "_technical_as_of"}},
         "status": status, "verification_reason_code": verification_reason_code, "candidate_count": len(candidate_values),
         "matched_path": best.get("path") if best else "",
         "matched_value": best.get("value") if best else None,
@@ -214,7 +225,7 @@ def _convert_snapshot_value_for_claim(claim: dict[str, Any], item: dict[str, Any
 def _relevant_snapshot_values(claim: dict[str, Any], snapshot_values: list[dict[str, Any]]) -> list[dict[str, Any]]:
     path_markers = _path_markers_for_claim(claim)
     if not path_markers: return []
-    if path_markers[0].startswith("data.daily_market_data.bars["):
+    if path_markers[0].startswith(("data.daily_market_data.bars[", "data.technical_indicators.sma_", "rerun_context.parsed.recommendation.")):
         return [item for item in snapshot_values if item.get("path") == path_markers[0]]
     return [
         _convert_snapshot_value_for_claim(claim, item, path_markers)

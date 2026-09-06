@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 
 from langgraph.checkpoint.base import empty_checkpoint
+from analysis_dependencies import upstream_input_hash
 
 _session: ContextVar[tuple | None] = ContextVar("quality_draft_checkpoint_session", default=None)
 _node: ContextVar[dict | None] = ContextVar("quality_draft_checkpoint_node", default=None)
@@ -29,7 +30,8 @@ async def quality_draft_node(agent_num: int, state: dict, context: dict):
     node = None
     if session is not None:
         saver, thread_id = session
-        encoded = json.dumps(state, sort_keys=True, ensure_ascii=False, default=str)
+        encoded = json.dumps({"state": state, "upstream_input_hash": upstream_input_hash(agent_num, context)},
+                             sort_keys=True, ensure_ascii=False, default=str)
         fingerprint = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
         config = {"configurable": {"thread_id": thread_id, "checkpoint_ns": f"quality_draft/{agent_num}/{fingerprint}"}}
         saved = await saver.aget_tuple(config)
@@ -70,6 +72,11 @@ async def initial_or_checkpointed_draft(agent_num, data, context, rotator, gener
     if node is not None and node["agent_num"] != agent_num:
         raise RuntimeError("Quality draft belongs to a different agent")
     if node is not None and (record := node["record"]) is not None:
+        manifests = context.setdefault("market_context_manifests", {})
+        manifests.pop(agent_num, None)
+        manifests.pop(str(agent_num), None)
+        if isinstance(record.get("market_context_manifest"), dict):
+            manifests[agent_num] = copy.deepcopy(record["market_context_manifest"])
         outputs = context.setdefault("structured_outputs", {})
         outputs.pop(agent_num, None)
         outputs.pop(str(agent_num), None)
@@ -94,6 +101,7 @@ async def checkpoint_unvalidated_draft(agent_num: int, result: str, context: dic
         "status": "unvalidated", "agent_num": agent_num,
         "input_fingerprint": node["input_fingerprint"], "text": result,
         "structured_output": _agent_value(context, "structured_outputs", agent_num),
+        "market_context_manifest": _agent_value(context, "market_context_manifests", agent_num),
         "rag_context": _agent_value(context, "rag_context", agent_num, ""),
         "context_digest": _agent_value(context, "context_digests", agent_num, ""),
     }

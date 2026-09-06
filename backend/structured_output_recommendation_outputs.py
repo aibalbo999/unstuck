@@ -99,7 +99,19 @@ class RecommendationFields(StructuredModel):
         return _normalize_recommendation_field(payload, "持有")
 
 
+class MarketSourceAssessment(StructuredModel):
+    impact: Literal["affects_conclusion", "no_material_impact", "not_assessed"]
+    reason: str = Field(..., min_length=1, description="對此次投資結論的具體影響理由或未評估限制。")
+    source_refs: list[str] = Field(..., description="僅引用此次完整 market-source 區塊的系統 source_ref，禁止自行提供網址。")
+
+
+class MarketContextAssessment(StructuredModel):
+    global_market_context: MarketSourceAssessment | None = None
+    international_news_context: MarketSourceAssessment | None = None
+
+
 class RecommendationStructuredOutput(NextCatalystsMixin):
+    market_context_assessment: MarketContextAssessment | None = None
     reasoning_steps: list[str] = Field(
         ...,
         min_length=3,
@@ -179,6 +191,7 @@ class BubbleSniperRecommendationFields(StructuredModel):
 
 
 class BubbleSniperStructuredOutput(ReasoningStepsMixin):
+    market_context_assessment: MarketContextAssessment | None = None
     reasoning_steps: list[str] = Field(
         ...,
         min_length=3,

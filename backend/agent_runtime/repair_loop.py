@@ -20,6 +20,8 @@ from .repair_circuit_breaker import is_repair_429_error, record_repair_429_failu
 from .repair_context import capture_repair_context, install_repair_attempt_context, restore_repair_context
 from .repair_quality_fallback import record_quality_fallback
 from .repair_state import adopt_repair_result
+from .repair_transaction import preserve_failed_repair
+from .cancellation import raise_if_cancelled
 from .repair_attempt_limits import apply_429_fallback, increment_repair_attempt_count, per_job_repair_limit_fallback
 from .repair_reflection import (
     build_audit_reflection_instruction,
@@ -33,11 +35,13 @@ from .single_agent import run_single_agent, run_single_agent_async
 from .structured_repair_contracts import structured_output_missing as _structured_output_missing
 
 
+@preserve_failed_repair
 def _repair_agent_output(agent_num: int, data: StockData, context: AnalysisContext, rotator: KeyRotator, issues: list[str]) -> tuple[bool, str]:
     """Synchronously ask the relevant agent to rewrite after final audit failure."""
     previous = capture_repair_context(context)
     original_analysis = str(context.get("analyses", {}).get(agent_num, ""))
     try:
+        raise_if_cancelled(context)
         limit_result = per_job_repair_limit_fallback(agent_num, data, context, original_analysis, list(issues))
         if limit_result is not None:
             return adopt_repair_result(agent_num, context, limit_result)
@@ -75,6 +79,7 @@ def _repair_agent_output(agent_num: int, data: StockData, context: AnalysisConte
             )
             try:
                 result = sanitize_model_output(run_single_agent(agent_num, data, context, rotator, max_retries=1))
+                raise_if_cancelled(context)
             finally:
                 increment_repair_attempt_count(context, agent_num)
             if is_agent_execution_failure(result):
@@ -120,6 +125,7 @@ def _repair_agent_output(agent_num: int, data: StockData, context: AnalysisConte
     except AgentDeferredError:
         raise
     except Exception as exc:
+        raise_if_cancelled(context)
         emit_context_error(
             context,
             "final_audit_repair_failed",
@@ -137,11 +143,13 @@ def _repair_agent_output(agent_num: int, data: StockData, context: AnalysisConte
         restore_repair_context(context, previous)
 
 
+@preserve_failed_repair
 async def _repair_agent_output_async(agent_num: int, data: StockData, context: AnalysisContext, rotator: KeyRotator, issues: list[str]) -> tuple[bool, str]:
     """Asynchronously ask the relevant agent to rewrite after final audit failure."""
     previous = capture_repair_context(context)
     original_analysis = str(context.get("analyses", {}).get(agent_num, ""))
     try:
+        raise_if_cancelled(context)
         limit_result = per_job_repair_limit_fallback(agent_num, data, context, original_analysis, list(issues))
         if limit_result is not None:
             return adopt_repair_result(agent_num, context, limit_result)
@@ -179,6 +187,7 @@ async def _repair_agent_output_async(agent_num: int, data: StockData, context: A
             )
             try:
                 result = sanitize_model_output(await run_single_agent_async(agent_num, data, context, rotator, max_retries=1))
+                raise_if_cancelled(context)
             finally:
                 increment_repair_attempt_count(context, agent_num)
             if is_agent_execution_failure(result):
@@ -224,6 +233,7 @@ async def _repair_agent_output_async(agent_num: int, data: StockData, context: A
     except AgentDeferredError:
         raise
     except Exception as exc:
+        raise_if_cancelled(context)
         await emit_context_error_async(
             context,
             "final_audit_repair_failed",

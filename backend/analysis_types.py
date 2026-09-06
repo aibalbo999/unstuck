@@ -29,6 +29,7 @@ class ParsedStructuredData(TypedDict, total=False):
     moat_scores: dict[str, float]
     price_targets: dict[str, float]
     recommendation: dict[str, str]
+    market_context_assessment: dict[str, Any] | None
 
 
 class AuditResult(TypedDict, total=False):
@@ -37,6 +38,8 @@ class AuditResult(TypedDict, total=False):
     warnings: list[str]
     corrections: list[str]
     repair_agent_issues: dict[int, list[str]]
+    coverage_repair_agent_issues: dict[int, list[str]]
+    market_context: dict[str, Any]
     report_preserved: bool
 
 
@@ -48,6 +51,10 @@ class AnalysisContext(TypedDict, total=False):
     structured_outputs: dict[int, dict[str, Any]]
     parsed: ParsedStructuredData
     context_digests: dict[int, str]
+    market_context_contract_version: str
+    market_context_manifests: dict[int, dict[str, Any]]
+    analysis_provenance: dict[int, dict[str, Any]]
+    invalidated_agents: list[int]
     rag_context: dict[int, str]
     rag_status: dict[str, Any]
     rag_index: Any

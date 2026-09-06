@@ -24,6 +24,18 @@ Agent 可用性與品質失敗分流：`agent_runtime/deferred.py` 將耗盡的�
 
 提示資料邊界在 `prompt_evidence.py`：內部 RAG 索引與向量不進入 prompt，checkpoint 與檢索證據保持原樣。`llm_response_diagnostics.py` 保存有界的回應結束原因、阻擋原因、工具呼叫觀察與 usage，不保存 key、工具參數或思考內容；未取得 metadata 時不得猜測空白回應的原因。
 
+量化來源邊界在 `quant_input_contract.py`／`quant_metric_contract.py`：`quant_metrics.v2` 分別記錄 DCF、WACC、本益比可用性、raw facts provenance、單位及政策假設。`QuantEngine` 和 prompt 的 `financial_tools` 共用計算，缺事實不補示範值，負 FCF 不被舊正歷史覆蓋。`final_audit_dcf.py` 只比同方法、情境和每股單位；不可用來源主張為 critical。歷史無契約值只能以未驗證狀態讀取，不能從圖表 fallback 變回 canonical。
+
+分析修復的依賴版本在 `analysis_dependencies.py`，以 pipeline groups 而非 Agent 編號排序；同群不互相依賴，accepted 正文或 structured output 改變才使下游失效。`agent_runtime/repair_transaction.py` 將完整 final-audit node 作為原子採用單位，同步／非同步／公開 legacy 入口共用。失敗、取消或 deferred 不採用半套結果；workflow 的局部 replacement reducer 防止舊 analyses／typed reports／parsed／分析 RAG 復活，外部來源和無關風險保留。成功 node、step cache 與未驗證 quality draft 綁目前上游 fingerprint。
+
+模式 A7／B16／C19 的市場新聞來源在 `market_context_manifest.py`：runtime 發出含 canonical path、index、item hash 的 refs，只有最後 token-budget prompt 中完整保留的來源區塊可被引用，primary／fallback／cache／draft 只恢復成功 attempt 的 manifest。`market_context_assessment.py` 共用純驗證：缺來源或全部省略是 warning；可見來源缺評估走 bounded coverage repair；偽造或不可見引用是 critical。`final_audit_credibility.py` 分流兩類 repair，`reporting/market_context.py` 使用同一投影顯示限制而不覆寫 raw assertions。D 與無新契約的歷史結果不補造記錄。
+
+`market_context_snapshot.py` 分開保存原始評估主張與顯示投影；快照裁切使用綁定原 manifest、原始主張及裁切資料的保存憑據，仍重新核對來源項目，runtime 公開 validator 不接受此覆寫。`reporting/content_credibility_market.py` 和 renderer 共用目前驗證；`report_refresh_service.py` 刷新時保留原始主張／輸入身分，不沿用舊裁切憑據，防止更新資料後將舊引用當成本次證據。
+
+`report_rerun_audit.py` 對「只重跑最終建議」使用同一有界 repair API，但只允許最終 Agent；若必須更正完整群組中的前序分析，回覆 409 要求完整重跑。未解決 critical、生成失敗、取消或 deferred 不進入 renderer／儲存；可選 coverage 耗盡仍明示 warning。Graph 的 `status` 往返與 managed blockers 同步，成功解除本輪阻擋時才恢復 running，外部阻擋不被清除。
+
+`evidence_technical_claims.py` 僅將明確且唯一的 SMA 依據映射到有來源／日期／可用值的 `data.technical_indicators.sma_N`，不借用 volume SMA、其他期間或風險價；歧義、缺欄與混合依據保持 unverifiable。`evidence_recommendation_claims.py` 將明確最終建議列的 compact 3／6／12 個月數字綁自身 parsed 欄位，僅證明與保存結論一致，不驗證未來價格。兩種過熱評分仍是分析 metadata，既有抽樣及容差不變。
+
 ## 目前 Runtime 真相
 
 以下為本機預設設定。若環境變數覆寫，請以 `config` 實際輸出為準。

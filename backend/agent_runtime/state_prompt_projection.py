@@ -4,11 +4,13 @@ import json
 
 from config import BLIND_CONTEXT_AGENTS
 from context_dependencies import upstream_agent_numbers
+from analysis_dependencies import is_agent_result_current
 
 
 def restrict_state_reports(view: dict, state, agent_num: int, context: dict) -> dict:
     allowed = set() if agent_num in BLIND_CONTEXT_AGENTS else {
         str(number) for number in upstream_agent_numbers(agent_num, context)
+        if is_agent_result_current(number, context)
     }
     reports = getattr(state, "agent_reports", {})
     reports = reports if isinstance(reports, dict) else {}

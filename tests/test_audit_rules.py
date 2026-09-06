@@ -860,7 +860,9 @@ class AuditRuleTests(unittest.TestCase):
             "eps": 5,
         })
 
-        self.assertIn("total_equity", metrics["fallback_fields"])
+        self.assertEqual(metrics["fallback_fields"], [])
+        self.assertIn("market_cap_raw_missing_or_invalid", metrics["metric_status"]["wacc"]["reason_codes"])
+        self.assertIsNone(metrics["dcf_intrinsic_value"])
         self.assertTrue(metrics["data_quality_warning"])
 
     def test_agent7_prompt_requires_quant_fallback_data_warning(self):
@@ -882,10 +884,13 @@ class AuditRuleTests(unittest.TestCase):
 
     def test_final_audit_warns_on_dual_dcf_conflict(self):
         context = complete_context()
-        context["data"]["quant_metrics"] = {"dcf_intrinsic_value": 100.0}
+        quant = QuantEngine.compute_all({"market_cap_raw": 1e10, "total_debt_raw": 0,
+            "total_cash_raw": 0, "shares_raw": 1e8, "free_cash_flow_raw": 1e9})
+        context["data"]["quant_metrics"] = quant
+        price = quant["dcf_intrinsic_value"] * 2
         context["analyses"][4] = (
             "## 估值\n"
-            "DCF 模型顯示基本情境目標價 NT$200，與市場價格相比仍有上行空間。"
+            f"系統 DCF 模型顯示基本情境目標價 NT${price:g}，與市場價格相比仍有上行空間。"
         )
         context["parsed"] = ar.parse_structured_data(context)
 

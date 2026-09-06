@@ -10,10 +10,19 @@ from agent_state import AgentState
 from state_report_risks import reconcile_report_risks
 from rag_runtime import InMemoryRagIndex, RagChunk
 
+REPLACE_STATE_KEY = "__replace_analysis_state__"
+
+
+def replace_state_value(value):
+    """An explicit reducer command; persisted channel values remain plain JSON."""
+    return {REPLACE_STATE_KEY: copy.deepcopy(value)}
+
 
 def merge_dicts(left: dict[str, Any] | None, right: dict[str, Any] | None) -> dict[str, Any]:
     """Merge parallel graph deltas without sharing mutable nested objects."""
 
+    if isinstance(right, dict) and set(right) == {REPLACE_STATE_KEY}:
+        return copy.deepcopy(right[REPLACE_STATE_KEY])
     merged = copy.deepcopy(left or {})
     merged.update(copy.deepcopy(right or {}))
     return merged
@@ -45,6 +54,8 @@ def merge_model_circuits(
 def append_unique(left: list[Any] | None, right: list[Any] | None) -> list[Any]:
     """Append graph list deltas while de-duplicating stable items."""
 
+    if isinstance(right, dict) and set(right) == {REPLACE_STATE_KEY}:
+        return copy.deepcopy(right[REPLACE_STATE_KEY])
     result = copy.deepcopy(left or [])
     seen = {_unique_marker(item) for item in result}
     for item in copy.deepcopy(right or []):
@@ -75,6 +86,8 @@ class AgentGraphState(TypedDict, total=False):
     pipeline_id: str
     prompt_version: str
     prompt_fingerprint: str
+    market_context_contract_version: str
+    market_context_manifests: Annotated[dict[str, dict[str, Any]], merge_dicts]
     code_commit: str
     code_dirty: bool | None
     raw_financial_data: dict[str, Any]
@@ -97,6 +110,8 @@ class AgentGraphState(TypedDict, total=False):
     structured_outputs: Annotated[dict[str, dict[str, Any]], merge_dicts]
     parsed: Annotated[dict[str, Any], merge_dicts]
     context_digests: Annotated[dict[str, str], merge_dicts]
+    analysis_provenance: Annotated[dict[str, dict[str, str]], merge_dicts]
+    invalidated_agents: list[int]
     rag_context: Annotated[dict[str, str], merge_dicts]
     llm_token_usage: Annotated[dict[str, dict[str, int]], merge_dicts]
     llm_model_circuits: Annotated[dict[str, dict[str, Any]], merge_model_circuits]
@@ -134,6 +149,15 @@ def agent_state_from_graph(state: AgentGraphState | dict[str, Any]) -> AgentStat
         for key, value in dict(state).items()
         if key in allowed_fields
     }
+    from analysis_dependencies import stale_agent_numbers
+    stale = {str(agent) for agent in stale_agent_numbers(state)}
+    if stale:
+        removed_flags = [flag for agent, report in domain_payload.get("agent_reports", {}).items() if str(agent) in stale
+                         for flag in report.get("risk_flags", [])]
+        domain_payload["agent_reports"] = {agent: report for agent, report in domain_payload.get("agent_reports", {}).items()
+                                           if str(agent) not in stale}
+        domain_payload["risk_flags"] = [flag for flag in domain_payload.get("risk_flags", [])
+                                        if not (set(flag.get("source_agents", [])) & stale) and flag not in removed_flags]
     return reconcile_report_risks(AgentState.model_validate(domain_payload))
 
 

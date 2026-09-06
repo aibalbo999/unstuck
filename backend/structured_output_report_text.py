@@ -28,6 +28,7 @@ from structured_output_normalizer_text import (
     _valuation_summary_line,
 )
 from structured_output_rendering import ensure_agent19_required_sections, format_recommendation_block
+from market_context_assessment import market_assessment_text
 
 
 def structured_output_to_report_text(agent_num: int, structured: dict, fallback_text: str = "") -> str:
@@ -126,6 +127,7 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
 
     if agent_num in {7, 16, 19}:
         body = _legacy_body_text(body)
+        market_text = market_assessment_text(structured.get("market_context_assessment"))
         rec = safe_mapping_dict(structured.get("recommendation")) or {}
 
         basis = safe_mapping_dict(rec.get("confidence_basis")) or {}
@@ -167,7 +169,7 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
         recommendation_block = format_recommendation_block(agent_num, rec)
         if agent_num == 19:
             body = ensure_agent19_required_sections(body, structured)
-            return f"{body}{reasoning_text}{basis_text}{trigger_text}{catalyst_text}\n\n{recommendation_block}".strip()
+            return f"{body}{reasoning_text}{basis_text}{trigger_text}{catalyst_text}{market_text}\n\n{recommendation_block}".strip()
         if agent_num == 16:
             plan = safe_mapping_dict(structured.get("position_plan")) or {}
             position_text = "\n".join([
@@ -181,7 +183,7 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
                 f"- 風險報酬：{_display_line(plan.get('risk_reward'), '資料不足')}",
                 f"- 失效條件：{_display_line(plan.get('invalidation_condition'), '資料不足')}",
             ])
-            return f"{recommendation_block}{reasoning_text}\n\n{position_text}\n\n{body}{basis_text}{trigger_text}{catalyst_text}".strip()
-        return f"{recommendation_block}{reasoning_text}\n\n{body}{basis_text}{trigger_text}{catalyst_text}".strip()
+            return f"{recommendation_block}{reasoning_text}\n\n{position_text}\n\n{body}{basis_text}{trigger_text}{catalyst_text}{market_text}".strip()
+        return f"{recommendation_block}{reasoning_text}\n\n{body}{basis_text}{trigger_text}{catalyst_text}{market_text}".strip()
 
     return fallback_text

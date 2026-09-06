@@ -4058,7 +4058,7 @@ def test_final_rerun_uses_snapshot_rerun_context_without_markdown(tmp_path, monk
     filename = "2449_v2_report_20260606_010000.html"
     write_report_pair(tmp_path, filename, "持有")
     (tmp_path / filename.replace(".html", ".md")).unlink()
-    analyses = {str(agent): f"Agent {agent} analysis" for agent in [11, 12, 13, 14, 15]}
+    analyses = {str(agent): f"Agent {agent} analysis" for agent in [11, 12, 13, 20, 14, 15, 21]}
     snapshot = {
         "snapshot_schema_version": 3,
         "ticker": "2449.TW",
@@ -4130,7 +4130,7 @@ def test_final_rerun_context_normalizes_mapping_safe_snapshot_data(tmp_path):
     from types import MappingProxyType
 
     filename = "2449_v2_report_20260606_010000.html"
-    analyses = {str(agent): f"Agent {agent} analysis" for agent in [11, 12, 13, 14, 15]}
+    analyses = {str(agent): f"Agent {agent} analysis" for agent in [11, 12, 13, 20, 14, 15, 21]}
     snapshot = {
         "snapshot_schema_version": 3,
         "ticker": "2449.TW",
@@ -4177,7 +4177,7 @@ def test_final_rerun_context_reads_mapping_safe_rerun_context_without_markdown(t
     from types import MappingProxyType
 
     filename = "2449_v2_report_20260606_010000.html"
-    analyses = MappingProxyType({str(agent): f"Agent {agent} analysis" for agent in [11, 12, 13, 14, 15]})
+    analyses = MappingProxyType({str(agent): f"Agent {agent} analysis" for agent in [11, 12, 13, 20, 14, 15, 21]})
     snapshot = MappingProxyType(
         {
             "snapshot_schema_version": 3,

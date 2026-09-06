@@ -165,4 +165,7 @@ def apply_snapshot_size_governance(snapshot: dict, max_bytes: int | None = None)
         if removed_keys:
             governed["snapshot_omitted_sections"].append(f"rerun_context.non_essential:{len(removed_keys)}")
 
+    from market_context_snapshot import preserve_market_snapshot_evidence
+
+    preserve_market_snapshot_evidence(snapshot, governed)
     return set_snapshot_integrity(governed)

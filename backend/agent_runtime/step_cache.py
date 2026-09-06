@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import copy
 from typing import Any
 
 from cache_store import get_cache_json, set_cache_json
 from config import AGENT_STEP_CACHE_ENABLED, AGENT_STEP_CACHE_SECONDS
 from data_trust_snapshot import sanitize_for_snapshot
+from analysis_dependencies import upstream_input_hash
+from market_context_manifest import CONTRACT_VERSION, FINAL_AGENTS, clear_market_context_output, manifest_matches_input, prompt_fingerprint
 
 
 PROMPT_VERSION_DEFAULT = "runtime_rules:unversioned"
@@ -28,6 +31,8 @@ def build_agent_step_cache_key(
         "prompt_version": _prompt_version(data, context),
         "model_id": str(model_id or ""),
         "prompt_hash": _sha256_text(prompt),
+        "upstream_input_hash": upstream_input_hash(agent_num, context),
+        "market_context_contract_version": context.get("market_context_contract_version"),
     }
     encoded = json.dumps(key_parts, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return "agent_step:" + hashlib.sha256(encoded.encode("utf-8")).hexdigest()
@@ -62,6 +67,9 @@ def store_cached_agent_step(
         "text": str(text or ""),
         "structured_output": _structured_output_for_agent(context, agent_num),
     }
+    if agent_num in FINAL_AGENTS and context.get("market_context_contract_version") == CONTRACT_VERSION:
+        manifests = context.get("market_context_manifests", {})
+        payload["market_context_manifest"] = copy.deepcopy(manifests.get(agent_num, manifests.get(str(agent_num))))
     try:
         set_cache_json(cache_key, payload, AGENT_STEP_CACHE_SECONDS)
     except Exception:
@@ -69,12 +77,26 @@ def store_cached_agent_step(
 
 
 def restore_cached_agent_step(context: dict, agent_num: int, cached: dict) -> str:
+    clear_market_context_output(context, agent_num)
     structured = cached.get("structured_output")
     if isinstance(structured, dict):
-        context.setdefault("structured_outputs", {})[agent_num] = structured
+        context.setdefault("structured_outputs", {})[agent_num] = copy.deepcopy(structured)
+    manifest = cached.get("market_context_manifest")
+    if isinstance(manifest, dict):
+        context.setdefault("market_context_manifests", {})[agent_num] = copy.deepcopy(manifest)
     stats = context.setdefault("agent_step_cache", {"hits": 0, "misses": 0})
     stats["hits"] = int(stats.get("hits") or 0) + 1
     return str(cached.get("text") or "")
+
+
+def cached_market_context_matches(context: dict, agent_num: int, cached: dict, prompt: str) -> bool:
+    if agent_num not in FINAL_AGENTS or context.get("market_context_contract_version") != CONTRACT_VERSION:
+        return True
+    manifest = cached.get("market_context_manifest")
+    attempts = context.get("_market_context_attempt_manifests", {})
+    expected = attempts.get(agent_num, attempts.get(str(agent_num)))
+    return (manifest_matches_input(manifest, context.get("data", {}), agent_num)
+            and manifest.get("prompt_hash") == prompt_fingerprint(prompt) and manifest == expected)
 
 
 def record_agent_step_cache_miss(context: dict) -> None:

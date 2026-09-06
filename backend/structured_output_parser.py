@@ -211,6 +211,14 @@ def parse_structured_data(context: AnalysisContext) -> dict:
     if recommendation_agent is not None and not parsed["recommendation"] and recommendation_agent in analyses:
         parsed["recommendation"] = parse_recommendation_from_text(analyses[recommendation_agent])
 
+    if recommendation_agent in {7, 16, 19}:
+        from market_context_assessment import assess_final_market_context
+
+        output = structured_outputs.get(recommendation_agent, structured_outputs.get(str(recommendation_agent), {}))
+        if context.get("market_context_contract_version") == "market_context.v1":
+            parsed["market_context_assessment"] = assess_final_market_context(context)["assessment"]
+        else:
+            parsed["market_context_assessment"] = output.get("market_context_assessment") if isinstance(output, dict) else None
     return parsed
 
 

@@ -100,6 +100,11 @@ async def refresh_report_data_snapshot(
         "refreshed_from_report": filename,
         "refresh_stale_sources": stale_sources,
     }
+    # Refresh replaces data, not the original analysis claims or their input identity.
+    # Never carry the old size-governance receipt onto refreshed data.
+    for key in ("market_context_raw_assessment", "market_context_original_input_fingerprint"):
+        if key in previous_snapshot:
+            context[key] = deepcopy(previous_snapshot[key])
     provisional_snapshot = build_data_snapshot(
         context,
         pipeline_id=pipeline_id,

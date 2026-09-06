@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+import copy
 from typing import Any
 
 from fastapi import HTTPException
@@ -11,6 +12,7 @@ from agent_runtime.cancellation import attach_cancel_check
 from agent_runtime.quality_gates import run_agent_with_quality_gates_async
 from company_display import company_display_name
 from config import LLM_API_KEYS_BY_PROVIDER
+from context_dependencies import upstream_agent_numbers
 from final_audit import run_final_report_audit
 from llm_client import KeyRotator
 from mapping_fields import safe_mapping_dict
@@ -21,6 +23,7 @@ from report_history_storage import storage_for_existing_output_dir
 from report_index_parsing import is_safe_report_filename
 from report_pipeline_identity import resolve_report_pipeline_id as _source_pipeline_id
 from report_rerun_data import prepare_full_rerun_data, rerun_data_payload
+from report_rerun_audit import run_final_rerun_audit
 from report_rerun_context import (
     RERUN_SCOPE_LABELS,
     normalize_rerun_scope,
@@ -99,10 +102,14 @@ def _build_final_rerun_context(
         raise HTTPException(status_code=409, detail=detail)
 
     analyses, structured_outputs = rerun_context_from_snapshot(snapshot)
-    required_previous = [agent for agent in pipeline_def["agents"] if agent < final_agent]
+    required_previous = upstream_agent_numbers(final_agent, {"pipeline_id": pipeline_id})
     missing = [agent for agent in required_previous if agent not in analyses]
     if missing:
-        markdown_text = read_report_markdown(filename, output_dir, storage=storage)
+        try:
+            markdown_text = read_report_markdown(filename, output_dir, storage=storage)
+        except HTTPException as exc:
+            if exc.status_code != 404: raise
+            raise HTTPException(status_code=409, detail="原始快照與 Markdown 無法還原完整前序分析，請使用完整重跑。") from exc
         markdown_analyses = parse_agent_sections_from_markdown(markdown_text)
         analyses.update({agent: text for agent, text in markdown_analyses.items() if agent not in analyses})
     missing = [agent for agent in required_previous if agent not in analyses]
@@ -116,7 +123,9 @@ def _build_final_rerun_context(
         "company_name": company_display_name(data, dict.get(snapshot_map, "company_name") or data.get("ticker")),
         "data": data,
         "analyses": analyses,
-        "structured_outputs": structured_outputs,
+        "structured_outputs": copy.deepcopy(structured_outputs),
+        "market_context_contract_version": "market_context.v1",
+        "market_context_manifests": {},
         "start_time": time.time(),
         "execution_mode": "partial_rerun",
         "pipeline_id": pipeline_def["id"],
@@ -143,13 +152,12 @@ async def _run_final_recommendation_rerun(
         cancel_check()
     context, pipeline_def, final_agent = _build_final_rerun_context(filename, snapshot, output_dir, storage=storage)
     attach_cancel_check(context, cancel_check)
-    required_previous = [agent for agent in pipeline_def["agents"] if agent < final_agent]
     if callable(progress_callback):
         progress_callback({
             "type": "status",
             "phase": "rerun_final_agent",
             "message": f"重跑 {pipeline_def['label']} 最終投資建議 Agent...",
-            "current": len(required_previous),
+            "current": len(upstream_agent_numbers(final_agent, context)),
             "total": len(pipeline_def["agents"]),
             "name": f"Agent {final_agent}",
             "agent_num": final_agent,
@@ -159,11 +167,8 @@ async def _run_final_recommendation_rerun(
     if callable(cancel_check):
         cancel_check()
     rotator = KeyRotator(LLM_API_KEYS_BY_PROVIDER)
-    await run_agent_with_quality_gates_async(final_agent, context["data"], context, rotator)
-    if callable(cancel_check):
-        cancel_check()
-    context["parsed"] = parse_structured_data(context)
-    context["final_audit"] = run_final_report_audit(context, append_section=True)
+    await run_final_rerun_audit(context, final_agent, rotator, run_agent=run_agent_with_quality_gates_async,
+                               parse=parse_structured_data, audit=run_final_report_audit, progress_callback=progress_callback)
     context["total_time"] = time.time() - context["start_time"]
     if callable(progress_callback):
         progress_callback({
@@ -249,11 +254,5 @@ async def rerun_report_analysis(
         cancel_check=cancel_check,
         storage=content_storage,
     )
-
-
-__all__ = [
-    "RERUN_SCOPE_LABELS",
-    "normalize_rerun_scope",
-    "parse_agent_sections_from_markdown",
-    "rerun_report_analysis",
-]
+__all__ = ["RERUN_SCOPE_LABELS", "normalize_rerun_scope",
+           "parse_agent_sections_from_markdown", "rerun_report_analysis"]

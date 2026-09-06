@@ -72,6 +72,8 @@ def sanitize_rerun_context(context: dict) -> dict:
         "pipeline_id": _context_value("pipeline_id"),
         "pipeline_label": _context_value("pipeline_label"),
         "agent_sequence": _context_value("agent_sequence"),
+        **{key: _context_value(key) for key in ("market_context_contract_version", "market_context_manifests")
+           if key in context_map or key in rerun_context},
     })
 
 
@@ -158,6 +160,9 @@ def build_data_snapshot(
         "data": sanitize_for_snapshot(data),
     }
     quality_metadata_refresh_provenance = dict.get(context, "quality_metadata_refresh_provenance", {})
+    from market_context_snapshot import snapshot_market_fields
+
+    snapshot.update(snapshot_market_fields(snapshot["rerun_context"], data, context=context))
     if quality_metadata_refresh_provenance:
         snapshot["quality_metadata_refresh_provenance"] = sanitize_for_snapshot(
             quality_metadata_refresh_provenance

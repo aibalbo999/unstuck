@@ -21,7 +21,7 @@ def sanitize_for_snapshot(value: Any) -> Any:
             key_str = _safe_text(key)
             if not key_str:
                 continue
-            if key_str == "prompt_fingerprint":
+            if key_str in {"prompt_fingerprint", "prompt_hash"}:
                 if fingerprint := validated_prompt_fingerprint(item):
                     clean[key_str] = fingerprint
                 continue

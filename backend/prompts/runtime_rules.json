@@ -18,6 +18,7 @@
       "不得輸出「分析進行中」、Agent 執行失敗、prompt/system/task/meta-talk、草稿、自我反思或審核說明。",
       "只分析本次唯一標的；同業只能作比較，不得把同業公司事實寫成標的公司事實。",
       "所有數字必須來自 AgentState view、財務 JSON、deterministic tool result 或前序 Agent 報告；資料不足時寫明資料不足，不得補造。",
+      "quant_metrics.v2 優先於舊估值敘述：DCF/WACC/implied PE 僅在各自 metric_status.status=available 時可引用。DCF unavailable 時不得當作下行保護或現金流底線，也不得從舊 dcf_scenarios、示範值或占位值恢復；high_growth 的 DCF 底線規則僅在 available 時適用。",
       "若引用目標價、估值、技術價位或停損，必須保留完整價格與單位，不得把千元/百元價位縮成個位數。",
       "正式輸出的最後一段必須仍是研究報告內容，不得改成自我檢查、歉語、流程說明或系統訊息。"
     ],
@@ -140,6 +141,7 @@
       "intro": "請只輸出合法 JSON，不要 Markdown code fence，不要前言，不要附註。",
       "schema_lines": [
         "{",
+        "  \"market_context_assessment\": {\"global_market_context\": {\"impact\": \"affects_conclusion|no_material_impact|not_assessed\", \"reason\": \"此次結論的具體影響或限制\", \"source_refs\": []}, \"international_news_context\": {\"impact\": \"affects_conclusion|no_material_impact|not_assessed\", \"reason\": \"此次結論的具體影響或限制\", \"source_refs\": []}},",
         "  \"reasoning_steps\": [",
         "    \"先用一句話自問：估值、財務、護城河、成長、風險或籌碼如何影響最終建議？再用一句話回答。至少 3 項。\"",
         "  ],",
@@ -240,6 +242,7 @@
       "intro": "請只輸出合法 JSON，不要 Markdown code fence，不要前言，不要附註。",
       "schema_lines": [
         "{",
+        "  \"market_context_assessment\": {\"global_market_context\": {\"impact\": \"affects_conclusion|no_material_impact|not_assessed\", \"reason\": \"此次結論的具體影響或限制\", \"source_refs\": []}, \"international_news_context\": {\"impact\": \"affects_conclusion|no_material_impact|not_assessed\", \"reason\": \"此次結論的具體影響或限制\", \"source_refs\": []}},",
         "  \"reasoning_steps\": [",
         "    \"先用一句話自問：估值、財務、護城河、總經、籌碼或交易風控如何影響最終建議？再用一句話回答。至少 3 項。\"",
         "  ],",
@@ -287,6 +290,7 @@
       "intro": "請只輸出合法 JSON，不要 Markdown code fence，不要前言，不要附註。",
       "schema_lines": [
         "{",
+        "  \"market_context_assessment\": {\"global_market_context\": {\"impact\": \"affects_conclusion|no_material_impact|not_assessed\", \"reason\": \"此次結論的具體影響或限制\", \"source_refs\": []}, \"international_news_context\": {\"impact\": \"affects_conclusion|no_material_impact|not_assessed\", \"reason\": \"此次結論的具體影響或限制\", \"source_refs\": []}},",
         "  \"reasoning_steps\": [",
         "    \"先用一句話自問：市場泡沫、財務漏洞、籌碼派發、崩盤催化與軋空風險如何影響最終建議？再用一句話回答。至少 3 項。\"",
         "  ],",
@@ -401,6 +405,7 @@
     "4": {
       "title": "估值工具使用規則",
       "rules": [
+        "先檢查 quant_metrics.v2 的各別 metric_status：dcf/wacc/implied_pe 僅 available 才可引用。負 FCF、缺 raw 事實等造成 unavailable 時，不得把 DCF 當作下行保護或現金流底線；此規則優先於 high_growth 底線規則。method/unit/input_provenance 必須沿用工具結果，twd_per_share 不得再當 billion TWD 換算。",
         "WACC 權重請呼叫 calculate_wacc，或引用 deterministic_financial_tool_results.calculations.market_value_wacc_default。",
         "DCF 情境請呼叫 calculate_dcf，或引用 deterministic_financial_tool_results.calculations.dcf_scenarios_default。",
         "金融股或殖利率高於 5% 的標的，請呼叫 calculate_ddm 或引用 ddm_scenarios_default，並提高 DDM/P/B 權重。",
@@ -424,6 +429,7 @@
     "14": {
       "title": "估值工具使用規則",
       "rules": [
+        "先檢查 quant_metrics.v2 的各別 metric_status：dcf/wacc/implied_pe 僅 available 才可引用。負 FCF、缺 raw 事實等造成 unavailable 時，不得把 DCF 當作下行保護或現金流底線；此規則優先於 high_growth 底線規則。method/unit/input_provenance 必須沿用工具結果，twd_per_share 不得再當 billion TWD 換算。",
         "WACC 權重請呼叫 calculate_wacc，或引用 deterministic_financial_tool_results.calculations.market_value_wacc_default。",
         "DCF 情境請呼叫 calculate_dcf，或引用 deterministic_financial_tool_results.calculations.dcf_scenarios_default。",
         "金融股或殖利率高於 5% 的標的，請呼叫 calculate_ddm 或引用 ddm_scenarios_default，並提高 DDM/P/B 權重。",
@@ -494,6 +500,7 @@
       "rules": [
         "最終建議需綜合 recent_catalysts、institutional_trading、global_market_context、international_news_context 與 Agent 4 估值結果。",
         "最終風險報酬必須說明 global_market_context / international_news_context 是否影響結論；若缺資料，請明確揭露未納入全球脈絡。",
+        "market_context.v1：market_context_assessment 必須分別評估全球市場與國際新聞，source_refs 只能使用本次完整 market-source 區塊的 source_ref；未評估填 not_assessed 並說明原因，禁止自行補 no_material_impact、網址或引用省略的來源。新聞 topic 只有標題／摘要，不代表已讀全文。",
         "若近期新聞/籌碼和長期基本面方向相反，請分別說明短期與長期判斷。",
         "3-6 個月目標與信心指數需參考 institutional_trading 的外資、投信、自營商近 30 日買賣超趨勢。",
         "若基本面與籌碼面背離，請降低短期信心或清楚區分長短期觀點。"
@@ -538,6 +545,7 @@
       "title": "實戰決策即時資料規則",
       "rules": [
         "最終交易決策需綜合 Agent 14 估值區間、Agent 15 籌碼動能、recent_catalysts、institutional_trading 與 global_market_context。",
+        "market_context.v1：market_context_assessment 必須分別評估全球市場與國際新聞，source_refs 只能使用本次完整 market-source 區塊的 source_ref；未評估填 not_assessed 並說明原因，禁止自行補 no_material_impact、網址或引用省略的來源。新聞 topic 只有標題／摘要，不代表已讀全文。",
         "最終風險報酬必須說明 global_market_context / international_news_context 是否影響結論；若缺資料，請明確揭露未納入全球脈絡。",
         "若基本面與籌碼面背離，請降低短期信心或提出分批/觀望/停損等風控策略。",
         "position_plan 必須把結論轉成操作動作、進場條件、部位大小、停損、風險報酬與假設失效條件。",
@@ -564,6 +572,7 @@
       "title": "泡沫狙擊最終報告資料規則",
       "rules": [
         "最終泡沫狙擊報告必須同時引用 Agent 17 的泡沫/情緒結論、Agent 18 的財務/籌碼反證、market_catalysts 與 institutional_trading。",
+        "market_context.v1：market_context_assessment 必須分別評估 global_market_context 與 international_news_context 對空方結論與催化時機的影響，source_refs 只能引用此次完整 market-source 區塊的系統 source_ref；缺資料或來源被省略時填 not_assessed，禁止自造網址或固定補無影響。新聞 topic 只有標題／摘要，不代表已讀全文。",
         "必須明確列出做空觸發條件（Catalyst for crash）與防軋空停損點（Stop-loss level）；若資料不足，仍需給出可監控條件與保守停損邏輯。",
         "short_setup 必須分開保存進場觸發、下行目標、回補停損、軋空風險與論點失效條件，不得只藏在 analysis_markdown。",
         "若 data_trust.status 不是 fresh，信心指數需折讓並在報告中揭露資料限制。"
