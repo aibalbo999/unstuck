@@ -191,18 +191,49 @@ def test_guard_allows_only_the_two_loaded_endpoints_for_all_entrypoints():
     assert len(driver.AsyncConnection.calls) == 1
 
 
-def test_guarded_entries_ignore_libpq_environment_before_native_calls(monkeypatch):
-    monkeypatch.setenv("PGHOSTADDR", "127.0.0.1")
-    monkeypatch.setenv("PGSERVICE", "production")
+@pytest.mark.parametrize(
+    "env_name",
+    [
+        "PGHOSTADDR",
+        "PGSERVICE",
+        "PGHOST",
+        "PGPORT",
+        "PGDATABASE",
+        "PGUSER",
+        "PGPASSWORD",
+        "PGPASSFILE",
+        "PGSERVICEFILE",
+        "PGOPTIONS",
+        "PGSSLMODE",
+    ],
+)
+def test_guard_fails_closed_when_libpq_env_source_exists(monkeypatch, env_name):
+    monkeypatch.setenv(env_name, "production")
     driver = _fresh_driver()
     install(driver, endpoints=(APP, OWNER))
     alias = driver.connect
-    alias(APP.conninfo())
-    driver.Connection.connect(OWNER.conninfo())
-    asyncio.run(driver.AsyncConnection.connect(APP.conninfo()))
+    for entrypoint in (
+        lambda: alias(APP.conninfo()),
+        lambda: driver.Connection.connect(APP.conninfo()),
+        lambda: asyncio.run(driver.AsyncConnection.connect(APP.conninfo())),
+    ):
+        with pytest.raises(ValueError, match="^isolated_pg_connection_rejected$"):
+            entrypoint()
+    assert len(driver.top_calls) == 0
+    assert len(driver.Connection.calls) == 0
+    assert len(driver.AsyncConnection.calls) == 0
+
+
+def test_stale_alias_uses_latest_reinstalled_policy():
+    driver = _fresh_driver()
+    install(driver, endpoints=(APP,))
+    stale = driver.connect
+    install(driver, endpoints=(OWNER,))
+    with pytest.raises(ValueError, match="^isolated_pg_connection_rejected$"):
+        stale(APP.conninfo())
+    assert len(driver.top_calls) == 0
+    driver.connect(OWNER.conninfo())
     assert len(driver.top_calls) == 1
-    assert len(driver.Connection.calls) == 1
-    assert len(driver.AsyncConnection.calls) == 1
 
 
 def test_guard_preserves_stable_reason_for_malformed_endpoint():

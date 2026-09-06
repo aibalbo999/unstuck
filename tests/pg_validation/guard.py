@@ -2,13 +2,31 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable
+import os
+from typing import Any
 
 from .policy import Endpoint, REJECTION_REASON
 
 
 def _reject() -> None:
     raise ValueError(REJECTION_REASON)
+
+
+_LIBPQ_ENV_KEYS = frozenset(
+    {
+        "PGHOSTADDR",
+        "PGSERVICE",
+        "PGHOST",
+        "PGPORT",
+        "PGDATABASE",
+        "PGUSER",
+        "PGPASSWORD",
+        "PGPASSFILE",
+        "PGSERVICEFILE",
+        "PGOPTIONS",
+        "PGSSLMODE",
+    }
+)
 
 
 def install(
@@ -21,7 +39,12 @@ def install(
     compares conninfo; it never probes the database for availability.
     """
 
-    endpoint_list = tuple(endpoints or ())
+    policy_state = getattr(driver, "__pg_validation_policy_state__", None)
+    if not isinstance(policy_state, dict):
+        policy_state = {"endpoints": ()}
+        setattr(driver, "__pg_validation_policy_state__", policy_state)
+    policy_state["endpoints"] = tuple(endpoints or ())
+
     sync_connect = driver.Connection.connect.__func__
     async_connect = driver.AsyncConnection.connect.__func__
     top_connect = getattr(driver, "connect", None)
@@ -33,7 +56,9 @@ def install(
         top_connect = top_connect.__pg_validation_original__
 
     def check(conninfo: Any, kwargs: dict[str, Any]) -> None:
-        for endpoint in endpoint_list:
+        if any(name in os.environ for name in _LIBPQ_ENV_KEYS):
+            _reject()
+        for endpoint in policy_state["endpoints"]:
             try:
                 endpoint.validate(conninfo, kwargs)
                 return
