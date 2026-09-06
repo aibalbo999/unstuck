@@ -1,0 +1,62 @@
+"""Install a pre-connect guard on a loaded psycopg-compatible driver."""
+
+from __future__ import annotations
+
+from typing import Any, Callable
+
+from .policy import Endpoint, REJECTION_REASON
+
+
+def _reject() -> None:
+    raise ValueError(REJECTION_REASON)
+
+
+def install(
+    driver: Any,
+    endpoints: Any = (),
+) -> Any:
+    """Patch sync, async, and top-level driver entrypoints before connecting.
+
+    An empty endpoint policy means default deny. The guard only parses and
+    compares conninfo; it never probes the database for availability.
+    """
+
+    endpoint_list = tuple(endpoints or ())
+    sync_connect = driver.Connection.connect.__func__
+    async_connect = driver.AsyncConnection.connect.__func__
+    while getattr(sync_connect, "__pg_validation_wrapper__", False):
+        sync_connect = sync_connect.__pg_validation_original__
+    while getattr(async_connect, "__pg_validation_wrapper__", False):
+        async_connect = async_connect.__pg_validation_original__
+
+    def check(conninfo: Any, kwargs: dict[str, Any]) -> None:
+        for endpoint in endpoint_list:
+            try:
+                endpoint.validate(conninfo, kwargs)
+                return
+            except (TypeError, ValueError):
+                pass
+        _reject()
+
+    def checked_sync(cls: Any, conninfo: Any = "", **kwargs: Any) -> Any:
+        check(conninfo, kwargs)
+        return sync_connect(cls, conninfo, **kwargs)
+
+    async def checked_async(cls: Any, conninfo: Any = "", **kwargs: Any) -> Any:
+        check(conninfo, kwargs)
+        return await async_connect(cls, conninfo, **kwargs)
+
+    checked_sync.__pg_validation_wrapper__ = True
+    checked_sync.__pg_validation_original__ = sync_connect
+    checked_async.__pg_validation_wrapper__ = True
+    checked_async.__pg_validation_original__ = async_connect
+
+    driver.Connection.connect = classmethod(checked_sync)
+    driver.AsyncConnection.connect = classmethod(checked_async)
+    driver.connect = driver.Connection.connect
+    return driver
+
+
+install_connection_guard = install
+
+__all__ = ["install", "install_connection_guard"]

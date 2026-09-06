@@ -21,6 +21,9 @@ def main() -> int:
             "TASK_DB_PATH": str(root / "operational.sqlite3"),
             "LANGGRAPH_CHECKPOINT_PATH": str(root / "checkpoints.sqlite3"),
             "CACHE_BACKEND": "memory",
+            "OUTPUT_DIR": str(root / "output"),
+            "LANGGRAPH_CHECKPOINT_BACKEND": "sqlite",
+            "LANGGRAPH_CHECKPOINT_POSTGRES_DSN": "isolated-postgres-disabled",
         })
         connect = sqlite3.connect
 
