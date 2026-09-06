@@ -8,13 +8,14 @@ from dataclasses import dataclass
 import pytest
 
 from pg_validation.guard import install
-from pg_validation.policy import Endpoint, validate
+from pg_validation.policy import Endpoint
 
 
 RUN_ID = "0123456789abcdef"
 HOST = f"/tmp/pg-validation-{RUN_ID}/socket"
 APP = Endpoint(HOST, "5432", f"db_{RUN_ID}", f"app_{RUN_ID}")
 OWNER = Endpoint(HOST, "5432", f"db_{RUN_ID}", f"owner_{RUN_ID}")
+OTHER_HOST = "/tmp/pg-validation-fedcba9876543210/socket"
 
 
 def test_endpoint_values_validate_the_fixed_isolated_identity():
@@ -70,7 +71,7 @@ def test_validate_rejects_uri_missing_identity_and_duplicate_keys(bad):
 
 def test_validate_accepts_canonical_conninfo_and_client_option():
     assert APP.validate(APP.conninfo(), {"autocommit": True})["autocommit"] is True
-    assert validate(APP.conninfo(), autocommit=True) == {
+    assert APP.validate(APP.conninfo(), {"autocommit": True}) == {
         "host": HOST,
         "port": "5432",
         "dbname": f"db_{RUN_ID}",
@@ -84,13 +85,26 @@ def test_validate_accepts_canonical_conninfo_and_client_option():
 def test_explicit_conninfo_ignores_libpq_host_environment(monkeypatch):
     monkeypatch.setenv("PGHOSTADDR", "127.0.0.1")
     monkeypatch.setenv("PGSERVICE", "production")
-    assert validate(APP.conninfo())["host"] == HOST
-    assert validate(APP.conninfo())["sslmode"] == "disable"
+    assert APP.validate(APP.conninfo(), {})["host"] == HOST
+    assert APP.validate(APP.conninfo(), {})["sslmode"] == "disable"
 
 
 def test_validate_rejects_hostaddr_kwarg():
     with pytest.raises(ValueError, match="^isolated_pg_connection_rejected$"):
-        validate(APP.conninfo(), hostaddr="127.0.0.1")
+        APP.validate(APP.conninfo(), {"hostaddr": "127.0.0.1"})
+
+
+@pytest.mark.parametrize(
+    "host,dbname,user",
+    [
+        (OTHER_HOST, f"db_{RUN_ID}", f"app_{RUN_ID}"),
+        (OTHER_HOST, "db_fedcba9876543210", f"app_{RUN_ID}"),
+        (OTHER_HOST, "db_fedcba9876543210", f"owner_{RUN_ID}"),
+    ],
+)
+def test_endpoint_binds_run_id_across_host_database_and_user(host, dbname, user):
+    with pytest.raises(ValueError, match="^isolated_pg_identity_invalid$"):
+        Endpoint(host, "5432", dbname, user).values()
 
 
 @dataclass
@@ -136,6 +150,10 @@ def _fresh_driver():
     return _FakeDriver
 
 
+def _evil_dsn():
+    return APP.conninfo() + " hostaddr=127.0.0.1"
+
+
 def test_guard_default_denies_without_policy_and_does_not_call_driver():
     driver = _fresh_driver()
     install(driver)
@@ -153,16 +171,38 @@ def test_guard_default_denies_without_policy_and_does_not_call_driver():
 def test_guard_allows_only_the_two_loaded_endpoints_for_all_entrypoints():
     driver = _fresh_driver()
     install(driver, endpoints=(APP, OWNER))
+    alias = driver.connect
     driver.connect(APP.conninfo(), autocommit=True)
     driver.Connection.connect(OWNER.conninfo())
     asyncio.run(driver.AsyncConnection.connect(APP.conninfo()))
-    assert len(driver.top_calls) == 0
-    assert len(driver.Connection.calls) == 2
+    alias(APP.conninfo())
+    assert len(driver.top_calls) == 2
+    assert len(driver.Connection.calls) == 1
     assert len(driver.AsyncConnection.calls) == 1
 
     with pytest.raises(ValueError, match="^isolated_pg_connection_rejected$"):
-        driver.connect(APP.conninfo() + " hostaddr=127.0.0.1")
-    assert len(driver.Connection.calls) == 2
+        alias(_evil_dsn())
+    assert len(driver.top_calls) == 2
+    with pytest.raises(ValueError, match="^isolated_pg_connection_rejected$"):
+        driver.Connection.connect(_evil_dsn())
+    assert len(driver.Connection.calls) == 1
+    with pytest.raises(ValueError, match="^isolated_pg_connection_rejected$"):
+        asyncio.run(driver.AsyncConnection.connect(_evil_dsn()))
+    assert len(driver.AsyncConnection.calls) == 1
+
+
+def test_guarded_entries_ignore_libpq_environment_before_native_calls(monkeypatch):
+    monkeypatch.setenv("PGHOSTADDR", "127.0.0.1")
+    monkeypatch.setenv("PGSERVICE", "production")
+    driver = _fresh_driver()
+    install(driver, endpoints=(APP, OWNER))
+    alias = driver.connect
+    alias(APP.conninfo())
+    driver.Connection.connect(OWNER.conninfo())
+    asyncio.run(driver.AsyncConnection.connect(APP.conninfo()))
+    assert len(driver.top_calls) == 1
+    assert len(driver.Connection.calls) == 1
+    assert len(driver.AsyncConnection.calls) == 1
 
 
 def test_guard_preserves_stable_reason_for_malformed_endpoint():

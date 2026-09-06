@@ -13,9 +13,7 @@ from typing import Any
 
 
 REJECTION_REASON = "isolated_pg_connection_rejected"
-_HOST_RE = re.compile(r"^/tmp/pg-validation-[0-9a-f]{16}/socket$")
-_DB_RE = re.compile(r"^db_[0-9a-f]{16}$")
-_USER_RE = re.compile(r"^(?:app|owner)_[0-9a-f]{16}$")
+_HOST_RE = re.compile(r"^/tmp/pg-validation-([0-9a-f]{16})/socket$")
 _CANONICAL_KEYS = ("host", "port", "dbname", "user", "connect_timeout", "sslmode")
 _CLIENT_OPTIONS = frozenset(
     {"autocommit", "row_factory", "cursor_factory", "prepare_threshold", "context"}
@@ -52,10 +50,10 @@ class Endpoint:
         dbname = _safe_text(self.dbname)
         user = _safe_text(self.user)
         if not (
-            _HOST_RE.fullmatch(host)
+            (host_match := _HOST_RE.fullmatch(host))
             and port == "5432"
-            and _DB_RE.fullmatch(dbname)
-            and _USER_RE.fullmatch(user)
+            and dbname == f"db_{host_match.group(1)}"
+            and user in {f"app_{host_match.group(1)}", f"owner_{host_match.group(1)}"}
         ):
             _identity_reject()
         return {"host": host, "port": port, "dbname": dbname, "user": user}
@@ -112,37 +110,4 @@ def _parse_conninfo(conninfo: Any) -> dict[str, str]:
     return parsed
 
 
-def validate(
-    conninfo: Any,
-    kwargs: dict[str, Any] | None = None,
-    /,
-    **options: Any,
-) -> dict[str, Any]:
-    """Validate conninfo and client-only options, returning canonical fields.
-
-    The parser intentionally does not consult environment variables.  libpq
-    defaults such as ``PGSERVICE`` and ``PGHOSTADDR`` therefore cannot alter a
-    complete, explicit conninfo accepted by this boundary.
-    """
-
-    merged = {} if kwargs is None else kwargs
-    if options:
-        if merged:
-            _reject()
-        merged = options
-    parsed = _parse_conninfo(conninfo)
-    if set(merged) - _CLIENT_OPTIONS:
-        _reject()
-    if not (
-        _HOST_RE.fullmatch(parsed["host"])
-        and parsed["port"] == "5432"
-        and _DB_RE.fullmatch(parsed["dbname"])
-        and _USER_RE.fullmatch(parsed["user"])
-    ):
-        _reject()
-    result: dict[str, Any] = {key: parsed[key] for key in _CANONICAL_KEYS}
-    result.update(merged)
-    return result
-
-
-__all__ = ["Endpoint", "REJECTION_REASON", "validate"]
+__all__ = ["CLIENT_OPTIONS", "Endpoint", "REJECTION_REASON"]

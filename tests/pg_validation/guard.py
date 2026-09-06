@@ -24,10 +24,13 @@ def install(
     endpoint_list = tuple(endpoints or ())
     sync_connect = driver.Connection.connect.__func__
     async_connect = driver.AsyncConnection.connect.__func__
+    top_connect = getattr(driver, "connect", None)
     while getattr(sync_connect, "__pg_validation_wrapper__", False):
         sync_connect = sync_connect.__pg_validation_original__
     while getattr(async_connect, "__pg_validation_wrapper__", False):
         async_connect = async_connect.__pg_validation_original__
+    while getattr(top_connect, "__pg_validation_wrapper__", False):
+        top_connect = top_connect.__pg_validation_original__
 
     def check(conninfo: Any, kwargs: dict[str, Any]) -> None:
         for endpoint in endpoint_list:
@@ -46,14 +49,20 @@ def install(
         check(conninfo, kwargs)
         return await async_connect(cls, conninfo, **kwargs)
 
+    def checked_top(conninfo: Any = "", **kwargs: Any) -> Any:
+        check(conninfo, kwargs)
+        return top_connect(conninfo, **kwargs)
+
     checked_sync.__pg_validation_wrapper__ = True
     checked_sync.__pg_validation_original__ = sync_connect
     checked_async.__pg_validation_wrapper__ = True
     checked_async.__pg_validation_original__ = async_connect
+    checked_top.__pg_validation_wrapper__ = True
+    checked_top.__pg_validation_original__ = top_connect
 
     driver.Connection.connect = classmethod(checked_sync)
     driver.AsyncConnection.connect = classmethod(checked_async)
-    driver.connect = driver.Connection.connect
+    driver.connect = checked_top
     return driver
 
 
