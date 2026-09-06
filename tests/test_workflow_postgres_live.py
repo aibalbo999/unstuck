@@ -42,7 +42,7 @@ from workflow_quality_draft_test_support import (
     quality_runtime,
 )
 
-from agent_runtime import quality_gates, step_cache
+from agent_runtime import audit_repair, quality_gates, step_cache
 from agent_runtime.deferred import AgentDeferredError
 from langgraph.errors import NodeCancelledError
 
@@ -350,6 +350,171 @@ def test_pg04_cancel_after_draft_resumes_without_partial_adoption(
     control["deferred"] = False
     assert pg_case.execute(state, calls, builder=pg_builder(calls))["status"] == "done"
     assert calls["initial"] == [4] and calls["prerequisite"] == 1
+
+
+def test_pg05_threads_agents_and_completed_sibling_are_isolated(
+    pg_case, quality_runtime, monkeypatch,
+):
+    """A deferred agent resumes only in its own thread after its sibling commits."""
+
+    calls, control, _events = quality_runtime
+    control.update(deferred_agents={4}, wait_for_sibling=True)
+    generate = quality_gates.run_single_agent_async
+
+    async def tagged(agent, data, context, rotator):
+        return (await generate(agent, data, context, rotator)) + "|" + context["ticker"]
+
+    monkeypatch.setattr(quality_gates, "run_single_agent_async", tagged)
+    states = {}
+    for name in ("first", "second"):
+        state = initial_state()
+        state["ticker"] = name
+        state["normalized_financials"]["ticker"] = name
+        states[name] = state
+        with pytest.raises(AgentDeferredError):
+            pg_case.execute(state, calls, thread=name, agents=(4, 14))
+        assert pg_case.snapshot(calls, thread=name, agents=(4, 14)).next == ("agent_4",)
+        for row in pg_case.drafts(name):
+            assert row.config["configurable"]["thread_id"] == pg_case.thread(name)
+            assert row.checkpoint["channel_values"]["quality_draft"]["text"].endswith(
+                "|" + name
+            )
+
+    control["deferred"] = False
+    for name, state in states.items():
+        result = pg_case.execute(state, calls, thread=name, agents=(4, 14))
+        assert all(text.endswith("|" + name) for text in result["analyses"].values())
+    assert calls["initial"].count(4) == 2 and calls["initial"].count(14) == 2
+    assert calls["nodes_returned"].count(14) == 2
+    assert calls["nodes_returned"].count(4) == 2 and calls["published"] == 2
+
+
+def test_pg06_draft_restoration_tracks_upstream_fingerprint(pg_case):
+    """Only a real upstream context change creates a new draft namespace."""
+
+    from test_repair_dependencies import _context
+    from workflow_quality_drafts import (
+        checkpoint_draft_scope,
+        initial_or_checkpointed_draft,
+        quality_draft_node,
+    )
+
+    generated = []
+    fixed_graph_state = {"analyses": {"4": "unchanged-graph"}}
+
+    async def generate(agent, data, context, rotator):
+        value = context["analyses"][4]
+        generated.append(value)
+        context.setdefault("rag_context", {})[7] = value
+        context.setdefault("context_digests", {})[7] = value
+        context.setdefault("market_context_manifests", {})[7] = {"value": value}
+        return value
+
+    async def run():
+        for value in ("old", "new", "old"):
+            context = _context()
+            context["analyses"][4] = value
+            async with open_postgres_checkpointer(pg_case.app_endpoint.conninfo()) as saver:
+                with checkpoint_draft_scope(saver, pg_case.thread()):
+                    async with quality_draft_node(7, fixed_graph_state, context):
+                        text = await initial_or_checkpointed_draft(
+                            7, {}, context, object(), generate
+                        )
+                        assert text == value
+                        assert context["rag_context"][7] == value
+                        assert context["context_digests"][7] == value
+                        assert context["market_context_manifests"][7] == {"value": value}
+
+    asyncio.run(run())
+    assert generated == ["old", "new"]
+    assert len({
+        row.config["configurable"]["checkpoint_ns"]
+        for row in pg_case.drafts()
+    }) == 2
+
+
+def test_pg06_dependency_repair_resumes_atomic_invalidated_round(
+    pg_case, monkeypatch,
+):
+    """A real graph resumes only the uncommitted repair round after reopen."""
+
+    from langgraph.graph import END, START, StateGraph
+    from state_memory import initialize_agent_state as initialize_domain_state
+    from workflow_services import create_default_workflow_services
+    from workflow_state import AgentGraphState, agent_state_to_graph
+    from test_repair_dependencies import _context
+
+    visits, prior = [], []
+    allow_finish = False
+
+    async def complete(agent, data, candidate, rotator, issues):
+        visits.append(agent)
+        if agent == 21 and not allow_finish:
+            raise AgentDeferredError(
+                agent,
+                [{"model_id": "test-model", "retry_wait_seconds": 1}],
+            )
+        candidate["analyses"][agent] = f"repaired {agent}"
+        candidate["structured_outputs"][agent] = {"value": f"repaired {agent}"}
+        return True, "accepted"
+
+    def audit(context, **kwargs):
+        issues = {4: ["valuation"]} if context["analyses"].get(4) == "original 4" else {}
+        return {
+            "critical": ["old valuation"] if issues else [],
+            "repair_agent_issues": issues,
+        }
+
+    monkeypatch.setattr(audit_repair, "_repair_agent_output_async", complete)
+    monkeypatch.setattr(audit_repair, "run_final_report_audit", audit)
+
+    async def execute():
+        nonlocal allow_finish
+        services = create_default_workflow_services(rotator=object())
+        builder = StateGraph(AgentGraphState)
+
+        async def previous_node(state):
+            prior.append("already successful")
+            return {}
+
+        builder.add_node("previous", previous_node)
+        builder.add_node("final_audit", services.final_audit)
+        builder.add_edge(START, "previous")
+        builder.add_edge("previous", "final_audit")
+        builder.add_edge("final_audit", END)
+        state = {
+            **agent_state_to_graph(
+                initialize_domain_state({"ticker": "TEST"}), pipeline_id="v1"
+            ),
+            **_context(),
+        }
+        config = {
+            "configurable": {
+                "thread_id": pg_case.thread("repair-deferred"),
+                "checkpoint_ns": "",
+            }
+        }
+
+        async with open_postgres_checkpointer(pg_case.app_endpoint.conninfo()) as saver:
+            graph = builder.compile(checkpointer=saver)
+            with pytest.raises(AgentDeferredError):
+                await graph.ainvoke(state, config)
+            snapshot = await graph.aget_state(config)
+            assert snapshot.next == ("final_audit",)
+            assert snapshot.values["analyses"][4] == "original 4"
+            assert snapshot.values["analyses"][7] == "original 7"
+
+        allow_finish = True
+        async with open_postgres_checkpointer(pg_case.app_endpoint.conninfo()) as saver:
+            graph = builder.compile(checkpointer=saver)
+            result = await graph.ainvoke(None, config)
+            assert result["analyses"]["4"] == "repaired 4"
+            assert result["analyses"]["7"] == "repaired 7"
+            assert result["invalidated_agents"] == []
+
+    asyncio.run(execute())
+    assert prior == ["already successful"]
+    assert visits == [4, 6, 21, 4, 6, 21, 7]
 
 
 def test_pg08_completed_graph_reopen_does_not_repeat_work_or_publish(
