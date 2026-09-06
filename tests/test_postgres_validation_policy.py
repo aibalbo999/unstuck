@@ -205,6 +205,8 @@ def test_guard_allows_only_the_two_loaded_endpoints_for_all_entrypoints():
         "PGSERVICEFILE",
         "PGOPTIONS",
         "PGSSLMODE",
+        "PGREQUIREAUTH",
+        "PG_FUTURE_CONNECTION_OPTION",
     ],
 )
 def test_guard_fails_closed_when_libpq_env_source_exists(monkeypatch, env_name):

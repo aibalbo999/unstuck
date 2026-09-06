@@ -12,23 +12,6 @@ def _reject() -> None:
     raise ValueError(REJECTION_REASON)
 
 
-_LIBPQ_ENV_KEYS = frozenset(
-    {
-        "PGHOSTADDR",
-        "PGSERVICE",
-        "PGHOST",
-        "PGPORT",
-        "PGDATABASE",
-        "PGUSER",
-        "PGPASSWORD",
-        "PGPASSFILE",
-        "PGSERVICEFILE",
-        "PGOPTIONS",
-        "PGSSLMODE",
-    }
-)
-
-
 def install(
     driver: Any,
     endpoints: Any = (),
@@ -56,7 +39,7 @@ def install(
         top_connect = top_connect.__pg_validation_original__
 
     def check(conninfo: Any, kwargs: dict[str, Any]) -> None:
-        if any(name in os.environ for name in _LIBPQ_ENV_KEYS):
+        if any(name.startswith("PG") for name in os.environ):
             _reject()
         for endpoint in policy_state["endpoints"]:
             try:
